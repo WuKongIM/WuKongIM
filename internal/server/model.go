@@ -4,7 +4,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/valyala/bytebufferpool"
 )
 
@@ -32,9 +32,9 @@ type conn interface {
 }
 
 type limContext struct {
-	frames    []lmproto.Frame
-	frameType lmproto.FrameType
-	proto     lmproto.Protocol
+	frames    []wkproto.Frame
+	frameType wkproto.FrameType
+	proto     wkproto.Protocol
 	s         *Server
 	cli       *client
 }
@@ -49,13 +49,13 @@ func (c *limContext) Client() *client {
 	return c.cli
 }
 
-func (c *limContext) Frames() []lmproto.Frame {
+func (c *limContext) Frames() []wkproto.Frame {
 
 	return c.frames
 
 }
 
-func (c *limContext) GetFrameType() lmproto.FrameType {
+func (c *limContext) GetFrameType() wkproto.FrameType {
 	return c.frameType
 }
 
@@ -79,7 +79,7 @@ func (c *limContext) reset() {
 	c.frameType = 0
 }
 
-func (c *limContext) writePacket(frames ...lmproto.Frame) error {
+func (c *limContext) writePacket(frames ...wkproto.Frame) error {
 	if len(frames) == 0 {
 		return nil
 	}

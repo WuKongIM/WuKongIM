@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/valyala/bytebufferpool"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -31,13 +31,13 @@ type client struct {
 	clientStats
 	conn        conn
 	uid         string              // 用户UID
-	deviceFlag  lmproto.DeviceFlag  // 设备标示
-	deviceLevel lmproto.DeviceLevel // 设备等级
+	deviceFlag  wkproto.DeviceFlag  // 设备标示
+	deviceLevel wkproto.DeviceLevel // 设备等级
 	deviceID    string              // 设备ID
 	s           *Server
 	aesKey      string // 消息密钥（用于加解密消息的）
 	aesIV       string
-	limlog.Log
+	wklog.Log
 	lastActivity time.Time // 最后一次活动时间
 	uptime       time.Time // 客户端启动时间
 
@@ -59,7 +59,7 @@ func (c *client) Start() {
 
 	c.stopped.Store(false)
 
-	c.Log = limlog.NewLIMLog(fmt.Sprintf("Client[%d]", c.ID()))
+	c.Log = wklog.NewWKLog(fmt.Sprintf("Client[%d]", c.ID()))
 	c.Activity()
 	c.uptime = time.Now()
 	outboundOpts := NewOutboundOptions()
@@ -195,7 +195,7 @@ func (c *client) handleInbound() error {
 
 	// 处理包
 	offset := 0
-	frames := make([]lmproto.Frame, 0)
+	frames := make([]wkproto.Frame, 0)
 	for len(msgBytes) > offset {
 		frame, size, err := c.s.opts.Proto.DecodeFrame(msgBytes[offset:], c.Version())
 		if err != nil { //

@@ -3,36 +3,36 @@ package server
 import (
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/limnet"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"go.uber.org/zap"
 )
 
 type Dispatch struct {
-	engine    *limnet.Engine
+	engine    *wknet.Engine
 	s         *Server
 	processor *Processor
-	limlog.Log
+	wklog.Log
 	framePool sync.Pool
 }
 
 func NewDispatch(s *Server) *Dispatch {
 	return &Dispatch{
-		engine:    limnet.NewEngine(),
+		engine:    wknet.NewEngine(),
 		s:         s,
 		processor: NewProcessor(s),
-		Log:       limlog.NewLIMLog("Dispatch"),
+		Log:       wklog.NewWKLog("Dispatch"),
 		framePool: sync.Pool{
 			New: func() any {
-				return make([]lmproto.Frame, 20)
+				return make([]wkproto.Frame, 20)
 			},
 		},
 	}
 }
 
 // frame data in
-func (d *Dispatch) dataIn(conn limnet.Conn) error {
+func (d *Dispatch) dataIn(conn wknet.Conn) error {
 	buff, err := conn.Peek(-1)
 	if err != nil {
 		return err
@@ -45,20 +45,20 @@ func (d *Dispatch) dataIn(conn limnet.Conn) error {
 		return nil
 	}
 	if !conn.IsAuthed() { // conn is not authed must be connect packet
-		packet, _, err := d.s.opts.Proto.DecodeFrame(data, lmproto.LatestVersion)
+		packet, _, err := d.s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
 		if err != nil {
 			d.Warn("Failed to decode the message", zap.Error(err))
 			conn.Close()
 			return nil
 		}
-		if packet.GetFrameType() != lmproto.CONNECT {
+		if packet.GetFrameType() != wkproto.CONNECT {
 			d.Warn("请先进行连接！")
 			conn.Close()
 			return nil
 		}
 		//  process conn auth
 		conn.Discard(len(data))
-		d.processor.processAuth(conn, packet.(*lmproto.ConnectPacket))
+		d.processor.processAuth(conn, packet.(*wkproto.ConnectPacket))
 	} else { // authed
 		offset := 0
 		for len(data) > offset {
@@ -71,6 +71,9 @@ func (d *Dispatch) dataIn(conn limnet.Conn) error {
 			if frame == nil {
 				break
 			}
+			// if frame.GetFrameType() == wkproto.PING {
+			// 	d.processor.processPing(conn, frame.(*wkproto.PingPacket))
+			// }
 			conn.Context().(*connContext).putFrame(frame)
 			offset += size
 		}
@@ -82,7 +85,7 @@ func (d *Dispatch) dataIn(conn limnet.Conn) error {
 }
 
 // frame data out
-func (d *Dispatch) dataOut(conn limnet.Conn, frames ...lmproto.Frame) {
+func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
 	}
@@ -101,7 +104,7 @@ func (d *Dispatch) dataOut(conn limnet.Conn, frames ...lmproto.Frame) {
 
 }
 
-func (d *Dispatch) connClose(conn limnet.Conn, err error) {
+func (d *Dispatch) connClose(conn wknet.Conn, err error) {
 	d.processor.processClose(conn, err)
 }
 

@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/limutil"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
 type InboundManager struct {
-	bitmap *limutil.SlotBitMap
+	bitmap *wkutil.SlotBitMap
 
 	inboundMap     map[uint32][]uint32
 	inboundMapLock sync.RWMutex
@@ -25,7 +25,7 @@ type InboundManager struct {
 
 	stopChan chan struct{}
 	s        *Server
-	limlog.Log
+	wklog.Log
 }
 
 func NewInboundManager(s *Server) *InboundManager {
@@ -33,9 +33,9 @@ func NewInboundManager(s *Server) *InboundManager {
 		slotNum:  1,
 		stopChan: make(chan struct{}),
 		s:        s,
-		Log:      limlog.NewLIMLog("InboundManager"),
+		Log:      wklog.NewWKLog("InboundManager"),
 	}
-	i.bitmap = limutil.NewSlotBitMap(int(i.slotNum))
+	i.bitmap = wkutil.NewSlotBitMap(int(i.slotNum))
 	i.inboundMap = make(map[uint32][]uint32, i.slotNum)
 	i.workConds = make([]*sync.Cond, i.slotNum)
 	for j := 0; j < int(i.slotNum); j++ {
@@ -176,7 +176,7 @@ func (i *InboundManager) inboundRead(cli *client) error {
 
 	// 处理包
 	offset := 0
-	frames := make([]lmproto.Frame, 0)
+	frames := make([]wkproto.Frame, 0)
 	for len(msgBytes) > offset {
 		frame, size, err := i.s.opts.Proto.DecodeFrame(msgBytes[offset:], cli.Version())
 		if err != nil { //

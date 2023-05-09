@@ -3,7 +3,7 @@ package server
 import (
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 )
 
 // ClientManager 客户端管理
@@ -124,7 +124,7 @@ func (m *ClientManager) GetOnlineClients(uids []string) []*client {
 }
 
 // GetClientsWith 查询设备
-func (m *ClientManager) GetClientsWith(uid string, deviceFlag lmproto.DeviceFlag) []*client {
+func (m *ClientManager) GetClientsWith(uid string, deviceFlag wkproto.DeviceFlag) []*client {
 	clients := m.GetClientsWithUID(uid)
 	if len(clients) == 0 {
 		return nil
@@ -139,7 +139,7 @@ func (m *ClientManager) GetClientsWith(uid string, deviceFlag lmproto.DeviceFlag
 }
 
 // GetClientCountWith 获取设备的在线数量和用户所有设备的在线数量
-func (m *ClientManager) GetClientCountWith(uid string, deviceFlag lmproto.DeviceFlag) (int, int) {
+func (m *ClientManager) GetClientCountWith(uid string, deviceFlag wkproto.DeviceFlag) (int, int) {
 	clients := m.GetClientsWithUID(uid)
 	if len(clients) == 0 {
 		return 0, 0

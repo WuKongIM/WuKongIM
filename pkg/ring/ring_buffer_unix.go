@@ -18,7 +18,7 @@
 package ring
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/limnet/io"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet/io"
 	"golang.org/x/sys/unix"
 )
 

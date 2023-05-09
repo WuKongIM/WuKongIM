@@ -3,7 +3,7 @@ package client
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 )
 
 // Options Options
@@ -42,7 +42,7 @@ type Options struct {
 // NewOptions 创建默认配置
 func NewOptions() *Options {
 	return &Options{
-		ProtoVersion:     lmproto.LatestVersion,
+		ProtoVersion:     wkproto.LatestVersion,
 		AutoReconn:       false,
 		DefaultBufSize:   32768,
 		ReconnectBufSize: 8 * 1024 * 1024,

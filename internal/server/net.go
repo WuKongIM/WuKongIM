@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limnet"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/panjf2000/gnet/v2"
 )
 
@@ -23,44 +23,44 @@ type NetEventHandler interface {
 type Net struct {
 	s            *Server
 	eventHandler NetEventHandler
-	engine       *limnet.Engine
+	engine       *wknet.Engine
 }
 
 func NewNet(s *Server, eventHandler NetEventHandler) *Net {
 	return &Net{
 		s:            s,
 		eventHandler: eventHandler,
-		engine:       limnet.NewEngine(),
+		engine:       wknet.NewEngine(),
 	}
 }
 
 func (n *Net) Start() {
-	// n.s.waitGroupWrapper.Wrap(func() {
-	// 	gnet.Run(newGNetEventHandler(n), n.s.opts.Addr, gnet.WithLogLevel(n.s.opts.Logger.Level), gnet.WithMulticore(false), gnet.WithNumEventLoop(1))
-	// })
-
-	n.engine.OnData(func(conn limnet.Conn) error {
-		buff, _ := conn.Peek(-1)
-		data, _ := gnetUnpacket(buff)
-		wrapConn := conn.Context()
-		if wrapConn == nil {
-			wrapConn = NewConnWrapLimnet(n.s.GenClientID(), conn)
-			conn.SetContext(wrapConn)
-		}
-		rdata := n.eventHandler.OnPacket(wrapConn.(*ConnWrapLimnet), data)
-
-		if len(rdata) == 0 {
-			conn.Discard(len(data))
-		} else {
-			conn.Discard(len(data) - len(rdata))
-		}
-		return nil
+	n.s.waitGroupWrapper.Wrap(func() {
+		gnet.Run(newGNetEventHandler(n), n.s.opts.Addr, gnet.WithLogLevel(n.s.opts.Logger.Level), gnet.WithMulticore(false), gnet.WithNumEventLoop(1))
 	})
 
-	n.engine.Start()
+	// n.engine.OnData(func(conn wknet.Conn) error {
+	// 	buff, _ := conn.Peek(-1)
+	// 	data, _ := gnetUnpacket(buff)
+	// 	wrapConn := conn.Context()
+	// 	if wrapConn == nil {
+	// 		wrapConn = NewConnWrapLimnet(n.s.GenClientID(), conn)
+	// 		conn.SetContext(wrapConn)
+	// 	}
+	// 	rdata := n.eventHandler.OnPacket(wrapConn.(*ConnWrapLimnet), data)
+
+	// 	if len(rdata) == 0 {
+	// 		conn.Discard(len(data))
+	// 	} else {
+	// 		conn.Discard(len(data) - len(rdata))
+	// 	}
+	// 	return nil
+	// })
+
+	// n.engine.Start()
 
 	// addrs := strings.Split(n.s.opts.Addr, "://")
-	// ln, err := limnet.Listen(addrs[0], addrs[1][2:])
+	// ln, err := wknet.Listen(addrs[0], addrs[1][2:])
 	// if err != nil {
 	// 	panic(err)
 	// }
@@ -80,19 +80,19 @@ func (n *Net) Start() {
 	// 		for _, conn := range conns {
 	// 			action := conn.Action()
 	// 			fmt.Println("action---->", action, conn.FD(), "conns---->", len(conns))
-	// 			if action.IsSet(limnet.ActionOpen) {
+	// 			if action.IsSet(wknet.ActionOpen) {
 	// 				cn := NewConnWrapLimnet(n.s.GenClientID(), conn)
 	// 				conn.SetContext(cn)
 	// 				n.eventHandler.OnConnect(cn)
-	// 				action.Clear(limnet.ActionOpen)
+	// 				action.Clear(wknet.ActionOpen)
 
-	// 			} else if action.IsSet(limnet.ActionClose) {
+	// 			} else if action.IsSet(wknet.ActionClose) {
 	// 				conn.Close()
 	// 				cn := conn.Context().(*ConnWrapLimnet)
 	// 				n.eventHandler.OnClose(cn)
-	// 				action.Clear(limnet.ActionClose)
+	// 				action.Clear(wknet.ActionClose)
 
-	// 			} else if action.IsSet(limnet.ActionRead) {
+	// 			} else if action.IsSet(wknet.ActionRead) {
 	// 				cn := conn.Context().(*ConnWrapLimnet)
 	// 				var packet [0xFFFF]byte
 	// 				num, err := conn.Read(packet[:])
@@ -112,7 +112,7 @@ func (n *Net) Start() {
 	// 				if num > 0 {
 	// 					n.eventHandler.OnPacket(cn, packet[:num])
 	// 				}
-	// 				action.Clear(limnet.ActionRead)
+	// 				action.Clear(wknet.ActionRead)
 
 	// 			}
 	// 			conn.SetAction(action)
@@ -132,13 +132,13 @@ func (n *Net) Stop() {
 }
 
 type ConnWrapLimnet struct {
-	conn    limnet.Conn
+	conn    wknet.Conn
 	id      uint32
 	authed  bool
 	version uint8
 }
 
-func NewConnWrapLimnet(id uint32, conn limnet.Conn) *ConnWrapLimnet {
+func NewConnWrapLimnet(id uint32, conn wknet.Conn) *ConnWrapLimnet {
 	return &ConnWrapLimnet{
 		conn: conn,
 		id:   id,
@@ -150,11 +150,7 @@ func (c *ConnWrapLimnet) GetID() uint32 {
 }
 
 func (c *ConnWrapLimnet) Write(buf []byte) (int, error) {
-	start := time.Now().UnixMilli()
 
-	defer func() {
-		fmt.Println("write time->", time.Now().UnixMilli()-start, "dataSize", len(buf))
-	}()
 	return c.conn.Write(buf)
 }
 func (c *ConnWrapLimnet) Authed() bool {
@@ -217,11 +213,7 @@ func (c *ConnWrapGNet) Write(buf []byte) (int, error) {
 	if len(buf) == 0 {
 		return 0, nil
 	}
-	start := time.Now().UnixMilli()
 
-	defer func() {
-		fmt.Println("write time->", time.Now().UnixMilli()-start, "dataSize", len(buf))
-	}()
 	if c.conn != nil {
 		// TODO：作者说 c.conn.Write 是非线程安全的 c.conn.AsyncWrite 是线程安全的 但是c.conn.AsyncWrite压测不理性
 		// err := c.conn.AsyncWrite(buf, func(c gnet.Conn, err error) error {
@@ -376,8 +368,8 @@ func gnetUnpacket(buff []byte) ([]byte, error) {
 
 	for len(buff) > offset {
 		typeAndFlags := buff[offset]
-		packetType := lmproto.FrameType(typeAndFlags >> 4)
-		if packetType == lmproto.PING || packetType == lmproto.PONG {
+		packetType := wkproto.FrameType(typeAndFlags >> 4)
+		if packetType == wkproto.PING || packetType == wkproto.PONG {
 			offset++
 			continue
 		}

@@ -2,9 +2,8 @@ package server
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"go.uber.org/zap"
 )
 
@@ -19,15 +18,15 @@ func (s *Server) OnPacket(c conn, data []byte) []byte {
 
 	cli := s.clientManager.Get(c.GetID())
 	if cli != nil {
-		start := time.Now().UnixMilli()
+		// start := time.Now().UnixMilli()
 		cli.InboundAppend(data)
-		fmt.Println("InboundAppend---->", time.Now().UnixMilli()-start, "dataSize", len(data))
+		// fmt.Println("InboundAppend---->", time.Now().UnixMilli()-start, "dataSize", len(data))
 		// slot := s.inboundManager.AddClientID(cli.ID())
 		// s.inboundManager.Notify(slot)
 		return nil
 	}
 
-	packet, size, err := s.opts.Proto.DecodeFrame(data, lmproto.LatestVersion)
+	packet, size, err := s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
 	if err != nil {
 		fmt.Println("decode err---->", err)
 		s.Warn("Failed to decode the message", zap.Error(err))
@@ -35,20 +34,20 @@ func (s *Server) OnPacket(c conn, data []byte) []byte {
 		return nil
 	}
 	fmt.Println("packet----->", packet.GetFrameType())
-	if packet.GetFrameType() != lmproto.CONNECT {
+	if packet.GetFrameType() != wkproto.CONNECT {
 		s.Warn("请先进行连接！")
 		c.Close()
 		return nil
 	}
 
-	s.packetHandler.handleConnect2(c, packet.(*lmproto.ConnectPacket))
+	s.packetHandler.handleConnect2(c, packet.(*wkproto.ConnectPacket))
 
 	return data[size:]
 
 	// // 处理包
 	// offset := 0
 	// for len(data) > offset {
-	// 	packet, size, err := s.opts.Proto.DecodePacket(data[offset:], lmproto.LatestVersion)
+	// 	packet, size, err := s.opts.Proto.DecodePacket(data[offset:], wkproto.LatestVersion)
 	// 	if err != nil { //
 	// 		s.Warn("Failed to decode the message", zap.Error(err))
 	// 		c.Close()
@@ -57,7 +56,7 @@ func (s *Server) OnPacket(c conn, data []byte) []byte {
 	// 	s.handlePacket(c, packet, size) // 处理包
 
 	// 	offset += size
-	// 	if !c.Authed() && packet.GetPacketType() != lmproto.CONNECT {
+	// 	if !c.Authed() && packet.GetPacketType() != wkproto.CONNECT {
 	// 		s.Warn("请先进行连接！")
 	// 		c.Close()
 	// 		return

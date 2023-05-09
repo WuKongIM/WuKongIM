@@ -1,6 +1,6 @@
 package client
 
-import "github.com/WuKongIM/WuKongIM/pkg/lmproto"
+import "github.com/WuKongIM/WuKongIM/pkg/wkproto"
 
 func parse(buff []byte) ([]byte, []byte, error) {
 	if len(buff) == 0 {
@@ -10,8 +10,8 @@ func parse(buff []byte) ([]byte, []byte, error) {
 	packetData := make([]byte, 0, len(buff))
 	for len(buff) > offset {
 		typeAndFlags := buff[offset]
-		packetType := lmproto.FrameType(typeAndFlags >> 4)
-		if packetType == lmproto.PING || packetType == lmproto.PONG {
+		packetType := wkproto.FrameType(typeAndFlags >> 4)
+		if packetType == wkproto.PING || packetType == wkproto.PONG {
 			packetData = append(packetData, buff[offset])
 			offset++
 			continue

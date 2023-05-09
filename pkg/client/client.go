@@ -12,20 +12,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/limutil"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
 // OnRecv 收到消息事件
-type OnRecv func(recv *lmproto.RecvPacket) error
-type OnSendack func(sendackPacket *lmproto.SendackPacket)
+type OnRecv func(recv *wkproto.RecvPacket) error
+type OnSendack func(sendackPacket *wkproto.SendackPacket)
 
 type Client struct {
 	Statistics
-	limlog.Log
+	wklog.Log
 
 	aesKey string // aes密钥
 	salt   string // 安全码
@@ -53,7 +53,7 @@ type Client struct {
 	wg sync.WaitGroup
 	mu sync.RWMutex
 
-	proto *lmproto.LiMaoProto
+	proto *wkproto.WKProto
 	pongs []chan struct{}
 
 	onRecv    OnRecv
@@ -74,8 +74,8 @@ func New(addr string, opt ...Option) *Client {
 	c := &Client{
 		addr:  addr,
 		opts:  opts,
-		proto: lmproto.New(),
-		Log:   limlog.NewLIMLog(fmt.Sprintf("IMClient[%s]", opts.UID)),
+		proto: wkproto.New(),
+		Log:   wklog.NewWKLog(fmt.Sprintf("IMClient[%s]", opts.UID)),
 		writer: &limWriter{
 			limit:  opts.DefaultBufSize,
 			plimit: opts.ReconnectBufSize,
@@ -433,7 +433,7 @@ func (c *Client) stopPingTimer() {
 func (c *Client) sendPing(ch chan struct{}) error {
 
 	c.pongs = append(c.pongs, ch)
-	data, err := c.proto.EncodeFrame(&lmproto.PingPacket{}, c.opts.ProtoVersion)
+	data, err := c.proto.EncodeFrame(&wkproto.PingPacket{}, c.opts.ProtoVersion)
 	if err != nil {
 		return err
 	}
@@ -488,7 +488,7 @@ func (c *Client) readLoop() {
 }
 
 func (c *Client) handlePacketDatas(packetData []byte) error {
-	packets := make([]lmproto.Frame, 0)
+	packets := make([]wkproto.Frame, 0)
 	offset := 0
 	var err error
 	for len(packetData) > offset {
@@ -511,35 +511,35 @@ func (c *Client) handlePacketDatas(packetData []byte) error {
 	return nil
 }
 
-func (c *Client) handlePacket(frame lmproto.Frame) error {
+func (c *Client) handlePacket(frame wkproto.Frame) error {
 
 	c.InBytes.Add(uint64(frame.GetFrameSize()))
 	c.InMsgs.Inc()
 
 	switch frame.GetFrameType() {
-	case lmproto.SENDACK: // 发送回执
-		c.handleSendackPacket(frame.(*lmproto.SendackPacket))
-	case lmproto.RECV: // 收到消息
-		c.handleRecvPacket(frame.(*lmproto.RecvPacket))
-	case lmproto.PONG: // pong
+	case wkproto.SENDACK: // 发送回执
+		c.handleSendackPacket(frame.(*wkproto.SendackPacket))
+	case wkproto.RECV: // 收到消息
+		c.handleRecvPacket(frame.(*wkproto.RecvPacket))
+	case wkproto.PONG: // pong
 		c.handlePong()
 	}
 	return nil
 }
 
-func (c *Client) handleSendackPacket(packet *lmproto.SendackPacket) {
+func (c *Client) handleSendackPacket(packet *wkproto.SendackPacket) {
 	if c.onSendack != nil {
 		c.onSendack(packet)
 	}
 }
 
 // 处理接受包
-func (c *Client) handleRecvPacket(packet *lmproto.RecvPacket) {
+func (c *Client) handleRecvPacket(packet *wkproto.RecvPacket) {
 	var err error
 	var payload []byte
 	if c.onRecv != nil {
-		if !packet.Setting.IsSet(lmproto.SettingNoEncrypt) {
-			payload, err = limutil.AesDecryptPkcs7Base64(packet.Payload, []byte(c.aesKey), []byte(c.salt))
+		if !packet.Setting.IsSet(wkproto.SettingNoEncrypt) {
+			payload, err = wkutil.AesDecryptPkcs7Base64(packet.Payload, []byte(c.aesKey), []byte(c.salt))
 			if err != nil {
 				panic(err)
 			}
@@ -548,7 +548,7 @@ func (c *Client) handleRecvPacket(packet *lmproto.RecvPacket) {
 		err = c.onRecv(packet)
 	}
 	if err == nil {
-		c.sendPacket(&lmproto.RecvackPacket{
+		c.sendPacket(&wkproto.RecvackPacket{
 			Framer:     packet.Framer,
 			MessageID:  packet.MessageID,
 			MessageSeq: packet.MessageSeq,
@@ -578,26 +578,26 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 		}
 	}
 	var err error
-	var setting lmproto.Setting
+	var setting wkproto.Setting
 	newPayload := payload
 	if !opts.NoEncrypt {
 		// 加密消息内容
-		newPayload, err = limutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
+		newPayload, err = wkutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
 		if err != nil {
 			c.Error("加密消息payload失败！", zap.Error(err))
 			return err
 		}
 	} else {
-		setting.Set(lmproto.SettingNoEncrypt)
+		setting.Set(wkproto.SettingNoEncrypt)
 	}
 
 	clientMsgNo := opts.ClientMsgNo
 	if clientMsgNo == "" {
-		// clientMsgNo = limutil.GenUUID() // TODO: uuid生成非常耗性能
+		// clientMsgNo = wkutil.GenUUID() // TODO: uuid生成非常耗性能
 	}
 	clientSeq := c.clientIDGen.Add(1)
-	packet := &lmproto.SendPacket{
-		Framer: lmproto.Framer{
+	packet := &wkproto.SendPacket{
+		Framer: wkproto.Framer{
 			NoPersist: opts.NoPersist,
 			SyncOnce:  opts.SyncOnce,
 			RedDot:    opts.RedDot,
@@ -614,12 +614,12 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 	// 加密消息通道
 	if !opts.NoEncrypt {
 		signStr := packet.VerityString()
-		actMsgKey, err := limutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(c.aesKey), []byte(c.salt))
+		actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(c.aesKey), []byte(c.salt))
 		if err != nil {
 			c.Error("加密数据失败！", zap.Error(err))
 			return err
 		}
-		packet.MsgKey = limutil.MD5(string(actMsgKey))
+		packet.MsgKey = wkutil.MD5(string(actMsgKey))
 	}
 	return c.appendPacket(packet)
 }
@@ -662,11 +662,11 @@ func (c *Client) flusher() {
 
 func (c *Client) sendConnect() error {
 	var clientPubKey [32]byte
-	c.clientPrivKey, clientPubKey = limutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
-	packet := &lmproto.ConnectPacket{
+	c.clientPrivKey, clientPubKey = wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
+	packet := &wkproto.ConnectPacket{
 		Version:         c.opts.ProtoVersion,
-		DeviceID:        limutil.GenUUID(),
-		DeviceFlag:      lmproto.APP,
+		DeviceID:        wkutil.GenUUID(),
+		DeviceFlag:      wkproto.APP,
 		ClientKey:       base64.StdEncoding.EncodeToString(clientPubKey[:]),
 		ClientTimestamp: time.Now().Unix(),
 		UID:             c.opts.UID,
@@ -680,11 +680,11 @@ func (c *Client) sendConnect() error {
 	if err != nil {
 		return err
 	}
-	connack, ok := f.(*lmproto.ConnackPacket)
+	connack, ok := f.(*wkproto.ConnackPacket)
 	if !ok {
 		return errors.New("返回包类型有误！不是连接回执包！")
 	}
-	if connack.ReasonCode != lmproto.ReasonSuccess {
+	if connack.ReasonCode != wkproto.ReasonSuccess {
 		return errors.New("连接失败！")
 	}
 	c.salt = connack.Salt
@@ -696,14 +696,14 @@ func (c *Client) sendConnect() error {
 	var serverPubKey [32]byte
 	copy(serverPubKey[:], serverKey[:32])
 
-	shareKey := limutil.GetCurve25519Key(c.clientPrivKey, serverPubKey) // 共享key
-	c.aesKey = limutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
+	shareKey := wkutil.GetCurve25519Key(c.clientPrivKey, serverPubKey) // 共享key
+	c.aesKey = wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
 
 	return nil
 }
 
 // 发送包
-func (c *Client) sendPacket(packet lmproto.Frame) error {
+func (c *Client) sendPacket(packet wkproto.Frame) error {
 	data, err := c.proto.EncodeFrame(packet, c.opts.ProtoVersion)
 	if err != nil {
 		return err
@@ -717,7 +717,7 @@ func (c *Client) sendPacket(packet lmproto.Frame) error {
 	return nil
 }
 
-func (c *Client) appendPacket(packet lmproto.Frame) error {
+func (c *Client) appendPacket(packet wkproto.Frame) error {
 
 	data, err := c.proto.EncodeFrame(packet, c.opts.ProtoVersion)
 	if err != nil {

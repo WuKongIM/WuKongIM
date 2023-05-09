@@ -4,15 +4,15 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limnet"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 )
 
 type connContext struct {
 	isDisableRead  bool
-	conn           limnet.Conn
+	conn           wknet.Conn
 	frameCacheLock sync.RWMutex
-	frameCaches    []lmproto.Frame
+	frameCaches    []wkproto.Frame
 	s              *Server
 	inflightCount  atomic.Int32 // frame inflight count
 }
@@ -25,7 +25,7 @@ func newConnContext(s *Server) *connContext {
 	}
 }
 
-func (c *connContext) putFrame(frame lmproto.Frame) {
+func (c *connContext) putFrame(frame wkproto.Frame) {
 	c.frameCacheLock.Lock()
 	defer c.frameCacheLock.Unlock()
 
@@ -38,11 +38,11 @@ func (c *connContext) putFrame(frame lmproto.Frame) {
 
 }
 
-func (c *connContext) popFrames() []lmproto.Frame {
+func (c *connContext) popFrames() []wkproto.Frame {
 	c.frameCacheLock.RLock()
 	defer c.frameCacheLock.RUnlock()
 	newFrames := c.frameCaches
-	c.frameCaches = make([]lmproto.Frame, 0, 250)
+	c.frameCaches = make([]wkproto.Frame, 0, 250)
 	return newFrames
 
 }
@@ -75,7 +75,7 @@ func (c *connContext) enableRead() {
 }
 
 func (c *connContext) init() {
-	c.frameCaches = make([]lmproto.Frame, 0, 250)
+	c.frameCaches = make([]wkproto.Frame, 0, 250)
 }
 
 func (c *connContext) release() {
