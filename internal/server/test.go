@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -14,7 +14,7 @@ func NewTestOptions(logLevel ...zapcore.Level) *Options {
 	opt := NewOptions()
 	opt.UnitTest = true
 
-	opts := limlog.NewOptions()
+	opts := wklog.NewOptions()
 	if len(logLevel) > 0 {
 		opts.Level = logLevel[0]
 	} else {
@@ -22,7 +22,7 @@ func NewTestOptions(logLevel ...zapcore.Level) *Options {
 	}
 
 	opts.LogDir, _ = ioutil.TempDir("", "limlog")
-	limlog.Configure(opts)
+	wklog.Configure(opts)
 	return opt
 }
 

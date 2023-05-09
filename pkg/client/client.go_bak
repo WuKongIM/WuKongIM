@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/limutil"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wait"
 	"github.com/nats-io/nuid"
 	"go.uber.org/atomic"
@@ -21,10 +21,10 @@ import (
 )
 
 // OnRecv 收到消息事件
-type OnRecv func(recv *lmproto.RecvPacket) error
+type OnRecv func(recv *wkproto.RecvPacket) error
 
 // OnSendack 发送消息回执
-type OnSendack func(sendack *lmproto.SendackPacket)
+type OnSendack func(sendack *wkproto.SendackPacket)
 
 // OnClose 连接关闭
 type OnClose func()
@@ -32,9 +32,9 @@ type OnClose func()
 // Client 狸猫客户端
 type Client struct {
 	opts              *Options              // 狸猫IM配置
-	sending           []*lmproto.SendPacket // 发送中的包
+	sending           []*wkproto.SendPacket // 发送中的包
 	sendingLock       sync.RWMutex
-	proto             *lmproto.LiMaoProto
+	proto             *wkproto.WKProto
 	addr              string      // 连接地址
 	connected         atomic.Bool // 是否已连接
 	conn              net.Conn
@@ -46,7 +46,7 @@ type Client struct {
 	onClose           OnClose
 	onSendack         OnSendack
 	clientPrivKey     [32]byte
-	limlog.Log
+	wklog.Log
 	aesKey          string // aes密钥
 	salt            string // 安全码
 	wait            wait.Wait
@@ -72,11 +72,11 @@ func New(addr string, opts ...Option) *Client {
 	c := &Client{
 		opts:              defaultOpts,
 		addr:              addr,
-		sending:           make([]*lmproto.SendPacket, 0),
-		proto:             lmproto.New(),
+		sending:           make([]*wkproto.SendPacket, 0),
+		proto:             wkproto.New(),
 		heartbeatTicker:   time.NewTicker(time.Second * 20),
 		stopHeartbeatChan: make(chan bool),
-		Log:               limlog.NewLIMLog(fmt.Sprintf("IMClient[%s]", defaultOpts.UID)),
+		Log:               wklog.NewWKLog(fmt.Sprintf("IMClient[%s]", defaultOpts.UID)),
 		wait:              wait.New(),
 		disconnectChan:    make(chan struct{}),
 		writerBytesChan:   make(chan []byte, 100),
@@ -120,11 +120,11 @@ func (c *Client) onlyConnect() error {
 	if err != nil {
 		return err
 	}
-	connack, ok := f.(*lmproto.ConnackPacket)
+	connack, ok := f.(*wkproto.ConnackPacket)
 	if !ok {
 		return errors.New("返回包类型有误！不是连接回执包！")
 	}
-	if connack.ReasonCode != lmproto.ReasonSuccess {
+	if connack.ReasonCode != wkproto.ReasonSuccess {
 		return errors.New("连接失败！")
 	}
 
@@ -137,8 +137,8 @@ func (c *Client) onlyConnect() error {
 	var serverPubKey [32]byte
 	copy(serverPubKey[:], serverKey[:32])
 
-	shareKey := limutil.GetCurve25519Key(c.clientPrivKey, serverPubKey) // 共享key
-	c.aesKey = limutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
+	shareKey := wkutil.GetCurve25519Key(c.clientPrivKey, serverPubKey) // 共享key
+	c.aesKey = wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
 	c.connected.Store(true)
 
 	if len(c.sending) > 0 {
@@ -174,17 +174,17 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 		}
 	}
 	var err error
-	var setting lmproto.Setting
+	var setting wkproto.Setting
 	newPayload := payload
 	if !opts.NoEncrypt {
 		// 加密消息内容
-		newPayload, err = limutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
+		newPayload, err = wkutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
 		if err != nil {
 			c.Error("加密消息payload失败！", zap.Error(err))
 			return err
 		}
 	} else {
-		setting = setting.Set(lmproto.SettingNoEncrypt)
+		setting = setting.Set(wkproto.SettingNoEncrypt)
 	}
 
 	clientMsgNo := opts.ClientMsgNo
@@ -192,8 +192,8 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 		clientMsgNo = nuid.Next()
 	}
 
-	packet := &lmproto.SendPacket{
-		Framer: lmproto.Framer{
+	packet := &wkproto.SendPacket{
+		Framer: wkproto.Framer{
 			NoPersist: opts.NoPersist,
 			SyncOnce:  opts.SyncOnce,
 			RedDot:    opts.RedDot,
@@ -210,12 +210,12 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 	// 加密消息通道
 	if !opts.NoEncrypt {
 		signStr := packet.VerityString()
-		actMsgKey, err := limutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(c.aesKey), []byte(c.salt))
+		actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(c.aesKey), []byte(c.salt))
 		if err != nil {
 			c.Error("加密数据失败！", zap.Error(err))
 			return err
 		}
-		packet.MsgKey = limutil.MD5(string(actMsgKey))
+		packet.MsgKey = wkutil.MD5(string(actMsgKey))
 	}
 
 	data, err := c.proto.EncodePacket(packet, c.opts.ProtoVersion)
@@ -240,17 +240,17 @@ func (c *Client) Flush() error {
 }
 
 // SendMessageSync 同步发送
-func (c *Client) SendMessageSync(ctx context.Context, channel *Channel, payload []byte) (*lmproto.SendackPacket, error) {
+func (c *Client) SendMessageSync(ctx context.Context, channel *Channel, payload []byte) (*wkproto.SendackPacket, error) {
 	// 加密消息内容
-	encPayload, err := limutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
+	encPayload, err := wkutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
 	if err != nil {
 		c.Error("加密消息payload失败！", zap.Error(err))
 		return nil, err
 	}
 
-	packet := &lmproto.SendPacket{
+	packet := &wkproto.SendPacket{
 		ClientSeq:   c.clientIDGen.Add(1),
-		ClientMsgNo: limutil.GenerUUID(),
+		ClientMsgNo: wkutil.GenerUUID(),
 		ChannelID:   channel.ChannelID,
 		ChannelType: channel.ChannelType,
 		Payload:     encPayload,
@@ -259,12 +259,12 @@ func (c *Client) SendMessageSync(ctx context.Context, channel *Channel, payload 
 
 	// 加密消息通道
 	signStr := packet.VerityString()
-	actMsgKey, err := limutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(c.aesKey), []byte(c.salt))
+	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(c.aesKey), []byte(c.salt))
 	if err != nil {
 		c.Error("加密数据失败！", zap.Error(err))
 		return nil, err
 	}
-	packet.MsgKey = limutil.MD5(string(actMsgKey))
+	packet.MsgKey = wkutil.MD5(string(actMsgKey))
 
 	resultChan := c.wait.Register(packet.ClientSeq)
 	err = c.sendPacket(packet)
@@ -274,7 +274,7 @@ func (c *Client) SendMessageSync(ctx context.Context, channel *Channel, payload 
 	}
 	select {
 	case result := <-resultChan:
-		return result.(*lmproto.SendackPacket), nil
+		return result.(*wkproto.SendackPacket), nil
 	case <-c.disconnectChan:
 		return nil, nil
 	case <-ctx.Done():
@@ -318,14 +318,14 @@ exit:
 }
 
 func (c *Client) ping() {
-	err := c.sendPacket(&lmproto.PingPacket{})
+	err := c.sendPacket(&wkproto.PingPacket{})
 	if err != nil {
 		c.Warn("Ping发送失败！", zap.Error(err))
 	}
 }
 
 // 发送包
-func (c *Client) sendPacket(packet lmproto.Frame) error {
+func (c *Client) sendPacket(packet wkproto.Frame) error {
 	data, err := c.proto.EncodePacket(packet, c.opts.ProtoVersion)
 	if err != nil {
 		return err
@@ -343,10 +343,10 @@ func (c *Client) sendPacket(packet lmproto.Frame) error {
 
 func (c *Client) sendConnect() error {
 	var clientPubKey [32]byte
-	c.clientPrivKey, clientPubKey = limutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
-	packet := &lmproto.ConnectPacket{
+	c.clientPrivKey, clientPubKey = wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
+	packet := &wkproto.ConnectPacket{
 		Version:         c.opts.ProtoVersion,
-		DeviceFlag:      lmproto.APP,
+		DeviceFlag:      wkproto.APP,
 		ClientKey:       base64.StdEncoding.EncodeToString(clientPubKey[:]),
 		ClientTimestamp: time.Now().Unix(),
 		UID:             c.opts.UID,
@@ -355,7 +355,7 @@ func (c *Client) sendConnect() error {
 	return c.sendPacket(packet)
 }
 
-// func (c *Client) sendPacketNoFlush(packet lmproto.Frame) error {
+// func (c *Client) sendPacketNoFlush(packet wkproto.Frame) error {
 // 	data, err := c.proto.EncodePacket(packet, c.opts.ProtoVersion)
 // 	if err != nil {
 // 		return err
@@ -421,19 +421,19 @@ func (c *Client) loopWrite() {
 
 }
 
-func (c *Client) handlePacket(frame lmproto.Frame) {
+func (c *Client) handlePacket(frame wkproto.Frame) {
 	c.InBytes.Add(uint64(frame.GetFrameSize()))
 	c.InMsgs.Inc()
 	c.retryPingCount = 0 // 只要收到消息则重置ping次数
 	switch frame.GetPacketType() {
-	case lmproto.SENDACK: // 发送回执
-		c.handleSendackPacket(frame.(*lmproto.SendackPacket))
-	case lmproto.RECV: // 收到消息
-		c.handleRecvPacket(frame.(*lmproto.RecvPacket))
+	case wkproto.SENDACK: // 发送回执
+		c.handleSendackPacket(frame.(*wkproto.SendackPacket))
+	case wkproto.RECV: // 收到消息
+		c.handleRecvPacket(frame.(*wkproto.RecvPacket))
 	}
 }
 
-func (c *Client) handleSendackPacket(packet *lmproto.SendackPacket) {
+func (c *Client) handleSendackPacket(packet *wkproto.SendackPacket) {
 	c.sendingLock.Lock()
 	defer c.sendingLock.Unlock()
 
@@ -453,12 +453,12 @@ func (c *Client) handleSendackPacket(packet *lmproto.SendackPacket) {
 }
 
 // 处理接受包
-func (c *Client) handleRecvPacket(packet *lmproto.RecvPacket) {
+func (c *Client) handleRecvPacket(packet *wkproto.RecvPacket) {
 	var err error
 	var payload []byte
 	if c.onRecv != nil {
-		if !packet.Setting.IsSet(lmproto.SettingNoEncrypt) {
-			payload, err = limutil.AesDecryptPkcs7Base64(packet.Payload, []byte(c.aesKey), []byte(c.salt))
+		if !packet.Setting.IsSet(wkproto.SettingNoEncrypt) {
+			payload, err = wkutil.AesDecryptPkcs7Base64(packet.Payload, []byte(c.aesKey), []byte(c.salt))
 			if err != nil {
 				panic(err)
 			}
@@ -467,7 +467,7 @@ func (c *Client) handleRecvPacket(packet *lmproto.RecvPacket) {
 		err = c.onRecv(packet)
 	}
 	if err == nil {
-		c.sendPacket(&lmproto.RecvackPacket{
+		c.sendPacket(&wkproto.RecvackPacket{
 			Framer:     packet.Framer,
 			MessageID:  packet.MessageID,
 			MessageSeq: packet.MessageSeq,

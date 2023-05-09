@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/limnet"
-	"github.com/WuKongIM/WuKongIM/pkg/limutil"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
@@ -18,13 +18,13 @@ type Processor struct {
 	s               *Server
 	connContextPool sync.Pool
 	frameWorkPool   *FrameWorkPool
-	limlog.Log
+	wklog.Log
 }
 
 func NewProcessor(s *Server) *Processor {
 	return &Processor{
 		s:             s,
-		Log:           limlog.NewLIMLog("Processor"),
+		Log:           wklog.NewWKLog("Processor"),
 		frameWorkPool: NewFrameWorkPool(),
 		connContextPool: sync.Pool{
 			New: func() any {
@@ -36,7 +36,7 @@ func NewProcessor(s *Server) *Processor {
 	}
 }
 
-func (p *Processor) process(conn limnet.Conn) {
+func (p *Processor) process(conn wknet.Conn) {
 	connCtx := conn.Context().(*connContext)
 	frames := connCtx.popFrames()
 
@@ -44,15 +44,17 @@ func (p *Processor) process(conn limnet.Conn) {
 
 }
 
-func (p *Processor) processFrames(conn limnet.Conn, frames []lmproto.Frame) {
+func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
 
-	p.sameFrames(frames, func(s, e int, frs []lmproto.Frame) {
-		// newFs := make([]lmproto.Frame, len(frs))
+	p.sameFrames(frames, func(s, e int, frs []wkproto.Frame) {
+		// newFs := make([]wkproto.Frame, len(frs))
 		// copy(newFs, frs)
 		p.frameWorkPool.Submit(func() {
 			p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
 		})
-		// go func(s1, e1 int, c limnet.Conn, fs []lmproto.Frame) {
+		// p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
+
+		// go func(s1, e1 int, c wknet.Conn, fs []wkproto.Frame) {
 		// 	p.processSameFrame(c, fs[0].GetFrameType(), fs, s1, e1)
 		// }(s, e, conn, frs)
 
@@ -60,7 +62,7 @@ func (p *Processor) processFrames(conn limnet.Conn, frames []lmproto.Frame) {
 
 }
 
-func (p *Processor) sameFrames(frames []lmproto.Frame, callback func(s, e int, fs []lmproto.Frame)) {
+func (p *Processor) sameFrames(frames []wkproto.Frame, callback func(s, e int, fs []wkproto.Frame)) {
 	for i := 0; i < len(frames); {
 		frame := frames[i]
 		start := i
@@ -78,27 +80,27 @@ func (p *Processor) sameFrames(frames []lmproto.Frame, callback func(s, e int, f
 	}
 }
 
-func (p *Processor) processSameFrame(conn limnet.Conn, frameType lmproto.FrameType, frames []lmproto.Frame, s, e int) {
+func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameType, frames []wkproto.Frame, s, e int) {
 	switch frameType {
-	case lmproto.PING: // ping
-		p.processPing(conn, frames[0].(*lmproto.PingPacket))
-	case lmproto.SEND: // process send
+	case wkproto.PING: // ping
+		p.processPing(conn, frames[0].(*wkproto.PingPacket))
+	case wkproto.SEND: // process send
 		// TODO: tmpFrames need optimize
-		tmpFrames := make([]*lmproto.SendPacket, 0, len(frames))
+		tmpFrames := make([]*wkproto.SendPacket, 0, len(frames))
 		for _, frame := range frames {
-			tmpFrames = append(tmpFrames, frame.(*lmproto.SendPacket))
+			tmpFrames = append(tmpFrames, frame.(*wkproto.SendPacket))
 		}
 		p.processMsgs(conn, tmpFrames)
-	case lmproto.SENDACK: // process sendack
-		tmpFrames := make([]*lmproto.SendackPacket, 0, len(frames))
+	case wkproto.SENDACK: // process sendack
+		tmpFrames := make([]*wkproto.SendackPacket, 0, len(frames))
 		for _, frame := range frames {
-			tmpFrames = append(tmpFrames, frame.(*lmproto.SendackPacket))
+			tmpFrames = append(tmpFrames, frame.(*wkproto.SendackPacket))
 		}
 		p.processMsgAcks(conn, tmpFrames)
-	case lmproto.RECVACK: // process recvack
-		tmpFrames := make([]*lmproto.RecvackPacket, 0, len(frames))
+	case wkproto.RECVACK: // process recvack
+		tmpFrames := make([]*wkproto.RecvackPacket, 0, len(frames))
 		for _, frame := range frames {
-			tmpFrames = append(tmpFrames, frame.(*lmproto.RecvackPacket))
+			tmpFrames = append(tmpFrames, frame.(*wkproto.RecvackPacket))
 		}
 		p.processRecvacks(conn, tmpFrames)
 	}
@@ -106,7 +108,7 @@ func (p *Processor) processSameFrame(conn limnet.Conn, frameType lmproto.FrameTy
 }
 
 // #################### conn auth ####################
-func (p *Processor) processAuth(conn limnet.Conn, connectPacket *lmproto.ConnectPacket) {
+func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 	fmt.Println("#########processAuth##########")
 	connCtx := p.connContextPool.Get().(*connContext)
 	connCtx.init()
@@ -119,7 +121,7 @@ func (p *Processor) processAuth(conn limnet.Conn, connectPacket *lmproto.Connect
 	}
 	conn.SetProtoVersion(int(connectPacket.Version))
 
-	dhServerPrivKey, dhServerPublicKey := limutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
+	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
 	aesKey, aesIV, err := p.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
 	if err != nil {
 		p.Error("获取客户端的aesKey和aesIV失败！", zap.Error(err))
@@ -139,28 +141,28 @@ func (p *Processor) processAuth(conn limnet.Conn, connectPacket *lmproto.Connect
 
 	// p.s.connManager.Add(conn)
 
-	p.response(conn, &lmproto.ConnackPacket{
+	p.response(conn, &wkproto.ConnackPacket{
 		Salt:       aesIV,
 		ServerKey:  dhServerPublicKeyEnc,
-		ReasonCode: lmproto.ReasonSuccess,
+		ReasonCode: wkproto.ReasonSuccess,
 		TimeDiff:   timeDiff,
 	})
 
 }
 
 // #################### ping ####################
-func (p *Processor) processPing(conn limnet.Conn, pingPacket *lmproto.PingPacket) {
+func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket) {
 	fmt.Println("ping--->", conn.Fd(), conn.UID())
-	p.response(conn, &lmproto.PongPacket{})
+	p.response(conn, &wkproto.PongPacket{})
 }
 
 // #################### messages ####################
-func (p *Processor) processMsgs(conn limnet.Conn, msgs []*lmproto.SendPacket) {
+func (p *Processor) processMsgs(conn wknet.Conn, msgs []*wkproto.SendPacket) {
 
-	sendackPackets := make([]lmproto.Frame, 0, len(msgs))
+	sendackPackets := make([]wkproto.Frame, 0, len(msgs))
 	for _, msg := range msgs {
-		sendackPackets = append(sendackPackets, &lmproto.SendackPacket{
-			ReasonCode:  lmproto.ReasonSuccess,
+		sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
+			ReasonCode:  wkproto.ReasonSuccess,
 			ClientSeq:   msg.ClientSeq,
 			ClientMsgNo: msg.ClientMsgNo,
 		})
@@ -169,17 +171,17 @@ func (p *Processor) processMsgs(conn limnet.Conn, msgs []*lmproto.SendPacket) {
 }
 
 // #################### message ack ####################
-func (p *Processor) processMsgAcks(conn limnet.Conn, acks []*lmproto.SendackPacket) {
+func (p *Processor) processMsgAcks(conn wknet.Conn, acks []*wkproto.SendackPacket) {
 
 }
 
 // #################### recv ack ####################
-func (p *Processor) processRecvacks(conn limnet.Conn, acks []*lmproto.RecvackPacket) {
+func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPacket) {
 
 }
 
 // #################### process conn close ####################
-func (p *Processor) processClose(conn limnet.Conn, err error) {
+func (p *Processor) processClose(conn wknet.Conn, err error) {
 	p.Debug("conn is close", zap.Error(err), zap.Any("conn", conn))
 	if conn.Context() != nil {
 		connCtx := conn.Context().(*connContext)
@@ -190,17 +192,17 @@ func (p *Processor) processClose(conn limnet.Conn, err error) {
 
 // #################### others ####################
 
-func (p *Processor) response(conn limnet.Conn, frames ...lmproto.Frame) {
+func (p *Processor) response(conn wknet.Conn, frames ...wkproto.Frame) {
 	p.s.dispatch.dataOut(conn, frames...)
 }
 
-func (p *Processor) responseConnackAuthFail(c limnet.Conn) {
-	p.responseConnack(c, 0, lmproto.ReasonAuthFail)
+func (p *Processor) responseConnackAuthFail(c wknet.Conn) {
+	p.responseConnack(c, 0, wkproto.ReasonAuthFail)
 }
 
-func (p *Processor) responseConnack(c limnet.Conn, timeDiff int64, code lmproto.ReasonCode) {
+func (p *Processor) responseConnack(c wknet.Conn, timeDiff int64, code wkproto.ReasonCode) {
 
-	p.response(c, &lmproto.ConnackPacket{
+	p.response(c, &wkproto.ConnackPacket{
 		ReasonCode: code,
 		TimeDiff:   timeDiff,
 	})
@@ -219,9 +221,9 @@ func (p *Processor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]b
 	copy(dhClientPubKeyArray[:], clientKeyBytes[:32])
 
 	// 获得DH的共享key
-	shareKey := limutil.GetCurve25519Key(dhServerPrivKey, dhClientPubKeyArray) // 共享key
+	shareKey := wkutil.GetCurve25519Key(dhServerPrivKey, dhClientPubKeyArray) // 共享key
 
-	aesIV := limutil.GetRandomString(16)
-	aesKey := limutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
+	aesIV := wkutil.GetRandomString(16)
+	aesKey := wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
 	return aesKey, aesIV, nil
 }

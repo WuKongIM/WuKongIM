@@ -27,16 +27,16 @@ func TestSameFrames(t *testing.T) {
 	kk(dd)
 	// p := &Processor{}
 
-	// p.sameFrames([]lmproto.Frame{
-	// 	&lmproto.SendPacket{},
-	// 	&lmproto.SendPacket{},
-	// 	&lmproto.SendPacket{},
-	// 	&lmproto.SendPacket{},
-	// 	&lmproto.SendPacket{},
-	// 	&lmproto.PingPacket{},
-	// 	&lmproto.SendPacket{},
-	// 	&lmproto.SendPacket{},
-	// }, func(fs []lmproto.Frame) {
+	// p.sameFrames([]wkproto.Frame{
+	// 	&wkproto.SendPacket{},
+	// 	&wkproto.SendPacket{},
+	// 	&wkproto.SendPacket{},
+	// 	&wkproto.SendPacket{},
+	// 	&wkproto.SendPacket{},
+	// 	&wkproto.PingPacket{},
+	// 	&wkproto.SendPacket{},
+	// 	&wkproto.SendPacket{},
+	// }, func(fs []wkproto.Frame) {
 	// 	fmt.Println("fs--->", fs)
 	// })
 }

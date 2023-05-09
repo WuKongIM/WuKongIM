@@ -13,9 +13,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/RussellLuo/timingwheel"
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/limutil"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/judwhite/go-svc"
 	"github.com/panjf2000/ants/v2"
 )
@@ -33,30 +33,30 @@ type Server struct {
 
 	contextPool sync.Pool
 	opts        *Options
-	limlog.Log
-	packetHandler       *PacketHandler            // 包处理器
-	handleGoroutinePool *ants.Pool                // 处理逻辑的池
-	waitGroupWrapper    *limutil.WaitGroupWrapper // 协程组
-	clientIDGen         atomic.Uint32             // 客户端ID生成
-	net                 *Net                      // 长连接服务网络
-	clientManager       *ClientManager            // 客户端管理者
-	apiServer           *APIServer                // api服务
-	start               time.Time                 // 服务开始时间
-	timingWheel         *timingwheel.TimingWheel  // Time wheel delay task
+	wklog.Log
+	packetHandler       *PacketHandler           // 包处理器
+	handleGoroutinePool *ants.Pool               // 处理逻辑的池
+	waitGroupWrapper    *wkutil.WaitGroupWrapper // 协程组
+	clientIDGen         atomic.Uint32            // 客户端ID生成
+	net                 *Net                     // 长连接服务网络
+	clientManager       *ClientManager           // 客户端管理者
+	apiServer           *APIServer               // api服务
+	start               time.Time                // 服务开始时间
+	timingWheel         *timingwheel.TimingWheel // Time wheel delay task
 	deliveryManager     *DeliveryManager
 
 	dispatch    *Dispatch
 	connManager *ConnManager
 
-	// inboundManager *InboundManager
+	inboundManager *InboundManager
 }
 
 func New(opts *Options) *Server {
 	now := time.Now().UTC()
 	s := &Server{
 		opts:             opts,
-		Log:              limlog.NewLIMLog("Server"),
-		waitGroupWrapper: limutil.NewWaitGroupWrapper("Server"),
+		Log:              wklog.NewWKLog("Server"),
+		waitGroupWrapper: wkutil.NewWaitGroupWrapper("Server"),
 		timingWheel:      timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		start:            now,
 	}
@@ -69,6 +69,7 @@ func New(opts *Options) *Server {
 	s.clientManager = NewClientManager(s)
 	s.packetHandler = NewPacketHandler(s)
 	// s.inboundManager = NewInboundManager(s)
+	// s.net = NewNet(s, s)
 	s.deliveryManager = NewDeliveryManager(s)
 	s.dispatch = NewDispatch(s)
 	s.connManager = NewConnManager()
@@ -152,6 +153,7 @@ func (s *Server) Stop() error {
 	defer s.Info("Server is exited")
 
 	s.net.Stop()
+	s.dispatch.Stop()
 	// s.inboundManager.Stop()
 	s.apiServer.Stop()
 	return nil
@@ -164,13 +166,13 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	}, f)
 }
 
-func (s *Server) handleFrames(frames []lmproto.Frame, cli *client) {
-	frameMap := make(map[lmproto.FrameType][]lmproto.Frame, len(frames)) // TODO: 这里map会增加gc负担，可优化
+func (s *Server) handleFrames(frames []wkproto.Frame, cli *client) {
+	frameMap := make(map[wkproto.FrameType][]wkproto.Frame, len(frames)) // TODO: 这里map会增加gc负担，可优化
 	for i := 0; i < len(frames); i++ {
 		f := frames[i]
 		frameList := frameMap[f.GetFrameType()]
 		if frameList == nil {
-			frameList = make([]lmproto.Frame, 0)
+			frameList = make([]wkproto.Frame, 0)
 		}
 		frameList = append(frameList, f)
 		frameMap[f.GetFrameType()] = frameList
@@ -202,11 +204,11 @@ func (s *Server) handleContext(ctx *limContext) {
 	}
 
 	switch packetType {
-	case lmproto.PING:
+	case wkproto.PING:
 		s.packetHandler.handlePing(ctx)
-	case lmproto.SEND: //  客户端发送消息包
+	case wkproto.SEND: //  客户端发送消息包
 		s.packetHandler.handleSend(ctx)
-	case lmproto.SENDACK: // 客户端收到消息回执
+	case wkproto.SENDACK: // 客户端收到消息回执
 		s.packetHandler.handleRecvack(ctx)
 	}
 	// ########## 放回对象池 ##########
@@ -230,7 +232,7 @@ func (s *Server) generateManagerTokenIfNeed() (string, bool, error) {
 	}
 	var token string
 	if strings.TrimSpace(string(tokenBytes)) == "" {
-		token = limutil.GenUUID()
+		token = wkutil.GenUUID()
 		_, err := file.WriteString(token)
 		if err != nil {
 			return "", false, err

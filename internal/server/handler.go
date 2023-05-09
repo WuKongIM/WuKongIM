@@ -6,16 +6,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/limutil"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
 	"go.uber.org/zap"
 )
 
 type PacketHandler struct {
 	s *Server
-	limlog.Log
+	wklog.Log
 	messageIDGen *snowflake.Node // 消息ID生成器
 }
 
@@ -23,7 +23,7 @@ type PacketHandler struct {
 func NewPacketHandler(s *Server) *PacketHandler {
 	h := &PacketHandler{
 		s:   s,
-		Log: limlog.NewLIMLog("Handler"),
+		Log: wklog.NewWKLog("Handler"),
 	}
 	var err error
 	h.messageIDGen, err = snowflake.NewNode(int64(s.opts.NodeID))
@@ -33,7 +33,7 @@ func NewPacketHandler(s *Server) *PacketHandler {
 	return h
 }
 
-func (s *PacketHandler) handleConnect2(c conn, connectPacket *lmproto.ConnectPacket) {
+func (s *PacketHandler) handleConnect2(c conn, connectPacket *wkproto.ConnectPacket) {
 	if strings.TrimSpace(connectPacket.ClientKey) == "" {
 		s.writeConnackAuthFail(c)
 		return
@@ -41,7 +41,7 @@ func (s *PacketHandler) handleConnect2(c conn, connectPacket *lmproto.ConnectPac
 
 	c.SetVersion(connectPacket.Version)
 
-	dhServerPrivKey, dhServerPublicKey := limutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
+	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
 	aesKey, aesIV, err := s.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
 	if err != nil {
 		s.Error("获取客户端的aesKey和aesIV失败！", zap.Error(err))
@@ -65,10 +65,10 @@ func (s *PacketHandler) handleConnect2(c conn, connectPacket *lmproto.ConnectPac
 
 	s.s.clientManager.Add(cli)
 
-	data, _ := s.s.opts.Proto.EncodeFrame(&lmproto.ConnackPacket{
+	data, _ := s.s.opts.Proto.EncodeFrame(&wkproto.ConnackPacket{
 		Salt:       aesIV,
 		ServerKey:  dhServerPublicKeyEnc,
-		ReasonCode: lmproto.ReasonSuccess,
+		ReasonCode: wkproto.ReasonSuccess,
 		TimeDiff:   timeDiff,
 	}, c.Version())
 
@@ -79,16 +79,16 @@ func (s *PacketHandler) handleConnect2(c conn, connectPacket *lmproto.ConnectPac
 // func (s *PacketHandler) handleConnect(c *limContext) {
 // 	c.c.SetAuthed(true)
 
-// 	connectPacket := c.frame.(*lmproto.ConnectPacket)
+// 	connectPacket := c.frame.(*wkproto.ConnectPacket)
 
 // 	if strings.TrimSpace(connectPacket.ClientKey) == "" {
-// 		s.writeConnackError(c.c, lmproto.ReasonClientKeyIsEmpty)
+// 		s.writeConnackError(c.c, wkproto.ReasonClientKeyIsEmpty)
 // 		return
 // 	}
 
 // 	c.c.SetVersion(connectPacket.Version)
 
-// 	dhServerPrivKey, dhServerPublicKey := limutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
+// 	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
 // 	aesKey, aesIV, err := s.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
 // 	if err != nil {
 // 		s.Error("获取客户端的aesKey和aesIV失败！", zap.Error(err))
@@ -112,18 +112,16 @@ func (s *PacketHandler) handleConnect2(c conn, connectPacket *lmproto.ConnectPac
 
 // 	s.s.clientManager.Add(cli)
 
-// 	c.writePacket(&lmproto.ConnackPacket{
+// 	c.writePacket(&wkproto.ConnackPacket{
 // 		Salt:       aesIV,
 // 		ServerKey:  dhServerPublicKeyEnc,
-// 		ReasonCode: lmproto.ReasonSuccess,
+// 		ReasonCode: wkproto.ReasonSuccess,
 // 		TimeDiff:   timeDiff,
 // 	})
 // }
 
 // 处理发送包
 func (s *PacketHandler) handleSend(c *limContext) {
-
-	fmt.Println("handleSend....")
 
 	cli := c.Client()
 	if cli == nil {
@@ -136,14 +134,14 @@ func (s *PacketHandler) handleSend(c *limContext) {
 		return
 	}
 
-	sendackPackets := make([]lmproto.Frame, 0, len(sendPackets))
+	sendackPackets := make([]wkproto.Frame, 0, len(sendPackets))
 
 	if !cli.Allow() {
 		s.Warn("消息发送过快，限流处理！", zap.String("uid", cli.uid))
 		for _, sendPacketFrame := range sendPackets {
-			sendPacket := sendPacketFrame.(*lmproto.SendPacket)
-			sendackPackets = append(sendackPackets, &lmproto.SendackPacket{
-				ReasonCode:  lmproto.ReasonRateLimit,
+			sendPacket := sendPacketFrame.(*wkproto.SendPacket)
+			sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
+				ReasonCode:  wkproto.ReasonRateLimit,
 				ClientSeq:   sendPacket.ClientSeq,
 				ClientMsgNo: sendPacket.ClientMsgNo,
 			})
@@ -152,9 +150,9 @@ func (s *PacketHandler) handleSend(c *limContext) {
 		return
 	}
 	for _, sendPacketFrame := range sendPackets {
-		sendPacket := sendPacketFrame.(*lmproto.SendPacket)
-		sendackPackets = append(sendackPackets, &lmproto.SendackPacket{
-			ReasonCode:  lmproto.ReasonSuccess,
+		sendPacket := sendPacketFrame.(*wkproto.SendPacket)
+		sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
+			ReasonCode:  wkproto.ReasonSuccess,
 			ClientSeq:   sendPacket.ClientSeq,
 			ClientMsgNo: sendPacket.ClientMsgNo,
 		})
@@ -173,7 +171,7 @@ func (s *PacketHandler) handlePing(c *limContext) {
 	fmt.Println("handlePing....")
 	cli := c.Client()
 	if cli != nil {
-		data, _ := s.s.opts.Proto.EncodeFrame(&lmproto.PongPacket{}, cli.Version())
+		data, _ := s.s.opts.Proto.EncodeFrame(&wkproto.PongPacket{}, cli.Version())
 
 		dataLen := int64(len(data))
 		cli.inMsgs.Inc()
@@ -194,16 +192,16 @@ func (s *PacketHandler) handlePing(c *limContext) {
 
 }
 
-func (s *PacketHandler) writeConnackError(c conn, resaon lmproto.ReasonCode) error {
+func (s *PacketHandler) writeConnackError(c conn, resaon wkproto.ReasonCode) error {
 	return s.writeConnack(c, 0, resaon)
 }
 
 func (s *PacketHandler) writeConnackAuthFail(c conn) error {
-	return s.writeConnack(c, 0, lmproto.ReasonAuthFail)
+	return s.writeConnack(c, 0, wkproto.ReasonAuthFail)
 }
 
-func (s *PacketHandler) writeConnack(c conn, timeDiff int64, code lmproto.ReasonCode) error {
-	data, err := s.s.opts.Proto.EncodeFrame(&lmproto.ConnackPacket{
+func (s *PacketHandler) writeConnack(c conn, timeDiff int64, code wkproto.ReasonCode) error {
+	data, err := s.s.opts.Proto.EncodeFrame(&wkproto.ConnackPacket{
 		ReasonCode: code,
 		TimeDiff:   timeDiff,
 	}, c.Version())
@@ -228,9 +226,9 @@ func (s *PacketHandler) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [
 	copy(dhClientPubKeyArray[:], clientKeyBytes[:32])
 
 	// 获得DH的共享key
-	shareKey := limutil.GetCurve25519Key(dhServerPrivKey, dhClientPubKeyArray) // 共享key
+	shareKey := wkutil.GetCurve25519Key(dhServerPrivKey, dhClientPubKeyArray) // 共享key
 
-	aesIV := limutil.GetRandomString(16)
-	aesKey := limutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
+	aesIV := wkutil.GetRandomString(16)
+	aesKey := wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
 	return aesKey, aesIV, nil
 }

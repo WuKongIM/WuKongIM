@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/WuKongIM/WuKongIM/internal/server"
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/judwhite/go-svc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,9 +17,9 @@ var (
 	serverOpts = server.NewOptions()
 	mode       string
 	rootCmd    = &cobra.Command{
-		Use:   "lim",
-		Short: "LiMaoIM 简洁，性能强劲的即时通讯平台",
-		Long:  `LiMaoIM 简洁，性能强劲的即时通讯平台 详情查看文档：https://docs.limaoim.cn`,
+		Use:   "wk",
+		Short: "WuKongIM 简洁，性能强劲的即时通讯平台",
+		Long:  `WuKongIM 简洁，性能强劲的即时通讯平台 详情查看文档：https://docs.wukongim.cn`,
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd: true,
 		},
@@ -32,7 +32,7 @@ var (
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.limao.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.wk.yaml)")
 	rootCmd.PersistentFlags().StringVar(&mode, "mode", "release", "模式")
 
 }
@@ -47,7 +47,7 @@ func initConfig() {
 
 		vp.AddConfigPath(home)
 		vp.SetConfigType("yaml")
-		vp.SetConfigName(".limao")
+		vp.SetConfigName(".wukongim")
 	}
 
 	if err := vp.ReadInConfig(); err == nil {
@@ -61,11 +61,11 @@ func initConfig() {
 }
 
 func initServer() {
-	logOpts := limlog.NewOptions()
+	logOpts := wklog.NewOptions()
 	logOpts.Level = serverOpts.Logger.Level
 	logOpts.LogDir = serverOpts.Logger.Dir
 	logOpts.LineNum = serverOpts.Logger.LineNum
-	limlog.Configure(logOpts)
+	wklog.Configure(logOpts)
 
 	s := server.New(serverOpts)
 

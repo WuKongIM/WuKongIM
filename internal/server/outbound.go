@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -106,7 +106,7 @@ type Outbound struct {
 
 	mu sync.Mutex
 
-	limlog.Log
+	wklog.Log
 
 	s *Server
 }
@@ -117,7 +117,7 @@ func NewOutbound(writer OutBoundWriter, opts *OutboundOptions, s *Server) *Outbo
 		writer:      writer,
 		opts:        opts,
 		startBufCap: outboundStartBufSize,
-		Log:         limlog.NewLIMLog("Outbound"),
+		Log:         wklog.NewWKLog("Outbound"),
 		s:           s,
 	}
 	out.flushCond = sync.NewCond(&(out.mu))

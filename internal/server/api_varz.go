@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/lmhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/pse"
+	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type VarzAPI struct {
-	limlog.Log
+	wklog.Log
 	s *Server
 }
 
@@ -19,15 +19,15 @@ func NewVarzAPI(s *Server) *VarzAPI {
 
 	return &VarzAPI{
 		s:   s,
-		Log: limlog.NewLIMLog("VarzAPI"),
+		Log: wklog.NewWKLog("VarzAPI"),
 	}
 }
 
-func (v *VarzAPI) Route(r *lmhttp.LMHttp) {
+func (v *VarzAPI) Route(r *wkhttp.WKHttp) {
 	r.GET("/varz", v.HandleVarz)
 }
 
-func (v *VarzAPI) HandleVarz(c *lmhttp.Context) {
+func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 
 	var rss, vss int64 // rss内存 vss虚拟内存
 	var pcpu float64   // cpu
@@ -46,7 +46,7 @@ func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
 	connCount := v.s.clientManager.GetAllClientCount()
 	return &Varz{
 		ServerID:      fmt.Sprintf("%d", opts.NodeID),
-		ServerName:    "LiMaoIM",
+		ServerName:    "WuKongIM",
 		Version:       opts.Version,
 		Connections:   connCount,
 		Uptime:        myUptime(time.Since(v.s.start)),

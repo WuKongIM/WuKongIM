@@ -38,11 +38,11 @@ const (
 )
 
 var (
-	ErrStaleConnection  = errors.New("limao: " + STALE_CONNECTION)
-	ErrNoServers        = errors.New("limao: no servers available for connection")
-	ErrBadTimeout       = errors.New("limao: timeout invalid")
-	ErrConnectionClosed = errors.New("limao: connection closed")
-	ErrTimeout          = errors.New("limao: timeout")
+	ErrStaleConnection  = errors.New("wukongim " + STALE_CONNECTION)
+	ErrNoServers        = errors.New("wukongim no servers available for connection")
+	ErrBadTimeout       = errors.New("wukongim timeout invalid")
+	ErrConnectionClosed = errors.New("wukongim connection closed")
+	ErrTimeout          = errors.New("wukongim timeout")
 )
 
 type Statistics struct {

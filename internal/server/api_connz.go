@@ -8,28 +8,28 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/lmhttp"
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 )
 
 type ConnzAPI struct {
-	limlog.Log
+	wklog.Log
 	s *Server
 }
 
 func NewConnzAPI(s *Server) *ConnzAPI {
 	return &ConnzAPI{
-		Log: limlog.NewLIMLog("ConnzAPI"),
+		Log: wklog.NewWKLog("ConnzAPI"),
 		s:   s,
 	}
 }
 
-func (co *ConnzAPI) Route(r *lmhttp.LMHttp) {
+func (co *ConnzAPI) Route(r *wkhttp.WKHttp) {
 	r.GET("/connz", co.HandleConnz)
 }
 
-func (co *ConnzAPI) HandleConnz(c *lmhttp.Context) {
+func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 	clients := co.s.clientManager.GetAllClient()
 	sortStr := c.Query("sort")
 	offset64, _ := strconv.ParseInt(c.Query("offset"), 10, 64)
@@ -141,15 +141,15 @@ func device(cli *client) string {
 	d := "未知"
 	level := "主"
 	switch cli.deviceFlag {
-	case lmproto.APP:
+	case wkproto.APP:
 		d = "App"
-	case lmproto.PC:
+	case wkproto.PC:
 		d = "PC"
-	case lmproto.WEB:
+	case wkproto.WEB:
 		d = "Web"
 	}
 
-	if cli.deviceLevel == lmproto.DeviceLevelSlave {
+	if cli.deviceLevel == wkproto.DeviceLevelSlave {
 		level = "从"
 	}
 

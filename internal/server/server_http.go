@@ -1,29 +1,29 @@
 package server
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/limlog"
-	"github.com/WuKongIM/WuKongIM/pkg/lmhttp"
+	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
 
 // APIServer ApiServer
 type APIServer struct {
-	r    *lmhttp.LMHttp
+	r    *wkhttp.WKHttp
 	addr string
 	s    *Server
-	limlog.Log
+	wklog.Log
 }
 
 // NewAPIServer new一个api server
 func NewAPIServer(s *Server) *APIServer {
-	r := lmhttp.New()
-	r.Use(lmhttp.CORSMiddleware())
+	r := wkhttp.New()
+	r.Use(wkhttp.CORSMiddleware())
 
 	hs := &APIServer{
 		r:    r,
 		addr: s.opts.HTTPAddr,
 		s:    s,
-		Log:  limlog.NewLIMLog("APIServer"),
+		Log:  wklog.NewWKLog("APIServer"),
 	}
 	return hs
 }

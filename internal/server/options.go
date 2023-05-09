@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/lmproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
 )
@@ -25,7 +25,7 @@ const (
 
 type Options struct {
 	NodeID         int64            // 节点ID
-	Proto          lmproto.Protocol // 狸猫IM protocol
+	Proto          wkproto.Protocol // 狸猫IM protocol
 	DataDir        string           // 数据目录
 	Version        string
 	HTTPAddr       string // http api的监听地址 默认为 0.0.0.0:1516
@@ -53,7 +53,7 @@ type Options struct {
 func NewOptions() *Options {
 
 	return &Options{
-		Proto:           lmproto.New(),
+		Proto:           wkproto.New(),
 		HandlePoolSize:  2048,
 		Version:         "5.0.0",
 		TimingWheelTick: time.Millisecond * 10,
@@ -92,9 +92,9 @@ func (o *Options) configureDataDir() {
 	}
 	// 数据目录
 	if o.NodeID == 0 {
-		o.DataDir = o.getString("dataDir", filepath.Join(homeDir, "limaodata"))
+		o.DataDir = o.getString("dataDir", filepath.Join(homeDir, "wukongimdata"))
 	} else {
-		o.DataDir = o.getString("dataDir", filepath.Join(homeDir, fmt.Sprintf("limaodata-%d", o.NodeID)))
+		o.DataDir = o.getString("dataDir", filepath.Join(homeDir, fmt.Sprintf("wukongimdata-%d", o.NodeID)))
 	}
 	if strings.TrimSpace(o.DataDir) != "" {
 		err = os.MkdirAll(o.DataDir, 0755)
