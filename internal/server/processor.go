@@ -10,7 +10,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/bwmarrin/snowflake"
 	"go.uber.org/zap"
 )
 
@@ -19,11 +21,18 @@ type Processor struct {
 	connContextPool sync.Pool
 	frameWorkPool   *FrameWorkPool
 	wklog.Log
+	messageIDGen *snowflake.Node // 消息ID生成器
 }
 
 func NewProcessor(s *Server) *Processor {
+	// Initialize the messageID generator of the snowflake algorithm
+	messageIDGen, err := snowflake.NewNode(int64(s.opts.NodeID))
+	if err != nil {
+		panic(err)
+	}
 	return &Processor{
 		s:             s,
+		messageIDGen:  messageIDGen,
 		Log:           wklog.NewWKLog("Processor"),
 		frameWorkPool: NewFrameWorkPool(),
 		connContextPool: sync.Pool{
@@ -152,22 +161,129 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 
 // #################### ping ####################
 func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket) {
-	fmt.Println("ping--->", conn.Fd(), conn.UID())
 	p.response(conn, &wkproto.PongPacket{})
 }
 
 // #################### messages ####################
-func (p *Processor) processMsgs(conn wknet.Conn, msgs []*wkproto.SendPacket) {
+func (p *Processor) processMsgs(conn wknet.Conn, sendpPackets []*wkproto.SendPacket) {
 
-	sendackPackets := make([]wkproto.Frame, 0, len(msgs))
-	for _, msg := range msgs {
-		sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
-			ReasonCode:  wkproto.ReasonSuccess,
-			ClientSeq:   msg.ClientSeq,
-			ClientMsgNo: msg.ClientMsgNo,
+	var (
+		sendackPackets       = make([]wkproto.Frame, 0, len(sendpPackets)) // response sendack packets
+		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)   // split sendPacket by channel
+		// recvPackets          = make([]wkproto.RecvPacket, 0, len(sendpPackets)) // recv packets
+	)
+	for _, sendPacket := range sendpPackets {
+		channelKey := fmt.Sprintf("%s-%d", sendPacket.ChannelID, sendPacket.ChannelType)
+		channelSendpackets := channelSendPacketMap[channelKey]
+		if channelSendpackets == nil {
+			channelSendpackets = make([]*wkproto.SendPacket, 0, len(sendackPackets))
+		}
+		channelSendpackets = append(channelSendpackets, sendPacket)
+		channelSendPacketMap[channelKey] = channelSendpackets
+	}
+
+	// ########## messages store ##########
+	for _, sendPackets := range channelSendPacketMap {
+		firstSendPacket := sendPackets[0]
+		channelSendackPackets, err := p.prcocessChannelMessages(conn, firstSendPacket.ChannelID, firstSendPacket.ChannelType, sendPackets)
+		if err != nil {
+			p.Error("process channel messages err", zap.Error(err))
+			return
+		}
+		sendackPackets = append(sendackPackets, channelSendackPackets...)
+	}
+
+	p.response(conn, sendackPackets...)
+}
+
+func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
+	var (
+		sendackPackets = make([]wkproto.Frame, 0, len(sendPackets))      // response sendack packets
+		recvPackets    = make([]wkproto.RecvPacket, 0, len(sendPackets)) // recv packets
+		err            error
+	)
+
+	for _, sendPacket := range sendPackets {
+		var messageID = p.genMessageID() // generate messageID
+
+		if sendPacket.SyncOnce { // client not support send syncOnce message
+			sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
+				Framer:      sendPacket.Framer,
+				ClientSeq:   sendPacket.ClientSeq,
+				ClientMsgNo: sendPacket.ClientMsgNo,
+				MessageID:   messageID,
+				ReasonCode:  wkproto.ReasonNotSupportHeader,
+			})
+			continue
+		}
+
+		recvPackets = append(recvPackets, wkproto.RecvPacket{
+			Framer: wkproto.Framer{
+				RedDot:    sendPacket.GetRedDot(),
+				SyncOnce:  sendPacket.GetsyncOnce(),
+				NoPersist: sendPacket.GetNoPersist(),
+			},
+			Setting:     sendPacket.Setting,
+			MessageID:   messageID,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			FromUID:     conn.UID(),
+			ChannelID:   sendPacket.ChannelID,
+			ChannelType: sendPacket.ChannelType,
+			Topic:       sendPacket.Topic,
+			Timestamp:   int32(time.Now().Unix()),
+			Payload:     sendPacket.Payload,
+			// ---------- 以下不参与编码 ------------
+			ClientSeq: sendPacket.ClientSeq,
 		})
 	}
-	p.response(conn, sendackPackets...)
+	_, err = p.storeChannelMessagesIfNeed(conn.UID(), recvPackets) // only have messageSeq after message save
+	if err != nil {
+		return nil, err
+	}
+
+	if len(recvPackets) == 0 {
+		for _, recvPacket := range recvPackets {
+			sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
+				Framer:      recvPacket.Framer,
+				ClientMsgNo: recvPacket.ClientMsgNo,
+				ClientSeq:   recvPacket.ClientSeq,
+				MessageID:   recvPacket.MessageID,
+				MessageSeq:  recvPacket.MessageSeq,
+				ReasonCode:  wkproto.ReasonSuccess,
+			})
+		}
+	}
+
+	return sendackPackets, nil
+}
+
+// store channel messages
+func (p *Processor) storeChannelMessagesIfNeed(fromUID string, recvPackets []wkproto.RecvPacket) ([]wkstore.Message, error) {
+	if len(recvPackets) == 0 {
+		return nil, nil
+	}
+	storeMessages := make([]wkstore.Message, 0, len(recvPackets))
+	for _, recvPacket := range recvPackets {
+		if recvPacket.NoPersist {
+			continue
+		}
+		storeMessages = append(storeMessages, &Message{
+			RecvPacket: recvPacket,
+		})
+	}
+	firstSendPacket := recvPackets[0]
+	fakeChannelID := firstSendPacket.ChannelID
+	if firstSendPacket.ChannelType == ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(fromUID, firstSendPacket.ChannelID)
+	}
+	topic := fmt.Sprintf("%d-%s", firstSendPacket.ChannelType, fakeChannelID)
+	_, err := p.s.store.StoreMsg(topic, storeMessages)
+	if err != nil {
+		p.Error("store message err", zap.Error(err))
+		return nil, err
+	}
+
+	return storeMessages, nil
 }
 
 // #################### message ack ####################
@@ -226,4 +342,9 @@ func (p *Processor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]b
 	aesIV := wkutil.GetRandomString(16)
 	aesKey := wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
 	return aesKey, aesIV, nil
+}
+
+// 生成消息ID
+func (p *Processor) genMessageID() int64 {
+	return p.messageIDGen.Generate().Int64()
 }

@@ -47,6 +47,10 @@ type SendPacket struct {
 
 }
 
+func (s *SendPacket) UniqueKey() string {
+	return fmt.Sprintf("%s-%d-%s-%d", s.ChannelID, s.ChannelType, s.ClientMsgNo, s.ClientSeq)
+}
+
 // GetPacketType 包类型
 func (s *SendPacket) GetFrameType() FrameType {
 	return SEND

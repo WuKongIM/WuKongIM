@@ -15,6 +15,7 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/judwhite/go-svc"
 	"github.com/panjf2000/ants/v2"
@@ -49,6 +50,8 @@ type Server struct {
 	connManager *ConnManager
 
 	inboundManager *InboundManager
+
+	store wkstore.Store
 }
 
 func New(opts *Options) *Server {
@@ -59,6 +62,7 @@ func New(opts *Options) *Server {
 		waitGroupWrapper: wkutil.NewWaitGroupWrapper("Server"),
 		timingWheel:      timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		start:            now,
+		store:            wkstore.NewFileStore(wkstore.NewStoreConfig()),
 	}
 	s.contextPool = sync.Pool{
 		New: func() any {
@@ -106,13 +110,13 @@ func (s *Server) Start() error {
 		gitC = "not set"
 	}
 	fmt.Println(`
-	_ _                        
-	| (_)                      
-	| |_ _ __ ___   __ _  ___  
-	| | | '_ ` + "`" + ` _ \ / _` + "`" + ` |/ _ \ 
-	| | | | | | | | (_| | (_) |
-	|_|_|_| |_| |_|\__,_|\___/ 
-							  
+	
+	__      __       ____  __.                    .___   _____   
+	/  \    /  \__ __|    |/ _|____   ____    ____ |   | /     \  
+	\   \/\/   /  |  \      < /  _ \ /    \  / ___\|   |/  \ /  \ 
+	 \        /|  |  /    |  (  <_> )   |  \/ /_/  >   /    Y    \
+	  \__/\  / |____/|____|__ \____/|___|  /\___  /|___\____|__  /
+		   \/                \/          \//_____/             \/ 						  
 							  
 	`)
 	s.Info("Server is Starting...")
@@ -136,6 +140,11 @@ func (s *Server) Start() error {
 
 	defer s.Info("Server is ready")
 
+	err = s.store.Open()
+	if err != nil {
+		panic(err)
+	}
+
 	// s.inboundManager.Start()
 	// s.net.Start()
 	err = s.dispatch.Start()
@@ -152,10 +161,13 @@ func (s *Server) Stop() error {
 
 	defer s.Info("Server is exited")
 
+	s.store.Close()
+
 	s.net.Stop()
 	s.dispatch.Stop()
 	// s.inboundManager.Stop()
 	s.apiServer.Stop()
+
 	return nil
 }
 

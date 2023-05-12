@@ -20,6 +20,9 @@ type RecvPacket struct {
 	Topic       string // 话题ID
 	FromUID     string // 发送者UID
 	Payload     []byte // 消息内容
+
+	// ---------- 以下不参与编码 ------------
+	ClientSeq uint64 // 客户端提供的序列号，在客户端内唯一
 }
 
 // GetPacketType 获得包类型
@@ -32,7 +35,7 @@ func (r *RecvPacket) VerityString() string {
 	return fmt.Sprintf("%d%d%s%d%s%s%d%s", r.MessageID, r.MessageSeq, r.ClientMsgNo, r.Timestamp, r.FromUID, r.ChannelID, r.ChannelType, string(r.Payload))
 }
 func (r *RecvPacket) String() string {
-	return fmt.Sprintf("Recv Header:%s Setting:%d MessageID:%d MessageSeq:%d Timestamp:%d FromUid:%s ChannelID:%s ChannelType:%d Topic:%s Payload:%s", r.Framer, r.Setting, r.MessageID, r.MessageSeq, r.Timestamp, r.FromUID, r.ChannelID, r.ChannelType, r.Topic, string(r.Payload))
+	return fmt.Sprintf("recv Header:%s Setting:%d MessageID:%d MessageSeq:%d Timestamp:%d FromUid:%s ChannelID:%s ChannelType:%d Topic:%s Payload:%s", r.Framer, r.Setting, r.MessageID, r.MessageSeq, r.Timestamp, r.FromUID, r.ChannelID, r.ChannelType, r.Topic, string(r.Payload))
 }
 
 func decodeRecv(frame Frame, data []byte, version uint8) (Frame, error) {

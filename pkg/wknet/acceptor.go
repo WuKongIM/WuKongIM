@@ -2,7 +2,6 @@ package wknet
 
 import (
 	"errors"
-	"fmt"
 	"os"
 
 	perrors "github.com/WuKongIM/WuKongIM/pkg/errors"
@@ -24,7 +23,6 @@ type Acceptor struct {
 }
 
 func NewAcceptor(eg *Engine) *Acceptor {
-	fmt.Println("NewAcceptor....", eg.options.SubReactorNum)
 	reactorSubs := make([]*ReactorSub, eg.options.SubReactorNum)
 	for i := 0; i < eg.options.SubReactorNum; i++ {
 		reactorSubs[i] = NewReactorSub(eg, i)
@@ -40,6 +38,18 @@ func NewAcceptor(eg *Engine) *Acceptor {
 }
 
 func (a *Acceptor) Start() error {
+
+	go func() {
+		err := a.run()
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	return nil
+}
+
+func (a *Acceptor) run() error {
 
 	for _, reactorSub := range a.reactorSubs {
 		reactorSub.Start()
