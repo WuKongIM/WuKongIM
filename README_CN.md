@@ -30,6 +30,7 @@
 * 万人群支持。
 * 消息分区永久存储，卸载设备消息不丢。
 * 支持读模式的离线拉取
+* 没有依赖任何第三方组件，部署简单，一条命令即可启动
 
 <!-- ## 快速入门 -->
 
@@ -148,3 +149,20 @@ SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s 
 ```
 $ docker-compose up 
 ```
+
+
+## Architecture
+
+WuKongIM 没有依赖任何第三方组件
+
+***完整架构***
+
+<img src="./docs/architecture/architecture.png" alt="Architecture"/>
+
+***认证逻辑***
+
+<img src="./docs/architecture/auth.png" alt="Architecture"/>
+
+***消息处理逻辑***
+
+<img src="./docs/architecture/processmsg.png" alt="Architecture"/>
