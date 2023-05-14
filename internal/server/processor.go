@@ -172,6 +172,8 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendpPackets []*wkproto.SendPac
 		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)   // split sendPacket by channel
 		// recvPackets          = make([]wkproto.RecvPacket, 0, len(sendpPackets)) // recv packets
 	)
+
+	// ########## split sendPacket by channel ##########
 	for _, sendPacket := range sendpPackets {
 		channelKey := fmt.Sprintf("%s-%d", sendPacket.ChannelID, sendPacket.ChannelType)
 		channelSendpackets := channelSendPacketMap[channelKey]
@@ -182,7 +184,7 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendpPackets []*wkproto.SendPac
 		channelSendPacketMap[channelKey] = channelSendpackets
 	}
 
-	// ########## messages store ##########
+	// ########## process message for channel ##########
 	for _, sendPackets := range channelSendPacketMap {
 		firstSendPacket := sendPackets[0]
 		channelSendackPackets, err := p.prcocessChannelMessages(conn, firstSendPacket.ChannelID, firstSendPacket.ChannelType, sendPackets)
@@ -203,6 +205,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 		err            error
 	)
 
+	// ########## message store ##########
 	for _, sendPacket := range sendPackets {
 		var messageID = p.genMessageID() // generate messageID
 
