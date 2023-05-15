@@ -43,6 +43,8 @@ This project is a simple and easy to use, powerful performance, simple design co
 
 [JS SDK](https://github.com/WuKongIM/WuKongIMJSSDK.git)
 
+[Flutter SDK](https://github.com/WuKongIM/WuKongIMFlutterSDK.git)
+
 [Docs](http://www.githubim.com/docs)
 
 ## App Demo

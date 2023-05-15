@@ -5,7 +5,7 @@ import "net"
 type OnConnect func(conn Conn) error
 type OnData func(conn Conn) error
 type OnClose func(conn Conn, err error)
-type OnNewConn func(connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error)
+type OnNewConn func(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error)
 type OnNewInboundConn func(conn Conn, eg *Engine) InboundBuffer
 type OnNewOutboundConn func(conn Conn, eg *Engine) OutboundBuffer
 
@@ -29,8 +29,8 @@ func NewEventHandler() *EventHandler {
 		OnConnect: func(conn Conn) error { return nil },
 		OnData:    func(conn Conn) error { return nil },
 		OnClose:   func(conn Conn, err error) {},
-		OnNewConn: func(connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
-			return CreateConn(connFd, localAddr, remoteAddr, eg, reactorSub)
+		OnNewConn: func(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+			return CreateConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
 		},
 		OnNewInboundConn:  func(conn Conn, eg *Engine) InboundBuffer { return NewDefualtBuffer() },
 		OnNewOutboundConn: func(conn Conn, eg *Engine) OutboundBuffer { return NewDefualtBuffer() },

@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"syscall"
+	"time"
 
 	lio "github.com/WuKongIM/WuKongIM/pkg/wknet/io"
 	"golang.org/x/sys/unix"
@@ -21,6 +22,8 @@ type Conn interface {
 	UID() string
 	// SetUID sets the user uid.
 	SetUID(uid string)
+	DeviceLevel() uint8
+	SetDeviceLevel(deviceLevel uint8)
 	// DeviceFlag returns the device flag.
 	DeviceFlag() uint8
 	// SetDeviceFlag sets the device flag.
@@ -73,6 +76,13 @@ type Conn interface {
 	ProtoVersion() int
 	// SetProtoVersion sets message proto version
 	SetProtoVersion(version int)
+	// LastActivity returns the last activity time.
+	LastActivity() time.Time
+	// Uptime returns the connection uptime.
+	Uptime() time.Time
+
+	InboundBuffer() InboundBuffer
+	OutboundBuffer() OutboundBuffer
 }
 
 type DefaultConn struct {
@@ -93,14 +103,19 @@ type DefaultConn struct {
 	id             int64
 	uid            string
 	deviceFlag     uint8
+	deviceLevel    uint8
 	deviceID       string
 	valueMap       map[string]interface{}
 	writeChan      chan []byte
+
+	uptime       time.Time
+	lastActivity time.Time
 }
 
-func CreateConn(connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 
 	defaultConn := &DefaultConn{
+		id:         id,
 		fd:         connFd,
 		remoteAddr: remoteAddr,
 		localAddr:  localAddr,
@@ -109,6 +124,7 @@ func CreateConn(connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorS
 		closed:     false,
 		valueMap:   map[string]interface{}{},
 		writeChan:  make(chan []byte, 100),
+		uptime:     time.Now(),
 	}
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
@@ -136,6 +152,8 @@ func (d *DefaultConn) ReadToInboundBuffer() error {
 		return fmt.Errorf("inbound buffer overflow, fd: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
 	}
 	_, err = d.inboundBuffer.Write(readBuffer[:n])
+
+	d.lastActivity = time.Now()
 	return err
 }
 
@@ -276,6 +294,14 @@ func (d *DefaultConn) SetDeviceFlag(deviceFlag uint8) {
 	d.deviceFlag = deviceFlag
 }
 
+func (d *DefaultConn) DeviceLevel() uint8 {
+	return d.deviceLevel
+}
+
+func (d *DefaultConn) SetDeviceLevel(deviceLevel uint8) {
+	d.deviceLevel = deviceLevel
+}
+
 func (d *DefaultConn) DeviceID() string {
 	return d.deviceID
 }
@@ -288,6 +314,22 @@ func (d *DefaultConn) SetValue(key string, value interface{}) {
 }
 func (d *DefaultConn) Value(key string) interface{} {
 	return d.valueMap[key]
+}
+
+func (d *DefaultConn) InboundBuffer() InboundBuffer {
+	return d.inboundBuffer
+}
+
+func (d *DefaultConn) OutboundBuffer() OutboundBuffer {
+	return d.outboundBuffer
+}
+
+func (d *DefaultConn) LastActivity() time.Time {
+	return d.lastActivity
+}
+
+func (d *DefaultConn) Uptime() time.Time {
+	return d.uptime
 }
 
 func (d *DefaultConn) flush() error {

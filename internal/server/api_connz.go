@@ -10,6 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 )
 
@@ -30,7 +31,7 @@ func (co *ConnzAPI) Route(r *wkhttp.WKHttp) {
 }
 
 func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
-	clients := co.s.clientManager.GetAllClient()
+	conns := co.s.dispatch.engine.GetAllConn()
 	sortStr := c.Query("sort")
 	offset64, _ := strconv.ParseInt(c.Query("offset"), 10, 64)
 	limit64, _ := strconv.ParseInt(c.Query("limit"), 10, 64)
@@ -49,12 +50,12 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 
 	switch sortOpt {
 	case ByID:
-		sort.Sort(byID{Clients: clients})
+		sort.Sort(byID{Conns: conns})
 	}
 
 	minoff := offset
 	maxoff := offset + limit
-	maxIndex := len(clients)
+	maxIndex := len(conns)
 
 	if minoff > maxIndex {
 		minoff = maxIndex
@@ -63,18 +64,21 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		maxoff = maxIndex
 	}
 
-	resultClients := clients[minoff:maxoff]
+	resultConns := conns[minoff:maxoff]
 
-	connInfos := make([]*ConnInfo, 0, len(resultClients))
+	connInfos := make([]*ConnInfo, 0, len(resultConns))
 
-	for _, resultClient := range resultClients {
-		connInfos = append(connInfos, newConnInfo(resultClient))
+	for _, resultConn := range resultConns {
+		if !resultConn.IsAuthed() {
+			continue
+		}
+		connInfos = append(connInfos, newConnInfo(resultConn))
 	}
 
 	c.JSON(http.StatusOK, Connz{
 		Connections: connInfos,
 		Now:         time.Now(),
-		Total:       len(clients),
+		Total:       len(conns),
 		Offset:      offset,
 	})
 }
@@ -88,7 +92,7 @@ type Connz struct {
 }
 
 type ConnInfo struct {
-	ID           uint32    `json:"id"`            // 连接ID
+	ID           int64     `json:"id"`            // 连接ID
 	UID          string    `json:"uid"`           // 用户uid
 	IP           string    `json:"ip"`            // 客户端IP
 	Port         int       `json:"port"`          // 客户端端口
@@ -105,42 +109,43 @@ type ConnInfo struct {
 	Version      uint8     `json:"version"`       // 客户端协议版本
 }
 
-func newConnInfo(c *client) *ConnInfo {
+func newConnInfo(c wknet.Conn) *ConnInfo {
 	var (
 		now  = time.Now()
 		host string
 		port int
 	)
 
-	if c.conn.RemoteAddr() != nil {
-		hostStr, portStr, _ := net.SplitHostPort(c.conn.RemoteAddr().String())
+	if c.RemoteAddr() != nil {
+		hostStr, portStr, _ := net.SplitHostPort(c.RemoteAddr().String())
 		port, _ = strconv.Atoi(portStr)
 		host = hostStr
 	}
+	connCtx := c.Context().(*connContext)
 
 	return &ConnInfo{
 		ID:           c.ID(),
-		UID:          c.uid,
+		UID:          c.UID(),
 		IP:           host,
 		Port:         port,
-		LastActivity: c.lastActivity,
-		Uptime:       myUptime(now.Sub(c.uptime)),
-		Idle:         myUptime(now.Sub(c.lastActivity)),
-		PendingBytes: len(c.outbound.pendingBytes),
-		InMsgs:       c.inMsgs.Load(),
-		OutMsgs:      c.outMsgs.Load(),
-		InBytes:      c.inBytes.Load(),
-		OutBytes:     c.outBytes.Load(),
+		LastActivity: c.LastActivity(),
+		Uptime:       myUptime(now.Sub(c.Uptime())),
+		Idle:         myUptime(now.Sub(c.LastActivity())),
+		PendingBytes: c.OutboundBuffer().BoundBufferSize(),
+		InMsgs:       connCtx.inMsgs.Load(),
+		OutMsgs:      connCtx.outMsgs.Load(),
+		InBytes:      connCtx.inBytes.Load(),
+		OutBytes:     connCtx.outBytes.Load(),
 		Device:       device(c),
-		DeviceID:     c.deviceID,
-		Version:      c.conn.Version(),
+		DeviceID:     c.DeviceID(),
+		Version:      uint8(c.ProtoVersion()),
 	}
 }
 
-func device(cli *client) string {
+func device(conn wknet.Conn) string {
 	d := "未知"
 	level := "主"
-	switch cli.deviceFlag {
+	switch wkproto.DeviceFlag(conn.DeviceFlag()) {
 	case wkproto.APP:
 		d = "App"
 	case wkproto.PC:
@@ -149,7 +154,7 @@ func device(cli *client) string {
 		d = "Web"
 	}
 
-	if cli.deviceLevel == wkproto.DeviceLevelSlave {
+	if wkproto.DeviceLevel(conn.DeviceLevel()) == wkproto.DeviceLevelSlave {
 		level = "从"
 	}
 
@@ -162,6 +167,9 @@ const (
 	ByID SortOpt = "id" // 通过连接id排序
 )
 
-type byID struct{ Clients }
+type byID struct{ Conns []wknet.Conn }
 
-func (l byID) Less(i, j int) bool { return l.Clients[i].ID() < l.Clients[j].ID() }
+func (l byID) Less(i, j int) bool { return l.Conns[i].ID() < l.Conns[j].ID() }
+
+func (l byID) Len() int      { return len(l.Conns) }
+func (l byID) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }

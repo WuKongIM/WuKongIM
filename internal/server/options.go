@@ -21,6 +21,8 @@ const (
 	ReleaseMode Mode = "release"
 	// 压力测试模式
 	BenchMode Mode = "bench"
+	// TestMode indicates gin mode is test.
+	TestMode = "test"
 )
 
 type Options struct {
@@ -48,6 +50,36 @@ type Options struct {
 	TimingWheelSize           int64         // Time wheel size
 
 	ConnFrameQueueMaxSize int // conn frame queue max size
+
+	Webhook       string // webhook 通过此地址通知数据给第三方 格式为 http://xxxxx
+	WebhookGRPC   string // webhook的grpc地址 如果此地址有值 则不会再调用webhook,格式为 ip:port
+	EventPoolSize int    // 事件协程池大小,此池主要处理im的一些通知事件 比如webhook，上下线等等 默认为1024
+
+	TmpChannelCacheCount    int    // 临时频道缓存数量
+	ChannelCacheCount       int    // 频道缓存数量
+	TmpChannelSuffix        string // Temporary channel suffix
+	CreateIfChannelNotExist bool   // If the channel does not exist, whether to create it automatically
+	MonitorOn               bool   // monitor on
+	Datasource              string
+	DatasourceChannelInfoOn bool // 数据源是否开启频道信息获取
+
+	WhitelistOffOfPerson int
+
+	DeliveryMsgPoolSize int // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
+
+	MsgTimeout          time.Duration // Message sending timeout time, after this time it will try again
+	TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
+
+	SubscriberCompressOfCount int           // 订阅者数组多大开始压缩（离线推送的时候订阅者数组太大 可以设置此参数进行压缩 默认为0 表示不压缩 ）
+	MessageNotifyScanInterval time.Duration // 消息推送间隔 默认500毫秒发起一次推送
+	MessageNotifyMaxCount     int           // 每次webhook推送消息数量限制 默认一次请求最多推送100条
+	MessageMaxRetryCount      int           // 消息最大重试次数
+	// ---------- conversation ----------
+	ConversationCacheExpire    int // 最近会话缓存过期时间 单位秒
+	ConversationSyncInterval   time.Duration
+	ConversationSyncOnce       int // 当多少最近会话数量发送变化就保存一次
+	ConversationOfUserMaxCount int // 每个用户最大最近会话数量 默认为500
+
 }
 
 func NewOptions() *Options {
@@ -67,13 +99,29 @@ func NewOptions() *Options {
 			Level:   zapcore.InfoLevel,
 			LineNum: false,
 		},
-		HTTPAddr:                  "0.0.0.0:1516",
-		Addr:                      "tcp://0.0.0.0:7677",
-		WSSAddr:                   "0.0.0.0:2122",
-		WriteTimeout:              time.Second * 5,
-		ClientSendRateEverySecond: 0,
-		ConnIdleTime:              time.Minute * 3,
-		ConnFrameQueueMaxSize:     250,
+		HTTPAddr:                   "0.0.0.0:1516",
+		Addr:                       "tcp://0.0.0.0:7677",
+		WSSAddr:                    "0.0.0.0:2122",
+		WriteTimeout:               time.Second * 5,
+		ClientSendRateEverySecond:  0,
+		ConnIdleTime:               time.Minute * 3,
+		ConnFrameQueueMaxSize:      250,
+		TmpChannelCacheCount:       500,
+		ChannelCacheCount:          1000,
+		TmpChannelSuffix:           "@tmp",
+		CreateIfChannelNotExist:    false,
+		DatasourceChannelInfoOn:    false,
+		ConversationCacheExpire:    60 * 60 * 24 * 1, // 1天过期
+		ConversationSyncInterval:   time.Minute * 5,
+		ConversationSyncOnce:       100,
+		ConversationOfUserMaxCount: 500,
+		DeliveryMsgPoolSize:        10240,
+		EventPoolSize:              1024,
+		MsgTimeout:                 time.Second * 60,
+		TimeoutScanInterval:        time.Second * 5,
+		MessageNotifyScanInterval:  time.Millisecond * 500,
+		MessageNotifyMaxCount:      100,
+		MessageMaxRetryCount:       5,
 	}
 }
 
@@ -148,4 +196,33 @@ func (o *Options) getDuration(key string, defaultValue time.Duration) time.Durat
 		return defaultValue
 	}
 	return v
+}
+
+// WebhookOn WebhookOn
+func (o *Options) WebhookOn() bool {
+	return strings.TrimSpace(o.Webhook) != "" || o.WebhookGRPCOn()
+}
+
+// WebhookGRPCOn 是否配置了webhook grpc地址
+func (o *Options) WebhookGRPCOn() bool {
+	return strings.TrimSpace(o.WebhookGRPC) != ""
+}
+
+// HasDatasource 是否有配置数据源
+func (o *Options) HasDatasource() bool {
+	return strings.TrimSpace(o.Datasource) != ""
+}
+
+// 获取客服频道的访客id
+func (o *Options) GetCustomerServiceVisitorUID(channelID string) (string, bool) {
+	if !strings.Contains(channelID, "|") {
+		return "", false
+	}
+	channelIDs := strings.Split(channelID, "|")
+	return channelIDs[0], true
+}
+
+// IsFakeChannel 是fake频道
+func (o *Options) IsFakeChannel(channelID string) bool {
+	return strings.Contains(channelID, "@")
 }
