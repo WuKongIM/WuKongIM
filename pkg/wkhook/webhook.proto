@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package wkhook;
+
+option go_package = "./;wkhook";
+
+service WebhookService {
+    // 发送webhook事件
+    rpc SendWebhook (EventReq) returns (EventResp);
+}
+
+enum EventStatus {
+    Error = 0;
+    Success = 1;
+}
+
+message EventReq {
+    string event  = 1;
+    bytes data = 2;
+}
+
+message EventResp {
+    EventStatus status  = 1;
+    bytes data = 2;
+}

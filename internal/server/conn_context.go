@@ -2,13 +2,23 @@ package server
 
 import (
 	"sync"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 )
 
+type connStats struct {
+	inMsgs      atomic.Int64 // recv msg count
+	outMsgs     atomic.Int64
+	inBytes     atomic.Int64
+	outBytes    atomic.Int64
+	slowClients atomic.Int64
+}
+
 type connContext struct {
+	connStats
 	isDisableRead  bool
 	conn           wknet.Conn
 	frameCacheLock sync.RWMutex
@@ -30,6 +40,8 @@ func (c *connContext) putFrame(frame wkproto.Frame) {
 	defer c.frameCacheLock.Unlock()
 
 	c.inflightCount.Add(1)
+
+	c.inMsgs.Add(1)
 
 	c.frameCaches = append(c.frameCaches, frame)
 	if int(c.inflightCount.Load()) > c.s.opts.ConnFrameQueueMaxSize {

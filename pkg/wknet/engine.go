@@ -58,6 +58,31 @@ func (e *Engine) GetConn(fd int) Conn {
 	return e.connsUnix[fd]
 }
 
+func (e *Engine) GetAllConn() []Conn {
+	e.connsUnixLock.RLock()
+	defer e.connsUnixLock.RUnlock()
+	conns := make([]Conn, 0, len(e.connsUnix))
+
+	for _, conn := range e.connsUnix {
+		if conn != nil {
+			conns = append(conns, conn)
+		}
+	}
+	return conns
+}
+
+func (e *Engine) ConnCount() int {
+	e.connsUnixLock.RLock()
+	defer e.connsUnixLock.RUnlock()
+	var count int
+	for _, conn := range e.connsUnix {
+		if conn != nil {
+			count++
+		}
+	}
+	return count
+}
+
 func (e *Engine) OnConnect(onConnect OnConnect) {
 	e.eventHandler.OnConnect = onConnect
 }

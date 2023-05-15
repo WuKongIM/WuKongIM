@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -45,50 +46,6 @@ func NewProcessor(s *Server) *Processor {
 	}
 }
 
-func (p *Processor) process(conn wknet.Conn) {
-	connCtx := conn.Context().(*connContext)
-	frames := connCtx.popFrames()
-
-	p.processFrames(conn, frames)
-
-}
-
-func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
-
-	p.sameFrames(frames, func(s, e int, frs []wkproto.Frame) {
-		// newFs := make([]wkproto.Frame, len(frs))
-		// copy(newFs, frs)
-		p.frameWorkPool.Submit(func() {
-			p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
-		})
-		// p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
-
-		// go func(s1, e1 int, c wknet.Conn, fs []wkproto.Frame) {
-		// 	p.processSameFrame(c, fs[0].GetFrameType(), fs, s1, e1)
-		// }(s, e, conn, frs)
-
-	})
-
-}
-
-func (p *Processor) sameFrames(frames []wkproto.Frame, callback func(s, e int, fs []wkproto.Frame)) {
-	for i := 0; i < len(frames); {
-		frame := frames[i]
-		start := i
-		end := i + 1
-		for end < len(frames) {
-			nextFrame := frames[end]
-			if nextFrame.GetFrameType() == frame.GetFrameType() {
-				end++
-			} else {
-				break
-			}
-		}
-		callback(start, end, frames[start:end])
-		i = end
-	}
-}
-
 func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameType, frames []wkproto.Frame, s, e int) {
 	switch frameType {
 	case wkproto.PING: // ping
@@ -118,37 +75,98 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 
 // #################### conn auth ####################
 func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
-	fmt.Println("#########processAuth##########")
-	connCtx := p.connContextPool.Get().(*connContext)
-	connCtx.init()
-	connCtx.conn = conn
-	conn.SetContext(connCtx)
-
+	var (
+		uid        = connectPacket.UID
+		devceLevel wkproto.DeviceLevel
+		err        error
+	)
 	if strings.TrimSpace(connectPacket.ClientKey) == "" {
 		p.responseConnackAuthFail(conn)
 		return
 	}
-	conn.SetProtoVersion(int(connectPacket.Version))
+	// -------------------- token verify --------------------
+	token, devceLevelI, err := p.s.store.GetUserToken(uid, conn.DeviceFlag())
+	if err != nil {
+		p.Error("get user token err", zap.Error(err))
+		p.responseConnackAuthFail(conn)
+		return
+	}
+	if token != connectPacket.Token {
+		p.Error("token verify fail")
+		p.responseConnackAuthFail(conn)
+		return
+	}
+	devceLevel = wkproto.DeviceLevel(devceLevelI)
 
+	// -------------------- ban  --------------------
+	userChannelInfo, err := p.s.store.GetChannel(uid, ChannelTypePerson)
+	if err != nil {
+		p.Error("get user channel info err", zap.Error(err))
+		p.responseConnackAuthFail(conn)
+		return
+	}
+	ban := false
+	if userChannelInfo != nil {
+		ban = userChannelInfo.Ban
+	}
+	if ban {
+		p.Error("user is ban", zap.String("uid", uid))
+		p.responseConnack(conn, 0, wkproto.ReasonBan)
+		return
+	}
+
+	// -------------------- get message encrypt key --------------------
 	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
 	aesKey, aesIV, err := p.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
 	if err != nil {
-		p.Error("获取客户端的aesKey和aesIV失败！", zap.Error(err))
+		p.Error("get client aes key and iv err", zap.Error(err))
 		p.responseConnackAuthFail(conn)
 		return
 	}
 	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
+
+	// -------------------- same master kicks each other --------------------
+	oldConns := p.s.connManager.GetConnsWith(uid, connectPacket.DeviceFlag)
+	if len(oldConns) > 0 && devceLevel == wkproto.DeviceLevelMaster {
+		for _, oldConn := range oldConns {
+			p.s.connManager.RemoveConnWithID(oldConn.ID())
+			if oldConn.DeviceID() != connectPacket.DeviceID {
+				p.Info("same master kicks each other", zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.DeviceID()))
+				p.response(oldConn, &wkproto.DisconnectPacket{
+					ReasonCode: wkproto.ReasonConnectKick,
+					Reason:     "login in other device",
+				})
+				p.s.timingWheel.AfterFunc(time.Second*10, func() {
+					oldConn.Close()
+				})
+			} else {
+				p.s.timingWheel.AfterFunc(time.Second*4, func() {
+					oldConn.Close() // Close old connection
+				})
+			}
+			p.Debug("close old conn", zap.Any("oldConn", oldConn))
+		}
+	}
+
+	// -------------------- set conn info --------------------
 	timeDiff := time.Now().UnixNano()/1000/1000 - connectPacket.ClientTimestamp
 
+	connCtx := p.connContextPool.Get().(*connContext)
+	connCtx.init()
+	connCtx.conn = conn
+	conn.SetContext(connCtx)
+	conn.SetProtoVersion(int(connectPacket.Version))
 	conn.SetAuthed(true)
 	conn.SetDeviceFlag(connectPacket.DeviceFlag.ToUint8())
 	conn.SetDeviceID(connectPacket.DeviceID)
 	conn.SetUID(connectPacket.UID)
 	conn.SetValue(aesKeyKey, aesKey)
 	conn.SetValue(aesIVKey, aesIV)
-	conn.SetValue(deviceLevelKey, 1)
+	conn.SetDeviceLevel(devceLevelI)
 
-	// p.s.connManager.Add(conn)
+	p.s.connManager.AddConn(conn)
+
+	// -------------------- response connack --------------------
 
 	p.response(conn, &wkproto.ConnackPacket{
 		Salt:       aesIV,
@@ -156,6 +174,11 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 		ReasonCode: wkproto.ReasonSuccess,
 		TimeDiff:   timeDiff,
 	})
+
+	// -------------------- user online --------------------
+	// 在线webhook
+	onlineCount, totalOnlineCount := p.s.connManager.GetConnCountWith(uid, connectPacket.DeviceFlag)
+	p.s.webhook.Online(uid, connectPacket.DeviceFlag, conn.ID(), onlineCount, totalOnlineCount)
 
 }
 
@@ -200,12 +223,42 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendpPackets []*wkproto.SendPac
 
 func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
 	var (
-		sendackPackets = make([]wkproto.Frame, 0, len(sendPackets))      // response sendack packets
-		recvPackets    = make([]wkproto.RecvPacket, 0, len(sendPackets)) // recv packets
-		err            error
+		sendackPackets        = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
+		messages              = make([]*Message, 0, len(sendPackets))      // recv packets
+		err                   error
+		respSendackPacketsFnc = func(sendPackets []*wkproto.SendPacket, reasonCode wkproto.ReasonCode) []wkproto.Frame {
+			for _, sendPacket := range sendPackets {
+				sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, reasonCode))
+			}
+			return sendackPackets
+		}
+		respSendackPacketsWithRecvFnc = func(messages []*Message, reasonCode wkproto.ReasonCode) []wkproto.Frame {
+			for _, m := range messages {
+				sendackPackets = append(sendackPackets, p.getSendackPacket(m, reasonCode))
+			}
+			return sendackPackets
+		}
 	)
 
-	// ########## message store ##########
+	//########## get channel and assert permission ##########
+	fakeChannelID := channelID
+	if channelType == ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(conn.UID(), channelID)
+	}
+	channel, err := p.s.channelManager.GetChannel(fakeChannelID, channelType)
+	if err != nil {
+		return nil, err
+	}
+	if channel == nil {
+		p.Error("the channel does not exist or has been disbanded", zap.String("channel_id", fakeChannelID), zap.Uint8("channel_type", channelType))
+		return respSendackPacketsFnc(sendPackets, wkproto.ReasonChannelNotExist), nil
+	}
+	hasPerm, reasonCode := p.hasPermission(channel, conn.UID())
+	if !hasPerm {
+		return respSendackPacketsFnc(sendPackets, reasonCode), nil
+	}
+
+	// ########## message decrypt and message store ##########
 	for _, sendPacket := range sendPackets {
 		var messageID = p.genMessageID() // generate messageID
 
@@ -220,66 +273,138 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 			continue
 		}
 
-		recvPackets = append(recvPackets, wkproto.RecvPacket{
-			Framer: wkproto.Framer{
-				RedDot:    sendPacket.GetRedDot(),
-				SyncOnce:  sendPacket.GetsyncOnce(),
-				NoPersist: sendPacket.GetNoPersist(),
+		// message decrypt
+		decodePayload, err := p.checkAndDecodePayload(messageID, sendPacket, conn)
+		if err != nil {
+			p.response(conn, &wkproto.SendackPacket{
+				Framer:      sendPacket.Framer,
+				ClientSeq:   sendPacket.ClientSeq,
+				ClientMsgNo: sendPacket.ClientMsgNo,
+				MessageID:   messageID,
+				ReasonCode:  wkproto.ReasonPayloadDecodeError,
+			})
+			continue
+		}
+
+		messages = append(messages, &Message{
+			RecvPacket: &wkproto.RecvPacket{
+				Framer: wkproto.Framer{
+					RedDot:    sendPacket.GetRedDot(),
+					SyncOnce:  sendPacket.GetsyncOnce(),
+					NoPersist: sendPacket.GetNoPersist(),
+				},
+				Setting:     sendPacket.Setting,
+				MessageID:   messageID,
+				ClientMsgNo: sendPacket.ClientMsgNo,
+				FromUID:     conn.UID(),
+				ChannelID:   sendPacket.ChannelID,
+				ChannelType: sendPacket.ChannelType,
+				Topic:       sendPacket.Topic,
+				Timestamp:   int32(time.Now().Unix()),
+				Payload:     decodePayload,
+				// ---------- 以下不参与编码 ------------
+				ClientSeq: sendPacket.ClientSeq,
 			},
-			Setting:     sendPacket.Setting,
-			MessageID:   messageID,
-			ClientMsgNo: sendPacket.ClientMsgNo,
-			FromUID:     conn.UID(),
-			ChannelID:   sendPacket.ChannelID,
-			ChannelType: sendPacket.ChannelType,
-			Topic:       sendPacket.Topic,
-			Timestamp:   int32(time.Now().Unix()),
-			Payload:     sendPacket.Payload,
-			// ---------- 以下不参与编码 ------------
-			ClientSeq: sendPacket.ClientSeq,
+			fromDeviceFlag: wkproto.DeviceFlag(conn.DeviceFlag()),
+			fromDeviceID:   conn.DeviceID(),
+			large:          channel.Large,
 		})
 	}
-	_, err = p.storeChannelMessagesIfNeed(conn.UID(), recvPackets) // only have messageSeq after message save
+	if len(messages) == 0 {
+		return sendackPackets, nil
+	}
+	_, err = p.storeChannelMessagesIfNeed(conn.UID(), messages) // only have messageSeq after message save
 	if err != nil {
-		return nil, err
+		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 	}
 
-	if len(recvPackets) == 0 {
-		for _, recvPacket := range recvPackets {
-			sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
-				Framer:      recvPacket.Framer,
-				ClientMsgNo: recvPacket.ClientMsgNo,
-				ClientSeq:   recvPacket.ClientSeq,
-				MessageID:   recvPacket.MessageID,
-				MessageSeq:  recvPacket.MessageSeq,
-				ReasonCode:  wkproto.ReasonSuccess,
-			})
+	//########## message store to queue ##########
+	if p.s.opts.WebhookOn() {
+		err = p.storeChannelMessagesToNotifyQueue(messages)
+		if err != nil {
+			return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 		}
+	}
+
+	//########## message put to channel ##########
+	err = channel.Put(messages, conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.DeviceID())
+	if err != nil {
+		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
+	}
+
+	//########## respose ##########
+	if len(messages) == 0 {
+		for _, message := range messages {
+			sendackPackets = append(sendackPackets, p.getSendackPacket(message, wkproto.ReasonSuccess))
+		}
+
 	}
 
 	return sendackPackets, nil
 }
 
+// if has permission for sender
+func (p *Processor) hasPermission(channel *Channel, fromUID string) (bool, wkproto.ReasonCode) {
+	if channel.ChannelType == ChannelTypeCustomerService { // customer service channel
+		return true, wkproto.ReasonSuccess
+	}
+	allow, reason := channel.Allow(fromUID)
+	if !allow {
+		p.Error("The user is not in the white list or in the black list", zap.String("fromUID", fromUID), zap.String("reason", reason.String()))
+		return false, reason
+	}
+	if channel.ChannelType != ChannelTypePerson && channel.ChannelType != ChannelTypeInfo {
+		if !channel.IsSubscriber(fromUID) {
+			p.Error("The user is not in the channel and cannot send messages to the channel", zap.String("fromUID", fromUID), zap.String("channel_id", channel.ChannelID), zap.Uint8("channel_type", channel.ChannelType))
+			return false, wkproto.ReasonSubscriberNotExist
+		}
+	}
+	return true, wkproto.ReasonSuccess
+}
+
+func (p *Processor) getSendackPacket(msg *Message, reasonCode wkproto.ReasonCode) *wkproto.SendackPacket {
+	return &wkproto.SendackPacket{
+		Framer:      msg.Framer,
+		ClientMsgNo: msg.ClientMsgNo,
+		ClientSeq:   msg.ClientSeq,
+		MessageID:   msg.MessageID,
+		MessageSeq:  msg.MessageSeq,
+		ReasonCode:  reasonCode,
+	}
+
+}
+
+func (p *Processor) getSendackPacketWithSendPacket(sendPacket *wkproto.SendPacket, reasonCode wkproto.ReasonCode) *wkproto.SendackPacket {
+	return &wkproto.SendackPacket{
+		Framer:      sendPacket.Framer,
+		ClientMsgNo: sendPacket.ClientMsgNo,
+		ClientSeq:   sendPacket.ClientSeq,
+		ReasonCode:  reasonCode,
+	}
+
+}
+
 // store channel messages
-func (p *Processor) storeChannelMessagesIfNeed(fromUID string, recvPackets []wkproto.RecvPacket) ([]wkstore.Message, error) {
-	if len(recvPackets) == 0 {
+func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Message) ([]wkstore.Message, error) {
+	if len(messages) == 0 {
 		return nil, nil
 	}
-	storeMessages := make([]wkstore.Message, 0, len(recvPackets))
-	for _, recvPacket := range recvPackets {
-		if recvPacket.NoPersist {
+	storeMessages := make([]wkstore.Message, 0, len(messages))
+	for _, m := range messages {
+		if m.NoPersist || m.SyncOnce {
 			continue
 		}
-		storeMessages = append(storeMessages, &Message{
-			RecvPacket: recvPacket,
-		})
+		storeMessages = append(storeMessages, m)
 	}
-	firstSendPacket := recvPackets[0]
-	fakeChannelID := firstSendPacket.ChannelID
-	if firstSendPacket.ChannelType == ChannelTypePerson {
-		fakeChannelID = GetFakeChannelIDWith(fromUID, firstSendPacket.ChannelID)
+	if len(storeMessages) == 0 {
+		return nil, nil
 	}
-	topic := fmt.Sprintf("%d-%s", firstSendPacket.ChannelType, fakeChannelID)
+	firstMessage := storeMessages[0].(*Message)
+	fakeChannelID := firstMessage.ChannelID
+	if firstMessage.ChannelType == ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(fromUID, firstMessage.ChannelID)
+	}
+	topic := fmt.Sprintf("%d-%s", firstMessage.ChannelType, fakeChannelID)
 	_, err := p.s.store.StoreMsg(topic, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))
@@ -287,6 +412,61 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, recvPackets []wkp
 	}
 
 	return storeMessages, nil
+}
+
+func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+	storeMessages := make([]wkstore.Message, 0, len(messages))
+	for _, m := range messages {
+		storeMessages = append(storeMessages, m)
+	}
+	return p.s.store.AppendMessageOfNotifyQueue(storeMessages)
+}
+
+// decode payload
+func (p Processor) checkAndDecodePayload(messageID int64, sendPacket *wkproto.SendPacket, c wknet.Conn) ([]byte, error) {
+	var (
+		aesKey = c.Value(aesKeyKey).(string)
+		aesIV  = c.Value(aesIVKey).(string)
+	)
+	vail, err := p.sendPacketIsVail(sendPacket, c)
+	if err != nil {
+		return nil, err
+	}
+	if !vail {
+		return nil, errors.New("sendPacket is illegal！")
+	}
+	// decode payload
+	decodePayload, err := wkutil.AesDecryptPkcs7Base64(sendPacket.Payload, []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		p.Error("Failed to decode payload！", zap.Error(err))
+		return nil, err
+	}
+
+	return decodePayload, nil
+}
+
+// send packet is vail
+func (p Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Conn) (bool, error) {
+	var (
+		aesKey = c.Value(aesKeyKey).(string)
+		aesIV  = c.Value(aesIVKey).(string)
+	)
+	signStr := sendPacket.VerityString()
+	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		p.Error("msgKey is illegal！", zap.Error(err), zap.Any("conn", c))
+		return false, err
+	}
+	actMsgKeyStr := sendPacket.MsgKey
+	exceptMsgKey := wkutil.MD5(string(actMsgKey))
+	if actMsgKeyStr != exceptMsgKey {
+		p.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr))
+		return false, errors.New("msgKey is illegal！")
+	}
+	return true, nil
 }
 
 // #################### message ack ####################
@@ -303,9 +483,13 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 func (p *Processor) processClose(conn wknet.Conn, err error) {
 	p.Debug("conn is close", zap.Error(err), zap.Any("conn", conn))
 	if conn.Context() != nil {
+		p.s.connManager.RemoveConn(conn)
 		connCtx := conn.Context().(*connContext)
 		connCtx.release()
 		p.connContextPool.Put(connCtx)
+
+		onlineCount, totalOnlineCount := p.s.connManager.GetConnCountWith(conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag())) // 指定的uid和设备下没有新的客户端才算真真的下线（TODO: 有时候离线要比在线晚触发导致不正确）
+		p.s.webhook.Offline(conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.ID(), onlineCount, totalOnlineCount)     // 触发离线webhook
 	}
 }
 
@@ -350,4 +534,48 @@ func (p *Processor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]b
 // 生成消息ID
 func (p *Processor) genMessageID() int64 {
 	return p.messageIDGen.Generate().Int64()
+}
+
+func (p *Processor) process(conn wknet.Conn) {
+	connCtx := conn.Context().(*connContext)
+	frames := connCtx.popFrames()
+
+	p.processFrames(conn, frames)
+
+}
+
+func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
+
+	p.sameFrames(frames, func(s, e int, frs []wkproto.Frame) {
+		// newFs := make([]wkproto.Frame, len(frs))
+		// copy(newFs, frs)
+		p.frameWorkPool.Submit(func() {
+			p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
+		})
+		// p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
+
+		// go func(s1, e1 int, c wknet.Conn, fs []wkproto.Frame) {
+		// 	p.processSameFrame(c, fs[0].GetFrameType(), fs, s1, e1)
+		// }(s, e, conn, frs)
+
+	})
+
+}
+
+func (p *Processor) sameFrames(frames []wkproto.Frame, callback func(s, e int, fs []wkproto.Frame)) {
+	for i := 0; i < len(frames); {
+		frame := frames[i]
+		start := i
+		end := i + 1
+		for end < len(frames) {
+			nextFrame := frames[end]
+			if nextFrame.GetFrameType() == frame.GetFrameType() {
+				end++
+			} else {
+				break
+			}
+		}
+		callback(start, end, frames[start:end])
+		i = end
+	}
 }

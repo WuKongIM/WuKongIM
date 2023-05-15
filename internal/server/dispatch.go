@@ -74,7 +74,9 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 			// if frame.GetFrameType() == wkproto.PING {
 			// 	d.processor.processPing(conn, frame.(*wkproto.PingPacket))
 			// }
-			conn.Context().(*connContext).putFrame(frame)
+			connCtx := conn.Context().(*connContext)
+			connCtx.inBytes.Add(int64(len(data)))
+			connCtx.putFrame(frame)
 			offset += size
 		}
 		// process frames
@@ -89,11 +91,18 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
 	}
+	connCtx, hasConnCtx := conn.Context().(*connContext)
+	if hasConnCtx {
+		connCtx.outMsgs.Add(int64(len(frames)))
+	}
 	for _, frame := range frames {
 		data, err := d.s.opts.Proto.EncodeFrame(frame, uint8(conn.ProtoVersion()))
 		if err != nil {
 			d.Warn("Failed to encode the message", zap.Error(err))
 		} else {
+			if hasConnCtx {
+				connCtx.outBytes.Add(int64(len(data)))
+			}
 			_, err = conn.WriteToOutboundBuffer(data)
 			if err != nil {
 				d.Warn("Failed to write the message", zap.Error(err))
@@ -105,6 +114,7 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 }
 
 func (d *Dispatch) connClose(conn wknet.Conn, err error) {
+	d.s.connManager.RemoveConn(conn)
 	d.processor.processClose(conn, err)
 }
 
@@ -118,4 +128,57 @@ func (d *Dispatch) Start() error {
 
 func (d *Dispatch) Stop() error {
 	return d.engine.Stop()
+}
+
+func gnetUnpacket(buff []byte) ([]byte, error) {
+	// buff, _ := c.Peek(-1)
+	if len(buff) <= 0 {
+		return nil, nil
+	}
+	offset := 0
+
+	for len(buff) > offset {
+		typeAndFlags := buff[offset]
+		packetType := wkproto.FrameType(typeAndFlags >> 4)
+		if packetType == wkproto.PING || packetType == wkproto.PONG {
+			offset++
+			continue
+		}
+		reminLen, readSize, has := decodeLength(buff[offset+1:])
+		if !has {
+			break
+		}
+		dataEnd := offset + readSize + reminLen + 1
+		if len(buff) >= dataEnd { // 总数据长度大于当前包数据长度 说明还有包可读。
+			offset = dataEnd
+			continue
+		} else {
+			break
+		}
+	}
+
+	if offset > 0 {
+		return buff[:offset], nil
+	}
+
+	return nil, nil
+}
+
+func decodeLength(data []byte) (int, int, bool) {
+	var rLength uint32
+	var multiplier uint32
+	offset := 0
+	for multiplier < 27 { //fix: Infinite '(digit & 128) == 1' will cause the dead loop
+		if offset >= len(data) {
+			return 0, 0, false
+		}
+		digit := data[offset]
+		offset++
+		rLength |= uint32(digit&127) << multiplier
+		if (digit & 128) == 0 {
+			break
+		}
+		multiplier += 7
+	}
+	return int(rLength), offset, true
 }

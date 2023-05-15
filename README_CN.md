@@ -55,6 +55,8 @@ $ go run cmd/app/main.go -e mode=test (mode=test是测试模式 方便快速试�
 
 [JS SDK](https://github.com/WuKongIM/WuKongIMJSSDK.git)
 
+[Flutter SDK](https://github.com/WuKongIM/WuKongIMFlutterSDK.git)
+
 SDK的使用请查看[文档](http://www.githubim.com/docs)
 
 ## 客户端Demo
@@ -150,6 +152,9 @@ SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s 
 $ docker-compose up 
 ```
 
+## 适用场景
+
+聊天软件，客服系统，站内消息，物联网通讯
 
 ## Architecture
 

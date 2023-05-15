@@ -10,6 +10,32 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// NewServerOptions NewServerOptions
+func NewServerOptions() *Options {
+	opts := NewOptions()
+	opts.Mode = TestMode
+	opts.UnitTest = true
+	dir, err := ioutil.TempDir("", "limao-test")
+	if err != nil {
+		panic(err)
+	}
+	opts.DataDir = dir
+
+	return opts
+}
+
+// NewTestServer NewTestServer
+func NewTestServer(ots ...*Options) *Server {
+	var opts *Options
+	if len(ots) > 0 {
+		opts = ots[0]
+	} else {
+		opts = NewTestOptions()
+	}
+
+	l := New(opts)
+	return l
+}
 func NewTestOptions(logLevel ...zapcore.Level) *Options {
 	opt := NewOptions()
 	opt.UnitTest = true
@@ -31,7 +57,6 @@ type TestConn struct {
 	authed    bool
 	connID    uint32
 	version   uint8
-	client    *client
 }
 
 func NewTestConn() *TestConn {
@@ -85,14 +110,6 @@ func (t *TestConn) SetWriteDeadline(tm time.Time) error {
 
 func (t *TestConn) SetReadDeadline(tm time.Time) error {
 	return nil
-}
-
-func (t *TestConn) SetClient(cli *client) {
-	t.client = cli
-}
-
-func (t *TestConn) Client() *client {
-	return t.client
 }
 
 func (t *TestConn) RemoteAddr() net.Addr {
