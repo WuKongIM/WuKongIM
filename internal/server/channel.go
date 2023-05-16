@@ -481,60 +481,22 @@ func (c *Channel) Put(messages []*Message, fromUID string, fromDeviceFlag wkprot
 	return nil
 }
 
-// split messages
-func (c *Channel) splitMessages(messages []*Message, subscribers []string) ([]*Message, error) {
-	if len(messages) == 0 || len(subscribers) == 0 {
-		return nil, nil
-	}
-
-	messagesAfterSplit := make([]*Message, 0, len(messages)*len(subscribers))
-	for _, m := range messages {
-		for _, subscriber := range subscribers {
-			cloneMsg, err := m.DeepCopy()
-			if err != nil {
-				return nil, err
-			}
-			if m.SyncOnce && !m.NoPersist { // synceOnce message need to reset message seq
-				seq, err := c.s.store.GetUserNextMessageSeq(subscriber)
-				if err != nil {
-					return nil, err
-				}
-				cloneMsg.MessageSeq = seq
-			}
-			cloneMsg.ToUID = subscriber
-			cloneMsg.large = c.Large
-			if m.ChannelType == ChannelTypePerson && m.ChannelID == subscriber {
-				cloneMsg.ChannelID = m.FromUID
-			}
-			messagesAfterSplit = append(messagesAfterSplit, cloneMsg)
-		}
-	}
-
-	return messagesAfterSplit, nil
-}
-
 // store message to user queue if need
 func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers []string) (map[int64]uint32, error) {
 	if len(messages) == 0 {
 		return nil, nil
 	}
-	storeMessages := make([]wkstore.Message, 0, len(messages))
+
 	messageSeqMap := make(map[int64]uint32, len(messages))
-	for _, m := range messages {
-		if !m.SyncOnce || m.NoPersist {
-			continue
-		}
-		for _, subscriber := range subscribers {
-			seq, err := c.s.store.GetUserNextMessageSeq(subscriber)
-			if err != nil {
-				return nil, err
-			}
-			messageSeqMap[m.MessageID] = seq
+
+	for _, subscriber := range subscribers {
+		storeMessages := make([]wkstore.Message, 0, len(messages))
+		for _, m := range messages {
+
 			cloneMsg, err := m.DeepCopy()
 			if err != nil {
 				return nil, err
 			}
-			cloneMsg.MessageSeq = seq
 			cloneMsg.ToUID = subscriber
 			cloneMsg.large = c.Large
 			if m.ChannelType == ChannelTypePerson && m.ChannelID == subscriber {
@@ -542,12 +504,14 @@ func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers
 			}
 			storeMessages = append(storeMessages, cloneMsg)
 		}
-
-	}
-	if len(storeMessages) > 0 {
-		err := c.s.store.AppendMessagesOfUser(storeMessages)
-		if err != nil {
-			return nil, err
+		if len(storeMessages) > 0 {
+			_, err := c.s.store.AppendMessages(subscriber, storeMessages) // will fill messageSeq after store messages
+			if err != nil {
+				return nil, err
+			}
+			for _, storeMessage := range storeMessages {
+				messageSeqMap[storeMessage.GetMessageID()] = storeMessage.GetSeq()
+			}
 		}
 	}
 	return messageSeqMap, nil

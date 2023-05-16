@@ -3,7 +3,6 @@ module github.com/WuKongIM/WuKongIM
 go 1.18
 
 require (
-	github.com/RoaringBitmap/roaring v1.2.3
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/gin-gonic/gin v1.8.2
@@ -46,6 +45,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.0 // indirect
 	github.com/tysonmote/gommap v0.0.2 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
+	go.etcd.io/bbolt v1.3.7 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
 	google.golang.org/grpc v1.55.0 // indirect

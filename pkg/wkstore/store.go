@@ -6,9 +6,6 @@ type Store interface {
 	// #################### user ####################
 	// GetUserToken return token,device level and error
 	GetUserToken(uid string, deviceFlag uint8) (string, uint8, error)
-	// GetUserNextMessageSeq return user next message seq and error
-	GetUserNextMessageSeq(uid string) (uint32, error)
-
 	// #################### channel ####################
 	GetChannel(channelID string, channelType uint8) (*ChannelInfo, error)
 	// AddOrUpdateChannel add or update channel
@@ -29,7 +26,7 @@ type Store interface {
 
 	// #################### messages ####################
 	// StoreMsg return seqs and error, seqs len is msgs len
-	StoreMsg(topic string, msgs []Message) (seqs []uint32, err error)
+	AppendMessages(topic string, msgs []Message) (seqs []uint32, err error)
 	LoadMsg(topic string, seq uint32) (Message, error)
 	LoadNextMsgs(topic string, seq uint32, limit int) ([]Message, error)
 	LoadPrevMsgs(topic string, seq uint32, limit int) ([]Message, error)
@@ -37,7 +34,6 @@ type Store interface {
 
 	AppendMessageOfNotifyQueue(m []Message) error
 	GetMessagesOfNotifyQueue(count int) ([]Message, error)
-	AppendMessagesOfUser(messages []Message) error
 	// RemoveMessagesOfNotifyQueue 从通知队列里移除消息
 	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
 
@@ -68,6 +64,13 @@ func (c *ChannelInfo) ToMap() map[string]interface{} {
 	}
 }
 
+// NewChannelInfo NewChannelInfo
+func NewChannelInfo(channelID string, channelType uint8) *ChannelInfo {
+	return &ChannelInfo{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+	}
+}
 func (c *ChannelInfo) from(mp map[string]interface{}) {
 	if mp["ban"] != nil {
 		c.Ban = mp["ban"].(bool)
@@ -76,12 +79,4 @@ func (c *ChannelInfo) from(mp map[string]interface{}) {
 		c.Large = mp["large"].(bool)
 	}
 
-}
-
-// NewChannelInfo NewChannelInfo
-func NewChannelInfo(channelID string, channelType uint8) *ChannelInfo {
-	return &ChannelInfo{
-		ChannelID:   channelID,
-		ChannelType: channelType,
-	}
 }

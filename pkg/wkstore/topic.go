@@ -15,7 +15,7 @@ import (
 )
 
 type topic struct {
-	f                  *FileStore
+	cfg                *StoreConfig
 	name               string
 	slot               uint32
 	segments           []uint32
@@ -27,13 +27,13 @@ type topic struct {
 	lastMsgSeq atomic.Uint32
 }
 
-func newTopic(name string, slot uint32, f *FileStore) *topic {
-	topicDir := filepath.Join(f.cfg.DataDir, fmt.Sprintf("%d", slot), "topics", name)
+func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
+	topicDir := filepath.Join(cfg.DataDir, fmt.Sprintf("%d", slot), "topics", name)
 
 	t := &topic{
 		name:     name,
 		slot:     slot,
-		f:        f,
+		cfg:      cfg,
 		topicDir: topicDir,
 		Log:      wklog.NewWKLog(fmt.Sprintf("%d-topic[%s]", slot, name)),
 		segments: make([]uint32, 0),
@@ -75,7 +75,7 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, error) {
 	t.lastMsgSeq.Store(lastMsg.GetSeq())
 
 	//	if  roll new segment
-	if t.lastSegment.index.IsFull() || int64(t.lastSegment.position) > t.f.cfg.SegmentMaxBytes {
+	if t.lastSegment.index.IsFull() || int64(t.lastSegment.position) > t.cfg.SegmentMaxBytes {
 		t.roll(msgs[len(msgs)-1]) // roll new segment
 	}
 
@@ -96,7 +96,7 @@ func (t *topic) roll(m Message) {
 
 func (t *topic) getSegment(baseOffset uint32, mode SegmentMode) *segment {
 	key := t.getSegmentCacheKey(baseOffset)
-	seg, _ := t.f.segmentCache.Get(key)
+	seg, _ := segmentCache.Get(key)
 	if seg != nil {
 		return seg
 	}

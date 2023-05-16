@@ -247,9 +247,9 @@ func (idx *Index) readAtPosition(p []byte, position int64) (n int, err error) {
 	return n, nil
 }
 
-func (idx *Index) getRealOffset(entry *Entry) uint32 {
-	return entry.RelativeOffset + idx.baseOffset
-}
+// func (idx *Index) getRealOffset(entry *Entry) uint32 {
+// 	return entry.RelativeOffset + idx.baseOffset
+// }
 
 func (idx *Index) indexSlotRangeFor(target uint32) (int64, int64) {
 	entries := idx.position / int64(idx.entrySize)

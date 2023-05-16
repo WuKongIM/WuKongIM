@@ -18,7 +18,7 @@ import (
 )
 
 type segment struct {
-	f          *FileStore
+	cfg        *StoreConfig
 	t          *topic
 	baseOffset uint32
 	segmentDir string
@@ -39,7 +39,7 @@ func newSegment(baseOffset uint32, t *topic) *segment {
 	segmentDir := filepath.Join(t.topicDir, "logs")
 	s := &segment{
 		t:                  t,
-		f:                  t.f,
+		cfg:                t.cfg,
 		segmentDir:         segmentDir,
 		baseOffset:         baseOffset,
 		indexIntervalBytes: 4 * 1024,
@@ -161,7 +161,7 @@ func (s *segment) sanityCheck() (int64, error) {
 		s.Debug("No magic number at the end,sanity check mode is full")
 		return s.sanityFullCheck(segmentSizeOfByte)
 	}
-	if segmentSizeOfByte <= int64(s.f.cfg.EachLogMaxSizeOfBytes)+int64(getMinMessageLen()) {
+	if segmentSizeOfByte <= int64(s.cfg.EachLogMaxSizeOfBytes)+int64(getMinMessageLen()) {
 		s.Debug("File is too small,sanity check mode is full")
 		return s.sanityFullCheck(segmentSizeOfByte)
 	}
@@ -182,8 +182,8 @@ func (s *segment) sanityCheck() (int64, error) {
 // 返回最后一条日志的开始位置
 func (s *segment) sanitySimpleCheck(segmentSizeOfByte int64) (bool, int64, error) {
 
-	assertDataSize := int64(s.f.cfg.EachLogMaxSizeOfBytes + getMinMessageLen()) // assert last message size
-	if assertDataSize >= segmentSizeOfByte {                                    // if return false will go to fullCheck
+	assertDataSize := int64(s.cfg.EachLogMaxSizeOfBytes + getMinMessageLen()) // assert last message size
+	if assertDataSize >= segmentSizeOfByte {                                  // if return false will go to fullCheck
 		return false, 0, nil
 	}
 

@@ -6,11 +6,11 @@ import (
 
 type slot struct {
 	topicCache *lru.Cache[string, *topic]
-	f          *FileStore
+	cfg        *StoreConfig
 	num        uint32
 }
 
-func newSlot(num uint32, f *FileStore) *slot {
+func newSlot(num uint32, cfg *StoreConfig) *slot {
 	topicCache, err := lru.NewWithEvict(100, func(key string, value *topic) {
 		value.close()
 	})
@@ -18,7 +18,7 @@ func newSlot(num uint32, f *FileStore) *slot {
 		panic(err)
 	}
 	return &slot{
-		f:          f,
+		cfg:        cfg,
 		num:        num,
 		topicCache: topicCache,
 	}
@@ -29,7 +29,7 @@ func (s *slot) getTopic(topic string) *topic {
 	if ok {
 		return v
 	}
-	tc := newTopic(topic, s.num, s.f)
+	tc := newTopic(topic, s.num, s.cfg)
 	s.topicCache.Add(topic, tc)
 	return tc
 }

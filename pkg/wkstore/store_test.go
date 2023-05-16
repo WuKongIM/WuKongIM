@@ -31,12 +31,16 @@ func TestStoreMsg(t *testing.T) {
 }
 
 type testMessage struct {
-	seq  uint32
-	data []byte
+	seq       uint32
+	data      []byte
+	messageID int64
 }
 
 func (t *testMessage) GetSeq() uint32 {
 	return t.seq
+}
+func (t *testMessage) GetMessageID() int64 {
+	return t.messageID
 }
 
 func (t *testMessage) Encode() []byte {
