@@ -405,7 +405,7 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 		fakeChannelID = GetFakeChannelIDWith(fromUID, firstMessage.ChannelID)
 	}
 	topic := fmt.Sprintf("%d-%s", firstMessage.ChannelType, fakeChannelID)
-	_, err := p.s.store.StoreMsg(topic, storeMessages)
+	_, err := p.s.store.AppendMessages(topic, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))
 		return nil, err

@@ -15,8 +15,7 @@ func TestTopicAppend(t *testing.T) {
 	assert.NoError(t, err)
 	cfg := NewStoreConfig()
 	cfg.DataDir = dir
-	store := NewFileStore(cfg)
-	tc := newTopic("test", 1, store)
+	tc := newTopic("test", 1, cfg)
 
 	seqs, err := tc.appendMessages([]Message{
 		&testMessage{
@@ -43,8 +42,7 @@ func BenchmarkTopicAppend(b *testing.B) {
 	assert.NoError(b, err)
 	cfg := NewStoreConfig()
 	cfg.DataDir = dir
-	store := NewFileStore(cfg)
-	tc := newTopic("test", 1, store)
+	tc := newTopic("test", 1, cfg)
 
 	b.ResetTimer()
 

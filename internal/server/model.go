@@ -32,6 +32,10 @@ type Message struct {
 	retryCount int   // 当前重试次数
 }
 
+func (m *Message) GetMessageID() int64 {
+	return m.MessageID
+}
+
 func (m *Message) SetSeq(seq uint32) {
 	m.MessageSeq = seq
 }
