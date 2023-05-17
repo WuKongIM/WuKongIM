@@ -114,3 +114,23 @@ func (c *ConnManager) GetConnCountWith(uid string, deviceFlag wkproto.DeviceFlag
 	}
 	return deviceOnlineCount, len(conns)
 }
+
+// GetOnlineConns 传一批uids 返回在线的uids
+func (c *ConnManager) GetOnlineConns(uids []string) []wknet.Conn {
+	if len(uids) == 0 {
+		return make([]wknet.Conn, 0)
+	}
+	c.Lock()
+	defer c.Unlock()
+	var onlineConns = make([]wknet.Conn, 0, len(uids))
+	for _, uid := range uids {
+		connIDs := c.userConnMap[uid]
+		for _, connID := range connIDs {
+			conn := c.s.dispatch.engine.GetConn(c.connMap[connID])
+			if conn != nil {
+				onlineConns = append(onlineConns, conn)
+			}
+		}
+	}
+	return onlineConns
+}

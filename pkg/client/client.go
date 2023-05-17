@@ -593,7 +593,7 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 
 	clientMsgNo := opts.ClientMsgNo
 	if clientMsgNo == "" {
-		// clientMsgNo = wkutil.GenUUID() // TODO: uuid生成非常耗性能
+		clientMsgNo = wkutil.GenUUID() // TODO: uuid生成非常耗性能
 	}
 	clientSeq := c.clientIDGen.Add(1)
 	packet := &wkproto.SendPacket{

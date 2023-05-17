@@ -3,11 +3,14 @@ package server
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
 )
@@ -26,12 +29,19 @@ const (
 )
 
 type Options struct {
-	NodeID         int64            // 节点ID
-	Proto          wkproto.Protocol // 狸猫IM protocol
-	DataDir        string           // 数据目录
-	Version        string
-	HTTPAddr       string // http api的监听地址 默认为 0.0.0.0:1516
-	Addr           string // tcp监听地址 例如：tcp://0.0.0.0:7677
+	NodeID      int64  // 节点ID
+	DataDir     string // 数据目录
+	ExternalIP  string // 外网IP 如果没配置将通过ifconfig.io获取
+	NodeTCPAddr string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
+	NodeWSAddr  string // 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+	MonitorAddr string // 监控地址 默认为 0.0.0.0:1101
+
+	Proto wkproto.Protocol // 狸猫IM protocol
+
+	Version  string
+	HTTPAddr string // http api的监听地址 默认为 0.0.0.0:1516
+	Addr     string // tcp监听地址 例如：tcp://0.0.0.0:7677
+
 	WSSOn          int    // 是否开启wss
 	WSSAddr        string // websocket 监听地址 例如： 0.0.0.0:2122
 	UnitTest       bool   // 是否开启单元测试
@@ -51,6 +61,8 @@ type Options struct {
 
 	ConnFrameQueueMaxSize int // conn frame queue max size
 
+	TokenAuthOn bool // 是否开启token验证
+
 	Webhook       string // webhook 通过此地址通知数据给第三方 格式为 http://xxxxx
 	WebhookGRPC   string // webhook的grpc地址 如果此地址有值 则不会再调用webhook,格式为 ip:port
 	EventPoolSize int    // 事件协程池大小,此池主要处理im的一些通知事件 比如webhook，上下线等等 默认为1024
@@ -64,16 +76,17 @@ type Options struct {
 	DatasourceChannelInfoOn bool // 数据源是否开启频道信息获取
 
 	WhitelistOffOfPerson int
-
-	DeliveryMsgPoolSize int // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
+	SlotBackupDir        string // slot备份目录
+	DeliveryMsgPoolSize  int    // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
 
 	MsgTimeout          time.Duration // Message sending timeout time, after this time it will try again
 	TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 
-	SubscriberCompressOfCount int           // 订阅者数组多大开始压缩（离线推送的时候订阅者数组太大 可以设置此参数进行压缩 默认为0 表示不压缩 ）
-	MessageNotifyScanInterval time.Duration // 消息推送间隔 默认500毫秒发起一次推送
-	MessageNotifyMaxCount     int           // 每次webhook推送消息数量限制 默认一次请求最多推送100条
-	MessageMaxRetryCount      int           // 消息最大重试次数
+	SubscriberCompressOfCount  int           // 订阅者数组多大开始压缩（离线推送的时候订阅者数组太大 可以设置此参数进行压缩 默认为0 表示不压缩 ）
+	MessageNotifyScanInterval  time.Duration // 消息推送间隔 默认500毫秒发起一次推送
+	MessageNotifyMaxCount      int           // 每次webhook推送消息数量限制 默认一次请求最多推送100条
+	MessageNotifyRetryMaxCount int           // 消息推送失败最大重试次数 默认为5次
+	MessageMaxRetryCount       int           // 消息最大重试次数
 	// ---------- conversation ----------
 	ConversationCacheExpire    int // 最近会话缓存过期时间 单位秒
 	ConversationSyncInterval   time.Duration
@@ -108,8 +121,9 @@ func NewOptions() *Options {
 		ConnFrameQueueMaxSize:      250,
 		TmpChannelCacheCount:       500,
 		ChannelCacheCount:          1000,
+		TokenAuthOn:                false,
 		TmpChannelSuffix:           "@tmp",
-		CreateIfChannelNotExist:    false,
+		CreateIfChannelNotExist:    true,
 		DatasourceChannelInfoOn:    false,
 		ConversationCacheExpire:    60 * 60 * 24 * 1, // 1天过期
 		ConversationSyncInterval:   time.Minute * 5,
@@ -122,27 +136,63 @@ func NewOptions() *Options {
 		MessageNotifyScanInterval:  time.Millisecond * 500,
 		MessageNotifyMaxCount:      100,
 		MessageMaxRetryCount:       5,
+		MessageNotifyRetryMaxCount: 5,
+		MonitorOn:                  false,
+		MonitorAddr:                "0.0.0.0:1101",
 	}
 }
 
 func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.vp = vp
-	o.Mode = Mode(o.getString("mode", string(ReleaseMode)))
+	o.Mode = Mode(o.getString("Mode", string(ReleaseMode)))
 	o.configureLog(vp)   // 日志配置
 	o.configureDataDir() // 数据目录
+
+	if strings.TrimSpace(o.NodeTCPAddr) == "" {
+		addrPairs := strings.Split(o.Addr, ":")
+		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
+
+		ip := ""
+		var err error
+
+		ip, err = o.getExternalIP()
+		if err != nil {
+			panic(err)
+		}
+
+		o.NodeTCPAddr = fmt.Sprintf("%s:%d", ip, portInt64)
+	}
+	if strings.TrimSpace(o.NodeWSAddr) == "" {
+		addrPairs := strings.Split(o.WSSAddr, ":")
+		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
+		externalIP, err := o.getExternalIP()
+		if err != nil {
+			panic(err)
+		}
+		o.NodeWSAddr = fmt.Sprintf("%s:%d", externalIP, portInt64)
+	}
+
+	o.SlotBackupDir = path.Join(o.DataDir, "SlotBackupDir")
+	if strings.TrimSpace(o.SlotBackupDir) != "" {
+		err := os.MkdirAll(o.SlotBackupDir, 0755)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 }
 
 func (o *Options) configureDataDir() {
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
 	}
 	// 数据目录
 	if o.NodeID == 0 {
-		o.DataDir = o.getString("dataDir", filepath.Join(homeDir, "wukongimdata"))
+		o.DataDir = o.getString("DataDir", filepath.Join(homeDir, "wukongimdata"))
 	} else {
-		o.DataDir = o.getString("dataDir", filepath.Join(homeDir, fmt.Sprintf("wukongimdata-%d", o.NodeID)))
+		o.DataDir = o.getString("DataDir", filepath.Join(homeDir, fmt.Sprintf("wukongimdata-%d", o.NodeID)))
 	}
 	if strings.TrimSpace(o.DataDir) != "" {
 		err = os.MkdirAll(o.DataDir, 0755)
@@ -153,7 +203,7 @@ func (o *Options) configureDataDir() {
 }
 
 func (o *Options) configureLog(vp *viper.Viper) {
-	logLevel := vp.GetInt("logger.level")
+	logLevel := vp.GetInt("Logger.Level")
 	// level
 	if logLevel == 0 { // 没有设置
 		if o.Mode == DebugMode {
@@ -163,8 +213,13 @@ func (o *Options) configureLog(vp *viper.Viper) {
 		}
 	}
 	o.Logger.Level = zapcore.Level(logLevel)
-	o.Logger.Dir = vp.GetString("logger.dir")
-	o.Logger.LineNum = vp.GetBool("logger.lineNum")
+	o.Logger.Dir = vp.GetString("Logger.Dir")
+	o.Logger.LineNum = vp.GetBool("Logger.LineNum")
+}
+
+// IsTmpChannel 是否是临时频道
+func (o *Options) IsTmpChannel(channelID string) bool {
+	return strings.HasSuffix(channelID, o.TmpChannelSuffix)
 }
 
 func (o *Options) getString(key string, defaultValue string) string {
@@ -225,4 +280,10 @@ func (o *Options) GetCustomerServiceVisitorUID(channelID string) (string, bool) 
 // IsFakeChannel 是fake频道
 func (o *Options) IsFakeChannel(channelID string) bool {
 	return strings.Contains(channelID, "@")
+}
+func (o *Options) getExternalIP() (string, error) {
+	if strings.TrimSpace(o.ExternalIP) != "" {
+		return o.ExternalIP, nil
+	}
+	return wkutil.GetExternalIP()
 }

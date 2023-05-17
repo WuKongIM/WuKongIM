@@ -309,3 +309,14 @@ const (
 	MessageSeqByteSize      = 4
 	TimestampByteSize       = 8
 )
+
+const (
+	// ChannelTypePerson 个人频道
+	ChannelTypePerson uint8 = 1
+	// ChannelTypeGroup 群频道
+	ChannelTypeGroup           uint8 = 2 // 群组频道
+	ChannelTypeCustomerService uint8 = 3 // 客服频道
+	ChannelTypeCommunity       uint8 = 4 // 社区频道
+	ChannelTypeCommunityTopic  uint8 = 5 // 社区话题频道
+	ChannelTypeInfo            uint8 = 6 // 资讯频道（有临时订阅者的概念，查看资讯的时候加入临时订阅，退出资讯的时候退出临时订阅）
+)

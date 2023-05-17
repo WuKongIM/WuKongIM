@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
@@ -127,6 +128,15 @@ func (f *FileStore) GetUserToken(uid string, deviceFlag uint8) (string, uint8, e
 	return token, uint8(level), nil
 }
 
+// UpdateUserToken UpdateUserToken
+func (f *FileStore) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) error {
+	slotNum := f.slotNum(uid)
+	return f.set(slotNum, []byte(f.getUserTokenKey(uid, deviceFlag)), []byte(wkutil.ToJSON(map[string]string{
+		"device_level": fmt.Sprintf("%d", deviceLevel),
+		"token":        token,
+	})))
+}
+
 func (f *FileStore) AddOrUpdateChannel(channelInfo *ChannelInfo) error {
 	slotNum := f.slotNumForChannel(channelInfo.ChannelID, channelInfo.ChannelType)
 	return f.set(slotNum, []byte(f.getChannelKey(channelInfo.ChannelID, channelInfo.ChannelType)), []byte(wkutil.ToJSON(channelInfo.ToMap())))
@@ -180,6 +190,44 @@ func (f *FileStore) GetAllowlist(channelID string, channelType uint8) ([]string,
 	return f.getList(slotNum, key)
 }
 
+func (f *FileStore) AddAllowlist(channelID string, channelType uint8, uids []string) error {
+	key := f.getAllowlistKey(channelID, channelType)
+	slotNum := f.slotNumForChannel(channelID, channelType)
+	return f.addList(slotNum, key, uids)
+}
+
+func (f *FileStore) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
+	key := f.getAllowlistKey(channelID, channelType)
+	slotNum := f.slotNumForChannel(channelID, channelType)
+	return f.removeList(slotNum, key, uids)
+}
+
+func (f *FileStore) RemoveAllAllowlist(channelID string, channelType uint8) error {
+	key := f.getAllowlistKey(channelID, channelType)
+	f.lock.Lock(key)
+	defer f.lock.Unlock(key)
+	slotNum := f.slotNumForChannel(channelID, channelType)
+	return f.delete(slotNum, []byte(key))
+}
+
+func (f *FileStore) AddDenylist(channelID string, channelType uint8, uids []string) error {
+	key := f.getDenylistKey(channelID, channelType)
+	slotNum := f.slotNumForChannel(channelID, channelType)
+	return f.addList(slotNum, key, uids)
+}
+
+func (f *FileStore) RemoveDenylist(channelID string, channelType uint8, uids []string) error {
+	key := f.getDenylistKey(channelID, channelType)
+	slotNum := f.slotNumForChannel(channelID, channelType)
+	return f.removeList(slotNum, key, uids)
+}
+
+func (f *FileStore) RemoveAllDenylist(channelID string, channelType uint8) error {
+	key := f.getDenylistKey(channelID, channelType)
+	slotNum := f.slotNumForChannel(channelID, channelType)
+	return f.delete(slotNum, []byte(key))
+}
+
 func (f *FileStore) GetDenylist(channelID string, channelType uint8) ([]string, error) {
 	key := f.getDenylistKey(channelID, channelType)
 	slotNum := f.slotNumForChannel(channelID, channelType)
@@ -193,6 +241,31 @@ func (f *FileStore) DeleteChannel(channelID string, channelType uint8) error {
 		return err
 	}
 	return nil
+}
+
+func (f *FileStore) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error {
+	slot := f.slotNum(uid)
+	lastSeq := f.getTopic(uid, wkproto.ChannelTypePerson).getLastMsgSeq()
+	actOffset := messageSeq
+	if messageSeq > lastSeq { // 如果传过来的大于系统里最新的 则用最新的
+		actOffset = lastSeq
+	}
+	return f.db.Update(func(t *bolt.Tx) error {
+		b, err := f.getSlotBucket(slot, t)
+		if err != nil {
+			return err
+		}
+		key := f.getMessageOfUserCursorKey(uid)
+		value := b.Get([]byte(key))
+		if len(value) > 0 {
+			offset64, _ := strconv.ParseUint(string(value), 10, 64)
+			oldOffset := uint32(offset64)
+			if actOffset <= oldOffset && oldOffset < lastSeq {
+				return nil
+			}
+		}
+		return b.Put([]byte(key), []byte(fmt.Sprintf("%d", actOffset)))
+	})
 }
 
 func (f *FileStore) AddSystemUIDs(uids []string) error {
@@ -335,14 +408,18 @@ func (f *FileStore) DeleteConversation(uid string, channelID string, channelType
 	})
 }
 
-func (f *FileStore) AppendMessageOfNotifyQueue(m []Message) error {
+func (f *FileStore) AppendMessageOfNotifyQueue(messages []Message) error {
 	return f.db.Update(func(t *bolt.Tx) error {
 		bucket := t.Bucket([]byte(f.notifyQueuePrefix))
-		seq, err := bucket.NextSequence()
-		if err != nil {
-			return err
+		for _, message := range messages {
+			seq, err := bucket.NextSequence()
+			if err != nil {
+				return err
+			}
+			msgBytes := message.Encode()
+			return bucket.Put(itob(seq), msgBytes)
 		}
-		return bucket.Put(itob(seq), []byte(wkutil.ToJSON(m)))
+		return nil
 	})
 }
 

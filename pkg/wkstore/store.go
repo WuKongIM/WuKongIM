@@ -6,6 +6,10 @@ type Store interface {
 	// #################### user ####################
 	// GetUserToken return token,device level and error
 	GetUserToken(uid string, deviceFlag uint8) (string, uint8, error)
+	UpdateUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) error
+	// UpdateMessageOfUserCursorIfNeed 更新用户消息队列的游标，用户读到的位置
+	UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error
+
 	// #################### channel ####################
 	GetChannel(channelID string, channelType uint8) (*ChannelInfo, error)
 	// AddOrUpdateChannel add or update channel
@@ -23,19 +27,40 @@ type Store interface {
 	GetDenylist(channelID string, channelType uint8) ([]string, error)
 	// DeleteChannel 删除频道
 	DeleteChannel(channelID string, channelType uint8) error
+	// AddDenylist 添加频道黑名单
+	AddDenylist(channelID string, channelType uint8, uids []string) error
+	// RemoveAllDenylist 移除指定频道的所有黑名单
+	RemoveAllDenylist(channelID string, channelType uint8) error
+	// RemoveDenylist 移除频道内指定用户的黑名单
+	RemoveDenylist(channelID string, channelType uint8, uids []string) error
+	// AddAllowlist 添加白名单
+	AddAllowlist(channelID string, channelType uint8, uids []string) error
+	// RemoveAllAllowlist 移除指定频道的所有白名单
+	RemoveAllAllowlist(channelID string, channelType uint8) error
+	// RemoveAllowlist 移除白名单
+	RemoveAllowlist(channelID string, channelType uint8, uids []string) error
 
 	// #################### messages ####################
 	// StoreMsg return seqs and error, seqs len is msgs len
-	AppendMessages(topic string, msgs []Message) (seqs []uint32, err error)
-	LoadMsg(topic string, seq uint32) (Message, error)
-	LoadNextMsgs(topic string, seq uint32, limit int) ([]Message, error)
-	LoadPrevMsgs(topic string, seq uint32, limit int) ([]Message, error)
-	LoadRangeMsgs(topic string, start, end uint32) ([]Message, error)
+	AppendMessages(channelID string, channelType uint8, msgs []Message) (seqs []uint32, err error)
+	LoadMsg(channelID string, channelType uint8, seq uint32) (Message, error)
+	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
+	// LoadLastMsgsWithEnd 加载最新的消息 end表示加载到end的位置结束加载 end=0表示不做限制 结果不包含end
+	LoadLastMsgsWithEnd(channelID string, channelType uint8, end uint32, limit int) ([]Message, error)
+	// LoadPrevRangeMsgs 向上加载指定范围的消息 end=0表示不做限制 比如 start=100 end=0 limit=10 则返回的消息seq为99-90的消息
+	// 结果不包含start和end
+	LoadPrevRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
+	// LoadNextRangeMsgs 向下加载指定范围的消息 end=0表示不做限制 比如 start=100 end=200 limit=10 则返回的消息seq为101-111的消息，
+	// 比如start=100 end=105 limit=10 则返回的消息seq为101-104的消息
+	// 结果不包含start和end
+	LoadNextRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
 
 	AppendMessageOfNotifyQueue(m []Message) error
 	GetMessagesOfNotifyQueue(count int) ([]Message, error)
 	// RemoveMessagesOfNotifyQueue 从通知队列里移除消息
 	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
+
+	DeleteChannelAndClearMessages(channelID string, channelType uint8) error
 
 	// #################### conversations ####################
 	AddOrUpdateConversations(uid string, conversations []*Conversation) error
