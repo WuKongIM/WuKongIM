@@ -32,7 +32,7 @@ func NewAcceptor(eg *Engine) *Acceptor {
 	a := &Acceptor{
 		eg:           eg,
 		reactorSubs:  reactorSubs,
-		listenPoller: netpoll.NewPoller(),
+		listenPoller: netpoll.NewPoller("listenerPoller"),
 		Log:          wklog.NewWKLog("Acceptor"),
 	}
 
@@ -68,7 +68,6 @@ func (a *Acceptor) run() error {
 	}
 
 	a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
-
 		return a.acceptConn(fd)
 	})
 

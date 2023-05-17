@@ -2,6 +2,7 @@ package wkstore
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -24,6 +25,7 @@ type FileStoreForMsg struct {
 	cfg     *StoreConfig
 	slotMap map[uint32]*slot
 	wklog.Log
+	slotMapLock sync.RWMutex
 }
 
 func NewFileStoreForMsg(cfg *StoreConfig) *FileStoreForMsg {
@@ -134,10 +136,14 @@ func (f *FileStoreForMsg) topicName(channelID string, channelType uint8) string 
 func (f *FileStoreForMsg) getTopic(channelID string, channelType uint8) *topic {
 	topic := f.topicName(channelID, channelType)
 	slotNum := wkutil.GetSlotNum(f.cfg.SlotNum, topic)
+	f.slotMapLock.RLock()
 	slot := f.slotMap[slotNum]
+	f.slotMapLock.RUnlock()
 	if slot == nil {
 		slot = newSlot(slotNum, f.cfg)
+		f.slotMapLock.Lock()
 		f.slotMap[slotNum] = slot
+		f.slotMapLock.Unlock()
 	}
 	return slot.getTopic(topic)
 }

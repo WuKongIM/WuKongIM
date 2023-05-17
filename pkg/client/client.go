@@ -468,7 +468,7 @@ func (c *Client) readLoop() {
 				continue
 			}
 			tmpBuff = append(tmpBuff, buf...)
-			packetData, remainingData, err = parse(tmpBuff)
+			packetData, remainingData, err = gnetUnpacket(tmpBuff)
 			if remainingData == nil {
 				tmpBuff = make([]byte, 0)
 			} else {

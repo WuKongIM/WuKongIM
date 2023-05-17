@@ -28,11 +28,13 @@ type Poller struct {
 	fd int
 	wklog.Log
 	shutdown bool
+	name     string
 }
 
 // NewPoller instantiates a poller.
-func NewPoller() *Poller {
+func NewPoller(name string) *Poller {
 	poller := new(Poller)
+	poller.name = name
 	var err error
 	if poller.fd, err = unix.Kqueue(); err != nil {
 		panic(err)
@@ -154,6 +156,10 @@ func (p *Poller) DeleteReadAndWrite(fd int) error {
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_WRITE},
 	}, nil, nil)
 	return os.NewSyscallError("kevent delete", err)
+}
+
+func (p *Poller) Delete(fd int) error {
+	return nil
 }
 
 func (p *Poller) Close() error {
