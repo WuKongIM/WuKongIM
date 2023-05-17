@@ -165,7 +165,7 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 		return
 	}
 	channelID := msg.ChannelID
-	if msg.ChannelType == ChannelTypePerson && msg.ChannelID == msg.ToUID {
+	if msg.ChannelType == wkproto.ChannelTypePerson && msg.ChannelID == msg.ToUID {
 		channelID = msg.FromUID
 	}
 	recvPacket := msg.RecvPacket

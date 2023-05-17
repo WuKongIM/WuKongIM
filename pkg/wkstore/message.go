@@ -19,8 +19,8 @@ func EncodeMessage(messageSeq uint32, data []byte) []byte {
 	binary.Write(p, Encoding, MagicNumber)
 	binary.Write(p, Encoding, MessageVersion)
 	binary.Write(p, Encoding, uint32(len(data)))
-	binary.Write(p, Encoding, messageSeq) // offsetSize = 8
-	binary.Write(p, Encoding, int64(0))
+	binary.Write(p, Encoding, int64(messageSeq)) // offsetSize = 8
+	binary.Write(p, Encoding, int64(0))          // appliIndexSize = 8
 	binary.Write(p, Encoding, data)
 	binary.Write(p, Encoding, EndMagicNumber)
 	return p.Bytes()
@@ -43,8 +43,8 @@ func DecodeMessage(msg []byte) (uint32, []byte, error) {
 	offset += MessageDataLenSize
 
 	// seq
-	messageSeq := uint32(Encoding.Uint64(msg[offset : offset+OffsetSize]))
-	offset += OffsetSize
+	messageSeq := uint32(Encoding.Uint64(msg[offset : offset+MessageSeqSize]))
+	offset += MessageSeqSize
 
 	// applindex
 	_ = Encoding.Uint64(msg[offset : offset+AppliIndexSize])

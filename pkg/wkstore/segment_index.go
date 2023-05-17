@@ -27,12 +27,12 @@ type Entry struct {
 
 // Index Index
 type Index struct {
-	mu         sync.RWMutex
-	position   int64
-	entrySize  int
-	baseOffset uint32
-	file       *os.File
-	mmap       gommap.MMap
+	mu             sync.RWMutex
+	position       int64
+	entrySize      int
+	baseMessageSeq uint32
+	file           *os.File
+	mmap           gommap.MMap
 	wklog.Log
 	maxBytes         int64
 	maxEntryNum      int64
@@ -41,13 +41,13 @@ type Index struct {
 }
 
 // NewIndex NewIndex
-func NewIndex(path string, baseOffset uint32) *Index {
+func NewIndex(path string, baseMessageSeq uint32) *Index {
 
 	idx := &Index{
-		entrySize:  binary.Size(Entry{}),
-		maxBytes:   IndexMaxSizeOfByte,
-		Log:        wklog.NewWKLog(fmt.Sprintf("Index[%s]", path)),
-		baseOffset: baseOffset,
+		entrySize:      binary.Size(Entry{}),
+		maxBytes:       IndexMaxSizeOfByte,
+		Log:            wklog.NewWKLog(fmt.Sprintf("Index[%s]", path)),
+		baseMessageSeq: baseMessageSeq,
 	}
 
 	idx.maxEntryNum = idx.maxBytes / int64(idx.entrySize)
@@ -113,7 +113,7 @@ func (idx *Index) Append(offset uint32, position uint32) error {
 
 	b := new(bytes.Buffer)
 	if err := binary.Write(b, Encoding, Entry{
-		RelativeOffset: offset - idx.baseOffset,
+		RelativeOffset: offset - idx.baseMessageSeq,
 		Position:       uint32(position),
 	}); err != nil {
 		return err
@@ -131,17 +131,29 @@ func (idx *Index) Append(offset uint32, position uint32) error {
 
 // Lookup  Find the largest offset less than or equal to the given targetOffset
 // and return a pair holding this offset and its corresponding physical file position
-func (idx *Index) Lookup(targetOffset uint32) (OffsetPosition, error) {
+func (idx *Index) Lookup(targetOffset uint32) (MessageSeqPosition, error) {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
 	min, _ := idx.indexSlotRangeFor(targetOffset)
 	if min == -1 {
-		return OffsetPosition{
-			Offset:   idx.baseOffset,
-			Position: 0,
+		return MessageSeqPosition{
+			MessageSeq: idx.baseMessageSeq,
+			Position:   0,
 		}, nil
 	}
 	return idx.parseEntry(min), nil
+}
+
+func (idx *Index) LastPosition() MessageSeqPosition {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+	if idx.position == 0 {
+		return MessageSeqPosition{
+			MessageSeq: idx.baseMessageSeq,
+			Position:   0,
+		}
+	}
+	return idx.parseEntry(idx.position/int64(idx.entrySize) - 1)
 }
 
 // TruncateEntries TruncateEntries
@@ -288,23 +300,23 @@ func (idx *Index) indexSlotRangeFor(target uint32) (int64, int64) {
 
 }
 
-func (idx *Index) compareIndexEntry(indexEntry OffsetPosition, target uint32) int {
+func (idx *Index) compareIndexEntry(indexEntry MessageSeqPosition, target uint32) int {
 
-	if indexEntry.Offset > target {
+	if indexEntry.MessageSeq > target {
 		return 1
-	} else if indexEntry.Offset < target {
+	} else if indexEntry.MessageSeq < target {
 		return -1
 	}
 	return 0
 }
 
-func (idx *Index) parseEntry(mid int64) OffsetPosition {
+func (idx *Index) parseEntry(mid int64) MessageSeqPosition {
 	p := make([]byte, idx.entrySize)
 	position := mid * int64(idx.entrySize)
 	copyEnd := position + int64(idx.entrySize)
 	if copyEnd > int64(len(idx.mmap)) {
-		return OffsetPosition{
-			Offset: idx.baseOffset,
+		return MessageSeqPosition{
+			MessageSeq: idx.baseMessageSeq,
 		}
 	}
 	copy(p, idx.mmap[position:copyEnd])
@@ -315,14 +327,14 @@ func (idx *Index) parseEntry(mid int64) OffsetPosition {
 		idx.Error("binary read failed", zap.Error(err))
 		panic(err)
 	}
-	return OffsetPosition{
-		Offset:   idx.baseOffset + entry.RelativeOffset,
-		Position: int64(entry.Position),
+	return MessageSeqPosition{
+		MessageSeq: idx.baseMessageSeq + entry.RelativeOffset,
+		Position:   int64(entry.Position),
 	}
 }
 
-// OffsetPosition OffsetPosition
-type OffsetPosition struct {
-	Offset   uint32
-	Position int64
+// MessageSeqPosition MessageSeqPosition
+type MessageSeqPosition struct {
+	MessageSeq uint32
+	Position   int64
 }

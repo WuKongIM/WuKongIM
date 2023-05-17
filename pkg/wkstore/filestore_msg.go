@@ -1,6 +1,8 @@
 package wkstore
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -34,25 +36,86 @@ func NewFileStoreForMsg(cfg *StoreConfig) *FileStoreForMsg {
 	return f
 }
 
-func (f *FileStoreForMsg) AppendMessages(topic string, msgs []Message) ([]uint32, error) {
-	return f.getTopic(topic).appendMessages(msgs)
+func (f *FileStoreForMsg) AppendMessages(channelID string, channelType uint8, msgs []Message) (seqs []uint32, err error) {
+	seqs, _, err = f.getTopic(channelID, channelType).appendMessages(msgs)
+	return
 }
 
-func (f *FileStoreForMsg) LoadMsg(topic string, seq uint32) (Message, error) {
-	return nil, nil
+func (f *FileStoreForMsg) LoadMsg(channelID string, channelType uint8, messageSeq uint32) (Message, error) {
+	return f.getTopic(channelID, channelType).readMessageAt(messageSeq)
 }
 
-func (f *FileStoreForMsg) LoadNextMsgs(topic string, seq uint32, limit int) ([]Message, error) {
+func (f *FileStoreForMsg) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error) {
+	var messages = make([]Message, 0, limit)
+	tp := f.getTopic(channelID, channelType)
+	err := tp.readLastMessages(uint64(limit), func(message Message) error {
+		messages = append(messages, message)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return messages, nil
 
-	return nil, nil
 }
 
-func (f *FileStoreForMsg) LoadPrevMsgs(topic string, seq uint32, limit int) ([]Message, error) {
-	return nil, nil
+func (f *FileStoreForMsg) LoadLastMsgsWithEnd(channelID string, channelType uint8, endMessageSeq uint32, limit int) ([]Message, error) {
+	var messages = make([]Message, 0, limit)
+	tp := f.getTopic(channelID, channelType)
+	err := tp.readLastMessages(uint64(limit), func(message Message) error {
+		if endMessageSeq != 0 && message.GetSeq() <= endMessageSeq {
+			return nil
+		}
+		messages = append(messages, message)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return messages, nil
 }
 
-func (f *FileStoreForMsg) LoadRangeMsgs(topic string, start, end uint32) ([]Message, error) {
-	return nil, nil
+func (f *FileStoreForMsg) LoadPrevRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]Message, error) {
+	if startMessageSeq == 0 {
+		return nil, fmt.Errorf("start messageSeq must be greater than 0")
+	}
+	actLimit := limit
+	var actStartMessageSeq uint32 = 0
+	if startMessageSeq < uint32(limit) {
+		actLimit = int(startMessageSeq)
+		actStartMessageSeq = 0
+	} else {
+		actStartMessageSeq = startMessageSeq - uint32(limit)
+	}
+
+	tp := f.getTopic(channelID, channelType)
+	var messages = make([]Message, 0, limit)
+	err := tp.readMessages(actStartMessageSeq, uint64(actLimit), func(message Message) error {
+		if endMessageSeq != 0 && message.GetSeq() <= endMessageSeq {
+			return nil
+		}
+		messages = append(messages, message)
+		return nil
+	})
+	return messages, err
+}
+
+func (f *FileStoreForMsg) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]Message, error) {
+	var messages = make([]Message, 0, limit)
+	tp := f.getTopic(channelID, channelType)
+	err := tp.readMessages(startMessageSeq+1, uint64(limit), func(message Message) error {
+		if message.GetSeq() >= endMessageSeq {
+			return nil
+		}
+		messages = append(messages, message)
+		return nil
+	})
+	return messages, err
+}
+
+func (f *FileStoreForMsg) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
+	f.Warn("暂未实现DeleteChannelAndClearMessages")
+	return nil
 }
 
 func (f *FileStoreForMsg) Close() error {
@@ -65,7 +128,12 @@ func (f *FileStoreForMsg) Close() error {
 	return nil
 }
 
-func (f *FileStoreForMsg) getTopic(topic string) *topic {
+func (f *FileStoreForMsg) topicName(channelID string, channelType uint8) string {
+	return fmt.Sprintf("%d-%s", channelType, channelID)
+}
+
+func (f *FileStoreForMsg) getTopic(channelID string, channelType uint8) *topic {
+	topic := f.topicName(channelID, channelType)
 	slotNum := wkutil.GetSlotNum(f.cfg.SlotNum, topic)
 	slot := f.slotMap[slotNum]
 	if slot == nil {

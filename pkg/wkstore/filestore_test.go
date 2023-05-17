@@ -17,7 +17,7 @@ func TestFileStoreMsg(t *testing.T) {
 		DataDir: dir,
 	})
 
-	store.AppendMessages("testtopic", []Message{
+	store.AppendMessages("testtopic", 1, []Message{
 		&testMessage{
 			data: []byte("test1"),
 		},

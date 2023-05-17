@@ -18,10 +18,9 @@ import (
 )
 
 type segment struct {
-	cfg        *StoreConfig
-	t          *topic
-	baseOffset uint32
-	segmentDir string
+	cfg            *StoreConfig
+	baseMessageSeq uint32
+	segmentDir     string
 	wklog.Log
 	segmentFile   *os.File    // message segment file
 	position      uint32      // current write position
@@ -35,13 +34,12 @@ type segment struct {
 	bytesSinceLastIndexEntry int64 // number of bytes written since the last index entry
 }
 
-func newSegment(baseOffset uint32, t *topic) *segment {
-	segmentDir := filepath.Join(t.topicDir, "logs")
+func newSegment(topicDir string, baseMessageSeq uint32, cfg *StoreConfig) *segment {
+	segmentDir := filepath.Join(topicDir, "logs")
 	s := &segment{
-		t:                  t,
-		cfg:                t.cfg,
+		cfg:                cfg,
 		segmentDir:         segmentDir,
-		baseOffset:         baseOffset,
+		baseMessageSeq:     baseMessageSeq,
 		indexIntervalBytes: 4 * 1024,
 	}
 	err := os.MkdirAll(s.segmentDir, FileDefaultMode)
@@ -50,14 +48,14 @@ func newSegment(baseOffset uint32, t *topic) *segment {
 		panic(err)
 	}
 	s.Log = wklog.NewWKLog(fmt.Sprintf("segment[%s]", s.segmentPath()))
-	s.index = NewIndex(s.indexPath(), baseOffset)
+	s.index = NewIndex(s.indexPath(), baseMessageSeq)
 
 	return s
 }
 
-func (s *segment) appendMessages(msgs []Message) error {
+func (s *segment) appendMessages(msgs []Message) (int, error) {
 	if len(msgs) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	firstData := msgs[0].Encode()
@@ -69,17 +67,17 @@ func (s *segment) appendMessages(msgs []Message) error {
 	}
 	n, err := s.append(firstData)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if s.bytesSinceLastIndexEntry > s.indexIntervalBytes {
+	if s.bytesSinceLastIndexEntry > s.indexIntervalBytes || len(firstData) > int(s.indexIntervalBytes) {
 		err = s.index.Append(msgs[0].GetSeq(), s.position-uint32(n))
 		if err != nil {
-			return err
+			return 0, err
 		}
 		s.bytesSinceLastIndexEntry = 0
 	}
 	s.bytesSinceLastIndexEntry += int64(n)
-	return nil
+	return n, nil
 }
 
 func (s *segment) append(data []byte) (int, error) {
@@ -91,6 +89,89 @@ func (s *segment) append(data []byte) (int, error) {
 	}
 	s.position += uint32(n)
 	return n, nil
+}
+
+// readMessages readMessages
+func (s *segment) readMessages(messageSeq uint32, limit uint64, callback func(msg Message) error) error {
+	s.Lock()
+	defer s.Unlock()
+	messageSeqPosition, err := s.index.Lookup(messageSeq)
+	if err != nil {
+		s.Error("readMessages-index.Lookup is error", zap.Error(err))
+		return err
+	}
+	var startPosition int64 = 0
+	if messageSeqPosition.MessageSeq == messageSeq {
+		startPosition = messageSeqPosition.Position
+	} else {
+		startPosition, _, err = s.readTargetPosition(messageSeqPosition.Position, messageSeq)
+		if err != nil {
+			if errors.Is(err, ErrorNotData) {
+				s.Debug("未读取到数据！")
+				return nil
+			}
+			s.Error("readMessages-readTargetPosition is error", zap.Error(err))
+			return err
+		}
+	}
+	err = s.readMessagesAtPosition(startPosition, limit, callback)
+	if err != nil {
+		s.Error("readMessages.readLogsAtPosition is error", zap.Error(err), zap.Int64("startPosition", startPosition), zap.Uint32("epectMessage", messageSeq), zap.Int64("actMessageSeq", int64(messageSeqPosition.MessageSeq)), zap.Int64("Position", messageSeqPosition.Position))
+		return err
+	}
+	return nil
+}
+
+// readMessageAtPosition 在文件指定开始位置，读取指定数量[limit]的日志数据
+func (s *segment) readMessagesAtPosition(position int64, limit uint64, callback func(m Message) error) error {
+	var count uint64 = 0
+	var startPosition = position
+	for {
+		if startPosition >= s.getFileSize() || count >= limit {
+			// s.Info("startPosition已超过文件大小！", zap.Int64("", startPosition), zap.Int64("s.getFileSize()", s.getFileSize()), zap.Int("count", int(count)), zap.Uint64("limit", limit))
+			break
+		}
+		lg, msgSize, err := decodeMessageAt(s.segmentFile, startPosition, s.cfg.DecodeMessageFnc) // 解码日志
+		// data, startPosition, err = s.readLogDataAtPosition(startPosition)
+		if err != nil {
+			return err
+		}
+		startPosition = startPosition + int64(msgSize)
+		if callback != nil {
+			err = callback(lg)
+			if err != nil {
+				return err
+			}
+		}
+		count++
+	}
+	return nil
+}
+
+// 获取目标offset的文件位置
+func (s *segment) readTargetPosition(startPosition int64, targetMessageSeq uint32) (int64, int64, error) {
+
+	if startPosition >= s.getFileSize() {
+		s.Debug("当前文件位置大于文件本身大小", zap.Int64("startPosition", startPosition), zap.Int64("fileSize", s.getFileSize()))
+		return 0, 0, ErrorNotData
+	}
+	resultOffset, dataLen, err := decodeMessageSeq(s.segmentFile, startPosition)
+	if err != nil {
+		s.Error("DecodeLogOffset is error", zap.Error(err))
+		return 0, 0, err
+	}
+
+	nextStartPosition := startPosition + int64(getMinMessageLen()+dataLen) // 下一条日志的文件开始位置
+
+	if resultOffset == targetMessageSeq {
+		return startPosition, nextStartPosition, nil
+	}
+
+	targetPosition, nextP, err := s.readTargetPosition(nextStartPosition, targetMessageSeq)
+	if err != nil {
+		return 0, 0, err
+	}
+	return targetPosition, nextP, nil
 }
 
 // init check segment
@@ -123,9 +204,9 @@ func (s *segment) init(mode SegmentMode) error {
 	}
 	if lastMsgStartPosition == 0 {
 		if s.position > 0 { // // lastMsgStartPosition等0 position大于0 说明有一条消息
-			s.lastMsgSeq.Store(uint32(s.baseOffset + 1))
+			s.lastMsgSeq.Store(uint32(s.baseMessageSeq + 1))
 		} else {
-			s.lastMsgSeq.Store(uint32(s.baseOffset))
+			s.lastMsgSeq.Store(uint32(s.baseMessageSeq))
 		}
 	} else {
 		messageSeq, _, err := decodeMessageSeq(s.segmentFile, lastMsgStartPosition)
@@ -137,6 +218,22 @@ func (s *segment) init(mode SegmentMode) error {
 	s.isSanityCheck.Store(true)
 
 	return nil
+}
+
+// ReadAt ReadAt
+func (s *segment) readAt(messageSeq uint32) (Message, error) {
+	s.Lock()
+	defer s.Unlock()
+	messageSeqPosition, err := s.index.Lookup(messageSeq)
+	if err != nil {
+		return nil, err
+	}
+	targetPosition, _, err := s.readTargetPosition(messageSeqPosition.Position, messageSeq)
+	if err != nil {
+		return nil, err
+	}
+	m, _, err := decodeMessageAt(s.segmentFile, targetPosition, s.cfg.DecodeMessageFnc)
+	return m, err
 }
 
 // SanityCheck Sanity check
@@ -161,7 +258,7 @@ func (s *segment) sanityCheck() (int64, error) {
 		s.Debug("No magic number at the end,sanity check mode is full")
 		return s.sanityFullCheck(segmentSizeOfByte)
 	}
-	if segmentSizeOfByte <= int64(s.cfg.EachLogMaxSizeOfBytes)+int64(getMinMessageLen()) {
+	if segmentSizeOfByte <= int64(s.cfg.EachMessagegMaxSizeOfBytes)+int64(getMinMessageLen()) {
 		s.Debug("File is too small,sanity check mode is full")
 		return s.sanityFullCheck(segmentSizeOfByte)
 	}
@@ -182,12 +279,21 @@ func (s *segment) sanityCheck() (int64, error) {
 // 返回最后一条日志的开始位置
 func (s *segment) sanitySimpleCheck(segmentSizeOfByte int64) (bool, int64, error) {
 
-	assertDataSize := int64(s.cfg.EachLogMaxSizeOfBytes + getMinMessageLen()) // assert last message size
-	if assertDataSize >= segmentSizeOfByte {                                  // if return false will go to fullCheck
+	assertDataSize := int64(s.cfg.EachMessagegMaxSizeOfBytes + getMinMessageLen()) // assert last message size
+	if assertDataSize >= segmentSizeOfByte {
+		s.Debug("assertDataSize >  segmentSizeOfByte") // if return false will go to fullCheck
 		return false, 0, nil
 	}
 
-	startCheckPosition := segmentSizeOfByte - assertDataSize
+	offsetPosistion := s.index.LastPosition()
+
+	if offsetPosistion.Position <= 0 && offsetPosistion.MessageSeq <= 0 {
+		return false, 0, nil
+	}
+
+	startCheckPosition := offsetPosistion.Position
+
+	fmt.Println("startCheckPosition----->", startCheckPosition, segmentSizeOfByte)
 
 	lastMsgLen := 0 // last message len
 	for {
@@ -203,11 +309,15 @@ func (s *segment) sanitySimpleCheck(segmentSizeOfByte int64) (bool, int64, error
 			startCheckPosition += int64(readLen)
 			continue
 		}
+		if readLen == 0 {
+			break
+		}
 		lastMsgLen = readLen
 		startCheckPosition += int64(readLen)
 
 	}
 	if lastMsgLen == 0 {
+		s.Debug("lastMsgLen is  0")
 		return false, 0, nil
 	}
 	s.position = uint32(startCheckPosition)
@@ -275,6 +385,12 @@ func (s *segment) check(segmentSizeOfByte int64) (int64, error) {
 	}
 	return int64(vailMsgLen) - int64(lastMsgLen), nil
 }
+func (s *segment) getFileSize() int64 {
+	if s.position == 0 {
+		return s.fileSize
+	}
+	return int64(s.position)
+}
 
 // sync
 func (s *segment) sync() error {
@@ -297,11 +413,11 @@ func (s *segment) release() {
 	s.close()
 }
 func (s *segment) segmentPath() string {
-	return filepath.Join(s.segmentDir, fmt.Sprintf(fileFormat, s.baseOffset, segmentSuffix))
+	return filepath.Join(s.segmentDir, fmt.Sprintf(fileFormat, s.baseMessageSeq, segmentSuffix))
 }
 func (s *segment) backupPath(t int64) string {
-	return filepath.Join(s.segmentDir, fmt.Sprintf(fileFormat, s.baseOffset, fmt.Sprintf("%s.bak%d", segmentSuffix, t)))
+	return filepath.Join(s.segmentDir, fmt.Sprintf(fileFormat, s.baseMessageSeq, fmt.Sprintf("%s.bak%d", segmentSuffix, t)))
 }
 func (s *segment) indexPath() string {
-	return filepath.Join(s.segmentDir, fmt.Sprintf(fileFormat, s.baseOffset, indexSuffix))
+	return filepath.Join(s.segmentDir, fmt.Sprintf(fileFormat, s.baseMessageSeq, indexSuffix))
 }

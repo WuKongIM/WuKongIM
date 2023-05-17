@@ -76,30 +76,39 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 // #################### conn auth ####################
 func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 	var (
-		uid        = connectPacket.UID
-		devceLevel wkproto.DeviceLevel
-		err        error
+		uid                             = connectPacket.UID
+		devceLevel  wkproto.DeviceLevel = wkproto.DeviceLevelMaster
+		err         error
+		devceLevelI uint8
+		token       string
 	)
 	if strings.TrimSpace(connectPacket.ClientKey) == "" {
 		p.responseConnackAuthFail(conn)
 		return
 	}
 	// -------------------- token verify --------------------
-	token, devceLevelI, err := p.s.store.GetUserToken(uid, conn.DeviceFlag())
-	if err != nil {
-		p.Error("get user token err", zap.Error(err))
-		p.responseConnackAuthFail(conn)
-		return
+	if p.s.opts.TokenAuthOn {
+		if connectPacket.Token == "" {
+			p.Error("token is empty")
+			p.responseConnackAuthFail(conn)
+			return
+		}
+		token, devceLevelI, err = p.s.store.GetUserToken(uid, conn.DeviceFlag())
+		if err != nil {
+			p.Error("get user token err", zap.Error(err))
+			p.responseConnackAuthFail(conn)
+			return
+		}
+		if token != connectPacket.Token {
+			p.Error("token verify fail")
+			p.responseConnackAuthFail(conn)
+			return
+		}
+		devceLevel = wkproto.DeviceLevel(devceLevelI)
 	}
-	if token != connectPacket.Token {
-		p.Error("token verify fail")
-		p.responseConnackAuthFail(conn)
-		return
-	}
-	devceLevel = wkproto.DeviceLevel(devceLevelI)
 
 	// -------------------- ban  --------------------
-	userChannelInfo, err := p.s.store.GetChannel(uid, ChannelTypePerson)
+	userChannelInfo, err := p.s.store.GetChannel(uid, wkproto.ChannelTypePerson)
 	if err != nil {
 		p.Error("get user channel info err", zap.Error(err))
 		p.responseConnackAuthFail(conn)
@@ -168,6 +177,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 
 	// -------------------- response connack --------------------
 
+	p.s.Debug("Auth Success", zap.String("uid", uid))
 	p.response(conn, &wkproto.ConnackPacket{
 		Salt:       aesIV,
 		ServerKey:  dhServerPublicKeyEnc,
@@ -242,7 +252,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 
 	//########## get channel and assert permission ##########
 	fakeChannelID := channelID
-	if channelType == ChannelTypePerson {
+	if channelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(conn.UID(), channelID)
 	}
 	channel, err := p.s.channelManager.GetChannel(fakeChannelID, channelType)
@@ -345,7 +355,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 
 // if has permission for sender
 func (p *Processor) hasPermission(channel *Channel, fromUID string) (bool, wkproto.ReasonCode) {
-	if channel.ChannelType == ChannelTypeCustomerService { // customer service channel
+	if channel.ChannelType == wkproto.ChannelTypeCustomerService { // customer service channel
 		return true, wkproto.ReasonSuccess
 	}
 	allow, reason := channel.Allow(fromUID)
@@ -353,7 +363,7 @@ func (p *Processor) hasPermission(channel *Channel, fromUID string) (bool, wkpro
 		p.Error("The user is not in the white list or in the black list", zap.String("fromUID", fromUID), zap.String("reason", reason.String()))
 		return false, reason
 	}
-	if channel.ChannelType != ChannelTypePerson && channel.ChannelType != ChannelTypeInfo {
+	if channel.ChannelType != wkproto.ChannelTypePerson && channel.ChannelType != wkproto.ChannelTypeInfo {
 		if !channel.IsSubscriber(fromUID) {
 			p.Error("The user is not in the channel and cannot send messages to the channel", zap.String("fromUID", fromUID), zap.String("channel_id", channel.ChannelID), zap.Uint8("channel_type", channel.ChannelType))
 			return false, wkproto.ReasonSubscriberNotExist
@@ -401,11 +411,10 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 	}
 	firstMessage := storeMessages[0].(*Message)
 	fakeChannelID := firstMessage.ChannelID
-	if firstMessage.ChannelType == ChannelTypePerson {
+	if firstMessage.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(fromUID, firstMessage.ChannelID)
 	}
-	topic := fmt.Sprintf("%d-%s", firstMessage.ChannelType, fakeChannelID)
-	_, err := p.s.store.AppendMessages(topic, storeMessages)
+	_, err := p.s.store.AppendMessages(fakeChannelID, firstMessage.ChannelType, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))
 		return nil, err
@@ -426,7 +435,7 @@ func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error
 }
 
 // decode payload
-func (p Processor) checkAndDecodePayload(messageID int64, sendPacket *wkproto.SendPacket, c wknet.Conn) ([]byte, error) {
+func (p *Processor) checkAndDecodePayload(messageID int64, sendPacket *wkproto.SendPacket, c wknet.Conn) ([]byte, error) {
 	var (
 		aesKey = c.Value(aesKeyKey).(string)
 		aesIV  = c.Value(aesIVKey).(string)
@@ -449,7 +458,7 @@ func (p Processor) checkAndDecodePayload(messageID int64, sendPacket *wkproto.Se
 }
 
 // send packet is vail
-func (p Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Conn) (bool, error) {
+func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Conn) (bool, error) {
 	var (
 		aesKey = c.Value(aesKeyKey).(string)
 		aesIV  = c.Value(aesIVKey).(string)

@@ -47,8 +47,8 @@ var (
 	BackupMagicNumber = []byte("---backup start ---")
 	// BackupMagicEndNumber BackupMagicEndNumber
 
-	// OffsetSize OffsetSize
-	OffsetSize = 8
+	// MessageSeqSize MessageSeqSize
+	MessageSeqSize = 8
 	// LogDataLenSize LogDataLenSize
 	MessageDataLenSize = 4
 	// AppliIndexSize AppliIndexSize
@@ -60,7 +60,7 @@ var (
 // a message min len
 func getMinMessageLen() int {
 
-	return len(MagicNumber) + len(MessageVersion) + MessageDataLenSize + OffsetSize + AppliIndexSize + len(EndMagicNumber)
+	return len(MagicNumber) + len(MessageVersion) + MessageDataLenSize + MessageSeqSize + AppliIndexSize + len(EndMagicNumber)
 }
 
 // next message is vaild if return next message start position
@@ -105,18 +105,63 @@ func nextMessageIsVail(reader io.ReaderAt, startOffset int64) (int, error) {
 
 }
 
+// 从文件解码日志
+// 返回日志的整个字节长度
+func decodeMessageAt(reader io.ReaderAt, offsetPosition int64, decodeMessageFnc func(msg []byte) (Message, error)) (Message, int, error) {
+	minLen := getMinMessageLen() - len(EndMagicNumber)
+	minBytes := make([]byte, minLen)
+	// min
+	_, err := reader.ReadAt(minBytes, offsetPosition)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	off := 0
+
+	// start magic
+	magicNum := minBytes[off : len(MagicNumber)+off]
+	if !bytes.Equal(magicNum, MagicNumber[:]) {
+		return nil, 0, fmt.Errorf("Start MagicNumber不正确 expect:%s actual:%s", string(MagicNumber[:]), string(magicNum))
+	}
+	off += len(MagicNumber)
+	// version
+	off += len(MessageVersion)
+	// dataLen
+	dataLen := Encoding.Uint32(minBytes[off : MessageDataLenSize+off])
+
+	// end magic
+	endMagicNum := make([]byte, len(EndMagicNumber))
+	_, err = reader.ReadAt(endMagicNum, offsetPosition+int64(minLen)+int64(dataLen))
+	if err != nil {
+		return nil, 0, err
+	}
+	if !bytes.Equal(endMagicNum, EndMagicNumber[:]) {
+		return nil, 0, fmt.Errorf("End MagicNumber不正确 expect:%s actual:%s", string(EndMagicNumber[:]), string(endMagicNum))
+	}
+	totalData := make([]byte, minLen+int(dataLen)+len(EndMagicNumber))
+	totalSize, err := reader.ReadAt(totalData, offsetPosition)
+	if err != nil {
+		return nil, 0, err
+	}
+	message, err := decodeMessageFnc(totalData)
+	if err != nil {
+		return nil, 0, err
+	}
+	return message, totalSize, nil
+}
+
 // 解码 message seq（序号）
-func decodeMessageSeq(reader io.ReaderAt, position int64) (offset int64, dataLen int, err error) {
+func decodeMessageSeq(reader io.ReaderAt, position int64) (messageSeq uint32, dataLen int, err error) {
 	sizeByte := make([]byte, MessageDataLenSize)
 	if _, err = reader.ReadAt(sizeByte, position+int64(len(MagicNumber)+len(MessageVersion))); err != nil {
 		return
 	}
-	offsetByte := make([]byte, OffsetSize)
-	if _, err = reader.ReadAt(offsetByte, position+int64(len(MagicNumber)+len(MessageVersion)+MessageDataLenSize)); err != nil {
+	messageSeqByte := make([]byte, MessageSeqSize)
+	if _, err = reader.ReadAt(messageSeqByte, position+int64(len(MagicNumber)+len(MessageVersion)+MessageDataLenSize)); err != nil {
 		return
 	}
 	dataLen = int(Encoding.Uint32(sizeByte))
-	offset = int64(Encoding.Uint64(offsetByte))
+	messageSeq = uint32(Encoding.Uint64(messageSeqByte)) // 实际编码中messageSeq是uint64的
 	return
 }
 func roundDown(total, factor int64) int64 {

@@ -61,7 +61,6 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 			runtime.Gosched()
 			continue
 		} else if err != nil {
-			p.Error("error occurs in kqueue", zap.Error(os.NewSyscallError("kevent wait", err)))
 			return err
 		}
 		tsp = &ts

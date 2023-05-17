@@ -176,7 +176,7 @@ func (w *Webhook) Online(uid string, deviceFlag wkproto.DeviceFlag, id int64, on
 	online := 1
 	w.onlinestatusList = append(w.onlinestatusList, fmt.Sprintf("%s-%d-%d-%d-%d-%d", uid, deviceFlag, online, id, onlineCount, totalOnlineCount))
 
-	w.Debug("用户上线", zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()), zap.Int64("id", id))
+	w.Debug("User online", zap.String("uid", uid), zap.String("deviceFlag", deviceFlag.String()), zap.Int64("id", id))
 }
 
 // Offline 用户离线
@@ -189,13 +189,14 @@ func (w *Webhook) Offline(uid string, deviceFlag wkproto.DeviceFlag, id int64, o
 	// 用户ID-用户设备标记-在线状态-socket ID-当前设备标记下的设备在线数量-当前用户下的所有设备在线数量
 	w.onlinestatusList = append(w.onlinestatusList, fmt.Sprintf("%s-%d-%d-%d-%d-%d", uid, deviceFlag, online, id, onlineCount, totalOnlineCount))
 
-	w.Debug("用户下线", zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
+	w.Debug("User offline", zap.String("uid", uid), zap.String("deviceFlag", deviceFlag.String()))
 }
 
 // 通知上层应用 TODO: 此初报错可以做一个邮件报警处理类的东西，
 func (w *Webhook) notifyQueueLoop() {
 	errorSleepTime := time.Second * 1 // 发生错误后sleep时间
 	ticker := time.NewTicker(w.s.opts.MessageNotifyScanInterval)
+	errMessageIDMap := make(map[int64]int) // 记录错误的消息ID value为错误次数
 	if w.s.opts.WebhookOn() {
 		for {
 			messages, err := w.s.store.GetMessagesOfNotifyQueue(w.s.opts.MessageNotifyMaxCount)
@@ -225,13 +226,35 @@ func (w *Webhook) notifyQueueLoop() {
 				}
 				if err != nil {
 					w.Error("请求所有消息通知webhook失败！", zap.Error(err))
+					errMessageIDs := make([]int64, 0, len(messages))
+					for _, message := range messages {
+						errCount := errMessageIDMap[message.GetMessageID()]
+						errCount++
+						errMessageIDMap[message.GetMessageID()] = errCount
+						if errCount >= w.s.opts.MessageNotifyMaxCount {
+							errMessageIDs = append(errMessageIDs, message.GetMessageID())
+						}
+					}
+					if len(errMessageIDs) > 0 {
+						w.Error("消息通知失败超过最大次数！", zap.Int64s("messageIDs", errMessageIDs))
+						err = w.s.store.RemoveMessagesOfNotifyQueue(errMessageIDs)
+						if err != nil {
+							w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", errMessageIDs))
+						}
+						for _, errMessageID := range errMessageIDs {
+							delete(errMessageIDMap, errMessageID)
+						}
+					}
 					time.Sleep(errorSleepTime) // 如果报错就休息下
 					continue
 				}
 
 				messageIDs := make([]int64, 0, len(messages))
 				for _, message := range messages {
-					messageIDs = append(messageIDs, message.(*Message).MessageID)
+					messageID := message.(*Message).MessageID
+					messageIDs = append(messageIDs, messageID)
+
+					delete(errMessageIDMap, messageID)
 				}
 				err = w.s.store.RemoveMessagesOfNotifyQueue(messageIDs)
 				if err != nil {

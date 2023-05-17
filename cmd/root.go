@@ -33,7 +33,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.wk.yaml)")
-	rootCmd.PersistentFlags().StringVar(&mode, "mode", "release", "模式")
+	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "模式")
 
 }
 

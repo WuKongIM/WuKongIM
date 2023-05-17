@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -48,7 +49,7 @@ func (cm *ChannelManager) GetChannel(channelID string, channelType uint8) (*Chan
 	if strings.HasSuffix(channelID, cm.s.opts.TmpChannelSuffix) {
 		return cm.GetTmpChannel(channelID, channelType)
 	}
-	if channelType == ChannelTypePerson {
+	if channelType == wkproto.ChannelTypePerson {
 		return cm.GetPersonChannel(channelID, channelType)
 	}
 
@@ -69,7 +70,7 @@ func (cm *ChannelManager) getChannelFromCacheOrStore(channelID string, channelTy
 		return nil, err
 	}
 	if channelInfo == nil {
-		if cm.s.opts.CreateIfChannelNotExist || channelType == ChannelTypeCommunityTopic || channelType == ChannelTypeInfo {
+		if cm.s.opts.CreateIfChannelNotExist || channelType == wkproto.ChannelTypeCommunityTopic || channelType == wkproto.ChannelTypeInfo {
 			channelInfo = wkstore.NewChannelInfo(channelID, channelType)
 		} else {
 			return nil, nil
@@ -99,25 +100,25 @@ func (cm *ChannelManager) setChannelFromCache(channel *Channel) {
 
 // CreateOrUpdatePersonChannel 创建或更新个人频道
 func (cm *ChannelManager) CreateOrUpdatePersonChannel(uid string) error {
-	exist, err := cm.s.store.ExistChannel(uid, ChannelTypePerson)
+	exist, err := cm.s.store.ExistChannel(uid, wkproto.ChannelTypePerson)
 	if err != nil {
 		return errors.Wrap(err, "查询是否存在频道信息失败！")
 	}
 	if !exist {
 		err = cm.s.store.AddOrUpdateChannel(&wkstore.ChannelInfo{
 			ChannelID:   uid,
-			ChannelType: ChannelTypePerson,
+			ChannelType: wkproto.ChannelTypePerson,
 		})
 		if err != nil {
 			return errors.Wrap(err, "创建个人频道失败！")
 		}
 	}
-	subscribers, err := cm.s.store.GetSubscribers(uid, ChannelTypePerson)
+	subscribers, err := cm.s.store.GetSubscribers(uid, wkproto.ChannelTypePerson)
 	if err != nil {
 		return errors.Wrap(err, "获取频道订阅者失败！")
 	}
 	if len(subscribers) == 0 || !wkutil.ArrayContains(subscribers, uid) {
-		err = cm.s.store.AddSubscribers(uid, ChannelTypePerson, []string{uid})
+		err = cm.s.store.AddSubscribers(uid, wkproto.ChannelTypePerson, []string{uid})
 		if err != nil {
 			return errors.Wrap(err, "添加订阅者失败！")
 		}

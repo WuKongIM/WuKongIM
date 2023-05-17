@@ -52,6 +52,7 @@ type Server struct {
 	conversationManager *ConversationManager // conversation manager
 	retryQueue          *RetryQueue          // retry queue
 	webhook             *Webhook             // webhook
+	monitorServer       *MonitorServer       // 监控服务
 }
 
 func New(opts *Options) *Server {
@@ -62,8 +63,16 @@ func New(opts *Options) *Server {
 		waitGroupWrapper: wkutil.NewWaitGroupWrapper("Server"),
 		timingWheel:      timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		start:            now,
-		store:            wkstore.NewFileStore(wkstore.NewStoreConfig()),
 	}
+
+	storeCfg := wkstore.NewStoreConfig()
+	storeCfg.DataDir = s.opts.DataDir
+	storeCfg.DecodeMessageFnc = func(msg []byte) (wkstore.Message, error) {
+		m := &Message{}
+		err := m.Decode(msg)
+		return m, err
+	}
+	s.store = wkstore.NewFileStore(storeCfg)
 
 	s.apiServer = NewAPIServer(s)
 	s.deliveryManager = NewDeliveryManager(s)
@@ -75,6 +84,8 @@ func New(opts *Options) *Server {
 	s.conversationManager = NewConversationManager(s)
 	s.retryQueue = NewRetryQueue(s)
 	s.webhook = NewWebhook(s)
+	s.monitor = monitor.GetMonitor() // 监控
+	s.monitorServer = NewMonitorServer(s)
 	var err error
 	s.handleGoroutinePool, err = ants.NewPool(s.opts.HandlePoolSize)
 	if err != nil {
@@ -145,6 +156,11 @@ func (s *Server) Start() error {
 
 	s.retryQueue.Start()
 
+	if s.opts.MonitorOn {
+		s.monitor.Start()
+		s.monitorServer.Start()
+	}
+
 	return nil
 }
 
@@ -161,6 +177,11 @@ func (s *Server) Stop() error {
 	s.apiServer.Stop()
 	s.conversationManager.Stop()
 	s.webhook.Stop()
+
+	if s.opts.MonitorOn {
+		s.monitorServer.Stop()
+		s.monitor.Stop()
+	}
 
 	return nil
 }

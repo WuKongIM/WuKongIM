@@ -1,6 +1,7 @@
 package wkstore
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -48,7 +49,7 @@ func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
 	return t
 }
 
-func (t *topic) appendMessages(msgs []Message) ([]uint32, error) {
+func (t *topic) appendMessages(msgs []Message) ([]uint32, int, error) {
 	t.appendLock.Lock()
 	defer t.appendLock.Unlock()
 
@@ -70,7 +71,7 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, error) {
 	lastMsg := msgs[len(msgs)-1]
 	if preLastMsgSeq >= lastMsg.GetSeq() {
 		t.Warn("message is exist, not save", zap.Uint32("msgSeq", lastMsg.GetSeq()), zap.Uint32("lastMsgSeq", t.lastMsgSeq.Load()))
-		return nil, nil
+		return nil, 0, nil
 	}
 	t.lastMsgSeq.Store(lastMsg.GetSeq())
 
@@ -80,36 +81,149 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, error) {
 	}
 
 	// append message to segment
-	err := t.lastSegment.appendMessages(msgs)
+	n, err := t.lastSegment.appendMessages(msgs)
+	if err != nil {
+		return nil, 0, err
+	}
+	return seqs, n, nil
+}
+
+func (t *topic) appendMessage(msg Message) (uint32, int, error) {
+	messageSeqs, n, err := t.appendMessages([]Message{msg})
+	if err != nil {
+		return 0, 0, err
+	}
+	return messageSeqs[0], n, err
+}
+
+func (t *topic) readLastMessages(limit uint64, callback func(msg Message) error) error {
+	actLimit := limit
+	var actMessageSeq uint32 = 0
+	lastSeq := uint64(t.lastMsgSeq.Load())
+	if lastSeq < limit {
+		actLimit = uint64(t.lastMsgSeq.Load()) + 1 // +1表示包含最后一条lastMsgSeq的消息
+		actMessageSeq = 0
+	} else {
+		actLimit = limit
+		actMessageSeq = t.lastMsgSeq.Load() - uint32(limit) + 1 // +1表示包含最后一条lastMsgSeq的消息
+	}
+	return t.readMessages(actMessageSeq, actLimit, callback)
+}
+
+// ReadLogs ReadLogs
+func (t *topic) readMessages(messageSeq uint32, limit uint64, callback func(msg Message) error) error {
+	baseMessageSeq, err := t.calcBaseMessageSeq(messageSeq)
+	if err != nil {
+		return err
+	}
+	readCount := 0
+	var segment = t.getSegment(baseMessageSeq, SegmentModeAll) // 获取baseOffset的segment
+	err = segment.readMessages(messageSeq, limit, func(m Message) error {
+		readCount++
+		if callback != nil {
+			err := callback(m)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	nextBaseMessageSeq := baseMessageSeq
+	for readCount < int(limit) {
+		nextBaseMessageSeqInt64 := t.nextBaseMessageSeq(nextBaseMessageSeq)
+		nextBaseMessageSeq = uint32(nextBaseMessageSeqInt64)
+		if nextBaseMessageSeqInt64 != -1 {
+			nextSegment := t.getSegment(nextBaseMessageSeq, SegmentModeAll)
+			err := nextSegment.readMessagesAtPosition(0, limit-uint64(readCount), func(m Message) error {
+				readCount++
+				if callback != nil {
+					err := callback(m)
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Error("Failed to read the remaining logs", zap.Error(err), zap.Int64("position", 0), zap.Uint64("limit", limit-uint64(readCount)))
+				return err
+			}
+		} else {
+			break
+		}
+	}
+	return nil
+}
+
+// readMessageAt readMessageAt
+func (t *topic) readMessageAt(messageSeq uint32) (Message, error) {
+	baseMessageSeq, err := t.calcBaseMessageSeq(messageSeq)
 	if err != nil {
 		return nil, err
 	}
-	return seqs, nil
+	var segment = t.getSegment(baseMessageSeq, SegmentModeAll) // 获取baseOffset的segment
+	return segment.readAt(messageSeq)
 }
 
 func (t *topic) roll(m Message) {
+	if t.lastSegment != nil {
+		segmentCache.Remove(t.getSegmentCacheKey(t.lastBaseMessageSeq))
+	}
 	t.lastBaseMessageSeq = m.GetSeq()
 	t.segments = append(t.segments, m.GetSeq())
 
 	t.resetLastSegment()
 }
 
-func (t *topic) getSegment(baseOffset uint32, mode SegmentMode) *segment {
-	key := t.getSegmentCacheKey(baseOffset)
+func (t *topic) nextBaseMessageSeq(baseMessageSeq uint32) int64 {
+	for i := 0; i < len(t.segments); i++ {
+		baseOffst := t.segments[i]
+		if baseOffst == baseMessageSeq {
+			if i+1 < len(t.segments) {
+				return int64(t.segments[i+1])
+			}
+			break
+		}
+	}
+	return -1
+}
+
+func (t *topic) calcBaseMessageSeq(messageSeq uint32) (uint32, error) {
+	for i := 0; i < len(t.segments); i++ {
+		baseMessageSeq := t.segments[i]
+		if i+1 < len(t.segments) {
+			if messageSeq >= baseMessageSeq && messageSeq <= t.segments[i+1] {
+				return baseMessageSeq, nil
+			}
+		} else {
+			if messageSeq >= baseMessageSeq {
+				return baseMessageSeq, nil
+			}
+		}
+	}
+	return 0, errors.New("baseOffset not found")
+}
+
+func (t *topic) getSegment(baseMessageSeq uint32, mode SegmentMode) *segment {
+	key := t.getSegmentCacheKey(baseMessageSeq)
 	seg, _ := segmentCache.Get(key)
 	if seg != nil {
 		return seg
 	}
-	seg = newSegment(baseOffset, t)
+	seg = newSegment(t.topicDir, baseMessageSeq, t.cfg)
 	err := seg.init(mode)
 	if err != nil {
 		panic(err)
 	}
+	segmentCache.Add(key, seg)
 	return seg
 }
 
 func (t *topic) initSegments() {
-	t.segments = t.sortSegmentBaseOffsets(t.getAllSegmentBaseOffset())
+	t.segments = t.sortSegmentBaseMessageSeqs(t.getAllSegmentBaseMessageSeq())
 	if len(t.segments) == 0 {
 		t.segments = append(t.segments, 0)
 	}
@@ -123,12 +237,12 @@ func (t *topic) resetLastSegment() {
 	t.lastMsgSeq.Store(t.lastSegment.lastMsgSeq.Load())
 }
 
-func (t *topic) getSegmentCacheKey(baseOffset uint32) string {
-	return fmt.Sprintf("%s-%d", t.name, baseOffset)
+func (t *topic) getSegmentCacheKey(baseMessageSeq uint32) string {
+	return fmt.Sprintf("%s-%d", t.name, baseMessageSeq)
 }
 
-// get all segment base offset
-func (t *topic) getAllSegmentBaseOffset() []uint32 {
+// get all segment base messageSeq
+func (t *topic) getAllSegmentBaseMessageSeq() []uint32 {
 	files, err := ioutil.ReadDir(t.topicDir)
 	if err != nil {
 		t.Error("read dir fail!", zap.String("topicDir", t.topicDir))
@@ -137,26 +251,26 @@ func (t *topic) getAllSegmentBaseOffset() []uint32 {
 	segments := make([]uint32, 0)
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), segmentSuffix) {
-			offsetStr := strings.TrimSuffix(f.Name(), segmentSuffix)
-			baseOffset, err := strconv.ParseInt(offsetStr, 10, 64)
+			baseMessageSeqStr := strings.TrimSuffix(f.Name(), segmentSuffix)
+			baseMessageSeq, err := strconv.ParseInt(baseMessageSeqStr, 10, 64)
 			if err != nil {
 				continue
 			}
-			segments = append(segments, uint32(baseOffset))
+			segments = append(segments, uint32(baseMessageSeq))
 		}
 	}
 	return segments
 
 }
-func (t *topic) sortSegmentBaseOffsets(offsets []uint32) []uint32 {
-	for n := 0; n <= len(offsets); n++ {
-		for i := 1; i < len(offsets)-n; i++ {
-			if offsets[i] < offsets[i-1] {
-				offsets[i], offsets[i-1] = offsets[i-1], offsets[i]
+func (t *topic) sortSegmentBaseMessageSeqs(baseMessageSeqs []uint32) []uint32 {
+	for n := 0; n <= len(baseMessageSeqs); n++ {
+		for i := 1; i < len(baseMessageSeqs)-n; i++ {
+			if baseMessageSeqs[i] < baseMessageSeqs[i-1] {
+				baseMessageSeqs[i], baseMessageSeqs[i-1] = baseMessageSeqs[i-1], baseMessageSeqs[i]
 			}
 		}
 	}
-	return offsets
+	return baseMessageSeqs
 }
 
 func (t *topic) nextMsgSeq() uint32 {
@@ -169,9 +283,10 @@ func (t *topic) getLastMsgSeq() uint32 {
 
 func (t *topic) close() {
 	if t.lastSegment != nil {
-		t.lastSegment.close()
-	}
-}
+		has := segmentCache.Remove(t.getSegmentCacheKey(t.lastSegment.baseMessageSeq))
+		if !has {
+			t.lastSegment.close()
 
-type topicState struct {
+		}
+	}
 }

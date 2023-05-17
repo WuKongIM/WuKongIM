@@ -359,7 +359,7 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 	// }
 
 	channelID := message.ChannelID
-	if message.ChannelType == ChannelTypePerson && message.ChannelID == subscriber { // If it is a personal channel and the channel ID is equal to the subscriber, you need to swap fromUID and channelID
+	if message.ChannelType == wkproto.ChannelTypePerson && message.ChannelID == subscriber { // If it is a personal channel and the channel ID is equal to the subscriber, you need to swap fromUID and channelID
 		channelID = message.FromUID
 	}
 	channelKey := cm.getChannelKey(channelID, message.ChannelType)
