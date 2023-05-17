@@ -2,6 +2,10 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+//go:build (freebsd || dragonfly || darwin) && !poll_opt
+// +build freebsd dragonfly darwin
+// +build !poll_opt
+
 package netpoll
 
 import (
@@ -75,9 +79,7 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 				triggerRead = evt.Filter&syscall.EVFILT_READ == syscall.EVFILT_READ
 				triggerWrite = evt.Filter&syscall.EVFILT_WRITE == syscall.EVFILT_WRITE
 				triggerHup = evt.Flags&syscall.EV_EOF != 0
-				if evt.Flags&syscall.EV_DELETE != 0 {
-					panic("dzdsdsd")
-				}
+
 				// fmt.Println("triggerRead---->", triggerRead, "triggerWrite---->", triggerWrite, "triggerHup---->", triggerHup, "fd---->", p.fd)
 				// fmt.Println(" evt.Flags--->", evt.Flags, evt.Filter)
 				if triggerHup {
@@ -132,7 +134,6 @@ func (p *Poller) AddWrite(fd int) error {
 
 // DeleteRead deletes the given file-descriptor from the poller.
 func (p *Poller) DeleteRead(fd int) error {
-	// fmt.Println("DeleteRead---->", fd)
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_READ},
 	}, nil, nil)
@@ -141,7 +142,6 @@ func (p *Poller) DeleteRead(fd int) error {
 
 // DeleteWrite deletes the given file-descriptor from the poller.
 func (p *Poller) DeleteWrite(fd int) error {
-	// fmt.Println("DeleteWrite---->", fd)
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_WRITE},
 	}, nil, nil)
@@ -149,7 +149,6 @@ func (p *Poller) DeleteWrite(fd int) error {
 }
 
 func (p *Poller) DeleteReadAndWrite(fd int) error {
-	// fmt.Println("DeleteReadAndWrite---->", fd)
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_READ},
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_WRITE},

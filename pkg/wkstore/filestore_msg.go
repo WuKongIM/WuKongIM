@@ -56,7 +56,6 @@ func (f *FileStoreForMsg) LoadLastMsgs(channelID string, channelType uint8, limi
 		return nil, err
 	}
 	return messages, nil
-
 }
 
 func (f *FileStoreForMsg) LoadLastMsgsWithEnd(channelID string, channelType uint8, endMessageSeq uint32, limit int) ([]Message, error) {
