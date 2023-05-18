@@ -87,6 +87,7 @@ func (m *Message) DeepCopy() (*Message, error) {
 // MarshalMessage MarshalMessage
 func MarshalMessage(version uint8, m *Message) []byte {
 	enc := wkproto.NewEncoder()
+	defer enc.End()
 	enc.WriteByte(wkproto.ToFixHeaderUint8(m.RecvPacket))
 	enc.WriteUint8(version)
 	enc.WriteByte(m.Setting.Uint8())

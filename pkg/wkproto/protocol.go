@@ -35,7 +35,7 @@ const MaxRemaingLength uint32 = 1024 * 1024
 // New 创建wukong协议对象
 func New() *WKProto {
 	return &WKProto{
-		wklog.NewWKLog("WKProto"),
+		Log: wklog.NewWKLog("WKProto"),
 	}
 }
 
@@ -136,6 +136,9 @@ func (l *WKProto) DecodeFrame(data []byte, version uint8) (Frame, int, error) {
 	if decodeFunc == nil {
 		fmt.Println("framer---------------->", framer)
 		return nil, 0, errors.New(fmt.Sprintf("不支持对[%s]包的解码！", frameType))
+	}
+	if len(body) == 0 {
+		fmt.Println("data----》", remainingLengthLength, frameType, data)
 	}
 
 	frame, err := decodeFunc(framer, body, version)

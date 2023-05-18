@@ -65,6 +65,7 @@ func (s *segment) appendMessages(msgs []Message) (int, error) {
 		msgData = msgs[i].Encode()
 		firstData = append(firstData, msgData...)
 	}
+
 	n, err := s.append(firstData)
 	if err != nil {
 		return 0, err
@@ -176,6 +177,7 @@ func (s *segment) readTargetPosition(startPosition int64, targetMessageSeq uint3
 
 // init check segment
 func (s *segment) init(mode SegmentMode) error {
+	fmt.Println("init...................")
 	if s.isSanityCheck.Load() {
 		return nil
 	}

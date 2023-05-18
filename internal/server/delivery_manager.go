@@ -101,6 +101,7 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 
 				recvPackets = append(recvPackets, cloneMsg.RecvPacket)
 			}
+			fmt.Println("recvPackets-------------------->", len(recvPackets))
 			d.s.dispatch.dataOut(recvConn, recvPackets...)
 
 		}

@@ -26,7 +26,7 @@ type ReactorSub struct {
 
 // NewReactorSub instantiates a sub reactor.
 func NewReactorSub(eg *Engine, index int) *ReactorSub {
-	poller := netpoll.NewPoller()
+	poller := netpoll.NewPoller("connPoller")
 
 	return &ReactorSub{
 		eg:         eg,
@@ -99,7 +99,7 @@ func (r *ReactorSub) run() {
 }
 
 func (r *ReactorSub) CloseConn(c Conn, er error) (rerr error) {
-	err0 := r.poller.DeleteReadAndWrite(c.Fd())
+	err0 := r.poller.Delete(c.Fd())
 	if err0 != nil {
 		rerr = fmt.Errorf("failed to delete fd=%d from poller in subReactor(%d): %v", c.Fd(), r.idx, err0)
 	}
@@ -126,7 +126,8 @@ func (r *ReactorSub) closeConn(c Conn, er error) {
 
 func (r *ReactorSub) read(c Conn) error {
 	var err error
-	if err = c.ReadToInboundBuffer(); err != nil {
+	var n int
+	if n, err = c.ReadToInboundBuffer(); err != nil {
 		if err == unix.EAGAIN {
 			return nil
 		}
@@ -134,6 +135,9 @@ func (r *ReactorSub) read(c Conn) error {
 			r.Warn("failed to close conn", zap.Error(err1))
 		}
 		return err
+	}
+	if n == 0 {
+		return r.CloseConn(c, os.NewSyscallError("read", unix.ECONNRESET))
 	}
 	if err = r.eg.eventHandler.OnData(c); err != nil {
 		if err == unix.EAGAIN {

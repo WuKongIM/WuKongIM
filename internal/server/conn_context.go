@@ -4,7 +4,9 @@ import (
 	"sync"
 
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 )
@@ -25,6 +27,7 @@ type connContext struct {
 	frameCaches    []wkproto.Frame
 	s              *Server
 	inflightCount  atomic.Int32 // frame inflight count
+	wklog.Log
 }
 
 func newConnContext(s *Server) *connContext {
@@ -32,6 +35,7 @@ func newConnContext(s *Server) *connContext {
 	return &connContext{
 		s:              s,
 		frameCacheLock: sync.RWMutex{},
+		Log:            wklog.NewWKLog("connContext"),
 	}
 }
 
@@ -60,7 +64,8 @@ func (c *connContext) popFrames() []wkproto.Frame {
 }
 
 func (c *connContext) finishFrames(count int) {
-	c.inflightCount.Add(-int32(count))
+
+	c.inflightCount.Sub(int32(count))
 	if int(c.inflightCount.Load()) <= c.s.opts.ConnFrameQueueMaxSize {
 		c.enableRead()
 	}
@@ -71,9 +76,10 @@ func (c *connContext) disableRead() {
 	if c.isDisableRead {
 		return
 	}
-	// fmt.Println("############disableRead############")
-	c.conn.ReactorSub().RemoveRead(c.conn.Fd())
 	c.isDisableRead = true
+	c.Info("流量限制开始!", zap.String("uid", c.conn.UID()))
+	c.conn.ReactorSub().RemoveRead(c.conn.Fd())
+
 }
 
 // enable read data from  conn
@@ -81,17 +87,19 @@ func (c *connContext) enableRead() {
 	if !c.isDisableRead {
 		return
 	}
-	// fmt.Println("############enableRead############")
-	c.conn.ReactorSub().AddRead(c.conn.Fd())
 	c.isDisableRead = false
+	c.Info("流量限制解除!", zap.String("uid", c.conn.UID()))
+	c.conn.ReactorSub().AddRead(c.conn.Fd())
 }
 
 func (c *connContext) init() {
 	c.frameCaches = make([]wkproto.Frame, 0, 250)
+	c.Log = wklog.NewWKLog("connContext")
 }
 
 func (c *connContext) release() {
 	c.inflightCount.Store(0)
+	c.Log = nil
 	c.isDisableRead = false
 	c.frameCaches = nil
 	c.conn = nil

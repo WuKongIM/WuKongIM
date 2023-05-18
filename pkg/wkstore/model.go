@@ -30,6 +30,7 @@ type ConversationSet []*Conversation
 
 func (c ConversationSet) Encode() []byte {
 	enc := wkproto.NewEncoder()
+	defer enc.End()
 	for _, cn := range c {
 		enc.WriteUint8(conversationVersion)
 		enc.WriteString(cn.UID)
