@@ -18,8 +18,6 @@
 package netpoll
 
 import (
-	"syscall"
-
 	"golang.org/x/sys/unix"
 )
 
@@ -46,23 +44,23 @@ const (
 
 type eventList struct {
 	size   int
-	events []syscall.EpollEvent
+	events []epollevent
 }
 
 func newEventList(size int) *eventList {
-	return &eventList{size, make([]syscall.EpollEvent, size)}
+	return &eventList{size, make([]epollevent, size)}
 }
 
 func (el *eventList) expand() {
 	if newSize := el.size << 1; newSize <= MaxPollEventsCap {
 		el.size = newSize
-		el.events = make([]syscall.EpollEvent, newSize)
+		el.events = make([]epollevent, newSize)
 	}
 }
 
 func (el *eventList) shrink() {
 	if newSize := el.size >> 1; newSize >= MinPollEventsCap {
 		el.size = newSize
-		el.events = make([]syscall.EpollEvent, newSize)
+		el.events = make([]epollevent, newSize)
 	}
 }

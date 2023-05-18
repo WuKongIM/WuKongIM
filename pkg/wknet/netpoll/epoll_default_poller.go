@@ -10,7 +10,6 @@ package netpoll
 import (
 	"os"
 	"runtime"
-	"syscall"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -21,37 +20,43 @@ type Poller struct {
 	wklog.Log
 	fd       int
 	efd      int
-	efdBuf   []byte // efd buffer to read an 8-byte integer
 	shutdown bool
+	name     string
 }
 
-func NewPoller() *Poller {
+func NewPoller(name string) *Poller {
 	var (
 		err    error
 		poller = new(Poller)
 	)
-	if poller.fd, err = unix.EpollCreate1(unix.EPOLL_CLOEXEC); err != nil {
+	poller.name = name
+	poller.fd, err = unix.EpollCreate1(unix.EPOLL_CLOEXEC)
+	if err != nil {
 		panic(err)
 	}
-	if poller.efd, err = unix.Eventfd(0, unix.EFD_NONBLOCK|unix.EFD_CLOEXEC); err != nil {
-		panic(err)
-	}
-	poller.efdBuf = make([]byte, 8)
-	if err = poller.AddRead(poller.efd); err != nil {
+	poller.efd, err = unix.Eventfd(0, unix.EFD_NONBLOCK|unix.EFD_CLOEXEC)
+	if err != nil {
+		unix.Close(poller.fd)
 		panic(err)
 	}
 	poller.Log = wklog.NewWKLog("epollPoller")
+
+	err = poller.AddRead(poller.efd)
+	if err != nil {
+		panic(err)
+	}
+
 	return poller
 }
 
 // Polling blocks the current goroutine, waiting for network-events.
 func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
-	el := newEventList(InitPollEventsCap)
+	// el := newEventList(InitPollEventsCap)
 	msec := -1
 	p.shutdown = false
-	events := make([]syscall.EpollEvent, 1024)
+	events := make([]unix.EpollEvent, 100)
 	for !p.shutdown {
-		n, err := syscall.EpollWait(p.fd, events, msec)
+		n, err := unix.EpollWait(p.fd, events, msec)
 		if n == 0 || (n < 0 && err == unix.EINTR) {
 			msec = -1
 			runtime.Gosched()
@@ -62,43 +67,46 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 		}
 		msec = 0
 
-		var triggerRead, triggerWrite, triggerHup bool
+		var triggerRead, triggerWrite, triggerHup, triggerError bool
 		var pollEvent PollEvent
+
+		// test := make([]byte, 10000)
 		for i := 0; i < n; i++ {
-			evt := &el.events[i]
-			if fd := int(evt.Fd); fd != p.efd {
-				pollEvent = PollEventUnknown
-				triggerRead = evt.Events&readEvents != 0
-				triggerWrite = evt.Events&writeEvents != 0
-				triggerHup = evt.Events&errorEvents != 0
+			event := events[i]
+			evt := event.Events
+			fd := event.Fd
+			pollEvent = PollEventUnknown
+			triggerRead = evt&readEvents != 0
+			triggerWrite = evt&unix.EPOLLOUT != 0
+			triggerHup = evt&(unix.EPOLLHUP|unix.EPOLLRDHUP) != 0
+			triggerError = evt&unix.EPOLLERR != 0
 
-				if triggerHup {
-					pollEvent = PollEventClose
-				} else if triggerRead {
-					pollEvent = PollEventRead
+			if triggerHup || triggerError {
+				pollEvent = PollEventClose
+			} else if triggerRead {
+				pollEvent = PollEventRead
 
+			}
+			if pollEvent != PollEventUnknown {
+				switch err = callback(int(fd), pollEvent); err {
+				case nil:
+				default:
+					p.Error("error occurs in event-loop", zap.Error(err))
 				}
-				if pollEvent != PollEventUnknown {
-					switch err = callback(fd, pollEvent); err {
-					case nil:
-					default:
-						p.Error("error occurs in event-loop", zap.Error(err))
-					}
-				}
-				if triggerWrite && !triggerHup {
-					switch err = callback(fd, PollEventWrite); err {
-					case nil:
-					default:
-						p.Error("error occurs in event-loop", zap.Error(err))
-					}
+			}
+			if triggerWrite && !(triggerHup || triggerError) {
+				switch err = callback(int(fd), PollEventWrite); err {
+				case nil:
+				default:
+					p.Error("error occurs in event-loop", zap.Error(err))
 				}
 			}
 		}
-		if n == el.size {
-			el.expand()
-		} else if n < el.size>>1 {
-			el.shrink()
-		}
+		// if n == el.size {
+		// 	el.expand()
+		// } else if n < el.size>>1 {
+		// 	el.shrink()
+		// }
 	}
 	return nil
 }
@@ -107,7 +115,7 @@ const (
 	readEvents      = unix.EPOLLPRI | unix.EPOLLIN
 	writeEvents     = unix.EPOLLOUT
 	readWriteEvents = readEvents | writeEvents
-	errorEvents     = syscall.EPOLLERR | syscall.EPOLLHUP | syscall.EPOLLRDHUP
+	errorEvents     = unix.EPOLLERR | unix.EPOLLHUP | unix.EPOLLRDHUP
 )
 
 // AddRead registers the given file-descriptor with readable event to the poller.
@@ -118,19 +126,19 @@ func (p *Poller) AddRead(fd int) error {
 
 func (p *Poller) AddWrite(fd int) error {
 	return os.NewSyscallError("epoll_ctl add",
-		unix.EpollCtl(p.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{Fd: int32(fd), Events: writeEvents}))
+		unix.EpollCtl(p.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{Fd: int32(fd), Events: readWriteEvents}))
 }
 
 // DeleteRead deletes the given file-descriptor from the poller.
 func (p *Poller) DeleteRead(fd int) error {
 	return os.NewSyscallError("epoll_ctl delete",
-		unix.EpollCtl(p.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{Fd: int32(fd), Events: readEvents}))
+		unix.EpollCtl(p.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{Fd: int32(fd), Events: writeEvents}))
 }
 
 // DeleteWrite deletes the given file-descriptor from the poller.
 func (p *Poller) DeleteWrite(fd int) error {
 	return os.NewSyscallError("epoll_ctl delete",
-		unix.EpollCtl(p.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{Fd: int32(fd), Events: writeEvents}))
+		unix.EpollCtl(p.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{Fd: int32(fd), Events: readEvents}))
 }
 
 func (p *Poller) DeleteReadAndWrite(fd int) error {
@@ -138,10 +146,13 @@ func (p *Poller) DeleteReadAndWrite(fd int) error {
 		unix.EpollCtl(p.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{Fd: int32(fd), Events: readWriteEvents}))
 }
 
+func (p *Poller) Delete(fd int) error {
+	err := unix.EpollCtl(p.fd, unix.EPOLL_CTL_DEL, fd, nil)
+	return err
+}
+
 // Close closes the poller.
 func (p *Poller) Close() error {
-	if err := os.NewSyscallError("close", unix.Close(p.fd)); err != nil {
-		return err
-	}
+	p.shutdown = true
 	return os.NewSyscallError("close", unix.Close(p.efd))
 }

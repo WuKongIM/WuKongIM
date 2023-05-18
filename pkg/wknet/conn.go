@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	lio "github.com/WuKongIM/WuKongIM/pkg/wknet/io"
 	"golang.org/x/sys/unix"
 )
@@ -45,7 +46,7 @@ type Conn interface {
 	// Discard discards the data from the connection.
 	Discard(n int) (int, error)
 	// Write writes the data to the connection.
-	Write(b []byte) (int, error)
+	// Write(b []byte) (int, error)
 	// WriteToOutboundBuffer writes the data to the outbound buffer.
 	WriteToOutboundBuffer(b []byte) (int, error)
 	// Wake wakes up the connection write.
@@ -65,7 +66,7 @@ type Conn interface {
 	// ReactorSub returns the reactor sub.
 	ReactorSub() *ReactorSub
 	// ReadToInboundBuffer read data from connection and  write to inbound buffer
-	ReadToInboundBuffer() error
+	ReadToInboundBuffer() (int, error)
 	SetContext(ctx interface{})
 	Context() interface{}
 	// IsAuthed returns true if the connection is authed.
@@ -110,6 +111,8 @@ type DefaultConn struct {
 
 	uptime       time.Time
 	lastActivity time.Time
+
+	wklog.Log
 }
 
 func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
@@ -125,6 +128,7 @@ func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine
 		valueMap:   map[string]interface{}{},
 		writeChan:  make(chan []byte, 100),
 		uptime:     time.Now(),
+		Log:        wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id)),
 	}
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
@@ -139,22 +143,22 @@ func (d *DefaultConn) SetID(id int64) {
 	d.id = id
 }
 
-func (d *DefaultConn) ReadToInboundBuffer() error {
+func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 	readBuffer := d.reactorSub.ReadBuffer
 	n, err := unix.Read(d.fd, readBuffer)
 	if err != nil || n == 0 {
 		if err == unix.EAGAIN {
-			return nil
+			return 0, nil
 		}
-		return err
+		return 0, err
 	}
 	if d.overflowForInbound(n) {
-		return fmt.Errorf("inbound buffer overflow, fd: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
+		return 0, fmt.Errorf("inbound buffer overflow, fd: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
 	}
 	_, err = d.inboundBuffer.Write(readBuffer[:n])
 
 	d.lastActivity = time.Now()
-	return err
+	return n, err
 }
 
 func (d *DefaultConn) Read(buf []byte) (int, error) {
@@ -382,6 +386,7 @@ func (d *DefaultConn) write(b []byte) (int, error) {
 		return 0, nil
 	}
 	if d.overflowForOutbound(len(b)) { // overflow check
+		fmt.Println("overflowForOutbound..................")
 		return 0, syscall.EINVAL
 	}
 	var err error

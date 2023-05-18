@@ -71,6 +71,7 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 		p.processRecvacks(conn, tmpFrames)
 	}
 	conn.Context().(*connContext).finishFrames(len(frames))
+
 }
 
 // #################### conn auth ####################
@@ -227,7 +228,6 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendpPackets []*wkproto.SendPac
 		}
 		sendackPackets = append(sendackPackets, channelSendackPackets...)
 	}
-
 	p.response(conn, sendackPackets...)
 }
 
@@ -257,7 +257,8 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	}
 	channel, err := p.s.channelManager.GetChannel(fakeChannelID, channelType)
 	if err != nil {
-		return nil, err
+		p.Error("getChannel is error", zap.Error(err))
+		return respSendackPacketsFnc(sendPackets, wkproto.ReasonSystemError), nil
 	}
 	if channel == nil {
 		p.Error("the channel does not exist or has been disbanded", zap.String("channel_id", fakeChannelID), zap.Uint8("channel_type", channelType))
@@ -323,11 +324,10 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	if len(messages) == 0 {
 		return sendackPackets, nil
 	}
-	_, err = p.storeChannelMessagesIfNeed(conn.UID(), messages) // only have messageSeq after message save
+	err = p.storeChannelMessagesIfNeed(conn.UID(), messages) // only have messageSeq after message save
 	if err != nil {
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 	}
-
 	//########## message store to queue ##########
 	if p.s.opts.WebhookOn() {
 		err = p.storeChannelMessagesToNotifyQueue(messages)
@@ -343,13 +343,12 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	}
 
 	//########## respose ##########
-	if len(messages) == 0 {
+	if len(messages) > 0 {
 		for _, message := range messages {
 			sendackPackets = append(sendackPackets, p.getSendackPacket(message, wkproto.ReasonSuccess))
 		}
 
 	}
-
 	return sendackPackets, nil
 }
 
@@ -395,9 +394,9 @@ func (p *Processor) getSendackPacketWithSendPacket(sendPacket *wkproto.SendPacke
 }
 
 // store channel messages
-func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Message) ([]wkstore.Message, error) {
+func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Message) error {
 	if len(messages) == 0 {
-		return nil, nil
+		return nil
 	}
 	storeMessages := make([]wkstore.Message, 0, len(messages))
 	for _, m := range messages {
@@ -407,7 +406,7 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 		storeMessages = append(storeMessages, m)
 	}
 	if len(storeMessages) == 0 {
-		return nil, nil
+		return nil
 	}
 	firstMessage := storeMessages[0].(*Message)
 	fakeChannelID := firstMessage.ChannelID
@@ -417,10 +416,10 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 	_, err := p.s.store.AppendMessages(fakeChannelID, firstMessage.ChannelType, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))
-		return nil, err
+		return err
 	}
 
-	return storeMessages, nil
+	return nil
 }
 
 func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error {
@@ -548,7 +547,6 @@ func (p *Processor) genMessageID() int64 {
 func (p *Processor) process(conn wknet.Conn) {
 	connCtx := conn.Context().(*connContext)
 	frames := connCtx.popFrames()
-
 	p.processFrames(conn, frames)
 
 }
@@ -574,7 +572,7 @@ func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
 func (p *Processor) sameFrames(frames []wkproto.Frame, callback func(s, e int, fs []wkproto.Frame)) {
 	for i := 0; i < len(frames); {
 		frame := frames[i]
-		start := i
+		start := i // 1 1 1
 		end := i + 1
 		for end < len(frames) {
 			nextFrame := frames[end]

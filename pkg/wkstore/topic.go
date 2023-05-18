@@ -26,9 +26,13 @@ type topic struct {
 	wklog.Log
 	appendLock sync.RWMutex
 	lastMsgSeq atomic.Uint32
+
+	getSegmentLock sync.RWMutex
 }
 
 func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
+
+	fmt.Println("newTopic................")
 	topicDir := filepath.Join(cfg.DataDir, fmt.Sprintf("%d", slot), "topics", name)
 
 	t := &topic{
@@ -208,6 +212,9 @@ func (t *topic) calcBaseMessageSeq(messageSeq uint32) (uint32, error) {
 }
 
 func (t *topic) getSegment(baseMessageSeq uint32, mode SegmentMode) *segment {
+
+	t.getSegmentLock.Lock()
+	defer t.getSegmentLock.Unlock()
 	key := t.getSegmentCacheKey(baseMessageSeq)
 	seg, _ := segmentCache.Get(key)
 	if seg != nil {
