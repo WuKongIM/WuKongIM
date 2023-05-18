@@ -26,7 +26,7 @@ type connContext struct {
 	frameCacheLock sync.RWMutex
 	frameCaches    []wkproto.Frame
 	s              *Server
-	inflightCount  atomic.Int32 // frame inflight count
+	inflightCount  int // frame inflight count
 	wklog.Log
 }
 
@@ -43,12 +43,12 @@ func (c *connContext) putFrame(frame wkproto.Frame) {
 	c.frameCacheLock.Lock()
 	defer c.frameCacheLock.Unlock()
 
-	c.inflightCount.Add(1)
+	c.inflightCount++
 
 	c.inMsgs.Add(1)
 
 	c.frameCaches = append(c.frameCaches, frame)
-	if int(c.inflightCount.Load()) > c.s.opts.ConnFrameQueueMaxSize {
+	if c.s.opts.ConnFrameQueueMaxSize > 0 && int(c.inflightCount) > c.s.opts.ConnFrameQueueMaxSize {
 		c.disableRead()
 	}
 
@@ -57,16 +57,18 @@ func (c *connContext) putFrame(frame wkproto.Frame) {
 func (c *connContext) popFrames() []wkproto.Frame {
 	c.frameCacheLock.RLock()
 	defer c.frameCacheLock.RUnlock()
-	newFrames := c.frameCaches
+	newFrames := c.frameCaches[:]
+	// copy(newFrames, c.frameCaches)
 	c.frameCaches = make([]wkproto.Frame, 0, 250)
 	return newFrames
 
 }
 
 func (c *connContext) finishFrames(count int) {
-
-	c.inflightCount.Sub(int32(count))
-	if int(c.inflightCount.Load()) <= c.s.opts.ConnFrameQueueMaxSize {
+	c.frameCacheLock.RLock()
+	defer c.frameCacheLock.RUnlock()
+	c.inflightCount -= count
+	if c.s.opts.ConnFrameQueueMaxSize > 0 && int(c.inflightCount) <= c.s.opts.ConnFrameQueueMaxSize {
 		c.enableRead()
 	}
 }
@@ -77,7 +79,7 @@ func (c *connContext) disableRead() {
 		return
 	}
 	c.isDisableRead = true
-	c.Info("流量限制开始!", zap.String("uid", c.conn.UID()))
+	c.Info("流量限制开始!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()), zap.Int("fd", c.conn.Fd()))
 	c.conn.ReactorSub().RemoveRead(c.conn.Fd())
 
 }
@@ -88,7 +90,7 @@ func (c *connContext) enableRead() {
 		return
 	}
 	c.isDisableRead = false
-	c.Info("流量限制解除!", zap.String("uid", c.conn.UID()))
+	c.Info("流量限制解除!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()), zap.Int("fd", c.conn.Fd()))
 	c.conn.ReactorSub().AddRead(c.conn.Fd())
 }
 
@@ -98,7 +100,7 @@ func (c *connContext) init() {
 }
 
 func (c *connContext) release() {
-	c.inflightCount.Store(0)
+	c.inflightCount = 0
 	c.Log = nil
 	c.isDisableRead = false
 	c.frameCaches = nil

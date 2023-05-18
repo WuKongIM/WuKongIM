@@ -107,6 +107,7 @@ type DefaultConn struct {
 	deviceLevel    uint8
 	deviceID       string
 	valueMap       map[string]interface{}
+	valueMapLock   sync.RWMutex
 	writeChan      chan []byte
 
 	uptime       time.Time
@@ -147,9 +148,6 @@ func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 	readBuffer := d.reactorSub.ReadBuffer
 	n, err := unix.Read(d.fd, readBuffer)
 	if err != nil || n == 0 {
-		if err == unix.EAGAIN {
-			return 0, nil
-		}
 		return 0, err
 	}
 	if d.overflowForInbound(n) {
@@ -229,6 +227,7 @@ func (d *DefaultConn) Release() {
 	d.fd = 0
 	d.closed = false
 	d.isWAdded = false
+	d.valueMap = nil
 	d.inboundBuffer.Release()
 	d.outboundBuffer.Release()
 	d.localAddr = nil
@@ -250,7 +249,11 @@ func (d *DefaultConn) Peek(n int) ([]byte, error) {
 	d.reactorSub.cache.Write(head)
 	d.reactorSub.cache.Write(tail)
 
-	return d.reactorSub.cache.Bytes(), nil
+	data := d.reactorSub.cache.Bytes()
+	resultData := make([]byte, len(data)) // TODO: 这里考虑用sync.Pool
+	copy(resultData, data)                // TODO: 这里需要复制一份，否则多线程下解析数据包会有问题 本人测试 15个连接15个消息 在协程下打印sendPacket的payload会有数据错误问题
+
+	return resultData, nil
 }
 
 func (d *DefaultConn) Discard(n int) (int, error) {
@@ -314,9 +317,13 @@ func (d *DefaultConn) SetDeviceID(deviceID string) {
 }
 
 func (d *DefaultConn) SetValue(key string, value interface{}) {
+	d.valueMapLock.Lock()
+	defer d.valueMapLock.Unlock()
 	d.valueMap[key] = value
 }
 func (d *DefaultConn) Value(key string) interface{} {
+	d.valueMapLock.RLock()
+	defer d.valueMapLock.RUnlock()
 	return d.valueMap[key]
 }
 
@@ -427,6 +434,11 @@ func (d *DefaultConn) overflowForOutbound(n int) bool {
 func (d *DefaultConn) overflowForInbound(n int) bool {
 	maxReadBufferSize := d.eg.options.MaxReadBufferSize
 	return maxReadBufferSize > 0 && (d.inboundBuffer.BoundBufferSize()+n > maxReadBufferSize)
+}
+
+func (d *DefaultConn) String() string {
+
+	return fmt.Sprintf("Conn[%d] uid=%s fd=%d", d.id, d.uid, d.fd)
 }
 
 // func getConnFd(conn net.Conn) (int, error) {

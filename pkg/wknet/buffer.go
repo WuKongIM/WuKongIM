@@ -26,11 +26,13 @@ type OutboundBuffer interface {
 }
 
 type DefualtBuffer struct {
-	ringBuffer RingBuffer
+	ringBuffer *RingBuffer
 }
 
-func NewDefualtBuffer() *DefualtBuffer {
-	return &DefualtBuffer{}
+func NewDefaultBuffer() *DefualtBuffer {
+	return &DefualtBuffer{
+		ringBuffer: &RingBuffer{},
+	}
 }
 
 func (d *DefualtBuffer) IsEmpty() bool {

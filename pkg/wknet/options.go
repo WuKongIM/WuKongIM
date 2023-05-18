@@ -91,5 +91,6 @@ func getMaxOpenFiles() int {
 			maxOpenFiles = n
 		}
 	}
+
 	return maxOpenFiles
 }

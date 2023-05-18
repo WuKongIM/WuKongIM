@@ -22,6 +22,8 @@ type ReactorSub struct {
 	wklog.Log
 	ReadBuffer []byte
 	cache      bytes.Buffer // temporary buffer for scattered bytes
+
+	stopped bool
 }
 
 // NewReactorSub instantiates a sub reactor.
@@ -52,7 +54,7 @@ func (r *ReactorSub) Start() error {
 
 // Stop stops the sub reactor.
 func (r *ReactorSub) Stop() error {
-
+	r.stopped = true
 	return r.poller.Close()
 }
 
@@ -93,7 +95,8 @@ func (r *ReactorSub) run() {
 		}
 		return
 	})
-	if err != nil {
+
+	if err != nil && !r.stopped {
 		panic(err)
 	}
 }
