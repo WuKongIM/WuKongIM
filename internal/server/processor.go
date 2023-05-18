@@ -161,7 +161,8 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	// -------------------- set conn info --------------------
 	timeDiff := time.Now().UnixNano()/1000/1000 - connectPacket.ClientTimestamp
 
-	connCtx := p.connContextPool.Get().(*connContext)
+	// connCtx := p.connContextPool.Get().(*connContext)
+	connCtx := newConnContext(p.s)
 	connCtx.init()
 	connCtx.conn = conn
 	conn.SetContext(connCtx)
@@ -178,7 +179,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 
 	// -------------------- response connack --------------------
 
-	p.s.Debug("Auth Success", zap.String("uid", uid))
+	p.s.Debug("Auth Success", zap.Any("conn", conn))
 	p.response(conn, &wkproto.ConnackPacket{
 		Salt:       aesIV,
 		ServerKey:  dhServerPublicKeyEnc,
@@ -199,16 +200,16 @@ func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket)
 }
 
 // #################### messages ####################
-func (p *Processor) processMsgs(conn wknet.Conn, sendpPackets []*wkproto.SendPacket) {
+func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPacket) {
 
 	var (
-		sendackPackets       = make([]wkproto.Frame, 0, len(sendpPackets)) // response sendack packets
-		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)   // split sendPacket by channel
+		sendackPackets       = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
+		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)  // split sendPacket by channel
 		// recvPackets          = make([]wkproto.RecvPacket, 0, len(sendpPackets)) // recv packets
 	)
 
 	// ########## split sendPacket by channel ##########
-	for _, sendPacket := range sendpPackets {
+	for _, sendPacket := range sendPackets {
 		channelKey := fmt.Sprintf("%s-%d", sendPacket.ChannelID, sendPacket.ChannelType)
 		channelSendpackets := channelSendPacketMap[channelKey]
 		if channelSendpackets == nil {
@@ -216,6 +217,13 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendpPackets []*wkproto.SendPac
 		}
 		channelSendpackets = append(channelSendpackets, sendPacket)
 		channelSendPacketMap[channelKey] = channelSendpackets
+
+		// payloadStr := fmt.Sprintf("%s", conn.UID())
+		// if payloadStr != string(sendPacket.Payload) {
+		// 	fmt.Println("payloadStr---->", payloadStr, string(sendPacket.Payload))
+		// 	fmt.Println(fmt.Sprintf("id->%d fd->%d", conn.ID(), conn.Fd()))
+		// 	panic("")
+		// }
 	}
 
 	// ########## process message for channel ##########
@@ -283,8 +291,6 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 			})
 			continue
 		}
-
-		// message decrypt
 		decodePayload, err := p.checkAndDecodePayload(messageID, sendPacket, conn)
 		if err != nil {
 			p.response(conn, &wkproto.SendackPacket{
@@ -465,13 +471,13 @@ func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Con
 	signStr := sendPacket.VerityString()
 	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
 	if err != nil {
-		p.Error("msgKey is illegal！", zap.Error(err), zap.Any("conn", c))
+		p.Error("msgKey is illegal！", zap.Error(err), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", c))
 		return false, err
 	}
 	actMsgKeyStr := sendPacket.MsgKey
 	exceptMsgKey := wkutil.MD5(string(actMsgKey))
 	if actMsgKeyStr != exceptMsgKey {
-		p.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr))
+		p.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", c))
 		return false, errors.New("msgKey is illegal！")
 	}
 	return true, nil
@@ -556,14 +562,25 @@ func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
 	p.sameFrames(frames, func(s, e int, frs []wkproto.Frame) {
 		// newFs := make([]wkproto.Frame, len(frs))
 		// copy(newFs, frs)
+		// for _, frame := range frames {
+		// 	go func(f wkproto.Frame, c wknet.Conn) {
+		// 		sp, ok := f.(*wkproto.SendPacket)
+		// 		if ok {
+		// 			payloadStr := fmt.Sprintf("%s@%s-%s", c.UID(), c.Value(aesKeyKey), c.Value(aesIVKey))
+		// 			if payloadStr != string(sp.Payload) {
+		// 				fmt.Println("payloadStr2222---->", payloadStr, string(sp.Payload))
+		// 				panic("")
+		// 			}
+		// 		}
+		// 	}(frame, conn)
+		// }
 		p.frameWorkPool.Submit(func() {
 			p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
 		})
+
 		// p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
 
-		// go func(s1, e1 int, c wknet.Conn, fs []wkproto.Frame) {
-		// 	p.processSameFrame(c, fs[0].GetFrameType(), fs, s1, e1)
-		// }(s, e, conn, frs)
+		// p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
 
 	})
 

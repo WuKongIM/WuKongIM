@@ -1,6 +1,8 @@
 package wknet
 
-import "sync"
+import (
+	"sync"
+)
 
 type Engine struct {
 	connsUnix     []Conn

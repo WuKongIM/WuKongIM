@@ -118,7 +118,7 @@ func NewOptions() *Options {
 		WriteTimeout:               time.Second * 5,
 		ClientSendRateEverySecond:  0,
 		ConnIdleTime:               time.Minute * 3,
-		ConnFrameQueueMaxSize:      250,
+		ConnFrameQueueMaxSize:      0,
 		TmpChannelCacheCount:       500,
 		ChannelCacheCount:          1000,
 		TokenAuthOn:                false,

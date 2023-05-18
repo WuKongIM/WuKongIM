@@ -71,16 +71,15 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 			if frame == nil {
 				break
 			}
-			// if frame.GetFrameType() == wkproto.PING {
-			// 	d.processor.processPing(conn, frame.(*wkproto.PingPacket))
-			// }
+
 			connCtx := conn.Context().(*connContext)
 			connCtx.inBytes.Add(int64(len(data)))
 			connCtx.putFrame(frame)
 			offset += size
 		}
 		// process frames
-		conn.Discard(len(data))
+		conn.Discard(offset)
+
 		d.processor.process(conn)
 	}
 	return nil

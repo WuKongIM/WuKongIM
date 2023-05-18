@@ -3,6 +3,7 @@ package wkproto
 import (
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/pkg/errors"
@@ -24,6 +25,7 @@ type Protocol interface {
 // WKroto 狸猫协议对象
 type WKProto struct {
 	wklog.Log
+	sync.RWMutex
 }
 
 // LatestVersion 最新版本
@@ -103,6 +105,8 @@ func (l *WKProto) DecodePacketWithConn(conn io.Reader, version uint8) (Frame, er
 
 // DecodePacket 解码包
 func (l *WKProto) DecodeFrame(data []byte, version uint8) (Frame, int, error) {
+	l.Lock()
+	defer l.Unlock()
 	framer, remainingLengthLength, err := l.decodeFramer(data)
 	if err != nil {
 		return nil, 0, nil
@@ -134,11 +138,7 @@ func (l *WKProto) DecodeFrame(data []byte, version uint8) (Frame, int, error) {
 	body := data[1+remainingLengthLength : msgLen]
 	decodeFunc := packetDecodeMap[frameType]
 	if decodeFunc == nil {
-		fmt.Println("framer---------------->", framer)
 		return nil, 0, errors.New(fmt.Sprintf("不支持对[%s]包的解码！", frameType))
-	}
-	if len(body) == 0 {
-		fmt.Println("data----》", remainingLengthLength, frameType, data)
 	}
 
 	frame, err := decodeFunc(framer, body, version)
@@ -150,6 +150,8 @@ func (l *WKProto) DecodeFrame(data []byte, version uint8) (Frame, int, error) {
 
 // EncodePacket 编码包
 func (l *WKProto) EncodeFrame(frame Frame, version uint8) ([]byte, error) {
+	l.Lock()
+	defer l.Unlock()
 	frameType := frame.GetFrameType()
 
 	if frameType == PING || frameType == PONG {

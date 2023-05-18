@@ -1,39 +1,33 @@
 package wkproto
 
-import (
-	"fmt"
-	"io"
-	"sync"
-)
+// var (
+// 	decOne = sync.Pool{
+// 		New: func() interface{} {
+// 			return make([]byte, 1)
+// 		},
+// 	}
+// 	decTwo = sync.Pool{
+// 		New: func() interface{} {
+// 			return make([]byte, 2)
+// 		},
+// 	}
+// 	decFour = sync.Pool{
+// 		New: func() interface{} {
+// 			return make([]byte, 4)
+// 		},
+// 	}
+// 	decEight = sync.Pool{
+// 		New: func() interface{} {
+// 			return make([]byte, 8)
+// 		},
+// 	}
+// )
 
-var (
-	decOne = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, 1)
-		},
-	}
-	decTwo = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, 2)
-		},
-	}
-	decFour = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, 4)
-		},
-	}
-	decEight = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, 8)
-		},
-	}
-)
-
-var decoderPool = sync.Pool{
-	New: func() any {
-		return &Decoder{}
-	},
-}
+// var decoderPool = sync.Pool{
+// 	New: func() any {
+// 		return &Decoder{}
+// 	},
+// }
 
 // Decoder 解码
 type Decoder struct {
@@ -187,57 +181,57 @@ func (d *Decoder) Variable() (uint64, error) {
 	return size, nil
 }
 
-// Int16 Int16
-func Int16(reader io.Reader) (int16, error) {
-	b := decTwo.Get().([]byte)
-	defer func() {
-		decTwo.Put(b)
-	}()
-	if n, err := reader.Read(b); err != nil {
-		return 0, err
-	} else if n != 2 {
-		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 2", n)
-	}
-	return (int16(b[0]) << 8) | int16(b[1]), nil
-}
+// // Int16 Int16
+// func Int16(reader io.Reader) (int16, error) {
+// 	b := decTwo.Get().([]byte)
+// 	defer func() {
+// 		decTwo.Put(b)
+// 	}()
+// 	if n, err := reader.Read(b); err != nil {
+// 		return 0, err
+// 	} else if n != 2 {
+// 		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 2", n)
+// 	}
+// 	return (int16(b[0]) << 8) | int16(b[1]), nil
+// }
 
-// Binary Binary
-func Binary(reader io.Reader) ([]byte, error) {
-	size, err := Int16(reader)
-	if err != nil {
-		return nil, err
-	}
-	buf := make([]byte, uint16(size))
-	if size == 0 {
-		return buf, nil
-	}
-	if n, err := reader.Read(buf); err != nil {
-		return nil, err
-	} else if n != int(size) {
-		return nil, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", n, size)
-	}
-	return buf, nil
-}
+// // Binary Binary
+// func Binary(reader io.Reader) ([]byte, error) {
+// 	size, err := Int16(reader)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	buf := make([]byte, uint16(size))
+// 	if size == 0 {
+// 		return buf, nil
+// 	}
+// 	if n, err := reader.Read(buf); err != nil {
+// 		return nil, err
+// 	} else if n != int(size) {
+// 		return nil, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", n, size)
+// 	}
+// 	return buf, nil
+// }
 
-// Int32 Int32
-func Int32(reader io.Reader) (int32, error) {
-	b := decFour.Get().([]byte)
-	defer func() {
-		decFour.Put(b)
-	}()
-	if n, err := reader.Read(b); err != nil {
-		return 0, err
-	} else if n != 4 {
-		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 4", n)
-	}
-	return (int32(b[0]) << 24) | (int32(b[1]) << 16) | (int32(b[2]) << 8) | int32(b[3]), nil
-}
+// // Int32 Int32
+// func Int32(reader io.Reader) (int32, error) {
+// 	b := decFour.Get().([]byte)
+// 	defer func() {
+// 		decFour.Put(b)
+// 	}()
+// 	if n, err := reader.Read(b); err != nil {
+// 		return 0, err
+// 	} else if n != 4 {
+// 		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of 4", n)
+// 	}
+// 	return (int32(b[0]) << 24) | (int32(b[1]) << 16) | (int32(b[2]) << 8) | int32(b[3]), nil
+// }
 
 // Uint32 Uint32
-func Uint32(reader io.Reader) (uint32, error) {
-	if i, err := Int32(reader); err != nil {
-		return 0, err
-	} else {
-		return uint32(i), nil
-	}
-}
+// func Uint32(reader io.Reader) (uint32, error) {
+// 	if i, err := Int32(reader); err != nil {
+// 		return 0, err
+// 	} else {
+// 		return uint32(i), nil
+// 	}
+// }

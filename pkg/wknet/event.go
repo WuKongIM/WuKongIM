@@ -32,7 +32,7 @@ func NewEventHandler() *EventHandler {
 		OnNewConn: func(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 			return CreateConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
 		},
-		OnNewInboundConn:  func(conn Conn, eg *Engine) InboundBuffer { return NewDefualtBuffer() },
-		OnNewOutboundConn: func(conn Conn, eg *Engine) OutboundBuffer { return NewDefualtBuffer() },
+		OnNewInboundConn:  func(conn Conn, eg *Engine) InboundBuffer { return NewDefaultBuffer() },
+		OnNewOutboundConn: func(conn Conn, eg *Engine) OutboundBuffer { return NewDefaultBuffer() },
 	}
 }

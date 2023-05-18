@@ -159,7 +159,7 @@ func (p *Poller) DeleteReadAndWrite(fd int) error {
 }
 
 func (p *Poller) Delete(fd int) error {
-	return nil
+	return p.DeleteReadAndWrite(fd)
 }
 
 func (p *Poller) Close() error {
