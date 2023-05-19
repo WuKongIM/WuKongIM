@@ -27,7 +27,7 @@ func NewKeyLock() *KeyLock {
 	}
 }
 
-//Lock 根据关键字加锁
+// Lock 根据关键字加锁
 func (l *KeyLock) Lock(key string) {
 	l.mutex.RLock()
 	keyLock, ok := l.locks[key]
@@ -48,7 +48,7 @@ func (l *KeyLock) Lock(key string) {
 	keyLock.Lock()
 }
 
-//Unlock 根据关键字解锁
+// Unlock 根据关键字解锁
 func (l *KeyLock) Unlock(key string) {
 	l.mutex.RLock()
 	keyLock, ok := l.locks[key]
@@ -61,7 +61,7 @@ func (l *KeyLock) Unlock(key string) {
 	}
 }
 
-//Clean 清理空闲锁
+// Clean 清理空闲锁
 func (l *KeyLock) Clean() {
 	l.mutex.Lock()
 	for k, v := range l.locks {
@@ -72,17 +72,17 @@ func (l *KeyLock) Clean() {
 	l.mutex.Unlock()
 }
 
-//StartCleanLoop 开启清理协程
+// StartCleanLoop 开启清理协程
 func (l *KeyLock) StartCleanLoop() {
 	go l.cleanLoop()
 }
 
-//StopCleanLoop 停止清理协程
+// StopCleanLoop 停止清理协程
 func (l *KeyLock) StopCleanLoop() {
 	close(l.stopChan)
 }
 
-//清理循环
+// 清理循环
 func (l *KeyLock) cleanLoop() {
 	ticker := time.NewTicker(l.cleanInterval)
 	for {
@@ -96,13 +96,13 @@ func (l *KeyLock) cleanLoop() {
 	}
 }
 
-//内部锁信息
+// 内部锁信息
 type innerLock struct {
 	count int64
 	sync.Mutex
 }
 
-//新建内部锁
+// 新建内部锁
 func newInnerLock() *innerLock {
 	return &innerLock{}
 }

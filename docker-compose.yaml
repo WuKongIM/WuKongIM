@@ -1,0 +1,13 @@
+version: '3.1'
+services:
+  wukongim:
+    image: wukongim/wukongim:latest
+    restart: always
+    volumes:
+      - ./wukongimdata:/home/wukongimdata
+    ports:
+      - 7676:7676 # tcp端口
+      - 2122:2122 # websocket端口
+      - 1515:1516 # http api 端口
+
+  
