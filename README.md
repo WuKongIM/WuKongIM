@@ -1,41 +1,99 @@
-## WuKongIM (Everything so easy)
+##  WuKongIM（ 一切很简单）
 
-This project is a simple and easy to use, powerful performance, simple design concept instant messaging service, fully custom protocol chat (Chat) system
+本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务，完全自定义协议的聊天系统，自研消息数据库，非常容易集成。
 
-[中文文档](./README_CN.md)
+[English](./README_EN.md)
 
 <p align="center">
 <img align="left" width="160" src="./docs/logo.png">
 <ul>
-<!-- <li><strong>QQ group</strong>: <a href="#">496193831</a></li> -->
-<li><strong>Website</strong>: http://www.githubim.com</li>
-<li><strong>Source</strong>: https://github.com/WuKongIM/WuKongIM</li>
-<li><strong>Protocol</strong>: <a href="./docs/protocol.md">WuKongIM Protocol</a></li>
-<li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
-<li><strong>Docs</strong>: http://www.githubim.com/docs</li>
+<li><strong>QQ群</strong>: <a href="#">750224611</a></li>
+<li><strong>官网</strong>: http://www.githubim.com</li>
+<li><strong>源码</strong>: https://github.com/WuKongIM/WuKongIM</li>
+<li><strong>通讯协议</strong>: <a href="./docs/protocol.md">WuKongIM协议</a></li>
+<li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
+<li><strong>文档</strong>: http://www.githubim.com/docs</li>
 </ul>
 </p>
 
 [![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://githubim.com/docs)
 [![](https://img.shields.io/apm/l/vim-mode)](./LICENSE)
 
-## Feature
+## 特点
 
-* Go language development, high performance and easy maintenance have both
-* The bottom layer is 100% open source
-* Binary protocol (supports customization), the packet size is extremely small, the minimum heartbeat packet is only 1 byte, the power consumption is small, the flow is small, and the transmission speed is fast
-* The message channel and message content are fully encrypted to prevent man-in-the-middle attacks and modify of message content.
-* Simple and easy to use, strong performance, MAC notebook stand-alone test more than 6w/sec message throughput, in order to achieve this performance and easy to use, completely independent message storage, no need to rely on third-party components, a single command can start the service
-* The tcp  + ack mechanism is used to ensure that the message is stable and reliable without loss
-* Strong scalability Adopting the channel design concept, currently supports group channels, point-to-point channels, and you can customize channels according to your own business in the future. It can realize functions such as robot channels, customer service channels, etc
-* Multi-terminal synchronization, real-time synchronization of web, pc, app messages
-* TCP and Websocket are supported indiscriminately
-* Ten thousand people support
-* The message partition is permanently stored, and the message will not be lost when the device is uninstalled
-* Support offline pull in read mode
+* 没有依赖任何第三方组件，部署简单，一条命令即可启动
+* 二进制协议(支持自定义)，包大小极小，最小心跳包只有1byte，耗电小，流量小，传输速度快。
+* 消息通道和消息内容全程加密，防中间人攻击和串改消息内容。
+* 简单易用，性能强劲，MAC笔记本单机测试6w多/秒的消息吞吐量，为了达到这性能和简单易用，完全自主实现消息存储，无如何第三方组件依赖，一条命令即可启动服务
+* 扩展性强 采用频道设计理念，目前支持群组频道，点对点频道，后续可以根据自己业务自定义频道可实现机器人频道，客服频道等等功能。
+* 同时无差别支持tcp，websocket。
+* 万人频道支持。
+* 消息分区永久存储。
 
 
-## Client SDK
+## 适用场景
+
+#### 即时通讯
+
+* 群频道支持
+* 个人频道支持
+* 消息永久存储
+* 离线消息推送支持
+* 最近会话维护
+
+#### 消息推送/站内消息
+
+
+#### 物联网通讯
+
+* mqtt协议支持
+
+#### 音视频信令服务器
+
+* 支持临时指令消息投递
+
+#### 直播弹幕
+
+* 临时消息投递
+
+* 临时订阅者支持
+
+#### 客服系统
+
+* 消息支持投递给第三方服务器
+
+* 第三方服务器可决定分配指定的订阅者成组投递
+
+#### 即时社区
+
+* 支持topic模式的消息投递
+
+
+## 快速启动
+
+```go 
+
+go run main.go
+
+```
+
+
+<!-- ## 快速入门 -->
+
+<!-- <img  src="./docs/quick.gif"  alt="快速入门"/> -->
+
+
+<!-- [获取limaoim执行文件](./INSTALL.md) -->
+
+<!-- #### 运行服务端 （注意：因为重写了Go的网络库，此库Windows暂时不支持，Windows建议使用Docker运行。） -->
+<!-- 
+```
+$ go run cmd/app/main.go -e mode=test (mode=test是测试模式 方便快速试玩 生产不要加此参数)
+``` -->
+
+<!-- 服务器运行后，访问 http://127.0.0.1:1516/api 查看api文档 -->
+
+## 客户端SDK
 
 [Android SDK](https://github.com/WuKongIM/WuKongIMAndroidSDK.git)
 
@@ -45,74 +103,41 @@ This project is a simple and easy to use, powerful performance, simple design co
 
 [Flutter SDK](https://github.com/WuKongIM/WuKongIMFlutterSDK.git)
 
-[Docs](http://www.githubim.com/docs)
+SDK的使用请查看[文档](http://www.githubim.com/docs)
 
-## App Demo
-
-[Android Demo](https://github.com/WuKongIM/WuKongIMAndroidDemo.git)
-
-[iOS Demo](https://github.com/WuKongIM/WuKongIMiOSDemo.git)
-
-[Web Demo](https://github.com/WuKongIM/WuKongIMJSDemo.git)
-
-
-<!-- ## Quick start -->
-
-<!-- <img  src="./docs/quick.gif"  alt="Quick start"/> -->
-
-
-<!-- [Get WuKongIM executable file](./INSTALL.md) -->
 <!-- 
-#### Run the server (Note: Because it rewrites the Go network library, this library is temporarily not supported by Windows. Windows recommends using Docker to run.)
+## 快速试玩
+
+***登录test1,test2 test2向test1发送一条消息“hello”***
 
 ```
-$ go run cmd/app/main.go -e mode=test 
-```
-
-After the server is running, visit http://127.0.0.1:1516/api to view the api document
-
-#### Client SDK
-
-Android SDK: [Android SDK (built-in simple demo)](https://github.com/WuKongIM/WuKongIMAndroidSDK.git)
-
-iOS SDK: Open source from Star to 500 (please help us some Star, thanks 😄)
-
-JS SDK: Star to 1000 open source (please help us some Star, thanks 😄)
-
-note： Please check [document](http://www.githubim.com/docs) for the use of SDK
-
-## Quick play
-
-***Log in to test1, test2 and test2 to send a message "hello" to test1***
-
-```
-// Log in to test1
+// 登录test1
 $ go run cmd/play/main.go -user=test1 
 ```
 
 ```
-// Log in to test2
+// 登录test2
 $ go run cmd/play/main.go -user=test2 
 ```
 
-test2 sends the message hello to test1
+test2发送消息hello给test1
 
 ```
-$ >send hello to test1
+$ > send hello to test1
 ```
 
 
-### Performance Testing
+### 性能测试
 
-One-click pressure test
+一键压测
 
 ```
 ./bench.sh
 ```
 
-My test results are as follows:
+本人测试结果如下：
 
-Achieve a throughput of 63420 messages per second, which is close to the pressure test data of redis!
+达到每秒63420条消息的吞吐量，接近redis的压测数据！
 
 ```
 goos: darwin
@@ -130,42 +155,48 @@ SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s 
 
 ```
 // 开启proxy服务 指定初始化的节点nodes
-# WuKongIM proxy -c ./configs/proxy.toml  -e replica=1
+# limaoim proxy -c ./configs/proxy.toml  -e replica=1
 ```
 
 
 ```
 // 初始化的节点启动
-# WuKongIM -c ./configs/config.toml -proxy=xx.xx.xx.xx:16666 -e nodeID=1001 -e nodeAddr=127.0.0.1:6666
-(或者 WuKongIM -c ./configs/config.toml -peers=1@http://127.0.0.1:6000,2@http://127.0.0.1:6001,3@http://127.0.0.1:6002 -e nodeID=1)
+# limaoim -c ./configs/config.toml -proxy=xx.xx.xx.xx:16666 -e nodeID=1001 -e nodeAddr=127.0.0.1:6666
+(或者 limaoim -c ./configs/config.toml -peers=1@http://127.0.0.1:6000,2@http://127.0.0.1:6001,3@http://127.0.0.1:6002 -e nodeID=1)
 ```
 
 ```
 // 初始化的节点启动
-# WuKongIM  -e proxy=xx.xx.xx.xx:16666 -e nodeID=1002 -e nodeAddr=127.0.0.1:6667
+# limaoim  -e proxy=xx.xx.xx.xx:16666 -e nodeID=1002 -e nodeAddr=127.0.0.1:6667
 ```
 
 增加节点
 
 ```
-# WuKongIM  -proxy=xx.xx.xx.xx:16666 -e nodeID=1003 -join
+# limaoim  -proxy=xx.xx.xx.xx:16666 -e nodeID=1003 -join
 ```
 
 移除节点
 
 ```
-# WuKongIM -e nodeID=1003 -remove
+# limaoim -e nodeID=1003 -remove
 ``` -->
 
 
 
-#### Run via Docker Compose
+## 通过Docker Compose运行
 
 ```
 $ docker-compose up 
 ```
 
+## 适用场景
+
+聊天软件，客服系统，站内消息，物联网通讯
+
 ## Architecture
+
+WuKongIM 没有依赖任何第三方组件
 
 ***完整架构***
 
