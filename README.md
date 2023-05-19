@@ -1,11 +1,11 @@
-##  WuKongIM（ 一切很简单）
+##  悟空IM（让信息传递更简单）
 
 本项目是一款简单易用，性能强劲，设计理念简洁的即时通讯服务，完全自定义协议的聊天系统，自研消息数据库，非常容易集成。
 
 [English](./README_EN.md)
 
 <p align="center">
-<img align="left" width="160" src="./docs/logo.png">
+<img align="left" width="160200" src="./docs/logo.png">
 <ul>
 <li><strong>QQ群</strong>: <a href="#">750224611</a></li>
 <li><strong>官网</strong>: http://www.githubim.com</li>
@@ -43,6 +43,9 @@
 
 #### 消息推送/站内消息
 
+* 群频道支持
+* 个人频道支持
+* 离线消息推送支持
 
 #### 物联网通讯
 
@@ -60,12 +63,19 @@
 
 #### 客服系统
 
+* 客服频道支持
+
 * 消息支持投递给第三方服务器
 
 * 第三方服务器可决定分配指定的订阅者成组投递
 
+#### 实时AI反馈
+
+* 支持客户端发的消息推送给第三方服务器，第三方服务器反馈给AI后返回的结果再推送给客户端
+
 #### 即时社区
 
+* 社区频道支持
 * 支持topic模式的消息投递
 
 
@@ -187,14 +197,10 @@ SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s 
 ## 通过Docker Compose运行
 
 ```
-$ docker-compose up 
+$ docker-compose up -d
 ```
 
-## 适用场景
-
-聊天软件，客服系统，站内消息，物联网通讯
-
-## Architecture
+## 架构
 
 WuKongIM 没有依赖任何第三方组件
 
@@ -209,3 +215,4 @@ WuKongIM 没有依赖任何第三方组件
 ***消息处理逻辑***
 
 <img src="./docs/architecture/processmsg.png" alt="Architecture"/>
+
