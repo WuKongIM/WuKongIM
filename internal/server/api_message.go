@@ -51,7 +51,12 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		return
 	}
 
-	messages, err := m.s.store.LoadNextRangeMsgs(req.UID, wkproto.ChannelTypePerson, req.MessageSeq, 0, req.Limit)
+	startMessageSeq := req.MessageSeq
+	if startMessageSeq > 0 {
+		startMessageSeq = startMessageSeq + 1 // 结果应该不包含本身的messageSeq这条消息
+	}
+
+	messages, err := m.s.store.LoadNextRangeMsgs(req.UID, wkproto.ChannelTypePerson, startMessageSeq, 0, req.Limit)
 	if err != nil {
 		m.Error("同步消息失败！", zap.Error(err))
 		c.ResponseError(err)
@@ -151,7 +156,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 	channelID := req.ChannelID
 	channelType := req.ChannelType
 	if strings.TrimSpace(channelID) == "" && len(req.Subscribers) > 0 { //如果没频道ID 但是有订阅者，则创建一个临时频道
-		channelID = fmt.Sprintf("%s%s", wkutil.GenUUID(), m.s.opts.TmpChannelSuffix)
+		channelID = fmt.Sprintf("%s%s", wkutil.GenUUID(), m.s.opts.TmpChannel.Suffix)
 		channelType = wkproto.ChannelTypeGroup
 		m.s.channelManager.CreateTmpChannel(channelID, channelType, req.Subscribers)
 	}

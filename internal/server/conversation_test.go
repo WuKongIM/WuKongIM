@@ -10,7 +10,7 @@ import (
 
 func TestGetConversations(t *testing.T) {
 	opts := NewTestOptions()
-	opts.ConversationSyncOnce = 0
+	opts.Conversation.SyncOnce = 0
 	l := NewTestServer(opts)
 	cm := NewConversationManager(l)
 	cm.Start()

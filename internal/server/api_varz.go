@@ -45,7 +45,7 @@ func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
 	opts := s.opts
 	connCount := v.s.dispatch.engine.ConnCount()
 	return &Varz{
-		ServerID:      fmt.Sprintf("%d", opts.NodeID),
+		ServerID:      fmt.Sprintf("%d", opts.ID),
 		ServerName:    "WuKongIM",
 		Version:       opts.Version,
 		Connections:   connCount,

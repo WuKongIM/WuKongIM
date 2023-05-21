@@ -479,10 +479,10 @@ func (r syncReq) Check() error {
 }
 
 type syncMessageResp struct {
-	StartSeq uint32         `json:"start_seq"` // 开始序列号
-	EndSeq   uint32         `json:"end_seq"`   // 结束序列号
-	More     int            `json:"more"`      // 是否还有更多 1.是 0.否
-	Messages []*MessageResp `json:"messages"`  // 消息数据
+	StartMessageSeq uint32         `json:"start_message_seq"` // 开始序列号
+	EndMessageSeq   uint32         `json:"end_message_seq"`   // 结束序列号
+	More            int            `json:"more"`              // 是否还有更多 1.是 0.否
+	Messages        []*MessageResp `json:"messages"`          // 消息数据
 }
 
 type syncackReq struct {

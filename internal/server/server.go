@@ -92,7 +92,7 @@ func New(opts *Options) *Server {
 		panic(err)
 	}
 
-	monitor.SetMonitorOn(s.opts.MonitorOn) // 监控开关
+	monitor.SetMonitorOn(s.opts.Monitor.On) // 监控开关
 
 	return s
 }
@@ -136,7 +136,7 @@ func (s *Server) Start() error {
 	}
 
 	s.Info(fmt.Sprintf("Listening  for TCP client on %s", s.opts.Addr))
-	s.Info(fmt.Sprintf("Listening  for Websocket client on %s", s.opts.WSSAddr))
+	s.Info(fmt.Sprintf("Listening  for Websocket client on %s", s.opts.WSS.Addr))
 	s.Info(fmt.Sprintf("Listening  for Manager Http api on %s", fmt.Sprintf("http://%s", s.opts.HTTPAddr)))
 
 	defer s.Info("Server is ready")
@@ -156,7 +156,7 @@ func (s *Server) Start() error {
 
 	s.retryQueue.Start()
 
-	if s.opts.MonitorOn {
+	if s.opts.Monitor.On {
 		s.monitor.Start()
 		s.monitorServer.Start()
 	}
@@ -178,7 +178,7 @@ func (s *Server) Stop() error {
 	s.conversationManager.Stop()
 	s.webhook.Stop()
 
-	if s.opts.MonitorOn {
+	if s.opts.Monitor.On {
 		s.monitorServer.Stop()
 		s.monitor.Stop()
 	}

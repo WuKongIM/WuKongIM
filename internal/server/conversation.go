@@ -71,23 +71,27 @@ func NewConversationManager(s *Server) *ConversationManager {
 
 // Start Start
 func (cm *ConversationManager) Start() {
-	cm.channelLock.StartCleanLoop()
-	go cm.saveloop()
-	go cm.calcLoop()
-	cm.crontab.Start()
+	if cm.s.opts.Conversation.On {
+		cm.channelLock.StartCleanLoop()
+		go cm.saveloop()
+		go cm.calcLoop()
+		cm.crontab.Start()
+	}
+
 }
 
 // Stop Stop
 func (cm *ConversationManager) Stop() {
-	close(cm.stopChan)
-	cm.channelLock.StopCleanLoop()
-	// Wait for the queue to complete
-	cm.queue.Wait()
+	if cm.s.opts.Conversation.On {
+		close(cm.stopChan)
+		cm.channelLock.StopCleanLoop()
+		// Wait for the queue to complete
+		cm.queue.Wait()
 
-	cm.FlushConversations()
+		cm.FlushConversations()
 
-	cm.crontab.Stop()
-
+		cm.crontab.Stop()
+	}
 }
 
 // 清空过期最近会话
@@ -100,7 +104,7 @@ func (cm *ConversationManager) clearExpireConversations() {
 			for _, key := range keys {
 				conversation, _ := cache.Get(key)
 				if conversation != nil {
-					if conversation.Timestamp+int64(cm.s.opts.ConversationCacheExpire) < time.Now().Unix() {
+					if conversation.Timestamp+int64(cm.s.opts.Conversation.CacheExpire.Seconds()) < time.Now().Unix() {
 						cache.Remove(key)
 					}
 				}
@@ -131,12 +135,12 @@ func (cm *ConversationManager) calcLoop() {
 }
 
 func (cm *ConversationManager) saveloop() {
-	ticker := time.NewTicker(cm.s.opts.ConversationSyncInterval)
+	ticker := time.NewTicker(cm.s.opts.Conversation.SyncInterval)
 
 	needSync := false
 	noSaveCount := 0
 	for {
-		if noSaveCount >= cm.s.opts.ConversationSyncOnce {
+		if noSaveCount >= cm.s.opts.Conversation.SyncOnce {
 			needSync = true
 		}
 		if needSync {
@@ -165,6 +169,9 @@ func (cm *ConversationManager) saveloop() {
 
 // PushMessage PushMessage
 func (cm *ConversationManager) PushMessage(message *Message, subscribers []string) {
+	if !cm.s.opts.Conversation.On {
+		return
+	}
 
 	cm.queue.Push(map[string]interface{}{
 		"message":     message,
@@ -254,7 +261,7 @@ func (cm *ConversationManager) getUserAllConversationMapFromStore(uid string) ([
 }
 
 func (cm *ConversationManager) newLRUCache() *lru.Cache[string, *wkstore.Conversation] {
-	c, _ := lru.New[string, *wkstore.Conversation](cm.s.opts.ConversationOfUserMaxCount)
+	c, _ := lru.New[string, *wkstore.Conversation](cm.s.opts.Conversation.UserMaxCount)
 	return c
 }
 
@@ -298,7 +305,7 @@ func (cm *ConversationManager) flushUserConversations(uid string) {
 
 		// 移除过期的最近会话缓存
 		for _, conversation := range conversations {
-			if conversation.Timestamp+int64(cm.s.opts.ConversationCacheExpire) < time.Now().Unix() {
+			if conversation.Timestamp+int64(cm.s.opts.Conversation.CacheExpire.Seconds()) < time.Now().Unix() {
 				key := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
 				conversationCache.Remove(key)
 			}

@@ -132,7 +132,7 @@ func (d *Datasource) requestCMD(cmd string, param map[string]interface{}) (strin
 	if param != nil {
 		dataMap["data"] = param
 	}
-	resp, err := network.Post(d.s.opts.Datasource, []byte(wkutil.ToJSON(dataMap)), nil)
+	resp, err := network.Post(d.s.opts.Datasource.Addr, []byte(wkutil.ToJSON(dataMap)), nil)
 	if err != nil {
 		return "", err
 	}

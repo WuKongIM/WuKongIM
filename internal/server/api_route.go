@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -33,9 +34,9 @@ func (a *RouteAPI) Route(r *wkhttp.WKHttp) {
 // 路由用户的IM连接地址
 func (a *RouteAPI) routeUserIMAddr(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"tcp_addr": a.s.opts.NodeTCPAddr,
-		"ws_addr":  a.s.opts.NodeWSAddr,
-		"wss_on":   a.s.opts.WSSOn,
+		"tcp_addr": a.s.opts.External.TCPAddr,
+		"ws_addr":  a.s.opts.External.WSSAddr,
+		"wss_on":   wkutil.BoolToInt(a.s.opts.WSS.On),
 	})
 }
 
@@ -51,8 +52,8 @@ func (a *RouteAPI) routeUserIMAddrOfBatch(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, []userAddrResp{
 		{
 			UIDs:    uids,
-			TCPAddr: a.s.opts.NodeTCPAddr,
-			WSAddr:  a.s.opts.NodeWSAddr,
+			TCPAddr: a.s.opts.External.TCPAddr,
+			WSAddr:  a.s.opts.External.WSSAddr,
 		},
 	})
 }

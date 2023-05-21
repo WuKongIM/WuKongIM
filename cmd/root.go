@@ -19,7 +19,7 @@ var (
 	rootCmd    = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM 简洁，性能强劲的即时通讯平台",
-		Long:  `WuKongIM 简洁，性能强劲的即时通讯平台 详情查看文档：https://docs.wukongim.cn`,
+		Long:  `WuKongIM 简洁，性能强劲的即时通讯平台 详情查看文档：https://docs.githubim.com`,
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd: true,
 		},

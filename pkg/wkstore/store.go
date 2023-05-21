@@ -48,11 +48,11 @@ type Store interface {
 	// LoadLastMsgsWithEnd 加载最新的消息 end表示加载到end的位置结束加载 end=0表示不做限制 结果不包含end
 	LoadLastMsgsWithEnd(channelID string, channelType uint8, end uint32, limit int) ([]Message, error)
 	// LoadPrevRangeMsgs 向上加载指定范围的消息 end=0表示不做限制 比如 start=100 end=0 limit=10 则返回的消息seq为99-90的消息
-	// 结果不包含start和end
+	// 结果包含start,不包含end
 	LoadPrevRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
 	// LoadNextRangeMsgs 向下加载指定范围的消息 end=0表示不做限制 比如 start=100 end=200 limit=10 则返回的消息seq为101-111的消息，
 	// 比如start=100 end=105 limit=10 则返回的消息seq为101-104的消息
-	// 结果不包含start和end
+	// 结果包含start,不包含end
 	LoadNextRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
 
 	AppendMessageOfNotifyQueue(m []Message) error
