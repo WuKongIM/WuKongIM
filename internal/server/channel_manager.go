@@ -24,13 +24,13 @@ type ChannelManager struct {
 
 // NewChannelManager 创建一个频道管理者
 func NewChannelManager(s *Server) *ChannelManager {
-	cache, err := lru.NewWithEvict(s.opts.TmpChannelCacheCount, func(key string, value *Channel) {
+	cache, err := lru.NewWithEvict(s.opts.TmpChannel.CacheCount, func(key string, value *Channel) {
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	channelCache, err := lru.NewWithEvict(s.opts.ChannelCacheCount, func(key string, value *Channel) {
+	channelCache, err := lru.NewWithEvict(s.opts.Channel.CacheCount, func(key string, value *Channel) {
 	})
 	if err != nil {
 		panic(err)
@@ -46,7 +46,7 @@ func NewChannelManager(s *Server) *ChannelManager {
 // GetChannel 获取频道
 func (cm *ChannelManager) GetChannel(channelID string, channelType uint8) (*Channel, error) {
 
-	if strings.HasSuffix(channelID, cm.s.opts.TmpChannelSuffix) {
+	if strings.HasSuffix(channelID, cm.s.opts.TmpChannel.Suffix) {
 		return cm.GetTmpChannel(channelID, channelType)
 	}
 	if channelType == wkproto.ChannelTypePerson {
@@ -70,7 +70,7 @@ func (cm *ChannelManager) getChannelFromCacheOrStore(channelID string, channelTy
 		return nil, err
 	}
 	if channelInfo == nil {
-		if cm.s.opts.CreateIfChannelNotExist || channelType == wkproto.ChannelTypeCommunityTopic || channelType == wkproto.ChannelTypeInfo {
+		if cm.s.opts.Channel.CreateIfNoExist || channelType == wkproto.ChannelTypeCommunityTopic || channelType == wkproto.ChannelTypeInfo {
 			channelInfo = wkstore.NewChannelInfo(channelID, channelType)
 		} else {
 			return nil, nil

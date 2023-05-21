@@ -57,7 +57,7 @@ func (c *Channel) LoadData() error {
 }
 
 func (c *Channel) initChannelInfo() error {
-	if !c.s.opts.DatasourceChannelInfoOn {
+	if !c.s.opts.Datasource.ChannelInfoOn {
 		return nil
 	}
 	if !c.s.opts.HasDatasource() {

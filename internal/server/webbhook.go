@@ -47,7 +47,7 @@ func NewWebhook(s *Server) *Webhook {
 	)
 	if s.opts.WebhookGRPCOn() {
 		webhookGRPCPool, err = grpcpool.New(func() (*grpc.ClientConn, error) {
-			return grpc.Dial(s.opts.WebhookGRPC, grpc.WithInsecure(), grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			return grpc.Dial(s.opts.Webhook.GRPCAddr, grpc.WithInsecure(), grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
 				Timeout:             2 * time.Second,  // wait 1 second for ping ack before considering the connection dead
 				PermitWithoutStream: true,             // send pings even without active streams
@@ -126,7 +126,7 @@ func (w *Webhook) notifyOfflineMsg(msg *Message, large bool, subscribers []strin
 	compress := ""
 	toUIDs := subscribers
 	var compresssToUIDs []byte
-	if w.s.opts.SubscriberCompressOfCount > 0 && len(subscribers) > w.s.opts.SubscriberCompressOfCount {
+	if w.s.opts.Channel.SubscriberCompressOfCount > 0 && len(subscribers) > w.s.opts.Channel.SubscriberCompressOfCount {
 		buff := new(bytes.Buffer)
 		gWriter := gzip.NewWriter(buff)
 		defer gWriter.Close()
@@ -163,7 +163,7 @@ func (w *Webhook) notifyOfflineMsg(msg *Message, large bool, subscribers []strin
 			ToUIDs:          toUIDs,
 			Compress:        compress,
 			CompresssToUIDs: compresssToUIDs,
-			SourceID:        int64(w.s.opts.NodeID),
+			SourceID:        int64(w.s.opts.ID),
 		},
 	})
 
@@ -195,11 +195,11 @@ func (w *Webhook) Offline(uid string, deviceFlag wkproto.DeviceFlag, id int64, o
 // 通知上层应用 TODO: 此初报错可以做一个邮件报警处理类的东西，
 func (w *Webhook) notifyQueueLoop() {
 	errorSleepTime := time.Second * 1 // 发生错误后sleep时间
-	ticker := time.NewTicker(w.s.opts.MessageNotifyScanInterval)
+	ticker := time.NewTicker(w.s.opts.Webhook.MsgNotifyEventPushInterval)
 	errMessageIDMap := make(map[int64]int) // 记录错误的消息ID value为错误次数
 	if w.s.opts.WebhookOn() {
 		for {
-			messages, err := w.s.store.GetMessagesOfNotifyQueue(w.s.opts.MessageNotifyMaxCount)
+			messages, err := w.s.store.GetMessagesOfNotifyQueue(w.s.opts.Webhook.MsgNotifyEventCountPerPush)
 			if err != nil {
 				w.Error("获取通知队列内的消息失败！", zap.Error(err))
 				time.Sleep(errorSleepTime) // 如果报错就休息下
@@ -231,7 +231,7 @@ func (w *Webhook) notifyQueueLoop() {
 						errCount := errMessageIDMap[message.GetMessageID()]
 						errCount++
 						errMessageIDMap[message.GetMessageID()] = errCount
-						if errCount >= w.s.opts.MessageNotifyMaxCount {
+						if errCount >= w.s.opts.Webhook.MsgNotifyEventRetryMaxCount {
 							errMessageIDs = append(errMessageIDs, message.GetMessageID())
 						}
 					}
@@ -258,7 +258,7 @@ func (w *Webhook) notifyQueueLoop() {
 				}
 				err = w.s.store.RemoveMessagesOfNotifyQueue(messageIDs)
 				if err != nil {
-					w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", messageIDs), zap.String("Webhook", w.s.opts.Webhook))
+					w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", messageIDs), zap.String("Webhook", w.s.opts.Webhook.HTTPAddr))
 					time.Sleep(errorSleepTime) // 如果报错就休息下
 					continue
 				}
@@ -280,13 +280,13 @@ func (w *Webhook) sendWebhookForHttp(event string, data []byte) error {
 	resp, err := w.httpClient.Post(eventURL, "application/json", bytes.NewBuffer(data))
 	w.Debug("webhook请求结束 耗时", zap.Int64("mill", time.Now().UnixNano()/1000/1000-startTime))
 	if err != nil {
-		w.Warn("调用第三方消息通知失败！", zap.String("Webhook", w.s.opts.Webhook), zap.Error(err))
+		w.Warn("调用第三方消息通知失败！", zap.String("Webhook", w.s.opts.Webhook.HTTPAddr), zap.Error(err))
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		w.Warn("第三方消息通知接口返回状态错误！", zap.Int("status", resp.StatusCode), zap.String("Webhook", w.s.opts.Webhook))
+		w.Warn("第三方消息通知接口返回状态错误！", zap.Int("status", resp.StatusCode), zap.String("Webhook", w.s.opts.Webhook.HTTPAddr))
 		return errors.New("第三方消息通知接口返回状态错误！")
 	}
 	return nil

@@ -156,8 +156,8 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 		d.Error("非重试消息", zap.String("msg", msg.String()))
 		return
 	}
-	if msg.retryCount > d.s.opts.MessageMaxRetryCount {
-		d.Debug("超过最大重试次数！", zap.Int64("messageID", msg.MessageID), zap.Int("messageMaxRetryCount", d.s.opts.MessageMaxRetryCount))
+	if msg.retryCount > d.s.opts.MessageRetry.MaxCount {
+		d.Debug("超过最大重试次数！", zap.Int64("messageID", msg.MessageID), zap.Int("messageMaxRetryCount", d.s.opts.MessageRetry.MaxCount))
 		return
 	}
 	recvConn := d.getRecvConn(msg.toClientID)

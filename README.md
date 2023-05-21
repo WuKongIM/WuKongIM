@@ -8,8 +8,8 @@
 <img align="left" width="200" src="./docs/logo.png">
 <ul>
 <li><strong>QQ群</strong>: <a href="#">750224611</a></li>
-<li><strong>官网</strong>: http://www.githubim.com</li>
-<li><strong>源码</strong>: https://github.com/WuKongIM/WuKongIM</li>
+<li><strong>微信</strong>: <a href="#">wukongimgo（备注进群）</a></li>
+<li><strong>官网</strong>: https://githubim.com</li>
 <li><strong>通讯协议</strong>: <a href="./docs/protocol.md">WuKongIM协议</a></li>
 <li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>文档</strong>: http://www.githubim.com/docs</li>
@@ -26,6 +26,7 @@
 * 自研消息数据库，消息分区永久存储
 * 自研二进制协议，支持自定义协议
 * 消息通道和消息内容全程加密，防中间人攻击和串改消息内容。
+* 支持一个账号多设备登录，数据实时同步
 * 简单易用，性能强劲，MAC笔记本单机测试16w多/秒的消息(包含存储)吞吐量，为了达到这性能和简单易用，完全自主实现消息存储，无如何第三方组件依赖，一条命令即可启动服务
 * 扩展性强 采用频道设计理念，目前支持群组频道，点对点频道，后续可以根据自己业务自定义频道可实现机器人频道，客服频道等等功能。
 * 同时无差别支持tcp，websocket。
@@ -51,6 +52,7 @@
 #### 物联网通讯
 
 * mqtt协议支持（待开发）
+* 支持发布与订阅
 
 #### 音视频信令服务器
 

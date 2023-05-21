@@ -1,0 +1,48 @@
+
+mode: "debug" # 运行模式 模式 debug 测试 release 正式 bench 压力测试
+# Addr: "tcp://0.0.0.0:7677" # tcp监听地址
+# httpAddr: "0.0.0.0:1516" #  http api的监听地址  默认：0.0.0.0:1516
+# dataDir: ~/wukongimdata # 数据存储目录
+# tokenAuthOn: true # 是否开启token验证 不配置将根据mode属性判断 debug模式下默认为false release模式为true
+# logger: 
+#   level: 0 # 日志级别 0:未配置,将根据mode属性判断 1:debug 2:info 3:warn 4:error
+#   dir: "./logs" # 日志目录
+#   lineNum: false # 是否打印行号
+# wss:
+#   on: true # 是否开启wss
+#   addr: "0.0.0.0:2122" # // websocket 监听地址 默认：0.0.0.0:2122
+# monitor: 
+#   on: true # 是否开启监控
+#   addr: "0.0.0.0:1101" # 监控监听地址 默认为 0.0.0.0:1101
+# external:
+#   ip: "" # 外网IP 如果没配置将通过ifconfig.io获取
+#   tcpAddr: "" #  默认自动获取， 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
+#   wssAddr: "" # 默认自动获取， 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+# channel:
+#   cacheCount: 1000 # 频道缓存数量 频道被加载后会缓存到内存中，如果频道数量过多，会占用大量内存，可以通过此配置限制缓存数量
+#   createIfNoExist: true # 频道不存在时是否自动创建 默认为true
+#   subscriberCompressOfCount: 0 #  订阅者数多大开始压缩,如果开启默认采用gzip压缩（离线推送的时候订阅者数组太大 可以设置此参数进行压缩 默认为0 表示不压缩 ）
+# tmpChannel:
+#   suffix: "@tmp" # 临时频道后缀 带有此后缀的频道将被认为是临时频道，临时频道不会被持久化
+#   cacheCount: 500 # 临时频道缓存数量
+# webhook: # 两者配其一即可 webhook配置 用于接收消息通知事件，详情请查看文档
+#   httpAddr: "" # webhook的http地址 通过此地址通知数据给第三方 格式为 http://xxxxx
+#   grpcAddr: "" #  webhook的grpc地址 当前httpAddr成为瓶颈的时候可以用grpc进行推送， 如果此地址有值 则不会再调用httpAddr配置的地址,格式为 ip:port，通讯协议请查看文档
+#   msgNotifyEventPushInterval: 500ms # 消息通知事件推送间隔，默认500毫秒发起一次推送
+#   msgNotifyEventRetryMaxCount: 5 # 消息通知事件消息推送失败最大重试次数 默认为5次，超过将丢弃
+#   msgNotifyEventCountPerPush: 100 # 每次webhook消息通知事件推送消息数量限制 默认一次请求最多推送100条
+# datasource: #  数据源配置，不填写则使用自身数据存储逻辑，如果填写则使用第三方数据源，数据格式请查看文档
+#   addr: "" #  数据源地址
+#   channelInfoOn: false #  是否开启频道信息数据源的获取
+# conversation: # 最近会话配置
+#   on: false # 是否开启最近会话
+#   cacheExpire: 1d # 最近会话缓存过期时间 默认为1天
+#   syncInterval: 5m # 最近会话保存间隔,每隔指定的时间进行保存一次 默认为5分钟
+#   syncOnce: 100 # 最近会话同步保存一次的数量 超过指定未保存的数量 将进行保存 默认为100
+#   userMaxCount: 1000 # 用户最近会话最大数量，超过此数量的最近会话后最旧的那条将被覆盖掉 默认为1000
+# messageRetry: # 消息重试配置
+#   interval: 60s # 重试间隔 默认为60秒  
+#   scanInterval: 5s  # 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
+#   maxCount: 5    # 消息最大重试次数, 服务端持有用户的连接但是给此用户发送消息后在指定的间隔内没有收到ack，将会重新发送，直到超过maxCount配置的数量后将不再发送（这种情况很少出现，如果出现这种情况此消息只能去离线接口去拉取）
+# userMsgQueueMaxSize: 0 #  用户消息队列最大大小，超过此大小此用户将被限速，0为不限制
+ 

@@ -482,13 +482,13 @@ const (
 // 同步频道内的消息
 func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	var req struct {
-		LoginUID    string   `json:"login_uid"` // 当前登录用户的uid
-		ChannelID   string   `json:"channel_id"`
-		ChannelType uint8    `json:"channel_type"`
-		StartSeq    uint32   `json:"start_seq"` //开始列号
-		EndSeq      uint32   `json:"end_seq"`   // 结束列号
-		Limit       int      `json:"limit"`     // 每次同步数量限制
-		PullMode    PullMode `json:"pull_mode"` // 拉取模式 0:向下拉取 1:向上拉取
+		LoginUID        string   `json:"login_uid"` // 当前登录用户的uid
+		ChannelID       string   `json:"channel_id"`
+		ChannelType     uint8    `json:"channel_type"`
+		StartMessageSeq uint32   `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
+		EndMessageSeq   uint32   `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
+		Limit           int      `json:"limit"`             // 每次同步数量限制
+		PullMode        PullMode `json:"pull_mode"`         // 拉取模式 0:向下拉取 1:向上拉取
 	}
 	if err := c.BindJSON(&req); err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
@@ -511,14 +511,12 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
 
-	if req.PullMode == PullModeUp { // 向上拉取
-		messages, err = ch.s.store.LoadNextRangeMsgs(fakeChannelID, req.ChannelType, req.StartSeq, req.EndSeq, limit)
+	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
+		messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
+	} else if req.PullMode == PullModeUp { // 向上拉取
+		messages, err = ch.s.store.LoadNextRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	} else {
-		if req.EndSeq == 0 && req.StartSeq == 0 {
-			messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
-		} else {
-			messages, err = ch.s.store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartSeq, req.EndSeq, limit)
-		}
+		messages, err = ch.s.store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	}
 	if err != nil {
 		c.ResponseError(err)
@@ -539,25 +537,25 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if len(messageResps) > 0 {
 
 		if req.PullMode == PullModeDown {
-			if req.EndSeq != 0 {
+			if req.EndMessageSeq != 0 {
 				messageSeq := messageResps[0].MessageSeq
-				if req.EndSeq == messageSeq {
+				if req.EndMessageSeq == messageSeq {
 					more = false
 				}
 			}
 		} else {
-			if req.EndSeq != 0 {
+			if req.EndMessageSeq != 0 {
 				messageSeq := messageResps[len(messageResps)-1].MessageSeq
-				if req.EndSeq == messageSeq {
+				if req.EndMessageSeq == messageSeq {
 					more = false
 				}
 			}
 		}
 	}
 	c.JSON(http.StatusOK, syncMessageResp{
-		StartSeq: req.StartSeq,
-		EndSeq:   req.EndSeq,
-		More:     wkutil.BoolToInt(more),
-		Messages: messageResps,
+		StartMessageSeq: req.StartMessageSeq,
+		EndMessageSeq:   req.EndMessageSeq,
+		More:            wkutil.BoolToInt(more),
+		Messages:        messageResps,
 	})
 }

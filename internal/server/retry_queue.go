@@ -31,7 +31,7 @@ func NewRetryQueue(s *Server) *RetryQueue {
 
 func (r *RetryQueue) startInFlightTimeout(msg *Message) {
 	now := time.Now()
-	msg.pri = now.Add(r.s.opts.MsgTimeout).UnixNano()
+	msg.pri = now.Add(r.s.opts.MessageRetry.Interval).UnixNano()
 	r.pushInFlightMessage(msg)
 	r.addToInFlightPQ(msg)
 
@@ -108,7 +108,7 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 
 // Start 开始运行重试
 func (r *RetryQueue) Start() {
-	r.s.Schedule(r.s.opts.TimeoutScanInterval, func() {
+	r.s.Schedule(r.s.opts.MessageRetry.ScanInterval, func() {
 		now := time.Now().UnixNano()
 		r.processInFlightQueue(now)
 	})

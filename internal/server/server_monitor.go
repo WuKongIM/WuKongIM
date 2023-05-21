@@ -17,7 +17,7 @@ func NewMonitorServer(s *Server) *MonitorServer {
 	r := wkhttp.New()
 	r.Use(wkhttp.CORSMiddleware())
 	return &MonitorServer{
-		addr: s.opts.MonitorAddr,
+		addr: s.opts.Monitor.Addr,
 		s:    s,
 		r:    r,
 		Log:  wklog.NewWKLog("MonitorServer"),

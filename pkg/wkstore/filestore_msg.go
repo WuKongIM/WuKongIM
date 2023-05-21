@@ -86,7 +86,7 @@ func (f *FileStoreForMsg) LoadPrevRangeMsgs(channelID string, channelType uint8,
 		actLimit = int(startMessageSeq)
 		actStartMessageSeq = 0
 	} else {
-		actStartMessageSeq = startMessageSeq - uint32(limit)
+		actStartMessageSeq = startMessageSeq - uint32(limit) + 1
 	}
 
 	tp := f.getTopic(channelID, channelType)
@@ -104,7 +104,7 @@ func (f *FileStoreForMsg) LoadPrevRangeMsgs(channelID string, channelType uint8,
 func (f *FileStoreForMsg) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]Message, error) {
 	var messages = make([]Message, 0, limit)
 	tp := f.getTopic(channelID, channelType)
-	err := tp.readMessages(startMessageSeq+1, uint64(limit), func(message Message) error {
+	err := tp.readMessages(startMessageSeq, uint64(limit), func(message Message) error {
 		if message.GetSeq() >= endMessageSeq {
 			return nil
 		}
