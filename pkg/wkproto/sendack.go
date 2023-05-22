@@ -29,14 +29,19 @@ func decodeSendack(frame Frame, data []byte, version uint8) (Frame, error) {
 	sendackPacket := &SendackPacket{}
 	sendackPacket.Framer = frame.(Framer)
 	var err error
+
+	// messageID
+	if sendackPacket.MessageID, err = dec.Int64(); err != nil {
+		return nil, errors.Wrap(err, "解码MessageId失败！")
+	}
+	// clientSeq
 	var clientSeq uint32
 	if clientSeq, err = dec.Uint32(); err != nil {
 		return nil, errors.Wrap(err, "解码ClientSeq失败！")
 	}
 	sendackPacket.ClientSeq = uint64(clientSeq)
-	if sendackPacket.MessageID, err = dec.Int64(); err != nil {
-		return nil, errors.Wrap(err, "解码MessageId失败！")
-	}
+
+	// messageSeq
 	if sendackPacket.MessageSeq, err = dec.Uint32(); err != nil {
 		return nil, errors.Wrap(err, "解码MessageSeq失败！")
 	}
@@ -52,9 +57,10 @@ func decodeSendack(frame Frame, data []byte, version uint8) (Frame, error) {
 }
 
 func encodeSendack(sendackPacket *SendackPacket, enc *Encoder, version uint8) error {
-	enc.WriteUint32(uint32(sendackPacket.ClientSeq))
 	// 消息唯一ID
 	enc.WriteInt64(sendackPacket.MessageID)
+	// clientSeq
+	enc.WriteUint32(uint32(sendackPacket.ClientSeq))
 	// 消息序列号(客户端维护)
 	enc.WriteUint32(sendackPacket.MessageSeq)
 	// 原因代码
@@ -64,5 +70,5 @@ func encodeSendack(sendackPacket *SendackPacket, enc *Encoder, version uint8) er
 
 func encodeSendackSize(packet *SendackPacket, version uint8) int {
 
-	return ClientSeqByteSize + MessageIDByteSize + MessageSeqByteSize + ReasonCodeByteSize
+	return MessageIDByteSize + ClientSeqByteSize + MessageSeqByteSize + ReasonCodeByteSize
 }

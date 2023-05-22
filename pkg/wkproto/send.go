@@ -102,10 +102,6 @@ func decodeSend(frame Frame, data []byte, version uint8) (Frame, error) {
 		return nil, errors.Wrap(err, "解码消息设置失败！")
 	}
 	sendPacket.Setting = Setting(setting)
-	// msg key
-	if sendPacket.MsgKey, err = dec.String(); err != nil {
-		return nil, errors.Wrap(err, "解码MsgKey失败！")
-	}
 
 	// 消息序列号(客户端维护)
 	var clientSeq uint32
@@ -126,12 +122,16 @@ func decodeSend(frame Frame, data []byte, version uint8) (Frame, error) {
 
 		return nil, errors.Wrap(err, "解码ChannelType失败！")
 	}
-	// if sendPacket.Setting.IsSet(SettingTopic) {
-	// 	// topic
-	// 	if sendPacket.Topic, err = dec.String(); err != nil {
-	// 		return nil, errors.Wrap(err, "解密topic消息失败！")
-	// 	}
-	// }
+	// msg key
+	if sendPacket.MsgKey, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码MsgKey失败！")
+	}
+	if sendPacket.Setting.IsSet(SettingTopic) {
+		// topic
+		if sendPacket.Topic, err = dec.String(); err != nil {
+			return nil, errors.Wrap(err, "解密topic消息失败！")
+		}
+	}
 	if sendPacket.Payload, err = dec.BinaryAll(); err != nil {
 		return nil, errors.Wrap(err, "解码payload失败！")
 	}
@@ -142,7 +142,6 @@ func encodeSend(frame Frame, enc *Encoder, version uint8) error {
 	sendPacket := frame.(*SendPacket)
 
 	enc.WriteByte(sendPacket.Setting.Uint8())
-	enc.WriteString(sendPacket.MsgKey)
 	// 消息序列号(客户端维护)
 	enc.WriteUint32(uint32(sendPacket.ClientSeq))
 	// 客户端唯一标示
@@ -151,10 +150,12 @@ func encodeSend(frame Frame, enc *Encoder, version uint8) error {
 	enc.WriteString(sendPacket.ChannelID)
 	// 频道类型
 	enc.WriteUint8(sendPacket.ChannelType)
+	// msgKey
+	enc.WriteString(sendPacket.MsgKey)
 
-	// if sendPacket.Setting.IsSet(SettingTopic) {
-	// 	enc.WriteString(sendPacket.Topic)
-	// }
+	if sendPacket.Setting.IsSet(SettingTopic) {
+		enc.WriteString(sendPacket.Topic)
+	}
 	// 消息内容
 	enc.WriteBytes(sendPacket.Payload)
 
@@ -165,16 +166,15 @@ func encodeSendSize(frame Frame, version uint8) int {
 	sendPacket := frame.(*SendPacket)
 	size := 0
 	size += SettingByteSize
-	size += (len(sendPacket.MsgKey) + StringFixLenByteSize)
 	size += ClientSeqByteSize
-
 	size += (len(sendPacket.ClientMsgNo) + StringFixLenByteSize)
 	size += (len(sendPacket.ChannelID) + StringFixLenByteSize)
 
 	size += ChannelTypeByteSize
-	// if sendPacket.Setting.IsSet(SettingTopic) {
-	// 	size += (len(sendPacket.Topic) + StringFixLenByteSize)
-	// }
+	size += (len(sendPacket.MsgKey) + StringFixLenByteSize)
+	if sendPacket.Setting.IsSet(SettingTopic) {
+		size += (len(sendPacket.Topic) + StringFixLenByteSize)
+	}
 	size += len(sendPacket.Payload)
 
 	return size
