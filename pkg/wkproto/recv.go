@@ -52,21 +52,9 @@ func decodeRecv(frame Frame, data []byte, version uint8) (Frame, error) {
 	if recvPacket.MsgKey, err = dec.String(); err != nil {
 		return nil, errors.Wrap(err, "解码MsgKey失败！")
 	}
-	// 消息全局唯一ID
-	if recvPacket.MessageID, err = dec.Int64(); err != nil {
-		return nil, errors.Wrap(err, "解码MessageId失败！")
-	}
-	// 消息序列号 （用户唯一，有序递增）
-	if recvPacket.MessageSeq, err = dec.Uint32(); err != nil {
-		return nil, errors.Wrap(err, "解码MessageSeq失败！")
-	}
-	// 客户端唯一标示
-	if recvPacket.ClientMsgNo, err = dec.String(); err != nil {
-		return nil, errors.Wrap(err, "解码ClientMsgNo失败！")
-	}
-	// 消息时间
-	if recvPacket.Timestamp, err = dec.Int32(); err != nil {
-		return nil, errors.Wrap(err, "解码Timestamp失败！")
+	// 发送者
+	if recvPacket.FromUID, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码FromUID失败！")
 	}
 	// 频道ID
 	if recvPacket.ChannelID, err = dec.String(); err != nil {
@@ -76,16 +64,30 @@ func decodeRecv(frame Frame, data []byte, version uint8) (Frame, error) {
 	if recvPacket.ChannelType, err = dec.Uint8(); err != nil {
 		return nil, errors.Wrap(err, "解码ChannelType失败！")
 	}
+	// 客户端唯一标示
+	if recvPacket.ClientMsgNo, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码ClientMsgNo失败！")
+	}
+	// 消息全局唯一ID
+	if recvPacket.MessageID, err = dec.Int64(); err != nil {
+		return nil, errors.Wrap(err, "解码MessageId失败！")
+	}
+	// 消息序列号 （用户唯一，有序递增）
+	if recvPacket.MessageSeq, err = dec.Uint32(); err != nil {
+		return nil, errors.Wrap(err, "解码MessageSeq失败！")
+	}
+	// 消息时间
+	if recvPacket.Timestamp, err = dec.Int32(); err != nil {
+		return nil, errors.Wrap(err, "解码Timestamp失败！")
+	}
+
 	if recvPacket.Setting.IsSet(SettingTopic) {
 		// topic
 		if recvPacket.Topic, err = dec.String(); err != nil {
 			return nil, errors.Wrap(err, "解密topic消息失败！")
 		}
 	}
-	// 发送者
-	if recvPacket.FromUID, err = dec.String(); err != nil {
-		return nil, errors.Wrap(err, "解码FromUID失败！")
-	}
+
 	// payloadStartLen := 8 + 4 + 4 + uint32(len(recvPacket.ChannelID)+2) + 1 + uint32(len(recvPacket.FromUID)+2) // 消息ID长度 + 消息序列号长度 + 消息时间长度 +频道ID长度+字符串标示长度 + 频道类型长度 + 发送者uid长度
 	// if version > 1 {
 	// 	payloadStartLen += uint32(len(recvPacket.ClientMsgNo) + 2)
@@ -107,28 +109,28 @@ func decodeRecv(frame Frame, data []byte, version uint8) (Frame, error) {
 }
 
 func encodeRecv(recvPacket *RecvPacket, enc *Encoder, version uint8) error {
-	if version > 3 {
-		enc.WriteByte(recvPacket.Setting.Uint8())
-	}
+	// setting
+	enc.WriteByte(recvPacket.Setting.Uint8())
 	// MsgKey
 	enc.WriteString(recvPacket.MsgKey)
-	// 消息唯一ID
-	enc.WriteInt64(recvPacket.MessageID)
-	// 消息有序ID
-	enc.WriteUint32(recvPacket.MessageSeq)
-	// 客户端唯一标示
-	enc.WriteString(recvPacket.ClientMsgNo)
-	// 消息时间戳
-	enc.WriteInt32(recvPacket.Timestamp)
+	// 发送者
+	enc.WriteString(recvPacket.FromUID)
 	// 频道ID
 	enc.WriteString(recvPacket.ChannelID)
 	// 频道类型
 	enc.WriteUint8(recvPacket.ChannelType)
+	// 客户端唯一标示
+	enc.WriteString(recvPacket.ClientMsgNo)
+	// 消息唯一ID
+	enc.WriteInt64(recvPacket.MessageID)
+	// 消息有序ID
+	enc.WriteUint32(recvPacket.MessageSeq)
+	// 消息时间戳
+	enc.WriteInt32(recvPacket.Timestamp)
+
 	if recvPacket.Setting.IsSet(SettingTopic) {
 		enc.WriteString(recvPacket.Topic)
 	}
-	// 发送者
-	enc.WriteString(recvPacket.FromUID)
 	// 消息内容
 	enc.WriteBytes(recvPacket.Payload)
 	return nil
@@ -139,16 +141,18 @@ func encodeRecvSize(packet *RecvPacket, version uint8) int {
 	size += SettingByteSize
 
 	size += (len(packet.MsgKey) + StringFixLenByteSize)
-	size += (MessageIDByteSize + MessageSeqByteSize)
-	size += (len(packet.ClientMsgNo) + StringFixLenByteSize)
-	size += TimeDiffByteSize
+	size += (len(packet.FromUID) + StringFixLenByteSize)
 	size += (len(packet.ChannelID) + StringFixLenByteSize)
 	size += ChannelTypeByteSize
+	size += (len(packet.ClientMsgNo) + StringFixLenByteSize)
+	size += MessageIDByteSize
+	size += MessageSeqByteSize
+
+	size += TimeDiffByteSize
+
 	if packet.Setting.IsSet(SettingTopic) {
 		size += (len(packet.Topic) + StringFixLenByteSize)
 	}
-
-	size += (len(packet.FromUID) + StringFixLenByteSize)
 
 	size += len(packet.Payload)
 

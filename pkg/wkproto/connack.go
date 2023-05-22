@@ -24,20 +24,19 @@ func (c ConnackPacket) String() string {
 }
 
 func encodeConnack(connack *ConnackPacket, enc *Encoder, version uint8) error {
-	enc.WriteString(connack.ServerKey)
-	enc.WriteString(connack.Salt)
 	enc.WriteInt64(connack.TimeDiff)
 	enc.WriteByte(connack.ReasonCode.Byte())
+	enc.WriteString(connack.ServerKey)
+	enc.WriteString(connack.Salt)
 	return nil
 }
 
 func encodeConnackSize(packet *ConnackPacket, version uint8) int {
 	size := 0
-	size += (len(packet.ServerKey) + StringFixLenByteSize)
-	size += (len(packet.Salt) + StringFixLenByteSize)
 	size += TimeDiffByteSize
 	size += ReasonCodeByteSize
-
+	size += (len(packet.ServerKey) + StringFixLenByteSize)
+	size += (len(packet.Salt) + StringFixLenByteSize)
 	return size
 }
 
@@ -48,13 +47,6 @@ func decodeConnack(frame Frame, data []byte, version uint8) (Frame, error) {
 
 	var err error
 
-	if connackPacket.ServerKey, err = dec.String(); err != nil {
-		return nil, errors.Wrap(err, "解码ServerKey失败！")
-	}
-	if connackPacket.Salt, err = dec.String(); err != nil {
-		return nil, errors.Wrap(err, "解码Salt失败！")
-	}
-
 	if connackPacket.TimeDiff, err = dec.Int64(); err != nil {
 		return nil, errors.Wrap(err, "解码TimeDiff失败！")
 	}
@@ -63,5 +55,13 @@ func decodeConnack(frame Frame, data []byte, version uint8) (Frame, error) {
 		return nil, errors.Wrap(err, "解码ReasonCode失败！")
 	}
 	connackPacket.ReasonCode = ReasonCode(reasonCode)
+
+	if connackPacket.ServerKey, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码ServerKey失败！")
+	}
+	if connackPacket.Salt, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码Salt失败！")
+	}
+
 	return connackPacket, nil
 }
