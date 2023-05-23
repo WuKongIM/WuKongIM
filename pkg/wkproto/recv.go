@@ -148,7 +148,7 @@ func encodeRecvSize(packet *RecvPacket, version uint8) int {
 	size += MessageIDByteSize
 	size += MessageSeqByteSize
 
-	size += TimeDiffByteSize
+	size += TimestampByteSize
 
 	if packet.Setting.IsSet(SettingTopic) {
 		size += (len(packet.Topic) + StringFixLenByteSize)

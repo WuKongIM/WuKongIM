@@ -6,8 +6,9 @@ services:
     volumes:
       - ./wukongimdata:/home/wukongimdata
     ports:
-      - 7676:7676 # tcp端口
-      - 2122:2122 # websocket端口
-      - 1516:1516 # http api 端口
+      - 5000:5000 # http api 端口
+      - 5100:5100 # tcp端口
+      - 5200:5200 # websocket端口
+      - 5300:5300 # monitor端口
 
   

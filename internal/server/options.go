@@ -32,12 +32,12 @@ type Options struct {
 	vp       *viper.Viper // 内部配置对象
 	ID       int64        // 节点ID
 	Mode     Mode         // 模式 debug 测试 release 正式 bench 压力测试
-	Addr     string       // tcp监听地址 例如：tcp://0.0.0.0:7677
-	HTTPAddr string       // http api的监听地址 默认为 0.0.0.0:1516
+	HTTPAddr string       // http api的监听地址 默认为 0.0.0.0:5000
+	Addr     string       // tcp监听地址 例如：tcp://0.0.0.0:5100
 	DataDir  string       // 数据目录
 	WSS      struct {
 		On   bool   // 是否开启wss
-		Addr string // websocket 监听地址 例如：0.0.0.0:2122
+		Addr string // websocket 监听地址 例如：0.0.0.0:5200
 	}
 	Logger struct {
 		Dir     string // 日志存储目录
@@ -46,7 +46,7 @@ type Options struct {
 	}
 	Monitor struct {
 		On   bool   // 是否开启监控
-		Addr string // 监控地址 默认为 0.0.0.0:1101
+		Addr string // 监控地址 默认为 0.0.0.0:5300
 	}
 	External struct {
 		IP      string // 外网IP 如果没配置将通过ifconfig.io获取
@@ -130,12 +130,12 @@ func NewOptions() *Options {
 			Level:   zapcore.InfoLevel,
 			LineNum: false,
 		},
-		HTTPAddr: "0.0.0.0:1516",
-		Addr:     "tcp://0.0.0.0:7677",
+		HTTPAddr: "0.0.0.0:5000",
+		Addr:     "tcp://0.0.0.0:5100",
 		WSS: struct {
 			On   bool
 			Addr string
-		}{On: true, Addr: "0.0.0.0:2122"},
+		}{On: true, Addr: "0.0.0.0:5200"},
 		ConnIdleTime:        time.Minute * 3,
 		UserMsgQueueMaxSize: 0,
 		TmpChannel: struct {
@@ -202,7 +202,7 @@ func NewOptions() *Options {
 			Addr string
 		}{
 			On:   false,
-			Addr: "0.0.0.0:1101",
+			Addr: "0.0.0.0:5300",
 		},
 	}
 }
@@ -227,8 +227,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.WSS.On = o.getInt("wss.on", wkutil.BoolToInt(o.WSS.On)) == 1
 
 	o.Channel.CacheCount = o.getInt("channel.cacheCount", o.Channel.CacheCount)
-	o.Channel.CreateIfNoExist = o.getBool("createIfChannelNotExist", o.Channel.CreateIfNoExist)
-	o.Channel.SubscriberCompressOfCount = o.getInt("subscriberCompressOfCount", o.Channel.SubscriberCompressOfCount)
+	o.Channel.CreateIfNoExist = o.getBool("channel.createIfNoExist", o.Channel.CreateIfNoExist)
+	o.Channel.SubscriberCompressOfCount = o.getInt("channel.subscriberCompressOfCount", o.Channel.SubscriberCompressOfCount)
 
 	o.ConnIdleTime = o.getDuration("connIdleTime", o.ConnIdleTime)
 

@@ -57,12 +57,6 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 			tmpFrames = append(tmpFrames, frame.(*wkproto.SendPacket))
 		}
 		p.processMsgs(conn, tmpFrames)
-	case wkproto.SENDACK: // process sendack
-		tmpFrames := make([]*wkproto.SendackPacket, 0, len(frames))
-		for _, frame := range frames {
-			tmpFrames = append(tmpFrames, frame.(*wkproto.SendackPacket))
-		}
-		p.processMsgAcks(conn, tmpFrames)
 	case wkproto.RECVACK: // process recvack
 		tmpFrames := make([]*wkproto.RecvackPacket, 0, len(frames))
 		for _, frame := range frames {
@@ -217,13 +211,6 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 		}
 		channelSendpackets = append(channelSendpackets, sendPacket)
 		channelSendPacketMap[channelKey] = channelSendpackets
-
-		// payloadStr := fmt.Sprintf("%s", conn.UID())
-		// if payloadStr != string(sendPacket.Payload) {
-		// 	fmt.Println("payloadStr---->", payloadStr, string(sendPacket.Payload))
-		// 	fmt.Println(fmt.Sprintf("id->%d fd->%d", conn.ID(), conn.Fd()))
-		// 	panic("")
-		// }
 	}
 
 	// ########## process message for channel ##########
@@ -232,9 +219,10 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 		channelSendackPackets, err := p.prcocessChannelMessages(conn, firstSendPacket.ChannelID, firstSendPacket.ChannelType, sendPackets)
 		if err != nil {
 			p.Error("process channel messages err", zap.Error(err))
-			return
 		}
-		sendackPackets = append(sendackPackets, channelSendackPackets...)
+		if len(channelSendackPackets) > 0 {
+			sendackPackets = append(sendackPackets, channelSendackPackets...)
+		}
 	}
 	p.response(conn, sendackPackets...)
 }
@@ -265,7 +253,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	}
 	channel, err := p.s.channelManager.GetChannel(fakeChannelID, channelType)
 	if err != nil {
-		p.Error("getChannel is error", zap.Error(err))
+		p.Error("getChannel is error", zap.Error(err), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channelType))
 		return respSendackPacketsFnc(sendPackets, wkproto.ReasonSystemError), nil
 	}
 	if channel == nil {
@@ -483,13 +471,26 @@ func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Con
 	return true, nil
 }
 
-// #################### message ack ####################
-func (p *Processor) processMsgAcks(conn wknet.Conn, acks []*wkproto.SendackPacket) {
-
-}
-
 // #################### recv ack ####################
 func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPacket) {
+	if len(acks) == 0 {
+		return
+	}
+	for _, ack := range acks {
+		if !ack.NoPersist {
+			// 完成消息（移除重试队列里的消息）
+			err := p.s.retryQueue.finishMessage(conn.ID(), ack.MessageID)
+			if err != nil {
+				p.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", conn.UID()), zap.Int64("clientID", conn.ID()), zap.Uint8("deviceFlag", conn.DeviceFlag()), zap.String("deviceID", conn.DeviceID()), zap.Int64("messageID", ack.MessageID))
+			}
+		}
+		if ack.SyncOnce && !ack.NoPersist && wkproto.DeviceLevel(conn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
+			err := p.s.store.UpdateMessageOfUserCursorIfNeed(conn.UID(), ack.MessageSeq)
+			if err != nil {
+				p.Warn("更新游标失败！", zap.Error(err), zap.String("uid", conn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
+			}
+		}
+	}
 
 }
 

@@ -303,11 +303,11 @@ const (
 	VersionByteSize         = 1 // version的大小
 	DeviceFlagByteSize      = 1
 	ClientTimestampByteSize = 8
-	TimeDiffByteSize        = 4
+	TimeDiffByteSize        = 8
 	ReasonCodeByteSize      = 1
 	MessageIDByteSize       = 8
 	MessageSeqByteSize      = 4
-	TimestampByteSize       = 8
+	TimestampByteSize       = 4
 )
 
 const (

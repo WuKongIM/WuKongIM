@@ -47,7 +47,7 @@ func initConfig() {
 
 		vp.AddConfigPath(home)
 		vp.SetConfigType("yaml")
-		vp.SetConfigName(".wukongim")
+		vp.SetConfigName(".wk")
 	}
 
 	if err := vp.ReadInConfig(); err == nil {
