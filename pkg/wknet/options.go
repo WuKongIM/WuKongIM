@@ -30,7 +30,7 @@ type Options struct {
 
 func NewOptions() *Options {
 	return &Options{
-		Addr:               "tcp://127.0.0.1:7677",
+		Addr:               "tcp://127.0.0.1:5100",
 		MaxOpenFiles:       getMaxOpenFiles(),
 		SubReactorNum:      runtime.NumCPU(),
 		ReadBufferSize:     1024 * 32,

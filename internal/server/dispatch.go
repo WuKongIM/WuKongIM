@@ -19,7 +19,7 @@ type Dispatch struct {
 
 func NewDispatch(s *Server) *Dispatch {
 	return &Dispatch{
-		engine:    wknet.NewEngine(),
+		engine:    wknet.NewEngine(wknet.WithAddr(s.opts.Addr)),
 		s:         s,
 		processor: NewProcessor(s),
 		Log:       wklog.NewWKLog("Dispatch"),
