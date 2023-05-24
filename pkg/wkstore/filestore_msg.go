@@ -105,7 +105,7 @@ func (f *FileStoreForMsg) LoadNextRangeMsgs(channelID string, channelType uint8,
 	var messages = make([]Message, 0, limit)
 	tp := f.getTopic(channelID, channelType)
 	err := tp.readMessages(startMessageSeq, uint64(limit), func(message Message) error {
-		if message.GetSeq() >= endMessageSeq {
+		if endMessageSeq != 0 && message.GetSeq() >= endMessageSeq {
 			return nil
 		}
 		messages = append(messages, message)

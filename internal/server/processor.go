@@ -357,7 +357,7 @@ func (p *Processor) hasPermission(channel *Channel, fromUID string) (bool, wkpro
 		return false, reason
 	}
 	if channel.ChannelType != wkproto.ChannelTypePerson && channel.ChannelType != wkproto.ChannelTypeInfo {
-		if !channel.IsSubscriber(fromUID) {
+		if !channel.IsSubscriber(fromUID) && !channel.IsTmpSubscriber(fromUID) {
 			p.Error("The user is not in the channel and cannot send messages to the channel", zap.String("fromUID", fromUID), zap.String("channel_id", channel.ChannelID), zap.Uint8("channel_type", channel.ChannelType))
 			return false, wkproto.ReasonSubscriberNotExist
 		}
