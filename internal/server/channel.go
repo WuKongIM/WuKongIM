@@ -209,7 +209,7 @@ func (c *Channel) IsSubscriber(uid string) bool {
 
 // IsTmpSubscriber 是否是临时订阅者
 func (c *Channel) IsTmpSubscriber(uid string) bool {
-	_, ok := c.subscriberMap.Load(uid)
+	_, ok := c.tmpSubscriberMap.Load(uid)
 	return ok
 }
 

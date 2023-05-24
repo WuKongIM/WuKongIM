@@ -4,7 +4,7 @@ services:
     image: wukongim/wukongim:latest
     restart: always
     volumes:
-      - ./wukongimdata:/home/wukongimdata
+      - ./wukongimdata:/root/wukongimdata
     ports:
       - 5000:5000 # http api 端口
       - 5100:5100 # tcp端口

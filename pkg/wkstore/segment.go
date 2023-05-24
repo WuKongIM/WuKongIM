@@ -153,7 +153,7 @@ func (s *segment) readMessagesAtPosition(position int64, limit uint64, callback 
 func (s *segment) readTargetPosition(startPosition int64, targetMessageSeq uint32) (int64, int64, error) {
 
 	if startPosition >= s.getFileSize() {
-		s.Debug("当前文件位置大于文件本身大小", zap.Int64("startPosition", startPosition), zap.Int64("fileSize", s.getFileSize()))
+		s.Debug("当前文件位置大于文件本身大小", zap.Int64("startPosition", startPosition), zap.Int64("fileSize", s.getFileSize()), zap.Uint32("targetMessageSeq", targetMessageSeq))
 		return 0, 0, ErrorNotData
 	}
 	resultOffset, dataLen, err := decodeMessageSeq(s.segmentFile, startPosition)
@@ -199,6 +199,8 @@ func (s *segment) init(mode SegmentMode) error {
 	} else if fi.Size() > 0 {
 		s.fileSize = fi.Size()
 	}
+
+	fmt.Println("s.fileSize---->", s.fileSize)
 
 	lastMsgStartPosition, err := s.sanityCheck()
 	if err != nil {
@@ -247,6 +249,7 @@ func (s *segment) sanityCheck() (int64, error) {
 		panic(err)
 	}
 	segmentSizeOfByte := stat.Size()
+	fmt.Println("segmentSizeOfByte----->", segmentSizeOfByte)
 
 	if segmentSizeOfByte == 0 {
 		return 0, nil
