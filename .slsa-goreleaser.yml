@@ -27,10 +27,3 @@ main: ./main.go
 # {{ .Os }} will be replaced by goos field in the config file.
 # {{ .Arch }} will be replaced by goarch field in the config file.
 binary: wukongim-{{ .Os }}-{{ .Arch }}
-
-# (Optional) ldflags generated dynamically in the workflow, and set as the `evaluated-envs` input variables in the workflow.
-ldflags:
-  - "-X main.Version={{ .Env.VERSION }}"
-  - "-X main.Commit={{ .Env.COMMIT }}"
-  - "-X main.CommitDate={{ .Env.COMMIT_DATE }}"
-  - "-X main.TreeState={{ .Env.TREE_STATE }}"
