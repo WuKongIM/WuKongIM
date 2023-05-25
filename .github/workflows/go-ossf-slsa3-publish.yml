@@ -60,7 +60,7 @@ jobs:
       go-version: 1.18
       # Optional: only needed if using ldflags.
       evaluated-envs: "COMMIT_DATE:${{needs.args.outputs.commit-date}}, COMMIT:${{needs.args.outputs.commit}}, VERSION:${{needs.args.outputs.version}}, TREE_STATE:${{needs.args.outputs.tree-state}}"
-      # config-file: slsa/goreleaser-${{matrix.os}}-${{matrix.arch}}.yml
+      config-file: slsa/goreleaser-${{matrix.os}}-${{matrix.arch}}.yml
 
   verification:
     needs:
