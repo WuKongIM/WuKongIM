@@ -55,6 +55,7 @@ jobs:
         arch:
           - amd64
           - arm64
+          - x86_64
     uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v1.5.0
     with:
       go-version: 1.18

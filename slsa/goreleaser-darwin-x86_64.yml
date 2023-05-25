@@ -12,7 +12,7 @@ flags:
   - -tags=netgo
 
 # The OS to compile for. `GOOS` env variable will be set to this value.
-goos: linux
+goos: darwin
 
 # The architecture to compile for. `GOARCH` env variable will be set to this value.
 goarch: x86_64
