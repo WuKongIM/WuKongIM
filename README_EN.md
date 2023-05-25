@@ -1,6 +1,6 @@
 ## WuKongIM (Everything so easy)
 
-This project is a simple and easy to use, powerful performance, simple design concept instant messaging service, fully custom protocol chat (Chat) system
+WuKongIM is a high-performance universal communication service that supports various scenarios such as instant messaging, message push, IoT communication, audio and video signaling, live broadcasting with bullet comments, customer service systems, AI communication, and instant communities.
 
 [中文文档](./README_CN.md)
 
@@ -12,27 +12,42 @@ This project is a simple and easy to use, powerful performance, simple design co
 <li><strong>Source</strong>: https://github.com/WuKongIM/WuKongIM</li>
 <li><strong>Protocol</strong>: <a href="./docs/protocol.md">WuKongIM Protocol</a></li>
 <li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
-<li><strong>Docs</strong>: http://www.githubim.com/docs</li>
+<li><strong>Docs</strong>: http://www.githubim.com</li>
 </ul>
 </p>
 
 [![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://githubim.com/docs)
 [![](https://img.shields.io/apm/l/vim-mode)](./LICENSE)
 
-## Feature
+Features
+--------
 
-* Go language development, high performance and easy maintenance have both
-* The bottom layer is 100% open source
-* Binary protocol (supports customization), the packet size is extremely small, the minimum heartbeat packet is only 1 byte, the power consumption is small, the flow is small, and the transmission speed is fast
-* The message channel and message content are fully encrypted to prevent man-in-the-middle attacks and modify of message content.
-* Simple and easy to use, strong performance, MAC notebook stand-alone test more than 6w/sec message throughput, in order to achieve this performance and easy to use, completely independent message storage, no need to rely on third-party components, a single command can start the service
-* The tcp  + ack mechanism is used to ensure that the message is stable and reliable without loss
-* Strong scalability Adopting the channel design concept, currently supports group channels, point-to-point channels, and you can customize channels according to your own business in the future. It can realize functions such as robot channels, customer service channels, etc
-* Multi-terminal synchronization, real-time synchronization of web, pc, app messages
-* TCP and Websocket are supported indiscriminately
-* Ten thousand people support
-* The message partition is permanently stored, and the message will not be lost when the device is uninstalled
-* Support offline pull in read mode
+- Simple deployment without any third-party dependencies, can be started with a single command.
+- Self-developed message database for permanent message storage.
+- Self-developed binary protocol with support for custom protocols.
+- End-to-end encryption of message channels and content to prevent man-in-the-middle attacks and message tampering.
+- Support for multiple device logins with real-time data synchronization.
+- Easy to use with powerful performance. In single-machine testing on a Mac notebook, it achieves a throughput of over 160,000 messages per second (including storage). To achieve this performance and ease of use, the system implements message storage completely independently, without relying on any third-party components.
+- Strong scalability using a channel-based design approach. Currently supports group channels and point-to-point channels, and can be extended to include custom channels for functionalities such as robot channels and customer service channels.
+- Supports both TCP and WebSocket protocols.
+- Channels support thousands of subscribers.
+
+
+Getting Started
+---------------
+
+To get started with WuKongIM, follow these steps:
+
+1. Clone the repository:
+
+> git clone https://github.com/WuKongIM/WuKongIM.git
+
+2. Run the service:
+
+> cd WuKongIM
+
+> go run main.go
+
 
 
 ## Client SDK
