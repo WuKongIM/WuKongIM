@@ -12,10 +12,10 @@ flags:
   - -tags=netgo
 
 # The OS to compile for. `GOOS` env variable will be set to this value.
-goos: linux
+goos: darwin
 
 # The architecture to compile for. `GOARCH` env variable will be set to this value.
-goarch: amd64
+goarch: arm64
 
 # (Optional) Entrypoint to compile.
 main: ./main.go
@@ -28,9 +28,9 @@ main: ./main.go
 # {{ .Arch }} will be replaced by goarch field in the config file.
 binary: wukongim-{{ .Os }}-{{ .Arch }}
 
-# # (Optional) ldflags generated dynamically in the workflow, and set as the `evaluated-envs` input variables in the workflow.
-# ldflags:
-#   - "-X main.Version={{ .Env.VERSION }}"
-#   - "-X main.Commit={{ .Env.COMMIT }}"
-#   - "-X main.CommitDate={{ .Env.COMMIT_DATE }}"
-#   - "-X main.TreeState={{ .Env.TREE_STATE }}"
+# (Optional) ldflags generated dynamically in the workflow, and set as the `evaluated-envs` input variables in the workflow.
+ldflags:
+  - "-X main.Version={{ .Env.VERSION }}"
+  - "-X main.Commit={{ .Env.COMMIT }}"
+  - "-X main.CommitDate={{ .Env.COMMIT_DATE }}"
+  - "-X main.TreeState={{ .Env.TREE_STATE }}"
