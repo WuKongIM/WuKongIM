@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ type Options struct {
 	Mode     Mode         // 模式 debug 测试 release 正式 bench 压力测试
 	HTTPAddr string       // http api的监听地址 默认为 0.0.0.0:5000
 	Addr     string       // tcp监听地址 例如：tcp://0.0.0.0:5100
+	RootDir  string       // 根目录
 	DataDir  string       // 数据目录
 	WSS      struct {
 		On   bool   // 是否开启wss
@@ -115,12 +117,17 @@ type Options struct {
 
 func NewOptions() *Options {
 
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
 	return &Options{
 		Proto:           wkproto.New(),
 		HandlePoolSize:  2048,
 		Version:         "5.0.0",
 		TimingWheelTick: time.Millisecond * 10,
 		TimingWheelSize: 100,
+		RootDir:         path.Join(homeDir, "wukongim"),
 		Logger: struct {
 			Dir     string
 			Level   zapcore.Level
@@ -211,6 +218,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.vp = vp
 	// o.ID = o.getInt64("id", o.ID)
 
+	o.RootDir = o.getString("rootDir", o.RootDir)
+
 	o.Mode = Mode(o.getString("mode", string(ReleaseMode)))
 
 	o.HTTPAddr = o.getString("httpAddr", o.HTTPAddr)
@@ -287,7 +296,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		ip := ""
 		var err error
 
-		ip, err = o.getExternalIP()
+		ip = getIntranetIP()
 		if err != nil {
 			panic(err)
 		}
@@ -297,26 +306,19 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	if strings.TrimSpace(o.External.WSSAddr) == "" {
 		addrPairs := strings.Split(o.WSS.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		externalIP, err := o.getExternalIP()
-		if err != nil {
-			panic(err)
-		}
-		o.External.WSSAddr = fmt.Sprintf("%s:%d", externalIP, portInt64)
+		ip := getIntranetIP()
+		o.External.WSSAddr = fmt.Sprintf("%s:%d", ip, portInt64)
 	}
 
 }
 
 func (o *Options) configureDataDir() {
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
-	}
 	// 数据目录
-	o.DataDir = o.getString("dataDir", filepath.Join(homeDir, "wukongimdata"))
+	o.DataDir = o.getString("dataDir", filepath.Join(o.RootDir, "data"))
 
 	if strings.TrimSpace(o.DataDir) != "" {
-		err = os.MkdirAll(o.DataDir, 0755)
+		err := os.MkdirAll(o.DataDir, 0755)
 		if err != nil {
 			panic(err)
 		}
@@ -337,8 +339,11 @@ func (o *Options) configureLog(vp *viper.Viper) {
 	}
 	o.Logger.Level = zapcore.Level(logLevel)
 	o.Logger.Dir = vp.GetString("logger.dir")
+	if strings.TrimSpace(o.Logger.Dir) == "" {
+		o.Logger.Dir = "logs"
+	}
 	if !strings.HasPrefix(strings.TrimSpace(o.Logger.Dir), "/") {
-		o.Logger.Dir = filepath.Join(o.DataDir, o.Logger.Dir)
+		o.Logger.Dir = filepath.Join(o.RootDir, o.Logger.Dir)
 	}
 	o.Logger.LineNum = vp.GetBool("logger.lineNum")
 }
@@ -425,4 +430,16 @@ func (o *Options) getExternalIP() (string, error) {
 		return o.External.IP, nil
 	}
 	return wkutil.GetExternalIP()
+}
+
+// 获取内网地址
+func getIntranetIP() string {
+	intranetIPs, err := wkutil.GetIntranetIP()
+	if err != nil {
+		panic(err)
+	}
+	if len(intranetIPs) > 0 {
+		return intranetIPs[0]
+	}
+	return ""
 }

@@ -12,14 +12,19 @@ import (
 	"github.com/spf13/viper"
 )
 
+// go ldflags
+var Version string
+var Commit string
+var CommitDate string
+
 var (
 	cfgFile    string
 	serverOpts = server.NewOptions()
 	mode       string
 	rootCmd    = &cobra.Command{
 		Use:   "wk",
-		Short: "WuKongIM 简洁，性能强劲的即时通讯平台",
-		Long:  `WuKongIM 简洁，性能强劲的即时通讯平台 详情查看文档：https://docs.githubim.com`,
+		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
+		Long:  `WuKongIM, a sleek and high-performance instant messaging platform. For more details, please refer to the documentation: https://githubim.com`,
 		CompletionOptions: cobra.CompletionOptions{
 			DisableDefaultCmd: true,
 		},
@@ -33,7 +38,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.wk.yaml)")
-	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "模式")
+	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
 
 }
 
