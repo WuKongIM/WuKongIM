@@ -15,7 +15,7 @@ flags:
 goos: linux
 
 # The architecture to compile for. `GOARCH` env variable will be set to this value.
-goarch: x86_64
+goarch: arm64
 
 # (Optional) Entrypoint to compile.
 main: ./main.go
