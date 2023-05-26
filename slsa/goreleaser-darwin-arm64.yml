@@ -30,7 +30,7 @@ binary: wukongim-{{ .Os }}-{{ .Arch }}
 
 # (Optional) ldflags generated dynamically in the workflow, and set as the `evaluated-envs` input variables in the workflow.
 ldflags:
-  - "-X version.Version={{ .Env.VERSION }}"
-  - "-X version.Commit={{ .Env.COMMIT }}"
-  - "-X version.CommitDate={{ .Env.COMMIT_DATE }}"
-  - "-X version.TreeState={{ .Env.TREE_STATE }}"
+  - "-X github.com/$GITHUB_REPOSITORY/version.Version={{ .Env.VERSION }}"
+  - "-X github.com/$GITHUB_REPOSITORY/version.Commit={{ .Env.COMMIT }}"
+  - "-X github.com/$GITHUB_REPOSITORY/version.CommitDate={{ .Env.COMMIT_DATE }}"
+  - "-X github.com/$GITHUB_REPOSITORY/version.TreeState={{ .Env.TREE_STATE }}"

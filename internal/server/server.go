@@ -17,6 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
+	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"github.com/panjf2000/ants/v2"
 )
@@ -67,6 +68,8 @@ func New(opts *Options) *Server {
 		timingWheel:      timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		start:            now,
 	}
+
+	gin.SetMode(opts.GinMode)
 
 	storeCfg := wkstore.NewStoreConfig()
 	storeCfg.DataDir = s.opts.DataDir
