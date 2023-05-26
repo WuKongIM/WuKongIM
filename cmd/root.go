@@ -12,11 +12,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// go ldflags
-var Version string
-var Commit string
-var CommitDate string
-
 var (
 	cfgFile    string
 	serverOpts = server.NewOptions()
@@ -37,7 +32,7 @@ var (
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.wk.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file")
 	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
 
 }

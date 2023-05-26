@@ -16,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/judwhite/go-svc"
 	"github.com/panjf2000/ants/v2"
 )
@@ -53,6 +54,8 @@ type Server struct {
 	retryQueue          *RetryQueue          // retry queue
 	webhook             *Webhook             // webhook
 	monitorServer       *MonitorServer       // 监控服务
+
+	started bool // 服务是否已经启动
 }
 
 func New(opts *Options) *Server {
@@ -122,8 +125,8 @@ func (s *Server) Start() error {
 	`)
 	s.Info("Server is Starting...")
 	s.Info(fmt.Sprintf("  Mode:  %s", s.opts.Mode))
-	s.Info(fmt.Sprintf("  Version:  %s", VERSION))
-	s.Info(fmt.Sprintf("  Git:  %s", gitC))
+	s.Info(fmt.Sprintf("  Version:  %s", version.Version))
+	s.Info(fmt.Sprintf("  Git:  %s", fmt.Sprintf("%s-%s", version.CommitDate, version.Commit)))
 	s.Info(fmt.Sprintf("  Go build:  %s", runtime.Version()))
 	s.Info(fmt.Sprintf("  DataDir:  %s", s.opts.DataDir))
 
@@ -138,6 +141,10 @@ func (s *Server) Start() error {
 	s.Info(fmt.Sprintf("Listening  for TCP client on %s", s.opts.Addr))
 	s.Info(fmt.Sprintf("Listening  for Websocket client on %s", s.opts.WSS.Addr))
 	s.Info(fmt.Sprintf("Listening  for Manager Http api on %s", fmt.Sprintf("http://%s", s.opts.HTTPAddr)))
+
+	if s.opts.Monitor.On {
+		s.Info(fmt.Sprintf("Listening  for Monitor on %s", s.opts.Monitor.Addr))
+	}
 
 	defer s.Info("Server is ready")
 
@@ -161,10 +168,13 @@ func (s *Server) Start() error {
 		s.monitorServer.Start()
 	}
 
+	s.started = true
+
 	return nil
 }
 
 func (s *Server) Stop() error {
+	s.started = false
 	s.Info("Server is Stoping...")
 
 	defer s.Info("Server is exited")

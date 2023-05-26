@@ -8,6 +8,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/pse"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/WuKongIM/WuKongIM/version"
 )
 
 type VarzAPI struct {
@@ -57,6 +59,15 @@ func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
 		InBytes:       s.inBytes.Load(),
 		OutBytes:      s.outBytes.Load(),
 		SlowConsumers: s.slowClients.Load(),
+
+		TCPAddr:     opts.External.TCPAddr,
+		WSSAddr:     opts.External.WSSAddr,
+		WSSOn:       wkutil.BoolToInt(opts.WSS.On),
+		MonitorAddr: opts.Monitor.Addr,
+		MonitorOn:   wkutil.BoolToInt(opts.Monitor.On),
+		Commit:      version.Commit,
+		CommitDate:  version.CommitDate,
+		TreeState:   version.TreeState,
 	}
 }
 
@@ -74,4 +85,15 @@ type Varz struct {
 	InBytes       int64 `json:"in_bytes"`       // 流入字节数量
 	OutBytes      int64 `json:"out_bytes"`      // 流出字节数量
 	SlowConsumers int64 `json:"slow_consumers"` // 慢客户端数量
+
+	//
+	TCPAddr     string `json:"tcp_addr"`     // tcp地址
+	WSSAddr     string `json:"wss_addr"`     // wss地址
+	WSSOn       int    `json:"wss_on"`       // wss是否开启
+	MonitorAddr string `json:"monitor_addr"` // 监控地址
+	MonitorOn   int    `json:"monitor_on"`   // 监控是否开启
+	Commit      string `json:"commit"`       // git commit id
+	CommitDate  string `json:"commit_date"`  // git commit date
+	TreeState   string `json:"tree_state"`   // git tree state
+
 }
