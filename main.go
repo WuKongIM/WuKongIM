@@ -1,16 +1,22 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/cmd"
+	"github.com/WuKongIM/WuKongIM/version"
 )
 
-var Version string
+// go ldflags
+var Version string    // version
+var Commit string     // git commit id
+var CommitDate string // git commit date
+var TreeState string  // git tree state
 
 func main() {
 
-	fmt.Println("WuKongIM version:", Version)
+	version.Version = Version
+	version.Commit = Commit
+	version.CommitDate = CommitDate
+	version.TreeState = TreeState
 
 	// logFile, err := os.OpenFile("./fatal.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0660)
 	// if err != nil {
