@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
@@ -53,7 +54,7 @@ type Options struct {
 	External struct {
 		IP      string // 外网IP 如果没配置将通过ifconfig.io获取
 		TCPAddr string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
-		WSSAddr string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+		WSSAddr string //  节点的wssAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
 	}
 	Channel struct { // 频道配置
 		CacheCount                int  // 频道缓存数量
@@ -124,7 +125,7 @@ func NewOptions() *Options {
 	return &Options{
 		Proto:           wkproto.New(),
 		HandlePoolSize:  2048,
-		Version:         "5.0.0",
+		Version:         version.Version,
 		TimingWheelTick: time.Millisecond * 10,
 		TimingWheelSize: 100,
 		RootDir:         path.Join(homeDir, "wukongim"),
@@ -208,7 +209,7 @@ func NewOptions() *Options {
 			On   bool
 			Addr string
 		}{
-			On:   false,
+			On:   true,
 			Addr: "0.0.0.0:5300",
 		},
 	}
@@ -229,7 +230,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
 	o.External.WSSAddr = o.getString("external.wssAddr", o.External.WSSAddr)
 
-	o.Monitor.On = o.getInt("monitor.on", wkutil.BoolToInt(o.Monitor.On)) == 1
+	o.Monitor.On = o.getBool("monitor.on", o.Monitor.On)
 	o.Monitor.Addr = o.getString("monitor.addr", o.Monitor.Addr)
 
 	o.WSS.Addr = o.getString("wss.addr", o.WSS.Addr)
