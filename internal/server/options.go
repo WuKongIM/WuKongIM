@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
@@ -38,6 +39,7 @@ type Options struct {
 	Addr     string       // tcp监听地址 例如：tcp://0.0.0.0:5100
 	RootDir  string       // 根目录
 	DataDir  string       // 数据目录
+	GinMode  string       // gin框架的模式
 	WSS      struct {
 		On   bool   // 是否开启wss
 		Addr string // websocket 监听地址 例如：0.0.0.0:5200
@@ -52,9 +54,10 @@ type Options struct {
 		Addr string // 监控地址 默认为 0.0.0.0:5300
 	}
 	External struct {
-		IP      string // 外网IP 如果没配置将通过ifconfig.io获取
-		TCPAddr string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
-		WSSAddr string //  节点的wssAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+		IP          string // 外网IP 如果没配置将通过ifconfig.io获取
+		TCPAddr     string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
+		WSSAddr     string //  节点的wssAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+		MonitorAddr string // 对外访问的监控地址
 	}
 	Channel struct { // 频道配置
 		CacheCount                int  // 频道缓存数量
@@ -128,6 +131,7 @@ func NewOptions() *Options {
 		Version:         version.Version,
 		TimingWheelTick: time.Millisecond * 10,
 		TimingWheelSize: 100,
+		GinMode:         gin.ReleaseMode,
 		RootDir:         path.Join(homeDir, "wukongim"),
 		Logger: struct {
 			Dir     string
@@ -222,6 +226,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.RootDir = o.getString("rootDir", o.RootDir)
 
 	o.Mode = Mode(o.getString("mode", string(ReleaseMode)))
+	o.GinMode = o.getString("ginMode", o.GinMode)
 
 	o.HTTPAddr = o.getString("httpAddr", o.HTTPAddr)
 	o.Addr = o.getString("addr", o.Addr)
@@ -229,6 +234,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.External.IP = o.getString("external.ip", o.External.IP)
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
 	o.External.WSSAddr = o.getString("external.wssAddr", o.External.WSSAddr)
+	o.External.MonitorAddr = o.getString("external.monitorAddr", o.External.MonitorAddr)
 
 	o.Monitor.On = o.getBool("monitor.on", o.Monitor.On)
 	o.Monitor.Addr = o.getString("monitor.addr", o.Monitor.Addr)
@@ -290,14 +296,13 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.configureDataDir() // 数据目录
 	o.configureLog(vp)   // 日志配置
 
+	ip := getIntranetIP()
 	if strings.TrimSpace(o.External.TCPAddr) == "" {
 		addrPairs := strings.Split(o.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 
-		ip := ""
 		var err error
 
-		ip = getIntranetIP()
 		if err != nil {
 			panic(err)
 		}
@@ -307,8 +312,13 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	if strings.TrimSpace(o.External.WSSAddr) == "" {
 		addrPairs := strings.Split(o.WSS.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		ip := getIntranetIP()
 		o.External.WSSAddr = fmt.Sprintf("%s:%d", ip, portInt64)
+	}
+
+	if strings.TrimSpace(o.External.MonitorAddr) == "" {
+		addrPairs := strings.Split(o.Monitor.Addr, ":")
+		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
+		o.External.MonitorAddr = fmt.Sprintf("%s:%d", ip, portInt64)
 	}
 
 }

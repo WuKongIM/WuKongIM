@@ -1,10 +1,16 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/cmd"
 )
 
+var Version string
+
 func main() {
+
+	fmt.Println("WuKongIM version:", Version)
 
 	// logFile, err := os.OpenFile("./fatal.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0660)
 	// if err != nil {

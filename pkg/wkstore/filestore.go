@@ -62,7 +62,7 @@ func NewFileStore(cfg *StoreConfig) *FileStore {
 func (f *FileStore) Open() error {
 	f.lock.StartCleanLoop()
 	var err error
-	f.db, err = bolt.Open(filepath.Join(f.cfg.DataDir, "wukongim.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
+	f.db, err = bolt.Open(filepath.Join(f.cfg.DataDir, "wukongim.db"), 0755, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
 		return err
 	}

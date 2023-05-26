@@ -8,6 +8,8 @@ external:
   ip: "" # 如果节点部署在内网，需要配置外网ip，否则外网的客户端无法连接到此节点
 #   tcpAddr: "" #  默认自动获取， 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
 #   wssAddr: "" # 默认自动获取， 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+#   monitorAddr: "" # 默认自动获取， 节点的monitor地址 对外公开 监控服务 格式： ip:port
+# ginMode: "release" # gin框架的模式 debug 调试 release 正式 test 测试
 # logger: 
 #   level: 0 # 日志级别 0:未配置,将根据mode属性判断 1:debug 2:info 3:warn 4:error
 #   dir: "./logs" # 日志目录
