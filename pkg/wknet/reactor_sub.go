@@ -137,7 +137,8 @@ func (r *ReactorSub) read(c Conn) error {
 		if err1 := r.CloseConn(c, err); err1 != nil {
 			r.Warn("failed to close conn", zap.Error(err1))
 		}
-		return err
+		r.Warn("failed to read", zap.Error(err))
+		return nil
 	}
 	if n == 0 {
 		return r.CloseConn(c, os.NewSyscallError("read", unix.ECONNRESET))
@@ -149,7 +150,8 @@ func (r *ReactorSub) read(c Conn) error {
 		if err1 := r.CloseConn(c, err); err1 != nil {
 			r.Warn("failed to close conn", zap.Error(err1))
 		}
-		return err
+		r.Warn("failed to call OnData", zap.Error(err))
+		return nil
 	}
 	return nil
 }

@@ -10,7 +10,9 @@ import (
 )
 
 type Dispatch struct {
-	engine    *wknet.Engine
+	engine *wknet.Engine
+
+	wsEngine  *wknet.WSEngine
 	s         *Server
 	processor *Processor
 	wklog.Log
@@ -20,6 +22,7 @@ type Dispatch struct {
 func NewDispatch(s *Server) *Dispatch {
 	return &Dispatch{
 		engine:    wknet.NewEngine(wknet.WithAddr(s.opts.Addr)),
+		wsEngine:  wknet.NewWSEngine(wknet.WithAddr("tcp://" + s.opts.WSS.Addr)),
 		s:         s,
 		processor: NewProcessor(s),
 		Log:       wklog.NewWKLog("Dispatch"),
@@ -122,11 +125,25 @@ func (d *Dispatch) Start() error {
 	d.engine.OnData(d.dataIn)
 	d.engine.OnClose(d.connClose)
 
-	return d.engine.Start()
+	d.wsEngine.OnData(d.dataIn)
+	d.wsEngine.OnClose(d.connClose)
+
+	err := d.engine.Start()
+	if err != nil {
+		return err
+	}
+
+	err = d.wsEngine.Start()
+	return err
 }
 
 func (d *Dispatch) Stop() error {
-	return d.engine.Stop()
+	err := d.engine.Stop()
+	if err != nil {
+		return err
+	}
+	err = d.wsEngine.Stop()
+	return err
 }
 
 func gnetUnpacket(buff []byte) ([]byte, error) {
