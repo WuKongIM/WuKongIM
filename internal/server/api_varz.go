@@ -49,7 +49,7 @@ func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
 	return &Varz{
 		ServerID:      fmt.Sprintf("%d", opts.ID),
 		ServerName:    "WuKongIM",
-		Version:       opts.Version,
+		Version:       version.Version,
 		Connections:   connCount,
 		Uptime:        myUptime(time.Since(v.s.start)),
 		CPU:           pcpu,
@@ -63,7 +63,7 @@ func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
 		TCPAddr:     opts.External.TCPAddr,
 		WSSAddr:     opts.External.WSSAddr,
 		WSSOn:       wkutil.BoolToInt(opts.WSS.On),
-		MonitorAddr: opts.Monitor.Addr,
+		MonitorAddr: opts.External.MonitorAddr,
 		MonitorOn:   wkutil.BoolToInt(opts.Monitor.On),
 		Commit:      version.Commit,
 		CommitDate:  version.CommitDate,

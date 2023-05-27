@@ -46,7 +46,7 @@ type Conn interface {
 	// Discard discards the data from the connection.
 	Discard(n int) (int, error)
 	// Write writes the data to the connection.
-	// Write(b []byte) (int, error)
+	Write(b []byte) (int, error)
 	// WriteToOutboundBuffer writes the data to the outbound buffer.
 	WriteToOutboundBuffer(b []byte) (int, error)
 	// Wake wakes up the connection write.
