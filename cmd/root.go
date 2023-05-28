@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/server"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -41,22 +42,19 @@ func initConfig() {
 	vp := viper.New()
 	if cfgFile != "" {
 		vp.SetConfigFile(cfgFile)
-	} else {
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		vp.AddConfigPath(home)
-		vp.SetConfigType("yaml")
-		vp.SetConfigName(".wk")
+		if err := vp.ReadInConfig(); err == nil {
+			fmt.Println("Using config file:", viper.ConfigFileUsed())
+		}
 	}
 
-	if err := vp.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
-	vp.BindPFlags(rootCmd.Flags())
+	vp.SetEnvPrefix("wk")
+	vp.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	vp.AutomaticEnv()
 	// 初始化服务配置
 	serverOpts.ConfigureWithViper(vp)
+	vp.BindPFlags(rootCmd.Flags())
+
+	vp.Debug()
 
 }
 

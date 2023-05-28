@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/gobwas/ws/wsutil"
 	"go.uber.org/zap"
 )
 
@@ -93,10 +94,12 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
 	}
+
 	connCtx, hasConnCtx := conn.Context().(*connContext)
 	if hasConnCtx {
 		connCtx.outMsgs.Add(int64(len(frames)))
 	}
+
 	for _, frame := range frames {
 		data, err := d.s.opts.Proto.EncodeFrame(frame, uint8(conn.ProtoVersion()))
 		if err != nil {
@@ -105,10 +108,21 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 			if hasConnCtx {
 				connCtx.outBytes.Add(int64(len(data)))
 			}
-			_, err = conn.WriteToOutboundBuffer(data)
-			if err != nil {
-				d.Warn("Failed to write the message", zap.Error(err))
+
+			wsConn, ok := conn.(*wknet.WSConn) // websocket连接
+			if ok {
+				err = wsutil.WriteServerBinary(wsConn, data) // TODO: 有优化空间
+				if err != nil {
+					d.Warn("Failed to write the message", zap.Error(err))
+				}
+
+			} else {
+				_, err = conn.WriteToOutboundBuffer(data)
+				if err != nil {
+					d.Warn("Failed to write the message", zap.Error(err))
+				}
 			}
+
 		}
 	}
 	conn.WakeWrite()

@@ -296,7 +296,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.configureDataDir() // 数据目录
 	o.configureLog(vp)   // 日志配置
 
-	ip := getIntranetIP()
+	ip := o.External.IP
+	if strings.TrimSpace(ip) == "" {
+		ip = getIntranetIP()
+	}
 	if strings.TrimSpace(o.External.TCPAddr) == "" {
 		addrPairs := strings.Split(o.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)

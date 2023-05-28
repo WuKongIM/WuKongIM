@@ -18,7 +18,6 @@ type Acceptor struct {
 	reactorSubs  []*ReactorSub
 	eg           *Engine
 	listenPoller *netpoll.Poller
-	clientIDGen  atomic.Int64 // 客户端ID生成
 	listen       *listener
 
 	wklog.Log
@@ -123,12 +122,14 @@ func (a *Acceptor) reactorSubByConnFd(connfd int) *ReactorSub {
 	return a.reactorSubs[connfd%len(a.reactorSubs)]
 }
 
+var clientIDGen atomic.Int64 // 全局客户端ID生成器
+
 func (a *Acceptor) GenClientID() int64 {
 
-	cid := a.clientIDGen.Load()
+	cid := clientIDGen.Load()
 
 	if cid >= 1<<32-1 { // 如果超过或等于 int32最大值 这客户端ID从新从0开始生成，int32有几十亿大 如果从1开始生成再回到1 原来属于1的客户端应该早就销毁了。
-		a.clientIDGen.Store(0)
+		clientIDGen.Store(0)
 	}
-	return a.clientIDGen.Inc()
+	return clientIDGen.Inc()
 }

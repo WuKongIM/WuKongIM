@@ -71,7 +71,6 @@ func (w *WSEngine) handleConnect(conn Conn) error {
 }
 func (w *WSEngine) handleData(conn Conn) error {
 
-	fmt.Println("handleData......")
 	wsconn := conn.(*WSConn)
 	if !wsconn.upgraded {
 		err := w.upgrade(wsconn)
@@ -80,15 +79,20 @@ func (w *WSEngine) handleData(conn Conn) error {
 		}
 		return nil
 	}
-	fmt.Println("handleData2......")
 
 	messages, err := w.decode(wsconn)
 	if err != nil {
 		return err
 	}
-	fmt.Println("handleData3......", len(messages))
 	if len(messages) > 0 {
 		for _, msg := range messages {
+			if msg.OpCode.IsControl() {
+				err = wsutil.HandleClientControlMessage(wsconn, msg)
+				if err != nil {
+					return err
+				}
+				continue
+			}
 			_, err = wsconn.inboundBuffer.Write(msg.Payload)
 			if err != nil {
 				return err
@@ -132,7 +136,7 @@ func (w *WSEngine) upgrade(conn *WSConn) error {
 		conn.DiscardFromTemp(len(buff)) // 发送错误，丢弃数据
 		return err
 	}
-	conn.DiscardFromTemp(len(buff))
+	conn.DiscardFromTemp(len(buff) - tmpReader.Len())
 	conn.upgraded = true
 
 	return nil
@@ -156,24 +160,27 @@ func (w *WSEngine) decode(c *WSConn) ([]wsutil.Message, error) {
 		return nil, err
 	}
 	dataLen := header.Length
-	if dataLen < int64(tmpReader.Len()) { // 数据不完整
+	if dataLen > int64(tmpReader.Len()) { // 数据不完整
+		fmt.Println("数据不完整...", dataLen, int64(tmpReader.Len()))
 		return nil, nil
 	}
 	if header.Fin { // 当前 frame 已经是最后一个frame
 		var messages []wsutil.Message
-		messages, err = wsutil.ReadClientMessage(bytes.NewBuffer(buff), messages)
+		tmpReader.Reset(buff)
+		messages, err = wsutil.ReadClientMessage(tmpReader, messages)
 		if err != nil {
 			return nil, err
 		}
 		c.DiscardFromTemp(len(buff) - tmpReader.Len())
 		return messages, nil
+	} else {
+		fmt.Println("header.Fin-->false...")
 	}
 	return nil, nil
 }
 
 type WSConn struct {
 	*DefaultConn
-	codec            *wsCodec
 	upgraded         bool
 	tmpInboundBuffer InboundBuffer // inboundBuffer InboundBuffer
 }
@@ -216,6 +223,35 @@ func (w *WSConn) PeekFromTemp(n int) ([]byte, error) {
 	return data, nil
 }
 
+// func (w *WSConn) WriteDirect(head, tail []byte) (int, error) {
+
+// 	var (
+// 		n   int
+// 		err error
+// 	)
+// 	var data []byte
+// 	if len(head) > 0 && len(tail) > 0 {
+// 		data = append(head, tail...)
+// 	} else {
+// 		if len(head) > 0 {
+// 			data = head
+// 		} else if len(tail) > 0 {
+// 			data = tail
+// 		}
+// 	}
+// 	if len(data) > 0 {
+// 		bufW := bytes.NewBuffer([]byte{}) // TODO: sync.pool
+// 		fmt.Println("write-data--->", len(data))
+// 		err = wsutil.WriteServerBinary(bufW, data)
+// 		if err != nil {
+// 			return 0, err
+// 		}
+// 		n, err = unix.Write(w.fd, bufW.Bytes())
+// 		return n, err
+// 	}
+// 	return n, err
+// }
+
 func (w *WSConn) DiscardFromTemp(n int) {
 	w.tmpInboundBuffer.Discard(n)
 }
@@ -225,8 +261,6 @@ func (w *WSConn) Release() {
 	w.tmpInboundBuffer.Release()
 }
 
-type wsCodec struct {
-}
 type readWrite struct {
 	io.Reader
 	io.Writer
