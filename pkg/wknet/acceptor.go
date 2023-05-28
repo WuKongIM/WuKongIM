@@ -1,8 +1,9 @@
 package wknet
 
 import (
-	"errors"
+	"fmt"
 	"os"
+	"strings"
 
 	"go.uber.org/atomic"
 
@@ -15,10 +16,12 @@ import (
 )
 
 type Acceptor struct {
-	reactorSubs  []*ReactorSub
-	eg           *Engine
-	listenPoller *netpoll.Poller
-	listen       *listener
+	reactorSubs    []*ReactorSub
+	eg             *Engine
+	listenPoller   *netpoll.Poller
+	listenWSPoller *netpoll.Poller
+	listen         *listener
+	listenWS       *listener // websocket
 
 	wklog.Log
 }
@@ -29,10 +32,11 @@ func NewAcceptor(eg *Engine) *Acceptor {
 		reactorSubs[i] = NewReactorSub(eg, i)
 	}
 	a := &Acceptor{
-		eg:           eg,
-		reactorSubs:  reactorSubs,
-		listenPoller: netpoll.NewPoller("listenerPoller"),
-		Log:          wklog.NewWKLog("Acceptor"),
+		eg:             eg,
+		reactorSubs:    reactorSubs,
+		listenPoller:   netpoll.NewPoller("listenerPoller"),
+		listenWSPoller: netpoll.NewPoller("listenWSPoller"),
+		Log:            wklog.NewWKLog("Acceptor"),
 	}
 
 	return a
@@ -40,42 +44,75 @@ func NewAcceptor(eg *Engine) *Acceptor {
 
 func (a *Acceptor) Start() error {
 
+	return a.start()
+}
+
+func (a *Acceptor) start() error {
+
+	for _, reactorSub := range a.reactorSubs {
+		reactorSub.Start()
+	}
 	go func() {
-		err := a.run()
+		err := a.initTCPListener()
 		if err != nil {
 			panic(err)
 		}
 	}()
 
+	if strings.TrimSpace(a.eg.options.WsAddr) != "" {
+		go func() {
+			err := a.initWSListener()
+			if err != nil {
+				panic(err)
+			}
+		}()
+	}
 	return nil
 }
 
-func (a *Acceptor) run() error {
-
-	for _, reactorSub := range a.reactorSubs {
-		reactorSub.Start()
-	}
-	a.listen = newListener(a.eg)
-
+func (a *Acceptor) initTCPListener() error {
+	// tcp
+	a.listen = newListener(a.eg.options.Addr, a.eg.options)
 	err := a.listen.init()
 	if err != nil {
-		panic(err)
+		return err
 	}
-
 	if err := a.listenPoller.AddRead(a.listen.fd); err != nil {
-		return errors.New("add listener fd to poller failed")
+		return fmt.Errorf("add listener fd to poller failed %s", err)
 	}
 
 	a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
-		return a.acceptConn(fd)
+		return a.acceptConn(fd, false)
 	})
+	return nil
 
+}
+
+func (a *Acceptor) initWSListener() error {
+	// tcp
+	a.listenWS = newListener(a.eg.options.WsAddr, a.eg.options)
+	err := a.listenWS.init()
+	if err != nil {
+		return err
+	}
+	if err := a.listenWSPoller.AddRead(a.listenWS.fd); err != nil {
+		return fmt.Errorf("add ws listener fd to poller failed %s", err)
+	}
+
+	a.listenWSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+		return a.acceptConn(fd, true)
+	})
 	return nil
 }
+
 func (a *Acceptor) Stop() error {
 	err := a.listenPoller.Close()
 	if err != nil {
 		a.Warn("listenPoller.Close() failed", zap.Error(err))
+	}
+	err = a.listenWSPoller.Close()
+	if err != nil {
+		a.Warn("listenWSPoller.Close() failed", zap.Error(err))
 	}
 	for _, reactorSub := range a.reactorSubs {
 		reactorSub.Stop()
@@ -83,7 +120,7 @@ func (a *Acceptor) Stop() error {
 	return nil
 }
 
-func (a *Acceptor) acceptConn(listenFd int) error {
+func (a *Acceptor) acceptConn(listenFd int, ws bool) error {
 	var (
 		conn Conn
 		err  error
@@ -106,9 +143,16 @@ func (a *Acceptor) acceptConn(listenFd int) error {
 	}
 
 	subReactor := a.reactorSubByConnFd(connFd)
-	if conn, err = a.eg.eventHandler.OnNewConn(a.GenClientID(), connFd, a.listen.readAddr, remoteAddr, a.eg, subReactor); err != nil {
-		return err
+	if ws {
+		if conn, err = a.eg.eventHandler.OnNewWSConn(a.GenClientID(), connFd, a.listen.readAddr, remoteAddr, a.eg, subReactor); err != nil {
+			return err
+		}
+	} else {
+		if conn, err = a.eg.eventHandler.OnNewConn(a.GenClientID(), connFd, a.listen.readAddr, remoteAddr, a.eg, subReactor); err != nil {
+			return err
+		}
 	}
+
 	// add conn to sub reactor
 	subReactor.AddConn(conn)
 	// call on connect

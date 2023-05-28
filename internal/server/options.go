@@ -40,11 +40,8 @@ type Options struct {
 	RootDir  string       // 根目录
 	DataDir  string       // 数据目录
 	GinMode  string       // gin框架的模式
-	WSS      struct {
-		On   bool   // 是否开启wss
-		Addr string // websocket 监听地址 例如：0.0.0.0:5200
-	}
-	Logger struct {
+	WSAddr   string       // websocket 监听地址 例如：ws://0.0.0.0:5200 或wss://0.0.0.0:5200
+	Logger   struct {
 		Dir     string // 日志存储目录
 		Level   zapcore.Level
 		LineNum bool // 是否显示代码行数
@@ -56,7 +53,7 @@ type Options struct {
 	External struct {
 		IP          string // 外网IP 如果没配置将通过ifconfig.io获取
 		TCPAddr     string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
-		WSSAddr     string //  节点的wssAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+		WSSAddr     string //  节点的wssAdd地址 对外公开 WEB端长连接通讯 格式： proto://ip:port
 		MonitorAddr string // 对外访问的监控地址
 	}
 	Channel struct { // 频道配置
@@ -142,12 +139,9 @@ func NewOptions() *Options {
 			Level:   zapcore.InfoLevel,
 			LineNum: false,
 		},
-		HTTPAddr: "0.0.0.0:5000",
-		Addr:     "tcp://0.0.0.0:5100",
-		WSS: struct {
-			On   bool
-			Addr string
-		}{On: true, Addr: "0.0.0.0:5200"},
+		HTTPAddr:            "0.0.0.0:5000",
+		Addr:                "tcp://0.0.0.0:5100",
+		WSAddr:              "ws://0.0.0.0:5200",
 		ConnIdleTime:        time.Minute * 3,
 		UserMsgQueueMaxSize: 0,
 		TmpChannel: struct {
@@ -239,8 +233,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Monitor.On = o.getBool("monitor.on", o.Monitor.On)
 	o.Monitor.Addr = o.getString("monitor.addr", o.Monitor.Addr)
 
-	o.WSS.Addr = o.getString("wss.addr", o.WSS.Addr)
-	o.WSS.On = o.getInt("wss.on", wkutil.BoolToInt(o.WSS.On)) == 1
+	o.WSAddr = o.getString("wsaddr", o.WSAddr)
 
 	o.Channel.CacheCount = o.getInt("channel.cacheCount", o.Channel.CacheCount)
 	o.Channel.CreateIfNoExist = o.getBool("channel.createIfNoExist", o.Channel.CreateIfNoExist)
@@ -313,9 +306,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		o.External.TCPAddr = fmt.Sprintf("%s:%d", ip, portInt64)
 	}
 	if strings.TrimSpace(o.External.WSSAddr) == "" {
-		addrPairs := strings.Split(o.WSS.Addr, ":")
+		addrPairs := strings.Split(o.WSAddr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		o.External.WSSAddr = fmt.Sprintf("%s:%d", ip, portInt64)
+		o.External.WSSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], ip, portInt64)
 	}
 
 	if strings.TrimSpace(o.External.MonitorAddr) == "" {

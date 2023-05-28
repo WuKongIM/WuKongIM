@@ -61,8 +61,7 @@ func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
 		SlowConsumers: s.slowClients.Load(),
 
 		TCPAddr:     opts.External.TCPAddr,
-		WSSAddr:     opts.External.WSSAddr,
-		WSSOn:       wkutil.BoolToInt(opts.WSS.On),
+		WSAddr:      opts.External.WSSAddr,
 		MonitorAddr: opts.External.MonitorAddr,
 		MonitorOn:   wkutil.BoolToInt(opts.Monitor.On),
 		Commit:      version.Commit,
@@ -88,8 +87,7 @@ type Varz struct {
 
 	//
 	TCPAddr     string `json:"tcp_addr"`     // tcp地址
-	WSSAddr     string `json:"wss_addr"`     // wss地址
-	WSSOn       int    `json:"wss_on"`       // wss是否开启
+	WSAddr      string `json:"ws_addr"`      // wss地址
 	MonitorAddr string `json:"monitor_addr"` // 监控地址
 	MonitorOn   int    `json:"monitor_on"`   // 监控是否开启
 	Commit      string `json:"commit"`       // git commit id

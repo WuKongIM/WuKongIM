@@ -10,15 +10,19 @@ import (
 )
 
 func TestWebsocket(t *testing.T) {
-	e := NewWSEngine(WithAddr("tcp://0.0.0.0:9080"))
+	e := NewEngine(WithWSAddr("ws://0.0.0.0:9080"))
 	e.Start()
 	defer e.Stop()
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2) // 1 for upgrade, 1 for data
 	e.OnData(func(conn Conn) error {
 		data, err := conn.Peek(-1)
 		assert.NoError(t, err)
+		if len(data) == 0 {
+			wg.Done()
+			return nil
+		}
 		assert.Equal(t, "hello", string(data))
 		wg.Done()
 		return nil

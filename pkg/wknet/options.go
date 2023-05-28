@@ -7,8 +7,10 @@ import (
 )
 
 type Options struct {
-	// Addr is the listen addr  example: tcp://127.0.0.1:7677
+	// Addr is the listen addr  example: tcp://127.0.0.1:5100
 	Addr string
+	// WsAddr is the listen addr  example: ws://127.0.0.1:5200或 wss://127.0.0.1:5200
+	WsAddr string
 	// MaxOpenFiles is the maximum number of open files that the server can
 	MaxOpenFiles int
 	// SubReactorNum is sub reactor numver it's set to runtime.NumCPU()  by default
@@ -45,6 +47,12 @@ type Option func(opts *Options)
 func WithAddr(v string) Option {
 	return func(opts *Options) {
 		opts.Addr = v
+	}
+}
+
+func WithWSAddr(v string) Option {
+	return func(opts *Options) {
+		opts.WsAddr = v
 	}
 }
 
