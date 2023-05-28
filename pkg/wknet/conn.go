@@ -358,15 +358,7 @@ func (d *DefaultConn) flush() error {
 	)
 
 	head, tail := d.outboundBuffer.Peek(-1)
-	if len(head) > 0 && len(tail) > 0 {
-		n, err = lio.Writev(d.fd, [][]byte{head, tail})
-	} else {
-		if len(head) > 0 {
-			n, err = unix.Write(d.fd, head)
-		} else if len(tail) > 0 {
-			n, err = unix.Write(d.fd, tail)
-		}
-	}
+	n, err = d.WriteDirect(head, tail)
 	_, _ = d.outboundBuffer.Discard(n)
 	switch err {
 	case nil:
@@ -385,6 +377,23 @@ func (d *DefaultConn) flush() error {
 	}
 	return nil
 
+}
+
+func (d *DefaultConn) WriteDirect(head, tail []byte) (int, error) {
+	var (
+		n   int
+		err error
+	)
+	if len(head) > 0 && len(tail) > 0 {
+		n, err = lio.Writev(d.fd, [][]byte{head, tail})
+	} else {
+		if len(head) > 0 {
+			n, err = unix.Write(d.fd, head)
+		} else if len(tail) > 0 {
+			n, err = unix.Write(d.fd, tail)
+		}
+	}
+	return n, err
 }
 
 func (d *DefaultConn) write(b []byte) (int, error) {

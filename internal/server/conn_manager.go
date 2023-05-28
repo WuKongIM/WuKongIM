@@ -75,7 +75,10 @@ func (c *ConnManager) GetConnsWithUID(uid string) []wknet.Conn {
 	}
 	conns := make([]wknet.Conn, 0, len(connIDs))
 	for _, id := range connIDs {
-		conns = append(conns, c.s.dispatch.engine.GetConn(c.connMap[id]))
+		conn := c.s.dispatch.engine.GetConn(c.connMap[id])
+		if conn != nil {
+			conns = append(conns, conn)
+		}
 	}
 	return conns
 }
