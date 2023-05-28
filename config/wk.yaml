@@ -4,19 +4,17 @@ mode: "debug" # 运行模式 模式 debug 测试 release 正式 bench 压力测�
 # httpAddr: "0.0.0.0:5000" #  http api的监听地址  默认：0.0.0.0:5000
 # dataDir: ~/wukongimdata # 数据存储目录
 # tokenAuthOn: true # 是否开启token验证 不配置将根据mode属性判断 debug模式下默认为false release模式为true
+# wsAddr: ""  # websocket 监听地址 例如：ws://0.0.0.0:5200 或wss://0.0.0.0:5200 wss表示开启wss模式
 external:
   ip: "" # 如果节点部署在内网，需要配置外网ip，否则外网的客户端无法连接到此节点
 #   tcpAddr: "" #  默认自动获取， 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
-#   wssAddr: "" # 默认自动获取， 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ip:port
+#   wssAddr: "" # 默认自动获取， 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port或wss://ip:port
 #   monitorAddr: "" # 默认自动获取， 节点的monitor地址 对外公开 监控服务 格式： ip:port
 # ginMode: "release" # gin框架的模式 debug 调试 release 正式 test 测试
 # logger: 
 #   level: 0 # 日志级别 0:未配置,将根据mode属性判断 1:debug 2:info 3:warn 4:error
 #   dir: "./logs" # 日志目录
 #   lineNum: false # 是否打印行号
-# wss:
-#   on: true # 是否开启wss
-#   addr: "0.0.0.0:5200" # // websocket 监听地址 默认：0.0.0.0:5200
 # monitor: 
 #   on: true # 是否开启监控
 #   addr: "0.0.0.0:5300" # 监控监听地址 默认为 0.0.0.0:5300

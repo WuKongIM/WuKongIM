@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/panjf2000/ants/v2"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -21,7 +22,8 @@ type DeliveryManager struct {
 func NewDeliveryManager(s *Server) *DeliveryManager {
 	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: false}
 	deliveryMsgPool, err := ants.NewPool(s.opts.DeliveryMsgPoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
-		fmt.Println("消息投递panic->", err)
+		fmt.Println("消息投递panic->", errors.Wrap(err.(error), "error"))
+
 	}))
 	if err != nil {
 		panic(err)

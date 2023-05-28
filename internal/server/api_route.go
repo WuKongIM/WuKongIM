@@ -5,7 +5,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -36,7 +35,6 @@ func (a *RouteAPI) routeUserIMAddr(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"tcp_addr": a.s.opts.External.TCPAddr,
 		"ws_addr":  a.s.opts.External.WSSAddr,
-		"wss_on":   wkutil.BoolToInt(a.s.opts.WSS.On),
 	})
 }
 

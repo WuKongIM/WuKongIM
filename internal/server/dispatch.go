@@ -13,7 +13,6 @@ import (
 type Dispatch struct {
 	engine *wknet.Engine
 
-	wsEngine  *wknet.WSEngine
 	s         *Server
 	processor *Processor
 	wklog.Log
@@ -22,8 +21,7 @@ type Dispatch struct {
 
 func NewDispatch(s *Server) *Dispatch {
 	return &Dispatch{
-		engine:    wknet.NewEngine(wknet.WithAddr(s.opts.Addr)),
-		wsEngine:  wknet.NewWSEngine(wknet.WithAddr("tcp://" + s.opts.WSS.Addr)),
+		engine:    wknet.NewEngine(wknet.WithAddr(s.opts.Addr), wknet.WithWSAddr(s.opts.WSAddr)),
 		s:         s,
 		processor: NewProcessor(s),
 		Log:       wklog.NewWKLog("Dispatch"),
@@ -35,7 +33,7 @@ func NewDispatch(s *Server) *Dispatch {
 	}
 }
 
-// frame data in
+// 数据统一入口
 func (d *Dispatch) dataIn(conn wknet.Conn) error {
 	buff, err := conn.Peek(-1)
 	if err != nil {
@@ -89,7 +87,7 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 	return nil
 }
 
-// frame data out
+// 数据统一出口
 func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
@@ -139,15 +137,10 @@ func (d *Dispatch) Start() error {
 	d.engine.OnData(d.dataIn)
 	d.engine.OnClose(d.connClose)
 
-	d.wsEngine.OnData(d.dataIn)
-	d.wsEngine.OnClose(d.connClose)
-
 	err := d.engine.Start()
 	if err != nil {
 		return err
 	}
-
-	err = d.wsEngine.Start()
 	return err
 }
 
@@ -156,7 +149,6 @@ func (d *Dispatch) Stop() error {
 	if err != nil {
 		return err
 	}
-	err = d.wsEngine.Stop()
 	return err
 }
 
