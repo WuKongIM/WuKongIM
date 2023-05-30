@@ -48,13 +48,13 @@ For more deployment options, see the [documentation](http://githubim.com/guide/q
 SDK source code and demos
 ---------------
 
-iOS demo and SDK source code
+[iOS Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMiOSSDK)
 
-Android demo and SDK source code
+[Android Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMAndroidSDK)
 
-Web demo and SDK source code
+[Web Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMJSSDK)
 
-Flutter demo and SDK source code (to be improved)
+[Flutter Demo and SDK Source Code (to be improved)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
 
 Applicable Scenarios
 ---------------
