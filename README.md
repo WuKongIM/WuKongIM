@@ -9,8 +9,7 @@ WuKongIM is a high-performance universal communication service that supports var
 <ul>
 <!-- <li><strong>QQ group</strong>: <a href="#">496193831</a></li> -->
 <li><strong>Website</strong>: http://www.githubim.com</li>
-<li><strong>Source</strong>: https://github.com/WuKongIM/WuKongIM</li>
-<li><strong>Protocol</strong>: <a href="./docs/protocol.md">WuKongIM Protocol</a></li>
+<li><strong>Protocol</strong>: <a href="https://githubim.com/guide/proto">WuKongIM Protocol</a></li>
 <li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>Docs</strong>: http://www.githubim.com</li>
 </ul>
