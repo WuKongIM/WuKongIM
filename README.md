@@ -1,4 +1,4 @@
-## WuKongIM (Everything so easy)
+## WuKongIM (Make information transfer easier)
 
 WuKongIM is a high-performance universal communication service that supports various scenarios such as instant messaging, message push, IoT communication, audio and video signaling, live broadcasting with bullet comments, customer service systems, AI communication, and instant communities.
 
