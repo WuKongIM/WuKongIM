@@ -80,6 +80,11 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 					seq := syncOnceMessageSeqMap[m.MessageID]
 					cloneMsg.MessageSeq = seq
 				}
+
+				// 这里需要把channelID改成fromUID 比如A给B发消息，B收到的消息channelID应该是A A收到的消息channelID应该是B
+				if cloneMsg.ChannelType == wkproto.ChannelTypePerson && cloneMsg.ChannelID == subscriber {
+					cloneMsg.ChannelID = cloneMsg.FromUID
+				}
 				if !cloneMsg.NoPersist { // 需要存储的消息才进行重试
 					d.s.retryQueue.startInFlightTimeout(cloneMsg)
 				}
