@@ -1,18 +1,18 @@
-##  悟空IM（让信息传递更简单）
+## WuKongIM (Everything so easy)
 
-高性能通用通讯服务，支持即时通讯，消息推送，物联网通讯，音视频信令，直播弹幕，客服系统，AI通讯，即时社区等场景。
+WuKongIM is a high-performance universal communication service that supports various scenarios such as instant messaging, message push, IoT communication, audio and video signaling, live broadcasting with bullet comments, customer service systems, AI communication, and instant communities.
 
-[English](./README_EN.md)
+[中文文档](./README_CN.md)
 
 <p align="center">
-<img align="left" width="200" src="./docs/logo.png">
+<img align="left" height="110" src="./docs/logo.png">
 <ul>
-<!-- <li><strong>QQ群</strong>: <a href="#">750224611</a></li> -->
-<!-- <li><strong>微信</strong>: <a href="#">wukongimgo（备注进群）</a></li> -->
-<li><strong>官网</strong>: https://githubim.com</li>
-<li><strong>通讯协议</strong>: <a href="https://githubim.com/guide/proto">WuKongIM协议</a></li>
-<li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
-<li><strong>文档</strong>: http://www.githubim.com/guide</li>
+<!-- <li><strong>QQ group</strong>: <a href="#">496193831</a></li> -->
+<li><strong>Website</strong>: http://www.githubim.com</li>
+<li><strong>Source</strong>: https://github.com/WuKongIM/WuKongIM</li>
+<li><strong>Protocol</strong>: <a href="./docs/protocol.md">WuKongIM Protocol</a></li>
+<li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
+<li><strong>Docs</strong>: http://www.githubim.com</li>
 </ul>
 </p>
 
@@ -20,98 +20,88 @@
 [![](https://img.shields.io/badge/go-%3E%3D1.17-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
 
-
-特点
+Features
 --------
 
-- 📚 完全自研：自研消息数据库，消息分区永久存储，自研二进制协议，支持自定义协议，重写Go底层网络库，无缝支持TCP和websocket。
-- 🚀 性能强劲：单机支持百万用户同时在线，单机16w/秒消息（包括DB操作）吞吐量,一个频道支持万人同时订阅。
-- 🔔 零依赖：没有依赖任何第三方组件，部署简单，一条命令即可启动
-- 🔐 安全：消息通道和消息内容全程加密，防中间人攻击和串改消息内容。
-- 🧱 扩展性强：采用频道设计理念，目前支持群组频道，点对点频道，后续可以根据自己业务自定义频道可实现机器人频道，客服频道等等。
+- 📚 Fully self-developed: WuKongIM uses a self-developed message database, binary protocol, and network library, and supports custom protocols.
+- 🚀 High performance: WuKongIM can handle millions of online users and has a throughput of 160,000 messages per second (including database operations).
+- 🔔 Zero dependencies: WuKongIM has no third-party dependencies and is easy to deploy.
+- 🔐 Security: WuKongIM encrypts both message channels and message content to prevent man-in-the-middle attacks and message tampering.
+- 🧱 Highly extensible: WuKongIM uses a channel-based design and currently supports group and point-to-point channels. It can be extended to support custom channels for use cases such as chatbots and customer service.
 
 
-快速部署
+Quick Start
 ---------------
 
 ```
-
-docker run -p 5000:5000 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:latest
-
+docker run -p 5000:5000 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx --name wukongim -v ./wukongim:/root/wukongim wukongim/wukongim:latest
 ```
 
-`WK_EXTERNAL_IP：为服务器外网IP，用于客户端连接，不设置默认用内网IP`
+`WK_EXTERNAL_IP is the environment variable used to set the external IP address of the server for client connections. If this variable is not set, the internal IP address will be used by default.`
 
-查看服务器信息： http://127.0.0.1:5000/varz
+View server information: http://127.0.0.1:5000/varz
+
+Demo: http://imdemo.githubim.com
+
+For more deployment options, see the [documentation](http://githubim.com/guide/quickstart).
 
 
-客户端演示地址：http://imdemo.githubim.com
-
-其他部署方式详见文档：http://githubim.com/guide/quickstart
-
-
-配套SDK源码和Demo
+SDK source code and demos
 ---------------
 
+iOS demo and SDK source code
 
-[iOS Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMiOSSDK)
+Android demo and SDK source code
 
-[Android Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMAndroidSDK)
+Web demo and SDK source code
 
-[Web Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMJSSDK)
+Flutter demo and SDK source code (to be improved)
 
-[Flutter Demo 和 SDK 源码(待完善)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
-
-
-适用场景
+Applicable Scenarios
 ---------------
 
-#### 即时通讯
+#### Instant Messaging
 
-* 群频道支持
-* 个人频道支持
-* 消息永久存储
-* 离线消息推送支持
-* 最近会话维护
+* Supports group channels
+* Supports personal channels
+* Supports permanent message storage
+* Supports offline message push
+* Supports recent conversation maintenance
 
-#### 消息推送/站内消息
+#### Message Push/Site Message
 
-* 群频道支持
-* 个人频道支持
-* 离线消息推送支持
+* Supports group channels
+* Supports personal channels
+* Supports offline message push
 
-#### 物联网通讯
+#### IoT Communication
 
-* mqtt协议支持（待开发）
-* 支持发布与订阅
+* Supports MQTT protocol (to be developed)
+* Supports publish and subscribe
 
-#### 音视频信令服务器
+#### Audio and Video Signaling Server
 
-* 支持临时指令消息投递
+* Supports temporary command message delivery
 
-#### 直播弹幕
+#### Live Broadcast Bullet Screens
 
-* 临时消息投递
+* Supports temporary message delivery
+* Supports temporary subscriber support
 
-* 临时订阅者支持
+#### Customer Service System
 
-#### 客服系统
+* Supports customer service channels
+* Messages can be delivered to third-party servers
+* Third-party servers can decide to allocate designated subscribers to deliver messages in groups
 
-* 客服频道支持
+#### Real-time AI Feedback
 
-* 消息支持投递给第三方服务器
+* Supports pushing messages sent by clients to third-party servers, and the results returned by AI after being fed back by third-party servers are pushed back to clients
 
-* 第三方服务器可决定分配指定的订阅者成组投递
+#### Instant Community
 
-#### 实时AI反馈
-
-* 支持客户端发的消息推送给第三方服务器，第三方服务器反馈给AI后返回的结果再推送给客户端
-
-#### 即时社区
-
-* 社区频道支持
-* 支持topic模式的消息投递
-
+* Supports community channels
+* Supports message delivery in topic mode
 
 License
 ---------------
