@@ -2,7 +2,7 @@
 
 WuKongIM is a high-performance universal communication service that supports various scenarios such as instant messaging, message push, IoT communication, audio and video signaling, live broadcasting with bullet comments, customer service systems, AI communication, and instant communities.
 
-[中文文档](./README_CN.md)
+[中文文档](./README.md)
 
 <p align="center">
 <img align="left" width="160" src="./docs/logo.png">
@@ -16,180 +16,94 @@ WuKongIM is a high-performance universal communication service that supports var
 </ul>
 </p>
 
-[![Docs](https://img.shields.io/badge/docs-latest-green.svg)](http://githubim.com/docs)
-[![](https://img.shields.io/apm/l/vim-mode)](./LICENSE)
+[![](https://img.shields.io/github/license/WuKongIM/WuKongIM?color=yellow&style=flat-square)](./LICENSE)
+[![](https://img.shields.io/badge/go-%3E%3D1.17-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
+[![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
 
 Features
 --------
 
-- Simple deployment without any third-party dependencies, can be started with a single command.
-- Self-developed message database for permanent message storage.
-- Self-developed binary protocol with support for custom protocols.
-- End-to-end encryption of message channels and content to prevent man-in-the-middle attacks and message tampering.
-- Support for multiple device logins with real-time data synchronization.
-- Easy to use with powerful performance. In single-machine testing on a Mac notebook, it achieves a throughput of over 160,000 messages per second (including storage). To achieve this performance and ease of use, the system implements message storage completely independently, without relying on any third-party components.
-- Strong scalability using a channel-based design approach. Currently supports group channels and point-to-point channels, and can be extended to include custom channels for functionalities such as robot channels and customer service channels.
-- Supports both TCP and WebSocket protocols.
-- Channels support thousands of subscribers.
+- 📚 Fully self-developed: WuKongIM uses a self-developed message database, binary protocol, and network library, and supports custom protocols.
+- 🚀 High performance: WuKongIM can handle millions of online users and has a throughput of 160,000 messages per second (including database operations).
+- 🔔 Zero dependencies: WuKongIM has no third-party dependencies and is easy to deploy.
+- 🔐 Security: WuKongIM encrypts both message channels and message content to prevent man-in-the-middle attacks and message tampering.
+- 🧱 Highly extensible: WuKongIM uses a channel-based design and currently supports group and point-to-point channels. It can be extended to support custom channels for use cases such as chatbots and customer service.
 
 
-Getting Started
+Quick Start
 ---------------
 
-To get started with WuKongIM, follow these steps:
-
-1. Clone the repository:
-
-> git clone https://github.com/WuKongIM/WuKongIM.git
-
-2. Run the service:
-
-> cd WuKongIM
-
-> go run main.go
-
-
-
-## Client SDK
-
-[Android SDK](https://github.com/WuKongIM/WuKongIMAndroidSDK.git)
-
-[iOS SDK](https://github.com/WuKongIM/WuKongIMiOSSDK.git)
-
-[JS SDK](https://github.com/WuKongIM/WuKongIMJSSDK.git)
-
-[Flutter SDK](https://github.com/WuKongIM/WuKongIMFlutterSDK.git)
-
-[Docs](http://www.githubim.com/docs)
-
-## App Demo
-
-[Android Demo](https://github.com/WuKongIM/WuKongIMAndroidDemo.git)
-
-[iOS Demo](https://github.com/WuKongIM/WuKongIMiOSDemo.git)
-
-[Web Demo](https://github.com/WuKongIM/WuKongIMJSDemo.git)
-
-
-<!-- ## Quick start -->
-
-<!-- <img  src="./docs/quick.gif"  alt="Quick start"/> -->
-
-
-<!-- [Get WuKongIM executable file](./INSTALL.md) -->
-<!-- 
-#### Run the server (Note: Because it rewrites the Go network library, this library is temporarily not supported by Windows. Windows recommends using Docker to run.)
-
 ```
-$ go run cmd/app/main.go -e mode=test 
+docker run -p 5000:5000 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx --name wukongim -v ./wukongim:/root/wukongim wukongim/wukongim:latest
 ```
 
-After the server is running, visit http://127.0.0.1:1516/api to view the api document
+`WK_EXTERNAL_IP is the environment variable used to set the external IP address of the server for client connections. If this variable is not set, the internal IP address will be used by default.`
 
-#### Client SDK
+View server information: http://127.0.0.1:5000/varz
 
-Android SDK: [Android SDK (built-in simple demo)](https://github.com/WuKongIM/WuKongIMAndroidSDK.git)
+Demo: http://imdemo.githubim.com
 
-iOS SDK: Open source from Star to 500 (please help us some Star, thanks 😄)
-
-JS SDK: Star to 1000 open source (please help us some Star, thanks 😄)
-
-note： Please check [document](http://www.githubim.com/docs) for the use of SDK
-
-## Quick play
-
-***Log in to test1, test2 and test2 to send a message "hello" to test1***
-
-```
-// Log in to test1
-$ go run cmd/play/main.go -user=test1 
-```
-
-```
-// Log in to test2
-$ go run cmd/play/main.go -user=test2 
-```
-
-test2 sends the message hello to test1
-
-```
-$ >send hello to test1
-```
+For more deployment options, see the [documentation](http://githubim.com/guide/quickstart).
 
 
-### Performance Testing
+SDK source code and demos
+---------------
 
-One-click pressure test
+iOS demo and SDK source code
 
-```
-./bench.sh
-```
+Android demo and SDK source code
 
-My test results are as follows:
+Web demo and SDK source code
 
-Achieve a throughput of 63420 messages per second, which is close to the pressure test data of redis!
+Flutter demo and SDK source code (to be improved)
 
-```
-goos: darwin
-goarch: amd64
-cpu: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz
+Applicable Scenarios
+---------------
 
-SEND: 2021/06/29 15:05:49 duration: 10.605478656s - 12.096mb/s - 63420.051ops/s - 15.768us/op
-``` -->
+#### Instant Messaging
 
+* Supports group channels
+* Supports personal channels
+* Supports permanent message storage
+* Supports offline message push
+* Supports recent conversation maintenance
 
-<!-- 
-***分布式***
+#### Message Push/Site Message
 
-节点初始化
+* Supports group channels
+* Supports personal channels
+* Supports offline message push
 
-```
-// 开启proxy服务 指定初始化的节点nodes
-# WuKongIM proxy -c ./configs/proxy.toml  -e replica=1
-```
+#### IoT Communication
 
+* Supports MQTT protocol (to be developed)
+* Supports publish and subscribe
 
-```
-// 初始化的节点启动
-# WuKongIM -c ./configs/config.toml -proxy=xx.xx.xx.xx:16666 -e nodeID=1001 -e nodeAddr=127.0.0.1:6666
-(或者 WuKongIM -c ./configs/config.toml -peers=1@http://127.0.0.1:6000,2@http://127.0.0.1:6001,3@http://127.0.0.1:6002 -e nodeID=1)
-```
+#### Audio and Video Signaling Server
 
-```
-// 初始化的节点启动
-# WuKongIM  -e proxy=xx.xx.xx.xx:16666 -e nodeID=1002 -e nodeAddr=127.0.0.1:6667
-```
+* Supports temporary command message delivery
 
-增加节点
+#### Live Broadcast Bullet Screens
 
-```
-# WuKongIM  -proxy=xx.xx.xx.xx:16666 -e nodeID=1003 -join
-```
+* Supports temporary message delivery
+* Supports temporary subscriber support
 
-移除节点
+#### Customer Service System
 
-```
-# WuKongIM -e nodeID=1003 -remove
-``` -->
+* Supports customer service channels
+* Messages can be delivered to third-party servers
+* Third-party servers can decide to allocate designated subscribers to deliver messages in groups
 
+#### Real-time AI Feedback
 
+* Supports pushing messages sent by clients to third-party servers, and the results returned by AI after being fed back by third-party servers are pushed back to clients
 
-#### Run via Docker Compose
+#### Instant Community
 
-```
-$ docker-compose up 
-```
+* Supports community channels
+* Supports message delivery in topic mode
 
-## Architecture
+License
+---------------
 
-***完整架构***
-
-<img src="./docs/architecture/architecture.png" alt="Architecture"/>
-
-***认证逻辑***
-
-<img src="./docs/architecture/auth.png" alt="Architecture"/>
-
-***消息处理逻辑***
-
-<img src="./docs/architecture/processmsg.png" alt="Architecture"/>
+WuKongIM is licensed under the [Apache License 2.0](./LICENSE).
