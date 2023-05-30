@@ -28,6 +28,26 @@ Features
 - 🔐 Security: WuKongIM encrypts both message channels and message content to prevent man-in-the-middle attacks and message tampering.
 - 🧱 Highly extensible: WuKongIM uses a channel-based design and currently supports group and point-to-point channels. It can be extended to support custom channels for use cases such as chatbots and customer service.
 
+TODO
+---------------
+
+* [x] Supports custom messages
+* [x] Supports subscription/publisher mode
+* [x] Supports personal/group chat/customer service/community news channels
+* [x] Supports channel blacklists
+* [x] Supports channel whitelists
+* [x] Supports permanent message storage, device switching, and message retention
+* [x] Supports online status and multiple devices logged in simultaneously with the same account
+* [x] Supports real-time synchronization of messages across multiple devices
+* [x] Supports server-side maintenance of user's recent conversation list
+* [x] Supports command messages
+* [x] Supports offline command interface
+* [x] Supports Webhook, easy integration with your own business system
+* [x] Supports Datasoure, seamless integration with your own business system data source
+* [x] Supports WebSocket connections
+* [ ] Development of monitoring system
+* [ ] Support for Windows system deployment
+
 
 Quick Start
 ---------------
