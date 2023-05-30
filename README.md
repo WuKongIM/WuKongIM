@@ -2,6 +2,8 @@
 
 WuKongIM is a high-performance universal communication service that supports various scenarios such as instant messaging, message push, IoT communication, audio and video signaling, live broadcasting with bullet comments, customer service systems, AI communication, and instant communities.
 
+(Note: This project is a general underlying instant messaging service. The upper layer needs to dock with its own specific business system (which can be easily docked with its own business system through the webhook and datasource mechanism). The core of this project mainly maintains a large number of long connections of clients and delivers messages according to the message rules of third-party business systems.)
+
 [中文文档](./README_CN.md)
 
 <p align="center">
