@@ -47,6 +47,7 @@ TODO
 - [x] Supports Webhook, easy integration with your own business system
 - [x] Supports Datasoure, seamless integration with your own business system data source
 - [x] Supports WebSocket connections
+- [x] Supports TLS 1.3
 - [ ] Development of monitoring system
 - [ ] Support for Windows system deployment
 
