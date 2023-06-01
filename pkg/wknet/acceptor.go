@@ -2,8 +2,10 @@ package wknet
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
+	"sync"
 
 	"go.uber.org/atomic"
 
@@ -16,12 +18,14 @@ import (
 )
 
 type Acceptor struct {
-	reactorSubs    []*ReactorSub
-	eg             *Engine
-	listenPoller   *netpoll.Poller
-	listenWSPoller *netpoll.Poller
-	listen         *listener
-	listenWS       *listener // websocket
+	reactorSubs       []*ReactorSub
+	eg                *Engine
+	listenPoller      *netpoll.Poller
+	listenWSPoller    *netpoll.Poller
+	listen            *listener
+	listenWS          *listener // websocket
+	tcpRealListenAddr net.Addr  // tcp real listen addr
+	wsRealListenAddr  net.Addr  // websocket real listen addr
 
 	wklog.Log
 }
@@ -52,8 +56,15 @@ func (a *Acceptor) start() error {
 	for _, reactorSub := range a.reactorSubs {
 		reactorSub.Start()
 	}
+	var wg = &sync.WaitGroup{}
+	if strings.TrimSpace(a.eg.options.WsAddr) != "" {
+		wg.Add(2)
+	} else {
+		wg.Add(1)
+	}
+
 	go func() {
-		err := a.initTCPListener()
+		err := a.initTCPListener(wg)
 		if err != nil {
 			panic(err)
 		}
@@ -61,25 +72,28 @@ func (a *Acceptor) start() error {
 
 	if strings.TrimSpace(a.eg.options.WsAddr) != "" {
 		go func() {
-			err := a.initWSListener()
+			err := a.initWSListener(wg)
 			if err != nil {
 				panic(err)
 			}
 		}()
 	}
+	wg.Wait()
 	return nil
 }
 
-func (a *Acceptor) initTCPListener() error {
+func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	// tcp
 	a.listen = newListener(a.eg.options.Addr, a.eg.options)
 	err := a.listen.init()
 	if err != nil {
 		return err
 	}
+	a.tcpRealListenAddr = a.listen.readAddr
 	if err := a.listenPoller.AddRead(a.listen.fd); err != nil {
 		return fmt.Errorf("add listener fd to poller failed %s", err)
 	}
+	wg.Done()
 
 	a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, false)
@@ -88,17 +102,18 @@ func (a *Acceptor) initTCPListener() error {
 
 }
 
-func (a *Acceptor) initWSListener() error {
+func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 	// tcp
 	a.listenWS = newListener(a.eg.options.WsAddr, a.eg.options)
 	err := a.listenWS.init()
 	if err != nil {
 		return err
 	}
+	a.wsRealListenAddr = a.listenWS.readAddr
 	if err := a.listenWSPoller.AddRead(a.listenWS.fd); err != nil {
 		return fmt.Errorf("add ws listener fd to poller failed %s", err)
 	}
-
+	wg.Done()
 	a.listenWSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, true)
 	})

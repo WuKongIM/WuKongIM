@@ -9,6 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/ring"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	lio "github.com/WuKongIM/WuKongIM/pkg/wknet/io"
 	"golang.org/x/sys/unix"
@@ -84,6 +87,10 @@ type Conn interface {
 
 	InboundBuffer() InboundBuffer
 	OutboundBuffer() OutboundBuffer
+
+	SetDeadline(t time.Time) error
+	SetReadDeadline(t time.Time) error
+	SetWriteDeadline(t time.Time) error
 }
 
 type DefaultConn struct {
@@ -108,7 +115,6 @@ type DefaultConn struct {
 	deviceID       string
 	valueMap       map[string]interface{}
 	valueMapLock   sync.RWMutex
-	writeChan      chan []byte
 
 	uptime       time.Time
 	lastActivity time.Time
@@ -127,12 +133,19 @@ func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine
 		reactorSub: reactorSub,
 		closed:     false,
 		valueMap:   map[string]interface{}{},
-		writeChan:  make(chan []byte, 100),
 		uptime:     time.Now(),
 		Log:        wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id)),
 	}
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
+	if eg.options.TCPTLSConfig != nil {
+
+		tc := newTLSConn(defaultConn)
+		tlsCn := tls.Server(tc, eg.options.TCPTLSConfig)
+		tc.tlsconn = tlsCn
+		return tc, nil
+	}
+
 	return defaultConn, nil
 }
 
@@ -221,6 +234,21 @@ func (d *DefaultConn) RemoteAddr() net.Addr {
 
 func (d *DefaultConn) LocalAddr() net.Addr {
 	return d.localAddr
+}
+
+func (d *DefaultConn) SetDeadline(t time.Time) error {
+	if err := d.SetReadDeadline(t); err != nil {
+		return err
+	}
+	return d.SetWriteDeadline(t)
+}
+
+func (d *DefaultConn) SetReadDeadline(t time.Time) error {
+	return ErrUnsupportedOp
+}
+
+func (d *DefaultConn) SetWriteDeadline(t time.Time) error {
+	return ErrUnsupportedOp
 }
 
 func (d *DefaultConn) Release() {
@@ -344,7 +372,6 @@ func (d *DefaultConn) Uptime() time.Time {
 }
 
 func (d *DefaultConn) flush() error {
-
 	d.writeLock.Lock()
 	defer d.writeLock.Unlock()
 
@@ -402,7 +429,6 @@ func (d *DefaultConn) write(b []byte) (int, error) {
 		return 0, nil
 	}
 	if d.overflowForOutbound(len(b)) { // overflow check
-		fmt.Println("overflowForOutbound..................")
 		return 0, syscall.EINVAL
 	}
 	var err error
@@ -448,6 +474,238 @@ func (d *DefaultConn) overflowForInbound(n int) bool {
 func (d *DefaultConn) String() string {
 
 	return fmt.Sprintf("Conn[%d] uid=%s fd=%d", d.id, d.uid, d.fd)
+}
+
+type TLSConn struct {
+	d                *DefaultConn
+	tlsconn          *tls.Conn
+	tmpInboundBuffer InboundBuffer // inboundBuffer InboundBuffer
+}
+
+func newTLSConn(d *DefaultConn) *TLSConn {
+
+	return &TLSConn{
+		d:                d,
+		tmpInboundBuffer: d.eg.eventHandler.OnNewInboundConn(d, d.eg),
+	}
+}
+
+func (t *TLSConn) ReadToInboundBuffer() (int, error) {
+	readBuffer := t.d.reactorSub.ReadBuffer
+	n, err := unix.Read(t.d.fd, readBuffer)
+	if err != nil || n == 0 {
+		return 0, err
+	}
+	_, err = t.tmpInboundBuffer.Write(readBuffer[:n])
+	if err != nil {
+		return 0, err
+	}
+	t.d.lastActivity = time.Now()
+
+	for {
+		tlsN, err := t.tlsconn.Read(readBuffer)
+		if err != nil {
+			if err == tls.ErrDataNotEnough {
+				return n, nil
+			}
+			return n, err
+		}
+		if tlsN == 0 {
+			break
+		}
+		_, err = t.d.inboundBuffer.Write(readBuffer[:tlsN])
+		if err != nil {
+			return n, err
+		}
+	}
+	return n, err
+}
+func (t *TLSConn) BuffReader(needs int) io.Reader {
+	return &eofBuff{
+		buff:  t.tmpInboundBuffer,
+		needs: needs,
+	}
+}
+
+func (t *TLSConn) BuffWriter() io.Writer {
+	return t.d
+}
+
+func (t *TLSConn) ID() int64 {
+	return t.d.id
+}
+func (t *TLSConn) SetID(id int64) {
+	t.d.id = id
+}
+
+func (t *TLSConn) UID() string {
+	return t.d.uid
+}
+
+func (t *TLSConn) SetUID(uid string) {
+	t.d.uid = uid
+}
+
+func (t *TLSConn) Fd() int {
+	return t.d.fd
+}
+
+func (t *TLSConn) LocalAddr() net.Addr {
+	return t.d.LocalAddr()
+}
+
+func (t *TLSConn) RemoteAddr() net.Addr {
+	return t.d.RemoteAddr()
+}
+
+func (t *TLSConn) Read(b []byte) (int, error) {
+	return t.tlsconn.Read(b)
+}
+
+func (t *TLSConn) Write(b []byte) (int, error) {
+	return t.tlsconn.Write(b)
+}
+
+func (t *TLSConn) SetDeadline(tim time.Time) error {
+	return t.d.SetDeadline(tim)
+}
+
+func (t *TLSConn) SetReadDeadline(tim time.Time) error {
+	return t.d.SetReadDeadline(tim)
+}
+
+func (t *TLSConn) SetWriteDeadline(tim time.Time) error {
+	return t.d.SetWriteDeadline(tim)
+}
+
+func (t *TLSConn) Close() error {
+	return t.d.Close()
+}
+
+func (t *TLSConn) Context() interface{} {
+	return t.d.Context()
+}
+
+func (t *TLSConn) SetContext(ctx interface{}) {
+	t.d.SetContext(ctx)
+}
+
+func (t *TLSConn) WakeWrite() error {
+	return t.d.WakeWrite()
+}
+
+func (t *TLSConn) DeviceFlag() uint8 {
+	return t.d.deviceFlag
+}
+
+func (t *TLSConn) SetDeviceFlag(flag uint8) {
+	t.d.deviceFlag = flag
+}
+
+func (t *TLSConn) DeviceLevel() uint8 {
+	return t.d.deviceLevel
+}
+
+func (t *TLSConn) SetDeviceLevel(level uint8) {
+	t.d.deviceLevel = level
+}
+
+func (t *TLSConn) DeviceID() string {
+	return t.d.deviceID
+}
+func (t *TLSConn) SetDeviceID(id string) {
+	t.d.deviceID = id
+}
+
+func (t *TLSConn) Discard(n int) (int, error) {
+	return t.d.Discard(n)
+}
+
+func (t *TLSConn) InboundBuffer() InboundBuffer {
+	return t.d.InboundBuffer()
+}
+
+func (t *TLSConn) OutboundBuffer() OutboundBuffer {
+	return t.d.OutboundBuffer()
+}
+
+func (t *TLSConn) IsAuthed() bool {
+	return t.d.IsAuthed()
+}
+
+func (t *TLSConn) SetAuthed(authed bool) {
+	t.d.SetAuthed(authed)
+}
+
+func (t *TLSConn) IsClosed() bool {
+	return t.d.IsClosed()
+}
+
+func (t *TLSConn) LastActivity() time.Time {
+	return t.d.LastActivity()
+}
+
+func (t *TLSConn) Peek(n int) ([]byte, error) {
+	return t.d.Peek(n)
+}
+
+func (t *TLSConn) ProtoVersion() int {
+	return t.d.ProtoVersion()
+}
+
+func (t *TLSConn) SetProtoVersion(version int) {
+	t.d.SetProtoVersion(version)
+}
+
+func (t *TLSConn) ReactorSub() *ReactorSub {
+	return t.d.ReactorSub()
+}
+
+func (t *TLSConn) Release() {
+	t.d.Release()
+}
+
+func (t *TLSConn) Flush() error {
+	return t.d.Flush()
+}
+
+func (t *TLSConn) SetValue(key string, value interface{}) {
+	t.d.SetValue(key, value)
+}
+
+func (t *TLSConn) Value(key string) interface{} {
+	return t.d.Value(key)
+}
+
+func (t *TLSConn) Uptime() time.Time {
+	return t.d.Uptime()
+}
+
+func (t *TLSConn) WriteToOutboundBuffer(b []byte) (int, error) {
+	return t.d.outboundBuffer.Write(b)
+}
+
+type eofBuff struct {
+	buff  InboundBuffer
+	needs int
+}
+
+func (e *eofBuff) Read(p []byte) (int, error) {
+	n, err := e.buff.Read(p)
+	e.needs -= n
+	if e.needs > 0 && err == ring.ErrIsEmpty {
+		return n, tls.ErrDataNotEnough
+	}
+	if e.needs <= 0 && err == nil {
+		return n, io.EOF
+	}
+	if err != nil {
+		if err == ring.ErrIsEmpty {
+			return n, io.EOF
+		}
+		return n, err
+	}
+	return n, err
 }
 
 // func getConnFd(conn net.Conn) (int, error) {

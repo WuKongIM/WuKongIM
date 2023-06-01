@@ -2,7 +2,7 @@
 
 高性能通用通讯服务，支持即时通讯，消息推送，物联网通讯，音视频信令，直播弹幕，客服系统，AI通讯，即时社区等场景。
 
-（注意：此项目是一个通用的底层即时通讯服务，上层需要对接自己的具体业务系统（通过webhook和datasource机制非常轻松与自己业务系统对接），此项目核心点主要维护大量客户端的长连接，并根据第三方业务系统的消息规则进行消息投递。）
+（注意：此项目是一个通用的底层即时通讯服务，上层需要对接自己的具体业务系统（通过webhook和datasource机制非常轻松与自己业务系统对接），此项目核心点主要维护大量客户端的长连接，并根据第三方业务系统配置的投递消息规则进行消息投递。）
 
 [English](./README.md)
 
@@ -14,7 +14,7 @@
 <li><strong>官网</strong>: https://githubim.com</li>
 <li><strong>通讯协议</strong>: <a href="https://githubim.com/guide/proto">WuKongIM协议</a></li>
 <li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
-<li><strong>文档</strong>: http://www.githubim.com/guide</li>
+<li><strong>文档</strong>: http://www.githubim.com</li>
 </ul>
 </p>
 
@@ -22,6 +22,11 @@
 [![](https://img.shields.io/badge/go-%3E%3D1.17-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
 
+
+<!-- 愿景
+--------
+
+深知开发一个即时通讯系统的复杂性，我们希望通过开源的方式，让更多的开发者可以快速的搭建自己的即时通讯系统，让信息传递更简单。 -->
 
 特点
 --------
@@ -51,6 +56,7 @@
 - [x] 支持Webhook，轻松对接自己的业务系统
 - [x] 支持Datasoure，无缝对接自己的业务系统数据源
 - [x] 支持Websocket连接
+- [x] TLS 1.3支持
 - [ ] 监控系统开发
 - [ ] 支持Windows系统部署
 

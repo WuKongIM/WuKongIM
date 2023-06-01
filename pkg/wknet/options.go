@@ -4,13 +4,19 @@ import (
 	"runtime"
 	"syscall"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 )
 
 type Options struct {
 	// Addr is the listen addr  example: tcp://127.0.0.1:5100
 	Addr string
+	// TcpTlsConfig tcp tls config
+	TCPTLSConfig *tls.Config
+	WSTLSConfig  *tls.Config
 	// WsAddr is the listen addr  example: ws://127.0.0.1:5200或 wss://127.0.0.1:5200
 	WsAddr string
+	// WSTlsConfig ws tls config
 	// MaxOpenFiles is the maximum number of open files that the server can
 	MaxOpenFiles int
 	// SubReactorNum is sub reactor numver it's set to runtime.NumCPU()  by default
@@ -53,6 +59,18 @@ func WithAddr(v string) Option {
 func WithWSAddr(v string) Option {
 	return func(opts *Options) {
 		opts.WsAddr = v
+	}
+}
+
+func WithTCPTLSConfig(v *tls.Config) Option {
+	return func(opts *Options) {
+		opts.TCPTLSConfig = v
+	}
+}
+
+func WithWSTLSConfig(v *tls.Config) Option {
+	return func(opts *Options) {
+		opts.WSTLSConfig = v
 	}
 }
 
