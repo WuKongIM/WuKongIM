@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"syscall"
 
 	perrors "github.com/WuKongIM/WuKongIM/pkg/errors"
 	"github.com/WuKongIM/WuKongIM/pkg/socket"
@@ -62,11 +63,27 @@ func (l *listener) initTCPListener(network, addr string) error {
 
 	switch network {
 	case "ws", "wss":
-		l.fd, l.readAddr, err = socket.TCPSocket("tcp", addr, true, sockOpts...)
+		l.fd, _, err = socket.TCPSocket("tcp", addr, true, sockOpts...)
 	case "tcp", "tcp4", "tcp6":
-		l.fd, l.readAddr, err = socket.TCPSocket(network, addr, true, sockOpts...)
+		l.fd, _, err = socket.TCPSocket(network, addr, true, sockOpts...)
 	default:
 		err = perrors.ErrUnsupportedProtocol
+	}
+	if err != nil {
+		return err
+	}
+	var readAddr syscall.Sockaddr
+	readAddr, err = syscall.Getsockname(l.fd)
+	if err != nil {
+		return err
+	}
+	switch addr := readAddr.(type) {
+	case *syscall.SockaddrInet4:
+		l.readAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
+	case *syscall.SockaddrInet6:
+		l.readAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
+	default:
+		fmt.Printf("Unknown address type: %T\n", addr)
 	}
 	return err
 }

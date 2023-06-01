@@ -102,6 +102,7 @@ func (r *ReactorSub) run() {
 }
 
 func (r *ReactorSub) CloseConn(c Conn, er error) (rerr error) {
+	fmt.Println("CloseConn------>")
 	err0 := r.poller.Delete(c.Fd())
 	if err0 != nil {
 		rerr = fmt.Errorf("failed to delete fd=%d from poller in subReactor(%d): %v", c.Fd(), r.idx, err0)

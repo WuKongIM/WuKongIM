@@ -11,6 +11,7 @@ type Buffer interface {
 	BoundBufferSize() int
 	// Peek returns the data from the buffer without removing it.
 	Peek(n int) (head []byte, tail []byte)
+	PeekBytes(p []byte) int
 	// Discard discards the data from the buffer.
 	Discard(n int) (int, error)
 	// Release releases the buffer.
@@ -51,6 +52,21 @@ func (d *DefualtBuffer) BoundBufferSize() int {
 
 func (d *DefualtBuffer) Peek(n int) (head []byte, tail []byte) {
 	return d.ringBuffer.Peek(n)
+}
+
+func (d *DefualtBuffer) PeekBytes(p []byte) int {
+	head, tail := d.ringBuffer.Peek(-1)
+	if len(head) > 0 && len(tail) > 0 {
+		return copy(p, append(head, tail...))
+	}
+
+	if len(head) > 0 {
+		return copy(p, head)
+	}
+	if len(tail) > 0 {
+		return copy(p, tail)
+	}
+	return 0
 }
 
 func (d *DefualtBuffer) Discard(n int) (int, error) {
