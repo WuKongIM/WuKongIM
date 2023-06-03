@@ -1,5 +1,7 @@
 package wkproto
 
+import "fmt"
+
 // var (
 // 	decOne = sync.Pool{
 // 		New: func() interface{} {
@@ -70,6 +72,9 @@ func (d *Decoder) Uint8() (uint8, error) {
 
 // Int16 Int16
 func (d *Decoder) Int16() (int16, error) {
+	if d.offset+2 > len(d.p) {
+		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", d.offset+2, len(d.p))
+	}
 	b := d.p[d.offset : d.offset+2]
 	d.offset += 2
 	return (int16(b[0]) << 8) | int16(b[1]), nil
@@ -86,6 +91,9 @@ func (d *Decoder) Uint16() (uint16, error) {
 
 // Bytes Bytes
 func (d *Decoder) Bytes(num int) ([]byte, error) {
+	if d.offset+num > len(d.p) {
+		return nil, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", d.offset+num, len(d.p))
+	}
 	b := d.p[d.offset : d.offset+num]
 	d.offset += num
 	return b, nil
@@ -94,6 +102,9 @@ func (d *Decoder) Bytes(num int) ([]byte, error) {
 
 // Int64 Int64
 func (d *Decoder) Int64() (int64, error) {
+	if d.offset+8 > len(d.p) {
+		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", d.offset+8, len(d.p))
+	}
 	b := d.p[d.offset : d.offset+8]
 	d.offset += 8
 	return (int64(b[0]) << 56) | (int64(b[1]) << 48) | (int64(b[2]) << 40) | int64(b[3])<<32 | int64(b[4])<<24 | int64(b[5])<<16 | int64(b[6])<<8 | int64(b[7]), nil
@@ -101,6 +112,9 @@ func (d *Decoder) Int64() (int64, error) {
 
 // Uint64 Uint64
 func (d *Decoder) Uint64() (uint64, error) {
+	if d.offset+8 > len(d.p) {
+		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", d.offset+8, len(d.p))
+	}
 	b := d.p[d.offset : d.offset+8]
 	d.offset += 8
 	return (uint64(b[0]) << 56) | (uint64(b[1]) << 48) | (uint64(b[2]) << 40) | uint64(b[3])<<32 | uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7]), nil
@@ -108,6 +122,9 @@ func (d *Decoder) Uint64() (uint64, error) {
 
 // Int32 Int32
 func (d *Decoder) Int32() (int32, error) {
+	if d.offset+4 > len(d.p) {
+		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", d.offset+4, len(d.p))
+	}
 	b := d.p[d.offset : d.offset+4]
 	d.offset += 4
 	return (int32(b[0]) << 24) | (int32(b[1]) << 16) | (int32(b[2]) << 8) | int32(b[3]), nil
@@ -144,6 +161,9 @@ func (d *Decoder) Binary() ([]byte, error) {
 	size, err := d.Int16()
 	if err != nil {
 		return nil, err
+	}
+	if d.offset+int(size) > len(d.p) {
+		return nil, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", d.offset+int(size), len(d.p))
 	}
 	b := d.p[d.offset : d.offset+int(size)]
 	d.offset += int(size)
