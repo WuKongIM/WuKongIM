@@ -126,7 +126,7 @@ func (s *Server) Start() error {
 		   \/                \/          \//_____/             \/ 						  
 							  
 	`)
-	s.Info("Server is Starting...")
+	s.Info("WuKongIM is Starting...")
 	s.Info(fmt.Sprintf("  Mode:  %s", s.opts.Mode))
 	s.Info(fmt.Sprintf("  Version:  %s", version.Version))
 	s.Info(fmt.Sprintf("  Git:  %s", fmt.Sprintf("%s-%s", version.CommitDate, version.Commit)))
