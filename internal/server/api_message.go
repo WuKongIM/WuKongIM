@@ -56,7 +56,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		startMessageSeq = startMessageSeq + 1 // 结果应该不包含本身的messageSeq这条消息
 	}
 
-	messages, err := m.s.store.LoadNextRangeMsgs(req.UID, wkproto.ChannelTypePerson, startMessageSeq, 0, req.Limit)
+	messages, err := m.s.store.SyncMessageOfUser(req.UID, startMessageSeq, req.Limit)
 	if err != nil {
 		m.Error("同步消息失败！", zap.Error(err))
 		c.ResponseError(err)

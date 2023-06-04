@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
@@ -40,6 +41,11 @@ func NewFileStoreForMsg(cfg *StoreConfig) *FileStoreForMsg {
 
 func (f *FileStoreForMsg) AppendMessages(channelID string, channelType uint8, msgs []Message) (seqs []uint32, err error) {
 	seqs, _, err = f.getTopic(channelID, channelType).appendMessages(msgs)
+	return
+}
+
+func (f *FileStoreForMsg) AppendMessagesOfUser(uid string, msgs []Message) (seqs []uint32, err error) {
+	seqs, _, err = f.getTopic(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson).appendMessages(msgs)
 	return
 }
 

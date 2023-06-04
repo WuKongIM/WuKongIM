@@ -471,6 +471,7 @@ func (c *Channel) Put(messages []*Message, fromUID string, fromDeviceFlag wkprot
 			}
 		}
 		if lastMsg != nil {
+			fmt.Println("updateConversations--->", lastMsg)
 			c.updateConversations(lastMsg, subscribers)
 		}
 	}
@@ -493,6 +494,10 @@ func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers
 		storeMessages := make([]wkstore.Message, 0, len(messages))
 		for _, m := range messages {
 
+			if m.NoPersist || !m.SyncOnce {
+				continue
+			}
+
 			cloneMsg, err := m.DeepCopy()
 			if err != nil {
 				return nil, err
@@ -505,7 +510,7 @@ func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers
 			storeMessages = append(storeMessages, cloneMsg)
 		}
 		if len(storeMessages) > 0 {
-			_, err := c.s.store.AppendMessages(subscriber, wkproto.ChannelTypePerson, storeMessages) // will fill messageSeq after store messages
+			_, err := c.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
 			if err != nil {
 				return nil, err
 			}

@@ -16,6 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const UserQueuePrefix = "userqueue_"
+
 type FileStore struct {
 	cfg                       *StoreConfig
 	db                        *bolt.DB
@@ -137,6 +139,18 @@ func (f *FileStore) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel ui
 	})))
 }
 
+func (f *FileStore) SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error) {
+	readedMessageSeq, err := f.GetMessageOfUserCursor(uid)
+	if err != nil {
+		return nil, err
+	}
+	sartSeq := startMessageSeq
+	if sartSeq < readedMessageSeq {
+		sartSeq = readedMessageSeq
+	}
+	return f.FileStoreForMsg.LoadNextRangeMsgs(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson, sartSeq, 0, limit)
+}
+
 func (f *FileStore) AddOrUpdateChannel(channelInfo *ChannelInfo) error {
 	slotNum := f.slotNumForChannel(channelInfo.ChannelID, channelInfo.ChannelType)
 	return f.set(slotNum, []byte(f.getChannelKey(channelInfo.ChannelID, channelInfo.ChannelType)), []byte(wkutil.ToJSON(channelInfo.ToMap())))
@@ -241,6 +255,25 @@ func (f *FileStore) DeleteChannel(channelID string, channelType uint8) error {
 		return err
 	}
 	return nil
+}
+
+// GetMessageOfUserCursor GetMessageOfUserCursor
+func (f *FileStore) GetMessageOfUserCursor(uid string) (uint32, error) {
+	slot := f.slotNum(uid)
+	var offset uint32 = 0
+	err := f.db.View(func(t *bolt.Tx) error {
+		b, err := f.getSlotBucket(slot, t)
+		if err != nil {
+			return err
+		}
+		value := b.Get([]byte(f.getMessageOfUserCursorKey(uid)))
+		if len(value) > 0 {
+			offset64, _ := strconv.ParseUint(string(value), 10, 64)
+			offset = uint32(offset64)
+		}
+		return nil
+	})
+	return offset, err
 }
 
 func (f *FileStore) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error {
