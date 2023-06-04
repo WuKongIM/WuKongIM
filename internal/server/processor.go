@@ -100,6 +100,8 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 			return
 		}
 		devceLevel = wkproto.DeviceLevel(devceLevelI)
+	} else {
+		devceLevel = wkproto.DeviceLevelMaster // 默认都是master设备
 	}
 
 	// -------------------- ban  --------------------
