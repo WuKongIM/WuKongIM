@@ -53,6 +53,10 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 			conn.Close()
 			return nil
 		}
+		if packet == nil {
+			d.Warn("message is nil", zap.ByteString("data", data))
+			return nil
+		}
 		if packet.GetFrameType() != wkproto.CONNECT {
 			d.Warn("请先进行连接！")
 			conn.Close()

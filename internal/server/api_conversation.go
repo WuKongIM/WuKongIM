@@ -182,6 +182,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	fmt.Println("syncUserConversation--->", req.UID, req.Version, req.LastMsgSeqs, req.MsgCount, req.Larges)
 	// msgCount := req.MsgCount
 	// if msgCount == 0 {
 	// 	msgCount = 100
@@ -200,7 +201,9 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		lastMsgSeq, _ := strconv.ParseUint(channelLastMsgSeqs[2], 10, 64)
 		channelLastMsgMap[fmt.Sprintf("%s-%d", channelID, channelTypeI)] = uint32(lastMsgSeq)
 	}
+
 	conversations := s.s.conversationManager.GetConversations(req.UID, req.Version, req.Larges)
+	fmt.Println("conversations---->", len(conversations))
 	var newConversations = make([]*wkstore.Conversation, 0, len(conversations)+20)
 	if conversations != nil {
 		newConversations = append(newConversations, conversations...)
@@ -323,6 +326,7 @@ func (s *ConversationAPI) syncRecentMessages(c *wkhttp.Context) {
 }
 
 func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels []*channelRecentMessageReq) ([]*channelRecentMessage, error) {
+	fmt.Println("getRecentMessages-->", uid, msgCount, channels)
 	channelRecentMessages := make([]*channelRecentMessage, 0)
 	if len(channels) > 0 {
 		var (

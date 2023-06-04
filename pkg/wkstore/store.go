@@ -43,6 +43,8 @@ type Store interface {
 	// #################### messages ####################
 	// StoreMsg return seqs and error, seqs len is msgs len
 	AppendMessages(channelID string, channelType uint8, msgs []Message) (seqs []uint32, err error)
+	// 追加消息到用户的消息队列
+	AppendMessagesOfUser(uid string, msgs []Message) (seqs []uint32, err error)
 	LoadMsg(channelID string, channelType uint8, seq uint32) (Message, error)
 	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
 	// LoadLastMsgsWithEnd 加载最新的消息 end表示加载到end的位置结束加载 end=0表示不做限制 结果不包含end
@@ -54,6 +56,8 @@ type Store interface {
 	// 比如start=100 end=105 limit=10 则返回的消息seq为101-104的消息
 	// 结果包含start,不包含end
 	LoadNextRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
+	// SyncMessageOfUser 同步用户队列里的消息（写扩散）
+	SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error)
 
 	AppendMessageOfNotifyQueue(m []Message) error
 	GetMessagesOfNotifyQueue(count int) ([]Message, error)
