@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -511,6 +512,8 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
 
+	fmt.Println("fakeChannelID:", fakeChannelID, "req.ChannelType:", req.ChannelType, "req.StartMessageSeq:", req.StartMessageSeq, "req.EndMessageSeq:", req.EndMessageSeq, "limit:", limit)
+
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
 		messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
 	} else if req.PullMode == PullModeUp { // 向上拉取
@@ -518,6 +521,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	} else {
 		messages, err = ch.s.store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	}
+	fmt.Println("messages--->", len(messages))
 	if err != nil {
 		c.ResponseError(err)
 		return

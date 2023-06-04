@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/ring"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	lio "github.com/WuKongIM/WuKongIM/pkg/wknet/io"
@@ -473,7 +474,7 @@ func (d *DefaultConn) overflowForInbound(n int) bool {
 
 func (d *DefaultConn) String() string {
 
-	return fmt.Sprintf("Conn[%d] uid=%s fd=%d", d.id, d.uid, d.fd)
+	return fmt.Sprintf("Conn[%d] uid=%s fd=%d deviceFlag=%s deviceLevel=%s deviceID=%s", d.id, d.uid, d.fd, wkproto.DeviceFlag(d.deviceFlag), wkproto.DeviceLevel(d.deviceLevel), d.deviceID)
 }
 
 type TLSConn struct {

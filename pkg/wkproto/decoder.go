@@ -65,6 +65,9 @@ func (d *Decoder) Len() int {
 
 // Uint8 Uint8
 func (d *Decoder) Uint8() (uint8, error) {
+	if d.offset+1 > len(d.p) {
+		return 0, fmt.Errorf("Decoder couldn't read expect bytes %d of %d", d.offset+1, len(d.p))
+	}
 	b := d.p[d.offset]
 	d.offset += 1
 	return b, nil

@@ -278,7 +278,7 @@ func (f *FileStore) GetMessageOfUserCursor(uid string) (uint32, error) {
 
 func (f *FileStore) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error {
 	slot := f.slotNum(uid)
-	lastSeq := f.getTopic(uid, wkproto.ChannelTypePerson).getLastMsgSeq()
+	lastSeq := f.getTopic(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson).getLastMsgSeq()
 	actOffset := messageSeq
 	if messageSeq > lastSeq { // 如果传过来的大于系统里最新的 则用最新的
 		actOffset = lastSeq
@@ -293,7 +293,7 @@ func (f *FileStore) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint3
 		if len(value) > 0 {
 			offset64, _ := strconv.ParseUint(string(value), 10, 64)
 			oldOffset := uint32(offset64)
-			if actOffset <= oldOffset && oldOffset < lastSeq {
+			if actOffset <= oldOffset && oldOffset < lastSeq { // 新的
 				return nil
 			}
 		}
