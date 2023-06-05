@@ -12,11 +12,10 @@ import (
 )
 
 type connStats struct {
-	inMsgs      atomic.Int64 // recv msg count
-	outMsgs     atomic.Int64
-	inBytes     atomic.Int64
-	outBytes    atomic.Int64
-	slowClients atomic.Int64
+	inMsgs   atomic.Int64 // recv msg count
+	outMsgs  atomic.Int64
+	inBytes  atomic.Int64
+	outBytes atomic.Int64
 }
 
 type connContext struct {
