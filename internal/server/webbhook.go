@@ -20,6 +20,7 @@ import (
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -47,7 +48,7 @@ func NewWebhook(s *Server) *Webhook {
 	)
 	if s.opts.WebhookGRPCOn() {
 		webhookGRPCPool, err = grpcpool.New(func() (*grpc.ClientConn, error) {
-			return grpc.Dial(s.opts.Webhook.GRPCAddr, grpc.WithInsecure(), grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			return grpc.Dial(s.opts.Webhook.GRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:                5 * time.Minute, // send pings every 10 seconds if there is no activity
 				Timeout:             2 * time.Second, // wait 1 second for ping ack before considering the connection dead
 				PermitWithoutStream: true,            // send pings even without active streams
@@ -274,7 +275,7 @@ func (w *Webhook) notifyQueueLoop() {
 }
 
 func (w *Webhook) sendWebhookForHttp(event string, data []byte) error {
-	eventURL := fmt.Sprintf("%s?event=%s", w.s.opts.Webhook, event)
+	eventURL := fmt.Sprintf("%s?event=%s", w.s.opts.Webhook.HTTPAddr, event)
 	startTime := time.Now().UnixNano() / 1000 / 1000
 	w.Debug("webhook开始请求", zap.String("eventURL", eventURL))
 	resp, err := w.httpClient.Post(eventURL, "application/json", bytes.NewBuffer(data))

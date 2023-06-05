@@ -432,12 +432,6 @@ func (o *Options) GetCustomerServiceVisitorUID(channelID string) (string, bool) 
 func (o *Options) IsFakeChannel(channelID string) bool {
 	return strings.Contains(channelID, "@")
 }
-func (o *Options) getExternalIP() (string, error) {
-	if strings.TrimSpace(o.External.IP) != "" {
-		return o.External.IP, nil
-	}
-	return wkutil.GetExternalIP()
-}
 
 // 获取内网地址
 func getIntranetIP() string {
