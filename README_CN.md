@@ -34,7 +34,7 @@
 - 📚 完全自研：自研消息数据库，消息分区永久存储，自研二进制协议(支持自定义)，重写Go底层网络库，无缝支持TCP和websocket。
 - 🚀 性能强劲：单机支持百万用户同时在线，单机16w/秒消息（包括DB操作）吞吐量,一个频道支持万人同时订阅。
 - 🔔 零依赖：没有依赖任何第三方组件，部署简单，一条命令即可启动
-- 🔐 安全：消息通道和消息内容全程加密，防中间人攻击和串改消息内容。
+- 🔐 安全：消息通道和消息内容全程加密，防中间人攻击和窜改消息内容。
 - 🧱 扩展性强：采用频道设计理念，目前支持群组频道，点对点频道，后续可以根据自己业务自定义频道可实现机器人频道，客服频道等等。
 
 
@@ -66,7 +66,7 @@
 
 ```
 
-docker run -p 5000:5000 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:latest
+docker run -d -p 5000:5000 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ~/wukongim:/root/wukongim  wukongim/wukongim:latest
 
 ```
 
