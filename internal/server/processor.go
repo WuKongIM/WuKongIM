@@ -88,14 +88,14 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 			p.responseConnackAuthFail(conn)
 			return
 		}
-		token, devceLevelI, err = p.s.store.GetUserToken(uid, conn.DeviceFlag())
+		token, devceLevelI, err = p.s.store.GetUserToken(uid, connectPacket.DeviceFlag.ToUint8())
 		if err != nil {
 			p.Error("get user token err", zap.Error(err))
 			p.responseConnackAuthFail(conn)
 			return
 		}
 		if token != connectPacket.Token {
-			p.Error("token verify fail")
+			p.Error("token verify fail", zap.String("expectToken", token), zap.String("actToken", connectPacket.Token), zap.Any("conn", conn))
 			p.responseConnackAuthFail(conn)
 			return
 		}
