@@ -521,7 +521,6 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	} else {
 		messages, err = ch.s.store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	}
-	fmt.Println("messages--->", len(messages))
 	if err != nil {
 		c.ResponseError(err)
 		return

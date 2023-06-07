@@ -64,8 +64,9 @@ func (w *WSConn) ReadToInboundBuffer() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	err = w.unpacketWSData()
 	w.lastActivity = time.Now()
+
+	err = w.unpacketWSData()
 
 	return n, err
 }
@@ -237,8 +238,11 @@ func (w *WSSConn) ReadToInboundBuffer() (int, error) {
 			return n, err
 		}
 	}
-	err = w.unpacketWSData()
+
 	w.d.lastActivity = time.Now()
+
+	err = w.unpacketWSData()
+
 	return n, err
 }
 
