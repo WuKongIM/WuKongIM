@@ -20,7 +20,6 @@ type topic struct {
 	name               string
 	slot               uint32
 	segments           []uint32
-	lastSegment        *segment
 	lastBaseMessageSeq uint32 // last segment messageSeq
 	topicDir           string
 	wklog.Log
@@ -32,7 +31,6 @@ type topic struct {
 
 func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
 
-	fmt.Println("newTopic................")
 	topicDir := filepath.Join(cfg.DataDir, fmt.Sprintf("%d", slot), "topics", name)
 
 	t := &topic{
@@ -57,9 +55,7 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, int, error) {
 	t.appendLock.Lock()
 	defer t.appendLock.Unlock()
 
-	if t.lastSegment == nil {
-		t.resetLastSegment()
-	}
+	lastSegment := t.getActiveSegment()
 
 	preLastMsgSeq := t.lastMsgSeq.Load()
 
@@ -80,12 +76,12 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, int, error) {
 	t.lastMsgSeq.Store(lastMsg.GetSeq())
 
 	//	if  roll new segment
-	if t.lastSegment.index.IsFull() || int64(t.lastSegment.position) > t.cfg.SegmentMaxBytes {
+	if lastSegment.index.IsFull() || int64(lastSegment.position) > t.cfg.SegmentMaxBytes {
 		t.roll(msgs[len(msgs)-1]) // roll new segment
 	}
 
 	// append message to segment
-	n, err := t.lastSegment.appendMessages(msgs)
+	n, err := lastSegment.appendMessages(msgs)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -173,13 +169,14 @@ func (t *topic) readMessageAt(messageSeq uint32) (Message, error) {
 }
 
 func (t *topic) roll(m Message) {
-	if t.lastSegment != nil {
+	lastSegment := t.getActiveSegment()
+	if lastSegment != nil {
 		segmentCache.Remove(t.getSegmentCacheKey(t.lastBaseMessageSeq))
 	}
 	t.lastBaseMessageSeq = m.GetSeq()
 	t.segments = append(t.segments, m.GetSeq())
 
-	t.resetLastSegment()
+	t.resetActiveSegment(t.lastBaseMessageSeq)
 }
 
 func (t *topic) nextBaseMessageSeq(baseMessageSeq uint32) int64 {
@@ -220,13 +217,19 @@ func (t *topic) getSegment(baseMessageSeq uint32, mode SegmentMode) *segment {
 	if seg != nil {
 		return seg
 	}
-	seg = newSegment(t.topicDir, baseMessageSeq, t.cfg)
+	seg = newSegment(t, baseMessageSeq, t.cfg)
 	err := seg.init(mode)
 	if err != nil {
 		panic(err)
 	}
 	segmentCache.Add(key, seg)
 	return seg
+}
+
+// 当前可以写的segment
+func (t *topic) getActiveSegment() *segment {
+	lastBaseOffset := t.segments[len(t.segments)-1]
+	return t.getSegment(lastBaseOffset, SegmentModeAll)
 }
 
 func (t *topic) initSegments() {
@@ -236,12 +239,14 @@ func (t *topic) initSegments() {
 	}
 	t.lastBaseMessageSeq = t.segments[len(t.segments)-1]
 
-	t.resetLastSegment()
+	t.resetActiveSegment(t.lastBaseMessageSeq)
 }
 
-func (t *topic) resetLastSegment() {
-	t.lastSegment = t.getSegment(t.lastBaseMessageSeq, SegmentModeAll)
-	t.lastMsgSeq.Store(t.lastSegment.lastMsgSeq.Load())
+// 重新设置激活的segment
+func (t *topic) resetActiveSegment(baseMessageSeq uint32) *segment {
+	seg := t.getSegment(baseMessageSeq, SegmentModeAll)
+	t.lastMsgSeq.Store(seg.lastMsgSeq.Load())
+	return seg
 }
 
 func (t *topic) getSegmentCacheKey(baseMessageSeq uint32) string {
@@ -289,11 +294,5 @@ func (t *topic) getLastMsgSeq() uint32 {
 }
 
 func (t *topic) close() {
-	if t.lastSegment != nil {
-		has := segmentCache.Remove(t.getSegmentCacheKey(t.lastSegment.baseMessageSeq))
-		if !has {
-			t.lastSegment.close()
 
-		}
-	}
 }

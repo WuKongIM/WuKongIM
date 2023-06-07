@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
+
+	"github.com/RussellLuo/timingwheel"
 )
 
 type Engine struct {
@@ -12,6 +15,7 @@ type Engine struct {
 	options       *Options
 	eventHandler  *EventHandler
 	reactorMain   *ReactorMain
+	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
 }
 
 func NewEngine(opts ...Option) *Engine {
@@ -29,6 +33,7 @@ func NewEngine(opts ...Option) *Engine {
 		connsUnix:    make([]Conn, options.MaxOpenFiles),
 		options:      options,
 		eventHandler: NewEventHandler(),
+		timingWheel:  timingwheel.NewTimingWheel(time.Millisecond*500, 10000),
 	}
 	eg.reactorMain = NewReactorMain(eg)
 	return eg

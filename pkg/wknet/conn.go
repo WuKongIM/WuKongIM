@@ -167,9 +167,8 @@ func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 	if d.overflowForInbound(n) {
 		return 0, fmt.Errorf("inbound buffer overflow, fd: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
 	}
-	_, err = d.inboundBuffer.Write(readBuffer[:n])
-
 	d.lastActivity = time.Now()
+	_, err = d.inboundBuffer.Write(readBuffer[:n])
 	return n, err
 }
 

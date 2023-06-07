@@ -32,15 +32,17 @@ type segment struct {
 
 	indexIntervalBytes       int64 // index interval bytes
 	bytesSinceLastIndexEntry int64 // number of bytes written since the last index entry
+	topic                    *topic
 }
 
-func newSegment(topicDir string, baseMessageSeq uint32, cfg *StoreConfig) *segment {
-	segmentDir := filepath.Join(topicDir, "logs")
+func newSegment(topic *topic, baseMessageSeq uint32, cfg *StoreConfig) *segment {
+	segmentDir := filepath.Join(topic.topicDir, "logs")
 	s := &segment{
 		cfg:                cfg,
 		segmentDir:         segmentDir,
 		baseMessageSeq:     baseMessageSeq,
 		indexIntervalBytes: 4 * 1024,
+		topic:              topic,
 	}
 	err := os.MkdirAll(s.segmentDir, FileDefaultMode)
 	if err != nil {
@@ -177,7 +179,6 @@ func (s *segment) readTargetPosition(startPosition int64, targetMessageSeq uint3
 
 // init check segment
 func (s *segment) init(mode SegmentMode) error {
-	fmt.Println("init...................")
 	if s.isSanityCheck.Load() {
 		return nil
 	}
@@ -199,8 +200,6 @@ func (s *segment) init(mode SegmentMode) error {
 	} else if fi.Size() > 0 {
 		s.fileSize = fi.Size()
 	}
-
-	fmt.Println("s.fileSize---->", s.fileSize)
 
 	lastMsgStartPosition, err := s.sanityCheck()
 	if err != nil {
@@ -249,7 +248,6 @@ func (s *segment) sanityCheck() (int64, error) {
 		panic(err)
 	}
 	segmentSizeOfByte := stat.Size()
-	fmt.Println("segmentSizeOfByte----->", segmentSizeOfByte)
 
 	if segmentSizeOfByte == 0 {
 		return 0, nil

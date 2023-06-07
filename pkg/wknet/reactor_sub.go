@@ -138,7 +138,6 @@ func (r *ReactorSub) read(c Conn) error {
 		if err1 := r.CloseConn(c, err); err1 != nil {
 			r.Warn("failed to close conn", zap.Error(err1))
 		}
-		r.Warn("failed to read", zap.Error(err))
 		return nil
 	}
 	if n == 0 {

@@ -11,7 +11,9 @@ import (
 func makeSegment(t *testing.T, dir string) *segment {
 	cfg := NewStoreConfig()
 	cfg.SegmentMaxBytes = 1024 * 1024 * 10
-	sg := newSegment(dir, 0, cfg)
+
+	tp := newTopic("test", 0, cfg)
+	sg := newSegment(tp, 0, cfg)
 	sg.init(SegmentModeAll)
 	return sg
 }
@@ -101,7 +103,10 @@ func TestSegmentSanityCheck(t *testing.T) {
 func TestSegmentReadLogs(t *testing.T) {
 	dir, err := ioutil.TempDir("", "commitlog-index")
 	assert.NoError(t, err)
-	sg := newSegment(dir, 0, NewStoreConfig())
+	cfg := NewStoreConfig()
+	cfg.SegmentMaxBytes = 1024 * 1024 * 10
+	tp := newTopic("test", 0, cfg)
+	sg := newSegment(tp, 0, NewStoreConfig())
 
 	defer func() {
 		sg.close()
