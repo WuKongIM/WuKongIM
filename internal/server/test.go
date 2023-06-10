@@ -15,7 +15,7 @@ func NewServerOptions() *Options {
 	opts := NewOptions()
 	opts.Mode = TestMode
 	opts.UnitTest = true
-	dir, err := ioutil.TempDir("", "limao-test")
+	dir, err := ioutil.TempDir("", "wukongim-test")
 	if err != nil {
 		panic(err)
 	}

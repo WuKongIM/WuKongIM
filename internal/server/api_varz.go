@@ -87,7 +87,7 @@ type Varz struct {
 
 	//
 	TCPAddr     string `json:"tcp_addr"`     // tcp地址
-	WSAddr      string `json:"ws_addr"`      // wss地址
+	WSAddr      string `json:"ws_addr"`      // ws地址
 	MonitorAddr string `json:"monitor_addr"` // 监控地址
 	MonitorOn   int    `json:"monitor_on"`   // 监控是否开启
 	Commit      string `json:"commit"`       // git commit id

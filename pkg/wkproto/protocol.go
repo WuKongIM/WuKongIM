@@ -22,7 +22,7 @@ type Protocol interface {
 	EncodeFrame(packet Frame, version uint8) ([]byte, error)
 }
 
-// WKroto 狸猫协议对象
+// WKroto 悟空IM协议对象
 type WKProto struct {
 	wklog.Log
 	sync.RWMutex

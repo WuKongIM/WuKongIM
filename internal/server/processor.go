@@ -170,6 +170,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	conn.SetValue(aesKeyKey, aesKey)
 	conn.SetValue(aesIVKey, aesIV)
 	conn.SetDeviceLevel(devceLevelI)
+	conn.SetMaxIdle(p.s.opts.ConnIdleTime)
 
 	p.s.connManager.AddConn(conn)
 

@@ -156,18 +156,17 @@ func (a *Acceptor) acceptConn(listenFd int, ws bool) error {
 		err = socket.SetKeepAlivePeriod(connFd, int(a.eg.options.TCPKeepAlive.Seconds()))
 		a.Error("SetKeepAlivePeriod() failed", zap.Error(err))
 	}
-
 	subReactor := a.reactorSubByConnFd(connFd)
 	if ws {
 		if conn, err = a.eg.eventHandler.OnNewWSConn(a.GenClientID(), connFd, a.listen.readAddr, remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	} else {
+
 		if conn, err = a.eg.eventHandler.OnNewConn(a.GenClientID(), connFd, a.listen.readAddr, remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	}
-
 	// add conn to sub reactor
 	subReactor.AddConn(conn)
 	// call on connect

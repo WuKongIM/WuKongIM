@@ -29,9 +29,9 @@ type OnSendack func(sendack *wkproto.SendackPacket)
 // OnClose 连接关闭
 type OnClose func()
 
-// Client 狸猫客户端
+// Client 悟空IM客户端
 type Client struct {
-	opts              *Options              // 狸猫IM配置
+	opts              *Options              // 悟空M配置
 	sending           []*wkproto.SendPacket // 发送中的包
 	sendingLock       sync.RWMutex
 	proto             *wkproto.WKProto

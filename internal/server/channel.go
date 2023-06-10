@@ -471,7 +471,6 @@ func (c *Channel) Put(messages []*Message, fromUID string, fromDeviceFlag wkprot
 			}
 		}
 		if lastMsg != nil {
-			fmt.Println("updateConversations--->", lastMsg)
 			c.updateConversations(lastMsg, subscribers)
 		}
 	}
