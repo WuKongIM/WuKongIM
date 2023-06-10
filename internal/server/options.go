@@ -85,14 +85,14 @@ type Options struct {
 		UserMaxCount int           // 每个用户最大最近会话数量 默认为500
 	}
 
-	Proto wkproto.Protocol // 狸猫IM protocol
+	Proto wkproto.Protocol // 悟空IM protocol
 
 	Version string
 
 	UnitTest       bool // 是否开启单元测试
 	HandlePoolSize int
 
-	ConnIdleTime    time.Duration // ping的间隔
+	ConnIdleTime    time.Duration // 连接空闲时间 超过此时间没数据传输将关闭
 	TimingWheelTick time.Duration // The time-round training interval must be 1ms or more
 	TimingWheelSize int64         // Time wheel size
 
@@ -246,15 +246,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	o.UserMsgQueueMaxSize = o.getInt("userMsgQueueMaxSize", o.UserMsgQueueMaxSize)
 
-	if o.isSet("tokenAuthOn") {
-		o.TokenAuthOn = o.getBool("tokenAuthOn", o.TokenAuthOn)
-	} else {
-		if o.Mode == DebugMode {
-			o.TokenAuthOn = false
-		} else {
-			o.TokenAuthOn = true
-		}
-	}
+	o.TokenAuthOn = o.getBool("tokenAuthOn", o.TokenAuthOn)
 
 	o.UnitTest = o.vp.GetBool("unitTest")
 

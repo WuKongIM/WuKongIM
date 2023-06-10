@@ -16,6 +16,8 @@ type Engine struct {
 	eventHandler  *EventHandler
 	reactorMain   *ReactorMain
 	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
+
+	defaultConnPool *sync.Pool
 }
 
 func NewEngine(opts ...Option) *Engine {
@@ -33,19 +35,24 @@ func NewEngine(opts ...Option) *Engine {
 		connsUnix:    make([]Conn, options.MaxOpenFiles),
 		options:      options,
 		eventHandler: NewEventHandler(),
-		timingWheel:  timingwheel.NewTimingWheel(time.Millisecond*500, 10000),
+		timingWheel:  timingwheel.NewTimingWheel(time.Millisecond*10, 1000),
+		defaultConnPool: &sync.Pool{
+			New: func() any {
+				return &DefaultConn{}
+			},
+		},
 	}
 	eg.reactorMain = NewReactorMain(eg)
 	return eg
 }
 
 func (e *Engine) Start() error {
-
+	e.timingWheel.Start()
 	return e.reactorMain.Start()
 }
 
 func (e *Engine) Stop() error {
-
+	e.timingWheel.Stop()
 	return e.reactorMain.Stop()
 }
 
@@ -92,6 +99,13 @@ func (e *Engine) ConnCount() int {
 	return count
 }
 
+// Schedule 延迟任务
+func (e *Engine) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
+	return e.timingWheel.ScheduleFunc(&everyScheduler{
+		Interval: interval,
+	}, f)
+}
+
 func (e *Engine) TCPRealListenAddr() net.Addr {
 	return e.reactorMain.acceptor.listen.readAddr
 }
@@ -122,4 +136,12 @@ func (e *Engine) OnNewInboundConn(onNewInboundConn OnNewInboundConn) {
 
 func (e *Engine) OnNewOutboundConn(onNewOutboundConn OnNewOutboundConn) {
 	e.eventHandler.OnNewOutboundConn = onNewOutboundConn
+}
+
+type everyScheduler struct {
+	Interval time.Duration
+}
+
+func (s *everyScheduler) Next(prev time.Time) time.Time {
+	return prev.Add(s.Interval)
 }

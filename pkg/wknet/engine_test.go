@@ -66,7 +66,6 @@ func TestEngine(t *testing.T) {
 				}
 			} else if cmd == "send" {
 				go func(c Conn, p []string) {
-					fmt.Println("sendCount--->", c.UID(), p[0])
 					assert.Equal(t, param[0], c.UID())
 					wg.Done()
 
@@ -81,7 +80,7 @@ func TestEngine(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 	for i := 0; i < clientCount; i++ {
 		uid := fmt.Sprintf("uid%d", i)
-		cli, err := net.Dial("tcp", "127.0.0.1:7677")
+		cli, err := net.Dial("tcp", e.TCPRealListenAddr().String())
 		assert.NoError(t, err)
 		_, err = cli.Write([]byte(fmt.Sprintf("auth %s\n", uid)))
 		assert.NoError(t, err)

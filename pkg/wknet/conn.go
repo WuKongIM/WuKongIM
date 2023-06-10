@@ -9,9 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/ring"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"go.uber.org/zap"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	lio "github.com/WuKongIM/WuKongIM/pkg/wknet/io"
@@ -85,6 +87,9 @@ type Conn interface {
 	LastActivity() time.Time
 	// Uptime returns the connection uptime.
 	Uptime() time.Time
+	// SetMaxIdle sets the connection max idle time.
+	// If the connection is idle for more than the specified duration, it will be closed.
+	SetMaxIdle(duration time.Duration)
 
 	InboundBuffer() InboundBuffer
 	OutboundBuffer() OutboundBuffer
@@ -119,24 +124,45 @@ type DefaultConn struct {
 
 	uptime       time.Time
 	lastActivity time.Time
+	maxIdle      time.Duration
+	idleTimer    *timingwheel.Timer
 
 	wklog.Log
 }
 
 func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 
-	defaultConn := &DefaultConn{
-		id:         id,
-		fd:         connFd,
-		remoteAddr: remoteAddr,
-		localAddr:  localAddr,
-		eg:         eg,
-		reactorSub: reactorSub,
-		closed:     false,
-		valueMap:   map[string]interface{}{},
-		uptime:     time.Now(),
-		Log:        wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id)),
-	}
+	// defaultConn := &DefaultConn{
+	// 	id:         id,
+	// 	fd:         connFd,
+	// 	remoteAddr: remoteAddr,
+	// 	localAddr:  localAddr,
+	// 	eg:         eg,
+	// 	reactorSub: reactorSub,
+	// 	closed:     false,
+	// 	valueMap:   map[string]interface{}{},
+	// 	uptime:     time.Now(),
+	// 	Log:        wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id)),
+	// }
+
+	defaultConn := eg.defaultConnPool.Get().(*DefaultConn)
+	defaultConn.id = id
+	defaultConn.fd = connFd
+	defaultConn.remoteAddr = remoteAddr
+	defaultConn.localAddr = localAddr
+	defaultConn.isWAdded = false
+	defaultConn.authed = false
+	defaultConn.closed = false
+	defaultConn.uid = ""
+	defaultConn.deviceFlag = 0
+	defaultConn.deviceLevel = 0
+	defaultConn.eg = eg
+	defaultConn.reactorSub = reactorSub
+	defaultConn.valueMap = map[string]interface{}{}
+	defaultConn.context = nil
+	defaultConn.uptime = time.Now()
+	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id))
+
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
 	if eg.options.TCPTLSConfig != nil {
@@ -146,7 +172,6 @@ func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine
 		tc.tlsconn = tlsCn
 		return tc, nil
 	}
-
 	return defaultConn, nil
 }
 
@@ -167,9 +192,13 @@ func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 	if d.overflowForInbound(n) {
 		return 0, fmt.Errorf("inbound buffer overflow, fd: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
 	}
-	d.lastActivity = time.Now()
+	d.KeepLastActivity()
 	_, err = d.inboundBuffer.Write(readBuffer[:n])
 	return n, err
+}
+
+func (d *DefaultConn) KeepLastActivity() {
+	d.lastActivity = time.Now()
 }
 
 func (d *DefaultConn) Read(buf []byte) (int, error) {
@@ -253,13 +282,16 @@ func (d *DefaultConn) SetWriteDeadline(t time.Time) error {
 
 func (d *DefaultConn) Release() {
 	d.fd = 0
-	d.closed = false
-	d.isWAdded = false
-	d.valueMap = nil
+	d.maxIdle = 0
+	if d.idleTimer != nil {
+		d.idleTimer.Stop()
+		d.idleTimer = nil
+	}
 	d.inboundBuffer.Release()
 	d.outboundBuffer.Release()
-	d.localAddr = nil
-	d.remoteAddr = nil
+
+	d.eg.defaultConnPool.Put(d)
+
 }
 
 func (d *DefaultConn) Peek(n int) ([]byte, error) {
@@ -369,6 +401,27 @@ func (d *DefaultConn) LastActivity() time.Time {
 
 func (d *DefaultConn) Uptime() time.Time {
 	return d.uptime
+}
+
+func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
+	d.maxIdle = maxIdle
+
+	if d.idleTimer != nil {
+		d.idleTimer.Stop()
+	}
+
+	if maxIdle > 0 {
+		d.idleTimer = d.eg.Schedule(maxIdle/2, func() {
+			if d.lastActivity.Add(maxIdle).After(time.Now()) {
+				return
+			}
+			d.Debug("max idle time exceeded, close the connection", zap.Duration("maxIdle", maxIdle), zap.Duration("lastActivity", time.Since(d.lastActivity)), zap.String("conn", d.String()))
+			if d.IsClosed() {
+				return
+			}
+			d.Close()
+		})
+	}
 }
 
 func (d *DefaultConn) flush() error {
@@ -500,7 +553,7 @@ func (t *TLSConn) ReadToInboundBuffer() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	t.d.lastActivity = time.Now()
+	t.d.KeepLastActivity()
 
 	for {
 		tlsN, err := t.tlsconn.Read(readBuffer)
@@ -683,6 +736,10 @@ func (t *TLSConn) Uptime() time.Time {
 
 func (t *TLSConn) WriteToOutboundBuffer(b []byte) (int, error) {
 	return t.d.outboundBuffer.Write(b)
+}
+
+func (t *TLSConn) SetMaxIdle(maxIdle time.Duration) {
+	t.d.SetMaxIdle(maxIdle)
 }
 
 type eofBuff struct {
