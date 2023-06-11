@@ -2,7 +2,6 @@ package wknet
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 
@@ -86,8 +85,7 @@ func (r *ReactorSub) run() {
 		}
 		switch event {
 		case netpoll.PollEventClose:
-			err = conn.Close()
-			r.closeConn(conn, unix.ECONNRESET)
+			r.CloseConn(conn, unix.ECONNRESET)
 		case netpoll.PollEventRead:
 			err = r.read(conn)
 		case netpoll.PollEventWrite:
@@ -102,30 +100,7 @@ func (r *ReactorSub) run() {
 }
 
 func (r *ReactorSub) CloseConn(c Conn, er error) (rerr error) {
-	fmt.Println("CloseConn------>")
-	err0 := r.poller.Delete(c.Fd())
-	if err0 != nil {
-		rerr = fmt.Errorf("failed to delete fd=%d from poller in subReactor(%d): %v", c.Fd(), r.idx, err0)
-	}
-	err1 := c.Close()
-	if err1 != nil {
-		err1 = fmt.Errorf("failed to close fd=%d in event-loop(%d): %v", c.Fd(), r.idx, os.NewSyscallError("close", err1))
-		if rerr != nil {
-			rerr = errors.New(rerr.Error() + " & " + err1.Error())
-		} else {
-			rerr = err1
-		}
-	}
-	r.closeConn(c, er)
-	return
-}
-
-func (r *ReactorSub) closeConn(c Conn, er error) {
-	r.eg.RemoveConn(c)               // remove from the engine
-	r.connCount.Dec()                // decrease the connection count
-	r.eg.eventHandler.OnClose(c, er) // call the close handler
-	c.Release()                      // release the connection
-
+	return c.Close()
 }
 
 func (r *ReactorSub) read(c Conn) error {

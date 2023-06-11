@@ -54,7 +54,9 @@ func (c *ConnManager) RemoveConnWithID(id int64) {
 	defer c.Unlock()
 	conn := c.s.dispatch.engine.GetConn(c.connMap[id])
 	delete(c.connMap, id)
-
+	if conn == nil {
+		return
+	}
 	connIDs := c.userConnMap[conn.UID()]
 	if len(connIDs) > 0 {
 		for index, connID := range connIDs {

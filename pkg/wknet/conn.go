@@ -63,8 +63,6 @@ type Conn interface {
 	IsClosed() bool
 	// Close closes the connection.
 	Close() error
-	// Release releases the connection.
-	Release()
 	// RemoteAddr returns the remote network address.
 	RemoteAddr() net.Addr
 	// LocalAddr returns the local network address.
@@ -130,21 +128,7 @@ type DefaultConn struct {
 	wklog.Log
 }
 
-func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
-
-	// defaultConn := &DefaultConn{
-	// 	id:         id,
-	// 	fd:         connFd,
-	// 	remoteAddr: remoteAddr,
-	// 	localAddr:  localAddr,
-	// 	eg:         eg,
-	// 	reactorSub: reactorSub,
-	// 	closed:     false,
-	// 	valueMap:   map[string]interface{}{},
-	// 	uptime:     time.Now(),
-	// 	Log:        wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id)),
-	// }
-
+func GetDefaultConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) *DefaultConn {
 	defaultConn := eg.defaultConnPool.Get().(*DefaultConn)
 	defaultConn.id = id
 	defaultConn.fd = connFd
@@ -165,8 +149,27 @@ func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine
 
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
-	if eg.options.TCPTLSConfig != nil {
 
+	return defaultConn
+}
+
+func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+
+	// defaultConn := &DefaultConn{
+	// 	id:         id,
+	// 	fd:         connFd,
+	// 	remoteAddr: remoteAddr,
+	// 	localAddr:  localAddr,
+	// 	eg:         eg,
+	// 	reactorSub: reactorSub,
+	// 	closed:     false,
+	// 	valueMap:   map[string]interface{}{},
+	// 	uptime:     time.Now(),
+	// 	Log:        wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id)),
+	// }
+
+	defaultConn := GetDefaultConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
+	if eg.options.TCPTLSConfig != nil {
 		tc := newTLSConn(defaultConn)
 		tlsCn := tls.Server(tc, eg.options.TCPTLSConfig)
 		tc.tlsconn = tlsCn
@@ -253,7 +256,18 @@ func (d *DefaultConn) Close() error {
 		return nil
 	}
 	d.closed = true
-	return syscall.Close(d.fd)
+
+	err := d.reactorSub.poller.Delete(d.fd)
+	if err != nil {
+		d.Error("delete fd from poller error", zap.Error(err))
+	}
+	_ = syscall.Close(d.fd)
+	d.eg.RemoveConn(d)           // remove from the engine
+	d.reactorSub.connCount.Dec() // decrease the connection count
+	d.eg.eventHandler.OnClose(d) // call the close handler
+	d.release()
+
+	return nil
 }
 
 func (d *DefaultConn) RemoteAddr() net.Addr {
@@ -280,7 +294,7 @@ func (d *DefaultConn) SetWriteDeadline(t time.Time) error {
 	return ErrUnsupportedOp
 }
 
-func (d *DefaultConn) Release() {
+func (d *DefaultConn) release() {
 	d.fd = 0
 	d.maxIdle = 0
 	if d.idleTimer != nil {
@@ -416,6 +430,7 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 				return
 			}
 			d.Debug("max idle time exceeded, close the connection", zap.Duration("maxIdle", maxIdle), zap.Duration("lastActivity", time.Since(d.lastActivity)), zap.String("conn", d.String()))
+			d.idleTimer.Stop()
 			if d.IsClosed() {
 				return
 			}
@@ -632,6 +647,7 @@ func (t *TLSConn) SetWriteDeadline(tim time.Time) error {
 }
 
 func (t *TLSConn) Close() error {
+	t.tmpInboundBuffer.Release()
 	return t.d.Close()
 }
 
@@ -712,10 +728,6 @@ func (t *TLSConn) SetProtoVersion(version int) {
 
 func (t *TLSConn) ReactorSub() *ReactorSub {
 	return t.d.ReactorSub()
-}
-
-func (t *TLSConn) Release() {
-	t.d.Release()
 }
 
 func (t *TLSConn) Flush() error {
