@@ -498,8 +498,8 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 }
 
 // #################### process conn close ####################
-func (p *Processor) processClose(conn wknet.Conn, err error) {
-	p.Debug("conn is close", zap.Error(err), zap.Any("conn", conn))
+func (p *Processor) processClose(conn wknet.Conn) {
+	p.Debug("conn is close", zap.Any("conn", conn))
 	if conn.Context() != nil {
 		p.s.connManager.RemoveConn(conn)
 		connCtx := conn.Context().(*connContext)

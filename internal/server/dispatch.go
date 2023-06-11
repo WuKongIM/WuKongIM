@@ -131,9 +131,10 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 
 }
 
-func (d *Dispatch) connClose(conn wknet.Conn, err error) {
+func (d *Dispatch) connClose(conn wknet.Conn) {
+	d.Debug("conn close for OnClose", zap.Any("conn", conn))
 	d.s.connManager.RemoveConn(conn)
-	d.processor.processClose(conn, err)
+	d.processor.processClose(conn)
 }
 
 func (d *Dispatch) Start() error {

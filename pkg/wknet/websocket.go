@@ -5,32 +5,16 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"golang.org/x/sys/unix"
 )
 
 func CreateWSConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
-	defaultConn := &DefaultConn{
-		id:         id,
-		fd:         connFd,
-		remoteAddr: remoteAddr,
-		localAddr:  localAddr,
-		eg:         eg,
-		reactorSub: reactorSub,
-		closed:     false,
-		valueMap:   map[string]interface{}{},
-		uptime:     time.Now(),
-		Log:        wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id)),
-	}
-	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
-	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
-
+	defaultConn := GetDefaultConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
 	if eg.options.WSTLSConfig != nil {
 		tc := newTLSConn(defaultConn)
 		tlsCn := tls.Server(tc, eg.options.WSTLSConfig)
@@ -187,9 +171,9 @@ func (w *WSConn) DiscardFromTemp(n int) {
 	w.tmpInboundBuffer.Discard(n)
 }
 
-func (w *WSConn) Release() {
-	w.DefaultConn.Release()
+func (w *WSConn) Close() error {
 	w.tmpInboundBuffer.Release()
+	return w.DefaultConn.Close()
 }
 
 type readWrite struct {
@@ -322,6 +306,12 @@ func (w *WSSConn) unpacketWSData() error {
 		}
 	}
 	return nil
+}
+
+func (w *WSSConn) Close() error {
+	w.upgraded = false
+	w.wsTmpInboundBuffer.Release()
+	return w.TLSConn.Close()
 }
 
 func (w *WSSConn) decode() ([]wsutil.Message, error) {

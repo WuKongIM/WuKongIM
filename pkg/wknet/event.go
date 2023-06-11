@@ -4,7 +4,7 @@ import "net"
 
 type OnConnect func(conn Conn) error
 type OnData func(conn Conn) error
-type OnClose func(conn Conn, err error)
+type OnClose func(conn Conn)
 type OnNewConn func(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error)
 type OnNewInboundConn func(conn Conn, eg *Engine) InboundBuffer
 type OnNewOutboundConn func(conn Conn, eg *Engine) OutboundBuffer
@@ -15,7 +15,7 @@ type EventHandler struct {
 	// OnData is called when a data is received.
 	OnData func(conn Conn) error
 	// OnClose is called when a connection is closed.
-	OnClose func(conn Conn, err error)
+	OnClose func(conn Conn)
 	// OnNewConn is called when a new connection is established.
 	OnNewConn OnNewConn
 	// OnNewWSConn is called when a new websocket connection is established.
@@ -30,7 +30,7 @@ func NewEventHandler() *EventHandler {
 	return &EventHandler{
 		OnConnect: func(conn Conn) error { return nil },
 		OnData:    func(conn Conn) error { return nil },
-		OnClose:   func(conn Conn, err error) {},
+		OnClose:   func(conn Conn) {},
 		OnNewConn: func(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 			return CreateConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
 		},
