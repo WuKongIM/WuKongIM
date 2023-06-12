@@ -68,13 +68,13 @@
 
 ```
 
-docker run -d -p 5000:5000 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ~/wukongim:/root/wukongim  wukongim/wukongim:latest
+docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ~/wukongim:/root/wukongim  wukongim/wukongim:latest
 
 ```
 
 `WK_EXTERNAL_IP：为服务器外网IP，用于客户端连接，如果仅测试，客户端和服务器都在一个局域网内，这里可以填部署服务器的局域网IP`
 
-查看服务器信息： http://127.0.0.1:5000/varz
+查看服务器信息： http://127.0.0.1:5001/varz
 
 
 客户端演示地址：http://imdemo.githubim.com
