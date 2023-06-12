@@ -35,7 +35,7 @@ type Options struct {
 	vp       *viper.Viper // 内部配置对象
 	ID       int64        // 节点ID
 	Mode     Mode         // 模式 debug 测试 release 正式 bench 压力测试
-	HTTPAddr string       // http api的监听地址 默认为 0.0.0.0:5000
+	HTTPAddr string       // http api的监听地址 默认为 0.0.0.0:5001
 	Addr     string       // tcp监听地址 例如：tcp://0.0.0.0:5100
 	RootDir  string       // 根目录
 	DataDir  string       // 数据目录
@@ -139,7 +139,7 @@ func NewOptions() *Options {
 			Level:   zapcore.InfoLevel,
 			LineNum: false,
 		},
-		HTTPAddr:            "0.0.0.0:5000",
+		HTTPAddr:            "0.0.0.0:5001",
 		Addr:                "tcp://0.0.0.0:5100",
 		WSAddr:              "ws://0.0.0.0:5200",
 		ConnIdleTime:        time.Minute * 3,

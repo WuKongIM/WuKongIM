@@ -58,12 +58,12 @@ Quick Start
 ---------------
 
 ```
-docker run -d -p 5000:5000 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx --name wukongim -v ~/wukongim:/root/wukongim wukongim/wukongim:latest
+docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx --name wukongim -v ~/wukongim:/root/wukongim wukongim/wukongim:latest
 ```
 
 `WK_EXTERNAL_IP: The external IP address of the server used for client connections. If testing only and the client and server are on the same LAN, the LAN IP address of the deployed server can be used here.`
 
-View server information: http://127.0.0.1:5000/varz
+View server information: http://127.0.0.1:5001/varz
 
 Demo: http://imdemo.githubim.com
 
