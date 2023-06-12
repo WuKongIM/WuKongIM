@@ -4,6 +4,8 @@ WuKongIM is a high-performance universal communication service that supports var
 
 (Note: This project is a general underlying instant messaging service. The upper layer needs to dock with its own specific business system (which can be easily docked with its own business system through the webhook and datasource mechanism). The core of this project mainly maintains a large number of long connections of clients and delivers messages according to the message rules of third-party business systems.)
 
+`This project needs to be compiled in a go1.20.0 or higher version.`
+
 [中文文档](./README_CN.md)
 
 <p align="center">
