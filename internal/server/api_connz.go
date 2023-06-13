@@ -69,7 +69,7 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 	connInfos := make([]*ConnInfo, 0, len(resultConns))
 
 	for _, resultConn := range resultConns {
-		if !resultConn.IsAuthed() {
+		if resultConn == nil || !resultConn.IsAuthed() {
 			continue
 		}
 		connInfos = append(connInfos, newConnInfo(resultConn))
@@ -80,6 +80,7 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		Now:         time.Now(),
 		Total:       len(conns),
 		Offset:      offset,
+		Limit:       limit,
 	})
 }
 

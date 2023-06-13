@@ -2,6 +2,7 @@ package server
 
 import (
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
@@ -131,7 +132,12 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 
 }
 
-func (d *Dispatch) connClose(conn wknet.Conn) {
+func (d *Dispatch) onConnect(conn wknet.Conn) error {
+	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
+	return nil
+}
+
+func (d *Dispatch) onConnClose(conn wknet.Conn) {
 	d.Debug("conn close for OnClose", zap.Any("conn", conn))
 	d.s.connManager.RemoveConn(conn)
 	d.processor.processClose(conn)
@@ -139,8 +145,9 @@ func (d *Dispatch) connClose(conn wknet.Conn) {
 
 func (d *Dispatch) Start() error {
 
+	d.engine.OnConnect(d.onConnect)
 	d.engine.OnData(d.dataIn)
-	d.engine.OnClose(d.connClose)
+	d.engine.OnClose(d.onConnClose)
 
 	err := d.engine.Start()
 	if err != nil {
