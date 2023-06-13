@@ -53,9 +53,6 @@ func initConfig() {
 	// 初始化服务配置
 	serverOpts.ConfigureWithViper(vp)
 	vp.BindPFlags(rootCmd.Flags())
-
-	vp.Debug()
-
 }
 
 func initServer() {
