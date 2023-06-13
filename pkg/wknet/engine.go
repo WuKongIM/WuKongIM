@@ -17,8 +17,7 @@ type Engine struct {
 	reactorMain   *ReactorMain
 	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
 
-	defaultConnPool   *sync.Pool
-	defaultWSConnPool *sync.Pool
+	defaultConnPool *sync.Pool
 }
 
 func NewEngine(opts ...Option) *Engine {
