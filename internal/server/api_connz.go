@@ -45,12 +45,36 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 
 	sortOpt := ByID
 	if sortStr != "" {
-		sortOpt = SortOpt(sortOpt)
+		sortOpt = SortOpt(sortStr)
 	}
 
+	resultConns := co.s.GetConnInfos(sortOpt, offset, limit)
+	connInfos := make([]*ConnInfo, 0, len(resultConns))
+	for _, resultConn := range resultConns {
+		if resultConn == nil || !resultConn.IsAuthed() {
+			continue
+		}
+		connInfos = append(connInfos, newConnInfo(resultConn))
+	}
+
+	c.JSON(http.StatusOK, Connz{
+		Connections: connInfos,
+		Now:         time.Now(),
+		Total:       len(conns),
+		Offset:      offset,
+		Limit:       limit,
+	})
+}
+
+func (s *Server) GetConnInfos(sortOpt SortOpt, offset, limit int) []wknet.Conn {
+	conns := s.dispatch.engine.GetAllConn()
 	switch sortOpt {
 	case ByID:
 		sort.Sort(byID{Conns: conns})
+	case ByInMsg:
+		sort.Sort(byInMsg{Conns: conns})
+	case ByInMsgDesc:
+		sort.Sort(byInMsgDesc{Conns: conns})
 	}
 
 	minoff := offset
@@ -66,22 +90,7 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 
 	resultConns := conns[minoff:maxoff]
 
-	connInfos := make([]*ConnInfo, 0, len(resultConns))
-
-	for _, resultConn := range resultConns {
-		if resultConn == nil || !resultConn.IsAuthed() {
-			continue
-		}
-		connInfos = append(connInfos, newConnInfo(resultConn))
-	}
-
-	c.JSON(http.StatusOK, Connz{
-		Connections: connInfos,
-		Now:         time.Now(),
-		Total:       len(conns),
-		Offset:      offset,
-		Limit:       limit,
-	})
+	return resultConns
 }
 
 type Connz struct {
@@ -166,6 +175,9 @@ type SortOpt string
 
 const (
 	ByID SortOpt = "id" // 通过连接id排序
+
+	ByInMsg     SortOpt = "inMsg"     // 通过收到消息排序
+	ByInMsgDesc SortOpt = "inMsgDesc" // 通过收到消息排序
 )
 
 type byID struct{ Conns []wknet.Conn }
@@ -174,3 +186,21 @@ func (l byID) Less(i, j int) bool { return l.Conns[i].ID() < l.Conns[j].ID() }
 
 func (l byID) Len() int      { return len(l.Conns) }
 func (l byID) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+
+type byInMsg struct{ Conns []wknet.Conn }
+
+func (l byInMsg) Less(i, j int) bool {
+	return int64(l.Conns[i].InboundBuffer().BoundBufferSize()) < int64(l.Conns[j].InboundBuffer().BoundBufferSize())
+}
+
+func (l byInMsg) Len() int      { return len(l.Conns) }
+func (l byInMsg) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+
+type byInMsgDesc struct{ Conns []wknet.Conn }
+
+func (l byInMsgDesc) Less(i, j int) bool {
+	return int64(l.Conns[i].InboundBuffer().BoundBufferSize()) > int64(l.Conns[j].InboundBuffer().BoundBufferSize())
+}
+
+func (l byInMsgDesc) Len() int      { return len(l.Conns) }
+func (l byInMsgDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }

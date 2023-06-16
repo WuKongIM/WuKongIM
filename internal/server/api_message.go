@@ -256,7 +256,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		}
 	}
 	// 将消息放入频道
-	err = channel.Put([]*Message{msg}, req.FromUID, wkproto.DeviceFlag(wkproto.DeviceLevelMaster), "system")
+	err = channel.Put([]*Message{msg}, msg.Subscribers, req.FromUID, wkproto.DeviceFlag(wkproto.DeviceLevelMaster), "system")
 	if err != nil {
 		m.Error("将消息放入频道内失败！", zap.Error(err))
 		return 0, 0, errors.New("将消息放入频道内失败！")

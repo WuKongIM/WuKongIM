@@ -77,8 +77,7 @@ func (e *Engine) GetConn(fd int) Conn {
 func (e *Engine) GetAllConn() []Conn {
 	e.connsUnixLock.RLock()
 	defer e.connsUnixLock.RUnlock()
-	conns := make([]Conn, 0, len(e.connsUnix))
-
+	conns := make([]Conn, 0, 50)
 	for _, conn := range e.connsUnix {
 		if conn != nil {
 			conns = append(conns, conn)

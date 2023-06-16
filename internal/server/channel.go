@@ -443,9 +443,9 @@ func (c *Channel) RemoveAllowlist(uids []string) {
 	}
 }
 
-func (c *Channel) Put(messages []*Message, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
+func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
 	//########## get subscribers ##########
-	subscribers, err := c.RealSubscribers(nil) // get subscribers
+	subscribers, err := c.RealSubscribers(customSubscribers) // get subscribers
 	if err != nil {
 		c.Error("获取频道失败！", zap.Error(err))
 		return err

@@ -49,9 +49,8 @@ func NewWebhook(s *Server) *Webhook {
 	if s.opts.WebhookGRPCOn() {
 		webhookGRPCPool, err = grpcpool.New(func() (*grpc.ClientConn, error) {
 			return grpc.Dial(s.opts.Webhook.GRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                5 * time.Minute, // send pings every 10 seconds if there is no activity
-				Timeout:             2 * time.Second, // wait 1 second for ping ack before considering the connection dead
-				PermitWithoutStream: true,            // send pings even without active streams
+				Time:    5 * time.Minute, // send pings every 5 minute if there is no activity
+				Timeout: 2 * time.Second, // wait 1 second for ping ack before considering the connection dead
 			}))
 		}, 2, 20, time.Minute*5) // 初始化2个连接 最多20个连接
 		if err != nil {
