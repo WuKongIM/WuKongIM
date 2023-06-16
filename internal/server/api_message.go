@@ -255,7 +255,6 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			return 0, 0, errors.New("添加消息到通知队列失败！")
 		}
 	}
-	m.s.monitor.UpstreamPacketInc()
 	// 将消息放入频道
 	err = channel.Put([]*Message{msg}, req.FromUID, wkproto.DeviceFlag(wkproto.DeviceLevelMaster), "system")
 	if err != nil {

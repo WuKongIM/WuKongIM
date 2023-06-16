@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/atomic"
 )
 
 type Prometheus struct {
@@ -25,14 +27,14 @@ type Prometheus struct {
 	// ---------------- 上行 ----------------
 	upstreamCounter               prometheus.Counter
 	upstreamPackageTrafficCounter prometheus.Counter
-	upstreamPacketCounter         prometheus.Counter
+	upstreamPacketGauge           prometheus.Gauge
 	sendPacketCounter             *prometheus.CounterVec
 	sendSystemMsgIncCounter       prometheus.Counter
 
 	// ---------------- 下行 ----------------
 	downstreamCounter               prometheus.Counter
 	downstreamPackageTrafficCounter prometheus.Counter
-	downstreamPacketCounter         prometheus.Counter
+	downstreamPacketGauge           prometheus.Gauge
 	recvPacketCounter               *prometheus.CounterVec
 
 	// ---------------- db相关 ----------------
@@ -42,6 +44,24 @@ type Prometheus struct {
 
 	conversationCacheCountGauge prometheus.Gauge // 最近会话缓存数量
 
+	stopChan chan struct{}
+
+	connNumFifo         *wkutil.FIFO
+	sample              int // 采样数量
+	upstreamPackageFifo *wkutil.FIFO
+	upstreamPackageQPS  atomic.Int64 // 上行数据包QPS
+
+	upstreamTrafficFifo *wkutil.FIFO // 上行流量
+	upstreamTrafficQPS  atomic.Int64 // 上行流量QPS
+
+	downstreamPackageFifo *wkutil.FIFO
+	downstreamPackageQPS  atomic.Int64 // 下行数据包QPS
+
+	downstreamTrafficFifo *wkutil.FIFO // 下行流量
+	downstreamTrafficQPS  atomic.Int64 // 下行流量QPS
+
+	namespace string
+	subsystem string
 }
 
 func NewPrometheus() IMonitor {
@@ -138,10 +158,10 @@ func NewPrometheus() IMonitor {
 		Help:      "数据包的上行流量",
 	})
 
-	upstreamPacketCounter := prometheus.NewCounter(prometheus.CounterOpts{
+	upstreamPacketGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
-		Name:      "upstream_package_count",
+		Name:      "upstream_package",
 		Help:      "上行数据包的数量",
 	})
 
@@ -161,7 +181,7 @@ func NewPrometheus() IMonitor {
 
 	prometheus.MustRegister(upstreamCounter)
 	prometheus.MustRegister(upstreamPackageTrafficCounter)
-	prometheus.MustRegister(upstreamPacketCounter)
+	prometheus.MustRegister(upstreamPacketGauge)
 	prometheus.MustRegister(sendPacketCounter)
 	prometheus.MustRegister(sendSystemMsgIncCounter)
 
@@ -181,10 +201,10 @@ func NewPrometheus() IMonitor {
 		Help:      "数据包的下行流量",
 	})
 
-	downstreamPacketCounter := prometheus.NewCounter(prometheus.CounterOpts{
+	downstreamPacketGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
-		Name:      "downstream_package_count",
+		Name:      "downstream_package",
 		Help:      "下行数据包的数量",
 	})
 
@@ -197,7 +217,7 @@ func NewPrometheus() IMonitor {
 
 	prometheus.MustRegister(downstreamCounter)
 	prometheus.MustRegister(downstreamPackageTrafficCounter)
-	prometheus.MustRegister(downstreamPacketCounter)
+	prometheus.MustRegister(downstreamPacketGauge)
 	prometheus.MustRegister(recvPacketCounter)
 
 	// ---------------- db ----------------
@@ -233,24 +253,38 @@ func NewPrometheus() IMonitor {
 	prometheus.MustRegister(segmentCacheGauge)
 	prometheus.MustRegister(conversationCacheCountGauge)
 
+	sample := 60
+
 	return &Prometheus{
-		connGauge:                       connGauge,
-		retryQueueMsgGauge:              retryQueueMsgGauge,
-		nodeRetryQueueMsgGauge:          nodeRetryQueueMsgGauge,
-		webhookHistogram:                webhookHistogram,
-		nodeGRPCConnPoolGaugeVec:        nodeGRPCConnPoolGaugeVec,
-		upstreamCounter:                 upstreamCounter,
-		upstreamPacketCounter:           upstreamPacketCounter,
-		upstreamPackageTrafficCounter:   upstreamPackageTrafficCounter,
+		connGauge:                connGauge,
+		retryQueueMsgGauge:       retryQueueMsgGauge,
+		nodeRetryQueueMsgGauge:   nodeRetryQueueMsgGauge,
+		webhookHistogram:         webhookHistogram,
+		nodeGRPCConnPoolGaugeVec: nodeGRPCConnPoolGaugeVec,
+
+		upstreamCounter:               upstreamCounter,
+		upstreamPacketGauge:           upstreamPacketGauge,
+		upstreamPackageTrafficCounter: upstreamPackageTrafficCounter,
+		upstreamTrafficFifo:           wkutil.NewFIFO(sample),
+
 		downstreamCounter:               downstreamCounter,
-		downstreamPacketCounter:         downstreamPacketCounter,
+		downstreamPacketGauge:           downstreamPacketGauge,
 		downstreamPackageTrafficCounter: downstreamPackageTrafficCounter,
-		tmpChannelCacheCountGauge:       tmpChannelCacheCountGauge,
-		channelCacheCountGauge:          channelCacheCountGauge,
-		sendPacketCounter:               sendPacketCounter,
-		recvPacketCounter:               recvPacketCounter,
-		onlineUserGauge:                 onlineUserGauge,
-		sendSystemMsgIncCounter:         sendSystemMsgIncCounter,
+		downstreamTrafficFifo:           wkutil.NewFIFO(sample),
+
+		tmpChannelCacheCountGauge: tmpChannelCacheCountGauge,
+		channelCacheCountGauge:    channelCacheCountGauge,
+		sendPacketCounter:         sendPacketCounter,
+		recvPacketCounter:         recvPacketCounter,
+		onlineUserGauge:           onlineUserGauge,
+		sendSystemMsgIncCounter:   sendSystemMsgIncCounter,
+		stopChan:                  make(chan struct{}),
+		connNumFifo:               wkutil.NewFIFO(sample),
+		upstreamPackageFifo:       wkutil.NewFIFO(sample),
+		downstreamPackageFifo:     wkutil.NewFIFO(sample),
+		namespace:                 namespace,
+		subsystem:                 subsystem,
+		sample:                    sample,
 		// ---------------- db -----------------
 		slotCacheGauge:              slotCacheGauge,
 		topicCacheGauge:             topicCacheGauge,
@@ -261,9 +295,48 @@ func NewPrometheus() IMonitor {
 }
 
 func (p *Prometheus) Start() {
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		for {
+			select {
+			case <-ticker.C:
+
+				// ################### 上行统计 ###################
+				//  上行包QPS统计
+				p.upstreamPackageFifo.Push(int(p.upstreamPackageQPS.Load()))
+				p.upstreamPackageQPS.Store(0)
+				// 上行流量统计
+				p.upstreamTrafficFifo.Push(int(p.upstreamTrafficQPS.Load()))
+				p.upstreamTrafficQPS.Store(0)
+				// ################### 下行QPS统计 ###################
+				// 下行包QPS统计
+				p.downstreamPackageFifo.Push(int(p.downstreamPackageQPS.Load()))
+				p.downstreamPackageQPS.Store(0)
+				// 下行流量统计
+				p.downstreamTrafficFifo.Push(int(p.downstreamTrafficQPS.Load()))
+				p.downstreamTrafficQPS.Store(0)
+
+				// ################### 其他统计 ###################
+				metrics, _ := prometheus.DefaultGatherer.Gather()
+				if len(metrics) > 0 {
+					for _, mf := range metrics {
+						name := mf.GetName()
+						if name == prometheus.BuildFQName(p.namespace, p.subsystem, "conn_count") {
+							value := int(mf.GetMetric()[0].GetGauge().GetValue())
+							p.connNumFifo.Push(value)
+						}
+					}
+				}
+			case <-p.stopChan:
+				return
+			}
+
+		}
+	}()
 }
 
 func (p *Prometheus) Stop() {
+	close(p.stopChan)
 }
 
 func (p *Prometheus) ConnInc() {
@@ -274,28 +347,48 @@ func (p *Prometheus) ConnDec() {
 	p.connGauge.Dec()
 }
 
+func (p *Prometheus) ConnNums() []int {
+
+	return p.connNumFifo.Data()
+}
+
 func (p *Prometheus) UpstreamAdd(v int) {
 	p.upstreamCounter.Add(float64(v))
 }
-func (p *Prometheus) UpstreamPackageTrafficAdd(v int) {
+func (p *Prometheus) UpstreamTrafficAdd(v int) {
+	p.upstreamTrafficQPS.Add(int64(v))
 	p.upstreamPackageTrafficCounter.Add(float64(v))
 }
 
-func (p *Prometheus) UpstreamPacketInc() {
-	p.upstreamPacketCounter.Inc()
+func (p *Prometheus) UpstreamPackageAdd(v int) {
+	p.upstreamPackageQPS.Add(int64(v))
+	p.upstreamPacketGauge.Add(float64(v))
 }
 
-func (p *Prometheus) DownstreamAdd(v int) {
-	p.downstreamCounter.Add(float64(v))
+func (p *Prometheus) UpstreamPackageSample() []int {
+	return p.upstreamPackageFifo.Data()
+}
+func (p *Prometheus) UpstreamTrafficSample() []int {
+	return p.upstreamTrafficFifo.Data()
 }
 
-func (p *Prometheus) DownstreamPackageTrafficAdd(v int) {
+func (p *Prometheus) DownstreamTrafficSample() []int {
+	return p.downstreamTrafficFifo.Data()
+}
+func (p *Prometheus) DownstreamPackageSample() []int {
+	return p.downstreamPackageFifo.Data()
+}
+
+func (p *Prometheus) DownstreamPackageAdd(v int) {
+	p.downstreamPackageQPS.Add(int64(v))
+	p.downstreamPacketGauge.Add(float64(v))
+}
+
+func (p *Prometheus) DownstreamTrafficAdd(v int) {
+	p.downstreamTrafficQPS.Add(int64(v))
 	p.downstreamPackageTrafficCounter.Add(float64(v))
 }
 
-func (p *Prometheus) DownstreamPacketInc() {
-	p.downstreamPacketCounter.Inc()
-}
 func (p *Prometheus) RetryQueueMsgInc() {
 	p.retryQueueMsgGauge.Inc()
 }

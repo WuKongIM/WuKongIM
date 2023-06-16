@@ -35,7 +35,7 @@ func NewDispatch(s *Server) *Dispatch {
 }
 
 // 数据统一入口
-func (d *Dispatch) dataIn(conn wknet.Conn) error {
+func (d *Dispatch) onData(conn wknet.Conn) error {
 	buff, err := conn.Peek(-1)
 	if err != nil {
 		return err
@@ -78,6 +78,8 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 			if frame == nil {
 				break
 			}
+			d.s.monitor.UpstreamPackageAdd(1)
+			d.s.monitor.UpstreamTrafficAdd(size)
 
 			connCtx := conn.Context().(*connContext)
 			connCtx.inBytes.Add(int64(len(data)))
@@ -97,7 +99,7 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
 	}
-
+	d.s.monitor.DownstreamPackageAdd(len(frames))
 	connCtx, hasConnCtx := conn.Context().(*connContext)
 	if hasConnCtx {
 		connCtx.outMsgs.Add(int64(len(frames)))
@@ -108,6 +110,7 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 		if err != nil {
 			d.Warn("Failed to encode the message", zap.Error(err))
 		} else {
+			d.s.monitor.DownstreamTrafficAdd(len(data))
 			if hasConnCtx {
 				connCtx.outBytes.Add(int64(len(data)))
 			}
@@ -134,20 +137,22 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 
 func (d *Dispatch) onConnect(conn wknet.Conn) error {
 	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
+	d.s.monitor.ConnInc()
 	return nil
 }
 
-func (d *Dispatch) onConnClose(conn wknet.Conn) {
+func (d *Dispatch) onClose(conn wknet.Conn) {
 	d.Debug("conn close for OnClose", zap.Any("conn", conn))
 	d.s.connManager.RemoveConn(conn)
 	d.processor.processClose(conn)
+	d.s.monitor.ConnDec()
 }
 
 func (d *Dispatch) Start() error {
 
 	d.engine.OnConnect(d.onConnect)
-	d.engine.OnData(d.dataIn)
-	d.engine.OnClose(d.onConnClose)
+	d.engine.OnData(d.onData)
+	d.engine.OnClose(d.onClose)
 
 	err := d.engine.Start()
 	if err != nil {

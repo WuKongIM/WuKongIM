@@ -43,9 +43,7 @@ func (c *connContext) putFrame(frame wkproto.Frame) {
 	defer c.frameCacheLock.Unlock()
 
 	c.inflightCount++
-
 	c.inMsgs.Add(1)
-
 	c.frameCaches = append(c.frameCaches, frame)
 	if c.s.opts.UserMsgQueueMaxSize > 0 && int(c.inflightCount) > c.s.opts.UserMsgQueueMaxSize {
 		c.disableRead()
