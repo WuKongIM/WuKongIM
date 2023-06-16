@@ -561,31 +561,14 @@ func (p *Processor) process(conn wknet.Conn) {
 
 }
 
+// 处理相同的frame
 func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
 
 	p.sameFrames(frames, func(s, e int, frs []wkproto.Frame) {
-		// newFs := make([]wkproto.Frame, len(frs))
-		// copy(newFs, frs)
-		// for _, frame := range frames {
-		// 	go func(f wkproto.Frame, c wknet.Conn) {
-		// 		sp, ok := f.(*wkproto.SendPacket)
-		// 		if ok {
-		// 			payloadStr := fmt.Sprintf("%s@%s-%s", c.UID(), c.Value(aesKeyKey), c.Value(aesIVKey))
-		// 			if payloadStr != string(sp.Payload) {
-		// 				fmt.Println("payloadStr2222---->", payloadStr, string(sp.Payload))
-		// 				panic("")
-		// 			}
-		// 		}
-		// 	}(frame, conn)
-		// }
+
 		p.frameWorkPool.Submit(func() {
 			p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
 		})
-
-		// p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
-
-		// p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
-
 	})
 
 }

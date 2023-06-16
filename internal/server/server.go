@@ -78,6 +78,8 @@ func New(opts *Options) *Server {
 		err := m.Decode(msg)
 		return m, err
 	}
+
+	monitor.SetMonitorOn(opts.Monitor.On) // 监控开关
 	s.store = wkstore.NewFileStore(storeCfg)
 
 	s.apiServer = NewAPIServer(s)

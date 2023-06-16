@@ -35,33 +35,29 @@ type IMonitor interface {
 	Monitor(c *wkhttp.Context) // 暴露监控接口
 	ConnInc()                  // 连接数量递增
 	ConnDec()                  // 连接数递减
+	ConnNums() []int           // 一定周期的连接数
 
-	RetryQueueMsgInc()          // 重试队列消息递增
-	RetryQueueMsgDec()          // 重试队列消息递减
-	NodeRetryQueueMsgInc()      // 节点消息重试队列递增
-	NodeRetryQueueMsgDec()      // 节点消息重试队列递减
-	NodeRetryQueueMsgSet(v int) // 节点消息重试队列设置
-
-	NodeGRPCConnPoolInc(addr string)        // 节点之间grpc连接池的连接递增
-	NodeGRPCConnPoolDec(addr string)        // 节点之间gprc连接池的连接递减
-	NodeGRPCConnPoolSet(addr string, v int) // 节点之间的grpc连接池的连接数设置
+	RetryQueueMsgInc() // 重试队列消息递增
+	RetryQueueMsgDec() // 重试队列消息递减
 
 	WebhookObserve(event string, v time.Duration) // webhook耗时记录
 
 	// ---------- 上行 ----------
-	UpstreamAdd(v int)               // 上行流量监控
-	UpstreamPackageTrafficAdd(v int) // 上行数据包流量
-	UpstreamPacketInc()              // 上行数据包数量
+	UpstreamTrafficSample() []int
+	UpstreamPackageSample() []int // 上行包数
+	UpstreamPackageAdd(v int)     // 上行包
+	UpstreamTrafficAdd(v int)     // 上行数据包流量
 
 	SendSystemMsgInc() // 系统消息递增
 
 	SendPacketInc(persist bool) // 发送包递增
 
 	// ---------- 下行 ----------
-	DownstreamAdd(v int)               // 下线流量
-	DownstreamPackageTrafficAdd(v int) // 下行数据包流量
-	DownstreamPacketInc()              // 下行数据包数量
-	RecvPacketInc(persist bool)        // 接受包递增
+	DownstreamTrafficSample() []int
+	DownstreamPackageSample() []int // 下行包数
+	DownstreamPackageAdd(v int)     // 下线包
+	DownstreamTrafficAdd(v int)     // 下行数据包流量
+	RecvPacketInc(persist bool)     // 接受包递增
 
 	// ---------- db相关 ----------
 	SlotCacheInc()
@@ -92,6 +88,8 @@ func (m *monitorEmpty) Monitor(c *wkhttp.Context) {}
 func (m *monitorEmpty) ConnInc()                  {}
 func (m *monitorEmpty) ConnDec()                  {}
 
+func (m *monitorEmpty) ConnNums() []int { return nil }
+
 func (m *monitorEmpty) RetryQueueMsgInc() {}
 func (m *monitorEmpty) RetryQueueMsgDec() {}
 
@@ -106,14 +104,16 @@ func (m *monitorEmpty) NodeRetryQueueMsgDec()      {}
 func (m *monitorEmpty) NodeRetryQueueMsgSet(v int) {}
 
 // ---------- 上行 ----------
-func (m *monitorEmpty) UpstreamAdd(v int)               {}
-func (m *monitorEmpty) UpstreamPackageTrafficAdd(v int) {}
-func (m *monitorEmpty) UpstreamPacketInc()              {}
+func (m *monitorEmpty) UpstreamTrafficSample() []int { return nil }
+func (m *monitorEmpty) UpstreamTrafficAdd(v int)     {}
+func (m *monitorEmpty) UpstreamPackageAdd(v int)     {}
+func (m *monitorEmpty) UpstreamPackageSample() []int { return nil }
 
 // ---------- 下行 ----------
-func (m *monitorEmpty) DownstreamAdd(v int)               {}
-func (m *monitorEmpty) DownstreamPackageTrafficAdd(v int) {}
-func (m *monitorEmpty) DownstreamPacketInc()              {}
+func (m *monitorEmpty) DownstreamTrafficSample() []int { return nil }
+func (m *monitorEmpty) DownstreamPackageSample() []int { return nil }
+func (m *monitorEmpty) DownstreamPackageAdd(v int)     {}
+func (m *monitorEmpty) DownstreamTrafficAdd(v int)     {}
 
 // ---------- db ----------
 
