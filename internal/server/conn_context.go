@@ -75,6 +75,7 @@ func (c *connContext) disableRead() {
 	if c.isDisableRead {
 		return
 	}
+	c.s.slowClients.Add(1)
 	c.isDisableRead = true
 	c.Info("流量限制开始!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()), zap.Int("fd", c.conn.Fd()))
 	c.conn.ReactorSub().RemoveRead(c.conn.Fd())
@@ -86,6 +87,7 @@ func (c *connContext) enableRead() {
 	if !c.isDisableRead {
 		return
 	}
+	c.s.slowClients.Sub(1)
 	c.isDisableRead = false
 	c.Info("流量限制解除!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()), zap.Int("fd", c.conn.Fd()))
 	c.conn.ReactorSub().AddRead(c.conn.Fd())

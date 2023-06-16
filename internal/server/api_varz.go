@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/pse"
@@ -31,6 +32,13 @@ func (v *VarzAPI) Route(r *wkhttp.WKHttp) {
 
 func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 
+	show := c.Query("show")
+	connLimit, _ := strconv.Atoi(c.Query("conn_limit"))
+
+	if connLimit == 0 {
+		connLimit = 20
+	}
+
 	var rss, vss int64 // rss内存 vss虚拟内存
 	var pcpu float64   // cpu
 
@@ -38,6 +46,18 @@ func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 	pse.ProcUsage(&pcpu, &rss, &vss)
 
 	varz := v.createVarz(pcpu, rss)
+
+	if show == "conn" {
+		resultConns := v.s.GetConnInfos(ByInMsgDesc, 0, connLimit)
+		connInfos := make([]*ConnInfo, 0, len(resultConns))
+		for _, resultConn := range resultConns {
+			if resultConn == nil || !resultConn.IsAuthed() {
+				continue
+			}
+			connInfos = append(connInfos, newConnInfo(resultConn))
+		}
+		varz.Conns = connInfos
+	}
 
 	c.JSON(http.StatusOK, varz)
 }
@@ -47,18 +67,18 @@ func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
 	opts := s.opts
 	connCount := v.s.dispatch.engine.ConnCount()
 	return &Varz{
-		ServerID:      fmt.Sprintf("%d", opts.ID),
-		ServerName:    "WuKongIM",
-		Version:       version.Version,
-		Connections:   connCount,
-		Uptime:        myUptime(time.Since(v.s.start)),
-		CPU:           pcpu,
-		Mem:           rss,
-		InMsgs:        s.inMsgs.Load(),
-		OutMsgs:       s.outMsgs.Load(),
-		InBytes:       s.inBytes.Load(),
-		OutBytes:      s.outBytes.Load(),
-		SlowConsumers: s.slowClients.Load(),
+		ServerID:    fmt.Sprintf("%d", opts.ID),
+		ServerName:  "WuKongIM",
+		Version:     version.Version,
+		Connections: connCount,
+		Uptime:      myUptime(time.Since(v.s.start)),
+		CPU:         pcpu,
+		Mem:         rss,
+		InMsgs:      s.inMsgs.Load(),
+		OutMsgs:     s.outMsgs.Load(),
+		InBytes:     s.inBytes.Load(),
+		OutBytes:    s.outBytes.Load(),
+		SlowClients: s.slowClients.Load(),
 
 		TCPAddr:     opts.External.TCPAddr,
 		WSAddr:      opts.External.WSSAddr,
@@ -79,11 +99,11 @@ type Varz struct {
 	Mem         int64   `json:"mem"`         // 内存
 	CPU         float64 `json:"cpu"`         // cpu
 
-	InMsgs        int64 `json:"in_msgs"`        // 流入消息数量
-	OutMsgs       int64 `json:"out_msgs"`       // 流出消息数量
-	InBytes       int64 `json:"in_bytes"`       // 流入字节数量
-	OutBytes      int64 `json:"out_bytes"`      // 流出字节数量
-	SlowConsumers int64 `json:"slow_consumers"` // 慢客户端数量
+	InMsgs      int64 `json:"in_msgs"`      // 流入消息数量
+	OutMsgs     int64 `json:"out_msgs"`     // 流出消息数量
+	InBytes     int64 `json:"in_bytes"`     // 流入字节数量
+	OutBytes    int64 `json:"out_bytes"`    // 流出字节数量
+	SlowClients int64 `json:"slow_clients"` // 慢客户端数量
 
 	//
 	TCPAddr     string `json:"tcp_addr"`     // tcp地址
@@ -93,5 +113,7 @@ type Varz struct {
 	Commit      string `json:"commit"`       // git commit id
 	CommitDate  string `json:"commit_date"`  // git commit date
 	TreeState   string `json:"tree_state"`   // git tree state
+
+	Conns []*ConnInfo `json:"conns,omitempty"` // 连接信息
 
 }

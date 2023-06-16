@@ -78,9 +78,14 @@ func (d *Dispatch) onData(conn wknet.Conn) error {
 			if frame == nil {
 				break
 			}
+
+			// 统计
 			d.s.monitor.UpstreamPackageAdd(1)
 			d.s.monitor.UpstreamTrafficAdd(size)
+			d.s.stats.inMsgs.Add(1)
+			d.s.stats.inBytes.Add(int64(size))
 
+			// context
 			connCtx := conn.Context().(*connContext)
 			connCtx.inBytes.Add(int64(len(data)))
 			connCtx.putFrame(frame)
@@ -99,7 +104,11 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
 	}
+
+	// 统计
 	d.s.monitor.DownstreamPackageAdd(len(frames))
+	d.s.outMsgs.Add(int64(len(frames)))
+
 	connCtx, hasConnCtx := conn.Context().(*connContext)
 	if hasConnCtx {
 		connCtx.outMsgs.Add(int64(len(frames)))
@@ -110,9 +119,13 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 		if err != nil {
 			d.Warn("Failed to encode the message", zap.Error(err))
 		} else {
-			d.s.monitor.DownstreamTrafficAdd(len(data))
+			// 统计
+			dataLen := len(data)
+			d.s.monitor.DownstreamTrafficAdd(dataLen)
+			d.s.outBytes.Add(int64(dataLen))
+
 			if hasConnCtx {
-				connCtx.outBytes.Add(int64(len(data)))
+				connCtx.outBytes.Add(int64(dataLen))
 			}
 
 			wsConn, ok := conn.(*wknet.WSConn) // websocket连接

@@ -334,7 +334,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	}
 
 	//########## message put to channel ##########
-	err = channel.Put(messages, conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.DeviceID())
+	err = channel.Put(messages, nil, conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.DeviceID())
 	if err != nil {
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 	}

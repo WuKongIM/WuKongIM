@@ -22,6 +22,10 @@ func NewMonitorAPI(s *Server) *MonitorAPI {
 
 // Route 用户相关路由配置
 func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
+
+	NewVarzAPI(m.s).Route(r)
+	NewConnzAPI(m.s).Route(r)
+
 	r.GET("/metrics", m.s.monitor.Monitor)
 
 	r.GET("/chart/realtime", m.realtime)
