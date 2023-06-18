@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import APIClient from '@/services/APIClient';
-import { ChannelInfo, newChannelInfo } from '@/services/Model';
+import { ChannelInfo, channelTypeToString, newChannelInfo } from '@/services/Model';
 import { ref } from 'vue';
 
 const channelInfos = ref<Array<ChannelInfo>>([])
@@ -74,7 +74,7 @@ const onSearch = () => {
                         </tr>
                         <tr v-for="channelInfo in channelInfos">
                             <td>{{ channelInfo.channelID }}</td>
-                            <td>{{ channelInfo.channelType }}</td>
+                            <td>{{ channelTypeToString(channelInfo.channelType) }}</td>
                             <td>{{ channelInfo.subscribers }}</td>
                             <td>{{ channelInfo.denyList || '无' }}</td>
                             <td>{{ channelInfo.allowList || '无' }}</td>

@@ -190,3 +190,25 @@ export const newConversationPage = (conversationPageObj: any) => {
     conversationPage.conversations = conversationPageObj.conversations.map((conversationObj: any) => newConversation(conversationObj))
     return conversationPage
 }
+
+export const channelTypeToString = (channelType: number) => {
+    if(channelType == 1) {
+        return "个人频道"
+    }
+    if(channelType == 2) {
+        return "群组频道"
+    }
+    if(channelType == 3) {
+        return "客服频道"
+    }
+    if (channelType == 4) {
+        return "社区频道"
+    }
+    if(channelType == 5) {
+        return "社区话题频道"
+    }
+    if(channelType == 6) {
+        return "资讯频道"
+    }
+    return `${channelType}`
+}

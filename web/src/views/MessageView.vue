@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import APIClient from '@/services/APIClient';
-import { newMessage, type Message, MessagePage, newMessagePage } from '@/services/Model';
+import { newMessage, type Message, MessagePage, newMessagePage, channelTypeToString } from '@/services/Model';
 import { ref } from 'vue';
 import { Buffer } from 'buffer';
 
@@ -105,7 +105,7 @@ const onNextPage = () => {
                                 <td>{{ message.clientMsgNo }}</td>
                                 <td>{{ message.fromUID }}</td>
                                 <td>{{ message.channelID }}</td>
-                                <td>{{ message.channelType }}</td>
+                                <td>{{ channelTypeToString(message.channelType) }}</td>
                                 <td>{{ message.timestamp }}</td>
                             </tr>
                         </tbody>
