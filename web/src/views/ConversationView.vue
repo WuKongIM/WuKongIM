@@ -56,7 +56,7 @@ const onSearch = () => {
                     </thead>
                     <tbody>
                         <tr v-if="conversationPage&&!conversationPage.on" >
-                            <div class="w-full  absolute text-center p-10">最近会话未开启</div>
+                            <div class="w-full  absolute text-center p-10">最近会话未开启，如果需要请在配置里打开</div>
                         </tr>
                         <tr v-if="conversationPage?.on" v-for="conversation in conversationPage?.conversations">
                             <td>{{ conversation.channelID }}</td>

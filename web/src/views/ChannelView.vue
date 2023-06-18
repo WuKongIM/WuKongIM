@@ -53,7 +53,7 @@ const onSearch = () => {
             </div>
         </div>
         <div class="pt-10">
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto min-h-[30rem]">
                 <table class="table">
                     <thead>
                         <tr>
