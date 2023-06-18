@@ -1,0 +1,6 @@
+web/dist
+web/node_modules
+.vscode
+.VSCodeCounter
+.github
+.git

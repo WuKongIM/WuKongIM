@@ -293,6 +293,19 @@ type syncUserConversationResp struct {
 	Recents         []*MessageResp `json:"recents"`            // 最近N条消息
 }
 
+func newSyncUserConversationResp(conversation *wkstore.Conversation) *syncUserConversationResp {
+
+	return &syncUserConversationResp{
+		ChannelID:       conversation.ChannelID,
+		ChannelType:     conversation.ChannelType,
+		Unread:          conversation.UnreadCount,
+		Timestamp:       conversation.Timestamp,
+		LastMsgSeq:      conversation.LastMsgSeq,
+		LastClientMsgNo: conversation.LastClientMsgNo,
+		Version:         conversation.Version,
+	}
+}
+
 type channelRecentMessageReq struct {
 	ChannelID   string `json:"channel_id"`
 	ChannelType uint8  `json:"channel_type"`

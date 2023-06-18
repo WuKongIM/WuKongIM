@@ -13,12 +13,31 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/ring"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	lio "github.com/WuKongIM/WuKongIM/pkg/wknet/io"
 	"golang.org/x/sys/unix"
 )
+
+type ConnStats struct {
+	InMsgs   *atomic.Int64 // recv msg count
+	OutMsgs  *atomic.Int64
+	InBytes  *atomic.Int64
+	OutBytes *atomic.Int64
+}
+
+func NewConnStats() *ConnStats {
+
+	return &ConnStats{
+		InMsgs:   atomic.NewInt64(0),
+		OutMsgs:  atomic.NewInt64(0),
+		InBytes:  atomic.NewInt64(0),
+		OutBytes: atomic.NewInt64(0),
+	}
+}
 
 type Conn interface {
 	// ID returns the connection id.
@@ -95,6 +114,9 @@ type Conn interface {
 	SetDeadline(t time.Time) error
 	SetReadDeadline(t time.Time) error
 	SetWriteDeadline(t time.Time) error
+
+	// ConnStats returns the connection stats.
+	ConnStats() *ConnStats
 }
 
 type DefaultConn struct {
@@ -125,6 +147,8 @@ type DefaultConn struct {
 	maxIdle      time.Duration
 	idleTimer    *timingwheel.Timer
 
+	connStats *ConnStats
+
 	wklog.Log
 }
 
@@ -146,6 +170,7 @@ func GetDefaultConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *En
 	defaultConn.context = nil
 	defaultConn.uptime = time.Now()
 	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id))
+	defaultConn.connStats = NewConnStats()
 
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
@@ -437,6 +462,10 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 			d.Close()
 		})
 	}
+}
+
+func (d *DefaultConn) ConnStats() *ConnStats {
+	return d.connStats
 }
 
 func (d *DefaultConn) flush() error {
@@ -752,6 +781,10 @@ func (t *TLSConn) WriteToOutboundBuffer(b []byte) (int, error) {
 
 func (t *TLSConn) SetMaxIdle(maxIdle time.Duration) {
 	t.d.SetMaxIdle(maxIdle)
+}
+
+func (t *TLSConn) ConnStats() *ConnStats {
+	return t.d.connStats
 }
 
 type eofBuff struct {

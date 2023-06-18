@@ -83,6 +83,11 @@ func (f *FileStoreForMsg) LoadLastMsgsWithEnd(channelID string, channelType uint
 	return messages, nil
 }
 
+func (f *FileStoreForMsg) GetLastMsgSeq(channelID string, channelType uint8) (uint32, error) {
+
+	return f.getTopic(channelID, channelType).getLastMsgSeq(), nil
+}
+
 func (f *FileStoreForMsg) LoadPrevRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]Message, error) {
 	if startMessageSeq == 0 {
 		return nil, fmt.Errorf("start messageSeq must be greater than 0")

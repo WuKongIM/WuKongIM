@@ -85,9 +85,12 @@ func (d *Dispatch) onData(conn wknet.Conn) error {
 			d.s.stats.inMsgs.Add(1)
 			d.s.stats.inBytes.Add(int64(size))
 
+			connStats := conn.ConnStats()
+			connStats.InMsgs.Add(1)
+			connStats.InBytes.Add(int64(size))
+
 			// context
 			connCtx := conn.Context().(*connContext)
-			connCtx.inBytes.Add(int64(len(data)))
 			connCtx.putFrame(frame)
 			offset += size
 		}
@@ -106,13 +109,10 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	}
 
 	// 统计
+	connStats := conn.ConnStats()
 	d.s.monitor.DownstreamPackageAdd(len(frames))
 	d.s.outMsgs.Add(int64(len(frames)))
-
-	connCtx, hasConnCtx := conn.Context().(*connContext)
-	if hasConnCtx {
-		connCtx.outMsgs.Add(int64(len(frames)))
-	}
+	connStats.OutMsgs.Add(int64(len(frames)))
 
 	for _, frame := range frames {
 		data, err := d.s.opts.Proto.EncodeFrame(frame, uint8(conn.ProtoVersion()))
@@ -123,10 +123,7 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 			dataLen := len(data)
 			d.s.monitor.DownstreamTrafficAdd(dataLen)
 			d.s.outBytes.Add(int64(dataLen))
-
-			if hasConnCtx {
-				connCtx.outBytes.Add(int64(dataLen))
-			}
+			connStats.OutBytes.Add(int64(dataLen))
 
 			wsConn, ok := conn.(*wknet.WSConn) // websocket连接
 			if ok {

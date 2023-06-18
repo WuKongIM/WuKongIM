@@ -56,6 +56,8 @@ type Store interface {
 	// 比如start=100 end=105 limit=10 则返回的消息seq为101-104的消息
 	// 结果包含start,不包含end
 	LoadNextRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
+	// GetLastMsgSeq 获取最新的消息seq
+	GetLastMsgSeq(channelID string, channelType uint8) (uint32, error)
 	// SyncMessageOfUser 同步用户队列里的消息（写扩散）
 	SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error)
 

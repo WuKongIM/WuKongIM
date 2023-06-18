@@ -59,6 +59,7 @@
 - [x] 支持Datasoure，无缝对接自己的业务系统数据源
 - [x] 支持Websocket连接
 - [x] 支持TLS 1.3
+- [x] 支持Prometheus监控
 - [ ] 监控系统开发
 - [ ] 支持Windows系统部署
 
