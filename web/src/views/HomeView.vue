@@ -115,6 +115,7 @@ onBeforeUnmount(() => {
               <th>发出消息</th>
               <th>收到字节数</th>
               <th>发出字节数</th>
+              <th>待发送字节</th>
               <th>连接地址</th>
               <th>存活时间</th>
               <th>空闲时间</th>
@@ -132,6 +133,7 @@ onBeforeUnmount(() => {
               <td>{{ formatNumber(conn.outMsgs) }}</td>
               <td>{{ formatMemory(conn.inBytes) }}</td>
               <td>{{ formatMemory(conn.outBytes) }}</td>
+              <td>{{ formatMemory(conn.pendingBytes) }}</td>
               <td>{{ conn.ip }}:{{ conn.port }}</td>
               <td>{{ conn.uptime }}</td>
               <td>{{ conn.idle }}</td>

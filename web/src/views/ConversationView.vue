@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import APIClient from '@/services/APIClient';
-import { newConversationPage, type ConversationPage } from '@/services/Model';
+import { newConversationPage, ConversationPage,channelTypeToString } from '@/services/Model';
 import { ref } from 'vue';
 
 
@@ -60,7 +60,7 @@ const onSearch = () => {
                         </tr>
                         <tr v-if="conversationPage?.on" v-for="conversation in conversationPage?.conversations">
                             <td>{{ conversation.channelID }}</td>
-                            <td>{{ conversation.channelType }}</td>
+                            <td>{{ channelTypeToString(conversation.channelType) }}</td>
                             <td>{{ conversation.lastMsgSeq }}</td>
                             <td>{{ conversation.lastClientMsgNo }}</td>
                             <td>{{ conversation.timestamp }}</td>

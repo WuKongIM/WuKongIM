@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import APIClient from '@/services/APIClient';
 import { Connz, newConnz } from '@/services/Model';
+import { formatMemory } from '@/services/Utils';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 const connz = ref<Connz>(new Connz())
@@ -92,11 +93,11 @@ const onSort = (s: string) => {
                         <tr v-for="conn in connz.connections">
                             <td>{{ conn.id }}</td>
                             <td>{{ conn.uid }}</td>
-                            <td>{{ conn.inMsgs }}</td>
-                            <td>{{ conn.outMsgs }}</td>
-                            <td>{{ conn.inBytes }}</td>
-                            <td>{{ conn.outBytes }}</td>
-                            <td>{{ conn.pendingBytes }}</td>
+                            <td>{{ formatMemory(conn.inMsgs) }}</td>
+                            <td>{{ formatMemory(conn.outMsgs) }}</td>
+                            <td>{{ formatMemory(conn.inBytes) }}</td>
+                            <td>{{ formatMemory(conn.outBytes) }}</td>
+                            <td>{{ formatMemory(conn.pendingBytes) }}</td>
                             <td>{{ conn.ip }}:{{ conn.port }}</td>
                             <td>{{ conn.uptime }}</td>
                             <td>{{ conn.idle }}</td>
