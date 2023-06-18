@@ -66,3 +66,8 @@ func GetCommunityTopicParentChannelID(channelID string) string {
 	}
 	return ""
 }
+
+var (
+	ErrChannelNotFound = fmt.Errorf("channel not found")
+	ErrParamInvalid    = fmt.Errorf("param invalid")
+)

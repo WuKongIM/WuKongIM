@@ -261,15 +261,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	resps := make([]*syncUserConversationResp, 0, len(newConversations))
 	if len(newConversations) > 0 {
 		for _, conversation := range newConversations {
-			syncUserConversationR := &syncUserConversationResp{
-				ChannelID:       conversation.ChannelID,
-				ChannelType:     conversation.ChannelType,
-				Unread:          conversation.UnreadCount,
-				Timestamp:       conversation.Timestamp,
-				LastMsgSeq:      conversation.LastMsgSeq,
-				LastClientMsgNo: conversation.LastClientMsgNo,
-				Version:         conversation.Version,
-			}
+			syncUserConversationR := newSyncUserConversationResp(conversation)
 			resps = append(resps, syncUserConversationR)
 
 			msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", conversation.ChannelID, conversation.ChannelType)]

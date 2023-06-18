@@ -110,6 +110,9 @@ type Options struct {
 		MaxCount     int           // 消息最大重试次数
 		ScanInterval time.Duration //  每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 	}
+
+	SlotNum int // 槽数量
+
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
 	// MessageMaxRetryCount int           // 消息最大重试次数
 	// TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
@@ -210,6 +213,7 @@ func NewOptions() *Options {
 			On:   true,
 			Addr: "0.0.0.0:5300",
 		},
+		SlotNum: 256,
 	}
 }
 
@@ -277,6 +281,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Conversation.SyncInterval = o.getDuration("conversation.syncInterval", o.Conversation.SyncInterval)
 	o.Conversation.SyncOnce = o.getInt("conversation.syncOnce", o.Conversation.SyncOnce)
 	o.Conversation.UserMaxCount = o.getInt("conversation.userMaxCount", o.Conversation.UserMaxCount)
+
+	o.SlotNum = o.getInt("slotNum", o.SlotNum)
 
 	o.configureDataDir() // 数据目录
 	o.configureLog(vp)   // 日志配置
