@@ -63,7 +63,7 @@ docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL
 
 `WK_EXTERNAL_IP: The external IP address of the server used for client connections. If testing only and the client and server are on the same LAN, the LAN IP address of the deployed server can be used here.`
 
-View server information: http://127.0.0.1:5001/varz
+View Monitor information: http://127.0.0.1:5300/web
 
 Demo: http://imdemo.githubim.com
 
@@ -126,6 +126,16 @@ Applicable Scenarios
 
 * Supports community channels
 * Supports message delivery in topic mode
+
+
+Monitor
+---------------
+
+![image](./docs/screen1.png)
+![image](./docs/screen2.png)
+![image](./docs/screen3.png)
+![image](./docs/screen4.png)
+![image](./docs/screen5.png)
 
 License
 ---------------

@@ -75,7 +75,7 @@ docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL
 
 `WK_EXTERNAL_IP：为服务器外网IP，用于客户端连接，如果仅测试，客户端和服务器都在一个局域网内，这里可以填部署服务器的局域网IP`
 
-查看服务器信息： http://127.0.0.1:5001/varz
+查看监控信息： http://127.0.0.1:5300/web
 
 
 客户端演示地址：http://imdemo.githubim.com
@@ -145,13 +145,16 @@ docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL
 * 社区频道支持
 * 支持topic模式的消息投递
 
-## 监控截图
+监控截图
+---------------
 
 ![image](./docs/screen1.png)
 ![image](./docs/screen2.png)
 ![image](./docs/screen3.png)
 ![image](./docs/screen4.png)
 ![image](./docs/screen5.png)
+
+
 License
 ---------------
 
