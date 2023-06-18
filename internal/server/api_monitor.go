@@ -38,7 +38,6 @@ func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
 	st, _ := fs.Sub(version.StaticFs, "web/dist")
 	r.GetGinRoute().NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/web") {
-			fmt.Println("----------->", c.Request.URL.Path)
 			c.FileFromFS("./index.html", http.FS(st))
 			return
 		}

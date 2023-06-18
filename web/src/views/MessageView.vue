@@ -25,6 +25,8 @@ const requestMessages = async () => {
        
     const messagePageObj = await APIClient.shared.get('/api/messages', {
         param: { "channel_id": channelID.value, "channel_type": channelType.value,"start_message_seq":startMessageSeq+1,"limit": 20 },
+    }).catch((err)=>{
+        errMsg.value = err.message
     })
     page.value+=1
     messagePage.value = newMessagePage(messagePageObj)
@@ -74,7 +76,7 @@ const onNextPage = () => {
         </div>
         <div class="pt-10">
             <div class="">
-                <div class="overflow-x-auto h-[30rem]">
+                <div class="overflow-x-auto h-[30rem] min-h-[30rem]">
                     <table class="table">
                         <thead>
                             <tr>
