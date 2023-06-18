@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"io/fs"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -33,14 +35,16 @@ func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
 
 	r.GetGinRoute().Use(gzip.Gzip(gzip.DefaultCompression))
 
+	st, _ := fs.Sub(version.StaticFs, "web/dist")
 	r.GetGinRoute().NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/web") {
-			c.File("./web/dist/index.html")
+			fmt.Println("----------->", c.Request.URL.Path)
+			c.FileFromFS("./index.html", http.FS(st))
 			return
 		}
 	})
 
-	r.Static("/web", "./web/dist")
+	r.GetGinRoute().StaticFS("/web", http.FS(st))
 
 	varz := NewVarzAPI(m.s)
 	connz := NewConnzAPI(m.s)
