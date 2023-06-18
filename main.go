@@ -1,9 +1,14 @@
 package main
 
 import (
+	"embed"
+
 	"github.com/WuKongIM/WuKongIM/cmd"
 	"github.com/WuKongIM/WuKongIM/version"
 )
+
+//go:embed web/dist
+var f embed.FS
 
 // go ldflags
 var Version string    // version
@@ -17,6 +22,7 @@ func main() {
 	version.Commit = Commit
 	version.CommitDate = CommitDate
 	version.TreeState = TreeState
+	version.StaticFs = f
 
 	// logFile, err := os.OpenFile("./fatal.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0660)
 	// if err != nil {

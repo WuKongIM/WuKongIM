@@ -44,5 +44,4 @@ COPY --from=build /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 WORKDIR /home
 COPY --from=build /go/release/app /home
-COPY --from=build /go/release/web/dist /home/web/dist
 ENTRYPOINT ["/home/app"]
