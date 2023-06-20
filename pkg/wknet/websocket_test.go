@@ -3,7 +3,6 @@ package wknet
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/url"
 	"sync"
@@ -47,15 +46,12 @@ func TestWebsocket(t *testing.T) {
 
 func TestWebsocketWSS(t *testing.T) {
 	cert, err := stls.X509KeyPair(rsaCertPEM, rsaKeyPEM)
-	if err != nil {
-		fmt.Println("Error loading server certificate and key:", err)
-		return
-	}
+	assert.NoError(t, err)
 	tlsConfig := &stls.Config{
 		Certificates: []stls.Certificate{cert},
 	}
 
-	e := NewEngine(WithWSAddr("tcp://0.0.0.0:0"), WithWSTLSConfig(tlsConfig))
+	e := NewEngine(WithWSSAddr("wss://0.0.0.0:0"), WithWSTLSConfig(tlsConfig))
 	err = e.Start()
 	assert.NoError(t, err)
 	defer e.Stop()
@@ -73,10 +69,10 @@ func TestWebsocketWSS(t *testing.T) {
 
 	dialer := websocket.DefaultDialer
 
-	u := url.URL{Scheme: "wss", Host: e.WSRealListenAddrt().String(), Path: ""}
+	u := url.URL{Scheme: "wss", Host: e.WSSRealListenAddrt().String(), Path: ""}
 	dialer.NetDialTLSContext = func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 
-		conn, err = tls.Dial(network, addr, &tls.Config{InsecureSkipVerify: true, MaxVersion: tls.VersionTLS12})
+		conn, err = tls.Dial(network, addr, &tls.Config{InsecureSkipVerify: true, MaxVersion: tls.VersionTLS13})
 		return
 	}
 

@@ -7,7 +7,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
-	"github.com/gobwas/ws/wsutil"
 	"go.uber.org/zap"
 )
 
@@ -22,7 +21,7 @@ type Dispatch struct {
 
 func NewDispatch(s *Server) *Dispatch {
 	return &Dispatch{
-		engine:    wknet.NewEngine(wknet.WithAddr(s.opts.Addr), wknet.WithWSAddr(s.opts.WSAddr)),
+		engine:    wknet.NewEngine(wknet.WithAddr(s.opts.Addr), wknet.WithWSAddr(s.opts.WSAddr), wknet.WithWSSAddr(s.opts.WSSAddr), wknet.WithWSTLSConfig(s.opts.WSTLSConfig)),
 		s:         s,
 		processor: NewProcessor(s),
 		Log:       wklog.NewWKLog("Dispatch"),
@@ -125,9 +124,9 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 			d.s.outBytes.Add(int64(dataLen))
 			connStats.OutBytes.Add(int64(dataLen))
 
-			wsConn, ok := conn.(*wknet.WSConn) // websocket连接
+			wsConn, ok := conn.(wknet.IWSConn) // websocket连接
 			if ok {
-				err = wsutil.WriteServerBinary(wsConn, data) // TODO: 有优化空间
+				err = wsConn.WriteServerBinary(data)
 				if err != nil {
 					d.Warn("Failed to write the message", zap.Error(err))
 				}

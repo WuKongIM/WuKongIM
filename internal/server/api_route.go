@@ -34,7 +34,8 @@ func (a *RouteAPI) Route(r *wkhttp.WKHttp) {
 func (a *RouteAPI) routeUserIMAddr(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"tcp_addr": a.s.opts.External.TCPAddr,
-		"ws_addr":  a.s.opts.External.WSSAddr,
+		"ws_addr":  a.s.opts.External.WSAddr,
+		"wss_addr": a.s.opts.External.WSSAddr,
 	})
 }
 
@@ -51,7 +52,8 @@ func (a *RouteAPI) routeUserIMAddrOfBatch(c *wkhttp.Context) {
 		{
 			UIDs:    uids,
 			TCPAddr: a.s.opts.External.TCPAddr,
-			WSAddr:  a.s.opts.External.WSSAddr,
+			WSAddr:  a.s.opts.External.WSAddr,
+			WSSAddr: a.s.opts.External.WSSAddr,
 		},
 	})
 }
@@ -59,5 +61,6 @@ func (a *RouteAPI) routeUserIMAddrOfBatch(c *wkhttp.Context) {
 type userAddrResp struct {
 	TCPAddr string   `json:"tcp_addr"`
 	WSAddr  string   `json:"ws_addr"`
+	WSSAddr string   `json:"wss_addr"`
 	UIDs    []string `json:"uids"`
 }

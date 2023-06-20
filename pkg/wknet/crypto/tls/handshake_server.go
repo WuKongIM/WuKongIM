@@ -98,6 +98,8 @@ func (c *Conn) serverHandshake(ctx context.Context) error {
 func (hs *serverHandshakeState) handshake() error {
 	c := hs.c
 
+	c.buffering = false
+
 	if c.handshakeStatus >= handshakeStatusHandshakeDone {
 		return nil
 	}

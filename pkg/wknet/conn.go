@@ -119,6 +119,10 @@ type Conn interface {
 	ConnStats() *ConnStats
 }
 
+type IWSConn interface {
+	WriteServerBinary(data []byte) error
+}
+
 type DefaultConn struct {
 	fd             int
 	remoteAddr     net.Addr
@@ -593,14 +597,14 @@ func (t *TLSConn) ReadToInboundBuffer() (int, error) {
 	if err != nil || n == 0 {
 		return 0, err
 	}
-	_, err = t.tmpInboundBuffer.Write(readBuffer[:n])
+	_, err = t.tmpInboundBuffer.Write(readBuffer[:n]) // 将tls加密的内容写到tmpInboundBuffer内， tls会从tmpInboundBuffer读取数据（BuffReader接口）
 	if err != nil {
 		return 0, err
 	}
 	t.d.KeepLastActivity()
 
 	for {
-		tlsN, err := t.tlsconn.Read(readBuffer)
+		tlsN, err := t.tlsconn.Read(readBuffer) // 这里其实是把tmpInboundBuffer的数据解密后放到readBuffer内了
 		if err != nil {
 			if err == tls.ErrDataNotEnough {
 				return n, nil
@@ -610,7 +614,7 @@ func (t *TLSConn) ReadToInboundBuffer() (int, error) {
 		if tlsN == 0 {
 			break
 		}
-		_, err = t.d.inboundBuffer.Write(readBuffer[:tlsN])
+		_, err = t.d.inboundBuffer.Write(readBuffer[:tlsN]) // 再将readBuffer的数据放到inboundBuffer内，然后供上层应用读取
 		if err != nil {
 			return n, err
 		}
@@ -785,6 +789,10 @@ func (t *TLSConn) SetMaxIdle(maxIdle time.Duration) {
 
 func (t *TLSConn) ConnStats() *ConnStats {
 	return t.d.connStats
+}
+
+func (t *TLSConn) String() string {
+	return t.d.String()
 }
 
 type eofBuff struct {

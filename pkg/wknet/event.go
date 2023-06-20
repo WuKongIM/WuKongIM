@@ -19,7 +19,8 @@ type EventHandler struct {
 	// OnNewConn is called when a new connection is established.
 	OnNewConn OnNewConn
 	// OnNewWSConn is called when a new websocket connection is established.
-	OnNewWSConn OnNewConn
+	OnNewWSConn  OnNewConn
+	OnNewWSSConn OnNewConn
 	// OnNewInboundConn is called when need create a new inbound buffer.
 	OnNewInboundConn OnNewInboundConn
 	// OnNewOutboundConn is called when need create a new outbound buffer.
@@ -36,6 +37,9 @@ func NewEventHandler() *EventHandler {
 		},
 		OnNewWSConn: func(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 			return CreateWSConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
+		},
+		OnNewWSSConn: func(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+			return CreateWSSConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
 		},
 		OnNewInboundConn:  func(conn Conn, eg *Engine) InboundBuffer { return NewDefaultBuffer() },
 		OnNewOutboundConn: func(conn Conn, eg *Engine) OutboundBuffer { return NewDefaultBuffer() },

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
@@ -32,16 +34,23 @@ const (
 )
 
 type Options struct {
-	vp       *viper.Viper // 内部配置对象
-	ID       int64        // 节点ID
-	Mode     Mode         // 模式 debug 测试 release 正式 bench 压力测试
-	HTTPAddr string       // http api的监听地址 默认为 0.0.0.0:5001
-	Addr     string       // tcp监听地址 例如：tcp://0.0.0.0:5100
-	RootDir  string       // 根目录
-	DataDir  string       // 数据目录
-	GinMode  string       // gin框架的模式
-	WSAddr   string       // websocket 监听地址 例如：ws://0.0.0.0:5200 或wss://0.0.0.0:5200
-	Logger   struct {
+	vp          *viper.Viper // 内部配置对象
+	ID          int64        // 节点ID
+	Mode        Mode         // 模式 debug 测试 release 正式 bench 压力测试
+	HTTPAddr    string       // http api的监听地址 默认为 0.0.0.0:5001
+	Addr        string       // tcp监听地址 例如：tcp://0.0.0.0:5100
+	RootDir     string       // 根目录
+	DataDir     string       // 数据目录
+	GinMode     string       // gin框架的模式
+	WSAddr      string       // websocket 监听地址 例如：ws://0.0.0.0:5200
+	WSSAddr     string       // wss 监听地址 例如：wss://0.0.0.0:5210
+	WSTLSConfig *tls.Config
+	WSSConfig   struct { // wss的证书配置
+		CertFile string // 证书文件
+		KeyFile  string // 私钥文件
+	}
+
+	Logger struct {
 		Dir     string // 日志存储目录
 		Level   zapcore.Level
 		LineNum bool // 是否显示代码行数
@@ -53,7 +62,8 @@ type Options struct {
 	External struct {
 		IP          string // 外网IP 如果没配置将通过ifconfig.io获取
 		TCPAddr     string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
-		WSSAddr     string //  节点的wssAdd地址 对外公开 WEB端长连接通讯 格式： proto://ip:port
+		WSAddr      string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
+		WSSAddr     string // 节点的wssAddr地址 对外公开 WEB端长连接通讯 格式： wss://ip:port
 		MonitorAddr string // 对外访问的监控地址
 	}
 	Channel struct { // 频道配置
@@ -121,6 +131,8 @@ type Options struct {
 
 func NewOptions() *Options {
 
+	// http.ServeTLS(l net.Listener, handler Handler, certFile string, keyFile string)
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
@@ -145,6 +157,7 @@ func NewOptions() *Options {
 		HTTPAddr:            "0.0.0.0:5001",
 		Addr:                "tcp://0.0.0.0:5100",
 		WSAddr:              "ws://0.0.0.0:5200",
+		WSSAddr:             "",
 		ConnIdleTime:        time.Minute * 3,
 		UserMsgQueueMaxSize: 0,
 		TmpChannel: struct {
@@ -231,13 +244,19 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	o.External.IP = o.getString("external.ip", o.External.IP)
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
+	o.External.WSAddr = o.getString("external.wsAddr", o.External.WSAddr)
 	o.External.WSSAddr = o.getString("external.wssAddr", o.External.WSSAddr)
 	o.External.MonitorAddr = o.getString("external.monitorAddr", o.External.MonitorAddr)
 
 	o.Monitor.On = o.getBool("monitor.on", o.Monitor.On)
 	o.Monitor.Addr = o.getString("monitor.addr", o.Monitor.Addr)
 
-	o.WSAddr = o.getString("wsaddr", o.WSAddr)
+	o.WSAddr = o.getString("wsAddr", o.WSAddr)
+	o.WSSAddr = o.getString("wssAddr", o.WSSAddr)
+	fmt.Println("wssAddr:", o.WSSAddr)
+
+	o.WSSConfig.CertFile = o.getString("wssConfig.certFile", o.WSSConfig.CertFile)
+	o.WSSConfig.KeyFile = o.getString("wssConfig.keyFile", o.WSSConfig.KeyFile)
 
 	o.Channel.CacheCount = o.getInt("channel.cacheCount", o.Channel.CacheCount)
 	o.Channel.CreateIfNoExist = o.getBool("channel.createIfNoExist", o.Channel.CreateIfNoExist)
@@ -284,6 +303,18 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	o.SlotNum = o.getInt("slotNum", o.SlotNum)
 
+	if o.WSSConfig.CertFile != "" && o.WSSConfig.KeyFile != "" {
+		certificate, err := tls.LoadX509KeyPair(o.WSSConfig.CertFile, o.WSSConfig.KeyFile)
+		if err != nil {
+			panic(err)
+		}
+		o.WSTLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{
+				certificate,
+			},
+		}
+	}
+
 	o.configureDataDir() // 数据目录
 	o.configureLog(vp)   // 日志配置
 
@@ -303,8 +334,13 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 		o.External.TCPAddr = fmt.Sprintf("%s:%d", ip, portInt64)
 	}
-	if strings.TrimSpace(o.External.WSSAddr) == "" {
+	if strings.TrimSpace(o.External.WSAddr) == "" {
 		addrPairs := strings.Split(o.WSAddr, ":")
+		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
+		o.External.WSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], ip, portInt64)
+	}
+	if strings.TrimSpace(o.WSSAddr) != "" && strings.TrimSpace(o.External.WSSAddr) == "" {
+		addrPairs := strings.Split(o.WSSAddr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 		o.External.WSSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], ip, portInt64)
 	}

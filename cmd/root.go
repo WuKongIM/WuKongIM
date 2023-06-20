@@ -43,7 +43,7 @@ func initConfig() {
 	if cfgFile != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err == nil {
-			fmt.Println("Using config file:", viper.ConfigFileUsed())
+			fmt.Println("Using config file:", vp.ConfigFileUsed())
 		}
 	}
 
@@ -53,6 +53,7 @@ func initConfig() {
 	// 初始化服务配置
 	serverOpts.ConfigureWithViper(vp)
 	vp.BindPFlags(rootCmd.Flags())
+
 }
 
 func initServer() {

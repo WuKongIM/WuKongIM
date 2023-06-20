@@ -22,8 +22,10 @@ type Acceptor struct {
 	eg                *Engine
 	listenPoller      *netpoll.Poller
 	listenWSPoller    *netpoll.Poller
+	listenWSSPoller   *netpoll.Poller
 	listen            *listener
 	listenWS          *listener // websocket
+	listenWSS         *listener // websocket
 	tcpRealListenAddr net.Addr  // tcp real listen addr
 	wsRealListenAddr  net.Addr  // websocket real listen addr
 
@@ -36,11 +38,12 @@ func NewAcceptor(eg *Engine) *Acceptor {
 		reactorSubs[i] = NewReactorSub(eg, i)
 	}
 	a := &Acceptor{
-		eg:             eg,
-		reactorSubs:    reactorSubs,
-		listenPoller:   netpoll.NewPoller("listenerPoller"),
-		listenWSPoller: netpoll.NewPoller("listenWSPoller"),
-		Log:            wklog.NewWKLog("Acceptor"),
+		eg:              eg,
+		reactorSubs:     reactorSubs,
+		listenPoller:    netpoll.NewPoller("listenerPoller"),
+		listenWSPoller:  netpoll.NewPoller("listenWSPoller"),
+		listenWSSPoller: netpoll.NewPoller("listenWSSPoller"),
+		Log:             wklog.NewWKLog("Acceptor"),
 	}
 
 	return a
@@ -57,9 +60,11 @@ func (a *Acceptor) start() error {
 		reactorSub.Start()
 	}
 	var wg = &sync.WaitGroup{}
+	wg.Add(1)
 	if strings.TrimSpace(a.eg.options.WsAddr) != "" {
-		wg.Add(2)
-	} else {
+		wg.Add(1)
+	}
+	if strings.TrimSpace(a.eg.options.WssAddr) != "" {
 		wg.Add(1)
 	}
 
@@ -78,6 +83,15 @@ func (a *Acceptor) start() error {
 			}
 		}()
 	}
+	if strings.TrimSpace(a.eg.options.WssAddr) != "" {
+		go func() {
+			err := a.initWSSListener(wg)
+			if err != nil {
+				panic(err)
+			}
+		}()
+	}
+
 	wg.Wait()
 	return nil
 }
@@ -96,7 +110,7 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	wg.Done()
 
 	a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
-		return a.acceptConn(fd, false)
+		return a.acceptConn(fd, false, false)
 	})
 	return nil
 
@@ -115,7 +129,25 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 	}
 	wg.Done()
 	a.listenWSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
-		return a.acceptConn(fd, true)
+		return a.acceptConn(fd, true, false)
+	})
+	return nil
+}
+
+func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
+	// tcp
+	a.listenWSS = newListener(a.eg.options.WssAddr, a.eg.options)
+	err := a.listenWSS.init()
+	if err != nil {
+		return err
+	}
+	a.wsRealListenAddr = a.listenWSS.readAddr
+	if err := a.listenWSSPoller.AddRead(a.listenWSS.fd); err != nil {
+		return fmt.Errorf("add ws listener fd to poller failed %s", err)
+	}
+	wg.Done()
+	a.listenWSSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+		return a.acceptConn(fd, false, true)
 	})
 	return nil
 }
@@ -135,7 +167,7 @@ func (a *Acceptor) Stop() error {
 	return nil
 }
 
-func (a *Acceptor) acceptConn(listenFd int, ws bool) error {
+func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
 	var (
 		conn Conn
 		err  error
@@ -157,8 +189,12 @@ func (a *Acceptor) acceptConn(listenFd int, ws bool) error {
 		a.Error("SetKeepAlivePeriod() failed", zap.Error(err))
 	}
 	subReactor := a.reactorSubByConnFd(connFd)
-	if ws {
-		if conn, err = a.eg.eventHandler.OnNewWSConn(a.GenClientID(), connFd, a.listen.readAddr, remoteAddr, a.eg, subReactor); err != nil {
+	if wss {
+		if conn, err = a.eg.eventHandler.OnNewWSSConn(a.GenClientID(), connFd, a.listenWSS.readAddr, remoteAddr, a.eg, subReactor); err != nil {
+			return err
+		}
+	} else if ws {
+		if conn, err = a.eg.eventHandler.OnNewWSConn(a.GenClientID(), connFd, a.listenWS.readAddr, remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	} else {

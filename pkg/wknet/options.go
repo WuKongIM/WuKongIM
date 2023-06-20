@@ -15,7 +15,8 @@ type Options struct {
 	TCPTLSConfig *tls.Config
 	WSTLSConfig  *tls.Config
 	// WsAddr is the listen addr  example: ws://127.0.0.1:5200或 wss://127.0.0.1:5200
-	WsAddr string
+	WsAddr  string
+	WssAddr string // wss addr
 	// WSTlsConfig ws tls config
 	// MaxOpenFiles is the maximum number of open files that the server can
 	MaxOpenFiles int
@@ -59,6 +60,12 @@ func WithAddr(v string) Option {
 func WithWSAddr(v string) Option {
 	return func(opts *Options) {
 		opts.WsAddr = v
+	}
+}
+
+func WithWSSAddr(v string) Option {
+	return func(opts *Options) {
+		opts.WssAddr = v
 	}
 }
 
