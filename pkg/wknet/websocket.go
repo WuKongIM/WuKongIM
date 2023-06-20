@@ -15,13 +15,15 @@ import (
 
 func CreateWSConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 	defaultConn := GetDefaultConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
-	if eg.options.WSTLSConfig != nil {
-		tc := newTLSConn(defaultConn)
-		tlsCn := tls.Server(tc, eg.options.WSTLSConfig)
-		tc.tlsconn = tlsCn
-		return NewWSSConn(tc), nil
-	}
 	return NewWSConn(defaultConn), nil
+}
+
+func CreateWSSConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+	defaultConn := GetDefaultConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
+	tc := newTLSConn(defaultConn)
+	tlsCn := tls.Server(tc, eg.options.WSTLSConfig)
+	tc.tlsconn = tlsCn
+	return NewWSSConn(tc), nil
 }
 
 type WSConn struct {
@@ -53,6 +55,10 @@ func (w *WSConn) ReadToInboundBuffer() (int, error) {
 	err = w.unpacketWSData()
 
 	return n, err
+}
+
+func (w *WSConn) WriteServerBinary(data []byte) error {
+	return wsutil.WriteServerBinary(w, data)
 }
 
 // 解包ws的数据
@@ -131,9 +137,11 @@ func (w *WSConn) upgrade() error {
 		return err
 	}
 	tmpReader := bytes.NewReader(buff)
+	tmpWriter := bytes.NewBuffer(nil)
+
 	_, err = ws.Upgrade(&readWrite{
 		Reader: tmpReader,
-		Writer: w,
+		Writer: tmpWriter,
 	})
 	if err != nil {
 		if err == io.EOF || err == io.ErrUnexpectedEOF { //数据不完整
@@ -142,6 +150,11 @@ func (w *WSConn) upgrade() error {
 		w.DiscardFromTemp(len(buff)) // 发送错误，丢弃数据
 		return err
 	}
+	_, err = w.Write(tmpWriter.Bytes())
+	if err != nil {
+		return err
+	}
+
 	w.DiscardFromTemp(len(buff) - tmpReader.Len())
 	w.upgraded = true
 
@@ -191,7 +204,7 @@ type WSSConn struct {
 func NewWSSConn(tlsConn *TLSConn) *WSSConn {
 	return &WSSConn{
 		TLSConn:            tlsConn,
-		wsTmpInboundBuffer: tlsConn.d.eg.eventHandler.OnNewInboundConn(tlsConn.d, tlsConn.d.eg),
+		wsTmpInboundBuffer: tlsConn.d.eg.eventHandler.OnNewInboundConn(tlsConn.d, tlsConn.d.eg), // tls解码后的数据
 	}
 }
 
@@ -201,6 +214,7 @@ func (w *WSSConn) ReadToInboundBuffer() (int, error) {
 	if err != nil || n == 0 {
 		return 0, err
 	}
+
 	_, err = w.tmpInboundBuffer.Write(readBuffer[:n])
 	if err != nil {
 		return 0, err
@@ -226,7 +240,6 @@ func (w *WSSConn) ReadToInboundBuffer() (int, error) {
 	w.d.KeepLastActivity()
 
 	err = w.unpacketWSData()
-
 	return n, err
 }
 
@@ -258,10 +271,15 @@ func (w *WSSConn) upgrade() error {
 	if err != nil {
 		return err
 	}
+	if len(buff) == 0 {
+		return nil
+	}
+
 	tmpReader := bytes.NewReader(buff)
+	tmpWriter := bytes.NewBuffer(nil)
 	_, err = ws.Upgrade(&readWrite{
 		Reader: tmpReader,
-		Writer: w,
+		Writer: tmpWriter,
 	})
 	if err != nil {
 		if err == io.EOF || err == io.ErrUnexpectedEOF { //数据不完整
@@ -270,8 +288,15 @@ func (w *WSSConn) upgrade() error {
 		w.discardFromWSTemp(len(buff)) // 发送错误，丢弃数据
 		return err
 	}
+	_, err = w.TLSConn.Write(tmpWriter.Bytes())
+	if err != nil {
+		return err
+	}
+
 	w.discardFromWSTemp(len(buff) - tmpReader.Len())
+
 	w.upgraded = true
+	fmt.Println("upgraded success")
 
 	return nil
 }
@@ -293,7 +318,7 @@ func (w *WSSConn) unpacketWSData() error {
 	if len(messages) > 0 {
 		for _, msg := range messages {
 			if msg.OpCode.IsControl() {
-				err = wsutil.HandleClientControlMessage(w, msg)
+				err = wsutil.HandleClientControlMessage(w.TLSConn, msg)
 				if err != nil {
 					return err
 				}
@@ -314,12 +339,17 @@ func (w *WSSConn) Close() error {
 	return w.TLSConn.Close()
 }
 
+func (w *WSSConn) WriteServerBinary(data []byte) error {
+	return wsutil.WriteServerBinary(w.TLSConn, data)
+}
+
 func (w *WSSConn) decode() ([]wsutil.Message, error) {
 	buff, err := w.peekFromWSTemp(-1)
 	if err != nil {
 		return nil, err
 	}
 	if len(buff) < ws.MinHeaderSize { // 数据不完整
+		fmt.Println("数据不完整...")
 		return nil, nil
 	}
 	tmpReader := bytes.NewReader(buff)

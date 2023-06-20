@@ -1062,10 +1062,10 @@ func (c *Conn) maxPayloadSizeForWrite(typ recordType) int {
 }
 
 func (c *Conn) write(data []byte) (int, error) {
-	if c.buffering {
-		c.sendBuf = append(c.sendBuf, data...)
-		return len(data), nil
-	}
+	// if c.buffering {
+	// 	c.sendBuf = append(c.sendBuf, data...)
+	// 	return len(data), nil
+	// }
 	var (
 		n   int
 		err error
@@ -1526,6 +1526,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 
 // Close closes the connection.
 func (c *Conn) Close() error {
+
+	fmt.Println("关闭连接--->")
 	// Interlock with Conn.Write above.
 	var x int32
 	for {
@@ -1649,11 +1651,9 @@ func (c *Conn) handshakeContext(ctx context.Context) (ret error) {
 			select {
 			case <-handshakeCtx.Done():
 				// Close the connection, discarding the error
-				fmt.Println("handshakeCtx.Done.................")
 				_ = c.conn.Close()
 				interruptRes <- handshakeCtx.Err()
 			case <-done:
-				fmt.Println("handshakeCtx.interruptRes.................")
 				interruptRes <- nil
 			}
 		}()

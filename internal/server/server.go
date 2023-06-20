@@ -144,7 +144,10 @@ func (s *Server) Start() error {
 	}
 
 	s.Info(fmt.Sprintf("Listening  for TCP client on %s", s.opts.Addr))
-	s.Info(fmt.Sprintf("Listening  for Websocket client on %s", s.opts.WSAddr))
+	s.Info(fmt.Sprintf("Listening  for WS client on %s", s.opts.WSAddr))
+	if s.opts.WSSAddr != "" {
+		s.Info(fmt.Sprintf("Listening  for WSS client on %s", s.opts.WSSAddr))
+	}
 	s.Info(fmt.Sprintf("Listening  for Manager Http api on %s", fmt.Sprintf("http://%s", s.opts.HTTPAddr)))
 
 	if s.opts.Monitor.On {

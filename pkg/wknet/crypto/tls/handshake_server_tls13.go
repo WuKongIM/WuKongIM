@@ -49,6 +49,8 @@ type serverHandshakeStateTLS13 struct {
 func (hs *serverHandshakeStateTLS13) handshake() error {
 	c := hs.c
 
+	c.buffering = false
+
 	if needFIPS() {
 		return errors.New("tls: internal error: TLS 1.3 reached in FIPS mode")
 	}

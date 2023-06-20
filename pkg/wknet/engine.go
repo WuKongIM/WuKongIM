@@ -1,7 +1,6 @@
 package wknet
 
 import (
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -112,9 +111,11 @@ func (e *Engine) TCPRealListenAddr() net.Addr {
 func (e *Engine) WSRealListenAddrt() net.Addr {
 	return e.reactorMain.acceptor.listenWS.readAddr
 }
+func (e *Engine) WSSRealListenAddrt() net.Addr {
+	return e.reactorMain.acceptor.listenWSS.readAddr
+}
 
 func (e *Engine) OnConnect(onConnect OnConnect) {
-	fmt.Println("OnConnect.....")
 	e.eventHandler.OnConnect = onConnect
 }
 func (e *Engine) OnData(onData OnData) {
