@@ -55,6 +55,8 @@ var packetDecodeMap = map[FrameType]PacketDecodeFunc{
 	RECV:       decodeRecv,
 	RECVACK:    decodeRecvack,
 	DISCONNECT: decodeDisConnect,
+	SUB:        decodeSub,
+	SUBACK:     decodeSuback,
 }
 
 // var packetEncodeMap = map[PacketType]PacketEncodeFunc{
@@ -113,7 +115,6 @@ func (l *WKProto) DecodeFrame(data []byte, version uint8) (Frame, int, error) {
 	if frameType == UNKNOWN {
 		return nil, 0, nil
 	}
-	// l.Debug("解码消息！", zap.String("framer", framer.String()))
 	if frameType == PING {
 		return &PingPacket{
 			Framer: framer,
@@ -126,7 +127,6 @@ func (l *WKProto) DecodeFrame(data []byte, version uint8) (Frame, int, error) {
 	}
 
 	if framer.RemainingLength > MaxRemaingLength {
-		//return nil,errors.New(fmt.Sprintf("消息超出最大限制[%d]！",MaxRemaingLength))
 		return nil, 0, fmt.Errorf("消息超出最大限制[%d]！", MaxRemaingLength)
 	}
 	msgLen := int(framer.RemainingLength) + 1 + remainingLengthLength
@@ -186,6 +186,14 @@ func (l *WKProto) EncodeFrame(frame Frame, version uint8) ([]byte, error) {
 		packet := frame.(*DisconnectPacket)
 		l.encodeFrame(packet, enc, uint32(encodeDisConnectSize(packet, version)))
 		err = encodeDisConnect(packet, enc, version)
+	case SUB:
+		packet := frame.(*SubPacket)
+		l.encodeFrame(packet, enc, uint32(encodeSubSize(packet, version)))
+		err = encodeSub(packet, enc, version)
+	case SUBACK:
+		packet := frame.(*SubackPacket)
+		l.encodeFrame(packet, enc, uint32(encodeSubackSize(packet, version)))
+		err = encodeSuback(packet, enc, version)
 	}
 	if err != nil {
 		return nil, err

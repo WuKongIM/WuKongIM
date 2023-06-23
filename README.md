@@ -139,6 +139,14 @@ Monitor
 ![image](./docs/screen4.png)
 ![image](./docs/screen5.png)
 
+Wechat
+---------------
+
+If necessary, add me and I will invite you to the group. My WeChat ID is wukongimgo.
+
+![image](./wechat.jpg)
+
+
 License
 ---------------
 

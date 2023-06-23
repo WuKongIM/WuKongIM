@@ -44,4 +44,5 @@ COPY --from=build /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 WORKDIR /home
 COPY --from=build /go/release/app /home
-ENTRYPOINT ["/home/app"]
+COPY --from=build /go/release/config/wk.yaml /root/wukongim/wk.yaml
+ENTRYPOINT ["/home/app","--config=/root/wukongim/wk.yaml"]

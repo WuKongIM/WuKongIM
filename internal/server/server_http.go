@@ -1,6 +1,9 @@
 package server
 
 import (
+	"net/http"
+	"strings"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -30,6 +33,20 @@ func NewAPIServer(s *Server) *APIServer {
 
 // Start 开始
 func (s *APIServer) Start() {
+
+	s.r.Use(func(c *wkhttp.Context) { // 管理者权限判断
+		if strings.TrimSpace(s.s.opts.ManagerToken) == "" {
+			c.Next()
+			return
+		}
+		managerToken := c.GetHeader("token")
+		if managerToken != s.s.opts.ManagerToken {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	})
+
 	s.setRoutes()
 	go func() {
 		err := s.r.Run(s.addr) // listen and serve
