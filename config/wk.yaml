@@ -4,6 +4,7 @@ mode: "debug" # 运行模式 模式 debug 测试 release 正式 bench 压力测�
 # httpAddr: "0.0.0.0:5001" #  http api的监听地址  默认：0.0.0.0:5001
 # dataDir: ~/wukongimdata # 数据存储目录
 # tokenAuthOn: false # 是否开启token验证 默认为false，如果不开启任何人都可以连接到此节点，生产环境建议开启
+# managerToken: "" # 管理员token 如果此字段有值，则API接口需要在请求头中添加token字段，值为此字段的值
 # wsAddr: ""  # websocket ws 监听地址 例如：ws://0.0.0.0:5200 
 # wssAddr: ""  # websocket wss 监听地址 例如：wss://0.0.0.0:5210
 external:
@@ -41,7 +42,7 @@ external:
 #   channelInfoOn: false #  是否开启频道信息数据源的获取
 # conversation: # 最近会话配置
 #   on: false # 是否开启最近会话
-#   cacheExpire: 1d # 最近会话缓存过期时间 默认为1天
+#   cacheExpire: 1d # 最近会话缓存过期时间 默认为1天，（注意：这里指清除内存里的最近会话缓存，并不表示清除最近会话）
 #   syncInterval: 5m # 最近会话保存间隔,每隔指定的时间进行保存一次 默认为5分钟
 #   syncOnce: 100 # 最近会话同步保存一次的数量 超过指定未保存的数量 将进行保存 默认为100
 #   userMaxCount: 1000 # 用户最近会话最大数量，超过此数量的最近会话后最旧的那条将被覆盖掉 默认为1000

@@ -99,6 +99,8 @@ const (
 	PING                        //ping请求
 	PONG                        // 对ping请求的相应
 	DISCONNECT                  // 请求断开连接
+	SUB                         // 订阅
+	SUBACK                      // 订阅确认
 )
 
 func (p FrameType) String() string {
@@ -121,6 +123,10 @@ func (p FrameType) String() string {
 		return "PONG"
 	case DISCONNECT:
 		return "DISCONNECT"
+	case SUB:
+		return "SUB"
+	case SUBACK:
+		return "SUBACK"
 	}
 	return fmt.Sprintf("UNKNOWN[%d]", p)
 }
@@ -308,6 +314,7 @@ const (
 	MessageIDByteSize       = 8
 	MessageSeqByteSize      = 4
 	TimestampByteSize       = 4
+	ActionByteSize          = 1
 )
 
 const (

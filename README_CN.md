@@ -155,6 +155,14 @@ docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL
 ![image](./docs/screen4.png)
 ![image](./docs/screen5.png)
 
+Wechat
+---------------
+
+如果有需要，加我拉你进群，微信号：wukongimgo
+
+![image](./wechat.jpg)
+
+
 
 License
 ---------------

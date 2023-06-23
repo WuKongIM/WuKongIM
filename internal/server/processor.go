@@ -23,6 +23,8 @@ type Processor struct {
 	frameWorkPool   *FrameWorkPool
 	wklog.Log
 	messageIDGen *snowflake.Node // 消息ID生成器
+
+	framePool *FramePool // 对象池
 }
 
 func NewProcessor(s *Server) *Processor {
@@ -36,6 +38,7 @@ func NewProcessor(s *Server) *Processor {
 		messageIDGen:  messageIDGen,
 		Log:           wklog.NewWKLog("Processor"),
 		frameWorkPool: NewFrameWorkPool(),
+		framePool:     NewFramePool(),
 		connContextPool: sync.Pool{
 			New: func() any {
 				cc := newConnContext(s)
@@ -46,23 +49,28 @@ func NewProcessor(s *Server) *Processor {
 	}
 }
 
+// 处理同类型的frame集合
 func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameType, frames []wkproto.Frame, s, e int) {
 	switch frameType {
 	case wkproto.PING: // ping
 		p.processPing(conn, frames[0].(*wkproto.PingPacket))
 	case wkproto.SEND: // process send
-		// TODO: tmpFrames need optimize
-		tmpFrames := make([]*wkproto.SendPacket, 0, len(frames))
+		tmpFrames := p.framePool.GetSendPackets()
 		for _, frame := range frames {
 			tmpFrames = append(tmpFrames, frame.(*wkproto.SendPacket))
 		}
 		p.processMsgs(conn, tmpFrames)
+
+		p.framePool.PutSendPackets(tmpFrames) // 注意：这里回收了，processMsgs里不要对tmpFrames进行异步操作，容易引起数据错乱
+
 	case wkproto.RECVACK: // process recvack
-		tmpFrames := make([]*wkproto.RecvackPacket, 0, len(frames))
+		tmpFrames := p.framePool.GetRecvackPackets()
 		for _, frame := range frames {
 			tmpFrames = append(tmpFrames, frame.(*wkproto.RecvackPacket))
 		}
 		p.processRecvacks(conn, tmpFrames)
+
+		p.framePool.PutRecvackPackets(tmpFrames) // 注意：这里回收了，processRecvacks里不要对tmpFrames进行异步操作，容易引起数据错乱
 	}
 	conn.Context().(*connContext).finishFrames(len(frames))
 
@@ -566,17 +574,18 @@ func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
 
 	p.sameFrames(frames, func(s, e int, frs []wkproto.Frame) {
 
-		p.frameWorkPool.Submit(func() {
+		p.frameWorkPool.Submit(func() { // 开启协程处理相同的frame
 			p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
 		})
 	})
 
 }
 
+// 将frames按照frameType分组，然后处理
 func (p *Processor) sameFrames(frames []wkproto.Frame, callback func(s, e int, fs []wkproto.Frame)) {
 	for i := 0; i < len(frames); {
 		frame := frames[i]
-		start := i // 1 1 1
+		start := i
 		end := i + 1
 		for end < len(frames) {
 			nextFrame := frames[end]

@@ -163,7 +163,6 @@ func UnmarshalMessage(data []byte, m *Message) error {
 	if m.ChannelType, err = dec.Uint8(); err != nil {
 		return err
 	}
-
 	// Payload
 	if m.Payload, err = dec.BinaryAll(); err != nil {
 		return err
