@@ -16,10 +16,10 @@ func (a Action) Uint8() uint8 {
 type SubackPacket struct {
 	Framer
 	Setting     Setting
-	ChannelID   string // 频道ID（如果是个人频道ChannelId为个人的UID）
-	ChannelType uint8  // 频道类型
-	Action      Action // 动作
-	ReasonCode  uint8  // 原因码
+	ChannelID   string     // 频道ID（如果是个人频道ChannelId为个人的UID）
+	ChannelType uint8      // 频道类型
+	Action      Action     // 动作
+	ReasonCode  ReasonCode // 原因码
 }
 
 // GetPacketType 包类型
@@ -55,10 +55,12 @@ func decodeSuback(frame Frame, data []byte, version uint8) (Frame, error) {
 	}
 	subackPacket.Action = Action(action)
 	// 原因码
-	if subackPacket.ReasonCode, err = dec.Uint8(); err != nil {
+	var reasonCode byte
+	if reasonCode, err = dec.Uint8(); err != nil {
 
 		return nil, errors.Wrap(err, "解码ReasonCode失败！")
 	}
+	subackPacket.ReasonCode = ReasonCode(reasonCode)
 
 	return subackPacket, nil
 }
@@ -73,7 +75,7 @@ func encodeSuback(frame Frame, enc *Encoder, version uint8) error {
 	// 动作
 	enc.WriteUint8(subackPacket.Action.Uint8())
 	// 原因码
-	enc.WriteUint8(subackPacket.ReasonCode)
+	enc.WriteUint8(subackPacket.ReasonCode.Byte())
 	return nil
 }
 
