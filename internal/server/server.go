@@ -56,7 +56,8 @@ type Server struct {
 	webhook             *Webhook             // webhook
 	monitorServer       *MonitorServer       // 监控服务
 
-	started bool // 服务是否已经启动
+	started  bool // 服务是否已经启动
+	stopChan chan struct{}
 }
 
 func New(opts *Options) *Server {
@@ -67,6 +68,7 @@ func New(opts *Options) *Server {
 		waitGroupWrapper: wkutil.NewWaitGroupWrapper("Server"),
 		timingWheel:      timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		start:            now,
+		stopChan:         make(chan struct{}),
 	}
 
 	gin.SetMode(opts.GinMode)
@@ -200,6 +202,8 @@ func (s *Server) Stop() error {
 		s.monitorServer.Stop()
 		s.monitor.Stop()
 	}
+
+	close(s.stopChan)
 
 	return nil
 }

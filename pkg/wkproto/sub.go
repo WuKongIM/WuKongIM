@@ -8,6 +8,7 @@ type SubPacket struct {
 	ChannelID   string // 频道ID（如果是个人频道ChannelId为个人的UID）
 	ChannelType uint8  // 频道类型
 	Action      Action // 动作
+	Param       string // 参数
 }
 
 // GetPacketType 包类型
@@ -43,6 +44,11 @@ func decodeSub(frame Frame, data []byte, version uint8) (Frame, error) {
 	}
 	subPacket.Action = Action(action)
 
+	// 参数
+	if subPacket.Param, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码Param失败！")
+	}
+
 	return subPacket, nil
 }
 
@@ -55,6 +61,8 @@ func encodeSub(frame Frame, enc *Encoder, version uint8) error {
 	enc.WriteUint8(subPacket.ChannelType)
 	// 动作
 	enc.WriteUint8(subPacket.Action.Uint8())
+	// 参数
+	enc.WriteString(subPacket.Param)
 	return nil
 }
 
@@ -65,5 +73,6 @@ func encodeSubSize(frame Frame, version uint8) int {
 	size += (len(subPacket.ChannelID) + StringFixLenByteSize)
 	size += ChannelTypeByteSize
 	size += ActionByteSize
+	size += (len(subPacket.Param) + StringFixLenByteSize)
 	return size
 }

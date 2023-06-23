@@ -38,14 +38,7 @@ func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 	if connLimit == 0 {
 		connLimit = 20
 	}
-
-	var rss, vss int64 // rss内存 vss虚拟内存
-	var pcpu float64   // cpu
-
-	// We want to do that outside of the lock.
-	pse.ProcUsage(&pcpu, &rss, &vss)
-
-	varz := v.createVarz(pcpu, rss)
+	varz := CreateVarz(v.s)
 
 	if show == "conn" {
 		resultConns := v.s.GetConnInfos(ByInMsgDesc, 0, connLimit)
@@ -62,16 +55,18 @@ func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, varz)
 }
 
-func (v *VarzAPI) createVarz(pcpu float64, rss int64) *Varz {
-	s := v.s
+func CreateVarz(s *Server) *Varz {
+	var rss, vss int64 // rss内存 vss虚拟内存
+	var pcpu float64   // cpu
+	pse.ProcUsage(&pcpu, &rss, &vss)
 	opts := s.opts
-	connCount := v.s.dispatch.engine.ConnCount()
+	connCount := s.dispatch.engine.ConnCount()
 	return &Varz{
 		ServerID:    fmt.Sprintf("%d", opts.ID),
 		ServerName:  "WuKongIM",
 		Version:     version.Version,
 		Connections: connCount,
-		Uptime:      myUptime(time.Since(v.s.start)),
+		Uptime:      myUptime(time.Since(s.start)),
 		CPU:         pcpu,
 		Mem:         rss,
 		InMsgs:      s.inMsgs.Load(),

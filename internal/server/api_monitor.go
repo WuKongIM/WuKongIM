@@ -1,14 +1,17 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
@@ -20,6 +23,8 @@ import (
 type MonitorAPI struct {
 	wklog.Log
 	s *Server
+
+	monitorChannel *wkproto.Channel
 }
 
 // NewMonitorAPI NewMonitorAPI
@@ -27,6 +32,10 @@ func NewMonitorAPI(s *Server) *MonitorAPI {
 	return &MonitorAPI{
 		Log: wklog.NewWKLog("MonitorAPI"),
 		s:   s,
+		monitorChannel: &wkproto.Channel{
+			ChannelID:   "__monitor",
+			ChannelType: wkproto.ChannelTypeData,
+		},
 	}
 }
 
@@ -57,6 +66,9 @@ func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
 	r.GET("/api/messages", m.messages)           // 消息
 	r.GET("/api/conversations", m.conversations) // 最近会话
 	// r.GET("/chart/upstream_packet_count", m.upstreamPacketCount)
+
+	go m.startRealtimePublish() // 开启实时数据推送
+	go m.startConnzPublish()    // 开启连接数据推送
 
 }
 
@@ -94,6 +106,139 @@ func (m *MonitorAPI) realtime(c *wkhttp.Context) {
 		realtimeData.DownstreamTraffics = downstreamTraffics
 	}
 	c.JSON(http.StatusOK, realtimeData)
+}
+
+func (m *MonitorAPI) startRealtimePublish() {
+
+	tk := time.NewTicker(time.Second)
+
+	for {
+		select {
+		case <-tk.C:
+			m.realtimePublish()
+		case <-m.s.stopChan:
+			return
+		}
+	}
+
+}
+
+func (m *MonitorAPI) startConnzPublish() {
+	tk := time.NewTicker(time.Second)
+	for {
+		select {
+		case <-tk.C:
+			m.connzPublish()
+		case <-m.s.stopChan:
+			return
+		}
+	}
+
+}
+
+func (m *MonitorAPI) realtimePublish() {
+	m.writeDataToMonitor("realtime", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
+		return m.getRealtimeData()
+	})
+}
+
+func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscriberInfo *wkstore.SubscriberInfo) interface{}) {
+
+	monitorChannel, err := m.s.channelManager.GetChannel(m.monitorChannel.ChannelID, m.monitorChannel.ChannelType)
+	if err != nil {
+		m.Error("realtimePublish fail", zap.Error(err))
+		return
+	}
+	if monitorChannel == nil {
+		return
+	}
+	subscribers := monitorChannel.GetAllSubscribers()
+	if len(subscribers) == 0 {
+		return
+	}
+
+	for _, subscriber := range subscribers {
+		conns := m.s.connManager.GetConnsWithUID(subscriber)
+		if len(conns) == 0 {
+			continue
+		}
+		var rDataMap map[string]interface{}
+		var rDataBytes []byte
+		for _, conn := range conns {
+			if conn == nil {
+				continue
+			}
+			if rDataMap == nil {
+				rDataMap = map[string]interface{}{}
+				rDataMap["data"] = dataCallback(monitorChannel.GetSubscriberInfo(subscriber))
+				rDataMap["type"] = typ
+				rDataBytes = []byte(wkutil.ToJSON(rDataMap))
+			}
+			conn.Write(rDataBytes)
+		}
+	}
+}
+
+func (m *MonitorAPI) connzPublish() {
+
+	var (
+		sortOpt   SortOpt
+		offset    int
+		limit     int = 20
+		connInfos []*ConnInfo
+	)
+	m.writeDataToMonitor("connz", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
+		if subscriberInfo != nil && subscriberInfo.Param != nil {
+			if subscriberInfo.Param["sort_opt"] != nil {
+				sortOpt = SortOpt(subscriberInfo.Param["sort_opt"].(string))
+			}
+			if subscriberInfo.Param["offset"] != nil {
+				offsetI64, _ := subscriberInfo.Param["offset"].(json.Number).Int64()
+				offset = int(offsetI64)
+			}
+			if subscriberInfo.Param["limit"] != nil {
+				limitI64, _ := subscriberInfo.Param["limit"].(json.Number).Int64()
+				limit = int(limitI64)
+			}
+		}
+		resultConns := m.s.GetConnInfos(sortOpt, offset, limit)
+		connInfos = make([]*ConnInfo, 0, len(resultConns))
+		for _, resultConn := range resultConns {
+			if resultConn == nil || !resultConn.IsAuthed() {
+				continue
+			}
+			connInfos = append(connInfos, newConnInfo(resultConn))
+		}
+		return connInfos
+	})
+}
+
+func (m *MonitorAPI) getRealtimeData() *realtimeData {
+	connNums := m.s.monitor.ConnNums()
+	upstreamPackages := m.s.monitor.UpstreamPackageSample()
+	upstreamTraffics := m.s.monitor.UpstreamTrafficSample()
+
+	downstreamPackages := m.s.monitor.DownstreamPackageSample()
+	downstreamTraffics := m.s.monitor.DownstreamTrafficSample()
+
+	var realtimeData = &realtimeData{}
+
+	if len(connNums) > 0 {
+		realtimeData.ConnNums = connNums[len(connNums)-1:]
+	}
+	if len(upstreamPackages) > 0 {
+		realtimeData.UpstreamPackets = upstreamPackages[len(upstreamPackages)-1:]
+	}
+	if len(downstreamPackages) > 0 {
+		realtimeData.DownstreamPackets = downstreamPackages[len(downstreamPackages)-1:]
+	}
+	if len(upstreamTraffics) > 0 {
+		realtimeData.UpstreamTraffics = upstreamTraffics[len(upstreamTraffics)-1:]
+	}
+	if len(downstreamTraffics) > 0 {
+		realtimeData.DownstreamTraffics = downstreamTraffics[len(downstreamTraffics)-1:]
+	}
+	return realtimeData
 }
 
 func (m *MonitorAPI) channels(c *wkhttp.Context) {

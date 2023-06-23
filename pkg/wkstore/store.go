@@ -111,3 +111,8 @@ func (c *ChannelInfo) from(mp map[string]interface{}) {
 	}
 
 }
+
+type SubscriberInfo struct {
+	UID   string                 `json:"uid"`
+	Param map[string]interface{} `json:"param"`
+}
