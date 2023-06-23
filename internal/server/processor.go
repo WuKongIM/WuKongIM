@@ -70,7 +70,15 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 		}
 		p.processRecvacks(conn, tmpFrames)
 
-		p.framePool.PutRecvackPackets(tmpFrames) // 注意：这里回收了，processRecvacks里不要对tmpFrames进行异步操作，容易引起数据错乱
+		p.framePool.PutRecvackPackets(tmpFrames)
+
+	case wkproto.SUB: // 订阅
+		tmpFrames := p.framePool.GetSubPackets()
+		for _, frame := range frames {
+			tmpFrames = append(tmpFrames, frame.(*wkproto.SubPacket))
+		}
+		p.processSubs(conn, tmpFrames)
+		p.framePool.PutSubPackets(tmpFrames)
 	}
 	conn.Context().(*connContext).finishFrames(len(frames))
 
@@ -480,6 +488,54 @@ func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Con
 		return false, errors.New("msgKey is illegal！")
 	}
 	return true, nil
+}
+
+// #################### subscribe ####################
+func (p *Processor) processSubs(conn wknet.Conn, subPackets []*wkproto.SubPacket) {
+	for _, subPacket := range subPackets {
+		p.processSub(conn, subPacket)
+	}
+}
+
+func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
+	if subPacket.ChannelType != wkproto.ChannelTypeData {
+		p.Warn("订阅的频道类型不正确！", zap.Uint8("channelType", subPacket.ChannelType))
+		p.response(conn, p.getSuback(subPacket, wkproto.ReasonNotSupportChannelType))
+		return
+	}
+	if strings.TrimSpace(subPacket.ChannelID) == "" {
+		p.Warn("订阅的频道ID不能为空！")
+		p.response(conn, p.getSuback(subPacket, wkproto.ReasonChannelIDError))
+		return
+	}
+	channel, err := p.s.channelManager.GetChannel(subPacket.ChannelID, subPacket.ChannelType)
+	if err != nil {
+		p.Warn("获取频道失败！", zap.Error(err))
+		p.response(conn, p.getSuback(subPacket, wkproto.ReasonSystemError))
+		return
+	}
+	if channel == nil {
+		p.Warn("频道不存在！", zap.String("channelID", subPacket.ChannelID), zap.Uint8("channelType", subPacket.ChannelType))
+		p.response(conn, p.getSuback(subPacket, wkproto.ReasonChannelNotExist))
+		return
+	}
+
+	if subPacket.Action == wkproto.Subscribe {
+		channel.AddSubscriber(conn.UID())
+	} else {
+		channel.RemoveSubscriber(conn.UID())
+	}
+	p.response(conn, p.getSuback(subPacket, wkproto.ReasonSuccess))
+}
+
+func (p *Processor) getSuback(subPacket *wkproto.SubPacket, reasonCode wkproto.ReasonCode) *wkproto.SubackPacket {
+	return &wkproto.SubackPacket{
+		Setting:     subPacket.Setting,
+		ChannelID:   subPacket.ChannelID,
+		ChannelType: subPacket.ChannelType,
+		Action:      subPacket.Action,
+		ReasonCode:  reasonCode,
+	}
 }
 
 // #################### recv ack ####################

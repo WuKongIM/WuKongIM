@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
@@ -16,9 +17,10 @@ import (
 
 // ChannelManager 频道管理
 type ChannelManager struct {
-	s               *Server
-	channelCache    *lru.Cache[string, *Channel]
-	tmpChannelCache *lru.Cache[string, *Channel] // 系统消息临时频道
+	s                *Server
+	channelCache     *lru.Cache[string, *Channel]
+	tmpChannelCache  *lru.Cache[string, *Channel] // 系统消息临时频道
+	dataChannelCache sync.Map                     // 数据频道缓存，订阅者为0的时候应该删除频道本身
 	wklog.Log
 }
 
@@ -35,11 +37,13 @@ func NewChannelManager(s *Server) *ChannelManager {
 	if err != nil {
 		panic(err)
 	}
+
 	return &ChannelManager{
-		channelCache:    channelCache,
-		tmpChannelCache: cache,
-		s:               s,
-		Log:             wklog.NewWKLog("ChannelManager"),
+		channelCache:     channelCache,
+		tmpChannelCache:  cache,
+		dataChannelCache: sync.Map{},
+		s:                s,
+		Log:              wklog.NewWKLog("ChannelManager"),
 	}
 }
 
@@ -52,7 +56,9 @@ func (cm *ChannelManager) GetChannel(channelID string, channelType uint8) (*Chan
 	if channelType == wkproto.ChannelTypePerson {
 		return cm.GetPersonChannel(channelID, channelType)
 	}
-
+	if channelType == wkproto.ChannelTypeData {
+		return cm.GetOrCreateDataChannel(channelID, channelType), nil
+	}
 	channel, err := cm.getChannelFromCacheOrStore(channelID, channelType)
 	if err != nil {
 		return nil, err
@@ -169,6 +175,22 @@ func (cm *ChannelManager) GetTmpChannel(channelID string, channelType uint8) (*C
 	v, _ := cm.tmpChannelCache.Get(fmt.Sprintf("%s-%d", channelID, channelType)) // 临时频道可能会被挤掉
 
 	return v, nil
+}
+
+func (cm *ChannelManager) GetOrCreateDataChannel(channelID string, channelType uint8) *Channel {
+	channelObj, _ := cm.dataChannelCache.Load(fmt.Sprintf("%s-%d", channelID, channelType))
+	var channel *Channel
+	if channel == nil {
+		channel = NewChannel(wkstore.NewChannelInfo(channelID, channelType), cm.s)
+		cm.dataChannelCache.Store(fmt.Sprintf("%s-%d", channelID, channelType), channel)
+	} else {
+		channel = channelObj.(*Channel)
+	}
+	return channel
+}
+
+func (cm *ChannelManager) RemoveDataChannel(channelID string, channelType uint8) {
+	cm.dataChannelCache.Delete(fmt.Sprintf("%s-%d", channelID, channelType))
 }
 
 // DeleteChannel 删除频道

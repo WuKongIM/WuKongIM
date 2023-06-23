@@ -173,11 +173,11 @@ const (
 	ReasonNodeMatchError
 	// ReasonNodeNotMatch 节点不匹配
 	ReasonNodeNotMatch
-	ReasonBan              // 频道被封禁
-	ReasonNotSupportHeader // 不支持的header
-	ReasonClientKeyIsEmpty // clientKey 是空的
-	ReasonRateLimit        // 速率限制
-
+	ReasonBan                   // 频道被封禁
+	ReasonNotSupportHeader      // 不支持的header
+	ReasonClientKeyIsEmpty      // clientKey 是空的
+	ReasonRateLimit             // 速率限制
+	ReasonNotSupportChannelType // 不支持的频道类型
 )
 
 func (r ReasonCode) String() string {
@@ -326,4 +326,5 @@ const (
 	ChannelTypeCommunity       uint8 = 4 // 社区频道
 	ChannelTypeCommunityTopic  uint8 = 5 // 社区话题频道
 	ChannelTypeInfo            uint8 = 6 // 资讯频道（有临时订阅者的概念，查看资讯的时候加入临时订阅，退出资讯的时候退出临时订阅）
+	ChannelTypeData            uint8 = 7 // 数据频道
 )
