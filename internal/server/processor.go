@@ -521,7 +521,15 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 	}
 
 	if subPacket.Action == wkproto.Subscribe {
+		paramMap := make(map[string]interface{})
+		if strings.TrimSpace(subPacket.Param) != "" {
+			paramMap, _ = wkutil.JSONToMap(subPacket.Param)
+		}
 		channel.AddSubscriber(conn.UID())
+		channel.SetSubscriberInfo(conn.UID(), &wkstore.SubscriberInfo{
+			UID:   conn.UID(),
+			Param: paramMap,
+		})
 	} else {
 		channel.RemoveSubscriber(conn.UID())
 	}

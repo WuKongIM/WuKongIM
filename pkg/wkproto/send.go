@@ -14,6 +14,7 @@ const (
 	SettingSignal         Setting = 1 << 5 // 是否开启signal加密
 	SettingNoEncrypt      Setting = 1 << 4 // 是否不加密
 	SettingTopic          Setting = 1 << 3 // 是否有topic
+
 )
 
 func (s Setting) IsSet(v Setting) bool {
