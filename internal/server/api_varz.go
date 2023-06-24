@@ -79,6 +79,7 @@ func CreateVarz(s *Server) *Varz {
 		WSAddr:      opts.External.WSAddr,
 		WSSAddr:     opts.External.WSSAddr,
 		MonitorAddr: opts.External.MonitorAddr,
+		APIURL:      opts.External.APIUrl,
 		MonitorOn:   wkutil.BoolToInt(opts.Monitor.On),
 		Commit:      version.Commit,
 		CommitDate:  version.CommitDate,
@@ -101,7 +102,6 @@ type Varz struct {
 	OutBytes    int64 `json:"out_bytes"`    // 流出字节数量
 	SlowClients int64 `json:"slow_clients"` // 慢客户端数量
 
-	//
 	TCPAddr     string `json:"tcp_addr"`     // tcp地址
 	WSAddr      string `json:"ws_addr"`      // ws地址
 	WSSAddr     string `json:"wss_addr"`     // wss地址
@@ -110,6 +110,7 @@ type Varz struct {
 	Commit      string `json:"commit"`       // git commit id
 	CommitDate  string `json:"commit_date"`  // git commit date
 	TreeState   string `json:"tree_state"`   // git tree state
+	APIURL      string `json:"api_url"`      // api地址
 
 	Conns []*ConnInfo `json:"conns,omitempty"` // 连接信息
 

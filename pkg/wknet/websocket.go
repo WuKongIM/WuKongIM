@@ -58,7 +58,7 @@ func (w *WSConn) ReadToInboundBuffer() (int, error) {
 }
 
 func (w *WSConn) WriteServerBinary(data []byte) error {
-	return wsutil.WriteServerBinary(w, data)
+	return wsutil.WriteServerBinary(w.outboundBuffer, data)
 }
 
 // 解包ws的数据

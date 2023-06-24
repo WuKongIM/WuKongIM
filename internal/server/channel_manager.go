@@ -180,7 +180,7 @@ func (cm *ChannelManager) GetTmpChannel(channelID string, channelType uint8) (*C
 func (cm *ChannelManager) GetOrCreateDataChannel(channelID string, channelType uint8) *Channel {
 	channelObj, _ := cm.dataChannelCache.Load(fmt.Sprintf("%s-%d", channelID, channelType))
 	var channel *Channel
-	if channel == nil {
+	if channelObj == nil {
 		channel = NewChannel(wkstore.NewChannelInfo(channelID, channelType), cm.s)
 		cm.dataChannelCache.Store(fmt.Sprintf("%s-%d", channelID, channelType), channel)
 	} else {

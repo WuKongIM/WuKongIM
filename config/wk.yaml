@@ -13,6 +13,7 @@ external:
 #   wsAddr: "" # 默认自动获取， 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
   # wssAddr: "" # 配置wss地址，如果不配置则不开启wss，如果配置了wss则必须配置证书文件
 #   monitorAddr: "" # 默认自动获取， 节点的monitor地址 对外公开 监控服务 格式： ip:port
+#   apiUrl: "" # 默认自动获取， 节点的http地址 对外公开 http api 格式： http://ip:port
 # wssConfig:
   # certFile: "" # wss证书文件路径
   # keyFile: "" # wss证书key文件路径

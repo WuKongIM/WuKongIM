@@ -8,7 +8,6 @@ import (
 
 func TestSuback(t *testing.T) {
 	packet := &SubackPacket{
-		Setting:     Setting(1),
 		ChannelID:   "123456",
 		ChannelType: 1,
 		Action:      Subscribe,
@@ -27,7 +26,6 @@ func TestSuback(t *testing.T) {
 	assert.Equal(t, true, ok)
 
 	// 比较
-	assert.Equal(t, packet.Setting, resultSubackPacket.Setting)
 	assert.Equal(t, packet.ChannelID, resultSubackPacket.ChannelID)
 	assert.Equal(t, packet.ChannelType, resultSubackPacket.ChannelType)
 	assert.Equal(t, packet.Action, resultSubackPacket.Action)

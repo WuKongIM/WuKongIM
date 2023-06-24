@@ -1,6 +1,43 @@
 <script  lang="ts" setup>
 
+import { onMounted } from 'vue';
 import { RouterLink, RouterView } from 'vue-router'
+import APIClient from './services/APIClient';
+import { WKSDK } from 'wukongimjssdk/lib/sdk';
+
+
+const requestConnect = (uid: string, apiURL: string) => {
+  // 获取IM的长连接地址
+  APIClient.shared.get(`${apiURL}/route`, {
+    param: { uid: uid }
+  }).then((res) => {
+    console.log(res)
+    connectIM(uid, res.ws_addr)
+
+  }).catch((err) => {
+    console.log(err)
+    alert(err.msg)
+  })
+}
+
+const connectIM = (uid: string, wsAddr: string) => {
+  const config = WKSDK.shared().config
+  config.uid = uid
+  config.token = "xxx"
+  config.addr = wsAddr
+  WKSDK.shared().config = config
+  console.log("connectIM........")
+  WKSDK.shared().connect()
+}
+
+APIClient.shared.get("/api/varz").then((res) => {
+  console.log(res)
+  requestConnect("manager", res.api_url)
+}).catch((err) => {
+  console.log(err)
+  alert(err.msg)
+})
+
 
 </script>
 

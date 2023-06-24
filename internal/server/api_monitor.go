@@ -22,20 +22,16 @@ import (
 
 type MonitorAPI struct {
 	wklog.Log
-	s *Server
-
-	monitorChannel *wkproto.Channel
+	s                    *Server
+	monitorChannelPrefix string
 }
 
 // NewMonitorAPI NewMonitorAPI
 func NewMonitorAPI(s *Server) *MonitorAPI {
 	return &MonitorAPI{
-		Log: wklog.NewWKLog("MonitorAPI"),
-		s:   s,
-		monitorChannel: &wkproto.Channel{
-			ChannelID:   "__monitor",
-			ChannelType: wkproto.ChannelTypeData,
-		},
+		Log:                  wklog.NewWKLog("MonitorAPI"),
+		s:                    s,
+		monitorChannelPrefix: "__monitor",
 	}
 }
 
@@ -69,6 +65,7 @@ func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
 
 	go m.startRealtimePublish() // 开启实时数据推送
 	go m.startConnzPublish()    // 开启连接数据推送
+	go m.startVarzPublish()     // 开启变量数据推送
 
 }
 
@@ -136,15 +133,21 @@ func (m *MonitorAPI) startConnzPublish() {
 
 }
 
-func (m *MonitorAPI) realtimePublish() {
-	m.writeDataToMonitor("realtime", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
-		return m.getRealtimeData()
-	})
+func (m *MonitorAPI) startVarzPublish() {
+	tk := time.NewTicker(time.Second)
+	for {
+		select {
+		case <-tk.C:
+			m.varzPublish()
+		case <-m.s.stopChan:
+			return
+		}
+	}
+
 }
 
 func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscriberInfo *wkstore.SubscriberInfo) interface{}) {
-
-	monitorChannel, err := m.s.channelManager.GetChannel(m.monitorChannel.ChannelID, m.monitorChannel.ChannelType)
+	monitorChannel, err := m.s.channelManager.GetChannel(fmt.Sprintf("%s_%s", m.monitorChannelPrefix, typ), wkproto.ChannelTypeData)
 	if err != nil {
 		m.Error("realtimePublish fail", zap.Error(err))
 		return
@@ -169,18 +172,64 @@ func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscriber
 				continue
 			}
 			if rDataMap == nil {
-				rDataMap = map[string]interface{}{}
-				rDataMap["data"] = dataCallback(monitorChannel.GetSubscriberInfo(subscriber))
-				rDataMap["type"] = typ
-				rDataBytes = []byte(wkutil.ToJSON(rDataMap))
+				data := dataCallback(monitorChannel.GetSubscriberInfo(subscriber))
+				rDataBytes = []byte(wkutil.ToJSON(data))
 			}
-			conn.Write(rDataBytes)
+			recvPacket := &wkproto.RecvPacket{
+				Framer: wkproto.Framer{
+					NoPersist: true,
+					RedDot:    false,
+					SyncOnce:  false,
+				},
+				MessageID:   m.s.dispatch.processor.genMessageID(),
+				Timestamp:   int32(time.Now().Unix()),
+				ChannelID:   monitorChannel.ChannelID,
+				ChannelType: monitorChannel.ChannelType,
+				Payload:     rDataBytes,
+			}
+			encryptPayload, _ := encryptMessagePayload(rDataBytes, conn)
+			recvPacket.Payload = encryptPayload
+
+			msgKey, _ := makeMsgKey(recvPacket.VerityString(), conn)
+			recvPacket.MsgKey = msgKey
+
+			m.s.dispatch.dataOut(conn, recvPacket)
 		}
 	}
 }
 
-func (m *MonitorAPI) connzPublish() {
+func (m *MonitorAPI) varzPublish() {
+	m.writeDataToMonitor("varz", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
+		show := ""
+		if subscriberInfo != nil && subscriberInfo.Param != nil {
+			if subscriberInfo.Param["show"] != nil {
+				show = subscriberInfo.Param["show"].(string)
+			}
+		}
+		varz := CreateVarz(m.s)
+		connLimit := 20
+		if show == "conn" {
+			resultConns := m.s.GetConnInfos(ByInMsgDesc, 0, connLimit)
+			connInfos := make([]*ConnInfo, 0, len(resultConns))
+			for _, resultConn := range resultConns {
+				if resultConn == nil || !resultConn.IsAuthed() {
+					continue
+				}
+				connInfos = append(connInfos, newConnInfo(resultConn))
+			}
+			varz.Conns = connInfos
+		}
+		return varz
+	})
+}
 
+func (m *MonitorAPI) realtimePublish() {
+	m.writeDataToMonitor("realtime", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
+		return m.getRealtimeData()
+	})
+}
+
+func (m *MonitorAPI) connzPublish() {
 	var (
 		sortOpt   SortOpt
 		offset    int

@@ -65,6 +65,7 @@ type Options struct {
 		WSAddr      string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
 		WSSAddr     string // 节点的wssAddr地址 对外公开 WEB端长连接通讯 格式： wss://ip:port
 		MonitorAddr string // 对外访问的监控地址
+		APIUrl      string // 对外访问的API基地址 格式: http://ip:port
 	}
 	Channel struct { // 频道配置
 		CacheCount                int  // 频道缓存数量
@@ -237,7 +238,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	o.RootDir = o.getString("rootDir", o.RootDir)
 
-	o.Mode = Mode(o.getString("mode", string(ReleaseMode)))
+	o.Mode = Mode(o.getString("mode", string(DebugMode)))
 	o.GinMode = o.getString("ginMode", o.GinMode)
 
 	o.HTTPAddr = o.getString("httpAddr", o.HTTPAddr)
@@ -250,6 +251,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.External.WSAddr = o.getString("external.wsAddr", o.External.WSAddr)
 	o.External.WSSAddr = o.getString("external.wssAddr", o.External.WSSAddr)
 	o.External.MonitorAddr = o.getString("external.monitorAddr", o.External.MonitorAddr)
+	o.External.APIUrl = o.getString("external.apiUrl", o.External.APIUrl)
 
 	o.Monitor.On = o.getBool("monitor.on", o.Monitor.On)
 	o.Monitor.Addr = o.getString("monitor.addr", o.Monitor.Addr)
@@ -352,6 +354,12 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		addrPairs := strings.Split(o.Monitor.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 		o.External.MonitorAddr = fmt.Sprintf("%s:%d", ip, portInt64)
+	}
+
+	if strings.TrimSpace(o.External.APIUrl) == "" {
+		addrPairs := strings.Split(o.HTTPAddr, ":")
+		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
+		o.External.APIUrl = fmt.Sprintf("http://%s:%d", ip, portInt64)
 	}
 
 }

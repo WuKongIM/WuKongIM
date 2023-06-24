@@ -6,7 +6,7 @@ import router from './router'
 import './index.css'
 import APIClient from './services/APIClient'
 
-// APIClient.shared.config.apiURL = "http://175.27.245.108:5300" 
+APIClient.shared.config.apiURL = "http://127.0.0.1:5300" 
 
 const app = createApp(App)
 
