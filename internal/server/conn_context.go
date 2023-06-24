@@ -28,7 +28,8 @@ type connContext struct {
 	inflightCount  int // frame inflight count
 	wklog.Log
 
-	subscriberInfos map[string]*wkstore.SubscribeInfo // 订阅的频道数据, key: channel, value: SubscriberInfo
+	subscriberInfos    map[string]*wkstore.SubscribeInfo // 订阅的频道数据, key: channel, value: SubscriberInfo
+	subscriberInfoLock sync.RWMutex
 }
 
 func newConnContext(s *Server) *connContext {
@@ -105,18 +106,24 @@ func (c *connContext) subscribeChannel(channelID string, channelType uint8, para
 
 // 取消订阅
 func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
+	c.subscriberInfoLock.Lock()
+	defer c.subscriberInfoLock.Unlock()
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
 	delete(c.subscriberInfos, key)
 }
 
 // 是否订阅
 func (c *connContext) isSubscribed(channelID string, channelType uint8) bool {
+	c.subscriberInfoLock.Lock()
+	defer c.subscriberInfoLock.Unlock()
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
 	_, ok := c.subscriberInfos[key]
 	return ok
 }
 
 func (c *connContext) getSubscribeInfo(channelID string, channelType uint8) *wkstore.SubscribeInfo {
+	c.subscriberInfoLock.Lock()
+	defer c.subscriberInfoLock.Unlock()
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
 	return c.subscriberInfos[key]
 }

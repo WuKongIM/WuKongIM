@@ -120,17 +120,19 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 	if header.Fin { // 当前 frame 已经是最后一个frame
 		var messages []wsutil.Message
 		tmpReader.Reset(buff)
+		remLen := tmpReader.Len()
 		for tmpReader.Len() > 0 {
 			messages, err = wsutil.ReadClientMessage(tmpReader, messages)
 			if err != nil {
-				w.Warn("read client message error: %v", zap.Error(err))
-				continue
+				w.Warn("read client message error", zap.Error(err))
+				break
 			}
-			w.DiscardFromTemp(tmpReader.Len())
+			remLen = remLen - tmpReader.Len()
+			w.DiscardFromTemp(remLen)
 		}
 		return messages, nil
 	} else {
-		fmt.Println("header.Fin-->false...")
+		fmt.Println("header.Fin-->false...", buff)
 	}
 	return nil, nil
 }
@@ -370,15 +372,18 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 		return nil, nil
 	}
 	if header.Fin { // 当前 frame 已经是最后一个frame
+
 		var messages []wsutil.Message
 		tmpReader.Reset(buff)
+		remLen := tmpReader.Len()
 		for tmpReader.Len() > 0 {
 			messages, err = wsutil.ReadClientMessage(tmpReader, messages)
 			if err != nil {
-				w.d.Warn("read wss client message error: %v", zap.Error(err))
-				continue
+				w.d.Warn("read client message error", zap.Error(err))
+				break
 			}
-			w.discardFromWSTemp(tmpReader.Len())
+			remLen = remLen - tmpReader.Len()
+			w.discardFromWSTemp(remLen)
 		}
 		return messages, nil
 	} else {
