@@ -113,6 +113,7 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	d.s.outMsgs.Add(int64(len(frames)))
 	connStats.OutMsgs.Add(int64(len(frames)))
 
+	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
 	for _, frame := range frames {
 		data, err := d.s.opts.Proto.EncodeFrame(frame, uint8(conn.ProtoVersion()))
 		if err != nil {
@@ -124,8 +125,7 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 			d.s.outBytes.Add(int64(dataLen))
 			connStats.OutBytes.Add(int64(dataLen))
 
-			wsConn, ok := conn.(wknet.IWSConn) // websocket连接
-			if ok {
+			if wsok {
 				err = wsConn.WriteServerBinary(data)
 				if err != nil {
 					d.Warn("Failed to write the message", zap.Error(err))

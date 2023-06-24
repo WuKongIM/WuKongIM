@@ -210,6 +210,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 
 // #################### ping ####################
 func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket) {
+	p.Debug("ping", zap.Any("conn", conn))
 	p.response(conn, &wkproto.PongPacket{})
 }
 
@@ -493,6 +494,7 @@ func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Con
 
 // #################### subscribe ####################
 func (p *Processor) processSubs(conn wknet.Conn, subPackets []*wkproto.SubPacket) {
+	fmt.Println("subPackets--->", len(subPackets))
 	for _, subPacket := range subPackets {
 		p.processSub(conn, subPacket)
 	}
@@ -554,6 +556,9 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 	} else {
 		fmt.Println("Unsubscribe--->", conn.ID())
 		channel.RemoveSubscriber(conn.UID())
+		if subPacket.ChannelType == wkproto.ChannelTypeData && len(channel.GetAllSubscribers()) == 0 {
+			p.s.channelManager.RemoveDataChannel(channelID, subPacket.ChannelType)
+		}
 		connCtx.unscribeChannel(channelID, subPacket.ChannelType)
 	}
 	p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSuccess))
