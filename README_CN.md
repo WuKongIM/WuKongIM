@@ -94,6 +94,8 @@ docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL
 
 [Web Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMJSSDK)
 
+[Uniapp Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMUniappSDK)
+
 [Flutter Demo 和 SDK 源码(待完善)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
 
 
