@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
@@ -71,3 +72,31 @@ var (
 	ErrChannelNotFound = fmt.Errorf("channel not found")
 	ErrParamInvalid    = fmt.Errorf("param invalid")
 )
+
+// 加密消息
+func encryptMessagePayload(payload []byte, conn wknet.Conn) ([]byte, error) {
+	var (
+		aesKey = conn.Value(aesKeyKey).(string)
+		aesIV  = conn.Value(aesIVKey).(string)
+	)
+	// 加密payload
+	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		return nil, err
+	}
+	return payloadEnc, nil
+}
+
+func makeMsgKey(signStr string, conn wknet.Conn) (string, error) {
+	var (
+		aesKey = conn.Value(aesKeyKey).(string)
+		aesIV  = conn.Value(aesIVKey).(string)
+	)
+	// 生成MsgKey
+	msgKeyBytes, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		wklog.Error("生成MsgKey失败！", zap.Error(err))
+		return "", err
+	}
+	return wkutil.MD5(string(msgKeyBytes)), nil
+}

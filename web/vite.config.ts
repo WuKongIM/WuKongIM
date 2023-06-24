@@ -16,4 +16,9 @@ export default defineConfig({
     }
   },
   base: '/web',
+  server: {
+    fs: {
+      strict: false
+    }
+  }
 })

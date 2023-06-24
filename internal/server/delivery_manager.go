@@ -7,7 +7,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -92,14 +91,15 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 				if subscriber == recvPacket.FromUID { // 如果是自己则不显示红点
 					recvPacket.RedDot = false
 				}
-				payloadEnc, err := d.encryptMessagePayload(recvPacket.Payload, recvConn)
+				payloadEnc, err := encryptMessagePayload(recvPacket.Payload, recvConn)
 				if err != nil {
 					d.Error("加密payload失败！", zap.Error(err))
 					continue
 				}
 				recvPacket.Payload = payloadEnc
+
 				signStr := recvPacket.VerityString()
-				msgKey, err := d.makeMsgKey(signStr, recvConn)
+				msgKey, err := makeMsgKey(signStr, recvConn)
 				if err != nil {
 					d.Error("生成MsgKey失败！", zap.Error(err))
 					continue
@@ -122,33 +122,6 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 		}
 	}
 
-}
-
-func (d *DeliveryManager) encryptMessagePayload(payload []byte, conn wknet.Conn) ([]byte, error) {
-	var (
-		aesKey = conn.Value(aesKeyKey).(string)
-		aesIV  = conn.Value(aesIVKey).(string)
-	)
-	// 加密payload
-	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, []byte(aesKey), []byte(aesIV))
-	if err != nil {
-		return nil, err
-	}
-	return payloadEnc, nil
-}
-
-func (d *DeliveryManager) makeMsgKey(signStr string, conn wknet.Conn) (string, error) {
-	var (
-		aesKey = conn.Value(aesKeyKey).(string)
-		aesIV  = conn.Value(aesIVKey).(string)
-	)
-	// 生成MsgKey
-	msgKeyBytes, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
-	if err != nil {
-		d.Error("生成MsgKey失败！", zap.Error(err))
-		return "", err
-	}
-	return wkutil.MD5(string(msgKeyBytes)), nil
 }
 
 func (d *DeliveryManager) startRetryDeliveryMsg(msg *Message) {

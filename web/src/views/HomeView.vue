@@ -1,6 +1,6 @@
 <script  lang="ts" setup>
 // import { RouterLink, RouterView } from 'vue-router'
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted,onUnmounted, ref } from 'vue';
 import ConnChart from '../components/ConnChart.vue'
 import MsgRateChart from '../components/MsgRateChart.vue'
 import MsgTrafficsChart from '../components/MsgTrafficsChart.vue'
@@ -9,6 +9,7 @@ import VarzChart from '../components/VarzChart.vue'
 import APIClient from '../services/APIClient';
 import { ConnInfo, Varz, newConnInfo } from '../services/Model';
 import { formatMemory, formatNumber } from '../services/Utils';
+import { Message, WKSDK } from "wukongimjssdk/lib/sdk";
 
 
 const varz = ref<Varz>(new Varz())
@@ -22,24 +23,18 @@ const downstreamPackages = ref<Array<number>>([])
 const downstreamTraffics = ref<Array<number>>([])
 
 
-let realtimeIntervalId: number
-let varzIntervalId: number
-const startFetchData = async (last: boolean) => {
-  const result = await APIClient.shared.get(`/api/chart/realtime?last=${last ? "1" : ""}`)
+
+const refreshRealtime = (result: any) => {
   connData.value = result.conn_nums
   upstreamPackages.value = result.upstream_packets
   downstreamPackages.value = result.downstream_packets
 
   downstreamTraffics.value = result.downstream_traffics
   upstreamTraffics.value = result.upstream_traffics
-  if (!last) {
-    startRealtimeData()
-  }
 
 }
 
-const startFetchVarz = async () => {
-  const result = await APIClient.shared.get(`/api/varz?show=conn`)
+const refreshVarz = (result: any) => {
   const v = new Varz()
   v.inMsgs = result.in_msgs
   v.inBytes = result.in_bytes
@@ -62,26 +57,48 @@ const startFetchVarz = async () => {
 }
 
 const starVarzData = () => {
-  varzIntervalId = window.setInterval(async () => {
-    startFetchVarz()
-  }, 1000)
+  // varzIntervalId = window.setInterval(async () => {
+  //   startFetchVarz()
+  // }, 1000)
+
+  WKSDK.shared().onSubscribe("__monitor_varz?show=conn&conn_limit=20", (msg?: Message) => {
+    if (!msg) {
+      return
+    }
+    refreshVarz(msg.content.contentObj)
+  })
+
 };
 
-const startRealtimeData = () => {
-  realtimeIntervalId = window.setInterval(async () => {
-    startFetchData(true)
-  }, 1000);
+const startRealtimeData = async () => {
+  // realtimeIntervalId = window.setInterval(async () => {
+  //   startFetchData(true)
+  // }, 1000);
+
+  const result = await APIClient.shared.get(`/api/chart/realtime`)
+  refreshRealtime(result)
+
+
+  WKSDK.shared().onSubscribe("__monitor_realtime", (msg?: Message) => {
+    if (!msg) {
+      return
+    }
+    refreshRealtime(msg.content.contentObj)
+  })
 };
 
 onMounted(() => {
-  startFetchData(false)
+  startRealtimeData()
   starVarzData()
 })
 
-onBeforeUnmount(() => {
-  window.clearInterval(realtimeIntervalId)
-  window.clearInterval(varzIntervalId)
+onUnmounted(()=>{
+  WKSDK.shared().onUnsubscribe("__monitor_realtime")
+  WKSDK.shared().onUnsubscribe("__monitor_varz")
 })
+
+
+
 
 </script>
 

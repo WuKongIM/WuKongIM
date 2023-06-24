@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -117,7 +118,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 		}
 		devceLevel = wkproto.DeviceLevel(devceLevelI)
 	} else {
-		devceLevel = wkproto.DeviceLevelMaster // 默认都是master设备
+		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
 	}
 
 	// -------------------- ban  --------------------
@@ -153,7 +154,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 		for _, oldConn := range oldConns {
 			p.s.connManager.RemoveConnWithID(oldConn.ID())
 			if oldConn.DeviceID() != connectPacket.DeviceID {
-				p.Info("same master kicks each other", zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.DeviceID()))
+				p.Info("same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.DeviceID()))
 				p.response(oldConn, &wkproto.DisconnectPacket{
 					ReasonCode: wkproto.ReasonConnectKick,
 					Reason:     "login in other device",
@@ -498,32 +499,54 @@ func (p *Processor) processSubs(conn wknet.Conn, subPackets []*wkproto.SubPacket
 }
 
 func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
+
+	channelIDUrl, err := url.Parse(subPacket.ChannelID)
+	if err != nil {
+		p.Warn("订阅的频道ID不合法！", zap.Error(err), zap.String("channelID", subPacket.ChannelID))
+		return
+	}
+	channelID := channelIDUrl.Path
+	if strings.TrimSpace(channelID) == "" {
+		p.Warn("订阅的频道ID不能为空！", zap.String("channelID", subPacket.ChannelID))
+		return
+	}
+
+	paramMap := map[string]interface{}{}
+
+	values := channelIDUrl.Query()
+	for key, value := range values {
+		if len(value) > 0 {
+			paramMap[key] = value[0]
+		}
+
+	}
+
 	if subPacket.ChannelType != wkproto.ChannelTypeData {
 		p.Warn("订阅的频道类型不正确！", zap.Uint8("channelType", subPacket.ChannelType))
-		p.response(conn, p.getSuback(subPacket, wkproto.ReasonNotSupportChannelType))
+		p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonNotSupportChannelType))
 		return
 	}
-	if strings.TrimSpace(subPacket.ChannelID) == "" {
-		p.Warn("订阅的频道ID不能为空！")
-		p.response(conn, p.getSuback(subPacket, wkproto.ReasonChannelIDError))
-		return
-	}
-	channel, err := p.s.channelManager.GetChannel(subPacket.ChannelID, subPacket.ChannelType)
+
+	channel, err := p.s.channelManager.GetChannel(channelID, subPacket.ChannelType)
 	if err != nil {
 		p.Warn("获取频道失败！", zap.Error(err))
-		p.response(conn, p.getSuback(subPacket, wkproto.ReasonSystemError))
+		p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSystemError))
 		return
 	}
 	if channel == nil {
-		p.Warn("频道不存在！", zap.String("channelID", subPacket.ChannelID), zap.Uint8("channelType", subPacket.ChannelType))
-		p.response(conn, p.getSuback(subPacket, wkproto.ReasonChannelNotExist))
+		p.Warn("频道不存在！", zap.String("channelID", channelID), zap.Uint8("channelType", subPacket.ChannelType))
+		p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonChannelNotExist))
 		return
 	}
 
 	if subPacket.Action == wkproto.Subscribe {
-		paramMap := make(map[string]interface{})
 		if strings.TrimSpace(subPacket.Param) != "" {
-			paramMap, _ = wkutil.JSONToMap(subPacket.Param)
+			paramM, _ := wkutil.JSONToMap(subPacket.Param)
+			if len(paramM) > 0 {
+				for k, v := range paramM {
+					paramMap[k] = v
+				}
+			}
 		}
 		channel.AddSubscriber(conn.UID())
 		channel.SetSubscriberInfo(conn.UID(), &wkstore.SubscriberInfo{
@@ -533,13 +556,13 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 	} else {
 		channel.RemoveSubscriber(conn.UID())
 	}
-	p.response(conn, p.getSuback(subPacket, wkproto.ReasonSuccess))
+	p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSuccess))
 }
 
-func (p *Processor) getSuback(subPacket *wkproto.SubPacket, reasonCode wkproto.ReasonCode) *wkproto.SubackPacket {
+func (p *Processor) getSuback(subPacket *wkproto.SubPacket, channelID string, reasonCode wkproto.ReasonCode) *wkproto.SubackPacket {
 	return &wkproto.SubackPacket{
-		Setting:     subPacket.Setting,
-		ChannelID:   subPacket.ChannelID,
+		ClientMsgNo: subPacket.ClientMsgNo,
+		ChannelID:   channelID,
 		ChannelType: subPacket.ChannelType,
 		Action:      subPacket.Action,
 		ReasonCode:  reasonCode,

@@ -18,7 +18,8 @@
     "buffer": "^6.0.3",
     "echarts": "^5.4.2",
     "vue": "^3.3.4",
-    "vue-router": "^4.2.2"
+    "vue-router": "^4.2.2",
+    "wukongimjssdk": "^1.0.2"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.2.0",
