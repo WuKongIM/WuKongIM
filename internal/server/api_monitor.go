@@ -146,7 +146,7 @@ func (m *MonitorAPI) startVarzPublish() {
 
 }
 
-func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscriberInfo *wkstore.SubscriberInfo) interface{}) {
+func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscribeInfo *wkstore.SubscribeInfo) interface{}) {
 	monitorChannel, err := m.s.channelManager.GetChannel(fmt.Sprintf("%s_%s", m.monitorChannelPrefix, typ), wkproto.ChannelTypeData)
 	if err != nil {
 		m.Error("realtimePublish fail", zap.Error(err))
@@ -165,16 +165,20 @@ func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscriber
 		if len(conns) == 0 {
 			continue
 		}
-		var rDataMap map[string]interface{}
 		var rDataBytes []byte
 		for _, conn := range conns {
 			if conn == nil {
 				continue
 			}
-			if rDataMap == nil {
-				data := dataCallback(monitorChannel.GetSubscriberInfo(subscriber))
-				rDataBytes = []byte(wkutil.ToJSON(data))
+
+			connCtx := conn.Context().(*connContext)
+
+			subscribeInfo := connCtx.getSubscribeInfo(monitorChannel.ChannelID, monitorChannel.ChannelType)
+			if subscribeInfo == nil { // 说明该连接没有订阅该频道
+				continue
 			}
+			data := dataCallback(subscribeInfo)
+			rDataBytes = []byte(wkutil.ToJSON(data))
 			recvPacket := &wkproto.RecvPacket{
 				Framer: wkproto.Framer{
 					NoPersist: true,
@@ -199,7 +203,7 @@ func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscriber
 }
 
 func (m *MonitorAPI) varzPublish() {
-	m.writeDataToMonitor("varz", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
+	m.writeDataToMonitor("varz", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
 		show := ""
 		if subscriberInfo != nil && subscriberInfo.Param != nil {
 			if subscriberInfo.Param["show"] != nil {
@@ -224,7 +228,7 @@ func (m *MonitorAPI) varzPublish() {
 }
 
 func (m *MonitorAPI) realtimePublish() {
-	m.writeDataToMonitor("realtime", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
+	m.writeDataToMonitor("realtime", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
 		return m.getRealtimeData()
 	})
 }
@@ -236,7 +240,7 @@ func (m *MonitorAPI) connzPublish() {
 		limit     int = 20
 		connInfos []*ConnInfo
 	)
-	m.writeDataToMonitor("connz", func(subscriberInfo *wkstore.SubscriberInfo) interface{} {
+	m.writeDataToMonitor("connz", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
 		if subscriberInfo != nil && subscriberInfo.Param != nil {
 			if subscriberInfo.Param["sort_opt"] != nil {
 				sortOpt = SortOpt(subscriberInfo.Param["sort_opt"].(string))

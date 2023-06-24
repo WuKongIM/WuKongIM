@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"sync"
 
 	"go.uber.org/zap"
@@ -8,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 )
 
 // type connStats struct {
@@ -25,14 +27,17 @@ type connContext struct {
 	s              *Server
 	inflightCount  int // frame inflight count
 	wklog.Log
+
+	subscriberInfos map[string]*wkstore.SubscribeInfo // 订阅的频道数据, key: channel, value: SubscriberInfo
 }
 
 func newConnContext(s *Server) *connContext {
 
 	return &connContext{
-		s:              s,
-		frameCacheLock: sync.RWMutex{},
-		Log:            wklog.NewWKLog("connContext"),
+		s:               s,
+		frameCacheLock:  sync.RWMutex{},
+		Log:             wklog.NewWKLog("connContext"),
+		subscriberInfos: make(map[string]*wkstore.SubscribeInfo),
 	}
 }
 
@@ -45,7 +50,6 @@ func (c *connContext) putFrame(frame wkproto.Frame) {
 	if c.s.opts.UserMsgQueueMaxSize > 0 && int(c.inflightCount) > c.s.opts.UserMsgQueueMaxSize {
 		c.disableRead()
 	}
-
 }
 
 func (c *connContext) popFrames() []wkproto.Frame {
@@ -88,6 +92,33 @@ func (c *connContext) enableRead() {
 	c.isDisableRead = false
 	c.Info("流量限制解除!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()), zap.Int("fd", c.conn.Fd()))
 	c.conn.ReactorSub().AddRead(c.conn.Fd())
+}
+
+// 订阅频道
+func (c *connContext) subscribeChannel(channelID string, channelType uint8, param map[string]interface{}) {
+	key := fmt.Sprintf("%s-%d", channelID, channelType)
+	c.subscriberInfos[key] = &wkstore.SubscribeInfo{
+		UID:   c.conn.UID(),
+		Param: param,
+	}
+}
+
+// 取消订阅
+func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
+	key := fmt.Sprintf("%s-%d", channelID, channelType)
+	delete(c.subscriberInfos, key)
+}
+
+// 是否订阅
+func (c *connContext) isSubscribed(channelID string, channelType uint8) bool {
+	key := fmt.Sprintf("%s-%d", channelID, channelType)
+	_, ok := c.subscriberInfos[key]
+	return ok
+}
+
+func (c *connContext) getSubscribeInfo(channelID string, channelType uint8) *wkstore.SubscribeInfo {
+	key := fmt.Sprintf("%s-%d", channelID, channelType)
+	return c.subscriberInfos[key]
 }
 
 func (c *connContext) init() {
