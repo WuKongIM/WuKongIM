@@ -32,7 +32,7 @@ const connectIM = (uid: string, wsAddr: string) => {
 
 APIClient.shared.get("/api/varz").then((res) => {
   console.log(res)
-  requestConnect("manager", res.api_url)
+  requestConnect("____manager", res.api_url)
 }).catch((err) => {
   console.log(err)
   alert(err.msg)

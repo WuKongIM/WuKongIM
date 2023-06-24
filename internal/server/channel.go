@@ -14,11 +14,10 @@ import (
 
 type Channel struct {
 	*wkstore.ChannelInfo
-	blacklist         sync.Map // 黑名单
-	whitelist         sync.Map // 白名单
-	subscriberMap     sync.Map // 订阅者
-	subscriberInfoMap sync.Map
-	s                 *Server
+	blacklist     sync.Map // 黑名单
+	whitelist     sync.Map // 白名单
+	subscriberMap sync.Map // 订阅者
+	s             *Server
 	wklog.Log
 	tmpSubscriberMap sync.Map // 临时订阅者
 }
@@ -27,14 +26,13 @@ type Channel struct {
 func NewChannel(channelInfo *wkstore.ChannelInfo, s *Server) *Channel {
 
 	return &Channel{
-		ChannelInfo:       channelInfo,
-		blacklist:         sync.Map{},
-		whitelist:         sync.Map{},
-		subscriberMap:     sync.Map{},
-		subscriberInfoMap: sync.Map{},
-		tmpSubscriberMap:  sync.Map{},
-		s:                 s,
-		Log:               wklog.NewWKLog(fmt.Sprintf("channel[%s-%d]", channelInfo.ChannelID, channelInfo.ChannelType)),
+		ChannelInfo:      channelInfo,
+		blacklist:        sync.Map{},
+		whitelist:        sync.Map{},
+		subscriberMap:    sync.Map{},
+		tmpSubscriberMap: sync.Map{},
+		s:                s,
+		Log:              wklog.NewWKLog(fmt.Sprintf("channel[%s-%d]", channelInfo.ChannelID, channelInfo.ChannelType)),
 	}
 }
 
@@ -228,14 +226,6 @@ func (c *Channel) AddSubscriber(uid string) {
 	c.subscriberMap.Store(uid, true)
 }
 
-func (c *Channel) SetSubscriberInfo(uid string, info *wkstore.SubscriberInfo) {
-	c.subscriberInfoMap.Store(uid, info)
-}
-
-func (c *Channel) RemoveSubscriberInfo(uid string) {
-	c.subscriberInfoMap.Delete(uid)
-}
-
 func (c *Channel) AddSubscribers(uids []string) {
 	if len(uids) > 0 {
 		for _, uid := range uids {
@@ -344,14 +334,6 @@ func (c *Channel) GetAllSubscribers() []string {
 	return subscribers
 }
 
-func (c *Channel) GetSubscriberInfo(subscriber string) *wkstore.SubscriberInfo {
-	subscriberInfo, _ := c.subscriberInfoMap.Load(subscriber)
-	if subscriberInfo != nil {
-		return subscriberInfo.(*wkstore.SubscriberInfo)
-	}
-	return nil
-}
-
 func (c *Channel) GetAllTmpSubscribers() []string {
 	subscribers := make([]string, 0)
 	c.tmpSubscriberMap.Range(func(key, value interface{}) bool {
@@ -380,14 +362,12 @@ func (c *Channel) RemoveAllTmpSubscriber() {
 // RemoveSubscriber  移除订阅者
 func (c *Channel) RemoveSubscriber(uid string) {
 	c.subscriberMap.Delete(uid)
-	c.subscriberInfoMap.Delete(uid)
 }
 
 func (c *Channel) RemoveSubscribers(uids []string) {
 	if len(uids) > 0 {
 		for _, uid := range uids {
 			c.subscriberMap.Delete(uid)
-			c.subscriberInfoMap.Delete(uid)
 		}
 	}
 }

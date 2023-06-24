@@ -518,7 +518,6 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 		if len(value) > 0 {
 			paramMap[key] = value[0]
 		}
-
 	}
 
 	if subPacket.ChannelType != wkproto.ChannelTypeData {
@@ -539,7 +538,9 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 		return
 	}
 
+	connCtx := conn.Context().(*connContext)
 	if subPacket.Action == wkproto.Subscribe {
+		fmt.Println("Subscribe--->", conn.ID())
 		if strings.TrimSpace(subPacket.Param) != "" {
 			paramM, _ := wkutil.JSONToMap(subPacket.Param)
 			if len(paramM) > 0 {
@@ -549,12 +550,11 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 			}
 		}
 		channel.AddSubscriber(conn.UID())
-		channel.SetSubscriberInfo(conn.UID(), &wkstore.SubscriberInfo{
-			UID:   conn.UID(),
-			Param: paramMap,
-		})
+		connCtx.subscribeChannel(channelID, subPacket.ChannelType, paramMap)
 	} else {
+		fmt.Println("Unsubscribe--->", conn.ID())
 		channel.RemoveSubscriber(conn.UID())
+		connCtx.unscribeChannel(channelID, subPacket.ChannelType)
 	}
 	p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSuccess))
 }

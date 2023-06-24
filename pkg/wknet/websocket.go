@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	"go.uber.org/zap"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -119,11 +120,14 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 	if header.Fin { // 当前 frame 已经是最后一个frame
 		var messages []wsutil.Message
 		tmpReader.Reset(buff)
-		messages, err = wsutil.ReadClientMessage(tmpReader, messages)
-		if err != nil {
-			return nil, err
+		for tmpReader.Len() > 0 {
+			messages, err = wsutil.ReadClientMessage(tmpReader, messages)
+			if err != nil {
+				w.Warn("read client message error: %v", zap.Error(err))
+				continue
+			}
+			w.DiscardFromTemp(tmpReader.Len())
 		}
-		w.DiscardFromTemp(len(buff) - tmpReader.Len())
 		return messages, nil
 	} else {
 		fmt.Println("header.Fin-->false...")
@@ -296,7 +300,6 @@ func (w *WSSConn) upgrade() error {
 	w.discardFromWSTemp(len(buff) - tmpReader.Len())
 
 	w.upgraded = true
-	fmt.Println("upgraded success")
 
 	return nil
 }
@@ -369,11 +372,14 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 	if header.Fin { // 当前 frame 已经是最后一个frame
 		var messages []wsutil.Message
 		tmpReader.Reset(buff)
-		messages, err = wsutil.ReadClientMessage(tmpReader, messages)
-		if err != nil {
-			return nil, err
+		for tmpReader.Len() > 0 {
+			messages, err = wsutil.ReadClientMessage(tmpReader, messages)
+			if err != nil {
+				w.d.Warn("read wss client message error: %v", zap.Error(err))
+				continue
+			}
+			w.discardFromWSTemp(tmpReader.Len())
 		}
-		w.discardFromWSTemp(len(buff) - tmpReader.Len())
 		return messages, nil
 	} else {
 		fmt.Println("header.Fin-->false...")
