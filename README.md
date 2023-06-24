@@ -81,6 +81,8 @@ SDK source code and demos
 
 [Web Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMJSSDK)
 
+[Uniapp Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMUniappSDK)
+
 [Flutter Demo and SDK Source Code (to be improved)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
 
 Applicable Scenarios
