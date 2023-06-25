@@ -14,8 +14,7 @@ var segmentCache *lru.Cache[string, *segment]
 
 func init() {
 	var err error
-	segmentCache, err = lru.NewWithEvict(10, func(key string, value *segment) {
-		fmt.Println("release--->", key)
+	segmentCache, err = lru.NewWithEvict(100, func(key string, value *segment) {
 		value.release()
 	})
 	if err != nil {

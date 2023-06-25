@@ -97,6 +97,8 @@ func (c *connContext) enableRead() {
 
 // 订阅频道
 func (c *connContext) subscribeChannel(channelID string, channelType uint8, param map[string]interface{}) {
+	c.subscriberInfoLock.Lock()
+	defer c.subscriberInfoLock.Unlock()
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
 	c.subscriberInfos[key] = &wkstore.SubscribeInfo{
 		UID:   c.conn.UID(),
@@ -114,16 +116,16 @@ func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
 
 // 是否订阅
 func (c *connContext) isSubscribed(channelID string, channelType uint8) bool {
-	c.subscriberInfoLock.Lock()
-	defer c.subscriberInfoLock.Unlock()
+	c.subscriberInfoLock.RLock()
+	defer c.subscriberInfoLock.RUnlock()
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
 	_, ok := c.subscriberInfos[key]
 	return ok
 }
 
 func (c *connContext) getSubscribeInfo(channelID string, channelType uint8) *wkstore.SubscribeInfo {
-	c.subscriberInfoLock.Lock()
-	defer c.subscriberInfoLock.Unlock()
+	c.subscriberInfoLock.RLock()
+	defer c.subscriberInfoLock.RUnlock()
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
 	return c.subscriberInfos[key]
 }
