@@ -554,8 +554,10 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 		channel.AddSubscriber(conn.UID())
 		connCtx.subscribeChannel(channelID, subPacket.ChannelType, paramMap)
 	} else {
-		fmt.Println("Unsubscribe--->", conn.ID())
-		channel.RemoveSubscriber(conn.UID())
+
+		if !p.s.connManager.ExistConnsWithUID(conn.UID()) {
+			channel.RemoveSubscriber(conn.UID())
+		}
 		if subPacket.ChannelType == wkproto.ChannelTypeData && len(channel.GetAllSubscribers()) == 0 {
 			p.s.channelManager.RemoveDataChannel(channelID, subPacket.ChannelType)
 		}
