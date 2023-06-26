@@ -43,10 +43,7 @@ func (c *ConnManager) GetConn(id int64) wknet.Conn {
 }
 
 func (c *ConnManager) RemoveConn(conn wknet.Conn) {
-	c.Lock()
-	defer c.Unlock()
-	delete(c.userConnMap, conn.UID())
-	delete(c.connMap, conn.ID())
+	c.RemoveConnWithID(conn.ID())
 }
 
 func (c *ConnManager) RemoveConnWithID(id int64) {
