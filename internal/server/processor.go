@@ -542,7 +542,6 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 
 	connCtx := conn.Context().(*connContext)
 	if subPacket.Action == wkproto.Subscribe {
-		fmt.Println("Subscribe--->", conn.ID())
 		if strings.TrimSpace(subPacket.Param) != "" {
 			paramM, _ := wkutil.JSONToMap(subPacket.Param)
 			if len(paramM) > 0 {

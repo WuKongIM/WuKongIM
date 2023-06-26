@@ -49,6 +49,7 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 	for _, subscriber := range subscribers {
 		recvConns := d.getRecvConns(subscriber, fromUID, fromDeivceFlag, fromDeviceID)
 		if len(recvConns) == 0 {
+			d.Debug("没有在线连接！", zap.String("subscriber", subscriber), zap.String("fromUID", fromUID), zap.String("fromDeivceFlag", fromDeivceFlag.String()), zap.String("fromDeviceID", fromDeviceID))
 			if subscriber != fromUID { //自己发给自己的消息不触发离线事件
 				offlineSubscribers = append(offlineSubscribers, subscriber)
 			}
@@ -65,6 +66,7 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 				offlineSubscribers = append(offlineSubscribers, subscriber)
 			}
 		}
+		d.Debug("消息投递", zap.String("subscriber", subscriber), zap.Any("recvConns", len(recvConns)))
 		for _, recvConn := range recvConns {
 			recvPackets := make([]wkproto.Frame, 0, len(messages))
 			for _, m := range messages {
@@ -160,7 +162,7 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 func (d *DeliveryManager) getRecvConns(subscriber string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) []wknet.Conn {
 	toConns := d.s.connManager.GetConnsWithUID(subscriber)
 	// fromClients := l.clientManager.GetClientsWithUID(msg.FromUID)
-
+	d.Debug("toConns", zap.Int("toConns", len(toConns)))
 	conns := make([]wknet.Conn, 0, len(toConns))
 	if len(toConns) > 0 {
 		for _, conn := range toConns {
