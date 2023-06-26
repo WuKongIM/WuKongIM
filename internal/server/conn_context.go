@@ -115,13 +115,13 @@ func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
 }
 
 // 是否订阅
-func (c *connContext) isSubscribed(channelID string, channelType uint8) bool {
-	c.subscriberInfoLock.RLock()
-	defer c.subscriberInfoLock.RUnlock()
-	key := fmt.Sprintf("%s-%d", channelID, channelType)
-	_, ok := c.subscriberInfos[key]
-	return ok
-}
+// func (c *connContext) isSubscribed(channelID string, channelType uint8) bool {
+// 	c.subscriberInfoLock.RLock()
+// 	defer c.subscriberInfoLock.RUnlock()
+// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
+// 	_, ok := c.subscriberInfos[key]
+// 	return ok
+// }
 
 func (c *connContext) getSubscribeInfo(channelID string, channelType uint8) *wkstore.SubscribeInfo {
 	c.subscriberInfoLock.RLock()
