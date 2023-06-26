@@ -429,9 +429,9 @@ func (o *Options) getBool(key string, defaultValue bool) bool {
 	return cast.ToBool(objV)
 }
 
-func (o *Options) isSet(key string) bool {
-	return o.vp.IsSet(key)
-}
+// func (o *Options) isSet(key string) bool {
+// 	return o.vp.IsSet(key)
+// }
 
 func (o *Options) getInt64(key string, defaultValue int64) int64 {
 	v := o.vp.GetInt64(key)
