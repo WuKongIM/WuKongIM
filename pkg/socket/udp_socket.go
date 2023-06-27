@@ -21,6 +21,7 @@ package socket
 import (
 	"net"
 	"os"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 
@@ -28,7 +29,7 @@ import (
 )
 
 // GetUDPSockAddr the structured addresses based on the protocol and raw address.
-func GetUDPSockAddr(proto, addr string) (sa unix.Sockaddr, family int, udpAddr *net.UDPAddr, ipv6only bool, err error) {
+func GetUDPSockAddr(proto, addr string) (sa syscall.Sockaddr, family int, udpAddr *net.UDPAddr, ipv6only bool, err error) {
 	var udpVersion string
 
 	udpAddr, err = net.ResolveUDPAddr(proto, addr)
@@ -85,35 +86,35 @@ func udpSocket(proto, addr string, connect bool, sockOpts ...Option) (fd int, ne
 	var (
 		family   int
 		ipv6only bool
-		sa       unix.Sockaddr
+		sa       syscall.Sockaddr
 	)
 
 	if sa, family, netAddr, ipv6only, err = GetUDPSockAddr(proto, addr); err != nil {
 		return
 	}
 
-	if fd, err = sysSocket(family, unix.SOCK_DGRAM, unix.IPPROTO_UDP); err != nil {
+	if fd, err = sysSocket(family, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP); err != nil {
 		err = os.NewSyscallError("socket", err)
 		return
 	}
 	defer func() {
 		// ignore EINPROGRESS for non-blocking socket connect, should be processed by caller
 		if err != nil {
-			if err, ok := err.(*os.SyscallError); ok && err.Err == unix.EINPROGRESS {
+			if err, ok := err.(*os.SyscallError); ok && err.Err == syscall.EINPROGRESS {
 				return
 			}
-			_ = unix.Close(fd)
+			_ = syscall.Close(fd)
 		}
 	}()
 
-	if family == unix.AF_INET6 && ipv6only {
+	if family == syscall.AF_INET6 && ipv6only {
 		if err = SetIPv6Only(fd, 1); err != nil {
 			return
 		}
 	}
 
 	// Allow broadcast.
-	if err = os.NewSyscallError("setsockopt", unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_BROADCAST, 1)); err != nil {
+	if err = os.NewSyscallError("setsockopt", syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)); err != nil {
 		return
 	}
 
@@ -124,9 +125,9 @@ func udpSocket(proto, addr string, connect bool, sockOpts ...Option) (fd int, ne
 	}
 
 	if connect {
-		err = os.NewSyscallError("connect", unix.Connect(fd, sa))
+		err = os.NewSyscallError("connect", syscall.Connect(fd, sa))
 	} else {
-		err = os.NewSyscallError("bind", unix.Bind(fd, sa))
+		err = os.NewSyscallError("bind", syscall.Bind(fd, sa))
 	}
 
 	return

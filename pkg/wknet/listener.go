@@ -1,3 +1,5 @@
+//go:build linux || freebsd || dragonfly || netbsd || openbsd || darwin
+
 package wknet
 
 import (
@@ -16,7 +18,7 @@ type listener struct {
 
 	customAddr    string
 	customNetwork string
-	readAddr      net.Addr
+	realAddr      net.Addr
 	addr          string // 监听地址 格式为 tcp://xxx.xxx.xxx.xxx:xxxx
 	opts          *Options
 }
@@ -72,16 +74,16 @@ func (l *listener) initTCPListener(network, addr string) error {
 	if err != nil {
 		return err
 	}
-	var readAddr syscall.Sockaddr
-	readAddr, err = syscall.Getsockname(l.fd)
+	var realAddr syscall.Sockaddr
+	realAddr, err = syscall.Getsockname(l.fd)
 	if err != nil {
 		return err
 	}
-	switch addr := readAddr.(type) {
+	switch addr := realAddr.(type) {
 	case *syscall.SockaddrInet4:
-		l.readAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
+		l.realAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
 	case *syscall.SockaddrInet6:
-		l.readAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
+		l.realAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
 	default:
 		fmt.Printf("Unknown address type: %T\n", addr)
 	}

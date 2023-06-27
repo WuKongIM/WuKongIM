@@ -11,15 +11,14 @@ import (
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"golang.org/x/sys/unix"
 )
 
-func CreateWSConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+func CreateWSConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 	defaultConn := GetDefaultConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
 	return NewWSConn(defaultConn), nil
 }
 
-func CreateWSSConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+func CreateWSSConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 	defaultConn := GetDefaultConn(id, connFd, localAddr, remoteAddr, eg, reactorSub)
 	tc := newTLSConn(defaultConn)
 	tlsCn := tls.Server(tc, eg.options.WSTLSConfig)
@@ -43,7 +42,7 @@ func NewWSConn(d *DefaultConn) *WSConn {
 
 func (w *WSConn) ReadToInboundBuffer() (int, error) {
 	readBuffer := w.reactorSub.ReadBuffer
-	n, err := unix.Read(w.fd, readBuffer)
+	n, err := w.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
 	}
@@ -216,7 +215,7 @@ func NewWSSConn(tlsConn *TLSConn) *WSSConn {
 
 func (w *WSSConn) ReadToInboundBuffer() (int, error) {
 	readBuffer := w.d.reactorSub.ReadBuffer
-	n, err := unix.Read(w.d.fd, readBuffer)
+	n, err := w.d.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
 	}

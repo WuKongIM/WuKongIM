@@ -2,7 +2,6 @@ package wknet
 
 import (
 	"runtime"
-	"syscall"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
@@ -40,7 +39,7 @@ type Options struct {
 func NewOptions() *Options {
 	return &Options{
 		Addr:               "tcp://127.0.0.1:5100",
-		MaxOpenFiles:       getMaxOpenFiles(),
+		MaxOpenFiles:       GetMaxOpenFiles(),
 		SubReactorNum:      runtime.NumCPU(),
 		ReadBufferSize:     1024 * 32,
 		MaxWriteBufferSize: 1024 * 1024 * 50,
@@ -114,16 +113,4 @@ func WithTCPKeepAlive(v time.Duration) Option {
 	return func(opts *Options) {
 		opts.TCPKeepAlive = v
 	}
-}
-
-func getMaxOpenFiles() int {
-	maxOpenFiles := 1024 * 1024 * 2
-	var limit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit); err == nil {
-		if n := int(limit.Max); n > 0 && n < maxOpenFiles {
-			maxOpenFiles = n
-		}
-	}
-
-	return maxOpenFiles
 }
