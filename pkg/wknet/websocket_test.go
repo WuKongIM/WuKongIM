@@ -35,7 +35,7 @@ func TestWebsocket(t *testing.T) {
 		return nil
 	})
 
-	u := url.URL{Scheme: "ws", Host: e.WSRealListenAddrt().String(), Path: "/"}
+	u := url.URL{Scheme: "ws", Host: e.WSRealListenAddr().String(), Path: "/"}
 
 	c1, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	assert.NoError(t, err)
@@ -108,7 +108,7 @@ func TestBatchWSConn(t *testing.T) {
 	for i := 0; i < cliCount; i++ {
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
-		go testWSConnSend(msgCount, e.WSRealListenAddrt().String(), t, wg, readyChan)
+		go testWSConnSend(msgCount, e.WSRealListenAddr().String(), t, wg, readyChan)
 		wg.Wait()
 	}
 
@@ -162,7 +162,7 @@ func TestWebsocketWSS(t *testing.T) {
 
 	dialer := websocket.DefaultDialer
 
-	u := url.URL{Scheme: "wss", Host: e.WSSRealListenAddrt().String(), Path: ""}
+	u := url.URL{Scheme: "wss", Host: e.WSSRealListenAddr().String(), Path: ""}
 	dialer.NetDialTLSContext = func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 
 		conn, err = tls.Dial(network, addr, &tls.Config{InsecureSkipVerify: true, MaxVersion: tls.VersionTLS13})
@@ -245,7 +245,7 @@ func TestBatchWSSConn(t *testing.T) {
 	for i := 0; i < cliCount; i++ {
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
-		go testWSSConnSend(msgCount, e.WSSRealListenAddrt().String(), t, wg, readyChan)
+		go testWSSConnSend(msgCount, e.WSSRealListenAddr().String(), t, wg, readyChan)
 		wg.Wait()
 	}
 

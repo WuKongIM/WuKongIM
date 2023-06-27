@@ -18,8 +18,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	lio "github.com/WuKongIM/WuKongIM/pkg/wknet/io"
-	"golang.org/x/sys/unix"
 )
 
 type ConnStats struct {
@@ -77,7 +75,7 @@ type Conn interface {
 	// Wake wakes up the connection write.
 	WakeWrite() error
 	// Fd returns the file descriptor of the connection.
-	Fd() int
+	Fd() NetFd
 	// IsClosed returns true if the connection is closed.
 	IsClosed() bool
 	// Close closes the connection.
@@ -124,7 +122,7 @@ type IWSConn interface {
 }
 
 type DefaultConn struct {
-	fd             int
+	fd             NetFd
 	remoteAddr     net.Addr
 	localAddr      net.Addr
 	eg             *Engine
@@ -156,7 +154,7 @@ type DefaultConn struct {
 	wklog.Log
 }
 
-func GetDefaultConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) *DefaultConn {
+func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) *DefaultConn {
 	defaultConn := eg.defaultConnPool.Get().(*DefaultConn)
 	defaultConn.id = id
 	defaultConn.fd = connFd
@@ -182,7 +180,7 @@ func GetDefaultConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *En
 	return defaultConn
 }
 
-func CreateConn(id int64, connFd int, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
+func CreateConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) (Conn, error) {
 
 	// defaultConn := &DefaultConn{
 	// 	id:         id,
@@ -217,7 +215,7 @@ func (d *DefaultConn) SetID(id int64) {
 
 func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 	readBuffer := d.reactorSub.ReadBuffer
-	n, err := unix.Read(d.fd, readBuffer)
+	n, err := d.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
 	}
@@ -275,7 +273,7 @@ func (d *DefaultConn) Flush() error {
 
 	return d.flush()
 }
-func (d *DefaultConn) Fd() int {
+func (d *DefaultConn) Fd() NetFd {
 
 	return d.fd
 }
@@ -286,13 +284,13 @@ func (d *DefaultConn) Close() error {
 	}
 	d.closed = true
 
-	err := d.reactorSub.poller.Delete(d.fd)
+	err := d.reactorSub.DeleteFd(d)
 	if err != nil {
 		d.Error("delete fd from poller error", zap.Error(err))
 	}
-	_ = syscall.Close(d.fd)
+	_ = d.fd.Close()
 	d.eg.RemoveConn(d)           // remove from the engine
-	d.reactorSub.connCount.Dec() // decrease the connection count
+	d.reactorSub.ConnDec()       // decrease the connection count
 	d.eg.eventHandler.OnClose(d) // call the close handler
 	d.release()
 
@@ -324,7 +322,7 @@ func (d *DefaultConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (d *DefaultConn) release() {
-	d.fd = 0
+	d.fd = NetFd{}
 	d.maxIdle = 0
 	if d.idleTimer != nil {
 		d.idleTimer.Stop()
@@ -490,7 +488,7 @@ func (d *DefaultConn) flush() error {
 	_, _ = d.outboundBuffer.Discard(n)
 	switch err {
 	case nil:
-	case unix.EAGAIN:
+	case syscall.EAGAIN:
 		return nil
 	default:
 		return d.reactorSub.CloseConn(d, os.NewSyscallError("write", err))
@@ -513,12 +511,12 @@ func (d *DefaultConn) WriteDirect(head, tail []byte) (int, error) {
 		err error
 	)
 	if len(head) > 0 && len(tail) > 0 {
-		n, err = lio.Writev(d.fd, [][]byte{head, tail})
+		n, err = d.fd.Write(append(head, tail...))
 	} else {
 		if len(head) > 0 {
-			n, err = unix.Write(d.fd, head)
+			n, err = d.fd.Write(head)
 		} else if len(tail) > 0 {
-			n, err = unix.Write(d.fd, tail)
+			n, err = d.fd.Write(tail)
 		}
 	}
 	return n, err
@@ -548,7 +546,7 @@ func (d *DefaultConn) addWriteIfNotExist() error {
 	defer d.wakeWriteLock.Unlock()
 	if !d.isWAdded {
 		d.isWAdded = true
-		return d.reactorSub.AddWrite(d.fd)
+		return d.reactorSub.AddWrite(d)
 	}
 	return nil
 }
@@ -558,7 +556,7 @@ func (d *DefaultConn) removeWriteIfExist() error {
 	defer d.wakeWriteLock.Unlock()
 	if d.isWAdded {
 		d.isWAdded = false
-		return d.reactorSub.RemoveWrite(d.fd)
+		return d.reactorSub.RemoveWrite(d)
 	}
 	return nil
 }
@@ -593,7 +591,7 @@ func newTLSConn(d *DefaultConn) *TLSConn {
 
 func (t *TLSConn) ReadToInboundBuffer() (int, error) {
 	readBuffer := t.d.reactorSub.ReadBuffer
-	n, err := unix.Read(t.d.fd, readBuffer)
+	n, err := t.d.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
 	}
@@ -647,7 +645,7 @@ func (t *TLSConn) SetUID(uid string) {
 	t.d.uid = uid
 }
 
-func (t *TLSConn) Fd() int {
+func (t *TLSConn) Fd() NetFd {
 	return t.d.fd
 }
 

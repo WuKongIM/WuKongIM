@@ -33,7 +33,7 @@ func (c *ConnManager) AddConn(conn wknet.Conn) {
 	}
 	connIDs = append(connIDs, conn.ID())
 	c.userConnMap[conn.UID()] = connIDs
-	c.connMap[conn.ID()] = conn.Fd()
+	c.connMap[conn.ID()] = conn.Fd().Fd()
 }
 
 func (c *ConnManager) GetConn(id int64) wknet.Conn {

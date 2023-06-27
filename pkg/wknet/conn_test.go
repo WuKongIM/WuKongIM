@@ -20,23 +20,23 @@ func TestConn(t *testing.T) {
 	conns = append(conns, &DefaultConn{
 		id:  1,
 		uid: "1",
-		fd:  1,
+		fd:  NetFd{fd: 1},
 	}, &DefaultConn{
 		id:  2,
 		uid: "2",
-		fd:  2,
+		fd:  NetFd{fd: 2},
 	}, &DefaultConn{
 		id:  3,
 		uid: "3",
-		fd:  3,
+		fd:  NetFd{fd: 3},
 	}, &DefaultConn{
 		id:  4,
 		uid: "4",
-		fd:  4,
+		fd:  NetFd{fd: 4},
 	}, &DefaultConn{
 		id:  5,
 		uid: "5",
-		fd:  5,
+		fd:  NetFd{fd: 5},
 	},
 	)
 
@@ -46,7 +46,7 @@ func TestConn(t *testing.T) {
 			fmt.Println("conn->", newConn.id)
 		}(conn)
 	}
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 1)
 }
 
 func TestTlsConn(t *testing.T) {

@@ -1,3 +1,6 @@
+//go:build linux || freebsd || dragonfly || darwin
+// +build linux freebsd dragonfly darwin
+
 package wknet
 
 import (
@@ -42,7 +45,7 @@ func NewReactorSub(eg *Engine, index int) *ReactorSub {
 func (r *ReactorSub) AddConn(conn Conn) error {
 	r.eg.AddConn(conn)
 	r.connCount.Inc()
-	return r.poller.AddRead(conn.Fd())
+	return r.poller.AddRead(conn.Fd().fd)
 }
 
 // Start starts the sub reactor.
@@ -57,24 +60,35 @@ func (r *ReactorSub) Stop() error {
 	return r.poller.Close()
 }
 
-func (r *ReactorSub) AddWrite(fd int) error {
-	return r.poller.AddWrite(fd)
+func (r *ReactorSub) AddWrite(conn Conn) error {
+	return r.poller.AddWrite(conn.Fd().fd)
 }
 
-func (r *ReactorSub) AddRead(fd int) error {
-	return r.poller.AddRead(fd)
+func (r *ReactorSub) AddRead(conn Conn) error {
+	return r.poller.AddRead(conn.Fd().fd)
 }
 
-func (r *ReactorSub) RemoveWrite(fd int) error {
-	return r.poller.DeleteWrite(fd)
+func (r *ReactorSub) RemoveWrite(conn Conn) error {
+	return r.poller.DeleteWrite(conn.Fd().fd)
 }
 
-func (r *ReactorSub) RemoveRead(fd int) error {
-	return r.poller.DeleteRead(fd)
+func (r *ReactorSub) RemoveRead(conn Conn) error {
+	return r.poller.DeleteRead(conn.Fd().fd)
 }
 
-func (r *ReactorSub) RemoveReadAndWrite(fd int) error {
-	return r.poller.DeleteReadAndWrite(fd)
+func (r *ReactorSub) RemoveReadAndWrite(conn Conn) error {
+	return r.poller.DeleteReadAndWrite(conn.Fd().fd)
+}
+
+func (r *ReactorSub) DeleteFd(conn Conn) error {
+	return r.poller.Delete(conn.Fd().fd)
+}
+
+func (r *ReactorSub) ConnInc() {
+	r.connCount.Inc()
+}
+func (r *ReactorSub) ConnDec() {
+	r.connCount.Dec()
 }
 
 func (r *ReactorSub) run() {

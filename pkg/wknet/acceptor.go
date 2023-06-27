@@ -1,3 +1,6 @@
+//go:build linux || freebsd || dragonfly || darwin
+// +build linux freebsd dragonfly darwin
+
 package wknet
 
 import (
@@ -6,8 +9,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-
-	"go.uber.org/atomic"
 
 	perrors "github.com/WuKongIM/WuKongIM/pkg/errors"
 	"github.com/WuKongIM/WuKongIM/pkg/socket"
@@ -103,7 +104,7 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
-	a.tcpRealListenAddr = a.listen.readAddr
+	a.tcpRealListenAddr = a.listen.realAddr
 	if err := a.listenPoller.AddRead(a.listen.fd); err != nil {
 		return fmt.Errorf("add listener fd to poller failed %s", err)
 	}
@@ -123,7 +124,7 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
-	a.wsRealListenAddr = a.listenWS.readAddr
+	a.wsRealListenAddr = a.listenWS.realAddr
 	if err := a.listenWSPoller.AddRead(a.listenWS.fd); err != nil {
 		return fmt.Errorf("add ws listener fd to poller failed %s", err)
 	}
@@ -141,7 +142,7 @@ func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
-	a.wsRealListenAddr = a.listenWSS.readAddr
+	a.wsRealListenAddr = a.listenWSS.realAddr
 	if err := a.listenWSSPoller.AddRead(a.listenWSS.fd); err != nil {
 		return fmt.Errorf("add ws listener fd to poller failed %s", err)
 	}
@@ -158,6 +159,10 @@ func (a *Acceptor) Stop() error {
 		a.Warn("listenPoller.Close() failed", zap.Error(err))
 	}
 	err = a.listenWSPoller.Close()
+	if err != nil {
+		a.Warn("listenWSPoller.Close() failed", zap.Error(err))
+	}
+	err = a.listenWSSPoller.Close()
 	if err != nil {
 		a.Warn("listenWSPoller.Close() failed", zap.Error(err))
 	}
@@ -190,16 +195,16 @@ func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
 	}
 	subReactor := a.reactorSubByConnFd(connFd)
 	if wss {
-		if conn, err = a.eg.eventHandler.OnNewWSSConn(a.GenClientID(), connFd, a.listenWSS.readAddr, remoteAddr, a.eg, subReactor); err != nil {
+		if conn, err = a.eg.eventHandler.OnNewWSSConn(a.eg.GenClientID(), newNetFd(connFd), a.wssRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	} else if ws {
-		if conn, err = a.eg.eventHandler.OnNewWSConn(a.GenClientID(), connFd, a.listenWS.readAddr, remoteAddr, a.eg, subReactor); err != nil {
+		if conn, err = a.eg.eventHandler.OnNewWSConn(a.eg.GenClientID(), newNetFd(connFd), a.wsRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	} else {
 
-		if conn, err = a.eg.eventHandler.OnNewConn(a.GenClientID(), connFd, a.listen.readAddr, remoteAddr, a.eg, subReactor); err != nil {
+		if conn, err = a.eg.eventHandler.OnNewConn(a.eg.GenClientID(), newNetFd(connFd), a.tcpRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	}
@@ -216,14 +221,14 @@ func (a *Acceptor) reactorSubByConnFd(connfd int) *ReactorSub {
 	return a.reactorSubs[connfd%len(a.reactorSubs)]
 }
 
-var clientIDGen atomic.Int64 // 全局客户端ID生成器
+func (a *Acceptor) tcpRealAddr() net.Addr {
+	return a.listen.realAddr
+}
 
-func (a *Acceptor) GenClientID() int64 {
+func (a *Acceptor) wsRealAddr() net.Addr {
+	return a.listenWS.realAddr
+}
 
-	cid := clientIDGen.Load()
-
-	if cid >= 1<<32-1 { // 如果超过或等于 int32最大值 这客户端ID从新从0开始生成，int32有几十亿大 如果从1开始生成再回到1 原来属于1的客户端应该早就销毁了。
-		clientIDGen.Store(0)
-	}
-	return clientIDGen.Inc()
+func (a *Acceptor) wssRealAddr() net.Addr {
+	return a.listenWSS.realAddr
 }
