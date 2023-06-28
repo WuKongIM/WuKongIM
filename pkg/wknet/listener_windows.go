@@ -38,7 +38,6 @@ type listener struct {
 }
 
 func newListener(addr string, opts *Options) *listener {
-	fmt.Println("newListener.....")
 	return &listener{
 		addr: addr,
 		opts: opts,
@@ -124,5 +123,6 @@ func (l *listener) Polling(callback func(fd NetFd) error) {
 }
 
 func (l *listener) Close() error {
-	return l.ln.Close()
+	return nil
+
 }
