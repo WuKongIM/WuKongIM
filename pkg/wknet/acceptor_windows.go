@@ -114,6 +114,7 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
+	wg.Done()
 	a.listen.Polling(func(fd NetFd) error {
 		return a.acceptConn(fd, false, false)
 	})
@@ -127,6 +128,7 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
+	wg.Done()
 	a.listenWS.Polling(func(fd NetFd) error {
 		return a.acceptConn(fd, true, false)
 	})
@@ -140,6 +142,7 @@ func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
+	wg.Done()
 	a.listenWSS.Polling(func(fd NetFd) error {
 		return a.acceptConn(fd, false, true)
 	})
