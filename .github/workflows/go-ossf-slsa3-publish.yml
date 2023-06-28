@@ -52,6 +52,7 @@ jobs:
         os:
           - linux
           - darwin
+          - windows
         arch:
           - amd64
           - arm64
