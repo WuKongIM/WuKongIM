@@ -61,7 +61,7 @@
 - [x] 支持TLS 1.3
 - [x] 支持Prometheus监控
 - [x] 监控系统开发
-- [ ] 支持Windows系统部署
+- [x] 支持Windows系统部署(仅开发用)
 
 
 快速部署
