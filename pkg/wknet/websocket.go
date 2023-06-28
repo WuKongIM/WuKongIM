@@ -143,7 +143,6 @@ func (w *WSConn) upgrade() error {
 	}
 	tmpReader := bytes.NewReader(buff)
 	tmpWriter := bytes.NewBuffer(nil)
-
 	_, err = ws.Upgrade(&readWrite{
 		Reader: tmpReader,
 		Writer: tmpWriter,
@@ -162,7 +161,6 @@ func (w *WSConn) upgrade() error {
 
 	w.DiscardFromTemp(len(buff) - tmpReader.Len())
 	w.upgraded = true
-
 	return nil
 }
 

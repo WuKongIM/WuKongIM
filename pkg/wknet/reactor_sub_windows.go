@@ -3,6 +3,8 @@ package wknet
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"syscall"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
@@ -65,7 +67,7 @@ func (r *ReactorSub) CloseConn(c Conn, er error) (rerr error) {
 }
 
 func (r *ReactorSub) AddWrite(conn Conn) error {
-	conn.Flush()
+	go conn.Flush()
 	return nil
 }
 
@@ -83,11 +85,31 @@ func (r *ReactorSub) RemoveWrite(conn Conn) error {
 
 func (r *ReactorSub) readLoop(conn Conn) {
 	for {
-
-		_, err := conn.ReadToInboundBuffer()
+		n, err := conn.ReadToInboundBuffer()
 		if err != nil {
-			r.Error("readLoop error: %v", zap.Error(err))
+			if err == syscall.EAGAIN {
+				continue
+			}
+			r.Error("readLoop error", zap.Error(err))
+			if err1 := r.CloseConn(conn, err); err1 != nil {
+				r.Warn("failed to close conn", zap.Error(err1))
+			}
+			return
+		}
+		if n == 0 {
+			r.CloseConn(conn, os.NewSyscallError("read", syscall.ECONNRESET))
+			return
+		}
+		if err = r.eg.eventHandler.OnData(conn); err != nil {
+			if err == syscall.EAGAIN {
+				continue
+			}
+			if err1 := r.CloseConn(conn, err); err1 != nil {
+				r.Warn("failed to close conn", zap.Error(err1))
+			}
+			r.Warn("failed to call OnData", zap.Error(err))
 			return
 		}
 	}
+
 }
