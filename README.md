@@ -51,7 +51,7 @@ TODO
 - [x] Supports WebSocket connections
 - [x] Supports TLS 1.3
 - [x] Development of monitoring system
-- [ ] Support for Windows system deployment
+- [x] Support for Windows system deployment (For development use only)
 
 
 Quick Start
