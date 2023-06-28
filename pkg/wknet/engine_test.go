@@ -20,7 +20,8 @@ func TestEngine(t *testing.T) {
 	e.Start()
 	defer e.Stop()
 
-	timeoutCtx, _ := context.WithTimeout(context.Background(), time.Second*5)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 	finishChan := make(chan struct{})
 	clientCount := 100
 	clientMsgCount := 5
@@ -30,11 +31,9 @@ func TestEngine(t *testing.T) {
 	wg.Add(clientCount * clientMsgCount)
 
 	go func() {
-		select {
-		case <-timeoutCtx.Done():
-			assert.NoError(t, errors.New("timeout"))
-			finishChan <- struct{}{}
-		}
+		<-timeoutCtx.Done()
+		assert.NoError(t, errors.New("timeout"))
+		finishChan <- struct{}{}
 
 	}()
 
