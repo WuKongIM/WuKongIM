@@ -122,7 +122,7 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 
 func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 	// ws
-	a.listenWS = newListener(a.eg.options.Addr, a.eg.options)
+	a.listenWS = newListener(a.eg.options.WsAddr, a.eg.options)
 	err := a.listenWS.init()
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 
 func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	// wss
-	a.listenWSS = newListener(a.eg.options.Addr, a.eg.options)
+	a.listenWSS = newListener(a.eg.options.WssAddr, a.eg.options)
 	err := a.listenWSS.init()
 	if err != nil {
 		return err
