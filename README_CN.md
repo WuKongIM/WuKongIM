@@ -6,6 +6,9 @@
 
 `本项目需要在go1.20.0或以上环境编译`
 
+web聊天场景演示： http://imdemo.githubim.com
+后端监控演示： http://monitor.githubim.com/web
+
 [English](./README.md)
 
 <p align="center">
@@ -69,7 +72,7 @@
 
 ```
 
-docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ~/wukongim:/root/wukongim  wukongim/wukongim:latest
+docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ~/wukongim:/root/wukongim  wukongim/wukongim:latest
 
 ```
 
@@ -79,9 +82,19 @@ docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL
 
 查看监控信息： http://127.0.0.1:5300/web
 
-客户端演示地址：http://imdemo.githubim.com
+客户端演示地址：http://127.0.0.1:5172/chatdemo
 
 其他部署方式详见文档：http://githubim.com/guide/quickstart
+
+端口解释:
+
+```
+5001: api端口
+5100: tcp长连接端口
+5172: demo端口
+5200: websocket长连接端口
+5300: 监控系统端口
+```
 
 
 配套SDK源码和Demo

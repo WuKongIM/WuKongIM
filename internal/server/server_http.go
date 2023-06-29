@@ -54,7 +54,7 @@ func (s *APIServer) Start() {
 			panic(err)
 		}
 	}()
-	s.Info("Server started", zap.String("addr", s.s.opts.HTTPAddr))
+	s.Info("Server started", zap.String("addr", s.addr))
 }
 
 // Stop 停止服务

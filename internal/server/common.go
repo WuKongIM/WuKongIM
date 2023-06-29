@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,4 +100,13 @@ func makeMsgKey(signStr string, conn wknet.Conn) (string, error) {
 		return "", err
 	}
 	return wkutil.MD5(string(msgKeyBytes)), nil
+}
+
+func parseAddr(addr string) (string, int64) {
+	addrPairs := strings.Split(addr, ":")
+	if len(addrPairs) < 2 {
+		return "", 0
+	}
+	portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
+	return addrPairs[0], portInt64
 }

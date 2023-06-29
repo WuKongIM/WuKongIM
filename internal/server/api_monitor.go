@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,8 +13,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"github.com/WuKongIM/WuKongIM/version"
-	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -37,18 +34,6 @@ func NewMonitorAPI(s *Server) *MonitorAPI {
 
 // Route 用户相关路由配置
 func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
-
-	r.GetGinRoute().Use(gzip.Gzip(gzip.DefaultCompression))
-
-	st, _ := fs.Sub(version.StaticFs, "web/dist")
-	r.GetGinRoute().NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/web") {
-			c.FileFromFS("./index.html", http.FS(st))
-			return
-		}
-	})
-
-	r.GetGinRoute().StaticFS("/web", http.FS(st))
 
 	varz := NewVarzAPI(m.s)
 	connz := NewConnzAPI(m.s)

@@ -7,4 +7,5 @@ var Commit string     // git commit id
 var CommitDate string // git commit date
 var TreeState string  // git tree state
 
-var StaticFs embed.FS // 静态资源
+var WebFs embed.FS  // monitor静态资源
+var DemoFs embed.FS // demo静态资源
