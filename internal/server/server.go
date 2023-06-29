@@ -31,34 +31,29 @@ type stats struct {
 }
 
 type Server struct {
-	stats
-
-	opts *Options
-	wklog.Log
+	stats                                        // 统计信息
+	opts                *Options                 // 配置
+	wklog.Log                                    // 日志
 	handleGoroutinePool *ants.Pool               // 处理逻辑的池
 	waitGroupWrapper    *wkutil.WaitGroupWrapper // 协程组
 	apiServer           *APIServer               // api服务
 	start               time.Time                // 服务开始时间
 	timingWheel         *timingwheel.TimingWheel // Time wheel delay task
-	deliveryManager     *DeliveryManager
-	monitor             monitor.IMonitor // Data monitoring
-	dispatch            *Dispatch
-
-	store       wkstore.Store
-	connManager *ConnManager // conn manager
-
-	systemUIDManager *SystemUIDManager // System uid management, system uid can send messages to everyone without any restrictions
-
-	datasource          IDatasource          // 数据源（提供数据源 订阅者，黑名单，白名单这些数据可以交由第三方提供）
-	channelManager      *ChannelManager      // channel manager
-	conversationManager *ConversationManager // conversation manager
-	retryQueue          *RetryQueue          // retry queue
-	webhook             *Webhook             // webhook
-	monitorServer       *MonitorServer       // 监控服务
-	demoServer          *DemoServer          // demo server
-
-	started  bool // 服务是否已经启动
-	stopChan chan struct{}
+	deliveryManager     *DeliveryManager         // 消息投递管理
+	monitor             monitor.IMonitor         // Data monitoring
+	dispatch            *Dispatch                // 消息流入流出分发器
+	store               wkstore.Store            // 存储相关接口
+	connManager         *ConnManager             // conn manager
+	systemUIDManager    *SystemUIDManager        // System uid management, system uid can send messages to everyone without any restrictions
+	datasource          IDatasource              // 数据源（提供数据源 订阅者，黑名单，白名单这些数据可以交由第三方提供）
+	channelManager      *ChannelManager          // channel manager
+	conversationManager *ConversationManager     // conversation manager
+	retryQueue          *RetryQueue              // retry queue
+	webhook             *Webhook                 // webhook
+	monitorServer       *MonitorServer           // 监控服务
+	demoServer          *DemoServer              // demo server
+	started             bool                     // 服务是否已经启动
+	stopChan            chan struct{}            // 服务停止通道
 }
 
 func New(opts *Options) *Server {
