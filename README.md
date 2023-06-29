@@ -16,7 +16,7 @@ Backend monitoring demo: http://monitor.githubim.com/web
 <ul>
 <!-- <li><strong>QQ group</strong>: <a href="#">496193831</a></li> -->
 <li><strong>Website</strong>: http://www.githubim.com</li>
-<li><strong>Protocol</strong>: <a href="https://githubim.com/guide/proto">WuKongIM Protocol</a></li>
+<li><strong>Protocol</strong>: <a href="https://githubim.com/guide/proto.html">WuKongIM Protocol</a></li>
 <li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>Docs</strong>: http://www.githubim.com</li>
 </ul>
