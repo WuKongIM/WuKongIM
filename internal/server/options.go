@@ -59,6 +59,10 @@ type Options struct {
 		On   bool   // 是否开启监控
 		Addr string // 监控地址 默认为 0.0.0.0:5300
 	}
+	Demo struct {
+		On   bool   // 是否开启demo
+		Addr string // demo服务地址 默认为 0.0.0.0:5172
+	}
 	External struct {
 		IP          string // 外网IP 如果没配置将通过ifconfig.io获取
 		TCPAddr     string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
@@ -228,6 +232,13 @@ func NewOptions() *Options {
 			On:   true,
 			Addr: "0.0.0.0:5300",
 		},
+		Demo: struct {
+			On   bool
+			Addr string
+		}{
+			On:   true,
+			Addr: "0.0.0.0:5172",
+		},
 		SlotNum: 256,
 	}
 }
@@ -255,6 +266,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	o.Monitor.On = o.getBool("monitor.on", o.Monitor.On)
 	o.Monitor.Addr = o.getString("monitor.addr", o.Monitor.Addr)
+
+	o.Demo.On = o.getBool("demo.on", o.Demo.On)
+	o.Demo.Addr = o.getString("demo.addr", o.Demo.Addr)
 
 	o.WSAddr = o.getString("wsAddr", o.WSAddr)
 	o.WSSAddr = o.getString("wssAddr", o.WSSAddr)

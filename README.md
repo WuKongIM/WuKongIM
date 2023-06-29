@@ -6,6 +6,9 @@ WuKongIM is a high-performance universal communication service that supports var
 
 `This project needs to be compiled in a go1.20.0 or higher version.`
 
+Web chat scene demo: http://imdemo.githubim.com
+Backend monitoring demo: http://monitor.githubim.com/web
+
 [中文文档](./README_CN.md)
 
 <p align="center">
@@ -58,7 +61,7 @@ Quick Start
 ---------------
 
 ```
-docker run -d -p 5001:5001 -p 5100:5100 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx --name wukongim -v ~/wukongim:/root/wukongim wukongim/wukongim:latest
+docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx --name wukongim -v ~/wukongim:/root/wukongim wukongim/wukongim:latest
 ```
 
 `WK_EXTERNAL_IP: The external IP address of the server used for client connections. If testing only and the client and server are on the same LAN, the LAN IP address of the deployed server can be used here.`
@@ -67,9 +70,19 @@ View System information: http://127.0.0.1:5001/varz
 
 View Monitor information: http://127.0.0.1:5300/web
 
-Demo: http://imdemo.githubim.com
+Demo: http://127.0.0.1:5172/chatdemo
 
 For more deployment options, see the [documentation](http://githubim.com/guide/quickstart).
+
+Port explanation:
+
+```
+5001: API port
+5100: TCP long connection port
+5172: Demo port
+5200: WebSocket long connection port
+5300: Monitoring system port
+```
 
 
 SDK source code and demos

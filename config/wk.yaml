@@ -25,6 +25,9 @@ external:
 # monitor: 
 #   on: true # 是否开启监控
 #   addr: "0.0.0.0:5300" # 监控监听地址 默认为 0.0.0.0:5300
+# demo: 
+#   on: true # 是否开启demo
+#   addr: "0.0.0.0:5172" # demo监听地址 默认为 0.0.0.0:5172
 # channel:
 #   cacheCount: 1000 # 频道缓存数量 频道被加载后会缓存到内存中，如果频道数量过多，会占用大量内存，可以通过此配置限制缓存数量
 #   createIfNoExist: true # 频道不存在时是否自动创建 默认为true

@@ -55,6 +55,7 @@ type Server struct {
 	retryQueue          *RetryQueue          // retry queue
 	webhook             *Webhook             // webhook
 	monitorServer       *MonitorServer       // 监控服务
+	demoServer          *DemoServer          // demo server
 
 	started  bool // 服务是否已经启动
 	stopChan chan struct{}
@@ -96,6 +97,7 @@ func New(opts *Options) *Server {
 	s.webhook = NewWebhook(s)
 	s.monitor = monitor.GetMonitor() // 监控
 	s.monitorServer = NewMonitorServer(s)
+	s.demoServer = NewDemoServer(s)
 	var err error
 	s.handleGoroutinePool, err = ants.NewPool(s.opts.HandlePoolSize)
 	if err != nil {
@@ -177,6 +179,9 @@ func (s *Server) Start() error {
 		s.monitor.Start()
 		s.monitorServer.Start()
 	}
+	if s.opts.Demo.On {
+		s.demoServer.Start()
+	}
 
 	s.started = true
 
@@ -202,7 +207,9 @@ func (s *Server) Stop() error {
 		s.monitorServer.Stop()
 		s.monitor.Stop()
 	}
-
+	if s.opts.Demo.On {
+		s.demoServer.Stop()
+	}
 	close(s.stopChan)
 
 	return nil
