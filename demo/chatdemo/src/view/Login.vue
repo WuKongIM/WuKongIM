@@ -7,7 +7,7 @@ const router = useRouter();
 // defineProps<{ msg: string }>()
 
 const count = ref(0)
-const apiAddr = ref('https://api.githubim.com')
+const apiAddr = ref('http://127.0.0.1:5001')
 const username = ref('')
 const password = ref('')
 
