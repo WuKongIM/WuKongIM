@@ -54,7 +54,8 @@ TODO
 - [x] Supports WebSocket connections
 - [x] Supports TLS 1.3
 - [x] Development of monitoring system
-- [x] Support for Windows system deployment (For development use only)
+- [x] Support for Windows system (For development use only)
+- [ ] Streaming messages, similar to the typing effect of chatgpt
 
 
 Quick Start
