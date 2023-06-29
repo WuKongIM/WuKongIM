@@ -33,6 +33,7 @@ web聊天场景演示： http://imdemo.githubim.com
 
 深知开发一个即时通讯系统的复杂性，我们希望通过开源的方式，让更多的开发者可以快速的搭建自己的即时通讯系统，让信息传递更简单。 -->
 
+
 特点
 --------
 
@@ -64,8 +65,16 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 支持TLS 1.3
 - [x] 支持Prometheus监控
 - [x] 监控系统开发
-- [x] 支持Windows系统部署(仅开发用)
+- [x] 支持Windows系统(仅开发用)
+- [ ] 流式消息，类似chatgpt的打字效果
 
+图解
+---------------
+
+![image](./docs/业务系统对接图.png)
+
+
+![image](./docs/webhook.png)
 
 快速部署
 ---------------
