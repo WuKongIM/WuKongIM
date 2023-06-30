@@ -34,9 +34,8 @@ func NewMessageAPI(s *Server) *MessageAPI {
 func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/message/send", m.send)           // 发送消息
 	r.POST("/message/sendbatch", m.sendBatch) // 批量发送消息
-	// 消息同步(写模式)
-	r.POST("/message/sync", m.sync)
-	r.POST("/message/syncack", m.syncack)
+	r.POST("/message/sync", m.sync)           // 消息同步(写模式)
+	r.POST("/message/syncack", m.syncack)     // 消息同步回执(写模式)
 }
 
 // 消息同步

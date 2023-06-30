@@ -27,13 +27,10 @@ func NewUserAPI(s *Server) *UserAPI {
 
 // Route 用户相关路由配置
 func (u *UserAPI) Route(r *wkhttp.WKHttp) {
-	// 更新用户token
-	r.POST("/user/token", u.updateToken)
 
-	r.POST("/user/device_quit", u.deviceQuit) // 强制设备退出
-	// 获取用户在线状态
-	r.POST("/user/onlinestatus", u.getOnlineStatus)
-
+	r.POST("/user/token", u.updateToken)                  // 更新用户token
+	r.POST("/user/device_quit", u.deviceQuit)             // 强制设备退出
+	r.POST("/user/onlinestatus", u.getOnlineStatus)       // 获取用户在线状态
 	r.POST("/user/systemuids_add", u.systemUIDsAdd)       // 添加系统uid
 	r.POST("/user/systemuids_remove", u.systemUIDsRemove) // 移除系统uid
 

@@ -31,12 +31,12 @@ func NewConversationAPI(s *Server) *ConversationAPI {
 
 // Route 路由
 func (s *ConversationAPI) Route(r *wkhttp.WKHttp) {
-	r.GET("/conversations", s.conversationsList)
-	r.POST("/conversations/clearUnread", s.clearConversationUnread)
-	r.POST("/conversations/setUnread", s.setConversationUnread)
-	r.POST("/conversations/delete", s.deleteConversation)
-	r.POST("/conversation/sync", s.syncUserConversation)
-	r.POST("/conversation/syncMessages", s.syncRecentMessages)
+	r.GET("/conversations", s.conversationsList)                    // 获取会话列表
+	r.POST("/conversations/clearUnread", s.clearConversationUnread) // 清空会话未读数量
+	r.POST("/conversations/setUnread", s.setConversationUnread)     // 设置会话未读数量
+	r.POST("/conversations/delete", s.deleteConversation)           // 删除会话
+	r.POST("/conversation/sync", s.syncUserConversation)            // 同步会话
+	r.POST("/conversation/syncMessages", s.syncRecentMessages)      // 同步会话最近消息
 }
 
 // Get a list of recent conversations

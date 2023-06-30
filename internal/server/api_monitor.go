@@ -38,9 +38,8 @@ func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
 	varz := NewVarzAPI(m.s)
 	connz := NewConnzAPI(m.s)
 
-	r.GET("/api/varz", varz.HandleVarz)
-	r.GET("/api/connz", connz.HandleConnz)
-
+	r.GET("/api/varz", varz.HandleVarz)          // 系统变量
+	r.GET("/api/connz", connz.HandleConnz)       // 系统客户端连接
 	r.GET("/api/metrics", m.s.monitor.Monitor)   // prometheus监控
 	r.GET("/api/chart/realtime", m.realtime)     // 首页实时数据
 	r.GET("/api/channels", m.channels)           // 频道
