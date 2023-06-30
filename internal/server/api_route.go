@@ -25,9 +25,8 @@ func NewRouteAPI(s *Server) *RouteAPI {
 
 // Route Route
 func (a *RouteAPI) Route(r *wkhttp.WKHttp) {
-	r.GET("/route", a.routeUserIMAddr)
-	// 批量获取用户所在节点的连接信息
-	r.POST("/route/batch", a.routeUserIMAddrOfBatch)
+	r.GET("/route", a.routeUserIMAddr)               // 获取用户所在节点的连接信息
+	r.POST("/route/batch", a.routeUserIMAddrOfBatch) // 批量获取用户所在节点的连接信息
 }
 
 // 路由用户的IM连接地址

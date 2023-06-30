@@ -30,19 +30,22 @@ func NewChannelAPI(s *Server) *ChannelAPI {
 
 // Route Route
 func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
-	r.POST("/channel", ch.channelCreateOrUpdate)              // 创建或修改频道
+	//################### 频道 ###################
+	r.POST("/channel", ch.channelCreateOrUpdate)       // 创建或修改频道
+	r.POST("/channel/info", ch.updateOrAddChannelInfo) // 更新或添加频道基础信息
+	r.POST("/channel/delete", ch.channelDelete)        // 删除频道
+
+	//################### 订阅者 ###################// 删除频道
 	r.POST("/channel/subscriber_add", ch.addSubscriber)       // 添加订阅者
 	r.POST("/channel/subscriber_remove", ch.removeSubscriber) // 移除订阅者
-	r.POST("/channel/info", ch.updateOrAddChannelInfo)        // 更新或添加频道基础信息
-	// 删除频道
-	r.POST("/channel/delete", ch.channelDelete)
-	// 频道黑名单
-	r.POST("/channel/blacklist_add", ch.blacklistAdd) // 添加白明单
-	r.POST("/channel/blacklist_set", ch.blacklistSet) // 设置黑明单（覆盖原来的黑名单数据）
-	r.POST("/channel/blacklist_remove", ch.blacklistRemove)
 
-	// 白名单
-	r.POST("/channel/whitelist_add", ch.whitelistAdd)
+	//################### 黑明单 ###################// 删除频道
+	r.POST("/channel/blacklist_add", ch.blacklistAdd)       // 添加黑明单
+	r.POST("/channel/blacklist_set", ch.blacklistSet)       // 设置黑明单（覆盖原来的黑名单数据）
+	r.POST("/channel/blacklist_remove", ch.blacklistRemove) // 移除黑名单
+
+	//################### 白名单 ###################
+	r.POST("/channel/whitelist_add", ch.whitelistAdd) // 添加白名单
 	r.POST("/channel/whitelist_set", ch.whitelistSet) // 设置白明单（覆盖
 	r.POST("/channel/whitelist_remove", ch.whitelistRemove)
 	r.GET("/channel/whitelist", func(c *wkhttp.Context) {
@@ -63,7 +66,7 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 		})
 		c.JSON(http.StatusOK, whitelist)
 	})
-
+	//################### 频道消息 ###################
 	// 同步频道消息
 	r.POST("/channel/messagesync", ch.syncMessages)
 }

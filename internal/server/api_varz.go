@@ -27,7 +27,7 @@ func NewVarzAPI(s *Server) *VarzAPI {
 }
 
 func (v *VarzAPI) Route(r *wkhttp.WKHttp) {
-	r.GET("/varz", v.HandleVarz)
+	r.GET("/varz", v.HandleVarz) // 获取系统变量
 }
 
 func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
