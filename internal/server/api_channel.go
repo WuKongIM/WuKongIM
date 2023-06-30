@@ -69,6 +69,8 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	//################### 频道消息 ###################
 	// 同步频道消息
 	r.POST("/channel/messagesync", ch.syncMessages)
+	r.POST("/channel/streammessage/start")
+	r.POST("/channel/streammessage/end")
 }
 
 func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {

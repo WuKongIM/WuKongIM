@@ -6,20 +6,31 @@ import (
 	"github.com/pkg/errors"
 )
 
+type StreamFlag uint8
+
+const (
+	StreamFlagStart StreamFlag = 0 // 开始
+	StreamFlagIng   StreamFlag = 1 // 进行中
+	StreamFlagEnd   StreamFlag = 2 // 结束
+)
+
 // RecvPacket 收到消息的包
 type RecvPacket struct {
 	Framer
 	Setting     Setting
-	MsgKey      string // 用于验证此消息是否合法（仿中间人篡改）
-	MessageID   int64  // 服务端的消息ID(全局唯一)
-	MessageSeq  uint32 // 消息序列号 （用户唯一，有序递增）
-	ClientMsgNo string // 客户端唯一标示
-	Timestamp   int32  // 服务器消息时间戳(10位，到秒)
-	ChannelID   string // 频道ID
-	ChannelType uint8  // 频道类型
-	Topic       string // 话题ID
-	FromUID     string // 发送者UID
-	Payload     []byte // 消息内容
+	MsgKey      string     // 用于验证此消息是否合法（仿中间人篡改）
+	MessageID   int64      // 服务端的消息ID(全局唯一)
+	MessageSeq  uint32     // 消息序列号 （用户唯一，有序递增）
+	ClientMsgNo string     // 客户端唯一标示
+	StreamNo    string     // 流式编号
+	StreamSeq   uint32     // 流式序列号
+	StreamFlag  StreamFlag // 流式标记
+	Timestamp   int32      // 服务器消息时间戳(10位，到秒)
+	ChannelID   string     // 频道ID
+	ChannelType uint8      // 频道类型
+	Topic       string     // 话题ID
+	FromUID     string     // 发送者UID
+	Payload     []byte     // 消息内容
 
 	// ---------- 以下不参与编码 ------------
 	ClientSeq uint64 // 客户端提供的序列号，在客户端内唯一
@@ -67,6 +78,20 @@ func decodeRecv(frame Frame, data []byte, version uint8) (Frame, error) {
 	// 客户端唯一标示
 	if recvPacket.ClientMsgNo, err = dec.String(); err != nil {
 		return nil, errors.Wrap(err, "解码ClientMsgNo失败！")
+	}
+	// 流消息
+	if version >= 2 && recvPacket.Setting.IsSet(SettingStream) {
+		if recvPacket.StreamNo, err = dec.String(); err != nil {
+			return nil, errors.Wrap(err, "解码StreamNo失败！")
+		}
+		if recvPacket.StreamSeq, err = dec.Uint32(); err != nil {
+			return nil, errors.Wrap(err, "解码StreamSeq失败！")
+		}
+		var streamFlag uint8
+		if streamFlag, err = dec.Uint8(); err != nil {
+			return nil, errors.Wrap(err, "解码StreamFlag失败！")
+		}
+		recvPacket.StreamFlag = StreamFlag(streamFlag)
 	}
 	// 消息全局唯一ID
 	if recvPacket.MessageID, err = dec.Int64(); err != nil {

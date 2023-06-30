@@ -567,7 +567,7 @@ func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 
 func (p *Processor) getSuback(subPacket *wkproto.SubPacket, channelID string, reasonCode wkproto.ReasonCode) *wkproto.SubackPacket {
 	return &wkproto.SubackPacket{
-		ClientMsgNo: subPacket.ClientMsgNo,
+		SubNo:       subPacket.SubNo,
 		ChannelID:   channelID,
 		ChannelType: subPacket.ChannelType,
 		Action:      subPacket.Action,

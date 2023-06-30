@@ -15,7 +15,7 @@ func (a Action) Uint8() uint8 {
 
 type SubackPacket struct {
 	Framer
-	ClientMsgNo string     // 客户端消息编号
+	SubNo       string     // 订阅编号
 	ChannelID   string     // 频道ID（如果是个人频道ChannelId为个人的UID）
 	ChannelType uint8      // 频道类型
 	Action      Action     // 动作
@@ -35,8 +35,8 @@ func decodeSuback(frame Frame, data []byte, version uint8) (Frame, error) {
 
 	var err error
 	// 客户端消息编号
-	if subackPacket.ClientMsgNo, err = dec.String(); err != nil {
-		return nil, errors.Wrap(err, "解码ClientMsgNo失败！")
+	if subackPacket.SubNo, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码SubNo失败！")
 	}
 	// 频道ID
 	if subackPacket.ChannelID, err = dec.String(); err != nil {
@@ -66,7 +66,7 @@ func decodeSuback(frame Frame, data []byte, version uint8) (Frame, error) {
 func encodeSuback(frame Frame, enc *Encoder, version uint8) error {
 	subackPacket := frame.(*SubackPacket)
 	// 客户端消息编号
-	enc.WriteString(subackPacket.ClientMsgNo)
+	enc.WriteString(subackPacket.SubNo)
 	// 频道ID
 	enc.WriteString(subackPacket.ChannelID)
 	// 频道类型
@@ -81,7 +81,7 @@ func encodeSuback(frame Frame, enc *Encoder, version uint8) error {
 func encodeSubackSize(frame Frame, version uint8) int {
 	subPacket := frame.(*SubackPacket)
 	var size = 0
-	size += (len(subPacket.ClientMsgNo) + StringFixLenByteSize)
+	size += (len(subPacket.SubNo) + StringFixLenByteSize)
 	size += (len(subPacket.ChannelID) + StringFixLenByteSize)
 	size += ChannelTypeByteSize
 	size += ActionByteSize

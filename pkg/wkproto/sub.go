@@ -5,7 +5,7 @@ import "github.com/pkg/errors"
 type SubPacket struct {
 	Framer
 	Setting     Setting
-	ClientMsgNo string
+	SubNo       string
 	ChannelID   string // 频道ID（如果是个人频道ChannelId为个人的UID）
 	ChannelType uint8  // 频道类型
 	Action      Action // 动作
@@ -30,8 +30,8 @@ func decodeSub(frame Frame, data []byte, version uint8) (Frame, error) {
 	}
 	subPacket.Setting = Setting(setting)
 	// 客户端消息编号
-	if subPacket.ClientMsgNo, err = dec.String(); err != nil {
-		return nil, errors.Wrap(err, "解码ClientMsgNo失败！")
+	if subPacket.SubNo, err = dec.String(); err != nil {
+		return nil, errors.Wrap(err, "解码SubNo失败！")
 	}
 	// 频道ID
 	if subPacket.ChannelID, err = dec.String(); err != nil {
@@ -61,7 +61,7 @@ func encodeSub(frame Frame, enc *Encoder, version uint8) error {
 	subPacket := frame.(*SubPacket)
 	enc.WriteByte(subPacket.Setting.Uint8())
 	// 客户端消息编号
-	enc.WriteString(subPacket.ClientMsgNo)
+	enc.WriteString(subPacket.SubNo)
 	// 频道ID
 	enc.WriteString(subPacket.ChannelID)
 	// 频道类型
@@ -77,7 +77,7 @@ func encodeSubSize(frame Frame, version uint8) int {
 	subPacket := frame.(*SubPacket)
 	var size = 0
 	size += SettingByteSize
-	size += (len(subPacket.ClientMsgNo) + StringFixLenByteSize)
+	size += (len(subPacket.SubNo) + StringFixLenByteSize)
 	size += (len(subPacket.ChannelID) + StringFixLenByteSize)
 	size += ChannelTypeByteSize
 	size += ActionByteSize

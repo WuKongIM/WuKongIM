@@ -6,33 +6,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Setting uint8
-
-const (
-	SettingUnknown        Setting = 0
-	SettingReceiptEnabled Setting = 1 << 7 // 是否开启回执
-	SettingSignal         Setting = 1 << 5 // 是否开启signal加密
-	SettingNoEncrypt      Setting = 1 << 4 // 是否不加密
-	SettingTopic          Setting = 1 << 3 // 是否有topic
-
-)
-
-func (s Setting) IsSet(v Setting) bool {
-	return s&v != 0
-}
-
-func (s *Setting) Clear(v Setting) {
-	*s &= ^v
-}
-
-func (s *Setting) Set(v Setting) {
-	*s |= v
-}
-
-func (s Setting) Uint8() uint8 {
-	return uint8(s)
-}
-
 // SendPacket 发送包
 type SendPacket struct {
 	Framer
@@ -40,6 +13,7 @@ type SendPacket struct {
 	MsgKey      string // 用于验证此消息是否合法（仿中间人篡改）
 	ClientSeq   uint64 // 客户端提供的序列号，在客户端内唯一
 	ClientMsgNo string // 客户端消息唯一编号一般是uuid，为了去重
+	StreamNo    string // 流式编号
 	ChannelID   string // 频道ID（如果是个人频道ChannelId为个人的UID）
 	ChannelType uint8  // 频道类型（1.个人 2.群组）
 	Topic       string // 消息topic
@@ -114,6 +88,15 @@ func decodeSend(frame Frame, data []byte, version uint8) (Frame, error) {
 	if sendPacket.ClientMsgNo, err = dec.String(); err != nil {
 		return nil, errors.Wrap(err, "解码ClientMsgNo失败！")
 	}
+
+	// 是否开启了stream
+	if version >= 2 && sendPacket.Setting.IsSet(SettingStream) {
+		// 流式编号
+		if sendPacket.StreamNo, err = dec.String(); err != nil {
+			return nil, errors.Wrap(err, "解码StreamNo失败！")
+		}
+	}
+
 	// 频道ID
 	if sendPacket.ChannelID, err = dec.String(); err != nil {
 		return nil, errors.Wrap(err, "解码ChannelId失败！")
@@ -147,6 +130,11 @@ func encodeSend(frame Frame, enc *Encoder, version uint8) error {
 	enc.WriteUint32(uint32(sendPacket.ClientSeq))
 	// 客户端唯一标示
 	enc.WriteString(sendPacket.ClientMsgNo)
+	// 是否开启了stream
+	if version >= 2 && sendPacket.Setting.IsSet(SettingStream) {
+		// 流式编号
+		enc.WriteString(sendPacket.StreamNo)
+	}
 	// 频道ID
 	enc.WriteString(sendPacket.ChannelID)
 	// 频道类型
@@ -169,8 +157,10 @@ func encodeSendSize(frame Frame, version uint8) int {
 	size += SettingByteSize
 	size += ClientSeqByteSize
 	size += (len(sendPacket.ClientMsgNo) + StringFixLenByteSize)
+	if version >= 2 && sendPacket.Setting.IsSet(SettingStream) {
+		size += (len(sendPacket.StreamNo) + StringFixLenByteSize)
+	}
 	size += (len(sendPacket.ChannelID) + StringFixLenByteSize)
-
 	size += ChannelTypeByteSize
 	size += (len(sendPacket.MsgKey) + StringFixLenByteSize)
 	if sendPacket.Setting.IsSet(SettingTopic) {

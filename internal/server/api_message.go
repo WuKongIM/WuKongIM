@@ -36,6 +36,7 @@ func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/message/sendbatch", m.sendBatch) // 批量发送消息
 	r.POST("/message/sync", m.sync)           // 消息同步(写模式)
 	r.POST("/message/syncack", m.syncack)     // 消息同步回执(写模式)
+
 }
 
 // 消息同步
@@ -50,12 +51,19 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		return
 	}
 
-	startMessageSeq := req.MessageSeq
-	if startMessageSeq > 0 {
-		startMessageSeq = startMessageSeq + 1 // 结果应该不包含本身的messageSeq这条消息
+	readedMessageSeq, err := m.s.store.GetMessageOfUserCursor(req.UID) // 获取当前用户已读消息seq
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	sartSeq := req.MessageSeq
+	if sartSeq < readedMessageSeq {
+		sartSeq = sartSeq + 1
+	} else {
+		sartSeq = readedMessageSeq + 1
 	}
 
-	messages, err := m.s.store.SyncMessageOfUser(req.UID, startMessageSeq, req.Limit)
+	messages, err := m.s.store.SyncMessageOfUser(req.UID, sartSeq, req.Limit)
 	if err != nil {
 		m.Error("同步消息失败！", zap.Error(err))
 		c.ResponseError(err)
