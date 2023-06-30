@@ -140,15 +140,8 @@ func (f *FileStore) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel ui
 }
 
 func (f *FileStore) SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error) {
-	readedMessageSeq, err := f.GetMessageOfUserCursor(uid)
-	if err != nil {
-		return nil, err
-	}
-	sartSeq := startMessageSeq
-	if sartSeq < readedMessageSeq {
-		sartSeq = readedMessageSeq
-	}
-	return f.FileStoreForMsg.LoadNextRangeMsgs(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson, sartSeq, 0, limit)
+
+	return f.FileStoreForMsg.LoadNextRangeMsgs(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson, startMessageSeq, 0, limit)
 }
 
 func (f *FileStore) AddOrUpdateChannel(channelInfo *ChannelInfo) error {

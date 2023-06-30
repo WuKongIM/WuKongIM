@@ -292,7 +292,6 @@ type Frame interface {
 	GetsyncOnce() bool
 	// 是否是重发的消息
 	GetDUP() bool
-
 	GetFrameSize() int64 // 总个frame的大小（不参与编码解码）
 }
 

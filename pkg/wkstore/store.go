@@ -58,6 +58,9 @@ type Store interface {
 	LoadNextRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
 	// GetLastMsgSeq 获取最新的消息seq
 	GetLastMsgSeq(channelID string, channelType uint8) (uint32, error)
+
+	// GetMessageOfUserCursor 获取用户消息队列的游标，用户读到的位置
+	GetMessageOfUserCursor(uid string) (uint32, error)
 	// SyncMessageOfUser 同步用户队列里的消息（写扩散）
 	SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error)
 
