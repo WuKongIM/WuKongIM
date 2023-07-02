@@ -272,7 +272,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	o.WSAddr = o.getString("wsAddr", o.WSAddr)
 	o.WSSAddr = o.getString("wssAddr", o.WSSAddr)
-	fmt.Println("wssAddr:", o.WSSAddr)
 
 	o.WSSConfig.CertFile = o.getString("wssConfig.certFile", o.WSSConfig.CertFile)
 	o.WSSConfig.KeyFile = o.getString("wssConfig.keyFile", o.WSSConfig.KeyFile)

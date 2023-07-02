@@ -53,7 +53,11 @@ func (e *Engine) Start() error {
 
 func (e *Engine) Stop() error {
 	e.timingWheel.Stop()
-	return e.reactorMain.Stop()
+	err := e.reactorMain.Stop()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (e *Engine) AddConn(conn Conn) {

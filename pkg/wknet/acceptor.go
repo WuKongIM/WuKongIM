@@ -97,6 +97,53 @@ func (a *Acceptor) start() error {
 	return nil
 }
 
+func (a *Acceptor) Stop() error {
+
+	// -----------------listen-----------------
+	err := a.listenPoller.Close()
+	if err != nil {
+		a.Warn("listenPoller.Close() failed", zap.Error(err))
+	}
+	if a.listen != nil {
+		err = a.listen.Close()
+		if err != nil {
+			a.Warn("listen.Close() failed", zap.Error(err))
+		}
+	}
+
+	// -----------------ws-----------------
+
+	if a.listenWS != nil {
+		err = a.listenWS.Close()
+		if err != nil {
+			a.Warn("listenWS.Close() failed", zap.Error(err))
+		}
+	}
+	err = a.listenWSPoller.Close()
+	if err != nil {
+		a.Warn("listenWSPoller.Close() failed", zap.Error(err))
+	}
+
+	// -----------------wss-----------------
+	err = a.listenWSSPoller.Close()
+	if err != nil {
+		a.Warn("listenWSSPoller.Close() failed", zap.Error(err))
+	}
+	if a.listenWSS != nil {
+		err = a.listenWSS.Close()
+		if err != nil {
+			a.Warn("listenWSS.Close() failed", zap.Error(err))
+		}
+	}
+
+	// -----------------reactor sub-----------------
+	for _, reactorSub := range a.reactorSubs {
+		reactorSub.Stop()
+	}
+
+	return nil
+}
+
 func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	// tcp
 	a.listen = newListener(a.eg.options.Addr, a.eg.options)
@@ -150,25 +197,6 @@ func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	a.listenWSSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, false, true)
 	})
-	return nil
-}
-
-func (a *Acceptor) Stop() error {
-	err := a.listenPoller.Close()
-	if err != nil {
-		a.Warn("listenPoller.Close() failed", zap.Error(err))
-	}
-	err = a.listenWSPoller.Close()
-	if err != nil {
-		a.Warn("listenWSPoller.Close() failed", zap.Error(err))
-	}
-	err = a.listenWSSPoller.Close()
-	if err != nil {
-		a.Warn("listenWSPoller.Close() failed", zap.Error(err))
-	}
-	for _, reactorSub := range a.reactorSubs {
-		reactorSub.Stop()
-	}
 	return nil
 }
 
