@@ -64,6 +64,20 @@ func (m *Message) Decode(msg []byte) error {
 	return err
 }
 
+func (m *Message) StreamStart() bool {
+	if strings.TrimSpace(m.StreamNo) == "" {
+		return false
+	}
+	return m.StreamFlag == wkproto.StreamFlagStart
+}
+
+func (m *Message) StreamIng() bool {
+	if strings.TrimSpace(m.StreamNo) == "" {
+		return false
+	}
+	return m.StreamFlag == wkproto.StreamFlagIng
+}
+
 func (m *Message) DeepCopy() (*Message, error) {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(m); err != nil {
@@ -94,6 +108,11 @@ func MarshalMessage(version uint8, m *Message) []byte {
 	enc.WriteInt64(m.MessageID)
 	enc.WriteUint32(m.MessageSeq)
 	enc.WriteString(m.ClientMsgNo)
+	if m.Setting.IsSet(wkproto.SettingStream) {
+		enc.WriteString(m.StreamNo)
+		enc.WriteUint32(m.StreamSeq)
+		enc.WriteUint8(uint8(m.StreamFlag))
+	}
 	enc.WriteInt32(m.Timestamp)
 	enc.WriteString(m.FromUID)
 	enc.WriteString(m.ChannelID)
@@ -140,6 +159,20 @@ func UnmarshalMessage(data []byte, m *Message) error {
 	// ClientMsgNo
 	if m.ClientMsgNo, err = dec.String(); err != nil {
 		return err
+	}
+	// StreamNo
+	if m.Setting.IsSet(wkproto.SettingStream) {
+		if m.StreamNo, err = dec.String(); err != nil {
+			return err
+		}
+		if m.StreamSeq, err = dec.Uint32(); err != nil {
+			return err
+		}
+		var streamFlag uint8
+		if streamFlag, err = dec.Uint8(); err != nil {
+			return err
+		}
+		m.StreamFlag = wkproto.StreamFlag(streamFlag)
 	}
 	// Timestamp
 	if m.Timestamp, err = dec.Int32(); err != nil {
@@ -189,18 +222,22 @@ func (m MessageRespSlice) Less(i, j int) bool { return m[i].MessageSeq < m[j].Me
 
 // MessageResp 消息返回
 type MessageResp struct {
-	Header       MessageHeader `json:"header"`        // 消息头
-	Setting      uint8         `json:"setting"`       // 设置
-	MessageID    int64         `json:"message_id"`    // 服务端的消息ID(全局唯一)
-	MessageIDStr string        `json:"message_idstr"` // 服务端的消息ID(全局唯一)
-	ClientMsgNo  string        `json:"client_msg_no"` // 客户端消息唯一编号
-	MessageSeq   uint32        `json:"message_seq"`   // 消息序列号 （用户唯一，有序递增）
-	FromUID      string        `json:"from_uid"`      // 发送者UID
-	ChannelID    string        `json:"channel_id"`    // 频道ID
-	ChannelType  uint8         `json:"channel_type"`  // 频道类型
-	Topic        string        `json:"topic"`         // 话题ID
-	Timestamp    int32         `json:"timestamp"`     // 服务器消息时间戳(10位，到秒)
-	Payload      []byte        `json:"payload"`       // 消息内容
+	Header       MessageHeader      `json:"header"`                // 消息头
+	Setting      uint8              `json:"setting"`               // 设置
+	MessageID    int64              `json:"message_id"`            // 服务端的消息ID(全局唯一)
+	MessageIDStr string             `json:"message_idstr"`         // 服务端的消息ID(全局唯一)
+	ClientMsgNo  string             `json:"client_msg_no"`         // 客户端消息唯一编号
+	StreamNo     string             `json:"stream_no,omitempty"`   // 客户端消息唯一编号
+	StreamSeq    uint32             `json:"stream_seq,omitempty"`  // 客户端消息唯一编号
+	StreamFlag   wkproto.StreamFlag `json:"stream_flag,omitempty"` // 客户端消息唯一编号
+	MessageSeq   uint32             `json:"message_seq"`           // 消息序列号 （用户唯一，有序递增）
+	FromUID      string             `json:"from_uid"`              // 发送者UID
+	ChannelID    string             `json:"channel_id"`            // 频道ID
+	ChannelType  uint8              `json:"channel_type"`          // 频道类型
+	Topic        string             `json:"topic"`                 // 话题ID
+	Timestamp    int32              `json:"timestamp"`             // 服务器消息时间戳(10位，到秒)
+	Payload      []byte             `json:"payload"`               // 消息内容
+	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
 func (m *MessageResp) from(messageD *Message) {
@@ -211,6 +248,9 @@ func (m *MessageResp) from(messageD *Message) {
 	m.MessageID = messageD.MessageID
 	m.MessageIDStr = strconv.FormatInt(messageD.MessageID, 10)
 	m.ClientMsgNo = messageD.ClientMsgNo
+	m.StreamNo = messageD.StreamNo
+	m.StreamSeq = messageD.StreamSeq
+	m.StreamFlag = messageD.StreamFlag
 	m.MessageSeq = messageD.MessageSeq
 	m.FromUID = messageD.FromUID
 	m.Timestamp = messageD.Timestamp
@@ -230,6 +270,21 @@ func (m *MessageResp) from(messageD *Message) {
 	m.ChannelType = messageD.ChannelType
 	m.Topic = messageD.Topic
 	m.Payload = messageD.Payload
+}
+
+type StreamItemResp struct {
+	StreamSeq   uint32 `json:"stream_seq"`    // 流序号
+	ClientMsgNo string `json:"client_msg_no"` // 客户端消息唯一编号
+	Blob        []byte `json:"blob"`          // 消息内容
+}
+
+func newStreamItemResp(m *wkstore.StreamItem) *StreamItemResp {
+
+	return &StreamItemResp{
+		StreamSeq:   m.StreamSeq,
+		ClientMsgNo: m.ClientMsgNo,
+		Blob:        m.Blob,
+	}
 }
 
 type MessageOfflineNotify struct {
@@ -321,6 +376,7 @@ type channelRecentMessage struct {
 type MessageSendReq struct {
 	Header      MessageHeader `json:"header"`        // 消息头
 	ClientMsgNo string        `json:"client_msg_no"` // 客户端消息编号（相同编号，客户端只会显示一条）
+	StreamNo    string        `json:"stream_no"`     // 消息流编号
 	FromUID     string        `json:"from_uid"`      // 发送者UID
 	ChannelID   string        `json:"channel_id"`    // 频道ID
 	ChannelType uint8         `json:"channel_type"`  // 频道类型
@@ -512,4 +568,19 @@ func (s syncackReq) Check() error {
 		return errors.New("最后一次messageSeq不能为0！")
 	}
 	return nil
+}
+
+type messageStreamStartReq struct {
+	Header      MessageHeader `json:"header"`        // 消息头
+	ClientMsgNo string        `json:"client_msg_no"` // 客户端消息编号（相同编号，客户端只会显示一条）
+	FromUID     string        `json:"from_uid"`      // 发送者UID
+	ChannelID   string        `json:"channel_id"`    // 频道ID
+	ChannelType uint8         `json:"channel_type"`  // 频道类型
+	Payload     []byte        `json:"payload"`       // 消息内容
+}
+
+type messageStreamEndReq struct {
+	StreamNo    string `json:"stream_no"`    // 消息流编号
+	ChannelID   string `json:"channel_id"`   // 频道ID
+	ChannelType uint8  `json:"channel_type"` // 频道类型
 }

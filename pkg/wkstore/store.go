@@ -81,6 +81,18 @@ type Store interface {
 	AddSystemUIDs(uids []string) error    // 添加系统uid
 	RemoveSystemUIDs(uids []string) error // 移除系统uid
 	GetSystemUIDs() ([]string, error)
+
+	// #################### message stream ####################
+	// SaveStreamMeta 保存消息流元数据
+	SaveStreamMeta(meta *StreamMeta) error
+	// StreamEnd 结束流
+	StreamEnd(channelID string, channelType uint8, streamNo string) error
+	// GetStreamMeta 获取消息流元数据
+	GetStreamMeta(channelID string, channelType uint8, streamNo string) (*StreamMeta, error)
+	// AppendStreamItem 追加消息流
+	AppendStreamItem(channelID string, channelType uint8, streamNo string, item *StreamItem) (uint32, error)
+	// GetStreamItems 获取消息流
+	GetStreamItems(channelID string, channelType uint8, streamNo string) ([]*StreamItem, error)
 }
 
 type ChannelInfo struct {

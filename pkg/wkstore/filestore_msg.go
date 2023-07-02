@@ -49,6 +49,10 @@ func (f *FileStoreForMsg) AppendMessagesOfUser(uid string, msgs []Message) (seqs
 	return
 }
 
+func (f *FileStore) SaveStreamMeta(meta *StreamMeta) error {
+	return f.getTopic(meta.ChannelID, meta.ChannelType).saveStreamMeta(meta)
+}
+
 func (f *FileStoreForMsg) LoadMsg(channelID string, channelType uint8, messageSeq uint32) (Message, error) {
 	return f.getTopic(channelID, channelType).readMessageAt(messageSeq)
 }
@@ -128,6 +132,28 @@ func (f *FileStoreForMsg) LoadNextRangeMsgs(channelID string, channelType uint8,
 func (f *FileStoreForMsg) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
 	f.Warn("暂未实现DeleteChannelAndClearMessages")
 	return nil
+}
+
+func (f *FileStoreForMsg) SaveStreamMeta(meta *StreamMeta) error {
+	return f.getTopic(meta.ChannelID, meta.ChannelType).saveStreamMeta(meta)
+}
+
+func (f *FileStoreForMsg) GetStreamMeta(channelID string, channelType uint8, streamNo string) (*StreamMeta, error) {
+	tp := f.getTopic(channelID, channelType)
+
+	return tp.readStreamMeta(streamNo)
+}
+
+func (f *FileStoreForMsg) AppendStreamItem(channelID string, channelType uint8, streamNo string, item *StreamItem) (uint32, error) {
+	return f.getTopic(channelID, channelType).appendStreamItem(streamNo, item)
+}
+
+func (f *FileStoreForMsg) GetStreamItems(channelID string, channelType uint8, streamNo string) ([]*StreamItem, error) {
+	return f.getTopic(channelID, channelType).readItems(streamNo)
+}
+
+func (f *FileStoreForMsg) StreamEnd(channelID string, channelType uint8, streamNo string) error {
+	return f.getTopic(channelID, channelType).streamEnd(streamNo)
 }
 
 func (f *FileStoreForMsg) Close() error {
