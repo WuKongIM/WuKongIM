@@ -47,6 +47,7 @@ func (l *listener) init() error {
 func (l *listener) initTCPListener(network, addr string) error {
 	var sockOpts = []socket.Option{
 		{SetSockOpt: socket.SetNoDelay, Opt: 1},
+		{SetSockOpt: socket.SetReuseAddr, Opt: 1}, // 监听端口重用
 	}
 	opts := l.opts
 
@@ -74,6 +75,7 @@ func (l *listener) initTCPListener(network, addr string) error {
 	if err != nil {
 		return err
 	}
+
 	var realAddr syscall.Sockaddr
 	realAddr, err = syscall.Getsockname(l.fd)
 	if err != nil {
@@ -103,4 +105,8 @@ func (l *listener) parseAddr(addr string) (network, address string, err error) {
 		return "", "", errors.New("invalid address")
 	}
 	return parts[0], parts[1], nil
+}
+
+func (l *listener) Close() error {
+	return syscall.Close(l.fd)
 }
