@@ -11,7 +11,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
@@ -141,6 +140,7 @@ func (f *FileStore) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel ui
 
 func (f *FileStore) SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error) {
 
+	fmt.Println("SyncMessageOfUser-startMessageSeq--->", uid, startMessageSeq, limit)
 	return f.FileStoreForMsg.LoadNextRangeMsgs(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson, startMessageSeq, 0, limit)
 }
 
@@ -368,7 +368,7 @@ func (f *FileStore) AddOrUpdateConversations(uid string, conversations []*Conver
 		return err
 	}
 	key := fmt.Sprintf("conversation:%s", uid)
-	return f.db.Update(func(t *bbolt.Tx) error {
+	return f.db.Update(func(t *bolt.Tx) error {
 		bucket, err := f.getSlotBucketWithKey(uid, t)
 		if err != nil {
 			return err
@@ -380,7 +380,7 @@ func (f *FileStore) AddOrUpdateConversations(uid string, conversations []*Conver
 func (f *FileStore) GetConversations(uid string) ([]*Conversation, error) {
 	key := fmt.Sprintf("conversation:%s", uid)
 	var conversations []*Conversation
-	err := f.db.View(func(t *bbolt.Tx) error {
+	err := f.db.View(func(t *bolt.Tx) error {
 		bucket, err := f.getSlotBucketWithKey(uid, t)
 		if err != nil {
 			return err
@@ -425,7 +425,7 @@ func (f *FileStore) DeleteConversation(uid string, channelID string, channelType
 	}
 
 	key := fmt.Sprintf("conversation:%s", uid)
-	return f.db.Update(func(t *bbolt.Tx) error {
+	return f.db.Update(func(t *bolt.Tx) error {
 		bucket, err := f.getSlotBucketWithKey(uid, t)
 		if err != nil {
 			return err
@@ -443,7 +443,11 @@ func (f *FileStore) AppendMessageOfNotifyQueue(messages []Message) error {
 				return err
 			}
 			msgBytes := message.Encode()
-			return bucket.Put(itob(seq), msgBytes)
+			err = bucket.Put(itob(seq), msgBytes)
+			if err != nil {
+				f.Error("AppendMessageOfNotifyQueue", zap.Error(err))
+				continue
+			}
 		}
 		return nil
 	})
@@ -573,9 +577,6 @@ func (f *FileStore) getDenylistKey(channelID string, channelType uint8) string {
 }
 func (f *FileStore) getAllowlistKey(channelID string, channelType uint8) string {
 	return fmt.Sprintf("%s%s-%d", f.allowlistPrefix, channelID, channelType)
-}
-func (f *FileStore) getAppliIndexKey() string {
-	return "appliIndex"
 }
 
 func (f *FileStore) getMessageOfUserCursorKey(uid string) string {

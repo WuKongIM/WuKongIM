@@ -10,9 +10,11 @@ import (
 )
 
 const (
-	fileFormat    = "%020d%s"
-	segmentSuffix = ".log"
-	indexSuffix   = ".index"
+	fileFormat       = "%020d%s"
+	segmentSuffix    = ".log"
+	indexSuffix      = ".index"
+	streamSuffix     = ".stream"
+	streamMetaSuffix = ".stream.meta"
 )
 
 // FileDefaultMode FileDefaultMode
@@ -121,7 +123,7 @@ func decodeMessageAt(reader io.ReaderAt, offsetPosition int64, decodeMessageFnc 
 	// start magic
 	magicNum := minBytes[off : len(MagicNumber)+off]
 	if !bytes.Equal(magicNum, MagicNumber[:]) {
-		return nil, 0, fmt.Errorf("Start MagicNumber不正确 expect:%s actual:%s", string(MagicNumber[:]), string(magicNum))
+		return nil, 0, fmt.Errorf("start magicNumber不正确 expect:%s actual:%s", string(MagicNumber[:]), string(magicNum))
 	}
 	off += len(MagicNumber)
 	// version
@@ -136,7 +138,7 @@ func decodeMessageAt(reader io.ReaderAt, offsetPosition int64, decodeMessageFnc 
 		return nil, 0, err
 	}
 	if !bytes.Equal(endMagicNum, EndMagicNumber[:]) {
-		return nil, 0, fmt.Errorf("End MagicNumber不正确 expect:%s actual:%s", string(EndMagicNumber[:]), string(endMagicNum))
+		return nil, 0, fmt.Errorf("end magicNumber不正确 expect:%s actual:%s", string(EndMagicNumber[:]), string(endMagicNum))
 	}
 	totalData := make([]byte, minLen+int(dataLen)+len(EndMagicNumber))
 	totalSize, err := reader.ReadAt(totalData, offsetPosition)

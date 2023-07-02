@@ -69,8 +69,7 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	//################### 频道消息 ###################
 	// 同步频道消息
 	r.POST("/channel/messagesync", ch.syncMessages)
-	r.POST("/channel/streammessage/start")
-	r.POST("/channel/streammessage/end")
+
 }
 
 func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
@@ -535,6 +534,20 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		for _, message := range messages {
 			messageResp := &MessageResp{}
 			messageResp.from(message.(*Message))
+			if strings.TrimSpace(messageResp.StreamNo) != "" {
+				streamItems, err := ch.s.store.GetStreamItems(messageResp.ChannelID, messageResp.ChannelType, messageResp.StreamNo)
+				if err != nil {
+					ch.Error("获取streamItems失败！", zap.Error(err))
+					continue
+				}
+				if len(streamItems) > 0 {
+					streamItemResps := make([]*StreamItemResp, 0, len(streamItems))
+					for _, streamItem := range streamItems {
+						streamItemResps = append(streamItemResps, newStreamItemResp(streamItem))
+					}
+					messageResp.Streams = streamItemResps
+				}
+			}
 			messageResps = append(messageResps, messageResp)
 		}
 	}

@@ -37,6 +37,9 @@ func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/message/sync", m.sync)           // 消息同步(写模式)
 	r.POST("/message/syncack", m.syncack)     // 消息同步回执(写模式)
 
+	r.POST("/streammessage/start", m.streamMessageStart) // 流消息开始
+	r.POST("/streammessage/end", m.streamMessageEnd)     // 流消息结束
+
 }
 
 // 消息同步
@@ -50,18 +53,20 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-
 	readedMessageSeq, err := m.s.store.GetMessageOfUserCursor(req.UID) // 获取当前用户已读消息seq
 	if err != nil {
 		c.ResponseError(err)
 		return
 	}
 	sartSeq := req.MessageSeq
-	if sartSeq < readedMessageSeq {
-		sartSeq = sartSeq + 1
+	if sartSeq <= 0 {
+		sartSeq = readedMessageSeq
+	} else if sartSeq < readedMessageSeq {
+		sartSeq = req.MessageSeq
 	} else {
-		sartSeq = readedMessageSeq + 1
+		sartSeq = readedMessageSeq
 	}
+	sartSeq = sartSeq + 1 // 从已读消息的下一条开始同步
 
 	messages, err := m.s.store.SyncMessageOfUser(req.UID, sartSeq, req.Limit)
 	if err != nil {
@@ -136,7 +141,7 @@ func (m *MessageAPI) sendBatch(c *wkhttp.Context) {
 			ChannelID:   subscriber,
 			ChannelType: wkproto.ChannelTypePerson,
 			Payload:     req.Payload,
-		}, subscriber, wkproto.ChannelTypePerson, clientMsgNo)
+		}, subscriber, wkproto.ChannelTypePerson, clientMsgNo, wkproto.StreamFlagIng)
 		if err != nil {
 			failUids = append(failUids, subscriber)
 			reasons = append(reasons, err.Error())
@@ -177,7 +182,9 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 	if strings.TrimSpace(clientMsgNo) == "" {
 		clientMsgNo = fmt.Sprintf("%s0", wkutil.GenUUID())
 	}
-	messageID, messageSeq, err := m.sendMessageToChannel(req, channelID, channelType, clientMsgNo)
+
+	// 发送消息
+	messageID, messageSeq, err := m.sendMessageToChannel(req, channelID, channelType, clientMsgNo, wkproto.StreamFlagIng)
 	if err != nil {
 		c.ResponseError(err)
 		return
@@ -189,7 +196,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 	})
 }
 
-func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, channelType uint8, clientMsgNo string) (int64, uint32, error) {
+func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, channelType uint8, clientMsgNo string, streamFlag wkproto.StreamFlag) (int64, uint32, error) {
 
 	m.s.monitor.SendPacketInc(req.Header.NoPersist != 1)
 	m.s.monitor.SendSystemMsgInc()
@@ -228,6 +235,10 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if len(subscribers) > 0 {
 		subscribers = wkutil.RemoveRepeatedElement(req.Subscribers)
 	}
+	var setting wkproto.Setting
+	if len(strings.TrimSpace(req.StreamNo)) > 0 {
+		setting.Set(wkproto.SettingStream)
+	}
 	msg := &Message{
 		RecvPacket: &wkproto.RecvPacket{
 			Framer: wkproto.Framer{
@@ -235,8 +246,11 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 				SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
 				NoPersist: wkutil.IntToBool(req.Header.NoPersist),
 			},
+			Setting:     setting,
 			MessageID:   messageID,
 			ClientMsgNo: clientMsgNo,
+			StreamNo:    req.StreamNo,
+			StreamFlag:  streamFlag,
 			FromUID:     req.FromUID,
 			ChannelID:   channelID,
 			ChannelType: channelType,
@@ -248,18 +262,33 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	}
 	messages := []wkstore.Message{msg}
 	if !msg.NoPersist && !msg.SyncOnce && !m.s.opts.IsTmpChannel(channelID) {
-		_, err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
-		if err != nil {
-			m.Error("Failed to save history message", zap.Error(err))
-			return 0, 0, errors.New("failed to save history message")
+
+		if msg.StreamIng() {
+			_, err := m.s.store.AppendStreamItem(fakeChannelID, channelType, msg.StreamNo, &wkstore.StreamItem{
+				ClientMsgNo: msg.ClientMsgNo,
+				Blob:        msg.Payload,
+			})
+			if err != nil {
+				m.Error("Failed to save stream message", zap.Error(err))
+				return 0, 0, errors.New("failed to save stream message")
+			}
+		} else {
+			_, err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
+			if err != nil {
+				m.Error("Failed to save history message", zap.Error(err))
+				return 0, 0, errors.New("failed to save history message")
+			}
 		}
+
 	}
 	if m.s.opts.WebhookOn() {
-		// Add a message to the notification queue, the data in this queue will be notified to third-party applications
-		err = m.s.store.AppendMessageOfNotifyQueue(messages)
-		if err != nil {
-			m.Error("添加消息到通知队列失败！", zap.Error(err))
-			return 0, 0, errors.New("添加消息到通知队列失败！")
+		if !msg.StreamIng() {
+			// Add a message to the notification queue, the data in this queue will be notified to third-party applications
+			err = m.s.store.AppendMessageOfNotifyQueue(messages)
+			if err != nil {
+				m.Error("添加消息到通知队列失败！", zap.Error(err))
+				return 0, 0, errors.New("添加消息到通知队列失败！")
+			}
 		}
 	}
 	// 将消息放入频道
@@ -269,4 +298,92 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		return 0, 0, errors.New("将消息放入频道内失败！")
 	}
 	return messageID, msg.MessageSeq, nil
+}
+
+func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
+	var req messageStreamStartReq
+	if err := c.BindJSON(&req); err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	channelID := req.ChannelID
+	channelType := req.ChannelType
+
+	m.Debug("消息流开始", zap.String("msg", wkutil.ToJSON(req)))
+	if strings.TrimSpace(channelID) == "" { //指定了频道 正常发送
+		m.Error("无法处理发送消息请求！", zap.Any("req", req))
+		c.ResponseError(errors.New("无法处理发送消息请求！"))
+		return
+	}
+	clientMsgNo := req.ClientMsgNo
+	if strings.TrimSpace(clientMsgNo) == "" {
+		clientMsgNo = fmt.Sprintf("%s0", wkutil.GenUUID())
+	}
+
+	streamNo := wkutil.GenUUID()
+	streamFlag := wkproto.StreamFlagStart
+
+	messageID, messageSeq, err := m.sendMessageToChannel(MessageSendReq{
+		Header:      req.Header,
+		ClientMsgNo: clientMsgNo,
+		StreamNo:    streamNo,
+		FromUID:     req.FromUID,
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Payload:     req.Payload,
+	}, channelID, channelType, clientMsgNo, streamFlag)
+
+	if err != nil {
+		m.Error("发送消息失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	err = m.s.store.SaveStreamMeta(&wkstore.StreamMeta{
+		StreamNo:    streamNo,
+		MessageID:   messageID,
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		MessageSeq:  messageSeq,
+		StreamFlag:  streamFlag,
+	})
+	if err != nil {
+		m.Error("保存流消息元数据失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+}
+
+func (m *MessageAPI) streamMessageEnd(c *wkhttp.Context) {
+
+	var req messageStreamEndReq
+	if err := c.BindJSON(&req); err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	streamMeta, err := m.s.store.GetStreamMeta(req.ChannelID, req.ChannelType, req.StreamNo)
+	if err != nil {
+		m.Error("获取流消息元数据失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if streamMeta == nil {
+		m.Error("流消息元数据不存在！", zap.Error(err), zap.String("streamNo", req.StreamNo))
+		c.ResponseError(errors.New("流消息元数据不存在！"))
+		return
+	}
+
+	streamMeta.StreamFlag = wkproto.StreamFlagEnd
+
+	err = m.s.store.SaveStreamMeta(streamMeta)
+	if err != nil {
+		m.Error("保存流消息元数据失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	c.ResponseOK()
+
 }

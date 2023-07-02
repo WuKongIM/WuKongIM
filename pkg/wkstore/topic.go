@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -27,21 +28,31 @@ type topic struct {
 	lastMsgSeq atomic.Uint32
 
 	getSegmentLock sync.RWMutex
+
+	streamCache *lru.Cache[string, *Stream]
 }
 
 func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
 
 	topicDir := filepath.Join(cfg.DataDir, fmt.Sprintf("%d", slot), "topics", name)
 
-	t := &topic{
-		name:     name,
-		slot:     slot,
-		cfg:      cfg,
-		topicDir: topicDir,
-		Log:      wklog.NewWKLog(fmt.Sprintf("%d-topic[%s]", slot, name)),
-		segments: make([]uint32, 0),
+	cache, err := lru.NewWithEvict(cfg.StreamCacheSize, func(key string, stream *Stream) {
+		stream.close()
+	})
+	if err != nil {
+		panic(err)
 	}
-	err := os.MkdirAll(t.topicDir, FileDefaultMode)
+
+	t := &topic{
+		name:        name,
+		slot:        slot,
+		cfg:         cfg,
+		topicDir:    topicDir,
+		Log:         wklog.NewWKLog(fmt.Sprintf("%d-topic[%s]", slot, name)),
+		segments:    make([]uint32, 0),
+		streamCache: cache,
+	}
+	err = os.MkdirAll(t.topicDir, FileDefaultMode)
 	if err != nil {
 		t.Error("mkdir slot dir fail")
 		panic(err)
@@ -86,6 +97,66 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, int, error) {
 		return nil, 0, err
 	}
 	return seqs, n, nil
+}
+
+func (t *topic) saveStreamMeta(meta *StreamMeta) error {
+	stream, err := t.getStream(meta.StreamNo)
+	if err != nil {
+		return err
+	}
+	return stream.saveMeta(meta)
+}
+
+func (t *topic) readStreamMeta(streamNo string) (*StreamMeta, error) {
+	stream, err := t.getStream(streamNo)
+	if err != nil {
+		return nil, err
+	}
+	return stream.readMeta()
+}
+
+func (t *topic) appendStreamItem(streamNo string, item *StreamItem) (uint32, error) {
+
+	stream, err := t.getStream(streamNo)
+	if err != nil {
+		return 0, err
+	}
+	streamSeq, err := stream.appendItem(item)
+	if err != nil {
+		return 0, err
+	}
+
+	return streamSeq, nil
+}
+
+func (t *topic) readItems(streamNo string) ([]*StreamItem, error) {
+	stream, err := t.getStream(streamNo)
+	if err != nil {
+		return nil, err
+	}
+	return stream.readItems()
+}
+
+func (t *topic) streamEnd(streamNo string) error {
+	stream, err := t.getStream(streamNo)
+	if err != nil {
+		return err
+	}
+	err = stream.streamEnd()
+	if err != nil {
+		return err
+	}
+	t.streamCache.Remove(streamNo) // 移除会触发stream close
+	return nil
+}
+
+func (t *topic) getStream(streamNo string) (*Stream, error) {
+	if stream, ok := t.streamCache.Get(streamNo); ok {
+		return stream, nil
+	}
+	stream := NewStream(streamNo, t.topicDir, t.cfg)
+	t.streamCache.Add(streamNo, stream)
+	return stream, nil
 }
 
 func (t *topic) appendMessage(msg Message) (uint32, int, error) {
