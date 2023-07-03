@@ -1,4 +1,6 @@
 import axios, { AxiosResponse } from "axios";
+import { Channel, Message, SyncOptions, WKSDK } from "wukongimjssdk/lib/sdk";
+import { Convert } from "./convert";
 
 
 export class APIClientConfig {
@@ -112,6 +114,47 @@ export default class APIClient {
             return Promise.resolve()
         })
     }
+    joinChannel = (channelID:string,channelType:number,uid:string) => {
+        APIClient.shared.post('/channel/subscriber_add', {
+            channel_id: channelID,
+            channel_type: channelType,
+            subscribers: [uid]
+        }).then((res) => {
+            console.log(res)
+        }).catch((err) => {
+            console.log(err)
+            alert(err.msg)
+        })
+    }
+
+    syncMessages = async (channel: Channel,opts: SyncOptions) => {
+        let resultMessages = new Array<Message>()
+        const limit = 30;
+        const resp = await APIClient.shared.post('/channel/messagesync', {
+            login_uid: WKSDK.shared().config.uid,
+            channel_id: channel.channelID,
+            channel_type: channel.channelType,
+            start_message_seq: opts.startMessageSeq,
+            end_message_seq: opts.endMessageSeq,
+            pull_mode: opts.pullMode,
+            limit: limit
+        })
+        const messageList = resp && resp["messages"]
+        if (messageList) {
+            messageList.forEach((msg: any) => {
+                const message = Convert.toMessage(msg);
+                resultMessages.push(message);
+            });
+        }
+        return resultMessages
+    }
+
+    messageStreamStart = (param:any) => {
+       return APIClient.shared.post('/streammessage/start',param)
+    }
+    messageStreamEnd = (param:any) => {
+        return APIClient.shared.post('/streammessage/end',param)
+     }
 }
 
 export class RequestConfig {

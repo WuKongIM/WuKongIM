@@ -20,8 +20,9 @@ func (s *Setting) Clear(v Setting) {
 	*s &= ^v
 }
 
-func (s *Setting) Set(v Setting) {
+func (s *Setting) Set(v Setting) Setting {
 	*s |= v
+	return *s
 }
 
 func (s Setting) Uint8() uint8 {

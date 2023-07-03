@@ -7,6 +7,7 @@ WuKongIM is a high-performance universal communication service that supports var
 `This project needs to be compiled in a go1.20.0 or higher version.`
 
 Web chat scene demo: http://imdemo.githubim.com
+
 Backend monitoring demo: http://monitor.githubim.com/web
 
 [中文文档](./README_CN.md)
@@ -25,6 +26,35 @@ Backend monitoring demo: http://monitor.githubim.com/web
 [![](https://img.shields.io/github/license/WuKongIM/WuKongIM?color=yellow&style=flat-square)](./LICENSE)
 [![](https://img.shields.io/badge/go-%3E%3D1.20-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
+
+
+Demo
+--------
+
+**Chat Demo**
+
+![image](./docs/demo.gif)
+
+**Customer service Demo**
+
+to be added
+
+**ChatGPT Demo**
+
+to be added
+
+**Live broadcasting with bullet comments Demo**
+
+to be added
+
+**Message push Demo**
+
+to be added
+
+**Audio and video signaling Demo**
+
+to be added
+
 
 Features
 --------

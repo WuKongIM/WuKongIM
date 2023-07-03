@@ -1,5 +1,5 @@
 import { Setting } from "wukongimjssdk/lib/proto";
-import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra } from "wukongimjssdk/lib/sdk";
+import { WKSDK, Message, StreamItem, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk/lib/sdk";
 import BigNumber from "bignumber.js";
 import { Buffer } from 'buffer';
 export class Convert {
@@ -28,6 +28,8 @@ export class Convert {
         message.channel = new Channel(msgMap['channel_id'], msgMap['channel_type']);
         message.messageSeq = msgMap["message_seq"]
         message.clientMsgNo = msgMap["client_msg_no"]
+        message.streamNo = msgMap["stream_no"]
+        message.streamFlag = msgMap["stream_flag"]
         message.fromUID = msgMap["from_uid"]
         message.timestamp = msgMap["timestamp"]
         message.status = MessageStatus.Normal
@@ -45,6 +47,31 @@ export class Convert {
         message.content = messageContent
 
         message.isDeleted = msgMap["is_deleted"] === 1
+
+        const streamMaps = msgMap["streams"]
+        if(streamMaps && streamMaps.length>0) {
+            const streams = new Array<StreamItem>()
+            for (const streamMap of streamMaps) {
+                const streamItem = new StreamItem()
+                streamItem.clientMsgNo = streamMap["client_msg_no"]
+                streamItem.streamSeq = streamMap["stream_seq"]
+                if(streamMap["blob"] && streamMap["blob"].length>0) {
+                    const blob = Buffer.from(streamMap["blob"], 'base64')
+                    const blobObj = JSON.parse(blob.toString('utf8'))
+                    const blobType = blobObj.type
+                    const blobContent = WKSDK.shared().getMessageContent(contentType)
+                    if (blobObj) {
+                        blobContent.decode(this.stringToUint8Array(JSON.stringify(blobObj)))
+                    }
+                    streamItem.clientMsgNo = streamMap["client_msg_no"]
+                    streamItem.streamSeq = streamMap["stream_seq"]
+                    streamItem.content = blobContent
+                }
+                streams.push(streamItem)
+            }
+            message.streams = streams
+        }
+
         return message
     }
 
