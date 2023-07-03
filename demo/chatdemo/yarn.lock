@@ -832,10 +832,10 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==
 
-wukongimjssdk@^1.0.3:
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/wukongimjssdk/-/wukongimjssdk-1.0.3.tgz#b2e85d9a9ba886735f99126b33344c74b9c218ae"
-  integrity sha512-gMQM+mMWyAHkCC0rB7cFhjd9aiKZCrXjAaBCFoHIF10KkuA9GuI5d0SiC+xC3aEyPqbg3twvwHNZvwqe6Ji1AA==
+wukongimjssdk@^1.0.4:
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/wukongimjssdk/-/wukongimjssdk-1.0.4.tgz#1d3040371e1bef0f344f84eec3694fa78ead0a45"
+  integrity sha512-kEJ/5Qs8ti/eFP/3KwJ2afWw8ExoHaqBMGxWZPDfCg8XX6d351Z3INKVFFSkoTd6+xvqpO0cXziFDInaAwffgQ==
   dependencies:
     "@types/bignumber.js" "^5.0.0"
     "@types/crypto-js" "^4.0.2"
