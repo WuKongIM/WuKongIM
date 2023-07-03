@@ -237,8 +237,11 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	}
 	var setting wkproto.Setting
 	if len(strings.TrimSpace(req.StreamNo)) > 0 {
-		setting.Set(wkproto.SettingStream)
+		setting = setting.Set(wkproto.SettingStream)
 	}
+
+	fmt.Println("setting--->", setting.IsSet(wkproto.SettingStream))
+
 	msg := &Message{
 		RecvPacket: &wkproto.RecvPacket{
 			Framer: wkproto.Framer{
@@ -264,7 +267,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if !msg.NoPersist && !msg.SyncOnce && !m.s.opts.IsTmpChannel(channelID) {
 
 		if msg.StreamIng() {
-			_, err := m.s.store.AppendStreamItem(fakeChannelID, channelType, msg.StreamNo, &wkstore.StreamItem{
+			streamSeq, err := m.s.store.AppendStreamItem(fakeChannelID, channelType, msg.StreamNo, &wkstore.StreamItem{
 				ClientMsgNo: msg.ClientMsgNo,
 				Blob:        msg.Payload,
 			})
@@ -272,6 +275,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 				m.Error("Failed to save stream message", zap.Error(err))
 				return 0, 0, errors.New("failed to save stream message")
 			}
+			msg.StreamSeq = streamSeq // stream seq
 		} else {
 			_, err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
 			if err != nil {
@@ -312,6 +316,7 @@ func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
 	channelType := req.ChannelType
 
 	m.Debug("消息流开始", zap.String("msg", wkutil.ToJSON(req)))
+
 	if strings.TrimSpace(channelID) == "" { //指定了频道 正常发送
 		m.Error("无法处理发送消息请求！", zap.Any("req", req))
 		c.ResponseError(errors.New("无法处理发送消息请求！"))
@@ -353,6 +358,10 @@ func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"stream_no": streamNo,
+	})
 
 }
 

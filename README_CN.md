@@ -7,6 +7,7 @@
 `本项目需要在go1.20.0或以上环境编译`
 
 web聊天场景演示： http://imdemo.githubim.com
+
 后端监控演示： http://monitor.githubim.com/web
 
 [English](./README.md)
@@ -26,6 +27,33 @@ web聊天场景演示： http://imdemo.githubim.com
 [![](https://img.shields.io/github/license/WuKongIM/WuKongIM?color=yellow&style=flat-square)](./LICENSE)
 [![](https://img.shields.io/badge/go-%3E%3D1.20-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
+
+演示
+--------
+
+**聊天Demo**
+
+![image](./docs/demo.gif)
+
+**客服Demo**
+
+待补充
+
+**ChatGPT Demo**
+
+待补充
+
+**直播弹幕 Demo**
+
+待补充
+
+**站内消息Demo**
+
+待补充
+
+**音视频信令Demo**
+
+待补充
 
 
 <!-- 愿景

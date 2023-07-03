@@ -322,6 +322,8 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 				Setting:     sendPacket.Setting,
 				MessageID:   messageID,
 				ClientMsgNo: sendPacket.ClientMsgNo,
+				StreamNo:    sendPacket.StreamNo,
+				StreamFlag:  wkproto.StreamFlagIng,
 				FromUID:     conn.UID(),
 				ChannelID:   sendPacket.ChannelID,
 				ChannelType: sendPacket.ChannelType,
@@ -418,6 +420,18 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 		if m.NoPersist || m.SyncOnce {
 			continue
 		}
+		if m.StreamIng() { // 流消息单独存储
+			_, err := p.s.store.AppendStreamItem(m.ChannelID, m.ChannelType, m.StreamNo, &wkstore.StreamItem{
+				ClientMsgNo: m.ClientMsgNo,
+				StreamSeq:   m.StreamSeq,
+				Blob:        m.Payload,
+			})
+			if err != nil {
+				p.Error("store stream item err", zap.Error(err))
+				return err
+			}
+			continue
+		}
 		storeMessages = append(storeMessages, m)
 	}
 	if len(storeMessages) == 0 {
@@ -433,7 +447,6 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 		p.Error("store message err", zap.Error(err))
 		return err
 	}
-
 	return nil
 }
 
@@ -443,6 +456,9 @@ func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error
 	}
 	storeMessages := make([]wkstore.Message, 0, len(messages))
 	for _, m := range messages {
+		if m.StreamIng() { // 流消息不做通知（只通知开始和结束）
+			continue
+		}
 		storeMessages = append(storeMessages, m)
 	}
 	return p.s.store.AppendMessageOfNotifyQueue(storeMessages)

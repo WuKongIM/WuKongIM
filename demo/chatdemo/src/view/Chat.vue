@@ -1,12 +1,13 @@
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import APIClient from '../services/APIClient'
 import { useRouter } from "vue-router";
-import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode } from "wukongimjssdk/lib/sdk";
-import { ConnectStatus } from 'wukongimjssdk/lib/connect_manager';
-import { SendackPacket } from 'wukongimjssdk/lib/proto';
-import { Convert } from './convert';
+import { WKSDK, Message, StreamItem, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode, MessageContent, MessageContentType } from "wukongimjssdk/lib/sdk";
+import { ConnectStatus, ConnectStatusListener } from 'wukongimjssdk/lib/connect_manager';
+import { SendackPacket, Setting } from 'wukongimjssdk/lib/proto';
+import { Buffer } from 'buffer';
+import { MessageListener, MessageStatusListener } from 'wukongimjssdk/lib/chat_manager';
 const router = useRouter();
 const chatRef = ref<HTMLElement | null>(null)
 const showSettingPanel = ref(false)
@@ -21,32 +22,44 @@ const placeholder = ref("请输入对方登录名")
 const pulldowning = ref(false) // 下拉中
 const pulldownFinished = ref(false) // 下拉完成
 
-const messages = ref(new Array<Message>())
+const startStreamMessage = ref(false) // 开始流消息
+const msgInputPlaceholder = ref("请输入消息")
+const streamNo = ref<string>() // 流消息序号
+
+const messages = ref<Message[]>(new Array<Message>())
 
 const uid = router.currentRoute.value.query.uid as string || undefined;
 const token = router.currentRoute.value.query.token as string || "token111";
 
 title.value = `${uid || ""}(未连接)`
 
-if(!APIClient.shared.config.apiURL || APIClient.shared.config.apiURL === '') {
-    WKSDK.shared().connectManager.disconnect()
-    router.push({ path: '/' })
-}   
-// 获取IM的长连接地址
-APIClient.shared.get('/route', {
-    param: { uid: router.currentRoute.value.query.uid }
-}).then((res) => {
-    console.log(res)
-    let addr = res.wss_addr
-    if(!addr || addr === "") {
-        addr = res.ws_addr
-    }
-    connectIM(addr)
+let connectStatusListener!: ConnectStatusListener
+let messageListener!: MessageListener
+let messageStatusListener!: MessageStatusListener
 
-}).catch((err) => {
-    console.log(err)
-    alert(err.msg)
+onMounted(() => {
+
+    if (!APIClient.shared.config.apiURL || APIClient.shared.config.apiURL === '') {
+        WKSDK.shared().connectManager.disconnect()
+        router.push({ path: '/' })
+    }
+    // 获取IM的长连接地址
+    APIClient.shared.get('/route', {
+        param: { uid: router.currentRoute.value.query.uid }
+    }).then((res) => {
+        console.log(res)
+        let addr = res.wss_addr
+        if (!addr || addr === "") {
+            addr = res.ws_addr
+        }
+        connectIM(addr)
+
+    }).catch((err) => {
+        console.log(err)
+        alert(err.msg)
+    })
 })
+
 
 // 连接IM
 const connectIM = (addr: string) => {
@@ -60,44 +73,54 @@ const connectIM = (addr: string) => {
 
     // 同步消息的数据源
     WKSDK.shared().config.provider.syncMessagesCallback = async (channel: Channel, opts: SyncOptions) => {
-        let resultMessages = new Array<Message>()
-        const limit = 30;
-        const resp = await APIClient.shared.post('/channel/messagesync', {
-            login_uid: WKSDK.shared().config.uid,
-            channel_id: channel.channelID,
-            channel_type: channel.channelType,
-            start_message_seq: opts.startMessageSeq,
-            end_message_seq: opts.endMessageSeq,
-            pull_mode: opts.pullMode,
-            limit: limit
-        })
-        const messageList = resp && resp["messages"]
-        if (messageList) {
-            messageList.forEach((msg: any) => {
-                const message = Convert.toMessage(msg);
-                resultMessages.push(message);
-            });
-        }
+        const resultMessages = await APIClient.shared.syncMessages(channel, opts)
 
         return resultMessages
     }
 
     // 监听连接状态
-    WKSDK.shared().connectManager.addConnectStatusListener((status) => {
+    connectStatusListener = (status) => {
         if (status == ConnectStatus.Connected) {
             title.value = `${uid || ""}(连接成功)`
         } else {
             title.value = `${uid || ""}(断开)`
         }
-    })
+    }
+    WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener)
 
     // 监听消息
-    WKSDK.shared().chatManager.addMessageListener((msg) => {
-        messages.value.push(msg)
-        scrollBottom()
-    })
+    messageListener = (msg) => {
+        if (msg.streamOn) {
+            let exist = false
+            for (const message of messages.value) {
+                if (message.streamNo === msg.streamNo) {
+                    let streams = message.streams;
+                    const newStream = new StreamItem()
+                    newStream.clientMsgNo = msg.clientMsgNo
+                    newStream.streamSeq = msg.streamSeq || 0
+                    newStream.content = msg.content
+                    if (streams && streams.length > 0) {
+                        streams.push(newStream)
+                    } else {
+                        streams = [newStream]
+                    }
+                    message.streams = streams
+                    exist = true
+                    break
+                }
+            }
+            if (!exist) {
+                messages.value.push(msg)
+            }
+        } else {
+            messages.value.push(msg)
+        }
 
-    WKSDK.shared().chatManager.addMessageStatusListener((ack: SendackPacket) => {
+        scrollBottom()
+    }
+    WKSDK.shared().chatManager.addMessageListener(messageListener)
+
+    messageStatusListener = (ack: SendackPacket) => {
         console.log(ack)
         messages.value.forEach((m) => {
             if (m.clientSeq == ack.clientSeq) {
@@ -105,24 +128,19 @@ const connectIM = (addr: string) => {
                 return
             }
         })
-    })
+    }
+    WKSDK.shared().chatManager.addMessageStatusListener(messageStatusListener)
 
     WKSDK.shared().connect()
 }
 
-const onSend = () => {
-    if(!text.value||text.value.trim() === "") {
-        return
-    }
-    if (to.value && to.value.channelID != "") {
-        let t = new MessageText(text.value)
-        WKSDK.shared().chatManager.send(t, to.value)
-        text.value = ""
-    } else {
-        showSettingPanel.value = true
-    }
+onUnmounted(() => {
+    WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
+    WKSDK.shared().chatManager.removeMessageListener(messageListener)
+    WKSDK.shared().chatManager.removeMessageStatusListener(messageStatusListener)
+    WKSDK.shared().disconnect()
+})
 
-}
 
 const chatP2pClick = (v: any) => {
     p2p.value = v.target.checked
@@ -164,24 +182,6 @@ const pullLast = async () => {
     scrollBottom()
 
 }
-
-// const pullup = async () => {
-
-//     if (messages.value.length == 0) {
-//         return
-//     }
-//     const lastMsg = messages.value[messages.value.length - 1]
-//     const msgs = await WKSDK.shared().chatManager.syncMessages(to.value, {
-//         limit: 15, startMessageSeq: lastMsg.messageSeq, endMessageSeq: 0,
-//         pullMode: PullMode.Up
-//     })
-//     if (msgs && msgs.length > 0) {
-//         msgs.forEach((m) => {
-//             messages.value.push(m)
-//         })
-//     }
-// }
-
 const pullDown = async () => {
     if (messages.value.length == 0) {
         return
@@ -225,7 +225,7 @@ const settingOKClick = () => {
         to.value = new Channel(channelID.value, ChannelTypeGroup)
     }
     if (!p2p.value) {
-        joinChannel()
+        APIClient.shared.joinChannel(to.value.channelID, to.value.channelType, WKSDK.shared().config.uid || "")
     }
     showSettingPanel.value = false
 
@@ -234,17 +234,74 @@ const settingOKClick = () => {
     pullLast() // 拉取最新消息
 }
 
-const joinChannel = () => {
-    APIClient.shared.post('/channel/subscriber_add', {
-        channel_id: to.value.channelID,
-        channel_type: to.value.channelType,
-        subscribers: [WKSDK.shared().config.uid]
-    }).then((res) => {
-        console.log(res)
-    }).catch((err) => {
-        console.log(err)
-        alert(err.msg)
+const onSend = () => {
+    if (!text.value || text.value.trim() === "") {
+        return
+    }
+    const setting = Setting.fromUint8(0)
+    if (to.value && to.value.channelID != "") {
+        var content: MessageContent
+        if (streamNo.value && streamNo.value !== '') {
+            setting.streamNo = streamNo.value
+        }
+        content = new MessageText(text.value)
+        WKSDK.shared().chatManager.send(content, to.value, setting)
+        text.value = ""
+    } else {
+        showSettingPanel.value = true
+    }
+
+}
+
+const onMessageStream = async () => {
+
+    if (!to.value || to.value.channelID === "") {
+        showSettingPanel.value = true
+        return
+    }
+
+    const start = !startStreamMessage.value
+
+    if (start) {
+        const content = JSON.stringify({
+            type: MessageContentType.text,
+            content: "我是流消息"
+        })
+        const result = await APIClient.shared.messageStreamStart({
+            header: {
+                red_dot: 1,
+            },
+            from_uid: WKSDK.shared().config.uid || "",
+            channel_id: to.value.channelID,
+            channel_type: to.value.channelType,
+            payload: Buffer.from(content).toString('base64')
+        }).catch((err) => {
+            alert(err.msg)
+        })
+
+        if (result) {
+            messageStreamStart(result.stream_no)
+        }
+
+    } else {
+        messageStreamEnd()
+    }
+    startStreamMessage.value = start
+    msgInputPlaceholder.value = start ? "现在开始你输入的消息是流式消息，多次输入试试。" : "请输入消息"
+
+}
+
+const messageStreamStart = (streamNoStr: string) => {
+    streamNo.value = streamNoStr
+
+}
+const messageStreamEnd = async () => {
+   await APIClient.shared.messageStreamEnd({
+        "stream_no": streamNo.value || "",
+        "channel_id": channelID.value,
+        "channel_type": p2p.value ? ChannelTypePerson : ChannelTypeGroup,
     })
+    streamNo.value = undefined
 }
 
 const logout = () => {
@@ -253,10 +310,25 @@ const logout = () => {
 }
 
 const getMessageText = (m: any) => {
-    if (m.content instanceof MessageText) {
-        const messageText = m.content as MessageText
-        return messageText.text
+    if (m instanceof Message) {
+        const streams = m.streams
+        let text = ""
+        if (m.content instanceof MessageText) {
+            const messageText = m.content as MessageText
+            text = messageText.text || ""
+        }
+        if (streams && streams.length > 0) { // 流式消息拼接
+            for (const stream of streams) {
+                if (stream.content instanceof MessageText) {
+                    const messageText = stream.content as MessageText
+                    text = text + (messageText.text || "")
+                }
+            }
+        }
+        return text
+
     }
+
     return "未知消息"
 
 }
@@ -276,6 +348,11 @@ const handleScroll = (e: any) => {
         })
     }
 }
+
+const onEnter = () => {
+    onSend()
+}
+
 
 
 // const sendInputFocus = () => {
@@ -327,9 +404,12 @@ const handleScroll = (e: any) => {
 
         </div>
         <div class="footer">
-            <input placeholder="发送消息" v-model="text" style="height: 40px;" />
+            <input :placeholder="msgInputPlaceholder" v-model="text" style="height: 40px;" @keydown.enter="onEnter" />
+            <button class="message-stream" v-on:click="onMessageStream">{{ startStreamMessage ? '停止流消息' : '开启流消息'
+            }}</button>
             <button v-on:click="onSend">发送</button>
         </div>
+
     </div>
     <transition name="fade">
         <div class="setting" v-if="showSettingPanel" v-on:click="settingClick">
@@ -347,7 +427,6 @@ const handleScroll = (e: any) => {
             </div>
         </div>
     </transition>
- 
 </template>
 
 <style scoped>
@@ -413,7 +492,7 @@ const handleScroll = (e: any) => {
     height: calc(100vh - 120px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     /* header + footer */
     /* header height */
-    margin-top: calc(60px + env(safe-area-inset-top) );
+    margin-top: calc(60px + env(safe-area-inset-top));
     /* padding-top: 60px; */
     /* padding-bottom: 60px; */
     overflow-y: auto;
@@ -479,6 +558,7 @@ const handleScroll = (e: any) => {
     text-align: left;
     font-size: 14px;
     max-width: 250px;
+    word-break: break-all;
 }
 
 
@@ -584,5 +664,10 @@ const handleScroll = (e: any) => {
 .fade-enter,
 .fade-leave-to {
     opacity: 0;
+}
+
+.message-stream {
+    width: 120px !important;
+    height: 40px;
 }
 </style>

@@ -314,6 +314,8 @@ const (
 	MessageSeqByteSize      = 4
 	TimestampByteSize       = 4
 	ActionByteSize          = 1
+	StreamSeqByteSize       = 4
+	StreamFlagByteSize      = 1
 )
 
 const (

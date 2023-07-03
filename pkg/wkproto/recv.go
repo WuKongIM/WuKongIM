@@ -146,6 +146,12 @@ func encodeRecv(recvPacket *RecvPacket, enc *Encoder, version uint8) error {
 	enc.WriteUint8(recvPacket.ChannelType)
 	// 客户端唯一标示
 	enc.WriteString(recvPacket.ClientMsgNo)
+	// 流消息
+	if version >= 2 && recvPacket.Setting.IsSet(SettingStream) {
+		enc.WriteString(recvPacket.StreamNo)
+		enc.WriteUint32(recvPacket.StreamSeq)
+		enc.WriteUint8(uint8(recvPacket.StreamFlag))
+	}
 	// 消息唯一ID
 	enc.WriteInt64(recvPacket.MessageID)
 	// 消息有序ID
@@ -170,6 +176,11 @@ func encodeRecvSize(packet *RecvPacket, version uint8) int {
 	size += (len(packet.ChannelID) + StringFixLenByteSize)
 	size += ChannelTypeByteSize
 	size += (len(packet.ClientMsgNo) + StringFixLenByteSize)
+	if version >= 2 && packet.Setting.IsSet(SettingStream) {
+		size += (len(packet.StreamNo) + StringFixLenByteSize)
+		size += StreamSeqByteSize
+		size += StreamFlagByteSize
+	}
 	size += MessageIDByteSize
 	size += MessageSeqByteSize
 
