@@ -533,21 +533,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			messageResp := &MessageResp{}
-			messageResp.from(message.(*Message))
-			if strings.TrimSpace(messageResp.StreamNo) != "" {
-				streamItems, err := ch.s.store.GetStreamItems(messageResp.ChannelID, messageResp.ChannelType, messageResp.StreamNo)
-				if err != nil {
-					ch.Error("获取streamItems失败！", zap.Error(err))
-					continue
-				}
-				if len(streamItems) > 0 {
-					streamItemResps := make([]*StreamItemResp, 0, len(streamItems))
-					for _, streamItem := range streamItems {
-						streamItemResps = append(streamItemResps, newStreamItemResp(streamItem))
-					}
-					messageResp.Streams = streamItemResps
-				}
-			}
+			messageResp.from(message.(*Message), ch.s.store)
 			messageResps = append(messageResps, messageResp)
 		}
 	}

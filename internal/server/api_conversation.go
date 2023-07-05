@@ -63,7 +63,7 @@ func (s *ConversationAPI) conversationsList(c *wkhttp.Context) {
 			}
 			messageResp := &MessageResp{}
 			if message != nil {
-				messageResp.from(message.(*Message))
+				messageResp.from(message.(*Message), s.s.store)
 			}
 			conversationResps = append(conversationResps, conversationResp{
 				ChannelID:   conversation.ChannelID,
@@ -339,7 +339,7 @@ func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels [
 			if len(recentMessages) > 0 {
 				for _, recentMessage := range recentMessages {
 					messageResp := &MessageResp{}
-					messageResp.from(recentMessage.(*Message))
+					messageResp.from(recentMessage.(*Message), s.s.store)
 					messageResps = append(messageResps, messageResp)
 				}
 			}
