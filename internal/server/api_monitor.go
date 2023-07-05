@@ -341,7 +341,7 @@ func (m *MonitorAPI) messages(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			msgResp := &MessageResp{}
-			msgResp.from(message.(*Message))
+			msgResp.from(message.(*Message), m.s.store)
 			messageResps = append(messageResps, msgResp)
 		}
 	}

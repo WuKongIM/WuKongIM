@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 type everyScheduler struct {
@@ -227,9 +229,9 @@ type MessageResp struct {
 	MessageID    int64              `json:"message_id"`            // 服务端的消息ID(全局唯一)
 	MessageIDStr string             `json:"message_idstr"`         // 服务端的消息ID(全局唯一)
 	ClientMsgNo  string             `json:"client_msg_no"`         // 客户端消息唯一编号
-	StreamNo     string             `json:"stream_no,omitempty"`   // 客户端消息唯一编号
-	StreamSeq    uint32             `json:"stream_seq,omitempty"`  // 客户端消息唯一编号
-	StreamFlag   wkproto.StreamFlag `json:"stream_flag,omitempty"` // 客户端消息唯一编号
+	StreamNo     string             `json:"stream_no,omitempty"`   // 流编号
+	StreamSeq    uint32             `json:"stream_seq,omitempty"`  // 流序号
+	StreamFlag   wkproto.StreamFlag `json:"stream_flag,omitempty"` // 流标记
 	MessageSeq   uint32             `json:"message_seq"`           // 消息序列号 （用户唯一，有序递增）
 	FromUID      string             `json:"from_uid"`              // 发送者UID
 	ChannelID    string             `json:"channel_id"`            // 频道ID
@@ -240,7 +242,7 @@ type MessageResp struct {
 	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
-func (m *MessageResp) from(messageD *Message) {
+func (m *MessageResp) from(messageD *Message, store wkstore.Store) {
 	m.Header.NoPersist = wkutil.BoolToInt(messageD.NoPersist)
 	m.Header.RedDot = wkutil.BoolToInt(messageD.RedDot)
 	m.Header.SyncOnce = wkutil.BoolToInt(messageD.SyncOnce)
@@ -270,6 +272,20 @@ func (m *MessageResp) from(messageD *Message) {
 	m.ChannelType = messageD.ChannelType
 	m.Topic = messageD.Topic
 	m.Payload = messageD.Payload
+
+	if strings.TrimSpace(messageD.StreamNo) != "" && store != nil {
+		streamItems, err := store.GetStreamItems(messageD.ChannelID, messageD.ChannelType, messageD.StreamNo)
+		if err != nil {
+			wklog.Error("获取streamItems失败！", zap.Error(err))
+		}
+		if len(streamItems) > 0 {
+			streamItemResps := make([]*StreamItemResp, 0, len(streamItems))
+			for _, streamItem := range streamItems {
+				streamItemResps = append(streamItemResps, newStreamItemResp(streamItem))
+			}
+			m.Streams = streamItemResps
+		}
+	}
 }
 
 type StreamItemResp struct {

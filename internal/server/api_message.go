@@ -78,7 +78,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			resp := &MessageResp{}
-			resp.from(message.(*Message))
+			resp.from(message.(*Message), m.s.store)
 			resps = append(resps, resp)
 		}
 	}
