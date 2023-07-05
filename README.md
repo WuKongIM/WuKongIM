@@ -86,8 +86,8 @@ TODO
 - [x] Supports TLS 1.3
 - [x] Development of monitoring system
 - [x] Support for Windows system (For development use only)
-- [ ] Streaming messages, similar to the typing effect of chatgpt
-
+- [x] Supports streaming messages, similar to the output stream of chatgpt results.
+- [ ] Supports distributed systems
 
 Quick Start
 ---------------

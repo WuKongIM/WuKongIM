@@ -94,7 +94,8 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 支持Prometheus监控
 - [x] 监控系统开发
 - [x] 支持Windows系统(仅开发用)
-- [ ] 流式消息，类似chatgpt的打字效果
+- [x] 支持流式消息，类似chatgpt的结果输出流
+- [ ] 支持分布式
 
 图解
 ---------------
