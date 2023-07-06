@@ -96,8 +96,8 @@ func (s *segment) append(data []byte) (int, error) {
 
 // readMessages readMessages
 func (s *segment) readMessages(messageSeq uint32, limit uint64, callback func(msg Message) error) error {
-	s.Lock()
-	defer s.Unlock()
+	s.RLock()
+	defer s.RUnlock()
 	messageSeqPosition, err := s.index.Lookup(messageSeq)
 	if err != nil {
 		s.Error("readMessages-index.Lookup is error", zap.Error(err))
