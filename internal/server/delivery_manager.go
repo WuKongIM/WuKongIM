@@ -159,7 +159,6 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 // get recv
 func (d *DeliveryManager) getRecvConns(subscriber string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) []wknet.Conn {
 	toConns := d.s.connManager.GetConnsWithUID(subscriber)
-	// fromClients := l.clientManager.GetClientsWithUID(msg.FromUID)
 	d.Debug("GetConnsWithUID", zap.String("subscriber", subscriber), zap.Int("conns", len(toConns)))
 	conns := make([]wknet.Conn, 0, len(toConns))
 	if len(toConns) > 0 {

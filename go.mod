@@ -6,8 +6,11 @@ require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/eapache/queue v1.1.0
+	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-gonic/gin v1.8.2
+	github.com/gobwas/ws v1.2.1
 	github.com/google/uuid v1.3.0
+	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/panjf2000/ants/v2 v2.7.1
 	github.com/panjf2000/gnet/v2 v2.2.5
@@ -26,21 +29,16 @@ require (
 )
 
 require (
-	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/gin-contrib/gzip v0.0.6 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.1 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
-	github.com/gobwas/ws v1.2.1 // indirect
 	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/icattlecoder/godaemon v0.0.0-20140627053409-f0fff2a3c017 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
@@ -52,7 +50,6 @@ require (
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	golang.org/x/net v0.8.0 // indirect
-	golang.org/x/time v0.1.0 // indirect
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
 )
 
@@ -68,7 +65,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
-	github.com/spf13/cast v1.5.0 // indirect
+	github.com/spf13/cast v1.5.0
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

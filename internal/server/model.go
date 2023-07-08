@@ -1,8 +1,6 @@
 package server
 
 import (
-	"bytes"
-	"encoding/gob"
 	"strconv"
 	"strings"
 	"time"
@@ -81,14 +79,27 @@ func (m *Message) StreamIng() bool {
 }
 
 func (m *Message) DeepCopy() (*Message, error) {
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(m); err != nil {
-		return nil, err
-	}
-	dst := &Message{}
-	err := gob.NewDecoder(bytes.NewBuffer(buf.Bytes())).Decode(dst)
-	if err != nil {
-		return nil, err
+	dst := &Message{
+		RecvPacket: &wkproto.RecvPacket{
+			Framer:      m.Framer,
+			Setting:     m.Setting,
+			MsgKey:      m.MsgKey,
+			MessageID:   m.MessageID,
+			MessageSeq:  m.MessageSeq,
+			ClientMsgNo: m.ClientMsgNo,
+			StreamNo:    m.StreamNo,
+			StreamSeq:   m.StreamSeq,
+			StreamFlag:  m.StreamFlag,
+			Timestamp:   m.Timestamp,
+			ChannelID:   m.ChannelID,
+			ChannelType: m.ChannelType,
+			Topic:       m.Topic,
+			FromUID:     m.FromUID,
+			Payload:     m.Payload,
+			ClientSeq:   m.ClientSeq,
+		},
+		ToUID:       m.ToUID,
+		Subscribers: m.Subscribers,
 	}
 	dst.fromDeviceID = m.fromDeviceID
 	dst.fromDeviceFlag = m.fromDeviceFlag
