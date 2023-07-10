@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	"go.uber.org/zap"
@@ -58,6 +59,8 @@ func (w *WSConn) ReadToInboundBuffer() (int, error) {
 }
 
 func (w *WSConn) WriteServerBinary(data []byte) error {
+	w.writeLock.Lock()
+	defer w.writeLock.Unlock()
 	return wsutil.WriteServerBinary(w.outboundBuffer, data)
 }
 
@@ -202,6 +205,8 @@ type WSSConn struct {
 	upgraded bool
 
 	wsTmpInboundBuffer InboundBuffer // inboundBuffer InboundBuffer
+
+	writeLock sync.Mutex
 }
 
 func NewWSSConn(tlsConn *TLSConn) *WSSConn {
@@ -342,6 +347,8 @@ func (w *WSSConn) Close() error {
 }
 
 func (w *WSSConn) WriteServerBinary(data []byte) error {
+	w.writeLock.Lock()
+	defer w.writeLock.Unlock()
 	return wsutil.WriteServerBinary(w.TLSConn, data)
 }
 
