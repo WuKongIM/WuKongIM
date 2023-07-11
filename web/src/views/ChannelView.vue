@@ -2,13 +2,17 @@
 import APIClient from '@/services/APIClient';
 import { ChannelInfo, channelTypeToString, newChannelInfo } from '@/services/Model';
 import { ref } from 'vue';
+import { ChannelTypePerson } from 'wukongimjssdk/lib/model';
 
 const channelInfos = ref<Array<ChannelInfo>>([])
 const channelType = ref<number>(2)
 const channelID = ref<string>("")
+const fromUID = ref<string>("")
+const toUID = ref<string>("")
 const errMsg = ref<string>()
 
 const requestChannels = async (chID: string, chType: number) => {
+    console.log("chID--->",chID)
     const result = await APIClient.shared.get('/api/channels', {
         param: { "channel_id": chID, "channel_type": chType },
     }).catch((err) => {
@@ -22,7 +26,12 @@ const requestChannels = async (chID: string, chType: number) => {
 }
 
 const onSearch = () => {
-    requestChannels(channelID.value, channelType.value)
+    if(channelType.value.toString() === ChannelTypePerson.toString()) {
+        requestChannels(`${fromUID.value}@${toUID.value}`, ChannelTypePerson)
+    }else {
+        requestChannels(channelID.value, channelType.value)
+    }
+    
 }
 </script>
 
@@ -30,8 +39,12 @@ const onSearch = () => {
     <div>
         <div className="join">
             <div>
-                <div>
+                <div v-if="channelType.toString()!=='1'">
                     <input className="input input-bordered join-item" placeholder="频道ID" v-model="channelID" />
+                </div>
+                <div v-if="channelType.toString()==='1'">
+                    <input className="input input-bordered join-item" placeholder="发送者UID" v-model="fromUID" />
+                    <input className="input input-bordered join-item" placeholder="接受者UID" v-model="toUID" />
                 </div>
             </div>
             <select className="select select-bordered join-item" v-model="channelType">

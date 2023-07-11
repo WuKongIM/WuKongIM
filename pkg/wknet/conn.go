@@ -68,9 +68,9 @@ type Conn interface {
 	Peek(n int) ([]byte, error)
 	// Discard discards the data from the connection.
 	Discard(n int) (int, error)
-	// Write writes the data to the connection.
+	// Write writes the data to the connection. TODO: Locking is required when calling write externally
 	Write(b []byte) (int, error)
-	// WriteToOutboundBuffer writes the data to the outbound buffer.
+	// WriteToOutboundBuffer writes the data to the outbound buffer.  Thread safety
 	WriteToOutboundBuffer(b []byte) (int, error)
 	// Wake wakes up the connection write.
 	WakeWrite() error
