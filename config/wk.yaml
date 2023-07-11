@@ -1,17 +1,19 @@
 
+# 配置文件是yaml格式，请注意缩进，有些工具不会自动缩进，请注意 打开注释#的时候 前面要去掉一个空格 比如 # Addr: "tcp://0.0.0.0:5100" 打开注释后应该与mode对齐
+
 mode: "debug" # 运行模式 模式 debug 测试 release 正式 bench 压力测试
 # Addr: "tcp://0.0.0.0:5100" # tcp监听地址
 # httpAddr: "0.0.0.0:5001" #  http api的监听地址  默认：0.0.0.0:5001
 # dataDir: ~/wukongimdata # 数据存储目录
 # tokenAuthOn: false # 是否开启token验证 默认为false，如果不开启任何人都可以连接到此节点，生产环境建议开启
 # managerToken: "" # 管理员token 如果此字段有值，则API接口需要在请求头中添加token字段，值为此字段的值
-# wsAddr: ""  # websocket ws 监听地址 例如：ws://0.0.0.0:5200 
-# wssAddr: ""  # websocket wss 监听地址 例如：wss://0.0.0.0:5210
-external:
+# wsAddr: "ws://0.0.0.0:5200"  # websocket ws 监听地址 
+# wssAddr: "wss://0.0.0.0:5210"  # websocket wss 监听地址 
+external: # 公网配置
   ip: "" # 如果节点部署在内网，需要配置外网ip，否则外网的客户端无法连接到此节点
 #   tcpAddr: "" #  默认自动获取， 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port  （支持域名配置）
 #   wsAddr: "" # 默认自动获取， 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port  （支持域名配置）
-#   wssAddr: "" # 配置wss地址，如果不配置则不开启wss，如果配置了wss则必须配置证书文件 格式：wss://ip:port （支持域名配置）
+#   wssAddr: "" # 对外的wssAddr地址，也就是客户端真正连接的地址 格式：wss://ip:port （支持域名配置）
 #   monitorAddr: "" # 默认自动获取， 节点的monitor地址 对外公开 监控服务 格式： ip:port
 #   apiUrl: "" # 默认自动获取， 节点的http地址 对外公开 http api 格式： http://ip:port
 # wssConfig:
