@@ -282,7 +282,14 @@ func (m *MonitorAPI) channels(c *wkhttp.Context) {
 	channelID := c.Query("channel_id")
 	channelTypeI, _ := strconv.Atoi(c.Query("channel_type"))
 	channelType := uint8(channelTypeI)
-	channelInfo, err := m.s.store.GetChannel(channelID, channelType)
+
+	fakeChannelID := channelID
+	if channelType == wkproto.ChannelTypePerson {
+		fromUID, toUID := GetFromUIDAndToUIDWith(channelID)
+		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
+	}
+	fmt.Println("fakeChannelID--->", fakeChannelID)
+	channelInfo, err := m.s.channelManager.GetChannel(fakeChannelID, channelType)
 	if err != nil {
 		m.Error("get channel error", zap.Error(err))
 		c.ResponseError(err)
@@ -292,27 +299,27 @@ func (m *MonitorAPI) channels(c *wkhttp.Context) {
 		c.ResponseError(ErrChannelNotFound)
 		return
 	}
-	subscribers, err := m.s.store.GetSubscribers(channelID, channelType)
+	subscribers, err := m.s.store.GetSubscribers(fakeChannelID, channelType)
 	if err != nil {
 		c.ResponseError(err)
 		return
 	}
-	allowlist, err := m.s.store.GetAllowlist(channelID, channelType)
+	allowlist, err := m.s.store.GetAllowlist(fakeChannelID, channelType)
 	if err != nil {
 		c.ResponseError(err)
 		return
 	}
-	denylist, err := m.s.store.GetDenylist(channelID, channelType)
+	denylist, err := m.s.store.GetDenylist(fakeChannelID, channelType)
 	if err != nil {
 		c.ResponseError(err)
 		return
 	}
-	lastMsgSeq, err := m.s.store.GetLastMsgSeq(channelID, channelType)
+	lastMsgSeq, err := m.s.store.GetLastMsgSeq(fakeChannelID, channelType)
 	if err != nil {
 		c.ResponseError(err)
 		return
 	}
-	topic := m.topicName(channelID, channelType)
+	topic := m.topicName(fakeChannelID, channelType)
 	slotNum := wkutil.GetSlotNum(m.s.opts.SlotNum, topic)
 	c.JSON(http.StatusOK, newChannelInfoResult(channelInfo, lastMsgSeq, slotNum, subscribers, allowlist, denylist))
 }
@@ -330,13 +337,18 @@ func (m *MonitorAPI) messages(c *wkhttp.Context) {
 	if limt <= 0 {
 		limt = 20
 	}
+	fakeChannelID := channelID
+	if channelType == wkproto.ChannelTypePerson {
+		fromUID, toUID := GetFromUIDAndToUIDWith(channelID)
+		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
+	}
 
-	messages, err := m.s.store.LoadNextRangeMsgs(channelID, channelType, uint32(startMessageSeq), 0, limt)
+	messages, err := m.s.store.LoadNextRangeMsgs(fakeChannelID, channelType, uint32(startMessageSeq), 0, limt)
 	if err != nil {
 		c.ResponseError(err)
 		return
 	}
-	maxMsgSeq, _ := m.s.store.GetLastMsgSeq(channelID, channelType)
+	maxMsgSeq, _ := m.s.store.GetLastMsgSeq(fakeChannelID, channelType)
 	messageResps := make([]*MessageResp, 0)
 	if len(messages) > 0 {
 		for _, message := range messages {
@@ -397,7 +409,7 @@ type channelInfoResult struct {
 	SlotNum     uint32   `json:"slot_num"`              // slot编号
 }
 
-func newChannelInfoResult(channelInfo *wkstore.ChannelInfo, lastMsgSeq uint32, slotNum uint32, subscribers []string, allowList []string, denyList []string) *channelInfoResult {
+func newChannelInfoResult(channelInfo *Channel, lastMsgSeq uint32, slotNum uint32, subscribers []string, allowList []string, denyList []string) *channelInfoResult {
 
 	return &channelInfoResult{
 		ChannelID:   channelInfo.ChannelID,
