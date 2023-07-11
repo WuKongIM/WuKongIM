@@ -108,9 +108,13 @@ web聊天场景演示： http://imdemo.githubim.com
 快速部署
 ---------------
 
-```
+```shell
 
-docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5300:5300 -e WK_EXTERNAL_IP=xxx.xxx.xxx.xx  --name wukongim -v ~/wukongim:/root/wukongim  wukongim/wukongim:latest
+# 安装
+curl -sSL https://gitee.com/WuKongDev/WuKongIMCli/raw/main/install.sh | sudo bash 
+
+# 运行
+wk run 
 
 ```
 

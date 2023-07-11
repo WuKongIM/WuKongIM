@@ -4,7 +4,6 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import './index.css'
-import APIClient from './services/APIClient'
 
 // APIClient.shared.config.apiURL = "http://127.0.0.1:5300"  // 本地调试用，正式需要注释掉
 
