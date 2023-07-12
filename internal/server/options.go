@@ -64,7 +64,7 @@ type Options struct {
 		Addr string // demo服务地址 默认为 0.0.0.0:5172
 	}
 	External struct {
-		IP          string // 外网IP 如果没配置将通过ifconfig.io获取
+		IP          string // 外网IP
 		TCPAddr     string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
 		WSAddr      string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
 		WSSAddr     string // 节点的wssAddr地址 对外公开 WEB端长连接通讯 格式： wss://ip:port
