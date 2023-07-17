@@ -31,6 +31,10 @@ web聊天场景演示： http://imdemo.githubim.com
 演示
 --------
 
+**实战项目**
+
+唐僧叨叨(通讯层基于WuKongIM)：https://github.com/TangSengDaoDao/TangSengDaoDaoServer
+
 **聊天Demo**
 
 ![image](./docs/demo.gif)
