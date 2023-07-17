@@ -198,6 +198,11 @@ Monitor
 ![image](./docs/screen4.png)
 ![image](./docs/screen5.png)
 
+Star
+------------
+
+Our team has been committed to the research and development of instant messaging. We need your encouragement. If you find this project helpful, please give it a star. Your support is our greatest motivation.
+
 Wechat
 ---------------
 
