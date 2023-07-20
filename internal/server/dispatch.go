@@ -34,7 +34,7 @@ func NewDispatch(s *Server) *Dispatch {
 }
 
 // 数据统一入口
-func (d *Dispatch) onData(conn wknet.Conn) error {
+func (d *Dispatch) dataIn(conn wknet.Conn) error {
 	buff, err := conn.Peek(-1)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func (d *Dispatch) onClose(conn wknet.Conn) {
 func (d *Dispatch) Start() error {
 
 	d.engine.OnConnect(d.onConnect)
-	d.engine.OnData(d.onData)
+	d.engine.OnData(d.dataIn)
 	d.engine.OnClose(d.onClose)
 
 	err := d.engine.Start()
