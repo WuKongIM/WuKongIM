@@ -93,6 +93,15 @@ TODO
 - [x] Supports streaming messages, similar to the output stream of chatgpt results.
 - [ ] Supports distributed systems
 
+
+Illustration
+---------------
+
+![image](./docs/业务系统对接图.png)
+
+
+![image](./docs/webhook.png)
+
 Quick Start
 ---------------
 
