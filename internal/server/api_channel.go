@@ -86,7 +86,8 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 		c.ResponseError(errors.New("暂不支持个人频道！"))
 		return
 	}
-	channelInfo := wkstore.NewChannelInfo(req.ChannelID, req.ChannelType)
+	// channelInfo := wkstore.NewChannelInfo(req.ChannelID, req.ChannelType)
+	channelInfo := req.ToChannelInfo()
 
 	err := ch.s.store.AddOrUpdateChannel(channelInfo)
 	if err != nil {
