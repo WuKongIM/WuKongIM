@@ -81,6 +81,7 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 		p.processSubs(conn, tmpFrames)
 		p.framePool.PutSubPackets(tmpFrames)
 	}
+	// 完成frame处理
 	conn.Context().(*connContext).finishFrames(len(frames))
 
 }

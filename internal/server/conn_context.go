@@ -100,9 +100,11 @@ func (c *connContext) subscribeChannel(channelID string, channelType uint8, para
 	c.subscriberInfoLock.Lock()
 	defer c.subscriberInfoLock.Unlock()
 	key := fmt.Sprintf("%s-%d", channelID, channelType)
-	c.subscriberInfos[key] = &wkstore.SubscribeInfo{
-		UID:   c.conn.UID(),
-		Param: param,
+	if c.conn != nil {
+		c.subscriberInfos[key] = &wkstore.SubscribeInfo{
+			UID:   c.conn.UID(),
+			Param: param,
+		}
 	}
 }
 
