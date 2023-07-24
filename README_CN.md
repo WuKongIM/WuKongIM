@@ -108,10 +108,12 @@ web聊天场景演示： http://imdemo.githubim.com
 
 ![总体架构图](./docs/architecture/architecture2.png)
 
-Webhook对接图
+业务系统对接
 
 ![image](./docs/业务系统对接图.png)
 
+
+Webhook对接图
 
 ![image](./docs/webhook.png)
 
