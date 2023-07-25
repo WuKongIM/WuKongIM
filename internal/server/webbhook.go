@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -149,16 +150,17 @@ func (w *Webhook) notifyOfflineMsg(msg *Message, large bool, subscribers []strin
 					SyncOnce:  wkutil.BoolToInt(msg.SyncOnce),
 					NoPersist: wkutil.BoolToInt(msg.NoPersist),
 				},
-				Setting:     msg.Setting.Uint8(),
-				ClientMsgNo: msg.ClientMsgNo,
-				MessageID:   msg.MessageID,
-				MessageSeq:  msg.MessageSeq,
-				FromUID:     msg.FromUID,
-				ChannelID:   msg.ChannelID,
-				ChannelType: msg.ChannelType,
-				Topic:       msg.Topic,
-				Timestamp:   msg.Timestamp,
-				Payload:     msg.Payload,
+				Setting:      msg.Setting.Uint8(),
+				ClientMsgNo:  msg.ClientMsgNo,
+				MessageID:    msg.MessageID,
+				MessageIDStr: strconv.FormatInt(msg.MessageID, 10),
+				MessageSeq:   msg.MessageSeq,
+				FromUID:      msg.FromUID,
+				ChannelID:    msg.ChannelID,
+				ChannelType:  msg.ChannelType,
+				Topic:        msg.Topic,
+				Timestamp:    msg.Timestamp,
+				Payload:      msg.Payload,
 			},
 			ToUIDs:          toUIDs,
 			Compress:        compress,

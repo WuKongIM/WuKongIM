@@ -247,7 +247,7 @@ type MessageResp struct {
 	FromUID      string             `json:"from_uid"`              // 发送者UID
 	ChannelID    string             `json:"channel_id"`            // 频道ID
 	ChannelType  uint8              `json:"channel_type"`          // 频道类型
-	Topic        string             `json:"topic"`                 // 话题ID
+	Topic        string             `json:"topic,omitempty"`       // 话题ID
 	Timestamp    int32              `json:"timestamp"`             // 服务器消息时间戳(10位，到秒)
 	Payload      []byte             `json:"payload"`               // 消息内容
 	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
