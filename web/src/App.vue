@@ -3,7 +3,7 @@
 import { onMounted } from 'vue';
 import { RouterLink, RouterView } from 'vue-router'
 import APIClient from './services/APIClient';
-import { WKSDK } from 'wukongimjssdk/lib/sdk';
+import { WKSDK } from 'wukongimjssdk';
 
 
 const requestConnect = (uid: string, apiURL: string) => {

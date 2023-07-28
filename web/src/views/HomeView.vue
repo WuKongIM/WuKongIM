@@ -9,7 +9,7 @@ import VarzChart from '../components/VarzChart.vue'
 import APIClient from '../services/APIClient';
 import { ConnInfo, Varz, newConnInfo } from '../services/Model';
 import { formatMemory, formatNumber } from '../services/Utils';
-import { Message, WKSDK } from "wukongimjssdk/lib/sdk";
+import { Message, WKSDK } from "wukongimjssdk";
 
 
 const varz = ref<Varz>(new Varz())

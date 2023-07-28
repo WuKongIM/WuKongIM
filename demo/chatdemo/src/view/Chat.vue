@@ -3,11 +3,11 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import APIClient from '../services/APIClient'
 import { useRouter } from "vue-router";
-import { WKSDK, Message, StreamItem, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode, MessageContent, MessageContentType } from "wukongimjssdk/lib/sdk";
-import { ConnectStatus, ConnectStatusListener } from 'wukongimjssdk/lib/connect_manager';
-import { SendackPacket, Setting } from 'wukongimjssdk/lib/proto';
+import { WKSDK, Message, StreamItem, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode, MessageContent, MessageContentType } from "wukongimjssdk";
+import { ConnectStatus, ConnectStatusListener } from 'wukongimjssdk';
+import { SendackPacket, Setting } from 'wukongimjssdk';
 import { Buffer } from 'buffer';
-import { MessageListener, MessageStatusListener } from 'wukongimjssdk/lib/chat_manager';
+import { MessageListener, MessageStatusListener } from 'wukongimjssdk';
 const router = useRouter();
 const chatRef = ref<HTMLElement | null>(null)
 const showSettingPanel = ref(false)

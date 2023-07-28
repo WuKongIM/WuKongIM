@@ -3,7 +3,7 @@ import APIClient from '@/services/APIClient';
 import { newMessage, type Message, MessagePage, newMessagePage, channelTypeToString } from '@/services/Model';
 import { ref } from 'vue';
 import { Buffer } from 'buffer';
-import { ChannelTypePerson } from 'wukongimjssdk/lib/model';
+import { ChannelTypePerson } from 'wukongimjssdk';
 
 declare const payloadModal: any;
 
