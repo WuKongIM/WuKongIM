@@ -126,17 +126,17 @@ external:
 ---------------
 
 
-[iOS Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMiOSSDK)
+| 项目名 | Github地址 | Gitee地址 | 开源协议 | 说明 |
+| ---- | ---------- | --------- | ---- |  ---- |
+|   WuKongIM   |   [Github](https://github.com/WuKongIM/WuKongIM)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIM)  | Apache2.0   |    悟空IM通讯端，负责长连接维护，消息投递等等   |
+|   WuKongIMAndroidSDK   |   [Github](https://github.com/WuKongIM/WuKongIMAndroidSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMAndroidSDK) | Apache2.0       |    悟空IM的Android SDK  |
+|   WuKongIMiOSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMiOSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMiOSSDK)  | Apache2.0     |    悟空IM的iOS SDK  |
+|   WuKongIMUniappSDK   |   [Github](https://github.com/WuKongIM/WuKongIMUniappSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMUniappSDK)  | Apache2.0     |    悟空IM的 Uniapp SDK  |
+|   WuKongIMJSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMJSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMJSSDK)   | Apache2.0    |    悟空IM的 JS SDK  |
+|   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     无  | Apache2.0    |    悟空IM的 React Native Demo(由贡献者 [wengqianshan](https://github.com/wengqianshan) 提供)  |
+|   WuKongIMFlutterSDK   |   无       |    无   | Apache2.0  |    悟空IM的 Flutter SDK(开发中)  |
 
-[Android Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMAndroidSDK)
 
-[Web Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMJSSDK)
-
-[Uniapp Demo 和 SDK 源码](https://github.com/WuKongIM/WuKongIMUniappSDK)
-
-[React Native Demo 源码](https://github.com/wengqianshan/WuKongIMReactNative)
-
-[Flutter Demo 和 SDK 源码(待完善)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
 
 
 图解

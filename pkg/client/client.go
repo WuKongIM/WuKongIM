@@ -430,6 +430,7 @@ func (c *Client) stopPingTimer() {
 		c.pingIntervalTimer.Stop()
 	}
 }
+
 func (c *Client) sendPing(ch chan struct{}) error {
 
 	c.pongs = append(c.pongs, ch)
