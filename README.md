@@ -95,7 +95,7 @@ By default, it uses a local area network address. If you need external access, y
 
 ```yaml
 external:
-  ip: 'xxx.xxx.xxxx.xxx'
+  ip: 'xxx.xxx.xx.xxx'
 ```
 
 View System information: http://127.0.0.1:5001/varz
