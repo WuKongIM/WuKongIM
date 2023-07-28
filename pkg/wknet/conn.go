@@ -12,7 +12,7 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/ring"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 
 	"go.uber.org/atomic"
 	"go.uber.org/zap"

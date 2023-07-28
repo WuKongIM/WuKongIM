@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type ConnManager struct {

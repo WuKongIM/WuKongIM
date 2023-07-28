@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )

@@ -3,7 +3,7 @@ package client
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 // Options Options

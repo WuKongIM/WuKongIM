@@ -13,7 +13,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/limutil"
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/WuKongIM/WuKongIM/pkg/wait"
 	"github.com/nats-io/nuid"
 	"go.uber.org/atomic"

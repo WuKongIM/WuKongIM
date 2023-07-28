@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 const conversationVersion = 0x1

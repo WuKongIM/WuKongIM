@@ -1,6 +1,6 @@
 package client
 
-import "github.com/WuKongIM/WuKongIM/pkg/wkproto"
+import wkproto "github.com/WuKongIM/WuKongIMGoProto"
 
 func parse(buff []byte) ([]byte, []byte, error) {
 	if len(buff) == 0 {
