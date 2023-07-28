@@ -120,17 +120,15 @@ Port explanation:
 SDK source code and demos
 ---------------
 
-[iOS Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMiOSSDK)
-
-[Android Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMAndroidSDK)
-
-[Web Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMJSSDK)
-
-[Uniapp Demo and SDK Source Code](https://github.com/WuKongIM/WuKongIMUniappSDK)
-
-[React Native Demo Source Code](https://github.com/wengqianshan/WuKongIMReactNative)
-
-[Flutter Demo and SDK Source Code (to be improved)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
+| Project Name | Github Address | Gitee Address | Open Source License | Description |
+| ---- | ---------- | --------- | ---- |  ---- |
+|   WuKongIM   |   [Github](https://github.com/WuKongIM/WuKongIM)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIM)  | Apache2.0   |    WuKongIM communication end, responsible for long connection maintenance, message delivery, etc.   |
+|   WuKongIMAndroidSDK   |   [Github](https://github.com/WuKongIM/WuKongIMAndroidSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMAndroidSDK) | Apache2.0       |    WuKongIM's Android SDK  |
+|   WuKongIMiOSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMiOSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMiOSSDK)  | Apache2.0     |    WuKongIM's iOS SDK  |
+|   WuKongIMUniappSDK   |   [Github](https://github.com/WuKongIM/WuKongIMUniappSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMUniappSDK)  | Apache2.0     |    WuKongIM's Uniapp SDK  |
+|   WuKongIMJSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMJSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMJSSDK)   | Apache2.0    |    WuKongIM's JS SDK  |
+|   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     None  | Apache2.0    |    WuKongIM's React Native Demo (provided by contributor [wengqianshan](https://github.com/wengqianshan))  |
+|   WuKongIMFlutterSDK   |   None       |    None   | Apache2.0  |    WuKongIM's Flutter SDK (under development)  |
 
 Illustration
 ---------------
