@@ -80,21 +80,7 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 支持流式消息，类似chatgpt的结果输出流
 - [ ] 支持分布式
 
-图解
----------------
 
-总体架构图
-
-![总体架构图](./docs/architecture/architecture2.png)
-
-业务系统对接
-
-![image](./docs/业务系统对接图.png)
-
-
-Webhook对接图
-
-![image](./docs/webhook.png)
 
 快速部署
 ---------------
@@ -145,6 +131,23 @@ wk run
 [React Native Demo 源码](https://github.com/wengqianshan/WuKongIMReactNative)
 
 [Flutter Demo 和 SDK 源码(待完善)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
+
+
+图解
+---------------
+
+总体架构图
+
+![总体架构图](./docs/architecture/architecture2.png)
+
+业务系统对接
+
+![image](./docs/业务系统对接图.png)
+
+
+Webhook对接图
+
+![image](./docs/webhook.png)
 
 
 适用场景

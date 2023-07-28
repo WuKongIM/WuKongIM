@@ -75,22 +75,6 @@ TODO
 - [ ] Supports distributed systems
 
 
-Illustration
----------------
-
-Architecture
-
-![image](./docs/architecture/architecture2.png)
-
-
-
-Business System Integration
-
-![image](./docs/业务系统对接图.png)
-
-Webhook
-
-![image](./docs/webhook.png)
 
 Quick Start
 ---------------
@@ -140,6 +124,24 @@ SDK source code and demos
 [React Native Demo Source Code](https://github.com/wengqianshan/WuKongIMReactNative)
 
 [Flutter Demo and SDK Source Code (to be improved)](https://github.com/WuKongIM/WuKongIMFlutterSDK)
+
+Illustration
+---------------
+
+Architecture
+
+![image](./docs/architecture/architecture2.png)
+
+
+
+Business System Integration
+
+![image](./docs/业务系统对接图.png)
+
+Webhook
+
+![image](./docs/webhook.png)
+
 
 Applicable Scenarios
 ---------------
