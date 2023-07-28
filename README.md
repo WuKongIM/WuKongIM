@@ -89,7 +89,14 @@ wk run
 
 ```
 
-`WK_EXTERNAL_IP: The external IP address of the server used for client connections. If testing only and the client and server are on the same LAN, the LAN IP address of the deployed server can be used here.`
+The configuration file is located at ~/wukongim/wk.yaml (restart the service after modifying the configuration).
+
+By default, it uses a local area network address. If you need external access, you need to modify the external.ip in the configuration file to the server's external IP. As follows:
+
+```yaml
+external:
+  ip: 'xxx.xxx.xxxx.xxx'
+```
 
 View System information: http://127.0.0.1:5001/varz
 

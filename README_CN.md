@@ -94,8 +94,14 @@ curl -sSL https://gitee.com/WuKongDev/WuKongIMCli/raw/main/install.sh | sudo bas
 wk run 
 
 ```
+配置文件在 ~/wukongim/wk.yaml (修改配置需重启服务)
 
-`WK_EXTERNAL_IP：为服务器外网IP，用于客户端连接，如果仅测试，客户端和服务器都在一个局域网内，这里可以填部署服务器的局域网IP`
+默认是局域网地址，如果需要外网访问，需要修改配置文件中的 external.ip 为服务器外网 IP。如下
+
+```yaml
+external:
+  ip: 'xxx.xxx.xxxx.xxx'
+```
 
 查询系统信息: http://127.0.0.1:5001/varz
 
