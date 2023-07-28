@@ -2,7 +2,7 @@
 import APIClient from '@/services/APIClient';
 import { ChannelInfo, channelTypeToString, newChannelInfo } from '@/services/Model';
 import { ref } from 'vue';
-import { ChannelTypePerson } from 'wukongimjssdk/lib/model';
+import { ChannelTypePerson } from 'wukongimjssdk';
 
 const channelInfos = ref<Array<ChannelInfo>>([])
 const channelType = ref<number>(2)
