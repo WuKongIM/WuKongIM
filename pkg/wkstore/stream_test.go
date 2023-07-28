@@ -5,7 +5,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
 )
 

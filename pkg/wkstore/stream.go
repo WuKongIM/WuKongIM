@@ -9,7 +9,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type Stream struct {

@@ -11,9 +11,9 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"

@@ -6,7 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 

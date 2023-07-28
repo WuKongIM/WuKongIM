@@ -18,7 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.15.1
 	github.com/robfig/cron/v3 v3.0.0
 	github.com/sendgrid/rest v2.6.9+incompatible
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	github.com/tysonmote/gommap v0.0.2
 	go.etcd.io/bbolt v1.3.7
 	go.uber.org/zap v1.24.0
@@ -29,6 +29,7 @@ require (
 )
 
 require (
+	github.com/WuKongIM/WuKongIMGoProto v1.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect

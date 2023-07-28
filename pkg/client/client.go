@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )

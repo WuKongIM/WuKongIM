@@ -10,8 +10,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 

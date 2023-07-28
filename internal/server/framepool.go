@@ -3,7 +3,7 @@ package server
 import (
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkproto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type FramePool struct {
