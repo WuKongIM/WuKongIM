@@ -39,27 +39,6 @@ web聊天场景演示： http://imdemo.githubim.com
 
 ![image](./docs/demo.gif)
 
-**客服Demo**
-
-待补充
-
-**ChatGPT Demo**
-
-待补充
-
-**直播弹幕 Demo**
-
-待补充
-
-**站内消息Demo**
-
-待补充
-
-**音视频信令Demo**
-
-待补充
-
-
 <!-- 愿景
 --------
 

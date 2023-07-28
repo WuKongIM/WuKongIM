@@ -40,25 +40,6 @@ TangSengDaoDao (communication layer based on WuKongIM): https://github.com/TangS
 
 ![image](./docs/demo.gif)
 
-**Customer service Demo**
-
-to be added
-
-**ChatGPT Demo**
-
-to be added
-
-**Live broadcasting with bullet comments Demo**
-
-to be added
-
-**Message push Demo**
-
-to be added
-
-**Audio and video signaling Demo**
-
-to be added
 
 
 Features
