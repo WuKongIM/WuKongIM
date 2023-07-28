@@ -100,7 +100,7 @@ wk run
 
 ```yaml
 external:
-  ip: 'xxx.xxx.xxxx.xxx'
+  ip: 'xxx.xxx.xx.xxx'
 ```
 
 查询系统信息: http://127.0.0.1:5001/varz
