@@ -3,10 +3,8 @@ services:
   wukongim:
     image: wukongim/wukongim:latest
     restart: always
-    environment:
-      WK_EXTERNAL_IP: "xx.xx.xx.xx"
     volumes:
-      - ./wukongimdata:/root/wukongim
+      - ~/wukongim:/root/wukongim
     ports:
       - 5001:5001 # http api 端口
       - 5100:5100 # tcp端口
