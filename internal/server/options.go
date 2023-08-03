@@ -99,7 +99,9 @@ type Options struct {
 		SyncOnce     int           //  当多少最近会话数量发送变化就保存一次
 		UserMaxCount int           // 每个用户最大最近会话数量 默认为500
 	}
-	ManagerToken string // 管理者的token
+	ManagerToken   string // 管理者的token
+	ManagerUID     string // 管理者的uid
+	ManagerTokenOn bool   // 管理者的token是否开启
 
 	Proto wkproto.Protocol // 悟空IM protocol
 
@@ -256,6 +258,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Addr = o.getString("addr", o.Addr)
 
 	o.ManagerToken = o.getString("managerToken", o.ManagerToken)
+	o.ManagerUID = o.getString("managerUID", o.ManagerUID)
+
+	if strings.TrimSpace(o.ManagerToken) != "" {
+		o.ManagerTokenOn = true
+	}
 
 	o.External.IP = o.getString("external.ip", o.External.IP)
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)

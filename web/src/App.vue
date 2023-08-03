@@ -1,10 +1,42 @@
 <script  lang="ts" setup>
 
-import { onMounted } from 'vue';
 import { RouterLink, RouterView } from 'vue-router'
+import { ref } from 'vue';
 import APIClient from './services/APIClient';
 import { WKSDK } from 'wukongimjssdk';
+import { useCookies } from "vue3-cookies";
+import Login from './components/Login.vue'
+import { onMounted, onUnmounted } from 'vue';
 
+
+const { cookies } = useCookies()
+const logined = ref<Boolean>(false)
+const varz = ref<any>()
+
+// token获取回调
+APIClient.shared.config.tokenCallback = () => {
+
+  return getToken()
+}
+
+const getToken = () => {
+  return cookies.get("token")
+}
+
+// 是否登录
+const isLogin = () => {
+  const token = getToken()
+  if (token && token.length > 0) {
+    return true
+  }
+  return false
+}
+
+
+const login = (managerToken: string) => {
+  cookies.set("token", managerToken)
+  toLogin()
+}
 
 const requestConnect = (uid: string, apiURL: string) => {
   // 获取IM的长连接地址
@@ -16,39 +48,62 @@ const requestConnect = (uid: string, apiURL: string) => {
 
   }).catch((err) => {
     console.log(err)
-    alert(err.msg)
   })
 }
 
 const connectIM = (uid: string, wsAddr: string) => {
   const config = WKSDK.shared().config
   config.uid = uid
-  config.token = "xxx"
+  config.token = getToken()
   config.addr = wsAddr
   WKSDK.shared().config = config
-  console.log("connectIM........")
   WKSDK.shared().connect()
 }
 
 APIClient.shared.get("/api/varz").then((res) => {
-  console.log(res)
-  requestConnect("____manager", res.api_url)
+  varz.value = res
+  if (res.manager_token_on === 1) {
+    if (isLogin()) {
+      toLogin()
+      return
+    }
+    return
+  } else {
+    toLogin()
+  }
+
 }).catch((err) => {
   console.log(err)
   alert(err.msg)
 })
 
+const toLogin = () => {
+  logined.value = true
+  requestConnect("____manager", varz.value.api_url)
+}
+
+onUnmounted(() => {
+  cookies.remove("token")
+  WKSDK.shared().disconnect()
+})
+
+onMounted(() => {
+  APIClient.shared.logoutCallback = () => {
+    cookies.remove("token")
+    window.location.reload()
+  }
+})
 
 </script>
 
 <template>
   <div class="flex-col min-h-screen w-screen bg-gray-50">
     <!-- nav -->
-    <div class="h-[4rem] w-full flex items-center fixed bg-gray-50">
+    <div class="h-[4rem] w-full flex items-center fixed bg-gray-50" v-if="logined">
       <img src="@/assets/logo.png" class="w-10 h-10 ml-[3rem]">
       <div class="font-bold text-xl ml-2">悟空IM</div>
     </div>
-    <main class="flex pt-[4rem] w-full min-h-screen">
+    <main class="flex pt-[4rem] w-full min-h-screen" v-if="logined">
       <!-- left -->
       <div class="flex w-40 h-full fixed z-50">
         <!-- menus -->
@@ -86,7 +141,7 @@ APIClient.shared.get("/api/varz").then((res) => {
           <RouterView />
         </div>
       </div>
-
     </main>
+    <Login :login="login" v-else></Login>
   </div>
 </template>

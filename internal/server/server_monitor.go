@@ -35,6 +35,24 @@ func NewMonitorServer(s *Server) *MonitorServer {
 
 func (m *MonitorServer) Start() {
 
+	m.r.Use(func(c *wkhttp.Context) { // 管理者权限判断
+		if c.FullPath() == "/api/varz" {
+			c.Next()
+			return
+		}
+		if strings.TrimSpace(m.s.opts.ManagerToken) == "" {
+			c.Next()
+			return
+		}
+
+		managerToken := c.GetHeader("token")
+		if managerToken != m.s.opts.ManagerToken {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	})
+
 	m.r.GetGinRoute().Use(gzip.Gzip(gzip.DefaultCompression))
 
 	st, _ := fs.Sub(version.WebFs, "web/dist")

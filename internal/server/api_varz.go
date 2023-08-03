@@ -75,15 +75,16 @@ func CreateVarz(s *Server) *Varz {
 		OutBytes:    s.outBytes.Load(),
 		SlowClients: s.slowClients.Load(),
 
-		TCPAddr:     opts.External.TCPAddr,
-		WSAddr:      opts.External.WSAddr,
-		WSSAddr:     opts.External.WSSAddr,
-		MonitorAddr: opts.External.MonitorAddr,
-		APIURL:      opts.External.APIUrl,
-		MonitorOn:   wkutil.BoolToInt(opts.Monitor.On),
-		Commit:      version.Commit,
-		CommitDate:  version.CommitDate,
-		TreeState:   version.TreeState,
+		TCPAddr:        opts.External.TCPAddr,
+		WSAddr:         opts.External.WSAddr,
+		WSSAddr:        opts.External.WSSAddr,
+		MonitorAddr:    opts.External.MonitorAddr,
+		APIURL:         opts.External.APIUrl,
+		MonitorOn:      wkutil.BoolToInt(opts.Monitor.On),
+		Commit:         version.Commit,
+		CommitDate:     version.CommitDate,
+		TreeState:      version.TreeState,
+		ManagerTokenOn: wkutil.BoolToInt(opts.ManagerTokenOn),
 	}
 }
 
@@ -111,6 +112,8 @@ type Varz struct {
 	CommitDate  string `json:"commit_date"`  // git commit date
 	TreeState   string `json:"tree_state"`   // git tree state
 	APIURL      string `json:"api_url"`      // api地址
+
+	ManagerTokenOn int `json:"manager_token_on"` // 管理员token是否开启
 
 	Conns []*ConnInfo `json:"conns,omitempty"` // 连接信息
 

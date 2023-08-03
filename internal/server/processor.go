@@ -100,7 +100,14 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 		return
 	}
 	// -------------------- token verify --------------------
-	if p.s.opts.TokenAuthOn {
+	if connectPacket.UID == p.s.opts.ManagerUID {
+		if p.s.opts.ManagerTokenOn && connectPacket.Token != p.s.opts.ManagerToken {
+			p.Error("manager token verify fail", zap.String("uid", uid), zap.String("token", connectPacket.Token))
+			p.responseConnackAuthFail(conn)
+			return
+		}
+		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
+	} else if p.s.opts.TokenAuthOn {
 		if connectPacket.Token == "" {
 			p.Error("token is empty")
 			p.responseConnackAuthFail(conn)

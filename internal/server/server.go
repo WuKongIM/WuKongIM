@@ -2,11 +2,9 @@ package server
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"go.uber.org/atomic"
@@ -134,14 +132,6 @@ func (s *Server) Start() error {
 	s.Info(fmt.Sprintf("  Go build:  %s", runtime.Version()))
 	s.Info(fmt.Sprintf("  DataDir:  %s", s.opts.DataDir))
 
-	token, new, err := s.generateManagerTokenIfNeed()
-	if err != nil {
-		panic(err)
-	}
-	if new {
-		s.Info(fmt.Sprintf("  Manager Token:  %s  in %s", token, filepath.Join(s.opts.DataDir, "token")))
-	}
-
 	s.Info(fmt.Sprintf("Listening  for TCP client on %s", s.opts.Addr))
 	s.Info(fmt.Sprintf("Listening  for WS client on %s", s.opts.WSAddr))
 	if s.opts.WSSAddr != "" {
@@ -155,7 +145,7 @@ func (s *Server) Start() error {
 
 	defer s.Info("Server is ready")
 
-	err = s.store.Open()
+	err := s.store.Open()
 	if err != nil {
 		panic(err)
 	}
@@ -215,33 +205,4 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	return s.timingWheel.ScheduleFunc(&everyScheduler{
 		Interval: interval,
 	}, f)
-}
-
-// 生成管理token
-// 第一个返回参数为超级token的值
-// 第二个返回参数为是否新生成的
-// 第三个为error
-func (s *Server) generateManagerTokenIfNeed() (string, bool, error) {
-	file, err := os.OpenFile(filepath.Join(s.opts.DataDir, "token"), os.O_CREATE|os.O_RDWR, 0755)
-	if err != nil {
-		return "", false, err
-	}
-	defer file.Close()
-
-	tokenBytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return "", false, err
-	}
-	var token string
-	if strings.TrimSpace(string(tokenBytes)) == "" {
-		token = wkutil.GenUUID()
-		_, err := file.WriteString(token)
-		if err != nil {
-			return "", false, err
-		}
-		return token, true, nil
-	} else {
-		token = string(tokenBytes)
-	}
-	return token, false, nil
 }
