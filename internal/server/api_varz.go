@@ -84,6 +84,7 @@ func CreateVarz(s *Server) *Varz {
 		Commit:         version.Commit,
 		CommitDate:     version.CommitDate,
 		TreeState:      version.TreeState,
+		ManagerUID:     opts.ManagerUID,
 		ManagerTokenOn: wkutil.BoolToInt(opts.ManagerTokenOn),
 	}
 }
@@ -113,7 +114,8 @@ type Varz struct {
 	TreeState   string `json:"tree_state"`   // git tree state
 	APIURL      string `json:"api_url"`      // api地址
 
-	ManagerTokenOn int `json:"manager_token_on"` // 管理员token是否开启
+	ManagerUID     string `json:"manager_uid"`      // 管理员uid
+	ManagerTokenOn int    `json:"manager_token_on"` // 管理员token是否开启
 
 	Conns []*ConnInfo `json:"conns,omitempty"` // 连接信息
 
