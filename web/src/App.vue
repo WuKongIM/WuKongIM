@@ -3,7 +3,7 @@
 import { RouterLink, RouterView } from 'vue-router'
 import { ref } from 'vue';
 import APIClient from './services/APIClient';
-import { WKSDK } from 'wukongimjssdk';
+import { ConnectStatus, WKSDK } from 'wukongimjssdk';
 import { useCookies } from "vue3-cookies";
 import Login from './components/Login.vue'
 import { onMounted, onUnmounted } from 'vue';
@@ -38,20 +38,9 @@ const login = (managerToken: string) => {
   toLogin()
 }
 
-const requestConnect = (uid: string, apiURL: string) => {
-  // 获取IM的长连接地址
-  APIClient.shared.get(`${apiURL}/route`, {
-    param: { uid: uid }
-  }).then((res) => {
-    console.log(res)
-    connectIM(uid, res.ws_addr)
-
-  }).catch((err) => {
-    console.log(err)
-  })
-}
 
 const connectIM = (uid: string, wsAddr: string) => {
+  console.log("connectIM", uid, wsAddr)
   const config = WKSDK.shared().config
   config.uid = uid
   config.token = getToken()
@@ -78,20 +67,36 @@ APIClient.shared.get("/api/varz").then((res) => {
 })
 
 const toLogin = () => {
-  logined.value = true
-  requestConnect("____manager", varz.value.api_url)
+  let wsAddr = varz.value.wss_addr
+  if (!wsAddr || wsAddr === '') {
+    wsAddr = varz.value.ws_addr
+  }
+  connectIM(varz.value.manager_uid, wsAddr)
+}
+
+const connectStatusListener = (status: ConnectStatus) => {
+  if (status === ConnectStatus.Connected) {
+    logined.value = true
+  }else if(status === ConnectStatus.ConnectFail) {
+    logined.value = false
+    alert("连接失败")
+  }
 }
 
 onUnmounted(() => {
+  WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
   cookies.remove("token")
   WKSDK.shared().disconnect()
 })
+
+
 
 onMounted(() => {
   APIClient.shared.logoutCallback = () => {
     cookies.remove("token")
     window.location.reload()
   }
+  WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener)
 })
 
 </script>

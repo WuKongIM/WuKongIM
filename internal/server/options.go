@@ -153,6 +153,7 @@ func NewOptions() *Options {
 		TimingWheelSize: 100,
 		GinMode:         gin.ReleaseMode,
 		RootDir:         path.Join(homeDir, "wukongim"),
+		ManagerUID:      "____manager",
 		Logger: struct {
 			Dir     string
 			Level   zapcore.Level
