@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
+	github.com/WuKongIM/WuKongIMGoProto v1.0.0
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/eapache/queue v1.1.0
 	github.com/gin-contrib/gzip v0.0.6
@@ -29,7 +30,6 @@ require (
 )
 
 require (
-	github.com/WuKongIM/WuKongIMGoProto v1.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
