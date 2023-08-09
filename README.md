@@ -7,9 +7,6 @@
 
 `This project needs to be compiled in a go1.20.0 or higher version.`
 
-Web chat scene demo: http://imdemo.githubim.com
-
-Backend monitoring demo: http://monitor.githubim.com/web
 
 [中文文档](./README_CN.md)
 
@@ -40,6 +37,10 @@ TangSengDaoDao (communication layer based on WuKongIM): https://github.com/TangS
 
 ![image](./docs/demo.gif)
 
+
+Web chat scene demo: http://imdemo.githubim.com
+
+Backend monitoring demo: http://monitor.githubim.com/web
 
 
 Features

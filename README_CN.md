@@ -6,9 +6,6 @@
 
 `本项目需要在go1.20.0或以上环境编译`
 
-web聊天场景演示： http://imdemo.githubim.com
-
-后端监控演示： http://monitor.githubim.com/web
 
 [English](./README.md)
 
@@ -38,6 +35,10 @@ web聊天场景演示： http://imdemo.githubim.com
 **聊天Demo**
 
 ![image](./docs/demo.gif)
+
+web聊天场景演示： http://imdemo.githubim.com
+
+后端监控演示： http://monitor.githubim.com/web
 
 <!-- 愿景
 --------
