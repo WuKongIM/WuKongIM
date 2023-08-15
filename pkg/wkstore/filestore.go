@@ -67,7 +67,6 @@ func (f *FileStore) Open() error {
 	if err != nil {
 		return err
 	}
-
 	err = f.db.Batch(func(t *bolt.Tx) error {
 		_, err = t.CreateBucketIfNotExists([]byte(f.rootBucketPrefix))
 		if err != nil {
