@@ -134,6 +134,19 @@ func Error(msg string, fields ...zap.Field) {
 	errorLogger.Error(msg, fields...)
 }
 
+func Fatal(msg string, fields ...zap.Field) {
+	if errorLogger == nil {
+		Configure(NewOptions())
+	}
+	errorLogger.Fatal(msg, fields...)
+}
+func Panic(msg string, fields ...zap.Field) {
+	if errorLogger == nil {
+		Configure(NewOptions())
+	}
+	errorLogger.Panic(msg, fields...)
+}
+
 // Warn Warn
 func Warn(msg string, fields ...zap.Field) {
 
@@ -149,6 +162,8 @@ type Log interface {
 	Debug(msg string, fields ...zap.Field)
 	Error(msg string, fields ...zap.Field)
 	Warn(msg string, fields ...zap.Field)
+	Fatal(msg string, fields ...zap.Field)
+	Panic(msg string, fields ...zap.Field)
 }
 
 // WKLog TLog
@@ -180,4 +195,11 @@ func (t *WKLog) Error(msg string, fields ...zap.Field) {
 // Warn Warn
 func (t *WKLog) Warn(msg string, fields ...zap.Field) {
 	Warn(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+}
+
+func (t *WKLog) Fatal(msg string, fields ...zap.Field) {
+	Fatal(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+}
+func (t *WKLog) Panic(msg string, fields ...zap.Field) {
+	Panic(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
 }
