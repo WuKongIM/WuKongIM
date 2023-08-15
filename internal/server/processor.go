@@ -310,6 +310,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 		}
 		decodePayload, err := p.checkAndDecodePayload(messageID, sendPacket, conn)
 		if err != nil {
+			p.Error("decode payload err", zap.Error(err))
 			p.response(conn, &wkproto.SendackPacket{
 				Framer:      sendPacket.Framer,
 				ClientSeq:   sendPacket.ClientSeq,
