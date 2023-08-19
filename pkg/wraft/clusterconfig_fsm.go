@@ -10,7 +10,7 @@ type ClusterFSMManager struct {
 	clusterConfigManager *ClusterConfigManager
 	stopped              chan struct{}
 	nodeID               uint64
-	TickerDuration       time.Duration
+	IntervalDuration     time.Duration
 	readyChan            chan ReadyCluster
 }
 
@@ -20,7 +20,7 @@ func NewClusterFSMManager(nodeID uint64, clusterConfigManager *ClusterConfigMana
 		clusterConfigManager: clusterConfigManager,
 		stopped:              make(chan struct{}),
 		nodeID:               nodeID,
-		TickerDuration:       time.Second,
+		IntervalDuration:     time.Second,
 		readyChan:            make(chan ReadyCluster),
 	}
 }
@@ -37,7 +37,7 @@ func (c *ClusterFSMManager) Stop() {
 
 func (c *ClusterFSMManager) loopClusterConfigChange() {
 
-	tick := time.NewTicker(c.TickerDuration)
+	tick := time.NewTicker(c.IntervalDuration)
 	var readyCluster ReadyCluster
 
 	for {
@@ -65,14 +65,9 @@ func (c *ClusterFSMManager) checkPeerStatus(clusterConfig *wpb.ClusterConfig) Re
 		if peer.Id == c.nodeID {
 			continue
 		}
-		if peer.Status == wpb.Status_WillRemove {
+		if peer.Status == wpb.Status_WillRemove || peer.Status == wpb.Status_WillJoin || peer.Status == wpb.Status_Joining {
 			return ReadyCluster{
-				State: ClusterStateWillRemove,
-				Peer:  peer,
-			}
-		} else if peer.Status == wpb.Status_WillJoin {
-			return ReadyCluster{
-				State: ClusterStateWillJoin,
+				State: ClusterStatePeerStatusChange,
 				Peer:  peer,
 			}
 		}
@@ -90,8 +85,7 @@ var emptyReadyCluster ReadyCluster
 
 const (
 	ClusterStateNone ClusterState = iota
-	ClusterStateWillRemove
-	ClusterStateWillJoin
+	ClusterStatePeerStatusChange
 )
 
 type ReadyCluster struct {

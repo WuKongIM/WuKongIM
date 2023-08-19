@@ -15,6 +15,7 @@
 package wraft
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -127,13 +128,17 @@ func (t *GRPCTransporter) SendCMD(reqs ...*CMDReq) error {
 				err := peer.Connect()
 				if err != nil {
 					t.Warn("failed to connect", zap.Error(err))
+					peer.requestConnect = false
 				}
 			}
-			err := peer.SendCMD(req)
-			if err != nil {
-				t.Warn("failed to send", zap.Uint64("to", uint64(to)))
+			if peer.requestConnect {
+				err := peer.SendCMD(req)
+				if err != nil {
+					t.Warn("failed to send", zap.Uint64("to", uint64(to)))
+				}
+				return err
 			}
-			return err
+			return errors.New("failed to send  for no connect")
 		} else {
 			t.Warn("peer not found", zap.Uint64("to", uint64(to)))
 		}

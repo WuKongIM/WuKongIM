@@ -2,6 +2,7 @@ package wraft
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wraft/wpb"
@@ -76,17 +77,37 @@ func (r *RaftNode) AddTransportPeer(id uint64, addr string) error {
 	return r.grpcTransporter.AddPeer(id, addr)
 }
 
-func (r *RaftNode) JoinTo(id uint64) error {
-	peer := &wpb.Peer{
-		Id:   uint64(r.cfg.ID),
-		Addr: r.cfg.Addr,
+func (r *RaftNode) JoinTo(peer *wpb.Peer) error {
+
+	if r.cfg.ID == peer.Id {
+		return nil
 	}
-	data, _ := peer.Marshal()
+
+	// add peer to transporter
+	err := r.AddTransportPeer(peer.Id, peer.Addr)
+	if err != nil {
+		return err
+	}
+	selfPeer := wpb.NewPeer(r.cfg.ID, r.cfg.Addr)
+
+	// add to peer to cluster config
+	existPeer := r.ClusterConfigManager.GetPeer(peer.Id)
+	if existPeer == nil {
+		peer.Status = wpb.Status_WillJoin
+		r.ClusterConfigManager.AddOrUpdatePeer(peer)
+	} else if existPeer.Status == wpb.Status_Error {
+		existPeer.Status = wpb.Status_WillJoin
+		r.ClusterConfigManager.AddOrUpdatePeer(existPeer)
+	}
+
+	fmt.Println("join-->", peer.String())
+
+	data, _ := selfPeer.Marshal()
 	req := &CMDReq{
 		Id:    r.reqIDGen.Next(),
 		Type:  CMDJoinCluster.Uint32(),
 		Param: data,
-		To:    id,
+		To:    peer.Id,
 	}
 	resp, err := r.sendCMD(req)
 	if err != nil {

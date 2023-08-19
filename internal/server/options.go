@@ -60,6 +60,7 @@ type Options struct {
 		On   bool   // 是否开启监控
 		Addr string // 监控地址 默认为 0.0.0.0:5300
 	}
+	// demo
 	Demo struct {
 		On   bool   // 是否开启demo
 		Addr string // demo服务地址 默认为 0.0.0.0:5172
@@ -371,8 +372,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		}
 	}
 
-	o.configureDataDir() // 数据目录
-	o.configureLog(vp)   // 日志配置
+	o.ConfigureDataDir() // 数据目录
+	o.ConfigureLog()     // 日志配置
 
 	ip := o.External.IP
 	if strings.TrimSpace(ip) == "" {
@@ -419,7 +420,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 }
 
-func (o *Options) configureDataDir() {
+func (o *Options) ConfigureDataDir() {
 
 	// 数据目录
 	o.DataDir = o.getString("dataDir", filepath.Join(o.RootDir, "data"))
@@ -436,8 +437,8 @@ func (o *Options) ClusterOn() bool {
 	return o.Cluster.NodeID != 0
 }
 
-func (o *Options) configureLog(vp *viper.Viper) {
-	logLevel := vp.GetInt("logger.level")
+func (o *Options) ConfigureLog() {
+	logLevel := o.vp.GetInt("logger.level")
 	// level
 	if logLevel == 0 { // 没有设置
 		if o.Mode == DebugMode {
@@ -449,14 +450,14 @@ func (o *Options) configureLog(vp *viper.Viper) {
 		logLevel = logLevel - 2
 	}
 	o.Logger.Level = zapcore.Level(logLevel)
-	o.Logger.Dir = vp.GetString("logger.dir")
+	o.Logger.Dir = o.vp.GetString("logger.dir")
 	if strings.TrimSpace(o.Logger.Dir) == "" {
 		o.Logger.Dir = "logs"
 	}
 	if !strings.HasPrefix(strings.TrimSpace(o.Logger.Dir), "/") {
 		o.Logger.Dir = filepath.Join(o.RootDir, o.Logger.Dir)
 	}
-	o.Logger.LineNum = vp.GetBool("logger.lineNum")
+	o.Logger.LineNum = o.vp.GetBool("logger.lineNum")
 }
 
 // IsTmpChannel 是否是临时频道
