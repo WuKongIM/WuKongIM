@@ -165,7 +165,7 @@ func (w *Webhook) notifyOfflineMsg(msg *Message, large bool, subscribers []strin
 			ToUIDs:          toUIDs,
 			Compress:        compress,
 			CompresssToUIDs: compresssToUIDs,
-			SourceID:        int64(w.s.opts.ID),
+			SourceID:        int64(w.s.opts.Cluster.NodeID),
 		},
 	})
 
