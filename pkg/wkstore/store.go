@@ -1,30 +1,19 @@
 package wkstore
 
-type Store interface {
-	Open() error
-	Close() error
+type StoreWriter interface {
 	// #################### user ####################
-	// GetUserToken return token,device level and error
-	GetUserToken(uid string, deviceFlag uint8) (string, uint8, error)
 	UpdateUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) error
 	// UpdateMessageOfUserCursorIfNeed 更新用户消息队列的游标，用户读到的位置
 	UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error
 
 	// #################### channel ####################
-	GetChannel(channelID string, channelType uint8) (*ChannelInfo, error)
 	// AddOrUpdateChannel add or update channel
 	AddOrUpdateChannel(channelInfo *ChannelInfo) error
-	// ExistChannel return true if channel exist
-	ExistChannel(channelID string, channelType uint8) (bool, error)
 	// AddSubscribers 添加订阅者
 	AddSubscribers(channelID string, channelType uint8, uids []string) error
 	// RemoveSubscribers 移除指定频道内指定uid的订阅者
 	RemoveSubscribers(channelID string, channelType uint8, uids []string) error
-	// GetSubscribers 获取订阅者列表
-	GetSubscribers(channelID string, channelType uint8) ([]string, error)
 	RemoveAllSubscriber(channelID string, channelType uint8) error
-	GetAllowlist(channelID string, channelType uint8) ([]string, error)
-	GetDenylist(channelID string, channelType uint8) ([]string, error)
 	// DeleteChannel 删除频道
 	DeleteChannel(channelID string, channelType uint8) error
 	// AddDenylist 添加频道黑名单
@@ -45,6 +34,45 @@ type Store interface {
 	AppendMessages(channelID string, channelType uint8, msgs []Message) (seqs []uint32, err error)
 	// 追加消息到用户的消息队列
 	AppendMessagesOfUser(uid string, msgs []Message) (seqs []uint32, err error)
+	AppendMessageOfNotifyQueue(m []Message) error
+	// RemoveMessagesOfNotifyQueue 从通知队列里移除消息
+	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
+
+	DeleteChannelAndClearMessages(channelID string, channelType uint8) error
+
+	// #################### conversations ####################
+	AddOrUpdateConversations(uid string, conversations []*Conversation) error
+	DeleteConversation(uid string, channelID string, channelType uint8) error // 删除最近会话
+
+	// #################### system uids ####################
+	AddSystemUIDs(uids []string) error    // 添加系统uid
+	RemoveSystemUIDs(uids []string) error // 移除系统uid
+
+	// #################### message stream ####################
+	// SaveStreamMeta 保存消息流元数据
+	SaveStreamMeta(meta *StreamMeta) error
+	// StreamEnd 结束流
+	StreamEnd(channelID string, channelType uint8, streamNo string) error
+	// AppendStreamItem 追加消息流
+	AppendStreamItem(channelID string, channelType uint8, streamNo string, item *StreamItem) (uint32, error)
+}
+
+type StoreReader interface {
+	// #################### user ####################
+	// GetUserToken return token,device level and error
+	GetUserToken(uid string, deviceFlag uint8) (string, uint8, error)
+
+	// #################### channel ####################
+	GetChannel(channelID string, channelType uint8) (*ChannelInfo, error)
+	// ExistChannel return true if channel exist
+	ExistChannel(channelID string, channelType uint8) (bool, error)
+	// GetSubscribers 获取订阅者列表
+	GetSubscribers(channelID string, channelType uint8) ([]string, error)
+	GetAllowlist(channelID string, channelType uint8) ([]string, error)
+	GetDenylist(channelID string, channelType uint8) ([]string, error)
+
+	// #################### messages ####################
+
 	LoadMsg(channelID string, channelType uint8, seq uint32) (Message, error)
 	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
 	// LoadLastMsgsWithEnd 加载最新的消息 end表示加载到end的位置结束加载 end=0表示不做限制 结果不包含end
@@ -58,41 +86,34 @@ type Store interface {
 	LoadNextRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]Message, error)
 	// GetLastMsgSeq 获取最新的消息seq
 	GetLastMsgSeq(channelID string, channelType uint8) (uint32, error)
-
 	// GetMessageOfUserCursor 获取用户消息队列的游标，用户读到的位置
 	GetMessageOfUserCursor(uid string) (uint32, error)
 	// SyncMessageOfUser 同步用户队列里的消息（写扩散）
 	SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error)
-
-	AppendMessageOfNotifyQueue(m []Message) error
 	GetMessagesOfNotifyQueue(count int) ([]Message, error)
-	// RemoveMessagesOfNotifyQueue 从通知队列里移除消息
-	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
-
-	DeleteChannelAndClearMessages(channelID string, channelType uint8) error
 
 	// #################### conversations ####################
-	AddOrUpdateConversations(uid string, conversations []*Conversation) error
+
 	GetConversations(uid string) ([]*Conversation, error)
 	GetConversation(uid string, channelID string, channelType uint8) (*Conversation, error)
-	DeleteConversation(uid string, channelID string, channelType uint8) error // 删除最近会话
 
 	// #################### system uids ####################
-	AddSystemUIDs(uids []string) error    // 添加系统uid
-	RemoveSystemUIDs(uids []string) error // 移除系统uid
 	GetSystemUIDs() ([]string, error)
 
 	// #################### message stream ####################
-	// SaveStreamMeta 保存消息流元数据
-	SaveStreamMeta(meta *StreamMeta) error
-	// StreamEnd 结束流
-	StreamEnd(channelID string, channelType uint8, streamNo string) error
+
 	// GetStreamMeta 获取消息流元数据
 	GetStreamMeta(channelID string, channelType uint8, streamNo string) (*StreamMeta, error)
-	// AppendStreamItem 追加消息流
-	AppendStreamItem(channelID string, channelType uint8, streamNo string, item *StreamItem) (uint32, error)
 	// GetStreamItems 获取消息流
 	GetStreamItems(channelID string, channelType uint8, streamNo string) ([]*StreamItem, error)
+}
+
+type Store interface {
+	Open() error
+	Close() error
+
+	StoreReader
+	StoreWriter
 }
 
 type ChannelInfo struct {

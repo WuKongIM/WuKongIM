@@ -414,7 +414,7 @@ func testLog(t *testing.T, opts *Options, N int) {
 	}
 	N++
 
-	l.Sync()
+	_ = l.Sync()
 	testFirstLast(t, l, uint64(N-1), uint64(N), nil)
 }
 
@@ -519,33 +519,33 @@ func TestOutliers(t *testing.T) {
 	t.Run("fail-corrupted-tail-json", func(t *testing.T) {
 		defer os.RemoveAll("testlog/corrupt-tail")
 		opts := makeOpts(512, true, JSON)
-		os.MkdirAll("testlog/corrupt-tail", 0777)
-		ioutil.WriteFile(
+		_ = os.MkdirAll("testlog/corrupt-tail", 0777)
+		_ = os.WriteFile(
 			"testlog/corrupt-tail/00000000000000000001",
 			[]byte("\n"), 0666)
 		if l, err := Open("testlog/corrupt-tail", opts); err != ErrCorrupt {
 			l.Close()
 			t.Fatalf("expected %v, got %v", ErrCorrupt, err)
 		}
-		ioutil.WriteFile(
+		_ = os.WriteFile(
 			"testlog/corrupt-tail/00000000000000000001",
 			[]byte(`{}`+"\n"), 0666)
 		if l, err := Open("testlog/corrupt-tail", opts); err != ErrCorrupt {
 			l.Close()
 			t.Fatalf("expected %v, got %v", ErrCorrupt, err)
 		}
-		ioutil.WriteFile(
+		_ = os.WriteFile(
 			"testlog/corrupt-tail/00000000000000000001",
 			[]byte(`{"index":"1"}`+"\n"), 0666)
 		if l, err := Open("testlog/corrupt-tail", opts); err != ErrCorrupt {
 			l.Close()
 			t.Fatalf("expected %v, got %v", ErrCorrupt, err)
 		}
-		ioutil.WriteFile(
+		_ = os.WriteFile(
 			"testlog/corrupt-tail/00000000000000000001",
 			[]byte(`{"index":"1","data":"?"}`), 0666)
 		if l, err := Open("testlog/corrupt-tail", opts); err != ErrCorrupt {
-			l.Close()
+			_ = l.Close()
 			t.Fatalf("expected %v, got %v", ErrCorrupt, err)
 		}
 	})
@@ -734,7 +734,7 @@ func TestSimpleTruncateFront(t *testing.T) {
 }
 
 func TestSimpleTruncateBack(t *testing.T) {
-	os.RemoveAll("testlog")
+	_ = os.RemoveAll("testlog")
 
 	opts := &Options{
 		NoSync:      true,

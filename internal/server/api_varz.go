@@ -62,7 +62,7 @@ func CreateVarz(s *Server) *Varz {
 	opts := s.opts
 	connCount := s.dispatch.engine.ConnCount()
 	return &Varz{
-		ServerID:    fmt.Sprintf("%d", opts.ID),
+		ServerID:    fmt.Sprintf("%d", opts.Cluster.NodeID),
 		ServerName:  "WuKongIM",
 		Version:     version.Version,
 		Connections: connCount,
