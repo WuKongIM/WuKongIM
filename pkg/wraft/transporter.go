@@ -85,7 +85,7 @@ func (t *GRPCTransporter) Send(ms []raftpb.Message) {
 		if m.To == 0 {
 			return
 		}
-		req := NewCMDReq(t.reqIDGen.Next(), CMDRaftMessage.Uint32())
+		req := transporter.NewCMDReq(t.reqIDGen.Next(), transporter.CMDRaftMessage.Uint32())
 		data, _ := m.Marshal()
 		req.Param = data
 		req.To = uint64(m.To)
@@ -94,12 +94,12 @@ func (t *GRPCTransporter) Send(ms []raftpb.Message) {
 			t.Warn("failed to send", zap.Error(err))
 		}
 	}
-	reqs := make([]*CMDReq, 0)
+	reqs := make([]*transporter.CMDReq, 0)
 	for _, m := range ms {
 		if m.To == 0 {
 			continue
 		}
-		req := NewCMDReq(t.reqIDGen.Next(), CMDRaftMessage.Uint32())
+		req := transporter.NewCMDReq(t.reqIDGen.Next(), transporter.CMDRaftMessage.Uint32())
 		data, _ := m.Marshal()
 		req.Param = data
 		req.To = uint64(m.To)
@@ -111,7 +111,7 @@ func (t *GRPCTransporter) Send(ms []raftpb.Message) {
 	}
 }
 
-func (t *GRPCTransporter) SendCMD(reqs ...*CMDReq) error {
+func (t *GRPCTransporter) SendCMD(reqs ...*transporter.CMDReq) error {
 	if t.stopped {
 		t.Warn("transporter stopped")
 		return nil
@@ -144,7 +144,7 @@ func (t *GRPCTransporter) SendCMD(reqs ...*CMDReq) error {
 		}
 		return nil
 	}
-	reqsMap := make(map[uint64][]*CMDReq)
+	reqsMap := make(map[uint64][]*transporter.CMDReq)
 	for _, req := range reqs {
 		to := req.To
 		reqsMap[to] = append(reqsMap[to], req)
@@ -170,7 +170,7 @@ func (t *GRPCTransporter) SendCMD(reqs ...*CMDReq) error {
 	return nil
 }
 
-func (t *GRPCTransporter) SendCMDTo(addr string, req *CMDReq) (*wksdk.Client, error) {
+func (t *GRPCTransporter) SendCMDTo(addr string, req *transporter.CMDReq) (*wksdk.Client, error) {
 	cli := wksdk.NewClient(addr, wksdk.WithUID(wkutil.GenUUID()), wksdk.WithToken(t.cfg.Token))
 	err := cli.Connect()
 	if err != nil {
@@ -267,7 +267,7 @@ func NewGRPCPeer(id uint64, addr string, token string, onRecv func(id uint64, ms
 // 	return g.nodeClient.Send(dataList...)
 // }
 
-func (g *GRPCPeer) SendCMD(cmds ...*CMDReq) error {
+func (g *GRPCPeer) SendCMD(cmds ...*transporter.CMDReq) error {
 	if len(cmds) == 0 {
 		return nil
 	}

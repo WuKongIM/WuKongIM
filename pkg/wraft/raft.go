@@ -90,6 +90,8 @@ type RaftNode struct {
 
 	ClusterConfigManager *ClusterConfigManager
 	clusterFSMManager    *ClusterFSMManager
+
+	startRequestGetClusterConfig atomic.Bool
 }
 
 func NewRaftNode(fsm FSM, cfg *RaftNodeConfig) *RaftNode {
@@ -110,7 +112,7 @@ func NewRaftNode(fsm FSM, cfg *RaftNodeConfig) *RaftNode {
 		sched:                schedule.NewFIFOScheduler(wklog.NewWKLog("Scheduler")),
 		reqIDGen:             idutil.NewGenerator(uint16(cfg.ID), time.Now()),
 		w:                    wait.New(),
-		recvChan:             make(chan transporter.Ready, 1000),
+		recvChan:             make(chan transporter.Ready, 10),
 		ClusterConfigManager: NewClusterConfigManager(cfg.ClusterStorePath),
 	}
 	// r.applyCancelContext, r.applyCancelFnc = context.WithCancel(context.Background())
@@ -366,7 +368,6 @@ func (r *RaftNode) run() {
 				RaftAdvancedC: raftAdvancedC,
 			}
 			// r.updateCommittedIndex(&ap)
-			r.Debug("ready------------1")
 			select {
 			case r.applyc <- ap:
 			case <-r.stopped:
@@ -378,7 +379,6 @@ func (r *RaftNode) run() {
 					r.cfg.Transport.Send(r.processMessages(rd.Messages))
 				}
 			}
-			r.Debug("ready------------2")
 			// Must save the snapshot file and WAL snapshot entry before saving any other entries or hardstate to
 			// ensure that recovery after a snapshot restore is possible.
 			if !raft.IsEmptySnap(rd.Snapshot) {
@@ -418,7 +418,6 @@ func (r *RaftNode) run() {
 					r.Fatal("failed to release Raft wal", zap.Error(err))
 				}
 			}
-			r.Debug("ready------------3")
 			confChanged := false
 			for _, ent := range rd.CommittedEntries {
 				if ent.Type == raftpb.EntryConfChange {
@@ -427,14 +426,12 @@ func (r *RaftNode) run() {
 				}
 			}
 			if !islead {
-				r.Debug("ready------------3-1")
 				msgs := r.processMessages(rd.Messages)
 				select {
 				case notifyc <- struct{}{}:
 				case <-r.stopped:
 					return
 				}
-				r.Debug("ready------------3-2")
 				if confChanged {
 					select {
 					case notifyc <- struct{}{}:
@@ -442,7 +439,6 @@ func (r *RaftNode) run() {
 						return
 					}
 				}
-				r.Debug("ready------------3-3")
 				if len(msgs) > 0 {
 					r.cfg.Transport.Send(msgs)
 				}
@@ -454,7 +450,6 @@ func (r *RaftNode) run() {
 					return
 				}
 			}
-			r.Debug("ready------------4")
 			r.node.Advance()
 
 			if confChanged {
@@ -464,7 +459,6 @@ func (r *RaftNode) run() {
 					return
 				}
 			}
-			r.Debug("ready------------5")
 
 		case <-r.stopped:
 			return
@@ -512,7 +506,7 @@ func (r *RaftNode) apply(ap ToApply) error {
 			r.Debug("Apply Normal", zap.String("data", string(e.Data)))
 
 			if len(e.Data) > 0 {
-				req := &CMDReq{}
+				req := &transporter.CMDReq{}
 				err := req.Unmarshal(e.Data)
 				if err != nil {
 					r.Panic("UnmarshalCMDReq", zap.Error(err))
@@ -738,7 +732,7 @@ func (r *RaftNode) GetConfig() *RaftNodeConfig {
 	return r.cfg
 }
 
-func (r *RaftNode) sendCMD(req *CMDReq) (*CMDResp, error) {
+func (r *RaftNode) sendCMD(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 	if req.To == 0 {
 		return nil, nil
 	}
@@ -760,7 +754,7 @@ func (r *RaftNode) sendCMD(req *CMDReq) (*CMDResp, error) {
 		if x == nil {
 			return nil, ErrStopped
 		}
-		resp, ok := x.(*CMDResp)
+		resp, ok := x.(*transporter.CMDResp)
 		if ok {
 			return resp, nil
 		}
@@ -778,7 +772,7 @@ func (r *RaftNode) sendCMD(req *CMDReq) (*CMDResp, error) {
 
 }
 
-func (r *RaftNode) sendCMDTo(addr string, req *CMDReq) (*CMDResp, error) {
+func (r *RaftNode) sendCMDTo(addr string, req *transporter.CMDReq) (*transporter.CMDResp, error) {
 
 	if req.Id == 0 {
 		req.Id = r.reqIDGen.Next()
@@ -800,7 +794,7 @@ func (r *RaftNode) sendCMDTo(addr string, req *CMDReq) (*CMDResp, error) {
 	cli.OnMessage(func(resp *wksdk.Message) {
 		fmt.Println("resp-message->", resp)
 
-		cmdResp := &CMDResp{}
+		cmdResp := &transporter.CMDResp{}
 		err = cmdResp.Unmarshal(resp.Payload)
 		if err != nil {
 			r.Error("failed to unmarshal cmd resp", zap.Error(err))
@@ -815,7 +809,7 @@ func (r *RaftNode) sendCMDTo(addr string, req *CMDReq) (*CMDResp, error) {
 		if x == nil {
 			return nil, ErrStopped
 		}
-		resp, ok := x.(*CMDResp)
+		resp, ok := x.(*transporter.CMDResp)
 		if ok {
 			return resp, nil
 		}
@@ -832,7 +826,7 @@ func (r *RaftNode) sendCMDTo(addr string, req *CMDReq) (*CMDResp, error) {
 	}
 }
 
-func (r *RaftNode) propose(ctx context.Context, cmd *CMDReq) (*CMDResp, error) {
+func (r *RaftNode) propose(ctx context.Context, cmd *transporter.CMDReq) (*transporter.CMDResp, error) {
 
 	ch := r.w.Register(cmd.Id)
 
@@ -855,7 +849,7 @@ func (r *RaftNode) propose(ctx context.Context, cmd *CMDReq) (*CMDResp, error) {
 		if x == nil {
 			return nil, ErrStopped
 		}
-		resp, ok := x.(*CMDResp)
+		resp, ok := x.(*transporter.CMDResp)
 		if ok {
 			return resp, nil
 		}
@@ -874,7 +868,7 @@ func (r *RaftNode) propose(ctx context.Context, cmd *CMDReq) (*CMDResp, error) {
 	}
 }
 
-func (r *RaftNode) trigger(resp *CMDResp) {
+func (r *RaftNode) trigger(resp *transporter.CMDResp) {
 	r.w.Trigger(resp.Id, resp)
 }
 

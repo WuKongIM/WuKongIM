@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft/wpb"
 	"github.com/WuKongIM/WuKongIMGoSDK/pkg/wksdk"
 	"go.etcd.io/raft/v3/raftpb"
@@ -20,20 +21,14 @@ func (r *RaftNode) loopRecv() {
 			if !ok {
 				return
 			}
-
 			var (
-				req  = &CMDReq{}
+				req  = ready.Req
 				err  error
-				resp *CMDResp
+				resp *transporter.CMDResp
 			)
-			err = req.Unmarshal(ready.Data)
-			if err != nil {
-				r.Warn("failed to unmarshal raft message", zap.Error(err))
-				return
-			}
 			r.Debug("=========recv=======>", zap.Uint64("type", uint64(req.Type)))
 
-			if req.Type == CMDRaftMessage.Uint32() { // raft message
+			if req.Type == transporter.CMDRaftMessage.Uint32() { // raft message
 				close(ready.Result)
 
 				var msg raftpb.Message
@@ -42,19 +37,20 @@ func (r *RaftNode) loopRecv() {
 					r.Warn("failed to unmarshal raft message", zap.Error(err))
 					return
 				}
+
 				r.Debug("=========step=======>", zap.String("msg", msg.String()))
 				err = r.node.Step(context.Background(), msg)
 				if err != nil {
 					r.Warn("failed to step raft node", zap.Error(err))
 				}
 
-			} else if req.Type == CMDGetClusterConfig.Uint32() { // get cluster config
+			} else if req.Type == transporter.CMDGetClusterConfig.Uint32() { // get cluster config
 				resp, err = r.handleGetClusterConfig(req)
 				if err != nil {
 					r.Error("failed to handle get cluster config", zap.Error(err))
 				}
 
-			} else if req.Type == CMDJoinCluster.Uint32() { // join cluster
+			} else if req.Type == transporter.CMDJoinCluster.Uint32() { // join cluster
 				resp, err = r.handleClusterJoin(req)
 				if err != nil {
 					r.Error("failed to handle cluster join", zap.Error(err))
@@ -65,7 +61,7 @@ func (r *RaftNode) loopRecv() {
 			}
 			if err != nil {
 				r.Error("failed to handle cmd", zap.Error(err))
-				resp = NewCMDRespWithStatus(req.Id, CMDRespStatusError)
+				resp = transporter.NewCMDRespWithStatus(req.Id, transporter.CMDRespStatusError)
 			}
 			if resp != nil {
 				data, err := resp.Marshal()
@@ -84,6 +80,37 @@ func (r *RaftNode) loopRecv() {
 
 }
 
+// func (r *RaftNode) requestGetClusterConfigIfNeed(peerID uint64, term uint64) {
+// 	peer := r.ClusterConfigManager.GetPeer(peerID)
+// 	if peer != nil && peer.Term < term {
+// 		r.requestGetClusterConfig(peerID)
+// 	}
+// }
+
+func (r *RaftNode) requestGetClusterConfig(peerID uint64) {
+	if r.startRequestGetClusterConfig.Load() {
+		return
+	}
+	r.startRequestGetClusterConfig.Store(true)
+	defer r.startRequestGetClusterConfig.Store(false)
+
+	clusterConfig, err := r.GetClusterConfig(peerID)
+	if err != nil {
+		r.Error("failed to get cluster config", zap.Error(err), zap.Uint64("peerID", peerID))
+		return
+	}
+	if clusterConfig != nil && len(clusterConfig.Peers) > 0 {
+		for _, peer := range clusterConfig.Peers {
+			if peer.Id == peerID {
+				r.ClusterConfigManager.AddOrUpdatePeer(peer)
+				break
+			}
+
+		}
+	}
+
+}
+
 func (r *RaftNode) listenClusterConfigChange() {
 	defer r.Debug("listenClusterConfigChange stop")
 	for {
@@ -93,6 +120,8 @@ func (r *RaftNode) listenClusterConfigChange() {
 			fmt.Println(ready)
 			if ready.State == ClusterStatePeerStatusChange {
 				r.applyPeerStateChange(ready.Peer)
+			} else if ready.State == ClusterStatePeerConfigUpdate {
+				r.applyPeerConfigUpdate(ready.Peer)
 			}
 
 		case <-r.stopped:
@@ -109,6 +138,13 @@ func (r *RaftNode) applyPeerStateChange(peer *wpb.Peer) {
 		r.applyPeerWillJoin(peer)
 		return
 	}
+}
+
+func (r *RaftNode) applyPeerConfigUpdate(peer *wpb.Peer) {
+	if peer == nil || peer.Id == 0 {
+		return
+	}
+	r.requestGetClusterConfig(peer.Id)
 }
 
 func (r *RaftNode) applyPeerWillJoin(peer *wpb.Peer) {
@@ -137,7 +173,7 @@ func (r *RaftNode) applyPeerWillJoin(peer *wpb.Peer) {
 
 // recv message from client node
 func (r *RaftNode) onNodeMessage(id uint64, msg *wksdk.Message) {
-	cmdResp := &CMDResp{}
+	cmdResp := &transporter.CMDResp{}
 	err := cmdResp.Unmarshal(msg.Payload)
 	if err != nil {
 		r.Error("failed to unmarshal cmd resp", zap.Error(err))
@@ -147,21 +183,21 @@ func (r *RaftNode) onNodeMessage(id uint64, msg *wksdk.Message) {
 	r.trigger(cmdResp)
 }
 
-func (r *RaftNode) handleGetClusterConfig(req *CMDReq) (*CMDResp, error) {
+func (r *RaftNode) handleGetClusterConfig(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 	fmt.Println("handleGetClusterConfig---->")
 	clusterConfig := r.ClusterConfigManager.GetClusterConfig()
 	data, err := clusterConfig.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	resp := &CMDResp{
+	resp := &transporter.CMDResp{
 		Id:    req.Id,
 		Param: data,
 	}
 	return resp, nil
 }
 
-func (r *RaftNode) handleClusterJoin(req *CMDReq) (*CMDResp, error) {
+func (r *RaftNode) handleClusterJoin(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 	fmt.Println("handleClusterJoin---->", req.Id, req.Param)
 	peer := &wpb.Peer{}
 	err := peer.Unmarshal(req.Param)
@@ -178,8 +214,8 @@ func (r *RaftNode) handleClusterJoin(req *CMDReq) (*CMDResp, error) {
 		peer.Status = wpb.Status_WillJoin
 		r.ClusterConfigManager.AddOrUpdatePeer(peer)
 	}
-	return &CMDResp{
+	return &transporter.CMDResp{
 		Id:     req.Id,
-		Status: CMDRespStatusOK,
+		Status: transporter.CMDRespStatusOK,
 	}, nil
 }
