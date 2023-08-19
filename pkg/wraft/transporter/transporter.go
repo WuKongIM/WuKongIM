@@ -9,15 +9,22 @@ import (
 	"go.uber.org/zap"
 )
 
+type Ready struct {
+	Data   []byte
+	Conn   wknet.Conn
+	Result chan []byte
+}
+
 type Transporter struct {
 	addr   string
 	engine *wknet.Engine
 	wklog.Log
 	processor *processor
 	opts      *Options
+	stopped   chan struct{}
 }
 
-func New(nodeID uint64, addr string, recvChan chan []byte, ops ...Option) *Transporter {
+func New(nodeID uint64, addr string, recvChan chan Ready, ops ...Option) *Transporter {
 
 	opts := NewOptions()
 	for _, op := range ops {
@@ -26,13 +33,17 @@ func New(nodeID uint64, addr string, recvChan chan []byte, ops ...Option) *Trans
 	opts.NodeID = nodeID
 
 	engine := wknet.NewEngine(wknet.WithAddr(addr))
-	return &Transporter{
-		addr:      addr,
-		opts:      opts,
-		engine:    engine,
-		Log:       wklog.NewWKLog("Transporter"),
-		processor: newProcessor(recvChan, opts),
+	t := &Transporter{
+		addr:    addr,
+		opts:    opts,
+		engine:  engine,
+		Log:     wklog.NewWKLog("Transporter"),
+		stopped: make(chan struct{}),
 	}
+
+	t.processor = newProcessor(recvChan, t, opts)
+
+	return t
 }
 
 func (t *Transporter) Start() error {
@@ -51,6 +62,7 @@ func (t *Transporter) Stop() {
 	if err != nil {
 		t.Warn("stop transporter error", zap.Error(err))
 	}
+	close(t.stopped)
 }
 
 func (t *Transporter) onConnect(conn wknet.Conn) error {
@@ -91,7 +103,10 @@ func (t *Transporter) onData(conn wknet.Conn) error {
 			return nil
 		}
 		//  process conn auth
-		conn.Discard(len(data))
+		_, err = conn.Discard(len(data))
+		if err != nil {
+			t.Warn("Failed to discard the message", zap.Error(err))
+		}
 		t.processor.processAuth(conn, packet.(*wkproto.ConnectPacket))
 	} else {
 		offset := 0
@@ -109,7 +124,10 @@ func (t *Transporter) onData(conn wknet.Conn) error {
 			offset += size
 		}
 		// process frames
-		conn.Discard(offset)
+		_, err = conn.Discard(offset)
+		if err != nil {
+			t.Warn("Failed to discard the message", zap.Error(err))
+		}
 	}
 	return nil
 }

@@ -37,7 +37,6 @@ const (
 
 type Options struct {
 	vp          *viper.Viper // 内部配置对象
-	ID          int64        // 节点ID
 	Mode        Mode         // 模式 debug 测试 release 正式 bench 压力测试
 	HTTPAddr    string       // http api的监听地址 默认为 0.0.0.0:5001
 	Addr        string       // tcp监听地址 例如：tcp://0.0.0.0:5100
@@ -132,6 +131,13 @@ type Options struct {
 	}
 
 	SlotNum int // 槽数量
+
+	Cluster struct {
+		NodeID     uint64        // 节点ID
+		Addr       string        // 节点地址 例如：tcp://0.0.0.0:11110
+		ReqTimeout time.Duration // 请求超时时间
+		Join       []string      // 加入集群的地址
+	}
 
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
 	// MessageMaxRetryCount int           // 消息最大重试次数
@@ -245,6 +251,15 @@ func NewOptions() *Options {
 			Addr: "0.0.0.0:5172",
 		},
 		SlotNum: 256,
+		Cluster: struct {
+			NodeID     uint64
+			Addr       string
+			ReqTimeout time.Duration
+			Join       []string
+		}{
+			Addr:       "tcp://127.0.0.1:11110",
+			ReqTimeout: time.Second * 10,
+		},
 	}
 }
 
@@ -398,6 +413,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		o.External.APIUrl = fmt.Sprintf("http://%s:%d", ip, portInt64)
 	}
 
+	// =================== cluster ===================
+	o.Cluster.NodeID = o.getUint64("cluster.nodeID", o.Cluster.NodeID)
+	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
+
 }
 
 func (o *Options) configureDataDir() {
@@ -411,6 +430,10 @@ func (o *Options) configureDataDir() {
 			panic(err)
 		}
 	}
+}
+
+func (o *Options) ClusterOn() bool {
+	return o.Cluster.NodeID != 0
 }
 
 func (o *Options) configureLog(vp *viper.Viper) {
@@ -455,6 +478,14 @@ func (o *Options) getString(key string, defaultValue string) string {
 
 func (o *Options) getInt(key string, defaultValue int) int {
 	v := o.vp.GetInt(key)
+	if v == 0 {
+		return defaultValue
+	}
+	return v
+}
+
+func (o *Options) getUint64(key string, defaultValue uint64) uint64 {
+	v := o.vp.GetUint64(key)
 	if v == 0 {
 		return defaultValue
 	}

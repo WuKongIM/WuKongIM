@@ -113,6 +113,17 @@ go run main.go --config config/wk.yaml
 5300: 监控系统端口
 ```
 
+分布式部署
+---------------
+
+```shell
+
+wk --node-id 1 --listen-addr=127.0.0.1:11110
+
+wk --node-id 2 --listen-addr=127.0.0.1:11111  --join=127.0.0.1:11110
+
+```
+
 
 配套SDK源码和Demo
 ---------------

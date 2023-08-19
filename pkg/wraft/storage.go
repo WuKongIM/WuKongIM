@@ -1,3 +1,16 @@
+// Copyright (c) 2022 Shanghai Xinbida Network Technology Co., Ltd. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 package wraft
 
 import (
@@ -174,26 +187,6 @@ func (w *WALStorage) SetApplied(applied uint64) error {
 		binary.BigEndian.PutUint64(data, applied)
 		return bucket.Put(w.appliedKey, data)
 	})
-}
-
-func (w *WALStorage) SetPeers(peers Peers) error {
-	return w.metaDB.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(w.peersKey)
-		return bucket.Put(w.peersKey, peers.Marshal())
-	})
-}
-
-func (w *WALStorage) Peers() (Peers, error) {
-	var peers Peers
-	err := w.metaDB.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(w.peersKey)
-		data := bucket.Get(w.peersKey)
-		if len(data) == 0 {
-			return nil
-		}
-		return peers.Unmarshal(data)
-	})
-	return peers, err
 }
 
 func (w *WALStorage) Applied() (uint64, error) {

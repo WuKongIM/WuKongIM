@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
@@ -18,10 +19,11 @@ type processor struct {
 	wklog.Log
 	connManager  *ConnManager
 	messageIDGen *snowflake.Node // 消息ID生成器
-	recvDataChan chan []byte
+	recvDataChan chan Ready
+	t            *Transporter
 }
 
-func newProcessor(recvDataChan chan []byte, opts *Options) *processor {
+func newProcessor(recvDataChan chan Ready, t *Transporter, opts *Options) *processor {
 	messageIDGen, err := snowflake.NewNode(int64(opts.NodeID))
 	if err != nil {
 		panic(err)
@@ -32,6 +34,7 @@ func newProcessor(recvDataChan chan []byte, opts *Options) *processor {
 		Log:          wklog.NewWKLog("processor"),
 		connManager:  NewConnManager(),
 		recvDataChan: recvDataChan,
+		t:            t,
 	}
 }
 
@@ -95,7 +98,25 @@ func (p *processor) processSendPacket(conn wknet.Conn, sendPacket *wkproto.SendP
 		return
 	}
 	if p.recvDataChan != nil {
-		p.recvDataChan <- decodePayload
+		resultChan := make(chan []byte)
+		p.recvDataChan <- Ready{
+			Data:   decodePayload,
+			Conn:   conn,
+			Result: resultChan,
+		}
+		select {
+		case result := <-resultChan:
+			if result != nil {
+				err = p.deliveryMsg(conn, sendPacket, messageID, result)
+				if err != nil {
+					p.Warn("delivery msg err", zap.Error(err))
+				}
+			}
+		case <-p.t.stopped:
+			close(resultChan)
+			return
+		}
+
 	}
 	p.dataOut(conn, &wkproto.SendackPacket{
 		Framer:      sendPacket.Framer,
@@ -107,44 +128,71 @@ func (p *processor) processSendPacket(conn wknet.Conn, sendPacket *wkproto.SendP
 
 }
 
-// func (p *processor) deliveryMsg(recvConn wknet.Conn, sendPacket *wkproto.SendPacket, messageID int64, payload []byte) error {
-// 	recvPacket := &wkproto.RecvPacket{
-// 		Framer: wkproto.Framer{
-// 			RedDot:    sendPacket.GetRedDot(),
-// 			SyncOnce:  false,
-// 			NoPersist: true,
-// 		},
-// 		Setting:     sendPacket.Setting,
-// 		MessageID:   messageID,
-// 		ClientMsgNo: sendPacket.ClientMsgNo,
-// 		FromUID:     recvConn.UID(),
-// 		ChannelID:   sendPacket.ChannelID,
-// 		ChannelType: sendPacket.ChannelType,
-// 		Topic:       sendPacket.Topic,
-// 		Timestamp:   int32(time.Now().Unix()),
-// 		Payload:     payload,
-// 		ClientSeq:   sendPacket.ClientSeq,
-// 	}
+func (p *processor) deliveryMsg(recvConn wknet.Conn, sendPacket *wkproto.SendPacket, messageID int64, payload []byte) error {
+	recvPacket := &wkproto.RecvPacket{
+		Framer: wkproto.Framer{
+			RedDot:    sendPacket.GetRedDot(),
+			SyncOnce:  false,
+			NoPersist: true,
+		},
+		Setting:     sendPacket.Setting,
+		MessageID:   messageID,
+		ClientMsgNo: sendPacket.ClientMsgNo,
+		FromUID:     recvConn.UID(),
+		ChannelID:   sendPacket.ChannelID,
+		ChannelType: sendPacket.ChannelType,
+		Topic:       sendPacket.Topic,
+		Timestamp:   int32(time.Now().Unix()),
+		Payload:     payload,
+		ClientSeq:   sendPacket.ClientSeq,
+	}
 
-// 	payloadEnc, err := encryptMessagePayload(recvPacket.Payload, recvConn)
-// 	if err != nil {
-// 		p.Error("加密payload失败！", zap.Error(err))
-// 		return err
-// 	}
-// 	recvPacket.Payload = payloadEnc
-// 	signStr := recvPacket.VerityString()
-// 	msgKey, err := makeMsgKey(signStr, recvConn)
-// 	if err != nil {
-// 		p.Error("生成MsgKey失败！", zap.Error(err))
-// 		return err
-// 	}
-// 	recvPacket.MsgKey = msgKey
+	payloadEnc, err := encryptMessagePayload(recvPacket.Payload, recvConn)
+	if err != nil {
+		p.Error("加密payload失败！", zap.Error(err))
+		return err
+	}
+	recvPacket.Payload = payloadEnc
+	signStr := recvPacket.VerityString()
+	msgKey, err := makeMsgKey(signStr, recvConn)
+	if err != nil {
+		p.Error("生成MsgKey失败！", zap.Error(err))
+		return err
+	}
+	recvPacket.MsgKey = msgKey
 
-// 	p.dataOut(recvConn, recvPacket)
+	p.dataOut(recvConn, recvPacket)
 
-// 	return nil
-// }
+	return nil
+}
 
+// 加密消息
+func encryptMessagePayload(payload []byte, conn wknet.Conn) ([]byte, error) {
+	var (
+		aesKey = conn.Value(aesKeyKey).(string)
+		aesIV  = conn.Value(aesIVKey).(string)
+	)
+	// 加密payload
+	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		return nil, err
+	}
+	return payloadEnc, nil
+}
+
+func makeMsgKey(signStr string, conn wknet.Conn) (string, error) {
+	var (
+		aesKey = conn.Value(aesKeyKey).(string)
+		aesIV  = conn.Value(aesIVKey).(string)
+	)
+	// 生成MsgKey
+	msgKeyBytes, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		wklog.Error("生成MsgKey失败！", zap.Error(err))
+		return "", err
+	}
+	return wkutil.MD5(string(msgKeyBytes)), nil
+}
 func (p *processor) responseConnackAuthFail(c wknet.Conn) {
 	p.responseConnack(c, 0, wkproto.ReasonAuthFail)
 }
@@ -178,7 +226,7 @@ func (p *processor) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 
 		}
 	}
-	conn.WakeWrite()
+	_ = conn.WakeWrite()
 }
 
 // 获取客户端的aesKey和aesIV

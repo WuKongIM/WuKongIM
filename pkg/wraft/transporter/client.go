@@ -1,9 +1,8 @@
 package transporter
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/WuKongIM/WuKongIMGoSDK/pkg/wksdk"
 	"go.uber.org/zap"
@@ -14,15 +13,18 @@ type NodeClient struct {
 	nodeID uint64
 	addr   string
 	wklog.Log
+	onRecv func(msg *wksdk.Message)
 }
 
-func NewNodeClient(nodeID uint64, addr string, token string) *NodeClient {
-	cli := wksdk.NewClient(addr, wksdk.WithUID(fmt.Sprintf("%d", nodeID)), wksdk.WithToken(token))
+func NewNodeClient(nodeID uint64, addr string, token string, onRecv func(msg *wksdk.Message)) *NodeClient {
+	cli := wksdk.NewClient(addr, wksdk.WithUID(wkutil.GenUUID()), wksdk.WithToken(token))
+	cli.OnMessage(onRecv)
 	return &NodeClient{
 		nodeID: nodeID,
 		addr:   addr,
 		cli:    cli,
 		Log:    wklog.NewWKLog("NodeClient"),
+		onRecv: onRecv,
 	}
 }
 
@@ -41,7 +43,7 @@ func (n *NodeClient) Send(dataList ...[]byte) error {
 	}
 	var err error
 	for _, data := range dataList {
-		_, err = n.cli.SendMessage(data, wkproto.Channel{
+		err = n.cli.SendMessageAsync(data, wkproto.Channel{
 			ChannelID:   "to",
 			ChannelType: wkproto.ChannelTypePerson,
 		})

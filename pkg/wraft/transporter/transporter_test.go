@@ -11,14 +11,14 @@ import (
 func TestTransporterAuth(t *testing.T) {
 	var wait sync.WaitGroup
 	wait.Add(1)
-	recvChan := make(chan []byte, 0)
+	recvChan := make(chan transporter.Ready)
 	tran := transporter.New(1, "tcp://0.0.0.0:0", recvChan, transporter.WithToken("1234"))
 	err := tran.Start()
 	assert.NoError(t, err)
 
 	go func() {
-		for data := range recvChan {
-			if string(data) == "hello" {
+		for ready := range recvChan {
+			if string(ready.Data) == "hello" {
 				wait.Done()
 			}
 		}
@@ -26,7 +26,7 @@ func TestTransporterAuth(t *testing.T) {
 
 	defer tran.Stop()
 
-	cli := transporter.NewNodeClient(2, tran.Addr().String(), "1234")
+	cli := transporter.NewNodeClient(2, tran.Addr().String(), "1234", nil)
 	err = cli.Connect()
 	assert.NoError(t, err)
 

@@ -30,7 +30,7 @@ type Processor struct {
 
 func NewProcessor(s *Server) *Processor {
 	// Initialize the messageID generator of the snowflake algorithm
-	messageIDGen, err := snowflake.NewNode(int64(s.opts.ID))
+	messageIDGen, err := snowflake.NewNode(int64(s.opts.Cluster.NodeID))
 	if err != nil {
 		panic(err)
 	}

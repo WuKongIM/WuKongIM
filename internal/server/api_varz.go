@@ -70,7 +70,7 @@ func CreateVarz(s *Server) *Varz {
 	retryQueueF := math.Max(float64(len(s.retryQueue.inFlightMessages)), float64(len(s.retryQueue.inFlightPQ)))
 	s.retryQueue.inFlightMutex.Unlock()
 	return &Varz{
-		ServerID:    fmt.Sprintf("%d", opts.ID),
+		ServerID:    fmt.Sprintf("%d", opts.Cluster.NodeID),
 		ServerName:  "WuKongIM",
 		Version:     version.Version,
 		Connections: connCount,
