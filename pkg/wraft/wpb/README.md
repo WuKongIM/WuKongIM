@@ -1,1 +1,1 @@
-protoc ./pkg/wraft/wpb/cmd.proto --go_out=./pkg/wraft/wpb
+protoc ./pkg/wraft/wpb/wpb.proto --go_out=./pkg/wraft/wpb

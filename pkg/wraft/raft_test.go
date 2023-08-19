@@ -25,7 +25,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft/wpb"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/raft/v3/raftpb"
@@ -39,7 +38,7 @@ import (
 // 4. 测试三个节点 关闭一个节点
 // 5. 测试三个节点 关闭二个节点
 
-func newRaftNode(id types.ID, addr string, peers []*wraft.Peer, fs wraft.FSM, t *testing.T) *wraft.RaftNode {
+func newRaftNode(id uint64, addr string, peers []*wraft.Peer, fs wraft.FSM, t *testing.T) *wraft.RaftNode {
 
 	logOpts := wklog.NewOptions()
 	logOpts.Level = zapcore.DebugLevel
@@ -52,8 +51,9 @@ func newRaftNode(id types.ID, addr string, peers []*wraft.Peer, fs wraft.FSM, t 
 	cfg.Storage = &testStorage{}
 	cfg.Peers = peers
 	// cfg.Transport = &testTransporter{}
-	cfg.LogWALPath = path.Join(tmpDir, id.String(), "wal")
-	cfg.MetaDBPath = path.Join(tmpDir, id.String(), "meta.db")
+	cfg.LogWALPath = path.Join(tmpDir, fmt.Sprintf("%d", id), "wal")
+	cfg.MetaDBPath = path.Join(tmpDir, fmt.Sprintf("%d", id), "meta.db")
+	cfg.ClusterStorePath = path.Join(tmpDir, fmt.Sprintf("%d", id), "cluster.json")
 
 	fmt.Println("tmpDir--->", tmpDir)
 
@@ -65,6 +65,7 @@ func newRaftNode(id types.ID, addr string, peers []*wraft.Peer, fs wraft.FSM, t 
 func removeRaftData(cfg *wraft.RaftNodeConfig) {
 	os.RemoveAll(cfg.LogWALPath)
 	os.RemoveAll(cfg.MetaDBPath)
+	// os.RemoveAll(cfg.ClusterStorePath)
 }
 
 // 1. 测试单节点
@@ -153,7 +154,6 @@ func TestNodeJoin(t *testing.T) {
 			leadWait.Done()
 		}
 	}
-
 	err := node1.Start()
 	assert.NoError(t, err)
 
@@ -174,29 +174,108 @@ func TestNodeJoin(t *testing.T) {
 	err = node2.Start()
 	assert.NoError(t, err)
 
-	err = node1.ProposePeer(context.Background(), wraft.NewPeer(0x2, "tcp://0.0.0.0:11111"))
+	err = node1.ProposeConfChange(context.Background(), wpb.NewPeer(0x2, "tcp://0.0.0.0:11111"))
 	assert.NoError(t, err)
 
-	err = node2.ProposePeer(context.Background(), wraft.NewPeer(0x1, "tcp://0.0.0.0:11110"))
+	err = node2.ProposeConfChange(context.Background(), wpb.NewPeer(0x1, "tcp://0.0.0.0:11110"))
 	assert.NoError(t, err)
 
 	leadWait.Wait()
 
 	fmt.Println("-----------lead---->", node1Lead)
 	// send data
-	var resp *wpb.CMDResp
+	var resp *wraft.CMDResp
 	if node1Lead == 1 {
-		resp, err = node1.Propose(context.Background(), []byte("hello"))
+		resp, err = node1.Propose(context.Background(), &wraft.CMDReq{
+			Id:    1,
+			Param: []byte("hello"),
+		})
 		assert.NoError(t, err)
 	} else {
-		resp, err = node2.Propose(context.Background(), []byte("hello"))
+		resp, err = node2.Propose(context.Background(), &wraft.CMDReq{
+			Id:    2,
+			Param: []byte("hello"),
+		})
 		assert.NoError(t, err)
 	}
-	fmt.Println("resp.Data---------->", resp.Data)
+	fmt.Println("resp.Data---------->", resp.Param)
 
-	assert.Equal(t, "hello", string(resp.Data))
+	assert.Equal(t, "hello", string(resp.Param))
 
-	fmt.Println("====================================endmzddd3====================================")
+	fmt.Println("====================================endmzddd4====================================")
+
+}
+
+func TestNodeAutoJoin(t *testing.T) {
+
+	// ==================== node1 start ====================
+	fs1 := &testFSM{}
+	node1 := newRaftNode(0x1, "tcp://0.0.0.0:11110", []*wraft.Peer{wraft.NewPeer(0x1, "tcp://0.0.0.0:11110")}, fs1, t)
+	fs1.node = node1
+	defer removeRaftData(node1.GetConfig())
+	defer node1.Stop()
+
+	var leadWait sync.WaitGroup
+	leadWait.Add(1)
+
+	node1.OnLead = func(lead uint64) {
+		leadWait.Done()
+	}
+	err := node1.Start()
+	assert.NoError(t, err)
+
+	leadWait.Wait()
+	node1.OnLead = nil
+
+	// ==================== node2 start ====================
+	fs2 := &testFSM{}
+	node2 := newRaftNode(0x2, "tcp://0.0.0.0:11111", []*wraft.Peer{wraft.NewPeer(0x2, "tcp://0.0.0.0:11111")}, fs2, t)
+	defer removeRaftData(node2.GetConfig())
+	fs2.node = node2
+
+	defer node2.Stop()
+
+	leadWait.Add(1)
+	node2.OnLead = func(lead uint64) {
+		leadWait.Done()
+	}
+
+	err = node2.Start()
+	assert.NoError(t, err)
+
+	leadWait.Wait()
+
+	leadWait.Add(1)
+	leadFinish := false
+	node2.OnLead = func(lead uint64) {
+		if !leadFinish {
+			leadWait.Done()
+			leadFinish = true
+		}
+	}
+	node1.OnLead = func(lead uint64) {
+		if !leadFinish {
+			leadWait.Done()
+			leadFinish = true
+		}
+	}
+
+	// ==================== get cluster config from node1 ====================
+	clusterconfig, err := node2.GetClusterConfigFrom("tcp://0.0.0.0:11110")
+	assert.NoError(t, err)
+	for _, peer := range clusterconfig.Peers {
+		node2.AddTransportPeer(peer.Id, peer.Addr)
+	}
+
+	// ==================== ProposeConfChange ====================
+	for _, peer := range clusterconfig.Peers {
+		err = node2.ProposeConfChange(context.Background(), peer)
+		assert.NoError(t, err)
+
+		err = node2.JoinTo(peer.Id)
+		assert.NoError(t, err)
+	}
+	leadWait.Wait()
 
 }
 
@@ -204,54 +283,12 @@ type testFSM struct {
 	node *wraft.RaftNode
 }
 
-func (t *testFSM) Apply(ap wraft.ToApply) error {
-	t.node.Debug("Apply----start-->", zap.Any("ap", ap.Entries))
-	for _, e := range ap.Entries {
-		switch e.Type {
-		case raftpb.EntryConfChange:
-			var cc raftpb.ConfChange
-			cc.Unmarshal(e.Data)
-
-			t.node.Debug("Apply Config", zap.String("config", cc.String()))
-
-			_ = t.node.ApplyConfChange(cc)
-
-			switch cc.Type {
-			case raftpb.ConfChangeAddNode:
-				t.node.AddConfChange(cc)
-			case raftpb.ConfChangeRemoveNode:
-				t.node.RemoveConfChange(cc)
-			case raftpb.ConfChangeUpdateNode:
-				t.node.UpdateConfChange(cc)
-			}
-			t.node.TriggerProposeConfChange(cc, ap.RaftAdvancedC)
-
-		case raftpb.EntryNormal:
-			t.node.Debug("Apply Normal", zap.String("data", string(e.Data)))
-
-			if len(e.Data) > 0 {
-				req := &wpb.CMDReq{}
-				err := req.Unmarshal(e.Data)
-				if err != nil {
-					t.node.Error("Unmarshal", zap.Error(err))
-					continue
-				}
-				resp := &wpb.CMDResp{}
-				resp.Data = req.Data
-				resp.Id = req.Id
-				t.node.Trigger(resp)
-			}
-			t.node.AppliedTo(e.Index)
-		}
-	}
-	select {
-	case <-ap.Notifyc:
-	case <-t.node.StopChan():
-		t.node.Debug("Apply----stop-->", zap.Any("ap", ap.Entries))
-		return nil
-	}
-	t.node.Debug("Apply----end-->", zap.Any("ap", ap.Entries))
-	return nil
+func (t *testFSM) Apply(req *wraft.CMDReq) (*wraft.CMDResp, error) {
+	t.node.Debug("Apply----start-->", zap.String("ap", string(req.Param)))
+	return &wraft.CMDResp{
+		Id:    req.Id,
+		Param: req.Param,
+	}, nil
 }
 
 type testStorage struct {

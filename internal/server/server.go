@@ -1,19 +1,24 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
 
+	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/types"
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
@@ -40,7 +45,7 @@ type Server struct {
 	deliveryManager     *DeliveryManager         // 消息投递管理
 	monitor             monitor.IMonitor         // Data monitoring
 	dispatch            *Dispatch                // 消息流入流出分发器
-	store               wkstore.Store            // 存储相关接口
+	store               *Storage                 // 存储相关接口
 	connManager         *ConnManager             // conn manager
 	systemUIDManager    *SystemUIDManager        // System uid management, system uid can send messages to everyone without any restrictions
 	datasource          IDatasource              // 数据源（提供数据源 订阅者，黑名单，白名单这些数据可以交由第三方提供）
@@ -52,6 +57,11 @@ type Server struct {
 	demoServer          *DemoServer              // demo server
 	started             bool                     // 服务是否已经启动
 	stopChan            chan struct{}            // 服务停止通道
+
+	raftNode *wraft.RaftNode // raft node
+	reqIDGen *idutil.Generator
+
+	fsm *FSM
 }
 
 func New(opts *Options) *Server {
@@ -63,6 +73,7 @@ func New(opts *Options) *Server {
 		timingWheel:      timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		start:            now,
 		stopChan:         make(chan struct{}),
+		reqIDGen:         idutil.NewGenerator(uint16(opts.Cluster.NodeID), time.Now()),
 	}
 
 	gin.SetMode(opts.GinMode)
@@ -76,7 +87,7 @@ func New(opts *Options) *Server {
 	}
 
 	monitor.SetMonitorOn(opts.Monitor.On) // 监控开关
-	s.store = wkstore.NewFileStore(storeCfg)
+	s.store = NewStorage(storeCfg, s, s.doCommand)
 
 	s.apiServer = NewAPIServer(s)
 	s.deliveryManager = NewDeliveryManager(s)
@@ -98,6 +109,19 @@ func New(opts *Options) *Server {
 	}
 
 	monitor.SetMonitorOn(s.opts.Monitor.On) // 监控开关
+
+	if s.opts.ClusterOn() {
+		s.fsm = NewFSM(s.store.fileStorage)
+		nodeDir := fmt.Sprintf("node-%d", s.opts.Cluster.NodeID)
+		raftCfg := wraft.NewRaftNodeConfig()
+		raftCfg.ID = types.ID(s.opts.Cluster.NodeID)
+		raftCfg.Addr = s.opts.Cluster.Addr
+		raftCfg.Peers = []*wraft.Peer{wraft.NewPeer(types.ID(s.opts.Cluster.NodeID), s.opts.Cluster.Addr)}
+		raftCfg.LogWALPath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "wal")
+		raftCfg.MetaDBPath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "meta.db")
+
+		s.raftNode = wraft.NewRaftNode(s.fsm, raftCfg)
+	}
 
 	return s
 }
@@ -168,6 +192,18 @@ func (s *Server) Start() error {
 		s.demoServer.Start()
 	}
 
+	if s.opts.ClusterOn() {
+		s.raftNode.OnLead = func(lead uint64) {
+			s.Info("lead change", zap.Uint64("lead", lead))
+			s.raftNode.ClusterConfigManager.GetPeer(1)
+
+		}
+		err = s.raftNode.Start()
+		if err != nil {
+			s.Panic("raft node start error", zap.Error(err))
+		}
+	}
+
 	s.started = true
 
 	return nil
@@ -178,6 +214,10 @@ func (s *Server) Stop() error {
 	s.Info("Server is Stoping...")
 
 	defer s.Info("Server is exited")
+
+	if s.opts.ClusterOn() {
+		s.raftNode.Stop()
+	}
 
 	s.retryQueue.Stop()
 
@@ -205,4 +245,9 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	return s.timingWheel.ScheduleFunc(&everyScheduler{
 		Interval: interval,
 	}, f)
+}
+
+func (s *Server) doCommand(req *wraft.CMDReq) (*wraft.CMDResp, error) {
+
+	return s.raftNode.Propose(context.Background(), req)
 }

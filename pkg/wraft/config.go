@@ -3,12 +3,10 @@ package wraft
 import (
 	"path"
 	"time"
-
-	"github.com/WuKongIM/WuKongIM/pkg/wraft/types"
 )
 
 type RaftNodeConfig struct {
-	ID            types.ID
+	ID            uint64
 	Addr          string
 	RootDir       string
 	Heartbeat     time.Duration
@@ -32,6 +30,8 @@ type RaftNodeConfig struct {
 	monitor Monitor
 	// cluster auth token
 	Token string
+
+	ClusterStorePath string
 }
 
 func NewRaftNodeConfig() *RaftNodeConfig {
@@ -48,6 +48,7 @@ func NewRaftNodeConfig() *RaftNodeConfig {
 		MaxInFlightMsgSnap: 16,
 		MetaDBPath:         path.Join(rootDir, "meta.db"),
 		LogWALPath:         path.Join(rootDir, "wal"),
+		ClusterStorePath:   path.Join(rootDir, "clusterconfig"),
 	}
 }
 

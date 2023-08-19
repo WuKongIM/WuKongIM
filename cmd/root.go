@@ -17,6 +17,10 @@ var (
 	cfgFile    string
 	serverOpts = server.NewOptions()
 	mode       string
+	vp         = viper.New()
+	id         uint64
+	listenAddr string
+	join       string
 	rootCmd    = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
@@ -25,7 +29,9 @@ var (
 			DisableDefaultCmd: true,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+
 			initServer()
+
 		},
 	}
 )
@@ -35,11 +41,13 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file")
 	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
-
+	rootCmd.PersistentFlags().Uint64Var(&id, "node-id", 0, "node id")
+	rootCmd.PersistentFlags().StringVar(&listenAddr, "listen-addr", "", "raft node listen addr")
+	rootCmd.PersistentFlags().StringVar(&join, "join", "", "join addr")
 }
 
 func initConfig() {
-	vp := viper.New()
+
 	if cfgFile != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err == nil {
@@ -52,8 +60,23 @@ func initConfig() {
 	vp.AutomaticEnv()
 	// 初始化服务配置
 	serverOpts.ConfigureWithViper(vp)
-	vp.BindPFlags(rootCmd.Flags())
 
+	if id != 0 {
+		serverOpts.Cluster.NodeID = id
+	}
+	if strings.TrimSpace(listenAddr) != "" {
+		serverOpts.Cluster.Addr = listenAddr
+	}
+	if strings.TrimSpace(join) != "" {
+		joinList := make([]string, 0)
+		joinStrs := strings.Split(join, ",")
+		if len(joinStrs) > 0 {
+			for _, v := range joinStrs {
+				joinList = append(joinList, strings.TrimSpace(v))
+			}
+			serverOpts.Cluster.Join = joinList
+		}
+	}
 }
 
 func initServer() {
