@@ -98,24 +98,32 @@ func (p *processor) processSendPacket(conn wknet.Conn, sendPacket *wkproto.SendP
 		return
 	}
 	if p.recvDataChan != nil {
-		resultChan := make(chan []byte)
-		p.recvDataChan <- Ready{
-			Data:   decodePayload,
-			Conn:   conn,
-			Result: resultChan,
-		}
-		select {
-		case result := <-resultChan:
-			if result != nil {
-				err = p.deliveryMsg(conn, sendPacket, messageID, result)
-				if err != nil {
-					p.Warn("delivery msg err", zap.Error(err))
-				}
+		go func() {
+			resultChan := make(chan []byte)
+			req := &CMDReq{}
+			err = req.Unmarshal(decodePayload)
+			if err != nil {
+				p.Error("unmarshal err", zap.Error(err))
+				return
 			}
-		case <-p.t.stopped:
-			close(resultChan)
-			return
-		}
+			p.recvDataChan <- Ready{
+				Req:    req,
+				Conn:   conn,
+				Result: resultChan,
+			}
+			select {
+			case result := <-resultChan:
+				if result != nil {
+					err = p.deliveryMsg(conn, sendPacket, messageID, result)
+					if err != nil {
+						p.Warn("delivery msg err", zap.Error(err))
+					}
+				}
+			case <-p.t.stopped:
+				close(resultChan)
+				return
+			}
+		}()
 
 	}
 	p.dataOut(conn, &wkproto.SendackPacket{

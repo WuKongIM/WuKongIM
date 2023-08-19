@@ -10,7 +10,7 @@ import (
 )
 
 type Ready struct {
-	Data   []byte
+	Req    *CMDReq
 	Conn   wknet.Conn
 	Result chan []byte
 }

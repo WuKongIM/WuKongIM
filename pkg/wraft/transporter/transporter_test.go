@@ -18,7 +18,7 @@ func TestTransporterAuth(t *testing.T) {
 
 	go func() {
 		for ready := range recvChan {
-			if string(ready.Data) == "hello" {
+			if string(ready.Req.Param) == "hello" {
 				wait.Done()
 			}
 		}
@@ -30,7 +30,11 @@ func TestTransporterAuth(t *testing.T) {
 	err = cli.Connect()
 	assert.NoError(t, err)
 
-	err = cli.Send([]byte("hello"))
+	req := &transporter.CMDReq{
+		Param: []byte("hello"),
+	}
+	data, _ := req.Marshal()
+	err = cli.Send(data)
 	assert.NoError(t, err)
 
 	wait.Wait()

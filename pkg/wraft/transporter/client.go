@@ -5,6 +5,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/WuKongIM/WuKongIMGoSDK/pkg/wksdk"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -14,6 +15,8 @@ type NodeClient struct {
 	addr   string
 	wklog.Log
 	onRecv func(msg *wksdk.Message)
+
+	errCount atomic.Uint32
 }
 
 func NewNodeClient(nodeID uint64, addr string, token string, onRecv func(msg *wksdk.Message)) *NodeClient {
@@ -49,9 +52,18 @@ func (n *NodeClient) Send(dataList ...[]byte) error {
 		})
 		if err != nil {
 			n.Error("failed to send", zap.Error(err))
+			n.errCount.Inc()
+			if n.errCount.Load() >= 3 {
+				err = n.cli.Reconnect()
+				if err != nil {
+					n.Error("failed to reconnect", zap.Error(err))
+				}
+				n.errCount.Store(0)
+			}
 			return err
 		}
 	}
+	n.errCount.Store(0)
 	return nil
 
 }

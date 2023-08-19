@@ -3,7 +3,7 @@ package server
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 )
 
 type Storage struct {
@@ -11,10 +11,10 @@ type Storage struct {
 	s           *Server
 	fileStorage *wkstore.FileStore
 	wklog.Log
-	doCommand func(cmd *wraft.CMDReq) (*wraft.CMDResp, error)
+	doCommand func(cmd *transporter.CMDReq) (*transporter.CMDResp, error)
 }
 
-func NewStorage(cfg *wkstore.StoreConfig, s *Server, doCommand func(cmd *wraft.CMDReq) (*wraft.CMDResp, error)) *Storage {
+func NewStorage(cfg *wkstore.StoreConfig, s *Server, doCommand func(cmd *transporter.CMDReq) (*transporter.CMDResp, error)) *Storage {
 	st := &Storage{
 		Log:       wklog.NewWKLog("storage"),
 		doCommand: doCommand,
@@ -32,7 +32,7 @@ func (s *Storage) Open() error {
 }
 
 func (s *Storage) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) error {
-	req := wraft.NewCMDReq(s.s.reqIDGen.Next(), CMDUpdateUserToken.Uint32())
+	req := transporter.NewCMDReq(s.s.reqIDGen.Next(), CMDUpdateUserToken.Uint32())
 	data := EncodeUserToken(uid, deviceFlag, deviceLevel, token)
 	req.Param = data
 	_, err := s.doCommand(req)
