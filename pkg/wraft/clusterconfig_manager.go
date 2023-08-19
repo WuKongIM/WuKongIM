@@ -50,7 +50,7 @@ func (c *ClusterConfigManager) load() error {
 	if err != nil {
 		return err
 	}
-	f, err := os.Create(c.clusterStorePath)
+	f, err := os.OpenFile(c.clusterStorePath, os.O_CREATE|os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}
@@ -63,8 +63,7 @@ func (c *ClusterConfigManager) load() error {
 	if len(data) == 0 {
 		return nil
 	}
-	var clusterConfig = &wpb.ClusterConfig{}
-	err = wkutil.ReadJSONByByte(data, clusterConfig)
+	err = wkutil.ReadJSONByByte(data, c.clusterConfig)
 	if err != nil {
 		return err
 	}
@@ -151,7 +150,7 @@ func (c *ClusterConfigManager) GetPeer(id uint64) *wpb.Peer {
 
 }
 
-func (c *ClusterConfigManager) getPeerNoClone(id uint64) *wpb.Peer {
+func (c *ClusterConfigManager) GetPeerNoClone(id uint64) *wpb.Peer {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -175,7 +174,7 @@ func (c *ClusterConfigManager) GetPeers() []*wpb.Peer {
 }
 
 func (c *ClusterConfigManager) UpdateHardState(peerID uint64, state raftpb.HardState) {
-	peer := c.getPeerNoClone(peerID)
+	peer := c.GetPeerNoClone(peerID)
 	if peer != nil {
 		if state.Term > peer.Term || peer.Vote != state.Vote {
 			peer.Term = state.Term
@@ -186,7 +185,7 @@ func (c *ClusterConfigManager) UpdateHardState(peerID uint64, state raftpb.HardS
 }
 
 func (c *ClusterConfigManager) UpdateSoftState(peerID uint64, state *raft.SoftState) {
-	peer := c.getPeerNoClone(peerID)
+	peer := c.GetPeerNoClone(peerID)
 	if peer != nil {
 		peer.Role = c.raftStateTypeToRole(state.RaftState)
 		peer.Lead = state.Lead

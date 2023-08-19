@@ -18,6 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
@@ -245,7 +246,7 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	}, f)
 }
 
-func (s *Server) doCommand(req *wraft.CMDReq) (*wraft.CMDResp, error) {
+func (s *Server) doCommand(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 
 	return s.raftNode.Propose(context.Background(), req)
 }

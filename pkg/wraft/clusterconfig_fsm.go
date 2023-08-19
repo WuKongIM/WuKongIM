@@ -9,17 +9,17 @@ import (
 type ClusterFSMManager struct {
 	clusterConfigManager *ClusterConfigManager
 	stopped              chan struct{}
-	nodeID               uint64
+	peerID               uint64
 	IntervalDuration     time.Duration
 	readyChan            chan ReadyCluster
 }
 
-func NewClusterFSMManager(nodeID uint64, clusterConfigManager *ClusterConfigManager) *ClusterFSMManager {
+func NewClusterFSMManager(peerID uint64, clusterConfigManager *ClusterConfigManager) *ClusterFSMManager {
 
 	return &ClusterFSMManager{
 		clusterConfigManager: clusterConfigManager,
 		stopped:              make(chan struct{}),
-		nodeID:               nodeID,
+		peerID:               peerID,
 		IntervalDuration:     time.Second,
 		readyChan:            make(chan ReadyCluster),
 	}
@@ -45,7 +45,7 @@ func (c *ClusterFSMManager) loopClusterConfigChange() {
 		select {
 		case <-tick.C:
 			clusterConfig := c.clusterConfigManager.GetClusterConfig()
-			readyCluster = c.checkPeerStatus(clusterConfig)
+			readyCluster = c.checkClusterStatus(clusterConfig)
 			if readyCluster.State == ClusterStateNone {
 				continue
 			}
@@ -56,19 +56,45 @@ func (c *ClusterFSMManager) loopClusterConfigChange() {
 	}
 }
 
-func (c *ClusterFSMManager) checkPeerStatus(clusterConfig *wpb.ClusterConfig) ReadyCluster {
+func (c *ClusterFSMManager) checkClusterStatus(clusterConfig *wpb.ClusterConfig) ReadyCluster {
+	readyCluster := c.checkPeerStatus(clusterConfig)
+	if readyCluster.State != ClusterStateNone {
+		return readyCluster
+	}
+	readyCluster = c.checkPeerConfigUpdate(clusterConfig)
+	if readyCluster.State != ClusterStateNone {
+		return readyCluster
+	}
+	return emptyReadyCluster
+}
 
+func (c *ClusterFSMManager) checkPeerStatus(clusterConfig *wpb.ClusterConfig) ReadyCluster {
 	var (
 		peers = clusterConfig.Peers
 	)
 	for _, peer := range peers {
-		if peer.Id == c.nodeID {
+		if peer.Id == c.peerID {
 			continue
 		}
 		if peer.Status == wpb.Status_WillRemove || peer.Status == wpb.Status_WillJoin || peer.Status == wpb.Status_Joining {
 			return ReadyCluster{
 				State: ClusterStatePeerStatusChange,
 				Peer:  peer,
+			}
+		}
+	}
+	return emptyReadyCluster
+}
+
+func (c *ClusterFSMManager) checkPeerConfigUpdate(clusterConfig *wpb.ClusterConfig) ReadyCluster {
+	selfPeer := c.clusterConfigManager.GetPeer(c.peerID)
+	for _, peer := range clusterConfig.Peers {
+		if selfPeer.Id != peer.Id {
+			if peer.Term < selfPeer.Term {
+				return ReadyCluster{
+					State: ClusterStatePeerConfigUpdate,
+					Peer:  peer,
+				}
 			}
 		}
 	}
@@ -86,6 +112,7 @@ var emptyReadyCluster ReadyCluster
 const (
 	ClusterStateNone ClusterState = iota
 	ClusterStatePeerStatusChange
+	ClusterStatePeerConfigUpdate
 )
 
 type ReadyCluster struct {

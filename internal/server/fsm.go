@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 )
 
 type FSM struct {
@@ -16,7 +16,7 @@ func NewFSM(store wkstore.Store) *FSM {
 	}
 }
 
-func (f *FSM) Apply(req *wraft.CMDReq) (*wraft.CMDResp, error) {
+func (f *FSM) Apply(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 	switch CMDType(req.Type) {
 	case CMDUpdateUserToken:
 		return f.applyUpdateUserToken((*CMDReq)(req))
@@ -24,7 +24,7 @@ func (f *FSM) Apply(req *wraft.CMDReq) (*wraft.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyUpdateUserToken(req *CMDReq) (*wraft.CMDResp, error) {
+func (f *FSM) applyUpdateUserToken(req *CMDReq) (*transporter.CMDResp, error) {
 
 	uid, deviceFlag, deviceLevel, token, err := req.DecodeUserToken()
 	if err != nil {
