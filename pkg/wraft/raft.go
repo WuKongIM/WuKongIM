@@ -89,6 +89,7 @@ type RaftNode struct {
 	runing atomic.Bool
 
 	ClusterConfigManager *ClusterConfigManager
+	clusterFSMManager    *ClusterFSMManager
 }
 
 func NewRaftNode(fsm FSM, cfg *RaftNodeConfig) *RaftNode {
@@ -109,7 +110,7 @@ func NewRaftNode(fsm FSM, cfg *RaftNodeConfig) *RaftNode {
 		sched:                schedule.NewFIFOScheduler(wklog.NewWKLog("Scheduler")),
 		reqIDGen:             idutil.NewGenerator(uint16(cfg.ID), time.Now()),
 		w:                    wait.New(),
-		recvChan:             make(chan transporter.Ready, 100),
+		recvChan:             make(chan transporter.Ready, 1000),
 		ClusterConfigManager: NewClusterConfigManager(cfg.ClusterStorePath),
 	}
 	// r.applyCancelContext, r.applyCancelFnc = context.WithCancel(context.Background())
@@ -123,12 +124,18 @@ func NewRaftNode(fsm FSM, cfg *RaftNodeConfig) *RaftNode {
 		r.ticker = time.NewTicker(cfg.Heartbeat)
 	}
 	r.monitor = cfg.Monitor()
+	r.clusterFSMManager = NewClusterFSMManager(r.cfg.ID, r.ClusterConfigManager)
+	r.clusterFSMManager.IntervalDuration = cfg.ClusterFSMInterval
 	return r
 }
 
 func (r *RaftNode) start() error {
 
 	r.ClusterConfigManager.Start()
+
+	r.clusterFSMManager.Start()
+
+	go r.listenClusterConfigChange() // listen cluster config change
 
 	restartNode := r.raftStorage.Exist()
 
@@ -172,9 +179,7 @@ func (r *RaftNode) start() error {
 		PreVote:         cfg.PreVote,
 		Applied:         r.applied,
 	}
-
 	peers := r.ClusterConfigManager.GetPeers()
-
 	for _, peer := range peers {
 		if peer.Id != r.cfg.ID {
 			err := r.grpcTransporter.AddPeer(peer.Id, peer.Addr)
@@ -184,12 +189,22 @@ func (r *RaftNode) start() error {
 		}
 	}
 
+	selfPeer := r.ClusterConfigManager.GetPeer(r.cfg.ID)
+	if selfPeer == nil {
+		r.ClusterConfigManager.AddOrUpdatePeer(wpb.NewPeer(uint64(r.cfg.ID), r.cfg.Addr))
+	}
+
 	if restartNode {
 		r.node = r.restartClusterNode(raftCfg)
 	} else if r.cfg.Peers != nil && len(r.cfg.Peers) == 0 {
 		r.node = r.startSingleNode(raftCfg)
 	} else {
 		r.node = r.startNewClusterNode(raftCfg)
+	}
+
+	err = r.startJoinCluster()
+	if err != nil {
+		r.Panic("startJoinCluster", zap.Error(err))
 	}
 
 	go r.handleRaft()
@@ -212,6 +227,8 @@ func (r *RaftNode) onStop() {
 	}
 
 	r.ClusterConfigManager.Stop()
+
+	r.clusterFSMManager.Stop()
 
 	r.Debug("onStop---->1")
 	r.ticker.Stop()
@@ -527,7 +544,6 @@ func (r *RaftNode) apply(ap ToApply) error {
 		r.Debug("Apply----stop-->", zap.Any("ap", ap.Entries))
 		return nil
 	}
-	r.Debug("Apply----end-->", zap.Any("ap", ap.Entries))
 	return nil
 }
 
@@ -612,6 +628,7 @@ func (r *RaftNode) addPeerByConfChange(cc raftpb.ConfChange) error {
 			Status: wpb.Status_Joined,
 		}
 	} else {
+		peer.Status = wpb.Status_Joined
 		peer.Addr = addr
 	}
 
@@ -924,6 +941,78 @@ func (r *RaftNode) isIDRemoved(id uint64) bool {
 	r.removedClusterIDMapLock.Lock()
 	defer r.removedClusterIDMapLock.Unlock()
 	return r.removedClusterIDMap[id]
+}
+
+func (r *RaftNode) startJoinCluster() error {
+	if len(r.cfg.Join) == 0 {
+		return nil
+	}
+	joinList := r.cfg.Join
+	clusterConfig := r.ClusterConfigManager.GetClusterConfig()
+
+	newJoinList := make([]string, 0, len(r.cfg.Join))
+	if len(joinList) > 0 {
+		for _, addr := range joinList {
+			exist := false
+			for _, peer := range clusterConfig.Peers {
+				if peer.Addr == addr {
+					exist = true
+					break
+				}
+			}
+			if !exist {
+				newJoinList = append(newJoinList, addr)
+			}
+		}
+	}
+	fmt.Println("newJoinList----->", newJoinList)
+	if len(newJoinList) == 0 {
+		return nil
+	}
+
+	return r.join(newJoinList)
+}
+
+func (r *RaftNode) join(addrs []string) error {
+	if len(addrs) == 0 {
+		return nil
+	}
+
+	for _, addr := range addrs {
+		clusterConfig, err := r.GetClusterConfigFrom(addr)
+		if err != nil {
+			r.Error("failed to get clusterconfig", zap.Error(err))
+			return err
+		}
+		newAddrs := make([]string, 0, len(addrs))
+		if len(clusterConfig.Peers) > 0 {
+			for _, peer := range clusterConfig.Peers {
+				if peer.Id == r.cfg.ID {
+					continue
+				}
+				exist := false
+				for _, addr := range addrs {
+					if peer.Addr == addr {
+						exist = true
+						break
+					}
+				}
+				if !exist {
+					newAddrs = append(newAddrs, peer.Addr)
+				}
+				err = r.JoinTo(peer)
+				if err != nil {
+					r.Error("failed to join", zap.Error(err), zap.String("peer", peer.String()))
+					return err
+				}
+			}
+		}
+		if len(newAddrs) > 0 {
+			return r.join(newAddrs)
+		}
+	}
+	return nil
+
 }
 
 type Peer struct {

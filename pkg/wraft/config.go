@@ -6,14 +6,16 @@ import (
 )
 
 type RaftNodeConfig struct {
-	ID            uint64
-	Addr          string
-	RootDir       string
-	Heartbeat     time.Duration
-	Transport     Transporter
-	Peers         []*Peer // peers is the list of raft peers
-	ElectionTicks int
-	MaxSizePerMsg uint64 // The max throughput of etcd will not exceed 100MB/s (100K * 1KB value).
+	ID                 uint64
+	Addr               string
+	RootDir            string
+	Heartbeat          time.Duration
+	ClusterFSMInterval time.Duration // ClusterFSMInterval is the interval of cluster fsm
+	Transport          Transporter
+	Peers              []*Peer  // peers is the list of raft peers
+	Join               []string // join is the list of peers to join
+	ElectionTicks      int
+	MaxSizePerMsg      uint64 // The max throughput of etcd will not exceed 100MB/s (100K * 1KB value).
 	// Assuming the RTT is around 10ms, 1MB max size is large enough.
 
 	MaxInflightMsgs int
@@ -40,6 +42,7 @@ func NewRaftNodeConfig() *RaftNodeConfig {
 		Addr:               "tcp://127.0.0.1:11110",
 		RootDir:            rootDir,
 		Heartbeat:          100 * time.Millisecond,
+		ClusterFSMInterval: time.Second,
 		ElectionTicks:      10,
 		Peers:              make([]*Peer, 0),
 		MaxSizePerMsg:      1 * 1024 * 1024,

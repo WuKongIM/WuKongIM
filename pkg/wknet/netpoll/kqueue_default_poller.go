@@ -18,12 +18,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var note = []unix.Kevent_t{{
-	Ident:  0,
-	Filter: unix.EVFILT_USER,
-	Fflags: unix.NOTE_TRIGGER,
-}}
-
 type Poller struct {
 	fd int
 	wklog.Log
@@ -173,5 +167,5 @@ func (p *Poller) close() error {
 }
 
 func (p *Poller) trigger() {
-	syscall.Kevent(p.fd, []syscall.Kevent_t{{Ident: 0, Filter: syscall.EVFILT_USER, Fflags: syscall.NOTE_TRIGGER}}, nil, nil)
+	_, _ = syscall.Kevent(p.fd, []syscall.Kevent_t{{Ident: 0, Filter: syscall.EVFILT_USER, Fflags: syscall.NOTE_TRIGGER}}, nil, nil)
 }

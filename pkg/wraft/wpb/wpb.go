@@ -21,8 +21,9 @@ func (p *Peer) Clone() *Peer {
 
 func NewPeer(id uint64, addr string) *Peer {
 	return &Peer{
-		Id:   id,
-		Addr: addr,
+		Id:     id,
+		Addr:   addr,
+		Status: Status_WillJoin,
 	}
 
 }

@@ -22,7 +22,7 @@ func TestClusterFSMManager(t *testing.T) {
 	defer clusterConfigManager.Stop()
 
 	fsmManager := wraft.NewClusterFSMManager(1, clusterConfigManager)
-	fsmManager.TickerDuration = time.Millisecond * 100
+	fsmManager.IntervalDuration = time.Millisecond * 100
 	fsmManager.Start()
 	defer fsmManager.Stop()
 
@@ -34,10 +34,19 @@ func TestClusterFSMManager(t *testing.T) {
 
 	ready := <-fsmManager.ReadyChan()
 
-	assert.Equal(t, ready.State, wraft.ClusterStateWillJoin)
+	assert.Equal(t, ready.State, wraft.ClusterStatePeerStatusChange)
 	assert.Equal(t, ready.Peer.Id, uint64(2))
 	assert.Equal(t, ready.Peer.Addr, "1234")
 	assert.Equal(t, ready.Peer.Status, wpb.Status_WillJoin)
+
+	clusterConfigManager.UpdatePeerStatus(ready.Peer.Id, wpb.Status_Joining)
+
+	ready = <-fsmManager.ReadyChan()
+
+	assert.Equal(t, ready.State, wraft.ClusterStatePeerStatusChange)
+	assert.Equal(t, ready.Peer.Id, uint64(2))
+	assert.Equal(t, ready.Peer.Addr, "1234")
+	assert.Equal(t, ready.Peer.Status, wpb.Status_Joining)
 
 	fmt.Println(ready)
 }

@@ -29,6 +29,9 @@ var (
 	id         uint64
 	listenAddr string
 	join       string
+	rootDir    string
+	dataDir    string
+	portRand   bool // 是否随机端口
 	rootCmd    = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
@@ -62,6 +65,9 @@ func init() {
 	rootCmd.PersistentFlags().Uint64Var(&id, "node-id", 0, "node id")
 	rootCmd.PersistentFlags().StringVar(&listenAddr, "listen-addr", "", "raft node listen addr")
 	rootCmd.PersistentFlags().StringVar(&join, "join", "", "join addr")
+	rootCmd.PersistentFlags().StringVar(&rootDir, "root-dir", "", "root dir")
+	rootCmd.PersistentFlags().StringVar(&dataDir, "data-dir", "", "data dir")
+	rootCmd.PersistentFlags().BoolVar(&portRand, "port-rand", false, "port rand")
 }
 
 func initConfig() {
@@ -78,19 +84,52 @@ func initConfig() {
 	vp.AutomaticEnv()
 	// 初始化服务配置
 	serverOpts.ConfigureWithViper(vp)
+	initFlags()
+}
 
+func initFlags() {
 	if id != 0 {
 		serverOpts.Cluster.NodeID = id
 	}
+
+	if portRand {
+		serverOpts.Addr = "tcp://0.0.0.0:0"
+		serverOpts.WSAddr = "ws://0.0.0.0:0"
+		serverOpts.Monitor.Addr = "0.0.0.0:0"
+		serverOpts.HTTPAddr = "0.0.0.0:0"
+		serverOpts.Cluster.Addr = "tcp://0.0.0.0:0"
+		serverOpts.Demo.Addr = "0.0.0.0:0"
+	}
+
 	if strings.TrimSpace(listenAddr) != "" {
-		serverOpts.Cluster.Addr = listenAddr
+		if strings.HasPrefix(listenAddr, "tcp://") {
+			serverOpts.Cluster.Addr = listenAddr
+		} else {
+			serverOpts.Cluster.Addr = fmt.Sprintf("tcp://%s", listenAddr)
+		}
+
+	}
+	if strings.TrimSpace(dataDir) != "" {
+		serverOpts.DataDir = dataDir
+	}
+	if strings.TrimSpace(rootDir) != "" {
+		serverOpts.RootDir = rootDir
+		serverOpts.ConfigureDataDir()
+		serverOpts.ConfigureLog()
+
 	}
 	if strings.TrimSpace(join) != "" {
 		joinList := make([]string, 0)
 		joinStrs := strings.Split(join, ",")
 		if len(joinStrs) > 0 {
 			for _, v := range joinStrs {
-				joinList = append(joinList, strings.TrimSpace(v))
+				v = strings.TrimSpace(v)
+				if strings.HasPrefix(v, "tcp://") {
+					joinList = append(joinList, v)
+				} else {
+					joinList = append(joinList, fmt.Sprintf("tcp://%s", v))
+				}
+
 			}
 			serverOpts.Cluster.Join = joinList
 		}
