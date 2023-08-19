@@ -87,7 +87,7 @@ func (c *ClusterConfigManager) run() {
 				if err != nil {
 					c.Warn("failed to save cluster config", zap.Error(err))
 				}
-				c.change.Store(true)
+				c.change.Store(false)
 			}
 
 		case <-c.stopChan:
@@ -151,6 +151,19 @@ func (c *ClusterConfigManager) GetPeer(id uint64) *wpb.Peer {
 
 }
 
+func (c *ClusterConfigManager) getPeerNoClone(id uint64) *wpb.Peer {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, p := range c.clusterConfig.Peers {
+		if p.Id == id {
+			return p
+		}
+	}
+	return nil
+
+}
+
 func (c *ClusterConfigManager) GetPeers() []*wpb.Peer {
 	c.RLock()
 	defer c.RUnlock()
@@ -162,7 +175,7 @@ func (c *ClusterConfigManager) GetPeers() []*wpb.Peer {
 }
 
 func (c *ClusterConfigManager) UpdateHardState(peerID uint64, state raftpb.HardState) {
-	peer := c.GetPeer(peerID)
+	peer := c.getPeerNoClone(peerID)
 	if peer != nil {
 		if state.Term > peer.Term || peer.Vote != state.Vote {
 			peer.Term = state.Term
@@ -173,7 +186,7 @@ func (c *ClusterConfigManager) UpdateHardState(peerID uint64, state raftpb.HardS
 }
 
 func (c *ClusterConfigManager) UpdateSoftState(peerID uint64, state *raft.SoftState) {
-	peer := c.GetPeer(peerID)
+	peer := c.getPeerNoClone(peerID)
 	if peer != nil {
 		peer.Role = c.raftStateTypeToRole(state.RaftState)
 		peer.Lead = state.Lead
@@ -181,10 +194,12 @@ func (c *ClusterConfigManager) UpdateSoftState(peerID uint64, state *raft.SoftSt
 	}
 }
 
-func (c *ClusterConfigManager) UpdateVersion(version uint64) {
-	c.Lock()
-	defer c.Unlock()
-	c.clusterConfig.Version = version
+func (c *ClusterConfigManager) UpdatePeerStatus(peerID uint64, status wpb.Status) {
+	peer := c.GetPeer(peerID)
+	if peer != nil {
+		peer.Status = status
+		c.AddOrUpdatePeer(peer)
+	}
 }
 
 func (c *ClusterConfigManager) Save() error {

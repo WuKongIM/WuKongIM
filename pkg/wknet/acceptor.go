@@ -72,7 +72,7 @@ func (a *Acceptor) start() error {
 	go func() {
 		err := a.initTCPListener(wg)
 		if err != nil {
-			panic(err)
+			a.Panic("initTCPListener() failed", zap.Error(err))
 		}
 	}()
 
@@ -80,7 +80,7 @@ func (a *Acceptor) start() error {
 		go func() {
 			err := a.initWSListener(wg)
 			if err != nil {
-				panic(err)
+				a.Panic("initWSListener() failed", zap.Error(err))
 			}
 		}()
 	}
@@ -88,7 +88,7 @@ func (a *Acceptor) start() error {
 		go func() {
 			err := a.initWSSListener(wg)
 			if err != nil {
-				panic(err)
+				a.Panic("initWSSListener() failed", zap.Error(err))
 			}
 		}()
 	}
@@ -138,7 +138,10 @@ func (a *Acceptor) Stop() error {
 
 	// -----------------reactor sub-----------------
 	for _, reactorSub := range a.reactorSubs {
-		reactorSub.Stop()
+		err = reactorSub.Stop()
+		if err != nil {
+			a.Warn("reactorSub.Stop() failed", zap.Error(err))
+		}
 	}
 
 	return nil
@@ -157,7 +160,7 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	}
 	wg.Done()
 
-	a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+	_ = a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, false, false)
 	})
 	return nil
@@ -237,9 +240,15 @@ func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
 		}
 	}
 	// add conn to sub reactor
-	subReactor.AddConn(conn)
+	err = subReactor.AddConn(conn)
+	if err != nil {
+		a.Warn("subReactor.AddConn() failed", zap.Error(err))
+	}
 	// call on connect
-	a.eg.eventHandler.OnConnect(conn)
+	err = a.eg.eventHandler.OnConnect(conn)
+	if err != nil {
+		a.Warn("OnConnect() failed", zap.Error(err))
+	}
 
 	return nil
 }
