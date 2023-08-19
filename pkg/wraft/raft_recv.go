@@ -84,6 +84,57 @@ func (r *RaftNode) loopRecv() {
 
 }
 
+func (r *RaftNode) listenClusterConfigChange() {
+	defer r.Debug("listenClusterConfigChange stop")
+	for {
+		select {
+		case ready := <-r.clusterFSMManager.ReadyChan():
+			r.Debug("cluster config ready")
+			fmt.Println(ready)
+			if ready.State == ClusterStatePeerStatusChange {
+				r.applyPeerStateChange(ready.Peer)
+			}
+
+		case <-r.stopped:
+			return
+		}
+	}
+}
+
+func (r *RaftNode) applyPeerStateChange(peer *wpb.Peer) {
+	if peer == nil || peer.Id == 0 {
+		return
+	}
+	if peer.Status == wpb.Status_WillJoin {
+		r.applyPeerWillJoin(peer)
+		return
+	}
+}
+
+func (r *RaftNode) applyPeerWillJoin(peer *wpb.Peer) {
+	if peer == nil || peer.Id == 0 {
+		return
+	}
+	err := r.AddTransportPeer(peer.Id, peer.Addr)
+	if err != nil {
+		r.Error("failed to add transport peer", zap.Error(err))
+		return
+	}
+	cc := raftpb.ConfChange{
+		ID:     r.reqIDGen.Next(),
+		NodeID: uint64(peer.Id),
+		Type:   raftpb.ConfChangeAddNode,
+		Context: []byte(wkutil.ToJSON(map[string]interface{}{
+			"addr": peer.Addr,
+		})),
+	}
+	err = r.proposeConfChange(cc)
+	if err != nil {
+		r.Error("failed to propose conf change", zap.Error(err))
+		return
+	}
+}
+
 // recv message from client node
 func (r *RaftNode) onNodeMessage(id uint64, msg *wksdk.Message) {
 	cmdResp := &CMDResp{}
@@ -111,27 +162,21 @@ func (r *RaftNode) handleGetClusterConfig(req *CMDReq) (*CMDResp, error) {
 }
 
 func (r *RaftNode) handleClusterJoin(req *CMDReq) (*CMDResp, error) {
-	fmt.Println("handleClusterJoin---->")
+	fmt.Println("handleClusterJoin---->", req.Id, req.Param)
 	peer := &wpb.Peer{}
 	err := peer.Unmarshal(req.Param)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("peer---->", peer.String())
 	err = r.AddTransportPeer(peer.Id, peer.Addr)
 	if err != nil {
 		return nil, err
 	}
-	cc := raftpb.ConfChange{
-		ID:     r.reqIDGen.Next(),
-		NodeID: uint64(peer.Id),
-		Type:   raftpb.ConfChangeAddNode,
-		Context: []byte(wkutil.ToJSON(map[string]interface{}{
-			"addr": peer.Addr,
-		})),
-	}
-	err = r.proposeConfChange(cc)
-	if err != nil {
-		return nil, err
+	existPeer := r.ClusterConfigManager.GetPeer(peer.Id)
+	if existPeer == nil {
+		peer.Status = wpb.Status_WillJoin
+		r.ClusterConfigManager.AddOrUpdatePeer(peer)
 	}
 	return &CMDResp{
 		Id:     req.Id,

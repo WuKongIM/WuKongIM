@@ -18,7 +18,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft/types"
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
@@ -114,11 +113,13 @@ func New(opts *Options) *Server {
 		s.fsm = NewFSM(s.store.fileStorage)
 		nodeDir := fmt.Sprintf("node-%d", s.opts.Cluster.NodeID)
 		raftCfg := wraft.NewRaftNodeConfig()
-		raftCfg.ID = types.ID(s.opts.Cluster.NodeID)
+		raftCfg.ID = s.opts.Cluster.NodeID
 		raftCfg.Addr = s.opts.Cluster.Addr
-		raftCfg.Peers = []*wraft.Peer{wraft.NewPeer(types.ID(s.opts.Cluster.NodeID), s.opts.Cluster.Addr)}
+		raftCfg.Peers = []*wraft.Peer{wraft.NewPeer(s.opts.Cluster.NodeID, s.opts.Cluster.Addr)}
 		raftCfg.LogWALPath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "wal")
 		raftCfg.MetaDBPath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "meta.db")
+		raftCfg.ClusterStorePath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "cluster.json")
+		raftCfg.Join = s.opts.Cluster.Join
 
 		s.raftNode = wraft.NewRaftNode(s.fsm, raftCfg)
 	}
@@ -135,10 +136,7 @@ func (s *Server) Init(env svc.Environment) error {
 }
 
 func (s *Server) Start() error {
-	gitC := gitCommit
-	if gitC == "" {
-		gitC = "not set"
-	}
+
 	fmt.Println(`
 	
 	__      __       ____  __.                    .___   _____   
@@ -161,7 +159,7 @@ func (s *Server) Start() error {
 	if s.opts.WSSAddr != "" {
 		s.Info(fmt.Sprintf("Listening  for WSS client on %s", s.opts.WSSAddr))
 	}
-	s.Info(fmt.Sprintf("Listening  for Manager Http api on %s", fmt.Sprintf("http://%s", s.opts.HTTPAddr)))
+	s.Info(fmt.Sprintf("Listening  for Manager http api on %s", fmt.Sprintf("http://%s", s.opts.HTTPAddr)))
 
 	if s.opts.Monitor.On {
 		s.Info(fmt.Sprintf("Listening  for Monitor on %s", s.opts.Monitor.Addr))

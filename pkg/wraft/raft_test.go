@@ -65,7 +65,7 @@ func newRaftNode(id uint64, addr string, peers []*wraft.Peer, fs wraft.FSM, t *t
 func removeRaftData(cfg *wraft.RaftNodeConfig) {
 	os.RemoveAll(cfg.LogWALPath)
 	os.RemoveAll(cfg.MetaDBPath)
-	// os.RemoveAll(cfg.ClusterStorePath)
+	os.RemoveAll(cfg.ClusterStorePath)
 }
 
 // 1. 测试单节点
@@ -264,27 +264,43 @@ func TestNodeAutoJoin(t *testing.T) {
 	clusterconfig, err := node2.GetClusterConfigFrom("tcp://0.0.0.0:11110")
 	assert.NoError(t, err)
 	for _, peer := range clusterconfig.Peers {
-		node2.AddTransportPeer(peer.Id, peer.Addr)
+		_ = node2.AddTransportPeer(peer.Id, peer.Addr)
 	}
 
 	// ==================== ProposeConfChange ====================
 	for _, peer := range clusterconfig.Peers {
-		err = node2.ProposeConfChange(context.Background(), peer)
-		assert.NoError(t, err)
-
-		err = node2.JoinTo(peer.Id)
+		err = node2.JoinTo(peer)
 		assert.NoError(t, err)
 	}
 	leadWait.Wait()
 
+	fs1.applyChan = make(chan *wraft.CMDReq, 1)
+	fs2.applyChan = make(chan *wraft.CMDReq, 1)
+
+	content := []byte("hello")
+	_, err = node1.Propose(context.Background(), &wraft.CMDReq{
+		Param: content,
+	})
+	assert.NoError(t, err)
+
+	req := <-fs1.applyChan
+	assert.Equal(t, content, req.Param)
+
+	req = <-fs2.applyChan
+	assert.Equal(t, content, req.Param)
+
 }
 
 type testFSM struct {
-	node *wraft.RaftNode
+	node      *wraft.RaftNode
+	applyChan chan *wraft.CMDReq
 }
 
 func (t *testFSM) Apply(req *wraft.CMDReq) (*wraft.CMDResp, error) {
 	t.node.Debug("Apply----start-->", zap.String("ap", string(req.Param)))
+	if t.applyChan != nil {
+		t.applyChan <- req
+	}
 	return &wraft.CMDResp{
 		Id:    req.Id,
 		Param: req.Param,

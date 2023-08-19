@@ -59,7 +59,6 @@ func (l *listener) initTCPListener(network, addr string) error {
 		sockOpt := socket.Option{SetSockOpt: socket.SetSendBuffer, Opt: opts.SocketSendBuffer}
 		sockOpts = append(sockOpts, sockOpt)
 	}
-
 	var (
 		err error
 	)
