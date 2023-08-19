@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/wraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -15,7 +15,7 @@ func (c CMDType) Uint32() uint32 {
 	return uint32(c)
 }
 
-type CMDReq wraft.CMDReq
+type CMDReq transporter.CMDReq
 
 // EncodeUserToken EncodeUserToken
 func EncodeUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) []byte {

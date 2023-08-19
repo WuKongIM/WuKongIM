@@ -25,6 +25,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft/wpb"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/raft/v3/raftpb"
@@ -184,15 +185,15 @@ func TestNodeJoin(t *testing.T) {
 
 	fmt.Println("-----------lead---->", node1Lead)
 	// send data
-	var resp *wraft.CMDResp
+	var resp *transporter.CMDResp
 	if node1Lead == 1 {
-		resp, err = node1.Propose(context.Background(), &wraft.CMDReq{
+		resp, err = node1.Propose(context.Background(), &transporter.CMDReq{
 			Id:    1,
 			Param: []byte("hello"),
 		})
 		assert.NoError(t, err)
 	} else {
-		resp, err = node2.Propose(context.Background(), &wraft.CMDReq{
+		resp, err = node2.Propose(context.Background(), &transporter.CMDReq{
 			Id:    2,
 			Param: []byte("hello"),
 		})
@@ -274,11 +275,11 @@ func TestNodeAutoJoin(t *testing.T) {
 	}
 	leadWait.Wait()
 
-	fs1.applyChan = make(chan *wraft.CMDReq, 1)
-	fs2.applyChan = make(chan *wraft.CMDReq, 1)
+	fs1.applyChan = make(chan *transporter.CMDReq, 1)
+	fs2.applyChan = make(chan *transporter.CMDReq, 1)
 
 	content := []byte("hello")
-	_, err = node1.Propose(context.Background(), &wraft.CMDReq{
+	_, err = node1.Propose(context.Background(), &transporter.CMDReq{
 		Param: content,
 	})
 	assert.NoError(t, err)
@@ -293,15 +294,15 @@ func TestNodeAutoJoin(t *testing.T) {
 
 type testFSM struct {
 	node      *wraft.RaftNode
-	applyChan chan *wraft.CMDReq
+	applyChan chan *transporter.CMDReq
 }
 
-func (t *testFSM) Apply(req *wraft.CMDReq) (*wraft.CMDResp, error) {
+func (t *testFSM) Apply(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 	t.node.Debug("Apply----start-->", zap.String("ap", string(req.Param)))
 	if t.applyChan != nil {
 		t.applyChan <- req
 	}
-	return &wraft.CMDResp{
+	return &transporter.CMDResp{
 		Id:    req.Id,
 		Param: req.Param,
 	}, nil

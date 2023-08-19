@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft/wpb"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -28,7 +29,7 @@ func (r *RaftNode) Lead() uint64 {
 	return r.leadID.Load()
 }
 
-func (r *RaftNode) Propose(ctx context.Context, cmd *CMDReq) (*CMDResp, error) {
+func (r *RaftNode) Propose(ctx context.Context, cmd *transporter.CMDReq) (*transporter.CMDResp, error) {
 	return r.propose(ctx, cmd)
 }
 
@@ -53,17 +54,32 @@ func (r *RaftNode) Addr() net.Addr {
 	return r.grpcTransporter.transporterServer.Addr()
 }
 
-func (r *RaftNode) SendCMD(req *CMDReq) (*CMDResp, error) {
+func (r *RaftNode) SendCMD(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 	return r.sendCMD(req)
 }
 
 // GetClusterConfig 从某个节点地址获取分布式配置
 func (r *RaftNode) GetClusterConfigFrom(addr string) (*wpb.ClusterConfig, error) {
-	req := &CMDReq{
+	req := &transporter.CMDReq{
 		Id:   r.reqIDGen.Next(),
-		Type: CMDGetClusterConfig.Uint32(),
+		Type: transporter.CMDGetClusterConfig.Uint32(),
 	}
 	resp, err := r.sendCMDTo(addr, req)
+	if err != nil {
+		return nil, err
+	}
+	clusterConfig := &wpb.ClusterConfig{}
+	err = clusterConfig.Unmarshal(resp.Param)
+	return clusterConfig, err
+}
+
+func (r *RaftNode) GetClusterConfig(peerID uint64) (*wpb.ClusterConfig, error) {
+	req := &transporter.CMDReq{
+		Id:   r.reqIDGen.Next(),
+		Type: transporter.CMDGetClusterConfig.Uint32(),
+		To:   peerID,
+	}
+	resp, err := r.sendCMD(req)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +119,9 @@ func (r *RaftNode) JoinTo(peer *wpb.Peer) error {
 	fmt.Println("join-->", peer.String())
 
 	data, _ := selfPeer.Marshal()
-	req := &CMDReq{
+	req := &transporter.CMDReq{
 		Id:    r.reqIDGen.Next(),
-		Type:  CMDJoinCluster.Uint32(),
+		Type:  transporter.CMDJoinCluster.Uint32(),
 		Param: data,
 		To:    peer.Id,
 	}
@@ -113,8 +129,8 @@ func (r *RaftNode) JoinTo(peer *wpb.Peer) error {
 	if err != nil {
 		return err
 	}
-	if resp.Status != CMDRespStatusOK {
-		return ErrCMDRespStatus
+	if resp.Status != transporter.CMDRespStatusOK {
+		return transporter.ErrCMDRespStatus
 	}
 	return nil
 }
