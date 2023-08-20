@@ -26,7 +26,7 @@ func (r *RaftNode) loopRecv() {
 				err  error
 				resp *transporter.CMDResp
 			)
-			r.Debug("=========recv=======>", zap.Uint64("type", uint64(req.Type)))
+			// r.Debug("=========recv=======>", zap.Uint64("type", uint64(req.Type)))
 
 			if req.Type == transporter.CMDRaftMessage.Uint32() { // raft message
 				close(ready.Result)
@@ -38,7 +38,7 @@ func (r *RaftNode) loopRecv() {
 					return
 				}
 
-				r.Debug("=========step=======>", zap.String("msg", msg.String()))
+				// r.Debug("=========step=======>", zap.String("msg", msg.String()))
 				err = r.node.Step(context.Background(), msg)
 				if err != nil {
 					r.Warn("failed to step raft node", zap.Error(err))

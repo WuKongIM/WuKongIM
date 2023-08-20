@@ -149,7 +149,6 @@ func (t *GRPCTransporter) SendCMD(reqs ...*transporter.CMDReq) error {
 		to := req.To
 		reqsMap[to] = append(reqsMap[to], req)
 	}
-	fmt.Println("reqsMap--------->", reqsMap)
 	for to, reqs := range reqsMap {
 		peer := t.GetPeer(to)
 		if peer != nil {

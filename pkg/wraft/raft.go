@@ -314,21 +314,21 @@ func (r *RaftNode) run() {
 			r.Tick()
 		case rd := <-r.node.Ready():
 
-			r.Debug("================================ready=====================================")
-			if rd.SoftState != nil {
-				r.Debug("SoftState", zap.Uint64("Lead", rd.SoftState.Lead), zap.String("RaftState", rd.SoftState.RaftState.String()))
-			}
-			r.Debug("HardState", zap.String("hardState", rd.HardState.String()))
-			for _, entry := range rd.Entries {
-				r.Debug("entry", zap.String("entry", entry.String()))
-			}
-			for _, entry := range rd.CommittedEntries {
-				r.Debug("committedEntry", zap.String("committedEntry", entry.String()))
-			}
-			for _, message := range rd.Messages {
-				r.Debug("message", zap.String("message", message.String()))
-			}
-			r.Debug("=====================================================================")
+			// r.Debug("================================ready=====================================")
+			// if rd.SoftState != nil {
+			// 	r.Debug("SoftState", zap.Uint64("Lead", rd.SoftState.Lead), zap.String("RaftState", rd.SoftState.RaftState.String()))
+			// }
+			// r.Debug("HardState", zap.String("hardState", rd.HardState.String()))
+			// for _, entry := range rd.Entries {
+			// 	r.Debug("entry", zap.String("entry", entry.String()))
+			// }
+			// for _, entry := range rd.CommittedEntries {
+			// 	r.Debug("committedEntry", zap.String("committedEntry", entry.String()))
+			// }
+			// for _, message := range rd.Messages {
+			// 	r.Debug("message", zap.String("message", message.String()))
+			// }
+			// r.Debug("=====================================================================")
 
 			if rd.SoftState != nil {
 
