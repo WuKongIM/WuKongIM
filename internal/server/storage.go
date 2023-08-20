@@ -7,7 +7,8 @@ import (
 )
 
 type Storage struct {
-	wkstore.Store
+	wkstore.StoreReader
+	wkstore.StoreWriter
 	s           *Server
 	fileStorage *wkstore.FileStore
 	wklog.Log
@@ -21,6 +22,7 @@ func NewStorage(cfg *wkstore.StoreConfig, s *Server, doCommand func(cmd *transpo
 		s:         s,
 	}
 	st.fileStorage = wkstore.NewFileStore(cfg)
+	st.StoreReader = st.fileStorage
 	return st
 }
 
