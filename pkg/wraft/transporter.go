@@ -85,7 +85,7 @@ func (t *GRPCTransporter) Send(ms []raftpb.Message) {
 		if m.To == 0 {
 			return
 		}
-		req := transporter.NewCMDReq(t.reqIDGen.Next(), transporter.CMDRaftMessage.Uint32())
+		req := transporter.NewCMDReqWithID(t.reqIDGen.Next(), transporter.CMDRaftMessage.Uint32())
 		data, _ := m.Marshal()
 		req.Param = data
 		req.To = uint64(m.To)
@@ -99,7 +99,7 @@ func (t *GRPCTransporter) Send(ms []raftpb.Message) {
 		if m.To == 0 {
 			continue
 		}
-		req := transporter.NewCMDReq(t.reqIDGen.Next(), transporter.CMDRaftMessage.Uint32())
+		req := transporter.NewCMDReqWithID(t.reqIDGen.Next(), transporter.CMDRaftMessage.Uint32())
 		data, _ := m.Marshal()
 		req.Param = data
 		req.To = uint64(m.To)
