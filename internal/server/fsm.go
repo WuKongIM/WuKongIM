@@ -1,6 +1,9 @@
 package server
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
@@ -225,6 +228,10 @@ func (f *FSM) applyAppendMessages(req *CMDReq) (*transporter.CMDResp, error) {
 	channelID, channelType, messages, err := req.DecodeCMDAppendMessages()
 	if err != nil {
 		return nil, err
+	}
+	fmt.Println("applyAppendMessages---messages--------->", channelID, channelType, len(messages))
+	if len(messages) == 0 {
+		return nil, errors.New("messages is empty")
 	}
 	seqs, err := f.store.AppendMessages(channelID, channelType, messages)
 	if err != nil {
