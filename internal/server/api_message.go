@@ -170,7 +170,12 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 	if strings.TrimSpace(channelID) == "" && len(req.Subscribers) > 0 { //如果没频道ID 但是有订阅者，则创建一个临时频道
 		channelID = fmt.Sprintf("%s%s", wkutil.GenUUID(), m.s.opts.TmpChannel.Suffix)
 		channelType = wkproto.ChannelTypeGroup
-		m.s.channelManager.CreateTmpChannel(channelID, channelType, req.Subscribers)
+		err := m.s.channelManager.CreateTmpChannel(channelID, channelType, req.Subscribers)
+		if err != nil {
+			m.Error("创建临时频道失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
 	}
 	m.Debug("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
 	if strings.TrimSpace(channelID) == "" { //指定了频道 正常发送
