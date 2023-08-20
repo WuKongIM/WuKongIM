@@ -138,6 +138,15 @@ func (c *ChannelInfo) ToMap() map[string]interface{} {
 	}
 }
 
+func (c *ChannelInfo) From(mp map[string]interface{}) {
+	if mp["ban"] != nil {
+		c.Ban = mp["ban"].(bool)
+	}
+	if mp["large"] != nil {
+		c.Large = mp["large"].(bool)
+	}
+}
+
 // NewChannelInfo NewChannelInfo
 func NewChannelInfo(channelID string, channelType uint8) *ChannelInfo {
 	return &ChannelInfo{
