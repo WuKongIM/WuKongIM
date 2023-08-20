@@ -139,9 +139,12 @@ func (s *StorageWriter) AppendMessages(channelID string, channelType uint8, msgs
 	if len(msgs) == 0 {
 		return
 	}
+	var (
+		resp *transporter.CMDResp
+	)
 	req := transporter.NewCMDReq(CMDAppendMessages.Uint32())
 	req.Param = EncodeCMDAppendMessages(channelID, channelType, msgs)
-	resp, err := s.doCommand(req)
+	resp, err = s.doCommand(req)
 	if err != nil {
 		return
 	}

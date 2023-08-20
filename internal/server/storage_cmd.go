@@ -449,6 +449,9 @@ func (c *CMDReq) DecodeCMDAppendMessages() (channelID string, channelType uint8,
 		return
 	}
 	data, err := decoder.BinaryAll()
+	if err != nil {
+		return
+	}
 	msgSet := MessageSet{}
 	err = msgSet.Decode(data)
 	if err != nil {
