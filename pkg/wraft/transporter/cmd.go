@@ -47,7 +47,12 @@ type CMDReq struct {
 	To uint64 // 不编码
 }
 
-func NewCMDReq(id uint64, typ uint32) *CMDReq {
+func NewCMDReq(typ uint32) *CMDReq {
+	return &CMDReq{
+		Type: typ,
+	}
+}
+func NewCMDReqWithID(id uint64, typ uint32) *CMDReq {
 	return &CMDReq{
 		Id:   id,
 		Type: typ,

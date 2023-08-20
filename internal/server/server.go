@@ -310,6 +310,8 @@ func (s *Server) printIpBlacklist() {
 	}
 }
 func (s *Server) doCommand(req *transporter.CMDReq) (*transporter.CMDResp, error) {
-
+	if req.Id == 0 {
+		req.Id = s.reqIDGen.Next()
+	}
 	return s.raftNode.Propose(context.Background(), req)
 }
