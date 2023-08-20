@@ -308,7 +308,7 @@ func (s *ConversationAPI) syncRecentMessages(c *wkhttp.Context) {
 	if msgCount <= 0 {
 		msgCount = 15
 	}
-	channelRecentMessages, err := s.getRecentMessages(req.UID, req.MsgCount, req.Channels)
+	channelRecentMessages, err := s.getRecentMessages(req.UID, msgCount, req.Channels)
 	if err != nil {
 		s.Error("获取最近消息失败！", zap.Error(err))
 		c.ResponseError(errors.New("获取最近消息失败！"))
@@ -318,7 +318,6 @@ func (s *ConversationAPI) syncRecentMessages(c *wkhttp.Context) {
 }
 
 func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels []*channelRecentMessageReq) ([]*channelRecentMessage, error) {
-	fmt.Println("getRecentMessages-->", uid, msgCount, channels)
 	channelRecentMessages := make([]*channelRecentMessage, 0)
 	if len(channels) > 0 {
 		var (
