@@ -115,9 +115,9 @@ func (m *Message) DeepCopy() (*Message, error) {
 func MarshalMessage(version uint8, m *Message) []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteByte(wkproto.ToFixHeaderUint8(m.RecvPacket))
+	_ = enc.WriteByte(wkproto.ToFixHeaderUint8(m.RecvPacket))
 	enc.WriteUint8(version)
-	enc.WriteByte(m.Setting.Uint8())
+	_ = enc.WriteByte(m.Setting.Uint8())
 	enc.WriteInt64(m.MessageID)
 	enc.WriteUint32(m.MessageSeq)
 	enc.WriteString(m.ClientMsgNo)
@@ -214,6 +214,94 @@ func UnmarshalMessage(data []byte, m *Message) error {
 		return err
 	}
 	return nil
+}
+
+type MessageSet []*Message
+
+func (ms MessageSet) Encode() []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	for _, msg := range ms {
+		data := msg.Encode()
+		enc.WriteUint32(uint32(len(data)))
+		enc.WriteBytes(data)
+	}
+	return enc.Bytes()
+}
+
+func (ms MessageSet) Decode(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var (
+		dec = wkproto.NewDecoder(data)
+		err error
+	)
+	for dec.Len() > 0 {
+		msgLen, _ := dec.Uint32()
+		msgData, _ := dec.Bytes(int(msgLen))
+
+		m := &Message{}
+		err = m.Decode(msgData)
+		if err != nil {
+			return err
+		}
+		ms = append(ms, m)
+	}
+	return nil
+}
+
+type Uint32Set []uint32
+
+func (s Uint32Set) Encode() []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	for _, v := range s {
+		enc.WriteUint32(v)
+	}
+	return enc.Bytes()
+}
+func (s Uint32Set) Decode(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var (
+		dec = wkproto.NewDecoder(data)
+		err error
+	)
+	for dec.Len() > 0 {
+		v, _ := dec.Uint32()
+		s = append(s, v)
+	}
+	return err
+}
+
+type Int64Set []int64
+
+func (s Int64Set) Encode() []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	for _, v := range s {
+		enc.WriteInt64(v)
+	}
+	return enc.Bytes()
+}
+func (s Int64Set) Decode(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var (
+		dec = wkproto.NewDecoder(data)
+		err error
+	)
+	for dec.Len() > 0 {
+		v, _ := dec.Int64()
+		s = append(s, v)
+	}
+	return err
 }
 
 type conversationResp struct {
