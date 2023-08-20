@@ -230,7 +230,7 @@ func (ms MessageSet) Encode() []byte {
 	return enc.Bytes()
 }
 
-func (ms MessageSet) Decode(data []byte) error {
+func (ms *MessageSet) Decode(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
@@ -247,7 +247,7 @@ func (ms MessageSet) Decode(data []byte) error {
 		if err != nil {
 			return err
 		}
-		ms = append(ms, m)
+		*ms = append(*ms, m)
 	}
 	return nil
 }
