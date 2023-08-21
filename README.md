@@ -128,8 +128,8 @@ SDK source code and demos
 |   WuKongIMiOSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMiOSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMiOSSDK)  | Apache2.0     |    WuKongIM's iOS SDK  |
 |   WuKongIMUniappSDK   |   [Github](https://github.com/WuKongIM/WuKongIMUniappSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMUniappSDK)  | Apache2.0     |    WuKongIM's Uniapp SDK  |
 |   WuKongIMJSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMJSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMJSSDK)   | Apache2.0    |    WuKongIM's JS SDK  |
+|   WuKongIMFlutterSDK   |    [Github](https://github.com/WuKongIM/WuKongIMFlutterSDK)        |    [Gitee](https://gitee.com/WuKongDev/WuKongIMFlutterSDK)   | Apache2.0  |    WuKongIM's Flutter SDK |
 |   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     None  | Apache2.0    |    WuKongIM's React Native Demo (provided by contributor [wengqianshan](https://github.com/wengqianshan))  |
-|   WuKongIMFlutterSDK   |   None       |    None   | Apache2.0  |    WuKongIM's Flutter SDK (under development)  |
 
 Illustration
 ---------------
