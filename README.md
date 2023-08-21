@@ -67,7 +67,7 @@ TODO
 - [x] Supports command messages
 - [x] Supports offline command interface
 - [x] Supports Webhook, easy integration with your own business system
-- [x] Supports Datasoure, seamless integration with your own business system data source
+- [x] Supports Datasource, seamless integration with your own business system data source
 - [x] Supports WebSocket connections
 - [x] Supports TLS 1.3
 - [x] Development of monitoring system
