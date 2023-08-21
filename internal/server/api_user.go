@@ -47,9 +47,9 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		return
 	}
 	if req.DeviceFlag == -1 {
-		u.quitUserDevice(req.UID, wkproto.APP)
-		u.quitUserDevice(req.UID, wkproto.WEB)
-		u.quitUserDevice(req.UID, wkproto.PC)
+		_ = u.quitUserDevice(req.UID, wkproto.APP)
+		_ = u.quitUserDevice(req.UID, wkproto.WEB)
+		_ = u.quitUserDevice(req.UID, wkproto.PC)
 	} else {
 		u.quitUserDevice(req.UID, wkproto.DeviceFlag(req.DeviceFlag))
 	}
