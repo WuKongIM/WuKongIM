@@ -72,7 +72,7 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 支持指令消息
 - [x] 支持离线指令接口
 - [x] 支持Webhook，轻松对接自己的业务系统
-- [x] 支持Datasoure，无缝对接自己的业务系统数据源
+- [x] 支持Datasource，无缝对接自己的业务系统数据源
 - [x] 支持Websocket连接
 - [x] 支持TLS 1.3
 - [x] 支持Prometheus监控
@@ -127,7 +127,6 @@ external:
 ---------------
 
 
-
 | 项目名 | Github地址 | Gitee地址 | 开源协议 | 说明 |
 | ---- | ---------- | --------- | ---- |  ---- |
 |   WuKongIM   |   [Github](https://github.com/WuKongIM/WuKongIM)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIM)  | Apache2.0   |    悟空IM通讯端，负责长连接维护，消息投递等等   |
@@ -137,8 +136,6 @@ external:
 |   WuKongIMJSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMJSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMJSSDK)   | Apache2.0    |    悟空IM的 JS SDK  |
 |   WuKongIMFlutterSDK   |    [Github](https://github.com/WuKongIM/WuKongIMFlutterSDK)        |    [Gitee](https://gitee.com/WuKongDev/WuKongIMFlutterSDK)   | Apache2.0  |    悟空IM的 Flutter SDK |
 |   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     无  | Apache2.0    |    悟空IM的 React Native Demo(由贡献者 [wengqianshan](https://github.com/wengqianshan) 提供)  |
-
-
 
 
 
