@@ -430,9 +430,8 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 			continue
 		}
 		if m.StreamIng() { // 流消息单独存储
-			_, err := p.s.store.AppendStreamItem(m.ChannelID, m.ChannelType, m.StreamNo, &wkstore.StreamItem{
+			_, err := p.s.store.AppendStreamItem(GetFakeChannelIDWith(fromUID, m.ChannelID), m.ChannelType, m.StreamNo, &wkstore.StreamItem{
 				ClientMsgNo: m.ClientMsgNo,
-				StreamSeq:   m.StreamSeq,
 				Blob:        m.Payload,
 			})
 			if err != nil {
