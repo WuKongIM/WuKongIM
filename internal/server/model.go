@@ -285,7 +285,7 @@ func (m *MessageResp) from(messageD *Message, store wkstore.Store) {
 	m.Payload = messageD.Payload
 
 	if strings.TrimSpace(messageD.StreamNo) != "" && store != nil {
-		streamItems, err := store.GetStreamItems(messageD.ChannelID, messageD.ChannelType, messageD.StreamNo)
+		streamItems, err := store.GetStreamItems(GetFakeChannelIDWith(messageD.FromUID, messageD.ChannelID), messageD.ChannelType, messageD.StreamNo)
 		if err != nil {
 			wklog.Error("获取streamItems失败！", zap.Error(err))
 		}

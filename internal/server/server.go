@@ -180,9 +180,6 @@ func (s *Server) Stop() error {
 	defer s.Info("Server is exited")
 
 	s.retryQueue.Stop()
-
-	s.store.Close()
-
 	s.dispatch.Stop()
 	s.apiServer.Stop()
 	s.conversationManager.Stop()
@@ -195,6 +192,7 @@ func (s *Server) Stop() error {
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
 	}
+	s.store.Close()
 	close(s.stopChan)
 
 	return nil
