@@ -286,7 +286,7 @@ func (d *DefaultConn) Close() error {
 
 	err := d.reactorSub.DeleteFd(d)
 	if err != nil {
-		d.Error("delete fd from poller error", zap.Error(err))
+		d.Debug("delete fd from poller error", zap.Error(err))
 	}
 	_ = d.fd.Close()
 	d.eg.RemoveConn(d)           // remove from the engine

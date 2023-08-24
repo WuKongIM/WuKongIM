@@ -49,7 +49,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&join, "join", "", "join addr")
 	rootCmd.PersistentFlags().StringVar(&rootDir, "root-dir", "", "root dir")
 	rootCmd.PersistentFlags().StringVar(&dataDir, "data-dir", "", "data dir")
-	rootCmd.PersistentFlags().BoolVar(&portRand, "port-rand", false, "port rand")
+	rootCmd.PersistentFlags().BoolVar(&portRand, "port-rand", false, "port random")
 }
 
 func initConfig() {
