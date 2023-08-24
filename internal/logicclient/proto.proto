@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package logicclient;
+
+option go_package = "./;logicclient";
+
+
+message AuthReq {
+    string uid = 1;
+    string token = 2;
+    uint32 deviceFlag = 3;
+}
+
+message AuthResp {
+    uint32 deviceLevel = 1;
+}
