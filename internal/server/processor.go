@@ -51,7 +51,7 @@ func NewProcessor(s *Server) *Processor {
 }
 
 // 处理同类型的frame集合
-func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameType, frames []wkproto.Frame, s, e int) {
+func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameType, frames []wkproto.Frame) {
 	switch frameType {
 	case wkproto.PING: // ping
 		p.processPing(conn, frames[0].(*wkproto.PingPacket))
@@ -722,7 +722,7 @@ func (p *Processor) processFrames(conn wknet.Conn, frames []wkproto.Frame) {
 	p.sameFrames(frames, func(s, e int, frs []wkproto.Frame) {
 
 		p.frameWorkPool.Submit(func() { // 开启协程处理相同的frame
-			p.processSameFrame(conn, frs[0].GetFrameType(), frs, s, e)
+			p.processSameFrame(conn, frs[0].GetFrameType(), frs)
 		})
 	})
 
