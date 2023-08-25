@@ -1,19 +1,32 @@
 package wkserver
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"go.uber.org/zap"
 )
 
 type Handler func(c *Context)
 
 type Context struct {
-	conn   wknet.Conn
-	req    *proto.Request
-	server *Server
+	conn    wknet.Conn
+	req     *proto.Request
+	connReq *proto.Connect
+	proto   proto.Protocol
+	wklog.Log
 }
 
-func (c *Context) Write(data []byte) error {
+func NewContext(conn wknet.Conn) *Context {
+
+	return &Context{
+		conn:  conn,
+		proto: proto.New(),
+		Log:   wklog.NewWKLog("Context"),
+	}
+}
+
+func (c *Context) Write(data []byte) {
 	var id uint64 = 0
 	if c.req != nil {
 		id = c.req.Id
@@ -25,17 +38,26 @@ func (c *Context) Write(data []byte) error {
 	}
 	respData, err := resp.Marshal()
 	if err != nil {
-		return err
+		c.Debug("marshal is error", zap.Error(err))
+		return
 	}
-	msgData, err := c.server.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
 	if err != nil {
-		return err
+		c.Debug("encode is error", zap.Error(err))
+		return
 	}
-	_, err = c.conn.Write(msgData)
-	return err
+	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	if err != nil {
+		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
+		return
+	}
+	err = c.conn.WakeWrite()
+	if err != nil {
+		c.Debug("WakeWrite is error", zap.Error(err))
+	}
 }
 
-func (c *Context) WriteOk() error {
+func (c *Context) WriteOk() {
 	var id uint64 = 0
 	if c.req != nil {
 		id = c.req.Id
@@ -46,16 +68,93 @@ func (c *Context) WriteOk() error {
 	}
 	respData, err := resp.Marshal()
 	if err != nil {
-		return err
+		c.Debug("marshal is error", zap.Error(err))
+		return
 	}
-	msgData, err := c.server.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
 	if err != nil {
-		return err
+		c.Debug("encode is error", zap.Error(err))
+		return
 	}
-	_, err = c.conn.Write(msgData)
-	return err
+	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	if err != nil {
+		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
+		return
+	}
+	err = c.conn.WakeWrite()
+	if err != nil {
+		c.Debug("WakeWrite is error", zap.Error(err))
+		return
+	}
+}
+
+func (c *Context) WriteErr(err error) {
+	c.WriteErrorAndStatus(err, proto.Status_ERROR)
+}
+
+func (c *Context) WriteErrorAndStatus(err error, status proto.Status) {
+	var id uint64 = 0
+	if c.req != nil {
+		id = c.req.Id
+	}
+	resp := &proto.Response{
+		Id:     id,
+		Status: status,
+		Body:   []byte(err.Error()),
+	}
+	respData, err := resp.Marshal()
+	if err != nil {
+		c.Debug("marshal is error", zap.Error(err))
+		return
+	}
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	if err != nil {
+		c.Debug("encode is error", zap.Error(err))
+		return
+	}
+	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	if err != nil {
+		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
+		return
+	}
+	err = c.conn.WakeWrite()
+	if err != nil {
+		c.Debug("WakeWrite is error")
+	}
 }
 
 func (c *Context) Body() []byte {
 	return c.req.Body
+}
+
+func (c *Context) ConnReq() *proto.Connect {
+	return c.connReq
+}
+
+func (c *Context) WriteConnack(connack *proto.Connack) {
+	data, err := connack.Marshal()
+	if err != nil {
+		c.Debug("marshal is error", zap.Error(err))
+		return
+	}
+	msgData, err := c.proto.Encode(data, proto.MsgTypeConnack.Uint8())
+	if err != nil {
+		c.Debug("encode is error", zap.Error(err))
+		return
+	}
+	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	if err != nil {
+		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
+		return
+	}
+	err = c.conn.WakeWrite()
+	if err != nil {
+		c.Debug("WakeWrite is error", zap.Error(err))
+		return
+	}
+}
+
+func (c *Context) Conn() wknet.Conn {
+
+	return c.conn
 }

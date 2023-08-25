@@ -31,8 +31,11 @@ type Client struct {
 	doneChan        chan struct{}
 }
 
-func New(addr string) *Client {
+func New(addr string, opt ...Option) *Client {
 	opts := NewOptions()
+	for _, o := range opt {
+		o(opts)
+	}
 	return &Client{
 		addr:     addr,
 		Log:      wklog.NewWKLog("Client"),
@@ -45,18 +48,64 @@ func New(addr string) *Client {
 }
 
 func (c *Client) Connect() error {
+
 	c.forceDisconnect = false
 	c.connectStatusChange(CONNECTING)
 	conn, err := net.DialTimeout("tcp", c.addr, c.opts.ConnectTimeout)
 	if err != nil {
 		c.connectStatusChange(DISCONNECTED)
+		c.Debug("connect error", zap.Error(err))
 		return err
 	}
 	c.conn = conn
-	c.connectStatusChange(CONNECTED)
 	go c.loopRead()
+
+	err = c.handshake()
+	if err != nil {
+		c.Error("handshake error", zap.Error(err))
+		return err
+	}
+	c.connectStatusChange(CONNECTED)
+
 	c.startHeartbeat()
 	return nil
+}
+
+func (c *Client) handshake() error {
+	conn := &proto.Connect{
+		Id:    c.reqIDGen.Next(),
+		Uid:   c.opts.UID,
+		Token: c.opts.Token,
+	}
+	data, err := conn.Marshal()
+	if err != nil {
+		return err
+	}
+	msgData, err := c.proto.Encode(data, proto.MsgTypeConnect.Uint8())
+	if err != nil {
+		return err
+	}
+
+	ch := c.w.Register(conn.Id)
+	_, err = c.conn.Write(msgData)
+	if err != nil {
+		return err
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.RequestTimeout)
+	defer cancel()
+	select {
+	case x := <-ch:
+		if x == nil {
+			return errors.New("unknown error")
+		}
+		ack := x.(*proto.Connack)
+		if ack.Status != proto.Status_OK {
+			return errors.New("connect error")
+		}
+		return nil
+	case <-timeoutCtx.Done():
+		return timeoutCtx.Err()
+	}
 }
 
 func (c *Client) Close() error {
@@ -178,6 +227,14 @@ func (c *Client) handleData(data []byte, msgType proto.MsgType) {
 		c.w.Trigger(resp.Id, resp)
 	} else if msgType == proto.MsgTypeHeartbeat {
 		c.Debug("heartbeat...")
+	} else if msgType == proto.MsgTypeConnack {
+		connack := &proto.Connack{}
+		err := connack.Unmarshal(data)
+		if err != nil {
+			c.Debug("unmarshal error", zap.Error(err))
+			return
+		}
+		c.w.Trigger(connack.Id, connack)
 	} else {
 		c.Error("unknown msg type", zap.Uint8("msgType", msgType.Uint8()))
 	}
@@ -185,6 +242,11 @@ func (c *Client) handleData(data []byte, msgType proto.MsgType) {
 }
 
 func (c *Client) Request(p string, body []byte) (*proto.Response, error) {
+
+	if c.conn == nil {
+		return nil, errors.New("conn is nil")
+	}
+
 	r := &proto.Request{
 		Id:   c.reqIDGen.Next(),
 		Path: p,

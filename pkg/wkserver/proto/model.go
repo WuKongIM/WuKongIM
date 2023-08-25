@@ -2,6 +2,22 @@ package proto
 
 import "google.golang.org/protobuf/proto"
 
+func (c *Connect) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *Connect) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *Connack) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *Connack) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
 func (r *Request) Marshal() ([]byte, error) {
 	return proto.Marshal(r)
 }

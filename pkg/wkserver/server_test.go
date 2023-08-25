@@ -11,8 +11,7 @@ import (
 func TestServerRoute(t *testing.T) {
 	s := wkserver.New("tcp://0.0.0.0:0")
 	s.Route("/test", func(c *wkserver.Context) {
-		err := c.Write([]byte("test2"))
-		assert.NoError(t, err)
+		c.Write([]byte("test2"))
 	})
 
 	err := s.Start()

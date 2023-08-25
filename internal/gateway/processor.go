@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/logicclient"
+	"github.com/WuKongIM/WuKongIM/internal/logicclient/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -39,7 +39,7 @@ func (p *Processor) auth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) 
 		return
 	}
 	// -------------------- request logic --------------------
-	authResp, err := p.g.logic.Auth(&logicclient.AuthReq{
+	authResp, err := p.g.logic.Auth(&pb.AuthReq{
 		Uid:        uid,
 		Token:      token,
 		DeviceFlag: uint32(connectPacket.DeviceFlag),
