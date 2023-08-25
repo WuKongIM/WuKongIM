@@ -5,6 +5,8 @@ import wkproto "github.com/WuKongIM/WuKongIMGoProto"
 type MsgType uint8 // 消息类型
 const (
 	Unknown          MsgType = iota
+	MsgTypeConnect           // connect
+	MsgTypeConnack           // connack
 	MsgTypeRequest           // request
 	MsgTypeResp              // response
 	MsgTypeHeartbeat         // heartbeat

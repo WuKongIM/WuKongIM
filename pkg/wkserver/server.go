@@ -36,6 +36,17 @@ func New(addr string) *Server {
 	if err != nil {
 		s.Panic("new request pool error", zap.Error(err))
 	}
+	s.routeMap[opts.ConnPath] = func(ctx *Context) {
+		req := ctx.ConnReq()
+		if req == nil {
+			return
+		}
+		ctx.WriteConnack(&proto.Connack{
+			Id:     req.Id,
+			Status: proto.Status_OK,
+		})
+
+	}
 	s.requestPool = requestPool
 	return s
 }
@@ -59,4 +70,8 @@ func (s *Server) Route(p string, h Handler) {
 
 func (s *Server) Addr() net.Addr {
 	return s.engine.TCPRealListenAddr()
+}
+
+func (s *Server) Options() *Options {
+	return s.opts
 }
