@@ -10,6 +10,8 @@ type Options struct {
 	ConnectTimeout    time.Duration
 	Reconnect         bool
 	RequestTimeout    time.Duration
+	UID               string
+	Token             string
 }
 
 func NewOptions() *Options {
@@ -19,5 +21,19 @@ func NewOptions() *Options {
 		ConnectTimeout:    time.Second * 5,
 		Reconnect:         true,
 		RequestTimeout:    time.Second * 5,
+	}
+}
+
+type Option func(opts *Options)
+
+func WithUID(uid string) Option {
+	return func(opts *Options) {
+		opts.UID = uid
+	}
+}
+
+func WithToken(token string) Option {
+	return func(opts *Options) {
+		opts.Token = token
 	}
 }

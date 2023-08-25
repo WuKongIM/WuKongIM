@@ -4,6 +4,19 @@ package proto;
 
 option go_package = "./;proto";
 
+message Connect {
+    uint64 id = 1;
+    string uid= 2;
+    string token = 3;
+    bytes body = 4;
+}
+
+message Connack {
+    uint64 id = 1;
+    Status status = 2;
+    bytes body = 3;
+}
+
 message Request {
     uint64 id = 1;
     string path = 2;
@@ -19,4 +32,5 @@ message Response {
 enum Status {
     ERROR = 0;
     OK = 1;
+    NotFound = 2;
 }
