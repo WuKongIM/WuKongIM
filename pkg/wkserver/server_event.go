@@ -29,18 +29,17 @@ func (s *Server) onData(conn wknet.Conn) error {
 	return nil
 }
 
-func (s *Server) onConnect(conn wknet.Conn) error {
-
-	return nil
-}
-
-func (s *Server) onClose(conn wknet.Conn) {
-
-}
-
 func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) {
 	if msgType == proto.MsgTypeHeartbeat {
 		s.handleHeartbeat(conn)
+	} else if msgType == proto.MsgTypeConnect {
+		req := &proto.Connect{}
+		err := req.Unmarshal(data)
+		if err != nil {
+			s.Error("unmarshal connack error", zap.Error(err))
+			return
+		}
+		s.handleConnack(conn, req)
 	} else if msgType == proto.MsgTypeRequest {
 		req := &proto.Request{}
 		err := req.Unmarshal(data)
@@ -54,7 +53,6 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 		if err != nil {
 			s.Error("submit request error", zap.Error(err))
 		}
-
 	}
 }
 
@@ -66,18 +64,54 @@ func (s *Server) handleHeartbeat(conn wknet.Conn) {
 	}
 }
 
-func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
+func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 	s.routeMapLock.RLock()
-	defer s.routeMapLock.RUnlock()
-	h, ok := s.routeMap[req.Path]
+	h, ok := s.routeMap[s.opts.ConnPath]
+	s.routeMapLock.RUnlock()
 	if !ok {
-		s.Error("route not found", zap.String("path", req.Path))
+		s.Debug("route not found", zap.String("path", s.opts.ConnPath))
 		return
 	}
 	ctx := &Context{
-		conn:   conn,
-		req:    req,
-		server: s,
+		conn:    conn,
+		proto:   s.proto,
+		connReq: req,
+	}
+	h(ctx)
+}
+
+func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
+	s.routeMapLock.RLock()
+	h, ok := s.routeMap[req.Path]
+	s.routeMapLock.RUnlock()
+	if !ok {
+		s.Debug("route not found", zap.String("path", req.Path))
+		return
+	}
+	ctx := &Context{
+		conn:  conn,
+		req:   req,
+		proto: s.proto,
+	}
+	h(ctx)
+}
+
+func (s *Server) onConnect(conn wknet.Conn) error {
+
+	return nil
+}
+
+func (s *Server) onClose(conn wknet.Conn) {
+	s.routeMapLock.RLock()
+	h, ok := s.routeMap[s.opts.ClosePath]
+	s.routeMapLock.RUnlock()
+	if !ok {
+		s.Debug("route not found", zap.String("path", s.opts.ClosePath))
+		return
+	}
+	ctx := &Context{
+		conn:  conn,
+		proto: s.proto,
 	}
 	h(ctx)
 }

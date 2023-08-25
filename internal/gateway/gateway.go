@@ -5,9 +5,11 @@ import (
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
+	"github.com/WuKongIM/WuKongIM/internal/gateway/proto"
 	"github.com/WuKongIM/WuKongIM/internal/logicclient"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"go.uber.org/atomic"
 )
 
 type Gateway struct {
@@ -19,6 +21,8 @@ type Gateway struct {
 	connManager *ConnManager
 	timingWheel *timingwheel.TimingWheel // Time wheel delay task
 	logic       logicclient.Client
+	blockSeq    atomic.Uint64
+	blockProto  *proto.Proto
 }
 
 func New(opts *Options) *Gateway {
@@ -28,6 +32,7 @@ func New(opts *Options) *Gateway {
 		Log:         wklog.NewWKLog("Gateway"),
 		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		engine:      wknet.NewEngine(wknet.WithAddr(opts.Addr), wknet.WithWSAddr(opts.WSAddr), wknet.WithWSSAddr(opts.WSSAddr), wknet.WithWSTLSConfig(opts.WSTLSConfig)),
+		blockProto:  proto.New(),
 	}
 	g.processor = NewProcessor(g)
 	g.connManager = NewConnManager(g)
