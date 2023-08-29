@@ -1,6 +1,9 @@
 package wkserver
 
 import (
+	"context"
+	"errors"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
@@ -53,6 +56,16 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 		if err != nil {
 			s.Error("submit request error", zap.Error(err))
 		}
+	} else if msgType == proto.MsgTypeResp {
+		resp := &proto.Response{}
+		err := resp.Unmarshal(data)
+		if err != nil {
+			s.Error("unmarshal resp error", zap.Error(err))
+			return
+		}
+		s.handleResp(conn, resp)
+	} else {
+		s.Error("unknown msg type", zap.Uint8("msgType", msgType.Uint8()))
 	}
 }
 
@@ -65,6 +78,10 @@ func (s *Server) handleHeartbeat(conn wknet.Conn) {
 }
 
 func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
+
+	conn.SetUID(req.Uid)
+	s.connManager.AddConn(req.Uid, conn)
+
 	s.routeMapLock.RLock()
 	h, ok := s.routeMap[s.opts.ConnPath]
 	s.routeMapLock.RUnlock()
@@ -78,6 +95,12 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 		connReq: req,
 	}
 	h(ctx)
+}
+
+func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
+
+	s.w.Trigger(resp.Id, resp)
+
 }
 
 func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
@@ -96,12 +119,50 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 	h(ctx)
 }
 
+func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, error) {
+	conn := s.connManager.GetConn(uid)
+	if conn == nil {
+		return nil, errors.New("conn is nil")
+	}
+	r := &proto.Request{
+		Id:   s.reqIDGen.Next(),
+		Path: p,
+		Body: body,
+	}
+	data, err := r.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	msgData, err := s.proto.Encode(data, proto.MsgTypeRequest.Uint8())
+	if err != nil {
+		return nil, err
+	}
+	ch := s.w.Register(r.Id)
+	_, err = conn.WriteToOutboundBuffer(msgData)
+	if err != nil {
+		return nil, err
+	}
+	_ = conn.WakeWrite()
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.RequestTimeout)
+	defer cancel()
+	select {
+	case x := <-ch:
+		if x == nil {
+			return nil, errors.New("unknown error")
+		}
+		return x.(*proto.Response), nil
+	case <-timeoutCtx.Done():
+		return nil, timeoutCtx.Err()
+	}
+}
+
 func (s *Server) onConnect(conn wknet.Conn) error {
 
 	return nil
 }
 
 func (s *Server) onClose(conn wknet.Conn) {
+	s.connManager.RemoveConn(conn.UID())
 	s.routeMapLock.RLock()
 	h, ok := s.routeMap[s.opts.ClosePath]
 	s.routeMapLock.RUnlock()

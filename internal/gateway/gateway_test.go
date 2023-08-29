@@ -1,41 +1,51 @@
 package gateway_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
-	"github.com/WuKongIM/WuKongIM/internal/logicclient/pb"
+	"github.com/WuKongIM/WuKongIM/internal/logic"
+	"github.com/WuKongIM/WuKongIM/internal/options"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/WuKongIM/WuKongIMGoSDK/pkg/wksdk"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGatewayStartAndStop(t *testing.T) {
-	opts := gateway.NewOptions()
+	opts := options.New()
 	opts.Addr = "tcp://127.0.0.1:0"
 	opts.WSAddr = "ws://127.0.0.1:0"
 	g := gateway.New(opts)
 	err := g.Start()
 	assert.NoError(t, err)
 
-	err = g.Stop()
-	assert.NoError(t, err)
+	g.Stop()
 }
 
-func TestGatewayAuth(t *testing.T) {
-	opts := gateway.NewOptions()
+func TestGatewayAuthForSingle(t *testing.T) {
+
+	// --------- gateway start ------------
+	opts := options.New()
 	opts.Addr = "tcp://127.0.0.1:0"
 	opts.WSAddr = "ws://127.0.0.1:0"
 	g := gateway.New(opts)
 	err := g.Start()
 	assert.NoError(t, err)
 
-	g.SetLogic(&testLogic{})
+	defer g.Stop()
 
-	defer func() {
-		_ = g.Stop()
-	}()
+	// --------- logic start ------------
+	logicOpts := options.New()
+	logicOpts.RootDir = os.TempDir()
+	logicOpts.DataDir = os.TempDir()
+	logicOpts.Logger.Dir = os.TempDir()
+	ls := logic.NewServer("tcp://127.0.0.1:0", logicOpts)
+	err = ls.Start()
+	assert.NoError(t, err)
+	defer ls.Stop()
 
-	// send auth
+	// --------- connect------------
 	cli := wksdk.NewClient(g.TCPAddr().String(), wksdk.WithUID("test"), wksdk.WithToken("test"))
 	err = cli.Connect()
 	assert.NoError(t, err)
@@ -43,14 +53,57 @@ func TestGatewayAuth(t *testing.T) {
 	defer func() {
 		_ = cli.Disconnect()
 	}()
+
+	ack, err := cli.SendMessage([]byte("hi"), wkproto.Channel{
+		ChannelID:   "u1",
+		ChannelType: 1,
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, ack)
+
 }
 
-type testLogic struct {
-}
+func TestGatewayAuthForRemote(t *testing.T) {
 
-func (t *testLogic) Auth(req *pb.AuthReq) (*pb.AuthResp, error) {
+	// --------- logic start ------------
+	logicOpts := options.New()
+	logicOpts.Cluster.NodeID = 1
+	logicOpts.RootDir = os.TempDir()
+	logicOpts.DataDir = os.TempDir()
+	logicOpts.Logger.Dir = os.TempDir()
+	ls := logic.NewServer("tcp://127.0.0.1:12345", logicOpts)
+	err := ls.Start()
+	assert.NoError(t, err)
+	defer ls.Stop()
 
-	return &pb.AuthResp{
-		DeviceLevel: 1,
-	}, nil
+	// --------- gateway start ------------
+	opts := options.New()
+	opts.Addr = "tcp://127.0.0.1:0"
+	opts.WSAddr = "ws://127.0.0.1:0"
+	opts.RootDir = os.TempDir()
+	opts.DataDir = os.TempDir()
+	opts.Logger.Dir = os.TempDir()
+	opts.Cluster.NodeID = 1
+	opts.Cluster.LogicAddr = "127.0.0.1:12345"
+	g := gateway.New(opts)
+	err = g.Start()
+	assert.NoError(t, err)
+
+	defer g.Stop()
+
+	// --------- connect------------
+	cli := wksdk.NewClient(g.TCPAddr().String(), wksdk.WithUID("test"), wksdk.WithToken("test"))
+	err = cli.Connect()
+	assert.NoError(t, err)
+
+	defer func() {
+		_ = cli.Disconnect()
+	}()
+
+	ack, err := cli.SendMessage([]byte("hi"), wkproto.Channel{
+		ChannelID:   "u1",
+		ChannelType: 1,
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, ack)
 }
