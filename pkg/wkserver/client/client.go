@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -13,6 +14,8 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
+
+type Handler func(c *Context)
 
 type Client struct {
 	addr    string
@@ -29,8 +32,12 @@ type Client struct {
 	forceDisconnect bool      // 是否强制关闭
 	listenerConnFnc func(connectStatus ConnectStatus)
 	doneChan        chan struct{}
+
+	routeMapLock sync.RWMutex
+	routeMap     map[string]Handler
 }
 
+// New addr: xxx.xxx.xx.xx:xxx
 func New(addr string, opt ...Option) *Client {
 	opts := NewOptions()
 	for _, o := range opt {
@@ -44,6 +51,7 @@ func New(addr string, opt ...Option) *Client {
 		w:        wait.New(),
 		opts:     opts,
 		doneChan: make(chan struct{}),
+		routeMap: make(map[string]Handler),
 	}
 }
 
@@ -217,7 +225,15 @@ func (c *Client) connectStatusChange(connectStatus ConnectStatus) {
 func (c *Client) handleData(data []byte, msgType proto.MsgType) {
 
 	c.lastActivity = time.Now()
-	if msgType == proto.MsgTypeResp {
+	if msgType == proto.MsgTypeRequest {
+		req := &proto.Request{}
+		err := req.Unmarshal(data)
+		if err != nil {
+			c.Debug("unmarshal error", zap.Error(err))
+			return
+		}
+		c.handleRequest(req)
+	} else if msgType == proto.MsgTypeResp {
 		resp := &proto.Response{}
 		err := resp.Unmarshal(data)
 		if err != nil {
@@ -238,6 +254,21 @@ func (c *Client) handleData(data []byte, msgType proto.MsgType) {
 	} else {
 		c.Error("unknown msg type", zap.Uint8("msgType", msgType.Uint8()))
 	}
+
+}
+
+func (c *Client) handleRequest(r *proto.Request) {
+
+	c.routeMapLock.RLock()
+	h, ok := c.routeMap[r.Path]
+	c.routeMapLock.RUnlock()
+	if !ok {
+		c.Debug("route not found", zap.String("path", r.Path))
+		return
+	}
+	ctx := NewContext(c.conn)
+	ctx.req = r
+	h(ctx)
 
 }
 
@@ -278,4 +309,9 @@ func (c *Client) Request(p string, body []byte) (*proto.Response, error) {
 	case <-timeoutCtx.Done():
 		return nil, timeoutCtx.Err()
 	}
+}
+func (c *Client) Route(p string, h Handler) {
+	c.routeMapLock.Lock()
+	defer c.routeMapLock.Unlock()
+	c.routeMap[p] = h
 }

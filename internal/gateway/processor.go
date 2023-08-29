@@ -1,30 +1,36 @@
 package gateway
 
 import (
-	"encoding/base64"
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/logicclient/pb"
+	"github.com/WuKongIM/WuKongIM/internal/gateway/proto"
+	"github.com/WuKongIM/WuKongIM/internal/gatewaycommon"
+	"github.com/WuKongIM/WuKongIM/internal/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
 type Processor struct {
 	g *Gateway
 	wklog.Log
+	blockSeq   atomic.Uint64
+	blockProto *proto.Proto
 }
 
 func NewProcessor(g *Gateway) *Processor {
-	return &Processor{
-		g:   g,
-		Log: wklog.NewWKLog("Processor"),
+	p := &Processor{
+		g:          g,
+		Log:        wklog.NewWKLog("Processor"),
+		blockProto: proto.New(),
 	}
+	return p
 }
 
+// client connection auth
 func (p *Processor) auth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 
 	var (
@@ -39,28 +45,24 @@ func (p *Processor) auth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) 
 		return
 	}
 	// -------------------- request logic --------------------
-	authResp, err := p.g.logic.Auth(&pb.AuthReq{
-		Uid:        uid,
-		Token:      token,
-		DeviceFlag: uint32(connectPacket.DeviceFlag),
+	node := p.g.logicClientManager.getLogicClientWithKey(uid)
+
+	authResp, err := node.ClientAuth(&pb.AuthReq{
+		ConnID:       conn.ID(),
+		Uid:          uid,
+		DeviceFlag:   uint32(connectPacket.DeviceFlag),
+		DeviceID:     connectPacket.DeviceID,
+		GatewayID:    p.g.opts.GatewayID(),
+		ProtoVersion: uint32(connectPacket.Version),
+		Token:        token,
+		ClientKey:    connectPacket.ClientKey,
 	})
 	if err != nil {
-		p.Error("auth err", zap.Error(err))
+		p.Error("auth error", zap.Error(err))
 		p.responseConnackAuthFail(conn)
 		return
 	}
-
 	devceLevel = wkproto.DeviceLevel(authResp.DeviceLevel)
-
-	// -------------------- get message encrypt key --------------------
-	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
-	aesKey, aesIV, err := p.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
-	if err != nil {
-		p.Error("get client aes key and iv err", zap.Error(err))
-		p.responseConnackAuthFail(conn)
-		return
-	}
-	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
 	// -------------------- same master kicks each other --------------------
 	oldConns := p.g.connManager.GetConnsWith(uid, connectPacket.DeviceFlag)
@@ -74,11 +76,11 @@ func (p *Processor) auth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) 
 					Reason:     "login in other device",
 				})
 				p.g.timingWheel.AfterFunc(time.Second*10, func() {
-					oldConn.Close()
+					oldConn.(wknet.Conn).Close()
 				})
 			} else {
 				p.g.timingWheel.AfterFunc(time.Second*4, func() {
-					oldConn.Close() // Close old connection
+					oldConn.(wknet.Conn).Close() // Close old connection
 				})
 			}
 			p.Debug("close old conn", zap.Any("oldConn", oldConn))
@@ -94,8 +96,8 @@ func (p *Processor) auth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) 
 	conn.SetDeviceFlag(connectPacket.DeviceFlag.ToUint8())
 	conn.SetDeviceID(connectPacket.DeviceID)
 	conn.SetUID(connectPacket.UID)
-	conn.SetValue(aesKeyKey, aesKey)
-	conn.SetValue(aesIVKey, aesIV)
+	conn.SetValue(aesKeyKey, authResp.AesKey)
+	conn.SetValue(aesIVKey, authResp.AesIV)
 	conn.SetDeviceLevel(devceLevelI)
 	conn.SetMaxIdle(p.g.opts.ConnIdleTime)
 
@@ -105,11 +107,113 @@ func (p *Processor) auth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) 
 
 	p.Debug("Auth Success", zap.Any("conn", conn))
 	p.dataOut(conn, &wkproto.ConnackPacket{
-		Salt:       aesIV,
-		ServerKey:  dhServerPublicKeyEnc,
+		Salt:       authResp.AesIV,
+		ServerKey:  authResp.DhServerPublicKey,
 		ReasonCode: wkproto.ReasonSuccess,
 		TimeDiff:   timeDiff,
 	})
+}
+
+func (p *Processor) handlePing(conn wknet.Conn) {
+	p.dataOut(conn, &wkproto.PongPacket{})
+}
+
+// client deliverData
+func (p *Processor) deliverData(conn wknet.Conn, data []byte) (int, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
+
+	firstByte := data[0]
+	if firstByte == byte(wkproto.PING) {
+		p.handlePing(conn)
+		return 1, nil
+	}
+
+	p.g.monitor.UpstreamTrafficAdd(len(data))
+	p.g.monitor.InBytesAdd(int64(len(data)))
+
+	cli := p.g.logicClientManager.getLogicClientWithKey(conn.UID())
+
+	gatewayID := p.g.opts.GatewayID()
+
+	size, err := cli.Write(&pb.Conn{
+		Id:         conn.ID(),
+		Uid:        conn.UID(),
+		DeviceFlag: uint32(conn.DeviceFlag()),
+		GatewayID:  gatewayID,
+	}, data)
+	if err != nil {
+		p.Warn("Failed to Write the message for deliverData", zap.Error(err))
+		return 0, nil
+	}
+	return size, nil
+
+	// if p.blockSeq.Load() == 0 {
+	// 	p.blockSeq.Inc()
+	// }
+
+	// blockData, err := p.blockProto.Encode(&proto.Block{
+	// 	Seq:        p.blockSeq.Load(),
+	// 	ConnID:     conn.ID(),
+	// 	UID:        conn.UID(),
+	// 	DeviceFlag: wkproto.DeviceFlag(conn.DeviceFlag()),
+	// 	Data:       data,
+	// })
+	// if err != nil {
+	// 	p.Warn("Failed to encode the message", zap.Error(err))
+	// 	return nil
+	// }
+	// if len(blockData) == 0 {
+	// 	return nil
+	// }
+	// nodeclient := p.g.nodeClientManager.getNodeClientWithKey(conn.UID())
+	// err = nodeclient.Append(blockData)
+	// if err != nil {
+	// 	p.Warn("Failed to deliver the message", zap.Error(err))
+	// 	return nil
+	// }
+
+}
+
+func (p *Processor) OnWriteFromLogic(conn *pb.Conn, data []byte) error {
+	c := p.g.connManager.GetConn(conn.Id)
+	if c == nil {
+		p.Debug("conn is nil", zap.Any("conn", conn))
+		return nil
+	}
+	// 统计
+	wnetCon, ok := c.(wknet.Conn)
+	if !ok {
+		p.Warn("conn is not wknet.Conn", zap.Any("conn", conn))
+		return nil
+	}
+	connStats := wnetCon.ConnStats()
+	dataLen := len(data)
+	// p.s.monitor.DownstreamTrafficAdd(dataLen)
+	// d.s.outBytes.Add(int64(dataLen))
+	connStats.OutBytes.Add(int64(dataLen))
+
+	wsConn, wsok := c.(wknet.IWSConn) // websocket连接
+	if wsok {
+		err := wsConn.WriteServerBinary(data)
+		if err != nil {
+			p.Warn("Failed to write the message", zap.Error(err))
+		}
+
+	} else {
+		_, err := wnetCon.WriteToOutboundBuffer(data)
+		if err != nil {
+			p.Warn("Failed to write the message", zap.Error(err))
+		}
+	}
+	wnetCon.WakeWrite()
+	return nil
+}
+
+func (p *Processor) GetConnManager() gatewaycommon.ConnManager {
+
+	return p.g.connManager
 }
 
 func (p *Processor) responseConnackAuthFail(c wknet.Conn) {
@@ -125,10 +229,11 @@ func (p *Processor) responseConnack(c wknet.Conn, timeDiff int64, code wkproto.R
 }
 
 // 数据统一出口
-func (p *Processor) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
+func (p *Processor) dataOut(gconn gatewaycommon.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
 	}
+	conn := gconn.(wknet.Conn)
 
 	// 统计
 	connStats := conn.ConnStats()
@@ -163,24 +268,4 @@ func (p *Processor) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 	}
 	_ = conn.WakeWrite()
 
-}
-
-// 获取客户端的aesKey和aesIV
-// dhServerPrivKey  服务端私钥
-func (p *Processor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]byte) (string, string, error) {
-
-	clientKeyBytes, err := base64.StdEncoding.DecodeString(clientKey)
-	if err != nil {
-		return "", "", err
-	}
-
-	var dhClientPubKeyArray [32]byte
-	copy(dhClientPubKeyArray[:], clientKeyBytes[:32])
-
-	// 获得DH的共享key
-	shareKey := wkutil.GetCurve25519Key(dhServerPrivKey, dhClientPubKeyArray) // 共享key
-
-	aesIV := wkutil.GetRandomString(16)
-	aesKey := wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
-	return aesKey, aesIV, nil
 }

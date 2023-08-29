@@ -1,1 +1,0 @@
-protoc ./internal/logicclient/pb/proto.proto --go_out=./internal/logicclient/pb

@@ -1,0 +1,65 @@
+syntax = "proto3";
+option go_package = "./;pb";
+
+
+enum Role {
+    Unknown = 0;
+    Follower = 1;
+    Candidate = 2;
+    PreCandidate = 3;
+    Leader = 4;
+}
+
+
+message NodeConfig {
+    uint32 nodeID = 1; // 节点ID
+    string nodeAddr = 2; // 节点地址
+    Role role = 3; // 节点角色
+}
+
+message GatewayConfig {
+    uint32 nodeID = 1; // 节点ID
+    string tcpAddr = 2;  // 节点tcp对外地址
+    string wsAddr = 3;  // 节点websocket对外地址
+    string wssAddr = 4;  // 节点 wss对外地址
+}
+
+message ClusterConfig {
+    uint32 clusterID = 1; // cluster id
+    uint32 leaderID = 2; // 领导节点的id
+    uint32 version  = 3; // 配置版本
+    uint32 replica = 4; // 副本数
+    uint32 slotCount = 5; // slot 总数量
+    bytes  slots = 6;    // slot bitmap
+    int32 importClusterID = 7; // 要导入的集群ID
+    bytes importWill = 8; // 将要引入的slots
+    bytes exportWill = 9; // 将要导出的slots
+    bytes exporting = 10; // 正在导出的slot（正在导出的slot将被锁定，不接受数据）
+    ExportedList exportedList = 11; // 已导出的slot
+    SlotState slotState = 15;
+    bool startExport  = 16; // 是否开始导出
+    repeated int32 importedNodeIDList = 17; // 已导入节点列表
+    repeated NodeConfig nodes = 18; // 节点信息
+}
+
+message ClusterConfigSet {
+    repeated ClusterConfig clusters = 1;
+    repeated GatewayConfig gateways = 2;
+}
+
+message  ExportedList {
+    repeated Exported exported = 1; 
+}
+
+message Exported {
+    string no = 1;
+    bytes slots = 2; // 已导出的slots
+    string path = 3; // 对应的备份路径
+}
+
+enum SlotState {
+    SlotWait = 0; // slots等待分配
+    SlotReady = 1; // slots已准备就绪
+    SlotMigration = 2; // slots需要迁移
+   
+}
