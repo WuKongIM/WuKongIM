@@ -9,11 +9,11 @@ import (
 // SlotBitMap SlotBitMap
 type SlotBitMap struct {
 	bits    []byte
-	slotNum int
+	slotNum uint32
 }
 
 // NewSlotBitMap NewSlotBitMap
-func NewSlotBitMap(slotNum int) *SlotBitMap {
+func NewSlotBitMap(slotNum uint32) *SlotBitMap {
 	var bits []byte
 	if slotNum%8 == 0 {
 		bits = make([]byte, (slotNum / 8))

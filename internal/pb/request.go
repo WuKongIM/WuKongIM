@@ -10,6 +10,17 @@ func (a *AuthReq) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, a)
 }
 
+func (a *AuthReq) Conn() *Conn {
+	return &Conn{
+		Id:           a.ConnID,
+		Uid:          a.Uid,
+		DeviceFlag:   a.DeviceFlag,
+		DeviceID:     a.DeviceID,
+		GatewayID:    a.GatewayID,
+		ProtoVersion: a.ProtoVersion,
+	}
+}
+
 func (a *AuthResp) Marshal() ([]byte, error) {
 	return proto.Marshal(a)
 }
@@ -32,4 +43,12 @@ func (r *ResetReq) Marshal() ([]byte, error) {
 
 func (r *ResetReq) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, r)
+}
+
+func (c *Conn) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *Conn) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
 }

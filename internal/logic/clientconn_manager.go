@@ -3,13 +3,13 @@ package logic
 import (
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"github.com/WuKongIM/WuKongIM/internal/gatewaycommon"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type clientConnManager struct {
 	userConnMap map[string][]int64
-	connMap     map[int64]*clientConn
+	connMap     map[int64]gatewaycommon.Conn
 
 	sync.RWMutex
 }
@@ -18,29 +18,29 @@ func newClientConnManager() *clientConnManager {
 
 	return &clientConnManager{
 		userConnMap: make(map[string][]int64),
-		connMap:     make(map[int64]*clientConn),
+		connMap:     make(map[int64]gatewaycommon.Conn),
 	}
 }
 
-func (c *clientConnManager) AddConn(conn *clientConn) {
+func (c *clientConnManager) AddConn(conn gatewaycommon.Conn) {
 	c.Lock()
 	defer c.Unlock()
-	connIDs := c.userConnMap[conn.uid]
+	connIDs := c.userConnMap[conn.UID()]
 	if connIDs == nil {
 		connIDs = make([]int64, 0, 10)
 	}
-	connIDs = append(connIDs, conn.connID)
-	c.userConnMap[conn.uid] = connIDs
-	c.connMap[conn.connID] = conn
+	connIDs = append(connIDs, conn.ID())
+	c.userConnMap[conn.UID()] = connIDs
+	c.connMap[conn.ID()] = conn
 }
 
-func (c *clientConnManager) GetConn(id int64) *clientConn {
+func (c *clientConnManager) GetConn(id int64) gatewaycommon.Conn {
 	c.RLock()
 	defer c.RUnlock()
 	return c.connMap[id]
 }
 
-func (c *clientConnManager) RemoveConn(conn wknet.Conn) {
+func (c *clientConnManager) RemoveConn(conn gatewaycommon.Conn) {
 	c.RemoveConnWithID(conn.ID())
 }
 
@@ -52,25 +52,25 @@ func (c *clientConnManager) RemoveConnWithID(id int64) {
 	if conn == nil {
 		return
 	}
-	connIDs := c.userConnMap[conn.uid]
+	connIDs := c.userConnMap[conn.UID()]
 	if len(connIDs) > 0 {
 		for index, connID := range connIDs {
-			if connID == conn.connID {
+			if connID == conn.ID() {
 				connIDs = append(connIDs[:index], connIDs[index+1:]...)
-				c.userConnMap[conn.uid] = connIDs
+				c.userConnMap[conn.UID()] = connIDs
 			}
 		}
 	}
 }
 
-func (c *clientConnManager) GetConnsWithUID(uid string) []*clientConn {
+func (c *clientConnManager) GetConnsWithUID(uid string) []gatewaycommon.Conn {
 	c.RLock()
 	defer c.RUnlock()
 	connIDs := c.userConnMap[uid]
 	if len(connIDs) == 0 {
 		return nil
 	}
-	conns := make([]*clientConn, 0, len(connIDs))
+	conns := make([]gatewaycommon.Conn, 0, len(connIDs))
 	for _, id := range connIDs {
 		conn := c.connMap[id]
 		if conn != nil {
@@ -86,14 +86,14 @@ func (c *clientConnManager) ExistConnsWithUID(uid string) bool {
 	return len(c.userConnMap[uid]) > 0
 }
 
-func (c *clientConnManager) GetConnsWith(uid string, deviceFlag wkproto.DeviceFlag) []*clientConn {
+func (c *clientConnManager) GetConnsWith(uid string, deviceFlag wkproto.DeviceFlag) []gatewaycommon.Conn {
 	conns := c.GetConnsWithUID(uid)
 	if len(conns) == 0 {
 		return nil
 	}
-	deviceConns := make([]*clientConn, 0, len(conns))
+	deviceConns := make([]gatewaycommon.Conn, 0, len(conns))
 	for _, conn := range conns {
-		if conn.deviceFlag.ToUint8() == deviceFlag.ToUint8() {
+		if conn.DeviceFlag() == deviceFlag.ToUint8() {
 			deviceConns = append(deviceConns, conn)
 		}
 	}
@@ -108,7 +108,7 @@ func (c *clientConnManager) GetConnCountWith(uid string, deviceFlag wkproto.Devi
 	}
 	deviceOnlineCount := 0
 	for _, conn := range conns {
-		if wkproto.DeviceFlag(conn.deviceFlag) == deviceFlag {
+		if wkproto.DeviceFlag(conn.DeviceFlag()) == deviceFlag {
 			deviceOnlineCount++
 		}
 	}
@@ -116,13 +116,13 @@ func (c *clientConnManager) GetConnCountWith(uid string, deviceFlag wkproto.Devi
 }
 
 // GetOnlineConns 传一批uids 返回在线的uids
-func (c *clientConnManager) GetOnlineConns(uids []string) []*clientConn {
+func (c *clientConnManager) GetOnlineConns(uids []string) []gatewaycommon.Conn {
 	if len(uids) == 0 {
-		return make([]*clientConn, 0)
+		return make([]gatewaycommon.Conn, 0)
 	}
 	c.Lock()
 	defer c.Unlock()
-	var onlineConns = make([]*clientConn, 0, len(uids))
+	var onlineConns = make([]gatewaycommon.Conn, 0, len(uids))
 	for _, uid := range uids {
 		connIDs := c.userConnMap[uid]
 		for _, connID := range connIDs {
@@ -135,10 +135,10 @@ func (c *clientConnManager) GetOnlineConns(uids []string) []*clientConn {
 	return onlineConns
 }
 
-func (c *clientConnManager) GetAllConns() []*clientConn {
+func (c *clientConnManager) GetAllConns() []gatewaycommon.Conn {
 	c.RLock()
 	defer c.RUnlock()
-	conns := make([]*clientConn, 0, len(c.connMap))
+	conns := make([]gatewaycommon.Conn, 0, len(c.connMap))
 	for _, conn := range c.connMap {
 		conns = append(conns, conn)
 	}
@@ -149,16 +149,5 @@ func (c *clientConnManager) Reset() {
 	c.Lock()
 	defer c.Unlock()
 	c.userConnMap = make(map[string][]int64)
-	c.connMap = make(map[int64]*clientConn)
-}
-
-type clientConn struct {
-	nodeID     string
-	connID     int64
-	uid        string
-	deviceFlag wkproto.DeviceFlag
-}
-
-func newClientConn() *clientConn {
-	return &clientConn{}
+	c.connMap = make(map[int64]gatewaycommon.Conn)
 }

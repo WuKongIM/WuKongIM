@@ -1,7 +1,8 @@
 package gateway
 
 import (
-	"github.com/WuKongIM/WuKongIM/internal/gateway/proto"
+	"time"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -16,7 +17,6 @@ func (g *Gateway) onData(conn wknet.Conn) error {
 	if len(buff) == 0 {
 		return nil
 	}
-
 	if !conn.IsAuthed() { // conn is not authed must be connect packet
 		data, _ := gnetUnpacket(buff)
 		if len(data) == 0 {
@@ -45,25 +45,12 @@ func (g *Gateway) onData(conn wknet.Conn) error {
 		g.processor.auth(conn, packet.(*wkproto.ConnectPacket))
 	} else { // authed
 
-		blockData, err := g.blockProto.Encode(&proto.Block{
-			Seq:        g.blockSeq.Inc(),
-			ConnID:     conn.ID(),
-			UID:        conn.UID(),
-			DeviceFlag: wkproto.DeviceFlag(conn.DeviceFlag()),
-			Data:       buff,
-		})
+		size, err := g.processor.deliverData(conn, buff)
 		if err != nil {
-			g.Warn("Failed to encode the message", zap.Error(err))
+			g.Warn("deliver data error", zap.Error(err))
 			return nil
 		}
-		if len(blockData) == 0 {
-			return nil
-		}
-		g.monitor.UpstreamTrafficAdd(len(buff))
-		g.monitor.InBytesAdd(int64(len(buff)))
-
-		g.deliverData(conn.UID(), blockData)
-		_, err = conn.Discard(len(buff))
+		_, err = conn.Discard(size)
 		if err != nil {
 			g.Warn("discard error", zap.Error(err))
 		}
@@ -73,12 +60,13 @@ func (g *Gateway) onData(conn wknet.Conn) error {
 }
 
 func (g *Gateway) onConnect(conn wknet.Conn) error {
+	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
+	g.monitor.ConnInc()
 	return nil
 }
 
 func (g *Gateway) onClose(conn wknet.Conn) {
-}
-
-func (g *Gateway) deliverData(uid string, blockData []byte) {
-
+	g.Debug("conn close for OnClose", zap.Any("conn", conn))
+	g.connManager.RemoveConn(conn)
+	g.monitor.ConnDec()
 }
