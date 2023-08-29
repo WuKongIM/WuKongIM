@@ -3,11 +3,14 @@ package wkserver
 import (
 	"net"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/panjf2000/ants/v2"
+	"go.etcd.io/etcd/pkg/v3/idutil"
+	"go.etcd.io/etcd/pkg/v3/wait"
 	"go.uber.org/zap"
 )
 
@@ -19,6 +22,9 @@ type Server struct {
 	routeMap     map[string]Handler
 	wklog.Log
 	requestPool *ants.Pool
+	reqIDGen    *idutil.Generator
+	w           wait.Wait
+	connManager *ConnManager
 }
 
 func New(addr string) *Server {
@@ -26,11 +32,14 @@ func New(addr string) *Server {
 	opts.Addr = addr
 
 	s := &Server{
-		proto:    proto.New(),
-		engine:   wknet.NewEngine(wknet.WithAddr(opts.Addr)),
-		opts:     opts,
-		routeMap: make(map[string]Handler),
-		Log:      wklog.NewWKLog("Server"),
+		proto:       proto.New(),
+		engine:      wknet.NewEngine(wknet.WithAddr(opts.Addr)),
+		opts:        opts,
+		routeMap:    make(map[string]Handler),
+		Log:         wklog.NewWKLog("Server"),
+		reqIDGen:    idutil.NewGenerator(0, time.Now()),
+		w:           wait.New(),
+		connManager: NewConnManager(),
 	}
 	requestPool, err := ants.NewPool(opts.RequestPoolSize)
 	if err != nil {
@@ -58,8 +67,11 @@ func (s *Server) Start() error {
 	return s.engine.Start()
 }
 
-func (s *Server) Stop() error {
-	return s.engine.Stop()
+func (s *Server) Stop() {
+	err := s.engine.Stop()
+	if err != nil {
+		s.Warn("stop is error", zap.Error(err))
+	}
 }
 
 func (s *Server) Route(p string, h Handler) {

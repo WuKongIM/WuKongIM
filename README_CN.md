@@ -118,10 +118,21 @@ go run main.go --config config/wk.yaml
 
 ```shell
 
-wk --node-id 1 --listen-addr=127.0.0.1:11110
+wukongim --node-id=1 --listen-addr=127.0.0.1:11110
 
-wk --node-id 2 --listen-addr=127.0.0.1:11111  --join=127.0.0.1:11110
+wukongim --node-id=2 --listen-addr=127.0.0.1:11111  --join=127.0.0.1:11110
 
+```
+
+启动两个logic和一个gateway节点，其中一个logic节点作为主节点，另一个作为备用节点，gateway节点作为网关节点，客户端连接gateway节点，gateway节点会自动将消息投递到logic节点，logic节点之间会自动同步数据。
+
+```shell
+
+wukongim logic --node-id=1 --listen-addr=127.0.0.1:11110
+
+wukongim logic --node-id=1 --listen-addr=127.0.0.1:11111 --join=127.0.0.1:11110
+
+wukongim gateway --listen-addr=127.0.0.1:11113 --logic-addr=127.0.0.1:11111
 ```
 
 

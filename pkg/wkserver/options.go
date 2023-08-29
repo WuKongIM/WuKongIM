@@ -1,10 +1,13 @@
 package wkserver
 
+import "time"
+
 type Options struct {
 	Addr            string
 	RequestPoolSize int
 	ConnPath        string
 	ClosePath       string
+	RequestTimeout  time.Duration
 }
 
 func NewOptions() *Options {
@@ -14,5 +17,6 @@ func NewOptions() *Options {
 		RequestPoolSize: 1000,
 		ConnPath:        "/conn",
 		ClosePath:       "/close",
+		RequestTimeout:  10 * time.Second,
 	}
 }

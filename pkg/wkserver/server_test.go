@@ -16,11 +16,9 @@ func TestServerRoute(t *testing.T) {
 
 	err := s.Start()
 	assert.NoError(t, err)
-	defer func() {
-		_ = s.Stop()
-	}()
+	defer s.Stop()
 
-	cli := client.New(s.Addr().String())
+	cli := client.New(s.Addr().String(), client.WithUID("uid"))
 	err = cli.Connect()
 	assert.NoError(t, err)
 	defer cli.Close()
@@ -28,4 +26,12 @@ func TestServerRoute(t *testing.T) {
 	resp, err := cli.Request("/test", []byte("test"))
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("test2"), resp.Body)
+
+	cli.Route("/hi", func(c *client.Context) {
+		c.Write([]byte("world"))
+	})
+
+	resp, err = s.Request("uid", "/hi", []byte("hello"))
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("world"), resp.Body)
 }
