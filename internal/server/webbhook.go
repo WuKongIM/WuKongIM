@@ -296,7 +296,8 @@ func (w *Webhook) sendWebhookForHttp(event string, data []byte) error {
 
 func (w *Webhook) sendWebhookForGRPC(event string, data []byte) error {
 
-	startTime := time.Now()
+	startNow := time.Now()
+	startTime := startNow.UnixNano() / 1000 / 1000
 	w.Debug("webhook grpc 开始请求", zap.String("event", event))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
@@ -318,8 +319,9 @@ func (w *Webhook) sendWebhookForGRPC(event string, data []byte) error {
 		Event: event,
 		Data:  data,
 	})
+	w.Debug("webhook grpc 请求结束 耗时", zap.Int64("mill", time.Now().UnixNano()/1000/1000-startTime))
 
-	w.s.monitor.WebhookObserve(event, time.Since(startTime))
+	w.s.monitor.WebhookObserve(event, time.Since(startNow))
 	if err != nil {
 		return err
 	}
