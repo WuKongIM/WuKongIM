@@ -88,6 +88,10 @@ web聊天场景演示： http://imdemo.githubim.com
 
 ```shell
 
+git clone https://github.com/WuKongIM/WuKongIM.git
+
+cd WuKongIM
+
 go run main.go --config config/wk.yaml
 
 ```

@@ -82,21 +82,12 @@ Quick Start
 
 ```shell
 
-# install
-curl -sSL https://gitee.com/WuKongDev/WuKongIMCli/raw/main/install.sh | sudo bash 
+git clone https://github.com/WuKongIM/WuKongIM.git
 
-# run
-wk run 
+cd WuKongIM
 
-```
+go run main.go --config config/wk.yaml
 
-The configuration file is located at ~/wukongim/wk.yaml (restart the service after modifying the configuration).
-
-By default, it uses a local area network address. If you need external access, you need to modify the external.ip in the configuration file to the server's external IP. As follows:
-
-```yaml
-external:
-  ip: 'xxx.xxx.xx.xxx'
 ```
 
 View System information: http://127.0.0.1:5001/varz
