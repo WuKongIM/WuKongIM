@@ -426,6 +426,10 @@ func (o *Options) IsTmpChannel(channelID string) bool {
 	return strings.HasSuffix(channelID, o.TmpChannel.Suffix)
 }
 
+func (o *Options) ConfigFileUsed() string {
+	return o.vp.ConfigFileUsed()
+}
+
 func (o *Options) getString(key string, defaultValue string) string {
 	v := o.vp.GetString(key)
 	if v == "" {
