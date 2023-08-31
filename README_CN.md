@@ -83,25 +83,13 @@ web聊天场景演示： http://imdemo.githubim.com
 
 
 
-快速部署
+快速运行
 ---------------
 
 ```shell
 
-# 安装
-curl -sSL https://gitee.com/WuKongDev/WuKongIMCli/raw/main/install.sh | sudo bash 
+go run main.go --config config/wk.yaml
 
-# 运行
-wk run 
-
-```
-配置文件在 ~/wukongim/wk.yaml (修改配置需重启服务)
-
-默认是局域网地址，如果需要外网访问，需要修改配置文件中的 external.ip 为服务器外网 IP。如下
-
-```yaml
-external:
-  ip: 'xxx.xxx.xx.xxx'
 ```
 
 查询系统信息: http://127.0.0.1:5001/varz
