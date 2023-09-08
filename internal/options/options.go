@@ -135,11 +135,14 @@ type Options struct {
 		NodeID                      uint64        // 节点ID
 		Addr                        string        // 节点地址 例如：tcp://0.0.0.0:11110
 		ReqTimeout                  time.Duration // 请求超时时间
-		Join                        []string      // 加入集群的地址
+		Join                        string        // 加入集群的地址
 		SlotCount                   uint32
 		WritePoolSize               int
 		LogicAddr                   string
 		NodeMaxTransmissionCapacity int
+		Replica                     uint32 // 副本数量（不包含主节点）
+		MaxPartitionCount           int    // 最大分区数量
+		LeaderTimeout               time.Duration
 	}
 
 	LocalID string // 本地ID
@@ -261,11 +264,14 @@ func New() *Options {
 			NodeID                      uint64
 			Addr                        string
 			ReqTimeout                  time.Duration
-			Join                        []string
+			Join                        string
 			SlotCount                   uint32
 			WritePoolSize               int
 			LogicAddr                   string
 			NodeMaxTransmissionCapacity int
+			Replica                     uint32
+			MaxPartitionCount           int
+			LeaderTimeout               time.Duration
 		}{
 			Addr:                        "tcp://127.0.0.1:11110",
 			ReqTimeout:                  time.Second * 10,
@@ -273,6 +279,9 @@ func New() *Options {
 			WritePoolSize:               1000,
 			LogicAddr:                   "",
 			NodeMaxTransmissionCapacity: 1024 * 1024 * 1024,
+			Replica:                     2,
+			MaxPartitionCount:           20,
+			LeaderTimeout:               time.Second * 1,
 		},
 	}
 }

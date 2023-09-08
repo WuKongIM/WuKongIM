@@ -37,3 +37,9 @@ func WithToken(token string) Option {
 		opts.Token = token
 	}
 }
+
+func WithConnecTimeout(v time.Duration) Option {
+	return func(opts *Options) {
+		opts.ConnectTimeout = v
+	}
+}
