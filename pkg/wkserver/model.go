@@ -5,6 +5,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
+	gproto "google.golang.org/protobuf/proto"
 )
 
 type Handler func(c *Context)
@@ -24,6 +25,15 @@ func NewContext(conn wknet.Conn) *Context {
 		proto: proto.New(),
 		Log:   wklog.NewWKLog("Context"),
 	}
+}
+
+func (c *Context) WriteMessage(m gproto.Message) {
+	data, err := gproto.Marshal(m)
+	if err != nil {
+		c.Debug("marshal is error", zap.Error(err))
+		return
+	}
+	c.Write(data)
 }
 
 func (c *Context) Write(data []byte) {
