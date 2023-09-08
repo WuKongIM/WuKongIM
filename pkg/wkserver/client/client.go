@@ -13,6 +13,7 @@ import (
 	"go.etcd.io/etcd/pkg/v3/wait"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	gproto "google.golang.org/protobuf/proto"
 )
 
 type Handler func(c *Context)
@@ -79,6 +80,10 @@ func (c *Client) Connect() error {
 	return nil
 }
 
+func (c *Client) ConnectStatus() ConnectStatus {
+	return ConnectStatus(c.connectStatus.Load())
+}
+
 func (c *Client) handshake() error {
 	conn := &proto.Connect{
 		Id:    c.reqIDGen.Next(),
@@ -117,11 +122,9 @@ func (c *Client) handshake() error {
 }
 
 func (c *Client) Close() error {
-	c.stopped = true
-	if c.conn == nil {
-		return nil
-	}
-	return c.conn.Close()
+	c.forceDisconnect = true
+	c.disconnect()
+	return nil
 }
 
 func (c *Client) disconnect() {
@@ -269,6 +272,22 @@ func (c *Client) handleRequest(r *proto.Request) {
 	ctx := NewContext(c.conn)
 	ctx.req = r
 	h(ctx)
+
+}
+
+func (c *Client) RequestWithMessage(p string, protMsg gproto.Message) (*proto.Response, error) {
+
+	data, err := gproto.Marshal(protMsg)
+	if err != nil {
+		c.Error("marshal error", zap.Error(err))
+		return nil, err
+	}
+	resp, err := c.Request(p, data)
+	if err != nil {
+		c.Error("request error", zap.Error(err))
+		return nil, err
+	}
+	return resp, nil
 
 }
 

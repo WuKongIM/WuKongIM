@@ -10,41 +10,73 @@ enum Role {
     Leader = 4;
 }
 
+enum NodeStatus {
+    New = 0; // 新节点
+    RespondToConfigUpdate = 1; // 响应配置更新
+    DataMigrating = 2; // 迁移中
+}
+
+enum PartitionStatus {
+    WaitAlloc = 0; // 等待分配
+    Allocated = 1; // 已分配
+}
+
 
 message NodeConfig {
-    uint32 nodeID = 1; // 节点ID
-    string nodeAddr = 2; // 节点地址
+    uint64 nodeID = 1; // 节点ID
+    string serverAddr = 2; // 节点服务地址
     Role role = 3; // 节点角色
+    uint64 partitionID = 4; // 属所分区ID
+    NodeStatus status = 5; // 节点状态
 }
 
 message GatewayConfig {
-    uint32 nodeID = 1; // 节点ID
+    uint64 nodeID = 1; // 节点ID
     string tcpAddr = 2;  // 节点tcp对外地址
     string wsAddr = 3;  // 节点websocket对外地址
     string wssAddr = 4;  // 节点 wss对外地址
 }
 
-message ClusterConfig {
-    uint32 clusterID = 1; // cluster id
-    uint32 leaderID = 2; // 领导节点的id
+message PartitionConfig {
+    uint64 partitionID = 1; // cluster id
+    uint64 leaderID = 2; // 领导节点的id
     uint32 version  = 3; // 配置版本
     uint32 replica = 4; // 副本数
-    uint32 slotCount = 5; // slot 总数量
-    bytes  slots = 6;    // slot bitmap
-    int32 importClusterID = 7; // 要导入的集群ID
-    bytes importWill = 8; // 将要引入的slots
-    bytes exportWill = 9; // 将要导出的slots
-    bytes exporting = 10; // 正在导出的slot（正在导出的slot将被锁定，不接受数据）
-    ExportedList exportedList = 11; // 已导出的slot
-    SlotState slotState = 15;
-    bool startExport  = 16; // 是否开始导出
-    repeated int32 importedNodeIDList = 17; // 已导入节点列表
-    repeated NodeConfig nodes = 18; // 节点信息
+    bytes  slots = 5;    // slot bitmap
+    // int32 importPartitionID = 7; // 要导入的集群ID
+    // bytes importWill = 8; // 将要引入的slots
+    MigrateImport import = 6; // 将要引入的slots
+    repeated MigrateExport exports = 7; // 将要导出的slots
+    // bytes exportWill = 9; // 将要导出的slots
+    // bytes exporting = 10; // 正在导出的slot（正在导出的slot将被锁定，不接受数据）
+    // ExportedList exportedList = 11; // 已导出的slot
+    // bool startExport  = 16; // 是否开始导出
+    // repeated int32 importedNodeIDList = 17; // 已导入节点列表
+    repeated NodeConfig nodes = 8; // 节点信息
+    PartitionStatus status = 9; // 分区状态
+}
+
+message MigrateImport {
+    bytes importWill = 1; // 将要导入的slots
+    bytes importing = 2; // 正在导入的slots
+    bytes imported = 3; // 已导入的slots
+    SlotStatus status = 4; // slot状态
+}
+
+message MigrateExport {
+    uint64 exportPartitionID = 1; // 要导出的分区ID
+    bytes exportWill = 2; // 将要导出的slots
+    bytes exporting = 3; // 正在导出的slots
+    bytes exported = 4; // 已导出的slots
+    SlotStatus status = 5; // slot状态
 }
 
 message ClusterConfigSet {
-    repeated ClusterConfig clusters = 1;
-    repeated GatewayConfig gateways = 2;
+    uint64 version = 1;
+    uint64 leaderID = 2;
+    uint32 slotCount = 3; // slot 总数量
+    repeated PartitionConfig partitions = 4;
+    repeated GatewayConfig gateways = 5;
 }
 
 message  ExportedList {
@@ -57,9 +89,45 @@ message Exported {
     string path = 3; // 对应的备份路径
 }
 
-enum SlotState {
+enum SlotStatus {
     SlotWait = 0; // slots等待分配
-    SlotReady = 1; // slots已准备就绪
-    SlotMigration = 2; // slots需要迁移
+    SlotMigration = 1; // slots需要迁移
+    SlotReady = 2; // slots已准备就绪
    
+   
+}
+
+
+message JoinReq {
+    uint64 nodeID = 1; // 节点ID
+    string serverAddr = 2; // 节点地址
+}
+
+message syncClustersetConfigReq {
+   uint64 version = 2; // 配置版本
+}
+
+message Ping {
+    uint64 nodeID = 1; // 节点ID
+    uint64 version = 2; // 配置版本
+}
+
+// 骰子结果
+message DiceResult {
+    uint64 nodeID = 1;
+    int32 result = 2;
+}
+
+message VoteReq {
+   uint64 partitionID = 1; // 分区ID
+   uint64 nodeID = 2; // 节点ID
+   uint64 configVersion = 3; // 配置版本
+   int32 round = 4; // 轮次
+}
+
+message VoteResp {
+    uint64 partitionID = 1; // 分区ID
+    bool voteGranted = 2; // 是否同意投票
+    string reason = 3; // 拒绝原因
+    int32 round = 4; // 轮次
 }
