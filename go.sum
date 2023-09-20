@@ -42,8 +42,8 @@ github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbi
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108 h1:iPugyBI7oFtbDZXC4dnY093M1kZx6k/95sen92gafbY=
 github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108/go.mod h1:WAMLHwunr1hi3u7OjGV6/VWG9QbdMhGpEKjROiSFd10=
-github.com/WuKongIM/WuKongIMGoProto v1.0.0 h1:NuEFt4P3nWiyc8FWD5CgyiAc9JLksISEJjr/6WKYjlo=
-github.com/WuKongIM/WuKongIMGoProto v1.0.0/go.mod h1:EMPYhZR5K4cFvMCGhWzKlgfVieec1pnioUFgP0ga+ag=
+github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20230920070552-362f2141ef98 h1:P+QkR5rOHaxK/sIZVYgiVHU/JtQ1JCQlRk3TlJ6fOxA=
+github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20230920070552-362f2141ef98/go.mod h1:EMPYhZR5K4cFvMCGhWzKlgfVieec1pnioUFgP0ga+ag=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=

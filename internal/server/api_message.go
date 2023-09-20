@@ -240,8 +240,6 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		setting = setting.Set(wkproto.SettingStream)
 	}
 
-	fmt.Println("setting--->", setting.IsSet(wkproto.SettingStream))
-
 	msg := &Message{
 		RecvPacket: &wkproto.RecvPacket{
 			Framer: wkproto.Framer{
@@ -257,6 +255,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			FromUID:     req.FromUID,
 			ChannelID:   channelID,
 			ChannelType: channelType,
+			Expire:      req.Expire,
 			Timestamp:   int32(time.Now().Unix()),
 			Payload:     req.Payload,
 		},
