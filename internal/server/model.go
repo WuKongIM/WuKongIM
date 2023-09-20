@@ -49,7 +49,7 @@ func (m *Message) GetSeq() uint32 {
 }
 
 func (m *Message) Encode() []byte {
-	var version uint8 = 0
+	var version uint8 = 1
 	data := MarshalMessage(version, m)
 	return wkstore.EncodeMessage(m.MessageSeq, data)
 }
@@ -97,6 +97,7 @@ func (m *Message) DeepCopy() (*Message, error) {
 			FromUID:     m.FromUID,
 			Payload:     m.Payload,
 			ClientSeq:   m.ClientSeq,
+			Expire:      m.Expire,
 		},
 		ToUID:       m.ToUID,
 		Subscribers: m.Subscribers,
@@ -115,9 +116,9 @@ func (m *Message) DeepCopy() (*Message, error) {
 func MarshalMessage(version uint8, m *Message) []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteByte(wkproto.ToFixHeaderUint8(m.RecvPacket))
+	_ = enc.WriteByte(wkproto.ToFixHeaderUint8(m.RecvPacket))
 	enc.WriteUint8(version)
-	enc.WriteByte(m.Setting.Uint8())
+	_ = enc.WriteByte(m.Setting.Uint8())
 	enc.WriteInt64(m.MessageID)
 	enc.WriteUint32(m.MessageSeq)
 	enc.WriteString(m.ClientMsgNo)
@@ -130,6 +131,9 @@ func MarshalMessage(version uint8, m *Message) []byte {
 	enc.WriteString(m.FromUID)
 	enc.WriteString(m.ChannelID)
 	enc.WriteUint8(m.ChannelType)
+	if version >= 1 {
+		enc.WriteUint32(m.Expire)
+	}
 	enc.WriteBytes(m.Payload)
 	return enc.Bytes()
 }
@@ -146,10 +150,13 @@ func UnmarshalMessage(data []byte, m *Message) error {
 	}
 	recvPacket := &wkproto.RecvPacket{}
 	framer := wkproto.FramerFromUint8(header)
-	if _, err = dec.Uint8(); err != nil {
+	recvPacket.Framer = framer
+
+	// version
+	var version uint8
+	if version, err = dec.Uint8(); err != nil {
 		return err
 	}
-	recvPacket.Framer = framer
 
 	// setting
 	var setting uint8
@@ -209,6 +216,11 @@ func UnmarshalMessage(data []byte, m *Message) error {
 	if m.ChannelType, err = dec.Uint8(); err != nil {
 		return err
 	}
+	if version >= 1 {
+		if m.Expire, err = dec.Uint32(); err != nil {
+			return err
+		}
+	}
 	// Payload
 	if m.Payload, err = dec.BinaryAll(); err != nil {
 		return err
@@ -248,6 +260,7 @@ type MessageResp struct {
 	ChannelID    string             `json:"channel_id"`            // 频道ID
 	ChannelType  uint8              `json:"channel_type"`          // 频道类型
 	Topic        string             `json:"topic,omitempty"`       // 话题ID
+	Expire       uint32             `json:"expire"`                // 消息过期时间
 	Timestamp    int32              `json:"timestamp"`             // 服务器消息时间戳(10位，到秒)
 	Payload      []byte             `json:"payload"`               // 消息内容
 	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
@@ -266,6 +279,7 @@ func (m *MessageResp) from(messageD *Message, store wkstore.Store) {
 	m.StreamFlag = messageD.StreamFlag
 	m.MessageSeq = messageD.MessageSeq
 	m.FromUID = messageD.FromUID
+	m.Expire = messageD.Expire
 	m.Timestamp = messageD.Timestamp
 
 	realChannelID := messageD.ChannelID
@@ -407,6 +421,7 @@ type MessageSendReq struct {
 	FromUID     string        `json:"from_uid"`      // 发送者UID
 	ChannelID   string        `json:"channel_id"`    // 频道ID
 	ChannelType uint8         `json:"channel_type"`  // 频道类型
+	Expire      uint32        `json:"expire"`        // 消息过期时间
 	Subscribers []string      `json:"subscribers"`   // 订阅者 如果此字段有值，表示消息只发给指定的订阅者
 	Payload     []byte        `json:"payload"`       // 消息内容
 }
