@@ -159,6 +159,7 @@ func (w *Webhook) notifyOfflineMsg(msg *Message, large bool, subscribers []strin
 				ChannelID:    msg.ChannelID,
 				ChannelType:  msg.ChannelType,
 				Topic:        msg.Topic,
+				Expire:       msg.Expire,
 				Timestamp:    msg.Timestamp,
 				Payload:      msg.Payload,
 			},
