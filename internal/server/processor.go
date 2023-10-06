@@ -334,6 +334,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 				StreamNo:    sendPacket.StreamNo,
 				StreamFlag:  wkproto.StreamFlagIng,
 				FromUID:     conn.UID(),
+				Expire:      sendPacket.Expire,
 				ChannelID:   sendPacket.ChannelID,
 				ChannelType: sendPacket.ChannelType,
 				Topic:       sendPacket.Topic,
