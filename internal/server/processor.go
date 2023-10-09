@@ -201,13 +201,25 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 
 	// -------------------- response connack --------------------
 
+	lastVersion := connectPacket.Version
+	hasServerVersion := false
+	if connectPacket.Version > wkproto.LatestVersion {
+		lastVersion = wkproto.LatestVersion
+	}
+	if connectPacket.Version > 3 {
+		hasServerVersion = true
+	}
+
 	p.s.Debug("Auth Success", zap.Any("conn", conn))
-	p.response(conn, &wkproto.ConnackPacket{
-		Salt:       aesIV,
-		ServerKey:  dhServerPublicKeyEnc,
-		ReasonCode: wkproto.ReasonSuccess,
-		TimeDiff:   timeDiff,
-	})
+	connack := &wkproto.ConnackPacket{
+		Salt:          aesIV,
+		ServerKey:     dhServerPublicKeyEnc,
+		ReasonCode:    wkproto.ReasonSuccess,
+		TimeDiff:      timeDiff,
+		ServerVersion: lastVersion,
+	}
+	connack.HasServerVersion = hasServerVersion
+	p.response(conn, connack)
 
 	// -------------------- user online --------------------
 	// 在线webhook
