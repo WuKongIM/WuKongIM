@@ -60,15 +60,10 @@ func (a *Acceptor) start() error {
 	for _, reactorSub := range a.reactorSubs {
 		reactorSub.Start()
 	}
-	var wg = &sync.WaitGroup{}
-	wg.Add(1)
-	if strings.TrimSpace(a.eg.options.WsAddr) != "" {
-		wg.Add(1)
-	}
-	if strings.TrimSpace(a.eg.options.WssAddr) != "" {
-		wg.Add(1)
-	}
 
+	var wg = &sync.WaitGroup{}
+
+	wg.Add(1)
 	go func() {
 		err := a.initTCPListener(wg)
 		if err != nil {
@@ -77,6 +72,7 @@ func (a *Acceptor) start() error {
 	}()
 
 	if strings.TrimSpace(a.eg.options.WsAddr) != "" {
+		wg.Add(1)
 		go func() {
 			err := a.initWSListener(wg)
 			if err != nil {
@@ -85,6 +81,7 @@ func (a *Acceptor) start() error {
 		}()
 	}
 	if strings.TrimSpace(a.eg.options.WssAddr) != "" {
+		wg.Add(1)
 		go func() {
 			err := a.initWSSListener(wg)
 			if err != nil {

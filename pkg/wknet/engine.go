@@ -25,10 +25,9 @@ func NewEngine(opts ...Option) *Engine {
 		eg      *Engine
 		options = NewOptions()
 	)
-	if len(opts) > 0 {
-		for _, opt := range opts {
-			opt(options)
-		}
+
+	for _, opt := range opts {
+		opt(options)
 	}
 
 	eg = &Engine{
