@@ -1,0 +1,12 @@
+
+
+syntax = "proto3";
+
+package pb;
+
+option go_package = "./;pb";
+
+message RaftMessageReq {
+    uint32 slot = 1;
+    bytes message = 2;
+}
