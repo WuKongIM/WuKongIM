@@ -286,19 +286,45 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
-	if err != nil {
-		ch.Error("添加黑名单失败！", zap.Error(err))
-		c.ResponseError(err)
+	if len(req.UIDs) == 0 {
+		c.ResponseError(errors.New("uids不能为空！"))
 		return
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range req.UIDs {
+			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
+			if ch.s.opts.IsFakeChannel(req.ChannelID) {
+				fakeChannelID = req.ChannelID
+			}
+			err := ch.s.store.AddDenylist(fakeChannelID, req.ChannelType, []string{uid})
+			if err != nil {
+				ch.Error("添加黑名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			// 增加到缓存中
+			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
+			if err != nil {
+				c.ResponseError(err)
+				return
+			}
+			channelObj.AddDenylist([]string{uid})
+		}
+	} else {
+		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+		if err != nil {
+			ch.Error("添加黑名单失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		// 增加到缓存中
+		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+		if err != nil {
+			c.ResponseError(err)
+			return
+		}
+		channelObj.AddDenylist(req.UIDs)
 	}
-	channelObj.AddDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -314,27 +340,57 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 		c.ResponseError(errors.New("频道ID不能为空！"))
 		return
 	}
-	err := ch.s.store.RemoveAllDenylist(req.ChannelID, req.ChannelType)
-	if err != nil {
-		ch.Error("移除所有黑明单失败！", zap.Error(err))
-		c.ResponseError(errors.New("移除所有黑明单失败！"))
-		return
-	}
-	if len(req.UIDs) > 0 {
-		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range req.UIDs {
+			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
+			if ch.s.opts.IsFakeChannel(req.ChannelID) {
+				fakeChannelID = req.ChannelID
+			}
+			err := ch.s.store.RemoveAllDenylist(fakeChannelID, req.ChannelType)
+			if err != nil {
+				ch.Error("移除所有黑明单失败！", zap.Error(err))
+				c.ResponseError(errors.New("移除所有黑明单失败！"))
+				return
+			}
+			if len(req.UIDs) > 0 {
+				err := ch.s.store.AddDenylist(fakeChannelID, req.ChannelType, []string{uid})
+				if err != nil {
+					ch.Error("添加黑名单失败！", zap.Error(err))
+					c.ResponseError(err)
+					return
+				}
+			}
+			// 增加到缓存中
+			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
+			if err != nil {
+				c.ResponseError(err)
+				return
+			}
+			channelObj.SetDenylist([]string{uid})
+		}
+	} else {
+		err := ch.s.store.RemoveAllDenylist(req.ChannelID, req.ChannelType)
 		if err != nil {
-			ch.Error("添加黑名单失败！", zap.Error(err))
+			ch.Error("移除所有黑明单失败！", zap.Error(err))
+			c.ResponseError(errors.New("移除所有黑明单失败！"))
+			return
+		}
+		if len(req.UIDs) > 0 {
+			err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+			if err != nil {
+				ch.Error("添加黑名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+		}
+		// 增加到缓存中
+		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+		if err != nil {
 			c.ResponseError(err)
 			return
 		}
+		channelObj.SetDenylist(req.UIDs)
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.SetDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -350,19 +406,42 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	err := ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, req.UIDs)
-	if err != nil {
-		ch.Error("移除黑名单失败！", zap.Error(err))
-		c.ResponseError(err)
-		return
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range req.UIDs {
+			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
+			if ch.s.opts.IsFakeChannel(req.ChannelID) {
+				fakeChannelID = req.ChannelID
+			}
+			err := ch.s.store.RemoveDenylist(fakeChannelID, req.ChannelType, []string{uid})
+			if err != nil {
+				ch.Error("移除黑名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			// 缓存中移除
+			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
+			if err != nil {
+				c.ResponseError(err)
+				return
+			}
+			channelObj.RemoveDenylist([]string{uid})
+		}
+	} else {
+		err := ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+		if err != nil {
+			ch.Error("移除黑名单失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		// 缓存中移除
+		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+		if err != nil {
+			c.ResponseError(err)
+			return
+		}
+		channelObj.RemoveDenylist(req.UIDs)
 	}
-	// 缓存中移除
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.RemoveDenylist(req.UIDs)
+
 	c.ResponseOK()
 }
 

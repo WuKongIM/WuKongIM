@@ -44,6 +44,10 @@ github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108 h1:iPugyBI7
 github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108/go.mod h1:WAMLHwunr1hi3u7OjGV6/VWG9QbdMhGpEKjROiSFd10=
 github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20230920070552-362f2141ef98 h1:P+QkR5rOHaxK/sIZVYgiVHU/JtQ1JCQlRk3TlJ6fOxA=
 github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20230920070552-362f2141ef98/go.mod h1:EMPYhZR5K4cFvMCGhWzKlgfVieec1pnioUFgP0ga+ag=
+github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20231008090022-9cee8d81947a h1:KqkfQeptJe4rxYChuMo6X2Kx0/8h3Kq4UC2stNLE93U=
+github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20231008090022-9cee8d81947a/go.mod h1:EMPYhZR5K4cFvMCGhWzKlgfVieec1pnioUFgP0ga+ag=
+github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20231009045011-552aa036a108 h1:u8QpE3WFZaZL7ftEMC89HGXHO0JC8c0JcflK9kp0xsI=
+github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20231009045011-552aa036a108/go.mod h1:EMPYhZR5K4cFvMCGhWzKlgfVieec1pnioUFgP0ga+ag=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
