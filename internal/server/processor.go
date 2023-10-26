@@ -157,8 +157,8 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
 	// -------------------- same master kicks each other --------------------
-	oldConns := p.s.connManager.GetConnsWith(uid, connectPacket.DeviceFlag)
-	if len(oldConns) > 0 && devceLevel == wkproto.DeviceLevelMaster {
+	if devceLevel == wkproto.DeviceLevelMaster {
+		oldConns := p.s.connManager.GetConnsWith(uid, connectPacket.DeviceFlag)
 		for _, oldConn := range oldConns {
 			p.s.connManager.RemoveConnWithID(oldConn.ID())
 			if oldConn.DeviceID() != connectPacket.DeviceID {
