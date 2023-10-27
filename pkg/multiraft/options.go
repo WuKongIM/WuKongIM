@@ -1,6 +1,7 @@
 package multiraft
 
 import (
+	"context"
 	"time"
 
 	"go.etcd.io/raft/v3"
@@ -23,15 +24,18 @@ func NewOptions() *Options {
 }
 
 type RaftOptions struct {
-	Peers []Peer
+	Restart   bool // 是否是重启
+	logPrefix string
+	Peers     []Peer
 	*raft.Config
 	// Transporter  Transporter
 	RaftStorage  RaftStorage
 	DataDir      string
 	LeaderChange func(newLeaderID, oldLeaderID uint64)
-	Heartbeat    time.Duration                     // raft heartbeat interval
-	OnApply      func(enties []raftpb.Entry) error // apply enties to state machine
-	OnSend       func(msgs raftpb.Message) error   // send msgs to peers
+	RoleChange   func(role raft.StateType)
+	Heartbeat    time.Duration                                        // raft heartbeat interval
+	OnApply      func(enties []raftpb.Entry) error                    // apply enties to state machine
+	OnSend       func(ctx context.Context, msgs raftpb.Message) error // send msgs to peers
 }
 
 func NewRaftOptions() *RaftOptions {
@@ -40,10 +44,10 @@ func NewRaftOptions() *RaftOptions {
 		Heartbeat: 100 * time.Millisecond,
 		Config: &raft.Config{
 			AsyncStorageWrites:       true,
-			ElectionTick:             4,
-			HeartbeatTick:            2,
+			ElectionTick:             10,
+			HeartbeatTick:            1,
 			PreVote:                  true,
-			CheckQuorum:              true,
+			CheckQuorum:              false,
 			MaxInflightMsgs:          4096 / 8,
 			MaxSizePerMsg:            1 * 1024 * 1024,
 			MaxCommittedSizePerReady: 2048,
