@@ -27,9 +27,14 @@ type Server struct {
 	connManager *ConnManager
 }
 
-func New(addr string) *Server {
+func New(addr string, ops ...Option) *Server {
 	opts := NewOptions()
 	opts.Addr = addr
+	if len(ops) > 0 {
+		for _, op := range ops {
+			op(opts)
+		}
+	}
 
 	s := &Server{
 		proto:       proto.New(),
@@ -78,6 +83,10 @@ func (s *Server) Route(p string, h Handler) {
 	s.routeMapLock.Lock()
 	defer s.routeMapLock.Unlock()
 	s.routeMap[p] = h
+}
+
+func (s *Server) OnMessage(h func(conn wknet.Conn, msg *proto.Message)) {
+	s.opts.OnMessage = h
 }
 
 func (s *Server) Addr() net.Addr {

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/multiraft/wal"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	bolt "go.etcd.io/bbolt"
 	"go.etcd.io/raft/v3"
 	pb "go.etcd.io/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -111,22 +113,14 @@ type WALStorage struct {
 	walLog *wal.Log
 	wklog.Log
 
-	hardStateKey      []byte
-	confStateKey      []byte
-	committedIndexKey []byte
-	appliedKey        []byte
-	walPath           string
-	metaPath          string
+	walPath  string
+	metaPath string
 }
 
 func NewWALStorage(walPath string) *WALStorage {
 	w := &WALStorage{
-		Log:               wklog.NewWKLog("WALStorage"),
-		hardStateKey:      []byte("hardState"),
-		committedIndexKey: []byte("committedIndex"),
-		confStateKey:      []byte("confState"),
-		appliedKey:        []byte("appliedKey"),
-		walPath:           walPath,
+		Log:     wklog.NewWKLog("WALStorage"),
+		walPath: walPath,
 	}
 
 	return w
@@ -157,8 +151,8 @@ func (w *WALStorage) Close() error {
 }
 
 func (w *WALStorage) Entries(lo, hi, maxSize uint64) ([]pb.Entry, error) {
-	fmt.Println("Entries------->", lo, hi, maxSize)
-
+	w.Lock()
+	defer w.Unlock()
 	entries := make([]pb.Entry, 0, hi)
 	for i := lo; i <= hi-1; i++ {
 		ent, err := w.readEntry(i)
@@ -174,7 +168,8 @@ func (w *WALStorage) Entries(lo, hi, maxSize uint64) ([]pb.Entry, error) {
 }
 
 func (w *WALStorage) Append(entries []pb.Entry) error {
-	fmt.Println("Append------->", entries)
+	w.Lock()
+	defer w.Unlock()
 	if len(entries) == 0 {
 		return nil
 	}
@@ -213,7 +208,8 @@ func (w *WALStorage) Append(entries []pb.Entry) error {
 }
 
 func (w *WALStorage) Term(i uint64) (uint64, error) {
-
+	w.Lock()
+	defer w.Unlock()
 	entry, err := w.readEntry(i)
 	if err != nil {
 		if errors.Is(err, wal.ErrNotFound) {
@@ -332,4 +328,174 @@ func (m *MemoryRaftStorage) GetConfState() pb.ConfState {
 func (m *MemoryRaftStorage) Append(entries []pb.Entry) error {
 	fmt.Println("Append...........", entries[len(entries)-1].Index)
 	return m.memoryStorage.Append(entries)
+}
+
+type WalBoltRaftStorage struct {
+	walstore          *WALStorage
+	boltdbPath        string
+	walPath           string
+	db                *bolt.DB
+	hardStateKey      []byte
+	confStateKey      []byte
+	committedIndexKey []byte
+	appliedKey        []byte
+	wklog.Log
+}
+
+func NewWalBoltRaftStorage(walPath, boltdbPath string) *WalBoltRaftStorage {
+	return &WalBoltRaftStorage{
+		walstore:          NewWALStorage(walPath),
+		hardStateKey:      []byte("hardState"),
+		committedIndexKey: []byte("committedIndex"),
+		confStateKey:      []byte("confState"),
+		appliedKey:        []byte("appliedKey"),
+		walPath:           walPath,
+		boltdbPath:        boltdbPath,
+		Log:               wklog.NewWKLog("WalBoltRaftStorage"),
+	}
+}
+
+func (w *WalBoltRaftStorage) Open() error {
+	err := w.walstore.Open()
+	if err != nil {
+		return err
+	}
+
+	w.db, err = bolt.Open(w.boltdbPath, 0755, &bolt.Options{Timeout: 10 * time.Second})
+	if err != nil {
+		return err
+	}
+
+	err = w.db.Batch(func(t *bolt.Tx) error {
+		_, err := t.CreateBucketIfNotExists(w.hardStateKey)
+		if err != nil {
+			return err
+		}
+		_, err = t.CreateBucketIfNotExists(w.committedIndexKey)
+		if err != nil {
+			return err
+		}
+		_, err = t.CreateBucketIfNotExists(w.confStateKey)
+		if err != nil {
+			return err
+		}
+		_, err = t.CreateBucketIfNotExists(w.appliedKey)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *WalBoltRaftStorage) Close() error {
+	err := w.walstore.Close()
+	if err != nil {
+		w.Warn("close wal log error", zap.Error(err))
+	}
+	err = w.db.Close()
+	if err != nil {
+		w.Warn("close meta db error", zap.Error(err))
+	}
+	return nil
+}
+
+func (w *WalBoltRaftStorage) InitialState() (hardState pb.HardState, confState pb.ConfState, err error) {
+	err = w.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(w.hardStateKey)
+		data := bucket.Get(w.hardStateKey)
+		if len(data) == 0 {
+			return nil
+		}
+		return hardState.Unmarshal(data)
+	})
+	if err != nil {
+		return
+	}
+	err = w.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(w.confStateKey)
+		data := bucket.Get(w.confStateKey)
+		if len(data) == 0 {
+			return nil
+		}
+		return confState.Unmarshal(data)
+	})
+	return
+}
+
+func (w *WalBoltRaftStorage) Entries(lo, hi, maxSize uint64) ([]pb.Entry, error) {
+	fmt.Println("Entries--->", w.walPath, w.boltdbPath)
+	return w.walstore.Entries(lo, hi, maxSize)
+}
+
+func (w *WalBoltRaftStorage) Term(i uint64) (uint64, error) {
+	return w.walstore.Term(i)
+}
+
+func (w *WalBoltRaftStorage) LastIndex() (uint64, error) {
+	fmt.Println("LastIndex--->", w.walPath, w.boltdbPath)
+	return w.walstore.LastIndex()
+}
+
+func (w *WalBoltRaftStorage) FirstIndex() (uint64, error) {
+	fmt.Println("FirstIndex--->", w.walPath, w.boltdbPath)
+	return w.walstore.FirstIndex()
+}
+
+func (w *WalBoltRaftStorage) Snapshot() (pb.Snapshot, error) {
+	panic("Snapshot---->")
+	return w.walstore.Snapshot()
+}
+
+func (w *WalBoltRaftStorage) ApplySnapshot(snap pb.Snapshot) error {
+	fmt.Println("ApplySnapshot--->", w.walPath, w.boltdbPath)
+	panic("ApplySnapshot---->")
+	return w.walstore.ApplySnapshot(snap)
+}
+
+func (w *WalBoltRaftStorage) SetHardState(st pb.HardState) error {
+	return w.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(w.hardStateKey)
+		data, err := st.Marshal()
+		if err != nil {
+			return err
+		}
+		return bucket.Put(w.hardStateKey, data)
+	})
+
+}
+
+func (w *WalBoltRaftStorage) SetConfState(confState pb.ConfState) error {
+	err := w.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(w.confStateKey)
+		data, err := confState.Marshal()
+		if err != nil {
+			return err
+		}
+		return bucket.Put(w.confStateKey, data)
+	})
+	return err
+}
+func (w *WalBoltRaftStorage) GetConfState() pb.ConfState {
+	var confState pb.ConfState
+	err := w.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(w.confStateKey)
+		data := bucket.Get(w.confStateKey)
+		if len(data) == 0 {
+			return nil
+		}
+		return confState.Unmarshal(data)
+	})
+	if err != nil {
+		return pb.ConfState{}
+	}
+	return confState
+}
+
+func (w *WalBoltRaftStorage) Append(entries []pb.Entry) error {
+	fmt.Println("Append--->", w.walPath, w.boltdbPath, len(entries))
+	return w.walstore.Append(entries)
 }

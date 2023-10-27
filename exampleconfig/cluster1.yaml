@@ -1,0 +1,16 @@
+mode: "debug" 
+addr: "tcp://0.0.0.0:5110" # tcp监听地址
+httpAddr: "0.0.0.0:5001"
+wsAddr: "ws://0.0.0.0:5210" 
+dataDir: "./wukongimdata/1"
+monitor:
+  on: false
+demo:
+  on: false  
+cluster:
+  nodeID: 1
+  addr: "tcp://127.0.0.1:11000"
+  slotCount: 5
+  peers: 
+    - "1@127.0.0.1:11000"
+    - "2@127.0.0.1:12000"

@@ -133,9 +133,12 @@ type Options struct {
 
 	Cluster struct {
 		NodeID     uint64        // 节点ID
-		Addr       string        // 节点地址 例如：tcp://0.0.0.0:11110
+		Addr       string        // 节点监听地址 例如：tcp://0.0.0.0:11110
+		ServerAddr string        // 节点服务地址 例如 127.0.0.1:11110
 		ReqTimeout time.Duration // 请求超时时间
 		Join       []string      // 加入集群的地址
+		SlotCount  int           // 槽数量
+		Peers      []*Peer       // 集群节点地址
 	}
 
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
@@ -253,11 +256,16 @@ func NewOptions() *Options {
 		Cluster: struct {
 			NodeID     uint64
 			Addr       string
+			ServerAddr string
 			ReqTimeout time.Duration
 			Join       []string
+			SlotCount  int
+			Peers      []*Peer
 		}{
 			Addr:       "tcp://127.0.0.1:11110",
+			ServerAddr: "",
 			ReqTimeout: time.Second * 10,
+			SlotCount:  256,
 		},
 	}
 }
@@ -403,6 +411,27 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.NodeID = o.getUint64("cluster.nodeID", o.Cluster.NodeID)
 	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
 
+	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)
+	o.Cluster.Join = o.vp.GetStringSlice("cluster.join")
+	o.Cluster.SlotCount = o.getInt("cluster.slotCount", o.Cluster.SlotCount)
+	peers := o.getStringSlice("cluster.peers") // 格式为： nodeID@addr 例如 1@localhost:11110
+	if len(peers) > 0 {
+		for _, peerStr := range peers {
+			if !strings.Contains(peerStr, "@") {
+				continue
+			}
+			peerStrs := strings.Split(peerStr, "@")
+			nodeID, err := strconv.ParseUint(peerStrs[0], 10, 64)
+			if err != nil {
+				continue
+			}
+			o.Cluster.Peers = append(o.Cluster.Peers, &Peer{
+				ID:         nodeID,
+				ServerAddr: peerStrs[1],
+			})
+		}
+	}
+
 }
 
 func (o *Options) ConfigureDataDir() {
@@ -456,6 +485,9 @@ func (o *Options) getString(key string, defaultValue string) string {
 		return defaultValue
 	}
 	return v
+}
+func (o *Options) getStringSlice(key string) []string {
+	return o.vp.GetStringSlice(key)
 }
 
 func (o *Options) getInt(key string, defaultValue int) int {
@@ -541,4 +573,9 @@ func getIntranetIP() string {
 		return intranetIPs[0]
 	}
 	return ""
+}
+
+type Peer struct {
+	ID         uint64
+	ServerAddr string
 }
