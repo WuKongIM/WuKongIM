@@ -114,6 +114,7 @@ func Info(msg string, fields ...zap.Field) {
 		Configure(NewOptions())
 	}
 	logger.Info(msg, fields...)
+
 }
 
 // Debug Debug

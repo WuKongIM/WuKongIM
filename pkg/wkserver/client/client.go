@@ -36,6 +36,8 @@ type Client struct {
 
 	routeMapLock sync.RWMutex
 	routeMap     map[string]Handler
+
+	outbound *Outbound
 }
 
 // New addr: xxx.xxx.xx.xx:xxx
@@ -67,6 +69,11 @@ func (c *Client) Connect() error {
 		return err
 	}
 	c.conn = conn
+	if c.outbound != nil {
+		c.outbound.Close()
+	}
+	c.outbound = NewOutbound(c.conn, NewOutboundOptions())
+	c.outbound.Start()
 	go c.loopRead()
 
 	err = c.handshake()
@@ -100,10 +107,11 @@ func (c *Client) handshake() error {
 	}
 
 	ch := c.w.Register(conn.Id)
-	_, err = c.conn.Write(msgData)
+	err = c.write(msgData)
 	if err != nil {
 		return err
 	}
+	c.Flush()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.RequestTimeout)
 	defer cancel()
 	select {
@@ -132,7 +140,10 @@ func (c *Client) disconnect() {
 	c.stopped = true
 	c.stopHeartbeat()
 	c.conn.Close()
-
+	if c.outbound != nil {
+		c.outbound.Close()
+		c.outbound = nil
+	}
 	<-c.doneChan
 	c.connectStatusChange(DISCONNECTED)
 }
@@ -211,7 +222,7 @@ func (c *Client) processPingTimer() {
 }
 
 func (c *Client) sendHeartbeat() {
-	_, err := c.conn.Write([]byte{proto.MsgTypeHeartbeat.Uint8()})
+	err := c.write([]byte{proto.MsgTypeHeartbeat.Uint8()})
 	if err != nil {
 		c.Warn("send heartbeat error", zap.Error(err))
 		return
@@ -292,7 +303,10 @@ func (c *Client) RequestWithMessage(p string, protMsg gproto.Message) (*proto.Re
 }
 
 func (c *Client) Request(p string, body []byte) (*proto.Response, error) {
+	return c.RequestWithContext(context.Background(), p, body)
+}
 
+func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) (*proto.Response, error) {
 	if c.conn == nil {
 		return nil, errors.New("conn is nil")
 	}
@@ -313,7 +327,7 @@ func (c *Client) Request(p string, body []byte) (*proto.Response, error) {
 		return nil, err
 	}
 	ch := c.w.Register(r.Id)
-	_, err = c.conn.Write(msgData)
+	err = c.write(msgData)
 	if err != nil {
 		return nil, err
 	}
@@ -327,8 +341,55 @@ func (c *Client) Request(p string, body []byte) (*proto.Response, error) {
 		return x.(*proto.Response), nil
 	case <-timeoutCtx.Done():
 		return nil, timeoutCtx.Err()
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
+
+func (c *Client) Send(m *proto.Message) error {
+	msgData, err := m.Marshal()
+	if err != nil {
+		return err
+	}
+	data, err := c.proto.Encode(msgData, uint8(proto.MsgTypeMessage))
+	if err != nil {
+		return err
+	}
+	err = c.write(data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SendNoFlush(m *proto.Message) error {
+	msgData, err := m.Marshal()
+	if err != nil {
+		return err
+	}
+	data, err := c.proto.Encode(msgData, uint8(proto.MsgTypeMessage))
+	if err != nil {
+		return err
+	}
+	if c.outbound != nil {
+		c.outbound.QueueOutbound(data)
+	}
+
+	return nil
+}
+
+func (c *Client) write(data []byte) error {
+	if c.outbound != nil {
+		err := c.outbound.Write(data)
+		return err
+	}
+	return nil
+}
+
+func (c *Client) Flush() {
+	c.outbound.Flush()
+}
+
 func (c *Client) Route(p string, h Handler) {
 	c.routeMapLock.Lock()
 	defer c.routeMapLock.Unlock()

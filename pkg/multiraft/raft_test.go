@@ -10,11 +10,10 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/multiraft"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func newTestRaftOptions(replicaID uint32, peerID uint64, peerAddr string) *multiraft.RaftOptions {
+func newTestRaftOptions(peerID uint64, peerAddr string) *multiraft.RaftOptions {
 	opts := multiraft.NewRaftOptions()
 	opts.Peers = []multiraft.Peer{
 		multiraft.NewPeer(peerID, ""),
@@ -36,7 +35,7 @@ func newTestRaftOptions(replicaID uint32, peerID uint64, peerAddr string) *multi
 func TestSingRaft(t *testing.T) {
 	applyChan := make(chan []raftpb.Entry, 1)
 
-	opts := newTestRaftOptions(1, 101, "tcp://0.0.0.0:0")
+	opts := newTestRaftOptions(101, "tcp://0.0.0.0:0")
 	opts.OnApply = func(entries []raftpb.Entry) error {
 		fmt.Println("entry.Data--->", string(entries[0].Data))
 		applyChan <- entries
@@ -49,7 +48,7 @@ func TestSingRaft(t *testing.T) {
 	assert.NoError(t, err)
 	defer s.Stop()
 
-	err = s.Bootstrap([]raft.Peer{{ID: 101}})
+	err = s.Bootstrap([]multiraft.Peer{{ID: 101}})
 	assert.NoError(t, err)
 
 	fmt.Println("----------->>>>>1")
@@ -64,6 +63,34 @@ func TestSingRaft(t *testing.T) {
 
 }
 
+func TestRaftBenchmark(t *testing.T) {
+	for i := 0; i < 256; i++ {
+		id := uint64(i + 1)
+		go startRaft(id, t)
+
+	}
+
+	time.Sleep(time.Second * 10)
+
+}
+
+func startRaft(id uint64, t *testing.T) {
+	opts := newTestRaftOptions(id, "tcp://0.0.0.0:0")
+	dataDir := path.Join(opts.DataDir, fmt.Sprintf("%d", id))
+	os.MkdirAll(path.Join(dataDir, "wal"), 0755)
+	storage := multiraft.NewWalBoltRaftStorage(path.Join(dataDir, "wal"), path.Join(dataDir, "raft.db"))
+	err := storage.Open()
+	if err != nil {
+		panic(err)
+	}
+	opts.Peers = []multiraft.Peer{{ID: id}, {ID: 2}}
+	opts.RaftStorage = storage
+	s := multiraft.NewRaft(opts)
+	err = s.Start()
+	assert.NoError(t, err)
+	defer s.Stop()
+}
+
 func TestMultiRaft(t *testing.T) {
 
 	ctx := context.Background()
@@ -74,7 +101,7 @@ func TestMultiRaft(t *testing.T) {
 	peer1Finished := make(chan struct{}, 1)
 	peer2Finished := make(chan struct{}, 1)
 	// node 1
-	opts1 := newTestRaftOptions(1, peer1.ID, peer1.Addr)
+	opts1 := newTestRaftOptions(peer1.ID, peer1.Addr)
 	opts1.OnApply = func(entries []raftpb.Entry) error {
 		for _, entry := range entries {
 			fmt.Println("peer1------entry.Data--->", entry.Type.String(), string(entry.Data))
@@ -111,7 +138,7 @@ func TestMultiRaft(t *testing.T) {
 
 	// node2
 	peer2Startup := make(chan struct{}, 1)
-	opts2 := newTestRaftOptions(1, peer2.ID, peer2.Addr)
+	opts2 := newTestRaftOptions(peer2.ID, peer2.Addr)
 	opts2.OnApply = func(entries []raftpb.Entry) error {
 		for _, entry := range entries {
 			fmt.Println("peer2------entry.Data--->", entry.Type.String(), string(entry.Data))
@@ -131,13 +158,13 @@ func TestMultiRaft(t *testing.T) {
 
 	}
 	s2 := multiraft.NewRaft(opts2)
-	s2.GetOptions().OnSend = func(msg raftpb.Message) error {
+	s2.GetOptions().OnSend = func(ctx context.Context, msg raftpb.Message) error {
 		if msg.To == peer1.ID {
 			go s1.OnRaftMessage(msg)
 		}
 		return nil
 	}
-	s1.GetOptions().OnSend = func(msg raftpb.Message) error {
+	s1.GetOptions().OnSend = func(ctx context.Context, msg raftpb.Message) error {
 		if msg.To == peer2.ID {
 			go s2.OnRaftMessage(msg)
 		}
@@ -148,7 +175,7 @@ func TestMultiRaft(t *testing.T) {
 	defer s2.Stop()
 	defer os.RemoveAll(opts2.DataDir)
 
-	err = s2.Bootstrap([]raft.Peer{{ID: peer2.ID}})
+	err = s2.Bootstrap([]multiraft.Peer{{ID: peer2.ID}})
 	assert.NoError(t, err)
 
 	// time.Sleep(time.Millisecond * 100)

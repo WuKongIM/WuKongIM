@@ -1,6 +1,9 @@
 package multiraft
 
-import pb "go.etcd.io/raft/v3/raftpb"
+import (
+	pb "go.etcd.io/raft/v3/raftpb"
+	"go.uber.org/zap"
+)
 
 func (r *Replica) InitialState() (hardState pb.HardState, confState pb.ConfState, err error) {
 	replicaRaftStorage := r.opts.ReplicaRaftStorage
@@ -16,18 +19,23 @@ func (r *Replica) InitialState() (hardState pb.HardState, confState pb.ConfState
 }
 
 func (r *Replica) Entries(lo, hi, maxSize uint64) ([]pb.Entry, error) {
+
+	r.Info("Entries---->", zap.Uint64("lo", lo), zap.Uint64("hi", hi))
 	return r.walStore.Entries(lo, hi, maxSize)
 }
 
 func (r *Replica) Term(i uint64) (uint64, error) {
+
 	return r.walStore.Term(i)
 }
 
 func (r *Replica) LastIndex() (uint64, error) {
+
 	return r.walStore.LastIndex()
 }
 
 func (r *Replica) FirstIndex() (uint64, error) {
+
 	return r.walStore.FirstIndex()
 }
 
@@ -36,6 +44,7 @@ func (r *Replica) Snapshot() (pb.Snapshot, error) {
 }
 
 func (r *Replica) Append(entries []pb.Entry) error {
+
 	return r.walStore.Append(entries)
 }
 

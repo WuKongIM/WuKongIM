@@ -31,3 +31,13 @@ func (r *ReplicaManager) GetReplica(replicaID uint32) *Replica {
 	defer r.replicaLock.RUnlock()
 	return r.replicas[replicaID]
 }
+
+func (r *ReplicaManager) GetReplicas() []*Replica {
+	r.replicaLock.RLock()
+	defer r.replicaLock.RUnlock()
+	replicas := make([]*Replica, 0, len(r.replicas))
+	for _, replica := range r.replicas {
+		replicas = append(replicas, replica)
+	}
+	return replicas
+}

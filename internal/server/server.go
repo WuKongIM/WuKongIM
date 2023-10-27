@@ -1,9 +1,9 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -15,6 +15,8 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
+	"github.com/WuKongIM/WuKongIM/internal/server/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -65,6 +67,8 @@ type Server struct {
 	reqIDGen        *idutil.Generator
 
 	fsm *FSM
+
+	clusterServer *cluster.Cluster
 }
 
 func New(opts *Options) *Server {
@@ -115,18 +119,23 @@ func New(opts *Options) *Server {
 	monitor.SetMonitorOn(s.opts.Monitor.On) // 监控开关
 
 	if s.opts.ClusterOn() {
-		s.fsm = NewFSM(s.store.fileStorage)
-		nodeDir := fmt.Sprintf("node-%d", s.opts.Cluster.NodeID)
-		raftCfg := wraft.NewRaftNodeConfig()
-		raftCfg.ID = s.opts.Cluster.NodeID
-		raftCfg.Addr = s.opts.Cluster.Addr
-		raftCfg.Peers = []*wraft.Peer{wraft.NewPeer(s.opts.Cluster.NodeID, s.opts.Cluster.Addr)}
-		raftCfg.LogWALPath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "wal")
-		raftCfg.MetaDBPath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "meta.db")
-		raftCfg.ClusterStorePath = filepath.Join(s.opts.DataDir, "cluster", nodeDir, "cluster.json")
-		raftCfg.Join = s.opts.Cluster.Join
+		clusterOpts := cluster.NewOptions()
+		clusterOpts.NodeID = s.opts.Cluster.NodeID
+		clusterOpts.Addr = s.opts.Cluster.Addr
+		clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.NodeID))
+		clusterOpts.SlotCount = s.opts.Cluster.SlotCount
+		if len(s.opts.Cluster.Peers) > 0 {
+			peers := make([]multiraft.Peer, 0)
+			for _, peer := range s.opts.Cluster.Peers {
+				peers = append(peers, multiraft.Peer{
+					ID:   peer.ID,
+					Addr: peer.ServerAddr,
+				})
+			}
+			clusterOpts.Peers = peers
+		}
 
-		s.raftNode = wraft.NewRaftNode(s.fsm, raftCfg)
+		s.clusterServer = cluster.New(clusterOpts)
 	}
 
 	return s
@@ -206,14 +215,9 @@ func (s *Server) Start() error {
 	}
 
 	if s.opts.ClusterOn() {
-		s.raftNode.OnLead = func(lead uint64) {
-			s.Info("lead change", zap.Uint64("lead", lead))
-			s.raftNode.ClusterConfigManager.GetPeer(1)
-
-		}
-		err = s.raftNode.Start()
+		err = s.clusterServer.Start()
 		if err != nil {
-			s.Panic("raft node start error", zap.Error(err))
+			return err
 		}
 	}
 
@@ -230,7 +234,7 @@ func (s *Server) Stop() error {
 
 	s.timingWheel.Stop()
 	if s.opts.ClusterOn() {
-		s.raftNode.Stop()
+		s.clusterServer.Stop()
 	}
 
 	s.retryQueue.Stop()
@@ -313,5 +317,6 @@ func (s *Server) doCommand(req *transporter.CMDReq) (*transporter.CMDResp, error
 	if req.Id == 0 {
 		req.Id = s.reqIDGen.Next()
 	}
-	return s.raftNode.Propose(context.Background(), req)
+	return nil, nil
+	// return s.raftNode.Propose(context.Background(), req)
 }

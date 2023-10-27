@@ -8,8 +8,9 @@ import (
 )
 
 type Server struct {
-	options        *Options
-	replicaManager *ReplicaManager
+	options            *Options
+	replicaManager     *ReplicaManager
+	defaultTransporter *DefaultTransporter
 }
 
 func New(opts *Options) *Server {
@@ -17,22 +18,27 @@ func New(opts *Options) *Server {
 	if err != nil {
 		panic(err)
 	}
+	var defaultTransporter *DefaultTransporter
 	if opts.Transporter == nil {
-		opts.Transporter = NewDefaultTransporter(opts.PeerID, opts.Addr)
+		defaultTransporter = NewDefaultTransporter(opts.PeerID, opts.Addr)
+		opts.Transporter = defaultTransporter
+	}
+	if opts.ReplicaRaftStorage == nil {
+		opts.ReplicaRaftStorage = NewReplicaBoltRaftStorage(path.Join(opts.RootDir, "raft.db"))
 	}
 	return &Server{
-		options:        opts,
-		replicaManager: NewReplicaManager(),
+		options:            opts,
+		defaultTransporter: defaultTransporter,
+		replicaManager:     NewReplicaManager(),
 	}
 }
 
 func (s *Server) Start() error {
 
 	s.options.Transporter.OnRaftMessage(func(m *RaftMessageReq) {
-		fmt.Println("RaftMessageReq---->", m.ReplicaID)
 		replica := s.replicaManager.GetReplica(m.ReplicaID)
 		if replica != nil {
-			go replica.OnRaftMessage(m)
+			replica.OnRaftMessage(m)
 		}
 	})
 
@@ -48,13 +54,26 @@ func (s *Server) Start() error {
 			}
 		}
 	}
-	err = s.options.Transporter.Start()
+	if s.defaultTransporter != nil {
+		err = s.defaultTransporter.Start()
+		if err != nil {
+			return err
+		}
+	}
 	return err
 }
 
 func (s *Server) Stop() {
+	replicas := s.replicaManager.GetReplicas()
+	for _, replica := range replicas {
+		replica.Stop()
+	}
+	if s.defaultTransporter != nil {
+		s.defaultTransporter.Stop()
+
+	}
 	s.options.ReplicaRaftStorage.Close()
-	s.options.Transporter.Stop()
+
 }
 
 func (s *Server) StartReplica(replicaID uint32, opts *ReplicaOptions) (*Replica, error) {
@@ -106,4 +125,8 @@ func (s *Server) Propose(ctx context.Context, replicaID uint32, data []byte) err
 
 func (s *Server) GetReplica(replicaID uint32) *Replica {
 	return s.replicaManager.GetReplica(replicaID)
+}
+
+func (s *Server) ExistReplica(replicaID uint32) bool {
+	return s.replicaManager.GetReplica(replicaID) != nil
 }
