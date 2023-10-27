@@ -64,6 +64,14 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			return
 		}
 		s.handleResp(conn, resp)
+	} else if msgType == proto.MsgTypeMessage {
+		msg := &proto.Message{}
+		err := msg.Unmarshal(data)
+		if err != nil {
+			s.Error("unmarshal message error", zap.Error(err))
+			return
+		}
+		s.handleMessage(conn, msg)
 	} else {
 		s.Error("unknown msg type", zap.Uint8("msgType", msgType.Uint8()))
 	}
@@ -89,11 +97,9 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 		s.Debug("route not found", zap.String("path", s.opts.ConnPath))
 		return
 	}
-	ctx := &Context{
-		conn:    conn,
-		proto:   s.proto,
-		connReq: req,
-	}
+	ctx := NewContext(conn)
+	ctx.connReq = req
+	ctx.proto = s.proto
 	h(ctx)
 }
 
@@ -101,6 +107,12 @@ func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
 
 	s.w.Trigger(resp.Id, resp)
 
+}
+
+func (s *Server) handleMessage(conn wknet.Conn, msg *proto.Message) {
+	if s.opts.OnMessage != nil {
+		s.opts.OnMessage(conn, msg)
+	}
 }
 
 func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
@@ -111,11 +123,9 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 		s.Debug("route not found", zap.String("path", req.Path))
 		return
 	}
-	ctx := &Context{
-		conn:  conn,
-		req:   req,
-		proto: s.proto,
-	}
+	ctx := NewContext(conn)
+	ctx.req = req
+	ctx.proto = s.proto
 	h(ctx)
 }
 
@@ -195,9 +205,9 @@ func (s *Server) onClose(conn wknet.Conn) {
 		s.Debug("route not found", zap.String("path", s.opts.ClosePath))
 		return
 	}
-	ctx := &Context{
-		conn:  conn,
-		proto: s.proto,
-	}
+
+	ctx := NewContext(conn)
+	ctx.proto = s.proto
+
 	h(ctx)
 }

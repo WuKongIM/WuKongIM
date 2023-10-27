@@ -33,3 +33,11 @@ func (r *Response) Marshal() ([]byte, error) {
 func (r *Response) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, r)
 }
+
+func (m *Message) Marshal() ([]byte, error) {
+	return proto.Marshal(m)
+}
+
+func (m *Message) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, m)
+}

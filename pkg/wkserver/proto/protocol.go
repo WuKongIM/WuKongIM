@@ -10,6 +10,12 @@ const (
 	MsgTypeRequest           // request
 	MsgTypeResp              // response
 	MsgTypeHeartbeat         // heartbeat
+	MsgTypeMessage           // message
+)
+
+const (
+	MsgTypeLength    = 1
+	MsgContentLength = 4
 )
 
 func (m MsgType) Uint8() uint8 {
@@ -30,7 +36,7 @@ func New() *DefaultProto {
 }
 
 func (d *DefaultProto) Decode(data []byte) ([]byte, MsgType, int, error) {
-	if len(data) <= 4 {
+	if len(data) <= MsgContentLength {
 		return nil, 0, 0, nil
 	}
 	decoder := wkproto.NewDecoder(data)
@@ -39,20 +45,20 @@ func (d *DefaultProto) Decode(data []byte) ([]byte, MsgType, int, error) {
 		return nil, 0, 0, err
 	}
 	if msgType == MsgTypeHeartbeat.Uint8() {
-		return nil, MsgTypeHeartbeat, 1, nil
+		return nil, MsgTypeHeartbeat, MsgTypeLength, nil
 	}
 	contentLen, err := decoder.Uint32()
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	if contentLen > uint32(len(data)-1-4) {
+	if contentLen > uint32(len(data)-MsgTypeLength-MsgContentLength) {
 		return nil, 0, 0, nil
 	}
 	contentBytes, err := decoder.Bytes(int(contentLen))
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return contentBytes, MsgType(msgType), len(contentBytes) + 1 + 4, nil
+	return contentBytes, MsgType(msgType), len(contentBytes) + MsgTypeLength + MsgContentLength, nil
 }
 
 func (d *DefaultProto) Encode(data []byte, msgType uint8) ([]byte, error) {

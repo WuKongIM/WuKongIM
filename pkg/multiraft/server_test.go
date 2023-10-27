@@ -313,3 +313,44 @@ func TestDoublePeerDoubleReplicaMultiRaft(t *testing.T) {
 	wg2.Wait()
 
 }
+
+func TestReplica(t *testing.T) {
+	var peer1 = multiraft.NewPeer(101, "tcp://127.0.0.1:11000")
+	var peer2 = multiraft.NewPeer(102, "tcp://127.0.0.1:12000")
+	opts1 := newTestOptions(peer1.ID, peer1.Addr, nil)
+	s1 := multiraft.New(opts1)
+	err := s1.Start()
+	assert.NoError(t, err)
+	defer s1.Stop()
+
+	// opts2 := newTestOptions(peer2.ID, peer2.Addr, nil)
+	// s2 := multiraft.New(opts2)
+	// err = s2.Start()
+	// assert.NoError(t, err)
+	// defer s2.Stop()
+
+	// replica 1
+
+	for i := 0; i < 256; i++ {
+		replicaID := uint32(i)
+		replicaOpts := multiraft.NewReplicaOptions()
+		replicaOpts.Peers = []multiraft.Peer{peer1, peer2}
+		replicaOpts.MaxReplicaCount = 3
+		_, err = s1.StartReplica(uint32(i), replicaOpts)
+		assert.NoError(t, err)
+		defer s1.StopReplica(replicaID)
+	}
+
+	// for i := 0; i < 100; i++ {
+	// 	replicaID := uint32(i)
+	// 	replicaOpts := multiraft.NewReplicaOptions()
+	// 	replicaOpts.Peers = []multiraft.Peer{peer1, peer2}
+	// 	replicaOpts.MaxReplicaCount = 3
+	// 	_, err = s2.StartReplica(uint32(i), replicaOpts)
+	// 	assert.NoError(t, err)
+	// 	defer s2.StopReplica(replicaID)
+	// }
+
+	time.Sleep(time.Second * 10)
+
+}

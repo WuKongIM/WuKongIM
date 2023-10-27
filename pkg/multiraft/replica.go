@@ -6,7 +6,6 @@ import (
 	"path"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -42,33 +41,18 @@ func (r *Replica) Start() error {
 	if err != nil {
 		return err
 	}
+	restart, err := r.isRestart()
+	if err != nil {
+		return err
+	}
+	r.raftNode.opts.Restart = restart
+
 	r.raftNode.opts.Applied = applied
 	err = r.raftNode.Start()
 	if err != nil {
 		return err
 	}
 
-	restart, err := r.isRestart()
-	if err != nil {
-		return err
-	}
-	fmt.Println("restart---->", restart)
-	if !restart && len(r.opts.Peers) > 0 {
-		var peers = make([]raft.Peer, 0, len(r.opts.Peers))
-		for _, peer := range r.opts.Peers {
-			peers = append(peers, raft.Peer{
-				ID: peer.ID,
-				Context: []byte(wkutil.ToJSON(map[string]interface{}{
-					"addr": peer.Addr,
-				})),
-			})
-		}
-		err = r.raftNode.Bootstrap(peers)
-		if err != nil {
-			return err
-		}
-
-	}
 	return nil
 }
 
@@ -104,9 +88,13 @@ func (r *Replica) Propose(ctx context.Context, data []byte) error {
 }
 
 func (r *Replica) getRaftOptions(opts *ReplicaOptions) *RaftOptions {
+	logPrefix := fmt.Sprintf("raft[%d-%d]", opts.PeerID, opts.ReplicaID)
 	raftOpts := NewRaftOptions()
 	raftOpts.ID = opts.PeerID
+	raftOpts.Logger = NewLogger(logPrefix)
 	raftOpts.RaftStorage = r
+	raftOpts.logPrefix = logPrefix
+	raftOpts.Peers = opts.Peers
 	raftOpts.LeaderChange = opts.LeaderChange
 	raftOpts.OnApply = func(entries []raftpb.Entry) error {
 		err := opts.ReplicaRaftStorage.SetApplied(opts.ReplicaID, entries[len(entries)-1].Index)
@@ -115,8 +103,8 @@ func (r *Replica) getRaftOptions(opts *ReplicaOptions) *RaftOptions {
 		}
 		return opts.StateMachine.Apply(opts.ReplicaID, entries)
 	}
-	raftOpts.OnSend = func(msg raftpb.Message) error {
-		err := opts.Transporter.Send(context.Background(), &RaftMessageReq{
+	raftOpts.OnSend = func(ctx context.Context, msg raftpb.Message) error {
+		err := opts.Transporter.Send(ctx, &RaftMessageReq{
 			ReplicaID: opts.ReplicaID,
 			Message:   msg,
 		})

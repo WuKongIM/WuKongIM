@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 	pb "go.etcd.io/raft/v3/raftpb"
@@ -34,20 +35,26 @@ type Raft struct {
 	confc      chan pb.ConfChangeV2
 	confstatec chan pb.ConfState
 	done       chan struct{}
+	cancelCtx  context.Context
+	cancelFunc context.CancelFunc
 }
 
 func NewRaft(opts *RaftOptions) *Raft {
-
+	logPrefix := fmt.Sprintf("raft[%d]", opts.ID)
+	if opts.logPrefix != "" {
+		logPrefix = opts.logPrefix
+	}
 	r := &Raft{
 		opts:       opts,
-		Log:        wklog.NewWKLog(fmt.Sprintf("raft[%d]", opts.ID)),
+		Log:        wklog.NewWKLog(logPrefix),
 		stopChan:   make(chan struct{}),
-		propc:      make(chan msgWithResult, 128),
-		recvc:      make(chan pb.Message, 128),
+		propc:      make(chan msgWithResult, 256),
+		recvc:      make(chan pb.Message, 256),
 		done:       make(chan struct{}),
 		confc:      make(chan pb.ConfChangeV2),
 		confstatec: make(chan pb.ConfState),
 	}
+	r.cancelCtx, r.cancelFunc = context.WithCancel(context.Background())
 	opts.Storage = opts.RaftStorage
 	r.storage = opts.RaftStorage
 	// storage := NewLogStorage(opts.ReplicaID, r.walStorage, r.opts.RaftStorage, opts.Peers)
@@ -78,6 +85,7 @@ func (r *Raft) Start() error {
 
 func (r *Raft) Stop() {
 	r.Info("raft stop")
+	r.cancelFunc()
 	r.ticker.Stop()
 	r.stopChan <- struct{}{}
 	close(r.done)
@@ -93,7 +101,6 @@ func (r *Raft) run() {
 		case <-r.ticker.C:
 			r.Tick()
 		case pm := <-r.propc:
-			fmt.Println("propc--->", pm.m.Type.String())
 			m := pm.m
 			m.From = r.opts.ID
 			err := r.node.Step(m)
@@ -102,7 +109,6 @@ func (r *Raft) run() {
 				close(pm.result)
 			}
 		case m := <-r.recvc:
-			fmt.Println("recvc--->", m.Type.String())
 			err = r.node.Step(m)
 			if err != nil {
 				r.Warn("failed to step raft message", zap.Error(err))
@@ -123,7 +129,7 @@ func (r *Raft) HandleReady() {
 
 	var (
 		rd               raft.Ready
-		ctx              = context.Background()
+		ctx              = r.cancelCtx
 		outboundMsgs     []raftpb.Message
 		msgStorageAppend raftpb.Message
 		msgStorageApply  raftpb.Message
@@ -136,8 +142,7 @@ func (r *Raft) HandleReady() {
 		if hasReady = r.node.HasReady(); hasReady {
 			rd = r.node.Ready()
 			// log print
-			fmt.Println("peer id--->", r.opts.ID)
-			logRaftReady(ctx, rd)
+			// logRaftReady(ctx, rd)
 			asyncRd := makeAsyncReady(rd)
 			softState = asyncRd.SoftState
 			outboundMsgs, msgStorageAppend, msgStorageApply = splitLocalStorageMsgs(asyncRd.Messages)
@@ -148,6 +153,9 @@ func (r *Raft) HandleReady() {
 			r.Info("raft leader changed", zap.Uint64("newLeader", softState.Lead), zap.Uint64("oldLeader", r.leaderID))
 			if r.opts.LeaderChange != nil {
 				r.opts.LeaderChange(softState.Lead, r.leaderID)
+			}
+			if r.opts.RoleChange != nil {
+				r.opts.RoleChange(softState.RaftState)
 			}
 			r.leaderID = softState.Lead
 		}
@@ -163,7 +171,6 @@ func (r *Raft) HandleReady() {
 
 		// ----------------- handle storage append -----------------
 		if hasMsg(msgStorageAppend) {
-			fmt.Println("has msg storage append")
 			if msgStorageAppend.Snapshot != nil {
 				r.Panic("unexpected MsgStorageAppend with snapshot")
 				return
@@ -200,25 +207,25 @@ func (r *Raft) apply(msgStorageApply raftpb.Message) error {
 	if len(msgStorageApply.Entries) == 0 {
 		return nil
 	}
-	for _, entry := range msgStorageApply.Entries {
-		switch entry.Type {
-		case raftpb.EntryConfChange:
-			var cc raftpb.ConfChange
-			err := cc.Unmarshal(entry.Data)
-			if err != nil {
-				return err
-			}
-			fmt.Println("apply conf change--->", cc.Type.String())
-			confState := r.node.ApplyConfChange(cc)
-			if confState != nil {
-				err = r.opts.RaftStorage.SetConfState(*confState)
-				if err != nil {
-					r.Warn("failed to set conf state", zap.Error(err))
-				}
-			}
+	// for _, entry := range msgStorageApply.Entries {
+	// 	switch entry.Type {
+	// 	case raftpb.EntryConfChange:
+	// 		var cc raftpb.ConfChange
+	// 		err := cc.Unmarshal(entry.Data)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		fmt.Println("apply conf change--->", cc.Type.String())
+	// 		confState := r.node.ApplyConfChange(cc)
+	// 		if confState != nil {
+	// 			err = r.opts.RaftStorage.SetConfState(*confState)
+	// 			if err != nil {
+	// 				r.Warn("failed to set conf state", zap.Error(err))
+	// 			}
+	// 		}
 
-		}
-	}
+	// 	}
+	// }
 
 	if r.opts.OnApply != nil {
 		return r.opts.OnApply(msgStorageApply.Entries)
@@ -227,7 +234,6 @@ func (r *Raft) apply(msgStorageApply raftpb.Message) error {
 }
 
 func (r *Raft) OnRaftMessage(m raftpb.Message) {
-	fmt.Println("onRaftMessage--->", m.Type.String())
 	// if len(m.Message.Entries) == 0 {
 	// 	return
 	// }
@@ -262,8 +268,19 @@ func (r *Raft) Campaign(ctx context.Context) error {
 }
 
 // Bootstrap is used to bootstrap a new cluster.
-func (r *Raft) Bootstrap(peers []raft.Peer) error {
-	return r.node.Bootstrap(peers)
+func (r *Raft) Bootstrap(peers []Peer) error {
+	raftPeers := make([]raft.Peer, 0, len(peers))
+	if len(peers) > 0 {
+		for _, peer := range peers {
+			raftPeers = append(raftPeers, raft.Peer{
+				ID: peer.ID,
+				Context: []byte(wkutil.ToJSON(map[string]interface{}{
+					"addr": peer.Addr,
+				})),
+			})
+		}
+	}
+	return r.node.Bootstrap(raftPeers)
 }
 
 func (r *Raft) ForgetLeader() error {
@@ -275,7 +292,6 @@ func (r *Raft) Step(ctx context.Context, m raftpb.Message) error {
 }
 
 func (r *Raft) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) error {
-	fmt.Println("stepWithWaitOption--->", r.opts.ID, m.Type.String())
 	if m.Type != pb.MsgProp {
 		select {
 		case r.recvc <- m:
@@ -391,34 +407,30 @@ func (r *Raft) initRaftNode() error {
 		return err
 	}
 
-	// raftPeers := make([]raft.Peer, 0, len(r.opts.Peers))
-	// if len(r.opts.Peers) > 0 {
-	// 	for _, peer := range r.opts.Peers {
-	// 		err = r.opts.Transporter.AddPeer(peer)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		raftPeers = append(raftPeers, raft.Peer{
-	// 			ID: peer.ID,
-	// 			Context: []byte(wkutil.ToJSON(map[string]interface{}{
-	// 				"addr": peer.Addr,
-	// 			})),
-	// 		})
-	// 	}
-	// }
-	// if len(raftPeers) > 0 {
-	// 	err = r.node.Bootstrap(raftPeers)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
+	raftPeers := make([]raft.Peer, 0, len(r.opts.Peers))
+	if len(r.opts.Peers) > 0 {
+		for _, peer := range r.opts.Peers {
+			raftPeers = append(raftPeers, raft.Peer{
+				ID: peer.ID,
+				Context: []byte(wkutil.ToJSON(map[string]interface{}{
+					"addr": peer.Addr,
+				})),
+			})
+		}
+	}
+	if len(raftPeers) > 0 && !r.opts.Restart {
+		err = r.node.Bootstrap(raftPeers)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (r *Raft) sendRaftMessages(ctx context.Context, messages []raftpb.Message) {
 	var lastAppResp raftpb.Message
 	for _, message := range messages {
-		r.Info("loop send raft message", zap.Uint64("to", message.To), zap.String("type", message.Type.String()))
+		// r.Info("loop send raft message", zap.Uint64("to", message.To), zap.String("type", message.Type.String()))
 		switch message.To {
 		case raft.LocalAppendThread:
 			// To local append thread.
@@ -446,7 +458,6 @@ func (r *Raft) sendRaftMessages(ctx context.Context, messages []raftpb.Message) 
 				}
 			}
 			if !drop {
-				fmt.Println("send---remote--->", message.Type.String())
 				r.sendRaftMessage(ctx, message)
 			}
 		}
@@ -477,7 +488,6 @@ func (r *Raft) deliverLocalRaftMsgsRaft() {
 
 	for i, m := range localMsgs {
 		// fmt.Println("step----->", m.Type.String())
-
 		if err := r.node.Step(m); err != nil {
 			r.Fatal("unexpected error stepping local raft message", zap.Error(err))
 		}
@@ -491,10 +501,10 @@ func (r *Raft) deliverLocalRaftMsgsRaft() {
 }
 
 func (r *Raft) sendRaftMessage(ctx context.Context, msg raftpb.Message) {
-	r.Info("send raft message", zap.String("type", msg.Type.String()), zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index), zap.Int("entities", len(msg.Entries)))
+	// r.Info("send raft message", zap.String("type", msg.Type.String()), zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index), zap.Int("entities", len(msg.Entries)))
 
 	if r.opts.OnSend != nil {
-		err := r.opts.OnSend(msg)
+		err := r.opts.OnSend(ctx, msg)
 		if err != nil {
 			r.Error("failed to send raft message", zap.Error(err))
 			return
