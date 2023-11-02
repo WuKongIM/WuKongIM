@@ -10,11 +10,11 @@ enum Role {
     Leader = 4;
 }
 
-enum NodeState {
-    NodeStateInitial = 0; // 初始化
-    NodeStateNormal = 1; // 正常
-    NodeStateElecting = 2; // 选举中
-    NodeStateDown = 3; // 下线
+enum PeerState {
+    PeerStateInitial = 0; // 初始化
+    PeerStateNormal = 1; // 正常
+    PeerStateElecting = 2; // 选举中
+    PeerStateDown = 3; // 下线
 }
 
 enum SlotState {
@@ -24,29 +24,49 @@ enum SlotState {
 }
 
 message Cluster {
-    repeated Node nodes = 1; // 节点
-    repeated Slot slots = 2; // 节点槽位
+    uint32 slotCount = 1; // 槽位数量
+    uint64 leader = 2; // 领导者节点ID
+    uint32 replicaCount = 3; // 副本数量
+    repeated Peer peers = 4; // 节点
+    repeated Slot slots = 5; // 节点槽位
+    
 }
 
-message Node {
-    uint64 nodeID = 1; // 节点ID
+message Peer {
+    uint64 peerID = 1; // 节点ID
     string serverAddr = 2; // 节点服务地址
     Role role = 3; // 节点角色
-    NodeState state = 5; // 节点状态
+    PeerState state = 4; // 节点状态
+    string grpcServerAddr = 5; // 节点grpc服务地址
 }
 
+message PeerSet {
+    repeated Peer peers = 1; // 节点
+}
 
 message Slot {
     uint32 slot = 1; // 槽位
     uint64 leader = 2; // 领导者节点ID
     SlotState state = 3; // 槽位状态
-    repeated uint64 nodes  = 5; // 节点ID
+    repeated uint64 peers  = 5; // 节点ID
+}
+
+// 槽位领导者
+message SlotLeaderRelation {
+    uint32 slot = 1; // 槽位
+    uint64 leader = 2; // 领导者节点ID
+    bool needUpdate = 3; // 是否需要更新
+
+}
+
+message SlotLeaderRelationSet {
+    repeated SlotLeaderRelation slotLeaderRelations = 1; // 槽位领导者列表
 }
 
 
 message AllocateSlot {
     uint32 slot = 1; // 槽位
-    repeated uint64 nodes  = 2; // slot分配的节点
+    repeated uint64 peers  = 2; // slot分配的节点
     uint64 leaderID = 3; //  slot的leader（如果为0则自动选举，如果不为0则指定此节点为领导节点）
 }
 

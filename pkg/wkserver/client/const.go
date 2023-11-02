@@ -3,7 +3,8 @@ package client
 type ConnectStatus uint32
 
 const (
-	DISCONNECTED = ConnectStatus(iota)
+	UNKNOWN ConnectStatus = iota
+	DISCONNECTED
 	CONNECTED
 	CLOSED
 	RECONNECTING
@@ -13,6 +14,8 @@ const (
 
 func (s ConnectStatus) String() string {
 	switch s {
+	case UNKNOWN:
+		return "UNKNOWN"
 	case DISCONNECTED:
 		return "DISCONNECTED"
 	case CONNECTED:

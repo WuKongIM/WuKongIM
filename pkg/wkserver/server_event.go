@@ -3,6 +3,7 @@ package wkserver
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -78,16 +79,21 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 }
 
 func (s *Server) handleHeartbeat(conn wknet.Conn) {
-
-	_, err := conn.Write([]byte{proto.MsgTypeHeartbeat.Uint8()})
+	fmt.Println("handleHeartbeat-------->", conn.UID())
+	_, err := conn.WriteToOutboundBuffer([]byte{proto.MsgTypeHeartbeat.Uint8()})
 	if err != nil {
 		s.Debug("write heartbeat error", zap.Error(err))
+	}
+	err = conn.WakeWrite()
+	if err != nil {
+		s.Debug("wakeWrite error", zap.Error(err))
 	}
 }
 
 func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 
 	conn.SetUID(req.Uid)
+	conn.SetMaxIdle(s.opts.MaxIdle)
 	s.connManager.AddConn(req.Uid, conn)
 
 	s.routeMapLock.RLock()

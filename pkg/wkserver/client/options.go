@@ -30,7 +30,7 @@ type Options struct {
 func NewOptions() *Options {
 
 	return &Options{
-		HeartbeatInterval: time.Second * 60,
+		HeartbeatInterval: time.Second * 5,
 		ConnectTimeout:    time.Second * 5,
 		Reconnect:         true,
 		RequestTimeout:    time.Second * 5,
