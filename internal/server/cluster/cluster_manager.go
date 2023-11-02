@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path"
 	"sort"
@@ -22,11 +23,12 @@ type ClusterManager struct {
 	wklog.Log
 	tickChan chan struct{}
 	stopChan chan struct{}
-	doneChan chan struct{}
 	sync.RWMutex
-	readyChan chan ClusterReady
-	opts      *ClusterManagerOptions
-	leaderID  atomic.Uint64
+	readyChan                 chan ClusterReady
+	opts                      *ClusterManagerOptions
+	leaderID                  atomic.Uint64
+	slotLeaderRelationSet     *pb.SlotLeaderRelationSet
+	slotLeaderRelationSetLock sync.RWMutex
 }
 
 func NewClusterManager(opts *ClusterManagerOptions) *ClusterManager {
@@ -38,8 +40,10 @@ func NewClusterManager(opts *ClusterManagerOptions) *ClusterManager {
 		tickChan:   make(chan struct{}),
 		stopChan:   make(chan struct{}),
 		readyChan:  make(chan ClusterReady),
-		doneChan:   make(chan struct{}),
 		opts:       opts,
+		slotLeaderRelationSet: &pb.SlotLeaderRelationSet{
+			SlotLeaderRelations: make([]*pb.SlotLeaderRelation, 0),
+		},
 	}
 
 	clusterConfig, err := c.load()
@@ -64,15 +68,9 @@ func (c *ClusterManager) Start() error {
 func (c *ClusterManager) Stop() {
 	fmt.Println("ClusterManager--stop...")
 	close(c.stopChan)
-	<-c.doneChan
-}
-
-func (c *ClusterManager) onStop() {
-	close(c.doneChan)
 }
 
 func (c *ClusterManager) loop() {
-	defer c.onStop()
 	for {
 		select {
 		case <-c.tickChan:
@@ -86,12 +84,11 @@ func (c *ClusterManager) loop() {
 
 func (c *ClusterManager) tick() {
 
-	c.Lock()
-	defer c.Unlock()
 	ready := c.checkClusterConfig()
 	if IsEmptyClusterReady(ready) {
 		return
 	}
+	fmt.Println("ready--->", ready)
 	c.readyChan <- ready
 }
 
@@ -108,10 +105,21 @@ func (c *ClusterManager) loopTick() {
 }
 
 func (c *ClusterManager) checkClusterConfig() ClusterReady {
-	if !c.isLeader() {
-		return EmptyClusterReady
+
+	clusterReady := c.checkPeers()
+	if !IsEmptyClusterReady(clusterReady) {
+		return clusterReady
 	}
-	clusterReady := c.checkSlots()
+
+	clusterReady = c.checkAllocSlots()
+	if !IsEmptyClusterReady(clusterReady) {
+		return clusterReady
+	}
+	clusterReady = c.checkSlotStates()
+	if !IsEmptyClusterReady(clusterReady) {
+		return clusterReady
+	}
+	clusterReady = c.checkSlotLeaders()
 	if !IsEmptyClusterReady(clusterReady) {
 		return clusterReady
 	}
@@ -119,14 +127,74 @@ func (c *ClusterManager) checkClusterConfig() ClusterReady {
 
 }
 
-func (c *ClusterManager) checkSlots() ClusterReady {
-	fmt.Println("checkSlots----->")
+func (c *ClusterManager) checkSlotLeaders() ClusterReady {
+	if c.leaderID.Load() == 0 {
+		return EmptyClusterReady
+	}
+	if len(c.slotLeaderRelationSet.SlotLeaderRelations) == 0 {
+		return EmptyClusterReady
+	}
+	var slotLeaderRelations []*pb.SlotLeaderRelation
+	for _, slotLeaderRelation := range c.slotLeaderRelationSet.SlotLeaderRelations {
+		if slotLeaderRelation.NeedUpdate && slotLeaderRelation.Leader == c.opts.PeerID && slotLeaderRelation.Leader != 0 {
+			slotLeaderRelations = append(slotLeaderRelations, slotLeaderRelation)
+		}
+	}
+	if len(slotLeaderRelations) > 0 {
+		return ClusterReady{
+			SlotLeaderRelationSet: &pb.SlotLeaderRelationSet{
+				SlotLeaderRelations: slotLeaderRelations,
+			},
+		}
+	}
+	return EmptyClusterReady
+}
+
+func (c *ClusterManager) checkPeers() ClusterReady {
+	c.Lock()
+	defer c.Unlock()
+	if len(c.cluster.Peers) == 0 {
+		return EmptyClusterReady
+	}
+
+	if c.leaderID.Load() != 0 && c.cluster.Leader != c.leaderID.Load() {
+		c.cluster.Leader = c.leaderID.Load()
+		if err := c.save(); err != nil {
+			c.Error("set leader id error", zap.Error(err))
+		}
+	}
+
+	for _, peer := range c.cluster.Peers {
+		if peer.PeerID == c.opts.PeerID {
+			if peer.GrpcServerAddr != c.opts.GRPCServerAddr {
+				peer.GrpcServerAddr = c.opts.GRPCServerAddr
+				return ClusterReady{
+					UpdatePeer: peer,
+				}
+			}
+		}
+	}
+
+	return EmptyClusterReady
+}
+
+// 检查是否需要分配slot
+func (c *ClusterManager) checkAllocSlots() ClusterReady {
+	c.Lock()
+	defer c.Unlock()
+
+	if !c.isLeader() {
+		return EmptyClusterReady
+	}
 	allocateSlots := make([]*pb.AllocateSlot, 0)
 	if len(c.cluster.Slots) == c.opts.SlotCount {
 		return EmptyClusterReady
 	}
-	fakeCluster := c.cluster.Clonse()
-	for i := 0; i < c.opts.SlotCount; i++ {
+	if len(c.cluster.Peers) == 0 {
+		return EmptyClusterReady
+	}
+	fakeCluster := c.cluster.Clone()
+	for i := 0; i < int(c.cluster.SlotCount); i++ {
 		slotID := uint32(i)
 		hasSlot := false
 		for _, slot := range c.cluster.Slots {
@@ -136,12 +204,12 @@ func (c *ClusterManager) checkSlots() ClusterReady {
 			}
 		}
 		if !hasSlot {
-			nodeIDs := c.getLeastSlotNodes(c.opts.ReplicaCount, fakeCluster)
+			peerIDs := c.getLeastSlotNodes(fakeCluster)
 			allocateSlots = append(allocateSlots, &pb.AllocateSlot{
 				Slot:  slotID,
-				Nodes: nodeIDs,
+				Peers: peerIDs,
 			})
-			c.fakeAllocSlot(slotID, nodeIDs, fakeCluster)
+			c.fakeAllocSlot(slotID, peerIDs, fakeCluster)
 		}
 	}
 	if len(allocateSlots) > 0 {
@@ -154,60 +222,79 @@ func (c *ClusterManager) checkSlots() ClusterReady {
 	return EmptyClusterReady
 }
 
-func (c *ClusterManager) hasNewNode() *pb.Node {
-	if len(c.cluster.Nodes) == 0 {
-		return nil
+func (c *ClusterManager) checkSlotStates() ClusterReady {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.leaderID.Load() == 0 {
+		return EmptyClusterReady
 	}
-	for _, node := range c.cluster.Nodes {
-		if node.State == pb.NodeState_NodeStateInitial {
-			return node
+
+	if c.opts.GetSlotState == nil {
+		return EmptyClusterReady
+	}
+
+	actions := make([]*SlotAction, 0)
+	for _, slot := range c.cluster.Slots {
+		slotState := c.opts.GetSlotState(slot.Slot)
+		if slotState == SlotStateNotStart {
+			actions = append(actions, &SlotAction{
+				SlotID: slot.Slot,
+				Action: SlotActionStart,
+			})
+
 		}
 	}
-	return nil
+	if len(actions) > 0 {
+		return ClusterReady{
+			SlotActions: actions,
+		}
+	}
+	return EmptyClusterReady
 }
 
 func (c *ClusterManager) isLeader() bool {
-	return c.leaderID.Load() == c.opts.NodeID
+	return c.leaderID.Load() == c.opts.PeerID
 }
 
 // 获取指定数量的最少slot的节点
-func (c *ClusterManager) getLeastSlotNodes(count int, fakeCluster *pb.Cluster) []uint64 {
+func (c *ClusterManager) getLeastSlotNodes(fakeCluster *pb.Cluster) []uint64 {
 	var leastSlotNodes []uint64
 
-	nodes := append([]*pb.Node{}, fakeCluster.Nodes...)
-	sort.Slice(nodes, func(i, j int) bool {
-		return c.getSlotCount(nodes[i].NodeID) < c.getSlotCount(nodes[j].NodeID)
+	peers := append([]*pb.Peer{}, fakeCluster.Peers...)
+	sort.Slice(peers, func(i, j int) bool {
+		return c.getSlotCount(fakeCluster, peers[i].PeerID) < c.getSlotCount(fakeCluster, peers[j].PeerID)
 	})
 
-	for i := 0; i < count && i < len(nodes); i++ {
-		leastSlotNodes = append(leastSlotNodes, nodes[i].NodeID)
+	for i := 0; i < int(fakeCluster.ReplicaCount) && i < len(peers); i++ {
+		leastSlotNodes = append(leastSlotNodes, peers[i].PeerID)
 	}
 
 	return leastSlotNodes
 }
 
-func (c *ClusterManager) fakeAllocSlot(slot uint32, nodes []uint64, fakeCluster *pb.Cluster) {
+func (c *ClusterManager) fakeAllocSlot(slot uint32, peers []uint64, fakeCluster *pb.Cluster) {
 	exist := false
 	for _, slotObj := range fakeCluster.Slots {
 		if slotObj.Slot == slot {
 			exist = true
-			slotObj.Nodes = nodes
+			slotObj.Peers = peers
 			break
 		}
 	}
 	if !exist {
 		fakeCluster.Slots = append(fakeCluster.Slots, &pb.Slot{
 			Slot:  slot,
-			Nodes: nodes,
+			Peers: peers,
 		})
 	}
 }
 
-func (c *ClusterManager) getSlotCount(nodeID uint64) int {
+func (c *ClusterManager) getSlotCount(fakeCluster *pb.Cluster, peerID uint64) int {
 	var count = 0
-	for _, slot := range c.cluster.Slots {
-		for _, nID := range slot.Nodes {
-			if nID == nodeID {
+	for _, slot := range fakeCluster.Slots {
+		for _, pID := range slot.Peers {
+			if pID == peerID {
 				count++
 			}
 		}
@@ -293,36 +380,74 @@ func (c *ClusterManager) save() error {
 	return os.Rename(configPathTmp, c.configPath)
 }
 
-func (c *ClusterManager) AddNewNode(nodeID uint64, addr string) error {
+func (c *ClusterManager) UpdateClusterConfig(cluster *pb.Cluster) {
+	c.Lock()
+	defer c.Unlock()
+	c.cluster = cluster
+	err := c.save()
+	if err != nil {
+		c.Error("update cluster config error", zap.Error(err))
+	}
+}
+
+func (c *ClusterManager) UpdatePeerConfig(peer *pb.Peer) {
+	c.Lock()
+	defer c.Unlock()
+	if len(c.cluster.Peers) == 0 {
+		return
+	}
+	for idx, p := range c.cluster.Peers {
+		if p.PeerID == peer.PeerID {
+			c.cluster.Peers[idx] = peer
+			break
+		}
+	}
+	err := c.save()
+	if err != nil {
+		c.Error("update peer config error", zap.Error(err))
+	}
+}
+
+func (c *ClusterManager) Save() error {
+	c.Lock()
+	defer c.Unlock()
+	return c.save()
+}
+
+func (c *ClusterManager) AddNewPeer(peerID uint64, addr string) error {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.existNode(nodeID) {
+	if c.existPeer(peerID) {
 		return nil
 	}
-	newNode := &pb.Node{
-		NodeID:     nodeID,
+	newPeer := &pb.Peer{
+		PeerID:     peerID,
 		ServerAddr: addr,
-		State:      pb.NodeState_NodeStateInitial,
+		State:      pb.PeerState_PeerStateInitial,
 	}
-	if c.cluster.Nodes == nil {
-		c.cluster.Nodes = make([]*pb.Node, 0)
+	if c.cluster.Peers == nil {
+		c.cluster.Peers = make([]*pb.Peer, 0)
 	}
-	c.cluster.Nodes = append(c.cluster.Nodes, newNode)
+	c.cluster.Peers = append(c.cluster.Peers, newPeer)
 
 	return c.save()
 }
 
+func (c *ClusterManager) GetPeers() []*pb.Peer {
+	return c.cluster.Peers
+}
+
 // 设置节点角色
-func (c *ClusterManager) SetNodeRole(nodeID uint64, role pb.Role) error {
+func (c *ClusterManager) SetPeerRole(peerID uint64, role pb.Role) error {
 	c.Lock()
 	defer c.Unlock()
-	if len(c.cluster.Nodes) == 0 {
+	if len(c.cluster.Peers) == 0 {
 		return nil
 	}
-	for _, node := range c.cluster.Nodes {
-		if node.NodeID == nodeID {
-			node.Role = role
+	for _, peer := range c.cluster.Peers {
+		if peer.PeerID == peerID {
+			peer.Role = role
 			break
 		}
 	}
@@ -330,19 +455,80 @@ func (c *ClusterManager) SetNodeRole(nodeID uint64, role pb.Role) error {
 }
 
 func (c *ClusterManager) SetLeaderID(leaderID uint64) {
-	fmt.Println("leaderID---------->SetLeaderID", leaderID)
-	c.leaderID.Store(leaderID)
-}
-
-func (c *ClusterManager) GetNode(nodeID uint64) *pb.Node {
 	c.Lock()
 	defer c.Unlock()
-	if len(c.cluster.Nodes) == 0 {
+	fmt.Println("leaderID---------->SetLeaderID", leaderID)
+	c.leaderID.Store(leaderID)
+	c.cluster.Leader = leaderID
+	if err := c.save(); err != nil {
+		c.Error("set leader id error", zap.Error(err))
+	}
+}
+
+func (c *ClusterManager) GetPeer(peerID uint64) *pb.Peer {
+	c.Lock()
+	defer c.Unlock()
+	if len(c.cluster.Peers) == 0 {
 		return nil
 	}
-	for _, node := range c.cluster.Nodes {
-		if node.NodeID == nodeID {
-			return node
+	return c.getPeer(peerID)
+}
+
+func (c *ClusterManager) getPeer(peerID uint64) *pb.Peer {
+	if len(c.cluster.Peers) == 0 {
+		return nil
+	}
+	for _, peer := range c.cluster.Peers {
+		if peer.PeerID == peerID {
+			return peer
+		}
+	}
+	return nil
+}
+
+func (c *ClusterManager) GetLeaderPeer(slotID uint32) *pb.Peer {
+	c.Lock()
+	defer c.Unlock()
+	if len(c.cluster.Peers) == 0 {
+		return nil
+	}
+	slot := c.getSlot(slotID)
+	if slot == nil {
+		return nil
+	}
+	return c.getPeer(slot.Leader)
+}
+
+func (c *ClusterManager) GetOnePeerBySlotID(slotID uint32) *pb.Peer {
+	c.Lock()
+	defer c.Unlock()
+	if len(c.cluster.Peers) == 0 {
+		return nil
+	}
+	slot := c.getSlot(slotID)
+	if slot == nil || len(slot.Peers) == 0 {
+		return nil
+	}
+
+	randIndex := rand.Intn(len(slot.Peers))
+	peerID := slot.Peers[randIndex]
+
+	return c.getPeer(peerID)
+}
+
+func (c *ClusterManager) GetSlot(slotID uint32) *pb.Slot {
+	c.Lock()
+	defer c.Unlock()
+
+	return c.getSlot(slotID)
+}
+func (c *ClusterManager) getSlot(slotID uint32) *pb.Slot {
+	if len(c.cluster.Slots) == 0 {
+		return nil
+	}
+	for _, slot := range c.cluster.Slots {
+		if slot.Slot == slotID {
+			return slot
 		}
 	}
 	return nil
@@ -370,6 +556,22 @@ func (c *ClusterManager) SetSlotLeader(slot uint32, leaderID uint64) {
 			break
 		}
 	}
+	existRelation := false
+	for _, v := range c.slotLeaderRelationSet.SlotLeaderRelations {
+		if v.Slot == slot {
+			v.Leader = leaderID
+			v.NeedUpdate = true
+			existRelation = true
+			break
+		}
+	}
+	if !existRelation {
+		c.slotLeaderRelationSet.SlotLeaderRelations = append(c.slotLeaderRelationSet.SlotLeaderRelations, &pb.SlotLeaderRelation{
+			Slot:       slot,
+			Leader:     leaderID,
+			NeedUpdate: true,
+		})
+	}
 	if exist {
 		err := c.save()
 		if err != nil {
@@ -378,12 +580,33 @@ func (c *ClusterManager) SetSlotLeader(slot uint32, leaderID uint64) {
 	}
 }
 
-func (c *ClusterManager) existNode(nodeID uint64) bool {
-	if len(c.cluster.Nodes) == 0 {
+func (c *ClusterManager) UpdatedSlotLeaderRelations(slotLeaderRelationSet *pb.SlotLeaderRelationSet) {
+	c.Lock()
+	defer c.Unlock()
+
+	for _, slotLeaderRelation := range slotLeaderRelationSet.SlotLeaderRelations {
+		for _, v := range c.slotLeaderRelationSet.SlotLeaderRelations {
+			if v.Slot == slotLeaderRelation.Slot && v.Leader == slotLeaderRelation.Leader {
+				v.NeedUpdate = false
+				break
+			}
+		}
+	}
+
+}
+
+func (c *ClusterManager) GetSlotCount() uint32 {
+	c.Lock()
+	defer c.Unlock()
+	return c.cluster.SlotCount
+}
+
+func (c *ClusterManager) existPeer(peerID uint64) bool {
+	if len(c.cluster.Peers) == 0 {
 		return false
 	}
-	for _, node := range c.cluster.Nodes {
-		if node.NodeID == nodeID {
+	for _, peer := range c.cluster.Peers {
+		if peer.PeerID == peerID {
 			return true
 		}
 	}
@@ -393,18 +616,30 @@ func (c *ClusterManager) existNode(nodeID uint64) bool {
 var EmptyClusterReady = ClusterReady{}
 
 type ClusterReady struct {
-	AddNode         *pb.Node
-	AllocateSlotSet *pb.AllocateSlotSet
+	AllocateSlotSet       *pb.AllocateSlotSet       // 分配slot
+	SlotActions           []*SlotAction             // slot行为，比如开始slot的raft
+	UpdatePeer            *pb.Peer                  // 需要更新的节点信息
+	SlotLeaderRelationSet *pb.SlotLeaderRelationSet // 需要更新的slot和leader的关系
 }
 
 func IsEmptyClusterReady(c ClusterReady) bool {
-	return c.AddNode == nil && c.AllocateSlotSet == nil
+	return c.AllocateSlotSet == nil && c.SlotActions == nil && c.UpdatePeer == nil && c.SlotLeaderRelationSet == nil
 }
 
 type SlotState int
 
 const (
-	SlotStateNotExist SlotState = iota
-	SlotStateNormal
-	SlotStateElecting
+	SlotStateNotStart SlotState = iota
+	SlotStateStarted
 )
+
+type SlotActionType int
+
+const (
+	SlotActionStart SlotActionType = iota
+)
+
+type SlotAction struct {
+	SlotID uint32
+	Action SlotActionType
+}

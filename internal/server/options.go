@@ -132,13 +132,15 @@ type Options struct {
 	SlotNum int // 槽数量
 
 	Cluster struct {
-		NodeID     uint64        // 节点ID
-		Addr       string        // 节点监听地址 例如：tcp://0.0.0.0:11110
-		ServerAddr string        // 节点服务地址 例如 127.0.0.1:11110
-		ReqTimeout time.Duration // 请求超时时间
-		Join       []string      // 加入集群的地址
-		SlotCount  int           // 槽数量
-		Peers      []*Peer       // 集群节点地址
+		PeerID       uint64        // 节点ID
+		Addr         string        // 节点监听地址 例如：tcp://0.0.0.0:11110
+		GRPCAddr     string        // 节点grpc监听地址 例如：0.0.0.0:11111
+		ServerAddr   string        // 节点服务地址 例如 127.0.0.1:11110
+		ReqTimeout   time.Duration // 请求超时时间
+		Join         []string      // 加入集群的地址
+		ReplicaCount int           // 副本数量
+		SlotCount    int           // 槽数量
+		Peers        []*Peer       // 集群节点地址
 	}
 
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
@@ -254,18 +256,22 @@ func NewOptions() *Options {
 		},
 		SlotNum: 256,
 		Cluster: struct {
-			NodeID     uint64
-			Addr       string
-			ServerAddr string
-			ReqTimeout time.Duration
-			Join       []string
-			SlotCount  int
-			Peers      []*Peer
+			PeerID       uint64
+			Addr         string
+			GRPCAddr     string
+			ServerAddr   string
+			ReqTimeout   time.Duration
+			Join         []string
+			ReplicaCount int
+			SlotCount    int
+			Peers        []*Peer
 		}{
-			Addr:       "tcp://127.0.0.1:11110",
-			ServerAddr: "",
-			ReqTimeout: time.Second * 10,
-			SlotCount:  256,
+			Addr:         "tcp://0.0.0.0:11110",
+			GRPCAddr:     "0.0.0.0:11111",
+			ServerAddr:   "",
+			ReqTimeout:   time.Second * 10,
+			SlotCount:    128,
+			ReplicaCount: 3,
 		},
 	}
 }
@@ -408,8 +414,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	}
 
 	// =================== cluster ===================
-	o.Cluster.NodeID = o.getUint64("cluster.nodeID", o.Cluster.NodeID)
+	o.Cluster.PeerID = o.getUint64("cluster.peerID", o.Cluster.PeerID)
 	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
+	o.Cluster.GRPCAddr = o.getString("cluster.grpcAddr", o.Cluster.GRPCAddr)
+	o.Cluster.ReplicaCount = o.getInt("cluster.replicaCount", o.Cluster.ReplicaCount)
 
 	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)
 	o.Cluster.Join = o.vp.GetStringSlice("cluster.join")
@@ -448,7 +456,7 @@ func (o *Options) ConfigureDataDir() {
 }
 
 func (o *Options) ClusterOn() bool {
-	return o.Cluster.NodeID != 0
+	return o.Cluster.PeerID != 0
 }
 
 func (o *Options) ConfigureLog() {

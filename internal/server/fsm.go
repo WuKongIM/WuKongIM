@@ -6,7 +6,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -23,7 +22,7 @@ func NewFSM(store wkstore.Store) *FSM {
 	}
 }
 
-func (f *FSM) Apply(req *transporter.CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) Apply(req *CMDReq) (*CMDResp, error) {
 	r := (*CMDReq)(req)
 	switch CMDType(req.Type) {
 	case CMDUpdateUserToken:
@@ -81,7 +80,7 @@ func (f *FSM) Apply(req *transporter.CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyUpdateUserToken(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyUpdateUserToken(req *CMDReq) (*CMDResp, error) {
 	uid, deviceFlag, deviceLevel, token, err := req.DecodeCMDUserToken()
 	if err != nil {
 		return nil, err
@@ -92,7 +91,7 @@ func (f *FSM) applyUpdateUserToken(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyUpdateMessageOfUserCursorIfNeed(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyUpdateMessageOfUserCursorIfNeed(req *CMDReq) (*CMDResp, error) {
 	uid, messageSeq, err := req.DecodeCMDUpdateMessageOfUserCursorIfNeed()
 	if err != nil {
 		return nil, err
@@ -103,7 +102,7 @@ func (f *FSM) applyUpdateMessageOfUserCursorIfNeed(req *CMDReq) (*transporter.CM
 	return nil, nil
 }
 
-func (f *FSM) applyAddOrUpdateChannel(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAddOrUpdateChannel(req *CMDReq) (*CMDResp, error) {
 	channelInfo, err := req.DecodeAddOrUpdateChannel()
 	if err != nil {
 		return nil, err
@@ -114,7 +113,7 @@ func (f *FSM) applyAddOrUpdateChannel(req *CMDReq) (*transporter.CMDResp, error)
 	return nil, nil
 }
 
-func (f *FSM) applyAddSubscribers(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAddSubscribers(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, uids, err := req.DecodeCMDAddSubscribers()
 	if err != nil {
 		return nil, err
@@ -125,7 +124,7 @@ func (f *FSM) applyAddSubscribers(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyRemoveSubscribers(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyRemoveSubscribers(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, uids, err := req.DecodeCMDRemoveSubscribers()
 	if err != nil {
 		return nil, err
@@ -136,7 +135,7 @@ func (f *FSM) applyRemoveSubscribers(req *CMDReq) (*transporter.CMDResp, error) 
 	return nil, nil
 }
 
-func (f *FSM) applyRemoveAllSubscriber(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyRemoveAllSubscriber(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, err := req.DecodeCMDRemoveAllSubscriber()
 	if err != nil {
 		return nil, err
@@ -147,7 +146,7 @@ func (f *FSM) applyRemoveAllSubscriber(req *CMDReq) (*transporter.CMDResp, error
 	return nil, nil
 }
 
-func (f *FSM) applyDeleteChannel(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyDeleteChannel(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, err := req.DecodeCMDDeleteChannel()
 	if err != nil {
 		return nil, err
@@ -158,7 +157,7 @@ func (f *FSM) applyDeleteChannel(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyAddDenylist(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAddDenylist(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, uids, err := req.DecodeCMDAddDenylist()
 	if err != nil {
 		return nil, err
@@ -169,7 +168,7 @@ func (f *FSM) applyAddDenylist(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyRemoveDenylist(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyRemoveDenylist(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, uids, err := req.DecodeCMDRemoveDenylist()
 	if err != nil {
 		return nil, err
@@ -180,7 +179,7 @@ func (f *FSM) applyRemoveDenylist(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyRemoveAllDenylist(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyRemoveAllDenylist(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, err := req.DecodeCMDRemoveAllDenylist()
 	if err != nil {
 		return nil, err
@@ -191,7 +190,7 @@ func (f *FSM) applyRemoveAllDenylist(req *CMDReq) (*transporter.CMDResp, error) 
 	return nil, nil
 }
 
-func (f *FSM) applyAddAllowlist(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAddAllowlist(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, uids, err := req.DecodeCMDAddAllowlist()
 	if err != nil {
 		return nil, err
@@ -202,7 +201,7 @@ func (f *FSM) applyAddAllowlist(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyRemoveAllowlist(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyRemoveAllowlist(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, uids, err := req.DecodeCMDRemoveAllowlist()
 	if err != nil {
 		return nil, err
@@ -213,7 +212,7 @@ func (f *FSM) applyRemoveAllowlist(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyRemoveAllAllowlist(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyRemoveAllAllowlist(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, err := req.DecodeCMDRemoveAllAllowlist()
 	if err != nil {
 		return nil, err
@@ -224,7 +223,7 @@ func (f *FSM) applyRemoveAllAllowlist(req *CMDReq) (*transporter.CMDResp, error)
 	return nil, nil
 }
 
-func (f *FSM) applyAppendMessages(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAppendMessages(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, messages, err := req.DecodeCMDAppendMessages()
 	if err != nil {
 		return nil, err
@@ -238,13 +237,13 @@ func (f *FSM) applyAppendMessages(req *CMDReq) (*transporter.CMDResp, error) {
 		return nil, err
 	}
 	st := Uint32Set(seqs)
-	return &transporter.CMDResp{
+	return &CMDResp{
 		Id:     req.Id,
-		Status: transporter.CMDRespStatusOK,
+		Status: CMDRespStatusOK,
 		Param:  st.Encode(),
 	}, nil
 }
-func (f *FSM) applyAppendMessagesOfUser(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAppendMessagesOfUser(req *CMDReq) (*CMDResp, error) {
 	uid, messages, err := req.DecodeCMDAppendMessagesOfUser()
 	if err != nil {
 		return nil, err
@@ -254,14 +253,14 @@ func (f *FSM) applyAppendMessagesOfUser(req *CMDReq) (*transporter.CMDResp, erro
 		return nil, err
 	}
 	st := Uint32Set(seqs)
-	return &transporter.CMDResp{
+	return &CMDResp{
 		Id:     req.Id,
-		Status: transporter.CMDRespStatusOK,
+		Status: CMDRespStatusOK,
 		Param:  st.Encode(),
 	}, nil
 }
 
-func (f *FSM) applyAppendMessagesOfNotifyQueue(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAppendMessagesOfNotifyQueue(req *CMDReq) (*CMDResp, error) {
 	messages, err := req.DecodeCMDAppendMessagesOfNotifyQueue()
 	if err != nil {
 		return nil, err
@@ -272,7 +271,7 @@ func (f *FSM) applyAppendMessagesOfNotifyQueue(req *CMDReq) (*transporter.CMDRes
 	return nil, nil
 }
 
-func (f *FSM) applyRemoveMessagesOfNotifyQueue(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyRemoveMessagesOfNotifyQueue(req *CMDReq) (*CMDResp, error) {
 	seqs := Int64Set{}
 	err := seqs.Decode(req.Param)
 	if err != nil {
@@ -284,7 +283,7 @@ func (f *FSM) applyRemoveMessagesOfNotifyQueue(req *CMDReq) (*transporter.CMDRes
 	return nil, nil
 }
 
-func (f *FSM) applyDeleteChannelAndClearMessages(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyDeleteChannelAndClearMessages(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, err := req.DecodeCMDDeleteChannelAndClearMessages()
 	if err != nil {
 		return nil, err
@@ -294,7 +293,7 @@ func (f *FSM) applyDeleteChannelAndClearMessages(req *CMDReq) (*transporter.CMDR
 	}
 	return nil, nil
 }
-func (f *FSM) applyAddOrUpdateConversations(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAddOrUpdateConversations(req *CMDReq) (*CMDResp, error) {
 	uid, conversations, err := req.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
 		return nil, err
@@ -305,7 +304,7 @@ func (f *FSM) applyAddOrUpdateConversations(req *CMDReq) (*transporter.CMDResp, 
 	return nil, nil
 }
 
-func (f *FSM) applyDeleteConversation(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyDeleteConversation(req *CMDReq) (*CMDResp, error) {
 	uid, channelID, channelType, err := req.DecodeCMDDeleteConversation()
 	if err != nil {
 		return nil, err
@@ -316,7 +315,7 @@ func (f *FSM) applyDeleteConversation(req *CMDReq) (*transporter.CMDResp, error)
 	return nil, nil
 }
 
-func (f *FSM) applySystemUIDsAdd(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applySystemUIDsAdd(req *CMDReq) (*CMDResp, error) {
 	uids, err := req.DecodeSystemUIDsAdd()
 	if err != nil {
 		return nil, err
@@ -327,7 +326,7 @@ func (f *FSM) applySystemUIDsAdd(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applySystemUIDsRemove(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applySystemUIDsRemove(req *CMDReq) (*CMDResp, error) {
 	uids, err := req.DecodeSystemUIDsRemove()
 	if err != nil {
 		return nil, err
@@ -338,7 +337,7 @@ func (f *FSM) applySystemUIDsRemove(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applySaveStreamMeta(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applySaveStreamMeta(req *CMDReq) (*CMDResp, error) {
 	streamMeta := &wkstore.StreamMeta{}
 	err := streamMeta.Decode(req.Param)
 	if err != nil {
@@ -350,7 +349,7 @@ func (f *FSM) applySaveStreamMeta(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyStreamEnd(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyStreamEnd(req *CMDReq) (*CMDResp, error) {
 	channelID, channelType, streamNo, err := req.DecodeCMDStreamEnd()
 	if err != nil {
 		return nil, err
@@ -361,7 +360,7 @@ func (f *FSM) applyStreamEnd(req *CMDReq) (*transporter.CMDResp, error) {
 	return nil, nil
 }
 
-func (f *FSM) applyAppendStreamItem(req *CMDReq) (*transporter.CMDResp, error) {
+func (f *FSM) applyAppendStreamItem(req *CMDReq) (*CMDResp, error) {
 	channelId, channelType, streamNo, item, err := req.DecodeCMDAppendStreamItem()
 	if err != nil {
 		return nil, err
@@ -373,9 +372,9 @@ func (f *FSM) applyAppendStreamItem(req *CMDReq) (*transporter.CMDResp, error) {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteUint32(seq)
-	return &transporter.CMDResp{
+	return &CMDResp{
 		Id:     req.Id,
-		Status: transporter.CMDRespStatusOK,
+		Status: CMDRespStatusOK,
 		Param:  encoder.Bytes(),
 	}, nil
 }

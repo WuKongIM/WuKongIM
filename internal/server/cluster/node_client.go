@@ -4,24 +4,33 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"go.etcd.io/raft/v3/raftpb"
+	pb "github.com/lni/dragonboat/v4/raftpb"
+	"go.uber.org/atomic"
 )
 
 type NodeClient struct {
-	NodeID uint64
-	cli    *client.Client
+	NodeID     uint64
+	cli        *client.Client
+	connecting atomic.Bool
+	connected  atomic.Bool
+
+	msgChan chan *proto.Message
+
+	stopChan chan struct{}
 }
 
 func NewNodeClient(nodeID uint64, addr string) *NodeClient {
 
 	cli := client.New(strings.ReplaceAll(addr, "tcp://", ""), client.WithUID(fmt.Sprintf("%d", nodeID)))
 	return &NodeClient{
-		NodeID: nodeID,
-		cli:    cli,
+		NodeID:   nodeID,
+		cli:      cli,
+		msgChan:  make(chan *proto.Message, 10000),
+		stopChan: make(chan struct{}),
 	}
 }
 
@@ -46,44 +55,104 @@ func (n *NodeClient) RequestWithContext(ctx context.Context, path string, data [
 }
 
 func (n *NodeClient) Connect() error {
-	return n.cli.Connect()
-}
-
-func (n *NodeClient) Close() error {
-
-	return n.cli.Close()
-}
-
-func (n *NodeClient) NeedConnect() bool {
-	return n.cli.ConnectStatus() == client.DISCONNECTED || n.cli.ConnectStatus() == client.CLOSED
-}
-
-func (n *NodeClient) SendSlotRaftMessage(ctx context.Context, req *multiraft.RaftMessageReq) error {
-	data, err := req.Marshal()
+	if n.connecting.Load() {
+		return nil
+	}
+	n.connecting.Store(true)
+	err := n.cli.Connect()
 	if err != nil {
+		n.connecting.Store(false)
 		return err
 	}
-	err = n.cli.Send(&proto.Message{
-		MsgType: MessageTypeRaftMessageReq,
-		Content: data,
-	})
-	if err != nil {
-		return err
-	}
+	n.connected.Store(true)
+	n.connecting.Store(false)
+
+	go n.loopMsgs()
 	return nil
 }
 
-func (n *NodeClient) SendNodeRaftMessage(ctx context.Context, m raftpb.Message) error {
-	data, err := m.Marshal()
+func (n *NodeClient) loopMsgs() {
+	batch := make([]*proto.Message, 0, 100)
+	t := time.NewTicker(time.Millisecond * 100)
+	for {
+		select {
+		case msg := <-n.msgChan:
+			batch = append(batch, msg)
+			for {
+				select {
+				case msg = <-n.msgChan:
+					batch = append(batch, msg)
+				default:
+					goto send
+				}
+			}
+		send:
+			if len(batch) > 0 {
+				for _, msg := range batch {
+					err := n.cli.SendNoFlush(msg)
+					if err != nil {
+						continue
+					}
+				}
+				n.cli.Flush()
+				batch = batch[:0]
+			}
+		case <-t.C:
+			if len(batch) > 0 {
+				for _, msg := range batch {
+					err := n.cli.SendNoFlush(msg)
+					if err != nil {
+						continue
+					}
+				}
+				n.cli.Flush()
+				batch = batch[:0]
+			}
+		case <-n.stopChan:
+			return
+		}
+	}
+}
+
+func (n *NodeClient) Close() {
+	// 不需要关闭，这里的close主要为了实现dragonboat的接口
+}
+
+func (n *NodeClient) Stop() {
+	n.connected.Store(false)
+	n.connecting.Store(false)
+	close(n.stopChan)
+	err := n.cli.Close()
+	if err != nil {
+		return
+	}
+}
+
+func (n *NodeClient) IsConnecting() bool {
+	return n.connecting.Load()
+}
+
+func (n *NodeClient) IsConnected() bool {
+	return n.connected.Load()
+}
+
+func (n *NodeClient) NeedConnect() bool {
+	return n.cli.ConnectStatus() == client.DISCONNECTED || n.cli.ConnectStatus() == client.CLOSED || n.cli.ConnectStatus() == client.UNKNOWN
+}
+
+func (n *NodeClient) SendMessageBatch(batch pb.MessageBatch) error {
+	data, err := batch.Marshal()
 	if err != nil {
 		return err
 	}
-	err = n.cli.Send(&proto.Message{
+	msg := &proto.Message{
 		MsgType: MessageTypeRaftMessage,
 		Content: data,
-	})
-	if err != nil {
-		return err
+	}
+	select {
+	case n.msgChan <- msg:
+	default:
+		return fmt.Errorf("msg chan is full")
 	}
 	return nil
 }

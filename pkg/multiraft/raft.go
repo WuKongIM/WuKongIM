@@ -34,7 +34,6 @@ type Raft struct {
 	recvc      chan pb.Message
 	confc      chan pb.ConfChangeV2
 	confstatec chan pb.ConfState
-	done       chan struct{}
 	cancelCtx  context.Context
 	cancelFunc context.CancelFunc
 }
@@ -50,7 +49,6 @@ func NewRaft(opts *RaftOptions) *Raft {
 		stopChan:   make(chan struct{}),
 		propc:      make(chan msgWithResult, 256),
 		recvc:      make(chan pb.Message, 256),
-		done:       make(chan struct{}),
 		confc:      make(chan pb.ConfChangeV2),
 		confstatec: make(chan pb.ConfState),
 	}
@@ -87,8 +85,7 @@ func (r *Raft) Stop() {
 	r.Info("raft stop")
 	r.cancelFunc()
 	r.ticker.Stop()
-	r.stopChan <- struct{}{}
-	close(r.done)
+	close(r.stopChan)
 }
 
 func (r *Raft) run() {
@@ -117,7 +114,7 @@ func (r *Raft) run() {
 			cs := r.node.ApplyConfChange(cc)
 			select {
 			case r.confstatec <- *cs:
-			case <-r.done:
+			case <-r.stopChan:
 			}
 		case <-r.stopChan:
 			return
@@ -298,7 +295,7 @@ func (r *Raft) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) 
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-r.done:
+		case <-r.stopChan:
 			return raft.ErrStopped
 		}
 	}
@@ -314,7 +311,7 @@ func (r *Raft) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) 
 		}
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-r.done:
+	case <-r.stopChan:
 		return raft.ErrStopped
 	}
 	select {
@@ -324,7 +321,7 @@ func (r *Raft) stepWithWaitOption(ctx context.Context, m pb.Message, wait bool) 
 		}
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-r.done:
+	case <-r.stopChan:
 		return raft.ErrStopped
 	}
 	return nil
@@ -360,11 +357,11 @@ func (r *Raft) ApplyConfChange(cc pb.ConfChangeI) *pb.ConfState {
 	var cs pb.ConfState
 	select {
 	case r.confc <- cc.AsV2():
-	case <-r.done:
+	case <-r.stopChan:
 	}
 	select {
 	case cs = <-r.confstatec:
-	case <-r.done:
+	case <-r.stopChan:
 	}
 	return &cs
 }
