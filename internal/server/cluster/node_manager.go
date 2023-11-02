@@ -7,10 +7,23 @@ type NodeManager struct {
 	clientMapLock sync.RWMutex
 }
 
-func NewNodeManager() *NodeManager {
-	return &NodeManager{
-		clientMap: make(map[uint64]*NodeClient),
-	}
+// func NewNodeManager() *NodeManager {
+// 	return &NodeManager{
+// 		clientMap: make(map[uint64]*NodeClient),
+// 	}
+// }
+
+// 单例 NodeManager
+var nodeManager *NodeManager
+var nodeManagerOnce sync.Once
+
+func GetNodeManager() *NodeManager {
+	nodeManagerOnce.Do(func() {
+		nodeManager = &NodeManager{
+			clientMap: make(map[uint64]*NodeClient),
+		}
+	})
+	return nodeManager
 }
 
 func (n *NodeManager) Add(cli *NodeClient) {

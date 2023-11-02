@@ -13,7 +13,11 @@ const (
 	// CMDUnknown unknown
 	CMDUnknown CMDType = iota
 	// CMDAllocateSlot 分配slot
-	CMDAllocateSlot CMDType = 100
+	CMDAllocateSlot                CMDType = 100
+	CMDAddPeers                    CMDType = 101
+	CMDUpdateClusterConfig         CMDType = 102
+	CMDUpdatePeerConfig            CMDType = 103
+	CMDUpdateSlotLeaderRelationSet CMDType = 104
 )
 
 // Int32 Int32
@@ -25,6 +29,10 @@ func (c CMDType) String() string {
 	switch c {
 	case CMDAllocateSlot:
 		return "CMDAllocateSlot"
+	case CMDAddPeers:
+		return "CMDAddPeers"
+	case CMDUpdateClusterConfig:
+		return "CMDUpdateClusterConfig"
 	default:
 		return "CMDUnknown"
 	}

@@ -89,7 +89,7 @@ func initConfig() {
 
 func initFlags() {
 	if id != 0 {
-		serverOpts.Cluster.NodeID = id
+		serverOpts.Cluster.PeerID = id
 	}
 
 	if portRand {

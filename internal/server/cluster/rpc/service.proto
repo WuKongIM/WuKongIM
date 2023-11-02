@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package rpc;
+
+option go_package = "./;rpc";
+
+service NodeService {
+    // 转发
+    rpc SendCMD (CMDReq) returns (CMDResp);
+}
+enum CMDType {
+     None = 0;
+     ForwardSendPacket = 1; // 转发发送包
+     ForwardRecvPacket = 2; // 转发接受包
+     GetSubscribers = 3; // 获取频道订阅者
+}
+
+enum Status {
+     Error = 0;
+     Success = 1;
+}
+
+message CMDReq {
+     CMDType cmd  = 1;
+     bytes data = 2;
+}
+
+message  CMDResp {
+     Status status = 1; // 请求状态
+     bytes data = 2; // 返回数据
+}
+
+message TracerInfo {
+     string traceID  = 1;
+     string spanID = 2;
+}
+
+message ConnectReq {
+     string uid = 1; // 用户ID
+     bytes connectPacketData = 2; // 连接包数据
+}
+
+message ConnectResp {
+     uint32 deviceLevel = 1; // 设备级别
+     string aesKey = 2;
+     string aesIV = 3;
+}
+
+message ForwardSendPacketReq {
+    bytes sendPacket = 1; // 发送包
+    string fromUID  = 2; // 发送者UID
+    int32 fromDeviceFlag = 3; // 发送者的设备标记
+    string deviceID = 4; // 设备ID
+    int64 messageID = 5; // 消息ID
+    TracerInfo tracerInfo = 6;
+}
+
+message ForwardSendPacketResp {
+     int32 reasonCode = 2; // 发送原因码
+     int32 messageSeq = 3; // 消息编号
+}
+
+
+message  ForwardRecvPacketReq {
+    string no  = 1; // 此次请求的唯一编号
+    repeated string  users  = 2; // 用户
+     bytes message = 3; // 对应的消息
+     int32 fromDeviceFlag = 4; // 发送者的设备标记
+    bool large = 5; // 是否是超大群
+    string deviceID = 6; // 设备ID
+    TracerInfo tracerInfo = 7;
+}
+
+message GetSubscribersReq {
+     string channelID = 1;
+     int32 channelType = 2;
+}
+
+message GetSubscribersResp {
+     repeated string subscribers = 1;
+}
+
+message GetChannelMessageSeqReq {
+     string channelID = 1;
+     int32 channelType = 2;
+}
+
+message GetChannelMessageSeqResp {
+     int32 messageSeq = 1; // 消息编号
+}
+

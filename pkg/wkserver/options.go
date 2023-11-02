@@ -14,6 +14,7 @@ type Options struct {
 	ClosePath       string
 	RequestTimeout  time.Duration
 	OnMessage       func(conn wknet.Conn, msg *proto.Message)
+	MaxIdle         time.Duration
 }
 
 func NewOptions() *Options {
@@ -24,6 +25,7 @@ func NewOptions() *Options {
 		ConnPath:        "/conn",
 		ClosePath:       "/close",
 		RequestTimeout:  10 * time.Second,
+		MaxIdle:         120 * time.Second,
 	}
 }
 

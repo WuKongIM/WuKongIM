@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster"
-	"github.com/WuKongIM/WuKongIM/pkg/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -120,16 +120,19 @@ func New(opts *Options) *Server {
 
 	if s.opts.ClusterOn() {
 		clusterOpts := cluster.NewOptions()
-		clusterOpts.NodeID = s.opts.Cluster.NodeID
-		clusterOpts.Addr = s.opts.Cluster.Addr
-		clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.NodeID))
+		clusterOpts.PeerID = s.opts.Cluster.PeerID
+		clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
+		clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
+		clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.PeerID))
 		clusterOpts.SlotCount = s.opts.Cluster.SlotCount
+		clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
 		if len(s.opts.Cluster.Peers) > 0 {
-			peers := make([]multiraft.Peer, 0)
+			peers := make([]cluster.Peer, 0)
 			for _, peer := range s.opts.Cluster.Peers {
-				peers = append(peers, multiraft.Peer{
-					ID:   peer.ID,
-					Addr: peer.ServerAddr,
+				serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
+				peers = append(peers, cluster.Peer{
+					ID:         peer.ID,
+					ServerAddr: serverAddr,
 				})
 			}
 			clusterOpts.Peers = peers
@@ -318,5 +321,4 @@ func (s *Server) doCommand(req *transporter.CMDReq) (*transporter.CMDResp, error
 		req.Id = s.reqIDGen.Next()
 	}
 	return nil, nil
-	// return s.raftNode.Propose(context.Background(), req)
 }

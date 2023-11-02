@@ -8,27 +8,28 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster"
-	"github.com/WuKongIM/WuKongIM/pkg/multiraft"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestClusterInit(t *testing.T) {
 
-	leaderChangeChan := make(chan struct{}, 1)
-	slotCount := 5
+	leaderChangeChan := make(chan struct{}, 10)
+	slotCount := 2
 	// ---------- cluster 1 ----------
 	opts := cluster.NewOptions()
 	opts.DataDir = path.Join(os.TempDir(), "cluster", "1")
 	opts.SlotCount = slotCount
 	fmt.Println("os.TempDir()111--->", os.TempDir())
-	opts.NodeID = 1
-	opts.Addr = "tcp://127.0.0.1:11000"
-	opts.Peers = []multiraft.Peer{
-		multiraft.NewPeer(1, "tcp://127.0.0.1:11000"),
-		multiraft.NewPeer(2, "tcp://127.0.0.1:12000"),
+	opts.PeerID = 1
+	opts.Addr = "127.0.0.1:11000"
+	opts.Peers = []cluster.Peer{
+		cluster.NewPeer(1, "127.0.0.1:11000"),
+		cluster.NewPeer(2, "127.0.0.1:12000"),
 	}
 	opts.LeaderChange = func(leaderID uint64) {
-		leaderChangeChan <- struct{}{}
+		if leaderID != 0 {
+			leaderChangeChan <- struct{}{}
+		}
 	}
 	c1 := cluster.New(opts)
 	err := c1.Start()
@@ -40,11 +41,11 @@ func TestClusterInit(t *testing.T) {
 	opts = cluster.NewOptions()
 	opts.DataDir = path.Join(os.TempDir(), "cluster", "2")
 	opts.SlotCount = slotCount
-	opts.NodeID = 2
-	opts.Addr = "tcp://127.0.0.1:12000"
-	opts.Peers = []multiraft.Peer{
-		multiraft.NewPeer(1, "tcp://127.0.0.1:11000"),
-		multiraft.NewPeer(2, "tcp://127.0.0.1:12000"),
+	opts.PeerID = 2
+	opts.Addr = "127.0.0.1:12000"
+	opts.Peers = []cluster.Peer{
+		cluster.NewPeer(1, "127.0.0.1:11000"),
+		cluster.NewPeer(2, "127.0.0.1:12000"),
 	}
 	c2 := cluster.New(opts)
 	err = c2.Start()
