@@ -2,15 +2,18 @@ mode: "debug"
 addr: "tcp://0.0.0.0:5110" # tcp监听地址
 httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
-dataDir: "./wukongimdata/1"
+rootDir: "./wukongimdata/1"
 monitor:
   on: false
 demo:
   on: false  
 cluster:
-  nodeID: 1
+  peerID: 1
   addr: "tcp://127.0.0.1:11000"
-  slotCount: 5
+  slotCount: 3
+  replicaCount: 2
+  grpcAddr: "127.0.0.1:11111"
   peers: 
     - "1@127.0.0.1:11000"
     - "2@127.0.0.1:12000"
+    - "3@127.0.0.1:13000"

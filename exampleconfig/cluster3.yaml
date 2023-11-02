@@ -1,0 +1,19 @@
+mode: "debug" 
+addr: "tcp://0.0.0.0:5130" # tcp监听地址
+httpAddr: "0.0.0.0:5003" 
+wsAddr: "ws://0.0.0.0:5230" 
+rootDir: "./wukongimdata/3"
+monitor:
+  on: false
+demo:
+  on: false  
+cluster:
+  peerID: 3
+  addr: "tcp://127.0.0.1:13000" # 分布式监听地址
+  grpcAddr: "127.0.0.1:11113"
+  slotCount: 3
+  replicaCount: 2
+  peers: 
+    - "1@127.0.0.1:11000"
+    - "2@127.0.0.1:12000"
+    - "3@127.0.0.1:13000"

@@ -30,7 +30,7 @@ type Processor struct {
 
 func NewProcessor(s *Server) *Processor {
 	// Initialize the messageID generator of the snowflake algorithm
-	messageIDGen, err := snowflake.NewNode(int64(s.opts.Cluster.NodeID))
+	messageIDGen, err := snowflake.NewNode(int64(s.opts.Cluster.PeerID))
 	if err != nil {
 		panic(err)
 	}
@@ -88,6 +88,16 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 
 // #################### conn auth ####################
 func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
+
+	if p.s.clusterServer.BelongPeer(conn.UID()) { // 用户属于此节点
+		p.processLocalAuth(conn, connectPacket)
+	} else {
+		p.processRemoteAuth(conn, connectPacket)
+	}
+
+}
+
+func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 	var (
 		uid                             = connectPacket.UID
 		devceLevel  wkproto.DeviceLevel = wkproto.DeviceLevelMaster
@@ -118,6 +128,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 			p.Error("get user token err", zap.Error(err))
 			p.responseConnackAuthFail(conn)
 			return
+
 		}
 		if token != connectPacket.Token {
 			p.Error("token verify fail", zap.String("expectToken", token), zap.String("actToken", connectPacket.Token), zap.Any("conn", conn))
@@ -237,6 +248,9 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	// 在线webhook
 	onlineCount, totalOnlineCount := p.s.connManager.GetConnCountWith(uid, connectPacket.DeviceFlag)
 	p.s.webhook.Online(uid, connectPacket.DeviceFlag, conn.ID(), onlineCount, totalOnlineCount)
+}
+
+func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 
 }
 
@@ -249,6 +263,15 @@ func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket)
 // #################### messages ####################
 func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPacket) {
 
+	if p.s.clusterServer.InPeer(conn.UID()) { // 用户属于此节点
+		p.processMsgsForSingle(conn, sendPackets)
+	} else { // 用户不属于此节点
+
+	}
+
+}
+
+func (p *Processor) processMsgsForSingle(conn wknet.Conn, sendPackets []*wkproto.SendPacket) {
 	var (
 		sendackPackets       = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
 		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)  // split sendPacket by channel

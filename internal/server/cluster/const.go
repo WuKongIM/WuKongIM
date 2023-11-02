@@ -1,6 +1,5 @@
 package cluster
 
 const (
-	MessageTypeRaftMessage    uint32 = 1
-	MessageTypeRaftMessageReq        = 2
+	MessageTypeRaftMessage uint32 = 1
 )
