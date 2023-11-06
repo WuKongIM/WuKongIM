@@ -131,6 +131,8 @@ func (c *ClusterManager) checkSlotLeaders() ClusterReady {
 	if c.leaderID.Load() == 0 {
 		return EmptyClusterReady
 	}
+	c.Lock()
+	defer c.Unlock()
 	if len(c.slotLeaderRelationSet.SlotLeaderRelations) == 0 {
 		return EmptyClusterReady
 	}
@@ -166,10 +168,12 @@ func (c *ClusterManager) checkPeers() ClusterReady {
 
 	for _, peer := range c.cluster.Peers {
 		if peer.PeerID == c.opts.PeerID {
-			if peer.GrpcServerAddr != c.opts.GRPCServerAddr {
-				peer.GrpcServerAddr = c.opts.GRPCServerAddr
+			if peer.GrpcServerAddr != c.opts.GRPCServerAddr || peer.ApiServerAddr != c.opts.APIServerAddr {
+				peerClone := peer.Clone()
+				peerClone.GrpcServerAddr = c.opts.GRPCServerAddr
+				peerClone.ApiServerAddr = c.opts.APIServerAddr
 				return ClusterReady{
-					UpdatePeer: peer,
+					UpdatePeer: peerClone,
 				}
 			}
 		}
@@ -237,6 +241,16 @@ func (c *ClusterManager) checkSlotStates() ClusterReady {
 	actions := make([]*SlotAction, 0)
 	for _, slot := range c.cluster.Slots {
 		slotState := c.opts.GetSlotState(slot.Slot)
+		contain := false
+		for _, peeID := range slot.Peers {
+			if peeID == c.opts.PeerID {
+				contain = true
+				break
+			}
+		}
+		if !contain {
+			continue
+		}
 		if slotState == SlotStateNotStart {
 			actions = append(actions, &SlotAction{
 				SlotID: slot.Slot,
@@ -414,25 +428,25 @@ func (c *ClusterManager) Save() error {
 	return c.save()
 }
 
-func (c *ClusterManager) AddNewPeer(peerID uint64, addr string) error {
-	c.Lock()
-	defer c.Unlock()
+// func (c *ClusterManager) AddNewPeer(peerID uint64, addr string) error {
+// 	c.Lock()
+// 	defer c.Unlock()
 
-	if c.existPeer(peerID) {
-		return nil
-	}
-	newPeer := &pb.Peer{
-		PeerID:     peerID,
-		ServerAddr: addr,
-		State:      pb.PeerState_PeerStateInitial,
-	}
-	if c.cluster.Peers == nil {
-		c.cluster.Peers = make([]*pb.Peer, 0)
-	}
-	c.cluster.Peers = append(c.cluster.Peers, newPeer)
+// 	if c.existPeer(peerID) {
+// 		return nil
+// 	}
+// 	newPeer := &pb.Peer{
+// 		PeerID:     peerID,
+// 		ServerAddr: addr,
+// 		State:      pb.PeerState_PeerStateInitial,
+// 	}
+// 	if c.cluster.Peers == nil {
+// 		c.cluster.Peers = make([]*pb.Peer, 0)
+// 	}
+// 	c.cluster.Peers = append(c.cluster.Peers, newPeer)
 
-	return c.save()
-}
+// 	return c.save()
+// }
 
 func (c *ClusterManager) GetPeers() []*pb.Peer {
 	return c.cluster.Peers
@@ -560,7 +574,9 @@ func (c *ClusterManager) SetSlotLeader(slot uint32, leaderID uint64) {
 	for _, v := range c.slotLeaderRelationSet.SlotLeaderRelations {
 		if v.Slot == slot {
 			v.Leader = leaderID
-			v.NeedUpdate = true
+			if leaderID != v.Leader {
+				v.NeedUpdate = true
+			}
 			existRelation = true
 			break
 		}

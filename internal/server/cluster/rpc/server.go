@@ -22,14 +22,19 @@ const (
 // CMDEvent cmd事件
 type CMDEvent interface {
 	// 收到发送包
-	// fromUID:发送设备的uid
-	//  deviceFlag：发送设备的deviceFlag
-	//  deviceID：发送设备的deviceID
-	OnSendPacket(messageID int64, fromUID string, deviceFlag wkproto.DeviceFlag, deviceID string, sendPacket *wkproto.SendPacket, traceInfo *TracerInfo) (messageSeq uint32, reasonCode wkproto.ReasonCode, err error)
+	OnSendPacket(req *ForwardSendPacketReq) (*ForwardSendPacketResp, error)
 	// 收到接受包
-	OnRecvPacket(deviceFlag wkproto.DeviceFlag, deviceID string, recvPacket *wkproto.RecvPacket, large bool, users []string, traceInfo *TracerInfo) error
+	OnRecvPacket(req *ForwardRecvPacketReq) error
 	// 获取频道订阅者
 	OnGetSubscribers(channelID string, channelType uint8) ([]string, error)
+	// 连接请求
+	OnConnectReq(req *ConnectReq) (*ConnectResp, error)
+	// 连接写入
+	OnConnectWriteReq(req *ConnectWriteReq) (Status, error)
+	// 连接ping
+	OnConnPingReq(req *ConnPingReq) (Status, error)
+	// 发送同步提议请求
+	OnSendSyncProposeReq(req *SendSyncProposeReq) (*SendSyncProposeResp, error)
 }
 
 // Server rpc服务
@@ -88,17 +93,9 @@ func (n *nodeServiceImp) SendCMD(ctx context.Context, req *CMDReq) (*CMDResp, er
 		if err != nil {
 			return nil, err
 		}
-		sendPacket, _, err := n.s.proto.DecodeFrame(forwardSendPacketReq.SendPacket, wkproto.LatestVersion)
+		resp, err := n.s.event.OnSendPacket(forwardSendPacketReq)
 		if err != nil {
 			return nil, err
-		}
-		messageSeq, reasonCode, err := n.s.event.OnSendPacket(forwardSendPacketReq.MessageID, forwardSendPacketReq.FromUID, wkproto.DeviceFlag(forwardSendPacketReq.FromDeviceFlag), forwardSendPacketReq.DeviceID, sendPacket.(*wkproto.SendPacket), forwardSendPacketReq.TracerInfo)
-		if err != nil {
-			return nil, err
-		}
-		resp := &ForwardSendPacketResp{
-			MessageSeq: int32(messageSeq),
-			ReasonCode: int32(reasonCode),
 		}
 		respData, err := proto.Marshal(resp)
 		if err != nil {
@@ -115,12 +112,7 @@ func (n *nodeServiceImp) SendCMD(ctx context.Context, req *CMDReq) (*CMDResp, er
 			n.s.Error("解码转发接受包数据失败！", zap.Error(err))
 			return nil, err
 		}
-		recvPacket, _, err := n.s.proto.DecodeFrame(forwardRecvPacketReq.Message, wkproto.LatestVersion)
-		if err != nil {
-			n.s.Error("解码接受包数据失败！", zap.Error(err))
-			return nil, err
-		}
-		err = n.s.event.OnRecvPacket(wkproto.DeviceFlag(forwardRecvPacketReq.FromDeviceFlag), forwardRecvPacketReq.DeviceID, recvPacket.(*wkproto.RecvPacket), forwardRecvPacketReq.Large, forwardRecvPacketReq.Users, forwardRecvPacketReq.TracerInfo)
+		err = n.s.event.OnRecvPacket(forwardRecvPacketReq)
 		if err != nil {
 			return nil, err
 		}
@@ -141,6 +133,72 @@ func (n *nodeServiceImp) SendCMD(ctx context.Context, req *CMDReq) (*CMDResp, er
 		respData, err := proto.Marshal(&GetSubscribersResp{
 			Subscribers: subscribers,
 		})
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: Status_Success,
+			Data:   respData,
+		}, nil
+	} else if req.Cmd == CMDType_SendConnectReq { // 连接请求
+		connectReq := &ConnectReq{}
+		err := proto.Unmarshal(req.Data, connectReq)
+		if err != nil {
+			n.s.Error("解码连接请求数据失败！", zap.Error(err))
+			return nil, err
+		}
+		connectResp, err := n.s.event.OnConnectReq(connectReq)
+		if err != nil {
+			return nil, err
+		}
+		respData, err := proto.Marshal(connectResp)
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: Status_Success,
+			Data:   respData,
+		}, nil
+	} else if req.Cmd == CMDType_ConnWrite { // 连接写入
+		connectWrite := &ConnectWriteReq{}
+		err := proto.Unmarshal(req.Data, connectWrite)
+		if err != nil {
+			n.s.Error("解码连接写入数据失败！", zap.Error(err))
+			return nil, err
+		}
+		status, err := n.s.event.OnConnectWriteReq(connectWrite)
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: status,
+		}, nil
+	} else if req.Cmd == CMDType_ConnPing { // 连接ping
+		connPing := &ConnPingReq{}
+		err := proto.Unmarshal(req.Data, connPing)
+		if err != nil {
+			n.s.Error("解码连接ping数据失败！", zap.Error(err))
+			return nil, err
+		}
+		status, err := n.s.event.OnConnPingReq(connPing)
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: status,
+		}, nil
+	} else if req.Cmd == CMDType_SendSyncPropose { // 发送同步提议请求
+		sendSyncProposeReq := &SendSyncProposeReq{}
+		err := proto.Unmarshal(req.Data, sendSyncProposeReq)
+		if err != nil {
+			n.s.Error("解码发送同步提议请求数据失败！", zap.Error(err))
+			return nil, err
+		}
+		sendSyncProposeResp, err := n.s.event.OnSendSyncProposeReq(sendSyncProposeReq)
+		if err != nil {
+			return nil, err
+		}
+		respData, err := proto.Marshal(sendSyncProposeResp)
 		if err != nil {
 			return nil, err
 		}

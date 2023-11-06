@@ -68,7 +68,7 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 	oldConns := u.s.connManager.GetConnsWith(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
-			u.s.dispatch.dataOut(oldConn, &wkproto.DisconnectPacket{
+			u.s.dispatch.dataOutFrames(oldConn, &wkproto.DisconnectPacket{
 				ReasonCode: wkproto.ReasonConnectKick,
 			})
 			u.s.timingWheel.AfterFunc(time.Second*2, func() {
@@ -142,7 +142,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		if len(oldConns) > 0 {
 			for _, oldConn := range oldConns {
 				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ID()), zap.String("deviceFlag", req.DeviceFlag.String()))
-				u.s.dispatch.dataOut(oldConn, &wkproto.DisconnectPacket{
+				u.s.dispatch.dataOutFrames(oldConn, &wkproto.DisconnectPacket{
 					ReasonCode: wkproto.ReasonConnectKick,
 					Reason:     "账号在其他设备上登录",
 				})
@@ -154,13 +154,13 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		}
 	}
 
-	// 创建或更新个人频道
-	err = u.s.channelManager.CreateOrUpdatePersonChannel(req.UID)
-	if err != nil {
-		u.Error("创建个人频道失败！", zap.Error(err))
-		c.ResponseError(errors.New("创建个人频道失败！"))
-		return
-	}
+	// // 创建或更新个人频道
+	// err = u.s.channelManager.CreateOrUpdatePersonChannel(req.UID)
+	// if err != nil {
+	// 	u.Error("创建个人频道失败！", zap.Error(err))
+	// 	c.ResponseError(errors.New("创建个人频道失败！"))
+	// 	return
+	// }
 	c.ResponseOK()
 }
 

@@ -42,21 +42,78 @@ func (c CMDType) Uint32() uint32 {
 	return uint32(c)
 }
 
+func (c CMDType) String() string {
+	switch c {
+	case CMDUpdateUserToken:
+		return "CMDUpdateUserToken"
+	case CMDUpdateMessageOfUserCursorIfNeed:
+		return "CMDUpdateMessageOfUserCursorIfNeed"
+	case CMDAddOrUpdateChannel:
+		return "CMDAddOrUpdateChannel"
+	case CMDAddSubscribers:
+		return "CMDAddSubscribers"
+	case CMDRemoveSubscribers:
+		return "CMDRemoveSubscribers"
+	case CMDRemoveAllSubscriber:
+		return "CMDRemoveAllSubscriber"
+	case CMDDeleteChannel:
+		return "CMDDeleteChannel"
+	case CMDAddDenylist:
+		return "CMDAddDenylist"
+	case CMDRemoveDenylist:
+		return "CMDRemoveDenylist"
+	case CMDRemoveAllDenylist:
+		return "CMDRemoveAllDenylist"
+	case CMDAddAllowlist:
+		return "CMDAddAllowlist"
+	case CMDRemoveAllowlist:
+		return "CMDRemoveAllowlist"
+	case CMDRemoveAllAllowlist:
+		return "CMDRemoveAllAllowlist"
+	case CMDAppendMessages:
+		return "CMDAppendMessages"
+	case CMDAppendMessagesOfUser:
+		return "CMDAppendMessagesOfUser"
+	case CMDAppendMessagesOfNotifyQueue:
+		return "CMDAppendMessagesOfNotifyQueue"
+	case CMDRemoveMessagesOfNotifyQueue:
+		return "CMDRemoveMessagesOfNotifyQueue"
+	case CMDDeleteChannelAndClearMessages:
+		return "CMDDeleteChannelAndClearMessages"
+	case CMDAddOrUpdateConversations:
+		return "CMDAddOrUpdateConversations"
+	case CMDDeleteConversation:
+		return "CMDDeleteConversation"
+	case CMDSystemUIDsAdd:
+		return "CMDSystemUIDsAdd"
+	case CMDSystemUIDsRemove:
+		return "CMDSystemUIDsRemove"
+	case CMDSaveStreamMeta:
+		return "CMDSaveStreamMeta"
+	case CMDStreamEnd:
+		return "CMDStreamEnd"
+	case CMDAppendStreamItem:
+		return "CMDAppendStreamItem"
+	default:
+		return "CMDUnknown"
+	}
+}
+
 type CMDReq struct {
 	Id      uint64
-	Type    uint32
+	Type    CMDType
 	Version uint8
 	Param   []byte
 
-	To uint64 // 不编码
+	SlotID *uint32 //所属槽位，不编码
 }
 
-func NewCMDReq(typ uint32) *CMDReq {
+func NewCMDReq(typ CMDType) *CMDReq {
 	return &CMDReq{
 		Type: typ,
 	}
 }
-func NewCMDReqWithID(id uint64, typ uint32) *CMDReq {
+func NewCMDReqWithID(id uint64, typ CMDType) *CMDReq {
 	return &CMDReq{
 		Id:   id,
 		Type: typ,
@@ -67,7 +124,7 @@ func NewCMDReqWithID(id uint64, typ uint32) *CMDReq {
 func (c *CMDReq) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	enc.WriteUint64(c.Id)
-	enc.WriteUint32(c.Type)
+	enc.WriteUint32(c.Type.Uint32())
 	enc.WriteUint8(c.Version)
 	enc.WriteBytes(c.Param)
 	return enc.Bytes(), nil
@@ -83,7 +140,7 @@ func (c *CMDReq) Unmarshal(data []byte) error {
 	if cmdType, err = dec.Uint32(); err != nil {
 		return err
 	}
-	c.Type = cmdType
+	c.Type = CMDType(cmdType)
 	if c.Version, err = dec.Uint8(); err != nil {
 		return err
 	}

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.18.1
-// source: internal/server/rpc/service.proto
+// source: internal/server/cluster/rpc/service.proto
 
 package rpc
 
@@ -103,5 +103,5 @@ var NodeService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/server/rpc/service.proto",
+	Metadata: "internal/server/cluster/rpc/service.proto",
 }

@@ -147,16 +147,16 @@ func (m *MultiRaft) getDefaultRaftConfig() config.Config {
 	}
 }
 
-func (m *MultiRaft) SyncProposeToSlot(slot uint32, data []byte) error {
+func (m *MultiRaft) SyncProposeToSlot(slot uint32, data []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), m.opts.ProposeTimeout)
 	session := m.nodehost.GetNoOPSession(uint64(slot))
-	_, err := m.nodehost.SyncPropose(ctx, session, data)
+	result, err := m.nodehost.SyncPropose(ctx, session, data)
 	cancel()
 	if err != nil {
-		m.Error("SyncPropose error", zap.Error(err))
-		return err
+		m.Error("SyncProposeToSlot error", zap.Error(err))
+		return nil, err
 	}
-	return nil
+	return result.Data, nil
 
 }
 
@@ -198,7 +198,7 @@ type MultiRaftOptions struct {
 	ProposeTimeout  time.Duration
 	Peers           []Peer
 	OnApplyForPeer  func(entries []sm.Entry) error
-	OnApplyForSlot  func(slot uint32, entries []sm.Entry) error
+	OnApplyForSlot  func(slot uint32, entries []sm.Entry) ([]sm.Entry, error)
 	OnLeaderChanged func(slot uint32, leaderID uint64)
 }
 
@@ -234,10 +234,13 @@ func (m *multiRaftStateMachine) Update(entries []sm.Entry) ([]sm.Entry, error) {
 			return nil, err
 		}
 	} else {
-		err := m.opts.OnApplyForSlot(uint32(m.ShardID), entries)
+		fmt.Println("Update---->", len(entries))
+		resultEntries, err := m.opts.OnApplyForSlot(uint32(m.ShardID), entries)
 		if err != nil {
 			return nil, err
 		}
+		fmt.Println("Update-resultEntries--->", len(resultEntries))
+		return resultEntries, nil
 	}
 	return entries, nil
 }

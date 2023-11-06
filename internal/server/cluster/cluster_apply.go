@@ -5,15 +5,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/pb"
 	sm "github.com/lni/dragonboat/v4/statemachine"
-	"go.etcd.io/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
-
-// slot消息的应用
-func (c *Cluster) Apply(slot uint32, enties []raftpb.Entry) error {
-
-	return nil
-}
 
 // 节点消息的应用
 func (c *Cluster) onNodeApply(entries []sm.Entry) error {

@@ -11,6 +11,9 @@ type ConnManager struct {
 	userConnMap map[string][]int64
 	connMap     map[int64]int
 
+	peerProxyConnMap map[uint64]map[int64]int64
+	proxyConnMap     map[int64]*ProxyClientConn
+
 	sync.RWMutex
 	s *Server
 }
@@ -18,9 +21,11 @@ type ConnManager struct {
 func NewConnManager(s *Server) *ConnManager {
 
 	return &ConnManager{
-		userConnMap: make(map[string][]int64),
-		connMap:     make(map[int64]int),
-		s:           s,
+		userConnMap:      make(map[string][]int64),
+		connMap:          make(map[int64]int),
+		peerProxyConnMap: make(map[uint64]map[int64]int64),
+		proxyConnMap:     make(map[int64]*ProxyClientConn),
+		s:                s,
 	}
 }
 
@@ -33,27 +38,85 @@ func (c *ConnManager) AddConn(conn wknet.Conn) {
 	}
 	connIDs = append(connIDs, conn.ID())
 	c.userConnMap[conn.UID()] = connIDs
-	c.connMap[conn.ID()] = conn.Fd().Fd()
+
+	proxyConn, ok := conn.(*ProxyClientConn)
+	if ok {
+		c.addProxyConn(proxyConn)
+	} else {
+		c.connMap[conn.ID()] = conn.Fd().Fd()
+	}
+
+}
+
+func (c *ConnManager) addProxyConn(conn *ProxyClientConn) {
+	peerConnMap := c.peerProxyConnMap[conn.belongPeerID]
+	if peerConnMap == nil {
+		peerConnMap = make(map[int64]int64)
+	}
+	peerConnMap[conn.orgID] = conn.ID()
+	c.peerProxyConnMap[conn.belongPeerID] = peerConnMap
+	c.proxyConnMap[conn.ID()] = conn
+}
+
+func (c *ConnManager) removeProxyConn(conn *ProxyClientConn) {
+	peerConnMap := c.peerProxyConnMap[conn.belongPeerID]
+	if peerConnMap == nil {
+		return
+	}
+	delete(peerConnMap, conn.orgID)
+	delete(c.proxyConnMap, conn.ID())
+}
+
+func (c *ConnManager) GetProxyConn(peerID uint64, orgID int64) *ProxyClientConn {
+	c.Lock()
+	defer c.Unlock()
+	peerConnMap := c.peerProxyConnMap[peerID]
+	if peerConnMap == nil {
+		return nil
+	}
+	connID := peerConnMap[orgID]
+	if connID == 0 {
+		return nil
+	}
+	return c.proxyConnMap[connID]
+}
+
+func (c *ConnManager) getProxyConnByID(id int64) *ProxyClientConn {
+	return c.proxyConnMap[id]
 }
 
 func (c *ConnManager) GetConn(id int64) wknet.Conn {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
+	proxyConn := c.getProxyConnByID(id)
+	if proxyConn != nil {
+		return proxyConn
+	}
 	return c.s.dispatch.engine.GetConn(c.connMap[id])
 }
 
 func (c *ConnManager) RemoveConn(conn wknet.Conn) {
+
 	c.RemoveConnWithID(conn.ID())
 }
 
 func (c *ConnManager) RemoveConnWithID(id int64) {
 	c.Lock()
 	defer c.Unlock()
-	conn := c.s.dispatch.engine.GetConn(c.connMap[id])
-	delete(c.connMap, id)
-	if conn == nil {
-		return
+
+	proxyConn := c.getProxyConnByID(id)
+	var conn wknet.Conn
+	if proxyConn != nil {
+		c.removeProxyConn(proxyConn)
+		conn = proxyConn
+	} else {
+		conn = c.s.dispatch.engine.GetConn(c.connMap[id])
+		delete(c.connMap, id)
+		if conn == nil {
+			return
+		}
 	}
+
 	connIDs := c.userConnMap[conn.UID()]
 	if len(connIDs) > 0 {
 		for index, connID := range connIDs {
@@ -66,15 +129,21 @@ func (c *ConnManager) RemoveConnWithID(id int64) {
 }
 
 func (c *ConnManager) GetConnsWithUID(uid string) []wknet.Conn {
-	c.RLock()
-	defer c.RUnlock()
+	c.Lock()
+	defer c.Unlock()
 	connIDs := c.userConnMap[uid]
 	if len(connIDs) == 0 {
 		return nil
 	}
 	conns := make([]wknet.Conn, 0, len(connIDs))
+	var conn wknet.Conn
 	for _, id := range connIDs {
-		conn := c.s.dispatch.engine.GetConn(c.connMap[id])
+		proxyConn := c.getProxyConnByID(id)
+		if proxyConn == nil {
+			conn = c.s.dispatch.engine.GetConn(c.connMap[id])
+		} else {
+			conn = proxyConn
+		}
 		if conn != nil {
 			conns = append(conns, conn)
 		}
@@ -127,8 +196,14 @@ func (c *ConnManager) GetOnlineConns(uids []string) []wknet.Conn {
 	var onlineConns = make([]wknet.Conn, 0, len(uids))
 	for _, uid := range uids {
 		connIDs := c.userConnMap[uid]
+		var conn wknet.Conn
 		for _, connID := range connIDs {
-			conn := c.s.dispatch.engine.GetConn(c.connMap[connID])
+			proxyConn := c.getProxyConnByID(connID)
+			if proxyConn == nil {
+				conn = c.s.dispatch.engine.GetConn(c.connMap[connID])
+			} else {
+				conn = proxyConn
+			}
 			if conn != nil {
 				onlineConns = append(onlineConns, conn)
 			}
