@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -28,6 +30,8 @@ type Cluster struct {
 	stopChan chan struct{}
 
 	grpcServer *rpc.Server
+
+	peerGRPCClient *PeerGRPCClient
 }
 
 func New(opts *Options) *Cluster {
@@ -49,6 +53,7 @@ func New(opts *Options) *Cluster {
 	clusterPath := path.Join(opts.DataDir, "cluster.json")
 
 	// -------------------- grpc server --------------------
+	c.peerGRPCClient = NewPeerGRPCClient(c)
 	c.grpcServer = rpc.NewServer(wkproto.New(), opts.GRPCEvent, opts.GRPCAddr)
 
 	// -------------------- 分布式配置管理者 --------------------
@@ -58,6 +63,7 @@ func New(opts *Options) *Cluster {
 	clusterManagerOpts.ReplicaCount = opts.ReplicaCount
 	clusterManagerOpts.PeerID = opts.PeerID
 	clusterManagerOpts.GRPCServerAddr = opts.GRPCServerAddr
+	clusterManagerOpts.APIServerAddr = opts.APIServerAddr
 	clusterManagerOpts.GetSlotState = func(slot uint32) SlotState {
 		if c.multiRaft.IsStarted(slot) {
 			return SlotStateStarted
@@ -90,6 +96,7 @@ func New(opts *Options) *Cluster {
 	multiRaftOpts.Peers = opts.Peers
 	multiRaftOpts.SlotCount = opts.SlotCount
 	multiRaftOpts.OnApplyForPeer = c.onNodeApply
+	multiRaftOpts.OnApplyForSlot = c.opts.OnSlotApply
 	multiRaftOpts.OnLeaderChanged = func(slot uint32, leaderID uint64) {
 		if slot == PeerShardID {
 			fmt.Println("OnLeaderChanged----->", leaderID)
@@ -309,8 +316,56 @@ func (c *Cluster) ProposeToPeer(data []byte) error {
 	return c.multiRaft.SyncProposeToPeer(data)
 }
 
-func (c *Cluster) SyncProposeToSlot(slot uint32, data []byte) error {
-	return c.multiRaft.SyncProposeToSlot(slot, data)
+func (c *Cluster) SyncProposeToSlot(slotID uint32, data []byte) ([]byte, error) {
+	slot := c.clusterManager.GetSlot(slotID)
+	if slot == nil {
+		return nil, fmt.Errorf("not sync propose reason is slot nil ")
+	}
+	exist := false
+	for _, peerID := range slot.Peers {
+		if c.opts.PeerID == peerID {
+			exist = true
+			break
+		}
+	}
+	if exist {
+		return c.multiRaft.SyncProposeToSlot(slotID, data)
+	}
+	leader := c.clusterManager.GetLeaderPeer(slotID)
+	if leader == nil {
+		c.Error("not sync propose reason is leader nil ", zap.Uint32("slotID", slotID))
+		return nil, fmt.Errorf("not sync propose reason is leader nil ")
+	}
+	resp, err := c.sendSyncProposeToLeader(leader.PeerID, &rpc.SendSyncProposeReq{
+		Slot: slotID,
+		Data: data,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data, nil
+}
+
+func (c *Cluster) sendSyncProposeToLeader(peerID uint64, req *rpc.SendSyncProposeReq) (*rpc.SendSyncProposeResp, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_SendSyncPropose,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != rpc.Status_Success {
+		return nil, fmt.Errorf("send sendSyncProposeToLeader fail")
+	}
+	sendSyncProposeResp := &rpc.SendSyncProposeResp{}
+	err = sendSyncProposeResp.Unmarshal(resp.Data)
+	if err != nil {
+		return nil, err
+	}
+	return sendSyncProposeResp, nil
 }
 
 func (c *Cluster) GetOnePeer(v string) *pb.Peer {
@@ -324,6 +379,9 @@ func (c *Cluster) GetPeer(peerID uint64) *pb.Peer {
 
 // 当前节点是否可以处理该内容
 func (c *Cluster) InPeer(v string) bool {
+	return c.inPeer(v)
+}
+func (c *Cluster) inPeer(v string) bool {
 	slotID := c.getSlotID(v)
 	slot := c.clusterManager.GetSlot(slotID)
 	if slot == nil {
@@ -338,20 +396,115 @@ func (c *Cluster) InPeer(v string) bool {
 }
 
 // BelongPeer 是否属于当前节点
-func (c *Cluster) BelongPeer(v string) bool {
+func (c *Cluster) BelongPeer(v string) (bool, error) {
 	leader := c.GetLeaderPeer(v)
 	if leader == nil {
-		return false
+		return false, errors.New("leader is nil")
 	}
-	return leader.PeerID == c.opts.PeerID
+	fmt.Println("BelongPeer---->", leader)
+	return leader.PeerID == c.opts.PeerID, nil
 }
 
 // GetLeaderPeer 获取slot的leader节点
 func (c *Cluster) GetLeaderPeer(v string) *pb.Peer {
 	slotID := c.getSlotID(v)
+	fmt.Println("slotID----->", slotID, v)
 	return c.clusterManager.GetLeaderPeer(slotID)
 }
 
 func (c *Cluster) getSlotID(v string) uint32 {
 	return wkutil.GetSlotNum(int(c.clusterManager.GetSlotCount()), v)
+}
+func (c *Cluster) GetSlotID(v string) uint32 {
+	return wkutil.GetSlotNum(int(c.clusterManager.GetSlotCount()), v)
+}
+
+func (c *Cluster) SendConnectRequest(peerID uint64, req *rpc.ConnectReq) (*rpc.ConnectResp, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_SendConnectReq,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != rpc.Status_Success {
+		return nil, fmt.Errorf("send connect request fail")
+	}
+	connectResp := &rpc.ConnectResp{}
+	err = connectResp.Unmarshal(resp.Data)
+	if err != nil {
+		return nil, err
+	}
+	return connectResp, nil
+}
+
+func (c *Cluster) ConnectWrite(peerID uint64, req *rpc.ConnectWriteReq) (rpc.Status, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_ConnWrite,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return rpc.Status_Error, err
+	}
+
+	return resp.Status, nil
+}
+
+func (c *Cluster) ConnPing(peerID uint64, req *rpc.ConnPingReq) (rpc.Status, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_ConnPing,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return 0, err
+	}
+	return resp.Status, nil
+}
+
+func (c *Cluster) ForwardSendPacketReq(peerID uint64, req *rpc.ForwardSendPacketReq) (*rpc.ForwardSendPacketResp, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_ForwardSendPacket,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != rpc.Status_Success {
+		return nil, fmt.Errorf("send forwardSendPacketReq fail")
+	}
+	forwardSendPacketResp := &rpc.ForwardSendPacketResp{}
+	err = forwardSendPacketResp.Unmarshal(resp.Data)
+	if err != nil {
+		return nil, err
+	}
+	return forwardSendPacketResp, nil
+}
+
+func (c *Cluster) ForwardRecvPacketReq(peerID uint64, data []byte) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_ForwardRecvPacket,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return err
+	}
+	if resp.Status != rpc.Status_Success {
+		return fmt.Errorf("send forwardRecvPacketReq fail")
+	}
+	return nil
 }

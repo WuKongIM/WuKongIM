@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -116,7 +117,7 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 			offset += size
 		}
 		// process frames
-		conn.Discard(offset)
+		_, _ = conn.Discard(offset)
 
 		d.processor.process(conn)
 	}
@@ -124,7 +125,7 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 }
 
 // 数据统一出口
-func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
+func (d *Dispatch) dataOutFrames(conn wknet.Conn, frames ...wkproto.Frame) {
 	if len(frames) == 0 {
 		return
 	}
@@ -167,6 +168,30 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 		d.Warn("Failed to wake write", zap.Error(err))
 	}
 
+}
+
+func (d *Dispatch) dataOut(conn wknet.Conn, data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	fmt.Println("输出消息---->", conn.UID(), conn.ID(), string(data))
+	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
+	if wsok {
+		err := wsConn.WriteServerBinary(data)
+		if err != nil {
+			d.Warn("Failed to write the message", zap.Error(err))
+		}
+
+	} else {
+		_, err := conn.WriteToOutboundBuffer(data)
+		if err != nil {
+			d.Warn("Failed to write the message", zap.Error(err))
+		}
+	}
+	err := conn.WakeWrite()
+	if err != nil {
+		d.Warn("Failed to wake write", zap.Error(err))
+	}
 }
 
 func (d *Dispatch) onConnect(conn wknet.Conn) error {

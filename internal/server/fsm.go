@@ -2,7 +2,6 @@ package server
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -228,7 +227,6 @@ func (f *FSM) applyAppendMessages(req *CMDReq) (*CMDResp, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("applyAppendMessages---messages--------->", channelID, channelType, len(messages))
 	if len(messages) == 0 {
 		return nil, errors.New("messages is empty")
 	}

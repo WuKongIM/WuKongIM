@@ -181,7 +181,7 @@ func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscribeI
 			msgKey, _ := makeMsgKey(recvPacket.VerityString(), conn)
 			recvPacket.MsgKey = msgKey
 
-			m.s.dispatch.dataOut(conn, recvPacket)
+			m.s.dispatch.dataOutFrames(conn, recvPacket)
 		}
 	}
 }
@@ -319,7 +319,7 @@ func (m *MonitorAPI) channels(c *wkhttp.Context) {
 		return
 	}
 	topic := m.topicName(fakeChannelID, channelType)
-	slotNum := wkutil.GetSlotNum(m.s.opts.SlotNum, topic)
+	slotNum := wkutil.GetSlotNum(m.s.opts.Cluster.SlotCount, topic)
 	c.JSON(http.StatusOK, newChannelInfoResult(channelInfo, lastMsgSeq, slotNum, subscribers, allowlist, denylist))
 }
 

@@ -6,11 +6,11 @@ rootDir: "./wukongimdata/1"
 monitor:
   on: false
 demo:
-  on: false  
+  on: true  
 cluster:
   peerID: 1
   addr: "tcp://127.0.0.1:11000"
-  slotCount: 3
+  slotCount: 10
   replicaCount: 2
   grpcAddr: "127.0.0.1:11111"
   peers: 
