@@ -295,3 +295,10 @@ func (l StreamItemSlice) Less(i, j int) bool {
 }
 
 func (l StreamItemSlice) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
+
+// PeerInFlightDataModel PeerInFlightDataModel
+type PeerInFlightDataModel struct {
+	No     string // 请求唯一编号
+	PeerID uint64 // 接受消息的节点ID
+	Data   []byte
+}

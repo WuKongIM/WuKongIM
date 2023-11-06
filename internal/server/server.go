@@ -25,6 +25,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
+	sm "github.com/lni/dragonboat/v4/statemachine"
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -69,6 +70,8 @@ type Server struct {
 	fsm *FSM
 
 	clusterServer *cluster.Cluster
+
+	peerInFlightQueue *PeerInFlightQueue // 正在往节点投递的节点消息
 }
 
 func New(opts *Options) *Server {
@@ -88,6 +91,7 @@ func New(opts *Options) *Server {
 
 	storeCfg := wkstore.NewStoreConfig()
 	storeCfg.DataDir = s.opts.DataDir
+	storeCfg.SlotNum = s.opts.Cluster.SlotCount
 	storeCfg.DecodeMessageFnc = func(msg []byte) (wkstore.Message, error) {
 		m := &Message{}
 		err := m.Decode(msg)
@@ -117,6 +121,7 @@ func New(opts *Options) *Server {
 	}
 
 	monitor.SetMonitorOn(s.opts.Monitor.On) // 监控开关
+	s.fsm = NewFSM(s.store.fileStorage)
 
 	if s.opts.ClusterOn() {
 		clusterOpts := cluster.NewOptions()
@@ -126,6 +131,35 @@ func New(opts *Options) *Server {
 		clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.PeerID))
 		clusterOpts.SlotCount = s.opts.Cluster.SlotCount
 		clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
+		clusterOpts.GRPCEvent = s.dispatch.processor
+		clusterOpts.APIServerAddr = s.opts.External.APIUrl
+		clusterOpts.OnSlotApply = func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error) {
+			if len(entries) == 0 {
+				return nil, nil
+			}
+			resultEntries := make([]sm.Entry, 0, len(entries))
+			for _, entry := range entries {
+				cmd := &CMDReq{}
+				err := cmd.Unmarshal(entry.Cmd)
+				if err != nil {
+					return nil, err
+				}
+				cmd.SlotID = &slotID
+				cmdResp, err := s.fsm.Apply(cmd)
+				if err != nil {
+					return nil, err
+				}
+				if cmdResp != nil {
+					respData, err := cmdResp.Marshal()
+					if err != nil {
+						return nil, err
+					}
+					entry.Result.Data = respData
+				}
+				resultEntries = append(resultEntries, entry)
+			}
+			return resultEntries, nil
+		}
 		if len(s.opts.Cluster.Peers) > 0 {
 			peers := make([]cluster.Peer, 0)
 			for _, peer := range s.opts.Cluster.Peers {
@@ -139,6 +173,8 @@ func New(opts *Options) *Server {
 		}
 
 		s.clusterServer = cluster.New(clusterOpts)
+
+		s.peerInFlightQueue = NewPeerInFlightQueue(s)
 	}
 
 	return s
@@ -189,6 +225,15 @@ func (s *Server) Start() error {
 	if err != nil {
 		panic(err)
 	}
+
+	if s.opts.ClusterOn() {
+		err = s.clusterServer.Start()
+		if err != nil {
+			return err
+		}
+		s.peerInFlightQueue.Start()
+	}
+
 	err = s.dispatch.Start()
 	if err != nil {
 		panic(err)
@@ -217,13 +262,6 @@ func (s *Server) Start() error {
 		s.demoServer.Start()
 	}
 
-	if s.opts.ClusterOn() {
-		err = s.clusterServer.Start()
-		if err != nil {
-			return err
-		}
-	}
-
 	s.started = true
 
 	return nil
@@ -237,6 +275,7 @@ func (s *Server) Stop() error {
 
 	s.timingWheel.Stop()
 	if s.opts.ClusterOn() {
+		s.peerInFlightQueue.Stop()
 		s.clusterServer.Stop()
 	}
 
@@ -320,5 +359,39 @@ func (s *Server) doCommand(req *transporter.CMDReq) (*transporter.CMDResp, error
 	if req.Id == 0 {
 		req.Id = s.reqIDGen.Next()
 	}
-	return nil, nil
+	if req.SlotID == nil {
+		return nil, fmt.Errorf("slotID is nil")
+	}
+	data, err := req.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	resultData, err := s.clusterServer.SyncProposeToSlot(*req.SlotID, data)
+	if err != nil {
+		return nil, err
+	}
+	if len(resultData) == 0 {
+		return nil, nil
+	}
+	resp := &CMDResp{}
+	err = resp.Unmarshal(resultData)
+	return resp, err
+}
+
+func (s *Server) startDeliveryPeerData(req *PeerInFlightData) {
+
+	s.Debug("开始投递节点数据", zap.String("no", req.No), zap.Uint64("peerID", req.PeerID), zap.Int("dataSize", len(req.Data)))
+
+	s.peerInFlightQueue.startInFlightTimeout(req) // 重新投递
+
+	err := s.clusterServer.ForwardRecvPacketReq(req.PeerID, req.Data)
+	if err != nil {
+		s.Warn("请求grpc投递节点数据失败！", zap.Error(err))
+		return
+	}
+	err = s.peerInFlightQueue.finishMessage(req.No)
+	if err != nil {
+		s.Warn("finishMessage err", zap.Error(err))
+		return
+	}
 }

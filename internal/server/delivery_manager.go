@@ -9,7 +9,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/panjf2000/ants/v2"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -21,10 +20,7 @@ type DeliveryManager struct {
 
 func NewDeliveryManager(s *Server) *DeliveryManager {
 	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: false}
-	deliveryMsgPool, err := ants.NewPool(s.opts.DeliveryMsgPoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
-		fmt.Println("消息投递panic->", errors.Wrap(err.(error), "error"))
-
-	}))
+	deliveryMsgPool, err := ants.NewPool(s.opts.DeliveryMsgPoolSize, ants.WithOptions(options))
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +36,7 @@ func (d *DeliveryManager) startDeliveryMessages(messages []*Message, large bool,
 		d.deliveryMessages(messages, large, syncOnceMessageSeqMap, subscribers, fromUID, fromDeivceFlag, fromDeviceID)
 	})
 	if err != nil {
-		d.Error("开始消息投递失败！", zap.Error(err))
+		d.Error("Submit投递消息失败！", zap.Error(err))
 	}
 }
 
@@ -69,7 +65,6 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 				offlineSubscribers = append(offlineSubscribers, subscriber)
 			}
 		}
-		startTime := time.Now()
 		d.Debug("消息投递", zap.String("subscriber", subscriber), zap.Any("recvConns", len(recvConns)))
 		for _, recvConn := range recvConns {
 			recvPackets := make([]wkproto.Frame, 0, len(messages))
@@ -114,11 +109,8 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 
 				recvPackets = append(recvPackets, cloneMsg.RecvPacket)
 			}
-			d.s.dispatch.dataOut(recvConn, recvPackets...)
-			cost := time.Since(startTime)
-			if cost > 100*time.Millisecond {
-				d.Warn("消息投递耗时", zap.String("subscriber", subscriber), zap.Any("recvConns", len(recvConns)), zap.Duration("cost", cost))
-			}
+			d.s.dispatch.dataOutFrames(recvConn, recvPackets...)
+
 		}
 	}
 
@@ -167,7 +159,7 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 	recvPacket.ChannelID = channelID
 
 	d.s.retryQueue.startInFlightTimeout(msg)
-	d.s.dispatch.dataOut(recvConn, recvPacket)
+	d.s.dispatch.dataOutFrames(recvConn, recvPacket)
 }
 
 // get recv

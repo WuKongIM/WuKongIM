@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -565,6 +567,15 @@ const (
 
 // 同步频道内的消息
 func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
+
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		ch.Error("读取请求体失败！", zap.Error(err))
+		c.ResponseError(errors.New("读取请求体失败！"))
+		return
+	}
+	fmt.Println("bodyBytes--->", string(bodyBytes))
+
 	var req struct {
 		LoginUID        string   `json:"login_uid"` // 当前登录用户的uid
 		ChannelID       string   `json:"channel_id"`
@@ -574,7 +585,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		Limit           int      `json:"limit"`             // 每次同步数量限制
 		PullMode        PullMode `json:"pull_mode"`         // 拉取模式 0:向下拉取 1:向上拉取
 	}
-	if err := c.BindJSON(&req); err != nil {
+	if err := wkutil.ReadJSONByByte(bodyBytes, &req); err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
 		return
@@ -584,7 +595,6 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		limit         = req.Limit
 		fakeChannelID = req.ChannelID
 		messages      []wkstore.Message
-		err           error
 	)
 
 	if limit > 10000 {
@@ -593,6 +603,17 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
+	}
+	if !ch.s.clusterServer.InPeer(fakeChannelID) {
+		peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
+		if peer == nil {
+			ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		fmt.Println("转发请求：", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
 	}
 
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {

@@ -3,7 +3,6 @@ package server
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 )
 
 type Storage struct {
@@ -14,7 +13,7 @@ type Storage struct {
 	wklog.Log
 }
 
-func NewStorage(cfg *wkstore.StoreConfig, s *Server, doCommand func(cmd *transporter.CMDReq) (*transporter.CMDResp, error)) *Storage {
+func NewStorage(cfg *wkstore.StoreConfig, s *Server, doCommand func(cmd *CMDReq) (*CMDResp, error)) *Storage {
 	st := &Storage{
 		Log: wklog.NewWKLog("storage"),
 		s:   s,
