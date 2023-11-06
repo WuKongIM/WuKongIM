@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -445,84 +446,94 @@ func (c *Channel) RemoveAllowlist(uids []string) {
 }
 
 func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
-	//########## get subscribers ##########
+	//########## 获取订阅者 ##########
 	subscribers, err := c.RealSubscribers(customSubscribers) // get subscribers
 	if err != nil {
 		c.Error("获取频道失败！", zap.Error(err))
 		return err
 	}
-
-	//########## store messages in user queue ##########
-	var messageSeqMap map[int64]uint32
-	if len(messages) > 0 {
-		messageSeqMap, err = c.storeMessageToUserQueueIfNeed(messages, subscribers)
-		if err != nil {
-			return err
-		}
+	c.Debug("订阅者数量", zap.Any("subscribers", len(subscribers)))
+	if len(subscribers) == 0 {
+		return nil
 	}
-
-	// ########## update conversation ##########
-	if !c.Large && c.ChannelType != wkproto.ChannelTypeInfo { // 如果是大群 则不维护最近会话 几万人的大群，更新最近会话也太耗性能
-		var lastMsg *Message
-		for i := len(messages) - 1; i >= 0; i-- {
-			m := messages[i]
-			if !m.NoPersist && !m.SyncOnce {
-				lastMsg = messages[i]
-				break
+	channel := &wkproto.Channel{
+		ChannelID:   c.ChannelID,
+		ChannelType: c.ChannelType,
+	}
+	if c.s.opts.ClusterOn() {
+		peerIDSubscribersMap := c.calcPeerSubscribers(subscribers)
+		for peerID, subscribers := range peerIDSubscribersMap {
+			if peerID == c.s.opts.Cluster.PeerID {
+				err = c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
+				if err != nil {
+					c.Error("处理本地订阅者消息失败！", zap.Error(err))
+					return err
+				}
+			} else {
+				err = c.forwardToOtherPeerSubscribers(messages, c.Large, peerID, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
+				if err != nil {
+					c.Error("转发消息失败！", zap.Error(err))
+					return err
+				}
 			}
 		}
-		if lastMsg != nil {
-			c.updateConversations(lastMsg, subscribers)
-		}
+	} else {
+		return c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
 	}
-
-	//########## delivery messages ##########
-	c.s.deliveryManager.startDeliveryMessages(messages, c.Large, messageSeqMap, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
 
 	return nil
 }
 
-// store message to user queue if need
-func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers []string) (map[int64]uint32, error) {
-	if len(messages) == 0 {
-		return nil, nil
-	}
-
-	messageSeqMap := make(map[int64]uint32, len(messages))
-
+// 计算订阅者所在节点
+func (c *Channel) calcPeerSubscribers(subscribers []string) map[uint64][]string {
+	subscriberPeerIDMap := make(map[uint64][]string)
 	for _, subscriber := range subscribers {
-		storeMessages := make([]wkstore.Message, 0, len(messages))
-		for _, m := range messages {
-
-			if m.NoPersist || !m.SyncOnce {
-				continue
-			}
-
-			cloneMsg, err := m.DeepCopy()
-			if err != nil {
-				return nil, err
-			}
-			cloneMsg.ToUID = subscriber
-			cloneMsg.large = c.Large
-			if m.ChannelType == wkproto.ChannelTypePerson && m.ChannelID == subscriber {
-				cloneMsg.ChannelID = m.FromUID
-			}
-			storeMessages = append(storeMessages, cloneMsg)
+		leaderPeer := c.s.clusterServer.GetLeaderPeer(subscriber)
+		if leaderPeer == nil { // TODO: 此slot在选举的时候可能会出现还没有领导节点，会导致消息不能在线投递，需要离线再进来才能显示消息，需要优化
+			slotID := c.s.clusterServer.GetSlotID(subscriber)
+			c.Warn("订阅者所在节点不存在！", zap.String("subscriber", subscriber), zap.Uint32("slotID", slotID))
+			continue
 		}
-		if len(storeMessages) > 0 {
-			_, err := c.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
-			if err != nil {
-				return nil, err
-			}
-			for _, storeMessage := range storeMessages {
-				messageSeqMap[storeMessage.GetMessageID()] = storeMessage.GetSeq()
-			}
+		peerSubscribers, ok := subscriberPeerIDMap[leaderPeer.PeerID]
+		if !ok {
+			peerSubscribers = make([]string, 0)
 		}
+		peerSubscribers = append(peerSubscribers, subscriber)
+		subscriberPeerIDMap[leaderPeer.PeerID] = peerSubscribers
 	}
-	return messageSeqMap, nil
+	return subscriberPeerIDMap
+
 }
 
-func (c *Channel) updateConversations(m *Message, subscribers []string) {
-	c.s.conversationManager.PushMessage(m, subscribers)
-
+// forward to other node subscribers
+func (c *Channel) forwardToOtherPeerSubscribers(messages []*Message, large bool, peerID uint64, subscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
+	recvPacketDatas := make([]byte, 0)
+	for _, m := range messages {
+		recvPacket := m.RecvPacket
+		data, err := c.s.opts.Proto.EncodeFrame(recvPacket, wkproto.LatestVersion)
+		if err != nil {
+			c.Error("encode recvPacket err", zap.Error(err))
+			return err
+		}
+		recvPacketDatas = append(recvPacketDatas, data...)
+	}
+	req := &rpc.ForwardRecvPacketReq{
+		No:             wkutil.GenUUID(),
+		Subscribers:    subscribers,
+		Messages:       recvPacketDatas,
+		FromUID:        fromUID,
+		FromDeviceFlag: uint32(fromDeviceFlag),
+		Large:          large,
+		FromDeviceID:   fromDeviceID,
+		ProtoVersion:   wkproto.LatestVersion,
+	}
+	reqData, _ := req.Marshal()
+	c.s.startDeliveryPeerData(&PeerInFlightData{
+		PeerInFlightDataModel: wkstore.PeerInFlightDataModel{
+			No:     req.No,
+			PeerID: peerID,
+			Data:   reqData,
+		},
+	})
+	return nil
 }

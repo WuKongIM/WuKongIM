@@ -129,18 +129,18 @@ type Options struct {
 		ScanInterval time.Duration //  每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 	}
 
-	SlotNum int // 槽数量
-
 	Cluster struct {
-		PeerID       uint64        // 节点ID
-		Addr         string        // 节点监听地址 例如：tcp://0.0.0.0:11110
-		GRPCAddr     string        // 节点grpc监听地址 例如：0.0.0.0:11111
-		ServerAddr   string        // 节点服务地址 例如 127.0.0.1:11110
-		ReqTimeout   time.Duration // 请求超时时间
-		Join         []string      // 加入集群的地址
-		ReplicaCount int           // 副本数量
-		SlotCount    int           // 槽数量
-		Peers        []*Peer       // 集群节点地址
+		PeerID                     uint64        // 节点ID
+		Addr                       string        // 节点监听地址 例如：tcp://0.0.0.0:11110
+		GRPCAddr                   string        // 节点grpc监听地址 例如：0.0.0.0:11111
+		ServerAddr                 string        // 节点服务地址 例如 127.0.0.1:11110
+		ReqTimeout                 time.Duration // 请求超时时间
+		Join                       []string      // 加入集群的地址
+		ReplicaCount               int           // 副本数量
+		SlotCount                  int           // 槽数量
+		Peers                      []*Peer       // 集群节点地址
+		PeerRPCMsgTimeout          time.Duration // 节点之间rpc消息超时时间
+		PeerRPCTimeoutScanInterval time.Duration // 节点之间rpc消息超时时间扫描间隔
 	}
 
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
@@ -254,24 +254,27 @@ func NewOptions() *Options {
 			On:   true,
 			Addr: "0.0.0.0:5172",
 		},
-		SlotNum: 256,
 		Cluster: struct {
-			PeerID       uint64
-			Addr         string
-			GRPCAddr     string
-			ServerAddr   string
-			ReqTimeout   time.Duration
-			Join         []string
-			ReplicaCount int
-			SlotCount    int
-			Peers        []*Peer
+			PeerID                     uint64
+			Addr                       string
+			GRPCAddr                   string
+			ServerAddr                 string
+			ReqTimeout                 time.Duration
+			Join                       []string
+			ReplicaCount               int
+			SlotCount                  int
+			Peers                      []*Peer
+			PeerRPCMsgTimeout          time.Duration
+			PeerRPCTimeoutScanInterval time.Duration
 		}{
-			Addr:         "tcp://0.0.0.0:11110",
-			GRPCAddr:     "0.0.0.0:11111",
-			ServerAddr:   "",
-			ReqTimeout:   time.Second * 10,
-			SlotCount:    128,
-			ReplicaCount: 3,
+			Addr:                       "tcp://0.0.0.0:11110",
+			GRPCAddr:                   "0.0.0.0:11111",
+			ServerAddr:                 "",
+			ReqTimeout:                 time.Second * 10,
+			SlotCount:                  128,
+			ReplicaCount:               3,
+			PeerRPCMsgTimeout:          time.Second * 20,
+			PeerRPCTimeoutScanInterval: time.Second * 1,
 		},
 	}
 }
@@ -357,8 +360,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Conversation.SyncOnce = o.getInt("conversation.syncOnce", o.Conversation.SyncOnce)
 	o.Conversation.UserMaxCount = o.getInt("conversation.userMaxCount", o.Conversation.UserMaxCount)
 
-	o.SlotNum = o.getInt("slotNum", o.SlotNum)
-
 	if o.WSSConfig.CertFile != "" && o.WSSConfig.KeyFile != "" {
 		certificate, err := tls.LoadX509KeyPair(o.WSSConfig.CertFile, o.WSSConfig.KeyFile)
 		if err != nil {
@@ -418,6 +419,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
 	o.Cluster.GRPCAddr = o.getString("cluster.grpcAddr", o.Cluster.GRPCAddr)
 	o.Cluster.ReplicaCount = o.getInt("cluster.replicaCount", o.Cluster.ReplicaCount)
+	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)
 
 	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)
 	o.Cluster.Join = o.vp.GetStringSlice("cluster.join")

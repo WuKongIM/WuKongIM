@@ -3,31 +3,37 @@ package cluster
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
+	sm "github.com/lni/dragonboat/v4/statemachine"
 )
 
 type Options struct {
-	PeerID         uint64
-	Addr           string // 监听地址 例如： ip:port
-	GRPCAddr       string // grpc监听地址 例如： ip:port
-	GRPCServerAddr string // 服务地址 例如： ip:port 节点之间可以互相访问的地址，如果为空则使用GRPCAddr
-	ServerAddr     string // 服务地址 例如： ip:port 节点之间可以互相访问的地址，如果为空则使用Addr
-	SlotCount      int    // 槽位数量
-	ReplicaCount   int    // 副本数量(包含主节点)
-	DataDir        string
-	Join           string // 集群中的其他节点地址 例如： tcp://ip:port
-	Peers          []Peer
-	LeaderChange   func(leaderID uint64)
-	GRPCEvent      rpc.CMDEvent
+	PeerID          uint64
+	Addr            string // 监听地址 例如： ip:port
+	GRPCAddr        string // grpc监听地址 例如： ip:port
+	GRPCServerAddr  string // 服务地址 例如： ip:port 节点之间可以互相访问的地址，如果为空则使用GRPCAddr
+	APIServerAddr   string // 服务地址 例如： http://ip:port 节点之间可以互相访问的地址
+	ServerAddr      string // 服务地址 例如： ip:port 节点之间可以互相访问的地址，如果为空则使用Addr
+	SlotCount       int    // 槽位数量
+	ReplicaCount    int    // 副本数量(包含主节点)
+	DataDir         string
+	Join            string // 集群中的其他节点地址 例如： tcp://ip:port
+	Peers           []Peer
+	LeaderChange    func(leaderID uint64)
+	GRPCEvent       rpc.CMDEvent
+	GRPCSendTimeout time.Duration
+	OnSlotApply     func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error)
 }
 
 func NewOptions() *Options {
 	return &Options{
-		SlotCount:    256,
-		ReplicaCount: 3,
-		Addr:         "0.0.0.0:11000",
-		DataDir:      "./raftdata",
+		SlotCount:       256,
+		ReplicaCount:    3,
+		Addr:            "0.0.0.0:11000",
+		DataDir:         "./raftdata",
+		GRPCSendTimeout: time.Second * 5,
 	}
 }
 
@@ -78,6 +84,7 @@ type ClusterManagerOptions struct {
 	ConfigPath     string                        // 集群配置文件路径
 	GetSlotState   func(slotID uint32) SlotState // 获取槽位状态
 	GRPCServerAddr string                        // 服务地址 例如： ip:port 节点之间可以互相访问的地址
+	APIServerAddr  string                        // 服务地址 例如： http://ip:port 节点之间可以互相访问的地址
 }
 
 func NewClusterManagerOptions() *ClusterManagerOptions {

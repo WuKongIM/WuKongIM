@@ -1,14 +1,12 @@
 package server
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/panjf2000/ants/v2"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -20,10 +18,7 @@ type DeliveryManager struct {
 
 func NewDeliveryManager(s *Server) *DeliveryManager {
 	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: false}
-	deliveryMsgPool, err := ants.NewPool(s.opts.DeliveryMsgPoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
-		fmt.Println("消息投递panic->", errors.Wrap(err.(error), "error"))
-
-	}))
+	deliveryMsgPool, err := ants.NewPool(s.opts.DeliveryMsgPoolSize, ants.WithOptions(options))
 	if err != nil {
 		panic(err)
 	}
@@ -35,9 +30,12 @@ func NewDeliveryManager(s *Server) *DeliveryManager {
 }
 
 func (d *DeliveryManager) startDeliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[int64]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
-	d.deliveryMsgPool.Submit(func() {
+	err := d.deliveryMsgPool.Submit(func() {
 		d.deliveryMessages(messages, large, syncOnceMessageSeqMap, subscribers, fromUID, fromDeivceFlag, fromDeviceID)
 	})
+	if err != nil {
+		d.Error("Submit投递消息失败！", zap.Error(err))
+	}
 }
 
 func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[int64]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
@@ -109,7 +107,7 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 
 				recvPackets = append(recvPackets, cloneMsg.RecvPacket)
 			}
-			d.s.dispatch.dataOut(recvConn, recvPackets...)
+			d.s.dispatch.dataOutFrames(recvConn, recvPackets...)
 
 		}
 	}
@@ -153,7 +151,7 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 	recvPacket.ChannelID = channelID
 
 	d.s.retryQueue.startInFlightTimeout(msg)
-	d.s.dispatch.dataOut(recvConn, recvPacket)
+	d.s.dispatch.dataOutFrames(recvConn, recvPacket)
 }
 
 // get recv

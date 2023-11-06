@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -89,9 +90,17 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 // #################### conn auth ####################
 func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 
-	if p.s.clusterServer.BelongPeer(conn.UID()) { // 用户属于此节点
+	belong, err := p.s.clusterServer.BelongPeer(conn.UID())
+	if err != nil {
+		p.Error("get user belong peer err", zap.Error(err))
+		p.responseConnackAuthFail(conn)
+		return
+	}
+	if belong { // 用户属于此节点
+		p.Debug("processLocalAuth....")
 		p.processLocalAuth(conn, connectPacket)
 	} else {
+		p.Debug("processRemoteAuth....")
 		p.processRemoteAuth(conn, connectPacket)
 	}
 
@@ -227,27 +236,101 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 }
 
 func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
+	if strings.TrimSpace(connectPacket.ClientKey) == "" {
+		p.responseConnackAuthFail(conn)
+		return
+	}
+	connectPacketData, err := p.s.opts.Proto.EncodeFrame(connectPacket, connectPacket.Version)
+	if err != nil {
+		p.Error("encode connectPacket err", zap.Error(err))
+		p.responseConnackAuthFail(conn)
+		return
+	}
+	uid := connectPacket.UID
+	connectReq := &rpc.ConnectReq{
+		Uid:               uid,
+		BelongPeerID:      p.s.opts.Cluster.PeerID,
+		ConnID:            conn.ID(),
+		ConnectPacketData: connectPacketData,
+	}
+	leader := p.s.clusterServer.GetLeaderPeer(connectPacket.UID)
+	if leader == nil {
+		p.Error("get leader peer err", zap.String("uid", connectPacket.UID))
+		p.responseConnack(conn, 0, wkproto.ReasonSystemError)
+		return
+	}
+	connResp, err := p.s.clusterServer.SendConnectRequest(leader.PeerID, connectReq)
+	if err != nil {
+		p.Error("send connect request err", zap.Error(err))
+		p.responseConnack(conn, 0, wkproto.ReasonSystemError)
+		return
+	}
+	if wkproto.ReasonCode(connResp.ReasonCode) != wkproto.ReasonSuccess {
+		p.responseConnack(conn, 0, wkproto.ReasonCode(connResp.ReasonCode))
+		return
+	}
+	// -------------------- set conn info --------------------
+	timeDiff := time.Now().UnixNano()/1000/1000 - connectPacket.ClientTimestamp
+
+	// connCtx := p.connContextPool.Get().(*connContext)
+	connCtx := newConnContext(p.s)
+	connCtx.init()
+	connCtx.conn = conn
+	conn.SetContext(connCtx)
+	conn.SetProtoVersion(int(connectPacket.Version))
+	conn.SetAuthed(true)
+	conn.SetDeviceFlag(connectPacket.DeviceFlag.ToUint8())
+	conn.SetDeviceID(connectPacket.DeviceID)
+	conn.SetUID(connectPacket.UID)
+	conn.SetValue(aesKeyKey, connResp.AesKey)
+	conn.SetValue(aesIVKey, connResp.AesIV)
+	conn.SetDeviceLevel(uint8(connResp.DeviceLevel))
+	conn.SetMaxIdle(p.s.opts.ConnIdleTime)
+
+	p.s.connManager.AddConn(conn)
+
+	// -------------------- response connack --------------------
+
+	p.s.Debug("Auth Success", zap.Any("conn", conn))
+	p.response(conn, &wkproto.ConnackPacket{
+		Salt:       connResp.AesIV,
+		ServerKey:  connResp.ServerPublicKey,
+		ReasonCode: wkproto.ReasonSuccess,
+		TimeDiff:   timeDiff,
+	})
 
 }
 
 // #################### ping ####################
 func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket) {
 	p.Debug("ping", zap.Any("conn", conn))
-	p.response(conn, &wkproto.PongPacket{})
+
+	p.response(conn, &wkproto.PongPacket{}) // 先响应客户端的ping
+
+	leaderPeer := p.s.clusterServer.GetLeaderPeer(conn.UID()) // 获取用户所属的领导节点
+	fmt.Println("leaderPeer---->", leaderPeer)
+	if leaderPeer != nil && leaderPeer.PeerID != p.s.opts.Cluster.PeerID { // 转发ping给领导节点
+
+		p.Debug("processPing to leader....")
+		status, err := p.s.clusterServer.ConnPing(leaderPeer.PeerID, &rpc.ConnPingReq{
+			ConnID:       conn.ID(),
+			BelongPeerID: p.s.opts.Cluster.PeerID,
+			Uid:          conn.UID(),
+		})
+		if err != nil {
+			p.Error("conn ping err", zap.Error(err))
+			return
+		}
+		if status == rpc.Status_NotFound { // 连接不存在
+			p.Debug("conn not found on the leader node", zap.String("uid", conn.UID()), zap.Int64("connID", conn.ID()))
+			conn.Close() // 领导节点不存在此连接，关闭连接
+		}
+	}
 }
 
 // #################### messages ####################
+
 func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPacket) {
-
-	if p.s.clusterServer.InPeer(conn.UID()) { // 用户属于此节点
-		p.processMsgsForSingle(conn, sendPackets)
-	} else { // 用户不属于此节点
-
-	}
-
-}
-
-func (p *Processor) processMsgsForSingle(conn wknet.Conn, sendPackets []*wkproto.SendPacket) {
 	var (
 		sendackPackets       = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
 		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)  // split sendPacket by channel
@@ -276,10 +359,111 @@ func (p *Processor) processMsgsForSingle(conn wknet.Conn, sendPackets []*wkproto
 			sendackPackets = append(sendackPackets, channelSendackPackets...)
 		}
 	}
-	p.response(conn, sendackPackets...)
+	if len(sendackPackets) > 0 {
+		p.response(conn, sendackPackets...)
+	}
+
 }
 
 func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
+	if !p.s.opts.ClusterOn() { // 集群模式
+		return p.prcocessChannelMessagesForLocal(conn, channelID, channelType, sendPackets)
+	}
+	var (
+		fakeChannelID = channelID
+	)
+	if channelType == wkproto.ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(conn.UID(), channelID)
+	}
+	// 如果频道在本节点上那么就本地处理，如果不在此节点上那么就转发给所属的节点
+	if p.s.clusterServer.InPeer(fakeChannelID) {
+		return p.prcocessChannelMessagesForLocal(conn, channelID, channelType, sendPackets)
+	} else {
+		return p.forwardSendPackets(conn, channelID, channelType, sendPackets)
+	}
+}
+
+// 处理频道消息
+func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
+	var (
+		fakeChannelID  = channelID
+		sendackPackets = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
+	)
+	if channelType == wkproto.ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(conn.UID(), channelID)
+	}
+	peer := p.s.clusterServer.GetOnePeer(fakeChannelID) // 获取频道所属的节点
+	if peer == nil {
+		p.Error("get peer err", zap.String("fakeChannelID", fakeChannelID))
+		for _, sendPacket := range sendPackets {
+			sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, wkproto.ReasonSystemError))
+		}
+		return sendackPackets, nil
+
+	}
+	p.Debug("forward send packets to peer", zap.String("fakeChannelID", fakeChannelID), zap.String("uid", conn.UID()), zap.Uint64("peerID", peer.PeerID))
+
+	sendPacketDatas := make([]byte, 0)
+	returnSendPacketClientMsgNos := make([]string, 0)
+	for _, sendPacket := range sendPackets {
+		payload, err := p.checkAndDecodePayload(sendPacket, conn)
+		if err != nil {
+			p.Error("decode payload err", zap.Error(err))
+			sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, wkproto.ReasonPayloadDecodeError))
+			returnSendPacketClientMsgNos = append(returnSendPacketClientMsgNos, sendPacket.ClientMsgNo)
+			continue
+		}
+		sendPacket.Payload = payload
+		sendPacketData, err := p.s.opts.Proto.EncodeFrame(sendPacket, uint8(conn.ProtoVersion()))
+		if err != nil {
+			p.Error("encode sendPacket err", zap.Error(err))
+			sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, wkproto.ReasonSystemError))
+			returnSendPacketClientMsgNos = append(returnSendPacketClientMsgNos, sendPacket.ClientMsgNo)
+			continue
+		}
+		sendPacketDatas = append(sendPacketDatas, sendPacketData...)
+	}
+	if len(sendPacketDatas) == 0 {
+		return sendackPackets, nil
+	}
+	resp, err := p.s.clusterServer.ForwardSendPacketReq(peer.PeerID, &rpc.ForwardSendPacketReq{
+		ChannelID:    channelID,
+		ChannelType:  uint32(channelType),
+		FromUID:      conn.UID(),
+		SendPackets:  sendPacketDatas,
+		ProtoVersion: uint32(conn.ProtoVersion()),
+		DeviceFlag:   uint32(conn.DeviceFlag()),
+		DeviceID:     conn.DeviceID(),
+	})
+	if err != nil {
+		p.Error("forward send packet err", zap.Error(err))
+		for _, sendPacket := range sendPackets {
+			if wkutil.ArrayContains(returnSendPacketClientMsgNos, sendPacket.ClientMsgNo) {
+				continue
+			}
+			sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, wkproto.ReasonSystemError))
+		}
+		return sendackPackets, nil
+	}
+	if len(resp.SendackPackets) == 0 {
+		return sendackPackets, nil
+	}
+
+	reminData := resp.SendackPackets
+	for len(reminData) > 0 {
+		f, size, err := p.s.opts.Proto.DecodeFrame(resp.SendackPackets, uint8(conn.ProtoVersion()))
+		if err != nil {
+			p.Error("decode sendackPacket err", zap.Error(err))
+			return sendackPackets, nil
+		}
+		sendackPacket := f.(*wkproto.SendackPacket)
+		sendackPackets = append(sendackPackets, sendackPacket)
+		reminData = reminData[size:]
+	}
+	return sendackPackets, nil
+}
+
+func (p *Processor) prcocessChannelMessagesForLocal(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
 	var (
 		sendackPackets        = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
 		messages              = make([]*Message, 0, len(sendPackets))      // recv packets
@@ -331,7 +515,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 			})
 			continue
 		}
-		decodePayload, err := p.checkAndDecodePayload(messageID, sendPacket, conn)
+		decodePayload, err := p.checkAndDecodePayload(sendPacket, conn)
 		if err != nil {
 			p.Error("decode payload err", zap.Error(err))
 			p.response(conn, &wkproto.SendackPacket{
@@ -387,6 +571,138 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 
 	//########## message put to channel ##########
 	err = channel.Put(messages, nil, conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.DeviceID())
+	if err != nil {
+		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
+	}
+
+	//########## respose ##########
+	if len(messages) > 0 {
+		for _, message := range messages {
+			sendackPackets = append(sendackPackets, p.getSendackPacket(message, wkproto.ReasonSuccess))
+		}
+
+	}
+	return sendackPackets, nil
+}
+
+func (p *Processor) prcocessChannelMessagesForRemote(req *rpc.ForwardSendPacketReq) ([]wkproto.Frame, error) {
+
+	if req.ProtoVersion > wkproto.LatestVersion {
+		p.Error("proto version not support", zap.Uint32("protoVersion", req.ProtoVersion))
+		return nil, errors.New("proto version not support")
+	}
+	sendPackets := make([]*wkproto.SendPacket, 0)
+	remData := req.SendPackets
+	for len(remData) > 0 {
+		sendPacket, size, err := p.s.opts.Proto.DecodeFrame(remData, uint8(req.ProtoVersion))
+		if err != nil {
+			p.Error("decode sendPacket err", zap.Error(err))
+			return nil, err
+		}
+		if sendPacket != nil {
+			sendPackets = append(sendPackets, sendPacket.(*wkproto.SendPacket))
+		}
+		remData = remData[size:]
+	}
+
+	var (
+		sendackPackets        = make([]wkproto.Frame, 0)              // response sendack packets
+		messages              = make([]*Message, 0, len(sendPackets)) // recv packets
+		err                   error
+		respSendackPacketsFnc = func(sendPackets []*wkproto.SendPacket, reasonCode wkproto.ReasonCode) []wkproto.Frame {
+			for _, sendPacket := range sendPackets {
+				sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, reasonCode))
+			}
+			return sendackPackets
+		}
+		respSendackPacketsWithRecvFnc = func(messages []*Message, reasonCode wkproto.ReasonCode) []wkproto.Frame {
+			for _, m := range messages {
+				sendackPackets = append(sendackPackets, p.getSendackPacket(m, reasonCode))
+			}
+			return sendackPackets
+		}
+		channelID   = req.ChannelID
+		channelType = uint8(req.ChannelType)
+		uid         = req.FromUID
+	)
+
+	//########## get channel and assert permission ##########
+	fakeChannelID := channelID
+	if channelType == wkproto.ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(uid, channelID)
+	}
+	channel, err := p.s.channelManager.GetChannel(fakeChannelID, channelType)
+	if err != nil {
+		p.Error("getChannel is error", zap.Error(err), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channelType))
+		return respSendackPacketsFnc(sendPackets, wkproto.ReasonSystemError), nil
+	}
+	if channel == nil {
+		p.Error("the channel does not exist or has been disbanded", zap.String("channel_id", fakeChannelID), zap.Uint8("channel_type", channelType))
+		return respSendackPacketsFnc(sendPackets, wkproto.ReasonChannelNotExist), nil
+	}
+	hasPerm, reasonCode := p.hasPermission(channel, uid)
+	if !hasPerm {
+		return respSendackPacketsFnc(sendPackets, reasonCode), nil
+	}
+
+	// ########## message decrypt and message store ##########
+	for _, sendPacket := range sendPackets {
+		var messageID = p.genMessageID() // generate messageID
+
+		if sendPacket.SyncOnce { // client not support send syncOnce message
+			sendackPackets = append(sendackPackets, &wkproto.SendackPacket{
+				Framer:      sendPacket.Framer,
+				ClientSeq:   sendPacket.ClientSeq,
+				ClientMsgNo: sendPacket.ClientMsgNo,
+				MessageID:   messageID,
+				ReasonCode:  wkproto.ReasonNotSupportHeader,
+			})
+			continue
+		}
+
+		messages = append(messages, &Message{
+			RecvPacket: &wkproto.RecvPacket{
+				Framer: wkproto.Framer{
+					RedDot:    sendPacket.GetRedDot(),
+					SyncOnce:  sendPacket.GetsyncOnce(),
+					NoPersist: sendPacket.GetNoPersist(),
+				},
+				Setting:     sendPacket.Setting,
+				MessageID:   messageID,
+				ClientMsgNo: sendPacket.ClientMsgNo,
+				StreamNo:    sendPacket.StreamNo,
+				StreamFlag:  wkproto.StreamFlagIng,
+				FromUID:     uid,
+				ChannelID:   sendPacket.ChannelID,
+				ChannelType: sendPacket.ChannelType,
+				Topic:       sendPacket.Topic,
+				Timestamp:   int32(time.Now().Unix()),
+				Payload:     sendPacket.Payload,
+				// ---------- 以下不参与编码 ------------
+				ClientSeq: sendPacket.ClientSeq,
+			},
+			fromDeviceFlag: wkproto.DeviceFlag(req.DeviceFlag),
+			fromDeviceID:   req.DeviceID,
+			large:          channel.Large,
+		})
+	}
+	if len(messages) == 0 {
+		return sendackPackets, nil
+	}
+	err = p.storeChannelMessagesIfNeed(uid, messages) // only have messageSeq after message save
+	if err != nil {
+		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
+	}
+	//########## message store to queue ##########
+	if p.s.opts.WebhookOn() {
+		err = p.storeChannelMessagesToNotifyQueue(messages)
+		if err != nil {
+			return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
+		}
+	}
+
+	//########## message put to channel ##########
+	err = channel.Put(messages, nil, uid, wkproto.DeviceFlag(req.DeviceFlag), req.DeviceID)
 	if err != nil {
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 	}
@@ -496,8 +812,8 @@ func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error
 	return p.s.store.AppendMessageOfNotifyQueue(storeMessages)
 }
 
-// decode payload
-func (p *Processor) checkAndDecodePayload(messageID int64, sendPacket *wkproto.SendPacket, c wknet.Conn) ([]byte, error) {
+// 检查和解码payload内容
+func (p *Processor) checkAndDecodePayload(sendPacket *wkproto.SendPacket, c wknet.Conn) ([]byte, error) {
 	var (
 		aesKey = c.Value(aesKeyKey).(string)
 		aesIV  = c.Value(aesIVKey).(string)
@@ -663,7 +979,7 @@ func (p *Processor) processClose(conn wknet.Conn) {
 // #################### others ####################
 
 func (p *Processor) response(conn wknet.Conn, frames ...wkproto.Frame) {
-	p.s.dispatch.dataOut(conn, frames...)
+	p.s.dispatch.dataOutFrames(conn, frames...)
 }
 
 func (p *Processor) responseConnackAuthFail(c wknet.Conn) {

@@ -20,7 +20,7 @@
     "vue": "^3.3.4",
     "vue-router": "^4.2.2",
     "vue3-cookies": "^1.0.6",
-    "wukongimjssdk": "^1.1.0"
+    "wukongimjssdk": "^1.2.2"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.2.0",

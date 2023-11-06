@@ -3,17 +3,16 @@ package server
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type StorageWriter struct {
 	s         *Server
-	doCommand func(cmd *transporter.CMDReq) (*transporter.CMDResp, error)
+	doCommand func(cmd *CMDReq) (*CMDResp, error)
 	wklog.Log
 }
 
-func NewStorageWriter(s *Server, doCommand func(cmd *transporter.CMDReq) (*transporter.CMDResp, error)) wkstore.StoreWriter {
+func NewStorageWriter(s *Server, doCommand func(cmd *CMDReq) (*CMDResp, error)) wkstore.StoreWriter {
 	return &StorageWriter{
 		s:         s,
 		doCommand: doCommand,
@@ -22,7 +21,10 @@ func NewStorageWriter(s *Server, doCommand func(cmd *transporter.CMDReq) (*trans
 }
 
 func (s *StorageWriter) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) error {
-	req := transporter.NewCMDReq(CMDUpdateUserToken.Uint32())
+
+	req := NewCMDReq(CMDUpdateUserToken)
+	slotID := s.s.clusterServer.GetSlotID(uid)
+	req.SlotID = &slotID
 	data := EncodeCMDUserToken(uid, deviceFlag, deviceLevel, token)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -30,7 +32,7 @@ func (s *StorageWriter) UpdateUserToken(uid string, deviceFlag uint8, deviceLeve
 }
 
 func (s *StorageWriter) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error {
-	req := transporter.NewCMDReq(CMDUpdateMessageOfUserCursorIfNeed.Uint32())
+	req := NewCMDReq(CMDUpdateMessageOfUserCursorIfNeed)
 	data := EncodeCMDUpdateMessageOfUserCursorIfNeed(uid, messageSeq)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -38,7 +40,7 @@ func (s *StorageWriter) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq u
 }
 
 func (s *StorageWriter) AddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) error {
-	req := transporter.NewCMDReq(CMDAddOrUpdateChannel.Uint32())
+	req := NewCMDReq(CMDAddOrUpdateChannel)
 	data := EncodeAddOrUpdateChannel(channelInfo)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -47,7 +49,7 @@ func (s *StorageWriter) AddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) err
 
 // AddSubscribers 添加订阅者
 func (s *StorageWriter) AddSubscribers(channelID string, channelType uint8, uids []string) error {
-	req := transporter.NewCMDReq(CMDAddSubscribers.Uint32())
+	req := NewCMDReq(CMDAddSubscribers)
 	data := EncodeCMDAddSubscribers(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -56,14 +58,14 @@ func (s *StorageWriter) AddSubscribers(channelID string, channelType uint8, uids
 
 // RemoveSubscribers 移除指定频道内指定uid的订阅者
 func (s *StorageWriter) RemoveSubscribers(channelID string, channelType uint8, uids []string) error {
-	req := transporter.NewCMDReq(CMDRemoveSubscribers.Uint32())
+	req := NewCMDReq(CMDRemoveSubscribers)
 	data := EncodeCMDRemoveSubscribers(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
 	return err
 }
 func (s *StorageWriter) RemoveAllSubscriber(channelID string, channelType uint8) error {
-	req := transporter.NewCMDReq(CMDRemoveAllSubscriber.Uint32())
+	req := NewCMDReq(CMDRemoveAllSubscriber)
 	data := EncodeCMDRemoveAllSubscriber(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -72,7 +74,7 @@ func (s *StorageWriter) RemoveAllSubscriber(channelID string, channelType uint8)
 
 // DeleteChannel 删除频道
 func (s *StorageWriter) DeleteChannel(channelID string, channelType uint8) error {
-	req := transporter.NewCMDReq(CMDDeleteChannel.Uint32())
+	req := NewCMDReq(CMDDeleteChannel)
 	data := EncodeCMDDeleteChannel(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -81,7 +83,7 @@ func (s *StorageWriter) DeleteChannel(channelID string, channelType uint8) error
 
 // AddDenylist 添加频道黑名单
 func (s *StorageWriter) AddDenylist(channelID string, channelType uint8, uids []string) error {
-	req := transporter.NewCMDReq(CMDAddDenylist.Uint32())
+	req := NewCMDReq(CMDAddDenylist)
 	data := EncodeCMDAddDenylist(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -90,7 +92,7 @@ func (s *StorageWriter) AddDenylist(channelID string, channelType uint8, uids []
 
 // RemoveDenylist 移除频道内指定用户的黑名单
 func (s *StorageWriter) RemoveDenylist(channelID string, channelType uint8, uids []string) error {
-	req := transporter.NewCMDReq(CMDRemoveDenylist.Uint32())
+	req := NewCMDReq(CMDRemoveDenylist)
 	data := EncodeCMDRemoveDenylist(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -99,7 +101,7 @@ func (s *StorageWriter) RemoveDenylist(channelID string, channelType uint8, uids
 
 // RemoveAllDenylist 移除指定频道的所有黑名单
 func (s *StorageWriter) RemoveAllDenylist(channelID string, channelType uint8) error {
-	req := transporter.NewCMDReq(CMDRemoveAllDenylist.Uint32())
+	req := NewCMDReq(CMDRemoveAllDenylist)
 	data := EncodeCMDRemoveAllDenylist(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -108,7 +110,7 @@ func (s *StorageWriter) RemoveAllDenylist(channelID string, channelType uint8) e
 
 // AddAllowlist 添加白名单
 func (s *StorageWriter) AddAllowlist(channelID string, channelType uint8, uids []string) error {
-	req := transporter.NewCMDReq(CMDAddAllowlist.Uint32())
+	req := NewCMDReq(CMDAddAllowlist)
 	data := EncodeCMDAddAllowlist(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -117,7 +119,7 @@ func (s *StorageWriter) AddAllowlist(channelID string, channelType uint8, uids [
 
 // RemoveAllowlist 移除白名单
 func (s *StorageWriter) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
-	req := transporter.NewCMDReq(CMDRemoveAllowlist.Uint32())
+	req := NewCMDReq(CMDRemoveAllowlist)
 	data := EncodeCMDRemoveAllowlist(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -126,7 +128,7 @@ func (s *StorageWriter) RemoveAllowlist(channelID string, channelType uint8, uid
 
 // RemoveAllAllowlist 移除指定频道的所有白名单
 func (s *StorageWriter) RemoveAllAllowlist(channelID string, channelType uint8) error {
-	req := transporter.NewCMDReq(CMDRemoveAllAllowlist.Uint32())
+	req := NewCMDReq(CMDRemoveAllAllowlist)
 	data := EncodeCMDRemoveAllAllowlist(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -140,9 +142,11 @@ func (s *StorageWriter) AppendMessages(channelID string, channelType uint8, msgs
 		return
 	}
 	var (
-		resp *transporter.CMDResp
+		resp *CMDResp
 	)
-	req := transporter.NewCMDReq(CMDAppendMessages.Uint32())
+	req := NewCMDReq(CMDAppendMessages)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	req.Param = EncodeCMDAppendMessages(channelID, channelType, msgs)
 	resp, err = s.doCommand(req)
 	if err != nil {
@@ -163,9 +167,9 @@ func (s *StorageWriter) AppendMessagesOfUser(uid string, msgs []wkstore.Message)
 		return
 	}
 	var (
-		resp *transporter.CMDResp
+		resp *CMDResp
 	)
-	req := transporter.NewCMDReq(CMDAppendMessagesOfUser.Uint32())
+	req := NewCMDReq(CMDAppendMessagesOfUser)
 	req.Param = EncodeCMDAppendMessagesOfUser(uid, msgs)
 	resp, err = s.doCommand(req)
 	if err != nil {
@@ -183,7 +187,7 @@ func (s *StorageWriter) AppendMessageOfNotifyQueue(msgs []wkstore.Message) error
 	if len(msgs) == 0 {
 		return nil
 	}
-	req := transporter.NewCMDReq(CMDAppendMessagesOfNotifyQueue.Uint32())
+	req := NewCMDReq(CMDAppendMessagesOfNotifyQueue)
 	req.Param = EncodeCMDAppendMessagesOfNotifyQueue(msgs)
 	_, err := s.doCommand(req)
 	if err != nil {
@@ -198,7 +202,7 @@ func (s *StorageWriter) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
 		return nil
 	}
 	st := Int64Set(messageIDs)
-	req := transporter.NewCMDReq(CMDRemoveMessagesOfNotifyQueue.Uint32())
+	req := NewCMDReq(CMDRemoveMessagesOfNotifyQueue)
 	req.Param = st.Encode()
 	_, err := s.doCommand(req)
 	if err != nil {
@@ -208,7 +212,7 @@ func (s *StorageWriter) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
 }
 
 func (s *StorageWriter) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
-	req := transporter.NewCMDReq(CMDDeleteChannelAndClearMessages.Uint32())
+	req := NewCMDReq(CMDDeleteChannelAndClearMessages)
 	req.Param = EncodeCMDDeleteChannelAndClearMessages(channelID, channelType)
 	_, err := s.doCommand(req)
 	return err
@@ -219,13 +223,13 @@ func (s *StorageWriter) AddOrUpdateConversations(uid string, conversations []*wk
 	if len(conversations) == 0 {
 		return nil
 	}
-	req := transporter.NewCMDReq(CMDAddOrUpdateConversations.Uint32())
+	req := NewCMDReq(CMDAddOrUpdateConversations)
 	req.Param = EncodeCMDAddOrUpdateConversations(uid, conversations)
 	_, err := s.doCommand(req)
 	return err
 }
 func (s *StorageWriter) DeleteConversation(uid string, channelID string, channelType uint8) error {
-	req := transporter.NewCMDReq(CMDDeleteConversation.Uint32())
+	req := NewCMDReq(CMDDeleteConversation)
 	req.Param = EncodeCMDDeleteConversation(uid, channelID, channelType)
 	_, err := s.doCommand(req)
 	return err
@@ -233,13 +237,13 @@ func (s *StorageWriter) DeleteConversation(uid string, channelID string, channel
 
 // #################### system uids ####################
 func (s *StorageWriter) AddSystemUIDs(uids []string) error {
-	req := transporter.NewCMDReq(CMDSystemUIDsAdd.Uint32())
+	req := NewCMDReq(CMDSystemUIDsAdd)
 	req.Param = EncodeSystemUIDsAdd(uids)
 	_, err := s.doCommand(req)
 	return err
 }
 func (s *StorageWriter) RemoveSystemUIDs(uids []string) error {
-	req := transporter.NewCMDReq(CMDSystemUIDsRemove.Uint32())
+	req := NewCMDReq(CMDSystemUIDsRemove)
 	req.Param = EncodeSystemUIDsRemove(uids)
 	_, err := s.doCommand(req)
 	return err
@@ -248,7 +252,7 @@ func (s *StorageWriter) RemoveSystemUIDs(uids []string) error {
 // #################### message stream ####################
 // SaveStreamMeta 保存消息流元数据
 func (s *StorageWriter) SaveStreamMeta(meta *wkstore.StreamMeta) error {
-	req := transporter.NewCMDReq(CMDSaveStreamMeta.Uint32())
+	req := NewCMDReq(CMDSaveStreamMeta)
 	req.Param = meta.Encode()
 	_, err := s.doCommand(req)
 	return err
@@ -256,7 +260,7 @@ func (s *StorageWriter) SaveStreamMeta(meta *wkstore.StreamMeta) error {
 
 // StreamEnd 结束流
 func (s *StorageWriter) StreamEnd(channelID string, channelType uint8, streamNo string) error {
-	req := transporter.NewCMDReq(CMDStreamEnd.Uint32())
+	req := NewCMDReq(CMDStreamEnd)
 	req.Param = EncodeCMDStreamEnd(channelID, channelType, streamNo)
 	_, err := s.doCommand(req)
 	return err
@@ -264,7 +268,7 @@ func (s *StorageWriter) StreamEnd(channelID string, channelType uint8, streamNo 
 
 // AppendStreamItem 追加消息流
 func (s *StorageWriter) AppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) (uint32, error) {
-	req := transporter.NewCMDReq(CMDAppendStreamItem.Uint32())
+	req := NewCMDReq(CMDAppendStreamItem)
 	req.Param = EncodeCMDAppendStreamItem(channelID, channelType, streamNo, item)
 	resp, err := s.doCommand(req)
 	if err != nil {

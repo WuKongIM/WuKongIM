@@ -41,6 +41,10 @@ func (p *Peer) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, p)
 }
 
+func (p *Peer) Clone() *Peer {
+	return proto.Clone(p).(*Peer)
+}
+
 func (s *SlotLeaderRelationSet) Marshal() ([]byte, error) {
 	return proto.Marshal(s)
 }

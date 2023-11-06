@@ -13,11 +13,16 @@ enum CMDType {
      ForwardSendPacket = 1; // 转发发送包
      ForwardRecvPacket = 2; // 转发接受包
      GetSubscribers = 3; // 获取频道订阅者
+     SendConnectReq = 4; // 连接请求
+     ConnWrite = 5; // 连接写入
+     ConnPing = 6; // 连接心跳
+     SendSyncPropose = 7; // 发送同步提议
 }
 
 enum Status {
      Error = 0;
      Success = 1;
+     NotFound = 2;
 }
 
 message CMDReq {
@@ -36,39 +41,58 @@ message TracerInfo {
 }
 
 message ConnectReq {
-     string uid = 1; // 用户ID
-     bytes connectPacketData = 2; // 连接包数据
+     int64 connID = 1; // 连接原始唯一ID
+     string uid = 2; // 用户ID
+     uint64 belongPeerID = 3; // 连接真实所属节点ID
+     bytes connectPacketData = 4; // 连接包数据
 }
 
 message ConnectResp {
      uint32 deviceLevel = 1; // 设备级别
      string aesKey = 2;
      string aesIV = 3;
+     string serverPublicKey = 4; // 服务器公钥
+     uint32 reasonCode = 5; // 连接原因码
+}
+
+message ConnectWriteReq {
+     int64 connID = 1;
+     string uid = 2; // 用户ID
+     uint32 deviceFlag = 3; // 设备标识
+     bytes data = 4; // 数据
+}
+
+message ConnPingReq {
+     int64 connID = 1; // 连接原始唯一ID
+     string uid = 2; // 用户ID
+     uint64 belongPeerID = 3; // 连接真实所属节点ID
 }
 
 message ForwardSendPacketReq {
-    bytes sendPacket = 1; // 发送包
-    string fromUID  = 2; // 发送者UID
-    int32 fromDeviceFlag = 3; // 发送者的设备标记
-    string deviceID = 4; // 设备ID
-    int64 messageID = 5; // 消息ID
-    TracerInfo tracerInfo = 6;
+     bytes sendPackets = 1; // 发送包数据集合
+     string channelID = 2; // 频道ID
+     uint32 channelType = 3; // 频道类型
+     string fromUID = 4; // 发送者ID
+     uint32 protoVersion = 5; // 协议版本
+     uint32 deviceFlag = 6; // 设备标识
+     string deviceID = 7; // 设备ID
+
 }
 
 message ForwardSendPacketResp {
-     int32 reasonCode = 2; // 发送原因码
-     int32 messageSeq = 3; // 消息编号
+     bytes sendackPackets = 1; // 发送包回执数据集合
 }
 
 
 message  ForwardRecvPacketReq {
-    string no  = 1; // 此次请求的唯一编号
-    repeated string  users  = 2; // 用户
-     bytes message = 3; // 对应的消息
-     int32 fromDeviceFlag = 4; // 发送者的设备标记
-    bool large = 5; // 是否是超大群
-    string deviceID = 6; // 设备ID
-    TracerInfo tracerInfo = 7;
+     string no  = 1; // 此次请求的唯一编号
+     repeated string  subscribers  = 2; // 用户
+     bytes messages = 3; // 对应的消息
+     string fromUID = 4; // 发送者ID
+     uint32 fromDeviceFlag = 5; // 发送者的设备标记
+     bool large = 6; // 是否是超大群
+     string fromDeviceID = 7; // 设备ID
+     uint32 protoVersion = 8; // 协议版本
 }
 
 message GetSubscribersReq {
@@ -89,3 +113,13 @@ message GetChannelMessageSeqResp {
      int32 messageSeq = 1; // 消息编号
 }
 
+
+message SendSyncProposeReq {
+    uint32 slot = 1; // 槽位
+    bytes data = 2; // 数据
+}
+
+message SendSyncProposeResp {
+    uint32 slot = 1; // 槽位
+    bytes data = 2; // 数据
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
@@ -32,7 +33,7 @@ type FileStore struct {
 	allowlistPrefix        string
 	notifyQueuePrefix      string
 	userSeqPrefix          string
-	nodeInFlightDataPrefix string
+	peerInFlightDataPrefix string
 	systemUIDsKey          string
 
 	*FileStoreForMsg
@@ -52,7 +53,7 @@ func NewFileStore(cfg *StoreConfig) *FileStore {
 		allowlistPrefix:           "allowlist:",
 		notifyQueuePrefix:         "notifyQueue",
 		userSeqPrefix:             "userSeq:",
-		nodeInFlightDataPrefix:    "nodeInFlightData",
+		peerInFlightDataPrefix:    "peerInFlightData",
 		systemUIDsKey:             "systemUIDs",
 		FileStoreForMsg:           NewFileStoreForMsg(cfg),
 	}
@@ -498,6 +499,41 @@ func (f *FileStore) GetMessagesOfNotifyQueue(count int) ([]Message, error) {
 		return nil
 	})
 	return messages, err
+}
+
+func (f *FileStore) AddPeerInFlightData(data []*PeerInFlightDataModel) error {
+
+	if len(data) <= 0 {
+		return nil
+	}
+	return f.db.Update(func(t *bbolt.Tx) error {
+		bucket := f.getRootBucket(t)
+		return bucket.Put([]byte(f.peerInFlightDataPrefix), []byte(wkutil.ToJSON(data)))
+	})
+}
+
+func (f *FileStore) ClearPeerInFlightData() error {
+	return f.db.Update(func(t *bbolt.Tx) error {
+		bucket := f.getRootBucket(t)
+		return bucket.Delete([]byte(f.peerInFlightDataPrefix))
+	})
+}
+
+func (f *FileStore) GetPeerInFlightData() ([]*PeerInFlightDataModel, error) {
+	var data = make([]*PeerInFlightDataModel, 0)
+	err := f.db.Update(func(t *bbolt.Tx) error {
+		bucket := f.getRootBucket(t)
+
+		value := bucket.Get([]byte(f.peerInFlightDataPrefix))
+		if len(value) > 0 {
+			err := wkutil.ReadJSONByByte(value, &data)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return data, err
 }
 
 func (f *FileStore) Close() error {
