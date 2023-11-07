@@ -245,6 +245,8 @@ func (s *Server) Start() error {
 		s.demoServer.Start()
 	}
 
+	s.timingWheel.Start()
+
 	s.started = true
 
 	return nil
@@ -255,6 +257,8 @@ func (s *Server) Stop() error {
 	s.Info("Server is Stoping...")
 
 	defer s.Info("Server is exited")
+
+	s.timingWheel.Stop()
 
 	if s.opts.ClusterOn() {
 		s.peerInFlightQueue.Stop()

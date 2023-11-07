@@ -73,3 +73,11 @@ func (f *ForwardRecvPacketReq) Marshal() ([]byte, error) {
 func (f *ForwardRecvPacketReq) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, f)
 }
+
+func (r *RecvacksReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, r)
+}
+
+func (r *RecvacksReq) Marshal() ([]byte, error) {
+	return proto.Marshal(r)
+}

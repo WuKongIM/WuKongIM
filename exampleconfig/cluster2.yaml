@@ -6,7 +6,8 @@ rootDir: "./wukongimdata/2"
 monitor:
   on: false
 demo:
-  on: false  
+  on: true
+  addr: "0.0.0.0:5173"  
 cluster:
   peerID: 2
   addr: "tcp://127.0.0.1:12000" # 分布式监听地址

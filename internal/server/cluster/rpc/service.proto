@@ -17,6 +17,7 @@ enum CMDType {
      ConnWrite = 5; // 连接写入
      ConnPing = 6; // 连接心跳
      SendSyncPropose = 7; // 发送同步提议
+     ForwardRecvackPacket = 8; // 转发接受ack包
 }
 
 enum Status {
@@ -95,6 +96,7 @@ message  ForwardRecvPacketReq {
      uint32 protoVersion = 8; // 协议版本
 }
 
+
 message GetSubscribersReq {
      string channelID = 1;
      int32 channelType = 2;
@@ -122,4 +124,12 @@ message SendSyncProposeReq {
 message SendSyncProposeResp {
     uint32 slot = 1; // 槽位
     bytes data = 2; // 数据
+}
+
+
+message RecvacksReq {
+     int64 connID = 1; // 连接原始唯一ID
+     string uid = 2; // 用户ID
+     uint64 belongPeerID = 3; // 连接真实所属节点ID
+     bytes data = 4;
 }
