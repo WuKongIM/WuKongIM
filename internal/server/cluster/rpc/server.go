@@ -35,6 +35,8 @@ type CMDEvent interface {
 	OnConnPingReq(req *ConnPingReq) (Status, error)
 	// 发送同步提议请求
 	OnSendSyncProposeReq(req *SendSyncProposeReq) (*SendSyncProposeResp, error)
+	// 收到接受ack包
+	OnRecvackPacket(req *RecvacksReq) error
 }
 
 // Server rpc服务
@@ -205,6 +207,20 @@ func (n *nodeServiceImp) SendCMD(ctx context.Context, req *CMDReq) (*CMDResp, er
 		return &CMDResp{
 			Status: Status_Success,
 			Data:   respData,
+		}, nil
+	} else if req.Cmd == CMDType_ForwardRecvackPacket { // 收到转发接受包
+		recvacksReq := &RecvacksReq{}
+		err := proto.Unmarshal(req.Data, recvacksReq)
+		if err != nil {
+			n.s.Error("解码转发接受包数据失败！", zap.Error(err))
+			return nil, err
+		}
+		err = n.s.event.OnRecvackPacket(recvacksReq)
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: Status_Success,
 		}, nil
 	} else {
 		n.s.Error("不支持的RPC CMD", zap.String("cmd", req.Cmd.String()))
