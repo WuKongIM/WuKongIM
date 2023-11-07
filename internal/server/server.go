@@ -262,6 +262,8 @@ func (s *Server) Start() error {
 		s.demoServer.Start()
 	}
 
+	s.timingWheel.Start()
+
 	s.started = true
 
 	return nil

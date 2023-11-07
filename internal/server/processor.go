@@ -331,11 +331,9 @@ func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket)
 
 	p.response(conn, &wkproto.PongPacket{}) // 先响应客户端的ping
 
-	leaderPeer := p.s.clusterServer.GetLeaderPeer(conn.UID()) // 获取用户所属的领导节点
-	fmt.Println("leaderPeer---->", leaderPeer)
+	leaderPeer := p.s.clusterServer.GetLeaderPeer(conn.UID())              // 获取用户所属的领导节点
 	if leaderPeer != nil && leaderPeer.PeerID != p.s.opts.Cluster.PeerID { // 转发ping给领导节点
-
-		p.Debug("processPing to leader....")
+		p.Debug("processPing to leader....", zap.Uint64("leader", leaderPeer.PeerID))
 		status, err := p.s.clusterServer.ConnPing(leaderPeer.PeerID, &rpc.ConnPingReq{
 			ConnID:       conn.ID(),
 			BelongPeerID: p.s.opts.Cluster.PeerID,
@@ -968,6 +966,33 @@ func (p *Processor) getSuback(subPacket *wkproto.SubPacket, channelID string, re
 // #################### recv ack ####################
 func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPacket) {
 	if len(acks) == 0 {
+		return
+	}
+	fmt.Println("processRecvacks....", conn.ID())
+	leaderPeer := p.s.clusterServer.GetLeaderPeer(conn.UID())
+	if leaderPeer == nil {
+		p.Error("获取领导节点失败！", zap.Any("conn", conn))
+		return
+	}
+	if leaderPeer.PeerID != p.s.opts.Cluster.PeerID {
+		recvackDatas := make([]byte, 0)
+		for _, ack := range acks {
+			recvackData, err := p.s.opts.Proto.EncodeFrame(ack, uint8(conn.ProtoVersion()))
+			if err != nil {
+				p.Error("processRecvacks encodeFrame is fail", zap.Error(err), zap.Any("conn", conn))
+				return
+			}
+			recvackDatas = append(recvackDatas, recvackData...)
+		}
+		err := p.s.clusterServer.ForwardRecvackPacketReq(leaderPeer.PeerID, &rpc.RecvacksReq{
+			ConnID:       conn.ID(),
+			Uid:          conn.UID(),
+			BelongPeerID: p.s.opts.Cluster.PeerID,
+			Data:         recvackDatas,
+		})
+		if err != nil {
+			p.Error("forward recvack packet is fail", zap.Error(err))
+		}
 		return
 	}
 	for _, ack := range acks {

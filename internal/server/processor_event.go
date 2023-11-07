@@ -223,6 +223,44 @@ func (p *Processor) OnSendSyncProposeReq(req *rpc.SendSyncProposeReq) (*rpc.Send
 	}, nil
 }
 
+func (p *Processor) OnRecvackPacket(req *rpc.RecvacksReq) error {
+	fmt.Println("OnRecvackPacket....")
+	proxyConn := p.s.connManager.GetProxyConn(req.BelongPeerID, req.ConnID)
+	if proxyConn == nil {
+		p.Warn("conn not exist", zap.Int64("connID", req.ConnID), zap.Uint64("belongPeerID", req.BelongPeerID))
+		return nil
+	}
+	ackDatas := req.Data
+	ackPackets := make([]*wkproto.RecvackPacket, 0)
+	for len(ackDatas) > 0 {
+		f, size, err := p.s.opts.Proto.DecodeFrame(ackDatas, uint8(proxyConn.ProtoVersion()))
+		if err != nil {
+			p.Error("decode recvPacket err", zap.Error(err))
+			return err
+		}
+		ackPacket := f.(*wkproto.RecvackPacket)
+		ackDatas = ackDatas[size:]
+		ackPackets = append(ackPackets, ackPacket)
+	}
+	for _, ack := range ackPackets {
+		if !ack.NoPersist {
+			// 完成消息（移除重试队列里的消息）
+			err := p.s.retryQueue.finishMessage(proxyConn.ID(), ack.MessageID)
+			if err != nil {
+				p.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", proxyConn.UID()), zap.Int64("clientID", proxyConn.ID()), zap.Uint8("deviceFlag", proxyConn.DeviceFlag()), zap.String("deviceID", proxyConn.DeviceID()), zap.Int64("messageID", ack.MessageID))
+			}
+		}
+		if ack.SyncOnce && !ack.NoPersist && wkproto.DeviceLevel(proxyConn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
+			err := p.s.store.UpdateMessageOfUserCursorIfNeed(proxyConn.UID(), ack.MessageSeq)
+			if err != nil {
+				p.Warn("更新游标失败！", zap.Error(err), zap.String("uid", proxyConn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
+			}
+		}
+	}
+
+	return nil
+}
+
 // 处理本地订阅者消息
 func (p *Processor) handleLocalSubscribersMessages(messages []*Message, large bool, subscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string, channel *wkproto.Channel) error {
 	if len(subscribers) == 0 {
