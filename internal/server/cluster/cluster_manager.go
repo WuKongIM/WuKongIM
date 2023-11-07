@@ -24,11 +24,10 @@ type ClusterManager struct {
 	tickChan chan struct{}
 	stopChan chan struct{}
 	sync.RWMutex
-	readyChan                 chan ClusterReady
-	opts                      *ClusterManagerOptions
-	leaderID                  atomic.Uint64
-	slotLeaderRelationSet     *pb.SlotLeaderRelationSet
-	slotLeaderRelationSetLock sync.RWMutex
+	readyChan             chan ClusterReady
+	opts                  *ClusterManagerOptions
+	leaderID              atomic.Uint64
+	slotLeaderRelationSet *pb.SlotLeaderRelationSet
 }
 
 func NewClusterManager(opts *ClusterManagerOptions) *ClusterManager {
@@ -615,18 +614,6 @@ func (c *ClusterManager) GetSlotCount() uint32 {
 	c.Lock()
 	defer c.Unlock()
 	return c.cluster.SlotCount
-}
-
-func (c *ClusterManager) existPeer(peerID uint64) bool {
-	if len(c.cluster.Peers) == 0 {
-		return false
-	}
-	for _, peer := range c.cluster.Peers {
-		if peer.PeerID == peerID {
-			return true
-		}
-	}
-	return false
 }
 
 var EmptyClusterReady = ClusterReady{}

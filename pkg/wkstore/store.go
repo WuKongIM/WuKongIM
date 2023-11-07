@@ -34,9 +34,6 @@ type StoreWriter interface {
 	AppendMessages(channelID string, channelType uint8, msgs []Message) (seqs []uint32, err error)
 	// 追加消息到用户的消息队列
 	AppendMessagesOfUser(uid string, msgs []Message) (seqs []uint32, err error)
-	AppendMessageOfNotifyQueue(m []Message) error
-	// RemoveMessagesOfNotifyQueue 从通知队列里移除消息
-	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
 
 	DeleteChannelAndClearMessages(channelID string, channelType uint8) error
 

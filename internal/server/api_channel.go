@@ -79,18 +79,39 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
+		return
+	}
 	if err := req.Check(); err != nil {
 		c.ResponseError(err)
 		return
 	}
+
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		c.ResponseError(errors.New("暂不支持个人频道！"))
 		return
 	}
+
+	if ch.s.opts.ClusterOn() {
+		if !ch.s.clusterServer.InPeer(req.ChannelID) {
+			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
+			if peer == nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	// channelInfo := wkstore.NewChannelInfo(req.ChannelID, req.ChannelType)
 	channelInfo := req.ToChannelInfo()
 
-	err := ch.s.store.AddOrUpdateChannel(channelInfo)
+	err = ch.s.store.AddOrUpdateChannel(channelInfo)
 	if err != nil {
 		c.ResponseError(err)
 		ch.Error("创建频道失败！", zap.Error(err))
@@ -117,13 +138,29 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 // 更新或添加频道信息
 func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 	var req ChannelInfoReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
 		return
 	}
+
+	if ch.s.opts.ClusterOn() {
+		if !ch.s.clusterServer.InPeer(req.ChannelID) {
+			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
+			if peer == nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	channelInfo := req.ToChannelInfo()
-	err := ch.s.store.AddOrUpdateChannel(channelInfo)
+	err = ch.s.store.AddOrUpdateChannel(channelInfo)
 	if err != nil {
 		ch.Error("添加或更新频道信息失败！", zap.Error(err))
 		c.ResponseError(errors.New("添加或更新频道信息失败！"))
@@ -139,8 +176,8 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 
 func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 	var req subscriberAddReq
-	if err := c.BindJSON(&req); err != nil {
-		ch.Error("数据格式有误！", zap.Error(err))
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
@@ -155,6 +192,20 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 	if req.ChannelType == 0 {
 		req.ChannelType = wkproto.ChannelTypeGroup //默认为群
 	}
+	if ch.s.opts.ClusterOn() {
+		if !ch.s.clusterServer.InPeer(req.ChannelID) {
+			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
+			if peer == nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	channel, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
 	if err != nil {
 		ch.Error("获取频道失败！", zap.String("channel", req.ChannelID), zap.Error(err))
@@ -449,18 +500,40 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 // 删除频道
 func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 	var req ChannelDeleteReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		c.ResponseError(errors.New("个人频道不支持添加订阅者！"))
+		return
+	}
+	if ch.s.opts.ClusterOn() {
+		if !ch.s.clusterServer.InPeer(req.ChannelID) {
+			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
+			if peer == nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
 
-	err := ch.s.store.DeleteChannelAndClearMessages(req.ChannelID, req.ChannelType)
+	err = ch.s.store.DeleteChannelAndClearMessages(req.ChannelID, req.ChannelType)
 	if err != nil {
 		c.ResponseError(err)
 		return
 	}
 
-	ch.s.channelManager.DeleteChannel(req.ChannelID, req.ChannelType)
+	err = ch.s.channelManager.DeleteChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
 	c.ResponseOK()
 }
 
@@ -565,16 +638,19 @@ const (
 	PullModeUp                   // 向上拉取
 )
 
-// 同步频道内的消息
-func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
-
+func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		ch.Error("读取请求体失败！", zap.Error(err))
-		c.ResponseError(errors.New("读取请求体失败！"))
-		return
+		return nil, err
 	}
-	fmt.Println("bodyBytes--->", string(bodyBytes))
+	if err := wkutil.ReadJSONByByte(bodyBytes, obj); err != nil {
+		return nil, err
+	}
+	return bodyBytes, nil
+}
+
+// 同步频道内的消息
+func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 
 	var req struct {
 		LoginUID        string   `json:"login_uid"` // 当前登录用户的uid
@@ -585,9 +661,10 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		Limit           int      `json:"limit"`             // 每次同步数量限制
 		PullMode        PullMode `json:"pull_mode"`         // 拉取模式 0:向下拉取 1:向上拉取
 	}
-	if err := wkutil.ReadJSONByByte(bodyBytes, &req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(errors.New("数据格式有误！"))
+		c.ResponseError(err)
 		return
 	}
 
@@ -604,16 +681,19 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
-	if !ch.s.clusterServer.InPeer(fakeChannelID) {
-		peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-		if peer == nil {
-			ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-			c.ResponseError(errors.New("获取频道所在节点失败！"))
+	if ch.s.opts.ClusterOn() {
+		if !ch.s.clusterServer.InPeer(fakeChannelID) {
+			peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
+			if peer == nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			fmt.Println("转发请求：", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
-		fmt.Println("转发请求：", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path))
-		c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-		return
+
 	}
 
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {

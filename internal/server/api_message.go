@@ -292,7 +292,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if m.s.opts.WebhookOn() {
 		if !msg.StreamIng() && (!msg.NoPersist || !msg.SyncOnce) {
 			// Add a message to the notification queue, the data in this queue will be notified to third-party applications
-			err = m.s.store.AppendMessageOfNotifyQueue(messages)
+			err = m.s.store.fileStorage.AppendMessageOfNotifyQueue(messages)
 			if err != nil {
 				m.Error("添加消息到通知队列失败！", zap.Error(err))
 				return 0, 0, errors.New("添加消息到通知队列失败！")

@@ -834,7 +834,7 @@ func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error
 		}
 		storeMessages = append(storeMessages, m)
 	}
-	return p.s.store.AppendMessageOfNotifyQueue(storeMessages)
+	return p.s.store.fileStorage.AppendMessageOfNotifyQueue(storeMessages)
 }
 
 // 检查和解码payload内容
