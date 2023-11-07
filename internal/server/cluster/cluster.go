@@ -508,3 +508,20 @@ func (c *Cluster) ForwardRecvPacketReq(peerID uint64, data []byte) error {
 	}
 	return nil
 }
+
+func (c *Cluster) ForwardRecvackPacketReq(peerID uint64, req *rpc.RecvacksReq) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_ForwardRecvackPacket,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return err
+	}
+	if resp.Status != rpc.Status_Success {
+		return fmt.Errorf("send forwardRecvackPacketReq fail")
+	}
+	return nil
+}
