@@ -54,10 +54,6 @@ func (f *FSM) Apply(req *CMDReq) (*CMDResp, error) {
 		return f.applyAppendMessages(r)
 	case CMDAppendMessagesOfUser:
 		return f.applyAppendMessagesOfUser(r)
-	case CMDAppendMessagesOfNotifyQueue:
-		return f.applyAppendMessagesOfNotifyQueue(r)
-	case CMDRemoveMessagesOfNotifyQueue:
-		return f.applyRemoveMessagesOfNotifyQueue(r)
 	case CMDDeleteChannelAndClearMessages:
 		return f.applyDeleteChannelAndClearMessages(r)
 	case CMDAddOrUpdateConversations:
@@ -256,29 +252,6 @@ func (f *FSM) applyAppendMessagesOfUser(req *CMDReq) (*CMDResp, error) {
 		Status: CMDRespStatusOK,
 		Param:  st.Encode(),
 	}, nil
-}
-
-func (f *FSM) applyAppendMessagesOfNotifyQueue(req *CMDReq) (*CMDResp, error) {
-	messages, err := req.DecodeCMDAppendMessagesOfNotifyQueue()
-	if err != nil {
-		return nil, err
-	}
-	if err = f.store.AppendMessageOfNotifyQueue(messages); err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (f *FSM) applyRemoveMessagesOfNotifyQueue(req *CMDReq) (*CMDResp, error) {
-	seqs := Int64Set{}
-	err := seqs.Decode(req.Param)
-	if err != nil {
-		return nil, err
-	}
-	if err = f.store.RemoveMessagesOfNotifyQueue(seqs); err != nil {
-		return nil, err
-	}
-	return nil, nil
 }
 
 func (f *FSM) applyDeleteChannelAndClearMessages(req *CMDReq) (*CMDResp, error) {

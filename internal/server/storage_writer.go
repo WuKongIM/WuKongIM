@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -33,6 +35,8 @@ func (s *StorageWriter) UpdateUserToken(uid string, deviceFlag uint8, deviceLeve
 
 func (s *StorageWriter) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error {
 	req := NewCMDReq(CMDUpdateMessageOfUserCursorIfNeed)
+	slotID := s.s.clusterServer.GetSlotID(uid)
+	req.SlotID = &slotID
 	data := EncodeCMDUpdateMessageOfUserCursorIfNeed(uid, messageSeq)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -41,6 +45,9 @@ func (s *StorageWriter) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq u
 
 func (s *StorageWriter) AddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) error {
 	req := NewCMDReq(CMDAddOrUpdateChannel)
+	fakeChannelID := channelInfo.ChannelID
+	slotID := s.s.clusterServer.GetSlotID(fakeChannelID)
+	req.SlotID = &slotID
 	data := EncodeAddOrUpdateChannel(channelInfo)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -49,7 +56,12 @@ func (s *StorageWriter) AddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) err
 
 // AddSubscribers 添加订阅者
 func (s *StorageWriter) AddSubscribers(channelID string, channelType uint8, uids []string) error {
+	if channelType == wkproto.ChannelTypePerson {
+		return errors.New("person channel not support add subscribers")
+	}
 	req := NewCMDReq(CMDAddSubscribers)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDAddSubscribers(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -58,14 +70,24 @@ func (s *StorageWriter) AddSubscribers(channelID string, channelType uint8, uids
 
 // RemoveSubscribers 移除指定频道内指定uid的订阅者
 func (s *StorageWriter) RemoveSubscribers(channelID string, channelType uint8, uids []string) error {
+	if channelType == wkproto.ChannelTypePerson {
+		return errors.New("person channel not support add subscribers")
+	}
 	req := NewCMDReq(CMDRemoveSubscribers)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDRemoveSubscribers(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
 	return err
 }
 func (s *StorageWriter) RemoveAllSubscriber(channelID string, channelType uint8) error {
+	if channelType == wkproto.ChannelTypePerson {
+		return errors.New("person channel not support add subscribers")
+	}
 	req := NewCMDReq(CMDRemoveAllSubscriber)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDRemoveAllSubscriber(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -75,6 +97,8 @@ func (s *StorageWriter) RemoveAllSubscriber(channelID string, channelType uint8)
 // DeleteChannel 删除频道
 func (s *StorageWriter) DeleteChannel(channelID string, channelType uint8) error {
 	req := NewCMDReq(CMDDeleteChannel)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDDeleteChannel(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -85,6 +109,8 @@ func (s *StorageWriter) DeleteChannel(channelID string, channelType uint8) error
 func (s *StorageWriter) AddDenylist(channelID string, channelType uint8, uids []string) error {
 	req := NewCMDReq(CMDAddDenylist)
 	data := EncodeCMDAddDenylist(channelID, channelType, uids)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	req.Param = data
 	_, err := s.doCommand(req)
 	return err
@@ -93,6 +119,8 @@ func (s *StorageWriter) AddDenylist(channelID string, channelType uint8, uids []
 // RemoveDenylist 移除频道内指定用户的黑名单
 func (s *StorageWriter) RemoveDenylist(channelID string, channelType uint8, uids []string) error {
 	req := NewCMDReq(CMDRemoveDenylist)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDRemoveDenylist(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -102,6 +130,8 @@ func (s *StorageWriter) RemoveDenylist(channelID string, channelType uint8, uids
 // RemoveAllDenylist 移除指定频道的所有黑名单
 func (s *StorageWriter) RemoveAllDenylist(channelID string, channelType uint8) error {
 	req := NewCMDReq(CMDRemoveAllDenylist)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDRemoveAllDenylist(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -111,6 +141,8 @@ func (s *StorageWriter) RemoveAllDenylist(channelID string, channelType uint8) e
 // AddAllowlist 添加白名单
 func (s *StorageWriter) AddAllowlist(channelID string, channelType uint8, uids []string) error {
 	req := NewCMDReq(CMDAddAllowlist)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDAddAllowlist(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -120,6 +152,8 @@ func (s *StorageWriter) AddAllowlist(channelID string, channelType uint8, uids [
 // RemoveAllowlist 移除白名单
 func (s *StorageWriter) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
 	req := NewCMDReq(CMDRemoveAllowlist)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDRemoveAllowlist(channelID, channelType, uids)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -129,6 +163,8 @@ func (s *StorageWriter) RemoveAllowlist(channelID string, channelType uint8, uid
 // RemoveAllAllowlist 移除指定频道的所有白名单
 func (s *StorageWriter) RemoveAllAllowlist(channelID string, channelType uint8) error {
 	req := NewCMDReq(CMDRemoveAllAllowlist)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	data := EncodeCMDRemoveAllAllowlist(channelID, channelType)
 	req.Param = data
 	_, err := s.doCommand(req)
@@ -170,6 +206,8 @@ func (s *StorageWriter) AppendMessagesOfUser(uid string, msgs []wkstore.Message)
 		resp *CMDResp
 	)
 	req := NewCMDReq(CMDAppendMessagesOfUser)
+	slotID := s.s.clusterServer.GetSlotID(uid)
+	req.SlotID = &slotID
 	req.Param = EncodeCMDAppendMessagesOfUser(uid, msgs)
 	resp, err = s.doCommand(req)
 	if err != nil {
@@ -183,36 +221,11 @@ func (s *StorageWriter) AppendMessagesOfUser(uid string, msgs []wkstore.Message)
 	seqs = ([]uint32)(st)
 	return
 }
-func (s *StorageWriter) AppendMessageOfNotifyQueue(msgs []wkstore.Message) error {
-	if len(msgs) == 0 {
-		return nil
-	}
-	req := NewCMDReq(CMDAppendMessagesOfNotifyQueue)
-	req.Param = EncodeCMDAppendMessagesOfNotifyQueue(msgs)
-	_, err := s.doCommand(req)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RemoveMessagesOfNotifyQueue 从通知队列里移除消息
-func (s *StorageWriter) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
-	if len(messageIDs) == 0 {
-		return nil
-	}
-	st := Int64Set(messageIDs)
-	req := NewCMDReq(CMDRemoveMessagesOfNotifyQueue)
-	req.Param = st.Encode()
-	_, err := s.doCommand(req)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 func (s *StorageWriter) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
 	req := NewCMDReq(CMDDeleteChannelAndClearMessages)
+	slotID := s.s.clusterServer.GetSlotID(channelID)
+	req.SlotID = &slotID
 	req.Param = EncodeCMDDeleteChannelAndClearMessages(channelID, channelType)
 	_, err := s.doCommand(req)
 	return err
@@ -224,12 +237,16 @@ func (s *StorageWriter) AddOrUpdateConversations(uid string, conversations []*wk
 		return nil
 	}
 	req := NewCMDReq(CMDAddOrUpdateConversations)
+	slotID := s.s.clusterServer.GetSlotID(uid)
+	req.SlotID = &slotID
 	req.Param = EncodeCMDAddOrUpdateConversations(uid, conversations)
 	_, err := s.doCommand(req)
 	return err
 }
 func (s *StorageWriter) DeleteConversation(uid string, channelID string, channelType uint8) error {
 	req := NewCMDReq(CMDDeleteConversation)
+	slotID := s.s.clusterServer.GetSlotID(uid)
+	req.SlotID = &slotID
 	req.Param = EncodeCMDDeleteConversation(uid, channelID, channelType)
 	_, err := s.doCommand(req)
 	return err
