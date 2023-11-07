@@ -239,7 +239,7 @@ func (w *Webhook) notifyQueueLoop() {
 					}
 					if len(errMessageIDs) > 0 {
 						w.Error("消息通知失败超过最大次数！", zap.Int64s("messageIDs", errMessageIDs))
-						err = w.s.store.RemoveMessagesOfNotifyQueue(errMessageIDs)
+						err = w.s.store.fileStorage.RemoveMessagesOfNotifyQueue(errMessageIDs)
 						if err != nil {
 							w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", errMessageIDs))
 						}
@@ -258,7 +258,7 @@ func (w *Webhook) notifyQueueLoop() {
 
 					delete(errMessageIDMap, messageID)
 				}
-				err = w.s.store.RemoveMessagesOfNotifyQueue(messageIDs)
+				err = w.s.store.fileStorage.RemoveMessagesOfNotifyQueue(messageIDs)
 				if err != nil {
 					w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", messageIDs), zap.String("Webhook", w.s.opts.Webhook.HTTPAddr))
 					time.Sleep(errorSleepTime) // 如果报错就休息下
