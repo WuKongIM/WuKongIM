@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -22,6 +23,7 @@ func NewFSM(store wkstore.Store) *FSM {
 }
 
 func (f *FSM) Apply(req *CMDReq) (*CMDResp, error) {
+	fmt.Println("apply---------->", req.Type)
 	r := (*CMDReq)(req)
 	switch CMDType(req.Type) {
 	case CMDUpdateUserToken:
@@ -265,13 +267,17 @@ func (f *FSM) applyDeleteChannelAndClearMessages(req *CMDReq) (*CMDResp, error) 
 	return nil, nil
 }
 func (f *FSM) applyAddOrUpdateConversations(req *CMDReq) (*CMDResp, error) {
+	fmt.Println("applyAddOrUpdateConversations-kaishi---start.....")
 	uid, conversations, err := req.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
+		fmt.Println("applyAddOrUpdateConversations---start1.....", err)
 		return nil, err
 	}
 	if err = f.store.AddOrUpdateConversations(uid, conversations); err != nil {
+		fmt.Println("applyAddOrUpdateConversations---start2.....", err)
 		return nil, err
 	}
+	fmt.Println("applyAddOrUpdateConversations---end.....")
 	return nil, nil
 }
 

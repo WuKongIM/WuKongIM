@@ -33,6 +33,11 @@ func (c CMDType) String() string {
 		return "CMDAddPeers"
 	case CMDUpdateClusterConfig:
 		return "CMDUpdateClusterConfig"
+	case CMDUpdatePeerConfig:
+		return "CMDUpdatePeerConfig"
+	case CMDUpdateSlotLeaderRelationSet:
+		return "CMDUpdateSlotLeaderRelationSet"
+
 	default:
 		return "CMDUnknown"
 	}

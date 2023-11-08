@@ -10,7 +10,7 @@ import (
 
 // 节点消息的应用
 func (c *Cluster) onNodeApply(entries []sm.Entry) error {
-	fmt.Println("onNodeApply------->", entries)
+
 	// if len(entries) == 0 {
 	// 	return nil
 	// }
@@ -67,6 +67,7 @@ func (c *Cluster) onNodeApply(entries []sm.Entry) error {
 }
 
 func (c *Cluster) handleCMDReq(req pb.CMDReq) {
+	fmt.Println("onNodeApply------->", pb.CMDType(req.Type).String())
 	switch req.Type {
 	case pb.CMDAllocateSlot.Uint32():
 		c.handleAllocateSlots(req)
