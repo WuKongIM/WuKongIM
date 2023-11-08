@@ -6,7 +6,9 @@ rootDir: "./wukongimdata/3"
 monitor:
   on: false
 demo:
-  on: false  
+  on: false
+conversation:
+  on: true    
 cluster:
   peerID: 3
   addr: "tcp://127.0.0.1:13000" # 分布式监听地址

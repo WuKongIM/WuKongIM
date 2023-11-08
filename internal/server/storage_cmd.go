@@ -721,14 +721,18 @@ func (c *CMDReq) DecodeCMDDeleteChannelAndClearMessages() (channelID string, cha
 
 // EncodeCMDAddOrUpdateConversations EncodeCMDAddOrUpdateConversations
 func EncodeCMDAddOrUpdateConversations(uid string, conversations []*wkstore.Conversation) []byte {
+
+	var conversationSet wkstore.ConversationSet
+	if len(conversations) > 0 {
+		conversationSet = wkstore.ConversationSet(conversations)
+
+	}
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(uid)
-	if len(conversations) > 0 {
-		conversationSet := wkstore.ConversationSet(conversations)
+	if conversationSet != nil {
 		encoder.WriteBytes(conversationSet.Encode())
 	}
-
 	return encoder.Bytes()
 }
 

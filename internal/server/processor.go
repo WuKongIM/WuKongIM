@@ -90,7 +90,7 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 // #################### conn auth ####################
 func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 
-	belong, err := p.s.clusterServer.BelongPeer(conn.UID())
+	belong, err := p.s.clusterServer.BelongLeaderPeer(conn.UID())
 	if err != nil {
 		p.Error("get user belong peer err", zap.Error(err))
 		p.responseConnackAuthFail(conn)

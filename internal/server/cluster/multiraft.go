@@ -148,6 +148,7 @@ func (m *MultiRaft) getDefaultRaftConfig() config.Config {
 }
 
 func (m *MultiRaft) SyncProposeToSlot(slot uint32, data []byte) ([]byte, error) {
+	fmt.Println("SyncProposeToSlot............", slot)
 	ctx, cancel := context.WithTimeout(context.Background(), m.opts.ProposeTimeout)
 	session := m.nodehost.GetNoOPSession(uint64(slot))
 	result, err := m.nodehost.SyncPropose(ctx, session, data)
@@ -162,6 +163,7 @@ func (m *MultiRaft) SyncProposeToSlot(slot uint32, data []byte) ([]byte, error) 
 
 func (m *MultiRaft) SyncProposeToPeer(data []byte) error {
 
+	fmt.Println("SyncProposeToPeer............")
 	ctx, cancel := context.WithTimeout(context.Background(), m.opts.ProposeTimeout)
 	session := m.nodehost.GetNoOPSession(uint64(m.peerShardID))
 	_, err := m.nodehost.SyncPropose(ctx, session, data)
