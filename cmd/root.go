@@ -11,6 +11,7 @@ import (
 	"github.com/judwhite/go-svc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 var (
@@ -56,8 +57,8 @@ func initConfig() {
 
 	if cfgFile != "" {
 		vp.SetConfigFile(cfgFile)
-		if err := vp.ReadInConfig(); err == nil {
-			fmt.Println("Using config file:", vp.ConfigFileUsed())
+		if err := vp.ReadInConfig(); err != nil {
+			fmt.Println("Using config file:", vp.ConfigFileUsed(), zap.Error(err))
 		}
 	}
 

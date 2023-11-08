@@ -96,7 +96,7 @@ func (f *FileStoreForMsg) LoadPrevRangeMsgs(channelID string, channelType uint8,
 		return nil, fmt.Errorf("start messageSeq must be greater than 0")
 	}
 	actLimit := limit
-	var actStartMessageSeq uint32 = 0
+	var actStartMessageSeq uint32
 	if startMessageSeq < uint32(limit) {
 		actLimit = int(startMessageSeq)
 		actStartMessageSeq = 0
@@ -131,6 +131,7 @@ func (f *FileStoreForMsg) LoadNextRangeMsgs(channelID string, channelType uint8,
 
 func (f *FileStoreForMsg) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
 	f.Warn("暂未实现DeleteChannelAndClearMessages")
+
 	return nil
 }
 

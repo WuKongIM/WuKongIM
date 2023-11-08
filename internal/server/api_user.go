@@ -1,11 +1,15 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -42,16 +46,32 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		UID        string `json:"uid"`         // 用户uid
 		DeviceFlag int    `json:"device_flag"` // 设备flag 这里 -1 为用户所有的设备
 	}
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
+	if u.s.opts.ClusterOn() {
+		leaderPeer := u.s.clusterServer.GetLeaderPeer(req.UID)
+		if leaderPeer == nil {
+			u.Error("获取用户所在领导失败！", zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取用户所在领导失败！"))
+			return
+		}
+		if leaderPeer.PeerID != u.s.opts.Cluster.PeerID {
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderPeer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderPeer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	if req.DeviceFlag == -1 {
 		_ = u.quitUserDevice(req.UID, wkproto.APP)
 		_ = u.quitUserDevice(req.UID, wkproto.WEB)
 		_ = u.quitUserDevice(req.UID, wkproto.PC)
 	} else {
-		u.quitUserDevice(req.UID, wkproto.DeviceFlag(req.DeviceFlag))
+		_ = u.quitUserDevice(req.UID, wkproto.DeviceFlag(req.DeviceFlag))
 	}
 
 	c.ResponseOK()
@@ -82,10 +102,104 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 
 func (u *UserAPI) getOnlineStatus(c *wkhttp.Context) {
 	var uids []string
-	if err := c.BindJSON(&uids); err != nil {
+	err := c.BindJSON(&uids)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
+	if len(uids) == 0 {
+		c.ResponseOK()
+		return
+	}
+
+	var conns []*OnlinestatusResp
+	if u.s.opts.ClusterOn() {
+		var err error
+		conns, err = u.getOnlineConnsForCluster(uids)
+		if err != nil {
+			u.Error("获取在线状态失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	} else {
+		conns = u.getOnlineConns(uids)
+	}
+
+	c.JSON(http.StatusOK, conns)
+}
+
+func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, error) {
+	uidInPeerMap := make(map[uint64][]string)
+	localUids := make([]string, 0)
+	for _, uid := range uids {
+		leaderPeer := u.s.clusterServer.GetLeaderPeer(uid)
+		if leaderPeer == nil {
+			return nil, fmt.Errorf("领导者不存在！[%s]", uid)
+		}
+		if leaderPeer.PeerID == u.s.opts.Cluster.PeerID {
+			localUids = append(localUids, uid)
+			continue
+		}
+		uidList := uidInPeerMap[leaderPeer.PeerID]
+		if uidList == nil {
+			uidList = make([]string, 0)
+		}
+		uidList = append(uidList, uid)
+		uidInPeerMap[leaderPeer.PeerID] = uidList
+	}
+	var conns []*OnlinestatusResp
+	if len(localUids) > 0 {
+		conns = u.getOnlineConns(localUids)
+	}
+	if len(uidInPeerMap) > 0 {
+		var reqErr error
+		wg := &sync.WaitGroup{}
+		for peerID, uidList := range uidInPeerMap {
+			wg.Add(1)
+			go func(pid uint64, uidArr []string) {
+				results, err := u.requestOnlineStatus(pid, uidArr)
+				if err != nil {
+					reqErr = err
+				} else {
+					conns = append(conns, results...)
+				}
+				wg.Done()
+			}(peerID, uidList)
+		}
+		wg.Wait()
+		if reqErr != nil {
+			return nil, reqErr
+		}
+	}
+
+	return conns, nil
+}
+
+func (u *UserAPI) requestOnlineStatus(peerID uint64, uids []string) ([]*OnlinestatusResp, error) {
+	peer := u.s.clusterServer.GetPeer(peerID)
+	if peer == nil {
+		return nil, fmt.Errorf("节点不存在！peerID:%d", peerID)
+	}
+	reqURL := fmt.Sprintf("%s/user/onlinestatus", peer.ApiServerAddr)
+	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(uids)), nil)
+	if err != nil {
+		u.Error("获取在线用户状态失败！", zap.Error(err), zap.String("reqURL", reqURL))
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("获取在线用户状态请求状态错误！[%d]", resp.StatusCode)
+	}
+	var onlineStatusResps []*OnlinestatusResp
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &onlineStatusResps)
+	if err != nil {
+		u.Error("解析在线用户uids失败！", zap.Error(err))
+		return nil, err
+	}
+	return onlineStatusResps, nil
+}
+
+func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
 	conns := u.s.connManager.GetOnlineConns(uids)
 
 	onlineStatusResps := make([]*OnlinestatusResp, 0, len(conns))
@@ -96,14 +210,15 @@ func (u *UserAPI) getOnlineStatus(c *wkhttp.Context) {
 			Online:     1,
 		})
 	}
-
-	c.JSON(http.StatusOK, onlineStatusResps)
+	return onlineStatusResps
 }
 
 // 更新用户的token
 func (u *UserAPI) updateToken(c *wkhttp.Context) {
 	var req UpdateTokenReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -111,6 +226,21 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	if u.s.opts.ClusterOn() {
+		if !u.s.clusterServer.InPeer(req.UID) {
+			peer := u.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
+			if peer == nil {
+				u.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	u.Debug("req", zap.Any("req", req))
 
 	ban := false // 是否被封禁
@@ -174,6 +304,10 @@ func (u *UserAPI) systemUIDsAdd(c *wkhttp.Context) {
 		c.ResponseError(errors.New("数据格式有误！"))
 		return
 	}
+	if u.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式情况下暂不支持！"))
+		return
+	}
 	if len(req.UIDs) > 0 {
 		err := u.s.systemUIDManager.AddSystemUIDs(req.UIDs)
 		if err != nil {
@@ -194,6 +328,10 @@ func (u *UserAPI) systemUIDsRemove(c *wkhttp.Context) {
 	if err := c.BindJSON(&req); err != nil {
 		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+	if u.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式情况下暂不支持！"))
 		return
 	}
 	if len(req.UIDs) > 0 {

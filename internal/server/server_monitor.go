@@ -44,6 +44,10 @@ func (m *MonitorServer) Start() {
 			c.Next()
 			return
 		}
+		if strings.HasPrefix(c.FullPath(), "/web") {
+			c.Next()
+			return
+		}
 
 		managerToken := c.GetHeader("token")
 		if managerToken != m.s.opts.ManagerToken {

@@ -25,14 +25,23 @@ func newNetFd(conn net.Conn) NetFd {
 }
 
 func (n NetFd) Read(b []byte) (int, error) {
+	if n.conn == nil {
+		return 0, errors.New("conn is nil")
+	}
 	return n.conn.Read(b)
 }
 
 func (n NetFd) Write(b []byte) (int, error) {
+	if n.conn == nil {
+		return 0, errors.New("conn is nil")
+	}
 	return n.conn.Write(b)
 }
 
 func (n NetFd) Close() error {
+	if n.conn == nil {
+		return errors.New("conn is nil")
+	}
 	return n.conn.Close()
 }
 

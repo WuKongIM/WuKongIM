@@ -6,9 +6,6 @@
 
 `本项目需要在go1.20.0或以上环境编译`
 
-web聊天场景演示： http://imdemo.githubim.com
-
-后端监控演示： http://monitor.githubim.com/web
 
 [English](./README.md)
 
@@ -20,13 +17,14 @@ web聊天场景演示： http://imdemo.githubim.com
 <li><strong>官网</strong>: https://githubim.com</li>
 <li><strong>通讯协议</strong>: <a href="https://githubim.com/guide/proto.html">WuKongIM协议</a></li>
 <li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
-<li><strong>文档</strong>: http://www.githubim.com</li>
+<li><strong>文档</strong>: https://githubim.com</li>
 </ul>
 </p>
 
 [![](https://img.shields.io/github/license/WuKongIM/WuKongIM?color=yellow&style=flat-square)](./LICENSE)
 [![](https://img.shields.io/badge/go-%3E%3D1.20-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
+<a href="https://join.slack.com/t/wukongim/shared_invite/zt-22o7we8on-2iKNUmgigB9ERdF9XUivmw"><img src="https://img.shields.io/badge/Slack-99%2B-blueviolet?logo=slack&amp;logoColor=white"></a>
 
 演示
 --------
@@ -38,6 +36,10 @@ web聊天场景演示： http://imdemo.githubim.com
 **聊天Demo**
 
 ![image](./docs/demo.gif)
+
+web聊天场景演示： http://imdemo.githubim.com
+
+后端监控演示： http://monitor.githubim.com/web
 
 <!-- 愿景
 --------
@@ -71,7 +73,7 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 支持指令消息
 - [x] 支持离线指令接口
 - [x] 支持Webhook，轻松对接自己的业务系统
-- [x] 支持Datasoure，无缝对接自己的业务系统数据源
+- [x] 支持Datasource，无缝对接自己的业务系统数据源
 - [x] 支持Websocket连接
 - [x] 支持TLS 1.3
 - [x] 支持Prometheus监控
@@ -82,25 +84,17 @@ web聊天场景演示： http://imdemo.githubim.com
 
 
 
-快速部署
+快速运行
 ---------------
 
 ```shell
 
-# 安装
-curl -sSL https://gitee.com/WuKongDev/WuKongIMCli/raw/main/install.sh | sudo bash 
+git clone https://github.com/WuKongIM/WuKongIM.git
 
-# 运行
-wk run 
+cd WuKongIM
 
-```
-配置文件在 ~/wukongim/wk.yaml (修改配置需重启服务)
+go run main.go --config config/wk.yaml
 
-默认是局域网地址，如果需要外网访问，需要修改配置文件中的 external.ip 为服务器外网 IP。如下
-
-```yaml
-external:
-  ip: 'xxx.xxx.xx.xxx'
 ```
 
 查询系统信息: http://127.0.0.1:5001/varz
@@ -121,26 +115,19 @@ external:
 5300: 监控系统端口
 ```
 
-分布式部署
+分布式运行
 ---------------
 
-```shell
 
-wukongim --node-id=1 --listen-addr=127.0.0.1:11110
-
-wukongim --node-id=2 --listen-addr=127.0.0.1:11111  --join=127.0.0.1:11110
-
-```
-
-启动两个logic和一个gateway节点，其中一个logic节点作为主节点，另一个作为备用节点，gateway节点作为网关节点，客户端连接gateway节点，gateway节点会自动将消息投递到logic节点，logic节点之间会自动同步数据。
 
 ```shell
 
-wukongim logic --node-id=1 --listen-addr=127.0.0.1:11110
+go run main.go --config  ./exampleconfig/cluster1.yaml -d
 
-wukongim logic --node-id=1 --listen-addr=127.0.0.1:11111 --join=127.0.0.1:11110
+go run main.go --config  ./exampleconfig/cluster2.yaml -d
 
-wukongim gateway --listen-addr=127.0.0.1:11113 --logic-addr=127.0.0.1:11111
+go run main.go --config  ./exampleconfig/cluster3.yaml -d
+
 ```
 
 
@@ -159,6 +146,15 @@ wukongim gateway --listen-addr=127.0.0.1:11113 --logic-addr=127.0.0.1:11111
 |   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     无  | Apache2.0    |    悟空IM的 React Native Demo(由贡献者 [wengqianshan](https://github.com/wengqianshan) 提供)  |
 
 
+| 项目名 | Github地址 | Gitee地址 | 文档 | 说明 |
+| ---- | ---------- | --------- | ---- |  ---- |
+|   WuKongIM   |   [Github](https://github.com/WuKongIM/WuKongIM)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIM) | &nbsp;&nbsp;&nbsp;&nbsp; [文档](https://githubim.com/sdk/android.html)  &nbsp;&nbsp;&nbsp;&nbsp;       |    悟空IM通讯端，负责长连接维护，消息投递等等 |
+|   WuKongIMAndroidSDK   |   [Github](https://github.com/WuKongIM/WuKongIMAndroidSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMAndroidSDK) | [文档](https://githubim.com/sdk/android.html)    |    悟空IM的Android SDK  |
+|   WuKongIMiOSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMiOSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMiOSSDK)  | [文档](https://githubim.com/sdk/ios.html)     |    悟空IM的iOS SDK  |
+|   WuKongIMUniappSDK   |   [Github](https://github.com/WuKongIM/WuKongIMUniappSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMUniappSDK)  | [文档](https://githubim.com/sdk/uniapp.html)      |    悟空IM的 Uniapp SDK  |
+|   WuKongIMJSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMJSSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMJSSDK)   | [文档](https://githubim.com/sdk/javascript.html)     |    悟空IM的 JS SDK  |
+|   WuKongIMFlutterSDK   |    [Github](https://github.com/WuKongIM/WuKongIMFlutterSDK)        |    [Gitee](https://gitee.com/WuKongDev/WuKongIMFlutterSDK)   |[文档](https://githubim.com/sdk/flutter.html)    |    悟空IM的 Flutter SDK |
+|   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     无  |  无  |    悟空IM的 React Native Demo(由贡献者 [wengqianshan](https://github.com/wengqianshan) 提供)  |
 
 
 

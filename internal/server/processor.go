@@ -221,13 +221,25 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 
 	// -------------------- response connack --------------------
 
+	lastVersion := connectPacket.Version
+	hasServerVersion := false
+	if connectPacket.Version > wkproto.LatestVersion {
+		lastVersion = wkproto.LatestVersion
+	}
+	if connectPacket.Version > 3 {
+		hasServerVersion = true
+	}
+
 	p.s.Debug("Auth Success", zap.Any("conn", conn))
-	p.response(conn, &wkproto.ConnackPacket{
-		Salt:       aesIV,
-		ServerKey:  dhServerPublicKeyEnc,
-		ReasonCode: wkproto.ReasonSuccess,
-		TimeDiff:   timeDiff,
-	})
+	connack := &wkproto.ConnackPacket{
+		Salt:          aesIV,
+		ServerKey:     dhServerPublicKeyEnc,
+		ReasonCode:    wkproto.ReasonSuccess,
+		TimeDiff:      timeDiff,
+		ServerVersion: lastVersion,
+	}
+	connack.HasServerVersion = hasServerVersion
+	p.response(conn, connack)
 
 	// -------------------- user online --------------------
 	// 在线webhook
@@ -539,6 +551,7 @@ func (p *Processor) prcocessChannelMessagesForLocal(conn wknet.Conn, channelID s
 				StreamNo:    sendPacket.StreamNo,
 				StreamFlag:  wkproto.StreamFlagIng,
 				FromUID:     conn.UID(),
+				Expire:      sendPacket.Expire,
 				ChannelID:   sendPacket.ChannelID,
 				ChannelType: sendPacket.ChannelType,
 				Topic:       sendPacket.Topic,
@@ -767,9 +780,8 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 			continue
 		}
 		if m.StreamIng() { // 流消息单独存储
-			_, err := p.s.store.AppendStreamItem(m.ChannelID, m.ChannelType, m.StreamNo, &wkstore.StreamItem{
+			_, err := p.s.store.AppendStreamItem(GetFakeChannelIDWith(fromUID, m.ChannelID), m.ChannelType, m.StreamNo, &wkstore.StreamItem{
 				ClientMsgNo: m.ClientMsgNo,
-				StreamSeq:   m.StreamSeq,
 				Blob:        m.Payload,
 			})
 			if err != nil {
