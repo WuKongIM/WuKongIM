@@ -7,9 +7,6 @@
 
 `This project needs to be compiled in a go1.20.0 or higher version.`
 
-Web chat scene demo: http://imdemo.githubim.com
-
-Backend monitoring demo: http://monitor.githubim.com/web
 
 [中文文档](./README_CN.md)
 
@@ -17,17 +14,17 @@ Backend monitoring demo: http://monitor.githubim.com/web
 <img align="left" height="110" src="./docs/logo.png">
 <ul>
 <!-- <li><strong>QQ group</strong>: <a href="#">496193831</a></li> -->
-<li><strong>Website</strong>: http://www.githubim.com</li>
+<li><strong>Website</strong>: https://githubim.com</li>
 <li><strong>Protocol</strong>: <a href="https://githubim.com/guide/proto.html">WuKongIM Protocol</a></li>
 <li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
-<li><strong>Docs</strong>: http://www.githubim.com</li>
+<li><strong>Docs</strong>: https://githubim.com</li>
 </ul>
 </p>
 
 [![](https://img.shields.io/github/license/WuKongIM/WuKongIM?color=yellow&style=flat-square)](./LICENSE)
 [![](https://img.shields.io/badge/go-%3E%3D1.20-30dff3?style=flat-square&logo=go)](https://github.com/WuKongIM/WuKongIM)
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
-
+<a href="https://join.slack.com/t/wukongim/shared_invite/zt-22o7we8on-2iKNUmgigB9ERdF9XUivmw"><img src="https://img.shields.io/badge/Slack-99%2B-blueviolet?logo=slack&amp;logoColor=white"></a>
 
 Demo
 --------
@@ -40,6 +37,10 @@ TangSengDaoDao (communication layer based on WuKongIM): https://github.com/TangS
 
 ![image](./docs/demo.gif)
 
+
+Web chat scene demo: http://imdemo.githubim.com
+
+Backend monitoring demo: http://monitor.githubim.com/web
 
 
 Features
@@ -66,7 +67,7 @@ TODO
 - [x] Supports command messages
 - [x] Supports offline command interface
 - [x] Supports Webhook, easy integration with your own business system
-- [x] Supports Datasoure, seamless integration with your own business system data source
+- [x] Supports Datasource, seamless integration with your own business system data source
 - [x] Supports WebSocket connections
 - [x] Supports TLS 1.3
 - [x] Development of monitoring system
@@ -81,21 +82,12 @@ Quick Start
 
 ```shell
 
-# install
-curl -sSL https://gitee.com/WuKongDev/WuKongIMCli/raw/main/install.sh | sudo bash 
+git clone https://github.com/WuKongIM/WuKongIM.git
 
-# run
-wk run 
+cd WuKongIM
 
-```
+go run main.go --config config/wk.yaml
 
-The configuration file is located at ~/wukongim/wk.yaml (restart the service after modifying the configuration).
-
-By default, it uses a local area network address. If you need external access, you need to modify the external.ip in the configuration file to the server's external IP. As follows:
-
-```yaml
-external:
-  ip: 'xxx.xxx.xx.xxx'
 ```
 
 View System information: http://127.0.0.1:5001/varz
@@ -116,11 +108,10 @@ Port explanation:
 5300: Monitoring system port
 ```
 
-
 SDK source code and demos
 ---------------
 
-| Project Name | Github Address | Gitee Address | Open Source License | Description |
+| Project Name | Github Address | Gitee Address | Documentation | Description |
 | ---- | ---------- | --------- | ---- |  ---- |
 |   WuKongIM   |   [Github](https://github.com/WuKongIM/WuKongIM)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIM)  | Apache2.0   |    WuKongIM communication end, responsible for long connection maintenance, message delivery, etc.   |
 |   WuKongIMAndroidSDK   |   [Github](https://github.com/WuKongIM/WuKongIMAndroidSDK)         |     [Gitee](https://gitee.com/WuKongDev/WuKongIMAndroidSDK) | Apache2.0       |    WuKongIM's Android SDK  |

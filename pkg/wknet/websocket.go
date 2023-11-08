@@ -102,6 +102,7 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 		return nil, err
 	}
 	if len(buff) < ws.MinHeaderSize { // 数据不完整
+		fmt.Println(" 数据不完整---->", len(buff))
 		return nil, nil
 	}
 	tmpReader := bytes.NewReader(buff)
@@ -110,6 +111,7 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 		if err == io.EOF || err == io.ErrUnexpectedEOF { //数据不完整
 			return nil, nil
 		}
+		fmt.Println(" 发送错误，丢弃数据---->", err)
 		w.DiscardFromTemp(len(buff)) // 发送错误，丢弃数据
 		return nil, err
 	}
@@ -128,12 +130,12 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 				w.Warn("read client message error", zap.Error(err))
 				break
 			}
-			remLen = remLen - tmpReader.Len()
-			w.DiscardFromTemp(remLen)
 		}
+		remLen = remLen - tmpReader.Len()
+		w.DiscardFromTemp(remLen)
 		return messages, nil
 	} else {
-		fmt.Println("header.Fin-->false...", buff)
+		fmt.Println("header.Fin-->false...", len(buff))
 	}
 	return nil, nil
 }
@@ -364,6 +366,7 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 		if err == io.EOF || err == io.ErrUnexpectedEOF { //数据不完整
 			return nil, nil
 		}
+		fmt.Println("发送错误，丢弃数据....")
 		w.discardFromWSTemp(len(buff)) // 发送错误，丢弃数据
 		return nil, err
 	}
@@ -383,12 +386,12 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 				w.d.Warn("read client message error", zap.Error(err))
 				break
 			}
-			remLen = remLen - tmpReader.Len()
-			w.discardFromWSTemp(remLen)
 		}
+		remLen = remLen - tmpReader.Len()
+		w.discardFromWSTemp(remLen)
 		return messages, nil
 	} else {
-		fmt.Println("header.Fin-->false...")
+		fmt.Println("header.Fin-->false...", len(buff))
 	}
 	return nil, nil
 }

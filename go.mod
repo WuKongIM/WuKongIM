@@ -4,8 +4,7 @@ go 1.18
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
-	github.com/WuKongIM/WuKongIMGoProto v1.0.0
-	github.com/WuKongIM/WuKongIMGoSDK v1.0.0
+	github.com/WuKongIM/WuKongIMGoProto v1.0.1-0.20231009045011-552aa036a108
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/eapache/queue v1.1.0
 	github.com/gin-contrib/gzip v0.0.6
@@ -40,7 +39,6 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
 	github.com/VictoriaMetrics/metrics v1.18.1 // indirect
 	github.com/armon/go-metrics v0.4.0 // indirect
-	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.9.0 // indirect
@@ -121,4 +119,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/WuKongIM/WuKongIMGoSDK => ../../WuKongIMGoSDK
+// replace github.com/WuKongIM/WuKongIMGoSDK => ../../WuKongIMGoSDK

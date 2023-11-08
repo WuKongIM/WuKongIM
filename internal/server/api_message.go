@@ -45,7 +45,9 @@ func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 // 消息同步
 func (m *MessageAPI) sync(c *wkhttp.Context) {
 	var req syncReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -53,6 +55,21 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	if m.s.opts.ClusterOn() {
+		if !m.s.clusterServer.InPeer(req.UID) {
+			peer := m.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
+			if peer == nil {
+				m.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	readedMessageSeq, err := m.s.store.GetMessageOfUserCursor(req.UID) // 获取当前用户已读消息seq
 	if err != nil {
 		c.ResponseError(err)
@@ -88,16 +105,31 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 // 同步回执
 func (m *MessageAPI) syncack(c *wkhttp.Context) {
 	var req syncackReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		m.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(errors.New("数据格式有误！"))
+		c.ResponseError(err)
 		return
 	}
 	if err := req.Check(); err != nil {
 		c.ResponseError(err)
 		return
 	}
-	err := m.s.store.UpdateMessageOfUserCursorIfNeed(req.UID, req.LastMessageSeq)
+
+	if m.s.opts.ClusterOn() {
+		if !m.s.clusterServer.InPeer(req.UID) {
+			peer := m.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
+			if peer == nil {
+				m.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+	err = m.s.store.UpdateMessageOfUserCursorIfNeed(req.UID, req.LastMessageSeq)
 	if err != nil {
 		c.ResponseError(err)
 		return
@@ -131,6 +163,10 @@ func (m *MessageAPI) sendBatch(c *wkhttp.Context) {
 		c.ResponseError(errors.New("payload不能为空！"))
 		return
 	}
+	if m.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式模式下暂时不支持批量发送消息"))
+		return
+	}
 	failUids := make([]string, 0)
 	reasons := make([]string, 0)
 	for _, subscriber := range req.Subscribers {
@@ -155,7 +191,8 @@ func (m *MessageAPI) sendBatch(c *wkhttp.Context) {
 
 func (m *MessageAPI) send(c *wkhttp.Context) {
 	var req MessageSendReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		m.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -175,6 +212,24 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 			m.Error("创建临时频道失败！", zap.Error(err))
 			c.ResponseError(err)
 			return
+		}
+	} else {
+		if m.s.opts.ClusterOn() {
+			fakeChannelID := channelID
+			if channelType == wkproto.ChannelTypePerson {
+				fakeChannelID = GetFakeChannelIDWith(req.FromUID, channelID)
+			}
+			if !m.s.clusterServer.InPeer(fakeChannelID) {
+				peer := m.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个数据所在的节点
+				if peer == nil {
+					m.Error("获取频道所在节点失败！", zap.String("uid", fakeChannelID))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+				m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				return
+			}
 		}
 	}
 	m.Debug("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
@@ -245,8 +300,6 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		setting = setting.Set(wkproto.SettingStream)
 	}
 
-	fmt.Println("setting--->", setting.IsSet(wkproto.SettingStream))
-
 	msg := &Message{
 		RecvPacket: &wkproto.RecvPacket{
 			Framer: wkproto.Framer{
@@ -262,6 +315,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			FromUID:     req.FromUID,
 			ChannelID:   channelID,
 			ChannelType: channelType,
+			Expire:      req.Expire,
 			Timestamp:   int32(time.Now().Unix()),
 			Payload:     req.Payload,
 		},
@@ -317,12 +371,17 @@ func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
 		return
 	}
 
+	if m.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式暂不支持流消息"))
+		return
+	}
+
 	channelID := req.ChannelID
 	channelType := req.ChannelType
 
 	m.Debug("消息流开始", zap.String("msg", wkutil.ToJSON(req)))
 
-	if strings.TrimSpace(channelID) == "" { //指定了频道 正常发送
+	if strings.TrimSpace(channelID) == "" {
 		m.Error("无法处理发送消息请求！", zap.Any("req", req))
 		c.ResponseError(errors.New("无法处理发送消息请求！"))
 		return
@@ -378,6 +437,11 @@ func (m *MessageAPI) streamMessageEnd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	if m.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式暂不支持流消息"))
+		return
+	}
+
 	streamMeta, err := m.s.store.GetStreamMeta(req.ChannelID, req.ChannelType, req.StreamNo)
 	if err != nil {
 		m.Error("获取流消息元数据失败！", zap.Error(err))

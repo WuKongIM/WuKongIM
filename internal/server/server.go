@@ -194,6 +194,7 @@ func (s *Server) Start() error {
 							  
 	`)
 	s.Info("WuKongIM is Starting...")
+	s.Info(fmt.Sprintf("  Using config file:  %s", s.opts.ConfigFileUsed()))
 	s.Info(fmt.Sprintf("  Mode:  %s", s.opts.Mode))
 	s.Info(fmt.Sprintf("  Version:  %s", version.Version))
 	s.Info(fmt.Sprintf("  Git:  %s", fmt.Sprintf("%s-%s", version.CommitDate, version.Commit)))
@@ -266,21 +267,19 @@ func (s *Server) Stop() error {
 	}
 
 	s.retryQueue.Stop()
-
-	s.store.Close()
-
-	s.dispatch.Stop()
+	_ = s.dispatch.Stop()
 	s.apiServer.Stop()
 	s.conversationManager.Stop()
 	s.webhook.Stop()
 
 	if s.opts.Monitor.On {
-		s.monitorServer.Stop()
+		_ = s.monitorServer.Stop()
 		s.monitor.Stop()
 	}
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
 	}
+	s.store.Close()
 	close(s.stopChan)
 
 	return nil
