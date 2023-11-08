@@ -7,6 +7,8 @@ monitor:
   on: false
 demo:
   on: true  
+conversation:
+  on: true   
 cluster:
   peerID: 1
   addr: "tcp://127.0.0.1:11000"

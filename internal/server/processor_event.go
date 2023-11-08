@@ -340,6 +340,7 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 }
 
 func (p *Processor) updateConversations(m *Message, subscribers []string) {
+	fmt.Println("updateConversations------------------->")
 	p.s.conversationManager.PushMessage(m, subscribers)
 
 }

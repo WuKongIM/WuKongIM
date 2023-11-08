@@ -1,6 +1,7 @@
 
 
 <script setup lang="ts">
+<<<<<<< HEAD
 import { onMounted, onUnmounted, ref, nextTick } from 'vue';
 import { CMDContent, Channel, ChannelInfo, ChannelTypePerson, ConnectStatus, ConnectStatusListener, Conversation, ConversationAction, Message, WKSDK } from 'wukongimjssdk';
 import { ConversationWrap } from './ConversationWrap';
@@ -34,6 +35,18 @@ const cmdListener = (msg: Message) => {
 }
 
 // 监听最近会话列表的变化
+=======
+import { onMounted, onUnmounted, ref,defineProps } from 'vue';
+import { Channel, ChannelTypePerson, Conversation, ConversationAction, WKSDK } from 'wukongimjssdk';
+import { ConversationWrap } from './ConversationWrap';
+
+const conversationWraps = ref<ConversationWrap[]>() // 本地最近会话列表
+
+const selectedChannel = ref<Channel>() // 选中的会话
+
+const onSelectChannel = defineProps<{ onSelectChannel: (channel: Channel) => void }>()
+
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 const conversationListener = (conversation: Conversation, action: ConversationAction) => { // 监听最近会话列表的变化
     console.log("conversationListener", conversation, action)
     if (action === ConversationAction.add) {
@@ -52,6 +65,7 @@ const conversationListener = (conversation: Conversation, action: ConversationAc
     }
 }
 
+<<<<<<< HEAD
 const channelInfoListener = (channelInfo: ChannelInfo) => {
     conversationWraps.value = [...conversationWraps.value || []] // 强制刷新
     // const index = conversationWraps.value?.findIndex(item => item.channel.channelID === channelInfo.channel.channelID && item.channel.channelType === channelInfo.channel.channelType)
@@ -75,13 +89,26 @@ onMounted(async () => {
     WKSDK.shared().conversationManager.addConversationListener(conversationListener) // 监听最近会话列表的变化
     WKSDK.shared().chatManager.addCMDListener(cmdListener) // 监听cmd消息
     WKSDK.shared().channelManager.addListener(channelInfoListener) // 监听频道信息变化
+=======
+
+onMounted(async () => {
+    const remoteConversations = await WKSDK.shared().conversationManager.sync() // 同步最近会话列表
+    if (remoteConversations && remoteConversations.length > 0) {
+        conversationWraps.value = sortConversations(remoteConversations.map(conversation => new ConversationWrap(conversation)))
+    }
+
+    WKSDK.shared().conversationManager.addConversationListener(conversationListener)
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 })
 
 onUnmounted(() => {
     WKSDK.shared().conversationManager.removeConversationListener(conversationListener)
+<<<<<<< HEAD
     WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
     WKSDK.shared().chatManager.removeCMDListener(cmdListener)
     WKSDK.shared().channelManager.removeListener(channelInfoListener)
+=======
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 })
 
 // 排序最近会话列表
@@ -109,6 +136,7 @@ const sortConversations = (conversations?: Array<ConversationWrap>) => {
 
 const onSelectChannelClick = (channel: Channel) => {
     selectedChannel.value = channel
+<<<<<<< HEAD
     if (onSelectChannel) {
         onSelectChannel.onSelectChannel(channel)
     }
@@ -121,11 +149,24 @@ const getConversationItemCss = (conversationWrap: ConversationWrap) => {
         return 'conversation-item'
     }
     if (selectedChannel.value.isEqual(conversationWrap.channel)) {
+=======
+    if(onSelectChannel) {
+        onSelectChannel.onSelectChannel(channel)
+    }
+}
+
+const getConversationItemCss = (conversationWrap: ConversationWrap) => {
+    if(!selectedChannel.value) {
+        return 'conversation-item'
+    }
+    if(selectedChannel.value.isEqual(conversationWrap.channel)) {
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
         return 'conversation-item selected'
     }
     return 'conversation-item'
 }
 
+<<<<<<< HEAD
 const fetchChannelInfoIfNeed = (channel: Channel) => {
     const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel)
     if (!channelInfo) {
@@ -134,11 +175,14 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
 
 }
 
+=======
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 </script>
 
 
 <template>
     <div class="conversations">
+<<<<<<< HEAD
         <div :class="getConversationItemCss(conversationWrap)" v-for="conversationWrap in conversationWraps" :onClick="() => {
             onSelectChannelClick(conversationWrap.channel)
         }">
@@ -151,6 +195,18 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
                     </div>
                     <div class="avatar" style="width: 48px;height: 48px;" v-else>
                         {{ conversationWrap.channelInfo?.title }}
+=======
+        <div :class="getConversationItemCss(conversationWrap)" v-for="conversationWrap in conversationWraps" :onClick="()=>{
+             onSelectChannelClick(conversationWrap.channel)
+        }">
+            <div class="item-content">
+                <div class="left">
+                    <div class="avatar" style="width: 48px;height: 48px;" v-if="conversationWrap.channel.channelType === ChannelTypePerson">
+                        <img :src="conversationWrap.avatar" style="width: 48px;height: 48px;" />
+                    </div>
+                    <div class="avatar" style="width: 48px;height: 48px;" v-else>
+                        {{conversationWrap.channel.channelID.substring(0,1).toUpperCase()}}
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
                     </div>
                 </div>
                 <div class="right">
@@ -180,7 +236,10 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
 .conversations {
     width: 100%;
     height: 100%;
+<<<<<<< HEAD
     overflow-y: auto;
+=======
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 }
 
 .item-content {
@@ -197,7 +256,10 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
     width: 100%;
     background-color: white;
     cursor: pointer;
+<<<<<<< HEAD
     overflow: hidden;
+=======
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 }
 
 .left {
@@ -210,7 +272,11 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
 .right {
     margin-left: 10px;
     height: 100%;
+<<<<<<< HEAD
     width: calc(300px - 100px);
+=======
+    width: 100%;
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -225,7 +291,10 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
 
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 .right-item2 {
     display: flex;
     flex-direction: row;
@@ -246,6 +315,7 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
     margin-right: 10px;
 }
 
+<<<<<<< HEAD
 
 
 .right-item1 .title {
@@ -256,17 +326,29 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
     text-overflow: ellipsis;
     white-space: nowrap;
     display: block;
+=======
+.last-msg {
+    margin-top: 4px;
+}
+
+.title {
+    font-size: 16px;
+    font-weight: bold;
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 }
 
 .last-msg {
     font-size: 14px;
     color: #999999;
+<<<<<<< HEAD
     margin-top: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     display: block;
 
+=======
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 }
 
 .time {
@@ -276,7 +358,11 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
 }
 
 .selected {
+<<<<<<< HEAD
     background-color: #eee;
+=======
+    background-color: rgba(245, 245, 245);
+>>>>>>> e511fe7 (feat: improve the distributed recent conversation)
 }
 
 .avatar {

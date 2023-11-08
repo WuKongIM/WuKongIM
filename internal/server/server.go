@@ -147,6 +147,7 @@ func New(opts *Options) *Server {
 				cmd.SlotID = &slotID
 				cmdResp, err := s.fsm.Apply(cmd)
 				if err != nil {
+					s.Error("状态机应用数据失败！，严重错误！", zap.Error(err))
 					return nil, err
 				}
 				if cmdResp != nil {

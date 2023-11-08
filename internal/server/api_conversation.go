@@ -88,6 +88,21 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	if s.s.opts.ClusterOn() {
+		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
+		if peer == nil {
+			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		if peer.PeerID != s.s.opts.Cluster.PeerID {
+			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	conversation := s.s.conversationManager.GetConversation(req.UID, req.ChannelID, req.ChannelType)
 	if conversation == nil && req.MessageSeq > 0 {
 		conversation = &wkstore.Conversation{
@@ -127,6 +142,21 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(errors.New("channel_id or channel_type cannot be empty"))
 		return
 	}
+
+	if s.s.opts.ClusterOn() {
+		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
+		if peer == nil {
+			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		if peer.PeerID != s.s.opts.Cluster.PeerID {
+			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	conversation := s.s.conversationManager.GetConversation(req.UID, req.ChannelID, req.ChannelType)
 	if conversation == nil && req.MessageSeq > 0 && req.Unread == 0 {
 		conversation = &wkstore.Conversation{
