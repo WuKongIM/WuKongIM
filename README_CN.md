@@ -122,11 +122,11 @@ go run main.go --config config/wk.yaml
 
 ```shell
 
-go run main.go --config  ./exampleconfig/cluster1.yaml -d
+./wukongim --config  ./exampleconfig/cluster1.yaml -d
 
-go run main.go --config  ./exampleconfig/cluster2.yaml -d
+./wukongim --config  ./exampleconfig/cluster2.yaml -d
 
-go run main.go --config  ./exampleconfig/cluster3.yaml -d
+./wukongim --config  ./exampleconfig/cluster3.yaml -d
 
 ```
 

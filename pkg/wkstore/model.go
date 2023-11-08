@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/pkg/errors"
 )
 
 const conversationVersion = 0x1
@@ -38,7 +39,7 @@ func (c ConversationSet) Encode() []byte {
 		enc.WriteString(cn.UID)
 		enc.WriteString(cn.ChannelID)
 		enc.WriteUint8(cn.ChannelType)
-		enc.WriteInt32(int32(cn.UnreadCount))
+		enc.WriteUint32(uint32(cn.UnreadCount))
 		enc.WriteInt64(cn.Timestamp)
 		enc.WriteUint32(cn.LastMsgSeq)
 		enc.WriteString(cn.LastClientMsgNo)
@@ -52,11 +53,12 @@ func NewConversationSet(data []byte) ConversationSet {
 	conversationSet := ConversationSet{}
 	decoder := wkproto.NewDecoder(data)
 
-	for {
+	for decoder.Len() > 0 {
 		conversation, err := decodeConversation(decoder)
-		if err == io.EOF {
-			break
+		if err != nil {
+			panic(errors.Wrap(err, "解码最近会话数据失败！"))
 		}
+
 		conversationSet = append(conversationSet, conversation)
 	}
 	return conversationSet

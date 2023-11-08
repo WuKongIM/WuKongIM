@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from "axios";
-import { Channel, Message, SyncOptions, WKSDK } from "wukongimjssdk";
+import { Channel, Conversation, Message, SyncOptions, WKSDK } from "wukongimjssdk";
 import { Convert } from "./convert";
 
 
@@ -147,6 +147,22 @@ export default class APIClient {
             });
         }
         return resultMessages
+    }
+
+    syncConversations = async () => {
+        let resultConversations = new Array<Conversation>()
+        const resp = await APIClient.shared.post('/conversation/sync', {
+            uid: WKSDK.shared().config.uid,
+            msg_count: 1,
+        })
+        const conversationList = resp
+        if (conversationList) {
+            conversationList.forEach((v: any) => {
+                const conversation = Convert.toConversation(v);
+                resultConversations.push(conversation);
+            });
+        }
+        return resultConversations
     }
 
     messageStreamStart = (param:any) => {

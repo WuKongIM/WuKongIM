@@ -96,13 +96,13 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		if !s.s.clusterServer.InPeer(req.UID) {
-			peer := s.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
-			if peer == nil {
-				s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
+		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
+		if peer == nil {
+			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		if peer.PeerID != s.s.opts.Cluster.PeerID {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
@@ -153,13 +153,13 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		if !s.s.clusterServer.InPeer(req.UID) {
-			peer := s.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
-			if peer == nil {
-				s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
+		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
+		if peer == nil {
+			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		if peer.PeerID != s.s.opts.Cluster.PeerID {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
@@ -201,13 +201,13 @@ func (s *ConversationAPI) deleteConversation(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		if !s.s.clusterServer.InPeer(req.UID) {
-			peer := s.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
-			if peer == nil {
-				s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
+		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
+		if peer == nil {
+			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		if peer.PeerID != s.s.opts.Cluster.PeerID {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
@@ -240,13 +240,13 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		if !s.s.clusterServer.InPeer(req.UID) {
-			peer := s.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个频道数据所在的节点
-			if peer == nil {
-				s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
+		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
+		if peer == nil {
+			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		if peer.PeerID != s.s.opts.Cluster.PeerID {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return

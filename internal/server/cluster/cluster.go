@@ -381,6 +381,7 @@ func (c *Cluster) GetPeer(peerID uint64) *pb.Peer {
 func (c *Cluster) InPeer(v string) bool {
 	return c.inPeer(v)
 }
+
 func (c *Cluster) inPeer(v string) bool {
 	slotID := c.getSlotID(v)
 	slot := c.clusterManager.GetSlot(slotID)
@@ -395,8 +396,8 @@ func (c *Cluster) inPeer(v string) bool {
 	return false
 }
 
-// BelongPeer 是否属于当前节点
-func (c *Cluster) BelongPeer(v string) (bool, error) {
+// BelongLeaderPeer 是否属于当前领导节点
+func (c *Cluster) BelongLeaderPeer(v string) (bool, error) {
 	leader := c.GetLeaderPeer(v)
 	if leader == nil {
 		return false, errors.New("leader is nil")
