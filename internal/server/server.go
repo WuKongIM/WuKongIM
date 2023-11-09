@@ -158,6 +158,8 @@ func (s *Server) Start() error {
 
 	s.retryQueue.Start()
 
+	s.timingWheel.Start()
+
 	if s.opts.Monitor.On {
 		s.monitor.Start()
 		s.monitorServer.Start()
@@ -176,6 +178,8 @@ func (s *Server) Stop() error {
 	s.Info("Server is Stoping...")
 
 	defer s.Info("Server is exited")
+
+	s.timingWheel.Stop()
 
 	s.retryQueue.Stop()
 	_ = s.dispatch.Stop()
