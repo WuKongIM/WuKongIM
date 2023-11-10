@@ -18,11 +18,6 @@ export class ConversationWrap {
     // isEqual(c: Conversation): boolean;
 
 
-    public get avatar() {
-        
-        return `https://api.multiavatar.com/${this.channel.channelID}.png`
-    }
-
     public get channel() {
         return this.conversation.channel
     }
@@ -30,10 +25,6 @@ export class ConversationWrap {
     public get channelInfo() {
         return this.conversation.channelInfo
     }
-<<<<<<< HEAD
-    
-=======
->>>>>>> e511fe7 (feat: improve the distributed recent conversation)
     public get unread() {
         return this.conversation.unread
     }
