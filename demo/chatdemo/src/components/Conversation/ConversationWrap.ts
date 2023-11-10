@@ -18,11 +18,6 @@ export class ConversationWrap {
     // isEqual(c: Conversation): boolean;
 
 
-    public get avatar() {
-        
-        return `https://api.multiavatar.com/${this.channel.channelID}.png`
-    }
-
     public get channel() {
         return this.conversation.channel
     }
@@ -30,6 +25,7 @@ export class ConversationWrap {
     public get channelInfo() {
         return this.conversation.channelInfo
     }
+    
     public get unread() {
         return this.conversation.unread
     }
