@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref, toRaw, toRefs, unref } from 'vue';
 import APIClient from '../services/APIClient'
 import { useRouter } from "vue-router";
 import { WKSDK, Message, StreamItem, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode, MessageContent, MessageContentType } from "wukongimjssdk";
@@ -14,6 +14,8 @@ const chatRef = ref<HTMLElement | null>(null)
 const showSettingPanel = ref(false)
 const title = ref("")
 const text = ref("")
+
+let msgCount = 0
 
 const channelID = ref("") // 设置聊天的频道ID
 const p2p = ref(true) // 是否是单聊
@@ -165,6 +167,7 @@ const scrollBottom = () => {
 // 拉取当前会话最新消息
 const pullLast = async () => {
     pulldowning.value = true
+    pulldownFinished.value = false
     const msgs = await WKSDK.shared().chatManager.syncMessages(to.value, {
         limit: 15, startMessageSeq: 0, endMessageSeq: 0,
         pullMode: PullMode.Up
@@ -221,7 +224,12 @@ const settingOKClick = () => {
         to.value = new Channel(channelID.value, ChannelTypeGroup)
     }
     if (!p2p.value) {
-        APIClient.shared.joinChannel(to.value.channelID, to.value.channelType, WKSDK.shared().config.uid || "")
+        APIClient.shared.joinChannel(to.value.channelID, to.value.channelType, WKSDK.shared().config.uid || "") // 加入频道
+    }
+    const conversation = WKSDK.shared().conversationManager.findConversation(to.value)
+    if(!conversation) {
+        // 如果最近会话不存在，则创建一个空的会话
+        WKSDK.shared().conversationManager.createEmptyConversation(to.value)
     }
     showSettingPanel.value = false
 
@@ -241,7 +249,8 @@ const onSelectChannel = (channel: Channel) => {
 
 const onSend = () => {
     if (!text.value || text.value.trim() === "") {
-        return
+        msgCount++
+        text.value = `${msgCount}`
     }
     const setting = Setting.fromUint8(0)
     if (to.value && to.value.channelID != "") {
@@ -255,6 +264,7 @@ const onSend = () => {
     } else {
         showSettingPanel.value = true
     }
+    scrollBottom()
 
 }
 
@@ -344,8 +354,10 @@ const handleScroll = (e: any) => {
     const scrollOffsetTop = e.target.scrollHeight - (targetScrollTop + e.target.clientHeight);
     if (targetScrollTop <= 250) { // 下拉
         if (pulldowning.value || pulldownFinished.value) {
+            console.log("不允许下拉","pulldowning",pulldowning.value,"pulldownFinished",pulldownFinished.value)
             return
         }
+        console.log("下拉")
         pulldowning.value = true
         pullDown().then(() => {
             pulldowning.value = false
@@ -391,12 +403,12 @@ const onEnter = () => {
                     ChannelTypeGroup ? '群' : '单聊'}${to.channelID}` }}</button>
             </div>
         </div>
-        <div class="content" v-on:scroll="handleScroll" ref="chatRef">
+        <div class="content" >
             <div class="conversation-box">
                 <Conversation :onSelectChannel="onSelectChannel"></Conversation>
             </div>
             <div class="message-box">
-                <div class="message-list">
+                <div class="message-list" v-on:scroll="handleScroll" ref="chatRef">
                     <template v-for="m in messages">
                         <div class="message right" v-if="m.send" :id="m.clientMsgNo">
                             <div class="status" v-if="m.status != MessageStatus.Normal">发送中</div>

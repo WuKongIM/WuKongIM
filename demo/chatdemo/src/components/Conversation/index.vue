@@ -1,16 +1,39 @@
 
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref,defineProps } from 'vue';
-import { Channel, ChannelTypePerson, Conversation, ConversationAction, WKSDK } from 'wukongimjssdk';
+import { onMounted, onUnmounted, ref, defineProps, nextTick } from 'vue';
+import { CMDContent, Channel, ChannelInfo, ChannelTypePerson, ConnectStatus, ConnectStatusListener, Conversation, ConversationAction, Message, WKSDK } from 'wukongimjssdk';
 import { ConversationWrap } from './ConversationWrap';
+import APIClient, { CMDType } from '../../services/APIClient';
 
 const conversationWraps = ref<ConversationWrap[]>() // 本地最近会话列表
 
-const selectedChannel = ref<Channel>() // 选中的会话
+const selectedChannel = ref<Channel>() // 选中的频道
 
 const onSelectChannel = defineProps<{ onSelectChannel: (channel: Channel) => void }>()
 
+// 监听连接状态
+const connectStatusListener = async (status: ConnectStatus) => { 
+    console.log("connectStatusListener", status)
+    if (status === ConnectStatus.Connected) {
+        const remoteConversations = await WKSDK.shared().conversationManager.sync() // 同步最近会话列表
+        if (remoteConversations && remoteConversations.length > 0) {
+            conversationWraps.value = sortConversations(remoteConversations.map(conversation => new ConversationWrap(conversation)))
+        }
+    }
+}
+
+// 监听cmd消息  
+const cmdListener = (msg: Message) => {
+    console.log("收到CMD：", msg)
+    const cmdContent = msg.content as CMDContent
+    if (cmdContent.cmd === CMDType.CMDTypeClearUnread) {
+        const clearChannel = new Channel(cmdContent.param.channelID, cmdContent.param.channelType)
+        clearConversationUnread(clearChannel)
+    }
+}
+
+// 监听最近会话列表的变化
 const conversationListener = (conversation: Conversation, action: ConversationAction) => { // 监听最近会话列表的变化
     console.log("conversationListener", conversation, action)
     if (action === ConversationAction.add) {
@@ -29,18 +52,36 @@ const conversationListener = (conversation: Conversation, action: ConversationAc
     }
 }
 
+const channelInfoListener = (channelInfo: ChannelInfo) => {
+    conversationWraps.value = [...conversationWraps.value || []] // 强制刷新
+    // const index = conversationWraps.value?.findIndex(item => item.channel.channelID === channelInfo.channel.channelID && item.channel.channelType === channelInfo.channel.channelType)
+    // if (index !== undefined && index >= 0) {
+    //     conversationWraps.value![index].channelInfo = channelInfo
+    // }
+}
+
+const clearConversationUnread = (channel: Channel) => {
+    const conversation = WKSDK.shared().conversationManager.findConversation(channel)
+    if (conversation) {
+        conversation.unread = 0
+        WKSDK.shared().conversationManager.notifyConversationListeners(conversation, ConversationAction.update)
+    }
+}
+
 
 onMounted(async () => {
-    const remoteConversations = await WKSDK.shared().conversationManager.sync() // 同步最近会话列表
-    if (remoteConversations && remoteConversations.length > 0) {
-        conversationWraps.value = sortConversations(remoteConversations.map(conversation => new ConversationWrap(conversation)))
-    }
 
-    WKSDK.shared().conversationManager.addConversationListener(conversationListener)
+    WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener) // 监听连接状态
+    WKSDK.shared().conversationManager.addConversationListener(conversationListener) // 监听最近会话列表的变化
+    WKSDK.shared().chatManager.addCMDListener(cmdListener) // 监听cmd消息
+    WKSDK.shared().channelManager.addListener(channelInfoListener) // 监听频道信息变化
 })
 
 onUnmounted(() => {
     WKSDK.shared().conversationManager.removeConversationListener(conversationListener)
+    WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
+    WKSDK.shared().chatManager.removeCMDListener(cmdListener)
+    WKSDK.shared().channelManager.removeListener(channelInfoListener)
 })
 
 // 排序最近会话列表
@@ -68,19 +109,29 @@ const sortConversations = (conversations?: Array<ConversationWrap>) => {
 
 const onSelectChannelClick = (channel: Channel) => {
     selectedChannel.value = channel
-    if(onSelectChannel) {
+    if (onSelectChannel) {
         onSelectChannel.onSelectChannel(channel)
     }
+    APIClient.shared.clearUnread(channel)
+    clearConversationUnread(channel)
 }
 
 const getConversationItemCss = (conversationWrap: ConversationWrap) => {
-    if(!selectedChannel.value) {
+    if (!selectedChannel.value) {
         return 'conversation-item'
     }
-    if(selectedChannel.value.isEqual(conversationWrap.channel)) {
+    if (selectedChannel.value.isEqual(conversationWrap.channel)) {
         return 'conversation-item selected'
     }
     return 'conversation-item'
+}
+
+const fetchChannelInfoIfNeed = (channel: Channel) => {
+    const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel)
+    if (!channelInfo) {
+        WKSDK.shared().channelManager.fetchChannelInfo(channel)
+    }
+
 }
 
 </script>
@@ -88,16 +139,18 @@ const getConversationItemCss = (conversationWrap: ConversationWrap) => {
 
 <template>
     <div class="conversations">
-        <div :class="getConversationItemCss(conversationWrap)" v-for="conversationWrap in conversationWraps" :onClick="()=>{
-             onSelectChannelClick(conversationWrap.channel)
+        <div :class="getConversationItemCss(conversationWrap)" v-for="conversationWrap in conversationWraps" :onClick="() => {
+            onSelectChannelClick(conversationWrap.channel)
         }">
+            {{ fetchChannelInfoIfNeed(conversationWrap.channel) }}
             <div class="item-content">
                 <div class="left">
-                    <div class="avatar" style="width: 48px;height: 48px;" v-if="conversationWrap.channel.channelType === ChannelTypePerson">
-                        <img :src="conversationWrap.avatar" style="width: 48px;height: 48px;" />
+                    <div class="avatar" style="width: 48px;height: 48px;"
+                        v-if="conversationWrap.channel.channelType === ChannelTypePerson">
+                        <img :src="conversationWrap.channelInfo?.logo" style="width: 48px;height: 48px;" />
                     </div>
                     <div class="avatar" style="width: 48px;height: 48px;" v-else>
-                        {{conversationWrap.channel.channelID.substring(0,1).toUpperCase()}}
+                        {{ conversationWrap.channelInfo?.title }}
                     </div>
                 </div>
                 <div class="right">
@@ -211,7 +264,7 @@ const getConversationItemCss = (conversationWrap: ConversationWrap) => {
 }
 
 .selected {
-    background-color: rgba(245, 245, 245);
+    background-color: #eee;
 }
 
 .avatar {
