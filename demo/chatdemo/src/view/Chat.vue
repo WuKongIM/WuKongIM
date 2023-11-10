@@ -15,6 +15,8 @@ const title = ref("")
 const text = ref("")
 const applyName = ref<string>() // 请求聊天的人名字
 
+let msgCount = 0;
+
 const channelID = ref("") // 设置聊天的频道ID
 const p2p = ref(true) // 是否是单聊
 const to = ref(new Channel("", 0)) // 对方的频道信息
@@ -235,7 +237,8 @@ const settingOKClick = () => {
 
 const onSend = () => {
     if (!text.value || text.value.trim() === "") {
-        return
+        msgCount++
+        text.value = `${msgCount}`
     }
     const setting = Setting.fromUint8(0)
     if (to.value && to.value.channelID != "") {
