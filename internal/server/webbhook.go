@@ -71,7 +71,6 @@ func NewWebhook(s *Server) *Webhook {
 				DialContext: (&net.Dialer{
 					Timeout:   5 * time.Second,
 					KeepAlive: 5 * time.Second,
-					DualStack: true,
 				}).DialContext,
 				ForceAttemptHTTP2:     true,
 				MaxIdleConns:          200,
@@ -336,7 +335,8 @@ func (w *Webhook) loopOnlineStatus() {
 	if !w.s.opts.WebhookOn() {
 		return
 	}
-	opLen := 0 // 最后一次操作在线状态数组的长度
+	opLen := 0    // 最后一次操作在线状态数组的长度
+	errCount := 0 // webhook请求失败重试次数
 	for {
 		if opLen == 0 {
 			w.onlinestatusLock.Lock()
@@ -363,7 +363,19 @@ func (w *Webhook) loopOnlineStatus() {
 			err = w.sendWebhookForHttp(EventOnlineStatus, jsonData)
 		}
 		if err != nil {
+			errCount++
 			w.Error("请求在线状态webhook失败！", zap.Error(err))
+			if errCount >= w.s.opts.Webhook.MsgNotifyEventRetryMaxCount {
+				w.Error("请求在线状态webhook失败通知超过最大次数！", zap.Int("MsgNotifyEventRetryMaxCount", w.s.opts.Webhook.MsgNotifyEventRetryMaxCount))
+
+				w.onlinestatusLock.Lock()
+				w.onlinestatusList = w.onlinestatusList[opLen:]
+				opLen = 0
+				w.onlinestatusLock.Unlock()
+
+				errCount = 0
+			}
+
 			time.Sleep(time.Second * 1) // 如果报错就休息下
 			continue
 		}
