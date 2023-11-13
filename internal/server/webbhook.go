@@ -71,7 +71,6 @@ func NewWebhook(s *Server) *Webhook {
 				DialContext: (&net.Dialer{
 					Timeout:   5 * time.Second,
 					KeepAlive: 5 * time.Second,
-					DualStack: true,
 				}).DialContext,
 				ForceAttemptHTTP2:     true,
 				MaxIdleConns:          200,
