@@ -37,7 +37,7 @@ external: # 公网配置
 #  suffix: "@tmp" # 临时频道后缀 带有此后缀的频道将被认为是临时频道，临时频道不会被持久化
 #  cacheCount: 500 # 临时频道缓存数量
 #webhook: # 两者配其一即可 webhook配置 用于接收消息通知事件，详情请查看文档
-#  httpAddr: "" # webhook的http地址 通过此地址通知数据给第三方 地址为你提供的api接口地址
+#  httpAddr: "http://127.0.0.1:7778/webhook" # webhook的http地址 通过此地址通知数据给第三方 地址为你提供的api接口地址
 #  grpcAddr: "" #  webhook的grpc地址 当前httpAddr成为瓶颈的时候可以用grpc进行推送， 如果此地址有值 则不会再调用httpAddr配置的地址,格式为 ip:port，通讯协议请查看文档
 #  msgNotifyEventPushInterval: 500ms # 消息通知事件推送间隔，默认500毫秒发起一次推送
 #  msgNotifyEventRetryMaxCount: 5 # 消息通知事件消息推送失败最大重试次数 默认为5次，超过将丢弃
