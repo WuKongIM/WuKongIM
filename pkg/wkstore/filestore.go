@@ -386,6 +386,8 @@ func (f *FileStore) AddIPBlacklist(ips []string) error {
 				}
 				list = append(list, values...)
 			}
+		} else {
+			list = append(list, ips...)
 		}
 		return bucket.Put([]byte(f.ipBlacklistKey), []byte(strings.Join(list, ",")))
 	})

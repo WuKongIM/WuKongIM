@@ -218,14 +218,31 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 }
 
 func (s *Server) AllowIP(ip string) bool {
-	s.ipBlacklistLock.RLock()
-	defer s.ipBlacklistLock.RUnlock()
+	s.ipBlacklistLock.Lock()
+	defer s.ipBlacklistLock.Unlock()
 	blockCount, ok := s.ipBlacklist[ip]
 	if ok {
 		s.ipBlacklist[ip] = blockCount + 1
 		return false
 	}
 	return true
+}
+
+func (s *Server) AddIPBlacklist(ips []string) {
+	s.ipBlacklistLock.Lock()
+	defer s.ipBlacklistLock.Unlock()
+	for _, ip := range ips {
+		s.ipBlacklist[ip] = 0
+	}
+
+}
+
+func (s *Server) RemoveIPBlacklist(ips []string) {
+	s.ipBlacklistLock.Lock()
+	defer s.ipBlacklistLock.Unlock()
+	for _, ip := range ips {
+		delete(s.ipBlacklist, ip)
+	}
 }
 
 func (s *Server) printIpBlacklist() {
