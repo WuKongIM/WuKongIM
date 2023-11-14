@@ -58,7 +58,11 @@ func (m *MonitorServer) Start() {
 	})
 
 	m.r.Use(func(c *wkhttp.Context) { // ip黑名单判断
-		if !m.s.AllowIP(c.ClientIP()) {
+		clientIP := c.Request.Header.Get("X-Forwarded-For")
+		if strings.TrimSpace(clientIP) == "" {
+			clientIP = c.ClientIP()
+		}
+		if !m.s.AllowIP(clientIP) {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
