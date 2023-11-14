@@ -87,6 +87,7 @@ func (c *Cluster) handleUpdatePeerConfig(req pb.CMDReq) {
 		c.Error("handleUpdatePeerConfig error", zap.Error(err))
 		return
 	}
+	c.peerGRPCClient.AddOrUpdatePeer(peer)
 	c.clusterManager.UpdatePeerConfig(peer)
 }
 
@@ -96,6 +97,9 @@ func (c *Cluster) handleUpdateClusterConfig(req pb.CMDReq) {
 	if err != nil {
 		c.Error("handleUpdateClusterConfig error", zap.Error(err))
 		return
+	}
+	for _, peer := range ct.Peers {
+		c.peerGRPCClient.AddOrUpdatePeer(peer)
 	}
 	c.clusterManager.UpdateClusterConfig(ct)
 

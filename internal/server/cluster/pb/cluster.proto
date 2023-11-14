@@ -2,6 +2,7 @@ syntax = "proto3";
 option go_package = "./;pb";
 
 
+// raft角色
 enum Role {
     Unknown = 0;
     Follower = 1;
@@ -10,6 +11,7 @@ enum Role {
     Leader = 4;
 }
 
+// 节点状态
 enum PeerState {
     PeerStateInitial = 0; // 初始化
     PeerStateNormal = 1; // 正常
@@ -17,12 +19,14 @@ enum PeerState {
     PeerStateDown = 3; // 下线
 }
 
+// 槽位状态
 enum SlotState {
    SlotStateInitial = 0; // 初始化
    SlotStateNormal = 1; // 正常
    SlotStateElecting = 2; // 选举中
 }
 
+// 集群信息
 message Cluster {
     uint32 slotCount = 1; // 槽位数量
     uint64 leader = 2; // 领导者节点ID
@@ -32,6 +36,7 @@ message Cluster {
     
 }
 
+// 节点信息
 message Peer {
     uint64 peerID = 1; // 节点ID
     string serverAddr = 2; // 节点服务地址
@@ -39,12 +44,16 @@ message Peer {
     PeerState state = 4; // 节点状态
     string grpcServerAddr = 5; // 节点grpc服务地址
     string apiServerAddr = 6; // 节点api服务地址
+    bool new = 7; // 是否是新节点
+    bool joined = 8; // 是否加入集群
 }
 
+// 节点列表
 message PeerSet {
     repeated Peer peers = 1; // 节点
 }
 
+// 槽位信息
 message Slot {
     uint32 slot = 1; // 槽位
     uint64 leader = 2; // 领导者节点ID
@@ -60,17 +69,26 @@ message SlotLeaderRelation {
 
 }
 
+// 槽位领导者列表
 message SlotLeaderRelationSet {
     repeated SlotLeaderRelation slotLeaderRelations = 1; // 槽位领导者列表
 }
 
 
+// 分配槽位
 message AllocateSlot {
     uint32 slot = 1; // 槽位
     repeated uint64 peers  = 2; // slot分配的节点
     uint64 leaderID = 3; //  slot的leader（如果为0则自动选举，如果不为0则指定此节点为领导节点）
 }
 
+// 分配槽位列表
 message AllocateSlotSet {
     repeated AllocateSlot allocateSlots = 1; // slot分配
+}
+
+// 节点加入集群的请求
+message JoinReq {
+    uint64 toPeerID = 1; // 现有集群中的节点ID
+    Peer joinPeer = 2; // 新加入的节点信息
 }

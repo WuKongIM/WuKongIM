@@ -13,7 +13,7 @@ const selectedChannel = ref<Channel>() // 选中的频道
 const onSelectChannel = defineProps<{ onSelectChannel: (channel: Channel) => void }>()
 
 // 监听连接状态
-const connectStatusListener = async (status: ConnectStatus) => { 
+const connectStatusListener = async (status: ConnectStatus) => {
     console.log("connectStatusListener", status)
     if (status === ConnectStatus.Connected) {
         const remoteConversations = await WKSDK.shared().conversationManager.sync() // 同步最近会话列表
@@ -180,6 +180,7 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
 .conversations {
     width: 100%;
     height: 100%;
+    overflow-y: auto;
 }
 
 .item-content {
@@ -196,6 +197,7 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
     width: 100%;
     background-color: white;
     cursor: pointer;
+    overflow: hidden;
 }
 
 .left {
@@ -208,7 +210,7 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
 .right {
     margin-left: 10px;
     height: 100%;
-    width: 100%;
+    width: calc(300px - 100px);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -222,6 +224,7 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
     width: 100%;
 
 }
+
 
 .right-item2 {
     display: flex;
@@ -243,18 +246,27 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
     margin-right: 10px;
 }
 
-.last-msg {
-    margin-top: 4px;
-}
 
-.title {
+
+.right-item1 .title {
     font-size: 16px;
     font-weight: bold;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
 }
 
 .last-msg {
     font-size: 14px;
     color: #999999;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+
 }
 
 .time {

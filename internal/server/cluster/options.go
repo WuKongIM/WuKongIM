@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	sm "github.com/lni/dragonboat/v4/statemachine"
 )
 
@@ -19,10 +18,10 @@ type Options struct {
 	SlotCount       int    // 槽位数量
 	ReplicaCount    int    // 副本数量(包含主节点)
 	DataDir         string
-	Join            string // 集群中的其他节点地址 例如： tcp://ip:port
+	Join            string // 新加入的集群节点的地址 例如： peerID@ip:port
 	Peers           []Peer
 	LeaderChange    func(leaderID uint64)
-	GRPCEvent       rpc.CMDEvent
+	GRPCEvent       CMDEvent
 	GRPCSendTimeout time.Duration
 	OnSlotApply     func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error)
 }
@@ -83,8 +82,10 @@ type ClusterManagerOptions struct {
 	ReplicaCount   int                           // 副本数量
 	ConfigPath     string                        // 集群配置文件路径
 	GetSlotState   func(slotID uint32) SlotState // 获取槽位状态
-	GRPCServerAddr string                        // 服务地址 例如： ip:port 节点之间可以互相访问的地址
+	ServerAddr     string                        // 服务地址 例如： ip:port 节点之间可以互相访问的地址
+	GRPCServerAddr string                        // GRPC服务地址 例如： ip:port 节点之间可以互相访问的地址
 	APIServerAddr  string                        // 服务地址 例如： http://ip:port 节点之间可以互相访问的地址
+	Join           string                        // 加入集群的节点地址 例如： peerID@ip:port
 }
 
 func NewClusterManagerOptions() *ClusterManagerOptions {

@@ -53,6 +53,14 @@ func (s *SlotLeaderRelationSet) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, s)
 }
 
+func (j *JoinReq) Marshal() ([]byte, error) {
+	return proto.Marshal(j)
+}
+
+func (j *JoinReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, j)
+}
+
 func (c *Cluster) Clone() *Cluster {
 	return proto.Clone(c).(*Cluster)
 }

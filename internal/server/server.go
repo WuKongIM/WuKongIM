@@ -120,6 +120,7 @@ func New(opts *Options) *Server {
 		clusterOpts := cluster.NewOptions()
 		clusterOpts.PeerID = s.opts.Cluster.PeerID
 		clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
+		clusterOpts.Join = s.opts.Cluster.Join
 		clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
 		clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.PeerID))
 		clusterOpts.SlotCount = s.opts.Cluster.SlotCount

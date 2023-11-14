@@ -119,7 +119,6 @@ go run main.go --config config/wk.yaml
 ---------------
 
 
-
 ```shell
 
 ./wukongim --config  ./exampleconfig/cluster1.yaml -d
@@ -127,6 +126,14 @@ go run main.go --config config/wk.yaml
 ./wukongim --config  ./exampleconfig/cluster2.yaml -d
 
 ./wukongim --config  ./exampleconfig/cluster3.yaml -d
+
+```
+
+添加节点
+
+```shell
+
+./wukongim --config  ./exampleconfig/join.yaml 
 
 ```
 
