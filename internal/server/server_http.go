@@ -23,7 +23,11 @@ func NewAPIServer(s *Server) *APIServer {
 	r.Use(wkhttp.CORSMiddleware())
 
 	r.Use(func(c *wkhttp.Context) { // ip黑名单判断
-		if !s.AllowIP(c.ClientIP()) {
+		clientIP := c.Request.Header.Get("X-Forwarded-For")
+		if strings.TrimSpace(clientIP) == "" {
+			clientIP = c.ClientIP()
+		}
+		if !s.AllowIP(clientIP) {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
