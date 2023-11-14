@@ -93,6 +93,13 @@ type Store interface {
 	AppendStreamItem(channelID string, channelType uint8, streamNo string, item *StreamItem) (uint32, error)
 	// GetStreamItems 获取消息流
 	GetStreamItems(channelID string, channelType uint8, streamNo string) ([]*StreamItem, error)
+
+	// AddIPBlacklist 添加ip黑名单
+	AddIPBlacklist(ips []string) error
+	// RemoveIPBlacklist 移除ip黑名单
+	RemoveIPBlacklist(ips []string) error
+	// GetIPBlacklist 获取ip黑名单
+	GetIPBlacklist() ([]string, error)
 }
 
 type ChannelInfo struct {

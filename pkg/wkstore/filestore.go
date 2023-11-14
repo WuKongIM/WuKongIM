@@ -34,6 +34,7 @@ type FileStore struct {
 	userSeqPrefix          string
 	nodeInFlightDataPrefix string
 	systemUIDsKey          string
+	ipBlacklistKey         string
 
 	*FileStoreForMsg
 }
@@ -54,6 +55,7 @@ func NewFileStore(cfg *StoreConfig) *FileStore {
 		userSeqPrefix:             "userSeq:",
 		nodeInFlightDataPrefix:    "nodeInFlightData",
 		systemUIDsKey:             "systemUIDs",
+		ipBlacklistKey:            "ipBlacklist",
 		FileStoreForMsg:           NewFileStoreForMsg(cfg),
 	}
 
@@ -360,6 +362,74 @@ func (f *FileStore) GetSystemUIDs() ([]string, error) {
 		return nil
 	})
 	return uids, err
+}
+
+func (f *FileStore) AddIPBlacklist(ips []string) error {
+	err := f.db.Update(func(t *bolt.Tx) error {
+		bucket := f.getRootBucket(t)
+		value := bucket.Get([]byte(f.ipBlacklistKey))
+		list := make([]string, 0)
+		if len(value) > 0 {
+			values := strings.Split(string(value), ",")
+			if len(values) > 0 {
+				for _, ip := range ips {
+					exist := false
+					for _, oldIP := range values {
+						if oldIP == ip {
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						list = append(list, ip)
+					}
+				}
+				list = append(list, values...)
+			}
+		}
+		return bucket.Put([]byte(f.ipBlacklistKey), []byte(strings.Join(list, ",")))
+	})
+	return err
+}
+
+func (f *FileStore) RemoveIPBlacklist(ips []string) error {
+	err := f.db.Update(func(t *bolt.Tx) error {
+		bucket := f.getRootBucket(t)
+		value := bucket.Get([]byte(f.ipBlacklistKey))
+		list := make([]string, 0)
+		if len(value) > 0 {
+			values := strings.Split(string(value), ",")
+			if len(values) > 0 {
+				for _, v := range values {
+					var has = false
+					for _, ip := range ips {
+						if v == ip {
+							has = true
+							break
+						}
+					}
+					if !has {
+						list = append(list, v)
+					}
+				}
+			}
+		}
+		return bucket.Put([]byte(f.ipBlacklistKey), []byte(strings.Join(list, ",")))
+	})
+	return err
+}
+
+func (f *FileStore) GetIPBlacklist() ([]string, error) {
+	ips := make([]string, 0)
+	err := f.db.View(func(tx *bolt.Tx) error {
+		bucket := f.getRootBucket(tx)
+		value := bucket.Get([]byte(f.ipBlacklistKey))
+		if len(value) > 0 {
+			ips = strings.Split(string(value), ",")
+		}
+		return nil
+	})
+	return ips, err
 }
 
 func (f *FileStore) AddOrUpdateConversations(uid string, conversations []*Conversation) error {
