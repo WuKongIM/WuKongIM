@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/pb"
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
@@ -32,6 +34,8 @@ type Cluster struct {
 	grpcServer *rpc.Server
 
 	peerGRPCClient *PeerGRPCClient
+
+	joinReqSuccess atomic.Bool // 加入集群请求是否已成功
 }
 
 func New(opts *Options) *Cluster {
@@ -53,8 +57,9 @@ func New(opts *Options) *Cluster {
 	clusterPath := path.Join(opts.DataDir, "cluster.json")
 
 	// -------------------- grpc server --------------------
-	c.peerGRPCClient = NewPeerGRPCClient(c)
-	c.grpcServer = rpc.NewServer(wkproto.New(), opts.GRPCEvent, opts.GRPCAddr)
+	defaultEvent := newDefaultCMDEvent(opts.GRPCEvent, c)
+	c.peerGRPCClient = NewPeerGRPCClient()
+	c.grpcServer = rpc.NewServer(wkproto.New(), defaultEvent, opts.GRPCAddr)
 
 	// -------------------- 分布式配置管理者 --------------------
 	clusterManagerOpts := NewClusterManagerOptions()
@@ -62,7 +67,9 @@ func New(opts *Options) *Cluster {
 	clusterManagerOpts.SlotCount = opts.SlotCount
 	clusterManagerOpts.ReplicaCount = opts.ReplicaCount
 	clusterManagerOpts.PeerID = opts.PeerID
+	clusterManagerOpts.ServerAddr = opts.ServerAddr
 	clusterManagerOpts.GRPCServerAddr = opts.GRPCServerAddr
+	clusterManagerOpts.Join = opts.Join
 	clusterManagerOpts.APIServerAddr = opts.APIServerAddr
 	clusterManagerOpts.GetSlotState = func(slot uint32) SlotState {
 		if c.multiRaft.IsStarted(slot) {
@@ -94,12 +101,12 @@ func New(opts *Options) *Cluster {
 	multiRaftOpts.ServerAddr = opts.ServerAddr
 	multiRaftOpts.PeerID = opts.PeerID
 	multiRaftOpts.Peers = opts.Peers
+	multiRaftOpts.Join = opts.Join
 	multiRaftOpts.SlotCount = opts.SlotCount
 	multiRaftOpts.OnApplyForPeer = c.onNodeApply
 	multiRaftOpts.OnApplyForSlot = c.opts.OnSlotApply
 	multiRaftOpts.OnLeaderChanged = func(slot uint32, leaderID uint64) {
 		if slot == PeerShardID {
-			fmt.Println("OnLeaderChanged----->", leaderID)
 			if leaderID == c.opts.PeerID {
 				c.bootstrap()
 			}
@@ -120,32 +127,65 @@ func New(opts *Options) *Cluster {
 
 func (c *Cluster) Start() error {
 
-	c.grpcServer.Start()
+	c.grpcServer.Start() // 启动grpc服务
+
+	// 如果join有值，说明是新加入的节点，加要连接的地址加入到grpc连接中
+	if strings.TrimSpace(c.opts.Join) != "" {
+		peerStrs := strings.Split(c.opts.Join, "@")
+		if len(peerStrs) != 2 {
+			return fmt.Errorf("join addr error")
+		}
+		peerID, _ := strconv.ParseInt(peerStrs[0], 10, 64)
+		if peerID <= 0 {
+			return fmt.Errorf("join peerID is error")
+		}
+		peer := &pb.Peer{
+			PeerID:         uint64(peerID),
+			GrpcServerAddr: strings.ReplaceAll(peerStrs[1], "tcp://", ""),
+		}
+		c.peerGRPCClient.AddOrUpdatePeer(peer)
+	}
+
+	// 将集群中的节点加入到grpc连接中
+	peers := c.clusterManager.GetPeers()
+	if len(peers) > 0 {
+		for _, peer := range peers {
+			if peer.PeerID == c.opts.PeerID {
+				continue
+			}
+			c.peerGRPCClient.AddOrUpdatePeer(peer)
+		}
+	}
 
 	var err error
-	err = c.clusterManager.Start()
+	err = c.clusterManager.Start() // 启动分布式管理
 	if err != nil {
 		return err
 	}
 
-	// if len(c.opts.Peers) > 0 {
-	// 	for _, peer := range c.opts.Peers {
-	// 		if peer.ID == c.opts.NodeID {
-	// 			continue
-	// 		}
-	// 		err = c.transporter.AddPeer(peer)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 	}
-	// }
-	err = c.multiRaft.Start()
-	if err != nil {
-		return err
+	// 如果是新加入的节点先不启动raft，先通知现有集群的领导节点，等现有集群的变更完成后再启动新加入的节点
+	if !c.clusterManager.IsWillJoin() {
+		err = c.multiRaft.Start()
+		if err != nil {
+			return err
+		}
 	}
 
 	go c.loopClusterConfig()
 
+	return nil
+}
+
+func (c *Cluster) SyncRequestAddReplica(peer *pb.Peer) error {
+	existPeer := c.clusterManager.GetPeer(peer.PeerID)
+	if existPeer != nil {
+		return fmt.Errorf("peer is exist")
+	}
+	err := c.multiRaft.SyncRequestAddReplica(peer.PeerID, peer.ServerAddr)
+	if err != nil {
+		return err
+	}
+	c.clusterManager.AddOrUpdatePeerConfig(peer)
 	return nil
 }
 
@@ -171,7 +211,7 @@ func (c *Cluster) bootstrap() {
 				GrpcServerAddr: p.GRPCServerAddr,
 			})
 		}
-		err := c.requestUpdateClusterConfig(&pb.Cluster{
+		err := c.proposeUpdateClusterConfig(&pb.Cluster{
 			Peers:        pbPeers,
 			SlotCount:    uint32(c.opts.SlotCount),
 			ReplicaCount: uint32(c.opts.ReplicaCount),
@@ -187,6 +227,13 @@ func (c *Cluster) loopClusterConfig() {
 	for {
 		select {
 		case clusterReady := <-c.clusterManager.readyChan:
+
+			if clusterReady.JoinReq != nil {
+				_ = c.requestJoinReq(clusterReady.JoinReq)
+			}
+			if clusterReady.UpdateClusterConfig != nil {
+				c.requestUpdateClusterConfig(clusterReady.UpdateClusterConfig)
+			}
 			if clusterReady.AllocateSlotSet != nil {
 				c.requestAllocateSlotSet(clusterReady.AllocateSlotSet)
 			}
@@ -241,7 +288,35 @@ func (c *Cluster) requestUpdatePeer(peer *pb.Peer) {
 	}
 }
 
-func (c *Cluster) requestUpdateClusterConfig(cluster *pb.Cluster) error {
+func (c *Cluster) requestJoinReq(joinReq *pb.JoinReq) error {
+
+	if c.joinReqSuccess.Load() {
+		return nil
+	}
+	err := c.RequestJoinCluster(joinReq)
+	if err != nil {
+		c.Error("request join cluster error", zap.Error(err))
+		return err
+	}
+	c.joinReqSuccess.Store(true)
+	return nil
+}
+
+func (c *Cluster) requestUpdateClusterConfig(configReq *UpdateClusterConfigReq) {
+
+	cluster, err := c.RequestClusterConfig(configReq.FromPeerID)
+	if err != nil {
+		c.Error("request update cluster config unmarshal error", zap.Error(err), zap.Uint64("peerID", configReq.FromPeerID))
+		return
+	}
+	for _, peer := range cluster.Peers {
+		c.peerGRPCClient.AddOrUpdatePeer(peer)
+	}
+	c.clusterManager.UpdateClusterConfig(cluster)
+
+}
+
+func (c *Cluster) proposeUpdateClusterConfig(cluster *pb.Cluster) error {
 
 	req := pb.NewCMDReq(uint32(pb.CMDUpdateClusterConfig))
 	param, err := cluster.Marshal()
@@ -525,4 +600,45 @@ func (c *Cluster) ForwardRecvackPacketReq(peerID uint64, req *rpc.RecvacksReq) e
 		return fmt.Errorf("send forwardRecvackPacketReq fail")
 	}
 	return nil
+}
+
+func (c *Cluster) RequestClusterConfig(peerID uint64) (*pb.Cluster, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd: rpc.CMDType_GetClusterConfig,
+	})
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != rpc.Status_Success {
+		return nil, fmt.Errorf("request cluster config fail")
+	}
+	cluster := &pb.Cluster{}
+	err = cluster.Unmarshal(resp.Data)
+	if err != nil {
+		return nil, err
+	}
+	return cluster, nil
+}
+
+func (c *Cluster) RequestJoinCluster(req *pb.JoinReq) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, req.ToPeerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_JoinCluster,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return err
+	}
+	if resp.Status != rpc.Status_Success {
+		return fmt.Errorf("request join cluster fail")
+	}
+	return nil
+}
+
+func (c *Cluster) GetClusterConfig() *pb.Cluster {
+	return c.clusterManager.GetClusterConfig()
 }

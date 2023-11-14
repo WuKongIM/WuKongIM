@@ -17,18 +17,20 @@ import (
 
 type PeerGRPCClient struct {
 	wklog.Log
-	callTimeout    time.Duration
-	c              *Cluster
+	callTimeout time.Duration
+	// c              *Cluster
 	rpcPoolMap     map[string]*grpcpool.Pool
 	rpcPoolMapLock sync.RWMutex
+	peerMap        map[uint64]*pb.Peer
+	peerMapLock    sync.RWMutex
 }
 
-func NewPeerGRPCClient(c *Cluster) *PeerGRPCClient {
+func NewPeerGRPCClient() *PeerGRPCClient {
 	return &PeerGRPCClient{
 		Log:         wklog.NewWKLog("PeerGRPCClient"),
 		callTimeout: time.Second * 3,
-		c:           c,
 		rpcPoolMap:  map[string]*grpcpool.Pool{},
+		peerMap:     map[uint64]*pb.Peer{},
 	}
 }
 
@@ -70,7 +72,22 @@ func (p *PeerGRPCClient) getPeerConn(ctx context.Context, peerID uint64) (*grpcp
 }
 
 func (p *PeerGRPCClient) getPeerByID(peerID uint64) *pb.Peer {
-	return p.c.GetPeer(peerID)
+	p.peerMapLock.RLock()
+	peer := p.peerMap[peerID]
+	p.peerMapLock.RUnlock()
+	return peer
+}
+
+func (p *PeerGRPCClient) AddOrUpdatePeer(peer *pb.Peer) {
+	p.peerMapLock.Lock()
+	p.peerMap[peer.PeerID] = peer
+	p.peerMapLock.Unlock()
+}
+
+func (p *PeerGRPCClient) RemovePeer(peerID uint64) {
+	p.peerMapLock.Lock()
+	delete(p.peerMap, peerID)
+	p.peerMapLock.Unlock()
 }
 
 func (p *PeerGRPCClient) getGrpcConn(ctx context.Context, addr string) (*grpcpool.ClientConn, error) {
