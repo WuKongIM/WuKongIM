@@ -57,6 +57,14 @@ func (m *MonitorServer) Start() {
 		c.Next()
 	})
 
+	m.r.Use(func(c *wkhttp.Context) { // ip黑名单判断
+		if !m.s.AllowIP(c.ClientIP()) {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		c.Next()
+	})
+
 	m.r.GetGinRoute().Use(gzip.Gzip(gzip.DefaultCompression))
 
 	st, _ := fs.Sub(version.WebFs, "web/dist")

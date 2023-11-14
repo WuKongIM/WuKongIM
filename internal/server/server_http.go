@@ -22,6 +22,14 @@ func NewAPIServer(s *Server) *APIServer {
 	r := wkhttp.New()
 	r.Use(wkhttp.CORSMiddleware())
 
+	r.Use(func(c *wkhttp.Context) { // ip黑名单判断
+		if !s.AllowIP(c.ClientIP()) {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		c.Next()
+	})
+
 	hs := &APIServer{
 		r:    r,
 		addr: s.opts.HTTPAddr,
