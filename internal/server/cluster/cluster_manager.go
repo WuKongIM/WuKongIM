@@ -7,6 +7,8 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,7 +67,6 @@ func (c *ClusterManager) Start() error {
 }
 
 func (c *ClusterManager) Stop() {
-	fmt.Println("ClusterManager--stop...")
 	close(c.stopChan)
 }
 
@@ -87,7 +88,6 @@ func (c *ClusterManager) tick() {
 	if IsEmptyClusterReady(ready) {
 		return
 	}
-	fmt.Println("ready--->", ready)
 	c.readyChan <- ready
 }
 
@@ -154,10 +154,45 @@ func (c *ClusterManager) checkSlotLeaders() ClusterReady {
 func (c *ClusterManager) checkPeers() ClusterReady {
 	c.Lock()
 	defer c.Unlock()
-	if len(c.cluster.Peers) == 0 {
+	if len(c.cluster.Peers) == 0 && strings.TrimSpace(c.opts.Join) == "" {
 		return EmptyClusterReady
 	}
 
+	if strings.TrimSpace(c.opts.Join) != "" {
+		if len(c.cluster.Peers) == 0 {
+			peerStrs := strings.Split(c.opts.Join, "@")
+			if len(peerStrs) != 2 {
+				return EmptyClusterReady
+			}
+			toPeerID, _ := strconv.ParseInt(peerStrs[0], 10, 64)
+			if toPeerID <= 0 {
+				return EmptyClusterReady
+			}
+			fmt.Println("join req------>")
+			return ClusterReady{
+				JoinReq: &pb.JoinReq{
+					ToPeerID: uint64(toPeerID),
+					JoinPeer: &pb.Peer{
+						PeerID:         c.opts.PeerID,
+						ServerAddr:     c.opts.ServerAddr,
+						GrpcServerAddr: c.opts.GRPCServerAddr,
+						New:            true,
+					},
+				},
+			}
+		} else {
+			// exist := false
+			// for _, peer := range c.cluster.Peers {
+			// 	if peer.PeerID == c.opts.PeerID {
+			// 		exist = true
+			// 		break
+			// 	}
+			// }
+		}
+
+	}
+
+	// 如果领导节点发生变化则更新
 	if c.leaderID.Load() != 0 && c.cluster.Leader != c.leaderID.Load() {
 		c.cluster.Leader = c.leaderID.Load()
 		if err := c.save(); err != nil {
@@ -165,6 +200,7 @@ func (c *ClusterManager) checkPeers() ClusterReady {
 		}
 	}
 
+	// 判断集群配置里的自己的节点的信息是否正确，如果不正确则发起更新提案
 	for _, peer := range c.cluster.Peers {
 		if peer.PeerID == c.opts.PeerID {
 			if peer.GrpcServerAddr != c.opts.GRPCServerAddr || peer.ApiServerAddr != c.opts.APIServerAddr {
@@ -268,6 +304,10 @@ func (c *ClusterManager) checkSlotStates() ClusterReady {
 
 func (c *ClusterManager) isLeader() bool {
 	return c.leaderID.Load() == c.opts.PeerID
+}
+
+func (c *ClusterManager) GetLeaderPeerID() uint64 {
+	return c.leaderID.Load()
 }
 
 // 获取指定数量的最少slot的节点
@@ -421,6 +461,29 @@ func (c *ClusterManager) UpdatePeerConfig(peer *pb.Peer) {
 	}
 }
 
+func (c *ClusterManager) AddOrUpdatePeerConfig(peer *pb.Peer) {
+	c.Lock()
+	defer c.Unlock()
+	if len(c.cluster.Peers) == 0 {
+		c.cluster.Peers = make([]*pb.Peer, 0)
+	}
+	exist := false
+	for idx, p := range c.cluster.Peers {
+		if p.PeerID == peer.PeerID {
+			c.cluster.Peers[idx] = peer
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		c.cluster.Peers = append(c.cluster.Peers, peer)
+	}
+	err := c.save()
+	if err != nil {
+		c.Error("update peer config error", zap.Error(err))
+	}
+}
+
 func (c *ClusterManager) Save() error {
 	c.Lock()
 	defer c.Unlock()
@@ -448,6 +511,8 @@ func (c *ClusterManager) Save() error {
 // }
 
 func (c *ClusterManager) GetPeers() []*pb.Peer {
+	c.Lock()
+	defer c.Unlock()
 	return c.cluster.Peers
 }
 
@@ -616,6 +681,23 @@ func (c *ClusterManager) GetSlotCount() uint32 {
 	return c.cluster.SlotCount
 }
 
+func (c *ClusterManager) GetClusterConfig() *pb.Cluster {
+	c.Lock()
+	defer c.Unlock()
+	return c.cluster
+}
+
+// 是否将新加入的节点
+func (c *ClusterManager) IsWillJoin() bool {
+	c.Lock()
+	defer c.Unlock()
+	peers := c.cluster.Peers
+	if len(peers) == 0 && strings.TrimSpace(c.opts.Join) != "" {
+		return true
+	}
+	return false
+}
+
 var EmptyClusterReady = ClusterReady{}
 
 type ClusterReady struct {
@@ -623,10 +705,12 @@ type ClusterReady struct {
 	SlotActions           []*SlotAction             // slot行为，比如开始slot的raft
 	UpdatePeer            *pb.Peer                  // 需要更新的节点信息
 	SlotLeaderRelationSet *pb.SlotLeaderRelationSet // 需要更新的slot和leader的关系
+	JoinReq               *pb.JoinReq               // 新加入集群的节点
+	UpdateClusterConfig   *UpdateClusterConfigReq   // 更新集群配置
 }
 
 func IsEmptyClusterReady(c ClusterReady) bool {
-	return c.AllocateSlotSet == nil && c.SlotActions == nil && c.UpdatePeer == nil && c.SlotLeaderRelationSet == nil
+	return c.AllocateSlotSet == nil && c.SlotActions == nil && c.UpdatePeer == nil && c.SlotLeaderRelationSet == nil && c.JoinReq == nil && c.UpdateClusterConfig == nil
 }
 
 type SlotState int
@@ -645,4 +729,8 @@ const (
 type SlotAction struct {
 	SlotID uint32
 	Action SlotActionType
+}
+
+type UpdateClusterConfigReq struct {
+	FromPeerID uint64
 }

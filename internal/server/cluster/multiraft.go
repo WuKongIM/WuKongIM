@@ -80,6 +80,12 @@ func (m *MultiRaft) Start() error {
 	return nil
 }
 
+func (m *MultiRaft) SyncRequestAddReplica(peerID uint64, addr string) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.nodehost.SyncRequestAddReplica(timeoutCtx, uint64(PeerShardID), peerID, addr, 0)
+}
+
 func (m *MultiRaft) StartSlot(slot uint32, opts *SlotOptions) error {
 
 	m.slotStartMapLock.RLock()
@@ -199,6 +205,7 @@ type MultiRaftOptions struct {
 	SlotCount       int
 	ProposeTimeout  time.Duration
 	Peers           []Peer
+	Join            string
 	OnApplyForPeer  func(entries []sm.Entry) error
 	OnApplyForSlot  func(slot uint32, entries []sm.Entry) ([]sm.Entry, error)
 	OnLeaderChanged func(slot uint32, leaderID uint64)
@@ -236,12 +243,10 @@ func (m *multiRaftStateMachine) Update(entries []sm.Entry) ([]sm.Entry, error) {
 			return nil, err
 		}
 	} else {
-		fmt.Println("Update---->", len(entries))
 		resultEntries, err := m.opts.OnApplyForSlot(uint32(m.ShardID), entries)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("Update-resultEntries--->", len(resultEntries))
 		return resultEntries, nil
 	}
 	return entries, nil

@@ -102,20 +102,7 @@ func initFlags() {
 
 	}
 	if strings.TrimSpace(join) != "" {
-		joinList := make([]string, 0)
-		joinStrs := strings.Split(join, ",")
-		if len(joinStrs) > 0 {
-			for _, v := range joinStrs {
-				v = strings.TrimSpace(v)
-				if strings.HasPrefix(v, "tcp://") {
-					joinList = append(joinList, v)
-				} else {
-					joinList = append(joinList, fmt.Sprintf("tcp://%s", v))
-				}
-
-			}
-			serverOpts.Cluster.Join = joinList
-		}
+		serverOpts.Cluster.Join = join
 	}
 }
 

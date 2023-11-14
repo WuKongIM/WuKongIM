@@ -13,11 +13,13 @@ const (
 	// CMDUnknown unknown
 	CMDUnknown CMDType = iota
 	// CMDAllocateSlot 分配slot
-	CMDAllocateSlot                CMDType = 100
-	CMDAddPeers                    CMDType = 101
-	CMDUpdateClusterConfig         CMDType = 102
-	CMDUpdatePeerConfig            CMDType = 103
-	CMDUpdateSlotLeaderRelationSet CMDType = 104
+	CMDAllocateSlot                CMDType = 100 // 分配slot
+	CMDAddPeers                    CMDType = 101 // 添加peer
+	CMDUpdateClusterConfig         CMDType = 102 // 更新集群配置
+	CMDUpdatePeerConfig            CMDType = 103 // 更新peer配置
+	CMDUpdateSlotLeaderRelationSet CMDType = 104 // 更新slot和leader的关系
+	CMDGetClusterConfig            CMDType = 105 // 获取集群配置
+	CMDJoinCluster                 CMDType = 106 // 加入集群
 )
 
 // Int32 Int32
@@ -37,7 +39,10 @@ func (c CMDType) String() string {
 		return "CMDUpdatePeerConfig"
 	case CMDUpdateSlotLeaderRelationSet:
 		return "CMDUpdateSlotLeaderRelationSet"
-
+	case CMDGetClusterConfig:
+		return "CMDGetClusterConfig"
+	case CMDJoinCluster:
+		return "CMDJoinCluster"
 	default:
 		return "CMDUnknown"
 	}

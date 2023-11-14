@@ -135,7 +135,7 @@ type Options struct {
 		GRPCAddr                   string        // 节点grpc监听地址 例如：0.0.0.0:11111
 		ServerAddr                 string        // 节点服务地址 例如 127.0.0.1:11110
 		ReqTimeout                 time.Duration // 请求超时时间
-		Join                       []string      // 加入集群的地址
+		Join                       string        // 加入集群的地址
 		ReplicaCount               int           // 副本数量
 		SlotCount                  int           // 槽数量
 		Peers                      []*Peer       // 集群节点地址
@@ -260,7 +260,7 @@ func NewOptions() *Options {
 			GRPCAddr                   string
 			ServerAddr                 string
 			ReqTimeout                 time.Duration
-			Join                       []string
+			Join                       string
 			ReplicaCount               int
 			SlotCount                  int
 			Peers                      []*Peer
@@ -422,7 +422,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)
 
 	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)
-	o.Cluster.Join = o.vp.GetStringSlice("cluster.join")
+	o.Cluster.Join = o.getString("cluster.join", o.Cluster.Join)
 	o.Cluster.SlotCount = o.getInt("cluster.slotCount", o.Cluster.SlotCount)
 	peers := o.getStringSlice("cluster.peers") // 格式为： nodeID@addr 例如 1@localhost:11110
 	if len(peers) > 0 {
