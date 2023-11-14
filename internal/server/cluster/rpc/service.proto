@@ -18,6 +18,8 @@ enum CMDType {
      ConnPing = 6; // 连接心跳
      SendSyncPropose = 7; // 发送同步提议
      ForwardRecvackPacket = 8; // 转发接受ack包
+     GetClusterConfig = 9; // 获取集群配置
+     JoinCluster = 10; // 加入集群
 }
 
 enum Status {
@@ -133,3 +135,5 @@ message RecvacksReq {
      uint64 belongPeerID = 3; // 连接真实所属节点ID
      bytes data = 4;
 }
+
+

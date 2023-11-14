@@ -135,6 +135,14 @@ wukongim logic --node-id=1 --listen-addr=127.0.0.1:11111 --join=127.0.0.1:11110
 wukongim gateway --listen-addr=127.0.0.1:11113 --logic-addr=127.0.0.1:11111
 ```
 
+添加节点
+
+```shell
+
+./wukongim --config  ./exampleconfig/join.yaml 
+
+```
+
 
 配套SDK源码和Demo
 ---------------

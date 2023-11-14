@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/server/cluster/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -37,6 +38,10 @@ type CMDEvent interface {
 	OnSendSyncProposeReq(req *SendSyncProposeReq) (*SendSyncProposeResp, error)
 	// 收到接受ack包
 	OnRecvackPacket(req *RecvacksReq) error
+	// 获取集群配置
+	OnGetClusterConfig() ([]byte, error)
+	// 收到加入请求
+	OnJoinReq(req *pb.JoinReq) error
 }
 
 // Server rpc服务
@@ -216,6 +221,30 @@ func (n *nodeServiceImp) SendCMD(ctx context.Context, req *CMDReq) (*CMDResp, er
 			return nil, err
 		}
 		err = n.s.event.OnRecvackPacket(recvacksReq)
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: Status_Success,
+		}, nil
+	} else if req.Cmd == CMDType_GetClusterConfig { // 获取集群配置
+		clusterConfig, err := n.s.event.OnGetClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: Status_Success,
+			Data:   clusterConfig,
+		}, nil
+
+	} else if req.Cmd == CMDType_JoinCluster { // 收到加入请求
+		joinReq := &pb.JoinReq{}
+		err := proto.Unmarshal(req.Data, joinReq)
+		if err != nil {
+			n.s.Error("解码加入请求数据失败！", zap.Error(err))
+			return nil, err
+		}
+		err = n.s.event.OnJoinReq(joinReq)
 		if err != nil {
 			return nil, err
 		}
