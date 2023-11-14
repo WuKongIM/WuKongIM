@@ -49,6 +49,7 @@ func (s *SystemAPI) ipBlacklistAdd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	s.s.AddIPBlacklist(req.IPs)
 	c.ResponseOK()
 }
 
@@ -72,6 +73,7 @@ func (s *SystemAPI) ipBlacklistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	s.s.RemoveIPBlacklist(req.IPs)
 	c.ResponseOK()
 }
 
