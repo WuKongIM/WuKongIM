@@ -87,4 +87,8 @@ func (s *APIServer) setRoutes() {
 	// 路由api
 	routeapi := NewRouteAPI(s.s)
 	routeapi.Route(s.r)
+
+	// 系统api
+	system := NewSystemAPI(s.s)
+	system.Route(s.r)
 }

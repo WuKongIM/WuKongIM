@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -33,8 +34,29 @@ func NewDispatch(s *Server) *Dispatch {
 	}
 }
 
+// conn是否允许
+func (d *Dispatch) connIsAllow(conn wknet.Conn) bool {
+	connRemoteAddr := conn.RemoteAddr()
+	if connRemoteAddr != nil {
+		// 获取IP地址
+		ip := strings.Split(connRemoteAddr.String(), ":")[0]
+		// 判断是否在黑名单中
+		if !d.s.AllowIP(ip) {
+			d.Debug("ip is in blacklist", zap.String("ip", ip))
+			return false
+		}
+	}
+	return true
+}
+
 // 数据统一入口
 func (d *Dispatch) dataIn(conn wknet.Conn) error {
+
+	if !d.connIsAllow(conn) {
+		conn.Close()
+		return nil
+	}
+
 	buff, err := conn.Peek(-1)
 	if err != nil {
 		return err
