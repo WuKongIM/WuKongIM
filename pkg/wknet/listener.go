@@ -11,6 +11,7 @@ import (
 
 	perrors "github.com/WuKongIM/WuKongIM/pkg/errors"
 	"github.com/WuKongIM/WuKongIM/pkg/socket"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type listener struct {
@@ -44,52 +45,63 @@ func (l *listener) init() error {
 	return fmt.Errorf("unsupported network: %s", network)
 }
 
+func createSocketOptions(opts *Options) []socket.Option {
+    sockOpts := []socket.Option{
+        {SetSockOpt: socket.SetNoDelay, Opt: 1},
+        {SetSockOpt: socket.SetReuseAddr, Opt: 1},
+    }
+
+    // 根据 Options 结构体添加可选的 socket 选项
+    if opts.SocketRecvBuffer > 0 {
+        sockOpts = append(sockOpts, socket.Option{SetSockOpt: socket.SetRecvBuffer, Opt: opts.SocketRecvBuffer})
+    }
+    if opts.SocketSendBuffer > 0 {
+        sockOpts = append(sockOpts, socket.Option{SetSockOpt: socket.SetSendBuffer, Opt: opts.SocketSendBuffer})
+    }
+
+    return sockOpts
+}
+
+func createTCPSocket(network, addr string, sockOpts []socket.Option) (int, interface{}, error) {
+    if network == ProtocolWS || network == "wss" {
+        return socket.TCPSocket(ProtocolTCP, addr, true, sockOpts...)
+    }
+
+    return socket.TCPSocket(network, addr, true, sockOpts...)
+}
+
 func (l *listener) initTCPListener(network, addr string) error {
-	var sockOpts = []socket.Option{
-		{SetSockOpt: socket.SetNoDelay, Opt: 1},
-		{SetSockOpt: socket.SetReuseAddr, Opt: 1}, // 监听端口重用
-	}
-	opts := l.opts
+    sockOpts := createSocketOptions(l.opts)
 
-	if opts.SocketRecvBuffer > 0 {
-		sockOpt := socket.Option{SetSockOpt: socket.SetRecvBuffer, Opt: opts.SocketRecvBuffer}
-		sockOpts = append(sockOpts, sockOpt)
-	}
-	if opts.SocketSendBuffer > 0 {
-		sockOpt := socket.Option{SetSockOpt: socket.SetSendBuffer, Opt: opts.SocketSendBuffer}
-		sockOpts = append(sockOpts, sockOpt)
-	}
+    var err error
+    l.fd, _, err = createTCPSocket(network, addr, sockOpts)
+    if err != nil {
+        return err
+    }
 
-	var (
-		err error
-	)
+    realAddr, err := syscall.Getsockname(l.fd)
+    if err != nil {
+        return err
+    }
+    l.realAddr = parseSockaddr(realAddr)
 
-	switch network {
-	case "ws", "wss":
-		l.fd, _, err = socket.TCPSocket("tcp", addr, true, sockOpts...)
-	case "tcp", "tcp4", "tcp6":
-		l.fd, _, err = socket.TCPSocket(network, addr, true, sockOpts...)
-	default:
-		err = perrors.ErrUnsupportedProtocol
-	}
-	if err != nil {
-		return err
-	}
+    return err
+}
 
-	var realAddr syscall.Sockaddr
-	realAddr, err = syscall.Getsockname(l.fd)
-	if err != nil {
-		return err
-	}
-	switch addr := realAddr.(type) {
-	case *syscall.SockaddrInet4:
-		l.realAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
-	case *syscall.SockaddrInet6:
-		l.realAddr = &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
-	default:
-		fmt.Printf("Unknown address type: %T\n", addr)
-	}
-	return err
+func parseSockaddr(sa syscall.Sockaddr) net.Addr {
+    switch addr := sa.(type) {
+    case *syscall.SockaddrInet4:
+        return &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
+    case *syscall.SockaddrInet6:
+        return &net.TCPAddr{IP: addr.Addr[0:], Port: addr.Port}
+    default:
+        errMsg := fmt.Sprintf("Unknown address type: %T", addr)
+        wklog.Error(errMsg) 
+
+        return nil, errors.New(errMsg)
+    }
+
+    return nil
 }
 
 // addr format: tcp://xx.xxx.xx.xx:xxxx split
