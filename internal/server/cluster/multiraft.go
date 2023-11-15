@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/lni/dragonboat/v4/config"
 	"github.com/lni/dragonboat/v4/raftio"
 	sm "github.com/lni/dragonboat/v4/statemachine"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -26,6 +28,8 @@ type MultiRaft struct {
 	raftSystemEvent
 	slotStartMapLock sync.RWMutex
 	slotStartMap     map[uint32]bool
+
+	started atomic.Bool
 }
 
 func NewMultiRaft(opts *MultiRaftOptions) *MultiRaft {
@@ -66,18 +70,34 @@ func NewMultiRaft(opts *MultiRaftOptions) *MultiRaft {
 	return m
 }
 func (m *MultiRaft) Start() error {
+	if m.started.Load() {
+		return nil
+	}
 
 	rc := m.getDefaultRaftConfig()
 	rc.ShardID = uint64(PeerShardID)
-	err := m.nodehost.StartOnDiskReplica(m.initialMembers, false, func(shardID, replicaID uint64) sm.IOnDiskStateMachine {
+
+	initialMembers := m.initialMembers
+	join := strings.TrimSpace(m.opts.Join) != ""
+	if join { // 后续加入的节点，不需要初始化成员
+		initialMembers = map[uint64]string{}
+	}
+
+	err := m.nodehost.StartOnDiskReplica(initialMembers, join, func(shardID, replicaID uint64) sm.IOnDiskStateMachine {
 		return newMultiRaftStateMachine(shardID, replicaID, m.opts)
 	}, rc)
 	if err != nil {
 		m.Panic("StartReplica error", zap.Error(err))
 		return err
 	}
+	m.started.Store(true)
 
 	return nil
+}
+
+func (m *MultiRaft) Stop() {
+	m.started.Store(false)
+	m.nodehost.Close()
 }
 
 func (m *MultiRaft) SyncRequestAddReplica(peerID uint64, addr string) error {
@@ -191,10 +211,6 @@ func (m *MultiRaft) LeaderUpdated(info raftio.LeaderInfo) {
 func (m *MultiRaft) MembershipChanged(info raftio.NodeInfo) {
 	fmt.Println("MembershipChanged--->")
 
-}
-
-func (m *MultiRaft) Stop() {
-	m.nodehost.Close()
 }
 
 type MultiRaftOptions struct {

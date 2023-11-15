@@ -20,6 +20,8 @@ enum CMDType {
      ForwardRecvackPacket = 8; // 转发接受ack包
      GetClusterConfig = 9; // 获取集群配置
      JoinCluster = 10; // 加入集群
+     UpdateClusterConfig = 11; // 更新集群配置
+     JoinDone = 12; // 加入完成
 }
 
 enum Status {

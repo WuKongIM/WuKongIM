@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/pb"
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
+	"go.uber.org/atomic"
 )
 
 // CMDEvent cmd事件
@@ -30,6 +31,7 @@ type CMDEvent interface {
 type defaultCMDEvent struct {
 	cmdEvent CMDEvent
 	cluster  *Cluster
+	joinDone atomic.Bool
 }
 
 func newDefaultCMDEvent(cmdEvent CMDEvent, cluster *Cluster) *defaultCMDEvent {
@@ -108,9 +110,28 @@ func (d *defaultCMDEvent) OnJoinReq(req *pb.JoinReq) error {
 	if leaderID == 0 {
 		return errors.New("no leader")
 	}
-	if leaderID != d.cluster.opts.PeerID {
-		req.ToPeerID = leaderID
-		return d.cluster.requestJoinReq(req)
+	return d.cluster.proposeUpdatePeer(req.JoinPeer)
+}
+
+func (d *defaultCMDEvent) OnUpdateClusterConfig(req *pb.Cluster) error {
+	d.cluster.clusterManager.UpdateClusterConfig(req)
+	return nil
+}
+
+func (d *defaultCMDEvent) OnJoinDone(req *pb.JoinDoneReq) error {
+	if d.joinDone.Load() {
+		return nil
 	}
-	return d.cluster.SyncRequestAddReplica(req.JoinPeer)
+	joinPeer := d.cluster.GetPeer(req.PeerID)
+	if joinPeer == nil {
+		return errors.New("join peer not found")
+	}
+	joinPeerClone := joinPeer.Clone()
+	joinPeerClone.JoinState = pb.JoinState_JoinStateDone
+	err := d.cluster.proposeUpdatePeer(joinPeerClone)
+	if err != nil {
+		return err
+	}
+	d.joinDone.Store(true)
+	return nil
 }
