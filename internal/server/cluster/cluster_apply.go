@@ -88,7 +88,7 @@ func (c *Cluster) handleUpdatePeerConfig(req pb.CMDReq) {
 		return
 	}
 	c.peerGRPCClient.AddOrUpdatePeer(peer)
-	c.clusterManager.UpdatePeerConfig(peer)
+	c.clusterManager.AddOrUpdatePeerConfig(peer)
 }
 
 func (c *Cluster) handleUpdateClusterConfig(req pb.CMDReq) {

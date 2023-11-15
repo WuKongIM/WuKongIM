@@ -178,14 +178,16 @@ func (c *Cluster) Start() error {
 
 func (c *Cluster) SyncRequestAddReplica(peer *pb.Peer) error {
 	existPeer := c.clusterManager.GetPeer(peer.PeerID)
-	if existPeer != nil {
-		return fmt.Errorf("peer is exist")
+	if existPeer == nil {
+		return fmt.Errorf("peer is not exist")
+	}
+	if existPeer.JoinState != pb.JoinState_JoinStateWill {
+		return fmt.Errorf("peer join state is not will")
 	}
 	err := c.multiRaft.SyncRequestAddReplica(peer.PeerID, peer.ServerAddr)
 	if err != nil {
 		return err
 	}
-	c.clusterManager.AddOrUpdatePeerConfig(peer)
 	return nil
 }
 
@@ -231,8 +233,13 @@ func (c *Cluster) loopClusterConfig() {
 			if clusterReady.JoinReq != nil {
 				_ = c.requestJoinReq(clusterReady.JoinReq)
 			}
+
+			if clusterReady.JoinAction != nil {
+				c.handleJoinAction(clusterReady.JoinAction)
+			}
+
 			if clusterReady.UpdateClusterConfig != nil {
-				c.requestUpdateClusterConfig(clusterReady.UpdateClusterConfig)
+				c.requestGetClusterConfig(clusterReady.UpdateClusterConfig)
 			}
 			if clusterReady.AllocateSlotSet != nil {
 				c.requestAllocateSlotSet(clusterReady.AllocateSlotSet)
@@ -241,7 +248,8 @@ func (c *Cluster) loopClusterConfig() {
 				c.handleSlotActions(clusterReady.SlotActions)
 			}
 			if clusterReady.UpdatePeer != nil {
-				c.requestUpdatePeer(clusterReady.UpdatePeer)
+				fmt.Println("clusterReady.UpdatePeer....")
+				_ = c.proposeUpdatePeer(clusterReady.UpdatePeer)
 			}
 			if clusterReady.SlotLeaderRelationSet != nil {
 				c.requestUpdateSlotLeaderRelationSet(clusterReady.SlotLeaderRelationSet)
@@ -268,28 +276,28 @@ func (c *Cluster) handleSlotActions(actions []*SlotAction) {
 	}
 }
 
-func (c *Cluster) requestUpdatePeer(peer *pb.Peer) {
+func (c *Cluster) proposeUpdatePeer(peer *pb.Peer) error {
 	req := pb.NewCMDReq(uint32(pb.CMDUpdatePeerConfig))
 	param, err := peer.Marshal()
 	if err != nil {
 		c.Error("peer marshal error", zap.Error(err))
-		return
+		return err
 	}
 	req.Param = param
 	data, err := req.Marshal()
 	if err != nil {
 		c.Error("cmd request marshal error", zap.Error(err))
-		return
+		return err
 	}
-	err = c.ProposeToPeer(data)
+	err = c.SyncProposeToPeer(data)
 	if err != nil {
-		c.Error("request add peer propose error", zap.Error(err))
-		return
+		c.Error("propose add peer propose error", zap.Error(err))
+		return err
 	}
+	return nil
 }
 
 func (c *Cluster) requestJoinReq(joinReq *pb.JoinReq) error {
-
 	if c.joinReqSuccess.Load() {
 		return nil
 	}
@@ -302,7 +310,56 @@ func (c *Cluster) requestJoinReq(joinReq *pb.JoinReq) error {
 	return nil
 }
 
-func (c *Cluster) requestUpdateClusterConfig(configReq *UpdateClusterConfigReq) {
+func (c *Cluster) handleJoinAction(joinAction *JoinAction) {
+
+	if joinAction.ActionType == JoinActionTypeJoin { // 新节点加入集群
+		result := c.clusterManager.GetPeer(joinAction.PeerID)
+		if result == nil {
+			c.Error("join peer is nil handle join action fail", zap.Uint64("peerID", joinAction.PeerID))
+			return
+		}
+		joinPeer := result.Clone()
+		if joinPeer.JoinState != pb.JoinState_JoinStateWill {
+			c.Error("join peer join state is not will handle join action fail", zap.Uint64("peerID", joinAction.PeerID))
+			return
+		}
+		err := c.SyncRequestAddReplica(joinPeer)
+		if err != nil {
+			c.Error("sync request add replica error", zap.Error(err))
+			return
+		}
+		joinPeer.JoinState = pb.JoinState_JoinStateDoing
+		fmt.Println("JoinActionTypeJoin---->")
+		err = c.proposeUpdatePeer(joinPeer)
+		if err != nil {
+			c.Error("request update peer error", zap.Error(err))
+			return
+		}
+	} else if joinAction.ActionType == JoinActionTypeUpdateClusterConfig { // 请求将新节点的集群配置更新到最新
+		err := c.RequestPeerUpdateConfig(joinAction.PeerID)
+		if err != nil {
+			c.Error("request peer update config error", zap.Error(err))
+			return
+		}
+	} else if joinAction.ActionType == JoinActionStart { // 新节点开始启动
+		err := c.multiRaft.Start() // 支持重复start
+		if err != nil {
+			c.Error("multi raft start error", zap.Error(err))
+			return
+		}
+
+		err = c.RequestJoinDone(c.clusterManager.GetLeaderPeerID(), &pb.JoinDoneReq{
+			PeerID: joinAction.PeerID,
+		})
+		if err != nil {
+			c.Error("request join done error", zap.Error(err))
+			return
+		}
+	}
+
+}
+
+func (c *Cluster) requestGetClusterConfig(configReq *UpdateClusterConfigReq) {
 
 	cluster, err := c.RequestClusterConfig(configReq.FromPeerID)
 	if err != nil {
@@ -330,9 +387,9 @@ func (c *Cluster) proposeUpdateClusterConfig(cluster *pb.Cluster) error {
 		c.Error("cmd request marshal error", zap.Error(err))
 		return err
 	}
-	err = c.ProposeToPeer(data)
+	err = c.SyncProposeToPeer(data)
 	if err != nil {
-		c.Error("request add peer propose error", zap.Error(err))
+		c.Error("propose add peer propose error", zap.Error(err))
 		return err
 	}
 	return nil
@@ -354,9 +411,9 @@ func (c *Cluster) requestUpdateSlotLeaderRelationSet(slotLeaderRelationSet *pb.S
 		c.Error("cmd request marshal error", zap.Error(err))
 		return
 	}
-	err = c.ProposeToPeer(data)
+	err = c.SyncProposeToPeer(data)
 	if err != nil {
-		c.Error("request add peer propose error", zap.Error(err))
+		c.Error("requestUpdateSlotLeaderRelationSet error", zap.Error(err))
 		return
 	}
 	c.clusterManager.UpdatedSlotLeaderRelations(slotLeaderRelationSet)
@@ -380,14 +437,14 @@ func (c *Cluster) requestAllocateSlotSet(allocateSlotSet *pb.AllocateSlotSet) {
 		c.Error("request init slot marshal error", zap.Error(err))
 		return
 	}
-	err = c.ProposeToPeer(data)
+	err = c.SyncProposeToPeer(data)
 	if err != nil {
 		c.Error("request init slot propose error", zap.Error(err))
 		return
 	}
 }
 
-func (c *Cluster) ProposeToPeer(data []byte) error {
+func (c *Cluster) SyncProposeToPeer(data []byte) error {
 	return c.multiRaft.SyncProposeToPeer(data)
 }
 
@@ -411,7 +468,7 @@ func (c *Cluster) SyncProposeToSlot(slotID uint32, data []byte) ([]byte, error) 
 		c.Error("not sync propose reason is leader nil ", zap.Uint32("slotID", slotID))
 		return nil, fmt.Errorf("not sync propose reason is leader nil ")
 	}
-	resp, err := c.sendSyncProposeToLeader(leader.PeerID, &rpc.SendSyncProposeReq{
+	resp, err := c.sendSyncProposeToSlotLeader(leader.PeerID, &rpc.SendSyncProposeReq{
 		Slot: slotID,
 		Data: data,
 	})
@@ -421,7 +478,7 @@ func (c *Cluster) SyncProposeToSlot(slotID uint32, data []byte) ([]byte, error) 
 	return resp.Data, nil
 }
 
-func (c *Cluster) sendSyncProposeToLeader(peerID uint64, req *rpc.SendSyncProposeReq) (*rpc.SendSyncProposeResp, error) {
+func (c *Cluster) sendSyncProposeToSlotLeader(peerID uint64, req *rpc.SendSyncProposeReq) (*rpc.SendSyncProposeResp, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
 	data, _ := req.Marshal()
 	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
@@ -477,14 +534,12 @@ func (c *Cluster) BelongLeaderPeer(v string) (bool, error) {
 	if leader == nil {
 		return false, errors.New("leader is nil")
 	}
-	fmt.Println("BelongPeer---->", leader)
 	return leader.PeerID == c.opts.PeerID, nil
 }
 
 // GetLeaderPeer 获取slot的leader节点
 func (c *Cluster) GetLeaderPeer(v string) *pb.Peer {
 	slotID := c.getSlotID(v)
-	fmt.Println("slotID----->", slotID, v)
 	return c.clusterManager.GetLeaderPeer(slotID)
 }
 
@@ -635,6 +690,42 @@ func (c *Cluster) RequestJoinCluster(req *pb.JoinReq) error {
 	}
 	if resp.Status != rpc.Status_Success {
 		return fmt.Errorf("request join cluster fail")
+	}
+	return nil
+}
+
+// 请求节点更新到当前节点的配置
+func (c *Cluster) RequestPeerUpdateConfig(toPeerID uint64) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+
+	clusterConfigData, _ := c.clusterManager.GetClusterConfig().Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, toPeerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_UpdateClusterConfig,
+		Data: clusterConfigData,
+	})
+	cancel()
+	if err != nil {
+		return err
+	}
+	if resp.Status != rpc.Status_Success {
+		return fmt.Errorf("request peer update config fail")
+	}
+	return nil
+}
+
+func (c *Cluster) RequestJoinDone(peerID uint64, req *pb.JoinDoneReq) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.GRPCSendTimeout)
+	data, _ := req.Marshal()
+	resp, err := c.peerGRPCClient.SendCMD(timeoutCtx, peerID, &rpc.CMDReq{
+		Cmd:  rpc.CMDType_JoinDone,
+		Data: data,
+	})
+	cancel()
+	if err != nil {
+		return err
+	}
+	if resp.Status != rpc.Status_Success {
+		return fmt.Errorf("request join done fail")
 	}
 	return nil
 }

@@ -26,6 +26,13 @@ enum SlotState {
    SlotStateElecting = 2; // 选举中
 }
 
+enum JoinState {
+    JoinStateWill = 0; // 准备加入
+    JoinStateDoing = 1; // 已经加入
+    JoinStateDone = 2; // 加入完成
+
+}
+
 // 集群信息
 message Cluster {
     uint32 slotCount = 1; // 槽位数量
@@ -44,8 +51,8 @@ message Peer {
     PeerState state = 4; // 节点状态
     string grpcServerAddr = 5; // 节点grpc服务地址
     string apiServerAddr = 6; // 节点api服务地址
-    bool new = 7; // 是否是新节点
-    bool joined = 8; // 是否加入集群
+    bool join = 8; // 是否是加入集群的节点
+    JoinState joinState = 9; // 加入集群的状态
 }
 
 // 节点列表
@@ -58,7 +65,8 @@ message Slot {
     uint32 slot = 1; // 槽位
     uint64 leader = 2; // 领导者节点ID
     SlotState state = 3; // 槽位状态
-    repeated uint64 peers  = 5; // 节点ID
+    repeated uint64 peers  = 4; // 槽位分配的节点
+    repeated uint64 willJoin = 5; // 槽位将要加入的节点
 }
 
 // 槽位领导者
@@ -91,4 +99,8 @@ message AllocateSlotSet {
 message JoinReq {
     uint64 toPeerID = 1; // 现有集群中的节点ID
     Peer joinPeer = 2; // 新加入的节点信息
+}
+
+message JoinDoneReq {
+    uint64 peerID = 1; // 新节点已成功加入集群
 }

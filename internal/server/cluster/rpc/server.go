@@ -42,6 +42,10 @@ type CMDEvent interface {
 	OnGetClusterConfig() ([]byte, error)
 	// 收到加入请求
 	OnJoinReq(req *pb.JoinReq) error
+	// 收到加入完成请求
+	OnJoinDone(req *pb.JoinDoneReq) error
+	// 更新集群配置
+	OnUpdateClusterConfig(req *pb.Cluster) error
 }
 
 // Server rpc服务
@@ -245,6 +249,34 @@ func (n *nodeServiceImp) SendCMD(ctx context.Context, req *CMDReq) (*CMDResp, er
 			return nil, err
 		}
 		err = n.s.event.OnJoinReq(joinReq)
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: Status_Success,
+		}, nil
+	} else if req.Cmd == CMDType_UpdateClusterConfig { // 更新集群配置
+		clusterConfig := &pb.Cluster{}
+		err := proto.Unmarshal(req.Data, clusterConfig)
+		if err != nil {
+			n.s.Error("解码更新集群配置数据失败！", zap.Error(err))
+			return nil, err
+		}
+		err = n.s.event.OnUpdateClusterConfig(clusterConfig)
+		if err != nil {
+			return nil, err
+		}
+		return &CMDResp{
+			Status: Status_Success,
+		}, nil
+	} else if req.Cmd == CMDType_JoinDone { // 收到加入完成请求
+		joinDoneReq := &pb.JoinDoneReq{}
+		err := proto.Unmarshal(req.Data, joinDoneReq)
+		if err != nil {
+			n.s.Error("解码加入完成请求数据失败！", zap.Error(err))
+			return nil, err
+		}
+		err = n.s.event.OnJoinDone(joinDoneReq)
 		if err != nil {
 			return nil, err
 		}
