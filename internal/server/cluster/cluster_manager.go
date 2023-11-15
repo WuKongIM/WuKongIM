@@ -168,7 +168,6 @@ func (c *ClusterManager) checkPeers() ClusterReady {
 			if toPeerID <= 0 {
 				return EmptyClusterReady
 			}
-			fmt.Println("join req------>")
 			return ClusterReady{
 				JoinReq: &pb.JoinReq{
 					ToPeerID: uint64(toPeerID),
@@ -176,20 +175,11 @@ func (c *ClusterManager) checkPeers() ClusterReady {
 						PeerID:         c.opts.PeerID,
 						ServerAddr:     c.opts.ServerAddr,
 						GrpcServerAddr: c.opts.GRPCServerAddr,
-						New:            true,
+						Join:           true,
 					},
 				},
 			}
-		} else {
-			// exist := false
-			// for _, peer := range c.cluster.Peers {
-			// 	if peer.PeerID == c.opts.PeerID {
-			// 		exist = true
-			// 		break
-			// 	}
-			// }
 		}
-
 	}
 
 	// 如果领导节点发生变化则更新
@@ -202,8 +192,44 @@ func (c *ClusterManager) checkPeers() ClusterReady {
 
 	// 判断集群配置里的自己的节点的信息是否正确，如果不正确则发起更新提案
 	for _, peer := range c.cluster.Peers {
+		if c.isLeader() {
+			if peer.Join && peer.PeerID != c.opts.PeerID {
+				if peer.JoinState == pb.JoinState_JoinStateWill {
+					return ClusterReady{
+						JoinAction: &JoinAction{
+							PeerID:     peer.PeerID,
+							ActionType: JoinActionTypeJoin,
+						},
+					}
+				} else if peer.JoinState == pb.JoinState_JoinStateDoing {
+					return ClusterReady{
+						JoinAction: &JoinAction{
+							PeerID:     peer.PeerID,
+							ActionType: JoinActionTypeUpdateClusterConfig,
+						},
+					}
+
+				}
+			}
+		}
 		if peer.PeerID == c.opts.PeerID {
-			if peer.GrpcServerAddr != c.opts.GRPCServerAddr || peer.ApiServerAddr != c.opts.APIServerAddr {
+			if peer.Join {
+				if peer.JoinState == pb.JoinState_JoinStateDoing {
+					return ClusterReady{
+						JoinAction: &JoinAction{
+							PeerID:     peer.PeerID,
+							ActionType: JoinActionStart,
+						},
+					}
+				}
+			}
+
+			updatePeer := peer.GrpcServerAddr != c.opts.GRPCServerAddr || peer.ApiServerAddr != c.opts.APIServerAddr
+			if peer.Join && peer.JoinState != pb.JoinState_JoinStateDone { // 如果是新加入的节点，当节点还没有加入完成时，不更新节点信息
+				updatePeer = false
+			}
+
+			if updatePeer {
 				peerClone := peer.Clone()
 				peerClone.GrpcServerAddr = c.opts.GRPCServerAddr
 				peerClone.ApiServerAddr = c.opts.APIServerAddr
@@ -691,8 +717,16 @@ func (c *ClusterManager) GetClusterConfig() *pb.Cluster {
 func (c *ClusterManager) IsWillJoin() bool {
 	c.Lock()
 	defer c.Unlock()
+	join := strings.TrimSpace(c.opts.Join) != ""
+	if !join {
+		return false
+	}
 	peers := c.cluster.Peers
-	if len(peers) == 0 && strings.TrimSpace(c.opts.Join) != "" {
+	if len(peers) == 0 {
+		return true
+	}
+	currPeer := c.getPeer(c.opts.PeerID)
+	if currPeer == nil && currPeer.JoinState != pb.JoinState_JoinStateDone {
 		return true
 	}
 	return false
@@ -706,11 +740,15 @@ type ClusterReady struct {
 	UpdatePeer            *pb.Peer                  // 需要更新的节点信息
 	SlotLeaderRelationSet *pb.SlotLeaderRelationSet // 需要更新的slot和leader的关系
 	JoinReq               *pb.JoinReq               // 新加入集群的节点
+	JoinAction            *JoinAction               // 新加入集群的节点
 	UpdateClusterConfig   *UpdateClusterConfigReq   // 更新集群配置
 }
 
 func IsEmptyClusterReady(c ClusterReady) bool {
-	return c.AllocateSlotSet == nil && c.SlotActions == nil && c.UpdatePeer == nil && c.SlotLeaderRelationSet == nil && c.JoinReq == nil && c.UpdateClusterConfig == nil
+	return c.AllocateSlotSet == nil && c.SlotActions == nil &&
+		c.UpdatePeer == nil && c.SlotLeaderRelationSet == nil &&
+		c.JoinReq == nil && c.UpdateClusterConfig == nil &&
+		c.JoinAction == nil
 }
 
 type SlotState int
@@ -726,6 +764,14 @@ const (
 	SlotActionStart SlotActionType = iota
 )
 
+type JoinActionType int
+
+const (
+	JoinActionTypeJoin                JoinActionType = iota
+	JoinActionTypeUpdateClusterConfig                // 新加入的节点更新集群配置
+	JoinActionStart                                  // 新加入的节点开始启动
+)
+
 type SlotAction struct {
 	SlotID uint32
 	Action SlotActionType
@@ -733,4 +779,9 @@ type SlotAction struct {
 
 type UpdateClusterConfigReq struct {
 	FromPeerID uint64
+}
+
+type JoinAction struct {
+	PeerID     uint64
+	ActionType JoinActionType
 }

@@ -61,6 +61,14 @@ func (j *JoinReq) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, j)
 }
 
+func (j *JoinDoneReq) Marshal() ([]byte, error) {
+	return proto.Marshal(j)
+}
+
+func (j *JoinDoneReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, j)
+}
+
 func (c *Cluster) Clone() *Cluster {
 	return proto.Clone(c).(*Cluster)
 }
