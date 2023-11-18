@@ -131,8 +131,7 @@ type DefaultConn struct {
 	outboundBuffer OutboundBuffer // outboundBuffer OutboundBuffer
 	closed         bool           // if the connection is closed
 	isWAdded       bool           // if the connection is added to the write event
-	wakeWriteLock  sync.RWMutex
-	writeLock      sync.RWMutex
+	mu             sync.Mutex
 	context        interface{}
 	authed         bool // if the connection is authed
 	protoVersion   int
@@ -171,7 +170,7 @@ func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *
 	defaultConn.valueMap = map[string]interface{}{}
 	defaultConn.context = nil
 	defaultConn.uptime = time.Now()
-	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[%d]", id))
+	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[[reactor-%d]%d]", reactorSub.idx, id))
 	defaultConn.connStats = NewConnStats()
 
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
@@ -246,6 +245,8 @@ func (d *DefaultConn) Write(b []byte) (int, error) {
 	if d.closed {
 		return -1, net.ErrClosed
 	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	n, err := d.write(b)
 	if err != nil {
 		return 0, err
@@ -255,12 +256,37 @@ func (d *DefaultConn) Write(b []byte) (int, error) {
 
 // write to outbound buffer
 func (d *DefaultConn) WriteToOutboundBuffer(b []byte) (int, error) {
-	d.writeLock.Lock()
-	defer d.writeLock.Unlock()
+	if len(b) == 0 {
+		return 0, nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	// if d.outboundBuffer.IsEmpty() {
+	// 	n, err := d.writeDirect(b, nil)
+	// 	if err != nil && !errors.Is(err, syscall.EINTR) && !errors.Is(err, syscall.EAGAIN) {
+	// 		_ = d.Close()
+	// 		return 0, err
+	// 	}
+	// 	if n < 0 {
+	// 		n = 0
+	// 	}
+	// 	left := len(b) - n
+	// 	if left > 0 {
+	// 		_, _ = d.outboundBuffer.Write(b[n:])
+	// 		_ = d.reactorSub.AddWrite(d)
+	// 	}
+	// 	return len(b), nil
+	// }
+	// n, err := d.outboundBuffer.Write(b)
+	// _ = d.reactorSub.AddWrite(d)
+	// return n, err
 	return d.outboundBuffer.Write(b)
+
 }
 
 func (d *DefaultConn) WakeWrite() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.addWriteIfNotExist()
 }
 
@@ -471,8 +497,12 @@ func (d *DefaultConn) ConnStats() *ConnStats {
 }
 
 func (d *DefaultConn) flush() error {
-	d.writeLock.Lock()
-	defer d.writeLock.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.UID() == "f650d2123445403093b0c9905ad6fd57" {
+		d.Debug("flush---->", zap.Int("outboundSize", d.outboundBuffer.BoundBufferSize()))
+	}
 
 	if d.outboundBuffer.IsEmpty() {
 		d.removeWriteIfExist()
@@ -484,7 +514,7 @@ func (d *DefaultConn) flush() error {
 	)
 
 	head, tail := d.outboundBuffer.Peek(-1)
-	n, err = d.WriteDirect(head, tail)
+	n, err = d.writeDirect(head, tail)
 	_, _ = d.outboundBuffer.Discard(n)
 	switch err {
 	case nil:
@@ -500,12 +530,23 @@ func (d *DefaultConn) flush() error {
 		if err != nil {
 			fmt.Println("removeWrite err", err)
 		}
+	} else {
+		fmt.Println("outboundBuffer not empty----------------------------------------------------------------------->")
 	}
 	return nil
 
 }
 
 func (d *DefaultConn) WriteDirect(head, tail []byte) (int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.writeDirect(head, tail)
+}
+
+func (d *DefaultConn) writeDirect(head, tail []byte) (int, error) {
+	if d.UID() == "f650d2123445403093b0c9905ad6fd57" {
+		d.Debug("write direct", zap.String("uid", d.uid), zap.String("deviceID", d.deviceID), zap.Int("head", len(head)), zap.Int("tail", len(tail)))
+	}
 	var (
 		n   int
 		err error
@@ -542,23 +583,23 @@ func (d *DefaultConn) write(b []byte) (int, error) {
 }
 
 func (d *DefaultConn) addWriteIfNotExist() error {
-	d.wakeWriteLock.Lock()
-	defer d.wakeWriteLock.Unlock()
-	if !d.isWAdded {
-		d.isWAdded = true
-		return d.reactorSub.AddWrite(d)
-	}
-	return nil
+
+	// if !d.isWAdded {
+	// 	d.isWAdded = true
+	// 	// 获取上个调用的方法名
+	// 	pc, _, _, _ := runtime.Caller(1)
+	// 	d.Debug("add write event", zap.String("uid", d.uid), zap.String("deviceID", d.deviceID), zap.String("caller", runtime.FuncForPC(pc).Name()))
+	// 	return d.reactorSub.AddWrite(d)
+	// }
+	return d.reactorSub.AddWrite(d)
 }
 
 func (d *DefaultConn) removeWriteIfExist() error {
-	d.wakeWriteLock.Lock()
-	defer d.wakeWriteLock.Unlock()
-	if d.isWAdded {
-		d.isWAdded = false
-		return d.reactorSub.RemoveWrite(d)
-	}
-	return nil
+	// if d.isWAdded {
+	// 	d.isWAdded = false
+	// 	return d.reactorSub.RemoveWrite(d)
+	// }
+	return d.reactorSub.RemoveWrite(d)
 }
 
 func (d *DefaultConn) overflowForOutbound(n int) bool {

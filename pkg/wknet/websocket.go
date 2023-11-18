@@ -58,8 +58,8 @@ func (w *WSConn) ReadToInboundBuffer() (int, error) {
 }
 
 func (w *WSConn) WriteServerBinary(data []byte) error {
-	w.writeLock.Lock()
-	defer w.writeLock.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return wsutil.WriteServerBinary(w.outboundBuffer, data)
 }
 
@@ -346,8 +346,8 @@ func (w *WSSConn) Close() error {
 }
 
 func (w *WSSConn) WriteServerBinary(data []byte) error {
-	w.d.writeLock.Lock()
-	defer w.d.writeLock.Unlock()
+	w.d.mu.Lock()
+	defer w.d.mu.Unlock()
 	return wsutil.WriteServerBinary(w.TLSConn, data)
 }
 

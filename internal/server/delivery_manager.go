@@ -35,9 +35,12 @@ func NewDeliveryManager(s *Server) *DeliveryManager {
 }
 
 func (d *DeliveryManager) startDeliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[int64]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
-	d.deliveryMsgPool.Submit(func() {
+	err := d.deliveryMsgPool.Submit(func() {
 		d.deliveryMessages(messages, large, syncOnceMessageSeqMap, subscribers, fromUID, fromDeivceFlag, fromDeviceID)
 	})
+	if err != nil {
+		d.Error("开始消息投递失败！", zap.Error(err))
+	}
 }
 
 func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[int64]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
@@ -65,6 +68,7 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 				offlineSubscribers = append(offlineSubscribers, subscriber)
 			}
 		}
+		startTime := time.Now()
 		d.Debug("消息投递", zap.String("subscriber", subscriber), zap.Any("recvConns", len(recvConns)))
 		for _, recvConn := range recvConns {
 			recvPackets := make([]wkproto.Frame, 0, len(messages))
@@ -110,13 +114,19 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 				recvPackets = append(recvPackets, cloneMsg.RecvPacket)
 			}
 			d.s.dispatch.dataOut(recvConn, recvPackets...)
-
+			cost := time.Since(startTime)
+			if cost > 100*time.Millisecond {
+				d.Warn("消息投递耗时", zap.String("subscriber", subscriber), zap.Any("recvConns", len(recvConns)), zap.Duration("cost", cost))
+			}
 		}
 	}
 
 	if len(offlineSubscribers) > 0 {
 		d.Debug("Offline subscribers", zap.Strings("offlineSubscribers", offlineSubscribers))
 		for _, msg := range messages {
+			if msg.NoPersist { // 不存储的消息不触发离线事件
+				continue
+			}
 			d.s.webhook.notifyOfflineMsg(msg, large, offlineSubscribers)
 
 		}
@@ -159,7 +169,6 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 // get recv
 func (d *DeliveryManager) getRecvConns(subscriber string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) []wknet.Conn {
 	toConns := d.s.connManager.GetConnsWithUID(subscriber)
-	d.Debug("GetConnsWithUID", zap.String("subscriber", subscriber), zap.Int("conns", len(toConns)))
 	conns := make([]wknet.Conn, 0, len(toConns))
 	if len(toConns) > 0 {
 		for _, conn := range toConns {

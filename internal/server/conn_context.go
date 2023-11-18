@@ -33,13 +33,30 @@ type connContext struct {
 }
 
 func newConnContext(s *Server) *connContext {
-
-	return &connContext{
+	c := &connContext{
 		s:               s,
 		frameCacheLock:  sync.RWMutex{},
 		Log:             wklog.NewWKLog("connContext"),
 		subscriberInfos: make(map[string]*wkstore.SubscribeInfo),
 	}
+	// s.Schedule(time.Second*2, c.print)
+
+	return c
+}
+
+func (c *connContext) print() {
+	// if c.conn != nil {
+	// 	if c.conn.UID() == "f650d2123445403093b0c9905ad6fd57" {
+	// 		fmt.Println("outboundBufferSize", c.conn.OutboundBuffer().BoundBufferSize())
+	// 		fmt.Println("inboundBufferLen", c.conn.InboundBuffer().BoundBufferSize())
+	// 		fmt.Println("inflightCount:", c.inflightCount)
+	// 		fmt.Println("frameCaches:", len(c.frameCaches))
+	// 		fmt.Println("isDisableRead:", c.isDisableRead)
+	// 		fmt.Println("subscriberInfos:", len(c.subscriberInfos))
+	// 		fmt.Println("connID:", c.conn.ID())
+	// 		fmt.Println("connUID:", c.conn.UID())
+	// 	}
+	// }
 }
 
 func (c *connContext) putFrame(frame wkproto.Frame) {

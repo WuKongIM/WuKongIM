@@ -103,7 +103,7 @@ go run main.go --config config/wk.yaml
 
 客户端演示地址：http://127.0.0.1:5172/chatdemo
 
-其他部署方式详见文档：http://githubim.com/guide/quickstart
+其他部署方式详见文档：https://githubim.com/guide/deploy-binary.html
 
 端口解释:
 

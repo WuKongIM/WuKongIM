@@ -265,6 +265,18 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 			sendackPackets = append(sendackPackets, channelSendackPackets...)
 		}
 	}
+	if conn.UID() == "f650d2123445403093b0c9905ad6fd57" {
+		if len(sendackPackets) == 0 {
+			p.Debug("sendackPackets is empty------------------------->", zap.Any("conn", conn))
+		}
+		for _, sendackPacketObj := range sendackPackets {
+			sendackPacket := sendackPacketObj.(*wkproto.SendackPacket)
+			p.Debug("sendackPacket--clientSeq----------------------->", zap.Uint64("clientSeq", sendackPacket.ClientSeq))
+			if sendackPacket.ReasonCode != wkproto.ReasonSuccess {
+				p.Debug("sendackPacket.ReasonCode is not success------------------------->", zap.Any("conn", conn), zap.Any("sendackPacket", sendackPacket))
+			}
+		}
+	}
 	p.response(conn, sendackPackets...)
 }
 
@@ -365,12 +377,14 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	}
 	err = p.storeChannelMessagesIfNeed(conn.UID(), messages) // only have messageSeq after message save
 	if err != nil {
+		p.Error("store channel messages err", zap.Error(err))
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 	}
 	//########## message store to queue ##########
 	if p.s.opts.WebhookOn() {
 		err = p.storeChannelMessagesToNotifyQueue(messages)
 		if err != nil {
+			p.Error("store channel messages to notify queue err", zap.Error(err))
 			return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 		}
 	}
@@ -378,6 +392,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	//########## message put to channel ##########
 	err = channel.Put(messages, nil, conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.DeviceID())
 	if err != nil {
+		p.Error("put message to channel err", zap.Error(err))
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 	}
 
@@ -477,7 +492,7 @@ func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error
 	}
 	storeMessages := make([]wkstore.Message, 0, len(messages))
 	for _, m := range messages {
-		if m.StreamIng() { // 流消息不做通知（只通知开始和结束）
+		if m.StreamIng() || (m.NoPersist && m.SyncOnce) { // 流消息不做通知（只通知开始和结束）,不存储的消息也不通知
 			continue
 		}
 		storeMessages = append(storeMessages, m)
