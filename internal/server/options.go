@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	"github.com/pkg/errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
@@ -141,7 +143,7 @@ func NewOptions() *Options {
 
 	// http.ServeTLS(l net.Listener, handler Handler, certFile string, keyFile string)
 
-	homeDir, err := os.UserHomeDir()
+	homeDir, err := GetHomeDir()
 	if err != nil {
 		panic(err)
 	}
@@ -244,6 +246,20 @@ func NewOptions() *Options {
 		},
 		SlotNum: 256,
 	}
+}
+
+func GetHomeDir() (string, error) {
+	u, err := user.Current()
+	if err == nil {
+		return u.HomeDir, nil
+	}
+
+	// alternate methods
+	homeDir := os.Getenv("HOME") // *nix
+	if homeDir == "" {
+		return "", errors.New("User home directory not found.")
+	}
+	return homeDir, nil
 }
 
 func (o *Options) ConfigureWithViper(vp *viper.Viper) {
