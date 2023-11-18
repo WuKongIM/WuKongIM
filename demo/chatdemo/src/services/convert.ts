@@ -1,4 +1,4 @@
-import { Setting } from "wukongimjssdk";
+import { Conversation, Setting } from "wukongimjssdk";
 import { WKSDK, Message, StreamItem, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
 import BigNumber from "bignumber.js";
 import { Buffer } from 'buffer';
@@ -73,6 +73,21 @@ export class Convert {
         }
 
         return message
+    }
+
+    static toConversation(conversationMap: any): Conversation {
+        const conversation = new Conversation()
+        conversation.channel = new Channel(conversationMap['channel_id'], conversationMap['channel_type'])
+        conversation.unread = conversationMap['unread'] || 0;
+        conversation.timestamp = conversationMap['timestamp'] || 0;
+        let recents = conversationMap["recents"];
+        if (recents && recents.length > 0) {
+            const messageModel = this.toMessage(recents[0]);
+            conversation.lastMessage = messageModel
+        }
+        conversation.extra = {}
+
+        return conversation
     }
 
     static toMessageExtra(msgExtraMap: any) :MessageExtra {
