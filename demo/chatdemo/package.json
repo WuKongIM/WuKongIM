@@ -14,7 +14,7 @@
     "process": "^0.11.10",
     "vue": "^3.2.45",
     "vue-router": "^4.0.13",
-    "wukongimjssdk": "^1.1.0"
+    "wukongimjssdk": "^1.2.4"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.0.0",
