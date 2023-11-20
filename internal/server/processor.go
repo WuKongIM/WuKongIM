@@ -265,18 +265,6 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 			sendackPackets = append(sendackPackets, channelSendackPackets...)
 		}
 	}
-	if conn.UID() == "f650d2123445403093b0c9905ad6fd57" {
-		if len(sendackPackets) == 0 {
-			p.Debug("sendackPackets is empty------------------------->", zap.Any("conn", conn))
-		}
-		for _, sendackPacketObj := range sendackPackets {
-			sendackPacket := sendackPacketObj.(*wkproto.SendackPacket)
-			p.Debug("sendackPacket--clientSeq----------------------->", zap.Uint64("clientSeq", sendackPacket.ClientSeq))
-			if sendackPacket.ReasonCode != wkproto.ReasonSuccess {
-				p.Debug("sendackPacket.ReasonCode is not success------------------------->", zap.Any("conn", conn), zap.Any("sendackPacket", sendackPacket))
-			}
-		}
-	}
 	p.response(conn, sendackPackets...)
 }
 
