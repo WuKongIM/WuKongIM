@@ -27,7 +27,7 @@ var (
 			DisableDefaultCmd: true,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-
+			imserver = initServer()
 			start(imserver)
 		},
 	}
@@ -44,7 +44,6 @@ func init() {
 	defaultConfig := path.Join(homeDir, "wk.yaml")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", defaultConfig, "config file")
 	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
-	imserver = initServer()
 
 }
 
@@ -61,6 +60,7 @@ func initConfig() {
 	vp.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	vp.AutomaticEnv()
 	// 初始化服务配置
+	fmt.Println("ConfigureWithViper...")
 	serverOpts.ConfigureWithViper(vp)
 }
 
