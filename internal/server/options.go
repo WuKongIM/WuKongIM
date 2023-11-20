@@ -96,7 +96,7 @@ type Options struct {
 	}
 	Conversation struct {
 		On           bool          // 是否开启最近会话
-		CacheExpire  time.Duration // 最近会话缓存过期时间
+		CacheExpire  time.Duration // 最近会话缓存过期时间 (这个是热数据缓存时间，并非最近会话数据的缓存时间)
 		SyncInterval time.Duration // 最近会话同步间隔
 		SyncOnce     int           //  当多少最近会话数量发送变化就保存一次
 		UserMaxCount int           // 每个用户最大最近会话数量 默认为500
@@ -202,7 +202,7 @@ func NewOptions() *Options {
 			SyncOnce     int
 			UserMaxCount int
 		}{
-			On:           false,
+			On:           true,
 			CacheExpire:  time.Hour * 24 * 1, // 1天过期
 			UserMaxCount: 1000,
 			SyncInterval: time.Minute * 5,
@@ -249,17 +249,17 @@ func NewOptions() *Options {
 }
 
 func GetHomeDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		fmt.Println("homeDir---->", homeDir)
+		return homeDir, nil
+	}
 	u, err := user.Current()
 	if err == nil {
 		return u.HomeDir, nil
 	}
 
-	// alternate methods
-	homeDir := os.Getenv("HOME") // *nix
-	if homeDir == "" {
-		return "", errors.New("User home directory not found.")
-	}
-	return homeDir, nil
+	return "", errors.New("User home directory not found.")
 }
 
 func (o *Options) ConfigureWithViper(vp *viper.Viper) {
