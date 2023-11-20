@@ -261,25 +261,6 @@ func (d *DefaultConn) WriteToOutboundBuffer(b []byte) (int, error) {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	// if d.outboundBuffer.IsEmpty() {
-	// 	n, err := d.writeDirect(b, nil)
-	// 	if err != nil && !errors.Is(err, syscall.EINTR) && !errors.Is(err, syscall.EAGAIN) {
-	// 		_ = d.Close()
-	// 		return 0, err
-	// 	}
-	// 	if n < 0 {
-	// 		n = 0
-	// 	}
-	// 	left := len(b) - n
-	// 	if left > 0 {
-	// 		_, _ = d.outboundBuffer.Write(b[n:])
-	// 		_ = d.reactorSub.AddWrite(d)
-	// 	}
-	// 	return len(b), nil
-	// }
-	// n, err := d.outboundBuffer.Write(b)
-	// _ = d.reactorSub.AddWrite(d)
-	// return n, err
 	return d.outboundBuffer.Write(b)
 
 }
@@ -500,10 +481,6 @@ func (d *DefaultConn) flush() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.UID() == "f650d2123445403093b0c9905ad6fd57" {
-		d.Debug("flush---->", zap.Int("outboundSize", d.outboundBuffer.BoundBufferSize()))
-	}
-
 	if d.outboundBuffer.IsEmpty() {
 		d.removeWriteIfExist()
 		return nil
@@ -544,9 +521,6 @@ func (d *DefaultConn) WriteDirect(head, tail []byte) (int, error) {
 }
 
 func (d *DefaultConn) writeDirect(head, tail []byte) (int, error) {
-	if d.UID() == "f650d2123445403093b0c9905ad6fd57" {
-		d.Debug("write direct", zap.String("uid", d.uid), zap.String("deviceID", d.deviceID), zap.Int("head", len(head)), zap.Int("tail", len(tail)))
-	}
 	var (
 		n   int
 		err error
