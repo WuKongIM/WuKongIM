@@ -251,7 +251,6 @@ func NewOptions() *Options {
 func GetHomeDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
-		fmt.Println("homeDir---->", homeDir)
 		return homeDir, nil
 	}
 	u, err := user.Current()
