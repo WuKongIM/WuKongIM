@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -61,6 +62,9 @@ func CreateVarz(s *Server) *Varz {
 	pse.ProcUsage(&pcpu, &rss, &vss)
 	opts := s.opts
 	connCount := s.dispatch.engine.ConnCount()
+	s.retryQueue.inFlightMutex.Lock()
+	retryQueueF := math.Max(float64(len(s.retryQueue.inFlightMessages)), float64(len(s.retryQueue.inFlightPQ)))
+	s.retryQueue.inFlightMutex.Unlock()
 	return &Varz{
 		ServerID:    fmt.Sprintf("%d", opts.ID),
 		ServerName:  "WuKongIM",
@@ -74,6 +78,7 @@ func CreateVarz(s *Server) *Varz {
 		InBytes:     s.inBytes.Load(),
 		OutBytes:    s.outBytes.Load(),
 		SlowClients: s.slowClients.Load(),
+		RetryQueue:  int64(retryQueueF),
 
 		TCPAddr:        opts.External.TCPAddr,
 		WSAddr:         opts.External.WSAddr,
@@ -103,6 +108,7 @@ type Varz struct {
 	InBytes     int64 `json:"in_bytes"`     // 流入字节数量
 	OutBytes    int64 `json:"out_bytes"`    // 流出字节数量
 	SlowClients int64 `json:"slow_clients"` // 慢客户端数量
+	RetryQueue  int64 `json:"retry_queue"`  // 重试队列数量
 
 	TCPAddr     string `json:"tcp_addr"`     // tcp地址
 	WSAddr      string `json:"ws_addr"`      // ws地址

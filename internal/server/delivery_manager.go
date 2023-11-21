@@ -135,12 +135,15 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 }
 
 func (d *DeliveryManager) startRetryDeliveryMsg(msg *Message) {
-	d.deliveryMsgPool.Submit(func() {
+	err := d.deliveryMsgPool.Submit(func() {
 		d.retryDeliveryMsg(msg)
 	})
+	if err != nil {
+		d.Error("提交重试消息失败！", zap.Error(err))
+	}
 }
 func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
-	d.Debug("重试消息", zap.Any("msg", msg))
+	d.Debug("重试消息", zap.Int64("messageID", msg.MessageID), zap.Int64("toClientID", msg.toClientID), zap.String("toUID", msg.ToUID), zap.String("fromUID", msg.FromUID), zap.String("fromDeviceID", msg.fromDeviceID))
 	msg.retryCount++
 	if msg.toClientID <= 0 {
 		d.Error("非重试消息", zap.String("msg", msg.String()))
