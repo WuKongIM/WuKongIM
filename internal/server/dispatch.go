@@ -162,7 +162,10 @@ func (d *Dispatch) dataOut(conn wknet.Conn, frames ...wkproto.Frame) {
 
 		}
 	}
-	conn.WakeWrite()
+	err := conn.WakeWrite()
+	if err != nil {
+		d.Warn("Failed to wake write", zap.Error(err))
+	}
 
 }
 
