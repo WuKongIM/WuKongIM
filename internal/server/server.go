@@ -74,7 +74,6 @@ func New(opts *Options) *Server {
 	gin.SetMode(opts.GinMode)
 
 	storeCfg := wkstore.NewStoreConfig()
-	fmt.Println("s.opts.DataDir--->", s.opts.DataDir)
 	storeCfg.DataDir = s.opts.DataDir
 	storeCfg.DecodeMessageFnc = func(msg []byte) (wkstore.Message, error) {
 		m := &Message{}

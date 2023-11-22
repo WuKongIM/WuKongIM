@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
+	"go.uber.org/zap"
 )
 
 type VarzAPI struct {
@@ -59,7 +60,10 @@ func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 func CreateVarz(s *Server) *Varz {
 	var rss, vss int64 // rss内存 vss虚拟内存
 	var pcpu float64   // cpu
-	pse.ProcUsage(&pcpu, &rss, &vss)
+	err := pse.ProcUsage(&pcpu, &rss, &vss)
+	if err != nil {
+		s.Error("获取系统资源失败", zap.Error(err))
+	}
 	opts := s.opts
 	connCount := s.dispatch.engine.ConnCount()
 	s.retryQueue.inFlightMutex.Lock()

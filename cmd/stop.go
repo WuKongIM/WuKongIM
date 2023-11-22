@@ -1,6 +1,10 @@
 package cmd
 
 import (
+	"os"
+	"os/exec"
+	"path"
+
 	"github.com/spf13/cobra"
 )
 
@@ -21,9 +25,11 @@ func (s *stopCMD) CMD() *cobra.Command {
 }
 
 func (s *stopCMD) run(cmd *cobra.Command, args []string) error {
-	ss, err := createSystemService(imserver)
+	strb, _ := os.ReadFile(path.Join(installDir, pidfile))
+	command := exec.Command("kill", string(strb))
+	err := command.Start()
 	if err != nil {
-		panic(err)
+		return err
 	}
-	return ss.Stop()
+	return command.Wait()
 }

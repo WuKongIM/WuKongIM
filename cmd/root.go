@@ -2,13 +2,17 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/server"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/kardianos/service"
+	"github.com/judwhite/go-svc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -18,7 +22,9 @@ var (
 	cfgFile    string
 	serverOpts = server.NewOptions()
 	mode       string
-	imserver   *server.Server
+	daemon     bool
+	pidfile    string = "WukongimPID"
+	installDir string
 	rootCmd    = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
@@ -27,23 +33,25 @@ var (
 			DisableDefaultCmd: true,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			imserver = initServer()
-			start(imserver)
+			initServer()
 		},
 	}
 )
 
 func init() {
 
-	cobra.OnInitialize(initConfig)
-
 	homeDir, err := server.GetHomeDir()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	defaultConfig := path.Join(homeDir, "wk.yaml")
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", defaultConfig, "config file")
+	installDir = homeDir
+
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file")
 	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
+	// 后台运行
+	rootCmd.PersistentFlags().BoolVarP(&daemon, "daemon", "d", false, "run in daemon mode")
 
 }
 
@@ -60,11 +68,10 @@ func initConfig() {
 	vp.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	vp.AutomaticEnv()
 	// 初始化服务配置
-	fmt.Println("ConfigureWithViper...")
 	serverOpts.ConfigureWithViper(vp)
 }
 
-func initServer() *server.Server {
+func initServer() {
 	logOpts := wklog.NewOptions()
 	logOpts.Level = serverOpts.Logger.Level
 	logOpts.LogDir = serverOpts.Logger.Dir
@@ -72,69 +79,46 @@ func initServer() *server.Server {
 	wklog.Configure(logOpts)
 
 	s := server.New(serverOpts)
-
-	return s
+	if daemon {
+		filePath, _ := filepath.Abs(os.Args[0])
+		args := os.Args[1:]
+		newArgs := make([]string, 0)
+		for _, arg := range args {
+			if arg == "-d" || arg == "--daemon" {
+				continue
+			}
+			newArgs = append(newArgs, arg)
+		}
+		cmd := exec.Command(filePath, newArgs...)
+		// 将其他命令传入生成出的进程
+		// cmd.Stdin = os.Stdin // 给新进程设置文件描述符，可以重定向到文件中
+		// cmd.Stdout = os.Stdout
+		// cmd.Stderr = os.Stderr
+		err := cmd.Start() // 开始执行新进程，不等待新进程退出
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = os.WriteFile(path.Join(installDir, pidfile), []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		os.Exit(0)
+	} else {
+		if err := svc.Run(s); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 }
-
-func start(s *server.Server) {
-	ss, err := createSystemService(s)
-	if err != nil {
-		panic(err)
-	}
-	err = ss.Run()
-	if err != nil {
-		panic(err)
-	}
-}
-
 func addCommand(cmd CMD) {
 	rootCmd.AddCommand(cmd.CMD())
-}
-
-func createSystemService(ser *server.Server) (service.Service, error) {
-	svcConfig := &service.Config{
-		Name:        "wukongim",
-		DisplayName: "wukongim service",
-		Description: "Docs at https://githubim.com/",
-	}
-
-	ss := newSystemService(ser)
-	s, err := service.New(ss, svcConfig)
-	if err != nil {
-		return nil, fmt.Errorf("service New failed, err: %v\n", err)
-	}
-	return s, nil
 }
 
 func Execute() {
 	ctx := &WuKongIMContext{}
 	addCommand(newStopCMD(ctx))
-	addCommand(newInstallCMD(ctx))
-	addCommand(newUninstallCMD(ctx))
-	addCommand(newStartCMD(ctx))
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-type systemService struct {
-	server *server.Server
-}
-
-func newSystemService(s *server.Server) *systemService {
-	return &systemService{server: s}
-}
-
-func (ss *systemService) Start(s service.Service) error {
-	err := ss.server.Start()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (ss *systemService) Stop(s service.Service) error {
-	return ss.server.Stop()
 }
