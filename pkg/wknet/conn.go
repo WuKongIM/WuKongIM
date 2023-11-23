@@ -245,8 +245,9 @@ func (d *DefaultConn) Write(b []byte) (int, error) {
 	if d.closed {
 		return -1, net.ErrClosed
 	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	// 这里不能使用d.mu上锁，否则会导致死锁 WSSConn死锁
+	// d.mu.Lock()
+	// defer d.mu.Unlock()
 	n, err := d.write(b)
 	if err != nil {
 		return 0, err
