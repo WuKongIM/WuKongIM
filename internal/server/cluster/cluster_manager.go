@@ -269,7 +269,7 @@ func (c *ClusterManager) checkAllocSlots() ClusterReady {
 			}
 		}
 		if !hasSlot {
-			peerIDs := c.getLeastSlotNodes(fakeCluster)
+			peerIDs := c.getLeastSlotPeers(fakeCluster)
 			allocateSlots = append(allocateSlots, &pb.AllocateSlot{
 				Slot:  slotID,
 				Peers: peerIDs,
@@ -328,6 +328,32 @@ func (c *ClusterManager) checkSlotStates() ClusterReady {
 	return EmptyClusterReady
 }
 
+// 检查加入的节点是否分配了slot
+func (c *ClusterManager) checkJoinPeerSlotAlloc() ClusterReady {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.leaderID.Load() == 0 {
+		return EmptyClusterReady
+	}
+	var clusterClone *pb.Cluster
+	for _, peer := range c.cluster.Peers {
+		if peer.Join && peer.JoinState == pb.JoinState_JoinStateDone {
+			for _, slot := range c.cluster.Slots {
+				if len(slot.WillJoin) == 0 {
+					if clusterClone == nil {
+						clusterClone = c.cluster.Clone()
+					}
+					peers := c.getLeastSlotPeers(clusterClone)
+					slot.WillJoin = peers
+				}
+			}
+		}
+	}
+
+	return EmptyClusterReady
+}
+
 func (c *ClusterManager) isLeader() bool {
 	return c.leaderID.Load() == c.opts.PeerID
 }
@@ -337,19 +363,19 @@ func (c *ClusterManager) GetLeaderPeerID() uint64 {
 }
 
 // 获取指定数量的最少slot的节点
-func (c *ClusterManager) getLeastSlotNodes(fakeCluster *pb.Cluster) []uint64 {
-	var leastSlotNodes []uint64
+func (c *ClusterManager) getLeastSlotPeers(clusterClone *pb.Cluster) []uint64 {
+	var leastSlotPeers []uint64
 
-	peers := append([]*pb.Peer{}, fakeCluster.Peers...)
+	peers := append([]*pb.Peer{}, clusterClone.Peers...)
 	sort.Slice(peers, func(i, j int) bool {
-		return c.getSlotCount(fakeCluster, peers[i].PeerID) < c.getSlotCount(fakeCluster, peers[j].PeerID)
+		return c.getSlotCount(clusterClone, peers[i].PeerID) < c.getSlotCount(clusterClone, peers[j].PeerID)
 	})
 
-	for i := 0; i < int(fakeCluster.ReplicaCount) && i < len(peers); i++ {
-		leastSlotNodes = append(leastSlotNodes, peers[i].PeerID)
+	for i := 0; i < int(clusterClone.ReplicaCount) && i < len(peers); i++ {
+		leastSlotPeers = append(leastSlotPeers, peers[i].PeerID)
 	}
 
-	return leastSlotNodes
+	return leastSlotPeers
 }
 
 func (c *ClusterManager) fakeAllocSlot(slot uint32, peers []uint64, fakeCluster *pb.Cluster) {
