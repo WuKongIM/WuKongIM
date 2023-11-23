@@ -95,13 +95,11 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 		devceLevelI uint8
 		token       string
 	)
-	fmt.Println("processAuth-------------->", connectPacket.String())
 	if strings.TrimSpace(connectPacket.ClientKey) == "" {
 		p.responseConnackAuthFail(conn)
 		return
 	}
 	// -------------------- token verify --------------------
-	fmt.Println("processAuth-------------->1")
 	if connectPacket.UID == p.s.opts.ManagerUID {
 		if p.s.opts.ManagerTokenOn && connectPacket.Token != p.s.opts.ManagerToken {
 			p.Error("manager token verify fail", zap.String("uid", uid), zap.String("token", connectPacket.Token))
@@ -130,7 +128,6 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	} else {
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
 	}
-	fmt.Println("processAuth-------------->2")
 
 	// -------------------- ban  --------------------
 	userChannelInfo, err := p.s.store.GetChannel(uid, wkproto.ChannelTypePerson)
@@ -149,8 +146,6 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 		return
 	}
 
-	fmt.Println("processAuth-------------->3")
-
 	// -------------------- get message encrypt key --------------------
 	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
 	aesKey, aesIV, err := p.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
@@ -161,7 +156,6 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	}
 	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
-	fmt.Println("processAuth-------------->4")
 	// -------------------- same master kicks each other --------------------
 	oldConns := p.s.connManager.GetConnsWith(uid, connectPacket.DeviceFlag)
 	if len(oldConns) > 0 && devceLevel == wkproto.DeviceLevelMaster {
@@ -184,7 +178,6 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 			p.Debug("close old conn", zap.Any("oldConn", oldConn))
 		}
 	}
-	fmt.Println("processAuth-------------->5")
 
 	// -------------------- set conn info --------------------
 	timeDiff := time.Now().UnixNano()/1000/1000 - connectPacket.ClientTimestamp
@@ -541,7 +534,6 @@ func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Con
 
 // #################### subscribe ####################
 func (p *Processor) processSubs(conn wknet.Conn, subPackets []*wkproto.SubPacket) {
-	fmt.Println("subPackets--->", len(subPackets))
 	for _, subPacket := range subPackets {
 		p.processSub(conn, subPacket)
 	}

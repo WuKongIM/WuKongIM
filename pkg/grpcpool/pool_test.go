@@ -2,7 +2,6 @@ package grpcpool
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 
 func TestNew(t *testing.T) {
 	p, err := New(func() (*grpc.ClientConn, error) {
-		fmt.Println("conn----->")
 		return grpc.Dial("example.com", grpc.WithInsecure())
 	}, 1, 3, 0)
 	if err != nil {
