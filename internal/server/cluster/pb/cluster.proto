@@ -67,6 +67,7 @@ message Slot {
     SlotState state = 3; // 槽位状态
     repeated uint64 peers  = 4; // 槽位分配的节点
     repeated uint64 willJoin = 5; // 槽位将要加入的节点
+    repeated uint64 joined = 6; // 已经加入的节点 
 }
 
 // 槽位领导者
