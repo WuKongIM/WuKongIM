@@ -203,7 +203,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	}
 
 	conversations := s.s.conversationManager.GetConversations(req.UID, req.Version, req.Larges)
-	fmt.Println("conversations---->", len(conversations))
 	var newConversations = make([]*wkstore.Conversation, 0, len(conversations)+20)
 	if conversations != nil {
 		newConversations = append(newConversations, conversations...)

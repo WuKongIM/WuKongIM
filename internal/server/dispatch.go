@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -70,7 +69,6 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 		return nil
 	}
 	if !conn.IsAuthed() { // conn is not authed must be connect packet
-		fmt.Println("conn is not authed must be connect packet------>")
 		packet, _, err := d.s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
 		if err != nil {
 			d.Warn("Failed to decode the message", zap.Error(err))

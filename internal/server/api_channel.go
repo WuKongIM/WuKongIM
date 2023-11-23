@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -595,8 +594,6 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
-
-	fmt.Println("fakeChannelID:", fakeChannelID, "req.ChannelType:", req.ChannelType, "req.StartMessageSeq:", req.StartMessageSeq, "req.EndMessageSeq:", req.EndMessageSeq, "limit:", limit)
 
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
 		messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)

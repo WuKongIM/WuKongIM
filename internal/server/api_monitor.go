@@ -288,7 +288,6 @@ func (m *MonitorAPI) channels(c *wkhttp.Context) {
 		fromUID, toUID := GetFromUIDAndToUIDWith(channelID)
 		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
 	}
-	fmt.Println("fakeChannelID--->", fakeChannelID)
 	channelInfo, err := m.s.channelManager.GetChannel(fakeChannelID, channelType)
 	if err != nil {
 		m.Error("get channel error", zap.Error(err))
