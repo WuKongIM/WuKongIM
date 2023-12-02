@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -79,7 +80,7 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 					continue
 				}
 				cloneMsg.ToUID = subscriber
-				cloneMsg.toClientID = recvConn.ID()
+				cloneMsg.toDeviceID = recvConn.DeviceID()
 				if len(syncOnceMessageSeqMap) > 0 && m.SyncOnce && !m.NoPersist {
 					seq := syncOnceMessageSeqMap[m.MessageID]
 					cloneMsg.MessageSeq = seq
@@ -143,9 +144,9 @@ func (d *DeliveryManager) startRetryDeliveryMsg(msg *Message) {
 	}
 }
 func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
-	d.Debug("重试消息", zap.Int64("messageID", msg.MessageID), zap.Int64("toClientID", msg.toClientID), zap.String("toUID", msg.ToUID), zap.String("fromUID", msg.FromUID), zap.String("fromDeviceID", msg.fromDeviceID))
+	d.Debug("重试消息", zap.Int64("messageID", msg.MessageID), zap.String("toDeviceID", msg.toDeviceID), zap.String("toUID", msg.ToUID), zap.String("fromUID", msg.FromUID), zap.String("fromDeviceID", msg.fromDeviceID))
 	msg.retryCount++
-	if msg.toClientID <= 0 {
+	if strings.TrimSpace(msg.toDeviceID) == "" {
 		d.Error("非重试消息", zap.String("msg", msg.String()))
 		return
 	}
@@ -153,9 +154,9 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 		d.Debug("超过最大重试次数！", zap.Int64("messageID", msg.MessageID), zap.Int("messageMaxRetryCount", d.s.opts.MessageRetry.MaxCount))
 		return
 	}
-	recvConn := d.getRecvConn(msg.toClientID)
+	recvConn := d.getRecvConn(msg.ToUID, msg.toDeviceID)
 	if recvConn == nil {
-		d.Debug("用户设备没在线，重试消息结束！", zap.String("uid", msg.ToUID), zap.Int32("msgTimestamp", msg.Timestamp), zap.Int64("messageID", msg.MessageID), zap.String("channelID", msg.ChannelID), zap.Uint8("channelType", msg.ChannelType), zap.Int64("toClientID", msg.toClientID))
+		d.Debug("用户设备没在线，重试消息结束！", zap.String("uid", msg.ToUID), zap.Int32("msgTimestamp", msg.Timestamp), zap.Int64("messageID", msg.MessageID), zap.String("channelID", msg.ChannelID), zap.Uint8("channelType", msg.ChannelType), zap.String("toDeviceID", msg.toDeviceID))
 		return
 	}
 	channelID := msg.ChannelID
@@ -182,8 +183,8 @@ func (d *DeliveryManager) getRecvConns(subscriber string, fromUID string, fromDe
 	}
 	return conns
 }
-func (d *DeliveryManager) getRecvConn(connID int64) wknet.Conn {
-	return d.s.connManager.GetConn(connID)
+func (d *DeliveryManager) getRecvConn(uid string, deviceID string) wknet.Conn {
+	return d.s.connManager.GetConnWithDeviceID(uid, deviceID)
 }
 
 // 客户端是发送者自己
