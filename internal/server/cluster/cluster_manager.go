@@ -336,22 +336,57 @@ func (c *ClusterManager) checkJoinPeerSlotAlloc() ClusterReady {
 	if c.leaderID.Load() == 0 {
 		return EmptyClusterReady
 	}
+	slotCountOfEachPeer := c.cluster.SlotCount / uint32(len(c.cluster.Peers)) // 每个节点分配的slot数量
 	var clusterClone *pb.Cluster
 	for _, peer := range c.cluster.Peers {
 		if peer.Join && peer.JoinState == pb.JoinState_JoinStateDone {
-			for _, slot := range c.cluster.Slots {
-				if len(slot.WillJoin) == 0 {
-					if clusterClone == nil {
-						clusterClone = c.cluster.Clone()
-					}
-					peers := c.getLeastSlotPeers(clusterClone)
-					slot.WillJoin = peers
+			if clusterClone == nil {
+				clusterClone = c.cluster.Clone()
+			}
+			// 获取不足副本的slot
+			insufficientReplicaSlots := c.getSlotsWithInsufficientReplicas(peer.PeerID, clusterClone)
+			if len(insufficientReplicaSlots) > 0 {
+				for _, insufficientReplicaSlot := range insufficientReplicaSlots {
+					insufficientReplicaSlot.WillJoin = append(insufficientReplicaSlot.WillJoin, peer.PeerID)
 				}
 			}
 		}
 	}
 
 	return EmptyClusterReady
+}
+
+// 获取不足副本的slot
+func (c *ClusterManager) getSlotsWithInsufficientReplicas(peerID uint64, cluster *pb.Cluster) []*pb.Slot {
+	var insufficientReplicaSlots []*pb.Slot
+	for _, slot := range cluster.Slots {
+		if len(slot.Peers) < int(cluster.ReplicaCount) {
+			if c.peerIsUsed(peerID, slot) {
+				continue
+			}
+			insufficientReplicaSlots = append(insufficientReplicaSlots, slot)
+		}
+	}
+	return insufficientReplicaSlots
+}
+
+// 获取节点的slot数量
+func (c *ClusterManager) getUsedSlotCountOfPeer(peerID uint64, cluster *pb.Cluster) int {
+	var count = 0
+	for _, slot := range cluster.Slots {
+		if c.peerIsUsed(peerID, slot) {
+			count++
+		}
+	}
+	return count
+}
+
+// peerIsUsed 判断节点是否已经被使用
+func (c *ClusterManager) peerIsUsed(peerID uint64, slot *pb.Slot) bool {
+	return wkutil.ArrayContainsUint64(slot.Peers, peerID) ||
+		wkutil.ArrayContainsUint64(slot.WillJoin, peerID) ||
+		wkutil.ArrayContainsUint64(slot.Learners, peerID) ||
+		wkutil.ArrayContainsUint64(slot.Joined, peerID)
 }
 
 func (c *ClusterManager) isLeader() bool {
