@@ -27,9 +27,9 @@ type Message struct {
 	Subscribers    []string           // 订阅者 如果此字段有值 则表示消息只发送给指定的订阅者
 	fromDeviceFlag wkproto.DeviceFlag // 发送者设备标示
 	fromDeviceID   string             // 发送者设备ID
-	// 重试相同的clientID
-	toClientID int64 // 指定接收客户端的ID
-	large      bool  // 是否是超大群
+	// 重试相同的toDeviceID
+	toDeviceID string // 指定设备ID
+	large      bool   // 是否是超大群
 	// ------- 优先队列用到 ------
 	index      int   //在切片中的索引值
 	pri        int64 // 优先级的时间点 值越小越优先
@@ -104,7 +104,7 @@ func (m *Message) DeepCopy() (*Message, error) {
 	}
 	dst.fromDeviceID = m.fromDeviceID
 	dst.fromDeviceFlag = m.fromDeviceFlag
-	dst.toClientID = m.toClientID
+	dst.toDeviceID = m.toDeviceID
 	dst.large = m.large
 	dst.index = m.index
 	dst.pri = m.pri

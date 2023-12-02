@@ -47,7 +47,7 @@ func (r *RetryQueue) addToInFlightPQ(msg *Message) {
 func (r *RetryQueue) pushInFlightMessage(msg *Message) {
 	r.inFlightMutex.Lock()
 	defer r.inFlightMutex.Unlock()
-	key := fmt.Sprintf("%d_%d", msg.MessageID, msg.toClientID)
+	key := r.getInFlightKey(msg.ToUID, msg.toDeviceID, msg.MessageID)
 	_, ok := r.inFlightMessages[key]
 	if ok {
 		return
@@ -56,10 +56,10 @@ func (r *RetryQueue) pushInFlightMessage(msg *Message) {
 
 }
 
-func (r *RetryQueue) popInFlightMessage(clientID int64, messageID int64) (*Message, error) {
+func (r *RetryQueue) popInFlightMessage(uid string, deviceID string, messageID int64) (*Message, error) {
 	r.inFlightMutex.Lock()
 	defer r.inFlightMutex.Unlock()
-	key := fmt.Sprintf("%d_%d", messageID, clientID)
+	key := r.getInFlightKey(uid, deviceID, messageID)
 	msg, ok := r.inFlightMessages[key]
 	if !ok {
 		return nil, errors.New("ID not in flight")
@@ -67,8 +67,12 @@ func (r *RetryQueue) popInFlightMessage(clientID int64, messageID int64) (*Messa
 	delete(r.inFlightMessages, key)
 	return msg, nil
 }
-func (r *RetryQueue) finishMessage(clientID int64, messageID int64) error {
-	msg, err := r.popInFlightMessage(clientID, messageID)
+
+func (r *RetryQueue) getInFlightKey(uid string, deviceID string, messageID int64) string {
+	return fmt.Sprintf("%s_%s_%d", uid, deviceID, messageID)
+}
+func (r *RetryQueue) finishMessage(uid string, deviceID string, messageID int64) error {
+	msg, err := r.popInFlightMessage(uid, deviceID, messageID)
 	if err != nil {
 		return err
 	}
@@ -97,9 +101,9 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 		if msg == nil {
 			break
 		}
-		err := r.finishMessage(msg.toClientID, msg.MessageID)
+		err := r.finishMessage(msg.ToUID, msg.toDeviceID, msg.MessageID)
 		if err != nil {
-			r.s.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.Int64("toClientID", msg.toClientID), zap.Int64("messageID", msg.MessageID))
+			r.s.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.String("toDeviceID", msg.toDeviceID), zap.Int64("messageID", msg.MessageID))
 			break
 		}
 		r.s.deliveryManager.startRetryDeliveryMsg(msg)

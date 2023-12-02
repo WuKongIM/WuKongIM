@@ -102,6 +102,19 @@ func (c *ConnManager) GetConnsWith(uid string, deviceFlag wkproto.DeviceFlag) []
 	return deviceConns
 }
 
+func (c *ConnManager) GetConnWithDeviceID(uid string, deviceID string) wknet.Conn {
+	conns := c.GetConnsWithUID(uid)
+	if len(conns) == 0 {
+		return nil
+	}
+	for _, conn := range conns {
+		if conn.DeviceID() == deviceID {
+			return conn
+		}
+	}
+	return nil
+}
+
 // GetConnCountWith 获取设备的在线数量和用户所有设备的在线数量
 func (c *ConnManager) GetConnCountWith(uid string, deviceFlag wkproto.DeviceFlag) (int, int) {
 	conns := c.GetConnsWithUID(uid)
