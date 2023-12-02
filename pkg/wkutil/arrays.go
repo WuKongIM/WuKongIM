@@ -12,3 +12,14 @@ func ArrayContains(items []string, target string) bool {
 	return false
 
 }
+
+func ArrayContainsUint64(items []uint64, target uint64) bool {
+	for _, element := range items {
+		if target == element {
+			return true
+
+		}
+	}
+	return false
+
+}

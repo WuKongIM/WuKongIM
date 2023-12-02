@@ -342,12 +342,15 @@ func (c *Cluster) handleJoinAction(joinAction *JoinAction) {
 			return
 		}
 	} else if joinAction.ActionType == JoinActionStart { // 新节点开始启动
+
+		// 启动peer的raft
 		err := c.multiRaft.Start() // 支持重复start
 		if err != nil {
 			c.Error("multi raft start error", zap.Error(err))
 			return
 		}
 
+		// 提交新节点的配置
 		err = c.RequestJoinDone(c.clusterManager.GetLeaderPeerID(), &pb.JoinDoneReq{
 			PeerID: joinAction.PeerID,
 		})

@@ -68,6 +68,7 @@ message Slot {
     repeated uint64 peers  = 4; // 槽位分配的节点
     repeated uint64 willJoin = 5; // 槽位将要加入的节点
     repeated uint64 joined = 6; // 已经加入的节点 
+    repeated uint64 learners = 7; // 学习者节点
 }
 
 // 槽位领导者
