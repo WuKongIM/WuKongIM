@@ -465,7 +465,9 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 				return
 			}
 			d.Debug("max idle time exceeded, close the connection", zap.Duration("maxIdle", maxIdle), zap.Duration("lastActivity", time.Since(d.lastActivity)), zap.String("conn", d.String()))
-			d.idleTimer.Stop()
+			if d.idleTimer != nil {
+				d.idleTimer.Stop()
+			}
 			if d.IsClosed() {
 				return
 			}
