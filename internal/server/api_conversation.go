@@ -182,7 +182,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	fmt.Println("syncUserConversation--->", req.UID, req.Version, req.LastMsgSeqs, req.MsgCount, req.Larges)
 	// msgCount := req.MsgCount
 	// if msgCount == 0 {
 	// 	msgCount = 100
@@ -234,9 +233,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 					existConversation.LastMsgSeq = lastMessage.MessageSeq
 					existConversation.LastClientMsgNo = lastMessage.ClientMsgNo
 					existConversation.LastMsgID = lastMessage.MessageID
-					if lastMessage.MessageSeq > existConversation.LastMsgSeq {
-						existConversation.UnreadCount = int(lastMessage.MessageSeq - existConversation.LastMsgSeq)
-					}
+					existConversation.UnreadCount = 0
 				}
 
 			} else {
