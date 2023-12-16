@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,8 @@ type Options struct {
 	GRPCEvent       CMDEvent
 	GRPCSendTimeout time.Duration
 	OnSlotApply     func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error)
+
+	grpcPortOffset int
 }
 
 func NewOptions() *Options {
@@ -33,6 +36,7 @@ func NewOptions() *Options {
 		Addr:            "0.0.0.0:11000",
 		DataDir:         "./raftdata",
 		GRPCSendTimeout: time.Second * 5,
+		grpcPortOffset:  1234,
 	}
 }
 
@@ -41,8 +45,9 @@ func (o *Options) load() error {
 		o.Addr = strings.ReplaceAll(o.Addr, "tcp://", "")
 	}
 	if o.GRPCAddr == "" {
-		o.GRPCAddr = GetGRPCAddr(o.Addr)
+		o.GRPCAddr = GetGRPCAddr(o.Addr, o.grpcPortOffset)
 	}
+	fmt.Println("o.GRPCAddr--->", o.GRPCAddr)
 	if o.ServerAddr == "" {
 		o.ServerAddr = o.Addr
 	}
@@ -53,8 +58,11 @@ func (o *Options) load() error {
 	return nil
 }
 
-func GetGRPCAddr(addr string) string {
-	grpcAddrPort := getPort(addr) + 1234
+func GetGRPCAddr(addr string, grpcPortOffset int) string {
+	if strings.TrimSpace(addr) == "" {
+		return ""
+	}
+	grpcAddrPort := getPort(addr) + uint32(grpcPortOffset)
 	host := getHost(addr)
 	return host + ":" + strconv.FormatUint(uint64(grpcAddrPort), 10)
 }
@@ -75,6 +83,32 @@ func getHost(addr string) string {
 	}
 	return strs[0]
 }
+
+func WithAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.Addr = addr
+	}
+}
+
+func WithSlotCount(slotCount int) Option {
+	return func(opts *Options) {
+		opts.SlotCount = slotCount
+	}
+}
+
+func WithPeers(peers []Peer) Option {
+	return func(opts *Options) {
+		opts.Peers = peers
+	}
+}
+
+func WithJoin(join string) Option {
+	return func(opts *Options) {
+		opts.Join = join
+	}
+}
+
+type Option func(opts *Options)
 
 type ClusterManagerOptions struct {
 	PeerID         uint64                        // 节点ID

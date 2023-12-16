@@ -18,22 +18,35 @@ func (s *Server) onData(conn wknet.Conn) error {
 	if len(buff) == 0 {
 		return nil
 	}
-	data, msgType, size, err := s.proto.Decode(buff)
-	if err != nil {
-		return err
+
+	newBuff := buff
+	for len(newBuff) > 0 {
+		data, msgType, size, err := s.proto.Decode(newBuff)
+		if err != nil {
+			return err
+		}
+		if len(data) == 0 {
+			break
+		}
+		newBuff = newBuff[size:]
+
+		s.handleMsg(conn, msgType, data)
 	}
-	if size > 0 {
-		_, err = conn.Discard(size)
+	if len(newBuff) != len(buff) {
+		_, err = conn.Discard(len(buff) - len(newBuff))
 		if err != nil {
 			s.Error("discard error", zap.Error(err))
 		}
 	}
-	s.handleMsg(conn, msgType, data)
 
 	return nil
 }
 
 func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) {
+
+	s.metrics.recvMsgBytesAdd(uint64(len(data)))
+	s.metrics.recvMsgCountAdd(1)
+
 	if msgType == proto.MsgTypeHeartbeat {
 		s.handleHeartbeat(conn)
 	} else if msgType == proto.MsgTypeConnect {
@@ -72,7 +85,13 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			s.Error("unmarshal message error", zap.Error(err))
 			return
 		}
-		s.handleMessage(conn, msg)
+		err = s.requestPool.Submit(func() {
+			s.handleMessage(conn, msg)
+		})
+		if err != nil {
+			s.Error("submit handleMessage error", zap.Error(err))
+		}
+
 	} else {
 		s.Error("unknown msg type", zap.Uint8("msgType", msgType.Uint8()))
 	}

@@ -1,10 +1,12 @@
 package wkserver
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -25,6 +27,9 @@ type Server struct {
 	reqIDGen    *idutil.Generator
 	w           wait.Wait
 	connManager *ConnManager
+	metrics     *metrics
+
+	timingWheel *timingwheel.TimingWheel
 }
 
 func New(addr string, ops ...Option) *Server {
@@ -45,6 +50,8 @@ func New(addr string, ops ...Option) *Server {
 		reqIDGen:    idutil.NewGenerator(0, time.Now()),
 		w:           wait.New(),
 		connManager: NewConnManager(),
+		metrics:     newMetrics(),
+		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 	}
 	requestPool, err := ants.NewPool(opts.RequestPoolSize)
 	if err != nil {
@@ -66,17 +73,30 @@ func New(addr string, ops ...Option) *Server {
 }
 
 func (s *Server) Start() error {
+	s.timingWheel.Start()
 	s.engine.OnData(s.onData)
 	s.engine.OnConnect(s.onConnect)
 	s.engine.OnClose(s.onClose)
+
+	s.Schedule(time.Second*5, func() {
+		s.metrics.printMetrics(fmt.Sprintf("Server:%s", s.opts.Addr))
+	})
 	return s.engine.Start()
 }
 
 func (s *Server) Stop() {
+	s.timingWheel.Stop()
 	err := s.engine.Stop()
 	if err != nil {
 		s.Warn("stop is error", zap.Error(err))
 	}
+}
+
+// Schedule 延迟任务
+func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
+	return s.timingWheel.ScheduleFunc(&everyScheduler{
+		Interval: interval,
+	}, f)
 }
 
 func (s *Server) Route(p string, h Handler) {
@@ -95,4 +115,12 @@ func (s *Server) Addr() net.Addr {
 
 func (s *Server) Options() *Options {
 	return s.opts
+}
+
+type everyScheduler struct {
+	Interval time.Duration
+}
+
+func (s *everyScheduler) Next(prev time.Time) time.Time {
+	return prev.Add(s.Interval)
 }

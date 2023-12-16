@@ -89,9 +89,7 @@ func (c *Client) run(connectChan chan struct{}) {
 			return
 		}
 		c.running.Store(true)
-		fmt.Println("run....1")
 		c.disconnect()
-		fmt.Println("run....2")
 		// 建立连接
 		conn, err := net.DialTimeout("tcp", c.addr, c.opts.ConnectTimeout)
 		if err != nil {
@@ -100,12 +98,10 @@ func (c *Client) run(connectChan chan struct{}) {
 			time.Sleep(errSleepDuri)
 			continue
 		}
-		fmt.Println("run....3")
 		c.conn = conn
 		c.lastActive = time.Now()
 		c.outbound = NewOutbound(c.conn, NewOutboundOptions())
 		c.outbound.Start()
-		fmt.Println("handshake....start")
 		err = c.handshake()
 		if err != nil {
 			c.Warn("handshake is error", zap.Error(err))
@@ -113,7 +109,6 @@ func (c *Client) run(connectChan chan struct{}) {
 			continue
 		}
 		c.connectStatusChange(CONNECTED)
-		fmt.Println("handshake....end")
 		if connectChan != nil {
 			connectChan <- struct{}{}
 			connectChan = nil

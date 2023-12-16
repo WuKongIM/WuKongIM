@@ -59,7 +59,9 @@ func New() *DefaultProto {
 }
 
 func (d *DefaultProto) Decode(data []byte) ([]byte, MsgType, int, error) {
-
+	if len(data) == 0 {
+		return nil, 0, 0, nil
+	}
 	decoder := wkproto.NewDecoder(data)
 	msgType, err := decoder.Uint8()
 	if err != nil {
@@ -67,6 +69,9 @@ func (d *DefaultProto) Decode(data []byte) ([]byte, MsgType, int, error) {
 	}
 	if msgType == MsgTypeHeartbeat.Uint8() {
 		return data[:1], MsgTypeHeartbeat, MsgTypeLength, nil
+	}
+	if len(data) < MsgTypeLength+MsgContentLength {
+		return nil, 0, 0, nil
 	}
 	contentLen, err := decoder.Uint32()
 	if err != nil {
