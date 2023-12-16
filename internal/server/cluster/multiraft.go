@@ -41,7 +41,7 @@ func NewMultiRaft(opts *MultiRaftOptions) *MultiRaft {
 	m := &MultiRaft{
 		initialMembers: initialMembers,
 		opts:           opts,
-		Log:            wklog.NewWKLog("MultiRaft"),
+		Log:            wklog.NewWKLog(fmt.Sprintf("MultiRaft[%d]", opts.PeerID)),
 		peerShardID:    PeerShardID,
 		slotStartMap:   make(map[uint32]bool),
 	}
@@ -82,7 +82,6 @@ func (m *MultiRaft) Start() error {
 	if join { // 后续加入的节点，不需要初始化成员
 		initialMembers = map[uint64]string{}
 	}
-
 	err := m.nodehost.StartOnDiskReplica(initialMembers, join, func(shardID, replicaID uint64) sm.IOnDiskStateMachine {
 		return newMultiRaftStateMachine(shardID, replicaID, m.opts)
 	}, rc)
@@ -100,10 +99,18 @@ func (m *MultiRaft) Stop() {
 	m.nodehost.Close()
 }
 
+// peer增加副本
 func (m *MultiRaft) SyncRequestAddReplica(peerID uint64, addr string) error {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	return m.nodehost.SyncRequestAddReplica(timeoutCtx, uint64(PeerShardID), peerID, addr, 0)
+}
+
+// slot增加副本
+func (m *MultiRaft) SyncRequestAddSlotReplica(slot uint32, peerID uint64) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.nodehost.SyncRequestAddReplica(timeoutCtx, uint64(slot), peerID, "", 0)
 }
 
 func (m *MultiRaft) StartSlot(slot uint32, opts *SlotOptions) error {
@@ -118,7 +125,6 @@ func (m *MultiRaft) StartSlot(slot uint32, opts *SlotOptions) error {
 	rc := m.getDefaultRaftConfig()
 	rc.ShardID = uint64(slot)
 	initialMembers := make(map[uint64]string)
-	fmt.Println("opts.PeerIDs---->", opts.PeerIDs)
 	for _, peerID := range opts.PeerIDs {
 		for _, v := range m.opts.Peers {
 			if v.ID == peerID {

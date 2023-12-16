@@ -106,3 +106,9 @@ message JoinReq {
 message JoinDoneReq {
     uint64 peerID = 1; // 新节点已成功加入集群
 }
+
+// slot增加副本节点
+message SlotAddReplica {
+    uint32 slot = 1; // 槽位
+    uint64 peerID = 2; // 节点ID
+}
