@@ -37,7 +37,6 @@ func TestSingRaft(t *testing.T) {
 
 	opts := newTestRaftOptions(101, "tcp://0.0.0.0:0")
 	opts.OnApply = func(entries []raftpb.Entry) error {
-		fmt.Println("entry.Data--->", string(entries[0].Data))
 		applyChan <- entries
 		return nil
 	}
@@ -51,12 +50,9 @@ func TestSingRaft(t *testing.T) {
 	err = s.Bootstrap([]multiraft.Peer{{ID: 101}})
 	assert.NoError(t, err)
 
-	fmt.Println("----------->>>>>1")
 	time.Sleep(time.Millisecond * 100)
 	err = s.Campaign(context.Background())
 	assert.NoError(t, err)
-
-	fmt.Println("----------->>>>>2")
 
 	entries := <-applyChan
 	assert.Equal(t, 1, len(entries))

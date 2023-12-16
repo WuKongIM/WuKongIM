@@ -15,6 +15,9 @@ type Options struct {
 	RequestTimeout  time.Duration
 	OnMessage       func(conn wknet.Conn, msg *proto.Message)
 	MaxIdle         time.Duration
+
+	TimingWheelTick time.Duration // The time-round training interval must be 1ms or more
+	TimingWheelSize int64         // Time wheel size
 }
 
 func NewOptions() *Options {
@@ -26,6 +29,8 @@ func NewOptions() *Options {
 		ClosePath:       "/close",
 		RequestTimeout:  10 * time.Second,
 		MaxIdle:         120 * time.Second,
+		TimingWheelTick: time.Millisecond * 10,
+		TimingWheelSize: 100,
 	}
 }
 
