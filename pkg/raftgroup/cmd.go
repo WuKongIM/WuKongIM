@@ -1,4 +1,4 @@
-package pb
+package raftgroup
 
 import (
 	"errors"
@@ -12,15 +12,12 @@ type CMDType uint32
 const (
 	// CMDUnknown unknown
 	CMDUnknown CMDType = iota
-	// CMDAllocateSlot 分配slot
-	CMDAllocateSlot                CMDType = 100 // 分配slot
-	CMDAddPeers                    CMDType = 101 // 添加peer
-	CMDUpdateClusterConfig         CMDType = 102 // 更新集群配置
-	CMDUpdatePeerConfig            CMDType = 103 // 更新peer配置
-	CMDUpdateSlotLeaderRelationSet CMDType = 104 // 更新slot和leader的关系
-	CMDGetClusterConfig            CMDType = 105 // 获取集群配置
-	CMDJoinCluster                 CMDType = 106 // 加入集群
-	CMDSlotAddReplica              CMDType = 107 // slot增加副本
+	// CMDRaftMessage CMDRaftMessage
+	CMDRaftMessage CMDType = 100
+
+	// CMDGetClusterConfig get cluster config
+	CMDGetClusterConfig CMDType = 101
+	CMDJoinCluster      CMDType = 102
 )
 
 // Int32 Int32
@@ -30,22 +27,12 @@ func (c CMDType) Uint32() uint32 {
 
 func (c CMDType) String() string {
 	switch c {
-	case CMDAllocateSlot:
-		return "CMDAllocateSlot"
-	case CMDAddPeers:
-		return "CMDAddPeers"
-	case CMDUpdateClusterConfig:
-		return "CMDUpdateClusterConfig"
-	case CMDUpdatePeerConfig:
-		return "CMDUpdatePeerConfig"
-	case CMDUpdateSlotLeaderRelationSet:
-		return "CMDUpdateSlotLeaderRelationSet"
+	case CMDRaftMessage:
+		return "CMDRaftMessage"
 	case CMDGetClusterConfig:
 		return "CMDGetClusterConfig"
 	case CMDJoinCluster:
 		return "CMDJoinCluster"
-	case CMDSlotAddReplica:
-		return "CMDSlotAddReplica"
 	default:
 		return "CMDUnknown"
 	}

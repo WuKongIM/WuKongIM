@@ -105,20 +105,31 @@ func (c *ClusterManager) loopTick() {
 
 func (c *ClusterManager) checkClusterConfig() ClusterReady {
 
+	// 检查节点状态
 	clusterReady := c.checkPeers()
 	if !IsEmptyClusterReady(clusterReady) {
 		return clusterReady
 	}
 
+	// 检查slot分配情况
 	clusterReady = c.checkAllocSlots()
 	if !IsEmptyClusterReady(clusterReady) {
 		return clusterReady
 	}
+	// 检查slot状态
 	clusterReady = c.checkSlotStates()
 	if !IsEmptyClusterReady(clusterReady) {
 		return clusterReady
 	}
+
+	// 检查slot leader
 	clusterReady = c.checkSlotLeaders()
+	if !IsEmptyClusterReady(clusterReady) {
+		return clusterReady
+	}
+
+	// 检查不足副本的slot是否需要加入新节点
+	clusterReady = c.checkSlotsNeedNewPeerForInsufficientReplicas()
 	if !IsEmptyClusterReady(clusterReady) {
 		return clusterReady
 	}
@@ -329,31 +340,78 @@ func (c *ClusterManager) checkSlotStates() ClusterReady {
 }
 
 // 检查加入的节点是否分配了slot
-func (c *ClusterManager) checkJoinPeerSlotAlloc() ClusterReady {
+// func (c *ClusterManager) checkJoinPeerSlotAlloc() ClusterReady {
+// 	c.Lock()
+// 	defer c.Unlock()
+
+// 	if c.leaderID.Load() == 0 {
+// 		return EmptyClusterReady
+// 	}
+// 	slotCountOfEachPeer := c.cluster.SlotCount / uint32(len(c.cluster.Peers)) // 每个节点分配的slot数量
+// 	var clusterClone *pb.Cluster
+// 	for _, peer := range c.cluster.Peers {
+// 		if peer.Join && peer.JoinState == pb.JoinState_JoinStateDone {
+// 			if clusterClone == nil {
+// 				clusterClone = c.cluster.Clone()
+// 			}
+// 			// 获取不足副本的slot
+// 			insufficientReplicaSlots := c.getSlotsWithInsufficientReplicas(peer.PeerID, clusterClone)
+// 			if len(insufficientReplicaSlots) > 0 {
+// 				for _, insufficientReplicaSlot := range insufficientReplicaSlots {
+// 					insufficientReplicaSlot.WillJoin = append(insufficientReplicaSlot.WillJoin, peer.PeerID)
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	return EmptyClusterReady
+// }
+
+// 检查不足副本的需要加入新节点的slot
+func (c *ClusterManager) checkSlotsNeedNewPeerForInsufficientReplicas() ClusterReady {
 	c.Lock()
 	defer c.Unlock()
 
 	if c.leaderID.Load() == 0 {
 		return EmptyClusterReady
 	}
-	slotCountOfEachPeer := c.cluster.SlotCount / uint32(len(c.cluster.Peers)) // 每个节点分配的slot数量
-	var clusterClone *pb.Cluster
-	for _, peer := range c.cluster.Peers {
-		if peer.Join && peer.JoinState == pb.JoinState_JoinStateDone {
-			if clusterClone == nil {
-				clusterClone = c.cluster.Clone()
-			}
-			// 获取不足副本的slot
-			insufficientReplicaSlots := c.getSlotsWithInsufficientReplicas(peer.PeerID, clusterClone)
-			if len(insufficientReplicaSlots) > 0 {
-				for _, insufficientReplicaSlot := range insufficientReplicaSlots {
-					insufficientReplicaSlot.WillJoin = append(insufficientReplicaSlot.WillJoin, peer.PeerID)
-				}
-			}
+
+	// 获取已加入的节点
+	joinPeer := c.getPeerForJoinStateDone()
+	if joinPeer == nil {
+		return EmptyClusterReady
+	}
+
+	// 获取不足副本的slot
+	slots := c.getSlotsWithInsufficientReplicas(joinPeer.PeerID, c.cluster)
+	if len(slots) == 0 {
+		return EmptyClusterReady
+	}
+	for _, slot := range slots {
+		return ClusterReady{
+			SlotActions: []*SlotAction{
+				{
+					SlotID: slot.Slot,
+					PeerID: joinPeer.PeerID,
+					Action: SlotActionAddReplica,
+				},
+			},
 		}
 	}
 
+	// 节点平衡slot
+
 	return EmptyClusterReady
+}
+
+// 获取新加入的节点
+func (c *ClusterManager) getPeerForJoinStateDone() *pb.Peer {
+	for _, peer := range c.cluster.Peers {
+		if peer.Join && peer.JoinState == pb.JoinState_JoinStateDone {
+			return peer
+		}
+	}
+	return nil
 }
 
 // 获取不足副本的slot
@@ -793,6 +851,22 @@ func (c *ClusterManager) IsWillJoin() bool {
 	return false
 }
 
+// slot添加将要加入的节点
+func (c *ClusterManager) SlotAddWillJoin(slotID uint32, peerID uint64) {
+	c.Lock()
+	defer c.Unlock()
+	slot := c.getSlot(slotID)
+	if slot == nil {
+		c.Warn("SlotAddWillJoin slot not exist", zap.Uint32("slotID", slotID))
+		return
+	}
+	if wkutil.ArrayContainsUint64(slot.WillJoin, peerID) {
+		c.Debug("exist peer in willJoin", zap.Uint32("slot", slotID), zap.Uint64("peerID", peerID))
+		return
+	}
+	slot.WillJoin = append(slot.WillJoin, peerID)
+}
+
 var EmptyClusterReady = ClusterReady{}
 
 type ClusterReady struct {
@@ -812,6 +886,34 @@ func IsEmptyClusterReady(c ClusterReady) bool {
 		c.JoinAction == nil
 }
 
+func (c ClusterReady) String() string {
+	str := ""
+	if c.AllocateSlotSet != nil {
+		str += fmt.Sprintf("给节点分配slot【%s】\n", c.AllocateSlotSet)
+	}
+	if c.SlotActions != nil {
+		str += fmt.Sprintf("slot执行【%v】\n", c.SlotActions)
+	}
+
+	if c.UpdatePeer != nil {
+		str += fmt.Sprintf("更新节点信息【%s】", c.UpdatePeer)
+	}
+
+	if c.SlotLeaderRelationSet != nil {
+		str += fmt.Sprintf("slot领导发送变化【%s】\n", c.SlotLeaderRelationSet)
+	}
+	if c.JoinReq != nil {
+		str += fmt.Sprintf("有新节点加入集群【%s】\n", c.JoinReq)
+	}
+	if c.JoinAction != nil {
+		str += fmt.Sprintf("加入行为【%v】\n", c.JoinAction)
+	}
+	if c.UpdateClusterConfig != nil {
+		str += fmt.Sprintf("更新整个集群配置【peerID:%d】\n", c.UpdateClusterConfig.FromPeerID)
+	}
+	return str
+}
+
 type SlotState int
 
 const (
@@ -822,7 +924,8 @@ const (
 type SlotActionType int
 
 const (
-	SlotActionStart SlotActionType = iota
+	SlotActionStart      SlotActionType = iota // slot开始
+	SlotActionAddReplica                       // 添加副本
 )
 
 type JoinActionType int
@@ -835,6 +938,7 @@ const (
 
 type SlotAction struct {
 	SlotID uint32
+	PeerID uint64
 	Action SlotActionType
 }
 

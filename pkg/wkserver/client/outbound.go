@@ -295,6 +295,7 @@ func (o *Outbound) flushOutbound() bool {
 			return true
 		}
 	}
+
 	o.lastWriteTime = lastWriteTime
 	o.pendingByteCount.Sub(n)
 	o.pendingMessageCount.Sub(pendingMsgCount) // TODO： 这里不一定正确，但是应该大体正确

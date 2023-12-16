@@ -27,6 +27,7 @@ message Message {
     uint64 id = 1;
     uint32 msgType = 2;
     bytes content = 3;
+    uint64 timestamp = 4;
 }
 
 message Response {

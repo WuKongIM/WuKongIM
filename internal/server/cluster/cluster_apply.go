@@ -69,15 +69,27 @@ func (c *Cluster) onNodeApply(entries []sm.Entry) error {
 func (c *Cluster) handleCMDReq(req pb.CMDReq) {
 	fmt.Println("onNodeApply------->", pb.CMDType(req.Type).String())
 	switch req.Type {
-	case pb.CMDAllocateSlot.Uint32():
+	case pb.CMDAllocateSlot.Uint32(): // 处理分配slot的请求
 		c.handleAllocateSlots(req)
-	case pb.CMDUpdateClusterConfig.Uint32():
+	case pb.CMDUpdateClusterConfig.Uint32(): // 处理分布式配置更新
 		c.handleUpdateClusterConfig(req)
-	case pb.CMDUpdatePeerConfig.Uint32():
+	case pb.CMDUpdatePeerConfig.Uint32(): // 处理peer的配置更新
 		c.handleUpdatePeerConfig(req)
-	case pb.CMDUpdateSlotLeaderRelationSet.Uint32():
+	case pb.CMDUpdateSlotLeaderRelationSet.Uint32(): // 处理更新slot的领导
 		c.handleUpdateSlotLeaderRelationSet(req)
+	case pb.CMDSlotAddReplica.Uint32(): // 处理slot添加副本的请求
+		c.handleSlotAddReplica(req)
 	}
+}
+
+func (c *Cluster) handleSlotAddReplica(req pb.CMDReq) {
+	slotAddReplica := &pb.SlotAddReplica{}
+	err := slotAddReplica.Unmarshal(req.Param)
+	if err != nil {
+		c.Error("handleSlotAddReplica error", zap.Error(err))
+		return
+	}
+	c.clusterManager.SlotAddWillJoin(slotAddReplica.Slot, slotAddReplica.PeerID)
 }
 
 func (c *Cluster) handleUpdatePeerConfig(req pb.CMDReq) {

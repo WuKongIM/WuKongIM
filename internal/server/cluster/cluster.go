@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/pb"
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
@@ -36,6 +37,8 @@ type Cluster struct {
 	peerGRPCClient *PeerGRPCClient
 
 	joinReqSuccess atomic.Bool // 加入集群请求是否已成功
+
+	slotAddReplicaRequestCache sync.Map // slot添加副本提案请求的缓存
 }
 
 func New(opts *Options) *Cluster {
@@ -45,9 +48,10 @@ func New(opts *Options) *Cluster {
 		panic(err)
 	}
 	c := &Cluster{
-		Log:      wklog.NewWKLog(fmt.Sprintf("Cluster[%d]", opts.PeerID)),
-		stopChan: make(chan struct{}),
-		opts:     opts,
+		Log:                        wklog.NewWKLog(fmt.Sprintf("Cluster[%d]", opts.PeerID)),
+		stopChan:                   make(chan struct{}),
+		opts:                       opts,
+		slotAddReplicaRequestCache: sync.Map{},
 	}
 
 	err = os.MkdirAll(opts.DataDir, 0755)
@@ -69,7 +73,7 @@ func New(opts *Options) *Cluster {
 	clusterManagerOpts.PeerID = opts.PeerID
 	clusterManagerOpts.ServerAddr = opts.ServerAddr
 	clusterManagerOpts.GRPCServerAddr = opts.GRPCServerAddr
-	clusterManagerOpts.Join = opts.Join
+	clusterManagerOpts.Join = GetGRPCAddr(opts.Join, opts.grpcPortOffset)
 	clusterManagerOpts.APIServerAddr = opts.APIServerAddr
 	clusterManagerOpts.GetSlotState = func(slot uint32) SlotState {
 		if c.multiRaft.IsStarted(slot) {
@@ -101,7 +105,7 @@ func New(opts *Options) *Cluster {
 	multiRaftOpts.ServerAddr = opts.ServerAddr
 	multiRaftOpts.PeerID = opts.PeerID
 	multiRaftOpts.Peers = opts.Peers
-	multiRaftOpts.Join = opts.Join
+	multiRaftOpts.Join = GetGRPCAddr(opts.Join, opts.grpcPortOffset)
 	multiRaftOpts.SlotCount = opts.SlotCount
 	multiRaftOpts.OnApplyForPeer = c.onNodeApply
 	multiRaftOpts.OnApplyForSlot = c.opts.OnSlotApply
@@ -131,7 +135,8 @@ func (c *Cluster) Start() error {
 
 	// 如果join有值，说明是新加入的节点，加要连接的地址加入到grpc连接中
 	if strings.TrimSpace(c.opts.Join) != "" {
-		peerStrs := strings.Split(c.opts.Join, "@")
+		grpcAddr := GetGRPCAddr(c.opts.Join, c.opts.grpcPortOffset)
+		peerStrs := strings.Split(grpcAddr, "@")
 		if len(peerStrs) != 2 {
 			return fmt.Errorf("join addr error")
 		}
@@ -162,7 +167,6 @@ func (c *Cluster) Start() error {
 	if err != nil {
 		return err
 	}
-
 	// 如果是新加入的节点先不启动raft，先通知现有集群的领导节点，等现有集群的变更完成后再启动新加入的节点
 	if !c.clusterManager.IsWillJoin() {
 		err = c.multiRaft.Start()
@@ -229,7 +233,7 @@ func (c *Cluster) loopClusterConfig() {
 	for {
 		select {
 		case clusterReady := <-c.clusterManager.readyChan:
-
+			c.Info("clusterReady...", zap.Any("clusterReady", clusterReady))
 			if clusterReady.JoinReq != nil {
 				_ = c.requestJoinReq(clusterReady.JoinReq)
 			}
@@ -266,17 +270,57 @@ func (c *Cluster) handleSlotActions(actions []*SlotAction) {
 		return
 	}
 	for _, action := range actions {
-		if action.Action == SlotActionStart {
+		if action.Action == SlotActionStart { // slot开始
 			slot := c.clusterManager.GetSlot(action.SlotID)
 			if slot != nil && !c.multiRaft.IsStarted(slot.Slot) {
 				c.startSlot(slot)
 			}
 
+		} else if action.Action == SlotActionAddReplica { // 添加副本
+			key := fmt.Sprintf("%d-%d", action.SlotID, action.PeerID)
+			_, ok := c.slotAddReplicaRequestCache.Load(key)
+			if ok {
+				return
+			}
+			err := c.proposeSlotAddReplica(action.SlotID, action.PeerID)
+			if err != nil {
+				c.Error("propose slot add replica error", zap.Error(err))
+				return
+			}
+			c.slotAddReplicaRequestCache.Store(key, true)
+
 		}
 	}
 }
 
+// 向节点提交slot增加副本的提案
+func (c *Cluster) proposeSlotAddReplica(slotID uint32, peerID uint64) error {
+	req := pb.NewCMDReq(uint32(pb.CMDSlotAddReplica))
+	slotAddReplica := &pb.SlotAddReplica{
+		Slot:   slotID,
+		PeerID: peerID,
+	}
+	param, err := slotAddReplica.Marshal()
+	if err != nil {
+		c.Error("slotAddReplica marshal error", zap.Error(err))
+		return err
+	}
+	req.Param = param
+	data, err := req.Marshal()
+	if err != nil {
+		c.Error("cmd request marshal error", zap.Error(err))
+		return err
+	}
+	err = c.SyncProposeToPeer(data)
+	if err != nil {
+		c.Error("propose add peer propose error", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
 func (c *Cluster) proposeUpdatePeer(peer *pb.Peer) error {
+	c.Info("提交更新节点的提案", zap.Any("peer", peer))
 	req := pb.NewCMDReq(uint32(pb.CMDUpdatePeerConfig))
 	param, err := peer.Marshal()
 	if err != nil {

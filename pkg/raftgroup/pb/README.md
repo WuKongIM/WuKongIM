@@ -1,0 +1,1 @@
+protoc ./pkg/raftgroup/pb/raft.proto --go_out=./pkg/raftgroup/pb
