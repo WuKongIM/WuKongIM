@@ -29,10 +29,6 @@
 演示
 --------
 
-**实战项目**
-
-唐僧叨叨(通讯层基于WuKongIM)：https://github.com/TangSengDaoDao/TangSengDaoDaoServer
-
 **聊天Demo**
 
 ![image](./docs/demo.gif)
@@ -212,6 +208,32 @@ Star
 ---------------
 
 我们团队一直致力于即时通讯的研发，需要您的鼓励，如果您觉得本项目对您有帮助，欢迎点个star，您的支持是我们最大的动力。
+
+案例展示
+---------------
+
+**项目名**
+
+TangSengDaoDao
+
+**开源地址**
+
+https://github.com/TangSengDaoDao/TangSengDaoDaoServer
+
+**截图**
+
+||||
+|:---:|:---:|:--:|
+|![](./docs/case/tsdaodao/screenshot/conversationlist.webp)|![](./docs/case/tsdaodao/screenshot/messages.webp)|![](./docs/case/tsdaodao/screenshot/robot.webp)|
+
+
+|||          |
+|:---:|:---:|:-------------------:|
+
+![](./docs/case/tsdaodao/screenshot/pc11.png)
+
+
+
 
 Wechat
 ---------------
