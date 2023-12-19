@@ -1,0 +1,50 @@
+syntax = "proto3";
+option go_package = "./;pb";
+
+enum SlotEventType {
+    SlotEventTypeNone = 0;
+    SlotEventTypeInit = 1;
+    SlotEventTypeAdd = 2;
+    SlotEventTypeRemove = 3;
+}
+
+enum NodeEventType {
+    NodeEventTypeNone = 0;
+    NodeEventTypeInit = 1;
+    NodeEventTypeAdd = 2;
+    NodeEventTypeRemove = 3;
+}
+
+
+message ClusterConfig {
+    uint32 slotCount = 1; // 槽位数量
+    uint64 nodeLeader = 2; // 节点的领导者节点ID
+    uint32 replicaCount = 3; // slot 副本数量
+    repeated Node nodes = 4; // 节点列表
+    repeated Slot slots = 5; // 槽位列表
+}
+
+message Node {
+    uint64 id = 1; // 节点ID
+    string serverAddr = 2; // 节点服务地址
+    bool join = 3; // 是否是新加入的节点 true: 表示新加入的节点 false: 表示集群初始化时的节点
+}
+
+
+message Slot {
+    uint32 id = 1; // 槽位ID
+    uint64 leader = 2; // 领导者节点ID
+    repeated uint64 nodes = 3; // 副本节点ID列表
+}
+
+message NodeEvent {
+    NodeEventType eventType = 1; // 事件类型
+    repeated Node node = 2; // 对应事件的节点
+}
+
+
+message SlotEvent {
+    SlotEventType eventType = 1; // 事件类型
+    repeated Slot slot = 2; // 对应事件的槽位
+
+}
