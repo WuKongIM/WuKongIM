@@ -177,6 +177,30 @@ func (s *Server) Propose(ctx context.Context, shardID uint32, data []byte) error
 	return worker.propose(ctx, shardID, data)
 }
 
+func (s *Server) WaitAllLeaderChange(timeout time.Duration) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	tick := time.NewTicker(time.Millisecond * 200)
+	defer cancel()
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return timeoutCtx.Err()
+		case <-tick.C:
+			hasAllLeader := true
+			for _, worker := range s.mu.workers {
+				for _, raft := range worker.rafts {
+					if raft.leaderID.Load() == 0 {
+						hasAllLeader = false
+					}
+				}
+			}
+			if hasAllLeader {
+				return nil
+			}
+		}
+	}
+}
+
 func (s *Server) getWorker(shardID uint32) *raftWorker {
 	return s.mu.workers[shardID%uint32(len(s.mu.workers))]
 }
