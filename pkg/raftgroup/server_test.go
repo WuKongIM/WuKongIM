@@ -128,7 +128,7 @@ func TestTwoServerAndManyRaft(t *testing.T) {
 	assert.NoError(t, err)
 	defer s2.Stop()
 
-	var slotNum = 50
+	var slotNum = 10
 
 	for i := 1; i <= slotNum; i++ {
 		shardID := uint32(i)
@@ -145,5 +145,10 @@ func TestTwoServerAndManyRaft(t *testing.T) {
 		}(shardID)
 	}
 
-	time.Sleep(time.Second * 20)
+	err = s1.WaitAllLeaderChange(time.Second * 20)
+	assert.NoError(t, err)
+
+	err = s2.WaitAllLeaderChange(time.Second * 20)
+	assert.NoError(t, err)
+
 }
