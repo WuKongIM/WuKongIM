@@ -29,10 +29,6 @@
 Demo
 --------
 
-**Practical Project**
-
-TangSengDaoDao (communication layer based on WuKongIM): https://github.com/TangSengDaoDao/TangSengDaoDaoServer
-
 **Chat Demo**
 
 ![image](./docs/demo.gif)
