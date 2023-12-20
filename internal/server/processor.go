@@ -620,15 +620,17 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 		return
 	}
 	for _, ack := range acks {
-		if !ack.NoPersist {
+		persist := !ack.NoPersist
+		if persist {
 			// 完成消息（移除重试队列里的消息）
-			p.Debug("移除重试队列里的消息！", zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", conn.UID()), zap.Int64("clientID", conn.ID()), zap.Uint8("deviceFlag", conn.DeviceFlag()), zap.String("deviceID", conn.DeviceID()), zap.Int64("messageID", ack.MessageID))
+			p.Debug("移除重试队列里的消息！", zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", conn.UID()), zap.Int64("clientID", conn.ID()), zap.Uint8("deviceFlag", conn.DeviceFlag()), zap.Uint8("deviceLevel", conn.DeviceLevel()), zap.String("deviceID", conn.DeviceID()), zap.Bool("syncOnce", ack.SyncOnce), zap.Bool("noPersist", ack.NoPersist), zap.Int64("messageID", ack.MessageID))
 			err := p.s.retryQueue.finishMessage(conn.UID(), conn.DeviceID(), ack.MessageID)
 			if err != nil {
 				p.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", conn.UID()), zap.Int64("clientID", conn.ID()), zap.Uint8("deviceFlag", conn.DeviceFlag()), zap.String("deviceID", conn.DeviceID()), zap.Int64("messageID", ack.MessageID))
 			}
 		}
-		if ack.SyncOnce && !ack.NoPersist && wkproto.DeviceLevel(conn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
+		if ack.SyncOnce && persist && wkproto.DeviceLevel(conn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
+			p.Debug("更新游标", zap.String("uid", conn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
 			err := p.s.store.UpdateMessageOfUserCursorIfNeed(conn.UID(), ack.MessageSeq)
 			if err != nil {
 				p.Warn("更新游标失败！", zap.Error(err), zap.String("uid", conn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))

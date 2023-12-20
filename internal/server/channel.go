@@ -453,7 +453,7 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 	}
 
 	//########## store messages in user queue ##########
-	var messageSeqMap map[int64]uint32
+	var messageSeqMap map[string]uint32
 	if len(messages) > 0 {
 		messageSeqMap, err = c.storeMessageToUserQueueIfNeed(messages, subscribers)
 		if err != nil {
@@ -483,12 +483,12 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 }
 
 // store message to user queue if need
-func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers []string) (map[int64]uint32, error) {
+func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers []string) (map[string]uint32, error) {
 	if len(messages) == 0 {
 		return nil, nil
 	}
 
-	messageSeqMap := make(map[int64]uint32, len(messages))
+	messageSeqMap := make(map[string]uint32, len(messages))
 
 	for _, subscriber := range subscribers {
 		storeMessages := make([]wkstore.Message, 0, len(messages))
@@ -515,7 +515,7 @@ func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers
 				return nil, err
 			}
 			for _, storeMessage := range storeMessages {
-				messageSeqMap[storeMessage.GetMessageID()] = storeMessage.GetSeq()
+				messageSeqMap[fmt.Sprintf("%s-%d", subscriber, storeMessage.GetMessageID())] = storeMessage.GetSeq()
 			}
 		}
 	}
