@@ -35,7 +35,7 @@ func NewDeliveryManager(s *Server) *DeliveryManager {
 	}
 }
 
-func (d *DeliveryManager) startDeliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[int64]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
+func (d *DeliveryManager) startDeliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[string]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
 	err := d.deliveryMsgPool.Submit(func() {
 		d.deliveryMessages(messages, large, syncOnceMessageSeqMap, subscribers, fromUID, fromDeivceFlag, fromDeviceID)
 	})
@@ -44,7 +44,7 @@ func (d *DeliveryManager) startDeliveryMessages(messages []*Message, large bool,
 	}
 }
 
-func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[int64]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
+func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, syncOnceMessageSeqMap map[string]uint32, subscribers []string, fromUID string, fromDeivceFlag wkproto.DeviceFlag, fromDeviceID string) {
 	if len(subscribers) == 0 || len(messages) == 0 {
 		return
 	}
@@ -82,7 +82,7 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 				cloneMsg.ToUID = subscriber
 				cloneMsg.toDeviceID = recvConn.DeviceID()
 				if len(syncOnceMessageSeqMap) > 0 && m.SyncOnce && !m.NoPersist {
-					seq := syncOnceMessageSeqMap[m.MessageID]
+					seq := syncOnceMessageSeqMap[fmt.Sprintf("%s-%d", subscriber, m.MessageID)]
 					cloneMsg.MessageSeq = seq
 				}
 
