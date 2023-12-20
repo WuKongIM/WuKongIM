@@ -33,6 +33,7 @@ Demo
 
 ![image](./docs/demo.gif)
 
+Demo Source： https://github.com/WuKongIM/WuKongIMJSSDK/tree/main/examples
 
 Web chat scene demo: http://imdemo.githubim.com
 
