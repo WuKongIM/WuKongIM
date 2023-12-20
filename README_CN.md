@@ -33,6 +33,8 @@
 
 ![image](./docs/demo.gif)
 
+Demo源码： https://github.com/WuKongIM/WuKongIMJSSDK/tree/main/examples
+
 web聊天场景演示： http://imdemo.githubim.com
 
 后端监控演示： http://monitor.githubim.com/web
