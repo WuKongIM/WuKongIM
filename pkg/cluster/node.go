@@ -1,66 +1,67 @@
 package cluster
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/lni/goutils/syncutil"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 )
 
-type Node struct {
-	opts *Options
-	wklog.Log
-	stopper *syncutil.Stopper
+type node struct {
+	id     uint64
+	addr   string
+	client *client.Client
 }
 
-func NewNode(id NodeID, addr string, optList ...Option) *Node {
-
-	lg := wklog.NewWKLog(fmt.Sprintf("Node[%d]", id))
-
-	defaultOpts := NewOptions()
-	defaultOpts.ID = id
-	defaultOpts.Addr = addr
-	if len(optList) > 0 {
-		for _, opt := range optList {
-			opt(defaultOpts)
-		}
-	}
-
-	return &Node{
-		opts:    defaultOpts,
-		Log:     lg,
-		stopper: syncutil.NewStopper(),
+func newNode(id uint64, uid string, addr string) *node {
+	cli := client.New(addr, client.WithUID(uid))
+	return &node{
+		id:     id,
+		addr:   addr,
+		client: cli,
 	}
 }
 
-func (n *Node) Start(opts ...NodeStartOption) error {
-
-	return nil
+func (n *node) start() {
+	n.client.Start()
 }
 
-func (n *Node) Stop() {
+func (n *node) stop() {
+	n.client.Close()
 }
 
-func (n *Node) AddReplica(nodeID NodeID, raftAddr string) error {
-
-	return nil
+func (n *node) send(msg *proto.Message) error {
+	return n.client.Send(msg)
 }
 
-func (n *Node) RemoveReplica(nodeID NodeID) error {
+func (n *node) sendPing(req *PingRequest) error {
 
-	return nil
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	return n.client.Send(&proto.Message{
+		MsgType: MessageTypePing.Uint32(),
+		Content: data,
+	})
 }
 
-func (n *Node) AddSlot(slotID SlotID) (*Slot, error) {
-
-	return nil, nil
+func (n *node) sendVote(req *VoteRequest) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	return n.client.Send(&proto.Message{
+		MsgType: MessageTypeVoteRequest.Uint32(),
+		Content: data,
+	})
 }
 
-func (n *Node) WaitLeader(timeout time.Duration) error {
-
-	return nil
-}
-func (n *Node) MustWaitLeader(timeout time.Duration) {
-
+func (n *node) sendVoteResp(req *VoteRespose) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	return n.client.Send(&proto.Message{
+		MsgType: MessageTypeVoteResponse.Uint32(),
+		Content: data,
+	})
 }
