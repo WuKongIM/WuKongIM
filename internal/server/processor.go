@@ -158,25 +158,37 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 
 	// -------------------- same master kicks each other --------------------
 	oldConns := p.s.connManager.GetConnsWith(uid, connectPacket.DeviceFlag)
-	if len(oldConns) > 0 && devceLevel == wkproto.DeviceLevelMaster {
-		for _, oldConn := range oldConns {
-			p.s.connManager.RemoveConnWithID(oldConn.ID())
-			if oldConn.DeviceID() != connectPacket.DeviceID {
-				p.Info("same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.DeviceID()))
-				p.response(oldConn, &wkproto.DisconnectPacket{
-					ReasonCode: wkproto.ReasonConnectKick,
-					Reason:     "login in other device",
-				})
-				p.s.timingWheel.AfterFunc(time.Second*10, func() {
-					oldConn.Close()
-				})
-			} else {
-				p.s.timingWheel.AfterFunc(time.Second*4, func() {
-					oldConn.Close() // Close old connection
-				})
+	if len(oldConns) > 0 {
+		if devceLevel == wkproto.DeviceLevelMaster { // 如果设备是master级别，则把旧连接都踢掉
+			for _, oldConn := range oldConns {
+				p.s.connManager.RemoveConnWithID(oldConn.ID())
+				if oldConn.DeviceID() != connectPacket.DeviceID {
+					p.Info("same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.DeviceID()))
+					p.response(oldConn, &wkproto.DisconnectPacket{
+						ReasonCode: wkproto.ReasonConnectKick,
+						Reason:     "login in other device",
+					})
+					p.s.timingWheel.AfterFunc(time.Second*5, func() {
+						oldConn.Close()
+					})
+				} else {
+					p.s.timingWheel.AfterFunc(time.Second*4, func() {
+						oldConn.Close() // Close old connection
+					})
+				}
+				p.Debug("close old conn", zap.Any("oldConn", oldConn))
 			}
-			p.Debug("close old conn", zap.Any("oldConn", oldConn))
+		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceID踢掉
+			for _, oldConn := range oldConns {
+				if oldConn.DeviceID() == connectPacket.DeviceID {
+					p.s.connManager.RemoveConnWithID(oldConn.ID())
+					p.s.timingWheel.AfterFunc(time.Second*5, func() {
+						oldConn.Close()
+					})
+				}
+			}
 		}
+
 	}
 
 	// -------------------- set conn info --------------------
