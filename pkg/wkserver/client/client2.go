@@ -64,6 +64,10 @@ func New(addr string, opt ...Option) *Client {
 	}
 }
 
+func (c *Client) Start() {
+	go c.run(nil)
+}
+
 func (c *Client) Connect() error {
 	connectChan := make(chan struct{})
 	go c.run(connectChan)

@@ -216,6 +216,26 @@ func (s *Server) RequestAsync(uid string, p string, body []byte) error {
 	return conn.WakeWrite()
 }
 
+func (s *Server) Send(uid string, msg *proto.Message) error {
+	conn := s.connManager.GetConn(uid)
+	if conn == nil {
+		return errors.New("conn is nil")
+	}
+	data, err := msg.Marshal()
+	if err != nil {
+		return err
+	}
+	msgData, err := s.proto.Encode(data, proto.MsgTypeMessage.Uint8())
+	if err != nil {
+		return err
+	}
+	_, err = conn.WriteToOutboundBuffer(msgData)
+	if err != nil {
+		return err
+	}
+	return conn.WakeWrite()
+}
+
 func (s *Server) onConnect(conn wknet.Conn) error {
 
 	return nil
