@@ -204,8 +204,6 @@ func (s *Server) stepMaster() {
 }
 
 func (s *Server) sendPingToAll() {
-
-	s.clusterServer.Request()
 	for _, node := range s.nodeManager.getAllNode() {
 		s.stopper.RunWorker(func() {
 			s.Info("发送Ping", zap.Uint64("toNodeID", node.id))
