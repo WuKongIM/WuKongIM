@@ -119,23 +119,27 @@ go run main.go --config config/wk.yaml
 ---------------
 
 
-```shell
-
-./wukongim --config  ./exampleconfig/cluster1.yaml -d
-
-./wukongim --config  ./exampleconfig/cluster2.yaml -d
-
-./wukongim --config  ./exampleconfig/cluster3.yaml -d
-
-```
-
-添加节点
+启动集群
 
 ```shell
 
-./wukongim --config  ./exampleconfig/join.yaml 
+./wukongim  --node-id=1001 --listen-addr=192.168.1.11:10001 --init-nodes=1001@192.168.1.11:10001,1002@192.168.1.12:10001
+
+./wukongim  --node-id=1002 --listen-addr=192.168.1.12:10001 --init-nodes=1001@192.168.1.11:10001,1002@192.168.1.12:10001
 
 ```
+
+加入集群
+
+```shell
+
+./wukongim --node-id=1003 --listen-addr=192.168.1.13:1001 --join=192.168.1.11:10001
+
+```
+
+`
+--join: 指定现有集群中的任意节点，新节点会自动加入到集群中
+`
 
 
 配套SDK源码和Demo

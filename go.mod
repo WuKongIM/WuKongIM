@@ -13,7 +13,9 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.2
+	github.com/hashicorp/memberlist v0.3.1
 	github.com/lni/dragonboat/v4 v4.0.0-20230922120309-657304aedc15
+	github.com/lni/goutils v1.3.1-0.20220604063047-388d67b4dbc4
 	github.com/panjf2000/ants/v2 v2.7.1
 	github.com/panjf2000/gnet/v2 v2.2.5
 	github.com/pkg/errors v0.9.1
@@ -29,6 +31,7 @@ require (
 	go.etcd.io/raft/v3 v3.0.0-20230805183326-89c97ed7f982
 	go.uber.org/zap v1.24.0
 	golang.org/x/crypto v0.13.0
+	golang.org/x/sync v0.5.0
 	google.golang.org/grpc v1.55.0
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
@@ -63,13 +66,11 @@ require (
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/hashicorp/memberlist v0.3.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.11.13 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
-	github.com/lni/goutils v1.3.1-0.20220604063047-388d67b4dbc4 // indirect
 	github.com/lni/vfs v0.2.1-0.20220616104132-8852fd867376 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect

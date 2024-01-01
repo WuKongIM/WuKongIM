@@ -3,6 +3,7 @@ package wkutil
 import (
 	"fmt"
 	"hash/crc32"
+	"strconv"
 	"strings"
 )
 
@@ -162,29 +163,9 @@ func (s *SlotBitMap) MergeSlots(bs ...[]byte) {
 
 }
 
-// SlotsContains SlotsContains
-func SlotsContains(b, subslice []byte) bool {
-	if len(b) < len(subslice) {
-		return false
-	}
-	for i := 0; i < len(b); i++ {
-		b1 := b[i]
-		s1 := subslice[i]
-		for j := 0; j < 8; j++ {
-			b11 := b1 >> j & 0x01
-			s11 := s1 >> j & 0x01
-			if s11 == 1 && b11 == 0 {
-				return false
-			}
-
-		}
-
-	}
-	return true
-}
-
 // FormatSlots FormatSlots
-func FormatSlots(slots []uint32) string {
+func (s *SlotBitMap) FormatSlots() string {
+	slots := s.GetVaildSlots()
 	if len(slots) == 0 {
 		return ""
 	}
@@ -209,6 +190,47 @@ func FormatSlots(slots []uint32) string {
 		}
 	}
 	return strings.Join(formatStr, ",")
+}
+
+func NewSlotBitMapFromFormat(formatStr string, slotCount uint32) *SlotBitMap {
+	slots := NewSlotBitMap(slotCount)
+	if len(formatStr) == 0 {
+		return slots
+	}
+	splitStr := strings.Split(formatStr, ",")
+	for _, v := range splitStr {
+		if strings.Contains(v, "-") {
+			splitRange := strings.Split(v, "-")
+			start, _ := strconv.Atoi(splitRange[0])
+			end, _ := strconv.Atoi(splitRange[1])
+			slots.SetSlotForRange(uint32(start), uint32(end), true)
+		} else {
+			vI, _ := strconv.Atoi(v)
+			slots.SetSlot(uint32(vI), true)
+		}
+	}
+	return slots
+}
+
+// SlotsContains SlotsContains
+func SlotsContains(b, subslice []byte) bool {
+	if len(b) < len(subslice) {
+		return false
+	}
+	for i := 0; i < len(b); i++ {
+		b1 := b[i]
+		s1 := subslice[i]
+		for j := 0; j < 8; j++ {
+			b11 := b1 >> j & 0x01
+			s11 := s1 >> j & 0x01
+			if s11 == 1 && b11 == 0 {
+				return false
+			}
+
+		}
+
+	}
+	return true
 }
 
 // GetSlotNum GetSlotNum

@@ -76,7 +76,6 @@ func (c *Client) Connect() error {
 }
 
 func (c *Client) Close() error {
-	fmt.Println("Close------->")
 	c.forceDisconnect = true
 	if c.conn != nil {
 		c.conn.Close()
@@ -229,7 +228,7 @@ func (c *Client) loopRead() {
 	for {
 		err := c.read()
 		if err != nil {
-			c.Warn("read error", zap.Error(err))
+			c.Debug("read error", zap.Error(err))
 			return
 		}
 	}
