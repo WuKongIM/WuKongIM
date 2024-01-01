@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/hashicorp/memberlist"
 	"github.com/lni/goutils/syncutil"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -21,21 +19,10 @@ type Server struct {
 	wklog.Log
 	opts    *Options
 	stopper *syncutil.Stopper
-
-	nodeMeta     *nodeMeta  // 节点元数据
-	role         ServerRole // 当前节点角色
-	leaderID     atomic.Uint64
-	currentEpoch atomic.Uint32
-
-	electionLock sync.RWMutex
-	voteTo       map[uint32]uint64   // 投票情况 key为epoch value为投票给谁的节点
-	votesFrom    map[uint32][]uint64 // 投票情况 key为epoch value为投票的节点
-
-	tickCount atomic.Uint32 // 心跳计数
 }
 
 func NewServer(nodeID uint64, listenAddr string, opts ...Option) *Server {
-	lg := wklog.NewWKLog("gossip.Server")
+	lg := wklog.NewWKLog(fmt.Sprintf("gossip.Server[%d]", nodeID))
 
 	defaultOpts := NewOptions()
 	defaultOpts.NodeID = nodeID
@@ -48,13 +35,6 @@ func NewServer(nodeID uint64, listenAddr string, opts ...Option) *Server {
 		Log:     lg,
 		opts:    defaultOpts,
 		stopper: syncutil.NewStopper(),
-		nodeMeta: &nodeMeta{
-			role:         ServerRoleSlave,
-			currentEpoch: defaultOpts.Epoch,
-		},
-		role:      ServerRoleSlave,
-		voteTo:    make(map[uint32]uint64),
-		votesFrom: make(map[uint32][]uint64),
 	}
 
 	s.gossipServer = createMemberlist(s) // 创建gossip服务
@@ -111,66 +91,6 @@ func (s *Server) MustWaitJoin(timeout time.Duration) {
 	}
 }
 
-func (s *Server) MustWaitLeader(timeout time.Duration) {
-	err := s.WaitLeader(timeout)
-	if err != nil {
-		s.Panic("WaitLeader failed!", zap.Error(err))
-	}
-}
-
-func (s *Server) WaitLeader(timeout time.Duration) error {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	tick := time.NewTicker(time.Millisecond * 200)
-
-	for {
-		select {
-		case <-timeoutCtx.Done():
-			return timeoutCtx.Err()
-		case <-tick.C:
-			if s.leaderID.Load() != 0 {
-				return nil
-			}
-		case <-s.stopper.ShouldStop():
-			return errors.New("server stopped")
-		}
-	}
-}
-
-func (s *Server) SendCMD(toNodeID uint64, cmd *CMD) error {
-	toNode := s.getNode(toNodeID)
-	if toNode == nil {
-		return errors.New("node not found")
-	}
-	data, err := cmd.Marshal()
-	if err != nil {
-		return err
-	}
-	return s.gossipServer.SendReliable(toNode, data)
-}
-
-func (s *Server) SendCMDToUDP(toNodeID uint64, cmd *CMD) error {
-	toNode := s.getNode(toNodeID)
-	if toNode == nil {
-		return errors.New("node not found")
-	}
-	data, err := cmd.Marshal()
-	if err != nil {
-		return err
-	}
-	return s.gossipServer.SendBestEffort(toNode, data)
-}
-
-func (s *Server) UpdateRole(role ServerRole, timeout time.Duration) error {
-	s.nodeMeta.role = role
-	return s.gossipServer.UpdateNode(timeout)
-}
-
-func (s *Server) UpdateNodeMeta() error {
-	return s.gossipServer.UpdateNode(time.Second * 10)
-}
-
 func (s *Server) loopJoin() {
 
 	needJoins := s.getNeedJoin()
@@ -196,7 +116,7 @@ func (s *Server) loopJoin() {
 
 func (s *Server) join(nodes []string) {
 	if len(nodes) > 0 {
-		fmt.Println("节点数量--->", len(nodes))
+		fmt.Println("节点数量--->", len(nodes), nodes)
 		_, err := s.gossipServer.Join(nodes)
 		if err != nil {
 			s.Error("Join gossip server failed!", zap.Error(err))
@@ -224,37 +144,13 @@ func createMemberlist(s *Server) *memberlist.Memberlist {
 	return gossipServer
 }
 
-func (s *Server) getNode(nodeID uint64) *memberlist.Node {
-	for _, member := range s.gossipServer.Members() {
-		if member.Name == strconv.FormatUint(nodeID, 10) {
-			return member
-		}
-	}
-	return nil
-}
-
-func (s *Server) allNodes() []*memberlist.Node {
-	return s.gossipServer.Members()
-}
-
-// 存活的节点
-func (s *Server) aliveNodes() []*memberlist.Node {
-	nodes := make([]*memberlist.Node, 0)
-	for _, node := range s.gossipServer.Members() {
-		if node.State == memberlist.StateAlive {
-			nodes = append(nodes, node)
-		}
-	}
-	return nodes
-}
-
 func (s *Server) getNeedJoin() []string {
 	needJoins := make([]string, 0)
 	if len(s.opts.Seed) > 0 {
 		for _, seed := range s.opts.Seed {
 			joined := false
 			for _, member := range s.gossipServer.Members() {
-				if member.Address() == seed {
+				if strings.TrimSpace(seed) != "" && member.Address() == seed {
 					joined = true
 					break
 				}

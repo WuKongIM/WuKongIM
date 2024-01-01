@@ -10,7 +10,6 @@ type Options struct {
 	ElectionTick   uint32   // 选举tick次数
 	Heartbeat      time.Duration
 	OnLeaderChange func(leaderID uint64)
-	Epoch          uint32
 	OnNodeEvent    func(event NodeEvent) // 节点事件
 }
 
@@ -20,7 +19,6 @@ func NewOptions() *Options {
 		AdvertiseAddr: "",
 		Heartbeat:     time.Millisecond * 200,
 		ElectionTick:  5,
-		Epoch:         0,
 	}
 }
 
@@ -36,12 +34,6 @@ func WithOnLeaderChange(fnc func(leaderID uint64)) Option {
 
 	return func(o *Options) {
 		o.OnLeaderChange = fnc
-	}
-}
-
-func WithEpoch(epoch uint32) Option {
-	return func(o *Options) {
-		o.Epoch = epoch
 	}
 }
 
