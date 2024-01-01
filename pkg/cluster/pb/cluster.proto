@@ -1,0 +1,34 @@
+
+syntax = "proto3";
+option go_package = "./;pb";
+
+
+message Cluster {
+    uint32 epoch = 1; // 集群周期，一次集群变更会增加一个周期
+   uint64 version = 2; // 配置版本
+   repeated Node nodes = 3; // 集群中的节点
+   repeated Slot slots = 4; // 集群中的槽位
+}
+
+message Node {
+    uint64 id = 1; // 节点id
+    string clusterAddr = 2; // 节点分布式通讯地址
+    repeated SlotMigrate exports = 3; // 正在迁移的槽位
+    repeated SlotMigrate imports = 4; // 正在迁入的槽位
+}
+
+
+message Slot {
+    uint32 id = 1; // 槽位id
+    uint64 leader = 2; // 槽位的领导节点
+    repeated  uint64 initNodes = 3; // 槽位的初始节点
+    repeated uint64 joinNodes = 4; // 槽位的加入节点
+    uint32 status = 5; // 槽位状态
+}
+
+message SlotMigrate {
+    uint32 slot = 1; // 槽位id
+    uint64 from = 2; // 迁移的源节点
+    uint64 to = 3; // 迁移的目标节点
+    uint32 status = 4; // 迁移状态
+}

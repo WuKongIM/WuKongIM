@@ -116,32 +116,28 @@ go run main.go --config config/wk.yaml
 分布式部署
 ---------------
 
-```shell
 
-wukongim --node-id=1 --listen-addr=127.0.0.1:11110
-
-wukongim --node-id=2 --listen-addr=127.0.0.1:11111  --join=127.0.0.1:11110
-
-```
-
-启动两个logic和一个gateway节点，其中一个logic节点作为主节点，另一个作为备用节点，gateway节点作为网关节点，客户端连接gateway节点，gateway节点会自动将消息投递到logic节点，logic节点之间会自动同步数据。
+启动集群
 
 ```shell
 
-wukongim logic --node-id=1 --listen-addr=127.0.0.1:11110
+./wukongim  --node-id=1001 --listen-addr=192.168.1.11:10001 --init-nodes=1001@192.168.1.11:10001,1002@192.168.1.12:10001
 
-wukongim logic --node-id=1 --listen-addr=127.0.0.1:11111 --join=127.0.0.1:11110
+./wukongim  --node-id=1002 --listen-addr=192.168.1.12:10001 --init-nodes=1001@192.168.1.11:10001,1002@192.168.1.12:10001
 
-wukongim gateway --listen-addr=127.0.0.1:11113 --logic-addr=127.0.0.1:11111
 ```
 
-添加节点
+加入集群
 
 ```shell
 
-./wukongim --config  ./exampleconfig/join.yaml 
+./wukongim --node-id=1003 --listen-addr=192.168.1.13:1001 --join=192.168.1.11:10001
 
 ```
+
+`
+--join: 指定现有集群中的任意节点，新节点会自动加入到集群中
+`
 
 
 配套SDK源码和Demo
