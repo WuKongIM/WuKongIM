@@ -23,7 +23,7 @@ func TestClusterEventStartAndStop(t *testing.T) {
 		4: "127.0.0.1:10004",
 	}
 	fmt.Println(opts.DataDir)
-	// defer os.RemoveAll(opts.DataDir)
+	defer os.RemoveAll(opts.DataDir)
 	c := clusterevent.NewClusterEventManager(opts)
 	c.SetNodeLeaderID(1)
 
@@ -49,6 +49,7 @@ func TestSlotEventElection(t *testing.T) {
 		4: "127.0.0.1:10004",
 	}
 	fmt.Println(opts.DataDir)
+	defer os.RemoveAll(opts.DataDir)
 
 	c := clusterevent.NewClusterEventManager(opts)
 	c.SetNodeLeaderID(1) // 设置节点1为领导
@@ -57,8 +58,14 @@ func TestSlotEventElection(t *testing.T) {
 	assert.NoError(t, err)
 	defer c.Stop()
 
-	clusterEvt := <-c.Watch()
-	assert.Equal(t, pb.SlotEventType_SlotEventTypeInit, clusterEvt.SlotEvent.EventType)
+	var clusterEvt clusterevent.ClusterEvent
+	for clusterEvt = range c.Watch() {
+		if clusterEvt.SlotEvent != nil {
+			if pb.SlotEventType_SlotEventTypeInit == clusterEvt.SlotEvent.EventType {
+				break
+			}
+		}
+	}
 
 	for _, st := range clusterEvt.SlotEvent.Slots {
 		c.AddOrUpdateSlotNoSave(st)
@@ -72,7 +79,11 @@ func TestSlotEventElection(t *testing.T) {
 	c.SetNodeConfigVersion(2, 2)
 	c.SetNodeConfigVersion(3, 2)
 
-	clusterEvt = <-c.Watch()
-
-	assert.Equal(t, pb.SlotEventType_SlotEventTypeElection, clusterEvt.SlotEvent.EventType)
+	for clusterEvt = range c.Watch() {
+		if clusterEvt.SlotEvent != nil {
+			if pb.SlotEventType_SlotEventTypeElection == clusterEvt.SlotEvent.EventType {
+				break
+			}
+		}
+	}
 }

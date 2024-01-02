@@ -11,14 +11,13 @@ import (
 func (c *ClusterEventManager) loop() {
 	tick := time.NewTicker(c.opts.Heartbeat)
 	updateCount := 0
-	maxCfgCheckCount := 4  // 集群配置版本最大检查次数
-	currCfgCheckCount := 0 // 当前已检查次数
+	maxCfgCheckCount := 4                                            // 集群配置版本最大检查次数
+	currCfgCheckCount := 0                                           // 当前已检查次数
+	var preClusterConfigVersion uint32 = c.GetClusterConfigVersion() // 上次的配置版本号
 	for {
 		select {
-		case <-c.stopper.ShouldStop():
-			return
-		case <-tick.C:
 
+		case <-tick.C:
 			if c.IsNodeLeader() {
 				// 只有过半的节点同步过配置后，主节点才会继续检查配置
 				updateCount = 0
@@ -42,20 +41,37 @@ func (c *ClusterEventManager) loop() {
 				currCfgCheckCount = 0
 			}
 
+			if c.GetClusterConfigVersion() > preClusterConfigVersion { // 配置已更新
+				c.triggerWatch(ClusterEvent{
+					ClusterEventType: pb.ClusterEventType_ClusterEventTypeVersionChange,
+				})
+				preClusterConfigVersion = c.GetClusterConfigVersion()
+			}
+
 			// 检查节点配置
 			clusterEvent := c.checkNodes()
 			if !IsEmptyClusterEvent(clusterEvent) {
-				c.watchCh <- clusterEvent
+				c.triggerWatch(clusterEvent)
 				break
 			}
 
 			// 检查slots配置
 			clusterEvent = c.checkSlots()
 			if !IsEmptyClusterEvent(clusterEvent) {
-				c.watchCh <- clusterEvent
+				c.triggerWatch(clusterEvent)
 				break
 			}
+		case <-c.stopper.ShouldStop():
+			return
 		}
+	}
+}
+
+func (c *ClusterEventManager) triggerWatch(event ClusterEvent) {
+	select {
+	case c.watchCh <- event:
+	case <-c.stopper.ShouldStop():
+		return
 	}
 }
 
@@ -67,6 +83,14 @@ func (c *ClusterEventManager) checkNodes() ClusterEvent {
 func (c *ClusterEventManager) checkSlots() ClusterEvent {
 
 	if !c.IsNodeLeader() {
+		if !c.slotIsInit.Load() && len(c.GetSlots()) > 0 {
+			return ClusterEvent{
+				SlotEvent: &pb.SlotEvent{
+					Slots:     c.GetSlots(),
+					EventType: pb.SlotEventType_SlotEventTypeInit,
+				},
+			}
+		}
 		return EmptyClusterEvent
 	}
 

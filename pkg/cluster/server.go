@@ -9,7 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/gossip"
 	"github.com/WuKongIM/WuKongIM/pkg/wait"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -48,8 +50,7 @@ type Server struct {
 
 	w wait.Wait
 
-	applyCond *sync.Cond // 应用日志的cond
-	applyLock sync.Mutex
+	transportSync *transportSync
 }
 
 func NewServer(nodeID uint64, optList ...Option) *Server {
@@ -78,7 +79,7 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		Level: zapcore.Level(opts.LogLevel),
 	})
 
-	s.applyCond = sync.NewCond(&s.applyLock)
+	s.transportSync = newTransportSync(s)
 
 	if strings.TrimSpace(opts.Join) == "" && len(opts.InitNodes) == 0 { // 如果没有加入节点并且也没有初始化节点 说明是单节点，则直接设置自己为master
 		s.leaderID.Store(nodeID)
@@ -121,12 +122,13 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 
 	if s.clusterEventManager.GetClusterConfig() != nil && len(s.clusterEventManager.GetSlots()) > 0 {
 		for _, st := range s.clusterEventManager.GetSlots() {
-			slot, err := s.newSlot(st.Id)
+			slot, err := s.newSlot(st)
 			if err != nil {
 				s.Panic("slot init failed", zap.Error(err))
 			}
 			s.slotManager.AddSlot(slot)
 		}
+		s.clusterEventManager.SetSlotIsInit(true)
 	}
 
 	return s
@@ -153,51 +155,13 @@ func (s *Server) Start() error {
 			s.handleVoteRequest(fromNodeID, msg)
 		case MessageTypeVoteResponse.Uint32(): // 投票结果返回
 			s.handleVoteResponse(fromNodeID, msg)
-		case MessageTypeSlotAppendLogRequest.Uint32(): // 追加日志请求
-			s.handleSlotAppendLogRequest(fromNodeID, msg)
-		case MessageTypeSlotAppendLogResponse.Uint32(): // 追加日志返回
-			s.handleSlotAppendLogResponse(fromNodeID, msg)
+		case MessageTypeLogSyncNotify.Uint32(): // 日志同步通知
+			s.handleLogSyncNotify(fromNodeID, msg)
 
 		}
 	})
 
-	// 同步集群配置
-	s.clusterServer.Route("/syncClusterConfig", func(c *wkserver.Context) {
-		clusterCfg := s.clusterEventManager.GetClusterConfig()
-		data, err := clusterCfg.Marshal()
-		if err != nil {
-			c.WriteErr(err)
-			return
-		}
-		c.Write(data)
-	})
-
-	// 获取指定的slot的信息
-	s.clusterServer.Route("/slotInfos", func(c *wkserver.Context) {
-		req := &SlotInfoReportRequest{}
-		err = req.Unmarshal(c.Body())
-		if err != nil {
-			c.WriteErr(err)
-			return
-		}
-		slotInfos, err := s.getSlotInfosFromLocalNode(req.SlotIDs)
-		if err != nil {
-			c.WriteErr(err)
-			return
-		}
-		resp := &SlotInfoReportResponse{
-			NodeID:    s.opts.NodeID,
-			SlotInfos: slotInfos,
-		}
-
-		respData, err := resp.Marshal()
-		if err != nil {
-			s.Error("marshal SlotInfoReportResponse failed", zap.Error(err))
-			return
-		}
-		c.Write(respData)
-
-	})
+	s.setRoutes()
 
 	err = s.clusterServer.Start()
 	if err != nil {
@@ -218,6 +182,11 @@ func (s *Server) Stop() {
 
 	s.stopper.Stop()
 
+	slots := s.slotManager.GetSlots()
+	for _, slot := range slots {
+		slot.Stop()
+	}
+
 	for _, node := range s.nodeManager.getAllNode() {
 		node.stop()
 	}
@@ -225,46 +194,42 @@ func (s *Server) Stop() {
 	s.clusterServer.Stop()
 }
 
-func (s *Server) SendAppendEntriesRequestToSlot(req *SlotAppendLogRequest) error {
-	slotLeaderID := s.clusterEventManager.GetSlotLeaderID(req.SlotID)
-	if slotLeaderID == 0 {
-		return fmt.Errorf("slot[%d] leader is not found", req.SlotID)
-	}
-	if req.ReqID == 0 {
-		req.ReqID = s.reqIDGen.Next()
-	}
-	return s.nodeManager.sendSlotAppendLogRequest(slotLeaderID, req)
-}
-
 // 追加日志
-func (s *Server) AppendLog(slotID uint32, logIndex uint64, data []byte) error {
+func (s *Server) AppendLog(slotID uint32, lg replica.Log) error {
 
+	// 获取slot对象
 	slotLeaderID := s.clusterEventManager.GetSlotLeaderID(slotID)
 	if slotLeaderID == 0 {
 		return fmt.Errorf("slot[%d] leader is not found", slotID)
 	}
 	if slotLeaderID != s.opts.NodeID {
-		return fmt.Errorf("the node is not leader of slot[%d]", slotID)
+		s.Warn("the node is not leader of slot,forward request", zap.Uint32("slotID", slotID), zap.Uint64("leaderID", slotLeaderID), zap.Uint64("nodeID", s.opts.NodeID))
+
+		return s.nodeManager.requestAppendLog(slotLeaderID, &AppendLogRequest{
+			SlotID: slotID,
+			Log:    lg,
+		})
 	}
 
 	slot := s.slotManager.GetSlot(slotID)
 	if slot == nil {
 		return fmt.Errorf("slot[%d] not found", slotID)
 	}
-	// 先将数据追加到领导自己的日志内
-	err := slot.Append(logIndex, data)
+
+	// 追加日志
+	err := slot.AppendLog(lg)
 	if err != nil {
 		return err
 	}
-
-	// 再将日志追加到其他副本内，超过过半的副本追加就提交日志
-
-	replicas := s.clusterEventManager.GetSlotReplicas(slotID)
-	if len(replicas) == 0 {
-		return fmt.Errorf("slot[%d] replicas is empty", slotID)
-	}
-
 	return nil
+}
+
+func (s *Server) GetLogs(slotID uint32, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
+	slot := s.slotManager.GetSlot(slotID)
+	if slot == nil {
+		return nil, fmt.Errorf("slot[%d] not found", slotID)
+	}
+	return slot.GetLogs(startLogIndex, limit)
 }
 
 // 模拟节点在线状态
@@ -353,35 +318,35 @@ func (s *Server) stepMaster() {
 
 func (s *Server) sendPingToAll() {
 	for _, n := range s.nodeManager.getAllNode() {
-		s.stopper.RunWorker(func(nd *node) func() {
+		s.stopper.RunWorker(func(nodeID uint64) func() {
 
 			return func() {
-				s.Info("发送Ping", zap.Uint64("toNodeID", nd.id))
-				err := nd.sendPing(&PingRequest{
+				s.Info("发送Ping", zap.Uint64("toNodeID", nodeID))
+				err := s.nodeManager.sendPing(nodeID, &PingRequest{
 					Epoch:                s.currentEpoch.Load(),
 					ClusterConfigVersion: uint32(s.clusterEventManager.GetClusterConfig().Version),
 				})
 				if err != nil {
-					s.Warn("Send PingRequest cmd failed!", zap.Uint64("toNodeID", nd.id), zap.Error(err))
+					s.Warn("Send PingRequest cmd failed!", zap.Uint64("toNodeID", nodeID), zap.Error(err))
 				}
 			}
-		}(n))
+		}(n.id))
 	}
 }
 
 func (s *Server) sendVoteRequestToAll() {
 	for _, n := range s.nodeManager.getAllVoteNodes() {
-		s.stopper.RunWorker(func(nd *node) func() {
+		s.stopper.RunWorker(func(nodeID uint64) func() {
 			return func() {
-				err := nd.sendVote(&VoteRequest{
+				err := s.nodeManager.sendVote(nodeID, &VoteRequest{
 					Epoch:                s.currentEpoch.Load(),
 					ClusterConfigVersion: s.clusterEventManager.GetClusterConfigVersion(),
 				})
 				if err != nil {
-					s.Warn("Send VoteRequest cmd failed!", zap.Uint64("toNodeID", nd.id), zap.Error(err))
+					s.Warn("Send VoteRequest cmd failed!", zap.Uint64("toNodeID", nodeID), zap.Error(err))
 				}
 			}
-		}(n))
+		}(n.id))
 	}
 }
 
@@ -429,7 +394,7 @@ func (s *Server) handlePingRequest(fromNodeID uint64, msg *proto.Message) {
 		}
 	}
 	if s.leaderID.Load() != fromNodeID {
-		s.leaderChange(fromNodeID)
+		s.leaderChangeIfNeed(fromNodeID)
 	}
 	err = s.nodeManager.sendPong(fromNodeID, &PongResponse{
 		ClusterConfigVersion: uint32(s.clusterEventManager.GetClusterConfig().Version),
@@ -451,10 +416,18 @@ func (s *Server) handlePongResponse(fromNodeID uint64, msg *proto.Message) {
 	s.clusterEventManager.SetNodeConfigVersion(fromNodeID, req.ClusterConfigVersion)
 }
 
+func (s *Server) leaderChangeIfNeed(newLeaderID uint64) {
+	if s.leaderID.Load() == newLeaderID {
+		return
+	}
+	s.leaderChange(newLeaderID)
+}
+
 func (s *Server) leaderChange(newLeaderID uint64) {
 	if s.opts.OnLeaderChange != nil {
 		s.opts.OnLeaderChange(newLeaderID)
 	}
+	s.Debug("新的领导", zap.Uint64("newLeaderID", newLeaderID))
 	s.leaderID.Store(newLeaderID)
 	s.clusterEventManager.SetNodeLeaderID(newLeaderID)
 }
@@ -538,47 +511,6 @@ func (s *Server) handleVoteResponse(fromNodeID uint64, msg *proto.Message) {
 	}
 }
 
-func (s *Server) handleSlotAppendLogRequest(fromNodeID uint64, msg *proto.Message) {
-	req := &SlotAppendLogRequest{}
-	err := req.Unmarshal(msg.Content)
-	if err != nil {
-		s.Error("Unmarshal SlotAppendLogRequest failed!", zap.Error(err))
-	}
-	if req.SlotID == 0 {
-		s.Error("slotID is 0")
-		return
-	}
-	if req.LogIndex == 0 {
-		s.Error("logSeq is 0")
-		return
-	}
-
-	slot := s.slotManager.GetSlot(req.SlotID)
-	if slot == nil {
-		s.Warn("slot not exist", zap.Uint32("slotID", req.SlotID))
-		return
-	}
-	err = slot.Append(req.LogIndex, req.Data)
-	if err != nil {
-		s.Error("append log failed", zap.Error(err))
-		return
-	}
-
-	err = s.nodeManager.sendSlotAppendLogResponse(fromNodeID, &SlotAppendLogResponse{
-		SlotID:   req.SlotID,
-		LogIndex: req.LogIndex,
-	})
-	if err != nil {
-		s.Error("send slot append log response failed", zap.Error(err))
-		return
-	}
-
-}
-
-func (s *Server) handleSlotAppendLogResponse(fromNodeID uint64, msg *proto.Message) {
-
-}
-
 func (s *Server) becomeFollow(epoch uint32) {
 	s.electionLock.Lock()
 	defer s.electionLock.Unlock()
@@ -608,7 +540,7 @@ func (s *Server) becomeLeader() {
 	s.Debug("成为领导", zap.Uint32("epoch", s.currentEpoch.Load()))
 
 	s.role = ServerRoleLeader
-	s.leaderChange(s.opts.NodeID)
+	s.leaderChangeIfNeed(s.opts.NodeID)
 }
 
 func (s *Server) getRandElectionTick() uint32 {
@@ -632,8 +564,9 @@ func splitAddr(listenAddr string) (string, int) {
 	return "", 0
 }
 
-func (s *Server) newSlot(slotID uint32) (*Slot, error) {
-	st := NewSlot(uint32(slotID), path.Join(s.opts.DataDir, "slots", strconv.FormatUint(uint64(slotID), 10)))
-	err := st.Open()
+func (s *Server) newSlot(slot *pb.Slot) (*Slot, error) {
+	st := NewSlot(s.opts.NodeID, slot.Id, slot.Replicas, path.Join(s.opts.DataDir, "slots", strconv.FormatUint(uint64(slot.Id), 10)), s.transportSync)
+	st.replicaServer.SetLeaderID(slot.Leader)
+	err := st.Start()
 	return st, err
 }

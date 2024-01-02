@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -28,11 +29,9 @@ const (
 	MessageTypeVoteRequest                        // 投票请求
 	MessageTypeVoteResponse                       // 投票返回
 	MessageTypePong                               // pong
-	MessageTypeSlotAppendLogRequest               // slot日志复制请求
-	MessageTypeSlotAppendLogResponse              // slot日志复制返回
 	MessageTypeSlotInfoReportRequest              // slot信息上报请求
 	MessageTypeSlotInfoReportResponse             // slot信息上报返回
-
+	MessageTypeLogSyncNotify                      // 日志同步通知
 )
 
 func (m MessageType) Uint32() uint32 {
@@ -282,4 +281,33 @@ func (s *SlotInfoReportResponse) Unmarshal(data []byte) error {
 type SlotInfo struct {
 	SlotID   uint32
 	LogIndex uint64
+}
+
+type AppendLogRequest struct {
+	SlotID uint32 // slotID
+	Log    replica.Log
+}
+
+func (a *AppendLogRequest) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(a.SlotID)
+	enc.WriteUint64(a.Log.Index)
+	enc.WriteBinary(a.Log.Data)
+	return enc.Bytes(), nil
+}
+
+func (a *AppendLogRequest) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if a.SlotID, err = dec.Uint32(); err != nil {
+		return err
+	}
+	if a.Log.Index, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if a.Log.Data, err = dec.Binary(); err != nil {
+		return err
+	}
+	return nil
 }
