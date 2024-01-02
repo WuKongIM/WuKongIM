@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -94,41 +95,6 @@ func (n *node) requestClusterConfig() (*pb.Cluster, error) {
 	return clusterCfg, nil
 }
 
-func (n *node) sendSlotAppendLogRequest(req *SlotAppendLogRequest) error {
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	return n.client.Send(&proto.Message{
-		Id:      req.ReqID,
-		MsgType: MessageTypeSlotAppendLogRequest.Uint32(),
-		Content: data,
-	})
-}
-
-func (n *node) sendSlotAppendLogResponse(req *SlotAppendLogResponse) error {
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	return n.client.Send(&proto.Message{
-		Id:      req.ReqID,
-		MsgType: MessageTypeSlotAppendLogResponse.Uint32(),
-		Content: data,
-	})
-}
-
-func (n *node) sendSlotInfoReportRequest(req *SlotInfoReportRequest) error {
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	return n.client.Send(&proto.Message{
-		MsgType: MessageTypeSlotInfoReportRequest.Uint32(),
-		Content: data,
-	})
-}
-
 func (n *node) requestSlotInfo(req *SlotInfoReportRequest) (*SlotInfoReportResponse, error) {
 	data, err := req.Marshal()
 	if err != nil {
@@ -145,4 +111,46 @@ func (n *node) requestSlotInfo(req *SlotInfoReportRequest) (*SlotInfoReportRespo
 		return nil, err
 	}
 	return slotInfoResponse, nil
+}
+
+func (n *node) sendSyncNotify(req *replica.SyncNotify) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	return n.client.Send(&proto.Message{
+		MsgType: MessageTypeLogSyncNotify.Uint32(),
+		Content: data,
+	})
+}
+
+func (n *node) requestSyncLog(r *replica.SyncReq) (*replica.SyncRsp, error) {
+	data, err := r.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := n.client.Request("/syncLog", data)
+	if err != nil {
+		return nil, err
+	}
+	syncResp := &replica.SyncRsp{}
+	err = syncResp.Unmarshal(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return syncResp, nil
+
+}
+
+func (n *node) requestAppendLog(req *AppendLogRequest) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = n.client.Request("/appendLog", data)
+	if err != nil {
+		return err
+	}
+	return nil
+
 }

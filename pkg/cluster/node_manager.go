@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 )
@@ -108,26 +109,35 @@ func (n *nodeManager) requestClusterConfig(nodeID uint64) (*pb.Cluster, error) {
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) sendSlotAppendLogRequest(nodeID uint64, req *SlotAppendLogRequest) error {
-	node := n.getNode(nodeID)
-	if node != nil {
-		return node.sendSlotAppendLogRequest(req)
-	}
-	return fmt.Errorf("node[%d] not exist", nodeID)
-}
-
-func (n *nodeManager) sendSlotAppendLogResponse(nodeID uint64, req *SlotAppendLogResponse) error {
-	node := n.getNode(nodeID)
-	if node != nil {
-		return node.sendSlotAppendLogResponse(req)
-	}
-	return fmt.Errorf("node[%d] not exist", nodeID)
-}
-
 func (n *nodeManager) requestSlotInfo(nodeID uint64, req *SlotInfoReportRequest) (*SlotInfoReportResponse, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
 		return node.requestSlotInfo(req)
 	}
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+func (n *nodeManager) sendSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.sendSyncNotify(req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+func (n *nodeManager) requestSyncLog(nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestSyncLog(r)
+	}
+	return nil, fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+func (n *nodeManager) requestAppendLog(nodeID uint64, req *AppendLogRequest) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestAppendLog(req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+
 }
