@@ -29,6 +29,10 @@ func (s *Server) handleClusterEvent(clusterEvent clusterevent.ClusterEvent) {
 	if clusterEvent.NodeEvent != nil {
 		s.handleClusterNodeEvent(clusterEvent.NodeEvent)
 	}
+
+	if clusterEvent.ClusterEventType == pb.ClusterEventType_ClusterEventTypeVersionChange {
+		s.handleClusterConfigVersionChange()
+	}
 }
 
 func (s *Server) handleClusterSlotEvent(slotEvent *pb.SlotEvent) {
@@ -44,22 +48,42 @@ func (s *Server) handleClusterNodeEvent(nodeEvent *pb.NodeEvent) {
 
 }
 
-// 处理slot初始化
-func (s *Server) handleClusterSlotEventInit(slotEvent *pb.SlotEvent) {
+func (s *Server) handleClusterConfigVersionChange() {
+	slots := s.clusterEventManager.GetSlots()
+	if len(slots) == 0 {
+		return
+	}
 	var err error
-	for _, st := range slotEvent.Slots {
-		s.clusterEventManager.AddOrUpdateSlotNoSave(st)
+	for _, st := range slots {
 		slot := s.slotManager.GetSlot(st.Id)
 		if slot == nil {
-			slot, err = s.newSlot(st.Id)
+			slot, err = s.newSlot(st)
 			if err != nil {
 				s.Error("slot init failed", zap.Error(err))
 				return
 			}
 			s.slotManager.AddSlot(slot)
+		} else {
+			slot.SetLeaderID(st.Leader)
 		}
 	}
+}
+
+// 处理slot初始化
+func (s *Server) handleClusterSlotEventInit(slotEvent *pb.SlotEvent) {
+	if len(slotEvent.Slots) == 0 {
+		return
+	}
+	if !s.clusterEventManager.IsNodeLeader() {
+		return
+	}
+	for _, st := range slotEvent.Slots {
+		s.clusterEventManager.AddOrUpdateSlotNoSave(st)
+
+	}
 	s.clusterEventManager.SaveAndVersionInc()
+	s.clusterEventManager.SetSlotIsInit(true)
+
 }
 
 // 处理slot选举
@@ -194,7 +218,7 @@ func (s *Server) getSlotInfosFromLocalNode(slotIDs []uint32) ([]*SlotInfo, error
 	for _, slotID := range slotIDs {
 		slot := s.slotManager.GetSlot(uint32(slotID))
 		if slot != nil {
-			lastLogIndex, err := slot.LastIndex()
+			lastLogIndex, err := slot.LastLogIndex()
 			if err != nil {
 				return nil, err
 			}

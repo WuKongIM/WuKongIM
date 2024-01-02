@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,20 +44,22 @@ func TestServerWaitLeader(t *testing.T) {
 }
 
 func TestServerSlotLeaderElectionForTwo(t *testing.T) {
-	dataDir1 := path.Join(os.TempDir(), "cluster", "1")
+	rootDir := path.Join(os.TempDir(), "cluster")
+	dataDir1 := path.Join(rootDir, "1")
 
 	initNodes := map[uint64]string{
 		1: "127.0.0.1:10001",
 		2: "127.0.0.1:10002",
 	}
 	var slotCount uint32 = 10
-	fmt.Println("dataDir1--->", dataDir1)
+	fmt.Println("dataDir1--->", rootDir)
+	defer os.RemoveAll(rootDir)
 	s1 := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir1))
 	err := s1.Start()
 	assert.NoError(t, err)
 	defer s1.Stop()
 
-	dataDir2 := path.Join(os.TempDir(), "cluster", "2")
+	dataDir2 := path.Join(rootDir, "2")
 	s2 := cluster.NewServer(2, cluster.WithListenAddr("127.0.0.1:10002"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir2))
 	err = s2.Start()
 	assert.NoError(t, err)
@@ -71,7 +74,8 @@ func TestServerSlotLeaderElectionForTwo(t *testing.T) {
 }
 
 func TestServerSlotLeaderElectionForTree(t *testing.T) {
-	dataDir1 := path.Join(os.TempDir(), "cluster", "1")
+	rootDir := path.Join(os.TempDir(), "cluster")
+	dataDir1 := path.Join(rootDir, "1")
 
 	initNodes := map[uint64]string{
 		1: "127.0.0.1:10001",
@@ -80,26 +84,91 @@ func TestServerSlotLeaderElectionForTree(t *testing.T) {
 	}
 	var slotCount uint32 = 256
 	fmt.Println("dataDir1--->", dataDir1)
+	// defer os.RemoveAll(rootDir)
 	s1 := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir1))
 	err := s1.Start()
 	assert.NoError(t, err)
 	defer s1.Stop()
 
-	dataDir2 := path.Join(os.TempDir(), "cluster", "2")
+	dataDir2 := path.Join(rootDir, "2")
 	s2 := cluster.NewServer(2, cluster.WithListenAddr("127.0.0.1:10002"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir2))
 	err = s2.Start()
 	assert.NoError(t, err)
 	defer s2.Stop()
 
-	dataDir3 := path.Join(os.TempDir(), "cluster", "3")
+	dataDir3 := path.Join(rootDir, "3")
 	s3 := cluster.NewServer(3, cluster.WithListenAddr("127.0.0.1:10003"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir3))
 	err = s3.Start()
 	assert.NoError(t, err)
 	defer s3.Stop()
 
-	s1.BecomeLeader()              // s1成为领导
-	s1.FakeSetNodeOnline(2, false) // 将节点2下线
-
+	s1.BecomeLeader()                             // s1成为领导
+	s1.FakeSetNodeOnline(2, false)                // 将节点2下线
 	s3.MustWaitSlotLeaderNotIs(2, time.Second*20) // 等待所有的slot的领导都不包含2
+
+}
+
+func TestServerSlotAppendLog(t *testing.T) {
+	rootDir := path.Join(os.TempDir(), "cluster")
+	dataDir1 := path.Join(rootDir, "1")
+
+	initNodes := map[uint64]string{
+		1: "127.0.0.1:10001",
+		2: "127.0.0.1:10002",
+		3: "127.0.0.1:10003",
+	}
+	var slotCount uint32 = 256
+	fmt.Println("dataDir1--->", dataDir1)
+	defer os.RemoveAll(rootDir)
+	s1 := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir1))
+	err := s1.Start()
+	assert.NoError(t, err)
+	defer s1.Stop()
+
+	s1.BecomeLeader() // s1成为领导
+
+	dataDir2 := path.Join(rootDir, "2")
+	s2 := cluster.NewServer(2, cluster.WithListenAddr("127.0.0.1:10002"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir2))
+	err = s2.Start()
+	assert.NoError(t, err)
+	defer s2.Stop()
+
+	dataDir3 := path.Join(rootDir, "3")
+	s3 := cluster.NewServer(3, cluster.WithListenAddr("127.0.0.1:10003"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir3))
+	err = s3.Start()
+	assert.NoError(t, err)
+	defer s3.Stop()
+
+	s3.MustWaitLeader(time.Second * 20)
+	s2.MustWaitLeader(time.Second * 20)
+
+	err = s1.AppendLog(1, replica.Log{
+		Index: 1,
+		Data:  []byte("hello"),
+	})
+	assert.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 200)
+
+	// 验证s1的数据
+	logs, err := s1.GetLogs(1, 1, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, uint64(1), logs[0].Index)
+	assert.Equal(t, []byte("hello"), logs[0].Data)
+
+	// 验证s2的数据
+	logs, err = s2.GetLogs(1, 1, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, uint64(1), logs[0].Index)
+	assert.Equal(t, []byte("hello"), logs[0].Data)
+
+	// 验证s3的数据
+	logs, err = s3.GetLogs(1, 1, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, uint64(1), logs[0].Index)
+	assert.Equal(t, []byte("hello"), logs[0].Data)
 
 }
