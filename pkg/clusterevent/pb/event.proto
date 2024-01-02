@@ -3,7 +3,7 @@ option go_package = "./;pb";
 
 enum ClusterEventType {
     ClusterEventTypeNone = 0;
-    ClusterEventTypeDidInit= 1; // 集群已初始化（领导节点才有此事件）
+    ClusterEventTypeVersionChange= 1; // 集群配置版本已改变
 }
 
 enum SlotEventType {

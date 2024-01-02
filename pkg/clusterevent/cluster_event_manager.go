@@ -26,6 +26,8 @@ type ClusterEventManager struct {
 
 	othersNodeConfigVersionMapLock sync.RWMutex
 	othersNodeConfigVersionMap     map[uint64]uint32 // 其他节点目前集群配置的版本
+
+	slotIsInit atomic.Bool // slot是否初始化
 }
 
 func NewClusterEventManager(opts *Options) *ClusterEventManager {
@@ -177,6 +179,9 @@ func (c *ClusterEventManager) GetClusterConfigVersion() uint32 {
 }
 
 func (c *ClusterEventManager) getClusterConfigVersion() uint32 {
+	if c.clusterconfig == nil {
+		return 0
+	}
 	return c.clusterconfig.Version
 }
 
@@ -268,6 +273,10 @@ func (c *ClusterEventManager) UpdateSlotLeaderNoSave(slotID uint32, leaderID uin
 			break
 		}
 	}
+}
+
+func (c *ClusterEventManager) SetSlotIsInit(v bool) {
+	c.slotIsInit.Store(v)
 }
 
 func (c *ClusterEventManager) AddOrUpdateSlotNoSave(slot *pb.Slot) {

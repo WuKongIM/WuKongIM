@@ -31,3 +31,13 @@ func (s *SlotManager) GetSlot(slotID uint32) *Slot {
 	defer s.RUnlock()
 	return s.slotMap[slotID]
 }
+
+func (s *SlotManager) GetSlots() []*Slot {
+	s.RLock()
+	defer s.RUnlock()
+	slots := make([]*Slot, 0, len(s.slotMap))
+	for _, slot := range s.slotMap {
+		slots = append(slots, slot)
+	}
+	return slots
+}
