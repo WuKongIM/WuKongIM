@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -101,42 +102,58 @@ func (n *nodeManager) sendPong(nodeID uint64, req *PongResponse) error {
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestClusterConfig(nodeID uint64) (*pb.Cluster, error) {
+func (n *nodeManager) requestClusterConfig(ctx context.Context, nodeID uint64) (*pb.Cluster, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestClusterConfig()
+		return node.requestClusterConfig(ctx)
 	}
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestSlotInfo(nodeID uint64, req *SlotInfoReportRequest) (*SlotInfoReportResponse, error) {
+func (n *nodeManager) requestSlotInfo(ctx context.Context, nodeID uint64, req *SlotInfoReportRequest) (*SlotInfoReportResponse, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestSlotInfo(req)
+		return node.requestSlotInfo(ctx, req)
 	}
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) sendSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
+func (n *nodeManager) sendSlotSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.sendSyncNotify(req)
+		return node.sendSlotSyncNotify(req)
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestSyncLog(nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
+func (n *nodeManager) sendChannelSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestSyncLog(r)
+		return node.sendChannelSyncNotify(req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+func (n *nodeManager) requestSlotSyncLog(ctx context.Context, nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestSlotSyncLog(ctx, r)
 	}
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestAppendLog(nodeID uint64, req *AppendLogRequest) error {
+func (n *nodeManager) requestChannelSyncLog(ctx context.Context, nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestAppendLog(req)
+		return node.requestChannelSyncLog(ctx, r)
+	}
+	return nil, fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+func (n *nodeManager) requestSlotPropse(ctx context.Context, nodeID uint64, req *ProposeRequest) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestSlotPropse(ctx, req)
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 

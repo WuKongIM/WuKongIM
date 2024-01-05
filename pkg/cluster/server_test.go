@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -108,7 +107,8 @@ func TestServerSlotLeaderElectionForTree(t *testing.T) {
 
 }
 
-func TestServerSlotAppendLog(t *testing.T) {
+func TestServerSlotPropse(t *testing.T) {
+
 	rootDir := path.Join(os.TempDir(), "cluster")
 	dataDir1 := path.Join(rootDir, "1")
 
@@ -142,10 +142,9 @@ func TestServerSlotAppendLog(t *testing.T) {
 	s3.MustWaitLeader(time.Second * 20)
 	s2.MustWaitLeader(time.Second * 20)
 
-	err = s1.AppendLog(1, replica.Log{
-		Index: 1,
-		Data:  []byte("hello"),
-	})
+	time.Sleep(time.Millisecond * 200)
+
+	err = s1.ProposeToSlot(1, []byte("hello"))
 	assert.NoError(t, err)
 
 	time.Sleep(time.Millisecond * 200)
@@ -170,5 +169,67 @@ func TestServerSlotAppendLog(t *testing.T) {
 	assert.Equal(t, 1, len(logs))
 	assert.Equal(t, uint64(1), logs[0].Index)
 	assert.Equal(t, []byte("hello"), logs[0].Data)
+
+	fmt.Println("stop...................")
+
+}
+
+func TestServerProposeChannelInfo(t *testing.T) {
+	rootDir := path.Join(os.TempDir(), "cluster")
+	dataDir1 := path.Join(rootDir, "1")
+
+	initNodes := map[uint64]string{
+		1: "127.0.0.1:10001",
+		2: "127.0.0.1:10002",
+	}
+	var slotCount uint32 = 10
+	fmt.Println("dataDir1-2-->", rootDir)
+	defer os.RemoveAll(rootDir)
+	s1 := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir1))
+	err := s1.Start()
+	assert.NoError(t, err)
+	defer s1.Stop()
+
+	dataDir2 := path.Join(rootDir, "2")
+	s2 := cluster.NewServer(2, cluster.WithListenAddr("127.0.0.1:10002"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir2))
+	err = s2.Start()
+	assert.NoError(t, err)
+	defer s2.Stop()
+
+	s2.BecomeLeader() // s2设置为领导
+
+	s1.MustWaitAllSlotLeaderReady(time.Second * 20) // 等待所有slot都选出领导
+	s2.MustWaitAllSlotLeaderReady(time.Second * 20) // 等待所有slot都选出领导
+
+	channelID := "test"
+	var channelType uint8 = 2
+
+	err = s2.ProposeChannelInfo(&cluster.ChannelInfo{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		LeaderID:    1,
+		Replicas:    []uint64{2, 3},
+	})
+	assert.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 100)
+
+	// 验证s1的数据
+	channelInfo, err := s1.GetChannelInfo(channelID, channelType)
+	assert.NoError(t, err)
+
+	assert.Equal(t, channelID, channelInfo.ChannelID)
+	assert.Equal(t, channelType, channelInfo.ChannelType)
+	assert.Equal(t, uint64(1), channelInfo.LeaderID)
+	assert.Equal(t, []uint64{2, 3}, channelInfo.Replicas)
+
+	// 验证s2的数据
+	channelInfo, err = s2.GetChannelInfo(channelID, channelType)
+	assert.NoError(t, err)
+
+	assert.Equal(t, channelID, channelInfo.ChannelID)
+	assert.Equal(t, channelType, channelInfo.ChannelType)
+	assert.Equal(t, uint64(1), channelInfo.LeaderID)
+	assert.Equal(t, []uint64{2, 3}, channelInfo.Replicas)
 
 }

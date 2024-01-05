@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -71,12 +72,76 @@ func TestServerAppendLog(t *testing.T) {
 
 }
 
+func TestServerProposeAndApply(t *testing.T) {
+
+	var shardNo string = "1"
+	rootDir := path.Join(os.TempDir(), "replicas")
+	defer os.RemoveAll(rootDir)
+
+	fmt.Println("rootDir--->", rootDir)
+
+	var wg sync.WaitGroup
+
+	wg.Add(3)
+
+	trans := &testTransport{
+		serverMap: make(map[uint64]*replica.Replica),
+	}
+	onApply := func(logs []replica.Log) (uint64, error) {
+		if string(logs[0].Data) == "hello" {
+			wg.Done()
+		}
+		return logs[len(logs)-1].Index, nil
+	}
+	store1 := replica.NewWALStorage(path.Join(rootDir, "1"))
+	err := store1.Open()
+	assert.NoError(t, err)
+	defer store1.Close()
+	s1 := replica.New(1, shardNo, replica.WithReplicas([]uint64{2, 3}), replica.WithStorage(store1), replica.WithTransport(trans), replica.WithDataDir(path.Join(rootDir, "1")), replica.WithOnApply(onApply))
+	trans.leaderServer = s1
+	s1.SetLeaderID(1)
+	// start s1
+	err = s1.Start()
+	assert.NoError(t, err)
+	defer s1.Stop()
+
+	store2 := replica.NewWALStorage(path.Join(rootDir, "2"))
+	err = store2.Open()
+	assert.NoError(t, err)
+	defer store2.Close()
+	s2 := replica.New(2, shardNo, replica.WithTransport(trans), replica.WithStorage(store2), replica.WithDataDir(path.Join(rootDir, "2")), replica.WithOnApply(onApply))
+	// start s2
+	err = s2.Start()
+	assert.NoError(t, err)
+	defer s2.Stop()
+
+	store3 := replica.NewWALStorage(path.Join(rootDir, "3"))
+	err = store3.Open()
+	assert.NoError(t, err)
+	defer store3.Close()
+	s3 := replica.New(3, shardNo, replica.WithTransport(trans), replica.WithStorage(store3), replica.WithDataDir(path.Join(rootDir, "3")), replica.WithOnApply(onApply))
+	// start s3
+	err = s3.Start()
+	assert.NoError(t, err)
+	defer s3.Stop()
+
+	trans.serverMap[1] = s1
+	trans.serverMap[2] = s2
+	trans.serverMap[3] = s3
+
+	// propose data
+	err = s1.Propose([]byte("hello"))
+	assert.NoError(t, err)
+	wg.Wait()
+
+}
+
 type testTransport struct {
 	leaderServer *replica.Replica
 	serverMap    map[uint64]*replica.Replica
 }
 
-func (t *testTransport) SendSyncNotify(toNodeID uint64, shardNo string, r *replica.SyncNotify) error {
+func (t *testTransport) SendSyncNotify(toNodeID uint64, r *replica.SyncNotify) error {
 	t.serverMap[toNodeID].TriggerHandleSyncNotify(r)
 	return nil
 }
