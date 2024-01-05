@@ -3,6 +3,7 @@ package cluster
 import (
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -14,11 +15,11 @@ func (s *Server) setRoutes() {
 	// 同步集群配置
 	s.clusterServer.Route("/syncClusterConfig", s.handleSyncClusterConfig)
 	// 获取指定的slot的信息
-	s.clusterServer.Route("/slotInfos", s.handleSlotInfos)
-	// 同步日志
-	s.clusterServer.Route("/syncLog", s.handleSyncLog)
-	// 处理追加日志
-	s.clusterServer.Route("/appendLog", s.handleAppendLog)
+	s.clusterServer.Route("/slot/infos", s.handleSlotInfos)
+	// 同步槽的日志
+	s.clusterServer.Route("/slot/syncLog", s.handleSlotSyncLog)
+	// 远程提案
+	s.clusterServer.Route("/slot/propose", s.handlePropose)
 }
 
 func (s *Server) handleSyncClusterConfig(c *wkserver.Context) {
@@ -56,7 +57,8 @@ func (s *Server) handleSlotInfos(c *wkserver.Context) {
 	c.Write(respData)
 }
 
-func (s *Server) handleSyncLog(c *wkserver.Context) {
+func (s *Server) handleSlotSyncLog(c *wkserver.Context) {
+
 	req := &replica.SyncReq{}
 	err := req.Unmarshal(c.Body())
 	if err != nil {
@@ -70,6 +72,12 @@ func (s *Server) handleSyncLog(c *wkserver.Context) {
 		c.WriteErr(errors.New("slot not found"))
 		return
 	}
+	if !slot.IsLeader() {
+		s.Error("the node not is leader of slot", zap.Uint32("slotID", slot.slotID))
+		c.WriteErr(errors.New("the node not is leader of slot"))
+		return
+	}
+
 	nodeID, err := strconv.ParseUint(c.Conn().UID(), 10, 64)
 	if err != nil {
 		c.WriteErr(err)
@@ -88,11 +96,23 @@ func (s *Server) handleSyncLog(c *wkserver.Context) {
 		s.Error("marshal SyncRsp failed", zap.Error(err))
 		return
 	}
+
 	c.Write(respData)
+
+	err = s.slotManager.slotStateMachine.saveSlotSyncInfo(slot.slotID, &replica.SyncInfo{
+		NodeID:       nodeID,
+		LastLogIndex: req.StartLogIndex,
+		LastSyncTime: uint64(time.Now().Unix()),
+	})
+	if err != nil {
+		s.Warn("save slot sync info failed", zap.Error(err), zap.Uint32("slotID", slot.slotID))
+		return
+	}
+
 }
 
-func (s *Server) handleAppendLog(c *wkserver.Context) {
-	req := &AppendLogRequest{}
+func (s *Server) handlePropose(c *wkserver.Context) {
+	req := &ProposeRequest{}
 	err := req.Unmarshal(c.Body())
 	if err != nil {
 		c.WriteErr(err)
@@ -104,7 +124,7 @@ func (s *Server) handleAppendLog(c *wkserver.Context) {
 		c.WriteErr(errors.New("slot not found"))
 		return
 	}
-	err = slot.AppendLog(req.Log)
+	err = slot.Propose(req.Data)
 	if err != nil {
 		c.WriteErr(err)
 		return

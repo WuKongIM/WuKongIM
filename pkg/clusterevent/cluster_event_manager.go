@@ -172,6 +172,12 @@ func (c *ClusterEventManager) GetClusterConfig() *pb.Cluster {
 	return c.clusterconfig
 }
 
+func (c *ClusterEventManager) GetSlotCount() uint32 {
+	c.clusterconfigLock.RLock()
+	defer c.clusterconfigLock.RUnlock()
+	return c.clusterconfig.SlotCount
+}
+
 func (c *ClusterEventManager) GetClusterConfigVersion() uint32 {
 	c.clusterconfigLock.RLock()
 	defer c.clusterconfigLock.RUnlock()

@@ -97,3 +97,41 @@ func (s *SyncRsp) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+
+// 同步信息
+type SyncInfo struct {
+	NodeID       uint64 // 节点ID
+	LastLogIndex uint64 // 最后一条日志的索引
+	LastSyncTime uint64 // 最后一次同步时间
+
+	version uint16 // 数据版本
+}
+
+func (r *SyncInfo) Marshal() ([]byte, error) {
+	r.version = 1
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(r.version)
+	enc.WriteUint64(r.NodeID)
+	enc.WriteUint64(r.LastLogIndex)
+	enc.WriteUint64(r.LastSyncTime)
+	return enc.Bytes(), nil
+}
+
+func (r *SyncInfo) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if r.version, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if r.NodeID, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if r.LastLogIndex, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if r.LastSyncTime, err = dec.Uint64(); err != nil {
+		return err
+	}
+	return nil
+}
