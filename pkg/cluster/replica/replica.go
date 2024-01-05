@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/zap"
 )
 
 type Replica struct {
@@ -24,17 +25,12 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 }
 
 func (r *Replica) Start() error {
-	err := r.rawReplica.Open()
-	if err != nil {
-		return err
-	}
 	r.stopper.RunWorker(r.loop)
 	return nil
 }
 
 func (r *Replica) Stop() {
 	r.stopper.Stop()
-	r.rawReplica.Close()
 }
 
 func (r *Replica) IsLeader() bool {
@@ -43,6 +39,21 @@ func (r *Replica) IsLeader() bool {
 
 func (r *Replica) SetLeaderID(id uint64) {
 	r.rawReplica.SetLeaderID(id)
+}
+
+func (r *Replica) Propose(data []byte) error {
+	err := r.rawReplica.ProposeOnlyLocal(data)
+	if err != nil {
+		return err
+	}
+	r.notifyChan <- struct{}{} // 通知其他副本去同步
+
+	err = r.rawReplica.CheckAndCommitLogs()
+	if err != nil {
+		r.rawReplica.Panic("CheckAndCommitLogs failed", zap.Error(err))
+	}
+
+	return nil
 }
 
 func (r *Replica) AppendLog(lg Log) error {
@@ -81,10 +92,13 @@ func (r *Replica) SyncLogs(nodeID uint64, startLogIndex uint64, limit uint32) ([
 
 func (r *Replica) loop() {
 
-	tick := time.NewTicker(r.rawReplica.opts.SyncCheckInterval)
+	tick := time.NewTicker(r.rawReplica.opts.CheckInterval)
 	for {
 		select {
 		case <-r.notifyChan:
+			if !r.IsLeader() { // 非领导节点不能操作
+				continue
+			}
 			// 取出所有的，因为每次只执行一次
 			for {
 				select {
@@ -94,12 +108,29 @@ func (r *Replica) loop() {
 				}
 			}
 		toNotify:
-			r.toNotifySync() // 通知副本去同步
-		case req := <-r.syncChan: // 同步 TODO: 这里可以做请求合并
-			r.rawReplica.HandleSyncNotify(req)
+			r.sendNotifySync() // 通知副本去同步
+		case <-r.syncChan: // 副本去同步主节点的日志
+			if r.IsLeader() { // 主节点没有此操作
+				continue
+			}
+			// 取出全部请求
+			for {
+				select {
+				case <-r.syncChan:
+				default:
+					goto toHandleSyncNotify
+				}
+			}
+		toHandleSyncNotify:
+			r.rawReplica.RequestSyncLogsAndNotifyLeaderIfNeed() // 同步日志
+
 		case <-tick.C:
 			if r.rawReplica.IsLeader() {
-				r.rawReplica.TriggerSyncIfNeed()
+				r.rawReplica.TriggerSendNotifySyncIfNeed()
+			}
+			err := r.rawReplica.CheckAndCommitLogs() // 检查和提交日志
+			if err != nil {
+				r.rawReplica.Warn("CheckAndCommitLogs failed", zap.Error(err))
 			}
 
 		case <-r.stopper.ShouldStop():
@@ -108,8 +139,8 @@ func (r *Replica) loop() {
 	}
 }
 
-func (r *Replica) toNotifySync() {
-	needSync, _ := r.rawReplica.NotifySync(r.rawReplica.opts.Replicas)
+func (r *Replica) sendNotifySync() {
+	needSync, _ := r.rawReplica.SendNotifySync(r.rawReplica.opts.Replicas)
 	if needSync {
 		r.stopper.RunWorker(r.notifyDelay)
 	}

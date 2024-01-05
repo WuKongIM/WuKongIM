@@ -15,6 +15,7 @@ func (s *Server) MustWaitLeader(timeout time.Duration) {
 	}
 }
 
+// 等待选举出来领导
 func (s *Server) WaitLeader(timeout time.Duration) error {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -78,6 +79,7 @@ func (s *Server) MustWaitSlotLeaderNotIs(leaderID uint64, timeout time.Duration)
 	}
 }
 
+// 等待所有槽的领导不为指定的领导ID
 func (s *Server) WaitSlotLeaderNotIs(leaderID uint64, timeout time.Duration) error {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -101,6 +103,42 @@ func (s *Server) WaitSlotLeaderNotIs(leaderID uint64, timeout time.Duration) err
 				return nil
 			}
 
+		case <-s.stopper.ShouldStop():
+			return errors.New("server stopped")
+		}
+	}
+}
+
+func (s *Server) MustWaitAllSlotLeaderReady(timeout time.Duration) {
+	err := s.WaitAllSlotLeaderReady(timeout)
+	if err != nil {
+		s.Panic("WaitAllSlotLeaderReady failed!", zap.Error(err))
+	}
+}
+
+// 等待所有槽的领导节点准备就绪
+func (s *Server) WaitAllSlotLeaderReady(timeout time.Duration) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	tick := time.NewTicker(time.Millisecond * 100)
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return timeoutCtx.Err()
+		case <-tick.C:
+			if len(s.clusterEventManager.GetSlots()) == 0 {
+				continue
+			}
+			all := true
+			for _, slot := range s.clusterEventManager.GetSlots() {
+				if slot.Leader == 0 {
+					all = false
+					break
+				}
+			}
+			if all {
+				return nil
+			}
 		case <-s.stopper.ShouldStop():
 			return errors.New("server stopped")
 		}
