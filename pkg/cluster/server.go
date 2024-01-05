@@ -1,9 +1,9 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,12 +45,14 @@ type Server struct {
 
 	clusterEventManager *clusterevent.ClusterEventManager
 
-	slotManager *SlotManager
-	reqIDGen    *idutil.Generator
+	slotManager    *SlotManager    // slot管理
+	channelManager *ChannelManager // channel管理
+	reqIDGen       *idutil.Generator
 
 	w wait.Wait
 
-	transportSync *transportSync
+	cancelFnc context.CancelFunc
+	cancelCtx context.Context
 }
 
 func NewServer(nodeID uint64, optList ...Option) *Server {
@@ -71,15 +73,15 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		voteTo:        make(map[uint32]uint64),
 		votesFrom:     make(map[uint32][]uint64),
 		Log:           wklog.NewWKLog(fmt.Sprintf("cluster.Server[%d]", opts.NodeID)),
-		slotManager:   NewSlotManager(),
 		reqIDGen:      idutil.NewGenerator(uint16(nodeID), time.Now()),
 		w:             wait.New(),
 	}
+	s.slotManager = NewSlotManager(s)
+	s.channelManager = NewChannelManager(s)
+	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	wklog.Configure(&wklog.Options{
 		Level: zapcore.Level(opts.LogLevel),
 	})
-
-	s.transportSync = newTransportSync(s)
 
 	if strings.TrimSpace(opts.Join) == "" && len(opts.InitNodes) == 0 { // 如果没有加入节点并且也没有初始化节点 说明是单节点，则直接设置自己为master
 		s.leaderID.Store(nodeID)
@@ -139,7 +141,12 @@ func (s *Server) Start() error {
 	s.stopper.RunWorker(s.loopTick)
 	s.stopper.RunWorker(s.loopClusterEvent)
 
-	err := s.gossipServer.Start()
+	err := s.slotManager.Start()
+	if err != nil {
+		return err
+	}
+
+	err = s.gossipServer.Start() // 开始gossip协议服务
 	if err != nil {
 		return err
 	}
@@ -155,8 +162,10 @@ func (s *Server) Start() error {
 			s.handleVoteRequest(fromNodeID, msg)
 		case MessageTypeVoteResponse.Uint32(): // 投票结果返回
 			s.handleVoteResponse(fromNodeID, msg)
-		case MessageTypeLogSyncNotify.Uint32(): // 日志同步通知
-			s.handleLogSyncNotify(fromNodeID, msg)
+		case MessageTypeSlotLogSyncNotify.Uint32(): // slot日志同步通知
+			s.handleSlotLogSyncNotify(fromNodeID, msg)
+		case MessageTypeChannelLogSyncNotify.Uint32(): // 频道日志同步请求
+			s.handleChannelLogSyncNotify(fromNodeID, msg)
 
 		}
 	})
@@ -178,50 +187,20 @@ func (s *Server) Start() error {
 
 func (s *Server) Stop() {
 
+	s.cancelFnc()
+
 	s.clusterEventManager.Stop()
 
 	s.stopper.Stop()
 
-	slots := s.slotManager.GetSlots()
-	for _, slot := range slots {
-		slot.Stop()
-	}
+	s.slotManager.Stop()
 
 	for _, node := range s.nodeManager.getAllNode() {
 		node.stop()
 	}
 	s.gossipServer.Stop()
 	s.clusterServer.Stop()
-}
 
-// 追加日志
-func (s *Server) AppendLog(slotID uint32, lg replica.Log) error {
-
-	// 获取slot对象
-	slotLeaderID := s.clusterEventManager.GetSlotLeaderID(slotID)
-	if slotLeaderID == 0 {
-		return fmt.Errorf("slot[%d] leader is not found", slotID)
-	}
-	if slotLeaderID != s.opts.NodeID {
-		s.Warn("the node is not leader of slot,forward request", zap.Uint32("slotID", slotID), zap.Uint64("leaderID", slotLeaderID), zap.Uint64("nodeID", s.opts.NodeID))
-
-		return s.nodeManager.requestAppendLog(slotLeaderID, &AppendLogRequest{
-			SlotID: slotID,
-			Log:    lg,
-		})
-	}
-
-	slot := s.slotManager.GetSlot(slotID)
-	if slot == nil {
-		return fmt.Errorf("slot[%d] not found", slotID)
-	}
-
-	// 追加日志
-	err := slot.AppendLog(lg)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (s *Server) GetLogs(slotID uint32, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
@@ -301,7 +280,7 @@ func (s *Server) stepSlave() {
 	if s.leaderID.Load() != 0 {
 		if s.leaderClusterConfigVersion.Load() > s.clusterEventManager.GetClusterConfigVersion() { // 领导者的版本要大于当前节点，则此节点应该去同步最新的配置
 			s.Debug("节点集群配置太旧，去同步领导的最新配置。。。")
-			clusterConfig, err := s.nodeManager.requestClusterConfig(s.leaderID.Load())
+			clusterConfig, err := s.nodeManager.requestClusterConfig(s.cancelCtx, s.leaderID.Load())
 			if err != nil {
 				s.Error("request cluster config failed", zap.Error(err))
 				return
@@ -565,8 +544,6 @@ func splitAddr(listenAddr string) (string, int) {
 }
 
 func (s *Server) newSlot(slot *pb.Slot) (*Slot, error) {
-	st := NewSlot(s.opts.NodeID, slot.Id, slot.Replicas, path.Join(s.opts.DataDir, "slots", strconv.FormatUint(uint64(slot.Id), 10)), s.transportSync)
-	st.replicaServer.SetLeaderID(slot.Leader)
-	err := st.Start()
-	return st, err
+
+	return s.slotManager.NewSlot(slot)
 }

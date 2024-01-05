@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"context"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
@@ -82,8 +84,8 @@ func (n *node) sendPong(req *PongResponse) error {
 }
 
 // 请求集群配置
-func (n *node) requestClusterConfig() (*pb.Cluster, error) {
-	resp, err := n.client.Request("/syncClusterConfig", nil)
+func (n *node) requestClusterConfig(ctx context.Context) (*pb.Cluster, error) {
+	resp, err := n.client.RequestWithContext(ctx, "/syncClusterConfig", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -95,12 +97,12 @@ func (n *node) requestClusterConfig() (*pb.Cluster, error) {
 	return clusterCfg, nil
 }
 
-func (n *node) requestSlotInfo(req *SlotInfoReportRequest) (*SlotInfoReportResponse, error) {
+func (n *node) requestSlotInfo(ctx context.Context, req *SlotInfoReportRequest) (*SlotInfoReportResponse, error) {
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := n.client.Request("/slotInfos", data)
+	resp, err := n.client.RequestWithContext(ctx, "/slot/infos", data)
 	if err != nil {
 		return nil, err
 	}
@@ -113,23 +115,34 @@ func (n *node) requestSlotInfo(req *SlotInfoReportRequest) (*SlotInfoReportRespo
 	return slotInfoResponse, nil
 }
 
-func (n *node) sendSyncNotify(req *replica.SyncNotify) error {
+func (n *node) sendSlotSyncNotify(req *replica.SyncNotify) error {
 	data, err := req.Marshal()
 	if err != nil {
 		return err
 	}
 	return n.client.Send(&proto.Message{
-		MsgType: MessageTypeLogSyncNotify.Uint32(),
+		MsgType: MessageTypeSlotLogSyncNotify.Uint32(),
 		Content: data,
 	})
 }
 
-func (n *node) requestSyncLog(r *replica.SyncReq) (*replica.SyncRsp, error) {
+func (n *node) sendChannelSyncNotify(req *replica.SyncNotify) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	return n.client.Send(&proto.Message{
+		MsgType: MessageTypeChannelLogSyncNotify.Uint32(),
+		Content: data,
+	})
+}
+
+func (n *node) requestSlotSyncLog(ctx context.Context, r *replica.SyncReq) (*replica.SyncRsp, error) {
 	data, err := r.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := n.client.Request("/syncLog", data)
+	resp, err := n.client.RequestWithContext(ctx, "/slot/syncLog", data)
 	if err != nil {
 		return nil, err
 	}
@@ -142,12 +155,30 @@ func (n *node) requestSyncLog(r *replica.SyncReq) (*replica.SyncRsp, error) {
 
 }
 
-func (n *node) requestAppendLog(req *AppendLogRequest) error {
+func (n *node) requestChannelSyncLog(ctx context.Context, r *replica.SyncReq) (*replica.SyncRsp, error) {
+	data, err := r.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := n.client.RequestWithContext(ctx, "/channel/syncLog", data)
+	if err != nil {
+		return nil, err
+	}
+	syncResp := &replica.SyncRsp{}
+	err = syncResp.Unmarshal(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return syncResp, nil
+
+}
+
+func (n *node) requestSlotPropse(ctx context.Context, req *ProposeRequest) error {
 	data, err := req.Marshal()
 	if err != nil {
 		return err
 	}
-	_, err = n.client.Request("/appendLog", data)
+	_, err = n.client.RequestWithContext(ctx, "/slot/propose", data)
 	if err != nil {
 		return err
 	}

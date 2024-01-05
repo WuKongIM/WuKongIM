@@ -140,7 +140,7 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 					req := &SlotInfoReportRequest{
 						SlotIDs: slotIDs,
 					}
-					resp, err := s.nodeManager.requestSlotInfo(nID, req)
+					resp, err := s.nodeManager.requestSlotInfo(s.cancelCtx, nID, req)
 					if err != nil {
 						return err
 					}
@@ -158,7 +158,30 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 	}
 	cancel()
 
+	if len(slotInfoReportResps) == 0 {
+		return
+	}
+
 	// 收集slot信息
+	nodeSlotLogIndexMap := s.convertSlotInfoReportRespsToNodeSlotMap(slotInfoReportResps)
+
+	// 获取slot的领导者
+	slotLeaderMap := s.getSlotLeaderByNodeSlotMap(nodeSlotLogIndexMap, slotEvent.SlotIDs)
+
+	if len(slotLeaderMap) == 0 {
+		return
+	}
+
+	for slotID, leaderNodeID := range slotLeaderMap {
+		s.Debug("slot选举", zap.Uint32("slotID", slotID), zap.Uint64("leaderNodeID", leaderNodeID))
+		s.clusterEventManager.UpdateSlotLeaderNoSave(slotID, leaderNodeID)
+	}
+	s.clusterEventManager.SaveAndVersionInc()
+
+}
+
+// 将slotInfoReportResps转换成 各个节点的slot对应的logIndex
+func (s *Server) convertSlotInfoReportRespsToNodeSlotMap(slotInfoReportResps []*SlotInfoReportResponse) map[uint64]map[uint32]uint64 {
 	nodeSlotMap := map[uint64]map[uint32]uint64{} // nodeID -> slotID -> logIndex
 	for _, slotInfoReportResp := range slotInfoReportResps {
 		slotLogMap := nodeSlotMap[slotInfoReportResp.NodeID]
@@ -174,43 +197,34 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 			nodeSlotMap[slotInfoReportResp.NodeID] = slotLogMap
 		}
 	}
+	return nodeSlotMap
+}
 
-	// 决策slot的领导者
-	configChange := false
-	for _, slotID := range slotEvent.SlotIDs {
-		slot := s.clusterEventManager.GetSlot(slotID)
-		if slot != nil {
-			// 计算slot的领导者
-			leaderNodeID := uint64(0)
-			var leaderLogIndex uint64
-			for _, replicaNodeID := range slot.Replicas {
-				slotLogMap := nodeSlotMap[replicaNodeID]
-				if slotLogMap != nil {
-					logIndex, ok := slotLogMap[slotID]
-					if ok {
-						if leaderNodeID == 0 {
-							leaderNodeID = replicaNodeID
-							leaderLogIndex = logIndex
-						} else {
-							if leaderLogIndex < logIndex {
-								leaderNodeID = replicaNodeID
-								leaderLogIndex = logIndex
-							}
-						}
+// 根据nodeSlotLogIndexMap信息分析出，指定的sslotIDs的领导者
+func (s *Server) getSlotLeaderByNodeSlotMap(nodeSlotLogIndexMap map[uint64]map[uint32]uint64, slotIDs []uint32) map[uint32]uint64 {
+	slotLeaderMap := map[uint32]uint64{}
+	for _, slotID := range slotIDs {
+		leaderNodeID := uint64(0)
+		var leaderLogIndex uint64
+		for nodeID, slotLogMap := range nodeSlotLogIndexMap {
+			logIndex, ok := slotLogMap[slotID]
+			if ok {
+				if leaderNodeID == 0 {
+					leaderNodeID = nodeID
+					leaderLogIndex = logIndex
+				} else {
+					if leaderLogIndex < logIndex {
+						leaderNodeID = nodeID
+						leaderLogIndex = logIndex
 					}
 				}
 			}
-			if leaderNodeID != 0 {
-				configChange = true
-				s.Debug("slot选举", zap.Uint32("slotID", slotID), zap.Uint64("leaderNodeID", leaderNodeID))
-				s.clusterEventManager.UpdateSlotLeaderNoSave(slotID, leaderNodeID)
-			}
+		}
+		if leaderNodeID != 0 {
+			slotLeaderMap[slotID] = leaderNodeID
 		}
 	}
-	if configChange {
-		s.clusterEventManager.SaveAndVersionInc()
-	}
-
+	return slotLeaderMap
 }
 
 func (s *Server) getSlotInfosFromLocalNode(slotIDs []uint32) ([]*SlotInfo, error) {
