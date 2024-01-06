@@ -7,7 +7,7 @@ type Options struct {
 	InitNodes         map[uint64]string // 初始节点 例如： key为节点ID value为 ip:port
 	ClusterConfigName string            // 分布式配置文件名字
 	SlotCount         uint32            // 槽数量
-	SlotReplicaCount  uint32            // 槽复制数量
+	SlotReplicaCount  uint16            // 槽副本数量
 	DataDir           string            // 数据存储目录
 	Heartbeat         time.Duration     // 心跳
 }

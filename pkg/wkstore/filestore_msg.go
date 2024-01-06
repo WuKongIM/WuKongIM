@@ -7,20 +7,19 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	lru "github.com/hashicorp/golang-lru/v2"
 )
 
-var segmentCache *lru.Cache[string, *segment]
+// var segmentCache *lru.Cache[string, *segment]
 
-func init() {
-	var err error
-	segmentCache, err = lru.NewWithEvict(100, func(key string, value *segment) {
-		value.release()
-	})
-	if err != nil {
-		panic(err)
-	}
-}
+// func init() {
+// 	var err error
+// 	segmentCache, err = lru.NewWithEvict(100, func(key string, value *segment) {
+// 		value.release()
+// 	})
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// }
 
 type FileStoreForMsg struct {
 	cfg     *StoreConfig
@@ -121,6 +120,9 @@ func (f *FileStoreForMsg) LoadNextRangeMsgs(channelID string, channelType uint8,
 	tp := f.getTopic(channelID, channelType)
 	err := tp.readMessages(startMessageSeq, uint64(limit), func(message Message) error {
 		if endMessageSeq != 0 && message.GetSeq() >= endMessageSeq {
+			return nil
+		}
+		if message.GetSeq() <= startMessageSeq {
 			return nil
 		}
 		messages = append(messages, message)
