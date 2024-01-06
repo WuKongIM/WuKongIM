@@ -29,7 +29,6 @@ func NewSlot(nodeID uint64, slotID uint32, replicaNodeIDs []uint64, lastSyncInfo
 		nodeID,
 		shardNo,
 		replica.WithAppliedIndex(appliedIndex),
-		replica.WithDataDir(dataDir),
 		replica.WithReplicas(replicaNodeIDs),
 		replica.WithLastSyncInfoMap(lastSyncInfoMap),
 		replica.WithTransport(trans),
@@ -58,6 +57,10 @@ func (s *Slot) LastLogIndex() (uint64, error) {
 }
 func (s *Slot) IsLeader() bool {
 	return s.replicaServer.IsLeader()
+}
+
+func (s *Slot) SyncLogs(nodeID uint64, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
+	return s.replicaServer.SyncLogs(nodeID, startLogIndex, limit)
 }
 
 func (s *Slot) SetLeaderID(v uint64) {

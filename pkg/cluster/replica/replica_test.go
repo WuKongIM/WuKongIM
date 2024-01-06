@@ -23,7 +23,7 @@ func TestServerAppendLog(t *testing.T) {
 	trans := &testTransport{
 		serverMap: make(map[uint64]*replica.Replica),
 	}
-	s1 := replica.New(1, shardNo, replica.WithReplicas([]uint64{2, 3}), replica.WithTransport(trans), replica.WithDataDir(path.Join(rootDir, "1")))
+	s1 := replica.New(1, shardNo, replica.WithReplicas([]uint64{2, 3}), replica.WithTransport(trans))
 	trans.leaderServer = s1
 	s1.SetLeaderID(1)
 	// start s1
@@ -31,13 +31,13 @@ func TestServerAppendLog(t *testing.T) {
 	assert.NoError(t, err)
 	defer s1.Stop()
 
-	s2 := replica.New(2, shardNo, replica.WithTransport(trans), replica.WithDataDir(path.Join(rootDir, "2")))
+	s2 := replica.New(2, shardNo, replica.WithTransport(trans))
 	// start s2
 	err = s2.Start()
 	assert.NoError(t, err)
 	defer s2.Stop()
 
-	s3 := replica.New(3, shardNo, replica.WithTransport(trans), replica.WithDataDir(path.Join(rootDir, "3")))
+	s3 := replica.New(3, shardNo, replica.WithTransport(trans))
 	// start s3
 	err = s3.Start()
 	assert.NoError(t, err)
@@ -97,7 +97,7 @@ func TestServerProposeAndApply(t *testing.T) {
 	err := store1.Open()
 	assert.NoError(t, err)
 	defer store1.Close()
-	s1 := replica.New(1, shardNo, replica.WithReplicas([]uint64{2, 3}), replica.WithStorage(store1), replica.WithTransport(trans), replica.WithDataDir(path.Join(rootDir, "1")), replica.WithOnApply(onApply))
+	s1 := replica.New(1, shardNo, replica.WithReplicas([]uint64{2, 3}), replica.WithStorage(store1), replica.WithTransport(trans), replica.WithOnApply(onApply))
 	trans.leaderServer = s1
 	s1.SetLeaderID(1)
 	// start s1
@@ -109,7 +109,7 @@ func TestServerProposeAndApply(t *testing.T) {
 	err = store2.Open()
 	assert.NoError(t, err)
 	defer store2.Close()
-	s2 := replica.New(2, shardNo, replica.WithTransport(trans), replica.WithStorage(store2), replica.WithDataDir(path.Join(rootDir, "2")), replica.WithOnApply(onApply))
+	s2 := replica.New(2, shardNo, replica.WithTransport(trans), replica.WithStorage(store2), replica.WithOnApply(onApply))
 	// start s2
 	err = s2.Start()
 	assert.NoError(t, err)
@@ -119,7 +119,7 @@ func TestServerProposeAndApply(t *testing.T) {
 	err = store3.Open()
 	assert.NoError(t, err)
 	defer store3.Close()
-	s3 := replica.New(3, shardNo, replica.WithTransport(trans), replica.WithStorage(store3), replica.WithDataDir(path.Join(rootDir, "3")), replica.WithOnApply(onApply))
+	s3 := replica.New(3, shardNo, replica.WithTransport(trans), replica.WithStorage(store3), replica.WithOnApply(onApply))
 	// start s3
 	err = s3.Start()
 	assert.NoError(t, err)
@@ -142,7 +142,7 @@ type testTransport struct {
 }
 
 func (t *testTransport) SendSyncNotify(toNodeID uint64, r *replica.SyncNotify) error {
-	t.serverMap[toNodeID].TriggerHandleSyncNotify(r)
+	t.serverMap[toNodeID].TriggerHandleSyncNotify()
 	return nil
 }
 

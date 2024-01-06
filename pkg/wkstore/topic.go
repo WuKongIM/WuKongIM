@@ -29,7 +29,8 @@ type topic struct {
 
 	getSegmentLock sync.RWMutex
 
-	streamCache *lru.Cache[string, *Stream]
+	streamCache  *lru.Cache[string, *Stream]
+	segmentCache *lru.Cache[string, *segment]
 }
 
 func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
@@ -44,13 +45,14 @@ func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
 	}
 
 	t := &topic{
-		name:        name,
-		slot:        slot,
-		cfg:         cfg,
-		topicDir:    topicDir,
-		Log:         wklog.NewWKLog(fmt.Sprintf("%d-topic[%s]", slot, name)),
-		segments:    make([]uint32, 0),
-		streamCache: cache,
+		name:         name,
+		slot:         slot,
+		cfg:          cfg,
+		topicDir:     topicDir,
+		Log:          wklog.NewWKLog(fmt.Sprintf("%d-topic[%s]", slot, name)),
+		segments:     make([]uint32, 0),
+		streamCache:  cache,
+		segmentCache: cfg.segmentCache,
 	}
 	err = os.MkdirAll(t.topicDir, FileDefaultMode)
 	if err != nil {
@@ -242,7 +244,7 @@ func (t *topic) readMessageAt(messageSeq uint32) (Message, error) {
 func (t *topic) roll(m Message) {
 	lastSegment := t.getActiveSegment()
 	if lastSegment != nil {
-		segmentCache.Remove(t.getSegmentCacheKey(t.lastBaseMessageSeq))
+		t.segmentCache.Remove(t.getSegmentCacheKey(t.lastBaseMessageSeq))
 	}
 	t.lastBaseMessageSeq = m.GetSeq()
 	t.segments = append(t.segments, m.GetSeq())
@@ -284,7 +286,7 @@ func (t *topic) getSegment(baseMessageSeq uint32, mode SegmentMode) *segment {
 	t.getSegmentLock.Lock()
 	defer t.getSegmentLock.Unlock()
 	key := t.getSegmentCacheKey(baseMessageSeq)
-	seg, _ := segmentCache.Get(key)
+	seg, _ := t.segmentCache.Get(key)
 	if seg != nil {
 		return seg
 	}
@@ -293,7 +295,7 @@ func (t *topic) getSegment(baseMessageSeq uint32, mode SegmentMode) *segment {
 	if err != nil {
 		panic(err)
 	}
-	segmentCache.Add(key, seg)
+	t.segmentCache.Add(key, seg)
 	return seg
 }
 

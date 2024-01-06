@@ -7,14 +7,14 @@ import (
 // SyncNotify 通知同步，由主节点发起
 type SyncNotify struct {
 	ShardNo  string
-	LogIndex uint64 // 通知同步的日志下标
+	LeaderID uint64
 }
 
 func (s *SyncNotify) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteString(s.ShardNo)
-	enc.WriteUint64(s.LogIndex)
+	enc.WriteUint64(s.LeaderID)
 	return enc.Bytes(), nil
 }
 
@@ -24,7 +24,7 @@ func (s *SyncNotify) Unmarshal(data []byte) error {
 	if s.ShardNo, err = dec.String(); err != nil {
 		return err
 	}
-	if s.LogIndex, err = dec.Uint64(); err != nil {
+	if s.LeaderID, err = dec.Uint64(); err != nil {
 		return err
 	}
 	return nil

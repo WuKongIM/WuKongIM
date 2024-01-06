@@ -202,6 +202,39 @@ func (c *ClusterEventManager) SetNodeConfigVersion(nodeID uint64, configVersion 
 	c.othersNodeConfigVersionMap[nodeID] = configVersion
 }
 
+// GetAllOnlineNode 获取所有在线节点
+func (c *ClusterEventManager) GetAllOnlineNode() []*pb.Node {
+	c.othersNodeConfigVersionMapLock.Lock()
+	defer c.othersNodeConfigVersionMapLock.Unlock()
+	nodes := c.clusterconfig.Nodes
+	if len(nodes) == 0 {
+		return nil
+	}
+	onlineNodes := make([]*pb.Node, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Online {
+			onlineNodes = append(onlineNodes, node)
+		}
+	}
+	return onlineNodes
+}
+
+// NodeIsOnline 节点是否在线
+func (c *ClusterEventManager) NodeIsOnline(nodeID uint64) bool {
+	c.othersNodeConfigVersionMapLock.Lock()
+	defer c.othersNodeConfigVersionMapLock.Unlock()
+	nodes := c.clusterconfig.Nodes
+	if len(nodes) == 0 {
+		return false
+	}
+	for _, node := range nodes {
+		if node.Id == nodeID {
+			return node.Online
+		}
+	}
+	return false
+}
+
 func (c *ClusterEventManager) save() error {
 	configPathTmp := c.getClusterConfigPath() + ".tmp"
 	f, err := os.Create(configPathTmp)

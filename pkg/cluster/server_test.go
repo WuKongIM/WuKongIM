@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/stretchr/testify/assert"
 )
 
+// 测试服务的开启和停止
 func TestServerStartAndStop(t *testing.T) {
 	s := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"))
 	err := s.Start()
@@ -19,6 +21,7 @@ func TestServerStartAndStop(t *testing.T) {
 
 }
 
+// 测试节点领导选举
 func TestServerWaitLeader(t *testing.T) {
 	dataDir1 := path.Join(os.TempDir(), "cluster", "1")
 
@@ -42,6 +45,7 @@ func TestServerWaitLeader(t *testing.T) {
 
 }
 
+// 测试槽的领导选举（两个节点）
 func TestServerSlotLeaderElectionForTwo(t *testing.T) {
 	rootDir := path.Join(os.TempDir(), "cluster")
 	dataDir1 := path.Join(rootDir, "1")
@@ -72,6 +76,7 @@ func TestServerSlotLeaderElectionForTwo(t *testing.T) {
 
 }
 
+// 测试槽的领导选举（三个节点）
 func TestServerSlotLeaderElectionForTree(t *testing.T) {
 	rootDir := path.Join(os.TempDir(), "cluster")
 	dataDir1 := path.Join(rootDir, "1")
@@ -107,6 +112,7 @@ func TestServerSlotLeaderElectionForTree(t *testing.T) {
 
 }
 
+// 测试提案槽数据
 func TestServerSlotPropse(t *testing.T) {
 
 	rootDir := path.Join(os.TempDir(), "cluster")
@@ -150,21 +156,21 @@ func TestServerSlotPropse(t *testing.T) {
 	time.Sleep(time.Millisecond * 200)
 
 	// 验证s1的数据
-	logs, err := s1.GetLogs(1, 1, 1)
+	logs, err := s1.GetSlotLogs(1, 1, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(logs))
 	assert.Equal(t, uint64(1), logs[0].Index)
 	assert.Equal(t, []byte("hello"), logs[0].Data)
 
 	// 验证s2的数据
-	logs, err = s2.GetLogs(1, 1, 1)
+	logs, err = s2.GetSlotLogs(1, 1, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(logs))
 	assert.Equal(t, uint64(1), logs[0].Index)
 	assert.Equal(t, []byte("hello"), logs[0].Data)
 
 	// 验证s3的数据
-	logs, err = s3.GetLogs(1, 1, 1)
+	logs, err = s3.GetSlotLogs(1, 1, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(logs))
 	assert.Equal(t, uint64(1), logs[0].Index)
@@ -174,7 +180,8 @@ func TestServerSlotPropse(t *testing.T) {
 
 }
 
-func TestServerProposeChannelInfo(t *testing.T) {
+// 测试提案频道集群数据
+func TestServerProposeChanneClusterlInfo(t *testing.T) {
 	rootDir := path.Join(os.TempDir(), "cluster")
 	dataDir1 := path.Join(rootDir, "1")
 
@@ -204,7 +211,7 @@ func TestServerProposeChannelInfo(t *testing.T) {
 	channelID := "test"
 	var channelType uint8 = 2
 
-	err = s2.ProposeChannelInfo(&cluster.ChannelInfo{
+	err = s2.ProposeChannelClusterInfo(&cluster.ChannelClusterInfo{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		LeaderID:    1,
@@ -215,7 +222,7 @@ func TestServerProposeChannelInfo(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	// 验证s1的数据
-	channelInfo, err := s1.GetChannelInfo(channelID, channelType)
+	channelInfo, err := s1.GetChannelClusterInfo(channelID, channelType)
 	assert.NoError(t, err)
 
 	assert.Equal(t, channelID, channelInfo.ChannelID)
@@ -224,7 +231,7 @@ func TestServerProposeChannelInfo(t *testing.T) {
 	assert.Equal(t, []uint64{2, 3}, channelInfo.Replicas)
 
 	// 验证s2的数据
-	channelInfo, err = s2.GetChannelInfo(channelID, channelType)
+	channelInfo, err = s2.GetChannelClusterInfo(channelID, channelType)
 	assert.NoError(t, err)
 
 	assert.Equal(t, channelID, channelInfo.ChannelID)
@@ -232,4 +239,145 @@ func TestServerProposeChannelInfo(t *testing.T) {
 	assert.Equal(t, uint64(1), channelInfo.LeaderID)
 	assert.Equal(t, []uint64{2, 3}, channelInfo.Replicas)
 
+}
+
+// 测试提案频道数据
+func TestServerProposeDataToChannel(t *testing.T) {
+	rootDir := path.Join(os.TempDir(), "cluster")
+	dataDir1 := path.Join(rootDir, "1")
+
+	initNodes := map[uint64]string{
+		1: "127.0.0.1:10001",
+		2: "127.0.0.1:10002",
+	}
+	var slotCount uint32 = 10
+	fmt.Println("dataDir1-2-->", rootDir)
+	// defer os.RemoveAll(rootDir)
+	s1 := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir1))
+	err := s1.Start()
+	assert.NoError(t, err)
+	defer s1.Stop()
+
+	dataDir2 := path.Join(rootDir, "2")
+	s2 := cluster.NewServer(2, cluster.WithListenAddr("127.0.0.1:10002"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir2))
+	err = s2.Start()
+	assert.NoError(t, err)
+	defer s2.Stop()
+
+	s1.MustWaitAllSlotLeaderReady(time.Second * 20) // 等待所有slot都选出领导
+	s2.MustWaitAllSlotLeaderReady(time.Second * 20) // 等待所有slot都选出领导
+
+	channelID := "test"
+	var channelType uint8 = 2
+
+	err = s2.ProposeMetaToChannel(channelID, channelType, []byte("hello"))
+	assert.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 100)
+
+	// 验证s1的数据
+	logs, err := s1.GetChannelLogs(channelID, channelType, 1, 1)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, []byte("hello"), logs[0].Data)
+
+	// 验证s2的数据
+	logs, err = s2.GetChannelLogs(channelID, channelType, 1, 1)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, []byte("hello"), logs[0].Data)
+
+	fmt.Println("stop.............")
+}
+
+// 测试提案消息到频道
+func TestServerProposeMessageToChannel(t *testing.T) {
+	rootDir := path.Join(os.TempDir(), "cluster")
+	dataDir1 := path.Join(rootDir, "1")
+
+	initNodes := map[uint64]string{
+		1: "127.0.0.1:10001",
+		2: "127.0.0.1:10002",
+	}
+	var slotCount uint32 = 10
+	fmt.Println("dataDir1-2-->", rootDir)
+
+	decodeMessageFnc := func(msg []byte) (wkstore.Message, error) {
+		tm := &testMessage{}
+		err := tm.Decode(msg)
+		return tm, err
+	}
+	// defer os.RemoveAll(rootDir)
+	s1 := cluster.NewServer(
+		1,
+		cluster.WithListenAddr("127.0.0.1:10001"),
+		cluster.WithDecodeMessageFnc(decodeMessageFnc),
+		cluster.WithSlotCount(slotCount),
+		cluster.WithHeartbeat(time.Millisecond*100),
+		cluster.WithInitNodes(initNodes),
+		cluster.WithDataDir(dataDir1),
+	)
+	err := s1.Start()
+	assert.NoError(t, err)
+	defer s1.Stop()
+
+	dataDir2 := path.Join(rootDir, "2")
+	s2 := cluster.NewServer(
+		2,
+		cluster.WithListenAddr("127.0.0.1:10002"),
+		cluster.WithDecodeMessageFnc(decodeMessageFnc),
+		cluster.WithSlotCount(slotCount),
+		cluster.WithHeartbeat(time.Millisecond*100),
+		cluster.WithInitNodes(initNodes),
+		cluster.WithDataDir(dataDir2),
+	)
+	err = s2.Start()
+	assert.NoError(t, err)
+	defer s2.Stop()
+
+	s1.MustWaitAllSlotLeaderReady(time.Second * 20) // 等待所有slot都选出领导
+	s2.MustWaitAllSlotLeaderReady(time.Second * 20) // 等待所有slot都选出领导
+
+	channelID := "test"
+	var channelType uint8 = 2
+
+	testMsg := &testMessage{
+		data: []byte("hello"),
+	}
+	err = s2.ProposeMessageToChannel(channelID, channelType, testMsg.Encode())
+	assert.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 100)
+
+	messages, err := s1.LoadLastMsgs(channelID, channelType, 10)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, len(messages))
+	assert.Equal(t, []byte("hello"), messages[0].(*testMessage).data)
+
+}
+
+type testMessage struct {
+	seq  uint32
+	data []byte
+}
+
+func (t *testMessage) GetMessageID() int64 {
+	return 0
+}
+func (t *testMessage) SetSeq(seq uint32) {
+	t.seq = seq
+}
+func (t *testMessage) GetSeq() uint32 {
+	return t.seq
+}
+func (t *testMessage) Encode() []byte {
+	return wkstore.EncodeMessage(t.seq, t.data)
+}
+func (t *testMessage) Decode(msg []byte) error {
+	var err error
+	t.seq, t.data, err = wkstore.DecodeMessage(msg)
+	return err
 }

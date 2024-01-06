@@ -9,7 +9,7 @@ import (
 
 type Replica struct {
 	notifyChan chan struct{}
-	syncChan   chan *SyncNotify
+	syncChan   chan struct{}
 
 	rawReplica *RawReplica
 	stopper    *syncutil.Stopper
@@ -18,7 +18,7 @@ type Replica struct {
 func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 	return &Replica{
 		notifyChan: make(chan struct{}, 100),
-		syncChan:   make(chan *SyncNotify, 100),
+		syncChan:   make(chan struct{}, 100),
 		rawReplica: NewRawReplica(nodeID, shardNo, optList...),
 		stopper:    syncutil.NewStopper(),
 	}
@@ -65,9 +65,9 @@ func (r *Replica) AppendLog(lg Log) error {
 	return nil
 }
 
-func (r *Replica) TriggerHandleSyncNotify(req *SyncNotify) {
+func (r *Replica) TriggerHandleSyncNotify() {
 	select {
-	case r.syncChan <- req:
+	case r.syncChan <- struct{}{}:
 	case <-r.stopper.ShouldStop():
 		return
 	}

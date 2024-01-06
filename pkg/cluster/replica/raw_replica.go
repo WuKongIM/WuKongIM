@@ -25,7 +25,9 @@ type RawReplica struct {
 	lastSyncInfoMap map[uint64]*SyncInfo // 副本日志信息
 	// lastSyncLogTimeMap  map[uint64]time.Time   // 副本最后一次来同步日志的时间
 
-	proposeLock sync.Mutex
+	proposeLock     sync.Mutex
+	commitLock      sync.Mutex
+	requestSyncLock sync.Mutex
 
 	lastLogIndex atomic.Uint64 // 最后一条日志下标
 }
@@ -69,6 +71,10 @@ func NewRawReplica(nodeID uint64, shardNo string, optList ...Option) *RawReplica
 
 func (r *RawReplica) IsLeader() bool {
 	return r.opts.NodeID == r.leaderID.Load()
+}
+
+func (r *RawReplica) LeaderID() uint64 {
+	return r.leaderID.Load()
 }
 
 func (r *RawReplica) ProposeOnlyLocal(data []byte) error {
@@ -142,11 +148,14 @@ func (r *RawReplica) SetReplicas(replicas []uint64) {
 // 检查并提交日志
 func (r *RawReplica) CheckAndCommitLogs() error {
 
+	r.commitLock.Lock()
+	defer r.commitLock.Unlock()
+
 	lastLogIndex := r.lastLogIndex.Load()
 	if r.committedIndex.Load() >= lastLogIndex {
 		return nil
 	}
-
+	r.Debug("check and commit logs", zap.Uint64("committedIndex", r.committedIndex.Load()), zap.Uint64("lastLogIndex", lastLogIndex))
 	logs, err := r.GetLogs(r.committedIndex.Load()+1, r.opts.CommitLimit)
 	if err != nil {
 		return err
@@ -180,8 +189,8 @@ func (r *RawReplica) appendLog(lg Log) error {
 	return nil
 }
 
-// 按需要触发同步请求
-func (r *RawReplica) TriggerSendNotifySyncIfNeed() {
+// 按需要触发同步请求，返回需要通知的副本
+func (r *RawReplica) TriggerSendNotifySyncIfNeed() []uint64 {
 	needNotifies := make([]uint64, 0, len(r.opts.Replicas))
 	lastLogIndex := r.lastLogIndex.Load()
 
@@ -199,7 +208,7 @@ func (r *RawReplica) TriggerSendNotifySyncIfNeed() {
 	if len(needNotifies) > 0 {
 		_, _ = r.SendNotifySync(needNotifies)
 	}
-
+	return needNotifies
 }
 
 func (r *RawReplica) SendNotifySyncToAll() (bool, error) {
@@ -208,52 +217,69 @@ func (r *RawReplica) SendNotifySyncToAll() (bool, error) {
 }
 
 func (r *RawReplica) SendNotifySync(replicas []uint64) (bool, error) {
-	lastLogIndex, err := r.LastIndex()
 	existErr := false
-	if err != nil {
-		r.Error("get last log index failed", zap.Error(err))
-		return true, err
-	} else {
-		for _, replicaNodeID := range replicas {
-			if r.opts.NodeID == replicaNodeID {
-				continue
-			}
-			err = r.opts.Transport.SendSyncNotify(replicaNodeID, &SyncNotify{
-				ShardNo:  r.opts.ShardNo,
-				LogIndex: lastLogIndex,
-			})
-			if err != nil {
-				existErr = true
-				r.Warn("send syncNotify failed", zap.Error(err), zap.Uint64("replicaNodeID", replicaNodeID), zap.String("shardNo", r.opts.ShardNo))
-			}
+	for _, replicaNodeID := range replicas {
+		if r.opts.NodeID == replicaNodeID {
+			continue
+		}
+		err := r.opts.Transport.SendSyncNotify(replicaNodeID, &SyncNotify{
+			ShardNo:  r.opts.ShardNo,
+			LeaderID: r.LeaderID(),
+		})
+		if err != nil {
+			existErr = true
+			r.Warn("send syncNotify failed", zap.Error(err), zap.Uint64("replicaNodeID", replicaNodeID), zap.String("shardNo", r.opts.ShardNo))
 		}
 	}
-
 	return existErr, nil
 }
 
 // 同步领导节点日志并根据需要通知领导已同步至最新
-func (r *RawReplica) RequestSyncLogsAndNotifyLeaderIfNeed() {
-	count, err := r.RequestSyncLogs()
+func (r *RawReplica) RequestSyncLogsAndNotifyLeaderIfNeed() (int, error) {
+	return r.RequestSyncLogsAndNotifyLeaderIfNeedWithLeaderID(r.LeaderID())
+}
+
+// 同步领导节点日志并根据需要通知领导已同步至最新
+func (r *RawReplica) RequestSyncLogsAndNotifyLeaderIfNeedWithLeaderID(leaderID uint64) (int, error) {
+	count, err := r.RequestSyncLogsWithLeaderID(leaderID)
 	if err != nil { // 如果同步报错这里忽略掉，因为领导节点还会继续延迟发送同步通知
-		return
+		return 0, err
 	}
 	// 如果同步到的日志大于0，并小于同步limit的限制，则立马发起再次同步（最后一次同步的主要目的是告诉领导节点我已经达到最新了）
 	// 如果同步到的数量大于等于limit的数量，说明本节点落后日志太多，这里不需要立马去同步了，因为无所谓了，等待主节点的同步通知即可（如果落后太多还一直去同步的话如果这种节点很多的话会导致占用大量带宽和cpu）
 	// 落后太多就动态领导节点主动发起同步通知，再去同步
 	if count > 0 && count < int(r.opts.SyncLimit) {
-		_, _ = r.RequestSyncLogs() // 这次请求的主要目的，告诉领导我已经同步完最新日志
+		count, err = r.RequestSyncLogsWithLeaderID(leaderID) // 这次请求的主要目的，告诉领导我已经同步完最新日志
+		if err != nil {
+			return 0, err
+		}
 	}
+	return count, nil
 }
 
 // 请求同步日志
 func (r *RawReplica) RequestSyncLogs() (int, error) {
+	return r.RequestSyncLogsWithLeaderID(r.LeaderID())
+}
+
+// 请求同步日志
+func (r *RawReplica) RequestSyncLogsWithLeaderID(leaderID uint64) (int, error) {
+
+	r.requestSyncLock.Lock()
+	defer r.requestSyncLock.Unlock()
+
 	lastIdx, err := r.LastIndex()
 	if err != nil {
 		r.Error("get last index failed", zap.Error(err))
 		return 0, err
 	}
-	resp, err := r.opts.Transport.SyncLog(r.leaderID.Load(), &SyncReq{
+	if leaderID == 0 {
+		return 0, errors.New("leaderID is 0")
+	}
+	if leaderID == r.opts.NodeID {
+		return 0, errors.New("leaderID is self")
+	}
+	resp, err := r.opts.Transport.SyncLog(leaderID, &SyncReq{
 		ShardNo:       r.opts.ShardNo,
 		Limit:         r.opts.SyncLimit,
 		StartLogIndex: lastIdx + 1,
@@ -262,7 +288,10 @@ func (r *RawReplica) RequestSyncLogs() (int, error) {
 		r.Error("sync log failed", zap.Error(err))
 		return 0, err
 	}
+	r.Debug("RequestSyncLogsWithLeaderID......", zap.Uint64("StartLogIndex", lastIdx+1), zap.Uint64("leaderID", leaderID))
+
 	for _, lg := range resp.Logs {
+		r.Debug("append log to storage", zap.Uint64("logIndex", lg.Index))
 		err = r.appendLog(lg)
 		if err != nil {
 			r.Panic("append log failed", zap.Error(err))
