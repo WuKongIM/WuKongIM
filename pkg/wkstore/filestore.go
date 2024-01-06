@@ -89,6 +89,10 @@ func (f *FileStore) Open() error {
 
 }
 
+func (f *FileStore) StoreConfig() *StoreConfig {
+	return f.cfg
+}
+
 func (f *FileStore) GetChannel(channelID string, channelType uint8) (*ChannelInfo, error) {
 	slotNum := f.slotNumForChannel(channelID, channelType)
 	value, err := f.get(slotNum, []byte(f.getChannelKey(channelID, channelType)))

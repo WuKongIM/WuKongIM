@@ -160,7 +160,7 @@ func (s *segment) readTargetPosition(startPosition int64, targetMessageSeq uint3
 	}
 	resultOffset, dataLen, err := decodeMessageSeq(s.segmentFile, startPosition)
 	if err != nil {
-		s.Error("DecodeLogOffset is error", zap.Error(err))
+		s.Error("decodeMessageSeq is error", zap.Error(err))
 		return 0, 0, err
 	}
 
