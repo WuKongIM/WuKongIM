@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/gossip"
-	"github.com/WuKongIM/WuKongIM/pkg/wait"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -26,8 +26,8 @@ import (
 )
 
 type Server struct {
-	gossipServer  *gossip.Server // gossip协议服务，主要用于发现新节点
-	opts          *Options
+	gossipServer  *gossip.Server   // gossip协议服务，主要用于发现新节点
+	opts          *Options         // 服务配置
 	nodeManager   *nodeManager     // 节点管理
 	clusterServer *wkserver.Server // 集群通讯服务
 	stopper       syncutil.Stopper
@@ -43,16 +43,16 @@ type Server struct {
 	voteTo    map[uint32]uint64   // 投票情况 key为epoch value为投票给谁的节点
 	votesFrom map[uint32][]uint64 // 投票情况 key为epoch value为投票的节点
 
-	clusterEventManager *clusterevent.ClusterEventManager
+	clusterEventManager *clusterevent.ClusterEventManager // 分布式事件管理者（触发器）
 
-	slotManager    *SlotManager    // slot管理
-	channelManager *ChannelManager // channel管理
-	reqIDGen       *idutil.Generator
-
-	w wait.Wait
+	slotManager    *SlotManager      // slot管理
+	channelManager *ChannelManager   // channel管理
+	reqIDGen       *idutil.Generator // 请求id生成
 
 	cancelFnc context.CancelFunc
 	cancelCtx context.Context
+
+	stateMachine *stateMachine // 状态机
 }
 
 func NewServer(nodeID uint64, optList ...Option) *Server {
@@ -74,10 +74,9 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		votesFrom:     make(map[uint32][]uint64),
 		Log:           wklog.NewWKLog(fmt.Sprintf("cluster.Server[%d]", opts.NodeID)),
 		reqIDGen:      idutil.NewGenerator(uint16(nodeID), time.Now()),
-		w:             wait.New(),
+		stateMachine:  newStateMachine(path.Join(opts.DataDir, "datadb")),
 	}
 	s.slotManager = NewSlotManager(s)
-	s.channelManager = NewChannelManager(s)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	wklog.Configure(&wklog.Options{
 		Level: zapcore.Level(opts.LogLevel),
@@ -122,7 +121,7 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 	clusterEventOpts.Heartbeat = opts.Heartbeat
 	s.clusterEventManager = clusterevent.NewClusterEventManager(clusterEventOpts)
 
-	if s.clusterEventManager.GetClusterConfig() != nil && len(s.clusterEventManager.GetSlots()) > 0 {
+	if len(s.clusterEventManager.GetSlots()) > 0 {
 		for _, st := range s.clusterEventManager.GetSlots() {
 			slot, err := s.newSlot(st)
 			if err != nil {
@@ -132,6 +131,7 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		}
 		s.clusterEventManager.SetSlotIsInit(true)
 	}
+	s.channelManager = NewChannelManager(s)
 
 	return s
 }
@@ -141,7 +141,17 @@ func (s *Server) Start() error {
 	s.stopper.RunWorker(s.loopTick)
 	s.stopper.RunWorker(s.loopClusterEvent)
 
-	err := s.slotManager.Start()
+	err := s.stateMachine.open()
+	if err != nil {
+		return err
+	}
+
+	err = s.slotManager.Start()
+	if err != nil {
+		return err
+	}
+
+	err = s.channelManager.Start()
 	if err != nil {
 		return err
 	}
@@ -164,8 +174,10 @@ func (s *Server) Start() error {
 			s.handleVoteResponse(fromNodeID, msg)
 		case MessageTypeSlotLogSyncNotify.Uint32(): // slot日志同步通知
 			s.handleSlotLogSyncNotify(fromNodeID, msg)
-		case MessageTypeChannelLogSyncNotify.Uint32(): // 频道日志同步请求
-			s.handleChannelLogSyncNotify(fromNodeID, msg)
+		case MessageTypeChannelMetaLogSyncNotify.Uint32(): // 频道元数据日志同步请求
+			s.handleChannelMetaLogSyncNotify(fromNodeID, msg)
+		case MessageTypeChannelMessageLogSyncNotify.Uint32(): // 频道消息日志同步请求
+			s.handleChannelMessageLogSyncNotify(fromNodeID, msg)
 
 		}
 	})
@@ -189,26 +201,42 @@ func (s *Server) Stop() {
 
 	s.cancelFnc()
 
-	s.clusterEventManager.Stop()
-
 	s.stopper.Stop()
 
-	s.slotManager.Stop()
+	s.clusterEventManager.Stop()
+
+	s.gossipServer.Stop()
+	s.clusterServer.Stop()
 
 	for _, node := range s.nodeManager.getAllNode() {
 		node.stop()
 	}
-	s.gossipServer.Stop()
-	s.clusterServer.Stop()
+
+	s.stateMachine.close()
+
+	s.slotManager.Stop()
+
+	s.channelManager.Stop()
 
 }
 
-func (s *Server) GetLogs(slotID uint32, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
+func (s *Server) GetSlotLogs(slotID uint32, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
 	slot := s.slotManager.GetSlot(slotID)
 	if slot == nil {
-		return nil, fmt.Errorf("slot[%d] not found", slotID)
+		return nil, fmt.Errorf("GetSlotLogs: slot[%d] not found", slotID)
 	}
 	return slot.GetLogs(startLogIndex, limit)
+}
+
+func (s *Server) GetChannelLogs(channelID string, channelType uint8, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
+	channel, err := s.channelManager.GetChannel(channelID, channelType)
+	if err != nil {
+		return nil, err
+	}
+	if channel == nil {
+		return nil, fmt.Errorf("channel[%s:%d] not found", channelID, channelType)
+	}
+	return channel.GetLogs(startLogIndex, limit)
 }
 
 // 模拟节点在线状态
@@ -296,6 +324,7 @@ func (s *Server) stepMaster() {
 }
 
 func (s *Server) sendPingToAll() {
+	s.clusterEventManager.SetNodeConfigVersion(s.opts.NodeID, s.clusterEventManager.GetClusterConfigVersion())
 	for _, n := range s.nodeManager.getAllNode() {
 		s.stopper.RunWorker(func(nodeID uint64) func() {
 
@@ -303,7 +332,7 @@ func (s *Server) sendPingToAll() {
 				s.Info("发送Ping", zap.Uint64("toNodeID", nodeID))
 				err := s.nodeManager.sendPing(nodeID, &PingRequest{
 					Epoch:                s.currentEpoch.Load(),
-					ClusterConfigVersion: uint32(s.clusterEventManager.GetClusterConfig().Version),
+					ClusterConfigVersion: s.clusterEventManager.GetClusterConfigVersion(),
 				})
 				if err != nil {
 					s.Warn("Send PingRequest cmd failed!", zap.Uint64("toNodeID", nodeID), zap.Error(err))

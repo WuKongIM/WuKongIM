@@ -14,7 +14,7 @@ func (s *Server) loopClusterEvent() {
 	for {
 		select {
 		case clusterEvent := <-s.clusterEventManager.Watch():
-			s.Debug("收到集群事件")
+			s.Debug("收到集群事件", zap.String("clusterEvent", clusterEvent.String()))
 			s.handleClusterEvent(clusterEvent)
 		case <-s.stopper.ShouldStop():
 			return
@@ -53,6 +53,13 @@ func (s *Server) handleClusterConfigVersionChange() {
 	if len(slots) == 0 {
 		return
 	}
+	err := s.addOrUpdateSlots(slots)
+	if err != nil {
+		s.Error("addOrUpdateSlots is failed", zap.Error(err))
+	}
+}
+
+func (s *Server) addOrUpdateSlots(slots []*pb.Slot) error {
 	var err error
 	for _, st := range slots {
 		slot := s.slotManager.GetSlot(st.Id)
@@ -60,13 +67,14 @@ func (s *Server) handleClusterConfigVersionChange() {
 			slot, err = s.newSlot(st)
 			if err != nil {
 				s.Error("slot init failed", zap.Error(err))
-				return
+				return err
 			}
 			s.slotManager.AddSlot(slot)
 		} else {
 			slot.SetLeaderID(st.Leader)
 		}
 	}
+	return nil
 }
 
 // 处理slot初始化
@@ -75,11 +83,16 @@ func (s *Server) handleClusterSlotEventInit(slotEvent *pb.SlotEvent) {
 		return
 	}
 	if !s.clusterEventManager.IsNodeLeader() {
+		s.clusterEventManager.SetSlotIsInit(true)
 		return
 	}
 	for _, st := range slotEvent.Slots {
 		s.clusterEventManager.AddOrUpdateSlotNoSave(st)
 
+	}
+	err := s.addOrUpdateSlots(slotEvent.Slots)
+	if err != nil {
+		s.Error("addOrUpdateSlots is failed", zap.Error(err))
 	}
 	s.clusterEventManager.SaveAndVersionInc()
 	s.clusterEventManager.SetSlotIsInit(true)
@@ -105,7 +118,6 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 					slotNodeMap[replicaNodeID] = append(slotNodeMap[replicaNodeID], slot.Id)
 				}
 			}
-
 		}
 	}
 	if len(slotNodeMap) == 0 {
@@ -114,8 +126,8 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 	}
 
 	// 发送上报slot信息的请求
-	slotInfoReportResps := make([]*SlotInfoReportResponse, 0)
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	slotInfoReportResps := make([]*SlotLogInfoReportResponse, 0)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	requestGroup, ctx := errgroup.WithContext(timeoutCtx)
 
 	for nodeID, slotIDs := range slotNodeMap {
@@ -126,7 +138,7 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 				cancel()
 				return
 			}
-			slotInfoReportResps = append(slotInfoReportResps, &SlotInfoReportResponse{
+			slotInfoReportResps = append(slotInfoReportResps, &SlotLogInfoReportResponse{
 				NodeID:    nodeID,
 				SlotInfos: slotInfos,
 			})
@@ -137,10 +149,10 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 				select {
 				case <-ctx.Done():
 				default:
-					req := &SlotInfoReportRequest{
+					req := &SlotLogInfoReportRequest{
 						SlotIDs: slotIDs,
 					}
-					resp, err := s.nodeManager.requestSlotInfo(s.cancelCtx, nID, req)
+					resp, err := s.nodeManager.requestSlotLogInfo(s.cancelCtx, nID, req)
 					if err != nil {
 						return err
 					}
@@ -152,7 +164,7 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 	}
 
 	if err := requestGroup.Wait(); err != nil {
-		s.Error("requestSlotInfo is failed", zap.Error(err))
+		s.Error("requestSlotLogInfo is failed", zap.Error(err))
 		cancel()
 		return
 	}
@@ -181,7 +193,7 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 }
 
 // 将slotInfoReportResps转换成 各个节点的slot对应的logIndex
-func (s *Server) convertSlotInfoReportRespsToNodeSlotMap(slotInfoReportResps []*SlotInfoReportResponse) map[uint64]map[uint32]uint64 {
+func (s *Server) convertSlotInfoReportRespsToNodeSlotMap(slotInfoReportResps []*SlotLogInfoReportResponse) map[uint64]map[uint32]uint64 {
 	nodeSlotMap := map[uint64]map[uint32]uint64{} // nodeID -> slotID -> logIndex
 	for _, slotInfoReportResp := range slotInfoReportResps {
 		slotLogMap := nodeSlotMap[slotInfoReportResp.NodeID]

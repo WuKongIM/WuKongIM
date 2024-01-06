@@ -12,21 +12,19 @@ import (
 
 type SlotManager struct {
 	sync.RWMutex
-	slotMap          map[uint32]*Slot
-	transportSync    *slotTransportSync
-	s                *Server
-	shardLogStorage  *PebbleStorage // 分区日志存储
-	slotStateMachine *slotStateMachine
+	slotMap         map[uint32]*Slot
+	transportSync   *slotTransportSync
+	s               *Server
+	shardLogStorage *PebbleStorage // 分区日志存储
 }
 
 func NewSlotManager(s *Server) *SlotManager {
 
 	return &SlotManager{
-		slotMap:          make(map[uint32]*Slot),
-		s:                s,
-		transportSync:    newSlotTransportSync(s),
-		shardLogStorage:  NewPebbleStorage(path.Join(s.opts.DataDir, "logs")),
-		slotStateMachine: newSlotStateMachine(path.Join(s.opts.DataDir, "slotdb")),
+		slotMap:         make(map[uint32]*Slot),
+		s:               s,
+		transportSync:   newSlotTransportSync(s),
+		shardLogStorage: NewPebbleStorage(path.Join(s.opts.DataDir, "slotlogdb")),
 	}
 }
 
@@ -64,18 +62,18 @@ func (s *SlotManager) NewSlot(slot *pb.Slot) (*Slot, error) {
 	if err != nil {
 		return nil, err
 	}
-	syncInfos, err := s.slotStateMachine.getSlotSyncInfos(slot.Id)
-	if err != nil {
-		return nil, err
-	}
 
 	lastSyncInfoMap := make(map[uint64]replica.SyncInfo)
-
-	for _, syncInfo := range syncInfos {
-		lastSyncInfoMap[syncInfo.NodeID] = *syncInfo
+	if slot.Leader == s.s.opts.NodeID {
+		syncInfos, err := s.s.stateMachine.getSlotSyncInfos(slot.Id)
+		if err != nil {
+			return nil, err
+		}
+		for _, syncInfo := range syncInfos {
+			lastSyncInfoMap[syncInfo.NodeID] = *syncInfo
+		}
 	}
-
-	st := NewSlot(s.s.opts.NodeID, slot.Id, slot.Replicas, lastSyncInfoMap, appliedIndex, path.Join(s.s.opts.DataDir, "slots", strconv.FormatUint(uint64(slot.Id), 10)), s.transportSync, s.shardLogStorage, s.handleApplyLog(slot.Id, nil))
+	st := NewSlot(s.s.opts.NodeID, slot.Id, slot.Replicas, lastSyncInfoMap, appliedIndex, path.Join(s.s.opts.DataDir, "slots", strconv.FormatUint(uint64(slot.Id), 10)), s.transportSync, s.shardLogStorage, s.handleApplyLog(slot.Id))
 	st.replicaServer.SetLeaderID(slot.Leader)
 	err = st.Start()
 	return st, err
@@ -86,7 +84,6 @@ func (s *SlotManager) Start() error {
 	if err != nil {
 		return err
 	}
-	err = s.slotStateMachine.open()
 	return err
 }
 
@@ -95,15 +92,15 @@ func (s *SlotManager) Stop() {
 		v.Stop()
 	}
 	s.shardLogStorage.Close()
-	s.slotStateMachine.close()
 }
 
-func (s *SlotManager) handleApplyLog(slotID uint32, logs []replica.Log) func(logs []replica.Log) (uint64, error) {
+func (s *SlotManager) handleApplyLog(slotID uint32) func(logs []replica.Log) (uint64, error) {
 	return func(logs []replica.Log) (uint64, error) {
+		fmt.Println("handleApplyLog.............", slotID, s.s.opts.NodeID)
 		if len(logs) == 0 {
 			return 0, nil
 		}
-		appliedIdx, err := s.slotStateMachine.applyLogs(slotID, logs)
+		appliedIdx, err := s.s.stateMachine.applySlotLogs(slotID, logs)
 		return appliedIdx, err
 	}
 }

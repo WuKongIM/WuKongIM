@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -23,15 +24,16 @@ const (
 type MessageType uint32
 
 const (
-	MessageTypeUnknown                MessageType = iota
-	MessageTypePing                               // master节点发送ping
-	MessageTypeVoteRequest                        // 投票请求
-	MessageTypeVoteResponse                       // 投票返回
-	MessageTypePong                               // pong
-	MessageTypeSlotInfoReportRequest              // slot信息上报请求
-	MessageTypeSlotInfoReportResponse             // slot信息上报返回
-	MessageTypeSlotLogSyncNotify                  // slot日志同步通知
-	MessageTypeChannelLogSyncNotify               // channel日志同步通知
+	MessageTypeUnknown                     MessageType = iota
+	MessageTypePing                                    // master节点发送ping
+	MessageTypeVoteRequest                             // 投票请求
+	MessageTypeVoteResponse                            // 投票返回
+	MessageTypePong                                    // pong
+	MessageTypeSlotInfoReportRequest                   // slot信息上报请求
+	MessageTypeSlotInfoReportResponse                  // slot信息上报返回
+	MessageTypeSlotLogSyncNotify                       // slot日志同步通知
+	MessageTypeChannelMetaLogSyncNotify                // channel元数据日志同步通知
+	MessageTypeChannelMessageLogSyncNotify             // channel消息日志同步通知
 )
 
 func (m MessageType) Uint32() uint32 {
@@ -195,11 +197,11 @@ func (s *SlotAppendLogResponse) Unmarshal(data []byte) error {
 	return nil
 }
 
-type SlotInfoReportRequest struct {
+type SlotLogInfoReportRequest struct {
 	SlotIDs []uint32 // 需要上报的槽id集合
 }
 
-func (s *SlotInfoReportRequest) Marshal() ([]byte, error) {
+func (s *SlotLogInfoReportRequest) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint16(uint16(len(s.SlotIDs)))
@@ -211,7 +213,7 @@ func (s *SlotInfoReportRequest) Marshal() ([]byte, error) {
 	return enc.Bytes(), nil
 }
 
-func (s *SlotInfoReportRequest) Unmarshal(data []byte) error {
+func (s *SlotLogInfoReportRequest) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var slotIDCount uint16
 	var err error
@@ -229,12 +231,12 @@ func (s *SlotInfoReportRequest) Unmarshal(data []byte) error {
 	return nil
 }
 
-type SlotInfoReportResponse struct {
+type SlotLogInfoReportResponse struct {
 	NodeID    uint64
 	SlotInfos []*SlotInfo
 }
 
-func (s *SlotInfoReportResponse) Marshal() ([]byte, error) {
+func (s *SlotLogInfoReportResponse) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint64(s.NodeID)
@@ -248,7 +250,7 @@ func (s *SlotInfoReportResponse) Marshal() ([]byte, error) {
 	return enc.Bytes(), nil
 }
 
-func (s *SlotInfoReportResponse) Unmarshal(data []byte) error {
+func (s *SlotLogInfoReportResponse) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var count uint16
 	var err error
@@ -278,17 +280,67 @@ func (s *SlotInfoReportResponse) Unmarshal(data []byte) error {
 	return nil
 }
 
+type ChannelLogInfoReportRequest struct {
+	ChannelID   string
+	ChannelType uint8
+}
+
+func (a *ChannelLogInfoReportRequest) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(a.ChannelID)
+	enc.WriteUint8(a.ChannelType)
+	return enc.Bytes(), nil
+}
+
+func (a *ChannelLogInfoReportRequest) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if a.ChannelID, err = dec.String(); err != nil {
+		return err
+	}
+	if a.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type ChannelLogInfoReportResponse struct {
+	LogIndex        uint64 // 频道元数据日志最新日志下标
+	MessageLogIndex uint64 // 消息日志最新下标
+}
+
+func (a *ChannelLogInfoReportResponse) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(a.LogIndex)
+	enc.WriteUint64(a.MessageLogIndex)
+	return enc.Bytes(), nil
+}
+
+func (a *ChannelLogInfoReportResponse) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if a.LogIndex, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if a.MessageLogIndex, err = dec.Uint64(); err != nil {
+		return err
+	}
+	return nil
+}
+
 type SlotInfo struct {
 	SlotID   uint32
 	LogIndex uint64
 }
 
-type ProposeRequest struct {
+type SlotProposeRequest struct {
 	SlotID uint32 // slotID
 	Data   []byte
 }
 
-func (a *ProposeRequest) Marshal() ([]byte, error) {
+func (a *SlotProposeRequest) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint32(a.SlotID)
@@ -296,7 +348,7 @@ func (a *ProposeRequest) Marshal() ([]byte, error) {
 	return enc.Bytes(), nil
 }
 
-func (a *ProposeRequest) Unmarshal(data []byte) error {
+func (a *SlotProposeRequest) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
 	if a.SlotID, err = dec.Uint32(); err != nil {
@@ -308,17 +360,49 @@ func (a *ProposeRequest) Unmarshal(data []byte) error {
 	return nil
 }
 
-type ChannelInfo struct {
-	ChannelID   string   // 频道id
-	ChannelType uint8    // 频道类型
-	LeaderID    uint64   // 领导节点ID
-	Replicas    []uint64 // 副本节点ID
+type ChannelProposeRequest struct {
+	ChannelID   string // channelID
+	ChannelType uint8
+	Data        []byte
+}
+
+func (a *ChannelProposeRequest) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(a.ChannelID)
+	enc.WriteUint8(a.ChannelType)
+	enc.WriteBytes(a.Data)
+	return enc.Bytes(), nil
+}
+
+func (a *ChannelProposeRequest) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if a.ChannelID, err = dec.String(); err != nil {
+		return err
+	}
+	if a.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	if a.Data, err = dec.BinaryAll(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// 频道分布式信息
+type ChannelClusterInfo struct {
+	ChannelID       string   // 频道id
+	ChannelType     uint8    // 频道类型
+	LeaderID        uint64   // 领导节点ID
+	ReplicaMaxCount uint16   // 副本最大数量
+	Replicas        []uint64 // 副本节点ID
 
 	version uint16 // 数据协议版本
 
 }
 
-func (c *ChannelInfo) Marshal() ([]byte, error) {
+func (c *ChannelClusterInfo) Marshal() ([]byte, error) {
 	c.version = 1
 	enc := wkproto.NewEncoder()
 	defer enc.End()
@@ -326,6 +410,7 @@ func (c *ChannelInfo) Marshal() ([]byte, error) {
 	enc.WriteString(c.ChannelID)
 	enc.WriteUint8(c.ChannelType)
 	enc.WriteUint64(c.LeaderID)
+	enc.WriteUint16(c.ReplicaMaxCount)
 	enc.WriteUint16(uint16(len(c.Replicas)))
 	if len(c.Replicas) > 0 {
 		for _, replica := range c.Replicas {
@@ -335,7 +420,7 @@ func (c *ChannelInfo) Marshal() ([]byte, error) {
 	return enc.Bytes(), nil
 }
 
-func (c *ChannelInfo) Unmarshal(data []byte) error {
+func (c *ChannelClusterInfo) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
 	if c.version, err = dec.Uint16(); err != nil {
@@ -348,6 +433,9 @@ func (c *ChannelInfo) Unmarshal(data []byte) error {
 		return err
 	}
 	if c.LeaderID, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if c.ReplicaMaxCount, err = dec.Uint16(); err != nil {
 		return err
 	}
 	var count uint16
@@ -413,38 +501,31 @@ func (c *CMD) Unmarshal(data []byte) error {
 	return nil
 }
 
-type ReplicaInfo struct {
-	NodeID       uint64 // 节点ID
-	LastLogIndex uint64 // 最后一条日志的索引
-	LastSyncTime uint64 // 最后一次同步时间
-
-	version uint16 // 数据版本
+type channelSyncNotify struct {
+	channel *Channel
+	req     *replica.SyncNotify
 }
 
-func (r *ReplicaInfo) Marshal() ([]byte, error) {
-	r.version = 1
+type ChannelClusterInfoRequest struct {
+	ChannelID   string // channelID
+	ChannelType uint8  // channelType
+}
+
+func (a *ChannelClusterInfoRequest) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint16(r.version)
-	enc.WriteUint64(r.NodeID)
-	enc.WriteUint64(r.LastLogIndex)
-	enc.WriteUint64(r.LastSyncTime)
+	enc.WriteString(a.ChannelID)
+	enc.WriteUint8(a.ChannelType)
 	return enc.Bytes(), nil
 }
 
-func (r *ReplicaInfo) Unmarshal(data []byte) error {
+func (a *ChannelClusterInfoRequest) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if r.version, err = dec.Uint16(); err != nil {
+	if a.ChannelID, err = dec.String(); err != nil {
 		return err
 	}
-	if r.NodeID, err = dec.Uint64(); err != nil {
-		return err
-	}
-	if r.LastLogIndex, err = dec.Uint64(); err != nil {
-		return err
-	}
-	if r.LastSyncTime, err = dec.Uint64(); err != nil {
+	if a.ChannelType, err = dec.Uint8(); err != nil {
 		return err
 	}
 	return nil

@@ -8,7 +8,7 @@ enum ClusterEventType {
 
 enum SlotEventType {
     SlotEventTypeNone = 0;
-    SlotEventTypeInit = 1;
+    SlotEventTypeInit = 1; // 节点领导触发
     SlotEventTypeAdd = 2;
     SlotEventTypeRemove = 3;
     SlotEventTypeElection = 4; // 槽选举

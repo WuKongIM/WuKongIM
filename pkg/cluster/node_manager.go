@@ -70,6 +70,7 @@ func (n *nodeManager) send(nodeID uint64, msg *proto.Message) error {
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
+// 节点领导发送ping给其他节点
 func (n *nodeManager) sendPing(nodeID uint64, req *PingRequest) error {
 	node := n.getNode(nodeID)
 	if node != nil {
@@ -78,6 +79,7 @@ func (n *nodeManager) sendPing(nodeID uint64, req *PingRequest) error {
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
+// 发送投票请求
 func (n *nodeManager) sendVote(nodeID uint64, req *VoteRequest) error {
 	node := n.getNode(nodeID)
 	if node != nil {
@@ -86,6 +88,7 @@ func (n *nodeManager) sendVote(nodeID uint64, req *VoteRequest) error {
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
+// 投票结果返回
 func (n *nodeManager) sendVoteResp(nodeID uint64, req *VoteResponse) error {
 	node := n.getNode(nodeID)
 	if node != nil {
@@ -94,6 +97,7 @@ func (n *nodeManager) sendVoteResp(nodeID uint64, req *VoteResponse) error {
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
+// 回应节点领导的ping
 func (n *nodeManager) sendPong(nodeID uint64, req *PongResponse) error {
 	node := n.getNode(nodeID)
 	if node != nil {
@@ -102,6 +106,7 @@ func (n *nodeManager) sendPong(nodeID uint64, req *PongResponse) error {
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
+// 请求分布式配置
 func (n *nodeManager) requestClusterConfig(ctx context.Context, nodeID uint64) (*pb.Cluster, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
@@ -110,14 +115,25 @@ func (n *nodeManager) requestClusterConfig(ctx context.Context, nodeID uint64) (
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestSlotInfo(ctx context.Context, nodeID uint64, req *SlotInfoReportRequest) (*SlotInfoReportResponse, error) {
+// 请求节点指定的slot的日志信息
+func (n *nodeManager) requestSlotLogInfo(ctx context.Context, nodeID uint64, req *SlotLogInfoReportRequest) (*SlotLogInfoReportResponse, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestSlotInfo(ctx, req)
+		return node.requestSlotLogInfo(ctx, req)
 	}
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
+// 请求节点指定的channel的日志信息
+func (n *nodeManager) requestChannelLogInfo(ctx context.Context, nodeID uint64, req *ChannelLogInfoReportRequest) (*ChannelLogInfoReportResponse, error) {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestChannelLogInfo(ctx, req)
+	}
+	return nil, fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+// 发送slot同步通知
 func (n *nodeManager) sendSlotSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
 	node := n.getNode(nodeID)
 	if node != nil {
@@ -126,14 +142,25 @@ func (n *nodeManager) sendSlotSyncNotify(nodeID uint64, req *replica.SyncNotify)
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) sendChannelSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
+// 发送channel同步通知(元数据)
+func (n *nodeManager) sendChannelMetaLogSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.sendChannelSyncNotify(req)
+		return node.sendChannelMetaLogSyncNotify(req)
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
+// 发送channel同步通知(消息数据)
+func (n *nodeManager) sendChannelMessageLogSyncNotify(nodeID uint64, req *replica.SyncNotify) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.sendChannelMessageLogSyncNotify(req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+// 请求slot同步日志
 func (n *nodeManager) requestSlotSyncLog(ctx context.Context, nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
@@ -142,19 +169,55 @@ func (n *nodeManager) requestSlotSyncLog(ctx context.Context, nodeID uint64, r *
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestChannelSyncLog(ctx context.Context, nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
+// 请求channel同步日志
+func (n *nodeManager) requestChannelMetaSyncLog(ctx context.Context, nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestChannelSyncLog(ctx, r)
+		return node.requestChannelMetaSyncLog(ctx, r)
 	}
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestSlotPropse(ctx context.Context, nodeID uint64, req *ProposeRequest) error {
+func (n *nodeManager) requestChannelMessageSyncLog(ctx context.Context, nodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestChannelMessageSyncLog(ctx, r)
+	}
+	return nil, fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+// 给指定节点发送提案请求
+func (n *nodeManager) requestSlotPropse(ctx context.Context, nodeID uint64, req *SlotProposeRequest) error {
 	node := n.getNode(nodeID)
 	if node != nil {
 		return node.requestSlotPropse(ctx, req)
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 
+}
+
+// 给指定频道发送提案请求
+func (n *nodeManager) requestChannelMetaPropose(ctx context.Context, nodeID uint64, req *ChannelProposeRequest) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestChannelMetaPropse(ctx, req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+func (n *nodeManager) requestChannelMessagePropsoe(ctx context.Context, nodeID uint64, req *ChannelProposeRequest) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestChannelMessagePropse(ctx, req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+// 请求指定频道的集群信息
+func (n *nodeManager) requestChannelClusterInfo(ctx context.Context, nodeID uint64, req *ChannelClusterInfoRequest) (*ChannelClusterInfo, error) {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestChannelClusterInfo(ctx, req)
+	}
+	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }

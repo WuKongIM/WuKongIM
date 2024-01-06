@@ -3,6 +3,7 @@ package cluster
 import (
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -18,8 +19,11 @@ type Options struct {
 
 	OnLeaderChange func(leaderID uint64)
 
-	SlotCount        uint32 // 槽的数量
-	SlotReplicaCount uint32 // 槽的副本数量
+	SlotCount           uint32 // 槽的数量
+	SlotReplicaCount    uint16 // 槽的副本数量(包含领导)
+	ChannelReplicaCount uint16 // 频道副本数量(包含领导)
+
+	DecodeMessageFnc func(msg []byte) (wkstore.Message, error)
 
 	clusterAddr string
 	offsetPort  int
@@ -34,6 +38,7 @@ func NewOptions() *Options {
 		LogLevel:            int8(zapcore.DebugLevel),
 		SlotCount:           256,
 		SlotReplicaCount:    3,
+		ChannelReplicaCount: 3,
 	}
 }
 
@@ -84,5 +89,23 @@ func WithDataDir(dataDir string) Option {
 func WithSlotCount(slotCount uint32) Option {
 	return func(o *Options) {
 		o.SlotCount = slotCount
+	}
+}
+
+func WithSlotReplicaCount(slotReplicaCount uint16) Option {
+	return func(o *Options) {
+		o.SlotReplicaCount = slotReplicaCount
+	}
+}
+
+func WithChannelReplicaCount(channelReplicaCount uint16) Option {
+	return func(o *Options) {
+		o.ChannelReplicaCount = channelReplicaCount
+	}
+}
+
+func WithDecodeMessageFnc(fnc func(msg []byte) (wkstore.Message, error)) Option {
+	return func(o *Options) {
+		o.DecodeMessageFnc = fnc
 	}
 }

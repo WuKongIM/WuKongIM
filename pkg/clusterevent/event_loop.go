@@ -11,7 +11,7 @@ import (
 func (c *ClusterEventManager) loop() {
 	tick := time.NewTicker(c.opts.Heartbeat)
 	updateCount := 0
-	maxCfgCheckCount := 4                                            // 集群配置版本最大检查次数
+	maxCfgCheckCount := 3                                            // 集群配置版本最大检查次数
 	currCfgCheckCount := 0                                           // 当前已检查次数
 	var preClusterConfigVersion uint32 = c.GetClusterConfigVersion() // 上次的配置版本号
 	for {
@@ -130,7 +130,7 @@ func (c *ClusterEventManager) checkSlots() ClusterEvent {
 
 			slots = append(slots, &pb.Slot{
 				Id:           uint32(i),
-				ReplicaCount: c.opts.SlotReplicaCount,
+				ReplicaCount: uint32(c.opts.SlotReplicaCount),
 				Replicas:     replicas,
 				Leader:       initNodes[nodeOffsetIndex].Id,
 			})
