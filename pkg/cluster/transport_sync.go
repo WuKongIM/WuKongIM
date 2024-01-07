@@ -19,7 +19,7 @@ type slotTransportSync struct {
 func newSlotTransportSync(s *Server) *slotTransportSync {
 	return &slotTransportSync{
 		s:   s,
-		Log: wklog.NewWKLog("slotTransportSync"),
+		Log: wklog.NewWKLog(fmt.Sprintf("slotTransportSync[%d]", s.opts.NodeID)),
 	}
 }
 

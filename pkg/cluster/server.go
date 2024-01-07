@@ -63,7 +63,6 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 	}
 	ip, port := splitAddr(opts.ListenAddr)
 	opts.clusterAddr = ip + ":" + strconv.Itoa(port+opts.offsetPort)
-
 	s := &Server{
 		opts:          opts,
 		nodeManager:   newNodeManager(),
@@ -82,18 +81,8 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		Level: zapcore.Level(opts.LogLevel),
 	})
 
-	if strings.TrimSpace(opts.Join) == "" && len(opts.InitNodes) == 0 { // 如果没有加入节点并且也没有初始化节点 说明是单节点，则直接设置自己为master
-		s.leaderID.Store(nodeID)
-		s.becomeLeader()
-	} else {
-		s.becomeFollow(s.currentEpoch.Load())
-	}
-
-	if len(opts.InitNodes) > 0 { // 如果有初始化节点，则加入初始化节点
-		for nodeID, addr := range opts.InitNodes {
-			ip, port := splitAddr(addr)
-			s.addNode(nodeID, ip+":"+strconv.Itoa(port+opts.offsetPort))
-		}
+	if len(opts.InitNodes) == 0 {
+		s.Panic("init nodes is empty")
 	}
 
 	seeds := make([]string, 0)
@@ -132,6 +121,20 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		s.clusterEventManager.SetSlotIsInit(true)
 	}
 	s.channelManager = NewChannelManager(s)
+
+	_, hasSelf := opts.InitNodes[opts.NodeID]                                        // 是否包含自己
+	if strings.TrimSpace(opts.Join) == "" && (len(opts.InitNodes) == 1 && hasSelf) { // 如果没有加入节点并且也没有初始化节点 说明是单节点，则直接设置自己为master
+		s.becomeLeader()
+	} else {
+		s.becomeFollow(s.currentEpoch.Load())
+	}
+
+	if len(opts.InitNodes) > 0 { // 如果有初始化节点，则加入初始化节点
+		for nodeID, addr := range opts.InitNodes {
+			ip, port := splitAddr(addr)
+			s.addNode(nodeID, ip+":"+strconv.Itoa(port+opts.offsetPort))
+		}
+	}
 
 	return s
 }
@@ -194,6 +197,8 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	fmt.Println("start---success....")
+
 	return nil
 }
 
@@ -211,13 +216,16 @@ func (s *Server) Stop() {
 	for _, node := range s.nodeManager.getAllNode() {
 		node.stop()
 	}
-
-	s.stateMachine.close()
-
 	s.slotManager.Stop()
 
 	s.channelManager.Stop()
 
+	s.stateMachine.close()
+
+}
+
+func (s *Server) Options() *Options {
+	return s.opts
 }
 
 func (s *Server) GetSlotLogs(slotID uint32, startLogIndex uint64, limit uint32) ([]replica.Log, error) {

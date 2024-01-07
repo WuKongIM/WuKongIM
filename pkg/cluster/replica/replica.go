@@ -122,7 +122,7 @@ func (r *Replica) loop() {
 				}
 			}
 		toHandleSyncNotify:
-			r.rawReplica.RequestSyncLogsAndNotifyLeaderIfNeed() // 同步日志
+			_, _ = r.rawReplica.RequestSyncLogsAndNotifyLeaderIfNeed() // 同步日志
 
 		case <-tick.C:
 			if r.rawReplica.IsLeader() {
