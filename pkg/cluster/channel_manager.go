@@ -31,7 +31,6 @@ type ChannelManager struct {
 	channelMetaTransportSync    *channelMetaTransportSync    // 元数据同步协议
 	channelMessageTransportSync *channelMessageTransportSync // 消息同步协议
 	pebbleStorage               *PebbleStorage
-	messageStorage              *MessageStorage
 }
 
 func NewChannelManager(s *Server) *ChannelManager {
@@ -44,7 +43,6 @@ func NewChannelManager(s *Server) *ChannelManager {
 		eachOfPopSize:               10,
 		s:                           s,
 		pebbleStorage:               NewPebbleStorage(path.Join(s.opts.DataDir, "channellogdb")),
-		messageStorage:              NewMessageStorage(s.opts.NodeID, path.Join(s.opts.DataDir, "messagedb"), s.clusterEventManager.GetSlotCount(), s.opts.DecodeMessageFnc),
 		channelMetaTransportSync:    newChannelMetaTransportSync(s),
 		channelMessageTransportSync: newChannelMessageTransportSync(s),
 	}
@@ -55,10 +53,6 @@ func (c *ChannelManager) Start() error {
 	if err != nil {
 		return err
 	}
-	err = c.messageStorage.Open()
-	if err != nil {
-		return err
-	}
 	c.stopper.RunWorker(c.loop)
 	return nil
 }
@@ -66,7 +60,6 @@ func (c *ChannelManager) Start() error {
 func (c *ChannelManager) Stop() {
 	c.stopper.Stop()
 	c.pebbleStorage.Close()
-	c.messageStorage.Close()
 
 }
 
@@ -102,7 +95,7 @@ func (c *ChannelManager) GetChannel(channelID string, channelType uint8) (*Chann
 			}
 			if needPropose {
 				c.Debug("提议更新频道集群配置", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Any("clusterInfo", clusterInfo))
-				err = c.s.ProposeChannelClusterInfo(clusterInfo) // 更新集群配置（会通知副本同步）
+				err = c.s.ProposeChannelClusterInfoToSlot(clusterInfo) // 更新集群配置（会通知副本同步）
 				if err != nil {
 					return nil, err
 				}
@@ -194,10 +187,14 @@ func (c *ChannelManager) newChannelByClusterInfo(channelClusterInfo *ChannelClus
 	if err != nil {
 		return nil, err
 	}
-	messageAppliedIndex, err := c.messageStorage.LastIndex(shardNo) // 消息的最新日志下标就是应用下标，因为消息只有日志结构，没有状态机
-	if err != nil {
-		return nil, err
+	var messageAppliedIndex uint64
+	if c.s.opts.MessageLogStorage != nil {
+		messageAppliedIndex, err = c.s.opts.MessageLogStorage.LastIndex(shardNo) // 消息的最新日志下标就是应用下标，因为消息只有日志结构，没有状态机
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	var channelMetaSyncInfos []*replica.SyncInfo
 	var channelMessageSyncInfos []*replica.SyncInfo
 
@@ -215,7 +212,7 @@ func (c *ChannelManager) newChannelByClusterInfo(channelClusterInfo *ChannelClus
 	}
 
 	c.Debug("频道初始化成功", zap.String("channelID", channelClusterInfo.ChannelID), zap.Uint8("channelType", channelClusterInfo.ChannelType), zap.Uint64("leaderID", channelClusterInfo.LeaderID), zap.Uint64s("replicas", channelClusterInfo.Replicas), zap.Uint64("metaAppliedIndex", metaAppliedIndex), zap.Uint64("messageAppliedIndex", messageAppliedIndex))
-	channel := NewChannel(channelClusterInfo, c.s, metaAppliedIndex, messageAppliedIndex, channelMetaSyncInfos, channelMessageSyncInfos, path.Join(c.s.opts.DataDir, "channels", shardNo), c.channelMetaTransportSync, c.channelMessageTransportSync, c.pebbleStorage, c.messageStorage, c.onMetaApply(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType), c.onMessageApply(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType))
+	channel := NewChannel(channelClusterInfo, c.s, metaAppliedIndex, messageAppliedIndex, channelMetaSyncInfos, channelMessageSyncInfos, path.Join(c.s.opts.DataDir, "channels", shardNo), c.channelMetaTransportSync, c.channelMessageTransportSync, c.pebbleStorage, c.s.opts.MessageLogStorage, c.onMetaApply(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType), c.onMessageApply(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType))
 	channel.SetLeaderID(channelClusterInfo.LeaderID)
 	return channel, nil
 }
@@ -402,6 +399,12 @@ func (c *ChannelManager) onMetaApply(channelID string, channelType uint8) func(l
 
 	return func(logs []replica.Log) (uint64, error) {
 		c.Debug("onMetaApply--------------->", zap.Any("logs", logs))
+		if c.s.opts.OnChannelMetaApply != nil {
+			err := c.s.opts.OnChannelMetaApply(channelID, channelType, logs)
+			if err != nil {
+				return 0, err
+			}
+		}
 		return logs[len(logs)-1].Index, nil
 	}
 }

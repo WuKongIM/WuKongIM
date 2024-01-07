@@ -165,9 +165,9 @@ func (s *Server) handleSlotPropose(c *wkserver.Context) {
 		c.WriteErr(errors.New("slot not found"))
 		return
 	}
-	if slot.IsLeader() {
-		s.Error("the node is leader of slot, propose failed", zap.Uint32("slotID", req.SlotID))
-		c.WriteErr(errors.New("the node is leader of slot, propose failed"))
+	if !slot.IsLeader() {
+		s.Error("the node is not leader of slot, propose failed", zap.Uint32("slotID", req.SlotID))
+		c.WriteErr(errors.New("the node is not leader of slot, propose failed"))
 		return
 	}
 	err = slot.Propose(req.Data)

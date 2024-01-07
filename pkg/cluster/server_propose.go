@@ -88,7 +88,7 @@ func (s *Server) ProposeMessageToChannel(channelID string, channelType uint8, da
 }
 
 // 提案频道信息
-func (s *Server) ProposeChannelClusterInfo(channelInfo *ChannelClusterInfo) error {
+func (s *Server) ProposeChannelClusterInfoToSlot(channelInfo *ChannelClusterInfo) error {
 	slotID := s.GetSlotID(channelInfo.ChannelID)
 	channelInfoData, err := channelInfo.Marshal()
 	if err != nil {

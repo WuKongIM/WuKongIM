@@ -3,7 +3,7 @@ package cluster
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -22,8 +22,10 @@ type Options struct {
 	SlotCount           uint32 // 槽的数量
 	SlotReplicaCount    uint16 // 槽的副本数量(包含领导)
 	ChannelReplicaCount uint16 // 频道副本数量(包含领导)
+	// 应用频道元数据日志
+	OnChannelMetaApply func(channelID string, channelType uint8, logs []replica.Log) error
 
-	DecodeMessageFnc func(msg []byte) (wkstore.Message, error)
+	MessageLogStorage IShardLogStorage // 消息日志存储
 
 	clusterAddr string
 	offsetPort  int
@@ -104,8 +106,14 @@ func WithChannelReplicaCount(channelReplicaCount uint16) Option {
 	}
 }
 
-func WithDecodeMessageFnc(fnc func(msg []byte) (wkstore.Message, error)) Option {
+func WithOnChannelMetaApply(fnc func(channelID string, channelType uint8, logs []replica.Log) error) Option {
 	return func(o *Options) {
-		o.DecodeMessageFnc = fnc
+		o.OnChannelMetaApply = fnc
+	}
+}
+
+func WithMessageLogStorage(storage IShardLogStorage) Option {
+	return func(o *Options) {
+		o.MessageLogStorage = storage
 	}
 }
