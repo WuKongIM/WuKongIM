@@ -194,6 +194,10 @@ func (r *RawReplica) TriggerSendNotifySyncIfNeed() []uint64 {
 	needNotifies := make([]uint64, 0, len(r.opts.Replicas))
 	lastLogIndex := r.lastLogIndex.Load()
 
+	if lastLogIndex == 0 { // 领导本身没有日志，不需要通知
+		return needNotifies
+	}
+
 	for _, replicaNodeID := range r.opts.Replicas {
 		if replicaNodeID == r.opts.NodeID {
 			continue

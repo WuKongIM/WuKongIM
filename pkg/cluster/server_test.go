@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -211,7 +211,7 @@ func TestServerProposeChanneClusterlInfo(t *testing.T) {
 	channelID := "test"
 	var channelType uint8 = 2
 
-	err = s2.ProposeChannelClusterInfo(&cluster.ChannelClusterInfo{
+	err = s2.ProposeChannelClusterInfoToSlot(&cluster.ChannelClusterInfo{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		LeaderID:    1,
@@ -304,34 +304,32 @@ func TestServerProposeMessageToChannel(t *testing.T) {
 	var slotCount uint32 = 10
 	fmt.Println("dataDir1-2-->", rootDir)
 
-	decodeMessageFnc := func(msg []byte) (wkstore.Message, error) {
-		tm := &testMessage{}
-		err := tm.Decode(msg)
-		return tm, err
-	}
+	msgLogStorage1 := newTestMessageLogStorage()
+
 	// defer os.RemoveAll(rootDir)
 	s1 := cluster.NewServer(
 		1,
 		cluster.WithListenAddr("127.0.0.1:10001"),
-		cluster.WithDecodeMessageFnc(decodeMessageFnc),
 		cluster.WithSlotCount(slotCount),
 		cluster.WithHeartbeat(time.Millisecond*100),
 		cluster.WithInitNodes(initNodes),
 		cluster.WithDataDir(dataDir1),
+		cluster.WithMessageLogStorage(msgLogStorage1),
 	)
 	err := s1.Start()
 	assert.NoError(t, err)
 	defer s1.Stop()
 
+	msgLogStorage2 := newTestMessageLogStorage()
 	dataDir2 := path.Join(rootDir, "2")
 	s2 := cluster.NewServer(
 		2,
 		cluster.WithListenAddr("127.0.0.1:10002"),
-		cluster.WithDecodeMessageFnc(decodeMessageFnc),
 		cluster.WithSlotCount(slotCount),
 		cluster.WithHeartbeat(time.Millisecond*100),
 		cluster.WithInitNodes(initNodes),
 		cluster.WithDataDir(dataDir2),
+		cluster.WithMessageLogStorage(msgLogStorage2),
 	)
 	err = s2.Start()
 	assert.NoError(t, err)
@@ -343,41 +341,55 @@ func TestServerProposeMessageToChannel(t *testing.T) {
 	channelID := "test"
 	var channelType uint8 = 2
 
-	testMsg := &testMessage{
-		data: []byte("hello"),
-	}
-	err = s2.ProposeMessageToChannel(channelID, channelType, testMsg.Encode())
+	err = s2.ProposeMessageToChannel(channelID, channelType, []byte("hello"))
 	assert.NoError(t, err)
 
 	time.Sleep(time.Millisecond * 100)
 
-	messages, err := s1.LoadLastMsgs(channelID, channelType, 10)
+	logs, err := msgLogStorage1.GetLogs(cluster.GetChannelKey(channelID, channelType), 0, 10)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 1, len(messages))
-	assert.Equal(t, []byte("hello"), messages[0].(*testMessage).data)
+	assert.Equal(t, 1, len(logs))
+	assert.Equal(t, []byte("hello"), logs[0].Data)
 
 }
 
-type testMessage struct {
-	seq  uint32
-	data []byte
+type testMessageLogStorage struct {
+	cacheMap map[string][]replica.Log
 }
 
-func (t *testMessage) GetMessageID() int64 {
-	return 0
+func newTestMessageLogStorage() *testMessageLogStorage {
+	return &testMessageLogStorage{
+		cacheMap: make(map[string][]replica.Log),
+	}
 }
-func (t *testMessage) SetSeq(seq uint32) {
-	t.seq = seq
+
+// AppendLog 追加日志
+func (t *testMessageLogStorage) AppendLog(shardNo string, log replica.Log) error {
+	t.cacheMap[shardNo] = append(t.cacheMap[shardNo], log)
+	return nil
 }
-func (t *testMessage) GetSeq() uint32 {
-	return t.seq
+
+// 获取日志
+func (t *testMessageLogStorage) GetLogs(shardNo string, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
+
+	return t.cacheMap[shardNo][startLogIndex:], nil
 }
-func (t *testMessage) Encode() []byte {
-	return wkstore.EncodeMessage(t.seq, t.data)
+
+// 最后一条日志的索引
+func (t *testMessageLogStorage) LastIndex(shardNo string) (uint64, error) {
+	if t.cacheMap[shardNo] == nil {
+		return 0, nil
+	}
+	return uint64(len(t.cacheMap[shardNo])), nil
 }
-func (t *testMessage) Decode(msg []byte) error {
-	var err error
-	t.seq, t.data, err = wkstore.DecodeMessage(msg)
-	return err
+
+// 获取第一条日志的索引
+func (t *testMessageLogStorage) FirstIndex(shardNo string) (uint64, error) {
+	return 0, nil
+}
+
+// 设置成功被状态机应用的日志索引
+func (t *testMessageLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
+	return nil
 }
