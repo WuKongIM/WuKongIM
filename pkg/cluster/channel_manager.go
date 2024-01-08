@@ -357,9 +357,9 @@ func (c *ChannelManager) handleSyncNotify(ch *Channel, req *replica.SyncNotify) 
 	if ch.hasMetaEvent.Load() {
 		syncCount, err = ch.metaReplica.RequestSyncLogsAndNotifyLeaderIfNeed()
 		if err != nil {
-			c.Warn("副本向领导同步频道元数据日志失败！", zap.Error(err), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
+			c.Warn("副本向领导同步频道元数据日志失败", zap.Error(err), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 		} else if syncCount == 0 {
-			c.Debug("副本已与领导的频道元数据日志一致！", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
+			c.Debug("副本已与领导的频道元数据日志一致", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 			ch.hasMetaEvent.Store(false)
 			if !ch.hasMessageEvent.Load() {
 				c.channelQueue.Remove(ch.channelID, ch.channelType) // 如果频道元数据和消息都已经同步了，那么就从队列中移除
@@ -370,9 +370,9 @@ func (c *ChannelManager) handleSyncNotify(ch *Channel, req *replica.SyncNotify) 
 	if ch.hasMessageEvent.Load() {
 		syncCount, err = ch.messageReplica.RequestSyncLogsAndNotifyLeaderIfNeed()
 		if err != nil {
-			c.Warn("副本向领导同步频道消息数据日志失败！", zap.Error(err), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
+			c.Warn("副本向领导同步频道消息数据日志失败", zap.Error(err), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 		} else if syncCount == 0 {
-			c.Debug("副本已与领导的频道消息数据日志一致！", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
+			c.Debug("副本已与领导的频道消息数据日志一致", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 			ch.hasMessageEvent.Store(false)
 			if !ch.hasMetaEvent.Load() {
 				c.channelQueue.Remove(ch.channelID, ch.channelType) // 如果频道元数据和消息都已经同步了，那么就从队列中移除
@@ -398,7 +398,6 @@ func (c *ChannelManager) triggerHandleSyncNotify(channel *Channel, req *replica.
 func (c *ChannelManager) onMetaApply(channelID string, channelType uint8) func(logs []replica.Log) (uint64, error) {
 
 	return func(logs []replica.Log) (uint64, error) {
-		c.Debug("onMetaApply--------------->", zap.Any("logs", logs))
 		if c.s.opts.OnChannelMetaApply != nil {
 			err := c.s.opts.OnChannelMetaApply(channelID, channelType, logs)
 			if err != nil {
@@ -411,7 +410,6 @@ func (c *ChannelManager) onMetaApply(channelID string, channelType uint8) func(l
 
 func (c *ChannelManager) onMessageApply(channelID string, channelType uint8) func(logs []replica.Log) (uint64, error) {
 	return func(logs []replica.Log) (uint64, error) {
-		fmt.Println("onMessageApply--------------------->", logs[len(logs)-1].Index)
 		return logs[len(logs)-1].Index, nil
 	}
 }

@@ -14,7 +14,7 @@ func (s *Server) loopClusterEvent() {
 	for {
 		select {
 		case clusterEvent := <-s.clusterEventManager.Watch():
-			s.Debug("收到集群事件", zap.String("clusterEvent", clusterEvent.String()))
+			// s.Debug("收到集群事件", zap.String("clusterEvent", clusterEvent.String()))
 			s.handleClusterEvent(clusterEvent)
 		case <-s.stopper.ShouldStop():
 			return

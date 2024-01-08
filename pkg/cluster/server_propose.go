@@ -16,7 +16,7 @@ func (s *Server) ProposeToSlot(slotID uint32, data []byte) error {
 	}
 	if slotLeaderID != s.opts.NodeID {
 		s.Debug("the node is not leader of slot,forward request", zap.Uint32("slotID", slotID), zap.Uint64("leaderID", slotLeaderID), zap.Uint64("nodeID", s.opts.NodeID))
-		return s.nodeManager.requestSlotPropse(s.cancelCtx, slotLeaderID, &SlotProposeRequest{
+		return s.nodeManager.requestSlotPropose(s.cancelCtx, slotLeaderID, &SlotProposeRequest{
 			SlotID: slotID,
 			Data:   data,
 		})
@@ -73,7 +73,7 @@ func (s *Server) ProposeMessageToChannel(channelID string, channelType uint8, da
 	}
 	if channel.LeaderID() != s.opts.NodeID { // 如果当前节点不是领导节点，则转发给领导节点
 		s.Error("ProposeMessageToChannel: the node is not leader of channel,forward request", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("leaderID", channel.LeaderID()))
-		return s.nodeManager.requestChannelMessagePropsoe(s.cancelCtx, channel.LeaderID(), &ChannelProposeRequest{
+		return s.nodeManager.requestChannelMessagePropose(s.cancelCtx, channel.LeaderID(), &ChannelProposeRequest{
 			ChannelID:   channelID,
 			ChannelType: channelType,
 			Data:        data,
@@ -81,6 +81,32 @@ func (s *Server) ProposeMessageToChannel(channelID string, channelType uint8, da
 	}
 	// 提议数据
 	_, err = channel.ProposeMessage(data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) error {
+	s.Debug("ProposeMessagesToChannel", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("dataSize", len(data)))
+	// 获取channel对象
+	channel, err := s.channelManager.GetChannel(channelID, channelType)
+	if err != nil {
+		return err
+	}
+	if channel == nil {
+		return fmt.Errorf("channel[%s:%d] not found", channelID, channelType)
+	}
+	if channel.LeaderID() != s.opts.NodeID { // 如果当前节点不是领导节点，则转发给领导节点
+		s.Error("ProposeMessagesToChannel: the node is not leader of channel,forward request", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("leaderID", channel.LeaderID()))
+		return s.nodeManager.requestChannelMessagesPropose(s.cancelCtx, channel.LeaderID(), &ChannelProposesRequest{
+			ChannelID:   channelID,
+			ChannelType: channelType,
+			Data:        data,
+		})
+	}
+	// 提议数据
+	_, err = channel.ProposeMessages(data)
 	if err != nil {
 		return err
 	}

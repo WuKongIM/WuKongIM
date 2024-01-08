@@ -390,6 +390,52 @@ func (a *ChannelProposeRequest) Unmarshal(data []byte) error {
 	return nil
 }
 
+type ChannelProposesRequest struct {
+	ChannelID   string // channelID
+	ChannelType uint8
+	Data        [][]byte
+}
+
+func (a *ChannelProposesRequest) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(a.ChannelID)
+	enc.WriteUint8(a.ChannelType)
+	enc.WriteUint16(uint16(len(a.Data)))
+	if len(a.Data) > 0 {
+		for _, data := range a.Data {
+			enc.WriteBinary(data)
+		}
+	}
+	return enc.Bytes(), nil
+}
+
+func (a *ChannelProposesRequest) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if a.ChannelID, err = dec.String(); err != nil {
+		return err
+	}
+	if a.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	var count uint16
+	if count, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+	var d []byte
+	for i := 0; i < int(count); i++ {
+		if d, err = dec.Binary(); err != nil {
+			return err
+		}
+		a.Data = append(a.Data, d)
+	}
+	return nil
+}
+
 // 频道分布式信息
 type ChannelClusterInfo struct {
 	ChannelID       string   // 频道id

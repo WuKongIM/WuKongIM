@@ -27,6 +27,8 @@ func (s *Server) setRoutes() {
 	s.clusterServer.Route("/channel/meta/propose", s.handleChannelMetaPropose)
 	// channel远程提案（消息数据）
 	s.clusterServer.Route("/channel/message/propose", s.handleChannelMessagePropose)
+	// channel远程提案（消息数据，批量消息提案）
+	s.clusterServer.Route("/channel/messages/propose", s.handleChannelMessagesPropose)
 	// 同步频道的元数据日志
 	s.clusterServer.Route("/channel/meta/syncLog", s.handleChannelMetaSyncLog)
 	// 同步频道的消息数据日志
@@ -103,7 +105,7 @@ func (s *Server) handleSlotSyncLog(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
-	s.Debug("handleSlotSyncLog................", zap.String("slot", req.ShardNo))
+	s.Debug("副本来同步槽日志", zap.String("slot", req.ShardNo), zap.String("replicaNodeID", c.Conn().UID()), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
 
 	slotID, _ := strconv.ParseUint(req.ShardNo, 10, 32)
 	slot := s.slotManager.GetSlot(uint32(slotID))
@@ -248,6 +250,41 @@ func (s *Server) handleChannelMessagePropose(c *wkserver.Context) {
 	c.WriteOk()
 }
 
+func (s *Server) handleChannelMessagesPropose(c *wkserver.Context) {
+	req := &ChannelProposesRequest{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		c.WriteErr(err)
+		return
+	}
+	s.Debug("收到远程提案消息数据", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+
+	// 获取channel对象
+	channel, err := s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		s.Error("handleChannelMessagePropose: get channel failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.WriteErr(err)
+		return
+	}
+	if channel == nil {
+		s.Error("handleChannelMessagePropose: channel not found", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.WriteErr(fmt.Errorf("channel[%s:%d] not found", req.ChannelID, req.ChannelType))
+		return
+	}
+	if channel.LeaderID() != s.opts.NodeID { // 如果当前节点不是领导节点
+		s.Error("the node is not leader, failed to propose channel", zap.Uint64("nodeID", s.opts.NodeID), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.WriteErr(fmt.Errorf("the node[%d] is not leader", s.opts.NodeID))
+		return
+	}
+	_, err = channel.ProposeMessages(req.Data)
+	if err != nil {
+		s.Error("propose message to channel failed", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteOk()
+}
+
 func (s *Server) handleGetClusterInfo(c *wkserver.Context) {
 	fmt.Println("handleGetClusterinfo..........")
 	req := &ChannelClusterInfoRequest{}
@@ -302,7 +339,7 @@ func (s *Server) handleChannelMetaSyncLog(c *wkserver.Context) {
 	}
 	channelID, channelType := GetChannelFromChannelKey(req.ShardNo)
 
-	s.Debug("sync log......", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
+	s.Debug("副本过来同步频道元数据日志", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
 
 	channel, err := s.channelManager.GetChannel(channelID, channelType)
 	if err != nil {
