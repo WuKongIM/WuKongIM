@@ -45,7 +45,9 @@ func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 // 消息同步
 func (m *MessageAPI) sync(c *wkhttp.Context) {
 	var req syncReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -104,9 +106,10 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 // 同步回执
 func (m *MessageAPI) syncack(c *wkhttp.Context) {
 	var req syncackReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		m.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(errors.New("数据格式有误！"))
+		c.ResponseError(err)
 		return
 	}
 	if err := req.Check(); err != nil {
@@ -186,7 +189,8 @@ func (m *MessageAPI) sendBatch(c *wkhttp.Context) {
 
 func (m *MessageAPI) send(c *wkhttp.Context) {
 	var req MessageSendReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		m.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return

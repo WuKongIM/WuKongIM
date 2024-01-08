@@ -289,7 +289,8 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq, channel *Channe
 
 func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 	var req subscriberRemoveReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
@@ -350,7 +351,8 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 
 func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 	var req blacklistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -445,7 +447,8 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 
 func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 	var req blacklistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -552,7 +555,8 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 
 func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 	var req blacklistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -688,7 +692,8 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 // 添加白名单
 func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 	var req whitelistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -750,7 +755,8 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 }
 func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 	var req whitelistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -822,7 +828,8 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 // 移除白名单
 func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 	var req whitelistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return

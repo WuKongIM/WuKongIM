@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/sendgrid/rest"
 	"go.uber.org/zap"
 )
 
@@ -117,4 +119,20 @@ func parseAddr(addr string) (string, int64) {
 	}
 	portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 	return addrPairs[0], portInt64
+}
+
+func handlerIMError(resp *rest.Response) error {
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest {
+			resultMap, err := wkutil.JSONToMap(resp.Body)
+			if err != nil {
+				return err
+			}
+			if resultMap != nil && resultMap["msg"] != nil {
+				return fmt.Errorf("IM服务失败！ -> %s", resultMap["msg"])
+			}
+		}
+		return fmt.Errorf("IM服务返回状态[%d]失败！", resp.StatusCode)
+	}
+	return nil
 }

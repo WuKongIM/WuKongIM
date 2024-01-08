@@ -69,3 +69,15 @@ func (s *Store) AddSystemUIDs(uids []string) error {
 func (s *Store) RemoveSystemUIDs(uids []string) error {
 	return s.db.RemoveSystemUIDs(uids)
 }
+
+func (s *Store) GetIPBlacklist() ([]string, error) {
+	return s.db.GetIPBlacklist()
+}
+
+func (s *Store) RemoveIPBlacklist(ips []string) error {
+	return s.db.RemoveIPBlacklist(ips)
+}
+
+func (s *Store) AddIPBlacklist(ips []string) error {
+	return s.db.AddIPBlacklist(ips)
+}

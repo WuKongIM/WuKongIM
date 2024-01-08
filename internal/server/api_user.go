@@ -1,11 +1,15 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -42,12 +46,12 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		UID        string `json:"uid"`         // 用户uid
 		DeviceFlag int    `json:"device_flag"` // 设备flag 这里 -1 为用户所有的设备
 	}
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-<<<<<<< HEAD
-=======
 	if u.s.opts.ClusterOn() {
 		leaderInfo, err := u.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
@@ -63,7 +67,6 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		}
 	}
 
->>>>>>> 022fb3e (feat: Replace distribution with implementation of pkg/cluster package)
 	if req.DeviceFlag == -1 {
 		_ = u.quitUserDevice(req.UID, wkproto.APP)
 		_ = u.quitUserDevice(req.UID, wkproto.WEB)
@@ -104,8 +107,6 @@ func (u *UserAPI) getOnlineStatus(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-<<<<<<< HEAD
-=======
 	if len(uids) == 0 {
 		c.ResponseOK()
 		return
@@ -202,7 +203,6 @@ func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*Onlinest
 }
 
 func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
->>>>>>> 022fb3e (feat: Replace distribution with implementation of pkg/cluster package)
 	conns := u.s.connManager.GetOnlineConns(uids)
 
 	onlineStatusResps := make([]*OnlinestatusResp, 0, len(conns))
@@ -213,14 +213,15 @@ func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
 			Online:     1,
 		})
 	}
-
-	c.JSON(http.StatusOK, onlineStatusResps)
+	return onlineStatusResps
 }
 
 // 更新用户的token
 func (u *UserAPI) updateToken(c *wkhttp.Context) {
 	var req UpdateTokenReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}

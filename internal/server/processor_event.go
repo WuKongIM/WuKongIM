@@ -370,7 +370,7 @@ func (p *Processor) OnRecvackPacket(req *rpc.RecvacksReq) error {
 	for _, ack := range ackPackets {
 		if !ack.NoPersist {
 			// 完成消息（移除重试队列里的消息）
-			err := p.s.retryQueue.finishMessage(proxyConn.ID(), ack.MessageID)
+			err := p.s.retryQueue.finishMessage(proxyConn.UID(), proxyConn.DeviceID(), ack.MessageID)
 			if err != nil {
 				p.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", proxyConn.UID()), zap.Int64("clientID", proxyConn.ID()), zap.Uint8("deviceFlag", proxyConn.DeviceFlag()), zap.String("deviceID", proxyConn.DeviceID()), zap.Int64("messageID", ack.MessageID))
 			}
@@ -393,14 +393,14 @@ func (p *Processor) handleLocalSubscribersMessages(messages []*Message, large bo
 	}
 	var err error
 	//########## store messages in user queue ##########
-	var messageSeqMap map[int64]uint32
+	var messageSeqMap map[string]uint32
 	if len(messages) > 0 {
 		messageSeqMap, err = p.storeMessageToUserQueueIfNeed(messages, subscribers, large)
 		if err != nil {
 			return err
 		}
 		for _, message := range messages {
-			message.MessageSeq = messageSeqMap[message.MessageID]
+			message.MessageSeq = messageSeqMap[fmt.Sprintf("%s-%d", message.ToUID, message.MessageID)]
 		}
 	}
 
@@ -425,12 +425,12 @@ func (p *Processor) handleLocalSubscribersMessages(messages []*Message, large bo
 }
 
 // store message to user queue if need
-func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribers []string, large bool) (map[int64]uint32, error) {
+func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribers []string, large bool) (map[string]uint32, error) {
 	if len(messages) == 0 {
 		return nil, nil
 	}
 
-	messageSeqMap := make(map[int64]uint32, len(messages))
+	messageSeqMap := make(map[string]uint32, len(messages))
 
 	for _, subscriber := range subscribers {
 		storeMessages := make([]wkstore.Message, 0, len(messages))
@@ -457,7 +457,7 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 				return nil, err
 			}
 			for _, storeMessage := range storeMessages {
-				messageSeqMap[storeMessage.GetMessageID()] = storeMessage.GetSeq()
+				messageSeqMap[fmt.Sprintf("%s-%d", subscriber, storeMessage.GetMessageID())] = storeMessage.GetSeq()
 			}
 		}
 	}
