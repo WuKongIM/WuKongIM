@@ -201,7 +201,6 @@ func (c *Client) write(data []byte) error {
 }
 
 func (c *Client) sendHeartbeat() {
-	fmt.Println("sendHeartbeat------------------>")
 	err := c.write([]byte{proto.MsgTypeHeartbeat.Uint8()})
 	if err != nil {
 		c.Warn("send heartbeat error", zap.Error(err))
@@ -278,7 +277,6 @@ func (c *Client) handleData(data []byte, msgType proto.MsgType) {
 		}
 		c.w.Trigger(resp.Id, resp)
 	} else if msgType == proto.MsgTypeHeartbeat {
-		c.Debug("heartbeat...")
 	} else if msgType == proto.MsgTypeConnack {
 		connack := &proto.Connack{}
 		err := connack.Unmarshal(data)
