@@ -90,15 +90,16 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
-		if peer == nil {
-			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		if peer.PeerID != s.s.opts.Cluster.PeerID {
-			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -144,15 +145,16 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		peer := s.s.clusterServer.GetLeaderPeer(req.UID) // 随机获取一个频道数据所在的节点
-		if peer == nil {
-			s.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
+		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		if peer.PeerID != s.s.opts.Cluster.PeerID {
-			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -189,6 +191,26 @@ func (s *ConversationAPI) deleteConversation(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+<<<<<<< HEAD
+=======
+
+	if s.s.opts.ClusterOn() {
+		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+
+		if !leaderIsSelf {
+			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+>>>>>>> 022fb3e (feat: Replace distribution with implementation of pkg/cluster package)
 	// 删除最近会话
 	err := s.s.conversationManager.DeleteConversation([]string{req.UID}, req.ChannelID, req.ChannelType)
 	if err != nil {
@@ -217,6 +239,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	// 	msgCount = 100
 	// }
 
+<<<<<<< HEAD
 	channelLastMsgSeqStrList := strings.Split(req.LastMsgSeqs, "|")
 	channelRecentMessageReqs := make([]*channelRecentMessageReq, 0, len(channelLastMsgSeqStrList))
 	channelLastMsgMap := map[string]uint32{} // 频道对应的messageSeq
@@ -224,6 +247,21 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		channelLastMsgSeqs := strings.Split(channelLastMsgSeqStr, ":")
 		if len(channelLastMsgSeqs) != 3 {
 			continue
+=======
+	if s.s.opts.ClusterOn() {
+		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+
+		if !leaderIsSelf {
+			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+>>>>>>> 022fb3e (feat: Replace distribution with implementation of pkg/cluster package)
 		}
 		channelID := channelLastMsgSeqs[0]
 		channelTypeI, _ := strconv.Atoi(channelLastMsgSeqs[1])
@@ -343,6 +381,109 @@ func (s *ConversationAPI) syncRecentMessages(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, channelRecentMessages)
 }
 
+<<<<<<< HEAD
+=======
+func (s *ConversationAPI) getRecentMessagesForCluster(uid string, msgCount int, channels []*channelRecentMessageReq) ([]*channelRecentMessage, error) {
+	if len(channels) == 0 {
+		return nil, nil
+	}
+	channelRecentMessages := make([]*channelRecentMessage, 0)
+	var (
+		err error
+	)
+	localPeerChannelRecentMessageReqs := make([]*channelRecentMessageReq, 0)
+	peerChannelRecentMessageReqsMap := make(map[uint64][]*channelRecentMessageReq)
+	for _, channelRecentMsgReq := range channels {
+		fakeChannelID := channelRecentMsgReq.ChannelID
+		if channelRecentMsgReq.ChannelType == wkproto.ChannelTypePerson {
+			fakeChannelID = GetFakeChannelIDWith(uid, channelRecentMsgReq.ChannelID)
+		}
+		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			s.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
+			return nil, err
+		}
+		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		if leaderIsSelf {
+			localPeerChannelRecentMessageReqs = append(localPeerChannelRecentMessageReqs, channelRecentMsgReq)
+		} else {
+			peerChannelRecentMessageReqs := peerChannelRecentMessageReqsMap[leaderInfo.NodeID]
+			if peerChannelRecentMessageReqs == nil {
+				peerChannelRecentMessageReqs = make([]*channelRecentMessageReq, 0)
+			}
+			peerChannelRecentMessageReqs = append(peerChannelRecentMessageReqs, channelRecentMsgReq)
+			peerChannelRecentMessageReqsMap[leaderInfo.NodeID] = peerChannelRecentMessageReqs
+		}
+
+	}
+
+	// 请求远程的消息列表
+	if len(peerChannelRecentMessageReqsMap) > 0 {
+		var reqErr error
+		wg := &sync.WaitGroup{}
+		for peerID, peerChannelRecentMessageReqs := range peerChannelRecentMessageReqsMap {
+			wg.Add(1)
+			go func(pID uint64, reqs []*channelRecentMessageReq, uidStr string, msgCt int) {
+				results, err := s.requestSyncMessage(pID, reqs, uidStr, msgCt)
+				if err != nil {
+					s.Error("请求同步消息失败！", zap.Error(err))
+					reqErr = err
+				} else {
+					channelRecentMessages = append(channelRecentMessages, results...)
+				}
+				wg.Done()
+			}(peerID, peerChannelRecentMessageReqs, uid, msgCount)
+		}
+		wg.Wait()
+		if reqErr != nil {
+			s.Error("请求同步消息失败！!", zap.Error(err))
+			return nil, reqErr
+		}
+	}
+	// 请求本地的最近消息列表
+	if len(localPeerChannelRecentMessageReqs) > 0 {
+		results, err := s.getRecentMessages(uid, msgCount, localPeerChannelRecentMessageReqs)
+		if err != nil {
+			return nil, err
+		}
+		channelRecentMessages = append(channelRecentMessages, results...)
+	}
+	return channelRecentMessages, nil
+}
+
+func (s *ConversationAPI) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageReq, uid string, msgCount int) ([]*channelRecentMessage, error) {
+
+	nodeInfo, err := s.s.cluster.NodeInfoByID(nodeID) // 获取频道的领导节点
+	if err != nil {
+		s.Error("通过节点ID获取节点失败！", zap.Uint64("nodeID", nodeID))
+		return nil, err
+	}
+	reqURL := fmt.Sprintf("%s/%s", nodeInfo.ApiServerAddr, "conversation/syncMessages")
+	request := rest.Request{
+		Method:  rest.Method("POST"),
+		BaseURL: reqURL,
+		Body: []byte(wkutil.ToJSON(map[string]interface{}{
+			"uid":       uid,
+			"msg_count": msgCount,
+			"channels":  reqs,
+		})),
+	}
+	s.Debug("同步会话消息!", zap.String("apiURL", reqURL), zap.String("uid", uid), zap.Any("channels", reqs))
+	resp, err := rest.API(request)
+	if err != nil {
+		return nil, err
+	}
+	if err := handlerIMError(resp); err != nil {
+		return nil, err
+	}
+	var results []*channelRecentMessage
+	if err := wkutil.ReadJSONByByte([]byte(resp.Body), &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+>>>>>>> 022fb3e (feat: Replace distribution with implementation of pkg/cluster package)
 func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels []*channelRecentMessageReq) ([]*channelRecentMessage, error) {
 	channelRecentMessages := make([]*channelRecentMessage, 0)
 	if len(channels) > 0 {

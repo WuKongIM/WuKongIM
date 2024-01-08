@@ -53,6 +53,22 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	if m.s.opts.ClusterOn() {
+		leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	readedMessageSeq, err := m.s.store.GetMessageOfUserCursor(req.UID) // 获取当前用户已读消息seq
 	if err != nil {
 		c.ResponseError(err)
@@ -68,7 +84,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	}
 	sartSeq = sartSeq + 1 // 从已读消息的下一条开始同步
 
-	messages, err := m.s.store.SyncMessageOfUser(req.UID, sartSeq, req.Limit)
+	messages, err := m.s.store.SyncMessageOfUser(req.UID, sartSeq, uint32(req.Limit))
 	if err != nil {
 		m.Error("同步消息失败！", zap.Error(err))
 		c.ResponseError(err)
@@ -97,7 +113,22 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	err := m.s.store.UpdateMessageOfUserCursorIfNeed(req.UID, req.LastMessageSeq)
+
+	if m.s.opts.ClusterOn() {
+		leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+	err = m.s.store.UpdateMessageOfUserCursorIfNeed(req.UID, req.LastMessageSeq)
 	if err != nil {
 		c.ResponseError(err)
 		return
@@ -175,6 +206,25 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 			m.Error("创建临时频道失败！", zap.Error(err))
 			c.ResponseError(err)
 			return
+		}
+	} else {
+		if m.s.opts.ClusterOn() {
+			fakeChannelID := channelID
+			if channelType == wkproto.ChannelTypePerson {
+				fakeChannelID = GetFakeChannelIDWith(req.FromUID, channelID)
+			}
+			leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+			if err != nil {
+				m.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+			if !leaderIsSelf {
+				m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				return
+			}
 		}
 	}
 	m.Debug("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
@@ -281,7 +331,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			}
 			msg.StreamSeq = streamSeq // stream seq
 		} else {
-			_, err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
+			err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
 			if err != nil {
 				m.Error("Failed to save history message", zap.Error(err))
 				return 0, 0, errors.New("failed to save history message")
@@ -292,7 +342,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if m.s.opts.WebhookOn() {
 		if !msg.StreamIng() && (!msg.NoPersist || !msg.SyncOnce) {
 			// Add a message to the notification queue, the data in this queue will be notified to third-party applications
-			err = m.s.store.fileStorage.AppendMessageOfNotifyQueue(messages)
+			err = m.s.store.AppendMessageOfNotifyQueue(messages)
 			if err != nil {
 				m.Error("添加消息到通知队列失败！", zap.Error(err))
 				return 0, 0, errors.New("添加消息到通知队列失败！")

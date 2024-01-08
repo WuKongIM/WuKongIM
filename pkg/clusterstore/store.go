@@ -42,3 +42,23 @@ func (s *Store) Close() {
 		s.Warn("close message storage err", zap.Error(err))
 	}
 }
+
+func (s *Store) GetPeerInFlightData() ([]*wkstore.PeerInFlightDataModel, error) {
+	return s.db.GetPeerInFlightData()
+}
+
+func (s *Store) ClearPeerInFlightData() error {
+	return s.db.ClearPeerInFlightData()
+}
+
+func (s *Store) AddPeerInFlightData(data []*wkstore.PeerInFlightDataModel) error {
+	return s.db.AddPeerInFlightData(data)
+}
+
+func (s *Store) AddSystemUIDs(uids []string) error {
+	return s.db.AddSystemUIDs(uids)
+}
+
+func (s *Store) RemoveSystemUIDs(uids []string) error {
+	return s.db.RemoveSystemUIDs(uids)
+}

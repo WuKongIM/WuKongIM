@@ -46,6 +46,24 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+<<<<<<< HEAD
+=======
+	if u.s.opts.ClusterOn() {
+		leaderInfo, err := u.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == u.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+>>>>>>> 022fb3e (feat: Replace distribution with implementation of pkg/cluster package)
 	if req.DeviceFlag == -1 {
 		_ = u.quitUserDevice(req.UID, wkproto.APP)
 		_ = u.quitUserDevice(req.UID, wkproto.WEB)
@@ -86,6 +104,105 @@ func (u *UserAPI) getOnlineStatus(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+<<<<<<< HEAD
+=======
+	if len(uids) == 0 {
+		c.ResponseOK()
+		return
+	}
+
+	var conns []*OnlinestatusResp
+	if u.s.opts.ClusterOn() {
+		var err error
+		conns, err = u.getOnlineConnsForCluster(uids)
+		if err != nil {
+			u.Error("获取在线状态失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	} else {
+		conns = u.getOnlineConns(uids)
+	}
+
+	c.JSON(http.StatusOK, conns)
+}
+
+func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, error) {
+	uidInPeerMap := make(map[uint64][]string)
+	localUids := make([]string, 0)
+	for _, uid := range uids {
+		leaderInfo, err := u.s.cluster.LeaderNodeOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return nil, errors.New("获取频道所在节点失败！")
+		}
+		leaderIsSelf := leaderInfo.NodeID == u.s.opts.Cluster.PeerID
+		if leaderIsSelf {
+			localUids = append(localUids, uid)
+			continue
+		}
+		uidList := uidInPeerMap[leaderInfo.NodeID]
+		if uidList == nil {
+			uidList = make([]string, 0)
+		}
+		uidList = append(uidList, uid)
+		uidInPeerMap[leaderInfo.NodeID] = uidList
+	}
+	var conns []*OnlinestatusResp
+	if len(localUids) > 0 {
+		conns = u.getOnlineConns(localUids)
+	}
+	if len(uidInPeerMap) > 0 {
+		var reqErr error
+		wg := &sync.WaitGroup{}
+		for peerID, uidList := range uidInPeerMap {
+			wg.Add(1)
+			go func(pid uint64, uidArr []string) {
+				results, err := u.requestOnlineStatus(pid, uidArr)
+				if err != nil {
+					reqErr = err
+				} else {
+					conns = append(conns, results...)
+				}
+				wg.Done()
+			}(peerID, uidList)
+		}
+		wg.Wait()
+		if reqErr != nil {
+			return nil, reqErr
+		}
+	}
+
+	return conns, nil
+}
+
+func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*OnlinestatusResp, error) {
+
+	nodeInfo, err := u.s.cluster.NodeInfoByID(nodeID) // 获取频道的领导节点
+	if err != nil {
+		u.Error("获取频道所在节点失败！", zap.Uint64("nodeID", nodeID))
+		return nil, errors.New("获取频道所在节点失败！")
+	}
+	reqURL := fmt.Sprintf("%s/user/onlinestatus", nodeInfo.ApiServerAddr)
+	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(uids)), nil)
+	if err != nil {
+		u.Error("获取在线用户状态失败！", zap.Error(err), zap.String("reqURL", reqURL))
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("获取在线用户状态请求状态错误！[%d]", resp.StatusCode)
+	}
+	var onlineStatusResps []*OnlinestatusResp
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &onlineStatusResps)
+	if err != nil {
+		u.Error("解析在线用户uids失败！", zap.Error(err))
+		return nil, err
+	}
+	return onlineStatusResps, nil
+}
+
+func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
+>>>>>>> 022fb3e (feat: Replace distribution with implementation of pkg/cluster package)
 	conns := u.s.connManager.GetOnlineConns(uids)
 
 	onlineStatusResps := make([]*OnlinestatusResp, 0, len(conns))
@@ -111,6 +228,22 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	if u.s.opts.ClusterOn() {
+		leaderInfo, err := u.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == u.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	u.Debug("req", zap.Any("req", req))
 
 	ban := false // 是否被封禁
