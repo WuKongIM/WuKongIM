@@ -240,7 +240,7 @@ func (n *node) requestChannelMessageSyncLog(ctx context.Context, r *replica.Sync
 
 }
 
-func (n *node) requestSlotPropse(ctx context.Context, req *SlotProposeRequest) error {
+func (n *node) requestSlotPropose(ctx context.Context, req *SlotProposeRequest) error {
 	data, err := req.Marshal()
 	if err != nil {
 		return err
@@ -256,7 +256,7 @@ func (n *node) requestSlotPropse(ctx context.Context, req *SlotProposeRequest) e
 
 }
 
-func (n *node) requestChannelMetaPropse(ctx context.Context, req *ChannelProposeRequest) error {
+func (n *node) requestChannelMetaPropose(ctx context.Context, req *ChannelProposeRequest) error {
 	data, err := req.Marshal()
 	if err != nil {
 		return err
@@ -272,7 +272,7 @@ func (n *node) requestChannelMetaPropse(ctx context.Context, req *ChannelPropose
 
 }
 
-func (n *node) requestChannelMessagePropse(ctx context.Context, req *ChannelProposeRequest) error {
+func (n *node) requestChannelMessagePropose(ctx context.Context, req *ChannelProposeRequest) error {
 	data, err := req.Marshal()
 	if err != nil {
 		return err
@@ -283,6 +283,23 @@ func (n *node) requestChannelMessagePropse(ctx context.Context, req *ChannelProp
 	}
 	if resp.Status != proto.Status_OK {
 		return fmt.Errorf("requestChannelMessagePropse is failed, status:%d", resp.Status)
+	}
+	return nil
+
+}
+
+// 批量消息提案
+func (n *node) requestChannelMessagesPropose(ctx context.Context, req *ChannelProposesRequest) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	resp, err := n.client.RequestWithContext(ctx, "/channel/messages/propose", data)
+	if err != nil {
+		return err
+	}
+	if resp.Status != proto.Status_OK {
+		return fmt.Errorf("requestChannelMessagesPropse is failed, status:%d", resp.Status)
 	}
 	return nil
 

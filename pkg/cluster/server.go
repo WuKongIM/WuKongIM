@@ -196,9 +196,6 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("start---success....")
-
 	return nil
 }
 

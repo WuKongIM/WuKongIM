@@ -66,7 +66,6 @@ func NewChannel(channelClusterInfo *ChannelClusterInfo, s *Server, metaAppliedIn
 }
 
 func (c *Channel) ProposeMeta(data []byte) error {
-	c.s.Debug("ProposeToMeta------------->")
 	err := c.metaReplica.ProposeOnlyLocal(data)
 	if err != nil {
 		return err

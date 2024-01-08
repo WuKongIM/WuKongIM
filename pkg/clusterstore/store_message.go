@@ -8,17 +8,54 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *Store) GetMessageShardLogStorage() *MessageShardLogStorage {
-	return s.messageShardLogStorage
-}
+func (s *Store) AppendMessages(channelID string, channelType uint8, msgs []wkstore.Message) error {
+	var msgData [][]byte
+	for _, msg := range msgs {
+		msgData = append(msgData, msg.Encode())
+	}
 
-func (s *Store) AppendMessage(channelID string, channelType uint8, msg wkstore.Message) error {
-	err := s.opts.Cluster.ProposeMessageToChannel(channelID, channelType, msg.Encode())
+	err := s.opts.Cluster.ProposeMessagesToChannel(channelID, channelType, msgData)
 	return err
 }
 
 func (s *Store) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]wkstore.Message, error) {
 	return s.db.LoadNextRangeMsgs(channelID, channelType, startMessageSeq, endMessageSeq, limit)
+}
+
+func (s *Store) LoadMsg(channelID string, channelType uint8, seq uint32) (wkstore.Message, error) {
+	return s.db.LoadMsg(channelID, channelType, seq)
+}
+
+func (s *Store) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]wkstore.Message, error) {
+	return s.db.LoadLastMsgs(channelID, channelType, limit)
+}
+
+func (s *Store) LoadLastMsgsWithEnd(channelID string, channelType uint8, end uint32, limit int) ([]wkstore.Message, error) {
+	return s.db.LoadLastMsgsWithEnd(channelID, channelType, end, limit)
+}
+
+func (s *Store) LoadPrevRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]wkstore.Message, error) {
+	return s.db.LoadPrevRangeMsgs(channelID, channelType, start, end, limit)
+}
+
+func (s *Store) GetLastMsgSeq(channelID string, channelType uint8) (uint32, error) {
+	return s.db.GetLastMsgSeq(channelID, channelType)
+}
+
+func (s *Store) GetMessagesOfNotifyQueue(count int) ([]wkstore.Message, error) {
+	return s.db.GetMessagesOfNotifyQueue(count)
+}
+
+func (s *Store) AppendMessageOfNotifyQueue(messages []wkstore.Message) error {
+	return s.db.AppendMessageOfNotifyQueue(messages)
+}
+
+func (s *Store) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
+	return s.db.RemoveMessagesOfNotifyQueue(messageIDs)
+}
+
+func (s *Store) GetMessageShardLogStorage() *MessageShardLogStorage {
+	return s.messageShardLogStorage
 }
 
 type MessageShardLogStorage struct {
