@@ -155,7 +155,6 @@ func (r *RawReplica) CheckAndCommitLogs() error {
 	if r.committedIndex.Load() >= lastLogIndex {
 		return nil
 	}
-	r.Debug("check and commit logs", zap.Uint64("committedIndex", r.committedIndex.Load()), zap.Uint64("lastLogIndex", lastLogIndex))
 	logs, err := r.GetLogs(r.committedIndex.Load()+1, r.opts.CommitLimit)
 	if err != nil {
 		return err
@@ -292,10 +291,8 @@ func (r *RawReplica) RequestSyncLogsWithLeaderID(leaderID uint64) (int, error) {
 		r.Error("sync log failed", zap.Error(err))
 		return 0, err
 	}
-	r.Debug("RequestSyncLogsWithLeaderID......", zap.Uint64("StartLogIndex", lastIdx+1), zap.Uint64("leaderID", leaderID))
 
 	for _, lg := range resp.Logs {
-		r.Debug("append log to storage", zap.Uint64("logIndex", lg.Index))
 		err = r.appendLog(lg)
 		if err != nil {
 			r.Panic("append log failed", zap.Error(err))

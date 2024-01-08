@@ -187,10 +187,10 @@ func (n *nodeManager) requestChannelMessageSyncLog(ctx context.Context, nodeID u
 }
 
 // 给指定节点发送提案请求
-func (n *nodeManager) requestSlotPropse(ctx context.Context, nodeID uint64, req *SlotProposeRequest) error {
+func (n *nodeManager) requestSlotPropose(ctx context.Context, nodeID uint64, req *SlotProposeRequest) error {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestSlotPropse(ctx, req)
+		return node.requestSlotPropose(ctx, req)
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 
@@ -200,15 +200,23 @@ func (n *nodeManager) requestSlotPropse(ctx context.Context, nodeID uint64, req 
 func (n *nodeManager) requestChannelMetaPropose(ctx context.Context, nodeID uint64, req *ChannelProposeRequest) error {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestChannelMetaPropse(ctx, req)
+		return node.requestChannelMetaPropose(ctx, req)
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestChannelMessagePropsoe(ctx context.Context, nodeID uint64, req *ChannelProposeRequest) error {
+func (n *nodeManager) requestChannelMessagePropose(ctx context.Context, nodeID uint64, req *ChannelProposeRequest) error {
 	node := n.getNode(nodeID)
 	if node != nil {
-		return node.requestChannelMessagePropse(ctx, req)
+		return node.requestChannelMessagePropose(ctx, req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}
+
+func (n *nodeManager) requestChannelMessagesPropose(ctx context.Context, nodeID uint64, req *ChannelProposesRequest) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestChannelMessagesPropose(ctx, req)
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
