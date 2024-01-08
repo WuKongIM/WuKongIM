@@ -82,19 +82,10 @@ func New(opts *Options) *Server {
 		start:            now,
 		stopChan:         make(chan struct{}),
 		ipBlacklist:      map[string]uint64{},
-		reqIDGen:         idutil.NewGenerator(uint16(opts.Cluster.NodeID), time.Now()),
+		reqIDGen:         idutil.NewGenerator(uint16(opts.Cluster.PeerID), time.Now()),
 	}
 
 	gin.SetMode(opts.GinMode)
-
-	storeCfg := wkstore.NewStoreConfig()
-	storeCfg.DataDir = s.opts.DataDir
-	storeCfg.SlotNum = s.opts.Cluster.SlotCount
-	storeCfg.DecodeMessageFnc = func(msg []byte) (wkstore.Message, error) {
-		m := &Message{}
-		err := m.Decode(msg)
-		return m, err
-	}
 
 	monitor.SetMonitorOn(opts.Monitor.On) // 监控开关
 
@@ -349,5 +340,56 @@ func (s *Server) startDeliveryPeerData(req *PeerInFlightData) {
 	if err != nil {
 		s.Warn("finishMessage err", zap.Error(err))
 		return
+	}
+}
+
+func (s *Server) AllowIP(ip string) bool {
+	s.ipBlacklistLock.Lock()
+	defer s.ipBlacklistLock.Unlock()
+	blockCount, ok := s.ipBlacklist[ip]
+	if ok {
+		s.ipBlacklist[ip] = blockCount + 1
+		return false
+	}
+	return true
+}
+
+func (s *Server) AddIPBlacklist(ips []string) {
+	s.ipBlacklistLock.Lock()
+	defer s.ipBlacklistLock.Unlock()
+	for _, ip := range ips {
+		s.ipBlacklist[ip] = 0
+	}
+
+}
+
+func (s *Server) initIPBlacklist() {
+	ips, err := s.store.GetIPBlacklist()
+	if err != nil {
+		s.Error("获取ip黑名单失败！", zap.Error(err))
+		return
+	}
+	s.ipBlacklistLock.Lock()
+	defer s.ipBlacklistLock.Unlock()
+	for _, ip := range ips {
+		s.ipBlacklist[ip] = 0
+	}
+}
+
+func (s *Server) RemoveIPBlacklist(ips []string) {
+	s.ipBlacklistLock.Lock()
+	defer s.ipBlacklistLock.Unlock()
+	for _, ip := range ips {
+		delete(s.ipBlacklist, ip)
+	}
+}
+
+func (s *Server) printIpBlacklist() {
+	s.ipBlacklistLock.RLock()
+	defer s.ipBlacklistLock.RUnlock()
+	for ip, count := range s.ipBlacklist {
+		if count > 0 {
+			s.Info(fmt.Sprintf("ip: %s, block count: %d", ip, count))
+		}
 	}
 }
