@@ -16,16 +16,15 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
-	"github.com/WuKongIM/WuKongIM/internal/server/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/pkg/wraft"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft/transporter"
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
-	sm "github.com/lni/dragonboat/v4/statemachine"
 	"github.com/panjf2000/ants/v2"
 )
 
@@ -49,7 +48,7 @@ type Server struct {
 	deliveryManager     *DeliveryManager         // 消息投递管理
 	monitor             monitor.IMonitor         // Data monitoring
 	dispatch            *Dispatch                // 消息流入流出分发器
-	store               *Storage                 // 存储相关接口
+	store               *clusterstore.Store      // 存储相关接口
 	connManager         *ConnManager             // conn manager
 	systemUIDManager    *SystemUIDManager        // System uid management, system uid can send messages to everyone without any restrictions
 	datasource          IDatasource              // 数据源（提供数据源 订阅者，黑名单，白名单这些数据可以交由第三方提供）
@@ -67,9 +66,7 @@ type Server struct {
 	raftNode        *wraft.RaftNode   // raft node
 	reqIDGen        *idutil.Generator
 
-	fsm *FSM
-
-	clusterServer *cluster.Cluster
+	cluster cluster.ICluster
 
 	peerInFlightQueue *PeerInFlightQueue // 正在往节点投递的节点消息
 }
@@ -99,7 +96,16 @@ func New(opts *Options) *Server {
 	}
 
 	monitor.SetMonitorOn(opts.Monitor.On) // 监控开关
-	s.store = NewStorage(storeCfg, s, s.doCommand)
+
+	storeOpts := clusterstore.NewOptions(s.opts.Cluster.PeerID)
+	storeOpts.DecodeMessageFnc = func(msg []byte) (wkstore.Message, error) {
+		var err error
+		m := &Message{}
+		err = m.Decode(msg)
+		return m, err
+	}
+	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
+	s.store = clusterstore.NewStore(storeOpts)
 
 	s.apiServer = NewAPIServer(s)
 	s.deliveryManager = NewDeliveryManager(s)
@@ -121,60 +127,71 @@ func New(opts *Options) *Server {
 	}
 
 	monitor.SetMonitorOn(s.opts.Monitor.On) // 监控开关
-	s.fsm = NewFSM(s.store.fileStorage)
 
 	if s.opts.ClusterOn() {
-		clusterOpts := cluster.NewOptions()
-		clusterOpts.PeerID = s.opts.Cluster.PeerID
-		clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
-		clusterOpts.Join = s.opts.Cluster.Join
-		clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
-		clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.PeerID))
-		clusterOpts.SlotCount = s.opts.Cluster.SlotCount
-		clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
-		clusterOpts.GRPCEvent = s.dispatch.processor
-		clusterOpts.APIServerAddr = s.opts.External.APIUrl
-		clusterOpts.OnSlotApply = func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error) {
-			if len(entries) == 0 {
-				return nil, nil
-			}
-			resultEntries := make([]sm.Entry, 0, len(entries))
-			for _, entry := range entries {
-				cmd := &CMDReq{}
-				err := cmd.Unmarshal(entry.Cmd)
-				if err != nil {
-					return nil, err
-				}
-				cmd.SlotID = &slotID
-				cmdResp, err := s.fsm.Apply(cmd)
-				if err != nil {
-					s.Error("状态机应用数据失败！，严重错误！", zap.Error(err))
-					return nil, err
-				}
-				if cmdResp != nil {
-					respData, err := cmdResp.Marshal()
-					if err != nil {
-						return nil, err
-					}
-					entry.Result.Data = respData
-				}
-				resultEntries = append(resultEntries, entry)
-			}
-			return resultEntries, nil
-		}
-		if len(s.opts.Cluster.Peers) > 0 {
-			peers := make([]cluster.Peer, 0)
-			for _, peer := range s.opts.Cluster.Peers {
-				serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
-				peers = append(peers, cluster.Peer{
-					ID:         peer.ID,
-					ServerAddr: serverAddr,
-				})
-			}
-			clusterOpts.Peers = peers
-		}
+		// clusterOpts := cluster.NewOptions()
+		// clusterOpts.PeerID = s.opts.Cluster.PeerID
+		// clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
+		// clusterOpts.Join = s.opts.Cluster.Join
+		// clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
+		// clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.PeerID))
+		// clusterOpts.SlotCount = s.opts.Cluster.SlotCount
+		// clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
+		// clusterOpts.GRPCEvent = s.dispatch.processor
+		// clusterOpts.APIServerAddr = s.opts.External.APIUrl
+		// clusterOpts.OnSlotApply = func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error) {
+		// 	if len(entries) == 0 {
+		// 		return nil, nil
+		// 	}
+		// 	resultEntries := make([]sm.Entry, 0, len(entries))
+		// 	for _, entry := range entries {
+		// 		cmd := &CMDReq{}
+		// 		err := cmd.Unmarshal(entry.Cmd)
+		// 		if err != nil {
+		// 			return nil, err
+		// 		}
+		// 		cmd.SlotID = &slotID
+		// 		cmdResp, err := s.fsm.Apply(cmd)
+		// 		if err != nil {
+		// 			s.Error("状态机应用数据失败！，严重错误！", zap.Error(err))
+		// 			return nil, err
+		// 		}
+		// 		if cmdResp != nil {
+		// 			respData, err := cmdResp.Marshal()
+		// 			if err != nil {
+		// 				return nil, err
+		// 			}
+		// 			entry.Result.Data = respData
+		// 		}
+		// 		resultEntries = append(resultEntries, entry)
+		// 	}
+		// 	return resultEntries, nil
+		// }
+		// if len(s.opts.Cluster.Peers) > 0 {
+		// 	peers := make([]cluster.Peer, 0)
+		// 	for _, peer := range s.opts.Cluster.Peers {
+		// 		serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
+		// 		peers = append(peers, cluster.Peer{
+		// 			ID:         peer.ID,
+		// 			ServerAddr: serverAddr,
+		// 		})
+		// 	}
+		// 	clusterOpts.Peers = peers
+		// }
 
-		s.clusterServer = cluster.New(clusterOpts)
+		initNodes := make(map[uint64]string)
+		for _, peer := range s.opts.Cluster.Peers {
+			serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
+			initNodes[peer.ID] = serverAddr
+		}
+		s.cluster = cluster.NewServer(
+			s.opts.Cluster.PeerID,
+			cluster.WithListenAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
+			cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
+			cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
+			cluster.WithHeartbeat(200*time.Millisecond),
+			cluster.WithInitNodes(initNodes),
+		)
 
 		s.peerInFlightQueue = NewPeerInFlightQueue(s)
 	}
@@ -229,7 +246,8 @@ func (s *Server) Start() error {
 	}
 
 	if s.opts.ClusterOn() {
-		err = s.clusterServer.Start()
+		s.dispatch.processor.SetRoutes()
+		err = s.cluster.Start()
 		if err != nil {
 			return err
 		}
@@ -280,7 +298,7 @@ func (s *Server) Stop() error {
 	s.timingWheel.Stop()
 	if s.opts.ClusterOn() {
 		s.peerInFlightQueue.Stop()
-		s.clusterServer.Stop()
+		s.cluster.Stop()
 	}
 
 	s.retryQueue.Stop()
@@ -309,86 +327,13 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	}, f)
 }
 
-func (s *Server) AllowIP(ip string) bool {
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	blockCount, ok := s.ipBlacklist[ip]
-	if ok {
-		s.ipBlacklist[ip] = blockCount + 1
-		return false
-	}
-	return true
-}
-
-func (s *Server) AddIPBlacklist(ips []string) {
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	for _, ip := range ips {
-		s.ipBlacklist[ip] = 0
-	}
-
-}
-
-func (s *Server) initIPBlacklist() {
-	ips, err := s.store.GetIPBlacklist()
-	if err != nil {
-		s.Error("获取ip黑名单失败！", zap.Error(err))
-		return
-	}
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	for _, ip := range ips {
-		s.ipBlacklist[ip] = 0
-	}
-}
-
-func (s *Server) RemoveIPBlacklist(ips []string) {
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	for _, ip := range ips {
-		delete(s.ipBlacklist, ip)
-	}
-}
-
-func (s *Server) printIpBlacklist() {
-	s.ipBlacklistLock.RLock()
-	defer s.ipBlacklistLock.RUnlock()
-	for ip, count := range s.ipBlacklist {
-		if count > 0 {
-			s.Info(fmt.Sprintf("ip: %s, block count: %d", ip, count))
-		}
-	}
-}
-func (s *Server) doCommand(req *transporter.CMDReq) (*transporter.CMDResp, error) {
-	if req.Id == 0 {
-		req.Id = s.reqIDGen.Next()
-	}
-	if req.SlotID == nil {
-		return nil, fmt.Errorf("slotID is nil")
-	}
-	data, err := req.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	resultData, err := s.clusterServer.SyncProposeToSlot(*req.SlotID, data)
-	if err != nil {
-		return nil, err
-	}
-	if len(resultData) == 0 {
-		return nil, nil
-	}
-	resp := &CMDResp{}
-	err = resp.Unmarshal(resultData)
-	return resp, err
-}
-
 func (s *Server) startDeliveryPeerData(req *PeerInFlightData) {
 
 	s.Debug("开始投递节点数据", zap.String("no", req.No), zap.Uint64("peerID", req.PeerID), zap.Int("dataSize", len(req.Data)))
 
 	s.peerInFlightQueue.startInFlightTimeout(req) // 重新投递
 
-	err := s.clusterServer.ForwardRecvPacketReq(req.PeerID, req.Data)
+	err := s.forwardRecvPacketReq(req.PeerID, req.Data)
 	if err != nil {
 		s.Warn("请求grpc投递节点数据失败！", zap.Error(err))
 		return

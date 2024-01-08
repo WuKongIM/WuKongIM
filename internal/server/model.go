@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -354,7 +355,7 @@ type MessageResp struct {
 	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
-func (m *MessageResp) from(messageD *Message, store wkstore.Store) {
+func (m *MessageResp) from(messageD *Message, store *clusterstore.Store) {
 	m.Header.NoPersist = wkutil.BoolToInt(messageD.NoPersist)
 	m.Header.RedDot = wkutil.BoolToInt(messageD.RedDot)
 	m.Header.SyncOnce = wkutil.BoolToInt(messageD.SyncOnce)
