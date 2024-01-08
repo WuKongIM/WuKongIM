@@ -123,6 +123,7 @@ func (c *ChannelManager) GetChannel(channelID string, channelType uint8) (*Chann
 			c.Error("newChannelByClusterInfo failed", zap.Error(err))
 			return nil, err
 		}
+		c.channelQueue.Push(channel)
 
 	}
 	return channel, nil
@@ -368,6 +369,8 @@ func (c *ChannelManager) handleSyncNotify(ch *Channel, req *replica.SyncNotify) 
 	}
 
 	if ch.hasMessageEvent.Load() {
+		startTime := time.Now().UnixNano()
+		c.Debug("开始向领导同步频道消息数据日志", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 		syncCount, err = ch.messageReplica.RequestSyncLogsAndNotifyLeaderIfNeed()
 		if err != nil {
 			c.Warn("副本向领导同步频道消息数据日志失败", zap.Error(err), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
@@ -378,6 +381,7 @@ func (c *ChannelManager) handleSyncNotify(ch *Channel, req *replica.SyncNotify) 
 				c.channelQueue.Remove(ch.channelID, ch.channelType) // 如果频道元数据和消息都已经同步了，那么就从队列中移除
 			}
 		}
+		c.Debug("向领导同步频道消息数据日志完成", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Int("syncCount", syncCount))
 
 	}
 

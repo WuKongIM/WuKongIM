@@ -98,7 +98,6 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 }
 
 func (s *Server) handleHeartbeat(conn wknet.Conn) {
-	fmt.Println("handleHeartbeat-------->", conn.UID())
 	_, err := conn.WriteToOutboundBuffer([]byte{proto.MsgTypeHeartbeat.Uint8()})
 	if err != nil {
 		s.Debug("write heartbeat error", zap.Error(err))
@@ -129,7 +128,7 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 }
 
 func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
-
+	fmt.Println("resp---->", resp.String())
 	s.w.Trigger(resp.Id, resp)
 
 }
