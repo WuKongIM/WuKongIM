@@ -219,6 +219,17 @@ func (c *ClusterEventManager) GetAllOnlineNode() []*pb.Node {
 	return onlineNodes
 }
 
+func (c *ClusterEventManager) GetNode(nodeID uint64) *pb.Node {
+	c.clusterconfigLock.Lock()
+	defer c.clusterconfigLock.Unlock()
+	for _, node := range c.clusterconfig.Nodes {
+		if node.Id == nodeID {
+			return node
+		}
+	}
+	return nil
+}
+
 // NodeIsOnline 节点是否在线
 func (c *ClusterEventManager) NodeIsOnline(nodeID uint64) bool {
 	c.othersNodeConfigVersionMapLock.Lock()

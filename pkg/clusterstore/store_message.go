@@ -58,6 +58,49 @@ func (s *Store) GetMessageShardLogStorage() *MessageShardLogStorage {
 	return s.messageShardLogStorage
 }
 
+// SaveStreamMeta 保存消息流元数据
+func (s *Store) SaveStreamMeta(meta *wkstore.StreamMeta) error {
+	return nil
+}
+
+// StreamEnd 结束流
+func (s *Store) StreamEnd(channelID string, channelType uint8, streamNo string) error {
+	return nil
+}
+
+func (s *Store) GetStreamMeta(channelID string, channelType uint8, streamNo string) (*wkstore.StreamMeta, error) {
+	return nil, nil
+}
+
+func (s *Store) GetStreamItems(channelID string, channelType uint8, streamNo string) ([]*wkstore.StreamItem, error) {
+	return nil, nil
+}
+
+// AppendStreamItem 追加消息流
+func (s *Store) AppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) (uint32, error) {
+	return 0, nil
+}
+
+func (s *Store) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error {
+	return nil
+}
+
+func (s *Store) GetMessageOfUserCursor(uid string) (uint32, error) {
+	return 0, nil
+}
+
+func (s *Store) AppendMessagesOfUser(uid string, msgs []wkstore.Message) (err error) {
+	return nil
+}
+
+func (s *Store) SyncMessageOfUser(uid string, messageSeq uint32, limit uint32) ([]wkstore.Message, error) {
+	return nil, nil
+}
+
+func (s *Store) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
+	return nil
+}
+
 type MessageShardLogStorage struct {
 	db *wkstore.FileStore
 	wklog.Log

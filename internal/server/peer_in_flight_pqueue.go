@@ -114,18 +114,18 @@ func (n *PeerInFlightQueue) popInFlightMessage(no string) (*PeerInFlightData, er
 
 // Start 开始运行重试
 func (n *PeerInFlightQueue) Start() {
-	PeerInFlightDatas, err := n.s.store.fileStorage.GetPeerInFlightData() // TODO: 分布式情况多节点下，这里存在重复投递的可能，但是就算重复投递，客户端有去重机制所以也不影响，后面可以修正
+	peerInFlightDatas, err := n.s.store.GetPeerInFlightData() // TODO: 分布式情况多节点下，这里存在重复投递的可能，但是就算重复投递，客户端有去重机制所以也不影响，后面可以修正
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("存在节点投递数据未投递。", len(PeerInFlightDatas))
-	err = n.s.store.fileStorage.ClearPeerInFlightData()
+	fmt.Println("存在节点投递数据未投递。", len(peerInFlightDatas))
+	err = n.s.store.ClearPeerInFlightData()
 	if err != nil {
 		panic(err)
 	}
 
-	if len(PeerInFlightDatas) > 0 {
-		for _, peerInFlightDataModel := range PeerInFlightDatas {
+	if len(peerInFlightDatas) > 0 {
+		for _, peerInFlightDataModel := range peerInFlightDatas {
 			n.startInFlightTimeout(&PeerInFlightData{
 				PeerInFlightDataModel: *peerInFlightDataModel,
 			})
@@ -147,7 +147,7 @@ func (n *PeerInFlightQueue) Stop() {
 	})
 	if len(datas) > 0 {
 		n.Warn("存在节点投递数据未投递。", zap.Int("count", len(datas)))
-		err := n.s.store.fileStorage.AddPeerInFlightData(datas)
+		err := n.s.store.AddPeerInFlightData(datas)
 		if err != nil {
 			n.Error("异常退出", zap.Error(err), zap.String("data", wkutil.ToJSON(datas)))
 			return

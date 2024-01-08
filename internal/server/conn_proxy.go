@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -145,7 +146,7 @@ func (p *ProxyClientConn) Discard(n int) (int, error) {
 }
 
 func (p *ProxyClientConn) Write(b []byte) (n int, err error) {
-	status, err := p.s.clusterServer.ConnectWrite(p.belongPeerID, &rpc.ConnectWriteReq{
+	status, err := p.s.connectWrite(p.belongPeerID, &rpc.ConnectWriteReq{
 		ConnID:     p.orgID,
 		Uid:        p.UID(),
 		DeviceFlag: uint32(p.deviceFlag),
@@ -155,7 +156,7 @@ func (p *ProxyClientConn) Write(b []byte) (n int, err error) {
 		p.s.Error("发送数据失败！", zap.Error(err), zap.String("uid", p.UID()), zap.Uint64("belongPeerID", p.belongPeerID))
 		return 0, err
 	}
-	if status == rpc.Status_NotFound {
+	if status == proto.Status_NotFound {
 		p.Warn("发送数据失败！连接不存在！,代理连接将关闭", zap.Error(err), zap.String("uid", p.UID()), zap.Uint64("belongPeerID", p.belongPeerID))
 		p.Close()
 	}
@@ -196,7 +197,7 @@ func (p *ProxyClientConn) WakeWrite() error {
 	}
 	msgData := append(head, tail...)
 	fmt.Println("WakeWrite", string(msgData), "conn->", p)
-	status, err := p.s.clusterServer.ConnectWrite(p.belongPeerID, &rpc.ConnectWriteReq{
+	status, err := p.s.connectWrite(p.belongPeerID, &rpc.ConnectWriteReq{
 		ConnID:     p.orgID,
 		Uid:        p.UID(),
 		DeviceFlag: uint32(p.deviceFlag),
@@ -206,7 +207,7 @@ func (p *ProxyClientConn) WakeWrite() error {
 		p.s.Error("发送数据失败！", zap.Error(err), zap.String("uid", p.UID()), zap.Uint64("belongPeerID", p.belongPeerID))
 		return err
 	}
-	if status == rpc.Status_NotFound {
+	if status == proto.Status_NotFound {
 		p.Warn("发送数据失败！连接不存在！,代理连接将关闭", zap.Error(err), zap.String("uid", p.UID()), zap.Uint64("belongPeerID", p.belongPeerID))
 		p.Close()
 		return nil

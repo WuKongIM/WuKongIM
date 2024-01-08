@@ -325,3 +325,57 @@ func (c *CMD) DecodeCMDDeleteConversation() (uid string, channelID string, chann
 	}
 	return
 }
+
+func EncodeCMDStreamEnd(channelID string, channelType uint8, streamNo string) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(channelID)
+	encoder.WriteUint8(channelType)
+	encoder.WriteString(streamNo)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDStreamEnd() (channelID string, channelType uint8, streamNo string, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if channelID, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if streamNo, err = decoder.String(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDAppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+
+	encoder.WriteString(channelID)
+	encoder.WriteUint8(channelType)
+	encoder.WriteString(streamNo)
+	encoder.WriteBinary(wkstore.EncodeStreamItem(item))
+
+	return encoder.Bytes()
+}
+func (c *CMD) DecodeCMDAppendStreamItem() (channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if channelID, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if streamNo, err = decoder.String(); err != nil {
+		return
+	}
+	var itemBytes []byte
+	itemBytes, err = decoder.Binary()
+	if err != nil {
+		return
+	}
+	item, err = wkstore.DecodeStreamItem(itemBytes)
+	return
+}

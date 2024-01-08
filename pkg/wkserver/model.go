@@ -133,6 +133,36 @@ func (c *Context) WriteErrorAndStatus(err error, status proto.Status) {
 	}
 }
 
+func (c *Context) WriteStatus(status proto.Status) {
+	var id uint64 = 0
+	if c.req != nil {
+		id = c.req.Id
+	}
+	resp := &proto.Response{
+		Id:     id,
+		Status: status,
+	}
+	respData, err := resp.Marshal()
+	if err != nil {
+		c.Debug("marshal is error", zap.Error(err))
+		return
+	}
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	if err != nil {
+		c.Debug("encode is error", zap.Error(err))
+		return
+	}
+	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	if err != nil {
+		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
+		return
+	}
+	err = c.conn.WakeWrite()
+	if err != nil {
+		c.Debug("WakeWrite is error")
+	}
+}
+
 func (c *Context) Body() []byte {
 	return c.req.Body
 }

@@ -84,6 +84,10 @@ func (n *node) sendPong(req *PongResponse) error {
 	})
 }
 
+func (n *node) RequestWithContext(ctx context.Context, path string, body []byte) (*proto.Response, error) {
+	return n.client.RequestWithContext(ctx, path, body)
+}
+
 // 请求集群配置
 func (n *node) requestClusterConfig(ctx context.Context) (*pb.Cluster, error) {
 	resp, err := n.client.RequestWithContext(ctx, "/syncClusterConfig", nil)
