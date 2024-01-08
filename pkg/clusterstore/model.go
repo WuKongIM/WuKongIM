@@ -1,6 +1,8 @@
 package clusterstore
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -178,4 +180,148 @@ func (c *CMD) DecodeSubscribers() (uids []string, err error) {
 		}
 	}
 	return uids, nil
+}
+
+// EncodeUserToken EncodeUserToken
+func EncodeCMDUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(uid)
+	enc.WriteUint8(deviceFlag)
+	enc.WriteUint8(deviceLevel)
+	enc.WriteString(token)
+	return enc.Bytes()
+}
+
+func (c *CMD) DecodeCMDUserToken() (uid string, deviceFlag uint8, deviceLevel uint8, token string, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if deviceFlag, err = decoder.Uint8(); err != nil {
+		return
+	}
+
+	if deviceLevel, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if token, err = decoder.String(); err != nil {
+		return
+	}
+	return
+}
+
+// EncodeCMDUpdateMessageOfUserCursorIfNeed EncodeCMDUpdateMessageOfUserCursorIfNeed
+func EncodeCMDUpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteUint32(messageSeq)
+	return encoder.Bytes()
+}
+
+// DecodeCMDUpdateMessageOfUserCursorIfNeed DecodeCMDUpdateMessageOfUserCursorIfNeed
+func (c *CMD) DecodeCMDUpdateMessageOfUserCursorIfNeed() (uid string, messageSeq uint32, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if messageSeq, err = decoder.Uint32(); err != nil {
+		return
+	}
+	return
+}
+
+// EncodeAddOrUpdateChannel EncodeAddOrUpdateChannel
+func EncodeAddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(channelInfo.ChannelID)
+	encoder.WriteUint8(channelInfo.ChannelType)
+	encoder.WriteString(wkutil.ToJSON(channelInfo.ToMap()))
+	return encoder.Bytes()
+}
+
+// DecodeAddOrUpdateChannel DecodeAddOrUpdateChannel
+func (c *CMD) DecodeAddOrUpdateChannel() (*wkstore.ChannelInfo, error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	channelInfo := &wkstore.ChannelInfo{}
+	var err error
+	if channelInfo.ChannelID, err = decoder.String(); err != nil {
+		return nil, err
+	}
+	if channelInfo.ChannelType, err = decoder.Uint8(); err != nil {
+		return nil, err
+	}
+	jsonStr, err := decoder.String()
+	if err != nil {
+		return nil, err
+	}
+	if len(jsonStr) > 0 {
+		mp, err := wkutil.JSONToMap(jsonStr)
+		if err != nil {
+			return nil, err
+		}
+		channelInfo.From(mp)
+	}
+	return channelInfo, nil
+}
+
+// EncodeCMDAddOrUpdateConversations EncodeCMDAddOrUpdateConversations
+func EncodeCMDAddOrUpdateConversations(uid string, conversations []*wkstore.Conversation) []byte {
+
+	var conversationSet wkstore.ConversationSet
+	if len(conversations) > 0 {
+		conversationSet = wkstore.ConversationSet(conversations)
+
+	}
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	if conversationSet != nil {
+		encoder.WriteBytes(conversationSet.Encode())
+	}
+	return encoder.Bytes()
+}
+
+// DecodeCMDAddOrUpdateConversations DecodeCMDAddOrUpdateConversations
+func (c *CMD) DecodeCMDAddOrUpdateConversations() (uid string, conversations []*wkstore.Conversation, err error) {
+	if len(c.Data) == 0 {
+		return "", nil, nil
+	}
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+
+	var data []byte
+	data, _ = decoder.BinaryAll()
+	if len(data) > 0 {
+		conversations = wkstore.NewConversationSet(data)
+	}
+
+	return
+}
+
+func EncodeCMDDeleteConversation(uid string, channelID string, channelType uint8) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteString(channelID)
+	encoder.WriteUint8(channelType)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDDeleteConversation() (uid string, channelID string, channelType uint8, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if channelID, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	return
 }

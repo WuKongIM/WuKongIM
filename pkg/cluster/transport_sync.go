@@ -119,8 +119,6 @@ func (s *Server) handleChannelMetaLogSyncNotify(fromNodeID uint64, msg *proto.Me
 	}
 	channelID, channelType := GetChannelFromChannelKey(req.ShardNo)
 
-	s.Debug("handleChannelMetaLogSyncNotify", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
-
 	channel, err := s.channelManager.GetChannel(channelID, channelType)
 	if err != nil {
 		s.Error("get channnel failed", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))

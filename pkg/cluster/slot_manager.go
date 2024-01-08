@@ -96,7 +96,6 @@ func (s *SlotManager) Stop() {
 
 func (s *SlotManager) handleApplyLog(slotID uint32) func(logs []replica.Log) (uint64, error) {
 	return func(logs []replica.Log) (uint64, error) {
-		fmt.Println("handleApplyLog.............", slotID, s.s.opts.NodeID)
 		if len(logs) == 0 {
 			return 0, nil
 		}

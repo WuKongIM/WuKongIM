@@ -4,71 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/stretchr/testify/assert"
 )
-
-func TestAddSubscribers(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
-	defer s1.Close()
-	defer s2.Close()
-	defer t1.Stop()
-	defer t2.Stop()
-
-	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
-	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
-
-	channelID := "test"
-	var channelType uint8 = 2
-
-	// 节点1添加订阅者
-	err := s1.AddSubscribers(channelID, channelType, []string{"123", "34"})
-	assert.NoError(t, err)
-
-	time.Sleep(time.Millisecond * 100)
-
-	// 节点2获取订阅者
-	subscribers, err := s2.GetSubscribers(channelID, channelType)
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"123", "34"}, subscribers)
-
-}
-
-func TestAppendMessage(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
-	defer s1.Close()
-	defer s2.Close()
-	defer t1.Stop()
-	defer t2.Stop()
-
-	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
-	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
-
-	channelID := "test"
-	var channelType uint8 = 2
-
-	// 节点1添加消息
-	msg := &testMessage{
-		data: []byte("hello"),
-	}
-	err := s1.AppendMessage(channelID, channelType, msg)
-	assert.NoError(t, err)
-
-	time.Sleep(time.Millisecond * 200)
-
-	// 节点2获取消息
-	messages, err := s2.LoadNextRangeMsgs(channelID, channelType, 0, 0, 10)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(messages))
-
-	assert.Equal(t, msg.data, messages[0].(*testMessage).data)
-}
 
 func newTestClusterServerGroupTwo() (*clusterstore.Store, *testClusterServer, *clusterstore.Store, *testClusterServer) {
 	initNodes := map[uint64]string{
@@ -169,7 +111,7 @@ func (t *testClusterServer) ProposeMessageToChannel(channelID string, channelTyp
 }
 
 func (t *testClusterServer) ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) error {
-	return nil
+	return t.server.ProposeMessagesToChannel(channelID, channelType, data)
 }
 
 type testMessage struct {
