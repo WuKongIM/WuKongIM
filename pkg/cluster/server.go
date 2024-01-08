@@ -334,7 +334,7 @@ func (s *Server) sendPingToAll() {
 		s.stopper.RunWorker(func(nodeID uint64) func() {
 
 			return func() {
-				s.Info("发送Ping", zap.Uint64("toNodeID", nodeID))
+				// s.Info("发送Ping", zap.Uint64("toNodeID", nodeID))
 				err := s.nodeManager.sendPing(nodeID, &PingRequest{
 					Epoch:                s.currentEpoch.Load(),
 					ClusterConfigVersion: s.clusterEventManager.GetClusterConfigVersion(),

@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -22,6 +23,12 @@ func NewStore(opts *Options) *Store {
 		opts: opts,
 		Log:  wklog.NewWKLog(fmt.Sprintf("clusterStore[%d]", opts.NodeID)),
 	}
+
+	err := os.MkdirAll(opts.DataDir, os.ModePerm)
+	if err != nil {
+		s.Panic("create data dir err", zap.Error(err))
+	}
+
 	storeCfg := wkstore.NewStoreConfig()
 	storeCfg.DataDir = opts.DataDir
 	storeCfg.SlotNum = int(opts.SlotCount)

@@ -339,7 +339,8 @@ func (s *Server) handleChannelMetaSyncLog(c *wkserver.Context) {
 	}
 	channelID, channelType := GetChannelFromChannelKey(req.ShardNo)
 
-	s.Debug("副本过来同步频道元数据日志", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
+	startTime := time.Now().UnixNano()
+	s.Debug("副本过来同步频道元数据日志", zap.String("replicaNodeID", c.Conn().UID()), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
 
 	channel, err := s.channelManager.GetChannel(channelID, channelType)
 	if err != nil {
@@ -374,6 +375,7 @@ func (s *Server) handleChannelMetaSyncLog(c *wkserver.Context) {
 	respData, err := resp.Marshal()
 	if err != nil {
 		s.Error("marshal SyncRsp failed", zap.Error(err))
+		c.WriteErr(err)
 		return
 	}
 
@@ -388,7 +390,7 @@ func (s *Server) handleChannelMetaSyncLog(c *wkserver.Context) {
 		s.Warn("save channel sync info failed", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return
 	}
-
+	s.Debug("副本过来同步频道元数据日志结束", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("replicaNodeID", c.Conn().UID()), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
 }
 
 func (s *Server) handleChannelMessageSyncLog(c *wkserver.Context) {
@@ -400,6 +402,7 @@ func (s *Server) handleChannelMessageSyncLog(c *wkserver.Context) {
 	}
 	channelID, channelType := GetChannelFromChannelKey(req.ShardNo)
 
+	startTime := time.Now().UnixNano()
 	s.Debug("有副本来同步频道消息日志", zap.Uint64("startLogIndex", req.StartLogIndex), zap.String("replicaNodeID", c.Conn().UID()), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 
 	channel, err := s.channelManager.GetChannel(channelID, channelType)
@@ -435,6 +438,7 @@ func (s *Server) handleChannelMessageSyncLog(c *wkserver.Context) {
 	respData, err := resp.Marshal()
 	if err != nil {
 		s.Error("marshal SyncRsp failed", zap.Error(err))
+		c.WriteErr(err)
 		return
 	}
 
@@ -449,4 +453,6 @@ func (s *Server) handleChannelMessageSyncLog(c *wkserver.Context) {
 		s.Warn("save channel sync info failed", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return
 	}
+
+	s.Debug("有副本来同步频道消息日志结束", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("replicaNodeID", c.Conn().UID()), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
 }
