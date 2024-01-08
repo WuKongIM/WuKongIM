@@ -95,15 +95,16 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		if !ch.s.clusterServer.InPeer(req.ChannelID) {
-			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-			if peer == nil {
-				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -146,15 +147,16 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		if !ch.s.clusterServer.InPeer(req.ChannelID) {
-			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-			if peer == nil {
-				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -193,15 +195,16 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		req.ChannelType = wkproto.ChannelTypeGroup //默认为群
 	}
 	if ch.s.opts.ClusterOn() {
-		if !ch.s.clusterServer.InPeer(req.ChannelID) {
-			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-			if peer == nil {
-				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -300,15 +303,16 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		return
 	}
 	if ch.s.opts.ClusterOn() {
-		if !ch.s.clusterServer.InPeer(req.ChannelID) {
-			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-			if peer == nil {
-				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -372,30 +376,32 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 				if ch.s.opts.IsFakeChannel(req.ChannelID) {
 					fakeChannelID = req.ChannelID
 				}
-				if !ch.s.clusterServer.InPeer(req.ChannelID) {
-					peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-					if peer == nil {
-						ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-						c.ResponseError(errors.New("获取频道所在节点失败！"))
-						return
-					}
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+				if err != nil {
+					ch.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+				leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+				if !leaderIsSelf {
+					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				} else {
 					localPeerUids = append(localPeerUids, uid)
 				}
 			}
 			return
 		} else {
-			if !ch.s.clusterServer.InPeer(req.ChannelID) {
-				peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-				if peer == nil {
-					ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+			if err != nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+			if !leaderIsSelf {
+				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				return
 			}
 			localPeerUids = req.UIDs
@@ -463,30 +469,32 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 				if ch.s.opts.IsFakeChannel(req.ChannelID) {
 					fakeChannelID = req.ChannelID
 				}
-				if !ch.s.clusterServer.InPeer(req.ChannelID) {
-					peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-					if peer == nil {
-						ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-						c.ResponseError(errors.New("获取频道所在节点失败！"))
-						return
-					}
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+				if err != nil {
+					ch.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+				leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+				if !leaderIsSelf {
+					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				} else {
 					localPeerUids = append(localPeerUids, uid)
 				}
 			}
 			return
 		} else {
-			if !ch.s.clusterServer.InPeer(req.ChannelID) {
-				peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-				if peer == nil {
-					ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+			if err != nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+			if !leaderIsSelf {
+				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				return
 			}
 			localPeerUids = req.UIDs
@@ -568,30 +576,33 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 				if ch.s.opts.IsFakeChannel(req.ChannelID) {
 					fakeChannelID = req.ChannelID
 				}
-				if !ch.s.clusterServer.InPeer(req.ChannelID) {
-					peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-					if peer == nil {
-						ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-						c.ResponseError(errors.New("获取频道所在节点失败！"))
-						return
-					}
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+				if err != nil {
+					ch.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+				leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+				if !leaderIsSelf {
+					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				} else {
 					localPeerUids = append(localPeerUids, uid)
 				}
 			}
 			return
 		} else {
-			if !ch.s.clusterServer.InPeer(req.ChannelID) {
-				peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-				if peer == nil {
-					ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+			if err != nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+
+			if !leaderIsSelf {
+				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				return
 			}
 			localPeerUids = req.UIDs
@@ -650,15 +661,16 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 		return
 	}
 	if ch.s.opts.ClusterOn() {
-		if !ch.s.clusterServer.InPeer(req.ChannelID) {
-			peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-			if peer == nil {
-				ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -702,30 +714,32 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 				if ch.s.opts.IsFakeChannel(req.ChannelID) {
 					fakeChannelID = req.ChannelID
 				}
-				if !ch.s.clusterServer.InPeer(req.ChannelID) {
-					peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-					if peer == nil {
-						ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-						c.ResponseError(errors.New("获取频道所在节点失败！"))
-						return
-					}
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+				if err != nil {
+					ch.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+				leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+				if !leaderIsSelf {
+					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				} else {
 					localPeerUids = append(localPeerUids, uid)
 				}
 			}
 			return
 		} else {
-			if !ch.s.clusterServer.InPeer(req.ChannelID) {
-				peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-				if peer == nil {
-					ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+			if err != nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+			if !leaderIsSelf {
+				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				return
 			}
 			localPeerUids = req.UIDs
@@ -792,30 +806,32 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 				if ch.s.opts.IsFakeChannel(req.ChannelID) {
 					fakeChannelID = req.ChannelID
 				}
-				if !ch.s.clusterServer.InPeer(req.ChannelID) {
-					peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-					if peer == nil {
-						ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-						c.ResponseError(errors.New("获取频道所在节点失败！"))
-						return
-					}
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+				if err != nil {
+					ch.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+				leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+				if !leaderIsSelf {
+					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				} else {
 					localPeerUids = append(localPeerUids, uid)
 				}
 			}
 			return
 		} else {
-			if !ch.s.clusterServer.InPeer(req.ChannelID) {
-				peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-				if peer == nil {
-					ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+			if err != nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+			if !leaderIsSelf {
+				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				return
 			}
 			localPeerUids = req.UIDs
@@ -898,30 +914,32 @@ func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 				if ch.s.opts.IsFakeChannel(req.ChannelID) {
 					fakeChannelID = req.ChannelID
 				}
-				if !ch.s.clusterServer.InPeer(req.ChannelID) {
-					peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-					if peer == nil {
-						ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-						c.ResponseError(errors.New("获取频道所在节点失败！"))
-						return
-					}
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+				leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+				if err != nil {
+					ch.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+				leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+				if !leaderIsSelf {
+					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				} else {
 					localPeerUids = append(localPeerUids, uid)
 				}
 			}
 			return
 		} else {
-			if !ch.s.clusterServer.InPeer(req.ChannelID) {
-				peer := ch.s.clusterServer.GetOnePeer(req.ChannelID) // 随机获取一个频道数据所在的节点
-				if peer == nil {
-					ch.Error("获取频道所在节点失败！", zap.String("channel_id", req.ChannelID))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+			if err != nil {
+				ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
+			if !leaderIsSelf {
+				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				return
 			}
 			localPeerUids = req.UIDs
@@ -1025,21 +1043,20 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
 	if ch.s.opts.ClusterOn() {
-		if !ch.s.clusterServer.InPeer(fakeChannelID) {
-			peer := ch.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个频道数据所在的节点
-			if peer == nil {
-				ch.Error("获取频道所在节点失败！", zap.String("channel_id", fakeChannelID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			fmt.Println("转发请求：", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
+		leaderIsSelf := leaderInfo.NodeID == ch.s.opts.Cluster.PeerID
 
+		if !leaderIsSelf {
+			fmt.Println("转发请求：", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
 	}
-
-	fmt.Println("fakeChannelID:", fakeChannelID, "req.ChannelType:", req.ChannelType, "req.StartMessageSeq:", req.StartMessageSeq, "req.EndMessageSeq:", req.EndMessageSeq, "limit:", limit)
 
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
 		messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)

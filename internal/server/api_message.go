@@ -57,15 +57,16 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	}
 
 	if m.s.opts.ClusterOn() {
-		if !m.s.clusterServer.InPeer(req.UID) {
-			peer := m.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
-			if peer == nil {
-				m.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -85,7 +86,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	}
 	sartSeq = sartSeq + 1 // 从已读消息的下一条开始同步
 
-	messages, err := m.s.store.SyncMessageOfUser(req.UID, sartSeq, req.Limit)
+	messages, err := m.s.store.SyncMessageOfUser(req.UID, sartSeq, uint32(req.Limit))
 	if err != nil {
 		m.Error("同步消息失败！", zap.Error(err))
 		c.ResponseError(err)
@@ -117,15 +118,16 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 	}
 
 	if m.s.opts.ClusterOn() {
-		if !m.s.clusterServer.InPeer(req.UID) {
-			peer := m.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
-			if peer == nil {
-				m.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -219,15 +221,16 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 			if channelType == wkproto.ChannelTypePerson {
 				fakeChannelID = GetFakeChannelIDWith(req.FromUID, channelID)
 			}
-			if !m.s.clusterServer.InPeer(fakeChannelID) {
-				peer := m.s.clusterServer.GetOnePeer(fakeChannelID) // 随机获取一个数据所在的节点
-				if peer == nil {
-					m.Error("获取频道所在节点失败！", zap.String("uid", fakeChannelID))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+			if err != nil {
+				m.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+			if !leaderIsSelf {
+				m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 				return
 			}
 		}
@@ -336,7 +339,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			}
 			msg.StreamSeq = streamSeq // stream seq
 		} else {
-			_, err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
+			err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
 			if err != nil {
 				m.Error("Failed to save history message", zap.Error(err))
 				return 0, 0, errors.New("failed to save history message")
@@ -347,7 +350,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if m.s.opts.WebhookOn() {
 		if !msg.StreamIng() {
 			// Add a message to the notification queue, the data in this queue will be notified to third-party applications
-			err = m.s.store.fileStorage.AppendMessageOfNotifyQueue(messages)
+			err = m.s.store.AppendMessageOfNotifyQueue(messages)
 			if err != nil {
 				m.Error("添加消息到通知队列失败！", zap.Error(err))
 				return 0, 0, errors.New("添加消息到通知队列失败！")

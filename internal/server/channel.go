@@ -461,16 +461,20 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 		ChannelType: c.ChannelType,
 	}
 	if c.s.opts.ClusterOn() {
-		peerIDSubscribersMap := c.calcPeerSubscribers(subscribers)
-		for peerID, subscribers := range peerIDSubscribersMap {
-			if peerID == c.s.opts.Cluster.PeerID {
+		nodeIDSubscribersMap, err := c.calcNodeSubscribers(subscribers)
+		if err != nil {
+			c.Error("计算订阅者所在节点失败！", zap.Error(err))
+			return err
+		}
+		for nodeID, subscribers := range nodeIDSubscribersMap {
+			if nodeID == c.s.opts.Cluster.PeerID {
 				err = c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
 				if err != nil {
 					c.Error("处理本地订阅者消息失败！", zap.Error(err))
 					return err
 				}
 			} else {
-				err = c.forwardToOtherPeerSubscribers(messages, c.Large, peerID, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
+				err = c.forwardToOtherPeerSubscribers(messages, c.Large, nodeID, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
 				if err != nil {
 					c.Error("转发消息失败！", zap.Error(err))
 					return err
@@ -485,23 +489,22 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 }
 
 // 计算订阅者所在节点
-func (c *Channel) calcPeerSubscribers(subscribers []string) map[uint64][]string {
-	subscriberPeerIDMap := make(map[uint64][]string)
+func (c *Channel) calcNodeSubscribers(subscribers []string) (map[uint64][]string, error) {
+	subscriberNodeIDMap := make(map[uint64][]string)
 	for _, subscriber := range subscribers {
-		leaderPeer := c.s.clusterServer.GetLeaderPeer(subscriber)
-		if leaderPeer == nil { // TODO: 此slot在选举的时候可能会出现还没有领导节点，会导致消息不能在线投递，需要离线再进来才能显示消息，需要优化
-			slotID := c.s.clusterServer.GetSlotID(subscriber)
-			c.Warn("订阅者所在节点不存在！", zap.String("subscriber", subscriber), zap.Uint32("slotID", slotID))
-			continue
+		leaderInfo, err := c.s.cluster.LeaderNodeOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			c.Error("获取频道所在节点失败！", zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return nil, err
 		}
-		peerSubscribers, ok := subscriberPeerIDMap[leaderPeer.PeerID]
+		nodeSubscribers, ok := subscriberNodeIDMap[leaderInfo.NodeID]
 		if !ok {
-			peerSubscribers = make([]string, 0)
+			nodeSubscribers = make([]string, 0)
 		}
-		peerSubscribers = append(peerSubscribers, subscriber)
-		subscriberPeerIDMap[leaderPeer.PeerID] = peerSubscribers
+		nodeSubscribers = append(nodeSubscribers, subscriber)
+		subscriberNodeIDMap[leaderInfo.NodeID] = nodeSubscribers
 	}
-	return subscriberPeerIDMap
+	return subscriberNodeIDMap, nil
 
 }
 

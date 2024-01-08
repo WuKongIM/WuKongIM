@@ -53,15 +53,16 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		return
 	}
 	if u.s.opts.ClusterOn() {
-		leaderPeer := u.s.clusterServer.GetLeaderPeer(req.UID)
-		if leaderPeer == nil {
-			u.Error("获取用户所在领导失败！", zap.String("uid", req.UID))
-			c.ResponseError(errors.New("获取用户所在领导失败！"))
+		leaderInfo, err := u.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		if leaderPeer.PeerID != u.s.opts.Cluster.PeerID {
-			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderPeer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderPeer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderIsSelf := leaderInfo.NodeID == u.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
@@ -133,20 +134,22 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 	uidInPeerMap := make(map[uint64][]string)
 	localUids := make([]string, 0)
 	for _, uid := range uids {
-		leaderPeer := u.s.clusterServer.GetLeaderPeer(uid)
-		if leaderPeer == nil {
-			return nil, fmt.Errorf("领导者不存在！[%s]", uid)
+		leaderInfo, err := u.s.cluster.LeaderNodeOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return nil, errors.New("获取频道所在节点失败！")
 		}
-		if leaderPeer.PeerID == u.s.opts.Cluster.PeerID {
+		leaderIsSelf := leaderInfo.NodeID == u.s.opts.Cluster.PeerID
+		if leaderIsSelf {
 			localUids = append(localUids, uid)
 			continue
 		}
-		uidList := uidInPeerMap[leaderPeer.PeerID]
+		uidList := uidInPeerMap[leaderInfo.NodeID]
 		if uidList == nil {
 			uidList = make([]string, 0)
 		}
 		uidList = append(uidList, uid)
-		uidInPeerMap[leaderPeer.PeerID] = uidList
+		uidInPeerMap[leaderInfo.NodeID] = uidList
 	}
 	var conns []*OnlinestatusResp
 	if len(localUids) > 0 {
@@ -176,12 +179,14 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 	return conns, nil
 }
 
-func (u *UserAPI) requestOnlineStatus(peerID uint64, uids []string) ([]*OnlinestatusResp, error) {
-	peer := u.s.clusterServer.GetPeer(peerID)
-	if peer == nil {
-		return nil, fmt.Errorf("节点不存在！peerID:%d", peerID)
+func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*OnlinestatusResp, error) {
+
+	nodeInfo, err := u.s.cluster.NodeInfoByID(nodeID) // 获取频道的领导节点
+	if err != nil {
+		u.Error("获取频道所在节点失败！", zap.Uint64("nodeID", nodeID))
+		return nil, errors.New("获取频道所在节点失败！")
 	}
-	reqURL := fmt.Sprintf("%s/user/onlinestatus", peer.ApiServerAddr)
+	reqURL := fmt.Sprintf("%s/user/onlinestatus", nodeInfo.ApiServerAddr)
 	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(uids)), nil)
 	if err != nil {
 		u.Error("获取在线用户状态失败！", zap.Error(err), zap.String("reqURL", reqURL))
@@ -228,15 +233,16 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 	}
 
 	if u.s.opts.ClusterOn() {
-		if !u.s.clusterServer.InPeer(req.UID) {
-			peer := u.s.clusterServer.GetOnePeer(req.UID) // 随机获取一个数据所在的节点
-			if peer == nil {
-				u.Error("获取频道所在节点失败！", zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", peer.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		leaderInfo, err := u.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.NodeID == u.s.opts.Cluster.PeerID
+		if !leaderIsSelf {
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}

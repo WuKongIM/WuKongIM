@@ -5,11 +5,136 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
+
+func (p *Processor) SetRoutes() {
+	p.s.cluster.Route("/wk/connect", p.handleConnectReq)
+	p.s.cluster.Route("/wk/recvPacket", p.handleOnRecvPacketReq)
+	p.s.cluster.Route("/wk/sendPacket", p.handleOnSendPacketReq)
+	p.s.cluster.Route("/wk/connectWrite", p.handleOnConnectWriteReq)
+	p.s.cluster.Route("/wk/connPing", p.handleOnConnPingReq)
+	p.s.cluster.Route("/wk/recvackPacket", p.handleOnRecvackPacketReq)
+}
+
+func (p *Processor) handleConnectReq(c *wkserver.Context) {
+	var req = &rpc.ConnectReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		p.Error("unmarshal connectReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	resp, err := p.OnConnectReq(req)
+	if err != nil {
+		p.Error("onConnectReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	data, err := resp.Marshal()
+	if err != nil {
+		p.Error("marshal connectResp err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
+}
+
+func (p *Processor) handleOnRecvPacketReq(c *wkserver.Context) {
+	var req = &rpc.ForwardRecvPacketReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		p.Error("unmarshal forwardRecvPacketReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	err = p.OnRecvPacket(req)
+	if err != nil {
+		p.Error("onRecvPacket err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteOk()
+}
+
+func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
+	var req = &rpc.ForwardSendPacketReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		p.Error("unmarshal forwardSendPacketReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	resp, err := p.OnSendPacket(req)
+	if err != nil {
+		p.Error("onSendPacket err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	data, err := resp.Marshal()
+	if err != nil {
+		p.Error("marshal forwardSendPacketResp err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
+}
+
+func (p *Processor) handleOnConnectWriteReq(c *wkserver.Context) {
+	var req = &rpc.ConnectWriteReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		p.Error("unmarshal connectWriteReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	status, err := p.OnConnectWriteReq(req)
+	if err != nil {
+		p.Error("onConnectWriteReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteStatus(status)
+}
+
+func (p *Processor) handleOnConnPingReq(c *wkserver.Context) {
+	var req = &rpc.ConnPingReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		p.Error("unmarshal connPingReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	status, err := p.OnConnPingReq(req)
+	if err != nil {
+		p.Error("onConnPingReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteStatus(status)
+}
+
+func (p *Processor) handleOnRecvackPacketReq(c *wkserver.Context) {
+	var req = &rpc.RecvacksReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		p.Error("unmarshal recvacksReq err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	err = p.OnRecvackPacket(req)
+	if err != nil {
+		p.Error("onRecvackPacket err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteOk()
+}
 
 func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) {
 
@@ -180,48 +305,48 @@ func (p *Processor) OnSendPacket(req *rpc.ForwardSendPacketReq) (*rpc.ForwardSen
 }
 
 // OnConnectWriteReq 领导节点写回数据到连接所在节点
-func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (rpc.Status, error) {
+func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, error) {
 	conn := p.s.connManager.GetConn(req.ConnID)
 	if conn == nil {
 		p.Warn("conn not exist", zap.Int64("connID", req.ConnID))
-		return rpc.Status_NotFound, nil
+		return proto.Status_NotFound, nil
 	}
 	if conn.UID() != req.Uid && conn.DeviceFlag() != uint8(req.DeviceFlag) {
 		p.Warn("conn uid or deviceFlag not match", zap.Int64("connID", req.ConnID), zap.String("connUID", conn.UID()), zap.Uint8("connDeviceFlag", conn.DeviceFlag()), zap.String("reqUID", req.Uid), zap.Uint8("reqDeviceFlag", uint8(req.DeviceFlag)))
-		return rpc.Status_NotFound, nil
+		return proto.Status_NotFound, nil
 
 	}
 	if len(req.Data) == 0 {
 		p.Warn("conn write data is empty", zap.Int64("connID", req.ConnID))
-		return rpc.Status_Success, nil
+		return proto.Status_OK, nil
 	}
 	p.s.dispatch.dataOut(conn, req.Data)
-	return rpc.Status_Success, nil
+	return proto.Status_OK, nil
 }
 
 // OnConnPingReq 领导节点收到连接ping
-func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (rpc.Status, error) {
+func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (proto.Status, error) {
 	proxyConn := p.s.connManager.GetProxyConn(req.BelongPeerID, req.ConnID)
 	if proxyConn == nil {
 		p.Warn("conn not exist", zap.Int64("connID", req.ConnID), zap.Uint64("belongPeerID", req.BelongPeerID))
-		return rpc.Status_NotFound, nil
+		return proto.Status_NotFound, nil
 	}
 	proxyConn.KeepLastActivity()
-	return rpc.Status_Success, nil
+	return proto.Status_OK, nil
 }
 
-func (p *Processor) OnSendSyncProposeReq(req *rpc.SendSyncProposeReq) (*rpc.SendSyncProposeResp, error) {
-	data, err := p.s.clusterServer.SyncProposeToSlot(req.Slot, req.Data)
-	if err != nil {
-		p.Error("onSendSyncProposeReq sync propose to slot err", zap.Error(err))
-		return nil, err
-	}
+// func (p *Processor) OnSendSyncProposeReq(req *rpc.SendSyncProposeReq) (*rpc.SendSyncProposeResp, error) {
+// 	data, err := p.s.clusterServer.SyncProposeToSlot(req.Slot, req.Data)
+// 	if err != nil {
+// 		p.Error("onSendSyncProposeReq sync propose to slot err", zap.Error(err))
+// 		return nil, err
+// 	}
 
-	return &rpc.SendSyncProposeResp{
-		Slot: req.Slot,
-		Data: data,
-	}, nil
-}
+// 	return &rpc.SendSyncProposeResp{
+// 		Slot: req.Slot,
+// 		Data: data,
+// 	}, nil
+// }
 
 func (p *Processor) OnRecvackPacket(req *rpc.RecvacksReq) error {
 	fmt.Println("OnRecvackPacket....")
@@ -327,7 +452,7 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 			storeMessages = append(storeMessages, cloneMsg)
 		}
 		if len(storeMessages) > 0 {
-			_, err := p.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
+			err := p.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
 			if err != nil {
 				return nil, err
 			}
