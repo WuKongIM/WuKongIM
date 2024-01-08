@@ -4,10 +4,6 @@ package rpc;
 
 option go_package = "./;rpc";
 
-service NodeService {
-    // 转发
-    rpc SendCMD (CMDReq) returns (CMDResp);
-}
 enum CMDType {
      None = 0;
      ForwardSendPacket = 1; // 转发发送包

@@ -16,6 +16,7 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -99,6 +100,7 @@ func New(opts *Options) *Server {
 		return m, err
 	}
 	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
+	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
 	s.store = clusterstore.NewStore(storeOpts)
 
 	s.apiServer = NewAPIServer(s)
@@ -178,15 +180,20 @@ func New(opts *Options) *Server {
 			serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
 			initNodes[peer.ID] = serverAddr
 		}
-		s.cluster = cluster.NewServer(
+		clusterServer := cluster.NewServer(
 			s.opts.Cluster.PeerID,
 			cluster.WithListenAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
 			cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
 			cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
 			cluster.WithHeartbeat(200*time.Millisecond),
 			cluster.WithInitNodes(initNodes),
+			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
+			cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
+				return s.store.OnMetaApply(channelID, channelType, logs)
+			}),
 		)
-
+		s.cluster = clusterServer
+		storeOpts.Cluster = clusterServer
 		s.peerInFlightQueue = NewPeerInFlightQueue(s)
 	}
 
