@@ -407,7 +407,7 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 		}
 	}
 	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range req.UIDs {
+		for _, uid := range localPeerUids {
 			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
 			if ch.s.opts.IsFakeChannel(req.ChannelID) {
 				fakeChannelID = req.ChannelID
@@ -427,7 +427,7 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 			channelObj.AddDenylist([]string{uid})
 		}
 	} else {
-		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, localPeerUids)
 		if err != nil {
 			ch.Error("添加黑名单失败！", zap.Error(err))
 			c.ResponseError(err)
@@ -439,7 +439,7 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 			c.ResponseError(err)
 			return
 		}
-		channelObj.AddDenylist(req.UIDs)
+		channelObj.AddDenylist(localPeerUids)
 	}
 
 	c.ResponseOK()
@@ -499,7 +499,7 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 		}
 	}
 	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range req.UIDs {
+		for _, uid := range localPeerUids {
 			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
 			if ch.s.opts.IsFakeChannel(req.ChannelID) {
 				fakeChannelID = req.ChannelID
@@ -510,13 +510,11 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 				c.ResponseError(errors.New("移除所有黑明单失败！"))
 				return
 			}
-			if len(req.UIDs) > 0 {
-				err := ch.s.store.AddDenylist(fakeChannelID, req.ChannelType, []string{uid})
-				if err != nil {
-					ch.Error("添加黑名单失败！", zap.Error(err))
-					c.ResponseError(err)
-					return
-				}
+			err = ch.s.store.AddDenylist(fakeChannelID, req.ChannelType, []string{uid})
+			if err != nil {
+				ch.Error("添加黑名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
 			}
 			// 增加到缓存中
 			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
@@ -533,8 +531,8 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 			c.ResponseError(errors.New("移除所有黑明单失败！"))
 			return
 		}
-		if len(req.UIDs) > 0 {
-			err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+		if len(localPeerUids) > 0 {
+			err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, localPeerUids)
 			if err != nil {
 				ch.Error("添加黑名单失败！", zap.Error(err))
 				c.ResponseError(err)
@@ -608,7 +606,7 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 		}
 	}
 	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range req.UIDs {
+		for _, uid := range localPeerUids {
 			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
 			if ch.s.opts.IsFakeChannel(req.ChannelID) {
 				fakeChannelID = req.ChannelID
@@ -628,7 +626,7 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 			channelObj.RemoveDenylist([]string{uid})
 		}
 	} else {
-		err := ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+		err := ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, localPeerUids)
 		if err != nil {
 			ch.Error("移除黑名单失败！", zap.Error(err))
 			c.ResponseError(err)
@@ -640,7 +638,7 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 			c.ResponseError(err)
 			return
 		}
-		channelObj.RemoveDenylist(req.UIDs)
+		channelObj.RemoveDenylist(localPeerUids)
 	}
 
 	c.ResponseOK()
@@ -743,13 +741,42 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 			localPeerUids = req.UIDs
 		}
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
+
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range localPeerUids {
+			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
+			if ch.s.opts.IsFakeChannel(req.ChannelID) {
+				fakeChannelID = req.ChannelID
+			}
+			err := ch.s.store.AddAllowlist(fakeChannelID, req.ChannelType, []string{uid})
+			if err != nil {
+				ch.Error("添加白名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			// 增加到缓存中
+			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
+			if err != nil {
+				c.ResponseError(err)
+				return
+			}
+			channelObj.AddAllowlist([]string{uid})
+		}
+	} else {
+		err = ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+		if err != nil {
+			ch.Error("添加白名单失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		// 增加到缓存中
+		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+		if err != nil {
+			c.ResponseError(err)
+			return
+		}
+		channelObj.AddAllowlist(req.UIDs)
 	}
-	channelObj.AddAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -806,21 +833,57 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 			localPeerUids = req.UIDs
 		}
 	}
-	if len(req.UIDs) > 0 {
-		err := ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range localPeerUids {
+			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
+			if ch.s.opts.IsFakeChannel(req.ChannelID) {
+				fakeChannelID = req.ChannelID
+			}
+			err = ch.s.store.RemoveAllAllowlist(fakeChannelID, req.ChannelType)
+			if err != nil {
+				ch.Error("移除所有白明单失败！", zap.Error(err))
+				c.ResponseError(errors.New("移除所有白明单失败！"))
+				return
+			}
+			err := ch.s.store.AddAllowlist(fakeChannelID, req.ChannelType, []string{uid})
+			if err != nil {
+				ch.Error("添加白名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			// 增加到缓存中
+			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
+			if err != nil {
+				c.ResponseError(err)
+				return
+			}
+			channelObj.SetAllowlist([]string{uid})
+
+		}
+	} else {
+		err = ch.s.store.RemoveAllAllowlist(req.ChannelID, req.ChannelType)
 		if err != nil {
-			ch.Error("添加白名单失败！", zap.Error(err))
+			ch.Error("移除所有白明单失败！", zap.Error(err))
+			c.ResponseError(errors.New("移除所有白明单失败！"))
+			return
+		}
+		if len(req.UIDs) > 0 {
+			err := ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+			if err != nil {
+				ch.Error("添加白名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+		}
+		// 增加到缓存中
+		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+		if err != nil {
 			c.ResponseError(err)
 			return
 		}
+		channelObj.SetAllowlist(req.UIDs)
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.SetAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -878,13 +941,50 @@ func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 			localPeerUids = req.UIDs
 		}
 	}
-	// 缓存中移除
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
+
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range localPeerUids {
+			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
+			if ch.s.opts.IsFakeChannel(req.ChannelID) {
+				fakeChannelID = req.ChannelID
+			}
+			err = ch.s.store.RemoveAllowlist(fakeChannelID, req.ChannelType, req.UIDs)
+			if err != nil {
+				ch.Error("移除白名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			err = ch.s.store.RemoveAllowlist(fakeChannelID, req.ChannelType, []string{uid})
+			if err != nil {
+				ch.Error("移除白名单失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			// 缓存中移除
+			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
+			if err != nil {
+				c.ResponseError(err)
+				return
+			}
+			channelObj.RemoveAllowlist([]string{uid})
+		}
+
+	} else {
+		err = ch.s.store.RemoveAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+		if err != nil {
+			ch.Error("移除白名单失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		// 缓存中移除
+		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+		if err != nil {
+			c.ResponseError(err)
+			return
+		}
+		channelObj.RemoveAllowlist(req.UIDs)
 	}
-	channelObj.RemoveAllowlist(req.UIDs)
+
 	c.ResponseOK()
 }
 
