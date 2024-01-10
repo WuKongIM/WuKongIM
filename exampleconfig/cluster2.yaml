@@ -14,7 +14,7 @@ cluster:
   peerID: 2
   addr: "tcp://127.0.0.1:10002" # 分布式监听地址
   grpcAddr: "127.0.0.1:11112"
-  slotCount: 10
+  slotCount: 256
   replicaCount: 2
   peers: 
     - "1@127.0.0.1:10001"

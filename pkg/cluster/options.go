@@ -30,6 +30,8 @@ type Options struct {
 
 	ChannelEventWorkerCount int // 频道事件处理worker数量
 
+	ChannelMaxCacheCount int // 频道最大缓存数量
+
 	clusterAddr string
 	offsetPort  int
 }
@@ -45,6 +47,7 @@ func NewOptions() *Options {
 		SlotReplicaCount:        3,
 		ChannelReplicaCount:     3,
 		ChannelEventWorkerCount: 16,
+		ChannelMaxCacheCount:    1000,
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -23,7 +24,8 @@ type ChannelManager struct {
 	sendSyncNotifyC chan *Channel // 触发发送元数据副本的同步通知
 	syncC           chan channelSyncNotify
 
-	channelQueue *channelQueue // 进行中的频道
+	channelCache *lru.Cache[string, *Channel] // 频道缓存
+
 	wklog.Log
 
 	eachOfPopSize               int // 每次取出的频道数量
@@ -34,11 +36,10 @@ type ChannelManager struct {
 }
 
 func NewChannelManager(s *Server) *ChannelManager {
-	return &ChannelManager{
+	ch := &ChannelManager{
 		sendSyncNotifyC:             make(chan *Channel),
 		syncC:                       make(chan channelSyncNotify),
 		stopper:                     syncutil.NewStopper(),
-		channelQueue:                newChannelQueue(),
 		Log:                         wklog.NewWKLog(fmt.Sprintf("ChannelManager[%d]", s.opts.NodeID)),
 		eachOfPopSize:               10,
 		s:                           s,
@@ -46,6 +47,14 @@ func NewChannelManager(s *Server) *ChannelManager {
 		channelMetaTransportSync:    newChannelMetaTransportSync(s),
 		channelMessageTransportSync: newChannelMessageTransportSync(s),
 	}
+
+	channelCache, err := lru.NewWithEvict(s.opts.ChannelMaxCacheCount, func(key string, value *Channel) {
+	})
+	if err != nil {
+		ch.Panic("new channel cache failed", zap.Error(err))
+	}
+	ch.channelCache = channelCache
+	return ch
 }
 
 func (c *ChannelManager) Start() error {
@@ -64,7 +73,7 @@ func (c *ChannelManager) Stop() {
 
 // 获取频道并根据需要进行选举
 func (c *ChannelManager) GetChannel(channelID string, channelType uint8) (*Channel, error) {
-	channel := c.channelQueue.Get(channelID, channelType)
+	channel, _ := c.channelCache.Get(GetChannelKey(channelID, channelType))
 	if channel == nil {
 		slotID := c.s.GetSlotID(channelID)
 		slot := c.s.clusterEventManager.GetSlot(slotID)
@@ -76,23 +85,12 @@ func (c *ChannelManager) GetChannel(channelID string, channelType uint8) (*Chann
 			return nil, err
 		}
 		if slot.Leader == c.s.opts.NodeID { // 频道所在槽的领导是当前节点
-			var needPropose = false
-			if clusterInfo == nil {
+			if clusterInfo == nil { // 没有集群信息则创建一个新的集群信息
 				clusterInfo, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
 				if err != nil {
 					c.Error("create channel cluster info failed", zap.Error(err))
 					return nil, err
 				}
-				needPropose = true
-			} else if !c.s.clusterEventManager.NodeIsOnline(clusterInfo.LeaderID) { // 如果频道的领导离线了，则进行重新选举
-				leaderID, err := c.electionChannelLeader(clusterInfo) // 选举一个新的领导
-				if err != nil {
-					return nil, err
-				}
-				clusterInfo.LeaderID = leaderID
-				needPropose = true
-			}
-			if needPropose {
 				c.Debug("提议更新频道集群配置", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Any("clusterInfo", clusterInfo))
 				err = c.s.ProposeChannelClusterInfoToSlot(clusterInfo) // 更新集群配置（会通知副本同步）
 				if err != nil {
@@ -122,10 +120,49 @@ func (c *ChannelManager) GetChannel(channelID string, channelType uint8) (*Chann
 			c.Error("newChannelByClusterInfo failed", zap.Error(err))
 			return nil, err
 		}
-		c.channelQueue.Push(channel)
-
+		c.channelCache.Add(GetChannelKey(channelID, channelType), channel)
+	}
+	err := c.electionIfNeed(channel.clusterInfo)
+	if err != nil {
+		c.Error("频道选举失败！", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
+		return nil, err
 	}
 	return channel, nil
+}
+
+func (c *ChannelManager) electionIfNeed(clusterInfo *ChannelClusterInfo) error {
+	if clusterInfo == nil {
+		return errors.New("channel clusterinfo is not found")
+	}
+	channelID := clusterInfo.ChannelID
+	channelType := clusterInfo.ChannelType
+	slotID := c.s.GetSlotID(channelID)
+	slot := c.s.clusterEventManager.GetSlot(slotID)
+	if slot == nil {
+		return fmt.Errorf("not found slot[%d]", slotID)
+	}
+
+	if slot.Leader == c.s.opts.NodeID { // 频道所在槽的领导不是当前节点(只有频道所在槽的领导才有权限进行选举)
+		return nil
+	}
+
+	if c.s.clusterEventManager.NodeIsOnline(clusterInfo.LeaderID) { // 领导在线，不需要进行选举
+		return nil
+	}
+
+	// 开始进行选举
+	leaderID, err := c.electionChannelLeader(clusterInfo) // 选举一个新的领导
+	if err != nil {
+		return err
+	}
+	clusterInfo.LeaderID = leaderID
+
+	c.Debug("提议更新频道集群配置", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Any("clusterInfo", clusterInfo))
+	err = c.s.ProposeChannelClusterInfoToSlot(clusterInfo) // 更新集群配置（会通知副本同步）
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // 请求频道的集群信息
