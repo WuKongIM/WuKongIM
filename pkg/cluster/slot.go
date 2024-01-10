@@ -59,6 +59,10 @@ func (s *Slot) IsLeader() bool {
 	return s.replicaServer.IsLeader()
 }
 
+func (s *Slot) LeaderID() uint64 {
+	return s.replicaServer.LeaderID()
+}
+
 func (s *Slot) SyncLogs(nodeID uint64, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
 	return s.replicaServer.SyncLogs(nodeID, startLogIndex, limit)
 }

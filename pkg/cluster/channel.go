@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,7 +9,10 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type Channel struct {
@@ -21,6 +25,8 @@ type Channel struct {
 	clusterInfo *ChannelClusterInfo // 频道集群信息
 
 	wklog.Log
+
+	applyClusterInfoEventAdded atomic.Bool // 是否已添加应用频道集群信息事件
 }
 
 func NewChannel(channelClusterInfo *ChannelClusterInfo, s *Server, metaAppliedIndex uint64, messageAppliedIndex uint64, channelMetaSyncInfos []*replica.SyncInfo, channelMessageSyncInfos []*replica.SyncInfo, dataDir string, metaTransport replica.ITransport, messageTransport replica.ITransport, metaStorage IShardLogStorage, messageStorage IShardLogStorage, onMetaApply func(logs []replica.Log) (uint64, error), onMessageApply func(logs []replica.Log) (uint64, error)) *Channel {
@@ -155,6 +161,14 @@ func (c *Channel) SetLeaderID(leaderID uint64) {
 	c.messageReplica.SetLeaderID(leaderID)
 }
 
+func (c *Channel) SetClusterInfo(cl *ChannelClusterInfo) {
+	c.clusterInfo = cl
+	c.messageReplica.SetReplicas(cl.Replicas)
+	c.messageReplica.SetLeaderID(cl.LeaderID)
+	c.metaReplica.SetReplicas(cl.Replicas)
+	c.metaReplica.SetLeaderID(cl.LeaderID)
+}
+
 func (c *Channel) IsLeader() bool {
 
 	return c.metaReplica.IsLeader()
@@ -243,7 +257,61 @@ func (c *Channel) processEvent(event ChannelEvent) {
 			c.s.channelManager.AddRetryEvent(event)
 		}
 		c.Debug("向领导同步频道消息数据日志完成", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Int("syncCount", syncCount))
+	} else if event.EventType == ChannelEventTypeSendApplyClusterInfo { // 领导发送应用频道集群的通知
+		startTime := time.Now().UnixNano()
+		c.Debug("开始向副本应用频道集群信息", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		err := c.applyClusterInfo()
+		if err != nil {
+			c.Warn("向副本应用频道集群信息失败", zap.Error(err), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+			event.retry++
+			c.s.channelManager.AddRetryEvent(event)
+		} else {
+			c.Debug("向副本应用频道集群信息完成", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		}
 	}
+}
+
+func (c *Channel) applyClusterInfo() error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	requestGroup, ctx := errgroup.WithContext(timeoutCtx)
+
+	applyReplicaNodeIDs := make([]uint64, 0, len(c.clusterInfo.Replicas))
+
+	var requestErr error
+	for _, replicaNodeID := range c.clusterInfo.Replicas {
+		if replicaNodeID == c.s.opts.NodeID {
+			if !wkutil.ArrayContainsUint64(c.clusterInfo.ApplyReplicas, replicaNodeID) {
+				applyReplicaNodeIDs = append(applyReplicaNodeIDs, replicaNodeID)
+			}
+			continue
+		}
+		if !wkutil.ArrayContainsUint64(c.clusterInfo.ApplyReplicas, replicaNodeID) {
+			requestGroup.Go(func(rcID uint64) func() error {
+				return func() error {
+					err := c.s.nodeManager.requestApplyClusterInfo(ctx, rcID, c.clusterInfo)
+					if err != nil {
+						requestErr = err
+						c.Error("向副本应用频道集群信息失败", zap.Error(err), zap.Uint64("replicaNodeID", rcID), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+					} else {
+						applyReplicaNodeIDs = append(applyReplicaNodeIDs, rcID)
+					}
+					return nil
+				}
+			}(replicaNodeID))
+		}
+	}
+	_ = requestGroup.Wait()
+	cancel()
+
+	if len(applyReplicaNodeIDs) > 0 {
+		c.clusterInfo.ApplyReplicas = append(c.clusterInfo.ApplyReplicas, applyReplicaNodeIDs...)
+		err := c.s.stateMachine.saveChannelClusterInfo(c.clusterInfo)
+		if err != nil {
+			c.Error("保存频道集群信息失败", zap.Error(err), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+			return err
+		}
+	}
+	return requestErr
 }
 
 func GetChannelKey(channelID string, channelType uint8) string {

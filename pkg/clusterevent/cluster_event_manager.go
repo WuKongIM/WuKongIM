@@ -103,6 +103,7 @@ func (c *ClusterEventManager) createAndInitClusterConfig() {
 			ClusterAddr: addr,
 			Status:      pb.NodeStatus_NodeStatusWaitInit,
 			Online:      true,
+			AllowVote:   true,
 		})
 	}
 	sort.Sort(pb.NodeSlice(c.clusterconfig.Nodes))
@@ -217,6 +218,22 @@ func (c *ClusterEventManager) GetAllOnlineNode() []*pb.Node {
 		}
 	}
 	return onlineNodes
+}
+
+func (c *ClusterEventManager) GetAllowVoteNodes() []*pb.Node {
+	c.clusterconfigLock.Lock()
+	defer c.clusterconfigLock.Unlock()
+	nodes := c.clusterconfig.Nodes
+	if len(nodes) == 0 {
+		return nil
+	}
+	allowVoteNodes := make([]*pb.Node, 0, len(nodes))
+	for _, node := range nodes {
+		if node.AllowVote {
+			allowVoteNodes = append(allowVoteNodes, node)
+		}
+	}
+	return allowVoteNodes
 }
 
 func (c *ClusterEventManager) GetNode(nodeID uint64) *pb.Node {
@@ -351,13 +368,20 @@ func (c *ClusterEventManager) AddOrUpdateSlotNoSave(slot *pb.Slot) {
 
 // SetNodeOnline 设置节点在线状态
 func (c *ClusterEventManager) SetNodeOnline(nodeID uint64, online bool) {
+	c.SetNodeOnlineNoSave(nodeID, online)
+	c.SaveAndVersionInc()
+}
+
+func (c *ClusterEventManager) SetNodeOnlineNoSave(nodeID uint64, online bool) {
 	for _, node := range c.clusterconfig.Nodes {
 		if node.Id == nodeID {
 			node.Online = online
+			if !online {
+				node.OfflineCount++
+			}
 			break
 		}
 	}
-	c.SaveAndVersionInc()
 }
 
 func (c *ClusterEventManager) UpdateNode(n *pb.Node) {

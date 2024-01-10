@@ -11,6 +11,8 @@ type Options struct {
 	DataDir           string            // 数据存储目录
 	Heartbeat         time.Duration     // 心跳
 	ApiAddr           string            // api地址
+
+	NodeIsOnline func(nodeID uint64) bool // 节点是否在线
 }
 
 func NewOptions() *Options {

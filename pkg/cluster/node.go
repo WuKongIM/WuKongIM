@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
@@ -11,19 +12,20 @@ import (
 )
 
 type node struct {
-	id        uint64
-	addr      string
-	client    *client.Client
-	allowVote bool // 是否是允许投票的节点
-	online    bool // 是否在线
+	id              uint64
+	addr            string
+	client          *client.Client
+	allowVote       bool          // 是否是允许投票的节点
+	activityTimeout time.Duration // 活动超时时间，如果这个时间内没有活动，就表示节点已下线
 }
 
 func newNode(id uint64, uid string, addr string) *node {
 	cli := client.New(addr, client.WithUID(uid))
 	return &node{
-		id:     id,
-		addr:   addr,
-		client: cli,
+		id:              id,
+		addr:            addr,
+		client:          cli,
+		activityTimeout: time.Second * 10, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
 	}
 }
 
@@ -33,6 +35,10 @@ func (n *node) start() {
 
 func (n *node) stop() {
 	n.client.Close()
+}
+
+func (n *node) IsOnline() bool {
+	return time.Since(n.client.LastActivity()) < n.activityTimeout
 }
 
 func (n *node) send(msg *proto.Message) error {
@@ -340,6 +346,21 @@ func (n *node) requestNodeUpdate(ctx context.Context, node *pb.Node) error {
 	}
 	if resp.Status != proto.Status_OK {
 		return fmt.Errorf("requestNodeUpdate is failed, status:%d", resp.Status)
+	}
+	return nil
+}
+
+func (n *node) requestApplyClusterInfo(ctx context.Context, req *ChannelClusterInfo) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	resp, err := n.client.RequestWithContext(ctx, "/channel/applyClusterInfo", data)
+	if err != nil {
+		return err
+	}
+	if resp.Status != proto.Status_OK {
+		return fmt.Errorf("requestApplyClusterInfo is failed, status:%d", resp.Status)
 	}
 	return nil
 }

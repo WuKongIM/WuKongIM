@@ -41,6 +41,10 @@ func (r *Replica) SetLeaderID(id uint64) {
 	r.rawReplica.SetLeaderID(id)
 }
 
+func (r *Replica) LeaderID() uint64 {
+	return r.rawReplica.LeaderID()
+}
+
 func (r *Replica) Propose(data []byte) error {
 	err := r.rawReplica.ProposeOnlyLocal(data)
 	if err != nil {

@@ -253,13 +253,15 @@ func TestServerProposeDataToChannel(t *testing.T) {
 	var slotCount uint32 = 10
 	fmt.Println("dataDir1-2-->", rootDir)
 	// defer os.RemoveAll(rootDir)
-	s1 := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir1))
+	msgLogStorage1 := newTestMessageLogStorage()
+	s1 := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithMessageLogStorage(msgLogStorage1), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir1))
 	err := s1.Start()
 	assert.NoError(t, err)
 	defer s1.Stop()
 
+	msgLogStorage2 := newTestMessageLogStorage()
 	dataDir2 := path.Join(rootDir, "2")
-	s2 := cluster.NewServer(2, cluster.WithListenAddr("127.0.0.1:10002"), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir2))
+	s2 := cluster.NewServer(2, cluster.WithListenAddr("127.0.0.1:10002"), cluster.WithMessageLogStorage(msgLogStorage2), cluster.WithSlotCount(slotCount), cluster.WithHeartbeat(time.Millisecond*100), cluster.WithInitNodes(initNodes), cluster.WithDataDir(dataDir2))
 	err = s2.Start()
 	assert.NoError(t, err)
 	defer s2.Stop()

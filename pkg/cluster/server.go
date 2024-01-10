@@ -75,8 +75,8 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		votesFrom:     make(map[uint32][]uint64),
 		Log:           wklog.NewWKLog(fmt.Sprintf("cluster.Server[%d]", opts.NodeID)),
 		reqIDGen:      idutil.NewGenerator(uint16(nodeID), time.Now()),
-		stateMachine:  newStateMachine(path.Join(opts.DataDir, "datadb")),
 	}
+	s.stateMachine = newStateMachine(path.Join(opts.DataDir, "datadb"), s)
 	s.slotManager = NewSlotManager(s)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	wklog.Configure(&wklog.Options{
@@ -113,6 +113,16 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 	clusterEventOpts.SlotReplicaCount = opts.SlotReplicaCount
 	clusterEventOpts.Heartbeat = opts.Heartbeat
 	clusterEventOpts.ApiAddr = opts.ApiServerAddr
+	clusterEventOpts.NodeIsOnline = func(nodeID uint64) bool {
+		if nodeID == opts.NodeID { // 自己不可能挂
+			return true
+		}
+		node := s.nodeManager.getNode(nodeID)
+		if node != nil {
+			return node.IsOnline()
+		}
+		return false
+	}
 	s.clusterEventManager = clusterevent.NewClusterEventManager(clusterEventOpts)
 
 	if len(s.clusterEventManager.GetSlots()) > 0 {
@@ -258,9 +268,12 @@ func (s *Server) GetChannelLogs(channelID string, channelType uint8, startLogInd
 func (s *Server) FakeSetNodeOnline(nodeID uint64, online bool) {
 	node := s.nodeManager.getNode(nodeID)
 	if node == nil {
+		s.Error("the node not found", zap.Uint64("nodeID", nodeID))
 		return
 	}
-	node.online = online
+	if !online {
+		node.client.SetActivity(time.Now().Add(-(node.activityTimeout * 2)))
+	}
 	s.clusterEventManager.SetNodeOnline(nodeID, online)
 }
 
@@ -271,8 +284,6 @@ func (s *Server) addNode(id uint64, addr string) {
 	node := newNode(id, fmt.Sprintf("%d", s.opts.NodeID), addr)
 	node.start()
 	node.allowVote = s.allowVote(node)
-	node.online = true
-
 	s.nodeManager.addNode(node)
 	s.Info("add node", zap.Uint64("newID", id), zap.String("addr", addr))
 

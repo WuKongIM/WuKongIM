@@ -23,13 +23,15 @@ type stateMachine struct {
 	path string
 	wklog.Log
 	wo *pebble.WriteOptions
+	s  *Server
 }
 
-func newStateMachine(path string) *stateMachine {
+func newStateMachine(path string, s *Server) *stateMachine {
 	return &stateMachine{
 		path: path,
 		Log:  wklog.NewWKLog("stateMachine"),
 		wo:   &pebble.WriteOptions{Sync: true},
+		s:    s,
 	}
 }
 
@@ -67,22 +69,27 @@ func (s *stateMachine) handleSetChannelClusterInfo(cmd *CMD) {
 	channelInfo := &ChannelClusterInfo{}
 	err := channelInfo.Unmarshal(cmd.Data)
 	if err != nil {
-		s.Error("handleSetChannelInfo failed", zap.Error(err), zap.String("channelID", channelInfo.ChannelID), zap.Uint8("channelType", channelInfo.ChannelType))
+		s.Error("handleSetChannelClusterInfo failed", zap.Error(err), zap.String("channelID", channelInfo.ChannelID), zap.Uint8("channelType", channelInfo.ChannelType))
 		return
 	}
 	err = s.saveChannelClusterInfo(channelInfo)
 	if err != nil {
-		s.Error("handleSetChannelInfo failed", zap.Error(err), zap.String("channelID", channelInfo.ChannelID), zap.Uint8("channelType", channelInfo.ChannelType))
+		s.Error("handleSetChannelClusterInfo failed", zap.Error(err), zap.String("channelID", channelInfo.ChannelID), zap.Uint8("channelType", channelInfo.ChannelType))
 		return
 	}
 }
 
-func (s *stateMachine) getSetChannelInfoKey(channelID string, channelType uint8) []byte {
-	return []byte(fmt.Sprintf("channelinfo_%d_%s", channelType, channelID))
+func (s *stateMachine) getChannelClusterInfoKey(channelID string, channelType uint8) []byte {
+	slotID := s.s.GetSlotID(channelID)
+	return []byte(fmt.Sprintf("%s/slots/%d/channels/%d/%s", s.getChannelClusterInfoPrefix(), slotID, channelType, channelID))
+}
+
+func (s *stateMachine) getChannelClusterInfoPrefix() string {
+	return "/channelclusterinfo"
 }
 
 func (s *stateMachine) getChannelClusterInfo(channelID string, channelType uint8) (*ChannelClusterInfo, error) {
-	data, closer, err := s.db.Get(s.getSetChannelInfoKey(channelID, channelType))
+	data, closer, err := s.db.Get(s.getChannelClusterInfoKey(channelID, channelType))
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
 			return nil, nil
@@ -98,12 +105,49 @@ func (s *stateMachine) getChannelClusterInfo(channelID string, channelType uint8
 	return channelInfo, nil
 }
 
+func (s *stateMachine) getChannelClusterInfos(offset, limit int) ([]*ChannelClusterInfo, error) {
+	lowKey := []byte(fmt.Sprintf("%s/0", s.getChannelClusterInfoPrefix()))
+	highKey := []byte(fmt.Sprintf("%s/%d", s.getChannelClusterInfoPrefix(), s.s.clusterEventManager.GetSlotCount()))
+
+	iter := s.db.NewIter(&pebble.IterOptions{
+		LowerBound: lowKey,
+		UpperBound: highKey,
+	})
+	defer iter.Close()
+
+	channelInfos := make([]*ChannelClusterInfo, 0)
+	i := 0
+
+	for iter.First(); iter.Valid(); iter.Next() {
+
+		fmt.Println("iter.Value()--->", string(iter.Key()), iter.Value())
+		channelInfo := &ChannelClusterInfo{}
+		err := channelInfo.Unmarshal(iter.Value())
+		if err != nil {
+			return nil, err
+		}
+		if i < offset {
+			i++
+			continue
+		}
+
+		if i >= offset+limit {
+			break
+		}
+		fmt.Println("channelInfo---->", channelInfo.ChannelID, channelInfo.Replicas, channelInfo)
+		channelInfos = append(channelInfos, channelInfo)
+
+	}
+	return channelInfos, nil
+
+}
+
 func (s *stateMachine) saveChannelClusterInfo(channelInfo *ChannelClusterInfo) error {
 	data, err := channelInfo.Marshal()
 	if err != nil {
 		return err
 	}
-	err = s.db.Set(s.getSetChannelInfoKey(channelInfo.ChannelID, channelInfo.ChannelType), data, s.wo)
+	err = s.db.Set(s.getChannelClusterInfoKey(channelInfo.ChannelID, channelInfo.ChannelType), data, s.wo)
 	if err != nil {
 		return err
 	}
@@ -234,11 +278,12 @@ func (s *stateMachine) getSlotSyncInfos(slotID uint32) ([]*replica.SyncInfo, err
 }
 
 func (s *stateMachine) getSlotSyncInfoKey(slotID uint32, nodeID uint64) []byte {
-	keyStr := fmt.Sprintf("slotsyncs_%d_%d", slotID, nodeID)
+	keyStr := fmt.Sprintf("/slotsyncs/slots/%d/nodes/%d", slotID, nodeID)
 	return []byte(keyStr)
 }
 
 func (s *stateMachine) getChannelSyncInfoKey(channelID string, channelType uint8, kind LogKind, nodeID uint64) []byte {
-	keyStr := fmt.Sprintf("channelsyncs_%d_%s_%d_%d", channelType, channelID, kind, nodeID)
+	slotID := s.s.GetSlotID(channelID)
+	keyStr := fmt.Sprintf("/channelsyncs/slots/%d/kind/%d/channels/%d/%s/nodes/%d", slotID, kind, channelType, channelID, nodeID)
 	return []byte(keyStr)
 }

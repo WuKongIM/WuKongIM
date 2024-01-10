@@ -38,6 +38,8 @@ func (s *Server) setRoutes() {
 	s.clusterServer.Route("/channel/getclusterinfo", s.handleGetClusterInfo)
 	// 处理节点更新
 	s.clusterServer.Route("/node/update", s.handleNodeUpdate)
+	// 频道领导请求副本应用频道集群配置
+	s.clusterServer.Route("/channel/applyClusterInfo", s.handleChannelApplyClusterInfo)
 }
 
 func (s *Server) handleSyncClusterConfig(c *wkserver.Context) {
@@ -289,7 +291,6 @@ func (s *Server) handleChannelMessagesPropose(c *wkserver.Context) {
 }
 
 func (s *Server) handleGetClusterInfo(c *wkserver.Context) {
-	fmt.Println("handleGetClusterinfo..........")
 	req := &ChannelClusterInfoRequest{}
 	err := req.Unmarshal(c.Body())
 	if err != nil {
@@ -328,7 +329,6 @@ func (s *Server) handleGetClusterInfo(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
-	fmt.Println("handleGetClusterinfo..........end")
 	c.Write(resultData)
 }
 
@@ -470,6 +470,41 @@ func (s *Server) handleNodeUpdate(c *wkserver.Context) {
 	s.Debug("收到节点更新", zap.Uint64("nodeID", nodeUpdate.Id), zap.String("apiAddr", nodeUpdate.ApiAddr))
 
 	s.clusterEventManager.UpdateNode(nodeUpdate)
+
+	c.WriteOk()
+}
+
+func (s *Server) handleChannelApplyClusterInfo(c *wkserver.Context) {
+	req := &ChannelClusterInfo{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("unmarshal ChannelClusterInfo failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	oldChannelClusterInfo, err := s.stateMachine.getChannelClusterInfo(req.ChannelID, req.ChannelType)
+	if err != nil {
+		s.Error("query channel cluster info failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.WriteErr(err)
+		return
+	}
+	apply := false
+	if oldChannelClusterInfo == nil || oldChannelClusterInfo.ConfigVersion < req.ConfigVersion {
+		apply = true
+	} else {
+		s.Warn("本地频道集群配置比请求的新，所以不进行应用", zap.String("fromNodeID", c.Conn().UID()), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldChannelClusterInfo.ConfigVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
+	}
+
+	if apply {
+		s.Debug("应用频道集群配置", zap.String("fromNodeID", c.ConnReq().Uid), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldChannelClusterInfo.ConfigVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
+		err = s.stateMachine.saveChannelClusterInfo(req)
+		if err != nil {
+			s.Error("apply channel cluster info failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.WriteErr(err)
+			return
+		}
+		s.channelManager.UpdateChannelCacheIfNeed(req)
+	}
 
 	c.WriteOk()
 }
