@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -103,4 +104,10 @@ func (s *APIServer) setRoutes() {
 	// 系统api
 	system := NewSystemAPI(s.s)
 	system.Route(s.r)
+
+	// 分布式api
+	clusterServer, ok := s.s.cluster.(*cluster.Server)
+	if ok {
+		clusterServer.ServerAPI(s.r, "/cluster")
+	}
 }

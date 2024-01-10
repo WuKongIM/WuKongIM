@@ -52,10 +52,11 @@ func channelWokerIndex(channelID string, workerCount int) uint32 {
 type ChannelEventType int
 
 const (
-	ChannelEventTypeSendMetaNotifySync    ChannelEventType = iota // 发送频道元数据日志同步通知
-	ChannelEventTypeSendMessageNotifySync                         // 发送消息元数据同步通知
-	ChannelEventTypeSyncMetaLogs                                  // 同步频道元数据日志
-	ChannelEventTypeSyncMessageLogs                               // 同步消息日志
+	ChannelEventTypeSendMetaNotifySync    ChannelEventType = iota // 发送频道元数据日志同步通知（领导）
+	ChannelEventTypeSendMessageNotifySync                         // 发送消息元数据同步通知（领导）
+	ChannelEventTypeSyncMetaLogs                                  // 同步频道元数据日志（副本）
+	ChannelEventTypeSyncMessageLogs                               // 同步消息日志（副本）
+	ChannelEventTypeSendApplyClusterInfo                          // 发送应用频道的分布式信息（领导）
 )
 
 type Priority int

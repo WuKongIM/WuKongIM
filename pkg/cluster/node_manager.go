@@ -238,3 +238,12 @@ func (n *nodeManager) requestNodeUpdate(ctx context.Context, nodeID uint64, nd *
 	}
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
+
+// 频道领导请求副本应用集群信息
+func (n *nodeManager) requestApplyClusterInfo(ctx context.Context, nodeID uint64, req *ChannelClusterInfo) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestApplyClusterInfo(ctx, req)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}

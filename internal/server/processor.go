@@ -406,9 +406,9 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	}
 
 	// 如果频道在本节点上那么就本地处理，如果不在此节点上那么就转发给所属的节点
-	isLeader, err := p.s.cluster.IsLeaderNodeOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	isLeader, err := p.s.cluster.IsLeaderNodeOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		p.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
 	if isLeader {
@@ -428,9 +428,9 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 		fakeChannelID = GetFakeChannelIDWith(conn.UID(), channelID)
 	}
 
-	leaderInfo, err := p.s.cluster.LeaderNodeOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	leaderInfo, err := p.s.cluster.LeaderNodeOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		p.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
 		for _, sendPacket := range sendPackets {
 			sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, wkproto.ReasonSystemError))
 		}

@@ -48,6 +48,8 @@ func (s *Server) handleClusterNodeEvent(nodeEvent *pb.NodeEvent) {
 	switch nodeEvent.EventType {
 	case pb.NodeEventType_NodeEventTypeRequestUpdate: // 请求领导节点更新我的节点信息
 		s.handleClusterNodeEventRequestUpdate(nodeEvent)
+	case pb.NodeEventType_NodeEventTypeOnlineStatusChange: // 节点在线状态改变
+		s.handleClusterNodeEventOnlineChange(nodeEvent)
 	}
 }
 
@@ -67,6 +69,19 @@ func (s *Server) handleClusterNodeEventRequestUpdate(nodeEvent *pb.NodeEvent) {
 			s.Error("requestNodeUpdate is failed", zap.Error(err))
 		}
 	}
+}
+
+func (s *Server) handleClusterNodeEventOnlineChange(nodeEvent *pb.NodeEvent) {
+	if len(nodeEvent.Node) == 0 {
+		return
+	}
+	if !s.clusterEventManager.IsNodeLeader() {
+		return
+	}
+	for _, node := range nodeEvent.Node {
+		s.clusterEventManager.SetNodeOnlineNoSave(node.Id, node.Online)
+	}
+	s.clusterEventManager.SaveAndVersionInc()
 }
 
 func (s *Server) handleClusterConfigVersionChange() {
@@ -92,7 +107,9 @@ func (s *Server) addOrUpdateSlots(slots []*pb.Slot) error {
 			}
 			s.slotManager.AddSlot(slot)
 		} else {
-			slot.SetLeaderID(st.Leader)
+			if slot.LeaderID() != st.Leader {
+				slot.SetLeaderID(st.Leader)
+			}
 		}
 	}
 	return nil
@@ -135,7 +152,7 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 				slotNodeMap[replicaNodeID] = append(slotNodeMap[replicaNodeID], slot.Id)
 			} else {
 				node := s.nodeManager.getNode(replicaNodeID)
-				if node != nil && node.online {
+				if node != nil && s.clusterEventManager.NodeIsOnline(replicaNodeID) {
 					slotNodeMap[replicaNodeID] = append(slotNodeMap[replicaNodeID], slot.Id)
 				}
 			}
@@ -163,6 +180,9 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 				NodeID:    nodeID,
 				SlotInfos: slotInfos,
 			})
+			continue
+		}
+		if !s.clusterEventManager.NodeIsOnline(nodeID) { // 必需在线
 			continue
 		}
 		requestGroup.Go(func(nID uint64, slotIDs []uint32) func() error {
@@ -202,6 +222,7 @@ func (s *Server) handleClusterSlotEventElection(slotEvent *pb.SlotEvent) {
 	slotLeaderMap := s.getSlotLeaderByNodeSlotMap(nodeSlotLogIndexMap, slotEvent.SlotIDs)
 
 	if len(slotLeaderMap) == 0 {
+		s.Warn("没有选举出任何槽领导者！！！", zap.Uint32s("slotIDs", slotEvent.SlotIDs))
 		return
 	}
 

@@ -19,10 +19,8 @@ enum NodeEventType {
     NodeEventTypeInit = 1;
     NodeEventTypeAdd = 2;
     NodeEventTypeRemove = 3;
-<<<<<<< HEAD
     NodeEventTypeRequestUpdate = 4; // 节点更新请求 (请求节点领导更新节点信息)
-=======
->>>>>>> c9a61d698e7dd6f64cd01d34efbf2e92ff76a4b3
+    NodeEventTypeOnlineStatusChange = 5; // 节点在线状态改变
 }
 
 enum NodeStatus {
@@ -50,6 +48,8 @@ message Node {
     repeated SlotMigrate imports = 8; // 正在迁入的槽位
     NodeStatus status = 9; // 节点状态
     bool online = 10; // 是否在线
+    uint32 offlineCount = 11; // 离线次数
+    bool allowVote = 12; // 节点是否允许投票
 }
 
 

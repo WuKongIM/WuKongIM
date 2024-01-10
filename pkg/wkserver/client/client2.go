@@ -25,11 +25,10 @@ type Client struct {
 	conn net.Conn
 	opts *Options
 	wklog.Log
-	proto      proto.Protocol
-	lastActive time.Time
-	outbound   *Outbound
-	reqIDGen   *idutil.Generator
-	w          wait.Wait
+	proto    proto.Protocol
+	outbound *Outbound
+	reqIDGen *idutil.Generator
+	w        wait.Wait
 
 	routeMapLock sync.RWMutex
 	routeMap     map[string]Handler
@@ -83,6 +82,20 @@ func (c *Client) Close() error {
 	}
 	return nil
 }
+
+// LastActivity 最后一次活动时间
+func (c *Client) LastActivity() time.Time {
+	return c.lastActivity
+}
+
+func (c *Client) SetActivity(t time.Time) {
+	c.lastActivity = t
+}
+
+func (c *Client) keepActivity() {
+	c.lastActivity = time.Now()
+}
+
 func (c *Client) run(connectChan chan struct{}) {
 	errSleepDuri := time.Second * 1
 	if c.running.Load() {
@@ -98,12 +111,12 @@ func (c *Client) run(connectChan chan struct{}) {
 		conn, err := net.DialTimeout("tcp", c.addr, c.opts.ConnectTimeout)
 		if err != nil {
 			// 处理错误
-			c.Warn("connect is error", zap.Error(err))
+			c.Info("connect is error", zap.Error(err))
 			time.Sleep(errSleepDuri)
 			continue
 		}
 		c.conn = conn
-		c.lastActive = time.Now()
+		c.lastActivity = time.Now()
 		c.outbound = NewOutbound(c.conn, NewOutboundOptions())
 		c.outbound.Start()
 		err = c.handshake()

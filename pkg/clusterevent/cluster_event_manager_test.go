@@ -87,3 +87,38 @@ func TestSlotEventElection(t *testing.T) {
 		}
 	}
 }
+
+func TestNodeEventNodeOnlineDown(t *testing.T) {
+	opts := clusterevent.NewOptions()
+	opts.NodeID = 1
+	opts.SlotCount = 10
+	opts.DataDir = path.Join(os.TempDir(), "cluster_event_manager_test")
+	opts.Heartbeat = time.Millisecond * 100
+	opts.InitNodes = map[uint64]string{
+		1: "127.0.0.1:10001",
+	}
+	opts.NodeIsOnline = func(nodeID uint64) bool {
+		return false
+	}
+	fmt.Println(opts.DataDir)
+	defer os.RemoveAll(opts.DataDir)
+
+	c := clusterevent.NewClusterEventManager(opts)
+	c.SetNodeLeaderID(1) // 设置节点1为领导
+
+	err := c.Start()
+	assert.NoError(t, err)
+	defer c.Stop()
+
+	var clusterEvt clusterevent.ClusterEvent
+	for clusterEvt = range c.Watch() {
+		if clusterEvt.NodeEvent != nil {
+			if pb.NodeEventType_NodeEventTypeOnlineStatusChange == clusterEvt.NodeEvent.EventType {
+				break
+			}
+		}
+	}
+
+	assert.Equal(t, uint64(1), clusterEvt.NodeEvent.Node[0].Id)
+	assert.Equal(t, false, clusterEvt.NodeEvent.Node[0].Online)
+}

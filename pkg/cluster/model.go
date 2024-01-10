@@ -438,11 +438,13 @@ func (a *ChannelProposesRequest) Unmarshal(data []byte) error {
 
 // 频道分布式信息
 type ChannelClusterInfo struct {
-	ChannelID       string   // 频道id
-	ChannelType     uint8    // 频道类型
-	LeaderID        uint64   // 领导节点ID
-	ReplicaMaxCount uint16   // 副本最大数量
-	Replicas        []uint64 // 副本节点ID
+	ChannelID       string   `json:"channel_id"`               // 频道id
+	ChannelType     uint8    `json:"channel_type"`             // 频道类型
+	LeaderID        uint64   `json:"leader_id"`                // 领导节点ID
+	ReplicaMaxCount uint16   `json:"replica_max_count"`        // 副本最大数量
+	Replicas        []uint64 `json:"replicas,omitempty"`       // 副本节点ID
+	ConfigVersion   uint64   `json:"config_version,omitempty"` // 配置版本
+	ApplyReplicas   []uint64 `json:"apply_replicas,omitempty"` // 已经应用配置的副本
 
 	version uint16 // 数据协议版本
 
@@ -463,6 +465,13 @@ func (c *ChannelClusterInfo) Marshal() ([]byte, error) {
 			enc.WriteUint64(replica)
 		}
 	}
+	enc.WriteUint16(uint16(len(c.ApplyReplicas)))
+	if len(c.ApplyReplicas) > 0 {
+		for _, replica := range c.ApplyReplicas {
+			enc.WriteUint64(replica)
+		}
+	}
+	enc.WriteUint64(c.ConfigVersion)
 	return enc.Bytes(), nil
 }
 
@@ -488,15 +497,26 @@ func (c *ChannelClusterInfo) Unmarshal(data []byte) error {
 	if count, err = dec.Uint16(); err != nil {
 		return err
 	}
-	if count == 0 {
-		return nil
-	}
 	for i := 0; i < int(count); i++ {
 		var replica uint64
 		if replica, err = dec.Uint64(); err != nil {
 			return err
 		}
 		c.Replicas = append(c.Replicas, replica)
+	}
+
+	if count, err = dec.Uint16(); err != nil {
+		return err
+	}
+	for i := 0; i < int(count); i++ {
+		var replica uint64
+		if replica, err = dec.Uint64(); err != nil {
+			return err
+		}
+		c.ApplyReplicas = append(c.ApplyReplicas, replica)
+	}
+	if c.ConfigVersion, err = dec.Uint64(); err != nil {
+		return err
 	}
 	return nil
 }

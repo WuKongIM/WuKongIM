@@ -31,6 +31,19 @@ func (p *Processor) handleConnectReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+
+	isLeader, err := p.s.cluster.IsLeaderNodeOfChannel(req.Uid, wkproto.ChannelTypePerson)
+	if err != nil {
+		p.Error("IsLeaderNodeOfChannel err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	if !isLeader {
+		p.Error("当前节点不是领导节点, handleConnectReq failed", zap.String("uid", req.Uid))
+		c.WriteErr(fmt.Errorf("当前节点不是领导节点"))
+		return
+	}
+
 	resp, err := p.OnConnectReq(req)
 	if err != nil {
 		p.Error("onConnectReq err", zap.Error(err))
@@ -74,6 +87,24 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+	var (
+		fakeChannelID = req.ChannelID
+	)
+	if uint8(req.ChannelType) == wkproto.ChannelTypePerson {
+		fakeChannelID = GetFakeChannelIDWith(req.FromUID, req.ChannelID)
+	}
+	isLeader, err := p.s.cluster.IsLeaderNodeOfChannel(fakeChannelID, uint8(req.ChannelType))
+	if err != nil {
+		p.Error("IsLeaderNodeOfChannel err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	if !isLeader {
+		p.Error("当前节点不是领导节点, handleOnSendPacketReq failed", zap.String("channel", req.ChannelID), zap.Uint32("channelType", req.ChannelType))
+		c.WriteErr(fmt.Errorf("当前节点不是领导节点"))
+		return
+	}
+
 	startTime := time.Now().UnixMilli()
 	p.Debug("收到转发的SendPacket", zap.String("fromNodeID", c.Conn().UID()))
 	resp, err := p.OnSendPacket(req)
@@ -293,6 +324,7 @@ func (p *Processor) OnSendPacket(req *rpc.ForwardSendPacketReq) (*rpc.ForwardSen
 		p.Error("prcocessChannelMessagesForLocal err", zap.Error(err))
 		return nil, err
 	}
+
 	sendackPacketDatas := make([]byte, 0)
 	if len(sendackPackets) > 0 {
 		for _, sendackPacket := range sendackPackets {
@@ -356,7 +388,6 @@ func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (proto.Status, error) {
 // }
 
 func (p *Processor) OnRecvackPacket(req *rpc.RecvacksReq) error {
-	fmt.Println("OnRecvackPacket....")
 	proxyConn := p.s.connManager.GetProxyConn(req.BelongPeerID, req.ConnID)
 	if proxyConn == nil {
 		p.Warn("conn not exist", zap.Int64("connID", req.ConnID), zap.Uint64("belongPeerID", req.BelongPeerID))

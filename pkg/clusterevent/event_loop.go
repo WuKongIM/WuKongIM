@@ -87,7 +87,7 @@ func (c *ClusterEventManager) triggerWatch(event ClusterEvent) {
 
 func (c *ClusterEventManager) checkNodes() ClusterEvent {
 
-	// 节点上报自己的apiAddr地址
+	// 节点上修正自己的apiAddr
 	if strings.TrimSpace(c.opts.ApiAddr) != "" && c.nodeLeaderID.Load() != 0 {
 		for _, node := range c.clusterconfig.Nodes {
 			if node.Id == c.opts.NodeID && (node.ApiAddr == "" || node.ApiAddr != c.opts.ApiAddr) {
@@ -104,6 +104,34 @@ func (c *ClusterEventManager) checkNodes() ClusterEvent {
 				}
 			}
 		}
+	}
+
+	// 节点领导监控节点监控状态
+	if c.IsNodeLeader() {
+		if c.opts.NodeIsOnline != nil {
+			var changeNodes []*pb.Node
+			for _, node := range c.clusterconfig.Nodes {
+				isOnline := c.opts.NodeIsOnline(node.Id)
+				if node.Online != isOnline {
+					if changeNodes == nil {
+						changeNodes = make([]*pb.Node, 0)
+					}
+					changeNodes = append(changeNodes, &pb.Node{
+						Id:     node.Id,
+						Online: isOnline,
+					})
+				}
+			}
+			if len(changeNodes) > 0 {
+				return ClusterEvent{
+					NodeEvent: &pb.NodeEvent{
+						EventType: pb.NodeEventType_NodeEventTypeOnlineStatusChange,
+						Node:      changeNodes,
+					},
+				}
+			}
+		}
+
 	}
 
 	return EmptyClusterEvent
