@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-const (
-	defaultCleanInterval = 24 * time.Hour //默认24小时清理一次
-)
-
 // KeyLock KeyLock
 type KeyLock struct {
 	locks         map[string]*innerLock //关键字锁map
@@ -22,7 +18,7 @@ type KeyLock struct {
 func NewKeyLock() *KeyLock {
 	return &KeyLock{
 		locks:         make(map[string]*innerLock),
-		cleanInterval: defaultCleanInterval,
+		cleanInterval: time.Hour * 1, // 1小时清理下锁
 		stopChan:      make(chan struct{}),
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
@@ -24,7 +25,8 @@ type ChannelManager struct {
 	sendSyncNotifyC chan *Channel // 触发发送元数据副本的同步通知
 	syncC           chan channelSyncNotify
 
-	channelCache *lru.Cache[string, *Channel] // 频道缓存
+	channelCache   *lru.Cache[string, *Channel] // 频道缓存
+	channelKeyLock *keylock.KeyLock
 
 	wklog.Log
 
@@ -46,6 +48,7 @@ func NewChannelManager(s *Server) *ChannelManager {
 		pebbleStorage:               NewPebbleStorage(path.Join(s.opts.DataDir, "channellogdb")),
 		channelMetaTransportSync:    newChannelMetaTransportSync(s),
 		channelMessageTransportSync: newChannelMessageTransportSync(s),
+		channelKeyLock:              keylock.NewKeyLock(),
 	}
 
 	channelCache, err := lru.NewWithEvict(s.opts.ChannelMaxCacheCount, func(key string, value *Channel) {
@@ -62,10 +65,12 @@ func (c *ChannelManager) Start() error {
 	if err != nil {
 		return err
 	}
+	c.stopper.RunWorker(c.channelKeyLock.StartCleanLoop)
 	return nil
 }
 
 func (c *ChannelManager) Stop() {
+	c.channelKeyLock.StopCleanLoop()
 	c.stopper.Stop()
 	c.pebbleStorage.Close()
 
@@ -73,7 +78,11 @@ func (c *ChannelManager) Stop() {
 
 // 获取频道并根据需要进行选举
 func (c *ChannelManager) GetChannel(channelID string, channelType uint8) (*Channel, error) {
-	channel, _ := c.channelCache.Get(GetChannelKey(channelID, channelType))
+	channelKey := GetChannelKey(channelID, channelType)
+	c.channelKeyLock.Lock(channelKey)
+	defer c.channelKeyLock.Unlock(channelKey)
+
+	channel, _ := c.channelCache.Get(channelKey)
 	if channel == nil {
 		slotID := c.s.GetSlotID(channelID)
 		slot := c.s.clusterEventManager.GetSlot(slotID)
