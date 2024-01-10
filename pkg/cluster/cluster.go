@@ -22,10 +22,10 @@ type ICluster interface {
 	IsLeaderNodeOfChannel(channelID string, channelType uint8) (isLeader bool, err error)
 	// NodeInfoByID 获取节点信息
 	NodeInfoByID(nodeID uint64) (nodeInfo *NodeInfo, err error)
+	//Route 设置接受请求的路由
+	Route(path string, handler wkserver.Handler)
 	// RequestWithContext 发送请求给指定的节点
 	RequestWithContext(ctx context.Context, toNodeID uint64, path string, body []byte) (*proto.Response, error)
-	// 设置路由
-	Route(path string, handler wkserver.Handler)
 }
 
 type NodeInfo struct {

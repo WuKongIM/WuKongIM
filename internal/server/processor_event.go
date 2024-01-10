@@ -332,7 +332,7 @@ func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, e
 
 // OnConnPingReq 领导节点收到连接ping
 func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (proto.Status, error) {
-	p.Debug("收到Ping", zap.Uint64("fromNodeID", req.BelongPeerID))
+	p.Debug("收到Ping", zap.Uint64("fromNodeID", req.BelongPeerID), zap.String("uid", req.Uid), zap.Int64("connID", req.ConnID))
 	proxyConn := p.s.connManager.GetProxyConn(req.BelongPeerID, req.ConnID)
 	if proxyConn == nil {
 		p.Warn("conn not exist", zap.Int64("connID", req.ConnID), zap.Uint64("belongPeerID", req.BelongPeerID))

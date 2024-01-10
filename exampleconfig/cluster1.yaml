@@ -12,7 +12,7 @@ conversation:
 cluster:
   peerID: 1
   addr: "tcp://127.0.0.1:10001"
-  slotCount: 10
+  slotCount: 256
   replicaCount: 2
   grpcAddr: "127.0.0.1:11111"
   peers: 

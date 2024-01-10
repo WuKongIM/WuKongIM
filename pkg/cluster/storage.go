@@ -2,6 +2,7 @@ package cluster
 
 import "github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 
+// 日志分区存储
 type IShardLogStorage interface {
 	// AppendLog 追加日志
 	AppendLog(shardNo string, log replica.Log) error
