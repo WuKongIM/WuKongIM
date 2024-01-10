@@ -20,11 +20,7 @@ import (
 )
 
 type ChannelManager struct {
-	stopper *syncutil.Stopper
-
-	sendSyncNotifyC chan *Channel // 触发发送元数据副本的同步通知
-	syncC           chan channelSyncNotify
-
+	stopper        *syncutil.Stopper
 	channelCache   *lru.Cache[string, *Channel] // 频道缓存
 	channelKeyLock *keylock.KeyLock
 
@@ -39,8 +35,6 @@ type ChannelManager struct {
 
 func NewChannelManager(s *Server) *ChannelManager {
 	ch := &ChannelManager{
-		sendSyncNotifyC:             make(chan *Channel),
-		syncC:                       make(chan channelSyncNotify),
 		stopper:                     syncutil.NewStopper(),
 		Log:                         wklog.NewWKLog(fmt.Sprintf("ChannelManager[%d]", s.opts.NodeID)),
 		eachOfPopSize:               10,
@@ -386,113 +380,5 @@ func (c *ChannelManager) onMetaApply(channelID string, channelType uint8) func(l
 func (c *ChannelManager) onMessageApply(channelID string, channelType uint8) func(logs []replica.Log) (uint64, error) {
 	return func(logs []replica.Log) (uint64, error) {
 		return logs[len(logs)-1].Index, nil
-	}
-}
-
-type channelQueue struct {
-	channelIndexMap map[string]int
-	channels        []*Channel
-	resetCount      int
-	sync.Mutex
-}
-
-func newChannelQueue() *channelQueue {
-	return &channelQueue{
-		channelIndexMap: make(map[string]int),
-		channels:        make([]*Channel, 0, 1000),
-		resetCount:      1000,
-	}
-}
-
-func (c *channelQueue) Push(ch *Channel) {
-	c.Lock()
-	defer c.Unlock()
-	if len(c.channels) >= c.resetCount {
-		c.restIndex()
-	}
-	if c.exist(ch.channelID, ch.channelType) {
-		return
-	}
-	c.channels = append(c.channels, ch)
-	c.channelIndexMap[ch.GetChannelKey()] = len(c.channels) - 1
-
-}
-
-func (c *channelQueue) PeekAndBack(size int) []*Channel {
-	c.Lock()
-	defer c.Unlock()
-	if len(c.channels) == 0 {
-		return nil
-	}
-
-	var chs []*Channel
-	if size > len(c.channels) {
-		chs = c.channels
-	} else {
-		chs = c.channels[:size]
-	}
-	if len(chs) == 0 {
-		return nil
-	}
-	for i := len(chs) - 1; i >= 0; i-- {
-		ch := chs[i]
-		c.channels = append(c.channels, ch)
-		if ch != nil {
-			c.channelIndexMap[ch.GetChannelKey()] = len(c.channels) - 1
-		}
-	}
-	return chs
-}
-
-func (c *channelQueue) Remove(channelID string, channelType uint8) {
-	c.Lock()
-	defer c.Unlock()
-
-	channelKey := GetChannelKey(channelID, channelType)
-	idx, ok := c.channelIndexMap[channelKey]
-	if !ok {
-		return
-	}
-	c.channels[idx] = nil
-
-	delete(c.channelIndexMap, channelKey)
-
-	c.restIndex()
-}
-
-func (c *channelQueue) Get(channelID string, channelType uint8) *Channel {
-	c.Lock()
-	defer c.Unlock()
-	channelKey := GetChannelKey(channelID, channelType)
-	idx, ok := c.channelIndexMap[channelKey]
-	if !ok {
-		return nil
-	}
-	return c.channels[idx]
-}
-
-func (c *channelQueue) Exist(channelID string, channelType uint8) bool {
-	c.Lock()
-	defer c.Unlock()
-	return c.exist(channelID, channelType)
-}
-
-func (c *channelQueue) exist(channelID string, channelType uint8) bool {
-	channelKey := GetChannelKey(channelID, channelType)
-	_, ok := c.channelIndexMap[channelKey]
-	return ok
-}
-
-func (c *channelQueue) restIndex() {
-	newChannels := make([]*Channel, 0, len(c.channels))
-	for _, channel := range c.channels {
-		if channel != nil {
-			newChannels = append(newChannels, channel)
-		}
-	}
-	c.channels = newChannels
-
-	for idx, ch := range newChannels {
-		c.channelIndexMap[ch.GetChannelKey()] = idx
 	}
 }

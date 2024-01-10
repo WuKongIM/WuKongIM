@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -546,11 +545,6 @@ func (c *CMD) Unmarshal(data []byte) error {
 		return err
 	}
 	return nil
-}
-
-type channelSyncNotify struct {
-	channel *Channel
-	req     *replica.SyncNotify
 }
 
 type ChannelClusterInfoRequest struct {
