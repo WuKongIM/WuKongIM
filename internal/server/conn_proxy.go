@@ -196,7 +196,6 @@ func (p *ProxyClientConn) WakeWrite() error {
 		return nil
 	}
 	msgData := append(head, tail...)
-	fmt.Println("WakeWrite", string(msgData), "conn->", p)
 	status, err := p.s.connectWrite(p.belongPeerID, &rpc.ConnectWriteReq{
 		ConnID:     p.orgID,
 		Uid:        p.UID(),

@@ -11,6 +11,7 @@ type Options struct {
 	NodeID              uint64            // 节点ID
 	ListenAddr          string            // 监听地址 例如： ip:port
 	InitNodes           map[uint64]string // 初始节点 例如： key为节点ID value为 ip:port
+	ApiServerAddr       string            // api服务地址
 	Join                string            // 加入的节点 例如： ip:port
 	Heartbeat           time.Duration
 	ElectionTimeoutTick uint32 // 选举超时tick次数，超过这个次数就开始选举
@@ -27,20 +28,23 @@ type Options struct {
 
 	MessageLogStorage IShardLogStorage // 消息日志存储
 
+	ChannelEventWorkerCount int // 频道事件处理worker数量
+
 	clusterAddr string
 	offsetPort  int
 }
 
 func NewOptions() *Options {
 	return &Options{
-		ListenAddr:          "0.0.0.0:1001",
-		Heartbeat:           time.Millisecond * 500,
-		offsetPort:          1000,
-		ElectionTimeoutTick: 6,
-		LogLevel:            int8(zapcore.DebugLevel),
-		SlotCount:           256,
-		SlotReplicaCount:    3,
-		ChannelReplicaCount: 3,
+		ListenAddr:              "0.0.0.0:1001",
+		Heartbeat:               time.Millisecond * 500,
+		offsetPort:              1000,
+		ElectionTimeoutTick:     6,
+		LogLevel:                int8(zapcore.DebugLevel),
+		SlotCount:               256,
+		SlotReplicaCount:        3,
+		ChannelReplicaCount:     3,
+		ChannelEventWorkerCount: 16,
 	}
 }
 
@@ -115,5 +119,11 @@ func WithOnChannelMetaApply(fnc func(channelID string, channelType uint8, logs [
 func WithMessageLogStorage(storage IShardLogStorage) Option {
 	return func(o *Options) {
 		o.MessageLogStorage = storage
+	}
+}
+
+func WithApiServerAddr(addr string) Option {
+	return func(o *Options) {
+		o.ApiServerAddr = addr
 	}
 }

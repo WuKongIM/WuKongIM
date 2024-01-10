@@ -35,8 +35,8 @@ type ChannelManager struct {
 
 func NewChannelManager(s *Server) *ChannelManager {
 	return &ChannelManager{
-		sendSyncNotifyC:             make(chan *Channel, 100),
-		syncC:                       make(chan channelSyncNotify, 100),
+		sendSyncNotifyC:             make(chan *Channel),
+		syncC:                       make(chan channelSyncNotify),
 		stopper:                     syncutil.NewStopper(),
 		channelQueue:                newChannelQueue(),
 		Log:                         wklog.NewWKLog(fmt.Sprintf("ChannelManager[%d]", s.opts.NodeID)),
@@ -53,7 +53,6 @@ func (c *ChannelManager) Start() error {
 	if err != nil {
 		return err
 	}
-	c.stopper.RunWorker(c.loop)
 	return nil
 }
 
@@ -303,100 +302,26 @@ func (c *ChannelManager) channelLeaderIDByLogInfo(channelLogInfoMap map[uint64]*
 	return leaderID
 }
 
-// TODO：这里可以做成分区的，每个分区有一个goroutine去处理，这样可以提高并发
-func (c *ChannelManager) loop() {
-	tick := time.NewTicker(time.Millisecond * 500)
-	for {
-		select {
-		case channel := <-c.sendSyncNotifyC: // 领导节点通知副本去同步
-			c.channelQueue.Push(channel)
-			c.triggerSendNotifySync(channel)
-		case <-tick.C: // 定时触发为通知成功的频道
-			channels := c.channelQueue.PeekAndBack(c.eachOfPopSize)
-			for _, channel := range channels {
-				c.triggerSendNotifySync(channel)
-			}
-		case req := <-c.syncC: // 副本收到频道同步日志的通知
-			c.handleSyncNotify(req.channel, req.req)
-
-		case <-c.stopper.ShouldStop():
-			return
-		}
-	}
-}
-
-// 领导节点通知所有副本去同步
-func (c *ChannelManager) triggerSendNotifySync(ch *Channel) {
-	if ch.hasMetaEvent.Load() {
-		c.Debug("通知副本同步频道元数据", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-		replicaNodeIDs := ch.metaReplica.TriggerSendNotifySyncIfNeed()
-		if len(replicaNodeIDs) == 0 {
-			c.Debug("所有副本频道元数据已经同步到最新", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-			ch.hasMetaEvent.Store(false)
-			if !ch.hasMessageEvent.Load() {
-				c.channelQueue.Remove(ch.channelID, ch.channelType) // 如果频道元数据和消息都已经同步了，那么就从队列中移除
-			}
-		}
-	}
-	if ch.hasMessageEvent.Load() {
-		c.Debug("通知副本同步频道消息", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-		replicaNodeIDs := ch.messageReplica.TriggerSendNotifySyncIfNeed()
-		if len(replicaNodeIDs) == 0 {
-			c.Debug("所有副本频道消息已经同步到最新", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-			ch.hasMessageEvent.Store(false)
-			if !ch.hasMetaEvent.Load() {
-				c.channelQueue.Remove(ch.channelID, ch.channelType) // 如果频道元数据和消息都已经同步了，那么就从队列中移除
-			}
-		}
-	}
-}
-
-// 副本处理领导节点的通知
-func (c *ChannelManager) handleSyncNotify(ch *Channel, req *replica.SyncNotify) {
-	var syncCount int
-	var err error
-	if ch.hasMetaEvent.Load() {
-		syncCount, err = ch.metaReplica.RequestSyncLogsAndNotifyLeaderIfNeed()
-		if err != nil {
-			c.Warn("副本向领导同步频道元数据日志失败", zap.Error(err), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-		} else if syncCount == 0 {
-			c.Debug("副本已与领导的频道元数据日志一致", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-			ch.hasMetaEvent.Store(false)
-			if !ch.hasMessageEvent.Load() {
-				c.channelQueue.Remove(ch.channelID, ch.channelType) // 如果频道元数据和消息都已经同步了，那么就从队列中移除
-			}
-		}
-	}
-
-	if ch.hasMessageEvent.Load() {
-		startTime := time.Now().UnixNano()
-		c.Debug("开始向领导同步频道消息数据日志", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-		syncCount, err = ch.messageReplica.RequestSyncLogsAndNotifyLeaderIfNeed()
-		if err != nil {
-			c.Warn("副本向领导同步频道消息数据日志失败", zap.Error(err), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-		} else if syncCount == 0 {
-			c.Debug("副本已与领导的频道消息数据日志一致", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-			ch.hasMessageEvent.Store(false)
-			if !ch.hasMetaEvent.Load() {
-				c.channelQueue.Remove(ch.channelID, ch.channelType) // 如果频道元数据和消息都已经同步了，那么就从队列中移除
-			}
-		}
-		c.Debug("向领导同步频道消息数据日志完成", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Int("syncCount", syncCount))
-
-	}
+func (c *ChannelManager) AddRetryEvent(event ChannelEvent) {
 
 }
 
-// 副本节点收到领导节点的通知，触发同步日志请求
-func (c *ChannelManager) triggerHandleSyncNotify(channel *Channel, req *replica.SyncNotify) {
-	select {
-	case c.syncC <- channelSyncNotify{
-		channel: channel,
-		req:     req,
-	}:
-	case <-c.stopper.ShouldStop():
-		return
-	}
+// 副本收到领导同步元数据日志的通知
+func (c *ChannelManager) recvMetaLogSyncNotify(channel *Channel, req *replica.SyncNotify) {
+	c.s.channelEventWorkerManager.AddEvent(ChannelEvent{
+		Channel:   channel,
+		EventType: ChannelEventTypeSyncMetaLogs,
+		Priority:  PriorityHigh,
+	})
+}
+
+// 副本收到领导同步消息日志的通知
+func (c *ChannelManager) recvMessageLogSyncNotify(channel *Channel, req *replica.SyncNotify) {
+	c.s.channelEventWorkerManager.AddEvent(ChannelEvent{
+		Channel:   channel,
+		EventType: ChannelEventTypeSyncMessageLogs,
+		Priority:  PriorityHigh,
+	})
 }
 
 func (c *ChannelManager) onMetaApply(channelID string, channelType uint8) func(logs []replica.Log) (uint64, error) {

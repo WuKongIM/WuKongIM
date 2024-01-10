@@ -229,3 +229,12 @@ func (n *nodeManager) requestChannelClusterInfo(ctx context.Context, nodeID uint
 	}
 	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
+
+// 请求更新节点
+func (n *nodeManager) requestNodeUpdate(ctx context.Context, nodeID uint64, nd *pb.Node) error {
+	node := n.getNode(nodeID)
+	if node != nil {
+		return node.requestNodeUpdate(ctx, nd)
+	}
+	return fmt.Errorf("node[%d] not exist", nodeID)
+}

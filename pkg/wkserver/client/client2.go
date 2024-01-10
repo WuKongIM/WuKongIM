@@ -53,7 +53,7 @@ func New(addr string, opt ...Option) *Client {
 	}
 	return &Client{
 		addr:      addr,
-		Log:       wklog.NewWKLog("Client"),
+		Log:       wklog.NewWKLog(fmt.Sprintf("Client[%s]", opts.UID)),
 		proto:     proto.New(),
 		opts:      opts,
 		reqIDGen:  idutil.NewGenerator(0, time.Now()),
@@ -77,6 +77,7 @@ func (c *Client) Connect() error {
 
 func (c *Client) Close() error {
 	c.forceDisconnect = true
+	c.Debug("client close")
 	if c.conn != nil {
 		c.conn.Close()
 	}
@@ -239,15 +240,21 @@ func (c *Client) read() error {
 		return err
 	}
 	c.tmpBuff = append(c.tmpBuff, c.cacheBuff[:n]...)
-	data, msgType, size, err := c.proto.Decode(c.tmpBuff)
-	if err != nil {
-		return err
-	}
-	if size > 0 {
-		c.tmpBuff = c.tmpBuff[size:]
-	}
-	if len(data) > 0 {
-		c.handleData(data, msgType)
+	for {
+		data, msgType, size, err := c.proto.Decode(c.tmpBuff)
+		if err != nil {
+			return err
+		}
+		if size == 0 {
+			break
+		}
+
+		if size > 0 {
+			c.tmpBuff = c.tmpBuff[size:]
+		}
+		if len(data) > 0 {
+			c.handleData(data, msgType)
+		}
 	}
 	return nil
 }
@@ -275,6 +282,7 @@ func (c *Client) handleData(data []byte, msgType proto.MsgType) {
 			c.Debug("unmarshal error", zap.Error(err))
 			return
 		}
+		// c.Debug("收到请求返回", zap.Uint64("reqID", resp.Id), zap.Int64("cost", time.Now().UnixMilli()-resp.Timestamp))
 		c.w.Trigger(resp.Id, resp)
 	} else if msgType == proto.MsgTypeHeartbeat {
 	} else if msgType == proto.MsgTypeConnack {

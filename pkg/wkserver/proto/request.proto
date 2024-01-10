@@ -33,7 +33,8 @@ message Message {
 message Response {
     uint64 id = 1;
     Status status = 2;
-    bytes body = 3;
+    int64 timestamp = 3;
+    bytes body = 4;
 }
 
 enum Status {

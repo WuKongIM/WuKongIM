@@ -4,24 +4,23 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"go.uber.org/atomic"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
 
 type Channel struct {
-	metaReplica        *replica.RawReplica // 频道元数据副本
-	messageReplica     *replica.RawReplica // 频道消息副本
-	channelID          string
-	channelType        uint8
-	s                  *Server
-	hasMessageEvent    atomic.Bool // 是否有消息事件
-	hasMetaEvent       atomic.Bool // 是否有元数据事件
-	messageProposeLock sync.Mutex
+	metaReplica    *replica.RawReplica // 频道元数据副本
+	messageReplica *replica.RawReplica // 频道消息副本
+	channelID      string
+	channelType    uint8
+	s              *Server
 
 	clusterInfo *ChannelClusterInfo // 频道集群信息
+
+	wklog.Log
 }
 
 func NewChannel(channelClusterInfo *ChannelClusterInfo, s *Server, metaAppliedIndex uint64, messageAppliedIndex uint64, channelMetaSyncInfos []*replica.SyncInfo, channelMessageSyncInfos []*replica.SyncInfo, dataDir string, metaTransport replica.ITransport, messageTransport replica.ITransport, metaStorage IShardLogStorage, messageStorage IShardLogStorage, onMetaApply func(logs []replica.Log) (uint64, error), onMessageApply func(logs []replica.Log) (uint64, error)) *Channel {
@@ -42,6 +41,7 @@ func NewChannel(channelClusterInfo *ChannelClusterInfo, s *Server, metaAppliedIn
 		channelType: channelClusterInfo.ChannelType,
 		clusterInfo: channelClusterInfo,
 		s:           s,
+		Log:         wklog.NewWKLog(fmt.Sprintf("channel[%s:%d]", channelClusterInfo.ChannelID, channelClusterInfo.ChannelType)),
 		metaReplica: replica.NewRawReplica(
 			s.opts.NodeID,
 			shardNo,
@@ -70,11 +70,12 @@ func (c *Channel) ProposeMeta(data []byte) error {
 	if err != nil {
 		return err
 	}
-	c.hasMetaEvent.Store(true)
-	select {
-	case c.s.channelManager.sendSyncNotifyC <- c:
-	case <-c.s.channelManager.stopper.ShouldStop():
-	}
+
+	c.s.channelEventWorkerManager.AddEvent(ChannelEvent{
+		EventType: ChannelEventTypeSendMetaNotifySync,
+		Channel:   c,
+		Priority:  PriorityHigh,
+	})
 	err = c.CheckAndCommitLogsOfMeta()
 	if err != nil {
 		c.s.Panic("CheckAndCommitLogs failed", zap.Error(err))
@@ -87,8 +88,6 @@ func (c *Channel) ProposeMessage(data []byte) (uint64, error) {
 	if len(data) == 0 {
 		return 0, nil
 	}
-	c.messageProposeLock.Lock()
-	defer c.messageProposeLock.Unlock()
 
 	c.s.Debug("开始提案消息数据", zap.Any("data", data))
 
@@ -101,12 +100,12 @@ func (c *Channel) ProposeMessage(data []byte) (uint64, error) {
 		return 0, err
 	}
 
-	c.hasMessageEvent.Store(true)
+	c.s.channelEventWorkerManager.AddEvent(ChannelEvent{
+		EventType: ChannelEventTypeSendMessageNotifySync,
+		Channel:   c,
+		Priority:  PriorityHigh,
+	})
 
-	select {
-	case c.s.channelManager.sendSyncNotifyC <- c:
-	case <-c.s.channelManager.stopper.ShouldStop():
-	}
 	err = c.CheckAndCommitLogsOfMessage()
 	if err != nil {
 		c.s.Panic("CheckAndCommitLogs failed", zap.Error(err))
@@ -121,9 +120,8 @@ func (c *Channel) ProposeMessages(dataList [][]byte) (uint64, error) {
 		return 0, nil
 	}
 
-	c.messageProposeLock.Lock()
-	defer c.messageProposeLock.Unlock()
-
+	startTime := time.Now().UnixMilli()
+	c.Debug("开始批量提案消息数据", zap.ByteStrings("data", dataList))
 	lastIndex, err := c.messageReplica.LastIndex()
 	if err != nil {
 		return 0, err
@@ -134,16 +132,17 @@ func (c *Channel) ProposeMessages(dataList [][]byte) (uint64, error) {
 			return 0, err
 		}
 	}
-	c.hasMessageEvent.Store(true)
+	c.s.channelEventWorkerManager.AddEvent(ChannelEvent{
+		EventType: ChannelEventTypeSendMessageNotifySync,
+		Channel:   c,
+		Priority:  PriorityHigh,
+	})
 
-	select {
-	case c.s.channelManager.sendSyncNotifyC <- c:
-	case <-c.s.channelManager.stopper.ShouldStop():
-	}
 	err = c.CheckAndCommitLogsOfMessage()
 	if err != nil {
 		c.s.Panic("CheckAndCommitLogs failed", zap.Error(err))
 	}
+	c.Debug("批量提案消息数据完成！", zap.Int64("cost", time.Now().UnixMilli()-startTime), zap.ByteStrings("data", dataList))
 	return lastIndex, nil
 }
 
@@ -191,6 +190,60 @@ func (c *Channel) GetChannelKey() string {
 
 func (c *Channel) GetClusterInfo() *ChannelClusterInfo {
 	return c.clusterInfo
+}
+
+// 领导节点通知所有副本去同步
+func (c *Channel) processEvent(event ChannelEvent) {
+	if event.EventType == ChannelEventTypeSendMetaNotifySync { // 发送元数据同步通知 （领导执行）
+		startTime := time.Now().UnixMilli()
+		c.Debug("通知副本同步频道元数据", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		replicaNodeIDs := c.metaReplica.TriggerSendNotifySyncIfNeed()
+		c.Debug("完成通知副本同步频道消息", zap.Int64("cost", time.Now().UnixMilli()-startTime), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		if len(replicaNodeIDs) == 0 {
+			c.Debug("所有副本频道元数据已经同步到最新", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		} else {
+			event.retry++
+			c.s.channelManager.AddRetryEvent(event)
+		}
+	} else if event.EventType == ChannelEventTypeSendMessageNotifySync { // // 发送元数据同步通知 （领导执行）
+		startTime := time.Now().UnixMilli()
+		c.Debug("通知副本同步频道消息", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		replicaNodeIDs := c.messageReplica.TriggerSendNotifySyncIfNeed()
+		c.Debug("完成通知副本同步频道消息", zap.Int64("cost", time.Now().UnixMilli()-startTime), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		if len(replicaNodeIDs) == 0 {
+			c.Debug("所有副本频道消息已经同步到最新", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		} else {
+			event.retry++
+			c.s.channelManager.AddRetryEvent(event)
+		}
+	} else if event.EventType == ChannelEventTypeSyncMetaLogs { // 副本同步元数据 （副本执行）
+		syncCount, err := c.metaReplica.RequestSyncLogsAndNotifyLeaderIfNeed()
+		if err != nil {
+			c.Warn("副本向领导同步频道元数据日志失败", zap.Error(err), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+			event.retry++
+			c.s.channelManager.AddRetryEvent(event)
+		} else if syncCount == 0 {
+			c.Debug("副本已与领导的频道元数据日志一致", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		} else {
+			event.retry++
+			c.s.channelManager.AddRetryEvent(event)
+		}
+	} else if event.EventType == ChannelEventTypeSyncMessageLogs { // 副本同步消息 （副本执行）
+		startTime := time.Now().UnixNano()
+		c.Debug("开始向领导同步频道消息数据日志", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		syncCount, err := c.messageReplica.RequestSyncLogsAndNotifyLeaderIfNeed()
+		if err != nil {
+			event.retry++
+			c.s.channelManager.AddRetryEvent(event)
+			c.Warn("副本向领导同步频道消息数据日志失败", zap.Error(err), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		} else if syncCount == 0 {
+			c.Debug("副本已与领导的频道消息数据日志一致", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType))
+		} else {
+			event.retry++
+			c.s.channelManager.AddRetryEvent(event)
+		}
+		c.Debug("向领导同步频道消息数据日志完成", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Int("syncCount", syncCount))
+	}
 }
 
 func GetChannelKey(channelID string, channelType uint8) string {

@@ -96,17 +96,14 @@ func newChannelMessageTransportSync(s *Server) *channelMessageTransportSync {
 }
 
 func (t *channelMessageTransportSync) SendSyncNotify(toNodeID uint64, r *replica.SyncNotify) error {
-	t.Debug("发送同步消息日志通知给副本", zap.Uint64("replicaNodeID", toNodeID), zap.String("shardNo", r.ShardNo))
 	return t.s.nodeManager.sendChannelMessageLogSyncNotify(toNodeID, r)
 }
 
 func (t *channelMessageTransportSync) SyncLog(fromNodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
-	t.Debug("开始向领导同步消息日志", zap.Uint64("startLogIndex", r.StartLogIndex), zap.Uint64("fromNodeID", fromNodeID), zap.String("shardNo", r.ShardNo))
 	resp, err := t.s.nodeManager.requestChannelMessageSyncLog(t.s.cancelCtx, fromNodeID, r)
 	if err != nil {
 		return nil, err
 	}
-	t.Debug("向领导同步消息日志完成", zap.Uint64("startLogIndex", r.StartLogIndex), zap.Uint64("fromNodeID", fromNodeID), zap.String("shardNo", r.ShardNo), zap.Int("logs", len(resp.Logs)))
 	return resp, nil
 }
 
@@ -130,8 +127,7 @@ func (s *Server) handleChannelMetaLogSyncNotify(fromNodeID uint64, msg *proto.Me
 	}
 
 	// 去同步频道的日志
-	channel.hasMetaEvent.Store(true)
-	s.channelManager.triggerHandleSyncNotify(channel, req)
+	s.channelManager.recvMetaLogSyncNotify(channel, req)
 }
 
 func (s *Server) handleChannelMessageLogSyncNotify(fromNodeID uint64, msg *proto.Message) {
@@ -142,7 +138,7 @@ func (s *Server) handleChannelMessageLogSyncNotify(fromNodeID uint64, msg *proto
 		return
 	}
 
-	s.Debug("handleChannelMessageLogSyncNotify.........", zap.String("channelID", req.ShardNo))
+	s.Debug("收到领导通知同步频道消息日志的请求", zap.String("channelID", req.ShardNo))
 
 	channelID, channelType := GetChannelFromChannelKey(req.ShardNo)
 
@@ -159,6 +155,5 @@ func (s *Server) handleChannelMessageLogSyncNotify(fromNodeID uint64, msg *proto
 	}
 
 	// 去同步频道的日志
-	channel.hasMessageEvent.Store(true)
-	s.channelManager.triggerHandleSyncNotify(channel, req)
+	s.channelManager.recvMessageLogSyncNotify(channel, req)
 }

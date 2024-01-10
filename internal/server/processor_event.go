@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -53,12 +54,15 @@ func (p *Processor) handleOnRecvPacketReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+	startTime := time.Now().UnixMilli()
+	p.Debug("收到转发的RecvPacket", zap.String("fromNodeID", c.Conn().UID()))
 	err = p.OnRecvPacket(req)
 	if err != nil {
 		p.Error("onRecvPacket err", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
+	p.Debug("处理RecvPacket耗时", zap.Int64("cost", time.Now().UnixMilli()-startTime))
 	c.WriteOk()
 }
 
@@ -70,6 +74,8 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+	startTime := time.Now().UnixMilli()
+	p.Debug("收到转发的SendPacket", zap.String("fromNodeID", c.Conn().UID()))
 	resp, err := p.OnSendPacket(req)
 	if err != nil {
 		p.Error("onSendPacket err", zap.Error(err))
@@ -82,6 +88,7 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+	p.Debug("处理SendPacket耗时", zap.Int64("cost", time.Now().UnixMilli()-startTime))
 	c.Write(data)
 }
 
@@ -275,13 +282,12 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 			}
 		}
 	}
-
+	fmt.Println("req.Subscribers----------->", req.Subscribers)
 	return p.handleLocalSubscribersMessages(messages, req.Large, req.Subscribers, req.FromUID, wkproto.DeviceFlag(req.FromDeviceFlag), req.FromDeviceID, channel)
 }
 
 // OnSendPacket 领导节点收到发送数据请求
 func (p *Processor) OnSendPacket(req *rpc.ForwardSendPacketReq) (*rpc.ForwardSendPacketResp, error) {
-
 	sendackPackets, err := p.prcocessChannelMessagesForRemote(req)
 	if err != nil {
 		p.Error("prcocessChannelMessagesForLocal err", zap.Error(err))
@@ -326,6 +332,7 @@ func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, e
 
 // OnConnPingReq 领导节点收到连接ping
 func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (proto.Status, error) {
+	p.Debug("收到Ping", zap.Uint64("fromNodeID", req.BelongPeerID))
 	proxyConn := p.s.connManager.GetProxyConn(req.BelongPeerID, req.ConnID)
 	if proxyConn == nil {
 		p.Warn("conn not exist", zap.Int64("connID", req.ConnID), zap.Uint64("belongPeerID", req.BelongPeerID))

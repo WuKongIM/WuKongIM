@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"go.uber.org/zap"
 )
@@ -35,6 +36,8 @@ func (s *Server) setRoutes() {
 	s.clusterServer.Route("/channel/message/syncLog", s.handleChannelMessageSyncLog)
 	// 获取频道集群信息
 	s.clusterServer.Route("/channel/getclusterinfo", s.handleGetClusterInfo)
+	// 处理节点更新
+	s.clusterServer.Route("/node/update", s.handleNodeUpdate)
 }
 
 func (s *Server) handleSyncClusterConfig(c *wkserver.Context) {
@@ -402,7 +405,7 @@ func (s *Server) handleChannelMessageSyncLog(c *wkserver.Context) {
 	}
 	channelID, channelType := GetChannelFromChannelKey(req.ShardNo)
 
-	startTime := time.Now().UnixNano()
+	startTime := time.Now().UnixMilli()
 	s.Debug("有副本来同步频道消息日志", zap.Uint64("startLogIndex", req.StartLogIndex), zap.String("replicaNodeID", c.Conn().UID()), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 
 	channel, err := s.channelManager.GetChannel(channelID, channelType)
@@ -454,5 +457,19 @@ func (s *Server) handleChannelMessageSyncLog(c *wkserver.Context) {
 		return
 	}
 
-	s.Debug("有副本来同步频道消息日志结束", zap.Int64("cost", (time.Now().UnixNano()-startTime)/1000000), zap.String("replicaNodeID", c.Conn().UID()), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
+	s.Debug("有副本来同步频道消息日志结束", zap.Int64("cost", (time.Now().UnixMilli()-startTime)), zap.String("replicaNodeID", c.Conn().UID()), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("startLogIndex", req.StartLogIndex), zap.Uint32("limit", req.Limit))
+}
+
+func (s *Server) handleNodeUpdate(c *wkserver.Context) {
+	nodeUpdate := &pb.Node{}
+	err := nodeUpdate.Unmarshal(c.Body())
+	if err != nil {
+		c.WriteErr(err)
+		return
+	}
+	s.Debug("收到节点更新", zap.Uint64("nodeID", nodeUpdate.Id), zap.String("apiAddr", nodeUpdate.ApiAddr))
+
+	s.clusterEventManager.UpdateNode(nodeUpdate)
+
+	c.WriteOk()
 }

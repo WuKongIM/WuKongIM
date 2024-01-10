@@ -328,3 +328,18 @@ func (n *node) requestChannelClusterInfo(ctx context.Context, req *ChannelCluste
 	}
 	return clusterInfo, nil
 }
+
+func (n *node) requestNodeUpdate(ctx context.Context, node *pb.Node) error {
+	data, err := node.Marshal()
+	if err != nil {
+		return err
+	}
+	resp, err := n.client.RequestWithContext(ctx, "/node/update", data)
+	if err != nil {
+		return err
+	}
+	if resp.Status != proto.Status_OK {
+		return fmt.Errorf("requestNodeUpdate is failed, status:%d", resp.Status)
+	}
+	return nil
+}

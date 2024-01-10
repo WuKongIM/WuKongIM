@@ -53,6 +53,8 @@ type Server struct {
 	cancelCtx context.Context
 
 	stateMachine *stateMachine // 状态机
+
+	channelEventWorkerManager *ChannelEventWorkerManager // 频道事件worker管理者
 }
 
 func NewServer(nodeID uint64, optList ...Option) *Server {
@@ -101,6 +103,8 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 		}
 	}))
 
+	s.channelEventWorkerManager = NewChannelEventWorkerManager(s)
+
 	clusterEventOpts := clusterevent.NewOptions()
 	clusterEventOpts.DataDir = opts.DataDir
 	clusterEventOpts.InitNodes = opts.InitNodes
@@ -108,6 +112,7 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 	clusterEventOpts.SlotCount = opts.SlotCount
 	clusterEventOpts.SlotReplicaCount = opts.SlotReplicaCount
 	clusterEventOpts.Heartbeat = opts.Heartbeat
+	clusterEventOpts.ApiAddr = opts.ApiServerAddr
 	s.clusterEventManager = clusterevent.NewClusterEventManager(clusterEventOpts)
 
 	if len(s.clusterEventManager.GetSlots()) > 0 {
@@ -187,6 +192,11 @@ func (s *Server) Start() error {
 
 	s.setRoutes()
 
+	err = s.channelEventWorkerManager.Start()
+	if err != nil {
+		return err
+	}
+
 	err = s.clusterServer.Start()
 	if err != nil {
 		return err
@@ -204,11 +214,11 @@ func (s *Server) Stop() {
 	s.cancelFnc()
 
 	s.stopper.Stop()
-
 	s.clusterEventManager.Stop()
-
 	s.gossipServer.Stop()
 	s.clusterServer.Stop()
+
+	s.channelEventWorkerManager.Stop()
 
 	for _, node := range s.nodeManager.getAllNode() {
 		node.stop()
@@ -468,23 +478,32 @@ func (s *Server) handleVoteRequest(fromNodeID uint64, msg *proto.Message) {
 	s.electionLock.RLock()
 	_, ok := s.voteTo[req.Epoch]
 	s.electionLock.RUnlock()
+
+	fmt.Println("收到投票请求...........1")
 	if !ok { // 还没有投票
+		fmt.Println("收到投票请求...........2")
 		voteResp := &VoteResponse{}
 		voteResp.Epoch = req.Epoch
 		if req.ClusterConfigVersion < s.clusterEventManager.GetClusterConfigVersion() { // 如果参选人的配置版本还没当前节点的新，则拒绝选举
+			fmt.Println("收到投票请求...........3")
 			s.Warn("current node config version  > vote request node", zap.Uint32("currentNodeConfigVersion", s.clusterEventManager.GetClusterConfigVersion()), zap.Uint32("requestNodeConfigVersion", req.ClusterConfigVersion))
 			voteResp.Reject = true
 			s.currentEpoch.Add(2) // 并且当前节点选举周期加2，为了防止周期内的选票其他节点已经投完了。
 		} else {
+			fmt.Println("收到投票请求...........4")
 			s.electionLock.Lock()
 			s.voteTo[req.Epoch] = fromNodeID
 			s.electionLock.Unlock()
 		}
-
+		fmt.Println("收到投票请求...........5")
+		s.Debug("返回投票结果", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", req.Epoch), zap.Bool("reject", voteResp.Reject))
 		err = s.nodeManager.sendVoteResp(fromNodeID, voteResp)
 		if err != nil {
 			s.Warn("send vote respo failed", zap.Error(err))
 		}
+	} else {
+		fmt.Println("收到投票请求...........6")
+		s.Debug("已经投过票了", zap.Uint32("epoch", req.Epoch))
 	}
 }
 
@@ -495,9 +514,11 @@ func (s *Server) handleVoteResponse(fromNodeID uint64, msg *proto.Message) {
 		s.Error("Unmarshal VoteResponse failed!", zap.Error(err))
 	}
 	if resp.Reject {
+		s.Debug("收到拒绝票", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", resp.Epoch))
 		s.becomeFollow(resp.Epoch) // 选举被拒绝，成为追随者
 		return
 	}
+	s.Debug("收到同意票", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", resp.Epoch))
 	s.electionLock.Lock()
 	nodeIDs := s.votesFrom[resp.Epoch]
 	if nodeIDs == nil {
@@ -517,6 +538,8 @@ func (s *Server) handleVoteResponse(fromNodeID uint64, msg *proto.Message) {
 	}
 	s.votesFrom[resp.Epoch] = append(s.votesFrom[resp.Epoch], fromNodeID)
 	voteCount := len(s.votesFrom[resp.Epoch])
+
+	s.Debug("总计票数", zap.Uint32("epoch", resp.Epoch), zap.Int("voteCount", voteCount), zap.Int("nodeCount", len(s.nodeManager.getAllVoteNodes())))
 
 	s.electionLock.Unlock()
 	if voteCount > len(s.nodeManager.getAllVoteNodes())/2 {
