@@ -21,8 +21,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"github.com/WuKongIM/WuKongIM/pkg/wraft"
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
@@ -42,7 +40,6 @@ type Server struct {
 	opts                *Options                 // 配置
 	wklog.Log                                    // 日志
 	handleGoroutinePool *ants.Pool               // 处理逻辑的池
-	waitGroupWrapper    *wkutil.WaitGroupWrapper // 协程组
 	apiServer           *APIServer               // api服务
 	start               time.Time                // 服务开始时间
 	timingWheel         *timingwheel.TimingWheel // Time wheel delay task
@@ -64,7 +61,6 @@ type Server struct {
 
 	ipBlacklist     map[string]uint64 // ip黑名单列表
 	ipBlacklistLock sync.RWMutex      // ip黑名单列表锁
-	raftNode        *wraft.RaftNode   // raft node
 	reqIDGen        *idutil.Generator
 
 	cluster cluster.ICluster
@@ -75,14 +71,13 @@ type Server struct {
 func New(opts *Options) *Server {
 	now := time.Now().UTC()
 	s := &Server{
-		opts:             opts,
-		Log:              wklog.NewWKLog("Server"),
-		waitGroupWrapper: wkutil.NewWaitGroupWrapper("Server"),
-		timingWheel:      timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
-		start:            now,
-		stopChan:         make(chan struct{}),
-		ipBlacklist:      map[string]uint64{},
-		reqIDGen:         idutil.NewGenerator(uint16(opts.Cluster.PeerID), time.Now()),
+		opts:        opts,
+		Log:         wklog.NewWKLog("Server"),
+		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
+		start:       now,
+		stopChan:    make(chan struct{}),
+		ipBlacklist: map[string]uint64{},
+		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.PeerID), time.Now()),
 	}
 
 	gin.SetMode(opts.GinMode)
@@ -182,9 +177,9 @@ func New(opts *Options) *Server {
 			cluster.WithListenAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
 			cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
 			cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
-			cluster.WithHeartbeat(200*time.Millisecond),
 			cluster.WithInitNodes(initNodes),
 			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
+			cluster.WithApiServerAddr(s.opts.External.APIUrl),
 			cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
 				return s.store.OnMetaApply(channelID, channelType, logs)
 			}),
@@ -294,16 +289,17 @@ func (s *Server) Stop() error {
 	defer s.Info("Server is exited")
 
 	s.timingWheel.Stop()
-	if s.opts.ClusterOn() {
-		s.peerInFlightQueue.Stop()
-		s.cluster.Stop()
-	}
 
 	s.retryQueue.Stop()
 	_ = s.dispatch.Stop()
 	s.apiServer.Stop()
 	s.conversationManager.Stop()
 	s.webhook.Stop()
+
+	if s.opts.ClusterOn() {
+		s.peerInFlightQueue.Stop()
+		s.cluster.Stop()
+	}
 
 	if s.opts.Monitor.On {
 		_ = s.monitorServer.Stop()

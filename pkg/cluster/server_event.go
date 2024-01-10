@@ -14,7 +14,7 @@ func (s *Server) loopClusterEvent() {
 	for {
 		select {
 		case clusterEvent := <-s.clusterEventManager.Watch():
-			// s.Debug("收到集群事件", zap.String("clusterEvent", clusterEvent.String()))
+			s.Debug("收到集群事件", zap.String("clusterEvent", clusterEvent.String()))
 			s.handleClusterEvent(clusterEvent)
 		case <-s.stopper.ShouldStop():
 			return
@@ -45,7 +45,28 @@ func (s *Server) handleClusterSlotEvent(slotEvent *pb.SlotEvent) {
 }
 
 func (s *Server) handleClusterNodeEvent(nodeEvent *pb.NodeEvent) {
+	switch nodeEvent.EventType {
+	case pb.NodeEventType_NodeEventTypeRequestUpdate: // 请求领导节点更新我的节点信息
+		s.handleClusterNodeEventRequestUpdate(nodeEvent)
+	}
+}
 
+func (s *Server) handleClusterNodeEventRequestUpdate(nodeEvent *pb.NodeEvent) {
+	if len(nodeEvent.Node) == 0 {
+		return
+	}
+	node := nodeEvent.Node[0]
+	if s.clusterEventManager.IsNodeLeader() { // 当前节点是领导节点，那么直接修改节点信息
+		s.clusterEventManager.UpdateNode(node)
+		return
+	}
+	// 当前节点不是领导节点，那么需要向领导节点请求更新
+	if s.leaderID.Load() != 0 {
+		err := s.nodeManager.requestNodeUpdate(s.cancelCtx, s.leaderID.Load(), node)
+		if err != nil {
+			s.Error("requestNodeUpdate is failed", zap.Error(err))
+		}
+	}
 }
 
 func (s *Server) handleClusterConfigVersionChange() {

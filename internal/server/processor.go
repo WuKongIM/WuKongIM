@@ -91,17 +91,18 @@ func (p *Processor) processSameFrame(conn wknet.Conn, frameType wkproto.FrameTyp
 // #################### conn auth ####################
 func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 
-	isLeader, err := p.s.cluster.IsLeaderNodeOfChannel(conn.UID(), wkproto.ChannelTypePerson)
+	uid := connectPacket.UID
+	leaderInfo, err := p.s.cluster.LeaderNodeOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
-		p.Error("get user belong node err", zap.Error(err))
-		p.responseConnackAuthFail(conn)
+		p.Error("获取频道所在节点失败！", zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		return
 	}
-	if isLeader { // 用户属于此节点
+	leaderIsSelf := leaderInfo.NodeID == p.s.opts.Cluster.PeerID
+	if leaderIsSelf { // 用户属于此节点
 		p.Debug("用户属于此节点，直接连接。")
 		p.processLocalAuth(conn, connectPacket)
 	} else {
-		p.Debug("用户不属于此节点，建立远程连接")
+		p.Debug("用户不属于此节点，建立远程连接", zap.Uint64("leaderID", leaderInfo.NodeID))
 		p.processRemoteAuth(conn, connectPacket)
 	}
 
@@ -286,7 +287,7 @@ func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.Co
 	}
 	connResp, err := p.s.sendConnectRequest(leaderInfo.NodeID, connectReq)
 	if err != nil {
-		p.Error("send connect request err", zap.Error(err))
+		p.Error("send connect request err", zap.Error(err), zap.Uint64("toNodeID", leaderInfo.NodeID))
 		p.responseConnack(conn, 0, wkproto.ReasonSystemError)
 		return
 	}
@@ -339,7 +340,7 @@ func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket)
 	}
 	leaderIsSelf := leaderInfo.NodeID == p.s.opts.Cluster.PeerID
 	if !leaderIsSelf { // 转发ping给领导节点
-		p.Debug("processPing to leader....", zap.Uint64("leader", leaderInfo.NodeID))
+		p.Debug("processPing to leader....", zap.String("uid", conn.UID()), zap.Uint64("leader", leaderInfo.NodeID))
 		status, err := p.s.connPing(leaderInfo.NodeID, &rpc.ConnPingReq{
 			ConnID:       conn.ID(),
 			BelongPeerID: p.s.opts.Cluster.PeerID,

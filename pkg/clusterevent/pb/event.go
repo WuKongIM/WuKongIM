@@ -9,6 +9,13 @@ func (c *Cluster) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, c)
 }
 
+func (n *Node) Marshal() ([]byte, error) {
+	return proto.Marshal(n)
+}
+func (n *Node) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, n)
+}
+
 type NodeSlice []*Node
 
 func (n NodeSlice) Len() int {

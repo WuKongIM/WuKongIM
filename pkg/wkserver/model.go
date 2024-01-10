@@ -1,6 +1,8 @@
 package wkserver
 
 import (
+	"time"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -42,9 +44,10 @@ func (c *Context) Write(data []byte) {
 		id = c.req.Id
 	}
 	resp := &proto.Response{
-		Id:     id,
-		Status: proto.Status_OK,
-		Body:   data,
+		Id:        id,
+		Status:    proto.Status_OK,
+		Body:      data,
+		Timestamp: time.Now().UnixMilli(),
 	}
 	respData, err := resp.Marshal()
 	if err != nil {

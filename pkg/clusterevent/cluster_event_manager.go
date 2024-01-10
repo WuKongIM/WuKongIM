@@ -265,6 +265,10 @@ func (c *ClusterEventManager) SaveAndVersionInc() {
 	c.clusterconfigLock.Lock()
 	defer c.clusterconfigLock.Unlock()
 
+	c.saveAndVersionInc()
+}
+
+func (c *ClusterEventManager) saveAndVersionInc() {
 	c.clusterconfig.Version++
 	err := c.save()
 	if err != nil {
@@ -354,6 +358,18 @@ func (c *ClusterEventManager) SetNodeOnline(nodeID uint64, online bool) {
 		}
 	}
 	c.SaveAndVersionInc()
+}
+
+func (c *ClusterEventManager) UpdateNode(n *pb.Node) {
+	c.clusterconfigLock.Lock()
+	defer c.clusterconfigLock.Unlock()
+	for _, node := range c.clusterconfig.Nodes {
+		if node.Id == n.Id {
+			node.ApiAddr = n.ApiAddr // 目前仅支持更新api地址，需要更新其他信息，写到这里
+			break
+		}
+	}
+	c.saveAndVersionInc()
 }
 
 func (c *ClusterEventManager) getSlotReplicas(slotID uint32) []uint64 {

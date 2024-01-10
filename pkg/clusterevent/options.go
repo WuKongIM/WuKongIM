@@ -10,6 +10,7 @@ type Options struct {
 	SlotReplicaCount  uint16            // 槽副本数量
 	DataDir           string            // 数据存储目录
 	Heartbeat         time.Duration     // 心跳
+	ApiAddr           string            // api地址
 }
 
 func NewOptions() *Options {

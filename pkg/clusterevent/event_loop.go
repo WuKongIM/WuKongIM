@@ -1,6 +1,7 @@
 package clusterevent
 
 import (
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
@@ -14,56 +15,65 @@ func (c *ClusterEventManager) loop() {
 	maxCfgCheckCount := 3                                            // 集群配置版本最大检查次数
 	currCfgCheckCount := 0                                           // 当前已检查次数
 	var preClusterConfigVersion uint32 = c.GetClusterConfigVersion() // 上次的配置版本号
-	for {
-		select {
 
-		case <-tick.C:
-			if c.IsNodeLeader() {
-				// 只有过半的节点同步过配置后，主节点才会继续检查配置
-				updateCount = 0
-				currCfgCheckCount++
-				if len(c.clusterconfig.Nodes) > 1 && c.GetClusterConfigVersion() > 0 {
-					c.othersNodeConfigVersionMapLock.RLock()
-					for _, cfgVersion := range c.othersNodeConfigVersionMap {
-						if cfgVersion >= c.GetClusterConfigVersion() {
-							updateCount++
-						}
-					}
-					c.othersNodeConfigVersionMapLock.RUnlock()
-					if updateCount < len(c.clusterconfig.Nodes)/2 {
-						if currCfgCheckCount > maxCfgCheckCount {
-							c.Warn("过半的节点没有同步领导的配置。", zap.Uint32("leaderConfigVersion", c.GetClusterConfigVersion()), zap.Any("othersConfigVersion", c.othersNodeConfigVersionMap))
-							currCfgCheckCount = 0
-						}
-						break
+	checkNodeIsSyncFnc := func() bool {
+		if c.IsNodeLeader() {
+			// 只有过半的节点同步过配置后，主节点才会继续检查配置
+			updateCount = 0
+			currCfgCheckCount++
+			if len(c.clusterconfig.Nodes) > 1 && c.GetClusterConfigVersion() > 0 {
+				c.othersNodeConfigVersionMapLock.RLock()
+				for _, cfgVersion := range c.othersNodeConfigVersionMap {
+					if cfgVersion >= c.GetClusterConfigVersion() {
+						updateCount++
 					}
 				}
-				currCfgCheckCount = 0
+				c.othersNodeConfigVersionMapLock.RUnlock()
+				if updateCount < len(c.clusterconfig.Nodes)/2 {
+					if currCfgCheckCount > maxCfgCheckCount {
+						c.Warn("过半的节点没有同步领导的配置。", zap.Uint32("leaderConfigVersion", c.GetClusterConfigVersion()), zap.Any("othersConfigVersion", c.othersNodeConfigVersionMap))
+						currCfgCheckCount = 0
+					}
+					return false
+				}
+			}
+			currCfgCheckCount = 0
+		}
+		if c.GetClusterConfigVersion() > preClusterConfigVersion { // 配置已更新
+			c.triggerWatch(ClusterEvent{
+				ClusterEventType: pb.ClusterEventType_ClusterEventTypeVersionChange,
+			})
+			preClusterConfigVersion = c.GetClusterConfigVersion()
+		}
+		return true
+	}
+
+	for {
+		select {
+		case <-tick.C:
+			synced := checkNodeIsSyncFnc()
+			if synced {
+				c.checkAndTriggerClusterEvent()
 			}
 
-			if c.GetClusterConfigVersion() > preClusterConfigVersion { // 配置已更新
-				c.triggerWatch(ClusterEvent{
-					ClusterEventType: pb.ClusterEventType_ClusterEventTypeVersionChange,
-				})
-				preClusterConfigVersion = c.GetClusterConfigVersion()
-			}
-
-			// 检查节点配置
-			clusterEvent := c.checkNodes()
-			if !IsEmptyClusterEvent(clusterEvent) {
-				c.triggerWatch(clusterEvent)
-				break
-			}
-
-			// 检查slots配置
-			clusterEvent = c.checkSlots()
-			if !IsEmptyClusterEvent(clusterEvent) {
-				c.triggerWatch(clusterEvent)
-				break
-			}
 		case <-c.stopper.ShouldStop():
 			return
 		}
+	}
+}
+
+func (c *ClusterEventManager) checkAndTriggerClusterEvent() {
+	// 检查节点配置
+	clusterEvent := c.checkNodes()
+	if !IsEmptyClusterEvent(clusterEvent) {
+		c.triggerWatch(clusterEvent)
+		return
+	}
+	// 检查slots配置
+	clusterEvent = c.checkSlots()
+	if !IsEmptyClusterEvent(clusterEvent) {
+		c.triggerWatch(clusterEvent)
+		return
 	}
 }
 
@@ -76,6 +86,25 @@ func (c *ClusterEventManager) triggerWatch(event ClusterEvent) {
 }
 
 func (c *ClusterEventManager) checkNodes() ClusterEvent {
+
+	// 节点上报自己的apiAddr地址
+	if strings.TrimSpace(c.opts.ApiAddr) != "" && c.nodeLeaderID.Load() != 0 {
+		for _, node := range c.clusterconfig.Nodes {
+			if node.Id == c.opts.NodeID && (node.ApiAddr == "" || node.ApiAddr != c.opts.ApiAddr) {
+				return ClusterEvent{
+					NodeEvent: &pb.NodeEvent{
+						EventType: pb.NodeEventType_NodeEventTypeRequestUpdate,
+						Node: []*pb.Node{
+							{
+								Id:      c.opts.NodeID,
+								ApiAddr: c.opts.ApiAddr,
+							},
+						},
+					},
+				}
+			}
+		}
+	}
 
 	return EmptyClusterEvent
 }

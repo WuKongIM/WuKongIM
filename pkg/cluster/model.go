@@ -34,6 +34,7 @@ const (
 	MessageTypeSlotLogSyncNotify                       // slot日志同步通知
 	MessageTypeChannelMetaLogSyncNotify                // channel元数据日志同步通知
 	MessageTypeChannelMessageLogSyncNotify             // channel消息日志同步通知
+	MessageTypeNodeUpdate                              // 节点更新
 )
 
 func (m MessageType) Uint32() uint32 {
