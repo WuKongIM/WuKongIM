@@ -165,6 +165,10 @@ func (m *MessageAPI) sendBatch(c *wkhttp.Context) {
 		c.ResponseError(errors.New("payload不能为空！"))
 		return
 	}
+	if m.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式模式下暂时不支持批量发送消息"))
+		return
+	}
 	failUids := make([]string, 0)
 	reasons := make([]string, 0)
 	for _, subscriber := range req.Subscribers {
@@ -370,12 +374,17 @@ func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
 		return
 	}
 
+	if m.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式暂不支持流消息"))
+		return
+	}
+
 	channelID := req.ChannelID
 	channelType := req.ChannelType
 
 	m.Debug("消息流开始", zap.String("msg", wkutil.ToJSON(req)))
 
-	if strings.TrimSpace(channelID) == "" { //指定了频道 正常发送
+	if strings.TrimSpace(channelID) == "" {
 		m.Error("无法处理发送消息请求！", zap.Any("req", req))
 		c.ResponseError(errors.New("无法处理发送消息请求！"))
 		return
@@ -431,6 +440,11 @@ func (m *MessageAPI) streamMessageEnd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	if m.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式暂不支持流消息"))
+		return
+	}
+
 	streamMeta, err := m.s.store.GetStreamMeta(req.ChannelID, req.ChannelType, req.StreamNo)
 	if err != nil {
 		m.Error("获取流消息元数据失败！", zap.Error(err))

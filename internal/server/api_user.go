@@ -72,7 +72,7 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		_ = u.quitUserDevice(req.UID, wkproto.WEB)
 		_ = u.quitUserDevice(req.UID, wkproto.PC)
 	} else {
-		u.quitUserDevice(req.UID, wkproto.DeviceFlag(req.DeviceFlag))
+		_ = u.quitUserDevice(req.UID, wkproto.DeviceFlag(req.DeviceFlag))
 	}
 
 	c.ResponseOK()
@@ -103,7 +103,9 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 
 func (u *UserAPI) getOnlineStatus(c *wkhttp.Context) {
 	var uids []string
-	if err := c.BindJSON(&uids); err != nil {
+	err := c.BindJSON(&uids)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -308,6 +310,10 @@ func (u *UserAPI) systemUIDsAdd(c *wkhttp.Context) {
 		c.ResponseError(errors.New("数据格式有误！"))
 		return
 	}
+	if u.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式情况下暂不支持！"))
+		return
+	}
 	if len(req.UIDs) > 0 {
 		err := u.s.systemUIDManager.AddSystemUIDs(req.UIDs)
 		if err != nil {
@@ -328,6 +334,10 @@ func (u *UserAPI) systemUIDsRemove(c *wkhttp.Context) {
 	if err := c.BindJSON(&req); err != nil {
 		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+	if u.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式情况下暂不支持！"))
 		return
 	}
 	if len(req.UIDs) > 0 {

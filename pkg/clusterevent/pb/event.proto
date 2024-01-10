@@ -19,7 +19,10 @@ enum NodeEventType {
     NodeEventTypeInit = 1;
     NodeEventTypeAdd = 2;
     NodeEventTypeRemove = 3;
+<<<<<<< HEAD
     NodeEventTypeRequestUpdate = 4; // 节点更新请求 (请求节点领导更新节点信息)
+=======
+>>>>>>> c9a61d698e7dd6f64cd01d34efbf2e92ff76a4b3
 }
 
 enum NodeStatus {

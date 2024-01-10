@@ -504,7 +504,6 @@ func (c *Channel) calcNodeSubscribers(subscribers []string) (map[uint64][]string
 		nodeSubscribers = append(nodeSubscribers, subscriber)
 		subscriberNodeIDMap[leaderInfo.NodeID] = nodeSubscribers
 	}
-	fmt.Println("subscriberNodeIDMap------------------", subscriberNodeIDMap)
 	return subscriberNodeIDMap, nil
 
 }
