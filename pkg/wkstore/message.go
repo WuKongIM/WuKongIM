@@ -16,13 +16,13 @@ type Message interface {
 
 func EncodeMessage(messageSeq uint32, data []byte) []byte {
 	p := new(bytes.Buffer)
-	binary.Write(p, Encoding, MagicNumber)
-	binary.Write(p, Encoding, MessageVersion)
-	binary.Write(p, Encoding, uint32(len(data)))
-	binary.Write(p, Encoding, int64(messageSeq)) // offsetSize = 8
-	binary.Write(p, Encoding, int64(0))          // appliIndexSize = 8
-	binary.Write(p, Encoding, data)
-	binary.Write(p, Encoding, EndMagicNumber)
+	_ = binary.Write(p, Encoding, MagicNumber)
+	_ = binary.Write(p, Encoding, MessageVersion)
+	_ = binary.Write(p, Encoding, uint32(len(data)))
+	_ = binary.Write(p, Encoding, int64(messageSeq)) // offsetSize = 8
+	_ = binary.Write(p, Encoding, int64(0))          // appliIndexSize = 8
+	_ = binary.Write(p, Encoding, data)
+	_ = binary.Write(p, Encoding, EndMagicNumber)
 	return p.Bytes()
 }
 

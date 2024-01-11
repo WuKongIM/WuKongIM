@@ -16,6 +16,8 @@ cluster:
   grpcAddr: "127.0.0.1:11112"
   slotCount: 256
   replicaCount: 2
+  slotReplicaCount: 2
+  channelReplicaCount: 2
   peers: 
     - "1@127.0.0.1:10001"
     - "2@127.0.0.1:10002"

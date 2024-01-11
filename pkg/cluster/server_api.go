@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"go.uber.org/zap"
@@ -11,7 +12,12 @@ import (
 
 func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 
-	route.GET(getChannelClusterInfoPath(prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	prefix = strings.TrimSuffix(prefix, "/")
+
+	route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
 }
 
 // 获取所有channel的集群信息
@@ -38,11 +44,4 @@ func (s *Server) getAllClusterInfo(c *wkhttp.Context) {
 	}
 	c.JSON(http.StatusOK, channelClusterInfos)
 
-}
-
-func getChannelClusterInfoPath(prefix string) string {
-	if prefix == "" {
-		return "/channel/clusterinfo"
-	}
-	return fmt.Sprintf("%s/channel/clusterinfo", prefix)
 }

@@ -35,16 +35,7 @@ func (c ConversationSet) Encode() []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	for _, cn := range c {
-		enc.WriteUint8(conversationVersion)
-		enc.WriteString(cn.UID)
-		enc.WriteString(cn.ChannelID)
-		enc.WriteUint8(cn.ChannelType)
-		enc.WriteUint32(uint32(cn.UnreadCount))
-		enc.WriteInt64(cn.Timestamp)
-		enc.WriteUint32(cn.LastMsgSeq)
-		enc.WriteString(cn.LastClientMsgNo)
-		enc.WriteInt64(cn.LastMsgID)
-		enc.WriteInt64(cn.Version)
+		encodeConversation(cn, enc)
 	}
 	return enc.Bytes()
 }
@@ -62,6 +53,19 @@ func NewConversationSet(data []byte) ConversationSet {
 		conversationSet = append(conversationSet, conversation)
 	}
 	return conversationSet
+}
+
+func encodeConversation(cn *Conversation, encoder *wkproto.Encoder) {
+	encoder.WriteUint8(conversationVersion)
+	encoder.WriteString(cn.UID)
+	encoder.WriteString(cn.ChannelID)
+	encoder.WriteUint8(cn.ChannelType)
+	encoder.WriteUint32(uint32(cn.UnreadCount))
+	encoder.WriteInt64(cn.Timestamp)
+	encoder.WriteUint32(cn.LastMsgSeq)
+	encoder.WriteString(cn.LastClientMsgNo)
+	encoder.WriteInt64(cn.LastMsgID)
+	encoder.WriteInt64(cn.Version)
 }
 
 func decodeConversation(decoder *wkproto.Decoder) (*Conversation, error) {

@@ -138,7 +138,9 @@ type Options struct {
 		ServerAddr                 string        // 节点服务地址 例如 127.0.0.1:11110
 		ReqTimeout                 time.Duration // 请求超时时间
 		Join                       string        // 加入集群的地址
-		ReplicaCount               int           // 副本数量
+		ReplicaCount               int           // 节点副本数量
+		SlotReplicaCount           int           // 每个槽的副本数量
+		ChannelReplicaCount        int           // 每个频道的副本数量
 		SlotCount                  int           // 槽数量
 		Peers                      []*Peer       // 集群节点地址
 		PeerRPCMsgTimeout          time.Duration // 节点之间rpc消息超时时间
@@ -264,6 +266,8 @@ func NewOptions() *Options {
 			ReqTimeout                 time.Duration
 			Join                       string
 			ReplicaCount               int
+			SlotReplicaCount           int
+			ChannelReplicaCount        int
 			SlotCount                  int
 			Peers                      []*Peer
 			PeerRPCMsgTimeout          time.Duration
@@ -275,6 +279,8 @@ func NewOptions() *Options {
 			ReqTimeout:                 time.Second * 10,
 			SlotCount:                  128,
 			ReplicaCount:               3,
+			SlotReplicaCount:           3,
+			ChannelReplicaCount:        3,
 			PeerRPCMsgTimeout:          time.Second * 20,
 			PeerRPCTimeoutScanInterval: time.Second * 1,
 		},
@@ -434,6 +440,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
 	o.Cluster.GRPCAddr = o.getString("cluster.grpcAddr", o.Cluster.GRPCAddr)
 	o.Cluster.ReplicaCount = o.getInt("cluster.replicaCount", o.Cluster.ReplicaCount)
+	o.Cluster.SlotReplicaCount = o.getInt("cluster.slotReplicaCount", o.Cluster.SlotReplicaCount)
+	o.Cluster.ChannelReplicaCount = o.getInt("cluster.channelReplicaCount", o.Cluster.ChannelReplicaCount)
 	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)
 
 	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)

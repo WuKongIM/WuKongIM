@@ -106,8 +106,8 @@ func (s *stateMachine) getChannelClusterInfo(channelID string, channelType uint8
 }
 
 func (s *stateMachine) getChannelClusterInfos(offset, limit int) ([]*ChannelClusterInfo, error) {
-	lowKey := []byte(fmt.Sprintf("%s/0", s.getChannelClusterInfoPrefix()))
-	highKey := []byte(fmt.Sprintf("%s/%d", s.getChannelClusterInfoPrefix(), s.s.clusterEventManager.GetSlotCount()))
+	lowKey := []byte(fmt.Sprintf("%s/slots/0", s.getChannelClusterInfoPrefix()))
+	highKey := []byte(fmt.Sprintf("%s/slots/%d", s.getChannelClusterInfoPrefix(), s.s.clusterEventManager.GetSlotCount()))
 
 	iter := s.db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
