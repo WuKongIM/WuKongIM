@@ -180,6 +180,8 @@ func New(opts *Options) *Server {
 			cluster.WithInitNodes(initNodes),
 			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
 			cluster.WithApiServerAddr(s.opts.External.APIUrl),
+			cluster.WithChannelReplicaCount(uint16(s.opts.Cluster.ChannelReplicaCount)),
+			cluster.WithSlotReplicaCount(uint16(s.opts.Cluster.SlotReplicaCount)),
 			cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
 				return s.store.OnMetaApply(channelID, channelType, logs)
 			}),

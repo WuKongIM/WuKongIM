@@ -68,8 +68,9 @@ func (m *MessageStorage) AppendLog(shardNo string, log replica.Log) error {
 	_, err = m.db.AppendMessages(channelID, channelType, []wkstore.Message{msg})
 	if err != nil {
 		m.Error("AppendMessages err", zap.Error(err))
+		return err
 	}
-	return err
+	return nil
 }
 
 func (m *MessageStorage) GetLogs(shardNo string, startLogIndex uint64, limit uint32) ([]replica.Log, error) {

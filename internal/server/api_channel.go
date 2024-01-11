@@ -1039,7 +1039,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := ch.s.cluster.LeaderNodeOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
