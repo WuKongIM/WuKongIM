@@ -3,6 +3,7 @@ package cluster
 import (
 	"encoding/binary"
 	"math"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/key"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -65,9 +66,31 @@ func (p *PebbleStorage) saveMaxIndex(shardNo string, index uint64) error {
 	maxIndexKeyData := key.NewMaxIndexKey(shardNo)
 	maxIndexdata := make([]byte, 8)
 	binary.BigEndian.PutUint64(maxIndexdata, index)
-	err := p.db.Set(maxIndexKeyData, maxIndexdata, p.wo)
+	lastTime := time.Now().UnixNano()
+	lastTimeData := make([]byte, 8)
+	binary.BigEndian.PutUint64(lastTimeData, uint64(lastTime))
+
+	err := p.db.Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...), p.wo)
 	return err
 }
+
+// GetMaxIndex 获取最大的index 和最后一次写入的时间
+func (p *PebbleStorage) getMaxIndex(shardNo string) (uint64, uint64, error) {
+	maxIndexKeyData := key.NewMaxIndexKey(shardNo)
+	maxIndexdata, closer, err := p.db.Get(maxIndexKeyData)
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, 0, nil
+		}
+		return 0, 0, err
+	}
+	defer closer.Close()
+	if len(maxIndexdata) == 0 {
+		return 0, 0, nil
+	}
+	return binary.BigEndian.Uint64(maxIndexdata[:8]), binary.BigEndian.Uint64(maxIndexdata[8:]), nil
+}
+
 func (p *PebbleStorage) GetLogs(shardNo string, startLogIndex uint64, limit uint32) ([]replica.Log, error) {
 
 	lastIndex, err := p.LastIndex(shardNo)
@@ -102,19 +125,11 @@ func (p *PebbleStorage) GetLogs(shardNo string, startLogIndex uint64, limit uint
 }
 
 func (p *PebbleStorage) LastIndex(shardNo string) (uint64, error) {
-	maxIndexKeyData := key.NewMaxIndexKey(shardNo)
-	maxIndexdata, closer, err := p.db.Get(maxIndexKeyData)
+	maxIndex, _, err := p.getMaxIndex(shardNo)
 	if err != nil {
-		if err == pebble.ErrNotFound {
-			return 0, nil
-		}
 		return 0, err
 	}
-	defer closer.Close()
-	if len(maxIndexdata) == 0 {
-		return 0, nil
-	}
-	return binary.BigEndian.Uint64(maxIndexdata), nil
+	return maxIndex, nil
 }
 
 func (p *PebbleStorage) FirstIndex(shardNo string) (uint64, error) {
@@ -143,4 +158,8 @@ func (p *PebbleStorage) GetAppliedIndex(shardNo string) (uint64, error) {
 		return 0, nil
 	}
 	return binary.BigEndian.Uint64(appliedIndexdata), nil
+}
+
+func (p *PebbleStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
+	return p.getMaxIndex(shardNo)
 }

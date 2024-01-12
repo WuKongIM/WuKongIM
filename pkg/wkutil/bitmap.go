@@ -238,3 +238,19 @@ func GetSlotNum(slotCount int, v string) uint32 {
 	value := crc32.ChecksumIEEE([]byte(v))
 	return value % uint32(slotCount)
 }
+
+// GetSlotFillFormat  获取slot填充格式
+func GetSlotFillFormat(slot int, slotCount int) string {
+
+	if slotCount < 100 {
+		return fmt.Sprintf("%02d", slot)
+	}
+	if slotCount < 1000 {
+		return fmt.Sprintf("%03d", slot)
+	}
+
+	if slotCount < 10000 {
+		return fmt.Sprintf("%04d", slot)
+	}
+	panic(fmt.Errorf("slotCount too large %d", slotCount))
+}

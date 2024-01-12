@@ -100,9 +100,9 @@ func (s *SyncRsp) Unmarshal(data []byte) error {
 
 // 同步信息
 type SyncInfo struct {
-	NodeID       uint64 // 节点ID
-	LastLogIndex uint64 // 最后一条日志的索引
-	LastSyncTime uint64 // 最后一次同步时间
+	NodeID           uint64 // 节点ID
+	LastSyncLogIndex uint64 // 最后一次来同步日志的下标（一般最新日志 + 1）
+	LastSyncTime     uint64 // 最后一次同步时间
 
 	version uint16 // 数据版本
 }
@@ -113,7 +113,7 @@ func (r *SyncInfo) Marshal() ([]byte, error) {
 	defer enc.End()
 	enc.WriteUint16(r.version)
 	enc.WriteUint64(r.NodeID)
-	enc.WriteUint64(r.LastLogIndex)
+	enc.WriteUint64(r.LastSyncLogIndex)
 	enc.WriteUint64(r.LastSyncTime)
 	return enc.Bytes(), nil
 }
@@ -127,7 +127,7 @@ func (r *SyncInfo) Unmarshal(data []byte) error {
 	if r.NodeID, err = dec.Uint64(); err != nil {
 		return err
 	}
-	if r.LastLogIndex, err = dec.Uint64(); err != nil {
+	if r.LastSyncLogIndex, err = dec.Uint64(); err != nil {
 		return err
 	}
 	if r.LastSyncTime, err = dec.Uint64(); err != nil {

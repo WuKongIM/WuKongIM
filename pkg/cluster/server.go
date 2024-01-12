@@ -22,7 +22,6 @@ import (
 	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type Server struct {
@@ -79,10 +78,6 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 	s.stateMachine = newStateMachine(path.Join(opts.DataDir, "datadb"), s)
 	s.slotManager = NewSlotManager(s)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
-	wklog.Configure(&wklog.Options{
-		Level: zapcore.Level(opts.LogLevel),
-	})
-
 	if len(opts.InitNodes) == 0 {
 		s.Panic("init nodes is empty")
 	}

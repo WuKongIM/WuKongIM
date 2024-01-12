@@ -1,10 +1,13 @@
 package clusterstore
 
 import (
+	"strings"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -90,7 +93,7 @@ func (s *Store) GetMessageOfUserCursor(uid string) (uint32, error) {
 }
 
 func (s *Store) AppendMessagesOfUser(uid string, msgs []wkstore.Message) (err error) {
-	return nil
+	return s.AppendMessages(uid, wkproto.ChannelTypePerson, msgs)
 }
 
 func (s *Store) SyncMessageOfUser(uid string, messageSeq uint32, limit uint32) ([]wkstore.Message, error) {
@@ -131,11 +134,21 @@ func (s *MessageShardLogStorage) AppendLog(shardNo string, log replica.Log) erro
 		return err
 	}
 	msg.SetSeq(uint32(log.Index))
-	_, err = s.db.AppendMessages(channelID, channelType, []wkstore.Message{msg})
-	if err != nil {
-		s.Error("AppendMessages err", zap.Error(err))
+	if IsUserOwnChannel(channelID, channelType) {
+		_, err = s.db.AppendMessagesOfUser(channelID, []wkstore.Message{msg})
+		if err != nil {
+			s.Error("AppendMessagesOfUser err", zap.Error(err))
+			return err
+		}
+	} else {
+		_, err = s.db.AppendMessages(channelID, channelType, []wkstore.Message{msg})
+		if err != nil {
+			s.Error("AppendMessages err", zap.Error(err))
+			return err
+		}
 	}
-	return err
+
+	return s.db.SaveChannelMaxMessageSeq(channelID, channelType, uint32(log.Index))
 }
 
 // 获取日志
@@ -145,10 +158,22 @@ func (s *MessageShardLogStorage) GetLogs(shardNo string, startLogIndex uint64, l
 	if startLogIndex > 0 {
 		startLogIndex = startLogIndex - 1
 	}
-	messages, err := s.db.LoadNextRangeMsgs(channelID, channelType, uint32(startLogIndex), 0, int(limit))
-	if err != nil {
-		return nil, err
+	var (
+		messages []wkstore.Message
+		err      error
+	)
+	if IsUserOwnChannel(channelID, channelType) {
+		messages, err = s.db.SyncMessageOfUser(channelID, uint32(startLogIndex), int(limit))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		messages, err = s.db.LoadNextRangeMsgs(channelID, channelType, uint32(startLogIndex), 0, int(limit))
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	if len(messages) == 0 {
 		return nil, nil
 	}
@@ -165,8 +190,18 @@ func (s *MessageShardLogStorage) GetLogs(shardNo string, startLogIndex uint64, l
 // 最后一条日志的索引
 func (s *MessageShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	channelID, channelType := cluster.GetChannelFromChannelKey(shardNo)
-	msgSeq, err := s.db.GetLastMsgSeq(channelID, channelType)
+
+	var (
+		msgSeq uint32
+		err    error
+	)
+	if IsUserOwnChannel(channelID, channelType) {
+		msgSeq, err = s.db.GetLastMsgSeqOfUser(channelID)
+	} else {
+		msgSeq, err = s.db.GetLastMsgSeq(channelID, channelType)
+	}
 	return uint64(msgSeq), err
+
 }
 
 // 获取第一条日志的索引
@@ -177,4 +212,21 @@ func (s *MessageShardLogStorage) FirstIndex(shardNo string) (uint64, error) {
 // 设置成功被状态机应用的日志索引
 func (s *MessageShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
 	return nil
+}
+
+func (s *MessageShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
+	channelID, channelType := cluster.GetChannelFromChannelKey(shardNo)
+	lastMsgSeq, lastAppendTime, err := s.db.GetChannelMaxMessageSeq(channelID, channelType)
+	if err != nil {
+		return 0, 0, err
+	}
+	return uint64(lastMsgSeq), lastAppendTime, nil
+}
+
+// 是用户自己的频道
+func IsUserOwnChannel(channelID string, channelType uint8) bool {
+	if channelType == wkproto.ChannelTypePerson {
+		return !strings.Contains(channelID, "@")
+	}
+	return false
 }

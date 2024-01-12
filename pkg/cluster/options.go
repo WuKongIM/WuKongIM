@@ -14,6 +14,7 @@ type Options struct {
 	ApiServerAddr       string            // api服务地址
 	Join                string            // 加入的节点 例如： ip:port
 	Heartbeat           time.Duration
+	ReqTimeout          time.Duration
 	ElectionTimeoutTick uint32 // 选举超时tick次数，超过这个次数就开始选举
 	LogLevel            int8
 	DataDir             string // 数据存储目录
@@ -48,6 +49,7 @@ func NewOptions() *Options {
 		ChannelReplicaCount:     3,
 		ChannelEventWorkerCount: 16,
 		ChannelMaxCacheCount:    1000,
+		ReqTimeout:              time.Second * 5,
 	}
 }
 

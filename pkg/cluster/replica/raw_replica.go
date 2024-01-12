@@ -60,9 +60,9 @@ func NewRawReplica(nodeID uint64, shardNo string, optList ...Option) *RawReplica
 	if len(opts.LastSyncInfoMap) > 0 {
 		for nodeID, rinfo := range opts.LastSyncInfoMap {
 			r.lastSyncInfoMap[nodeID] = &SyncInfo{
-				NodeID:       rinfo.NodeID,
-				LastLogIndex: rinfo.LastLogIndex,
-				LastSyncTime: rinfo.LastSyncTime,
+				NodeID:           rinfo.NodeID,
+				LastSyncLogIndex: rinfo.LastSyncLogIndex,
+				LastSyncTime:     rinfo.LastSyncTime,
 			}
 		}
 	}
@@ -127,8 +127,8 @@ func (r *RawReplica) SyncLogs(nodeID uint64, startLogIndex uint64, limit uint32)
 		syncInfo = &SyncInfo{}
 		r.lastSyncInfoMap[nodeID] = syncInfo
 	}
-	syncInfo.LastLogIndex = startLogIndex
-	syncInfo.LastSyncTime = uint64(time.Now().Unix())
+	syncInfo.LastSyncLogIndex = startLogIndex
+	syncInfo.LastSyncTime = uint64(time.Now().UnixNano())
 	r.lastSyncLogLock.Unlock()
 	return logs, nil
 }
@@ -204,7 +204,7 @@ func (r *RawReplica) TriggerSendNotifySyncIfNeed() []uint64 {
 		r.lastSyncLogLock.Lock()
 		syncInfo := r.lastSyncInfoMap[replicaNodeID]
 		r.lastSyncLogLock.Unlock()
-		if syncInfo == nil || lastLogIndex >= syncInfo.LastLogIndex {
+		if syncInfo == nil || lastLogIndex >= syncInfo.LastSyncLogIndex {
 			needNotifies = append(needNotifies, replicaNodeID)
 		}
 	}
@@ -221,6 +221,8 @@ func (r *RawReplica) SendNotifySyncToAll() (bool, error) {
 
 func (r *RawReplica) SendNotifySync(replicas []uint64) (bool, error) {
 	existErr := false
+	startTime := time.Now().UnixMilli()
+	r.Debug("send notify sync", zap.Uint64("leaderID", r.opts.NodeID), zap.String("shardNo", r.opts.ShardNo), zap.Uint64s("replicas", replicas))
 	for _, replicaNodeID := range replicas {
 		if r.opts.NodeID == replicaNodeID {
 			continue
@@ -234,6 +236,7 @@ func (r *RawReplica) SendNotifySync(replicas []uint64) (bool, error) {
 			r.Warn("send syncNotify failed", zap.Error(err), zap.Uint64("replicaNodeID", replicaNodeID), zap.String("shardNo", r.opts.ShardNo))
 		}
 	}
+	r.Debug("send notify sync done", zap.Int64("cost", time.Now().UnixMilli()-startTime), zap.Uint64("leaderID", r.opts.NodeID), zap.String("shardNo", r.opts.ShardNo), zap.Uint64s("replicas", replicas))
 	return existErr, nil
 }
 

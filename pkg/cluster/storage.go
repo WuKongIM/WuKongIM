@@ -14,6 +14,8 @@ type IShardLogStorage interface {
 	FirstIndex(shardNo string) (uint64, error)
 	// 设置成功被状态机应用的日志索引
 	SetAppliedIndex(shardNo string, index uint64) error
+	//	 获取最后一条日志的索引和追加时间
+	LastIndexAndAppendTime(shardNo string) (uint64, uint64, error)
 }
 
 type proxyReplicaStorage struct {
@@ -45,4 +47,8 @@ func (p *proxyReplicaStorage) FirstIndex() (uint64, error) {
 
 func (p *proxyReplicaStorage) SetAppliedIndex(index uint64) error {
 	return p.storage.SetAppliedIndex(p.shardNo, index)
+}
+
+func (p *proxyReplicaStorage) LastIndexAndAppendTime() (uint64, uint64, error) {
+	return p.storage.LastIndexAndAppendTime(p.shardNo)
 }

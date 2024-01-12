@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	"github.com/pkg/errors"
 
@@ -499,12 +500,16 @@ func (o *Options) ConfigureLog() {
 	o.Logger.Level = zapcore.Level(logLevel)
 	o.Logger.Dir = o.vp.GetString("logger.dir")
 	if strings.TrimSpace(o.Logger.Dir) == "" {
-		o.Logger.Dir = "logs"
-	}
-	if !strings.HasPrefix(strings.TrimSpace(o.Logger.Dir), "/") {
-		o.Logger.Dir = filepath.Join(o.RootDir, o.Logger.Dir)
+		o.Logger.Dir = path.Join(o.RootDir, "logs")
 	}
 	o.Logger.LineNum = o.vp.GetBool("logger.lineNum")
+
+	logOpts := wklog.NewOptions()
+	logOpts.Level = o.Logger.Level
+	logOpts.LogDir = o.Logger.Dir
+	logOpts.LineNum = o.Logger.LineNum
+
+	wklog.Configure(logOpts)
 }
 
 // IsTmpChannel 是否是临时频道
