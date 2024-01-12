@@ -395,3 +395,7 @@ func (t *testMessageLogStorage) FirstIndex(shardNo string) (uint64, error) {
 func (t *testMessageLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
 	return nil
 }
+
+func (t *testMessageLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
+	return 0, 0, nil
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 type node struct {
@@ -363,4 +364,23 @@ func (n *node) requestApplyClusterInfo(ctx context.Context, req *ChannelClusterI
 		return fmt.Errorf("requestApplyClusterInfo is failed, status:%d", resp.Status)
 	}
 	return nil
+}
+
+// 获取频道分布式详情
+func (n *node) requestChannelClusterDetail(ctx context.Context, reqs []*channelClusterDetailoReq) ([]*channelClusterDetailInfo, error) {
+	data := []byte(wkutil.ToJSON(reqs))
+	resp, err := n.client.RequestWithContext(ctx, "/channel/clusterdetail", data)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != proto.Status_OK {
+		return nil, fmt.Errorf("requestChannelLastlog is failed, status:%d", resp.Status)
+	}
+
+	detailInfos := make([]*channelClusterDetailInfo, 0)
+	err = wkutil.ReadJSONByByte(resp.Body, &detailInfos)
+	if err != nil {
+		return nil, err
+	}
+	return detailInfos, nil
 }

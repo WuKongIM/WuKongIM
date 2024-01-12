@@ -1,12 +1,14 @@
 package wkstore
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -514,27 +516,57 @@ func (f *FileStore) GetPeerInFlightData() ([]*PeerInFlightDataModel, error) {
 	return data, nil
 }
 
+// 保存频道的最大消息序号
+func (f *FileStore) SaveChannelMaxMessageSeq(channelID string, channelType uint8, maxMsgSeq uint32) error {
+	maxMsgSeqBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(maxMsgSeqBytes, maxMsgSeq)
+
+	lastTimeBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(lastTimeBytes, uint64(time.Now().UnixNano()))
+
+	return f.db.Set([]byte(f.getChannelMaxMessageSeqKey(channelID, channelType)), append(maxMsgSeqBytes, lastTimeBytes...), f.wo)
+}
+
+// 获取频道的最大消息序号 和 最后一次写入的时间
+func (f *FileStore) GetChannelMaxMessageSeq(channelID string, channelType uint8) (uint32, uint64, error) {
+	value, closer, err := f.db.Get([]byte(f.getChannelMaxMessageSeqKey(channelID, channelType)))
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, 0, nil
+		}
+		return 0, 0, err
+	}
+	defer closer.Close()
+
+	return binary.BigEndian.Uint32(value[:4]), binary.BigEndian.Uint64(value[4:]), nil
+}
+
+func (f *FileStore) getChannelMaxMessageSeqKey(channelID string, channelType uint8) string {
+	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelID)
+	return fmt.Sprintf("/channelmaxseq/slots/%s/channels/%03d/%s", f.getSlotFillFormat(slot), channelType, channelID)
+}
+
 func (f *FileStore) getUserTokenKey(uid string, deviceFlag uint8) string {
 	slot := wkutil.GetSlotNum(f.cfg.SlotNum, uid)
-	return fmt.Sprintf("/slots/%d/usertoken/users/%s/%d", slot, uid, deviceFlag)
+	return fmt.Sprintf("/usertoken/slots/%s/users/%s/%03d", f.getSlotFillFormat(slot), uid, deviceFlag)
 }
 func (f *FileStore) getChannelKey(channelID string, channelType uint8) []byte {
 	slotID := wkutil.GetSlotNum(f.cfg.SlotNum, channelID)
-	return []byte(fmt.Sprintf("/slots/%d/channelinfo/channels/%d/%s", slotID, channelType, channelID))
+	return []byte(fmt.Sprintf("/channelinfo/slots/%s/channels/%03d/%s", f.getSlotFillFormat(slotID), channelType, channelID))
 }
 
 func (f *FileStore) getSubscribersKey(channelID string, channelType uint8) string {
 	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelID)
-	return fmt.Sprintf("/slots/%d/subscriber/channels/%d/%s", slot, channelType, channelID)
+	return fmt.Sprintf("/subscriber/slots/%s/channels/%03d/%s", f.getSlotFillFormat(slot), channelType, channelID)
 }
 
 func (f *FileStore) getDenylistKey(channelID string, channelType uint8) string {
 	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelID)
-	return fmt.Sprintf("/slots/%d/denylist/channels/%d/%s", slot, channelType, channelID)
+	return fmt.Sprintf("/denylist/slots/%s/channels/%03d/%s", f.getSlotFillFormat(slot), channelType, channelID)
 }
 func (f *FileStore) getAllowlistKey(channelID string, channelType uint8) string {
 	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelID)
-	return fmt.Sprintf("/slots/%d/allowlist/channels/%d/%s", slot, channelType, channelID)
+	return fmt.Sprintf("/allowlist/slots/%s/channels/%03d/%s", f.getSlotFillFormat(slot), channelType, channelID)
 }
 
 func (f *FileStore) getSystemUIDsKey() string {
@@ -543,7 +575,7 @@ func (f *FileStore) getSystemUIDsKey() string {
 
 func (f *FileStore) getMessageOfUserCursorKey(uid string) string {
 	slot := wkutil.GetSlotNum(f.cfg.SlotNum, uid)
-	return fmt.Sprintf("/slots/%d/messagecursor/%s", slot, uid)
+	return fmt.Sprintf("/messagecursor/slots/%s/users/%s", f.getSlotFillFormat(slot), uid)
 }
 
 func (f *FileStore) getIpBlacklistKey() string {
@@ -551,15 +583,18 @@ func (f *FileStore) getIpBlacklistKey() string {
 }
 
 func (f *FileStore) getConversationKey(uid string, channelID string, channelType uint8) string {
-	return fmt.Sprintf("/slots/%d/userconversation/%s/channels/%d/%s", f.slotNum(uid), uid, channelType, channelID)
+	slotID := f.slotNum(uid)
+	return fmt.Sprintf("/conversation/slots/%s/users/%s/channels/%03d/%s", f.getSlotFillFormat(slotID), uid, channelType, channelID)
 }
 
 func (f *FileStore) getConversationLowKey(uid string) string {
-	return fmt.Sprintf("/slots/%d/userconversation/%s/channels/0", f.slotNum(uid), uid)
+	slotID := f.slotNum(uid)
+	return fmt.Sprintf("/conversation/slots/%s/users/%s/channels/%s", f.getSlotFillFormat(slotID), uid, fmt.Sprintf("%03d", 0))
 }
 
 func (f *FileStore) getConversationHighKey(uid string) string {
-	return fmt.Sprintf("/slots/%d/userconversation/%s/channels/255", f.slotNum(uid), uid)
+	slotID := f.slotNum(uid)
+	return fmt.Sprintf("/conversation/slots/%s/users/%s/channels/%s", f.getSlotFillFormat(slotID), uid, fmt.Sprintf("%03d", 256))
 }
 
 func (f *FileStore) getNotifyQueueKey(messageID int64) string {
@@ -569,6 +604,19 @@ func (f *FileStore) getNotifyQueueKey(messageID int64) string {
 func (f *FileStore) getPeerInFlightDataKey() string {
 	return "/peerinflightdata"
 }
+
+func (f *FileStore) getSlotFillFormat(slotID uint32) string {
+	return wkutil.GetSlotFillFormat(int(slotID), f.cfg.SlotNum)
+}
+
+func (f *FileStore) getSlotFillFormatMax() string {
+	return wkutil.GetSlotFillFormat(f.cfg.SlotNum, f.cfg.SlotNum)
+}
+
+func (f *FileStore) getSlotFillFormatMin() string {
+	return wkutil.GetSlotFillFormat(0, f.cfg.SlotNum)
+}
+
 func (f *FileStore) slotNum(key string) uint32 {
 	return wkutil.GetSlotNum(f.cfg.SlotNum, key)
 }

@@ -90,6 +90,11 @@ func (f *FileStoreForMsg) GetLastMsgSeq(channelID string, channelType uint8) (ui
 	return f.getTopic(channelID, channelType).getLastMsgSeq(), nil
 }
 
+func (f *FileStoreForMsg) GetLastMsgSeqOfUser(uid string) (uint32, error) {
+
+	return f.getTopic(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson).getLastMsgSeq(), nil
+}
+
 func (f *FileStoreForMsg) LoadPrevRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]Message, error) {
 	if startMessageSeq == 0 {
 		return nil, fmt.Errorf("start messageSeq must be greater than 0")

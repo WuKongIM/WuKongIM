@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/server"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/judwhite/go-svc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -116,7 +115,6 @@ func initFlags() {
 		serverOpts.RootDir = rootDir
 		serverOpts.ConfigureDataDir()
 		serverOpts.ConfigureLog()
-
 	}
 	if strings.TrimSpace(join) != "" {
 		serverOpts.Cluster.Join = join
@@ -124,11 +122,6 @@ func initFlags() {
 }
 
 func initServer() {
-	logOpts := wklog.NewOptions()
-	logOpts.Level = serverOpts.Logger.Level
-	logOpts.LogDir = serverOpts.Logger.Dir
-	logOpts.LineNum = serverOpts.Logger.LineNum
-	wklog.Configure(logOpts)
 
 	s := server.New(serverOpts)
 	if daemon {

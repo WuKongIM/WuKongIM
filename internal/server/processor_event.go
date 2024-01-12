@@ -406,14 +406,17 @@ func (p *Processor) OnRecvackPacket(req *rpc.RecvacksReq) error {
 		ackPackets = append(ackPackets, ackPacket)
 	}
 	for _, ack := range ackPackets {
-		if !ack.NoPersist {
+		persist := !ack.NoPersist
+		if persist {
 			// 完成消息（移除重试队列里的消息）
+			p.Debug("移除重试队列里的消息！proxyConn", zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", proxyConn.UID()), zap.Int64("clientID", proxyConn.ID()), zap.Uint8("deviceFlag", proxyConn.DeviceFlag()), zap.Uint8("deviceLevel", proxyConn.DeviceLevel()), zap.String("deviceID", proxyConn.DeviceID()), zap.Bool("syncOnce", ack.SyncOnce), zap.Bool("noPersist", ack.NoPersist), zap.Int64("messageID", ack.MessageID))
 			err := p.s.retryQueue.finishMessage(proxyConn.UID(), proxyConn.DeviceID(), ack.MessageID)
 			if err != nil {
 				p.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", proxyConn.UID()), zap.Int64("clientID", proxyConn.ID()), zap.Uint8("deviceFlag", proxyConn.DeviceFlag()), zap.String("deviceID", proxyConn.DeviceID()), zap.Int64("messageID", ack.MessageID))
 			}
 		}
-		if ack.SyncOnce && !ack.NoPersist && wkproto.DeviceLevel(proxyConn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
+		if ack.SyncOnce && persist && wkproto.DeviceLevel(proxyConn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
+			p.Debug("更新游标", zap.String("uid", proxyConn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
 			err := p.s.store.UpdateMessageOfUserCursorIfNeed(proxyConn.UID(), ack.MessageSeq)
 			if err != nil {
 				p.Warn("更新游标失败！", zap.Error(err), zap.String("uid", proxyConn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))

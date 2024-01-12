@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
 )
@@ -79,15 +80,6 @@ func (s *stateMachine) handleSetChannelClusterInfo(cmd *CMD) {
 	}
 }
 
-func (s *stateMachine) getChannelClusterInfoKey(channelID string, channelType uint8) []byte {
-	slotID := s.s.GetSlotID(channelID)
-	return []byte(fmt.Sprintf("%s/slots/%d/channels/%d/%s", s.getChannelClusterInfoPrefix(), slotID, channelType, channelID))
-}
-
-func (s *stateMachine) getChannelClusterInfoPrefix() string {
-	return "/channelclusterinfo"
-}
-
 func (s *stateMachine) getChannelClusterInfo(channelID string, channelType uint8) (*ChannelClusterInfo, error) {
 	data, closer, err := s.db.Get(s.getChannelClusterInfoKey(channelID, channelType))
 	if err != nil {
@@ -106,8 +98,8 @@ func (s *stateMachine) getChannelClusterInfo(channelID string, channelType uint8
 }
 
 func (s *stateMachine) getChannelClusterInfos(offset, limit int) ([]*ChannelClusterInfo, error) {
-	lowKey := []byte(fmt.Sprintf("%s/slots/0", s.getChannelClusterInfoPrefix()))
-	highKey := []byte(fmt.Sprintf("%s/slots/%d", s.getChannelClusterInfoPrefix(), s.s.clusterEventManager.GetSlotCount()))
+	lowKey := s.getChannelClusterInfoLowKey()
+	highKey := s.getChannelClusterInfoHighKey()
 
 	iter := s.db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
@@ -119,8 +111,6 @@ func (s *stateMachine) getChannelClusterInfos(offset, limit int) ([]*ChannelClus
 	i := 0
 
 	for iter.First(); iter.Valid(); iter.Next() {
-
-		fmt.Println("iter.Value()--->", string(iter.Key()), iter.Value())
 		channelInfo := &ChannelClusterInfo{}
 		err := channelInfo.Unmarshal(iter.Value())
 		if err != nil {
@@ -131,10 +121,9 @@ func (s *stateMachine) getChannelClusterInfos(offset, limit int) ([]*ChannelClus
 			continue
 		}
 
-		if i >= offset+limit {
+		if limit != 0 && i >= offset+limit {
 			break
 		}
-		fmt.Println("channelInfo---->", channelInfo.ChannelID, channelInfo.Replicas, channelInfo)
 		channelInfos = append(channelInfos, channelInfo)
 
 	}
@@ -187,8 +176,8 @@ func (s *stateMachine) getChannelSyncInfo(channelID string, channelType uint8, k
 }
 
 func (s *stateMachine) getChannelSyncInfos(channelID string, channelType uint8, kind LogKind) ([]*replica.SyncInfo, error) {
-	lowKey := s.getChannelSyncInfoKey(channelID, channelType, kind, 0)
-	highKey := s.getChannelSyncInfoKey(channelID, channelType, kind, math.MaxUint64)
+	lowKey := s.getChannelSyncInfoLowKey(channelID, channelType, kind)
+	highKey := s.getChannelSyncInfoHighKey(channelID, channelType, kind)
 	iter := s.db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
@@ -278,12 +267,48 @@ func (s *stateMachine) getSlotSyncInfos(slotID uint32) ([]*replica.SyncInfo, err
 }
 
 func (s *stateMachine) getSlotSyncInfoKey(slotID uint32, nodeID uint64) []byte {
-	keyStr := fmt.Sprintf("/slotsyncs/slots/%d/nodes/%d", slotID, nodeID)
+	keyStr := fmt.Sprintf("/slotsyncs/slots/%s/nodes/%020d", s.getSlotFillFormat(slotID), nodeID)
 	return []byte(keyStr)
 }
 
 func (s *stateMachine) getChannelSyncInfoKey(channelID string, channelType uint8, kind LogKind, nodeID uint64) []byte {
 	slotID := s.s.GetSlotID(channelID)
-	keyStr := fmt.Sprintf("/channelsyncs/slots/%d/kind/%d/channels/%d/%s/nodes/%d", slotID, kind, channelType, channelID, nodeID)
+	keyStr := fmt.Sprintf("/channelsyncs/slots/%s/kind/%02d/channels/%03d/%s/nodes/%020d", s.getSlotFillFormat(slotID), kind, channelType, channelID, nodeID)
 	return []byte(keyStr)
+}
+
+func (s *stateMachine) getChannelSyncInfoHighKey(channelID string, channelType uint8, kind LogKind) []byte {
+	slotID := s.s.GetSlotID(channelID)
+	var max uint64 = math.MaxUint64
+	return []byte(fmt.Sprintf("/channelsyncs/slots/%s/kind/%02d/channels/%03d/%s/nodes/%020d", s.getSlotFillFormat(slotID), kind, channelType, channelID, max))
+}
+
+func (s *stateMachine) getChannelSyncInfoLowKey(channelID string, channelType uint8, kind LogKind) []byte {
+	slotID := s.s.GetSlotID(channelID)
+	return []byte(fmt.Sprintf("/channelsyncs/slots/%s/kind/%02d/channels/%03d/%s/nodes/%020d", s.getSlotFillFormat(slotID), kind, channelType, channelID, 0))
+}
+
+func (s *stateMachine) getChannelClusterInfoKey(channelID string, channelType uint8) []byte {
+	slotID := s.s.GetSlotID(channelID)
+	return []byte(fmt.Sprintf("/channelclusterinfo/slots/%s/channels/%03d/%s", s.getSlotFillFormat(slotID), channelType, channelID))
+}
+
+func (s *stateMachine) getChannelClusterInfoLowKey() []byte {
+	return []byte(fmt.Sprintf("/channelclusterinfo/slots/%s/channels/", s.getSlotFillFormatMin()))
+}
+
+func (s *stateMachine) getChannelClusterInfoHighKey() []byte {
+	return []byte(fmt.Sprintf("/channelclusterinfo/slots/%s/channels/", s.getSlotFillFormatMax()))
+}
+
+func (s *stateMachine) getSlotFillFormat(slotID uint32) string {
+	return wkutil.GetSlotFillFormat(int(slotID), int(s.s.opts.SlotCount))
+}
+
+func (s *stateMachine) getSlotFillFormatMax() string {
+	return wkutil.GetSlotFillFormat(int(s.s.opts.SlotCount), int(s.s.opts.SlotCount))
+}
+
+func (s *stateMachine) getSlotFillFormatMin() string {
+	return wkutil.GetSlotFillFormat(0, int(s.s.opts.SlotCount))
 }

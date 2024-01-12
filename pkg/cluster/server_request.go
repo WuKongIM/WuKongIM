@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterevent/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
@@ -40,6 +41,8 @@ func (s *Server) setRoutes() {
 	s.clusterServer.Route("/node/update", s.handleNodeUpdate)
 	// 频道领导请求副本应用频道集群配置
 	s.clusterServer.Route("/channel/applyClusterInfo", s.handleChannelApplyClusterInfo)
+	// 获取频道最新日志信息
+	s.clusterServer.Route("/channel/clusterdetail", s.handleGetClusterDetail)
 }
 
 func (s *Server) handleSyncClusterConfig(c *wkserver.Context) {
@@ -148,9 +151,9 @@ func (s *Server) handleSlotSyncLog(c *wkserver.Context) {
 	c.Write(respData)
 
 	err = s.stateMachine.saveSlotSyncInfo(slot.slotID, &replica.SyncInfo{
-		NodeID:       nodeID,
-		LastLogIndex: req.StartLogIndex,
-		LastSyncTime: uint64(time.Now().Unix()),
+		NodeID:           nodeID,
+		LastSyncLogIndex: req.StartLogIndex,
+		LastSyncTime:     uint64(time.Now().UnixNano()),
 	})
 	if err != nil {
 		s.Warn("save slot sync info failed", zap.Error(err), zap.Uint32("slotID", slot.slotID))
@@ -385,9 +388,9 @@ func (s *Server) handleChannelMetaSyncLog(c *wkserver.Context) {
 	c.Write(respData)
 
 	err = s.stateMachine.saveChannelSyncInfo(channelID, channelType, LogKindMeta, &replica.SyncInfo{
-		NodeID:       nodeID,
-		LastLogIndex: req.StartLogIndex,
-		LastSyncTime: uint64(time.Now().Unix()),
+		NodeID:           nodeID,
+		LastSyncLogIndex: req.StartLogIndex,
+		LastSyncTime:     uint64(time.Now().UnixNano()),
 	})
 	if err != nil {
 		s.Warn("save channel sync info failed", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
@@ -448,9 +451,9 @@ func (s *Server) handleChannelMessageSyncLog(c *wkserver.Context) {
 	c.Write(respData)
 
 	err = s.stateMachine.saveChannelSyncInfo(channelID, channelType, LogKindMessage, &replica.SyncInfo{
-		NodeID:       nodeID,
-		LastLogIndex: req.StartLogIndex,
-		LastSyncTime: uint64(time.Now().Unix()),
+		NodeID:           nodeID,
+		LastSyncLogIndex: req.StartLogIndex,
+		LastSyncTime:     uint64(time.Now().UnixNano()),
 	})
 	if err != nil {
 		s.Warn("save channel sync info failed", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
@@ -496,7 +499,11 @@ func (s *Server) handleChannelApplyClusterInfo(c *wkserver.Context) {
 	}
 
 	if apply {
-		s.Debug("应用频道集群配置", zap.String("fromNodeID", c.ConnReq().Uid), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldChannelClusterInfo.ConfigVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
+		var oldVersion uint64 = 0
+		if oldChannelClusterInfo != nil {
+			oldVersion = oldChannelClusterInfo.ConfigVersion
+		}
+		s.Debug("应用频道集群配置", zap.String("fromNodeID", c.Conn().UID()), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
 		err = s.stateMachine.saveChannelClusterInfo(req)
 		if err != nil {
 			s.Error("apply channel cluster info failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
@@ -507,4 +514,120 @@ func (s *Server) handleChannelApplyClusterInfo(c *wkserver.Context) {
 	}
 
 	c.WriteOk()
+}
+
+func (s *Server) handleGetClusterDetail(c *wkserver.Context) {
+	var reqs []*channelClusterDetailoReq
+	if err := wkutil.ReadJSONByByte(c.Body(), &reqs); err != nil {
+		s.Error("unmarshal channelLastLogInfoReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	var results []*channelClusterDetailInfo
+	for _, req := range reqs {
+		resp, err := s.getChannelClusterDetail(req)
+		if err != nil {
+			s.Error("get channel last log info failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		results = append(results, resp)
+	}
+	c.Write([]byte(wkutil.ToJSON(results)))
+}
+
+func (s *Server) getChannelClusterDetails(reqs []*channelClusterDetailoReq) ([]*channelClusterDetailInfo, error) {
+	var results []*channelClusterDetailInfo
+	for _, req := range reqs {
+		resp, err := s.getChannelClusterDetail(req)
+		if err != nil {
+			s.Error("get channel last log info failed", zap.Error(err))
+			return nil, err
+		}
+		results = append(results, resp)
+	}
+	return results, nil
+}
+
+func (s *Server) getChannelClusterDetail(req *channelClusterDetailoReq) (*channelClusterDetailInfo, error) {
+
+	detail := &channelClusterDetailInfo{
+		ChannelID:   req.ChannelID,
+		ChannelType: req.ChannelType,
+		LeaderID:    s.opts.NodeID,
+	}
+
+	shardNo := GetChannelKey(req.ChannelID, req.ChannelType)
+
+	// 获取元数据日志最后一条日志的索引和追加时间
+	lastLogIndex, lastLogAppendTime, err := s.channelManager.pebbleStorage.LastIndexAndAppendTime(shardNo)
+	if err != nil {
+		s.Error("get channel last log info failed", zap.Error(err))
+		return nil, err
+	}
+	detail.LeaderLastMetaLogIndex = lastLogIndex
+	detail.LeaderLastMetaAppendTime = lastLogAppendTime
+
+	// 获取消息日志最后一条日志的索引和追加时间
+	lastMsgLogIndex, lastMsgLogAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
+	if err != nil {
+		s.Error("get channel message last log info failed", zap.Error(err))
+		return nil, err
+	}
+	detail.LeaderLastMsgLogIndex = lastMsgLogIndex
+	detail.LeaderLastMsgAppendTime = lastMsgLogAppendTime
+
+	// 获取集群配置
+	channelClusterInfo, err := s.stateMachine.getChannelClusterInfo(req.ChannelID, req.ChannelType)
+	if err != nil {
+		s.Error("get channel cluster info failed", zap.Error(err))
+		return nil, err
+	}
+
+	if channelClusterInfo != nil {
+		detail.Replicas = channelClusterInfo.Replicas
+		detail.LeaderID = channelClusterInfo.LeaderID
+		detail.ApplyReplicas = channelClusterInfo.Replicas
+
+		// 获取副本同步元数据的信息
+		metaSyncInfos, err := s.stateMachine.getChannelSyncInfos(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType, LogKindMeta)
+		if err != nil {
+			s.Error("getChannelSyncInfos error", zap.Error(err))
+			return nil, err
+		}
+		metaSyncInfoResps := make([]*channelSyncInfo, 0, len(metaSyncInfos))
+		for _, metaSyncInfo := range metaSyncInfos {
+			channelSyncInfo := newChannelSyncInfo(metaSyncInfo.NodeID, metaSyncInfo.LastSyncLogIndex, metaSyncInfo.LastSyncTime)
+			metaSyncInfoResps = append(metaSyncInfoResps, channelSyncInfo)
+			if channelSyncInfo.NextLogIndex == 0 {
+				channelSyncInfo.LaggingLogCount = detail.LeaderLastMetaLogIndex
+			} else {
+				channelSyncInfo.LaggingLogCount = detail.LeaderLastMetaLogIndex - (channelSyncInfo.NextLogIndex - 1)
+			}
+
+			channelSyncInfo.ReplicaSyncDelay = channelSyncInfo.LastSyncTime/1000/1000 - detail.LeaderLastMetaAppendTime/1000/1000
+		}
+		detail.MetaSyncInfo = metaSyncInfoResps
+
+		// 获取副本同步消息数据的信息
+		msgSyncInfos, err := s.stateMachine.getChannelSyncInfos(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType, LogKindMessage)
+		if err != nil {
+			s.Error("getChannelSyncInfos error", zap.Error(err))
+			return nil, err
+		}
+		msgSyncInfoResps := make([]*channelSyncInfo, 0, len(msgSyncInfos))
+		for _, msgSyncInfo := range msgSyncInfos {
+			syncInfo := newChannelSyncInfo(msgSyncInfo.NodeID, msgSyncInfo.LastSyncLogIndex, msgSyncInfo.LastSyncTime)
+			msgSyncInfoResps = append(msgSyncInfoResps, syncInfo)
+			if syncInfo.NextLogIndex == 0 {
+				syncInfo.LaggingLogCount = detail.LeaderLastMsgLogIndex
+			} else {
+				syncInfo.LaggingLogCount = detail.LeaderLastMsgLogIndex - (syncInfo.NextLogIndex - 1)
+			}
+			syncInfo.ReplicaSyncDelay = syncInfo.LastSyncTime/1000/1000 - detail.LeaderLastMsgAppendTime/1000/1000
+		}
+		detail.MsgSyncInfo = msgSyncInfoResps
+	}
+
+	return detail, nil
 }

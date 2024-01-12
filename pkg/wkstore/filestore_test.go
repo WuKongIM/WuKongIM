@@ -10,24 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFileStoreMsg(t *testing.T) {
-	dir, err := ioutil.TempDir("", "filestore")
-	assert.NoError(t, err)
-	store := NewFileStore(&StoreConfig{
-		SlotNum: 1024,
-		DataDir: dir,
-	})
-
-	store.AppendMessages("testtopic", 1, []Message{
-		&testMessage{
-			data: []byte("test1"),
-		},
-		&testMessage{
-			data: []byte("test2"),
-		},
-	})
-}
-
 func TestFileWriteAndRead(t *testing.T) {
 
 	f1, _ := os.OpenFile("test.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0755)
@@ -702,4 +684,32 @@ func TestRemoveMessagesOfNotifyQueue(t *testing.T) {
 	resultNotify, err = store.GetMessagesOfNotifyQueue(1)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(resultNotify))
+}
+
+func TestSaveChannelMaxMessageSeq(t *testing.T) {
+	dir, err := ioutil.TempDir("", "filestore")
+	assert.NoError(t, err)
+
+	storeCfg := NewStoreConfig()
+	storeCfg.DataDir = dir
+	storeCfg.DecodeMessageFnc = func(data []byte) (Message, error) {
+		tm := &testMessage{}
+		err = tm.Decode(data)
+		return tm, err
+	}
+	store := NewFileStore(storeCfg)
+	err = store.Open()
+	assert.NoError(t, err)
+	defer store.Close()
+
+	channelID := "ch1"
+	channelType := uint8(2)
+	seq := uint32(100)
+
+	err = store.SaveChannelMaxMessageSeq(channelID, channelType, seq)
+	assert.NoError(t, err)
+
+	resultSeq, _, err := store.GetChannelMaxMessageSeq(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, seq, resultSeq)
 }
