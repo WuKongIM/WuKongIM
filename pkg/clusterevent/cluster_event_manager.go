@@ -40,9 +40,11 @@ func NewClusterEventManager(opts *Options) *ClusterEventManager {
 		othersNodeConfigVersionMap: make(map[uint64]uint32),
 	}
 
-	err := os.MkdirAll(opts.DataDir, os.ModePerm)
-	if err != nil {
-		c.Panic("Create data dir failed!", zap.String("dataDir", opts.DataDir))
+	if opts.DataDir != "" {
+		err := os.MkdirAll(opts.DataDir, os.ModePerm)
+		if err != nil {
+			c.Panic("Create data dir failed!", zap.String("dataDir", opts.DataDir))
+		}
 	}
 
 	if c.existClusterConfig() {
@@ -104,6 +106,7 @@ func (c *ClusterEventManager) createAndInitClusterConfig() {
 			Status:      pb.NodeStatus_NodeStatusWaitInit,
 			Online:      true,
 			AllowVote:   true,
+			DataTerm:    1,
 		})
 	}
 	sort.Sort(pb.NodeSlice(c.clusterconfig.Nodes))
@@ -197,6 +200,14 @@ func (c *ClusterEventManager) SetNodeLeaderID(nodeID uint64) {
 	c.nodeLeaderID.Store(nodeID)
 }
 
+// SetTerm 设置当前领导的任期
+func (c *ClusterEventManager) SetTerm(term uint32) {
+	c.clusterconfigLock.Lock()
+	defer c.clusterconfigLock.Unlock()
+	c.clusterconfig.Term = term
+	c.saveAndVersionInc()
+}
+
 func (c *ClusterEventManager) SetNodeConfigVersion(nodeID uint64, configVersion uint32) {
 	c.othersNodeConfigVersionMapLock.Lock()
 	defer c.othersNodeConfigVersionMapLock.Unlock()
@@ -261,6 +272,17 @@ func (c *ClusterEventManager) NodeIsOnline(nodeID uint64) bool {
 		}
 	}
 	return false
+}
+
+func (c *ClusterEventManager) GetDataTerm(nodeID uint64) uint32 {
+	c.clusterconfigLock.Lock()
+	defer c.clusterconfigLock.Unlock()
+	for _, node := range c.clusterconfig.Nodes {
+		if node.Id == nodeID {
+			return node.DataTerm
+		}
+	}
+	return 0
 }
 
 func (c *ClusterEventManager) save() error {
@@ -378,6 +400,7 @@ func (c *ClusterEventManager) SetNodeOnlineNoSave(nodeID uint64, online bool) {
 			node.Online = online
 			if !online {
 				node.OfflineCount++
+				node.DataTerm++
 			}
 			break
 		}

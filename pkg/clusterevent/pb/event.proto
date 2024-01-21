@@ -32,7 +32,7 @@ enum NodeStatus {
 message Cluster {
    uint32 version = 1; // 配置版本
    uint32 slotCount = 2; // 槽位数量
-   uint32 epoch = 3; // 集群的周期
+   uint32 term = 3; // 领导任期
    repeated Node nodes = 4; // 集群中的节点
    repeated Slot slots = 5; // 集群中的槽位
 }
@@ -50,15 +50,17 @@ message Node {
     bool online = 10; // 是否在线
     uint32 offlineCount = 11; // 离线次数
     bool allowVote = 12; // 节点是否允许投票
+    uint32 dataTerm = 13; // 节点数据任期, 用于判断频道集群数据是否过期
 }
 
 
 message Slot {
     uint32 id = 1; // 槽位id
     uint64 leader = 2; // 槽位的领导节点
-    repeated uint64 replicas = 3; // 副本节点(包含领导节点)
-    uint32 status = 4; // 槽位状态
-    uint32 replicaCount = 5; // 槽位副本数量  (这个数量包含领导，比如副本为3，则是1个领导2个副本节点)
+    uint32 term = 3; // 槽位的领导任期
+    repeated uint64 replicas = 4; // 副本节点(包含领导节点)
+    uint32 status = 5; // 槽位状态
+    uint32 replicaCount = 6; // 槽位副本数量  (这个数量包含领导，比如副本为3，则是1个领导2个副本节点)
 }
 
 message SlotMigrate {

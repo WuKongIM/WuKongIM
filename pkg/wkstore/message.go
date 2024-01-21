@@ -12,25 +12,27 @@ type Message interface {
 	GetSeq() uint32
 	Encode() []byte
 	Decode(msg []byte) error
+	SetTerm(term uint64)
+	GetTerm() uint64
 }
 
-func EncodeMessage(messageSeq uint32, data []byte) []byte {
+func EncodeMessage(messageSeq uint32, term uint64, data []byte) []byte {
 	p := new(bytes.Buffer)
 	_ = binary.Write(p, Encoding, MagicNumber)
 	_ = binary.Write(p, Encoding, MessageVersion)
 	_ = binary.Write(p, Encoding, uint32(len(data)))
-	_ = binary.Write(p, Encoding, int64(messageSeq)) // offsetSize = 8
-	_ = binary.Write(p, Encoding, int64(0))          // appliIndexSize = 8
+	_ = binary.Write(p, Encoding, uint64(messageSeq)) // offsetSize = 8
+	_ = binary.Write(p, Encoding, term)               // term = 8
 	_ = binary.Write(p, Encoding, data)
 	_ = binary.Write(p, Encoding, EndMagicNumber)
 	return p.Bytes()
 }
 
-func DecodeMessage(msg []byte) (uint32, []byte, error) {
+func DecodeMessage(msg []byte) (uint32, uint64, []byte, error) {
 	offset := 0
 	magicNum := msg[offset : len(MagicNumber)+offset]
 	if !bytes.Equal(magicNum, MagicNumber[:]) {
-		return 0, nil, fmt.Errorf("start magicNumber不正确 expect:%s actual:%s", string(MagicNumber[:]), string(magicNum))
+		return 0, 0, nil, fmt.Errorf("start magicNumber不正确 expect:%s actual:%s", string(MagicNumber[:]), string(magicNum))
 	}
 	offset += len(MagicNumber)
 
@@ -46,9 +48,9 @@ func DecodeMessage(msg []byte) (uint32, []byte, error) {
 	messageSeq := uint32(Encoding.Uint64(msg[offset : offset+MessageSeqSize]))
 	offset += MessageSeqSize
 
-	// applindex
-	_ = Encoding.Uint64(msg[offset : offset+AppliIndexSize])
-	offset += AppliIndexSize
+	// term
+	term := Encoding.Uint64(msg[offset : offset+TermIndexSize])
+	offset += TermIndexSize
 
 	// data
 	data := msg[offset : offset+int(dataLen)]
@@ -57,7 +59,7 @@ func DecodeMessage(msg []byte) (uint32, []byte, error) {
 	// end magic
 	endMagicNum := msg[offset : len(EndMagicNumber)+offset]
 	if !bytes.Equal(endMagicNum, EndMagicNumber[:]) {
-		return 0, nil, fmt.Errorf("end magicNumber不正确 expect:%s actual:%s", string(EndMagicNumber[:]), string(endMagicNum))
+		return 0, 0, nil, fmt.Errorf("end magicNumber不正确 expect:%s actual:%s", string(EndMagicNumber[:]), string(endMagicNum))
 	}
-	return messageSeq, data, nil
+	return messageSeq, term, data, nil
 }

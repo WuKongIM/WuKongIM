@@ -15,6 +15,7 @@ var logger *zap.Logger
 var errorLogger *zap.Logger
 var warnLogger *zap.Logger
 var testLogger *zap.Logger
+var panicLogger *zap.Logger
 var atom = zap.NewAtomicLevel()
 
 func Configure(opts *Options) {
@@ -80,6 +81,23 @@ func Configure(opts *Options) {
 		warnLogger = zap.New(core)
 	}
 
+	panicWriter := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   path.Join(opts.LogDir, "panic.log"),
+		MaxSize:    500, // megabytes
+		MaxBackups: 3,
+		MaxAge:     28, // days
+	})
+	core = zapcore.NewCore(
+		zapcore.NewJSONEncoder(newEncoderConfig()),
+		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(panicWriter)),
+		zap.PanicLevel,
+	)
+	if opts.LineNum {
+		panicLogger = zap.New(core, zap.AddCaller())
+	} else {
+		panicLogger = zap.New(core)
+	}
+
 }
 
 func newEncoderConfig() zapcore.EncoderConfig {
@@ -136,16 +154,16 @@ func Error(msg string, fields ...zap.Field) {
 }
 
 func Fatal(msg string, fields ...zap.Field) {
-	if errorLogger == nil {
+	if panicLogger == nil {
 		Configure(NewOptions())
 	}
-	errorLogger.Fatal(msg, fields...)
+	panicLogger.Fatal(msg, fields...)
 }
 func Panic(msg string, fields ...zap.Field) {
-	if errorLogger == nil {
+	if panicLogger == nil {
 		Configure(NewOptions())
 	}
-	errorLogger.Panic(msg, fields...)
+	panicLogger.Panic(msg, fields...)
 }
 
 // Warn Warn

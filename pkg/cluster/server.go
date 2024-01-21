@@ -31,7 +31,7 @@ type Server struct {
 	clusterServer *wkserver.Server // 集群通讯服务
 	stopper       syncutil.Stopper
 	role          ServerRole    // 当前server的角色
-	currentEpoch  atomic.Uint32 // 当前选举周期
+	currentTerm   atomic.Uint32 // 当前选举任期
 	wklog.Log
 	tickCount    atomic.Uint32 // 心跳计数
 	electionLock sync.RWMutex
@@ -54,6 +54,8 @@ type Server struct {
 	stateMachine *stateMachine // 状态机
 
 	channelEventWorkerManager *ChannelEventWorkerManager // 频道事件worker管理者
+
+	onMessageFnc func(conn wknet.Conn, msg *proto.Message) // 上层处理消息的函数
 }
 
 func NewServer(nodeID uint64, optList ...Option) *Server {
@@ -136,7 +138,7 @@ func NewServer(nodeID uint64, optList ...Option) *Server {
 	if strings.TrimSpace(opts.Join) == "" && (len(opts.InitNodes) == 1 && hasSelf) { // 如果没有加入节点并且也没有初始化节点 说明是单节点，则直接设置自己为master
 		s.becomeLeader()
 	} else {
-		s.becomeFollow(s.currentEpoch.Load())
+		s.becomeFollow(s.currentTerm.Load())
 	}
 
 	if len(opts.InitNodes) > 0 { // 如果有初始化节点，则加入初始化节点
@@ -153,6 +155,10 @@ func (s *Server) Start() error {
 
 	s.stopper.RunWorker(s.loopTick)
 	s.stopper.RunWorker(s.loopClusterEvent)
+
+	// failpoint.Inject("mock-io-error", func(val failpoint.Value) error {
+	// 	return fmt.Errorf("mock error: %v", val.(string))
+	// })
 
 	err := s.stateMachine.open()
 	if err != nil {
@@ -191,6 +197,10 @@ func (s *Server) Start() error {
 			s.handleChannelMetaLogSyncNotify(fromNodeID, msg)
 		case MessageTypeChannelMessageLogSyncNotify.Uint32(): // 频道消息日志同步请求
 			s.handleChannelMessageLogSyncNotify(fromNodeID, msg)
+		default:
+			if s.onMessageFnc != nil {
+				s.onMessageFnc(conn, msg)
+			}
 
 		}
 	})
@@ -352,7 +362,7 @@ func (s *Server) sendPingToAll() {
 			return func() {
 				// s.Info("发送Ping", zap.Uint64("toNodeID", nodeID))
 				err := s.nodeManager.sendPing(nodeID, &PingRequest{
-					Epoch:                s.currentEpoch.Load(),
+					Term:                 s.currentTerm.Load(),
 					ClusterConfigVersion: s.clusterEventManager.GetClusterConfigVersion(),
 				})
 				if err != nil {
@@ -368,7 +378,7 @@ func (s *Server) sendVoteRequestToAll() {
 		s.stopper.RunWorker(func(nodeID uint64) func() {
 			return func() {
 				err := s.nodeManager.sendVote(nodeID, &VoteRequest{
-					Epoch:                s.currentEpoch.Load(),
+					Term:                 s.currentTerm.Load(),
 					ClusterConfigVersion: s.clusterEventManager.GetClusterConfigVersion(),
 				})
 				if err != nil {
@@ -385,15 +395,15 @@ func (s *Server) stepElection() {
 	s.electionLock.Lock()
 	defer s.electionLock.Unlock()
 
-	s.Debug("开始选举...", zap.Uint32("epoch", s.currentEpoch.Load()))
+	s.Debug("开始选举...", zap.Uint32("epoch", s.currentTerm.Load()))
 
-	s.currentEpoch.Inc() // 选举周期递增
-	_, ok := s.voteTo[s.currentEpoch.Load()]
+	s.currentTerm.Inc() // 选举任期递增
+	_, ok := s.voteTo[s.currentTerm.Load()]
 	if ok { // 如果已投票，说明此周期已经选举过了
 		return
 	}
 
-	s.voteTo[s.currentEpoch.Load()] = s.opts.NodeID // 投票给自己
+	s.voteTo[s.currentTerm.Load()] = s.opts.NodeID // 投票给自己
 
 	s.sendVoteRequestToAll() // 发送投票请求
 }
@@ -413,12 +423,12 @@ func (s *Server) handlePingRequest(fromNodeID uint64, msg *proto.Message) {
 	s.tickCount.Store(0)
 	if s.role == ServerRoleLeader {
 		if req.ClusterConfigVersion > s.clusterEventManager.GetClusterConfigVersion() { // 配置版本新的为主节点
-			s.becomeFollow(req.Epoch)
+			s.becomeFollow(req.Term)
 		} else if req.ClusterConfigVersion == s.clusterEventManager.GetClusterConfigVersion() {
-			if req.Epoch > s.currentEpoch.Load() { // 版本系统 周期大的成为领导节点
-				s.becomeFollow(req.Epoch)
-			} else if req.Epoch == s.currentEpoch.Load() && s.opts.NodeID > fromNodeID { // 版本相同 周期相同，nodeID小的成为主节点
-				s.becomeFollow(req.Epoch)
+			if req.Term > s.currentTerm.Load() { // 版本系统 周期大的成为领导节点
+				s.becomeFollow(req.Term)
+			} else if req.Term == s.currentTerm.Load() && s.opts.NodeID > fromNodeID { // 版本相同 周期相同，nodeID小的成为主节点
+				s.becomeFollow(req.Term)
 			}
 		}
 	}
@@ -468,7 +478,7 @@ func (s *Server) handleVoteRequest(fromNodeID uint64, msg *proto.Message) {
 		s.Error("Unmarshal VoteRequest failed!", zap.Error(err))
 		return
 	}
-	s.Debug("收到投票请求", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", req.Epoch))
+	s.Debug("收到投票请求", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", req.Term))
 
 	// -------------------- 判断是否存在master --------------------
 	// 如果master没有失联，忽略该请求，如果过半的节点master都没有失联，说明这个选举无效，
@@ -482,34 +492,28 @@ func (s *Server) handleVoteRequest(fromNodeID uint64, msg *proto.Message) {
 	// 判断请求投票的周期内当前节点是否已投票，如果没有投票则执行投票逻辑
 	// 如果已经投票则忽略此次投票
 	s.electionLock.RLock()
-	_, ok := s.voteTo[req.Epoch]
+	_, ok := s.voteTo[req.Term]
 	s.electionLock.RUnlock()
 
-	fmt.Println("收到投票请求...........1")
 	if !ok { // 还没有投票
-		fmt.Println("收到投票请求...........2")
 		voteResp := &VoteResponse{}
-		voteResp.Epoch = req.Epoch
+		voteResp.Term = req.Term
 		if req.ClusterConfigVersion < s.clusterEventManager.GetClusterConfigVersion() { // 如果参选人的配置版本还没当前节点的新，则拒绝选举
-			fmt.Println("收到投票请求...........3")
 			s.Warn("current node config version  > vote request node", zap.Uint32("currentNodeConfigVersion", s.clusterEventManager.GetClusterConfigVersion()), zap.Uint32("requestNodeConfigVersion", req.ClusterConfigVersion))
 			voteResp.Reject = true
-			s.currentEpoch.Add(2) // 并且当前节点选举周期加2，为了防止周期内的选票其他节点已经投完了。
+			s.currentTerm.Add(2) // 并且当前节点选举周期加2，为了防止周期内的选票其他节点已经投完了。
 		} else {
-			fmt.Println("收到投票请求...........4")
 			s.electionLock.Lock()
-			s.voteTo[req.Epoch] = fromNodeID
+			s.voteTo[req.Term] = fromNodeID
 			s.electionLock.Unlock()
 		}
-		fmt.Println("收到投票请求...........5")
-		s.Debug("返回投票结果", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", req.Epoch), zap.Bool("reject", voteResp.Reject))
+		s.Debug("返回投票结果", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("term", req.Term), zap.Bool("reject", voteResp.Reject))
 		err = s.nodeManager.sendVoteResp(fromNodeID, voteResp)
 		if err != nil {
 			s.Warn("send vote respo failed", zap.Error(err))
 		}
 	} else {
-		fmt.Println("收到投票请求...........6")
-		s.Debug("已经投过票了", zap.Uint32("epoch", req.Epoch))
+		s.Debug("已经投过票了", zap.Uint32("epoch", req.Term))
 	}
 }
 
@@ -520,13 +524,13 @@ func (s *Server) handleVoteResponse(fromNodeID uint64, msg *proto.Message) {
 		s.Error("Unmarshal VoteResponse failed!", zap.Error(err))
 	}
 	if resp.Reject {
-		s.Debug("收到拒绝票", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", resp.Epoch))
-		s.becomeFollow(resp.Epoch) // 选举被拒绝，成为追随者
+		s.Debug("收到拒绝票", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("term", resp.Term))
+		s.becomeFollow(resp.Term) // 选举被拒绝，成为追随者
 		return
 	}
-	s.Debug("收到同意票", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("epoch", resp.Epoch))
+	s.Debug("收到同意票", zap.Uint64("fromNodeID", fromNodeID), zap.Uint32("term", resp.Term))
 	s.electionLock.Lock()
-	nodeIDs := s.votesFrom[resp.Epoch]
+	nodeIDs := s.votesFrom[resp.Term]
 	if nodeIDs == nil {
 		nodeIDs = make([]uint64, 0)
 	}
@@ -540,20 +544,23 @@ func (s *Server) handleVoteResponse(fromNodeID uint64, msg *proto.Message) {
 	}
 	if !existNode {
 		nodeIDs = append(nodeIDs, fromNodeID)
-		s.votesFrom[resp.Epoch] = nodeIDs
+		s.votesFrom[resp.Term] = nodeIDs
 	}
-	s.votesFrom[resp.Epoch] = append(s.votesFrom[resp.Epoch], fromNodeID)
-	voteCount := len(s.votesFrom[resp.Epoch])
+	s.votesFrom[resp.Term] = append(s.votesFrom[resp.Term], fromNodeID)
+	voteCount := len(s.votesFrom[resp.Term])
 
-	s.Debug("总计票数", zap.Uint32("epoch", resp.Epoch), zap.Int("voteCount", voteCount), zap.Int("nodeCount", len(s.nodeManager.getAllVoteNodes())))
+	voteNodeCount := len(s.clusterEventManager.GetAllowVoteNodes())
+
+	s.Debug("总计票数", zap.Uint32("term", resp.Term), zap.Int("voteCount", voteCount), zap.Int("nodeCount", voteNodeCount))
 
 	s.electionLock.Unlock()
-	if voteCount > len(s.nodeManager.getAllVoteNodes())/2 {
+
+	if voteCount > voteNodeCount/2 {
 		s.becomeLeader()
 	}
 }
 
-func (s *Server) becomeFollow(epoch uint32) {
+func (s *Server) becomeFollow(term uint32) {
 	s.electionLock.Lock()
 	defer s.electionLock.Unlock()
 
@@ -561,10 +568,10 @@ func (s *Server) becomeFollow(epoch uint32) {
 		return
 	}
 
-	s.Debug("成为追随者", zap.Uint32("epoch", s.currentEpoch.Load()))
+	s.Debug("成为追随者", zap.Uint32("term", s.currentTerm.Load()))
 
 	s.role = ServerRoleFollow
-	s.currentEpoch.Store(epoch)
+	s.currentTerm.Store(term)
 }
 
 func (s *Server) BecomeLeader() {
@@ -579,7 +586,9 @@ func (s *Server) becomeLeader() {
 		return
 	}
 
-	s.Debug("成为领导", zap.Uint32("epoch", s.currentEpoch.Load()))
+	s.Debug("成为领导", zap.Uint32("term", s.currentTerm.Load()))
+
+	s.clusterEventManager.SetTerm(s.currentTerm.Load())
 
 	s.role = ServerRoleLeader
 	s.leaderChangeIfNeed(s.opts.NodeID)

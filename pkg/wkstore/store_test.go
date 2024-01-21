@@ -31,6 +31,7 @@ type testMessage struct {
 	seq       uint32
 	data      []byte
 	messageID int64
+	term      uint64
 }
 
 func (t *testMessage) GetSeq() uint32 {
@@ -42,17 +43,26 @@ func (t *testMessage) GetMessageID() int64 {
 
 func (t *testMessage) Encode() []byte {
 
-	return EncodeMessage(t.seq, t.data)
+	return EncodeMessage(t.seq, t.term, t.data)
+}
+
+func (t *testMessage) SetTerm(term uint64) {
+	t.term = term
+}
+
+func (t *testMessage) GetTerm() uint64 {
+	return t.term
 }
 
 func (t *testMessage) Decode(msg []byte) error {
 
-	seq, data, err := DecodeMessage(msg)
+	seq, term, data, err := DecodeMessage(msg)
 	if err != nil {
 		return err
 	}
 	t.seq = seq
 	t.data = data
+	t.term = term
 	return nil
 }
 

@@ -6,8 +6,9 @@ import (
 
 // SyncNotify 通知同步，由主节点发起
 type SyncNotify struct {
-	ShardNo  string
-	LeaderID uint64
+	ShardNo        string
+	LeaderID       uint64
+	CommittedIndex uint64 // 领导已提交日志下标
 }
 
 func (s *SyncNotify) Marshal() ([]byte, error) {
@@ -15,6 +16,7 @@ func (s *SyncNotify) Marshal() ([]byte, error) {
 	defer enc.End()
 	enc.WriteString(s.ShardNo)
 	enc.WriteUint64(s.LeaderID)
+	enc.WriteUint64(s.CommittedIndex)
 	return enc.Bytes(), nil
 }
 
@@ -25,6 +27,9 @@ func (s *SyncNotify) Unmarshal(data []byte) error {
 		return err
 	}
 	if s.LeaderID, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if s.CommittedIndex, err = dec.Uint64(); err != nil {
 		return err
 	}
 	return nil

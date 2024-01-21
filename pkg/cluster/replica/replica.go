@@ -46,7 +46,7 @@ func (r *Replica) LeaderID() uint64 {
 }
 
 func (r *Replica) Propose(data []byte) error {
-	err := r.rawReplica.ProposeOnlyLocal(data)
+	_, err := r.rawReplica.ProposeOnlyLocal(data)
 	if err != nil {
 		return err
 	}
@@ -86,8 +86,8 @@ func (r *Replica) SetReplicas(replicas []uint64) {
 	r.rawReplica.SetReplicas(replicas)
 }
 
-func (r *Replica) GetLogs(startLogIndex uint64, limit uint32) ([]Log, error) {
-	return r.rawReplica.GetLogs(startLogIndex, limit)
+func (r *Replica) GetLogs(startLogIndex, endLogIndex uint64, limit uint32) ([]Log, error) {
+	return r.rawReplica.GetLogs(startLogIndex, endLogIndex, limit)
 }
 
 func (r *Replica) SyncLogs(nodeID uint64, startLogIndex uint64, limit uint32) ([]Log, error) {
@@ -114,19 +114,19 @@ func (r *Replica) loop() {
 		toNotify:
 			r.sendNotifySync() // 通知副本去同步
 		case <-r.syncChan: // 副本去同步主节点的日志
-			if r.IsLeader() { // 主节点没有此操作
-				continue
-			}
-			// 取出全部请求
-			for {
-				select {
-				case <-r.syncChan:
-				default:
-					goto toHandleSyncNotify
-				}
-			}
-		toHandleSyncNotify:
-			_, _ = r.rawReplica.RequestSyncLogsAndNotifyLeaderIfNeed() // 同步日志
+		// 	if r.IsLeader() { // 主节点没有此操作
+		// 		continue
+		// 	}
+		// 	// 取出全部请求
+		// 	for {
+		// 		select {
+		// 		case <-r.syncChan:
+		// 		default:
+		// 			goto toHandleSyncNotify
+		// 		}
+		// 	}
+		// toHandleSyncNotify:
+		// 	_, _ = r.rawReplica.RequestSyncLogsAndNotifyLeaderIfNeed() // 同步日志
 
 		case <-tick.C:
 			if r.rawReplica.IsLeader() {
@@ -144,11 +144,7 @@ func (r *Replica) loop() {
 }
 
 func (r *Replica) sendNotifySync() {
-	needSync, _ := r.rawReplica.SendNotifySync(r.rawReplica.opts.Replicas)
-	if needSync {
-		r.stopper.RunWorker(r.notifyDelay)
-	}
-
+	r.rawReplica.SendNotifySync(r.rawReplica.opts.Replicas)
 }
 
 func (r Replica) notifyDelay() {

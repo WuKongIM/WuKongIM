@@ -49,17 +49,17 @@ func (c *ConnManager) AddConn(conn wknet.Conn) {
 }
 
 func (c *ConnManager) addProxyConn(conn *ProxyClientConn) {
-	peerConnMap := c.peerProxyConnMap[conn.belongPeerID]
+	peerConnMap := c.peerProxyConnMap[conn.belongNodeID]
 	if peerConnMap == nil {
 		peerConnMap = make(map[int64]int64)
 	}
 	peerConnMap[conn.orgID] = conn.ID()
-	c.peerProxyConnMap[conn.belongPeerID] = peerConnMap
+	c.peerProxyConnMap[conn.belongNodeID] = peerConnMap
 	c.proxyConnMap[conn.ID()] = conn
 }
 
 func (c *ConnManager) removeProxyConn(conn *ProxyClientConn) {
-	peerConnMap := c.peerProxyConnMap[conn.belongPeerID]
+	peerConnMap := c.peerProxyConnMap[conn.belongNodeID]
 	if peerConnMap == nil {
 		return
 	}

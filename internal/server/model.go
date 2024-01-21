@@ -28,6 +28,8 @@ type Message struct {
 	Subscribers    []string           // 订阅者 如果此字段有值 则表示消息只发送给指定的订阅者
 	fromDeviceFlag wkproto.DeviceFlag // 发送者设备标示
 	fromDeviceID   string             // 发送者设备ID
+	// term
+	term uint64 // 当前领导term
 	// 重试相同的toDeviceID
 	toDeviceID string // 指定设备ID
 	large      bool   // 是否是超大群
@@ -49,19 +51,28 @@ func (m *Message) GetSeq() uint32 {
 	return m.MessageSeq
 }
 
+func (m *Message) SetTerm(term uint64) {
+	m.term = term
+}
+
+func (m *Message) GetTerm() uint64 {
+	return m.term
+}
+
 func (m *Message) Encode() []byte {
 	var version uint8 = 1
 	data := MarshalMessage(version, m)
-	return wkstore.EncodeMessage(m.MessageSeq, data)
+	return wkstore.EncodeMessage(m.MessageSeq, m.term, data)
 }
 
 func (m *Message) Decode(msg []byte) error {
-	messageSeq, data, err := wkstore.DecodeMessage(msg)
+	messageSeq, term, data, err := wkstore.DecodeMessage(msg)
 	if err != nil {
 		return err
 	}
 	err = UnmarshalMessage(data, m)
 	m.MessageSeq = messageSeq
+	m.term = term
 	return err
 }
 

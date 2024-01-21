@@ -76,91 +76,173 @@ func (c *ChannelManager) GetChannel(channelID string, channelType uint8) (*Chann
 	c.channelKeyLock.Lock(channelKey)
 	defer c.channelKeyLock.Unlock(channelKey)
 
-	channel, _ := c.channelCache.Get(channelKey)
-	if channel == nil {
-		slotID := c.s.GetSlotID(channelID)
-		slot := c.s.clusterEventManager.GetSlot(slotID)
-		if slot == nil {
-			return nil, fmt.Errorf("not found slot[%d]", slotID)
+	var (
+		err     error
+		channel *Channel
+	)
+
+	slotID := c.s.GetSlotID(channelID)
+	slot := c.s.clusterEventManager.GetSlot(slotID)
+	if slot == nil {
+		return nil, fmt.Errorf("not found slot[%d]", slotID)
+	}
+	if slot.Leader == c.s.opts.NodeID { // 频道所在槽的领导是当前节点
+		channel, err = c.getChannelForSlotLeader(channelID, channelType)
+		if err != nil {
+			c.Error("getChannelForSlotLeader failed", zap.Error(err))
+			return nil, err
 		}
+	} else {
+		channel, err = c.getChannelForOthers(channelID, channelType)
+		if err != nil {
+			c.Error("getChannelForOthers failed", zap.Error(err))
+			return nil, err
+		}
+	}
+	if channel == nil {
+		return nil, fmt.Errorf("not found channel")
+	}
+	// c.sendApplyClusterInfoEventIfNeed(channel) // 根据需要发送应用集群配置事件
+
+	return channel, nil
+}
+
+// 获取频道（本节点为频道的槽领导）
+func (c *ChannelManager) getChannelForSlotLeader(channelID string, channelType uint8) (*Channel, error) {
+	channelKey := GetChannelKey(channelID, channelType)
+	channelFromCache, _ := c.channelCache.Get(channelKey)
+
+	var (
+		channel *Channel
+		err     error
+	)
+
+	if channelFromCache == nil { // 不存在缓存
 		clusterInfo, err := c.s.GetChannelClusterInfo(channelID, channelType)
 		if err != nil {
 			return nil, err
 		}
-		if slot.Leader == c.s.opts.NodeID { // 频道所在槽的领导是当前节点
-			if clusterInfo == nil { // 没有集群信息则创建一个新的集群信息
-				clusterInfo, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
-				if err != nil {
-					c.Error("create channel cluster info failed", zap.Error(err))
-					return nil, err
-				}
-				c.Debug("提议更新频道集群配置", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Any("clusterInfo", clusterInfo))
-				err = c.s.ProposeChannelClusterInfoToSlot(clusterInfo) // 更新集群配置（会通知副本同步）
-				if err != nil {
-					return nil, err
-				}
+		if clusterInfo == nil { // 没有集群信息则创建一个新的集群信息
+			clusterInfo, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
+			if err != nil {
+				c.Error("create channel cluster info failed", zap.Error(err))
+				return nil, err
 			}
-
-		} else {
-			if clusterInfo == nil { // 如果非领导节点的频道集群信息为空，则去请求频道所在槽领导节点的频道集群信息，然后更新到本地
-				clusterInfo, err = c.requestChannelCluster(channelID, channelType)
-				if err != nil {
-					c.Error("request channel cluster info failed", zap.Error(err))
-					return nil, err
-				}
-				err = c.s.stateMachine.saveChannelClusterInfo(clusterInfo) // 保存频道集群信息到本节点（仅仅保存到节点本地）
-				if err != nil {
-					c.Error("save channel cluster info failed", zap.Error(err))
-					return nil, err
-				}
+			c.Debug("提议更新频道集群配置", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Any("clusterInfo", clusterInfo))
+			err = c.s.ProposeChannelClusterInfoToSlot(clusterInfo) // 更新集群配置（会通知副本同步）
+			if err != nil {
+				return nil, err
 			}
-		}
-		if clusterInfo == nil {
-			return nil, fmt.Errorf("not found cluster info")
 		}
 		channel, err = c.newChannelByClusterInfo(clusterInfo)
 		if err != nil {
 			c.Error("newChannelByClusterInfo failed", zap.Error(err))
 			return nil, err
 		}
-		c.channelCache.Add(GetChannelKey(channelID, channelType), channel)
+	} else {
+		channel = channelFromCache
 	}
-	err := c.electionIfNeed(channel)
+	// 根据情况判断是否需要进行选举
+	err = c.electionIfNeed(channel)
 	if err != nil {
 		c.Error("频道选举失败！", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
-	c.sendApplyClusterInfoEventIfNeed(channel) // 根据需要发送应用集群配置事件
+
+	c.channelCache.Add(GetChannelKey(channelID, channelType), channel)
 
 	return channel, nil
 }
 
-// 根据需要发送应用集群配置事件
-func (c *ChannelManager) sendApplyClusterInfoEventIfNeed(channel *Channel) {
-	if channel.IsLeader() && !channel.applyClusterInfoEventAdded.Load() {
-		sendEvent := false
-		for _, replicaID := range channel.clusterInfo.Replicas {
-			exist := false
-			for _, appyReplicaID := range channel.clusterInfo.ApplyReplicas {
-				if replicaID == appyReplicaID {
-					exist = true
-					break
-				}
-			}
-			if !exist {
-				sendEvent = true
-			}
+func (c *ChannelManager) getChannelForOthers(channelID string, channelType uint8) (*Channel, error) {
+
+	channelKey := GetChannelKey(channelID, channelType)
+	channelFromCache, _ := c.channelCache.Get(channelKey)
+
+	var (
+		channel     *Channel
+		err         error
+		dataExpire  bool // 集群数据是否过期
+		clusterInfo *ChannelClusterInfo
+	)
+
+	if channelFromCache == nil { // 不存在缓存
+		clusterInfo, err = c.s.GetChannelClusterInfo(channelID, channelType)
+		if err != nil {
+			return nil, err
 		}
-		if sendEvent {
-			c.s.channelEventWorkerManager.AddEvent(ChannelEvent{
-				Channel:   channel,
-				EventType: ChannelEventTypeSendApplyClusterInfo,
-				Priority:  PriorityHigh,
-			})
-			channel.applyClusterInfoEventAdded.Store(true)
+		if clusterInfo != nil {
+			dataExpire = clusterInfo.DataTerm < c.s.clusterEventManager.GetDataTerm(clusterInfo.LeaderID)
+		}
+	} else {
+		clusterInfo = channelFromCache.clusterInfo
+		if clusterInfo != nil {
+			dataExpire = clusterInfo.DataTerm < c.s.clusterEventManager.GetDataTerm(clusterInfo.LeaderID)
 		}
 	}
+
+	if clusterInfo == nil || dataExpire { // 如果本地频道集群信息为空，则请求频道所在槽领导节点的频道集群信息，然后更新到本地
+		clusterInfo, err = c.requestChannelCluster(channelID, channelType)
+		if err != nil {
+			c.Error("request channel cluster info failed", zap.Error(err))
+			return nil, err
+		}
+		dataTerm := c.s.clusterEventManager.GetDataTerm(clusterInfo.LeaderID)
+		clusterInfo.DataTerm = dataTerm
+		err = c.saveChannelClusterInfo(clusterInfo) // 保存频道集群信息到本节点（仅仅保存到节点本地）
+		if err != nil {
+			c.Error("save channel cluster info failed", zap.Error(err))
+			return nil, err
+		}
+
+		channel, err = c.newChannelByClusterInfo(clusterInfo)
+		if err != nil {
+			c.Error("newChannelByClusterInfo failed", zap.Error(err))
+			return nil, err
+		}
+		c.channelCache.Add(GetChannelKey(channelID, channelType), channel)
+	} else { // 如果本地缓存存在频道集群配置并也没有过期，则直接使用本地缓存的频道集群配置
+		channel = channelFromCache
+	}
+
+	return channel, nil
 }
+
+func (c *ChannelManager) saveChannelClusterInfo(clusterInfo *ChannelClusterInfo) error {
+	dataTerm := c.s.clusterEventManager.GetDataTerm(clusterInfo.LeaderID)
+	if clusterInfo.DataTerm > dataTerm {
+		c.Warn("local channel cluster is new than leader", zap.String("channelID", clusterInfo.ChannelID), zap.Uint8("channelType", clusterInfo.ChannelType), zap.Uint64("leaderID", clusterInfo.LeaderID), zap.Uint32("localDataTerm", clusterInfo.DataTerm), zap.Uint32("leaderDataTerm", clusterInfo.DataTerm))
+	}
+	clusterInfo.DataTerm = dataTerm
+	return c.s.stateMachine.saveChannelClusterInfo(clusterInfo)
+}
+
+// // 根据需要发送应用集群配置事件
+// func (c *ChannelManager) sendApplyClusterInfoEventIfNeed(channel *Channel) {
+// 	if channel.IsLeader() && !channel.applyClusterInfoEventAdded.Load() {
+// 		sendEvent := false
+// 		for _, replicaID := range channel.clusterInfo.Replicas {
+// 			exist := false
+// 			for _, appyReplicaID := range channel.clusterInfo.ApplyReplicas {
+// 				if replicaID == appyReplicaID {
+// 					exist = true
+// 					break
+// 				}
+// 			}
+// 			if !exist {
+// 				sendEvent = true
+// 			}
+// 		}
+// 		if sendEvent {
+// 			c.s.channelEventWorkerManager.AddEvent(ChannelEvent{
+// 				Channel:   channel,
+// 				EventType: ChannelEventTypeSendApplyClusterInfo,
+// 				Priority:  PriorityHigh,
+// 			})
+// 			channel.applyClusterInfoEventAdded.Store(true)
+// 		}
+// 	}
+// }
 
 func (c *ChannelManager) UpdateChannelCacheIfNeed(cc *ChannelClusterInfo) {
 	ch, ok := c.channelCache.Get(GetChannelKey(cc.ChannelID, cc.ChannelType))
@@ -183,21 +265,7 @@ func (c *ChannelManager) electionIfNeed(channel *Channel) error {
 	}
 
 	if slot.Leader != c.s.opts.NodeID { // 频道所在槽的领导不是当前节点(只有频道所在槽的领导才有权限进行选举)
-		if !c.s.clusterEventManager.NodeIsOnline(clusterInfo.LeaderID) { // 如果领导不在线了,频道的集群配置肯定变更了，则重新获取集群配置
-			newClusterInfo, err := c.requestChannelCluster(channelID, channelType)
-			if err != nil {
-				c.Error("向槽领导节点获取频道集群配置失败！", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
-				return err
-			}
-			err = c.s.stateMachine.saveChannelClusterInfo(newClusterInfo) // 保存频道集群信息到本节点（仅仅保存到节点本地）
-			if err != nil {
-				c.Error("save channel cluster info failed", zap.Error(err))
-				return err
-			}
-			channel.SetClusterInfo(newClusterInfo)
-			return nil
-		}
-		return nil
+		return errors.New("slot leader is not current node")
 	}
 
 	if c.s.clusterEventManager.NodeIsOnline(clusterInfo.LeaderID) { // 领导在线，不需要进行选举
@@ -248,6 +316,7 @@ func (c *ChannelManager) createChannelClusterInfo(channelID string, channelType 
 		ChannelType:     channelType,
 		ReplicaMaxCount: c.s.opts.ChannelReplicaCount,
 		ConfigVersion:   uint64(time.Now().UnixNano()),
+		DataTerm:        c.s.clusterEventManager.GetDataTerm(c.s.opts.NodeID),
 	}
 	replicaIDs := make([]uint64, 0, c.s.opts.ChannelReplicaCount)
 
@@ -318,6 +387,15 @@ func (c *ChannelManager) newChannelByClusterInfo(channelClusterInfo *ChannelClus
 func (c *ChannelManager) electionChannelLeader(clusterInfo *ChannelClusterInfo) (uint64, error) {
 
 	c.Debug("开始频道领导选举", zap.String("channelID", clusterInfo.ChannelID), zap.Uint8("channelType", clusterInfo.ChannelType))
+
+	// 选举流程
+	/**
+	1. 槽领导给各频道副本发送选举请求
+	2. 收到请求的节点频道集群信息的状态变为candidate
+	3. 收到请求的节点返回本地日志信息
+	4. 日志大并且节点ID小的成为领导
+
+	**/
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	requestGroup, ctx := errgroup.WithContext(timeoutCtx)

@@ -205,20 +205,20 @@ func (n *nodeManager) requestChannelMetaPropose(ctx context.Context, nodeID uint
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestChannelMessagePropose(ctx context.Context, nodeID uint64, req *ChannelProposeRequest) error {
+func (n *nodeManager) requestChannelMessagePropose(ctx context.Context, nodeID uint64, req *ChannelProposeRequest) (uint64, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
 		return node.requestChannelMessagePropose(ctx, req)
 	}
-	return fmt.Errorf("node[%d] not exist", nodeID)
+	return 0, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-func (n *nodeManager) requestChannelMessagesPropose(ctx context.Context, nodeID uint64, req *ChannelProposesRequest) error {
+func (n *nodeManager) requestChannelMessagesPropose(ctx context.Context, nodeID uint64, req *ChannelProposesRequest) ([]uint64, error) {
 	node := n.getNode(nodeID)
 	if node != nil {
 		return node.requestChannelMessagesPropose(ctx, req)
 	}
-	return fmt.Errorf("node[%d] not exist", nodeID)
+	return nil, fmt.Errorf("node[%d] not exist", nodeID)
 }
 
 // 请求指定频道的集群信息
@@ -239,14 +239,14 @@ func (n *nodeManager) requestNodeUpdate(ctx context.Context, nodeID uint64, nd *
 	return fmt.Errorf("node[%d] not exist", nodeID)
 }
 
-// 频道领导请求副本应用集群信息
-func (n *nodeManager) requestApplyClusterInfo(ctx context.Context, nodeID uint64, req *ChannelClusterInfo) error {
-	node := n.getNode(nodeID)
-	if node != nil {
-		return node.requestApplyClusterInfo(ctx, req)
-	}
-	return fmt.Errorf("node[%d] not exist", nodeID)
-}
+// // 频道领导请求副本应用集群信息
+// func (n *nodeManager) requestApplyClusterInfo(ctx context.Context, nodeID uint64, req *ChannelClusterInfo) error {
+// 	node := n.getNode(nodeID)
+// 	if node != nil {
+// 		return node.requestApplyClusterInfo(ctx, req)
+// 	}
+// 	return fmt.Errorf("node[%d] not exist", nodeID)
+// }
 
 // 请求频道最后一条日志信息
 func (n *nodeManager) requestChannelClusterDetail(ctx context.Context, nodeID uint64, req []*channelClusterDetailoReq) ([]*channelClusterDetailInfo, error) {

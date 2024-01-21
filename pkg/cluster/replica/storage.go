@@ -6,7 +6,9 @@ type IStorage interface {
 	// AppendLog 追加日志
 	AppendLog(log Log) error
 	// 获取日志
-	GetLogs(startLogIndex uint64, limit uint32) ([]Log, error)
+	// startLogIndex 开始日志索引(结果包含startLogIndex)
+	// endLogIndex 结束日志索引(结果不包含endLogIndex) endLogIndex=0表示获取最后一条日志
+	GetLogs(startLogIndex uint64, endLogIndex uint64, limit uint32) ([]Log, error)
 	// 最后一条日志的索引
 	LastIndex() (uint64, error)
 	// 获取第一条日志的索引
@@ -44,7 +46,7 @@ func (w *WALStorage) AppendLog(log Log) error {
 	return w.walLog.Write(log.Index, log.Data)
 }
 
-func (w *WALStorage) GetLogs(startLogIndex uint64, limit uint32) ([]Log, error) {
+func (w *WALStorage) GetLogs(startLogIndex, endLogIndex uint64, limit uint32) ([]Log, error) {
 	lastIdx, _ := w.LastIndex()
 	if startLogIndex > lastIdx {
 		return nil, nil
@@ -56,10 +58,14 @@ func (w *WALStorage) GetLogs(startLogIndex uint64, limit uint32) ([]Log, error) 
 		if err != nil {
 			return nil, err
 		}
+		if endLogIndex > 0 && i >= endLogIndex {
+			break
+		}
 		logs = append(logs, lg)
 		if len(logs) > int(limit) {
 			break
 		}
+
 	}
 	return logs, nil
 }

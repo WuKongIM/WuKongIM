@@ -12,8 +12,11 @@ type Options struct {
 	AppliedIndex    uint64                                       // 已应用的日志下标
 	CommitLimit     uint32                                       // 每次提交日志的大小限制
 	OnApply         func(logs []Log) (applied uint64, err error) // 应用日志
+	OnCommit        func(oldCommittedIndex, newCommitted uint64) // 提交事件
 	Storage         IStorage
 	LastSyncInfoMap map[uint64]SyncInfo // 各个副本最后一次来同步日志的下标
+	CurrentTerm     uint32              // 副本当前任期
+	ProposeTimeout  time.Duration       // 提议超时时间
 }
 
 func NewOptions() *Options {
@@ -22,6 +25,8 @@ func NewOptions() *Options {
 		CheckInterval:   time.Millisecond * 500,
 		CommitLimit:     20,
 		LastSyncInfoMap: make(map[uint64]SyncInfo),
+		CurrentTerm:     1,
+		ProposeTimeout:  time.Second * 5,
 	}
 }
 
@@ -70,5 +75,18 @@ func WithLastSyncInfoMap(lastSyncInfoMap map[uint64]SyncInfo) Option {
 
 	return func(o *Options) {
 		o.LastSyncInfoMap = lastSyncInfoMap
+	}
+}
+
+func WithCurrentTerm(currentTerm uint32) Option {
+
+	return func(o *Options) {
+		o.CurrentTerm = currentTerm
+	}
+}
+
+func WithOnCommit(onCommit func(oldCommittedIndex, newCommitted uint64)) Option {
+	return func(o *Options) {
+		o.OnCommit = onCommit
 	}
 }

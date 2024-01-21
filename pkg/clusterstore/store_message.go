@@ -1,6 +1,7 @@
 package clusterstore
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -12,13 +13,24 @@ import (
 )
 
 func (s *Store) AppendMessages(channelID string, channelType uint8, msgs []wkstore.Message) error {
+	if len(msgs) == 0 {
+		return nil
+	}
 	var msgData [][]byte
 	for _, msg := range msgs {
 		msgData = append(msgData, msg.Encode())
 	}
 
-	err := s.opts.Cluster.ProposeMessagesToChannel(channelID, channelType, msgData)
-	return err
+	lastIndexs, err := s.opts.Cluster.ProposeMessagesToChannel(channelID, channelType, msgData)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("lastIndexs------>", lastIndexs)
+	for idx, msg := range msgs {
+		msg.SetSeq(uint32(lastIndexs[idx]))
+	}
+	return nil
 }
 
 func (s *Store) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]wkstore.Message, error) {
@@ -134,6 +146,7 @@ func (s *MessageShardLogStorage) AppendLog(shardNo string, log replica.Log) erro
 		return err
 	}
 	msg.SetSeq(uint32(log.Index))
+	msg.SetTerm(uint64(log.Term))
 	if IsUserOwnChannel(channelID, channelType) {
 		_, err = s.db.AppendMessagesOfUser(channelID, []wkstore.Message{msg})
 		if err != nil {
@@ -181,6 +194,7 @@ func (s *MessageShardLogStorage) GetLogs(shardNo string, startLogIndex uint64, l
 	for i, msg := range messages {
 		logs[i] = replica.Log{
 			Index: uint64(msg.GetSeq()),
+			Term:  uint32(msg.GetTerm()),
 			Data:  msg.Encode(),
 		}
 	}

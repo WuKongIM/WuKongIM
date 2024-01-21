@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -18,9 +19,16 @@ func (p *Processor) SetRoutes() {
 	p.s.cluster.Route("/wk/connect", p.handleConnectReq)
 	p.s.cluster.Route("/wk/recvPacket", p.handleOnRecvPacketReq)
 	p.s.cluster.Route("/wk/sendPacket", p.handleOnSendPacketReq)
-	p.s.cluster.Route("/wk/connectWrite", p.handleOnConnectWriteReq)
+	// p.s.cluster.Route("/wk/connectWrite", p.handleOnConnectWriteReq)
 	p.s.cluster.Route("/wk/connPing", p.handleOnConnPingReq)
 	p.s.cluster.Route("/wk/recvackPacket", p.handleOnRecvackPacketReq)
+}
+
+func (p *Processor) handleClusterMessage(conn wknet.Conn, msg *proto.Message) {
+	switch ClusterMsgType(msg.MsgType) {
+	case ClusterMsgTypeConnWrite: // 远程连接写入
+		p.handleConnWrite(conn, msg)
+	}
 }
 
 func (p *Processor) handleConnectReq(c *wkserver.Context) {
@@ -123,22 +131,36 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 	c.Write(data)
 }
 
-func (p *Processor) handleOnConnectWriteReq(c *wkserver.Context) {
+func (p *Processor) handleConnWrite(conn wknet.Conn, msg *proto.Message) {
 	var req = &rpc.ConnectWriteReq{}
-	err := req.Unmarshal(c.Body())
+	err := req.Unmarshal(msg.Content)
 	if err != nil {
 		p.Error("unmarshal connectWriteReq err", zap.Error(err))
-		c.WriteErr(err)
 		return
 	}
-	status, err := p.OnConnectWriteReq(req)
+	_, err = p.OnConnectWriteReq(req)
 	if err != nil {
 		p.Error("onConnectWriteReq err", zap.Error(err))
-		c.WriteErr(err)
 		return
 	}
-	c.WriteStatus(status)
 }
+
+// func (p *Processor) handleOnConnectWriteReq(c *wkserver.Context) {
+// 	var req = &rpc.ConnectWriteReq{}
+// 	err := req.Unmarshal(c.Body())
+// 	if err != nil {
+// 		p.Error("unmarshal connectWriteReq err", zap.Error(err))
+// 		c.WriteErr(err)
+// 		return
+// 	}
+// 	status, err := p.OnConnectWriteReq(req)
+// 	if err != nil {
+// 		p.Error("onConnectWriteReq err", zap.Error(err))
+// 		c.WriteErr(err)
+// 		return
+// 	}
+// 	c.WriteStatus(status)
+// }
 
 func (p *Processor) handleOnConnPingReq(c *wkserver.Context) {
 	var req = &rpc.ConnPingReq{}
@@ -299,13 +321,17 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 			return err
 		}
 		recvPacket := f.(*wkproto.RecvPacket)
+		fmt.Println("recvPacket---zzz----dd---->", recvPacket.MessageSeq)
 		messageDatas = messageDatas[size:]
-		messages = append(messages, &Message{
+
+		m := &Message{
 			RecvPacket:     recvPacket,
 			fromDeviceFlag: wkproto.DeviceFlag(req.FromDeviceFlag),
 			fromDeviceID:   req.FromDeviceID,
 			large:          req.Large,
-		})
+		}
+		fmt.Println("recvPacket---zzz----dd-22--->", m.MessageSeq)
+		messages = append(messages, m)
 		if channel == nil {
 			channel = &wkproto.Channel{
 				ChannelID:   recvPacket.ChannelID,
@@ -313,7 +339,6 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 			}
 		}
 	}
-	fmt.Println("req.Subscribers----------->", req.Subscribers)
 	return p.handleLocalSubscribersMessages(messages, req.Large, req.Subscribers, req.FromUID, wkproto.DeviceFlag(req.FromDeviceFlag), req.FromDeviceID, channel)
 }
 
@@ -440,8 +465,12 @@ func (p *Processor) handleLocalSubscribersMessages(messages []*Message, large bo
 		if err != nil {
 			return err
 		}
+		fmt.Println("messageSeqMap----->", messageSeqMap)
 		for _, message := range messages {
-			message.MessageSeq = messageSeqMap[fmt.Sprintf("%s-%d", message.ToUID, message.MessageID)]
+			seq := messageSeqMap[fmt.Sprintf("%s-%d", message.ToUID, message.MessageID)]
+			if seq != 0 {
+				message.MessageSeq = seq
+			}
 		}
 	}
 
@@ -461,6 +490,10 @@ func (p *Processor) handleLocalSubscribersMessages(messages []*Message, large bo
 	}
 
 	//########## delivery messages ##########
+	for _, m := range messages {
+		fmt.Println("delivery messages----->", m.MessageSeq)
+
+	}
 	p.s.deliveryManager.startDeliveryMessages(messages, large, messageSeqMap, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
 	return nil
 }

@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
@@ -40,7 +41,7 @@ func (s *Server) setRoutes() {
 	// 处理节点更新
 	s.clusterServer.Route("/node/update", s.handleNodeUpdate)
 	// 频道领导请求副本应用频道集群配置
-	s.clusterServer.Route("/channel/applyClusterInfo", s.handleChannelApplyClusterInfo)
+	// s.clusterServer.Route("/channel/applyClusterInfo", s.handleChannelApplyClusterInfo)
 	// 获取频道最新日志信息
 	s.clusterServer.Route("/channel/clusterdetail", s.handleGetClusterDetail)
 }
@@ -249,13 +250,15 @@ func (s *Server) handleChannelMessagePropose(c *wkserver.Context) {
 		c.WriteErr(fmt.Errorf("the node[%d] is not leader", s.opts.NodeID))
 		return
 	}
-	_, err = channel.ProposeMessage(req.Data)
+	lastIndex, err := channel.ProposeMessage(req.Data)
 	if err != nil {
 		s.Error("propose message to channel failed", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(err)
 		return
 	}
-	c.WriteOk()
+	var respData = make([]byte, 8)
+	binary.BigEndian.PutUint64(respData, lastIndex)
+	c.Write(respData)
 }
 
 func (s *Server) handleChannelMessagesPropose(c *wkserver.Context) {
@@ -284,13 +287,20 @@ func (s *Server) handleChannelMessagesPropose(c *wkserver.Context) {
 		c.WriteErr(fmt.Errorf("the node[%d] is not leader", s.opts.NodeID))
 		return
 	}
-	_, err = channel.ProposeMessages(req.Data)
+	lastIndexs, err := channel.ProposeMessages(req.Data)
 	if err != nil {
 		s.Error("propose message to channel failed", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(err)
 		return
 	}
-	c.WriteOk()
+	var uint64Set Uint64Set = lastIndexs
+	respData, err := uint64Set.Marshal()
+	if err != nil {
+		s.Error("marshal uint64Set failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(respData)
 }
 
 func (s *Server) handleGetClusterInfo(c *wkserver.Context) {
@@ -326,6 +336,7 @@ func (s *Server) handleGetClusterInfo(c *wkserver.Context) {
 	}
 
 	clusterInfo := channel.GetClusterInfo()
+	clusterInfo.DataTerm = s.clusterEventManager.GetDataTerm(s.opts.NodeID) // 数据任期永远是当前槽领导节点的任期
 	resultData, err := clusterInfo.Marshal()
 	if err != nil {
 		s.Error("marshal clusterInfo failed", zap.Error(err))
@@ -477,44 +488,44 @@ func (s *Server) handleNodeUpdate(c *wkserver.Context) {
 	c.WriteOk()
 }
 
-func (s *Server) handleChannelApplyClusterInfo(c *wkserver.Context) {
-	req := &ChannelClusterInfo{}
-	err := req.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("unmarshal ChannelClusterInfo failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-	oldChannelClusterInfo, err := s.stateMachine.getChannelClusterInfo(req.ChannelID, req.ChannelType)
-	if err != nil {
-		s.Error("query channel cluster info failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(err)
-		return
-	}
-	apply := false
-	if oldChannelClusterInfo == nil || oldChannelClusterInfo.ConfigVersion < req.ConfigVersion {
-		apply = true
-	} else {
-		s.Warn("本地频道集群配置比请求的新，所以不进行应用", zap.String("fromNodeID", c.Conn().UID()), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldChannelClusterInfo.ConfigVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
-	}
+// func (s *Server) handleChannelApplyClusterInfo(c *wkserver.Context) {
+// 	req := &ChannelClusterInfo{}
+// 	err := req.Unmarshal(c.Body())
+// 	if err != nil {
+// 		s.Error("unmarshal ChannelClusterInfo failed", zap.Error(err))
+// 		c.WriteErr(err)
+// 		return
+// 	}
+// 	oldChannelClusterInfo, err := s.stateMachine.getChannelClusterInfo(req.ChannelID, req.ChannelType)
+// 	if err != nil {
+// 		s.Error("query channel cluster info failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+// 		c.WriteErr(err)
+// 		return
+// 	}
+// 	apply := false
+// 	if oldChannelClusterInfo == nil || oldChannelClusterInfo.ConfigVersion < req.ConfigVersion {
+// 		apply = true
+// 	} else {
+// 		s.Warn("本地频道集群配置比请求的新，所以不进行应用", zap.String("fromNodeID", c.Conn().UID()), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldChannelClusterInfo.ConfigVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
+// 	}
 
-	if apply {
-		var oldVersion uint64 = 0
-		if oldChannelClusterInfo != nil {
-			oldVersion = oldChannelClusterInfo.ConfigVersion
-		}
-		s.Debug("应用频道集群配置", zap.String("fromNodeID", c.Conn().UID()), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
-		err = s.stateMachine.saveChannelClusterInfo(req)
-		if err != nil {
-			s.Error("apply channel cluster info failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-			c.WriteErr(err)
-			return
-		}
-		s.channelManager.UpdateChannelCacheIfNeed(req)
-	}
+// 	if apply {
+// 		var oldVersion uint64 = 0
+// 		if oldChannelClusterInfo != nil {
+// 			oldVersion = oldChannelClusterInfo.ConfigVersion
+// 		}
+// 		s.Debug("应用频道集群配置", zap.String("fromNodeID", c.Conn().UID()), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType), zap.Uint64("localConfigVersion", oldVersion), zap.Uint64("requestConfigVersion", req.ConfigVersion))
+// 		err = s.stateMachine.saveChannelClusterInfo(req)
+// 		if err != nil {
+// 			s.Error("apply channel cluster info failed", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+// 			c.WriteErr(err)
+// 			return
+// 		}
+// 		s.channelManager.UpdateChannelCacheIfNeed(req)
+// 	}
 
-	c.WriteOk()
-}
+// 	c.WriteOk()
+// }
 
 func (s *Server) handleGetClusterDetail(c *wkserver.Context) {
 	var reqs []*channelClusterDetailoReq
@@ -555,6 +566,7 @@ func (s *Server) getChannelClusterDetail(req *channelClusterDetailoReq) (*channe
 		ChannelID:   req.ChannelID,
 		ChannelType: req.ChannelType,
 		LeaderID:    s.opts.NodeID,
+		Slot:        s.GetSlotID(req.ChannelID),
 	}
 
 	shardNo := GetChannelKey(req.ChannelID, req.ChannelType)
