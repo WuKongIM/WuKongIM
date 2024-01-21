@@ -61,15 +61,15 @@ func (s *Server) ProposeMetaToChannel(channelID string, channelType uint8, data 
 	return nil
 }
 
-func (s *Server) ProposeMessageToChannel(channelID string, channelType uint8, data []byte) error {
+func (s *Server) ProposeMessageToChannel(channelID string, channelType uint8, data []byte) (uint64, error) {
 	s.Debug("提交消息提案到指定频道", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("dataSize", len(data)))
 	// 获取channel对象
 	channel, err := s.channelManager.GetChannel(channelID, channelType)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if channel == nil {
-		return fmt.Errorf("channel[%s:%d] not found", channelID, channelType)
+		return 0, fmt.Errorf("channel[%s:%d] not found", channelID, channelType)
 	}
 	if channel.LeaderID() != s.opts.NodeID { // 如果当前节点不是领导节点，则转发给领导节点
 		s.Error("ProposeMessageToChannel: the node is not leader of channel,forward request", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("leaderID", channel.LeaderID()))
@@ -80,22 +80,22 @@ func (s *Server) ProposeMessageToChannel(channelID string, channelType uint8, da
 		})
 	}
 	// 提议数据
-	_, err = channel.ProposeMessage(data)
+	lastLogIndex, err := channel.ProposeMessage(data)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return lastLogIndex, nil
 }
 
-func (s *Server) ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) error {
+func (s *Server) ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
 	s.Debug("ProposeMessagesToChannel", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("dataSize", len(data)))
 	// 获取channel对象
 	channel, err := s.channelManager.GetChannel(channelID, channelType)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if channel == nil {
-		return fmt.Errorf("channel[%s:%d] not found", channelID, channelType)
+		return nil, fmt.Errorf("channel[%s:%d] not found", channelID, channelType)
 	}
 	if channel.LeaderID() != s.opts.NodeID { // 如果当前节点不是领导节点，则转发给领导节点
 		s.Error("ProposeMessagesToChannel: the node is not leader of channel,forward request", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("leaderID", channel.LeaderID()))
@@ -106,11 +106,11 @@ func (s *Server) ProposeMessagesToChannel(channelID string, channelType uint8, d
 		})
 	}
 	// 提议数据
-	_, err = channel.ProposeMessages(data)
+	lastIndexs, err := channel.ProposeMessages(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return lastIndexs, nil
 }
 
 // 提案频道信息

@@ -57,14 +57,14 @@ func TestServerAppendLog(t *testing.T) {
 	time.Sleep(time.Millisecond * 200) // 等待其他节点同步完毕
 
 	// 验证节点2的数据是否一致
-	logs, err := s2.GetLogs(1, 1)
+	logs, err := s2.GetLogs(1, 0, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(logs))
 	firstLog := logs[0]
 	assert.Equal(t, []byte("hello"), firstLog.Data)
 
 	// 验证节点3的数据是否一致
-	logs, err = s3.GetLogs(1, 1)
+	logs, err = s3.GetLogs(1, 0, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(logs))
 	firstLog = logs[0]
@@ -137,21 +137,26 @@ func TestServerProposeAndApply(t *testing.T) {
 }
 
 type testTransport struct {
-	leaderServer *replica.Replica
+	leaderServer itestReplica
 	serverMap    map[uint64]*replica.Replica
 }
 
-func (t *testTransport) SendSyncNotify(toNodeID uint64, r *replica.SyncNotify) error {
-	t.serverMap[toNodeID].TriggerHandleSyncNotify()
-	return nil
+func (t *testTransport) SendSyncNotify(toNodeIDs []uint64, r *replica.SyncNotify) {
+	for _, toNodeID := range toNodeIDs {
+		t.serverMap[toNodeID].TriggerHandleSyncNotify()
+	}
 }
 
 func (t *testTransport) SyncLog(toNodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
 	resp := &replica.SyncRsp{}
-	logs, err := t.leaderServer.GetLogs(r.StartLogIndex, r.Limit)
+	logs, err := t.leaderServer.GetLogs(r.StartLogIndex, 0, r.Limit)
 	if err != nil {
 		return nil, err
 	}
 	resp.Logs = logs
 	return resp, nil
+}
+
+type itestReplica interface {
+	GetLogs(startLogIndex, endLogIndex uint64, limit uint32) ([]replica.Log, error)
 }

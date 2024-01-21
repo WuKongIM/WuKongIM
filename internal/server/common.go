@@ -136,3 +136,13 @@ func handlerIMError(resp *rest.Response) error {
 	}
 	return nil
 }
+
+type ClusterMsgType uint32
+
+const (
+	ClusterMsgTypeConnWrite ClusterMsgType = 1001
+)
+
+func (c ClusterMsgType) Uint32() uint32 {
+	return uint32(c)
+}

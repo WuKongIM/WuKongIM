@@ -42,14 +42,14 @@ func (m MessageType) Uint32() uint32 {
 }
 
 type PingRequest struct {
-	Epoch                uint32 // 选举周期
+	Term                 uint32 // 任期
 	ClusterConfigVersion uint32 // 集群配置版本
 }
 
 func (p *PingRequest) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint32(p.Epoch)
+	enc.WriteUint32(p.Term)
 	enc.WriteUint32(p.ClusterConfigVersion)
 	return enc.Bytes(), nil
 }
@@ -57,7 +57,7 @@ func (p *PingRequest) Marshal() ([]byte, error) {
 func (p *PingRequest) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if p.Epoch, err = dec.Uint32(); err != nil {
+	if p.Term, err = dec.Uint32(); err != nil {
 		return err
 	}
 	if p.ClusterConfigVersion, err = dec.Uint32(); err != nil {
@@ -88,14 +88,14 @@ func (p *PongResponse) Unmarshal(data []byte) error {
 
 // VoteRequest 投票请求
 type VoteRequest struct {
-	Epoch                uint32 // 选举周期
+	Term                 uint32 // 任期
 	ClusterConfigVersion uint32 // 配置版本
 }
 
 func (v *VoteRequest) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint32(v.Epoch)
+	enc.WriteUint32(v.Term)
 	enc.WriteUint32(v.ClusterConfigVersion)
 	return enc.Bytes(), nil
 }
@@ -103,7 +103,7 @@ func (v *VoteRequest) Marshal() ([]byte, error) {
 func (f *VoteRequest) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if f.Epoch, err = dec.Uint32(); err != nil {
+	if f.Term, err = dec.Uint32(); err != nil {
 		return err
 	}
 	if f.ClusterConfigVersion, err = dec.Uint32(); err != nil {
@@ -114,14 +114,14 @@ func (f *VoteRequest) Unmarshal(data []byte) error {
 
 // VoteRespose 投票请求
 type VoteResponse struct {
-	Epoch  uint32 // 选举周期
+	Term   uint32 // 任期
 	Reject bool   // 是否拒绝 如果是拒绝，则表示参选者的数据不是最新，需要放弃参选
 }
 
 func (v *VoteResponse) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint32(v.Epoch)
+	enc.WriteUint32(v.Term)
 	enc.WriteUint8(uint8(wkutil.BoolToInt(v.Reject)))
 	return enc.Bytes(), nil
 }
@@ -129,7 +129,7 @@ func (v *VoteResponse) Marshal() ([]byte, error) {
 func (f *VoteResponse) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if f.Epoch, err = dec.Uint32(); err != nil {
+	if f.Term, err = dec.Uint32(); err != nil {
 		return err
 	}
 	var rejectI uint8
@@ -443,8 +443,9 @@ type ChannelClusterInfo struct {
 	LeaderID        uint64   `json:"leader_id"`                // 领导节点ID
 	ReplicaMaxCount uint16   `json:"replica_max_count"`        // 副本最大数量
 	Replicas        []uint64 `json:"replicas,omitempty"`       // 副本节点ID
-	ConfigVersion   uint64   `json:"config_version,omitempty"` // 配置版本
 	ApplyReplicas   []uint64 `json:"apply_replicas,omitempty"` // 已经应用配置的副本
+	ConfigVersion   uint64   `json:"config_version,omitempty"` // 配置版本
+	DataTerm        uint32   `json:"data_term,omitempty"`      // 数据任期
 
 	version uint16 // 数据协议版本
 
@@ -472,6 +473,7 @@ func (c *ChannelClusterInfo) Marshal() ([]byte, error) {
 		}
 	}
 	enc.WriteUint64(c.ConfigVersion)
+	enc.WriteUint32(c.DataTerm)
 	return enc.Bytes(), nil
 }
 
@@ -516,6 +518,9 @@ func (c *ChannelClusterInfo) Unmarshal(data []byte) error {
 		c.ApplyReplicas = append(c.ApplyReplicas, replica)
 	}
 	if c.ConfigVersion, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if c.DataTerm, err = dec.Uint32(); err != nil {
 		return err
 	}
 	return nil
@@ -588,6 +593,40 @@ func (a *ChannelClusterInfoRequest) Unmarshal(data []byte) error {
 	}
 	if a.ChannelType, err = dec.Uint8(); err != nil {
 		return err
+	}
+	return nil
+}
+
+type Uint64Set []uint64
+
+func (s Uint64Set) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(uint16(len(s)))
+	if len(s) > 0 {
+		for _, v := range s {
+			enc.WriteUint64(v)
+		}
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *Uint64Set) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var count uint16
+	if count, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+	for i := 0; i < int(count); i++ {
+		var v uint64
+		if v, err = dec.Uint64(); err != nil {
+			return err
+		}
+		*s = append(*s, v)
 	}
 	return nil
 }

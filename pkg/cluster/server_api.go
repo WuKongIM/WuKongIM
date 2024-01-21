@@ -124,6 +124,7 @@ func (s *Server) requestLeaderChannelClusterDetail(leaderID uint64, reqs []*chan
 type channelClusterDetailInfo struct {
 	ChannelID                string             `json:"channel_id"`
 	ChannelType              uint8              `json:"channel_type"`               // 集群ID
+	Slot                     uint32             `json:"slot"`                       // slot
 	LeaderID                 uint64             `json:"leader_id"`                  // leader节点ID
 	LeaderLastMetaLogIndex   uint64             `json:"leader_last_meta_log_index"` // leader的最新元数据日志下标
 	LeaderLastMetaAppendTime uint64             `json:"leader_last_meta_log_time"`  // leader最新元数据日志追加的时间

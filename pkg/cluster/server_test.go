@@ -14,7 +14,9 @@ import (
 
 // 测试服务的开启和停止
 func TestServerStartAndStop(t *testing.T) {
-	s := cluster.NewServer(1, cluster.WithListenAddr("127.0.0.1:10001"))
+	// err := failpoint.Enable("github.com/WuKongIM/WuKongIM/pkg/cluster/mock-io-error", "return(\"disk error\")")
+	// assert.NoError(t, err)
+	s := cluster.NewServer(1, cluster.WithDataDir(os.TempDir()), cluster.WithListenAddr("127.0.0.1:10001"), cluster.WithInitNodes(map[uint64]string{1: "127.0.0.1:10001"}))
 	err := s.Start()
 	assert.NoError(t, err)
 	defer s.Stop()
@@ -343,7 +345,7 @@ func TestServerProposeMessageToChannel(t *testing.T) {
 	channelID := "test"
 	var channelType uint8 = 2
 
-	err = s2.ProposeMessageToChannel(channelID, channelType, []byte("hello"))
+	_, err = s2.ProposeMessageToChannel(channelID, channelType, []byte("hello"))
 	assert.NoError(t, err)
 
 	time.Sleep(time.Millisecond * 100)

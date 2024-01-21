@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 )
@@ -26,6 +27,12 @@ type ICluster interface {
 	Route(path string, handler wkserver.Handler)
 	// RequestWithContext 发送请求给指定的节点
 	RequestWithContext(ctx context.Context, toNodeID uint64, path string, body []byte) (*proto.Response, error)
+	// Send 发送消息给指定的节点, MsgType 使用 1000 - 2000之间的值
+	Send(toNodeID uint64, msg *proto.Message) error
+	// OnMessage 设置接收消息的回调
+	OnMessage(f func(conn wknet.Conn, msg *proto.Message))
+	// 节点是否在线
+	NodeIsOnline(nodeID uint64) bool
 }
 
 type NodeInfo struct {
@@ -92,6 +99,23 @@ func (s *Server) RequestWithContext(ctx context.Context, toNodeID uint64, path s
 	return node.RequestWithContext(ctx, path, body)
 }
 
+func (s *Server) Send(toNodeID uint64, msg *proto.Message) error {
+	node := s.nodeManager.getNode(toNodeID)
+	if node == nil {
+		return fmt.Errorf("node[%d] not found", toNodeID)
+	}
+	return node.send(msg)
+}
+
+func (s *Server) OnMessage(f func(conn wknet.Conn, msg *proto.Message)) {
+	s.onMessageFnc = f
+}
+
 func (s *Server) Route(path string, handler wkserver.Handler) {
 	s.clusterServer.Route(path, handler)
+
+}
+
+func (s *Server) NodeIsOnline(nodeID uint64) bool {
+	return s.clusterEventManager.NodeIsOnline(nodeID)
 }

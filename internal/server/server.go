@@ -20,6 +20,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
@@ -189,6 +191,10 @@ func New(opts *Options) *Server {
 		s.cluster = clusterServer
 		storeOpts.Cluster = clusterServer
 		s.peerInFlightQueue = NewPeerInFlightQueue(s)
+
+		clusterServer.OnMessage(func(conn wknet.Conn, msg *proto.Message) {
+			s.dispatch.processor.handleClusterMessage(conn, msg)
+		})
 	}
 
 	return s

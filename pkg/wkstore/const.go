@@ -53,8 +53,8 @@ var (
 	MessageSeqSize = 8
 	// LogDataLenSize LogDataLenSize
 	MessageDataLenSize = 4
-	// AppliIndexSize AppliIndexSize
-	AppliIndexSize           = 8
+	// TermIndexSize TermIndexSize
+	TermIndexSize            = 8
 	IndexMaxSizeOfByte int64 = 2 * 1024 * 1024 // 索引文件的最大大小 2M
 
 )
@@ -62,7 +62,7 @@ var (
 // a message min len
 func getMinMessageLen() int {
 
-	return len(MagicNumber) + len(MessageVersion) + MessageDataLenSize + MessageSeqSize + AppliIndexSize + len(EndMagicNumber)
+	return len(MagicNumber) + len(MessageVersion) + MessageDataLenSize + MessageSeqSize + TermIndexSize + len(EndMagicNumber)
 }
 
 // next message is vaild if return next message start position

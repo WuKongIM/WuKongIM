@@ -10,15 +10,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *Server) connectWrite(peerID uint64, req *rpc.ConnectWriteReq) (proto.Status, error) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.Cluster.ReqTimeout)
-	defer cancel()
+func (s *Server) connectWrite(peerID uint64, req *rpc.ConnectWriteReq) error {
 	data, _ := req.Marshal()
-	resp, err := s.cluster.RequestWithContext(timeoutCtx, peerID, "/wk/connectWrite", data)
-	if err != nil {
-		return proto.Status_ERROR, err
-	}
-	return resp.Status, nil
+	return s.cluster.Send(peerID, &proto.Message{
+		MsgType: ClusterMsgTypeConnWrite.Uint32(),
+		Content: data,
+	})
+
 }
 
 func (s *Server) sendConnectRequest(nodeID uint64, req *rpc.ConnectReq) (*rpc.ConnectResp, error) {

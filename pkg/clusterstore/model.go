@@ -10,9 +10,9 @@ type ICluster interface {
 	// ProposeMetaToChannel 提交元数据到指定的channel
 	ProposeMetaToChannel(channelID string, channelType uint8, data []byte) error
 	// ProposeMessageToChannel 提交消息到指定的channel
-	ProposeMessageToChannel(channelID string, channelType uint8, data []byte) error
+	ProposeMessageToChannel(channelID string, channelType uint8, data []byte) (uint64, error)
 	// ProposeMessagesToChannel 批量提交消息到指定的channel
-	ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) error
+	ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) ([]uint64, error)
 }
 
 type CMDType uint16

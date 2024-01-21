@@ -105,18 +105,19 @@ func (t *testClusterServer) ProposeMetaToChannel(channelID string, channelType u
 	return t.server.ProposeMetaToChannel(channelID, channelType, data)
 }
 
-func (t *testClusterServer) ProposeMessageToChannel(channelID string, channelType uint8, data []byte) error {
+func (t *testClusterServer) ProposeMessageToChannel(channelID string, channelType uint8, data []byte) (uint64, error) {
 
 	return t.server.ProposeMessageToChannel(channelID, channelType, data)
 }
 
-func (t *testClusterServer) ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) error {
+func (t *testClusterServer) ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
 	return t.server.ProposeMessagesToChannel(channelID, channelType, data)
 }
 
 type testMessage struct {
 	seq  uint32
 	data []byte
+	term uint64
 }
 
 func (t *testMessage) GetMessageID() int64 {
@@ -128,11 +129,20 @@ func (t *testMessage) SetSeq(seq uint32) {
 func (t *testMessage) GetSeq() uint32 {
 	return t.seq
 }
+
+func (t *testMessage) SetTerm(term uint64) {
+	t.term = term
+}
+
+func (t *testMessage) GetTerm() uint64 {
+	return t.term
+}
+
 func (t *testMessage) Encode() []byte {
-	return wkstore.EncodeMessage(t.seq, t.data)
+	return wkstore.EncodeMessage(t.seq, t.term, t.data)
 }
 func (t *testMessage) Decode(msg []byte) error {
 	var err error
-	t.seq, t.data, err = wkstore.DecodeMessage(msg)
+	t.seq, t.term, t.data, err = wkstore.DecodeMessage(msg)
 	return err
 }

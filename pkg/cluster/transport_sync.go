@@ -24,8 +24,14 @@ func newSlotTransportSync(s *Server) *slotTransportSync {
 }
 
 // 发送通知
-func (t *slotTransportSync) SendSyncNotify(toNodeID uint64, r *replica.SyncNotify) error {
-	return t.s.nodeManager.sendSlotSyncNotify(toNodeID, r)
+func (t *slotTransportSync) SendSyncNotify(toNodeIDs []uint64, r *replica.SyncNotify) {
+	for _, toNodeID := range toNodeIDs {
+		if !t.s.clusterEventManager.NodeIsOnline(toNodeID) {
+			t.Debug("node is offline", zap.Uint64("toNodeID", toNodeID))
+			continue
+		}
+		t.s.nodeManager.sendSlotSyncNotify(toNodeID, r)
+	}
 }
 
 // 同步日志
@@ -70,8 +76,17 @@ func newChannelMetaTransportSync(s *Server) *channelMetaTransportSync {
 	}
 }
 
-func (t *channelMetaTransportSync) SendSyncNotify(toNodeID uint64, r *replica.SyncNotify) error {
-	return t.s.nodeManager.sendChannelMetaLogSyncNotify(toNodeID, r)
+func (t *channelMetaTransportSync) SendSyncNotify(toNodeIDs []uint64, r *replica.SyncNotify) {
+	for _, toNodeID := range toNodeIDs {
+		if !t.s.clusterEventManager.NodeIsOnline(toNodeID) {
+			t.Debug("node is offline", zap.Uint64("toNodeID", toNodeID))
+			continue
+		}
+		err := t.s.nodeManager.sendChannelMetaLogSyncNotify(toNodeID, r)
+		if err != nil {
+			t.Error("sendChannelMetaLogSyncNotify failed", zap.Error(err), zap.Uint64("toNodeID", toNodeID))
+		}
+	}
 }
 
 func (t *channelMetaTransportSync) SyncLog(fromNodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
@@ -95,12 +110,21 @@ func newChannelMessageTransportSync(s *Server) *channelMessageTransportSync {
 	}
 }
 
-func (t *channelMessageTransportSync) SendSyncNotify(toNodeID uint64, r *replica.SyncNotify) error {
-	return t.s.nodeManager.sendChannelMessageLogSyncNotify(toNodeID, r)
+func (t *channelMessageTransportSync) SendSyncNotify(toNodeIDs []uint64, r *replica.SyncNotify) {
+	for _, toNodeID := range toNodeIDs {
+		if !t.s.clusterEventManager.NodeIsOnline(toNodeID) {
+			t.Debug("node is offline", zap.Uint64("toNodeID", toNodeID))
+			continue
+		}
+		err := t.s.nodeManager.sendChannelMessageLogSyncNotify(toNodeID, r)
+		if err != nil {
+			t.Error("sendChannelMessageLogSyncNotify failed", zap.Error(err), zap.Uint64("toNodeID", toNodeID))
+		}
+	}
 }
 
-func (t *channelMessageTransportSync) SyncLog(fromNodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
-	resp, err := t.s.nodeManager.requestChannelMessageSyncLog(t.s.cancelCtx, fromNodeID, r)
+func (t *channelMessageTransportSync) SyncLog(leaderID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
+	resp, err := t.s.nodeManager.requestChannelMessageSyncLog(t.s.cancelCtx, leaderID, r)
 	if err != nil {
 		return nil, err
 	}
