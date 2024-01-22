@@ -2,6 +2,7 @@ package cluster
 
 import (
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/cockroachdb/pebble"
 )
 
 // 日志分区存储
@@ -177,4 +178,12 @@ func (p *proxyReplicaStorage) LeaderTermStartIndex(term uint32) (uint64, error) 
 
 func (p *proxyReplicaStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
 	return p.storage.DeleteLeaderTermStartIndexGreaterThanTerm(p.shardNo, term)
+}
+
+type LocalStorage struct {
+	db pebble.DB
+}
+
+func (l *LocalStorage) SaveChannelClusterInfo(channelID string, channelType uint8, clusterInfo *ChannelClusterConfig) error {
+	return nil
 }

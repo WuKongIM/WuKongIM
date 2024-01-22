@@ -16,7 +16,11 @@ func TestChannelReady(t *testing.T) {
 	opts := cluster.NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = cluster.NewMemoryShardLogStorage()
-	ch := cluster.NewChannel(channelID, channelType, 0, []uint64{1, 2, 3}, opts)
+	ch := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Replicas:    []uint64{1, 2, 3},
+	}, 0, opts)
 
 	err := ch.AppointLeader(2, 1) // 任命为领导
 
@@ -37,7 +41,11 @@ func TestChannelLeaderPropose(t *testing.T) {
 	opts := cluster.NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = cluster.NewMemoryShardLogStorage()
-	ch := cluster.NewChannel(channelID, channelType, 0, []uint64{1, 2, 3}, opts)
+	ch := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Replicas:    []uint64{1, 2, 3},
+	}, 0, opts)
 
 	err := ch.AppointLeader(2, 1) // 任命为领导
 
@@ -62,7 +70,11 @@ func TestChannelLeaderCommitLog(t *testing.T) {
 	opts := cluster.NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = cluster.NewMemoryShardLogStorage()
-	ch := cluster.NewChannel(channelID, channelType, 0, []uint64{1, 2, 3}, opts)
+	ch := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Replicas:    []uint64{1, 2, 3},
+	}, 0, opts)
 
 	err := ch.AppointLeader(2, 1) // 任命为领导
 	assert.NoError(t, err)
@@ -90,7 +102,11 @@ func TestChannelFollowSync(t *testing.T) {
 	opts := cluster.NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = cluster.NewMemoryShardLogStorage()
-	ch := cluster.NewChannel(channelID, channelType, 0, []uint64{1, 2, 3}, opts)
+	ch := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Replicas:    []uint64{1, 2, 3},
+	}, 0, opts)
 
 	err := ch.Step(replica.Message{
 		MsgType: replica.MsgNotifySync,
@@ -115,7 +131,11 @@ func TestChannelFollowSyncResp(t *testing.T) {
 	opts := cluster.NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = cluster.NewMemoryShardLogStorage()
-	ch := cluster.NewChannel(channelID, channelType, 0, []uint64{1, 2, 3}, opts)
+	ch := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Replicas:    []uint64{1, 2, 3},
+	}, 0, opts)
 
 	err := ch.Step(replica.Message{
 		MsgType: replica.MsgSyncResp,
@@ -139,7 +159,11 @@ func TestChannelProposeAndWaitCommit(t *testing.T) {
 	opts := cluster.NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = cluster.NewMemoryShardLogStorage()
-	ch := cluster.NewChannel(channelID, channelType, 0, []uint64{1, 2}, opts)
+	ch := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Replicas:    []uint64{1, 2, 3},
+	}, 0, opts)
 
 	err := ch.AppointLeader(10001, 1) // 任命为领导
 	assert.NoError(t, err)
@@ -147,7 +171,7 @@ func TestChannelProposeAndWaitCommit(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err = ch.ProposeAndWaitCommit([]byte("hello"), time.Second*5)
+		_, err = ch.ProposeAndWaitCommit([]byte("hello"), time.Second*5)
 		assert.NoError(t, err)
 
 		wg.Done()

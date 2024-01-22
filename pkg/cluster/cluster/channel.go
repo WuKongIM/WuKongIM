@@ -13,10 +13,11 @@ import (
 )
 
 type Channel struct {
-	channelID   string
-	channelType uint8
-	replica     *replica.Replica
-	destroy     bool
+	channelID     string
+	channelType   uint8
+	rc            *replica.Replica      // 副本服务
+	destroy       bool                  // 是否已经销毁
+	clusterConfig *ChannelClusterConfig // 分布式配置
 
 	maxHandleReadyCountOfBatch int // 每批次处理ready的最大数量
 
@@ -36,18 +37,18 @@ type Channel struct {
 	sync.Mutex
 }
 
-func NewChannel(channelID string, channelType uint8, appliedIdx uint64, replicas []uint64, opts *Options) *Channel {
-	shardNo := ChannelKey(channelID, channelType)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage)))
+func NewChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, opts *Options) *Channel {
+	shardNo := ChannelKey(clusterConfig.ChannelID, clusterConfig.ChannelType)
+	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage)))
 	return &Channel{
 		maxHandleReadyCountOfBatch: 50,
-		replica:                    rc,
+		rc:                         rc,
 		opts:                       opts,
 		Log:                        wklog.NewWKLog(fmt.Sprintf("Channel[%s]", shardNo)),
 		commitWait:                 newCommitWait(),
 		lastActivity:               time.Now(),
-		channelID:                  channelID,
-		channelType:                channelType,
+		channelID:                  clusterConfig.ChannelID,
+		channelType:                clusterConfig.ChannelType,
 		doneC:                      make(chan struct{}),
 	}
 }
@@ -58,7 +59,7 @@ func (c *Channel) Ready() replica.Ready {
 	}
 	c.Lock()
 	defer c.Unlock()
-	return c.replica.Ready()
+	return c.rc.Ready()
 }
 
 func (c *Channel) HasReady() bool {
@@ -67,7 +68,7 @@ func (c *Channel) HasReady() bool {
 	}
 	c.Lock()
 	defer c.Unlock()
-	return c.replica.HasReady()
+	return c.rc.HasReady()
 }
 
 // 任命为领导
@@ -103,25 +104,25 @@ func (c *Channel) step(msg replica.Message) error {
 		return errors.New("channel destroy, can not step")
 	}
 	c.lastActivity = time.Now()
-	return c.replica.Step(msg)
+	return c.rc.Step(msg)
 }
 
 func (c *Channel) Propose(data []byte) error {
 	if c.destroy {
 		return errors.New("channel destroy, can not propose")
 	}
-	return c.Step(c.replica.NewProposeMessage(data))
+	return c.Step(c.rc.NewProposeMessage(data))
 }
 
 // 提案数据，并等待数据提交给大多数节点
-func (c *Channel) ProposeAndWaitCommit(data []byte, timeout time.Duration) error {
+func (c *Channel) ProposeAndWaitCommit(data []byte, timeout time.Duration) (uint64, error) {
 
 	c.Lock()
 	if c.destroy {
 		c.Unlock()
-		return errors.New("channel destroy, can not propose")
+		return 0, errors.New("channel destroy, can not propose")
 	}
-	msg := c.replica.NewProposeMessage(data)
+	msg := c.rc.NewProposeMessage(data)
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -129,17 +130,17 @@ func (c *Channel) ProposeAndWaitCommit(data []byte, timeout time.Duration) error
 	err := c.step(msg)
 	if err != nil {
 		c.Unlock()
-		return err
+		return 0, err
 	}
 	c.Unlock()
 
 	select {
 	case <-waitC:
-		return nil
+		return msg.Index, nil
 	case <-timeoutCtx.Done():
-		return timeoutCtx.Err()
+		return 0, timeoutCtx.Err()
 	case <-c.doneC:
-		return ErrStopped
+		return 0, ErrStopped
 	}
 }
 
@@ -268,7 +269,7 @@ func (c *Channel) handleApplyLogsReq(msg replica.Message) {
 	c.commitWait.commitIndex(lastLog.Index)
 	c.Debug("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))
 
-	err := c.Step(c.replica.NewMsgApplyLogsRespMessage(lastLog.Index))
+	err := c.Step(c.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
 	if err != nil {
 		c.Error("step apply logs resp failed", zap.Error(err))
 	}
