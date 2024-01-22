@@ -31,3 +31,12 @@ func ChannelFromChannelKey(channelKey string) (channelID string, channelType uin
 	}
 	return "", 0
 }
+
+// 频道分布式配置
+type ChannelClusterConfig struct {
+	ChannelID   string   // 频道ID
+	ChannelType uint8    // 频道类型
+	Replicas    []uint64 // 集群节点ID
+	LeaderId    uint64   // 领导者ID
+	Term        uint32   // 任期
+}

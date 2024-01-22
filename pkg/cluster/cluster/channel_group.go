@@ -38,12 +38,16 @@ func (g *ChannelGroup) Stop() {
 	g.stopper.Stop()
 }
 
-func (g *ChannelGroup) AddChannel(channel *Channel) {
+func (g *ChannelGroup) Add(channel *Channel) {
 	g.listener.Add(channel)
 }
 
-func (g *ChannelGroup) ExistChannel(channelID string, channelType uint8) bool {
+func (g *ChannelGroup) Exist(channelID string, channelType uint8) bool {
 	return g.listener.Exist(channelID, channelType)
+}
+
+func (g *ChannelGroup) Channel(channelID string, channelType uint8) *Channel {
+	return g.listener.Get(channelID, channelType)
 }
 
 func (g *ChannelGroup) HandleMessage(channelID string, channelType uint8, msg Message) error {

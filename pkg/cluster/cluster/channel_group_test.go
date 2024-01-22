@@ -30,8 +30,12 @@ func TestChannelGroup(t *testing.T) {
 	assert.NoError(t, err)
 	defer cg1.Stop()
 
-	ch1 := cluster.NewChannel("ch1", 1, 0, []uint64{1, 2}, opts)
-	cg1.AddChannel(ch1)
+	ch1 := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   "ch1",
+		ChannelType: 1,
+		Replicas:    []uint64{1, 2},
+	}, 0, opts)
+	cg1.Add(ch1)
 
 	err = ch1.AppointLeader(1001, 1)
 	assert.NoError(t, err)
@@ -61,12 +65,16 @@ func TestChannelGroup(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	ch2 := cluster.NewChannel("ch1", 1, 0, []uint64{1, 2}, opts)
-	cg2.AddChannel(ch2)
+	ch2 := cluster.NewChannel(&cluster.ChannelClusterConfig{
+		ChannelID:   "ch1",
+		ChannelType: 1,
+		Replicas:    []uint64{1, 2},
+	}, 0, opts)
+	cg2.Add(ch2)
 	err = ch2.AppointLeaderTo(1001, 1, 1)
 	assert.NoError(t, err)
 
-	err = ch1.ProposeAndWaitCommit([]byte("hello world"), time.Second*30)
+	_, err = ch1.ProposeAndWaitCommit([]byte("hello world"), time.Second*30)
 	assert.NoError(t, err)
 
 	logs1, err := storage1.Logs(ch1.ChannelKey(), 1, 2, 1)

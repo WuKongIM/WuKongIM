@@ -19,7 +19,11 @@ func TestChannelListener(t *testing.T) {
 
 	channelID := "test"
 	channelType := uint8(2)
-	ch := NewChannel(channelID, channelType, 0, []uint64{1, 2, 3}, opts)
+	ch := NewChannel(&ChannelClusterConfig{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Replicas:    []uint64{1, 2, 3},
+	}, 0, opts)
 
 	lis.Add(ch)
 
