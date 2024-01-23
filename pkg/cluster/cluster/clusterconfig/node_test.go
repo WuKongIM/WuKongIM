@@ -39,9 +39,6 @@ func TestNodeApplyConfig(t *testing.T) {
 	opts := NewOptions()
 	opts.NodeId = 1
 	opts.Replicas = []uint64{1, 2}
-	opts.GetConfigData = func() ([]byte, error) {
-		return []byte("hello"), nil
-	}
 
 	n1 := NewNode(opts)
 	becomeLeader(n1, t)
@@ -49,12 +46,9 @@ func TestNodeApplyConfig(t *testing.T) {
 	opts = NewOptions()
 	opts.NodeId = 2
 	opts.Replicas = []uint64{1, 2}
-	opts.GetConfigData = func() ([]byte, error) {
-		return nil, nil
-	}
 	n2 := NewNode(opts)
 
-	err := n1.ProposeConfigVersion(1)
+	err := n1.ProposeConfigChange(1, []byte("hello"))
 	assert.NoError(t, err)
 
 	err = n1.Step(Message{

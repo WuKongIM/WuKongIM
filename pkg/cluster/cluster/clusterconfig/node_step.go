@@ -1,6 +1,8 @@
 package clusterconfig
 
-import "go.uber.org/zap"
+import (
+	"go.uber.org/zap"
+)
 
 func (n *Node) Step(m Message) error {
 
@@ -9,11 +11,37 @@ func (n *Node) Step(m Message) error {
 		// local message
 	case m.Term > n.state.term:
 		n.Warn("received message with higher term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.Type.String()))
+		if m.Type == EventHeartbeat || m.Type == EventNotifySync {
+			n.becomeFollower(m.Term, m.From)
+		} else if m.Type != EventVoteResp && m.Type != EventVote {
+			n.becomeFollower(m.Term, None)
+		}
 	}
 
 	switch m.Type {
 	case EventHup:
 		n.hup()
+	case EventVote:
+		canVote := (n.state.voteFor == None || (n.state.voteFor == m.From && n.state.leader == None)) && m.ConfigVersion >= n.localConfigVersion && m.Term >= n.state.term
+		if canVote {
+			n.send(Message{
+				From:          n.opts.NodeId,
+				To:            m.From,
+				Type:          EventVoteResp,
+				Term:          n.state.term,
+				ConfigVersion: n.localConfigVersion,
+			})
+			n.Info("agree vote", zap.Uint64("voteFor", m.From), zap.Uint32("term", m.Term), zap.Uint64("configVersion", m.ConfigVersion))
+		} else {
+			if n.state.voteFor != None {
+				n.Info("already vote for other", zap.Uint64("voteFor", n.state.voteFor))
+			} else if m.ConfigVersion < n.localConfigVersion {
+				n.Info("lower config version, reject vote")
+			} else if m.Term < n.state.term {
+				n.Info("lower term, reject vote")
+			}
+		}
+
 	case EventApplyResp:
 		if m.ConfigVersion != n.appliedConfigVersion {
 			n.appliedConfigVersion = m.ConfigVersion
@@ -38,19 +66,16 @@ func (n *Node) stepFollower(m Message) error {
 		if m.ConfigVersion != n.localConfigVersion {
 			n.leaderConfigVersion = m.ConfigVersion
 		}
-		n.updateCommitForFollower(m.CommittedVersion)
 		n.sendHeartbeatResp(m)
 	case EventNotifySync:
-		n.send(Message{
-			Type: EventSync,
-			To:   m.From,
-			From: n.opts.NodeId,
-		})
+		n.send(n.newSync())
 	case EventSyncResp:
 		if m.ConfigVersion != n.localConfigVersion {
 			n.leaderConfigVersion = m.ConfigVersion
+			n.localConfigVersion = m.ConfigVersion
 			n.configData = m.Config
 		}
+		n.updateCommitForFollower(m.CommittedVersion)
 
 	}
 	return nil
@@ -62,6 +87,7 @@ func (n *Node) stepCandidate(m Message) error {
 		n.becomeFollower(m.Term, m.From)
 		n.sendHeartbeatResp(m)
 	case EventVoteResp:
+		n.Info("received vote response", zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("configVersion", m.ConfigVersion))
 		n.poll(m)
 
 	}
@@ -94,9 +120,9 @@ func (n *Node) stepLeader(m Message) error {
 	switch m.Type {
 	case EventPropose:
 		if m.ConfigVersion > n.localConfigVersion {
+			n.leaderConfigVersion = m.ConfigVersion
 			n.localConfigVersion = m.ConfigVersion
-			n.leaderConfigVersion = n.localConfigVersion
-			n.bcastNotifySync()
+			n.configData = m.Config
 		}
 	case EventBeat:
 		n.bcastHeartbeat()
@@ -110,20 +136,19 @@ func (n *Node) stepLeader(m Message) error {
 		}
 	case EventHeartbeatResp:
 	case EventSync:
-		cfgData, err := n.opts.GetConfigData()
-		if err != nil {
-			n.Error("get config data failed", zap.Error(err))
-			return err
-		}
 		n.nodeConfigVersionMap[m.From] = m.ConfigVersion
-		n.updateCommitForLeader() // 更新提交的配置版本
+		n.Info("received sync request", zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("configVersion", m.ConfigVersion), zap.Uint64("committedVersion", n.committedConfigVersion), zap.Uint64("localConfigVersion", n.localConfigVersion))
+		if n.localConfigVersion > 0 && n.localConfigVersion > n.committedConfigVersion {
+			n.updateCommitForLeader() // 更新提交的配置版本
+		}
 		n.send(Message{
-			From:          n.opts.NodeId,
-			To:            m.From,
-			Type:          EventSyncResp,
-			Term:          n.state.term,
-			Config:        cfgData,
-			ConfigVersion: n.localConfigVersion,
+			From:             n.opts.NodeId,
+			To:               m.From,
+			Type:             EventSyncResp,
+			Term:             n.state.term,
+			Config:           n.configData,
+			ConfigVersion:    n.localConfigVersion,
+			CommittedVersion: n.committedConfigVersion,
 		})
 	}
 	return nil
@@ -137,7 +162,7 @@ func (n *Node) updateCommitForLeader() {
 		}
 	}
 	if successCount+1 >= n.quorum() {
-		n.Info("update commit for leader", zap.Uint64("localConfigVersion", n.localConfigVersion), zap.Uint64("leaderConfigVersion", n.leaderConfigVersion))
+		n.Info("update commit for leader", zap.Uint64("localConfigVersion", n.localConfigVersion))
 		n.committedConfigVersion = n.localConfigVersion
 	}
 }
@@ -145,7 +170,7 @@ func (n *Node) updateCommitForLeader() {
 func (n *Node) updateCommitForFollower(leaderCommittedConfgVersion uint64) {
 	if leaderCommittedConfgVersion > n.committedConfigVersion {
 		n.committedConfigVersion = leaderCommittedConfgVersion
-		n.Info("update commit for follower", zap.Uint64("localConfigVersion", n.localConfigVersion), zap.Uint64("leaderConfigVersion", n.leaderConfigVersion))
+		n.Info("update commit for follower", zap.Uint64("committedConfigVersion", n.committedConfigVersion), zap.Uint64("leaderConfigVersion", n.leaderConfigVersion))
 	}
 }
 
@@ -159,7 +184,7 @@ func (n *Node) campaign() {
 	for _, nodeID := range n.opts.Replicas {
 		if nodeID == n.opts.NodeId {
 			// 自己给自己投一票
-			n.send(Message{To: nodeID, Term: n.state.term, Type: EventVoteResp})
+			n.send(Message{To: nodeID, From: nodeID, Term: n.state.term, Type: EventVoteResp})
 			continue
 		}
 		n.Info("sent vote request", zap.Uint64("from", n.opts.NodeId), zap.Uint64("to", nodeID), zap.Uint32("term", n.state.term))
@@ -192,6 +217,8 @@ func (n *Node) sendHeartbeatResp(m Message) {
 	n.send(Message{
 		To:   m.From,
 		Type: EventHeartbeatResp,
+		From: n.opts.NodeId,
+		Term: n.state.term,
 	})
 }
 
@@ -211,8 +238,25 @@ func (n *Node) bcastNotifySync() {
 		if nodeID == n.opts.NodeId {
 			continue
 		}
-		n.send(n.newNotifySync(nodeID))
+		if n.nodeConfigVersionMap[nodeID] <= n.localConfigVersion {
+			n.send(n.newNotifySync(nodeID))
+		}
 	}
+}
+
+func (n *Node) hasNotifySync() bool {
+	if n.localConfigVersion <= 0 {
+		return false
+	}
+	for _, nodeID := range n.opts.Replicas {
+		if nodeID == n.opts.NodeId {
+			continue
+		}
+		if n.nodeConfigVersionMap[nodeID] <= n.localConfigVersion {
+			return true
+		}
+	}
+	return false
 }
 
 func (n *Node) newNotifySync(to uint64) Message {
@@ -229,6 +273,7 @@ func (n *Node) newSync() Message {
 
 	return Message{
 		From:          n.opts.NodeId,
+		To:            n.state.leader,
 		Type:          EventSync,
 		Term:          n.state.term,
 		ConfigVersion: n.localConfigVersion + 1,

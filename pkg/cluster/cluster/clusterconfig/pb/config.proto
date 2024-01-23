@@ -14,7 +14,7 @@ enum NodeStatus {
     NodeStatusDone = 1;
 }
 message Config {
-    uint32 version = 1; // 配置版本
+    uint64 version = 1; // 配置版本
     uint32 slotCount = 2; // 槽位数量
     uint32 term = 3; // 领导任期
     repeated Node nodes = 4; // 集群中的节点

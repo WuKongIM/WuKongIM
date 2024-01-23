@@ -56,16 +56,13 @@ func NewNode(opts *Options) *Node {
 	n := &Node{
 		opts:                 opts,
 		Log:                  wklog.NewWKLog(fmt.Sprintf("Node[%d]", opts.NodeId)),
-		localConfigVersion:   opts.ConfigVersion,
 		nodeConfigVersionMap: make(map[uint64]uint64),
 	}
-	var err error
-	n.committedConfigVersion = opts.ConfigVersion
-	n.appliedConfigVersion = opts.ConfigVersion
-	n.configData, err = opts.GetConfigData()
-	if err != nil {
-		n.Panic("get config data error", zap.Error(err))
-	}
+
+	n.appliedConfigVersion = opts.AppliedConfigVersion
+	n.committedConfigVersion = n.appliedConfigVersion
+	n.localConfigVersion = n.appliedConfigVersion
+
 	n.becomeFollower(n.state.term, None)
 	return n
 }
@@ -90,9 +87,16 @@ func (n *Node) Ready() Ready {
 	rd := Ready{
 		Messages: n.msgs,
 	}
-	if !n.isLeader() {
-		if n.leaderConfigVersion != n.localConfigVersion {
-			n.msgs = append(n.msgs, n.newSync())
+	if n.isLeader() {
+		if n.hasNotifySync() {
+			for _, nodeID := range n.opts.Replicas {
+				if nodeID == n.opts.NodeId {
+					continue
+				}
+				if n.nodeConfigVersionMap[nodeID] <= n.localConfigVersion {
+					rd.Messages = append(rd.Messages, n.newNotifySync(nodeID))
+				}
+			}
 		}
 	}
 	if n.committedConfigVersion > n.appliedConfigVersion {
@@ -112,16 +116,25 @@ func (n *Node) State() State {
 	return n.state
 }
 
-func (n *Node) ProposeConfigVersion(version uint64) error {
+func (n *Node) ProposeConfigChange(version uint64, configData []byte) error {
+	if !n.isLeader() {
+		n.Error("not leader, can not propose config change")
+		return nil
+	}
 	return n.Step(Message{
 		Type:          EventPropose,
 		Term:          n.state.term,
 		ConfigVersion: version,
+		Config:        configData,
 	})
 }
 
 func (n *Node) GetConfigData() []byte {
 	return n.configData
+}
+
+func (n *Node) SetConfigData(data []byte) {
+	n.configData = data
 }
 
 func (n *Node) becomeFollower(term uint32, leader uint64) {
@@ -131,7 +144,7 @@ func (n *Node) becomeFollower(term uint32, leader uint64) {
 	n.state.voteFor = leader
 	n.state.leader = leader
 	n.role = RoleFollower
-	n.Info("become follower", zap.Uint64("term", uint64(n.state.term)))
+	n.Info("become follower", zap.Uint64("term", uint64(n.state.term)), zap.Uint64("leader", n.state.leader))
 }
 
 func (n *Node) becomeCandidate() {
@@ -193,10 +206,10 @@ func (n *Node) tickHeartbeat() {
 
 	if n.electionElapsed >= n.opts.ElectionTimeoutTick {
 		n.electionElapsed = 0
-		if n.isLeader() {
-			n.Warn("electionTimeout timeout, but still leader")
-			return
-		}
+		// if n.isLeader() {
+		// 	n.Warn("electionTimeout timeout, but still leader")
+		// 	return
+		// }
 	}
 	if n.heartbeatElapsed >= n.opts.HeartbeatTimeoutTick {
 		n.heartbeatElapsed = 0
