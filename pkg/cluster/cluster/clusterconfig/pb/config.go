@@ -8,3 +8,7 @@ func (c *Config) Marshal() ([]byte, error) {
 func (c *Config) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, c)
 }
+
+func (c *Config) Clone() *Config {
+	return proto.Clone(c).(*Config)
+}

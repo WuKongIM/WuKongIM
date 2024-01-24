@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestServerInitNodes(t *testing.T) {
+func TestServerAddOrUpdateNodes(t *testing.T) {
 
 	s1, s2, s3 := newTestClusterServerThree(t)
 	defer s1.Stop()

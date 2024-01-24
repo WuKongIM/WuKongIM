@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type ChannelGroup struct {
+type channelGroup struct {
 	stopper *syncutil.Stopper
 	opts    *Options
 	wklog.Log
@@ -18,8 +18,8 @@ type ChannelGroup struct {
 	stopped  bool
 }
 
-func NewChannelGroup(opts *Options) *ChannelGroup {
-	return &ChannelGroup{
+func newChannelGroup(opts *Options) *channelGroup {
+	return &channelGroup{
 		stopper:  syncutil.NewStopper(),
 		opts:     opts,
 		Log:      wklog.NewWKLog(fmt.Sprintf("ChannelGroup[%d]", opts.NodeID)),
@@ -27,40 +27,40 @@ func NewChannelGroup(opts *Options) *ChannelGroup {
 	}
 }
 
-func (g *ChannelGroup) Start() error {
+func (g *channelGroup) start() error {
 	g.stopper.RunWorker(g.listen)
-	return g.listener.Start()
+	return g.listener.start()
 }
 
-func (g *ChannelGroup) Stop() {
+func (g *channelGroup) stop() {
 	g.stopped = true
-	g.listener.Stop()
+	g.listener.stop()
 	g.stopper.Stop()
 }
 
-func (g *ChannelGroup) Add(channel *Channel) {
+func (g *channelGroup) add(channel *channel) {
 	g.listener.Add(channel)
 }
 
-func (g *ChannelGroup) Exist(channelID string, channelType uint8) bool {
+func (g *channelGroup) exist(channelID string, channelType uint8) bool {
 	return g.listener.Exist(channelID, channelType)
 }
 
-func (g *ChannelGroup) Channel(channelID string, channelType uint8) *Channel {
+func (g *channelGroup) channel(channelID string, channelType uint8) *channel {
 	return g.listener.Get(channelID, channelType)
 }
 
-func (g *ChannelGroup) HandleMessage(channelID string, channelType uint8, msg Message) error {
+func (g *channelGroup) handleMessage(channelID string, channelType uint8, msg Message) error {
 	return g.step(channelID, channelType, msg)
 }
 
-func (g *ChannelGroup) step(channelID string, channelType uint8, msg Message) error {
+func (g *channelGroup) step(channelID string, channelType uint8, msg Message) error {
 	channel := g.listener.Get(channelID, channelType)
 	if channel == nil {
 		g.Error("channel not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return errors.New("channel not found")
 	}
-	err := channel.Step(msg.Message)
+	err := channel.stepLock(msg.Message)
 	if err != nil {
 		g.Error("channel step error", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Error(err))
 		return err
@@ -68,9 +68,9 @@ func (g *ChannelGroup) step(channelID string, channelType uint8, msg Message) er
 	return nil
 }
 
-func (g *ChannelGroup) listen() {
+func (g *channelGroup) listen() {
 	for !g.stopped {
-		ready := g.listener.Wait()
+		ready := g.listener.wait()
 		if ready.channel == nil {
 			continue
 		}
@@ -79,23 +79,27 @@ func (g *ChannelGroup) listen() {
 	}
 }
 
-func (g *ChannelGroup) handleReady(rd channelReady) {
+func (g *channelGroup) handleReady(rd channelReady) {
 	var (
-		err     error
 		channel = rd.channel
-		shardNo = channel.ChannelKey()
+		shardNo = channel.channelKey()
 	)
 	for _, msg := range rd.Messages {
 		// g.Info("recv msg", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
 		if msg.To == g.opts.NodeID {
-			channel.HandleLocalMsg(msg)
+			channel.handleLocalMsg(msg)
 			continue
 		}
 		if msg.To == 0 {
 			g.Error("msg.To is 0", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType))
 			continue
 		}
-		err = g.opts.Transport.Send(NewMessage(shardNo, msg))
+		protMsg, err := NewMessage(shardNo, msg)
+		if err != nil {
+			g.Error("new message error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))
+			continue
+		}
+		err = g.opts.Transport.Send(msg.To, protMsg)
 		if err != nil {
 			g.Warn("send msg error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))
 		}

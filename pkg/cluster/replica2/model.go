@@ -2,6 +2,7 @@ package replica
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -45,7 +46,7 @@ const (
 func (m MsgType) String() string {
 	switch m {
 	case MsgUnknown:
-		return "MsgUnknown"
+		return "MsgUnknown[0]"
 	case MsgAppointLeaderReq:
 		return "MsgAppointLeaderReq"
 	case MsgAppointLeaderResp:
@@ -54,20 +55,20 @@ func (m MsgType) String() string {
 		return "MsgPropose"
 	case MsgNotifySync:
 		return "MsgNotifySync"
-	case MsgSyncResp:
-		return "MsgSyncResp"
-	case MsgLeaderTermStartIndexResp:
-		return "MsgLeaderTermStartIndexResp"
 	case MsgSync:
 		return "MsgSync"
+	case MsgSyncResp:
+		return "MsgSyncResp"
 	case MsgLeaderTermStartIndexReq:
 		return "MsgLeaderTermStartIndexReq"
+	case MsgLeaderTermStartIndexResp:
+		return "MsgLeaderTermStartIndexResp"
 	case MsgApplyLogsReq:
 		return "MsgApplyLogsReq"
 	case MsgApplyLogsResp:
 		return "MsgApplyLogsResp"
 	default:
-		return "unknown"
+		return fmt.Sprintf("MsgUnkown[%d]", m)
 	}
 }
 
