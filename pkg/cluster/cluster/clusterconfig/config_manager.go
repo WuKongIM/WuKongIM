@@ -49,19 +49,25 @@ func (c *ConfigManager) GetConfig() *pb.Config {
 	return c.cfg
 }
 
-func (c *ConfigManager) AddOrUpdateNodes(nodes []*pb.Node) error {
-	c.Lock()
-	defer c.Unlock()
+func (c *ConfigManager) AddOrUpdateNodes(nodes []*pb.Node, cfg *pb.Config) {
+
 	for i, node := range nodes {
-		if c.exist(node.Id) {
-			c.cfg.Nodes[i] = node
+		if c.existNodeByCfg(node.Id, cfg) {
+			cfg.Nodes[i] = node
 			continue
 		}
-		c.cfg.Nodes = append(c.cfg.Nodes, node)
+		cfg.Nodes = append(cfg.Nodes, node)
 	}
-	c.cfg.Version++
+}
 
-	return c.saveConfig()
+func (c *ConfigManager) AddOrUpdateSlots(slots []*pb.Slot, cfg *pb.Config) {
+	for i, slot := range slots {
+		if c.existSlotByCfg(slot.Id, cfg) {
+			cfg.Slots[i] = slot
+			continue
+		}
+		cfg.Slots = append(cfg.Slots, slot)
+	}
 }
 
 func (c *ConfigManager) Close() {
@@ -74,9 +80,36 @@ func (c *ConfigManager) Version() uint64 {
 	return c.cfg.Version
 }
 
-func (c *ConfigManager) exist(nodeId uint64) bool {
+func (c *ConfigManager) existNode(nodeId uint64) bool {
 	for _, node := range c.cfg.Nodes {
 		if node.Id == nodeId {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ConfigManager) existNodeByCfg(nodeId uint64, cfg *pb.Config) bool {
+	for _, node := range cfg.Nodes {
+		if node.Id == nodeId {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ConfigManager) existSlot(slotId uint32) bool {
+	for _, slot := range c.cfg.Slots {
+		if slot.Id == slotId {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ConfigManager) existSlotByCfg(slotId uint32, cfg *pb.Config) bool {
+	for _, slot := range cfg.Slots {
+		if slot.Id == slotId {
 			return true
 		}
 	}
@@ -112,6 +145,10 @@ func (c *ConfigManager) GetConfigData() []byte {
 
 func (c *ConfigManager) getConfigData() []byte {
 	return []byte(wkutil.ToJSON(c.cfg))
+}
+
+func (c *ConfigManager) GetConfigDataByCfg(cfg *pb.Config) []byte {
+	return []byte(wkutil.ToJSON(cfg))
 }
 
 func (c *ConfigManager) UnmarshalConfigData(data []byte, cfg *pb.Config) error {

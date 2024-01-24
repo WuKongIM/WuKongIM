@@ -1,26 +1,26 @@
 package cluster
 
-type NodeGroupManager struct {
+type nodeGroupManager struct {
 }
 
-func NewNodeGroupManager() *NodeGroupManager {
-	return &NodeGroupManager{}
+func newNodeGroupManager() *nodeGroupManager {
+	return &nodeGroupManager{}
 }
 
-func (n *NodeGroupManager) AddNode(nd *Node) {
+func (n *nodeGroupManager) addNode(nd *node) {
 }
 
-func (n *NodeGroupManager) RemoveNode(nd *Node) {
+func (n *nodeGroupManager) removeNode(id uint64) {
 }
 
-func (n *NodeGroupManager) Node(id uint64) *Node {
+func (n *nodeGroupManager) node(id uint64) *node {
 	return nil
 }
 
-func (n *NodeGroupManager) Nodes() []*Node {
+func (n *nodeGroupManager) nodes() []*node {
 	return nil
 }
 
-func (n *NodeGroupManager) Exist(id uint64) bool {
+func (n *nodeGroupManager) exist(id uint64) bool {
 	return false
 }

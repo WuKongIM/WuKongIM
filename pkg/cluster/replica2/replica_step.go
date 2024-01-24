@@ -307,6 +307,9 @@ func (r *Replica) committedIndexForLeader() uint64 {
 				}
 			}
 		}
+		if secondMaxIndex > 0 {
+			return secondMaxIndex - 1
+		}
 		return secondMaxIndex
 	}
 

@@ -63,7 +63,13 @@ func NewNode(opts *Options) *Node {
 	n.committedConfigVersion = n.appliedConfigVersion
 	n.localConfigVersion = n.appliedConfigVersion
 
-	n.becomeFollower(n.state.term, None)
+	if len(opts.Replicas) == 0 {
+		n.reset(1)
+		n.becomeLeader()
+	} else {
+		n.becomeFollower(n.state.term, None)
+	}
+
 	return n
 }
 
@@ -80,6 +86,10 @@ func (n *Node) HasReady() bool {
 			return true
 		}
 	}
+	if n.committedConfigVersion > n.appliedConfigVersion {
+		return true
+	}
+
 	return false
 }
 
@@ -100,7 +110,9 @@ func (n *Node) Ready() Ready {
 		}
 	}
 	if n.committedConfigVersion > n.appliedConfigVersion {
-		rd.Messages = append(rd.Messages, n.newApply())
+		if !n.hasMsg(EventApply, rd.Messages) {
+			rd.Messages = append(rd.Messages, n.newApply())
+		}
 	}
 
 	return rd
@@ -137,6 +149,12 @@ func (n *Node) SetConfigData(data []byte) {
 	n.configData = data
 }
 
+// 是否是单机
+func (n *Node) isSingle() bool {
+
+	return len(n.opts.Replicas) == 0 || (len(n.opts.Replicas) == 1 && n.opts.Replicas[0] == n.opts.NodeId)
+}
+
 func (n *Node) becomeFollower(term uint32, leader uint64) {
 	n.stepFnc = n.stepFollower
 	n.reset(term)
@@ -161,9 +179,9 @@ func (n *Node) becomeCandidate() {
 }
 
 func (n *Node) becomeLeader() {
-	if n.role == RoleFollower {
-		n.Panic("invalid transition [follower -> leader]")
-	}
+	// if n.role == RoleFollower {
+	// 	n.Panic("invalid transition [follower -> leader]")
+	// }
 	n.stepFnc = n.stepLeader
 	n.reset(n.state.term)
 	n.tickFnc = n.tickHeartbeat
@@ -193,6 +211,15 @@ func (n *Node) tickElection() {
 			return
 		}
 	}
+}
+
+func (n *Node) hasMsg(eventType EventType, msgs []Message) bool {
+	for _, msg := range msgs {
+		if msg.Type == eventType {
+			return true
+		}
+	}
+	return false
 }
 
 func (n *Node) tickHeartbeat() {
@@ -256,3 +283,9 @@ func (s State) VoteFor() uint64 {
 type Ready struct {
 	Messages []Message
 }
+
+func IsEmptyReady(rd Ready) bool {
+	return len(rd.Messages) == 0
+}
+
+var EmptyReady = Ready{}

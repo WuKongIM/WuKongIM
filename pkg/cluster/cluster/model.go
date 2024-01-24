@@ -1,10 +1,13 @@
 package cluster
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
@@ -12,11 +15,13 @@ var (
 	ErrStepChannelFull    = errors.New("step channel full")
 	ErrProposeChannelFull = errors.New("propose channel full")
 	ErrRecvChannelFull    = errors.New("recv channel full")
+	ErrSlotNotFound       = errors.New("slot not found")
 )
 
 const (
-	MsgUnknown = iota
-	MsgReplicaMsg
+	MsgUnknown          = iota
+	MsgShardMsg         // 分区消息
+	MsgClusterConfigMsg // 集群配置消息
 )
 
 func ChannelKey(channelID string, channelType uint8) string {
@@ -39,4 +44,17 @@ type ChannelClusterConfig struct {
 	Replicas    []uint64 // 集群节点ID
 	LeaderId    uint64   // 领导者ID
 	Term        uint32   // 任期
+}
+
+var globalRand = &lockedRand{}
+
+type lockedRand struct {
+	mu sync.Mutex
+}
+
+func (r *lockedRand) Intn(n int) int {
+	r.mu.Lock()
+	v, _ := rand.Int(rand.Reader, big.NewInt(int64(n)))
+	r.mu.Unlock()
+	return int(v.Int64())
 }

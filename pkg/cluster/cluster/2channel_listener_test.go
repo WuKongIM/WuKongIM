@@ -13,13 +13,13 @@ func TestChannelListener(t *testing.T) {
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
 
 	lis := NewChannelListener(opts)
-	err := lis.Start()
+	err := lis.start()
 	assert.NoError(t, err)
-	defer lis.Stop()
+	defer lis.stop()
 
 	channelID := "test"
 	channelType := uint8(2)
-	ch := NewChannel(&ChannelClusterConfig{
+	ch := newChannel(&ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
@@ -27,11 +27,11 @@ func TestChannelListener(t *testing.T) {
 
 	lis.Add(ch)
 
-	err = ch.AppointLeader(10001, 1)
+	err = ch.appointLeader(10001, 1)
 	assert.NoError(t, err)
 
 	for {
-		ready := lis.Wait()
+		ready := lis.wait()
 		if ready.channel == nil {
 			continue
 		}

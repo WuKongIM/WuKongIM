@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"path"
+
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/cockroachdb/pebble"
 )
@@ -180,10 +182,30 @@ func (p *proxyReplicaStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uin
 	return p.storage.DeleteLeaderTermStartIndexGreaterThanTerm(p.shardNo, term)
 }
 
-type LocalStorage struct {
-	db pebble.DB
+type localStorage struct {
+	db    *pebble.DB
+	opts  *Options
+	dbDir string
 }
 
-func (l *LocalStorage) SaveChannelClusterInfo(channelID string, channelType uint8, clusterInfo *ChannelClusterConfig) error {
+func newLocalStorage(opts *Options) *localStorage {
+	dbDir := path.Join(opts.DataDir, "wukongimdb")
+	return &localStorage{
+		opts:  opts,
+		dbDir: dbDir,
+	}
+}
+
+func (l *localStorage) open() error {
+	var err error
+	l.db, err = pebble.Open(l.dbDir, &pebble.Options{})
+	return err
+}
+
+func (l *localStorage) close() error {
+	return l.db.Close()
+}
+
+func (l *localStorage) saveChannelClusterInfo(channelID string, channelType uint8, clusterInfo *ChannelClusterConfig) error {
 	return nil
 }

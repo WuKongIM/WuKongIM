@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
@@ -15,7 +16,6 @@ type Server struct {
 	configManager *ConfigManager
 	opts          *Options
 	node          *Node
-	readyc        chan Ready
 	recvc         chan Message
 	stopper       *syncutil.Stopper
 	commitWait    *commitWait
@@ -35,7 +35,6 @@ func New(nodeId uint64, optList ...Option) *Server {
 		stopper:       syncutil.NewStopper(),
 		Log:           wklog.NewWKLog(fmt.Sprintf("Server[%d]", nodeId)),
 		recvc:         make(chan Message, 100),
-		readyc:        make(chan Ready),
 		commitWait:    newCommitWait(),
 	}
 
@@ -46,15 +45,16 @@ func New(nodeId uint64, optList ...Option) *Server {
 
 func (s *Server) Start() error {
 	s.stopper.RunWorker(s.run)
-	s.stopper.RunWorker(s.loopReady)
 
-	s.opts.Transport.OnMessage(func(msg Message) {
-		select {
-		case s.recvc <- msg:
-		case <-s.stopper.ShouldStop():
-			return
-		}
-	})
+	if s.opts.Transport != nil {
+		s.opts.Transport.OnMessage(func(msg Message) {
+			select {
+			case s.recvc <- msg:
+			case <-s.stopper.ShouldStop():
+				return
+			}
+		})
+	}
 	return nil
 }
 
@@ -63,16 +63,21 @@ func (s *Server) Stop() {
 	s.configManager.Close()
 }
 
-func (s *Server) ProposeConfigChange() error {
-	waitC := s.commitWait.addWaitIndex(s.ConfigManager().Version())
-	err := s.node.ProposeConfigChange(s.configManager.Version(), s.configManager.GetConfigData())
+func (s *Server) ProposeConfigChange(version uint64, cfgData []byte) error {
+	waitC := s.commitWait.addWaitIndex(version)
+	err := s.node.ProposeConfigChange(version, cfgData)
 	if err != nil {
 		return err
 	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.ProposeTimeout)
+	defer cancel()
 	select {
 	case <-waitC:
 		return nil
+	case <-timeoutCtx.Done():
+		return timeoutCtx.Err()
 	case <-s.stopper.ShouldStop():
+
 		return ErrStopped
 	}
 }
@@ -98,19 +103,6 @@ func (s *Server) IsLeader() bool {
 
 func (s *Server) ConfigManager() *ConfigManager {
 	return s.configManager
-}
-
-func (s *Server) loopReady() {
-	for {
-		select {
-		case rd := <-s.readyc:
-			for _, msg := range rd.Messages {
-				s.handleMessage(msg)
-			}
-		case <-s.stopper.ShouldStop():
-			return
-		}
-	}
 }
 
 func (s *Server) handleMessage(m Message) {
@@ -144,6 +136,7 @@ func (s *Server) handleApplyReq(m Message) {
 		s.Panic("config is empty")
 		return
 	}
+	// s.Info("receive apply config", zap.Uint64("configVersion", m.ConfigVersion))
 	newCfg := &pb.Config{}
 	err := s.configManager.UnmarshalConfigData(m.Config, newCfg)
 	if err != nil {
@@ -173,13 +166,14 @@ func (s *Server) handleApplyReq(m Message) {
 func (s *Server) run() {
 	var rd Ready
 	leader := None
-	var readyc chan Ready
 	var err error
-	tick := time.NewTicker(time.Millisecond * 200)
+	tick := time.NewTicker(time.Millisecond * 150)
 	for {
 		if s.node.HasReady() {
 			rd = s.node.Ready()
-			readyc = s.readyc
+			s.node.AcceptReady(rd)
+		} else {
+			rd = EmptyReady
 		}
 		if leader != s.node.state.leader {
 			if s.node.HasLeader() {
@@ -193,6 +187,14 @@ func (s *Server) run() {
 			}
 			leader = s.node.state.leader
 		}
+
+		if !IsEmptyReady(rd) {
+			for _, msg := range rd.Messages {
+				s.handleMessage(msg)
+			}
+
+		}
+
 		select {
 		case <-tick.C:
 			s.node.Tick()
@@ -201,9 +203,6 @@ func (s *Server) run() {
 			if err != nil {
 				s.Error("node step error", zap.Error(err))
 			}
-		case readyc <- rd:
-			s.node.AcceptReady(rd)
-			readyc = nil
 		case <-s.stopper.ShouldStop():
 			return
 		}
@@ -215,6 +214,7 @@ type ClusterEvent struct {
 }
 
 type Message struct {
+	version          uint16    // 数据版本
 	Type             EventType // 消息类型
 	Term             uint32    // 当前任期
 	From             uint64    // 源节点
@@ -222,4 +222,53 @@ type Message struct {
 	ConfigVersion    uint64    // 配置版本
 	CommittedVersion uint64    // 已提交的配置版本
 	Config           []byte    // 配置
+
+}
+
+func (m Message) Marshal() []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(m.version)
+	enc.WriteUint32(uint32(m.Type))
+	enc.WriteUint32(m.Term)
+	enc.WriteUint64(m.From)
+	enc.WriteUint64(m.To)
+	enc.WriteUint64(m.ConfigVersion)
+	enc.WriteUint64(m.CommittedVersion)
+	enc.WriteBytes(m.Config)
+	return enc.Bytes()
+}
+
+func (m *Message) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if m.version, err = dec.Uint16(); err != nil {
+		return err
+	}
+	var ty uint32
+	if ty, err = dec.Uint32(); err != nil {
+		return err
+	}
+	m.Type = EventType(ty)
+
+	if m.Term, err = dec.Uint32(); err != nil {
+		return err
+	}
+	if m.From, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	if m.To, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if m.ConfigVersion, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if m.CommittedVersion, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if m.Config, err = dec.BinaryAll(); err != nil {
+		return err
+	}
+	return nil
 }

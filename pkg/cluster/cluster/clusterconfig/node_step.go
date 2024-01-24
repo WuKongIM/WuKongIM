@@ -43,7 +43,7 @@ func (n *Node) Step(m Message) error {
 		}
 
 	case EventApplyResp:
-		if m.ConfigVersion != n.appliedConfigVersion {
+		if m.ConfigVersion > n.appliedConfigVersion {
 			n.appliedConfigVersion = m.ConfigVersion
 			n.configData = m.Config
 		}
@@ -123,6 +123,11 @@ func (n *Node) stepLeader(m Message) error {
 			n.leaderConfigVersion = m.ConfigVersion
 			n.localConfigVersion = m.ConfigVersion
 			n.configData = m.Config
+			if n.isSingle() {
+				if n.committedConfigVersion < m.ConfigVersion {
+					n.committedConfigVersion = m.ConfigVersion
+				}
+			}
 		}
 	case EventBeat:
 		n.bcastHeartbeat()

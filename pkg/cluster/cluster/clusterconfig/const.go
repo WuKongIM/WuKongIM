@@ -65,5 +65,6 @@ const (
 )
 
 var (
-	ErrStopped = errors.New("clusterconfig: stopped")
+	ErrStopped   = errors.New("clusterconfig: stopped")
+	ErrNotLeader = errors.New("clusterconfig: not leader")
 )

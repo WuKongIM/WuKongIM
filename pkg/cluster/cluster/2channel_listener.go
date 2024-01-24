@@ -30,7 +30,7 @@ func NewChannelListener(opts *Options) *ChannelListener {
 	}
 }
 
-func (c *ChannelListener) Wait() channelReady {
+func (c *ChannelListener) wait() channelReady {
 	if c.readyChannels.len() > 0 {
 		return c.readyChannels.pop()
 	}
@@ -45,20 +45,20 @@ func (c *ChannelListener) Wait() channelReady {
 	return channelReady{}
 }
 
-func (c *ChannelListener) Start() error {
+func (c *ChannelListener) start() error {
 	c.stopper.RunWorker(c.loopEvent)
 	return nil
 }
 
-func (c *ChannelListener) Stop() {
+func (c *ChannelListener) stop() {
 	c.stopper.Stop()
 }
 
-func (c *ChannelListener) Add(ch *Channel) {
+func (c *ChannelListener) Add(ch *channel) {
 	c.channels.add(ch)
 }
 
-func (c *ChannelListener) Remove(ch *Channel) {
+func (c *ChannelListener) Remove(ch *channel) {
 	c.channels.remove(ch)
 }
 
@@ -66,7 +66,7 @@ func (c *ChannelListener) Exist(channelID string, channelType uint8) bool {
 	return c.channels.exist(channelID, channelType)
 }
 
-func (c *ChannelListener) Get(channelID string, channelType uint8) *Channel {
+func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 	return c.channels.get(channelID, channelType)
 }
 
@@ -75,12 +75,12 @@ func (c *ChannelListener) loopEvent() {
 	for {
 		select {
 		case <-tick.C:
-			c.channels.foreach(func(ch *Channel) {
-				if ch.IsDestroy() {
+			c.channels.foreach(func(ch *channel) {
+				if ch.isDestroy() {
 					return
 				}
-				if ch.HasReady() {
-					rd := ch.Ready()
+				if ch.hasReady() {
+					rd := ch.ready()
 					if replica.IsEmptyReady(rd) {
 						return
 					}
@@ -109,6 +109,6 @@ func (c *ChannelListener) loopEvent() {
 }
 
 // 判断是否是不活跃的频道
-func (c *ChannelListener) isInactiveChannel(channel *Channel) bool {
-	return channel.IsDestroy() || channel.lastActivity.Add(c.opts.ChannelInactiveTimeout).Before(time.Now())
+func (c *ChannelListener) isInactiveChannel(channel *channel) bool {
+	return channel.isDestroy() || channel.lastActivity.Add(c.opts.ChannelInactiveTimeout).Before(time.Now())
 }

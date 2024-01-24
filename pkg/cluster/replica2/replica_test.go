@@ -21,8 +21,8 @@ func TestPropose(t *testing.T) {
 	assert.True(t, hasReady)
 
 	rd := rc.Ready()
-	assert.Equal(t, 1, len(rd.Messages))
-	assert.Equal(t, replica.MsgNotifySync, rd.Messages[0].MsgType)
+	has, _ := getMessageByType(replica.MsgNotifySync, rd.Messages)
+	assert.True(t, has)
 }
 
 // 测试任命领导

@@ -7,15 +7,15 @@ import (
 )
 
 type channelQueue struct {
-	head *Channel
-	tail *Channel
+	head *channel
+	tail *channel
 }
 
 func newChannelQueue() *channelQueue {
 	return &channelQueue{}
 }
 
-func (c *channelQueue) add(channel *Channel) {
+func (c *channelQueue) add(channel *channel) {
 	if c.head == nil {
 		c.head = channel
 	} else {
@@ -25,7 +25,7 @@ func (c *channelQueue) add(channel *Channel) {
 	c.tail = channel
 }
 
-func (c *channelQueue) remove(channel *Channel) {
+func (c *channelQueue) remove(channel *channel) {
 	if channel.prev == nil {
 		c.head = channel.next
 	} else {
@@ -65,7 +65,7 @@ func (c *channelQueue) exist(channelID string, channelType uint8) bool {
 	return false
 }
 
-func (c *channelQueue) get(channelID string, channelType uint8) *Channel {
+func (c *channelQueue) get(channelID string, channelType uint8) *channel {
 	for channel := c.head; channel != nil; channel = channel.next {
 		if channel.channelID == channelID && channel.channelType == channelType {
 			return channel
@@ -75,7 +75,7 @@ func (c *channelQueue) get(channelID string, channelType uint8) *Channel {
 }
 
 // 遍历频道
-func (c *channelQueue) foreach(f func(channel *Channel)) {
+func (c *channelQueue) foreach(f func(channel *channel)) {
 	for channel := c.head; channel != nil; channel = channel.next {
 		f(channel)
 	}
@@ -118,6 +118,6 @@ func (c readyChannelQueue) len() int {
 // }
 
 type channelReady struct {
-	channel *Channel
+	channel *channel
 	replica.Ready
 }
