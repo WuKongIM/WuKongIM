@@ -85,10 +85,6 @@ func (s *Server) ProposeConfigChange(version uint64, cfgData []byte) error {
 func (s *Server) Step(ctx context.Context, m Message) error {
 	select {
 	case s.recvc <- m:
-		if m.Type == EventApplyResp {
-			s.Info("apply config success", zap.Uint64("configVersion", m.ConfigVersion))
-			s.commitWait.commitIndex(m.ConfigVersion)
-		}
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -99,6 +95,10 @@ func (s *Server) Step(ctx context.Context, m Message) error {
 
 func (s *Server) IsLeader() bool {
 	return s.node.isLeader()
+}
+
+func (s *Server) Leader() uint64 {
+	return s.node.state.leader
 }
 
 func (s *Server) ConfigManager() *ConfigManager {
@@ -113,7 +113,7 @@ func (s *Server) handleMessage(m Message) {
 		if m.Type == EventApply {
 			s.handleApplyReq(m)
 		} else {
-			err = s.Step(context.Background(), m)
+			err = s.node.Step(m)
 			if err != nil {
 				s.Error("node step error", zap.Error(err))
 			}
@@ -136,6 +136,7 @@ func (s *Server) handleApplyReq(m Message) {
 		s.Panic("config is empty")
 		return
 	}
+	s.Info("receive apply config", zap.Uint64("configVersion", m.ConfigVersion), zap.Uint64("committedVersion", m.CommittedVersion))
 	// s.Info("receive apply config", zap.Uint64("configVersion", m.ConfigVersion))
 	newCfg := &pb.Config{}
 	err := s.configManager.UnmarshalConfigData(m.Config, newCfg)
@@ -148,7 +149,8 @@ func (s *Server) handleApplyReq(m Message) {
 		s.Panic("update config error", zap.Error(err))
 		return
 	}
-	err = s.Step(context.Background(), Message{
+	s.Info("apply config success", zap.Uint64("configVersion", m.ConfigVersion))
+	err = s.node.Step(Message{
 		From:          m.To,
 		To:            m.From,
 		Type:          EventApplyResp,
@@ -187,7 +189,6 @@ func (s *Server) run() {
 			}
 			leader = s.node.state.leader
 		}
-
 		if !IsEmptyReady(rd) {
 			for _, msg := range rd.Messages {
 				s.handleMessage(msg)

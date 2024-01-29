@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"go.uber.org/zap"
@@ -27,6 +28,9 @@ func (s *Server) handleClusterEvent(event ClusterEvent) {
 			return
 		}
 	}
+	for _, msg := range event.Messages {
+		s.clusterEventListener.step(msg)
+	}
 	s.clusterEventListener.advance() // 继续推进
 
 }
@@ -44,9 +48,9 @@ func (s *Server) handleNodeRemoveEvent(event EventMessage) error {
 		return nil
 	}
 	for _, node := range event.Nodes {
-		n := s.nodeGroupManager.node(node.Id)
+		n := s.nodeManager.node(node.Id)
 		if n != nil {
-			s.nodeGroupManager.removeNode(n.id)
+			s.nodeManager.removeNode(n.id)
 			n.stop()
 		}
 	}
@@ -57,12 +61,11 @@ func (s *Server) handleSlotAddEvent(event EventMessage) error {
 	if len(event.Slots) == 0 {
 		return nil
 	}
-	s.addSlots(event.Slots)
-	return nil
+	return s.addSlots(event.Slots)
 }
 
-func (s *Server) newNodeByNodeInfo(nd *pb.Node) *node {
-	n := newNode(nd.Id, s.serverUid(nd.Id), nd.ClusterAddr)
+func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
+	n := newNode(nodeID, s.serverUid(nodeID), addr)
 	n.start()
 	return n
 }
@@ -71,25 +74,52 @@ func (s *Server) serverUid(id uint64) string {
 	return fmt.Sprintf("%d", id)
 }
 
+func (s *Server) nodeIdByServerUid(uid string) uint64 {
+	id, err := strconv.ParseUint(uid, 10, 64)
+	if err != nil {
+		s.Error("nodeByServerUid error", zap.Error(err))
+		return 0
+	}
+	return id
+}
+
 func (s *Server) addNodes(nodes []*pb.Node) {
 	for _, node := range nodes {
-		if s.nodeGroupManager.exist(node.Id) {
+		if node.Id == s.opts.NodeID {
 			continue
 		}
-		s.nodeGroupManager.addNode(s.newNodeByNodeInfo(node))
+		if s.nodeManager.exist(node.Id) {
+			continue
+		}
+		s.nodeManager.addNode(s.newNodeByNodeInfo(node.Id, node.ClusterAddr))
 	}
 }
 
-func (s *Server) addSlots(slots []*pb.Slot) {
+func (s *Server) addNode(nodeId uint64, addr string) {
+	if nodeId == s.opts.NodeID {
+		return
+	}
+	if s.nodeManager.exist(nodeId) {
+		return
+	}
+	s.nodeManager.addNode(s.newNodeByNodeInfo(nodeId, addr))
+}
+
+func (s *Server) addSlots(slots []*pb.Slot) error {
 	for _, slot := range slots {
-		if s.slotGroupManager.exist(slot.Id) {
+		if s.slotManager.exist(slot.Id) {
 			continue
 		}
-		s.slotGroupManager.addSlot(s.newSlotBySlotInfo(slot))
+		st, err := s.newSlotBySlotInfo(slot)
+		if err != nil {
+			return err
+		}
+		s.slotManager.addSlot(st)
 	}
+	return nil
 }
 
-func (s *Server) newSlotBySlotInfo(st *pb.Slot) *slot {
-	ns := newSlot(st.Id, 0, st.Replicas, s.opts)
-	return ns
+func (s *Server) newSlotBySlotInfo(st *pb.Slot) (*slot, error) {
+	ns := newSlot(st, 0, 1, s.opts)
+	return ns, nil
 }

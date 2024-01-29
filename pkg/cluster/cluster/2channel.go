@@ -30,9 +30,9 @@ type channel struct {
 	sync.Mutex
 }
 
-func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, opts *Options) *channel {
+func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, lastSyncInfoMap map[uint64]*replica.SyncInfo, opts *Options) *channel {
 	shardNo := ChannelKey(clusterConfig.ChannelID, clusterConfig.ChannelType)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage)))
+	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithLastSyncInfoMap(lastSyncInfoMap), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage)))
 	return &channel{
 		maxHandleReadyCountOfBatch: 50,
 		rc:                         rc,
@@ -44,6 +44,18 @@ func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, opts *Op
 		channelType:                clusterConfig.ChannelType,
 		clusterConfig:              clusterConfig,
 		doneC:                      make(chan struct{}),
+	}
+}
+
+func (c *channel) updateClusterConfig(clusterConfig *ChannelClusterConfig) {
+	c.Lock()
+	defer c.Unlock()
+	c.clusterConfig = clusterConfig
+	c.rc.SetReplicas(clusterConfig.Replicas)
+	if clusterConfig.LeaderId == c.opts.NodeID {
+		c.rc.BecomeLeader(clusterConfig.Term)
+	} else {
+		c.rc.BecomeFollower(clusterConfig.Term, clusterConfig.LeaderId)
 	}
 }
 
@@ -66,11 +78,10 @@ func (c *channel) hasReady() bool {
 }
 
 // 任命为领导
-func (c *channel) appointLeader(from uint64, term uint32) error {
+func (c *channel) appointLeader(term uint32) error {
 
 	return c.stepLock(replica.Message{
 		MsgType:           replica.MsgAppointLeaderReq,
-		From:              from,
 		AppointmentLeader: c.opts.NodeID,
 		Term:              term,
 	})
@@ -78,10 +89,9 @@ func (c *channel) appointLeader(from uint64, term uint32) error {
 }
 
 // 任命指定节点为领导
-func (c *channel) appointLeaderTo(from uint64, term uint32, to uint64) error {
+func (c *channel) appointLeaderTo(term uint32, to uint64) error {
 	return c.stepLock(replica.Message{
 		MsgType:           replica.MsgAppointLeaderReq,
-		From:              from,
 		AppointmentLeader: to,
 		Term:              term,
 	})
@@ -130,6 +140,7 @@ func (c *channel) proposeAndWaitCommit(data []byte, timeout time.Duration) (uint
 
 	select {
 	case <-waitC:
+		fmt.Println("waitC--->", msg.Index)
 		return msg.Index, nil
 	case <-timeoutCtx.Done():
 		return 0, timeoutCtx.Err()
@@ -185,4 +196,12 @@ func (c *channel) handleApplyLogsReq(msg replica.Message) {
 	if err != nil {
 		c.Error("step apply logs resp failed", zap.Error(err))
 	}
+}
+
+func (c *channel) handleMessage(msg replica.Message) error {
+	return c.stepLock(msg)
+}
+
+func (c *channel) isLeader() bool {
+	return c.rc.IsLeader()
 }

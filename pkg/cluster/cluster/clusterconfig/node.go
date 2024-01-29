@@ -111,6 +111,7 @@ func (n *Node) Ready() Ready {
 	}
 	if n.committedConfigVersion > n.appliedConfigVersion {
 		if !n.hasMsg(EventApply, rd.Messages) {
+			n.Info("send apply request", zap.Uint64("term", uint64(n.state.term)), zap.Uint64("leader", n.state.leader), zap.Uint64("appliedConfigVersion", n.appliedConfigVersion), zap.Uint64("committedConfigVersion", n.committedConfigVersion))
 			rd.Messages = append(rd.Messages, n.newApply())
 		}
 	}

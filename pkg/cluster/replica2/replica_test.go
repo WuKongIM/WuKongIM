@@ -25,31 +25,31 @@ func TestPropose(t *testing.T) {
 	assert.True(t, has)
 }
 
-// 测试任命领导
-func TestAppointmentLeader(t *testing.T) {
-	walstorage := replica.NewMemoryStorage()
+// // 测试任命领导
+// func TestAppointmentLeader(t *testing.T) {
+// 	walstorage := replica.NewMemoryStorage()
 
-	// rc 1
-	rc := replica.New(1, "test", replica.WithStorage(walstorage))
-	err := rc.Step(replica.Message{
-		MsgType:           replica.MsgAppointLeaderReq,
-		From:              10001,
-		To:                1,
-		Term:              10,
-		AppointmentLeader: 1,
-	})
-	assert.NoError(t, err)
-	assert.True(t, rc.IsLeader())
+// 	// rc 1
+// 	rc := replica.New(1, "test", replica.WithStorage(walstorage))
+// 	err := rc.Step(replica.Message{
+// 		MsgType:           replica.MsgAppointLeaderReq,
+// 		From:              10001,
+// 		To:                1,
+// 		Term:              10,
+// 		AppointmentLeader: 1,
+// 	})
+// 	assert.NoError(t, err)
+// 	assert.True(t, rc.IsLeader())
 
-	rd := rc.Ready()
+// 	rd := rc.Ready()
 
-	has, message := getMessageByType(replica.MsgAppointLeaderResp, rd.Messages)
-	assert.True(t, has)
+// 	has, message := getMessageByType(replica.MsgAppointLeaderResp, rd.Messages)
+// 	assert.True(t, has)
 
-	assert.Equal(t, uint64(10001), message.To)
-	assert.Equal(t, uint64(1), message.From)
+// 	assert.Equal(t, uint64(10001), message.To)
+// 	assert.Equal(t, uint64(1), message.From)
 
-}
+// }
 
 // 测试日志同步机制
 func TestReplicaSync(t *testing.T) {

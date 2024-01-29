@@ -83,7 +83,7 @@ func (s *slotListener) loopEvent() {
 				} else {
 					if s.isInactiveSlot(st) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
 						s.remove(st)
-						s.Info("remove inactive channel", zap.Uint32("slotId", st.slotId))
+						s.Info("remove inactive slot", zap.Uint32("slotId", st.slotId))
 					}
 				}
 			})
@@ -111,5 +111,5 @@ func (s *slotListener) exist(slotId uint32) bool {
 
 // 判断是否是不活跃的频道
 func (s *slotListener) isInactiveSlot(st *slot) bool {
-	return st.isDestroy() || st.lastActivity.Add(st.opts.SlotInactiveTimeout).Before(time.Now())
+	return st.isDestroy()
 }

@@ -44,6 +44,7 @@ func (n *Node) Step(m Message) error {
 
 	case EventApplyResp:
 		if m.ConfigVersion > n.appliedConfigVersion {
+			n.Info("received apply response", zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("configVersion", m.ConfigVersion))
 			n.appliedConfigVersion = m.ConfigVersion
 			n.configData = m.Config
 		}

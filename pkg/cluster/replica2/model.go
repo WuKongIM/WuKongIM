@@ -29,17 +29,17 @@ const (
 type MsgType uint16
 
 const (
-	MsgUnknown                  MsgType = iota // 未知
-	MsgAppointLeaderReq                        // 任命领导请求 （上级领导发送任命消息给各节点，如果任命的是自己则变成领导，否者变成追随者，会一直尝试发送并且收到大多数响应后停止发送）
-	MsgAppointLeaderResp                       // 任命领导响应 (上级领导)
-	MsgPropose                                 // 提案（领导）
-	MsgNotifySync                              // 通知追随者同步日志（领导）
-	MsgSync                                    // 同步日志 （追随者）
-	MsgSyncResp                                // 同步日志响应（领导）
-	MsgLeaderTermStartIndexReq                 // 领导任期开始偏移量请求 （追随者）
-	MsgLeaderTermStartIndexResp                // 领导任期开始偏移量响应（领导）
-	MsgApplyLogsReq                            // 应用日志请求
-	MsgApplyLogsResp                           // 应用日志响应
+	MsgUnknown          MsgType = iota // 未知
+	MsgAppointLeaderReq                // 任命领导请求 （上级领导发送任命消息给各节点，如果任命的是自己则变成领导，否者变成追随者，会一直尝试发送并且收到大多数响应后停止发送）
+	// MsgAppointLeaderResp                       // 任命领导响应 (上级领导)
+	MsgPropose                  // 提案（领导）
+	MsgNotifySync               // 通知追随者同步日志（领导）
+	MsgSync                     // 同步日志 （追随者）
+	MsgSyncResp                 // 同步日志响应（领导）
+	MsgLeaderTermStartIndexReq  // 领导任期开始偏移量请求 （追随者）
+	MsgLeaderTermStartIndexResp // 领导任期开始偏移量响应（领导）
+	MsgApplyLogsReq             // 应用日志请求
+	MsgApplyLogsResp            // 应用日志响应
 
 )
 
@@ -49,8 +49,8 @@ func (m MsgType) String() string {
 		return "MsgUnknown[0]"
 	case MsgAppointLeaderReq:
 		return "MsgAppointLeaderReq"
-	case MsgAppointLeaderResp:
-		return "MsgAppointLeaderResp"
+	// case MsgAppointLeaderResp:
+	// return "MsgAppointLeaderResp"
 	case MsgPropose:
 		return "MsgPropose"
 	case MsgNotifySync:
@@ -215,4 +215,28 @@ type SyncInfo struct {
 	NodeID           uint64 // 节点ID
 	LastSyncLogIndex uint64 // 最后一次来同步日志的下标（一般最新日志 + 1）
 	LastSyncTime     uint64 // 最后一次同步时间
+}
+
+func (s *SyncInfo) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(s.NodeID)
+	enc.WriteUint64(s.LastSyncLogIndex)
+	enc.WriteUint64(s.LastSyncTime)
+	return enc.Bytes(), nil
+}
+
+func (s *SyncInfo) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if s.NodeID, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if s.LastSyncLogIndex, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if s.LastSyncTime, err = dec.Uint64(); err != nil {
+		return err
+	}
+	return nil
 }

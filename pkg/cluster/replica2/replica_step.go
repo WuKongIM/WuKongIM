@@ -27,6 +27,12 @@ func (r *Replica) Step(m Message) error {
 				}
 			}
 
+		} else if m.MsgType == MsgAppointLeaderReq {
+			if m.AppointmentLeader == r.nodeID { // 如果任命中的领导是自己，则成为领导否者称为跟随者
+				r.becomeLeader(m.Term)
+			} else {
+				r.becomeFollower(m.Term, m.AppointmentLeader)
+			}
 		}
 
 	}
@@ -47,7 +53,12 @@ func (r *Replica) stepLeader(m Message) error {
 		if !r.appendLog(m.Logs...) {
 			return ErrProposalDropped
 		}
-		r.bcastNotifySync() // 广播通知同步消息
+		if r.isSingle() { // 单机
+			r.Info("single node", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("committedIndex", r.state.committedIndex))
+			r.updateLeaderCommittedIndex() // 更新领导的提交索引
+		} else {
+			r.bcastNotifySync() // 广播通知同步消息
+		}
 
 	case MsgSync: // 追随者向领导同步消息
 
@@ -57,6 +68,7 @@ func (r *Replica) stepLeader(m Message) error {
 			if err != nil {
 				return err
 			}
+			r.Info("send sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Int("logCount", len(logs)))
 
 			r.updateReplicSyncInfo(m) // 更新副本同步信息
 
@@ -144,18 +156,6 @@ func (r *Replica) stepFollower(m Message) error {
 		}
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 
-	case MsgAppointLeaderReq: // 收到任命消息
-		if m.AppointmentLeader == r.nodeID { // 如果任命中的领导是自己，则成为领导否者称为跟随者
-			r.becomeLeader(m.Term)
-		} else {
-			r.becomeFollower(m.Term, m.AppointmentLeader)
-		}
-		r.send(Message{
-			MsgType: MsgAppointLeaderResp,
-			From:    r.nodeID,
-			To:      m.From,
-			Term:    r.state.term,
-		})
 	case MsgLeaderTermStartIndexResp: // 收到领导的任期开始索引响应
 		// Follower检查本地的LeaderTermSequence
 		// 是否有term对应的StartOffset大于领导返回的LastOffset，
@@ -375,4 +375,10 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 	}
 	syncInfo.LastSyncLogIndex = m.Index
 	syncInfo.LastSyncTime = uint64(time.Now().UnixNano())
+}
+
+// 是否是单机
+func (r *Replica) isSingle() bool {
+
+	return len(r.opts.Replicas) == 0 || (len(r.opts.Replicas) == 1 && r.opts.Replicas[0] == r.opts.NodeID)
 }

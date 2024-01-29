@@ -49,6 +49,33 @@ func (c *ConfigManager) GetConfig() *pb.Config {
 	return c.cfg
 }
 
+func (c *ConfigManager) Slot(id uint32) *pb.Slot {
+	for _, slot := range c.cfg.Slots {
+		if slot.Id == id {
+			return slot
+		}
+	}
+	return nil
+}
+
+func (c *ConfigManager) Node(id uint64) *pb.Node {
+	for _, node := range c.cfg.Nodes {
+		if node.Id == id {
+			return node
+		}
+	}
+	return nil
+}
+
+func (c *ConfigManager) NodeIsOnline(id uint64) bool {
+	for _, node := range c.cfg.Nodes {
+		if node.Id == id {
+			return node.Online
+		}
+	}
+	return false
+}
+
 func (c *ConfigManager) AddOrUpdateNodes(nodes []*pb.Node, cfg *pb.Config) {
 
 	for i, node := range nodes {

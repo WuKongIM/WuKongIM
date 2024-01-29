@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
@@ -22,7 +23,7 @@ func newChannelGroup(opts *Options) *channelGroup {
 	return &channelGroup{
 		stopper:  syncutil.NewStopper(),
 		opts:     opts,
-		Log:      wklog.NewWKLog(fmt.Sprintf("ChannelGroup[%d]", opts.NodeID)),
+		Log:      wklog.NewWKLog(fmt.Sprintf("channelGroup[%d]", opts.NodeID)),
 		listener: NewChannelListener(opts),
 	}
 }
@@ -50,17 +51,17 @@ func (g *channelGroup) channel(channelID string, channelType uint8) *channel {
 	return g.listener.Get(channelID, channelType)
 }
 
-func (g *channelGroup) handleMessage(channelID string, channelType uint8, msg Message) error {
+func (g *channelGroup) handleMessage(channelID string, channelType uint8, msg replica.Message) error {
 	return g.step(channelID, channelType, msg)
 }
 
-func (g *channelGroup) step(channelID string, channelType uint8, msg Message) error {
+func (g *channelGroup) step(channelID string, channelType uint8, msg replica.Message) error {
 	channel := g.listener.Get(channelID, channelType)
 	if channel == nil {
 		g.Error("channel not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return errors.New("channel not found")
 	}
-	err := channel.stepLock(msg.Message)
+	err := channel.stepLock(msg)
 	if err != nil {
 		g.Error("channel step error", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Error(err))
 		return err
@@ -84,8 +85,10 @@ func (g *channelGroup) handleReady(rd channelReady) {
 		channel = rd.channel
 		shardNo = channel.channelKey()
 	)
+
+	g.Info("handle ready", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType))
 	for _, msg := range rd.Messages {
-		// g.Info("recv msg", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
+		g.Info("recv msg", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
 		if msg.To == g.opts.NodeID {
 			channel.handleLocalMsg(msg)
 			continue
@@ -94,7 +97,7 @@ func (g *channelGroup) handleReady(rd channelReady) {
 			g.Error("msg.To is 0", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType))
 			continue
 		}
-		protMsg, err := NewMessage(shardNo, msg)
+		protMsg, err := NewMessage(shardNo, msg, MsgChannelMsg)
 		if err != nil {
 			g.Error("new message error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))
 			continue
