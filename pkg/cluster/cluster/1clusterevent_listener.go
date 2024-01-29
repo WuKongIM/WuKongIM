@@ -2,11 +2,13 @@ package cluster
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -45,15 +47,16 @@ func newClusterEventListener(opts *Options) *clusterEventListener {
 	return c
 }
 
-func (c *clusterEventListener) Start() error {
+func (c *clusterEventListener) start() error {
 	c.stopper.RunWorker(c.loopEvent)
 	return c.clusterconfigManager.start()
 }
 
-func (c *clusterEventListener) Stop() {
+func (c *clusterEventListener) stop() {
+	c.stopper.Stop()
 	c.localFile.Close()
 	c.clusterconfigManager.stop()
-	c.stopper.Stop()
+
 }
 
 func (c *clusterEventListener) wait() ClusterEvent {
@@ -84,7 +87,7 @@ func (c *clusterEventListener) localAllNodes() []*pb.Node {
 	return c.localConfg.Nodes
 }
 
-func (c *clusterEventListener) Step(m EventMessage) {
+func (c *clusterEventListener) step(m EventMessage) {
 	for _, n := range m.Nodes {
 		exist := false
 		for i, localNode := range c.localConfg.Nodes {
@@ -122,11 +125,11 @@ func (c *clusterEventListener) checkLocalClusterEvent() {
 	if len(c.msgs) > 0 { // 还有事件没处理掉，不再检查
 		return
 	}
-	if c.localConfg.Version == c.clusterconfigManager.GetConfigVersion() {
+	if c.localConfg.Version == c.clusterconfigManager.getConfigVersion() {
 		return
 	}
 	if c.snapshotConfig == nil {
-		c.snapshotConfig = c.clusterconfigManager.CloneConfig()
+		c.snapshotConfig = c.clusterconfigManager.cloneConfig()
 		return
 	}
 
@@ -137,6 +140,7 @@ func (c *clusterEventListener) checkLocalClusterEvent() {
 	if len(c.msgs) > 0 {
 		c.triggerClusterEvent(ClusterEvent{Messages: c.msgs})
 	} else { // 没有事件了 说明配置与快照达到一致
+		c.Debug("save local config")
 		c.localConfg = c.snapshotConfig
 		err := c.saveLocalConfig()
 		if err != nil {
@@ -267,7 +271,7 @@ func (c *clusterEventListener) loadLocalConfig() error {
 		return err
 	}
 	if len(data) > 0 {
-		var cfg *pb.Config
+		var cfg = &pb.Config{}
 		if err := wkutil.ReadJSONByByte(data, cfg); err != nil {
 			return err
 		}
@@ -286,6 +290,43 @@ func (c *clusterEventListener) saveLocalConfig() error {
 
 func (c *clusterEventListener) getLocalConfigData() []byte {
 	return []byte(wkutil.ToJSON(c.localConfg))
+}
+
+func (c *clusterEventListener) handleMessage(msg clusterconfig.Message) {
+	c.clusterconfigManager.handleMessage(msg)
+}
+
+// 等待配置中的节点数量达到指定数量
+func (c *clusterEventListener) waitConfigNodeCount(count int, timeout time.Duration) error {
+	tk := time.NewTicker(time.Millisecond * 20)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for {
+		select {
+		case <-tk.C:
+			if len(c.localConfg.Nodes) >= count {
+				return nil
+			}
+		case <-timeoutCtx.Done():
+			return timeoutCtx.Err()
+		}
+	}
+}
+
+func (c *clusterEventListener) waitConfigSlotCount(count uint32, timeout time.Duration) error {
+	tk := time.NewTicker(time.Millisecond * 20)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for {
+		select {
+		case <-tk.C:
+			if len(c.localConfg.Slots) >= int(count) {
+				return nil
+			}
+		case <-timeoutCtx.Done():
+			return timeoutCtx.Err()
+		}
+	}
 }
 
 type ClusterEventType int
@@ -325,3 +366,5 @@ type EventMessage struct {
 	Slots       []*pb.Slot
 	SlotMigrate SlotMigrate
 }
+
+var EmptyEventMessage = EventMessage{}

@@ -11,9 +11,11 @@ type ITransport interface {
 	Send(to uint64, m *proto.Message) error
 	// OnMessage 收取消息
 	OnMessage(f func(from uint64, m *proto.Message))
+	// 收到消息
+	RecvMessage(from uint64, m *proto.Message)
 }
 
-func NewMessage(shardNo string, msg replica.Message) (*proto.Message, error) {
+func NewMessage(shardNo string, msg replica.Message, msgType proto.MsgType) (*proto.Message, error) {
 	m := Message{
 		ShardNo: shardNo,
 		Message: msg,
@@ -23,7 +25,7 @@ func NewMessage(shardNo string, msg replica.Message) (*proto.Message, error) {
 		return nil, err
 	}
 	return &proto.Message{
-		MsgType: MsgShardMsg,
+		MsgType: uint32(msgType),
 		Content: data,
 	}, nil
 
@@ -90,6 +92,38 @@ func (t *MemoryTransport) OnMessage(f func(from uint64, m *proto.Message)) {
 
 }
 
+func (t *MemoryTransport) RecvMessage(from uint64, m *proto.Message) {
+}
+
 func (t *MemoryTransport) OnNodeMessage(nodeID uint64, f func(m *proto.Message)) {
 	t.nodeMessageListenerMap[nodeID] = f
+}
+
+type DefaultTransport struct {
+	s         *Server
+	onMessage func(from uint64, m *proto.Message)
+}
+
+func NewDefaultTransport(s *Server) *DefaultTransport {
+	return &DefaultTransport{
+		s: s,
+	}
+}
+
+func (d *DefaultTransport) Send(to uint64, m *proto.Message) error {
+	node := d.s.nodeManager.node(to)
+	if node == nil {
+		return ErrNodeNotFound
+	}
+	return node.send(m)
+}
+
+func (d *DefaultTransport) OnMessage(f func(from uint64, m *proto.Message)) {
+	d.onMessage = f
+}
+
+func (d *DefaultTransport) RecvMessage(from uint64, m *proto.Message) {
+	if d.onMessage != nil {
+		d.onMessage(from, m)
+	}
 }

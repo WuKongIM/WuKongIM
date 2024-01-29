@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -29,14 +32,19 @@ type slot struct {
 	prev *slot
 }
 
-func newSlot(slotId uint32, appliedIdx uint64, replicas []uint64, opts *Options) *slot {
-	shardNo := GetSlotShardNo(slotId)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage)))
+func newSlot(st *pb.Slot, appliedIdx uint64, term uint32, opts *Options) *slot {
+	shardNo := GetSlotShardNo(st.Id)
+	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage)))
+	if st.Leader == opts.NodeID {
+		rc.BecomeLeader(term)
+	} else {
+		rc.BecomeFollower(term, st.Leader)
+	}
 	return &slot{
-		slotId:       slotId,
+		slotId:       st.Id,
 		shardNo:      shardNo,
 		rc:           rc,
-		Log:          wklog.NewWKLog(fmt.Sprintf("slot[%d:%d]", opts.NodeID, slotId)),
+		Log:          wklog.NewWKLog(fmt.Sprintf("slot[%d:%d]", opts.NodeID, st.Id)),
 		commitWait:   newCommitWait(),
 		opts:         opts,
 		doneC:        make(chan struct{}),
@@ -55,7 +63,6 @@ func (s *slot) proposeAndWaitCommit(data []byte, timeout time.Duration) error {
 	msg := s.rc.NewProposeMessage(data)
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-
 	waitC := s.commitWait.addWaitIndex(msg.Index)
 	err := s.step(msg)
 	if err != nil {
@@ -90,6 +97,10 @@ func (s *slot) ready() replica.Ready {
 	s.Lock()
 	defer s.Unlock()
 	return s.rc.Ready()
+}
+
+func (s *slot) isLeader() bool {
+	return s.rc.IsLeader()
 }
 
 // 将当前节点任命为领导
@@ -127,6 +138,10 @@ func (s *slot) makeDestroy() {
 	close(s.doneC)
 }
 
+func (s *slot) handleMessage(msg replica.Message) error {
+	return s.stepLock(msg)
+}
+
 func (s *slot) handleLocalMsg(msg replica.Message) {
 	if s.destroy {
 		s.Warn("handle local msg, but channel is destroy")
@@ -149,9 +164,9 @@ func (s *slot) handleApplyLogsReq(msg replica.Message) {
 		return
 	}
 	lastLog := msg.Logs[len(msg.Logs)-1]
-	s.Debug("commit wait", zap.Uint64("lastLogIndex", lastLog.Index))
+	s.Info("commit wait", zap.Uint64("lastLogIndex", lastLog.Index))
 	s.commitWait.commitIndex(lastLog.Index)
-	s.Debug("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))
+	s.Info("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))
 
 	err := s.stepLock(s.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
 	if err != nil {
@@ -161,4 +176,20 @@ func (s *slot) handleApplyLogsReq(msg replica.Message) {
 
 func GetSlotShardNo(slotID uint32) string {
 	return fmt.Sprintf("slot-%d", slotID)
+}
+
+func GetSlotId(shardNo string, lg wklog.Log) uint32 {
+	var slotID uint64
+	var err error
+	strs := strings.Split(shardNo, "-")
+	if len(strs) == 2 {
+		slotID, err = strconv.ParseUint(strs[1], 10, 32)
+		if err != nil {
+			lg.Panic("parse slotID error", zap.Error(err))
+		}
+		return uint32(slotID)
+	} else {
+		lg.Panic("parse slotID error", zap.Error(err))
+	}
+	return 0
 }

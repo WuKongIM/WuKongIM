@@ -34,17 +34,17 @@ func TestChannelGroup(t *testing.T) {
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},
-	}, 0, opts)
+	}, 0, nil, opts)
 	cg1.add(ch1)
 
-	err = ch1.appointLeader(1001, 1)
+	err = ch1.appointLeader(1)
 	assert.NoError(t, err)
 
 	trans.OnNodeMessage(1, func(msg *proto.Message) {
 		m, _ := NewMessageFromProto(msg)
 		fmt.Println("node 1 receive message", m.MsgType.String())
 		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
-		err = cg1.handleMessage(channelID, channelType, m)
+		err = cg1.handleMessage(channelID, channelType, m.Message)
 		assert.NoError(t, err)
 	})
 
@@ -63,7 +63,7 @@ func TestChannelGroup(t *testing.T) {
 		m, _ := NewMessageFromProto(msg)
 		fmt.Println("node 2 receive message", m.MsgType.String())
 		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
-		err = cg2.handleMessage(channelID, channelType, m)
+		err = cg2.handleMessage(channelID, channelType, m.Message)
 		assert.NoError(t, err)
 	})
 
@@ -71,9 +71,9 @@ func TestChannelGroup(t *testing.T) {
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},
-	}, 0, opts)
+	}, 0, nil, opts)
 	cg2.add(ch2)
-	err = ch2.appointLeaderTo(1001, 1, 1)
+	err = ch2.appointLeaderTo(1, 1)
 	assert.NoError(t, err)
 
 	_, err = ch1.proposeAndWaitCommit([]byte("hello world"), time.Second*30)

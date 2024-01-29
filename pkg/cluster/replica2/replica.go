@@ -96,6 +96,7 @@ func (r *Replica) NewProposeMessage(data []byte) Message {
 		MsgType: MsgPropose,
 		From:    r.nodeID,
 		Term:    r.state.term,
+		Index:   r.state.lastLogIndex + 1,
 		Logs: []Log{
 			{
 				Index: r.state.lastLogIndex + 1,
@@ -176,6 +177,10 @@ func (r *Replica) State() State {
 
 func (r *Replica) IsLeader() bool {
 	return r.isLeader()
+}
+
+func (r *Replica) SetReplicas(replicas []uint64) {
+	r.replicas = replicas
 }
 
 func (r *Replica) isLeader() bool {

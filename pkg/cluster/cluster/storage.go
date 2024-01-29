@@ -1,10 +1,7 @@
 package cluster
 
 import (
-	"path"
-
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
-	"github.com/cockroachdb/pebble"
 )
 
 // 日志分区存储
@@ -30,6 +27,10 @@ type IShardLogStorage interface {
 	LeaderTermStartIndex(shardNo string, term uint32) (uint64, error)
 	// 删除比传入的term大的的LeaderTermStartIndex记录
 	DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
+
+	Open() error
+
+	Close() error
 }
 
 type MemoryShardLogStorage struct {
@@ -130,6 +131,15 @@ func (m *MemoryShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardN
 	return nil
 }
 
+func (m *MemoryShardLogStorage) Open() error {
+	return nil
+}
+
+func (m *MemoryShardLogStorage) Close() error {
+
+	return nil
+}
+
 type proxyReplicaStorage struct {
 	storage IShardLogStorage
 	shardNo string
@@ -180,32 +190,4 @@ func (p *proxyReplicaStorage) LeaderTermStartIndex(term uint32) (uint64, error) 
 
 func (p *proxyReplicaStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
 	return p.storage.DeleteLeaderTermStartIndexGreaterThanTerm(p.shardNo, term)
-}
-
-type localStorage struct {
-	db    *pebble.DB
-	opts  *Options
-	dbDir string
-}
-
-func newLocalStorage(opts *Options) *localStorage {
-	dbDir := path.Join(opts.DataDir, "wukongimdb")
-	return &localStorage{
-		opts:  opts,
-		dbDir: dbDir,
-	}
-}
-
-func (l *localStorage) open() error {
-	var err error
-	l.db, err = pebble.Open(l.dbDir, &pebble.Options{})
-	return err
-}
-
-func (l *localStorage) close() error {
-	return l.db.Close()
-}
-
-func (l *localStorage) saveChannelClusterInfo(channelID string, channelType uint8, clusterInfo *ChannelClusterConfig) error {
-	return nil
 }

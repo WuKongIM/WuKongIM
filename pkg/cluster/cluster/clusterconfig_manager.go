@@ -81,6 +81,7 @@ func (c *clusterconfigManager) checkClusterConfig() {
 
 	if hasChange {
 		newCfg.Version++
+		c.Info("propose config change", zap.Uint64("version", newCfg.Version))
 		err := c.clusterconfigServer.ProposeConfigChange(newCfg.Version, c.clusterconfigServer.ConfigManager().GetConfigDataByCfg(newCfg))
 		if err != nil {
 			c.Error("propose config change error", zap.Error(err))
@@ -96,6 +97,8 @@ func (c *clusterconfigManager) initNodesIfNeed(newCfg *pb.Config) bool {
 			newNodes = append(newNodes, &pb.Node{
 				Id:          replicaID,
 				ClusterAddr: clusterAddr,
+				AllowVote:   true,
+				Online:      true,
 			})
 		}
 		c.clusterconfigServer.ConfigManager().AddOrUpdateNodes(newNodes, newCfg)
@@ -130,23 +133,27 @@ func (c *clusterconfigManager) electionLeaderIfNeed(newCfg *pb.Config) bool {
 		replicas = append(replicas, n.Id)
 	}
 	replicaCount := c.opts.SlotMaxReplicaCount
+	hasChange := false
 	for _, slot := range newCfg.Slots {
-		if len(slot.Replicas) > 0 {
+		if len(slot.Replicas) > 0 && slot.Leader != 0 {
 			continue
 		}
-		if len(replicas) <= int(replicaCount) {
-			slot.Replicas = replicas
-		} else {
-			slot.Replicas = make([]uint64, 0, replicaCount)
-			for i := uint32(0); i < replicaCount; i++ {
-				randomIndex := globalRand.Intn(len(replicas))
-				slot.Replicas = append(slot.Replicas, replicas[randomIndex])
+		if len(slot.Replicas) == 0 {
+			if len(replicas) <= int(replicaCount) {
+				slot.Replicas = replicas
+			} else {
+				slot.Replicas = make([]uint64, 0, replicaCount)
+				for i := uint32(0); i < replicaCount; i++ {
+					randomIndex := globalRand.Intn(len(replicas))
+					slot.Replicas = append(slot.Replicas, replicas[randomIndex])
+				}
 			}
 		}
 		randomIndex := globalRand.Intn(len(slot.Replicas))
 		slot.Leader = slot.Replicas[randomIndex]
+		hasChange = true
 	}
-	return true
+	return hasChange
 }
 
 // 获取初始节点
@@ -158,6 +165,18 @@ func (c *clusterconfigManager) getInitNodes(cfg *pb.Config) []*pb.Node {
 		}
 	}
 	return initNodes
+}
+
+// 获取允许投票的节点
+func (c *clusterconfigManager) allowVoteNodes() []*pb.Node {
+	cfg := c.clusterconfigServer.ConfigManager().GetConfig()
+	nodes := make([]*pb.Node, 0, len(cfg.Nodes))
+	for _, n := range cfg.Nodes {
+		if n.AllowVote {
+			nodes = append(nodes, n)
+		}
+	}
+	return nodes
 }
 
 func (c *clusterconfigManager) handleMessage(m clusterconfig.Message) {
@@ -177,12 +196,24 @@ func (c *clusterconfigManager) OnMessage(f func(m clusterconfig.Message)) {
 	c.onMessage = f
 }
 
-func (c *clusterconfigManager) GetConfigVersion() uint64 {
+func (c *clusterconfigManager) getConfigVersion() uint64 {
 	return c.clusterconfigServer.ConfigManager().GetConfig().GetVersion()
 }
 
-func (c *clusterconfigManager) CloneConfig() *pb.Config {
+func (c *clusterconfigManager) cloneConfig() *pb.Config {
 	return c.clusterconfigServer.ConfigManager().GetConfig().Clone()
+}
+
+func (c *clusterconfigManager) slot(id uint32) *pb.Slot {
+	return c.clusterconfigServer.ConfigManager().Slot(id)
+}
+
+func (c *clusterconfigManager) node(id uint64) *pb.Node {
+	return c.clusterconfigServer.ConfigManager().Node(id)
+}
+
+func (c *clusterconfigManager) nodeIsOnline(id uint64) bool {
+	return c.clusterconfigServer.ConfigManager().NodeIsOnline(id)
 }
 
 // 等待配置中的节点数量达到指定数量
@@ -212,6 +243,22 @@ func (c *clusterconfigManager) waitConfigSlotCount(count uint32, timeout time.Du
 		case <-tk.C:
 			clusterConfig := c.clusterconfigServer.ConfigManager().GetConfig()
 			if len(clusterConfig.Slots) >= int(count) {
+				return nil
+			}
+		case <-timeoutCtx.Done():
+			return timeoutCtx.Err()
+		}
+	}
+}
+
+func (c *clusterconfigManager) waitNodeLeader(timeout time.Duration) error {
+	tk := time.NewTicker(time.Millisecond * 20)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for {
+		select {
+		case <-tk.C:
+			if c.clusterconfigServer.Leader() != 0 {
 				return nil
 			}
 		case <-timeoutCtx.Done():

@@ -9,31 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestChannelReady(t *testing.T) {
-	channelID := "test"
-	channelType := uint8(2)
-	opts := NewOptions()
-	opts.NodeID = 1
-	opts.ShardLogStorage = NewMemoryShardLogStorage()
-	ch := newChannel(&ChannelClusterConfig{
-		ChannelID:   channelID,
-		ChannelType: channelType,
-		Replicas:    []uint64{1, 2, 3},
-	}, 0, opts)
-
-	err := ch.appointLeader(2, 1) // 任命为领导
-
-	assert.NoError(t, err)
-
-	has := ch.hasReady()
-	assert.True(t, has)
-	rd := ch.ready()
-	msgs := rd.Messages
-	has, _ = getMessageByType(replica.MsgAppointLeaderResp, msgs)
-	assert.True(t, has)
-
-}
-
 func TestChannelLeaderPropose(t *testing.T) {
 	channelID := "test"
 	channelType := uint8(2)
@@ -44,9 +19,9 @@ func TestChannelLeaderPropose(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, opts)
+	}, 0, nil, opts)
 
-	err := ch.appointLeader(2, 1) // 任命为领导
+	err := ch.appointLeader(1) // 任命为领导
 
 	assert.NoError(t, err)
 
@@ -73,9 +48,9 @@ func TestChannelLeaderCommitLog(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, opts)
+	}, 0, nil, opts)
 
-	err := ch.appointLeader(2, 1) // 任命为领导
+	err := ch.appointLeader(1) // 任命为领导
 	assert.NoError(t, err)
 
 	err = ch.propose([]byte("hello"))
@@ -105,7 +80,7 @@ func TestChannelFollowSync(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, opts)
+	}, 0, nil, opts)
 
 	err := ch.stepLock(replica.Message{
 		MsgType: replica.MsgNotifySync,
@@ -134,7 +109,7 @@ func TestChannelFollowSyncResp(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, opts)
+	}, 0, nil, opts)
 
 	err := ch.stepLock(replica.Message{
 		MsgType: replica.MsgSyncResp,
@@ -162,9 +137,9 @@ func TestChannelProposeAndWaitCommit(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, opts)
+	}, 0, nil, opts)
 
-	err := ch.appointLeader(10001, 1) // 任命为领导
+	err := ch.appointLeader(1) // 任命为领导
 	assert.NoError(t, err)
 
 	var wg sync.WaitGroup
