@@ -31,6 +31,8 @@ func (n *Node) Step(m Message) error {
 				Term:          n.state.term,
 				ConfigVersion: n.localConfigVersion,
 			})
+			n.electionElapsed = 0
+			n.state.voteFor = m.From
 			n.Info("agree vote", zap.Uint64("voteFor", m.From), zap.Uint32("term", m.Term), zap.Uint64("configVersion", m.ConfigVersion))
 		} else {
 			if n.state.voteFor != None {

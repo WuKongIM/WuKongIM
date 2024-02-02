@@ -94,9 +94,11 @@ func (s *slotManager) slot(slotId uint32) *slot {
 func (s *slotManager) proposeAndWaitCommit(slotId uint32, data []byte) error {
 	st := s.slot(slotId)
 	if st == nil {
+		s.Error("slot not found", zap.Uint32("slotId", slotId))
 		return ErrSlotNotFound
 	}
 	if !st.isLeader() {
+		s.Error("not leader", zap.Uint32("slotId", slotId), zap.Uint64("leader", st.rc.LeaderId()))
 		return ErrNotLeader
 	}
 	return st.proposeAndWaitCommit(data, s.opts.ProposeTimeout)

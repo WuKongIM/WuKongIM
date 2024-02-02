@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type clusterconfigManager struct {
@@ -73,8 +74,20 @@ func (c *clusterconfigManager) checkClusterConfig() {
 		hasChange = true
 	}
 
-	// 设置领导
-	changed = c.electionLeaderIfNeed(newCfg)
+	// 检查节点在线状态
+	changed = c.nodeOnlineChangeIfNeed(newCfg)
+	if changed {
+		hasChange = changed
+	}
+
+	// 初始化slot leader
+	changed = c.initSlotLeaderIfNeed(newCfg)
+	if changed {
+		hasChange = true
+	}
+
+	// 选举slot leader
+	changed = c.electionSlotLeaderIfNeed(newCfg)
 	if changed {
 		hasChange = true
 	}
@@ -134,6 +147,27 @@ func (c *clusterconfigManager) initSlotsIfNeed(newCfg *pb.Config) bool {
 	return false
 }
 
+// 节点在线状态变更
+func (c *clusterconfigManager) nodeOnlineChangeIfNeed(newCfg *pb.Config) bool {
+	if c.opts.nodeOnlineFnc == nil {
+		return false
+	}
+	changed := false
+	for _, n := range newCfg.Nodes {
+		online, err := c.opts.nodeOnlineFnc(n.Id)
+		if err != nil {
+			c.Error("check node online error", zap.Error(err))
+			continue
+		}
+		if online != n.Online {
+			c.Info("node online change", zap.Uint64("nodeID", n.Id), zap.Bool("online", online))
+			c.clusterconfigServer.ConfigManager().SetNodeOnline(n.Id, online, newCfg)
+			changed = true
+		}
+	}
+	return changed
+}
+
 func (c *clusterconfigManager) isLeader() bool {
 	return c.clusterconfigServer.IsLeader()
 }
@@ -142,38 +176,222 @@ func (c *clusterconfigManager) leaderId() uint64 {
 	return c.clusterconfigServer.Leader()
 }
 
-func (c *clusterconfigManager) electionLeaderIfNeed(newCfg *pb.Config) bool {
+func (c *clusterconfigManager) initSlotLeaderIfNeed(newCfg *pb.Config) bool {
 	if len(newCfg.Slots) == 0 || len(newCfg.Nodes) == 0 {
 		return false
 	}
-	nodes := newCfg.Nodes
-	replicas := make([]uint64, 0, len(nodes))
-	for _, n := range nodes {
-		replicas = append(replicas, n.Id)
-	}
-	replicaCount := c.opts.SlotMaxReplicaCount
-	hasChange := false
-	for _, slot := range newCfg.Slots {
-		if len(slot.Replicas) > 0 && slot.Leader != 0 {
+
+	replicas := make([]uint64, 0, len(newCfg.Nodes))
+	for _, n := range newCfg.Nodes {
+		if !n.AllowVote {
 			continue
 		}
+		replicas = append(replicas, n.Id)
+	}
+	if len(replicas) == 0 {
+		return false
+	}
+	hasChange := false
+	offset := 0
+
+	for _, slot := range newCfg.Slots {
 		if len(slot.Replicas) == 0 {
-			if len(replicas) <= int(replicaCount) {
+			replicaCount := slot.ReplicaCount
+			if len(replicas) <= int(slot.ReplicaCount) {
 				slot.Replicas = replicas
+
 			} else {
 				slot.Replicas = make([]uint64, 0, replicaCount)
 				for i := uint32(0); i < replicaCount; i++ {
-					randomIndex := globalRand.Intn(len(replicas))
-					slot.Replicas = append(slot.Replicas, replicas[randomIndex])
+					idx := (offset + int(i)) % len(replicas)
+					slot.Replicas = append(slot.Replicas, replicas[idx])
 				}
 			}
+			offset++
 		}
-		randomIndex := globalRand.Intn(len(slot.Replicas))
-		slot.Term = 1
-		slot.Leader = slot.Replicas[randomIndex]
-		hasChange = true
+		if slot.Leader == 0 { // 选举leader
+			randomIndex := globalRand.Intn(len(slot.Replicas))
+			slot.Term = 1
+			slot.Leader = slot.Replicas[randomIndex]
+			hasChange = true
+		}
+
 	}
 	return hasChange
+}
+
+// 选举槽领导
+func (c *clusterconfigManager) electionSlotLeaderIfNeed(newCfg *pb.Config) bool {
+	if len(newCfg.Slots) == 0 || len(newCfg.Nodes) == 0 {
+		return false
+	}
+	hasChange := false
+
+	// 获取等待选举的槽
+	waitElectionSlots := map[uint64][]uint32{}              // 等待选举的槽
+	electionSlotIds := make([]uint32, 0, len(newCfg.Slots)) // 需要进行选举的槽id集合
+	for _, slot := range newCfg.Slots {
+		if slot.Leader == 0 {
+			continue
+		}
+		if c.nodeIsOnline(slot.Leader) {
+			continue
+		}
+		for _, replicaId := range slot.Replicas {
+			if replicaId != c.opts.NodeID && !c.nodeIsOnline(replicaId) {
+				continue
+			}
+			waitElectionSlots[replicaId] = append(waitElectionSlots[replicaId], slot.Id)
+		}
+		electionSlotIds = append(electionSlotIds, slot.Id)
+	}
+	if len(waitElectionSlots) == 0 {
+		return false
+	}
+
+	// 获取槽在各个副本上的日志高度
+	slotInfoResps, err := c.requestSlotInfos(waitElectionSlots)
+	if err != nil {
+		c.Error("request slot infos error", zap.Error(err))
+		return false
+	}
+	if len(slotInfoResps) == 0 {
+		return false
+	}
+
+	replicaLastLogInfoMap, err := c.collectSlotLogInfo(slotInfoResps)
+	if err != nil {
+		c.Error("collect slot log info error", zap.Error(err))
+		return false
+	}
+
+	// 计算每个槽的领导节点
+	slotLeaderMap := c.calculateSlotLeader(replicaLastLogInfoMap, electionSlotIds)
+	if len(slotLeaderMap) == 0 {
+		c.Warn("没有选举出任何槽领导者！！！", zap.Uint32s("slotIDs", electionSlotIds))
+		return false
+	}
+
+	getSlot := func(slotId uint32) *pb.Slot {
+		for _, slot := range newCfg.Slots {
+			if slot.Id == slotId {
+				return slot
+			}
+		}
+		return nil
+	}
+
+	for slotID, leaderNodeID := range slotLeaderMap {
+		slot := getSlot(slotID)
+		if slot.Leader != leaderNodeID {
+			slot.Leader = leaderNodeID
+			slot.Term++
+			hasChange = true
+		}
+	}
+
+	// 获取槽在各个副本上的日志高度
+	return hasChange
+}
+
+// 收集slot的各个副本的日志高度
+func (c *clusterconfigManager) collectSlotLogInfo(slotInfoResps []*SlotLogInfoResp) (map[uint64]map[uint32]uint64, error) {
+	slotLogInfos := make(map[uint64]map[uint32]uint64, len(slotInfoResps))
+	for _, resp := range slotInfoResps {
+		slotLogInfos[resp.NodeId] = make(map[uint32]uint64, len(resp.Slots))
+		for _, slotInfo := range resp.Slots {
+			slotLogInfos[resp.NodeId][slotInfo.SlotId] = slotInfo.LogIndex
+		}
+	}
+	return slotLogInfos, nil
+}
+
+// 计算每个槽的领导节点
+func (c *clusterconfigManager) calculateSlotLeader(slotLogInfos map[uint64]map[uint32]uint64, slotIds []uint32) map[uint32]uint64 {
+	slotLeaderMap := make(map[uint32]uint64, len(slotIds))
+	for _, slotId := range slotIds {
+		slotLeaderMap[slotId] = c.calculateSlotLeaderBySlot(slotLogInfos, slotId)
+	}
+	return slotLeaderMap
+}
+
+// 计算槽的领导节点
+func (c *clusterconfigManager) calculateSlotLeaderBySlot(slotLogInfos map[uint64]map[uint32]uint64, slotId uint32) uint64 {
+	var leader uint64
+	var maxLogIndex uint64
+	for replicaId, logIndexMap := range slotLogInfos {
+		if logIndexMap[slotId] > maxLogIndex {
+			maxLogIndex = logIndexMap[slotId]
+			leader = replicaId
+		}
+	}
+	return leader
+}
+
+// 请求槽的日志高度
+func (c *clusterconfigManager) requestSlotInfos(waitElectionSlots map[uint64][]uint32) ([]*SlotLogInfoResp, error) {
+	slotInfoResps := make([]*SlotLogInfoResp, 0, len(waitElectionSlots))
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+	for nodeId, slotIds := range waitElectionSlots {
+		if nodeId == c.opts.NodeID { // 本节点
+			slotInfos, err := c.slotInfos(slotIds)
+			if err != nil {
+				c.Error("get slot infos error", zap.Error(err))
+				continue
+			}
+			slotInfoResps = append(slotInfoResps, &SlotLogInfoResp{
+				NodeId: nodeId,
+				Slots:  slotInfos,
+			})
+			continue
+		} else {
+			requestGroup.Go(func(nID uint64, sids []uint32) func() error {
+				return func() error {
+					resp, err := c.requestSlotLogInfo(nID, sids)
+					if err != nil {
+						c.Warn("request slot log info error", zap.Error(err))
+						return nil
+					}
+					slotInfoResps = append(slotInfoResps, resp)
+					return nil
+				}
+			}(nodeId, slotIds))
+		}
+	}
+	_ = requestGroup.Wait()
+	return slotInfoResps, nil
+
+}
+
+func (c *clusterconfigManager) requestSlotLogInfo(nodeId uint64, slotIds []uint32) (*SlotLogInfoResp, error) {
+	req := &SlotLogInfoReq{
+		SlotIds: slotIds,
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ReqTimeout)
+	defer cancel()
+	resp, err := c.opts.requestSlotLogInfo(timeoutCtx, nodeId, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterconfigManager) slotInfos(slotIds []uint32) ([]SlotInfo, error) {
+	slotInfos := make([]SlotInfo, 0, len(slotIds))
+	for _, slotId := range slotIds {
+		shardNo := GetSlotShardNo(slotId)
+		lastLogIndex, err := c.opts.ShardLogStorage.LastIndex(shardNo)
+		if err != nil {
+			return nil, err
+		}
+		slotInfos = append(slotInfos, SlotInfo{
+			SlotId:   slotId,
+			LogIndex: lastLogIndex,
+		})
+	}
+	return slotInfos, nil
 }
 
 // 获取初始节点

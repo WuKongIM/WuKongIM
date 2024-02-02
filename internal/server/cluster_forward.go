@@ -19,6 +19,14 @@ func (s *Server) connectWrite(peerID uint64, req *rpc.ConnectWriteReq) error {
 
 }
 
+func (s *Server) connectClose(peerID uint64, req *rpc.ConnectCloseReq) error {
+	data, _ := req.Marshal()
+	return s.cluster.Send(peerID, &proto.Message{
+		MsgType: ClusterMsgTypeConnClose.Uint32(),
+		Content: data,
+	})
+}
+
 func (s *Server) sendConnectRequest(nodeID uint64, req *rpc.ConnectReq) (*rpc.ConnectResp, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.Cluster.ReqTimeout)
 	defer cancel()

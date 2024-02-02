@@ -54,6 +54,16 @@ func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *O
 	}
 }
 
+func (s *slot) BecomeAny(term uint32, leaderId uint64) {
+	s.Lock()
+	defer s.Unlock()
+	if leaderId == s.opts.NodeID {
+		s.rc.BecomeLeader(term)
+	} else {
+		s.rc.BecomeFollower(term, leaderId)
+	}
+}
+
 // 提案数据，并等待数据提交给大多数节点
 func (s *slot) proposeAndWaitCommit(data []byte, timeout time.Duration) error {
 

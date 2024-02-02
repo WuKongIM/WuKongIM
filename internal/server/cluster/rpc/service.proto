@@ -63,6 +63,12 @@ message ConnectWriteReq {
      bytes data = 4; // 数据
 }
 
+message ConnectCloseReq {
+     string uid = 1; // 用户ID
+     string deviceId = 2; // 设备ID
+     uint32 deviceFlag = 3; // 设备标识
+}
+
 message ConnPingReq {
      string uid = 1; // 用户ID
      string deviceId = 2; // 设备ID
