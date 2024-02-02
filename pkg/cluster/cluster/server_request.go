@@ -19,6 +19,8 @@ func (s *Server) setRoutes() {
 	s.server.Route("/node/updateApiServerAddr", s.handleUpdateNodeApiServerAddr)
 	// 向槽提案数据
 	s.server.Route("/slot/propose", s.handleSlotPropose)
+	// 获取槽日志信息
+	s.server.Route("/slot/logInfo", s.handleSlotLogInfo)
 
 }
 
@@ -251,6 +253,32 @@ func (s *Server) handleSlotPropose(c *wkserver.Context) {
 
 	c.WriteOk()
 
+}
+
+func (s *Server) handleSlotLogInfo(c *wkserver.Context) {
+	req := &SlotLogInfoReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal SlotLogInfoReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	slotInfos, err := s.clusterEventListener.clusterconfigManager.slotInfos(req.SlotIds)
+	if err != nil {
+		s.Error("get slotInfos failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	resp := &SlotLogInfoResp{
+		NodeId: s.opts.NodeID,
+		Slots:  slotInfos,
+	}
+	data, err := resp.Marshal()
+	if err != nil {
+		s.Error("marshal SlotLogInfoResp failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
 }
 
 // 获取频道所在的slotId

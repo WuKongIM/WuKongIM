@@ -160,7 +160,6 @@ func (n *Node) becomeFollower(term uint32, leader uint64) {
 	n.stepFnc = n.stepFollower
 	n.reset(term)
 	n.tickFnc = n.tickElection
-	n.state.voteFor = leader
 	n.state.leader = leader
 	n.role = RoleFollower
 	n.Info("become follower", zap.Uint64("term", uint64(n.state.term)), zap.Uint64("leader", n.state.leader))

@@ -31,14 +31,15 @@ type clusterEventListener struct {
 func newClusterEventListener(opts *Options) *clusterEventListener {
 	localCfgPath := path.Join(opts.DataDir, "localconfig.json")
 	c := &clusterEventListener{
-		clusterconfigManager: newClusterconfigManager(opts),
-		localCfgPath:         localCfgPath,
-		Log:                  wklog.NewWKLog("ClusterEventListener"),
-		stopper:              syncutil.NewStopper(),
-		clusterEventC:        make(chan ClusterEvent),
-		localConfg:           &pb.Config{},
-		opts:                 opts,
+		localCfgPath:  localCfgPath,
+		Log:           wklog.NewWKLog("ClusterEventListener"),
+		stopper:       syncutil.NewStopper(),
+		clusterEventC: make(chan ClusterEvent),
+		localConfg:    &pb.Config{},
+		opts:          opts,
 	}
+
+	c.clusterconfigManager = newClusterconfigManager(opts)
 
 	err := c.loadLocalConfig()
 	if err != nil {
@@ -261,6 +262,12 @@ func (c *clusterEventListener) checkSlotChange(localSlot *pb.Slot, snapshotSlot 
 	if localSlot.Id != snapshotSlot.Id {
 		return
 	}
+	if snapshotSlot.Leader != 0 && localSlot.Leader != snapshotSlot.Leader {
+		c.msgs = append(c.msgs, EventMessage{
+			Type:  ClusterEventTypeSlotLeaderChange,
+			Slots: []*pb.Slot{snapshotSlot},
+		})
+	}
 }
 
 func (c *clusterEventListener) triggerClusterEvent(event ClusterEvent) {
@@ -355,6 +362,7 @@ const (
 	ClusterEventTypeNodeUpdateOnline                         // 节点更新在线状态
 	ClusterEventTypeSlotInit                                 // 槽初始化
 	ClusterEventTypeSlotAdd                                  // 槽添加
+	ClusterEventTypeSlotLeaderChange                         // 槽领导者变更
 	ClusterEventTypeSlotMigrate                              // 槽迁移
 )
 

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
@@ -20,10 +21,12 @@ func (s *Server) handleClusterEvent(event ClusterEvent) {
 			err = s.handleNodeAddEvent(msg)
 		case ClusterEventTypeNodeRemove: // 处理节点删除事件
 			err = s.handleNodeRemoveEvent(msg)
-		case ClusterEventTypeSlotAdd: // 槽添加
-			err = s.handleSlotAddEvent(msg)
 		case ClusterEventTypeNodeUpdateApiServerAddr: // 节点更新api地址
 			err = s.handleNodeUpdateApiServerAddrEvent(msg)
+		case ClusterEventTypeSlotAdd: // 槽添加
+			err = s.handleSlotAddEvent(msg)
+		case ClusterEventTypeSlotLeaderChange: // 领导变更
+			err = s.handleSlotLeaderChangeEvent(msg)
 		}
 		if err != nil {
 			s.Error("handle cluster event error", zap.Error(err))
@@ -64,6 +67,19 @@ func (s *Server) handleSlotAddEvent(event EventMessage) error {
 		return nil
 	}
 	return s.addSlots(event.Slots)
+}
+
+func (s *Server) handleSlotLeaderChangeEvent(event EventMessage) error {
+	if len(event.Slots) == 0 {
+		return nil
+	}
+	for _, slot := range event.Slots {
+		st := s.slotManager.slot(slot.Id)
+		if st != nil {
+			st.BecomeAny(slot.Term, slot.Leader)
+		}
+	}
+	return nil
 }
 
 func (s *Server) handleNodeUpdateApiServerAddrEvent(event EventMessage) error {
@@ -136,6 +152,9 @@ func (s *Server) addNode(nodeId uint64, addr string) {
 func (s *Server) addSlots(slots []*pb.Slot) error {
 	for _, slot := range slots {
 		if s.slotManager.exist(slot.Id) {
+			continue
+		}
+		if !wkutil.ArrayContainsUint64(slot.Replicas, s.opts.NodeID) {
 			continue
 		}
 		st, err := s.newSlotBySlotInfo(slot)

@@ -140,7 +140,8 @@ func handlerIMError(resp *rest.Response) error {
 type ClusterMsgType uint32
 
 const (
-	ClusterMsgTypeConnWrite ClusterMsgType = 1001
+	ClusterMsgTypeConnWrite ClusterMsgType = 1001 // 连接写入数据
+	ClusterMsgTypeConnClose ClusterMsgType = 1002 // 连接关闭
 )
 
 func (c ClusterMsgType) Uint32() uint32 {

@@ -46,7 +46,8 @@ func New(nodeId uint64, opts *Options) *Server {
 		opts:                 opts,
 		Log:                  wklog.NewWKLog(fmt.Sprintf("clusterServer[%d]", opts.NodeID)),
 	}
-
+	opts.nodeOnlineFnc = s.nodeCliOnline
+	opts.requestSlotLogInfo = s.requestSlotLogInfo
 	wklog.Configure(&wklog.Options{
 		Level: opts.LogLevel,
 	})
@@ -64,6 +65,26 @@ func New(nodeId uint64, opts *Options) *Server {
 	}
 	s.cancelCtx, s.cancelFunc = context.WithCancel(context.Background())
 	return s
+}
+
+func (s *Server) nodeCliOnline(nodeID uint64) (bool, error) {
+	if s.opts.NodeID == nodeID {
+		return true, nil
+	}
+	node := s.nodeManager.node(nodeID)
+	if node == nil {
+		return false, errors.New("node not found")
+	}
+	fmt.Println("online---->", node.online())
+	return node.online(), nil
+}
+
+func (s *Server) requestSlotLogInfo(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error) {
+	node := s.nodeManager.node(nodeId)
+	if node == nil {
+		return nil, ErrNodeNotFound
+	}
+	return node.requestSlotLogInfo(ctx, req)
 }
 
 func (s *Server) Start() error {
@@ -278,7 +299,7 @@ func (s *Server) handleChannelMsg(from uint64, m *proto.Message) {
 		s.Error("unmarshal slot message error", zap.Error(err))
 		return
 	}
-	s.Info("收到频道消息", zap.Uint64("from", msg.From), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.String("msgType", msg.MsgType.String()))
+	s.Info("收到频道消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From), zap.Uint32("term", msg.Term), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.Uint64("index", msg.Index), zap.Uint64("committed", msg.CommittedIndex))
 
 	channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
 	err = s.channelGroupManager.handleMessage(channelID, channelType, msg.Message)

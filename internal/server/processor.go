@@ -1033,6 +1033,24 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 // #################### process conn close ####################
 func (p *Processor) processClose(conn wknet.Conn) {
 	p.Debug("conn is close", zap.Any("conn", conn))
+
+	if p.s.opts.ClusterOn() {
+		leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(conn.UID(), wkproto.ChannelTypePerson) // 获取频道的槽领导节点
+		if err != nil {
+			p.Error("获取频道所在节点失败！", zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return
+		}
+		if leaderInfo.Id != p.s.opts.Cluster.PeerID {
+			err = p.s.connectClose(leaderInfo.Id, &rpc.ConnectCloseReq{
+				Uid:      conn.UID(),
+				DeviceId: conn.DeviceID(),
+			})
+			if err != nil {
+				p.Error("forward connect close is fail", zap.Error(err))
+			}
+		}
+	}
+
 	if conn.Context() != nil {
 		p.s.connManager.RemoveConn(conn)
 		connCtx := conn.Context().(*connContext)

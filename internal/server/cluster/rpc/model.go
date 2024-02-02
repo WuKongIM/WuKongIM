@@ -81,3 +81,11 @@ func (r *RecvacksReq) Unmarshal(data []byte) error {
 func (r *RecvacksReq) Marshal() ([]byte, error) {
 	return proto.Marshal(r)
 }
+
+func (r *ConnectCloseReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, r)
+}
+
+func (r *ConnectCloseReq) Marshal() ([]byte, error) {
+	return proto.Marshal(r)
+}

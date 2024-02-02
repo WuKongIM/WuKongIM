@@ -401,3 +401,81 @@ func (s *SlotProposeReq) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+
+type SlotLogInfoReq struct {
+	SlotIds []uint32
+}
+
+func (s *SlotLogInfoReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(uint16(len(s.SlotIds)))
+	for _, slotId := range s.SlotIds {
+		enc.WriteUint32(slotId)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *SlotLogInfoReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var slotIdsLen uint16
+	if slotIdsLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if slotIdsLen > 0 {
+		s.SlotIds = make([]uint32, slotIdsLen)
+		for i := uint16(0); i < slotIdsLen; i++ {
+			if s.SlotIds[i], err = dec.Uint32(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+type SlotInfo struct {
+	SlotId   uint32
+	LogIndex uint64
+}
+
+type SlotLogInfoResp struct {
+	NodeId uint64
+	Slots  []SlotInfo
+}
+
+func (s *SlotLogInfoResp) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(s.NodeId)
+	enc.WriteUint16(uint16(len(s.Slots)))
+	for _, slot := range s.Slots {
+		enc.WriteUint32(slot.SlotId)
+		enc.WriteUint64(slot.LogIndex)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *SlotLogInfoResp) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if s.NodeId, err = dec.Uint64(); err != nil {
+		return err
+	}
+	var slotsLen uint16
+	if slotsLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if slotsLen > 0 {
+		s.Slots = make([]SlotInfo, slotsLen)
+		for i := uint16(0); i < slotsLen; i++ {
+			if s.Slots[i].SlotId, err = dec.Uint32(); err != nil {
+				return err
+			}
+			if s.Slots[i].LogIndex, err = dec.Uint64(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

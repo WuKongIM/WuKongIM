@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"time"
 
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
@@ -30,6 +31,9 @@ type Options struct {
 	ChannelGroupCount            int                                           // channelGroup数量
 	OnSlotApply                  func(slotId uint32, logs []replica.Log) error // 槽数据应用
 	LogLevel                     zapcore.Level                                 // 日志级别
+
+	nodeOnlineFnc      func(nodeID uint64) (bool, error) // 节点是否在线
+	requestSlotLogInfo func(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error)
 }
 
 func NewOptions(optList ...Option) *Options {

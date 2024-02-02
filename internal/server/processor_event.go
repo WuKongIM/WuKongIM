@@ -27,6 +27,8 @@ func (p *Processor) handleClusterMessage(from uint64, msg *proto.Message) {
 	switch ClusterMsgType(msg.MsgType) {
 	case ClusterMsgTypeConnWrite: // 远程连接写入
 		p.handleConnWrite(from, msg)
+	case ClusterMsgTypeConnClose:
+		p.handleConnClose(from, msg)
 	}
 }
 
@@ -142,6 +144,16 @@ func (p *Processor) handleConnWrite(from uint64, msg *proto.Message) {
 		p.Error("onConnectWriteReq err", zap.Error(err))
 		return
 	}
+}
+
+func (p *Processor) handleConnClose(from uint64, msg *proto.Message) {
+	var req = &rpc.ConnectCloseReq{}
+	err := req.Unmarshal(msg.Content)
+	if err != nil {
+		p.Error("unmarshal connectCloseReq err", zap.Error(err))
+		return
+	}
+	p.OnConnectCloseReq(req)
 }
 
 // func (p *Processor) handleOnConnectWriteReq(c *wkserver.Context) {
@@ -377,6 +389,15 @@ func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, e
 	}
 	p.s.dispatch.dataOut(conn, req.Data)
 	return proto.Status_OK, nil
+}
+
+func (p *Processor) OnConnectCloseReq(req *rpc.ConnectCloseReq) {
+	conn := p.s.connManager.GetConnWithDeviceID(req.Uid, req.DeviceId)
+	if conn == nil {
+		p.Warn("OnConnectCloseReq: conn not exist", zap.String("uid", req.Uid), zap.String("deviceId", req.DeviceId))
+		return
+	}
+	p.processClose(conn)
 }
 
 // OnConnPingReq 领导节点收到连接ping

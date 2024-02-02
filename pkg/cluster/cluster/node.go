@@ -3,24 +3,27 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 )
 
 type node struct {
-	id     uint64
-	addr   string
-	client *client.Client
+	id              uint64
+	addr            string
+	client          *client.Client
+	activityTimeout time.Duration // 活动超时时间，如果这个时间内没有活动，就表示节点已下线
 }
 
 func newNode(id uint64, uid string, addr string) *node {
 	cli := client.New(addr, client.WithUID(uid))
 
 	return &node{
-		id:     id,
-		addr:   addr,
-		client: cli,
+		id:              id,
+		addr:            addr,
+		client:          cli,
+		activityTimeout: time.Second * 10, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
 	}
 }
 
@@ -30,6 +33,10 @@ func (n *node) start() {
 
 func (n *node) stop() {
 	n.client.Close()
+}
+
+func (n *node) online() bool {
+	return time.Since(n.client.LastActivity()) < n.activityTimeout
 }
 
 func (n *node) send(msg *proto.Message) error {
@@ -131,6 +138,27 @@ func (n *node) requestUpdateNodeApiServerAddr(ctx context.Context, req *UpdateNo
 		return fmt.Errorf("requestUpdateNodeApiServerAddr is failed, status:%d", resp.Status)
 	}
 	return nil
+}
+
+func (n *node) requestSlotLogInfo(ctx context.Context, req *SlotLogInfoReq) (*SlotLogInfoResp, error) {
+	data, err := req.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := n.client.RequestWithContext(ctx, "/slot/logInfo", data)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != proto.Status_OK {
+		return nil, fmt.Errorf("requestSlotLogInfo is failed, status:%d", resp.Status)
+	}
+	slotLogInfoResp := &SlotLogInfoResp{}
+	err = slotLogInfoResp.Unmarshal(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return slotLogInfoResp, nil
+
 }
 
 func (n *node) requestSlotPropose(ctx context.Context, req *SlotProposeReq) error {

@@ -296,9 +296,7 @@ func (cm *ConversationManager) flushUserConversations(uid string) {
 		}
 
 	}
-	fmt.Println("AddOrUpdateConversations...................1", uid, len(conversations))
 	err := cm.s.store.AddOrUpdateConversations(uid, conversations)
-	fmt.Println("AddOrUpdateConversations...................2", uid, len(conversations))
 	if err != nil {
 		cm.Warn("Failed to store conversation data", zap.Error(err))
 	} else {
