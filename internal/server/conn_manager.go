@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
@@ -8,11 +9,10 @@ import (
 )
 
 type ConnManager struct {
-	userConnMap map[string][]int64
-	connMap     map[int64]int
+	userConnMap map[string][]string
+	connMap     map[string]int
 
-	peerProxyConnMap map[uint64]map[int64]int64
-	proxyConnMap     map[int64]*ProxyClientConn
+	proxyConnMap map[string]*ProxyClientConn
 
 	sync.RWMutex
 	s *Server
@@ -21,108 +21,104 @@ type ConnManager struct {
 func NewConnManager(s *Server) *ConnManager {
 
 	return &ConnManager{
-		userConnMap:      make(map[string][]int64),
-		connMap:          make(map[int64]int),
-		peerProxyConnMap: make(map[uint64]map[int64]int64),
-		proxyConnMap:     make(map[int64]*ProxyClientConn),
-		s:                s,
+		userConnMap:  make(map[string][]string),
+		connMap:      make(map[string]int),
+		proxyConnMap: make(map[string]*ProxyClientConn),
+		s:            s,
 	}
 }
 
 func (c *ConnManager) AddConn(conn wknet.Conn) {
 	c.Lock()
 	defer c.Unlock()
-	connIDs := c.userConnMap[conn.UID()]
-	if connIDs == nil {
-		connIDs = make([]int64, 0, 10)
+	devices := c.userConnMap[conn.UID()]
+	if devices == nil {
+		devices = make([]string, 0, 10)
 	}
-	connIDs = append(connIDs, conn.ID())
-	c.userConnMap[conn.UID()] = connIDs
+	devices = append(devices, conn.DeviceID())
+	c.userConnMap[conn.UID()] = devices
 
 	proxyConn, ok := conn.(*ProxyClientConn)
 	if ok {
 		c.addProxyConn(proxyConn)
 	} else {
-		c.connMap[conn.ID()] = conn.Fd().Fd()
+		c.connMap[c.userDeviceID(conn.UID(), conn.DeviceID())] = conn.Fd().Fd()
 	}
 
+}
+
+func (c *ConnManager) userDeviceID(uid string, deviceId string) string {
+	return fmt.Sprintf("%s:%s", uid, deviceId)
 }
 
 func (c *ConnManager) addProxyConn(conn *ProxyClientConn) {
-	peerConnMap := c.peerProxyConnMap[conn.belongNodeID]
-	if peerConnMap == nil {
-		peerConnMap = make(map[int64]int64)
-	}
-	peerConnMap[conn.orgID] = conn.ID()
-	c.peerProxyConnMap[conn.belongNodeID] = peerConnMap
-	c.proxyConnMap[conn.ID()] = conn
+	c.proxyConnMap[c.userDeviceID(conn.UID(), conn.DeviceID())] = conn
 }
 
-func (c *ConnManager) removeProxyConn(conn *ProxyClientConn) {
-	peerConnMap := c.peerProxyConnMap[conn.belongNodeID]
-	if peerConnMap == nil {
-		return
-	}
-	delete(peerConnMap, conn.orgID)
-	delete(c.proxyConnMap, conn.ID())
-}
+// func (c *ConnManager) removeProxyConn(conn *ProxyClientConn) {
+// 	peerConnMap := c.peerProxyConnMap[conn.belongNodeID]
+// 	if peerConnMap == nil {
+// 		return
+// 	}
+// 	delete(peerConnMap, conn.orgID)
+// 	delete(c.proxyConnMap, conn.ID())
+// }
 
-func (c *ConnManager) GetProxyConn(peerID uint64, orgID int64) *ProxyClientConn {
+// func (c *ConnManager) GetProxyConn(peerID uint64, orgID int64) *ProxyClientConn {
+// 	c.Lock()
+// 	defer c.Unlock()
+// 	peerConnMap := c.peerProxyConnMap[peerID]
+// 	if peerConnMap == nil {
+// 		return nil
+// 	}
+// 	connID := peerConnMap[orgID]
+// 	if connID == 0 {
+// 		return nil
+// 	}
+// 	return c.proxyConnMap[connID]
+// }
+
+// func (c *ConnManager) getProxyConnByID(id int64) *ProxyClientConn {
+// 	return c.proxyConnMap[id]
+// }
+
+func (c *ConnManager) GetConn(uid string, deviceId string) wknet.Conn {
 	c.Lock()
 	defer c.Unlock()
-	peerConnMap := c.peerProxyConnMap[peerID]
-	if peerConnMap == nil {
-		return nil
-	}
-	connID := peerConnMap[orgID]
-	if connID == 0 {
-		return nil
-	}
-	return c.proxyConnMap[connID]
-}
-
-func (c *ConnManager) getProxyConnByID(id int64) *ProxyClientConn {
-	return c.proxyConnMap[id]
-}
-
-func (c *ConnManager) GetConn(id int64) wknet.Conn {
-	c.Lock()
-	defer c.Unlock()
-	proxyConn := c.getProxyConnByID(id)
-	if proxyConn != nil {
+	fd, ok := c.connMap[c.userDeviceID(uid, deviceId)]
+	if !ok {
+		proxyConn := c.proxyConnMap[c.userDeviceID(uid, deviceId)]
 		return proxyConn
 	}
-	return c.s.dispatch.engine.GetConn(c.connMap[id])
+	return c.s.dispatch.engine.GetConn(fd)
 }
 
 func (c *ConnManager) RemoveConn(conn wknet.Conn) {
 
-	c.RemoveConnWithID(conn.ID())
+	c.RemoveConnWithID(conn.UID(), conn.DeviceID())
 }
 
-func (c *ConnManager) RemoveConnWithID(id int64) {
+func (c *ConnManager) RemoveConnWithID(uid string, deviceId string) {
 	c.Lock()
 	defer c.Unlock()
 
-	proxyConn := c.getProxyConnByID(id)
-	var conn wknet.Conn
-	if proxyConn != nil {
-		c.removeProxyConn(proxyConn)
-		conn = proxyConn
-	} else {
-		conn = c.s.dispatch.engine.GetConn(c.connMap[id])
-		delete(c.connMap, id)
-		if conn == nil {
-			return
-		}
+	userFlag := c.userDeviceID(uid, deviceId)
+	fd := c.connMap[userFlag]
+	fmt.Println("RemoveConnWithID---->", uid, deviceId, fd)
+	conn := c.s.dispatch.engine.GetConn(fd)
+	delete(c.connMap, userFlag)
+	if conn == nil {
+		delete(c.proxyConnMap, userFlag)
+		return
 	}
 
-	connIDs := c.userConnMap[conn.UID()]
-	if len(connIDs) > 0 {
-		for index, connID := range connIDs {
-			if connID == conn.ID() {
-				connIDs = append(connIDs[:index], connIDs[index+1:]...)
-				c.userConnMap[conn.UID()] = connIDs
+	devices := c.userConnMap[conn.UID()]
+	if len(devices) > 0 {
+		for index, deviceId := range devices {
+			if deviceId == conn.DeviceID() {
+				devices = append(devices[:index], devices[index+1:]...)
+				c.userConnMap[conn.UID()] = devices
+				fmt.Println("RemoveConnWithID----2>", uid, deviceId, devices)
 			}
 		}
 	}
@@ -131,21 +127,23 @@ func (c *ConnManager) RemoveConnWithID(id int64) {
 func (c *ConnManager) GetConnsWithUID(uid string) []wknet.Conn {
 	c.Lock()
 	defer c.Unlock()
-	connIDs := c.userConnMap[uid]
-	if len(connIDs) == 0 {
+
+	devices := c.userConnMap[uid]
+	if len(devices) == 0 {
 		return nil
 	}
-	conns := make([]wknet.Conn, 0, len(connIDs))
+	conns := make([]wknet.Conn, 0, len(devices))
 	var conn wknet.Conn
-	for _, id := range connIDs {
-		proxyConn := c.getProxyConnByID(id)
-		if proxyConn == nil {
-			conn = c.s.dispatch.engine.GetConn(c.connMap[id])
-		} else {
-			conn = proxyConn
-		}
+	for _, deviceId := range devices {
+		userFlag := c.userDeviceID(uid, deviceId)
+		conn = c.s.dispatch.engine.GetConn(c.connMap[userFlag])
 		if conn != nil {
 			conns = append(conns, conn)
+		} else {
+			proxyConn := c.proxyConnMap[userFlag]
+			if proxyConn != nil {
+				conns = append(conns, proxyConn)
+			}
 		}
 	}
 	return conns
@@ -208,17 +206,18 @@ func (c *ConnManager) GetOnlineConns(uids []string) []wknet.Conn {
 	defer c.Unlock()
 	var onlineConns = make([]wknet.Conn, 0, len(uids))
 	for _, uid := range uids {
-		connIDs := c.userConnMap[uid]
+		devices := c.userConnMap[uid]
 		var conn wknet.Conn
-		for _, connID := range connIDs {
-			proxyConn := c.getProxyConnByID(connID)
-			if proxyConn == nil {
-				conn = c.s.dispatch.engine.GetConn(c.connMap[connID])
-			} else {
-				conn = proxyConn
-			}
+		for _, deviceId := range devices {
+			userFlag := c.userDeviceID(uid, deviceId)
+			conn = c.s.dispatch.engine.GetConn(c.connMap[userFlag])
 			if conn != nil {
 				onlineConns = append(onlineConns, conn)
+			} else {
+				proxyConn := c.proxyConnMap[userFlag]
+				if proxyConn != nil {
+					onlineConns = append(onlineConns, proxyConn)
+				}
 			}
 		}
 	}

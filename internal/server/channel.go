@@ -452,9 +452,6 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 		c.Error("获取频道失败！", zap.Error(err))
 		return err
 	}
-	for _, m := range messages {
-		fmt.Println("put--------->", m.MessageSeq)
-	}
 	c.Debug("订阅者数量", zap.Any("subscribers", len(subscribers)))
 	if len(subscribers) == 0 {
 		return nil
@@ -495,17 +492,17 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 func (c *Channel) calcNodeSubscribers(subscribers []string) (map[uint64][]string, error) {
 	subscriberNodeIDMap := make(map[uint64][]string)
 	for _, subscriber := range subscribers {
-		leaderInfo, err := c.s.cluster.LeaderNodeOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := c.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			c.Error("获取频道所在节点失败！", zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return nil, err
 		}
-		nodeSubscribers, ok := subscriberNodeIDMap[leaderInfo.NodeID]
+		nodeSubscribers, ok := subscriberNodeIDMap[leaderInfo.Id]
 		if !ok {
 			nodeSubscribers = make([]string, 0)
 		}
 		nodeSubscribers = append(nodeSubscribers, subscriber)
-		subscriberNodeIDMap[leaderInfo.NodeID] = nodeSubscribers
+		subscriberNodeIDMap[leaderInfo.Id] = nodeSubscribers
 	}
 	return subscriberNodeIDMap, nil
 
@@ -515,14 +512,12 @@ func (c *Channel) calcNodeSubscribers(subscribers []string) (map[uint64][]string
 func (c *Channel) forwardToOtherPeerSubscribers(messages []*Message, large bool, peerID uint64, subscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
 	recvPacketDatas := make([]byte, 0)
 	for _, m := range messages {
-		fmt.Println("msg-------msg--->seq-->", m.MessageSeq)
 		recvPacket := m.RecvPacket
 		data, err := c.s.opts.Proto.EncodeFrame(recvPacket, wkproto.LatestVersion)
 		if err != nil {
 			c.Error("encode recvPacket err", zap.Error(err))
 			return err
 		}
-		fmt.Println("recvPacket-------msg--->seq-->", recvPacket.MessageSeq, recvPacket.ChannelID, string(recvPacket.Payload))
 		recvPacketDatas = append(recvPacketDatas, data...)
 	}
 	req := &rpc.ForwardRecvPacketReq{

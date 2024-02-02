@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
 )
 
@@ -27,12 +27,13 @@ type channel struct {
 	prev *channel
 	next *channel
 
-	sync.Mutex
+	mu           deadlock.Mutex
+	localstorage *localStorage
 }
 
-func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, lastSyncInfoMap map[uint64]*replica.SyncInfo, opts *Options) *channel {
+func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, lastSyncInfoMap map[uint64]*replica.SyncInfo, localstorage *localStorage, opts *Options) *channel {
 	shardNo := ChannelKey(clusterConfig.ChannelID, clusterConfig.ChannelType)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithLastSyncInfoMap(lastSyncInfoMap), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage)))
+	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithLastSyncInfoMap(lastSyncInfoMap), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage, localstorage)))
 	return &channel{
 		maxHandleReadyCountOfBatch: 50,
 		rc:                         rc,
@@ -44,12 +45,13 @@ func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, lastSync
 		channelType:                clusterConfig.ChannelType,
 		clusterConfig:              clusterConfig,
 		doneC:                      make(chan struct{}),
+		localstorage:               localstorage,
 	}
 }
 
 func (c *channel) updateClusterConfig(clusterConfig *ChannelClusterConfig) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.clusterConfig = clusterConfig
 	c.rc.SetReplicas(clusterConfig.Replicas)
 	if clusterConfig.LeaderId == c.opts.NodeID {
@@ -63,8 +65,8 @@ func (c *channel) ready() replica.Ready {
 	if c.destroy {
 		return replica.Ready{}
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.rc.Ready()
 }
 
@@ -72,8 +74,8 @@ func (c *channel) hasReady() bool {
 	if c.destroy {
 		return false
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.rc.HasReady()
 }
 
@@ -98,9 +100,11 @@ func (c *channel) appointLeaderTo(term uint32, to uint64) error {
 }
 
 func (c *channel) stepLock(msg replica.Message) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.step(msg)
+	c.mu.Lock()
+	err := c.step(msg)
+	c.mu.Unlock()
+	return err
+
 }
 
 func (c *channel) step(msg replica.Message) error {
@@ -118,34 +122,60 @@ func (c *channel) propose(data []byte) error {
 	return c.stepLock(c.rc.NewProposeMessage(data))
 }
 
-// 提案数据，并等待数据提交给大多数节点
 func (c *channel) proposeAndWaitCommit(data []byte, timeout time.Duration) (uint64, error) {
-
-	c.Lock()
 	if c.destroy {
-		c.Unlock()
 		return 0, errors.New("channel destroy, can not propose")
 	}
-	msg := c.rc.NewProposeMessage(data)
+	lastIndexs, err := c.proposeAndWaitCommits([][]byte{data}, timeout)
+	if err != nil {
+		return 0, err
+	}
+	if len(lastIndexs) == 0 {
+		return 0, errors.New("lastIndexs is empty")
+	}
+	return lastIndexs[0], nil
+}
+
+// 提案数据，并等待数据提交给大多数节点
+func (c *channel) proposeAndWaitCommits(data [][]byte, timeout time.Duration) ([]uint64, error) {
+	if len(data) == 0 {
+		return nil, errors.New("data is empty")
+	}
+	c.mu.Lock()
+	if c.destroy {
+		c.mu.Unlock()
+		return nil, errors.New("channel destroy, can not propose")
+	}
+	msgs := make([]replica.Message, 0, len(data))
+	seqs := make([]uint64, 0, len(data))
+	for i, d := range data {
+		msg := c.rc.NewProposeMessage(d)
+		msg.Index = c.rc.State().LastLogIndex() + uint64(1+i)
+		msgs = append(msgs, msg)
+		seqs = append(seqs, msg.Index)
+	}
+
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	waitC := c.commitWait.addWaitIndex(msg.Index)
-	err := c.step(msg)
-	if err != nil {
-		c.Unlock()
-		return 0, err
+	lastMsg := msgs[len(msgs)-1]
+	waitC := c.commitWait.addWaitIndex(lastMsg.Index)
+	for _, msg := range msgs {
+		err := c.step(msg)
+		if err != nil {
+			c.mu.Unlock()
+			return nil, err
+		}
 	}
-	c.Unlock()
+	c.mu.Unlock()
 
 	select {
 	case <-waitC:
-		fmt.Println("waitC--->", msg.Index)
-		return msg.Index, nil
+		return seqs, nil
 	case <-timeoutCtx.Done():
-		return 0, timeoutCtx.Err()
+		return nil, timeoutCtx.Err()
 	case <-c.doneC:
-		return 0, ErrStopped
+		return nil, ErrStopped
 	}
 }
 
@@ -192,7 +222,14 @@ func (c *channel) handleApplyLogsReq(msg replica.Message) {
 	c.commitWait.commitIndex(lastLog.Index)
 	c.Debug("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))
 
-	err := c.stepLock(c.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
+	shardNo := ChannelKey(c.channelID, c.channelType)
+	err := c.localstorage.setAppliedIndex(shardNo, lastLog.Index)
+	if err != nil {
+		c.Error("set applied index failed", zap.Error(err))
+		return
+	}
+
+	err = c.stepLock(c.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
 	if err != nil {
 		c.Error("step apply logs resp failed", zap.Error(err))
 	}
@@ -204,4 +241,8 @@ func (c *channel) handleMessage(msg replica.Message) error {
 
 func (c *channel) isLeader() bool {
 	return c.rc.IsLeader()
+}
+
+func (c *channel) leaderId() uint64 {
+	return c.rc.LeaderId()
 }

@@ -48,6 +48,10 @@ func (f *FileStoreForMsg) AppendMessagesOfUser(uid string, msgs []Message) (seqs
 	return
 }
 
+func (f *FileStoreForMsg) TruncateLogTo(channelID string, channelType uint8, messageSeq uint32) error {
+	return f.getTopic(channelID, channelType).truncateLogTo(messageSeq)
+}
+
 func (f *FileStore) SaveStreamMeta(meta *StreamMeta) error {
 	return f.getTopic(meta.ChannelID, meta.ChannelType).saveStreamMeta(meta)
 }

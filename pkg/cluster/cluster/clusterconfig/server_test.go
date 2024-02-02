@@ -30,12 +30,12 @@ func TestServerAddOrUpdateNodes(t *testing.T) {
 
 	err := leaderNode.AddOrUpdateNodes([]*pb.Node{
 		{
-			Id:    1,
-			Extra: []byte("hello"),
+			Id:            1,
+			ApiServerAddr: "hello",
 		},
 		{
-			Id:    2,
-			Extra: []byte("hello2"),
+			Id:            2,
+			ApiServerAddr: "hello2",
 		},
 	})
 	assert.NoError(t, err)
@@ -58,14 +58,14 @@ func TestServerAddOrUpdateNodes(t *testing.T) {
 	assert.Equal(t, uint64(1), nodes3[0].Id)
 	assert.Equal(t, uint64(2), nodes3[1].Id)
 
-	assert.Equal(t, []byte("hello"), nodes1[0].Extra)
-	assert.Equal(t, []byte("hello2"), nodes1[1].Extra)
+	assert.Equal(t, []byte("hello"), nodes1[0].ApiServerAddr)
+	assert.Equal(t, []byte("hello2"), nodes1[1].ApiServerAddr)
 
-	assert.Equal(t, []byte("hello"), nodes2[0].Extra)
-	assert.Equal(t, []byte("hello2"), nodes2[1].Extra)
+	assert.Equal(t, []byte("hello"), nodes2[0].ApiServerAddr)
+	assert.Equal(t, []byte("hello2"), nodes2[1].ApiServerAddr)
 
-	assert.Equal(t, []byte("hello"), nodes3[0].Extra)
-	assert.Equal(t, []byte("hello2"), nodes3[1].Extra)
+	assert.Equal(t, []byte("hello"), nodes3[0].ApiServerAddr)
+	assert.Equal(t, []byte("hello2"), nodes3[1].ApiServerAddr)
 
 }
 

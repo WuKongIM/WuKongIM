@@ -403,7 +403,7 @@ func TestAppendMessagesOfUser(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	messages, err := store.SyncMessageOfUser(uid, 0, 2)
+	messages, err := store.SyncMessageOfUser(uid, 0, 0, 2)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(messages))
 	assert.Equal(t, uint32(1), messages[0].GetSeq())

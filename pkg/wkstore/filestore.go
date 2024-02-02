@@ -130,8 +130,8 @@ func (f *FileStore) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel ui
 	})), f.wo)
 }
 
-func (f *FileStore) SyncMessageOfUser(uid string, startMessageSeq uint32, limit int) ([]Message, error) {
-	return f.FileStoreForMsg.LoadNextRangeMsgs(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson, startMessageSeq, 0, limit)
+func (f *FileStore) SyncMessageOfUser(uid string, startMessageSeq, endMessageSeq uint32, limit int) ([]Message, error) {
+	return f.FileStoreForMsg.LoadNextRangeMsgs(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson, startMessageSeq, endMessageSeq, limit)
 }
 
 func (f *FileStore) AddSubscribers(channelID string, channelType uint8, uids []string) error {
@@ -589,12 +589,12 @@ func (f *FileStore) getConversationKey(uid string, channelID string, channelType
 
 func (f *FileStore) getConversationLowKey(uid string) string {
 	slotID := f.slotNum(uid)
-	return fmt.Sprintf("/conversation/slots/%s/users/%s/channels/%s", f.getSlotFillFormat(slotID), uid, fmt.Sprintf("%03d", 0))
+	return fmt.Sprintf("/conversation/slots/%s/users/%s/channels/%s", f.getSlotFillFormat(slotID), uid, f.getSlotFillFormatMin())
 }
 
 func (f *FileStore) getConversationHighKey(uid string) string {
 	slotID := f.slotNum(uid)
-	return fmt.Sprintf("/conversation/slots/%s/users/%s/channels/%s", f.getSlotFillFormat(slotID), uid, fmt.Sprintf("%03d", 256))
+	return fmt.Sprintf("/conversation/slots/%s/users/%s/channels/%s", f.getSlotFillFormat(slotID), uid, f.getSlotFillFormatMax())
 }
 
 func (f *FileStore) getNotifyQueueKey(messageID int64) string {

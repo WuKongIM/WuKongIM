@@ -51,8 +51,19 @@ func (p *PebbleShardLogStorage) Close() error {
 // AppendLog 追加日志
 func (p *PebbleShardLogStorage) AppendLog(shardNo string, logs []replica.Log) error {
 
+	lastIndex, err := p.LastIndex(shardNo)
+	if err != nil {
+		return err
+	}
+	if logs[len(logs)-1].Index <= lastIndex {
+		return nil
+	}
+
 	batch := p.db.NewBatch()
 	for _, lg := range logs {
+		if lg.Index <= lastIndex {
+			continue
+		}
 		logData, err := lg.Marshal()
 		if err != nil {
 			return err
@@ -63,7 +74,7 @@ func (p *PebbleShardLogStorage) AppendLog(shardNo string, logs []replica.Log) er
 			return err
 		}
 	}
-	err := batch.Commit(p.wo)
+	err = batch.Commit(p.wo)
 	if err != nil {
 		return err
 	}
@@ -75,7 +86,19 @@ func (p *PebbleShardLogStorage) AppendLog(shardNo string, logs []replica.Log) er
 func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
 	keyData := key.NewLogKey(shardNo, index)
 	maxKeyData := key.NewLogKey(shardNo, math.MaxUint64)
-	return p.db.DeleteRange(keyData, maxKeyData, p.wo)
+	err := p.db.DeleteRange(keyData, maxKeyData, p.wo)
+	if err != nil {
+		return err
+	}
+	logs, _ := p.Logs(shardNo, 0, math.MaxUint64, 1000)
+	for _, lg := range logs {
+		fmt.Println("lg--->", lg.Index)
+	}
+
+	if index > 0 {
+		return p.saveMaxIndex(shardNo, index-1)
+	}
+	return p.saveMaxIndex(shardNo, 0)
 }
 
 func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limit uint32) ([]replica.Log, error) {
@@ -108,30 +131,6 @@ func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLo
 func (p *PebbleShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	lastIndex, _, err := p.getMaxIndex(shardNo)
 	return lastIndex, err
-}
-
-func (p *PebbleShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
-	appliedIndexKeyData := key.NewAppliedIndexKey(shardNo)
-	appliedIndexdata := make([]byte, 8)
-	binary.BigEndian.PutUint64(appliedIndexdata, index)
-	err := p.db.Set(appliedIndexKeyData, appliedIndexdata, p.wo)
-	return err
-}
-
-func (p *PebbleShardLogStorage) GetAppliedIndex(shardNo string) (uint64, error) {
-	appliedIndexKeyData := key.NewAppliedIndexKey(shardNo)
-	appliedIndexdata, closer, err := p.db.Get(appliedIndexKeyData)
-	if err != nil {
-		if err == pebble.ErrNotFound {
-			return 0, nil
-		}
-		return 0, err
-	}
-	defer closer.Close()
-	if len(appliedIndexdata) == 0 {
-		return 0, nil
-	}
-	return binary.BigEndian.Uint64(appliedIndexdata), nil
 }
 
 func (p *PebbleShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
@@ -181,7 +180,7 @@ func (p *PebbleShardLogStorage) LeaderTermStartIndex(shardNo string, term uint32
 
 func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
 	iter := p.db.NewIter(&pebble.IterOptions{
-		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term),
+		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term+1),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
 	defer iter.Close()
@@ -229,14 +228,14 @@ type localStorage struct {
 	db    *pebble.DB
 	dbDir string
 	wklog.Log
-	wo *pebble.WriteOptions
-	s  *Server
+	wo   *pebble.WriteOptions
+	opts *Options
 }
 
-func newLocalStorage(s *Server) *localStorage {
-	dbDir := path.Join(s.opts.DataDir, "wukongimdb")
+func newLocalStorage(opts *Options) *localStorage {
+	dbDir := path.Join(opts.DataDir, "wukongimdb")
 	return &localStorage{
-		s:     s,
+		opts:  opts,
 		dbDir: dbDir,
 		Log:   wklog.NewWKLog(fmt.Sprintf("localStorage[%s]", dbDir)),
 		wo: &pebble.WriteOptions{
@@ -286,7 +285,7 @@ func (l *localStorage) getChannelClusterConfig(channelID string, channelType uin
 }
 
 func (l *localStorage) getChannelSyncInfos(channelId string, channelType uint8) ([]*replica.SyncInfo, error) {
-	slotID := l.s.getChannelSlotId(channelId)
+	slotID := l.getChannelSlotId(channelId)
 	lowKey := l.getSlotSyncInfoKey(slotID, 0)
 	highKey := l.getSlotSyncInfoKey(slotID, math.MaxUint64)
 	iter := l.db.NewIter(&pebble.IterOptions{
@@ -325,8 +324,91 @@ func (l *localStorage) saveSlotSyncInfos(slotID uint32, syncInfos []*replica.Syn
 	return batch.Commit(l.wo)
 }
 
+func (l *localStorage) setLeaderTermStartIndex(shardNo string, term uint32, index uint64) error {
+	leaderTermStartIndexKeyData := l.leaderTermStartIndexKey(shardNo, term)
+	var indexData = make([]byte, 16)
+	binary.BigEndian.PutUint64(indexData, index)
+	binary.BigEndian.PutUint64(indexData[8:], index)
+	err := l.db.Set(leaderTermStartIndexKeyData, indexData, l.wo)
+	return err
+}
+
+func (l *localStorage) leaderLastTerm(shardNo string) (uint32, error) {
+	iter := l.db.NewIter(&pebble.IterOptions{
+		LowerBound: l.leaderTermStartIndexKey(shardNo, 0),
+		UpperBound: l.leaderTermStartIndexKey(shardNo, math.MaxUint32),
+	})
+	defer iter.Close()
+	var maxTerm uint32
+	for iter.First(); iter.Valid(); iter.Next() {
+		data := iter.Value()
+		term := binary.BigEndian.Uint32(data[:4])
+		if term > maxTerm {
+			maxTerm = term
+		}
+	}
+	return maxTerm, nil
+}
+
+func (l *localStorage) leaderTermStartIndex(shardNo string, term uint32) (uint64, error) {
+	leaderTermStartIndexKeyData := l.leaderTermStartIndexKey(shardNo, term)
+	leaderTermStartIndexData, closer, err := l.db.Get(leaderTermStartIndexKeyData)
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, nil
+		}
+		return 0, err
+	}
+	defer closer.Close()
+	if len(leaderTermStartIndexData) == 0 {
+		return 0, nil
+	}
+	return binary.BigEndian.Uint64(leaderTermStartIndexData[8:]), nil
+}
+
+func (l *localStorage) deleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
+	iter := l.db.NewIter(&pebble.IterOptions{
+		LowerBound: l.leaderTermStartIndexKey(shardNo, term),
+		UpperBound: l.leaderTermStartIndexKey(shardNo, math.MaxUint32),
+	})
+	defer iter.Close()
+	batch := l.db.NewBatch()
+	var err error
+	for iter.First(); iter.Valid(); iter.Next() {
+		err = batch.Delete(iter.Key(), l.wo)
+		if err != nil {
+			return err
+		}
+	}
+	return batch.Commit(l.wo)
+}
+
+func (l *localStorage) setAppliedIndex(shardNo string, index uint64) error {
+	appliedIndexKeyData := l.getAppliedIndexKey(shardNo)
+	appliedIndexdata := make([]byte, 8)
+	binary.BigEndian.PutUint64(appliedIndexdata, index)
+	err := l.db.Set(appliedIndexKeyData, appliedIndexdata, l.wo)
+	return err
+}
+
+func (l *localStorage) getAppliedIndex(shardNo string) (uint64, error) {
+	appliedIndexKeyData := l.getAppliedIndexKey(shardNo)
+	appliedIndexdata, closer, err := l.db.Get(appliedIndexKeyData)
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, nil
+		}
+		return 0, err
+	}
+	defer closer.Close()
+	if len(appliedIndexdata) == 0 {
+		return 0, nil
+	}
+	return binary.BigEndian.Uint64(appliedIndexdata), nil
+}
+
 func (l *localStorage) getChannelClusterConfigKey(channelID string, channelType uint8) []byte {
-	slotID := l.s.getChannelSlotId(channelID)
+	slotID := l.getChannelSlotId(channelID)
 	return []byte(fmt.Sprintf("/slots/%s/channelclusterconfig/channels/%03d/%s", l.getSlotFillFormat(slotID), channelType, channelID))
 }
 
@@ -339,14 +421,28 @@ func (l *localStorage) getSlotSyncInfoKey(slotID uint32, nodeID uint64) []byte {
 	return []byte(keyStr)
 }
 
+func (l *localStorage) leaderTermStartIndexKey(shardNo string, term uint32) []byte {
+	keyStr := fmt.Sprintf("/leadertermstartindex/%s/%010d", shardNo, term)
+	return []byte(keyStr)
+}
+
+func (l *localStorage) getAppliedIndexKey(shardNo string) []byte {
+	keyStr := fmt.Sprintf("/appliedindex/%s", shardNo)
+	return []byte(keyStr)
+}
+
 func (l *localStorage) getSlotFillFormat(slotID uint32) string {
-	return wkutil.GetSlotFillFormat(int(slotID), int(l.s.opts.SlotCount))
+	return wkutil.GetSlotFillFormat(int(slotID), int(l.opts.SlotCount))
 }
 
 func (l *localStorage) getSlotFillFormatMax() string {
-	return wkutil.GetSlotFillFormat(int(l.s.opts.SlotCount), int(l.s.opts.SlotCount))
+	return wkutil.GetSlotFillFormat(int(l.opts.SlotCount), int(l.opts.SlotCount))
 }
 
 func (l *localStorage) getSlotFillFormatMin() string {
-	return wkutil.GetSlotFillFormat(0, int(l.s.opts.SlotCount))
+	return wkutil.GetSlotFillFormat(0, int(l.opts.SlotCount))
+}
+
+func (l *localStorage) getChannelSlotId(channelId string) uint32 {
+	return wkutil.GetSlotNum(int(l.opts.SlotCount), channelId)
 }

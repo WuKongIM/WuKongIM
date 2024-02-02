@@ -28,6 +28,10 @@ type Replica struct {
 
 	// -------------------- leader --------------------
 	lastSyncInfoMap map[uint64]*SyncInfo // 副本日志信息
+	waitPing        bool                 // 是否等待领导发起ping消息
+	lastSentPing    time.Time            // 最后一次发送ping消息的时间
+	// pongMap          map[uint64]bool      // 已回应pong的节点
+	nodeCommittedMap map[uint64]uint64 // 节点已提交的日志下标
 
 	// -------------------- follower --------------------
 	// 禁止去同步领导的日志，因为这时候应该发起了 MsgLeaderTermStartOffsetReq 消息 还没有收到回复，只有收到回复后，追随者截断未知的日志后，才能去同步领导的日志，主要是解决日志冲突的问题
@@ -53,6 +57,8 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 			appliedIndex: opts.AppliedIndex,
 		},
 		lastSyncInfoMap: map[uint64]*SyncInfo{},
+		// pongMap:          map[uint64]bool{},
+		nodeCommittedMap: make(map[uint64]uint64),
 	}
 	lastIndex, err := rc.opts.Storage.LastIndex()
 	if err != nil {
@@ -126,6 +132,7 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.state.term = term
 	r.leader = leaderID
 	r.role = RoleFollower
+	r.waitPing = false
 
 	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
@@ -155,7 +162,8 @@ func (r *Replica) becomeLeader(term uint32) {
 			r.Panic("set leader term start index failed", zap.Error(err))
 		}
 	}
-
+	r.nodeCommittedMap = make(map[uint64]uint64)
+	r.waitPing = true
 }
 
 // func (r *Replica) becomeCandidate() {
@@ -179,6 +187,10 @@ func (r *Replica) IsLeader() bool {
 	return r.isLeader()
 }
 
+func (r *Replica) LeaderId() uint64 {
+	return r.leader
+}
+
 func (r *Replica) SetReplicas(replicas []uint64) {
 	r.replicas = replicas
 }
@@ -200,11 +212,20 @@ func (r *Replica) HasReady() bool {
 	if r.hasMsgs() {
 		return true
 	}
+	if r.lastSentPing.IsZero() || r.lastSentPing.Add(r.opts.PingInterval).Before(time.Now()) {
+		if r.isLeader() {
+			hasPing := r.hasNeedPing()
+			if hasPing {
+				return hasPing
+			}
+		}
+	}
+
 	if r.lastPutMsg.Add(r.opts.PutMsgInterval).Before(time.Now()) {
 		if r.disabledToSync && !r.isLeader() {
 			return true
 		}
-		if r.hasUncommittedLogs() && r.isLeader() {
+		if r.hasNeedSync() {
 			return true
 		}
 		if r.hasUnapplyLogs() {
@@ -219,6 +240,13 @@ func (r *Replica) HasReady() bool {
 // 放入消息
 func (r *Replica) putMsgIfNeed() {
 
+	if r.waitPing {
+		if r.lastSentPing.IsZero() || r.lastSentPing.Add(r.opts.PingInterval).Before(time.Now()) {
+			if r.isLeader() {
+				r.sendPingIfNeed()
+			}
+		}
+	}
 	if r.lastPutMsg.Add(r.opts.PutMsgInterval).After(time.Now()) {
 		return
 	}
@@ -236,10 +264,8 @@ func (r *Replica) putMsgIfNeed() {
 		}
 		return
 	}
-	if r.hasUncommittedLogs() {
-		if r.isLeader() && !hasMsg(MsgSync, r.msgs) {
-			r.msgs = append(r.msgs, r.newNotifySyncMsgs()...)
-		}
+	if r.hasNeedSync() {
+		r.sendNotifySyncIfNeed()
 	}
 	if r.hasUnapplyLogs() {
 		if !hasMsg(MsgApplyLogsReq, r.msgs) {
@@ -249,7 +275,8 @@ func (r *Replica) putMsgIfNeed() {
 				return
 			}
 			if len(logs) == 0 {
-				r.Error("get unapply logs failed", zap.Error(err))
+				lastIndex, _ := r.opts.Storage.LastIndex()
+				r.Error("get unapply logs failed", zap.Error(err), zap.Uint64("lastIndex", lastIndex), zap.Uint64("startLogIndex", r.state.appliedIndex+1), zap.Uint64("endLogIndex", r.state.committedIndex+1))
 				return
 			}
 			if len(logs) > 0 {
@@ -303,11 +330,12 @@ func (r *Replica) newNotifySyncMsgs() []Message {
 
 func (r *Replica) newNotifySyncMsg(replicaID uint64) Message {
 	return Message{
-		No:      fmt.Sprintf("notifySync:%d:%d:%s", r.state.term, replicaID, r.shardNo),
-		MsgType: MsgNotifySync,
-		From:    r.nodeID,
-		To:      replicaID,
-		Term:    r.state.term,
+		No:             fmt.Sprintf("notifySync:%d:%d:%s", r.state.term, replicaID, r.shardNo),
+		MsgType:        MsgNotifySync,
+		From:           r.nodeID,
+		To:             replicaID,
+		Term:           r.state.term,
+		CommittedIndex: r.state.committedIndex,
 	}
 }
 
@@ -328,6 +356,16 @@ func (r *Replica) newSyncMsg() Message {
 		From:    r.nodeID,
 		To:      r.leader,
 		Term:    r.state.term,
+	}
+}
+
+func (r *Replica) newPing(to uint64) Message {
+	return Message{
+		MsgType:        MsgPing,
+		From:           r.nodeID,
+		To:             to,
+		Term:           r.state.term,
+		CommittedIndex: r.state.committedIndex,
 	}
 }
 

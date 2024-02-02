@@ -257,6 +257,7 @@ func (cm *ConversationManager) getUserAllConversationMapFromStore(uid string) ([
 		cm.Error("Failed to get the list of recent conversations", zap.String("uid", uid), zap.Error(err))
 		return nil, err
 	}
+	fmt.Println("conversations-------->", uid, len(conversations))
 	return conversations, nil
 }
 
@@ -295,7 +296,9 @@ func (cm *ConversationManager) flushUserConversations(uid string) {
 		}
 
 	}
+	fmt.Println("AddOrUpdateConversations...................1", uid, len(conversations))
 	err := cm.s.store.AddOrUpdateConversations(uid, conversations)
+	fmt.Println("AddOrUpdateConversations...................2", uid, len(conversations))
 	if err != nil {
 		cm.Warn("Failed to store conversation data", zap.Error(err))
 	} else {

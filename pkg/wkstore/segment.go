@@ -155,7 +155,7 @@ func (s *segment) readMessagesAtPosition(position int64, limit uint64, callback 
 func (s *segment) readTargetPosition(startPosition int64, targetMessageSeq uint32) (int64, int64, error) {
 
 	if startPosition >= s.getFileSize() {
-		s.Debug("当前文件位置大于文件本身大小", zap.Int64("startPosition", startPosition), zap.Int64("fileSize", s.getFileSize()), zap.Uint32("targetMessageSeq", targetMessageSeq))
+		s.Debug("当前文件位置大于文件本身大小", zap.Int64("startPosition", startPosition), zap.Int64("fileSize", s.getFileSize()), zap.Uint32("targetMessageSeq", targetMessageSeq), zap.Uint32("lastMsgSeq", s.lastMsgSeq.Load()))
 		return 0, 0, ErrorNotData
 	}
 	resultOffset, dataLen, err := decodeMessageSeq(s.segmentFile, startPosition)
@@ -340,6 +340,27 @@ func (s *segment) hasEndMagicNumer(segmentSizeOfByte int64) (bool, error) {
 		return false, err
 	}
 	return bytes.Equal(p, EndMagicNumber[:]), nil
+}
+
+func (s *segment) truncateLogTo(messageSeq uint32) error {
+
+	s.Lock()
+	defer s.Unlock()
+
+	if s.position == 0 {
+		return nil
+	}
+
+	messageSeqPosition, err := s.index.Lookup(messageSeq)
+	if err != nil {
+		return err
+	}
+	targetPosition, _, err := s.readTargetPosition(messageSeqPosition.Position, messageSeq)
+	if err != nil {
+		return err
+	}
+	err = s.segmentFile.Truncate(targetPosition)
+	return err
 }
 
 // 检查消息文件的有效性。

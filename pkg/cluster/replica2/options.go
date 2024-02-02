@@ -12,6 +12,7 @@ type Options struct {
 	SyncLimit             uint32        // 同步日志最大数量
 	PutMsgInterval        time.Duration // 放入消息的间隔时间
 	LastSyncInfoMap       map[uint64]*SyncInfo
+	PingInterval          time.Duration
 }
 
 func NewOptions() *Options {
@@ -20,6 +21,7 @@ func NewOptions() *Options {
 		SyncLimit:             100,
 		PutMsgInterval:        time.Millisecond * 100,
 		LastSyncInfoMap:       map[uint64]*SyncInfo{},
+		PingInterval:          time.Millisecond * 200,
 	}
 }
 

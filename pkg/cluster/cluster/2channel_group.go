@@ -86,9 +86,7 @@ func (g *channelGroup) handleReady(rd channelReady) {
 		shardNo = channel.channelKey()
 	)
 
-	g.Info("handle ready", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType))
 	for _, msg := range rd.Messages {
-		g.Info("recv msg", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
 		if msg.To == g.opts.NodeID {
 			channel.handleLocalMsg(msg)
 			continue
@@ -97,6 +95,8 @@ func (g *channelGroup) handleReady(rd channelReady) {
 			g.Error("msg.To is 0", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType))
 			continue
 		}
+		g.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
+
 		protMsg, err := NewMessage(shardNo, msg, MsgChannelMsg)
 		if err != nil {
 			g.Error("new message error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))

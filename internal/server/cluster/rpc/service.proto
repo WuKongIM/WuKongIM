@@ -42,8 +42,8 @@ message TracerInfo {
 }
 
 message ConnectReq {
-     int64 connID = 1; // 连接原始唯一ID
-     string uid = 2; // 用户ID
+     string uid = 1; // 用户ID
+     string deviceFlag = 2; // 用户设备标记
      uint64 belongPeerID = 3; // 连接真实所属节点ID
      bytes connectPacketData = 4; // 连接包数据
 }
@@ -57,15 +57,15 @@ message ConnectResp {
 }
 
 message ConnectWriteReq {
-     int64 connID = 1;
-     string uid = 2; // 用户ID
-     uint32 deviceFlag = 3; // 设备标识
+     string uid = 1; // 用户ID
+     uint32 deviceFlag = 2; // 设备标识
+     string deviceId = 3; // 设备ID
      bytes data = 4; // 数据
 }
 
 message ConnPingReq {
-     int64 connID = 1; // 连接原始唯一ID
-     string uid = 2; // 用户ID
+     string uid = 1; // 用户ID
+     string deviceId = 2; // 设备ID
      uint64 belongPeerID = 3; // 连接真实所属节点ID
 }
 
@@ -128,8 +128,8 @@ message SendSyncProposeResp {
 
 
 message RecvacksReq {
-     int64 connID = 1; // 连接原始唯一ID
-     string uid = 2; // 用户ID
+     string uid = 1; // 用户ID
+     string deviceId = 2; // 设备ID
      uint64 belongPeerID = 3; // 连接真实所属节点ID
      bytes data = 4;
 }

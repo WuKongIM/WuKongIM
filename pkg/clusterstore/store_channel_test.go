@@ -9,14 +9,17 @@ import (
 )
 
 func TestAddSubscribers(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
+	defer s3.Close()
+	defer t3.Stop()
 
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -25,24 +28,32 @@ func TestAddSubscribers(t *testing.T) {
 	err := s1.AddSubscribers(channelID, channelType, []string{"123", "34"})
 	assert.NoError(t, err)
 
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 2000)
 
 	// 节点2获取订阅者
 	subscribers, err := s2.GetSubscribers(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"123", "34"}, subscribers)
 
+	// 节点3获取订阅者
+	subscribers, err = s3.GetSubscribers(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"123", "34"}, subscribers)
+
 }
 
 func TestRemoveSubscribers(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
+	defer s3.Close()
+	defer t3.Stop()
 
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -68,17 +79,26 @@ func TestRemoveSubscribers(t *testing.T) {
 	subscribers, err = s2.GetSubscribers(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"34"}, subscribers)
+
+	// 节点3获取订阅者
+	subscribers, err = s3.GetSubscribers(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"34"}, subscribers)
 }
 
 func TestRemoveAllSubscriber(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -104,17 +124,26 @@ func TestRemoveAllSubscriber(t *testing.T) {
 	subscribers, err = s2.GetSubscribers(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(subscribers))
+
+	// 节点2获取订阅者
+	subscribers, err = s3.GetSubscribers(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(subscribers))
 }
 
 func TestAddOrUpdateChannel(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -138,17 +167,26 @@ func TestAddOrUpdateChannel(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, true, channelInfo.Ban)
 	assert.Equal(t, true, channelInfo.Large)
+
+	channelInfo, err = s3.GetChannel(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, true, channelInfo.Ban)
+	assert.Equal(t, true, channelInfo.Large)
 }
 
 func TestDeleteChannel(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -185,17 +223,25 @@ func TestDeleteChannel(t *testing.T) {
 	channelInfo, err = s1.GetChannel(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Nil(t, channelInfo)
+
+	channelInfo, err = s3.GetChannel(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Nil(t, channelInfo)
 }
 
 func TestAddAndGetDenylist(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -212,17 +258,25 @@ func TestAddAndGetDenylist(t *testing.T) {
 	denylist, err = s1.GetDenylist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"123", "34"}, denylist)
+
+	denylist, err = s3.GetDenylist(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"123", "34"}, denylist)
 }
 
 func TestRemoveAllDenylist(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -252,17 +306,25 @@ func TestRemoveAllDenylist(t *testing.T) {
 	denylist, err = s1.GetDenylist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(denylist))
+
+	denylist, err = s3.GetDenylist(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(denylist))
 }
 
 func TestRemoveDenylist(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -292,17 +354,25 @@ func TestRemoveDenylist(t *testing.T) {
 	denylist, err = s1.GetDenylist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"34"}, denylist)
+
+	denylist, err = s3.GetDenylist(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"34"}, denylist)
 }
 
 func TestAddAndGetAllowlist(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -319,17 +389,25 @@ func TestAddAndGetAllowlist(t *testing.T) {
 	allowlist, err = s1.GetAllowlist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"123", "34"}, allowlist)
+
+	allowlist, err = s3.GetAllowlist(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"123", "34"}, allowlist)
 }
 
 func TestRemoveAllowlist(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -353,20 +431,29 @@ func TestRemoveAllowlist(t *testing.T) {
 	allowlist, err = s2.GetAllowlist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"34"}, allowlist)
+
 	allowlist, err = s1.GetAllowlist(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"34"}, allowlist)
+
+	allowlist, err = s3.GetAllowlist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"34"}, allowlist)
 }
 
 func TestRemoveAllAllowlist(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	channelID := "test"
 	var channelType uint8 = 2
@@ -390,7 +477,12 @@ func TestRemoveAllAllowlist(t *testing.T) {
 	allowlist, err = s2.GetAllowlist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(allowlist))
+
 	allowlist, err = s1.GetAllowlist(channelID, channelType)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(allowlist))
+
+	allowlist, err = s3.GetAllowlist(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(allowlist))
 }

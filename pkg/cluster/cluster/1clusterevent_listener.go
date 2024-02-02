@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"os"
@@ -24,6 +23,7 @@ type clusterEventListener struct {
 	snapshotConfig       *pb.Config            // 快照配置
 	stopper              *syncutil.Stopper
 	clusterEventC        chan ClusterEvent
+	opts                 *Options
 	msgs                 []EventMessage
 	wklog.Log
 }
@@ -37,6 +37,7 @@ func newClusterEventListener(opts *Options) *clusterEventListener {
 		stopper:              syncutil.NewStopper(),
 		clusterEventC:        make(chan ClusterEvent),
 		localConfg:           &pb.Config{},
+		opts:                 opts,
 	}
 
 	err := c.loadLocalConfig()
@@ -87,7 +88,14 @@ func (c *clusterEventListener) localAllNodes() []*pb.Node {
 	return c.localConfg.Nodes
 }
 
+func (c *clusterEventListener) localAllSlot() []*pb.Slot {
+	return c.localConfg.Slots
+}
+
 func (c *clusterEventListener) step(m EventMessage) {
+	if m.Type == ClusterEventTypeNodeUpdateApiServerAddr {
+		return
+	}
 	for _, n := range m.Nodes {
 		exist := false
 		for i, localNode := range c.localConfg.Nodes {
@@ -195,6 +203,17 @@ func (c *clusterEventListener) checkClusterEventForNode() {
 			}
 		}
 	}
+
+	// 检查当前节点的apiServerAddr是否变化
+	currentNode := c.clusterconfigManager.node(c.opts.NodeID)
+	if currentNode != nil && currentNode.ApiServerAddr != c.opts.ApiServerAddr {
+		currentNodeClone := currentNode.Clone()
+		currentNodeClone.ApiServerAddr = c.opts.ApiServerAddr
+		c.msgs = append(c.msgs, EventMessage{
+			Type:  ClusterEventTypeNodeUpdateApiServerAddr,
+			Nodes: []*pb.Node{currentNodeClone},
+		})
+	}
 }
 
 func (c *clusterEventListener) checkClusterEventForSlot() {
@@ -229,12 +248,7 @@ func (c *clusterEventListener) checkNodeChange(localNode *pb.Node, snapshotNode 
 	if localNode.Id != snapshotNode.Id {
 		return
 	}
-	if !bytes.Equal(localNode.Extra, snapshotNode.Extra) {
-		c.msgs = append(c.msgs, EventMessage{
-			Type:  ClusterEventTypeNodeUpdateExtra,
-			Nodes: []*pb.Node{snapshotNode},
-		})
-	}
+
 	if localNode.Online != snapshotNode.Online {
 		c.msgs = append(c.msgs, EventMessage{
 			Type:  ClusterEventTypeNodeUpdateOnline,
@@ -332,16 +346,16 @@ func (c *clusterEventListener) waitConfigSlotCount(count uint32, timeout time.Du
 type ClusterEventType int
 
 const (
-	ClusterEventTypeNone             ClusterEventType = iota
-	ClusterEventTypeNodeInit                          // 节点初始化
-	ClusterEventTypeNodeAdd                           // 节点添加
-	ClusterEventTypeNodeRemove                        // 节点移除
-	ClusterEventTypeNodeUpdate                        // 节点更新
-	ClusterEventTypeNodeUpdateExtra                   // 节点更新扩展数据
-	ClusterEventTypeNodeUpdateOnline                  // 节点更新在线状态
-	ClusterEventTypeSlotInit                          // 槽初始化
-	ClusterEventTypeSlotAdd                           // 槽添加
-	ClusterEventTypeSlotMigrate                       // 槽迁移
+	ClusterEventTypeNone                    ClusterEventType = iota
+	ClusterEventTypeNodeInit                                 // 节点初始化
+	ClusterEventTypeNodeAdd                                  // 节点添加
+	ClusterEventTypeNodeRemove                               // 节点移除
+	ClusterEventTypeNodeUpdate                               // 节点更新
+	ClusterEventTypeNodeUpdateApiServerAddr                  // 节点更新api服务地址
+	ClusterEventTypeNodeUpdateOnline                         // 节点更新在线状态
+	ClusterEventTypeSlotInit                                 // 槽初始化
+	ClusterEventTypeSlotAdd                                  // 槽添加
+	ClusterEventTypeSlotMigrate                              // 槽迁移
 )
 
 type ClusterEvent struct {

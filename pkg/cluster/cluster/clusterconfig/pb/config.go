@@ -12,3 +12,7 @@ func (c *Config) Unmarshal(data []byte) error {
 func (c *Config) Clone() *Config {
 	return proto.Clone(c).(*Config)
 }
+
+func (n *Node) Clone() *Node {
+	return proto.Clone(n).(*Node)
+}

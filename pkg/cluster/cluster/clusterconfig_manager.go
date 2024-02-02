@@ -89,6 +89,17 @@ func (c *clusterconfigManager) checkClusterConfig() {
 	}
 }
 
+func (c *clusterconfigManager) proposeApiServerAddr(nodeId uint64, apiServerAddr string) error {
+	newcfg := c.clusterconfigServer.ConfigManager().GetConfig().Clone()
+	c.clusterconfigServer.ConfigManager().UpdateApiServerAddr(nodeId, apiServerAddr, newcfg)
+	newcfg.Version++
+	err := c.clusterconfigServer.ProposeConfigChange(newcfg.Version, c.clusterconfigServer.ConfigManager().GetConfigDataByCfg(newcfg))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // 初始化节点
 func (c *clusterconfigManager) initNodesIfNeed(newCfg *pb.Config) bool {
 	if len(newCfg.Nodes) == 0 && len(c.opts.InitNodes) > 0 {
@@ -123,6 +134,14 @@ func (c *clusterconfigManager) initSlotsIfNeed(newCfg *pb.Config) bool {
 	return false
 }
 
+func (c *clusterconfigManager) isLeader() bool {
+	return c.clusterconfigServer.IsLeader()
+}
+
+func (c *clusterconfigManager) leaderId() uint64 {
+	return c.clusterconfigServer.Leader()
+}
+
 func (c *clusterconfigManager) electionLeaderIfNeed(newCfg *pb.Config) bool {
 	if len(newCfg.Slots) == 0 || len(newCfg.Nodes) == 0 {
 		return false
@@ -150,6 +169,7 @@ func (c *clusterconfigManager) electionLeaderIfNeed(newCfg *pb.Config) bool {
 			}
 		}
 		randomIndex := globalRand.Intn(len(slot.Replicas))
+		slot.Term = 1
 		slot.Leader = slot.Replicas[randomIndex]
 		hasChange = true
 	}

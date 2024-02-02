@@ -62,16 +62,28 @@ func (c *channelGroupManager) stop() {
 
 func (c *channelGroupManager) proposeMessage(channelId string, channelType uint8, data []byte) (uint64, error) {
 
+	lastLogIndexs, err := c.proposeMessages(channelId, channelType, [][]byte{data})
+	if err != nil {
+		return 0, err
+	}
+	if len(lastLogIndexs) == 0 {
+		return 0, errors.New("lastLogIndexs is empty")
+	}
+	return lastLogIndexs[0], nil
+}
+
+func (c *channelGroupManager) proposeMessages(channelId string, channelType uint8, data [][]byte) ([]uint64, error) {
+
 	channel, err := c.fetchChannel(channelId, channelType)
 	if err != nil {
 		c.Error("get channel failed", zap.Error(err))
-		return 0, err
+		return nil, err
 	}
 	if !channel.isLeader() {
 		channelLeaderId := channel.clusterConfig.LeaderId
 		node := c.s.nodeManager.node(channelLeaderId)
 		if node == nil {
-			return 0, ErrNodeNotFound
+			return nil, ErrNodeNotFound
 		}
 		timeoutCtx, cancel := context.WithTimeout(c.s.cancelCtx, c.s.opts.ReqTimeout)
 		resp, err := node.requestChannelProposeMessage(timeoutCtx, &ChannelProposeReq{
@@ -82,11 +94,11 @@ func (c *channelGroupManager) proposeMessage(channelId string, channelType uint8
 		cancel()
 		if err != nil {
 			c.Error("requestChannelProposeMessage failed", zap.Error(err))
-			return 0, err
+			return nil, err
 		}
-		return resp.Index, nil
+		return resp.Indexs, nil
 	}
-	lastIndex, err := channel.proposeAndWaitCommit(data, c.proposeTimeout)
+	lastIndex, err := channel.proposeAndWaitCommits(data, c.proposeTimeout)
 	return lastIndex, err
 }
 
@@ -259,16 +271,20 @@ func (c *channelGroupManager) requestChannelClusterConfigFromSlotLeader(channelI
 // 进行频道选举
 func (c *channelGroupManager) createChannelClusterInfo(channelID string, channelType uint8) (*ChannelClusterConfig, error) {
 	allowVoteNodes := c.s.clusterEventListener.clusterconfigManager.allowVoteNodes()
+	shardNo := ChannelKey(channelID, channelType)
+	lastTerm, err := c.s.localStorage.leaderLastTerm(shardNo)
+	if err != nil {
+		return nil, err
+	}
 
 	clusterConfig := &ChannelClusterConfig{
 		ChannelID:    channelID,
 		ChannelType:  channelType,
-		ReplicaCount: c.s.opts.ChannelReplicaCount,
-		Term:         1,
+		ReplicaCount: c.s.opts.ChannelMaxReplicaCount,
+		Term:         lastTerm,
 	}
-	replicaIDs := make([]uint64, 0, c.s.opts.ChannelReplicaCount)
+	replicaIDs := make([]uint64, 0, c.s.opts.ChannelMaxReplicaCount)
 
-	clusterConfig.LeaderId = c.s.opts.NodeID
 	replicaIDs = append(replicaIDs, c.s.opts.NodeID)
 
 	// 随机选择副本
@@ -278,17 +294,18 @@ func (c *channelGroupManager) createChannelClusterInfo(channelID string, channel
 		newOnlineNodes[i], newOnlineNodes[j] = newOnlineNodes[j], newOnlineNodes[i]
 	})
 
+	fmt.Println("newOnlineNodes-------->", newOnlineNodes)
+
 	for _, onlineNode := range newOnlineNodes {
-		if onlineNode.Id != clusterConfig.LeaderId {
-			replicaIDs = append(replicaIDs, onlineNode.Id)
+		if onlineNode.Id == c.s.opts.NodeID {
+			continue
 		}
-		if len(replicaIDs) >= int(c.s.opts.ChannelReplicaCount) {
+		replicaIDs = append(replicaIDs, onlineNode.Id)
+		if len(replicaIDs) >= int(c.s.opts.ChannelMaxReplicaCount) {
 			break
 		}
 	}
 	clusterConfig.Replicas = replicaIDs
-
-	c.Info("频道集群配置初始化成功！", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("leaderID", clusterConfig.LeaderId), zap.Any("replicas", clusterConfig.Replicas))
 	return clusterConfig, nil
 }
 
@@ -336,12 +353,14 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	if slot.Leader != c.s.opts.NodeID { // 频道所在槽的领导不是当前节点(只有频道所在槽的领导才有权限进行选举)
 		return errors.New("slot leader is not current node")
 	}
-	node := c.s.clusterEventListener.clusterconfigManager.node(clusterConfig.LeaderId)
-	if node == nil {
-		return errors.New("leader node is not found")
-	}
-	if node.Online { // 领导在线，不需要进行选举
-		return nil
+	if clusterConfig.LeaderId != 0 {
+		node := c.s.clusterEventListener.clusterconfigManager.node(clusterConfig.LeaderId)
+		if node == nil {
+			return errors.New("leader node is not found")
+		}
+		if node.Online { // 领导在线，不需要进行选举
+			return nil
+		}
 	}
 
 	// 检查在线副本是否超过半数
@@ -355,6 +374,7 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 		return err
 	}
 	if len(channelLogInfoMap) < c.quorum() {
+		c.Info("online replica count is not enough", zap.Int("onlineReplicaCount", len(channelLogInfoMap)))
 		return errors.New("online replica count is not enough")
 	}
 
@@ -365,6 +385,8 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	}
 	clusterConfig.LeaderId = newLeaderID
 	clusterConfig.Term = clusterConfig.Term + 1 // 任期加1
+
+	c.Info("成功选举出新的领导", zap.Uint64("newLeaderID", clusterConfig.LeaderId), zap.Uint32("term", clusterConfig.Term), zap.Uint64s("replicas", clusterConfig.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 	// 保存分布式配置
 	err = c.localStorage.saveChannelClusterConfig(channelId, channelType, clusterConfig)
@@ -387,7 +409,7 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo *ChannelClusterConfig) (*channel, error) {
 	shardNo := ChannelKey(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType)
 	// 获取当前节点已应用的日志
-	appliedIndex, err := c.s.opts.MessageLogStorage.LastIndex(shardNo)
+	appliedIndex, err := c.localStorage.getAppliedIndex(shardNo)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +423,7 @@ func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo *Channe
 			lastSyncInfoMap[syncInfo.NodeID] = syncInfo
 		}
 	}
-	channel := newChannel(channelClusterInfo, appliedIndex, lastSyncInfoMap, c.s.opts)
+	channel := newChannel(channelClusterInfo, appliedIndex, lastSyncInfoMap, c.localStorage, c.s.opts)
 	return channel, nil
 }
 
@@ -418,6 +440,7 @@ func (c *channelGroupManager) requestChannelAppointLeader(clusterConfig *Channel
 
 	for _, allowVoteNode := range allowVoteNodes {
 		if !c.s.clusterEventListener.clusterconfigManager.nodeIsOnline(allowVoteNode.Id) {
+			c.Warn("node is not online", zap.Uint64("nodeID", allowVoteNode.Id))
 			continue
 		}
 		if allowVoteNode.Id == c.s.opts.NodeID {
@@ -473,29 +496,23 @@ func (c *channelGroupManager) checkOnlineReplicaCount(clusterConfig *ChannelClus
 }
 
 func (c *channelGroupManager) quorum() int {
-	return int(c.s.opts.ChannelReplicaCount/2) + 1
+	return int(c.s.opts.ChannelMaxReplicaCount/2) + 1
 }
 
 // 通过日志高度选举频道领导
 func (c *channelGroupManager) channelLeaderIDByLogInfo(channelLogInfoMap map[uint64]*ChannelLastLogInfoResponse) uint64 {
 	var leaderID uint64 = 0
 	var leaderLogIndex uint64 = 0
-	var leaderMessageLogIndex uint64 = 0
 	for nodeID, resp := range channelLogInfoMap {
 		if resp.LogIndex > leaderLogIndex {
 			leaderID = nodeID
 			leaderLogIndex = resp.LogIndex
-			leaderMessageLogIndex = resp.LogIndex
-		} else if resp.LogIndex == leaderLogIndex && resp.LogIndex > leaderMessageLogIndex {
-			leaderID = nodeID
-			leaderLogIndex = resp.LogIndex
-			leaderMessageLogIndex = resp.LogIndex
-		} else if resp.LogIndex == leaderLogIndex && resp.LogIndex == leaderMessageLogIndex {
-			if leaderID == 0 || nodeID < leaderID {
-				leaderID = nodeID
-				leaderLogIndex = resp.LogIndex
-				leaderMessageLogIndex = resp.LogIndex
-			}
+		}
+	}
+	if leaderID != c.s.opts.NodeID {
+		resp := channelLogInfoMap[c.s.opts.NodeID]
+		if resp.LogIndex >= leaderLogIndex { // 如果选举出来的领导日志高度和当前节点日志高度一样，那么当前节点优先成为领导
+			leaderID = c.s.opts.NodeID
 		}
 	}
 	return leaderID
@@ -525,9 +542,9 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *ChannelClu
 		} else {
 			requestGroup.Go(func(rcID uint64) func() error {
 				return func() error {
-					node := c.s.nodeManager.node(replicaID)
+					node := c.s.nodeManager.node(rcID)
 					if node == nil {
-						c.Warn("node is not found", zap.Uint64("nodeID", replicaID))
+						c.Warn("node is not found", zap.Uint64("nodeID", rcID))
 						return nil
 					}
 					resp, err := node.requestChannelLastLogInfo(ctx, &ChannelLastLogInfoReq{

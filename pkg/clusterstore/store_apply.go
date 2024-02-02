@@ -1,14 +1,14 @@
 package clusterstore
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"go.uber.org/zap"
 )
 
 // 频道元数据应用
-func (s *Store) OnMetaApply(channelID string, channelType uint8, logs []replica.Log) error {
+func (s *Store) OnMetaApply(slotId uint32, logs []replica.Log) error {
 	for _, lg := range logs {
-		err := s.onMetaApply(channelID, channelType, lg)
+		err := s.onMetaApply(slotId, lg)
 		if err != nil {
 			return err
 		}
@@ -16,69 +16,68 @@ func (s *Store) OnMetaApply(channelID string, channelType uint8, logs []replica.
 	return nil
 }
 
-func (s *Store) onMetaApply(channelID string, channelType uint8, log replica.Log) error {
-	s.Debug("OnMetaApply", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
+func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 	cmd := &CMD{}
 	err := cmd.Unmarshal(log.Data)
 	if err != nil {
-		s.Error("unmarshal cmd err", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
+		s.Error("unmarshal cmd err", zap.Error(err), zap.Uint32("slotId", slotId), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
 		return err
 	}
+	s.Info("收到元数据请求", zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()))
 	switch cmd.CmdType {
 	case CMDAddSubscribers: // 添加订阅者
-		return s.handleAddSubscribers(channelID, channelType, cmd)
+		return s.handleAddSubscribers(cmd)
 	case CMDRemoveSubscribers: // 移除订阅者
-		return s.handleRemoveSubscribers(channelID, channelType, cmd)
+		return s.handleRemoveSubscribers(cmd)
 	case CMDUpdateUserToken: // 更新用户的token
-		return s.handleUpdateUserToken(channelID, channelType, cmd)
+		return s.handleUpdateUserToken(cmd)
 	case CMDUpdateMessageOfUserCursorIfNeed: // 更新用户消息队列的游标，用户读到的位置
-		return s.handleUpdateMessageOfUserCursorIfNeed(channelID, channelType, cmd)
+		return s.handleUpdateMessageOfUserCursorIfNeed(cmd)
 	case CMDAddOrUpdateChannel: // 添加或更新频道
-		return s.handleAddOrUpdateChannel(channelID, channelType, cmd)
+		return s.handleAddOrUpdateChannel(cmd)
 	case CMDRemoveAllSubscriber: // 移除所有订阅者
-		return s.handleRemoveAllSubscriber(channelID, channelType, cmd)
+		return s.handleRemoveAllSubscriber(cmd)
 	case CMDDeleteChannel: // 删除频道
-		return s.handleDeleteChannel(channelID, channelType, cmd)
+		return s.handleDeleteChannel(cmd)
 	case CMDAddDenylist: // 添加黑名单
-		return s.handleAddDenylist(channelID, channelType, cmd)
+		return s.handleAddDenylist(cmd)
 	case CMDRemoveDenylist: // 移除黑名单
-		return s.handleRemoveDenylist(channelID, channelType, cmd)
+		return s.handleRemoveDenylist(cmd)
 	case CMDRemoveAllDenylist: // 移除所有黑名单
-		return s.handleRemoveAllDenylist(channelID, channelType, cmd)
+		return s.handleRemoveAllDenylist(cmd)
 	case CMDAddAllowlist: // 添加白名单
-		return s.handleAddAllowlist(channelID, channelType, cmd)
+		return s.handleAddAllowlist(cmd)
 	case CMDRemoveAllowlist: // 移除白名单
-		return s.handleRemoveAllowlist(channelID, channelType, cmd)
+		return s.handleRemoveAllowlist(cmd)
 	case CMDRemoveAllAllowlist: // 移除所有白名单
-		return s.handleRemoveAllAllowlist(channelID, channelType, cmd)
+		return s.handleRemoveAllAllowlist(cmd)
 	case CMDAddOrUpdateConversations: // 添加或更新会话
-		return s.handleAddOrUpdateConversations(channelID, channelType, cmd)
+		return s.handleAddOrUpdateConversations(cmd)
 	case CMDDeleteConversation: // 删除会话
-		return s.handleDeleteConversation(channelID, channelType, cmd)
+		return s.handleDeleteConversation(cmd)
 
 	}
 	return nil
 }
 
-func (s *Store) handleAddSubscribers(channelID string, channelType uint8, cmd *CMD) error {
-	s.Debug("handleAddSubscribers", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.ByteString("data", cmd.Data))
-	subscribers, err := cmd.DecodeSubscribers()
+func (s *Store) handleAddSubscribers(cmd *CMD) error {
+	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
 	if err != nil {
-		s.Error("decode subscribers err", zap.Error(err), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.ByteString("data", cmd.Data))
+		s.Error("decode subscribers err", zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType), zap.ByteString("data", cmd.Data))
 		return err
 	}
-	return s.db.AddSubscribers(channelID, channelType, subscribers)
+	return s.db.AddSubscribers(channelId, channelType, subscribers)
 }
 
-func (s *Store) handleRemoveSubscribers(channelID string, channelType uint8, cmd *CMD) error {
-	subscribers, err := cmd.DecodeSubscribers()
+func (s *Store) handleRemoveSubscribers(cmd *CMD) error {
+	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveSubscribers(channelID, channelType, subscribers)
+	return s.db.RemoveSubscribers(channelId, channelType, subscribers)
 }
 
-func (s *Store) handleUpdateUserToken(channelID string, channelType uint8, cmd *CMD) error {
+func (s *Store) handleUpdateUserToken(cmd *CMD) error {
 	uid, deviceFlag, deviceLevel, token, err := cmd.DecodeCMDUserToken()
 	if err != nil {
 		return err
@@ -86,7 +85,7 @@ func (s *Store) handleUpdateUserToken(channelID string, channelType uint8, cmd *
 	return s.db.UpdateUserToken(uid, deviceFlag, deviceLevel, token)
 }
 
-func (s *Store) handleUpdateMessageOfUserCursorIfNeed(channelID string, channelType uint8, cmd *CMD) error {
+func (s *Store) handleUpdateMessageOfUserCursorIfNeed(cmd *CMD) error {
 	uid, messageSeq, err := cmd.DecodeCMDUpdateMessageOfUserCursorIfNeed()
 	if err != nil {
 		return err
@@ -94,7 +93,7 @@ func (s *Store) handleUpdateMessageOfUserCursorIfNeed(channelID string, channelT
 	return s.db.UpdateMessageOfUserCursorIfNeed(uid, messageSeq)
 }
 
-func (s *Store) handleAddOrUpdateChannel(channelID string, channelType uint8, cmd *CMD) error {
+func (s *Store) handleAddOrUpdateChannel(cmd *CMD) error {
 	channelInfo, err := cmd.DecodeAddOrUpdateChannel()
 	if err != nil {
 		return err
@@ -102,55 +101,71 @@ func (s *Store) handleAddOrUpdateChannel(channelID string, channelType uint8, cm
 	return s.db.AddOrUpdateChannel(channelInfo)
 }
 
-func (s *Store) handleRemoveAllSubscriber(channelID string, channelType uint8, cmd *CMD) error {
-	return s.db.RemoveAllSubscriber(channelID, channelType)
-}
-
-func (s *Store) handleDeleteChannel(channelID string, channelType uint8, cmd *CMD) error {
-	return s.db.DeleteChannel(channelID, channelType)
-}
-
-func (s *Store) handleAddDenylist(channelID string, channelType uint8, cmd *CMD) error {
-	subscribers, err := cmd.DecodeSubscribers()
+func (s *Store) handleRemoveAllSubscriber(cmd *CMD) error {
+	channelId, channelType, err := cmd.DecodeChannel()
 	if err != nil {
 		return err
 	}
-	return s.db.AddDenylist(channelID, channelType, subscribers)
+	return s.db.RemoveAllSubscriber(channelId, channelType)
 }
 
-func (s *Store) handleRemoveDenylist(channelID string, channelType uint8, cmd *CMD) error {
-	subscribers, err := cmd.DecodeSubscribers()
+func (s *Store) handleDeleteChannel(cmd *CMD) error {
+	channelId, channelType, err := cmd.DecodeChannel()
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveDenylist(channelID, channelType, subscribers)
+	return s.db.DeleteChannel(channelId, channelType)
 }
 
-func (s *Store) handleRemoveAllDenylist(channelID string, channelType uint8, cmd *CMD) error {
-	return s.db.RemoveAllDenylist(channelID, channelType)
-}
-
-func (s *Store) handleAddAllowlist(channelID string, channelType uint8, cmd *CMD) error {
-	subscribers, err := cmd.DecodeSubscribers()
+func (s *Store) handleAddDenylist(cmd *CMD) error {
+	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
 	if err != nil {
 		return err
 	}
-	return s.db.AddAllowlist(channelID, channelType, subscribers)
+	return s.db.AddDenylist(channelId, channelType, subscribers)
 }
 
-func (s *Store) handleRemoveAllowlist(channelID string, channelType uint8, cmd *CMD) error {
-	subscribers, err := cmd.DecodeSubscribers()
+func (s *Store) handleRemoveDenylist(cmd *CMD) error {
+	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveAllowlist(channelID, channelType, subscribers)
+	return s.db.RemoveDenylist(channelId, channelType, subscribers)
 }
 
-func (s *Store) handleRemoveAllAllowlist(channelID string, channelType uint8, cmd *CMD) error {
-	return s.db.RemoveAllAllowlist(channelID, channelType)
+func (s *Store) handleRemoveAllDenylist(cmd *CMD) error {
+	channelId, channelType, err := cmd.DecodeChannel()
+	if err != nil {
+		return err
+	}
+	return s.db.RemoveAllDenylist(channelId, channelType)
 }
 
-func (s *Store) handleAddOrUpdateConversations(channelID string, channelType uint8, cmd *CMD) error {
+func (s *Store) handleAddAllowlist(cmd *CMD) error {
+	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	if err != nil {
+		return err
+	}
+	return s.db.AddAllowlist(channelId, channelType, subscribers)
+}
+
+func (s *Store) handleRemoveAllowlist(cmd *CMD) error {
+	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	if err != nil {
+		return err
+	}
+	return s.db.RemoveAllowlist(channelId, channelType, subscribers)
+}
+
+func (s *Store) handleRemoveAllAllowlist(cmd *CMD) error {
+	channelId, channelType, err := cmd.DecodeChannel()
+	if err != nil {
+		return err
+	}
+	return s.db.RemoveAllAllowlist(channelId, channelType)
+}
+
+func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
 	uid, conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
 		return err
@@ -158,7 +173,7 @@ func (s *Store) handleAddOrUpdateConversations(channelID string, channelType uin
 	return s.db.AddOrUpdateConversations(uid, conversations)
 }
 
-func (s *Store) handleDeleteConversation(channelID string, channelType uint8, cmd *CMD) error {
+func (s *Store) handleDeleteConversation(cmd *CMD) error {
 	uid, deleteChannelID, deleteChannelType, err := cmd.DecodeCMDDeleteConversation()
 	if err != nil {
 		return err

@@ -1,10 +1,16 @@
 package cluster
 
-import "time"
+import (
+	"time"
+
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"go.uber.org/zap/zapcore"
+)
 
 type Options struct {
 	NodeID                       uint64
 	Addr                         string
+	ApiServerAddr                string            // 节点api地址
 	InitNodes                    map[uint64]string // 初始化节点列表
 	ChannelGroupScanInterval     time.Duration
 	ShardLogStorage              IShardLogStorage
@@ -17,11 +23,13 @@ type Options struct {
 	DataDir                      string        // 数据存储目录
 	SlotCount                    uint32        // 槽数量
 	SlotMaxReplicaCount          uint32        // 每个槽位最大副本数量
-	ChannelReplicaCount          uint16        // 每个频道最大副本数量
+	ChannelMaxReplicaCount       uint16        // 每个频道最大副本数量
 	ProposeTimeout               time.Duration
 	ReqTimeout                   time.Duration
-	GetAppliedIndex              func(shardNo string) (uint64, error) // 获取分区已应用的日志索引
-	ChannelGroupCount            int                                  // channelGroup数量
+	GetAppliedIndex              func(shardNo string) (uint64, error)          // 获取分区已应用的日志索引
+	ChannelGroupCount            int                                           // channelGroup数量
+	OnSlotApply                  func(slotId uint32, logs []replica.Log) error // 槽数据应用
+	LogLevel                     zapcore.Level                                 // 日志级别
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -36,8 +44,9 @@ func NewOptions(optList ...Option) *Options {
 		SlotMaxReplicaCount:          3,
 		ProposeTimeout:               time.Second * 5,
 		ChannelGroupCount:            128,
-		ChannelReplicaCount:          3,
+		ChannelMaxReplicaCount:       3,
 		ReqTimeout:                   time.Second * 3,
+		LogLevel:                     zapcore.InfoLevel,
 	}
 	for _, opt := range optList {
 		opt(opts)
@@ -142,5 +151,35 @@ func WithProposeTimeout(timeout time.Duration) Option {
 func WithGetAppliedIndex(f func(shardNo string) (uint64, error)) Option {
 	return func(opts *Options) {
 		opts.GetAppliedIndex = f
+	}
+}
+
+func WithMessageLogStorage(storage IShardLogStorage) Option {
+	return func(opts *Options) {
+		opts.MessageLogStorage = storage
+	}
+}
+
+func WithApiServerAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.ApiServerAddr = addr
+	}
+}
+
+func WithChannelMaxReplicaCount(count uint16) Option {
+	return func(opts *Options) {
+		opts.ChannelMaxReplicaCount = count
+	}
+}
+
+func WithOnSlotApply(f func(slotId uint32, logs []replica.Log) error) Option {
+	return func(opts *Options) {
+		opts.OnSlotApply = f
+	}
+}
+
+func WithLogLevel(level zapcore.Level) Option {
+	return func(opts *Options) {
+		opts.LogLevel = level
 	}
 }

@@ -97,7 +97,7 @@ func (c *readySlotQueue) add(rd slotReady) {
 
 func (c *readySlotQueue) pop() slotReady {
 	e := c.queue.Front()
-	if e == nil {
+	if e == nil || e.Value == nil {
 		return slotReady{}
 	}
 	c.queue.Remove(e)

@@ -22,6 +22,8 @@ func (s *Server) handleClusterEvent(event ClusterEvent) {
 			err = s.handleNodeRemoveEvent(msg)
 		case ClusterEventTypeSlotAdd: // 槽添加
 			err = s.handleSlotAddEvent(msg)
+		case ClusterEventTypeNodeUpdateApiServerAddr: // 节点更新api地址
+			err = s.handleNodeUpdateApiServerAddrEvent(msg)
 		}
 		if err != nil {
 			s.Error("handle cluster event error", zap.Error(err))
@@ -64,8 +66,34 @@ func (s *Server) handleSlotAddEvent(event EventMessage) error {
 	return s.addSlots(event.Slots)
 }
 
+func (s *Server) handleNodeUpdateApiServerAddrEvent(event EventMessage) error {
+	if len(event.Nodes) == 0 {
+		return nil
+	}
+
+	if s.clusterEventListener.clusterconfigManager.isLeader() {
+		err := s.clusterEventListener.clusterconfigManager.proposeApiServerAddr(s.opts.NodeID, s.opts.ApiServerAddr)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	leaderId := s.clusterEventListener.clusterconfigManager.leaderId()
+	leaderNode := s.nodeManager.node(leaderId)
+	if leaderNode != nil {
+		err := leaderNode.requestUpdateNodeApiServerAddr(s.cancelCtx, &UpdateNodeApiServerAddrReq{
+			NodeId:        s.opts.NodeID,
+			ApiServerAddr: s.opts.ApiServerAddr,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
-	n := newNode(nodeID, s.serverUid(nodeID), addr)
+	n := newNode(nodeID, s.serverUid(s.opts.NodeID), addr)
 	n.start()
 	return n
 }
@@ -120,6 +148,11 @@ func (s *Server) addSlots(slots []*pb.Slot) error {
 }
 
 func (s *Server) newSlotBySlotInfo(st *pb.Slot) (*slot, error) {
-	ns := newSlot(st, 0, 1, s.opts)
+	shardNo := GetSlotShardNo(st.Id)
+	appliedIdx, err := s.localStorage.getAppliedIndex(shardNo)
+	if err != nil {
+		return nil, err
+	}
+	ns := newSlot(st, appliedIdx, s.localStorage, s.opts)
 	return ns, nil
 }

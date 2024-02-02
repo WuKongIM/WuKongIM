@@ -18,7 +18,7 @@ func (s *Store) UpdateUserToken(uid string, deviceFlag uint8, deviceLevel uint8,
 		s.Error("marshal cmd failed", zap.Error(err))
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 // GetUserToken 获取用户的token和设备等级

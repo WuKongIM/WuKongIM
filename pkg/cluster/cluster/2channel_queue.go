@@ -97,7 +97,7 @@ func (c *readyChannelQueue) add(rd channelReady) {
 
 func (c *readyChannelQueue) pop() channelReady {
 	e := c.queue.Front()
-	if e == nil {
+	if e == nil || e.Value == nil {
 		return channelReady{}
 	}
 	c.queue.Remove(e)

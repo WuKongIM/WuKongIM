@@ -45,7 +45,6 @@ func (s *slotManager) listen() {
 		if ready.slot == nil {
 			continue
 		}
-		s.Info("slot recv ready")
 		s.handleReady(ready)
 
 	}
@@ -57,7 +56,6 @@ func (s *slotManager) handleReady(rd slotReady) {
 		shardNo = GetSlotShardNo(slot.slotId)
 	)
 	for _, msg := range rd.Messages {
-		s.Info("recv msg", zap.String("msgType", msg.MsgType.String()), zap.String("shardNo", shardNo))
 		if msg.To == s.opts.NodeID {
 			slot.handleLocalMsg(msg)
 			continue
@@ -66,6 +64,9 @@ func (s *slotManager) handleReady(rd slotReady) {
 			s.Error("msg.To is 0", zap.String("shardNo", shardNo))
 			continue
 		}
+
+		s.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.Uint64("committedIdx", msg.CommittedIndex), zap.Uint64("lastLogIndex", slot.rc.State().LastLogIndex()), zap.String("shardNo", shardNo), zap.Uint64("to", msg.To), zap.Uint64("from", msg.From))
+
 		protMsg, err := NewMessage(shardNo, msg, MsgSlotMsg)
 		if err != nil {
 			s.Error("new message error", zap.String("shardNo", shardNo), zap.Error(err))
