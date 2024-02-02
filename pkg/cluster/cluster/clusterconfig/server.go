@@ -37,7 +37,7 @@ func New(nodeId uint64, optList ...Option) *Server {
 		recvc:         make(chan Message, 100),
 		commitWait:    newCommitWait(),
 	}
-
+	opts.AppliedConfigVersion = s.configManager.GetConfig().Version
 	s.node = NewNode(opts)
 	s.node.SetConfigData(s.configManager.GetConfigData())
 	return s
@@ -169,7 +169,7 @@ func (s *Server) run() {
 	var rd Ready
 	leader := None
 	var err error
-	tick := time.NewTicker(time.Millisecond * 150)
+	tick := time.NewTicker(time.Millisecond * 200)
 	for {
 		if s.node.HasReady() {
 			rd = s.node.Ready()

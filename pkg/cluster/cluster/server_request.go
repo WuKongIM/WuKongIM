@@ -15,6 +15,11 @@ func (s *Server) setRoutes() {
 	s.server.Route("/channel/clusterconfig", s.handleClusterconfig)
 	//	向频道提案消息
 	s.server.Route("/channel/proposeMessage", s.handleProposeMessage)
+	// 更新节点api地址
+	s.server.Route("/node/updateApiServerAddr", s.handleUpdateNodeApiServerAddr)
+	// 向槽提案数据
+	s.server.Route("/slot/propose", s.handleSlotPropose)
+
 }
 
 func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
@@ -146,6 +151,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 }
 
 func (s *Server) handleProposeMessage(c *wkserver.Context) {
+	s.Info("handleProposeMessage.....")
 	req := &ChannelProposeReq{}
 	if err := req.Unmarshal(c.Body()); err != nil {
 		s.Error("unmarshal ChannelProposeReq failed", zap.Error(err))
@@ -169,14 +175,14 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		c.WriteErr(ErrNotIsLeader)
 		return
 	}
-	logIndex, err := ch.proposeAndWaitCommit(req.Data, s.opts.ProposeTimeout)
+	logIndexs, err := ch.proposeAndWaitCommits(req.Data, s.opts.ProposeTimeout)
 	if err != nil {
 		s.Error("proposeAndWaitCommit failed", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
 	resp := &ChannelProposeResp{
-		Index: logIndex,
+		Indexs: logIndexs,
 	}
 	data, err := resp.Marshal()
 	if err != nil {
@@ -185,6 +191,65 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		return
 	}
 	c.Write(data)
+
+	s.Info("handleProposeMessage.....end...")
+
+}
+
+func (s *Server) handleUpdateNodeApiServerAddr(c *wkserver.Context) {
+	req := &UpdateNodeApiServerAddrReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal UpdateNodeApiServerAddrReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if !s.clusterEventListener.clusterconfigManager.isLeader() {
+		s.Error("not leader,handleUpdateNodeApiServerAddr failed", zap.Uint64("leader", s.clusterEventListener.clusterconfigManager.leaderId()), zap.Uint64("nodeId", req.NodeId))
+		c.WriteErr(ErrNotIsLeader)
+		return
+	}
+
+	err := s.clusterEventListener.clusterconfigManager.proposeApiServerAddr(req.NodeId, req.ApiServerAddr)
+	if err != nil {
+		s.Error("proposeApiServerAddr failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	c.WriteOk()
+
+}
+
+func (s *Server) handleSlotPropose(c *wkserver.Context) {
+	req := &SlotProposeReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal SlotProposeReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	slot := s.clusterEventListener.clusterconfigManager.slot(req.SlotId)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", req.SlotId))
+		c.WriteErr(ErrSlotNotFound)
+		return
+	}
+
+	if slot.Leader != s.opts.NodeID {
+		s.Error("not leader,handleSlotPropose failed", zap.Uint64("leader", slot.Leader), zap.Uint32("slotId", req.SlotId))
+		c.WriteErr(ErrNotIsLeader)
+		return
+	}
+
+	err := s.ProposeToSlot(req.SlotId, req.Data)
+	if err != nil {
+		s.Error("ProposeToSlot failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	c.WriteOk()
 
 }
 

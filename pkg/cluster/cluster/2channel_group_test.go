@@ -30,11 +30,13 @@ func TestChannelGroup(t *testing.T) {
 	assert.NoError(t, err)
 	defer cg1.stop()
 
+	localStorage := newLocalStorage(opts)
+
 	ch1 := newChannel(&ChannelClusterConfig{
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},
-	}, 0, nil, opts)
+	}, 0, nil, localStorage, opts)
 	cg1.add(ch1)
 
 	err = ch1.appointLeader(1)
@@ -67,11 +69,12 @@ func TestChannelGroup(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	localStorage = newLocalStorage(opts)
 	ch2 := newChannel(&ChannelClusterConfig{
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},
-	}, 0, nil, opts)
+	}, 0, nil, localStorage, opts)
 	cg2.add(ch2)
 	err = ch2.appointLeaderTo(1, 1)
 	assert.NoError(t, err)

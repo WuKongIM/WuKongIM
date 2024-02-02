@@ -19,7 +19,6 @@ var _ wknet.Conn = (*ProxyClientConn)(nil)
 
 type ProxyClientConn struct {
 	id           atomic.Int64
-	orgID        int64 // 原节点的ID（真正客户端连接的ID）
 	uid          atomic.String
 	deviceLevel  uint8
 	deviceFlag   uint8
@@ -53,16 +52,15 @@ type ProxyClientConn struct {
 	connStats *wknet.ConnStats
 }
 
-func NewProxyClientConn(s *Server, belongNodeID uint64, orgID int64) *ProxyClientConn {
+func NewProxyClientConn(s *Server, belongNodeID uint64) *ProxyClientConn {
 	p := &ProxyClientConn{
 		valueMap:       map[string]interface{}{},
 		s:              s,
 		belongNodeID:   belongNodeID,
 		outboundBuffer: wknet.NewDefaultBuffer(),
 		inboundBuffer:  wknet.NewDefaultBuffer(),
-		orgID:          orgID,
 		uptime:         time.Now(),
-		Log:            wklog.NewWKLog(fmt.Sprintf("ProxyConn[%d][%d]", belongNodeID, orgID)),
+		Log:            wklog.NewWKLog(fmt.Sprintf("ProxyConn[%d][%s]", belongNodeID)),
 		connStats:      wknet.NewConnStats(),
 	}
 	p.KeepLastActivity()
@@ -151,9 +149,9 @@ func (p *ProxyClientConn) Write(b []byte) (n int, err error) {
 		return 0, fmt.Errorf("节点不在线！nodeID:%d", p.belongNodeID)
 	}
 	err = p.s.connectWrite(p.belongNodeID, &rpc.ConnectWriteReq{
-		ConnID:     p.orgID,
 		Uid:        p.UID(),
 		DeviceFlag: uint32(p.deviceFlag),
+		DeviceId:   p.deviceID,
 		Data:       b,
 	})
 	if err != nil {
@@ -204,9 +202,9 @@ func (p *ProxyClientConn) WakeWrite() error {
 	}
 	msgData := append(head, tail...)
 	err := p.s.connectWrite(p.belongNodeID, &rpc.ConnectWriteReq{
-		ConnID:     p.orgID,
 		Uid:        p.UID(),
 		DeviceFlag: uint32(p.deviceFlag),
+		DeviceId:   p.deviceID,
 		Data:       msgData,
 	})
 	if err != nil {

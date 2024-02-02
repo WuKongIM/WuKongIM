@@ -40,7 +40,8 @@ const (
 	MsgLeaderTermStartIndexResp // 领导任期开始偏移量响应（领导）
 	MsgApplyLogsReq             // 应用日志请求
 	MsgApplyLogsResp            // 应用日志响应
-
+	MsgPing
+	MsgPong
 )
 
 func (m MsgType) String() string {
@@ -67,6 +68,10 @@ func (m MsgType) String() string {
 		return "MsgApplyLogsReq"
 	case MsgApplyLogsResp:
 		return "MsgApplyLogsResp"
+	case MsgPing:
+		return "MsgPing"
+	case MsgPong:
+		return "MsgPong"
 	default:
 		return fmt.Sprintf("MsgUnkown[%d]", m)
 	}
@@ -168,8 +173,13 @@ func UnmarshalMessage(data []byte) (Message, error) {
 	return m, nil
 }
 
+type HardState struct {
+	Term uint32 // 领导任期
+}
+
 type Ready struct {
-	Messages []Message
+	HardState *HardState
+	Messages  []Message
 }
 
 func IsEmptyReady(rd Ready) bool {

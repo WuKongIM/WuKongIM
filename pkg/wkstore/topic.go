@@ -24,7 +24,7 @@ type topic struct {
 	lastBaseMessageSeq uint32 // last segment messageSeq
 	topicDir           string
 	wklog.Log
-	appendLock sync.RWMutex
+	sync.RWMutex
 	lastMsgSeq atomic.Uint32
 
 	getSegmentLock sync.RWMutex
@@ -65,8 +65,8 @@ func newTopic(name string, slot uint32, cfg *StoreConfig) *topic {
 }
 
 func (t *topic) appendMessages(msgs []Message) ([]uint32, int, error) {
-	t.appendLock.Lock()
-	defer t.appendLock.Unlock()
+	t.Lock()
+	defer t.Unlock()
 
 	lastSegment := t.getActiveSegment()
 
@@ -99,6 +99,22 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, int, error) {
 		return nil, 0, err
 	}
 	return seqs, n, nil
+}
+
+func (t *topic) truncateLogTo(messageSeq uint32) error {
+	t.Lock()
+	defer t.Unlock()
+
+	if messageSeq > t.lastMsgSeq.Load() {
+		return nil
+	}
+
+	baseMessageSeq, err := t.calcBaseMessageSeq(messageSeq)
+	if err != nil {
+		return err
+	}
+	segment := t.getSegment(baseMessageSeq, SegmentModeAll)
+	return segment.truncateLogTo(messageSeq)
 }
 
 func (t *topic) saveStreamMeta(meta *StreamMeta) error {

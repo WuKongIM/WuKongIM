@@ -279,9 +279,9 @@ func (c *ChannelClusterConfigReq) Unmarshal(data []byte) error {
 }
 
 type ChannelProposeReq struct {
-	ChannelId   string // 频道id
-	ChannelType uint8  // 频道类型
-	Data        []byte // 数据
+	ChannelId   string   // 频道id
+	ChannelType uint8    // 频道类型
+	Data        [][]byte // 数据
 }
 
 func (c *ChannelProposeReq) Marshal() ([]byte, error) {
@@ -289,7 +289,10 @@ func (c *ChannelProposeReq) Marshal() ([]byte, error) {
 	defer enc.End()
 	enc.WriteString(c.ChannelId)
 	enc.WriteUint8(c.ChannelType)
-	enc.WriteBytes(c.Data)
+	enc.WriteUint16(uint16(len(c.Data)))
+	for _, data := range c.Data {
+		enc.WriteBinary(data)
+	}
 	return enc.Bytes(), nil
 }
 
@@ -302,27 +305,98 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 	if c.ChannelType, err = dec.Uint8(); err != nil {
 		return err
 	}
-	if c.Data, err = dec.BinaryAll(); err != nil {
+	var dataLen uint16
+	if dataLen, err = dec.Uint16(); err != nil {
 		return err
+	}
+	if dataLen > 0 {
+		c.Data = make([][]byte, dataLen)
+		for i := uint16(0); i < dataLen; i++ {
+			if c.Data[i], err = dec.Binary(); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
 type ChannelProposeResp struct {
-	Index uint64 // 提案索引
+	Indexs []uint64 // 提案索引
 }
 
 func (c *ChannelProposeResp) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint64(c.Index)
+	enc.WriteUint16(uint16(len(c.Indexs)))
+	for _, index := range c.Indexs {
+		enc.WriteUint64(index)
+	}
 	return enc.Bytes(), nil
 }
 
 func (c *ChannelProposeResp) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if c.Index, err = dec.Uint64(); err != nil {
+	var indexsLen uint16
+	if indexsLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if indexsLen > 0 {
+		c.Indexs = make([]uint64, indexsLen)
+		for i := uint16(0); i < indexsLen; i++ {
+			if c.Indexs[i], err = dec.Uint64(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+type UpdateNodeApiServerAddrReq struct {
+	NodeId        uint64 // 节点ID
+	ApiServerAddr string // API服务地址
+}
+
+func (u *UpdateNodeApiServerAddrReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(u.NodeId)
+	enc.WriteString(u.ApiServerAddr)
+	return enc.Bytes(), nil
+}
+
+func (u *UpdateNodeApiServerAddrReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if u.NodeId, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if u.ApiServerAddr, err = dec.String(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type SlotProposeReq struct {
+	SlotId uint32
+	Data   []byte
+}
+
+func (s *SlotProposeReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(s.SlotId)
+	enc.WriteBinary(s.Data)
+	return enc.Bytes(), nil
+}
+
+func (s *SlotProposeReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if s.SlotId, err = dec.Uint32(); err != nil {
+		return err
+	}
+	if s.Data, err = dec.Binary(); err != nil {
 		return err
 	}
 	return nil

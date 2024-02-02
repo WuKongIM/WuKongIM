@@ -6,24 +6,24 @@ import (
 
 // AddSubscribers 添加订阅者
 func (s *Store) AddSubscribers(channelID string, channelType uint8, subscribers []string) error {
-	data := EncodeSubscribers(subscribers)
+	data := EncodeSubscribers(channelID, channelType, subscribers)
 	cmd := NewCMD(CMDAddSubscribers, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 // RemoveSubscribers 移除订阅者
 func (s *Store) RemoveSubscribers(channelID string, channelType uint8, subscribers []string) error {
-	data := EncodeSubscribers(subscribers)
+	data := EncodeSubscribers(channelID, channelType, subscribers)
 	cmd := NewCMD(CMDRemoveSubscribers, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 func (s *Store) RemoveAllSubscriber(channelID string, channelType uint8) error {
@@ -32,7 +32,7 @@ func (s *Store) RemoveAllSubscriber(channelID string, channelType uint8) error {
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 func (s *Store) GetSubscribers(channelID string, channelType uint8) ([]string, error) {
@@ -47,7 +47,7 @@ func (s *Store) AddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) error {
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelInfo.ChannelID, channelInfo.ChannelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelInfo.ChannelID, channelInfo.ChannelType, cmdData)
 }
 
 func (s *Store) DeleteChannel(channelID string, channelType uint8) error {
@@ -56,7 +56,7 @@ func (s *Store) DeleteChannel(channelID string, channelType uint8) error {
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 func (s *Store) GetChannel(channelID string, channelType uint8) (*wkstore.ChannelInfo, error) {
@@ -68,13 +68,13 @@ func (s *Store) ExistChannel(channelID string, channelType uint8) (bool, error) 
 }
 
 func (s *Store) AddDenylist(channelID string, channelType uint8, uids []string) error {
-	data := EncodeSubscribers(uids)
+	data := EncodeSubscribers(channelID, channelType, uids)
 	cmd := NewCMD(CMDAddDenylist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 
 }
 
@@ -88,27 +88,27 @@ func (s *Store) RemoveAllDenylist(channelID string, channelType uint8) error {
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 func (s *Store) RemoveDenylist(channelID string, channelType uint8, uids []string) error {
-	data := EncodeSubscribers(uids)
+	data := EncodeSubscribers(channelID, channelType, uids)
 	cmd := NewCMD(CMDRemoveDenylist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 func (s *Store) AddAllowlist(channelID string, channelType uint8, uids []string) error {
-	data := EncodeSubscribers(uids)
+	data := EncodeSubscribers(channelID, channelType, uids)
 	cmd := NewCMD(CMDAddAllowlist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 func (s *Store) GetAllowlist(channelID string, channelType uint8) ([]string, error) {
@@ -121,15 +121,15 @@ func (s *Store) RemoveAllAllowlist(channelID string, channelType uint8) error {
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
 func (s *Store) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
-	data := EncodeSubscribers(uids)
+	data := EncodeSubscribers(channelID, channelType, uids)
 	cmd := NewCMD(CMDRemoveAllowlist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeMetaToChannel(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }

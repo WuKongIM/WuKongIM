@@ -24,6 +24,7 @@ type slot struct {
 	destroy      bool      // 是否已经销毁
 	lastActivity time.Time // 最后一次活跃时间
 	commitWait   *commitWait
+	localstorage *localStorage
 
 	doneC chan struct{}
 	sync.Mutex
@@ -32,13 +33,13 @@ type slot struct {
 	prev *slot
 }
 
-func newSlot(st *pb.Slot, appliedIdx uint64, term uint32, opts *Options) *slot {
+func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *Options) *slot {
 	shardNo := GetSlotShardNo(st.Id)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage)))
+	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage, localstorage)))
 	if st.Leader == opts.NodeID {
-		rc.BecomeLeader(term)
+		rc.BecomeLeader(st.Term)
 	} else {
-		rc.BecomeFollower(term, st.Leader)
+		rc.BecomeFollower(st.Term, st.Leader)
 	}
 	return &slot{
 		slotId:       st.Id,
@@ -49,6 +50,7 @@ func newSlot(st *pb.Slot, appliedIdx uint64, term uint32, opts *Options) *slot {
 		opts:         opts,
 		doneC:        make(chan struct{}),
 		lastActivity: time.Now(),
+		localstorage: localstorage,
 	}
 }
 
@@ -103,18 +105,6 @@ func (s *slot) isLeader() bool {
 	return s.rc.IsLeader()
 }
 
-// 将当前节点任命为领导
-func (s *slot) appointLeader(from uint64, term uint32) error {
-
-	return s.stepLock(replica.Message{
-		MsgType:           replica.MsgAppointLeaderReq,
-		From:              from,
-		AppointmentLeader: s.opts.NodeID,
-		Term:              term,
-	})
-
-}
-
 func (s *slot) stepLock(msg replica.Message) error {
 	s.Lock()
 	defer s.Unlock()
@@ -162,6 +152,17 @@ func (s *slot) handleLocalMsg(msg replica.Message) {
 func (s *slot) handleApplyLogsReq(msg replica.Message) {
 	if len(msg.Logs) == 0 {
 		return
+	}
+	if s.opts.OnSlotApply != nil {
+		err := s.opts.OnSlotApply(s.slotId, msg.Logs)
+		if err != nil {
+			s.Panic("on slot apply error", zap.Error(err))
+		}
+		shardNo := GetSlotShardNo(s.slotId)
+		err = s.localstorage.setAppliedIndex(shardNo, msg.Logs[len(msg.Logs)-1].Index)
+		if err != nil {
+			s.Panic("set applied index error", zap.Error(err))
+		}
 	}
 	lastLog := msg.Logs[len(msg.Logs)-1]
 	s.Info("commit wait", zap.Uint64("lastLogIndex", lastLog.Index))

@@ -23,7 +23,7 @@ func NewChannelListener(opts *Options) *ChannelListener {
 	return &ChannelListener{
 		channels:      newChannelQueue(),
 		readyChannels: newReadyChannelQueue(),
-		readyCh:       make(chan struct{}, 1000),
+		readyCh:       make(chan struct{}),
 		stopper:       syncutil.NewStopper(),
 		opts:          opts,
 		Log:           wklog.NewWKLog("ChannelListener"),
@@ -71,7 +71,8 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 }
 
 func (c *ChannelListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 1)
+	tick := time.NewTicker(time.Millisecond * 10)
+	hasEvent := false
 	for {
 		select {
 		case <-tick.C:
@@ -88,12 +89,8 @@ func (c *ChannelListener) loopEvent() {
 						channel: ch,
 						Ready:   rd,
 					})
+					hasEvent = true
 
-					select {
-					case c.readyCh <- struct{}{}:
-					case <-c.stopper.ShouldStop():
-						return
-					}
 				} else {
 					if c.isInactiveChannel(ch) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
 						c.Remove(ch)
@@ -101,6 +98,14 @@ func (c *ChannelListener) loopEvent() {
 					}
 				}
 			})
+			if hasEvent {
+				hasEvent = false
+				select {
+				case c.readyCh <- struct{}{}:
+				case <-c.stopper.ShouldStop():
+					return
+				}
+			}
 
 		case <-c.stopper.ShouldStop():
 			return

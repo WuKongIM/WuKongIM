@@ -15,11 +15,12 @@ func TestChannelLeaderPropose(t *testing.T) {
 	opts := NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
+	localStorage := newLocalStorage(opts)
 	ch := newChannel(&ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, opts)
+	}, 0, nil, localStorage, opts)
 
 	err := ch.appointLeader(1) // 任命为领导
 
@@ -44,11 +45,12 @@ func TestChannelLeaderCommitLog(t *testing.T) {
 	opts := NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
+	localStorage := newLocalStorage(opts)
 	ch := newChannel(&ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, opts)
+	}, 0, nil, localStorage, opts)
 
 	err := ch.appointLeader(1) // 任命为领导
 	assert.NoError(t, err)
@@ -76,11 +78,13 @@ func TestChannelFollowSync(t *testing.T) {
 	opts := NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
+
+	localStorage := newLocalStorage(opts)
 	ch := newChannel(&ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, opts)
+	}, 0, nil, localStorage, opts)
 
 	err := ch.stepLock(replica.Message{
 		MsgType: replica.MsgNotifySync,
@@ -105,11 +109,12 @@ func TestChannelFollowSyncResp(t *testing.T) {
 	opts := NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
+	localStorage := newLocalStorage(opts)
 	ch := newChannel(&ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, opts)
+	}, 0, nil, localStorage, opts)
 
 	err := ch.stepLock(replica.Message{
 		MsgType: replica.MsgSyncResp,
@@ -133,11 +138,12 @@ func TestChannelProposeAndWaitCommit(t *testing.T) {
 	opts := NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
+	localStorage := newLocalStorage(opts)
 	ch := newChannel(&ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, opts)
+	}, 0, nil, localStorage, opts)
 
 	err := ch.appointLeader(1) // 任命为领导
 	assert.NoError(t, err)

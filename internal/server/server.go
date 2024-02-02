@@ -16,11 +16,10 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/version"
@@ -174,26 +173,34 @@ func New(opts *Options) *Server {
 			serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
 			initNodes[peer.ID] = serverAddr
 		}
-		clusterServer := cluster.NewServer(
+		clusterServer := cluster.New(
 			s.opts.Cluster.PeerID,
-			cluster.WithListenAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
-			cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
-			cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
-			cluster.WithInitNodes(initNodes),
-			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
-			cluster.WithApiServerAddr(s.opts.External.APIUrl),
-			cluster.WithChannelReplicaCount(uint16(s.opts.Cluster.ChannelReplicaCount)),
-			cluster.WithSlotReplicaCount(uint16(s.opts.Cluster.SlotReplicaCount)),
-			cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
-				return s.store.OnMetaApply(channelID, channelType, logs)
-			}),
+			cluster.NewOptions(
+				cluster.WithAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
+				cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
+				cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
+				cluster.WithInitNodes(initNodes),
+				cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
+				cluster.WithApiServerAddr(s.opts.External.APIUrl),
+				cluster.WithChannelMaxReplicaCount(uint16(s.opts.Cluster.ChannelReplicaCount)),
+				cluster.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
+				cluster.WithLogLevel(s.opts.Logger.Level),
+				cluster.WithOnSlotApply(func(slotId uint32, logs []replica.Log) error {
+
+					return s.store.OnMetaApply(slotId, logs)
+				}),
+			),
+
+			// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
+			// 	return s.store.OnMetaApply(channelID, channelType, logs)
+			// }),
 		)
 		s.cluster = clusterServer
 		storeOpts.Cluster = clusterServer
 		s.peerInFlightQueue = NewPeerInFlightQueue(s)
 
-		clusterServer.OnMessage(func(conn wknet.Conn, msg *proto.Message) {
-			s.dispatch.processor.handleClusterMessage(conn, msg)
+		clusterServer.OnMessage(func(from uint64, msg *proto.Message) {
+			s.dispatch.processor.handleClusterMessage(from, msg)
 		})
 	}
 

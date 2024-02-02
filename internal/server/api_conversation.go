@@ -96,13 +96,13 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -154,13 +154,13 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -203,13 +203,13 @@ func (s *ConversationAPI) deleteConversation(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
 
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
@@ -244,13 +244,13 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
 
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
@@ -398,21 +398,21 @@ func (s *ConversationAPI) getRecentMessagesForCluster(uid string, msgCount int, 
 		if channelRecentMsgReq.ChannelType == wkproto.ChannelTypePerson {
 			fakeChannelID = GetFakeChannelIDWith(uid, channelRecentMsgReq.ChannelID)
 		}
-		leaderInfo, err := s.s.cluster.LeaderNodeOfChannel(fakeChannelID, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := s.s.cluster.LeaderOfChannel(fakeChannelID, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			return nil, err
 		}
-		leaderIsSelf := leaderInfo.NodeID == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
 		if leaderIsSelf {
 			localPeerChannelRecentMessageReqs = append(localPeerChannelRecentMessageReqs, channelRecentMsgReq)
 		} else {
-			peerChannelRecentMessageReqs := peerChannelRecentMessageReqsMap[leaderInfo.NodeID]
+			peerChannelRecentMessageReqs := peerChannelRecentMessageReqsMap[leaderInfo.Id]
 			if peerChannelRecentMessageReqs == nil {
 				peerChannelRecentMessageReqs = make([]*channelRecentMessageReq, 0)
 			}
 			peerChannelRecentMessageReqs = append(peerChannelRecentMessageReqs, channelRecentMsgReq)
-			peerChannelRecentMessageReqsMap[leaderInfo.NodeID] = peerChannelRecentMessageReqs
+			peerChannelRecentMessageReqsMap[leaderInfo.Id] = peerChannelRecentMessageReqs
 		}
 
 	}

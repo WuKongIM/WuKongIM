@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -24,10 +23,10 @@ func (p *Processor) SetRoutes() {
 	p.s.cluster.Route("/wk/recvackPacket", p.handleOnRecvackPacketReq)
 }
 
-func (p *Processor) handleClusterMessage(conn wknet.Conn, msg *proto.Message) {
+func (p *Processor) handleClusterMessage(from uint64, msg *proto.Message) {
 	switch ClusterMsgType(msg.MsgType) {
 	case ClusterMsgTypeConnWrite: // 远程连接写入
-		p.handleConnWrite(conn, msg)
+		p.handleConnWrite(from, msg)
 	}
 }
 
@@ -40,7 +39,7 @@ func (p *Processor) handleConnectReq(c *wkserver.Context) {
 		return
 	}
 
-	isLeader, err := p.s.cluster.IsLeaderNodeOfChannel(req.Uid, wkproto.ChannelTypePerson)
+	isLeader, err := p.s.cluster.IsSlotLeaderOfChannel(req.Uid, wkproto.ChannelTypePerson)
 	if err != nil {
 		p.Error("IsLeaderNodeOfChannel err", zap.Error(err))
 		c.WriteErr(err)
@@ -101,7 +100,7 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 	if uint8(req.ChannelType) == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(req.FromUID, req.ChannelID)
 	}
-	isLeader, err := p.s.cluster.IsLeaderNodeOfChannel(fakeChannelID, uint8(req.ChannelType))
+	isLeader, err := p.s.cluster.IsSlotLeaderOfChannel(fakeChannelID, uint8(req.ChannelType))
 	if err != nil {
 		p.Error("IsLeaderNodeOfChannel err", zap.Error(err))
 		c.WriteErr(err)
@@ -131,7 +130,7 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 	c.Write(data)
 }
 
-func (p *Processor) handleConnWrite(conn wknet.Conn, msg *proto.Message) {
+func (p *Processor) handleConnWrite(from uint64, msg *proto.Message) {
 	var req = &rpc.ConnectWriteReq{}
 	err := req.Unmarshal(msg.Content)
 	if err != nil {
@@ -265,8 +264,8 @@ func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) 
 	}
 	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
-	fmt.Println("connectReq--->", req)
-	proxyConn := NewProxyClientConn(p.s, req.BelongPeerID, req.ConnID)
+	fmt.Println("connectReq--->", "deviceId:", connectPacket.DeviceID, req)
+	proxyConn := NewProxyClientConn(p.s, req.BelongPeerID)
 
 	connCtx := newConnContext(p.s)
 	connCtx.init()
@@ -321,7 +320,6 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 			return err
 		}
 		recvPacket := f.(*wkproto.RecvPacket)
-		fmt.Println("recvPacket---zzz----dd---->", recvPacket.MessageSeq)
 		messageDatas = messageDatas[size:]
 
 		m := &Message{
@@ -330,7 +328,6 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 			fromDeviceID:   req.FromDeviceID,
 			large:          req.Large,
 		}
-		fmt.Println("recvPacket---zzz----dd-22--->", m.MessageSeq)
 		messages = append(messages, m)
 		if channel == nil {
 			channel = &wkproto.Channel{
@@ -369,18 +366,13 @@ func (p *Processor) OnSendPacket(req *rpc.ForwardSendPacketReq) (*rpc.ForwardSen
 
 // OnConnectWriteReq 领导节点写回数据到连接所在节点
 func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, error) {
-	conn := p.s.connManager.GetConn(req.ConnID)
+	conn := p.s.connManager.GetConnWithDeviceID(req.Uid, req.DeviceId)
 	if conn == nil {
-		p.Warn("conn not exist", zap.Int64("connID", req.ConnID))
+		p.Warn("conn not exist", zap.String("uid", req.Uid), zap.String("deviceId", req.DeviceId))
 		return proto.Status_NotFound, nil
-	}
-	if conn.UID() != req.Uid && conn.DeviceFlag() != uint8(req.DeviceFlag) {
-		p.Warn("conn uid or deviceFlag not match", zap.Int64("connID", req.ConnID), zap.String("connUID", conn.UID()), zap.Uint8("connDeviceFlag", conn.DeviceFlag()), zap.String("reqUID", req.Uid), zap.Uint8("reqDeviceFlag", uint8(req.DeviceFlag)))
-		return proto.Status_NotFound, nil
-
 	}
 	if len(req.Data) == 0 {
-		p.Warn("conn write data is empty", zap.Int64("connID", req.ConnID))
+		p.Warn("conn write data is empty", zap.String("uid", req.Uid), zap.String("deviceId", req.DeviceId))
 		return proto.Status_OK, nil
 	}
 	p.s.dispatch.dataOut(conn, req.Data)
@@ -389,13 +381,17 @@ func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, e
 
 // OnConnPingReq 领导节点收到连接ping
 func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (proto.Status, error) {
-	p.Debug("收到Ping", zap.Uint64("fromNodeID", req.BelongPeerID), zap.String("uid", req.Uid), zap.Int64("connID", req.ConnID))
-	proxyConn := p.s.connManager.GetProxyConn(req.BelongPeerID, req.ConnID)
-	if proxyConn == nil {
-		p.Warn("conn not exist", zap.Int64("connID", req.ConnID), zap.Uint64("belongPeerID", req.BelongPeerID))
+	p.Debug("收到Ping", zap.Uint64("fromNodeID", req.BelongPeerID), zap.String("uid", req.Uid), zap.String("deviceId", req.DeviceId))
+	conn := p.s.connManager.GetConn(req.Uid, req.DeviceId)
+	if conn == nil {
+		p.Warn("conn not exist", zap.String("uid", req.Uid), zap.String("deviceId", req.DeviceId), zap.Uint64("belongPeerID", req.BelongPeerID))
 		return proto.Status_NotFound, nil
 	}
-	proxyConn.KeepLastActivity()
+	proxyConn, ok := conn.(*ProxyClientConn)
+	if ok {
+		proxyConn.KeepLastActivity()
+	}
+
 	return proto.Status_OK, nil
 }
 
@@ -413,9 +409,9 @@ func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (proto.Status, error) {
 // }
 
 func (p *Processor) OnRecvackPacket(req *rpc.RecvacksReq) error {
-	proxyConn := p.s.connManager.GetProxyConn(req.BelongPeerID, req.ConnID)
+	proxyConn := p.s.connManager.GetConn(req.Uid, req.DeviceId)
 	if proxyConn == nil {
-		p.Warn("conn not exist", zap.Int64("connID", req.ConnID), zap.Uint64("belongPeerID", req.BelongPeerID))
+		p.Warn("conn not exist", zap.String("uid", req.Uid), zap.String("deviceId", req.DeviceId), zap.Uint64("belongPeerID", req.BelongPeerID))
 		return nil
 	}
 	ackDatas := req.Data
@@ -465,7 +461,6 @@ func (p *Processor) handleLocalSubscribersMessages(messages []*Message, large bo
 		if err != nil {
 			return err
 		}
-		fmt.Println("messageSeqMap----->", messageSeqMap)
 		for _, message := range messages {
 			seq := messageSeqMap[fmt.Sprintf("%s-%d", message.ToUID, message.MessageID)]
 			if seq != 0 {

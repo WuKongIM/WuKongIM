@@ -2,12 +2,14 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
+	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -15,32 +17,6 @@ import (
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
-
-type ICluster interface {
-	Start() error
-	Stop()
-
-	// LeaderNodeIDOfChannel 获取channel的leader节点ID
-	LeaderNodeIDOfChannel(channelID string, channelType uint8) (nodeID uint64, err error)
-
-	// LeaderNodeOfChannel 获取channel的leader节点信息
-	LeaderNodeOfChannel(channelID string, channelType uint8) (nodeInfo clusterconfig.NodeInfo, err error)
-
-	// IsLeaderNodeOfChannel 当前节点是否是channel的leader节点
-	IsLeaderNodeOfChannel(channelID string, channelType uint8) (isLeader bool, err error)
-	// NodeInfoByID 获取节点信息
-	NodeInfoByID(nodeID uint64) (nodeInfo clusterconfig.NodeInfo, err error)
-	//Route 设置接受请求的路由
-	Route(path string, handler wkserver.Handler)
-	// RequestWithContext 发送请求给指定的节点
-	RequestWithContext(ctx context.Context, toNodeID uint64, path string, body []byte) (*proto.Response, error)
-	// Send 发送消息给指定的节点, MsgType 使用 1000 - 2000之间的值
-	Send(toNodeID uint64, msg *proto.Message) error
-	// OnMessage 设置接收消息的回调
-	OnMessage(f func(conn wknet.Conn, msg *proto.Message))
-	// 节点是否在线
-	NodeIsOnline(nodeID uint64) bool
-}
 
 type Server struct {
 	channelGroupManager  *channelGroupManager  // 频道管理，负责管理频道的集群
@@ -53,13 +29,15 @@ type Server struct {
 	stopped              bool
 	cancelFunc           context.CancelFunc
 	cancelCtx            context.Context
+	onMessageFnc         func(from uint64, msg *proto.Message) // 上层处理消息的函数
 	// 其他
 	opts *Options
 	wklog.Log
 }
 
-func New(opts *Options) *Server {
+func New(nodeId uint64, opts *Options) *Server {
 
+	opts.NodeID = nodeId
 	s := &Server{
 		slotManager:          newSlotManager(opts),
 		nodeManager:          newNodeManager(),
@@ -69,7 +47,10 @@ func New(opts *Options) *Server {
 		Log:                  wklog.NewWKLog(fmt.Sprintf("clusterServer[%d]", opts.NodeID)),
 	}
 
-	s.localStorage = newLocalStorage(s)
+	wklog.Configure(&wklog.Options{
+		Level: opts.LogLevel,
+	})
+	s.localStorage = newLocalStorage(s.opts)
 
 	s.channelGroupManager = newChannelGroupManager(s)
 	addr := s.opts.Addr
@@ -122,6 +103,14 @@ func (s *Server) Start() error {
 		s.addNode(nodeID, addr)
 	}
 
+	slots := s.clusterEventListener.localAllSlot()
+	if len(slots) > 0 {
+		err = s.addSlots(slots) // 添加槽
+		if err != nil {
+			return err
+		}
+	}
+
 	err = s.clusterEventListener.start()
 	if err != nil {
 		return err
@@ -163,6 +152,16 @@ func (s *Server) Stop() {
 
 }
 
+func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
+
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	prefix = strings.TrimSuffix(prefix, "/")
+
+	// route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
+}
+
 // 监听分布式事件
 func (s *Server) listenClusterEvent() {
 	for !s.stopped {
@@ -171,29 +170,6 @@ func (s *Server) listenClusterEvent() {
 			s.handleClusterEvent(event)
 		}
 	}
-}
-
-// ProposeMessageToChannel 提案消息到指定的频道
-func (s *Server) ProposeMessageToChannel(channelID string, channelType uint8, data []byte) (uint64, error) {
-
-	return s.channelGroupManager.proposeMessage(channelID, channelType, data)
-}
-
-// ProposeToSlot 提交数据到指定的槽
-func (s *Server) ProposeToSlot(slotId uint32, data []byte) error {
-
-	return s.slotManager.proposeAndWaitCommit(slotId, data)
-}
-
-func (s *Server) LeaderNodeOfChannel(channelID string, channelType uint8) (nodeInfo clusterconfig.NodeInfo, err error) {
-	channel, err := s.channelGroupManager.fetchChannel(channelID, channelType)
-	if err != nil {
-		return clusterconfig.NodeInfo{}, err
-	}
-	if channel == nil {
-		return clusterconfig.NodeInfo{}, fmt.Errorf("channel[%s] not found", channelID)
-	}
-	return clusterconfig.NodeInfo{}, nil
 }
 
 func (s *Server) SlotIsLeader(slotId uint32) bool {
@@ -217,6 +193,11 @@ func (s *Server) handleMessage(from uint64, m *proto.Message) {
 		s.handleSlotMsg(from, m)
 	case MsgChannelMsg:
 		s.handleChannelMsg(from, m)
+	default:
+
+		if s.onMessageFnc != nil {
+			s.onMessageFnc(from, m)
+		}
 	}
 }
 
@@ -228,6 +209,41 @@ func (s *Server) MustWaitConfigSlotCount(count uint32, timeout time.Duration) {
 	err := s.WaitConfigSlotCount(count, timeout)
 	if err != nil {
 		panic(err)
+	}
+}
+
+func (s *Server) MustWaitAllSlotLeaderReady(timeout time.Duration) {
+	err := s.WaitAllSlotLeaderReady(timeout)
+	if err != nil {
+		s.Panic("WaitAllSlotLeaderReady failed!", zap.Error(err))
+	}
+}
+
+func (s *Server) WaitAllSlotLeaderReady(timeout time.Duration) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	tick := time.NewTicker(time.Millisecond * 20)
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return timeoutCtx.Err()
+		case <-tick.C:
+			if len(s.clusterEventListener.localConfg.Slots) == 0 {
+				continue
+			}
+			all := true
+			for _, slot := range s.clusterEventListener.localConfg.Slots {
+				if slot.Leader == 0 {
+					all = false
+					break
+				}
+			}
+			if all {
+				return nil
+			}
+		case <-s.stopper.ShouldStop():
+			return errors.New("server stopped")
+		}
 	}
 }
 
@@ -262,6 +278,8 @@ func (s *Server) handleChannelMsg(from uint64, m *proto.Message) {
 		s.Error("unmarshal slot message error", zap.Error(err))
 		return
 	}
+	s.Info("收到频道消息", zap.Uint64("from", msg.From), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.String("msgType", msg.MsgType.String()))
+
 	channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
 	err = s.channelGroupManager.handleMessage(channelID, channelType, msg.Message)
 	if err != nil {

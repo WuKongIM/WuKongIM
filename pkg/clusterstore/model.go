@@ -7,12 +7,12 @@ import (
 )
 
 type ICluster interface {
-	// ProposeMetaToChannel 提交元数据到指定的channel
-	ProposeMetaToChannel(channelID string, channelType uint8, data []byte) error
-	// ProposeMessageToChannel 提交消息到指定的channel
-	ProposeMessageToChannel(channelID string, channelType uint8, data []byte) (uint64, error)
-	// ProposeMessagesToChannel 批量提交消息到指定的channel
-	ProposeMessagesToChannel(channelID string, channelType uint8, data [][]byte) ([]uint64, error)
+	// ProposeChannelMeta 提交元数据到指定的channel
+	ProposeChannelMeta(channelID string, channelType uint8, data []byte) error
+	// ProposeChannelMessage 提交消息到指定的channel
+	ProposeChannelMessage(channelID string, channelType uint8, data []byte) (uint64, error)
+	// ProposeChannelMessages 批量提交消息到指定的channel
+	ProposeChannelMessages(channelID string, channelType uint8, data [][]byte) ([]uint64, error)
 }
 
 type CMDType uint16
@@ -150,9 +150,11 @@ func (c *CMD) Unmarshal(data []byte) error {
 	return nil
 }
 
-func EncodeSubscribers(uids []string) []byte {
+func EncodeSubscribers(channelId string, channelType uint8, uids []string) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
 	encoder.WriteUint32(uint32(len(uids)))
 	if len(uids) > 0 {
 		for _, uid := range uids {
@@ -163,23 +165,50 @@ func EncodeSubscribers(uids []string) []byte {
 }
 
 // DecodeCMDAddSubscribers DecodeCMDAddSubscribers
-func (c *CMD) DecodeSubscribers() (uids []string, err error) {
+func (c *CMD) DecodeSubscribers() (channelId string, channelType uint8, uids []string, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
+
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
 
 	var count uint32
 	if count, err = decoder.Uint32(); err != nil {
-		return nil, err
+		return
 	}
 	if count > 0 {
 		for i := uint32(0); i < count; i++ {
 			var uid string
 			if uid, err = decoder.String(); err != nil {
-				return nil, err
+				return
 			}
 			uids = append(uids, uid)
 		}
 	}
-	return uids, nil
+	return
+}
+
+func (c *CMD) DecodeChannel() (channelId string, channelType uint8, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	return
+}
+
+func (c *CMD) EncodeChannel(channelId string, channelType uint8) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	return encoder.Bytes()
 }
 
 // EncodeUserToken EncodeUserToken

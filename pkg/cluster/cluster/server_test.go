@@ -77,8 +77,6 @@ func TestProposeToSlot(t *testing.T) {
 
 func TestProposeMessageToChannel(t *testing.T) {
 	dataDir := path.Join(os.TempDir(), "cluster")
-	fmt.Println("dataDir---->", dataDir)
-
 	initNodes := map[uint64]string{
 		1: "127.0.0.1:10001",
 		2: "127.0.0.1:10002",
@@ -111,7 +109,7 @@ func TestProposeMessageToChannel(t *testing.T) {
 
 	channelID := "test"
 	channelType := uint8(2)
-	lastLogIndex, err := s1.ProposeMessageToChannel(channelID, channelType, []byte("hello"))
+	lastLogIndex, err := s1.ProposeChannelMessage(channelID, channelType, []byte("hello"))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), lastLogIndex)
 
@@ -150,7 +148,7 @@ func newTestServer(t *testing.T, nodeId uint64, optList ...cluster.Option) *clus
 	opts.NodeID = nodeId
 	opts.MessageLogStorage = cluster.NewMemoryShardLogStorage()
 
-	s := cluster.New(opts)
+	s := cluster.New(nodeId, opts)
 	err := s.Start()
 	assert.NoError(t, err)
 	return s

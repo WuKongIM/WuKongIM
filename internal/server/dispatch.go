@@ -202,7 +202,6 @@ func (d *Dispatch) onConnect(conn wknet.Conn) error {
 
 func (d *Dispatch) onClose(conn wknet.Conn) {
 	d.Debug("conn close for OnClose", zap.Any("conn", conn))
-	d.s.connManager.RemoveConn(conn)
 	d.processor.processClose(conn)
 	d.s.monitor.ConnDec()
 }

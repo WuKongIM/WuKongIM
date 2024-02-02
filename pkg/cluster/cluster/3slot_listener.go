@@ -56,8 +56,8 @@ func (s *slotListener) wait() slotReady {
 }
 
 func (s *slotListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 1)
-
+	tick := time.NewTicker(time.Millisecond * 10)
+	hasEvent := false
 	for {
 		select {
 		case <-tick.C:
@@ -74,12 +74,8 @@ func (s *slotListener) loopEvent() {
 						slot:  st,
 						Ready: rd,
 					})
+					hasEvent = true
 
-					select {
-					case s.readyCh <- struct{}{}:
-					case <-s.stopper.ShouldStop():
-						return
-					}
 				} else {
 					if s.isInactiveSlot(st) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
 						s.remove(st)
@@ -87,6 +83,14 @@ func (s *slotListener) loopEvent() {
 					}
 				}
 			})
+			if hasEvent {
+				hasEvent = false
+				select {
+				case s.readyCh <- struct{}{}:
+				case <-s.stopper.ShouldStop():
+					return
+				}
+			}
 		case <-s.stopper.ShouldStop():
 			return
 		}

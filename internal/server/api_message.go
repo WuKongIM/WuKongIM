@@ -57,13 +57,13 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	}
 
 	if m.s.opts.ClusterOn() {
-		leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := m.s.cluster.LeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.PeerID
 		if !leaderIsSelf {
 			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -118,13 +118,13 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 	}
 
 	if m.s.opts.ClusterOn() {
-		leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := m.s.cluster.LeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.PeerID
 		if !leaderIsSelf {
 			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -221,13 +221,13 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 			if channelType == wkproto.ChannelTypePerson {
 				fakeChannelID = GetFakeChannelIDWith(req.FromUID, channelID)
 			}
-			leaderInfo, err := m.s.cluster.LeaderNodeOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+			leaderInfo, err := m.s.cluster.LeaderOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 			if err != nil {
 				m.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 				c.ResponseError(errors.New("获取频道所在节点失败！"))
 				return
 			}
-			leaderIsSelf := leaderInfo.NodeID == m.s.opts.Cluster.PeerID
+			leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.PeerID
 			if !leaderIsSelf {
 				m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)

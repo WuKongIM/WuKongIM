@@ -87,6 +87,17 @@ func (c *ConfigManager) AddOrUpdateNodes(nodes []*pb.Node, cfg *pb.Config) {
 	}
 }
 
+func (c *ConfigManager) UpdateApiServerAddr(nodeId uint64, addr string, cfg *pb.Config) {
+	c.Lock()
+	defer c.Unlock()
+	for _, node := range cfg.Nodes {
+		if node.Id == nodeId {
+			node.ApiServerAddr = addr
+			break
+		}
+	}
+}
+
 func (c *ConfigManager) AddOrUpdateSlots(slots []*pb.Slot, cfg *pb.Config) {
 	for i, slot := range slots {
 		if c.existSlotByCfg(slot.Id, cfg) {

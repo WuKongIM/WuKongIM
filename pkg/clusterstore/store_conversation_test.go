@@ -9,14 +9,18 @@ import (
 )
 
 func TestAddOrUpdateConversations(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	uid := "test"
 	// var channelType uint8 = 2
@@ -53,17 +57,31 @@ func TestAddOrUpdateConversations(t *testing.T) {
 	assert.Equal(t, conversation.UnreadCount, conversations[0].UnreadCount)
 	assert.Equal(t, conversation.Timestamp, conversations[0].Timestamp)
 	assert.Equal(t, conversation.LastMsgSeq, conversations[0].LastMsgSeq)
+
+	// 节点3获取
+	conversations, err = s3.GetConversations(uid)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(conversations))
+	assert.Equal(t, conversation.ChannelID, conversations[0].ChannelID)
+	assert.Equal(t, conversation.ChannelType, conversations[0].ChannelType)
+	assert.Equal(t, conversation.UnreadCount, conversations[0].UnreadCount)
+	assert.Equal(t, conversation.Timestamp, conversations[0].Timestamp)
+	assert.Equal(t, conversation.LastMsgSeq, conversations[0].LastMsgSeq)
 }
 
 func TestDeleteConversation(t *testing.T) {
-	s1, t1, s2, t2 := newTestClusterServerGroupTwo()
+	s1, t1, s2, t2, s3, t3 := newTestClusterServerGroupThree()
 	defer s1.Close()
 	defer s2.Close()
 	defer t1.Stop()
 	defer t2.Stop()
 
+	defer s3.Close()
+	defer t3.Stop()
+
 	t1.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 	t2.server.MustWaitAllSlotLeaderReady(time.Second * 20)
+	t3.server.MustWaitAllSlotLeaderReady(time.Second * 20)
 
 	uid := "test"
 	// var channelType uint8 = 2
