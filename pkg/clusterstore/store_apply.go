@@ -23,7 +23,7 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		s.Error("unmarshal cmd err", zap.Error(err), zap.Uint32("slotId", slotId), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
 		return err
 	}
-	s.Info("收到元数据请求", zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()))
+	s.Info("收到元数据请求", zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
 	switch cmd.CmdType {
 	case CMDAddSubscribers: // 添加订阅者
 		return s.handleAddSubscribers(cmd)
@@ -55,6 +55,10 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		return s.handleAddOrUpdateConversations(cmd)
 	case CMDDeleteConversation: // 删除会话
 		return s.handleDeleteConversation(cmd)
+	case CMDChannelClusterConfigSave: // 保存频道分布式配置
+		return s.handleChannelClusterConfigSave(cmd)
+		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置
+		// return s.handleChannelClusterConfigDelete(cmd)
 
 	}
 	return nil
@@ -179,4 +183,20 @@ func (s *Store) handleDeleteConversation(cmd *CMD) error {
 		return err
 	}
 	return s.db.DeleteConversation(uid, deleteChannelID, deleteChannelType)
+}
+
+func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
+	channelId, channelType, config, err := cmd.DecodeCMDChannelClusterConfigSave()
+	if err != nil {
+		return err
+	}
+	return s.db.SaveChannelClusterConfig(channelId, channelType, config)
+}
+
+func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {
+	channelId, channelType, err := cmd.DecodeChannel()
+	if err != nil {
+		return err
+	}
+	return s.db.DeleteChannelClusterConfig(channelId, channelType)
 }

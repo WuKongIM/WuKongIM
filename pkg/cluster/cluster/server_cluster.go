@@ -188,3 +188,19 @@ func (s *Server) ProposeToSlot(slotId uint32, data []byte) error {
 	}
 	return s.slotManager.proposeAndWaitCommit(slotId, data)
 }
+
+// func (s *Server) proposeChannelClusterConfig(config *ChannelClusterConfig) error {
+// 	slotId := s.getChannelSlotId(config.ChannelID)
+// 	data, err := config.Marshal()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
+// 	if slot == nil {
+// 		return ErrSlotNotFound
+// 	}
+// 	if slot.Leader != s.opts.NodeID {
+// 		return ErrSlotNotIsLeader
+// 	}
+// 	return s.ProposeToSlot(slotId, data)
+// }

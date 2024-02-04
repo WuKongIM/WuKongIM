@@ -59,7 +59,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	if m.s.opts.ClusterOn() {
 		leaderInfo, err := m.s.cluster.LeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
-			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
@@ -120,7 +120,7 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 	if m.s.opts.ClusterOn() {
 		leaderInfo, err := m.s.cluster.LeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
-			m.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
@@ -223,7 +223,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 			}
 			leaderInfo, err := m.s.cluster.LeaderOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 			if err != nil {
-				m.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+				m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 				c.ResponseError(errors.New("获取频道所在节点失败！"))
 				return
 			}

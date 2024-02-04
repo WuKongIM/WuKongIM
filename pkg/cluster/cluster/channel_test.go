@@ -20,7 +20,7 @@ func TestChannelLeaderPropose(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, localStorage, opts)
+	}, 0, localStorage, opts)
 
 	err := ch.appointLeader(1) // 任命为领导
 
@@ -50,7 +50,7 @@ func TestChannelLeaderCommitLog(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, localStorage, opts)
+	}, 0, localStorage, opts)
 
 	err := ch.appointLeader(1) // 任命为领导
 	assert.NoError(t, err)
@@ -84,7 +84,7 @@ func TestChannelFollowSync(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, localStorage, opts)
+	}, 0, localStorage, opts)
 
 	err := ch.stepLock(replica.Message{
 		MsgType: replica.MsgNotifySync,
@@ -114,7 +114,7 @@ func TestChannelFollowSyncResp(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, localStorage, opts)
+	}, 0, localStorage, opts)
 
 	err := ch.stepLock(replica.Message{
 		MsgType: replica.MsgSyncResp,
@@ -143,7 +143,7 @@ func TestChannelProposeAndWaitCommit(t *testing.T) {
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
-	}, 0, nil, localStorage, opts)
+	}, 0, localStorage, opts)
 
 	err := ch.appointLeader(1) // 任命为领导
 	assert.NoError(t, err)

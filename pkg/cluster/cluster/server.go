@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
-	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -75,7 +74,6 @@ func (s *Server) nodeCliOnline(nodeID uint64) (bool, error) {
 	if node == nil {
 		return false, errors.New("node not found")
 	}
-	fmt.Println("online---->", node.online())
 	return node.online(), nil
 }
 
@@ -171,16 +169,6 @@ func (s *Server) Stop() {
 		s.Error("close ShardLogStorage is error", zap.Error(err))
 	}
 
-}
-
-func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
-
-	if !strings.HasPrefix(prefix, "/") {
-		prefix = "/" + prefix
-	}
-	prefix = strings.TrimSuffix(prefix, "/")
-
-	// route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
 }
 
 // 监听分布式事件

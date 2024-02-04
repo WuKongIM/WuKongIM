@@ -105,6 +105,10 @@ func (t *topic) truncateLogTo(messageSeq uint32) error {
 	t.Lock()
 	defer t.Unlock()
 
+	if messageSeq == 0 {
+		return errors.New("messageSeq must be greater than 0")
+	}
+
 	if messageSeq > t.lastMsgSeq.Load() {
 		return nil
 	}
@@ -114,7 +118,12 @@ func (t *topic) truncateLogTo(messageSeq uint32) error {
 		return err
 	}
 	segment := t.getSegment(baseMessageSeq, SegmentModeAll)
-	return segment.truncateLogTo(messageSeq)
+	err = segment.truncateLogTo(messageSeq)
+	if err != nil {
+		return err
+	}
+	t.lastMsgSeq.Store(messageSeq - 1)
+	return nil
 }
 
 func (t *topic) saveStreamMeta(meta *StreamMeta) error {

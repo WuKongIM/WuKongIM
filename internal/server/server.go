@@ -189,6 +189,7 @@ func New(opts *Options) *Server {
 
 					return s.store.OnMetaApply(slotId, logs)
 				}),
+				cluster.WithChannelClusterStorage(clusterstore.NewChannelClusterConfigStore(s.store)),
 			),
 
 			// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {

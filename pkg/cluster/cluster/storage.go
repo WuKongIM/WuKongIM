@@ -8,7 +8,7 @@ import (
 type IShardLogStorage interface {
 	// AppendLog 追加日志
 	AppendLog(shardNo string, logs []replica.Log) error
-	// TruncateLogTo 截断日志, 从index开始截断,index=0 表示清空所有日志 （保留下来的内容不包含index）
+	// TruncateLogTo 截断日志, 从index开始截断,index=0 表示清空所有日志 （保留下来的内容包含index）
 	TruncateLogTo(shardNo string, index uint64) error
 	// 获取日志
 	Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limit uint32) ([]replica.Log, error)

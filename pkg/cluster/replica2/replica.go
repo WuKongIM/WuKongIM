@@ -269,14 +269,17 @@ func (r *Replica) putMsgIfNeed() {
 	}
 	if r.hasUnapplyLogs() {
 		if !hasMsg(MsgApplyLogsReq, r.msgs) {
+			start := r.state.appliedIndex + 1
+			end := r.state.committedIndex + 1
 			logs, err := r.opts.Storage.Logs(r.state.appliedIndex+1, r.state.committedIndex+1, r.opts.SyncLimit)
 			if err != nil {
-				r.Error("get logs failed", zap.Error(err))
+				lastIndex, _ := r.opts.Storage.LastIndex()
+				r.Error("get logs failed", zap.Error(err), zap.Uint64("start", start), zap.Uint64("end", end), zap.Uint64("lastIndex", lastIndex))
 				return
 			}
 			if len(logs) == 0 {
 				lastIndex, _ := r.opts.Storage.LastIndex()
-				r.Error("get unapply logs failed", zap.Error(err), zap.Uint64("lastIndex", lastIndex), zap.Uint64("startLogIndex", r.state.appliedIndex+1), zap.Uint64("endLogIndex", r.state.committedIndex+1))
+				r.Error("get unapply logs failed", zap.Error(err), zap.Uint64("lastIndex", lastIndex), zap.Uint64("startLogIndex", start), zap.Uint64("endLogIndex", end))
 				return
 			}
 			if len(logs) > 0 {

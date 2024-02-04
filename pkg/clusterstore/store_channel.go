@@ -1,6 +1,7 @@
 package clusterstore
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 )
 
@@ -127,6 +128,32 @@ func (s *Store) RemoveAllAllowlist(channelID string, channelType uint8) error {
 func (s *Store) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
 	data := EncodeSubscribers(channelID, channelType, uids)
 	cmd := NewCMD(CMDRemoveAllowlist, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
+}
+
+func (s *Store) SaveChannelClusterConfig(channelID string, channelType uint8, config *cluster.ChannelClusterConfig) error {
+	cfgData, err := config.Marshal()
+	if err != nil {
+		return err
+	}
+	data, err := EncodeCMDChannelClusterConfigSave(channelID, channelType, cfgData)
+	if err != nil {
+		return err
+	}
+	cmd := NewCMD(CMDChannelClusterConfigSave, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
+}
+
+func (s *Store) DeleteChannelClusterConfig(channelID string, channelType uint8) error {
+	cmd := NewCMD(CMDChannelClusterConfigDelete, nil)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err

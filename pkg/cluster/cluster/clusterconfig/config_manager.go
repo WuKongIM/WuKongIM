@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -116,6 +117,7 @@ func (c *ConfigManager) SetNodeOnline(nodeId uint64, online bool, cfg *pb.Config
 			node.Online = online
 			if !online {
 				node.OfflineCount++
+				node.LastOffline = time.Now().Unix()
 			}
 			break
 		}

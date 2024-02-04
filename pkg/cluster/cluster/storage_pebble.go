@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"path"
@@ -84,6 +85,9 @@ func (p *PebbleShardLogStorage) AppendLog(shardNo string, logs []replica.Log) er
 
 // TruncateLogTo 截断日志
 func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
+	if index == 0 {
+		return errors.New("index must be greater than 0")
+	}
 	keyData := key.NewLogKey(shardNo, index)
 	maxKeyData := key.NewLogKey(shardNo, math.MaxUint64)
 	err := p.db.DeleteRange(keyData, maxKeyData, p.wo)
@@ -92,7 +96,7 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 	}
 	logs, _ := p.Logs(shardNo, 0, math.MaxUint64, 1000)
 	for _, lg := range logs {
-		fmt.Println("lg--->", lg.Index)
+		fmt.Println("lg--->", shardNo, lg.Index)
 	}
 
 	if index > 0 {
@@ -254,35 +258,40 @@ func (l *localStorage) close() error {
 	return l.db.Close()
 }
 
-func (l *localStorage) saveChannelClusterConfig(channelID string, channelType uint8, clusterInfo *ChannelClusterConfig) error {
-	key := l.getChannelClusterConfigKey(channelID, channelType)
-	data, err := clusterInfo.Marshal()
-	if err != nil {
-		return err
-	}
-	return l.db.Set(key, data, l.wo)
-}
+// func (l *localStorage) saveChannelClusterConfig(channelID string, channelType uint8, clusterInfo *ChannelClusterConfig) error {
+// 	key := l.getChannelClusterConfigKey(channelID, channelType)
+// 	data, err := clusterInfo.Marshal()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return l.db.Set(key, data, l.wo)
+// }
 
-func (l *localStorage) getChannelClusterConfig(channelID string, channelType uint8) (*ChannelClusterConfig, error) {
-	key := l.getChannelClusterConfigKey(channelID, channelType)
-	data, closer, err := l.db.Get(key)
-	if err != nil {
-		if err == pebble.ErrNotFound {
-			return nil, nil
-		}
-		return nil, err
-	}
-	defer closer.Close()
-	if len(data) == 0 {
-		return nil, nil
-	}
-	clusterInfo := &ChannelClusterConfig{}
-	err = clusterInfo.Unmarshal(data)
-	if err != nil {
-		return nil, err
-	}
-	return clusterInfo, nil
-}
+// func (l *localStorage) deleteChannelClusterConfig(channelID string, channelType uint8) error {
+// 	key := l.getChannelClusterConfigKey(channelID, channelType)
+// 	return l.db.Delete(key, l.wo)
+// }
+
+// func (l *localStorage) getChannelClusterConfig(channelID string, channelType uint8) (*ChannelClusterConfig, error) {
+// 	key := l.getChannelClusterConfigKey(channelID, channelType)
+// 	data, closer, err := l.db.Get(key)
+// 	if err != nil {
+// 		if err == pebble.ErrNotFound {
+// 			return nil, nil
+// 		}
+// 		return nil, err
+// 	}
+// 	defer closer.Close()
+// 	if len(data) == 0 {
+// 		return nil, nil
+// 	}
+// 	clusterInfo := &ChannelClusterConfig{}
+// 	err = clusterInfo.Unmarshal(data)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return clusterInfo, nil
+// }
 
 func (l *localStorage) getChannelSyncInfos(channelId string, channelType uint8) ([]*replica.SyncInfo, error) {
 	slotID := l.getChannelSlotId(channelId)

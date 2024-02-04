@@ -101,7 +101,7 @@ func (r *Replica) stepLeader(m Message) error {
 				From:    r.nodeID,
 				To:      m.From,
 				Term:    r.state.term,
-				Index:   r.state.lastLogIndex,
+				Index:   r.state.lastLogIndex + 1, // 当前最新日志下标 + 1 副本truncate日志到这个下标,也就是不会truncate
 			})
 		} else {
 			syncTerm := m.Term + 1
@@ -119,7 +119,7 @@ func (r *Replica) stepLeader(m Message) error {
 				From:    r.nodeID,
 				To:      m.From,
 				Term:    syncTerm,
-				Index:   lastIndex,
+				Index:   lastIndex, // 副本truncate日志到这个下标（不会保留lastIndex的日志）
 			})
 		}
 	}
@@ -200,7 +200,6 @@ func (r *Replica) stepFollower(m Message) error {
 				return err
 			}
 		}
-		// Follower截断本地的日志到领导返回的index的位置（剩余的日志包含index）
 		r.Info("truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
 		err = r.opts.Storage.TruncateLogTo(m.Index)
 		if err != nil {

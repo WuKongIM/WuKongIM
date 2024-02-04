@@ -36,7 +36,7 @@ func TestChannelGroup(t *testing.T) {
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},
-	}, 0, nil, localStorage, opts)
+	}, 0, localStorage, opts)
 	cg1.add(ch1)
 
 	err = ch1.appointLeader(1)
@@ -74,7 +74,7 @@ func TestChannelGroup(t *testing.T) {
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},
-	}, 0, nil, localStorage, opts)
+	}, 0, localStorage, opts)
 	cg2.add(ch2)
 	err = ch2.appointLeaderTo(1, 1)
 	assert.NoError(t, err)

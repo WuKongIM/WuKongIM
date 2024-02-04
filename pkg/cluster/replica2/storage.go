@@ -3,8 +3,9 @@ package replica
 type IStorage interface {
 	// AppendLog 追加日志
 	AppendLog(logs []Log) error
-	// TruncateLog 截断日志, 从index开始截断,index=0 表示清空所有日志 （保留下来的内容不包含index）
-	TruncateLogTo(index uint64) error
+	// TruncateLog 截断日志, 从index开始截断,index不能等于0 （保留下来的内容不包含index）
+	// [1,2,3,4,5,6] truncate to 4 = [1,2,3]
+	TruncateLogTo(logIndex uint64) error
 	// GetLogs 获取日志
 	// startLogIndex 开始日志索引(结果包含startLogIndex)
 	// endLogIndex 结束日志索引(结果不包含endLogIndex) endLogIndex=0表示不限制
