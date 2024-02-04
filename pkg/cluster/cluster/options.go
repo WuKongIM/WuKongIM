@@ -31,6 +31,7 @@ type Options struct {
 	ChannelGroupCount            int                                           // channelGroup数量
 	OnSlotApply                  func(slotId uint32, logs []replica.Log) error // 槽数据应用
 	LogLevel                     zapcore.Level                                 // 日志级别
+	ChannelClusterStorage        ChannelClusterStorage                         // 频道分布式存储
 
 	nodeOnlineFnc      func(nodeID uint64) (bool, error) // 节点是否在线
 	requestSlotLogInfo func(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error)
@@ -185,5 +186,11 @@ func WithOnSlotApply(f func(slotId uint32, logs []replica.Log) error) Option {
 func WithLogLevel(level zapcore.Level) Option {
 	return func(opts *Options) {
 		opts.LogLevel = level
+	}
+}
+
+func WithChannelClusterStorage(storage ChannelClusterStorage) Option {
+	return func(opts *Options) {
+		opts.ChannelClusterStorage = storage
 	}
 }

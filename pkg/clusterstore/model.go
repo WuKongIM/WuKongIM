@@ -19,32 +19,61 @@ type CMDType uint16
 
 const (
 	CMDUnknown CMDType = iota
+	// 更新用户token
 	CMDUpdateUserToken
 	// CMDUpdateMessageOfUserCursorIfNeed CMDUpdateMessageOfUserCursorIfNeed
+	// 更新用户消息游标
 	CMDUpdateMessageOfUserCursorIfNeed
+	// 添加或更新频道
 	CMDAddOrUpdateChannel
+	// 添加订阅者
 	CMDAddSubscribers
+	// 移除订阅者
 	CMDRemoveSubscribers
+	// 移除所有订阅者
 	CMDRemoveAllSubscriber
+	// 删除频道
 	CMDDeleteChannel
+	// 添加黑名单
 	CMDAddDenylist
+	// 移除黑名单
 	CMDRemoveDenylist
+	// 移除所有黑名单
 	CMDRemoveAllDenylist
+	// 添加白名单
 	CMDAddAllowlist
+	// 移除白名单
 	CMDRemoveAllowlist
+	// 移除所有白名单
 	CMDRemoveAllAllowlist
+	// 追加消息
 	CMDAppendMessages
+	// 追加用户消息
 	CMDAppendMessagesOfUser
+	// 追加通知队列消息
 	CMDAppendMessagesOfNotifyQueue
+	// 移除通知队列消息
 	CMDRemoveMessagesOfNotifyQueue
+	// 删除频道并清空消息
 	CMDDeleteChannelAndClearMessages
+	// 添加或更新会话
 	CMDAddOrUpdateConversations
+	// 删除会话
 	CMDDeleteConversation
+	// 添加系统UID
 	CMDSystemUIDsAdd
+	// 移除系统UID
 	CMDSystemUIDsRemove
+	// 保存流元数据
 	CMDSaveStreamMeta
+	// 流结束
 	CMDStreamEnd
+	// 追加流元素
 	CMDAppendStreamItem
+	// 频道分布式配置保存
+	CMDChannelClusterConfigSave
+	// 频道分布式配置删除
+	CMDChannelClusterConfigDelete
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -103,6 +132,10 @@ func (c CMDType) String() string {
 		return "CMDStreamEnd"
 	case CMDAppendStreamItem:
 		return "CMDAppendStreamItem"
+	case CMDChannelClusterConfigSave:
+		return "CMDChannelClusterConfigSave"
+	case CMDChannelClusterConfigDelete:
+		return "CMDChannelClusterConfigDelete"
 	default:
 		return "CMDUnknown"
 	}
@@ -406,5 +439,27 @@ func (c *CMD) DecodeCMDAppendStreamItem() (channelID string, channelType uint8, 
 		return
 	}
 	item, err = wkstore.DecodeStreamItem(itemBytes)
+	return
+}
+
+func EncodeCMDChannelClusterConfigSave(channelID string, channelType uint8, data []byte) ([]byte, error) {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(channelID)
+	encoder.WriteUint8(channelType)
+	encoder.WriteBytes(data)
+	return encoder.Bytes(), nil
+}
+
+func (c *CMD) DecodeCMDChannelClusterConfigSave() (channelID string, channelType uint8, data []byte, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+
+	if channelID, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	data, err = decoder.BinaryAll()
 	return
 }

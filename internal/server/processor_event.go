@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/base64"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
@@ -18,7 +19,6 @@ func (p *Processor) SetRoutes() {
 	p.s.cluster.Route("/wk/connect", p.handleConnectReq)
 	p.s.cluster.Route("/wk/recvPacket", p.handleOnRecvPacketReq)
 	p.s.cluster.Route("/wk/sendPacket", p.handleOnSendPacketReq)
-	// p.s.cluster.Route("/wk/connectWrite", p.handleOnConnectWriteReq)
 	p.s.cluster.Route("/wk/connPing", p.handleOnConnPingReq)
 	p.s.cluster.Route("/wk/recvackPacket", p.handleOnRecvackPacketReq)
 }
@@ -40,14 +40,24 @@ func (p *Processor) handleConnectReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
-
-	isLeader, err := p.s.cluster.IsSlotLeaderOfChannel(req.Uid, wkproto.ChannelTypePerson)
+	from, err := p.getFrom(c)
+	if err != nil {
+		p.Error("get from err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	leaderId, err := p.s.cluster.SlotLeaderIdOfChannel(req.Uid, wkproto.ChannelTypePerson)
 	if err != nil {
 		p.Error("IsLeaderNodeOfChannel err", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
-	if !isLeader {
+	if leaderId == from {
+		p.Error("请求的节点已经是领导节点, handleConnectReq failed", zap.String("uid", req.Uid))
+		c.WriteErr(fmt.Errorf("请求的节点已经是领导节点"))
+		return
+	}
+	if leaderId != p.s.opts.Cluster.PeerID {
 		p.Error("当前节点不是领导节点, handleConnectReq failed", zap.String("uid", req.Uid))
 		c.WriteErr(fmt.Errorf("当前节点不是领导节点"))
 		return
@@ -205,6 +215,10 @@ func (p *Processor) handleOnRecvackPacketReq(c *wkserver.Context) {
 		return
 	}
 	c.WriteOk()
+}
+
+func (p *Processor) getFrom(c *wkserver.Context) (uint64, error) {
+	return strconv.ParseUint(c.Conn().UID(), 10, 64)
 }
 
 func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) {

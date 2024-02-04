@@ -31,9 +31,9 @@ type channel struct {
 	localstorage *localStorage
 }
 
-func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, lastSyncInfoMap map[uint64]*replica.SyncInfo, localstorage *localStorage, opts *Options) *channel {
+func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, opts *Options) *channel {
 	shardNo := ChannelKey(clusterConfig.ChannelID, clusterConfig.ChannelType)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithLastSyncInfoMap(lastSyncInfoMap), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage, localstorage)))
+	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage, localstorage)))
 	return &channel{
 		maxHandleReadyCountOfBatch: 50,
 		rc:                         rc,
@@ -245,4 +245,48 @@ func (c *channel) isLeader() bool {
 
 func (c *channel) leaderId() uint64 {
 	return c.rc.LeaderId()
+}
+
+func (c *channel) getClusterConfig() *ChannelClusterConfig {
+	return c.clusterConfig
+}
+
+type ichannel interface {
+	isLeader() bool
+	proposeAndWaitCommits(data [][]byte, timeout time.Duration) ([]uint64, error)
+	leaderId() uint64
+	handleMessage(msg replica.Message) error
+	getClusterConfig() *ChannelClusterConfig
+}
+
+type proxyChannel struct {
+	nodeId     uint64
+	clusterCfg *ChannelClusterConfig
+}
+
+func newProxyChannel(nodeId uint64, clusterCfg *ChannelClusterConfig) *proxyChannel {
+	return &proxyChannel{
+		nodeId:     nodeId,
+		clusterCfg: clusterCfg,
+	}
+}
+
+func (p *proxyChannel) isLeader() bool {
+	return p.clusterCfg.LeaderId == p.nodeId
+}
+
+func (p *proxyChannel) proposeAndWaitCommits(data [][]byte, timeout time.Duration) ([]uint64, error) {
+	panic("proposeAndWaitCommits: implement me")
+}
+
+func (p *proxyChannel) leaderId() uint64 {
+	return p.clusterCfg.LeaderId
+}
+
+func (p *proxyChannel) handleMessage(msg replica.Message) error {
+	panic("handleMessage: implement me")
+}
+
+func (p *proxyChannel) getClusterConfig() *ChannelClusterConfig {
+	return p.clusterCfg
 }

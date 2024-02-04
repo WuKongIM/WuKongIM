@@ -24,19 +24,17 @@ message Config {
 
 message Node {
     uint64 id = 1; // 节点id
-    string slots = 2; // 节点负责的槽位（也是领导槽位）
-    string clusterAddr = 3; // 节点分布式通讯地址
-    string apiServerAddr = 4; // 节点api服务地址
-    string replicaSlots = 5; // 节点负责的副本槽位（不包含领导槽位）
-    bool join = 6; // 是否是加入集群的节点，false表示初始节点 true表示后面新加入的节点
-    repeated SlotMigrate exports = 7; // 正在迁移的槽位
-    repeated SlotMigrate imports = 8; // 正在迁入的槽位
-    NodeStatus status = 9; // 节点状态
-    bool online = 10; // 是否在线
-    uint32 offlineCount = 11; // 离线次数
-    bool allowVote = 12; // 节点是否允许投票
-    uint32 dataTerm = 13; // 节点数据任期, 用于判断频道集群数据是否过期，节点重启后，数据任期会变大
-    NodeRole role = 14; // 节点角色
+    string clusterAddr = 2; // 节点分布式通讯地址
+    string apiServerAddr = 3; // 节点api服务地址
+    bool join = 4; // 是否是加入集群的节点，false表示初始节点 true表示后面新加入的节点
+    repeated SlotMigrate exports = 5; // 正在迁移的槽位
+    repeated SlotMigrate imports = 6; // 正在迁入的槽位
+    bool online = 7; // 是否在线
+    uint32 offlineCount = 8; // 离线次数
+    int64 lastOffline = 9; // 最后一次离线时间
+    bool allowVote = 10; // 节点是否允许投票
+    NodeRole role = 11; // 节点角色
+    NodeStatus status = 12; // 节点状态
 }
 
 

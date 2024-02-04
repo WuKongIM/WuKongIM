@@ -9,22 +9,25 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 var (
-	ErrStopped               = errors.New("cluster stopped")
-	ErrStepChannelFull       = errors.New("step channel full")
-	ErrProposeChannelFull    = errors.New("propose channel full")
-	ErrRecvChannelFull       = errors.New("recv channel full")
-	ErrSlotNotFound          = errors.New("slot not found")
-	ErrNodeNotFound          = errors.New("node not found")
-	ErrNotLeader             = errors.New("not leader")
-	ErrNotIsLeader           = errors.New("not is leader")
-	ErrSlotNotExist          = errors.New("slot not exist")
-	ErrTermZero              = errors.New("term is zero")
-	ErrChannelNotFound       = errors.New("channel not found")
-	ErrClusterConfigNotFound = errors.New("clusterConfig not found")
+	ErrStopped                 = errors.New("cluster stopped")
+	ErrStepChannelFull         = errors.New("step channel full")
+	ErrProposeChannelFull      = errors.New("propose channel full")
+	ErrRecvChannelFull         = errors.New("recv channel full")
+	ErrSlotNotFound            = errors.New("slot not found")
+	ErrNodeNotFound            = errors.New("node not found")
+	ErrNotLeader               = errors.New("not leader")
+	ErrNotIsLeader             = errors.New("not is leader")
+	ErrSlotNotExist            = errors.New("slot not exist")
+	ErrSlotNotIsLeader         = errors.New("slot not is leader")
+	ErrTermZero                = errors.New("term is zero")
+	ErrChannelNotFound         = errors.New("channel not found")
+	ErrClusterConfigNotFound   = errors.New("clusterConfig not found")
+	ErrOldChannelClusterConfig = errors.New("old channel cluster config")
 )
 
 const (
@@ -321,12 +324,14 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 }
 
 type ChannelProposeResp struct {
-	Indexs []uint64 // 提案索引
+	ClusterConfigOld bool     // 请求的节点的集群配置是否是旧的
+	Indexs           []uint64 // 提案索引
 }
 
 func (c *ChannelProposeResp) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
+	enc.WriteUint8(uint8(wkutil.BoolToInt(c.ClusterConfigOld)))
 	enc.WriteUint16(uint16(len(c.Indexs)))
 	for _, index := range c.Indexs {
 		enc.WriteUint64(index)
@@ -337,6 +342,13 @@ func (c *ChannelProposeResp) Marshal() ([]byte, error) {
 func (c *ChannelProposeResp) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
+
+	var clusterConfigOld uint8
+	if clusterConfigOld, err = dec.Uint8(); err != nil {
+		return err
+	}
+	c.ClusterConfigOld = wkutil.IntToBool(int(clusterConfigOld))
+
 	var indexsLen uint16
 	if indexsLen, err = dec.Uint16(); err != nil {
 		return err
@@ -478,4 +490,15 @@ func (s *SlotLogInfoResp) Unmarshal(data []byte) error {
 		}
 	}
 	return nil
+}
+
+type ChannelClusterStorage interface {
+	// 保存分布式配置
+	Save(channelId string, channelType uint8, clusterCfg *ChannelClusterConfig) error
+	// 删除频道分布式配置
+	Delete(channelId string, channelType uint8) error
+	// 获取分布式配置
+	Get(channelId string, channelType uint8) (*ChannelClusterConfig, error)
+	// 提案频道分布式数据
+	ProposeSave(channelId string, channelType uint8, clusterCfg *ChannelClusterConfig) error
 }

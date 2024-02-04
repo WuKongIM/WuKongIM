@@ -494,7 +494,7 @@ func (c *Channel) calcNodeSubscribers(subscribers []string) (map[uint64][]string
 	for _, subscriber := range subscribers {
 		leaderInfo, err := c.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
-			c.Error("获取频道所在节点失败！", zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return nil, err
 		}
 		nodeSubscribers, ok := subscriberNodeIDMap[leaderInfo.Id]

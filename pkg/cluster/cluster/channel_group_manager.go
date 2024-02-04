@@ -12,6 +12,7 @@ import (
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -79,22 +80,18 @@ func (c *channelGroupManager) proposeMessages(channelId string, channelType uint
 		c.Error("get channel failed", zap.Error(err))
 		return nil, err
 	}
-	if !channel.isLeader() {
-		channelLeaderId := channel.clusterConfig.LeaderId
-		node := c.s.nodeManager.node(channelLeaderId)
-		if node == nil {
-			return nil, ErrNodeNotFound
-		}
-		timeoutCtx, cancel := context.WithTimeout(c.s.cancelCtx, c.s.opts.ReqTimeout)
-		resp, err := node.requestChannelProposeMessage(timeoutCtx, &ChannelProposeReq{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-			Data:        data,
-		})
-		cancel()
+	if !channel.isLeader() { // 如果不是频道领导，则转发给频道领导
+		resp, err := c.requestChannelProposeMessage(channel.leaderId(), channelId, channelType, data)
 		if err != nil {
 			c.Error("requestChannelProposeMessage failed", zap.Error(err))
 			return nil, err
+		}
+		if resp.ClusterConfigOld {
+			c.Info("local channel cluster config is old,delete it", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			err = c.s.opts.ChannelClusterStorage.Delete(channelId, channelType)
+			if err != nil {
+				c.Warn("deleteChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			}
 		}
 		return resp.Indexs, nil
 	}
@@ -102,7 +99,26 @@ func (c *channelGroupManager) proposeMessages(channelId string, channelType uint
 	return lastIndex, err
 }
 
-func (c *channelGroupManager) fetchChannel(channelID string, channelType uint8) (*channel, error) {
+func (c *channelGroupManager) requestChannelProposeMessage(to uint64, channelId string, channelType uint8, data [][]byte) (*ChannelProposeResp, error) {
+	node := c.s.nodeManager.node(to)
+	if node == nil {
+		return nil, ErrNodeNotFound
+	}
+	timeoutCtx, cancel := context.WithTimeout(c.s.cancelCtx, c.s.opts.ReqTimeout)
+	resp, err := node.requestChannelProposeMessage(timeoutCtx, &ChannelProposeReq{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		Data:        data,
+	})
+	defer cancel()
+	if err != nil {
+		c.Error("requestChannelProposeMessage failed", zap.Error(err))
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *channelGroupManager) fetchChannel(channelID string, channelType uint8) (ichannel, error) {
 
 	return c.loadOrCreateChannel(channelID, channelType)
 }
@@ -124,13 +140,13 @@ func (c *channelGroupManager) handleMessage(channelID string, channelType uint8,
 	return channel.handleMessage(msg)
 }
 
-func (c *channelGroupManager) loadOrCreateChannel(channelID string, channelType uint8) (*channel, error) {
+func (c *channelGroupManager) loadOrCreateChannel(channelID string, channelType uint8) (ichannel, error) {
 	shardNo := ChannelKey(channelID, channelType)
 	c.channelKeyLock.Lock(shardNo)
 	defer c.channelKeyLock.Unlock(shardNo)
 
 	var (
-		channel *channel
+		channel ichannel
 		err     error
 	)
 
@@ -139,7 +155,7 @@ func (c *channelGroupManager) loadOrCreateChannel(channelID string, channelType 
 	if slot == nil {
 		return nil, ErrSlotNotExist
 	}
-	if slot.Leader == c.s.opts.NodeID { // 当前节点是槽位的leader
+	if slot.Leader == c.s.opts.NodeID { // 当前节点是槽位的leader，槽节点有任命频道领导的权限，槽节点保存属于此槽频道的分布式配置
 		channel, err = c.getChannelForSlotLeader(channelID, channelType)
 		if err != nil {
 			c.Error("getChannelForSlotLeader failed", zap.Error(err), zap.String("channelId", channelID), zap.Uint8("channelType", channelType))
@@ -158,9 +174,9 @@ func (c *channelGroupManager) loadOrCreateChannel(channelID string, channelType 
 	return channel, nil
 }
 
-func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelType uint8) (*channel, error) {
+func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelType uint8) (ichannel, error) {
 	channel := c.channelGroup(channelID, channelType).channel(channelID, channelType)
-	clusterconfig, err := c.localStorage.getChannelClusterConfig(channelID, channelType)
+	clusterconfig, err := c.s.opts.ChannelClusterStorage.Get(channelID, channelType)
 	if err != nil {
 		return nil, err
 	}
@@ -186,10 +202,10 @@ func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelT
 		// 	return nil, errors.New("online replica count is not enough, checkOnlineReplicaCount and createChannelClusterInfo failed")
 		// }
 
-		// 保存分布式配置
-		err = c.localStorage.saveChannelClusterConfig(channelID, channelType, clusterconfig)
+		// 提议分布式配置
+		err = c.s.opts.ChannelClusterStorage.ProposeSave(clusterconfig.ChannelID, clusterconfig.ChannelType, clusterconfig)
 		if err != nil {
-			c.Error("saveChannelClusterConfig failed", zap.Error(err))
+			c.Error("proposeChannelClusterConfig failed", zap.Error(err))
 			return nil, err
 		}
 		channel.updateClusterConfig(clusterconfig)
@@ -208,41 +224,46 @@ func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelT
 	return channel, err
 }
 
-func (c *channelGroupManager) getChannelForOthers(channelID string, channelType uint8) (*channel, error) {
+func (c *channelGroupManager) getChannelForOthers(channelID string, channelType uint8) (ichannel, error) {
 
-	var (
-		clusterConfig *ChannelClusterConfig
-		err           error
-		channel       = c.channelGroup(channelID, channelType).channel(channelID, channelType)
-	)
-	if channel == nil {
-		clusterConfig, err = c.localStorage.getChannelClusterConfig(channelID, channelType)
+	cacheChannel := c.channelGroup(channelID, channelType).channel(channelID, channelType)
+	if cacheChannel != nil {
+		return cacheChannel, nil
+	}
+
+	clusterConfig, err := c.s.opts.ChannelClusterStorage.Get(channelID, channelType)
+	if err != nil {
+		return nil, err
+	}
+
+	if clusterConfig == nil {
+		clusterConfig, err = c.requestChannelClusterConfigFromSlotLeader(channelID, channelType) // 从频道所在槽的领导节点获取频道分布式配置
 		if err != nil {
 			return nil, err
 		}
-		if clusterConfig == nil {
-			clusterConfig, err = c.requestChannelClusterConfigFromSlotLeader(channelID, channelType) // 从频道所在槽的领导节点获取频道分布式配置
+		if clusterConfig != nil {
+			err = c.s.opts.ChannelClusterStorage.Save(channelID, channelType, clusterConfig)
 			if err != nil {
 				return nil, err
 			}
-			if clusterConfig != nil {
-				err = c.localStorage.saveChannelClusterConfig(channelID, channelType, clusterConfig)
-				if err != nil {
-					return nil, err
-				}
-			}
 		}
-		if clusterConfig == nil {
-			return nil, fmt.Errorf("not found cluster config")
-		}
-		channel, err = c.newChannelByClusterInfo(clusterConfig)
+	}
+
+	var (
+		ch ichannel
+	)
+	if wkutil.ArrayContainsUint64(clusterConfig.Replicas, c.s.opts.NodeID) { // 如果当前节点是频道的副本，则创建频道集群
+		ch, err = c.newChannelByClusterInfo(clusterConfig)
 		if err != nil {
 			return nil, err
 		}
-		channel.updateClusterConfig(clusterConfig)
-		c.channelGroup(channelID, channelType).add(channel)
+		ch.(*channel).updateClusterConfig(clusterConfig)
+		c.channelGroup(channelID, channelType).add(ch.(*channel))
+	} else { // 如果当前节点不是频道的副本，则创建一个代理频道
+		ch = newProxyChannel(c.s.opts.NodeID, clusterConfig)
 	}
-	return channel, nil
+
+	return ch, nil
 }
 
 // 从频道所在槽获取频道的分布式信息
@@ -294,8 +315,6 @@ func (c *channelGroupManager) createChannelClusterInfo(channelID string, channel
 		newOnlineNodes[i], newOnlineNodes[j] = newOnlineNodes[j], newOnlineNodes[i]
 	})
 
-	fmt.Println("newOnlineNodes-------->", newOnlineNodes)
-
 	for _, onlineNode := range newOnlineNodes {
 		if onlineNode.Id == c.s.opts.NodeID {
 			continue
@@ -307,34 +326,6 @@ func (c *channelGroupManager) createChannelClusterInfo(channelID string, channel
 	}
 	clusterConfig.Replicas = replicaIDs
 	return clusterConfig, nil
-}
-
-func (c *channelGroupManager) notifyAppointLeader(newClusterConfig *ChannelClusterConfig, channel *channel) error {
-	// 发送任命消息给频道所有副本(除了自己)
-	fmt.Println("requestChannelAppointLeader--->1")
-	err := c.requestChannelAppointLeader(newClusterConfig)
-	if err != nil {
-		c.Error("requestChannelAppointLeader failed", zap.Error(err))
-		return err
-	}
-	fmt.Println("requestChannelAppointLeader--->2")
-
-	if newClusterConfig.LeaderId == c.s.opts.NodeID {
-		// 任命自己为领导
-		err = channel.appointLeader(newClusterConfig.Term)
-		if err != nil {
-			c.Error("appointLeader failed", zap.Error(err))
-			return err
-		}
-	} else {
-		err = channel.appointLeaderTo(newClusterConfig.Term, newClusterConfig.LeaderId)
-		if err != nil {
-			c.Error("appointLeaderTo failed", zap.Error(err))
-			return err
-		}
-	}
-	fmt.Println("requestChannelAppointLeader--->3")
-	return nil
 }
 
 func (c *channelGroupManager) electionIfNeed(channel *channel) error {
@@ -389,7 +380,7 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	c.Info("成功选举出新的领导", zap.Uint64("newLeaderID", clusterConfig.LeaderId), zap.Uint32("term", clusterConfig.Term), zap.Uint64s("replicas", clusterConfig.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 	// 保存分布式配置
-	err = c.localStorage.saveChannelClusterConfig(channelId, channelType, clusterConfig)
+	err = c.s.opts.ChannelClusterStorage.Save(channelId, channelType, clusterConfig)
 	if err != nil {
 		c.Error("saveChannelClusterConfig failed", zap.Error(err))
 		return err
@@ -413,17 +404,7 @@ func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo *Channe
 	if err != nil {
 		return nil, err
 	}
-	lastSyncInfoMap := map[uint64]*replica.SyncInfo{}
-	if channelClusterInfo.LeaderId == c.s.opts.NodeID { // 当前节点是领导
-		syncInfos, err := c.s.localStorage.getChannelSyncInfos(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType)
-		if err != nil {
-			return nil, err
-		}
-		for _, syncInfo := range syncInfos {
-			lastSyncInfoMap[syncInfo.NodeID] = syncInfo
-		}
-	}
-	channel := newChannel(channelClusterInfo, appliedIndex, lastSyncInfoMap, c.localStorage, c.s.opts)
+	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.s.opts)
 	return channel, nil
 }
 

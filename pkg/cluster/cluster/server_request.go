@@ -1,6 +1,9 @@
 package cluster
 
 import (
+	"errors"
+	"strconv"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
@@ -10,7 +13,7 @@ func (s *Server) setRoutes() {
 	// 获取频道最新日志信息
 	s.server.Route("/channel/lastloginfo", s.handleChannelLastLogInfo)
 	// 任命频道leader
-	s.server.Route("/channel/appointleader", s.handleChannelAppointleader)
+	// s.server.Route("/channel/appointleader", s.handleChannelAppointleader)
 	// 获取频道分布式配置
 	s.server.Route("/channel/clusterconfig", s.handleClusterconfig)
 	//	向频道提案消息
@@ -50,58 +53,58 @@ func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
 	c.Write(respData)
 }
 
-func (s *Server) handleChannelAppointleader(c *wkserver.Context) {
+// func (s *Server) handleChannelAppointleader(c *wkserver.Context) {
 
-	s.Info("handleChannelAppointleader.....")
-	req := &AppointLeaderReq{}
-	err := req.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("unmarshal AppointLeaderReq failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-	if req.Term == 0 {
-		s.Error("term is zero,appoint leader failed", zap.Uint64("leader", req.LeaderId), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(ErrTermZero)
-		return
-	}
-	s.Info("handleChannelAppointleader.....222")
-	ch, err := s.channelGroupManager.fetchChannel(req.ChannelId, req.ChannelType)
-	if err != nil {
-		c.WriteErr(err)
-		return
-	}
+// 	s.Info("handleChannelAppointleader.....")
+// 	req := &AppointLeaderReq{}
+// 	err := req.Unmarshal(c.Body())
+// 	if err != nil {
+// 		s.Error("unmarshal AppointLeaderReq failed", zap.Error(err))
+// 		c.WriteErr(err)
+// 		return
+// 	}
+// 	if req.Term == 0 {
+// 		s.Error("term is zero,appoint leader failed", zap.Uint64("leader", req.LeaderId), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+// 		c.WriteErr(ErrTermZero)
+// 		return
+// 	}
+// 	s.Info("handleChannelAppointleader.....222")
+// 	ch, err := s.channelGroupManager.fetchChannel(req.ChannelId, req.ChannelType)
+// 	if err != nil {
+// 		c.WriteErr(err)
+// 		return
+// 	}
 
-	s.Info("handleChannelAppointleader.....333")
-	err = ch.appointLeaderTo(req.Term, req.LeaderId)
-	if err != nil {
-		s.Error("appoint leader failed", zap.Uint64("leader", req.LeaderId), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(err)
-		return
-	}
+// 	s.Info("handleChannelAppointleader.....333")
+// 	err = ch.appointLeaderTo(req.Term, req.LeaderId)
+// 	if err != nil {
+// 		s.Error("appoint leader failed", zap.Uint64("leader", req.LeaderId), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+// 		c.WriteErr(err)
+// 		return
+// 	}
 
-	if !ch.isLeader() {
-		err = ch.appointLeader(req.Term)
-		if err != nil {
-			s.Error("appoint leader failed", zap.Uint64("leader", req.LeaderId), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			c.WriteErr(err)
-			return
-		}
-		clusterconfig := ch.clusterConfig
-		clusterconfig.LeaderId = req.LeaderId
-		clusterconfig.Term = req.Term
-		ch.updateClusterConfig(clusterconfig)
-		err = s.localStorage.saveChannelClusterConfig(req.ChannelId, req.ChannelType, clusterconfig)
-		if err != nil {
-			s.Error("saveChannelClusterConfig failed", zap.Error(err))
-			c.WriteErr(err)
-			return
-		}
-	}
-	s.Info("handleChannelAppointleader.....444")
-	c.WriteOk()
+// 	if !ch.isLeader() {
+// 		err = ch.appointLeader(req.Term)
+// 		if err != nil {
+// 			s.Error("appoint leader failed", zap.Uint64("leader", req.LeaderId), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+// 			c.WriteErr(err)
+// 			return
+// 		}
+// 		clusterconfig := ch.clusterConfig
+// 		clusterconfig.LeaderId = req.LeaderId
+// 		clusterconfig.Term = req.Term
+// 		ch.updateClusterConfig(clusterconfig)
+// 		err = s.localStorage.saveChannelClusterConfig(req.ChannelId, req.ChannelType, clusterconfig)
+// 		if err != nil {
+// 			s.Error("saveChannelClusterConfig failed", zap.Error(err))
+// 			c.WriteErr(err)
+// 			return
+// 		}
+// 	}
+// 	s.Info("handleChannelAppointleader.....444")
+// 	c.WriteOk()
 
-}
+// }
 
 func (s *Server) handleClusterconfig(c *wkserver.Context) {
 	req := &ChannelClusterConfigReq{}
@@ -135,7 +138,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		c.WriteErr(ErrChannelNotFound)
 		return
 	}
-	clusterConfig := channel.clusterConfig
+	clusterConfig := channel.getClusterConfig()
 	if clusterConfig == nil {
 		s.Error("clusterConfig not found", zap.String("channelId", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(ErrClusterConfigNotFound)
@@ -153,7 +156,6 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 }
 
 func (s *Server) handleProposeMessage(c *wkserver.Context) {
-	s.Info("handleProposeMessage.....")
 	req := &ChannelProposeReq{}
 	if err := req.Unmarshal(c.Body()); err != nil {
 		s.Error("unmarshal ChannelProposeReq failed", zap.Error(err))
@@ -161,6 +163,14 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		return
 	}
 
+	from, err := s.getFrom(c)
+	if err != nil {
+		s.Error("getFrom failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	// 获取频道集群
 	ch, err := s.channelGroupManager.fetchChannel(req.ChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("fetchChannel failed", zap.Error(err))
@@ -172,9 +182,14 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		c.WriteErr(ErrChannelNotFound)
 		return
 	}
-	if !ch.isLeader() {
+	if ch.leaderId() != s.opts.NodeID {
+		if ch.leaderId() == from {
+			s.Error("leaderId is from,handleProposeMessage failed", zap.Uint64("leaderId", ch.leaderId()), zap.Uint64("from", from))
+			c.WriteErr(errors.New("leaderId is from"))
+			return
+		}
 		s.Error("not leader,handleProposeMessage failed", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(ErrNotIsLeader)
+		c.WriteErr(ErrOldChannelClusterConfig)
 		return
 	}
 	logIndexs, err := ch.proposeAndWaitCommits(req.Data, s.opts.ProposeTimeout)
@@ -193,8 +208,6 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		return
 	}
 	c.Write(data)
-
-	s.Info("handleProposeMessage.....end...")
 
 }
 
@@ -284,4 +297,8 @@ func (s *Server) handleSlotLogInfo(c *wkserver.Context) {
 // 获取频道所在的slotId
 func (s *Server) getChannelSlotId(channelId string) uint32 {
 	return wkutil.GetSlotNum(int(s.opts.SlotCount), channelId)
+}
+
+func (s *Server) getFrom(c *wkserver.Context) (uint64, error) {
+	return strconv.ParseUint(c.Conn().UID(), 10, 64)
 }

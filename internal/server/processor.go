@@ -94,7 +94,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	uid := connectPacket.UID
 	leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		return
 	}
 	leaderIsSelf := leaderInfo.Id == p.s.opts.Cluster.PeerID
@@ -281,7 +281,7 @@ func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.Co
 	}
 	leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(connectPacket.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", connectPacket.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", connectPacket.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		p.responseConnack(conn, 0, wkproto.ReasonSystemError)
 		return
 	}
@@ -335,7 +335,7 @@ func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket)
 
 	leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(conn.UID(), wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		return
 	}
 	leaderIsSelf := leaderInfo.Id == p.s.opts.Cluster.PeerID
@@ -408,7 +408,7 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	// 如果频道在本节点上那么就本地处理，如果不在此节点上那么就转发给所属的节点
 	isLeader, err := p.s.cluster.IsSlotLeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
+		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
 	if isLeader {
@@ -430,7 +430,7 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 
 	leaderInfo, err := p.s.cluster.LeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
+		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
 		for _, sendPacket := range sendPackets {
 			sendackPackets = append(sendackPackets, p.getSendackPacketWithSendPacket(sendPacket, wkproto.ReasonSystemError))
 		}
@@ -985,7 +985,7 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 
 	leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(conn.UID(), wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
-		p.Error("获取频道所在节点失败！", zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		return
 	}
 	if leaderInfo.Id != p.s.opts.Cluster.PeerID {
@@ -1037,7 +1037,7 @@ func (p *Processor) processClose(conn wknet.Conn) {
 	if p.s.opts.ClusterOn() {
 		leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(conn.UID(), wkproto.ChannelTypePerson) // 获取频道的槽领导节点
 		if err != nil {
-			p.Error("获取频道所在节点失败！", zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return
 		}
 		if leaderInfo.Id != p.s.opts.Cluster.PeerID {

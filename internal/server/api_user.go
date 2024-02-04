@@ -55,7 +55,7 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 	if u.s.opts.ClusterOn() {
 		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
-			u.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
@@ -136,7 +136,7 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 	for _, uid := range uids {
 		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
-			u.Error("获取频道所在节点失败！", zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return nil, errors.New("获取频道所在节点失败！")
 		}
 		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.PeerID
@@ -183,7 +183,7 @@ func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*Onlinest
 
 	nodeInfo, err := u.s.cluster.NodeInfoByID(nodeID) // 获取频道的领导节点
 	if err != nil {
-		u.Error("获取频道所在节点失败！", zap.Uint64("nodeID", nodeID))
+		u.Error("获取频道所在节点失败！", zap.Error(err), zap.Uint64("nodeID", nodeID))
 		return nil, errors.New("获取频道所在节点失败！")
 	}
 	reqURL := fmt.Sprintf("%s/user/onlinestatus", nodeInfo.ApiServerAddr)
@@ -235,7 +235,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 	if u.s.opts.ClusterOn() {
 		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
-			u.Error("获取频道所在节点失败！", zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}

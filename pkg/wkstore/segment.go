@@ -103,7 +103,7 @@ func (s *segment) readMessages(messageSeq uint32, limit uint64, callback func(ms
 		s.Error("readMessages-index.Lookup is error", zap.Error(err))
 		return err
 	}
-	var startPosition int64 = 0
+	var startPosition int64
 	if messageSeqPosition.MessageSeq == messageSeq {
 		startPosition = messageSeqPosition.Position
 	} else {
