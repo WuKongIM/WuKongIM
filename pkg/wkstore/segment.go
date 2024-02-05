@@ -359,7 +359,17 @@ func (s *segment) truncateLogTo(messageSeq uint32) error {
 	if err != nil {
 		return err
 	}
+	err = s.index.truncateLogTo(messageSeq)
+	if err != nil {
+		s.Error("index.truncateLogTo is error", zap.Error(err))
+		return err
+	}
+	s.position = uint32(targetPosition)
 	err = s.segmentFile.Truncate(targetPosition)
+	if err != nil {
+		return err
+	}
+	_, err = s.segmentFile.Seek(int64(s.position), io.SeekStart)
 	return err
 }
 

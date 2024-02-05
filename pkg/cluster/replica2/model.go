@@ -174,16 +174,23 @@ func UnmarshalMessage(data []byte) (Message, error) {
 }
 
 type HardState struct {
-	Term uint32 // 领导任期
+	LeaderId uint64 // 领导ID
+	Term     uint32 // 领导任期
+}
+
+var EmptyHardState = HardState{}
+
+func IsEmptyHardState(hs HardState) bool {
+	return hs.LeaderId == 0 && hs.Term == 0
 }
 
 type Ready struct {
-	HardState *HardState
+	HardState HardState
 	Messages  []Message
 }
 
 func IsEmptyReady(rd Ready) bool {
-	return len(rd.Messages) == 0
+	return len(rd.Messages) == 0 && IsEmptyHardState(rd.HardState)
 }
 
 type Log struct {

@@ -17,7 +17,8 @@ type IShardLogStorage interface {
 	// 设置成功被状态机应用的日志索引
 	// SetAppliedIndex(shardNo string, index uint64) error
 	//	 获取最后一条日志的索引和追加时间
-	LastIndexAndAppendTime(shardNo string) (uint64, uint64, error)
+	//
+	LastIndexAndAppendTime(shardNo string) (lastMsgSeq uint64, lastAppendTime uint64, err error)
 
 	// SetLeaderTermStartIndex 设置领导任期开始的第一条日志索引
 	// SetLeaderTermStartIndex(shardNo string, term uint32, index uint64) error

@@ -86,6 +86,17 @@ func (g *channelGroup) handleReady(rd channelReady) {
 		shardNo = channel.channelKey()
 	)
 
+	if !replica.IsEmptyHardState(rd.HardState) {
+		g.Info("设置HardState", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
+		channelClusterCfg := channel.getClusterConfig()
+		channelClusterCfg.Term = rd.HardState.Term
+		channelClusterCfg.LeaderId = rd.HardState.LeaderId
+		err := g.opts.ChannelClusterStorage.Save(channel.channelID, channel.channelType, channelClusterCfg)
+		if err != nil {
+			g.Panic("save cluster config error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))
+		}
+	}
+
 	for _, msg := range rd.Messages {
 		if msg.To == g.opts.NodeID {
 			channel.handleLocalMsg(msg)
@@ -95,7 +106,7 @@ func (g *channelGroup) handleReady(rd channelReady) {
 			g.Error("msg.To is 0", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType))
 			continue
 		}
-		g.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
+		g.Info("发送消息", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
 
 		protMsg, err := NewMessage(shardNo, msg, MsgChannelMsg)
 		if err != nil {

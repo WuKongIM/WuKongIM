@@ -1038,16 +1038,13 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
-	fmt.Println("syncMessages.......1")
 	if ch.s.opts.ClusterOn() {
-		fmt.Println("syncMessages.......2")
 		leaderInfo, err := ch.s.cluster.LeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		fmt.Println("syncMessages.......3")
 		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.PeerID
 
 		if !leaderIsSelf {
@@ -1056,7 +1053,6 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 			return
 		}
 	}
-	fmt.Println("syncMessages.......4")
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
 		messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
 	} else if req.PullMode == PullModeUp { // 向上拉取
