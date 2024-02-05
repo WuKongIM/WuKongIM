@@ -365,7 +365,6 @@ func (f *FileStore) AddOrUpdateConversations(uid string, conversations []*Conver
 	if len(conversations) == 0 {
 		return nil
 	}
-	fmt.Println("filestore---AddOrUpdateConversations--->", uid, len(conversations))
 	batch := f.db.NewBatch()
 	for _, conversation := range conversations {
 		enc := wkproto.NewEncoder()
@@ -394,7 +393,6 @@ func (f *FileStore) GetConversations(uid string) ([]*Conversation, error) {
 	conversations := make([]*Conversation, 0)
 
 	for iter.First(); iter.Valid(); iter.Next() {
-		fmt.Println("filestore---GetConversations--->", string(iter.Key()), iter.Value())
 		decoder := wkproto.NewDecoder(iter.Value())
 		conversation, err := decodeConversation(decoder)
 		if err != nil {

@@ -308,8 +308,8 @@ func (s *Server) Stop() error {
 
 	s.retryQueue.Stop()
 	_ = s.dispatch.Stop()
-	s.apiServer.Stop()
 	s.conversationManager.Stop()
+	s.apiServer.Stop()
 	s.webhook.Stop()
 
 	if s.opts.ClusterOn() {

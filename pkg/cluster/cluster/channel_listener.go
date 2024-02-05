@@ -71,7 +71,7 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 }
 
 func (c *ChannelListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 10)
+	tick := time.NewTicker(time.Millisecond * 100)
 	hasEvent := false
 	for {
 		select {

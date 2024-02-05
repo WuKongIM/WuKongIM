@@ -428,7 +428,7 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 		fakeChannelID = GetFakeChannelIDWith(conn.UID(), channelID)
 	}
 
-	leaderInfo, err := p.s.cluster.LeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
+	leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
 	if err != nil {
 		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
 		for _, sendPacket := range sendPackets {

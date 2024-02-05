@@ -144,6 +144,19 @@ func (idx *Index) Lookup(targetOffset uint32) (MessageSeqPosition, error) {
 	return idx.parseEntry(min), nil
 }
 
+func (idx *Index) truncateLogTo(messageSeq uint32) error {
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+	min, _ := idx.indexSlotRangeFor(messageSeq)
+	if min == -1 {
+		return nil
+	}
+	idx.position = min * int64(idx.entrySize)
+	idx.mmap = idx.mmap[:idx.position]
+	return nil
+
+}
+
 func (idx *Index) LastPosition() MessageSeqPosition {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()

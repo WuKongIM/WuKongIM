@@ -3,12 +3,14 @@ package cluster
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"go.uber.org/zap"
 )
 
 func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
@@ -19,6 +21,8 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	prefix = strings.TrimSuffix(prefix, "/")
 
 	route.GET(fmt.Sprintf("%s/nodes", prefix), s.clusterInfoGet) // 获取所有节点
+
+	route.GET(fmt.Sprintf("%s/channel/:channel_id/:channel_type/config", prefix), s.channelClusterConfigGet) // 获取频道分布式配置
 
 	// route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
 }
@@ -42,6 +46,49 @@ func (s *Server) clusterInfoGet(c *wkhttp.Context) {
 		Total: len(nodeCfgs),
 		Nodes: nodeCfgs,
 	})
+}
+
+func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
+	channelId := c.Param("channel_id")
+	channelTypeStr := c.Param("channel_type")
+
+	channelTypeI64, err := strconv.ParseUint(channelTypeStr, 10, 8)
+	if err != nil {
+		s.Error("channelTypeStr parse error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	channelType := uint8(channelTypeI64)
+
+	ch, err := s.channelGroupManager.fetchChannel(channelId, channelType)
+	if err != nil {
+		s.Error("fetchChannel error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	cfg := ch.getClusterConfig()
+	slotId := s.getChannelSlotId(channelId)
+	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", slotId))
+		c.ResponseError(err)
+		return
+
+	}
+	resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slotId, cfg)
+	shardNo := ChannelKey(channelId, channelType)
+	lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
+	if err != nil {
+		s.Error("LastIndexAndAppendTime error", zap.Error(err))
+		c.ResponseError(err)
+		return
+
+	}
+	resp.MaxMessageSeq = lastMsgSeq
+	if lastAppendTime > 0 {
+		resp.LastAppendTime = wkutil.ToyyyyMMddHHmm(time.Unix(int64(lastAppendTime/1e9), 0))
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (s *Server) getNodeSlotCount(nodeId uint64, cfg *pb.Config) int {
@@ -85,5 +132,31 @@ func NewNodeConfigFromNode(n *pb.Node) *NodeConfig {
 		OfflineCount:  int(n.OfflineCount),
 		LastOffline:   lastOffline,
 		AllowVote:     wkutil.BoolToInt(n.AllowVote),
+	}
+}
+
+type ChannelClusterConfigResp struct {
+	ChannelID      string   `json:"channel_id"`       // 频道ID
+	ChannelType    uint8    `json:"channel_type"`     // 频道类型
+	SlotId         uint32   `json:"slot_id"`          // 槽位ID
+	SlotLeaderId   uint64   `json:"slot_leader_id"`   // 槽位领导者ID
+	ReplicaCount   uint16   `json:"replica_count"`    // 副本数量
+	Replicas       []uint64 `json:"replicas"`         // 副本节点ID集合
+	LeaderId       uint64   `json:"leader_id"`        // 领导者ID
+	Term           uint32   `json:"term"`             // 任期
+	MaxMessageSeq  uint64   `json:"max_message_seq"`  // 最大消息序号
+	LastAppendTime string   `json:"last_append_time"` // 最后一次追加时间
+}
+
+func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg *ChannelClusterConfig) *ChannelClusterConfigResp {
+	return &ChannelClusterConfigResp{
+		ChannelID:    cfg.ChannelID,
+		ChannelType:  cfg.ChannelType,
+		ReplicaCount: cfg.ReplicaCount,
+		Replicas:     cfg.Replicas,
+		LeaderId:     cfg.LeaderId,
+		Term:         cfg.Term,
+		SlotId:       slotId,
+		SlotLeaderId: slotLeaderId,
 	}
 }

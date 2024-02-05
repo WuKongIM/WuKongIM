@@ -8,12 +8,17 @@ import (
 	"go.uber.org/zap"
 )
 
+type timeRecord struct {
+	lastSentPing                   time.Time // 最后一次发送ping消息的时间
+	lastNotifySync                 time.Time // 最后一次发送notifySync消息的时间
+	lastMsgLeaderTermStartIndexReq time.Time // 最后一次发送MsgLeaderTermStartIndexReq消息的时间
+}
+
 type Replica struct {
-	nodeID     uint64
-	shardNo    string
-	opts       *Options
-	replicas   []uint64  // 副本节点ID集合（不包含本节点）
-	lastPutMsg time.Time //  最后一次放入消息的时间
+	nodeID   uint64
+	shardNo  string
+	opts     *Options
+	replicas []uint64 // 副本节点ID集合（不包含本节点）
 	// -------------------- 节点状态 --------------------
 
 	leader          uint64
@@ -22,14 +27,13 @@ type Replica struct {
 	uncommittedSize int // 未提交的日志大小
 	msgs            []Message
 
-	state State
-
-	localLeaderLastTerm uint32 // 本地领导任期，本地保存的term和startLogIndex的数据中最大的term，如果没有则为0
+	state               State
+	preHardState        HardState // 上一个硬状态
+	localLeaderLastTerm uint32    // 本地领导任期，本地保存的term和startLogIndex的数据中最大的term，如果没有则为0
 
 	// -------------------- leader --------------------
 	lastSyncInfoMap map[uint64]*SyncInfo // 副本日志信息
-	waitPing        bool                 // 是否等待领导发起ping消息
-	lastSentPing    time.Time            // 最后一次发送ping消息的时间
+	timeRecord      timeRecord
 	// pongMap          map[uint64]bool      // 已回应pong的节点
 	nodeCommittedMap map[uint64]uint64 // 节点已提交的日志下标
 
@@ -83,6 +87,11 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 	}
 	rc.localLeaderLastTerm = lastLeaderTerm
 	rc.becomeFollower(rc.state.term, None)
+
+	rc.preHardState = HardState{
+		Term:     rc.state.term,
+		LeaderId: rc.leader,
+	}
 	return rc
 }
 
@@ -132,7 +141,6 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.state.term = term
 	r.leader = leaderID
 	r.role = RoleFollower
-	r.waitPing = false
 
 	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
@@ -163,7 +171,6 @@ func (r *Replica) becomeLeader(term uint32) {
 		}
 	}
 	r.nodeCommittedMap = make(map[uint64]uint64)
-	r.waitPing = true
 }
 
 // func (r *Replica) becomeCandidate() {
@@ -205,6 +212,16 @@ func (r *Replica) readyWithoutAccept() Ready {
 	rd := Ready{
 		Messages: r.msgs,
 	}
+	if r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.state.term {
+		rd.HardState = HardState{
+			LeaderId: r.leader,
+			Term:     r.state.term,
+		}
+		r.preHardState = HardState{
+			LeaderId: r.leader,
+			Term:     r.state.term,
+		}
+	}
 	return rd
 }
 
@@ -212,26 +229,34 @@ func (r *Replica) HasReady() bool {
 	if r.hasMsgs() {
 		return true
 	}
-	if r.lastSentPing.IsZero() || r.lastSentPing.Add(r.opts.PingInterval).Before(time.Now()) {
-		if r.isLeader() {
-			hasPing := r.hasNeedPing()
-			if hasPing {
-				return hasPing
+
+	if r.disabledToSync {
+		if !r.IsLeader() && !hasMsg(MsgLeaderTermStartIndexReq, r.msgs) {
+			if r.timeRecord.lastMsgLeaderTermStartIndexReq.IsZero() || r.timeRecord.lastMsgLeaderTermStartIndexReq.Add(r.opts.PutMsgInterval).Before(time.Now()) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if r.isLeader() {
+		if r.timeRecord.lastSentPing.IsZero() || r.timeRecord.lastSentPing.Add(r.opts.PingInterval).Before(time.Now()) {
+			if r.hasNeedPing() {
+				return true
 			}
 		}
 	}
 
-	if r.lastPutMsg.Add(r.opts.PutMsgInterval).Before(time.Now()) {
-		if r.disabledToSync && !r.isLeader() {
-			return true
+	if r.hasNeedSync() {
+		if r.timeRecord.lastNotifySync.IsZero() || r.timeRecord.lastNotifySync.Add(r.opts.PutMsgInterval).Before(time.Now()) {
+			if r.hasNeedSync() {
+				return true
+			}
 		}
-		if r.hasNeedSync() {
-			return true
-		}
-		if r.hasUnapplyLogs() {
-			return true
-		}
-		return false
+	}
+
+	if r.hasUnapplyLogs() {
+		return true
 	}
 
 	return false
@@ -240,32 +265,36 @@ func (r *Replica) HasReady() bool {
 // 放入消息
 func (r *Replica) putMsgIfNeed() {
 
-	if r.waitPing {
-		if r.lastSentPing.IsZero() || r.lastSentPing.Add(r.opts.PingInterval).Before(time.Now()) {
-			if r.isLeader() {
-				r.sendPingIfNeed()
-			}
-		}
-	}
-	if r.lastPutMsg.Add(r.opts.PutMsgInterval).After(time.Now()) {
-		return
-	}
-
-	oldCount := len(r.msgs)
-	defer func() {
-		if len(r.msgs) > oldCount {
-			r.lastPutMsg = time.Now()
-		}
-	}()
+	// if r.lastPutMsg.Add(r.opts.PutMsgInterval).After(time.Now()) {
+	// 	fmt.Println("putMsgIfNeed.....", r.shardNo)
+	// 	return
+	// }
 
 	if r.disabledToSync {
 		if !r.IsLeader() && !hasMsg(MsgLeaderTermStartIndexReq, r.msgs) {
-			r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
+			if r.timeRecord.lastMsgLeaderTermStartIndexReq.IsZero() || r.timeRecord.lastMsgLeaderTermStartIndexReq.Add(r.opts.PutMsgInterval).Before(time.Now()) {
+				r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
+				r.timeRecord.lastMsgLeaderTermStartIndexReq = time.Now()
+			}
 		}
 		return
 	}
+
+	if r.isLeader() {
+		if r.timeRecord.lastSentPing.IsZero() || r.timeRecord.lastSentPing.Add(r.opts.PingInterval).Before(time.Now()) {
+			if r.sendPingIfNeed() {
+				r.timeRecord.lastSentPing = time.Now()
+			}
+		}
+	}
+
 	if r.hasNeedSync() {
-		r.sendNotifySyncIfNeed()
+		if r.timeRecord.lastNotifySync.IsZero() || r.timeRecord.lastNotifySync.Add(r.opts.PutMsgInterval).Before(time.Now()) {
+			if r.sendNotifySyncIfNeed() {
+				r.timeRecord.lastNotifySync = time.Now()
+			}
+		}
+
 	}
 	if r.hasUnapplyLogs() {
 		if !hasMsg(MsgApplyLogsReq, r.msgs) {
@@ -291,6 +320,7 @@ func (r *Replica) putMsgIfNeed() {
 
 func (r *Replica) acceptReady(rd Ready) {
 	r.msgs = nil
+	rd.HardState = EmptyHardState
 }
 
 func (r *Replica) reset(term uint32) {
