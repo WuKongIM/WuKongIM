@@ -16,7 +16,7 @@ type slotListener struct {
 	// 已准备的槽
 	readySlots *readySlotQueue
 	stopper    *syncutil.Stopper
-	readyCh    chan struct{}
+	readyCh    chan slotReady
 	wklog.Log
 }
 
@@ -26,7 +26,7 @@ func newSlotListener(opts *Options) *slotListener {
 		slots:      newSlotQueue(),
 		readySlots: newReadySlotQueue(),
 		stopper:    syncutil.NewStopper(),
-		readyCh:    make(chan struct{}, 100),
+		readyCh:    make(chan slotReady, 100),
 		Log:        wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
 	}
 }
@@ -41,23 +41,17 @@ func (s *slotListener) stop() {
 }
 
 func (s *slotListener) wait() slotReady {
-	if s.readySlots.len() > 0 {
-		return s.readySlots.pop()
-	}
+
 	select {
-	case <-s.readyCh:
+	case sr := <-s.readyCh:
+		return sr
 	case <-s.stopper.ShouldStop():
 		return emptySlotReady
 	}
-	if s.readySlots.len() > 0 {
-		return s.readySlots.pop()
-	}
-	return emptySlotReady
 }
 
 func (s *slotListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 10)
-	hasEvent := false
+	tick := time.NewTicker(time.Millisecond * 100)
 	for {
 		select {
 		case <-tick.C:
@@ -70,12 +64,10 @@ func (s *slotListener) loopEvent() {
 					if replica.IsEmptyReady(rd) {
 						return
 					}
-					s.readySlots.add(slotReady{
+					s.triggerReady(slotReady{
 						slot:  st,
 						Ready: rd,
 					})
-					hasEvent = true
-
 				} else {
 					if s.isInactiveSlot(st) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
 						s.remove(st)
@@ -83,17 +75,17 @@ func (s *slotListener) loopEvent() {
 					}
 				}
 			})
-			if hasEvent {
-				hasEvent = false
-				select {
-				case s.readyCh <- struct{}{}:
-				case <-s.stopper.ShouldStop():
-					return
-				}
-			}
 		case <-s.stopper.ShouldStop():
 			return
 		}
+	}
+}
+
+func (s *slotListener) triggerReady(ready slotReady) {
+	select {
+	case s.readyCh <- ready:
+	case <-s.stopper.ShouldStop():
+		return
 	}
 }
 

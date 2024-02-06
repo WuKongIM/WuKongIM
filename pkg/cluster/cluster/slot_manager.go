@@ -46,7 +46,6 @@ func (s *slotManager) listen() {
 			continue
 		}
 		s.handleReady(ready)
-
 	}
 }
 

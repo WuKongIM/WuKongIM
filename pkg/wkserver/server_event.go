@@ -3,7 +3,6 @@ package wkserver
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -128,7 +127,6 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 }
 
 func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
-	fmt.Println("resp---->", resp.String())
 	s.w.Trigger(resp.Id, resp)
 
 }

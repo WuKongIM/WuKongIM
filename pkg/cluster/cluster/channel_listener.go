@@ -11,7 +11,7 @@ import (
 
 type ChannelListener struct {
 	channels *channelQueue
-	readyCh  chan struct{}
+	readyCh  chan channelReady
 	stopper  *syncutil.Stopper
 	// 已准备的频道
 	readyChannels *readyChannelQueue
@@ -23,7 +23,7 @@ func NewChannelListener(opts *Options) *ChannelListener {
 	return &ChannelListener{
 		channels:      newChannelQueue(),
 		readyChannels: newReadyChannelQueue(),
-		readyCh:       make(chan struct{}),
+		readyCh:       make(chan channelReady),
 		stopper:       syncutil.NewStopper(),
 		opts:          opts,
 		Log:           wklog.NewWKLog("ChannelListener"),
@@ -31,18 +31,13 @@ func NewChannelListener(opts *Options) *ChannelListener {
 }
 
 func (c *ChannelListener) wait() channelReady {
-	if c.readyChannels.len() > 0 {
-		return c.readyChannels.pop()
-	}
 	select {
-	case <-c.readyCh:
+	case cr := <-c.readyCh:
+		return cr
 	case <-c.stopper.ShouldStop():
 		return channelReady{}
 	}
-	if c.readyChannels.len() > 0 {
-		return c.readyChannels.pop()
-	}
-	return channelReady{}
+
 }
 
 func (c *ChannelListener) start() error {
@@ -72,7 +67,6 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 
 func (c *ChannelListener) loopEvent() {
 	tick := time.NewTicker(time.Millisecond * 100)
-	hasEvent := false
 	for {
 		select {
 		case <-tick.C:
@@ -85,12 +79,10 @@ func (c *ChannelListener) loopEvent() {
 					if replica.IsEmptyReady(rd) {
 						return
 					}
-					c.readyChannels.add(channelReady{
+					c.triggerReady(channelReady{
 						channel: ch,
 						Ready:   rd,
 					})
-					hasEvent = true
-
 				} else {
 					if c.isInactiveChannel(ch) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
 						c.Remove(ch)
@@ -98,18 +90,18 @@ func (c *ChannelListener) loopEvent() {
 					}
 				}
 			})
-			if hasEvent {
-				hasEvent = false
-				select {
-				case c.readyCh <- struct{}{}:
-				case <-c.stopper.ShouldStop():
-					return
-				}
-			}
 
 		case <-c.stopper.ShouldStop():
 			return
 		}
+	}
+}
+
+func (c *ChannelListener) triggerReady(ready channelReady) {
+	select {
+	case c.readyCh <- ready:
+	case <-c.stopper.ShouldStop():
+		return
 	}
 }
 
