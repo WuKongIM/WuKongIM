@@ -557,6 +557,36 @@ func (f *FileStore) GetChannelClusterConfig(channelID string, channelType uint8)
 	return value, nil
 }
 
+func (f *FileStore) GetSlotChannelClusterConfigCount(slotId uint32) (int, error) {
+	iter := f.db.NewIter(&pebble.IterOptions{
+		LowerBound: f.getSlotChannelClusterConfigLowKey(slotId),
+		UpperBound: f.getSlotChannelClusterConfigHighKey(slotId),
+	})
+
+	defer iter.Close()
+
+	count := 0
+	for iter.First(); iter.Valid(); iter.Next() {
+		count++
+	}
+	return count, nil
+}
+
+func (f *FileStore) GetSlotChannelClusterConfig(slotId uint32) ([][]byte, error) {
+	iter := f.db.NewIter(&pebble.IterOptions{
+		LowerBound: f.getSlotChannelClusterConfigLowKey(slotId),
+		UpperBound: f.getSlotChannelClusterConfigHighKey(slotId),
+	})
+
+	defer iter.Close()
+
+	var data [][]byte
+	for iter.First(); iter.Valid(); iter.Next() {
+		data = append(data, iter.Value())
+	}
+	return data, nil
+}
+
 func (f *FileStore) DeleteChannelClusterConfig(channelID string, channelType uint8) error {
 	return f.db.Delete([]byte(f.getChannelClusterConfigKey(channelID, channelType)), f.wo)
 }
@@ -620,6 +650,14 @@ func (f *FileStore) getConversationHighKey(uid string) string {
 func (f *FileStore) getChannelClusterConfigKey(channelId string, channelType uint8) string {
 	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelId)
 	return fmt.Sprintf("/slots/%s/channelclusterconfig/channels/%03d/%s", f.getSlotFillFormat(slot), channelType, channelId)
+}
+
+func (f *FileStore) getSlotChannelClusterConfigHighKey(slotId uint32) []byte {
+	return []byte(fmt.Sprintf("/slots/%s/channelclusterconfig/channels/%03d/", f.getSlotFillFormat(slotId), math.MaxUint8))
+}
+
+func (f *FileStore) getSlotChannelClusterConfigLowKey(slotId uint32) []byte {
+	return []byte(fmt.Sprintf("/slots/%s/channelclusterconfig/channels/%03d/", f.getSlotFillFormat(slotId), 0))
 }
 
 func (f *FileStore) getNotifyQueueKey(messageID int64) string {

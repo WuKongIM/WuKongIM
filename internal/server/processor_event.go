@@ -290,7 +290,6 @@ func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) 
 	}
 	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
-	fmt.Println("connectReq--->", "deviceId:", connectPacket.DeviceID, req)
 	proxyConn := NewProxyClientConn(p.s, req.BelongPeerID)
 
 	connCtx := newConnContext(p.s)

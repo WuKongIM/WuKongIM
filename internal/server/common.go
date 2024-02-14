@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	gitCommit string
-	VERSION   = "4.0.0" // 服务器版本
+	// gitCommit string
+	VERSION = "4.0.0" // 服务器版本
 )
 
 func myUptime(d time.Duration) string {

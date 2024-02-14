@@ -16,17 +16,24 @@ import (
 
 func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 
+	route.GET(s.formatPath("%s/nodes", prefix), s.clusterInfoGet) // 获取所有节点
+
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/config", prefix), s.channelClusterConfigGet) // 获取频道分布式配置
+	route.GET(s.formatPath("/slots", prefix), s.slotsGet)                                                    // 获取当前节点的所有槽信息
+	route.GET(s.formatPath("/slots/:id/config", prefix), s.slotClusterConfigGet)                             // 槽分布式配置
+	route.GET(s.formatPath("/slots/:id/channels", prefix), s.slotChannelsGet)                                // 获取某个槽的所有频道信息
+
+	// route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
+}
+
+func (s *Server) formatPath(path string, prefix string) string {
 	if !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
 	prefix = strings.TrimSuffix(prefix, "/")
+	path = strings.TrimPrefix(path, "/")
 
-	route.GET(fmt.Sprintf("%s/nodes", prefix), s.clusterInfoGet) // 获取所有节点
-
-	route.GET(fmt.Sprintf("%s/channels/:channel_id/:channel_type/config", prefix), s.channelClusterConfigGet) // 获取频道分布式配置
-	route.GET(fmt.Sprintf("%s/slots/:id/config", prefix), s.slotClusterConfigGet)                             // 槽分布式配置
-
-	// route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
+	return fmt.Sprintf("%s/%s", prefix, path)
 }
 
 func (s *Server) clusterInfoGet(c *wkhttp.Context) {
@@ -135,6 +142,77 @@ func (s *Server) slotClusterConfigGet(c *wkhttp.Context) {
 
 }
 
+func (s *Server) slotsGet(c *wkhttp.Context) {
+	clusterCfg := s.getClusterConfig()
+	resps := make([]*SlotResp, 0, len(clusterCfg.Slots))
+	for _, st := range clusterCfg.Slots {
+		if !wkutil.ArrayContainsUint64(st.Replicas, s.opts.NodeID) {
+			continue
+		}
+		count, err := s.opts.ChannelClusterStorage.GetCountWithSlotId(st.Id)
+		if err != nil {
+			s.Error("slotChannelCount error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		resp := NewSlotResp(st, count)
+		resps = append(resps, resp)
+	}
+	c.JSON(http.StatusOK, SlotRespTotal{
+		Total: len(resps),
+		Data:  resps,
+	})
+}
+
+func (s *Server) slotChannelsGet(c *wkhttp.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		s.Error("id parse error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	slotId := uint32(id)
+
+	channels, err := s.opts.ChannelClusterStorage.GetWithSlotId(slotId)
+	if err != nil {
+		s.Error("GetChannels error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	channelClusterConfigResps := make([]*ChannelClusterConfigResp, 0, len(channels))
+	for _, cfg := range channels {
+		if !wkutil.ArrayContainsUint64(cfg.Replicas, s.opts.NodeID) {
+			continue
+		}
+		slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
+		if slot == nil {
+			s.Error("slot not found", zap.Uint32("slotId", slotId))
+			c.ResponseError(err)
+			return
+		}
+		shardNo := ChannelKey(cfg.ChannelID, cfg.ChannelType)
+		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
+		if err != nil {
+			s.Error("LastIndexAndAppendTime error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+
+		resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slot.Id, cfg)
+		resp.MaxMessageSeq = lastMsgSeq
+		if lastAppendTime > 0 {
+			resp.LastAppendTime = wkutil.ToyyyyMMddHHmm(time.Unix(int64(lastAppendTime/1e9), 0))
+		}
+		channelClusterConfigResps = append(channelClusterConfigResps, resp)
+	}
+
+	c.JSON(http.StatusOK, ChannelClusterConfigRespTotal{
+		Total: len(channelClusterConfigResps),
+		Data:  channelClusterConfigResps,
+	})
+}
+
 func (s *Server) getSlotMaxLogIndex(slotId uint32) (uint64, error) {
 
 	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
@@ -174,6 +252,12 @@ func (s *Server) getNodeSlotCount(nodeId uint64, cfg *pb.Config) int {
 	return count
 }
 
+func (s *Server) getClusterConfig() *pb.Config {
+	cfgServer := s.clusterEventListener.clusterconfigManager.clusterconfigServer
+	cfg := cfgServer.ConfigManager().GetConfig()
+	return cfg
+}
+
 type NodeConfigTotal struct {
 	Total int           `json:"total"` // 总数
 	Nodes []*NodeConfig `json:"nodes"`
@@ -208,15 +292,20 @@ func NewNodeConfigFromNode(n *pb.Node) *NodeConfig {
 	}
 }
 
+type ChannelClusterConfigRespTotal struct {
+	Total int                         `json:"total"` // 总数
+	Data  []*ChannelClusterConfigResp `json:"data"`
+}
+
 type ChannelClusterConfigResp struct {
 	ChannelID      string   `json:"channel_id"`       // 频道ID
 	ChannelType    uint8    `json:"channel_type"`     // 频道类型
-	SlotId         uint32   `json:"slot_id"`          // 槽位ID
-	SlotLeaderId   uint64   `json:"slot_leader_id"`   // 槽位领导者ID
 	ReplicaCount   uint16   `json:"replica_count"`    // 副本数量
 	Replicas       []uint64 `json:"replicas"`         // 副本节点ID集合
 	LeaderId       uint64   `json:"leader_id"`        // 领导者ID
 	Term           uint32   `json:"term"`             // 任期
+	SlotId         uint32   `json:"slot_id"`          // 槽位ID
+	SlotLeaderId   uint64   `json:"slot_leader_id"`   // 槽位领导者ID
 	MaxMessageSeq  uint64   `json:"max_message_seq"`  // 最大消息序号
 	LastAppendTime string   `json:"last_append_time"` // 最后一次追加时间
 }
@@ -255,5 +344,30 @@ func NewSlotClusterConfigRespFromClusterConfig(appliedIdx, logMaxIndex uint64, l
 		LogMaxIndex:       logMaxIndex,
 		LeaderLogMaxIndex: leaderLogMaxIndex,
 		AppliedIndex:      appliedIdx,
+	}
+}
+
+type SlotRespTotal struct {
+	Total int         `json:"total"` // 总数
+	Data  []*SlotResp `json:"data"`  // 槽位信息
+}
+
+type SlotResp struct {
+	Id           uint32   `json:"id"`
+	LeaderId     uint64   `json:"leader_id"`
+	Term         uint32   `json:"term"`
+	Replicas     []uint64 `json:"replicas"`
+	ReplicaCount uint32   `json:"replica_count"`
+	ChannelCount int      `json:"channel_count"`
+}
+
+func NewSlotResp(st *pb.Slot, channelCount int) *SlotResp {
+	return &SlotResp{
+		Id:           st.Id,
+		LeaderId:     st.Leader,
+		Term:         st.Term,
+		Replicas:     st.Replicas,
+		ReplicaCount: st.ReplicaCount,
+		ChannelCount: channelCount,
 	}
 }

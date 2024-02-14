@@ -499,6 +499,10 @@ type ChannelClusterStorage interface {
 	Delete(channelId string, channelType uint8) error
 	// 获取分布式配置
 	Get(channelId string, channelType uint8) (*ChannelClusterConfig, error)
+	// 获取某个槽位的频道分布式数量
+	GetCountWithSlotId(slotId uint32) (int, error)
+	// 获取某个槽位的频道分布式配置
+	GetWithSlotId(slotId uint32) ([]*ChannelClusterConfig, error)
 	// 提案频道分布式数据
 	ProposeSave(channelId string, channelType uint8, clusterCfg *ChannelClusterConfig) error
 }

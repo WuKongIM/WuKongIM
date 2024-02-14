@@ -445,6 +445,7 @@ func (r *Replica) newLeaderTermStartIndexReqMsg(id uint64) Message {
 	if err != nil {
 		r.Panic("get leader last term failed", zap.Error(err))
 	}
+	
 	return Message{
 		Id:      id,
 		MsgType: MsgLeaderTermStartIndexReq,

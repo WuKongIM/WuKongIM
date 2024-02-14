@@ -439,11 +439,6 @@ func (l *localStorage) getAppliedIndex(shardNo string) (uint64, error) {
 	return binary.BigEndian.Uint64(appliedIndexdata), nil
 }
 
-func (l *localStorage) getChannelClusterConfigKey(channelID string, channelType uint8) []byte {
-	slotID := l.getChannelSlotId(channelID)
-	return []byte(fmt.Sprintf("/slots/%s/channelclusterconfig/channels/%03d/%s", l.getSlotFillFormat(slotID), channelType, channelID))
-}
-
 func (l *localStorage) getAppointLeaderNotifyResultKey(slotID uint32, nodeID uint64) []byte {
 	return []byte(fmt.Sprintf("/slots/%s/appointleadernotifyresults/nodes/%020d", l.getSlotFillFormat(slotID), nodeID))
 }

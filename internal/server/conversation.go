@@ -64,7 +64,10 @@ func NewConversationManager(s *Server) *ConversationManager {
 
 	cm.crontab = cron.New(cron.WithSeconds())
 
-	cm.crontab.AddFunc("0 0 2 * * ?", cm.clearExpireConversations) // 每条凌晨2点执行一次
+	_, err := cm.crontab.AddFunc("0 0 2 * * ?", cm.clearExpireConversations) // 每条凌晨2点执行一次
+	if err != nil {
+		cm.Panic("Failed to add cron job", zap.Error(err))
+	}
 
 	return cm
 }
@@ -257,7 +260,6 @@ func (cm *ConversationManager) getUserAllConversationMapFromStore(uid string) ([
 		cm.Error("Failed to get the list of recent conversations", zap.String("uid", uid), zap.Error(err))
 		return nil, err
 	}
-	fmt.Println("conversations-------->", uid, len(conversations))
 	return conversations, nil
 }
 
