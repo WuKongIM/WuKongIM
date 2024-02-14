@@ -23,7 +23,7 @@ func NewChannelListener(opts *Options) *ChannelListener {
 	return &ChannelListener{
 		channels:      newChannelQueue(),
 		readyChannels: newReadyChannelQueue(),
-		readyCh:       make(chan channelReady),
+		readyCh:       make(chan channelReady, 100),
 		stopper:       syncutil.NewStopper(),
 		opts:          opts,
 		Log:           wklog.NewWKLog("ChannelListener"),
@@ -66,7 +66,7 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 }
 
 func (c *ChannelListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 100)
+	tick := time.NewTicker(time.Millisecond * 51)
 	for {
 		select {
 		case <-tick.C:
@@ -79,6 +79,10 @@ func (c *ChannelListener) loopEvent() {
 					if replica.IsEmptyReady(rd) {
 						return
 					}
+					// for _, msg := range rd.Messages {
+					// 	c.Info("channel ready", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
+					// }
+
 					c.triggerReady(channelReady{
 						channel: ch,
 						Ready:   rd,

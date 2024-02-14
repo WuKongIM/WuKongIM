@@ -81,6 +81,7 @@ func (c *channelGroupManager) proposeMessages(channelId string, channelType uint
 		return nil, err
 	}
 	if !channel.isLeader() { // 如果不是频道领导，则转发给频道领导
+		c.Debug("not leader,forward to leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("leaderId", channel.leaderId()))
 		resp, err := c.requestChannelProposeMessage(channel.leaderId(), channelId, channelType, data)
 		if err != nil {
 			c.Error("requestChannelProposeMessage failed", zap.Error(err))
@@ -130,6 +131,7 @@ func (c *channelGroupManager) channelGroup(channelID string, channelType uint8) 
 }
 
 func (c *channelGroupManager) handleMessage(channelID string, channelType uint8, msg replica.Message) error {
+
 	channel, err := c.fetchChannel(channelID, channelType)
 	if err != nil {
 		return err

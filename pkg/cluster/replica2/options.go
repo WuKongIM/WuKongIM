@@ -10,18 +10,18 @@ type Options struct {
 	MaxUncommittedLogSize uint64
 	AppliedIndex          uint64        // 已应用的日志下标
 	SyncLimit             uint32        // 同步日志最大数量
-	PutMsgInterval        time.Duration // 放入消息的间隔时间
+	MessageSendInterval   time.Duration // 消息发送间隔
+	MaxIdleInterval       time.Duration // 最大空闲时间
 	// LastSyncInfoMap       map[uint64]*SyncInfo
-	PingInterval time.Duration
 }
 
 func NewOptions() *Options {
 	return &Options{
 		MaxUncommittedLogSize: 1024 * 1024 * 1024,
 		SyncLimit:             100,
-		PutMsgInterval:        time.Millisecond * 100,
 		// LastSyncInfoMap:       map[uint64]*SyncInfo{},
-		PingInterval: time.Millisecond * 200,
+		MessageSendInterval: time.Millisecond * 100,
+		MaxIdleInterval:     time.Second * 1,
 	}
 }
 
@@ -54,11 +54,5 @@ func WithAppliedIndex(index uint64) Option {
 func WithSyncLimit(limit uint32) Option {
 	return func(o *Options) {
 		o.SyncLimit = limit
-	}
-}
-
-func WithPutMsgInterval(interval time.Duration) Option {
-	return func(o *Options) {
-		o.PutMsgInterval = interval
 	}
 }

@@ -427,6 +427,8 @@ func (c *clusterconfigManager) Send(m clusterconfig.Message) error {
 	return c.opts.Transport.Send(m.To, &proto.Message{
 		MsgType: MsgClusterConfigMsg,
 		Content: m.Marshal(),
+	}, func() {
+
 	})
 }
 

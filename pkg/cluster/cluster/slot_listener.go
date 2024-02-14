@@ -26,7 +26,7 @@ func newSlotListener(opts *Options) *slotListener {
 		slots:      newSlotQueue(),
 		readySlots: newReadySlotQueue(),
 		stopper:    syncutil.NewStopper(),
-		readyCh:    make(chan slotReady, 100),
+		readyCh:    make(chan slotReady),
 		Log:        wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
 	}
 }
@@ -51,7 +51,7 @@ func (s *slotListener) wait() slotReady {
 }
 
 func (s *slotListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 100)
+	tick := time.NewTicker(time.Millisecond * 50)
 	for {
 		select {
 		case <-tick.C:

@@ -18,10 +18,10 @@ require (
 	github.com/lni/goutils v1.3.1-0.20220604063047-388d67b4dbc4
 	github.com/panjf2000/ants/v2 v2.7.1
 	github.com/panjf2000/gnet/v2 v2.2.5
-	github.com/pingcap/failpoint v0.0.0-20220801062533-2eaa32854a6c
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.1
 	github.com/robfig/cron/v3 v3.0.0
+	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/sendgrid/rest v2.6.9+incompatible
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.16.0
@@ -75,12 +75,10 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
-	github.com/pingcap/errors v0.11.4 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
-	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect

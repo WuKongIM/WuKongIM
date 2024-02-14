@@ -60,21 +60,32 @@ func (s *slotManager) handleReady(rd slotReady) {
 			continue
 		}
 		if msg.To == 0 {
-			s.Error("msg.To is 0", zap.String("shardNo", shardNo))
+			s.Error("msg.To is 0", zap.String("shardNo", shardNo), zap.String("msg", msg.MsgType.String()))
 			continue
 		}
 
-		s.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.Uint64("committedIdx", msg.CommittedIndex), zap.Uint64("lastLogIndex", slot.rc.State().LastLogIndex()), zap.String("shardNo", shardNo), zap.Uint64("to", msg.To), zap.Uint64("from", msg.From))
+		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
+			s.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.Uint64("committedIdx", msg.CommittedIndex), zap.Uint64("lastLogIndex", slot.rc.State().LastLogIndex()), zap.String("shardNo", shardNo), zap.Uint64("to", msg.To), zap.Uint64("from", msg.From))
+		}
 
 		protMsg, err := NewMessage(shardNo, msg, MsgSlotMsg)
 		if err != nil {
 			s.Error("new message error", zap.String("shardNo", shardNo), zap.Error(err))
 			continue
 		}
-		err = s.opts.Transport.Send(msg.To, protMsg)
+		err = s.opts.Transport.Send(msg.To, protMsg, func() {
+			for _, resp := range msg.Responses {
+				err = slot.stepLock(resp)
+				if err != nil {
+					s.Error("step error", zap.Error(err), zap.String("shardNo", shardNo))
+					continue
+				}
+			}
+		})
 		if err != nil {
 			s.Warn("send msg error", zap.String("shardNo", shardNo), zap.Error(err))
 		}
+
 	}
 }
 func (s *slotManager) exist(slotId uint32) bool {

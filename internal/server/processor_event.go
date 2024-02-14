@@ -369,7 +369,7 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 func (p *Processor) OnSendPacket(req *rpc.ForwardSendPacketReq) (*rpc.ForwardSendPacketResp, error) {
 	sendackPackets, err := p.prcocessChannelMessagesForRemote(req)
 	if err != nil {
-		p.Error("prcocessChannelMessagesForLocal err", zap.Error(err))
+		p.Error("prcocessChannelMessagesForRemote err", zap.Error(err))
 		return nil, err
 	}
 
@@ -401,6 +401,18 @@ func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, e
 		p.Warn("conn write data is empty", zap.String("uid", req.Uid), zap.String("deviceId", req.DeviceId))
 		return proto.Status_OK, nil
 	}
+	reminData := req.Data
+	for len(reminData) > 0 {
+		f, size, err := p.s.opts.Proto.DecodeFrame(reminData, uint8(conn.ProtoVersion()))
+		if err != nil {
+			p.Error("decode connectWriteReq err", zap.Error(err))
+		}
+		recv, ok := f.(*wkproto.RecvPacket)
+		if ok {
+			p.Debug("收到转发的RecvPacket", zap.Uint32("messageSeq", recv.MessageSeq))
+		}
+		reminData = reminData[size:]
+	}
 	p.s.dispatch.dataOut(conn, req.Data)
 	return proto.Status_OK, nil
 }
@@ -423,7 +435,7 @@ func (p *Processor) OnConnPingReq(req *rpc.ConnPingReq) (proto.Status, error) {
 		return proto.Status_NotFound, nil
 	}
 	proxyConn, ok := conn.(*ProxyClientConn)
-	if ok {
+	if ok && proxyConn != nil {
 		proxyConn.KeepLastActivity()
 	}
 

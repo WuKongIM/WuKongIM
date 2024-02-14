@@ -6,7 +6,7 @@ rootDir: "./wukongimdata/2"
 monitor:
   on: false
 demo:
-  on: true
+  on: false
   addr: "0.0.0.0:5173"  
 conversation:
   on: true  

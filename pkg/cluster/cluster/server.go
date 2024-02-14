@@ -39,7 +39,7 @@ func New(nodeId uint64, opts *Options) *Server {
 	opts.NodeID = nodeId
 	s := &Server{
 		slotManager:          newSlotManager(opts),
-		nodeManager:          newNodeManager(),
+		nodeManager:          newNodeManager(opts),
 		clusterEventListener: newClusterEventListener(opts),
 		stopper:              syncutil.NewStopper(),
 		opts:                 opts,
@@ -47,9 +47,6 @@ func New(nodeId uint64, opts *Options) *Server {
 	}
 	opts.nodeOnlineFnc = s.nodeCliOnline
 	opts.requestSlotLogInfo = s.requestSlotLogInfo
-	wklog.Configure(&wklog.Options{
-		Level: opts.LogLevel,
-	})
 	s.localStorage = newLocalStorage(s.opts)
 
 	s.channelGroupManager = newChannelGroupManager(s)
@@ -287,7 +284,8 @@ func (s *Server) handleChannelMsg(from uint64, m *proto.Message) {
 		s.Error("unmarshal slot message error", zap.Error(err))
 		return
 	}
-	s.Info("收到频道消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From), zap.Uint32("term", msg.Term), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.Uint64("index", msg.Index), zap.Uint64("committed", msg.CommittedIndex))
+
+	// s.Info("收到频道消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From), zap.Uint32("term", msg.Term), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.Uint64("index", msg.Index), zap.Uint64("committed", msg.CommittedIndex))
 
 	channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
 	err = s.channelGroupManager.handleMessage(channelID, channelType, msg.Message)

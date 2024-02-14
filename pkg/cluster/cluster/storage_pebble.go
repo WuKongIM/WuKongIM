@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 type PebbleShardLogStorage struct {
@@ -88,22 +89,44 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 	if index == 0 {
 		return errors.New("index must be greater than 0")
 	}
+	if index > 0 {
+		lastIndex, _, err := p.getMaxIndex(shardNo)
+		if err != nil {
+			p.Error("get max index error", zap.Error(err), zap.String("shardNo", shardNo))
+			return err
+		}
+		if index > lastIndex {
+			return nil
+		}
+	}
 	keyData := key.NewLogKey(shardNo, index)
 	maxKeyData := key.NewLogKey(shardNo, math.MaxUint64)
 	err := p.db.DeleteRange(keyData, maxKeyData, p.wo)
 	if err != nil {
 		return err
 	}
-	logs, _ := p.Logs(shardNo, 0, math.MaxUint64, 1000)
-	for _, lg := range logs {
-		fmt.Println("lg--->", shardNo, lg.Index)
-	}
-
 	if index > 0 {
 		return p.saveMaxIndex(shardNo, index-1)
 	}
 	return p.saveMaxIndex(shardNo, 0)
 }
+
+// func (p *PebbleShardLogStorage) realLastIndex(shardNo string) (uint64, error) {
+// 	iter := p.db.NewIter(&pebble.IterOptions{
+// 		LowerBound: key.NewLogKey(shardNo, 0),
+// 		UpperBound: key.NewLogKey(shardNo, math.MaxUint64),
+// 	})
+// 	defer iter.Close()
+// 	for iter.Last(); iter.Valid(); iter.Next() {
+// 		var log replica.Log
+// 		err := log.Unmarshal(iter.Value())
+// 		if err != nil {
+// 			return 0, err
+// 		}
+// 		return log.Index, nil
+// 	}
+// 	return 0, nil
+// }
 
 func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limit uint32) ([]replica.Log, error) {
 
@@ -335,9 +358,9 @@ func (l *localStorage) saveSlotSyncInfos(slotID uint32, syncInfos []*replica.Syn
 
 func (l *localStorage) setLeaderTermStartIndex(shardNo string, term uint32, index uint64) error {
 	leaderTermStartIndexKeyData := l.leaderTermStartIndexKey(shardNo, term)
-	var indexData = make([]byte, 16)
-	binary.BigEndian.PutUint64(indexData, index)
-	binary.BigEndian.PutUint64(indexData[8:], index)
+	var indexData = make([]byte, 12)
+	binary.BigEndian.PutUint32(indexData, term)
+	binary.BigEndian.PutUint64(indexData[4:], index)
 	err := l.db.Set(leaderTermStartIndexKeyData, indexData, l.wo)
 	return err
 }
@@ -372,12 +395,12 @@ func (l *localStorage) leaderTermStartIndex(shardNo string, term uint32) (uint64
 	if len(leaderTermStartIndexData) == 0 {
 		return 0, nil
 	}
-	return binary.BigEndian.Uint64(leaderTermStartIndexData[8:]), nil
+	return binary.BigEndian.Uint64(leaderTermStartIndexData[4:]), nil
 }
 
 func (l *localStorage) deleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
 	iter := l.db.NewIter(&pebble.IterOptions{
-		LowerBound: l.leaderTermStartIndexKey(shardNo, term),
+		LowerBound: l.leaderTermStartIndexKey(shardNo, term+1),
 		UpperBound: l.leaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
 	defer iter.Close()

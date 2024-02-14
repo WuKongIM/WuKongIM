@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -22,7 +23,8 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 
 	route.GET(fmt.Sprintf("%s/nodes", prefix), s.clusterInfoGet) // 获取所有节点
 
-	route.GET(fmt.Sprintf("%s/channel/:channel_id/:channel_type/config", prefix), s.channelClusterConfigGet) // 获取频道分布式配置
+	route.GET(fmt.Sprintf("%s/channels/:channel_id/:channel_type/config", prefix), s.channelClusterConfigGet) // 获取频道分布式配置
+	route.GET(fmt.Sprintf("%s/slots/:id/config", prefix), s.slotClusterConfigGet)                             // 槽分布式配置
 
 	// route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
 }
@@ -89,6 +91,77 @@ func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
 		resp.LastAppendTime = wkutil.ToyyyyMMddHHmm(time.Unix(int64(lastAppendTime/1e9), 0))
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+func (s *Server) slotClusterConfigGet(c *wkhttp.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		s.Error("id parse error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	slotId := uint32(id)
+	shardNo := GetSlotShardNo(slotId)
+
+	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", slotId))
+		c.ResponseError(err)
+		return
+	}
+
+	leaderLogMaxIndex, err := s.getSlotMaxLogIndex(slotId)
+	if err != nil {
+		s.Error("getSlotMaxLogIndex error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	appliedIdx, err := s.localStorage.getAppliedIndex(shardNo)
+	if err != nil {
+		s.Error("getAppliedIndex error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	lastIdx, err := s.opts.ShardLogStorage.LastIndex(shardNo)
+	if err != nil {
+		s.Error("LastIndex error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	cfg := NewSlotClusterConfigRespFromClusterConfig(appliedIdx, lastIdx, leaderLogMaxIndex, slot)
+	c.JSON(http.StatusOK, cfg)
+
+}
+
+func (s *Server) getSlotMaxLogIndex(slotId uint32) (uint64, error) {
+
+	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
+	if slot == nil {
+		return 0, errors.New("slot not found")
+	}
+
+	if slot.Leader == s.opts.NodeID {
+		shardNo := GetSlotShardNo(slotId)
+		lastIdx, err := s.opts.ShardLogStorage.LastIndex(shardNo)
+		if err != nil {
+			return 0, err
+		}
+		return lastIdx, nil
+	}
+
+	slotLogResp, err := s.nodeManager.requestSlotLogInfo(slot.Leader, &SlotLogInfoReq{
+		SlotIds: []uint32{slotId},
+	})
+	if err != nil {
+		s.Error("requestSlotLogInfo error", zap.Error(err))
+		return 0, err
+	}
+	if len(slotLogResp.Slots) > 0 {
+		return slotLogResp.Slots[0].LogIndex, nil
+	}
+	return 0, nil
 }
 
 func (s *Server) getNodeSlotCount(nodeId uint64, cfg *pb.Config) int {
@@ -158,5 +231,29 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 		Term:         cfg.Term,
 		SlotId:       slotId,
 		SlotLeaderId: slotLeaderId,
+	}
+}
+
+type SlotClusterConfigResp struct {
+	Id                uint32   `json:"id"`                   // 槽位ID
+	LeaderId          uint64   `json:"leader_id"`            // 领导者ID
+	Term              uint32   `json:"term"`                 // 任期
+	Replicas          []uint64 `json:"replicas"`             // 副本节点ID集合
+	ReplicaCount      uint32   `json:"replica_count"`        // 副本数量
+	LogMaxIndex       uint64   `json:"log_max_index"`        // 本地日志最大索引
+	LeaderLogMaxIndex uint64   `json:"leader_log_max_index"` // 领导者日志最大索引
+	AppliedIndex      uint64   `json:"applied_index"`        // 已应用索引
+}
+
+func NewSlotClusterConfigRespFromClusterConfig(appliedIdx, logMaxIndex uint64, leaderLogMaxIndex uint64, slot *pb.Slot) *SlotClusterConfigResp {
+	return &SlotClusterConfigResp{
+		Id:                slot.Id,
+		LeaderId:          slot.Leader,
+		Term:              slot.Term,
+		Replicas:          slot.Replicas,
+		ReplicaCount:      slot.ReplicaCount,
+		LogMaxIndex:       logMaxIndex,
+		LeaderLogMaxIndex: leaderLogMaxIndex,
+		AppliedIndex:      appliedIdx,
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	"github.com/pkg/errors"
 
@@ -395,7 +394,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	}
 
 	o.ConfigureDataDir() // 数据目录
-	o.ConfigureLog()     // 日志配置
+	o.configureLog(vp)   // 日志配置
 
 	ip := o.External.IP
 	if strings.TrimSpace(ip) == "" {
@@ -485,8 +484,8 @@ func (o *Options) ClusterOn() bool {
 	return o.Cluster.PeerID != 0
 }
 
-func (o *Options) ConfigureLog() {
-	logLevel := o.vp.GetInt("logger.level")
+func (o *Options) configureLog(vp *viper.Viper) {
+	logLevel := vp.GetInt("logger.level")
 	// level
 	if logLevel == 0 { // 没有设置
 		if o.Mode == DebugMode {
@@ -498,18 +497,15 @@ func (o *Options) ConfigureLog() {
 		logLevel = logLevel - 2
 	}
 	o.Logger.Level = zapcore.Level(logLevel)
-	o.Logger.Dir = o.vp.GetString("logger.dir")
+	o.Logger.Dir = vp.GetString("logger.dir")
 	if strings.TrimSpace(o.Logger.Dir) == "" {
-		o.Logger.Dir = path.Join(o.RootDir, "logs")
+		o.Logger.Dir = "logs"
 	}
-	o.Logger.LineNum = o.vp.GetBool("logger.lineNum")
-
-	logOpts := wklog.NewOptions()
-	logOpts.Level = o.Logger.Level
-	logOpts.LogDir = o.Logger.Dir
-	logOpts.LineNum = o.Logger.LineNum
-
-	wklog.Configure(logOpts)
+	if !strings.HasPrefix(strings.TrimSpace(o.Logger.Dir), "/") {
+		o.Logger.Dir = filepath.Join(o.RootDir, o.Logger.Dir)
+	}
+	fmt.Println("o.Logger.Dir----->", o.Logger.Dir)
+	o.Logger.LineNum = vp.GetBool("logger.lineNum")
 }
 
 // IsTmpChannel 是否是临时频道

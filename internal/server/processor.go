@@ -487,7 +487,7 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 
 	reminData := resp.SendackPackets
 	for len(reminData) > 0 {
-		f, size, err := p.s.opts.Proto.DecodeFrame(resp.SendackPackets, uint8(conn.ProtoVersion()))
+		f, size, err := p.s.opts.Proto.DecodeFrame(reminData, uint8(conn.ProtoVersion()))
 		if err != nil {
 			p.Error("decode sendackPacket err", zap.Error(err))
 			return sendackPackets, nil
@@ -496,6 +496,7 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 		sendackPackets = append(sendackPackets, sendackPacket)
 		reminData = reminData[size:]
 	}
+
 	return sendackPackets, nil
 }
 
@@ -754,6 +755,9 @@ func (p *Processor) prcocessChannelMessagesForRemote(req *rpc.ForwardSendPacketR
 		}
 
 	}
+	for _, sendackPacket := range sendackPackets {
+		fmt.Println("sendackPacket---seq-remote--->", sendackPacket.(*wkproto.SendackPacket).MessageSeq)
+	}
 	return sendackPackets, nil
 }
 
@@ -991,6 +995,7 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 	if leaderInfo.Id != p.s.opts.Cluster.PeerID {
 		recvackDatas := make([]byte, 0)
 		for _, ack := range acks {
+
 			recvackData, err := p.s.opts.Proto.EncodeFrame(ack, uint8(conn.ProtoVersion()))
 			if err != nil {
 				p.Error("processRecvacks encodeFrame is fail", zap.Error(err), zap.Any("conn", conn))

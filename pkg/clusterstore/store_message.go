@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
@@ -19,8 +20,10 @@ func (s *Store) AppendMessages(channelID string, channelType uint8, msgs []wksto
 	for _, msg := range msgs {
 		msgData = append(msgData, msg.Encode())
 	}
-
+	start := time.Now()
+	s.Debug("start propose channel messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 	lastIndexs, err := s.opts.Cluster.ProposeChannelMessages(channelID, channelType, msgData)
+	s.Debug("end propose channel messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)), zap.Duration("cost", time.Since(start)))
 	if err != nil {
 		return err
 	}

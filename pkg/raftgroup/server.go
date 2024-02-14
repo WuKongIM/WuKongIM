@@ -73,7 +73,7 @@ func New(nodeID uint64, addr string, opts ...Option) *Server {
 
 func (s *Server) Start() error {
 
-	s.Schedule(time.Second*5, func() {
+	s.Schedule(time.Minute*1, func() {
 		s.metrics.printMetrics(fmt.Sprintf("Server:%d", s.opts.NodeID))
 	})
 

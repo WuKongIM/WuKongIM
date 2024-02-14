@@ -51,6 +51,7 @@ func (r *RetryQueue) pushInFlightMessage(msg *Message) {
 	key := r.getInFlightKey(msg.ToUID, msg.toDeviceID, msg.MessageID)
 	_, ok := r.inFlightMessages[key]
 	if ok {
+		r.s.Warn("ID already in flight", zap.String("uid", msg.ToUID), zap.String("deviceID", msg.toDeviceID), zap.Int64("messageID", msg.MessageID))
 		return
 	}
 	r.inFlightMessages[key] = msg
@@ -63,6 +64,7 @@ func (r *RetryQueue) popInFlightMessage(uid string, deviceID string, messageID i
 	key := r.getInFlightKey(uid, deviceID, messageID)
 	msg, ok := r.inFlightMessages[key]
 	if !ok {
+		r.s.Warn("ID not in flight", zap.String("uid", uid), zap.String("deviceID", deviceID), zap.Int64("messageID", messageID))
 		return nil, errors.New("ID not in flight")
 	}
 	delete(r.inFlightMessages, key)

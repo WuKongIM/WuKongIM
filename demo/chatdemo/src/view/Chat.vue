@@ -70,6 +70,7 @@ const connectIM = (addr: string) => {
         config.token = token
     }
     config.addr = addr
+    config.sendCountOfEach = 100
     WKSDK.shared().config = config
 
 

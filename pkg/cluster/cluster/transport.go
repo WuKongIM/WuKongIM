@@ -8,7 +8,7 @@ import (
 
 type ITransport interface {
 	// Send 发送消息
-	Send(to uint64, m *proto.Message) error
+	Send(to uint64, m *proto.Message, callback func()) error
 	// OnMessage 收取消息
 	OnMessage(f func(from uint64, m *proto.Message))
 	// 收到消息
@@ -81,9 +81,12 @@ func NewMemoryTransport() *MemoryTransport {
 	}
 }
 
-func (t *MemoryTransport) Send(to uint64, m *proto.Message) error {
+func (t *MemoryTransport) Send(to uint64, m *proto.Message, callback func()) error {
 	if f, ok := t.nodeMessageListenerMap[to]; ok {
-		go f(m) // 模拟网络请求
+		go func() {
+			f(m) // 模拟网络请求
+			callback()
+		}()
 	}
 	return nil
 }
@@ -110,7 +113,7 @@ func NewDefaultTransport(s *Server) *DefaultTransport {
 	}
 }
 
-func (d *DefaultTransport) Send(to uint64, m *proto.Message) error {
+func (d *DefaultTransport) Send(to uint64, m *proto.Message, callback func()) error {
 	node := d.s.nodeManager.node(to)
 	if node == nil {
 		return ErrNodeNotFound

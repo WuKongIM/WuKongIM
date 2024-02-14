@@ -60,7 +60,7 @@ func NewProxyClientConn(s *Server, belongNodeID uint64) *ProxyClientConn {
 		outboundBuffer: wknet.NewDefaultBuffer(),
 		inboundBuffer:  wknet.NewDefaultBuffer(),
 		uptime:         time.Now(),
-		Log:            wklog.NewWKLog(fmt.Sprintf("ProxyConn[%d][%s]", belongNodeID)),
+		Log:            wklog.NewWKLog(fmt.Sprintf("ProxyConn[%d]", belongNodeID)),
 		connStats:      wknet.NewConnStats(),
 	}
 	p.KeepLastActivity()
@@ -286,7 +286,7 @@ func (p *ProxyClientConn) SetProtoVersion(version int) {
 }
 
 func (p *ProxyClientConn) LastActivity() time.Time {
-	return time.Time{}
+	return p.lastActivity.Load()
 }
 
 func (p *ProxyClientConn) Uptime() time.Time {
