@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/server"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/judwhite/go-svc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -24,13 +25,6 @@ var (
 	daemon     bool
 	pidfile    string = "WukongimPID"
 	installDir string
-	vp         = viper.New()
-	id         uint64
-	listenAddr string
-	join       string
-	rootDir    string
-	dataDir    string
-	portRand   bool // 是否随机端口
 	rootCmd    = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
@@ -39,9 +33,7 @@ var (
 			DisableDefaultCmd: true,
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-
 			initServer()
-
 		},
 	}
 )
@@ -61,16 +53,10 @@ func init() {
 	// 后台运行
 	rootCmd.PersistentFlags().BoolVarP(&daemon, "daemon", "d", false, "run in daemon mode")
 
-	rootCmd.PersistentFlags().Uint64Var(&id, "node-id", 0, "node id")
-	rootCmd.PersistentFlags().StringVar(&listenAddr, "listen-addr", "", "raft node listen addr")
-	rootCmd.PersistentFlags().StringVar(&join, "join", "", "join addr")
-	rootCmd.PersistentFlags().StringVar(&rootDir, "root-dir", "", "root dir")
-	rootCmd.PersistentFlags().StringVar(&dataDir, "data-dir", "", "data dir")
-	rootCmd.PersistentFlags().BoolVar(&portRand, "port-rand", false, "port random")
 }
 
 func initConfig() {
-
+	vp := viper.New()
 	if cfgFile != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err != nil {
@@ -83,45 +69,14 @@ func initConfig() {
 	vp.AutomaticEnv()
 	// 初始化服务配置
 	serverOpts.ConfigureWithViper(vp)
-	initFlags()
-}
-
-func initFlags() {
-	if id != 0 {
-		serverOpts.Cluster.PeerID = id
-	}
-
-	if portRand {
-		serverOpts.Addr = "tcp://0.0.0.0:0"
-		serverOpts.WSAddr = "ws://0.0.0.0:0"
-		serverOpts.Monitor.Addr = "0.0.0.0:0"
-		serverOpts.HTTPAddr = "0.0.0.0:0"
-		serverOpts.Cluster.Addr = "tcp://0.0.0.0:0"
-		serverOpts.Demo.Addr = "0.0.0.0:0"
-	}
-
-	if strings.TrimSpace(listenAddr) != "" {
-		if strings.HasPrefix(listenAddr, "tcp://") {
-			serverOpts.Cluster.Addr = listenAddr
-		} else {
-			serverOpts.Cluster.Addr = fmt.Sprintf("tcp://%s", listenAddr)
-		}
-
-	}
-	if strings.TrimSpace(dataDir) != "" {
-		serverOpts.DataDir = dataDir
-	}
-	if strings.TrimSpace(rootDir) != "" {
-		serverOpts.RootDir = rootDir
-		serverOpts.ConfigureDataDir()
-		serverOpts.ConfigureLog()
-	}
-	if strings.TrimSpace(join) != "" {
-		serverOpts.Cluster.Join = join
-	}
 }
 
 func initServer() {
+	logOpts := wklog.NewOptions()
+	logOpts.Level = serverOpts.Logger.Level
+	logOpts.LogDir = serverOpts.Logger.Dir
+	logOpts.LineNum = serverOpts.Logger.LineNum
+	wklog.Configure(logOpts)
 
 	s := server.New(serverOpts)
 	if daemon {

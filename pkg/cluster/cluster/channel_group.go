@@ -14,7 +14,6 @@ type channelGroup struct {
 	stopper *syncutil.Stopper
 	opts    *Options
 	wklog.Log
-
 	listener *ChannelListener
 	stopped  bool
 }
@@ -51,10 +50,6 @@ func (g *channelGroup) channel(channelID string, channelType uint8) *channel {
 	return g.listener.Get(channelID, channelType)
 }
 
-func (g *channelGroup) handleMessage(channelID string, channelType uint8, msg replica.Message) error {
-	return g.step(channelID, channelType, msg)
-}
-
 func (g *channelGroup) step(channelID string, channelType uint8, msg replica.Message) error {
 	channel := g.listener.Get(channelID, channelType)
 	if channel == nil {
@@ -82,40 +77,43 @@ func (g *channelGroup) listen() {
 
 func (g *channelGroup) handleReady(rd channelReady) {
 	var (
-		channel = rd.channel
-		shardNo = channel.channelKey()
+		ch      = rd.channel
+		shardNo = ch.channelKey()
 	)
 
 	if !replica.IsEmptyHardState(rd.HardState) {
-		g.Info("设置HardState", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
-		channelClusterCfg := channel.getClusterConfig()
+		g.Info("设置HardState", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
+		channelClusterCfg := ch.getClusterConfig()
 		channelClusterCfg.Term = rd.HardState.Term
 		channelClusterCfg.LeaderId = rd.HardState.LeaderId
-		err := g.opts.ChannelClusterStorage.Save(channel.channelID, channel.channelType, channelClusterCfg)
+		err := g.opts.ChannelClusterStorage.Save(ch.channelID, ch.channelType, channelClusterCfg)
 		if err != nil {
-			g.Panic("save cluster config error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))
+			g.Panic("save cluster config error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 		}
 	}
 
 	for _, msg := range rd.Messages {
 		if msg.To == g.opts.NodeID {
-			channel.handleLocalMsg(msg)
+			ch.handleLocalMsg(msg)
 			continue
 		}
 		if msg.To == 0 {
-			g.Error("msg.To is 0", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType))
+			g.Error("msg.To is 0", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.String("msg", msg.MsgType.String()))
 			continue
 		}
-		g.Info("发送消息", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Uint64("to", msg.To))
 
 		protMsg, err := NewMessage(shardNo, msg, MsgChannelMsg)
 		if err != nil {
-			g.Error("new message error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))
+			g.Error("new message error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 			continue
 		}
-		err = g.opts.Transport.Send(msg.To, protMsg)
+		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing {
+			g.Info("发送消息", zap.Uint64("id", msg.Id), zap.String("msgType", msg.MsgType.String()), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
+		}
+		// 发送消息
+		err = g.opts.Transport.Send(msg.To, protMsg, nil)
 		if err != nil {
-			g.Warn("send msg error", zap.String("channelID", channel.channelID), zap.Uint8("channelType", channel.channelType), zap.Error(err))
+			g.Warn("send msg error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 		}
 	}
 }

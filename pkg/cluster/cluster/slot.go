@@ -75,8 +75,12 @@ func (s *slot) proposeAndWaitCommit(data []byte, timeout time.Duration) error {
 	msg := s.rc.NewProposeMessage(data)
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	waitC := s.commitWait.addWaitIndex(msg.Index)
-	err := s.step(msg)
+	waitC, err := s.commitWait.addWaitIndex(msg.Index)
+	if err != nil {
+		s.Error("add wait index failed", zap.Error(err))
+		return err
+	}
+	err = s.step(msg)
 	if err != nil {
 		s.Unlock()
 		return err
@@ -160,26 +164,41 @@ func (s *slot) handleLocalMsg(msg replica.Message) {
 
 // 处理应用日志请求
 func (s *slot) handleApplyLogsReq(msg replica.Message) {
-	if len(msg.Logs) == 0 {
+	if msg.CommittedIndex <= 0 || msg.AppliedIndex >= msg.CommittedIndex {
+		return
+	}
+	shardNo := GetSlotShardNo(s.slotId)
+	logs, err := s.opts.ShardLogStorage.Logs(shardNo, msg.AppliedIndex+1, msg.CommittedIndex+1, uint32(s.opts.LogSyncLimitOfEach))
+	if err != nil {
+		s.Panic("get logs failed", zap.Error(err))
+	}
+	if len(logs) == 0 {
+		logs, err := s.opts.ShardLogStorage.Logs(shardNo, 1, 0, uint32(s.opts.LogSyncLimitOfEach))
+		if err != nil {
+			s.Panic("get logs failed", zap.Error(err))
+		}
+		for _, l := range logs {
+			s.Info("has log", zap.Uint64("logIndex", l.Index))
+		}
+		s.Info("logs is empty", zap.Uint64("appliedIndex", msg.AppliedIndex), zap.Uint64("committedIndex", msg.CommittedIndex))
 		return
 	}
 	if s.opts.OnSlotApply != nil {
-		err := s.opts.OnSlotApply(s.slotId, msg.Logs)
+		err = s.opts.OnSlotApply(s.slotId, logs)
 		if err != nil {
 			s.Panic("on slot apply error", zap.Error(err))
 		}
-		shardNo := GetSlotShardNo(s.slotId)
-		err = s.localstorage.setAppliedIndex(shardNo, msg.Logs[len(msg.Logs)-1].Index)
+		err = s.localstorage.setAppliedIndex(shardNo, logs[len(logs)-1].Index)
 		if err != nil {
 			s.Panic("set applied index error", zap.Error(err))
 		}
 	}
-	lastLog := msg.Logs[len(msg.Logs)-1]
+	lastLog := logs[len(logs)-1]
 	s.Info("commit wait", zap.Uint64("lastLogIndex", lastLog.Index))
 	s.commitWait.commitIndex(lastLog.Index)
 	s.Info("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))
 
-	err := s.stepLock(s.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
+	err = s.stepLock(s.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
 	if err != nil {
 		s.Error("step apply logs resp failed", zap.Error(err))
 	}

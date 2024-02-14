@@ -146,33 +146,43 @@ func (c *channel) proposeAndWaitCommits(data [][]byte, timeout time.Duration) ([
 		c.mu.Unlock()
 		return nil, errors.New("channel destroy, can not propose")
 	}
-	msgs := make([]replica.Message, 0, len(data))
-	seqs := make([]uint64, 0, len(data))
+	logs := make([]replica.Log, 0, len(data))
 	for i, d := range data {
-		msg := c.rc.NewProposeMessage(d)
-		msg.Index = c.rc.State().LastLogIndex() + uint64(1+i)
-		msgs = append(msgs, msg)
-		seqs = append(seqs, msg.Index)
+		logs = append(logs,
+			replica.Log{
+				Index: c.rc.State().LastLogIndex() + uint64(1+i),
+				Term:  c.rc.State().Term(),
+				Data:  d,
+			},
+		)
 	}
-
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	lastMsg := msgs[len(msgs)-1]
-	waitC := c.commitWait.addWaitIndex(lastMsg.Index)
-	for _, msg := range msgs {
-		err := c.step(msg)
-		if err != nil {
-			c.mu.Unlock()
-			return nil, err
-		}
+	lastLog := logs[len(logs)-1]
+	c.Debug("add wait index", zap.Uint64("lastLogIndex", lastLog.Index), zap.Int("logsCount", len(logs)))
+	waitC, err := c.commitWait.addWaitIndex(lastLog.Index)
+	if err != nil {
+		c.mu.Unlock()
+		c.Error("add wait index failed", zap.Error(err))
+		return nil, err
+	}
+	err = c.step(c.rc.NewProposeMessageWithLogs(logs))
+	if err != nil {
+		c.mu.Unlock()
+		return nil, err
 	}
 	c.mu.Unlock()
 
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	select {
 	case <-waitC:
+		seqs := make([]uint64, 0, len(logs))
+		for _, log := range logs {
+			seqs = append(seqs, log.Index)
+		}
+		c.Debug("finsh wait index", zap.Uint64s("seqs", seqs))
 		return seqs, nil
 	case <-timeoutCtx.Done():
+		c.Debug("proposeAndWaitCommits timeout", zap.Uint64("lastLogIndex", lastLog.Index), zap.Int("logCount", len(logs)))
 		return nil, timeoutCtx.Err()
 	case <-c.doneC:
 		return nil, ErrStopped
@@ -214,22 +224,20 @@ func (c *channel) handleLocalMsg(msg replica.Message) {
 
 // 处理应用日志请求
 func (c *channel) handleApplyLogsReq(msg replica.Message) {
-	if len(msg.Logs) == 0 {
+	if msg.CommittedIndex <= 0 || msg.AppliedIndex >= msg.CommittedIndex {
 		return
 	}
-	lastLog := msg.Logs[len(msg.Logs)-1]
-	c.Debug("commit wait", zap.Uint64("lastLogIndex", lastLog.Index))
-	c.commitWait.commitIndex(lastLog.Index)
-	c.Debug("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))
+	c.Debug("commit wait", zap.Uint64("lastLogIndex", msg.CommittedIndex))
+	c.commitWait.commitIndex(msg.CommittedIndex)
+	c.Debug("commit wait done", zap.Uint64("lastLogIndex", msg.CommittedIndex))
 
 	shardNo := ChannelKey(c.channelID, c.channelType)
-	err := c.localstorage.setAppliedIndex(shardNo, lastLog.Index)
+	err := c.localstorage.setAppliedIndex(shardNo, msg.CommittedIndex)
 	if err != nil {
 		c.Error("set applied index failed", zap.Error(err))
 		return
 	}
-
-	err = c.stepLock(c.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
+	err = c.stepLock(c.rc.NewMsgApplyLogsRespMessage(msg.CommittedIndex))
 	if err != nil {
 		c.Error("step apply logs resp failed", zap.Error(err))
 	}

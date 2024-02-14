@@ -32,15 +32,19 @@ const (
 	MsgUnknown          MsgType = iota // 未知
 	MsgAppointLeaderReq                // 任命领导请求 （上级领导发送任命消息给各节点，如果任命的是自己则变成领导，否者变成追随者，会一直尝试发送并且收到大多数响应后停止发送）
 	// MsgAppointLeaderResp                       // 任命领导响应 (上级领导)
-	MsgPropose                  // 提案（领导）
-	MsgNotifySync               // 通知追随者同步日志（领导）
-	MsgSync                     // 同步日志 （追随者）
-	MsgSyncResp                 // 同步日志响应（领导）
-	MsgLeaderTermStartIndexReq  // 领导任期开始偏移量请求 （追随者）
-	MsgLeaderTermStartIndexResp // 领导任期开始偏移量响应（领导）
-	MsgApplyLogsReq             // 应用日志请求
-	MsgApplyLogsResp            // 应用日志响应
-	MsgPing
+	MsgPropose                    // 提案（领导）
+	MsgNotifySync                 // 通知追随者同步日志（领导）
+	MsgNotifySyncAck              // 通知追随者同步日志回执（领导）
+	MsgSync                       // 同步日志 （追随者）
+	MsgSyncAck                    // 同步日志回执 （追随者）
+	MsgSyncResp                   // 同步日志响应（领导）
+	MsgLeaderTermStartIndexReq    // 领导任期开始偏移量请求 （追随者）
+	MsgLeaderTermStartIndexReqAck // 领导任期开始偏移量请求回执 （追随者）
+	MsgLeaderTermStartIndexResp   // 领导任期开始偏移量响应（领导）
+	MsgApplyLogsReq               // 应用日志请求
+	MsgApplyLogsResp              // 应用日志响应
+	MsgPing                       // ping
+	MsgPingAck                    // ping回执
 	MsgPong
 )
 
@@ -56,12 +60,18 @@ func (m MsgType) String() string {
 		return "MsgPropose"
 	case MsgNotifySync:
 		return "MsgNotifySync"
+	case MsgNotifySyncAck:
+		return "MsgNotifySyncAck"
 	case MsgSync:
 		return "MsgSync"
+	case MsgSyncAck:
+		return "MsgSyncAck"
 	case MsgSyncResp:
 		return "MsgSyncResp"
 	case MsgLeaderTermStartIndexReq:
 		return "MsgLeaderTermStartIndexReq"
+	case MsgLeaderTermStartIndexReqAck:
+		return "MsgLeaderTermStartIndexReqAck"
 	case MsgLeaderTermStartIndexResp:
 		return "MsgLeaderTermStartIndexResp"
 	case MsgApplyLogsReq:
@@ -70,6 +80,8 @@ func (m MsgType) String() string {
 		return "MsgApplyLogsResp"
 	case MsgPing:
 		return "MsgPing"
+	case MsgPingAck:
+		return "MsgPingAck"
 	case MsgPong:
 		return "MsgPong"
 	default:
@@ -78,7 +90,8 @@ func (m MsgType) String() string {
 }
 
 type Message struct {
-	No                string  // 消息编号，用户消息重复判断，不需要判断的此字段为空
+	Id                uint64  // 消息id
+	Key               string  // 消息key
 	MsgType           MsgType // 消息类型
 	From              uint64
 	To                uint64
@@ -88,12 +101,15 @@ type Message struct {
 	Reject            bool // 拒绝
 	Index             uint64
 	CommittedIndex    uint64 // 已提交日志下标
+
+	Responses    []Message
+	AppliedIndex uint64
 }
 
 func (m Message) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteString(m.No)
+	enc.WriteUint64(m.Id)
 	enc.WriteUint16(uint16(m.MsgType))
 	enc.WriteUint64(m.From)
 	enc.WriteUint64(m.To)
@@ -122,7 +138,7 @@ func UnmarshalMessage(data []byte) (Message, error) {
 	m := Message{}
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if m.No, err = dec.String(); err != nil {
+	if m.Id, err = dec.Uint64(); err != nil {
 		return m, err
 	}
 	var msgType uint16
@@ -187,10 +203,11 @@ func IsEmptyHardState(hs HardState) bool {
 type Ready struct {
 	HardState HardState
 	Messages  []Message
+	Responses []Message
 }
 
 func IsEmptyReady(rd Ready) bool {
-	return len(rd.Messages) == 0 && IsEmptyHardState(rd.HardState)
+	return len(rd.Messages) == 0 && IsEmptyHardState(rd.HardState) && len(rd.Responses) == 0
 }
 
 type Log struct {

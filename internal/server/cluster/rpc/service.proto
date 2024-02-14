@@ -76,13 +76,14 @@ message ConnPingReq {
 }
 
 message ForwardSendPacketReq {
-     bytes sendPackets = 1; // 发送包数据集合
-     string channelID = 2; // 频道ID
-     uint32 channelType = 3; // 频道类型
-     string fromUID = 4; // 发送者ID
-     uint32 protoVersion = 5; // 协议版本
-     uint32 deviceFlag = 6; // 设备标识
-     string deviceID = 7; // 设备ID
+     uint64 toNodeId = 1; // 接收节点ID
+     bytes sendPackets = 2; // 发送包数据集合
+     string channelID = 3; // 频道ID
+     uint32 channelType = 4; // 频道类型
+     string fromUID = 5; // 发送者ID
+     uint32 protoVersion = 6; // 协议版本
+     uint32 deviceFlag = 7; // 设备标识
+     string deviceID = 8; // 设备ID
 
 }
 

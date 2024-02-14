@@ -78,7 +78,7 @@ func (s *Server) Start() error {
 	s.engine.OnConnect(s.onConnect)
 	s.engine.OnClose(s.onClose)
 
-	s.Schedule(time.Second*5, func() {
+	s.Schedule(time.Minute*1, func() {
 		s.metrics.printMetrics(fmt.Sprintf("Server:%s", s.opts.Addr))
 	})
 	return s.engine.Start()

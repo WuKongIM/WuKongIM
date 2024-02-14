@@ -46,7 +46,7 @@ func TestChannelGroup(t *testing.T) {
 		m, _ := NewMessageFromProto(msg)
 		fmt.Println("node 1 receive message", m.MsgType.String())
 		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
-		err = cg1.handleMessage(channelID, channelType, m.Message)
+		err = cg1.step(channelID, channelType, m.Message)
 		assert.NoError(t, err)
 	})
 
@@ -65,7 +65,7 @@ func TestChannelGroup(t *testing.T) {
 		m, _ := NewMessageFromProto(msg)
 		fmt.Println("node 2 receive message", m.MsgType.String())
 		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
-		err = cg2.handleMessage(channelID, channelType, m.Message)
+		err = cg2.step(channelID, channelType, m.Message)
 		assert.NoError(t, err)
 	})
 

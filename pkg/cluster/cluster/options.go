@@ -5,6 +5,7 @@ import (
 	"time"
 
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -32,9 +33,12 @@ type Options struct {
 	OnSlotApply                  func(slotId uint32, logs []replica.Log) error // 槽数据应用
 	LogLevel                     zapcore.Level                                 // 日志级别
 	ChannelClusterStorage        ChannelClusterStorage                         // 频道分布式存储
+	LogSyncLimitOfEach           int                                           // 每次日志同步数量
 
 	nodeOnlineFnc      func(nodeID uint64) (bool, error) // 节点是否在线
 	requestSlotLogInfo func(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error)
+
+	Send func(to uint64, m *proto.Message) error
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -50,8 +54,9 @@ func NewOptions(optList ...Option) *Options {
 		ProposeTimeout:               time.Second * 5,
 		ChannelGroupCount:            128,
 		ChannelMaxReplicaCount:       3,
-		ReqTimeout:                   time.Second * 3,
+		ReqTimeout:                   time.Second * 10,
 		LogLevel:                     zapcore.InfoLevel,
+		LogSyncLimitOfEach:           100,
 	}
 	for _, opt := range optList {
 		opt(opts)

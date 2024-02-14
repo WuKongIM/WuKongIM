@@ -1,12 +1,19 @@
 package cluster
 
+import (
+	"context"
+	"fmt"
+)
+
 type nodeManager struct {
 	nodeMap map[uint64]*node
+	opts    *Options
 }
 
-func newNodeManager() *nodeManager {
+func newNodeManager(opts *Options) *nodeManager {
 	return &nodeManager{
 		nodeMap: make(map[uint64]*node),
+		opts:    opts,
 	}
 }
 
@@ -35,4 +42,14 @@ func (n *nodeManager) exist(id uint64) bool {
 		return true
 	}
 	return false
+}
+
+func (n *nodeManager) requestSlotLogInfo(to uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error) {
+	node := n.node(to)
+	if node == nil {
+		return nil, fmt.Errorf("node not found")
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
+	defer cancel()
+	return node.requestSlotLogInfo(timeoutCtx, req)
 }
