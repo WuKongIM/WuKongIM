@@ -86,7 +86,7 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 			return nil
 		}
 		//  process conn auth
-		conn.Discard(len(data))
+		_, _ = conn.Discard(len(data))
 		d.processor.processAuth(conn, packet.(*wkproto.ConnectPacket))
 	} else { // authed
 		offset := 0

@@ -51,7 +51,7 @@ func (s *slotListener) wait() slotReady {
 }
 
 func (s *slotListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 50)
+	tick := time.NewTicker(time.Millisecond * 51)
 	for {
 		select {
 		case <-tick.C:

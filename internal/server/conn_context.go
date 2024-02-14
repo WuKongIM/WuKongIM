@@ -80,7 +80,7 @@ func (c *connContext) disableRead() {
 	c.s.slowClients.Add(1)
 	c.isDisableRead = true
 	c.Info("流量限制开始!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()))
-	c.conn.ReactorSub().RemoveRead(c.conn)
+	_ = c.conn.ReactorSub().RemoveRead(c.conn)
 
 }
 
@@ -92,7 +92,7 @@ func (c *connContext) enableRead() {
 	c.s.slowClients.Sub(1)
 	c.isDisableRead = false
 	c.Info("流量限制解除!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()))
-	c.conn.ReactorSub().AddRead(c.conn)
+	_ = c.conn.ReactorSub().AddRead(c.conn)
 }
 
 // 订阅频道

@@ -328,13 +328,13 @@ func (s Int64Set) Decode(data []byte) error {
 	return err
 }
 
-type conversationResp struct {
-	ChannelID   string       `json:"channel_id"`   // 频道ID
-	ChannelType uint8        `json:"channel_type"` // 频道类型
-	Unread      int          `json:"unread"`       // 未读数
-	Timestamp   int64        `json:"timestamp"`
-	LastMessage *MessageResp `json:"last_message"` // 最后一条消息
-}
+// type conversationResp struct {
+// 	ChannelID   string       `json:"channel_id"`   // 频道ID
+// 	ChannelType uint8        `json:"channel_type"` // 频道类型
+// 	Unread      int          `json:"unread"`       // 未读数
+// 	Timestamp   int64        `json:"timestamp"`
+// 	LastMessage *MessageResp `json:"last_message"` // 最后一条消息
+// }
 
 // MessageRespSlice MessageRespSlice
 type MessageRespSlice []*MessageResp
