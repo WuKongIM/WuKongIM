@@ -32,7 +32,7 @@ type Processor struct {
 
 func NewProcessor(s *Server) *Processor {
 	// Initialize the messageID generator of the snowflake algorithm
-	messageIDGen, err := snowflake.NewNode(int64(s.opts.Cluster.PeerID))
+	messageIDGen, err := snowflake.NewNode(int64(s.opts.Cluster.NodeId))
 	if err != nil {
 		panic(err)
 	}
@@ -97,7 +97,7 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		return
 	}
-	leaderIsSelf := leaderInfo.Id == p.s.opts.Cluster.PeerID
+	leaderIsSelf := leaderInfo.Id == p.s.opts.Cluster.NodeId
 	if leaderIsSelf { // 用户属于此节点
 		p.Debug("用户属于此节点，直接连接。")
 		p.processLocalAuth(conn, connectPacket)
@@ -276,7 +276,7 @@ func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.Co
 	connectReq := &rpc.ConnectReq{
 		Uid:               uid,
 		DeviceFlag:        conn.DeviceID(),
-		BelongPeerID:      p.s.opts.Cluster.PeerID,
+		BelongPeerID:      p.s.opts.Cluster.NodeId,
 		ConnectPacketData: connectPacketData,
 	}
 	leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(connectPacket.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
@@ -338,11 +338,11 @@ func (p *Processor) processPing(conn wknet.Conn, pingPacket *wkproto.PingPacket)
 		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		return
 	}
-	leaderIsSelf := leaderInfo.Id == p.s.opts.Cluster.PeerID
+	leaderIsSelf := leaderInfo.Id == p.s.opts.Cluster.NodeId
 	if !leaderIsSelf { // 转发ping给领导节点
 		p.Debug("processPing to leader....", zap.String("uid", conn.UID()), zap.Uint64("leader", leaderInfo.Id))
 		status, err := p.s.connPing(leaderInfo.Id, &rpc.ConnPingReq{
-			BelongPeerID: p.s.opts.Cluster.PeerID,
+			BelongPeerID: p.s.opts.Cluster.NodeId,
 			Uid:          conn.UID(),
 			DeviceId:     conn.DeviceID(),
 		})
@@ -992,7 +992,7 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		return
 	}
-	if leaderInfo.Id != p.s.opts.Cluster.PeerID {
+	if leaderInfo.Id != p.s.opts.Cluster.NodeId {
 		recvackDatas := make([]byte, 0)
 		for _, ack := range acks {
 
@@ -1006,7 +1006,7 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 		err := p.s.forwardRecvackPacketReq(leaderInfo.Id, &rpc.RecvacksReq{
 			Uid:          conn.UID(),
 			DeviceId:     conn.DeviceID(),
-			BelongPeerID: p.s.opts.Cluster.PeerID,
+			BelongPeerID: p.s.opts.Cluster.NodeId,
 			Data:         recvackDatas,
 		})
 		if err != nil {
@@ -1045,7 +1045,7 @@ func (p *Processor) processClose(conn wknet.Conn) {
 			p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", conn.UID()), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return
 		}
-		if leaderInfo.Id != p.s.opts.Cluster.PeerID {
+		if leaderInfo.Id != p.s.opts.Cluster.NodeId {
 			err = p.s.connectClose(leaderInfo.Id, &rpc.ConnectCloseReq{
 				Uid:      conn.UID(),
 				DeviceId: conn.DeviceID(),

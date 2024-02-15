@@ -47,9 +47,19 @@ func (n *nodeManager) exist(id uint64) bool {
 func (n *nodeManager) requestSlotLogInfo(to uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error) {
 	node := n.node(to)
 	if node == nil {
-		return nil, fmt.Errorf("node not found")
+		return nil, fmt.Errorf("node[%d] not found", to)
 	}
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
 	defer cancel()
 	return node.requestSlotLogInfo(timeoutCtx, req)
+}
+
+func (n *nodeManager) requestClusterJoin(to uint64, req *ClusterJoinReq) (*ClusterJoinResp, error) {
+	node := n.node(to)
+	if node == nil {
+		return nil, fmt.Errorf("node[%d] not found", to)
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
+	defer cancel()
+	return node.requestClusterJoin(timeoutCtx, req)
 }

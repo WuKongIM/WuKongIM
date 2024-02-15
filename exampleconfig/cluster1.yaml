@@ -10,14 +10,14 @@ demo:
 conversation:
   on: true   
 cluster:
-  peerID: 1
+  nodeId: 1
   addr: "tcp://127.0.0.1:10001"
-  slotCount: 256
+  slotCount: 128
   replicaCount: 2
   slotReplicaCount: 2
   channelReplicaCount: 2
   grpcAddr: "127.0.0.1:11111"
-  peers: 
+  nodes: 
     - "1@127.0.0.1:10001"
     - "2@127.0.0.1:10002"
     - "3@127.0.0.1:10003"

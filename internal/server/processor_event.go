@@ -57,7 +57,7 @@ func (p *Processor) handleConnectReq(c *wkserver.Context) {
 		c.WriteErr(fmt.Errorf("请求的节点已经是领导节点"))
 		return
 	}
-	if leaderId != p.s.opts.Cluster.PeerID {
+	if leaderId != p.s.opts.Cluster.NodeId {
 		p.Error("当前节点不是领导节点, handleConnectReq failed", zap.String("uid", req.Uid))
 		c.WriteErr(fmt.Errorf("当前节点不是领导节点"))
 		return

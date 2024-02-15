@@ -39,3 +39,9 @@ func WithDataDir(dir string) Option {
 		o.DataDir = dir
 	}
 }
+
+func WithSlotCount(count uint32) Option {
+	return func(o *Options) {
+		o.SlotCount = count
+	}
+}

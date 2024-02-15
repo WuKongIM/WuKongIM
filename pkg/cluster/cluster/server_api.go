@@ -16,7 +16,7 @@ import (
 
 func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 
-	route.GET(s.formatPath("%s/nodes", prefix), s.clusterInfoGet) // 获取所有节点
+	route.GET(s.formatPath("/nodes", prefix), s.clusterInfoGet) // 获取所有节点
 
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/config", prefix), s.channelClusterConfigGet) // 获取频道分布式配置
 	route.GET(s.formatPath("/slots", prefix), s.slotsGet)                                                    // 获取当前节点的所有槽信息
@@ -253,9 +253,11 @@ func (s *Server) getNodeSlotCount(nodeId uint64, cfg *pb.Config) int {
 }
 
 func (s *Server) getClusterConfig() *pb.Config {
-	cfgServer := s.clusterEventListener.clusterconfigManager.clusterconfigServer
-	cfg := cfgServer.ConfigManager().GetConfig()
-	return cfg
+	return s.getClusterConfigManager().clusterconfigServer.ConfigManager().GetConfig()
+}
+
+func (s *Server) getClusterConfigManager() *clusterconfigManager {
+	return s.clusterEventListener.clusterconfigManager
 }
 
 type NodeConfigTotal struct {

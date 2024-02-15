@@ -176,3 +176,20 @@ func (n *node) requestSlotPropose(ctx context.Context, req *SlotProposeReq) erro
 
 	return nil
 }
+
+func (n *node) requestClusterJoin(ctx context.Context, req *ClusterJoinReq) (*ClusterJoinResp, error) {
+	data, err := req.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := n.client.RequestWithContext(ctx, "/cluster/join", data)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != proto.Status_OK {
+		return nil, fmt.Errorf("requestClusterJoin is failed, status:%d", resp.Status)
+	}
+	clusterJoinResp := &ClusterJoinResp{}
+	err = clusterJoinResp.Unmarshal(resp.Body)
+	return clusterJoinResp, err
+}

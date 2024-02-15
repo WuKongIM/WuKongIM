@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	"github.com/pkg/errors"
 
@@ -33,6 +34,13 @@ const (
 	BenchMode Mode = "bench"
 	// TestMode indicates gin mode is test.
 	TestMode = "test"
+)
+
+type Role string
+
+const (
+	RoleReplica Role = "replica"
+	RoleProxy   Role = "proxy"
 )
 
 type Options struct {
@@ -132,17 +140,18 @@ type Options struct {
 	}
 
 	Cluster struct {
-		PeerID                     uint64        // 节点ID
+		NodeId                     uint64        // 节点ID
 		Addr                       string        // 节点监听地址 例如：tcp://0.0.0.0:11110
 		GRPCAddr                   string        // 节点grpc监听地址 例如：0.0.0.0:11111
 		ServerAddr                 string        // 节点服务地址 例如 127.0.0.1:11110
 		ReqTimeout                 time.Duration // 请求超时时间
-		Join                       string        // 加入集群的地址
+		Role                       Role          // 节点角色 replica, proxy
+		Seed                       string        // 种子节点
 		ReplicaCount               int           // 节点副本数量
 		SlotReplicaCount           int           // 每个槽的副本数量
 		ChannelReplicaCount        int           // 每个频道的副本数量
 		SlotCount                  int           // 槽数量
-		Peers                      []*Peer       // 集群节点地址
+		Nodes                      []*Node       // 集群节点地址
 		PeerRPCMsgTimeout          time.Duration // 节点之间rpc消息超时时间
 		PeerRPCTimeoutScanInterval time.Duration // 节点之间rpc消息超时时间扫描间隔
 	}
@@ -259,17 +268,18 @@ func NewOptions() *Options {
 			Addr: "0.0.0.0:5172",
 		},
 		Cluster: struct {
-			PeerID                     uint64
+			NodeId                     uint64
 			Addr                       string
 			GRPCAddr                   string
 			ServerAddr                 string
 			ReqTimeout                 time.Duration
-			Join                       string
+			Role                       Role
+			Seed                       string
 			ReplicaCount               int
 			SlotReplicaCount           int
 			ChannelReplicaCount        int
 			SlotCount                  int
-			Peers                      []*Peer
+			Nodes                      []*Node
 			PeerRPCMsgTimeout          time.Duration
 			PeerRPCTimeoutScanInterval time.Duration
 		}{
@@ -277,6 +287,7 @@ func NewOptions() *Options {
 			GRPCAddr:                   "0.0.0.0:11111",
 			ServerAddr:                 "",
 			ReqTimeout:                 time.Second * 10,
+			Role:                       RoleReplica,
 			SlotCount:                  128,
 			ReplicaCount:               3,
 			SlotReplicaCount:           3,
@@ -436,31 +447,41 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	}
 
 	// =================== cluster ===================
-	o.Cluster.PeerID = o.getUint64("cluster.peerID", o.Cluster.PeerID)
+	o.Cluster.NodeId = o.getUint64("cluster.nodeId", o.Cluster.NodeId)
 	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
+	role := o.getString("cluster.role", string(o.Cluster.Role))
+	switch role {
+	case string(RoleProxy):
+		o.Cluster.Role = RoleProxy
+	case string(RoleReplica):
+		o.Cluster.Role = RoleReplica
+	default:
+		wklog.Panic("cluster.role must be proxy or replica, but got " + role)
+	}
 	o.Cluster.GRPCAddr = o.getString("cluster.grpcAddr", o.Cluster.GRPCAddr)
 	o.Cluster.ReplicaCount = o.getInt("cluster.replicaCount", o.Cluster.ReplicaCount)
 	o.Cluster.SlotReplicaCount = o.getInt("cluster.slotReplicaCount", o.Cluster.SlotReplicaCount)
 	o.Cluster.ChannelReplicaCount = o.getInt("cluster.channelReplicaCount", o.Cluster.ChannelReplicaCount)
 	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)
+	o.Cluster.ServerAddr = o.getString("cluster.serverAddr", o.Cluster.ServerAddr)
 
 	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)
-	o.Cluster.Join = o.getString("cluster.join", o.Cluster.Join)
+	o.Cluster.Seed = o.getString("cluster.seed", o.Cluster.Seed)
 	o.Cluster.SlotCount = o.getInt("cluster.slotCount", o.Cluster.SlotCount)
-	peers := o.getStringSlice("cluster.peers") // 格式为： nodeID@addr 例如 1@localhost:11110
-	if len(peers) > 0 {
-		for _, peerStr := range peers {
-			if !strings.Contains(peerStr, "@") {
+	nodes := o.getStringSlice("cluster.nodes") // 格式为： nodeID@addr 例如 1@localhost:11110
+	if len(nodes) > 0 {
+		for _, nodeStr := range nodes {
+			if !strings.Contains(nodeStr, "@") {
 				continue
 			}
-			peerStrs := strings.Split(peerStr, "@")
-			nodeID, err := strconv.ParseUint(peerStrs[0], 10, 64)
+			nodeStrs := strings.Split(nodeStr, "@")
+			nodeID, err := strconv.ParseUint(nodeStrs[0], 10, 64)
 			if err != nil {
 				continue
 			}
-			o.Cluster.Peers = append(o.Cluster.Peers, &Peer{
-				ID:         nodeID,
-				ServerAddr: peerStrs[1],
+			o.Cluster.Nodes = append(o.Cluster.Nodes, &Node{
+				Id:         nodeID,
+				ServerAddr: nodeStrs[1],
 			})
 		}
 	}
@@ -481,7 +502,7 @@ func (o *Options) ConfigureDataDir() {
 }
 
 func (o *Options) ClusterOn() bool {
-	return o.Cluster.PeerID != 0
+	return o.Cluster.NodeId != 0
 }
 
 func (o *Options) configureLog(vp *viper.Viper) {
@@ -504,7 +525,6 @@ func (o *Options) configureLog(vp *viper.Viper) {
 	if !strings.HasPrefix(strings.TrimSpace(o.Logger.Dir), "/") {
 		o.Logger.Dir = filepath.Join(o.RootDir, o.Logger.Dir)
 	}
-	fmt.Println("o.Logger.Dir----->", o.Logger.Dir)
 	o.Logger.LineNum = vp.GetBool("logger.lineNum")
 }
 
@@ -613,7 +633,7 @@ func getIntranetIP() string {
 	return ""
 }
 
-type Peer struct {
-	ID         uint64
+type Node struct {
+	Id         uint64
 	ServerAddr string
 }

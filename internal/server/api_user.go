@@ -59,7 +59,7 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
 		if !leaderIsSelf {
 			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -139,7 +139,7 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return nil, errors.New("获取频道所在节点失败！")
 		}
-		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
 		if leaderIsSelf {
 			localUids = append(localUids, uid)
 			continue
@@ -158,7 +158,7 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 	if len(uidInPeerMap) > 0 {
 		var reqErr error
 		wg := &sync.WaitGroup{}
-		for peerID, uidList := range uidInPeerMap {
+		for nodeId, uidList := range uidInPeerMap {
 			wg.Add(1)
 			go func(pid uint64, uidArr []string) {
 				results, err := u.requestOnlineStatus(pid, uidArr)
@@ -168,7 +168,7 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 					conns = append(conns, results...)
 				}
 				wg.Done()
-			}(peerID, uidList)
+			}(nodeId, uidList)
 		}
 		wg.Wait()
 		if reqErr != nil {
@@ -239,7 +239,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
 		if !leaderIsSelf {
 			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)

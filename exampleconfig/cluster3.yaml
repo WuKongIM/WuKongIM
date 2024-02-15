@@ -10,14 +10,14 @@ demo:
 conversation:
   on: true    
 cluster:
-  peerID: 3
+  nodeId: 3
   addr: "tcp://127.0.0.1:10003" # 分布式监听地址
   grpcAddr: "127.0.0.1:11113"
-  slotCount: 256
+  slotCount: 128
   replicaCount: 2
   slotReplicaCount: 2
   channelReplicaCount: 2
-  peers: 
+  nodes: 
     - "1@127.0.0.1:10001"
     - "2@127.0.0.1:10002"
     - "3@127.0.0.1:10003"

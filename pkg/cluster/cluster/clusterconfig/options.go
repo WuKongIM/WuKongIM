@@ -1,6 +1,10 @@
 package clusterconfig
 
-import "time"
+import (
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
+)
 
 type Options struct {
 	NodeId               uint64
@@ -11,6 +15,8 @@ type Options struct {
 	Transport            ITransport    // 传输层
 	AppliedConfigVersion uint64        // 已应用的配置版本
 	ProposeTimeout       time.Duration // 提议超时时间
+	SlotCount            uint32        // 槽位数量
+	Role                 pb.NodeRole   // 节点角色
 }
 
 func NewOptions() *Options {
@@ -19,6 +25,7 @@ func NewOptions() *Options {
 		ElectionTimeoutTick:  10,
 		HeartbeatTimeoutTick: 1,
 		ProposeTimeout:       time.Second * 5,
+		SlotCount:            256,
 	}
 }
 
@@ -57,5 +64,17 @@ func WithReplicas(replicas []uint64) Option {
 func WithTransport(transport ITransport) Option {
 	return func(opts *Options) {
 		opts.Transport = transport
+	}
+}
+
+func WithSlotCount(count uint32) Option {
+	return func(opts *Options) {
+		opts.SlotCount = count
+	}
+}
+
+func WithRole(role pb.NodeRole) Option {
+	return func(opts *Options) {
+		opts.Role = role
 	}
 }

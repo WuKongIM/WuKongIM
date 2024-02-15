@@ -14,16 +14,16 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func newTestOptions(peerID uint64, addr string, onApply func(replicaID uint32, enties []raftpb.Entry) error) *multiraft.Options {
+func newTestOptions(nodeId uint64, addr string, onApply func(replicaID uint32, enties []raftpb.Entry) error) *multiraft.Options {
 	opts := multiraft.NewOptions()
 	opts.Peers = []multiraft.Peer{
 		multiraft.NewPeer(101, "tcp://127.0.0.1:11000"),
 		multiraft.NewPeer(102, "tcp://127.0.0.1:12000"),
 		multiraft.NewPeer(103, "tcp://127.0.0.1:13000"),
 	}
-	opts.PeerID = peerID
+	opts.PeerID = nodeId
 	opts.Addr = addr
-	opts.RootDir = path.Join(os.TempDir(), "raft", fmt.Sprintf("%d", peerID))
+	opts.RootDir = path.Join(os.TempDir(), "raft", fmt.Sprintf("%d", nodeId))
 	opts.ReplicaRaftStorage = multiraft.NewReplicaBoltRaftStorage(path.Join(opts.RootDir, "raft.db"))
 	opts.StateMachine = &testStateMachine{
 		OnApply: onApply,
@@ -37,8 +37,8 @@ func newTestOptions(peerID uint64, addr string, onApply func(replicaID uint32, e
 func TestSingleMultiRaft(t *testing.T) {
 
 	// 1. Create a new multiraft server
-	var peerID uint64 = 101
-	opts := newTestOptions(peerID, "tcp://127.0.0.1:11000", nil)
+	var nodeId uint64 = 101
+	opts := newTestOptions(nodeId, "tcp://127.0.0.1:11000", nil)
 
 	s := multiraft.New(opts)
 	err := s.Start()
@@ -48,7 +48,7 @@ func TestSingleMultiRaft(t *testing.T) {
 	// 2. Start a new replica
 	var replicaID1 uint32 = 1
 	replicaOpts := multiraft.NewReplicaOptions()
-	replicaOpts.PeerID = peerID
+	replicaOpts.PeerID = nodeId
 	replicaOpts.MaxReplicaCount = 3
 	_, err = s.StartReplica(replicaID1, replicaOpts)
 	assert.NoError(t, err)

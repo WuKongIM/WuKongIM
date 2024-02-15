@@ -63,7 +63,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
 		if !leaderIsSelf {
 			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -124,7 +124,7 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
 		if !leaderIsSelf {
 			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -227,7 +227,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 				c.ResponseError(errors.New("获取频道所在节点失败！"))
 				return
 			}
-			leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.PeerID
+			leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
 			if !leaderIsSelf {
 				m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)

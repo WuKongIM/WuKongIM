@@ -176,7 +176,7 @@ func (s *Server) ProposeToSlot(slotId uint32, data []byte) error {
 	if slot.Leader != s.opts.NodeID {
 		slotLeaderNode := s.nodeManager.node(slot.Leader)
 		if slotLeaderNode == nil {
-			s.Error("slot leader node not found, ProposeToSlot failed", zap.Uint32("slotId", slotId))
+			s.Error("slot leader node not found, ProposeToSlot failed", zap.Uint32("slotId", slotId), zap.Uint64("leaderId", slot.Leader))
 			return ErrNodeNotFound
 		}
 		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)

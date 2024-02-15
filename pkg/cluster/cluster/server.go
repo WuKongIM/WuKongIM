@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,7 +70,8 @@ func (s *Server) nodeCliOnline(nodeID uint64) (bool, error) {
 	}
 	node := s.nodeManager.node(nodeID)
 	if node == nil {
-		return false, errors.New("node not found")
+		s.Error("node not found", zap.Uint64("nodeID", nodeID))
+		return false, fmt.Errorf("node[%d] not found", nodeID)
 	}
 	return node.online(), nil
 }
@@ -145,6 +147,9 @@ func (s *Server) Start() error {
 	}
 
 	s.stopper.RunWorker(s.listenClusterEvent)
+
+	// 根据需要是否加入集群
+	s.stopper.RunWorker(s.joinClusterIfNeed)
 	return nil
 }
 
@@ -166,6 +171,73 @@ func (s *Server) Stop() {
 		s.Error("close ShardLogStorage is error", zap.Error(err))
 	}
 
+}
+
+func (s *Server) joinClusterIfNeed() {
+	if strings.TrimSpace(s.opts.Seed) == "" || s.joined() {
+		return
+	}
+	// 添加种子节点
+	seedNodeId, seedAddr, err := SeedNode(s.opts.Seed)
+	if err != nil {
+		s.Panic("SeedNode error", zap.Error(err))
+	}
+	s.addNode(seedNodeId, seedAddr)
+
+	tryMaxCount := 10
+	for {
+		resp, err := s.requestJoinCluster(seedNodeId)
+		if err != nil {
+			s.Error("requestJoinCluster error", zap.Error(err))
+		} else {
+			if len(resp.Nodes) > 0 {
+				for _, n := range resp.Nodes {
+					s.addNode(n.NodeId, n.ServerAddr)
+				}
+			}
+			s.Info("requestJoinCluster success", zap.Uint64("seedNodeId", seedNodeId))
+			return
+		}
+		time.Sleep(time.Second * 2)
+		tryMaxCount--
+		if tryMaxCount <= 0 {
+			s.Panic("requestJoinCluster failed", zap.Error(err))
+		}
+	}
+
+}
+
+func SeedNode(seed string) (uint64, string, error) {
+	seedArray := strings.Split(seed, "@")
+	if len(seedArray) < 2 {
+		return 0, "", errors.New("seed format error")
+	}
+	seedNodeIDStr := seedArray[0]
+	seedAddr := seedArray[1]
+	seedNodeID, err := strconv.ParseUint(seedNodeIDStr, 10, 64)
+	if err != nil {
+		return 0, "", err
+	}
+	return seedNodeID, seedAddr, nil
+}
+
+func (s *Server) requestJoinCluster(seedNodeId uint64) (*ClusterJoinResp, error) {
+	return s.nodeManager.requestClusterJoin(seedNodeId, &ClusterJoinReq{
+		NodeId:     s.opts.NodeID,
+		ServerAddr: s.opts.ServerAddr,
+		Role:       s.opts.Role,
+	})
+}
+
+// 是否已加入集群
+func (s *Server) joined() bool {
+	cfg := s.getClusterConfig()
+	for _, n := range cfg.Nodes {
+		if n.Id == s.opts.NodeID {
+			return true
+		}
+	}
+	return false
 }
 
 // 监听分布式事件
@@ -290,7 +362,7 @@ func (s *Server) handleChannelMsg(from uint64, m *proto.Message) {
 	channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
 	err = s.channelGroupManager.handleMessage(channelID, channelType, msg.Message)
 	if err != nil {
-		s.Error("handle channel message error", zap.Error(err))
+		s.Error("handle channel message error", zap.Error(err), zap.String("shardNo", msg.ShardNo))
 		return
 	}
 }

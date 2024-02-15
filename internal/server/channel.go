@@ -467,7 +467,7 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 			return err
 		}
 		for nodeID, subscribers := range nodeIDSubscribersMap {
-			if nodeID == c.s.opts.Cluster.PeerID {
+			if nodeID == c.s.opts.Cluster.NodeId {
 				err = c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
 				if err != nil {
 					c.Error("处理本地订阅者消息失败！", zap.Error(err))
@@ -509,7 +509,7 @@ func (c *Channel) calcNodeSubscribers(subscribers []string) (map[uint64][]string
 }
 
 // forward to other node subscribers
-func (c *Channel) forwardToOtherPeerSubscribers(messages []*Message, large bool, peerID uint64, subscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
+func (c *Channel) forwardToOtherPeerSubscribers(messages []*Message, large bool, nodeId uint64, subscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
 	recvPacketDatas := make([]byte, 0)
 	for _, m := range messages {
 		recvPacket := m.RecvPacket
@@ -534,7 +534,7 @@ func (c *Channel) forwardToOtherPeerSubscribers(messages []*Message, large bool,
 	c.s.startDeliveryPeerData(&PeerInFlightData{
 		PeerInFlightDataModel: wkstore.PeerInFlightDataModel{
 			No:     req.No,
-			PeerID: peerID,
+			PeerID: nodeId,
 			Data:   reqData,
 		},
 	})

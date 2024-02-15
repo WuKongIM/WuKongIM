@@ -72,7 +72,7 @@ func CreateVarz(s *Server) *Varz {
 	s.retryQueue.inFlightMutex.Unlock()
 	goroutine := runtime.NumGoroutine()
 	return &Varz{
-		ServerID:    fmt.Sprintf("%d", opts.Cluster.PeerID),
+		ServerID:    fmt.Sprintf("%d", opts.Cluster.NodeId),
 		ServerName:  "WuKongIM",
 		Version:     version.Version,
 		Connections: connCount,

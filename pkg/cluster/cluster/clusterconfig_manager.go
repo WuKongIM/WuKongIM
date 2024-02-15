@@ -29,7 +29,7 @@ func newClusterconfigManager(opts *Options) *clusterconfigManager {
 		Log:     wklog.NewWKLog("clusterconfigManager"),
 		stopper: syncutil.NewStopper(),
 	}
-	c.clusterconfigServer = clusterconfig.New(opts.NodeID, clusterconfig.WithTransport(c), clusterconfig.WithReplicas(opts.Replicas()), remoteCfgPath)
+	c.clusterconfigServer = clusterconfig.New(opts.NodeID, clusterconfig.WithSlotCount(opts.SlotCount), clusterconfig.WithTransport(c), clusterconfig.WithReplicas(opts.Replicas()), remoteCfgPath)
 	return c
 }
 
@@ -123,6 +123,7 @@ func (c *clusterconfigManager) initNodesIfNeed(newCfg *pb.Config) bool {
 				ClusterAddr: clusterAddr,
 				AllowVote:   true,
 				Online:      true,
+				CreatedAt:   time.Now().Unix(),
 			})
 		}
 		c.clusterconfigServer.ConfigManager().AddOrUpdateNodes(newNodes, newCfg)
@@ -446,6 +447,10 @@ func (c *clusterconfigManager) cloneConfig() *pb.Config {
 
 func (c *clusterconfigManager) slot(id uint32) *pb.Slot {
 	return c.clusterconfigServer.ConfigManager().Slot(id)
+}
+
+func (c *clusterconfigManager) slotCount() uint32 {
+	return c.clusterconfigServer.ConfigManager().GetConfig().SlotCount
 }
 
 func (c *clusterconfigManager) node(id uint64) *pb.Node {
