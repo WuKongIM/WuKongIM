@@ -64,12 +64,12 @@ type DefaultTransporter struct {
 	onRaftMessage func(m *RaftMessageReq)
 }
 
-func NewDefaultTransporter(peerID uint64, addr string) *DefaultTransporter {
+func NewDefaultTransporter(nodeId uint64, addr string) *DefaultTransporter {
 	return &DefaultTransporter{
-		currentPeer:       NewPeer(peerID, addr),
+		currentPeer:       NewPeer(nodeId, addr),
 		server:            wkserver.New(addr),
 		peerClientManager: NewPeerClientManager(),
-		Log:               wklog.NewWKLog(fmt.Sprintf("DefaultTransporter[%d]", peerID)),
+		Log:               wklog.NewWKLog(fmt.Sprintf("DefaultTransporter[%d]", nodeId)),
 	}
 }
 
@@ -99,7 +99,7 @@ func (d *DefaultTransporter) Send(ctx context.Context, m *RaftMessageReq) error 
 	}
 	peerClient := d.peerClientManager.GetPeerClient(m.Message.To)
 	if peerClient == nil {
-		d.Warn("peer client not found", zap.Uint64("peerID", m.Message.To))
+		d.Warn("peer client not found", zap.Uint64("nodeId", m.Message.To))
 		return nil
 	}
 	if peerClient.NeedConnect() {

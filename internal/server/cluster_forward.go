@@ -10,18 +10,18 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *Server) connectWrite(peerID uint64, req *rpc.ConnectWriteReq) error {
+func (s *Server) connectWrite(nodeId uint64, req *rpc.ConnectWriteReq) error {
 	data, _ := req.Marshal()
-	return s.cluster.Send(peerID, &proto.Message{
+	return s.cluster.Send(nodeId, &proto.Message{
 		MsgType: ClusterMsgTypeConnWrite.Uint32(),
 		Content: data,
 	})
 
 }
 
-func (s *Server) connectClose(peerID uint64, req *rpc.ConnectCloseReq) error {
+func (s *Server) connectClose(nodeId uint64, req *rpc.ConnectCloseReq) error {
 	data, _ := req.Marshal()
-	return s.cluster.Send(peerID, &proto.Message{
+	return s.cluster.Send(nodeId, &proto.Message{
 		MsgType: ClusterMsgTypeConnClose.Uint32(),
 		Content: data,
 	})
@@ -46,11 +46,11 @@ func (s *Server) sendConnectRequest(nodeID uint64, req *rpc.ConnectReq) (*rpc.Co
 	return connectResp, nil
 }
 
-func (s *Server) connPing(peerID uint64, req *rpc.ConnPingReq) (proto.Status, error) {
+func (s *Server) connPing(nodeId uint64, req *rpc.ConnPingReq) (proto.Status, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.Cluster.ReqTimeout)
 	defer cancel()
 	data, _ := req.Marshal()
-	resp, err := s.cluster.RequestWithContext(timeoutCtx, peerID, "/wk/connPing", data)
+	resp, err := s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/connPing", data)
 	if err != nil {
 		return 0, err
 	}

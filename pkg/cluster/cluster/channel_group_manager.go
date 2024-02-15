@@ -103,6 +103,7 @@ func (c *channelGroupManager) proposeMessages(channelId string, channelType uint
 func (c *channelGroupManager) requestChannelProposeMessage(to uint64, channelId string, channelType uint8, data [][]byte) (*ChannelProposeResp, error) {
 	node := c.s.nodeManager.node(to)
 	if node == nil {
+		c.Error("node is not found", zap.Uint64("nodeID", to))
 		return nil, ErrNodeNotFound
 	}
 	timeoutCtx, cancel := context.WithTimeout(c.s.cancelCtx, c.s.opts.ReqTimeout)
@@ -286,6 +287,7 @@ func (c *channelGroupManager) requestChannelClusterConfigFromSlotLeader(channelI
 		ChannelType: channelType,
 	})
 	if err != nil {
+		c.Error("requestChannelClusterConfigFromSlotLeader failed", zap.Error(err), zap.Uint64("slotLeader", slot.Leader), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
 		return nil, err
 	}
 	return clusterConfig, nil

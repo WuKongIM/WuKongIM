@@ -13,16 +13,16 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func newTestRaftOptions(peerID uint64, peerAddr string) *multiraft.RaftOptions {
+func newTestRaftOptions(nodeId uint64, peerAddr string) *multiraft.RaftOptions {
 	opts := multiraft.NewRaftOptions()
 	opts.Peers = []multiraft.Peer{
-		multiraft.NewPeer(peerID, ""),
+		multiraft.NewPeer(nodeId, ""),
 	}
-	opts.ID = peerID // node id
-	opts.DataDir = path.Join(os.TempDir(), "raft", fmt.Sprintf("%d", peerID))
+	opts.ID = nodeId // node id
+	opts.DataDir = path.Join(os.TempDir(), "raft", fmt.Sprintf("%d", nodeId))
 	fmt.Println("dir--->", opts.DataDir)
 	opts.RaftStorage = multiraft.NewMemoryRaftStorage()
-	// trans := multiraft.NewDefaultTransporter(peerID, peerAddr)
+	// trans := multiraft.NewDefaultTransporter(nodeId, peerAddr)
 	// err := trans.Start()
 	// if err != nil {
 	// 	panic(err)

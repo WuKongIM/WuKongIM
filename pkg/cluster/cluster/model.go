@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -28,6 +29,7 @@ var (
 	ErrChannelNotFound         = errors.New("channel not found")
 	ErrClusterConfigNotFound   = errors.New("clusterConfig not found")
 	ErrOldChannelClusterConfig = errors.New("old channel cluster config")
+	ErrNodeAlreadyExists       = errors.New("node already exists")
 )
 
 const (
@@ -490,6 +492,82 @@ func (s *SlotLogInfoResp) Unmarshal(data []byte) error {
 		}
 	}
 	return nil
+}
+
+type ClusterJoinReq struct {
+	NodeId     uint64
+	ServerAddr string
+	Role       pb.NodeRole
+}
+
+func (c *ClusterJoinReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(c.NodeId)
+	enc.WriteString(c.ServerAddr)
+	enc.WriteUint32(uint32(c.Role))
+	return enc.Bytes(), nil
+
+}
+
+func (c *ClusterJoinReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if c.NodeId, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if c.ServerAddr, err = dec.String(); err != nil {
+		return err
+	}
+	var role uint32
+	if role, err = dec.Uint32(); err != nil {
+		return err
+	}
+	c.Role = pb.NodeRole(role)
+	return nil
+}
+
+type ClusterJoinResp struct {
+	Nodes []*NodeInfo
+}
+
+func (c *ClusterJoinResp) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(uint16(len(c.Nodes)))
+	for _, node := range c.Nodes {
+		enc.WriteUint64(node.NodeId)
+		enc.WriteString(node.ServerAddr)
+	}
+	return enc.Bytes(), nil
+}
+
+func (c *ClusterJoinResp) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var nodesLen uint16
+	if nodesLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if nodesLen > 0 {
+		c.Nodes = make([]*NodeInfo, nodesLen)
+		for i := uint16(0); i < nodesLen; i++ {
+			node := &NodeInfo{}
+			if node.NodeId, err = dec.Uint64(); err != nil {
+				return err
+			}
+			if node.ServerAddr, err = dec.String(); err != nil {
+				return err
+			}
+			c.Nodes[i] = node
+		}
+	}
+	return nil
+}
+
+type NodeInfo struct {
+	NodeId     uint64
+	ServerAddr string
 }
 
 type ChannelClusterStorage interface {

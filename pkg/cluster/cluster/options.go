@@ -2,8 +2,10 @@ package cluster
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap/zapcore"
@@ -12,8 +14,11 @@ import (
 type Options struct {
 	NodeID                       uint64
 	Addr                         string
+	ServerAddr                   string            // 节点通信地址
 	ApiServerAddr                string            // 节点api地址
 	InitNodes                    map[uint64]string // 初始化节点列表
+	Seed                         string            // 种子节点 格式：id@ip:port
+	Role                         pb.NodeRole       // 节点角色
 	ChannelGroupScanInterval     time.Duration
 	ShardLogStorage              IShardLogStorage
 	MessageLogStorage            IShardLogStorage // 消息日志存储
@@ -34,6 +39,8 @@ type Options struct {
 	LogLevel                     zapcore.Level                                 // 日志级别
 	ChannelClusterStorage        ChannelClusterStorage                         // 频道分布式存储
 	LogSyncLimitOfEach           int                                           // 每次日志同步数量
+
+	NodeLockTime time.Duration // 节点锁定时间,超过此时间节点将不能修改
 
 	nodeOnlineFnc      func(nodeID uint64) (bool, error) // 节点是否在线
 	requestSlotLogInfo func(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error)
@@ -57,6 +64,7 @@ func NewOptions(optList ...Option) *Options {
 		ReqTimeout:                   time.Second * 10,
 		LogLevel:                     zapcore.InfoLevel,
 		LogSyncLimitOfEach:           100,
+		NodeLockTime:                 time.Hour * 2,
 	}
 	for _, opt := range optList {
 		opt(opts)
@@ -66,8 +74,13 @@ func NewOptions(optList ...Option) *Options {
 
 func (o *Options) Replicas() []uint64 {
 	replicas := make([]uint64, 0, len(o.InitNodes))
-	for nodeID := range o.InitNodes {
-		replicas = append(replicas, nodeID)
+	if strings.TrimSpace(o.Seed) != "" {
+		seedNodeId, _, _ := SeedNode(o.Seed)
+		replicas = append(replicas, seedNodeId)
+	} else {
+		for nodeID := range o.InitNodes {
+			replicas = append(replicas, nodeID)
+		}
 	}
 	return replicas
 }
@@ -197,5 +210,23 @@ func WithLogLevel(level zapcore.Level) Option {
 func WithChannelClusterStorage(storage ChannelClusterStorage) Option {
 	return func(opts *Options) {
 		opts.ChannelClusterStorage = storage
+	}
+}
+
+func WithSeed(seed string) Option {
+	return func(opts *Options) {
+		opts.Seed = seed
+	}
+}
+
+func WithServerAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.ServerAddr = addr
+	}
+}
+
+func WithRole(role pb.NodeRole) Option {
+	return func(opts *Options) {
+		opts.Role = role
 	}
 }

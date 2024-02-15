@@ -7,13 +7,14 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
 type Server struct {
-	configManager *ConfigManager
+	configManager *ConfigManager // 配置管理
 	opts          *Options
 	node          *Node
 	recvc         chan Message
@@ -95,6 +96,17 @@ func (s *Server) Step(ctx context.Context, m Message) error {
 
 func (s *Server) IsLeader() bool {
 	return s.node.isLeader()
+}
+
+func (s *Server) SetReplicas(replicas []uint64) {
+	s.node.opts.Replicas = replicas
+}
+
+func (s *Server) AddReplicaIfNotExists(replica uint64) {
+	if wkutil.ArrayContainsUint64(s.node.opts.Replicas, replica) {
+		return
+	}
+	s.node.opts.Replicas = append(s.node.opts.Replicas, replica)
 }
 
 func (s *Server) Leader() uint64 {

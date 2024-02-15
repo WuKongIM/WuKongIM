@@ -24,7 +24,9 @@ type ConfigManager struct {
 func NewConfigManager(opts *Options) *ConfigManager {
 
 	cm := &ConfigManager{
-		cfg:  &pb.Config{},
+		cfg: &pb.Config{
+			SlotCount: opts.SlotCount,
+		},
 		opts: opts,
 		Log:  wklog.NewWKLog("ConfigManager"),
 	}

@@ -4,9 +4,8 @@ option go_package = "./;pb";
 
 enum NodeRole {
     NodeRoleUnkown = 0; // 未知
-    NodeRoleLeader = 1; // 领导者
-    NodeRoleFollower = 2; // 跟随者
-    NodeRoleLearner =3; // 学习者 （没有投票权）
+    NodeRoleReplica =1; // 副本服务，参与投票，可以成为领导
+    NodeRoleProxy = 2; // 代理服务，仅仅做转发加速效果，类似cdn （没有投票权）
 }
 
 enum NodeStatus {
@@ -35,6 +34,7 @@ message Node {
     bool allowVote = 10; // 节点是否允许投票
     NodeRole role = 11; // 节点角色
     NodeStatus status = 12; // 节点状态
+    int64 createdAt = 13; // 创建时间
 }
 
 

@@ -64,10 +64,10 @@ func (c *ConnManager) addProxyConn(conn *ProxyClientConn) {
 // 	delete(c.proxyConnMap, conn.ID())
 // }
 
-// func (c *ConnManager) GetProxyConn(peerID uint64, orgID int64) *ProxyClientConn {
+// func (c *ConnManager) GetProxyConn(nodeId uint64, orgID int64) *ProxyClientConn {
 // 	c.Lock()
 // 	defer c.Unlock()
-// 	peerConnMap := c.peerProxyConnMap[peerID]
+// 	peerConnMap := c.peerProxyConnMap[nodeId]
 // 	if peerConnMap == nil {
 // 		return nil
 // 	}

@@ -102,7 +102,7 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.NodeId
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -160,7 +160,7 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.NodeId
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
@@ -209,7 +209,7 @@ func (s *ConversationAPI) deleteConversation(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.NodeId
 
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
@@ -250,7 +250,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
-		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.NodeId
 
 		if !leaderIsSelf {
 			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
@@ -403,7 +403,7 @@ func (s *ConversationAPI) getRecentMessagesForCluster(uid string, msgCount int, 
 			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			return nil, err
 		}
-		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.PeerID
+		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.NodeId
 		if leaderIsSelf {
 			localPeerChannelRecentMessageReqs = append(localPeerChannelRecentMessageReqs, channelRecentMsgReq)
 		} else {
@@ -421,7 +421,7 @@ func (s *ConversationAPI) getRecentMessagesForCluster(uid string, msgCount int, 
 	if len(peerChannelRecentMessageReqsMap) > 0 {
 		var reqErr error
 		wg := &sync.WaitGroup{}
-		for peerID, peerChannelRecentMessageReqs := range peerChannelRecentMessageReqsMap {
+		for nodeId, peerChannelRecentMessageReqs := range peerChannelRecentMessageReqsMap {
 			wg.Add(1)
 			go func(pID uint64, reqs []*channelRecentMessageReq, uidStr string, msgCt int) {
 				results, err := s.requestSyncMessage(pID, reqs, uidStr, msgCt)
@@ -432,7 +432,7 @@ func (s *ConversationAPI) getRecentMessagesForCluster(uid string, msgCount int, 
 					channelRecentMessages = append(channelRecentMessages, results...)
 				}
 				wg.Done()
-			}(peerID, peerChannelRecentMessageReqs, uid, msgCount)
+			}(nodeId, peerChannelRecentMessageReqs, uid, msgCount)
 		}
 		wg.Wait()
 		if reqErr != nil {

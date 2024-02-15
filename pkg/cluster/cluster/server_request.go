@@ -2,8 +2,11 @@ package cluster
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
+	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
@@ -24,6 +27,8 @@ func (s *Server) setRoutes() {
 	s.server.Route("/slot/propose", s.handleSlotPropose)
 	// 获取槽日志信息
 	s.server.Route("/slot/logInfo", s.handleSlotLogInfo)
+	// 节点加入集群
+	s.server.Route("/cluster/join", s.handleClusterJoin)
 
 }
 
@@ -115,6 +120,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 	slotId := s.getChannelSlotId(req.ChannelID)
+	fmt.Println("slotId--->", slotId)
 	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
 		s.Error("slot not found", zap.Uint32("slotId", slotId))
@@ -294,9 +300,88 @@ func (s *Server) handleSlotLogInfo(c *wkserver.Context) {
 	c.Write(data)
 }
 
+func (s *Server) handleClusterJoin(c *wkserver.Context) {
+	req := &ClusterJoinReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal ClusterJoinReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	if !s.getClusterConfigManager().isLeader() { // 转发给领导节点
+		resp, err := s.nodeManager.requestClusterJoin(s.getClusterConfigManager().leaderId(), req)
+		if err != nil {
+			s.Error("requestClusterJoin failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		data, err := resp.Marshal()
+		if err != nil {
+			s.Error("marshal ClusterJoinResp failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		c.Write(data)
+		return
+	}
+
+	nodes := s.getClusterConfig().Nodes
+	for _, n := range nodes {
+		if n.Id == req.NodeId && time.Since(time.Unix(n.CreatedAt, 0)) > s.opts.NodeLockTime {
+			s.Error("node already exists", zap.Uint64("nodeId", req.NodeId))
+			c.WriteErr(ErrNodeAlreadyExists)
+			return
+		}
+	}
+
+	allowVote := false
+	if req.Role != pb.NodeRole_NodeRoleProxy {
+		allowVote = true
+	}
+	err := s.getClusterConfigManager().clusterconfigServer.AddOrUpdateNodes([]*pb.Node{
+		{
+			Id:          req.NodeId,
+			ClusterAddr: req.ServerAddr,
+			Join:        true,
+			Online:      true,
+			AllowVote:   allowVote,
+			Role:        req.Role,
+			CreatedAt:   time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		s.Error("AddOrUpdateNodes failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+
+	}
+
+	nodeInfos := make([]*NodeInfo, 0, len(nodes))
+	for _, node := range nodes {
+		nodeInfos = append(nodeInfos, &NodeInfo{
+			NodeId:     node.Id,
+			ServerAddr: node.ClusterAddr,
+		})
+	}
+
+	resp := &ClusterJoinResp{
+		Nodes: nodeInfos,
+	}
+	data, _ := resp.Marshal()
+	c.Write(data)
+}
+
 // 获取频道所在的slotId
 func (s *Server) getChannelSlotId(channelId string) uint32 {
-	return wkutil.GetSlotNum(int(s.opts.SlotCount), channelId)
+	var slotCount uint32
+	if s.getClusterConfig() != nil {
+		slotCount = s.getClusterConfig().SlotCount
+
+	}
+	if slotCount == 0 {
+		slotCount = s.opts.SlotCount
+	}
+	// fmt.Println("channelid--->", channelId, slotCount)
+	return wkutil.GetSlotNum(int(slotCount), channelId)
 }
 
 func (s *Server) getFrom(c *wkserver.Context) (uint64, error) {

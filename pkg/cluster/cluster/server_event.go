@@ -45,6 +45,9 @@ func (s *Server) handleNodeAddEvent(event EventMessage) error {
 		return nil
 	}
 	s.addNodes(event.Nodes)
+	for _, n := range event.Nodes {
+		s.clusterEventListener.clusterconfigManager.clusterconfigServer.AddReplicaIfNotExists(n.Id)
+	}
 	return nil
 }
 
@@ -144,7 +147,7 @@ func (s *Server) addNode(nodeId uint64, addr string) {
 		return
 	}
 	if s.nodeManager.exist(nodeId) {
-		return
+		s.nodeManager.removeNode(nodeId)
 	}
 	s.nodeManager.addNode(s.newNodeByNodeInfo(nodeId, addr))
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -78,14 +79,14 @@ func New(opts *Options) *Server {
 		start:       now,
 		stopChan:    make(chan struct{}),
 		ipBlacklist: map[string]uint64{},
-		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.PeerID), time.Now()),
+		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
 	}
 
 	gin.SetMode(opts.GinMode)
 
 	monitor.SetMonitorOn(opts.Monitor.On) // 监控开关
 
-	storeOpts := clusterstore.NewOptions(s.opts.Cluster.PeerID)
+	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
 	storeOpts.DecodeMessageFnc = func(msg []byte) (wkstore.Message, error) {
 		var err error
 		m := &Message{}
@@ -119,11 +120,11 @@ func New(opts *Options) *Server {
 
 	if s.opts.ClusterOn() {
 		// clusterOpts := cluster.NewOptions()
-		// clusterOpts.PeerID = s.opts.Cluster.PeerID
+		// clusterOpts.PeerID = s.opts.Cluster.NodeId
 		// clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
 		// clusterOpts.Join = s.opts.Cluster.Join
 		// clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
-		// clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.PeerID))
+		// clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.NodeId))
 		// clusterOpts.SlotCount = s.opts.Cluster.SlotCount
 		// clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
 		// clusterOpts.GRPCEvent = s.dispatch.processor
@@ -169,17 +170,24 @@ func New(opts *Options) *Server {
 		// }
 
 		initNodes := make(map[uint64]string)
-		for _, peer := range s.opts.Cluster.Peers {
-			serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
-			initNodes[peer.ID] = serverAddr
+		for _, node := range s.opts.Cluster.Nodes {
+			serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
+			initNodes[node.Id] = serverAddr
+		}
+		role := pb.NodeRole_NodeRoleReplica
+		if s.opts.Cluster.Role == RoleProxy {
+			role = pb.NodeRole_NodeRoleProxy
 		}
 		clusterServer := cluster.New(
-			s.opts.Cluster.PeerID,
+			s.opts.Cluster.NodeId,
 			cluster.NewOptions(
 				cluster.WithAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
 				cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
 				cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
 				cluster.WithInitNodes(initNodes),
+				cluster.WithSeed(s.opts.Cluster.Seed),
+				cluster.WithRole(role),
+				cluster.WithServerAddr(s.opts.Cluster.ServerAddr),
 				cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
 				cluster.WithApiServerAddr(s.opts.External.APIUrl),
 				cluster.WithChannelMaxReplicaCount(uint16(s.opts.Cluster.ChannelReplicaCount)),
@@ -339,7 +347,7 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 
 func (s *Server) startDeliveryPeerData(req *PeerInFlightData) {
 
-	s.Debug("开始投递节点数据", zap.String("no", req.No), zap.Uint64("peerID", req.PeerID), zap.Int("dataSize", len(req.Data)))
+	s.Debug("开始投递节点数据", zap.String("no", req.No), zap.Uint64("nodeId", req.PeerID), zap.Int("dataSize", len(req.Data)))
 
 	s.peerInFlightQueue.startInFlightTimeout(req) // 重新投递
 

@@ -22,7 +22,7 @@ func newSlotManager(opts *Options) *slotManager {
 	return &slotManager{
 		stopper:  syncutil.NewStopper(),
 		opts:     opts,
-		Log:      wklog.NewWKLog(fmt.Sprintf("slotGroupManager[%d]", opts.NodeID)),
+		Log:      wklog.NewWKLog(fmt.Sprintf("slotManager[%d]", opts.NodeID)),
 		listener: newSlotListener(opts),
 	}
 }
@@ -117,7 +117,7 @@ func (s *slotManager) proposeAndWaitCommit(slotId uint32, data []byte) error {
 func (s *slotManager) handleMessage(slotId uint32, m replica.Message) {
 	st := s.slot(slotId)
 	if st == nil {
-		s.Error("slot not found", zap.Uint32("slotId", slotId))
+		s.Error("slot not found", zap.Uint32("slotId", slotId), zap.String("msgType", m.MsgType.String()))
 		return
 	}
 	err := st.handleMessage(m)
