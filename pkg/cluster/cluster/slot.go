@@ -97,6 +97,48 @@ func (s *slot) proposeAndWaitCommit(data []byte, timeout time.Duration) error {
 	}
 }
 
+func (s *slot) proposeAndWaitCommits(dataList [][]byte, timeout time.Duration) error {
+	s.Lock()
+	if s.destroy {
+		s.Unlock()
+		return errors.New("channel destroy, can not propose")
+	}
+
+	logs := make([]replica.Log, 0, len(dataList))
+	for i, data := range dataList {
+		logs = append(logs, replica.Log{
+			Index: s.rc.State().LastLogIndex() + 1 + uint64(i),
+			Term:  s.rc.State().Term(),
+			Data:  data,
+		})
+	}
+	msg := s.rc.NewProposeMessageWithLogs(logs)
+	lastLog := logs[len(logs)-1]
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	waitC, err := s.commitWait.addWaitIndex(lastLog.Index)
+	if err != nil {
+		s.Unlock()
+		s.Error("add wait index failed", zap.Error(err))
+		return err
+	}
+	err = s.step(msg)
+	if err != nil {
+		s.Unlock()
+		return err
+	}
+	s.Unlock()
+
+	select {
+	case <-waitC:
+		return nil
+	case <-timeoutCtx.Done():
+		return timeoutCtx.Err()
+	case <-s.doneC:
+		return ErrStopped
+	}
+}
+
 func (s *slot) hasReady() bool {
 	if s.destroy {
 		return false

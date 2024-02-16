@@ -8,6 +8,7 @@ import (
 	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -105,16 +106,59 @@ func (s *Store) GetMessageOfUserCursor(uid string) (uint32, error) {
 	return 0, nil
 }
 
-func (s *Store) AppendMessagesOfUser(uid string, msgs []wkstore.Message) (err error) {
-	return s.AppendMessages(uid, wkproto.ChannelTypePerson, msgs)
+func (s *Store) AppendMessagesOfUser(subscriber string, messages []wkstore.Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+	err := s.setSeqForMessages(subscriber, messages)
+	if err != nil {
+		return err
+	}
+
+	data, err := EncodeCMDAppendMessagesOfUser(subscriber, messages)
+	if err != nil {
+		return err
+	}
+	cmd := NewCMD(CMDAppendMessagesOfUser, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+
+	slotId := s.getChannelSlotId(subscriber)
+	return s.opts.Cluster.ProposeToSlot(slotId, cmdData)
+}
+
+func (s *Store) setSeqForMessages(subscriber string, messages []wkstore.Message) error {
+	s.lock.Lock(subscriber)
+	defer s.lock.Unlock(subscriber)
+	maxSeq, _, err := s.db.GetChannelMaxMessageSeq(subscriber, wkproto.ChannelTypePerson)
+	if err != nil {
+		return err
+	}
+	for i, msg := range messages {
+		msg.SetSeq(maxSeq + uint32(i) + 1)
+	}
+	// 保存当前用户的最大消息序号（用户的消息messageSeq不要求严格递增连续，只要递增就行，所以这里保存成功后续执行失败，也不会影响程序正常逻辑）
+	err = s.db.SaveChannelMaxMessageSeq(subscriber, wkproto.ChannelTypePerson, maxSeq+uint32(len(messages)))
+	if err != nil {
+		return err
+	}
+	return nil
+
 }
 
 func (s *Store) SyncMessageOfUser(uid string, messageSeq uint32, limit uint32) ([]wkstore.Message, error) {
-	return nil, nil
+	return s.db.GetMessagesOfUserQueue(uid, messageSeq, limit)
 }
 
 func (s *Store) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {
 	return nil
+}
+
+// 获取频道的槽id
+func (s *Store) getChannelSlotId(channelId string) uint32 {
+	return wkutil.GetSlotNum(int(s.opts.SlotCount), channelId)
 }
 
 type MessageShardLogStorage struct {

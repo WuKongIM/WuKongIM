@@ -94,6 +94,7 @@ func (f *FileStoreForMsg) GetLastMsgSeq(channelID string, channelType uint8) (ui
 	return f.getTopic(channelID, channelType).getLastMsgSeq(), nil
 }
 
+// Deprecated: use IncUserMaxSeq instead
 func (f *FileStoreForMsg) GetLastMsgSeqOfUser(uid string) (uint32, error) {
 
 	return f.getTopic(fmt.Sprintf("%s%s", UserQueuePrefix, uid), wkproto.ChannelTypePerson).getLastMsgSeq(), nil

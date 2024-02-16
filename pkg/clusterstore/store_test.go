@@ -137,6 +137,9 @@ func (t *testClusterServer) ProposeChannelMessage(channelID string, channelType 
 func (t *testClusterServer) ProposeChannelMessages(channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
 	return t.server.ProposeChannelMessages(channelID, channelType, data)
 }
+func (t *testClusterServer) ProposeToSlot(slotId uint32, data []byte) error {
+	return t.server.ProposeToSlot(slotId, data)
+}
 
 type testMessage struct {
 	seq  uint32
