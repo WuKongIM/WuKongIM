@@ -61,6 +61,7 @@ func initConfig() {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err != nil {
 			wklog.Error("read config file error", zap.Error(err))
+			panic(fmt.Errorf("read config file error: %s", err))
 		}
 	}
 
