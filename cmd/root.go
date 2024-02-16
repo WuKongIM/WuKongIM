@@ -60,7 +60,7 @@ func initConfig() {
 	if cfgFile != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err != nil {
-			fmt.Println("Using config file:", vp.ConfigFileUsed(), zap.Error(err))
+			wklog.Error("read config file error", zap.Error(err))
 		}
 	}
 
