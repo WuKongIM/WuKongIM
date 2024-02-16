@@ -57,6 +57,8 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		return s.handleDeleteConversation(cmd)
 	case CMDChannelClusterConfigSave: // 保存频道分布式配置
 		return s.handleChannelClusterConfigSave(cmd)
+	case CMDAppendMessagesOfUser: // 向用户队列里增加消息
+		return s.handleAppendMessagesOfUser(cmd)
 		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置
 		// return s.handleChannelClusterConfigDelete(cmd)
 
@@ -199,4 +201,12 @@ func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {
 		return err
 	}
 	return s.db.DeleteChannelClusterConfig(channelId, channelType)
+}
+
+func (s *Store) handleAppendMessagesOfUser(cmd *CMD) error {
+	uid, messages, err := cmd.DecodeCMDAppendMessagesOfUser(s.opts.DecodeMessageFnc)
+	if err != nil {
+		return err
+	}
+	return s.db.AppendMessagesOfUserQueue(uid, messages)
 }

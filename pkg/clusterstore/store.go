@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"go.uber.org/zap"
@@ -13,6 +14,7 @@ type Store struct {
 	opts *Options
 	db   *wkstore.FileStore
 	wklog.Log
+	lock *keylock.KeyLock
 
 	messageShardLogStorage *MessageShardLogStorage
 }
@@ -22,6 +24,7 @@ func NewStore(opts *Options) *Store {
 	s := &Store{
 		opts: opts,
 		Log:  wklog.NewWKLog(fmt.Sprintf("clusterStore[%d]", opts.NodeID)),
+		lock: keylock.NewKeyLock(),
 	}
 
 	err := os.MkdirAll(opts.DataDir, os.ModePerm)
@@ -39,6 +42,7 @@ func NewStore(opts *Options) *Store {
 }
 
 func (s *Store) Open() error {
+	s.lock.StartCleanLoop()
 	err := s.db.Open()
 	return err
 }
@@ -48,6 +52,7 @@ func (s *Store) Close() {
 	if err != nil {
 		s.Warn("close message storage err", zap.Error(err))
 	}
+	s.lock.StopCleanLoop()
 }
 
 func (s *Store) GetPeerInFlightData() ([]*wkstore.PeerInFlightDataModel, error) {

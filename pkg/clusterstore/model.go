@@ -13,6 +13,8 @@ type ICluster interface {
 	ProposeChannelMessage(channelID string, channelType uint8, data []byte) (uint64, error)
 	// ProposeChannelMessages 批量提交消息到指定的channel
 	ProposeChannelMessages(channelID string, channelType uint8, data [][]byte) ([]uint64, error)
+	// ProposeToSlots 提交数据到指定的槽
+	ProposeToSlot(slotId uint32, data []byte) error
 }
 
 type CMDType uint16
@@ -461,5 +463,40 @@ func (c *CMD) DecodeCMDChannelClusterConfigSave() (channelID string, channelType
 		return
 	}
 	data, err = decoder.BinaryAll()
+	return
+}
+
+func EncodeCMDAppendMessagesOfUser(uid string, messages []wkstore.Message) ([]byte, error) {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteUint32(uint32(len(messages)))
+	for _, message := range messages {
+		encoder.WriteBinary(message.Encode())
+	}
+	return encoder.Bytes(), nil
+}
+
+func (c *CMD) DecodeCMDAppendMessagesOfUser(decodeFnc func(data []byte) (wkstore.Message, error)) (uid string, messages []wkstore.Message, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	var count uint32
+	if count, err = decoder.Uint32(); err != nil {
+		return
+	}
+	var msg wkstore.Message
+	for i := uint32(0); i < count; i++ {
+		var messageBytes []byte
+		if messageBytes, err = decoder.Binary(); err != nil {
+			return
+		}
+		msg, err = decodeFnc(messageBytes)
+		if err != nil {
+			return
+		}
+		messages = append(messages, msg)
+	}
 	return
 }

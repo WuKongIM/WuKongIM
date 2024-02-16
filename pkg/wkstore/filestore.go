@@ -572,6 +572,7 @@ func (f *FileStore) GetSlotChannelClusterConfigCount(slotId uint32) (int, error)
 	return count, nil
 }
 
+// 获取某个槽下的所有频道集群配置
 func (f *FileStore) GetSlotChannelClusterConfig(slotId uint32) ([][]byte, error) {
 	iter := f.db.NewIter(&pebble.IterOptions{
 		LowerBound: f.getSlotChannelClusterConfigLowKey(slotId),
@@ -587,8 +588,48 @@ func (f *FileStore) GetSlotChannelClusterConfig(slotId uint32) ([][]byte, error)
 	return data, nil
 }
 
+func (f *FileStore) AppendMessagesOfUserQueue(uid string, messages []Message) error {
+	batch := f.db.NewBatch()
+	for _, message := range messages {
+		err := batch.Set([]byte(f.getMessageOfUserQueueKey(uid, message.GetSeq())), message.Encode(), f.wo)
+		if err != nil {
+			return err
+		}
+	}
+	return batch.Commit(f.wo)
+}
+
+func (f *FileStore) GetMessagesOfUserQueue(uid string, startSeq uint32, limit uint32) ([]Message, error) {
+	iter := f.db.NewIter(&pebble.IterOptions{
+		LowerBound: []byte(f.getMessageOfUserQueueKey(uid, startSeq)),
+		UpperBound: []byte(f.getMessageOfUserQueueKey(uid, math.MaxUint32)),
+	})
+
+	defer iter.Close()
+
+	messages := make([]Message, 0)
+
+	for iter.First(); iter.Valid(); iter.Next() {
+		if len(messages) >= int(limit) {
+			break
+		}
+		message, err := f.cfg.DecodeMessageFnc(iter.Value())
+		if err != nil {
+			f.Error("decode message fail", zap.Error(err))
+			continue
+		}
+		messages = append(messages, message)
+	}
+	return messages, nil
+}
+
 func (f *FileStore) DeleteChannelClusterConfig(channelID string, channelType uint8) error {
 	return f.db.Delete([]byte(f.getChannelClusterConfigKey(channelID, channelType)), f.wo)
+}
+
+func (f *FileStore) getMessageOfUserQueueKey(uid string, messageSeq uint32) string {
+	slot := wkutil.GetSlotNum(f.cfg.SlotNum, uid)
+	return fmt.Sprintf("/slots/%s/messagequeue/users/%s/%d", f.getSlotFillFormat(slot), uid, messageSeq)
 }
 
 func (f *FileStore) getChannelMaxMessageSeqKey(channelID string, channelType uint8) string {
