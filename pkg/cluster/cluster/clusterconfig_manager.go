@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -92,6 +94,12 @@ func (c *clusterconfigManager) checkClusterConfig() {
 		hasChange = true
 	}
 
+	// 处理新加入的节点
+	changed = c.handleNewJoinNodeIfNeed(newCfg)
+	if changed {
+		hasChange = true
+	}
+
 	if hasChange {
 		newCfg.Version++
 		c.Info("propose config change", zap.Uint64("version", newCfg.Version))
@@ -124,6 +132,7 @@ func (c *clusterconfigManager) initNodesIfNeed(newCfg *pb.Config) bool {
 				AllowVote:   true,
 				Online:      true,
 				CreatedAt:   time.Now().Unix(),
+				Status:      pb.NodeStatus_NodeStatusDone,
 			})
 		}
 		c.clusterconfigServer.ConfigManager().AddOrUpdateNodes(newNodes, newCfg)
@@ -184,7 +193,7 @@ func (c *clusterconfigManager) initSlotLeaderIfNeed(newCfg *pb.Config) bool {
 
 	replicas := make([]uint64, 0, len(newCfg.Nodes))
 	for _, n := range newCfg.Nodes {
-		if !n.AllowVote {
+		if !n.AllowVote || n.Status != pb.NodeStatus_NodeStatusDone {
 			continue
 		}
 		replicas = append(replicas, n.Id)
@@ -293,6 +302,115 @@ func (c *clusterconfigManager) electionSlotLeaderIfNeed(newCfg *pb.Config) bool 
 
 	// 获取槽在各个副本上的日志高度
 	return hasChange
+}
+
+func (c *clusterconfigManager) handleNewJoinNodeIfNeed(newCfg *pb.Config) bool {
+	var newNodes []*pb.Node // 新加入的节点
+	for _, n := range newCfg.Nodes {
+		if n.Join && n.Status == pb.NodeStatus_NodeStatusWillJoin && n.Role == pb.NodeRole_NodeRoleReplica {
+			newNodes = append(newNodes, n)
+			break
+		}
+	}
+	if len(newNodes) == 0 {
+		return false
+	}
+	replicaNodes := c.replicaNodes(newCfg.Nodes) // 获取可投票的副本节点
+
+	slotCountOfNode := c.slotCount() * c.opts.SlotMaxReplicaCount / uint32(len(replicaNodes)) // 每个节点的槽应该的数量
+	remainSlotCount := c.slotCount() * c.opts.SlotMaxReplicaCount % uint32(len(replicaNodes)) // 剩余槽数量
+
+	allExports := make([]*pb.SlotMigrate, 0, slotCountOfNode*uint32(len(newNodes))+remainSlotCount) // 导出的槽
+
+	fmt.Println("slotCountOfNode---->", slotCountOfNode)
+	// 获取需要导出的槽
+	for _, replicaNode := range replicaNodes {
+		nodeSlotCount := c.getNodeSlotCount(replicaNode.Id)
+		if nodeSlotCount <= slotCountOfNode {
+			continue
+		}
+		exportCount := nodeSlotCount - slotCountOfNode
+		slots := c.getNodeSlots(replicaNode.Id)
+		for i := len(slots) - 1; i >= 0; i-- {
+			slot := slots[i]
+			if exportCount <= 0 {
+				break
+			}
+			if c.containsSlot(allExports, slot.Id) {
+				continue
+			}
+			mg := &pb.SlotMigrate{
+				Slot: slot.Id,
+				From: replicaNode.Id,
+			}
+			replicaNode.Exports = append(replicaNode.Exports, mg)
+			allExports = append(allExports, mg)
+			exportCount--
+		}
+	}
+
+	for _, newNode := range newNodes {
+		newNode.Status = pb.NodeStatus_NodeStatusJoining
+		if len(allExports) == 0 {
+			break
+		}
+		if len(allExports) <= int(slotCountOfNode) {
+			newNode.Imports = append(newNode.Imports, allExports...)
+			for _, imp := range newNode.Imports {
+				imp.To = newNode.Id
+			}
+			allExports = nil
+		} else {
+			newNode.Imports = append(newNode.Imports, allExports[:int(slotCountOfNode)]...)
+			for _, imp := range newNode.Imports {
+				imp.To = newNode.Id
+			}
+			allExports = allExports[int(slotCountOfNode):]
+		}
+	}
+
+	return true
+}
+
+// 获取副本节点
+func (c *clusterconfigManager) replicaNodes(nodes []*pb.Node) []*pb.Node {
+	replicaNodes := make([]*pb.Node, 0, len(nodes))
+	for _, n := range nodes {
+		if n.Role == pb.NodeRole_NodeRoleReplica {
+			replicaNodes = append(replicaNodes, n)
+		}
+	}
+	return replicaNodes
+}
+
+func (c *clusterconfigManager) containsSlot(mgs []*pb.SlotMigrate, slotID uint32) bool {
+	for _, mg := range mgs {
+		if mg.Slot == slotID {
+			return true
+		}
+	}
+	return false
+
+}
+
+func (c *clusterconfigManager) getNodeSlotCount(nodeId uint64) uint32 {
+	var count uint32
+	for _, slot := range c.clusterconfigServer.ConfigManager().GetConfig().Slots {
+		if wkutil.ArrayContainsUint64(slot.Replicas, nodeId) {
+			count++
+		}
+	}
+	return count
+}
+
+func (c *clusterconfigManager) getNodeSlots(nodeId uint64) []*pb.Slot {
+	var slots []*pb.Slot
+	for _, slot := range c.clusterconfigServer.ConfigManager().GetConfig().Slots {
+		if wkutil.ArrayContainsUint64(slot.Replicas, nodeId) {
+			slots = append(slots, slot)
+		}
+	}
+	return slots
 }
 
 // 收集slot的各个副本的日志高度

@@ -376,12 +376,6 @@ func IsEmptyClusterEvent(event ClusterEvent) bool {
 	return len(event.Messages) == 0
 }
 
-type SlotMigrate struct {
-	SlotId uint32
-	From   uint64
-	To     uint64
-}
-
 type EventMessage struct {
 	Type        ClusterEventType
 	Nodes       []*pb.Node
