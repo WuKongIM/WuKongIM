@@ -23,11 +23,12 @@ func newNode(id uint64, uid string, addr string) *node {
 		id:              id,
 		addr:            addr,
 		client:          cli,
-		activityTimeout: time.Second * 10, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
+		activityTimeout: time.Minute * 2, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
 	}
 }
 
 func (n *node) start() {
+	n.client.SetActivity(time.Now())
 	n.client.Start()
 }
 

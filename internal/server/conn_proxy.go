@@ -305,7 +305,9 @@ func (p *ProxyClientConn) SetMaxIdle(maxIdle time.Duration) {
 				return
 			}
 			p.Debug("max idle time exceeded, close the connection", zap.Duration("maxIdle", maxIdle), zap.Duration("lastActivity", time.Since(p.lastActivity.Load())), zap.String("conn", p.String()))
-			p.idleTimer.Stop()
+			if p.idleTimer != nil {
+				p.idleTimer.Stop()
+			}
 			if p.IsClosed() {
 				return
 			}

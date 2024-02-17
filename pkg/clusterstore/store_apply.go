@@ -195,13 +195,13 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 	return s.db.SaveChannelClusterConfig(channelId, channelType, config)
 }
 
-func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {
-	channelId, channelType, err := cmd.DecodeChannel()
-	if err != nil {
-		return err
-	}
-	return s.db.DeleteChannelClusterConfig(channelId, channelType)
-}
+// func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {
+// 	channelId, channelType, err := cmd.DecodeChannel()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return s.db.DeleteChannelClusterConfig(channelId, channelType)
+// }
 
 func (s *Store) handleAppendMessagesOfUser(cmd *CMD) error {
 	uid, messages, err := cmd.DecodeCMDAppendMessagesOfUser(s.opts.DecodeMessageFnc)

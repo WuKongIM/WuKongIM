@@ -3,14 +3,15 @@ option go_package = "./;pb";
 
 
 enum NodeRole {
-    NodeRoleUnkown = 0; // 未知
-    NodeRoleReplica =1; // 副本服务，参与投票，可以成为领导
-    NodeRoleProxy = 2; // 代理服务，仅仅做转发加速效果，类似cdn （没有投票权）
+    NodeRoleReplica =0; // 副本服务，参与投票，可以成为领导
+    NodeRoleProxy = 1; // 代理服务，仅仅做转发加速效果，类似cdn （没有投票权）
 }
 
 enum NodeStatus {
-    NodeStatusUnkown = 0; // 等待初始化
-    NodeStatusDone = 1;
+    NodeStatusUnkown = 0; // 未知
+    NodeStatusWillJoin = 1; // 准备加入
+    NodeStatusJoining = 2; // 加入中
+    NodeStatusDone = 3; // 加入完成
 }
 message Config {
     uint64 version = 1; // 配置版本
@@ -26,7 +27,7 @@ message Node {
     string clusterAddr = 2; // 节点分布式通讯地址
     string apiServerAddr = 3; // 节点api服务地址
     bool join = 4; // 是否是加入集群的节点，false表示初始节点 true表示后面新加入的节点
-    repeated SlotMigrate exports = 5; // 正在迁移的槽位
+    repeated SlotMigrate exports = 5; // 正在迁出的槽位
     repeated SlotMigrate imports = 6; // 正在迁入的槽位
     bool online = 7; // 是否在线
     uint32 offlineCount = 8; // 离线次数

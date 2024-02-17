@@ -346,6 +346,7 @@ func (s *Server) handleClusterJoin(c *wkserver.Context) {
 			AllowVote:   allowVote,
 			Role:        req.Role,
 			CreatedAt:   time.Now().Unix(),
+			Status:      pb.NodeStatus_NodeStatusWillJoin,
 		},
 	})
 	if err != nil {
