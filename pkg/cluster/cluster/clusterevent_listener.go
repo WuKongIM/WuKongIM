@@ -146,7 +146,10 @@ func (c *clusterEventListener) checkLocalClusterEvent() {
 
 	c.checkClusterEventForSlot() // 检查槽变化
 
+	c.checkClusterEventSlotMigrate() // 检查槽迁移
+
 	if len(c.msgs) > 0 {
+		c.printMsgs()
 		c.triggerClusterEvent(ClusterEvent{Messages: c.msgs})
 	} else { // 没有事件了 说明配置与快照达到一致
 		c.Debug("save local config")
@@ -156,6 +159,12 @@ func (c *clusterEventListener) checkLocalClusterEvent() {
 			c.Error("save local config error", zap.Error(err))
 		}
 		c.snapshotConfig = nil
+	}
+}
+
+func (c *clusterEventListener) printMsgs() {
+	for _, m := range c.msgs {
+		c.Debug("event message", zap.Any("type", m.Type), zap.Int("nodes", len(m.Nodes)), zap.Int("slots", len(m.Slots)), zap.Int("slotMigrates", len(m.SlotMigrates)))
 	}
 }
 
@@ -245,6 +254,76 @@ func (c *clusterEventListener) checkClusterEventForSlot() {
 	}
 }
 
+func (c *clusterEventListener) checkClusterEventSlotMigrate() {
+	leaderconfig := c.snapshotConfig
+
+	exist := false
+	for _, node := range leaderconfig.Nodes {
+		if node.Id != c.opts.NodeID {
+			continue
+		}
+
+		if len(node.Imports) == 0 {
+			continue
+		}
+		var migrates []*SlotMigrate
+		for _, imp := range node.Imports {
+			if c.opts.existSlotMigrateFnc(imp.Slot) {
+				continue
+			}
+			if imp.Status == pb.MigrateStatus_MigrateStatusWill {
+				migrates = append(migrates, &SlotMigrate{
+					Slot: imp.Slot,
+					From: imp.From,
+					To:   imp.To,
+				})
+			}
+		}
+		if len(migrates) > 0 {
+			c.msgs = append(c.msgs, EventMessage{
+				Type:         ClusterEventTypeSlotMigrate,
+				SlotMigrates: migrates,
+			})
+			exist = true
+		}
+	}
+	if exist {
+		return
+	}
+	localCfg := c.localConfg
+	for _, localNode := range localCfg.Nodes {
+		if localNode.Id != c.opts.NodeID {
+			continue
+		}
+		if len(localNode.Imports) == 0 {
+			continue
+		}
+		var remoteNode *pb.Node
+		for _, node := range leaderconfig.Nodes {
+			if node.Id == localNode.Id {
+				remoteNode = node
+				break
+			}
+		}
+		if remoteNode == nil {
+			continue
+		}
+		for _, localImp := range localNode.Imports {
+			existImp := false
+			for _, remoteImp := range remoteNode.Imports {
+				if localImp.Slot == remoteImp.Slot {
+					existImp = true
+					break
+				}
+			}
+			if !existImp {
+				c.opts.removeSlotMigrateFnc(localImp.Slot)
+			}
+		}
+	}
+
+}
+
 func (c *clusterEventListener) checkNodeChange(localNode *pb.Node, snapshotNode *pb.Node) {
 	if localNode.Id != snapshotNode.Id {
 		return
@@ -264,10 +343,17 @@ func (c *clusterEventListener) checkSlotChange(localSlot *pb.Slot, snapshotSlot 
 	}
 	if snapshotSlot.Leader != 0 && localSlot.Leader != snapshotSlot.Leader {
 		c.msgs = append(c.msgs, EventMessage{
-			Type:  ClusterEventTypeSlotLeaderChange,
+			Type:  ClusterEventTypeSlotChange,
 			Slots: []*pb.Slot{snapshotSlot},
 		})
+	} else if !wkutil.ArrayEqualUint64(localSlot.Replicas, snapshotSlot.Replicas) {
+		c.msgs = append(c.msgs, EventMessage{
+			Type:  ClusterEventTypeSlotChange,
+			Slots: []*pb.Slot{snapshotSlot},
+		})
+
 	}
+
 }
 
 func (c *clusterEventListener) triggerClusterEvent(event ClusterEvent) {
@@ -282,7 +368,7 @@ func (c *clusterEventListener) acceptedEvent() {
 }
 
 func (c *clusterEventListener) loadLocalConfig() error {
-	f, err := os.OpenFile(c.localCfgPath, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	f, err := os.OpenFile(c.localCfgPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -303,7 +389,11 @@ func (c *clusterEventListener) loadLocalConfig() error {
 
 func (c *clusterEventListener) saveLocalConfig() error {
 	data := c.getLocalConfigData()
-	if _, err := c.localFile.WriteAt(data, 0); err != nil {
+	err := c.localFile.Truncate(0)
+	if err != nil {
+		return err
+	}
+	if _, err = c.localFile.WriteAt(data, 0); err != nil {
 		return err
 	}
 	return nil
@@ -362,9 +452,36 @@ const (
 	ClusterEventTypeNodeUpdateOnline                         // 节点更新在线状态
 	ClusterEventTypeSlotInit                                 // 槽初始化
 	ClusterEventTypeSlotAdd                                  // 槽添加
-	ClusterEventTypeSlotLeaderChange                         // 槽领导者变更
+	ClusterEventTypeSlotChange                               // 槽领导者变更
 	ClusterEventTypeSlotMigrate                              // 槽迁移
 )
+
+func (c ClusterEventType) String() string {
+	switch c {
+	case ClusterEventTypeNodeInit:
+		return "NodeInit"
+	case ClusterEventTypeNodeAdd:
+		return "NodeAdd"
+	case ClusterEventTypeNodeRemove:
+		return "NodeRemove"
+	case ClusterEventTypeNodeUpdate:
+		return "NodeUpdate"
+	case ClusterEventTypeNodeUpdateApiServerAddr:
+		return "NodeUpdateApiServerAddr"
+	case ClusterEventTypeNodeUpdateOnline:
+		return "NodeUpdateOnline"
+	case ClusterEventTypeSlotInit:
+		return "SlotInit"
+	case ClusterEventTypeSlotAdd:
+		return "SlotAdd"
+	case ClusterEventTypeSlotChange:
+		return "SlotChange"
+	case ClusterEventTypeSlotMigrate:
+		return "SlotMigrate"
+	}
+	return "Unknown"
+
+}
 
 type ClusterEvent struct {
 	Messages []EventMessage
@@ -377,10 +494,10 @@ func IsEmptyClusterEvent(event ClusterEvent) bool {
 }
 
 type EventMessage struct {
-	Type        ClusterEventType
-	Nodes       []*pb.Node
-	Slots       []*pb.Slot
-	SlotMigrate SlotMigrate
+	Type         ClusterEventType
+	Nodes        []*pb.Node
+	Slots        []*pb.Slot
+	SlotMigrates []*SlotMigrate
 }
 
 var EmptyEventMessage = EventMessage{}

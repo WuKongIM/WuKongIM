@@ -62,6 +62,8 @@ func (c *ConfigManager) Slot(id uint32) *pb.Slot {
 }
 
 func (c *ConfigManager) Node(id uint64) *pb.Node {
+	c.Lock()
+	defer c.Unlock()
 	for _, node := range c.cfg.Nodes {
 		if node.Id == id {
 			return node
@@ -71,6 +73,8 @@ func (c *ConfigManager) Node(id uint64) *pb.Node {
 }
 
 func (c *ConfigManager) NodeIsOnline(id uint64) bool {
+	c.Lock()
+	defer c.Unlock()
 	for _, node := range c.cfg.Nodes {
 		if node.Id == id {
 			return node.Online
@@ -79,8 +83,51 @@ func (c *ConfigManager) NodeIsOnline(id uint64) bool {
 	return false
 }
 
-func (c *ConfigManager) AddOrUpdateNodes(nodes []*pb.Node, cfg *pb.Config) {
+// 迁移槽
+func (c *ConfigManager) SlotMigrate(slotId uint32, from, to uint64) (*pb.Config, error) {
+	c.Lock()
+	defer c.Unlock()
+	cfg := c.cfg
 
+	for _, node := range cfg.Nodes {
+		imports := node.Imports
+		for i, imp := range imports {
+			if imp.Slot == slotId {
+				if (imp.From == from && imp.To == to) || (imp.From == to && imp.To == from) {
+					node.Imports = append(imports[:i], imports[i+1:]...)
+					slot := c.Slot(slotId)
+					if slot == nil {
+						c.Error("slot not found", zap.Uint32("slotId", slotId))
+						return nil, ErrSlotNotFound
+					}
+					if slot.Leader == from { // 如果迁出的节点是leader，则需要重新选举，所以这里设置为0
+						slot.Leader = 0
+					}
+					if !wkutil.ArrayContainsUint64(slot.Replicas, to) {
+						slot.Replicas = append(slot.Replicas, to) // 迁入的节点加入副本
+					}
+					if wkutil.ArrayContainsUint64(slot.Replicas, from) {
+						slot.Replicas = wkutil.RemoveUint64(slot.Replicas, from) // 迁出的节点移除副本
+					}
+				}
+			}
+		}
+		exports := node.Exports
+		for i, exp := range exports {
+			if exp.Slot == slotId {
+				if (exp.From == from && exp.To == to) || (exp.From == to && exp.To == from) {
+					node.Exports = append(exports[:i], exports[i+1:]...)
+				}
+			}
+		}
+	}
+	cfg.Version++
+	return cfg, nil
+}
+
+func (c *ConfigManager) AddOrUpdateNodes(nodes []*pb.Node, cfg *pb.Config) {
+	c.Lock()
+	defer c.Unlock()
 	for i, node := range nodes {
 		if c.existNodeByCfg(node.Id, cfg) {
 			cfg.Nodes[i] = node
@@ -102,6 +149,8 @@ func (c *ConfigManager) UpdateApiServerAddr(nodeId uint64, addr string, cfg *pb.
 }
 
 func (c *ConfigManager) AddOrUpdateSlots(slots []*pb.Slot, cfg *pb.Config) {
+	c.Lock()
+	defer c.Unlock()
 	for i, slot := range slots {
 		if c.existSlotByCfg(slot.Id, cfg) {
 			cfg.Slots[i] = slot
@@ -174,6 +223,10 @@ func (c *ConfigManager) existSlotByCfg(slotId uint32, cfg *pb.Config) bool {
 
 func (c *ConfigManager) saveConfig() error {
 	data := c.getConfigData()
+	err := c.cfgFile.Truncate(0)
+	if err != nil {
+		return err
+	}
 	if _, err := c.cfgFile.WriteAt(data, 0); err != nil {
 		return err
 	}
@@ -216,7 +269,7 @@ func (c *ConfigManager) UnmarshalConfigData(data []byte, cfg *pb.Config) error {
 func (c *ConfigManager) initConfigFromFile() error {
 	clusterCfgPath := c.opts.ConfigPath
 	var err error
-	c.cfgFile, err = os.OpenFile(clusterCfgPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	c.cfgFile, err = os.OpenFile(clusterCfgPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		c.Panic("Open cluster config file failed!", zap.Error(err))
 	}

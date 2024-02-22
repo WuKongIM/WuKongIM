@@ -2,14 +2,17 @@ package clusterconfig
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCommitWait1(t *testing.T) {
 	cm := newCommitWait()
 
-	wait1C := cm.addWaitIndex(1)
-	wait2C := cm.addWaitIndex(2)
-
+	wait1C, err := cm.addWaitIndex(1)
+	assert.NoError(t, err)
+	wait2C, err := cm.addWaitIndex(2)
+	assert.NoError(t, err)
 	cm.commitIndex(1)
 
 	// 验证wait1C被通知
@@ -40,8 +43,10 @@ func TestCommitWait1(t *testing.T) {
 func TestCommitWaitNotifyAll(t *testing.T) {
 	cm := newCommitWait()
 
-	wait1C := cm.addWaitIndex(1)
-	wait2C := cm.addWaitIndex(2)
+	wait1C, err := cm.addWaitIndex(1)
+	assert.NoError(t, err)
+	wait2C, err := cm.addWaitIndex(2)
+	assert.NoError(t, err)
 
 	cm.commitIndex(10)
 	cm.commitIndex(10)

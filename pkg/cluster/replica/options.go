@@ -2,66 +2,47 @@ package replica
 
 import "time"
 
+type AckMode int
+
+const (
+	// AckModeNone AckModeNone
+	AckModeNone AckMode = iota
+	// AckModeMajority AckModeMajority
+	AckModeMajority
+	// AckModeAll AckModeAll
+	AckModeAll
+)
+
 type Options struct {
-	NodeID          uint64     // 当前节点ID
-	ShardNo         string     // 分区编号
-	Replicas        []uint64   // 副本节点ID集合
-	Transport       ITransport // 传输协议
-	SyncLimit       uint32
-	CheckInterval   time.Duration                                // 检测间隔
-	AppliedIndex    uint64                                       // 已应用的日志下标
-	CommitLimit     uint32                                       // 每次提交日志的大小限制
-	OnApply         func(logs []Log) (applied uint64, err error) // 应用日志
-	OnCommit        func(oldCommittedIndex, newCommitted uint64) // 提交事件
-	Storage         IStorage
-	LastSyncInfoMap map[uint64]SyncInfo // 各个副本最后一次来同步日志的下标
-	CurrentTerm     uint32              // 副本当前任期
-	ProposeTimeout  time.Duration       // 提议超时时间
+	NodeID                uint64   // 当前节点ID
+	ShardNo               string   // 分区编号
+	Replicas              []uint64 // 副本节点ID集合
+	Storage               IStorage
+	MaxUncommittedLogSize uint64
+	AppliedIndex          uint64        // 已应用的日志下标
+	SyncLimit             uint32        // 同步日志最大数量
+	MessageSendInterval   time.Duration // 消息发送间隔
+	MaxIdleInterval       time.Duration // 最大空闲时间
+	AckMode               AckMode       // AckMode
+	// LastSyncInfoMap       map[uint64]*SyncInfo
 }
 
 func NewOptions() *Options {
 	return &Options{
-		SyncLimit:       20,
-		CheckInterval:   time.Millisecond * 500,
-		CommitLimit:     20,
-		LastSyncInfoMap: make(map[uint64]SyncInfo),
-		CurrentTerm:     1,
-		ProposeTimeout:  time.Second * 5,
+		MaxUncommittedLogSize: 1024 * 1024 * 1024,
+		SyncLimit:             100,
+		// LastSyncInfoMap:       map[uint64]*SyncInfo{},
+		MessageSendInterval: time.Millisecond * 100,
+		MaxIdleInterval:     time.Second * 1,
+		AckMode:             AckModeMajority,
 	}
 }
 
 type Option func(o *Options)
 
-func WithNodeID(nodeID uint64) Option {
-
-	return func(o *Options) {
-		o.NodeID = nodeID
-	}
-}
-
 func WithReplicas(replicas []uint64) Option {
-
 	return func(o *Options) {
 		o.Replicas = replicas
-	}
-}
-
-func WithTransport(t ITransport) Option {
-	return func(o *Options) {
-		o.Transport = newProxyTransport(t)
-	}
-}
-
-func WithAppliedIndex(appliedIndex uint64) Option {
-	return func(o *Options) {
-		o.AppliedIndex = appliedIndex
-	}
-}
-
-func WithOnApply(onApply func(logs []Log) (uint64, error)) Option {
-
-	return func(o *Options) {
-		o.OnApply = onApply
 	}
 }
 
@@ -71,22 +52,20 @@ func WithStorage(storage IStorage) Option {
 	}
 }
 
-func WithLastSyncInfoMap(lastSyncInfoMap map[uint64]SyncInfo) Option {
-
+func WithMaxUncommittedLogSize(size uint64) Option {
 	return func(o *Options) {
-		o.LastSyncInfoMap = lastSyncInfoMap
+		o.MaxUncommittedLogSize = size
 	}
 }
 
-func WithCurrentTerm(currentTerm uint32) Option {
-
+func WithAppliedIndex(index uint64) Option {
 	return func(o *Options) {
-		o.CurrentTerm = currentTerm
+		o.AppliedIndex = index
 	}
 }
 
-func WithOnCommit(onCommit func(oldCommittedIndex, newCommitted uint64)) Option {
+func WithSyncLimit(limit uint32) Option {
 	return func(o *Options) {
-		o.OnCommit = onCommit
+		o.SyncLimit = limit
 	}
 }

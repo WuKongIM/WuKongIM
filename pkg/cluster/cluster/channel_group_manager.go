@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -360,6 +360,7 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 
 	// 检查在线副本是否超过半数
 	if !c.checkOnlineReplicaCount(clusterConfig) {
+		c.Error("online replica count is not enough", zap.Int("onlineReplicaCount", len(clusterConfig.Replicas)), zap.Int("quorum", c.quorum()))
 		return errors.New("online replica count is not enough, checkOnlineReplicaCount failed")
 	}
 
@@ -481,6 +482,9 @@ func (c *channelGroupManager) checkOnlineReplicaCount(clusterConfig *ChannelClus
 }
 
 func (c *channelGroupManager) quorum() int {
+	if c.s.opts.IsSingleNode() {
+		return 1
+	}
 	return int(c.s.opts.ChannelMaxReplicaCount/2) + 1
 }
 

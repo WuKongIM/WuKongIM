@@ -29,6 +29,8 @@ func (s *Server) setRoutes() {
 	s.server.Route("/slot/logInfo", s.handleSlotLogInfo)
 	// 节点加入集群
 	s.server.Route("/cluster/join", s.handleClusterJoin)
+	// 槽迁移完成
+	s.server.Route("/slot/migrate/finish", s.handleSlotMigrateFinish)
 
 }
 
@@ -369,6 +371,49 @@ func (s *Server) handleClusterJoin(c *wkserver.Context) {
 	}
 	data, _ := resp.Marshal()
 	c.Write(data)
+}
+
+func (s *Server) handleSlotMigrateFinish(c *wkserver.Context) {
+	req := &SlotMigrateFinishReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal SlotMigrateFinishReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	leaderId := s.getClusterConfigManager().leaderId()
+	if leaderId != s.opts.NodeID {
+		s.Error("not is leader,handleSlotMigrateFinish failed", zap.Uint64("leader", leaderId), zap.Uint32("slotId", req.SlotId))
+		c.WriteErr(ErrNotIsLeader)
+		return
+	}
+	if req.From == 0 {
+		s.Error("from is zero,handleSlotMigrateFinish failed", zap.Uint64("from", req.From), zap.Uint32("slotId", req.SlotId))
+		c.WriteErr(errors.New("from is zero"))
+		return
+	}
+	if req.To == 0 {
+		s.Error("to is zero,handleSlotMigrateFinish failed", zap.Uint64("to", req.To), zap.Uint32("slotId", req.SlotId))
+		c.WriteErr(errors.New("to is zero"))
+		return
+	}
+	// 移除迁移记录
+	newCfg, err := s.getClusterConfigManager().slotMigrate(req.SlotId, req.From, req.To)
+	if err != nil {
+		s.Error("sotMigrate failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	// 提案配置变更
+	cfgData := s.getClusterConfigManager().clusterconfigServer.ConfigManager().GetConfigDataByCfg(newCfg)
+	err = s.getClusterConfigManager().clusterconfigServer.ProposeConfigChange(cfgData)
+	if err != nil {
+		s.Error("ProposeConfigChange failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	c.WriteOk()
 }
 
 // 获取频道所在的slotId

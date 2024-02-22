@@ -365,6 +365,7 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)  // split sendPacket by channel
 		// recvPackets          = make([]wkproto.RecvPacket, 0, len(sendpPackets)) // recv packets
 	)
+	fmt.Println("收到消息包", len(sendPackets))
 
 	// ########## split sendPacket by channel ##########
 	for _, sendPacket := range sendPackets {
@@ -755,9 +756,7 @@ func (p *Processor) prcocessChannelMessagesForRemote(req *rpc.ForwardSendPacketR
 		}
 
 	}
-	for _, sendackPacket := range sendackPackets {
-		fmt.Println("sendackPacket---seq-remote--->", sendackPacket.(*wkproto.SendackPacket).MessageSeq)
-	}
+
 	return sendackPackets, nil
 }
 

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -14,6 +14,7 @@ import (
 )
 
 func (s *Store) AppendMessages(channelID string, channelType uint8, msgs []wkstore.Message) error {
+
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -24,7 +25,7 @@ func (s *Store) AppendMessages(channelID string, channelType uint8, msgs []wksto
 	start := time.Now()
 	s.Debug("start propose channel messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 	lastIndexs, err := s.opts.Cluster.ProposeChannelMessages(channelID, channelType, msgData)
-	s.Debug("end propose channel messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)), zap.Duration("cost", time.Since(start)))
+	s.Debug("end propose channel messages", zap.Duration("cost", time.Since(start)), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 	if err != nil {
 		return err
 	}

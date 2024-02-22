@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"path"
 	"time"
 
@@ -101,9 +100,8 @@ func (c *clusterconfigManager) checkClusterConfig() {
 	}
 
 	if hasChange {
-		newCfg.Version++
 		c.Info("propose config change", zap.Uint64("version", newCfg.Version))
-		err := c.clusterconfigServer.ProposeConfigChange(newCfg.Version, c.clusterconfigServer.ConfigManager().GetConfigDataByCfg(newCfg))
+		err := c.clusterconfigServer.ProposeConfigChange(c.clusterconfigServer.ConfigManager().GetConfigDataByCfg(newCfg))
 		if err != nil {
 			c.Error("propose config change error", zap.Error(err))
 		}
@@ -113,8 +111,7 @@ func (c *clusterconfigManager) checkClusterConfig() {
 func (c *clusterconfigManager) proposeApiServerAddr(nodeId uint64, apiServerAddr string) error {
 	newcfg := c.clusterconfigServer.ConfigManager().GetConfig().Clone()
 	c.clusterconfigServer.ConfigManager().UpdateApiServerAddr(nodeId, apiServerAddr, newcfg)
-	newcfg.Version++
-	err := c.clusterconfigServer.ProposeConfigChange(newcfg.Version, c.clusterconfigServer.ConfigManager().GetConfigDataByCfg(newcfg))
+	err := c.clusterconfigServer.ProposeConfigChange(c.clusterconfigServer.ConfigManager().GetConfigDataByCfg(newcfg))
 	if err != nil {
 		return err
 	}
@@ -123,6 +120,22 @@ func (c *clusterconfigManager) proposeApiServerAddr(nodeId uint64, apiServerAddr
 
 // 初始化节点
 func (c *clusterconfigManager) initNodesIfNeed(newCfg *pb.Config) bool {
+	if len(newCfg.Nodes) > 0 {
+		return false
+	}
+
+	if c.clusterconfigServer.IsSingleNode() {
+		c.clusterconfigServer.ConfigManager().AddOrUpdateNodes([]*pb.Node{
+			{
+				Id:        c.opts.NodeID,
+				AllowVote: true,
+				Online:    true,
+				CreatedAt: time.Now().Unix(),
+				Status:    pb.NodeStatus_NodeStatusDone,
+			},
+		}, newCfg)
+		return true
+	}
 	if len(newCfg.Nodes) == 0 && len(c.opts.InitNodes) > 0 {
 		newNodes := make([]*pb.Node, 0, len(c.opts.InitNodes))
 		for replicaID, clusterAddr := range c.opts.InitNodes {
@@ -300,7 +313,6 @@ func (c *clusterconfigManager) electionSlotLeaderIfNeed(newCfg *pb.Config) bool 
 		}
 	}
 
-	// 获取槽在各个副本上的日志高度
 	return hasChange
 }
 
@@ -322,7 +334,6 @@ func (c *clusterconfigManager) handleNewJoinNodeIfNeed(newCfg *pb.Config) bool {
 
 	allExports := make([]*pb.SlotMigrate, 0, slotCountOfNode*uint32(len(newNodes))+remainSlotCount) // 导出的槽
 
-	fmt.Println("slotCountOfNode---->", slotCountOfNode)
 	// 获取需要导出的槽
 	for _, replicaNode := range replicaNodes {
 		nodeSlotCount := c.getNodeSlotCount(replicaNode.Id)
@@ -340,8 +351,9 @@ func (c *clusterconfigManager) handleNewJoinNodeIfNeed(newCfg *pb.Config) bool {
 				continue
 			}
 			mg := &pb.SlotMigrate{
-				Slot: slot.Id,
-				From: replicaNode.Id,
+				Slot:   slot.Id,
+				From:   replicaNode.Id,
+				Status: pb.MigrateStatus_MigrateStatusWill,
 			}
 			replicaNode.Exports = append(replicaNode.Exports, mg)
 			allExports = append(allExports, mg)
@@ -577,6 +589,11 @@ func (c *clusterconfigManager) node(id uint64) *pb.Node {
 
 func (c *clusterconfigManager) nodeIsOnline(id uint64) bool {
 	return c.clusterconfigServer.ConfigManager().NodeIsOnline(id)
+}
+
+// 迁移槽
+func (c *clusterconfigManager) slotMigrate(slotId uint32, from, to uint64) (*pb.Config, error) {
+	return c.clusterconfigServer.ConfigManager().SlotMigrate(slotId, from, to)
 }
 
 // 等待配置中的节点数量达到指定数量

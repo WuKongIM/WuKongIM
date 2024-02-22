@@ -485,7 +485,7 @@ func (d *DefaultConn) flush() error {
 	defer d.mu.Unlock()
 
 	if d.outboundBuffer.IsEmpty() {
-		d.removeWriteIfExist()
+		_ = d.removeWriteIfExist()
 		return nil
 	}
 	var (
@@ -506,12 +506,7 @@ func (d *DefaultConn) flush() error {
 	// All data have been drained, it's no need to monitor the writable events,
 	// remove the writable event from poller to help the future event-loops.
 	if d.outboundBuffer.IsEmpty() {
-		err = d.removeWriteIfExist()
-		if err != nil {
-			fmt.Println("removeWrite err", err)
-		}
-	} else {
-		fmt.Println("outboundBuffer not empty----------------------------------------------------------------------->")
+		_ = d.removeWriteIfExist()
 	}
 	return nil
 

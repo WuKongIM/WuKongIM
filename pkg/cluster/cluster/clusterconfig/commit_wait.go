@@ -4,19 +4,12 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
 )
 
-type logNode struct {
-	logIndex uint64
-	waitC    chan struct{}
-	next     *logNode
-}
-
 type commitWait struct {
+	waitList []waitItem
 	sync.Mutex
-
-	head *logNode
-	tail *logNode
 	wklog.Log
 }
 
@@ -26,35 +19,44 @@ func newCommitWait() *commitWait {
 	}
 }
 
-func (c *commitWait) addWaitIndex(logIndex uint64) <-chan struct{} {
+type waitItem struct {
+	logIndex uint64
+	waitC    chan struct{}
+}
+
+func (c *commitWait) addWaitIndex(logIndex uint64) (<-chan struct{}, error) {
 	c.Lock()
 	defer c.Unlock()
 
-	n := &logNode{
-		logIndex: logIndex,
-		waitC:    make(chan struct{}, 1),
-		next:     nil,
-	}
-	if c.head == nil {
-		c.head = n
-	} else {
-		c.tail.next = n
-	}
-	c.tail = n
+	// for _, item := range c.waitList {
+	// 	if item.logIndex == logIndex {
+	// 		return nil, errors.New("logIndex already exists")
+	// 	}
+	// }
 
-	return n.waitC
+	waitC := make(chan struct{}, 1)
+	c.waitList = append(c.waitList, waitItem{logIndex: logIndex, waitC: waitC})
+	return waitC, nil
 }
 
 func (c *commitWait) commitIndex(logIndex uint64) {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.head == nil {
-		return
+	maxIndex := 0
+	exist := false
+	for i, item := range c.waitList {
+		if item.logIndex <= logIndex {
+			select {
+			case item.waitC <- struct{}{}:
+			default:
+				c.Warn("commitIndex notify failed", zap.Uint64("logIndex", logIndex))
+			}
+			maxIndex = i
+			exist = true
+		}
 	}
-	for c.head != nil && c.head.logIndex <= logIndex {
-		c.head.waitC <- struct{}{}
-		c.head = c.head.next
+	if exist {
+		c.waitList = c.waitList[maxIndex+1:]
 	}
-
 }

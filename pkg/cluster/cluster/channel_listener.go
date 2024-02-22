@@ -3,7 +3,7 @@ package cluster
 import (
 	"time"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
@@ -93,6 +93,7 @@ func (c *ChannelListener) loopEvent() {
 						c.Info("remove inactive channel", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 					}
 				}
+
 			})
 
 		case <-c.stopper.ShouldStop():

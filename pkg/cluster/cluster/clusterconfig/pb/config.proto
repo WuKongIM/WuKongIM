@@ -13,6 +13,14 @@ enum NodeStatus {
     NodeStatusJoining = 2; // 加入中
     NodeStatusDone = 3; // 加入完成
 }
+
+enum MigrateStatus {
+    MigrateStatusUnkown = 0; // 未知
+    MigrateStatusWill = 1; // 准备迁移
+    MigrateStatusDoing = 2; // 迁移中
+    MigrateStatusDone = 3; // 迁移完成
+}
+
 message Config {
     uint64 version = 1; // 配置版本
     uint32 slotCount = 2; // 槽位数量
@@ -53,5 +61,5 @@ message SlotMigrate {
     uint32 slot = 1; // 槽位id
     uint64 from = 2; // 迁移的源节点
     uint64 to = 3; // 迁移的目标节点
-    uint32 status = 4; // 迁移状态
+    MigrateStatus status = 4; // 迁移状态
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -45,10 +46,13 @@ type Node struct {
 
 	nodeConfigVersionMap map[uint64]uint64 // 每个节点当前配置的版本号
 
+	activeReplicaMap map[uint64]time.Time // 活跃节点
+
 	tickFnc func()
 	stepFnc func(m Message) error
 
-	msgs []Message
+	msgs        []Message
+	messageWait *messageWait
 }
 
 func NewNode(opts *Options) *Node {
@@ -57,6 +61,8 @@ func NewNode(opts *Options) *Node {
 		opts:                 opts,
 		Log:                  wklog.NewWKLog(fmt.Sprintf("Node[%d]", opts.NodeId)),
 		nodeConfigVersionMap: make(map[uint64]uint64),
+		messageWait:          newMessageWait(opts.MessageSendInterval),
+		activeReplicaMap:     make(map[uint64]time.Time),
 	}
 
 	n.appliedConfigVersion = opts.AppliedConfigVersion
@@ -81,12 +87,17 @@ func (n *Node) HasReady() bool {
 	if len(n.msgs) > 0 {
 		return true
 	}
-	if !n.isLeader() {
-		if n.leaderConfigVersion != n.localConfigVersion {
+
+	if n.followNeedSync() {
+		return true
+	}
+
+	if n.isLeader() {
+		if n.hasNeedPing() {
 			return true
 		}
 	}
-	if n.committedConfigVersion > n.appliedConfigVersion {
+	if n.hasUnapplyLogs() {
 		return true
 	}
 
@@ -94,26 +105,23 @@ func (n *Node) HasReady() bool {
 }
 
 func (n *Node) Ready() Ready {
+
+	if n.followNeedSync() {
+		seq := n.messageWait.next(n.state.leader, EventSync)
+		n.msgs = append(n.msgs, n.newSync(seq))
+	}
+
+	if n.isLeader() {
+		n.sendPingIfNeed()
+	}
+
+	if n.hasUnapplyLogs() {
+		seq := n.messageWait.next(n.opts.NodeId, EventApply)
+		n.msgs = append(n.msgs, n.newApply(seq))
+	}
+
 	rd := Ready{
 		Messages: n.msgs,
-	}
-	if n.isLeader() {
-		if n.hasNotifySync() {
-			for _, nodeID := range n.opts.Replicas {
-				if nodeID == n.opts.NodeId {
-					continue
-				}
-				if n.nodeConfigVersionMap[nodeID] <= n.localConfigVersion {
-					rd.Messages = append(rd.Messages, n.newNotifySync(nodeID))
-				}
-			}
-		}
-	}
-	if n.committedConfigVersion > n.appliedConfigVersion {
-		if !n.hasMsg(EventApply, rd.Messages) {
-			n.Info("send apply request", zap.Uint64("term", uint64(n.state.term)), zap.Uint64("leader", n.state.leader), zap.Uint64("appliedConfigVersion", n.appliedConfigVersion), zap.Uint64("committedConfigVersion", n.committedConfigVersion))
-			rd.Messages = append(rd.Messages, n.newApply())
-		}
 	}
 
 	return rd
@@ -151,7 +159,7 @@ func (n *Node) SetConfigData(data []byte) {
 }
 
 // 是否是单机
-func (n *Node) isSingle() bool {
+func (n *Node) isSingleNode() bool {
 
 	return len(n.opts.Replicas) == 0 || (len(n.opts.Replicas) == 1 && n.opts.Replicas[0] == n.opts.NodeId)
 }
@@ -246,8 +254,73 @@ func (n *Node) tickHeartbeat() {
 	}
 }
 
+func (n *Node) followNeedSync() bool {
+	if n.state.leader == 0 {
+		return false
+	}
+	if n.isLeader() {
+		return false
+	}
+	if n.messageWait.has(n.state.leader, EventSync) {
+		return false
+	}
+	return true
+}
+
+func (n *Node) hasNeedPing() bool {
+	if !n.isLeader() {
+		return false
+	}
+
+	for _, replicaId := range n.opts.Replicas {
+		if replicaId == n.opts.NodeId {
+			continue
+		}
+		if n.messageWait.has(replicaId, EventHeartbeat) {
+			continue
+		}
+		activeTime := n.activeReplicaMap[replicaId]
+		if activeTime.IsZero() || time.Since(activeTime) > n.opts.MaxIdleInterval {
+			return true
+		}
+	}
+	return false
+}
+
+func (n *Node) sendPingIfNeed() bool {
+	if !n.isLeader() {
+		return false
+	}
+
+	hasPing := false
+	for _, replicaId := range n.opts.Replicas {
+		if replicaId == n.opts.NodeId {
+			continue
+		}
+		if n.messageWait.has(replicaId, EventHeartbeat) {
+			continue
+		}
+		activeTime := n.activeReplicaMap[replicaId]
+		if activeTime.IsZero() || time.Since(activeTime) > n.opts.MaxIdleInterval {
+			_ = n.messageWait.next(replicaId, EventHeartbeat)
+			n.send(n.newHeartbeat(replicaId))
+			hasPing = true
+		}
+	}
+	return hasPing
+
+}
+
 func (n *Node) send(m Message) {
 	n.msgs = append(n.msgs, m)
+}
+
+// 是否有未应用的日志
+func (n *Node) hasUnapplyLogs() bool {
+	if n.messageWait.has(n.opts.NodeId, EventApply) {
+		return false
+	}
+	return n.committedConfigVersion > n.appliedConfigVersion
 }
 
 func (n *Node) pastElectionTimeout() bool {

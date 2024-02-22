@@ -16,3 +16,7 @@ func (c *Config) Clone() *Config {
 func (n *Node) Clone() *Node {
 	return proto.Clone(n).(*Node)
 }
+
+func (s *Slot) Clone() *Slot {
+	return proto.Clone(s).(*Slot)
+}

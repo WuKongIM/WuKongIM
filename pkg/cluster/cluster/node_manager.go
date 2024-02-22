@@ -63,3 +63,13 @@ func (n *nodeManager) requestClusterJoin(to uint64, req *ClusterJoinReq) (*Clust
 	defer cancel()
 	return node.requestClusterJoin(timeoutCtx, req)
 }
+
+func (n *nodeManager) requestSlotMigrateFinished(to uint64, req *SlotMigrateFinishReq) error {
+	node := n.node(to)
+	if node == nil {
+		return fmt.Errorf("node[%d] not found", to)
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
+	defer cancel()
+	return node.requestSlotMigrateFinished(timeoutCtx, req)
+}

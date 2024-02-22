@@ -6,7 +6,7 @@ import (
 	"path"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 )

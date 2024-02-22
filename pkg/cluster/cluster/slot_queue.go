@@ -3,7 +3,7 @@ package cluster
 import (
 	"container/list"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 )
 
 type slotQueue struct {

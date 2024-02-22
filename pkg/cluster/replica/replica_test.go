@@ -1,162 +1,235 @@
 package replica_test
 
 import (
-	"fmt"
-	"os"
-	"path"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestServerAppendLog(t *testing.T) {
+// 测试提案
+func TestPropose(t *testing.T) {
+	storage := replica.NewMemoryStorage()
 
-	var shardNo string = "1"
-	rootDir := path.Join(os.TempDir(), "replicas")
-	defer os.RemoveAll(rootDir)
+	rc := replica.New(1, "test", replica.WithStorage(storage), replica.WithReplicas([]uint64{1, 2}))
+	rc.BecomeLeader(1)
 
-	fmt.Println("rootDir--->", rootDir)
-
-	trans := &testTransport{
-		serverMap: make(map[uint64]*replica.Replica),
-	}
-	s1 := replica.New(1, shardNo, replica.WithReplicas([]uint64{2, 3}), replica.WithTransport(trans))
-	trans.leaderServer = s1
-	s1.SetLeaderID(1)
-	// start s1
-	err := s1.Start()
+	err := rc.Propose([]byte("hello"))
 	assert.NoError(t, err)
-	defer s1.Stop()
 
-	s2 := replica.New(2, shardNo, replica.WithTransport(trans))
-	// start s2
-	err = s2.Start()
+	hasReady := rc.HasReady()
+	assert.True(t, hasReady)
+
+	rd := rc.Ready()
+	has, _ := getMessageByType(replica.MsgNotifySync, rd.Messages)
+	assert.True(t, has)
+}
+
+// // 测试任命领导
+// func TestAppointmentLeader(t *testing.T) {
+// 	walstorage := replica.NewMemoryStorage()
+
+// 	// rc 1
+// 	rc := replica.New(1, "test", replica.WithStorage(walstorage))
+// 	err := rc.Step(replica.Message{
+// 		MsgType:           replica.MsgAppointLeaderReq,
+// 		From:              10001,
+// 		To:                1,
+// 		Term:              10,
+// 		AppointmentLeader: 1,
+// 	})
+// 	assert.NoError(t, err)
+// 	assert.True(t, rc.IsLeader())
+
+// 	rd := rc.Ready()
+
+// 	has, message := getMessageByType(replica.MsgAppointLeaderResp, rd.Messages)
+// 	assert.True(t, has)
+
+// 	assert.Equal(t, uint64(10001), message.To)
+// 	assert.Equal(t, uint64(1), message.From)
+
+// }
+
+// 测试日志同步机制
+func TestReplicaSync(t *testing.T) {
+	storage1 := replica.NewMemoryStorage()
+
+	storage2 := replica.NewMemoryStorage()
+
+	// rc 1
+	rc := replica.New(1, "test", replica.WithStorage(storage1), replica.WithReplicas([]uint64{1, 2}))
+	rc.BecomeLeader(1)
+
+	// rc 2
+	rc2 := replica.New(2, "test", replica.WithStorage(storage2), replica.WithReplicas([]uint64{1, 2}))
+	rc2.BecomeFollower(1, 1)
+
+	err := rc.Propose([]byte("hello")) // 提案数据
 	assert.NoError(t, err)
-	defer s2.Stop()
 
-	s3 := replica.New(3, shardNo, replica.WithTransport(trans))
-	// start s3
-	err = s3.Start()
+	// rc1 notify sync
+	rd := rc.Ready()
+	has, msg := getMessageByType(replica.MsgNotifySync, rd.Messages)
+	assert.True(t, has)
+	assert.Equal(t, replica.MsgNotifySync, msg.MsgType)
+
+	err = rc2.Step(msg)
 	assert.NoError(t, err)
-	defer s3.Stop()
 
-	trans.serverMap[1] = s1
-	trans.serverMap[2] = s2
-	trans.serverMap[3] = s3
+	// rc2 sync
+	rd = rc2.Ready()
+	has, syncMsg := getMessageByType(replica.MsgSync, rd.Messages)
+	assert.True(t, has)
 
-	// append log
-	err = s1.AppendLog(replica.Log{
-		Index: 1,
-		Data:  []byte("hello"),
+	err = rc.Step(syncMsg)
+	assert.NoError(t, err)
+
+	// rc1 sync response
+	rd = rc.Ready()
+	has, syncRespMsg := getMessageByType(replica.MsgSyncResp, rd.Messages)
+	assert.True(t, has)
+	assert.Equal(t, uint64(2), syncRespMsg.To)
+	assert.Equal(t, uint64(1), syncRespMsg.From)
+	assert.Equal(t, 1, len(syncRespMsg.Logs))
+	assert.Equal(t, uint64(1), syncRespMsg.Logs[0].Index)
+	assert.Equal(t, []byte("hello"), syncRespMsg.Logs[0].Data)
+
+	err = rc2.Step(syncRespMsg)
+	assert.NoError(t, err)
+
+	// 验证节点日志是否一致
+	logs1, err := storage1.Logs(1, 2, 1)
+	assert.NoError(t, err)
+
+	logs2, err := storage2.Logs(1, 2, 1)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(logs1), len(logs2))
+	assert.Equal(t, logs1[0].Index, logs2[0].Index)
+	assert.Equal(t, logs1[0].Term, logs2[0].Term)
+	assert.Equal(t, logs1[0].Data, logs2[0].Data)
+
+}
+
+// 测试追随者日志冲突
+func TestFollowLogConflicts(t *testing.T) {
+	storage := replica.NewMemoryStorage()
+	_ = storage.AppendLog([]replica.Log{
+		{
+			Index: 1,
+			Term:  1,
+			Data:  []byte("hello1"),
+		},
+		{
+			Index: 2,
+			Term:  1,
+			Data:  []byte("hello2"),
+		},
+		{
+			Index: 3,
+			Term:  2,
+			Data:  []byte("hello11"),
+		},
+		{
+			Index: 4,
+			Term:  2,
+			Data:  []byte("hello22"),
+		},
+	})
+	_ = storage.SetLeaderTermStartIndex(1, 1)
+
+	rc := replica.New(1, "test", replica.WithStorage(storage))
+	rc.BecomeFollower(1, 2)
+
+	rd := rc.Ready()
+	has, msg := getMessageByType(replica.MsgLeaderTermStartIndexReq, rd.Messages)
+	assert.True(t, has)
+	assert.Equal(t, uint32(1), msg.Term)
+
+	err := rc.Step(replica.Message{
+		MsgType: replica.MsgLeaderTermStartIndexResp,
+		From:    2,
+		To:      1,
+		Term:    2,
+		Index:   3,
 	})
 	assert.NoError(t, err)
 
-	time.Sleep(time.Millisecond * 200) // 等待其他节点同步完毕
-
-	// 验证节点2的数据是否一致
-	logs, err := s2.GetLogs(1, 0, 1)
+	lastIndex, err := storage.LastIndex()
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(logs))
-	firstLog := logs[0]
-	assert.Equal(t, []byte("hello"), firstLog.Data)
 
-	// 验证节点3的数据是否一致
-	logs, err = s3.GetLogs(1, 0, 1)
+	assert.Equal(t, uint64(2), lastIndex)
+
+	leaderLastTerm, err := storage.LeaderLastTerm()
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(logs))
-	firstLog = logs[0]
-	assert.Equal(t, []byte("hello"), firstLog.Data)
+
+	assert.Equal(t, uint32(2), leaderLastTerm)
+
+	idx, err := storage.LeaderTermStartIndex(leaderLastTerm)
+	assert.NoError(t, err)
+
+	assert.Equal(t, uint64(3), idx)
+}
+
+func TestApplyLogs(t *testing.T) {
+	storage := replica.NewMemoryStorage()
+	_ = storage.AppendLog([]replica.Log{
+		{
+			Index: 1,
+			Term:  1,
+			Data:  []byte("hello1"),
+		},
+		{
+			Index: 2,
+			Term:  1,
+			Data:  []byte("hello2"),
+		},
+		{
+			Index: 3,
+			Term:  2,
+			Data:  []byte("hello11"),
+		},
+		{
+			Index: 4,
+			Term:  2,
+			Data:  []byte("hello22"),
+		},
+	})
+	rc := replica.New(1, "test", replica.WithStorage(storage), replica.WithReplicas([]uint64{1, 2}))
+
+	err := rc.Step(replica.Message{
+		MsgType:        replica.MsgNotifySync,
+		From:           2,
+		Term:           1,
+		CommittedIndex: 2,
+	})
+	assert.NoError(t, err)
+
+	rd := rc.Ready()
+	has, applyMsg := getMessageByType(replica.MsgApplyLogsReq, rd.Messages)
+	assert.True(t, has)
+	assert.Equal(t, 2, len(applyMsg.Logs))
+
+	err = rc.Step(replica.Message{
+		MsgType: replica.MsgApplyLogsResp,
+		From:    2,
+		To:      1,
+		Term:    1,
+		Index:   1,
+	})
+	assert.NoError(t, err)
+
+	assert.Equal(t, uint64(2), rc.State().CommittedIndex())
+	assert.Equal(t, uint64(1), rc.State().AppliedIndex())
 
 }
 
-func TestServerProposeAndApply(t *testing.T) {
-
-	var shardNo string = "1"
-	rootDir := path.Join(os.TempDir(), "replicas")
-	defer os.RemoveAll(rootDir)
-
-	fmt.Println("rootDir--->", rootDir)
-
-	var wg sync.WaitGroup
-
-	wg.Add(3)
-
-	trans := &testTransport{
-		serverMap: make(map[uint64]*replica.Replica),
-	}
-	onApply := func(logs []replica.Log) (uint64, error) {
-		if string(logs[0].Data) == "hello" {
-			wg.Done()
+func getMessageByType(ty replica.MsgType, messages []replica.Message) (bool, replica.Message) {
+	for _, msg := range messages {
+		if msg.MsgType == ty {
+			return true, msg
 		}
-		return logs[len(logs)-1].Index, nil
 	}
-	store1 := replica.NewWALStorage(path.Join(rootDir, "1"))
-	err := store1.Open()
-	assert.NoError(t, err)
-	defer store1.Close()
-	s1 := replica.New(1, shardNo, replica.WithReplicas([]uint64{2, 3}), replica.WithStorage(store1), replica.WithTransport(trans), replica.WithOnApply(onApply))
-	trans.leaderServer = s1
-	s1.SetLeaderID(1)
-	// start s1
-	err = s1.Start()
-	assert.NoError(t, err)
-	defer s1.Stop()
-
-	store2 := replica.NewWALStorage(path.Join(rootDir, "2"))
-	err = store2.Open()
-	assert.NoError(t, err)
-	defer store2.Close()
-	s2 := replica.New(2, shardNo, replica.WithTransport(trans), replica.WithStorage(store2), replica.WithOnApply(onApply))
-	// start s2
-	err = s2.Start()
-	assert.NoError(t, err)
-	defer s2.Stop()
-
-	store3 := replica.NewWALStorage(path.Join(rootDir, "3"))
-	err = store3.Open()
-	assert.NoError(t, err)
-	defer store3.Close()
-	s3 := replica.New(3, shardNo, replica.WithTransport(trans), replica.WithStorage(store3), replica.WithOnApply(onApply))
-	// start s3
-	err = s3.Start()
-	assert.NoError(t, err)
-	defer s3.Stop()
-
-	trans.serverMap[1] = s1
-	trans.serverMap[2] = s2
-	trans.serverMap[3] = s3
-
-	// propose data
-	err = s1.Propose([]byte("hello"))
-	assert.NoError(t, err)
-	wg.Wait()
-
-}
-
-type testTransport struct {
-	leaderServer itestReplica
-	serverMap    map[uint64]*replica.Replica
-}
-
-func (t *testTransport) SendSyncNotify(toNodeIDs []uint64, r *replica.SyncNotify) {
-	for _, toNodeID := range toNodeIDs {
-		t.serverMap[toNodeID].TriggerHandleSyncNotify()
-	}
-}
-
-func (t *testTransport) SyncLog(toNodeID uint64, r *replica.SyncReq) (*replica.SyncRsp, error) {
-	resp := &replica.SyncRsp{}
-	logs, err := t.leaderServer.GetLogs(r.StartLogIndex, 0, r.Limit)
-	if err != nil {
-		return nil, err
-	}
-	resp.Logs = logs
-	return resp, nil
-}
-
-type itestReplica interface {
-	GetLogs(startLogIndex, endLogIndex uint64, limit uint32) ([]replica.Log, error)
+	return false, replica.Message{}
 }

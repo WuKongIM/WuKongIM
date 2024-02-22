@@ -296,8 +296,6 @@ func (s *segment) sanitySimpleCheck(segmentSizeOfByte int64) (bool, int64, error
 
 	startCheckPosition := offsetPosistion.Position
 
-	fmt.Println("startCheckPosition----->", startCheckPosition, segmentSizeOfByte)
-
 	lastMsgLen := 0 // last message len
 	for {
 		if startCheckPosition >= segmentSizeOfByte {

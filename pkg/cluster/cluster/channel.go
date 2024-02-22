@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
