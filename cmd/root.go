@@ -49,7 +49,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file")
-	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
+	rootCmd.PersistentFlags().StringVar(&mode, "mode", "", "mode")
 	// 后台运行
 	rootCmd.PersistentFlags().BoolVarP(&daemon, "daemon", "d", false, "run in daemon mode")
 
@@ -68,6 +68,9 @@ func initConfig() {
 	vp.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	vp.AutomaticEnv()
 	// 初始化服务配置
+	if strings.TrimSpace(mode) != "" {
+		serverOpts.Mode = server.Mode(mode)
+	}
 	serverOpts.ConfigureWithViper(vp)
 }
 

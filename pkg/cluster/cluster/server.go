@@ -30,6 +30,7 @@ type Server struct {
 	cancelFunc           context.CancelFunc
 	cancelCtx            context.Context
 	onMessageFnc         func(from uint64, msg *proto.Message) // 上层处理消息的函数
+	slotMigrateManager   *slotMigrateManager
 	// 其他
 	opts *Options
 	wklog.Log
@@ -46,7 +47,10 @@ func New(nodeId uint64, opts *Options) *Server {
 		opts:                 opts,
 		Log:                  wklog.NewWKLog(fmt.Sprintf("clusterServer[%d]", opts.NodeID)),
 	}
+	s.slotMigrateManager = newSlotMigrateManager(s)
 	opts.nodeOnlineFnc = s.nodeCliOnline
+	opts.existSlotMigrateFnc = s.slotMigrateManager.exist
+	opts.removeSlotMigrateFnc = s.slotMigrateManager.remove
 	opts.requestSlotLogInfo = s.requestSlotLogInfo
 	s.localStorage = newLocalStorage(s.opts)
 
@@ -61,6 +65,7 @@ func New(nodeId uint64, opts *Options) *Server {
 		opts.ShardLogStorage = NewPebbleShardLogStorage(path.Join(opts.DataDir, "logdb"))
 	}
 	s.cancelCtx, s.cancelFunc = context.WithCancel(context.Background())
+
 	return s
 }
 
@@ -150,12 +155,15 @@ func (s *Server) Start() error {
 
 	// 根据需要是否加入集群
 	s.stopper.RunWorker(s.joinClusterIfNeed)
+
+	s.slotMigrateManager.start()
 	return nil
 }
 
 func (s *Server) Stop() {
 	s.stopped = true
 	s.cancelFunc()
+	s.slotMigrateManager.stop()
 	s.server.Stop()
 	s.clusterEventListener.stop()
 	s.slotManager.stop()

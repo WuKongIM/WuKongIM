@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/stretchr/testify/assert"
 )
 

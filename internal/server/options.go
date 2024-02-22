@@ -283,6 +283,7 @@ func NewOptions() *Options {
 			PeerRPCMsgTimeout          time.Duration
 			PeerRPCTimeoutScanInterval time.Duration
 		}{
+			NodeId:                     1,
 			Addr:                       "tcp://0.0.0.0:11110",
 			GRPCAddr:                   "0.0.0.0:11111",
 			ServerAddr:                 "",
@@ -317,7 +318,13 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	o.RootDir = o.getString("rootDir", o.RootDir)
 
-	o.Mode = Mode(o.getString("mode", string(DebugMode)))
+	modeStr := o.getString("mode", string(o.Mode))
+	if strings.TrimSpace(modeStr) == "" {
+		o.Mode = DebugMode
+	} else {
+		o.Mode = Mode(modeStr)
+	}
+
 	o.GinMode = o.getString("ginMode", o.GinMode)
 
 	o.HTTPAddr = o.getString("httpAddr", o.HTTPAddr)
@@ -535,6 +542,11 @@ func (o *Options) IsTmpChannel(channelID string) bool {
 
 func (o *Options) ConfigFileUsed() string {
 	return o.vp.ConfigFileUsed()
+}
+
+// 是否是单机模式
+func (o *Options) IsSingleNode() bool {
+	return len(o.Cluster.Nodes) == 0
 }
 
 func (o *Options) getString(key string, defaultValue string) string {

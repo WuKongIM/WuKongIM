@@ -18,7 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -118,100 +118,98 @@ func New(opts *Options) *Server {
 
 	monitor.SetMonitorOn(s.opts.Monitor.On) // 监控开关
 
-	if s.opts.ClusterOn() {
-		// clusterOpts := cluster.NewOptions()
-		// clusterOpts.PeerID = s.opts.Cluster.NodeId
-		// clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
-		// clusterOpts.Join = s.opts.Cluster.Join
-		// clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
-		// clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.NodeId))
-		// clusterOpts.SlotCount = s.opts.Cluster.SlotCount
-		// clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
-		// clusterOpts.GRPCEvent = s.dispatch.processor
-		// clusterOpts.APIServerAddr = s.opts.External.APIUrl
-		// clusterOpts.OnSlotApply = func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error) {
-		// 	if len(entries) == 0 {
-		// 		return nil, nil
-		// 	}
-		// 	resultEntries := make([]sm.Entry, 0, len(entries))
-		// 	for _, entry := range entries {
-		// 		cmd := &CMDReq{}
-		// 		err := cmd.Unmarshal(entry.Cmd)
-		// 		if err != nil {
-		// 			return nil, err
-		// 		}
-		// 		cmd.SlotID = &slotID
-		// 		cmdResp, err := s.fsm.Apply(cmd)
-		// 		if err != nil {
-		// 			s.Error("状态机应用数据失败！，严重错误！", zap.Error(err))
-		// 			return nil, err
-		// 		}
-		// 		if cmdResp != nil {
-		// 			respData, err := cmdResp.Marshal()
-		// 			if err != nil {
-		// 				return nil, err
-		// 			}
-		// 			entry.Result.Data = respData
-		// 		}
-		// 		resultEntries = append(resultEntries, entry)
-		// 	}
-		// 	return resultEntries, nil
-		// }
-		// if len(s.opts.Cluster.Peers) > 0 {
-		// 	peers := make([]cluster.Peer, 0)
-		// 	for _, peer := range s.opts.Cluster.Peers {
-		// 		serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
-		// 		peers = append(peers, cluster.Peer{
-		// 			ID:         peer.ID,
-		// 			ServerAddr: serverAddr,
-		// 		})
-		// 	}
-		// 	clusterOpts.Peers = peers
-		// }
+	// clusterOpts := cluster.NewOptions()
+	// clusterOpts.PeerID = s.opts.Cluster.NodeId
+	// clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
+	// clusterOpts.Join = s.opts.Cluster.Join
+	// clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
+	// clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.NodeId))
+	// clusterOpts.SlotCount = s.opts.Cluster.SlotCount
+	// clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
+	// clusterOpts.GRPCEvent = s.dispatch.processor
+	// clusterOpts.APIServerAddr = s.opts.External.APIUrl
+	// clusterOpts.OnSlotApply = func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error) {
+	// 	if len(entries) == 0 {
+	// 		return nil, nil
+	// 	}
+	// 	resultEntries := make([]sm.Entry, 0, len(entries))
+	// 	for _, entry := range entries {
+	// 		cmd := &CMDReq{}
+	// 		err := cmd.Unmarshal(entry.Cmd)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 		cmd.SlotID = &slotID
+	// 		cmdResp, err := s.fsm.Apply(cmd)
+	// 		if err != nil {
+	// 			s.Error("状态机应用数据失败！，严重错误！", zap.Error(err))
+	// 			return nil, err
+	// 		}
+	// 		if cmdResp != nil {
+	// 			respData, err := cmdResp.Marshal()
+	// 			if err != nil {
+	// 				return nil, err
+	// 			}
+	// 			entry.Result.Data = respData
+	// 		}
+	// 		resultEntries = append(resultEntries, entry)
+	// 	}
+	// 	return resultEntries, nil
+	// }
+	// if len(s.opts.Cluster.Peers) > 0 {
+	// 	peers := make([]cluster.Peer, 0)
+	// 	for _, peer := range s.opts.Cluster.Peers {
+	// 		serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
+	// 		peers = append(peers, cluster.Peer{
+	// 			ID:         peer.ID,
+	// 			ServerAddr: serverAddr,
+	// 		})
+	// 	}
+	// 	clusterOpts.Peers = peers
+	// }
 
-		initNodes := make(map[uint64]string)
-		for _, node := range s.opts.Cluster.Nodes {
-			serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
-			initNodes[node.Id] = serverAddr
-		}
-		role := pb.NodeRole_NodeRoleReplica
-		if s.opts.Cluster.Role == RoleProxy {
-			role = pb.NodeRole_NodeRoleProxy
-		}
-		clusterServer := cluster.New(
-			s.opts.Cluster.NodeId,
-			cluster.NewOptions(
-				cluster.WithAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
-				cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
-				cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
-				cluster.WithInitNodes(initNodes),
-				cluster.WithSeed(s.opts.Cluster.Seed),
-				cluster.WithRole(role),
-				cluster.WithServerAddr(s.opts.Cluster.ServerAddr),
-				cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
-				cluster.WithApiServerAddr(s.opts.External.APIUrl),
-				cluster.WithChannelMaxReplicaCount(uint16(s.opts.Cluster.ChannelReplicaCount)),
-				cluster.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
-				cluster.WithLogLevel(s.opts.Logger.Level),
-				cluster.WithOnSlotApply(func(slotId uint32, logs []replica.Log) error {
-
-					return s.store.OnMetaApply(slotId, logs)
-				}),
-				cluster.WithChannelClusterStorage(clusterstore.NewChannelClusterConfigStore(s.store)),
-			),
-
-			// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
-			// 	return s.store.OnMetaApply(channelID, channelType, logs)
-			// }),
-		)
-		s.cluster = clusterServer
-		storeOpts.Cluster = clusterServer
-		s.peerInFlightQueue = NewPeerInFlightQueue(s)
-
-		clusterServer.OnMessage(func(from uint64, msg *proto.Message) {
-			s.dispatch.processor.handleClusterMessage(from, msg)
-		})
+	initNodes := make(map[uint64]string)
+	for _, node := range s.opts.Cluster.Nodes {
+		serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
+		initNodes[node.Id] = serverAddr
 	}
+	role := pb.NodeRole_NodeRoleReplica
+	if s.opts.Cluster.Role == RoleProxy {
+		role = pb.NodeRole_NodeRoleProxy
+	}
+	clusterServer := cluster.New(
+		s.opts.Cluster.NodeId,
+		cluster.NewOptions(
+			cluster.WithAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
+			cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
+			cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
+			cluster.WithInitNodes(initNodes),
+			cluster.WithSeed(s.opts.Cluster.Seed),
+			cluster.WithRole(role),
+			cluster.WithServerAddr(s.opts.Cluster.ServerAddr),
+			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
+			cluster.WithApiServerAddr(s.opts.External.APIUrl),
+			cluster.WithChannelMaxReplicaCount(uint16(s.opts.Cluster.ChannelReplicaCount)),
+			cluster.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
+			cluster.WithLogLevel(s.opts.Logger.Level),
+			cluster.WithOnSlotApply(func(slotId uint32, logs []replica.Log) error {
+
+				return s.store.OnMetaApply(slotId, logs)
+			}),
+			cluster.WithChannelClusterStorage(clusterstore.NewChannelClusterConfigStore(s.store)),
+		),
+
+		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
+		// 	return s.store.OnMetaApply(channelID, channelType, logs)
+		// }),
+	)
+	s.cluster = clusterServer
+	storeOpts.Cluster = clusterServer
+	s.peerInFlightQueue = NewPeerInFlightQueue(s)
+
+	clusterServer.OnMessage(func(from uint64, msg *proto.Message) {
+		s.dispatch.processor.handleClusterMessage(from, msg)
+	})
 
 	return s
 }

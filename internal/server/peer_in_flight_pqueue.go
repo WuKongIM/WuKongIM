@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -118,7 +117,6 @@ func (n *PeerInFlightQueue) Start() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("存在节点投递数据未投递。", len(peerInFlightDatas))
 	err = n.s.store.ClearPeerInFlightData()
 	if err != nil {
 		panic(err)

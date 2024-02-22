@@ -13,11 +13,11 @@ const (
 	EventBeat                    // 领导节点beat
 	EventHeartbeat               // 心跳请求
 	EventHeartbeatResp           // 心跳响应
-	EventNotifySync              // 通知同步
-	EventSync                    // 同步请求
-	EventSyncResp                // 同步响应
-	EventApply                   // 应用配置请求
-	EventApplyResp               // 应用配置响应
+	// EventNotifySync              // 通知同步
+	EventSync      // 同步请求
+	EventSyncResp  // 同步响应
+	EventApply     // 应用配置请求
+	EventApplyResp // 应用配置响应
 )
 
 func (e EventType) String() string {
@@ -36,8 +36,8 @@ func (e EventType) String() string {
 		return "EventHeartbeat"
 	case EventHeartbeatResp:
 		return "EventHeartbeatResp"
-	case EventNotifySync:
-		return "EventNotifySync"
+	// case EventNotifySync:
+	// return "EventNotifySync"
 	case EventSync:
 		return "EventSync"
 	case EventSyncResp:
@@ -65,6 +65,7 @@ const (
 )
 
 var (
-	ErrStopped   = errors.New("clusterconfig: stopped")
-	ErrNotLeader = errors.New("clusterconfig: not leader")
+	ErrStopped      = errors.New("clusterconfig: stopped")
+	ErrNotLeader    = errors.New("clusterconfig: not leader")
+	ErrSlotNotFound = errors.New("clusterconfig: slot not found")
 )

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
@@ -159,6 +159,10 @@ func (s *slot) ready() replica.Ready {
 
 func (s *slot) isLeader() bool {
 	return s.rc.IsLeader()
+}
+
+func (s *slot) leaderId() uint64 {
+	return s.rc.LeaderId()
 }
 
 func (s *slot) stepLock(msg replica.Message) error {

@@ -64,9 +64,14 @@ func (s *Server) Stop() {
 	s.configManager.Close()
 }
 
-func (s *Server) ProposeConfigChange(version uint64, cfgData []byte) error {
-	waitC := s.commitWait.addWaitIndex(version)
-	err := s.node.ProposeConfigChange(version, cfgData)
+func (s *Server) ProposeConfigChange(cfgData []byte) error {
+
+	version := s.GetLastConfigVersion() + 1
+	waitC, err := s.commitWait.addWaitIndex(version)
+	if err != nil {
+		return err
+	}
+	err = s.node.ProposeConfigChange(version, cfgData)
 	if err != nil {
 		return err
 	}
@@ -98,6 +103,10 @@ func (s *Server) IsLeader() bool {
 	return s.node.isLeader()
 }
 
+func (s *Server) IsSingleNode() bool {
+	return s.node.isSingleNode()
+}
+
 func (s *Server) SetReplicas(replicas []uint64) {
 	s.node.opts.Replicas = replicas
 }
@@ -115,6 +124,10 @@ func (s *Server) Leader() uint64 {
 
 func (s *Server) ConfigManager() *ConfigManager {
 	return s.configManager
+}
+
+func (s *Server) GetLastConfigVersion() uint64 {
+	return s.node.localConfigVersion
 }
 
 func (s *Server) handleMessage(m Message) {
@@ -156,6 +169,7 @@ func (s *Server) handleApplyReq(m Message) {
 		s.Panic("unmarshal config error", zap.Error(err))
 		return
 	}
+	newCfg.Version = m.ConfigVersion
 	err = s.configManager.UpdateConfig(newCfg)
 	if err != nil {
 		s.Panic("update config error", zap.Error(err))
@@ -227,6 +241,7 @@ type ClusterEvent struct {
 }
 
 type Message struct {
+	Seq              uint64    // 不参与编码
 	version          uint16    // 数据版本
 	Type             EventType // 消息类型
 	Term             uint32    // 当前任期

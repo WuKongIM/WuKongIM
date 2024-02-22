@@ -104,7 +104,6 @@ func (c *ConnManager) RemoveConnWithID(uid string, deviceId string) {
 
 	userFlag := c.userDeviceID(uid, deviceId)
 	fd := c.connMap[userFlag]
-	fmt.Println("RemoveConnWithID---->", uid, deviceId, fd)
 	conn := c.s.dispatch.engine.GetConn(fd)
 	delete(c.connMap, userFlag)
 	if conn == nil {

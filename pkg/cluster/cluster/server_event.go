@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -25,11 +26,13 @@ func (s *Server) handleClusterEvent(event ClusterEvent) {
 			err = s.handleNodeUpdateApiServerAddrEvent(msg)
 		case ClusterEventTypeSlotAdd: // 槽添加
 			err = s.handleSlotAddEvent(msg)
-		case ClusterEventTypeSlotLeaderChange: // 领导变更
-			err = s.handleSlotLeaderChangeEvent(msg)
+		case ClusterEventTypeSlotChange: // 领导变更
+			err = s.handleSlotChangeEvent(msg)
+		case ClusterEventTypeSlotMigrate: // 槽迁移
+			err = s.handleSlotMigrateEvent(msg)
 		}
 		if err != nil {
-			s.Error("handle cluster event error", zap.Error(err))
+			s.Error("handle cluster event error", zap.Error(err), zap.String("event", msg.Type.String()))
 			return
 		}
 	}
@@ -72,14 +75,27 @@ func (s *Server) handleSlotAddEvent(event EventMessage) error {
 	return s.addSlots(event.Slots)
 }
 
-func (s *Server) handleSlotLeaderChangeEvent(event EventMessage) error {
+func (s *Server) handleSlotChangeEvent(event EventMessage) error {
 	if len(event.Slots) == 0 {
 		return nil
 	}
 	for _, slot := range event.Slots {
 		st := s.slotManager.slot(slot.Id)
 		if st != nil {
+			st.rc.SetReplicas(slot.Replicas)
 			st.BecomeAny(slot.Term, slot.Leader)
+		}
+	}
+	return nil
+}
+
+func (s *Server) handleSlotMigrateEvent(event EventMessage) error {
+	if len(event.SlotMigrates) == 0 {
+		return nil
+	}
+	for _, slotMigrate := range event.SlotMigrates {
+		if !s.slotMigrateManager.exist(slotMigrate.Slot) {
+			s.slotMigrateManager.add(slotMigrate)
 		}
 	}
 	return nil
@@ -91,6 +107,9 @@ func (s *Server) handleNodeUpdateApiServerAddrEvent(event EventMessage) error {
 	}
 
 	if s.clusterEventListener.clusterconfigManager.isLeader() {
+		if strings.TrimSpace(s.opts.ApiServerAddr) == "" {
+			return nil
+		}
 		err := s.clusterEventListener.clusterconfigManager.proposeApiServerAddr(s.opts.NodeID, s.opts.ApiServerAddr)
 		if err != nil {
 			return err

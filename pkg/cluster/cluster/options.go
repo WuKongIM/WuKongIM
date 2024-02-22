@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap/zapcore"
 )
@@ -39,11 +39,15 @@ type Options struct {
 	LogLevel                     zapcore.Level                                 // 日志级别
 	ChannelClusterStorage        ChannelClusterStorage                         // 频道分布式存储
 	LogSyncLimitOfEach           int                                           // 每次日志同步数量
+	// 日志与领导日志小于指定条数时，认为已跟随上领导
+	LogCaughtUpWithLeaderNum int
 
 	NodeLockTime time.Duration // 节点锁定时间,超过此时间节点将不能修改
 
-	nodeOnlineFnc      func(nodeID uint64) (bool, error) // 节点是否在线
-	requestSlotLogInfo func(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error)
+	nodeOnlineFnc        func(nodeID uint64) (bool, error) // 节点是否在线
+	existSlotMigrateFnc  func(slotID uint32) bool          // 是否存在槽迁移
+	removeSlotMigrateFnc func(slotID uint32)               // 移除槽迁移
+	requestSlotLogInfo   func(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error)
 
 	Send func(to uint64, m *proto.Message) error
 }
@@ -65,6 +69,7 @@ func NewOptions(optList ...Option) *Options {
 		LogLevel:                     zapcore.InfoLevel,
 		LogSyncLimitOfEach:           100,
 		NodeLockTime:                 time.Hour * 2,
+		LogCaughtUpWithLeaderNum:     20,
 	}
 	for _, opt := range optList {
 		opt(opts)
@@ -83,6 +88,10 @@ func (o *Options) Replicas() []uint64 {
 		}
 	}
 	return replicas
+}
+
+func (o *Options) IsSingleNode() bool {
+	return len(o.InitNodes) == 0
 }
 
 type Option func(opts *Options)

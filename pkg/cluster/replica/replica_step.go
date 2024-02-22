@@ -61,8 +61,8 @@ func (r *Replica) stepLeader(m Message) error {
 		if !r.appendLog(m.Logs...) {
 			return ErrProposalDropped
 		}
-		if r.isSingle() { // 单机
-			r.Info("single node", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("committedIndex", r.state.committedIndex))
+		if r.isSingle() || r.opts.AckMode == AckModeNone { // 单机
+			r.Debug("no ack", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("committedIndex", r.state.committedIndex))
 			r.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
 
@@ -92,6 +92,7 @@ func (r *Replica) stepLeader(m Message) error {
 			To:             m.From,
 			Term:           r.state.term,
 			Logs:           logs,
+			Index:          r.state.lastLogIndex,
 			CommittedIndex: r.state.committedIndex,
 		})
 
@@ -123,16 +124,16 @@ func (r *Replica) stepFollower(m Message) error {
 		r.send(r.newPong(m.From))
 		r.Info("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.state.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
-	case MsgNotifySync: // 收到同步通知
-		if r.disabledToSync {
-			r.Info("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.state.term))
-			return nil
-		}
-		r.Info("receive notify sync", zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index))
-		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
-		// 发送同步消息
-		seq := r.messageWait.next(r.leader, MsgSync)
-		r.send(r.newSyncMsg(seq))
+	// case MsgNotifySync: // 收到同步通知
+	// 	if r.disabledToSync {
+	// 		r.Info("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.state.term))
+	// 		return nil
+	// 	}
+	// 	r.Info("receive notify sync", zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index))
+	// 	r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
+	// 	// 发送同步消息
+	// 	seq := r.messageWait.next(r.leader, MsgSync)
+	// 	r.send(r.newSyncMsg(seq))
 	case MsgSyncAck:
 		r.messageWait.finish(r.nodeID, MsgSync)
 	case MsgSyncResp: // 领导返回同步消息的结果
@@ -141,7 +142,7 @@ func (r *Replica) stepFollower(m Message) error {
 			return nil
 		}
 		if r.disabledToSync {
-			r.Info("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.state.term))
+			r.Debug("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.state.term))
 			return nil
 		}
 		if len(m.Logs) > 0 {
@@ -149,6 +150,9 @@ func (r *Replica) stepFollower(m Message) error {
 				return ErrProposalDropped
 			}
 		}
+		r.state.leaderLastLogIndex = m.Index
+		r.state.leaderCommittedIndex = m.CommittedIndex
+		r.state.firstSyncResp = true
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 
 		// if uint32(len(m.Logs)) > 0 && m.Logs[len(m.Logs)-1].Index >= r.state.lastLogIndex { // 如果已经获取到最新的日志，则立马发起下一次同步，这次同步主要目的是为了通知领导自己所有数据已同步完毕，这样领导好更新自己的committedIndex
@@ -235,7 +239,7 @@ func (r *Replica) appendLog(logs ...Log) (accepted bool) {
 		return true
 	}
 	start := time.Now()
-	r.Info("append log", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("committedIndex", r.state.committedIndex), zap.Int("logSize", len(logs)))
+	r.Debug("append log", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("committedIndex", r.state.committedIndex), zap.Int("logSize", len(logs)))
 	lastLog := logs[len(logs)-1]
 	err := r.opts.Storage.AppendLog(logs)
 	if err != nil {
@@ -243,7 +247,7 @@ func (r *Replica) appendLog(logs ...Log) (accepted bool) {
 		return false
 	}
 	r.state.lastLogIndex = lastLog.Index
-	r.Info("append log success", zap.Duration("cost", time.Since(start)), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("committedIndex", r.state.committedIndex), zap.Int("logSize", len(logs)))
+	r.Debug("append log success", zap.Duration("cost", time.Since(start)), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("lastLogIndex", r.state.lastLogIndex), zap.Uint64("committedIndex", r.state.committedIndex), zap.Int("logSize", len(logs)))
 
 	return true
 }
@@ -357,7 +361,7 @@ func (r *Replica) updateFollowCommittedIndex(leaderCommittedIndex uint64) {
 	newCommittedIndex := r.committedIndexForFollow(leaderCommittedIndex)
 	if newCommittedIndex > r.state.committedIndex {
 		r.state.committedIndex = newCommittedIndex
-		r.Info("update follow committed index", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("committedIndex", r.state.committedIndex))
+		r.Debug("update follow committed index", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("committedIndex", r.state.committedIndex))
 	}
 }
 
@@ -368,7 +372,7 @@ func (r *Replica) updateLeaderCommittedIndex() bool {
 	if newCommitted > r.state.committedIndex {
 		r.state.committedIndex = newCommitted
 		updated = true
-		r.Info("update leader committed index", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("committedIndex", r.state.committedIndex))
+		r.Debug("update leader committed index", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.state.term), zap.Uint64("committedIndex", r.state.committedIndex))
 	}
 	return updated
 }

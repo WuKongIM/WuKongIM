@@ -16,14 +16,13 @@ import (
 
 func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 
-	route.GET(s.formatPath("/nodes", prefix), s.clusterInfoGet) // 获取所有节点
+	route.GET(s.formatPath("/nodes", prefix), s.nodesGet) // 获取所有节点
 
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/config", prefix), s.channelClusterConfigGet) // 获取频道分布式配置
 	route.GET(s.formatPath("/slots", prefix), s.slotsGet)                                                    // 获取当前节点的所有槽信息
 	route.GET(s.formatPath("/slots/:id/config", prefix), s.slotClusterConfigGet)                             // 槽分布式配置
 	route.GET(s.formatPath("/slots/:id/channels", prefix), s.slotChannelsGet)                                // 获取某个槽的所有频道信息
-
-	// route.GET(fmt.Sprintf("%s/channel/clusterinfo", prefix), s.getAllClusterInfo) // 获取所有channel的集群信息
+	route.GET(s.formatPath("/info", prefix), s.clusterInfoGet)                                               // 获取集群信息
 }
 
 func (s *Server) formatPath(path string, prefix string) string {
@@ -36,8 +35,8 @@ func (s *Server) formatPath(path string, prefix string) string {
 	return fmt.Sprintf("%s/%s", prefix, path)
 }
 
-func (s *Server) clusterInfoGet(c *wkhttp.Context) {
-	cfgServer := s.clusterEventListener.clusterconfigManager.clusterconfigServer
+func (s *Server) nodesGet(c *wkhttp.Context) {
+	cfgServer := s.getClusterConfigManager().clusterconfigServer
 	cfg := cfgServer.ConfigManager().GetConfig()
 
 	leaderId := cfgServer.Leader()
@@ -56,6 +55,12 @@ func (s *Server) clusterInfoGet(c *wkhttp.Context) {
 		Total: len(nodeCfgs),
 		Nodes: nodeCfgs,
 	})
+}
+
+func (s *Server) clusterInfoGet(c *wkhttp.Context) {
+	cfg := s.getClusterConfig()
+
+	c.JSON(http.StatusOK, cfg)
 }
 
 func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
@@ -395,18 +400,19 @@ func NewSlotResp(st *pb.Slot, channelCount int) *SlotResp {
 }
 
 type SlotMigrate struct {
-	SlotId uint32 `json:"slot_id"`
-	From   uint64 `json:"from"`
-	To     uint64 `json:"to"`
+	Slot   uint32           `json:"slot_id"`
+	From   uint64           `json:"from"`
+	To     uint64           `json:"to"`
+	Status pb.MigrateStatus `json:"status"`
 }
 
 func convertSlotMigrate(mg []*pb.SlotMigrate) []*SlotMigrate {
 	res := make([]*SlotMigrate, 0, len(mg))
 	for _, m := range mg {
 		res = append(res, &SlotMigrate{
-			SlotId: m.Slot,
-			From:   m.From,
-			To:     m.To,
+			Slot: m.Slot,
+			From: m.From,
+			To:   m.To,
 		})
 	}
 	return res

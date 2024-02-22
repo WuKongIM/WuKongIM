@@ -17,6 +17,8 @@ type Options struct {
 	ProposeTimeout       time.Duration // 提议超时时间
 	SlotCount            uint32        // 槽位数量
 	Role                 pb.NodeRole   // 节点角色
+	MessageSendInterval  time.Duration // 消息发送间隔
+	MaxIdleInterval      time.Duration // 最大空闲间隔
 }
 
 func NewOptions() *Options {
@@ -26,6 +28,8 @@ func NewOptions() *Options {
 		HeartbeatTimeoutTick: 1,
 		ProposeTimeout:       time.Second * 5,
 		SlotCount:            256,
+		MessageSendInterval:  time.Millisecond * 150,
+		MaxIdleInterval:      time.Second * 1,
 	}
 }
 

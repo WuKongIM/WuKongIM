@@ -565,6 +565,36 @@ func (c *ClusterJoinResp) Unmarshal(data []byte) error {
 	return nil
 }
 
+type SlotMigrateFinishReq struct {
+	SlotId uint32
+	From   uint64
+	To     uint64
+}
+
+func (s *SlotMigrateFinishReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(s.SlotId)
+	enc.WriteUint64(s.From)
+	enc.WriteUint64(s.To)
+	return enc.Bytes(), nil
+}
+
+func (s *SlotMigrateFinishReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if s.SlotId, err = dec.Uint32(); err != nil {
+		return err
+	}
+	if s.From, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if s.To, err = dec.Uint64(); err != nil {
+		return err
+	}
+	return nil
+}
+
 type NodeInfo struct {
 	NodeId     uint64
 	ServerAddr string

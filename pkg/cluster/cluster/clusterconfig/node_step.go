@@ -1,6 +1,8 @@
 package clusterconfig
 
 import (
+	"time"
+
 	"go.uber.org/zap"
 )
 
@@ -11,7 +13,7 @@ func (n *Node) Step(m Message) error {
 		// local message
 	case m.Term > n.state.term:
 		n.Warn("received message with higher term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.Type.String()))
-		if m.Type == EventHeartbeat || m.Type == EventNotifySync {
+		if m.Type == EventHeartbeat {
 			n.becomeFollower(m.Term, m.From)
 		} else if m.Type != EventVoteResp && m.Type != EventVote {
 			n.becomeFollower(m.Term, None)
@@ -66,14 +68,14 @@ func (n *Node) stepFollower(m Message) error {
 		n.electionElapsed = 0
 		n.state.leader = m.From
 		n.state.term = m.Term
-		if m.ConfigVersion != n.localConfigVersion {
+		if m.ConfigVersion > n.localConfigVersion {
 			n.leaderConfigVersion = m.ConfigVersion
 		}
 		n.sendHeartbeatResp(m)
-	case EventNotifySync:
-		n.send(n.newSync())
+		// case EventNotifySync:
+		// n.send(n.newSync())
 	case EventSyncResp:
-		if m.ConfigVersion != n.localConfigVersion {
+		if m.ConfigVersion > n.localConfigVersion {
 			n.leaderConfigVersion = m.ConfigVersion
 			n.localConfigVersion = m.ConfigVersion
 			n.configData = m.Config
@@ -126,10 +128,8 @@ func (n *Node) stepLeader(m Message) error {
 			n.leaderConfigVersion = m.ConfigVersion
 			n.localConfigVersion = m.ConfigVersion
 			n.configData = m.Config
-			if n.isSingle() {
-				if n.committedConfigVersion < m.ConfigVersion {
-					n.committedConfigVersion = m.ConfigVersion
-				}
+			if n.isSingleNode() {
+				n.updateCommitForLeader()
 			}
 		}
 	case EventBeat:
@@ -143,9 +143,11 @@ func (n *Node) stepLeader(m Message) error {
 			n.sendHeartbeatResp(m)
 		}
 	case EventHeartbeatResp:
+		n.activeReplicaMap[m.From] = time.Now()
 	case EventSync:
 		n.nodeConfigVersionMap[m.From] = m.ConfigVersion
-		n.Info("received sync request", zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("configVersion", m.ConfigVersion), zap.Uint64("committedVersion", n.committedConfigVersion), zap.Uint64("localConfigVersion", n.localConfigVersion))
+		n.activeReplicaMap[m.From] = time.Now()
+		// n.Info("received sync request", zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("configVersion", m.ConfigVersion), zap.Uint64("committedVersion", n.committedConfigVersion), zap.Uint64("localConfigVersion", n.localConfigVersion))
 		if n.localConfigVersion > 0 && n.localConfigVersion > n.committedConfigVersion {
 			n.updateCommitForLeader() // 更新提交的配置版本
 		}
@@ -163,6 +165,11 @@ func (n *Node) stepLeader(m Message) error {
 }
 
 func (n *Node) updateCommitForLeader() {
+	if n.isSingleNode() {
+		n.Info("update commit for leader for single", zap.Uint64("localConfigVersion", n.localConfigVersion))
+		n.committedConfigVersion = n.localConfigVersion
+		return
+	}
 	successCount := 0
 	for _, version := range n.nodeConfigVersionMap {
 		if version > n.localConfigVersion {
@@ -241,16 +248,16 @@ func (n *Node) bcastHeartbeat() {
 
 }
 
-func (n *Node) bcastNotifySync() {
-	for _, nodeID := range n.opts.Replicas {
-		if nodeID == n.opts.NodeId {
-			continue
-		}
-		if n.nodeConfigVersionMap[nodeID] <= n.localConfigVersion {
-			n.send(n.newNotifySync(nodeID))
-		}
-	}
-}
+// func (n *Node) bcastNotifySync() {
+// 	for _, nodeID := range n.opts.Replicas {
+// 		if nodeID == n.opts.NodeId {
+// 			continue
+// 		}
+// 		if n.nodeConfigVersionMap[nodeID] <= n.localConfigVersion {
+// 			n.send(n.newNotifySync(nodeID))
+// 		}
+// 	}
+// }
 
 func (n *Node) hasNotifySync() bool {
 	if n.localConfigVersion <= 0 {
@@ -267,19 +274,20 @@ func (n *Node) hasNotifySync() bool {
 	return false
 }
 
-func (n *Node) newNotifySync(to uint64) Message {
-	return Message{
-		From:          n.opts.NodeId,
-		To:            to,
-		Type:          EventNotifySync,
-		Term:          n.state.term,
-		ConfigVersion: n.localConfigVersion,
-	}
-}
+// func (n *Node) newNotifySync(to uint64) Message {
+// 	return Message{
+// 		From:          n.opts.NodeId,
+// 		To:            to,
+// 		Type:          EventNotifySync,
+// 		Term:          n.state.term,
+// 		ConfigVersion: n.localConfigVersion,
+// 	}
+// }
 
-func (n *Node) newSync() Message {
+func (n *Node) newSync(seq uint64) Message {
 
 	return Message{
+		Seq:           seq,
 		From:          n.opts.NodeId,
 		To:            n.state.leader,
 		Type:          EventSync,
@@ -288,13 +296,25 @@ func (n *Node) newSync() Message {
 	}
 }
 
-func (n *Node) newApply() Message {
+func (n *Node) newApply(seq uint64) Message {
 	return Message{
+		Seq:           seq,
 		From:          n.opts.NodeId,
 		To:            n.opts.NodeId,
 		Type:          EventApply,
 		Term:          n.state.term,
-		ConfigVersion: n.committedConfigVersion,
+		ConfigVersion: n.localConfigVersion,
 		Config:        n.configData,
+	}
+}
+
+func (n *Node) newHeartbeat(to uint64) Message {
+	return Message{
+		From:             n.opts.NodeId,
+		To:               to,
+		Type:             EventHeartbeat,
+		Term:             n.state.term,
+		ConfigVersion:    n.localConfigVersion,
+		CommittedVersion: n.committedConfigVersion,
 	}
 }
