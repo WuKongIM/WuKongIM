@@ -227,7 +227,7 @@ func (s *MessageShardLogStorage) AppendLog(shardNo string, logs []replica.Log) e
 }
 
 // 获取日志
-func (s *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex uint64, limit uint32) ([]replica.Log, error) {
+func (s *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 
 	channelID, channelType := cluster.ChannelFromChannelKey(shardNo)
 	if startLogIndex > 0 {
@@ -237,16 +237,9 @@ func (s *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex
 		messages []wkstore.Message
 		err      error
 	)
-	if IsUserOwnChannel(channelID, channelType) {
-		messages, err = s.db.SyncMessageOfUser(channelID, uint32(startLogIndex), uint32(endLogIndex), int(limit))
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		messages, err = s.db.LoadNextRangeMsgs(channelID, channelType, uint32(startLogIndex), uint32(endLogIndex), int(limit))
-		if err != nil {
-			return nil, err
-		}
+	messages, err = s.db.LoadNextRangeMsgsForSize(channelID, channelType, uint32(startLogIndex), uint32(endLogIndex), limitSize)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(messages) == 0 {

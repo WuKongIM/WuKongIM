@@ -365,8 +365,6 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)  // split sendPacket by channel
 		// recvPackets          = make([]wkproto.RecvPacket, 0, len(sendpPackets)) // recv packets
 	)
-	fmt.Println("收到消息包", len(sendPackets))
-
 	// ########## split sendPacket by channel ##########
 	for _, sendPacket := range sendPackets {
 		channelKey := fmt.Sprintf("%s-%d", sendPacket.ChannelID, sendPacket.ChannelType)
@@ -437,9 +435,6 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 		}
 		return sendackPackets, nil
 	}
-
-	p.Debug("forward send packets to peer", zap.String("fakeChannelID", fakeChannelID), zap.String("uid", conn.UID()), zap.Uint64("nodeID", leaderInfo.Id))
-
 	sendPacketDatas := make([]byte, 0)
 	returnSendPacketClientMsgNos := make([]string, 0)
 	for _, sendPacket := range sendPackets {

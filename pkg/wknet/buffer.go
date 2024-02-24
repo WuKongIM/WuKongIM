@@ -75,5 +75,6 @@ func (d *DefualtBuffer) Discard(n int) (int, error) {
 
 func (d *DefualtBuffer) Release() error {
 	d.ringBuffer.Done()
+	d.ringBuffer.Reset()
 	return nil
 }

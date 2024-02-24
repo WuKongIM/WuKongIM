@@ -125,6 +125,37 @@ func (s *segment) readMessages(messageSeq uint32, limit uint64, callback func(ms
 	return nil
 }
 
+// readMessagesForSize 读取指定大小的日志数据
+func (s *segment) readMessagesForSize(messageSeq uint32, limitSize uint64, callback func(msg Message) error) (uint64, error) {
+	s.RLock()
+	defer s.RUnlock()
+	messageSeqPosition, err := s.index.Lookup(messageSeq)
+	if err != nil {
+		s.Error("readMessages-index.Lookup is error", zap.Error(err))
+		return 0, err
+	}
+	var startPosition int64
+	if messageSeqPosition.MessageSeq == messageSeq {
+		startPosition = messageSeqPosition.Position
+	} else {
+		startPosition, _, err = s.readTargetPosition(messageSeqPosition.Position, messageSeq)
+		if err != nil {
+			if errors.Is(err, ErrorNotData) {
+				s.Debug("未读取到数据！")
+				return 0, nil
+			}
+			s.Error("readMessages-readTargetPosition is error", zap.Error(err))
+			return 0, err
+		}
+	}
+	size, err := s.readMessagesAtPositionForSize(startPosition, limitSize, callback)
+	if err != nil {
+		s.Error("readMessages.readLogsAtPosition is error", zap.Error(err), zap.Int64("startPosition", startPosition), zap.Uint32("epectMessage", messageSeq), zap.Int64("actMessageSeq", int64(messageSeqPosition.MessageSeq)), zap.Int64("Position", messageSeqPosition.Position))
+		return 0, err
+	}
+	return size, nil
+}
+
 // readMessageAtPosition 在文件指定开始位置，读取指定数量[limit]的日志数据
 func (s *segment) readMessagesAtPosition(position int64, limit uint64, callback func(m Message) error) error {
 	var count uint64 = 0
@@ -149,6 +180,32 @@ func (s *segment) readMessagesAtPosition(position int64, limit uint64, callback 
 		count++
 	}
 	return nil
+}
+
+// readMessagesAtPositionForSize 在文件指定开始位置，读取指定大小[limitSize]的日志数据,返回读取的大小和错误
+func (s *segment) readMessagesAtPositionForSize(position int64, limitSize uint64, callback func(m Message) error) (uint64, error) {
+	var size uint64 = 0
+	var startPosition = position
+	for {
+		if startPosition >= s.getFileSize() || size >= limitSize {
+			// s.Info("startPosition已超过文件大小！", zap.Int64("", startPosition), zap.Int64("s.getFileSize()", s.getFileSize()), zap.Int("count", int(count)), zap.Uint64("limit", limit))
+			break
+		}
+		lg, msgSize, err := decodeMessageAt(s.segmentFile, startPosition, s.cfg.DecodeMessageFnc) // 解码日志
+		// data, startPosition, err = s.readLogDataAtPosition(startPosition)
+		if err != nil {
+			return 0, err
+		}
+		startPosition = startPosition + int64(msgSize)
+		if callback != nil {
+			err = callback(lg)
+			if err != nil {
+				return 0, err
+			}
+		}
+		size += uint64(msgSize)
+	}
+	return size, nil
 }
 
 // 获取目标offset的文件位置

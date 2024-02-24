@@ -15,6 +15,7 @@ func TestChannelLeaderPropose(t *testing.T) {
 	opts := NewOptions()
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
+	opts.MessageLogStorage = NewMemoryShardLogStorage()
 	localStorage := newLocalStorage(opts)
 	ch := newChannel(&ChannelClusterConfig{
 		ChannelID:   channelID,
@@ -22,11 +23,9 @@ func TestChannelLeaderPropose(t *testing.T) {
 		Replicas:    []uint64{1, 2, 3},
 	}, 0, localStorage, opts)
 
-	err := ch.appointLeader(1) // 任命为领导
+	ch.becomeLeader(1) // 任命为领导
 
-	assert.NoError(t, err)
-
-	err = ch.propose([]byte("hello"))
+	err := ch.propose([]byte("hello"))
 	assert.NoError(t, err)
 
 	has := ch.hasReady()

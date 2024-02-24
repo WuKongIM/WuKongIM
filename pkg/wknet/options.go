@@ -43,7 +43,7 @@ func NewOptions() *Options {
 		SubReactorNum:      runtime.NumCPU(),
 		ReadBufferSize:     1024 * 32,
 		MaxWriteBufferSize: 1024 * 1024 * 50,
-		MaxReadBufferSize:  1024 * 1024 * 5,
+		MaxReadBufferSize:  1024 * 1024 * 50,
 	}
 }
 

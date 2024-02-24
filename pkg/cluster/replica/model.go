@@ -8,9 +8,47 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
+type logEncodingSize uint64
+
+func logsSize(logs []Log) logEncodingSize {
+	var size logEncodingSize
+	for _, log := range logs {
+		size += logEncodingSize(log.LogSize())
+	}
+	return size
+}
+
+func limitSize(logs []Log, maxSize logEncodingSize) []Log {
+	if len(logs) == 0 {
+		return logs
+	}
+	size := logs[0].LogSize()
+	for limit := 1; limit < len(logs); limit++ {
+		size += logs[limit].LogSize()
+		if logEncodingSize(size) > maxSize {
+			return logs[:limit]
+		}
+	}
+	return logs
+}
+
+func extend(dst, vals []Log) []Log {
+	need := len(dst) + len(vals)
+	if need <= cap(dst) {
+		return append(dst, vals...) // does not allocate
+	}
+	buf := make([]Log, need, need) // allocates precisely what's needed
+	copy(buf, dst)
+	copy(buf[len(dst):], vals)
+	return buf
+}
+
+const noLimit = math.MaxUint64
+
 var (
 	ErrProposalDropped              = errors.New("replica proposal dropped")
 	ErrLeaderTermStartIndexNotFound = errors.New("leader term start index not found")
+	ErrCompacted                    = errors.New("log compacted")
 )
 
 type Role uint8
@@ -41,10 +79,11 @@ const (
 	MsgLeaderTermStartIndexReq    // 领导任期开始偏移量请求 （追随者）
 	MsgLeaderTermStartIndexReqAck // 领导任期开始偏移量请求回执 （追随者）
 	MsgLeaderTermStartIndexResp   // 领导任期开始偏移量响应（领导）
+	MsgStoreAppend                // 存储追加日志
+	MsgStoreAppendResp            // 存储追加日志响应
 	MsgApplyLogsReq               // 应用日志请求
 	MsgApplyLogsResp              // 应用日志响应
 	MsgPing                       // ping
-	MsgPingAck                    // ping回执
 	MsgPong
 )
 
@@ -80,10 +119,12 @@ func (m MsgType) String() string {
 		return "MsgApplyLogsResp"
 	case MsgPing:
 		return "MsgPing"
-	case MsgPingAck:
-		return "MsgPingAck"
 	case MsgPong:
 		return "MsgPong"
+	case MsgStoreAppend:
+		return "MsgStoreAppend"
+	case MsgStoreAppendResp:
+		return "MsgStoreAppendResp"
 	default:
 		return fmt.Sprintf("MsgUnkown[%d]", m)
 	}
@@ -273,4 +314,11 @@ func (s *SyncInfo) Unmarshal(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func PrintMessages(msgs []Message) {
+	for _, m := range msgs {
+		fmt.Printf("id:%d, key:%s, type:%s, from:%d, to:%d, term:%d, appointmentLeader:%d, reject:%v, index:%d, committedIndex:%d, logs:%d\n",
+			m.Id, m.Key, m.MsgType.String(), m.From, m.To, m.Term, m.AppointmentLeader, m.Reject, m.Index, m.CommittedIndex, len(m.Logs))
+	}
 }

@@ -176,6 +176,8 @@ func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
 
+	defaultConn.Debug("create connection", zap.Int("buffSize", defaultConn.inboundBuffer.BoundBufferSize()), zap.String("uid", defaultConn.uid), zap.String("deviceID", defaultConn.deviceID))
+
 	return defaultConn
 }
 
@@ -219,7 +221,7 @@ func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 		return 0, err
 	}
 	if d.overflowForInbound(n) {
-		return 0, fmt.Errorf("inbound buffer overflow, fd: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
+		return 0, fmt.Errorf("inbound buffer overflow, fd: %d buffSize:%d n: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize(), n, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
 	}
 	d.KeepLastActivity()
 	_, err = d.inboundBuffer.Write(readBuffer[:n])
@@ -292,15 +294,16 @@ func (d *DefaultConn) Close() error {
 	}
 	d.closed = true
 
-	err := d.reactorSub.DeleteFd(d)
-	if err != nil {
-		d.Debug("delete fd from poller error", zap.Error(err))
-	}
 	_ = d.fd.Close()
 	d.eg.RemoveConn(d)           // remove from the engine
 	d.reactorSub.ConnDec()       // decrease the connection count
 	d.eg.eventHandler.OnClose(d) // call the close handler
 	d.release()
+
+	err := d.reactorSub.DeleteFd(d)
+	if err != nil {
+		d.Debug("delete fd from poller error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+	}
 
 	return nil
 }
@@ -330,14 +333,22 @@ func (d *DefaultConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (d *DefaultConn) release() {
+
+	d.Debug("release connection", zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
 	d.fd = NetFd{}
 	d.maxIdle = 0
 	if d.idleTimer != nil {
 		d.idleTimer.Stop()
 		d.idleTimer = nil
 	}
-	d.inboundBuffer.Release()
-	d.outboundBuffer.Release()
+	err := d.inboundBuffer.Release()
+	if err != nil {
+		d.Debug("inboundBuffer release error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+	}
+	err = d.outboundBuffer.Release()
+	if err != nil {
+		d.Debug("outboundBuffer release error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+	}
 
 	d.eg.defaultConnPool.Put(d)
 

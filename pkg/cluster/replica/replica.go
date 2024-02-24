@@ -15,13 +15,12 @@ type Replica struct {
 	replicas []uint64 // 副本节点ID集合（不包含本节点）
 	// -------------------- 节点状态 --------------------
 
-	leader          uint64
-	role            Role
-	stepFunc        func(m Message) error
-	uncommittedSize int // 未提交的日志大小
-	msgs            []Message
+	leader   uint64
+	role     Role
+	stepFunc func(m Message) error
+	msgs     []Message
 
-	state               State
+	// state               State
 	preHardState        HardState // 上一个硬状态
 	localLeaderLastTerm uint32    // 本地领导任期，本地保存的term和startLogIndex的数据中最大的term，如果没有则为0
 
@@ -37,6 +36,10 @@ type Replica struct {
 	// -------------------- 其他 --------------------
 	messageWait *messageWait
 	wklog.Log
+	replicaLog      *replicaLog
+	uncommittedSize logEncodingSize
+
+	hasFirstSyncResp bool // 是否有第一次同步的回应
 }
 
 func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
@@ -47,22 +50,17 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 	opts.NodeID = nodeID
 	opts.ShardNo = shardNo
 	rc := &Replica{
-		nodeID:  nodeID,
-		shardNo: shardNo,
-		Log:     wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeID, shardNo)),
-		opts:    opts,
-		state: State{
-			appliedIndex: opts.AppliedIndex,
-		},
+		nodeID:          nodeID,
+		shardNo:         shardNo,
+		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeID, shardNo)),
+		opts:            opts,
 		lastSyncInfoMap: map[uint64]*SyncInfo{},
 		// pongMap:          map[uint64]bool{},
 		activeReplicaMap: make(map[uint64]time.Time),
 		messageWait:      newMessageWait(opts.MessageSendInterval),
+		replicaLog:       newReplicaLog(opts),
 	}
-	lastIndex, err := rc.opts.Storage.LastIndex()
-	if err != nil {
-		rc.Panic("get last index failed", zap.Error(err))
-	}
+
 	lastLeaderTerm, err := rc.opts.Storage.LeaderLastTerm()
 	if err != nil {
 		rc.Panic("get last leader term failed", zap.Error(err))
@@ -73,20 +71,15 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 		}
 		rc.replicas = append(rc.replicas, replicaID)
 	}
-	rc.state.lastLogIndex = lastIndex
-	rc.state.committedIndex = opts.AppliedIndex
-	if lastLeaderTerm == 0 {
-		rc.state.term = 1
-	} else {
-		rc.state.term = lastLeaderTerm
-	}
+
 	rc.localLeaderLastTerm = lastLeaderTerm
 	// rc.becomeFollower(rc.state.term, None)
 
 	rc.preHardState = HardState{
-		Term:     rc.state.term,
+		Term:     rc.replicaLog.term,
 		LeaderId: rc.leader,
 	}
+
 	return rc
 }
 
@@ -105,11 +98,11 @@ func (r *Replica) NewProposeMessage(data []byte) Message {
 	return Message{
 		MsgType: MsgPropose,
 		From:    r.nodeID,
-		Term:    r.state.term,
+		Term:    r.replicaLog.term,
 		Logs: []Log{
 			{
-				Index: r.state.lastLogIndex + 1,
-				Term:  r.state.term,
+				Index: r.replicaLog.lastLogIndex + 1,
+				Term:  r.replicaLog.term,
 				Data:  data,
 			},
 		},
@@ -120,7 +113,7 @@ func (r *Replica) NewProposeMessageWithLogs(logs []Log) Message {
 	return Message{
 		MsgType: MsgPropose,
 		From:    r.nodeID,
-		Term:    r.state.term,
+		Term:    r.replicaLog.term,
 		Logs:    logs,
 	}
 }
@@ -129,9 +122,19 @@ func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
 	return Message{
 		MsgType: MsgApplyLogsResp,
 		From:    r.nodeID,
-		Term:    r.state.term,
+		Term:    r.replicaLog.term,
 		Index:   appliedIdx,
 	}
+}
+
+func (r *Replica) NewMsgStoreAppendResp(index uint64) Message {
+	return Message{
+		MsgType: MsgStoreAppend,
+		From:    r.nodeID,
+		To:      r.nodeID,
+		Index:   index,
+	}
+
 }
 
 func (r *Replica) BecomeFollower(term uint32, leaderID uint64) {
@@ -141,13 +144,13 @@ func (r *Replica) BecomeFollower(term uint32, leaderID uint64) {
 func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.stepFunc = r.stepFollower
 	r.reset(term)
-	r.state.term = term
+	r.replicaLog.term = term
 	r.leader = leaderID
 	r.role = RoleFollower
 
 	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
-	if r.state.lastLogIndex > 0 && r.leader != None {
+	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
 		r.Info("disable to sync resolve log conflicts", zap.Uint64("leader", r.leader))
 		r.disabledToSync = true // 禁止去同步领导的日志,等待本地日志冲突解决后，再去同步领导的日志
 	}
@@ -165,15 +168,15 @@ func (r *Replica) becomeLeader(term uint32) {
 	r.role = RoleLeader
 	r.disabledToSync = false
 
-	r.Info("become leader", zap.Uint32("term", r.state.term))
+	r.Info("become leader", zap.Uint32("term", r.replicaLog.term))
 
-	if r.state.lastLogIndex > 0 {
+	if r.replicaLog.lastLogIndex > 0 {
 		lastTerm, err := r.opts.Storage.LeaderLastTerm()
 		if err != nil {
 			r.Panic("get leader last term failed", zap.Error(err))
 		}
-		if r.state.term > lastTerm {
-			err = r.opts.Storage.SetLeaderTermStartIndex(r.state.term, r.state.lastLogIndex+1) // 保存领导任期和领导任期开始的日志下标
+		if r.replicaLog.term > lastTerm {
+			err = r.opts.Storage.SetLeaderTermStartIndex(r.replicaLog.term, r.replicaLog.lastLogIndex+1) // 保存领导任期和领导任期开始的日志下标
 			if err != nil {
 				r.Panic("set leader term start index failed", zap.Error(err))
 			}
@@ -195,10 +198,6 @@ func (r *Replica) becomeLeader(term uint32) {
 
 // }
 
-func (r *Replica) State() State {
-	return r.state
-}
-
 func (r *Replica) IsLeader() bool {
 	return r.isLeader()
 }
@@ -208,7 +207,19 @@ func (r *Replica) LeaderId() uint64 {
 }
 
 func (r *Replica) SetReplicas(replicas []uint64) {
-	r.replicas = replicas
+	r.opts.Replicas = replicas
+	r.replicas = nil
+	for _, replicaID := range r.opts.Replicas {
+		if replicaID == r.nodeID {
+			continue
+		}
+		r.replicas = append(r.replicas, replicaID)
+	}
+}
+
+// HasFirstSyncResp 有收到领导的第一次同步的回应
+func (r *Replica) HasFirstSyncResp() bool {
+	return r.hasFirstSyncResp
 }
 
 func (r *Replica) isLeader() bool {
@@ -221,14 +232,14 @@ func (r *Replica) readyWithoutAccept() Ready {
 	rd := Ready{
 		Messages: r.msgs,
 	}
-	if r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.state.term {
+	if r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.replicaLog.term {
 		rd.HardState = HardState{
 			LeaderId: r.leader,
-			Term:     r.state.term,
+			Term:     r.replicaLog.term,
 		}
 		r.preHardState = HardState{
 			LeaderId: r.leader,
-			Term:     r.state.term,
+			Term:     r.replicaLog.term,
 		}
 	}
 	return rd
@@ -258,7 +269,11 @@ func (r *Replica) HasReady() bool {
 		// }
 	}
 
-	if r.hasUnapplyLogs() {
+	if r.hasUnstableLogs() { // 有未存储的日志
+		return true
+	}
+
+	if r.hasUnapplyLogs() { // 有未应用的日志
 		return true
 	}
 
@@ -290,9 +305,11 @@ func (r *Replica) putMsgIfNeed() {
 		r.sendPingIfNeed()
 	}
 
-	// if r.hasNeedNotifySync() {
-	// 	r.sendNotifySyncIfNeed()
-	// }
+	if r.hasUnstableLogs() {
+		logs := r.replicaLog.nextUnstableLogs()
+		r.msgs = append(r.msgs, r.newMsgStoreAppend(logs))
+	}
+
 	if r.hasUnapplyLogs() {
 		// start := r.state.appliedIndex + 1
 		// end := r.state.committedIndex + 1
@@ -310,20 +327,34 @@ func (r *Replica) putMsgIfNeed() {
 		// if len(logs) > 0 {
 
 		// }
-		seq := r.messageWait.next(r.nodeID, MsgApplyLogsReq)
-		r.msgs = append(r.msgs, r.newApplyLogReqMsg(seq, r.state.appliedIndex, r.state.committedIndex))
+		logs := r.replicaLog.nextApplyLogs()
+		fmt.Println("logs---->", len(logs))
+		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, r.replicaLog.committedIndex, logs))
 	}
 
 }
 
 func (r *Replica) acceptReady(rd Ready) {
+	var applyMsg Message
+	for _, msg := range rd.Messages {
+		if msg.MsgType == MsgApplyLogsReq {
+			applyMsg = msg
+			break
+		}
+	}
 	r.msgs = nil
 	rd.HardState = EmptyHardState
+	r.replicaLog.acceptUnstable()
+	if len(applyMsg.Logs) > 0 {
+		logs := applyMsg.Logs
+		index := logs[len(logs)-1].Index
+		r.replicaLog.acceptApplying(index, logsSize(logs))
+	}
 }
 
 func (r *Replica) reset(term uint32) {
-	if r.state.term != term {
-		r.state.term = term
+	if r.replicaLog.term != term {
+		r.replicaLog.term = term
 	}
 	r.leader = None
 }
@@ -333,16 +364,31 @@ func (r *Replica) reset(term uint32) {
 // 	return r.state.lastLogIndex > r.state.committedIndex
 // }
 
+// 是否有未存储的日志
+func (r *Replica) hasUnstableLogs() bool {
+
+	return r.replicaLog.hasNextUnstableLogs()
+}
+
 // 是否有未应用的日志
 func (r *Replica) hasUnapplyLogs() bool {
-	if r.messageWait.has(r.nodeID, MsgApplyLogsReq) {
-		return false
-	}
-	return r.state.committedIndex > r.state.appliedIndex
+
+	return r.replicaLog.hasUnapplyLogs()
 }
 
 func (r *Replica) hasMsgs() bool {
 	return len(r.msgs) > 0
+}
+
+func (r *Replica) reduceUncommittedSize(s logEncodingSize) {
+	if s > r.uncommittedSize {
+		// uncommittedSize may underestimate the size of the uncommitted Raft
+		// log tail but will never overestimate it. Saturate at 0 instead of
+		// allowing overflow.
+		r.uncommittedSize = 0
+	} else {
+		r.uncommittedSize -= s
+	}
 }
 
 // func (r *Replica) newNotifySyncMsgs() []Message {
@@ -363,36 +409,16 @@ func (r *Replica) hasMsgs() bool {
 // 	return msgs
 // }
 
-func (r *Replica) newNotifySyncMsg(id uint64, replicaID uint64) Message {
-	return Message{
-		Id:             id,
-		Key:            fmt.Sprintf("%s_replicaId:%d term:%d committedIndex:%d", r.shardNo, replicaID, r.state.term, r.state.committedIndex),
-		MsgType:        MsgNotifySync,
-		From:           r.nodeID,
-		To:             replicaID,
-		Term:           r.state.term,
-		CommittedIndex: r.state.committedIndex,
-		Responses: []Message{
-			{
-				Id:      id,
-				MsgType: MsgNotifySyncAck,
-				From:    replicaID,
-				To:      r.nodeID,
-			},
-		},
-	}
-}
-
-func (r *Replica) newApplyLogReqMsg(id uint64, appliedIndex, committedIndex uint64) Message {
+func (r *Replica) newApplyLogReqMsg(appliedIndex, committedIndex uint64, logs []Log) Message {
 
 	return Message{
-		Id:             id,
 		MsgType:        MsgApplyLogsReq,
 		From:           r.nodeID,
 		To:             r.nodeID,
-		Term:           r.state.term,
+		Term:           r.replicaLog.term,
 		AppliedIndex:   appliedIndex,
 		CommittedIndex: committedIndex,
+		Logs:           logs,
 	}
 }
 
@@ -402,8 +428,8 @@ func (r *Replica) newSyncMsg(id uint64) Message {
 		MsgType: MsgSync,
 		From:    r.nodeID,
 		To:      r.leader,
-		Term:    r.state.term,
-		Index:   r.state.lastLogIndex + 1,
+		Term:    r.replicaLog.term,
+		Index:   r.replicaLog.lastLogIndex + 1,
 		Responses: []Message{
 			{
 				Id:      id,
@@ -421,16 +447,8 @@ func (r *Replica) newPing(id uint64, to uint64) Message {
 		MsgType:        MsgPing,
 		From:           r.nodeID,
 		To:             to,
-		Term:           r.state.term,
-		CommittedIndex: r.state.committedIndex,
-		Responses: []Message{
-			{
-				Id:      id,
-				MsgType: MsgPingAck,
-				From:    to,
-				To:      r.nodeID,
-			},
-		},
+		Term:           r.replicaLog.term,
+		CommittedIndex: r.replicaLog.committedIndex,
 	}
 }
 
@@ -462,8 +480,8 @@ func (r *Replica) newPong(to uint64) Message {
 		MsgType:        MsgPong,
 		From:           r.nodeID,
 		To:             to,
-		Term:           r.state.term,
-		CommittedIndex: r.state.committedIndex,
+		Term:           r.replicaLog.term,
+		CommittedIndex: r.replicaLog.committedIndex,
 	}
 }
 
@@ -475,6 +493,20 @@ func (r *Replica) newLeaderTermStartIndexResp(to uint64, term uint32, index uint
 		Term:    term,
 		Index:   index,
 	}
+}
+
+func (r *Replica) newMsgStoreAppend(logs []Log) Message {
+	return Message{
+		MsgType: MsgStoreAppend,
+		From:    r.nodeID,
+		To:      r.nodeID,
+		Logs:    logs,
+	}
+
+}
+
+func (r *Replica) UnstableLogLen() int {
+	return len(r.replicaLog.unstable.logs)
 }
 
 func hasMsg(msgType MsgType, msgs []Message) bool {

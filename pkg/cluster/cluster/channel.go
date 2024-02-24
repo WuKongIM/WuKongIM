@@ -136,6 +136,12 @@ func (c *channel) proposeAndWaitCommit(data []byte, timeout time.Duration) (uint
 	return lastIndexs[0], nil
 }
 
+func (c *channel) becomeLeader(term uint32) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rc.BecomeLeader(term)
+}
+
 // 提案数据，并等待数据提交给大多数节点
 func (c *channel) proposeAndWaitCommits(data [][]byte, timeout time.Duration) ([]uint64, error) {
 	if len(data) == 0 {
@@ -150,8 +156,8 @@ func (c *channel) proposeAndWaitCommits(data [][]byte, timeout time.Duration) ([
 	for i, d := range data {
 		logs = append(logs,
 			replica.Log{
-				Index: c.rc.State().LastLogIndex() + uint64(1+i),
-				Term:  c.rc.State().Term(),
+				Index: c.rc.LastLogIndex() + uint64(1+i),
+				Term:  c.rc.Term(),
 				Data:  d,
 			},
 		)
@@ -217,8 +223,26 @@ func (c *channel) handleLocalMsg(msg replica.Message) {
 	}
 	c.lastActivity = time.Now()
 	switch msg.MsgType {
+	case replica.MsgStoreAppend: // 处理store append请求
+		c.handleStoreAppend(msg)
 	case replica.MsgApplyLogsReq: // 处理apply logs请求
 		c.handleApplyLogsReq(msg)
+	}
+}
+
+func (c *channel) handleStoreAppend(msg replica.Message) {
+	if len(msg.Logs) == 0 {
+		return
+	}
+	shardNo := ChannelKey(c.channelID, c.channelType)
+	err := c.opts.MessageLogStorage.AppendLog(shardNo, msg.Logs)
+	if err != nil {
+		c.Panic("append log error", zap.Error(err))
+	}
+
+	err = c.stepLock(c.rc.NewMsgStoreAppendResp(msg.Logs[len(msg.Logs)-1].Index))
+	if err != nil {
+		c.Panic("step store append resp failed", zap.Error(err))
 	}
 }
 

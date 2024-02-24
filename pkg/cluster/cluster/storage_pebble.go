@@ -128,7 +128,7 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 // 	return 0, nil
 // }
 
-func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limit uint32) ([]replica.Log, error) {
+func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 
 	lowKey := key.NewLogKey(shardNo, startLogIndex)
 	if endLogIndex == 0 {
@@ -141,6 +141,8 @@ func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLo
 	})
 	defer iter.Close()
 	var logs []replica.Log
+
+	var size uint64
 	for iter.First(); iter.Valid(); iter.Next() {
 		var log replica.Log
 		err := log.Unmarshal(iter.Value())
@@ -148,7 +150,8 @@ func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLo
 			return nil, err
 		}
 		logs = append(logs, log)
-		if limit > 0 && uint32(len(logs)) >= limit {
+		size += uint64(log.LogSize())
+		if size >= limitSize {
 			break
 		}
 	}
