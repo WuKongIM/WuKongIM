@@ -60,7 +60,7 @@ func (s *Server) connPing(nodeId uint64, req *rpc.ConnPingReq) (proto.Status, er
 func (s *Server) forwardSendPacketReq(nodeID uint64, req *rpc.ForwardSendPacketReq) (*rpc.ForwardSendPacketResp, error) {
 
 	startTime := time.Now().UnixMilli()
-	s.Debug("开始转发\"发送包\"", zap.Uint64("nodeID", nodeID), zap.String("req", req.String()))
+	s.Debug("开始转发\"发送包\"", zap.Uint64("nodeID", nodeID), zap.Int("dataSize", len(req.SendPackets)))
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.Cluster.ReqTimeout)
 	defer cancel()
 	data, _ := req.Marshal()

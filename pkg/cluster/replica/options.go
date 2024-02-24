@@ -20,7 +20,7 @@ type Options struct {
 	Storage               IStorage
 	MaxUncommittedLogSize uint64
 	AppliedIndex          uint64        // 已应用的日志下标
-	SyncLimit             uint32        // 同步日志最大数量
+	SyncLimitSize         uint64        // 每次同步日志数据的最大大小
 	MessageSendInterval   time.Duration // 消息发送间隔
 	MaxIdleInterval       time.Duration // 最大空闲时间
 	AckMode               AckMode       // AckMode
@@ -30,7 +30,7 @@ type Options struct {
 func NewOptions() *Options {
 	return &Options{
 		MaxUncommittedLogSize: 1024 * 1024 * 1024,
-		SyncLimit:             100,
+		SyncLimitSize:         1024 * 1024 * 10, // 10M
 		// LastSyncInfoMap:       map[uint64]*SyncInfo{},
 		MessageSendInterval: time.Millisecond * 100,
 		MaxIdleInterval:     time.Second * 1,
@@ -64,8 +64,8 @@ func WithAppliedIndex(index uint64) Option {
 	}
 }
 
-func WithSyncLimit(limit uint32) Option {
+func WithSyncLimitSize(size uint64) Option {
 	return func(o *Options) {
-		o.SyncLimit = limit
+		o.SyncLimitSize = size
 	}
 }

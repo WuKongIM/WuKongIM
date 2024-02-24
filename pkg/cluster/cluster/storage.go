@@ -11,7 +11,7 @@ type IShardLogStorage interface {
 	// TruncateLogTo 截断日志, 从index开始截断,index=0 表示清空所有日志 （保留下来的内容包含index）
 	TruncateLogTo(shardNo string, index uint64) error
 	// 获取日志
-	Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limit uint32) ([]replica.Log, error)
+	Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error)
 	// 最后一条日志的索引
 	LastIndex(shardNo string) (uint64, error)
 	// 设置成功被状态机应用的日志索引
@@ -59,7 +59,7 @@ func (m *MemoryShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 	return nil
 }
 
-func (m *MemoryShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limit uint32) ([]replica.Log, error) {
+func (m *MemoryShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 	logs := m.storage[shardNo]
 	if len(logs) == 0 {
 		return nil, nil
@@ -163,12 +163,16 @@ func (p *proxyReplicaStorage) TruncateLogTo(index uint64) error {
 	return p.storage.TruncateLogTo(p.shardNo, index)
 }
 
-func (p *proxyReplicaStorage) Logs(startLogIndex uint64, endLogIndex uint64, limit uint32) ([]replica.Log, error) {
-	return p.storage.Logs(p.shardNo, startLogIndex, endLogIndex, limit)
+func (p *proxyReplicaStorage) Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
+	return p.storage.Logs(p.shardNo, startLogIndex, endLogIndex, limitSize)
 }
 
 func (p *proxyReplicaStorage) LastIndex() (uint64, error) {
 	return p.storage.LastIndex(p.shardNo)
+}
+
+func (p *proxyReplicaStorage) FirstIndex() (uint64, error) {
+	return 0, nil
 }
 
 func (p *proxyReplicaStorage) LastIndexAndAppendTime() (uint64, uint64, error) {

@@ -125,10 +125,28 @@ func (f *FileStoreForMsg) LoadPrevRangeMsgs(channelID string, channelType uint8,
 	return messages, err
 }
 
+// LoadNextRangeMsgs 读取指定范围内的消息
 func (f *FileStoreForMsg) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]Message, error) {
 	var messages = make([]Message, 0, limit)
 	tp := f.getTopic(channelID, channelType)
 	err := tp.readMessages(startMessageSeq, uint64(limit), func(message Message) error {
+		if endMessageSeq != 0 && message.GetSeq() >= endMessageSeq {
+			return nil
+		}
+		if message.GetSeq() <= startMessageSeq {
+			return nil
+		}
+		messages = append(messages, message)
+		return nil
+	})
+	return messages, err
+}
+
+// LoadNextRangeMsgsForSize 读取指定范围内的消息，直到读取到的总消息大小超过指定的大小，limitSize不能为空
+func (f *FileStoreForMsg) LoadNextRangeMsgsForSize(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limitSize uint64) ([]Message, error) {
+	var messages = make([]Message, 0)
+	tp := f.getTopic(channelID, channelType)
+	err := tp.readMessagesForSize(startMessageSeq, limitSize, func(message Message) error {
 		if endMessageSeq != 0 && message.GetSeq() >= endMessageSeq {
 			return nil
 		}

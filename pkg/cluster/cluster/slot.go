@@ -107,8 +107,8 @@ func (s *slot) proposeAndWaitCommits(dataList [][]byte, timeout time.Duration) e
 	logs := make([]replica.Log, 0, len(dataList))
 	for i, data := range dataList {
 		logs = append(logs, replica.Log{
-			Index: s.rc.State().LastLogIndex() + 1 + uint64(i),
-			Term:  s.rc.State().Term(),
+			Index: s.rc.LastLogIndex() + 1 + uint64(i),
+			Term:  s.rc.Term(),
 			Data:  data,
 		})
 	}
@@ -203,8 +203,26 @@ func (s *slot) handleLocalMsg(msg replica.Message) {
 	}
 	s.lastActivity = time.Now()
 	switch msg.MsgType {
+	case replica.MsgStoreAppend: // 处理日志追加到存储内
+		s.handleStoreAppend(msg)
 	case replica.MsgApplyLogsReq: // 处理apply logs请求
 		s.handleApplyLogsReq(msg)
+	}
+}
+
+func (s *slot) handleStoreAppend(msg replica.Message) {
+	if len(msg.Logs) == 0 {
+		return
+	}
+	shardNo := GetSlotShardNo(s.slotId)
+	err := s.opts.ShardLogStorage.AppendLog(shardNo, msg.Logs)
+	if err != nil {
+		s.Panic("append log error", zap.Error(err))
+	}
+
+	err = s.stepLock(s.rc.NewMsgStoreAppendResp(msg.Logs[len(msg.Logs)-1].Index))
+	if err != nil {
+		s.Panic("step store append resp failed", zap.Error(err))
 	}
 }
 
@@ -214,32 +232,22 @@ func (s *slot) handleApplyLogsReq(msg replica.Message) {
 		return
 	}
 	shardNo := GetSlotShardNo(s.slotId)
-	logs, err := s.opts.ShardLogStorage.Logs(shardNo, msg.AppliedIndex+1, msg.CommittedIndex+1, uint32(s.opts.LogSyncLimitOfEach))
-	if err != nil {
-		s.Panic("get logs failed", zap.Error(err))
-	}
-	if len(logs) == 0 {
-		logs, err := s.opts.ShardLogStorage.Logs(shardNo, 1, 0, uint32(s.opts.LogSyncLimitOfEach))
-		if err != nil {
-			s.Panic("get logs failed", zap.Error(err))
-		}
-		for _, l := range logs {
-			s.Info("has log", zap.Uint64("logIndex", l.Index))
-		}
+	var err error
+	if len(msg.Logs) == 0 {
 		s.Info("logs is empty", zap.Uint64("appliedIndex", msg.AppliedIndex), zap.Uint64("committedIndex", msg.CommittedIndex))
 		return
 	}
 	if s.opts.OnSlotApply != nil {
-		err = s.opts.OnSlotApply(s.slotId, logs)
+		err = s.opts.OnSlotApply(s.slotId, msg.Logs)
 		if err != nil {
 			s.Panic("on slot apply error", zap.Error(err))
 		}
-		err = s.localstorage.setAppliedIndex(shardNo, logs[len(logs)-1].Index)
+		err = s.localstorage.setAppliedIndex(shardNo, msg.Logs[len(msg.Logs)-1].Index)
 		if err != nil {
 			s.Panic("set applied index error", zap.Error(err))
 		}
 	}
-	lastLog := logs[len(logs)-1]
+	lastLog := msg.Logs[len(msg.Logs)-1]
 	s.Info("commit wait", zap.Uint64("lastLogIndex", lastLog.Index))
 	s.commitWait.commitIndex(lastLog.Index)
 	s.Info("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))

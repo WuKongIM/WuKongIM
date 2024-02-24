@@ -66,12 +66,12 @@ func (s *slotMigrateManager) run() {
 					}
 				} else {
 					st := s.s.slotManager.slot(m.Slot)
-					if st.rc.State().FirstSyncResp() {
+					if st.rc.HasFirstSyncResp() { // 等领导第一次相应同步请求后，follower才做迁移判断，要不然空的日志无法确定是否迁移完成
 						leaderId := s.s.getClusterConfigManager().leaderId()
-						if leaderId == 0 {
+						if leaderId == 0 || leaderId == s.s.opts.NodeID {
 							continue
 						}
-						if st.rc.State().LastLogIndex()-st.rc.State().LeaderLastLogIndex() < uint64(s.s.opts.LogCaughtUpWithLeaderNum) { // 如果follower追上leader的日志，则可以通知节点领导去迁移
+						if st.rc.LastLogIndex()-st.rc.LeaderLastLogIndex() < uint64(s.s.opts.LogCaughtUpWithLeaderNum) { // 如果follower追上leader的日志，则可以通知节点领导去迁移
 							err = s.s.nodeManager.requestSlotMigrateFinished(s.s.getClusterConfigManager().leaderId(), &SlotMigrateFinishReq{
 								SlotId: m.Slot,
 								From:   m.From,

@@ -1,15 +1,24 @@
 package replica
 
+import (
+	"fmt"
+
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
+)
+
 type IStorage interface {
 	// AppendLog 追加日志
-	AppendLog(logs []Log) error
+	// AppendLog(logs []Log) error
 	// TruncateLog 截断日志, 从index开始截断,index不能等于0 （保留下来的内容不包含index）
 	// [1,2,3,4,5,6] truncate to 4 = [1,2,3]
 	TruncateLogTo(logIndex uint64) error
-	// GetLogs 获取日志
+	// GetLogs 获取日志 [startLogIndex,endLogIndex)
 	// startLogIndex 开始日志索引(结果包含startLogIndex)
 	// endLogIndex 结束日志索引(结果不包含endLogIndex) endLogIndex=0表示不限制
-	Logs(startLogIndex uint64, endLogIndex uint64, limit uint32) ([]Log, error)
+	// limitSize 限制返回的日志大小
+	Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]Log, error)
+	FirstIndex() (uint64, error)
 	// LastIndex 最后一条日志的索引
 	LastIndex() (uint64, error)
 
@@ -27,11 +36,13 @@ type IStorage interface {
 type MemoryStorage struct {
 	logs              []Log
 	termStartIndexMap map[uint32]uint64
+	wklog.Log
 }
 
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
 		termStartIndexMap: make(map[uint32]uint64),
+		Log:               wklog.NewWKLog("replica.MemoryStorage"),
 	}
 }
 
@@ -40,20 +51,24 @@ func (m *MemoryStorage) AppendLog(logs []Log) error {
 	return nil
 }
 
-func (m *MemoryStorage) Logs(startLogIndex uint64, endLogIndex uint64, limit uint32) ([]Log, error) {
+func (m *MemoryStorage) Logs(lo, hi, maxSize uint64) ([]Log, error) {
 	if len(m.logs) == 0 {
 		return nil, nil
 	}
-	if startLogIndex > uint64(len(m.logs)) {
-		return nil, nil
+	offset := m.logs[0].Index
+	if lo < offset {
+		m.Error("lo < offset", zap.Uint64("lo", lo), zap.Uint64("offset", offset))
+		return nil, ErrCompacted
 	}
-	if endLogIndex == 0 {
-		return m.logs[startLogIndex-1:], nil
+	if hi > m.lastIndex()+1 {
+		m.Panic(fmt.Sprintf("entries' hi(%d) is out of bound lastindex(%d)", hi, m.lastIndex()))
 	}
-	if endLogIndex > uint64(len(m.logs)) {
-		return m.logs[startLogIndex-1:], nil
-	}
-	return m.logs[startLogIndex-1 : endLogIndex-1], nil
+	logs := limitSize(m.logs[lo-offset:hi-offset], logEncodingSize(maxSize))
+
+	// NB: use the full slice expression to limit what the caller can do with the
+	// returned slice. For example, an append will reallocate and copy this slice
+	// instead of corrupting the neighbouring m.logs.
+	return logs[:len(logs):len(logs)], nil
 }
 
 func (m *MemoryStorage) TruncateLogTo(index uint64) error {
@@ -69,7 +84,18 @@ func (m *MemoryStorage) TruncateLogTo(index uint64) error {
 }
 
 func (m *MemoryStorage) LastIndex() (uint64, error) {
-	return uint64(len(m.logs)), nil
+	return m.lastIndex(), nil
+}
+
+func (m *MemoryStorage) lastIndex() uint64 {
+	if len(m.logs) == 0 {
+		return 0
+	}
+	return m.logs[0].Index + uint64(len(m.logs)) - 1
+}
+
+func (m *MemoryStorage) FirstIndex() (uint64, error) {
+	return 0, nil
 }
 
 func (m *MemoryStorage) SetLeaderTermStartIndex(term uint32, index uint64) error {
@@ -98,4 +124,8 @@ func (m *MemoryStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) e
 		}
 	}
 	return nil
+}
+
+func (m *MemoryStorage) Len() int {
+	return len(m.logs)
 }

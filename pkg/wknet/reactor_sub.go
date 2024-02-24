@@ -100,7 +100,7 @@ func (r *ReactorSub) run() {
 		switch event {
 		case netpoll.PollEventClose:
 			r.Debug("PollEventClose连接关闭！")
-			r.CloseConn(conn, unix.ECONNRESET)
+			_ = r.CloseConn(conn, unix.ECONNRESET)
 		case netpoll.PollEventRead:
 			err = r.read(conn)
 		case netpoll.PollEventWrite:
@@ -115,7 +115,7 @@ func (r *ReactorSub) run() {
 }
 
 func (r *ReactorSub) CloseConn(c Conn, er error) (rerr error) {
-	r.Debug("connection error", zap.Error(er))
+	r.Debug("connection error", zap.Error(er), zap.Int64("id", c.ID()), zap.Int("fd", c.Fd().fd))
 	return c.Close()
 }
 

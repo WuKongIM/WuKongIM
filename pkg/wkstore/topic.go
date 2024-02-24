@@ -208,7 +208,7 @@ func (t *topic) readLastMessages(limit uint64, callback func(msg Message) error)
 	return t.readMessages(actMessageSeq, actLimit, callback)
 }
 
-// ReadLogs ReadLogs
+// readMessages readMessages
 func (t *topic) readMessages(messageSeq uint32, limit uint64, callback func(msg Message) error) error {
 	baseMessageSeq, err := t.calcBaseMessageSeq(messageSeq)
 	if err != nil {
@@ -249,6 +249,52 @@ func (t *topic) readMessages(messageSeq uint32, limit uint64, callback func(msg 
 				t.Error("Failed to read the remaining logs", zap.Error(err), zap.Int64("position", 0), zap.Uint64("limit", limit-uint64(readCount)))
 				return err
 			}
+		} else {
+			break
+		}
+	}
+	return nil
+}
+
+// readMessages readMessages
+func (t *topic) readMessagesForSize(messageSeq uint32, limitSize uint64, callback func(msg Message) error) error {
+	baseMessageSeq, err := t.calcBaseMessageSeq(messageSeq)
+	if err != nil {
+		return err
+	}
+	var segment = t.getSegment(baseMessageSeq, SegmentModeAll) // 获取baseOffset的segment
+	size, err := segment.readMessagesForSize(messageSeq, limitSize, func(m Message) error {
+		if callback != nil {
+			err := callback(m)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	nextBaseMessageSeq := baseMessageSeq
+	for size < limitSize {
+		nextBaseMessageSeqInt64 := t.nextBaseMessageSeq(nextBaseMessageSeq)
+		nextBaseMessageSeq = uint32(nextBaseMessageSeqInt64)
+		if nextBaseMessageSeqInt64 != -1 {
+			nextSegment := t.getSegment(nextBaseMessageSeq, SegmentModeAll)
+			msgSize, err := nextSegment.readMessagesAtPositionForSize(0, limitSize-size, func(m Message) error {
+				if callback != nil {
+					err := callback(m)
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Error("Failed to read the remaining logs", zap.Error(err), zap.Int64("position", 0), zap.Uint64("limitSize", limitSize-size))
+				return err
+			}
+			size += msgSize
 		} else {
 			break
 		}
