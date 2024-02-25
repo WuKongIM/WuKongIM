@@ -30,7 +30,6 @@ func NewRetryQueue(s *Server) *RetryQueue {
 }
 
 func (r *RetryQueue) startInFlightTimeout(msg *Message) {
-	fmt.Println("startInFlightTimeout--->", msg.MessageID)
 	now := time.Now()
 	msg.pri = now.Add(r.s.opts.MessageRetry.Interval).UnixNano()
 	r.pushInFlightMessage(msg)

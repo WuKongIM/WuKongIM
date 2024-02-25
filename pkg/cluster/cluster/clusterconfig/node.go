@@ -170,7 +170,7 @@ func (n *Node) becomeFollower(term uint32, leader uint64) {
 	n.tickFnc = n.tickElection
 	n.state.leader = leader
 	n.role = RoleFollower
-	n.Info("become follower", zap.Uint64("term", uint64(n.state.term)), zap.Uint64("leader", n.state.leader))
+	n.Debug("become follower", zap.Uint64("term", uint64(n.state.term)), zap.Uint64("leader", n.state.leader))
 }
 
 func (n *Node) becomeCandidate() {
@@ -183,7 +183,7 @@ func (n *Node) becomeCandidate() {
 	n.state.voteFor = n.opts.NodeId
 	n.state.leader = None
 	n.role = RoleCandidate
-	n.Info("become candidate", zap.Uint32("term", n.state.term))
+	n.Debug("become candidate", zap.Uint32("term", n.state.term))
 }
 
 func (n *Node) becomeLeader() {
@@ -195,7 +195,7 @@ func (n *Node) becomeLeader() {
 	n.tickFnc = n.tickHeartbeat
 	n.state.leader = n.opts.NodeId
 	n.role = RoleLeader
-	n.Info("become leader", zap.Uint32("term", n.state.term))
+	n.Debug("become leader", zap.Uint32("term", n.state.term))
 
 }
 

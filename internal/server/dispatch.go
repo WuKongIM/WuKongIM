@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -174,7 +173,6 @@ func (d *Dispatch) dataOut(conn wknet.Conn, data []byte) {
 	if len(data) == 0 {
 		return
 	}
-	fmt.Println("输出消息---->", conn.UID(), conn.ID(), string(data))
 	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
 	if wsok {
 		err := wsConn.WriteServerBinary(data)

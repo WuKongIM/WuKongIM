@@ -38,7 +38,7 @@ type OutboundOptions struct {
 func NewOutboundOptions() *OutboundOptions {
 	return &OutboundOptions{
 		WriteDeadline: time.Second * 10,
-		MaxPending:    64 * 1024 * 1024,
+		MaxPending:    128 * 1024 * 1024,
 	}
 }
 
@@ -237,7 +237,7 @@ func (o *Outbound) queueOutbound(data []byte) {
 
 	// 如果待发送的数据大于最大限制的1/2 则将需要做限速。
 	if o.pendingByteCount.Load() > o.opts.MaxPending/2 && o.stallChan == nil {
-		o.Warn("缓存过大开始限速....")
+		o.Warn("缓存过大开始限速....", zap.Int("pendingCount", int(o.pendingByteCount.Load())))
 		o.stallChan = make(chan struct{})
 	}
 }
