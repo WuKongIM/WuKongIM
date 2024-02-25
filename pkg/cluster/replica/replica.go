@@ -148,7 +148,7 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.leader = leaderID
 	r.role = RoleFollower
 
-	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
+	r.Debug("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
 		r.Info("disable to sync resolve log conflicts", zap.Uint64("leader", r.leader))
@@ -168,7 +168,7 @@ func (r *Replica) becomeLeader(term uint32) {
 	r.role = RoleLeader
 	r.disabledToSync = false
 
-	r.Info("become leader", zap.Uint32("term", r.replicaLog.term))
+	r.Debug("become leader", zap.Uint32("term", r.replicaLog.term))
 
 	if r.replicaLog.lastLogIndex > 0 {
 		lastTerm, err := r.opts.Storage.LeaderLastTerm()
@@ -328,7 +328,6 @@ func (r *Replica) putMsgIfNeed() {
 
 		// }
 		logs := r.replicaLog.nextApplyLogs()
-		fmt.Println("logs---->", len(logs))
 		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, r.replicaLog.committedIndex, logs))
 	}
 

@@ -530,11 +530,6 @@ func (p *Processor) handleLocalSubscribersMessages(messages []*Message, large bo
 		}
 	}
 
-	//########## delivery messages ##########
-	for _, m := range messages {
-		fmt.Println("delivery messages----->", m.MessageSeq)
-
-	}
 	p.s.deliveryManager.startDeliveryMessages(messages, large, messageSeqMap, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
 	return nil
 }
@@ -580,7 +575,6 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 }
 
 func (p *Processor) updateConversations(m *Message, subscribers []string) {
-	fmt.Println("updateConversations------------------->")
 	p.s.conversationManager.PushMessage(m, subscribers)
 
 }

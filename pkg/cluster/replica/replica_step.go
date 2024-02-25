@@ -61,7 +61,7 @@ func (r *Replica) stepLeader(m Message) error {
 			r.Warn("receive pong, but msg term is not self term", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			return nil
 		}
-		r.Info("receive pong", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("leaderCommittedIndex", r.replicaLog.committedIndex), zap.Uint64("committedIndex", m.CommittedIndex))
+		r.Debug("receive pong", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("leaderCommittedIndex", r.replicaLog.committedIndex), zap.Uint64("committedIndex", m.CommittedIndex))
 		r.activeReplicaMap[m.From] = time.Now()
 	case MsgPropose: // 收到提案消息
 		if len(m.Logs) == 0 {
@@ -92,7 +92,9 @@ func (r *Replica) stepLeader(m Message) error {
 				if err != nil {
 					return err
 				}
-				// r.Info("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Int("logCount", len(logs)))
+				if len(logs) > 0 {
+					r.Debug("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Int("logCount", len(logs)))
+				}
 				r.updateReplicSyncInfo(m)      // 更新副本同步信息
 				r.updateLeaderCommittedIndex() // 更新领导的提交索引
 
@@ -137,7 +139,7 @@ func (r *Replica) stepFollower(m Message) error {
 	switch m.MsgType {
 	case MsgPing:
 		r.send(r.newPong(m.From))
-		r.Info("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Debug("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 	// case MsgNotifySync: // 收到同步通知
 	// 	if r.disabledToSync {
