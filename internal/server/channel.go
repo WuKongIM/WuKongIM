@@ -213,7 +213,7 @@ func (c *Channel) IsTmpSubscriber(uid string) bool {
 	return ok
 }
 
-// ---------- 黑名单 (怕怕😱) ----------
+// ---------- 黑名单  ----------
 
 // IsDenylist 是否在黑名单内
 func (c *Channel) IsDenylist(uid string) bool {
@@ -262,12 +262,12 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 		return false, wkproto.ReasonBan
 	}
 
-	if c.ChannelType == wkproto.ChannelTypePerson && c.s.opts.IsFakeChannel(c.ChannelID) {
-		if c.IsDenylist(uid) {
-			return false, wkproto.ReasonInBlacklist
-		}
-		return true, wkproto.ReasonSuccess
-	}
+	// if c.ChannelType == wkproto.ChannelTypePerson && c.s.opts.IsFakeChannel(c.ChannelID) {
+	// 	if c.IsDenylist(uid) {
+	// 		return false, wkproto.ReasonInBlacklist
+	// 	}
+	// 	return true, wkproto.ReasonSuccess
+	// }
 	if c.ChannelType != wkproto.ChannelTypePerson || c.s.opts.WhitelistOffOfPerson == 0 {
 		whitelistLength := 0
 		c.whitelist.Range(func(_, _ interface{}) bool {
