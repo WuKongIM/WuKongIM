@@ -313,9 +313,30 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 		p.Error("the channel does not exist or has been disbanded", zap.String("channel_id", fakeChannelID), zap.Uint8("channel_type", channelType))
 		return respSendackPacketsFnc(sendPackets, wkproto.ReasonChannelNotExist), nil
 	}
-	hasPerm, reasonCode := p.hasPermission(channel, conn.UID())
-	if !hasPerm {
-		return respSendackPacketsFnc(sendPackets, reasonCode), nil
+	if channelType == wkproto.ChannelTypePerson { // 如果是个人频道，需要验证接受者是否愿意接受消息
+		to := channelID
+		if !p.s.systemUIDManager.SystemUID(to) && !p.s.systemUIDManager.SystemUID(conn.UID()) { // 如果是系统频道，不需要验证
+			toChannel, err := p.s.channelManager.GetChannel(to, channelType)
+			if err != nil {
+				p.Error("getChannel is error", zap.Error(err), zap.String("to", to))
+				return respSendackPacketsFnc(sendPackets, wkproto.ReasonSystemError), nil
+			}
+			if toChannel == nil {
+				p.Error("the channel not exist", zap.String("to", to))
+				return respSendackPacketsFnc(sendPackets, wkproto.ReasonChannelNotExist), nil
+			}
+			allow, reason := toChannel.Allow(conn.UID()) // 验证是否允许接受消息
+			if !allow {
+				p.Error("not allow send message", zap.String("fromUID", conn.UID()), zap.String("to", to), zap.String("reason", reason.String()))
+				return respSendackPacketsFnc(sendPackets, reason), nil
+			}
+		}
+
+	} else {
+		hasPerm, reasonCode := p.hasPermission(channel, conn.UID())
+		if !hasPerm {
+			return respSendackPacketsFnc(sendPackets, reasonCode), nil
+		}
 	}
 
 	// ########## message decrypt and message store ##########

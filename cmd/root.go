@@ -57,7 +57,7 @@ func init() {
 
 func initConfig() {
 	vp := viper.New()
-	if cfgFile != "" {
+	if strings.TrimSpace(cfgFile) != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err != nil {
 			wklog.Error("read config file error", zap.Error(err))
