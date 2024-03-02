@@ -262,6 +262,10 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 		return false, wkproto.ReasonBan
 	}
 
+	if c.IsDenylist(uid) { // 黑名单判断
+		return false, wkproto.ReasonInBlacklist
+	}
+
 	// if c.ChannelType == wkproto.ChannelTypePerson && c.s.opts.IsFakeChannel(c.ChannelID) {
 	// 	if c.IsDenylist(uid) {
 	// 		return false, wkproto.ReasonInBlacklist
@@ -288,9 +292,6 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 		}
 	}
 
-	if c.IsDenylist(uid) {
-		return false, wkproto.ReasonInBlacklist
-	}
 	return true, wkproto.ReasonSuccess
 }
 
