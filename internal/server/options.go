@@ -122,8 +122,8 @@ type Options struct {
 
 	EventPoolSize int // 事件协程池大小,此池主要处理im的一些通知事件 比如webhook，上下线等等 默认为1024
 
-	WhitelistOffOfPerson int
-	DeliveryMsgPoolSize  int // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
+	WhitelistOffOfPerson bool // 是否关闭个人白名单验证
+	DeliveryMsgPoolSize  int  // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
 
 	MessageRetry struct {
 		Interval     time.Duration // 消息重试间隔，如果消息发送后在此间隔内没有收到ack，将会在此间隔后重新发送
@@ -148,14 +148,15 @@ func NewOptions() *Options {
 		panic(err)
 	}
 	return &Options{
-		Proto:           wkproto.New(),
-		HandlePoolSize:  2048,
-		Version:         version.Version,
-		TimingWheelTick: time.Millisecond * 10,
-		TimingWheelSize: 100,
-		GinMode:         gin.ReleaseMode,
-		RootDir:         path.Join(homeDir, "wukongim"),
-		ManagerUID:      "____manager",
+		Proto:                wkproto.New(),
+		HandlePoolSize:       2048,
+		Version:              version.Version,
+		TimingWheelTick:      time.Millisecond * 10,
+		TimingWheelSize:      100,
+		GinMode:              gin.ReleaseMode,
+		RootDir:              path.Join(homeDir, "wukongim"),
+		ManagerUID:           "____manager",
+		WhitelistOffOfPerson: true,
 		Logger: struct {
 			Dir     string
 			Level   zapcore.Level
@@ -330,7 +331,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Datasource.Addr = o.getString("datasource.addr", o.Datasource.Addr)
 	o.Datasource.ChannelInfoOn = o.getBool("datasource.channelInfoOn", o.Datasource.ChannelInfoOn)
 
-	o.WhitelistOffOfPerson = o.getInt("whitelistOffOfPerson", o.WhitelistOffOfPerson)
+	o.WhitelistOffOfPerson = o.getBool("whitelistOffOfPerson", o.WhitelistOffOfPerson)
 
 	o.MessageRetry.Interval = o.getDuration("messageRetry.interval", o.MessageRetry.Interval)
 	o.MessageRetry.ScanInterval = o.getDuration("messageRetry.scanInterval", o.MessageRetry.ScanInterval)

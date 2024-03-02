@@ -268,7 +268,7 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 	// 	}
 	// 	return true, wkproto.ReasonSuccess
 	// }
-	if c.ChannelType != wkproto.ChannelTypePerson || c.s.opts.WhitelistOffOfPerson == 0 {
+	if c.ChannelType != wkproto.ChannelTypePerson || !c.s.opts.WhitelistOffOfPerson {
 		whitelistLength := 0
 		c.whitelist.Range(func(_, _ interface{}) bool {
 			whitelistLength++
@@ -281,7 +281,7 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 			}
 			return ok, wkproto.ReasonNotInWhitelist
 		}
-		if c.ChannelType == wkproto.ChannelTypePerson { // 个人频道强制验证白名单，除非WhitelistOffOfPerson==1
+		if c.ChannelType == wkproto.ChannelTypePerson { // 个人频道强制验证白名单，除非WhitelistOffOfPerson==true
 			if whitelistLength == 0 {
 				return false, wkproto.ReasonNotInWhitelist
 			}
