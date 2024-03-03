@@ -366,81 +366,33 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 		return
 	}
 
-	localPeerUids := make([]string, 0, len(req.UIDs))
 	if ch.s.opts.ClusterOn() {
-		// TODO: 可以优化，如果是个人频道，可以按节点做转发而不是按uid做转发
-		if req.ChannelType == wkproto.ChannelTypePerson {
-			for _, uid := range req.UIDs {
-				fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-				if ch.s.opts.IsFakeChannel(req.ChannelID) {
-					fakeChannelID = req.ChannelID
-				}
-				leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
-				if err != nil {
-					ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-				if !leaderIsSelf {
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				} else {
-					localPeerUids = append(localPeerUids, uid)
-				}
-			}
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
-		} else {
-			leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
-			if err != nil {
-				ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-			if !leaderIsSelf {
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				return
-			}
-			localPeerUids = req.UIDs
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
 		}
 	}
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range localPeerUids {
-			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-			if ch.s.opts.IsFakeChannel(req.ChannelID) {
-				fakeChannelID = req.ChannelID
-			}
-			err := ch.s.store.AddDenylist(fakeChannelID, req.ChannelType, []string{uid})
-			if err != nil {
-				ch.Error("添加黑名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			// 增加到缓存中
-			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
-			if err != nil {
-				c.ResponseError(err)
-				return
-			}
-			channelObj.AddDenylist([]string{uid})
-		}
-	} else {
-		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, localPeerUids)
-		if err != nil {
-			ch.Error("添加黑名单失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-		// 增加到缓存中
-		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
-		channelObj.AddDenylist(localPeerUids)
+	err = ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+	if err != nil {
+		ch.Error("添加黑名单失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
+	// 增加到缓存中
+	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.AddDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -458,95 +410,42 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 		return
 	}
 
-	localPeerUids := make([]string, 0, len(req.UIDs))
 	if ch.s.opts.ClusterOn() {
-		// TODO: 可以优化，如果是个人频道，可以按节点做转发而不是按uid做转发
-		if req.ChannelType == wkproto.ChannelTypePerson {
-			for _, uid := range req.UIDs {
-				fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-				if ch.s.opts.IsFakeChannel(req.ChannelID) {
-					fakeChannelID = req.ChannelID
-				}
-				leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
-				if err != nil {
-					ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-				if !leaderIsSelf {
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				} else {
-					localPeerUids = append(localPeerUids, uid)
-				}
-			}
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
-		} else {
-			leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
-			if err != nil {
-				ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-			if !leaderIsSelf {
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				return
-			}
-			localPeerUids = req.UIDs
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
 		}
 	}
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range localPeerUids {
-			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-			if ch.s.opts.IsFakeChannel(req.ChannelID) {
-				fakeChannelID = req.ChannelID
-			}
-			err := ch.s.store.RemoveAllDenylist(fakeChannelID, req.ChannelType)
-			if err != nil {
-				ch.Error("移除所有黑明单失败！", zap.Error(err))
-				c.ResponseError(errors.New("移除所有黑明单失败！"))
-				return
-			}
-			err = ch.s.store.AddDenylist(fakeChannelID, req.ChannelType, []string{uid})
-			if err != nil {
-				ch.Error("添加黑名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			// 增加到缓存中
-			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
-			if err != nil {
-				c.ResponseError(err)
-				return
-			}
-			channelObj.SetDenylist([]string{uid})
-		}
-	} else {
-		err := ch.s.store.RemoveAllDenylist(req.ChannelID, req.ChannelType)
+
+	err = ch.s.store.RemoveAllDenylist(req.ChannelID, req.ChannelType)
+	if err != nil {
+		ch.Error("移除所有黑明单失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除所有黑明单失败！"))
+		return
+	}
+	if len(req.UIDs) > 0 {
+		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
 		if err != nil {
-			ch.Error("移除所有黑明单失败！", zap.Error(err))
-			c.ResponseError(errors.New("移除所有黑明单失败！"))
-			return
-		}
-		if len(localPeerUids) > 0 {
-			err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, localPeerUids)
-			if err != nil {
-				ch.Error("添加黑名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-		}
-		// 增加到缓存中
-		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-		if err != nil {
+			ch.Error("添加黑名单失败！", zap.Error(err))
 			c.ResponseError(err)
 			return
 		}
-		channelObj.SetDenylist(req.UIDs)
 	}
+	// 增加到缓存中
+	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.SetDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -563,83 +462,34 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-
-	localPeerUids := make([]string, 0, len(req.UIDs))
 	if ch.s.opts.ClusterOn() {
-		// TODO: 可以优化，如果是个人频道，可以按节点做转发而不是按uid做转发
-		if req.ChannelType == wkproto.ChannelTypePerson {
-			for _, uid := range req.UIDs {
-				fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-				if ch.s.opts.IsFakeChannel(req.ChannelID) {
-					fakeChannelID = req.ChannelID
-				}
-				leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
-				if err != nil {
-					ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-				if !leaderIsSelf {
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				} else {
-					localPeerUids = append(localPeerUids, uid)
-				}
-			}
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
-		} else {
-			leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
-			if err != nil {
-				ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
 
-			if !leaderIsSelf {
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				return
-			}
-			localPeerUids = req.UIDs
-		}
-	}
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range localPeerUids {
-			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-			if ch.s.opts.IsFakeChannel(req.ChannelID) {
-				fakeChannelID = req.ChannelID
-			}
-			err := ch.s.store.RemoveDenylist(fakeChannelID, req.ChannelType, []string{uid})
-			if err != nil {
-				ch.Error("移除黑名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			// 缓存中移除
-			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
-			if err != nil {
-				c.ResponseError(err)
-				return
-			}
-			channelObj.RemoveDenylist([]string{uid})
-		}
-	} else {
-		err := ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, localPeerUids)
-		if err != nil {
-			ch.Error("移除黑名单失败！", zap.Error(err))
-			c.ResponseError(err)
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
-		// 缓存中移除
-		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
-		channelObj.RemoveDenylist(localPeerUids)
 	}
+	err = ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+	if err != nil {
+		ch.Error("移除黑名单失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	// 缓存中移除
+	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.RemoveDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -700,83 +550,39 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	if len(req.UIDs) == 0 {
+		c.ResponseError(errors.New("uids不能为空！"))
+		return
+	}
 
-	localPeerUids := make([]string, 0, len(req.UIDs))
 	if ch.s.opts.ClusterOn() {
-		// TODO: 可以优化，如果是个人频道，可以按节点做转发而不是按uid做转发
-		if req.ChannelType == wkproto.ChannelTypePerson {
-			for _, uid := range req.UIDs {
-				fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-				if ch.s.opts.IsFakeChannel(req.ChannelID) {
-					fakeChannelID = req.ChannelID
-				}
-				leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
-				if err != nil {
-					ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-				if !leaderIsSelf {
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				} else {
-					localPeerUids = append(localPeerUids, uid)
-				}
-			}
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
-		} else {
-			leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
-			if err != nil {
-				ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-			if !leaderIsSelf {
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				return
-			}
-			localPeerUids = req.UIDs
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
 		}
 	}
 
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range localPeerUids {
-			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-			if ch.s.opts.IsFakeChannel(req.ChannelID) {
-				fakeChannelID = req.ChannelID
-			}
-			err := ch.s.store.AddAllowlist(fakeChannelID, req.ChannelType, []string{uid})
-			if err != nil {
-				ch.Error("添加白名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			// 增加到缓存中
-			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
-			if err != nil {
-				c.ResponseError(err)
-				return
-			}
-			channelObj.AddAllowlist([]string{uid})
-		}
-	} else {
-		err = ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
-		if err != nil {
-			ch.Error("添加白名单失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-		// 增加到缓存中
-		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
-		channelObj.AddAllowlist(req.UIDs)
+	err = ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+	if err != nil {
+		ch.Error("添加白名单失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
+	// 增加到缓存中
+	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.AddAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -793,97 +599,42 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 		return
 	}
 
-	localPeerUids := make([]string, 0, len(req.UIDs))
 	if ch.s.opts.ClusterOn() {
-		// TODO: 可以优化，如果是个人频道，可以按节点做转发而不是按uid做转发
-		if req.ChannelType == wkproto.ChannelTypePerson {
-			for _, uid := range req.UIDs {
-				fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-				if ch.s.opts.IsFakeChannel(req.ChannelID) {
-					fakeChannelID = req.ChannelID
-				}
-				leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
-				if err != nil {
-					ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-				if !leaderIsSelf {
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				} else {
-					localPeerUids = append(localPeerUids, uid)
-				}
-			}
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
-		} else {
-			leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
-			if err != nil {
-				ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-			if !leaderIsSelf {
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				return
-			}
-			localPeerUids = req.UIDs
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
 		}
 	}
 
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range localPeerUids {
-			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-			if ch.s.opts.IsFakeChannel(req.ChannelID) {
-				fakeChannelID = req.ChannelID
-			}
-			err = ch.s.store.RemoveAllAllowlist(fakeChannelID, req.ChannelType)
-			if err != nil {
-				ch.Error("移除所有白明单失败！", zap.Error(err))
-				c.ResponseError(errors.New("移除所有白明单失败！"))
-				return
-			}
-			err := ch.s.store.AddAllowlist(fakeChannelID, req.ChannelType, []string{uid})
-			if err != nil {
-				ch.Error("添加白名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			// 增加到缓存中
-			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
-			if err != nil {
-				c.ResponseError(err)
-				return
-			}
-			channelObj.SetAllowlist([]string{uid})
-
-		}
-	} else {
-		err = ch.s.store.RemoveAllAllowlist(req.ChannelID, req.ChannelType)
+	err = ch.s.store.RemoveAllAllowlist(req.ChannelID, req.ChannelType)
+	if err != nil {
+		ch.Error("移除所有白明单失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除所有白明单失败！"))
+		return
+	}
+	if len(req.UIDs) > 0 {
+		err := ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
 		if err != nil {
-			ch.Error("移除所有白明单失败！", zap.Error(err))
-			c.ResponseError(errors.New("移除所有白明单失败！"))
-			return
-		}
-		if len(req.UIDs) > 0 {
-			err := ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
-			if err != nil {
-				ch.Error("添加白名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-		}
-		// 增加到缓存中
-		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-		if err != nil {
+			ch.Error("添加白名单失败！", zap.Error(err))
 			c.ResponseError(err)
 			return
 		}
-		channelObj.SetAllowlist(req.UIDs)
 	}
+	// 增加到缓存中
+	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.SetAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -901,89 +652,34 @@ func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	localPeerUids := make([]string, 0, len(req.UIDs))
 	if ch.s.opts.ClusterOn() {
-		// TODO: 可以优化，如果是个人频道，可以按节点做转发而不是按uid做转发
-		if req.ChannelType == wkproto.ChannelTypePerson {
-			for _, uid := range req.UIDs {
-				fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-				if ch.s.opts.IsFakeChannel(req.ChannelID) {
-					fakeChannelID = req.ChannelID
-				}
-				leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
-				if err != nil {
-					ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", req.ChannelType))
-					c.ResponseError(errors.New("获取频道所在节点失败！"))
-					return
-				}
-				leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-				if !leaderIsSelf {
-					ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-					c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				} else {
-					localPeerUids = append(localPeerUids, uid)
-				}
-			}
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
-		} else {
-			leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
-			if err != nil {
-				ch.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
-			}
-			leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-			if !leaderIsSelf {
-				ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-				c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-				return
-			}
-			localPeerUids = req.UIDs
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
 		}
 	}
 
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		for _, uid := range localPeerUids {
-			fakeChannelID := GetFakeChannelIDWith(uid, req.ChannelID)
-			if ch.s.opts.IsFakeChannel(req.ChannelID) {
-				fakeChannelID = req.ChannelID
-			}
-			err = ch.s.store.RemoveAllowlist(fakeChannelID, req.ChannelType, req.UIDs)
-			if err != nil {
-				ch.Error("移除白名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			err = ch.s.store.RemoveAllowlist(fakeChannelID, req.ChannelType, []string{uid})
-			if err != nil {
-				ch.Error("移除白名单失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			// 缓存中移除
-			channelObj, err := ch.s.channelManager.GetChannel(fakeChannelID, req.ChannelType)
-			if err != nil {
-				c.ResponseError(err)
-				return
-			}
-			channelObj.RemoveAllowlist([]string{uid})
-		}
-
-	} else {
-		err = ch.s.store.RemoveAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
-		if err != nil {
-			ch.Error("移除白名单失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-		// 缓存中移除
-		channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
-		channelObj.RemoveAllowlist(req.UIDs)
+	err = ch.s.store.RemoveAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+	if err != nil {
+		ch.Error("移除白名单失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
+	// 缓存中移除
+	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	channelObj.RemoveAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }

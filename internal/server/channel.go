@@ -214,7 +214,7 @@ func (c *Channel) IsTmpSubscriber(uid string) bool {
 	return ok
 }
 
-// ---------- 黑名单 (怕怕😱) ----------
+// ---------- 黑名单  ----------
 
 // IsDenylist 是否在黑名单内
 func (c *Channel) IsDenylist(uid string) bool {
@@ -256,20 +256,27 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 
 	systemUID := c.s.systemUIDManager.SystemUID(uid) // 系统账号允许发消息
 	if systemUID {
+		c.Debug("system account is allowed to send messages", zap.String("uid", uid))
 		return true, wkproto.ReasonSuccess
 	}
 
 	if c.Ban { // 频道被封
+		c.Debug("channel is banned", zap.String("uid", uid))
 		return false, wkproto.ReasonBan
 	}
 
-	if c.ChannelType == wkproto.ChannelTypePerson && c.s.opts.IsFakeChannel(c.ChannelID) {
-		if c.IsDenylist(uid) {
-			return false, wkproto.ReasonInBlacklist
-		}
-		return true, wkproto.ReasonSuccess
+	if c.IsDenylist(uid) { // 黑名单判断
+		c.Debug("in blacklist", zap.String("uid", uid))
+		return false, wkproto.ReasonInBlacklist
 	}
-	if c.ChannelType != wkproto.ChannelTypePerson || c.s.opts.WhitelistOffOfPerson == 0 {
+
+	// if c.ChannelType == wkproto.ChannelTypePerson && c.s.opts.IsFakeChannel(c.ChannelID) {
+	// 	if c.IsDenylist(uid) {
+	// 		return false, wkproto.ReasonInBlacklist
+	// 	}
+	// 	return true, wkproto.ReasonSuccess
+	// }
+	if c.ChannelType != wkproto.ChannelTypePerson || !c.s.opts.WhitelistOffOfPerson {
 		whitelistLength := 0
 		c.whitelist.Range(func(_, _ interface{}) bool {
 			whitelistLength++
@@ -280,18 +287,17 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 			if ok {
 				return ok, wkproto.ReasonSuccess
 			}
+			c.Debug("not in whitelist", zap.String("uid", uid))
 			return ok, wkproto.ReasonNotInWhitelist
 		}
-		if c.ChannelType == wkproto.ChannelTypePerson { // 个人频道强制验证白名单，除非WhitelistOffOfPerson==1
+		if c.ChannelType == wkproto.ChannelTypePerson { // 个人频道强制验证白名单，除非WhitelistOffOfPerson==true
 			if whitelistLength == 0 {
+				c.Debug("whitelist is empty", zap.String("uid", uid))
 				return false, wkproto.ReasonNotInWhitelist
 			}
 		}
 	}
 
-	if c.IsDenylist(uid) {
-		return false, wkproto.ReasonInBlacklist
-	}
 	return true, wkproto.ReasonSuccess
 }
 

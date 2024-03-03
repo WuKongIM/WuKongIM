@@ -19,13 +19,14 @@ import (
 )
 
 var (
-	cfgFile    string
-	serverOpts = server.NewOptions()
-	mode       string
-	daemon     bool
-	pidfile    string = "WukongimPID"
-	installDir string
-	rootCmd    = &cobra.Command{
+	cfgFile             string
+	ignoreMissingConfig bool // 配置文件是否可以不存在，如果配置了配置文件，但是不存在，则忽略
+	serverOpts          = server.NewOptions()
+	mode                string
+	daemon              bool
+	pidfile             string = "WukongimPID"
+	installDir          string
+	rootCmd             = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
 		Long:  `WuKongIM, a sleek and high-performance instant messaging platform. For more details, please refer to the documentation: https://githubim.com`,
@@ -49,7 +50,9 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file")
-	rootCmd.PersistentFlags().StringVar(&mode, "mode", "", "mode")
+
+	rootCmd.PersistentFlags().BoolVarP(&ignoreMissingConfig, "ignoreMissingConfig", "i", false, "Whether the configuration file can not exist. If the configuration file is configured but does not exist, it will be ignored")
+	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
 	// 后台运行
 	rootCmd.PersistentFlags().BoolVarP(&daemon, "daemon", "d", false, "run in daemon mode")
 
@@ -57,10 +60,13 @@ func init() {
 
 func initConfig() {
 	vp := viper.New()
-	if cfgFile != "" {
+	if strings.TrimSpace(cfgFile) != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err != nil {
-			fmt.Println("Using config file:", vp.ConfigFileUsed(), zap.Error(err))
+			wklog.Error("read config file error", zap.Error(err))
+			if !ignoreMissingConfig {
+				panic(fmt.Errorf("read config file error: %s", err))
+			}
 		}
 	}
 
