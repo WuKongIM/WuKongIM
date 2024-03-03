@@ -117,7 +117,7 @@ func (s *slotManager) proposeAndWaitCommit(slotId uint32, data []byte) error {
 func (s *slotManager) handleMessage(slotId uint32, m replica.Message) {
 	st := s.slot(slotId)
 	if st == nil {
-		s.Error("slot not found", zap.Uint32("slotId", slotId), zap.String("msgType", m.MsgType.String()))
+		s.Error("slot not found", zap.Uint32("slotId", slotId), zap.String("msgType", m.MsgType.String()), zap.Uint64("from", m.From))
 		return
 	}
 	err := st.handleMessage(m)
