@@ -50,4 +50,4 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 WORKDIR /home
 COPY --from=build /go/release/app /home
 COPY --from=build /go/release/config/wk.yaml /root/wukongim/wk.yaml
-ENTRYPOINT ["/home/app","--config=/root/wukongim/wk.yaml"]
+ENTRYPOINT ["/home/app","--config=/root/wukongim/wk.yaml","--ignoreMissingConfig=true"]
