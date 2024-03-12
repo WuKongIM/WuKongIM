@@ -164,6 +164,7 @@ func (r *Replica) BecomeLeader(term uint32) {
 func (r *Replica) becomeLeader(term uint32) {
 	r.stepFunc = r.stepLeader
 	r.reset(term)
+	r.replicaLog.term = term
 	r.leader = r.nodeID
 	r.role = RoleLeader
 	r.disabledToSync = false
@@ -328,6 +329,8 @@ func (r *Replica) putMsgIfNeed() {
 
 		// }
 		logs := r.replicaLog.nextApplyLogs()
+		fmt.Println("putMsgIfNeed.....", r.shardNo, len(logs))
+
 		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, r.replicaLog.committedIndex, logs))
 	}
 

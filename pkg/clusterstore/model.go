@@ -238,7 +238,7 @@ func (c *CMD) DecodeChannel() (channelId string, channelType uint8, err error) {
 	return
 }
 
-func (c *CMD) EncodeChannel(channelId string, channelType uint8) []byte {
+func EncodeChannel(channelId string, channelType uint8) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(channelId)

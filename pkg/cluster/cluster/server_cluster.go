@@ -19,6 +19,9 @@ type ICluster interface {
 	// LeaderOfChannel 获取channel的leader节点信息
 	LeaderOfChannel(channelID string, channelType uint8) (nodeInfo clusterconfig.NodeInfo, err error)
 
+	// SlotLeaderIdOfChannel 获取channel的leader节点信息(不激活频道)
+	LeaderOfChannelForRead(channelID string, channelType uint8) (nodeInfo clusterconfig.NodeInfo, err error)
+
 	// SlotLeaderIdOfChannel 获取频道所属槽的领导
 	SlotLeaderIdOfChannel(channelID string, channelType uint8) (nodeID uint64, err error)
 
@@ -58,8 +61,36 @@ func (s *Server) LeaderOfChannel(channelID string, channelType uint8) (clusterco
 		return clusterconfig.EmptyNodeInfo, err
 	}
 	leaderId := ch.leaderId()
+	if leaderId == 0 {
+		s.Error("LeaderOfChannel: leader not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
+		return clusterconfig.EmptyNodeInfo, ErrNotLeader
+
+	}
 	node := s.clusterEventListener.clusterconfigManager.node(leaderId)
 	if node == nil {
+		s.Error("LeaderOfChannel: node not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("leaderId", leaderId))
+		return clusterconfig.EmptyNodeInfo, ErrNodeNotFound
+	}
+	return clusterconfig.NodeInfo{
+		Id:            leaderId,
+		ApiServerAddr: node.ApiServerAddr,
+	}, nil
+}
+
+func (s *Server) LeaderOfChannelForRead(channelID string, channelType uint8) (clusterconfig.NodeInfo, error) {
+	ch, err := s.channelGroupManager.fetchChannelForRead(channelID, channelType)
+	if err != nil {
+		return clusterconfig.EmptyNodeInfo, err
+	}
+	leaderId := ch.leaderId()
+	if leaderId == 0 {
+		s.Error("LeaderOfChannel: leader not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
+		return clusterconfig.EmptyNodeInfo, ErrNotLeader
+
+	}
+	node := s.clusterEventListener.clusterconfigManager.node(leaderId)
+	if node == nil {
+		s.Error("LeaderOfChannel: node not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("leaderId", leaderId))
 		return clusterconfig.EmptyNodeInfo, ErrNodeNotFound
 	}
 	return clusterconfig.NodeInfo{
@@ -83,10 +114,12 @@ func (s *Server) SlotLeaderOfChannel(channelID string, channelType uint8) (clust
 
 	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
+		s.Error("SlotLeaderOfChannel: slot not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
 		return clusterconfig.EmptyNodeInfo, ErrSlotNotFound
 	}
 	node := s.clusterEventListener.clusterconfigManager.node(slot.Leader)
 	if node == nil {
+		s.Error("SlotLeaderOfChannel: node not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId), zap.Uint64("leaderId", slot.Leader))
 		return clusterconfig.EmptyNodeInfo, ErrNodeNotFound
 	}
 	return clusterconfig.NodeInfo{

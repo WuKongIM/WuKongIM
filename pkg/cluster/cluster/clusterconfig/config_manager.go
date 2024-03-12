@@ -61,6 +61,30 @@ func (c *ConfigManager) Slot(id uint32) *pb.Slot {
 	return nil
 }
 
+// 获取指定节点的最小槽
+func (c *ConfigManager) MinSlot(nodeId uint64) *pb.Slot {
+	var minSlot *pb.Slot
+	for _, slot := range c.cfg.Slots {
+		if wkutil.ArrayContainsUint64(slot.Replicas, nodeId) {
+			if minSlot == nil || minSlot.Id > slot.Id {
+				minSlot = slot
+			}
+		}
+	}
+	return minSlot
+}
+
+// 获取指定节点的槽
+func (c *ConfigManager) SlotsWithNodeId(nodeId uint64) []*pb.Slot {
+	var slots []*pb.Slot
+	for _, slot := range c.cfg.Slots {
+		if wkutil.ArrayContainsUint64(slot.Replicas, nodeId) {
+			slots = append(slots, slot)
+		}
+	}
+	return slots
+}
+
 func (c *ConfigManager) Node(id uint64) *pb.Node {
 	c.Lock()
 	defer c.Unlock()
@@ -269,7 +293,7 @@ func (c *ConfigManager) UnmarshalConfigData(data []byte, cfg *pb.Config) error {
 func (c *ConfigManager) initConfigFromFile() error {
 	clusterCfgPath := c.opts.ConfigPath
 	var err error
-	c.cfgFile, err = os.OpenFile(clusterCfgPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
+	c.cfgFile, err = os.OpenFile(clusterCfgPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		c.Panic("Open cluster config file failed!", zap.Error(err))
 	}

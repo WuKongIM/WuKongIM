@@ -80,6 +80,9 @@ func (s *Server) handleSlotChangeEvent(event EventMessage) error {
 		return nil
 	}
 	for _, slot := range event.Slots {
+		if !wkutil.ArrayContainsUint64(slot.Replicas, s.opts.NodeID) {
+			continue
+		}
 		st := s.slotManager.slot(slot.Id)
 		if st != nil {
 			st.rc.SetReplicas(slot.Replicas)

@@ -308,3 +308,75 @@ type PeerInFlightDataModel struct {
 	PeerID uint64 // 接受消息的节点ID
 	Data   []byte
 }
+
+// 频道分布式配置
+type ChannelClusterConfig struct {
+	ChannelID    string   // 频道ID
+	ChannelType  uint8    // 频道类型
+	ReplicaCount uint16   // 副本数量
+	Replicas     []uint64 // 副本节点ID集合
+	LeaderId     uint64   // 领导者ID
+	Term         uint32   // 任期
+
+	version uint16 // 数据协议版本
+}
+
+func (c *ChannelClusterConfig) Marshal() ([]byte, error) {
+	c.version = 1
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(c.version)
+	enc.WriteString(c.ChannelID)
+	enc.WriteUint8(c.ChannelType)
+	enc.WriteUint16(c.ReplicaCount)
+	enc.WriteUint16(uint16(len(c.Replicas)))
+	if len(c.Replicas) > 0 {
+		for _, replica := range c.Replicas {
+			enc.WriteUint64(replica)
+		}
+	}
+	enc.WriteUint64(c.LeaderId)
+	enc.WriteUint32(c.Term)
+	return enc.Bytes(), nil
+}
+
+func (c *ChannelClusterConfig) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if c.version, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if c.ChannelID, err = dec.String(); err != nil {
+		return err
+	}
+	if c.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	if c.ReplicaCount, err = dec.Uint16(); err != nil {
+		return err
+	}
+	var replicasLen uint16
+	if replicasLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if replicasLen > 0 {
+		c.Replicas = make([]uint64, replicasLen)
+		for i := uint16(0); i < replicasLen; i++ {
+			if c.Replicas[i], err = dec.Uint64(); err != nil {
+				return err
+			}
+		}
+	}
+	if c.LeaderId, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if c.Term, err = dec.Uint32(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelClusterConfig) String() string {
+	return fmt.Sprintf("ChannelID: %s, ChannelType: %d, ReplicaCount: %d, Replicas: %v, LeaderId: %d, Term: %d",
+		c.ChannelID, c.ChannelType, c.ReplicaCount, c.Replicas, c.LeaderId, c.Term)
+}

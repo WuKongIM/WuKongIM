@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,7 +33,7 @@ func TestChannelGroup(t *testing.T) {
 
 	localStorage := newLocalStorage(opts)
 
-	ch1 := newChannel(&ChannelClusterConfig{
+	ch1 := newChannel(&wkstore.ChannelClusterConfig{
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},
@@ -70,7 +71,7 @@ func TestChannelGroup(t *testing.T) {
 	})
 
 	localStorage = newLocalStorage(opts)
-	ch2 := newChannel(&ChannelClusterConfig{
+	ch2 := newChannel(&wkstore.ChannelClusterConfig{
 		ChannelID:   "ch1",
 		ChannelType: 1,
 		Replicas:    []uint64{1, 2},

@@ -211,3 +211,11 @@ func RemoveRepeatedElementOfUint64(arr []uint64) (newArr []uint64) {
 	}
 	return
 }
+
+func Uint32ArrayToStringArray(arr []uint32) (newArr []string) {
+	newArr = make([]string, 0)
+	for _, v := range arr {
+		newArr = append(newArr, strconv.Itoa(int(v)))
+	}
+	return
+}

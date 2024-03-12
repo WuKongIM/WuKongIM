@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
 )
@@ -15,10 +16,10 @@ import (
 type channel struct {
 	channelID                  string
 	channelType                uint8
-	rc                         *replica.Replica      // 副本服务
-	destroy                    bool                  // 是否已经销毁
-	clusterConfig              *ChannelClusterConfig // 分布式配置
-	maxHandleReadyCountOfBatch int                   // 每批次处理ready的最大数量
+	rc                         *replica.Replica              // 副本服务
+	destroy                    bool                          // 是否已经销毁
+	clusterConfig              *wkstore.ChannelClusterConfig // 分布式配置
+	maxHandleReadyCountOfBatch int                           // 每批次处理ready的最大数量
 	opts                       *Options
 	lastActivity               time.Time // 最后一次活跃时间
 	commitWait                 *commitWait
@@ -31,7 +32,7 @@ type channel struct {
 	localstorage *localStorage
 }
 
-func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, opts *Options) *channel {
+func newChannel(clusterConfig *wkstore.ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, opts *Options) *channel {
 	shardNo := ChannelKey(clusterConfig.ChannelID, clusterConfig.ChannelType)
 	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage, localstorage)))
 	return &channel{
@@ -49,7 +50,7 @@ func newChannel(clusterConfig *ChannelClusterConfig, appliedIdx uint64, localsto
 	}
 }
 
-func (c *channel) updateClusterConfig(clusterConfig *ChannelClusterConfig) {
+func (c *channel) updateClusterConfig(clusterConfig *wkstore.ChannelClusterConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.clusterConfig = clusterConfig
@@ -279,7 +280,7 @@ func (c *channel) leaderId() uint64 {
 	return c.rc.LeaderId()
 }
 
-func (c *channel) getClusterConfig() *ChannelClusterConfig {
+func (c *channel) getClusterConfig() *wkstore.ChannelClusterConfig {
 	return c.clusterConfig
 }
 
@@ -288,15 +289,15 @@ type ichannel interface {
 	proposeAndWaitCommits(data [][]byte, timeout time.Duration) ([]uint64, error)
 	leaderId() uint64
 	handleMessage(msg replica.Message) error
-	getClusterConfig() *ChannelClusterConfig
+	getClusterConfig() *wkstore.ChannelClusterConfig
 }
 
 type proxyChannel struct {
 	nodeId     uint64
-	clusterCfg *ChannelClusterConfig
+	clusterCfg *wkstore.ChannelClusterConfig
 }
 
-func newProxyChannel(nodeId uint64, clusterCfg *ChannelClusterConfig) *proxyChannel {
+func newProxyChannel(nodeId uint64, clusterCfg *wkstore.ChannelClusterConfig) *proxyChannel {
 	return &proxyChannel{
 		nodeId:     nodeId,
 		clusterCfg: clusterCfg,
@@ -319,6 +320,6 @@ func (p *proxyChannel) handleMessage(msg replica.Message) error {
 	panic("handleMessage: implement me")
 }
 
-func (p *proxyChannel) getClusterConfig() *ChannelClusterConfig {
+func (p *proxyChannel) getClusterConfig() *wkstore.ChannelClusterConfig {
 	return p.clusterCfg
 }

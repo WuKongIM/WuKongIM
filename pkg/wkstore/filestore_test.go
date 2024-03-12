@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -712,4 +713,115 @@ func TestSaveChannelMaxMessageSeq(t *testing.T) {
 	resultSeq, _, err := store.GetChannelMaxMessageSeq(channelID, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, seq, resultSeq)
+}
+
+func TestGetChannelClusterConfig(t *testing.T) {
+	dir, err := ioutil.TempDir("", "filestore")
+	assert.NoError(t, err)
+
+	storeCfg := NewStoreConfig()
+	storeCfg.DataDir = dir
+	store := NewFileStore(storeCfg)
+	err = store.Open()
+	assert.NoError(t, err)
+	defer store.Close()
+
+	channelID := "ch1"
+	channelType := uint8(2)
+
+	err = store.SaveChannelClusterConfig(channelID, channelType, &ChannelClusterConfig{
+		ChannelID:    channelID,
+		ChannelType:  channelType,
+		ReplicaCount: 3,
+		Replicas:     []uint64{1, 2, 3},
+		LeaderId:     1,
+		Term:         1,
+	})
+	assert.NoError(t, err)
+
+	cfg, err := store.GetChannelClusterConfig(channelID, channelType)
+	assert.NoError(t, err)
+
+	assert.Equal(t, channelID, cfg.ChannelID)
+	assert.Equal(t, channelType, cfg.ChannelType)
+	assert.Equal(t, uint16(3), cfg.ReplicaCount)
+	assert.Equal(t, uint64(1), cfg.LeaderId)
+	assert.Equal(t, uint32(1), cfg.Term)
+	assert.Equal(t, []uint64{1, 2, 3}, cfg.Replicas)
+
+}
+
+func TestGetSlotChannelClusterConfigCount(t *testing.T) {
+	dir, err := ioutil.TempDir("", "filestore")
+	assert.NoError(t, err)
+
+	storeCfg := NewStoreConfig()
+	storeCfg.DataDir = dir
+	store := NewFileStore(storeCfg)
+	err = store.Open()
+	assert.NoError(t, err)
+	defer store.Close()
+
+	channelID := "ch1"
+	channelType := uint8(2)
+
+	err = store.SaveChannelClusterConfig(channelID, channelType, &ChannelClusterConfig{
+		ChannelID:    channelID,
+		ChannelType:  channelType,
+		ReplicaCount: 3,
+		Replicas:     []uint64{1, 2, 3},
+		LeaderId:     1,
+		Term:         1,
+	})
+	assert.NoError(t, err)
+
+	slotId := wkutil.GetSlotNum(storeCfg.SlotNum, channelID)
+
+	count, err := store.GetSlotChannelClusterConfigCount(slotId - 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, count)
+
+	count, err = store.GetSlotChannelClusterConfigCount(slotId)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
+func TestGetSlotChannelClusterConfigWithAllSlot(t *testing.T) {
+	dir, err := ioutil.TempDir("", "filestore")
+	assert.NoError(t, err)
+
+	storeCfg := NewStoreConfig()
+	storeCfg.DataDir = dir
+	store := NewFileStore(storeCfg)
+	err = store.Open()
+	assert.NoError(t, err)
+	defer store.Close()
+
+	channelID := "ch1"
+	channelType := uint8(2)
+
+	err = store.SaveChannelClusterConfig(channelID, channelType, &ChannelClusterConfig{
+		ChannelID:    channelID,
+		ChannelType:  channelType,
+		ReplicaCount: 3,
+		Replicas:     []uint64{1, 2, 3},
+		LeaderId:     1,
+		Term:         1,
+	})
+	assert.NoError(t, err)
+
+	err = store.SaveChannelClusterConfig("test2", 1, &ChannelClusterConfig{
+		ChannelID:    "test2",
+		ChannelType:  1,
+		ReplicaCount: 2,
+		Replicas:     []uint64{1, 2},
+		LeaderId:     2,
+		Term:         3,
+	})
+	assert.NoError(t, err)
+
+	cfgs, err := store.GetSlotChannelClusterConfigWithAllSlot()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(cfgs))
+
 }

@@ -1,7 +1,6 @@
 package clusterstore
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 )
 
@@ -27,13 +26,15 @@ func (s *Store) RemoveSubscribers(channelID string, channelType uint8, subscribe
 	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
 }
 
-func (s *Store) RemoveAllSubscriber(channelID string, channelType uint8) error {
-	cmd := NewCMD(CMDRemoveAllSubscriber, nil)
+func (s *Store) RemoveAllSubscriber(channelId string, channelType uint8) error {
+
+	data := EncodeChannel(channelId, channelType)
+	cmd := NewCMD(CMDRemoveAllSubscriber, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelId, channelType, cmdData)
 }
 
 func (s *Store) GetSubscribers(channelID string, channelType uint8) ([]string, error) {
@@ -51,13 +52,14 @@ func (s *Store) AddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) error {
 	return s.opts.Cluster.ProposeChannelMeta(channelInfo.ChannelID, channelInfo.ChannelType, cmdData)
 }
 
-func (s *Store) DeleteChannel(channelID string, channelType uint8) error {
-	cmd := NewCMD(CMDDeleteChannel, nil)
+func (s *Store) DeleteChannel(channelId string, channelType uint8) error {
+	data := EncodeChannel(channelId, channelType)
+	cmd := NewCMD(CMDDeleteChannel, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
+	return s.opts.Cluster.ProposeChannelMeta(channelId, channelType, cmdData)
 }
 
 func (s *Store) GetChannel(channelID string, channelType uint8) (*wkstore.ChannelInfo, error) {
@@ -128,23 +130,6 @@ func (s *Store) RemoveAllAllowlist(channelID string, channelType uint8) error {
 func (s *Store) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
 	data := EncodeSubscribers(channelID, channelType, uids)
 	cmd := NewCMD(CMDRemoveAllowlist, data)
-	cmdData, err := cmd.Marshal()
-	if err != nil {
-		return err
-	}
-	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
-}
-
-func (s *Store) SaveChannelClusterConfig(channelID string, channelType uint8, config *cluster.ChannelClusterConfig) error {
-	cfgData, err := config.Marshal()
-	if err != nil {
-		return err
-	}
-	data, err := EncodeCMDChannelClusterConfigSave(channelID, channelType, cfgData)
-	if err != nil {
-		return err
-	}
-	cmd := NewCMD(CMDChannelClusterConfigSave, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err

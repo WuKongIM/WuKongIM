@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -368,7 +369,7 @@ func (c *clusterEventListener) acceptedEvent() {
 }
 
 func (c *clusterEventListener) loadLocalConfig() error {
-	f, err := os.OpenFile(c.localCfgPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.ModePerm)
+	f, err := os.OpenFile(c.localCfgPath, os.O_CREATE|os.O_RDWR, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -377,6 +378,7 @@ func (c *clusterEventListener) loadLocalConfig() error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("loadLocalConfig---->", c.localCfgPath, len(data))
 	if len(data) > 0 {
 		var cfg = &pb.Config{}
 		if err := wkutil.ReadJSONByByte(data, cfg); err != nil {

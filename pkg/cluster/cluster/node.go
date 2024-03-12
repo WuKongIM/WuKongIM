@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 )
 
 type node struct {
@@ -85,7 +86,7 @@ func (n *node) requestChannelAppointLeader(ctx context.Context, req *AppointLead
 	return nil
 }
 
-func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClusterConfigReq) (*ChannelClusterConfig, error) {
+func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClusterConfigReq) (*wkstore.ChannelClusterConfig, error) {
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClus
 	if resp.Status != proto.Status_OK {
 		return nil, fmt.Errorf("requestChannelClusterConfig is failed, status:%d", resp.Status)
 	}
-	channelClusterConfigResp := &ChannelClusterConfig{}
+	channelClusterConfigResp := &wkstore.ChannelClusterConfig{}
 	err = channelClusterConfigResp.Unmarshal(resp.Body)
 	if err != nil {
 		return nil, err
