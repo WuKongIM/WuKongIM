@@ -65,6 +65,10 @@ require (
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
+<<<<<<< Updated upstream
+=======
+	github.com/hashicorp/memberlist v0.5.0 // indirect
+>>>>>>> Stashed changes
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
