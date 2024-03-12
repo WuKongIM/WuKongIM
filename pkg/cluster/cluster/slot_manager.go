@@ -65,7 +65,7 @@ func (s *slotManager) handleReady(rd slotReady) {
 		}
 
 		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
-			s.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.Uint64("committedIdx", msg.CommittedIndex), zap.Uint64("lastLogIndex", slot.rc.LastLogIndex()), zap.String("shardNo", shardNo), zap.Uint64("to", msg.To), zap.Uint64("from", msg.From))
+			s.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.Uint64("committedIdx", msg.CommittedIndex), zap.Uint32("term", msg.Term), zap.Uint64("lastLogIndex", slot.rc.LastLogIndex()), zap.String("shardNo", shardNo), zap.Uint64("to", msg.To), zap.Uint64("from", msg.From))
 		}
 
 		protMsg, err := NewMessage(shardNo, msg, MsgSlotMsg)

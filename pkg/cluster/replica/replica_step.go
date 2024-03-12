@@ -124,7 +124,7 @@ func (r *Replica) stepLeader(m Message) error {
 				return err
 			}
 			if lastIndex == 0 {
-				r.Error("leader term start index not found", zap.Uint32("term", syncTerm))
+				r.Error("leader term start index not found", zap.Uint32("term", syncTerm), zap.Uint32("leaderTerm", r.replicaLog.term))
 				return ErrLeaderTermStartIndexNotFound
 			}
 			r.Info("send leader term start index resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("syncTerm", syncTerm), zap.Uint64("lastIndex", lastIndex))

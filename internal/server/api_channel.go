@@ -75,10 +75,6 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 
 func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 	var req ChannelCreateReq
-	if err := c.BindJSON(&req); err != nil {
-		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
-		return
-	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
@@ -735,7 +731,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.LeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := ch.s.cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))

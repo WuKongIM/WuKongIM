@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,7 +18,7 @@ func TestChannelLeaderPropose(t *testing.T) {
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
 	opts.MessageLogStorage = NewMemoryShardLogStorage()
 	localStorage := newLocalStorage(opts)
-	ch := newChannel(&ChannelClusterConfig{
+	ch := newChannel(&wkstore.ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
@@ -45,7 +46,7 @@ func TestChannelLeaderCommitLog(t *testing.T) {
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
 	localStorage := newLocalStorage(opts)
-	ch := newChannel(&ChannelClusterConfig{
+	ch := newChannel(&wkstore.ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
@@ -79,7 +80,7 @@ func TestChannelFollowSync(t *testing.T) {
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
 
 	localStorage := newLocalStorage(opts)
-	ch := newChannel(&ChannelClusterConfig{
+	ch := newChannel(&wkstore.ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
@@ -109,7 +110,7 @@ func TestChannelFollowSyncResp(t *testing.T) {
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
 	localStorage := newLocalStorage(opts)
-	ch := newChannel(&ChannelClusterConfig{
+	ch := newChannel(&wkstore.ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},
@@ -138,7 +139,7 @@ func TestChannelProposeAndWaitCommit(t *testing.T) {
 	opts.NodeID = 1
 	opts.ShardLogStorage = NewMemoryShardLogStorage()
 	localStorage := newLocalStorage(opts)
-	ch := newChannel(&ChannelClusterConfig{
+	ch := newChannel(&wkstore.ChannelClusterConfig{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Replicas:    []uint64{1, 2, 3},

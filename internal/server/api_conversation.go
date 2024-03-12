@@ -246,7 +246,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	if s.s.opts.ClusterOn() {
 		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
-			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			s.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
@@ -398,7 +398,7 @@ func (s *ConversationAPI) getRecentMessagesForCluster(uid string, msgCount int, 
 		if channelRecentMsgReq.ChannelType == wkproto.ChannelTypePerson {
 			fakeChannelID = GetFakeChannelIDWith(uid, channelRecentMsgReq.ChannelID)
 		}
-		leaderInfo, err := s.s.cluster.LeaderOfChannel(fakeChannelID, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := s.s.cluster.LeaderOfChannelForRead(fakeChannelID, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			return nil, err

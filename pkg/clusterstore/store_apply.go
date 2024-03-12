@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"go.uber.org/zap"
 )
 
@@ -188,11 +189,21 @@ func (s *Store) handleDeleteConversation(cmd *CMD) error {
 }
 
 func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
-	channelId, channelType, config, err := cmd.DecodeCMDChannelClusterConfigSave()
+	channelId, channelType, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
 	if err != nil {
 		return err
 	}
-	return s.db.SaveChannelClusterConfig(channelId, channelType, config)
+	channelClusterConfig := &wkstore.ChannelClusterConfig{}
+	err = channelClusterConfig.Unmarshal(configData)
+	if err != nil {
+		return err
+	}
+
+	err = s.db.SaveChannelClusterConfig(channelId, channelType, channelClusterConfig)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {

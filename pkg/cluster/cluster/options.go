@@ -14,6 +14,7 @@ import (
 type Options struct {
 	NodeID                       uint64
 	Addr                         string
+	AppVersion                   string            // 应用版本
 	ServerAddr                   string            // 节点通信地址
 	ApiServerAddr                string            // 节点api地址
 	InitNodes                    map[uint64]string // 初始化节点列表
@@ -237,5 +238,11 @@ func WithServerAddr(addr string) Option {
 func WithRole(role pb.NodeRole) Option {
 	return func(opts *Options) {
 		opts.Role = role
+	}
+}
+
+func WithAppVersion(appVersion string) Option {
+	return func(opts *Options) {
+		opts.AppVersion = appVersion
 	}
 }

@@ -27,6 +27,8 @@ type FileStore struct {
 
 	wo *pebble.WriteOptions
 
+	endian binary.ByteOrder
+
 	*FileStoreForMsg
 }
 
@@ -36,6 +38,7 @@ func NewFileStore(cfg *StoreConfig) *FileStore {
 		cfg:             cfg,
 		lock:            keylock.NewKeyLock(),
 		FileStoreForMsg: NewFileStoreForMsg(cfg),
+		endian:          binary.BigEndian,
 		wo: &pebble.WriteOptions{
 			Sync: true,
 		},
@@ -47,7 +50,9 @@ func NewFileStore(cfg *StoreConfig) *FileStore {
 func (f *FileStore) Open() error {
 	f.lock.StartCleanLoop()
 	var err error
-	f.db, err = pebble.Open(filepath.Join(f.cfg.DataDir, "wukongmetadb"), &pebble.Options{})
+	f.db, err = pebble.Open(filepath.Join(f.cfg.DataDir, "wukongmetadb"), &pebble.Options{
+		FormatMajorVersion: pebble.FormatNewest,
+	})
 	if err != nil {
 		return err
 	}
@@ -541,51 +546,192 @@ func (f *FileStore) GetChannelMaxMessageSeq(channelID string, channelType uint8)
 	return binary.BigEndian.Uint32(value[:4]), binary.BigEndian.Uint64(value[4:]), nil
 }
 
-func (f *FileStore) SaveChannelClusterConfig(channelID string, channelType uint8, data []byte) error {
-	return f.db.Set([]byte(f.getChannelClusterConfigKey(channelID, channelType)), data, f.wo)
+func (f *FileStore) SaveChannelClusterConfig(channelId string, channelType uint8, channelClusterConfig *ChannelClusterConfig) error {
+	if strings.TrimSpace(channelId) == "" {
+		return errors.New("channelId is empty")
+	}
+
+	batch := f.db.NewBatch()
+
+	// slot 索引
+	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelId)
+	var err error
+	if err = batch.Set([]byte(fmt.Sprintf("%s/%d", f.getChannelClusterConfigKeyWithColName(channelId, channelType, "slot"), slot)), []byte{}, f.wo); err != nil {
+		return err
+	}
+
+	// leaderId
+	leaderIdBytes := make([]byte, 8)
+	f.endian.PutUint64(leaderIdBytes, channelClusterConfig.LeaderId)
+	if err = batch.Set([]byte(f.getChannelClusterConfigKeyWithColName(channelId, channelType, "leaderId")), leaderIdBytes, f.wo); err != nil {
+		return err
+	}
+
+	// replicaCount
+	replicaCountBytes := make([]byte, 2)
+	f.endian.PutUint16(replicaCountBytes, channelClusterConfig.ReplicaCount)
+	if err = batch.Set([]byte(f.getChannelClusterConfigKeyWithColName(channelId, channelType, "replicaCount")), replicaCountBytes, f.wo); err != nil {
+		return err
+	}
+
+	// term
+	termBytes := make([]byte, 4)
+	f.endian.PutUint32(termBytes, channelClusterConfig.Term)
+	if err = batch.Set([]byte(f.getChannelClusterConfigKeyWithColName(channelId, channelType, "term")), termBytes, f.wo); err != nil {
+		return err
+	}
+
+	// replicas
+	replicas := make([]byte, 0, len(channelClusterConfig.Replicas))
+	replicaBytes := make([]byte, 8)
+	for _, replica := range channelClusterConfig.Replicas {
+		f.endian.PutUint64(replicaBytes, replica)
+		replicas = append(replicas, replicaBytes...)
+	}
+	if err = batch.Set([]byte(f.getChannelClusterConfigKeyWithColName(channelId, channelType, "replicas")), replicas, f.wo); err != nil {
+		return err
+	}
+	return batch.Commit(f.wo)
 }
 
-func (f *FileStore) GetChannelClusterConfig(channelID string, channelType uint8) ([]byte, error) {
-	value, closer, err := f.db.Get([]byte(f.getChannelClusterConfigKey(channelID, channelType)))
-	if err != nil {
-		if err == pebble.ErrNotFound {
-			return nil, nil
+func (f *FileStore) GetChannelClusterConfig(channelID string, channelType uint8) (*ChannelClusterConfig, error) {
+
+	iter := f.db.NewIter(&pebble.IterOptions{
+		LowerBound: []byte(f.getChannelClusterConfigKey(channelID, channelType)),
+		UpperBound: []byte(f.getChannelClusterConfigKey(channelID, channelType)),
+	})
+	defer iter.Close()
+
+	var cfg *ChannelClusterConfig
+	var err error
+	for iter.First(); iter.Valid(); iter.Next() {
+		if cfg == nil {
+			cfg = &ChannelClusterConfig{
+				ChannelID:   channelID,
+				ChannelType: channelType,
+			}
 		}
-		return nil, err
+		err = f.fillChannelClusterConfig(cfg, iter.Key(), iter.Value())
+		if err != nil {
+			return nil, err
+		}
 	}
-	defer closer.Close()
-	return value, nil
+	return cfg, nil
+}
+
+func (f *FileStore) fillChannelClusterConfig(cfg *ChannelClusterConfig, key []byte, value []byte) error {
+	keyStr := strings.Replace(string(key), fmt.Sprintf("%s/", f.getChannelclusterconfigTable()), "", 1)
+
+	kvs := strings.Split(keyStr, "/")
+	if len(kvs) == 0 {
+		f.Error("key error", zap.String("key", keyStr))
+		return errors.New("key error")
+	}
+	colName := kvs[len(kvs)-1]
+	switch colName {
+	case "leaderId":
+		cfg.LeaderId = f.endian.Uint64(value)
+	case "replicaCount":
+		cfg.ReplicaCount = f.endian.Uint16(value)
+	case "term":
+		cfg.Term = f.endian.Uint32(value)
+	case "replicas":
+		replicas := make([]uint64, 0, len(value)/8)
+		for i := 0; i < len(value); i += 8 {
+			replicas = append(replicas, f.endian.Uint64(value[i:i+8]))
+		}
+		cfg.Replicas = replicas
+	}
+	return nil
+
 }
 
 func (f *FileStore) GetSlotChannelClusterConfigCount(slotId uint32) (int, error) {
 	iter := f.db.NewIter(&pebble.IterOptions{
-		LowerBound: f.getSlotChannelClusterConfigLowKey(slotId),
-		UpperBound: f.getSlotChannelClusterConfigHighKey(slotId),
+		LowerBound: []byte(f.getChannelclusterconfigTable()),
+		UpperBound: []byte(fmt.Sprintf("%s\xff", f.getChannelclusterconfigTable())),
 	})
 
 	defer iter.Close()
 
 	count := 0
 	for iter.First(); iter.Valid(); iter.Next() {
-		count++
+		colName := f.getColName(iter.Key())
+		if colName == "slot" {
+			slot := f.endian.Uint32(iter.Value())
+			if slot == slotId {
+				count++
+			}
+		}
 	}
 	return count, nil
 }
 
-// 获取某个槽下的所有频道集群配置
-func (f *FileStore) GetSlotChannelClusterConfig(slotId uint32) ([][]byte, error) {
-	iter := f.db.NewIter(&pebble.IterOptions{
-		LowerBound: f.getSlotChannelClusterConfigLowKey(slotId),
-		UpperBound: f.getSlotChannelClusterConfigHighKey(slotId),
-	})
-
-	defer iter.Close()
-
-	var data [][]byte
-	for iter.First(); iter.Valid(); iter.Next() {
-		data = append(data, iter.Value())
+func (f *FileStore) getColName(key []byte) string {
+	kvs := strings.Split(string(key), "/")
+	if len(kvs) == 0 {
+		return ""
 	}
-	return data, nil
+	return kvs[len(kvs)-1]
+}
+
+// 获取某个槽下的所有频道集群配置
+func (f *FileStore) GetSlotChannelClusterConfig(slotId uint32) ([]*ChannelClusterConfig, error) {
+
+	return nil, nil
+}
+
+func (f *FileStore) GetSlotChannelClusterConfigWithAllSlot() ([]*ChannelClusterConfig, error) {
+	iter := f.db.NewIter(&pebble.IterOptions{
+		LowerBound: []byte(f.getChannelclusterconfigTable()),
+		UpperBound: []byte(fmt.Sprintf("%s\xff", f.getChannelclusterconfigTable())),
+	})
+	defer iter.Close()
+	var (
+		preChannelType     uint8 = 0
+		preChannelID             = ""
+		cfgs                     = make([]*ChannelClusterConfig, 0)
+		currentCfg         *ChannelClusterConfig
+		currentChannelType uint8
+		currentChannelId   string
+		err                error
+	)
+	for iter.First(); iter.Valid(); iter.Next() {
+
+		keyStr := strings.Replace(string(iter.Key()), fmt.Sprintf("%s/", f.getChannelclusterconfigTable()), "", 1)
+		kvs := strings.Split(keyStr, "/")
+		if len(kvs) == 0 {
+			f.Error("key error", zap.String("key", keyStr))
+			return nil, errors.New("key error")
+		}
+		for i := 0; i < len(kvs); i += 2 {
+			colName := kvs[i]
+			if colName == "channelType" {
+				cType, err := strconv.ParseUint(kvs[i+1], 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				currentChannelType = uint8(cType)
+			} else if colName == "channelId" {
+				currentChannelId = kvs[i+1]
+			}
+		}
+		if preChannelID == "" || (preChannelType != currentChannelType || preChannelID != currentChannelId) {
+			currentCfg = &ChannelClusterConfig{
+				ChannelID:   currentChannelId,
+				ChannelType: currentChannelType,
+			}
+			preChannelID = currentChannelId
+			preChannelType = currentChannelType
+			cfgs = append(cfgs, currentCfg)
+
+		}
+		err = f.fillChannelClusterConfig(currentCfg, iter.Key(), iter.Value())
+		if err != nil {
+			return nil, err
+		}
+	}
+	return cfgs, nil
 }
 
 func (f *FileStore) AppendMessagesOfUserQueue(uid string, messages []Message) error {
@@ -688,9 +834,22 @@ func (f *FileStore) getConversationHighKey(uid string) string {
 	return fmt.Sprintf("/slots/%s/conversation/users/%s/channels/%03d", f.getSlotFillFormat(slotID), uid, math.MaxUint8)
 }
 
+// func (f *FileStore) getChannelClusterConfigKey(channelId string, channelType uint8) string {
+// 	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelId)
+// 	return fmt.Sprintf("/slots/%s/channelclusterconfig/channelType/%03d/channelId/%s", f.getSlotFillFormat(slot), channelType, channelId)
+// }
+
+func (f *FileStore) getChannelClusterConfigKeyWithColName(channelId string, channelType uint8, colName string) string {
+
+	return fmt.Sprintf("%s/channelType/%03d/channelId/%s/%s", f.getChannelclusterconfigTable(), channelType, channelId, colName)
+}
 func (f *FileStore) getChannelClusterConfigKey(channelId string, channelType uint8) string {
-	slot := wkutil.GetSlotNum(f.cfg.SlotNum, channelId)
-	return fmt.Sprintf("/slots/%s/channelclusterconfig/channels/%03d/%s", f.getSlotFillFormat(slot), channelType, channelId)
+
+	return fmt.Sprintf("%s/channelType/%03d/channelId/%s", f.getChannelclusterconfigTable(), channelType, channelId)
+}
+
+func (f *FileStore) getChannelclusterconfigTable() string {
+	return "/channelclusterconfig"
 }
 
 func (f *FileStore) getSlotChannelClusterConfigHighKey(slotId uint32) []byte {

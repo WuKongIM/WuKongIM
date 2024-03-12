@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -221,12 +222,25 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 			if channelType == wkproto.ChannelTypePerson {
 				fakeChannelID = GetFakeChannelIDWith(req.FromUID, channelID)
 			}
-			leaderInfo, err := m.s.cluster.LeaderOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的领导节点
-			if err != nil {
-				m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-				c.ResponseError(errors.New("获取频道所在节点失败！"))
-				return
+
+			var leaderInfo clusterconfig.NodeInfo
+
+			if req.Header.SyncOnce == 1 {
+				leaderInfo, err = m.s.cluster.SlotLeaderOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的槽领导节点
+				if err != nil {
+					m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
+			} else {
+				leaderInfo, err = m.s.cluster.LeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
+				if err != nil {
+					m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
+					c.ResponseError(errors.New("获取频道所在节点失败！"))
+					return
+				}
 			}
+
 			leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
 			if !leaderIsSelf {
 				m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))

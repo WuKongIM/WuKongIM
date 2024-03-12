@@ -75,6 +75,8 @@ func newReplicaLog(opts *Options) *replicaLog {
 	rg.unstable.offset = lastIndex + 1
 	rg.unstable.offsetInProgress = lastIndex + 1
 
+	rg.appliedTo(opts.AppliedIndex, 0)
+
 	return rg
 }
 

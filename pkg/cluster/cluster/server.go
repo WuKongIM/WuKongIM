@@ -31,6 +31,8 @@ type Server struct {
 	cancelCtx            context.Context
 	onMessageFnc         func(from uint64, msg *proto.Message) // 上层处理消息的函数
 	slotMigrateManager   *slotMigrateManager
+	uptime               time.Time // 启动时间
+	apiPrefix            string    // api前缀
 	// 其他
 	opts *Options
 	wklog.Log
@@ -90,6 +92,7 @@ func (s *Server) requestSlotLogInfo(ctx context.Context, nodeId uint64, req *Slo
 }
 
 func (s *Server) Start() error {
+	s.uptime = time.Now()
 
 	err := s.opts.ShardLogStorage.Open()
 	if err != nil {
