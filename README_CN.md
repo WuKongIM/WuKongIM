@@ -85,6 +85,40 @@ web聊天场景演示： http://imdemo.githubim.com
 快速运行
 ---------------
 
+
+### Docker部署
+
+```shell
+
+docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5210:5210 -p 5300:5300  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:v1.2
+
+```
+
+### 二进制部署
+
+
+```shell
+
+wget -O wukongim https://github.com/WuKongIM/WuKongIM/releases/download/v1.2.1/wukongim-linux-amd64  # 其他系统请查看 https://github.com/WuKongIM/WuKongIM/releases
+
+```
+
+```shell
+
+chmod +x wukongim
+
+```
+
+启动
+
+```shell
+
+./wukongim --config config/wk.yaml
+
+```
+
+### 源码部署
+
 ```shell
 
 git clone https://github.com/WuKongIM/WuKongIM.git
@@ -95,13 +129,14 @@ go run main.go --config config/wk.yaml
 
 ```
 
+
+### 访问
+
 查询系统信息: http://127.0.0.1:5001/varz
 
 查看监控信息： http://127.0.0.1:5300/web
 
 客户端演示地址：http://127.0.0.1:5172/chatdemo
-
-其他部署方式详见文档：https://githubim.com/guide/deploy-binary.html
 
 端口解释:
 

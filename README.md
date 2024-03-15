@@ -77,6 +77,31 @@ TODO
 Quick Start
 ---------------
 
+### Docker Deployment
+
+```shell
+docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5210:5210 -p 5300:5300  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:v1.2
+```
+
+### Binary Deployment
+
+```shell
+wget -O wukongim https://github.com/WuKongIM/WuKongIM/releases/download/v1.2.1/wukongim-linux-amd64  # For other systems, please check https://github.com/WuKongIM/WuKongIM/releases
+```
+
+```shell
+chmod +x wukongim
+```
+
+Start
+
+```shell
+./wukongim --config config/wk.yaml
+```
+
+
+### Source code
+
 ```shell
 
 git clone https://github.com/WuKongIM/WuKongIM.git
@@ -86,6 +111,9 @@ cd WuKongIM
 go run main.go --config config/wk.yaml
 
 ```
+
+### Configuration server information (context)
+
 
 View System information: http://127.0.0.1:5001/varz
 
