@@ -819,7 +819,6 @@ type eofBuff struct {
 func (e *eofBuff) Read(p []byte) (int, error) {
 	n, err := e.buff.Read(p)
 	e.needs -= n
-	fmt.Println("eofBuff.Read......", n, len(p))
 
 	if e.needs > 0 && err == ring.ErrIsEmpty {
 		return n, tls.ErrDataNotEnough
