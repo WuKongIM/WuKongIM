@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"container/list"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 )
@@ -9,6 +9,8 @@ import (
 type channelQueue struct {
 	head *channel
 	tail *channel
+
+	mu sync.Mutex
 }
 
 func newChannelQueue() *channelQueue {
@@ -16,6 +18,8 @@ func newChannelQueue() *channelQueue {
 }
 
 func (c *channelQueue) add(channel *channel) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.head == nil {
 		c.head = channel
 	} else {
@@ -26,6 +30,8 @@ func (c *channelQueue) add(channel *channel) {
 }
 
 func (c *channelQueue) remove(channel *channel) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if channel.prev == nil {
 		c.head = channel.next
 	} else {
@@ -57,6 +63,8 @@ func (c *channelQueue) remove(channel *channel) {
 // }
 
 func (c *channelQueue) exist(channelID string, channelType uint8) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for channel := c.head; channel != nil; channel = channel.next {
 		if channel.channelID == channelID && channel.channelType == channelType {
 			return true
@@ -66,6 +74,8 @@ func (c *channelQueue) exist(channelID string, channelType uint8) bool {
 }
 
 func (c *channelQueue) get(channelID string, channelType uint8) *channel {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for channel := c.head; channel != nil; channel = channel.next {
 		if channel.channelID == channelID && channel.channelType == channelType {
 			return channel
@@ -76,46 +86,12 @@ func (c *channelQueue) get(channelID string, channelType uint8) *channel {
 
 // 遍历频道
 func (c *channelQueue) foreach(f func(channel *channel)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for channel := c.head; channel != nil; channel = channel.next {
 		f(channel)
 	}
 }
-
-type readyChannelQueue struct {
-	queue *list.List
-}
-
-func newReadyChannelQueue() *readyChannelQueue {
-	return &readyChannelQueue{
-		queue: list.New(),
-	}
-}
-
-func (c *readyChannelQueue) add(rd channelReady) {
-	c.queue.PushBack(rd)
-}
-
-func (c *readyChannelQueue) pop() channelReady {
-	e := c.queue.Front()
-	if e == nil || e.Value == nil {
-		return channelReady{}
-	}
-	c.queue.Remove(e)
-	return e.Value.(channelReady)
-}
-
-func (c readyChannelQueue) len() int {
-	return c.queue.Len()
-}
-
-// func (c *readyChannelQueue) remove(rd channelReady) {
-// 	for e := c.queue.Front(); e != nil; e = e.Next() {
-// 		if e.Value.(channelReady).channel == rd.channel {
-// 			c.queue.Remove(e)
-// 			return
-// 		}
-// 	}
-// }
 
 type channelReady struct {
 	channel *channel

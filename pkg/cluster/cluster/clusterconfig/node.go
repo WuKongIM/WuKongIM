@@ -53,6 +53,8 @@ type Node struct {
 
 	msgs        []Message
 	messageWait *messageWait
+
+	mu sync.Mutex
 }
 
 func NewNode(opts *Options) *Node {
@@ -128,6 +130,7 @@ func (n *Node) Ready() Ready {
 }
 
 func (n *Node) AcceptReady(rd Ready) {
+
 	n.msgs = nil
 }
 
@@ -138,6 +141,7 @@ func (n *Node) State() State {
 }
 
 func (n *Node) ProposeConfigChange(version uint64, configData []byte) error {
+
 	if !n.isLeader() {
 		n.Error("not leader, can not propose config change")
 		return nil

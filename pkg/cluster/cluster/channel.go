@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/sasha-s/go-deadlock"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -21,7 +22,7 @@ type channel struct {
 	clusterConfig              *wkstore.ChannelClusterConfig // 分布式配置
 	maxHandleReadyCountOfBatch int                           // 每批次处理ready的最大数量
 	opts                       *Options
-	lastActivity               time.Time // 最后一次活跃时间
+	lastActivity               atomic.Time // 最后一次活跃时间
 	commitWait                 *commitWait
 	doneC                      chan struct{}
 	wklog.Log
@@ -35,19 +36,20 @@ type channel struct {
 func newChannel(clusterConfig *wkstore.ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, opts *Options) *channel {
 	shardNo := ChannelKey(clusterConfig.ChannelID, clusterConfig.ChannelType)
 	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage, localstorage)))
-	return &channel{
+	ch := &channel{
 		maxHandleReadyCountOfBatch: 50,
 		rc:                         rc,
 		opts:                       opts,
 		Log:                        wklog.NewWKLog(fmt.Sprintf("Channel[%s]", shardNo)),
 		commitWait:                 newCommitWait(),
-		lastActivity:               time.Now(),
 		channelID:                  clusterConfig.ChannelID,
 		channelType:                clusterConfig.ChannelType,
 		clusterConfig:              clusterConfig,
 		doneC:                      make(chan struct{}),
 		localstorage:               localstorage,
 	}
+	ch.lastActivity.Store(time.Now())
+	return ch
 }
 
 func (c *channel) updateClusterConfig(clusterConfig *wkstore.ChannelClusterConfig) {
@@ -60,6 +62,19 @@ func (c *channel) updateClusterConfig(clusterConfig *wkstore.ChannelClusterConfi
 	} else {
 		c.rc.BecomeFollower(clusterConfig.Term, clusterConfig.LeaderId)
 	}
+}
+
+func (c *channel) updateClusterConfigLeaderId(leaderId uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clusterConfig.LeaderId = leaderId
+}
+
+func (c *channel) updateClusterConfigLeaderIdAndTerm(term uint32, leaderId uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clusterConfig.Term = term
+	c.clusterConfig.LeaderId = leaderId
 }
 
 func (c *channel) ready() replica.Ready {
@@ -112,7 +127,7 @@ func (c *channel) step(msg replica.Message) error {
 	if c.destroy {
 		return errors.New("channel destroy, can not step")
 	}
-	c.lastActivity = time.Now()
+	c.lastActivity.Store(time.Now())
 	return c.rc.Step(msg)
 }
 
@@ -210,7 +225,7 @@ func (c *channel) isDestroy() bool {
 }
 
 func (c *channel) getLastActivity() time.Time {
-	return c.lastActivity
+	return c.lastActivity.Load()
 }
 
 func (c *channel) handleLocalMsg(msg replica.Message) {
@@ -222,7 +237,7 @@ func (c *channel) handleLocalMsg(msg replica.Message) {
 		c.Warn("handle local msg, but msg to is not self", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint64("self", c.opts.NodeID))
 		return
 	}
-	c.lastActivity = time.Now()
+	c.lastActivity.Store(time.Now())
 	switch msg.MsgType {
 	case replica.MsgStoreAppend: // 处理store append请求
 		c.handleStoreAppend(msg)

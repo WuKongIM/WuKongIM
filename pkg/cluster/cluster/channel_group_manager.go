@@ -238,7 +238,9 @@ func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelT
 	if err != nil {
 		return nil, err
 	}
+	exitChannel := true
 	if channel == nil { // 不存在缓存
+		exitChannel = false
 		if clusterconfig == nil { // 没有集群信息则创建一个新的集群信息
 			clusterconfig, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
 			if err != nil {
@@ -260,16 +262,13 @@ func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelT
 		// 	return nil, errors.New("online replica count is not enough, checkOnlineReplicaCount and createChannelClusterInfo failed")
 		// }
 
-		// 提议分布式配置
-		fmt.Println("ProposeSave--------->", channelID)
-		err = c.s.opts.ChannelClusterStorage.ProposeSave(clusterconfig.ChannelID, clusterconfig.ChannelType, clusterconfig)
+		// 保存分布式配置
+		err = c.s.opts.ChannelClusterStorage.Save(clusterconfig.ChannelID, clusterconfig.ChannelType, clusterconfig)
 		if err != nil {
 			c.Error("proposeChannelClusterConfig failed", zap.Error(err))
 			return nil, err
 		}
 		channel.updateClusterConfig(clusterconfig)
-		// 添加到channelGroup
-		c.channelGroup(channelID, channelType).add(channel)
 
 		// // 通知任命领导
 		// err = c.notifyAppointLeader(clusterconfig, nil)
@@ -277,9 +276,15 @@ func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelT
 		// 	c.Error("notifyAppointLeader failed", zap.Error(err))
 		// 	return nil, err
 		// }
-
 	}
 	err = c.electionIfNeed(channel) // 根据需要是否进行选举
+	if err != nil {
+		return nil, err
+	}
+	if !exitChannel { // 这里需要选举完后再添加到队列里，要不然队列里的频道领导者会不正确
+		// 添加到channelGroup
+		c.channelGroup(channelID, channelType).add(channel)
+	}
 	return channel, err
 }
 
@@ -301,7 +306,6 @@ func (c *channelGroupManager) getChannelForOthers(channelID string, channelType 
 			return nil, err
 		}
 		if clusterConfig != nil {
-			fmt.Println("getChannelForOthers------>", channelID)
 			err = c.s.opts.ChannelClusterStorage.Save(channelID, channelType, clusterConfig)
 			if err != nil {
 				return nil, err
@@ -389,6 +393,31 @@ func (c *channelGroupManager) createChannelClusterInfo(channelID string, channel
 	return clusterConfig, nil
 }
 
+// 是否需要进行选举
+func (c *channelGroupManager) needElection(clusterConfig *wkstore.ChannelClusterConfig) (bool, error) {
+	slotId := c.s.getChannelSlotId(clusterConfig.ChannelID)
+	slot := c.s.clusterEventListener.clusterconfigManager.slot(slotId)
+	if slot == nil {
+		return false, ErrSlotNotExist
+	}
+	if slot.Leader != c.s.opts.NodeID { // 频道所在槽的领导不是当前节点(只有频道所在槽的领导才有权限进行选举)
+		c.Debug("slot leader is not current node", zap.Uint64("slotLeader", slot.Leader), zap.Uint64("nodeID", c.s.opts.NodeID))
+		return false, nil
+	}
+	if clusterConfig.LeaderId != 0 {
+		node := c.s.clusterEventListener.clusterconfigManager.node(clusterConfig.LeaderId)
+		if node == nil {
+			return false, errors.New("leader node is not found")
+		}
+		if node.Online { // 领导在线，不需要进行选举
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// 进行选举
 func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	clusterConfig := channel.clusterConfig
 	if clusterConfig == nil {
@@ -397,28 +426,18 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	channelId := clusterConfig.ChannelID
 	channelType := clusterConfig.ChannelType
 
-	slotId := c.s.getChannelSlotId(channelId)
-	slot := c.s.clusterEventListener.clusterconfigManager.slot(slotId)
-	if slot == nil {
-		return ErrSlotNotExist
+	needElection, err := c.needElection(clusterConfig)
+	if err != nil {
+		return err
 	}
-	if slot.Leader != c.s.opts.NodeID { // 频道所在槽的领导不是当前节点(只有频道所在槽的领导才有权限进行选举)
-		return errors.New("slot leader is not current node")
-	}
-	if clusterConfig.LeaderId != 0 {
-		node := c.s.clusterEventListener.clusterconfigManager.node(clusterConfig.LeaderId)
-		if node == nil {
-			return errors.New("leader node is not found")
-		}
-		if node.Online { // 领导在线，不需要进行选举
-			return nil
-		}
+	if !needElection { // 不需要选举
+		return nil
 	}
 
 	// 检查在线副本是否超过半数
 	if !c.checkOnlineReplicaCount(clusterConfig) {
-		c.Error("online replica count is not enough", zap.Int("onlineReplicaCount", len(clusterConfig.Replicas)), zap.Int("quorum", c.quorum()))
-		return errors.New("online replica count is not enough, checkOnlineReplicaCount failed")
+		c.Error("1checkOnlineReplicaCount: online replica count is not enough", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64s("replicas", clusterConfig.Replicas), zap.Int("onlineReplicaCount", len(clusterConfig.Replicas)), zap.Int("quorum", c.quorum()))
+		return errors.New("1online replica count is not enough, checkOnlineReplicaCount failed")
 	}
 
 	// 获取参选投票频道最后一条消息的索引
@@ -427,7 +446,7 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 		return err
 	}
 	if len(channelLogInfoMap) < c.quorum() {
-		c.Info("online replica count is not enough", zap.Int("onlineReplicaCount", len(channelLogInfoMap)))
+		c.Error("replica count is not enough", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64s("replicas", clusterConfig.Replicas), zap.Int("onlineReplicaCount", len(clusterConfig.Replicas)), zap.Int("quorum", c.quorum()))
 		return errors.New("online replica count is not enough")
 	}
 
@@ -566,7 +585,7 @@ func (c *channelGroupManager) channelLeaderIDByLogInfo(channelLogInfoMap map[uin
 
 // 获取频道最后一条消息的索引
 func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.ChannelClusterConfig) (map[uint64]*ChannelLastLogInfoResponse, error) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	requestGroup, ctx := errgroup.WithContext(timeoutCtx)
 	shardNo := ChannelKey(clusterInfo.ChannelID, clusterInfo.ChannelType)
@@ -598,7 +617,7 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.Ch
 						ChannelType: clusterInfo.ChannelType,
 					})
 					if err != nil {
-						c.Warn("requestChannelLastLogInfo failed", zap.Error(err))
+						c.Warn("requestChannelLastLogInfo failed", zap.Uint64("nodeId", rcID), zap.String("channelId", clusterInfo.ChannelID), zap.Uint8("channelType", clusterInfo.ChannelType), zap.Error(err))
 						return nil
 					}
 					channelLogInfoMap[rcID] = resp

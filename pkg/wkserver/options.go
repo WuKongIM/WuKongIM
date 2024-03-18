@@ -9,7 +9,9 @@ import (
 
 type Options struct {
 	Addr            string
-	RequestPoolSize int
+	RequestPoolSize int  // The size of the request pool, the default is 10000
+	MessagePoolSize int  // The size of the message pool, the default is 10000
+	MessagePoolOn   bool // Whether to open the message pool, the default is true
 	ConnPath        string
 	ClosePath       string
 	RequestTimeout  time.Duration
@@ -25,6 +27,8 @@ func NewOptions() *Options {
 	return &Options{
 		Addr:            "tcp://0.0.0.0:12000",
 		RequestPoolSize: 10000,
+		MessagePoolSize: 1000,
+		MessagePoolOn:   true,
 		ConnPath:        "/conn",
 		ClosePath:       "/close",
 		RequestTimeout:  10 * time.Second,
@@ -45,5 +49,11 @@ func WithRequestTimeout(timeout time.Duration) Option {
 func WithRequestPoolSize(size int) Option {
 	return func(o *Options) {
 		o.RequestPoolSize = size
+	}
+}
+
+func WithMessagePoolSize(size int) Option {
+	return func(o *Options) {
+		o.MessagePoolSize = size
 	}
 }

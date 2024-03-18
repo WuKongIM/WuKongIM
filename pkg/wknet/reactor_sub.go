@@ -25,7 +25,7 @@ type ReactorSub struct {
 	ReadBuffer []byte
 	cache      bytes.Buffer // temporary buffer for scattered bytes
 
-	stopped bool
+	stopped atomic.Bool
 }
 
 // NewReactorSub instantiates a sub reactor.
@@ -56,7 +56,7 @@ func (r *ReactorSub) Start() error {
 
 // Stop stops the sub reactor.
 func (r *ReactorSub) Stop() error {
-	r.stopped = true
+	r.stopped.Store(true)
 	return r.poller.Close()
 }
 
@@ -109,7 +109,7 @@ func (r *ReactorSub) run() {
 		return
 	})
 
-	if err != nil && !r.stopped {
+	if err != nil && !r.stopped.Load() {
 		panic(err)
 	}
 }

@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"container/list"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 )
@@ -9,6 +9,8 @@ import (
 type slotQueue struct {
 	head *slot
 	tail *slot
+
+	mu sync.Mutex
 }
 
 func newSlotQueue() *slotQueue {
@@ -16,6 +18,9 @@ func newSlotQueue() *slotQueue {
 }
 
 func (c *slotQueue) add(st *slot) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.head == nil {
 		c.head = st
 	} else {
@@ -26,6 +31,8 @@ func (c *slotQueue) add(st *slot) {
 }
 
 func (c *slotQueue) remove(st *slot) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if st.prev == nil {
 		c.head = st.next
 	} else {
@@ -57,6 +64,8 @@ func (c *slotQueue) remove(st *slot) {
 // }
 
 func (c *slotQueue) exist(slotId uint32) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for st := c.head; st != nil; st = st.next {
 		if st.slotId == slotId {
 			return true
@@ -66,6 +75,8 @@ func (c *slotQueue) exist(slotId uint32) bool {
 }
 
 func (c *slotQueue) get(slotId uint32) *slot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for st := c.head; st != nil; st = st.next {
 		if st.slotId == slotId {
 			return st
@@ -76,36 +87,11 @@ func (c *slotQueue) get(slotId uint32) *slot {
 
 // 遍历频道
 func (c *slotQueue) foreach(f func(st *slot)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for st := c.head; st != nil; st = st.next {
 		f(st)
 	}
-}
-
-type readySlotQueue struct {
-	queue *list.List
-}
-
-func newReadySlotQueue() *readySlotQueue {
-	return &readySlotQueue{
-		queue: list.New(),
-	}
-}
-
-func (c *readySlotQueue) add(rd slotReady) {
-	c.queue.PushBack(rd)
-}
-
-func (c *readySlotQueue) pop() slotReady {
-	e := c.queue.Front()
-	if e == nil || e.Value == nil {
-		return slotReady{}
-	}
-	c.queue.Remove(e)
-	return e.Value.(slotReady)
-}
-
-func (c readySlotQueue) len() int {
-	return c.queue.Len()
 }
 
 // func (c *readyChannelQueue) remove(rd channelReady) {

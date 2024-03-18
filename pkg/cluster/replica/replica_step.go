@@ -36,7 +36,7 @@ func (r *Replica) Step(m Message) error {
 		// r.messageWait.finish(r.nodeID, MsgApplyLogsReq)
 		if len(m.Logs) > 0 {
 			index := m.Logs[len(m.Logs)-1].Index
-			ls := logsSize(m.Logs)
+			ls := LogsSize(m.Logs)
 			r.replicaLog.appliedTo(index, ls)
 			r.reduceUncommittedSize(ls)
 		}

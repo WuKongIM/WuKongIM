@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -15,7 +16,7 @@ type channelGroup struct {
 	opts    *Options
 	wklog.Log
 	listener *ChannelListener
-	stopped  bool
+	stopped  atomic.Bool
 }
 
 func newChannelGroup(opts *Options) *channelGroup {
@@ -33,7 +34,7 @@ func (g *channelGroup) start() error {
 }
 
 func (g *channelGroup) stop() {
-	g.stopped = true
+	g.stopped.Store(true)
 	g.listener.stop()
 	g.stopper.Stop()
 }
@@ -65,7 +66,7 @@ func (g *channelGroup) step(channelID string, channelType uint8, msg replica.Mes
 }
 
 func (g *channelGroup) listen() {
-	for !g.stopped {
+	for !g.stopped.Load() {
 		ready := g.listener.wait()
 		if ready.channel == nil {
 			continue
@@ -83,9 +84,8 @@ func (g *channelGroup) handleReady(rd channelReady) {
 
 	if !replica.IsEmptyHardState(rd.HardState) {
 		g.Info("设置HardState", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
+		ch.updateClusterConfigLeaderIdAndTerm(rd.HardState.Term, rd.HardState.LeaderId)
 		channelClusterCfg := ch.getClusterConfig()
-		channelClusterCfg.Term = rd.HardState.Term
-		channelClusterCfg.LeaderId = rd.HardState.LeaderId
 		err := g.opts.ChannelClusterStorage.Save(ch.channelID, ch.channelType, channelClusterCfg)
 		if err != nil {
 			g.Panic("save cluster config error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
@@ -107,13 +107,13 @@ func (g *channelGroup) handleReady(rd channelReady) {
 			g.Error("new message error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 			continue
 		}
-		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing {
+		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
 			g.Info("发送消息", zap.Uint64("id", msg.Id), zap.String("msgType", msg.MsgType.String()), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
 		}
 		// 发送消息
 		err = g.opts.Transport.Send(msg.To, protMsg, nil)
 		if err != nil {
-			g.Warn("send msg error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
+			g.Warn("send msg error", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 		}
 	}
 }

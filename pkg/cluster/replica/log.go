@@ -197,12 +197,12 @@ func (r *replicaLog) getLogs(lo, hi uint64, maxSize logEncodingSize) ([]Log, err
 	if uint64(len(logs)) < cut-lo {
 		return logs, nil
 	}
-	size := logsSize(logs)
+	size := LogsSize(logs)
 	if size >= maxSize {
 		return logs, nil
 	}
 	unstable := limitSize(r.unstable.slice(r.unstable.offset, hi), maxSize-size)
-	if len(unstable) == 1 && size+logsSize(unstable) > maxSize {
+	if len(unstable) == 1 && size+LogsSize(unstable) > maxSize {
 		return logs, nil
 	}
 	return extend(logs, unstable), nil

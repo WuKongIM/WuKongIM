@@ -84,11 +84,18 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			s.Error("unmarshal message error", zap.Error(err))
 			return
 		}
-		err = s.requestPool.Submit(func() {
+		if s.opts.MessagePoolOn {
+			err = s.messagePool.Submit(func(cn wknet.Conn, m *proto.Message) func() {
+				return func() {
+					s.handleMessage(cn, m)
+				}
+
+			}(conn, msg))
+			if err != nil {
+				s.Error("submit handleMessage error", zap.Error(err))
+			}
+		} else {
 			s.handleMessage(conn, msg)
-		})
-		if err != nil {
-			s.Error("submit handleMessage error", zap.Error(err))
 		}
 
 	} else {

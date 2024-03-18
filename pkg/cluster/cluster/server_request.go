@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -122,7 +121,6 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 	slotId := s.getChannelSlotId(req.ChannelID)
-	fmt.Println("slotId--->", slotId)
 	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
 		s.Error("slot not found", zap.Uint32("slotId", slotId))

@@ -45,6 +45,8 @@ type ICluster interface {
 	OnMessage(f func(from uint64, msg *proto.Message))
 	// 节点是否在线
 	NodeIsOnline(nodeID uint64) bool
+
+	Monitor() Monitor
 }
 
 func (s *Server) LeaderIdOfChannel(channelID string, channelType uint8) (uint64, error) {
@@ -222,6 +224,10 @@ func (s *Server) ProposeToSlot(slotId uint32, data []byte) error {
 	return s.slotManager.proposeAndWaitCommit(slotId, data)
 }
 
+func (s *Server) Monitor() Monitor {
+	return s.defaultMonitor
+}
+
 // func (s *Server) proposeChannelClusterConfig(config *ChannelClusterConfig) error {
 // 	slotId := s.getChannelSlotId(config.ChannelID)
 // 	data, err := config.Marshal()
@@ -237,3 +243,21 @@ func (s *Server) ProposeToSlot(slotId uint32, data []byte) error {
 // 	}
 // 	return s.ProposeToSlot(slotId, data)
 // }
+
+type Monitor interface {
+	RequestGoroutine() int // 请求协程数
+}
+
+type DefaultMonitor struct {
+	s *Server
+}
+
+func NewDefaultMonitor(s *Server) *DefaultMonitor {
+	return &DefaultMonitor{
+		s: s,
+	}
+}
+
+func (m *DefaultMonitor) RequestGoroutine() int {
+	return m.s.server.RequestPoolRunning()
+}

@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -15,7 +16,7 @@ type slotManager struct {
 	wklog.Log
 
 	listener *slotListener
-	stopped  bool
+	stopped  atomic.Bool
 }
 
 func newSlotManager(opts *Options) *slotManager {
@@ -33,14 +34,14 @@ func (s *slotManager) start() error {
 }
 
 func (s *slotManager) stop() {
-	s.stopped = true
+	s.stopped.Store(true)
 	s.listener.stop()
 	s.stopper.Stop()
 
 }
 
 func (s *slotManager) listen() {
-	for !s.stopped {
+	for !s.stopped.Load() {
 		ready := s.listener.wait()
 		if ready.slot == nil {
 			continue
@@ -83,7 +84,7 @@ func (s *slotManager) handleReady(rd slotReady) {
 			}
 		})
 		if err != nil {
-			s.Warn("send msg error", zap.String("shardNo", shardNo), zap.Error(err))
+			s.Warn("send msg error", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.String("shardNo", shardNo), zap.Error(err))
 		}
 
 	}

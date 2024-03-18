@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -26,13 +27,14 @@ type Server struct {
 	localStorage         *localStorage         // 本地存储 用于存储本地数据
 	server               *wkserver.Server      // 分布式通讯服务
 	stopper              *syncutil.Stopper
-	stopped              bool
+	stopped              atomic.Bool
 	cancelFunc           context.CancelFunc
 	cancelCtx            context.Context
 	onMessageFnc         func(from uint64, msg *proto.Message) // 上层处理消息的函数
 	slotMigrateManager   *slotMigrateManager
 	uptime               time.Time // 启动时间
 	apiPrefix            string    // api前缀
+	defaultMonitor       *DefaultMonitor
 	// 其他
 	opts *Options
 	wklog.Log
@@ -67,6 +69,8 @@ func New(nodeId uint64, opts *Options) *Server {
 		opts.ShardLogStorage = NewPebbleShardLogStorage(path.Join(opts.DataDir, "logdb"))
 	}
 	s.cancelCtx, s.cancelFunc = context.WithCancel(context.Background())
+
+	s.defaultMonitor = NewDefaultMonitor(s)
 
 	return s
 }
@@ -104,12 +108,16 @@ func (s *Server) Start() error {
 		s.handleMessage(from, m)
 	})
 
-	// 开启通讯服务
+	// 监听消息
 	s.server.OnMessage(func(conn wknet.Conn, msg *proto.Message) {
 		from := s.nodeIdByServerUid(conn.UID())
-		s.opts.Transport.RecvMessage(from, msg)
+		s.opts.Transport.RecvMessage(from, msg) // 实际这里是调用了上面的OnMessage（s.opts.Transport.OnMessage），为什么不直掉调用？为了能方便单元测试
 	})
+
+	// 请求路由设置
 	s.setRoutes()
+
+	// 服务开始
 	err = s.server.Start()
 	if err != nil {
 		return err
@@ -164,7 +172,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
-	s.stopped = true
+	s.stopped.Store(true)
 	s.cancelFunc()
 	s.slotMigrateManager.stop()
 	s.server.Stop()
@@ -253,7 +261,7 @@ func (s *Server) joined() bool {
 
 // 监听分布式事件
 func (s *Server) listenClusterEvent() {
-	for !s.stopped {
+	for !s.stopped.Load() {
 		event := s.clusterEventListener.wait()
 		if !IsEmptyClusterEvent(event) {
 			s.handleClusterEvent(event)
@@ -350,7 +358,7 @@ func (s *Server) handleClusterConfigMsg(from uint64, m *proto.Message) {
 	s.clusterEventListener.handleMessage(*cfgMsg)
 }
 
-func (s *Server) handleSlotMsg(from uint64, m *proto.Message) {
+func (s *Server) handleSlotMsg(_ uint64, m *proto.Message) {
 
 	msg, err := UnmarshalMessage(m.Content)
 	if err != nil {
@@ -361,7 +369,7 @@ func (s *Server) handleSlotMsg(from uint64, m *proto.Message) {
 	s.slotManager.handleMessage(slotId, msg.Message)
 }
 
-func (s *Server) handleChannelMsg(from uint64, m *proto.Message) {
+func (s *Server) handleChannelMsg(_ uint64, m *proto.Message) {
 	msg, err := UnmarshalMessage(m.Content)
 	if err != nil {
 		s.Error("unmarshal slot message error", zap.Error(err))

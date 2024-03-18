@@ -209,18 +209,10 @@ func (s *MessageShardLogStorage) AppendLog(shardNo string, logs []replica.Log) e
 		msgs[idx] = msg
 	}
 
-	if IsUserOwnChannel(channelID, channelType) {
-		_, err = s.db.AppendMessagesOfUser(channelID, msgs)
-		if err != nil {
-			s.Error("AppendMessagesOfUser err", zap.Error(err))
-			return err
-		}
-	} else {
-		_, err = s.db.AppendMessages(channelID, channelType, msgs)
-		if err != nil {
-			s.Error("AppendMessages err", zap.Error(err))
-			return err
-		}
+	_, err = s.db.AppendMessages(channelID, channelType, msgs)
+	if err != nil {
+		s.Error("AppendMessages err", zap.Error(err))
+		return err
 	}
 
 	return s.db.SaveChannelMaxMessageSeq(channelID, channelType, uint32(lastLog.Index))
@@ -264,17 +256,11 @@ func (s *MessageShardLogStorage) TruncateLogTo(shardNo string, index uint64) err
 // 最后一条日志的索引
 func (s *MessageShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	channelID, channelType := cluster.ChannelFromChannelKey(shardNo)
-
-	var (
-		msgSeq uint32
-		err    error
-	)
-	if IsUserOwnChannel(channelID, channelType) {
-		msgSeq, err = s.db.GetLastMsgSeqOfUser(channelID)
-	} else {
-		msgSeq, err = s.db.GetLastMsgSeq(channelID, channelType)
+	lastMsgSeq, _, err := s.db.GetChannelMaxMessageSeq(channelID, channelType)
+	if err != nil {
+		return 0, err
 	}
-	return uint64(msgSeq), err
+	return uint64(lastMsgSeq), nil
 
 }
 

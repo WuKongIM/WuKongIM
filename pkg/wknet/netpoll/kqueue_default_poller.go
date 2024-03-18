@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
@@ -21,7 +22,7 @@ import (
 type Poller struct {
 	fd int
 	wklog.Log
-	shutdown bool
+	shutdown atomic.Bool
 	name     string
 }
 
@@ -53,8 +54,8 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 		ts  unix.Timespec // 超时
 		tsp *unix.Timespec
 	)
-	p.shutdown = false
-	for !p.shutdown {
+	p.shutdown.Store(false)
+	for !p.shutdown.Load() {
 		n, err := unix.Kevent(p.fd, nil, el.events, tsp)
 		if n == 0 || (n < 0 && err == unix.EINTR) {
 			tsp = nil
@@ -76,7 +77,6 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 				triggerWrite = evt.Filter&syscall.EVFILT_WRITE == syscall.EVFILT_WRITE
 				triggerHup = evt.Flags&syscall.EV_EOF != 0
 
-				// fmt.Println("triggerRead---->", triggerRead, "triggerWrite---->", triggerWrite, "triggerHup---->", triggerHup, "fd---->", p.fd)
 				if triggerHup {
 					pollEvent = PollEventClose
 				} else if triggerRead {
@@ -157,7 +157,7 @@ func (p *Poller) Delete(fd int) error {
 }
 
 func (p *Poller) Close() error {
-	p.shutdown = true
+	p.shutdown.Store(true)
 	p.trigger()
 	return p.close()
 }

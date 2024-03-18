@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
@@ -20,6 +21,8 @@ type clusterconfigManager struct {
 	opts                *Options
 	stopper             *syncutil.Stopper
 	onMessage           func(m clusterconfig.Message)
+
+	mu sync.RWMutex
 	wklog.Log
 }
 
@@ -549,8 +552,11 @@ func (c *clusterconfigManager) allowVoteNodes() []*pb.Node {
 }
 
 func (c *clusterconfigManager) handleMessage(m clusterconfig.Message) {
-	if c.onMessage != nil {
-		c.onMessage(m)
+	c.mu.Lock()
+	onMsg := c.onMessage
+	c.mu.Unlock()
+	if onMsg != nil {
+		onMsg(m)
 	}
 }
 
@@ -564,6 +570,8 @@ func (c *clusterconfigManager) Send(m clusterconfig.Message) error {
 }
 
 func (c *clusterconfigManager) OnMessage(f func(m clusterconfig.Message)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.onMessage = f
 }
 

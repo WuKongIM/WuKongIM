@@ -14,19 +14,17 @@ type ChannelListener struct {
 	readyCh  chan channelReady
 	stopper  *syncutil.Stopper
 	// 已准备的频道
-	readyChannels *readyChannelQueue
-	opts          *Options
+	opts *Options
 	wklog.Log
 }
 
 func NewChannelListener(opts *Options) *ChannelListener {
 	return &ChannelListener{
-		channels:      newChannelQueue(),
-		readyChannels: newReadyChannelQueue(),
-		readyCh:       make(chan channelReady, 100),
-		stopper:       syncutil.NewStopper(),
-		opts:          opts,
-		Log:           wklog.NewWKLog("ChannelListener"),
+		channels: newChannelQueue(),
+		readyCh:  make(chan channelReady, 100),
+		stopper:  syncutil.NewStopper(),
+		opts:     opts,
+		Log:      wklog.NewWKLog("ChannelListener"),
 	}
 }
 
@@ -112,5 +110,5 @@ func (c *ChannelListener) triggerReady(ready channelReady) {
 
 // 判断是否是不活跃的频道
 func (c *ChannelListener) isInactiveChannel(channel *channel) bool {
-	return channel.isDestroy() || channel.lastActivity.Add(c.opts.ChannelInactiveTimeout).Before(time.Now())
+	return channel.isDestroy() || channel.lastActivity.Load().Add(c.opts.ChannelInactiveTimeout).Before(time.Now())
 }

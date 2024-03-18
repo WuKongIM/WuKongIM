@@ -32,8 +32,9 @@ type Client struct {
 
 	routeMapLock sync.RWMutex
 	routeMap     map[string]Handler
-	lastActivity time.Time // 最后一次活动时间
+	lastActivity atomic.Time // 最后一次活动时间
 
+	pingLock  sync.Mutex
 	pingTimer *time.Timer
 
 	connectStatus   atomic.Uint32
@@ -85,15 +86,15 @@ func (c *Client) Close() error {
 
 // LastActivity 最后一次活动时间
 func (c *Client) LastActivity() time.Time {
-	return c.lastActivity
+	return c.lastActivity.Load()
 }
 
 func (c *Client) SetActivity(t time.Time) {
-	c.lastActivity = t
+	c.lastActivity.Store(t)
 }
 
 func (c *Client) keepActivity() {
-	c.lastActivity = time.Now()
+	c.lastActivity.Store(time.Now())
 }
 
 func (c *Client) run(connectChan chan struct{}) {
@@ -105,6 +106,7 @@ func (c *Client) run(connectChan chan struct{}) {
 		if c.forceDisconnect {
 			return
 		}
+
 		c.running.Store(true)
 		c.disconnect()
 		// 建立连接
@@ -116,7 +118,7 @@ func (c *Client) run(connectChan chan struct{}) {
 			continue
 		}
 		c.conn = conn
-		c.lastActivity = time.Now()
+		c.lastActivity.Store(time.Now())
 		c.outbound = NewOutbound(c.conn, NewOutboundOptions())
 		c.outbound.Start()
 		err = c.handshake()
@@ -138,8 +140,9 @@ func (c *Client) run(connectChan chan struct{}) {
 }
 
 func (c *Client) startHeartbeat() {
+	c.pingLock.Lock()
+	defer c.pingLock.Unlock()
 	c.pingTimer = time.AfterFunc(c.opts.HeartbeatInterval, c.processPingTimer)
-
 }
 
 func (c *Client) stopHeartbeat() {
@@ -152,16 +155,17 @@ func (c *Client) processPingTimer() {
 	if c.connectStatus.Load() != uint32(CONNECTED) {
 		return
 	}
-	if c.lastActivity.Add(c.opts.HeartbeatInterval * 3).Before(time.Now()) {
+	if c.lastActivity.Load().Add(c.opts.HeartbeatInterval * 3).Before(time.Now()) {
 		if c.forceDisconnect {
 			return
 		}
-		fmt.Println("reconnect....start")
 		c.disconnect()
 		return
 	}
 	c.sendHeartbeat()
+	c.pingLock.Lock()
 	c.pingTimer.Reset(c.opts.HeartbeatInterval)
+	c.pingLock.Unlock()
 }
 
 func (c *Client) handshake() error {
@@ -279,7 +283,7 @@ func (c *Client) Flush() {
 }
 
 func (c *Client) handleData(data []byte, msgType proto.MsgType) {
-	c.lastActivity = time.Now()
+	c.lastActivity.Store(time.Now())
 	if msgType == proto.MsgTypeRequest {
 		req := &proto.Request{}
 		err := req.Unmarshal(data)
@@ -405,6 +409,9 @@ func (c *Client) Route(p string, h Handler) {
 }
 
 func (c *Client) Send(m *proto.Message) error {
+	if c.connectStatus.Load() != uint32(CONNECTED) {
+		return errors.New("connect is not connected")
+	}
 	msgData, err := m.Marshal()
 	if err != nil {
 		return err
@@ -421,6 +428,9 @@ func (c *Client) Send(m *proto.Message) error {
 }
 
 func (c *Client) SendNoFlush(m *proto.Message) error {
+	if c.connectStatus.Load() != uint32(CONNECTED) {
+		return errors.New("connect is not connected")
+	}
 	msgData, err := m.Marshal()
 	if err != nil {
 		return err
