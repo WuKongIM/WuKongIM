@@ -20,12 +20,12 @@ import (
 // }
 
 type connContext struct {
-	isDisableRead  bool
-	conn           wknet.Conn
-	frameCacheLock sync.RWMutex
-	frameCaches    []wkproto.Frame
-	s              *Server
-	inflightCount  int // frame inflight count
+	isDisableRead bool
+	conn          wknet.Conn
+	mu            sync.RWMutex
+	frameCaches   []wkproto.Frame
+	s             *Server
+	inflightCount int // frame inflight count
 	wklog.Log
 
 	subscriberInfos    map[string]*wkstore.SubscribeInfo // 订阅的频道数据, key: channel, value: SubscriberInfo
@@ -35,7 +35,7 @@ type connContext struct {
 func newConnContext(s *Server) *connContext {
 	c := &connContext{
 		s:               s,
-		frameCacheLock:  sync.RWMutex{},
+		mu:              sync.RWMutex{},
 		Log:             wklog.NewWKLog("connContext"),
 		subscriberInfos: make(map[string]*wkstore.SubscribeInfo),
 	}
@@ -43,8 +43,8 @@ func newConnContext(s *Server) *connContext {
 }
 
 func (c *connContext) putFrame(frame wkproto.Frame) {
-	c.frameCacheLock.Lock()
-	defer c.frameCacheLock.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.inflightCount++
 	c.frameCaches = append(c.frameCaches, frame)
@@ -54,8 +54,8 @@ func (c *connContext) putFrame(frame wkproto.Frame) {
 }
 
 func (c *connContext) popFrames() []wkproto.Frame {
-	c.frameCacheLock.RLock()
-	defer c.frameCacheLock.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	newFrames := c.frameCaches[:]
 	// copy(newFrames, c.frameCaches)
 	c.frameCaches = make([]wkproto.Frame, 0, 250)
@@ -64,8 +64,8 @@ func (c *connContext) popFrames() []wkproto.Frame {
 }
 
 func (c *connContext) finishFrames(count int) {
-	c.frameCacheLock.RLock()
-	defer c.frameCacheLock.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.inflightCount -= count
 	if c.s.opts.UserMsgQueueMaxSize > 0 && int(c.inflightCount) <= c.s.opts.UserMsgQueueMaxSize {
 		c.enableRead()
@@ -138,6 +138,8 @@ func (c *connContext) init() {
 }
 
 func (c *connContext) release() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.inflightCount = 0
 	c.Log = nil
 	c.isDisableRead = false

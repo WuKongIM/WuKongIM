@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
@@ -27,6 +28,7 @@ type clusterEventListener struct {
 	opts                 *Options
 	msgs                 []EventMessage
 	wklog.Log
+	mu sync.Mutex
 }
 
 func newClusterEventListener(opts *Options) *clusterEventListener {
@@ -35,7 +37,7 @@ func newClusterEventListener(opts *Options) *clusterEventListener {
 		localCfgPath:  localCfgPath,
 		Log:           wklog.NewWKLog("ClusterEventListener"),
 		stopper:       syncutil.NewStopper(),
-		clusterEventC: make(chan ClusterEvent),
+		clusterEventC: make(chan ClusterEvent, 100),
 		localConfg:    &pb.Config{},
 		opts:          opts,
 	}
@@ -132,6 +134,8 @@ func (c *clusterEventListener) advance() {
 }
 
 func (c *clusterEventListener) checkLocalClusterEvent() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if len(c.msgs) > 0 { // 还有事件没处理掉，不再检查
 		return
 	}
@@ -365,6 +369,8 @@ func (c *clusterEventListener) triggerClusterEvent(event ClusterEvent) {
 }
 
 func (c *clusterEventListener) acceptedEvent() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.msgs = nil
 }
 

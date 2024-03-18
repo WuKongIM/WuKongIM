@@ -14,20 +14,18 @@ type slotListener struct {
 	opts  *Options
 	slots *slotQueue
 	// 已准备的槽
-	readySlots *readySlotQueue
-	stopper    *syncutil.Stopper
-	readyCh    chan slotReady
+	stopper *syncutil.Stopper
+	readyCh chan slotReady
 	wklog.Log
 }
 
 func newSlotListener(opts *Options) *slotListener {
 	return &slotListener{
-		opts:       opts,
-		slots:      newSlotQueue(),
-		readySlots: newReadySlotQueue(),
-		stopper:    syncutil.NewStopper(),
-		readyCh:    make(chan slotReady),
-		Log:        wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
+		opts:    opts,
+		slots:   newSlotQueue(),
+		stopper: syncutil.NewStopper(),
+		readyCh: make(chan slotReady),
+		Log:     wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
 	}
 }
 

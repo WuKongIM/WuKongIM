@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -21,8 +22,8 @@ type slot struct {
 	shardNo string
 	wklog.Log
 	opts         *Options
-	destroy      bool      // 是否已经销毁
-	lastActivity time.Time // 最后一次活跃时间
+	destroy      bool        // 是否已经销毁
+	lastActivity atomic.Time // 最后一次活跃时间
 	commitWait   *commitWait
 	localstorage *localStorage
 
@@ -41,7 +42,7 @@ func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *O
 	} else {
 		rc.BecomeFollower(st.Term, st.Leader)
 	}
-	return &slot{
+	stobj := &slot{
 		slotId:       st.Id,
 		shardNo:      shardNo,
 		rc:           rc,
@@ -49,9 +50,10 @@ func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *O
 		commitWait:   newCommitWait(),
 		opts:         opts,
 		doneC:        make(chan struct{}),
-		lastActivity: time.Now(),
 		localstorage: localstorage,
 	}
+	stobj.lastActivity.Store(time.Now())
+	return stobj
 }
 
 func (s *slot) BecomeAny(term uint32, leaderId uint64) {
@@ -175,7 +177,7 @@ func (s *slot) step(msg replica.Message) error {
 	if s.destroy {
 		return errors.New("slot destroy, can not step")
 	}
-	s.lastActivity = time.Now()
+	s.lastActivity.Store(time.Now())
 	return s.rc.Step(msg)
 }
 
@@ -201,7 +203,7 @@ func (s *slot) handleLocalMsg(msg replica.Message) {
 		s.Warn("handle local msg, but msg to is not self", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint64("self", s.opts.NodeID))
 		return
 	}
-	s.lastActivity = time.Now()
+	s.lastActivity.Store(time.Now())
 	switch msg.MsgType {
 	case replica.MsgStoreAppend: // 处理日志追加到存储内
 		s.handleStoreAppend(msg)

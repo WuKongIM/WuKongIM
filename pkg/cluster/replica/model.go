@@ -10,7 +10,7 @@ import (
 
 type logEncodingSize uint64
 
-func logsSize(logs []Log) logEncodingSize {
+func LogsSize(logs []Log) logEncodingSize {
 	var size logEncodingSize
 	for _, log := range logs {
 		size += logEncodingSize(log.LogSize())

@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -20,6 +21,7 @@ type Server struct {
 	recvc         chan Message
 	stopper       *syncutil.Stopper
 	commitWait    *commitWait
+	leaderId      atomic.Uint64
 	wklog.Log
 }
 
@@ -100,7 +102,8 @@ func (s *Server) Step(ctx context.Context, m Message) error {
 }
 
 func (s *Server) IsLeader() bool {
-	return s.node.isLeader()
+
+	return s.leaderId.Load() == s.opts.NodeId
 }
 
 func (s *Server) IsSingleNode() bool {
@@ -193,7 +196,6 @@ func (s *Server) handleApplyReq(m Message) {
 
 func (s *Server) run() {
 	var rd Ready
-	leader := None
 	var err error
 	tick := time.NewTicker(time.Millisecond * 200)
 	for {
@@ -203,9 +205,9 @@ func (s *Server) run() {
 		} else {
 			rd = EmptyReady
 		}
-		if leader != s.node.state.leader {
+		if s.leaderId.Load() != s.node.state.leader {
 			if s.node.HasLeader() {
-				if leader == None {
+				if s.leaderId.Load() == None {
 					s.Info("elected leader", zap.Uint32("term", s.node.state.term), zap.Uint64("leader", s.node.state.leader))
 				} else {
 					s.Info("changed leader", zap.Uint32("term", s.node.state.term), zap.Uint64("leader", s.node.state.leader))
@@ -213,7 +215,7 @@ func (s *Server) run() {
 			} else {
 				s.Info("lost leader", zap.Uint32("term", s.node.state.term), zap.Uint64("leader", s.node.state.leader))
 			}
-			leader = s.node.state.leader
+			s.leaderId.Store(s.node.state.leader)
 		}
 		if !IsEmptyReady(rd) {
 			for _, msg := range rd.Messages {

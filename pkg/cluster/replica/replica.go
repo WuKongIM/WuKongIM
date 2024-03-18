@@ -329,7 +329,6 @@ func (r *Replica) putMsgIfNeed() {
 
 		// }
 		logs := r.replicaLog.nextApplyLogs()
-		fmt.Println("putMsgIfNeed.....", r.shardNo, len(logs))
 
 		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, r.replicaLog.committedIndex, logs))
 	}
@@ -350,7 +349,7 @@ func (r *Replica) acceptReady(rd Ready) {
 	if len(applyMsg.Logs) > 0 {
 		logs := applyMsg.Logs
 		index := logs[len(logs)-1].Index
-		r.replicaLog.acceptApplying(index, logsSize(logs))
+		r.replicaLog.acceptApplying(index, LogsSize(logs))
 	}
 }
 

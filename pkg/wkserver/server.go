@@ -24,6 +24,7 @@ type Server struct {
 	routeMap     map[string]Handler
 	wklog.Log
 	requestPool *ants.Pool
+	messagePool *ants.Pool
 	reqIDGen    *idutil.Generator
 	w           wait.Wait
 	connManager *ConnManager
@@ -57,6 +58,14 @@ func New(addr string, ops ...Option) *Server {
 	if err != nil {
 		s.Panic("new request pool error", zap.Error(err))
 	}
+	s.requestPool = requestPool
+
+	messagePool, err := ants.NewPool(opts.MessagePoolSize)
+	if err != nil {
+		s.Panic("new message pool error", zap.Error(err))
+	}
+	s.messagePool = messagePool
+
 	s.routeMap[opts.ConnPath] = func(ctx *Context) {
 		req := ctx.ConnReq()
 		if req == nil {
@@ -68,7 +77,7 @@ func New(addr string, ops ...Option) *Server {
 		})
 
 	}
-	s.requestPool = requestPool
+
 	return s
 }
 
@@ -115,6 +124,10 @@ func (s *Server) Addr() net.Addr {
 
 func (s *Server) Options() *Options {
 	return s.opts
+}
+
+func (s *Server) RequestPoolRunning() int {
+	return s.requestPool.Running()
 }
 
 type everyScheduler struct {

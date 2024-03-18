@@ -27,8 +27,6 @@ type topic struct {
 	sync.RWMutex
 	lastMsgSeq atomic.Uint32
 
-	getSegmentLock sync.RWMutex
-
 	streamCache  *lru.Cache[string, *Stream]
 	segmentCache *lru.Cache[string, *segment]
 }
@@ -354,8 +352,8 @@ func (t *topic) calcBaseMessageSeq(messageSeq uint32) (uint32, error) {
 
 func (t *topic) getSegment(baseMessageSeq uint32, mode SegmentMode) *segment {
 
-	t.getSegmentLock.Lock()
-	defer t.getSegmentLock.Unlock()
+	t.cfg.segmentCacheLock.Lock()
+	defer t.cfg.segmentCacheLock.Unlock()
 	key := t.getSegmentCacheKey(baseMessageSeq)
 	seg, _ := t.segmentCache.Get(key)
 	if seg != nil {

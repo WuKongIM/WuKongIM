@@ -71,21 +71,24 @@ func CreateVarz(s *Server) *Varz {
 	retryQueueF := math.Max(float64(len(s.retryQueue.inFlightMessages)), float64(len(s.retryQueue.inFlightPQ)))
 	s.retryQueue.inFlightMutex.Unlock()
 	goroutine := runtime.NumGoroutine()
+
+	requestGoroutine := s.cluster.Monitor().RequestGoroutine()
 	return &Varz{
-		ServerID:    fmt.Sprintf("%d", opts.Cluster.NodeId),
-		ServerName:  "WuKongIM",
-		Version:     version.Version,
-		Connections: connCount,
-		Uptime:      myUptime(time.Since(s.start)),
-		CPU:         pcpu,
-		Mem:         rss,
-		Goroutine:   goroutine,
-		InMsgs:      s.inMsgs.Load(),
-		OutMsgs:     s.outMsgs.Load(),
-		InBytes:     s.inBytes.Load(),
-		OutBytes:    s.outBytes.Load(),
-		SlowClients: s.slowClients.Load(),
-		RetryQueue:  int64(retryQueueF),
+		ServerID:            fmt.Sprintf("%d", opts.Cluster.NodeId),
+		ServerName:          "WuKongIM",
+		Version:             version.Version,
+		Connections:         connCount,
+		Uptime:              myUptime(time.Since(s.start)),
+		CPU:                 pcpu,
+		Mem:                 rss,
+		Goroutine:           goroutine,
+		ClusterReqGoroutine: requestGoroutine,
+		InMsgs:              s.inMsgs.Load(),
+		OutMsgs:             s.outMsgs.Load(),
+		InBytes:             s.inBytes.Load(),
+		OutBytes:            s.outBytes.Load(),
+		SlowClients:         s.slowClients.Load(),
+		RetryQueue:          int64(retryQueueF),
 
 		TCPAddr:        opts.External.TCPAddr,
 		WSAddr:         opts.External.WSAddr,
@@ -102,14 +105,15 @@ func CreateVarz(s *Server) *Varz {
 }
 
 type Varz struct {
-	ServerID    string  `json:"server_id"`   // 服务端ID
-	ServerName  string  `json:"server_name"` // 服务端名称
-	Version     string  `json:"version"`     // 服务端版本
-	Connections int     `json:"connections"` // 当前连接数量
-	Uptime      string  `json:"uptime"`      // 上线时间
-	Mem         int64   `json:"mem"`         // 内存
-	CPU         float64 `json:"cpu"`         // cpu
-	Goroutine   int     `json:"goroutine"`   // goroutine数量
+	ServerID            string  `json:"server_id"`             // 服务端ID
+	ServerName          string  `json:"server_name"`           // 服务端名称
+	Version             string  `json:"version"`               // 服务端版本
+	Connections         int     `json:"connections"`           // 当前连接数量
+	Uptime              string  `json:"uptime"`                // 上线时间
+	Mem                 int64   `json:"mem"`                   // 内存
+	CPU                 float64 `json:"cpu"`                   // cpu
+	Goroutine           int     `json:"goroutine"`             // goroutine数量
+	ClusterReqGoroutine int     `json:"cluster_req_goroutine"` // 分布式请求goroutine数量
 
 	InMsgs      int64 `json:"in_msgs"`      // 流入消息数量
 	OutMsgs     int64 `json:"out_msgs"`     // 流出消息数量
