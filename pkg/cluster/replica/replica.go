@@ -284,11 +284,6 @@ func (r *Replica) HasReady() bool {
 // 放入消息
 func (r *Replica) putMsgIfNeed() {
 
-	// if r.lastPutMsg.Add(r.opts.PutMsgInterval).After(time.Now()) {
-	// 	fmt.Println("putMsgIfNeed.....", r.shardNo)
-	// 	return
-	// }
-
 	if r.disabledToSync {
 		if !r.IsLeader() && !r.messageWait.has(r.leader, MsgLeaderTermStartIndexReq) {
 			seq := r.messageWait.next(r.leader, MsgLeaderTermStartIndexReq)
@@ -312,24 +307,7 @@ func (r *Replica) putMsgIfNeed() {
 	}
 
 	if r.hasUnapplyLogs() {
-		// start := r.state.appliedIndex + 1
-		// end := r.state.committedIndex + 1
-		// logs, err := r.opts.Storage.Logs(r.state.appliedIndex+1, r.state.committedIndex+1, r.opts.SyncLimit)
-		// if err != nil {
-		// 	lastIndex, _ := r.opts.Storage.LastIndex()
-		// 	r.Error("get logs failed", zap.Error(err), zap.Uint64("start", start), zap.Uint64("end", end), zap.Uint64("lastIndex", lastIndex))
-		// 	return
-		// }
-		// if len(logs) == 0 {
-		// 	lastIndex, _ := r.opts.Storage.LastIndex()
-		// 	r.Error("get unapply logs failed", zap.Error(err), zap.Uint64("lastIndex", lastIndex), zap.Uint64("startLogIndex", start), zap.Uint64("endLogIndex", end))
-		// 	return
-		// }
-		// if len(logs) > 0 {
-
-		// }
 		logs := r.replicaLog.nextApplyLogs()
-
 		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, r.replicaLog.committedIndex, logs))
 	}
 
@@ -391,24 +369,6 @@ func (r *Replica) reduceUncommittedSize(s logEncodingSize) {
 		r.uncommittedSize -= s
 	}
 }
-
-// func (r *Replica) newNotifySyncMsgs() []Message {
-// 	var msgs []Message
-// 	for _, replicaID := range r.replicas {
-// 		if replicaID == r.nodeID {
-// 			continue
-// 		}
-// 		syncInfo := r.lastSyncInfoMap[replicaID]
-// 		if syncInfo != nil {
-// 			if syncInfo.LastSyncLogIndex > r.state.lastLogIndex { // 如果副本已经同步到最后一条日志，那么不需要继续同步
-// 				continue
-// 			}
-// 		}
-// 		seq := r.messageWait.next(replicaID, MsgNotifySync)
-// 		msgs = append(msgs, r.newNotifySyncMsg(seq, replicaID))
-// 	}
-// 	return msgs
-// }
 
 func (r *Replica) newApplyLogReqMsg(appliedIndex, committedIndex uint64, logs []Log) Message {
 

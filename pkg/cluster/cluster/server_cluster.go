@@ -246,6 +246,7 @@ func (s *Server) Monitor() Monitor {
 
 type Monitor interface {
 	RequestGoroutine() int // 请求协程数
+	MessageGoroutine() int // 消息处理协程数
 }
 
 type DefaultMonitor struct {
@@ -260,4 +261,8 @@ func NewDefaultMonitor(s *Server) *DefaultMonitor {
 
 func (m *DefaultMonitor) RequestGoroutine() int {
 	return m.s.server.RequestPoolRunning()
+}
+
+func (m *DefaultMonitor) MessageGoroutine() int {
+	return m.s.server.MessagePoolRunning()
 }

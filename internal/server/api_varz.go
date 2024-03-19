@@ -73,6 +73,7 @@ func CreateVarz(s *Server) *Varz {
 	goroutine := runtime.NumGoroutine()
 
 	requestGoroutine := s.cluster.Monitor().RequestGoroutine()
+	messageGoroutine := s.cluster.Monitor().MessageGoroutine()
 	return &Varz{
 		ServerID:            fmt.Sprintf("%d", opts.Cluster.NodeId),
 		ServerName:          "WuKongIM",
@@ -83,6 +84,7 @@ func CreateVarz(s *Server) *Varz {
 		Mem:                 rss,
 		Goroutine:           goroutine,
 		ClusterReqGoroutine: requestGoroutine,
+		ClusterMsgGoroutine: messageGoroutine,
 		InMsgs:              s.inMsgs.Load(),
 		OutMsgs:             s.outMsgs.Load(),
 		InBytes:             s.inBytes.Load(),
@@ -114,6 +116,7 @@ type Varz struct {
 	CPU                 float64 `json:"cpu"`                   // cpu
 	Goroutine           int     `json:"goroutine"`             // goroutine数量
 	ClusterReqGoroutine int     `json:"cluster_req_goroutine"` // 分布式请求goroutine数量
+	ClusterMsgGoroutine int     `json:"cluster_msg_goroutine"` // 分布式消息goroutine数量
 
 	InMsgs      int64 `json:"in_msgs"`      // 流入消息数量
 	OutMsgs     int64 `json:"out_msgs"`     // 流出消息数量

@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/lni/goutils/netutil"
+	circuit "github.com/lni/goutils/netutil/rubyist/circuitbreaker"
+	"github.com/lni/goutils/syncutil"
+	"go.uber.org/zap"
 )
 
 type node struct {
@@ -15,25 +20,43 @@ type node struct {
 	addr            string
 	client          *client.Client
 	activityTimeout time.Duration // 活动超时时间，如果这个时间内没有活动，就表示节点已下线
+
+	breaker             *circuit.Breaker
+	sendQueue           sendQueue
+	stopper             *syncutil.Stopper
+	maxMessageBatchSize uint64 // 每次发送消息的最大大小（单位字节）
+	wklog.Log
 }
 
-func newNode(id uint64, uid string, addr string) *node {
+func newNode(id uint64, uid string, addr string, sendQueueLen int, maxSendQueueSize, maxMessageBatchSize uint64) *node {
 	cli := client.New(addr, client.WithUID(uid))
 
 	return &node{
-		id:              id,
-		addr:            addr,
-		client:          cli,
-		activityTimeout: time.Minute * 2, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
+		id:                  id,
+		addr:                addr,
+		client:              cli,
+		activityTimeout:     time.Minute * 2, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
+		breaker:             netutil.NewBreaker(),
+		stopper:             syncutil.NewStopper(),
+		maxMessageBatchSize: maxMessageBatchSize,
+		Log:                 wklog.NewWKLog(fmt.Sprintf("nodeClient[%d]", id)),
+		sendQueue: sendQueue{
+			ch: make(chan *proto.Message, sendQueueLen),
+			rl: NewRateLimiter(maxSendQueueSize),
+		},
 	}
 }
 
 func (n *node) start() {
+	n.stopper.RunWorker(n.processMessages)
+
 	n.client.SetActivity(time.Now())
 	n.client.Start()
+
 }
 
 func (n *node) stop() {
+	n.stopper.Stop()
 	n.client.Close()
 }
 
@@ -42,7 +65,61 @@ func (n *node) online() bool {
 }
 
 func (n *node) send(msg *proto.Message) error {
-	return n.client.Send(msg)
+	if !n.breaker.Ready() { // 断路器，防止雪崩
+		return errCircuitBreakerNotReady
+	}
+	if n.sendQueue.rateLimited() { // 发送队列限流
+		return errRateLimited
+	}
+	n.sendQueue.increase(msg)
+
+	select {
+	case n.sendQueue.ch <- msg:
+		return nil
+	default:
+		n.sendQueue.decrease(msg)
+		return errChanIsFull
+	}
+}
+
+func (n *node) processMessages() {
+
+	size := uint64(0)
+	msgs := make([]*proto.Message, 0)
+	var err error
+	for {
+		select {
+		case msg := <-n.sendQueue.ch:
+			n.sendQueue.decrease(msg)
+			size += uint64(msg.Size())
+			msgs = append(msgs, msg)
+
+			// 取出所有消息并取出的消息总大小不超过maxMessageBatchSize
+			for done := false; !done && size < n.maxMessageBatchSize; {
+				select {
+				case msg = <-n.sendQueue.ch:
+					n.sendQueue.decrease(msg)
+					size += uint64(msg.Size())
+					msgs = append(msgs, msg)
+				case <-n.stopper.ShouldStop():
+					return
+				default:
+					done = true
+				}
+			}
+			if err = n.sendBatch(msgs); err != nil {
+				n.Error("sendBatch is failed", zap.Error(err))
+			}
+			size = 0
+			msgs = msgs[:0]
+		case <-n.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (n *node) sendBatch(msgs []*proto.Message) error {
+	return n.client.SendBatch(msgs)
 }
 
 func (n *node) requestWithContext(ctx context.Context, path string, body []byte) (*proto.Response, error) {
@@ -209,4 +286,23 @@ func (n *node) requestSlotMigrateFinished(ctx context.Context, req *SlotMigrateF
 		return fmt.Errorf("requestSlotMigrateFinished is failed, status:%d", resp.Status)
 	}
 	return nil
+}
+
+type sendQueue struct {
+	ch chan *proto.Message
+	rl *RateLimiter
+}
+
+func (sq *sendQueue) rateLimited() bool {
+	return sq.rl.RateLimited()
+}
+
+func (sq *sendQueue) increase(msg *proto.Message) {
+
+	sq.rl.Increase(uint64(msg.Size()))
+}
+
+func (sq *sendQueue) decrease(msg *proto.Message) {
+
+	sq.rl.Decrease(uint64(msg.Size()))
 }

@@ -27,3 +27,9 @@ func myUptime(d time.Duration) string {
 	}
 	return fmt.Sprintf("%ds", tsecs)
 }
+
+var (
+	errCircuitBreakerNotReady error = fmt.Errorf("circuit breaker not ready")
+	errRateLimited                  = fmt.Errorf("rate limited")
+	errChanIsFull                   = fmt.Errorf("channel is full")
+)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -376,10 +377,17 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 		channelSendPacketMap[channelKey] = channelSendpackets
 	}
 
+	ctx, span := p.s.trace.StartSpan(p.s.ctx, "processMsgs")
+	defer span.End()
+
+	span.SetInt64("connID", conn.ID())
+	span.SetString("uid", conn.UID())
+	span.SetString("deviceID", conn.DeviceID())
+
 	// ########## process message for channel ##########
 	for _, sendPackets := range channelSendPacketMap {
 		firstSendPacket := sendPackets[0]
-		channelSendackPackets, err := p.prcocessChannelMessages(conn, firstSendPacket.ChannelID, firstSendPacket.ChannelType, sendPackets)
+		channelSendackPackets, err := p.prcocessChannelMessages(ctx, conn, firstSendPacket.ChannelID, firstSendPacket.ChannelType, sendPackets)
 		if err != nil {
 			p.Error("process channel messages err", zap.Error(err))
 		}
@@ -393,9 +401,9 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 
 }
 
-func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
+func (p *Processor) prcocessChannelMessages(ctx context.Context, conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
 	if !p.s.opts.ClusterOn() { // 集群模式
-		return p.prcocessChannelMessagesForLocal(conn, channelID, channelType, sendPackets)
+		return p.prcocessChannelMessagesForLocal(ctx, conn, channelID, channelType, sendPackets)
 	}
 	var (
 		fakeChannelID = channelID
@@ -405,20 +413,21 @@ func (p *Processor) prcocessChannelMessages(conn wknet.Conn, channelID string, c
 	}
 
 	// 如果频道在本节点上那么就本地处理，如果不在此节点上那么就转发给所属的节点
-	isLeader, err := p.s.cluster.IsSlotLeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
+	leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
 	if err != nil {
 		p.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
-	if isLeader {
-		return p.prcocessChannelMessagesForLocal(conn, channelID, channelType, sendPackets)
+	if leaderInfo.Id == p.s.opts.Cluster.NodeId {
+		return p.prcocessChannelMessagesForLocal(ctx, conn, channelID, channelType, sendPackets)
 	} else {
-		return p.forwardSendPackets(conn, channelID, channelType, sendPackets)
+
+		return p.forwardSendPackets(ctx, conn, channelID, channelType, sendPackets)
 	}
 }
 
 // 处理频道消息
-func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
+func (p *Processor) forwardSendPackets(ctx context.Context, conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
 	var (
 		fakeChannelID  = channelID
 		sendackPackets = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
@@ -458,6 +467,16 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 	if len(sendPacketDatas) == 0 {
 		return sendackPackets, nil
 	}
+
+	_, span := p.s.trace.StartSpan(ctx, "forwardSendPackets")
+	span.SetString("channelID", channelID)
+	span.SetUint8("channelType", channelType)
+	span.SetUint64("leaderID", leaderInfo.Id)
+	defer span.End()
+
+	spanID := span.SpanContext().SpanID()
+	traceID := span.SpanContext().TraceID()
+
 	resp, err := p.s.forwardSendPacketReq(leaderInfo.Id, &rpc.ForwardSendPacketReq{
 		ChannelID:    channelID,
 		ChannelType:  uint32(channelType),
@@ -466,6 +485,8 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 		ProtoVersion: uint32(conn.ProtoVersion()),
 		DeviceFlag:   uint32(conn.DeviceFlag()),
 		DeviceID:     conn.DeviceID(),
+		TraceID:      traceID[:],
+		SpanID:       spanID[:],
 	})
 	if err != nil {
 		p.Error("forward send packet err", zap.Uint64("leaderId", leaderInfo.Id), zap.Error(err))
@@ -496,7 +517,7 @@ func (p *Processor) forwardSendPackets(conn wknet.Conn, channelID string, channe
 	return sendackPackets, nil
 }
 
-func (p *Processor) prcocessChannelMessagesForLocal(conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
+func (p *Processor) prcocessChannelMessagesForLocal(ctx context.Context, conn wknet.Conn, channelID string, channelType uint8, sendPackets []*wkproto.SendPacket) ([]wkproto.Frame, error) {
 	var (
 		sendackPackets        = make([]wkproto.Frame, 0, len(sendPackets)) // response sendack packets
 		messages              = make([]*Message, 0, len(sendPackets))      // recv packets
@@ -612,7 +633,8 @@ func (p *Processor) prcocessChannelMessagesForLocal(conn wknet.Conn, channelID s
 	if len(messages) == 0 {
 		return sendackPackets, nil
 	}
-	err = p.storeChannelMessagesIfNeed(conn.UID(), messages) // only have messageSeq after message save
+
+	err = p.storeChannelMessagesIfNeed(ctx, conn.UID(), messages) // only have messageSeq after message save
 	if err != nil {
 		p.Error("store channel messages err", zap.Error(err))
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
@@ -643,7 +665,7 @@ func (p *Processor) prcocessChannelMessagesForLocal(conn wknet.Conn, channelID s
 	return sendackPackets, nil
 }
 
-func (p *Processor) prcocessChannelMessagesForRemote(req *rpc.ForwardSendPacketReq) ([]wkproto.Frame, error) {
+func (p *Processor) prcocessChannelMessagesForRemote(ctx context.Context, req *rpc.ForwardSendPacketReq) ([]wkproto.Frame, error) {
 
 	if req.ProtoVersion > wkproto.LatestVersion {
 		p.Error("proto version not support", zap.Uint32("protoVersion", req.ProtoVersion))
@@ -747,7 +769,7 @@ func (p *Processor) prcocessChannelMessagesForRemote(req *rpc.ForwardSendPacketR
 	if len(messages) == 0 {
 		return sendackPackets, nil
 	}
-	err = p.storeChannelMessagesIfNeed(uid, messages) // only have messageSeq after message save
+	err = p.storeChannelMessagesIfNeed(ctx, uid, messages) // only have messageSeq after message save
 	if err != nil {
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
 	}
@@ -818,7 +840,7 @@ func (p *Processor) getSendackPacketWithSendPacket(sendPacket *wkproto.SendPacke
 }
 
 // store channel messages
-func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Message) error {
+func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID string, messages []*Message) error {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -848,6 +870,11 @@ func (p *Processor) storeChannelMessagesIfNeed(fromUID string, messages []*Messa
 	if firstMessage.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(fromUID, firstMessage.ChannelID)
 	}
+	_, storeSpan := p.s.trace.StartSpan(ctx, "storeChannelMessages")
+	storeSpan.SetString("channelID", fakeChannelID)
+	storeSpan.SetUint8("channelType", firstMessage.ChannelType)
+	storeSpan.SetInt("messageCount", len(storeMessages))
+	defer storeSpan.End()
 	err := p.s.store.AppendMessages(fakeChannelID, firstMessage.ChannelType, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))

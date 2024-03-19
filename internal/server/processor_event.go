@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -366,7 +367,16 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 
 // OnSendPacket 领导节点收到发送数据请求
 func (p *Processor) OnSendPacket(req *rpc.ForwardSendPacketReq) (*rpc.ForwardSendPacketResp, error) {
-	sendackPackets, err := p.prcocessChannelMessagesForRemote(req)
+
+	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID(req.TraceID),
+		SpanID:     trace.SpanID(req.SpanID),
+		TraceFlags: trace.FlagsSampled, //这个没写，是不会记录的
+		TraceState: trace.TraceState{},
+		Remote:     true,
+	})
+	ctx := trace.ContextWithRemoteSpanContext(p.s.ctx, spanCtx)
+	sendackPackets, err := p.prcocessChannelMessagesForRemote(ctx, req)
 	if err != nil {
 		p.Error("prcocessChannelMessagesForRemote err", zap.Error(err))
 		return nil, err

@@ -12,7 +12,7 @@ require (
 	github.com/gin-contrib/pprof v1.4.0
 	github.com/gin-gonic/gin v1.8.2
 	github.com/gobwas/ws v1.2.1
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.4.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/hashicorp/memberlist v0.3.1
@@ -31,11 +31,19 @@ require (
 	go.etcd.io/bbolt v1.3.7
 	go.etcd.io/etcd/pkg/v3 v3.5.9
 	go.etcd.io/raft/v3 v3.0.0-20230805183326-89c97ed7f982
+	go.opentelemetry.io/otel v1.24.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.24.0
+	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.24.0
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.24.0
+	go.opentelemetry.io/otel/metric v1.24.0
+	go.opentelemetry.io/otel/sdk v1.24.0
+	go.opentelemetry.io/otel/sdk/metric v1.24.0
+	go.opentelemetry.io/otel/trace v1.24.0
 	go.uber.org/zap v1.24.0
-	golang.org/x/crypto v0.13.0
+	golang.org/x/crypto v0.16.0
 	golang.org/x/sync v0.5.0
-	google.golang.org/grpc v1.55.0
-	google.golang.org/protobuf v1.30.0
+	google.golang.org/grpc v1.61.1
+	google.golang.org/protobuf v1.32.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
 
@@ -43,12 +51,15 @@ require (
 	github.com/DataDog/zstd v1.4.5 // indirect
 	github.com/armon/go-metrics v0.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.9.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20211118104740-dabe8e521a4f // indirect
 	github.com/cockroachdb/redact v1.1.3 // indirect
 	github.com/getsentry/sentry-go v0.12.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
+	github.com/go-logr/logr v1.4.1 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.1 // indirect
@@ -59,6 +70,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.0.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-msgpack v0.5.3 // indirect
@@ -79,14 +91,17 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.24.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
 	golang.org/x/exp v0.0.0-20200513190911-00229845015e // indirect
-	golang.org/x/net v0.15.0 // indirect
-	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
+	golang.org/x/net v0.19.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240102182953-50ed04b92917 // indirect
 )
 
 require (
@@ -109,8 +124,8 @@ require (
 	github.com/subosito/gotenv v1.4.2 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/sys v0.12.0
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/sys v0.17.0
+	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

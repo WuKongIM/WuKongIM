@@ -51,6 +51,17 @@ type Options struct {
 	requestSlotLogInfo   func(ctx context.Context, nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error)
 
 	Send func(to uint64, m *proto.Message) error
+
+	// SendQueueLength 是用于在节点主机之间交换消息的发送队列的长度。
+	SendQueueLength int
+
+	// MaxSendQueueSize 是每个发送队列的最大大小(以字节为单位)。
+	// 如果达到最大大小,后续复制消息将被丢弃以限制内存使用。
+	// 当设置为0时,表示发送队列大小没有限制。
+	MaxSendQueueSize uint64
+
+	// MaxMessageBatchSize 节点之间每次发送消息的最大大小（单位字节）
+	MaxMessageBatchSize uint64
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -71,6 +82,8 @@ func NewOptions(optList ...Option) *Options {
 		LogSyncLimitOfEach:           100,
 		NodeLockTime:                 time.Hour * 2,
 		LogCaughtUpWithLeaderNum:     20,
+		SendQueueLength:              1024 * 2,
+		MaxMessageBatchSize:          64 * 1024 * 1024, // 64M
 	}
 	for _, opt := range optList {
 		opt(opts)
