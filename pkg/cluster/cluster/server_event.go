@@ -134,7 +134,7 @@ func (s *Server) handleNodeUpdateApiServerAddrEvent(event EventMessage) error {
 }
 
 func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
-	n := newNode(nodeID, s.serverUid(s.opts.NodeID), addr)
+	n := newNode(nodeID, s.serverUid(s.opts.NodeID), addr, s.opts.SendQueueLength, s.opts.MaxSendQueueSize, s.opts.MaxMessageBatchSize)
 	n.start()
 	return n
 }

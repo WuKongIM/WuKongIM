@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -20,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -68,6 +70,10 @@ type Server struct {
 	cluster cluster.ICluster
 
 	peerInFlightQueue *PeerInFlightQueue // 正在往节点投递的节点消息
+
+	trace *trace.Trace
+
+	ctx context.Context
 }
 
 func New(opts *Options) *Server {
@@ -80,6 +86,7 @@ func New(opts *Options) *Server {
 		stopChan:    make(chan struct{}),
 		ipBlacklist: map[string]uint64{},
 		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
+		ctx:         context.Background(),
 	}
 
 	gin.SetMode(opts.GinMode)
@@ -212,6 +219,8 @@ func New(opts *Options) *Server {
 		s.dispatch.processor.handleClusterMessage(from, msg)
 	})
 
+	s.trace = trace.New(s.ctx, trace.NewOptions(trace.WithEndpoint(s.opts.Trace.Endpoint), trace.WithServiceName(s.opts.Trace.ServiceName), trace.WithServiceHostName(s.opts.Trace.ServiceHostName)))
+
 	return s
 }
 
@@ -300,6 +309,12 @@ func (s *Server) Start() error {
 
 	s.timingWheel.Start()
 
+	err = s.trace.Start()
+	if err != nil {
+		return err
+
+	}
+
 	s.started = true
 
 	return nil
@@ -310,6 +325,8 @@ func (s *Server) Stop() error {
 	s.Info("Server is Stoping...")
 
 	defer s.Info("Server is exited")
+
+	s.trace.Stop()
 
 	s.timingWheel.Stop()
 

@@ -41,3 +41,7 @@ func (m *Message) Marshal() ([]byte, error) {
 func (m *Message) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, m)
 }
+
+func (m *Message) Size() int {
+	return proto.Size(m)
+}

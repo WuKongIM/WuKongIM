@@ -156,6 +156,12 @@ type Options struct {
 		PeerRPCTimeoutScanInterval time.Duration // 节点之间rpc消息超时时间扫描间隔
 	}
 
+	Trace struct {
+		Endpoint        string
+		ServiceName     string
+		ServiceHostName string
+	}
+
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
 	// MessageMaxRetryCount int           // 消息最大重试次数
 	// TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
@@ -296,6 +302,15 @@ func NewOptions() *Options {
 			ChannelReplicaCount:        3,
 			PeerRPCMsgTimeout:          time.Second * 20,
 			PeerRPCTimeoutScanInterval: time.Second * 1,
+		},
+		Trace: struct {
+			Endpoint        string
+			ServiceName     string
+			ServiceHostName string
+		}{
+			Endpoint:        "127.0.0.1:4318",
+			ServiceName:     "wukongim",
+			ServiceHostName: "imnode",
 		},
 	}
 }
@@ -493,6 +508,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 			})
 		}
 	}
+
+	// =================== trace ===================
+	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
+	o.Trace.ServiceName = o.getString("trace.serviceName", o.Trace.ServiceName)
+	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
 
 }
 

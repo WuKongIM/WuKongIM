@@ -130,6 +130,10 @@ func (s *Server) RequestPoolRunning() int {
 	return s.requestPool.Running()
 }
 
+func (s *Server) MessagePoolRunning() int {
+	return s.messagePool.Running()
+}
+
 type everyScheduler struct {
 	Interval time.Duration
 }

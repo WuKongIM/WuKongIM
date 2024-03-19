@@ -10,9 +10,9 @@ type ITransport interface {
 	// Send 发送消息
 	Send(to uint64, m *proto.Message, callback func()) error
 	// OnMessage 收取消息
-	OnMessage(f func(from uint64, m *proto.Message))
+	// OnMessage(f func(from uint64, m *proto.Message))
 	// 收到消息
-	RecvMessage(from uint64, m *proto.Message)
+	// RecvMessage(from uint64, m *proto.Message)
 }
 
 func NewMessage(shardNo string, msg replica.Message, msgType proto.MsgType) (*proto.Message, error) {
@@ -108,9 +108,11 @@ type DefaultTransport struct {
 }
 
 func NewDefaultTransport(s *Server) *DefaultTransport {
-	return &DefaultTransport{
+	d := &DefaultTransport{
 		s: s,
 	}
+
+	return d
 }
 
 func (d *DefaultTransport) Send(to uint64, m *proto.Message, callback func()) error {

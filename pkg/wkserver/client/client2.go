@@ -427,6 +427,27 @@ func (c *Client) Send(m *proto.Message) error {
 	return nil
 }
 
+func (c *Client) SendBatch(msgs []*proto.Message) error {
+	if c.connectStatus.Load() != uint32(CONNECTED) {
+		return errors.New("connect is not connected")
+	}
+	for _, m := range msgs {
+		msgData, err := m.Marshal()
+		if err != nil {
+			return err
+		}
+		data, err := c.proto.Encode(msgData, uint8(proto.MsgTypeMessage))
+		if err != nil {
+			return err
+		}
+		if c.outbound != nil {
+			c.outbound.QueueOutbound(data)
+		}
+	}
+	c.Flush()
+	return nil
+}
+
 func (c *Client) SendNoFlush(m *proto.Message) error {
 	if c.connectStatus.Load() != uint32(CONNECTED) {
 		return errors.New("connect is not connected")

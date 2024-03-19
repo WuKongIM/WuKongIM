@@ -103,15 +103,10 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	// 接受消息
-	s.opts.Transport.OnMessage(func(from uint64, m *proto.Message) {
-		s.handleMessage(from, m)
-	})
-
 	// 监听消息
 	s.server.OnMessage(func(conn wknet.Conn, msg *proto.Message) {
 		from := s.nodeIdByServerUid(conn.UID())
-		s.opts.Transport.RecvMessage(from, msg) // 实际这里是调用了上面的OnMessage（s.opts.Transport.OnMessage），为什么不直掉调用？为了能方便单元测试
+		s.handleMessage(from, msg)
 	})
 
 	// 请求路由设置

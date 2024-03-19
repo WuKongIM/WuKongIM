@@ -84,6 +84,8 @@ message ForwardSendPacketReq {
      uint32 protoVersion = 6; // 协议版本
      uint32 deviceFlag = 7; // 设备标识
      string deviceID = 8; // 设备ID
+     bytes traceID = 9; // traceID（调用链追踪用）
+     bytes spanID = 10; // spanID （调用链追踪用）
 
 }
 
@@ -101,6 +103,8 @@ message  ForwardRecvPacketReq {
      bool large = 6; // 是否是超大群
      string fromDeviceID = 7; // 设备ID
      uint32 protoVersion = 8; // 协议版本
+     bytes traceID = 9; // traceID（调用链追踪用）
+     bytes spanID = 10; // spanID （调用链追踪用）
 }
 
 
