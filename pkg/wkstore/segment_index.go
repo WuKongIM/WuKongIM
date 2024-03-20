@@ -170,6 +170,8 @@ func (idx *Index) TruncateEntries(number int) error {
 
 // IsFull Is full
 func (idx *Index) IsFull() bool {
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
 	return idx.position >= idx.maxBytes
 }
 
