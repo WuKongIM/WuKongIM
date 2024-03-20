@@ -110,7 +110,8 @@ func (idx *Index) resetPosistion() error {
 
 // Append Append
 func (idx *Index) Append(offset uint32, position uint32) error {
-
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
 	b := new(bytes.Buffer)
 	if err := binary.Write(b, Encoding, Entry{
 		RelativeOffset: offset - idx.baseMessageSeq,
@@ -122,10 +123,10 @@ func (idx *Index) Append(offset uint32, position uint32) error {
 		idx.Warn("Index file is full, give up！")
 		return nil
 	}
-	idx.writeAt(b.Bytes(), idx.position)
-	idx.mu.Lock()
+	idx.writeAtNeedLock(b.Bytes(), idx.position)
+
 	idx.position += int64(idx.entrySize)
-	idx.mu.Unlock()
+
 	return nil
 }
 
@@ -173,10 +174,14 @@ func (idx *Index) IsFull() bool {
 }
 
 // WriteAt WriteAt
-func (idx *Index) writeAt(p []byte, offset int64) (n int) {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
+// func (idx *Index) writeAt(p []byte, offset int64) (n int) {
+// 	idx.mu.Lock()
+// 	defer idx.mu.Unlock()
 
+// 	return copy(idx.mmap[offset:offset+int64(idx.entrySize)], p)
+// }
+
+func (idx *Index) writeAtNeedLock(p []byte, offset int64) (n int) {
 	return copy(idx.mmap[offset:offset+int64(idx.entrySize)], p)
 }
 
