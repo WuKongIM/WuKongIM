@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
@@ -74,6 +75,9 @@ func (s *slotManager) handleReady(rd slotReady) {
 			s.Error("new message error", zap.String("shardNo", shardNo), zap.Error(err))
 			continue
 		}
+
+		traceOutgoingMessage(trace.ClusterKindSlot, msg)
+
 		err = s.opts.Transport.Send(msg.To, protMsg, func() {
 			for _, resp := range msg.Responses {
 				err = slot.stepLock(resp)
@@ -88,6 +92,7 @@ func (s *slotManager) handleReady(rd slotReady) {
 		}
 
 	}
+
 }
 func (s *slotManager) exist(slotId uint32) bool {
 	return s.listener.exist(slotId)

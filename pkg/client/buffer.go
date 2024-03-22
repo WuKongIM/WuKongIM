@@ -2,8 +2,10 @@ package client
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -13,6 +15,7 @@ type limWriter struct {
 	limit   int
 	pending *bytes.Buffer
 	plimit  int
+	mu      sync.Mutex
 }
 
 func (w *limWriter) appendString(str string) error {
@@ -20,6 +23,7 @@ func (w *limWriter) appendString(str string) error {
 }
 
 func (w *limWriter) appendBufs(bufs ...[]byte) error {
+	w.mu.Lock()
 	for _, buf := range bufs {
 		if len(buf) == 0 {
 			continue
@@ -30,9 +34,12 @@ func (w *limWriter) appendBufs(bufs ...[]byte) error {
 			w.bufs = append(w.bufs, buf...)
 		}
 	}
+
 	if w.pending == nil && len(w.bufs) >= w.limit {
+		w.mu.Unlock()
 		return w.flush()
 	}
+	w.mu.Unlock()
 	return nil
 }
 
@@ -43,15 +50,15 @@ func (w *limWriter) writeDirect(data []byte) error {
 	return nil
 }
 
-var i = 0
-
 func (w *limWriter) flush() error {
-	i++
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	// fmt.Println("flush--->", i)
 	// If a pending buffer is set, we don't flush. Code that needs to
 	// write directly to the socket, by-passing buffers during (re)connect,
 	// will use the writeDirect() API.
 	if w.pending != nil {
+		fmt.Println("w.pending != nil")
 		return nil
 	}
 	// Do not skip calling w.w.Write() here if len(w.bufs) is 0 because

@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -80,7 +81,7 @@ func TestChannelGroup(t *testing.T) {
 	err = ch2.appointLeaderTo(1, 1)
 	assert.NoError(t, err)
 
-	_, err = ch1.proposeAndWaitCommit([]byte("hello world"), time.Second*30)
+	_, err = ch1.proposeAndWaitCommit(context.Background(), []byte("hello world"), time.Second*30)
 	assert.NoError(t, err)
 
 	logs1, err := storage1.Logs(ch1.channelKey(), 1, 2, 1)

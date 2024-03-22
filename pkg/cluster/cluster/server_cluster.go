@@ -14,10 +14,10 @@ type ICluster interface {
 	Stop()
 
 	// LeaderIdOfChannel 获取channel的leader节点ID
-	LeaderIdOfChannel(channelID string, channelType uint8) (nodeID uint64, err error)
+	LeaderIdOfChannel(ctx context.Context, channelID string, channelType uint8) (nodeID uint64, err error)
 
 	// LeaderOfChannel 获取channel的leader节点信息
-	LeaderOfChannel(channelID string, channelType uint8) (nodeInfo clusterconfig.NodeInfo, err error)
+	LeaderOfChannel(ctx context.Context, channelID string, channelType uint8) (nodeInfo clusterconfig.NodeInfo, err error)
 
 	// SlotLeaderIdOfChannel 获取channel的leader节点信息(不激活频道)
 	LeaderOfChannelForRead(channelID string, channelType uint8) (nodeInfo clusterconfig.NodeInfo, err error)
@@ -32,7 +32,7 @@ type ICluster interface {
 	IsSlotLeaderOfChannel(channelID string, channelType uint8) (isLeader bool, err error)
 
 	// IsLeaderNodeOfChannel 当前节点是否是channel的leader节点
-	IsLeaderOfChannel(channelID string, channelType uint8) (isLeader bool, err error)
+	IsLeaderOfChannel(ctx context.Context, channelID string, channelType uint8) (isLeader bool, err error)
 	// NodeInfoByID 获取节点信息
 	NodeInfoByID(nodeID uint64) (nodeInfo clusterconfig.NodeInfo, err error)
 	//Route 设置接受请求的路由
@@ -42,27 +42,27 @@ type ICluster interface {
 	// Send 发送消息给指定的节点, MsgType 使用 1000 - 2000之间的值
 	Send(toNodeID uint64, msg *proto.Message) error
 	// OnMessage 设置接收消息的回调
-	OnMessage(f func(from uint64, msg *proto.Message))
+	OnMessage(f func(msg *proto.Message))
 	// 节点是否在线
 	NodeIsOnline(nodeID uint64) bool
 
 	Monitor() Monitor
 }
 
-func (s *Server) LeaderIdOfChannel(channelID string, channelType uint8) (uint64, error) {
-	ch, err := s.channelGroupManager.fetchChannel(channelID, channelType)
+func (s *Server) LeaderIdOfChannel(ctx context.Context, channelID string, channelType uint8) (uint64, error) {
+	ch, err := s.channelGroupManager.fetchChannel(ctx, channelID, channelType)
 	if err != nil {
 		return 0, err
 	}
-	return ch.leaderId(), nil
+	return ch.LeaderId(), nil
 }
 
-func (s *Server) LeaderOfChannel(channelID string, channelType uint8) (clusterconfig.NodeInfo, error) {
-	ch, err := s.channelGroupManager.fetchChannel(channelID, channelType)
+func (s *Server) LeaderOfChannel(ctx context.Context, channelID string, channelType uint8) (clusterconfig.NodeInfo, error) {
+	ch, err := s.channelGroupManager.fetchChannel(ctx, channelID, channelType)
 	if err != nil {
 		return clusterconfig.EmptyNodeInfo, err
 	}
-	leaderId := ch.leaderId()
+	leaderId := ch.LeaderId()
 	if leaderId == 0 {
 		s.Error("LeaderOfChannel: leader not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return clusterconfig.EmptyNodeInfo, ErrNotLeader
@@ -84,7 +84,7 @@ func (s *Server) LeaderOfChannelForRead(channelID string, channelType uint8) (cl
 	if err != nil {
 		return clusterconfig.EmptyNodeInfo, err
 	}
-	leaderId := ch.leaderId()
+	leaderId := ch.LeaderId()
 	if leaderId == 0 {
 		s.Error("LeaderOfChannel: leader not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return clusterconfig.EmptyNodeInfo, ErrNotLeader
@@ -140,12 +140,12 @@ func (s *Server) IsSlotLeaderOfChannel(channelID string, channelType uint8) (boo
 	return slot.Leader == s.opts.NodeID, nil
 }
 
-func (s *Server) IsLeaderOfChannel(channelID string, channelType uint8) (bool, error) {
-	ch, err := s.channelGroupManager.fetchChannel(channelID, channelType)
+func (s *Server) IsLeaderOfChannel(ctx context.Context, channelID string, channelType uint8) (bool, error) {
+	ch, err := s.channelGroupManager.fetchChannel(ctx, channelID, channelType)
 	if err != nil {
 		return false, err
 	}
-	return ch.isLeader(), nil
+	return ch.IsLeader(), nil
 }
 
 func (s *Server) NodeInfoByID(nodeID uint64) (clusterconfig.NodeInfo, error) {
@@ -179,7 +179,7 @@ func (s *Server) Send(toNodeID uint64, msg *proto.Message) error {
 	return node.send(msg)
 }
 
-func (s *Server) OnMessage(f func(from uint64, msg *proto.Message)) {
+func (s *Server) OnMessage(f func(msg *proto.Message)) {
 	s.onMessageFnc = f
 }
 
@@ -187,14 +187,14 @@ func (s *Server) NodeIsOnline(nodeID uint64) bool {
 	return s.clusterEventListener.clusterconfigManager.nodeIsOnline(nodeID)
 }
 
-func (s *Server) ProposeChannelMessage(channelID string, channelType uint8, data []byte) (uint64, error) {
+func (s *Server) ProposeChannelMessage(ctx context.Context, channelID string, channelType uint8, data []byte) (uint64, error) {
 
-	return s.channelGroupManager.proposeMessage(channelID, channelType, data)
+	return s.channelGroupManager.proposeMessage(ctx, channelID, channelType, data)
 }
 
-func (s *Server) ProposeChannelMessages(channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
+func (s *Server) ProposeChannelMessages(ctx context.Context, channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
 
-	return s.channelGroupManager.proposeMessages(channelID, channelType, data)
+	return s.channelGroupManager.proposeMessages(ctx, channelID, channelType, data)
 }
 
 func (s *Server) ProposeChannelMeta(channelID string, channelType uint8, meta []byte) error {

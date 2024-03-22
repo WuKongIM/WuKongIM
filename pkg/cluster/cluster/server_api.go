@@ -185,7 +185,7 @@ func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
 	}
 	channelType := uint8(channelTypeI64)
 
-	ch, err := s.channelGroupManager.fetchChannel(channelId, channelType)
+	ch, err := s.channelGroupManager.fetchChannel(context.Background(), channelId, channelType)
 	if err != nil {
 		s.Error("fetchChannel error", zap.Error(err))
 		c.ResponseError(err)

@@ -7,12 +7,14 @@ import (
 type messageWait struct {
 	waitMap             map[MsgType]map[uint64]waitInfo
 	messageSendInterval time.Duration
+	syncTimeout         time.Duration
 }
 
 func newMessageWait(messageSendInterval time.Duration) *messageWait {
 	return &messageWait{
 		waitMap:             make(map[MsgType]map[uint64]waitInfo),
 		messageSendInterval: messageSendInterval, // 如果某个消息在指定时间内没有收到ack，则认为超时，超时后可以重发此消息
+		syncTimeout:         time.Second * 40,
 	}
 }
 
@@ -36,12 +38,22 @@ func (m *messageWait) finish(nodeId uint64, msgType MsgType) {
 	if nodeWaitMap == nil {
 		return
 	}
+
 	if v, ok := nodeWaitMap[nodeId]; ok {
-		nodeWaitMap[nodeId] = waitInfo{
+
+		w := waitInfo{
 			seq:       v.seq,
 			createdAt: time.Now(),
 			wait:      false,
 		}
+
+		if msgType == MsgSync {
+			if time.Since(v.createdAt) < m.messageSendInterval { // 如果同步消息发送间隔小于messageSendInterval，则至少等到messageSendInterval后才能再次发送
+				w.createdAt = w.createdAt.Add(-m.syncTimeout + m.messageSendInterval)
+				w.wait = true
+			}
+		}
+		nodeWaitMap[nodeId] = w
 	}
 }
 
@@ -53,7 +65,10 @@ func (m *messageWait) has(nodeId uint64, msgType MsgType) bool {
 	if v, ok := nodeWaitMap[nodeId]; ok {
 
 		if v.wait {
-			return !v.createdAt.Add(m.messageSendInterval).Before(time.Now())
+			if msgType == MsgSync {
+				return time.Since(v.createdAt) < m.syncTimeout
+			}
+			return time.Since(v.createdAt) < m.messageSendInterval
 		}
 
 		return false

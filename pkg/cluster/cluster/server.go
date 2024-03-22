@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -30,14 +31,17 @@ type Server struct {
 	stopped              atomic.Bool
 	cancelFunc           context.CancelFunc
 	cancelCtx            context.Context
-	onMessageFnc         func(from uint64, msg *proto.Message) // 上层处理消息的函数
+	onMessageFnc         func(msg *proto.Message) // 上层处理消息的函数
 	slotMigrateManager   *slotMigrateManager
 	uptime               time.Time // 启动时间
 	apiPrefix            string    // api前缀
 	defaultMonitor       *DefaultMonitor
+
 	// 其他
 	opts *Options
 	wklog.Log
+
+	trace *trace.Trace
 }
 
 func New(nodeId uint64, opts *Options) *Server {
@@ -50,6 +54,7 @@ func New(nodeId uint64, opts *Options) *Server {
 		stopper:              syncutil.NewStopper(),
 		opts:                 opts,
 		Log:                  wklog.NewWKLog(fmt.Sprintf("clusterServer[%d]", opts.NodeID)),
+		trace:                trace.GlobalTrace,
 	}
 	s.slotMigrateManager = newSlotMigrateManager(s)
 	opts.nodeOnlineFnc = s.nodeCliOnline
@@ -63,7 +68,7 @@ func New(nodeId uint64, opts *Options) *Server {
 	if !strings.HasPrefix(addr, "tcp://") {
 		addr = fmt.Sprintf("tcp://%s", addr)
 	}
-	s.server = wkserver.New(addr)
+	s.server = wkserver.New(addr, wkserver.WithMessagePoolOn(false))
 	opts.Transport = NewDefaultTransport(s)
 	if opts.ShardLogStorage == nil {
 		opts.ShardLogStorage = NewPebbleShardLogStorage(path.Join(opts.DataDir, "logdb"))
@@ -105,8 +110,14 @@ func (s *Server) Start() error {
 
 	// 监听消息
 	s.server.OnMessage(func(conn wknet.Conn, msg *proto.Message) {
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(1)
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(int64(msg.Size()))
+		s.trace.Metrics.Cluster().MessageConcurrencyAdd(1)
+
 		from := s.nodeIdByServerUid(conn.UID())
 		s.handleMessage(from, msg)
+
+		s.trace.Metrics.Cluster().MessageConcurrencyAdd(-1)
 	})
 
 	// 请求路由设置
@@ -288,7 +299,7 @@ func (s *Server) handleMessage(from uint64, m *proto.Message) {
 	default:
 
 		if s.onMessageFnc != nil {
-			s.onMessageFnc(from, m)
+			go s.onMessageFnc(m)
 		}
 	}
 }
@@ -343,7 +354,7 @@ func (s *Server) Options() *Options {
 	return s.opts
 }
 
-func (s *Server) handleClusterConfigMsg(from uint64, m *proto.Message) {
+func (s *Server) handleClusterConfigMsg(_ uint64, m *proto.Message) {
 	cfgMsg := &clusterconfig.Message{}
 	err := cfgMsg.Unmarshal(m.Content)
 	if err != nil {
@@ -360,6 +371,8 @@ func (s *Server) handleSlotMsg(_ uint64, m *proto.Message) {
 		s.Error("unmarshal slot message error", zap.Error(err))
 		return
 	}
+	traceIncomingMessage(trace.ClusterKindSlot, msg.Message)
+
 	slotId := GetSlotId(msg.ShardNo, s.Log)
 	s.slotManager.handleMessage(slotId, msg.Message)
 }
@@ -371,10 +384,12 @@ func (s *Server) handleChannelMsg(_ uint64, m *proto.Message) {
 		return
 	}
 
+	traceIncomingMessage(trace.ClusterKindSlot, msg.Message)
+
 	// s.Info("收到频道消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From), zap.Uint32("term", msg.Term), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.Uint64("index", msg.Index), zap.Uint64("committed", msg.CommittedIndex))
 
 	channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
-	err = s.channelGroupManager.handleMessage(channelID, channelType, msg.Message)
+	err = s.channelGroupManager.handleMessage(s.cancelCtx, channelID, channelType, msg.Message)
 	if err != nil {
 		s.Error("handle channel message error", zap.Error(err), zap.String("shardNo", msg.ShardNo))
 		return

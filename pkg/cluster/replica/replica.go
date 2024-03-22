@@ -129,7 +129,7 @@ func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
 
 func (r *Replica) NewMsgStoreAppendResp(index uint64) Message {
 	return Message{
-		MsgType: MsgStoreAppend,
+		MsgType: MsgStoreAppendResp,
 		From:    r.nodeID,
 		To:      r.nodeID,
 		Index:   index,
@@ -292,6 +292,7 @@ func (r *Replica) putMsgIfNeed() {
 		return
 	}
 
+	// 副本来同步日志
 	if r.followNeedSync() {
 		seq := r.messageWait.next(r.leader, MsgSync)
 		r.msgs = append(r.msgs, r.newSyncMsg(seq))
@@ -301,11 +302,13 @@ func (r *Replica) putMsgIfNeed() {
 		r.sendPingIfNeed()
 	}
 
+	// 追加日志
 	if r.hasUnstableLogs() {
 		logs := r.replicaLog.nextUnstableLogs()
 		r.msgs = append(r.msgs, r.newMsgStoreAppend(logs))
 	}
 
+	// 应用日志
 	if r.hasUnapplyLogs() {
 		logs := r.replicaLog.nextApplyLogs()
 		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, r.replicaLog.committedIndex, logs))
@@ -391,14 +394,6 @@ func (r *Replica) newSyncMsg(id uint64) Message {
 		To:      r.leader,
 		Term:    r.replicaLog.term,
 		Index:   r.replicaLog.lastLogIndex + 1,
-		Responses: []Message{
-			{
-				Id:      id,
-				MsgType: MsgSyncAck,
-				From:    r.leader,
-				To:      r.nodeID,
-			},
-		},
 	}
 }
 
@@ -425,14 +420,6 @@ func (r *Replica) newLeaderTermStartIndexReqMsg(id uint64) Message {
 		From:    r.nodeID,
 		To:      r.leader,
 		Term:    leaderLastTerm,
-		Responses: []Message{
-			{
-				Id:      id,
-				MsgType: MsgLeaderTermStartIndexReqAck,
-				From:    r.leader,
-				To:      r.nodeID,
-			},
-		},
 	}
 }
 

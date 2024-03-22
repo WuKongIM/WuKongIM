@@ -175,6 +175,9 @@ func New(opts *Options) *Server {
 	// 	clusterOpts.Peers = peers
 	// }
 
+	s.trace = trace.New(s.ctx, trace.NewOptions(trace.WithEndpoint(s.opts.Trace.Endpoint), trace.WithServiceName(s.opts.Trace.ServiceName), trace.WithServiceHostName(s.opts.Trace.ServiceHostName)))
+	trace.SetGlobalTrace(s.trace)
+
 	initNodes := make(map[uint64]string)
 	for _, node := range s.opts.Cluster.Nodes {
 		serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
@@ -215,11 +218,9 @@ func New(opts *Options) *Server {
 	storeOpts.Cluster = clusterServer
 	s.peerInFlightQueue = NewPeerInFlightQueue(s)
 
-	clusterServer.OnMessage(func(from uint64, msg *proto.Message) {
-		s.dispatch.processor.handleClusterMessage(from, msg)
+	clusterServer.OnMessage(func(msg *proto.Message) {
+		s.dispatch.processor.handleClusterMessage(msg)
 	})
-
-	s.trace = trace.New(s.ctx, trace.NewOptions(trace.WithEndpoint(s.opts.Trace.Endpoint), trace.WithServiceName(s.opts.Trace.ServiceName), trace.WithServiceHostName(s.opts.Trace.ServiceHostName)))
 
 	return s
 }

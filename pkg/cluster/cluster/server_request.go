@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
@@ -133,7 +134,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		c.WriteErr(ErrNotIsLeader)
 		return
 	}
-	channel, err := s.channelGroupManager.fetchChannel(req.ChannelID, req.ChannelType)
+	channel, err := s.channelGroupManager.fetchChannel(s.cancelCtx, req.ChannelID, req.ChannelType)
 	if err != nil {
 		s.Error("get channel failed", zap.Error(err))
 		c.WriteErr(err)
@@ -169,6 +170,14 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		return
 	}
 
+	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    req.TraceID,
+		SpanID:     req.SpanID,
+		TraceState: trace.TraceState{},
+		Remote:     true,
+	})
+	ctx := trace.ContextWithRemoteSpanContext(s.cancelCtx, spanCtx)
+
 	from, err := s.getFrom(c)
 	if err != nil {
 		s.Error("getFrom failed", zap.Error(err))
@@ -177,7 +186,7 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 	}
 
 	// 获取频道集群
-	ch, err := s.channelGroupManager.fetchChannel(req.ChannelId, req.ChannelType)
+	ch, err := s.channelGroupManager.fetchChannel(ctx, req.ChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("fetchChannel failed", zap.Error(err))
 		c.WriteErr(err)
@@ -188,9 +197,9 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		c.WriteErr(ErrChannelNotFound)
 		return
 	}
-	if ch.leaderId() != s.opts.NodeID {
-		if ch.leaderId() == from {
-			s.Error("leaderId is from,handleProposeMessage failed", zap.Uint64("leaderId", ch.leaderId()), zap.Uint64("from", from))
+	if ch.LeaderId() != s.opts.NodeID {
+		if ch.LeaderId() == from {
+			s.Error("leaderId is from,handleProposeMessage failed", zap.Uint64("leaderId", ch.LeaderId()), zap.Uint64("from", from))
 			c.WriteErr(errors.New("leaderId is from"))
 			return
 		}
@@ -198,7 +207,7 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		c.WriteErr(ErrOldChannelClusterConfig)
 		return
 	}
-	logIndexs, err := ch.proposeAndWaitCommits(req.Data, s.opts.ProposeTimeout)
+	logIndexs, err := ch.proposeAndWaitCommits(ctx, req.Data, s.opts.ProposeTimeout)
 	if err != nil {
 		s.Error("proposeAndWaitCommit failed", zap.Error(err))
 		c.WriteErr(err)

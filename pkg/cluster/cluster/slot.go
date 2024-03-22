@@ -32,6 +32,8 @@ type slot struct {
 
 	next *slot
 	prev *slot
+
+	messageQueue *ReplicaMessageQueue
 }
 
 func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *Options) *slot {
@@ -51,6 +53,7 @@ func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *O
 		opts:         opts,
 		doneC:        make(chan struct{}),
 		localstorage: localstorage,
+		messageQueue: NewReplicaMessageQueue(opts.ReceiveQueueLength, false, opts.LazyFreeCycle, opts.MaxReceiveQueueSize),
 	}
 	stobj.lastActivity.Store(time.Now())
 	return stobj
@@ -191,7 +194,30 @@ func (s *slot) makeDestroy() {
 }
 
 func (s *slot) handleMessage(msg replica.Message) error {
-	return s.stepLock(msg)
+	if s.destroy {
+		return errors.New("slot destroy, can not handle message")
+	}
+	if added, stopped := s.messageQueue.Add(msg); !added || stopped {
+		return errors.New("message queue add failed")
+	}
+	return nil
+}
+
+func (s *slot) handleReceivedMessages() error {
+	if s.destroy {
+		return errors.New("slot destroy, can not handle message")
+	}
+	msgs := s.messageQueue.Get()
+	var err error
+	for _, msg := range msgs {
+		err = s.stepLock(msg)
+		if err != nil {
+			s.Error("step message failed", zap.Error(err))
+			return err
+		}
+
+	}
+	return nil
 }
 
 func (s *slot) handleLocalMsg(msg replica.Message) {

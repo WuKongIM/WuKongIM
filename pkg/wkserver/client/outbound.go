@@ -38,7 +38,7 @@ type OutboundOptions struct {
 func NewOutboundOptions() *OutboundOptions {
 	return &OutboundOptions{
 		WriteDeadline: time.Second * 10,
-		MaxPending:    128 * 1024 * 1024,
+		MaxPending:    512 * 1024 * 1024,
 	}
 }
 

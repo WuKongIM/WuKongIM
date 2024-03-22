@@ -1,6 +1,7 @@
 package clusterstore_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -129,13 +130,13 @@ func (t *testClusterServer) ProposeChannelMeta(channelID string, channelType uin
 	return t.server.ProposeChannelMeta(channelID, channelType, data)
 }
 
-func (t *testClusterServer) ProposeChannelMessage(channelID string, channelType uint8, data []byte) (uint64, error) {
+func (t *testClusterServer) ProposeChannelMessage(ctx context.Context, channelID string, channelType uint8, data []byte) (uint64, error) {
 
-	return t.server.ProposeChannelMessage(channelID, channelType, data)
+	return t.server.ProposeChannelMessage(ctx, channelID, channelType, data)
 }
 
-func (t *testClusterServer) ProposeChannelMessages(channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
-	return t.server.ProposeChannelMessages(channelID, channelType, data)
+func (t *testClusterServer) ProposeChannelMessages(ctx context.Context, channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
+	return t.server.ProposeChannelMessages(ctx, channelID, channelType, data)
 }
 func (t *testClusterServer) ProposeToSlot(slotId uint32, data []byte) error {
 	return t.server.ProposeToSlot(slotId, data)

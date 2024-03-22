@@ -444,7 +444,10 @@ func (c *Client) sendPing(ch chan struct{}) error {
 	if err != nil {
 		return err
 	}
-	c.writer.appendBufs(data)
+	err = c.writer.appendBufs(data)
+	if err != nil {
+		return err
+	}
 	c.writer.flush()
 
 	return nil

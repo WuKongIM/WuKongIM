@@ -65,12 +65,19 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 
 func (c *ChannelListener) loopEvent() {
 	tick := time.NewTicker(time.Millisecond * 51)
+	var err error
 	for {
 		select {
 		case <-tick.C:
 			c.channels.foreach(func(ch *channel) {
 				if ch.isDestroy() {
 					return
+				}
+				if err = ch.handleReceivedMessages(); err != nil {
+					c.Warn("loopEvent: handleReceivedMessages error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
+				}
+				if err = ch.handleLocalStoreMsgs(); err != nil {
+					c.Warn("loopEvent: handleLocalStoreMsgs error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 				}
 				if ch.hasReady() {
 					rd := ch.ready()

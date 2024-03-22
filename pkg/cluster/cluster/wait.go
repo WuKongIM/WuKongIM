@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -45,6 +46,11 @@ func (c *commitWait) commitIndex(logIndex uint64) {
 
 	maxIndex := 0
 	exist := false
+	start := time.Now()
+	c.Info("commitIndex", zap.Uint64("logIndex", logIndex), zap.Int("len", len(c.waitList)))
+	defer func() {
+		c.Info("commitIndex done", zap.Uint64("logIndex", logIndex), zap.Duration("cost", time.Since(start)))
+	}()
 	for i, item := range c.waitList {
 		if item.logIndex <= logIndex {
 			select {
@@ -59,4 +65,5 @@ func (c *commitWait) commitIndex(logIndex uint64) {
 	if exist {
 		c.waitList = c.waitList[maxIndex+1:]
 	}
+
 }

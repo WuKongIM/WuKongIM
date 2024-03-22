@@ -58,7 +58,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	}
 
 	if m.s.opts.ClusterOn() {
-		leaderInfo, err := m.s.cluster.LeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := m.s.cluster.LeaderOfChannel(m.s.ctx, req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -119,7 +119,7 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 	}
 
 	if m.s.opts.ClusterOn() {
-		leaderInfo, err := m.s.cluster.LeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := m.s.cluster.LeaderOfChannel(m.s.ctx, req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -233,7 +233,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 					return
 				}
 			} else {
-				leaderInfo, err = m.s.cluster.LeaderOfChannel(fakeChannelID, channelType) // 获取频道的领导节点
+				leaderInfo, err = m.s.cluster.LeaderOfChannel(m.s.ctx, fakeChannelID, channelType) // 获取频道的领导节点
 				if err != nil {
 					m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelID), zap.Uint8("channelType", channelType))
 					c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -353,7 +353,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			}
 			msg.StreamSeq = streamSeq // stream seq
 		} else {
-			err = m.s.store.AppendMessages(fakeChannelID, channelType, messages)
+			err = m.s.store.AppendMessages(m.s.ctx, fakeChannelID, channelType, messages)
 			if err != nil {
 				m.Error("Failed to save history message", zap.Error(err))
 				return 0, 0, errors.New("failed to save history message")

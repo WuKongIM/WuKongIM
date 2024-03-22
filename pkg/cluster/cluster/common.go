@@ -3,6 +3,9 @@ package cluster
 import (
 	"fmt"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 )
 
 func myUptime(d time.Duration) string {
@@ -33,3 +36,62 @@ var (
 	errRateLimited                  = fmt.Errorf("rate limited")
 	errChanIsFull                   = fmt.Errorf("channel is full")
 )
+
+func traceOutgoingMessage(kind trace.ClusterKind, m replica.Message) {
+
+	switch m.MsgType {
+	case replica.MsgSyncResp:
+		var logTotalSize int64
+		for _, log := range m.Logs {
+			logTotalSize += int64(log.LogSize())
+		}
+		trace.GlobalTrace.Metrics.Cluster().LogOutgoingCountAdd(kind, int64(len(m.Logs)))
+		trace.GlobalTrace.Metrics.Cluster().LogOutgoingBytesAdd(kind, logTotalSize)
+	case replica.MsgSync:
+		trace.GlobalTrace.Metrics.Cluster().MsgSyncOutgoingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgSyncOutgoingBytesAdd(kind, int64(m.Size()))
+	case replica.MsgPing:
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPingOutgoingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPingOutgoingBytesAdd(kind, int64(m.Size()))
+	case replica.MsgPong:
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPongOutgoingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPongOutgoingBytesAdd(kind, int64(m.Size()))
+	case replica.MsgLeaderTermStartIndexReq:
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexReqOutgoingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexReqOutgoingBytesAdd(kind, int64(m.Size()))
+	case replica.MsgLeaderTermStartIndexResp:
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexRespOutgoingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexRespOutgoingBytesAdd(kind, int64(m.Size()))
+
+	}
+
+}
+
+func traceIncomingMessage(kind trace.ClusterKind, m replica.Message) {
+	switch m.MsgType {
+	case replica.MsgSyncResp:
+		var logTotalSize int64
+		for _, log := range m.Logs {
+			logTotalSize += int64(log.LogSize())
+		}
+		trace.GlobalTrace.Metrics.Cluster().LogIncomingCountAdd(kind, int64(len(m.Logs)))
+		trace.GlobalTrace.Metrics.Cluster().LogIncomingBytesAdd(kind, logTotalSize)
+	case replica.MsgSync:
+		trace.GlobalTrace.Metrics.Cluster().MsgSyncIncomingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgSyncIncomingBytesAdd(kind, int64(m.Size()))
+
+	case replica.MsgPing:
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPingIncomingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPingIncomingBytesAdd(kind, int64(m.Size()))
+	case replica.MsgPong:
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPongIncomingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgClusterPongIncomingBytesAdd(kind, int64(m.Size()))
+	case replica.MsgLeaderTermStartIndexReq:
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexReqIncomingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexReqIncomingBytesAdd(kind, int64(m.Size()))
+	case replica.MsgLeaderTermStartIndexResp:
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexRespIncomingCountAdd(kind, 1)
+		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexRespIncomingBytesAdd(kind, int64(m.Size()))
+
+	}
+}

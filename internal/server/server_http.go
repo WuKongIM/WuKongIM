@@ -112,4 +112,9 @@ func (s *APIServer) setRoutes() {
 	if ok {
 		clusterServer.ServerAPI(s.r, "/cluster")
 	}
+	// 监控
+	metricHandler := s.s.trace.Handler()
+	s.r.GET("/metrics", func(c *wkhttp.Context) {
+		metricHandler.ServeHTTP(c.Writer, c.Request)
+	})
 }

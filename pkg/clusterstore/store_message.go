@@ -1,6 +1,7 @@
 package clusterstore
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *Store) AppendMessages(channelID string, channelType uint8, msgs []wkstore.Message) error {
+func (s *Store) AppendMessages(ctx context.Context, channelID string, channelType uint8, msgs []wkstore.Message) error {
 
 	if len(msgs) == 0 {
 		return nil
@@ -22,9 +23,10 @@ func (s *Store) AppendMessages(channelID string, channelType uint8, msgs []wksto
 	for _, msg := range msgs {
 		msgData = append(msgData, msg.Encode())
 	}
+	
 	start := time.Now()
 	s.Debug("start propose channel messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
-	lastIndexs, err := s.opts.Cluster.ProposeChannelMessages(channelID, channelType, msgData)
+	lastIndexs, err := s.opts.Cluster.ProposeChannelMessages(ctx, channelID, channelType, msgData)
 	s.Debug("end propose channel messages", zap.Duration("cost", time.Since(start)), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 	if err != nil {
 		return err
@@ -209,11 +211,14 @@ func (s *MessageShardLogStorage) AppendLog(shardNo string, logs []replica.Log) e
 		msgs[idx] = msg
 	}
 
+	start := time.Now()
+	s.Debug("start append messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 	_, err = s.db.AppendMessages(channelID, channelType, msgs)
 	if err != nil {
 		s.Error("AppendMessages err", zap.Error(err))
 		return err
 	}
+	s.Debug("end append messages", zap.Duration("cost", time.Since(start)), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 
 	return s.db.SaveChannelMaxMessageSeq(channelID, channelType, uint32(lastLog.Index))
 }

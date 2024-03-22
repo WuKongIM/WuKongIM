@@ -42,6 +42,10 @@ func (c *ForwardSendPacketReq) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, c)
 }
 
+func (c *ForwardSendPacketReq) Size() int {
+	return proto.Size(c)
+}
+
 func (c *ForwardSendPacketResp) Marshal() ([]byte, error) {
 	return proto.Marshal(c)
 }
