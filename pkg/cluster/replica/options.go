@@ -30,7 +30,7 @@ type Options struct {
 func NewOptions() *Options {
 	return &Options{
 		MaxUncommittedLogSize: 1024 * 1024 * 1024,
-		SyncLimitSize:         1024 * 1024 * 4, // 4M
+		SyncLimitSize:         1024 * 1024 * 20, // 20M
 		// LastSyncInfoMap:       map[uint64]*SyncInfo{},
 		MessageSendInterval: time.Millisecond * 100,
 		MaxIdleInterval:     time.Second * 1,

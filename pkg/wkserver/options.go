@@ -57,3 +57,9 @@ func WithMessagePoolSize(size int) Option {
 		o.MessagePoolSize = size
 	}
 }
+
+func WithMessagePoolOn(on bool) Option {
+	return func(o *Options) {
+		o.MessagePoolOn = on
+	}
+}

@@ -168,14 +168,13 @@ func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *
 	defaultConn.reactorSub = reactorSub
 	defaultConn.valueMap = map[string]interface{}{}
 	defaultConn.context = nil
+	defaultConn.lastActivity = time.Now()
 	defaultConn.uptime = time.Now()
 	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[[reactor-%d]%d]", reactorSub.idx, id))
 	defaultConn.connStats = NewConnStats()
 
 	defaultConn.inboundBuffer = eg.eventHandler.OnNewInboundConn(defaultConn, eg)
 	defaultConn.outboundBuffer = eg.eventHandler.OnNewOutboundConn(defaultConn, eg)
-
-	defaultConn.Debug("create connection", zap.Int("buffSize", defaultConn.inboundBuffer.BoundBufferSize()), zap.String("uid", defaultConn.uid), zap.String("deviceID", defaultConn.deviceID))
 
 	return defaultConn
 }
@@ -293,7 +292,9 @@ func (d *DefaultConn) Fd() NetFd {
 	return d.fd
 }
 
-func (d *DefaultConn) close() error {
+// 调用次方法需要加锁
+func (d *DefaultConn) closeNeedLock() error {
+
 	if d.closed {
 		return nil
 	}
@@ -302,7 +303,9 @@ func (d *DefaultConn) close() error {
 	_ = d.fd.Close()
 	d.eg.RemoveConn(d)           // remove from the engine
 	d.reactorSub.ConnDec()       // decrease the connection count
+	d.mu.Unlock()                // 这里先解锁，避免OnClose中调用conn的方法导致死锁
 	d.eg.eventHandler.OnClose(d) // call the close handler
+	d.mu.Lock()
 	d.release()
 
 	err := d.reactorSub.DeleteFd(d)
@@ -316,7 +319,7 @@ func (d *DefaultConn) close() error {
 func (d *DefaultConn) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.close()
+	return d.closeNeedLock()
 }
 
 func (d *DefaultConn) RemoteAddr() net.Addr {
@@ -530,7 +533,7 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 			if d.closed {
 				return
 			}
-			d.close()
+			d.closeNeedLock()
 		})
 	}
 }

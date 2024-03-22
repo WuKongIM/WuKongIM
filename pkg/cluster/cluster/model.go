@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -288,6 +289,8 @@ type ChannelProposeReq struct {
 	ChannelId   string   // 频道id
 	ChannelType uint8    // 频道类型
 	Data        [][]byte // 数据
+	TraceID     trace.TraceID
+	SpanID      trace.SpanID
 }
 
 func (c *ChannelProposeReq) Marshal() ([]byte, error) {
@@ -299,6 +302,8 @@ func (c *ChannelProposeReq) Marshal() ([]byte, error) {
 	for _, data := range c.Data {
 		enc.WriteBinary(data)
 	}
+	enc.WriteBytes(c.TraceID[:])
+	enc.WriteBytes(c.SpanID[:])
 	return enc.Bytes(), nil
 }
 
@@ -323,6 +328,17 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 			}
 		}
 	}
+	var traceIDBytes []byte
+	if traceIDBytes, err = dec.Bytes(len(c.TraceID)); err != nil {
+		return err
+	}
+	copy(c.TraceID[:], traceIDBytes)
+
+	var spanIDBytes []byte
+	if spanIDBytes, err = dec.Bytes(len(c.SpanID)); err != nil {
+		return err
+	}
+	copy(c.SpanID[:], spanIDBytes)
 	return nil
 }
 

@@ -70,20 +70,18 @@ const (
 	MsgUnknown          MsgType = iota // 未知
 	MsgAppointLeaderReq                // 任命领导请求 （上级领导发送任命消息给各节点，如果任命的是自己则变成领导，否者变成追随者，会一直尝试发送并且收到大多数响应后停止发送）
 	// MsgAppointLeaderResp                       // 任命领导响应 (上级领导)
-	MsgPropose                    // 提案（领导）
-	MsgNotifySync                 // 通知追随者同步日志（领导）
-	MsgNotifySyncAck              // 通知追随者同步日志回执（领导）
-	MsgSync                       // 同步日志 （追随者）
-	MsgSyncAck                    // 同步日志回执 （追随者）
-	MsgSyncResp                   // 同步日志响应（领导）
-	MsgLeaderTermStartIndexReq    // 领导任期开始偏移量请求 （追随者）
-	MsgLeaderTermStartIndexReqAck // 领导任期开始偏移量请求回执 （追随者）
-	MsgLeaderTermStartIndexResp   // 领导任期开始偏移量响应（领导）
-	MsgStoreAppend                // 存储追加日志
-	MsgStoreAppendResp            // 存储追加日志响应
-	MsgApplyLogsReq               // 应用日志请求
-	MsgApplyLogsResp              // 应用日志响应
-	MsgPing                       // ping
+	MsgPropose // 提案（领导）
+	// MsgNotifySync                 // 通知追随者同步日志（领导）
+	// MsgNotifySyncAck              // 通知追随者同步日志回执（领导）
+	MsgSync                     // 同步日志 （追随者）
+	MsgSyncResp                 // 同步日志响应（领导）
+	MsgLeaderTermStartIndexReq  // 领导任期开始偏移量请求 （追随者）
+	MsgLeaderTermStartIndexResp // 领导任期开始偏移量响应（领导）
+	MsgStoreAppend              // 存储追加日志
+	MsgStoreAppendResp          // 存储追加日志响应
+	MsgApplyLogsReq             // 应用日志请求
+	MsgApplyLogsResp            // 应用日志响应
+	MsgPing                     // ping
 	MsgPong
 )
 
@@ -97,20 +95,12 @@ func (m MsgType) String() string {
 	// return "MsgAppointLeaderResp"
 	case MsgPropose:
 		return "MsgPropose"
-	case MsgNotifySync:
-		return "MsgNotifySync"
-	case MsgNotifySyncAck:
-		return "MsgNotifySyncAck"
 	case MsgSync:
 		return "MsgSync"
-	case MsgSyncAck:
-		return "MsgSyncAck"
 	case MsgSyncResp:
 		return "MsgSyncResp"
 	case MsgLeaderTermStartIndexReq:
 		return "MsgLeaderTermStartIndexReq"
-	case MsgLeaderTermStartIndexReqAck:
-		return "MsgLeaderTermStartIndexReqAck"
 	case MsgLeaderTermStartIndexResp:
 		return "MsgLeaderTermStartIndexResp"
 	case MsgApplyLogsReq:
@@ -132,7 +122,6 @@ func (m MsgType) String() string {
 
 type Message struct {
 	Id                uint64  // 消息id
-	Key               string  // 消息key
 	MsgType           MsgType // 消息类型
 	From              uint64
 	To                uint64
@@ -145,6 +134,10 @@ type Message struct {
 
 	Responses    []Message
 	AppliedIndex uint64
+
+	// 追踪
+	TraceIDs [][16]byte // 追踪ID
+	SpanIDs  [][8]byte  // 跨度ID
 }
 
 func (m Message) Marshal() ([]byte, error) {
@@ -172,7 +165,24 @@ func (m Message) Marshal() ([]byte, error) {
 		}
 		enc.WriteBinary(logData)
 	}
+	enc.WriteInt16(len(m.TraceIDs))
+	for i, traceID := range m.TraceIDs {
+		enc.WriteBytes(traceID[:])
+		enc.WriteBytes(m.SpanIDs[i][:])
+	}
 	return enc.Bytes(), nil
+}
+
+func (m Message) Size() int {
+	size := 8 + 2 + 8 + 8 + 4 + 8 + 1 + 8 + 8 + 4 // id + msgType + from + to + term + appointmentLeader + reject + index + committedIndex + logsLen
+	for _, l := range m.Logs {
+		size += l.LogSize()
+	}
+	size += 2 // traceIDsLen
+	size += len(m.TraceIDs) * 16
+	size += len(m.SpanIDs) * 8
+	return size
+
 }
 
 func UnmarshalMessage(data []byte) (Message, error) {
@@ -226,6 +236,28 @@ func UnmarshalMessage(data []byte) (Message, error) {
 			return m, err
 		}
 		m.Logs = append(m.Logs, *l)
+	}
+	traceIDsLen, err := dec.Int16()
+	if err != nil {
+		return m, err
+	}
+	for i := int16(0); i < traceIDsLen; i++ {
+		traceIDBytes, err := dec.Bytes(16)
+		if err != nil {
+			return m, err
+		}
+		spanIDBytes, err := dec.Bytes(8)
+		if err != nil {
+			return m, err
+		}
+		var traceID [16]byte
+		copy(traceID[:], traceIDBytes)
+		m.TraceIDs = append(m.TraceIDs, traceID)
+
+		var spanID [8]byte
+		copy(spanID[:], spanIDBytes)
+		m.SpanIDs = append(m.SpanIDs, spanID)
+
 	}
 	return m, nil
 }
@@ -318,7 +350,7 @@ func (s *SyncInfo) Unmarshal(data []byte) error {
 
 func PrintMessages(msgs []Message) {
 	for _, m := range msgs {
-		fmt.Printf("id:%d, key:%s, type:%s, from:%d, to:%d, term:%d, appointmentLeader:%d, reject:%v, index:%d, committedIndex:%d, logs:%d\n",
-			m.Id, m.Key, m.MsgType.String(), m.From, m.To, m.Term, m.AppointmentLeader, m.Reject, m.Index, m.CommittedIndex, len(m.Logs))
+		fmt.Printf("id:%d, type:%s, from:%d, to:%d, term:%d, appointmentLeader:%d, reject:%v, index:%d, committedIndex:%d, logs:%d\n",
+			m.Id, m.MsgType.String(), m.From, m.To, m.Term, m.AppointmentLeader, m.Reject, m.Index, m.CommittedIndex, len(m.Logs))
 	}
 }

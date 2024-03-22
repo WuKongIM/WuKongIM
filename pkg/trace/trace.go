@@ -3,29 +3,38 @@ package trace
 import (
 	"context"
 	"fmt"
+	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
+var GlobalTrace *Trace
+
+func SetGlobalTrace(t *Trace) {
+	GlobalTrace = t
+}
+
 var (
-	tracer  = otel.Tracer("trace")
-	meter   = otel.Meter("trace")
-	rollCnt metric.Int64Counter
+	tracer = otel.Tracer("trace")
 )
 
 type Trace struct {
 	opts     *Options
 	ctx      context.Context
 	shutdown func(context.Context) error
+
+	// Metrics 监控
+	Metrics IMetrics
 }
 
 func New(ctx context.Context, opts *Options) *Trace {
 	return &Trace{
-		ctx:  ctx,
-		opts: opts,
+		ctx:     ctx,
+		opts:    opts,
+		Metrics: newMetrics(),
 	}
 }
 
@@ -47,6 +56,10 @@ func (t *Trace) Stop() {
 	}
 }
 
+func (t *Trace) Handler() http.Handler {
+	return promhttp.Handler()
+}
+
 func (t *Trace) StartSpan(ctx context.Context, name string) (context.Context, Span) {
 	ctx, span := tracer.Start(ctx, name)
 	return ctx, defaultSpan{
@@ -61,6 +74,9 @@ type Span interface {
 	SetString(key string, value string)
 	SetUint8(key string, value uint8)
 	SetUint64(key string, value uint64)
+	SetUint32(key string, value uint32)
+	SetUint64s(key string, value []uint64)
+	SetBool(key string, value bool)
 }
 
 type defaultSpan struct {
@@ -86,6 +102,24 @@ func (d defaultSpan) SetUint8(key string, value uint8) {
 
 func (d defaultSpan) SetUint64(key string, value uint64) {
 	d.SetAttributes(attribute.String(key, fmt.Sprintf("%d", value)))
+}
+
+func (d defaultSpan) SetUint32(key string, value uint32) {
+	d.SetAttributes(attribute.String(key, fmt.Sprintf("%d", value)))
+}
+
+func (d defaultSpan) SetUint64s(key string, value []uint64) {
+	var str string
+	for _, v := range value {
+		str += fmt.Sprintf("%d,", v)
+	}
+	d.SetAttributes(attribute.String(key, str))
+
+}
+
+func (d defaultSpan) SetBool(key string, value bool) {
+	d.SetAttributes(attribute.Bool(key, value))
+
 }
 
 func SpanFromContext(ctx context.Context) Span {
@@ -117,7 +151,6 @@ type SpanContext struct {
 type SpanContextConfig struct {
 	TraceID    TraceID
 	SpanID     SpanID
-	TraceFlags TraceFlags
 	TraceState TraceState
 	Remote     bool
 }
@@ -126,7 +159,7 @@ func (s SpanContextConfig) SpanContextConfig() trace.SpanContextConfig {
 	return trace.SpanContextConfig{
 		TraceID:    trace.TraceID(s.TraceID),
 		SpanID:     trace.SpanID(s.SpanID),
-		TraceFlags: trace.TraceFlags(s.TraceFlags),
+		TraceFlags: trace.FlagsSampled,
 		TraceState: trace.TraceState(s.TraceState),
 		Remote:     s.Remote,
 	}

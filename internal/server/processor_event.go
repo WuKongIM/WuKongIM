@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -24,12 +24,12 @@ func (p *Processor) SetRoutes() {
 	p.s.cluster.Route("/wk/recvackPacket", p.handleOnRecvackPacketReq)
 }
 
-func (p *Processor) handleClusterMessage(from uint64, msg *proto.Message) {
+func (p *Processor) handleClusterMessage(msg *proto.Message) {
 	switch ClusterMsgType(msg.MsgType) {
 	case ClusterMsgTypeConnWrite: // 远程连接写入
-		p.handleConnWrite(from, msg)
+		p.handleConnWrite(msg)
 	case ClusterMsgTypeConnClose:
-		p.handleConnClose(from, msg)
+		p.handleConnClose(msg)
 	}
 }
 
@@ -107,6 +107,8 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+	p.s.trace.Metrics.Cluster().SendPacketIncomingBytesAdd(int64(req.Size()))
+	p.s.trace.Metrics.Cluster().SendPacketIncomingCountAdd(1)
 	var (
 		fakeChannelID = req.ChannelID
 	)
@@ -143,7 +145,7 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 	c.Write(data)
 }
 
-func (p *Processor) handleConnWrite(from uint64, msg *proto.Message) {
+func (p *Processor) handleConnWrite(msg *proto.Message) {
 	var req = &rpc.ConnectWriteReq{}
 	err := req.Unmarshal(msg.Content)
 	if err != nil {
@@ -157,7 +159,7 @@ func (p *Processor) handleConnWrite(from uint64, msg *proto.Message) {
 	}
 }
 
-func (p *Processor) handleConnClose(from uint64, msg *proto.Message) {
+func (p *Processor) handleConnClose(msg *proto.Message) {
 	var req = &rpc.ConnectCloseReq{}
 	err := req.Unmarshal(msg.Content)
 	if err != nil {
@@ -371,7 +373,6 @@ func (p *Processor) OnSendPacket(req *rpc.ForwardSendPacketReq) (*rpc.ForwardSen
 	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID:    trace.TraceID(req.TraceID),
 		SpanID:     trace.SpanID(req.SpanID),
-		TraceFlags: trace.FlagsSampled, //这个没写，是不会记录的
 		TraceState: trace.TraceState{},
 		Remote:     true,
 	})

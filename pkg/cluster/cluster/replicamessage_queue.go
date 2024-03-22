@@ -1,5 +1,3 @@
-package cluster
-
 // Copyright 2017-2019 Lei Ni (nilei81@gmail.com) and other contributors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,17 +12,19 @@ package cluster
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package cluster
+
 import (
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 )
 
-type MessageQueue struct {
-	left          []*proto.Message
-	right         []*proto.Message
-	nodrop        []*proto.Message
+type ReplicaMessageQueue struct {
+	left          []replica.Message
+	right         []replica.Message
+	nodrop        []replica.Message
 	rl            *RateLimiter // 速率限制
 	size          uint64
 	lazyFreeCycle uint64
@@ -41,22 +41,22 @@ type MessageQueue struct {
 	wklog.Log
 }
 
-func NewMessageQueue(size uint64,
-	ch bool, lazyFreeCycle uint64, maxMemorySize uint64) *MessageQueue {
-	q := &MessageQueue{
-		Log:           wklog.NewWKLog("MessageQueue"),
+func NewReplicaMessageQueue(size uint64,
+	ch bool, lazyFreeCycle uint64, maxMemorySize uint64) *ReplicaMessageQueue {
+	q := &ReplicaMessageQueue{
+		Log:           wklog.NewWKLog("ReplicaMessageQueue"),
 		rl:            NewRateLimiter(maxMemorySize),
 		size:          size,
 		lazyFreeCycle: lazyFreeCycle,
-		left:          make([]*proto.Message, size),
-		right:         make([]*proto.Message, size),
-		nodrop:        make([]*proto.Message, 0),
+		left:          make([]replica.Message, size),
+		right:         make([]replica.Message, size),
+		nodrop:        make([]replica.Message, 0),
 	}
 	return q
 }
 
-func (q *MessageQueue) targetQueue() []*proto.Message {
-	var t []*proto.Message
+func (q *ReplicaMessageQueue) targetQueue() []replica.Message {
+	var t []replica.Message
 	if q.leftInWrite {
 		t = q.left
 	} else {
@@ -66,7 +66,7 @@ func (q *MessageQueue) targetQueue() []*proto.Message {
 }
 
 // Add adds the specified message to the queue.
-func (q *MessageQueue) Add(msg *proto.Message) (bool, bool) {
+func (q *ReplicaMessageQueue) Add(msg replica.Message) (bool, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.idx >= q.size {
@@ -85,7 +85,7 @@ func (q *MessageQueue) Add(msg *proto.Message) (bool, bool) {
 }
 
 // MustAdd adds the specified message to the queue.
-func (q *MessageQueue) MustAdd(msg *proto.Message) bool {
+func (q *ReplicaMessageQueue) MustAdd(msg replica.Message) bool {
 
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -96,7 +96,7 @@ func (q *MessageQueue) MustAdd(msg *proto.Message) bool {
 	return true
 }
 
-func (q *MessageQueue) tryAdd(msg *proto.Message) bool {
+func (q *ReplicaMessageQueue) tryAdd(msg replica.Message) bool {
 	if !q.rl.Enabled() {
 		return true
 	}
@@ -104,27 +104,27 @@ func (q *MessageQueue) tryAdd(msg *proto.Message) bool {
 		q.Warn("rate limited dropped a Replicate msg")
 		return false
 	}
-	q.rl.Increase(uint64(msg.Size()))
+	q.rl.Increase(uint64(replica.LogsSize(msg.Logs)))
 	return true
 }
 
-func (q *MessageQueue) gc() {
+func (q *ReplicaMessageQueue) gc() {
 	if q.lazyFreeCycle > 0 {
 		oldq := q.targetQueue()
 		if q.lazyFreeCycle == 1 {
 			for i := uint64(0); i < q.oldIdx; i++ {
-				oldq[i].Content = nil
+				oldq[i].Logs = nil
 			}
 		} else if q.cycle%q.lazyFreeCycle == 0 {
 			for i := uint64(0); i < q.size; i++ {
-				oldq[i].Content = nil
+				oldq[i].Logs = nil
 			}
 		}
 	}
 }
 
 // Get returns everything current in the queue.
-func (q *MessageQueue) Get() []*proto.Message {
+func (q *ReplicaMessageQueue) Get() []replica.Message {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.cycle++
@@ -141,10 +141,10 @@ func (q *MessageQueue) Get() []*proto.Message {
 		return t[:sz]
 	}
 
-	var result []*proto.Message
+	var result []replica.Message
 	if len(q.nodrop) > 0 {
 		ssm := q.nodrop
-		q.nodrop = make([]*proto.Message, 0)
+		q.nodrop = make([]replica.Message, 0)
 		result = append(result, ssm...)
 	}
 	return append(result, t[:sz]...)

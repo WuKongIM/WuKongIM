@@ -1,6 +1,7 @@
 package clusterstore_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestAppendMessage(t *testing.T) {
 	msg := &testMessage{
 		data: []byte("hello"),
 	}
-	err := s1.AppendMessages(channelID, channelType, []wkstore.Message{msg})
+	err := s1.AppendMessages(context.Background(), channelID, channelType, []wkstore.Message{msg})
 	assert.NoError(t, err)
 
 	time.Sleep(time.Millisecond * 100)

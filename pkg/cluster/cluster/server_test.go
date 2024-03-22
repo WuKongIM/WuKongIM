@@ -1,6 +1,7 @@
 package cluster_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -109,7 +110,7 @@ func TestProposeMessageToChannel(t *testing.T) {
 
 	channelID := "test"
 	channelType := uint8(2)
-	lastLogIndex, err := s1.ProposeChannelMessage(channelID, channelType, []byte("hello"))
+	lastLogIndex, err := s1.ProposeChannelMessage(context.Background(), channelID, channelType, []byte("hello"))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), lastLogIndex)
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
@@ -110,10 +111,15 @@ func (g *channelGroup) handleReady(rd channelReady) {
 		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
 			g.Info("发送消息", zap.Uint64("id", msg.Id), zap.String("msgType", msg.MsgType.String()), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
 		}
+
+		// trace
+		traceOutgoingMessage(trace.ClusterKindChannel, msg)
+
 		// 发送消息
 		err = g.opts.Transport.Send(msg.To, protMsg, nil)
 		if err != nil {
 			g.Warn("send msg error", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 		}
 	}
+
 }

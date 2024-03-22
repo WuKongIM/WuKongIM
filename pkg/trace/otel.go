@@ -3,12 +3,12 @@ package trace
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	prometheusExp "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -98,30 +98,31 @@ func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, s
 	return traceProvider, nil
 }
 
-func newTraceProvider() (*trace.TracerProvider, error) {
-	traceExporter, err := stdouttrace.New(
-		stdouttrace.WithPrettyPrint())
-	if err != nil {
-		return nil, err
-	}
+// func newTraceProvider() (*trace.TracerProvider, error) {
+// 	traceExporter, err := stdouttrace.New(
+// 		stdouttrace.WithPrettyPrint())
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	traceProvider := trace.NewTracerProvider(
-		trace.WithBatcher(traceExporter,
-			// 默认为 5s。为便于演示，设置为 1s。
-			trace.WithBatchTimeout(time.Second)),
-	)
-	return traceProvider, nil
-}
+//		traceProvider := trace.NewTracerProvider(
+//			trace.WithBatcher(traceExporter,
+//				// 默认为 5s。为便于演示，设置为 1s。
+//				trace.WithBatchTimeout(time.Second)),
+//		)
+//		return traceProvider, nil
+//	}
+
 func newMeterProvider() (*metric.MeterProvider, error) {
-	metricExporter, err := stdoutmetric.New()
+
+	// 创建exporter和provider
+	exporter, err := prometheusExp.New()
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
 
 	meterProvider := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(metricExporter,
-			// Default is 1m. Set to 3s for demonstrative purposes.
-			metric.WithInterval(3*time.Second))),
+		metric.WithReader(exporter),
 	)
 	return meterProvider, nil
 }

@@ -2,8 +2,11 @@ package cluster
 
 import (
 	"testing"
+	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestCommitWait1(t *testing.T) {
@@ -65,4 +68,29 @@ func TestCommitWaitNotifyAll(t *testing.T) {
 	default:
 		t.Fatal("wait2C should be notified")
 	}
+}
+
+func TestCommitWait(t *testing.T) {
+	cm := newCommitWait()
+
+	var start time.Time
+
+	for i := 0; i < 10000; i++ {
+
+		go func(v uint64) {
+			wait2C, _ := cm.addWaitIndex(v)
+			<-wait2C
+			wklog.Info("wait2C", zap.Uint64("v", v), zap.Duration("cost", time.Since(start)))
+
+		}(uint64(i + 1))
+	}
+
+	time.Sleep(time.Second * 2)
+
+	start = time.Now()
+
+	cm.commitIndex(10000)
+
+	time.Sleep(time.Second * 10)
+
 }

@@ -598,7 +598,7 @@ func (f *FileStore) GetChannelClusterConfig(channelID string, channelType uint8)
 
 	iter := f.db.NewIter(&pebble.IterOptions{
 		LowerBound: []byte(f.getChannelClusterConfigKey(channelID, channelType)),
-		UpperBound: []byte(f.getChannelClusterConfigKey(channelID, channelType)),
+		UpperBound: []byte(f.getChannelClusterConfigHighKey(channelID, channelType)),
 	})
 	defer iter.Close()
 
@@ -846,6 +846,11 @@ func (f *FileStore) getChannelClusterConfigKeyWithColName(channelId string, chan
 func (f *FileStore) getChannelClusterConfigKey(channelId string, channelType uint8) string {
 
 	return fmt.Sprintf("%s/channelType/%03d/channelId/%s", f.getChannelclusterconfigTable(), channelType, channelId)
+}
+
+func (f *FileStore) getChannelClusterConfigHighKey(channelId string, channelType uint8) string {
+
+	return fmt.Sprintf("%s/channelType/%03d/channelId/%s/\xff", f.getChannelclusterconfigTable(), channelType, channelId)
 }
 
 func (f *FileStore) getChannelclusterconfigTable() string {

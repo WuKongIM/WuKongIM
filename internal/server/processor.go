@@ -366,6 +366,7 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 		channelSendPacketMap = make(map[string][]*wkproto.SendPacket, 0)  // split sendPacket by channel
 		// recvPackets          = make([]wkproto.RecvPacket, 0, len(sendpPackets)) // recv packets
 	)
+
 	// ########## split sendPacket by channel ##########
 	for _, sendPacket := range sendPackets {
 		channelKey := fmt.Sprintf("%s-%d", sendPacket.ChannelID, sendPacket.ChannelType)
@@ -383,6 +384,9 @@ func (p *Processor) processMsgs(conn wknet.Conn, sendPackets []*wkproto.SendPack
 	span.SetInt64("connID", conn.ID())
 	span.SetString("uid", conn.UID())
 	span.SetString("deviceID", conn.DeviceID())
+	span.SetInt("deviceFlag", int(conn.DeviceFlag()))
+	span.SetInt("protoVersion", int(conn.ProtoVersion()))
+	span.SetInt("sendPackets", len(sendPackets))
 
 	// ########## process message for channel ##########
 	for _, sendPackets := range channelSendPacketMap {
@@ -477,7 +481,7 @@ func (p *Processor) forwardSendPackets(ctx context.Context, conn wknet.Conn, cha
 	spanID := span.SpanContext().SpanID()
 	traceID := span.SpanContext().TraceID()
 
-	resp, err := p.s.forwardSendPacketReq(leaderInfo.Id, &rpc.ForwardSendPacketReq{
+	forwardSendPacketReq := &rpc.ForwardSendPacketReq{
 		ChannelID:    channelID,
 		ChannelType:  uint32(channelType),
 		FromUID:      conn.UID(),
@@ -487,7 +491,12 @@ func (p *Processor) forwardSendPackets(ctx context.Context, conn wknet.Conn, cha
 		DeviceID:     conn.DeviceID(),
 		TraceID:      traceID[:],
 		SpanID:       spanID[:],
-	})
+	}
+
+	p.s.trace.Metrics.Cluster().SendPacketOutgoingBytesAdd(int64(forwardSendPacketReq.Size()))
+	p.s.trace.Metrics.Cluster().SendPacketOutgoingCountAdd(1)
+
+	resp, err := p.s.forwardSendPacketReq(leaderInfo.Id, forwardSendPacketReq)
 	if err != nil {
 		p.Error("forward send packet err", zap.Uint64("leaderId", leaderInfo.Id), zap.Error(err))
 		for _, sendPacket := range sendPackets {
@@ -870,12 +879,12 @@ func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID stri
 	if firstMessage.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(fromUID, firstMessage.ChannelID)
 	}
-	_, storeSpan := p.s.trace.StartSpan(ctx, "storeChannelMessages")
+	storeCtx, storeSpan := p.s.trace.StartSpan(ctx, "storeChannelMessages")
 	storeSpan.SetString("channelID", fakeChannelID)
 	storeSpan.SetUint8("channelType", firstMessage.ChannelType)
 	storeSpan.SetInt("messageCount", len(storeMessages))
 	defer storeSpan.End()
-	err := p.s.store.AppendMessages(fakeChannelID, firstMessage.ChannelType, storeMessages)
+	err := p.s.store.AppendMessages(storeCtx, fakeChannelID, firstMessage.ChannelType, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))
 		return err

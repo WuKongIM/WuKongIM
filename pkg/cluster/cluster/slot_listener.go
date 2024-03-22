@@ -57,6 +57,10 @@ func (s *slotListener) loopEvent() {
 				if st.isDestroy() {
 					return
 				}
+				err := st.handleReceivedMessages()
+				if err != nil {
+					s.Error("loopEvent:handle received messages error", zap.Error(err), zap.Uint32("slotId", st.slotId))
+				}
 				if st.hasReady() {
 					rd := st.ready()
 					if replica.IsEmptyReady(rd) {

@@ -62,9 +62,9 @@ func (c *channelGroupManager) stop() {
 
 }
 
-func (c *channelGroupManager) proposeMessage(channelId string, channelType uint8, data []byte) (uint64, error) {
+func (c *channelGroupManager) proposeMessage(ctx context.Context, channelId string, channelType uint8, data []byte) (uint64, error) {
 
-	lastLogIndexs, err := c.proposeMessages(channelId, channelType, [][]byte{data})
+	lastLogIndexs, err := c.proposeMessages(ctx, channelId, channelType, [][]byte{data})
 	if err != nil {
 		return 0, err
 	}
@@ -74,17 +74,25 @@ func (c *channelGroupManager) proposeMessage(channelId string, channelType uint8
 	return lastLogIndexs[0], nil
 }
 
-func (c *channelGroupManager) proposeMessages(channelId string, channelType uint8, data [][]byte) ([]uint64, error) {
+func (c *channelGroupManager) proposeMessages(ctx context.Context, channelId string, channelType uint8, data [][]byte) ([]uint64, error) {
 
-	channel, err := c.fetchChannel(channelId, channelType)
+	channel, err := c.fetchChannel(ctx, channelId, channelType)
 	if err != nil {
 		c.Error("get channel failed", zap.Error(err))
 		return nil, err
 	}
-	if !channel.isLeader() { // 如果不是频道领导，则转发给频道领导
-		c.Debug("not leader,forward to leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("leaderId", channel.leaderId()))
-		resp, err := c.requestChannelProposeMessage(channel.leaderId(), channelId, channelType, data)
+	if !channel.IsLeader() { // 如果不是频道领导，则转发给频道领导
+		c.Debug("not leader,forward to leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("leaderId", channel.LeaderId()))
+
+		_, span := c.s.trace.StartSpan(ctx, "channelProposeMessageForwardToLeader")
+		span.SetString("channelId", channelId)
+		span.SetUint8("channelType", channelType)
+		span.SetUint64("leaderId", channel.LeaderId())
+		span.SetInt("dataLen", len(data))
+		defer span.End()
+		resp, err := c.requestChannelProposeMessage(channel.LeaderId(), channelId, channelType, data)
 		if err != nil {
+			span.RecordError(err)
 			c.Error("requestChannelProposeMessage failed", zap.Error(err))
 			return nil, err
 		}
@@ -92,12 +100,13 @@ func (c *channelGroupManager) proposeMessages(channelId string, channelType uint
 			c.Info("local channel cluster config is old,delete it", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			err = c.s.opts.ChannelClusterStorage.Delete(channelId, channelType)
 			if err != nil {
+				span.RecordError(err)
 				c.Warn("deleteChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			}
 		}
 		return resp.Indexs, nil
 	}
-	lastIndex, err := channel.proposeAndWaitCommits(data, c.proposeTimeout)
+	lastIndex, err := channel.proposeAndWaitCommits(ctx, data, c.proposeTimeout)
 	return lastIndex, err
 }
 
@@ -125,9 +134,9 @@ func (c *channelGroupManager) existChannel(channelID string, channelType uint8) 
 	return c.channelGroup(channelID, channelType).exist(channelID, channelType)
 }
 
-func (c *channelGroupManager) fetchChannel(channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) fetchChannel(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
 
-	return c.loadOrCreateChannel(channelID, channelType)
+	return c.loadOrCreateChannel(ctx, channelID, channelType)
 }
 
 func (c *channelGroupManager) fetchChannelForRead(channelID string, channelType uint8) (ichannel, error) {
@@ -140,9 +149,9 @@ func (c *channelGroupManager) channelGroup(channelID string, channelType uint8) 
 	return c.channelGroups[idx]
 }
 
-func (c *channelGroupManager) handleMessage(channelID string, channelType uint8, msg replica.Message) error {
+func (c *channelGroupManager) handleMessage(ctx context.Context, channelID string, channelType uint8, msg replica.Message) error {
 
-	channel, err := c.fetchChannel(channelID, channelType)
+	channel, err := c.fetchChannel(ctx, channelID, channelType)
 	if err != nil {
 		return err
 	}
@@ -152,7 +161,7 @@ func (c *channelGroupManager) handleMessage(channelID string, channelType uint8,
 	return channel.handleMessage(msg)
 }
 
-func (c *channelGroupManager) loadOrCreateChannel(channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) loadOrCreateChannel(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
 	shardNo := ChannelKey(channelID, channelType)
 	c.channelKeyLock.Lock(shardNo)
 	defer c.channelKeyLock.Unlock(shardNo)
@@ -168,13 +177,15 @@ func (c *channelGroupManager) loadOrCreateChannel(channelID string, channelType 
 		return nil, ErrSlotNotExist
 	}
 	if slot.Leader == c.s.opts.NodeID { // 当前节点是槽位的leader，槽节点有任命频道领导的权限，槽节点保存属于此槽频道的分布式配置
-		channel, err = c.getChannelForSlotLeader(channelID, channelType)
+
+		channel, err = c.getChannelForSlotLeader(ctx, channelID, channelType)
 		if err != nil {
 			c.Error("getChannelForSlotLeader failed", zap.Error(err), zap.String("channelId", channelID), zap.Uint8("channelType", channelType))
 			return nil, err
 		}
 	} else {
-		channel, err = c.getChannelForOthers(channelID, channelType)
+
+		channel, err = c.getChannelForOthers(ctx, channelID, channelType)
 		if err != nil {
 			c.Error("getChannelForOthers failed", zap.Error(err))
 			return nil, err
@@ -232,68 +243,82 @@ func (c *channelGroupManager) loadOnlyReadChannel(channelId string, channelType 
 	return newProxyChannel(c.s.opts.NodeID, clusterConfig), nil
 }
 
-func (c *channelGroupManager) getChannelForSlotLeader(channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
 	channel := c.channelGroup(channelID, channelType).channel(channelID, channelType)
+	if channel != nil {
+		return channel, nil
+	}
+	spanCtx, span := c.s.trace.StartSpan(ctx, "createChannelForSlotLeader")
+	defer span.End()
+	span.SetString("channelId", channelID)
+	span.SetUint8("channelType", channelType)
+	span.SetBool("hasClusterConfig", true)
 	clusterconfig, err := c.s.opts.ChannelClusterStorage.Get(channelID, channelType)
 	if err != nil {
 		return nil, err
 	}
-	exitChannel := true
-	if channel == nil { // 不存在缓存
-		exitChannel = false
-		if clusterconfig == nil { // 没有集群信息则创建一个新的集群信息
-			clusterconfig, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
-			if err != nil {
-				c.Error("create channel cluster info failed", zap.Error(err))
-				return nil, err
-			}
-
-		}
-		channel, err = c.newChannelByClusterInfo(clusterconfig)
+	if clusterconfig == nil { // 没有集群信息则创建一个新的集群信息
+		span.SetBool("hasClusterConfig", false)
+		clusterconfig, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
 		if err != nil {
-			c.Error("newChannelByClusterInfo failed", zap.Error(err))
+			c.Error("create channel cluster info failed", zap.Error(err))
+			span.RecordError(err)
 			return nil, err
 		}
-		if channel == nil {
-			return nil, fmt.Errorf("new channel failed")
-		}
-		// 检查在线副本是否超过半数
-		// if !c.checkOnlineReplicaCount(clusterconfig) {
-		// 	return nil, errors.New("online replica count is not enough, checkOnlineReplicaCount and createChannelClusterInfo failed")
-		// }
 
-		// 保存分布式配置
-		err = c.s.opts.ChannelClusterStorage.Save(clusterconfig.ChannelID, clusterconfig.ChannelType, clusterconfig)
-		if err != nil {
-			c.Error("proposeChannelClusterConfig failed", zap.Error(err))
-			return nil, err
-		}
-		channel.updateClusterConfig(clusterconfig)
-
-		// // 通知任命领导
-		// err = c.notifyAppointLeader(clusterconfig, nil)
-		// if err != nil {
-		// 	c.Error("notifyAppointLeader failed", zap.Error(err))
-		// 	return nil, err
-		// }
 	}
-	err = c.electionIfNeed(channel) // 根据需要是否进行选举
+	channel, err = c.newChannelByClusterInfo(clusterconfig)
 	if err != nil {
+		c.Error("newChannelByClusterInfo failed", zap.Error(err))
+		span.RecordError(err)
 		return nil, err
 	}
-	if !exitChannel { // 这里需要选举完后再添加到队列里，要不然队列里的频道领导者会不正确
-		// 添加到channelGroup
-		c.channelGroup(channelID, channelType).add(channel)
+	if channel == nil {
+		span.RecordError(errors.New("new channel failed"))
+		return nil, fmt.Errorf("new channel failed")
 	}
+	// 检查在线副本是否超过半数
+	// if !c.checkOnlineReplicaCount(clusterconfig) {
+	// 	return nil, errors.New("online replica count is not enough, checkOnlineReplicaCount and createChannelClusterInfo failed")
+	// }
+
+	// 保存分布式配置
+	err = c.s.opts.ChannelClusterStorage.Save(clusterconfig.ChannelID, clusterconfig.ChannelType, clusterconfig)
+	if err != nil {
+		c.Error("proposeChannelClusterConfig failed", zap.Error(err))
+		span.RecordError(err)
+		return nil, err
+	}
+	channel.updateClusterConfig(clusterconfig)
+	// // 通知任命领导
+	// err = c.notifyAppointLeader(clusterconfig, nil)
+	// if err != nil {
+	// 	c.Error("notifyAppointLeader failed", zap.Error(err))
+	// 	return nil, err
+	// }
+	err = c.electionIfNeed(spanCtx, channel) // 根据需要是否进行选举
+	if err != nil {
+		span.RecordError(err)
+		c.Error("electionIfNeed failed", zap.Error(err))
+		return nil, err
+	}
+	// 添加到channelGroup
+	c.channelGroup(channelID, channelType).add(channel)
+
 	return channel, err
 }
 
-func (c *channelGroupManager) getChannelForOthers(channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
 
 	cacheChannel := c.channelGroup(channelID, channelType).channel(channelID, channelType)
 	if cacheChannel != nil {
 		return cacheChannel, nil
 	}
+
+	_, span := c.s.trace.StartSpan(ctx, "getChannelForOthers")
+	defer span.End()
+	span.SetString("channelId", channelID)
+	span.SetUint8("channelType", channelType)
 
 	clusterConfig, err := c.s.opts.ChannelClusterStorage.Get(channelID, channelType)
 	if err != nil {
@@ -418,7 +443,7 @@ func (c *channelGroupManager) needElection(clusterConfig *wkstore.ChannelCluster
 }
 
 // 进行选举
-func (c *channelGroupManager) electionIfNeed(channel *channel) error {
+func (c *channelGroupManager) electionIfNeed(ctx context.Context, channel *channel) error {
 	clusterConfig := channel.clusterConfig
 	if clusterConfig == nil {
 		return errors.New("channel clusterConfig is not found")
@@ -434,8 +459,12 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 		return nil
 	}
 
+	_, span := c.s.trace.StartSpan(ctx, "election")
+	defer span.End()
+
 	// 检查在线副本是否超过半数
 	if !c.checkOnlineReplicaCount(clusterConfig) {
+		span.RecordError(errors.New("1checkOnlineReplicaCount:online replica count is not enough"))
 		c.Error("1checkOnlineReplicaCount: online replica count is not enough", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64s("replicas", clusterConfig.Replicas), zap.Int("onlineReplicaCount", len(clusterConfig.Replicas)), zap.Int("quorum", c.quorum()))
 		return errors.New("1online replica count is not enough, checkOnlineReplicaCount failed")
 	}
@@ -443,9 +472,11 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	// 获取参选投票频道最后一条消息的索引
 	channelLogInfoMap, err := c.requestChannelLastLogInfos(clusterConfig)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 	if len(channelLogInfoMap) < c.quorum() {
+		span.RecordError(errors.New("online replica count is not enough"))
 		c.Error("replica count is not enough", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64s("replicas", clusterConfig.Replicas), zap.Int("onlineReplicaCount", len(clusterConfig.Replicas)), zap.Int("quorum", c.quorum()))
 		return errors.New("online replica count is not enough")
 	}
@@ -453,10 +484,15 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	// 从参选的日志信息里选举出新的领导
 	newLeaderID := c.channelLeaderIDByLogInfo(channelLogInfoMap)
 	if newLeaderID == 0 {
+		span.RecordError(errors.New("new leader is not found"))
 		return errors.New("new leader is not found")
 	}
 	clusterConfig.LeaderId = newLeaderID
 	clusterConfig.Term = clusterConfig.Term + 1 // 任期加1
+
+	span.SetUint64("newLeaderID", newLeaderID)
+	span.SetUint32("term", clusterConfig.Term)
+	span.SetUint64s("replicas", clusterConfig.Replicas)
 
 	c.Info("成功选举出新的领导", zap.Uint64("newLeaderID", clusterConfig.LeaderId), zap.Uint32("term", clusterConfig.Term), zap.Uint64s("replicas", clusterConfig.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
@@ -464,6 +500,7 @@ func (c *channelGroupManager) electionIfNeed(channel *channel) error {
 	err = c.s.opts.ChannelClusterStorage.Save(channelId, channelType, clusterConfig)
 	if err != nil {
 		c.Error("saveChannelClusterConfig failed", zap.Error(err))
+		span.RecordError(err)
 		return err
 	}
 	channel.updateClusterConfig(clusterConfig)

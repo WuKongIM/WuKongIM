@@ -62,6 +62,19 @@ type Options struct {
 
 	// MaxMessageBatchSize 节点之间每次发送消息的最大大小（单位字节）
 	MaxMessageBatchSize uint64
+
+	// ReceiveQueueLength 副本接收队列的长度。
+	ReceiveQueueLength uint64
+
+	// LazyFreeCycle defines how often should entry queue and message queue
+	// to be freed.
+	LazyFreeCycle uint64
+
+	// MaxReceiveQueueSize is the maximum size in bytes of each receive queue.
+	// Once the maximum size is reached, further replication messages will be
+	// dropped to restrict memory usage. When set to 0, it means the queue size
+	// is unlimited.
+	MaxReceiveQueueSize uint64
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -74,7 +87,7 @@ func NewOptions(optList ...Option) *Options {
 		AdvanceCountOfBatch:          50,
 		SlotCount:                    256,
 		SlotMaxReplicaCount:          3,
-		ProposeTimeout:               time.Second * 5,
+		ProposeTimeout:               time.Minute * 5,
 		ChannelGroupCount:            128,
 		ChannelMaxReplicaCount:       3,
 		ReqTimeout:                   time.Second * 10,
@@ -84,6 +97,8 @@ func NewOptions(optList ...Option) *Options {
 		LogCaughtUpWithLeaderNum:     20,
 		SendQueueLength:              1024 * 2,
 		MaxMessageBatchSize:          64 * 1024 * 1024, // 64M
+		ReceiveQueueLength:           1024,
+		LazyFreeCycle:                1,
 	}
 	for _, opt := range optList {
 		opt(opts)

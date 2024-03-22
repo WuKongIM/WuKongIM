@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -116,6 +117,8 @@ func NewDefaultTransport(s *Server) *DefaultTransport {
 }
 
 func (d *DefaultTransport) Send(to uint64, m *proto.Message, callback func()) error {
+	trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(1)
+	trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(int64(m.Size()))
 	node := d.s.nodeManager.node(to)
 	if node == nil {
 		return ErrNodeNotFound
@@ -128,6 +131,7 @@ func (d *DefaultTransport) OnMessage(f func(from uint64, m *proto.Message)) {
 }
 
 func (d *DefaultTransport) RecvMessage(from uint64, m *proto.Message) {
+
 	if d.onMessage != nil {
 		d.onMessage(from, m)
 	}
