@@ -75,6 +75,9 @@ type Options struct {
 	// dropped to restrict memory usage. When set to 0, it means the queue size
 	// is unlimited.
 	MaxReceiveQueueSize uint64
+
+	// InitialTaskQueueCap is the initial capacity of the task queue.
+	InitialTaskQueueCap int
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -99,6 +102,7 @@ func NewOptions(optList ...Option) *Options {
 		MaxMessageBatchSize:          64 * 1024 * 1024, // 64M
 		ReceiveQueueLength:           1024,
 		LazyFreeCycle:                1,
+		InitialTaskQueueCap:          24,
 	}
 	for _, opt := range optList {
 		opt(opts)

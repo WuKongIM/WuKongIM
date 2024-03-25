@@ -115,7 +115,7 @@ func (s *Server) Start() error {
 		s.trace.Metrics.Cluster().MessageConcurrencyAdd(1)
 
 		from := s.nodeIdByServerUid(conn.UID())
-		s.handleMessage(from, msg)
+		s.handleRecvMessage(from, msg)
 
 		s.trace.Metrics.Cluster().MessageConcurrencyAdd(-1)
 	})
@@ -288,14 +288,14 @@ func (s *Server) WaitNodeLeader(timeout time.Duration) error {
 	return s.clusterEventListener.clusterconfigManager.waitNodeLeader(timeout)
 }
 
-func (s *Server) handleMessage(from uint64, m *proto.Message) {
+func (s *Server) handleRecvMessage(from uint64, m *proto.Message) {
 	switch m.MsgType {
 	case MsgClusterConfigMsg:
-		s.handleClusterConfigMsg(from, m)
+		s.handleClusterConfigRecvMsg(from, m)
 	case MsgSlotMsg:
-		s.handleSlotMsg(from, m)
+		s.handleSlotRecvMsg(from, m)
 	case MsgChannelMsg:
-		s.handleChannelMsg(from, m)
+		s.handleChannelRecvMsg(from, m)
 	default:
 
 		if s.onMessageFnc != nil {
@@ -354,7 +354,7 @@ func (s *Server) Options() *Options {
 	return s.opts
 }
 
-func (s *Server) handleClusterConfigMsg(_ uint64, m *proto.Message) {
+func (s *Server) handleClusterConfigRecvMsg(_ uint64, m *proto.Message) {
 	cfgMsg := &clusterconfig.Message{}
 	err := cfgMsg.Unmarshal(m.Content)
 	if err != nil {
@@ -364,7 +364,7 @@ func (s *Server) handleClusterConfigMsg(_ uint64, m *proto.Message) {
 	s.clusterEventListener.handleMessage(*cfgMsg)
 }
 
-func (s *Server) handleSlotMsg(_ uint64, m *proto.Message) {
+func (s *Server) handleSlotRecvMsg(_ uint64, m *proto.Message) {
 
 	msg, err := UnmarshalMessage(m.Content)
 	if err != nil {
@@ -377,7 +377,7 @@ func (s *Server) handleSlotMsg(_ uint64, m *proto.Message) {
 	s.slotManager.handleMessage(slotId, msg.Message)
 }
 
-func (s *Server) handleChannelMsg(_ uint64, m *proto.Message) {
+func (s *Server) handleChannelRecvMsg(_ uint64, m *proto.Message) {
 	msg, err := UnmarshalMessage(m.Content)
 	if err != nil {
 		s.Error("unmarshal slot message error", zap.Error(err))
@@ -389,7 +389,7 @@ func (s *Server) handleChannelMsg(_ uint64, m *proto.Message) {
 	// s.Info("收到频道消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From), zap.Uint32("term", msg.Term), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.Uint64("index", msg.Index), zap.Uint64("committed", msg.CommittedIndex))
 
 	channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
-	err = s.channelGroupManager.handleMessage(s.cancelCtx, channelID, channelType, msg.Message)
+	err = s.channelGroupManager.handleRecvMessage(s.cancelCtx, channelID, channelType, msg.Message)
 	if err != nil {
 		s.Error("handle channel message error", zap.Error(err), zap.String("shardNo", msg.ShardNo))
 		return

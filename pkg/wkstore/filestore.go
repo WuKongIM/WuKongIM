@@ -35,14 +35,14 @@ type FileStore struct {
 func NewFileStore(cfg *StoreConfig) *FileStore {
 
 	f := &FileStore{
-		cfg:             cfg,
-		lock:            keylock.NewKeyLock(),
-		FileStoreForMsg: NewFileStoreForMsg(cfg),
-		endian:          binary.BigEndian,
+		cfg:    cfg,
+		lock:   keylock.NewKeyLock(),
+		endian: binary.BigEndian,
 		wo: &pebble.WriteOptions{
 			Sync: true,
 		},
 	}
+	f.FileStoreForMsg = NewFileStoreForMsg(cfg)
 
 	return f
 }

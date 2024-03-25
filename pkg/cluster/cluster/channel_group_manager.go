@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
@@ -149,7 +150,7 @@ func (c *channelGroupManager) channelGroup(channelID string, channelType uint8) 
 	return c.channelGroups[idx]
 }
 
-func (c *channelGroupManager) handleMessage(ctx context.Context, channelID string, channelType uint8, msg replica.Message) error {
+func (c *channelGroupManager) handleRecvMessage(ctx context.Context, channelID string, channelType uint8, msg replica.Message) error {
 
 	channel, err := c.fetchChannel(ctx, channelID, channelType)
 	if err != nil {
@@ -158,7 +159,7 @@ func (c *channelGroupManager) handleMessage(ctx context.Context, channelID strin
 	if channel == nil {
 		return ErrChannelNotFound
 	}
-	return channel.handleMessage(msg)
+	return channel.handleRecvMessage(msg)
 }
 
 func (c *channelGroupManager) loadOrCreateChannel(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
@@ -627,6 +628,7 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.Ch
 	requestGroup, ctx := errgroup.WithContext(timeoutCtx)
 	shardNo := ChannelKey(clusterInfo.ChannelID, clusterInfo.ChannelType)
 	channelLogInfoMap := make(map[uint64]*ChannelLastLogInfoResponse, 0)
+	channelLogInfoMapLock := new(sync.Mutex)
 
 	for _, replicaID := range clusterInfo.Replicas {
 		if !c.s.clusterEventListener.clusterconfigManager.nodeIsOnline(replicaID) {
@@ -637,9 +639,11 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.Ch
 			if err != nil {
 				return nil, err
 			}
+			channelLogInfoMapLock.Lock()
 			channelLogInfoMap[replicaID] = &ChannelLastLogInfoResponse{
 				LogIndex: lastLogIndex,
 			}
+			channelLogInfoMapLock.Unlock()
 			continue
 		} else {
 			requestGroup.Go(func(rcID uint64) func() error {
@@ -657,7 +661,9 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.Ch
 						c.Warn("requestChannelLastLogInfo failed", zap.Uint64("nodeId", rcID), zap.String("channelId", clusterInfo.ChannelID), zap.Uint8("channelType", clusterInfo.ChannelType), zap.Error(err))
 						return nil
 					}
+					channelLogInfoMapLock.Lock()
 					channelLogInfoMap[rcID] = resp
+					channelLogInfoMapLock.Unlock()
 					return nil
 				}
 			}(replicaID))

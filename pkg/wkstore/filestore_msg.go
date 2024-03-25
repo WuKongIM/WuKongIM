@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/cockroachdb/pebble"
 )
 
 // var segmentCache *lru.Cache[string, *segment]
@@ -26,6 +27,7 @@ type FileStoreForMsg struct {
 	slotMap map[uint32]*slot
 	wklog.Log
 	slotMapLock sync.RWMutex
+	db          *pebble.DB
 }
 
 func NewFileStoreForMsg(cfg *StoreConfig) *FileStoreForMsg {
@@ -38,9 +40,9 @@ func NewFileStoreForMsg(cfg *StoreConfig) *FileStoreForMsg {
 	return f
 }
 
-func (f *FileStoreForMsg) AppendMessages(channelID string, channelType uint8, msgs []Message) (seqs []uint32, err error) {
-	seqs, _, err = f.getTopic(channelID, channelType).appendMessages(msgs)
-	return
+func (f *FileStoreForMsg) AppendMessages(channelID string, channelType uint8, msgs []Message) error {
+	_, _, err := f.getTopic(channelID, channelType).appendMessages(msgs)
+	return err
 }
 
 func (f *FileStoreForMsg) AppendMessagesOfUser(uid string, msgs []Message) (seqs []uint32, err error) {
