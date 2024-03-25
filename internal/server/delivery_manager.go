@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/panjf2000/ants/v2"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -22,8 +22,8 @@ type DeliveryManager struct {
 func NewDeliveryManager(s *Server) *DeliveryManager {
 	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: false}
 	deliveryMsgPool, err := ants.NewPool(s.opts.DeliveryMsgPoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
-		fmt.Println("消息投递panic->", errors.Wrap(err.(error), "error"))
-
+		stack := debug.Stack()
+		s.Error("消息投递panic->", zap.Error(err.(error)), zap.String("stack", string(stack)))
 	}))
 	if err != nil {
 		panic(err)
