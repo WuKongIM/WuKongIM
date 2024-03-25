@@ -37,6 +37,7 @@ func (u *unstable) maybeLastIndex() (uint64, bool) {
 // stableTo(5) => [6 7 8 9]
 func (u *unstable) stableTo(index uint64) {
 	num := int(index + 1 - u.offset)
+	fmt.Println("stableTo-->", num, index, len(u.logs), u.offsetInProgress, u.offset)
 	u.logs = u.logs[num:]
 	u.offset = index + 1
 	u.offsetInProgress = max(u.offsetInProgress, u.offset)
@@ -83,11 +84,15 @@ func (u *unstable) truncateAndAppend(logs []Log) {
 		u.logs = logs
 		u.offset = fromIndex
 		u.offsetInProgress = u.offset
+		u.Panic("truncateAndAppend.....1")
+
 	default:
 		// Truncate to the first conflicting index, then append.
 		keep := u.slice(u.offset, fromIndex)
 		u.logs = append(keep, logs...)
 		u.offsetInProgress = min(u.offsetInProgress, fromIndex)
+		u.Panic("truncateAndAppend.....2")
+
 	}
 }
 
@@ -97,10 +102,10 @@ func (u *unstable) slice(lo uint64, hi uint64) []Log {
 	return u.logs[lo-u.offset : hi-u.offset : hi-u.offset]
 }
 
-// acceptInProgress marks all entries and the snapshot, if any, in the unstable
-// as having begun the process of being written to storage. The entries/snapshot
-// will no longer be returned from nextEntries/nextSnapshot. However, new
-// entries/snapshots added after a call to acceptInProgress will be returned
+// acceptInProgress marks all logs and the snapshot, if any, in the unstable
+// as having begun the process of being written to storage. The logs/snapshot
+// will no longer be returned from logs/nextSnapshot. However, new
+// logs/snapshots added after a call to acceptInProgress will be returned
 // from those methods, until the next call to acceptInProgress.
 func (u *unstable) acceptInProgress() {
 	if len(u.logs) > 0 {

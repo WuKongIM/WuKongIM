@@ -14,13 +14,15 @@ type ChannelListener struct {
 	readyCh  chan channelReady
 	stopper  *syncutil.Stopper
 	// 已准备的频道
-	opts *Options
+	opts    *Options
+	onReady func(channelReady)
 	wklog.Log
 }
 
-func NewChannelListener(opts *Options) *ChannelListener {
+func NewChannelListener(onReady func(channelReady), opts *Options) *ChannelListener {
 	return &ChannelListener{
 		channels: newChannelQueue(),
+		onReady:  onReady,
 		readyCh:  make(chan channelReady, 100),
 		stopper:  syncutil.NewStopper(),
 		opts:     opts,
@@ -64,42 +66,45 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 }
 
 func (c *ChannelListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 51)
+	tick := time.NewTicker(time.Millisecond * 20)
 	var err error
 	for {
 		select {
 		case <-tick.C:
-			c.channels.foreach(func(ch *channel) {
-				if ch.isDestroy() {
-					return
-				}
-				if err = ch.handleReceivedMessages(); err != nil {
-					c.Warn("loopEvent: handleReceivedMessages error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
-				}
-				if err = ch.handleLocalStoreMsgs(); err != nil {
-					c.Warn("loopEvent: handleLocalStoreMsgs error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
-				}
-				if ch.hasReady() {
-					rd := ch.ready()
-					if replica.IsEmptyReady(rd) {
+			hasEvent := true
+			for hasEvent {
+				hasEvent = false
+				c.channels.foreach(func(ch *channel) {
+					if ch.isDestroy() {
 						return
 					}
-					// for _, msg := range rd.Messages {
-					// 	c.Info("channel ready", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
-					// }
+					event := false
+					if event, err = ch.handleLocalStoreMsgs(); err != nil {
+						c.Warn("loopEvent: handleLocalStoreMsgs error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
+					}
+					if event {
+						hasEvent = true
+					}
 
-					c.triggerReady(channelReady{
-						channel: ch,
-						Ready:   rd,
-					})
-				} else {
+					if event, err = ch.handleMessages(); err != nil {
+						c.Warn("loopEvent: handleReceivedMessages error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
+					}
+					if event {
+						hasEvent = true
+					}
+
+					event = c.handleReady(ch)
+					if event {
+						hasEvent = true
+					}
+
 					if c.isInactiveChannel(ch) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
 						c.Remove(ch)
 						c.Info("remove inactive channel", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 					}
-				}
 
-			})
+				})
+			}
 
 		case <-c.stopper.ShouldStop():
 			return
@@ -107,11 +112,29 @@ func (c *ChannelListener) loopEvent() {
 	}
 }
 
+func (c *ChannelListener) handleReady(ch *channel) bool {
+	if ch.hasReady() {
+		rd := ch.ready()
+		if replica.IsEmptyReady(rd) {
+			return false
+		}
+		c.triggerReady(channelReady{
+			channel: ch,
+			Ready:   rd,
+		})
+		return true
+	}
+	return false
+}
+
 func (c *ChannelListener) triggerReady(ready channelReady) {
-	select {
-	case c.readyCh <- ready:
-	case <-c.stopper.ShouldStop():
-		return
+	// select {
+	// case c.readyCh <- ready:
+	// case <-c.stopper.ShouldStop():
+	// 	return
+	// }
+	if c.onReady != nil {
+		c.onReady(ready)
 	}
 }
 

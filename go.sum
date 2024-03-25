@@ -55,6 +55,8 @@ github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108/go.mod h1:W
 github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398/go.mod h1:a1uqRtAwp2Xwc6WNPJEufxJ7fx3npB4UV/JOLmbu5I0=
 github.com/WuKongIM/WuKongIMGoProto v1.0.1 h1:TD/gvn+MktiUZrglW2fSmLRW4xCrtVStlSWXON54eYs=
 github.com/WuKongIM/WuKongIMGoProto v1.0.1/go.mod h1:EMPYhZR5K4cFvMCGhWzKlgfVieec1pnioUFgP0ga+ag=
+github.com/WuKongIM/WuKongIMGoProto v1.0.2-0.20240323040728-b48dabd1e228 h1:dlnX23QROVraR3kizVBDhOy8eHs4yv1CNJPnEh5OjEo=
+github.com/WuKongIM/WuKongIMGoProto v1.0.2-0.20240323040728-b48dabd1e228/go.mod h1:EMPYhZR5K4cFvMCGhWzKlgfVieec1pnioUFgP0ga+ag=
 github.com/ajg/form v1.5.1/go.mod h1:uL1WgH+h2mgNtvBq0339dVnzXdBETtL2LeUXaIv25UY=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=

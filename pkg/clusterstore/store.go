@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"go.uber.org/zap"
@@ -13,6 +14,7 @@ import (
 type Store struct {
 	opts *Options
 	db   *wkstore.FileStore
+	wdb  wkdb.DB
 	wklog.Log
 	lock *keylock.KeyLock
 
@@ -37,17 +39,23 @@ func NewStore(opts *Options) *Store {
 	storeCfg.SlotNum = int(opts.SlotCount)
 	storeCfg.DecodeMessageFnc = opts.DecodeMessageFnc
 	s.db = wkstore.NewFileStore(storeCfg)
-	s.messageShardLogStorage = NewMessageShardLogStorage(s.db)
+	s.wdb = wkdb.NewPebbleDB(wkdb.NewOptions(wkdb.WithDir(opts.DataDir)))
+	s.messageShardLogStorage = NewMessageShardLogStorage(s.wdb)
 	return s
 }
 
 func (s *Store) Open() error {
 	s.lock.StartCleanLoop()
-	err := s.db.Open()
+	err := s.wdb.Open()
+	if err != nil {
+		return err
+	}
+	err = s.db.Open()
 	return err
 }
 
 func (s *Store) Close() {
+	_ = s.wdb.Close()
 	err := s.db.Close()
 	if err != nil {
 		s.Warn("close message storage err", zap.Error(err))

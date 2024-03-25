@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -853,7 +854,7 @@ func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID stri
 	if len(messages) == 0 {
 		return nil
 	}
-	storeMessages := make([]wkstore.Message, 0, len(messages))
+	storeMessages := make([]wkdb.Message, 0, len(messages))
 	for _, m := range messages {
 		if m.NoPersist || m.SyncOnce {
 			continue
@@ -869,12 +870,14 @@ func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID stri
 			}
 			continue
 		}
-		storeMessages = append(storeMessages, m)
+		storeMessages = append(storeMessages, wkdb.Message{
+			RecvPacket: *m.RecvPacket,
+		})
 	}
 	if len(storeMessages) == 0 {
 		return nil
 	}
-	firstMessage := storeMessages[0].(*Message)
+	firstMessage := storeMessages[0]
 	fakeChannelID := firstMessage.ChannelID
 	if firstMessage.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(fromUID, firstMessage.ChannelID)

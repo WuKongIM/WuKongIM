@@ -34,9 +34,11 @@ type channel struct {
 
 	mu                  deadlock.Mutex
 	localstorage        *localStorage
-	messageQueue        *ReplicaMessageQueue
+	recvMessageQueue    *ReplicaMessageQueue
 	appendLogStoreQueue *localReplicaStoreQueue
 	applyLogStoreQueue  *localReplicaStoreQueue
+	proposeTaskQueue    *taskQueue
+	syncTaskQueue       *taskQueue
 }
 
 func newChannel(clusterConfig *wkstore.ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, opts *Options) *channel {
@@ -54,9 +56,11 @@ func newChannel(clusterConfig *wkstore.ChannelClusterConfig, appliedIdx uint64, 
 		doneC:                      make(chan struct{}),
 		localstorage:               localstorage,
 		traceRecord:                newTraceRecord(),
+		proposeTaskQueue:           newTaskQueue(opts.InitialTaskQueueCap),
 		appendLogStoreQueue:        newLcalReplicaStoreQueue(),
 		applyLogStoreQueue:         newLcalReplicaStoreQueue(),
-		messageQueue:               NewReplicaMessageQueue(opts.ReceiveQueueLength, false, opts.LazyFreeCycle, opts.MaxReceiveQueueSize),
+		syncTaskQueue:              newTaskQueue(opts.InitialTaskQueueCap),
+		recvMessageQueue:           NewReplicaMessageQueue(opts.ReceiveQueueLength, false, opts.LazyFreeCycle, opts.MaxReceiveQueueSize),
 	}
 	ch.lastActivity.Store(time.Now())
 	return ch
@@ -290,7 +294,7 @@ func (c *channel) handleStoreAppend(msg replica.Message) {
 
 	c.appendLogStoreQueue.add(c.rc.NewMsgStoreAppendResp(lastLog.Index))
 
-	go c.appendLogs(msg)
+	c.appendLogs(msg)
 
 }
 
@@ -339,7 +343,7 @@ func (c *channel) handleApplyLogsReq(msg replica.Message) {
 
 	c.applyLogStoreQueue.add(c.rc.NewMsgApplyLogsRespMessage(msg.CommittedIndex))
 
-	go c.applyLogs(msg)
+	c.applyLogs(msg)
 
 }
 
@@ -373,7 +377,7 @@ func (c *channel) applyLogs(msg replica.Message) {
 	}
 }
 
-func (c *channel) handleMessage(msg replica.Message) error {
+func (c *channel) handleRecvMessage(msg replica.Message) error {
 	if c.destroy {
 		return errors.New("channel destroy, can not handleMessage")
 	}
@@ -381,94 +385,160 @@ func (c *channel) handleMessage(msg replica.Message) error {
 
 	if msg.MsgType == replica.MsgSync { // 领导收到副本的同步请求
 		// c.Debug("sync logs", zap.Uint64("index", msg.Index))
-		preSyncSpans := c.traceRecord.getSyncSpanWithIndex(msg.From, msg.Index)
-		for _, preSyncSpan := range preSyncSpans {
-			preSyncSpan.span.SetUint64("endSyncIndex", msg.Index)
-			preSyncSpan.span.End()
-			c.traceRecord.removeSyncSpanWithIndex(msg.From, preSyncSpan.startIndex)
-		}
+
 		// ctxs := c.commitWait.spanContexts(c.LastLogIndex())
-		commitCtxs := c.traceRecord.getCommitContextsWithRange(msg.CommittedIndex, c.rc.LastLogIndex())
-		for _, commitCtx := range commitCtxs {
-			syncSpanCtx, syncSpan := trace.GlobalTrace.StartSpan(commitCtx, fmt.Sprintf("logsSync[from %d]", msg.From))
+
+		// 如果有需要提交的span，则同时追踪sync请求
+
+		proposeCtxs := c.traceRecord.getProposeContextsWithRange(msg.CommittedIndex, c.LastLogIndex())
+
+		// var traceIDs [][16]byte // 追踪ID
+		// var spanIDs [][8]byte   // 跨度ID
+		for _, proposeCtx := range proposeCtxs {
+			_, syncSpan := trace.GlobalTrace.StartSpan(proposeCtx, fmt.Sprintf("logsSync[from %d]", msg.From))
 			syncSpan.SetUint64("from", msg.From)
 			syncSpan.SetUint32("term", msg.Term)
 			syncSpan.SetUint64("startSyncIndex", msg.Index)
 			syncSpan.SetUint64("lastLogIndex", c.rc.LastLogIndex())
 
-			c.traceRecord.addSyncSpan(msg.From, msg.Index, syncSpan, syncSpanCtx)
+			syncSpan.End()
 
+			// c.traceRecord.addSyncSpan(msg.From, msg.Index, syncSpan, syncSpanCtx)
+
+			// fmt.Println("sync span", syncSpan.SpanContext().TraceID().String(), syncSpan.SpanContext().SpanID().String())
+			// traceIDs = append(traceIDs, syncSpan.SpanContext().TraceID())
+			// spanIDs = append(spanIDs, syncSpan.SpanContext().SpanID())
+
+			// msg.TraceIDs = traceIDs
+			// msg.SpanIDs = spanIDs
 		}
 
-		proposeCtxs := c.traceRecord.getProposeContextsWithRange(msg.CommittedIndex, c.rc.LastLogIndex())
-		var traceIDs [][16]byte // 追踪ID
-		var spanIDs [][8]byte   // 跨度ID
-		for _, proposeCtx := range proposeCtxs {
-			parentSpan := trace.SpanFromContext(proposeCtx)
-			traceIDs = append(traceIDs, parentSpan.SpanContext().TraceID())
-			spanIDs = append(spanIDs, parentSpan.SpanContext().SpanID())
-
-			msg.TraceIDs = traceIDs
-			msg.SpanIDs = spanIDs
-		}
 	} else if msg.MsgType == replica.MsgSyncResp { // 副本收到领导的同步响应
-		if len(msg.TraceIDs) > 0 {
-			for i, traceID := range msg.TraceIDs {
-				spanID := msg.SpanIDs[i]
-				spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-					TraceID: traceID,
-					SpanID:  spanID,
-					Remote:  true,
-				})
-				firstIndex := msg.Index
-				lastIndex := c.LastLogIndex()
-				if len(msg.Logs) > 0 {
-					lastIndex = msg.Logs[len(msg.Logs)-1].Index
-				}
-				ctx := trace.ContextWithRemoteSpanContext(context.Background(), spanCtx)
-				c.traceRecord.addProposeSpanRange(firstIndex, lastIndex, nil, ctx)
 
-				// _, span := trace.GlobalTrace.StartSpan(ctx, "logsSyncResp")
-				// defer span.End()
-				// if span != nil {
-				// 	span.SetUint64("syncIndex", msg.Index)
-				// 	span.SetUint64("lastLogIndex", c.rc.LastLogIndex())
-				// 	span.SetUint64("from", msg.From)
-				// 	span.SetUint32("term", msg.Term)
-				// 	span.SetInt("logCount", len(msg.Logs))
-				// }
-			}
-
+		task := c.syncTaskQueue.get(getSyncTaskKey(msg.From, msg.Index))
+		if task == nil {
+			c.Warn("sync task not exists", zap.Uint64("from", msg.From), zap.Uint64("index", msg.Index))
+			return nil
 		}
+
+		// if len(msg.TraceIDs) > 0 {
+		// 	for i, traceID := range msg.TraceIDs {
+		// 		spanID := msg.SpanIDs[i]
+		// 		spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+		// 			TraceID:    traceID,
+		// 			SpanID:     spanID,
+		// 			Remote:     true,
+		// 			TraceState: trace.TraceState{},
+		// 		})
+
+		// 		fmt.Println("sync resp spanCtx", spanCtx.TraceID(), spanCtx.SpanID())
+
+		// 		span := trace.SpanFromContext(trace.ContextWithRemoteSpanContext(context.Background(), spanCtx))
+		// 		span.SetInt("logCount", len(msg.Logs))
+		// 		span.End()
+		// 		// firstIndex := msg.Index
+		// 		// lastIndex := c.LastLogIndex()
+		// 		// if len(msg.Logs) > 0 {
+		// 		// 	lastIndex = msg.Logs[len(msg.Logs)-1].Index
+		// 		// }
+		// 		// ctx := trace.ContextWithRemoteSpanContext(context.Background(), spanCtx)
+		// 		// c.traceRecord.addProposeSpanRange(firstIndex, lastIndex, nil, ctx)
+
+		// 	}
+		// }
+		if !task.isTaskFinished() {
+			task.(*syncTask).setResp(msg)
+			task.taskFinished()
+		}
+		return nil // MsgSyncResp消息由 syncTaskQueue处理
 	}
 
-	if added, stopped := c.messageQueue.Add(msg); !added || stopped {
+	if added, stopped := c.recvMessageQueue.Add(msg); !added || stopped {
 		c.Error("messageQueue add failed")
 		return errors.New("messageQueue add failed")
 	}
 	return nil
 }
 
-func (c *channel) handleReceivedMessages() error {
-	if c.destroy {
-		return errors.New("channel destroy, can not handle message")
+func (c *channel) handleReadyMessages(msgs []replica.Message) {
+	shardNo := c.channelKey()
+	for _, msg := range msgs {
+		if msg.To == c.opts.NodeID {
+			c.handleLocalMsg(msg)
+			continue
+		}
+		if msg.To == 0 {
+			c.Error("msg.To is 0", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.String("msg", msg.MsgType.String()))
+			continue
+		}
+
+		protMsg, err := NewMessage(shardNo, msg, MsgChannelMsg)
+		if err != nil {
+			c.Error("new message error", zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Error(err))
+			continue
+		}
+		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
+			c.Info("发送消息", zap.Uint64("id", msg.Id), zap.String("msgType", msg.MsgType.String()), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
+		}
+
+		if msg.MsgType == replica.MsgSync {
+			task := newSyncTask(msg.To, msg.Index)
+			if !c.syncTaskQueue.exists(task.taskKey()) {
+				c.syncTaskQueue.add(task)
+			} else {
+				c.Debug("sync task exists", zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
+			}
+
+		}
+
+		// trace
+		traceOutgoingMessage(trace.ClusterKindChannel, msg)
+
+		// 发送消息
+		err = c.opts.Transport.Send(msg.To, protMsg, nil)
+		if err != nil {
+			c.Warn("send msg error", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Error(err))
+		}
 	}
-	msgs := c.messageQueue.Get()
+}
+
+func (c *channel) handleMessages() (bool, error) {
+	if c.destroy {
+		return false, errors.New("channel destroy, can not handle message")
+	}
+	hasEvent := false
+	msgs := c.recvMessageQueue.Get()
 	var err error
 	for _, msg := range msgs {
 		err = c.stepLock(msg)
 		if err != nil {
 			c.Error("step message failed", zap.Error(err))
-			return err
+			return false, err
 		}
+		hasEvent = true
 	}
-	return nil
+	task := c.syncTaskQueue.first()
+	for task != nil && task.isTaskFinished() {
+		if len(task.(*syncTask).resp.Logs) > 0 {
+			c.Debug("sync logs done", zap.Uint64("syncIndex", task.(*syncTask).resp.Index), zap.Uint64("startLogIndex", task.(*syncTask).resp.Logs[0].Index), zap.Uint64("from", task.(*syncTask).resp.From), zap.Uint64("index", task.(*syncTask).resp.Index), zap.Int("logCount", len(task.(*syncTask).resp.Logs)))
+		}
+		err = c.stepLock(task.(*syncTask).resp)
+		if err != nil {
+			c.Error("step sync task failed", zap.Error(err))
+			return false, err
+		}
+		c.syncTaskQueue.removeFirst()
+		task = c.syncTaskQueue.first()
+		hasEvent = true
+	}
+	return hasEvent, nil
 }
 
-func (c *channel) handleLocalStoreMsgs() error {
+func (c *channel) handleLocalStoreMsgs() (bool, error) {
 	if c.destroy {
-		return errors.New("channel destroy, can not handle message")
+		return false, errors.New("channel destroy, can not handle message")
 	}
+	hasEvent := false
 	for c.appendLogStoreQueue.firstIsStored() {
 		msg, ok := c.appendLogStoreQueue.removeFirst()
 		if !ok {
@@ -477,8 +547,9 @@ func (c *channel) handleLocalStoreMsgs() error {
 		err := c.stepLock(msg.Message)
 		if err != nil {
 			c.Panic("step local store message failed", zap.Error(err))
-			return err
+			return false, err
 		}
+		hasEvent = true
 	}
 
 	for c.applyLogStoreQueue.firstIsStored() {
@@ -489,17 +560,25 @@ func (c *channel) handleLocalStoreMsgs() error {
 		err := c.stepLock(msg.Message)
 		if err != nil {
 			c.Panic("applyLogStoreQueue: step local store message failed", zap.Error(err))
-			return err
+			return false, err
 		}
+		hasEvent = true
 	}
 
-	return nil
+	return hasEvent, nil
 }
 
 func (c *channel) LastLogIndex() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.rc.LastLogIndex()
+}
+
+func (c *channel) CommittedIndex() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rc.CommittedIndex()
+
 }
 
 func (c *channel) IsLeader() bool {
@@ -522,7 +601,7 @@ type ichannel interface {
 	IsLeader() bool
 	proposeAndWaitCommits(ctx context.Context, data [][]byte, timeout time.Duration) ([]uint64, error)
 	LeaderId() uint64
-	handleMessage(msg replica.Message) error
+	handleRecvMessage(msg replica.Message) error
 	getClusterConfig() *wkstore.ChannelClusterConfig
 }
 
@@ -555,7 +634,7 @@ func (p *proxyChannel) LeaderId() uint64 {
 	return p.clusterCfg.LeaderId
 }
 
-func (p *proxyChannel) handleMessage(msg replica.Message) error {
+func (p *proxyChannel) handleRecvMessage(msg replica.Message) error {
 	panic("handleMessage: implement me")
 }
 

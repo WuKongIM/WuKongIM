@@ -23,6 +23,7 @@ func (r *Replica) Step(m Message) error {
 	switch {
 	case m.MsgType == MsgStoreAppendResp: // 存储追加响应
 		if m.Index != 0 {
+			r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			r.replicaLog.stableTo(m.Index)
 		}
 	case m.MsgType == MsgApplyLogsResp: // 应用日志响应
@@ -91,7 +92,7 @@ func (r *Replica) stepLeader(m Message) error {
 					return err
 				}
 				if len(logs) > 0 {
-					r.Debug("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Int("logCount", len(logs)))
+					r.Debug("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("firstLogIndex", logs[0].Index), zap.Uint64("lastLogIndex", logs[len(logs)-1].Index), zap.Uint64("localLastLogIndex", r.replicaLog.lastIndex()), zap.Int("logCount", len(logs)))
 				}
 				r.updateReplicSyncInfo(m)      // 更新副本同步信息
 				r.updateLeaderCommittedIndex() // 更新领导的提交索引
@@ -107,7 +108,7 @@ func (r *Replica) stepLeader(m Message) error {
 			To:             m.From,
 			Term:           r.replicaLog.term,
 			Logs:           logs,
-			Index:          r.replicaLog.lastLogIndex,
+			Index:          m.Index,
 			CommittedIndex: r.replicaLog.committedIndex,
 			TraceIDs:       m.TraceIDs,
 			SpanIDs:        m.SpanIDs,
@@ -141,6 +142,7 @@ func (r *Replica) stepFollower(m Message) error {
 		r.send(r.newPong(m.From))
 		// r.Debug("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
+		r.replicaLog.leaderLastLogIndex = m.Index
 	// case MsgNotifySync: // 收到同步通知
 	// 	if r.disabledToSync {
 	// 		r.Info("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.replicaLog.term))
@@ -153,7 +155,11 @@ func (r *Replica) stepFollower(m Message) error {
 	// 	r.send(r.newSyncMsg(seq))
 	case MsgSyncResp: // 领导返回同步消息的结果
 
-		r.messageWait.finish(m.From, MsgSync) // 完成同步消息
+		force := false
+		if len(m.Logs) > 0 {
+			force = true
+		}
+		r.messageWait.finishWithForce(m.From, MsgSync, force) // 完成同步消息，可以继续同步
 
 		if m.Reject {
 			r.Warn("sync rejected", zap.Uint64("leader", r.leader), zap.Uint64("index", m.Index), zap.Uint32("term", m.Term))
@@ -165,14 +171,13 @@ func (r *Replica) stepFollower(m Message) error {
 		}
 		if len(m.Logs) > 0 {
 			if m.Logs[len(m.Logs)-1].Index <= r.LastLogIndex() {
-				r.Debug("append log reject", zap.Uint64("leader", r.leader), zap.Uint64("maxLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint64("localLastLogIndex", r.LastLogIndex()))
+				r.Panic("append log reject", zap.Uint64("leader", r.leader), zap.Uint64("maxLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint64("localLastLogIndex", r.LastLogIndex()))
 				return nil
 			}
 			if !r.appendLog(m.Logs...) {
 				return ErrProposalDropped
 			}
 		}
-		r.replicaLog.leaderLastLogIndex = m.Index
 		r.replicaLog.leaderCommittedIndex = m.CommittedIndex
 		r.hasFirstSyncResp = true
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
@@ -237,7 +242,7 @@ func (r *Replica) appendLog(logs ...Log) (accepted bool) {
 		return false
 	}
 	if logs[0].Index != r.LastLogIndex()+1 { // 连续性判断
-		r.Panic("log index is out of range", zap.Uint64("appendFirstIndex", logs[0].Index), zap.Uint64("lastIndex", r.replicaLog.lastIndex()))
+		r.Panic("log index is out of range", zap.Uint64("appendFirstIndex", logs[0].Index), zap.Int("logCount", len(logs)), zap.Uint64("lastIndex", r.replicaLog.lastIndex()))
 		return false
 	}
 
@@ -319,13 +324,7 @@ func (r *Replica) send(m Message) {
 // 获取跟随者的提交索引
 func (r *Replica) committedIndexForFollow(leaderCommittedIndex uint64) uint64 {
 	if leaderCommittedIndex > r.replicaLog.committedIndex {
-		var newCommitted uint64
-		if leaderCommittedIndex > r.replicaLog.lastLogIndex {
-			newCommitted = r.replicaLog.lastLogIndex
-		} else {
-			newCommitted = leaderCommittedIndex
-		}
-		return newCommitted
+		return min(leaderCommittedIndex, r.replicaLog.lastLogIndex)
 
 	}
 	return r.replicaLog.committedIndex
@@ -385,7 +384,6 @@ func (r *Replica) committedIndexForLeader() uint64 {
 		}
 	}
 	if newCommitted > committed {
-		r.Debug("newCommitted---->", zap.Uint64("newCommitted", newCommitted), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex))
 		return min(newCommitted, r.replicaLog.lastLogIndex)
 	}
 	return committed

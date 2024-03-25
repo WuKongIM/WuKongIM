@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -339,7 +340,11 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 		fromDeviceFlag: wkproto.SYSTEM,
 		Subscribers:    subscribers,
 	}
-	messages := []wkstore.Message{msg}
+	messages := []wkdb.Message{
+		{
+			RecvPacket: *msg.RecvPacket,
+		},
+	}
 	if !msg.NoPersist && !msg.SyncOnce && !m.s.opts.IsTmpChannel(channelID) {
 
 		if msg.StreamIng() {
@@ -364,11 +369,11 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if m.s.opts.WebhookOn() {
 		if !msg.StreamIng() && (!msg.NoPersist || !msg.SyncOnce) {
 			// Add a message to the notification queue, the data in this queue will be notified to third-party applications
-			err = m.s.store.AppendMessageOfNotifyQueue(messages)
-			if err != nil {
-				m.Error("添加消息到通知队列失败！", zap.Error(err))
-				return 0, 0, errors.New("添加消息到通知队列失败！")
-			}
+			// err = m.s.store.AppendMessageOfNotifyQueue(messages)
+			// if err != nil {
+			// 	m.Error("添加消息到通知队列失败！", zap.Error(err))
+			// 	return 0, 0, errors.New("添加消息到通知队列失败！")
+			// }
 		}
 	}
 	// 将消息放入频道

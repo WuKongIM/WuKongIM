@@ -40,6 +40,7 @@ type Replica struct {
 	uncommittedSize logEncodingSize
 
 	hasFirstSyncResp bool // 是否有第一次同步的回应
+
 }
 
 func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
@@ -84,6 +85,7 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 }
 
 func (r *Replica) Ready() Ready {
+
 	rd := r.readyWithoutAccept()
 	r.acceptReady(rd)
 	return rd
@@ -138,6 +140,7 @@ func (r *Replica) NewMsgStoreAppendResp(index uint64) Message {
 }
 
 func (r *Replica) BecomeFollower(term uint32, leaderID uint64) {
+
 	r.becomeFollower(term, leaderID)
 }
 
@@ -158,6 +161,7 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 }
 
 func (r *Replica) BecomeLeader(term uint32) {
+
 	r.becomeLeader(term)
 }
 
@@ -200,14 +204,17 @@ func (r *Replica) becomeLeader(term uint32) {
 // }
 
 func (r *Replica) IsLeader() bool {
+
 	return r.isLeader()
 }
 
 func (r *Replica) LeaderId() uint64 {
+
 	return r.leader
 }
 
 func (r *Replica) SetReplicas(replicas []uint64) {
+
 	r.opts.Replicas = replicas
 	r.replicas = nil
 	for _, replicaID := range r.opts.Replicas {
@@ -220,6 +227,7 @@ func (r *Replica) SetReplicas(replicas []uint64) {
 
 // HasFirstSyncResp 有收到领导的第一次同步的回应
 func (r *Replica) HasFirstSyncResp() bool {
+
 	return r.hasFirstSyncResp
 }
 
@@ -251,7 +259,7 @@ func (r *Replica) HasReady() bool {
 		return true
 	}
 	if r.disabledToSync {
-		if !r.IsLeader() && !r.messageWait.has(r.leader, MsgLeaderTermStartIndexReq) {
+		if !r.isLeader() && !r.messageWait.has(r.leader, MsgLeaderTermStartIndexReq) {
 			return true
 		}
 		return false
@@ -404,6 +412,7 @@ func (r *Replica) newPing(id uint64, to uint64) Message {
 		From:           r.nodeID,
 		To:             to,
 		Term:           r.replicaLog.term,
+		Index:          r.replicaLog.lastLogIndex,
 		CommittedIndex: r.replicaLog.committedIndex,
 	}
 }
@@ -467,7 +476,7 @@ func hasMsg(msgType MsgType, msgs []Message) bool {
 }
 
 func (r *Replica) followNeedSync() bool {
-	if r.LeaderId() == 0 {
+	if r.leader == 0 {
 		return false
 	}
 	if r.isLeader() {

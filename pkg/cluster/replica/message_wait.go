@@ -34,6 +34,10 @@ func (m *messageWait) next(nodeId uint64, msgType MsgType) uint64 {
 }
 
 func (m *messageWait) finish(nodeId uint64, msgType MsgType) {
+	m.finishWithForce(nodeId, msgType, false)
+}
+
+func (m *messageWait) finishWithForce(nodeId uint64, msgType MsgType, force bool) {
 	nodeWaitMap := m.waitMap[msgType]
 	if nodeWaitMap == nil {
 		return
@@ -47,7 +51,7 @@ func (m *messageWait) finish(nodeId uint64, msgType MsgType) {
 			wait:      false,
 		}
 
-		if msgType == MsgSync {
+		if !force && msgType == MsgSync {
 			if time.Since(v.createdAt) < m.messageSendInterval { // 如果同步消息发送间隔小于messageSendInterval，则至少等到messageSendInterval后才能再次发送
 				w.createdAt = w.createdAt.Add(-m.syncTimeout + m.messageSendInterval)
 				w.wait = true
