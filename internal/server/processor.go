@@ -204,8 +204,8 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 	conn.SetDeviceFlag(connectPacket.DeviceFlag.ToUint8())
 	conn.SetDeviceID(connectPacket.DeviceID)
 	conn.SetUID(connectPacket.UID)
-	conn.SetValue(aesKeyKey, aesKey)
-	conn.SetValue(aesIVKey, aesIV)
+	conn.SetValue(constAesKeyKey, aesKey)
+	conn.SetValue(constAesIVKey, aesIV)
 	conn.SetDeviceLevel(devceLevelI)
 	conn.SetMaxIdle(p.s.opts.ConnIdleTime)
 
@@ -523,10 +523,7 @@ func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error
 
 // decode payload
 func (p *Processor) checkAndDecodePayload(messageID int64, sendPacket *wkproto.SendPacket, c wknet.Conn) ([]byte, error) {
-	var (
-		aesKey = c.Value(aesKeyKey).(string)
-		aesIV  = c.Value(aesIVKey).(string)
-	)
+	aesKey, aesIV := getAesKeyFromConn(c)
 	vail, err := p.sendPacketIsVail(sendPacket, c)
 	if err != nil {
 		return nil, err
@@ -546,10 +543,7 @@ func (p *Processor) checkAndDecodePayload(messageID int64, sendPacket *wkproto.S
 
 // send packet is vail
 func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Conn) (bool, error) {
-	var (
-		aesKey = c.Value(aesKeyKey).(string)
-		aesIV  = c.Value(aesIVKey).(string)
-	)
+	aesKey, aesIV := getAesKeyFromConn(c)
 	signStr := sendPacket.VerityString()
 	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
 	if err != nil {
