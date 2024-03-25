@@ -131,7 +131,7 @@ type DefaultConn struct {
 	outboundBuffer OutboundBuffer // outboundBuffer OutboundBuffer
 	closed         bool           // if the connection is closed
 	isWAdded       bool           // if the connection is added to the write event
-	mu             sync.Mutex
+	mu             sync.RWMutex
 	context        interface{}
 	authed         bool // if the connection is authed
 	protoVersion   int
@@ -141,7 +141,6 @@ type DefaultConn struct {
 	deviceLevel    uint8
 	deviceID       string
 	valueMap       map[string]interface{}
-	valueMapLock   sync.RWMutex
 
 	uptime       time.Time
 	lastActivity time.Time
@@ -169,6 +168,7 @@ func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *
 	defaultConn.reactorSub = reactorSub
 	defaultConn.valueMap = map[string]interface{}{}
 	defaultConn.context = nil
+	defaultConn.lastActivity = time.Now()
 	defaultConn.uptime = time.Now()
 	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[[reactor-%d]%d]", reactorSub.idx, id))
 	defaultConn.connStats = NewConnStats()
@@ -205,10 +205,14 @@ func CreateConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *Engi
 }
 
 func (d *DefaultConn) ID() int64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.id
 }
 
 func (d *DefaultConn) SetID(id int64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.id = id
 }
 
@@ -219,7 +223,7 @@ func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 		return 0, err
 	}
 	if d.overflowForInbound(n) {
-		return 0, fmt.Errorf("inbound buffer overflow, fd: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
+		return 0, fmt.Errorf("inbound buffer overflow, fd: %d buffSize:%d n: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize(), n, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
 	}
 	d.KeepLastActivity()
 	_, err = d.inboundBuffer.Write(readBuffer[:n])
@@ -227,6 +231,8 @@ func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 }
 
 func (d *DefaultConn) KeepLastActivity() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.lastActivity = time.Now()
 }
 
@@ -286,23 +292,34 @@ func (d *DefaultConn) Fd() NetFd {
 	return d.fd
 }
 
-func (d *DefaultConn) Close() error {
+// 调用次方法需要加锁
+func (d *DefaultConn) closeNeedLock() error {
+
 	if d.closed {
 		return nil
 	}
 	d.closed = true
 
-	err := d.reactorSub.DeleteFd(d)
-	if err != nil {
-		d.Error("delete fd from poller error", zap.Error(err))
-	}
 	_ = d.fd.Close()
 	d.eg.RemoveConn(d)           // remove from the engine
 	d.reactorSub.ConnDec()       // decrease the connection count
+	d.mu.Unlock()                // 这里先解锁，避免OnClose中调用conn的方法导致死锁
 	d.eg.eventHandler.OnClose(d) // call the close handler
+	d.mu.Lock()
 	d.release()
 
+	err := d.reactorSub.DeleteFd(d)
+	if err != nil {
+		d.Debug("delete fd from poller error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+	}
+
 	return nil
+}
+
+func (d *DefaultConn) Close() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.closeNeedLock()
 }
 
 func (d *DefaultConn) RemoteAddr() net.Addr {
@@ -330,14 +347,22 @@ func (d *DefaultConn) SetWriteDeadline(t time.Time) error {
 }
 
 func (d *DefaultConn) release() {
+
+	d.Debug("release connection", zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
 	d.fd = NetFd{}
 	d.maxIdle = 0
 	if d.idleTimer != nil {
 		d.idleTimer.Stop()
 		d.idleTimer = nil
 	}
-	d.inboundBuffer.Release()
-	d.outboundBuffer.Release()
+	err := d.inboundBuffer.Release()
+	if err != nil {
+		d.Debug("inboundBuffer release error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+	}
+	err = d.outboundBuffer.Release()
+	if err != nil {
+		d.Debug("outboundBuffer release error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+	}
 
 	d.eg.defaultConnPool.Put(d)
 
@@ -374,65 +399,92 @@ func (d *DefaultConn) ReactorSub() *ReactorSub {
 }
 
 func (d *DefaultConn) SetContext(ctx interface{}) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	d.context = ctx
 }
 func (d *DefaultConn) Context() interface{} {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.context
 }
 
 func (d *DefaultConn) IsAuthed() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.authed
 }
 func (d *DefaultConn) SetAuthed(authed bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.authed = authed
 }
 
 func (d *DefaultConn) ProtoVersion() int {
-
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.protoVersion
 }
 func (d *DefaultConn) SetProtoVersion(version int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.protoVersion = version
 }
 
 func (d *DefaultConn) UID() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.uid
 }
 func (d *DefaultConn) SetUID(uid string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.uid = uid
 }
 
 func (d *DefaultConn) DeviceFlag() uint8 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.deviceFlag
 }
 
 func (d *DefaultConn) SetDeviceFlag(deviceFlag uint8) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.deviceFlag = deviceFlag
 }
 
 func (d *DefaultConn) DeviceLevel() uint8 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.deviceLevel
 }
 
 func (d *DefaultConn) SetDeviceLevel(deviceLevel uint8) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.deviceLevel = deviceLevel
 }
 
 func (d *DefaultConn) DeviceID() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.deviceID
 }
 func (d *DefaultConn) SetDeviceID(deviceID string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.deviceID = deviceID
 }
 
 func (d *DefaultConn) SetValue(key string, value interface{}) {
-	d.valueMapLock.Lock()
-	defer d.valueMapLock.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.valueMap[key] = value
 }
 func (d *DefaultConn) Value(key string) interface{} {
-	d.valueMapLock.RLock()
-	defer d.valueMapLock.RUnlock()
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.valueMap[key]
 }
 
@@ -445,14 +497,22 @@ func (d *DefaultConn) OutboundBuffer() OutboundBuffer {
 }
 
 func (d *DefaultConn) LastActivity() time.Time {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.lastActivity
 }
 
 func (d *DefaultConn) Uptime() time.Time {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.uptime
 }
 
 func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	d.maxIdle = maxIdle
 
 	if d.idleTimer != nil {
@@ -461,6 +521,8 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 
 	if maxIdle > 0 {
 		d.idleTimer = d.eg.Schedule(maxIdle/2, func() {
+			d.mu.Lock()
+			defer d.mu.Unlock()
 			if d.lastActivity.Add(maxIdle).After(time.Now()) {
 				return
 			}
@@ -468,10 +530,10 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 			if d.idleTimer != nil {
 				d.idleTimer.Stop()
 			}
-			if d.IsClosed() {
+			if d.closed {
 				return
 			}
-			d.Close()
+			d.closeNeedLock()
 		})
 	}
 }
@@ -485,7 +547,7 @@ func (d *DefaultConn) flush() error {
 	defer d.mu.Unlock()
 
 	if d.outboundBuffer.IsEmpty() {
-		d.removeWriteIfExist()
+		_ = d.removeWriteIfExist()
 		return nil
 	}
 	var (
@@ -506,12 +568,7 @@ func (d *DefaultConn) flush() error {
 	// All data have been drained, it's no need to monitor the writable events,
 	// remove the writable event from poller to help the future event-loops.
 	if d.outboundBuffer.IsEmpty() {
-		err = d.removeWriteIfExist()
-		if err != nil {
-			fmt.Println("removeWrite err", err)
-		}
-	} else {
-		fmt.Println("outboundBuffer not empty----------------------------------------------------------------------->")
+		_ = d.removeWriteIfExist()
 	}
 	return nil
 
