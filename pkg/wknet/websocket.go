@@ -357,7 +357,7 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 		return nil, err
 	}
 	if len(buff) < ws.MinHeaderSize { // 数据不完整
-		fmt.Println("数据不完整...")
+		fmt.Println("数据还没读完...", buff)
 		return nil, nil
 	}
 	tmpReader := bytes.NewReader(buff)
@@ -372,7 +372,7 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 	}
 	dataLen := header.Length
 	if dataLen > int64(tmpReader.Len()) { // 数据不完整
-		fmt.Println("数据不完整...", dataLen, int64(tmpReader.Len()))
+		fmt.Println("数据还没读完...", dataLen, int64(tmpReader.Len()))
 		return nil, nil
 	}
 	if header.Fin { // 当前 frame 已经是最后一个frame
