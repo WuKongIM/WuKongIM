@@ -793,6 +793,9 @@ func (c *Conn) readRecordOrCCS(expectChangeCipherSpec bool) error {
 		return c.in.setErrorLocked(c.newRecordHeaderError(nil, msg))
 	}
 	if err := c.readFromUntil(c.conn, recordHeaderLen+n); err != nil {
+		if err == ErrDataNotEnough {
+			return err
+		}
 		if e, ok := err.(net.Error); !ok || !e.Temporary() {
 			c.in.setErrorLocked(err)
 		}

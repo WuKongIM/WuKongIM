@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -39,7 +40,8 @@ type Webhook struct {
 func NewWebhook(s *Server) *Webhook {
 	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: false}
 	eventPool, err := ants.NewPool(s.opts.EventPoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
-		fmt.Println("事件池panic->", err)
+		stack := debug.Stack()
+		s.Error("事件池panic", zap.Error(err.(error)), zap.String("stack", string(stack)))
 	}))
 	if err != nil {
 		panic(err)
