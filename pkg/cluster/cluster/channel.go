@@ -185,6 +185,9 @@ func (c *channel) proposeAndWaitCommits(ctx context.Context, data [][]byte, time
 
 	parentCtx, parentSpan := trace.GlobalTrace.StartSpan(ctx, "proposeAndCommitLogs")
 	defer parentSpan.End()
+
+	_, proposeLogSpan := trace.GlobalTrace.StartSpan(parentCtx, "proposeLogs")
+
 	parentSpan.SetUint32("term", c.rc.Term())
 	logs := make([]replica.Log, 0, len(data))
 	for i, d := range data {
@@ -218,7 +221,7 @@ func (c *channel) proposeAndWaitCommits(ctx context.Context, data [][]byte, time
 		c.traceRecord.removeProposeSpanWithRange(firstLog.Index, lastLog.Index)
 	}()
 
-	_, proposeLogSpan := trace.GlobalTrace.StartSpan(parentCtx, "proposeLogs")
+	// propose logs
 	err = c.step(c.rc.NewProposeMessageWithLogs(logs))
 	if err != nil {
 		proposeLogSpan.RecordError(err)
@@ -384,7 +387,7 @@ func (c *channel) handleRecvMessage(msg replica.Message) error {
 	c.lastActivity.Store(time.Now())
 
 	if msg.MsgType == replica.MsgSync { // 领导收到副本的同步请求
-		// c.Debug("sync logs", zap.Uint64("index", msg.Index))
+		c.Debug("sync logs", zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From), zap.Uint64("lastLogIndex", c.rc.LastLogIndex()))
 
 		// ctxs := c.commitWait.spanContexts(c.LastLogIndex())
 
@@ -572,6 +575,12 @@ func (c *channel) LastLogIndex() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.rc.LastLogIndex()
+}
+
+func (c *channel) Term() uint32 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rc.Term()
 }
 
 func (c *channel) CommittedIndex() uint64 {

@@ -25,6 +25,12 @@ deploy-v1.2:
 	docker tag wukongim wukongim/wukongim:v1.2
 	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
 	docker push wukongim/wukongim:v1.2
+deploy-latest:
+	docker build -t wukongim .
+	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:latest
+	docker tag wukongim wukongim/wukongim:latest
+	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:latest
+	docker push wukongim/wukongim:latest
 
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2-dev

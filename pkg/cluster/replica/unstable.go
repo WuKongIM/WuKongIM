@@ -37,7 +37,6 @@ func (u *unstable) maybeLastIndex() (uint64, bool) {
 // stableTo(5) => [6 7 8 9]
 func (u *unstable) stableTo(index uint64) {
 	num := int(index + 1 - u.offset)
-	fmt.Println("stableTo-->", num, index, len(u.logs), u.offsetInProgress, u.offset)
 	u.logs = u.logs[num:]
 	u.offset = index + 1
 	u.offsetInProgress = max(u.offsetInProgress, u.offset)
@@ -94,6 +93,17 @@ func (u *unstable) truncateAndAppend(logs []Log) {
 		u.Panic("truncateAndAppend.....2")
 
 	}
+}
+
+func (u *unstable) truncateLogTo(index uint64) {
+	if index < u.offset {
+		u.Panic(fmt.Sprintf("truncateLogTo %d is out of bound %d", index, u.offset))
+	}
+	// 从offset开始截取
+	up := min(index, u.offset+uint64(len(u.logs)))
+	u.logs = u.slice(u.offset, up)
+	u.offset = up
+	u.offsetInProgress = min(u.offsetInProgress, up)
 }
 
 func (u *unstable) slice(lo uint64, hi uint64) []Log {
