@@ -32,14 +32,22 @@ type clusterMetrics struct {
 	channelLogOutgoingCount metric.Int64Counter
 
 	// msg sync
-	msgSyncIncomingBytes     metric.Int64Counter
-	msgSyncOutgoingBytes     metric.Int64Counter
-	msgSyncIncomingCount     metric.Int64Counter
-	msgSyncOutgoingCount     metric.Int64Counter
-	msgSyncRespIncomingBytes metric.Int64Counter
-	msgSyncRespOutgoingBytes metric.Int64Counter
-	msgSyncRespIncomingCount metric.Int64Counter
-	msgSyncRespOutgoingCount metric.Int64Counter
+	msgSyncIncomingBytes        metric.Int64Counter
+	msgSyncOutgoingBytes        metric.Int64Counter
+	msgSyncIncomingCount        metric.Int64Counter
+	msgSyncOutgoingCount        metric.Int64Counter
+	msgSyncRespIncomingBytes    metric.Int64Counter
+	msgSyncRespOutgoingBytes    metric.Int64Counter
+	msgSyncRespIncomingCount    metric.Int64Counter
+	msgSyncRespOutgoingCount    metric.Int64Counter
+	channelMsgSyncIncomingCount metric.Int64Counter
+	channelMsgSyncOutgoingCount metric.Int64Counter
+	channelMsgSyncIncomingBytes metric.Int64Counter
+	channelMsgSyncOutgoingBytes metric.Int64Counter
+	slotMsgSyncIncomingCount    metric.Int64Counter
+	slotMsgSyncOutgoingCount    metric.Int64Counter
+	slotMsgSyncIncomingBytes    metric.Int64Counter
+	slotMsgSyncOutgoingBytes    metric.Int64Counter
 
 	// cluster ping
 	clusterPingIncomingBytes metric.Int64Counter
@@ -90,6 +98,14 @@ func newClusterMetrics() IClusterMetrics {
 	c.msgSyncRespOutgoingBytes = NewInt64Counter("cluster_msg_syncresp_outgoing_bytes")
 	c.msgSyncRespIncomingCount = NewInt64Counter("cluster_msg_syncresp_Incoming_count")
 	c.msgSyncRespOutgoingCount = NewInt64Counter("cluster_msg_syncresp_outgoing_count")
+	c.channelMsgSyncIncomingBytes = NewInt64Counter("cluster_channel_msg_sync_incoming_bytes")
+	c.channelMsgSyncOutgoingBytes = NewInt64Counter("cluster_channel_msg_sync_outgoing_bytes")
+	c.channelMsgSyncIncomingCount = NewInt64Counter("cluster_channel_msg_sync_incoming_count")
+	c.channelMsgSyncOutgoingCount = NewInt64Counter("cluster_channel_msg_sync_outgoing_count")
+	c.slotMsgSyncIncomingBytes = NewInt64Counter("cluster_slot_msg_sync_incoming_bytes")
+	c.slotMsgSyncOutgoingBytes = NewInt64Counter("cluster_slot_msg_sync_outgoing_bytes")
+	c.slotMsgSyncIncomingCount = NewInt64Counter("cluster_slot_msg_sync_incoming_count")
+	c.slotMsgSyncOutgoingCount = NewInt64Counter("cluster_slot_msg_sync_outgoing_count")
 
 	// cluster ping
 	c.clusterPingIncomingBytes = NewInt64Counter("cluster_clusterping_incoming_bytes")
@@ -188,18 +204,46 @@ func (c *clusterMetrics) MsgClusterPingOutgoingCountAdd(kind ClusterKind, v int6
 
 func (c *clusterMetrics) MsgSyncIncomingBytesAdd(kind ClusterKind, v int64) {
 	c.msgSyncIncomingBytes.Add(c.ctx, v)
+
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgSyncIncomingBytes.Add(c.ctx, v)
+	case ClusterKindSlot:
+		c.slotMsgSyncIncomingBytes.Add(c.ctx, v)
+	}
 }
 
 func (c *clusterMetrics) MsgSyncOutgoingBytesAdd(kind ClusterKind, v int64) {
 	c.msgSyncOutgoingBytes.Add(c.ctx, v)
+
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgSyncOutgoingBytes.Add(c.ctx, v)
+	case ClusterKindSlot:
+		c.slotMsgSyncOutgoingBytes.Add(c.ctx, v)
+	}
 }
 
 func (c *clusterMetrics) MsgSyncIncomingCountAdd(kind ClusterKind, v int64) {
 	c.msgSyncIncomingCount.Add(c.ctx, v)
+
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgSyncIncomingCount.Add(c.ctx, v)
+	case ClusterKindSlot:
+		c.slotMsgSyncIncomingCount.Add(c.ctx, v)
+	}
 }
 
 func (c *clusterMetrics) MsgSyncOutgoingCountAdd(kind ClusterKind, v int64) {
 	c.msgSyncOutgoingCount.Add(c.ctx, v)
+
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgSyncOutgoingCount.Add(c.ctx, v)
+	case ClusterKindSlot:
+		c.slotMsgSyncOutgoingCount.Add(c.ctx, v)
+	}
 }
 
 func (c *clusterMetrics) MsgSyncRespIncomingBytesAdd(kind ClusterKind, v int64) {

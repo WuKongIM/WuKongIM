@@ -223,6 +223,7 @@ func (r *Replica) stepFollower(m Message) error {
 			r.Error("truncate log failed", zap.Error(err))
 			return err
 		}
+		r.replicaLog.unstable.truncateLogTo(m.Index)
 		lastIdx := r.replicaLog.lastIndex()
 		r.replicaLog.lastLogIndex = lastIdx
 		r.localLeaderLastTerm = m.Term
