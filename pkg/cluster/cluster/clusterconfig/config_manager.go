@@ -14,7 +14,7 @@ import (
 )
 
 type ConfigManager struct {
-	sync.Mutex
+	sync.RWMutex
 	cfg     *pb.Config
 	cfgFile *os.File
 	opts    *Options
@@ -53,6 +53,8 @@ func (c *ConfigManager) GetConfig() *pb.Config {
 }
 
 func (c *ConfigManager) Slot(id uint32) *pb.Slot {
+	c.RLock()
+	defer c.RUnlock()
 	for _, slot := range c.cfg.Slots {
 		if slot.Id == id {
 			return slot
@@ -63,6 +65,8 @@ func (c *ConfigManager) Slot(id uint32) *pb.Slot {
 
 // 获取指定节点的最小槽
 func (c *ConfigManager) MinSlot(nodeId uint64) *pb.Slot {
+	c.RLock()
+	defer c.RUnlock()
 	var minSlot *pb.Slot
 	for _, slot := range c.cfg.Slots {
 		if wkutil.ArrayContainsUint64(slot.Replicas, nodeId) {
@@ -76,6 +80,8 @@ func (c *ConfigManager) MinSlot(nodeId uint64) *pb.Slot {
 
 // 获取指定节点的槽
 func (c *ConfigManager) SlotsWithNodeId(nodeId uint64) []*pb.Slot {
+	c.RLock()
+	defer c.RUnlock()
 	var slots []*pb.Slot
 	for _, slot := range c.cfg.Slots {
 		if wkutil.ArrayContainsUint64(slot.Replicas, nodeId) {
@@ -86,8 +92,8 @@ func (c *ConfigManager) SlotsWithNodeId(nodeId uint64) []*pb.Slot {
 }
 
 func (c *ConfigManager) Node(id uint64) *pb.Node {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	for _, node := range c.cfg.Nodes {
 		if node.Id == id {
 			return node
@@ -97,8 +103,8 @@ func (c *ConfigManager) Node(id uint64) *pb.Node {
 }
 
 func (c *ConfigManager) NodeIsOnline(id uint64) bool {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	for _, node := range c.cfg.Nodes {
 		if node.Id == id {
 			return node.Online
@@ -200,6 +206,8 @@ func (c *ConfigManager) SetNodeOnline(nodeId uint64, online bool, cfg *pb.Config
 }
 
 func (c *ConfigManager) Close() {
+	c.Lock()
+	defer c.Unlock()
 	c.cfgFile.Close()
 }
 

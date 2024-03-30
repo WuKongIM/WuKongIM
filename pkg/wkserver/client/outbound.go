@@ -33,6 +33,7 @@ var (
 type OutboundOptions struct {
 	WriteDeadline time.Duration // 写入超时时间
 	MaxPending    int64         // 每个客户端最大等待写出的字节数量 默认为：(64 * 1024 * 1024)=64M
+	OnClose       func()        // 关闭连接时的回调
 }
 
 func NewOutboundOptions() *OutboundOptions {
@@ -370,6 +371,9 @@ func (o *Outbound) flushAndClose() {
 	if o.writer != nil {
 		o.writer.Close()
 		o.writer = nil
+	}
+	if o.opts.OnClose != nil {
+		o.opts.OnClose()
 	}
 
 }

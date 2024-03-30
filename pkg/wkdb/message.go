@@ -7,11 +7,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 func (p *pebbleDB) AppendMessages(channelId string, channelType uint8, msgs []Message) error {
 
 	batch := p.db.NewBatch()
+	defer batch.Close()
 	for _, msg := range msgs {
 		if err := p.writeMessage(msg, batch); err != nil {
 			return err
@@ -56,6 +58,16 @@ func (p *pebbleDB) LoadPrevRangeMsgs(channelId string, channelType uint8, startM
 
 	}
 
+	// 获取频道的最大的messageSeq，超过这个的消息都视为无效
+	lastSeq, err := p.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		return nil, err
+	}
+
+	if maxSeq > lastSeq {
+		maxSeq = lastSeq + 1
+	}
+
 	iter := p.db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
@@ -71,6 +83,17 @@ func (p *pebbleDB) LoadNextRangeMsgs(channelId string, channelType uint8, startM
 	if endMessageSeq == 0 {
 		maxSeq = math.MaxUint64
 	}
+
+	// 获取频道的最大的messageSeq，超过这个的消息都视为无效
+	lastSeq, err := p.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		return nil, err
+	}
+
+	if maxSeq > lastSeq {
+		maxSeq = lastSeq + 1
+	}
+
 	iter := p.db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
@@ -96,24 +119,59 @@ func (p *pebbleDB) LoadNextRangeMsgsForSize(channelId string, channelType uint8,
 }
 
 func (p *pebbleDB) TruncateLogTo(channelId string, channelType uint8, messageSeq uint64) error {
-	return p.db.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq+1), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), p.wo)
+	if messageSeq == 0 {
+		return fmt.Errorf("messageSeq[%d] must be greater than 0", messageSeq)
+
+	}
+	lastMsgSeq, err := p.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		return err
+	}
+	err = p.db.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), p.wo)
+	if err != nil {
+		return err
+	}
+	batch := p.db.NewBatch()
+	defer batch.Close()
+
+	err = batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), p.wo)
+	if err != nil {
+		return err
+	}
+	err = p.setChannelLastMessageSeq(channelId, channelType, min(messageSeq-1, lastMsgSeq), batch)
+	if err != nil {
+		return err
+	}
+
+	return batch.Commit(p.wo)
 }
 
-func (p *pebbleDB) GetChannelMaxMessageSeq(channelId string, channelType uint8) (uint64, error) {
-	iter := p.db.NewIter(&pebble.IterOptions{
-		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, 0),
-		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64),
-	})
-	defer iter.Close()
-
-	if iter.Last() && iter.Valid() && iter.Prev() {
-		messageSeq, _, err := key.ParseMessageColumnKey(iter.Key())
-		if err != nil {
-			return 0, err
-		}
-		return messageSeq, nil
+func min(x, y uint64) uint64 {
+	if x < y {
+		return x
 	}
-	return 0, nil
+	return y
+}
+func (p *pebbleDB) GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, error) {
+	result, closer, err := p.db.Get(key.NewChannelLastMessageSeqKey(channelId, channelType))
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, nil
+		}
+		return 0, err
+	}
+	defer closer.Close()
+	return p.endian.Uint64(result), nil
+}
+
+func (p *pebbleDB) SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error {
+	return p.setChannelLastMessageSeq(channelId, channelType, seq, p.db)
+}
+
+func (p *pebbleDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer) error {
+	seqBytes := make([]byte, 8)
+	p.endian.PutUint64(seqBytes, seq)
+	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), seqBytes, p.wo)
 }
 
 func (p *pebbleDB) parseChannelMessages(iter *pebble.Iterator, limit int) ([]Message, error) {
@@ -186,21 +244,26 @@ func (p *pebbleDB) parseChannelMessagesWithLimitSize(iter *pebble.Iterator, limi
 		msgs           = make([]Message, 0)
 		preMessageSeq  uint64
 		preMessage     Message
-		lastNeedAppend bool = true
+		lastNeedAppend bool = false
 	)
 
 	var size uint64 = 0
 	for iter.First(); iter.Valid(); iter.Next() {
+		lastNeedAppend = true
 		messageSeq, coulmnName, err := key.ParseMessageColumnKey(iter.Key())
 		if err != nil {
 			return nil, err
+		}
+
+		if messageSeq == 0 {
+			p.Panic("messageSeq is 0", zap.Any("key", iter.Key()), zap.Any("coulmnName", coulmnName))
 		}
 
 		if preMessageSeq != messageSeq {
 			if preMessageSeq != 0 {
 				size += uint64(preMessage.Size())
 				msgs = append(msgs, preMessage)
-				if size >= limitSize {
+				if limitSize != 0 && size >= limitSize {
 					lastNeedAppend = false
 					break
 				}

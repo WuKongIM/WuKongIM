@@ -40,10 +40,10 @@ type Client struct {
 	connectStatus   atomic.Uint32
 	forceDisconnect bool // 是否强制关闭
 
-	listenerConnFnc func(connectStatus ConnectStatus)
-	cacheBuff       []byte
-	tmpBuff         []byte
-	running         atomic.Bool
+	cacheBuff []byte
+	tmpBuff   []byte
+	running   atomic.Bool
+	stopped   atomic.Bool
 }
 
 func New(addr string, opt ...Option) *Client {
@@ -119,7 +119,9 @@ func (c *Client) run(connectChan chan struct{}) {
 		}
 		c.conn = conn
 		c.lastActivity.Store(time.Now())
-		c.outbound = NewOutbound(c.conn, NewOutboundOptions())
+		opts := NewOutboundOptions()
+		opts.OnClose = c.onOutboundClose
+		c.outbound = NewOutbound(c.conn, opts)
 		c.outbound.Start()
 		err = c.handshake()
 		if err != nil {
@@ -137,6 +139,11 @@ func (c *Client) run(connectChan chan struct{}) {
 
 		c.loopRead()
 	}
+}
+
+func (c *Client) onOutboundClose() {
+	c.Debug("outbound close")
+	c.stopped.Store(true)
 }
 
 func (c *Client) startHeartbeat() {
@@ -242,7 +249,7 @@ func (c *Client) disconnect() {
 }
 
 func (c *Client) loopRead() {
-	for {
+	for !c.stopped.Load() {
 		err := c.read()
 		if err != nil {
 			c.Debug("read error", zap.Error(err))
@@ -393,8 +400,8 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 
 func (c *Client) connectStatusChange(connectStatus ConnectStatus) {
 	c.connectStatus.Store(uint32(connectStatus))
-	if c.listenerConnFnc != nil {
-		c.listenerConnFnc(ConnectStatus(c.connectStatus.Load()))
+	if c.opts.OnConnectStatus != nil {
+		c.opts.OnConnectStatus(connectStatus)
 	}
 }
 

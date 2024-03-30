@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"errors"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 )
 
@@ -8,13 +10,15 @@ import (
 type IShardLogStorage interface {
 	// AppendLog 追加日志
 	AppendLog(shardNo string, logs []replica.Log) error
-	// TruncateLogTo 截断日志, 从index开始截断,index=0 表示清空所有日志 （保留下来的内容包含index）
+	// TruncateLogTo 截断日志, 从index开始截断,index不能为0 （保留下来的内容不包含index）
 	TruncateLogTo(shardNo string, index uint64) error
-	// 获取日志
+	// 获取日志 [startLogIndex, endLogIndex) 之间的日志
+	// limitSize 限制返回的日志大小 (字节) 0表示不限制
 	Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error)
 	// 最后一条日志的索引
 	LastIndex(shardNo string) (uint64, error)
-	// 设置成功被状态机应用的日志索引
+	// SetLastIndex 设置最后一条日志的索引
+	SetLastIndex(shardNo string, index uint64) error
 	// SetAppliedIndex(shardNo string, index uint64) error
 	//	 获取最后一条日志的索引和追加时间
 	//
@@ -52,9 +56,12 @@ func (m *MemoryShardLogStorage) AppendLog(shardNo string, logs []replica.Log) er
 }
 
 func (m *MemoryShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
+	if index == 0 {
+		return errors.New("index can not be 0")
+	}
 	logs := m.storage[shardNo]
 	if len(logs) > 0 {
-		m.storage[shardNo] = logs[:index]
+		m.storage[shardNo] = logs[:index-1]
 	}
 	return nil
 }
@@ -84,8 +91,17 @@ func (m *MemoryShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	return uint64(len(logs) - 1), nil
 }
 
+func (m *MemoryShardLogStorage) SetLastIndex(shardNo string, index uint64) error {
+
+	return nil
+}
+
 func (m *MemoryShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
 	return nil
+}
+
+func (m *MemoryShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
+	return 0, nil
 }
 
 func (m *MemoryShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {

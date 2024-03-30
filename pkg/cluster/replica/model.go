@@ -74,6 +74,8 @@ const (
 	// MsgNotifySync                 // 通知追随者同步日志（领导）
 	// MsgNotifySyncAck              // 通知追随者同步日志回执（领导）
 	MsgSync                     // 同步日志 （追随者）
+	MsgSyncGet                  // 同步日志获取（领导，本地）
+	MsgSyncGetResp              // 同步日志获取响应（追随者）
 	MsgSyncResp                 // 同步日志响应（领导）
 	MsgLeaderTermStartIndexReq  // 领导任期开始偏移量请求 （追随者）
 	MsgLeaderTermStartIndexResp // 领导任期开始偏移量响应（领导）
@@ -97,6 +99,10 @@ func (m MsgType) String() string {
 		return "MsgPropose"
 	case MsgSync:
 		return "MsgSync"
+	case MsgSyncGet:
+		return "MsgSyncGet"
+	case MsgSyncGetResp:
+		return "MsgSyncGetResp"
 	case MsgSyncResp:
 		return "MsgSyncResp"
 	case MsgLeaderTermStartIndexReq:
@@ -130,6 +136,7 @@ type Message struct {
 	Logs              []Log
 	Reject            bool // 拒绝
 	Index             uint64
+	EndIndex          uint64 // 结束下标
 	CommittedIndex    uint64 // 已提交日志下标
 
 	Responses    []Message
@@ -284,14 +291,16 @@ func IsEmptyReady(rd Ready) bool {
 }
 
 type Log struct {
-	Index uint64 // 日志下标
-	Term  uint32 // 领导任期
-	Data  []byte // 日志数据
+	MessageId uint64
+	Index     uint64 // 日志下标
+	Term      uint32 // 领导任期
+	Data      []byte // 日志数据
 }
 
 func (l *Log) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
+	enc.WriteUint64(l.MessageId)
 	enc.WriteUint64(l.Index)
 	enc.WriteUint32(l.Term)
 	enc.WriteBinary(l.Data)
@@ -301,6 +310,11 @@ func (l *Log) Marshal() ([]byte, error) {
 func (l *Log) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
+
+	if l.MessageId, err = dec.Uint64(); err != nil {
+		return err
+	}
+
 	if l.Index, err = dec.Uint64(); err != nil {
 		return err
 	}

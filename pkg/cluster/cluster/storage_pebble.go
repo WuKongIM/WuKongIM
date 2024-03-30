@@ -163,6 +163,19 @@ func (p *PebbleShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	return lastIndex, err
 }
 
+func (p *PebbleShardLogStorage) SetLastIndex(shardNo string, index uint64) error {
+	return nil
+}
+
+func (p *PebbleShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
+	return nil
+
+}
+
+func (p *PebbleShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
+	return 0, nil
+}
+
 func (p *PebbleShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
 	return p.getMaxIndex(shardNo)
 }

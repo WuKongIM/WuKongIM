@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -52,20 +51,6 @@ func (g *channelGroup) channel(channelID string, channelType uint8) *channel {
 	return g.listener.Get(channelID, channelType)
 }
 
-func (g *channelGroup) step(channelID string, channelType uint8, msg replica.Message) error {
-	channel := g.listener.Get(channelID, channelType)
-	if channel == nil {
-		g.Error("channel not found", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
-		return errors.New("channel not found")
-	}
-	err := channel.stepLock(msg)
-	if err != nil {
-		g.Error("channel step error", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Error(err))
-		return err
-	}
-	return nil
-}
-
 func (g *channelGroup) listen() {
 	for !g.stopped.Load() {
 		ready := g.listener.wait()
@@ -81,10 +66,10 @@ func (g *channelGroup) handleReady(rd channelReady) {
 	var (
 		ch = rd.channel
 	)
-
 	if !replica.IsEmptyHardState(rd.HardState) {
 		g.Info("设置HardState", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
 		ch.updateClusterConfigLeaderIdAndTerm(rd.HardState.Term, rd.HardState.LeaderId)
+		ch.setLeaderId(rd.HardState.LeaderId)
 		channelClusterCfg := ch.getClusterConfig()
 		err := g.opts.ChannelClusterStorage.Save(ch.channelID, ch.channelType, channelClusterCfg)
 		if err != nil {

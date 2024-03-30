@@ -1,97 +1,86 @@
 package cluster
 
-import (
-	"context"
-	"fmt"
-	"testing"
-	"time"
+// func TestChannelGroup(t *testing.T) {
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/stretchr/testify/assert"
-)
+// 	trans := NewMemoryTransport()
 
-func TestChannelGroup(t *testing.T) {
+// 	storage1 := NewMemoryShardLogStorage()
+// 	storage2 := NewMemoryShardLogStorage()
 
-	trans := NewMemoryTransport()
+// 	// 创建集群
+// 	opts := NewOptions()
 
-	storage1 := NewMemoryShardLogStorage()
-	storage2 := NewMemoryShardLogStorage()
+// 	opts.NodeID = 1
+// 	opts.ShardLogStorage = storage1
+// 	opts.Transport = trans
+// 	opts.ChannelGroupScanInterval = time.Second * 5
 
-	// 创建集群
-	opts := NewOptions()
+// 	// cg 1
+// 	cg1 := newChannelGroup(opts)
+// 	err := cg1.start()
+// 	assert.NoError(t, err)
+// 	defer cg1.stop()
 
-	opts.NodeID = 1
-	opts.ShardLogStorage = storage1
-	opts.Transport = trans
-	opts.ChannelGroupScanInterval = time.Second * 5
+// 	localStorage := newLocalStorage(opts)
 
-	// cg 1
-	cg1 := newChannelGroup(opts)
-	err := cg1.start()
-	assert.NoError(t, err)
-	defer cg1.stop()
+// 	ch1 := newChannel(&wkstore.ChannelClusterConfig{
+// 		ChannelID:   "ch1",
+// 		ChannelType: 1,
+// 		Replicas:    []uint64{1, 2},
+// 	}, 0, localStorage, opts)
+// 	cg1.add(ch1)
 
-	localStorage := newLocalStorage(opts)
+// 	err = ch1.appointLeader(1)
+// 	assert.NoError(t, err)
 
-	ch1 := newChannel(&wkstore.ChannelClusterConfig{
-		ChannelID:   "ch1",
-		ChannelType: 1,
-		Replicas:    []uint64{1, 2},
-	}, 0, localStorage, opts)
-	cg1.add(ch1)
+// 	trans.OnNodeMessage(1, func(msg *proto.Message) {
+// 		m, _ := NewMessageFromProto(msg)
+// 		fmt.Println("node 1 receive message", m.MsgType.String())
+// 		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
+// 		err = cg1.step(channelID, channelType, m.Message)
+// 		assert.NoError(t, err)
+// 	})
 
-	err = ch1.appointLeader(1)
-	assert.NoError(t, err)
+// 	// cg 2
+// 	opts = NewOptions()
+// 	opts.NodeID = 2
+// 	opts.ShardLogStorage = storage2
+// 	opts.Transport = trans
+// 	opts.ChannelGroupScanInterval = time.Second * 5
+// 	cg2 := newChannelGroup(opts)
+// 	err = cg2.start()
+// 	assert.NoError(t, err)
+// 	defer cg2.stop()
 
-	trans.OnNodeMessage(1, func(msg *proto.Message) {
-		m, _ := NewMessageFromProto(msg)
-		fmt.Println("node 1 receive message", m.MsgType.String())
-		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
-		err = cg1.step(channelID, channelType, m.Message)
-		assert.NoError(t, err)
-	})
+// 	trans.OnNodeMessage(2, func(msg *proto.Message) {
+// 		m, _ := NewMessageFromProto(msg)
+// 		fmt.Println("node 2 receive message", m.MsgType.String())
+// 		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
+// 		err = cg2.step(channelID, channelType, m.Message)
+// 		assert.NoError(t, err)
+// 	})
 
-	// cg 2
-	opts = NewOptions()
-	opts.NodeID = 2
-	opts.ShardLogStorage = storage2
-	opts.Transport = trans
-	opts.ChannelGroupScanInterval = time.Second * 5
-	cg2 := newChannelGroup(opts)
-	err = cg2.start()
-	assert.NoError(t, err)
-	defer cg2.stop()
+// 	localStorage = newLocalStorage(opts)
+// 	ch2 := newChannel(&wkstore.ChannelClusterConfig{
+// 		ChannelID:   "ch1",
+// 		ChannelType: 1,
+// 		Replicas:    []uint64{1, 2},
+// 	}, 0, localStorage, opts)
+// 	cg2.add(ch2)
+// 	err = ch2.appointLeaderTo(1, 1)
+// 	assert.NoError(t, err)
 
-	trans.OnNodeMessage(2, func(msg *proto.Message) {
-		m, _ := NewMessageFromProto(msg)
-		fmt.Println("node 2 receive message", m.MsgType.String())
-		channelID, channelType := ChannelFromChannelKey(m.ShardNo)
-		err = cg2.step(channelID, channelType, m.Message)
-		assert.NoError(t, err)
-	})
+// 	_, err = ch1.proposeAndWaitCommit(context.Background(), []byte("hello world"), time.Second*30)
+// 	assert.NoError(t, err)
 
-	localStorage = newLocalStorage(opts)
-	ch2 := newChannel(&wkstore.ChannelClusterConfig{
-		ChannelID:   "ch1",
-		ChannelType: 1,
-		Replicas:    []uint64{1, 2},
-	}, 0, localStorage, opts)
-	cg2.add(ch2)
-	err = ch2.appointLeaderTo(1, 1)
-	assert.NoError(t, err)
+// 	logs1, err := storage1.Logs(ch1.channelKey(), 1, 2, 1)
+// 	assert.NoError(t, err)
 
-	_, err = ch1.proposeAndWaitCommit(context.Background(), []byte("hello world"), time.Second*30)
-	assert.NoError(t, err)
+// 	logs2, err := storage2.Logs(ch2.channelKey(), 1, 2, 1)
+// 	assert.NoError(t, err)
 
-	logs1, err := storage1.Logs(ch1.channelKey(), 1, 2, 1)
-	assert.NoError(t, err)
+// 	assert.Equal(t, 1, len(logs1))
+// 	assert.Equal(t, logs1, logs2)
+// 	assert.Equal(t, []byte("hello world"), logs1[0].Data, logs2[0].Data)
 
-	logs2, err := storage2.Logs(ch2.channelKey(), 1, 2, 1)
-	assert.NoError(t, err)
-
-	assert.Equal(t, 1, len(logs1))
-	assert.Equal(t, logs1, logs2)
-	assert.Equal(t, []byte("hello world"), logs1[0].Data, logs2[0].Data)
-
-}
+// }

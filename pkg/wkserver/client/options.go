@@ -25,6 +25,8 @@ type Options struct {
 	Timeout time.Duration
 
 	PingInterval time.Duration
+	// OnConnectStatus is called when the connection status changes.
+	OnConnectStatus func(status ConnectStatus)
 }
 
 func NewOptions() *Options {
@@ -58,5 +60,59 @@ func WithToken(token string) Option {
 func WithConnecTimeout(v time.Duration) Option {
 	return func(opts *Options) {
 		opts.ConnectTimeout = v
+	}
+}
+
+func WithHeartbeatInterval(v time.Duration) Option {
+	return func(opts *Options) {
+		opts.HeartbeatInterval = v
+	}
+}
+
+func WithReconnect(v bool) Option {
+	return func(opts *Options) {
+		opts.Reconnect = v
+	}
+}
+
+func WithRequestTimeout(v time.Duration) Option {
+	return func(opts *Options) {
+		opts.RequestTimeout = v
+	}
+}
+
+func WithDefaultBufSize(v int) Option {
+	return func(opts *Options) {
+		opts.DefaultBufSize = v
+	}
+}
+
+func WithReconnectBufSize(v int) Option {
+	return func(opts *Options) {
+		opts.ReconnectBufSize = v
+	}
+}
+
+func WithFlusherTimeout(v time.Duration) Option {
+	return func(opts *Options) {
+		opts.FlusherTimeout = v
+	}
+}
+
+func WithTimeout(v time.Duration) Option {
+	return func(opts *Options) {
+		opts.Timeout = v
+	}
+}
+
+func WithPingInterval(v time.Duration) Option {
+	return func(opts *Options) {
+		opts.PingInterval = v
+	}
+}
+
+func WithOnConnectStatus(v func(status ConnectStatus)) Option {
+	return func(opts *Options) {
+		opts.OnConnectStatus = v
 	}
 }
