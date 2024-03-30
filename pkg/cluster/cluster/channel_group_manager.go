@@ -63,35 +63,45 @@ func (c *channelGroupManager) stop() {
 
 }
 
-func (c *channelGroupManager) proposeMessage(ctx context.Context, channelId string, channelType uint8, data []byte) (uint64, error) {
+func (c *channelGroupManager) proposeMessage(ctx context.Context, channelId string, channelType uint8, log replica.Log) (messageItem, error) {
 
-	lastLogIndexs, err := c.proposeMessages(ctx, channelId, channelType, [][]byte{data})
+	items, err := c.proposeMessages(ctx, channelId, channelType, []replica.Log{log})
 	if err != nil {
-		return 0, err
+		return emptyMessageItem, err
 	}
-	if len(lastLogIndexs) == 0 {
-		return 0, errors.New("lastLogIndexs is empty")
+	if len(items) == 0 {
+		return emptyMessageItem, errors.New("lastLogIndexs is empty")
 	}
-	return lastLogIndexs[0], nil
+	return items[0], nil
 }
 
-func (c *channelGroupManager) proposeMessages(ctx context.Context, channelId string, channelType uint8, data [][]byte) ([]uint64, error) {
+func (c *channelGroupManager) proposeMessages(ctx context.Context, channelId string, channelType uint8, logs []replica.Log) ([]messageItem, error) {
 
-	channel, err := c.fetchChannel(ctx, channelId, channelType)
+	proposeMessagesCtx, proposeMessagesSpan := c.s.trace.StartSpan(ctx, "proposeMessages")
+	defer proposeMessagesSpan.End()
+
+	fetchChannelSpanCtx, fetchChannelSpan := c.s.trace.StartSpan(proposeMessagesCtx, "fetchChannel")
+	defer fetchChannelSpan.End()
+	fetchChannelSpan.SetString("channelId", channelId)
+	fetchChannelSpan.SetUint8("channelType", channelType)
+	ch, err := c.fetchChannel(fetchChannelSpanCtx, channelId, channelType)
 	if err != nil {
+		fetchChannelSpan.RecordError(err)
 		c.Error("get channel failed", zap.Error(err))
+		fetchChannelSpan.End()
 		return nil, err
 	}
-	if !channel.IsLeader() { // 如果不是频道领导，则转发给频道领导
-		c.Debug("not leader,forward to leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("leaderId", channel.LeaderId()))
+	fetchChannelSpan.End()
+	if !ch.IsLeader() { // 如果不是频道领导，则转发给频道领导
+		c.Debug("not leader,forward to leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("leaderId", ch.LeaderId()))
 
 		_, span := c.s.trace.StartSpan(ctx, "channelProposeMessageForwardToLeader")
 		span.SetString("channelId", channelId)
 		span.SetUint8("channelType", channelType)
-		span.SetUint64("leaderId", channel.LeaderId())
-		span.SetInt("dataLen", len(data))
+		span.SetUint64("leaderId", ch.LeaderId())
+		span.SetInt("logs", len(logs))
 		defer span.End()
-		resp, err := c.requestChannelProposeMessage(channel.LeaderId(), channelId, channelType, data)
+		resp, err := c.requestChannelProposeMessage(ch.LeaderId(), channelId, channelType, logs)
 		if err != nil {
 			span.RecordError(err)
 			c.Error("requestChannelProposeMessage failed", zap.Error(err))
@@ -105,13 +115,13 @@ func (c *channelGroupManager) proposeMessages(ctx context.Context, channelId str
 				c.Warn("deleteChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			}
 		}
-		return resp.Indexs, nil
+		return resp.MessageItems, nil
 	}
-	lastIndex, err := channel.proposeAndWaitCommits(ctx, data, c.proposeTimeout)
-	return lastIndex, err
+	items, err := c.proposeAndWaitCommits(ctx, ch.(*channel), logs, c.proposeTimeout)
+	return items, err
 }
 
-func (c *channelGroupManager) requestChannelProposeMessage(to uint64, channelId string, channelType uint8, data [][]byte) (*ChannelProposeResp, error) {
+func (c *channelGroupManager) requestChannelProposeMessage(to uint64, channelId string, channelType uint8, logs []replica.Log) (*ChannelProposeResp, error) {
 	node := c.s.nodeManager.node(to)
 	if node == nil {
 		c.Error("node is not found", zap.Uint64("nodeID", to))
@@ -121,7 +131,7 @@ func (c *channelGroupManager) requestChannelProposeMessage(to uint64, channelId 
 	resp, err := node.requestChannelProposeMessage(timeoutCtx, &ChannelProposeReq{
 		ChannelId:   channelId,
 		ChannelType: channelType,
-		Data:        data,
+		Logs:        logs,
 	})
 	defer cancel()
 	if err != nil {
@@ -131,13 +141,13 @@ func (c *channelGroupManager) requestChannelProposeMessage(to uint64, channelId 
 	return resp, nil
 }
 
-func (c *channelGroupManager) existChannel(channelID string, channelType uint8) bool {
-	return c.channelGroup(channelID, channelType).exist(channelID, channelType)
+func (c *channelGroupManager) existChannel(channelId string, channelType uint8) bool {
+	return c.channelGroup(channelId, channelType).exist(channelId, channelType)
 }
 
-func (c *channelGroupManager) fetchChannel(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) fetchChannel(ctx context.Context, channelId string, channelType uint8) (ichannel, error) {
 
-	return c.loadOrCreateChannel(ctx, channelID, channelType)
+	return c.loadOrCreateChannel(ctx, channelId, channelType)
 }
 
 func (c *channelGroupManager) fetchChannelForRead(channelID string, channelType uint8) (ichannel, error) {
@@ -163,9 +173,6 @@ func (c *channelGroupManager) handleRecvMessage(ctx context.Context, channelID s
 }
 
 func (c *channelGroupManager) loadOrCreateChannel(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
-	shardNo := ChannelKey(channelID, channelType)
-	c.channelKeyLock.Lock(shardNo)
-	defer c.channelKeyLock.Unlock(shardNo)
 
 	var (
 		channel ichannel
@@ -249,6 +256,10 @@ func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, chann
 	if channel != nil {
 		return channel, nil
 	}
+	shardNo := ChannelKey(channelID, channelType)
+	c.channelKeyLock.Lock(shardNo)
+	defer c.channelKeyLock.Unlock(shardNo)
+
 	spanCtx, span := c.s.trace.StartSpan(ctx, "createChannelForSlotLeader")
 	defer span.End()
 	span.SetString("channelId", channelID)
@@ -315,6 +326,10 @@ func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID
 	if cacheChannel != nil {
 		return cacheChannel, nil
 	}
+
+	shardNo := ChannelKey(channelID, channelType)
+	c.channelKeyLock.Lock(shardNo)
+	defer c.channelKeyLock.Unlock(shardNo)
 
 	_, span := c.s.trace.StartSpan(ctx, "getChannelForOthers")
 	defer span.End()
@@ -494,6 +509,7 @@ func (c *channelGroupManager) electionIfNeed(ctx context.Context, channel *chann
 	span.SetUint64("newLeaderID", newLeaderID)
 	span.SetUint32("term", clusterConfig.Term)
 	span.SetUint64s("replicas", clusterConfig.Replicas)
+	channel.setLeaderId(newLeaderID)
 
 	c.Info("成功选举出新的领导", zap.Uint64("newLeaderID", clusterConfig.LeaderId), zap.Uint32("term", clusterConfig.Term), zap.Uint64s("replicas", clusterConfig.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
@@ -516,6 +532,13 @@ func (c *channelGroupManager) electionIfNeed(ctx context.Context, channel *chann
 	return nil
 }
 
+func (c *channelGroupManager) advanceHandler(channelId string, channelType uint8) func() {
+
+	return func() {
+		c.channelGroup(channelId, channelType).listener.advance()
+	}
+}
+
 func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo *wkstore.ChannelClusterConfig) (*channel, error) {
 	shardNo := ChannelKey(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType)
 	// 获取当前节点已应用的日志
@@ -523,7 +546,7 @@ func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo *wkstor
 	if err != nil {
 		return nil, err
 	}
-	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.s.opts)
+	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.advanceHandler(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType), c.s.opts)
 	return channel, nil
 }
 
@@ -673,4 +696,8 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.Ch
 	_ = requestGroup.Wait()
 
 	return channelLogInfoMap, nil
+}
+
+func (c *channelGroupManager) proposeAndWaitCommits(ctx context.Context, ch *channel, logs []replica.Log, timeout time.Duration) ([]messageItem, error) {
+	return ch.proposeAndWaitCommits(ctx, logs, timeout)
 }

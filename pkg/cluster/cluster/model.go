@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -286,9 +287,9 @@ func (c *ChannelClusterConfigReq) Unmarshal(data []byte) error {
 }
 
 type ChannelProposeReq struct {
-	ChannelId   string   // 频道id
-	ChannelType uint8    // 频道类型
-	Data        [][]byte // 数据
+	ChannelId   string        // 频道id
+	ChannelType uint8         // 频道类型
+	Logs        []replica.Log // 数据
 	TraceID     trace.TraceID
 	SpanID      trace.SpanID
 }
@@ -298,9 +299,13 @@ func (c *ChannelProposeReq) Marshal() ([]byte, error) {
 	defer enc.End()
 	enc.WriteString(c.ChannelId)
 	enc.WriteUint8(c.ChannelType)
-	enc.WriteUint16(uint16(len(c.Data)))
-	for _, data := range c.Data {
-		enc.WriteBinary(data)
+	enc.WriteUint16(uint16(len(c.Logs)))
+	for _, lg := range c.Logs {
+		logData, err := lg.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		enc.WriteBinary(logData)
 	}
 	enc.WriteBytes(c.TraceID[:])
 	enc.WriteBytes(c.SpanID[:])
@@ -321,11 +326,17 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 		return err
 	}
 	if dataLen > 0 {
-		c.Data = make([][]byte, dataLen)
+		c.Logs = make([]replica.Log, dataLen)
 		for i := uint16(0); i < dataLen; i++ {
-			if c.Data[i], err = dec.Binary(); err != nil {
+			data, err := dec.Binary()
+			if err != nil {
 				return err
 			}
+			log := &replica.Log{}
+			if err = log.Unmarshal(data); err != nil {
+				return err
+			}
+			c.Logs[i] = *log
 		}
 	}
 	var traceIDBytes []byte
@@ -343,17 +354,18 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 }
 
 type ChannelProposeResp struct {
-	ClusterConfigOld bool     // 请求的节点的集群配置是否是旧的
-	Indexs           []uint64 // 提案索引
+	ClusterConfigOld bool          // 请求的节点的集群配置是否是旧的
+	MessageItems     []messageItem // 提案索引
 }
 
 func (c *ChannelProposeResp) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint8(uint8(wkutil.BoolToInt(c.ClusterConfigOld)))
-	enc.WriteUint16(uint16(len(c.Indexs)))
-	for _, index := range c.Indexs {
-		enc.WriteUint64(index)
+	enc.WriteUint16(uint16(len(c.MessageItems)))
+	for _, messageItem := range c.MessageItems {
+		enc.WriteUint64(messageItem.messageId)
+		enc.WriteUint64(messageItem.messageSeq)
 	}
 	return enc.Bytes(), nil
 }
@@ -368,14 +380,17 @@ func (c *ChannelProposeResp) Unmarshal(data []byte) error {
 	}
 	c.ClusterConfigOld = wkutil.IntToBool(int(clusterConfigOld))
 
-	var indexsLen uint16
-	if indexsLen, err = dec.Uint16(); err != nil {
+	var itemLen uint16
+	if itemLen, err = dec.Uint16(); err != nil {
 		return err
 	}
-	if indexsLen > 0 {
-		c.Indexs = make([]uint64, indexsLen)
-		for i := uint16(0); i < indexsLen; i++ {
-			if c.Indexs[i], err = dec.Uint64(); err != nil {
+	if itemLen > 0 {
+		c.MessageItems = make([]messageItem, itemLen)
+		for i := uint16(0); i < itemLen; i++ {
+			if c.MessageItems[i].messageId, err = dec.Uint64(); err != nil {
+				return err
+			}
+			if c.MessageItems[i].messageSeq, err = dec.Uint64(); err != nil {
 				return err
 			}
 		}

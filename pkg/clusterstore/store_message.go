@@ -3,7 +3,6 @@ package clusterstore
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -20,25 +19,25 @@ func (s *Store) AppendMessages(ctx context.Context, channelID string, channelTyp
 	if len(msgs) == 0 {
 		return nil
 	}
-	var msgData [][]byte
-	for _, msg := range msgs {
+	logs := make([]replica.Log, len(msgs))
+	for i, msg := range msgs {
 		data, err := msg.Marshal()
 		if err != nil {
 			return err
 		}
-		msgData = append(msgData, data)
+		logs[i] = replica.Log{
+			MessageId: uint64(msg.MessageID),
+			Data:      data,
+		}
 	}
 
-	start := time.Now()
-	s.Debug("start propose channel messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
-	lastIndexs, err := s.opts.Cluster.ProposeChannelMessages(ctx, channelID, channelType, msgData)
-	s.Debug("end propose channel messages", zap.Duration("cost", time.Since(start)), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
+	messageIdMap, err := s.opts.Cluster.ProposeChannelMessages(ctx, channelID, channelType, logs)
 	if err != nil {
 		return err
 	}
 
-	for idx, msg := range msgs {
-		msg.MessageSeq = uint32(lastIndexs[idx])
+	for _, msg := range msgs {
+		msg.MessageSeq = uint32(messageIdMap[uint64(msg.MessageID)])
 	}
 	return nil
 }
@@ -215,14 +214,11 @@ func (s *MessageShardLogStorage) AppendLog(shardNo string, logs []replica.Log) e
 		msgs[idx] = *msg
 	}
 
-	start := time.Now()
-	s.Debug("start append messages", zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Uint64("firstLogIndex", uint64(msgs[0].MessageSeq)), zap.Uint64("lastLogIndex", uint64(msgs[len(msgs)-1].MessageSeq)), zap.Int("msgCount", len(msgs)))
 	err = s.db.AppendMessages(channelID, channelType, msgs)
 	if err != nil {
 		s.Error("AppendMessages err", zap.Error(err))
 		return err
 	}
-	s.Debug("end append messages", zap.Duration("cost", time.Since(start)), zap.String("channelID", channelID), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 
 	return nil
 }
@@ -250,9 +246,10 @@ func (s *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex
 			return nil, err
 		}
 		logs[i] = replica.Log{
-			Index: uint64(msg.MessageSeq),
-			Term:  uint32(msg.Term),
-			Data:  data,
+			MessageId: uint64(msg.MessageID),
+			Index:     uint64(msg.MessageSeq),
+			Term:      uint32(msg.Term),
+			Data:      data,
 		}
 	}
 	s.Debug("get logs", zap.String("shardNo", shardNo), zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex), zap.Int("logCount", len(logs)), zap.Uint64("firstLogIndex", logs[0].Index), zap.Uint64("lastLogIndex", logs[len(logs)-1].Index))
@@ -260,19 +257,24 @@ func (s *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex
 }
 
 func (s *MessageShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
-	channelID, channelType := cluster.ChannelFromChannelKey(shardNo)
-	return s.db.TruncateLogTo(channelID, channelType, index)
+	channelId, channelType := cluster.ChannelFromChannelKey(shardNo)
+	return s.db.TruncateLogTo(channelId, channelType, index)
 }
 
 // 最后一条日志的索引
 func (s *MessageShardLogStorage) LastIndex(shardNo string) (uint64, error) {
-	channelID, channelType := cluster.ChannelFromChannelKey(shardNo)
-	lastMsgSeq, err := s.db.GetChannelMaxMessageSeq(channelID, channelType)
+	channelId, channelType := cluster.ChannelFromChannelKey(shardNo)
+	lastMsgSeq, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return 0, err
 	}
 	return uint64(lastMsgSeq), nil
 
+}
+
+func (s *MessageShardLogStorage) SetLastIndex(shardNo string, index uint64) error {
+	channelId, channelType := cluster.ChannelFromChannelKey(shardNo)
+	return s.db.SetChannelLastMessageSeq(channelId, channelType, index)
 }
 
 // 获取第一条日志的索引
@@ -285,9 +287,13 @@ func (s *MessageShardLogStorage) SetAppliedIndex(shardNo string, index uint64) e
 	return nil
 }
 
+func (s *MessageShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
+	return 0, nil
+}
+
 func (s *MessageShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
-	channelID, channelType := cluster.ChannelFromChannelKey(shardNo)
-	lastMsgSeq, err := s.db.GetChannelMaxMessageSeq(channelID, channelType)
+	channelId, channelType := cluster.ChannelFromChannelKey(shardNo)
+	lastMsgSeq, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -295,9 +301,9 @@ func (s *MessageShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64,
 }
 
 // 是用户自己的频道
-func IsUserOwnChannel(channelID string, channelType uint8) bool {
+func IsUserOwnChannel(channelId string, channelType uint8) bool {
 	if channelType == wkproto.ChannelTypePerson {
-		return !strings.Contains(channelID, "@")
+		return !strings.Contains(channelId, "@")
 	}
 	return false
 }

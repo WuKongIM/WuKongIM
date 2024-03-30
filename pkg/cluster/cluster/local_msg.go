@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"container/list"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -37,6 +38,20 @@ func (l *localReplicaStoreQueue) setStored(index uint64) bool {
 		}
 	}
 	return false
+}
+
+func (l *localReplicaStoreQueue) getMsgs(index uint64) []localReplicaMsg {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	msgs := make([]localReplicaMsg, 0)
+	for i := 0; i < len(l.msgs); i++ {
+		if l.msgs[i].Index <= index {
+			msgs = append(msgs, l.msgs[i])
+		}
+	}
+
+	return msgs
 }
 
 func (l *localReplicaStoreQueue) first() (localReplicaMsg, bool) {
@@ -81,3 +96,47 @@ type localReplicaMsg struct {
 }
 
 var emptyLocalReplicaMsg = localReplicaMsg{}
+
+type proposeReq struct {
+	ch     *channel
+	logs   []replica.Log
+	result chan error
+}
+
+func newProposeReq(logs []replica.Log) proposeReq {
+	return proposeReq{
+		logs:   logs,
+		result: make(chan error, 1),
+	}
+}
+
+var emptyProposeReq = proposeReq{}
+
+type proposeQueue struct {
+	reqs list.List // propose消息队列
+	mu   sync.Mutex
+}
+
+func newProposeQueue() *proposeQueue {
+	return &proposeQueue{
+		reqs: list.List{},
+	}
+}
+
+func (p *proposeQueue) push(req proposeReq) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.reqs.PushBack(req)
+}
+
+func (p *proposeQueue) pop() (proposeReq, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.reqs.Len() == 0 {
+		return emptyProposeReq, false
+	}
+
+	e := p.reqs.Front()
+	p.reqs.Remove(e)
+	return e.Value.(proposeReq), true
+}

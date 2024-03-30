@@ -231,11 +231,42 @@ func (s *slot) handleLocalMsg(msg replica.Message) {
 	}
 	s.lastActivity.Store(time.Now())
 	switch msg.MsgType {
+	case replica.MsgSyncGet:
+		s.handleSyncGet(msg)
 	case replica.MsgStoreAppend: // 处理日志追加到存储内
 		s.handleStoreAppend(msg)
 	case replica.MsgApplyLogsReq: // 处理apply logs请求
 		s.handleApplyLogsReq(msg)
 	}
+}
+
+func (s *slot) handleSyncGet(msg replica.Message) {
+
+	unstableLogs := msg.Logs
+	startIndex := msg.Index
+	if len(unstableLogs) > 0 {
+		startIndex = unstableLogs[len(unstableLogs)-1].Index
+	}
+	logs, err := s.getLogs(startIndex, 0, uint64(s.opts.LogSyncLimitSizeOfEach))
+	if err != nil {
+		s.Error("get logs error", zap.Error(err))
+		return
+	}
+	err = s.stepLock(s.rc.NewMsgSyncGetResp(msg.From, startIndex, logs))
+	if err != nil {
+		s.Error("step sync get resp failed", zap.Error(err))
+		return
+	}
+}
+
+func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
+	shardNo := GetSlotShardNo(s.slotId)
+	logs, err := s.opts.ShardLogStorage.Logs(shardNo, startLogIndex, endLogIndex, limitSize)
+	if err != nil {
+		s.Error("get logs error", zap.Error(err))
+		return nil, err
+	}
+	return logs, nil
 }
 
 func (s *slot) handleStoreAppend(msg replica.Message) {

@@ -1,5 +1,7 @@
 package client
 
+import "fmt"
+
 type ConnectStatus uint32
 
 const (
@@ -26,6 +28,8 @@ func (s ConnectStatus) String() string {
 		return "RECONNECTING"
 	case CONNECTING:
 		return "CONNECTING"
+	case DISCONNECTING:
+		return "DISCONNECTING"
 	}
-	return "unknown status"
+	return fmt.Sprintf("unknown status[%d]", s)
 }

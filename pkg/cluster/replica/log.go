@@ -80,25 +80,25 @@ func newReplicaLog(opts *Options) *replicaLog {
 	return rg
 }
 
-func (r *replicaLog) nextApplyLogs() []Log {
+// func (r *replicaLog) nextApplyLogs() []Log {
 
-	lo, hi := r.applyingIndex+1, r.maxAppliableIndex()+1 // [lo, hi)
-	if lo >= hi {
-		// Nothing to apply.
-		return nil
-	}
-	maxSize := r.maxApplyingLogsSize - r.applyingLogsSize
-	if maxSize <= 0 {
-		r.Panic(fmt.Sprintf("applying entry size (%d-%d)=%d not positive",
-			r.maxApplyingLogsSize, r.applyingLogsSize, maxSize))
-	}
+// 	lo, hi := r.applyingIndex+1, r.maxAppliableIndex()+1 // [lo, hi)
+// 	if lo >= hi {
+// 		// Nothing to apply.
+// 		return nil
+// 	}
+// 	maxSize := r.maxApplyingLogsSize - r.applyingLogsSize
+// 	if maxSize <= 0 {
+// 		r.Panic(fmt.Sprintf("applying entry size (%d-%d)=%d not positive",
+// 			r.maxApplyingLogsSize, r.applyingLogsSize, maxSize))
+// 	}
 
-	logs, err := r.getLogs(lo, hi, maxSize)
-	if err != nil {
-		r.Panic(fmt.Sprintf("unexpected error when getting unapplied entries (%v)", err))
-	}
-	return logs
-}
+// 	logs, err := r.getLogs(lo, hi, maxSize)
+// 	if err != nil {
+// 		r.Panic(fmt.Sprintf("unexpected error when getting unapplied entries (%v)", err))
+// 	}
+// 	return logs
+// }
 
 func (r *replicaLog) appendLog(logs ...Log) {
 	lastLog := logs[len(logs)-1]
@@ -174,7 +174,7 @@ func (r *replicaLog) hasUnapplyLogs() bool {
 	return r.committedIndex > r.applyingIndex
 }
 
-func (r *replicaLog) getLogs(lo, hi uint64, maxSize logEncodingSize) ([]Log, error) {
+func (r *replicaLog) getLogsFromUnstable(lo, hi uint64, maxSize logEncodingSize) ([]Log, error) {
 	if err := r.mustCheckOutOfBounds(lo, hi); err != nil {
 		return nil, err
 	}
@@ -185,28 +185,42 @@ func (r *replicaLog) getLogs(lo, hi uint64, maxSize logEncodingSize) ([]Log, err
 		logs := limitSize(r.unstable.slice(lo, hi), maxSize)
 		return logs[:len(logs):len(logs)], nil
 	}
-	cut := min(hi, r.unstable.offset)
-	logs, err := r.opts.Storage.Logs(lo, cut, uint64(maxSize))
-	if err != nil {
-		return nil, err
-	}
-	if hi <= r.unstable.offset {
-		return logs, nil
-	}
-
-	if uint64(len(logs)) < cut-lo {
-		return logs, nil
-	}
-	size := LogsSize(logs)
-	if size >= maxSize {
-		return logs, nil
-	}
-	unstable := limitSize(r.unstable.slice(r.unstable.offset, hi), maxSize-size)
-	if len(unstable) == 1 && size+LogsSize(unstable) > maxSize {
-		return logs, nil
-	}
-	return extend(logs, unstable), nil
+	return nil, nil
 }
+
+// func (r *replicaLog) getLogs(lo, hi uint64, maxSize logEncodingSize) ([]Log, error) {
+// 	if err := r.mustCheckOutOfBounds(lo, hi); err != nil {
+// 		return nil, err
+// 	}
+// 	if lo == hi {
+// 		return nil, nil
+// 	}
+// 	if lo >= r.unstable.offset {
+// 		logs := limitSize(r.unstable.slice(lo, hi), maxSize)
+// 		return logs[:len(logs):len(logs)], nil
+// 	}
+// 	cut := min(hi, r.unstable.offset)
+// 	logs, err := r.opts.Storage.Logs(lo, cut, uint64(maxSize))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if hi <= r.unstable.offset {
+// 		return logs, nil
+// 	}
+
+// 	if uint64(len(logs)) < cut-lo {
+// 		return logs, nil
+// 	}
+// 	size := LogsSize(logs)
+// 	if size >= maxSize {
+// 		return logs, nil
+// 	}
+// 	unstable := limitSize(r.unstable.slice(r.unstable.offset, hi), maxSize-size)
+// 	if len(unstable) == 1 && size+LogsSize(unstable) > maxSize {
+// 		return logs, nil
+// 	}
+// 	return extend(logs, unstable), nil
+// }
 
 // maxAppliableIndex returns the maximum committed index that can be applied.
 // If allowUnstable is true, committed entries from the unstable log can be
@@ -233,15 +247,19 @@ func (r *replicaLog) mustCheckOutOfBounds(lo, hi uint64) error {
 	return nil
 }
 
+// func (r *replicaLog) lastIndex() uint64 {
+// 	if i, ok := r.unstable.maybeLastIndex(); ok {
+// 		return i
+// 	}
+// 	i, err := r.opts.Storage.LastIndex()
+// 	if err != nil {
+// 		r.Panic("get last index failed", zap.Error(err))
+// 	}
+// 	return i
+// }
+
 func (r *replicaLog) lastIndex() uint64 {
-	if i, ok := r.unstable.maybeLastIndex(); ok {
-		return i
-	}
-	i, err := r.opts.Storage.LastIndex()
-	if err != nil {
-		r.Panic("get last index failed", zap.Error(err))
-	}
-	return i
+	return r.lastLogIndex
 }
 
 func (r *replicaLog) firstIndex() uint64 {

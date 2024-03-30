@@ -19,6 +19,8 @@ type DB interface {
 	// // TruncateLogTo 截断消息, 从messageSeq开始截断,messageSeq=0 表示清空所有日志 （保留下来的内容包含messageSeq）
 	TruncateLogTo(channelId string, channelType uint8, messageSeq uint64) error
 
-	// GetLastMessageSeq 获取最后一条消息的seq
-	GetChannelMaxMessageSeq(channelId string, channelType uint8) (uint64, error)
+	// GetChannelLastMessageSeq 获取最后一条消息的seq
+	GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, error)
+
+	SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error
 }

@@ -78,6 +78,9 @@ type Options struct {
 
 	// InitialTaskQueueCap is the initial capacity of the task queue.
 	InitialTaskQueueCap int
+
+	// LogSyncLimitSizeOfEach 每次日志同步大小
+	LogSyncLimitSizeOfEach int
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -103,6 +106,7 @@ func NewOptions(optList ...Option) *Options {
 		ReceiveQueueLength:           1024,
 		LazyFreeCycle:                1,
 		InitialTaskQueueCap:          24,
+		LogSyncLimitSizeOfEach:       1024 * 1024 * 20, // 20M
 	}
 	for _, opt := range optList {
 		opt(opts)

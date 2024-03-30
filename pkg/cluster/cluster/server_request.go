@@ -207,14 +207,14 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 		c.WriteErr(ErrOldChannelClusterConfig)
 		return
 	}
-	logIndexs, err := ch.proposeAndWaitCommits(ctx, req.Data, s.opts.ProposeTimeout)
+	messageItems, err := s.channelGroupManager.proposeAndWaitCommits(ctx, ch.(*channel), req.Logs, s.opts.ProposeTimeout)
 	if err != nil {
 		s.Error("proposeAndWaitCommit failed", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
 	resp := &ChannelProposeResp{
-		Indexs: logIndexs,
+		MessageItems: messageItems,
 	}
 	data, err := resp.Marshal()
 	if err != nil {

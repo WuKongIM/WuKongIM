@@ -16,6 +16,7 @@ import (
 var (
 	dataTypeTable byte = 0x01 // 表
 	dataTypeIndex byte = 0x02 // 索引
+	dataTypeOther byte = 0x03 // 其他
 )
 
 // 消息表
@@ -103,6 +104,18 @@ func NewMessagePrimaryKey(channelId string, channelType uint8, messageSeq uint64
 	binary.BigEndian.PutUint64(key[4:], channelHash)
 	binary.BigEndian.PutUint64(key[12:], messageSeq)
 	return key
+}
+
+func NewChannelLastMessageSeqKey(channelId string, channelType uint8) []byte {
+	key := make([]byte, 12)
+	channelHash := channelIdToNum(channelId, channelType)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeOther
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], channelHash)
+	return key
+
 }
 
 func ParseMessageColumnKey(key []byte) (messageSeq uint64, columnName [2]byte, err error) {

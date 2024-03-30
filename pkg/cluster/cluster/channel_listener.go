@@ -10,9 +10,10 @@ import (
 )
 
 type ChannelListener struct {
-	channels *channelQueue
-	readyCh  chan channelReady
-	stopper  *syncutil.Stopper
+	channels  *channelQueue
+	readyCh   chan channelReady
+	advanceCh chan struct{}
+	stopper   *syncutil.Stopper
 	// 已准备的频道
 	opts    *Options
 	onReady func(channelReady)
@@ -21,12 +22,13 @@ type ChannelListener struct {
 
 func NewChannelListener(onReady func(channelReady), opts *Options) *ChannelListener {
 	return &ChannelListener{
-		channels: newChannelQueue(),
-		onReady:  onReady,
-		readyCh:  make(chan channelReady, 100),
-		stopper:  syncutil.NewStopper(),
-		opts:     opts,
-		Log:      wklog.NewWKLog("ChannelListener"),
+		channels:  newChannelQueue(),
+		onReady:   onReady,
+		readyCh:   make(chan channelReady, 100),
+		advanceCh: make(chan struct{}, 1),
+		stopper:   syncutil.NewStopper(),
+		opts:      opts,
+		Log:       wklog.NewWKLog("ChannelListener"),
 	}
 }
 
@@ -67,48 +69,50 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 
 func (c *ChannelListener) loopEvent() {
 	tick := time.NewTicker(time.Millisecond * 20)
-	var err error
 	for {
+		c.ready()
 		select {
 		case <-tick.C:
-			hasEvent := true
-			for hasEvent {
-				hasEvent = false
-				c.channels.foreach(func(ch *channel) {
-					if ch.isDestroy() {
-						return
-					}
-					event := false
-					if event, err = ch.handleLocalStoreMsgs(); err != nil {
-						c.Warn("loopEvent: handleLocalStoreMsgs error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
-					}
-					if event {
-						hasEvent = true
-					}
-
-					if event, err = ch.handleMessages(); err != nil {
-						c.Warn("loopEvent: handleReceivedMessages error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
-					}
-					if event {
-						hasEvent = true
-					}
-
-					event = c.handleReady(ch)
-					if event {
-						hasEvent = true
-					}
-
-					if c.isInactiveChannel(ch) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
-						c.Remove(ch)
-						c.Info("remove inactive channel", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-					}
-
-				})
-			}
-
+		case <-c.advanceCh:
 		case <-c.stopper.ShouldStop():
 			return
 		}
+	}
+}
+
+func (c *ChannelListener) ready() {
+	hasEvent := true
+	var err error
+	for hasEvent {
+		hasEvent = false
+		c.channels.foreach(func(ch *channel) {
+			start := time.Now()
+			if ch.isDestroy() {
+				return
+			}
+			event := false
+			if event, err = ch.handleEvents(); err != nil {
+				c.Warn("loopEvent: handleReceivedMessages error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
+			}
+			if event {
+				hasEvent = true
+			}
+			event = c.handleReady(ch)
+			if event {
+				hasEvent = true
+			}
+			if hasEvent {
+				if time.Since(start) > time.Millisecond {
+					c.Debug("loopEvent end...", zap.Duration("cost", time.Since(start)), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
+				}
+			}
+
+			if c.isInactiveChannel(ch) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
+				c.Remove(ch)
+				c.Info("remove inactive channel", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
+			}
+
+		})
 	}
 }
 
@@ -125,6 +129,14 @@ func (c *ChannelListener) handleReady(ch *channel) bool {
 		return true
 	}
 	return false
+}
+
+func (c *ChannelListener) advance() {
+	select {
+	case c.advanceCh <- struct{}{}:
+	case <-c.stopper.ShouldStop():
+	default:
+	}
 }
 
 func (c *ChannelListener) triggerReady(ready channelReady) {

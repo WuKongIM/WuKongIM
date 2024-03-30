@@ -96,49 +96,6 @@ func (r *Replica) Propose(data []byte) error {
 	return r.Step(r.NewProposeMessage(data))
 }
 
-func (r *Replica) NewProposeMessage(data []byte) Message {
-	return Message{
-		MsgType: MsgPropose,
-		From:    r.nodeID,
-		Term:    r.replicaLog.term,
-		Logs: []Log{
-			{
-				Index: r.replicaLog.lastLogIndex + 1,
-				Term:  r.replicaLog.term,
-				Data:  data,
-			},
-		},
-	}
-}
-
-func (r *Replica) NewProposeMessageWithLogs(logs []Log) Message {
-	return Message{
-		MsgType: MsgPropose,
-		From:    r.nodeID,
-		Term:    r.replicaLog.term,
-		Logs:    logs,
-	}
-}
-
-func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
-	return Message{
-		MsgType: MsgApplyLogsResp,
-		From:    r.nodeID,
-		Term:    r.replicaLog.term,
-		Index:   appliedIdx,
-	}
-}
-
-func (r *Replica) NewMsgStoreAppendResp(index uint64) Message {
-	return Message{
-		MsgType: MsgStoreAppendResp,
-		From:    r.nodeID,
-		To:      r.nodeID,
-		Index:   index,
-	}
-
-}
-
 func (r *Replica) BecomeFollower(term uint32, leaderID uint64) {
 
 	r.becomeFollower(term, leaderID)
@@ -318,27 +275,20 @@ func (r *Replica) putMsgIfNeed() {
 
 	// 应用日志
 	if r.hasUnapplyLogs() {
-		logs := r.replicaLog.nextApplyLogs()
-		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, r.replicaLog.committedIndex, logs))
+		// logs := r.replicaLog.nextApplyLogs()
+		lo, hi := r.replicaLog.applyingIndex+1, r.replicaLog.maxAppliableIndex()+1 // [lo, hi)
+		r.msgs = append(r.msgs, r.newApplyLogReqMsg(lo, hi, r.replicaLog.appliedIndex, r.replicaLog.committedIndex))
 	}
 
 }
 
 func (r *Replica) acceptReady(rd Ready) {
-	var applyMsg Message
-	for _, msg := range rd.Messages {
-		if msg.MsgType == MsgApplyLogsReq {
-			applyMsg = msg
-			break
-		}
-	}
+
 	r.msgs = nil
 	rd.HardState = EmptyHardState
 	r.replicaLog.acceptUnstable()
-	if len(applyMsg.Logs) > 0 {
-		logs := applyMsg.Logs
-		index := logs[len(logs)-1].Index
-		r.replicaLog.acceptApplying(index, LogsSize(logs))
+	if r.hasUnapplyLogs() {
+		r.replicaLog.acceptApplying(r.replicaLog.committedIndex, 0)
 	}
 }
 
@@ -381,16 +331,92 @@ func (r *Replica) reduceUncommittedSize(s logEncodingSize) {
 	}
 }
 
-func (r *Replica) newApplyLogReqMsg(appliedIndex, committedIndex uint64, logs []Log) Message {
+func (r *Replica) NewProposeMessage(data []byte) Message {
+	return Message{
+		MsgType: MsgPropose,
+		From:    r.nodeID,
+		Term:    r.replicaLog.term,
+		Logs: []Log{
+			{
+				Index: r.replicaLog.lastLogIndex + 1,
+				Term:  r.replicaLog.term,
+				Data:  data,
+			},
+		},
+	}
+}
+
+func (r *Replica) NewProposeMessageWithLogs(logs []Log) Message {
+	return Message{
+		MsgType: MsgPropose,
+		From:    r.nodeID,
+		Term:    r.replicaLog.term,
+		Logs:    logs,
+	}
+}
+
+func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
+	return Message{
+		MsgType: MsgApplyLogsResp,
+		From:    r.nodeID,
+		Term:    r.replicaLog.term,
+		Index:   appliedIdx,
+	}
+}
+
+func (r *Replica) NewMsgStoreAppendResp(index uint64) Message {
+	return Message{
+		MsgType: MsgStoreAppendResp,
+		From:    r.nodeID,
+		To:      r.nodeID,
+		Index:   index,
+	}
+
+}
+
+func (r *Replica) newMsgSyncGet(from uint64, index uint64, unstableLogs []Log) Message {
+	return Message{
+		MsgType: MsgSyncGet,
+		From:    from,
+		To:      r.nodeID,
+		Index:   index,
+		Logs:    unstableLogs,
+	}
+}
+
+func (r *Replica) newMsgSyncResp(to uint64, startIndex uint64, logs []Log) Message {
+	return Message{
+		MsgType:        MsgSyncResp,
+		From:           r.nodeID,
+		To:             to,
+		Term:           r.replicaLog.term,
+		Logs:           logs,
+		Index:          startIndex,
+		CommittedIndex: r.replicaLog.committedIndex,
+	}
+}
+
+func (r *Replica) NewMsgSyncGetResp(to uint64, startIndex uint64, logs []Log) Message {
+	return Message{
+		MsgType: MsgSyncGetResp,
+		From:    r.nodeID,
+		To:      to,
+		Logs:    logs,
+		Index:   startIndex,
+	}
+}
+
+func (r *Replica) newApplyLogReqMsg(startIndex, endIndex uint64, appliedIndex, committedIndex uint64) Message {
 
 	return Message{
 		MsgType:        MsgApplyLogsReq,
 		From:           r.nodeID,
 		To:             r.nodeID,
 		Term:           r.replicaLog.term,
+		Index:          startIndex,
+		EndIndex:       endIndex,
 		AppliedIndex:   appliedIndex,
 		CommittedIndex: committedIndex,
-		Logs:           logs,
 	}
 }
 

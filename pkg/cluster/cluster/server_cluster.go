@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
@@ -187,14 +188,17 @@ func (s *Server) NodeIsOnline(nodeID uint64) bool {
 	return s.clusterEventListener.clusterconfigManager.nodeIsOnline(nodeID)
 }
 
-func (s *Server) ProposeChannelMessage(ctx context.Context, channelID string, channelType uint8, data []byte) (uint64, error) {
+func (s *Server) ProposeChannelMessages(ctx context.Context, channelID string, channelType uint8, logs []replica.Log) (map[uint64]uint64, error) {
 
-	return s.channelGroupManager.proposeMessage(ctx, channelID, channelType, data)
-}
-
-func (s *Server) ProposeChannelMessages(ctx context.Context, channelID string, channelType uint8, data [][]byte) ([]uint64, error) {
-
-	return s.channelGroupManager.proposeMessages(ctx, channelID, channelType, data)
+	messageItems, err := s.channelGroupManager.proposeMessages(ctx, channelID, channelType, logs)
+	if err != nil {
+		return nil, err
+	}
+	messageIdMap := make(map[uint64]uint64)
+	for i, item := range messageItems {
+		messageIdMap[logs[i].MessageId] = item.messageSeq
+	}
+	return messageIdMap, nil
 }
 
 func (s *Server) ProposeChannelMeta(channelID string, channelType uint8, meta []byte) error {

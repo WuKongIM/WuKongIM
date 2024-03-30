@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"path/filepath"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble"
 )
 
@@ -14,6 +15,7 @@ type pebbleDB struct {
 	opts   *Options
 	wo     *pebble.WriteOptions
 	endian binary.ByteOrder
+	wklog.Log
 }
 
 func NewPebbleDB(opts *Options) *pebbleDB {
@@ -21,6 +23,7 @@ func NewPebbleDB(opts *Options) *pebbleDB {
 		opts:   opts,
 		endian: binary.BigEndian,
 		wo:     &pebble.WriteOptions{},
+		Log:    wklog.NewWKLog("pebbleDB"),
 	}
 }
 

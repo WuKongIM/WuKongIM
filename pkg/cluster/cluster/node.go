@@ -29,12 +29,10 @@ type node struct {
 }
 
 func newNode(id uint64, uid string, addr string, sendQueueLen int, maxSendQueueSize, maxMessageBatchSize uint64) *node {
-	cli := client.New(addr, client.WithUID(uid))
 
-	return &node{
+	n := &node{
 		id:                  id,
 		addr:                addr,
-		client:              cli,
 		activityTimeout:     time.Minute * 2, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
 		breaker:             netutil.NewBreaker(),
 		stopper:             syncutil.NewStopper(),
@@ -45,6 +43,12 @@ func newNode(id uint64, uid string, addr string, sendQueueLen int, maxSendQueueS
 			rl: NewRateLimiter(maxSendQueueSize),
 		},
 	}
+	n.client = client.New(addr, client.WithUID(uid), client.WithOnConnectStatus(n.connectStatusChange))
+	return n
+}
+
+func (n *node) connectStatusChange(status client.ConnectStatus) {
+	n.Info("节点连接状态改变", zap.String("status", status.String()))
 }
 
 func (n *node) start() {
@@ -108,7 +112,9 @@ func (n *node) processMessages() {
 				}
 			}
 			if err = n.sendBatch(msgs); err != nil {
-				n.Error("sendBatch is failed", zap.Error(err))
+				if n.client.ConnectStatus() == client.CONNECTED { // 只有连接状态下才打印错误日志
+					n.Error("sendBatch is failed", zap.Error(err))
+				}
 			}
 			size = 0
 			msgs = msgs[:0]

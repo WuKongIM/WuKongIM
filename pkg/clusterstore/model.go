@@ -3,6 +3,7 @@ package clusterstore
 import (
 	"context"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -11,10 +12,8 @@ import (
 type ICluster interface {
 	// ProposeChannelMeta 提交元数据到指定的channel
 	ProposeChannelMeta(channelID string, channelType uint8, data []byte) error
-	// ProposeChannelMessage 提交消息到指定的channel
-	ProposeChannelMessage(ctx context.Context, channelID string, channelType uint8, data []byte) (uint64, error)
 	// ProposeChannelMessages 批量提交消息到指定的channel
-	ProposeChannelMessages(ctx context.Context, channelID string, channelType uint8, data [][]byte) ([]uint64, error)
+	ProposeChannelMessages(ctx context.Context, channelID string, channelType uint8, logs []replica.Log) (map[uint64]uint64, error)
 	// ProposeToSlots 提交数据到指定的槽
 	ProposeToSlot(slotId uint32, data []byte) error
 }
