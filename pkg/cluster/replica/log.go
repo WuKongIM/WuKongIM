@@ -46,6 +46,9 @@ type replicaLog struct {
 	// enough progress is acknowledged.
 	applyingLogsPaused bool
 
+	// 已追加
+	appendedIndex uint64
+
 	opts *Options
 }
 
@@ -75,6 +78,9 @@ func newReplicaLog(opts *Options) *replicaLog {
 	rg.unstable.offset = lastIndex + 1
 	rg.unstable.offsetInProgress = lastIndex + 1
 
+	rg.appendedIndex = lastIndex
+
+	fmt.Println("opts.AppliedIndex---->", opts.AppliedIndex)
 	rg.appliedTo(opts.AppliedIndex, 0)
 
 	return rg
@@ -149,6 +155,7 @@ func (r *replicaLog) acceptApplying(i uint64, size logEncodingSize) {
 func (r *replicaLog) acceptUnstable() { r.unstable.acceptInProgress() }
 
 func (r *replicaLog) stableTo(i uint64) {
+	r.appendedIndex = i
 	r.unstable.stableTo(i)
 }
 
@@ -168,6 +175,13 @@ func (r *replicaLog) hasNextUnstableLogs() bool {
 func (r *replicaLog) hasUnapplyLogs() bool {
 	if r.applyingLogsPaused {
 		// Log application outstanding size limit reached.
+		return false
+	}
+	if r.appliedIndex >= r.appendedIndex {
+		return false
+	}
+
+	if r.appendedIndex < r.committedIndex {
 		return false
 	}
 

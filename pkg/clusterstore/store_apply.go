@@ -215,9 +215,10 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 // }
 
 func (s *Store) handleAppendMessagesOfUser(cmd *CMD) error {
-	uid, messages, err := cmd.DecodeCMDAppendMessagesOfUser(s.opts.DecodeMessageFnc)
-	if err != nil {
-		return err
-	}
-	return s.db.AppendMessagesOfUserQueue(uid, messages)
+	// uid, messages, err := cmd.DecodeCMDAppendMessagesOfUser()
+	// if err != nil {
+	// 	return err
+	// }
+	// return s.db.AppendMessagesOfUserQueue(uid, messages)
+	return nil
 }

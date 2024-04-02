@@ -275,9 +275,7 @@ func (r *Replica) putMsgIfNeed() {
 
 	// 应用日志
 	if r.hasUnapplyLogs() {
-		// logs := r.replicaLog.nextApplyLogs()
-		lo, hi := r.replicaLog.applyingIndex+1, r.replicaLog.maxAppliableIndex()+1 // [lo, hi)
-		r.msgs = append(r.msgs, r.newApplyLogReqMsg(lo, hi, r.replicaLog.appliedIndex, r.replicaLog.committedIndex))
+		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.applyingIndex, r.replicaLog.appliedIndex, r.replicaLog.committedIndex))
 	}
 
 }
@@ -406,15 +404,14 @@ func (r *Replica) NewMsgSyncGetResp(to uint64, startIndex uint64, logs []Log) Me
 	}
 }
 
-func (r *Replica) newApplyLogReqMsg(startIndex, endIndex uint64, appliedIndex, committedIndex uint64) Message {
+func (r *Replica) newApplyLogReqMsg(applyingIndex, appliedIndex, committedIndex uint64) Message {
 
 	return Message{
 		MsgType:        MsgApplyLogsReq,
 		From:           r.nodeID,
 		To:             r.nodeID,
 		Term:           r.replicaLog.term,
-		Index:          startIndex,
-		EndIndex:       endIndex,
+		ApplyingIndex:  applyingIndex,
 		AppliedIndex:   appliedIndex,
 		CommittedIndex: committedIndex,
 	}

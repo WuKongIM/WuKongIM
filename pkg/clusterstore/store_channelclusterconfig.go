@@ -56,5 +56,6 @@ func (c *ChannelClusterConfigStore) ProposeSave(channelId string, channelType ui
 	if err != nil {
 		return err
 	}
-	return c.store.opts.Cluster.ProposeChannelMeta(channelId, channelType, cmdData)
+	_, err = c.store.opts.Cluster.ProposeChannelMeta(c.store.ctx, channelId, channelType, cmdData)
+	return err
 }

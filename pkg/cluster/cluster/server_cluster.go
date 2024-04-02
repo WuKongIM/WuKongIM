@@ -201,31 +201,61 @@ func (s *Server) ProposeChannelMessages(ctx context.Context, channelID string, c
 	return messageIdMap, nil
 }
 
-func (s *Server) ProposeChannelMeta(channelID string, channelType uint8, meta []byte) error {
+func (s *Server) ProposeChannelMeta(ctx context.Context, channelID string, channelType uint8, meta []byte) (uint64, error) {
 	slotId := s.getChannelSlotId(channelID)
-	return s.ProposeToSlot(slotId, meta)
+	messageId := uint64(s.messageIDGen.Generate().Int64())
+	resultMap, err := s.ProposeToSlot(ctx, slotId, []replica.Log{
+		{
+			MessageId: messageId,
+			Data:      meta,
+		},
+	})
+	if err != nil {
+		return 0, nil
+	}
+	messageSeq, ok := resultMap[messageId]
+	if !ok {
+		return 0, ErrProposeFailed
+	}
+	return messageSeq, nil
 }
 
 // ProposeToSlot 提交数据到指定的槽
-func (s *Server) ProposeToSlot(slotId uint32, data []byte) error {
+func (s *Server) ProposeToSlot(ctx context.Context, slotId uint32, logs []replica.Log) (map[uint64]uint64, error) {
 	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
-		return ErrSlotNotFound
+		return nil, ErrSlotNotFound
 	}
+	var messageItems []messageItem
+	var err error
 	if slot.Leader != s.opts.NodeID {
 		slotLeaderNode := s.nodeManager.node(slot.Leader)
 		if slotLeaderNode == nil {
 			s.Error("slot leader node not found, ProposeToSlot failed", zap.Uint32("slotId", slotId), zap.Uint64("leaderId", slot.Leader))
-			return ErrNodeNotFound
+			return nil, ErrNodeNotFound
 		}
 		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)
 		defer cancel()
-		return slotLeaderNode.requestSlotPropose(timeoutCtx, &SlotProposeReq{
+		resp, err := slotLeaderNode.requestSlotPropose(timeoutCtx, &SlotProposeReq{
 			SlotId: slotId,
-			Data:   data,
+			Logs:   logs,
 		})
+		if err != nil {
+			return nil, err
+		}
+		messageItems = resp.MessageItems
+	} else {
+		messageItems, err = s.slotManager.proposeAndWaitCommit(ctx, slotId, logs)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return s.slotManager.proposeAndWaitCommit(slotId, data)
+
+	messageIdMap := make(map[uint64]uint64)
+	for i, item := range messageItems {
+		messageIdMap[logs[i].MessageId] = item.messageSeq
+	}
+	return messageIdMap, nil
 }
 
 func (s *Server) Monitor() Monitor {

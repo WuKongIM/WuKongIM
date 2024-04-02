@@ -519,7 +519,8 @@ func (c *Channel) forwardToOtherPeerSubscribers(messages []*Message, large bool,
 	recvPacketDatas := make([]byte, 0)
 	for _, m := range messages {
 		recvPacket := m.RecvPacket
-		data, err := c.s.opts.Proto.EncodeFrame(recvPacket, wkproto.LatestVersion)
+		fmt.Println("forwardToOtherPeerSubscribers--->", recvPacket.MessageSeq)
+		data, err := c.s.opts.Proto.EncodeFrame(&recvPacket, wkproto.LatestVersion)
 		if err != nil {
 			c.Error("encode recvPacket err", zap.Error(err))
 			return err

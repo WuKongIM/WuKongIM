@@ -3,11 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"go.uber.org/zap"
 )
 
 func (s *Server) connectWrite(nodeId uint64, req *rpc.ConnectWriteReq) error {
@@ -59,8 +57,8 @@ func (s *Server) connPing(nodeId uint64, req *rpc.ConnPingReq) (proto.Status, er
 
 func (s *Server) forwardSendPacketReq(nodeID uint64, req *rpc.ForwardSendPacketReq) (*rpc.ForwardSendPacketResp, error) {
 
-	startTime := time.Now().UnixMilli()
-	s.Debug("开始转发\"发送包\"", zap.Uint64("nodeID", nodeID), zap.Int("dataSize", len(req.SendPackets)))
+	// startTime := time.Now().UnixMilli()
+	// s.Debug("开始转发\"发送包\"", zap.Uint64("nodeID", nodeID), zap.Int("dataSize", len(req.SendPackets)))
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.Cluster.ReqTimeout)
 	defer cancel()
 	data, _ := req.Marshal()
@@ -76,7 +74,7 @@ func (s *Server) forwardSendPacketReq(nodeID uint64, req *rpc.ForwardSendPacketR
 	if err != nil {
 		return nil, err
 	}
-	s.Debug("转发\"发送包\"成功", zap.Int64("耗时(毫秒)", time.Now().UnixMilli()-startTime), zap.Uint64("nodeID", nodeID))
+	// s.Debug("转发\"发送包\"成功", zap.Int64("耗时(毫秒)", time.Now().UnixMilli()-startTime), zap.Uint64("nodeID", nodeID))
 	return forwardSendPacketResp, nil
 }
 
@@ -95,8 +93,8 @@ func (s *Server) forwardRecvackPacketReq(nodeID uint64, req *rpc.RecvacksReq) er
 }
 
 func (s *Server) forwardRecvPacketReq(nodeID uint64, data []byte) error {
-	startTime := time.Now().UnixMilli()
-	s.Debug("开始转发\"接收包\"", zap.Uint64("nodeID", nodeID))
+	// startTime := time.Now().UnixMilli()
+	// s.Debug("开始转发\"接收包\"", zap.Uint64("nodeID", nodeID))
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.Cluster.ReqTimeout)
 	defer cancel()
 	resp, err := s.cluster.RequestWithContext(timeoutCtx, nodeID, "/wk/recvPacket", data)
@@ -106,6 +104,6 @@ func (s *Server) forwardRecvPacketReq(nodeID uint64, data []byte) error {
 	if resp.Status != proto.Status_OK {
 		return fmt.Errorf("send forwardRecvPacketReq fail")
 	}
-	s.Debug("转发\"接收包\"成功", zap.Int64("耗时(毫秒)", time.Now().UnixMilli()-startTime), zap.Uint64("nodeID", nodeID))
+	// s.Debug("转发\"接收包\"成功", zap.Int64("耗时(毫秒)", time.Now().UnixMilli()-startTime), zap.Uint64("nodeID", nodeID))
 	return nil
 }

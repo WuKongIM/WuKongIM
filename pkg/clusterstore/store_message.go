@@ -14,16 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *Store) AppendMessages(ctx context.Context, channelID string, channelType uint8, msgs []wkdb.Message) error {
+func (s *Store) AppendMessages(ctx context.Context, channelID string, channelType uint8, msgs []wkdb.Message) (map[uint64]uint64, error) {
 
 	if len(msgs) == 0 {
-		return nil
+		return nil, nil
 	}
 	logs := make([]replica.Log, len(msgs))
 	for i, msg := range msgs {
 		data, err := msg.Marshal()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		logs[i] = replica.Log{
 			MessageId: uint64(msg.MessageID),
@@ -33,45 +33,43 @@ func (s *Store) AppendMessages(ctx context.Context, channelID string, channelTyp
 
 	messageIdMap, err := s.opts.Cluster.ProposeChannelMessages(ctx, channelID, channelType, logs)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	return messageIdMap, nil
+}
 
-	for _, msg := range msgs {
-		msg.MessageSeq = uint32(messageIdMap[uint64(msg.MessageID)])
-	}
+func (s *Store) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]wkdb.Message, error) {
+	return s.wdb.LoadNextRangeMsgs(channelID, channelType, startMessageSeq, endMessageSeq, limit)
+}
+
+func (s *Store) LoadMsg(channelID string, channelType uint8, seq uint64) (wkdb.Message, error) {
+	return s.wdb.LoadMsg(channelID, channelType, seq)
+}
+
+func (s *Store) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]wkdb.Message, error) {
+	return s.wdb.LoadLastMsgs(channelID, channelType, limit)
+}
+
+func (s *Store) LoadLastMsgsWithEnd(channelID string, channelType uint8, end uint64, limit int) ([]wkdb.Message, error) {
+	return s.wdb.LoadLastMsgsWithEnd(channelID, channelType, end, limit)
+}
+
+func (s *Store) LoadPrevRangeMsgs(channelID string, channelType uint8, start, end uint64, limit int) ([]wkdb.Message, error) {
+	return s.wdb.LoadPrevRangeMsgs(channelID, channelType, start, end, limit)
+}
+
+func (s *Store) GetLastMsgSeq(channelID string, channelType uint8) (uint64, error) {
+	return s.wdb.GetChannelLastMessageSeq(channelID, channelType)
+}
+
+func (s *Store) GetMessagesOfNotifyQueue(count int) ([]wkdb.Message, error) {
+	// return s.db.GetMessagesOfNotifyQueue(count)
+	return nil, nil
+}
+
+func (s *Store) AppendMessageOfNotifyQueue(messages []wkdb.Message) error {
+	// return s.db.AppendMessageOfNotifyQueue(messages)
 	return nil
-}
-
-func (s *Store) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) ([]wkstore.Message, error) {
-	return s.db.LoadNextRangeMsgs(channelID, channelType, startMessageSeq, endMessageSeq, limit)
-}
-
-func (s *Store) LoadMsg(channelID string, channelType uint8, seq uint32) (wkstore.Message, error) {
-	return s.db.LoadMsg(channelID, channelType, seq)
-}
-
-func (s *Store) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]wkstore.Message, error) {
-	return s.db.LoadLastMsgs(channelID, channelType, limit)
-}
-
-func (s *Store) LoadLastMsgsWithEnd(channelID string, channelType uint8, end uint32, limit int) ([]wkstore.Message, error) {
-	return s.db.LoadLastMsgsWithEnd(channelID, channelType, end, limit)
-}
-
-func (s *Store) LoadPrevRangeMsgs(channelID string, channelType uint8, start, end uint32, limit int) ([]wkstore.Message, error) {
-	return s.db.LoadPrevRangeMsgs(channelID, channelType, start, end, limit)
-}
-
-func (s *Store) GetLastMsgSeq(channelID string, channelType uint8) (uint32, error) {
-	return s.db.GetLastMsgSeq(channelID, channelType)
-}
-
-func (s *Store) GetMessagesOfNotifyQueue(count int) ([]wkstore.Message, error) {
-	return s.db.GetMessagesOfNotifyQueue(count)
-}
-
-func (s *Store) AppendMessageOfNotifyQueue(messages []wkstore.Message) error {
-	return s.db.AppendMessageOfNotifyQueue(messages)
 }
 
 func (s *Store) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
@@ -105,49 +103,54 @@ func (s *Store) AppendStreamItem(channelID string, channelType uint8, streamNo s
 	return 0, nil
 }
 
-func (s *Store) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error {
+func (s *Store) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint64) error {
 	return nil
 }
 
-func (s *Store) GetMessageOfUserCursor(uid string) (uint32, error) {
+func (s *Store) GetMessageOfUserCursor(uid string) (uint64, error) {
 	return 0, nil
 }
 
-func (s *Store) AppendMessagesOfUser(subscriber string, messages []wkstore.Message) error {
+func (s *Store) AppendMessagesOfUser(subscriber string, messages []wkdb.Message) (map[uint64]uint64, error) {
 	if len(messages) == 0 {
-		return nil
-	}
-	err := s.setSeqForMessages(subscriber, messages)
-	if err != nil {
-		return err
+		return nil, nil
 	}
 
-	data, err := EncodeCMDAppendMessagesOfUser(subscriber, messages)
-	if err != nil {
-		return err
-	}
-	cmd := NewCMD(CMDAppendMessagesOfUser, data)
-	cmdData, err := cmd.Marshal()
-	if err != nil {
-		return err
+	logs := make([]replica.Log, 0, len(messages))
+	for _, message := range messages {
+		data, err := EncodeCMDAppendMessagesOfUser(subscriber, []wkdb.Message{message})
+		if err != nil {
+			return nil, err
+		}
+		cmd := NewCMD(CMDAppendMessagesOfUser, data)
+		cmdData, err := cmd.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		logs = append(logs, replica.Log{
+			MessageId: uint64(message.MessageID),
+			Data:      cmdData,
+		})
+
 	}
 
 	slotId := s.getChannelSlotId(subscriber)
-	return s.opts.Cluster.ProposeToSlot(slotId, cmdData)
+	return s.opts.Cluster.ProposeToSlot(s.ctx, slotId, logs)
 }
 
-func (s *Store) setSeqForMessages(subscriber string, messages []wkstore.Message) error {
+func (s *Store) setSeqForMessages(subscriber string, messages []wkdb.Message) error {
 	s.lock.Lock(subscriber)
 	defer s.lock.Unlock(subscriber)
-	maxSeq, _, err := s.db.GetChannelMaxMessageSeq(subscriber, wkproto.ChannelTypePerson)
+	maxSeq, err := s.wdb.GetChannelLastMessageSeq(subscriber, wkproto.ChannelTypePerson)
 	if err != nil {
 		return err
 	}
 	for i, msg := range messages {
-		msg.SetSeq(maxSeq + uint32(i) + 1)
+		msg.MessageSeq = uint32(maxSeq + uint64(i) + 1)
+
 	}
 	// 保存当前用户的最大消息序号（用户的消息messageSeq不要求严格递增连续，只要递增就行，所以这里保存成功后续执行失败，也不会影响程序正常逻辑）
-	err = s.db.SaveChannelMaxMessageSeq(subscriber, wkproto.ChannelTypePerson, maxSeq+uint32(len(messages)))
+	err = s.wdb.SetChannelLastMessageSeq(subscriber, wkproto.ChannelTypePerson, maxSeq+uint64(len(messages)))
 	if err != nil {
 		return err
 	}
@@ -155,8 +158,8 @@ func (s *Store) setSeqForMessages(subscriber string, messages []wkstore.Message)
 
 }
 
-func (s *Store) SyncMessageOfUser(uid string, messageSeq uint32, limit uint32) ([]wkstore.Message, error) {
-	return s.db.GetMessagesOfUserQueue(uid, messageSeq, limit)
+func (s *Store) SyncMessageOfUser(uid string, messageSeq uint64, limit uint32) ([]wkdb.Message, error) {
+	return s.wdb.LoadNextRangeMsgs(uid, wkproto.ChannelTypePerson, messageSeq, 0, int(limit))
 }
 
 func (s *Store) DeleteChannelAndClearMessages(channelID string, channelType uint8) error {

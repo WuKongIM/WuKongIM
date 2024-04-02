@@ -33,6 +33,7 @@ var (
 	ErrClusterConfigNotFound   = errors.New("clusterConfig not found")
 	ErrOldChannelClusterConfig = errors.New("old channel cluster config")
 	ErrNodeAlreadyExists       = errors.New("node already exists")
+	ErrProposeFailed           = errors.New("propose failed")
 )
 
 const (
@@ -425,14 +426,22 @@ func (u *UpdateNodeApiServerAddrReq) Unmarshal(data []byte) error {
 
 type SlotProposeReq struct {
 	SlotId uint32
-	Data   []byte
+	Logs   []replica.Log // 数据
 }
 
 func (s *SlotProposeReq) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint32(s.SlotId)
-	enc.WriteBinary(s.Data)
+	enc.WriteUint16(uint16(len(s.Logs)))
+	for _, lg := range s.Logs {
+		logData, err := lg.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		enc.WriteBinary(logData)
+	}
+
 	return enc.Bytes(), nil
 }
 
@@ -442,8 +451,69 @@ func (s *SlotProposeReq) Unmarshal(data []byte) error {
 	if s.SlotId, err = dec.Uint32(); err != nil {
 		return err
 	}
-	if s.Data, err = dec.Binary(); err != nil {
+	var dataLen uint16
+	if dataLen, err = dec.Uint16(); err != nil {
 		return err
+	}
+	if dataLen > 0 {
+		s.Logs = make([]replica.Log, dataLen)
+		for i := uint16(0); i < dataLen; i++ {
+			data, err := dec.Binary()
+			if err != nil {
+				return err
+			}
+			log := &replica.Log{}
+			if err = log.Unmarshal(data); err != nil {
+				return err
+			}
+			s.Logs[i] = *log
+		}
+	}
+
+	return nil
+}
+
+type SlotProposeResp struct {
+	ClusterConfigOld bool          // 请求的节点的集群配置是否是旧的
+	MessageItems     []messageItem // 提案索引
+}
+
+func (s *SlotProposeResp) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint8(uint8(wkutil.BoolToInt(s.ClusterConfigOld)))
+	enc.WriteUint16(uint16(len(s.MessageItems)))
+	for _, messageItem := range s.MessageItems {
+		enc.WriteUint64(messageItem.messageId)
+		enc.WriteUint64(messageItem.messageSeq)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *SlotProposeResp) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+
+	var clusterConfigOld uint8
+	if clusterConfigOld, err = dec.Uint8(); err != nil {
+		return err
+	}
+	s.ClusterConfigOld = wkutil.IntToBool(int(clusterConfigOld))
+
+	var itemLen uint16
+	if itemLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if itemLen > 0 {
+		s.MessageItems = make([]messageItem, itemLen)
+		for i := uint16(0); i < itemLen; i++ {
+			if s.MessageItems[i].messageId, err = dec.Uint64(); err != nil {
+				return err
+			}
+			if s.MessageItems[i].messageSeq, err = dec.Uint64(); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

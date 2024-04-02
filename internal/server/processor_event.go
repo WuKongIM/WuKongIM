@@ -8,9 +8,9 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -127,7 +127,7 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 		return
 	}
 
-	startTime := time.Now().UnixMilli()
+	// startTime := time.Now().UnixMilli()
 	p.Debug("收到转发的SendPacket", zap.String("fromNodeID", c.Conn().UID()))
 	resp, err := p.OnSendPacket(req)
 	if err != nil {
@@ -141,7 +141,7 @@ func (p *Processor) handleOnSendPacketReq(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
-	p.Debug("处理SendPacket耗时", zap.Int64("cost", time.Now().UnixMilli()-startTime))
+	// p.Debug("处理SendPacket耗时", zap.Int64("cost", time.Now().UnixMilli()-startTime))
 	c.Write(data)
 }
 
@@ -350,8 +350,11 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 		recvPacket := f.(*wkproto.RecvPacket)
 		messageDatas = messageDatas[size:]
 
+		fmt.Println("OnRecvPacket----recvPacket--->", recvPacket.MessageSeq)
 		m := &Message{
-			RecvPacket:     recvPacket,
+			Message: wkdb.Message{
+				RecvPacket: *recvPacket,
+			},
 			fromDeviceFlag: wkproto.DeviceFlag(req.FromDeviceFlag),
 			fromDeviceID:   req.FromDeviceID,
 			large:          req.Large,
@@ -495,7 +498,7 @@ func (p *Processor) OnRecvackPacket(req *rpc.RecvacksReq) error {
 		}
 		if ack.SyncOnce && persist && wkproto.DeviceLevel(proxyConn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
 			p.Debug("更新游标", zap.String("uid", proxyConn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
-			err := p.s.store.UpdateMessageOfUserCursorIfNeed(proxyConn.UID(), ack.MessageSeq)
+			err := p.s.store.UpdateMessageOfUserCursorIfNeed(proxyConn.UID(), uint64(ack.MessageSeq))
 			if err != nil {
 				p.Warn("更新游标失败！", zap.Error(err), zap.String("uid", proxyConn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
 			}
@@ -554,7 +557,7 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 	messageSeqMap := make(map[string]uint32, len(messages))
 
 	for _, subscriber := range subscribers {
-		storeMessages := make([]wkstore.Message, 0, len(messages))
+		storeMessages := make([]wkdb.Message, 0, len(messages))
 		for _, m := range messages {
 
 			if m.NoPersist || !m.SyncOnce {
@@ -570,15 +573,15 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 			if m.ChannelType == wkproto.ChannelTypePerson && m.ChannelID == subscriber {
 				cloneMsg.ChannelID = m.FromUID
 			}
-			storeMessages = append(storeMessages, cloneMsg)
+			storeMessages = append(storeMessages, cloneMsg.Message)
 		}
 		if len(storeMessages) > 0 {
-			err := p.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
+			messageIdAndSeqMap, err := p.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
 			if err != nil {
 				return nil, err
 			}
 			for _, storeMessage := range storeMessages {
-				messageSeqMap[fmt.Sprintf("%s-%d", subscriber, storeMessage.GetMessageID())] = storeMessage.GetSeq()
+				messageSeqMap[fmt.Sprintf("%s-%d", subscriber, storeMessage.MessageID)] = uint32(messageIdAndSeqMap[uint64(storeMessage.MessageID)])
 			}
 		}
 	}

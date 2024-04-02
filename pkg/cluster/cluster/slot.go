@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -24,7 +25,6 @@ type slot struct {
 	opts         *Options
 	destroy      bool        // 是否已经销毁
 	lastActivity atomic.Time // 最后一次活跃时间
-	commitWait   *commitWait
 	localstorage *localStorage
 
 	doneC chan struct{}
@@ -33,10 +33,11 @@ type slot struct {
 	next *slot
 	prev *slot
 
-	messageQueue *ReplicaMessageQueue
+	eventHandler *eventHandler
+	advanceFnc   func() // 推进分布式进程
 }
 
-func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *Options) *slot {
+func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, advance func(), opts *Options) *slot {
 	shardNo := GetSlotShardNo(st.Id)
 	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage, localstorage)))
 	if st.Leader == opts.NodeID {
@@ -49,13 +50,14 @@ func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, opts *O
 		shardNo:      shardNo,
 		rc:           rc,
 		Log:          wklog.NewWKLog(fmt.Sprintf("slot[%d:%d]", opts.NodeID, st.Id)),
-		commitWait:   newCommitWait(),
 		opts:         opts,
 		doneC:        make(chan struct{}),
 		localstorage: localstorage,
-		messageQueue: NewReplicaMessageQueue(opts.ReceiveQueueLength, false, opts.LazyFreeCycle, opts.MaxReceiveQueueSize),
+		advanceFnc:   advance,
 	}
 	stobj.lastActivity.Store(time.Now())
+
+	stobj.eventHandler = newEventHandler(stobj, stobj.Log, opts, stobj.doneC)
 	return stobj
 }
 
@@ -69,79 +71,27 @@ func (s *slot) BecomeAny(term uint32, leaderId uint64) {
 	}
 }
 
-// 提案数据，并等待数据提交给大多数节点
-func (s *slot) proposeAndWaitCommit(data []byte, timeout time.Duration) error {
+func (s *slot) proposeAndWaitCommits(ctx context.Context, logs []replica.Log, timeout time.Duration) ([]messageItem, error) {
 
-	s.Lock()
 	if s.destroy {
-		s.Unlock()
-		return errors.New("channel destroy, can not propose")
+		return nil, errors.New("slot destroy, can not propose")
 	}
-	msg := s.rc.NewProposeMessage(data)
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	waitC, err := s.commitWait.addWaitIndex(msg.Index)
-	if err != nil {
-		s.Error("add wait index failed", zap.Error(err))
-		return err
-	}
-	err = s.step(msg)
-	if err != nil {
-		s.Unlock()
-		return err
-	}
-	s.Unlock()
-
-	select {
-	case <-waitC:
-		return nil
-	case <-timeoutCtx.Done():
-		return timeoutCtx.Err()
-	case <-s.doneC:
-		return ErrStopped
-	}
+	s.lastActivity.Store(time.Now())
+	return s.eventHandler.proposeAndWaitCommits(ctx, logs, timeout)
 }
 
-func (s *slot) proposeAndWaitCommits(dataList [][]byte, timeout time.Duration) error {
-	s.Lock()
+func (s *slot) handleReadyMessages(msgs []replica.Message) {
+	s.lastActivity.Store(time.Now())
+	s.eventHandler.handleReadyMessages(msgs)
+}
+
+func (s *slot) handleRecvMessage(msg replica.Message) error {
 	if s.destroy {
-		s.Unlock()
-		return errors.New("channel destroy, can not propose")
+		return errors.New("slot destroy, can not handle message")
 	}
+	s.lastActivity.Store(time.Now())
+	return s.eventHandler.handleRecvMessage(msg)
 
-	logs := make([]replica.Log, 0, len(dataList))
-	for i, data := range dataList {
-		logs = append(logs, replica.Log{
-			Index: s.rc.LastLogIndex() + 1 + uint64(i),
-			Term:  s.rc.Term(),
-			Data:  data,
-		})
-	}
-	msg := s.rc.NewProposeMessageWithLogs(logs)
-	lastLog := logs[len(logs)-1]
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	waitC, err := s.commitWait.addWaitIndex(lastLog.Index)
-	if err != nil {
-		s.Unlock()
-		s.Error("add wait index failed", zap.Error(err))
-		return err
-	}
-	err = s.step(msg)
-	if err != nil {
-		s.Unlock()
-		return err
-	}
-	s.Unlock()
-
-	select {
-	case <-waitC:
-		return nil
-	case <-timeoutCtx.Done():
-		return timeoutCtx.Err()
-	case <-s.doneC:
-		return ErrStopped
-	}
 }
 
 func (s *slot) hasReady() bool {
@@ -170,12 +120,6 @@ func (s *slot) leaderId() uint64 {
 	return s.rc.LeaderId()
 }
 
-func (s *slot) stepLock(msg replica.Message) error {
-	s.Lock()
-	defer s.Unlock()
-	return s.step(msg)
-}
-
 func (s *slot) step(msg replica.Message) error {
 	if s.destroy {
 		return errors.New("slot destroy, can not step")
@@ -193,70 +137,155 @@ func (s *slot) makeDestroy() {
 	close(s.doneC)
 }
 
-func (s *slot) handleMessage(msg replica.Message) error {
+func (s *slot) handleEvents() (bool, error) {
 	if s.destroy {
-		return errors.New("slot destroy, can not handle message")
+		return false, nil
 	}
-	if added, stopped := s.messageQueue.Add(msg); !added || stopped {
-		return errors.New("message queue add failed")
-	}
-	return nil
+	return s.eventHandler.handleEvents()
 }
 
-func (s *slot) handleReceivedMessages() error {
-	if s.destroy {
-		return errors.New("slot destroy, can not handle message")
+func (s *slot) sendMessage(msg replica.Message) {
+	shardNo := GetSlotShardNo(s.slotId)
+	protMsg, err := NewMessage(shardNo, msg, MsgSlotMsg)
+	if err != nil {
+		s.Error("new message error", zap.Error(err))
+		return
 	}
-	msgs := s.messageQueue.Get()
-	var err error
-	for _, msg := range msgs {
-		err = s.stepLock(msg)
-		if err != nil {
-			s.Error("step message failed", zap.Error(err))
-			return err
+	if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
+		s.Info("发送消息", zap.Uint64("id", msg.Id), zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
+	}
+
+	if msg.MsgType == replica.MsgSync {
+		task := newSyncTask(msg.To, msg.Index)
+		if !s.eventHandler.existsSyncTask(task.taskKey()) {
+			s.eventHandler.addSyncTask(task)
+		} else {
+			s.Debug("sync task exists", zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
 		}
 
 	}
+	// trace
+	traceOutgoingMessage(trace.ClusterKindSlot, msg)
+
+	// 发送消息
+	err = s.opts.Transport.Send(msg.To, protMsg, nil)
+	if err != nil {
+		s.Warn("send msg error", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Error(err))
+	}
+}
+
+func (s *slot) appendLogs(msg replica.Message) error {
+	shardNo := GetSlotShardNo(s.slotId)
+
+	firstLog := msg.Logs[0]
+	lastLog := msg.Logs[len(msg.Logs)-1]
+
+	messageWaitItems := s.eventHandler.messageWait.waitItemsWithRange(firstLog.Index, lastLog.Index+1)
+	for _, messageWaitItem := range messageWaitItems {
+		_, span := trace.GlobalTrace.StartSpan(messageWaitItem.ctx, fmt.Sprintf("logsAppend[node %d]", s.opts.NodeID))
+		defer span.End()
+		span.SetInt("logCount", len(msg.Logs))
+		span.SetUint64("firstLogIndex", firstLog.Index)
+		span.SetUint64("lastLogIndex", lastLog.Index)
+	}
+
+	start := time.Now()
+
+	s.Debug("append log", zap.Uint64("lastLogIndex", lastLog.Index))
+	err := s.opts.ShardLogStorage.AppendLog(shardNo, msg.Logs)
+	if err != nil {
+		s.Panic("append log error", zap.Error(err))
+	}
+	s.Debug("append log done", zap.Uint64("lastLogIndex", lastLog.Index), zap.Duration("cost", time.Since(start)))
 	return nil
+
 }
 
-func (s *slot) handleLocalMsg(msg replica.Message) {
-	if s.destroy {
-		s.Warn("handle local msg, but channel is destroy")
-		return
+func (s *slot) applyLogs(msg replica.Message) error {
+	if msg.ApplyingIndex > msg.CommittedIndex {
+		return fmt.Errorf("applyingIndex > committedIndex, applyingIndex: %d, committedIndex: %d", msg.ApplyingIndex, msg.CommittedIndex)
 	}
-	if msg.To != s.opts.NodeID {
-		s.Warn("handle local msg, but msg to is not self", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint64("self", s.opts.NodeID))
-		return
+	messageWaitItems := s.eventHandler.messageWait.waitItemsWithRange(msg.ApplyingIndex+1, msg.CommittedIndex+1)
+	spans := make([]trace.Span, 0, len(messageWaitItems))
+	for _, messageWaitItem := range messageWaitItems {
+		_, span := trace.GlobalTrace.StartSpan(messageWaitItem.ctx, fmt.Sprintf("logsCommit[node %d]", s.opts.NodeID))
+		defer span.End()
+		span.SetUint64("appliedIndex", msg.AppliedIndex)
+		span.SetUint64("committedIndex", msg.CommittedIndex)
+		spans = append(spans, span)
 	}
-	s.lastActivity.Store(time.Now())
-	switch msg.MsgType {
-	case replica.MsgSyncGet:
-		s.handleSyncGet(msg)
-	case replica.MsgStoreAppend: // 处理日志追加到存储内
-		s.handleStoreAppend(msg)
-	case replica.MsgApplyLogsReq: // 处理apply logs请求
-		s.handleApplyLogsReq(msg)
+
+	start := time.Now()
+	s.Debug("commit wait", zap.Uint64("committedIndex", msg.CommittedIndex))
+	s.eventHandler.messageWait.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
+	for _, span := range spans {
+		span.End()
 	}
+	s.Debug("commit wait done", zap.Duration("cost", time.Since(start)), zap.Uint64("applyingIndex", msg.ApplyingIndex), zap.Uint64("committedIndex", msg.CommittedIndex))
+	shardNo := GetSlotShardNo(s.slotId)
+	if s.opts.OnSlotApply != nil {
+		logs, err := s.getLogs(msg.ApplyingIndex+1, msg.CommittedIndex+1, 0)
+		if err != nil {
+			s.Panic("get logs error", zap.Error(err))
+		}
+		if len(logs) == 0 {
+			s.Panic("logs is empty", zap.Uint64("applyingIndex", msg.ApplyingIndex), zap.Uint64("committedIndex", msg.CommittedIndex))
+		}
+		err = s.opts.OnSlotApply(s.slotId, logs)
+		if err != nil {
+			s.Panic("on slot apply error", zap.Error(err))
+		}
+		err = s.localstorage.setAppliedIndex(shardNo, logs[len(logs)-1].Index)
+		if err != nil {
+			s.Panic("set applied index error", zap.Error(err))
+		}
+	}
+	return nil
+
 }
 
-func (s *slot) handleSyncGet(msg replica.Message) {
+func (s *slot) getAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
 
 	unstableLogs := msg.Logs
 	startIndex := msg.Index
 	if len(unstableLogs) > 0 {
-		startIndex = unstableLogs[len(unstableLogs)-1].Index
+		startIndex = unstableLogs[len(unstableLogs)-1].Index + 1
 	}
-	logs, err := s.getLogs(startIndex, 0, uint64(s.opts.LogSyncLimitSizeOfEach))
+
+	messageWaitItems := s.eventHandler.messageWait.waitItemsWithStartSeq(startIndex)
+	spans := make([]trace.Span, 0, len(messageWaitItems))
+	for _, messageWaitItem := range messageWaitItems {
+		_, span := trace.GlobalTrace.StartSpan(messageWaitItem.ctx, fmt.Sprintf("logsGet[node %d]", s.opts.NodeID))
+		defer span.End()
+		span.SetUint64("startIndex", startIndex)
+		span.SetInt("unstableLogs", len(unstableLogs))
+		spans = append(spans, span)
+
+	}
+
+	shardNo := GetSlotShardNo(s.slotId)
+
+	lastIndex, err := s.opts.ShardLogStorage.LastIndex(shardNo)
 	if err != nil {
-		s.Error("get logs error", zap.Error(err))
-		return
+		s.Error("handleSyncGet: get last index error", zap.Error(err))
+		return nil, err
 	}
-	err = s.stepLock(s.rc.NewMsgSyncGetResp(msg.From, startIndex, logs))
-	if err != nil {
-		s.Error("step sync get resp failed", zap.Error(err))
-		return
+	var resultLogs []replica.Log
+	if startIndex <= lastIndex {
+		logs, err := s.getLogs(startIndex, lastIndex+1, uint64(s.opts.LogSyncLimitSizeOfEach))
+		if err != nil {
+			s.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
+			return nil, err
+		}
+		resultLogs = extend(logs, unstableLogs)
+	} else {
+		// c.Warn("handleSyncGet: startIndex > lastIndex", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
 	}
+	for _, span := range spans {
+		span.SetUint64("lastIndex", lastIndex)
+		span.SetInt("resultLogs", len(resultLogs))
+	}
+	return resultLogs, nil
 }
 
 func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
@@ -269,52 +298,52 @@ func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint6
 	return logs, nil
 }
 
-func (s *slot) handleStoreAppend(msg replica.Message) {
-	if len(msg.Logs) == 0 {
-		return
-	}
-	shardNo := GetSlotShardNo(s.slotId)
-	err := s.opts.ShardLogStorage.AppendLog(shardNo, msg.Logs)
-	if err != nil {
-		s.Panic("append log error", zap.Error(err))
-	}
-
-	err = s.stepLock(s.rc.NewMsgStoreAppendResp(msg.Logs[len(msg.Logs)-1].Index))
-	if err != nil {
-		s.Panic("step store append resp failed", zap.Error(err))
-	}
+func (s *slot) advance() {
+	s.advanceFnc()
 }
 
-// 处理应用日志请求
-func (s *slot) handleApplyLogsReq(msg replica.Message) {
-	if msg.CommittedIndex <= 0 || msg.AppliedIndex >= msg.CommittedIndex {
-		return
-	}
-	shardNo := GetSlotShardNo(s.slotId)
-	var err error
-	if len(msg.Logs) == 0 {
-		s.Info("logs is empty", zap.Uint64("appliedIndex", msg.AppliedIndex), zap.Uint64("committedIndex", msg.CommittedIndex))
-		return
-	}
-	if s.opts.OnSlotApply != nil {
-		err = s.opts.OnSlotApply(s.slotId, msg.Logs)
-		if err != nil {
-			s.Panic("on slot apply error", zap.Error(err))
-		}
-		err = s.localstorage.setAppliedIndex(shardNo, msg.Logs[len(msg.Logs)-1].Index)
-		if err != nil {
-			s.Panic("set applied index error", zap.Error(err))
-		}
-	}
-	lastLog := msg.Logs[len(msg.Logs)-1]
-	s.Info("commit wait", zap.Uint64("lastLogIndex", lastLog.Index))
-	s.commitWait.commitIndex(lastLog.Index)
-	s.Info("commit wait done", zap.Uint64("lastLogIndex", lastLog.Index))
+func (s *slot) newMsgApplyLogsRespMessage(index uint64) replica.Message {
+	return s.rc.NewMsgApplyLogsRespMessage(index)
+}
 
-	err = s.stepLock(s.rc.NewMsgApplyLogsRespMessage(lastLog.Index))
+func (s *slot) newProposeMessageWithLogs(logs []replica.Log) replica.Message {
+	return s.rc.NewProposeMessageWithLogs(logs)
+}
+
+func (s *slot) newMsgSyncGetResp(to uint64, startIndex uint64, logs []replica.Log) replica.Message {
+	return s.rc.NewMsgSyncGetResp(to, startIndex, logs)
+}
+
+func (s *slot) newMsgStoreAppendResp(index uint64) replica.Message {
+	return s.rc.NewMsgStoreAppendResp(index)
+}
+
+func (c *slot) lastLogIndexNoLock() uint64 {
+	return c.rc.LastLogIndex()
+}
+
+func (s *slot) termNoLock() uint32 {
+	return s.rc.Term()
+}
+
+func (s *slot) setLastIndex(lastIndex uint64) error {
+	shardNo := GetSlotShardNo(s.slotId)
+	err := s.opts.MessageLogStorage.SetLastIndex(shardNo, lastIndex)
 	if err != nil {
-		s.Error("step apply logs resp failed", zap.Error(err))
+		s.Error("set last index error", zap.Error(err))
+		return err
 	}
+	return nil
+}
+
+func (c *slot) setAppliedIndex(appliedIndex uint64) error {
+	shardNo := GetSlotShardNo(c.slotId)
+	err := c.localstorage.setAppliedIndex(shardNo, appliedIndex)
+	if err != nil {
+		c.Error("set applied index error", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func GetSlotShardNo(slotID uint32) string {

@@ -251,14 +251,26 @@ func (c *channelGroupManager) loadOnlyReadChannel(channelId string, channelType 
 	return newProxyChannel(c.s.opts.NodeID, clusterConfig), nil
 }
 
+func (c *channelGroupManager) getChannelFromGroup(channelId string, channelType uint8) *channel {
+	return c.channelGroup(channelId, channelType).channel(channelId, channelType)
+}
+
 func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
-	channel := c.channelGroup(channelID, channelType).channel(channelID, channelType)
+
+	shardNo := ChannelKey(channelID, channelType)
+	channel := c.getChannelFromGroup(channelID, channelType)
 	if channel != nil {
 		return channel, nil
 	}
-	shardNo := ChannelKey(channelID, channelType)
+
 	c.channelKeyLock.Lock(shardNo)
 	defer c.channelKeyLock.Unlock(shardNo)
+
+	// TODO: 注意锁住之前的获取过channel，但是解锁之后再获取一遍，因为为了优化锁性能问题所以第一次获取的时候不加锁
+	channel = c.getChannelFromGroup(channelID, channelType)
+	if channel != nil {
+		return channel, nil
+	}
 
 	spanCtx, span := c.s.trace.StartSpan(ctx, "createChannelForSlotLeader")
 	defer span.End()
@@ -548,58 +560,6 @@ func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo *wkstor
 	}
 	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.advanceHandler(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType), c.s.opts)
 	return channel, nil
-}
-
-func (c *channelGroupManager) requestChannelAppointLeader(clusterConfig *wkstore.ChannelClusterConfig) error {
-	allowVoteNodes := c.s.clusterEventListener.clusterconfigManager.allowVoteNodes()
-	if len(allowVoteNodes) == 0 {
-		return errors.New("allowVoteNodes is empty")
-	}
-
-	appointResults := make([]uint64, 0)
-	timeoutCtx, cancel := context.WithTimeout(c.s.cancelCtx, c.s.opts.ReqTimeout)
-	defer cancel()
-	requestGroup, ctx := errgroup.WithContext(timeoutCtx)
-
-	for _, allowVoteNode := range allowVoteNodes {
-		if !c.s.clusterEventListener.clusterconfigManager.nodeIsOnline(allowVoteNode.Id) {
-			c.Warn("node is not online", zap.Uint64("nodeID", allowVoteNode.Id))
-			continue
-		}
-		if allowVoteNode.Id == c.s.opts.NodeID {
-			appointResults = append(appointResults, allowVoteNode.Id)
-			continue
-		}
-
-		requestGroup.Go(func(n *pb.Node, config *wkstore.ChannelClusterConfig) func() error {
-			return func() error {
-				nodecli := c.s.nodeManager.node(n.Id)
-				if nodecli == nil {
-					c.Error("node is not found", zap.Uint64("nodeID", n.Id))
-					return nil
-				}
-				err := nodecli.requestChannelAppointLeader(ctx, &AppointLeaderReq{
-					ChannelId:   config.ChannelID,
-					ChannelType: config.ChannelType,
-					LeaderId:    config.LeaderId,
-					Term:        config.Term,
-				})
-				if err != nil {
-					c.Error("requestChannelAppointLeader failed", zap.Error(err))
-					return nil
-				}
-				appointResults = append(appointResults, n.Id)
-				return nil
-			}
-		}(allowVoteNode, clusterConfig))
-	}
-	_ = requestGroup.Wait()
-
-	if len(appointResults) < c.quorum() {
-		c.Error("appoint leader failed", zap.Int("appointResults", len(appointResults)))
-		return errors.New("appoint leader failed, appointResults is not enough")
-	}
-	return nil
 }
 
 // 检查在线副本是否超过半数

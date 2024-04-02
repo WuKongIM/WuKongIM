@@ -98,7 +98,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			resp := &MessageResp{}
-			resp.from(message.(*Message), m.s.store)
+			resp.from(message, m.s.store)
 			resps = append(resps, resp)
 		}
 	}
@@ -319,31 +319,31 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	}
 
 	msg := &Message{
-		RecvPacket: &wkproto.RecvPacket{
-			Framer: wkproto.Framer{
-				RedDot:    wkutil.IntToBool(req.Header.RedDot),
-				SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
-				NoPersist: wkutil.IntToBool(req.Header.NoPersist),
+		Message: wkdb.Message{
+			RecvPacket: wkproto.RecvPacket{
+				Framer: wkproto.Framer{
+					RedDot:    wkutil.IntToBool(req.Header.RedDot),
+					SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
+					NoPersist: wkutil.IntToBool(req.Header.NoPersist),
+				},
+				Setting:     setting,
+				MessageID:   messageID,
+				ClientMsgNo: clientMsgNo,
+				StreamNo:    req.StreamNo,
+				StreamFlag:  streamFlag,
+				FromUID:     req.FromUID,
+				ChannelID:   channelID,
+				ChannelType: channelType,
+				Expire:      req.Expire,
+				Timestamp:   int32(time.Now().Unix()),
+				Payload:     req.Payload,
 			},
-			Setting:     setting,
-			MessageID:   messageID,
-			ClientMsgNo: clientMsgNo,
-			StreamNo:    req.StreamNo,
-			StreamFlag:  streamFlag,
-			FromUID:     req.FromUID,
-			ChannelID:   channelID,
-			ChannelType: channelType,
-			Expire:      req.Expire,
-			Timestamp:   int32(time.Now().Unix()),
-			Payload:     req.Payload,
 		},
 		fromDeviceFlag: wkproto.SYSTEM,
 		Subscribers:    subscribers,
 	}
 	messages := []wkdb.Message{
-		{
-			RecvPacket: *msg.RecvPacket,
-		},
+		msg.Message,
 	}
 	if !msg.NoPersist && !msg.SyncOnce && !m.s.opts.IsTmpChannel(channelID) {
 
@@ -358,10 +358,17 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			}
 			msg.StreamSeq = streamSeq // stream seq
 		} else {
-			err = m.s.store.AppendMessages(m.s.ctx, fakeChannelID, channelType, messages)
+			messageIdAndSeqMap, err := m.s.store.AppendMessages(m.s.ctx, fakeChannelID, channelType, messages)
 			if err != nil {
 				m.Error("Failed to save history message", zap.Error(err))
 				return 0, 0, errors.New("failed to save history message")
+			}
+			for i := 0; i < len(messages); i++ {
+				message := messages[i]
+				messageSeq := messageIdAndSeqMap[uint64(message.MessageID)]
+				if messageSeq > 0 {
+					messages[i].MessageSeq = uint32(messageSeq)
+				}
 			}
 		}
 

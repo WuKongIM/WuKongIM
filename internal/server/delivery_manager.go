@@ -110,8 +110,9 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 					continue
 				}
 				recvPacket.MsgKey = msgKey
+				fmt.Println("recvPacket---->", recvPacket.MessageSeq, recvPacket.MsgKey)
 
-				recvPackets = append(recvPackets, cloneMsg.RecvPacket)
+				recvPackets = append(recvPackets, &recvPacket)
 			}
 			for _, recvPacket := range recvPackets {
 				d.Debug("投递消息---->", zap.Uint32("messageSeq", recvPacket.(*wkproto.RecvPacket).MessageSeq))
@@ -166,7 +167,7 @@ func (d *DeliveryManager) retryDeliveryMsg(msg *Message) {
 	recvPacket.ChannelID = channelID
 
 	d.s.retryQueue.startInFlightTimeout(msg)
-	d.s.dispatch.dataOutFrames(recvConn, recvPacket)
+	d.s.dispatch.dataOutFrames(recvConn, &recvPacket)
 }
 
 // get recv

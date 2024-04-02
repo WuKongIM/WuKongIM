@@ -153,22 +153,6 @@ func (n *node) requestChannelLastLogInfo(ctx context.Context, req *ChannelLastLo
 	return channelLastLogInfoResp, nil
 }
 
-// requestAppointLeader 任命频道领导者
-func (n *node) requestChannelAppointLeader(ctx context.Context, req *AppointLeaderReq) error {
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	resp, err := n.client.RequestWithContext(ctx, "/channel/appointleader", data)
-	if err != nil {
-		return err
-	}
-	if resp.Status != proto.Status_OK {
-		return fmt.Errorf("requestAppointLeader is failed, status:%d", resp.Status)
-	}
-	return nil
-}
-
 func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClusterConfigReq) (*wkstore.ChannelClusterConfig, error) {
 	data, err := req.Marshal()
 	if err != nil {
@@ -246,20 +230,24 @@ func (n *node) requestSlotLogInfo(ctx context.Context, req *SlotLogInfoReq) (*Sl
 
 }
 
-func (n *node) requestSlotPropose(ctx context.Context, req *SlotProposeReq) error {
+func (n *node) requestSlotPropose(ctx context.Context, req *SlotProposeReq) (*SlotProposeResp, error) {
 	data, err := req.Marshal()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	resp, err := n.client.RequestWithContext(ctx, "/slot/propose", data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if resp.Status != proto.Status_OK {
-		return fmt.Errorf("requestSlotPropose is failed, status:%d", resp.Status)
+		return nil, fmt.Errorf("requestSlotPropose is failed, status:%d", resp.Status)
 	}
-
-	return nil
+	proposeMessageResp := &SlotProposeResp{}
+	err = proposeMessageResp.Unmarshal(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return proposeMessageResp, nil
 }
 
 func (n *node) requestClusterJoin(ctx context.Context, req *ClusterJoinReq) (*ClusterJoinResp, error) {

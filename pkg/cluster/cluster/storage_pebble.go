@@ -151,7 +151,7 @@ func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLo
 		}
 		logs = append(logs, log)
 		size += uint64(log.LogSize())
-		if size >= limitSize {
+		if limitSize != 0 && size >= limitSize {
 			break
 		}
 	}
@@ -164,7 +164,7 @@ func (p *PebbleShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 }
 
 func (p *PebbleShardLogStorage) SetLastIndex(shardNo string, index uint64) error {
-	return nil
+	return p.saveMaxIndex(shardNo, index)
 }
 
 func (p *PebbleShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
@@ -276,7 +276,7 @@ type localStorage struct {
 }
 
 func newLocalStorage(opts *Options) *localStorage {
-	dbDir := path.Join(opts.DataDir, "wukongimdb")
+	dbDir := path.Join(opts.DataDir, "localWukongimdb")
 	return &localStorage{
 		opts:  opts,
 		dbDir: dbDir,
@@ -435,6 +435,8 @@ func (l *localStorage) setAppliedIndex(shardNo string, index uint64) error {
 	appliedIndexKeyData := l.getAppliedIndexKey(shardNo)
 	appliedIndexdata := make([]byte, 8)
 	binary.BigEndian.PutUint64(appliedIndexdata, index)
+
+	fmt.Println("setAppliedIndex--->", index)
 	err := l.db.Set(appliedIndexKeyData, appliedIndexdata, l.wo)
 	return err
 }
@@ -452,7 +454,9 @@ func (l *localStorage) getAppliedIndex(shardNo string) (uint64, error) {
 	if len(appliedIndexdata) == 0 {
 		return 0, nil
 	}
-	return binary.BigEndian.Uint64(appliedIndexdata), nil
+	index := binary.BigEndian.Uint64(appliedIndexdata)
+	fmt.Println("getAppliedIndex--->", index)
+	return index, nil
 }
 
 func (l *localStorage) getAppointLeaderNotifyResultKey(slotID uint32, nodeID uint64) []byte {

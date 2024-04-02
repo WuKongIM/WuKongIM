@@ -19,7 +19,8 @@ func (s *Store) AddOrUpdateConversations(uid string, conversations []*wkstore.Co
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeChannelMeta(channelID, channelType, cmdData)
+	_, err = s.opts.Cluster.ProposeChannelMeta(s.ctx, channelID, channelType, cmdData)
+	return err
 }
 
 func (s *Store) DeleteConversation(uid string, channelID string, channelType uint8) error {
@@ -29,7 +30,8 @@ func (s *Store) DeleteConversation(uid string, channelID string, channelType uin
 	if err != nil {
 		return err
 	}
-	return s.opts.Cluster.ProposeChannelMeta(uid, wkproto.ChannelTypePerson, cmdData)
+	_, err = s.opts.Cluster.ProposeChannelMeta(s.ctx, uid, wkproto.ChannelTypePerson, cmdData)
+	return err
 }
 
 func (s *Store) GetConversations(uid string) ([]*wkstore.Conversation, error) {

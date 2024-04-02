@@ -81,25 +81,30 @@ type messageWaitItem struct {
 type messageWait struct {
 	items []messageWaitItem
 	mu    sync.Mutex
+	wklog.Log
 }
 
 func newMessageWait() *messageWait {
-	return &messageWait{}
+	return &messageWait{
+		Log: wklog.NewWKLog("messageWait"),
+	}
 }
 
 func (m *messageWait) addWait(ctx context.Context, messageIds []uint64) chan []messageItem {
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	waitC := make(chan []messageItem, 1)
 
 	messageItems := make([]messageItem, len(messageIds))
 	for i, messageId := range messageIds {
+		// m.Debug("addWait", zap.Uint64("messageId", messageId))
 		messageItems[i] = messageItem{
 			messageId: messageId,
 		}
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.items = append(m.items, messageWaitItem{
 		messageItems: messageItems,
 		waitC:        waitC,
@@ -147,6 +152,7 @@ func (m *messageWait) didPropose(messageId uint64, messageSeq uint64) {
 	for _, item := range m.items {
 		for i, messageItem := range item.messageItems {
 			if messageItem.messageId == messageId {
+				// m.Debug("didPropose", zap.Uint64("messageSeq", messageSeq))
 				item.messageItems[i].messageSeq = messageSeq
 				item.messageItems[i].proposed = true
 			}
@@ -159,6 +165,10 @@ func (m *messageWait) didCommit(startMessaageSeq uint64, endMessageSeq uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if startMessaageSeq == 0 {
+		m.Panic("didCommit startMessaageSeq is 0")
+	}
+
 	for j := len(m.items) - 1; j >= 0; j-- { // 采用倒序删除，避免删除后索引错位
 		item := m.items[j]
 		hasCommitted := false
@@ -167,6 +177,7 @@ func (m *messageWait) didCommit(startMessaageSeq uint64, endMessageSeq uint64) {
 				if messageItem.messageSeq >= startMessaageSeq && messageItem.messageSeq < endMessageSeq {
 					item.messageItems[i].committed = true
 					hasCommitted = true
+					// m.Debug("didCommit", zap.Uint64("messageSeq", messageItem.messageSeq))
 				}
 			}
 		}
@@ -188,4 +199,5 @@ func (m *messageWait) didCommit(startMessaageSeq uint64, endMessageSeq uint64) {
 			}
 		}
 	}
+
 }
