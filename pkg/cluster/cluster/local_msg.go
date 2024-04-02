@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
 )
 
 type localReplicaStoreQueue struct {
@@ -98,15 +99,12 @@ type localReplicaMsg struct {
 var emptyLocalReplicaMsg = localReplicaMsg{}
 
 type proposeReq struct {
-	ch     *channel
-	logs   []replica.Log
-	result chan error
+	logs []replica.Log
 }
 
 func newProposeReq(logs []replica.Log) proposeReq {
 	return proposeReq{
-		logs:   logs,
-		result: make(chan error, 1),
+		logs: logs,
 	}
 }
 
@@ -115,17 +113,20 @@ var emptyProposeReq = proposeReq{}
 type proposeQueue struct {
 	reqs list.List // propose消息队列
 	mu   sync.Mutex
+	wklog.Log
 }
 
 func newProposeQueue() *proposeQueue {
 	return &proposeQueue{
 		reqs: list.List{},
+		Log:  wklog.NewWKLog("proposeQueue"),
 	}
 }
 
 func (p *proposeQueue) push(req proposeReq) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.Debug("push propose req", zap.Int("logs", len(req.logs)))
 	p.reqs.PushBack(req)
 }
 
@@ -138,5 +139,7 @@ func (p *proposeQueue) pop() (proposeReq, bool) {
 
 	e := p.reqs.Front()
 	p.reqs.Remove(e)
-	return e.Value.(proposeReq), true
+	req := e.Value.(proposeReq)
+	p.Debug("pop propose req", zap.Int("logs", len(req.logs)))
+	return req, true
 }

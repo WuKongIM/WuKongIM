@@ -378,7 +378,7 @@ func (r *Replica) committedIndexForLeader() uint64 {
 			continue
 		}
 		for _, syncInfo := range r.lastSyncInfoMap {
-			if syncInfo.LastSyncLogIndex >= maxLogIndex {
+			if syncInfo.LastSyncLogIndex-1 >= maxLogIndex {
 				count++
 			}
 			if count >= quorum {
@@ -429,7 +429,7 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 	if m.Index > syncInfo.LastSyncLogIndex {
 		syncInfo.LastSyncLogIndex = m.Index
 		syncInfo.LastSyncTime = uint64(time.Now().UnixNano())
-		// r.Info("update replic sync info", zap.Uint32("term", r.replicaLog.term), zap.Uint64("from", from), zap.Uint64("lastSyncLogIndex", syncInfo.LastSyncLogIndex))
+		r.Info("update replic sync info", zap.Uint32("term", r.replicaLog.term), zap.Uint64("from", from), zap.Uint64("lastSyncLogIndex", syncInfo.LastSyncLogIndex))
 	}
 }
 

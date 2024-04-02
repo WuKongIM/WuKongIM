@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
@@ -343,9 +344,9 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, resps)
 }
 
-func (s *ConversationAPI) getChannelLastMsgSeqMap(lastMsgSeqs string) map[string]uint32 {
+func (s *ConversationAPI) getChannelLastMsgSeqMap(lastMsgSeqs string) map[string]uint64 {
 	channelLastMsgSeqStrList := strings.Split(lastMsgSeqs, "|")
-	channelLastMsgMap := map[string]uint32{} // 频道对应的messageSeq
+	channelLastMsgMap := map[string]uint64{} // 频道对应的messageSeq
 	for _, channelLastMsgSeqStr := range channelLastMsgSeqStrList {
 		channelLastMsgSeqs := strings.Split(channelLastMsgSeqStr, ":")
 		if len(channelLastMsgSeqs) != 3 {
@@ -354,7 +355,7 @@ func (s *ConversationAPI) getChannelLastMsgSeqMap(lastMsgSeqs string) map[string
 		channelID := channelLastMsgSeqs[0]
 		channelTypeI, _ := strconv.Atoi(channelLastMsgSeqs[1])
 		lastMsgSeq, _ := strconv.ParseUint(channelLastMsgSeqs[2], 10, 64)
-		channelLastMsgMap[fmt.Sprintf("%s-%d", channelID, channelTypeI)] = uint32(lastMsgSeq)
+		channelLastMsgMap[fmt.Sprintf("%s-%d", channelID, channelTypeI)] = lastMsgSeq
 	}
 	return channelLastMsgMap
 }
@@ -487,7 +488,7 @@ func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels [
 	channelRecentMessages := make([]*channelRecentMessage, 0)
 	if len(channels) > 0 {
 		var (
-			recentMessages []wkstore.Message
+			recentMessages []wkdb.Message
 			err            error
 		)
 		for _, channel := range channels {
@@ -497,14 +498,14 @@ func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels [
 			}
 			recentMessages, err = s.s.store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, channel.LastMsgSeq, msgCount)
 			if err != nil {
-				s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint32("LastMsgSeq", channel.LastMsgSeq))
+				s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
 				return nil, err
 			}
 			messageResps := MessageRespSlice{}
 			if len(recentMessages) > 0 {
 				for _, recentMessage := range recentMessages {
 					messageResp := &MessageResp{}
-					messageResp.from(recentMessage.(*Message), s.s.store)
+					messageResp.from(recentMessage, s.s.store)
 					messageResps = append(messageResps, messageResp)
 				}
 			}

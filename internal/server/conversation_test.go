@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,31 +18,35 @@ func TestGetConversations(t *testing.T) {
 
 	defer cm.Stop()
 	m := &Message{
-		RecvPacket: &wkproto.RecvPacket{
-			Framer: wkproto.Framer{
-				RedDot: true,
+		Message: wkdb.Message{
+			RecvPacket: wkproto.RecvPacket{
+				Framer: wkproto.Framer{
+					RedDot: true,
+				},
+				MessageID:   123,
+				ChannelID:   "group1",
+				ChannelType: 2,
+				FromUID:     "test",
+				Timestamp:   int32(time.Now().Unix()),
+				Payload:     []byte("hello"),
 			},
-			MessageID:   123,
-			ChannelID:   "group1",
-			ChannelType: 2,
-			FromUID:     "test",
-			Timestamp:   int32(time.Now().Unix()),
-			Payload:     []byte("hello"),
 		},
 	}
 	cm.PushMessage(m, []string{"test"})
 
 	m = &Message{
-		RecvPacket: &wkproto.RecvPacket{
-			Framer: wkproto.Framer{
-				RedDot: true,
+		Message: wkdb.Message{
+			RecvPacket: wkproto.RecvPacket{
+				Framer: wkproto.Framer{
+					RedDot: true,
+				},
+				MessageID:   123,
+				ChannelID:   "group2",
+				ChannelType: 2,
+				FromUID:     "test",
+				Timestamp:   int32(time.Now().Unix()),
+				Payload:     []byte("hello"),
 			},
-			MessageID:   123,
-			ChannelID:   "group2",
-			ChannelType: 2,
-			FromUID:     "test",
-			Timestamp:   int32(time.Now().Unix()),
-			Payload:     []byte("hello"),
 		},
 	}
 	cm.PushMessage(m, []string{"test"})

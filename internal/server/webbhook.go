@@ -155,7 +155,7 @@ func (w *Webhook) notifyOfflineMsg(msg *Message, large bool, subscribers []strin
 				ClientMsgNo:  msg.ClientMsgNo,
 				MessageID:    msg.MessageID,
 				MessageIDStr: strconv.FormatInt(msg.MessageID, 10),
-				MessageSeq:   msg.MessageSeq,
+				MessageSeq:   uint64(msg.MessageSeq),
 				FromUID:      msg.FromUID,
 				ChannelID:    msg.ChannelID,
 				ChannelType:  msg.ChannelType,
@@ -213,7 +213,7 @@ func (w *Webhook) notifyQueueLoop() {
 				messageResps := make([]*MessageResp, 0, len(messages))
 				for _, msg := range messages {
 					resp := &MessageResp{}
-					resp.from(msg.(*Message), nil)
+					resp.from(msg, nil)
 					messageResps = append(messageResps, resp)
 				}
 				messageData, err := json.Marshal(messageResps)
@@ -232,11 +232,11 @@ func (w *Webhook) notifyQueueLoop() {
 					w.Error("请求所有消息通知webhook失败！", zap.Error(err))
 					errMessageIDs := make([]int64, 0, len(messages))
 					for _, message := range messages {
-						errCount := errMessageIDMap[message.GetMessageID()]
+						errCount := errMessageIDMap[message.MessageID]
 						errCount++
-						errMessageIDMap[message.GetMessageID()] = errCount
+						errMessageIDMap[message.MessageID] = errCount
 						if errCount >= w.s.opts.Webhook.MsgNotifyEventRetryMaxCount {
-							errMessageIDs = append(errMessageIDs, message.GetMessageID())
+							errMessageIDs = append(errMessageIDs, message.MessageID)
 						}
 					}
 					if len(errMessageIDs) > 0 {
@@ -255,7 +255,7 @@ func (w *Webhook) notifyQueueLoop() {
 
 				messageIDs := make([]int64, 0, len(messages))
 				for _, message := range messages {
-					messageID := message.(*Message).MessageID
+					messageID := message.MessageID
 					messageIDs = append(messageIDs, messageID)
 
 					delete(errMessageIDMap, messageID)

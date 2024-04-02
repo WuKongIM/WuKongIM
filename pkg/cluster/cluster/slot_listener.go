@@ -17,15 +17,17 @@ type slotListener struct {
 	stopper *syncutil.Stopper
 	readyCh chan slotReady
 	wklog.Log
+	advanceCh chan struct{}
 }
 
 func newSlotListener(opts *Options) *slotListener {
 	return &slotListener{
-		opts:    opts,
-		slots:   newSlotQueue(),
-		stopper: syncutil.NewStopper(),
-		readyCh: make(chan slotReady),
-		Log:     wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
+		opts:      opts,
+		slots:     newSlotQueue(),
+		stopper:   syncutil.NewStopper(),
+		readyCh:   make(chan slotReady),
+		Log:       wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
+		advanceCh: make(chan struct{}, 1),
 	}
 }
 
@@ -49,38 +51,70 @@ func (s *slotListener) wait() slotReady {
 }
 
 func (s *slotListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 51)
+	tick := time.NewTicker(time.Millisecond * 20)
 	for {
+		s.ready()
 		select {
 		case <-tick.C:
-			s.slots.foreach(func(st *slot) {
-				if st.isDestroy() {
-					return
-				}
-				err := st.handleReceivedMessages()
-				if err != nil {
-					s.Error("loopEvent:handle received messages error", zap.Error(err), zap.Uint32("slotId", st.slotId))
-				}
-				if st.hasReady() {
-					rd := st.ready()
-					if replica.IsEmptyReady(rd) {
-						return
-					}
-					s.triggerReady(slotReady{
-						slot:  st,
-						Ready: rd,
-					})
-				} else {
-					if s.isInactiveSlot(st) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
-						s.remove(st)
-						s.Info("remove inactive slot", zap.Uint32("slotId", st.slotId))
-					}
-				}
-			})
+		case <-s.advanceCh:
 		case <-s.stopper.ShouldStop():
 			return
 		}
 	}
+}
+
+func (s *slotListener) advance() {
+	select {
+	case s.advanceCh <- struct{}{}:
+	case <-s.stopper.ShouldStop():
+	default:
+	}
+}
+
+func (s *slotListener) ready() {
+	hasEvent := true
+	var err error
+	for hasEvent {
+		hasEvent = false
+		s.slots.foreach(func(st *slot) {
+			start := time.Now()
+			if st.isDestroy() {
+				return
+			}
+			event := false
+			if event, err = st.handleEvents(); err != nil {
+				s.Warn("loopEvent: handleReceivedMessages error", zap.Uint32("slotId", st.slotId), zap.Error(err))
+			}
+			if event {
+				hasEvent = true
+			}
+			event = s.handleReady(st)
+			if event {
+				hasEvent = true
+			}
+			if hasEvent {
+				if time.Since(start) > time.Millisecond {
+					s.Debug("loopEvent end...", zap.Duration("cost", time.Since(start)), zap.Uint32("slotId", st.slotId))
+				}
+			}
+
+		})
+	}
+}
+
+func (s *slotListener) handleReady(st *slot) bool {
+	if st.hasReady() {
+		rd := st.ready()
+		if replica.IsEmptyReady(rd) {
+			return false
+		}
+		s.triggerReady(slotReady{
+			slot:  st,
+			Ready: rd,
+		})
+		return true
+	}
+	return false
 }
 
 func (s *slotListener) triggerReady(ready slotReady) {

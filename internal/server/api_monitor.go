@@ -332,7 +332,7 @@ func (m *MonitorAPI) messages(c *wkhttp.Context) {
 	channelTypeI, _ := strconv.Atoi(c.Query("channel_type"))
 	channelType := uint8(channelTypeI)
 	limt, _ := strconv.Atoi(c.Query("limit"))
-	startMessageSeq, _ := strconv.ParseInt(c.Query("start_message_seq"), 10, 64)
+	startMessageSeq, _ := strconv.ParseUint(c.Query("start_message_seq"), 10, 64)
 	if limt <= 0 {
 		limt = 20
 	}
@@ -342,7 +342,7 @@ func (m *MonitorAPI) messages(c *wkhttp.Context) {
 		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
 	}
 
-	messages, err := m.s.store.LoadNextRangeMsgs(fakeChannelID, channelType, uint32(startMessageSeq), 0, limt)
+	messages, err := m.s.store.LoadNextRangeMsgs(fakeChannelID, channelType, startMessageSeq, 0, limt)
 	if err != nil {
 		c.ResponseError(err)
 		return
@@ -352,7 +352,7 @@ func (m *MonitorAPI) messages(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			msgResp := &MessageResp{}
-			msgResp.from(message.(*Message), m.s.store)
+			msgResp.from(message, m.s.store)
 			messageResps = append(messageResps, msgResp)
 		}
 	}
@@ -401,14 +401,14 @@ type channelInfoResult struct {
 	ChannelType uint8    `json:"channel_type"`
 	Ban         bool     `json:"ban"`                   // 是否被封
 	Large       bool     `json:"large"`                 // 是否是超大群
-	LastMsgSeq  uint32   `json:"last_msg_seq"`          // 最后一条消息的seq
+	LastMsgSeq  uint64   `json:"last_msg_seq"`          // 最后一条消息的seq
 	Subscribers []string `json:"subscribers,omitempty"` // 订阅者集合
 	AllowList   []string `json:"allow_list,omitempty"`  // 白名单
 	DenyList    []string `json:"deny_list,omitempty"`   // 黑名单
 	SlotNum     uint32   `json:"slot_num"`              // slot编号
 }
 
-func newChannelInfoResult(channelInfo *Channel, lastMsgSeq uint32, slotNum uint32, subscribers []string, allowList []string, denyList []string) *channelInfoResult {
+func newChannelInfoResult(channelInfo *Channel, lastMsgSeq uint64, slotNum uint32, subscribers []string, allowList []string, denyList []string) *channelInfoResult {
 
 	return &channelInfoResult{
 		ChannelID:   channelInfo.ChannelID,

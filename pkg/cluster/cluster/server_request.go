@@ -272,14 +272,18 @@ func (s *Server) handleSlotPropose(c *wkserver.Context) {
 		return
 	}
 
-	err := s.ProposeToSlot(req.SlotId, req.Data)
+	messageItems, err := s.slotManager.proposeAndWaitCommit(s.cancelCtx, req.SlotId, req.Logs)
+
+	resp := &SlotProposeResp{
+		MessageItems: messageItems,
+	}
+	data, err := resp.Marshal()
 	if err != nil {
-		s.Error("ProposeToSlot failed", zap.Error(err))
+		s.Error("marshal ChannelProposeResp failed", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
-
-	c.WriteOk()
+	c.Write(data)
 
 }
 

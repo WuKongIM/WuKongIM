@@ -24,7 +24,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/version"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
@@ -94,12 +93,6 @@ func New(opts *Options) *Server {
 	monitor.SetMonitorOn(opts.Monitor.On) // 监控开关
 
 	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
-	storeOpts.DecodeMessageFnc = func(msg []byte) (wkstore.Message, error) {
-		var err error
-		m := &Message{}
-		err = m.Decode(msg)
-		return m, err
-	}
 	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
 	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
 	s.store = clusterstore.NewStore(storeOpts)

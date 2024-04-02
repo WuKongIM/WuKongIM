@@ -1,6 +1,7 @@
 package clusterstore
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -17,6 +18,7 @@ type Store struct {
 	wdb  wkdb.DB
 	wklog.Log
 	lock *keylock.KeyLock
+	ctx  context.Context
 
 	messageShardLogStorage *MessageShardLogStorage
 }
@@ -24,6 +26,7 @@ type Store struct {
 func NewStore(opts *Options) *Store {
 
 	s := &Store{
+		ctx:  context.Background(),
 		opts: opts,
 		Log:  wklog.NewWKLog(fmt.Sprintf("clusterStore[%d]", opts.NodeID)),
 		lock: keylock.NewKeyLock(),

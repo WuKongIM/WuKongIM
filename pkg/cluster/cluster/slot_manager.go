@@ -1,10 +1,10 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
@@ -53,45 +53,9 @@ func (s *slotManager) listen() {
 
 func (s *slotManager) handleReady(rd slotReady) {
 	var (
-		slot    = rd.slot
-		shardNo = GetSlotShardNo(slot.slotId)
+		st = rd.slot
 	)
-	for _, msg := range rd.Messages {
-		if msg.To == s.opts.NodeID {
-			slot.handleLocalMsg(msg)
-			continue
-		}
-		if msg.To == 0 {
-			s.Error("msg.To is 0", zap.String("shardNo", shardNo), zap.String("msg", msg.MsgType.String()))
-			continue
-		}
-
-		if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
-			s.Info("send message", zap.String("msgType", msg.MsgType.String()), zap.Uint64("committedIdx", msg.CommittedIndex), zap.Uint32("term", msg.Term), zap.Uint64("lastLogIndex", slot.rc.LastLogIndex()), zap.String("shardNo", shardNo), zap.Uint64("to", msg.To), zap.Uint64("from", msg.From))
-		}
-
-		protMsg, err := NewMessage(shardNo, msg, MsgSlotMsg)
-		if err != nil {
-			s.Error("new message error", zap.String("shardNo", shardNo), zap.Error(err))
-			continue
-		}
-
-		traceOutgoingMessage(trace.ClusterKindSlot, msg)
-
-		err = s.opts.Transport.Send(msg.To, protMsg, func() {
-			for _, resp := range msg.Responses {
-				err = slot.stepLock(resp)
-				if err != nil {
-					s.Error("step error", zap.Error(err), zap.String("shardNo", shardNo))
-					continue
-				}
-			}
-		})
-		if err != nil {
-			s.Warn("send msg error", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.String("shardNo", shardNo), zap.Error(err))
-		}
-
-	}
+	st.handleReadyMessages(rd.Messages)
 
 }
 func (s *slotManager) exist(slotId uint32) bool {
@@ -107,17 +71,18 @@ func (s *slotManager) slot(slotId uint32) *slot {
 	return s.listener.slot(slotId)
 }
 
-func (s *slotManager) proposeAndWaitCommit(slotId uint32, data []byte) error {
+func (s *slotManager) proposeAndWaitCommit(ctx context.Context, slotId uint32, logs []replica.Log) ([]messageItem, error) {
 	st := s.slot(slotId)
 	if st == nil {
 		s.Error("slot not found", zap.Uint32("slotId", slotId))
-		return ErrSlotNotFound
+		return nil, ErrSlotNotFound
 	}
 	if !st.isLeader() {
 		s.Error("not leader", zap.Uint32("slotId", slotId), zap.Uint64("leader", st.rc.LeaderId()))
-		return ErrNotLeader
+		return nil, ErrNotLeader
 	}
-	return st.proposeAndWaitCommit(data, s.opts.ProposeTimeout)
+
+	return st.proposeAndWaitCommits(ctx, logs, s.opts.ProposeTimeout)
 }
 
 func (s *slotManager) handleMessage(slotId uint32, m replica.Message) {
@@ -126,8 +91,15 @@ func (s *slotManager) handleMessage(slotId uint32, m replica.Message) {
 		s.Error("slot not found", zap.Uint32("slotId", slotId), zap.String("msgType", m.MsgType.String()), zap.Uint64("from", m.From))
 		return
 	}
-	err := st.handleMessage(m)
+	err := st.handleRecvMessage(m)
 	if err != nil {
 		s.Error("handle message error", zap.Uint32("slotId", slotId), zap.Error(err))
+	}
+}
+
+func (s *slotManager) advanceHandler(slotId uint32) func() {
+
+	return func() {
+		s.listener.advance()
 	}
 }

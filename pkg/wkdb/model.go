@@ -6,6 +6,8 @@ var (
 	proto = wkproto.New()
 )
 
+var EmptyMessage = Message{}
+
 type Message struct {
 	wkproto.RecvPacket
 	Term uint64 // raft term

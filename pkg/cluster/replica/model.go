@@ -136,11 +136,11 @@ type Message struct {
 	Logs              []Log
 	Reject            bool // 拒绝
 	Index             uint64
-	EndIndex          uint64 // 结束下标
 	CommittedIndex    uint64 // 已提交日志下标
 
-	Responses    []Message
-	AppliedIndex uint64
+	Responses     []Message
+	ApplyingIndex uint64 // 应用中的下表
+	AppliedIndex  uint64
 
 	// 追踪
 	TraceIDs [][16]byte // 追踪ID

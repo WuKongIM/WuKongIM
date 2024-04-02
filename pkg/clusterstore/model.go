@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -11,11 +12,11 @@ import (
 
 type ICluster interface {
 	// ProposeChannelMeta 提交元数据到指定的channel
-	ProposeChannelMeta(channelID string, channelType uint8, data []byte) error
+	ProposeChannelMeta(ctx context.Context, channelID string, channelType uint8, data []byte) (uint64, error)
 	// ProposeChannelMessages 批量提交消息到指定的channel
 	ProposeChannelMessages(ctx context.Context, channelID string, channelType uint8, logs []replica.Log) (map[uint64]uint64, error)
 	// ProposeToSlots 提交数据到指定的槽
-	ProposeToSlot(slotId uint32, data []byte) error
+	ProposeToSlot(ctx context.Context, slotId uint32, logs []replica.Log) (map[uint64]uint64, error)
 }
 
 type CMDType uint16
@@ -467,18 +468,22 @@ func (c *CMD) DecodeCMDChannelClusterConfigSave() (channelID string, channelType
 	return
 }
 
-func EncodeCMDAppendMessagesOfUser(uid string, messages []wkstore.Message) ([]byte, error) {
+func EncodeCMDAppendMessagesOfUser(uid string, messages []wkdb.Message) ([]byte, error) {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(uid)
 	encoder.WriteUint32(uint32(len(messages)))
 	for _, message := range messages {
-		encoder.WriteBinary(message.Encode())
+		msgData, err := message.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		encoder.WriteBinary(msgData)
 	}
 	return encoder.Bytes(), nil
 }
 
-func (c *CMD) DecodeCMDAppendMessagesOfUser(decodeFnc func(data []byte) (wkstore.Message, error)) (uid string, messages []wkstore.Message, err error) {
+func (c *CMD) DecodeCMDAppendMessagesOfUser() (uid string, messages []wkdb.Message, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
 	if uid, err = decoder.String(); err != nil {
 		return
@@ -487,17 +492,17 @@ func (c *CMD) DecodeCMDAppendMessagesOfUser(decodeFnc func(data []byte) (wkstore
 	if count, err = decoder.Uint32(); err != nil {
 		return
 	}
-	var msg wkstore.Message
 	for i := uint32(0); i < count; i++ {
 		var messageBytes []byte
 		if messageBytes, err = decoder.Binary(); err != nil {
 			return
 		}
-		msg, err = decodeFnc(messageBytes)
+		var msg = &wkdb.Message{}
+		err = msg.Unmarshal(messageBytes)
 		if err != nil {
 			return
 		}
-		messages = append(messages, msg)
+		messages = append(messages, *msg)
 	}
 	return
 }

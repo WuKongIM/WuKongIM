@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
@@ -705,8 +705,8 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		LoginUID        string   `json:"login_uid"` // 当前登录用户的uid
 		ChannelID       string   `json:"channel_id"`
 		ChannelType     uint8    `json:"channel_type"`
-		StartMessageSeq uint32   `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
-		EndMessageSeq   uint32   `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
+		StartMessageSeq uint64   `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
+		EndMessageSeq   uint64   `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
 		Limit           int      `json:"limit"`             // 每次同步数量限制
 		PullMode        PullMode `json:"pull_mode"`         // 拉取模式 0:向下拉取 1:向上拉取
 	}
@@ -720,7 +720,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	var (
 		limit         = req.Limit
 		fakeChannelID = req.ChannelID
-		messages      []wkstore.Message
+		messages      []wkdb.Message
 	)
 
 	if limit > 10000 {
@@ -760,7 +760,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			messageResp := &MessageResp{}
-			messageResp.from(message.(*Message), ch.s.store)
+			messageResp.from(message, ch.s.store)
 			messageResps = append(messageResps, messageResp)
 		}
 	}

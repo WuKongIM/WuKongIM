@@ -614,26 +614,28 @@ func (p *Processor) prcocessChannelMessagesForLocal(ctx context.Context, conn wk
 		}
 
 		messages = append(messages, &Message{
-			RecvPacket: &wkproto.RecvPacket{
-				Framer: wkproto.Framer{
-					RedDot:    sendPacket.GetRedDot(),
-					SyncOnce:  sendPacket.GetsyncOnce(),
-					NoPersist: sendPacket.GetNoPersist(),
+			Message: wkdb.Message{
+				RecvPacket: wkproto.RecvPacket{
+					Framer: wkproto.Framer{
+						RedDot:    sendPacket.GetRedDot(),
+						SyncOnce:  sendPacket.GetsyncOnce(),
+						NoPersist: sendPacket.GetNoPersist(),
+					},
+					Setting:     sendPacket.Setting,
+					MessageID:   messageID,
+					ClientMsgNo: sendPacket.ClientMsgNo,
+					StreamNo:    sendPacket.StreamNo,
+					StreamFlag:  wkproto.StreamFlagIng,
+					FromUID:     conn.UID(),
+					Expire:      sendPacket.Expire,
+					ChannelID:   sendPacket.ChannelID,
+					ChannelType: sendPacket.ChannelType,
+					Topic:       sendPacket.Topic,
+					Timestamp:   int32(time.Now().Unix()),
+					Payload:     decodePayload,
+					// ---------- 以下不参与编码 ------------
+					ClientSeq: sendPacket.ClientSeq,
 				},
-				Setting:     sendPacket.Setting,
-				MessageID:   messageID,
-				ClientMsgNo: sendPacket.ClientMsgNo,
-				StreamNo:    sendPacket.StreamNo,
-				StreamFlag:  wkproto.StreamFlagIng,
-				FromUID:     conn.UID(),
-				Expire:      sendPacket.Expire,
-				ChannelID:   sendPacket.ChannelID,
-				ChannelType: sendPacket.ChannelType,
-				Topic:       sendPacket.Topic,
-				Timestamp:   int32(time.Now().Unix()),
-				Payload:     decodePayload,
-				// ---------- 以下不参与编码 ------------
-				ClientSeq: sendPacket.ClientSeq,
 			},
 			fromDeviceFlag: wkproto.DeviceFlag(conn.DeviceFlag()),
 			fromDeviceID:   conn.DeviceID(),
@@ -644,10 +646,17 @@ func (p *Processor) prcocessChannelMessagesForLocal(ctx context.Context, conn wk
 		return sendackPackets, nil
 	}
 
-	err = p.storeChannelMessagesIfNeed(ctx, conn.UID(), messages) // only have messageSeq after message save
+	messageIdAndSeqMap, err := p.storeChannelMessagesIfNeed(ctx, conn.UID(), messages) // only have messageSeq after message save
 	if err != nil {
 		p.Error("store channel messages err", zap.Error(err))
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
+	}
+	for i := 0; i < len(messages); i++ {
+		message := messages[i]
+		messageSeq := messageIdAndSeqMap[uint64(message.MessageID)]
+		if messageSeq > 0 {
+			messages[i].MessageSeq = uint32(messageSeq)
+		}
 	}
 	//########## message store to queue ##########
 	if p.s.opts.WebhookOn() {
@@ -751,25 +760,27 @@ func (p *Processor) prcocessChannelMessagesForRemote(ctx context.Context, req *r
 		}
 
 		messages = append(messages, &Message{
-			RecvPacket: &wkproto.RecvPacket{
-				Framer: wkproto.Framer{
-					RedDot:    sendPacket.GetRedDot(),
-					SyncOnce:  sendPacket.GetsyncOnce(),
-					NoPersist: sendPacket.GetNoPersist(),
+			Message: wkdb.Message{
+				RecvPacket: wkproto.RecvPacket{
+					Framer: wkproto.Framer{
+						RedDot:    sendPacket.GetRedDot(),
+						SyncOnce:  sendPacket.GetsyncOnce(),
+						NoPersist: sendPacket.GetNoPersist(),
+					},
+					Setting:     sendPacket.Setting,
+					MessageID:   messageID,
+					ClientMsgNo: sendPacket.ClientMsgNo,
+					StreamNo:    sendPacket.StreamNo,
+					StreamFlag:  wkproto.StreamFlagIng,
+					FromUID:     uid,
+					ChannelID:   sendPacket.ChannelID,
+					ChannelType: sendPacket.ChannelType,
+					Topic:       sendPacket.Topic,
+					Timestamp:   int32(time.Now().Unix()),
+					Payload:     sendPacket.Payload,
+					// ---------- 以下不参与编码 ------------
+					ClientSeq: sendPacket.ClientSeq,
 				},
-				Setting:     sendPacket.Setting,
-				MessageID:   messageID,
-				ClientMsgNo: sendPacket.ClientMsgNo,
-				StreamNo:    sendPacket.StreamNo,
-				StreamFlag:  wkproto.StreamFlagIng,
-				FromUID:     uid,
-				ChannelID:   sendPacket.ChannelID,
-				ChannelType: sendPacket.ChannelType,
-				Topic:       sendPacket.Topic,
-				Timestamp:   int32(time.Now().Unix()),
-				Payload:     sendPacket.Payload,
-				// ---------- 以下不参与编码 ------------
-				ClientSeq: sendPacket.ClientSeq,
 			},
 			fromDeviceFlag: wkproto.DeviceFlag(req.DeviceFlag),
 			fromDeviceID:   req.DeviceID,
@@ -779,9 +790,16 @@ func (p *Processor) prcocessChannelMessagesForRemote(ctx context.Context, req *r
 	if len(messages) == 0 {
 		return sendackPackets, nil
 	}
-	err = p.storeChannelMessagesIfNeed(ctx, uid, messages) // only have messageSeq after message save
+	messageIdAndSeqMap, err := p.storeChannelMessagesIfNeed(ctx, uid, messages) // only have messageSeq after message save
 	if err != nil {
 		return respSendackPacketsWithRecvFnc(messages, wkproto.ReasonSystemError), err
+	}
+	for i := 0; i < len(messages); i++ {
+		message := messages[i]
+		messageSeq := messageIdAndSeqMap[uint64(message.MessageID)]
+		if messageSeq > 0 {
+			messages[i].MessageSeq = uint32(messageSeq)
+		}
 	}
 	//########## message store to queue ##########
 	if p.s.opts.WebhookOn() {
@@ -850,9 +868,9 @@ func (p *Processor) getSendackPacketWithSendPacket(sendPacket *wkproto.SendPacke
 }
 
 // store channel messages
-func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID string, messages []*Message) error {
+func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID string, messages []*Message) (map[uint64]uint64, error) {
 	if len(messages) == 0 {
-		return nil
+		return nil, nil
 	}
 	storeMessages := make([]wkdb.Message, 0, len(messages))
 	for _, m := range messages {
@@ -866,16 +884,14 @@ func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID stri
 			})
 			if err != nil {
 				p.Error("store stream item err", zap.Error(err))
-				return err
+				return nil, err
 			}
 			continue
 		}
-		storeMessages = append(storeMessages, wkdb.Message{
-			RecvPacket: *m.RecvPacket,
-		})
+		storeMessages = append(storeMessages, m.Message)
 	}
 	if len(storeMessages) == 0 {
-		return nil
+		return nil, nil
 	}
 	firstMessage := storeMessages[0]
 	fakeChannelID := firstMessage.ChannelID
@@ -887,24 +903,24 @@ func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID stri
 	storeSpan.SetUint8("channelType", firstMessage.ChannelType)
 	storeSpan.SetInt("messageCount", len(storeMessages))
 	defer storeSpan.End()
-	err := p.s.store.AppendMessages(storeCtx, fakeChannelID, firstMessage.ChannelType, storeMessages)
+	messageIdAndSeqMap, err := p.s.store.AppendMessages(storeCtx, fakeChannelID, firstMessage.ChannelType, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))
-		return err
+		return nil, err
 	}
-	return nil
+	return messageIdAndSeqMap, nil
 }
 
 func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error {
 	if len(messages) == 0 {
 		return nil
 	}
-	storeMessages := make([]wkstore.Message, 0, len(messages))
+	storeMessages := make([]wkdb.Message, 0, len(messages))
 	for _, m := range messages {
 		if m.StreamIng() || (m.NoPersist && m.SyncOnce) { // 流消息不做通知（只通知开始和结束）,不存储的消息也不通知
 			continue
 		}
-		storeMessages = append(storeMessages, m)
+		storeMessages = append(storeMessages, m.Message)
 	}
 	return p.s.store.AppendMessageOfNotifyQueue(storeMessages)
 }
@@ -1080,7 +1096,7 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 		}
 		if ack.SyncOnce && persist && wkproto.DeviceLevel(conn.DeviceLevel()) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
 			p.Debug("更新游标", zap.String("uid", conn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
-			err := p.s.store.UpdateMessageOfUserCursorIfNeed(conn.UID(), ack.MessageSeq)
+			err := p.s.store.UpdateMessageOfUserCursorIfNeed(conn.UID(), uint64(ack.MessageSeq))
 			if err != nil {
 				p.Warn("更新游标失败！", zap.Error(err), zap.String("uid", conn.UID()), zap.Uint32("messageSeq", ack.MessageSeq))
 			}

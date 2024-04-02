@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -23,7 +24,7 @@ func (s *everyScheduler) Next(prev time.Time) time.Time {
 }
 
 type Message struct {
-	*wkproto.RecvPacket
+	wkdb.Message
 	ToUID          string             // 接受者
 	Subscribers    []string           // 订阅者 如果此字段有值 则表示消息只发送给指定的订阅者
 	fromDeviceFlag wkproto.DeviceFlag // 发送者设备标示
@@ -39,42 +40,42 @@ type Message struct {
 	retryCount int   // 当前重试次数
 }
 
-func (m *Message) GetMessageID() int64 {
-	return m.MessageID
-}
+// func (m *Message) GetMessageID() int64 {
+// 	return m.MessageID
+// }
 
-func (m *Message) SetSeq(seq uint32) {
-	m.MessageSeq = seq
-}
+// func (m *Message) SetSeq(seq uint32) {
+// 	m.MessageSeq = seq
+// }
 
-func (m *Message) GetSeq() uint32 {
-	return m.MessageSeq
-}
+// func (m *Message) GetSeq() uint32 {
+// 	return m.MessageSeq
+// }
 
-func (m *Message) SetTerm(term uint64) {
-	m.term = term
-}
+// func (m *Message) SetTerm(term uint64) {
+// 	m.term = term
+// }
 
-func (m *Message) GetTerm() uint64 {
-	return m.term
-}
+// func (m *Message) GetTerm() uint64 {
+// 	return m.term
+// }
 
-func (m *Message) Encode() []byte {
-	var version uint8 = 1
-	data := MarshalMessage(version, m)
-	return wkstore.EncodeMessage(m.MessageSeq, m.term, data)
-}
+// func (m *Message) Encode() []byte {
+// 	var version uint8 = 1
+// 	data := MarshalMessage(version, m)
+// 	return wkstore.EncodeMessage(m.MessageSeq, m.term, data)
+// }
 
-func (m *Message) Decode(msg []byte) error {
-	messageSeq, term, data, err := wkstore.DecodeMessage(msg)
-	if err != nil {
-		return err
-	}
-	err = UnmarshalMessage(data, m)
-	m.MessageSeq = messageSeq
-	m.term = term
-	return err
-}
+// func (m *Message) Decode(msg []byte) error {
+// 	messageSeq, term, data, err := wkstore.DecodeMessage(msg)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	err = UnmarshalMessage(data, m)
+// 	m.MessageSeq = messageSeq
+// 	m.term = term
+// 	return err
+// }
 
 func (m *Message) StreamStart() bool {
 	if strings.TrimSpace(m.StreamNo) == "" {
@@ -92,25 +93,7 @@ func (m *Message) StreamIng() bool {
 
 func (m *Message) DeepCopy() (*Message, error) {
 	dst := &Message{
-		RecvPacket: &wkproto.RecvPacket{
-			Framer:      m.Framer,
-			Setting:     m.Setting,
-			MsgKey:      m.MsgKey,
-			MessageID:   m.MessageID,
-			MessageSeq:  m.MessageSeq,
-			ClientMsgNo: m.ClientMsgNo,
-			StreamNo:    m.StreamNo,
-			StreamSeq:   m.StreamSeq,
-			StreamFlag:  m.StreamFlag,
-			Timestamp:   m.Timestamp,
-			ChannelID:   m.ChannelID,
-			ChannelType: m.ChannelType,
-			Topic:       m.Topic,
-			FromUID:     m.FromUID,
-			Payload:     m.Payload,
-			ClientSeq:   m.ClientSeq,
-			Expire:      m.Expire,
-		},
+		Message:     m.Message,
 		ToUID:       m.ToUID,
 		Subscribers: m.Subscribers,
 	}
@@ -124,157 +107,157 @@ func (m *Message) DeepCopy() (*Message, error) {
 	return dst, nil
 }
 
-// MarshalMessage MarshalMessage
-func MarshalMessage(version uint8, m *Message) []byte {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-	_ = enc.WriteByte(wkproto.ToFixHeaderUint8(m.RecvPacket))
-	enc.WriteUint8(version)
-	_ = enc.WriteByte(m.Setting.Uint8())
-	enc.WriteInt64(m.MessageID)
-	enc.WriteUint32(m.MessageSeq)
-	enc.WriteString(m.ClientMsgNo)
-	if m.Setting.IsSet(wkproto.SettingStream) {
-		enc.WriteString(m.StreamNo)
-		enc.WriteUint32(m.StreamSeq)
-		enc.WriteUint8(uint8(m.StreamFlag))
-	}
-	enc.WriteInt32(m.Timestamp)
-	enc.WriteString(m.FromUID)
-	enc.WriteString(m.ChannelID)
-	enc.WriteUint8(m.ChannelType)
-	if version >= 1 {
-		enc.WriteUint32(m.Expire)
-	}
-	enc.WriteBytes(m.Payload)
-	return enc.Bytes()
-}
+// // MarshalMessage MarshalMessage
+// func MarshalMessage(version uint8, m *Message) []byte {
+// 	enc := wkproto.NewEncoder()
+// 	defer enc.End()
+// 	_ = enc.WriteByte(wkproto.ToFixHeaderUint8(m.RecvPacket))
+// 	enc.WriteUint8(version)
+// 	_ = enc.WriteByte(m.Setting.Uint8())
+// 	enc.WriteInt64(m.MessageID)
+// 	enc.WriteUint32(m.MessageSeq)
+// 	enc.WriteString(m.ClientMsgNo)
+// 	if m.Setting.IsSet(wkproto.SettingStream) {
+// 		enc.WriteString(m.StreamNo)
+// 		enc.WriteUint32(m.StreamSeq)
+// 		enc.WriteUint8(uint8(m.StreamFlag))
+// 	}
+// 	enc.WriteInt32(m.Timestamp)
+// 	enc.WriteString(m.FromUID)
+// 	enc.WriteString(m.ChannelID)
+// 	enc.WriteUint8(m.ChannelType)
+// 	if version >= 1 {
+// 		enc.WriteUint32(m.Expire)
+// 	}
+// 	enc.WriteBytes(m.Payload)
+// 	return enc.Bytes()
+// }
 
-// UnmarshalMessage UnmarshalMessage
-func UnmarshalMessage(data []byte, m *Message) error {
-	dec := wkproto.NewDecoder(data)
+// // UnmarshalMessage UnmarshalMessage
+// func UnmarshalMessage(data []byte, m *Message) error {
+// 	dec := wkproto.NewDecoder(data)
 
-	// header
-	var err error
-	var header uint8
-	if header, err = dec.Uint8(); err != nil {
-		return err
-	}
-	recvPacket := &wkproto.RecvPacket{}
-	framer := wkproto.FramerFromUint8(header)
-	recvPacket.Framer = framer
+// 	// header
+// 	var err error
+// 	var header uint8
+// 	if header, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
+// 	recvPacket := &wkproto.RecvPacket{}
+// 	framer := wkproto.FramerFromUint8(header)
+// 	recvPacket.Framer = framer
 
-	// version
-	var version uint8
-	if version, err = dec.Uint8(); err != nil {
-		return err
-	}
+// 	// version
+// 	var version uint8
+// 	if version, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
 
-	// setting
-	var setting uint8
-	if setting, err = dec.Uint8(); err != nil {
-		return err
-	}
-	m.RecvPacket = recvPacket
+// 	// setting
+// 	var setting uint8
+// 	if setting, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
+// 	m.RecvPacket = recvPacket
 
-	m.Setting = wkproto.Setting(setting)
+// 	m.Setting = wkproto.Setting(setting)
 
-	// messageID
-	if m.MessageID, err = dec.Int64(); err != nil {
-		return err
-	}
+// 	// messageID
+// 	if m.MessageID, err = dec.Int64(); err != nil {
+// 		return err
+// 	}
 
-	// MessageSeq
-	if m.MessageSeq, err = dec.Uint32(); err != nil {
-		return err
-	}
-	// ClientMsgNo
-	if m.ClientMsgNo, err = dec.String(); err != nil {
-		return err
-	}
-	// StreamNo
-	if m.Setting.IsSet(wkproto.SettingStream) {
-		if m.StreamNo, err = dec.String(); err != nil {
-			return err
-		}
-		if m.StreamSeq, err = dec.Uint32(); err != nil {
-			return err
-		}
-		var streamFlag uint8
-		if streamFlag, err = dec.Uint8(); err != nil {
-			return err
-		}
-		m.StreamFlag = wkproto.StreamFlag(streamFlag)
-	}
-	// Timestamp
-	if m.Timestamp, err = dec.Int32(); err != nil {
-		return err
-	}
+// 	// MessageSeq
+// 	if m.MessageSeq, err = dec.Uint32(); err != nil {
+// 		return err
+// 	}
+// 	// ClientMsgNo
+// 	if m.ClientMsgNo, err = dec.String(); err != nil {
+// 		return err
+// 	}
+// 	// StreamNo
+// 	if m.Setting.IsSet(wkproto.SettingStream) {
+// 		if m.StreamNo, err = dec.String(); err != nil {
+// 			return err
+// 		}
+// 		if m.StreamSeq, err = dec.Uint32(); err != nil {
+// 			return err
+// 		}
+// 		var streamFlag uint8
+// 		if streamFlag, err = dec.Uint8(); err != nil {
+// 			return err
+// 		}
+// 		m.StreamFlag = wkproto.StreamFlag(streamFlag)
+// 	}
+// 	// Timestamp
+// 	if m.Timestamp, err = dec.Int32(); err != nil {
+// 		return err
+// 	}
 
-	// FromUID
-	if m.FromUID, err = dec.String(); err != nil {
-		return err
-	}
-	// if m.QueueUID, err = dec.String(); err != nil {
-	// 	return err
-	// }
+// 	// FromUID
+// 	if m.FromUID, err = dec.String(); err != nil {
+// 		return err
+// 	}
+// 	// if m.QueueUID, err = dec.String(); err != nil {
+// 	// 	return err
+// 	// }
 
-	// ChannelID
-	if m.ChannelID, err = dec.String(); err != nil {
-		return err
-	}
+// 	// ChannelID
+// 	if m.ChannelID, err = dec.String(); err != nil {
+// 		return err
+// 	}
 
-	// ChannelType
-	if m.ChannelType, err = dec.Uint8(); err != nil {
-		return err
-	}
-	if version >= 1 {
-		if m.Expire, err = dec.Uint32(); err != nil {
-			return err
-		}
-	}
-	// Payload
-	if m.Payload, err = dec.BinaryAll(); err != nil {
-		return err
-	}
-	return nil
-}
+// 	// ChannelType
+// 	if m.ChannelType, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
+// 	if version >= 1 {
+// 		if m.Expire, err = dec.Uint32(); err != nil {
+// 			return err
+// 		}
+// 	}
+// 	// Payload
+// 	if m.Payload, err = dec.BinaryAll(); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
-type MessageSet []*Message
+// type MessageSet []*Message
 
-func (ms MessageSet) Encode() []byte {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
+// func (ms MessageSet) Encode() []byte {
+// 	enc := wkproto.NewEncoder()
+// 	defer enc.End()
 
-	for _, msg := range ms {
-		data := msg.Encode()
-		enc.WriteUint32(uint32(len(data)))
-		enc.WriteBytes(data)
-	}
-	return enc.Bytes()
-}
+// 	for _, msg := range ms {
+// 		data := msg.Encode()
+// 		enc.WriteUint32(uint32(len(data)))
+// 		enc.WriteBytes(data)
+// 	}
+// 	return enc.Bytes()
+// }
 
-func (ms *MessageSet) Decode(data []byte) error {
-	if len(data) == 0 {
-		return nil
-	}
-	var (
-		dec = wkproto.NewDecoder(data)
-		err error
-	)
-	for dec.Len() > 0 {
-		msgLen, _ := dec.Uint32()
-		msgData, _ := dec.Bytes(int(msgLen))
+// func (ms *MessageSet) Decode(data []byte) error {
+// 	if len(data) == 0 {
+// 		return nil
+// 	}
+// 	var (
+// 		dec = wkproto.NewDecoder(data)
+// 		err error
+// 	)
+// 	for dec.Len() > 0 {
+// 		msgLen, _ := dec.Uint32()
+// 		msgData, _ := dec.Bytes(int(msgLen))
 
-		m := &Message{}
-		err = m.Decode(msgData)
-		if err != nil {
-			return err
-		}
-		*ms = append(*ms, m)
-	}
-	return nil
-}
+// 		m := &Message{}
+// 		err = m.Decode(msgData)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		*ms = append(*ms, m)
+// 	}
+// 	return nil
+// }
 
 type Uint32Set []uint32
 
@@ -355,7 +338,7 @@ type MessageResp struct {
 	StreamNo     string             `json:"stream_no,omitempty"`   // 流编号
 	StreamSeq    uint32             `json:"stream_seq,omitempty"`  // 流序号
 	StreamFlag   wkproto.StreamFlag `json:"stream_flag,omitempty"` // 流标记
-	MessageSeq   uint32             `json:"message_seq"`           // 消息序列号 （用户唯一，有序递增）
+	MessageSeq   uint64             `json:"message_seq"`           // 消息序列号 （用户唯一，有序递增）
 	FromUID      string             `json:"from_uid"`              // 发送者UID
 	ChannelID    string             `json:"channel_id"`            // 频道ID
 	ChannelType  uint8              `json:"channel_type"`          // 频道类型
@@ -366,7 +349,7 @@ type MessageResp struct {
 	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
-func (m *MessageResp) from(messageD *Message, store *clusterstore.Store) {
+func (m *MessageResp) from(messageD wkdb.Message, store *clusterstore.Store) {
 	m.Header.NoPersist = wkutil.BoolToInt(messageD.NoPersist)
 	m.Header.RedDot = wkutil.BoolToInt(messageD.RedDot)
 	m.Header.SyncOnce = wkutil.BoolToInt(messageD.SyncOnce)
@@ -377,7 +360,7 @@ func (m *MessageResp) from(messageD *Message, store *clusterstore.Store) {
 	m.StreamNo = messageD.StreamNo
 	m.StreamSeq = messageD.StreamSeq
 	m.StreamFlag = messageD.StreamFlag
-	m.MessageSeq = messageD.MessageSeq
+	m.MessageSeq = uint64(messageD.MessageSeq)
 	m.FromUID = messageD.FromUID
 	m.Expire = messageD.Expire
 	m.Timestamp = messageD.Timestamp
@@ -504,7 +487,7 @@ func newSyncUserConversationResp(conversation *wkstore.Conversation) *syncUserCo
 type channelRecentMessageReq struct {
 	ChannelID   string `json:"channel_id"`
 	ChannelType uint8  `json:"channel_type"`
-	LastMsgSeq  uint32 `json:"last_msg_seq"`
+	LastMsgSeq  uint64 `json:"last_msg_seq"`
 }
 
 type channelRecentMessage struct {
@@ -674,7 +657,7 @@ func (r whitelistReq) Check() error {
 
 type syncReq struct {
 	UID        string `json:"uid"`         // 用户uid
-	MessageSeq uint32 `json:"message_seq"` // 客户端最大消息序列号
+	MessageSeq uint64 `json:"message_seq"` // 客户端最大消息序列号
 	Limit      int    `json:"limit"`       // 消息数量限制
 }
 
@@ -689,8 +672,8 @@ func (r syncReq) Check() error {
 }
 
 type syncMessageResp struct {
-	StartMessageSeq uint32         `json:"start_message_seq"` // 开始序列号
-	EndMessageSeq   uint32         `json:"end_message_seq"`   // 结束序列号
+	StartMessageSeq uint64         `json:"start_message_seq"` // 开始序列号
+	EndMessageSeq   uint64         `json:"end_message_seq"`   // 结束序列号
 	More            int            `json:"more"`              // 是否还有更多 1.是 0.否
 	Messages        []*MessageResp `json:"messages"`          // 消息数据
 }
@@ -699,7 +682,7 @@ type syncackReq struct {
 	// 用户uid
 	UID string `json:"uid"`
 	// 最后一次同步的message_seq
-	LastMessageSeq uint32 `json:"last_message_seq"`
+	LastMessageSeq uint64 `json:"last_message_seq"`
 }
 
 func (s syncackReq) Check() error {

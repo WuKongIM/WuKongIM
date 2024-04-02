@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -36,6 +37,7 @@ type Server struct {
 	uptime               time.Time // 启动时间
 	apiPrefix            string    // api前缀
 	defaultMonitor       *DefaultMonitor
+	messageIDGen         *snowflake.Node // 消息ID生成器
 
 	// 其他
 	opts *Options
@@ -47,6 +49,10 @@ type Server struct {
 func New(nodeId uint64, opts *Options) *Server {
 
 	opts.NodeID = nodeId
+	messageIDGen, err := snowflake.NewNode(int64(opts.NodeID))
+	if err != nil {
+		panic(err)
+	}
 	s := &Server{
 		slotManager:          newSlotManager(opts),
 		nodeManager:          newNodeManager(opts),
@@ -55,6 +61,7 @@ func New(nodeId uint64, opts *Options) *Server {
 		opts:                 opts,
 		Log:                  wklog.NewWKLog(fmt.Sprintf("clusterServer[%d]", opts.NodeID)),
 		trace:                trace.GlobalTrace,
+		messageIDGen:         messageIDGen,
 	}
 	s.slotMigrateManager = newSlotMigrateManager(s)
 	opts.nodeOnlineFnc = s.nodeCliOnline
@@ -384,7 +391,7 @@ func (s *Server) handleChannelRecvMsg(_ uint64, m *proto.Message) {
 		return
 	}
 
-	traceIncomingMessage(trace.ClusterKindSlot, msg.Message)
+	traceIncomingMessage(trace.ClusterKindChannel, msg.Message)
 
 	// s.Info("收到频道消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From), zap.Uint32("term", msg.Term), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.Uint64("index", msg.Index), zap.Uint64("committed", msg.CommittedIndex))
 
