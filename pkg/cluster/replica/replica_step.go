@@ -429,7 +429,7 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 	if m.Index > syncInfo.LastSyncLogIndex {
 		syncInfo.LastSyncLogIndex = m.Index
 		syncInfo.LastSyncTime = uint64(time.Now().UnixNano())
-		r.Info("update replic sync info", zap.Uint32("term", r.replicaLog.term), zap.Uint64("from", from), zap.Uint64("lastSyncLogIndex", syncInfo.LastSyncLogIndex))
+		r.Debug("update replic sync info", zap.Uint32("term", r.replicaLog.term), zap.Uint64("from", from), zap.Uint64("lastSyncLogIndex", syncInfo.LastSyncLogIndex))
 	}
 }
 

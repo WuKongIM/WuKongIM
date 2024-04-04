@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/WuKongIM/WuKongIM/pkg/network"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
@@ -20,7 +20,7 @@ type IDatasource interface {
 	// 获取系统账号的uid集合 系统账号可以给任何人发消息
 	GetSystemUIDs() ([]string, error)
 	// 获取频道信息
-	GetChannelInfo(channelID string, channelType uint8) (*wkstore.ChannelInfo, error)
+	GetChannelInfo(channelID string, channelType uint8) (wkdb.ChannelInfo, error)
 }
 
 // Datasource Datasource
@@ -36,23 +36,23 @@ func NewDatasource(s *Server) IDatasource {
 	}
 }
 
-func (d *Datasource) GetChannelInfo(channelID string, channelType uint8) (*wkstore.ChannelInfo, error) {
+func (d *Datasource) GetChannelInfo(channelID string, channelType uint8) (wkdb.ChannelInfo, error) {
 	result, err := d.requestCMD("getChannelInfo", map[string]interface{}{
 		"channel_id":   channelID,
 		"channel_type": channelType,
 	})
 	if err != nil {
-		return nil, err
+		return wkdb.EmptyChannelInfo, err
 	}
 	var channelInfoResp ChannelInfoResp
 	err = wkutil.ReadJSONByByte([]byte(result), &channelInfoResp)
 	if err != nil {
-		return nil, err
+		return wkdb.EmptyChannelInfo, err
 	}
 	channelInfo := channelInfoResp.ToChannelInfo()
 	channelInfo.ChannelID = channelID
 	channelInfo.ChannelType = channelType
-	return channelInfo, nil
+	return wkdb.EmptyChannelInfo, nil
 
 }
 

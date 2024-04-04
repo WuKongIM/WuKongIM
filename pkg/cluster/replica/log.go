@@ -80,7 +80,6 @@ func newReplicaLog(opts *Options) *replicaLog {
 
 	rg.appendedIndex = lastIndex
 
-	fmt.Println("opts.AppliedIndex---->", opts.AppliedIndex)
 	rg.appliedTo(opts.AppliedIndex, 0)
 
 	return rg

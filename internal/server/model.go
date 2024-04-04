@@ -471,12 +471,12 @@ type syncUserConversationResp struct {
 	Recents         []*MessageResp `json:"recents"`            // 最近N条消息
 }
 
-func newSyncUserConversationResp(conversation *wkstore.Conversation) *syncUserConversationResp {
+func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConversationResp {
 
 	return &syncUserConversationResp{
-		ChannelID:       conversation.ChannelID,
+		ChannelID:       conversation.ChannelId,
 		ChannelType:     conversation.ChannelType,
-		Unread:          conversation.UnreadCount,
+		Unread:          int(conversation.UnreadCount),
 		Timestamp:       conversation.Timestamp,
 		LastMsgSeq:      conversation.LastMsgSeq,
 		LastClientMsgNo: conversation.LastClientMsgNo,
@@ -525,9 +525,9 @@ type ChannelInfoReq struct {
 	Ban         int    `json:"ban"`          // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
 }
 
-func (c ChannelInfoReq) ToChannelInfo() *wkstore.ChannelInfo {
-	return &wkstore.ChannelInfo{
-		ChannelID:   c.ChannelID,
+func (c ChannelInfoReq) ToChannelInfo() wkdb.ChannelInfo {
+	return wkdb.ChannelInfo{
+		ChannelId:   c.ChannelID,
 		ChannelType: c.ChannelType,
 		Large:       c.Large == 1,
 		Ban:         c.Ban == 1,

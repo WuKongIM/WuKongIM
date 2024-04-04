@@ -157,7 +157,7 @@ func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscribeI
 
 			connCtx := conn.Context().(*connContext)
 
-			subscribeInfo := connCtx.getSubscribeInfo(monitorChannel.ChannelID, monitorChannel.ChannelType)
+			subscribeInfo := connCtx.getSubscribeInfo(monitorChannel.ChannelId, monitorChannel.ChannelType)
 			if subscribeInfo == nil { // 说明该连接没有订阅该频道
 				continue
 			}
@@ -171,7 +171,7 @@ func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscribeI
 				},
 				MessageID:   m.s.dispatch.processor.genMessageID(),
 				Timestamp:   int32(time.Now().Unix()),
-				ChannelID:   monitorChannel.ChannelID,
+				ChannelID:   monitorChannel.ChannelId,
 				ChannelType: monitorChannel.ChannelType,
 				Payload:     rDataBytes,
 			}
@@ -411,7 +411,7 @@ type channelInfoResult struct {
 func newChannelInfoResult(channelInfo *Channel, lastMsgSeq uint64, slotNum uint32, subscribers []string, allowList []string, denyList []string) *channelInfoResult {
 
 	return &channelInfoResult{
-		ChannelID:   channelInfo.ChannelID,
+		ChannelID:   channelInfo.ChannelId,
 		ChannelType: channelInfo.ChannelType,
 		Ban:         channelInfo.Ban,
 		Large:       channelInfo.Large,

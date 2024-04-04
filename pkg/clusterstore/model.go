@@ -6,7 +6,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -24,7 +23,7 @@ type CMDType uint16
 const (
 	CMDUnknown CMDType = iota
 	// 更新用户token
-	CMDUpdateUserToken
+	CMDUpdateUser
 	// CMDUpdateMessageOfUserCursorIfNeed CMDUpdateMessageOfUserCursorIfNeed
 	// 更新用户消息游标
 	CMDUpdateMessageOfUserCursorIfNeed
@@ -86,8 +85,8 @@ func (c CMDType) Uint16() uint16 {
 
 func (c CMDType) String() string {
 	switch c {
-	case CMDUpdateUserToken:
-		return "CMDUpdateUserToken"
+	case CMDUpdateUser:
+		return "CMDUpdateUser"
 	case CMDUpdateMessageOfUserCursorIfNeed:
 		return "CMDUpdateMessageOfUserCursorIfNeed"
 	case CMDAddOrUpdateChannel:
@@ -249,29 +248,29 @@ func EncodeChannel(channelId string, channelType uint8) []byte {
 }
 
 // EncodeUserToken EncodeUserToken
-func EncodeCMDUserToken(uid string, deviceFlag uint8, deviceLevel uint8, token string) []byte {
+func EncodeCMDUser(u wkdb.User) []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteString(uid)
-	enc.WriteUint8(deviceFlag)
-	enc.WriteUint8(deviceLevel)
-	enc.WriteString(token)
+	enc.WriteString(u.Uid)
+	enc.WriteUint8(u.DeviceFlag)
+	enc.WriteUint8(u.DeviceLevel)
+	enc.WriteString(u.Token)
 	return enc.Bytes()
 }
 
-func (c *CMD) DecodeCMDUserToken() (uid string, deviceFlag uint8, deviceLevel uint8, token string, err error) {
+func (c *CMD) DecodeCMDUser() (u wkdb.User, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
-	if uid, err = decoder.String(); err != nil {
+	if u.Uid, err = decoder.String(); err != nil {
 		return
 	}
-	if deviceFlag, err = decoder.Uint8(); err != nil {
+	if u.DeviceFlag, err = decoder.Uint8(); err != nil {
 		return
 	}
 
-	if deviceLevel, err = decoder.Uint8(); err != nil {
+	if u.DeviceLevel, err = decoder.Uint8(); err != nil {
 		return
 	}
-	if token, err = decoder.String(); err != nil {
+	if u.Token, err = decoder.String(); err != nil {
 		return
 	}
 	return
@@ -299,59 +298,41 @@ func (c *CMD) DecodeCMDUpdateMessageOfUserCursorIfNeed() (uid string, messageSeq
 }
 
 // EncodeAddOrUpdateChannel EncodeAddOrUpdateChannel
-func EncodeAddOrUpdateChannel(channelInfo *wkstore.ChannelInfo) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(channelInfo.ChannelID)
-	encoder.WriteUint8(channelInfo.ChannelType)
-	encoder.WriteString(wkutil.ToJSON(channelInfo.ToMap()))
-	return encoder.Bytes()
+func EncodeAddOrUpdateChannel(channelInfo wkdb.ChannelInfo) ([]byte, error) {
+
+	return channelInfo.Marshal()
 }
 
 // DecodeAddOrUpdateChannel DecodeAddOrUpdateChannel
-func (c *CMD) DecodeAddOrUpdateChannel() (*wkstore.ChannelInfo, error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	channelInfo := &wkstore.ChannelInfo{}
-	var err error
-	if channelInfo.ChannelID, err = decoder.String(); err != nil {
-		return nil, err
-	}
-	if channelInfo.ChannelType, err = decoder.Uint8(); err != nil {
-		return nil, err
-	}
-	jsonStr, err := decoder.String()
-	if err != nil {
-		return nil, err
-	}
-	if len(jsonStr) > 0 {
-		mp, err := wkutil.JSONToMap(jsonStr)
-		if err != nil {
-			return nil, err
-		}
-		channelInfo.From(mp)
-	}
-	return channelInfo, nil
+func (c *CMD) DecodeAddOrUpdateChannel() (wkdb.ChannelInfo, error) {
+	channelInfo := &wkdb.ChannelInfo{}
+	err := channelInfo.Unmarshal(c.Data)
+	return *channelInfo, err
 }
 
 // EncodeCMDAddOrUpdateConversations EncodeCMDAddOrUpdateConversations
-func EncodeCMDAddOrUpdateConversations(uid string, conversations []*wkstore.Conversation) []byte {
+func EncodeCMDAddOrUpdateConversations(uid string, conversations []wkdb.Conversation) ([]byte, error) {
 
-	var conversationSet wkstore.ConversationSet
+	var conversationSet wkdb.ConversationSet
 	if len(conversations) > 0 {
-		conversationSet = wkstore.ConversationSet(conversations)
+		conversationSet = wkdb.ConversationSet(conversations)
 
 	}
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(uid)
 	if conversationSet != nil {
-		encoder.WriteBytes(conversationSet.Encode())
+		data, err := conversationSet.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		encoder.WriteBytes(data)
 	}
-	return encoder.Bytes()
+	return encoder.Bytes(), nil
 }
 
 // DecodeCMDAddOrUpdateConversations DecodeCMDAddOrUpdateConversations
-func (c *CMD) DecodeCMDAddOrUpdateConversations() (uid string, conversations []*wkstore.Conversation, err error) {
+func (c *CMD) DecodeCMDAddOrUpdateConversations() (uid string, conversations wkdb.ConversationSet, err error) {
 	if len(c.Data) == 0 {
 		return "", nil, nil
 	}
@@ -363,7 +344,7 @@ func (c *CMD) DecodeCMDAddOrUpdateConversations() (uid string, conversations []*
 	var data []byte
 	data, _ = decoder.BinaryAll()
 	if len(data) > 0 {
-		conversations = wkstore.NewConversationSet(data)
+		err = conversations.Unmarshal(data)
 	}
 
 	return

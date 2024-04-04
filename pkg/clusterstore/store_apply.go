@@ -24,14 +24,14 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		s.Error("unmarshal cmd err", zap.Error(err), zap.Uint32("slotId", slotId), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
 		return err
 	}
-	s.Info("收到元数据请求", zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
+	s.Debug("收到元数据请求", zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
 	switch cmd.CmdType {
 	case CMDAddSubscribers: // 添加订阅者
 		return s.handleAddSubscribers(cmd)
 	case CMDRemoveSubscribers: // 移除订阅者
 		return s.handleRemoveSubscribers(cmd)
-	case CMDUpdateUserToken: // 更新用户的token
-		return s.handleUpdateUserToken(cmd)
+	case CMDUpdateUser: // 更新用户信息
+		return s.handleUpdateUser(cmd)
 	case CMDUpdateMessageOfUserCursorIfNeed: // 更新用户消息队列的游标，用户读到的位置
 		return s.handleUpdateMessageOfUserCursorIfNeed(cmd)
 	case CMDAddOrUpdateChannel: // 添加或更新频道
@@ -73,7 +73,7 @@ func (s *Store) handleAddSubscribers(cmd *CMD) error {
 		s.Error("decode subscribers err", zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType), zap.ByteString("data", cmd.Data))
 		return err
 	}
-	return s.db.AddSubscribers(channelId, channelType, subscribers)
+	return s.wdb.AddSubscribers(channelId, channelType, subscribers)
 }
 
 func (s *Store) handleRemoveSubscribers(cmd *CMD) error {
@@ -81,15 +81,15 @@ func (s *Store) handleRemoveSubscribers(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveSubscribers(channelId, channelType, subscribers)
+	return s.wdb.RemoveSubscribers(channelId, channelType, subscribers)
 }
 
-func (s *Store) handleUpdateUserToken(cmd *CMD) error {
-	uid, deviceFlag, deviceLevel, token, err := cmd.DecodeCMDUserToken()
+func (s *Store) handleUpdateUser(cmd *CMD) error {
+	u, err := cmd.DecodeCMDUser()
 	if err != nil {
 		return err
 	}
-	return s.db.UpdateUserToken(uid, deviceFlag, deviceLevel, token)
+	return s.wdb.UpdateUser(u)
 }
 
 func (s *Store) handleUpdateMessageOfUserCursorIfNeed(cmd *CMD) error {
@@ -105,7 +105,7 @@ func (s *Store) handleAddOrUpdateChannel(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.AddOrUpdateChannel(channelInfo)
+	return s.wdb.AddOrUpdateChannel(channelInfo)
 }
 
 func (s *Store) handleRemoveAllSubscriber(cmd *CMD) error {
@@ -113,7 +113,7 @@ func (s *Store) handleRemoveAllSubscriber(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveAllSubscriber(channelId, channelType)
+	return s.wdb.RemoveAllSubscriber(channelId, channelType)
 }
 
 func (s *Store) handleDeleteChannel(cmd *CMD) error {
@@ -121,7 +121,7 @@ func (s *Store) handleDeleteChannel(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.DeleteChannel(channelId, channelType)
+	return s.wdb.DeleteChannel(channelId, channelType)
 }
 
 func (s *Store) handleAddDenylist(cmd *CMD) error {
@@ -129,7 +129,7 @@ func (s *Store) handleAddDenylist(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.AddDenylist(channelId, channelType, subscribers)
+	return s.wdb.AddDenylist(channelId, channelType, subscribers)
 }
 
 func (s *Store) handleRemoveDenylist(cmd *CMD) error {
@@ -137,7 +137,7 @@ func (s *Store) handleRemoveDenylist(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveDenylist(channelId, channelType, subscribers)
+	return s.wdb.RemoveDenylist(channelId, channelType, subscribers)
 }
 
 func (s *Store) handleRemoveAllDenylist(cmd *CMD) error {
@@ -145,7 +145,7 @@ func (s *Store) handleRemoveAllDenylist(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveAllDenylist(channelId, channelType)
+	return s.wdb.RemoveAllDenylist(channelId, channelType)
 }
 
 func (s *Store) handleAddAllowlist(cmd *CMD) error {
@@ -153,7 +153,7 @@ func (s *Store) handleAddAllowlist(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.AddAllowlist(channelId, channelType, subscribers)
+	return s.wdb.AddAllowlist(channelId, channelType, subscribers)
 }
 
 func (s *Store) handleRemoveAllowlist(cmd *CMD) error {
@@ -161,7 +161,7 @@ func (s *Store) handleRemoveAllowlist(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveAllowlist(channelId, channelType, subscribers)
+	return s.wdb.RemoveAllowlist(channelId, channelType, subscribers)
 }
 
 func (s *Store) handleRemoveAllAllowlist(cmd *CMD) error {
@@ -169,7 +169,7 @@ func (s *Store) handleRemoveAllAllowlist(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.RemoveAllAllowlist(channelId, channelType)
+	return s.wdb.RemoveAllAllowlist(channelId, channelType)
 }
 
 func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
@@ -177,7 +177,7 @@ func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.AddOrUpdateConversations(uid, conversations)
+	return s.wdb.AddOrUpdateConversations(uid, conversations)
 }
 
 func (s *Store) handleDeleteConversation(cmd *CMD) error {
@@ -185,7 +185,7 @@ func (s *Store) handleDeleteConversation(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.db.DeleteConversation(uid, deleteChannelID, deleteChannelType)
+	return s.wdb.DeleteConversation(uid, deleteChannelID, deleteChannelType)
 }
 
 func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {

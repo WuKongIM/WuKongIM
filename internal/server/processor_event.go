@@ -245,7 +245,7 @@ func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) 
 				ReasonCode: uint32(wkproto.ReasonAuthFail),
 			}, nil
 		}
-		token, devceLevelI, err = p.s.store.GetUserToken(uid, connectPacket.DeviceFlag.ToUint8())
+		user, err := p.s.store.GetUser(uid, connectPacket.DeviceFlag.ToUint8())
 		if err != nil {
 			p.Error("get user token err", zap.Error(err))
 			return &rpc.ConnectResp{
@@ -253,6 +253,8 @@ func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) 
 			}, nil
 
 		}
+		token = user.Token
+		devceLevelI = user.DeviceLevel
 		if token != connectPacket.Token {
 			p.Error("token verify fail", zap.String("expectToken", token), zap.String("actToken", connectPacket.Token))
 			return &rpc.ConnectResp{
@@ -272,7 +274,7 @@ func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) 
 		}, nil
 	}
 	ban := false
-	if userChannelInfo != nil {
+	if !wkdb.IsEmptyChannelInfo(userChannelInfo) {
 		ban = userChannelInfo.Ban
 	}
 	if ban {
@@ -350,7 +352,6 @@ func (p *Processor) OnRecvPacket(req *rpc.ForwardRecvPacketReq) error {
 		recvPacket := f.(*wkproto.RecvPacket)
 		messageDatas = messageDatas[size:]
 
-		fmt.Println("OnRecvPacket----recvPacket--->", recvPacket.MessageSeq)
 		m := &Message{
 			Message: wkdb.Message{
 				RecvPacket: *recvPacket,

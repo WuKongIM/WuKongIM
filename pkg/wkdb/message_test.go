@@ -9,7 +9,7 @@ import (
 
 func TestLoadPrevRangeMsgs(t *testing.T) {
 
-	d := NewPebbleDB(NewOptions(WithDir(t.TempDir())))
+	d := NewWukongDB(NewOptions(WithDir(t.TempDir())))
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -56,7 +56,7 @@ func TestLoadPrevRangeMsgs(t *testing.T) {
 }
 
 func TestGetChannelMaxMessageSeq(t *testing.T) {
-	d := NewPebbleDB(NewOptions(WithDir(t.TempDir())))
+	d := NewWukongDB(NewOptions(WithDir(t.TempDir())))
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -92,7 +92,7 @@ func TestGetChannelMaxMessageSeq(t *testing.T) {
 }
 
 func TestTruncateLogTo(t *testing.T) {
-	d := NewPebbleDB(NewOptions(WithDir(t.TempDir())))
+	d := NewWukongDB(NewOptions(WithDir(t.TempDir())))
 	err := d.Open()
 	assert.NoError(t, err)
 

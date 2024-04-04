@@ -26,6 +26,20 @@ func IntToBool(b int) bool {
 	return false
 }
 
+// BoolToInt bool值转换为int值
+func BoolToUint8(b bool) uint8 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// IntToBool int值转换为bool
+func Uint8ToBool(b uint8) bool {
+
+	return b == 1
+}
+
 // ToJSON 将对象转换为JSON
 func ToJSON(obj interface{}) string {
 	jsonData, err := json.Marshal(obj)

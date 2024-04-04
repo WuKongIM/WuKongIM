@@ -112,11 +112,10 @@ func (p *Processor) processAuth(conn wknet.Conn, connectPacket *wkproto.ConnectP
 
 func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
 	var (
-		uid                             = connectPacket.UID
-		devceLevel  wkproto.DeviceLevel = wkproto.DeviceLevelMaster
-		err         error
-		devceLevelI uint8
-		token       string
+		uid                            = connectPacket.UID
+		devceLevel wkproto.DeviceLevel = wkproto.DeviceLevelMaster
+		err        error
+		// devceLevelI uint8
 	)
 	if strings.TrimSpace(connectPacket.ClientKey) == "" {
 		p.responseConnackAuthFail(conn)
@@ -136,19 +135,19 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 			p.responseConnackAuthFail(conn)
 			return
 		}
-		token, devceLevelI, err = p.s.store.GetUserToken(uid, connectPacket.DeviceFlag.ToUint8())
+		user, err := p.s.store.GetUser(uid, connectPacket.DeviceFlag.ToUint8())
 		if err != nil {
 			p.Error("get user token err", zap.Error(err))
 			p.responseConnackAuthFail(conn)
 			return
 
 		}
-		if token != connectPacket.Token {
-			p.Error("token verify fail", zap.String("expectToken", token), zap.String("actToken", connectPacket.Token), zap.Any("conn", conn))
+		if user.Token != connectPacket.Token {
+			p.Error("token verify fail", zap.String("expectToken", user.Token), zap.String("actToken", connectPacket.Token), zap.Any("conn", conn))
 			p.responseConnackAuthFail(conn)
 			return
 		}
-		devceLevel = wkproto.DeviceLevel(devceLevelI)
+		devceLevel = wkproto.DeviceLevel(user.DeviceLevel)
 	} else {
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
 	}
@@ -161,7 +160,7 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 		return
 	}
 	ban := false
-	if userChannelInfo != nil {
+	if !wkdb.IsEmptyChannelInfo(userChannelInfo) {
 		ban = userChannelInfo.Ban
 	}
 	if ban {
@@ -230,7 +229,7 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 	conn.SetUID(connectPacket.UID)
 	conn.SetValue(aesKeyKey, aesKey)
 	conn.SetValue(aesIVKey, aesIV)
-	conn.SetDeviceLevel(devceLevelI)
+	conn.SetDeviceLevel(uint8(devceLevel))
 	conn.SetMaxIdle(p.s.opts.ConnIdleTime)
 
 	p.s.connManager.AddConn(conn)
@@ -838,7 +837,7 @@ func (p *Processor) hasPermission(channel *Channel, fromUID string) (bool, wkpro
 	}
 	if channel.ChannelType != wkproto.ChannelTypePerson && channel.ChannelType != wkproto.ChannelTypeInfo {
 		if !channel.IsSubscriber(fromUID) && !channel.IsTmpSubscriber(fromUID) {
-			p.Error("The user is not in the channel and cannot send messages to the channel", zap.String("fromUID", fromUID), zap.String("channel_id", channel.ChannelID), zap.Uint8("channel_type", channel.ChannelType))
+			p.Error("The user is not in the channel and cannot send messages to the channel", zap.String("fromUID", fromUID), zap.String("channel_id", channel.ChannelId), zap.Uint8("channel_type", channel.ChannelType))
 			return false, wkproto.ReasonSubscriberNotExist
 		}
 	}

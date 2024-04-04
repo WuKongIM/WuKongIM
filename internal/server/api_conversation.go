@@ -12,7 +12,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/sendgrid/rest"
@@ -112,10 +111,10 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	conversation := s.s.conversationManager.GetConversation(req.UID, req.ChannelID, req.ChannelType)
-	if conversation == nil && req.MessageSeq > 0 {
-		conversation = &wkstore.Conversation{
+	if wkdb.IsEmptyConversation(conversation) && req.MessageSeq > 0 {
+		conversation = wkdb.Conversation{
 			UID:         req.UID,
-			ChannelID:   req.ChannelID,
+			ChannelId:   req.ChannelID,
 			ChannelType: req.ChannelType,
 			LastMsgSeq:  req.MessageSeq,
 		}
@@ -170,10 +169,10 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 	}
 
 	conversation := s.s.conversationManager.GetConversation(req.UID, req.ChannelID, req.ChannelType)
-	if conversation == nil && req.MessageSeq > 0 && req.Unread == 0 {
-		conversation = &wkstore.Conversation{
+	if wkdb.IsEmptyConversation(conversation) && req.MessageSeq > 0 && req.Unread == 0 {
+		conversation = wkdb.Conversation{
 			UID:         req.UID,
-			ChannelID:   req.ChannelID,
+			ChannelId:   req.ChannelID,
 			ChannelType: req.ChannelType,
 			UnreadCount: 0,
 			LastMsgSeq:  req.MessageSeq,
@@ -268,7 +267,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	// 获取用户最近会话基础数据
 
 	conversations := s.s.conversationManager.GetConversations(req.UID, req.Version, req.Larges)
-	var newConversations = make([]*wkstore.Conversation, 0, len(conversations)+20)
+	var newConversations = make([]wkdb.Conversation, 0, len(conversations)+20)
 	if conversations != nil {
 		newConversations = append(newConversations, conversations...)
 	}
@@ -276,17 +275,17 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	// ==================== 获取大群频道的最近会话 ====================
 	if len(req.Larges) > 0 && req.MsgCount > 0 {
 		for _, largeChannel := range req.Larges {
-			var existConversation *wkstore.Conversation
+			var existConversation wkdb.Conversation
 			for _, cs := range conversations {
-				if cs.ChannelID == largeChannel.ChannelID && cs.ChannelType == largeChannel.ChannelType {
+				if cs.ChannelId == largeChannel.ChannelID && cs.ChannelType == largeChannel.ChannelType {
 					existConversation = cs
 					break
 				}
 			}
-			if existConversation == nil {
-				newConversations = append(newConversations, &wkstore.Conversation{
+			if wkdb.IsEmptyConversation(existConversation) {
+				newConversations = append(newConversations, wkdb.Conversation{
 					UID:         req.UID,
-					ChannelID:   largeChannel.ChannelID,
+					ChannelId:   largeChannel.ChannelID,
 					ChannelType: largeChannel.ChannelType,
 					UnreadCount: 0, // 超大群未读数，服务器不做计算
 				})
@@ -302,9 +301,9 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			syncUserConversationR := newSyncUserConversationResp(conversation)
 			resps = append(resps, syncUserConversationR)
 
-			msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", conversation.ChannelID, conversation.ChannelType)]
+			msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", conversation.ChannelId, conversation.ChannelType)]
 			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
-				ChannelID:   conversation.ChannelID,
+				ChannelID:   conversation.ChannelId,
 				ChannelType: conversation.ChannelType,
 				LastMsgSeq:  msgSeq,
 			})

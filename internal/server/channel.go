@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -14,7 +15,7 @@ import (
 )
 
 type Channel struct {
-	*wkstore.ChannelInfo
+	wkdb.ChannelInfo
 	blacklist     sync.Map // 黑名单
 	whitelist     sync.Map // 白名单
 	subscriberMap sync.Map // 订阅者
@@ -24,7 +25,7 @@ type Channel struct {
 }
 
 // NewChannel NewChannel
-func NewChannel(channelInfo *wkstore.ChannelInfo, s *Server) *Channel {
+func NewChannel(channelInfo wkdb.ChannelInfo, s *Server) *Channel {
 
 	return &Channel{
 		ChannelInfo:      channelInfo,
@@ -33,7 +34,7 @@ func NewChannel(channelInfo *wkstore.ChannelInfo, s *Server) *Channel {
 		subscriberMap:    sync.Map{},
 		tmpSubscriberMap: sync.Map{},
 		s:                s,
-		Log:              wklog.NewWKLog(fmt.Sprintf("channel[%s-%d]", channelInfo.ChannelID, channelInfo.ChannelType)),
+		Log:              wklog.NewWKLog(fmt.Sprintf("channel[%s-%d]", channelInfo.ChannelId, channelInfo.ChannelType)),
 	}
 }
 
@@ -64,15 +65,15 @@ func (c *Channel) initChannelInfo() error {
 	if !c.s.opts.HasDatasource() {
 		return nil
 	}
-	if c.ChannelType == wkproto.ChannelTypePerson {
+	if c.ChannelInfo.ChannelType == wkproto.ChannelTypePerson {
 		return nil
 	}
-	channelInfo, err := c.s.datasource.GetChannelInfo(c.ChannelID, c.ChannelType)
+	channelInfo, err := c.s.datasource.GetChannelInfo(c.ChannelInfo.ChannelId, c.ChannelInfo.ChannelType)
 	if err != nil {
 		c.Error("从数据获取频道信息失败！", zap.Error(err))
 		return err
 	}
-	if channelInfo != nil {
+	if !wkdb.IsEmptyChannelInfo(channelInfo) {
 		c.ChannelInfo = channelInfo
 		return nil
 	}
@@ -81,8 +82,8 @@ func (c *Channel) initChannelInfo() error {
 
 // 初始化订阅者
 func (c *Channel) initSubscribers() error {
-	channelID := c.ChannelID
-	channelType := c.ChannelType
+	channelID := c.ChannelInfo.ChannelId
+	channelType := c.ChannelInfo.ChannelType
 	if c.s.opts.HasDatasource() && channelType != wkproto.ChannelTypePerson {
 		subscribers, err := c.s.datasource.GetSubscribers(channelID, channelType)
 		if err != nil {
@@ -122,13 +123,13 @@ func (c *Channel) initBlacklist() error {
 	var blacklists []string
 	var err error
 	if c.s.opts.HasDatasource() {
-		blacklists, err = c.s.datasource.GetBlacklist(c.ChannelID, c.ChannelType)
+		blacklists, err = c.s.datasource.GetBlacklist(c.ChannelInfo.ChannelId, c.ChannelInfo.ChannelType)
 		if err != nil {
 			c.Error("从数据源获取黑名单失败！", zap.Error(err))
 			return err
 		}
 	} else {
-		blacklists, err = c.s.store.GetDenylist(c.ChannelID, c.ChannelType)
+		blacklists, err = c.s.store.GetDenylist(c.ChannelInfo.ChannelId, c.ChannelInfo.ChannelType)
 		if err != nil {
 			c.Error("获取黑名单失败！", zap.Error(err))
 			return err
@@ -147,13 +148,13 @@ func (c *Channel) initWhitelist() error {
 	var whitelists []string
 	var err error
 	if c.s.opts.HasDatasource() {
-		whitelists, err = c.s.datasource.GetWhitelist(c.ChannelID, c.ChannelType)
+		whitelists, err = c.s.datasource.GetWhitelist(c.ChannelInfo.ChannelId, c.ChannelInfo.ChannelType)
 		if err != nil {
 			c.Error("从数据源获取白名单失败！", zap.Error(err))
 			return err
 		}
 	} else {
-		whitelists, err = c.s.store.GetAllowlist(c.ChannelID, c.ChannelType)
+		whitelists, err = c.s.store.GetAllowlist(c.ChannelInfo.ChannelId, c.ChannelInfo.ChannelType)
 		if err != nil {
 			c.Error("获取白名单失败！", zap.Error(err))
 			return err
@@ -170,8 +171,8 @@ func (c *Channel) initWhitelist() error {
 // 获取父频道
 func (c *Channel) parentChannel() (*Channel, error) {
 	var parentChannel *Channel
-	if c.ChannelType == wkproto.ChannelTypeCommunityTopic {
-		parentChannelID := GetCommunityTopicParentChannelID(c.ChannelID)
+	if c.ChannelInfo.ChannelType == wkproto.ChannelTypeCommunityTopic {
+		parentChannelID := GetCommunityTopicParentChannelID(c.ChannelInfo.ChannelId)
 		if parentChannelID != "" {
 			var err error
 			parentChannel, err = c.s.channelManager.GetChannel(parentChannelID, wkproto.ChannelTypeCommunity)
@@ -180,7 +181,7 @@ func (c *Channel) parentChannel() (*Channel, error) {
 			}
 			c.Debug("获取父类频道", zap.Any("parentChannel", parentChannel))
 		} else {
-			c.Warn("不符合的社区话题频道ID", zap.String("channelID", c.ChannelID))
+			c.Warn("不符合的社区话题频道ID", zap.String("channelID", c.ChannelId))
 		}
 	}
 	return parentChannel, nil
@@ -250,7 +251,7 @@ func (c *Channel) AddTmpSubscribers(uids []string) {
 // Allow Whether to allow sending of messages If it is in the white list or not in the black list, it is allowed to send
 func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 
-	if c.ChannelType == wkproto.ChannelTypeInfo { // 资讯频道都可以发消息
+	if c.ChannelInfo.ChannelType == wkproto.ChannelTypeInfo { // 资讯频道都可以发消息
 		return true, wkproto.ReasonSuccess
 	}
 
@@ -260,7 +261,7 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 		return true, wkproto.ReasonSuccess
 	}
 
-	if c.Ban { // 频道被封
+	if c.ChannelInfo.Ban { // 频道被封
 		c.Debug("channel is banned", zap.String("uid", uid))
 		return false, wkproto.ReasonBan
 	}
@@ -276,7 +277,7 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 	// 	}
 	// 	return true, wkproto.ReasonSuccess
 	// }
-	if c.ChannelType != wkproto.ChannelTypePerson || !c.s.opts.WhitelistOffOfPerson {
+	if c.ChannelInfo.ChannelType != wkproto.ChannelTypePerson || !c.s.opts.WhitelistOffOfPerson {
 		whitelistLength := 0
 		c.whitelist.Range(func(_, _ interface{}) bool {
 			whitelistLength++
@@ -290,7 +291,7 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 			c.Debug("not in whitelist", zap.String("uid", uid))
 			return ok, wkproto.ReasonNotInWhitelist
 		}
-		if c.ChannelType == wkproto.ChannelTypePerson { // 个人频道强制验证白名单，除非WhitelistOffOfPerson==true
+		if c.ChannelInfo.ChannelType == wkproto.ChannelTypePerson { // 个人频道强制验证白名单，除非WhitelistOffOfPerson==true
 			if whitelistLength == 0 {
 				c.Debug("whitelist is empty", zap.String("uid", uid))
 				return false, wkproto.ReasonNotInWhitelist
@@ -304,8 +305,8 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 // real subscribers
 func (c *Channel) RealSubscribers(customSubscribers []string) ([]string, error) {
 
-	subscribers := make([]string, 0)                        // TODO: 此处可以用对象pool来管理
-	if c.ChannelType == wkproto.ChannelTypeCommunityTopic { // 社区话题频道
+	subscribers := make([]string, 0)                                    // TODO: 此处可以用对象pool来管理
+	if c.ChannelInfo.ChannelType == wkproto.ChannelTypeCommunityTopic { // 社区话题频道
 		channelSubscribers := c.GetAllSubscribers()
 		if len(channelSubscribers) == 0 { // 如果频道无订阅者，则获取父频道的订阅者
 			parentChannel, err := c.parentChannel()
@@ -318,7 +319,7 @@ func (c *Channel) RealSubscribers(customSubscribers []string) ([]string, error) 
 			}
 			return parentChannel.RealSubscribers(customSubscribers)
 		}
-	} else if c.ChannelType == wkproto.ChannelTypeInfo {
+	} else if c.ChannelInfo.ChannelType == wkproto.ChannelTypeInfo {
 		subscribers = append(subscribers, c.GetAllTmpSubscribers()...)
 	}
 	// 组合订阅者
@@ -458,13 +459,13 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 		c.Error("获取频道失败！", zap.Error(err))
 		return err
 	}
-	c.Debug("订阅者数量", zap.Any("subscribers", len(subscribers)))
+	// c.Debug("订阅者数量", zap.Any("subscribers", len(subscribers)))
 	if len(subscribers) == 0 {
 		return nil
 	}
 	channel := &wkproto.Channel{
-		ChannelID:   c.ChannelID,
-		ChannelType: c.ChannelType,
+		ChannelID:   c.ChannelInfo.ChannelId,
+		ChannelType: c.ChannelInfo.ChannelType,
 	}
 	if c.s.opts.ClusterOn() {
 		nodeIDSubscribersMap, err := c.calcNodeSubscribers(subscribers)
@@ -474,13 +475,13 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 		}
 		for nodeID, subscribers := range nodeIDSubscribersMap {
 			if nodeID == c.s.opts.Cluster.NodeId {
-				err = c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
+				err = c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.ChannelInfo.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
 				if err != nil {
 					c.Error("处理本地订阅者消息失败！", zap.Error(err))
 					return err
 				}
 			} else {
-				err = c.forwardToOtherPeerSubscribers(messages, c.Large, nodeID, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
+				err = c.forwardToOtherPeerSubscribers(messages, c.ChannelInfo.Large, nodeID, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
 				if err != nil {
 					c.Error("转发消息失败！", zap.Error(err))
 					return err
@@ -488,7 +489,7 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 			}
 		}
 	} else {
-		return c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
+		return c.s.dispatch.processor.handleLocalSubscribersMessages(messages, c.ChannelInfo.Large, subscribers, fromUID, fromDeviceFlag, fromDeviceID, channel)
 	}
 
 	return nil

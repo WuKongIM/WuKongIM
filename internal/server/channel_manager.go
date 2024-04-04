@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
@@ -73,9 +73,9 @@ func (cm *ChannelManager) getChannelFromCacheOrStore(channelID string, channelTy
 	if err != nil {
 		return nil, err
 	}
-	if channelInfo == nil {
+	if wkdb.IsEmptyChannelInfo(channelInfo) {
 		if cm.s.opts.Channel.CreateIfNoExist || channelType == wkproto.ChannelTypeCommunityTopic || channelType == wkproto.ChannelTypeInfo {
-			channelInfo = wkstore.NewChannelInfo(channelID, channelType)
+			channelInfo = wkdb.NewChannelInfo(channelID, channelType)
 		} else {
 			return nil, nil
 		}
@@ -98,7 +98,7 @@ func (cm *ChannelManager) getChannelFromCache(channelID string, channelType uint
 	return nil
 }
 func (cm *ChannelManager) setChannelFromCache(channel *Channel) {
-	key := fmt.Sprintf("%s-%d", channel.ChannelID, channel.ChannelType)
+	key := fmt.Sprintf("%s-%d", channel.ChannelId, channel.ChannelType)
 	cm.channelCache.Add(key, channel)
 }
 
@@ -132,7 +132,7 @@ func (cm *ChannelManager) setChannelFromCache(channel *Channel) {
 
 // CreateTmpChannel 创建临时频道
 func (cm *ChannelManager) CreateTmpChannel(channelID string, channelType uint8, subscribers []string) error {
-	channel := NewChannel(wkstore.NewChannelInfo(channelID, channelType), cm.s)
+	channel := NewChannel(wkdb.NewChannelInfo(channelID, channelType), cm.s)
 	if len(subscribers) > 0 {
 		for _, subscriber := range subscribers {
 			channel.AddSubscriber(subscriber)
@@ -150,7 +150,7 @@ func (cm *ChannelManager) GetPersonChannel(channelID string, channelType uint8) 
 	if ok {
 		return v, nil
 	}
-	channel := NewChannel(wkstore.NewChannelInfo(channelID, channelType), cm.s)
+	channel := NewChannel(wkdb.NewChannelInfo(channelID, channelType), cm.s)
 	err := channel.LoadData()
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (cm *ChannelManager) GetOrCreateDataChannel(channelID string, channelType u
 	channelObj, _ := cm.dataChannelCache.Load(fmt.Sprintf("%s-%d", channelID, channelType))
 	var channel *Channel
 	if channelObj == nil {
-		channel = NewChannel(wkstore.NewChannelInfo(channelID, channelType), cm.s)
+		channel = NewChannel(wkdb.NewChannelInfo(channelID, channelType), cm.s)
 		cm.dataChannelCache.Store(fmt.Sprintf("%s-%d", channelID, channelType), channel)
 	} else {
 		channel = channelObj.(*Channel)

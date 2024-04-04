@@ -109,6 +109,8 @@ func (c *Client) run(connectChan chan struct{}) {
 
 		c.running.Store(true)
 		c.disconnect()
+
+		c.connectStatusChange(CONNECTING)
 		// 建立连接
 		conn, err := net.DialTimeout("tcp", c.addr, c.opts.ConnectTimeout)
 		if err != nil {
@@ -240,7 +242,9 @@ func (c *Client) disconnect() {
 	}
 	c.connectStatusChange(DISCONNECTING)
 	c.stopHeartbeat()
-	c.conn.Close()
+	if c.conn != nil {
+		c.conn.Close()
+	}
 	if c.outbound != nil {
 		c.outbound.Close()
 		c.outbound = nil
