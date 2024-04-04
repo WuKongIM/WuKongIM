@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/network"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -81,7 +82,13 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 
 // 这里清空token 让设备去重新登录 空token是不让登录的
 func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
-	err := u.s.store.UpdateUserToken(uid, deviceFlag.ToUint8(), uint8(wkproto.DeviceLevelMaster), "") // 这里的deviceLevel可以随便给 不影响逻辑 这里随便给的master
+
+	err := u.s.store.UpdateUser(wkdb.User{
+		Uid:         uid,
+		DeviceFlag:  deviceFlag.ToUint8(),
+		DeviceLevel: uint8(wkproto.DeviceLevelMaster),
+		Token:       "",
+	}) // 这里的deviceLevel可以随便给 不影响逻辑 这里随便给的master
 	if err != nil {
 		u.Error("清空用户token失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
 		return err
@@ -257,7 +264,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	if channelInfo != nil {
+	if !wkdb.IsEmptyChannelInfo(channelInfo) {
 		ban = channelInfo.Ban
 	}
 	if ban {
@@ -265,7 +272,12 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
-	err = u.s.store.UpdateUserToken(req.UID, req.DeviceFlag.ToUint8(), uint8(req.DeviceLevel), req.Token)
+	err = u.s.store.UpdateUser(wkdb.User{
+		Uid:         req.UID,
+		DeviceFlag:  req.DeviceFlag.ToUint8(),
+		DeviceLevel: uint8(req.DeviceLevel),
+		Token:       req.Token,
+	})
 	if err != nil {
 		u.Error("更新用户token失败！", zap.Error(err))
 		c.ResponseError(errors.Wrap(err, "更新用户token失败！"))
@@ -286,7 +298,6 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 					oldConn.Close()
 				})
 			}
-
 		}
 	}
 

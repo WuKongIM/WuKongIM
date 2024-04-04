@@ -6,7 +6,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/zap"
 )
 
 type localReplicaStoreQueue struct {
@@ -126,7 +125,6 @@ func newProposeQueue() *proposeQueue {
 func (p *proposeQueue) push(req proposeReq) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.Debug("push propose req", zap.Int("logs", len(req.logs)))
 	p.reqs.PushBack(req)
 }
 
@@ -140,6 +138,5 @@ func (p *proposeQueue) pop() (proposeReq, bool) {
 	e := p.reqs.Front()
 	p.reqs.Remove(e)
 	req := e.Value.(proposeReq)
-	p.Debug("pop propose req", zap.Int("logs", len(req.logs)))
 	return req, true
 }

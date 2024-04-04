@@ -99,7 +99,6 @@ func (m *messageWait) addWait(ctx context.Context, messageIds []uint64) chan []m
 
 	messageItems := make([]messageItem, len(messageIds))
 	for i, messageId := range messageIds {
-		// m.Debug("addWait", zap.Uint64("messageId", messageId))
 		messageItems[i] = messageItem{
 			messageId: messageId,
 		}
@@ -152,7 +151,6 @@ func (m *messageWait) didPropose(messageId uint64, messageSeq uint64) {
 	for _, item := range m.items {
 		for i, messageItem := range item.messageItems {
 			if messageItem.messageId == messageId {
-				// m.Debug("didPropose", zap.Uint64("messageSeq", messageSeq))
 				item.messageItems[i].messageSeq = messageSeq
 				item.messageItems[i].proposed = true
 			}
@@ -177,7 +175,6 @@ func (m *messageWait) didCommit(startMessaageSeq uint64, endMessageSeq uint64) {
 				if messageItem.messageSeq >= startMessaageSeq && messageItem.messageSeq < endMessageSeq {
 					item.messageItems[i].committed = true
 					hasCommitted = true
-					// m.Debug("didCommit", zap.Uint64("messageSeq", messageItem.messageSeq))
 				}
 			}
 		}

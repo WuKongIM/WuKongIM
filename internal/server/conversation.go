@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -22,7 +22,7 @@ type ConversationManager struct {
 	s           *Server
 	wklog.Log
 	queue                          *Queue
-	userConversationMapBuckets     []map[string]*lru.Cache[string, *wkstore.Conversation]
+	userConversationMapBuckets     []map[string]*lru.Cache[string, wkdb.Conversation]
 	userConversationMapBucketLocks []sync.RWMutex
 	bucketNum                      int
 	needSaveConversationMap        map[string]bool
@@ -46,7 +46,7 @@ func NewConversationManager(s *Server) *ConversationManager {
 		needSaveChan:            make(chan string),
 		queue:                   NewQueue(),
 	}
-	cm.userConversationMapBuckets = make([]map[string]*lru.Cache[string, *wkstore.Conversation], cm.bucketNum)
+	cm.userConversationMapBuckets = make([]map[string]*lru.Cache[string, wkdb.Conversation], cm.bucketNum)
 	cm.userConversationMapBucketLocks = make([]sync.RWMutex, cm.bucketNum)
 
 	s.Schedule(time.Minute, func() {
@@ -106,7 +106,7 @@ func (cm *ConversationManager) clearExpireConversations() {
 			keys := cache.Keys()
 			for _, key := range keys {
 				conversation, _ := cache.Get(key)
-				if conversation != nil {
+				if !wkdb.IsEmptyConversation(conversation) {
 					if conversation.Timestamp+int64(cm.s.opts.Conversation.CacheExpire.Seconds()) < time.Now().Unix() {
 						cache.Remove(key)
 					}
@@ -187,11 +187,12 @@ func (cm *ConversationManager) SetConversationUnread(uid string, channelID strin
 	conversationCache := cm.getUserConversationCache(uid)
 	for _, key := range conversationCache.Keys() {
 		conversation, _ := conversationCache.Get(key)
-		if channelID == conversation.ChannelID && channelType == conversation.ChannelType {
-			conversation.UnreadCount = unread
+		if channelID == conversation.ChannelId && channelType == conversation.ChannelType {
+			conversation.UnreadCount = uint32(unread)
 			if messageSeq > 0 {
 				conversation.LastMsgSeq = messageSeq
 			}
+			conversationCache.Add(cm.getChannelKey(conversation.ChannelId, conversation.ChannelType), conversation)
 			cm.setNeedSave(uid)
 			return nil
 		}
@@ -200,23 +201,23 @@ func (cm *ConversationManager) SetConversationUnread(uid string, channelID strin
 	if err != nil {
 		return err
 	}
-	if conversation != nil {
-		conversation.UnreadCount = unread
+	if !wkdb.IsEmptyConversation(conversation) {
+		conversation.UnreadCount = uint32(unread)
 		if messageSeq > 0 {
 			conversation.LastMsgSeq = messageSeq
 		}
-		conversationCache.Add(cm.getChannelKey(conversation.ChannelID, conversation.ChannelType), conversation)
+		conversationCache.Add(cm.getChannelKey(conversation.ChannelId, conversation.ChannelType), conversation)
 		cm.setNeedSave(uid)
 	}
 	return nil
 }
 
-func (cm *ConversationManager) GetConversation(uid string, channelID string, channelType uint8) *wkstore.Conversation {
+func (cm *ConversationManager) GetConversation(uid string, channelID string, channelType uint8) wkdb.Conversation {
 
 	conversations := cm.getUserCacheConversations(uid)
 	if len(conversations) > 0 {
 		for _, conversation := range conversations {
-			if conversation.ChannelID == channelID && conversation.ChannelType == channelType {
+			if conversation.ChannelId == channelID && conversation.ChannelType == channelType {
 				return conversation
 			}
 		}
@@ -254,7 +255,7 @@ func (cm *ConversationManager) DeleteConversation(uids []string, channelID strin
 	return nil
 }
 
-func (cm *ConversationManager) getUserAllConversationMapFromStore(uid string) ([]*wkstore.Conversation, error) {
+func (cm *ConversationManager) getUserAllConversationMapFromStore(uid string) ([]wkdb.Conversation, error) {
 	conversations, err := cm.s.store.GetConversations(uid)
 	if err != nil {
 		cm.Error("Failed to get the list of recent conversations", zap.String("uid", uid), zap.Error(err))
@@ -263,8 +264,8 @@ func (cm *ConversationManager) getUserAllConversationMapFromStore(uid string) ([
 	return conversations, nil
 }
 
-func (cm *ConversationManager) newLRUCache() *lru.Cache[string, *wkstore.Conversation] {
-	c, _ := lru.New[string, *wkstore.Conversation](cm.s.opts.Conversation.UserMaxCount)
+func (cm *ConversationManager) newLRUCache() *lru.Cache[string, wkdb.Conversation] {
+	c, _ := lru.New[string, wkdb.Conversation](cm.s.opts.Conversation.UserMaxCount)
 	return c
 }
 
@@ -290,7 +291,7 @@ func (cm *ConversationManager) FlushConversations() {
 func (cm *ConversationManager) flushUserConversations(uid string) {
 
 	conversationCache := cm.getUserConversationCache(uid)
-	conversations := make([]*wkstore.Conversation, 0, len(conversationCache.Keys()))
+	conversations := make([]wkdb.Conversation, 0, len(conversationCache.Keys()))
 	for _, key := range conversationCache.Keys() {
 		conversationObj, ok := conversationCache.Get(key)
 		if ok {
@@ -309,19 +310,19 @@ func (cm *ConversationManager) flushUserConversations(uid string) {
 		// 移除过期的最近会话缓存
 		for _, conversation := range conversations {
 			if conversation.Timestamp+int64(cm.s.opts.Conversation.CacheExpire.Seconds()) < time.Now().Unix() {
-				key := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
+				key := cm.getChannelKey(conversation.ChannelId, conversation.ChannelType)
 				conversationCache.Remove(key)
 			}
 		}
 	}
 }
 
-func (cm *ConversationManager) getUserConversationCache(uid string) *lru.Cache[string, *wkstore.Conversation] {
+func (cm *ConversationManager) getUserConversationCache(uid string) *lru.Cache[string, wkdb.Conversation] {
 	pos := int(wkutil.HashCrc32(uid) % uint32(cm.bucketNum))
 	cm.userConversationMapBucketLocks[pos].RLock()
 	userConversationMap := cm.userConversationMapBuckets[pos]
 	if userConversationMap == nil {
-		userConversationMap = make(map[string]*lru.Cache[string, *wkstore.Conversation])
+		userConversationMap = make(map[string]*lru.Cache[string, wkdb.Conversation])
 		cm.userConversationMapBuckets[pos] = userConversationMap
 	}
 
@@ -337,10 +338,10 @@ func (cm *ConversationManager) getUserConversationCache(uid string) *lru.Cache[s
 	return cache
 }
 
-func (cm *ConversationManager) getUserCacheConversations(uid string) []*wkstore.Conversation {
+func (cm *ConversationManager) getUserCacheConversations(uid string) []wkdb.Conversation {
 	cache := cm.getUserConversationCache(uid)
 
-	conversations := make([]*wkstore.Conversation, 0, len(cache.Keys()))
+	conversations := make([]wkdb.Conversation, 0, len(cache.Keys()))
 	for _, key := range cache.Keys() {
 		conversationObj, ok := cache.Get(key)
 		if ok {
@@ -378,7 +379,7 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 	conversation, _ := conversationCache.Get(channelKey)
 	cm.channelLock.Unlock(channelKey)
 
-	if conversation == nil {
+	if wkdb.IsEmptyConversation(conversation) {
 		var err error
 		conversation, err = cm.s.store.GetConversation(subscriber, channelID, message.ChannelType)
 		if err != nil {
@@ -387,14 +388,14 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 	}
 
 	var modify = false
-	if conversation == nil {
-		unreadCount := 0
+	if wkdb.IsEmptyConversation(conversation) {
+		var unreadCount uint32 = 0
 		if message.RedDot && message.FromUID != subscriber { //  message.FromUID != subscriber 自己发的消息不显示红点
 			unreadCount = 1
 		}
-		conversation = &wkstore.Conversation{
+		conversation = wkdb.Conversation{
 			UID:             subscriber,
-			ChannelID:       channelID,
+			ChannelId:       channelID,
 			ChannelType:     message.ChannelType,
 			UnreadCount:     unreadCount,
 			Timestamp:       int64(message.Timestamp),
@@ -427,8 +428,8 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 
 }
 
-func (cm *ConversationManager) AddOrUpdateConversation(uid string, conversation *wkstore.Conversation) {
-	channelKey := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
+func (cm *ConversationManager) AddOrUpdateConversation(uid string, conversation wkdb.Conversation) {
+	channelKey := cm.getChannelKey(conversation.ChannelId, conversation.ChannelType)
 	conversationCache := cm.getUserConversationCache(uid)
 	cm.channelLock.Lock(channelKey)
 	conversationCache.Add(channelKey, conversation)
@@ -437,9 +438,9 @@ func (cm *ConversationManager) AddOrUpdateConversation(uid string, conversation 
 }
 
 // GetConversations GetConversations
-func (cm *ConversationManager) GetConversations(uid string, version int64, larges []*wkproto.Channel) []*wkstore.Conversation {
+func (cm *ConversationManager) GetConversations(uid string, version int64, larges []*wkproto.Channel) []wkdb.Conversation {
 
-	newConversations := make([]*wkstore.Conversation, 0)
+	newConversations := make([]wkdb.Conversation, 0)
 
 	oldConversations, err := cm.getUserAllConversationMapFromStore(uid)
 	if err != nil {
@@ -454,15 +455,15 @@ func (cm *ConversationManager) GetConversations(uid string, version int64, large
 
 	for _, updateConversation := range updateConversations {
 		existIndex := 0
-		var existConversation *wkstore.Conversation
+		var existConversation wkdb.Conversation
 		for idx, conversation := range oldConversations {
-			if conversation.ChannelID == updateConversation.ChannelID && conversation.ChannelType == updateConversation.ChannelType {
+			if conversation.ChannelId == updateConversation.ChannelId && conversation.ChannelType == updateConversation.ChannelType {
 				existConversation = updateConversation
 				existIndex = idx
 				break
 			}
 		}
-		if existConversation == nil {
+		if wkdb.IsEmptyConversation(existConversation) {
 			newConversations = append(newConversations, updateConversation)
 		} else {
 			newConversations[existIndex] = existConversation
@@ -470,8 +471,8 @@ func (cm *ConversationManager) GetConversations(uid string, version int64, large
 	}
 	conversationSlice := conversationSlice{}
 	for _, conversation := range newConversations {
-		if conversation != nil {
-			if version <= 0 || conversation.Version > version || cm.channelInLarges(conversation.ChannelID, conversation.ChannelType, larges) {
+		if !wkdb.IsEmptyConversation(conversation) {
+			if version <= 0 || conversation.Version > version || cm.channelInLarges(conversation.ChannelId, conversation.ChannelType, larges) {
 				conversationSlice = append(conversationSlice, conversation)
 			}
 		}
@@ -500,7 +501,7 @@ func (cm *ConversationManager) getChannelKey(channelID string, channelType uint8
 	return fmt.Sprintf("%s-%d", channelID, channelType)
 }
 
-type conversationSlice []*wkstore.Conversation
+type conversationSlice []wkdb.Conversation
 
 func (s conversationSlice) Len() int { return len(s) }
 

@@ -105,14 +105,14 @@ func (e *eventHandler) proposeAndWaitCommits(ctx context.Context, logs []replica
 	// 	return nil, ErrStopped
 	// }
 
-	req := newProposeReq(logs)
-	e.proposeQueue.push(req)
-
 	messageIds := make([]uint64, 0, len(logs))
 	for _, log := range logs {
 		messageIds = append(messageIds, log.MessageId)
 	}
 	waitC := e.messageWait.addWait(ctx, messageIds)
+
+	req := newProposeReq(logs)
+	e.proposeQueue.push(req)
 
 	e.replicaAction.advance()
 

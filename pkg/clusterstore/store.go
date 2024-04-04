@@ -14,7 +14,6 @@ import (
 
 type Store struct {
 	opts *Options
-	db   *wkstore.FileStore
 	wdb  wkdb.DB
 	wklog.Log
 	lock *keylock.KeyLock
@@ -41,8 +40,7 @@ func NewStore(opts *Options) *Store {
 	storeCfg.DataDir = opts.DataDir
 	storeCfg.SlotNum = int(opts.SlotCount)
 	storeCfg.DecodeMessageFnc = opts.DecodeMessageFnc
-	s.db = wkstore.NewFileStore(storeCfg)
-	s.wdb = wkdb.NewPebbleDB(wkdb.NewOptions(wkdb.WithDir(opts.DataDir)))
+	s.wdb = wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(opts.DataDir), wkdb.WithNodeId(opts.NodeID)))
 	s.messageShardLogStorage = NewMessageShardLogStorage(s.wdb)
 	return s
 }
@@ -53,13 +51,11 @@ func (s *Store) Open() error {
 	if err != nil {
 		return err
 	}
-	err = s.db.Open()
-	return err
+	return nil
 }
 
 func (s *Store) Close() {
-	_ = s.wdb.Close()
-	err := s.db.Close()
+	err := s.wdb.Close()
 	if err != nil {
 		s.Warn("close message storage err", zap.Error(err))
 	}
@@ -67,33 +63,39 @@ func (s *Store) Close() {
 }
 
 func (s *Store) GetPeerInFlightData() ([]*wkstore.PeerInFlightDataModel, error) {
-	return s.db.GetPeerInFlightData()
+	// return s.db.GetPeerInFlightData()
+	return nil, nil
 }
 
 func (s *Store) ClearPeerInFlightData() error {
-	return s.db.ClearPeerInFlightData()
+	return nil
 }
 
 func (s *Store) AddPeerInFlightData(data []*wkstore.PeerInFlightDataModel) error {
-	return s.db.AddPeerInFlightData(data)
+	return nil
 }
 
 func (s *Store) AddSystemUIDs(uids []string) error {
-	return s.db.AddSystemUIDs(uids)
+	// return s.db.AddSystemUIDs(uids)
+	return nil
 }
 
 func (s *Store) RemoveSystemUIDs(uids []string) error {
-	return s.db.RemoveSystemUIDs(uids)
+	return nil
+	// return s.db.RemoveSystemUIDs(uids)
 }
 
 func (s *Store) GetIPBlacklist() ([]string, error) {
-	return s.db.GetIPBlacklist()
+	// return s.db.GetIPBlacklist()
+	return nil, nil
 }
 
 func (s *Store) RemoveIPBlacklist(ips []string) error {
-	return s.db.RemoveIPBlacklist(ips)
+	// return s.db.RemoveIPBlacklist(ips)
+	return nil
 }
 
 func (s *Store) AddIPBlacklist(ips []string) error {
-	return s.db.AddIPBlacklist(ips)
+	// return s.db.AddIPBlacklist(ips)
+	return nil
 }

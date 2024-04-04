@@ -1,11 +1,11 @@
 package clusterstore
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
-func (s *Store) AddOrUpdateConversations(uid string, conversations []*wkstore.Conversation) error {
+func (s *Store) AddOrUpdateConversations(uid string, conversations []wkdb.Conversation) error {
 	if len(conversations) == 0 {
 		return nil
 	}
@@ -13,7 +13,10 @@ func (s *Store) AddOrUpdateConversations(uid string, conversations []*wkstore.Co
 		channelID   = uid
 		channelType = wkproto.ChannelTypePerson
 	)
-	data := EncodeCMDAddOrUpdateConversations(uid, conversations)
+	data, err := EncodeCMDAddOrUpdateConversations(uid, conversations)
+	if err != nil {
+		return err
+	}
 	cmd := NewCMD(CMDAddOrUpdateConversations, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
@@ -34,10 +37,10 @@ func (s *Store) DeleteConversation(uid string, channelID string, channelType uin
 	return err
 }
 
-func (s *Store) GetConversations(uid string) ([]*wkstore.Conversation, error) {
-	return s.db.GetConversations(uid)
+func (s *Store) GetConversations(uid string) ([]wkdb.Conversation, error) {
+	return s.wdb.GetConversations(uid)
 }
 
-func (s *Store) GetConversation(uid string, channelID string, channelType uint8) (*wkstore.Conversation, error) {
-	return s.db.GetConversation(uid, channelID, channelType)
+func (s *Store) GetConversation(uid string, channelID string, channelType uint8) (wkdb.Conversation, error) {
+	return s.wdb.GetConversation(uid, channelID, channelType)
 }

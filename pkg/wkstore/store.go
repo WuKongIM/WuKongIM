@@ -145,8 +145,8 @@ func (c *ChannelInfo) From(mp map[string]interface{}) {
 }
 
 // NewChannelInfo NewChannelInfo
-func NewChannelInfo(channelID string, channelType uint8) *ChannelInfo {
-	return &ChannelInfo{
+func NewChannelInfo(channelID string, channelType uint8) ChannelInfo {
+	return ChannelInfo{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 	}

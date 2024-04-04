@@ -436,7 +436,6 @@ func (l *localStorage) setAppliedIndex(shardNo string, index uint64) error {
 	appliedIndexdata := make([]byte, 8)
 	binary.BigEndian.PutUint64(appliedIndexdata, index)
 
-	fmt.Println("setAppliedIndex--->", index)
 	err := l.db.Set(appliedIndexKeyData, appliedIndexdata, l.wo)
 	return err
 }

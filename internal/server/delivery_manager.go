@@ -110,7 +110,6 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 					continue
 				}
 				recvPacket.MsgKey = msgKey
-				fmt.Println("recvPacket---->", recvPacket.MessageSeq, recvPacket.MsgKey)
 
 				recvPackets = append(recvPackets, &recvPacket)
 			}

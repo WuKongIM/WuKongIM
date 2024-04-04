@@ -138,26 +138,6 @@ func (s *Store) AppendMessagesOfUser(subscriber string, messages []wkdb.Message)
 	return s.opts.Cluster.ProposeToSlot(s.ctx, slotId, logs)
 }
 
-func (s *Store) setSeqForMessages(subscriber string, messages []wkdb.Message) error {
-	s.lock.Lock(subscriber)
-	defer s.lock.Unlock(subscriber)
-	maxSeq, err := s.wdb.GetChannelLastMessageSeq(subscriber, wkproto.ChannelTypePerson)
-	if err != nil {
-		return err
-	}
-	for i, msg := range messages {
-		msg.MessageSeq = uint32(maxSeq + uint64(i) + 1)
-
-	}
-	// 保存当前用户的最大消息序号（用户的消息messageSeq不要求严格递增连续，只要递增就行，所以这里保存成功后续执行失败，也不会影响程序正常逻辑）
-	err = s.wdb.SetChannelLastMessageSeq(subscriber, wkproto.ChannelTypePerson, maxSeq+uint64(len(messages)))
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
 func (s *Store) SyncMessageOfUser(uid string, messageSeq uint64, limit uint32) ([]wkdb.Message, error) {
 	return s.wdb.LoadNextRangeMsgs(uid, wkproto.ChannelTypePerson, messageSeq, 0, int(limit))
 }
