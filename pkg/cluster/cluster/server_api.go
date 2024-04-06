@@ -12,8 +12,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -412,7 +412,7 @@ func (s *Server) slotChannelsGet(c *wkhttp.Context) {
 			c.ResponseError(err)
 			return
 		}
-		shardNo := ChannelKey(cfg.ChannelID, cfg.ChannelType)
+		shardNo := ChannelKey(cfg.ChannelId, cfg.ChannelType)
 		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
 		if err != nil {
 			s.Error("LastIndexAndAppendTime error", zap.Error(err))
@@ -459,7 +459,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		return
 	}
 
-	channelClusterConfigs, err := s.opts.ChannelClusterStorage.GetWithAllSlot()
+	channelClusterConfigs, err := s.opts.ChannelClusterStorage.GetAll(0, 10000)
 	if err != nil {
 		s.Error("GetWithAllSlot error", zap.Error(err))
 		c.ResponseError(err)
@@ -469,7 +469,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 	channelClusterConfigResps := make([]*ChannelClusterConfigResp, 0, len(channelClusterConfigs))
 
 	for _, cfg := range channelClusterConfigs {
-		slotId := s.getChannelSlotId(cfg.ChannelID)
+		slotId := s.getChannelSlotId(cfg.ChannelId)
 		slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
 		if slot == nil {
 			s.Error("slot not found", zap.Uint32("slotId", slotId))
@@ -479,7 +479,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		if !wkutil.ArrayContainsUint64(cfg.Replicas, s.opts.NodeID) {
 			continue
 		}
-		shardNo := ChannelKey(cfg.ChannelID, cfg.ChannelType)
+		shardNo := ChannelKey(cfg.ChannelId, cfg.ChannelType)
 		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
 		if err != nil {
 			s.Error("LastIndexAndAppendTime error", zap.Error(err))
@@ -494,7 +494,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		}
 		channelClusterConfigResps = append(channelClusterConfigResps, resp)
 
-		exist := s.channelGroupManager.existChannel(cfg.ChannelID, cfg.ChannelType)
+		exist := s.channelGroupManager.existChannel(cfg.ChannelId, cfg.ChannelType)
 		if exist {
 			resp.Active = 1
 			resp.ActiveFormat = "已激活"
@@ -648,7 +648,7 @@ type ChannelClusterConfigResp struct {
 	ActiveFormat      string   `json:"active_format"`       // 状态格式化
 }
 
-func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg *wkstore.ChannelClusterConfig) *ChannelClusterConfigResp {
+func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg wkdb.ChannelClusterConfig) *ChannelClusterConfigResp {
 
 	channelTypeFormat := ""
 
@@ -669,10 +669,10 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 		channelTypeFormat = fmt.Sprintf("未知(%d)", cfg.ChannelType)
 	}
 	return &ChannelClusterConfigResp{
-		ChannelID:         cfg.ChannelID,
+		ChannelID:         cfg.ChannelId,
 		ChannelType:       cfg.ChannelType,
 		ChannelTypeFormat: channelTypeFormat,
-		ReplicaCount:      cfg.ReplicaCount,
+		ReplicaCount:      cfg.ReplicaMaxCount,
 		Replicas:          cfg.Replicas,
 		LeaderId:          cfg.LeaderId,
 		Term:              cfg.Term,

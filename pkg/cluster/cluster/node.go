@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/lni/goutils/netutil"
 	circuit "github.com/lni/goutils/netutil/rubyist/circuitbreaker"
 	"github.com/lni/goutils/syncutil"
@@ -153,22 +153,22 @@ func (n *node) requestChannelLastLogInfo(ctx context.Context, req *ChannelLastLo
 	return channelLastLogInfoResp, nil
 }
 
-func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClusterConfigReq) (*wkstore.ChannelClusterConfig, error) {
+func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClusterConfigReq) (wkdb.ChannelClusterConfig, error) {
 	data, err := req.Marshal()
 	if err != nil {
-		return nil, err
+		return wkdb.EmptyChannelClusterConfig, err
 	}
 	resp, err := n.client.RequestWithContext(ctx, "/channel/clusterconfig", data)
 	if err != nil {
-		return nil, err
+		return wkdb.EmptyChannelClusterConfig, err
 	}
 	if resp.Status != proto.Status_OK {
-		return nil, fmt.Errorf("requestChannelClusterConfig is failed, status:%d", resp.Status)
+		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("requestChannelClusterConfig is failed, status:%d", resp.Status)
 	}
-	channelClusterConfigResp := &wkstore.ChannelClusterConfig{}
+	channelClusterConfigResp := wkdb.ChannelClusterConfig{}
 	err = channelClusterConfigResp.Unmarshal(resp.Body)
 	if err != nil {
-		return nil, err
+		return wkdb.EmptyChannelClusterConfig, err
 	}
 	return channelClusterConfigResp, nil
 }

@@ -11,6 +11,8 @@ type DB interface {
 	ChannelDB
 	// 会话
 	ConversationDB
+	// 频道分布式配置
+	ChannelClusterConfigDB
 }
 
 type MessageDB interface {
@@ -33,7 +35,7 @@ type MessageDB interface {
 	TruncateLogTo(channelId string, channelType uint8, messageSeq uint64) error
 
 	// LoadLastMsgsWithEnd 加载最新的消息 endMessageSeq表示加载到endMessageSeq的位置结束加载 endMessageSeq=0表示不做限制 结果不包含endMessageSeq
-	LoadLastMsgsWithEnd(channelID string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error)
+	LoadLastMsgsWithEnd(channelId string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error)
 	// LoadLastMsgs 加载最后的消息
 	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
 	// GetChannelLastMessageSeq 获取最后一条消息的seq
@@ -41,6 +43,20 @@ type MessageDB interface {
 
 	// SetChannelLastMessageSeq 设置最后一条消息的seq
 	SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error
+
+	// AppendMessageOfNotifyQueue 添加消息到通知队列
+	AppendMessageOfNotifyQueue(messages []Message) error
+
+	// GetMessagesOfNotifyQueue 获取通知队列的消息
+	GetMessagesOfNotifyQueue(count int) ([]Message, error)
+
+	// RemoveMessagesOfNotifyQueue 移除通知队列的消息
+	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
+
+	// AppendMessagesOfUserQueue 向用户队列里追加消息
+	AppendMessagesOfUserQueue(uid string, messages []Message) error
+	// UpdateMessageOfUserQueueCursorIfNeed 更新用户队列的游标
+	UpdateMessageOfUserQueueCursorIfNeed(uid string, messageSeq uint64) error
 }
 
 type UserDB interface {
@@ -53,52 +69,52 @@ type UserDB interface {
 
 type ChannelDB interface {
 	// AddSubscribers 添加订阅者
-	AddSubscribers(channelID string, channelType uint8, subscribers []string) error
+	AddSubscribers(channelId string, channelType uint8, subscribers []string) error
 
 	// RemoveSubscribers 移除订阅者
-	RemoveSubscribers(channelID string, channelType uint8, subscribers []string) error
+	RemoveSubscribers(channelId string, channelType uint8, subscribers []string) error
 
 	// RemoveAllSubscriber 移除所有订阅者
 	RemoveAllSubscriber(channelId string, channelType uint8) error
 
 	// GetSubscribers 获取订阅者
-	GetSubscribers(channelID string, channelType uint8) ([]string, error)
+	GetSubscribers(channelId string, channelType uint8) ([]string, error)
 
 	// AddOrUpdateChannel  添加或更新channel
 	AddOrUpdateChannel(channelInfo ChannelInfo) error
 
 	// GetChannel 获取channel
-	GetChannel(channelID string, channelType uint8) (ChannelInfo, error)
+	GetChannel(channelId string, channelType uint8) (ChannelInfo, error)
 
 	// ExistChannel 判断channel是否存在
-	ExistChannel(channelID string, channelType uint8) (bool, error)
+	ExistChannel(channelId string, channelType uint8) (bool, error)
 
 	// DeleteChannel 删除channel
 	DeleteChannel(channelId string, channelType uint8) error
 
 	// AddDenylist 添加黑名单
-	AddDenylist(channelID string, channelType uint8, uids []string) error
+	AddDenylist(channelId string, channelType uint8, uids []string) error
 
 	// GetDenylist 获取黑名单
-	GetDenylist(channelID string, channelType uint8) ([]string, error)
+	GetDenylist(channelId string, channelType uint8) ([]string, error)
 
 	// RemoveDenylist 移除黑名单
-	RemoveDenylist(channelID string, channelType uint8, uids []string) error
+	RemoveDenylist(channelId string, channelType uint8, uids []string) error
 
 	// RemoveAllDenylist 移除所有黑名单
-	RemoveAllDenylist(channelID string, channelType uint8) error
+	RemoveAllDenylist(channelId string, channelType uint8) error
 
 	// AddAllowlist 添加白名单
-	AddAllowlist(channelID string, channelType uint8, uids []string) error
+	AddAllowlist(channelId string, channelType uint8, uids []string) error
 
 	// GetAllowlist 获取白名单
-	GetAllowlist(channelID string, channelType uint8) ([]string, error)
+	GetAllowlist(channelId string, channelType uint8) ([]string, error)
 
 	// RemoveAllowlist 移除白名单
-	RemoveAllowlist(channelID string, channelType uint8, uids []string) error
+	RemoveAllowlist(channelId string, channelType uint8, uids []string) error
 
 	// RemoveAllAllowlist 移除所有白名单
-	RemoveAllAllowlist(channelID string, channelType uint8) error
+	RemoveAllAllowlist(channelId string, channelType uint8) error
 }
 
 type ConversationDB interface {
@@ -106,11 +122,32 @@ type ConversationDB interface {
 	AddOrUpdateConversations(uid string, conversations []Conversation) error
 
 	// DeleteConversation 删除最近会话
-	DeleteConversation(uid string, channelID string, channelType uint8) error
+	DeleteConversation(uid string, channelId string, channelType uint8) error
 
 	// GetConversations 获取指定用户的最近会话
 	GetConversations(uid string) ([]Conversation, error)
 
 	// GetConversation 获取指定用户的指定会话
-	GetConversation(uid string, channelID string, channelType uint8) (Conversation, error)
+	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)
+}
+
+type ChannelClusterConfigDB interface {
+
+	// SaveChannelClusterConfig 保存频道的分布式配置
+	SaveChannelClusterConfig(channelId string, channelType uint8, channelClusterConfig ChannelClusterConfig) error
+
+	// GetChannelClusterConfig 获取频道的分布式配置
+	GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error)
+
+	// DeleteChannelClusterConfig 删除频道的分布式配置
+	DeleteChannelClusterConfig(channelId string, channelType uint8) error
+
+	// GetChannelClusterConfigs 获取频道的分布式配置
+	GetChannelClusterConfigs(offsetId uint64, limit int) ([]ChannelClusterConfig, error)
+
+	// GetChannelClusterConfigCountWithSlotId 获取某个槽的频道的分布式配置数量
+	GetChannelClusterConfigCountWithSlotId(slotId uint32) (int, error)
+
+	// GetChannelClusterConfigWithSlotId 获取某个槽的频道的分布式配置
+	GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelClusterConfig, error)
 }

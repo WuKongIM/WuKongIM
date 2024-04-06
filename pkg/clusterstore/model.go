@@ -277,21 +277,21 @@ func (c *CMD) DecodeCMDUser() (u wkdb.User, err error) {
 }
 
 // EncodeCMDUpdateMessageOfUserCursorIfNeed EncodeCMDUpdateMessageOfUserCursorIfNeed
-func EncodeCMDUpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) []byte {
+func EncodeCMDUpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint64) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(uid)
-	encoder.WriteUint32(messageSeq)
+	encoder.WriteUint64(messageSeq)
 	return encoder.Bytes()
 }
 
 // DecodeCMDUpdateMessageOfUserCursorIfNeed DecodeCMDUpdateMessageOfUserCursorIfNeed
-func (c *CMD) DecodeCMDUpdateMessageOfUserCursorIfNeed() (uid string, messageSeq uint32, err error) {
+func (c *CMD) DecodeCMDUpdateMessageOfUserCursorIfNeed() (uid string, messageSeq uint64, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
 	if uid, err = decoder.String(); err != nil {
 		return
 	}
-	if messageSeq, err = decoder.Uint32(); err != nil {
+	if messageSeq, err = decoder.Uint64(); err != nil {
 		return
 	}
 	return

@@ -9,8 +9,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -19,10 +19,10 @@ import (
 type channel struct {
 	channelID                  string
 	channelType                uint8
-	rc                         *replica.Replica              // 副本服务
-	destroy                    bool                          // 是否已经销毁
-	clusterConfig              *wkstore.ChannelClusterConfig // 分布式配置
-	maxHandleReadyCountOfBatch int                           // 每批次处理ready的最大数量
+	rc                         *replica.Replica          // 副本服务
+	destroy                    bool                      // 是否已经销毁
+	clusterConfig              wkdb.ChannelClusterConfig // 分布式配置
+	maxHandleReadyCountOfBatch int                       // 每批次处理ready的最大数量
 	opts                       *Options
 	lastActivity               atomic.Time // 最后一次活跃时间
 	traceRecord                *traceRecord
@@ -39,15 +39,15 @@ type channel struct {
 	advanceFnc func() // 推进分布式进程
 }
 
-func newChannel(clusterConfig *wkstore.ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, advance func(), opts *Options) *channel {
-	shardNo := ChannelKey(clusterConfig.ChannelID, clusterConfig.ChannelType)
+func newChannel(clusterConfig wkdb.ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, advance func(), opts *Options) *channel {
+	shardNo := ChannelKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
 	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage, localstorage)))
 	ch := &channel{
 		maxHandleReadyCountOfBatch: 50,
 		rc:                         rc,
 		opts:                       opts,
 		Log:                        wklog.NewWKLog(fmt.Sprintf("Channel[%s]", shardNo)),
-		channelID:                  clusterConfig.ChannelID,
+		channelID:                  clusterConfig.ChannelId,
 		channelType:                clusterConfig.ChannelType,
 		clusterConfig:              clusterConfig,
 		doneC:                      make(chan struct{}),
@@ -60,7 +60,7 @@ func newChannel(clusterConfig *wkstore.ChannelClusterConfig, appliedIdx uint64, 
 	return ch
 }
 
-func (c *channel) updateClusterConfig(clusterConfig *wkstore.ChannelClusterConfig) {
+func (c *channel) updateClusterConfig(clusterConfig wkdb.ChannelClusterConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.clusterConfig = clusterConfig
@@ -397,7 +397,7 @@ func (c *channel) LeaderId() uint64 {
 	return c.leaderId.Load()
 }
 
-func (c *channel) getClusterConfig() *wkstore.ChannelClusterConfig {
+func (c *channel) getClusterConfig() wkdb.ChannelClusterConfig {
 	return c.clusterConfig
 }
 
@@ -406,16 +406,16 @@ type ichannel interface {
 	proposeAndWaitCommits(ctx context.Context, logs []replica.Log, timeout time.Duration) ([]messageItem, error)
 	LeaderId() uint64
 	handleRecvMessage(msg replica.Message) error
-	getClusterConfig() *wkstore.ChannelClusterConfig
+	getClusterConfig() wkdb.ChannelClusterConfig
 }
 
 type proxyChannel struct {
 	nodeId     uint64
-	clusterCfg *wkstore.ChannelClusterConfig
+	clusterCfg wkdb.ChannelClusterConfig
 	mu         sync.Mutex
 }
 
-func newProxyChannel(nodeId uint64, clusterCfg *wkstore.ChannelClusterConfig) *proxyChannel {
+func newProxyChannel(nodeId uint64, clusterCfg wkdb.ChannelClusterConfig) *proxyChannel {
 	return &proxyChannel{
 		nodeId:     nodeId,
 		clusterCfg: clusterCfg,
@@ -442,6 +442,6 @@ func (p *proxyChannel) handleRecvMessage(msg replica.Message) error {
 	panic("handleMessage: implement me")
 }
 
-func (p *proxyChannel) getClusterConfig() *wkstore.ChannelClusterConfig {
+func (p *proxyChannel) getClusterConfig() wkdb.ChannelClusterConfig {
 	return p.clusterCfg
 }

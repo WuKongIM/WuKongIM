@@ -503,3 +503,15 @@ func ParseConversationColumnKey(key []byte) (primaryKey uint64, columnName [2]by
 	columnName[1] = key[21]
 	return
 }
+
+// ---------------------- MessageNotifyQueue ----------------------
+
+func NewMessageNotifyQueueKey(messageId uint64) []byte {
+	key := make([]byte, TableMessageNotifyQueue.Size)
+	key[0] = TableMessageNotifyQueue.Id[0]
+	key[1] = TableMessageNotifyQueue.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], messageId)
+	return key
+}

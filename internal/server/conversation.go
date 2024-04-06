@@ -183,7 +183,7 @@ func (cm *ConversationManager) PushMessage(message *Message, subscribers []strin
 }
 
 // SetConversationUnread set unread data from conversation
-func (cm *ConversationManager) SetConversationUnread(uid string, channelID string, channelType uint8, unread int, messageSeq uint32) error {
+func (cm *ConversationManager) SetConversationUnread(uid string, channelID string, channelType uint8, unread int, messageSeq uint64) error {
 	conversationCache := cm.getUserConversationCache(uid)
 	for _, key := range conversationCache.Keys() {
 		conversation, _ := conversationCache.Get(key)
@@ -399,7 +399,7 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 			ChannelType:     message.ChannelType,
 			UnreadCount:     unreadCount,
 			Timestamp:       int64(message.Timestamp),
-			LastMsgSeq:      message.MessageSeq,
+			LastMsgSeq:      uint64(message.MessageSeq),
 			LastClientMsgNo: message.ClientMsgNo,
 			LastMsgID:       message.MessageID,
 			Version:         time.Now().UnixNano() / 1e6,
@@ -411,10 +411,10 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 			conversation.UnreadCount++
 			modify = true
 		}
-		if conversation.LastMsgSeq < message.MessageSeq { // 只有当前会话的messageSeq小于当前消息的messageSeq才更新
+		if conversation.LastMsgSeq < uint64(message.MessageSeq) { // 只有当前会话的messageSeq小于当前消息的messageSeq才更新
 			conversation.Timestamp = int64(message.Timestamp)
 			conversation.LastClientMsgNo = message.ClientMsgNo
-			conversation.LastMsgSeq = message.MessageSeq
+			conversation.LastMsgSeq = uint64(message.MessageSeq)
 			conversation.LastMsgID = message.MessageID
 			modify = true
 		}

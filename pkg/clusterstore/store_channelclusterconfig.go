@@ -1,7 +1,7 @@
 package clusterstore
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
 
 type ChannelClusterConfigStore struct {
@@ -14,48 +14,29 @@ func NewChannelClusterConfigStore(store *Store) *ChannelClusterConfigStore {
 	}
 }
 
-func (c *ChannelClusterConfigStore) Save(channelId string, channelType uint8, clusterCfg *wkstore.ChannelClusterConfig) error {
+func (c *ChannelClusterConfigStore) Save(channelId string, channelType uint8, clusterCfg wkdb.ChannelClusterConfig) error {
 
-	return c.store.db.SaveChannelClusterConfig(channelId, channelType, clusterCfg)
+	return c.store.wdb.SaveChannelClusterConfig(channelId, channelType, clusterCfg)
 }
 
 func (c *ChannelClusterConfigStore) Delete(channelId string, channelType uint8) error {
-	return c.store.db.DeleteChannelClusterConfig(channelId, channelType)
+	return c.store.wdb.DeleteChannelClusterConfig(channelId, channelType)
 }
 
-func (c *ChannelClusterConfigStore) Get(channelId string, channelType uint8) (*wkstore.ChannelClusterConfig, error) {
+func (c *ChannelClusterConfigStore) Get(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 
-	return c.store.db.GetChannelClusterConfig(channelId, channelType)
+	return c.store.wdb.GetChannelClusterConfig(channelId, channelType)
 }
 
 func (c *ChannelClusterConfigStore) GetCountWithSlotId(slotId uint32) (int, error) {
-	return c.store.db.GetSlotChannelClusterConfigCount(slotId)
+	return c.store.wdb.GetChannelClusterConfigCountWithSlotId(slotId)
 }
 
-func (c *ChannelClusterConfigStore) GetWithSlotId(slotId uint32) ([]*wkstore.ChannelClusterConfig, error) {
-
-	return c.store.db.GetSlotChannelClusterConfig(slotId)
+func (c *ChannelClusterConfigStore) GetAll(offsetId uint64, limit int) ([]wkdb.ChannelClusterConfig, error) {
+	return c.store.wdb.GetChannelClusterConfigs(offsetId, limit)
 }
 
-func (c *ChannelClusterConfigStore) GetWithAllSlot() ([]*wkstore.ChannelClusterConfig, error) {
-	return c.store.db.GetSlotChannelClusterConfigWithAllSlot()
-}
+func (c *ChannelClusterConfigStore) GetWithSlotId(slotId uint32) ([]wkdb.ChannelClusterConfig, error) {
 
-func (c *ChannelClusterConfigStore) ProposeSave(channelId string, channelType uint8, clusterCfg *wkstore.ChannelClusterConfig) error {
-	cfgData, err := clusterCfg.Marshal()
-	if err != nil {
-		return err
-	}
-
-	data, err := EncodeCMDChannelClusterConfigSave(channelId, channelType, cfgData)
-	if err != nil {
-		return err
-	}
-	cmd := NewCMD(CMDChannelClusterConfigSave, data)
-	cmdData, err := cmd.Marshal()
-	if err != nil {
-		return err
-	}
-	_, err = c.store.opts.Cluster.ProposeChannelMeta(c.store.ctx, channelId, channelType, cmdData)
-	return err
+	return c.store.wdb.GetChannelClusterConfigWithSlotId(slotId)
 }

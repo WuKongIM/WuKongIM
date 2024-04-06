@@ -12,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -704,17 +704,17 @@ type NodeInfo struct {
 
 type ChannelClusterStorage interface {
 	// 保存分布式配置
-	Save(channelId string, channelType uint8, clusterCfg *wkstore.ChannelClusterConfig) error
+	Save(channelId string, channelType uint8, clusterCfg wkdb.ChannelClusterConfig) error
 	// 删除频道分布式配置
 	Delete(channelId string, channelType uint8) error
 	// 获取分布式配置
-	Get(channelId string, channelType uint8) (*wkstore.ChannelClusterConfig, error)
-	// 获取某个槽位的频道分布式数量
+	Get(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error)
+	// // 获取某个槽位的频道分布式数量
 	GetCountWithSlotId(slotId uint32) (int, error)
-	// 获取某个槽位的频道分布式配置
-	GetWithSlotId(slotId uint32) ([]*wkstore.ChannelClusterConfig, error)
-	// 获取所有槽位的频道分布式配置
-	GetWithAllSlot() ([]*wkstore.ChannelClusterConfig, error)
-	// 提案频道分布式数据
-	ProposeSave(channelId string, channelType uint8, clusterCfg *wkstore.ChannelClusterConfig) error
+	// // 获取某个槽位的频道分布式配置
+	GetWithSlotId(slotId uint32) ([]wkdb.ChannelClusterConfig, error)
+
+	GetAll(offsetId uint64, limit int) ([]wkdb.ChannelClusterConfig, error)
+	// // 获取所有槽位的频道分布式配置
+	// GetWithAllSlot() ([]*wkstore.ChannelClusterConfig, error)
 }
