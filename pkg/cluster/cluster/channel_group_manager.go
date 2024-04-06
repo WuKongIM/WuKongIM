@@ -12,8 +12,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -228,23 +228,23 @@ func (c *channelGroupManager) loadOnlyReadChannel(channelId string, channelType 
 	}
 
 	if slot.Leader == c.s.opts.NodeID {
-		if clusterConfig == nil {
+		if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 			c.Error("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			return nil, fmt.Errorf("channel cluster config is not found")
 		}
-	} else if clusterConfig == nil {
+	} else if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		clusterConfig, err = c.requestChannelClusterConfigFromSlotLeader(channelId, channelType)
 		if err != nil {
 			return nil, err
 		}
-		if clusterConfig != nil {
+		if !wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 			err = c.s.opts.ChannelClusterStorage.Save(channelId, channelType, clusterConfig)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	if clusterConfig == nil {
+	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		c.Error("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return nil, fmt.Errorf("channel cluster config is not found")
 	}
@@ -281,7 +281,7 @@ func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, chann
 	if err != nil {
 		return nil, err
 	}
-	if clusterconfig == nil { // 没有集群信息则创建一个新的集群信息
+	if wkdb.IsEmptyChannelClusterConfig(clusterconfig) { // 没有集群信息则创建一个新的集群信息
 		span.SetBool("hasClusterConfig", false)
 		clusterconfig, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
 		if err != nil {
@@ -307,7 +307,7 @@ func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, chann
 	// }
 
 	// 保存分布式配置
-	err = c.s.opts.ChannelClusterStorage.Save(clusterconfig.ChannelID, clusterconfig.ChannelType, clusterconfig)
+	err = c.s.opts.ChannelClusterStorage.Save(clusterconfig.ChannelId, clusterconfig.ChannelType, clusterconfig)
 	if err != nil {
 		c.Error("proposeChannelClusterConfig failed", zap.Error(err))
 		span.RecordError(err)
@@ -353,12 +353,12 @@ func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID
 		return nil, err
 	}
 
-	if clusterConfig == nil || clusterConfig.LeaderId == 0 {
+	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) || clusterConfig.LeaderId == 0 {
 		clusterConfig, err = c.requestChannelClusterConfigFromSlotLeader(channelID, channelType) // 从频道所在槽的领导节点获取频道分布式配置
 		if err != nil {
 			return nil, err
 		}
-		if clusterConfig != nil {
+		if !wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 			err = c.s.opts.ChannelClusterStorage.Save(channelID, channelType, clusterConfig)
 			if err != nil {
 				return nil, err
@@ -384,15 +384,15 @@ func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID
 }
 
 // 从频道所在槽获取频道的分布式信息
-func (c *channelGroupManager) requestChannelClusterConfigFromSlotLeader(channelId string, channelType uint8) (*wkstore.ChannelClusterConfig, error) {
+func (c *channelGroupManager) requestChannelClusterConfigFromSlotLeader(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 	slotId := c.s.getChannelSlotId(channelId)
 	slot := c.s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
-		return nil, ErrSlotNotExist
+		return wkdb.EmptyChannelClusterConfig, ErrSlotNotExist
 	}
 	node := c.s.nodeManager.node(slot.Leader)
 	if node == nil {
-		return nil, fmt.Errorf("not found slot leader node")
+		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("not found slot leader node")
 	}
 	timeoutCtx, cancel := context.WithTimeout(c.s.cancelCtx, c.s.opts.ReqTimeout)
 	defer cancel()
@@ -402,25 +402,25 @@ func (c *channelGroupManager) requestChannelClusterConfigFromSlotLeader(channelI
 	})
 	if err != nil {
 		c.Error("requestChannelClusterConfigFromSlotLeader failed", zap.Error(err), zap.Uint64("slotLeader", slot.Leader), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
-		return nil, err
+		return wkdb.EmptyChannelClusterConfig, err
 	}
 	return clusterConfig, nil
 }
 
 // 进行频道选举
-func (c *channelGroupManager) createChannelClusterInfo(channelID string, channelType uint8) (*wkstore.ChannelClusterConfig, error) {
+func (c *channelGroupManager) createChannelClusterInfo(channelID string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 	allowVoteNodes := c.s.clusterEventListener.clusterconfigManager.allowVoteNodes()
 	shardNo := ChannelKey(channelID, channelType)
 	lastTerm, err := c.s.localStorage.leaderLastTerm(shardNo)
 	if err != nil {
-		return nil, err
+		return wkdb.EmptyChannelClusterConfig, err
 	}
 
-	clusterConfig := &wkstore.ChannelClusterConfig{
-		ChannelID:    channelID,
-		ChannelType:  channelType,
-		ReplicaCount: c.s.opts.ChannelMaxReplicaCount,
-		Term:         lastTerm,
+	clusterConfig := wkdb.ChannelClusterConfig{
+		ChannelId:       channelID,
+		ChannelType:     channelType,
+		ReplicaMaxCount: c.s.opts.ChannelMaxReplicaCount,
+		Term:            lastTerm,
 	}
 	replicaIDs := make([]uint64, 0, c.s.opts.ChannelMaxReplicaCount)
 
@@ -447,8 +447,8 @@ func (c *channelGroupManager) createChannelClusterInfo(channelID string, channel
 }
 
 // 是否需要进行选举
-func (c *channelGroupManager) needElection(clusterConfig *wkstore.ChannelClusterConfig) (bool, error) {
-	slotId := c.s.getChannelSlotId(clusterConfig.ChannelID)
+func (c *channelGroupManager) needElection(clusterConfig wkdb.ChannelClusterConfig) (bool, error) {
+	slotId := c.s.getChannelSlotId(clusterConfig.ChannelId)
 	slot := c.s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
 		return false, ErrSlotNotExist
@@ -473,10 +473,10 @@ func (c *channelGroupManager) needElection(clusterConfig *wkstore.ChannelCluster
 // 进行选举
 func (c *channelGroupManager) electionIfNeed(ctx context.Context, channel *channel) error {
 	clusterConfig := channel.clusterConfig
-	if clusterConfig == nil {
+	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		return errors.New("channel clusterConfig is not found")
 	}
-	channelId := clusterConfig.ChannelID
+	channelId := clusterConfig.ChannelId
 	channelType := clusterConfig.ChannelType
 
 	needElection, err := c.needElection(clusterConfig)
@@ -551,19 +551,19 @@ func (c *channelGroupManager) advanceHandler(channelId string, channelType uint8
 	}
 }
 
-func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo *wkstore.ChannelClusterConfig) (*channel, error) {
-	shardNo := ChannelKey(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType)
+func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo wkdb.ChannelClusterConfig) (*channel, error) {
+	shardNo := ChannelKey(channelClusterInfo.ChannelId, channelClusterInfo.ChannelType)
 	// 获取当前节点已应用的日志
 	appliedIndex, err := c.localStorage.getAppliedIndex(shardNo)
 	if err != nil {
 		return nil, err
 	}
-	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.advanceHandler(channelClusterInfo.ChannelID, channelClusterInfo.ChannelType), c.s.opts)
+	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.advanceHandler(channelClusterInfo.ChannelId, channelClusterInfo.ChannelType), c.s.opts)
 	return channel, nil
 }
 
 // 检查在线副本是否超过半数
-func (c *channelGroupManager) checkOnlineReplicaCount(clusterConfig *wkstore.ChannelClusterConfig) bool {
+func (c *channelGroupManager) checkOnlineReplicaCount(clusterConfig wkdb.ChannelClusterConfig) bool {
 	onlineReplicaCount := 0
 	for _, replicaID := range clusterConfig.Replicas {
 		if replicaID == c.s.opts.NodeID {
@@ -605,11 +605,11 @@ func (c *channelGroupManager) channelLeaderIDByLogInfo(channelLogInfoMap map[uin
 }
 
 // 获取频道最后一条消息的索引
-func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.ChannelClusterConfig) (map[uint64]*ChannelLastLogInfoResponse, error) {
+func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo wkdb.ChannelClusterConfig) (map[uint64]*ChannelLastLogInfoResponse, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	requestGroup, ctx := errgroup.WithContext(timeoutCtx)
-	shardNo := ChannelKey(clusterInfo.ChannelID, clusterInfo.ChannelType)
+	shardNo := ChannelKey(clusterInfo.ChannelId, clusterInfo.ChannelType)
 	channelLogInfoMap := make(map[uint64]*ChannelLastLogInfoResponse, 0)
 	channelLogInfoMapLock := new(sync.Mutex)
 
@@ -637,11 +637,11 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo *wkstore.Ch
 						return nil
 					}
 					resp, err := node.requestChannelLastLogInfo(ctx, &ChannelLastLogInfoReq{
-						ChannelID:   clusterInfo.ChannelID,
+						ChannelID:   clusterInfo.ChannelId,
 						ChannelType: clusterInfo.ChannelType,
 					})
 					if err != nil {
-						c.Warn("requestChannelLastLogInfo failed", zap.Uint64("nodeId", rcID), zap.String("channelId", clusterInfo.ChannelID), zap.Uint8("channelType", clusterInfo.ChannelType), zap.Error(err))
+						c.Warn("requestChannelLastLogInfo failed", zap.Uint64("nodeId", rcID), zap.String("channelId", clusterInfo.ChannelId), zap.Uint8("channelType", clusterInfo.ChannelType), zap.Error(err))
 						return nil
 					}
 					channelLogInfoMapLock.Lock()

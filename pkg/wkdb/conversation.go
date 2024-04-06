@@ -61,7 +61,6 @@ func (wk *wukongDB) DeleteConversation(uid string, channelId string, channelType
 	if id == 0 {
 		return nil
 	}
-	wk.db.Metrics()
 	// 删除索引
 	batch := wk.db.NewBatch()
 	err = batch.Delete(key.NewConversationIndexChannelKey(uid, channelId, channelType), wk.wo)
@@ -173,6 +172,32 @@ func (wk *wukongDB) writeConversation(id uint64, uid string, conversation Conver
 		return err
 	}
 
+	// lastMsgSeq
+	var lastMsgSeqBytes = make([]byte, 8)
+	wk.endian.PutUint64(lastMsgSeqBytes, conversation.LastMsgSeq)
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.LastMsgSeq), lastMsgSeqBytes, wk.wo); err != nil {
+		return err
+	}
+
+	// lastMsgClientNo
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.LastMsgClientNo), []byte(conversation.LastClientMsgNo), wk.wo); err != nil {
+		return err
+	}
+
+	// lastMsgId
+	var lastMsgIdBytes = make([]byte, 8)
+	wk.endian.PutUint64(lastMsgIdBytes, uint64(conversation.LastMsgID))
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.LastMsgId), lastMsgIdBytes, wk.wo); err != nil {
+		return err
+	}
+
+	// version
+	var versionBytes = make([]byte, 8)
+	wk.endian.PutUint64(versionBytes, uint64(conversation.Version))
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.Version), versionBytes, wk.wo); err != nil {
+		return err
+	}
+
 	// channel index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, id)
@@ -225,6 +250,14 @@ func (wk *wukongDB) parseConversations(iter *pebble.Iterator, limit int) ([]Conv
 			preConversation.UnreadCount = wk.endian.Uint32(iter.Value())
 		case key.TableConversation.Column.Timestamp:
 			preConversation.Timestamp = int64(wk.endian.Uint64(iter.Value()))
+		case key.TableConversation.Column.LastMsgSeq:
+			preConversation.LastMsgSeq = wk.endian.Uint64(iter.Value())
+		case key.TableConversation.Column.LastMsgClientNo:
+			preConversation.LastClientMsgNo = string(iter.Value())
+		case key.TableConversation.Column.LastMsgId:
+			preConversation.LastMsgID = int64(wk.endian.Uint64(iter.Value()))
+		case key.TableConversation.Column.Version:
+			preConversation.Version = int64(wk.endian.Uint64(iter.Value()))
 
 		}
 		hasData = true

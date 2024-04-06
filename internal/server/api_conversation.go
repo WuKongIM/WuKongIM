@@ -116,11 +116,11 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 			UID:         req.UID,
 			ChannelId:   req.ChannelID,
 			ChannelType: req.ChannelType,
-			LastMsgSeq:  req.MessageSeq,
+			LastMsgSeq:  uint64(req.MessageSeq),
 		}
 		s.s.conversationManager.AddOrUpdateConversation(req.UID, conversation)
 	} else {
-		err := s.s.conversationManager.SetConversationUnread(req.UID, req.ChannelID, req.ChannelType, 0, req.MessageSeq)
+		err := s.s.conversationManager.SetConversationUnread(req.UID, req.ChannelID, req.ChannelType, 0, uint64(req.MessageSeq))
 		if err != nil {
 			c.ResponseError(err)
 			return
@@ -175,11 +175,11 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 			ChannelId:   req.ChannelID,
 			ChannelType: req.ChannelType,
 			UnreadCount: 0,
-			LastMsgSeq:  req.MessageSeq,
+			LastMsgSeq:  uint64(req.MessageSeq),
 		}
 		s.s.conversationManager.AddOrUpdateConversation(req.UID, conversation)
 	} else {
-		err := s.s.conversationManager.SetConversationUnread(req.UID, req.ChannelID, req.ChannelType, req.Unread, req.MessageSeq)
+		err := s.s.conversationManager.SetConversationUnread(req.UID, req.ChannelID, req.ChannelType, req.Unread, uint64(req.MessageSeq))
 		if err != nil {
 			c.ResponseError(err)
 			return

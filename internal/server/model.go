@@ -478,7 +478,7 @@ func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConver
 		ChannelType:     conversation.ChannelType,
 		Unread:          int(conversation.UnreadCount),
 		Timestamp:       conversation.Timestamp,
-		LastMsgSeq:      conversation.LastMsgSeq,
+		LastMsgSeq:      uint32(conversation.LastMsgSeq),
 		LastClientMsgNo: conversation.LastClientMsgNo,
 		Version:         conversation.Version,
 	}

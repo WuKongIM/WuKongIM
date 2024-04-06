@@ -63,17 +63,15 @@ func (s *Store) GetLastMsgSeq(channelID string, channelType uint8) (uint64, erro
 }
 
 func (s *Store) GetMessagesOfNotifyQueue(count int) ([]wkdb.Message, error) {
-	// return s.db.GetMessagesOfNotifyQueue(count)
-	return nil, nil
+	return s.wdb.GetMessagesOfNotifyQueue(count)
 }
 
 func (s *Store) AppendMessageOfNotifyQueue(messages []wkdb.Message) error {
-	// return s.db.AppendMessageOfNotifyQueue(messages)
-	return nil
+	return s.wdb.AppendMessageOfNotifyQueue(messages)
 }
 
 func (s *Store) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
-	return s.db.RemoveMessagesOfNotifyQueue(messageIDs)
+	return s.wdb.RemoveMessagesOfNotifyQueue(messageIDs)
 }
 
 func (s *Store) GetMessageShardLogStorage() *MessageShardLogStorage {

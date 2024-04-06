@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
@@ -146,7 +147,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 	clusterConfig := channel.getClusterConfig()
-	if clusterConfig == nil {
+	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		s.Error("clusterConfig not found", zap.String("channelId", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(ErrClusterConfigNotFound)
 		return

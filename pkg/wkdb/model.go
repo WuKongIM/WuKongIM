@@ -1,6 +1,7 @@
 package wkdb
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -19,14 +20,27 @@ type Message struct {
 }
 
 func (m *Message) Unmarshal(data []byte) error {
-	f, size, err := proto.DecodeFrame(data, wkproto.LatestVersion)
+
+	dec := wkproto.NewDecoder(data)
+	var (
+		version uint8
+		err     error
+	)
+	if version, err = dec.Uint8(); err != nil {
+		return err
+	}
+
+	recvPacketData, err := dec.Binary()
+	if err != nil {
+		return err
+	}
+
+	f, _, err := proto.DecodeFrame(recvPacketData, version)
 	if err != nil {
 		return err
 	}
 	rcv := f.(*wkproto.RecvPacket)
 	m.RecvPacket = *rcv
-
-	dec := wkproto.NewDecoder(data[size:])
 	if m.Term, err = dec.Uint64(); err != nil {
 		return err
 	}
@@ -42,7 +56,8 @@ func (m *Message) Marshal() ([]byte, error) {
 
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteBytes(data)
+	enc.WriteUint8(wkproto.LatestVersion)
+	enc.WriteBinary(data)
 	enc.WriteUint64(m.Term)
 	return enc.Bytes(), nil
 }
@@ -124,7 +139,7 @@ type Conversation struct {
 	ChannelType     uint8
 	UnreadCount     uint32 // Number of unread messages
 	Timestamp       int64  // Last session timestamp (10 digits)
-	LastMsgSeq      uint32 // Sequence number of the last message
+	LastMsgSeq      uint64 // Sequence number of the last message
 	LastClientMsgNo string // Last message client number
 	LastMsgID       int64  // Last message ID
 	Version         int64  // Data version
@@ -138,7 +153,7 @@ func (c *Conversation) Marshal() ([]byte, error) {
 	enc.WriteUint8(c.ChannelType)
 	enc.WriteUint32(c.UnreadCount)
 	enc.WriteInt64(c.Timestamp)
-	enc.WriteUint32(c.LastMsgSeq)
+	enc.WriteUint64(c.LastMsgSeq)
 	enc.WriteString(c.LastClientMsgNo)
 	enc.WriteInt64(c.LastMsgID)
 	enc.WriteInt64(c.Version)
@@ -163,7 +178,7 @@ func (c *Conversation) Unmarshal(data []byte) error {
 	if c.Timestamp, err = dec.Int64(); err != nil {
 		return err
 	}
-	if c.LastMsgSeq, err = dec.Uint32(); err != nil {
+	if c.LastMsgSeq, err = dec.Uint64(); err != nil {
 		return err
 	}
 	if c.LastClientMsgNo, err = dec.String(); err != nil {
@@ -214,4 +229,83 @@ func (c ConversationSet) Unmarshal(data []byte) error {
 		c = append(c, v)
 	}
 	return nil
+}
+
+var EmptyChannelClusterConfig = ChannelClusterConfig{}
+
+func IsEmptyChannelClusterConfig(cfg ChannelClusterConfig) bool {
+	return strings.TrimSpace(cfg.ChannelId) == ""
+}
+
+// 频道分布式配置
+type ChannelClusterConfig struct {
+	Id              uint64   // ID
+	ChannelId       string   // 频道ID
+	ChannelType     uint8    // 频道类型
+	ReplicaMaxCount uint16   // 副本最大数量
+	Replicas        []uint64 // 副本节点ID集合
+	LeaderId        uint64   // 领导者ID
+	Term            uint32   // 任期
+
+	version uint16 // 数据协议版本
+}
+
+func (c *ChannelClusterConfig) Marshal() ([]byte, error) {
+	c.version = 1
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(c.version)
+	enc.WriteString(c.ChannelId)
+	enc.WriteUint8(c.ChannelType)
+	enc.WriteUint16(c.ReplicaMaxCount)
+	enc.WriteUint16(uint16(len(c.Replicas)))
+	if len(c.Replicas) > 0 {
+		for _, replica := range c.Replicas {
+			enc.WriteUint64(replica)
+		}
+	}
+	enc.WriteUint64(c.LeaderId)
+	enc.WriteUint32(c.Term)
+	return enc.Bytes(), nil
+}
+
+func (c *ChannelClusterConfig) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if c.version, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if c.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if c.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	if c.ReplicaMaxCount, err = dec.Uint16(); err != nil {
+		return err
+	}
+	var replicasLen uint16
+	if replicasLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if replicasLen > 0 {
+		c.Replicas = make([]uint64, replicasLen)
+		for i := uint16(0); i < replicasLen; i++ {
+			if c.Replicas[i], err = dec.Uint64(); err != nil {
+				return err
+			}
+		}
+	}
+	if c.LeaderId, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if c.Term, err = dec.Uint32(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *ChannelClusterConfig) String() string {
+	return fmt.Sprintf("ChannelId: %s, ChannelType: %d, ReplicaMaxCount: %d, Replicas: %v, LeaderId: %d, Term: %d",
+		c.ChannelId, c.ChannelType, c.ReplicaMaxCount, c.Replicas, c.LeaderId, c.Term)
 }

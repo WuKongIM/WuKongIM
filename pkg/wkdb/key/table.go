@@ -291,3 +291,51 @@ var TableConversation = struct {
 		Timestamp: [2]byte{0x07, 0x01},
 	},
 }
+
+// ======================== MessageNotifyQueue ========================
+
+var TableMessageNotifyQueue = struct {
+	Id   [2]byte
+	Size int
+}{
+	Id:   [2]byte{0x08, 0x01},
+	Size: 2 + 2 + 8, // tableId + dataType  + messageId
+}
+
+// ======================== ChannelClusterConfig ========================
+
+var TableChannelClusterConfig = struct {
+	Id        [2]byte
+	Size      int
+	IndexSize int
+	Column    struct {
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		ReplicaMaxCount [2]byte
+		Replicas        [2]byte
+		LeaderId        [2]byte
+		Term            [2]byte
+		Version         [2]byte
+	}
+	Index struct{}
+}{
+	Id:   [2]byte{0x09, 0x01},
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	Column: struct {
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		ReplicaMaxCount [2]byte
+		Replicas        [2]byte
+		LeaderId        [2]byte
+		Term            [2]byte
+		Version         [2]byte
+	}{
+		ChannelId:       [2]byte{0x09, 0x01},
+		ChannelType:     [2]byte{0x09, 0x02},
+		ReplicaMaxCount: [2]byte{0x09, 0x03},
+		Replicas:        [2]byte{0x09, 0x04},
+		LeaderId:        [2]byte{0x09, 0x05},
+		Term:            [2]byte{0x09, 0x06},
+		Version:         [2]byte{0x09, 0x07},
+	},
+}
