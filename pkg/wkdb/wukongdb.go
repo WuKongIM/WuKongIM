@@ -48,3 +48,8 @@ func (wk *wukongDB) Open() error {
 func (wk *wukongDB) Close() error {
 	return wk.db.Close()
 }
+
+func (wk *wukongDB) channelSlotId(channelId string, channelType uint8) uint32 {
+
+	return 0
+}

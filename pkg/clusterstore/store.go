@@ -40,7 +40,7 @@ func NewStore(opts *Options) *Store {
 	storeCfg.DataDir = opts.DataDir
 	storeCfg.SlotNum = int(opts.SlotCount)
 	storeCfg.DecodeMessageFnc = opts.DecodeMessageFnc
-	s.wdb = wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(opts.DataDir), wkdb.WithNodeId(opts.NodeID)))
+	s.wdb = wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(opts.DataDir), wkdb.WithNodeId(opts.NodeID), wkdb.WithSlotCount(int(opts.SlotCount))))
 	s.messageShardLogStorage = NewMessageShardLogStorage(s.wdb)
 	return s
 }

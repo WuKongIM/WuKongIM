@@ -134,8 +134,9 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 }
 
 func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
-	s.w.Trigger(resp.Id, resp)
-
+	if s.w.IsRegistered(resp.Id) {
+		s.w.Trigger(resp.Id, resp)
+	}
 }
 
 func (s *Server) handleMessage(conn wknet.Conn, msg *proto.Message) {

@@ -16,7 +16,8 @@ type unstable struct {
 
 func newUnstable() *unstable {
 	return &unstable{
-		Log: wklog.NewWKLog("replica.unstable"),
+		Log:    wklog.NewWKLog("replica.unstable"),
+		offset: 1, // 日志下标是从1开始的 所以offset初始化值为1
 	}
 }
 

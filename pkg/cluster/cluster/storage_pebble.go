@@ -168,12 +168,32 @@ func (p *PebbleShardLogStorage) SetLastIndex(shardNo string, index uint64) error
 }
 
 func (p *PebbleShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
-	return nil
+	maxIndexKeyData := key.NewAppliedIndexKey(shardNo)
+	maxIndexdata := make([]byte, 8)
+	binary.BigEndian.PutUint64(maxIndexdata, index)
+	lastTime := time.Now().UnixNano()
+	lastTimeData := make([]byte, 8)
+	binary.BigEndian.PutUint64(lastTimeData, uint64(lastTime))
+
+	err := p.db.Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...), p.wo)
+	return err
 
 }
 
 func (p *PebbleShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
-	return 0, nil
+	maxIndexKeyData := key.NewAppliedIndexKey(shardNo)
+	maxIndexdata, closer, err := p.db.Get(maxIndexKeyData)
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, nil
+		}
+		return 0, err
+	}
+	defer closer.Close()
+	if len(maxIndexdata) == 0 {
+		return 0, nil
+	}
+	return binary.BigEndian.Uint64(maxIndexdata[:8]), nil
 }
 
 func (p *PebbleShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {

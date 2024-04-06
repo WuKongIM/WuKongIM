@@ -14,9 +14,9 @@ func NewChannelClusterConfigStore(store *Store) *ChannelClusterConfigStore {
 	}
 }
 
-func (c *ChannelClusterConfigStore) Save(channelId string, channelType uint8, clusterCfg wkdb.ChannelClusterConfig) error {
+func (c *ChannelClusterConfigStore) Save(clusterCfg wkdb.ChannelClusterConfig) error {
 
-	return c.store.wdb.SaveChannelClusterConfig(channelId, channelType, clusterCfg)
+	return c.store.wdb.SaveChannelClusterConfig(clusterCfg)
 }
 
 func (c *ChannelClusterConfigStore) Delete(channelId string, channelType uint8) error {

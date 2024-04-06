@@ -328,7 +328,7 @@ func (s *slot) termNoLock() uint32 {
 
 func (s *slot) setLastIndex(lastIndex uint64) error {
 	shardNo := GetSlotShardNo(s.slotId)
-	err := s.opts.MessageLogStorage.SetLastIndex(shardNo, lastIndex)
+	err := s.opts.ShardLogStorage.SetLastIndex(shardNo, lastIndex)
 	if err != nil {
 		s.Error("set last index error", zap.Error(err))
 		return err

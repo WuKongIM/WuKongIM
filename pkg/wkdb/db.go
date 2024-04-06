@@ -134,7 +134,7 @@ type ConversationDB interface {
 type ChannelClusterConfigDB interface {
 
 	// SaveChannelClusterConfig 保存频道的分布式配置
-	SaveChannelClusterConfig(channelId string, channelType uint8, channelClusterConfig ChannelClusterConfig) error
+	SaveChannelClusterConfig(channelClusterConfig ChannelClusterConfig) error
 
 	// GetChannelClusterConfig 获取频道的分布式配置
 	GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error)

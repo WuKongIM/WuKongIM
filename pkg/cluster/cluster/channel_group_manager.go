@@ -238,7 +238,7 @@ func (c *channelGroupManager) loadOnlyReadChannel(channelId string, channelType 
 			return nil, err
 		}
 		if !wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
-			err = c.s.opts.ChannelClusterStorage.Save(channelId, channelType, clusterConfig)
+			err = c.s.opts.ChannelClusterStorage.Save(clusterConfig)
 			if err != nil {
 				return nil, err
 			}
@@ -307,7 +307,7 @@ func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, chann
 	// }
 
 	// 保存分布式配置
-	err = c.s.opts.ChannelClusterStorage.Save(clusterconfig.ChannelId, clusterconfig.ChannelType, clusterconfig)
+	err = c.s.opts.ChannelClusterStorage.Save(clusterconfig)
 	if err != nil {
 		c.Error("proposeChannelClusterConfig failed", zap.Error(err))
 		span.RecordError(err)
@@ -359,7 +359,7 @@ func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID
 			return nil, err
 		}
 		if !wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
-			err = c.s.opts.ChannelClusterStorage.Save(channelID, channelType, clusterConfig)
+			err = c.s.opts.ChannelClusterStorage.Save(clusterConfig)
 			if err != nil {
 				return nil, err
 			}
@@ -526,7 +526,7 @@ func (c *channelGroupManager) electionIfNeed(ctx context.Context, channel *chann
 	c.Info("成功选举出新的领导", zap.Uint64("newLeaderID", clusterConfig.LeaderId), zap.Uint32("term", clusterConfig.Term), zap.Uint64s("replicas", clusterConfig.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 	// 保存分布式配置
-	err = c.s.opts.ChannelClusterStorage.Save(channelId, channelType, clusterConfig)
+	err = c.s.opts.ChannelClusterStorage.Save(clusterConfig)
 	if err != nil {
 		c.Error("saveChannelClusterConfig failed", zap.Error(err))
 		span.RecordError(err)
