@@ -71,7 +71,7 @@ func (g *channelGroup) handleReady(rd channelReady) {
 		ch.updateClusterConfigLeaderIdAndTerm(rd.HardState.Term, rd.HardState.LeaderId)
 		ch.setLeaderId(rd.HardState.LeaderId)
 		channelClusterCfg := ch.getClusterConfig()
-		err := g.opts.ChannelClusterStorage.Save(ch.channelID, ch.channelType, channelClusterCfg)
+		err := g.opts.ChannelClusterStorage.Save(channelClusterCfg)
 		if err != nil {
 			g.Panic("save cluster config error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
 		}

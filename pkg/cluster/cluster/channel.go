@@ -242,8 +242,7 @@ func (c *channel) appendLogs(msg replica.Message) error {
 	if err != nil {
 		c.Panic("append log error", zap.Error(err))
 	}
-	c.Debug("append log done", zap.Uint64("lastLogIndex", lastLog.Index), zap.Duration("cost", time.Since(start)))
-
+	c.Debug("append log done", zap.Uint64("firstLogIndex", firstLog.Index), zap.Uint64("lastLogIndex", lastLog.Index), zap.Int("logCount", len(msg.Logs)), zap.Duration("cost", time.Since(start)))
 	return nil
 
 }
@@ -353,6 +352,18 @@ func (c *channel) termNoLock() uint32 {
 }
 
 func (c *channel) setLastIndex(lastIndex uint64) error {
+	c.Debug("channel setLastIndex", zap.Uint64("lastIndex", lastIndex))
+
+	messageItemsWait := c.eventHandler.messageWait.waitItemsWithRange(0, lastIndex+1)
+	if len(messageItemsWait) > 0 {
+		for _, messageItemWait := range messageItemsWait {
+			_, span := trace.GlobalTrace.StartSpan(messageItemWait.ctx, "setLastIndex")
+			defer span.End()
+			span.SetUint64("lastIndex", lastIndex)
+		}
+
+	}
+
 	shardNo := ChannelKey(c.channelID, c.channelType)
 	err := c.opts.MessageLogStorage.SetLastIndex(shardNo, lastIndex)
 	if err != nil {

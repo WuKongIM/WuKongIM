@@ -308,7 +308,10 @@ var TableChannelClusterConfig = struct {
 	Id        [2]byte
 	Size      int
 	IndexSize int
-	Column    struct {
+	Index     struct {
+		Channel [2]byte
+	}
+	Column struct {
 		ChannelId       [2]byte
 		ChannelType     [2]byte
 		ReplicaMaxCount [2]byte
@@ -317,10 +320,13 @@ var TableChannelClusterConfig = struct {
 		Term            [2]byte
 		Version         [2]byte
 	}
-	Index struct{}
 }{
-	Id:   [2]byte{0x09, 0x01},
-	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	Id:        [2]byte{0x09, 0x01},
+	Size:      2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	IndexSize: 2 + 2 + 2 + 8, // tableId + dataType + indexName + columnHash
+	Index: struct {
+		Channel [2]byte
+	}{},
 	Column: struct {
 		ChannelId       [2]byte
 		ChannelType     [2]byte

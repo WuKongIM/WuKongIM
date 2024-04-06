@@ -283,11 +283,10 @@ func IsEmptyHardState(hs HardState) bool {
 type Ready struct {
 	HardState HardState
 	Messages  []Message
-	Responses []Message
 }
 
 func IsEmptyReady(rd Ready) bool {
-	return len(rd.Messages) == 0 && IsEmptyHardState(rd.HardState) && len(rd.Responses) == 0
+	return len(rd.Messages) == 0 && IsEmptyHardState(rd.HardState)
 }
 
 type Log struct {

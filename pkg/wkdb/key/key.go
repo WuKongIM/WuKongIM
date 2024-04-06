@@ -515,3 +515,43 @@ func NewMessageNotifyQueueKey(messageId uint64) []byte {
 	binary.BigEndian.PutUint64(key[4:], messageId)
 	return key
 }
+
+// ---------------------- ChannelClusterConfig ----------------------
+
+func NewChannelClusterConfigColumnKey(primaryKey uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableChannelClusterConfig.Size)
+	key[0] = TableChannelClusterConfig.Id[0]
+	key[1] = TableChannelClusterConfig.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+
+	binary.BigEndian.PutUint64(key[4:], primaryKey)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
+// NewChannelClusterConfigIndexKey 创建一个channelId,channelType 的索引
+func NewChannelClusterConfigIndexKey(channelId string, channelType uint8) []byte {
+	key := make([]byte, TableChannelInfo.IndexSize)
+	key[0] = TableChannelClusterConfig.Id[0]
+	key[1] = TableChannelClusterConfig.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = TableChannelClusterConfig.Index.Channel[0]
+	key[5] = TableChannelClusterConfig.Index.Channel[1]
+	channelHash := channelIdToNum(channelId, channelType)
+	binary.BigEndian.PutUint64(key[6:], channelHash)
+	return key
+}
+
+func ParseChannelClusterConfigColumnKey(key []byte) (primaryKey uint64, columnName [2]byte, err error) {
+	if len(key) != TableChannelClusterConfig.Size {
+		err = fmt.Errorf("channelClusterConfig: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	primaryKey = binary.BigEndian.Uint64(key[4:])
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	return
+}

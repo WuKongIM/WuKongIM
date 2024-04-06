@@ -29,7 +29,7 @@ func TestSendAndRecv(t *testing.T) {
 	assert.NoError(t, err)
 	defer cli.Close()
 
-	msgCount := 100
+	msgCount := 10000
 	wg.Add(msgCount)
 
 	for i := 0; i < msgCount; i++ {

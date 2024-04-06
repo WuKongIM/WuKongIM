@@ -10,11 +10,13 @@ import (
 func (wk *wukongDB) getUserIdByUid(uid string) (uint64, error) {
 	uidIndexKey := key.NewUserIndexUidKey(uid)
 	uidIndexValue, closer, err := wk.db.Get(uidIndexKey)
-	defer closer.Close()
-
-	if err != nil && err != pebble.ErrNotFound {
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, nil
+		}
 		return 0, err
 	}
+	defer closer.Close()
 
 	if len(uidIndexValue) == 0 {
 		return 0, nil
