@@ -68,7 +68,7 @@ func (c *ChannelListener) Get(channelID string, channelType uint8) *channel {
 }
 
 func (c *ChannelListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 20)
+	tick := time.NewTicker(time.Millisecond * 150)
 	for {
 		c.ready()
 		select {
@@ -85,8 +85,8 @@ func (c *ChannelListener) ready() {
 	var err error
 	for hasEvent {
 		hasEvent = false
+		// batchStart := time.Now()
 		c.channels.foreach(func(ch *channel) {
-			start := time.Now()
 			if ch.isDestroy() {
 				return
 			}
@@ -97,22 +97,23 @@ func (c *ChannelListener) ready() {
 			if event {
 				hasEvent = true
 			}
+
 			event = c.handleReady(ch)
 			if event {
 				hasEvent = true
 			}
-			if hasEvent {
-				if time.Since(start) > time.Millisecond {
-					c.Debug("loopEvent end...", zap.Duration("cost", time.Since(start)), zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
-				}
-			}
 
 			if c.isInactiveChannel(ch) { // 频道不活跃，移除，等待频道再此收到消息时，重新加入
+				ch.makeDestroy()
 				c.Remove(ch)
 				c.Info("remove inactive channel", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType))
 			}
 
 		})
+		// if time.Since(batchStart) > time.Millisecond*10 {
+		// 	c.Debug("ready batch delay high", zap.Duration("cost", time.Since(batchStart)))
+
+		// }
 	}
 }
 

@@ -85,18 +85,6 @@ func (s *slotManager) proposeAndWaitCommit(ctx context.Context, slotId uint32, l
 	return st.proposeAndWaitCommits(ctx, logs, s.opts.ProposeTimeout)
 }
 
-func (s *slotManager) handleMessage(slotId uint32, m replica.Message) {
-	st := s.slot(slotId)
-	if st == nil {
-		s.Error("slot not found", zap.Uint32("slotId", slotId), zap.String("msgType", m.MsgType.String()), zap.Uint64("from", m.From))
-		return
-	}
-	err := st.handleRecvMessage(m)
-	if err != nil {
-		s.Error("handle message error", zap.Uint32("slotId", slotId), zap.Error(err))
-	}
-}
-
 func (s *slotManager) advanceHandler(slotId uint32) func() {
 
 	return func() {

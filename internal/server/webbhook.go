@@ -92,6 +92,7 @@ func (w *Webhook) Start() {
 }
 
 func (w *Webhook) Stop() {
+	w.Debug("stop...")
 	close(w.stoped)
 }
 

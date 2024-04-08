@@ -85,6 +85,7 @@ func (cm *ConversationManager) Start() {
 
 // Stop Stop
 func (cm *ConversationManager) Stop() {
+	cm.Debug("stop...")
 	if cm.s.opts.Conversation.On {
 		close(cm.stopChan)
 		cm.channelLock.StopCleanLoop()

@@ -25,7 +25,7 @@ func newSlotListener(opts *Options) *slotListener {
 		opts:      opts,
 		slots:     newSlotQueue(),
 		stopper:   syncutil.NewStopper(),
-		readyCh:   make(chan slotReady),
+		readyCh:   make(chan slotReady, 100),
 		Log:       wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
 		advanceCh: make(chan struct{}, 1),
 	}
@@ -51,7 +51,7 @@ func (s *slotListener) wait() slotReady {
 }
 
 func (s *slotListener) loopEvent() {
-	tick := time.NewTicker(time.Millisecond * 20)
+	tick := time.NewTicker(time.Millisecond * 150)
 	for {
 		s.ready()
 		select {
@@ -76,11 +76,12 @@ func (s *slotListener) ready() {
 	var err error
 	for hasEvent {
 		hasEvent = false
+		batchStart := time.Now()
 		s.slots.foreach(func(st *slot) {
-			start := time.Now()
 			if st.isDestroy() {
 				return
 			}
+			// start1 := time.Now()
 			event := false
 			if event, err = st.handleEvents(); err != nil {
 				s.Warn("loopEvent: handleReceivedMessages error", zap.Uint32("slotId", st.slotId), zap.Error(err))
@@ -92,13 +93,12 @@ func (s *slotListener) ready() {
 			if event {
 				hasEvent = true
 			}
-			if hasEvent {
-				if time.Since(start) > time.Millisecond {
-					s.Debug("loopEvent end...", zap.Duration("cost", time.Since(start)), zap.Uint32("slotId", st.slotId))
-				}
-			}
 
 		})
+		if time.Since(batchStart) > time.Millisecond*10 {
+			s.Info("ready batch delay high", zap.Duration("cost", time.Since(batchStart)))
+
+		}
 	}
 }
 

@@ -26,10 +26,16 @@ type channelGroupManager struct {
 	channelKeyLock *keylock.KeyLock
 	s              *Server
 	wklog.Log
+
+	// 激活中的频道
+	activeMu struct {
+		sync.RWMutex
+		activeChannelMap map[string]struct{}
+	}
 }
 
 func newChannelGroupManager(s *Server) *channelGroupManager {
-	return &channelGroupManager{
+	cg := &channelGroupManager{
 		proposeTimeout: s.opts.ProposeTimeout,
 		s:              s,
 		channelGroups:  make([]*channelGroup, s.opts.ChannelGroupCount),
@@ -37,13 +43,17 @@ func newChannelGroupManager(s *Server) *channelGroupManager {
 		Log:            wklog.NewWKLog(fmt.Sprintf("channelGroupManager[%d]", s.opts.NodeID)),
 		localStorage:   s.localStorage,
 	}
+
+	cg.activeMu.activeChannelMap = make(map[string]struct{})
+
+	return cg
 }
 
 func (c *channelGroupManager) start() error {
 	c.channelKeyLock.StartCleanLoop()
 	var err error
 	for i := 0; i < c.s.opts.ChannelGroupCount; i++ {
-		cg := newChannelGroup(c.s.opts)
+		cg := newChannelGroup(c.s)
 		err = cg.start()
 		if err != nil {
 			return err
@@ -160,16 +170,46 @@ func (c *channelGroupManager) channelGroup(channelID string, channelType uint8) 
 	return c.channelGroups[idx]
 }
 
-func (c *channelGroupManager) handleRecvMessage(ctx context.Context, channelID string, channelType uint8, msg replica.Message) error {
+// func (c *channelGroupManager) handleRecvMessage(ctx context.Context, channelID string, channelType uint8, msg replica.Message) error {
 
-	channel, err := c.fetchChannel(ctx, channelID, channelType)
-	if err != nil {
-		return err
+// 	channel, err := c.fetchChannel(ctx, channelID, channelType)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if channel == nil {
+// 		return ErrChannelNotFound
+// 	}
+// 	return channel.handleRecvMessage(msg)
+// }
+
+func (c *channelGroupManager) activeChannelIfNeed(channelId string, channelType uint8) error {
+	shardNo := ChannelKey(channelId, channelType)
+	channel := c.channelGroup(channelId, channelType).channel(channelId, channelType)
+	if channel != nil {
+		return nil
 	}
-	if channel == nil {
-		return ErrChannelNotFound
+	c.activeMu.RLock()
+	_, ok := c.activeMu.activeChannelMap[shardNo]
+	if ok {
+		c.activeMu.RUnlock()
+		return nil
 	}
-	return channel.handleRecvMessage(msg)
+	c.activeMu.RUnlock()
+
+	c.activeMu.Lock()
+	c.activeMu.activeChannelMap[shardNo] = struct{}{}
+	c.activeMu.Unlock()
+
+	go func() { // TODO: 这里应该使用协程池来管理
+		_, err := c.loadOrCreateChannel(context.Background(), channelId, channelType)
+		c.activeMu.Lock()
+		delete(c.activeMu.activeChannelMap, shardNo)
+		c.activeMu.Unlock()
+		if err != nil {
+			c.Error("activeChannelIfNeed error", zap.Error(err))
+		}
+	}()
+	return nil
 }
 
 func (c *channelGroupManager) loadOrCreateChannel(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
@@ -350,17 +390,20 @@ func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID
 
 	clusterConfig, err := c.s.opts.ChannelClusterStorage.Get(channelID, channelType)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) || clusterConfig.LeaderId == 0 {
 		clusterConfig, err = c.requestChannelClusterConfigFromSlotLeader(channelID, channelType) // 从频道所在槽的领导节点获取频道分布式配置
 		if err != nil {
+			span.RecordError(err)
 			return nil, err
 		}
 		if !wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 			err = c.s.opts.ChannelClusterStorage.Save(clusterConfig)
 			if err != nil {
+				span.RecordError(err)
 				return nil, err
 			}
 		}
@@ -372,6 +415,7 @@ func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID
 	if wkutil.ArrayContainsUint64(clusterConfig.Replicas, c.s.opts.NodeID) { // 如果当前节点是频道的副本，则创建频道集群
 		ch, err = c.newChannelByClusterInfo(clusterConfig)
 		if err != nil {
+			span.RecordError(err)
 			return nil, err
 		}
 		ch.(*channel).updateClusterConfig(clusterConfig)
@@ -558,7 +602,7 @@ func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo wkdb.Ch
 	if err != nil {
 		return nil, err
 	}
-	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.advanceHandler(channelClusterInfo.ChannelId, channelClusterInfo.ChannelType), c.s.opts)
+	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.advanceHandler(channelClusterInfo.ChannelId, channelClusterInfo.ChannelType), c.s)
 	return channel, nil
 }
 

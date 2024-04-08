@@ -168,6 +168,7 @@ func (c *Client) processPingTimer() {
 		if c.forceDisconnect {
 			return
 		}
+		c.Error("heartbeat timeout")
 		c.disconnect()
 		return
 	}

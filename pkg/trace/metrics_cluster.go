@@ -5,12 +5,13 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.opentelemetry.io/otel/metric"
+	"go.uber.org/zap"
 )
 
 type clusterMetrics struct {
 	wklog.Log
-	ctx context.Context
-
+	ctx  context.Context
+	opts *Options
 	// message
 	messageIncomingBytes metric.Int64Counter
 	messageOutgoingBytes metric.Int64Counter
@@ -60,12 +61,17 @@ type clusterMetrics struct {
 	clusterPongIncomingCount metric.Int64Counter
 	clusterPongOutgoingBytes metric.Int64Counter
 	clusterPongOutgoingCount metric.Int64Counter
+
+	// inbound flight
+	inboundFlightMessageCount metric.Int64UpDownCounter
+	inboundFlightMessageBytes metric.Int64UpDownCounter
 }
 
-func newClusterMetrics() IClusterMetrics {
+func newClusterMetrics(opts *Options) IClusterMetrics {
 	c := &clusterMetrics{
-		Log: wklog.NewWKLog("clusterMetrics"),
-		ctx: context.Background(),
+		Log:  wklog.NewWKLog("clusterMetrics"),
+		ctx:  context.Background(),
+		opts: opts,
 	}
 
 	// message
@@ -118,6 +124,31 @@ func newClusterMetrics() IClusterMetrics {
 	c.clusterPongIncomingCount = NewInt64Counter("cluster_clusterpong_incoming_count")
 	c.clusterPongOutgoingBytes = NewInt64Counter("cluster_clusterpong_outgoing_bytes")
 	c.clusterPongOutgoingCount = NewInt64Counter("cluster_clusterpong_outgoing_count")
+
+	// RequestGoroutinePoolRunningCount
+	var err error
+	requestGoroutinePoolRunningCount, err := meter.Int64ObservableUpDownCounter("cluster_request_goroutine_pool_running_count")
+	if err != nil {
+		c.Panic("cluster_request_goroutine_pool_running_count error", zap.Error(err))
+	}
+
+	messageGoroutinePoolRunningCount, err := meter.Int64ObservableUpDownCounter("cluster_message_goroutine_pool_running_count")
+	if err != nil {
+		c.Panic("cluster_message_goroutine_pool_running_count error", zap.Error(err))
+	}
+
+	_, err = meter.RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(requestGoroutinePoolRunningCount, opts.RequestPoolRunning())
+		obs.ObserveInt64(messageGoroutinePoolRunningCount, opts.MessagePoolRunning())
+		return nil
+	}, requestGoroutinePoolRunningCount, messageGoroutinePoolRunningCount)
+	if err != nil {
+		c.Panic("register callback error", zap.Error(err))
+	}
+
+	// inbound flight
+	c.inboundFlightMessageCount = NewInt64UpDownCounter("cluster_inbound_flight_message_count")
+	c.inboundFlightMessageBytes = NewInt64UpDownCounter("cluster_inbound_flight_message_bytes")
 
 	return c
 }
@@ -365,4 +396,14 @@ func (c *clusterMetrics) SlotElectionSuccessCountAdd(v int64) {
 
 func (c *clusterMetrics) SlotElectionFailCountAdd(v int64) {
 
+}
+
+// InboundFlightMessageCountAdd 入站飞行消息数量
+func (c *clusterMetrics) InboundFlightMessageCountAdd(v int64) {
+	c.inboundFlightMessageCount.Add(c.ctx, v)
+}
+
+// InboundFlightMessageBytesAdd 入站飞行消息流量
+func (c *clusterMetrics) InboundFlightMessageBytesAdd(v int64) {
+	c.inboundFlightMessageBytes.Add(c.ctx, v)
 }

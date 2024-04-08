@@ -81,6 +81,9 @@ type Options struct {
 
 	// LogSyncLimitSizeOfEach 每次日志同步大小
 	LogSyncLimitSizeOfEach int
+
+	// DefaultGoroutinePoolSize 默认协程池大小
+	DefaultGoroutinePoolSize int
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -107,6 +110,7 @@ func NewOptions(optList ...Option) *Options {
 		LazyFreeCycle:                1,
 		InitialTaskQueueCap:          24,
 		LogSyncLimitSizeOfEach:       1024 * 1024 * 20, // 20M
+		DefaultGoroutinePoolSize:     10240,
 	}
 	for _, opt := range optList {
 		opt(opts)

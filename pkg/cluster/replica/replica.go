@@ -41,6 +41,7 @@ type Replica struct {
 
 	hasFirstSyncResp bool // 是否有第一次同步的回应
 
+	testMap map[uint64]uint64
 }
 
 func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
@@ -60,6 +61,7 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 		activeReplicaMap: make(map[uint64]time.Time),
 		messageWait:      newMessageWait(opts.MessageSendInterval),
 		replicaLog:       newReplicaLog(opts),
+		testMap:          map[uint64]uint64{},
 	}
 
 	lastLeaderTerm, err := rc.opts.Storage.LeaderLastTerm()
@@ -251,16 +253,16 @@ func (r *Replica) putMsgIfNeed() {
 
 	if r.disabledToSync {
 		if !r.IsLeader() && !r.messageWait.has(r.leader, MsgLeaderTermStartIndexReq) {
-			seq := r.messageWait.next(r.leader, MsgLeaderTermStartIndexReq)
-			r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg(seq))
+			r.messageWait.start(r.leader, MsgLeaderTermStartIndexReq)
+			r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
 		}
 		return
 	}
 
 	// 副本来同步日志
 	if r.followNeedSync() {
-		seq := r.messageWait.next(r.leader, MsgSync)
-		r.msgs = append(r.msgs, r.newSyncMsg(seq))
+		r.messageWait.start(r.leader, MsgSync)
+		r.msgs = append(r.msgs, r.newSyncMsg())
 	}
 
 	if r.isLeader() {
@@ -417,9 +419,8 @@ func (r *Replica) newApplyLogReqMsg(applyingIndex, appliedIndex, committedIndex 
 	}
 }
 
-func (r *Replica) newSyncMsg(id uint64) Message {
+func (r *Replica) newSyncMsg() Message {
 	return Message{
-		Id:      id,
 		MsgType: MsgSync,
 		From:    r.nodeID,
 		To:      r.leader,
@@ -428,9 +429,8 @@ func (r *Replica) newSyncMsg(id uint64) Message {
 	}
 }
 
-func (r *Replica) newPing(id uint64, to uint64) Message {
+func (r *Replica) newPing(to uint64) Message {
 	return Message{
-		Id:             id,
 		MsgType:        MsgPing,
 		From:           r.nodeID,
 		To:             to,
@@ -440,14 +440,13 @@ func (r *Replica) newPing(id uint64, to uint64) Message {
 	}
 }
 
-func (r *Replica) newLeaderTermStartIndexReqMsg(id uint64) Message {
+func (r *Replica) newLeaderTermStartIndexReqMsg() Message {
 	leaderLastTerm, err := r.opts.Storage.LeaderLastTerm()
 	if err != nil {
 		r.Panic("get leader last term failed", zap.Error(err))
 	}
 
 	return Message{
-		Id:      id,
 		MsgType: MsgLeaderTermStartIndexReq,
 		From:    r.nodeID,
 		To:      r.leader,

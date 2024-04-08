@@ -168,7 +168,19 @@ func New(opts *Options) *Server {
 	// 	clusterOpts.Peers = peers
 	// }
 
-	s.trace = trace.New(s.ctx, trace.NewOptions(trace.WithEndpoint(s.opts.Trace.Endpoint), trace.WithServiceName(s.opts.Trace.ServiceName), trace.WithServiceHostName(s.opts.Trace.ServiceHostName)))
+	s.trace = trace.New(
+		s.ctx,
+		trace.NewOptions(
+			trace.WithEndpoint(s.opts.Trace.Endpoint),
+			trace.WithServiceName(s.opts.Trace.ServiceName),
+			trace.WithServiceHostName(s.opts.Trace.ServiceHostName),
+			trace.WithRequestPoolRunning(func() int64 {
+				return int64(s.cluster.Monitor().RequestGoroutine())
+			}),
+			trace.WithMessagePoolRunning(func() int64 {
+				return int64(s.cluster.Monitor().MessageGoroutine())
+			}),
+		))
 	trace.SetGlobalTrace(s.trace)
 
 	initNodes := make(map[uint64]string)
@@ -345,6 +357,8 @@ func (s *Server) Stop() error {
 	s.store.Close()
 	close(s.stopChan)
 
+	s.Debug("stopped")
+
 	return nil
 }
 
@@ -363,7 +377,7 @@ func (s *Server) startDeliveryPeerData(req *PeerInFlightData) {
 
 	err := s.forwardRecvPacketReq(req.PeerID, req.Data)
 	if err != nil {
-		s.Warn("请求grpc投递节点数据失败！", zap.Error(err))
+		s.Warn("请求grpc投递节点数据失败！", zap.Uint64("nodeId", req.PeerID), zap.Error(err))
 		return
 	}
 	err = s.peerInFlightQueue.finishMessage(req.No)

@@ -76,15 +76,13 @@ func (r *Replica) stepLeader(m Message) error {
 		}
 
 	case MsgSync: // 追随者向领导同步消息
+		// r.Info("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
 		r.activeReplicaMap[m.From] = time.Now()
 		var needSendResp bool = true
 		lastIndex := r.replicaLog.lastIndex()
 		if lastIndex > 0 {
 			if m.Index <= lastIndex {
 				index := m.Index
-				if m.Index == 0 {
-					index = 1
-				}
 				needSendResp = false // 发送MsgSyncGet后不需要发送MsgSyncResp了 交给上层异步获取日志后发送MsgSyncResp
 				unstableLogs, err := r.replicaLog.getLogsFromUnstable(index, lastIndex+1, logEncodingSize(r.opts.SyncLimitSize))
 				if err != nil {
@@ -168,12 +166,9 @@ func (r *Replica) stepFollower(m Message) error {
 		if len(m.Logs) > 0 {
 			force = true
 		}
+		// r.Debug("recv sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex), zap.Bool("force", force))
 		r.messageWait.finishWithForce(m.From, MsgSync, force) // 完成同步消息，可以继续同步
 
-		if m.Reject {
-			r.Warn("sync rejected", zap.Uint64("leader", r.leader), zap.Uint64("index", m.Index), zap.Uint32("term", m.Term))
-			return nil
-		}
 		if r.disabledToSync {
 			r.Debug("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.replicaLog.term))
 			return nil
@@ -313,6 +308,16 @@ func (r *Replica) increaseUncommittedSize(logs []Log) bool {
 
 func (r *Replica) send(m Message) {
 	r.msgs = append(r.msgs, m)
+	// if m.MsgType == MsgSyncResp {
+	// 	index, ok := r.testMap[m.To]
+	// 	if ok {
+	// 		if m.Index == index {
+	// 			r.Panic("send same sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index))
+	// 		}
+	// 	}
+	// 	r.testMap[m.To] = m.Index
+	// }
+
 }
 
 // // 广播通知同步消息
@@ -454,8 +459,8 @@ func (r *Replica) sendPingIfNeed() bool {
 		}
 		activeTime := r.activeReplicaMap[replicaId]
 		if activeTime.IsZero() || time.Since(activeTime) > r.opts.MaxIdleInterval {
-			id := r.messageWait.next(replicaId, MsgPing)
-			r.send(r.newPing(id, replicaId))
+			r.messageWait.start(replicaId, MsgPing)
+			r.send(r.newPing(replicaId))
 			hasPing = true
 		}
 	}

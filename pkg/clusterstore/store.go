@@ -55,6 +55,7 @@ func (s *Store) Open() error {
 }
 
 func (s *Store) Close() {
+	s.Debug("close...")
 	err := s.wdb.Close()
 	if err != nil {
 		s.Warn("close message storage err", zap.Error(err))
