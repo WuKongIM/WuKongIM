@@ -8,7 +8,7 @@ monitor:
 demo:
   on: false
 conversation:
-  on: true    
+  on: false    
 cluster:
   nodeId: 3
   addr: "tcp://127.0.0.1:10003" # 分布式监听地址

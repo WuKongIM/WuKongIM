@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,17 +29,22 @@ type Trace struct {
 
 	// Metrics 监控
 	Metrics IMetrics
+	wklog.Log
 }
 
 func New(ctx context.Context, opts *Options) *Trace {
 	return &Trace{
 		ctx:     ctx,
 		opts:    opts,
-		Metrics: newMetrics(),
+		Metrics: newMetrics(opts),
+		Log:     wklog.NewWKLog("Trace"),
 	}
 }
 
 func (t *Trace) Start() error {
+	if !t.opts.TraceOn {
+		return nil
+	}
 	shutdown, err := t.setupOTelSDK(t.ctx)
 	if err != nil {
 		return err
@@ -48,6 +54,10 @@ func (t *Trace) Start() error {
 }
 
 func (t *Trace) Stop() {
+	t.Debug("stop...")
+	if !t.opts.TraceOn {
+		return
+	}
 	if t.shutdown != nil {
 		err := t.shutdown(t.ctx)
 		if err != nil {
@@ -61,6 +71,9 @@ func (t *Trace) Handler() http.Handler {
 }
 
 func (t *Trace) StartSpan(ctx context.Context, name string) (context.Context, Span) {
+	if !t.opts.TraceOn {
+		return ctx, emptySpan
+	}
 	ctx, span := tracer.Start(ctx, name)
 	return ctx, defaultSpan{
 		Span: span,
@@ -78,6 +91,8 @@ type Span interface {
 	SetUint64s(key string, value []uint64)
 	SetBool(key string, value bool)
 }
+
+var emptySpan = EmptySpan{}
 
 type defaultSpan struct {
 	trace.Span
@@ -123,6 +138,11 @@ func (d defaultSpan) SetBool(key string, value bool) {
 }
 
 func SpanFromContext(ctx context.Context) Span {
+
+	if !GlobalTrace.opts.TraceOn {
+		return emptySpan
+	}
+
 	span := trace.SpanFromContext(ctx)
 	if span == nil {
 		return nil
@@ -134,11 +154,17 @@ func SpanFromContext(ctx context.Context) Span {
 }
 
 func ContextWithRemoteSpanContext(ctx context.Context, sc SpanContext) context.Context {
+	if !GlobalTrace.opts.TraceOn {
+		return context.Background()
+	}
 	return trace.ContextWithRemoteSpanContext(ctx, sc.SpanContext)
 
 }
 
 func NewSpanContext(cfg SpanContextConfig) SpanContext {
+	if !GlobalTrace.opts.TraceOn {
+		return emptySpanContext
+	}
 	return SpanContext{
 		SpanContext: trace.NewSpanContext(cfg.SpanContextConfig()),
 	}

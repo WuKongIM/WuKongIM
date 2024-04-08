@@ -28,6 +28,9 @@ type replicaAction interface {
 	appendLogs(msg replica.Message) error
 	applyLogs(msg replica.Message) error
 
+	getAndResetMsgSyncResp() (replica.Message, bool)
+	setMsgSyncResp(resp replica.Message)
+
 	sendMessage(msg replica.Message)
 }
 
@@ -36,29 +39,31 @@ type eventHandler struct {
 	proposeQueue        *proposeQueue // 提案队列
 	appendLogStoreQueue *taskQueue
 	applyLogStoreQueue  *taskQueue
-	syncTaskQueue       *taskQueue // 同步任务队列
 	getLogsTaskQueue    *taskQueue // 获取日志任务队列
-	recvMessageQueue    *ReplicaMessageQueue
 	messageWait         *messageWait
 	opts                *Options
 	doneC               chan struct{}
+	shardNo             string
 
 	wklog.Log
+	inbound *inbound
+	s       *Server
 }
 
-func newEventHandler(replicaAction replicaAction, log wklog.Log, opts *Options, doneC chan struct{}) *eventHandler {
+func newEventHandler(shardNo string, replicaAction replicaAction, log wklog.Log, s *Server, doneC chan struct{}) *eventHandler {
 	return &eventHandler{
 		replicaAction:       replicaAction,
 		proposeQueue:        newProposeQueue(),
-		appendLogStoreQueue: newTaskQueue(opts.InitialTaskQueueCap),
-		applyLogStoreQueue:  newTaskQueue(opts.InitialTaskQueueCap),
-		syncTaskQueue:       newTaskQueue(opts.InitialTaskQueueCap),
-		getLogsTaskQueue:    newTaskQueue(opts.InitialTaskQueueCap),
+		appendLogStoreQueue: newTaskQueue(s.defaultPool, s.opts.InitialTaskQueueCap),
+		applyLogStoreQueue:  newTaskQueue(s.defaultPool, s.opts.InitialTaskQueueCap),
+		getLogsTaskQueue:    newTaskQueue(s.defaultPool, s.opts.InitialTaskQueueCap),
 		Log:                 log,
+		s:                   s,
 		messageWait:         newMessageWait(),
-		recvMessageQueue:    NewReplicaMessageQueue(opts.ReceiveQueueLength, false, opts.LazyFreeCycle, opts.MaxReceiveQueueSize),
 		doneC:               doneC,
-		opts:                opts,
+		opts:                s.opts,
+		inbound:             s.inbound,
+		shardNo:             shardNo,
 	}
 }
 
@@ -267,9 +272,16 @@ func (e *eventHandler) handleAppendLogTask() (bool, error) {
 func (e *eventHandler) handleRecvMessages() (bool, error) {
 	// recv message
 	var hasEvent bool
-	msgs := e.recvMessageQueue.Get()
+	msgs := e.inbound.getMessages(e.shardNo)
 	for _, msg := range msgs {
-		err := e.replicaAction.step(msg)
+		err := e.handleRecvMessage(msg)
+		if err != nil {
+			return false, err
+		}
+		if msg.MsgType == replica.MsgSyncResp { // MsgSyncResp消息由 syncTaskQueue处理
+			continue
+		}
+		err = e.replicaAction.step(msg)
 		if err != nil {
 			e.Error("step message failed", zap.Error(err))
 			return false, err
@@ -280,23 +292,17 @@ func (e *eventHandler) handleRecvMessages() (bool, error) {
 }
 
 func (e *eventHandler) handleSyncTask() (bool, error) {
-	tasks := e.syncTaskQueue.getAll()
-	var hasEvent bool
-	for _, task := range tasks {
-		if task.isTaskFinished() {
-			if len(task.resp().Logs) > 0 {
-				e.Debug("sync logs done", zap.Uint64("syncIndex", task.resp().Index), zap.Uint64("startLogIndex", task.resp().Logs[0].Index), zap.Uint64("endLogIndex", task.resp().Logs[len(task.resp().Logs)-1].Index), zap.Uint64("from", task.resp().From), zap.Uint64("index", task.resp().Index), zap.Int("logCount", len(task.resp().Logs)))
-			}
-			err := e.replicaAction.step(task.resp())
-			if err != nil {
-				e.Error("step sync task failed", zap.Error(err))
-				return false, err
-			}
-			hasEvent = true
-			e.syncTaskQueue.remove(task.taskKey())
+
+	msgSyncResp, ok := e.replicaAction.getAndResetMsgSyncResp()
+	if ok {
+		err := e.replicaAction.step(msgSyncResp)
+		if err != nil {
+			e.Error("step sync message failed", zap.Error(err))
+			return false, err
 		}
+		return true, nil
 	}
-	return hasEvent, nil
+	return false, nil
 }
 
 func (e *eventHandler) handleGetLogTask() (bool, error) {
@@ -340,11 +346,11 @@ func (e *eventHandler) handleApplyLogTask() (bool, error) {
 			e.Panic("step apply store message failed", zap.Error(err))
 			return false, err
 		}
-		err = e.replicaAction.setAppliedIndex(firstTask.resp().Index) // TODO: 耗时操作，不应该放到ready里执行，后续要优化
-		if err != nil {
-			e.Panic("set applied index failed", zap.Error(err))
-			return false, err
-		}
+		// err = e.replicaAction.setAppliedIndex(firstTask.resp().Index) // TODO: 耗时操作，不应该放到ready里执行，后续要优化
+		// if err != nil {
+		// 	e.Panic("set applied index failed", zap.Error(err))
+		// 	return false, err
+		// }
 		hasEvent = true
 		e.applyLogStoreQueue.removeFirst()
 		firstTask = e.applyLogStoreQueue.first()
@@ -354,14 +360,6 @@ func (e *eventHandler) handleApplyLogTask() (bool, error) {
 
 func (e *eventHandler) addGetLogsTask(t task) {
 	e.getLogsTaskQueue.add(t)
-}
-
-func (e *eventHandler) existsSyncTask(key string) bool {
-	return e.syncTaskQueue.exists(key)
-}
-
-func (e *eventHandler) addSyncTask(t task) {
-	e.syncTaskQueue.add(t)
 }
 
 func (e *eventHandler) handleRecvMessage(msg replica.Message) error {
@@ -388,30 +386,14 @@ func (e *eventHandler) handleRecvMessage(msg replica.Message) error {
 
 	} else if msg.MsgType == replica.MsgSyncResp { // 副本收到领导的同步响应
 
-		task := e.syncTaskQueue.get(getSyncTaskKey(msg.From, msg.Index))
-		if task == nil {
-			e.Warn("sync task not exists", zap.Uint64("from", msg.From), zap.Uint64("index", msg.Index))
-			return nil
-		}
-
-		if !task.isTaskFinished() {
-
-			task.setResp(msg)
-			task.taskFinished()
-			if len(msg.Logs) > 0 {
-				e.Debug("sync task finished", zap.Uint64("from", msg.From), zap.Uint64("index", msg.Index), zap.Uint64("startLogIndex", msg.Logs[0].Index), zap.Uint64("endLogIndex", msg.Logs[len(msg.Logs)-1].Index), zap.Int("logCount", len(msg.Logs)))
-				e.replicaAction.advance()
-			}
-
+		e.replicaAction.setMsgSyncResp(msg)
+		if len(msg.Logs) > 0 {
+			e.Debug("sync task finished", zap.Uint64("from", msg.From), zap.Uint64("index", msg.Index), zap.Uint64("startLogIndex", msg.Logs[0].Index), zap.Uint64("endLogIndex", msg.Logs[len(msg.Logs)-1].Index), zap.Int("logCount", len(msg.Logs)))
+			e.replicaAction.advance() // 如果同步到日志，则立马推进再次同步
 		}
 		return nil // MsgSyncResp消息由 syncTaskQueue处理
 	}
 
-	if added, stopped := e.recvMessageQueue.Add(msg); !added || stopped {
-		e.Error("messageQueue add failed")
-		return errors.New("messageQueue add failed")
-	}
-	e.replicaAction.advance() // 已接收到消息，推进分布式进程
 	return nil
 }
 
@@ -426,7 +408,7 @@ func (e *eventHandler) handleReadyMessages(msgs []replica.Message) {
 			continue
 		}
 
-		go e.replicaAction.sendMessage(msg)
+		e.replicaAction.sendMessage(msg)
 
 	}
 }
@@ -452,7 +434,7 @@ func (e *eventHandler) handleSyncGet(msg replica.Message) {
 	}
 
 	e.Debug("query logs", zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
-	tk := newGetLogsTask(msg.Index)
+	tk := newGetLogsTask(msg.From, msg.Index)
 
 	tk.setExec(func() error {
 		resultLogs, err := e.replicaAction.getAndMergeLogs(msg)

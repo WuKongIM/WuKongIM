@@ -138,6 +138,7 @@ func (n *PeerInFlightQueue) Start() {
 
 // Stop Stop
 func (n *PeerInFlightQueue) Stop() {
+	n.Debug("stop...")
 	datas := make([]*wkstore.PeerInFlightDataModel, 0)
 	n.infFlights.Range(func(key, value interface{}) bool {
 		datas = append(datas, &value.(*PeerInFlightData).PeerInFlightDataModel)

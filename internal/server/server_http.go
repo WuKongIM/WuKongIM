@@ -74,6 +74,7 @@ func (s *APIServer) Start() {
 
 // Stop 停止服务
 func (s *APIServer) Stop() {
+	s.Debug("stop...")
 }
 
 func (s *APIServer) setRoutes() {

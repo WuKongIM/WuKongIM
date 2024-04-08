@@ -197,6 +197,6 @@ func (s *Server) newSlotBySlotInfo(st *pb.Slot) (*slot, error) {
 	if err != nil {
 		return nil, err
 	}
-	ns := newSlot(st, appliedIdx, s.localStorage, s.slotManager.advanceHandler(st.Id), s.opts)
+	ns := newSlot(st, appliedIdx, s.localStorage, s.slotManager.advanceHandler(st.Id), s)
 	return ns, nil
 }

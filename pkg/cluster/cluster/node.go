@@ -118,6 +118,7 @@ func (n *node) processMessages() {
 			}
 			size = 0
 			msgs = msgs[:0]
+			// time.Sleep(time.Millisecond * 2)
 		case <-n.stopper.ShouldStop():
 			return
 		}

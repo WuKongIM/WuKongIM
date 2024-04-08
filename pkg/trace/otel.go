@@ -91,9 +91,9 @@ func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, s
 	}
 	traceProvider := trace.NewTracerProvider(
 		trace.WithResource(res),
+		trace.WithSampler(trace.TraceIDRatioBased(0.1)), // 采样率
 		trace.WithBatcher(traceExporter,
-			// 默认为 5s。为便于演示，设置为 1s。
-			trace.WithBatchTimeout(time.Second)),
+			trace.WithBatchTimeout(time.Second*5)),
 	)
 	return traceProvider, nil
 }

@@ -2,52 +2,55 @@ package cluster
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/panjf2000/ants/v2"
 )
 
 type taskQueue struct {
-	mu                  sync.Mutex
+	mu                  sync.RWMutex
 	tasks               []task
 	initialTaskQueueCap int
+	pool                *ants.Pool
 }
 
-func newTaskQueue(initialTaskQueueCap int) *taskQueue {
+func newTaskQueue(pool *ants.Pool, initialTaskQueueCap int) *taskQueue {
 	return &taskQueue{
 		initialTaskQueueCap: initialTaskQueueCap,
 		tasks:               make([]task, 0, initialTaskQueueCap),
+		pool:                pool,
 	}
 }
 
 func (t *taskQueue) add(task task) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	t.tasks = append(t.tasks, task)
+	t.mu.Unlock()
 
 	if task.needExec() {
-		go func() { // TODO: 这里应该使用协程池来管理
+		t.pool.Submit(func() {
 			if err := task.exec(); err != nil {
 				fmt.Println("task exec error:", err)
 				task.setErr(err)
 			}
 			task.taskFinished()
-		}()
+		})
 	}
 }
 
 func (t *taskQueue) getAll() []task {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
-	tasks := make([]task, len(t.tasks))
-	copy(tasks, t.tasks)
-	return tasks
+	return t.tasks[0:]
 }
 
 func (t *taskQueue) get(taskKey string) task {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	for _, task := range t.tasks {
 		if task.taskKey() == taskKey {
 			return task
@@ -57,8 +60,8 @@ func (t *taskQueue) get(taskKey string) task {
 }
 
 func (t *taskQueue) exists(taskKey string) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	for _, task := range t.tasks {
 		if task.taskKey() == taskKey {
 			return true
@@ -68,20 +71,20 @@ func (t *taskQueue) exists(taskKey string) bool {
 }
 
 func (t *taskQueue) len() int {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return len(t.tasks)
 }
 
 func (t *taskQueue) empty() bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return len(t.tasks) == 0
 }
 
 func (t *taskQueue) first() task {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if len(t.tasks) == 0 {
 		return nil
 	}
@@ -227,16 +230,21 @@ func newSyncTask(nodeId uint64, startLogIndex uint64) *syncTask {
 }
 
 func getSyncTaskKey(nodeId uint64, startLogIndex uint64) string {
-	return fmt.Sprintf("sync:%d-%d", nodeId, startLogIndex)
+	var b strings.Builder
+	b.WriteString("sync:")
+	b.WriteString(strconv.FormatUint(nodeId, 10))
+	b.WriteString("-")
+	b.WriteString(strconv.FormatUint(startLogIndex, 10))
+	return b.String()
 }
 
 type getLogsTask struct {
 	*defaultTask
 }
 
-func newGetLogsTask(startIndex uint64) *getLogsTask {
+func newGetLogsTask(nodeId uint64, startIndex uint64) *getLogsTask {
 	return &getLogsTask{
-		defaultTask: newDefaultTask(getGetLogsTaskTaskKey(startIndex)),
+		defaultTask: newDefaultTask(getGetLogsTaskTaskKey(nodeId, startIndex)),
 	}
 }
 
@@ -264,8 +272,13 @@ func newApplyLogsTask(committedIndex uint64) *applyLogsTask {
 	}
 }
 
-func getGetLogsTaskTaskKey(startLogIndex uint64) string {
-	return fmt.Sprintf("getLogs:%d", startLogIndex)
+func getGetLogsTaskTaskKey(nodeId uint64, startLogIndex uint64) string {
+	var b strings.Builder
+	b.WriteString("getLogs:")
+	b.WriteString(strconv.FormatUint(nodeId, 10))
+	b.WriteString("-")
+	b.WriteString(strconv.FormatUint(startLogIndex, 10))
+	return b.String()
 }
 
 func getStoreAppendTaskKey(endLogIndex uint64) string {

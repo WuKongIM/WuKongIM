@@ -35,12 +35,20 @@ type slot struct {
 
 	eventHandler *eventHandler
 	advanceFnc   func() // 推进分布式进程
+
+	sync struct {
+		syncingLogIndex uint64        // 正在同步的日志索引
+		syncStatus      syncStatus    // 是否正在同步
+		startSyncTime   time.Time     // 开始同步时间
+		syncTimeout     time.Duration // 同步超时时间
+		resp            replica.Message
+	}
 }
 
-func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, advance func(), opts *Options) *slot {
+func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, advance func(), s *Server) *slot {
 	shardNo := GetSlotShardNo(st.Id)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.ShardLogStorage, localstorage)))
-	if st.Leader == opts.NodeID {
+	rc := replica.New(s.opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.ShardLogStorage, localstorage)))
+	if st.Leader == s.opts.NodeID {
 		rc.BecomeLeader(st.Term)
 	} else {
 		rc.BecomeFollower(st.Term, st.Leader)
@@ -49,15 +57,15 @@ func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, advance
 		slotId:       st.Id,
 		shardNo:      shardNo,
 		rc:           rc,
-		Log:          wklog.NewWKLog(fmt.Sprintf("slot[%d:%d]", opts.NodeID, st.Id)),
-		opts:         opts,
+		Log:          wklog.NewWKLog(fmt.Sprintf("slot[%d:%d]", s.opts.NodeID, st.Id)),
+		opts:         s.opts,
 		doneC:        make(chan struct{}),
 		localstorage: localstorage,
 		advanceFnc:   advance,
 	}
 	stobj.lastActivity.Store(time.Now())
-
-	stobj.eventHandler = newEventHandler(stobj, stobj.Log, opts, stobj.doneC)
+	stobj.sync.syncTimeout = 5 * time.Second
+	stobj.eventHandler = newEventHandler(shardNo, stobj, stobj.Log, s, stobj.doneC)
 	return stobj
 }
 
@@ -85,21 +93,10 @@ func (s *slot) handleReadyMessages(msgs []replica.Message) {
 	s.eventHandler.handleReadyMessages(msgs)
 }
 
-func (s *slot) handleRecvMessage(msg replica.Message) error {
-	if s.destroy {
-		return errors.New("slot destroy, can not handle message")
-	}
-	s.lastActivity.Store(time.Now())
-	return s.eventHandler.handleRecvMessage(msg)
-
-}
-
 func (s *slot) hasReady() bool {
 	if s.destroy {
 		return false
 	}
-	s.Lock()
-	defer s.Unlock()
 	return s.rc.HasReady()
 }
 
@@ -107,8 +104,6 @@ func (s *slot) ready() replica.Ready {
 	if s.destroy {
 		return replica.Ready{}
 	}
-	s.Lock()
-	defer s.Unlock()
 	return s.rc.Ready()
 }
 
@@ -144,6 +139,37 @@ func (s *slot) handleEvents() (bool, error) {
 	return s.eventHandler.handleEvents()
 }
 
+func (s *slot) getAndResetMsgSyncResp() (replica.Message, bool) {
+
+	switch s.sync.syncStatus {
+	case syncStatusSynced:
+		s.sync.syncStatus = syncStatusNone
+		return s.sync.resp, true
+	default:
+		return replica.EmptyMessage, false
+
+	}
+}
+
+func (s *slot) setMsgSyncResp(msg replica.Message) {
+	if s.sync.syncStatus != syncStatusSyncing {
+		s.Warn("setMsgSyncResp: syncStatus != syncStatusSyncing", zap.Uint8("syncStatus", uint8(s.sync.syncStatus)))
+		return
+	}
+
+	if msg.MsgType != replica.MsgSyncResp {
+		s.Warn("setMsgSyncResp: msgType != MsgSyncResp", zap.String("msgType", msg.MsgType.String()))
+		return
+	}
+
+	if msg.Index != s.sync.syncingLogIndex {
+		s.Warn("setMsgSyncResp: msg.Index != c.sync.syncingLogIndex", zap.Uint64("msgIndex", msg.Index), zap.Uint64("syncingLogIndex", s.sync.syncingLogIndex))
+		return
+	}
+	s.sync.resp = msg
+	s.sync.syncStatus = syncStatusSynced
+}
+
 func (s *slot) sendMessage(msg replica.Message) {
 	shardNo := GetSlotShardNo(s.slotId)
 	protMsg, err := NewMessage(shardNo, msg, MsgSlotMsg)
@@ -152,17 +178,27 @@ func (s *slot) sendMessage(msg replica.Message) {
 		return
 	}
 	if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
-		s.Info("发送消息", zap.Uint64("id", msg.Id), zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
+		s.Info("发送消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
 	}
-
 	if msg.MsgType == replica.MsgSync {
-		task := newSyncTask(msg.To, msg.Index)
-		if !s.eventHandler.existsSyncTask(task.taskKey()) {
-			s.eventHandler.addSyncTask(task)
-		} else {
-			s.Debug("sync task exists", zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
+		switch s.sync.syncStatus {
+		case syncStatusNone:
+			s.sync.startSyncTime = time.Now()
+			s.sync.syncingLogIndex = msg.Index
+			s.sync.syncStatus = syncStatusSyncing
+		case syncStatusSyncing:
+			if msg.Index > s.sync.syncingLogIndex || time.Since(s.sync.startSyncTime) > s.sync.syncTimeout {
+				s.sync.syncingLogIndex = msg.Index
+				s.sync.startSyncTime = time.Now()
+				s.Warn("sync timeout...", zap.Uint64("index", msg.Index))
+			} else {
+				s.Warn("syncing...", zap.Uint64("index", msg.Index))
+				return
+			}
+		case syncStatusSynced:
+			s.Warn("synced...", zap.Uint64("index", msg.Index))
+			return
 		}
-
 	}
 	// trace
 	traceOutgoingMessage(trace.ClusterKindSlot, msg)

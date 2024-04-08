@@ -37,15 +37,24 @@ type channel struct {
 
 	leaderId   atomic.Uint64
 	advanceFnc func() // 推进分布式进程
+	inbound    *inbound
+
+	sync struct {
+		syncingLogIndex uint64        // 正在同步的日志索引
+		syncStatus      syncStatus    // 是否正在同步
+		startSyncTime   time.Time     // 开始同步时间
+		syncTimeout     time.Duration // 同步超时时间
+		resp            replica.Message
+	}
 }
 
-func newChannel(clusterConfig wkdb.ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, advance func(), opts *Options) *channel {
+func newChannel(clusterConfig wkdb.ChannelClusterConfig, appliedIdx uint64, localstorage *localStorage, advance func(), s *Server) *channel {
 	shardNo := ChannelKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
-	rc := replica.New(opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, opts.MessageLogStorage, localstorage)))
+	rc := replica.New(s.opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.MessageLogStorage, localstorage)))
 	ch := &channel{
 		maxHandleReadyCountOfBatch: 50,
 		rc:                         rc,
-		opts:                       opts,
+		opts:                       s.opts,
 		Log:                        wklog.NewWKLog(fmt.Sprintf("Channel[%s]", shardNo)),
 		channelID:                  clusterConfig.ChannelId,
 		channelType:                clusterConfig.ChannelType,
@@ -54,9 +63,11 @@ func newChannel(clusterConfig wkdb.ChannelClusterConfig, appliedIdx uint64, loca
 		localstorage:               localstorage,
 		traceRecord:                newTraceRecord(),
 		advanceFnc:                 advance,
+		inbound:                    s.inbound,
 	}
 	ch.lastActivity.Store(time.Now())
-	ch.eventHandler = newEventHandler(ch, ch.Log, opts, ch.doneC)
+	ch.eventHandler = newEventHandler(shardNo, ch, ch.Log, s, ch.doneC)
+	ch.sync.syncTimeout = 5 * time.Second
 	return ch
 }
 
@@ -148,6 +159,8 @@ func (c *channel) channelKey() string {
 func (c *channel) makeDestroy() {
 	c.destroy = true
 	close(c.doneC)
+	shardNo := ChannelKey(c.channelID, c.channelType)
+	c.inbound.removeShardQueue(shardNo)
 }
 
 func (c *channel) isDestroy() bool {
@@ -189,7 +202,7 @@ func (c *channel) getAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
 			c.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
 			return nil, err
 		}
-		resultLogs = extend(logs, unstableLogs)
+		resultLogs = extend(unstableLogs, logs)
 	} else {
 		// c.Warn("handleSyncGet: startIndex > lastIndex", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
 	}
@@ -277,16 +290,35 @@ func (c *channel) handleReadyMessages(msgs []replica.Message) {
 	c.eventHandler.handleReadyMessages(msgs)
 }
 
-func (c *channel) handleRecvMessage(msg replica.Message) error {
-	if c.destroy {
-		return errors.New("channel destroy, can not handle message")
-	}
-	// if msg.MsgType == replica.MsgSync {
-	// 	c.Debug("接收MsgSync消息", zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
-	// }
-	c.lastActivity.Store(time.Now())
-	return c.eventHandler.handleRecvMessage(msg)
+func (c *channel) getAndResetMsgSyncResp() (replica.Message, bool) {
 
+	switch c.sync.syncStatus {
+	case syncStatusSynced:
+		c.sync.syncStatus = syncStatusNone
+		return c.sync.resp, true
+	default:
+		return replica.EmptyMessage, false
+
+	}
+}
+
+func (c *channel) setMsgSyncResp(msg replica.Message) {
+	if c.sync.syncStatus != syncStatusSyncing {
+		c.Warn("setMsgSyncResp: syncStatus != syncStatusSyncing", zap.Uint8("syncStatus", uint8(c.sync.syncStatus)), zap.Uint64("msgIndex", msg.Index), zap.Uint64("syncingLogIndex", c.sync.syncingLogIndex), zap.Uint64("resp.index", c.sync.resp.Index))
+		return
+	}
+
+	if msg.MsgType != replica.MsgSyncResp {
+		c.Warn("setMsgSyncResp: msgType != MsgSyncResp", zap.String("msgType", msg.MsgType.String()))
+		return
+	}
+
+	if msg.Index != c.sync.syncingLogIndex {
+		c.Warn("setMsgSyncResp: msg.Index != c.sync.syncingLogIndex", zap.Uint64("msgIndex", msg.Index), zap.Uint64("syncingLogIndex", c.sync.syncingLogIndex))
+		return
+	}
+	c.sync.resp = msg
+	c.sync.syncStatus = syncStatusSynced
 }
 
 func (c *channel) sendMessage(msg replica.Message) {
@@ -297,17 +329,40 @@ func (c *channel) sendMessage(msg replica.Message) {
 		return
 	}
 	if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
-		c.Info("发送消息", zap.Uint64("id", msg.Id), zap.String("msgType", msg.MsgType.String()), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
+		c.Info("发送消息", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
 	}
 
 	if msg.MsgType == replica.MsgSync {
-		task := newSyncTask(msg.To, msg.Index)
-		if !c.eventHandler.existsSyncTask(task.taskKey()) {
-			c.eventHandler.addSyncTask(task)
-		} else {
-			c.Debug("sync task exists", zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
-		}
 
+		switch c.sync.syncStatus {
+		case syncStatusNone:
+			c.sync.startSyncTime = time.Now()
+			c.sync.syncingLogIndex = msg.Index
+			c.sync.syncStatus = syncStatusSyncing
+		case syncStatusSyncing:
+			return
+			// if msg.Index > c.sync.syncingLogIndex || time.Since(c.sync.startSyncTime) > c.sync.syncTimeout {
+			// 	c.sync.syncingLogIndex = msg.Index
+			// 	c.sync.startSyncTime = time.Now()
+			// 	c.Warn("sync timeout...", zap.Uint64("index", msg.Index))
+			// } else {
+			// 	c.Warn("syncing...", zap.Uint64("index", msg.Index))
+			// 	return
+			// }
+		case syncStatusSynced:
+			c.Warn("synced...", zap.Uint64("index", msg.Index))
+			return
+		}
+	}
+	if msg.MsgType == replica.MsgSyncResp {
+		messageWaitItems := c.eventHandler.messageWait.waitItemsWithStartSeq(msg.Index)
+		if len(messageWaitItems) > 0 {
+			for _, messageWaitItem := range messageWaitItems {
+				_, span := trace.GlobalTrace.StartSpan(messageWaitItem.ctx, fmt.Sprintf("syncResp[to %d]", msg.To))
+				defer span.End()
+				span.SetUint64("index", msg.Index)
+			}
+		}
 	}
 	// trace
 	traceOutgoingMessage(trace.ClusterKindChannel, msg)
@@ -374,12 +429,14 @@ func (c *channel) setLastIndex(lastIndex uint64) error {
 }
 
 func (c *channel) setAppliedIndex(appliedIndex uint64) error {
+	start := time.Now()
 	shardNo := ChannelKey(c.channelID, c.channelType)
 	err := c.localstorage.setAppliedIndex(shardNo, appliedIndex)
 	if err != nil {
 		c.Error("set applied index error", zap.Error(err))
 		return err
 	}
+	c.Debug("set applied index done", zap.Uint64("appliedIndex", appliedIndex), zap.Duration("cost", time.Since(start)))
 	return nil
 }
 
@@ -416,7 +473,6 @@ type ichannel interface {
 	IsLeader() bool
 	proposeAndWaitCommits(ctx context.Context, logs []replica.Log, timeout time.Duration) ([]messageItem, error)
 	LeaderId() uint64
-	handleRecvMessage(msg replica.Message) error
 	getClusterConfig() wkdb.ChannelClusterConfig
 }
 

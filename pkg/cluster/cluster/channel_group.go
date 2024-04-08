@@ -16,15 +16,17 @@ type channelGroup struct {
 	wklog.Log
 	listener *ChannelListener
 	stopped  atomic.Bool
+	s        *Server
 }
 
-func newChannelGroup(opts *Options) *channelGroup {
+func newChannelGroup(s *Server) *channelGroup {
 	cg := &channelGroup{
 		stopper: syncutil.NewStopper(),
-		opts:    opts,
-		Log:     wklog.NewWKLog(fmt.Sprintf("channelGroup[%d]", opts.NodeID)),
+		opts:    s.opts,
+		s:       s,
+		Log:     wklog.NewWKLog(fmt.Sprintf("channelGroup[%d]", s.opts.NodeID)),
 	}
-	cg.listener = NewChannelListener(cg.handleReady, opts)
+	cg.listener = NewChannelListener(cg.handleReady, s.opts)
 	return cg
 }
 
@@ -70,12 +72,22 @@ func (g *channelGroup) handleReady(rd channelReady) {
 		g.Info("设置HardState", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
 		ch.updateClusterConfigLeaderIdAndTerm(rd.HardState.Term, rd.HardState.LeaderId)
 		ch.setLeaderId(rd.HardState.LeaderId)
-		channelClusterCfg := ch.getClusterConfig()
-		err := g.opts.ChannelClusterStorage.Save(channelClusterCfg)
+
+		err := g.s.defaultPool.Submit(func() {
+			g.saveChannelClusterConfig(ch)
+		})
 		if err != nil {
-			g.Panic("save cluster config error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
+			g.Error("submit saveChannelClusterConfig failed", zap.Error(err))
 		}
 	}
 	ch.handleReadyMessages(rd.Messages)
 
+}
+
+func (g *channelGroup) saveChannelClusterConfig(channel *channel) {
+	channelClusterCfg := channel.getClusterConfig()
+	err := g.opts.ChannelClusterStorage.Save(channelClusterCfg)
+	if err != nil {
+		g.Error("保存channelClusterCfg失败", zap.Error(err))
+	}
 }

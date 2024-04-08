@@ -10,11 +10,13 @@ var (
 
 type metrics struct {
 	cluster IClusterMetrics
+	opts    *Options
 }
 
-func newMetrics() *metrics {
+func newMetrics(opts *Options) *metrics {
 	return &metrics{
-		cluster: newClusterMetrics(),
+		cluster: newClusterMetrics(opts),
+		opts:    opts,
 	}
 }
 

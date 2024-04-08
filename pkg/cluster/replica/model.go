@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -126,147 +127,146 @@ func (m MsgType) String() string {
 	}
 }
 
-type Message struct {
-	Id                uint64  // 消息id
-	MsgType           MsgType // 消息类型
-	From              uint64
-	To                uint64
-	Term              uint32 // 领导任期
-	AppointmentLeader uint64 // 任命的领导
-	Logs              []Log
-	Reject            bool // 拒绝
-	Index             uint64
-	CommittedIndex    uint64 // 已提交日志下标
+var EmptyMessage = Message{}
 
-	Responses     []Message
+type Message struct {
+	MsgType        MsgType // 消息类型
+	From           uint64
+	To             uint64
+	Term           uint32 // 领导任期
+	Logs           []Log
+	Index          uint64
+	CommittedIndex uint64 // 已提交日志下标
+
 	ApplyingIndex uint64 // 应用中的下表
 	AppliedIndex  uint64
-
-	// 追踪
-	TraceIDs [][16]byte // 追踪ID
-	SpanIDs  [][8]byte  // 跨度ID
 }
 
 func (m Message) Marshal() ([]byte, error) {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-	enc.WriteUint64(m.Id)
-	enc.WriteUint16(uint16(m.MsgType))
-	enc.WriteUint64(m.From)
-	enc.WriteUint64(m.To)
-	enc.WriteUint32(m.Term)
-	enc.WriteUint64(m.AppointmentLeader)
-	var rejectI uint8
-	if m.Reject {
-		rejectI = 1
-	}
-	enc.WriteUint8(rejectI)
-	enc.WriteUint64(m.Index)
-	enc.WriteUint64(m.CommittedIndex)
 
-	enc.WriteUint32(uint32(len(m.Logs)))
+	if m.MsgType == MsgSync {
+		return m.MarshalMsgSync(), nil
+	}
+	resultBytes := make([]byte, m.Size())
+	binary.BigEndian.PutUint16(resultBytes[0:], uint16(m.MsgType))
+	binary.BigEndian.PutUint64(resultBytes[2:], m.From)
+	binary.BigEndian.PutUint64(resultBytes[10:], m.To)
+	binary.BigEndian.PutUint32(resultBytes[18:], m.Term)
+	binary.BigEndian.PutUint64(resultBytes[22:], m.Index)
+	binary.BigEndian.PutUint64(resultBytes[30:], m.CommittedIndex)
+
+	offset := 38
 	for _, l := range m.Logs {
 		logData, err := l.Marshal()
 		if err != nil {
 			return nil, err
 		}
-		enc.WriteBinary(logData)
+		binary.BigEndian.PutUint16(resultBytes[offset:], uint16(len(logData)))
+		offset += 2
+		copy(resultBytes[offset:], logData)
+		offset += len(logData)
 	}
-	enc.WriteInt16(len(m.TraceIDs))
-	for i, traceID := range m.TraceIDs {
-		enc.WriteBytes(traceID[:])
-		enc.WriteBytes(m.SpanIDs[i][:])
-	}
-	return enc.Bytes(), nil
+
+	return resultBytes, nil
 }
 
-func (m Message) Size() int {
-	size := 8 + 2 + 8 + 8 + 4 + 8 + 1 + 8 + 8 + 4 // id + msgType + from + to + term + appointmentLeader + reject + index + committedIndex + logsLen
-	for _, l := range m.Logs {
-		size += l.LogSize()
-	}
-	size += 2 // traceIDsLen
-	size += len(m.TraceIDs) * 16
-	size += len(m.SpanIDs) * 8
-	return size
-
+func (m Message) MarshalMsgSync() []byte {
+	resultBytes := make([]byte, MsgSyncFixSize())
+	binary.BigEndian.PutUint16(resultBytes[0:2], uint16(m.MsgType))
+	binary.BigEndian.PutUint64(resultBytes[2:10], m.From)
+	binary.BigEndian.PutUint64(resultBytes[10:18], m.To)
+	binary.BigEndian.PutUint64(resultBytes[18:26], m.Index)
+	return resultBytes
 }
 
 func UnmarshalMessage(data []byte) (Message, error) {
+
+	msgType := binary.BigEndian.Uint16(data[0:2])
+	if msgType == uint16(MsgSync) {
+		return UnmarshalMessageSync(data)
+	}
+
 	m := Message{}
-	dec := wkproto.NewDecoder(data)
-	var err error
-	if m.Id, err = dec.Uint64(); err != nil {
-		return m, err
-	}
-	var msgType uint16
-	if msgType, err = dec.Uint16(); err != nil {
-		return m, err
-	}
 	m.MsgType = MsgType(msgType)
-	if m.From, err = dec.Uint64(); err != nil {
-		return m, err
-	}
-	if m.To, err = dec.Uint64(); err != nil {
-		return m, err
-	}
-	if m.Term, err = dec.Uint32(); err != nil {
-		return m, err
-	}
-	if m.AppointmentLeader, err = dec.Uint64(); err != nil {
-		return m, err
-	}
-	var rejectI uint8
-	if rejectI, err = dec.Uint8(); err != nil {
-		return m, err
-	}
-	if rejectI == 1 {
-		m.Reject = true
-	}
-	if m.Index, err = dec.Uint64(); err != nil {
-		return m, err
-	}
-	if m.CommittedIndex, err = dec.Uint64(); err != nil {
-		return m, err
-	}
-	logsLen, err := dec.Uint32()
-	if err != nil {
-		return m, err
-	}
-	for i := uint32(0); i < logsLen; i++ {
-		logData, err := dec.Binary()
-		if err != nil {
-			return m, err
-		}
-		l := &Log{}
-		if err := l.Unmarshal(logData); err != nil {
-			return m, err
-		}
-		m.Logs = append(m.Logs, *l)
-	}
-	traceIDsLen, err := dec.Int16()
-	if err != nil {
-		return m, err
-	}
-	for i := int16(0); i < traceIDsLen; i++ {
-		traceIDBytes, err := dec.Bytes(16)
-		if err != nil {
-			return m, err
-		}
-		spanIDBytes, err := dec.Bytes(8)
-		if err != nil {
-			return m, err
-		}
-		var traceID [16]byte
-		copy(traceID[:], traceIDBytes)
-		m.TraceIDs = append(m.TraceIDs, traceID)
+	m.From = binary.BigEndian.Uint64(data[2:10])
+	m.To = binary.BigEndian.Uint64(data[10:18])
+	m.Term = binary.BigEndian.Uint32(data[18:22])
+	m.Index = binary.BigEndian.Uint64(data[22:30])
+	m.CommittedIndex = binary.BigEndian.Uint64(data[30:38])
 
-		var spanID [8]byte
-		copy(spanID[:], spanIDBytes)
-		m.SpanIDs = append(m.SpanIDs, spanID)
-
+	offset := 38
+	for offset < len(data) {
+		logLen := binary.BigEndian.Uint16(data[offset : offset+2])
+		offset += 2
+		l := Log{}
+		if err := l.Unmarshal(data[offset : offset+int(logLen)]); err != nil {
+			fmt.Println("unmarshal log error:", err, len(data), offset, logLen)
+			return m, err
+		}
+		m.Logs = append(m.Logs, l)
+		offset += int(logLen)
 	}
 	return m, nil
+}
+
+func UnmarshalMessageSync(data []byte) (Message, error) {
+	m := Message{}
+	m.MsgType = MsgSync
+	m.From = binary.BigEndian.Uint64(data[2:10])
+	m.To = binary.BigEndian.Uint64(data[10:18])
+	m.Index = binary.BigEndian.Uint64(data[18:26])
+	return m, nil
+}
+
+func MsgSyncFixSize() int {
+	return 2 + 8 + 8 + 8 // msgType + from + to + index
+}
+
+// func (m Message) MarshalWithEncoder(enc *wkproto.Encoder) error {
+
+// 	resultBytes := make([]byte, m.Size())
+// 	binary.BigEndian.PutUint16(resultBytes[0:], uint16(m.MsgType))
+// 	binary.BigEndian.PutUint64(resultBytes[2:], m.From)
+// 	binary.BigEndian.PutUint64(resultBytes[10:], m.To)
+// 	binary.BigEndian.PutUint32(resultBytes[18:], m.Term)
+// 	binary.BigEndian.PutUint64(resultBytes[22:], m.Index)
+// 	binary.BigEndian.PutUint64(resultBytes[30:], m.CommittedIndex)
+
+// 	for i, l := range m.Logs {
+// 		logData, err := l.Marshal()
+// 		if err != nil {
+// 			return err
+// 		}
+// 		binary.BigEndian.PutUint16(resultBytes[38+i*2:], uint16(len(logData)))
+// 		copy(resultBytes[38+i*2+2:], logData)
+// 	}
+
+// 	// enc.WriteUint16(uint16(m.MsgType))
+// 	// enc.WriteUint64(m.From)
+// 	// enc.WriteUint64(m.To)
+// 	// enc.WriteUint32(m.Term)
+// 	// enc.WriteUint64(m.Index)
+// 	// enc.WriteUint64(m.CommittedIndex)
+
+// 	// enc.WriteUint32(uint32(len(m.Logs)))
+// 	// for _, l := range m.Logs {
+// 	// 	logData, err := l.Marshal()
+// 	// 	if err != nil {
+// 	// 		return err
+// 	// 	}
+// 	// 	enc.WriteBinary(logData)
+// 	// }
+// 	return resultBytes, nil
+// }
+
+func (m Message) Size() int {
+	size := 2 + 8 + 8 + 4 + 8 + 8 // msgType + from + to + term   + index + committedIndex
+	for _, l := range m.Logs {
+		size += 2 // log len
+		size += l.LogSize()
+	}
+	return size
+
 }
 
 type HardState struct {
@@ -297,37 +297,27 @@ type Log struct {
 }
 
 func (l *Log) Marshal() ([]byte, error) {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-	enc.WriteUint64(l.MessageId)
-	enc.WriteUint64(l.Index)
-	enc.WriteUint32(l.Term)
-	enc.WriteBinary(l.Data)
-	return enc.Bytes(), nil
+	resultBytes := make([]byte, l.LogSize())
+	binary.BigEndian.PutUint64(resultBytes[0:8], l.MessageId)
+	binary.BigEndian.PutUint64(resultBytes[8:16], l.Index)
+	binary.BigEndian.PutUint32(resultBytes[16:20], l.Term)
+	copy(resultBytes[20:], l.Data)
+	return resultBytes, nil
 }
 
 func (l *Log) Unmarshal(data []byte) error {
-	dec := wkproto.NewDecoder(data)
-	var err error
-
-	if l.MessageId, err = dec.Uint64(); err != nil {
-		return err
+	if len(data) < 20 {
+		return fmt.Errorf("log data is too short[%d]", len(data))
 	}
-
-	if l.Index, err = dec.Uint64(); err != nil {
-		return err
-	}
-	if l.Term, err = dec.Uint32(); err != nil {
-		return err
-	}
-	if l.Data, err = dec.Binary(); err != nil {
-		return err
-	}
+	l.MessageId = binary.BigEndian.Uint64(data[0:8])
+	l.Index = binary.BigEndian.Uint64(data[8:16])
+	l.Term = binary.BigEndian.Uint32(data[16:20])
+	l.Data = data[20:]
 	return nil
 }
 
 func (l *Log) LogSize() int {
-	return 8 + 4 + len(l.Data)
+	return 8 + 8 + 4 + len(l.Data) // messageId + index + term  + data
 }
 
 // 同步信息
@@ -363,7 +353,7 @@ func (s *SyncInfo) Unmarshal(data []byte) error {
 
 func PrintMessages(msgs []Message) {
 	for _, m := range msgs {
-		fmt.Printf("id:%d, type:%s, from:%d, to:%d, term:%d, appointmentLeader:%d, reject:%v, index:%d, committedIndex:%d, logs:%d\n",
-			m.Id, m.MsgType.String(), m.From, m.To, m.Term, m.AppointmentLeader, m.Reject, m.Index, m.CommittedIndex, len(m.Logs))
+		fmt.Printf("type:%s, from:%d, to:%d, term:%d, index:%d, committedIndex:%d, logs:%d\n",
+			m.MsgType.String(), m.From, m.To, m.Term, m.Index, m.CommittedIndex, len(m.Logs))
 	}
 }

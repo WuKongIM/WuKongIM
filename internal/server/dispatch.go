@@ -218,6 +218,7 @@ func (d *Dispatch) Start() error {
 }
 
 func (d *Dispatch) Stop() error {
+	d.Debug("stop...")
 	err := d.engine.Stop()
 	if err != nil {
 		return err

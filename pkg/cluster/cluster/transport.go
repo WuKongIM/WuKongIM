@@ -1,10 +1,11 @@
 package cluster
 
 import (
+	"encoding/binary"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type ITransport interface {
@@ -42,34 +43,29 @@ type Message struct {
 }
 
 func (m Message) Marshal() ([]byte, error) {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
 
-	enc.WriteString(m.ShardNo)
-	msgData, err := m.Message.Marshal()
+	msgBytes, err := m.Message.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	enc.WriteBytes(msgData)
-	return enc.Bytes(), nil
+	resultBytes := make([]byte, 2+len(m.ShardNo)+len(msgBytes))
+	binary.BigEndian.PutUint16(resultBytes, uint16(len(m.ShardNo)))
+	copy(resultBytes[2:], []byte(m.ShardNo))
+	copy(resultBytes[2+len(m.ShardNo):], msgBytes)
+	return resultBytes, nil
 }
 
 func UnmarshalMessage(data []byte) (Message, error) {
-	m := Message{}
-	dec := wkproto.NewDecoder(data)
-	var err error
-	if m.ShardNo, err = dec.String(); err != nil {
-		return m, err
-	}
-	msgData, err := dec.BinaryAll()
+	shardNoLen := binary.BigEndian.Uint16(data)
+	shardNo := string(data[2 : 2+shardNoLen])
+	msg, err := replica.UnmarshalMessage(data[2+shardNoLen:])
 	if err != nil {
-		return m, err
+		return Message{}, err
 	}
-	m.Message, err = replica.UnmarshalMessage(msgData)
-	if err != nil {
-		return m, err
-	}
-	return m, nil
+	return Message{
+		ShardNo: shardNo,
+		Message: msg,
+	}, nil
 }
 
 type MemoryTransport struct {

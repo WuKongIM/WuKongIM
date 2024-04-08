@@ -127,5 +127,4 @@ func (r *RetryQueue) Start() {
 }
 
 func (r *RetryQueue) Stop() {
-
 }

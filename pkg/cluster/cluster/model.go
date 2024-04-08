@@ -3,7 +3,6 @@ package cluster
 import (
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
@@ -57,7 +56,7 @@ func (r *lockedRand) Intn(n int) int {
 }
 
 func ChannelKey(channelID string, channelType uint8) string {
-	return fmt.Sprintf("%d-%s", channelType, channelID)
+	return strconv.Itoa(int(channelType)) + "-" + channelID
 }
 
 func ChannelFromChannelKey(channelKey string) (channelID string, channelType uint8) {
@@ -718,3 +717,11 @@ type ChannelClusterStorage interface {
 	// // 获取所有槽位的频道分布式配置
 	// GetWithAllSlot() ([]*wkstore.ChannelClusterConfig, error)
 }
+
+type syncStatus int
+
+const (
+	syncStatusNone    syncStatus = iota // 无状态
+	syncStatusSyncing                   // 同步中
+	syncStatusSynced                    // 已同步
+)

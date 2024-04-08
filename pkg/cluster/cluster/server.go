@@ -17,6 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
+	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -38,6 +39,10 @@ type Server struct {
 	apiPrefix            string    // api前缀
 	defaultMonitor       *DefaultMonitor
 	messageIDGen         *snowflake.Node // 消息ID生成器
+
+	inbound *inbound // 节点消息收件箱
+
+	defaultPool *ants.Pool
 
 	// 其他
 	opts *Options
@@ -83,6 +88,13 @@ func New(nodeId uint64, opts *Options) *Server {
 	s.cancelCtx, s.cancelFunc = context.WithCancel(context.Background())
 
 	s.defaultMonitor = NewDefaultMonitor(s)
+
+	s.inbound = newInbound(s.opts)
+
+	s.defaultPool, err = ants.NewPool(opts.DefaultGoroutinePoolSize)
+	if err != nil {
+		s.Panic("create clusterPool error", zap.Error(err))
+	}
 
 	return s
 }
@@ -185,14 +197,26 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
+	s.Debug("stop...")
+
+	err := s.defaultPool.ReleaseTimeout(time.Second * 2)
+	if err != nil {
+		s.Error("defaultPool release error", zap.Error(err))
+	}
+
 	s.stopped.Store(true)
 	s.cancelFunc()
+	// 停止节点
+	nodes := s.nodeManager.nodes()
+	for _, node := range nodes {
+		node.stop()
+	}
 	s.slotMigrateManager.stop()
 	s.server.Stop()
 	s.clusterEventListener.stop()
 	s.slotManager.stop()
 	s.channelGroupManager.stop()
-	err := s.localStorage.close()
+	err = s.localStorage.close()
 	if err != nil {
 		s.Error("close localStorage is error", zap.Error(err))
 	}
@@ -380,8 +404,14 @@ func (s *Server) handleSlotRecvMsg(_ uint64, m *proto.Message) {
 	}
 	traceIncomingMessage(trace.ClusterKindSlot, msg.Message)
 
-	slotId := GetSlotId(msg.ShardNo, s.Log)
-	s.slotManager.handleMessage(slotId, msg.Message)
+	added, stopped := s.inbound.addMessage(msg.ShardNo, msg.Message)
+	if !added || stopped {
+		s.Warn("slot addMessage failed", zap.String("shardNo", msg.ShardNo), zap.String("msgType", msg.Message.MsgType.String()))
+		return
+	}
+
+	// slotId := GetSlotId(msg.ShardNo, s.Log)
+	// s.slotManager.handleMessage(slotId, msg.Message)
 }
 
 func (s *Server) handleChannelRecvMsg(_ uint64, m *proto.Message) {
@@ -391,14 +421,35 @@ func (s *Server) handleChannelRecvMsg(_ uint64, m *proto.Message) {
 		return
 	}
 
+	// if msg.Message.MsgType == replica.MsgSync {
+	// 	s.Info("channel sync message", zap.String("shardNo", msg.ShardNo), zap.Uint64("from", msg.Message.From), zap.Uint64("to", msg.Message.To), zap.Uint64("index", msg.Message.Index), zap.Uint64("committed", msg.Message.CommittedIndex))
+	// } else if msg.Message.MsgType == replica.MsgSyncResp {
+	// 	s.Info("channel sync resp message", zap.String("shardNo", msg.ShardNo), zap.Uint64("from", msg.Message.From), zap.Uint64("to", msg.Message.To), zap.Uint64("index", msg.Message.Index), zap.Uint64("committed", msg.Message.CommittedIndex))
+	// }
+
 	traceIncomingMessage(trace.ClusterKindChannel, msg.Message)
+
+	added, stopped := s.inbound.addMessage(msg.ShardNo, msg.Message)
+	if !added || stopped {
+		s.Warn("channel addMessage failed", zap.String("shardNo", msg.ShardNo), zap.String("msgType", msg.Message.MsgType.String()))
+		return
+	}
+
+	channelId, channelType := ChannelFromChannelKey(msg.ShardNo)
+
+	// 按需要激活频道
+	err = s.channelGroupManager.activeChannelIfNeed(channelId, channelType)
+	if err != nil {
+		s.Error("active channel error", zap.Error(err), zap.String("shardNo", msg.ShardNo))
+		return
+	}
 
 	// s.Info("收到频道消息", zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From), zap.Uint32("term", msg.Term), zap.Uint64("to", msg.To), zap.String("shardNo", msg.ShardNo), zap.Uint64("index", msg.Index), zap.Uint64("committed", msg.CommittedIndex))
 
-	channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
-	err = s.channelGroupManager.handleRecvMessage(s.cancelCtx, channelID, channelType, msg.Message)
-	if err != nil {
-		s.Error("handle channel message error", zap.Error(err), zap.String("shardNo", msg.ShardNo))
-		return
-	}
+	// channelID, channelType := ChannelFromChannelKey(msg.ShardNo)
+	// err = s.channelGroupManager.handleRecvMessage(s.cancelCtx, channelID, channelType, msg.Message)
+	// if err != nil {
+	// 	s.Error("handle channel message error", zap.Error(err), zap.String("shardNo", msg.ShardNo))
+	// 	return
+	// }
 }
