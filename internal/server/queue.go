@@ -87,6 +87,8 @@ func (e *Queue) TryPop() (v interface{}, ok bool) {
 
 // Len 获取队列长度
 func (e *Queue) Len() int {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	return e.buffer.Length()
 }
 
