@@ -41,9 +41,9 @@ func NewAcceptor(eg *Engine) *Acceptor {
 	a := &Acceptor{
 		eg:              eg,
 		reactorSubs:     reactorSubs,
-		listenPoller:    netpoll.NewPoller("listenerPoller"),
-		listenWSPoller:  netpoll.NewPoller("listenWSPoller"),
-		listenWSSPoller: netpoll.NewPoller("listenWSSPoller"),
+		listenPoller:    netpoll.NewPoller(0, "listenerPoller"),
+		listenWSPoller:  netpoll.NewPoller(0, "listenWSPoller"),
+		listenWSSPoller: netpoll.NewPoller(0, "listenWSSPoller"),
 		Log:             wklog.NewWKLog("Acceptor"),
 	}
 
@@ -67,7 +67,7 @@ func (a *Acceptor) start() error {
 	go func() {
 		err := a.initTCPListener(wg)
 		if err != nil {
-			panic(err)
+			a.Panic("initTCPListener() failed", zap.Error(err))
 		}
 	}()
 
@@ -76,7 +76,7 @@ func (a *Acceptor) start() error {
 		go func() {
 			err := a.initWSListener(wg)
 			if err != nil {
-				panic(err)
+				a.Panic("initWSListener() failed", zap.Error(err))
 			}
 		}()
 	}
@@ -85,7 +85,7 @@ func (a *Acceptor) start() error {
 		go func() {
 			err := a.initWSSListener(wg)
 			if err != nil {
-				panic(err)
+				a.Panic("initWSSListener() failed", zap.Error(err))
 			}
 		}()
 	}
@@ -135,7 +135,10 @@ func (a *Acceptor) Stop() error {
 
 	// -----------------reactor sub-----------------
 	for _, reactorSub := range a.reactorSubs {
-		reactorSub.Stop()
+		err = reactorSub.Stop()
+		if err != nil {
+			a.Warn("reactorSub.Stop() failed", zap.Error(err))
+		}
 	}
 
 	return nil
@@ -154,10 +157,10 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	}
 	wg.Done()
 
-	a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+	err = a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, false, false)
 	})
-	return nil
+	return err
 
 }
 
@@ -173,10 +176,9 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 		return fmt.Errorf("add ws listener fd to poller failed %s", err)
 	}
 	wg.Done()
-	a.listenWSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+	return a.listenWSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, true, false)
 	})
-	return nil
 }
 
 func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
@@ -191,10 +193,9 @@ func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 		return fmt.Errorf("add ws listener fd to poller failed %s", err)
 	}
 	wg.Done()
-	a.listenWSSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+	return a.listenWSSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, false, true)
 	})
-	return nil
 }
 
 func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
@@ -234,9 +235,15 @@ func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
 		}
 	}
 	// add conn to sub reactor
-	subReactor.AddConn(conn)
+	err = subReactor.AddConn(conn)
+	if err != nil {
+		a.Warn("subReactor.AddConn() failed", zap.Error(err))
+	}
 	// call on connect
-	a.eg.eventHandler.OnConnect(conn)
+	err = a.eg.eventHandler.OnConnect(conn)
+	if err != nil {
+		a.Warn("OnConnect() failed", zap.Error(err))
+	}
 
 	return nil
 }

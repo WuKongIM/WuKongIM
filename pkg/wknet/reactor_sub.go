@@ -25,12 +25,12 @@ type ReactorSub struct {
 	ReadBuffer []byte
 	cache      bytes.Buffer // temporary buffer for scattered bytes
 
-	stopped bool
+	stopped atomic.Bool
 }
 
 // NewReactorSub instantiates a sub reactor.
 func NewReactorSub(eg *Engine, index int) *ReactorSub {
-	poller := netpoll.NewPoller("connPoller")
+	poller := netpoll.NewPoller(index, "connPoller")
 
 	return &ReactorSub{
 		eg:         eg,
@@ -56,7 +56,7 @@ func (r *ReactorSub) Start() error {
 
 // Stop stops the sub reactor.
 func (r *ReactorSub) Stop() error {
-	r.stopped = true
+	r.stopped.Store(true)
 	return r.poller.Close()
 }
 
@@ -99,8 +99,8 @@ func (r *ReactorSub) run() {
 		}
 		switch event {
 		case netpoll.PollEventClose:
-			r.Debug("PollEventClose连接关闭！")
-			r.CloseConn(conn, unix.ECONNRESET)
+			r.Debug("conn 连接关闭！", zap.Int64("id", conn.ID()), zap.Int("fd", fd))
+			_ = r.CloseConn(conn, unix.ECONNRESET)
 		case netpoll.PollEventRead:
 			err = r.read(conn)
 		case netpoll.PollEventWrite:
@@ -109,13 +109,13 @@ func (r *ReactorSub) run() {
 		return
 	})
 
-	if err != nil && !r.stopped {
+	if err != nil && !r.stopped.Load() {
 		panic(err)
 	}
 }
 
 func (r *ReactorSub) CloseConn(c Conn, er error) (rerr error) {
-	r.Debug("connection error", zap.Error(er))
+	r.Debug("connection error", zap.Error(er), zap.Int64("id", c.ID()), zap.Int("fd", c.Fd().fd))
 	return c.Close()
 }
 
