@@ -1,6 +1,7 @@
 package wknet
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -37,13 +38,14 @@ type Options struct {
 }
 
 func NewOptions() *Options {
+	fmt.Println("runtime.NumCPU()---->", runtime.NumCPU())
 	return &Options{
 		Addr:               "tcp://127.0.0.1:5100",
 		MaxOpenFiles:       GetMaxOpenFiles(),
 		SubReactorNum:      runtime.NumCPU(),
 		ReadBufferSize:     1024 * 32,
 		MaxWriteBufferSize: 1024 * 1024 * 50,
-		MaxReadBufferSize:  1024 * 1024 * 5,
+		MaxReadBufferSize:  1024 * 1024 * 50,
 	}
 }
 

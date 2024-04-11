@@ -15,6 +15,7 @@ var logger *zap.Logger
 var errorLogger *zap.Logger
 var warnLogger *zap.Logger
 var testLogger *zap.Logger
+var panicLogger *zap.Logger
 var atom = zap.NewAtomicLevel()
 
 func Configure(opts *Options) {
@@ -80,6 +81,23 @@ func Configure(opts *Options) {
 		warnLogger = zap.New(core)
 	}
 
+	panicWriter := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   path.Join(opts.LogDir, "panic.log"),
+		MaxSize:    500, // megabytes
+		MaxBackups: 3,
+		MaxAge:     28, // days
+	})
+	core = zapcore.NewCore(
+		zapcore.NewJSONEncoder(newEncoderConfig()),
+		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(panicWriter)),
+		zap.PanicLevel,
+	)
+	if opts.LineNum {
+		panicLogger = zap.New(core, zap.AddCaller())
+	} else {
+		panicLogger = zap.New(core)
+	}
+
 }
 
 func newEncoderConfig() zapcore.EncoderConfig {
@@ -114,6 +132,7 @@ func Info(msg string, fields ...zap.Field) {
 		Configure(NewOptions())
 	}
 	logger.Info(msg, fields...)
+
 }
 
 // Debug Debug
@@ -134,6 +153,19 @@ func Error(msg string, fields ...zap.Field) {
 	errorLogger.Error(msg, fields...)
 }
 
+func Fatal(msg string, fields ...zap.Field) {
+	if panicLogger == nil {
+		Configure(NewOptions())
+	}
+	panicLogger.Fatal(msg, fields...)
+}
+func Panic(msg string, fields ...zap.Field) {
+	if panicLogger == nil {
+		Configure(NewOptions())
+	}
+	panicLogger.Panic(msg, fields...)
+}
+
 // Warn Warn
 func Warn(msg string, fields ...zap.Field) {
 
@@ -149,6 +181,8 @@ type Log interface {
 	Debug(msg string, fields ...zap.Field)
 	Error(msg string, fields ...zap.Field)
 	Warn(msg string, fields ...zap.Field)
+	Fatal(msg string, fields ...zap.Field)
+	Panic(msg string, fields ...zap.Field)
 }
 
 // WKLog TLog
@@ -180,4 +214,11 @@ func (t *WKLog) Error(msg string, fields ...zap.Field) {
 // Warn Warn
 func (t *WKLog) Warn(msg string, fields ...zap.Field) {
 	Warn(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+}
+
+func (t *WKLog) Fatal(msg string, fields ...zap.Field) {
+	Fatal(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+}
+func (t *WKLog) Panic(msg string, fields ...zap.Field) {
+	Panic(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
 }
