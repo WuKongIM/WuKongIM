@@ -43,8 +43,8 @@ func myUptime(d time.Duration) string {
 }
 
 const (
-	aesKeyKey = "aesKey"
-	aesIVKey  = "aesIV"
+	constAesKeyKey = "aesKey"
+	constAesIVKey  = "aesIV"
 )
 
 // GetFakeChannelIDWith GetFakeChannelIDWith
@@ -86,10 +86,7 @@ var (
 
 // 加密消息
 func encryptMessagePayload(payload []byte, conn wknet.Conn) ([]byte, error) {
-	var (
-		aesKey = conn.Value(aesKeyKey).(string)
-		aesIV  = conn.Value(aesIVKey).(string)
-	)
+	aesKey, aesIV := getAesKeyFromConn(conn)
 	// 加密payload
 	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, []byte(aesKey), []byte(aesIV))
 	if err != nil {
@@ -99,10 +96,7 @@ func encryptMessagePayload(payload []byte, conn wknet.Conn) ([]byte, error) {
 }
 
 func makeMsgKey(signStr string, conn wknet.Conn) (string, error) {
-	var (
-		aesKey = conn.Value(aesKeyKey).(string)
-		aesIV  = conn.Value(aesIVKey).(string)
-	)
+	aesKey, aesIV := getAesKeyFromConn(conn)
 	// 生成MsgKey
 	msgKeyBytes, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
 	if err != nil {
@@ -146,4 +140,16 @@ const (
 
 func (c ClusterMsgType) Uint32() uint32 {
 	return uint32(c)
+}
+func getAesKeyFromConn(conn wknet.Conn) (aesKeyKey string, aesIVKey string) {
+	aesKeyKeyObj := conn.Value(constAesKeyKey)
+	if aesKeyKeyObj != nil {
+		aesKeyKey = aesKeyKeyObj.(string)
+	}
+
+	aesIVKeyObj := conn.Value(constAesIVKey)
+	if aesIVKeyObj != nil {
+		aesIVKey = aesIVKeyObj.(string)
+	}
+	return
 }

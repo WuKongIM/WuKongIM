@@ -227,8 +227,8 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 	conn.SetDeviceFlag(connectPacket.DeviceFlag.ToUint8())
 	conn.SetDeviceID(connectPacket.DeviceID)
 	conn.SetUID(connectPacket.UID)
-	conn.SetValue(aesKeyKey, aesKey)
-	conn.SetValue(aesIVKey, aesIV)
+	conn.SetValue(constAesKeyKey, aesKey)
+	conn.SetValue(constAesIVKey, aesIV)
 	conn.SetDeviceLevel(uint8(devceLevel))
 	conn.SetMaxIdle(p.s.opts.ConnIdleTime)
 
@@ -309,8 +309,8 @@ func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.Co
 	conn.SetDeviceFlag(connectPacket.DeviceFlag.ToUint8())
 	conn.SetDeviceID(connectPacket.DeviceID)
 	conn.SetUID(connectPacket.UID)
-	conn.SetValue(aesKeyKey, connResp.AesKey)
-	conn.SetValue(aesIVKey, connResp.AesIV)
+	conn.SetValue(constAesKeyKey, connResp.AesKey)
+	conn.SetValue(constAesIVKey, connResp.AesIV)
 	conn.SetDeviceLevel(uint8(connResp.DeviceLevel))
 	conn.SetMaxIdle(p.s.opts.ConnIdleTime)
 
@@ -924,12 +924,9 @@ func (p *Processor) storeChannelMessagesToNotifyQueue(messages []*Message) error
 	return p.s.store.AppendMessageOfNotifyQueue(storeMessages)
 }
 
-// 检查和解码payload内容
+// decode payload
 func (p *Processor) checkAndDecodePayload(sendPacket *wkproto.SendPacket, c wknet.Conn) ([]byte, error) {
-	var (
-		aesKey = c.Value(aesKeyKey).(string)
-		aesIV  = c.Value(aesIVKey).(string)
-	)
+	aesKey, aesIV := getAesKeyFromConn(c)
 	vail, err := p.sendPacketIsVail(sendPacket, c)
 	if err != nil {
 		return nil, err
@@ -949,10 +946,7 @@ func (p *Processor) checkAndDecodePayload(sendPacket *wkproto.SendPacket, c wkne
 
 // send packet is vail
 func (p *Processor) sendPacketIsVail(sendPacket *wkproto.SendPacket, c wknet.Conn) (bool, error) {
-	var (
-		aesKey = c.Value(aesKeyKey).(string)
-		aesIV  = c.Value(aesIVKey).(string)
-	)
+	aesKey, aesIV := getAesKeyFromConn(c)
 	signStr := sendPacket.VerityString()
 	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
 	if err != nil {
