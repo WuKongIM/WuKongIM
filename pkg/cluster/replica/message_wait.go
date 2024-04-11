@@ -5,80 +5,68 @@ import (
 )
 
 type messageWait struct {
-	waitMap             map[MsgType]map[uint64]waitInfo
-	messageSendInterval time.Duration
-	syncTimeout         time.Duration
+	messageSendIntervalTickCount int
+	syncTimeoutTickCount         int
+	replicaMaxCount              int
+	waits                        [][]*waitInfo
+
+	syncTickCount                       int
+	pingTickCount                       int
+	msgLeaderTermStartIndexReqTickCount int
 }
 
-func newMessageWait(messageSendInterval time.Duration) *messageWait {
+func newMessageWait(messageSendInterval time.Duration, replicaMaxCount int) *messageWait {
+	messageSendIntervalTickCount := 2
 	return &messageWait{
-		waitMap:             make(map[MsgType]map[uint64]waitInfo),
-		messageSendInterval: messageSendInterval, // 如果某个消息在指定时间内没有收到ack，则认为超时，超时后可以重发此消息
-		syncTimeout:         time.Second * 20,
+		messageSendIntervalTickCount:        messageSendIntervalTickCount, // 如果某个消息在指定时间内没有收到ack，则认为超时，超时后可以重发此消息
+		syncTimeoutTickCount:                10,
+		waits:                               make([][]*waitInfo, MsgMaxValue),
+		replicaMaxCount:                     replicaMaxCount,
+		syncTickCount:                       messageSendIntervalTickCount,
+		pingTickCount:                       messageSendIntervalTickCount,
+		msgLeaderTermStartIndexReqTickCount: messageSendIntervalTickCount,
 	}
 }
 
-func (m *messageWait) start(nodeId uint64, msgType MsgType) {
-	nodeWaitMap := m.waitMap[msgType]
-	if nodeWaitMap == nil {
-		nodeWaitMap = make(map[uint64]waitInfo)
-		m.waitMap[msgType] = nodeWaitMap
-	}
-	nodeWaitMap[nodeId] = waitInfo{
-		createdAt: time.Now(),
-		wait:      true,
-	}
+func (m *messageWait) canPing() bool {
+
+	return m.pingTickCount >= m.messageSendIntervalTickCount
 }
 
-func (m *messageWait) finish(nodeId uint64, msgType MsgType) {
-	m.finishWithForce(nodeId, msgType, false)
+func (m *messageWait) resetPing() {
+	m.pingTickCount = 0
 }
 
-func (m *messageWait) finishWithForce(nodeId uint64, msgType MsgType, force bool) {
-	nodeWaitMap := m.waitMap[msgType]
-	if nodeWaitMap == nil {
-		return
-	}
+func (m *messageWait) canSync() bool {
 
-	if v, ok := nodeWaitMap[nodeId]; ok {
-
-		w := waitInfo{
-			seq:       v.seq,
-			createdAt: time.Now(),
-			wait:      false,
-		}
-
-		if !force && msgType == MsgSync {
-			if time.Since(v.createdAt) < m.messageSendInterval { // 如果同步消息发送间隔小于messageSendInterval，则至少等到messageSendInterval后才能再次发送
-				w.createdAt = v.createdAt.Add(-m.syncTimeout + m.messageSendInterval)
-				w.wait = true
-			}
-		}
-		nodeWaitMap[nodeId] = w
-	}
+	return m.syncTickCount >= m.messageSendIntervalTickCount
 }
 
-func (m *messageWait) has(nodeId uint64, msgType MsgType) bool {
-	nodeWaitMap := m.waitMap[msgType]
-	if nodeWaitMap == nil {
-		return false
-	}
-	if v, ok := nodeWaitMap[nodeId]; ok {
+func (m *messageWait) resetSync() {
+	m.syncTickCount = 0
+}
 
-		if v.wait {
-			if msgType == MsgSync {
-				return time.Since(v.createdAt) < m.syncTimeout
-			}
-			return time.Since(v.createdAt) < m.messageSendInterval
-		}
+func (m *messageWait) immediatelySync() {
+	m.syncTickCount = m.messageSendIntervalTickCount
+}
 
-		return false
-	}
-	return false
+func (m *messageWait) canMsgLeaderTermStartIndex() bool {
+
+	return m.msgLeaderTermStartIndexReqTickCount >= m.messageSendIntervalTickCount
+}
+
+func (m *messageWait) resetMsgLeaderTermStartIndex() {
+	m.msgLeaderTermStartIndexReqTickCount = 0
+}
+
+func (m *messageWait) tick() {
+	m.syncTickCount++
+	m.pingTickCount++
+	m.msgLeaderTermStartIndexReqTickCount++
 }
 
 type waitInfo struct {
-	seq       uint64
-	createdAt time.Time
+	nodeId    uint64
+	tickCount int
 	wait      bool
 }

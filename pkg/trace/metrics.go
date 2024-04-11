@@ -242,9 +242,4 @@ type IClusterMetrics interface {
 	SlotElectionSuccessCountAdd(v int64)
 	// SlotElectionFailCountAdd  槽位选举失败次数
 	SlotElectionFailCountAdd(v int64)
-
-	// InboundFlightMessageCountAdd 入站飞行消息数量
-	InboundFlightMessageCountAdd(v int64)
-	// InboundFlightMessageBytesAdd 入站飞行消息流量
-	InboundFlightMessageBytesAdd(v int64)
 }

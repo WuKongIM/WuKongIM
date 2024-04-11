@@ -16,7 +16,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-func (t *Trace) setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, err error) {
+func (t *Trace) setupOTelSDK(ctx context.Context, traceOn bool) (shutdown func(context.Context) error, err error) {
 	var shutdownFuncs []func(context.Context) error
 	// shutdown 会调用通过 shutdownFuncs 注册的清理函数。
 	// 调用产生的错误会被合并。
@@ -40,23 +40,26 @@ func (t *Trace) setupOTelSDK(ctx context.Context) (shutdown func(context.Context
 
 	// 设置 trace provider.
 	// tracerProvider, err := newTraceProvider()
-	tracerProvider, err := newJaegerTraceProvider(ctx, t.opts.Endpoint, t.opts.ServiceName, t.opts.ServiceHostName)
-	if err != nil {
-		handleErr(err)
-		return
+	var meterProvider *metric.MeterProvider
+	if traceOn {
+		var tracerProvider *trace.TracerProvider
+		tracerProvider, err = newJaegerTraceProvider(ctx, t.opts.Endpoint, t.opts.ServiceName, t.opts.ServiceHostName)
+		if err != nil {
+			handleErr(err)
+			return
+		}
+		shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
+		otel.SetTracerProvider(tracerProvider)
 	}
-	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-	otel.SetTracerProvider(tracerProvider)
 
 	// 设置 meter provider.
-	meterProvider, err := newMeterProvider()
+	meterProvider, err = newMeterProvider()
 	if err != nil {
 		handleErr(err)
 		return
 	}
 	shutdownFuncs = append(shutdownFuncs, meterProvider.Shutdown)
 	otel.SetMeterProvider(meterProvider)
-
 	return nil, nil
 }
 

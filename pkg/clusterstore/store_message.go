@@ -265,11 +265,29 @@ func (s *MessageShardLogStorage) FirstIndex(shardNo string) (uint64, error) {
 
 // 设置成功被状态机应用的日志索引
 func (s *MessageShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
-	return nil
+	channelId, channelType := cluster.ChannelFromChannelKey(shardNo)
+	return s.db.UpdateChannelAppliedIndex(channelId, channelType, index)
 }
 
 func (s *MessageShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
-	return 0, nil
+	channelId, channelType := cluster.ChannelFromChannelKey(shardNo)
+	return s.db.GetChannelAppliedIndex(channelId, channelType)
+}
+
+func (s *MessageShardLogStorage) SetLeaderTermStartIndex(shardNo string, term uint32, index uint64) error {
+	return s.db.SetLeaderTermStartIndex(shardNo, term, index)
+}
+
+func (s *MessageShardLogStorage) LeaderLastTerm(shardNo string) (uint32, error) {
+	return s.db.LeaderLastTerm(shardNo)
+}
+
+func (s *MessageShardLogStorage) LeaderTermStartIndex(shardNo string, term uint32) (uint64, error) {
+	return s.db.LeaderTermStartIndex(shardNo, term)
+}
+
+func (s *MessageShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
+	return s.db.DeleteLeaderTermStartIndexGreaterThanTerm(shardNo, term)
 }
 
 func (s *MessageShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {

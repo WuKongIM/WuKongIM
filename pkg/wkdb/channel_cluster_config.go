@@ -25,6 +25,7 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 }
 
 func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error) {
+
 	primaryKey, err := wk.getChannelClusterConfigPrimaryKey(channelId, channelType)
 	if err != nil {
 		return EmptyChannelClusterConfig, err
@@ -33,7 +34,7 @@ func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8)
 		return EmptyChannelClusterConfig, nil
 	}
 
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0x00, 0x00}),
 		UpperBound: key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0xff, 0xff}),
 	})
@@ -58,12 +59,12 @@ func (wk *wukongDB) DeleteChannelClusterConfig(channelId string, channelType uin
 	if primaryKey == 0 {
 		return nil
 	}
-	return wk.db.DeleteRange(key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0x00, 0x00}), key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0xff, 0xff}), wk.wo)
+	return wk.defaultShardDB().DeleteRange(key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0x00, 0x00}), key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0xff, 0xff}), wk.wo)
 }
 
 func (wk *wukongDB) GetChannelClusterConfigs(offsetId uint64, limit int) ([]ChannelClusterConfig, error) {
 
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(offsetId+1, [2]byte{0x00, 0x00}),
 		UpperBound: key.NewChannelClusterConfigColumnKey(math.MaxUint64, [2]byte{0xff, 0xff}),
 	})
@@ -82,7 +83,7 @@ func (wk *wukongDB) GetChannelClusterConfigCountWithSlotId(slotId uint32) (int, 
 }
 
 func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelClusterConfig, error) {
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(0, [2]byte{0x00, 0x00}),
 		UpperBound: key.NewChannelClusterConfigColumnKey(math.MaxUint64, [2]byte{0xff, 0xff}),
 	})
@@ -96,7 +97,7 @@ func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelC
 }
 
 func (wk *wukongDB) getChannelClusterConfigPrimaryKey(channelId string, channelType uint8) (uint64, error) {
-	primaryKey, closer, err := wk.db.Get(key.NewChannelClusterConfigIndexKey(channelId, channelType))
+	primaryKey, closer, err := wk.defaultShardDB().Get(key.NewChannelClusterConfigIndexKey(channelId, channelType))
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil
@@ -112,20 +113,21 @@ func (wk *wukongDB) getChannelClusterConfigPrimaryKey(channelId string, channelT
 
 func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterConfig ChannelClusterConfig) error {
 
+	db := wk.defaultShardDB()
 	// channelId
-	if err := wk.db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelId), []byte(channelClusterConfig.ChannelId), wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelId), []byte(channelClusterConfig.ChannelId), wk.wo); err != nil {
 		return err
 	}
 
 	// channelType
-	if err := wk.db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelType), []byte{channelClusterConfig.ChannelType}, wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelType), []byte{channelClusterConfig.ChannelType}, wk.wo); err != nil {
 		return err
 	}
 
 	// replicaMaxCount
 	var replicaMaxCountBytes = make([]byte, 2)
 	binary.BigEndian.PutUint16(replicaMaxCountBytes, channelClusterConfig.ReplicaMaxCount)
-	if err := wk.db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ReplicaMaxCount), replicaMaxCountBytes, wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ReplicaMaxCount), replicaMaxCountBytes, wk.wo); err != nil {
 		return err
 	}
 
@@ -134,35 +136,35 @@ func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterC
 	for i, replica := range channelClusterConfig.Replicas {
 		binary.BigEndian.PutUint64(replicasBytes[i*8:], replica)
 	}
-	if err := wk.db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Replicas), replicasBytes, wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Replicas), replicasBytes, wk.wo); err != nil {
 		return err
 	}
 
 	// leaderId
 	leaderIdBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(leaderIdBytes, channelClusterConfig.LeaderId)
-	if err := wk.db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.LeaderId), leaderIdBytes, wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.LeaderId), leaderIdBytes, wk.wo); err != nil {
 		return err
 	}
 
 	// term
 	termBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(termBytes, channelClusterConfig.Term)
-	if err := wk.db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Term), termBytes, wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Term), termBytes, wk.wo); err != nil {
 		return err
 	}
 
 	//version
 	versionBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(versionBytes, channelClusterConfig.version)
-	if err := wk.db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Version), versionBytes, wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Version), versionBytes, wk.wo); err != nil {
 		return err
 	}
 
 	// channel index
 	primaryKeyBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(primaryKeyBytes, primaryKey)
-	if err := wk.db.Set(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), primaryKeyBytes, wk.wo); err != nil {
+	if err := db.Set(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), primaryKeyBytes, wk.wo); err != nil {
 		return err
 	}
 
@@ -188,15 +190,21 @@ func (wk *wukongDB) parseChannelClusterConfig(iter *pebble.Iterator, limit int, 
 			if preId != 0 {
 				if filterSlot {
 					resultSlotId := wk.channelSlotId(preChannelClusterConfig.ChannelId, preChannelClusterConfig.ChannelType)
-					if resultSlotId != slotId {
-						continue
+					if resultSlotId == slotId {
+						clusterConfigs = append(clusterConfigs, preChannelClusterConfig)
+						if limit != 0 && len(clusterConfigs) >= limit {
+							lastNeedAppend = false
+							break
+						}
+					}
+				} else {
+					clusterConfigs = append(clusterConfigs, preChannelClusterConfig)
+					if limit != 0 && len(clusterConfigs) >= limit {
+						lastNeedAppend = false
+						break
 					}
 				}
-				clusterConfigs = append(clusterConfigs, preChannelClusterConfig)
-				if limit != 0 && len(clusterConfigs) >= limit {
-					lastNeedAppend = false
-					break
-				}
+
 			}
 			preId = id
 			preChannelClusterConfig = ChannelClusterConfig{

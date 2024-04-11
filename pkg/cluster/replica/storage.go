@@ -18,17 +18,16 @@ type IStorage interface {
 	// endLogIndex 结束日志索引(结果不包含endLogIndex) endLogIndex=0表示不限制
 	// limitSize 限制返回的日志大小
 	Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]Log, error)
+	// FirstIndex 第一条日志的索引
 	FirstIndex() (uint64, error)
 	// LastIndex 最后一条日志的索引
 	LastIndex() (uint64, error)
-
 	// SetLeaderTermStartIndex 设置领导任期开始的第一条日志索引
 	SetLeaderTermStartIndex(term uint32, index uint64) error
 	// LeaderLastTerm 获取最新的本地保存的领导任期
 	LeaderLastTerm() (uint32, error)
 	// LeaderTermStartIndex 获取领导任期开始的第一条日志索引
 	LeaderTermStartIndex(term uint32) (uint64, error)
-
 	// 删除比传入的term大的的LeaderTermStartIndex记录
 	DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error
 }

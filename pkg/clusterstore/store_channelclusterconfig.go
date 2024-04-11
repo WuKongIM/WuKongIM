@@ -24,7 +24,6 @@ func (c *ChannelClusterConfigStore) Delete(channelId string, channelType uint8) 
 }
 
 func (c *ChannelClusterConfigStore) Get(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
-
 	return c.store.wdb.GetChannelClusterConfig(channelId, channelType)
 }
 

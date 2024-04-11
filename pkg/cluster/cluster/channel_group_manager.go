@@ -22,7 +22,6 @@ import (
 type channelGroupManager struct {
 	channelGroups  []*channelGroup
 	proposeTimeout time.Duration
-	localStorage   *localStorage
 	channelKeyLock *keylock.KeyLock
 	s              *Server
 	wklog.Log
@@ -41,7 +40,6 @@ func newChannelGroupManager(s *Server) *channelGroupManager {
 		channelGroups:  make([]*channelGroup, s.opts.ChannelGroupCount),
 		channelKeyLock: keylock.NewKeyLock(),
 		Log:            wklog.NewWKLog(fmt.Sprintf("channelGroupManager[%d]", s.opts.NodeID)),
-		localStorage:   s.localStorage,
 	}
 
 	cg.activeMu.activeChannelMap = make(map[string]struct{})
@@ -53,7 +51,7 @@ func (c *channelGroupManager) start() error {
 	c.channelKeyLock.StartCleanLoop()
 	var err error
 	for i := 0; i < c.s.opts.ChannelGroupCount; i++ {
-		cg := newChannelGroup(c.s)
+		cg := newChannelGroup(i, c.s)
 		err = cg.start()
 		if err != nil {
 			return err
@@ -73,19 +71,19 @@ func (c *channelGroupManager) stop() {
 
 }
 
-func (c *channelGroupManager) proposeMessage(ctx context.Context, channelId string, channelType uint8, log replica.Log) (messageItem, error) {
+func (c *channelGroupManager) proposeMessage(ctx context.Context, channelId string, channelType uint8, log replica.Log) (*messageItem, error) {
 
 	items, err := c.proposeMessages(ctx, channelId, channelType, []replica.Log{log})
 	if err != nil {
-		return emptyMessageItem, err
+		return nil, err
 	}
 	if len(items) == 0 {
-		return emptyMessageItem, errors.New("lastLogIndexs is empty")
+		return nil, errors.New("lastLogIndexs is empty")
 	}
 	return items[0], nil
 }
 
-func (c *channelGroupManager) proposeMessages(ctx context.Context, channelId string, channelType uint8, logs []replica.Log) ([]messageItem, error) {
+func (c *channelGroupManager) proposeMessages(ctx context.Context, channelId string, channelType uint8, logs []replica.Log) ([]*messageItem, error) {
 
 	proposeMessagesCtx, proposeMessagesSpan := c.s.trace.StartSpan(ctx, "proposeMessages")
 	defer proposeMessagesSpan.End()
@@ -200,7 +198,7 @@ func (c *channelGroupManager) activeChannelIfNeed(channelId string, channelType 
 	c.activeMu.activeChannelMap[shardNo] = struct{}{}
 	c.activeMu.Unlock()
 
-	go func() { // TODO: 这里应该使用协程池来管理
+	err := c.s.defaultPool.Submit(func() { // TODO: 这里应该使用协程池来管理
 		_, err := c.loadOrCreateChannel(context.Background(), channelId, channelType)
 		c.activeMu.Lock()
 		delete(c.activeMu.activeChannelMap, shardNo)
@@ -208,32 +206,31 @@ func (c *channelGroupManager) activeChannelIfNeed(channelId string, channelType 
 		if err != nil {
 			c.Error("activeChannelIfNeed error", zap.Error(err))
 		}
-	}()
-	return nil
+	})
+	return err
 }
 
-func (c *channelGroupManager) loadOrCreateChannel(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) loadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (ichannel, error) {
 
 	var (
 		channel ichannel
 		err     error
 	)
 
-	slotId := c.s.getChannelSlotId(channelID)
+	slotId := c.s.getChannelSlotId(channelId)
 	slot := c.s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
 		return nil, ErrSlotNotExist
 	}
 	if slot.Leader == c.s.opts.NodeID { // 当前节点是槽位的leader，槽节点有任命频道领导的权限，槽节点保存属于此槽频道的分布式配置
 
-		channel, err = c.getChannelForSlotLeader(ctx, channelID, channelType)
+		channel, err = c.getChannelForSlotLeader(ctx, channelId, channelType)
 		if err != nil {
-			c.Error("getChannelForSlotLeader failed", zap.Error(err), zap.String("channelId", channelID), zap.Uint8("channelType", channelType))
+			c.Error("getChannelForSlotLeader failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			return nil, err
 		}
 	} else {
-
-		channel, err = c.getChannelForOthers(ctx, channelID, channelType)
+		channel, err = c.getChannelForOthers(ctx, channelId, channelType)
 		if err != nil {
 			c.Error("getChannelForOthers failed", zap.Error(err))
 			return nil, err
@@ -295,10 +292,10 @@ func (c *channelGroupManager) getChannelFromGroup(channelId string, channelType 
 	return c.channelGroup(channelId, channelType).channel(channelId, channelType)
 }
 
-func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, channelId string, channelType uint8) (ichannel, error) {
 
-	shardNo := ChannelKey(channelID, channelType)
-	channel := c.getChannelFromGroup(channelID, channelType)
+	shardNo := ChannelKey(channelId, channelType)
+	channel := c.getChannelFromGroup(channelId, channelType)
 	if channel != nil {
 		return channel, nil
 	}
@@ -307,23 +304,23 @@ func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, chann
 	defer c.channelKeyLock.Unlock(shardNo)
 
 	// TODO: 注意锁住之前的获取过channel，但是解锁之后再获取一遍，因为为了优化锁性能问题所以第一次获取的时候不加锁
-	channel = c.getChannelFromGroup(channelID, channelType)
+	channel = c.getChannelFromGroup(channelId, channelType)
 	if channel != nil {
 		return channel, nil
 	}
 
 	spanCtx, span := c.s.trace.StartSpan(ctx, "createChannelForSlotLeader")
 	defer span.End()
-	span.SetString("channelId", channelID)
+	span.SetString("channelId", channelId)
 	span.SetUint8("channelType", channelType)
 	span.SetBool("hasClusterConfig", true)
-	clusterconfig, err := c.s.opts.ChannelClusterStorage.Get(channelID, channelType)
+	clusterconfig, err := c.s.opts.ChannelClusterStorage.Get(channelId, channelType)
 	if err != nil {
 		return nil, err
 	}
 	if wkdb.IsEmptyChannelClusterConfig(clusterconfig) { // 没有集群信息则创建一个新的集群信息
 		span.SetBool("hasClusterConfig", false)
-		clusterconfig, err = c.createChannelClusterInfo(channelID, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
+		clusterconfig, err = c.createChannelClusterInfo(channelId, channelType) // 如果槽领导节点不存在频道集群配置，那么此频道集群一定没初始化（注意：是一定没初始化），所以创建一个初始化集群配置
 		if err != nil {
 			c.Error("create channel cluster info failed", zap.Error(err))
 			span.RecordError(err)
@@ -367,35 +364,40 @@ func (c *channelGroupManager) getChannelForSlotLeader(ctx context.Context, chann
 		return nil, err
 	}
 	// 添加到channelGroup
-	c.channelGroup(channelID, channelType).add(channel)
+	c.channelGroup(channelId, channelType).add(channel)
 
 	return channel, err
 }
 
-func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID string, channelType uint8) (ichannel, error) {
+func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelId string, channelType uint8) (ichannel, error) {
 
-	cacheChannel := c.channelGroup(channelID, channelType).channel(channelID, channelType)
+	cacheChannel := c.channelGroup(channelId, channelType).channel(channelId, channelType)
 	if cacheChannel != nil {
 		return cacheChannel, nil
 	}
 
-	shardNo := ChannelKey(channelID, channelType)
+	shardNo := ChannelKey(channelId, channelType)
 	c.channelKeyLock.Lock(shardNo)
 	defer c.channelKeyLock.Unlock(shardNo)
 
+	// 这里必须再写一次 防止解锁后再次创建频道
+	cacheChannel = c.channelGroup(channelId, channelType).channel(channelId, channelType)
+	if cacheChannel != nil {
+		return cacheChannel, nil
+	}
 	_, span := c.s.trace.StartSpan(ctx, "getChannelForOthers")
 	defer span.End()
-	span.SetString("channelId", channelID)
+	span.SetString("channelId", channelId)
 	span.SetUint8("channelType", channelType)
 
-	clusterConfig, err := c.s.opts.ChannelClusterStorage.Get(channelID, channelType)
+	clusterConfig, err := c.s.opts.ChannelClusterStorage.Get(channelId, channelType)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
 	}
 
 	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) || clusterConfig.LeaderId == 0 {
-		clusterConfig, err = c.requestChannelClusterConfigFromSlotLeader(channelID, channelType) // 从频道所在槽的领导节点获取频道分布式配置
+		clusterConfig, err = c.requestChannelClusterConfigFromSlotLeader(channelId, channelType) // 从频道所在槽的领导节点获取频道分布式配置
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
@@ -419,7 +421,7 @@ func (c *channelGroupManager) getChannelForOthers(ctx context.Context, channelID
 			return nil, err
 		}
 		ch.(*channel).updateClusterConfig(clusterConfig)
-		c.channelGroup(channelID, channelType).add(ch.(*channel))
+		c.channelGroup(channelId, channelType).add(ch.(*channel))
 	} else { // 如果当前节点不是频道的副本，则创建一个代理频道
 		ch = newProxyChannel(c.s.opts.NodeID, clusterConfig)
 	}
@@ -455,7 +457,7 @@ func (c *channelGroupManager) requestChannelClusterConfigFromSlotLeader(channelI
 func (c *channelGroupManager) createChannelClusterInfo(channelID string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 	allowVoteNodes := c.s.clusterEventListener.clusterconfigManager.allowVoteNodes()
 	shardNo := ChannelKey(channelID, channelType)
-	lastTerm, err := c.s.localStorage.leaderLastTerm(shardNo)
+	lastTerm, err := c.s.opts.MessageLogStorage.LeaderLastTerm(shardNo)
 	if err != nil {
 		return wkdb.EmptyChannelClusterConfig, err
 	}
@@ -591,18 +593,22 @@ func (c *channelGroupManager) electionIfNeed(ctx context.Context, channel *chann
 func (c *channelGroupManager) advanceHandler(channelId string, channelType uint8) func() {
 
 	return func() {
-		c.channelGroup(channelId, channelType).listener.advance()
+		c.advance(channelId, channelType)
 	}
+}
+
+func (c *channelGroupManager) advance(channelId string, channelType uint8) {
+	c.channelGroup(channelId, channelType).listener.advance()
 }
 
 func (c *channelGroupManager) newChannelByClusterInfo(channelClusterInfo wkdb.ChannelClusterConfig) (*channel, error) {
 	shardNo := ChannelKey(channelClusterInfo.ChannelId, channelClusterInfo.ChannelType)
 	// 获取当前节点已应用的日志
-	appliedIndex, err := c.localStorage.getAppliedIndex(shardNo)
+	appliedIndex, err := c.s.opts.MessageLogStorage.AppliedIndex(shardNo)
 	if err != nil {
 		return nil, err
 	}
-	channel := newChannel(channelClusterInfo, appliedIndex, c.localStorage, c.advanceHandler(channelClusterInfo.ChannelId, channelClusterInfo.ChannelType), c.s)
+	channel := newChannel(channelClusterInfo, appliedIndex, c.advanceHandler(channelClusterInfo.ChannelId, channelClusterInfo.ChannelType), c.s)
 	return channel, nil
 }
 
@@ -702,6 +708,6 @@ func (c *channelGroupManager) requestChannelLastLogInfos(clusterInfo wkdb.Channe
 	return channelLogInfoMap, nil
 }
 
-func (c *channelGroupManager) proposeAndWaitCommits(ctx context.Context, ch *channel, logs []replica.Log, timeout time.Duration) ([]messageItem, error) {
+func (c *channelGroupManager) proposeAndWaitCommits(ctx context.Context, ch *channel, logs []replica.Log, timeout time.Duration) ([]*messageItem, error) {
 	return ch.proposeAndWaitCommits(ctx, logs, timeout)
 }

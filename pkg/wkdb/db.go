@@ -13,6 +13,9 @@ type DB interface {
 	ConversationDB
 	// 频道分布式配置
 	ChannelClusterConfigDB
+
+	// 领导任期开始的第一条日志索引
+	LeaderTermSequenceDB
 }
 
 type MessageDB interface {
@@ -94,7 +97,6 @@ type ChannelDB interface {
 
 	// AddDenylist 添加黑名单
 	AddDenylist(channelId string, channelType uint8, uids []string) error
-
 	// GetDenylist 获取黑名单
 	GetDenylist(channelId string, channelType uint8) ([]string, error)
 
@@ -115,6 +117,10 @@ type ChannelDB interface {
 
 	// RemoveAllAllowlist 移除所有白名单
 	RemoveAllAllowlist(channelId string, channelType uint8) error
+	// 更新频道的应用索引
+	UpdateChannelAppliedIndex(channelId string, channelType uint8, index uint64) error
+	// 获取频道的应用索引
+	GetChannelAppliedIndex(channelId string, channelType uint8) (uint64, error)
 }
 
 type ConversationDB interface {
@@ -150,4 +156,15 @@ type ChannelClusterConfigDB interface {
 
 	// GetChannelClusterConfigWithSlotId 获取某个槽的频道的分布式配置
 	GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelClusterConfig, error)
+}
+
+type LeaderTermSequenceDB interface {
+	// SetLeaderTermStartIndex 设置领导任期开始的第一条日志索引
+	SetLeaderTermStartIndex(shardNo string, term uint32, index uint64) error
+	// LeaderLastTerm 获取最新的本地保存的领导任期
+	LeaderLastTerm(shardNo string) (uint32, error)
+	// LeaderTermStartIndex 获取领导任期开始的第一条日志索引
+	LeaderTermStartIndex(shardNo string, term uint32) (uint64, error)
+	// DeleteLeaderTermStartIndexGreaterThanTerm 删除比传入的term大的的LeaderTermStartIndex记录
+	DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
 }

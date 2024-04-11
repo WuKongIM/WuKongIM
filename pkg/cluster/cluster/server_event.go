@@ -134,7 +134,7 @@ func (s *Server) handleNodeUpdateApiServerAddrEvent(event EventMessage) error {
 }
 
 func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
-	n := newNode(nodeID, s.serverUid(s.opts.NodeID), addr, s.opts.SendQueueLength, s.opts.MaxSendQueueSize, s.opts.MaxMessageBatchSize)
+	n := newNode(nodeID, s.serverUid(s.opts.NodeID), addr, s.opts.SendQueueLength, s.opts.MaxSendQueueSize, s.opts.MaxMessageBatchSize, s.opts.ReqTimeout)
 	n.start()
 	return n
 }
@@ -193,10 +193,11 @@ func (s *Server) addSlots(slots []*pb.Slot) error {
 
 func (s *Server) newSlotBySlotInfo(st *pb.Slot) (*slot, error) {
 	shardNo := GetSlotShardNo(st.Id)
-	appliedIdx, err := s.localStorage.getAppliedIndex(shardNo)
+
+	appliedIdx, err := s.opts.ShardLogStorage.AppliedIndex(shardNo)
 	if err != nil {
 		return nil, err
 	}
-	ns := newSlot(st, appliedIdx, s.localStorage, s.slotManager.advanceHandler(st.Id), s)
+	ns := newSlot(st, appliedIdx, s.slotManager.advanceHandler(st.Id), s)
 	return ns, nil
 }

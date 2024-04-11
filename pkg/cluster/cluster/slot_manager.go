@@ -71,7 +71,7 @@ func (s *slotManager) slot(slotId uint32) *slot {
 	return s.listener.slot(slotId)
 }
 
-func (s *slotManager) proposeAndWaitCommit(ctx context.Context, slotId uint32, logs []replica.Log) ([]messageItem, error) {
+func (s *slotManager) proposeAndWaitCommit(ctx context.Context, slotId uint32, logs []replica.Log) ([]*messageItem, error) {
 	st := s.slot(slotId)
 	if st == nil {
 		s.Error("slot not found", zap.Uint32("slotId", slotId))

@@ -25,7 +25,6 @@ type slot struct {
 	opts         *Options
 	destroy      bool        // 是否已经销毁
 	lastActivity atomic.Time // 最后一次活跃时间
-	localstorage *localStorage
 
 	doneC chan struct{}
 	sync.Mutex
@@ -36,6 +35,11 @@ type slot struct {
 	eventHandler *eventHandler
 	advanceFnc   func() // 推进分布式进程
 
+	appliedIndex        atomic.Uint64 // 当前频道已经应用的日志索引
+	appliedIndexSetLock sync.Mutex    // 存储已经应用的日志索引锁
+	lastIndexSetLock    sync.Mutex    // 存储最后一条日志索引锁
+	lastIndex           atomic.Uint64 // 当前频道最后一条日志索引
+
 	sync struct {
 		syncingLogIndex uint64        // 正在同步的日志索引
 		syncStatus      syncStatus    // 是否正在同步
@@ -43,29 +47,33 @@ type slot struct {
 		syncTimeout     time.Duration // 同步超时时间
 		resp            replica.Message
 	}
+	s       *Server
+	shardId uint32
 }
 
-func newSlot(st *pb.Slot, appliedIdx uint64, localstorage *localStorage, advance func(), s *Server) *slot {
+func newSlot(st *pb.Slot, appliedIdx uint64, advance func(), s *Server) *slot {
 	shardNo := GetSlotShardNo(st.Id)
-	rc := replica.New(s.opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.ShardLogStorage, localstorage)))
+	shardId := GetShardId(shardNo)
+	rc := replica.New(s.opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithReplicaMaxCount(int(st.ReplicaCount)), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.ShardLogStorage)))
 	if st.Leader == s.opts.NodeID {
 		rc.BecomeLeader(st.Term)
 	} else {
 		rc.BecomeFollower(st.Term, st.Leader)
 	}
 	stobj := &slot{
-		slotId:       st.Id,
-		shardNo:      shardNo,
-		rc:           rc,
-		Log:          wklog.NewWKLog(fmt.Sprintf("slot[%d:%d]", s.opts.NodeID, st.Id)),
-		opts:         s.opts,
-		doneC:        make(chan struct{}),
-		localstorage: localstorage,
-		advanceFnc:   advance,
+		slotId:     st.Id,
+		shardNo:    shardNo,
+		shardId:    shardId,
+		rc:         rc,
+		Log:        wklog.NewWKLog(fmt.Sprintf("slot[%d:%d]", s.opts.NodeID, st.Id)),
+		opts:       s.opts,
+		doneC:      make(chan struct{}),
+		advanceFnc: advance,
+		s:          s,
 	}
 	stobj.lastActivity.Store(time.Now())
 	stobj.sync.syncTimeout = 5 * time.Second
-	stobj.eventHandler = newEventHandler(shardNo, stobj, stobj.Log, s, stobj.doneC)
+	stobj.eventHandler = newEventHandler(shardNo, shardId, stobj, stobj.Log, s, stobj.doneC)
 	return stobj
 }
 
@@ -79,7 +87,7 @@ func (s *slot) BecomeAny(term uint32, leaderId uint64) {
 	}
 }
 
-func (s *slot) proposeAndWaitCommits(ctx context.Context, logs []replica.Log, timeout time.Duration) ([]messageItem, error) {
+func (s *slot) proposeAndWaitCommits(ctx context.Context, logs []replica.Log, timeout time.Duration) ([]*messageItem, error) {
 
 	if s.destroy {
 		return nil, errors.New("slot destroy, can not propose")
@@ -241,24 +249,16 @@ func (s *slot) applyLogs(msg replica.Message) error {
 	if msg.ApplyingIndex > msg.CommittedIndex {
 		return fmt.Errorf("applyingIndex > committedIndex, applyingIndex: %d, committedIndex: %d", msg.ApplyingIndex, msg.CommittedIndex)
 	}
-	messageWaitItems := s.eventHandler.messageWait.waitItemsWithRange(msg.ApplyingIndex+1, msg.CommittedIndex+1)
-	spans := make([]trace.Span, 0, len(messageWaitItems))
-	for _, messageWaitItem := range messageWaitItems {
-		_, span := trace.GlobalTrace.StartSpan(messageWaitItem.ctx, fmt.Sprintf("logsCommit[node %d]", s.opts.NodeID))
-		defer span.End()
-		span.SetUint64("appliedIndex", msg.AppliedIndex)
-		span.SetUint64("committedIndex", msg.CommittedIndex)
-		spans = append(spans, span)
-	}
+	// messageWaitItems := s.eventHandler.messageWait.waitItemsWithRange(msg.ApplyingIndex+1, msg.CommittedIndex+1)
+	// spans := make([]trace.Span, 0, len(messageWaitItems))
+	// for _, messageWaitItem := range messageWaitItems {
+	// 	_, span := trace.GlobalTrace.StartSpan(messageWaitItem.ctx, fmt.Sprintf("logsCommit[node %d]", s.opts.NodeID))
+	// 	defer span.End()
+	// 	span.SetUint64("appliedIndex", msg.AppliedIndex)
+	// 	span.SetUint64("committedIndex", msg.CommittedIndex)
+	// 	spans = append(spans, span)
+	// }
 
-	start := time.Now()
-	s.Debug("commit wait", zap.Uint64("committedIndex", msg.CommittedIndex))
-	s.eventHandler.messageWait.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
-	for _, span := range spans {
-		span.End()
-	}
-	s.Debug("commit wait done", zap.Duration("cost", time.Since(start)), zap.Uint64("applyingIndex", msg.ApplyingIndex), zap.Uint64("committedIndex", msg.CommittedIndex))
-	shardNo := GetSlotShardNo(s.slotId)
 	if s.opts.OnSlotApply != nil {
 		logs, err := s.getLogs(msg.ApplyingIndex+1, msg.CommittedIndex+1, 0)
 		if err != nil {
@@ -270,10 +270,6 @@ func (s *slot) applyLogs(msg replica.Message) error {
 		err = s.opts.OnSlotApply(s.slotId, logs)
 		if err != nil {
 			s.Panic("on slot apply error", zap.Error(err))
-		}
-		err = s.localstorage.setAppliedIndex(shardNo, logs[len(logs)-1].Index)
-		if err != nil {
-			s.Panic("set applied index error", zap.Error(err))
 		}
 	}
 	return nil
@@ -301,11 +297,16 @@ func (s *slot) getAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
 
 	shardNo := GetSlotShardNo(s.slotId)
 
-	lastIndex, err := s.opts.ShardLogStorage.LastIndex(shardNo)
-	if err != nil {
-		s.Error("handleSyncGet: get last index error", zap.Error(err))
-		return nil, err
+	lastIndex := s.lastIndex.Load()
+	var err error
+	if lastIndex == 0 {
+		lastIndex, err = s.opts.ShardLogStorage.LastIndex(shardNo)
+		if err != nil {
+			s.Error("handleSyncGet: get last index error", zap.Error(err))
+			return nil, err
+		}
 	}
+
 	var resultLogs []replica.Log
 	if startIndex <= lastIndex {
 		logs, err := s.getLogs(startIndex, lastIndex+1, uint64(s.opts.LogSyncLimitSizeOfEach))
@@ -362,24 +363,40 @@ func (s *slot) termNoLock() uint32 {
 	return s.rc.Term()
 }
 
+func (s *slot) tick() {
+	s.rc.Tick()
+}
+
 func (s *slot) setLastIndex(lastIndex uint64) error {
+	s.lastIndex.Store(lastIndex)
+	return s.s.defaultPool.Submit(s.setLastIndexForLatest)
+}
+
+func (s *slot) setLastIndexForLatest() {
+	s.lastIndexSetLock.Lock()
+	defer s.lastIndexSetLock.Unlock()
+	lastIndex := s.lastIndex.Load()
 	shardNo := GetSlotShardNo(s.slotId)
 	err := s.opts.ShardLogStorage.SetLastIndex(shardNo, lastIndex)
 	if err != nil {
 		s.Error("set last index error", zap.Error(err))
-		return err
 	}
-	return nil
 }
 
-func (c *slot) setAppliedIndex(appliedIndex uint64) error {
-	shardNo := GetSlotShardNo(c.slotId)
-	err := c.localstorage.setAppliedIndex(shardNo, appliedIndex)
+func (s *slot) setAppliedIndex(appliedIndex uint64) error {
+	s.appliedIndex.Store(appliedIndex)
+	return s.s.defaultPool.Submit(s.setAppliedIndexForLatest)
+}
+
+func (s *slot) setAppliedIndexForLatest() {
+	s.appliedIndexSetLock.Lock()
+	defer s.appliedIndexSetLock.Unlock()
+	shardNo := GetSlotShardNo(s.slotId)
+	appliedIndex := s.appliedIndex.Load()
+	err := s.opts.ShardLogStorage.SetAppliedIndex(shardNo, appliedIndex)
 	if err != nil {
-		c.Error("set applied index error", zap.Error(err))
-		return err
+		s.Error("set applied index error", zap.Error(err))
 	}
-	return nil
 }
 
 func GetSlotShardNo(slotID uint32) string {

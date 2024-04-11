@@ -10,7 +10,7 @@ type channelQueue struct {
 	head *channel
 	tail *channel
 
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func newChannelQueue() *channelQueue {
@@ -63,8 +63,8 @@ func (c *channelQueue) remove(channel *channel) {
 // }
 
 func (c *channelQueue) exist(channelID string, channelType uint8) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	for channel := c.head; channel != nil; channel = channel.next {
 		if channel.channelID == channelID && channel.channelType == channelType {
 			return true
@@ -74,8 +74,8 @@ func (c *channelQueue) exist(channelID string, channelType uint8) bool {
 }
 
 func (c *channelQueue) get(channelID string, channelType uint8) *channel {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	for channel := c.head; channel != nil; channel = channel.next {
 		if channel.channelID == channelID && channel.channelType == channelType {
 			return channel
@@ -86,11 +86,21 @@ func (c *channelQueue) get(channelID string, channelType uint8) *channel {
 
 // 遍历频道
 func (c *channelQueue) foreach(f func(channel *channel)) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	for channel := c.head; channel != nil; channel = channel.next {
 		f(channel)
 	}
+}
+
+func (c *channelQueue) len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var n int
+	for channel := c.head; channel != nil; channel = channel.next {
+		n++
+	}
+	return n
 }
 
 type channelReady struct {

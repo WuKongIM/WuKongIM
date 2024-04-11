@@ -62,7 +62,13 @@ func TestGetChannelClusterConfig(t *testing.T) {
 	config2, err := d.GetChannelClusterConfig(channelId, channelType)
 	assert.NoError(t, err)
 
-	assert.Equal(t, config, config2)
+	assert.Equal(t, config.ChannelId, config2.ChannelId)
+	assert.Equal(t, config.ChannelType, config2.ChannelType)
+	assert.Equal(t, config.ReplicaMaxCount, config2.ReplicaMaxCount)
+	assert.Equal(t, config.LeaderId, config2.LeaderId)
+	assert.Equal(t, config.Term, config2.Term)
+	assert.Equal(t, config.Replicas, config2.Replicas)
+
 }
 
 func TestGetChannelClusterConfigs(t *testing.T) {

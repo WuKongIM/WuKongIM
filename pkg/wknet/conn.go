@@ -129,7 +129,7 @@ type DefaultConn struct {
 	reactorSub     *ReactorSub
 	inboundBuffer  InboundBuffer  // inboundBuffer InboundBuffer
 	outboundBuffer OutboundBuffer // outboundBuffer OutboundBuffer
-	closed         bool           // if the connection is closed
+	closed         atomic.Bool    // if the connection is closed
 	isWAdded       bool           // if the connection is added to the write event
 	mu             sync.RWMutex
 	context        interface{}
@@ -160,7 +160,7 @@ func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *
 	defaultConn.localAddr = localAddr
 	defaultConn.isWAdded = false
 	defaultConn.authed = false
-	defaultConn.closed = false
+	defaultConn.closed.Store(false)
 	defaultConn.uid = ""
 	defaultConn.deviceFlag = 0
 	defaultConn.deviceLevel = 0
@@ -248,7 +248,7 @@ func (d *DefaultConn) Read(buf []byte) (int, error) {
 }
 
 func (d *DefaultConn) Write(b []byte) (int, error) {
-	if d.closed {
+	if d.closed.Load() {
 		return -1, net.ErrClosed
 	}
 	// 这里不能使用d.mu上锁，否则会导致死锁 WSSConn死锁
@@ -266,6 +266,9 @@ func (d *DefaultConn) WriteToOutboundBuffer(b []byte) (int, error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
+	if d.closed.Load() {
+		return -1, net.ErrClosed
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.outboundBuffer.Write(b)
@@ -275,16 +278,21 @@ func (d *DefaultConn) WriteToOutboundBuffer(b []byte) (int, error) {
 func (d *DefaultConn) WakeWrite() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.closed.Load() {
+		return net.ErrClosed
+	}
 	return d.addWriteIfNotExist()
 }
 
 func (d *DefaultConn) IsClosed() bool {
 
-	return d.closed
+	return d.closed.Load()
 }
 
 func (d *DefaultConn) Flush() error {
-
+	if d.closed.Load() {
+		return net.ErrClosed
+	}
 	return d.flush()
 }
 func (d *DefaultConn) Fd() NetFd {
@@ -295,10 +303,10 @@ func (d *DefaultConn) Fd() NetFd {
 // 调用次方法需要加锁
 func (d *DefaultConn) closeNeedLock() error {
 
-	if d.closed {
+	if d.closed.Load() {
 		return nil
 	}
-	d.closed = true
+	d.closed.Store(true)
 
 	_ = d.fd.Close()
 	d.eg.RemoveConn(d)           // remove from the engine
@@ -509,7 +517,10 @@ func (d *DefaultConn) Uptime() time.Time {
 }
 
 func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
-
+	if d.closed.Load() {
+		d.Debug("connection is closed, setMaxIdle failed", zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+		return
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -530,7 +541,7 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 			if d.idleTimer != nil {
 				d.idleTimer.Stop()
 			}
-			if d.closed {
+			if d.closed.Load() {
 				return
 			}
 			d.closeNeedLock()
@@ -545,6 +556,10 @@ func (d *DefaultConn) ConnStats() *ConnStats {
 func (d *DefaultConn) flush() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	if d.closed.Load() {
+		return net.ErrClosed
+	}
 
 	if d.outboundBuffer.IsEmpty() {
 		_ = d.removeWriteIfExist()
@@ -561,7 +576,7 @@ func (d *DefaultConn) flush() error {
 	switch err {
 	case nil:
 	case syscall.EAGAIN:
-		return nil
+		d.Error("write error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
 	default:
 		return d.reactorSub.CloseConn(d, os.NewSyscallError("write", err))
 	}
@@ -581,6 +596,9 @@ func (d *DefaultConn) WriteDirect(head, tail []byte) (int, error) {
 }
 
 func (d *DefaultConn) writeDirect(head, tail []byte) (int, error) {
+	if d.closed.Load() {
+		return -1, net.ErrClosed
+	}
 	var (
 		n   int
 		err error
@@ -598,6 +616,9 @@ func (d *DefaultConn) writeDirect(head, tail []byte) (int, error) {
 }
 
 func (d *DefaultConn) write(b []byte) (int, error) {
+	if d.closed.Load() {
+		return -1, net.ErrClosed
+	}
 	n := len(b)
 	if n == 0 {
 		return 0, nil
@@ -617,14 +638,9 @@ func (d *DefaultConn) write(b []byte) (int, error) {
 }
 
 func (d *DefaultConn) addWriteIfNotExist() error {
-
-	// if !d.isWAdded {
-	// 	d.isWAdded = true
-	// 	// 获取上个调用的方法名
-	// 	pc, _, _, _ := runtime.Caller(1)
-	// 	d.Debug("add write event", zap.String("uid", d.uid), zap.String("deviceID", d.deviceID), zap.String("caller", runtime.FuncForPC(pc).Name()))
-	// 	return d.reactorSub.AddWrite(d)
-	// }
+	if d.closed.Load() {
+		return net.ErrClosed
+	}
 	return d.reactorSub.AddWrite(d)
 }
 
@@ -633,6 +649,9 @@ func (d *DefaultConn) removeWriteIfExist() error {
 	// 	d.isWAdded = false
 	// 	return d.reactorSub.RemoveWrite(d)
 	// }
+	if d.closed.Load() {
+		return net.ErrClosed
+	}
 	return d.reactorSub.RemoveWrite(d)
 }
 

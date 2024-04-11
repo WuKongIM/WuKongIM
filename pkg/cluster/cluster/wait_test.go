@@ -1,96 +1,78 @@
 package cluster
 
 import (
+	"context"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
-func TestCommitWait1(t *testing.T) {
-	cm := newCommitWait()
+func TestMessageWait(t *testing.T) {
+	messageIds := []uint64{1, 2, 3}
+	m := newMessageWait()
+	key := "test"
+	waitC := m.addWait(context.Background(), key, messageIds)
 
-	wait1C, err := cm.addWaitIndex(1)
-	assert.NoError(t, err)
-	wait2C, err := cm.addWaitIndex(2)
-	assert.NoError(t, err)
-
-	cm.commitIndex(1)
-
-	// 验证wait1C被通知
 	select {
-	case <-wait1C:
-	default:
-		t.Fatal("wait1C should be notified")
-	}
-
-	// 验证waitC2没有被通知
-	select {
-	case <-wait2C:
-		t.Fatal("wait2C should not be notified")
+	case <-waitC:
+		t.Fatal("should not close")
 	default:
 	}
 
-	// 再测试commit索引2
-	cm.commitIndex(2)
+	m.didPropose(key, 1, 1)
+	m.didPropose(key, 2, 2)
+	m.didPropose(key, 3, 3)
 
-	// 验证wait2C被通知
+	m.didCommit(1, 2)
+
 	select {
-	case <-wait2C:
+	case <-waitC:
+		t.Fatal("should not close")
 	default:
-		t.Fatal("wait2C should be notified")
+	}
+
+	m.didCommit(2, 4)
+
+	select {
+	case items := <-waitC:
+		assert.Equal(t, 3, len(items))
+	default:
+		t.Fatal("should close")
 	}
 }
 
-func TestCommitWaitNotifyAll(t *testing.T) {
-	cm := newCommitWait()
+func BenchmarkMessageWait(b *testing.B) {
+	messageIds := make([]uint64, 0)
+	m := newMessageWait()
 
-	wait1C, err := cm.addWaitIndex(1)
-	assert.NoError(t, err)
-	wait2C, err := cm.addWaitIndex(2)
-	assert.NoError(t, err)
-
-	cm.commitIndex(10)
-	cm.commitIndex(10)
-
-	// 验证wait1C被通知
-	select {
-	case <-wait1C:
-	default:
-		t.Fatal("wait1C should be notified")
+	b.StartTimer()
+	num := b.N
+	for i := 1; i <= num; i++ {
+		messageIds = append(messageIds, uint64(i))
 	}
+	key := strconv.FormatUint(messageIds[len(messageIds)-1], 10)
 
-	// 验证wait2C被通知
-	select {
-	case <-wait2C:
-	default:
-		t.Fatal("wait2C should be notified")
+	fmt.Println("num", num)
+
+	_ = m.addWait(context.Background(), key, messageIds)
+
+	start := time.Now()
+	for i := 1; i <= num; i++ {
+		m.didPropose(key, uint64(i), uint64(i))
 	}
-}
-
-func TestCommitWait(t *testing.T) {
-	cm := newCommitWait()
-
-	var start time.Time
-
-	for i := 0; i < 10000; i++ {
-
-		go func(v uint64) {
-			wait2C, _ := cm.addWaitIndex(v)
-			<-wait2C
-			wklog.Info("wait2C", zap.Uint64("v", v), zap.Duration("cost", time.Since(start)))
-
-		}(uint64(i + 1))
-	}
-
-	time.Sleep(time.Second * 2)
+	fmt.Println("didPropose time", time.Since(start))
 
 	start = time.Now()
+	m.didCommit(1, uint64(num)+1)
+	fmt.Println("didCommit time", time.Since(start))
 
-	cm.commitIndex(10000)
-
-	time.Sleep(time.Second * 10)
+	// select {
+	// case <-waitC:
+	// default:
+	// 	b.Fatal("should close")
+	// }
 
 }

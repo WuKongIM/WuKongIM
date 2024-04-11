@@ -555,3 +555,40 @@ func ParseChannelClusterConfigColumnKey(key []byte) (primaryKey uint64, columnNa
 	columnName[1] = key[13]
 	return
 }
+
+// ---------------------- LeaderTermSequence ----------------------
+
+func NewLeaderTermSequenceTermKey(shardNo string, term uint32) []byte {
+	key := make([]byte, TableLeaderTermSequence.Size)
+	key[0] = TableLeaderTermSequence.Id[0]
+	key[1] = TableLeaderTermSequence.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], hashWithString(shardNo))
+	binary.BigEndian.PutUint32(key[12:], term)
+	return key
+}
+
+func ParseLeaderTermSequenceTermKey(key []byte) (term uint32, err error) {
+	if len(key) != TableLeaderTermSequence.Size {
+		err = fmt.Errorf("leaderTermSequence: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	term = binary.BigEndian.Uint32(key[12:])
+	return
+}
+
+// ---------------------- ChannelCommon ----------------------
+
+func NewChannelCommonColumnKey(channelId string, channelType uint8, columnName [2]byte) []byte {
+	key := make([]byte, TableChannelCommon.Size)
+	channelHash := channelIdToNum(channelId, channelType)
+	key[0] = TableChannelCommon.Id[0]
+	key[1] = TableChannelCommon.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], channelHash)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}

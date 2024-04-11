@@ -5,196 +5,169 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/zap"
+	"go.uber.org/atomic"
 )
-
-type commitWait struct {
-	waitList []waitItem
-	sync.Mutex
-	wklog.Log
-}
-
-func newCommitWait() *commitWait {
-	return &commitWait{
-		Log: wklog.NewWKLog("commitWait"),
-	}
-}
-
-type waitItem struct {
-	logIndex uint64
-	waitC    chan struct{}
-}
-
-func (c *commitWait) addWaitIndex(logIndex uint64) (<-chan struct{}, error) {
-	c.Lock()
-	defer c.Unlock()
-
-	// for _, item := range c.waitList {
-	// 	if item.logIndex == logIndex {
-	// 		return nil, errors.New("logIndex already exists")
-	// 	}
-	// }
-
-	waitC := make(chan struct{}, 1)
-	c.waitList = append(c.waitList, waitItem{logIndex: logIndex, waitC: waitC})
-	return waitC, nil
-}
-
-func (c *commitWait) commitIndex(logIndex uint64) {
-	c.Lock()
-	defer c.Unlock()
-
-	maxIndex := 0
-	exist := false
-	for i, item := range c.waitList {
-		if item.logIndex <= logIndex {
-			select {
-			case item.waitC <- struct{}{}:
-			default:
-				c.Warn("commitIndex notify failed", zap.Uint64("logIndex", logIndex))
-			}
-			maxIndex = i
-			exist = true
-		}
-	}
-	if exist {
-		c.waitList = c.waitList[maxIndex+1:]
-	}
-
-}
 
 var emptyMessageItem = messageItem{}
 
 type messageItem struct {
 	messageId  uint64
 	messageSeq uint64
-	proposed   bool // 是否已提案，已提案的消息有messageSeq
 	committed  bool // 是否已提交
 }
 
 type messageWaitItem struct {
-	messageItems []messageItem
-	waitC        chan []messageItem
-	ctx          context.Context
+	waitC chan []messageItem
+	ctx   context.Context
+
+	messageSeqAndIdMap map[uint64]uint64
+	messageIds         [][]uint64
+	waits              []chan []messageItem
 }
 
 type messageWait struct {
-	items []messageWaitItem
-	mu    sync.Mutex
+	mu sync.Mutex
 	wklog.Log
+
+	messageResultMap map[string][]*messageItem
+	messageWaitMap   map[string]chan []*messageItem
+	messageSeqs      []uint64
+	messageIds       []uint64
+	offset           uint64
+	hasAdd           atomic.Bool
 }
 
 func newMessageWait() *messageWait {
 	return &messageWait{
-		Log: wklog.NewWKLog("messageWait"),
+		Log:              wklog.NewWKLog("messageWait"),
+		messageWaitMap:   make(map[string]chan []*messageItem),
+		messageResultMap: make(map[string][]*messageItem),
 	}
 }
 
-func (m *messageWait) addWait(ctx context.Context, messageIds []uint64) chan []messageItem {
-
+// TODO: 此方法返回创建messageItem导致内存过高，需要优化
+func (m *messageWait) addWait(ctx context.Context, key string, messageIds []uint64) chan []*messageItem {
+	m.hasAdd.Store(true)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	waitC := make(chan []messageItem, 1)
-
-	messageItems := make([]messageItem, len(messageIds))
+	if len(messageIds) == 0 {
+		m.Panic("addWait messageIds is empty")
+	}
+	waitC := make(chan []*messageItem, 1)
+	items := make([]*messageItem, len(messageIds))
 	for i, messageId := range messageIds {
-		messageItems[i] = messageItem{
+		items[i] = &messageItem{
 			messageId: messageId,
 		}
 	}
 
-	m.items = append(m.items, messageWaitItem{
-		messageItems: messageItems,
-		waitC:        waitC,
-		ctx:          ctx,
-	})
+	m.messageResultMap[key] = items
+	m.messageWaitMap[key] = waitC
 
 	return waitC
 }
 
 // waitItemsWithRange 获取[startMessageSeq, endMessageSeq)范围的等待项
 func (m *messageWait) waitItemsWithRange(startMessageSeq, endMessageSeq uint64) []messageWaitItem {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var items []messageWaitItem
-	for _, item := range m.items {
-		for _, messageItem := range item.messageItems {
-			if messageItem.messageSeq >= startMessageSeq && messageItem.messageSeq < endMessageSeq {
-				items = append(items, item)
-				break
-			}
-		}
-	}
-	return items
+	// m.mu.Lock()
+	// defer m.mu.Unlock()
+	// var items []messageWaitItem
+	// for _, item := range m.items {
+	// 	for _, messageItem := range item.messageItems {
+	// 		if messageItem.messageSeq >= startMessageSeq && messageItem.messageSeq < endMessageSeq {
+	// 			items = append(items, item)
+	// 			break
+	// 		}
+	// 	}
+	// }
+	// return items
+
+	return nil
 }
 
 // 获取大于等于startMessageSeq的messageWaitItem
 func (m *messageWait) waitItemsWithStartSeq(startMessageSeq uint64) []messageWaitItem {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var items []messageWaitItem
-	for _, item := range m.items {
-		for _, messageItem := range item.messageItems {
-			if messageItem.messageSeq >= startMessageSeq {
-				items = append(items, item)
-				break
-			}
-		}
-	}
-	return items
+	// m.mu.Lock()
+	// defer m.mu.Unlock()
+	// var items []messageWaitItem
+	// for _, item := range m.items {
+	// 	for _, messageItem := range item.messageItems {
+	// 		if messageItem.messageSeq >= startMessageSeq {
+	// 			items = append(items, item)
+	// 			break
+	// 		}
+	// 	}
+	// }
+	// return items
+
+	return nil
 }
 
-func (m *messageWait) didPropose(messageId uint64, messageSeq uint64) {
+// TODO 此方法startMessageSeq 至 endMessageSeq的跨度十万需要10来秒 很慢 需要优化
+func (m *messageWait) didPropose(key string, messageId uint64, messageSeq uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, item := range m.items {
-		for i, messageItem := range item.messageItems {
-			if messageItem.messageId == messageId {
-				item.messageItems[i].messageSeq = messageSeq
-				item.messageItems[i].proposed = true
-			}
+	if messageSeq == 0 {
+		m.Panic("didPropose messageSeq is 0")
+	}
+	items := m.messageResultMap[key]
+	for _, item := range items {
+		if item.messageId == messageId {
+			item.messageSeq = messageSeq
+			break
 		}
 	}
 }
 
 // didCommit 提交[startMessaageSeq, endMessageSeq)范围的消息
-func (m *messageWait) didCommit(startMessaageSeq uint64, endMessageSeq uint64) {
+func (m *messageWait) didCommit(startMessageSeq uint64, endMessageSeq uint64) {
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if startMessaageSeq == 0 {
+	if startMessageSeq == 0 {
 		m.Panic("didCommit startMessaageSeq is 0")
 	}
 
-	for j := len(m.items) - 1; j >= 0; j-- { // 采用倒序删除，避免删除后索引错位
-		item := m.items[j]
-		hasCommitted := false
-		for i, messageItem := range item.messageItems {
-			if !messageItem.committed {
-				if messageItem.messageSeq >= startMessaageSeq && messageItem.messageSeq < endMessageSeq {
-					item.messageItems[i].committed = true
-					hasCommitted = true
-				}
-			}
-		}
-
-		if hasCommitted {
-			itemAllCommitted := true
-			for _, messageItem := range item.messageItems {
-				if !messageItem.committed {
-					itemAllCommitted = false
-					break
-				}
-			}
-			if itemAllCommitted {
-				select {
-				case item.waitC <- item.messageItems:
-				default:
-				}
-				m.items = append(m.items[:j], m.items[j+1:]...)
-			}
-		}
+	if endMessageSeq == 0 {
+		m.Panic("didCommit endMessageSeq is 0")
 	}
 
+	keysToDelete := make([]string, 0, 500)
+	for key, items := range m.messageResultMap {
+		shouldCommit := true
+		for _, item := range items {
+			if item.messageSeq >= startMessageSeq && item.messageSeq < endMessageSeq {
+				item.committed = true
+			}
+			if !item.committed {
+				shouldCommit = false
+			}
+		}
+		if shouldCommit {
+			waitC := m.messageWaitMap[key]
+			waitC <- items
+			close(waitC)
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, key := range keysToDelete {
+		delete(m.messageResultMap, key)
+		delete(m.messageWaitMap, key)
+	}
+
+}
+
+func max(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b uint64) uint64 {
+	if a > b {
+		return b
+	}
+	return a
 }

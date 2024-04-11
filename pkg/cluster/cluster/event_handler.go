@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -32,6 +33,7 @@ type replicaAction interface {
 	setMsgSyncResp(resp replica.Message)
 
 	sendMessage(msg replica.Message)
+	isLeader() bool
 }
 
 type eventHandler struct {
@@ -44,13 +46,15 @@ type eventHandler struct {
 	opts                *Options
 	doneC               chan struct{}
 	shardNo             string
+	shardId             uint32
 
 	wklog.Log
 	inbound *inbound
 	s       *Server
 }
 
-func newEventHandler(shardNo string, replicaAction replicaAction, log wklog.Log, s *Server, doneC chan struct{}) *eventHandler {
+func newEventHandler(shardNo string, shardId uint32, replicaAction replicaAction, log wklog.Log, s *Server, doneC chan struct{}) *eventHandler {
+
 	return &eventHandler{
 		replicaAction:       replicaAction,
 		proposeQueue:        newProposeQueue(),
@@ -64,11 +68,12 @@ func newEventHandler(shardNo string, replicaAction replicaAction, log wklog.Log,
 		opts:                s.opts,
 		inbound:             s.inbound,
 		shardNo:             shardNo,
+		shardId:             shardId,
 	}
 }
 
 // 提案数据，并等待数据提交给大多数节点
-func (e *eventHandler) proposeAndWaitCommits(ctx context.Context, logs []replica.Log, timeout time.Duration) ([]messageItem, error) {
+func (e *eventHandler) proposeAndWaitCommits(ctx context.Context, logs []replica.Log, timeout time.Duration) ([]*messageItem, error) {
 	if len(logs) == 0 {
 		return nil, errors.New("logs is empty")
 	}
@@ -109,14 +114,14 @@ func (e *eventHandler) proposeAndWaitCommits(ctx context.Context, logs []replica
 	// 	c.mu.Unlock()
 	// 	return nil, ErrStopped
 	// }
-
 	messageIds := make([]uint64, 0, len(logs))
 	for _, log := range logs {
 		messageIds = append(messageIds, log.MessageId)
 	}
-	waitC := e.messageWait.addWait(ctx, messageIds)
+	key := strconv.FormatUint(messageIds[len(messageIds)-1], 10)
+	waitC := e.messageWait.addWait(ctx, key, messageIds)
 
-	req := newProposeReq(logs)
+	req := newProposeReq(key, logs)
 	e.proposeQueue.push(req)
 
 	e.replicaAction.advance()
@@ -152,7 +157,12 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	)
 
 	// propose
+	start := time.Now()
 	handleOk, err = e.handleProposes()
+	end := time.Since(start)
+	if end > time.Millisecond*1 {
+		e.Info("handleProposes", zap.Duration("time", end))
+	}
 	if err != nil {
 		return false, err
 	}
@@ -161,7 +171,12 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// append log task
+	start = time.Now()
 	handleOk, err = e.handleAppendLogTask()
+	end = time.Since(start)
+	if end > time.Millisecond*1 {
+		e.Info("handleAppendLogTask", zap.Duration("time", end))
+	}
 	if err != nil {
 		return false, err
 	}
@@ -170,7 +185,12 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// recv message
+	start = time.Now()
 	handleOk, err = e.handleRecvMessages()
+	end = time.Since(start)
+	if end > time.Millisecond*1 {
+		e.Info("handleRecvMessages", zap.Duration("time", end))
+	}
 	if err != nil {
 		return false, err
 	}
@@ -179,7 +199,12 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// sync logs task
+	start = time.Now()
 	handleOk, err = e.handleSyncTask()
+	end = time.Since(start)
+	if end > time.Millisecond*1 {
+		e.Info("handleSyncTask", zap.Duration("time", end))
+	}
 	if err != nil {
 		return false, err
 	}
@@ -188,7 +213,12 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// get logs task
+	start = time.Now()
 	handleOk, err = e.handleGetLogTask()
+	end = time.Since(start)
+	if end > time.Millisecond*1 {
+		e.Info("handleGetLogTask", zap.Duration("time", end))
+	}
 	if err != nil {
 		return false, err
 	}
@@ -197,7 +227,12 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// apply logs task
+	start = time.Now()
 	handleOk, err = e.handleApplyLogTask()
+	end = time.Since(start)
+	if end > time.Millisecond*1 {
+		e.Info("handleApplyLogTask", zap.Duration("time", end))
+	}
 	if err != nil {
 		return false, err
 	}
@@ -211,21 +246,27 @@ func (e *eventHandler) handleEvents() (bool, error) {
 func (e *eventHandler) handleProposes() (bool, error) {
 	// propose
 	var (
-		ok         bool = true
-		proposeReq proposeReq
-		err        error
-		hasEvent   bool
+		ok              bool = true
+		proposeReq      proposeReq
+		err             error
+		hasEvent        bool
+		proposeLogCount = 0
 	)
 	for ok {
 		proposeReq, ok = e.proposeQueue.pop()
 		if !ok {
 			break
 		}
+		if len(proposeReq.logs) == 0 {
+			continue
+		}
+
+		proposeLogCount += len(proposeReq.logs)
 		for i, lg := range proposeReq.logs {
 			lg.Index = e.replicaAction.lastLogIndexNoLock() + 1 + uint64(i)
 			lg.Term = e.replicaAction.termNoLock()
 			proposeReq.logs[i] = lg
-			e.messageWait.didPropose(lg.MessageId, lg.Index)
+			e.messageWait.didPropose(proposeReq.key, lg.MessageId, lg.Index)
 		}
 
 		err = e.replicaAction.step(e.replicaAction.newProposeMessageWithLogs(proposeReq.logs))
@@ -234,6 +275,10 @@ func (e *eventHandler) handleProposes() (bool, error) {
 			return false, err
 		}
 		hasEvent = true
+
+		if e.opts.MaxProposeLogCount > 0 && proposeLogCount > e.opts.MaxProposeLogCount {
+			break
+		}
 
 	}
 	return hasEvent, nil
@@ -272,7 +317,7 @@ func (e *eventHandler) handleAppendLogTask() (bool, error) {
 func (e *eventHandler) handleRecvMessages() (bool, error) {
 	// recv message
 	var hasEvent bool
-	msgs := e.inbound.getMessages(e.shardNo)
+	msgs := e.inbound.getMessages(e.shardNo, e.shardId)
 	for _, msg := range msgs {
 		err := e.handleRecvMessage(msg)
 		if err != nil {
@@ -341,16 +386,18 @@ func (e *eventHandler) handleApplyLogTask() (bool, error) {
 			e.Panic("apply log store message failed", zap.Error(firstTask.err()))
 			return false, firstTask.err()
 		}
-		err := e.replicaAction.step(firstTask.resp())
+		resp := firstTask.resp()
+
+		err := e.replicaAction.step(resp)
 		if err != nil {
 			e.Panic("step apply store message failed", zap.Error(err))
 			return false, err
 		}
-		// err = e.replicaAction.setAppliedIndex(firstTask.resp().Index) // TODO: 耗时操作，不应该放到ready里执行，后续要优化
-		// if err != nil {
-		// 	e.Panic("set applied index failed", zap.Error(err))
-		// 	return false, err
-		// }
+		err = e.replicaAction.setAppliedIndex(resp.AppliedIndex) // TODO: 耗时操作，不应该放到ready里执行，后续要优化
+		if err != nil {
+			e.Panic("set applied index failed", zap.Error(err))
+			return false, err
+		}
 		hasEvent = true
 		e.applyLogStoreQueue.removeFirst()
 		firstTask = e.applyLogStoreQueue.first()
@@ -459,7 +506,6 @@ func (e *eventHandler) handleStoreAppend(msg replica.Message) {
 	}
 
 	lastLog := msg.Logs[len(msg.Logs)-1]
-
 	tk := newStoreAppendTask(lastLog.Index)
 	tk.setExec(func() error {
 		err := e.replicaAction.appendLogs(msg)
@@ -485,9 +531,19 @@ func (e *eventHandler) handleApplyLogsReq(msg replica.Message) {
 		e.Debug("not apply logs req", zap.Uint64("applyingIndex", applyingIndex), zap.Uint64("committedIndex", committedIndex))
 		return
 	}
+	if msg.CommittedIndex == 0 {
+		e.Panic("committedIndex is 0", zap.Uint64("applyingIndex", applyingIndex), zap.Uint64("committedIndex", committedIndex))
+	}
+
+	startNow := time.Now()
+	e.Debug("commit wait", zap.Uint64("committedIndex", msg.CommittedIndex))
+	if e.replicaAction.isLeader() {
+		e.messageWait.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
+	}
+	e.Debug("commit wait done", zap.Duration("cost", time.Since(startNow)), zap.Uint64("applyingIndex", msg.ApplyingIndex), zap.Uint64("committedIndex", msg.CommittedIndex))
+
 	e.Debug("apply logs req", zap.Uint64("applyingIndex", applyingIndex), zap.Uint64("committedIndex", committedIndex))
 	tk := newApplyLogsTask(committedIndex)
-
 	tk.setExec(func() error {
 		err := e.replicaAction.applyLogs(msg)
 		if err != nil {

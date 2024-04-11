@@ -84,6 +84,9 @@ type Options struct {
 
 	// DefaultGoroutinePoolSize 默认协程池大小
 	DefaultGoroutinePoolSize int
+
+	// MaxProposeLogCount 每次Propose最大日志数量
+	MaxProposeLogCount int
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -104,13 +107,14 @@ func NewOptions(optList ...Option) *Options {
 		LogSyncLimitOfEach:           100,
 		NodeLockTime:                 time.Hour * 2,
 		LogCaughtUpWithLeaderNum:     20,
-		SendQueueLength:              1024 * 2,
+		SendQueueLength:              1024 * 10,
 		MaxMessageBatchSize:          64 * 1024 * 1024, // 64M
 		ReceiveQueueLength:           1024,
 		LazyFreeCycle:                1,
 		InitialTaskQueueCap:          24,
 		LogSyncLimitSizeOfEach:       1024 * 1024 * 20, // 20M
 		DefaultGoroutinePoolSize:     10240,
+		MaxProposeLogCount:           1000,
 	}
 	for _, opt := range optList {
 		opt(opts)

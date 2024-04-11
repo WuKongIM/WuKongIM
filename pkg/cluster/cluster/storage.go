@@ -25,13 +25,17 @@ type IShardLogStorage interface {
 	LastIndexAndAppendTime(shardNo string) (lastMsgSeq uint64, lastAppendTime uint64, err error)
 
 	// SetLeaderTermStartIndex 设置领导任期开始的第一条日志索引
-	// SetLeaderTermStartIndex(shardNo string, term uint32, index uint64) error
+	SetLeaderTermStartIndex(shardNo string, term uint32, index uint64) error
 	// LeaderLastTerm 获取最新的本地保存的领导任期
-	// LeaderLastTerm(shardNo string) (uint32, error)
+	LeaderLastTerm(shardNo string) (uint32, error)
 	// LeaderTermStartIndex 获取领导任期开始的第一条日志索引
-	// LeaderTermStartIndex(shardNo string, term uint32) (uint64, error)
+	LeaderTermStartIndex(shardNo string, term uint32) (uint64, error)
 	// 删除比传入的term大的的LeaderTermStartIndex记录
-	// DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
+	DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
+
+	SetAppliedIndex(shardNo string, index uint64) error
+
+	AppliedIndex(shardNo string) (uint64, error)
 
 	Open() error
 
@@ -158,16 +162,14 @@ func (m *MemoryShardLogStorage) Close() error {
 }
 
 type proxyReplicaStorage struct {
-	storage      IShardLogStorage
-	shardNo      string
-	localstorage *localStorage
+	storage IShardLogStorage
+	shardNo string
 }
 
-func newProxyReplicaStorage(shardNo string, storage IShardLogStorage, localstorage *localStorage) *proxyReplicaStorage {
+func newProxyReplicaStorage(shardNo string, storage IShardLogStorage) *proxyReplicaStorage {
 	return &proxyReplicaStorage{
-		storage:      storage,
-		shardNo:      shardNo,
-		localstorage: localstorage,
+		storage: storage,
+		shardNo: shardNo,
 	}
 }
 
@@ -196,17 +198,17 @@ func (p *proxyReplicaStorage) LastIndexAndAppendTime() (uint64, uint64, error) {
 }
 
 func (p *proxyReplicaStorage) SetLeaderTermStartIndex(term uint32, index uint64) error {
-	return p.localstorage.setLeaderTermStartIndex(p.shardNo, term, index)
+	return p.storage.SetLeaderTermStartIndex(p.shardNo, term, index)
 }
 
 func (p *proxyReplicaStorage) LeaderLastTerm() (uint32, error) {
-	return p.localstorage.leaderLastTerm(p.shardNo)
+	return p.storage.LeaderLastTerm(p.shardNo)
 }
 
 func (p *proxyReplicaStorage) LeaderTermStartIndex(term uint32) (uint64, error) {
-	return p.localstorage.leaderTermStartIndex(p.shardNo, term)
+	return p.storage.LeaderTermStartIndex(p.shardNo, term)
 }
 
 func (p *proxyReplicaStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
-	return p.localstorage.deleteLeaderTermStartIndexGreaterThanTerm(p.shardNo, term)
+	return p.storage.DeleteLeaderTermStartIndexGreaterThanTerm(p.shardNo, term)
 }

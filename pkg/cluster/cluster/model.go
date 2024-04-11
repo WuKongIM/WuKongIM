@@ -354,8 +354,8 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 }
 
 type ChannelProposeResp struct {
-	ClusterConfigOld bool          // 请求的节点的集群配置是否是旧的
-	MessageItems     []messageItem // 提案索引
+	ClusterConfigOld bool           // 请求的节点的集群配置是否是旧的
+	MessageItems     []*messageItem // 提案索引
 }
 
 func (c *ChannelProposeResp) Marshal() ([]byte, error) {
@@ -385,14 +385,17 @@ func (c *ChannelProposeResp) Unmarshal(data []byte) error {
 		return err
 	}
 	if itemLen > 0 {
-		c.MessageItems = make([]messageItem, itemLen)
+		c.MessageItems = make([]*messageItem, itemLen)
 		for i := uint16(0); i < itemLen; i++ {
-			if c.MessageItems[i].messageId, err = dec.Uint64(); err != nil {
+			item := &messageItem{}
+			if item.messageId, err = dec.Uint64(); err != nil {
 				return err
 			}
-			if c.MessageItems[i].messageSeq, err = dec.Uint64(); err != nil {
+			if item.messageSeq, err = dec.Uint64(); err != nil {
 				return err
 			}
+			c.MessageItems[i] = item
+
 		}
 	}
 	return nil
@@ -473,8 +476,8 @@ func (s *SlotProposeReq) Unmarshal(data []byte) error {
 }
 
 type SlotProposeResp struct {
-	ClusterConfigOld bool          // 请求的节点的集群配置是否是旧的
-	MessageItems     []messageItem // 提案索引
+	ClusterConfigOld bool           // 请求的节点的集群配置是否是旧的
+	MessageItems     []*messageItem // 提案索引
 }
 
 func (s *SlotProposeResp) Marshal() ([]byte, error) {
@@ -504,7 +507,7 @@ func (s *SlotProposeResp) Unmarshal(data []byte) error {
 		return err
 	}
 	if itemLen > 0 {
-		s.MessageItems = make([]messageItem, itemLen)
+		s.MessageItems = make([]*messageItem, itemLen)
 		for i := uint16(0); i < itemLen; i++ {
 			if s.MessageItems[i].messageId, err = dec.Uint64(); err != nil {
 				return err

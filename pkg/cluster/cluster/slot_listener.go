@@ -25,7 +25,7 @@ func newSlotListener(opts *Options) *slotListener {
 		opts:      opts,
 		slots:     newSlotQueue(),
 		stopper:   syncutil.NewStopper(),
-		readyCh:   make(chan slotReady, 100),
+		readyCh:   make(chan slotReady, 0),
 		Log:       wklog.NewWKLog(fmt.Sprintf("slotListener[%d]", opts.NodeID)),
 		advanceCh: make(chan struct{}, 1),
 	}
@@ -56,6 +56,7 @@ func (s *slotListener) loopEvent() {
 		s.ready()
 		select {
 		case <-tick.C:
+			s.tick()
 		case <-s.advanceCh:
 		case <-s.stopper.ShouldStop():
 			return
@@ -69,6 +70,12 @@ func (s *slotListener) advance() {
 	case <-s.stopper.ShouldStop():
 	default:
 	}
+}
+
+func (s *slotListener) tick() {
+	s.slots.foreach(func(st *slot) {
+		st.tick()
+	})
 }
 
 func (s *slotListener) ready() {

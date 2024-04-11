@@ -345,3 +345,31 @@ var TableChannelClusterConfig = struct {
 		Version:         [2]byte{0x09, 0x07},
 	},
 }
+
+// ======================== LeaderTermSequence ========================
+
+var TableLeaderTermSequence = struct {
+	Id   [2]byte
+	Size int
+}{
+	Id:   [2]byte{0x0A, 0x01},
+	Size: 2 + 2 + 8 + 4, // tableId + dataType  + shardNo hash + term
+}
+
+// ======================== ChannelCommon ========================
+
+var TableChannelCommon = struct {
+	Id     [2]byte
+	Size   int
+	Column struct {
+		AppliedIndex [2]byte
+	}
+}{
+	Id:   [2]byte{0x0B, 0x01},
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + channel hash + columnKey
+	Column: struct {
+		AppliedIndex [2]byte
+	}{
+		AppliedIndex: [2]byte{0x0B, 0x01},
+	},
+}

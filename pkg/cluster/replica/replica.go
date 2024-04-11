@@ -2,7 +2,6 @@ package replica
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -27,7 +26,7 @@ type Replica struct {
 	// -------------------- leader --------------------
 	lastSyncInfoMap map[uint64]*SyncInfo // 副本日志信息
 	// pongMap          map[uint64]bool      // 已回应pong的节点
-	activeReplicaMap map[uint64]time.Time // 已经激活了的副本
+	activeReplicas map[uint64]bool // 已经激活了的副本
 
 	// -------------------- follower --------------------
 	// 禁止去同步领导的日志，因为这时候应该发起了 MsgLeaderTermStartOffsetReq 消息 还没有收到回复，只有收到回复后，追随者截断未知的日志后，才能去同步领导的日志，主要是解决日志冲突的问题
@@ -58,10 +57,10 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 		opts:            opts,
 		lastSyncInfoMap: map[uint64]*SyncInfo{},
 		// pongMap:          map[uint64]bool{},
-		activeReplicaMap: make(map[uint64]time.Time),
-		messageWait:      newMessageWait(opts.MessageSendInterval),
-		replicaLog:       newReplicaLog(opts),
-		testMap:          map[uint64]uint64{},
+		activeReplicas: make(map[uint64]bool),
+		messageWait:    newMessageWait(opts.MessageSendInterval, opts.ReplicaMaxCount),
+		replicaLog:     newReplicaLog(opts),
+		testMap:        map[uint64]uint64{},
 	}
 
 	lastLeaderTerm, err := rc.opts.Storage.LeaderLastTerm()
@@ -84,6 +83,15 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 	}
 
 	return rc
+}
+
+func (r *Replica) activeReplica(replicaId uint64) {
+	r.activeReplicas[replicaId] = true
+}
+
+func (r *Replica) isActiveReplica(replicaId uint64) bool {
+	ok := r.activeReplicas[replicaId]
+	return ok
 }
 
 func (r *Replica) Ready() Ready {
@@ -146,7 +154,7 @@ func (r *Replica) becomeLeader(term uint32) {
 			}
 		}
 	}
-	r.activeReplicaMap = make(map[uint64]time.Time)
+	r.activeReplicas = make(map[uint64]bool)
 }
 
 // func (r *Replica) becomeCandidate() {
@@ -218,10 +226,7 @@ func (r *Replica) HasReady() bool {
 		return true
 	}
 	if r.disabledToSync {
-		if !r.isLeader() && !r.messageWait.has(r.leader, MsgLeaderTermStartIndexReq) {
-			return true
-		}
-		return false
+		return !r.isLeader() && r.messageWait.canMsgLeaderTermStartIndex()
 	}
 
 	if r.followNeedSync() {
@@ -232,9 +237,6 @@ func (r *Replica) HasReady() bool {
 		if r.hasNeedPing() {
 			return true
 		}
-		// if r.hasNeedNotifySync() {
-		// 	return true
-		// }
 	}
 
 	if r.hasUnstableLogs() { // 有未存储的日志
@@ -252,8 +254,8 @@ func (r *Replica) HasReady() bool {
 func (r *Replica) putMsgIfNeed() {
 
 	if r.disabledToSync {
-		if !r.IsLeader() && !r.messageWait.has(r.leader, MsgLeaderTermStartIndexReq) {
-			r.messageWait.start(r.leader, MsgLeaderTermStartIndexReq)
+		if !r.IsLeader() && r.messageWait.canMsgLeaderTermStartIndex() {
+			r.messageWait.resetMsgLeaderTermStartIndex()
 			r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
 		}
 		return
@@ -261,8 +263,9 @@ func (r *Replica) putMsgIfNeed() {
 
 	// 副本来同步日志
 	if r.followNeedSync() {
-		r.messageWait.start(r.leader, MsgSync)
-		r.msgs = append(r.msgs, r.newSyncMsg())
+		r.messageWait.resetSync()
+		msg := r.newSyncMsg()
+		r.msgs = append(r.msgs, msg)
 	}
 
 	if r.isLeader() {
@@ -297,6 +300,10 @@ func (r *Replica) reset(term uint32) {
 		r.replicaLog.term = term
 	}
 	r.leader = None
+}
+
+func (r *Replica) Tick() {
+	r.messageWait.tick()
 }
 
 // 是否有未提交的日志
@@ -357,10 +364,10 @@ func (r *Replica) NewProposeMessageWithLogs(logs []Log) Message {
 
 func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
 	return Message{
-		MsgType: MsgApplyLogsResp,
-		From:    r.nodeID,
-		Term:    r.replicaLog.term,
-		Index:   appliedIdx,
+		MsgType:      MsgApplyLogsResp,
+		From:         r.nodeID,
+		Term:         r.replicaLog.term,
+		AppliedIndex: appliedIdx,
 	}
 }
 
@@ -445,12 +452,16 @@ func (r *Replica) newLeaderTermStartIndexReqMsg() Message {
 	if err != nil {
 		r.Panic("get leader last term failed", zap.Error(err))
 	}
+	term := leaderLastTerm
+	if leaderLastTerm == 0 {
+		term = r.replicaLog.term
+	}
 
 	return Message{
 		MsgType: MsgLeaderTermStartIndexReq,
 		From:    r.nodeID,
 		To:      r.leader,
-		Term:    leaderLastTerm,
+		Term:    term,
 	}
 }
 
@@ -504,7 +515,7 @@ func (r *Replica) followNeedSync() bool {
 	if r.isLeader() {
 		return false
 	}
-	if r.messageWait.has(r.leader, MsgSync) {
+	if !r.messageWait.canSync() {
 		return false
 	}
 	return true

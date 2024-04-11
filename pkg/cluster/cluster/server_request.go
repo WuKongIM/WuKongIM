@@ -122,6 +122,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+
 	slotId := s.getChannelSlotId(req.ChannelID)
 	slot := s.clusterEventListener.clusterconfigManager.slot(slotId)
 	if slot == nil {
@@ -135,18 +136,13 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		c.WriteErr(ErrNotIsLeader)
 		return
 	}
-	channel, err := s.channelGroupManager.fetchChannel(s.cancelCtx, req.ChannelID, req.ChannelType)
+
+	clusterConfig, err := s.opts.ChannelClusterStorage.Get(req.ChannelID, req.ChannelType)
 	if err != nil {
-		s.Error("get channel failed", zap.Error(err))
+		s.Error("get clusterConfig failed", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
-	if channel == nil {
-		s.Error("channel not found", zap.String("channelId", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(ErrChannelNotFound)
-		return
-	}
-	clusterConfig := channel.getClusterConfig()
 	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		s.Error("clusterConfig not found", zap.String("channelId", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(ErrClusterConfigNotFound)

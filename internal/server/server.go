@@ -175,10 +175,22 @@ func New(opts *Options) *Server {
 			trace.WithServiceName(s.opts.Trace.ServiceName),
 			trace.WithServiceHostName(s.opts.Trace.ServiceHostName),
 			trace.WithRequestPoolRunning(func() int64 {
-				return int64(s.cluster.Monitor().RequestGoroutine())
+				return s.cluster.Monitor().RequestGoroutine()
 			}),
 			trace.WithMessagePoolRunning(func() int64 {
-				return int64(s.cluster.Monitor().MessageGoroutine())
+				return s.cluster.Monitor().MessageGoroutine()
+			}),
+			trace.WithOutboundFlightMessageBytes(func() int64 {
+				return s.cluster.Monitor().OutboundFlightMessageBytes()
+			}),
+			trace.WithOutboundFlightMessageCount(func() int64 {
+				return s.cluster.Monitor().OutboundFlightMessageCount()
+			}),
+			trace.WithInboundFlightMessageBytes(func() int64 {
+				return s.cluster.Monitor().InboundFlightMessageBytes()
+			}),
+			trace.WithInboundFlightMessageCount(func() int64 {
+				return s.cluster.Monitor().InboundFlightMessageCount()
 			}),
 		))
 	trace.SetGlobalTrace(s.trace)

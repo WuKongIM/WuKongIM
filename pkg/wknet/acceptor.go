@@ -157,10 +157,10 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	}
 	wg.Done()
 
-	_ = a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+	err = a.listenPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, false, false)
 	})
-	return nil
+	return err
 
 }
 
@@ -176,10 +176,9 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 		return fmt.Errorf("add ws listener fd to poller failed %s", err)
 	}
 	wg.Done()
-	a.listenWSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+	return a.listenWSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, true, false)
 	})
-	return nil
 }
 
 func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
@@ -194,10 +193,9 @@ func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 		return fmt.Errorf("add ws listener fd to poller failed %s", err)
 	}
 	wg.Done()
-	a.listenWSSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
+	return a.listenWSSPoller.Polling(func(fd int, ev netpoll.PollEvent) error {
 		return a.acceptConn(fd, false, true)
 	})
-	return nil
 }
 
 func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {

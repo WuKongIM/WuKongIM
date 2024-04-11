@@ -37,6 +37,22 @@ func (n *nodeManager) nodes() []*node {
 	return nodes
 }
 
+func (n *nodeManager) outboundFlightMessageCount() int64 {
+	var count int64
+	for _, node := range n.nodeMap {
+		count += node.outboundFlightMessageCount()
+	}
+	return count
+}
+
+func (n *nodeManager) outboundFlightMessageBytes() int64 {
+	var count int64
+	for _, node := range n.nodeMap {
+		count += node.outboundFlightMessageBytes()
+	}
+	return count
+}
+
 func (n *nodeManager) exist(id uint64) bool {
 	if _, ok := n.nodeMap[id]; ok {
 		return true

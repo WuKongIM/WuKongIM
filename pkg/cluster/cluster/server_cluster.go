@@ -226,7 +226,7 @@ func (s *Server) ProposeToSlot(ctx context.Context, slotId uint32, logs []replic
 	if slot == nil {
 		return nil, ErrSlotNotFound
 	}
-	var messageItems []messageItem
+	var messageItems []*messageItem
 	var err error
 	if slot.Leader != s.opts.NodeID {
 		slotLeaderNode := s.nodeManager.node(slot.Leader)
@@ -279,8 +279,12 @@ func (s *Server) Monitor() Monitor {
 // }
 
 type Monitor interface {
-	RequestGoroutine() int // 请求协程数
-	MessageGoroutine() int // 消息处理协程数
+	RequestGoroutine() int64 // 请求协程数
+	MessageGoroutine() int64 // 消息处理协程数
+	InboundFlightMessageCount() int64
+	OutboundFlightMessageCount() int64
+	InboundFlightMessageBytes() int64
+	OutboundFlightMessageBytes() int64
 }
 
 type DefaultMonitor struct {
@@ -293,10 +297,26 @@ func NewDefaultMonitor(s *Server) *DefaultMonitor {
 	}
 }
 
-func (m *DefaultMonitor) RequestGoroutine() int {
-	return m.s.server.RequestPoolRunning()
+func (m *DefaultMonitor) RequestGoroutine() int64 {
+	return int64(m.s.server.RequestPoolRunning())
 }
 
-func (m *DefaultMonitor) MessageGoroutine() int {
-	return m.s.server.MessagePoolRunning()
+func (m *DefaultMonitor) MessageGoroutine() int64 {
+	return int64(m.s.server.MessagePoolRunning())
+}
+
+func (m *DefaultMonitor) InboundFlightMessageCount() int64 {
+	return int64(m.s.inbound.Len())
+}
+
+func (m *DefaultMonitor) InboundFlightMessageBytes() int64 {
+	return int64(m.s.inbound.Size())
+}
+
+func (m *DefaultMonitor) OutboundFlightMessageCount() int64 {
+	return m.s.nodeManager.outboundFlightMessageCount()
+}
+
+func (m *DefaultMonitor) OutboundFlightMessageBytes() int64 {
+	return m.s.nodeManager.outboundFlightMessageBytes()
 }
