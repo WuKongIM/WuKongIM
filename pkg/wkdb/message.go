@@ -12,7 +12,8 @@ import (
 
 func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []Message) error {
 
-	batch := wk.db.NewBatch()
+	db := wk.shardDB(channelId)
+	batch := db.NewBatch()
 	defer batch.Close()
 	for _, msg := range msgs {
 		if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
@@ -68,7 +69,9 @@ func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, start
 		maxSeq = lastSeq + 1
 	}
 
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	db := wk.shardDB(channelId)
+
+	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
 	})
@@ -94,7 +97,9 @@ func (wk *wukongDB) LoadNextRangeMsgs(channelId string, channelType uint8, start
 		maxSeq = lastSeq + 1
 	}
 
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	db := wk.shardDB(channelId)
+
+	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
 	})
@@ -104,7 +109,10 @@ func (wk *wukongDB) LoadNextRangeMsgs(channelId string, channelType uint8, start
 }
 
 func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Message, error) {
-	iter := wk.db.NewIter(&pebble.IterOptions{
+
+	db := wk.shardDB(channelId)
+
+	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, seq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, seq+1),
 	})
@@ -144,7 +152,9 @@ func (wk *wukongDB) LoadNextRangeMsgsForSize(channelId string, channelType uint8
 	if endMessageSeq == 0 {
 		maxSeq = math.MaxUint64
 	}
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	db := wk.shardDB(channelId)
+
+	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
 	})
@@ -161,11 +171,12 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 	if err != nil {
 		return err
 	}
-	err = wk.db.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), wk.wo)
+	db := wk.shardDB(channelId)
+	err = db.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), wk.wo)
 	if err != nil {
 		return err
 	}
-	batch := wk.db.NewBatch()
+	batch := db.NewBatch()
 	defer batch.Close()
 
 	err = batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), wk.wo)
@@ -187,7 +198,8 @@ func min(x, y uint64) uint64 {
 	return y
 }
 func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, error) {
-	result, closer, err := wk.db.Get(key.NewChannelLastMessageSeqKey(channelId, channelType))
+	db := wk.shardDB(channelId)
+	result, closer, err := db.Get(key.NewChannelLastMessageSeqKey(channelId, channelType))
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil
@@ -199,7 +211,8 @@ func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8
 }
 
 func (wk *wukongDB) SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error {
-	return wk.setChannelLastMessageSeq(channelId, channelType, seq, wk.db)
+	db := wk.shardDB(channelId)
+	return wk.setChannelLastMessageSeq(channelId, channelType, seq, db)
 }
 
 func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer) error {

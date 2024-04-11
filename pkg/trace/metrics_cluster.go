@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.opentelemetry.io/otel/metric"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -13,58 +14,62 @@ type clusterMetrics struct {
 	ctx  context.Context
 	opts *Options
 	// message
-	messageIncomingBytes metric.Int64Counter
-	messageOutgoingBytes metric.Int64Counter
-	messageIncomingCount metric.Int64Counter
-	messageOutgoingCount metric.Int64Counter
+	messageIncomingBytes atomic.Int64
+	messageOutgoingBytes atomic.Int64
+	messageIncomingCount atomic.Int64
+	messageOutgoingCount atomic.Int64
 
-	messageConcurrency metric.Int64UpDownCounter
+	messageConcurrency atomic.Int64
 
 	// sendPacket
-	sendPacketIncomingBytes metric.Int64Counter
-	sendPacketIncomingCount metric.Int64Counter
-	sendPacketOutgoingBytes metric.Int64Counter
-	sendPacketOutgoingCount metric.Int64Counter
+	sendPacketIncomingBytes atomic.Int64
+	sendPacketIncomingCount atomic.Int64
+	sendPacketOutgoingBytes atomic.Int64
+	sendPacketOutgoingCount atomic.Int64
 
 	// channel log
-	channelLogIncomingBytes metric.Int64Counter
-	channelLogIncomingCount metric.Int64Counter
-	channelLogOutgoingBytes metric.Int64Counter
-	channelLogOutgoingCount metric.Int64Counter
+	channelLogIncomingBytes atomic.Int64
+	channelLogIncomingCount atomic.Int64
+	channelLogOutgoingBytes atomic.Int64
+	channelLogOutgoingCount atomic.Int64
 
 	// msg sync
-	msgSyncIncomingBytes        metric.Int64Counter
-	msgSyncOutgoingBytes        metric.Int64Counter
-	msgSyncIncomingCount        metric.Int64Counter
-	msgSyncOutgoingCount        metric.Int64Counter
-	msgSyncRespIncomingBytes    metric.Int64Counter
-	msgSyncRespOutgoingBytes    metric.Int64Counter
-	msgSyncRespIncomingCount    metric.Int64Counter
-	msgSyncRespOutgoingCount    metric.Int64Counter
-	channelMsgSyncIncomingCount metric.Int64Counter
-	channelMsgSyncOutgoingCount metric.Int64Counter
-	channelMsgSyncIncomingBytes metric.Int64Counter
-	channelMsgSyncOutgoingBytes metric.Int64Counter
-	slotMsgSyncIncomingCount    metric.Int64Counter
-	slotMsgSyncOutgoingCount    metric.Int64Counter
-	slotMsgSyncIncomingBytes    metric.Int64Counter
-	slotMsgSyncOutgoingBytes    metric.Int64Counter
+	msgSyncIncomingBytes        atomic.Int64
+	msgSyncOutgoingBytes        atomic.Int64
+	msgSyncIncomingCount        atomic.Int64
+	msgSyncOutgoingCount        atomic.Int64
+	msgSyncRespIncomingBytes    atomic.Int64
+	msgSyncRespOutgoingBytes    atomic.Int64
+	msgSyncRespIncomingCount    atomic.Int64
+	msgSyncRespOutgoingCount    atomic.Int64
+	channelMsgSyncIncomingCount atomic.Int64
+	channelMsgSyncOutgoingCount atomic.Int64
+	channelMsgSyncIncomingBytes atomic.Int64
+	channelMsgSyncOutgoingBytes atomic.Int64
+	slotMsgSyncIncomingCount    atomic.Int64
+	slotMsgSyncOutgoingCount    atomic.Int64
+	slotMsgSyncIncomingBytes    atomic.Int64
+	slotMsgSyncOutgoingBytes    atomic.Int64
 
 	// cluster ping
-	clusterPingIncomingBytes metric.Int64Counter
-	clusterPingIncomingCount metric.Int64Counter
-	clusterPingOutgoingBytes metric.Int64Counter
-	clusterPingOutgoingCount metric.Int64Counter
+	clusterPingIncomingBytes atomic.Int64
+	clusterPingIncomingCount atomic.Int64
+	clusterPingOutgoingBytes atomic.Int64
+	clusterPingOutgoingCount atomic.Int64
 
 	// cluster pong
-	clusterPongIncomingBytes metric.Int64Counter
-	clusterPongIncomingCount metric.Int64Counter
-	clusterPongOutgoingBytes metric.Int64Counter
-	clusterPongOutgoingCount metric.Int64Counter
+	clusterPongIncomingBytes atomic.Int64
+	clusterPongIncomingCount atomic.Int64
+	clusterPongOutgoingBytes atomic.Int64
+	clusterPongOutgoingCount atomic.Int64
 
 	// inbound flight
 	inboundFlightMessageCount metric.Int64UpDownCounter
 	inboundFlightMessageBytes metric.Int64UpDownCounter
+
+	// outbound flight
+	outboundFlightMessageCount metric.Int64UpDownCounter
+	outboundFlightMessageBytes metric.Int64UpDownCounter
 }
 
 func newClusterMetrics(opts *Options) IClusterMetrics {
@@ -75,58 +80,114 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 	}
 
 	// message
-	c.messageIncomingBytes = NewInt64Counter("cluster_message_incoming_bytes")
-	c.messageIncomingCount = NewInt64Counter("cluster_message_incoming_count")
+	messageIncomingBytes := NewInt64ObservableCounter("cluster_message_incoming_bytes")
+	messageOutgoingBytes := NewInt64ObservableCounter("cluster_message_outgoing_bytes")
+	messageIncomingCount := NewInt64ObservableCounter("cluster_message_incoming_count")
+	messageOutgoingCount := NewInt64ObservableCounter("cluster_message_outgoing_count")
 
-	c.messageOutgoingBytes = NewInt64Counter("cluster_message_outgoing_bytes")
-	c.messageOutgoingCount = NewInt64Counter("cluster_message_outgoing_count")
+	messageConcurrency := NewInt64ObservableCounter("cluster_message_concurrency")
 
-	c.messageConcurrency = NewInt64UpDownCounter("cluster_message_concurrency")
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(messageIncomingBytes, c.messageIncomingBytes.Load())
+		obs.ObserveInt64(messageOutgoingBytes, c.messageOutgoingBytes.Load())
+		obs.ObserveInt64(messageIncomingCount, c.messageIncomingCount.Load())
+		obs.ObserveInt64(messageOutgoingCount, c.messageOutgoingCount.Load())
+		obs.ObserveInt64(messageConcurrency, c.messageConcurrency.Load())
+		return nil
+	}, messageIncomingBytes, messageOutgoingBytes, messageIncomingCount, messageOutgoingCount, messageConcurrency)
 
 	// sendpacket
-	c.sendPacketIncomingBytes = NewInt64Counter("cluster_sendpacket_incoming_bytes")
-	c.sendPacketIncomingCount = NewInt64Counter("cluster_sendpacket_incoming_count")
-	c.sendPacketOutgoingBytes = NewInt64Counter("cluster_sendpacket_outgoing_bytes")
-	c.sendPacketOutgoingCount = NewInt64Counter("cluster_sendpacket_outgoing_count")
-
+	sendPacketIncomingBytes := NewInt64ObservableCounter("cluster_sendpacket_incoming_bytes")
+	sendPacketIncomingCount := NewInt64ObservableCounter("cluster_sendpacket_incoming_count")
+	sendPacketOutgoingBytes := NewInt64ObservableCounter("cluster_sendpacket_outgoing_bytes")
+	sendPacketOutgoingCount := NewInt64ObservableCounter("cluster_sendpacket_outgoing_count")
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(sendPacketIncomingBytes, c.sendPacketIncomingBytes.Load())
+		obs.ObserveInt64(sendPacketIncomingCount, c.sendPacketIncomingCount.Load())
+		obs.ObserveInt64(sendPacketOutgoingBytes, c.sendPacketOutgoingBytes.Load())
+		obs.ObserveInt64(sendPacketOutgoingCount, c.sendPacketOutgoingCount.Load())
+		return nil
+	}, sendPacketIncomingBytes, sendPacketIncomingCount, sendPacketOutgoingBytes, sendPacketOutgoingCount)
 	// channel log
-	c.channelLogIncomingBytes = NewInt64Counter("cluster_channel_log_incoming_bytes")
-	c.channelLogIncomingCount = NewInt64Counter("cluster_channel_log_incoming_count")
-	c.channelLogOutgoingBytes = NewInt64Counter("cluster_channel_log_outgoing_bytes")
-	c.channelLogOutgoingCount = NewInt64Counter("cluster_channel_log_outgoing_count")
+	channelLogIncomingBytes := NewInt64ObservableCounter("cluster_channel_log_incoming_bytes")
+	channelLogIncomingCount := NewInt64ObservableCounter("cluster_channel_log_incoming_count")
+	channelLogOutgoingBytes := NewInt64ObservableCounter("cluster_channel_log_outgoing_bytes")
+	channelLogOutgoingCount := NewInt64ObservableCounter("cluster_channel_log_outgoing_count")
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(channelLogIncomingBytes, c.channelLogIncomingBytes.Load())
+		obs.ObserveInt64(channelLogIncomingCount, c.channelLogIncomingCount.Load())
+		obs.ObserveInt64(channelLogOutgoingBytes, c.channelLogOutgoingBytes.Load())
+		obs.ObserveInt64(channelLogOutgoingCount, c.channelLogOutgoingCount.Load())
+		return nil
+	}, channelLogIncomingBytes, channelLogIncomingCount, channelLogOutgoingBytes, channelLogOutgoingCount)
 
 	// msg sync
-	c.msgSyncIncomingBytes = NewInt64Counter("cluster_msg_sync_incoming_bytes")
-	c.msgSyncOutgoingBytes = NewInt64Counter("cluster_msg_sync_outgoing_bytes")
-	c.msgSyncIncomingCount = NewInt64Counter("cluster_msg_sync_incoming_count")
-	c.msgSyncOutgoingCount = NewInt64Counter("cluster_msg_sync_outgoing_count")
-	c.msgSyncRespIncomingBytes = NewInt64Counter("cluster_msg_syncresp_Incoming_bytes")
-	c.msgSyncRespOutgoingBytes = NewInt64Counter("cluster_msg_syncresp_outgoing_bytes")
-	c.msgSyncRespIncomingCount = NewInt64Counter("cluster_msg_syncresp_Incoming_count")
-	c.msgSyncRespOutgoingCount = NewInt64Counter("cluster_msg_syncresp_outgoing_count")
-	c.channelMsgSyncIncomingBytes = NewInt64Counter("cluster_channel_msg_sync_incoming_bytes")
-	c.channelMsgSyncOutgoingBytes = NewInt64Counter("cluster_channel_msg_sync_outgoing_bytes")
-	c.channelMsgSyncIncomingCount = NewInt64Counter("cluster_channel_msg_sync_incoming_count")
-	c.channelMsgSyncOutgoingCount = NewInt64Counter("cluster_channel_msg_sync_outgoing_count")
-	c.slotMsgSyncIncomingBytes = NewInt64Counter("cluster_slot_msg_sync_incoming_bytes")
-	c.slotMsgSyncOutgoingBytes = NewInt64Counter("cluster_slot_msg_sync_outgoing_bytes")
-	c.slotMsgSyncIncomingCount = NewInt64Counter("cluster_slot_msg_sync_incoming_count")
-	c.slotMsgSyncOutgoingCount = NewInt64Counter("cluster_slot_msg_sync_outgoing_count")
+	msgSyncIncomingBytes := NewInt64ObservableCounter("cluster_msg_sync_incoming_bytes")
+	msgSyncOutgoingBytes := NewInt64ObservableCounter("cluster_msg_sync_outgoing_bytes")
+	msgSyncIncomingCount := NewInt64ObservableCounter("cluster_msg_sync_incoming_count")
+	msgSyncOutgoingCount := NewInt64ObservableCounter("cluster_msg_sync_outgoing_count")
+	msgSyncRespIncomingBytes := NewInt64ObservableCounter("cluster_msg_syncresp_Incoming_bytes")
+	msgSyncRespOutgoingBytes := NewInt64ObservableCounter("cluster_msg_syncresp_outgoing_bytes")
+	msgSyncRespIncomingCount := NewInt64ObservableCounter("cluster_msg_syncresp_Incoming_count")
+	msgSyncRespOutgoingCount := NewInt64ObservableCounter("cluster_msg_syncresp_outgoing_count")
+	channelMsgSyncIncomingBytes := NewInt64ObservableCounter("cluster_channel_msg_sync_incoming_bytes")
+	channelMsgSyncOutgoingBytes := NewInt64ObservableCounter("cluster_channel_msg_sync_outgoing_bytes")
+	channelMsgSyncIncomingCount := NewInt64ObservableCounter("cluster_channel_msg_sync_incoming_count")
+	channelMsgSyncOutgoingCount := NewInt64ObservableCounter("cluster_channel_msg_sync_outgoing_count")
+	slotMsgSyncIncomingBytes := NewInt64ObservableCounter("cluster_slot_msg_sync_incoming_bytes")
+	slotMsgSyncOutgoingBytes := NewInt64ObservableCounter("cluster_slot_msg_sync_outgoing_bytes")
+	slotMsgSyncIncomingCount := NewInt64ObservableCounter("cluster_slot_msg_sync_incoming_count")
+	slotMsgSyncOutgoingCount := NewInt64ObservableCounter("cluster_slot_msg_sync_outgoing_count")
+
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(msgSyncIncomingBytes, c.msgSyncIncomingBytes.Load())
+		obs.ObserveInt64(msgSyncOutgoingBytes, c.msgSyncOutgoingBytes.Load())
+		obs.ObserveInt64(msgSyncIncomingCount, c.msgSyncIncomingCount.Load())
+		obs.ObserveInt64(msgSyncOutgoingCount, c.msgSyncOutgoingCount.Load())
+		obs.ObserveInt64(msgSyncRespIncomingBytes, c.msgSyncRespIncomingBytes.Load())
+		obs.ObserveInt64(msgSyncRespOutgoingBytes, c.msgSyncRespOutgoingBytes.Load())
+		obs.ObserveInt64(msgSyncRespIncomingCount, c.msgSyncRespIncomingCount.Load())
+		obs.ObserveInt64(msgSyncRespOutgoingCount, c.msgSyncRespOutgoingCount.Load())
+		obs.ObserveInt64(channelMsgSyncIncomingBytes, c.channelMsgSyncIncomingBytes.Load())
+		obs.ObserveInt64(channelMsgSyncOutgoingBytes, c.channelMsgSyncOutgoingBytes.Load())
+		obs.ObserveInt64(channelMsgSyncIncomingCount, c.channelMsgSyncIncomingCount.Load())
+		obs.ObserveInt64(channelMsgSyncOutgoingCount, c.channelMsgSyncOutgoingCount.Load())
+		obs.ObserveInt64(slotMsgSyncIncomingBytes, c.slotMsgSyncIncomingBytes.Load())
+		obs.ObserveInt64(slotMsgSyncOutgoingBytes, c.slotMsgSyncOutgoingBytes.Load())
+		obs.ObserveInt64(slotMsgSyncIncomingCount, c.slotMsgSyncIncomingCount.Load())
+		obs.ObserveInt64(slotMsgSyncOutgoingCount, c.slotMsgSyncOutgoingCount.Load())
+		return nil
+	}, msgSyncIncomingBytes, msgSyncOutgoingBytes, msgSyncIncomingCount, msgSyncOutgoingCount, msgSyncRespIncomingBytes, msgSyncRespOutgoingBytes, msgSyncRespIncomingCount, msgSyncRespOutgoingCount, channelMsgSyncIncomingBytes, channelMsgSyncOutgoingBytes, channelMsgSyncIncomingCount, channelMsgSyncOutgoingCount, slotMsgSyncIncomingBytes, slotMsgSyncOutgoingBytes, slotMsgSyncIncomingCount, slotMsgSyncOutgoingCount)
 
 	// cluster ping
-	c.clusterPingIncomingBytes = NewInt64Counter("cluster_clusterping_incoming_bytes")
-	c.clusterPingIncomingCount = NewInt64Counter("cluster_clusterping_incoming_count")
-	c.clusterPingOutgoingBytes = NewInt64Counter("cluster_clusterping_outgoing_bytes")
-	c.clusterPingOutgoingCount = NewInt64Counter("cluster_clusterping_outgoing_count")
+	clusterPingIncomingBytes := NewInt64ObservableCounter("cluster_clusterping_incoming_bytes")
+	clusterPingIncomingCount := NewInt64ObservableCounter("cluster_clusterping_incoming_count")
+	clusterPingOutgoingBytes := NewInt64ObservableCounter("cluster_clusterping_outgoing_bytes")
+	clusterPingOutgoingCount := NewInt64ObservableCounter("cluster_clusterping_outgoing_count")
+
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(clusterPingIncomingBytes, c.clusterPingIncomingBytes.Load())
+		obs.ObserveInt64(clusterPingIncomingCount, c.clusterPingIncomingCount.Load())
+		obs.ObserveInt64(clusterPingOutgoingBytes, c.clusterPingOutgoingBytes.Load())
+		obs.ObserveInt64(clusterPingOutgoingCount, c.clusterPingOutgoingCount.Load())
+		return nil
+	}, clusterPingIncomingBytes, clusterPingIncomingCount, clusterPingOutgoingBytes, clusterPingOutgoingCount)
 
 	// cluster pong
-	c.clusterPongIncomingBytes = NewInt64Counter("cluster_clusterpong_incoming_bytes")
-	c.clusterPongIncomingCount = NewInt64Counter("cluster_clusterpong_incoming_count")
-	c.clusterPongOutgoingBytes = NewInt64Counter("cluster_clusterpong_outgoing_bytes")
-	c.clusterPongOutgoingCount = NewInt64Counter("cluster_clusterpong_outgoing_count")
+	clusterPongIncomingBytes := NewInt64ObservableCounter("cluster_clusterpong_incoming_bytes")
+	clusterPongIncomingCount := NewInt64ObservableCounter("cluster_clusterpong_incoming_count")
+	clusterPongOutgoingBytes := NewInt64ObservableCounter("cluster_clusterpong_outgoing_bytes")
+	clusterPongOutgoingCount := NewInt64ObservableCounter("cluster_clusterpong_outgoing_count")
+
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(clusterPongIncomingBytes, c.clusterPongIncomingBytes.Load())
+		obs.ObserveInt64(clusterPongIncomingCount, c.clusterPongIncomingCount.Load())
+		obs.ObserveInt64(clusterPongOutgoingBytes, c.clusterPongOutgoingBytes.Load())
+		obs.ObserveInt64(clusterPongOutgoingCount, c.clusterPongOutgoingCount.Load())
+		return nil
+	}, clusterPongIncomingBytes, clusterPongIncomingCount, clusterPongOutgoingBytes, clusterPongOutgoingCount)
 
 	// RequestGoroutinePoolRunningCount
-	var err error
 	requestGoroutinePoolRunningCount, err := meter.Int64ObservableUpDownCounter("cluster_request_goroutine_pool_running_count")
 	if err != nil {
 		c.Panic("cluster_request_goroutine_pool_running_count error", zap.Error(err))
@@ -137,53 +198,73 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 		c.Panic("cluster_message_goroutine_pool_running_count error", zap.Error(err))
 	}
 
+	// inbound flight
+	inboundFlightMessageCount, err := meter.Int64ObservableUpDownCounter("cluster_inbound_flight_message_count")
+	if err != nil {
+		c.Panic("cluster_inbound_flight_message_count error", zap.Error(err))
+	}
+	inboundFlightMessageBytes, err := meter.Int64ObservableUpDownCounter("cluster_inbound_flight_message_bytes")
+	if err != nil {
+		c.Panic("cluster_inbound_flight_message_bytes error", zap.Error(err))
+	}
+	// outbound flight
+	outboundFlightMessageCount, err := meter.Int64ObservableUpDownCounter("cluster_outbound_flight_message_count")
+	if err != nil {
+		c.Panic("cluster_outbound_flight_message_count error", zap.Error(err))
+	}
+
+	outboundFlightMessageBytes, err := meter.Int64ObservableUpDownCounter("cluster_outbound_flight_message_bytes")
+	if err != nil {
+		c.Panic("cluster_outbound_flight_message_bytes error", zap.Error(err))
+	}
+
 	_, err = meter.RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(requestGoroutinePoolRunningCount, opts.RequestPoolRunning())
 		obs.ObserveInt64(messageGoroutinePoolRunningCount, opts.MessagePoolRunning())
+		obs.ObserveInt64(inboundFlightMessageCount, opts.InboundFlightMessageCount())
+		obs.ObserveInt64(inboundFlightMessageBytes, opts.InboundFlightMessageBytes())
+		obs.ObserveInt64(outboundFlightMessageCount, opts.OutboundFlightMessageCount())
+		obs.ObserveInt64(outboundFlightMessageBytes, opts.OutboundFlightMessageBytes())
 		return nil
-	}, requestGoroutinePoolRunningCount, messageGoroutinePoolRunningCount)
+	}, requestGoroutinePoolRunningCount, messageGoroutinePoolRunningCount, inboundFlightMessageCount, inboundFlightMessageBytes, outboundFlightMessageCount, outboundFlightMessageBytes)
 	if err != nil {
 		c.Panic("register callback error", zap.Error(err))
 	}
-
-	// inbound flight
-	c.inboundFlightMessageCount = NewInt64UpDownCounter("cluster_inbound_flight_message_count")
-	c.inboundFlightMessageBytes = NewInt64UpDownCounter("cluster_inbound_flight_message_bytes")
 
 	return c
 }
 
 func (c *clusterMetrics) MessageIncomingBytesAdd(v int64) {
-	c.messageIncomingBytes.Add(c.ctx, v)
+	c.messageIncomingBytes.Add(v)
 }
 func (c *clusterMetrics) MessageOutgoingBytesAdd(v int64) {
-	c.messageOutgoingBytes.Add(c.ctx, v)
+	c.messageOutgoingBytes.Add(v)
 }
 func (c *clusterMetrics) MessageIncomingCountAdd(v int64) {
-	c.messageIncomingCount.Add(c.ctx, v)
+	c.messageIncomingCount.Add(v)
 }
 func (c *clusterMetrics) MessageOutgoingCountAdd(v int64) {
-	c.messageOutgoingCount.Add(c.ctx, v)
+	c.messageOutgoingCount.Add(v)
 }
 
 func (c *clusterMetrics) MessageConcurrencyAdd(v int64) {
-	c.messageConcurrency.Add(c.ctx, v)
+	c.messageConcurrency.Add(v)
 }
 
 func (c *clusterMetrics) SendPacketIncomingBytesAdd(v int64) {
-	c.sendPacketIncomingBytes.Add(c.ctx, v)
+	c.sendPacketIncomingBytes.Add(v)
 }
 
 func (c *clusterMetrics) SendPacketOutgoingBytesAdd(v int64) {
-	c.sendPacketOutgoingBytes.Add(c.ctx, v)
+	c.sendPacketOutgoingBytes.Add(v)
 }
 
 func (c *clusterMetrics) SendPacketIncomingCountAdd(v int64) {
-	c.sendPacketIncomingCount.Add(c.ctx, v)
+	c.sendPacketIncomingCount.Add(v)
 }
 
 func (c *clusterMetrics) SendPacketOutgoingCountAdd(v int64) {
-	c.sendPacketOutgoingCount.Add(c.ctx, v)
+	c.sendPacketOutgoingCount.Add(v)
 }
 
 func (c *clusterMetrics) RecvPacketIncomingBytesAdd(v int64) {
@@ -203,108 +284,108 @@ func (c *clusterMetrics) RecvPacketOutgoingCountAdd(v int64) {
 }
 
 func (c *clusterMetrics) MsgClusterPongIncomingBytesAdd(kind ClusterKind, v int64) {
-	c.clusterPongIncomingBytes.Add(c.ctx, v)
+	c.clusterPongIncomingBytes.Add(v)
 
 }
 func (c *clusterMetrics) MsgClusterPongIncomingCountAdd(kind ClusterKind, v int64) {
-	c.clusterPongIncomingCount.Add(c.ctx, v)
+	c.clusterPongIncomingCount.Add(v)
 }
 
 func (c *clusterMetrics) MsgClusterPongOutgoingBytesAdd(kind ClusterKind, v int64) {
-	c.clusterPongOutgoingBytes.Add(c.ctx, v)
+	c.clusterPongOutgoingBytes.Add(v)
 }
 func (c *clusterMetrics) MsgClusterPongOutgoingCountAdd(kind ClusterKind, v int64) {
-	c.clusterPongOutgoingCount.Add(c.ctx, v)
+	c.clusterPongOutgoingCount.Add(v)
 }
 
 func (c *clusterMetrics) MsgClusterPingIncomingBytesAdd(kind ClusterKind, v int64) {
-	c.clusterPingIncomingBytes.Add(c.ctx, v)
+	c.clusterPingIncomingBytes.Add(v)
 
 }
 func (c *clusterMetrics) MsgClusterPingIncomingCountAdd(kind ClusterKind, v int64) {
-	c.clusterPingIncomingCount.Add(c.ctx, v)
+	c.clusterPingIncomingCount.Add(v)
 }
 
 func (c *clusterMetrics) MsgClusterPingOutgoingBytesAdd(kind ClusterKind, v int64) {
-	c.clusterPingOutgoingBytes.Add(c.ctx, v)
+	c.clusterPingOutgoingBytes.Add(v)
 }
 
 func (c *clusterMetrics) MsgClusterPingOutgoingCountAdd(kind ClusterKind, v int64) {
-	c.clusterPingOutgoingCount.Add(c.ctx, v)
+	c.clusterPingOutgoingCount.Add(v)
 }
 
 func (c *clusterMetrics) MsgSyncIncomingBytesAdd(kind ClusterKind, v int64) {
-	c.msgSyncIncomingBytes.Add(c.ctx, v)
+	c.msgSyncIncomingBytes.Add(v)
 
 	switch kind {
 	case ClusterKindChannel:
-		c.channelMsgSyncIncomingBytes.Add(c.ctx, v)
+		c.channelMsgSyncIncomingBytes.Add(v)
 	case ClusterKindSlot:
-		c.slotMsgSyncIncomingBytes.Add(c.ctx, v)
+		c.slotMsgSyncIncomingBytes.Add(v)
 	}
 }
 
 func (c *clusterMetrics) MsgSyncOutgoingBytesAdd(kind ClusterKind, v int64) {
-	c.msgSyncOutgoingBytes.Add(c.ctx, v)
+	c.msgSyncOutgoingBytes.Add(v)
 
 	switch kind {
 	case ClusterKindChannel:
-		c.channelMsgSyncOutgoingBytes.Add(c.ctx, v)
+		c.channelMsgSyncOutgoingBytes.Add(v)
 	case ClusterKindSlot:
-		c.slotMsgSyncOutgoingBytes.Add(c.ctx, v)
+		c.slotMsgSyncOutgoingBytes.Add(v)
 	}
 }
 
 func (c *clusterMetrics) MsgSyncIncomingCountAdd(kind ClusterKind, v int64) {
-	c.msgSyncIncomingCount.Add(c.ctx, v)
+	c.msgSyncIncomingCount.Add(v)
 
 	switch kind {
 	case ClusterKindChannel:
-		c.channelMsgSyncIncomingCount.Add(c.ctx, v)
+		c.channelMsgSyncIncomingCount.Add(v)
 	case ClusterKindSlot:
-		c.slotMsgSyncIncomingCount.Add(c.ctx, v)
+		c.slotMsgSyncIncomingCount.Add(v)
 	}
 }
 
 func (c *clusterMetrics) MsgSyncOutgoingCountAdd(kind ClusterKind, v int64) {
-	c.msgSyncOutgoingCount.Add(c.ctx, v)
+	c.msgSyncOutgoingCount.Add(v)
 
 	switch kind {
 	case ClusterKindChannel:
-		c.channelMsgSyncOutgoingCount.Add(c.ctx, v)
+		c.channelMsgSyncOutgoingCount.Add(v)
 	case ClusterKindSlot:
-		c.slotMsgSyncOutgoingCount.Add(c.ctx, v)
+		c.slotMsgSyncOutgoingCount.Add(v)
 	}
 }
 
 func (c *clusterMetrics) MsgSyncRespIncomingBytesAdd(kind ClusterKind, v int64) {
-	c.msgSyncRespIncomingBytes.Add(c.ctx, v)
+	c.msgSyncRespIncomingBytes.Add(v)
 }
 func (c *clusterMetrics) MsgSyncRespIncomingCountAdd(kind ClusterKind, v int64) {
-	c.msgSyncRespIncomingCount.Add(c.ctx, v)
+	c.msgSyncRespIncomingCount.Add(v)
 }
 
 func (c *clusterMetrics) MsgSyncRespOutgoingBytesAdd(kind ClusterKind, v int64) {
-	c.msgSyncRespOutgoingBytes.Add(c.ctx, v)
+	c.msgSyncRespOutgoingBytes.Add(v)
 }
 func (c *clusterMetrics) MsgSyncRespOutgoingCountAdd(kind ClusterKind, v int64) {
-	c.msgSyncRespOutgoingCount.Add(c.ctx, v)
+	c.msgSyncRespOutgoingCount.Add(v)
 }
 
 func (c *clusterMetrics) LogIncomingBytesAdd(kind ClusterKind, v int64) {
-	c.channelLogIncomingBytes.Add(c.ctx, v)
+	c.channelLogIncomingBytes.Add(v)
 }
 
 func (c *clusterMetrics) LogIncomingCountAdd(kind ClusterKind, v int64) {
-	c.channelLogIncomingCount.Add(c.ctx, v)
+	c.channelLogIncomingCount.Add(v)
 }
 
 func (c *clusterMetrics) LogOutgoingBytesAdd(kind ClusterKind, v int64) {
-	c.channelLogOutgoingBytes.Add(c.ctx, v)
+	c.channelLogOutgoingBytes.Add(v)
 }
 
 func (c *clusterMetrics) LogOutgoingCountAdd(kind ClusterKind, v int64) {
-	c.channelLogOutgoingCount.Add(c.ctx, v)
+	c.channelLogOutgoingCount.Add(v)
 }
 
 func (c *clusterMetrics) MsgLeaderTermStartIndexReqIncomingBytesAdd(kind ClusterKind, v int64) {
@@ -396,14 +477,4 @@ func (c *clusterMetrics) SlotElectionSuccessCountAdd(v int64) {
 
 func (c *clusterMetrics) SlotElectionFailCountAdd(v int64) {
 
-}
-
-// InboundFlightMessageCountAdd 入站飞行消息数量
-func (c *clusterMetrics) InboundFlightMessageCountAdd(v int64) {
-	c.inboundFlightMessageCount.Add(c.ctx, v)
-}
-
-// InboundFlightMessageBytesAdd 入站飞行消息流量
-func (c *clusterMetrics) InboundFlightMessageBytesAdd(v int64) {
-	c.inboundFlightMessageBytes.Add(c.ctx, v)
 }

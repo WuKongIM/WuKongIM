@@ -85,7 +85,8 @@ const (
 	MsgApplyLogsReq             // 应用日志请求
 	MsgApplyLogsResp            // 应用日志响应
 	MsgPing                     // ping
-	MsgPong
+	MsgPong                     // pong
+	MsgMaxValue
 )
 
 func (m MsgType) String() string {

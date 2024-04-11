@@ -116,6 +116,7 @@ func (s *Server) handleHeartbeat(conn wknet.Conn) {
 
 func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 
+	s.Debug("连接成功", zap.String("from", req.Uid))
 	conn.SetUID(req.Uid)
 	conn.SetMaxIdle(s.opts.MaxIdle)
 	s.connManager.AddConn(req.Uid, conn)
@@ -136,6 +137,8 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
 	if s.w.IsRegistered(resp.Id) {
 		s.w.Trigger(resp.Id, resp)
+	} else {
+		s.Panic("resp id not found", zap.Uint64("id", resp.Id))
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/lni/goutils/netutil"
 	circuit "github.com/lni/goutils/netutil/rubyist/circuitbreaker"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -28,7 +29,7 @@ type node struct {
 	wklog.Log
 }
 
-func newNode(id uint64, uid string, addr string, sendQueueLen int, maxSendQueueSize, maxMessageBatchSize uint64) *node {
+func newNode(id uint64, uid string, addr string, sendQueueLen int, maxSendQueueSize, maxMessageBatchSize uint64, reqTimeout time.Duration) *node {
 
 	n := &node{
 		id:                  id,
@@ -43,7 +44,7 @@ func newNode(id uint64, uid string, addr string, sendQueueLen int, maxSendQueueS
 			rl: NewRateLimiter(maxSendQueueSize),
 		},
 	}
-	n.client = client.New(addr, client.WithUID(uid), client.WithOnConnectStatus(n.connectStatusChange))
+	n.client = client.New(addr, client.WithUID(uid), client.WithOnConnectStatus(n.connectStatusChange), client.WithRequestTimeout(reqTimeout))
 	return n
 }
 
@@ -84,6 +85,14 @@ func (n *node) send(msg *proto.Message) error {
 		n.sendQueue.decrease(msg)
 		return errChanIsFull
 	}
+}
+
+func (n *node) outboundFlightMessageCount() int64 {
+	return n.sendQueue.count.Load()
+}
+
+func (n *node) outboundFlightMessageBytes() int64 {
+	return int64(n.sendQueue.rl.Get())
 }
 
 func (n *node) processMessages() {
@@ -284,8 +293,9 @@ func (n *node) requestSlotMigrateFinished(ctx context.Context, req *SlotMigrateF
 }
 
 type sendQueue struct {
-	ch chan *proto.Message
-	rl *RateLimiter
+	ch    chan *proto.Message
+	rl    *RateLimiter
+	count atomic.Int64
 }
 
 func (sq *sendQueue) rateLimited() bool {
@@ -293,11 +303,13 @@ func (sq *sendQueue) rateLimited() bool {
 }
 
 func (sq *sendQueue) increase(msg *proto.Message) {
-
-	sq.rl.Increase(uint64(msg.Size()))
+	size := msg.Size()
+	sq.rl.Increase(uint64(size))
+	sq.count.Inc()
 }
 
 func (sq *sendQueue) decrease(msg *proto.Message) {
-
-	sq.rl.Decrease(uint64(msg.Size()))
+	size := msg.Size()
+	sq.count.Dec()
+	sq.rl.Decrease(uint64(size))
 }

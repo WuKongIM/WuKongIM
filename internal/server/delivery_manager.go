@@ -113,9 +113,6 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 
 				recvPackets = append(recvPackets, &recvPacket)
 			}
-			for _, recvPacket := range recvPackets {
-				d.Debug("投递消息---->", zap.Uint32("messageSeq", recvPacket.(*wkproto.RecvPacket).MessageSeq))
-			}
 			d.s.dispatch.dataOutFrames(recvConn, recvPackets...)
 
 		}

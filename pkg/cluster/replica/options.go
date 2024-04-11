@@ -22,8 +22,9 @@ type Options struct {
 	AppliedIndex          uint64        // 已应用的日志下标
 	SyncLimitSize         uint64        // 每次同步日志数据的最大大小（过小影响吞吐量，过大导致消息阻塞，默认为4M）
 	MessageSendInterval   time.Duration // 消息发送间隔
-	MaxIdleInterval       time.Duration // 最大空闲时间
+	ActiveReplicaMaxTick  int           // 最大空闲时间
 	AckMode               AckMode       // AckMode
+	ReplicaMaxCount       int           // 副本最大数量
 	// LastSyncInfoMap       map[uint64]*SyncInfo
 }
 
@@ -32,9 +33,10 @@ func NewOptions() *Options {
 		MaxUncommittedLogSize: 1024 * 1024 * 1024,
 		SyncLimitSize:         1024 * 1024 * 20, // 20M
 		// LastSyncInfoMap:       map[uint64]*SyncInfo{},
-		MessageSendInterval: time.Millisecond * 100,
-		MaxIdleInterval:     time.Second * 1,
-		AckMode:             AckModeMajority,
+		MessageSendInterval:  time.Millisecond * 150,
+		ActiveReplicaMaxTick: 10,
+		AckMode:              AckModeMajority,
+		ReplicaMaxCount:      3,
 	}
 }
 
@@ -67,5 +69,23 @@ func WithAppliedIndex(index uint64) Option {
 func WithSyncLimitSize(size uint64) Option {
 	return func(o *Options) {
 		o.SyncLimitSize = size
+	}
+}
+
+func WithMessageSendInterval(interval time.Duration) Option {
+	return func(o *Options) {
+		o.MessageSendInterval = interval
+	}
+}
+
+func WithAckMode(ackMode AckMode) Option {
+	return func(o *Options) {
+		o.AckMode = ackMode
+	}
+}
+
+func WithReplicaMaxCount(count int) Option {
+	return func(o *Options) {
+		o.ReplicaMaxCount = count
 	}
 }

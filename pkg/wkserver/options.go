@@ -31,7 +31,7 @@ func NewOptions() *Options {
 		MessagePoolOn:   true,
 		ConnPath:        "/conn",
 		ClosePath:       "/close",
-		RequestTimeout:  10 * time.Second,
+		RequestTimeout:  1 * time.Minute,
 		MaxIdle:         120 * time.Second,
 		TimingWheelTick: time.Millisecond * 10,
 		TimingWheelSize: 100,

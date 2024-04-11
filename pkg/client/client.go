@@ -594,7 +594,7 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 		// 加密消息内容
 		newPayload, err = wkutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
 		if err != nil {
-			c.Error("加密消息payload失败！", zap.Error(err))
+			c.Error("加密消息payload失败！", zap.Error(err), zap.String("aesKey", c.aesKey), zap.String("salt", c.salt))
 			return err
 		}
 	} else {

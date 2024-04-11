@@ -99,11 +99,13 @@ var emptyLocalReplicaMsg = localReplicaMsg{}
 
 type proposeReq struct {
 	logs []replica.Log
+	key  string
 }
 
-func newProposeReq(logs []replica.Log) proposeReq {
+func newProposeReq(key string, logs []replica.Log) proposeReq {
 	return proposeReq{
 		logs: logs,
+		key:  key,
 	}
 }
 

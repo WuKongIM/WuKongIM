@@ -11,6 +11,7 @@ import (
 )
 
 type channelGroup struct {
+	index   int
 	stopper *syncutil.Stopper
 	opts    *Options
 	wklog.Log
@@ -19,14 +20,14 @@ type channelGroup struct {
 	s        *Server
 }
 
-func newChannelGroup(s *Server) *channelGroup {
+func newChannelGroup(index int, s *Server) *channelGroup {
 	cg := &channelGroup{
 		stopper: syncutil.NewStopper(),
 		opts:    s.opts,
 		s:       s,
 		Log:     wklog.NewWKLog(fmt.Sprintf("channelGroup[%d]", s.opts.NodeID)),
 	}
-	cg.listener = NewChannelListener(cg.handleReady, s.opts)
+	cg.listener = NewChannelListener(index, cg.handleReady, s.opts)
 	return cg
 }
 
@@ -69,7 +70,7 @@ func (g *channelGroup) handleReady(rd channelReady) {
 		ch = rd.channel
 	)
 	if !replica.IsEmptyHardState(rd.HardState) {
-		g.Info("设置HardState", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
+		g.Debug("设置HardState", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Uint64("leaderId", rd.HardState.LeaderId), zap.Uint32("term", rd.HardState.Term))
 		ch.updateClusterConfigLeaderIdAndTerm(rd.HardState.Term, rd.HardState.LeaderId)
 		ch.setLeaderId(rd.HardState.LeaderId)
 

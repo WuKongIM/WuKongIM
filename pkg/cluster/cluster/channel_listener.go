@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -20,7 +21,7 @@ type ChannelListener struct {
 	wklog.Log
 }
 
-func NewChannelListener(onReady func(channelReady), opts *Options) *ChannelListener {
+func NewChannelListener(index int, onReady func(channelReady), opts *Options) *ChannelListener {
 	return &ChannelListener{
 		channels:  newChannelQueue(),
 		onReady:   onReady,
@@ -28,7 +29,7 @@ func NewChannelListener(onReady func(channelReady), opts *Options) *ChannelListe
 		advanceCh: make(chan struct{}, 1),
 		stopper:   syncutil.NewStopper(),
 		opts:      opts,
-		Log:       wklog.NewWKLog("ChannelListener"),
+		Log:       wklog.NewWKLog(fmt.Sprintf("ChannelListener[%d]", index)),
 	}
 }
 
@@ -73,6 +74,7 @@ func (c *ChannelListener) loopEvent() {
 		c.ready()
 		select {
 		case <-tick.C:
+			c.tick()
 		case <-c.advanceCh:
 		case <-c.stopper.ShouldStop():
 			return
@@ -80,25 +82,35 @@ func (c *ChannelListener) loopEvent() {
 	}
 }
 
+func (c *ChannelListener) tick() {
+	c.channels.foreach(func(ch *channel) {
+		if ch.isDestroy() {
+			return
+		}
+		ch.tick()
+	})
+}
+
 func (c *ChannelListener) ready() {
 	hasEvent := true
 	var err error
 	for hasEvent {
 		hasEvent = false
-		// batchStart := time.Now()
+		batchStart := time.Now()
 		c.channels.foreach(func(ch *channel) {
 			if ch.isDestroy() {
 				return
 			}
 			event := false
-			if event, err = ch.handleEvents(); err != nil {
-				c.Warn("loopEvent: handleReceivedMessages error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
-			}
+
+			event = c.handleReady(ch)
 			if event {
 				hasEvent = true
 			}
 
-			event = c.handleReady(ch)
+			if event, err = ch.handleEvents(); err != nil {
+				c.Warn("loopEvent: handleReceivedMessages error", zap.String("channelID", ch.channelID), zap.Uint8("channelType", ch.channelType), zap.Error(err))
+			}
 			if event {
 				hasEvent = true
 			}
@@ -110,10 +122,9 @@ func (c *ChannelListener) ready() {
 			}
 
 		})
-		// if time.Since(batchStart) > time.Millisecond*10 {
-		// 	c.Debug("ready batch delay high", zap.Duration("cost", time.Since(batchStart)))
-
-		// }
+		if time.Since(batchStart) > time.Millisecond*10 {
+			c.Info("ready batch delay high", zap.Duration("cost", time.Since(batchStart)), zap.Int("channels", c.channels.len()))
+		}
 	}
 }
 

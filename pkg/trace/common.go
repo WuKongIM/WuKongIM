@@ -17,3 +17,18 @@ func NewInt64UpDownCounter(name string) metric.Int64UpDownCounter {
 	}
 	return v
 }
+
+func NewInt64ObservableCounter(name string) metric.Int64ObservableCounter {
+	v, err := meter.Int64ObservableCounter(name)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func RegisterCallback(f metric.Callback, instruments ...metric.Observable) {
+	_, err := meter.RegisterCallback(f, instruments...)
+	if err != nil {
+		panic(err)
+	}
+}

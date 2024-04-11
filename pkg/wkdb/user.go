@@ -9,7 +9,7 @@ import (
 
 func (wk *wukongDB) getUserIdByUid(uid string) (uint64, error) {
 	uidIndexKey := key.NewUserIndexUidKey(uid)
-	uidIndexValue, closer, err := wk.db.Get(uidIndexKey)
+	uidIndexValue, closer, err := wk.shardDB(uid).Get(uidIndexKey)
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil
@@ -32,15 +32,16 @@ func (wk *wukongDB) GetUser(uid string, deviceFlag uint8) (User, error) {
 		return EmptyUser, err
 	}
 
+	db := wk.shardDB(uid)
 	// 获取用户信息
 	var iter *pebble.Iterator
 	if id > 0 {
-		iter = wk.db.NewIter(&pebble.IterOptions{
+		iter = db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewUserColumnKey(id, [2]byte{0, 0}),
 			UpperBound: key.NewUserColumnKey(id, [2]byte{0xff, 0xff}),
 		})
 	} else {
-		iter = wk.db.NewIter(&pebble.IterOptions{
+		iter = db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewUserColumnKey(0, [2]byte{0, 0}),
 			UpperBound: key.NewUserColumnKey(math.MaxUint64, [2]byte{0xff, 0xff}),
 		})
@@ -76,7 +77,8 @@ func (wk *wukongDB) UpdateUser(u User) error {
 			u.Id = uint64(wk.prmaryKeyGen.Generate().Int64())
 		}
 	}
-	batch := wk.db.NewBatch()
+	db := wk.shardDB(u.Uid)
+	batch := db.NewBatch()
 	defer batch.Close()
 	err := wk.writeUser(u, batch)
 	if err != nil {

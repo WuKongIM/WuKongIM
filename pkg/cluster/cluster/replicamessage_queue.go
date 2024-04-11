@@ -149,3 +149,13 @@ func (q *ReplicaMessageQueue) Get() []replica.Message {
 	}
 	return append(result, t[:sz]...)
 }
+
+func (q *ReplicaMessageQueue) Len() uint64 {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.idx
+}
+
+func (q *ReplicaMessageQueue) Size() uint64 {
+	return q.rl.Get()
+}

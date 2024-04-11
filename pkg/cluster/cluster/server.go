@@ -27,7 +27,6 @@ type Server struct {
 	slotManager          *slotManager          // 槽管理 负责管理槽的集群
 	nodeManager          *nodeManager          // 节点管理 负责管理节点通信管道
 	clusterEventListener *clusterEventListener // 分布式事件监听 用于监听集群事件
-	localStorage         *localStorage         // 本地存储 用于存储本地数据
 	server               *wkserver.Server      // 分布式通讯服务
 	stopper              *syncutil.Stopper
 	stopped              atomic.Bool
@@ -73,7 +72,6 @@ func New(nodeId uint64, opts *Options) *Server {
 	opts.existSlotMigrateFnc = s.slotMigrateManager.exist
 	opts.removeSlotMigrateFnc = s.slotMigrateManager.remove
 	opts.requestSlotLogInfo = s.requestSlotLogInfo
-	s.localStorage = newLocalStorage(s.opts)
 
 	s.channelGroupManager = newChannelGroupManager(s)
 	addr := s.opts.Addr
@@ -147,11 +145,6 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	// 开启本地存储
-	err = s.localStorage.open()
-	if err != nil {
-		return err
-	}
 
 	// 开启分布式事件监听
 	nodes := s.clusterEventListener.localAllNodes()
@@ -216,10 +209,6 @@ func (s *Server) Stop() {
 	s.clusterEventListener.stop()
 	s.slotManager.stop()
 	s.channelGroupManager.stop()
-	err = s.localStorage.close()
-	if err != nil {
-		s.Error("close localStorage is error", zap.Error(err))
-	}
 	s.stopper.Stop()
 
 	err = s.opts.ShardLogStorage.Close()
@@ -322,7 +311,7 @@ func (s *Server) WaitNodeLeader(timeout time.Duration) error {
 func (s *Server) handleRecvMessage(from uint64, m *proto.Message) {
 	switch m.MsgType {
 	case MsgClusterConfigMsg:
-		s.handleClusterConfigRecvMsg(from, m)
+		go s.handleClusterConfigRecvMsg(from, m)
 	case MsgSlotMsg:
 		s.handleSlotRecvMsg(from, m)
 	case MsgChannelMsg:
@@ -404,11 +393,17 @@ func (s *Server) handleSlotRecvMsg(_ uint64, m *proto.Message) {
 	}
 	traceIncomingMessage(trace.ClusterKindSlot, msg.Message)
 
-	added, stopped := s.inbound.addMessage(msg.ShardNo, msg.Message)
+	added, stopped := s.inbound.addMessage(msg.ShardNo, GetShardId(msg.ShardNo), msg.Message)
 	if !added || stopped {
 		s.Warn("slot addMessage failed", zap.String("shardNo", msg.ShardNo), zap.String("msgType", msg.Message.MsgType.String()))
 		return
 	}
+
+	// if msg.Message.MsgType == replica.MsgSync {
+	// 	s.Info("slot sync message", zap.String("shardNo", msg.ShardNo), zap.Uint64("from", msg.Message.From), zap.Uint64("to", msg.Message.To), zap.Uint64("index", msg.Message.Index), zap.Uint64("committed", msg.Message.CommittedIndex))
+	// } else if msg.Message.MsgType == replica.MsgSyncResp {
+	// 	s.Info("slot sync resp message", zap.String("shardNo", msg.ShardNo), zap.Uint64("from", msg.Message.From), zap.Uint64("to", msg.Message.To), zap.Uint64("index", msg.Message.Index), zap.Uint64("committed", msg.Message.CommittedIndex))
+	// }
 
 	// slotId := GetSlotId(msg.ShardNo, s.Log)
 	// s.slotManager.handleMessage(slotId, msg.Message)
@@ -429,14 +424,13 @@ func (s *Server) handleChannelRecvMsg(_ uint64, m *proto.Message) {
 
 	traceIncomingMessage(trace.ClusterKindChannel, msg.Message)
 
-	added, stopped := s.inbound.addMessage(msg.ShardNo, msg.Message)
+	added, stopped := s.inbound.addMessage(msg.ShardNo, GetShardId(msg.ShardNo), msg.Message)
 	if !added || stopped {
 		s.Warn("channel addMessage failed", zap.String("shardNo", msg.ShardNo), zap.String("msgType", msg.Message.MsgType.String()))
 		return
 	}
-
 	channelId, channelType := ChannelFromChannelKey(msg.ShardNo)
-
+	s.channelGroupManager.advance(channelId, channelType)
 	// 按需要激活频道
 	err = s.channelGroupManager.activeChannelIfNeed(channelId, channelType)
 	if err != nil {

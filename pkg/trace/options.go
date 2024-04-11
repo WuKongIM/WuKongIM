@@ -8,6 +8,11 @@ type Options struct {
 	ServiceHostName    string
 	RequestPoolRunning func() int64
 	MessagePoolRunning func() int64
+
+	OutboundFlightMessageCount func() int64
+	OutboundFlightMessageBytes func() int64
+	InboundFlightMessageCount  func() int64
+	InboundFlightMessageBytes  func() int64
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -54,5 +59,29 @@ func WithRequestPoolRunning(f func() int64) Option {
 func WithMessagePoolRunning(f func() int64) Option {
 	return func(o *Options) {
 		o.MessagePoolRunning = f
+	}
+}
+
+func WithOutboundFlightMessageCount(f func() int64) Option {
+	return func(o *Options) {
+		o.OutboundFlightMessageCount = f
+	}
+}
+
+func WithOutboundFlightMessageBytes(f func() int64) Option {
+	return func(o *Options) {
+		o.OutboundFlightMessageBytes = f
+	}
+}
+
+func WithInboundFlightMessageCount(f func() int64) Option {
+	return func(o *Options) {
+		o.InboundFlightMessageCount = f
+	}
+}
+
+func WithInboundFlightMessageBytes(f func() int64) Option {
+	return func(o *Options) {
+		o.InboundFlightMessageBytes = f
 	}
 }

@@ -498,7 +498,7 @@ func (p *Processor) forwardSendPackets(ctx context.Context, conn wknet.Conn, cha
 
 	resp, err := p.s.forwardSendPacketReq(leaderInfo.Id, forwardSendPacketReq)
 	if err != nil {
-		p.Error("forward send packet err", zap.Uint64("leaderId", leaderInfo.Id), zap.Error(err))
+		p.Error("forward send packet err", zap.String("channelId", fakeChannelID), zap.Uint32("channelType", forwardSendPacketReq.ChannelType), zap.Uint64("leaderId", leaderInfo.Id), zap.Error(err))
 		for _, sendPacket := range sendPackets {
 			if wkutil.ArrayContains(returnSendPacketClientMsgNos, sendPacket.ClientMsgNo) {
 				continue

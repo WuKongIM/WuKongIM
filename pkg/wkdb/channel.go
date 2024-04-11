@@ -10,7 +10,7 @@ import (
 
 func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscribers []string) error {
 
-	w := wk.db.NewBatch()
+	w := wk.shardDB(channelId).NewBatch()
 	defer w.Close()
 	for _, uid := range subscribers {
 		id := uint64(wk.prmaryKeyGen.Generate().Int64())
@@ -22,7 +22,7 @@ func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscrib
 }
 
 func (wk *wukongDB) GetSubscribers(channelId string, channelType uint8) ([]string, error) {
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.shardDB(channelId).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewSubscriberPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewSubscriberPrimaryKey(channelId, channelType, math.MaxUint64),
 	})
@@ -38,7 +38,7 @@ func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subsc
 		}
 		return err
 	}
-	w := wk.db.NewBatch()
+	w := wk.shardDB(channelId).NewBatch()
 	defer w.Close()
 	for uid, id := range idMap {
 		if err := wk.removeSubscriber(channelId, channelType, id, uid, w); err != nil {
@@ -50,7 +50,7 @@ func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subsc
 
 func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) error {
 
-	batch := wk.db.NewBatch()
+	batch := wk.shardDB(channelId).NewBatch()
 	defer batch.Close()
 
 	// 删除数据
@@ -79,7 +79,7 @@ func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) error {
 		primaryKey = uint64(wk.prmaryKeyGen.Generate().Int64())
 	}
 
-	w := wk.db.NewBatch()
+	w := wk.shardDB(channelInfo.ChannelId).NewBatch()
 	defer w.Close()
 	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
 		return err
@@ -98,7 +98,7 @@ func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo
 		return EmptyChannelInfo, nil
 	}
 
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.shardDB(channelId).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelInfoColumnKey(id, [2]byte{0x00, 0x00}),
 		UpperBound: key.NewChannelInfoColumnKey(id, [2]byte{0xff, 0xff}),
 	})
@@ -131,7 +131,7 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 	if id == 0 {
 		return nil
 	}
-	batch := wk.db.NewBatch()
+	batch := wk.shardDB(channelId).NewBatch()
 	defer batch.Close()
 	// 删除索引
 	err = batch.Delete(key.NewChannelInfoIndexKey(channelId, channelType), wk.wo)
@@ -147,8 +147,29 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 	return batch.Commit(wk.wo)
 }
 
+func (wk *wukongDB) UpdateChannelAppliedIndex(channelId string, channelType uint8, index uint64) error {
+
+	indexBytes := make([]byte, 8)
+	wk.endian.PutUint64(indexBytes, index)
+	return wk.shardDB(channelId).Set(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Id), indexBytes, wk.wo)
+}
+
+func (wk *wukongDB) GetChannelAppliedIndex(channelId string, channelType uint8) (uint64, error) {
+
+	data, closer, err := wk.shardDB(channelId).Get(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Id))
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, nil
+		}
+		return 0, err
+	}
+	defer closer.Close()
+
+	return wk.endian.Uint64(data), nil
+}
+
 func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, uids []string) error {
-	w := wk.db.NewBatch()
+	w := wk.shardDB(channelId).NewBatch()
 	defer w.Close()
 	for _, uid := range uids {
 		id := uint64(wk.prmaryKeyGen.Generate().Int64())
@@ -160,7 +181,7 @@ func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, uids []stri
 }
 
 func (wk *wukongDB) GetDenylist(channelId string, channelType uint8) ([]string, error) {
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.shardDB(channelId).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDenylistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewDenylistPrimaryKey(channelId, channelType, math.MaxUint64),
 	})
@@ -176,7 +197,7 @@ func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []s
 		}
 		return err
 	}
-	w := wk.db.NewBatch()
+	w := wk.shardDB(channelId).NewBatch()
 	defer w.Close()
 	for uid, id := range idMap {
 		if err := wk.removeDenylist(channelId, channelType, id, uid, w); err != nil {
@@ -187,7 +208,7 @@ func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []s
 }
 
 func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error {
-	batch := wk.db.NewBatch()
+	batch := wk.shardDB(channelId).NewBatch()
 	defer batch.Close()
 
 	// 删除数据
@@ -206,7 +227,7 @@ func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error
 }
 
 func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, uids []string) error {
-	w := wk.db.NewBatch()
+	w := wk.shardDB(channelId).NewBatch()
 	defer w.Close()
 	for _, uid := range uids {
 		id := uint64(wk.prmaryKeyGen.Generate().Int64())
@@ -217,45 +238,45 @@ func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, uids []str
 	return w.Commit(wk.wo)
 }
 
-func (wk *wukongDB) GetAllowlist(channelID string, channelType uint8) ([]string, error) {
-	iter := wk.db.NewIter(&pebble.IterOptions{
-		LowerBound: key.NewAllowlistPrimaryKey(channelID, channelType, 0),
-		UpperBound: key.NewAllowlistPrimaryKey(channelID, channelType, math.MaxUint64),
+func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]string, error) {
+	iter := wk.shardDB(channelId).NewIter(&pebble.IterOptions{
+		LowerBound: key.NewAllowlistPrimaryKey(channelId, channelType, 0),
+		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
 	})
 	defer iter.Close()
 	return wk.parseAllowlist(iter, 0)
 }
 
-func (wk *wukongDB) RemoveAllowlist(channelID string, channelType uint8, uids []string) error {
-	idMap, err := wk.getAllowlistIdsByUids(channelID, channelType, uids)
+func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []string) error {
+	idMap, err := wk.getAllowlistIdsByUids(channelId, channelType, uids)
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return nil
 		}
 		return err
 	}
-	w := wk.db.NewBatch()
+	w := wk.shardDB(channelId).NewBatch()
 	defer w.Close()
 	for uid, id := range idMap {
-		if err := wk.removeAllowlist(channelID, channelType, id, uid, w); err != nil {
+		if err := wk.removeAllowlist(channelId, channelType, id, uid, w); err != nil {
 			return err
 		}
 	}
 	return w.Commit(wk.wo)
 }
 
-func (wk *wukongDB) RemoveAllAllowlist(channelID string, channelType uint8) error {
-	batch := wk.db.NewBatch()
+func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) error {
+	batch := wk.shardDB(channelId).NewBatch()
 	defer batch.Close()
 
 	// 删除数据
-	err := batch.DeleteRange(key.NewAllowlistPrimaryKey(channelID, channelType, 0), key.NewAllowlistPrimaryKey(channelID, channelType, math.MaxUint64), wk.wo)
+	err := batch.DeleteRange(key.NewAllowlistPrimaryKey(channelId, channelType, 0), key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64), wk.wo)
 	if err != nil {
 		return err
 	}
 
 	// 删除索引
-	err = batch.DeleteRange(key.NewAllowlistIndexUidLowKey(channelID, channelType), key.NewAllowlistIndexUidHighKey(channelID, channelType), wk.wo)
+	err = batch.DeleteRange(key.NewAllowlistIndexUidLowKey(channelId, channelType), key.NewAllowlistIndexUidHighKey(channelId, channelType), wk.wo)
 	if err != nil {
 		return err
 	}
@@ -285,7 +306,7 @@ func (wk *wukongDB) getSubscriberIdsByUids(channelId string, channelType uint8, 
 	resultMap := make(map[string]uint64)
 	for _, uid := range uids {
 		uidIndexKey := key.NewSubscriberIndexUidKey(channelId, channelType, uid)
-		uidIndexValue, closer, err := wk.db.Get(uidIndexKey)
+		uidIndexValue, closer, err := wk.shardDB(channelId).Get(uidIndexKey)
 		if err != nil {
 			if err == pebble.ErrNotFound {
 				continue
@@ -324,7 +345,7 @@ func (wk *wukongDB) getDenylistIdsByUids(channelId string, channelType uint8, ui
 	resultMap := make(map[string]uint64)
 	for _, uid := range uids {
 		uidIndexKey := key.NewDenylistIndexUidKey(channelId, channelType, uid)
-		uidIndexValue, closer, err := wk.db.Get(uidIndexKey)
+		uidIndexValue, closer, err := wk.shardDB(channelId).Get(uidIndexKey)
 		if err != nil {
 			if err == pebble.ErrNotFound {
 				continue
@@ -362,7 +383,7 @@ func (wk *wukongDB) getAllowlistIdsByUids(channelId string, channelType uint8, u
 	resultMap := make(map[string]uint64)
 	for _, uid := range uids {
 		uidIndexKey := key.NewAllowlistIndexUidKey(channelId, channelType, uid)
-		uidIndexValue, closer, err := wk.db.Get(uidIndexKey)
+		uidIndexValue, closer, err := wk.shardDB(channelId).Get(uidIndexKey)
 
 		if err != nil {
 			if err == pebble.ErrNotFound {
@@ -468,7 +489,7 @@ func (wk *wukongDB) parseChannelInfo(iter *pebble.Iterator, limit int) ([]Channe
 
 func (wk *wukongDB) getChannelPrimaryKey(channelId string, channelType uint8) (uint64, error) {
 	primaryKey := key.NewChannelInfoIndexKey(channelId, channelType)
-	indexValue, closer, err := wk.db.Get(primaryKey)
+	indexValue, closer, err := wk.shardDB(channelId).Get(primaryKey)
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil

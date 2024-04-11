@@ -22,7 +22,7 @@ func TestPropose(t *testing.T) {
 
 	rd := rc.Ready()
 
-	has, msg := getMessageByType(replica.MsgApplyLogsReq, rd.Messages)
+	has, msg := getMessageByType(replica.MsgStoreAppend, rd.Messages)
 	assert.True(t, has)
 
 	assert.Equal(t, 1, len(msg.Logs))

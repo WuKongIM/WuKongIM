@@ -240,7 +240,7 @@ func (s *Server) slotClusterConfigGet(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	appliedIdx, err := s.localStorage.getAppliedIndex(shardNo)
+	appliedIdx, err := s.opts.ShardLogStorage.AppliedIndex(shardNo)
 	if err != nil {
 		s.Error("getAppliedIndex error", zap.Error(err))
 		c.ResponseError(err)
@@ -376,7 +376,7 @@ func (s *Server) getSlotInfo(slotId uint32) (*SlotResp, error) {
 		return nil, err
 	}
 	shardNo := GetSlotShardNo(slotId)
-	lastIdx, err := s.localStorage.opts.ShardLogStorage.LastIndex(shardNo)
+	lastIdx, err := s.opts.ShardLogStorage.LastIndex(shardNo)
 	if err != nil {
 		return nil, err
 	}

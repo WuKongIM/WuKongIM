@@ -388,7 +388,8 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 	if err != nil {
 		return nil, err
 	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.RequestTimeout)
+	c.Flush()
+	timeoutCtx, cancel := context.WithTimeout(ctx, c.opts.RequestTimeout)
 	defer cancel()
 	select {
 	case x := <-ch:
@@ -397,9 +398,8 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 		}
 		return x.(*proto.Response), nil
 	case <-timeoutCtx.Done():
+		timeoutCtx.Deadline()
 		return nil, timeoutCtx.Err()
-	case <-ctx.Done():
-		return nil, ctx.Err()
 	}
 }
 

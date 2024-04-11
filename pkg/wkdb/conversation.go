@@ -8,7 +8,7 @@ import (
 )
 
 func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Conversation) error {
-	batch := wk.db.NewBatch()
+	batch := wk.shardDB(uid).NewBatch()
 	defer batch.Close()
 	for _, cn := range conversations {
 		id, err := wk.getConversationIdByChannel(uid, cn.ChannelId, cn.ChannelType)
@@ -34,8 +34,9 @@ func (wk *wukongDB) GetConversations(uid string) ([]Conversation, error) {
 		return nil, err
 	}
 	results := make([]Conversation, 0, len(ids))
+	db := wk.shardDB(uid)
 	for _, id := range ids {
-		iter := wk.db.NewIter(&pebble.IterOptions{
+		iter := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewConversationColumnKey(uid, id, [2]byte{0x00, 0x00}),
 			UpperBound: key.NewConversationColumnKey(uid, id, [2]byte{0xff, 0xff}),
 		})
@@ -62,7 +63,7 @@ func (wk *wukongDB) DeleteConversation(uid string, channelId string, channelType
 		return nil
 	}
 	// 删除索引
-	batch := wk.db.NewBatch()
+	batch := wk.shardDB(uid).NewBatch()
 	err = batch.Delete(key.NewConversationIndexChannelKey(uid, channelId, channelType), wk.wo)
 	if err != nil {
 		return err
@@ -89,7 +90,7 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 		return EmptyConversation, nil
 	}
 
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationColumnKey(uid, id, [2]byte{0x00, 0x00}),
 		UpperBound: key.NewConversationColumnKey(uid, id, [2]byte{0xff, 0xff}),
 	})
@@ -108,7 +109,7 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 }
 
 func (wk *wukongDB) getConversationIdsByTimestamp(uid string) ([]uint64, error) {
-	iter := wk.db.NewIter(&pebble.IterOptions{
+	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationSecondIndexTimestampKey(uid, 0, 0),
 		UpperBound: key.NewConversationSecondIndexTimestampKey(uid, math.MaxUint64, math.MaxUint64),
 	})
@@ -127,7 +128,7 @@ func (wk *wukongDB) getConversationIdsByTimestamp(uid string) ([]uint64, error) 
 }
 
 func (wk *wukongDB) getConversationIdByChannel(uid, channelId string, channelType uint8) (uint64, error) {
-	idBytes, closer, err := wk.db.Get(key.NewConversationIndexChannelKey(uid, channelId, channelType))
+	idBytes, closer, err := wk.shardDB(uid).Get(key.NewConversationIndexChannelKey(uid, channelId, channelType))
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil

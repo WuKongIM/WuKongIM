@@ -9,6 +9,7 @@
 package netpoll
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"syscall"
@@ -43,7 +44,7 @@ func NewPoller(name string) *Poller {
 		poller = nil
 		panic(err)
 	}
-	poller.Log = wklog.NewWKLog("KqueuePoller")
+	poller.Log = wklog.NewWKLog(fmt.Sprintf("KqueuePoller-%s", name))
 	return poller
 }
 
@@ -57,11 +58,13 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 	p.shutdown.Store(false)
 	for !p.shutdown.Load() {
 		n, err := unix.Kevent(p.fd, nil, el.events, tsp)
+
 		if n == 0 || (n < 0 && err == unix.EINTR) {
 			tsp = nil
 			runtime.Gosched()
 			continue
 		} else if err != nil {
+			p.Error("unix.Kevent: error occurs in event-loop", zap.Error(err))
 			return err
 		}
 		tsp = &ts
@@ -77,11 +80,12 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 				triggerWrite = evt.Filter&syscall.EVFILT_WRITE == syscall.EVFILT_WRITE
 				triggerHup = evt.Flags&syscall.EV_EOF != 0
 
+				// p.Debug("poll....", zap.Int("fd", fd), zap.Bool("read", triggerRead), zap.Bool("write", triggerWrite), zap.Bool("hup", triggerHup))
+
 				if triggerHup {
 					pollEvent = PollEventClose
 				} else if triggerRead {
 					pollEvent = PollEventRead
-
 				}
 				if pollEvent != PollEventUnknown {
 					switch err = callback(fd, pollEvent); err {
@@ -98,6 +102,8 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 					}
 				}
 
+			} else {
+				p.Debug("trigger......")
 			}
 
 		}
@@ -107,6 +113,8 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 			el.shrink()
 		}
 	}
+	_ = p.close()
+	p.Debug("exits")
 	return nil
 }
 
@@ -157,9 +165,10 @@ func (p *Poller) Delete(fd int) error {
 }
 
 func (p *Poller) Close() error {
+	p.Debug("close")
 	p.shutdown.Store(true)
 	p.trigger()
-	return p.close()
+	return nil
 }
 
 // close closes the poller.
@@ -168,5 +177,5 @@ func (p *Poller) close() error {
 }
 
 func (p *Poller) trigger() {
-	_, _ = syscall.Kevent(p.fd, []syscall.Kevent_t{{Ident: 0, Filter: syscall.EVFILT_USER, Fflags: syscall.NOTE_TRIGGER}}, nil, nil)
+	_, _ = unix.Kevent(p.fd, []unix.Kevent_t{{Ident: 0, Filter: unix.EVFILT_USER, Fflags: unix.NOTE_TRIGGER}}, nil, nil)
 }

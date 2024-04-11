@@ -164,7 +164,7 @@ func (d *Dispatch) dataOutFrames(conn wknet.Conn, frames ...wkproto.Frame) {
 	}
 	err := conn.WakeWrite()
 	if err != nil {
-		d.Warn("Failed to wake write", zap.Error(err))
+		d.Warn("Failed to wake write", zap.Error(err), zap.String("uid", conn.UID()), zap.String("deviceId", conn.DeviceID()))
 	}
 
 }

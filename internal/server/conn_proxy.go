@@ -24,7 +24,7 @@ type ProxyClientConn struct {
 	deviceFlag   uint8
 	deviceID     string
 	valueMap     map[string]interface{}
-	valueMapLock sync.RWMutex
+	mu           sync.RWMutex
 	s            *Server
 	belongNodeID uint64 // 所属节点
 
@@ -54,8 +54,8 @@ type ProxyClientConn struct {
 
 func NewProxyClientConn(s *Server, belongNodeID uint64) *ProxyClientConn {
 	p := &ProxyClientConn{
-		valueMap:       map[string]interface{}{},
 		s:              s,
+		valueMap:       make(map[string]interface{}),
 		belongNodeID:   belongNodeID,
 		outboundBuffer: wknet.NewDefaultBuffer(),
 		inboundBuffer:  wknet.NewDefaultBuffer(),
@@ -84,21 +84,35 @@ func (p *ProxyClientConn) SetUID(uid string) {
 }
 
 func (p *ProxyClientConn) DeviceLevel() uint8 {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	return p.deviceLevel
 }
 
 func (p *ProxyClientConn) SetDeviceLevel(level uint8) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.deviceLevel = level
 }
 
 func (p *ProxyClientConn) DeviceFlag() uint8 {
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	return p.deviceFlag
 }
 func (p *ProxyClientConn) SetDeviceFlag(flag uint8) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.deviceFlag = flag
 }
 
 func (p *ProxyClientConn) DeviceID() string {
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	return p.deviceID
 }
 
@@ -107,14 +121,14 @@ func (p *ProxyClientConn) SetDeviceID(deviceID string) {
 }
 
 func (p *ProxyClientConn) SetValue(key string, value interface{}) {
-	p.valueMapLock.Lock()
-	defer p.valueMapLock.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.valueMap[key] = value
 }
 
 func (p *ProxyClientConn) Value(key string) interface{} {
-	p.valueMapLock.RLock()
-	defer p.valueMapLock.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	return p.valueMap[key]
 }
 
@@ -143,6 +157,11 @@ func (p *ProxyClientConn) Discard(n int) (int, error) {
 }
 
 func (p *ProxyClientConn) Write(b []byte) (n int, err error) {
+
+	if p.closed.Load() {
+		return -1, net.ErrClosed
+	}
+
 	if !p.s.cluster.NodeIsOnline(p.belongNodeID) {
 		p.Debug("节点不在线，关闭连接！", zap.Uint64("belongNodeID", p.belongNodeID))
 		p.Close()
@@ -162,6 +181,9 @@ func (p *ProxyClientConn) Write(b []byte) (n int, err error) {
 }
 
 func (p *ProxyClientConn) WriteToOutboundBuffer(b []byte) (n int, err error) {
+	if p.closed.Load() {
+		return -1, net.ErrClosed
+	}
 	p.outboundBufferLock.Lock()
 	defer p.outboundBufferLock.Unlock()
 	p.KeepLastActivity()
@@ -187,6 +209,10 @@ func (p *ProxyClientConn) ReadToInboundBuffer() (int, error) {
 }
 
 func (p *ProxyClientConn) WakeWrite() error {
+
+	if p.closed.Load() {
+		return net.ErrClosed
+	}
 
 	if !p.s.cluster.NodeIsOnline(p.belongNodeID) {
 		p.Debug("节点不在线，关闭连接！", zap.Uint64("belongNodeID", p.belongNodeID))
@@ -294,6 +320,9 @@ func (p *ProxyClientConn) Uptime() time.Time {
 }
 
 func (p *ProxyClientConn) SetMaxIdle(maxIdle time.Duration) {
+	if p.closed.Load() {
+		return
+	}
 	p.maxIdle.Store(maxIdle)
 	if p.idleTimer != nil {
 		p.idleTimer.Stop()

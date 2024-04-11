@@ -62,7 +62,7 @@ func (r *Replica) stepLeader(m Message) error {
 			return nil
 		}
 		// r.Debug("receive pong", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("leaderCommittedIndex", r.replicaLog.committedIndex), zap.Uint64("committedIndex", m.CommittedIndex))
-		r.activeReplicaMap[m.From] = time.Now()
+		r.activeReplica(m.From) // 副本已激活
 	case MsgPropose: // 收到提案消息
 		if len(m.Logs) == 0 {
 			r.Panic("MsgPropose logs is empty", zap.Uint64("nodeID", r.nodeID))
@@ -77,7 +77,7 @@ func (r *Replica) stepLeader(m Message) error {
 
 	case MsgSync: // 追随者向领导同步消息
 		// r.Info("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
-		r.activeReplicaMap[m.From] = time.Now()
+		r.activeReplica(m.From)
 		var needSendResp bool = true
 		lastIndex := r.replicaLog.lastIndex()
 		if lastIndex > 0 {
@@ -161,13 +161,16 @@ func (r *Replica) stepFollower(m Message) error {
 	// 	seq := r.messageWait.next(r.leader, MsgSync)
 	// 	r.send(r.newSyncMsg(seq))
 	case MsgSyncResp: // 领导返回同步消息的结果
-
-		force := false
 		if len(m.Logs) > 0 {
-			force = true
+			r.messageWait.immediatelySync()
+			// r.Info("recv sync resp", zap.Int("logCount", len(m.Logs)), zap.Uint64("startLogIndex", m.Logs[0].Index), zap.Uint64("endLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
 		}
+		// force := false
+		// if len(m.Logs) > 0 {
+		// 	force = true
+		// }
 		// r.Debug("recv sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex), zap.Bool("force", force))
-		r.messageWait.finishWithForce(m.From, MsgSync, force) // 完成同步消息，可以继续同步
+		// r.messageWait.finishWithForce(m.From, MsgSync, force) // 完成同步消息，可以继续同步
 
 		if r.disabledToSync {
 			r.Debug("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.replicaLog.term))
@@ -256,7 +259,7 @@ func (r *Replica) appendLog(logs ...Log) (accepted bool) {
 		return false
 	}
 
-	for i, lg := range logs {
+	for _, lg := range logs {
 		if r.localLeaderLastTerm != lg.Term {
 			r.localLeaderLastTerm = lg.Term
 			err := r.opts.Storage.SetLeaderTermStartIndex(lg.Term, lg.Index)
@@ -264,10 +267,6 @@ func (r *Replica) appendLog(logs ...Log) (accepted bool) {
 				r.Panic("set leader term start index failed", zap.Error(err))
 				return false
 			}
-		}
-		if r.replicaLog.lastLogIndex >= lg.Index {
-			logs = logs[:i]
-			break
 		}
 	}
 	if len(logs) == 0 {
@@ -449,21 +448,21 @@ func (r *Replica) sendPingIfNeed() bool {
 		return false
 	}
 
+	if !r.messageWait.canPing() {
+		return false
+	}
+
 	hasPing := false
 	for _, replicaId := range r.replicas {
 		if replicaId == r.opts.NodeID {
 			continue
 		}
-		if r.messageWait.has(replicaId, MsgPing) {
-			continue
-		}
-		activeTime := r.activeReplicaMap[replicaId]
-		if activeTime.IsZero() || time.Since(activeTime) > r.opts.MaxIdleInterval {
-			r.messageWait.start(replicaId, MsgPing)
+		if !r.isActiveReplica(replicaId) {
 			r.send(r.newPing(replicaId))
 			hasPing = true
 		}
 	}
+	r.messageWait.resetPing()
 	return hasPing
 
 }
@@ -473,15 +472,16 @@ func (r *Replica) hasNeedPing() bool {
 		return false
 	}
 
+	if !r.messageWait.canPing() {
+		return false
+	}
+
 	for _, replicaId := range r.replicas {
 		if replicaId == r.opts.NodeID {
 			continue
 		}
-		if r.messageWait.has(replicaId, MsgPing) {
-			continue
-		}
-		activeTime := r.activeReplicaMap[replicaId]
-		if activeTime.IsZero() || time.Since(activeTime) > r.opts.MaxIdleInterval {
+
+		if !r.isActiveReplica(replicaId) {
 			return true
 		}
 	}

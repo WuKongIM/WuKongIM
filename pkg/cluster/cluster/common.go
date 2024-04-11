@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"hash/crc32"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -94,4 +95,8 @@ func traceIncomingMessage(kind trace.ClusterKind, m replica.Message) {
 		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexRespIncomingBytesAdd(kind, int64(m.Size()))
 
 	}
+}
+
+func GetShardId(shardNo string) uint32 {
+	return crc32.ChecksumIEEE([]byte(shardNo))
 }
