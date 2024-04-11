@@ -1,8 +1,8 @@
 package server
 
 import (
-	"io/ioutil"
 	"net"
+	"os"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -15,7 +15,7 @@ func NewServerOptions() *Options {
 	opts := NewOptions()
 	opts.Mode = TestMode
 	opts.UnitTest = true
-	dir, err := ioutil.TempDir("", "wukongim-test")
+	dir, err := os.MkdirTemp("", "wukongim-test")
 	if err != nil {
 		panic(err)
 	}
@@ -47,7 +47,7 @@ func NewTestOptions(logLevel ...zapcore.Level) *Options {
 		opts.Level = zap.DebugLevel
 	}
 
-	opts.LogDir, _ = ioutil.TempDir("", "limlog")
+	opts.LogDir, _ = os.MkdirTemp("", "limlog")
 	wklog.Configure(opts)
 	return opt
 }
