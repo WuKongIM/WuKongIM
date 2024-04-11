@@ -3,7 +3,6 @@ package wkstore
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -326,7 +325,7 @@ func (t *topic) getSegmentCacheKey(baseMessageSeq uint32) string {
 
 // get all segment base messageSeq
 func (t *topic) getAllSegmentBaseMessageSeq() []uint32 {
-	files, err := ioutil.ReadDir(t.topicDir)
+	files, err := os.ReadDir(t.topicDir)
 	if err != nil {
 		t.Error("read dir fail!", zap.String("topicDir", t.topicDir))
 		panic(err)

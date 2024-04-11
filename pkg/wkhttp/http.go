@@ -1,7 +1,7 @@
 package wkhttp
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -130,7 +130,7 @@ func (c *Context) ForwardWithBody(url string, body []byte) {
 
 // Forward 转发请求
 func (c *Context) Forward(url string) {
-	bodyBytes, _ := ioutil.ReadAll(c.Request.Body)
+	bodyBytes, _ := io.ReadAll(c.Request.Body)
 	c.ForwardWithBody(url, bodyBytes)
 }
 
