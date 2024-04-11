@@ -44,23 +44,23 @@ const (
 
 type eventList struct {
 	size   int
-	events []epollevent
+	events []unix.EpollEvent
 }
 
 func newEventList(size int) *eventList {
-	return &eventList{size, make([]epollevent, size)}
+	return &eventList{size, make([]unix.EpollEvent, size)}
 }
 
 func (el *eventList) expand() {
 	if newSize := el.size << 1; newSize <= MaxPollEventsCap {
 		el.size = newSize
-		el.events = make([]epollevent, newSize)
+		el.events = make([]unix.EpollEvent, newSize)
 	}
 }
 
 func (el *eventList) shrink() {
 	if newSize := el.size >> 1; newSize >= MinPollEventsCap {
 		el.size = newSize
-		el.events = make([]epollevent, newSize)
+		el.events = make([]unix.EpollEvent, newSize)
 	}
 }

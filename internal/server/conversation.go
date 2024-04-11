@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -18,15 +17,14 @@ import (
 
 // ConversationManager ConversationManager
 type ConversationManager struct {
-	channelLock *keylock.KeyLock
-	s           *Server
+	s *Server
 	wklog.Log
 	queue                          *Queue
 	userConversationMapBuckets     []map[string]*lru.Cache[string, *wkstore.Conversation]
 	userConversationMapBucketLocks []sync.RWMutex
 	bucketNum                      int
 	needSaveConversationMap        map[string]bool
-	needSaveConversationMapLock    sync.RWMutex
+	mu                             sync.RWMutex
 	stopChan                       chan struct{} //停止信号
 	calcChan                       chan interface{}
 	needSaveChan                   chan string
@@ -39,7 +37,6 @@ func NewConversationManager(s *Server) *ConversationManager {
 		s:                       s,
 		bucketNum:               10,
 		Log:                     wklog.NewWKLog("ConversationManager"),
-		channelLock:             keylock.NewKeyLock(),
 		needSaveConversationMap: map[string]bool{},
 		stopChan:                make(chan struct{}),
 		calcChan:                make(chan interface{}),
@@ -72,7 +69,6 @@ func NewConversationManager(s *Server) *ConversationManager {
 // Start Start
 func (cm *ConversationManager) Start() {
 	if cm.s.opts.Conversation.On {
-		cm.channelLock.StartCleanLoop()
 		go cm.saveloop()
 		go cm.calcLoop()
 		cm.crontab.Start()
@@ -84,7 +80,6 @@ func (cm *ConversationManager) Start() {
 func (cm *ConversationManager) Stop() {
 	if cm.s.opts.Conversation.On {
 		close(cm.stopChan)
-		cm.channelLock.StopCleanLoop()
 		// Wait for the queue to complete
 		cm.queue.Wait()
 
@@ -150,12 +145,12 @@ func (cm *ConversationManager) saveloop() {
 		}
 		select {
 		case uid := <-cm.needSaveChan:
-			cm.needSaveConversationMapLock.Lock()
+			cm.mu.Lock()
 			if !cm.needSaveConversationMap[uid] {
 				cm.needSaveConversationMap[uid] = true
 				noSaveCount++
 			}
-			cm.needSaveConversationMapLock.Unlock()
+			cm.mu.Unlock()
 
 		case <-ticker.C:
 			if noSaveCount > 0 {
@@ -181,18 +176,16 @@ func (cm *ConversationManager) PushMessage(message *Message, subscribers []strin
 
 // SetConversationUnread set unread data from conversation
 func (cm *ConversationManager) SetConversationUnread(uid string, channelID string, channelType uint8, unread int, messageSeq uint32) error {
-	conversationCache := cm.getUserConversationCache(uid)
-	for _, key := range conversationCache.Keys() {
-		conversation, _ := conversationCache.Get(key)
-		if channelID == conversation.ChannelID && channelType == conversation.ChannelType {
-			conversation.UnreadCount = unread
-			if messageSeq > 0 {
-				conversation.LastMsgSeq = messageSeq
-			}
-			cm.setNeedSave(uid)
-			return nil
+	conversation := cm.getConversationFromCache(uid, channelID, channelType)
+	if conversation != nil {
+		conversation.UnreadCount = unread
+		if messageSeq > 0 {
+			conversation.LastMsgSeq = messageSeq
 		}
+		cm.setNeedSave(uid)
+		return nil
 	}
+
 	conversation, err := cm.s.store.GetConversation(uid, channelID, channelType)
 	if err != nil {
 		return err
@@ -202,7 +195,7 @@ func (cm *ConversationManager) SetConversationUnread(uid string, channelID strin
 		if messageSeq > 0 {
 			conversation.LastMsgSeq = messageSeq
 		}
-		conversationCache.Add(cm.getChannelKey(conversation.ChannelID, conversation.ChannelType), conversation)
+		cm.setConversationCache(uid, conversation)
 		cm.setNeedSave(uid)
 	}
 	return nil
@@ -210,7 +203,7 @@ func (cm *ConversationManager) SetConversationUnread(uid string, channelID strin
 
 func (cm *ConversationManager) GetConversation(uid string, channelID string, channelType uint8) *wkstore.Conversation {
 
-	conversations := cm.getUserCacheConversations(uid)
+	conversations := cm.getConversationsFromCache(uid)
 	if len(conversations) > 0 {
 		for _, conversation := range conversations {
 			if conversation.ChannelID == channelID && conversation.ChannelType == channelType {
@@ -234,15 +227,9 @@ func (cm *ConversationManager) DeleteConversation(uids []string, channelID strin
 		return nil
 	}
 	for _, uid := range uids {
-		conversationCache := cm.getUserConversationCache(uid)
-		keys := conversationCache.Keys()
-		for _, key := range keys {
-			channelKey := cm.getChannelKey(channelID, channelType)
-			if channelKey == key {
-				conversationCache.Remove(key)
-				break
-			}
-		}
+
+		cm.deleteConversationCache(uid, channelID, channelType)
+
 		err := cm.s.store.DeleteConversation(uid, channelID, channelType)
 		if err != nil {
 			cm.Error("从数据库删除最近会话失败！", zap.Error(err), zap.String("uid", uid), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
@@ -268,12 +255,12 @@ func (cm *ConversationManager) newLRUCache() *lru.Cache[string, *wkstore.Convers
 // FlushConversations 同步最近会话
 func (cm *ConversationManager) FlushConversations() {
 
-	cm.needSaveConversationMapLock.RLock()
+	cm.mu.RLock()
 	needSaveUIDs := make([]string, 0, len(cm.needSaveConversationMap))
 	for uid := range cm.needSaveConversationMap {
 		needSaveUIDs = append(needSaveUIDs, uid)
 	}
-	cm.needSaveConversationMapLock.RUnlock()
+	cm.mu.RUnlock()
 
 	if len(needSaveUIDs) > 0 {
 		cm.Debug("Save conversation", zap.Int("count", len(needSaveUIDs)))
@@ -286,94 +273,93 @@ func (cm *ConversationManager) FlushConversations() {
 
 func (cm *ConversationManager) flushUserConversations(uid string) {
 
-	conversationCache := cm.getUserConversationCache(uid)
-	conversations := make([]*wkstore.Conversation, 0, len(conversationCache.Keys()))
-	for _, key := range conversationCache.Keys() {
-		conversationObj, ok := conversationCache.Get(key)
-		if ok {
-			conversations = append(conversations, conversationObj)
-		}
-
+	conversations := cm.getConversationsFromCache(uid)
+	if len(conversations) == 0 {
+		return
 	}
 	err := cm.s.store.AddOrUpdateConversations(uid, conversations)
 	if err != nil {
 		cm.Warn("Failed to store conversation data", zap.Error(err))
 	} else {
-		cm.needSaveConversationMapLock.Lock()
+		cm.mu.Lock()
 		delete(cm.needSaveConversationMap, uid)
-		cm.needSaveConversationMapLock.Unlock()
+		cm.mu.Unlock()
 
 		// 移除过期的最近会话缓存
 		for _, conversation := range conversations {
 			if conversation.Timestamp+int64(cm.s.opts.Conversation.CacheExpire.Seconds()) < time.Now().Unix() {
-				key := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
-				conversationCache.Remove(key)
+				cm.deleteConversationCache(uid, conversation.ChannelID, conversation.ChannelType)
 			}
 		}
 	}
 }
 
-func (cm *ConversationManager) getUserConversationCache(uid string) *lru.Cache[string, *wkstore.Conversation] {
+func (cm *ConversationManager) getUserConversationCacheNoLock(uid string) *lru.Cache[string, *wkstore.Conversation] {
 	pos := int(wkutil.HashCrc32(uid) % uint32(cm.bucketNum))
-	cm.userConversationMapBucketLocks[pos].RLock()
 	userConversationMap := cm.userConversationMapBuckets[pos]
 	if userConversationMap == nil {
 		userConversationMap = make(map[string]*lru.Cache[string, *wkstore.Conversation])
 		cm.userConversationMapBuckets[pos] = userConversationMap
 	}
-
-	cm.userConversationMapBucketLocks[pos].RUnlock()
-	cm.channelLock.Lock(uid)
 	cache := userConversationMap[uid]
 	if cache == nil {
 		cache = cm.newLRUCache()
 		userConversationMap[uid] = cache
 	}
-	cm.channelLock.Unlock(uid)
-
 	return cache
 }
 
-func (cm *ConversationManager) getUserCacheConversations(uid string) []*wkstore.Conversation {
-	cache := cm.getUserConversationCache(uid)
+func (cm *ConversationManager) getConversationFromCache(uid string, channelID string, channelType uint8) *wkstore.Conversation {
+	pos := cm.getLockIndex(uid)
+	cm.userConversationMapBucketLocks[pos].Lock()
+	defer cm.userConversationMapBucketLocks[pos].Unlock()
+	cache := cm.getUserConversationCacheNoLock(uid)
+	channelKey := cm.getChannelKey(channelID, channelType)
+	conversation, _ := cache.Get(channelKey)
+	return conversation
+}
 
-	conversations := make([]*wkstore.Conversation, 0, len(cache.Keys()))
+func (cm *ConversationManager) setConversationCache(uid string, conversation *wkstore.Conversation) {
+	pos := cm.getLockIndex(uid)
+	cm.userConversationMapBucketLocks[pos].Lock()
+	defer cm.userConversationMapBucketLocks[pos].Unlock()
+	cache := cm.getUserConversationCacheNoLock(uid)
+	channelKey := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
+	cache.Add(channelKey, conversation)
+}
+
+func (cm *ConversationManager) deleteConversationCache(uid string, channelID string, channelType uint8) {
+	pos := cm.getLockIndex(uid)
+	cm.userConversationMapBucketLocks[pos].Lock()
+	defer cm.userConversationMapBucketLocks[pos].Unlock()
+	cache := cm.getUserConversationCacheNoLock(uid)
+	channelKey := cm.getChannelKey(channelID, channelType)
+	cache.Remove(channelKey)
+}
+
+func (cm *ConversationManager) getConversationsFromCache(uid string) []*wkstore.Conversation {
+	pos := cm.getLockIndex(uid)
+	cm.userConversationMapBucketLocks[pos].Lock()
+	defer cm.userConversationMapBucketLocks[pos].Unlock()
+	cache := cm.getUserConversationCacheNoLock(uid)
+	conversations := make([]*wkstore.Conversation, 0, cache.Len())
 	for _, key := range cache.Keys() {
-		conversationObj, ok := cache.Get(key)
-		if ok {
-			conversations = append(conversations, conversationObj)
-		}
+		conversation, _ := cache.Get(key)
+		conversations = append(conversations, conversation)
 	}
 	return conversations
+}
 
+func (cm *ConversationManager) getLockIndex(uid string) int {
+	return int(wkutil.HashCrc32(uid) % uint32(cm.bucketNum))
 }
 
 func (cm *ConversationManager) calConversation(message *Message, subscriber string) {
-	conversationCache := cm.getUserConversationCache(subscriber)
-
-	// if conversationCache.Len() == 0 {
-	// 	var err error
-	// 	conversations, err := cm.getUserAllConversationMapFromStore(subscriber)
-	// 	if err != nil {
-	// 		cm.Warn("Failed to get the conversation from the database", zap.Error(err))
-	// 		return
-	// 	}
-	// 	for _, conversation := range conversations {
-	// 		channelKey := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
-	// 		conversationCache.Add(channelKey, conversation)
-
-	// 	}
-	// }
-
 	channelID := message.ChannelID
 	if message.ChannelType == wkproto.ChannelTypePerson && message.ChannelID == subscriber { // If it is a personal channel and the channel ID is equal to the subscriber, you need to swap fromUID and channelID
 		channelID = message.FromUID
 	}
-	channelKey := cm.getChannelKey(channelID, message.ChannelType)
-
-	cm.channelLock.Lock(channelKey)
-	conversation, _ := conversationCache.Get(channelKey)
-	cm.channelLock.Unlock(channelKey)
+	conversation := cm.getConversationFromCache(subscriber, channelID, message.ChannelType)
 
 	if conversation == nil {
 		var err error
@@ -425,11 +411,9 @@ func (cm *ConversationManager) calConversation(message *Message, subscriber stri
 }
 
 func (cm *ConversationManager) AddOrUpdateConversation(uid string, conversation *wkstore.Conversation) {
-	channelKey := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
-	conversationCache := cm.getUserConversationCache(uid)
-	cm.channelLock.Lock(channelKey)
-	conversationCache.Add(channelKey, conversation)
-	cm.channelLock.Unlock(channelKey)
+
+	cm.setConversationCache(uid, conversation)
+
 	cm.setNeedSave(uid)
 }
 
@@ -447,7 +431,7 @@ func (cm *ConversationManager) GetConversations(uid string, version int64, large
 		newConversations = append(newConversations, oldConversations...)
 	}
 
-	updateConversations := cm.getUserCacheConversations(uid)
+	updateConversations := cm.getConversationsFromCache(uid)
 
 	for _, updateConversation := range updateConversations {
 		existIndex := 0
