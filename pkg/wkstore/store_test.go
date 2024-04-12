@@ -1,14 +1,14 @@
 package wkstore
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStoreMsg(t *testing.T) {
-	dir, err := ioutil.TempDir("", "filestore")
+	dir, err := os.MkdirTemp("", "filestore")
 	assert.NoError(t, err)
 	store := NewFileStore(&StoreConfig{
 		SlotNum: 1024,

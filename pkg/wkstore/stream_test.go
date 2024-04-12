@@ -1,7 +1,7 @@
 package wkstore
 
 import (
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -10,7 +10,7 @@ import (
 )
 
 func TestStreamAppenItem(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "stream")
+	tmpDir, err := os.MkdirTemp("", "stream")
 	assert.NoError(t, err)
 
 	st := NewStream("1", path.Join(tmpDir, ""), &StoreConfig{
@@ -32,7 +32,7 @@ func TestStreamAppenItem(t *testing.T) {
 }
 
 func TestStreamRead(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "stream")
+	tmpDir, err := os.MkdirTemp("", "stream")
 	assert.NoError(t, err)
 
 	st := NewStream("1", path.Join(tmpDir, ""), &StoreConfig{
@@ -67,7 +67,7 @@ func TestStreamRead(t *testing.T) {
 }
 
 func TestStreamMeta(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "stream")
+	tmpDir, err := os.MkdirTemp("", "stream")
 	assert.NoError(t, err)
 	st := NewStream("1", path.Join(tmpDir, ""), &StoreConfig{
 		DataDir: tmpDir,
@@ -117,7 +117,7 @@ func TestStreamMeta(t *testing.T) {
 }
 
 func TestStreamEnd(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "stream")
+	tmpDir, err := os.MkdirTemp("", "stream")
 	assert.NoError(t, err)
 	st := NewStream("1", path.Join(tmpDir, ""), &StoreConfig{
 		DataDir: tmpDir,

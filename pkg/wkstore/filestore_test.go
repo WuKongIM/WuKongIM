@@ -2,7 +2,6 @@ package wkstore
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func TestFileStoreMsg(t *testing.T) {
-	dir, err := ioutil.TempDir("", "filestore")
+	dir, err := os.MkdirTemp("", "filestore")
 	assert.NoError(t, err)
 	store := NewFileStore(&StoreConfig{
 		SlotNum: 1024,

@@ -3,7 +3,6 @@ package wkstore
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -138,7 +137,7 @@ func (m *Stream) readMeta() (*StreamMeta, error) {
 	defer m.metaLock.Unlock()
 	metaIO := m.getMetaIO()
 	metaIO.Seek(0, io.SeekStart)
-	metaBytes, err := ioutil.ReadAll(metaIO)
+	metaBytes, err := io.ReadAll(metaIO)
 	if err != nil {
 		return nil, err
 	}
