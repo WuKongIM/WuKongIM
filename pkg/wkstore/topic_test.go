@@ -69,7 +69,7 @@ func BenchmarkTopicAppendParallel(b *testing.B) {
 }
 
 func TestReadLastLogs(t *testing.T) {
-	//dir, err := ioutil.TempDir("", "commitlog-index")
+	//dir, err := os.MkdirTemp("", "commitlog-index")
 	//assert.NoError(t, err)
 
 	var maxBytesPerLogFile int64 = 1024 * 1024 * 1024
@@ -104,7 +104,7 @@ func TestReadLastLogs(t *testing.T) {
 }
 
 // func TestReadLastLogs2(t *testing.T) {
-// 	dir, err := ioutil.TempDir("", "commitlog-index")
+// 	dir, err := os.MkdirTemp("", "commitlog-index")
 // 	assert.NoError(t, err)
 
 // 	var maxBytesPerLogFile int64 = 1024
