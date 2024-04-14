@@ -1,7 +1,6 @@
 package network
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +41,7 @@ func RequestBoyForQueryParam(url string, queryParams map[string]string, headers 
 
 	return response, nil
 }
+
 func RequestBoy(url string, body []byte, headers map[string]string, method rest.Method) (resp *rest.Response, err error) {
 
 	request := rest.Request{
@@ -123,7 +123,7 @@ func PostForWWWFormForBytres(urlStr string, params map[string]string, headers ma
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return body, errors.New(fmt.Sprintf("状态码：%d", resp.StatusCode))
+		return body, fmt.Errorf("状态码：%d", resp.StatusCode)
 	}
 	return body, nil
 }
@@ -162,7 +162,7 @@ func PostForWWWFormForAll(urlStr string, bodyData io.Reader, headers map[string]
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(fmt.Sprintf("状态码：%d", resp.StatusCode))
+		return nil, fmt.Errorf("状态码：%d", resp.StatusCode)
 	}
 	return body, nil
 }
