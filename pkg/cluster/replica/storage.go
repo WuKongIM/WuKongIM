@@ -1,10 +1,7 @@
 package replica
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/zap"
 )
 
 type IStorage interface {
@@ -16,8 +13,6 @@ type IStorage interface {
 	// GetLogs 获取日志 [startLogIndex,endLogIndex)
 	// startLogIndex 开始日志索引(结果包含startLogIndex)
 	// endLogIndex 结束日志索引(结果不包含endLogIndex) endLogIndex=0表示不限制
-	// limitSize 限制返回的日志大小
-	Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]Log, error)
 	// FirstIndex 第一条日志的索引
 	FirstIndex() (uint64, error)
 	// LastIndex 最后一条日志的索引
@@ -50,24 +45,23 @@ func (m *MemoryStorage) AppendLog(logs []Log) error {
 	return nil
 }
 
-func (m *MemoryStorage) Logs(lo, hi, maxSize uint64) ([]Log, error) {
-	if len(m.logs) == 0 {
+func (m *MemoryStorage) Logs(startLogIndex, endLogIndex uint64) ([]Log, error) {
+	if startLogIndex == 0 {
+		startLogIndex = 1
+	}
+	if endLogIndex == 0 {
+		endLogIndex = m.lastIndex() + 1
+	}
+	if startLogIndex > endLogIndex {
 		return nil, nil
 	}
-	offset := m.logs[0].Index
-	if lo < offset {
-		m.Error("lo < offset", zap.Uint64("lo", lo), zap.Uint64("offset", offset))
-		return nil, ErrCompacted
+	if startLogIndex < 1 {
+		return nil, nil
 	}
-	if hi > m.lastIndex()+1 {
-		m.Panic(fmt.Sprintf("entries' hi(%d) is out of bound lastindex(%d)", hi, m.lastIndex()))
+	if endLogIndex > m.lastIndex()+1 {
+		return nil, nil
 	}
-	logs := limitSize(m.logs[lo-offset:hi-offset], logEncodingSize(maxSize))
-
-	// NB: use the full slice expression to limit what the caller can do with the
-	// returned slice. For example, an append will reallocate and copy this slice
-	// instead of corrupting the neighbouring m.logs.
-	return logs[:len(logs):len(logs)], nil
+	return m.logs[startLogIndex-1 : endLogIndex-1], nil
 }
 
 func (m *MemoryStorage) TruncateLogTo(index uint64) error {
@@ -127,4 +121,11 @@ func (m *MemoryStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) e
 
 func (m *MemoryStorage) Len() int {
 	return len(m.logs)
+}
+
+func (m *MemoryStorage) LastLog() Log {
+	if len(m.logs) == 0 {
+		return EmptyLog
+	}
+	return m.logs[len(m.logs)-1]
 }

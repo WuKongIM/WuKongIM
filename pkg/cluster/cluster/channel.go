@@ -50,33 +50,51 @@ type channel struct {
 	}
 	shardId uint32
 	shardNo string
+
+	isBootstrap   atomic.Bool // 是否启动
+	bootstrapTime atomic.Time // 启动时间
 }
 
-func newChannel(clusterConfig wkdb.ChannelClusterConfig, appliedIdx uint64, advance func(), s *Server) *channel {
-	shardNo := ChannelKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
-	// hash shardNo to shardId
-	shardId := GetShardId(shardNo)
-	rc := replica.New(s.opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicaMaxCount(int(clusterConfig.ReplicaMaxCount)), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.MessageLogStorage)))
-	ch := &channel{
-		rc:            rc,
-		opts:          s.opts,
-		Log:           wklog.NewWKLog(fmt.Sprintf("Channel[%s]", shardNo)),
-		channelID:     clusterConfig.ChannelId,
-		channelType:   clusterConfig.ChannelType,
-		clusterConfig: clusterConfig,
-		doneC:         make(chan struct{}),
-		traceRecord:   newTraceRecord(),
-		advanceFnc:    advance,
-		inbound:       s.inbound,
-		s:             s,
-		shardId:       shardId,
-		shardNo:       shardNo,
+func newChannel(channelId string, channelType uint8, s *Server) *channel {
+	shardNo := ChannelKey(channelId, channelType)
+	return &channel{
+		channelID:   channelId,
+		channelType: channelType,
+		opts:        s.opts,
+		Log:         wklog.NewWKLog(fmt.Sprintf("Channel[%s]", shardNo)),
+		doneC:       make(chan struct{}),
 	}
-	ch.lastActivity.Store(time.Now())
-	ch.eventHandler = newEventHandler(shardNo, shardId, ch, ch.Log, s, ch.doneC)
-	ch.sync.syncTimeout = 5 * time.Second
-	return ch
 }
+
+func (c *channel) bootstrap(clusterConfig wkdb.ChannelClusterConfig, appliedIdx uint64, advance func()) {
+
+}
+
+// func newChannel(clusterConfig wkdb.ChannelClusterConfig, appliedIdx uint64, advance func(), s *Server) *channel {
+// 	shardNo := ChannelKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
+// 	// hash shardNo to shardId
+// 	shardId := GetShardId(shardNo)
+// 	rc := replica.New(s.opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicaMaxCount(int(clusterConfig.ReplicaMaxCount)), replica.WithReplicas(clusterConfig.Replicas), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.MessageLogStorage)))
+// 	ch := &channel{
+// 		rc:            rc,
+// 		opts:          s.opts,
+// 		Log:           wklog.NewWKLog(fmt.Sprintf("Channel[%s]", shardNo)),
+// 		channelID:     clusterConfig.ChannelId,
+// 		channelType:   clusterConfig.ChannelType,
+// 		clusterConfig: clusterConfig,
+// 		doneC:         make(chan struct{}),
+// 		traceRecord:   newTraceRecord(),
+// 		advanceFnc:    advance,
+// 		inbound:       s.inbound,
+// 		s:             s,
+// 		shardId:       shardId,
+// 		shardNo:       shardNo,
+// 	}
+// 	ch.lastActivity.Store(time.Now())
+// 	ch.eventHandler = newEventHandler(shardNo, shardId, ch, ch.Log, s, ch.doneC)
+// 	ch.sync.syncTimeout = 5 * time.Second
+// 	return ch
+// }
 
 func (c *channel) updateClusterConfig(clusterConfig wkdb.ChannelClusterConfig) {
 	c.mu.Lock()
@@ -335,7 +353,7 @@ func (c *channel) sendMessage(msg replica.Message) {
 	if msg.MsgType != replica.MsgSync && msg.MsgType != replica.MsgSyncResp && msg.MsgType != replica.MsgPing && msg.MsgType != replica.MsgPong {
 		c.Info("发送消息", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
 	}
-
+	// c.Info("发送消息", zap.String("msgType", msg.MsgType.String()), zap.String("channelID", c.channelID), zap.Uint8("channelType", c.channelType), zap.Uint64("to", msg.To), zap.Uint32("term", msg.Term), zap.Uint64("index", msg.Index))
 	if msg.MsgType == replica.MsgSync {
 
 		switch c.sync.syncStatus {

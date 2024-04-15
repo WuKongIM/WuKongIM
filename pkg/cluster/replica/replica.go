@@ -32,6 +32,14 @@ type Replica struct {
 	// 禁止去同步领导的日志，因为这时候应该发起了 MsgLeaderTermStartOffsetReq 消息 还没有收到回复，只有收到回复后，追随者截断未知的日志后，才能去同步领导的日志，主要是解决日志冲突的问题
 	disabledToSync bool
 
+	// -------------------- election --------------------
+	electionElapsed           int // 选举计时器
+	heartbeatElapsed          int
+	randomizedElectionTimeout int // 随机选举超时时间
+	tickFnc                   func()
+	voteFor                   uint64          // 投票给谁
+	votes                     map[uint64]bool // 投票记录
+
 	// -------------------- 其他 --------------------
 	messageWait *messageWait
 	wklog.Log
@@ -40,27 +48,26 @@ type Replica struct {
 
 	hasFirstSyncResp bool // 是否有第一次同步的回应
 
-	testMap map[uint64]uint64
 }
 
-func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
+func New(nodeId uint64, optList ...Option) *Replica {
 	opts := NewOptions()
 	for _, opt := range optList {
 		opt(opts)
 	}
-	opts.NodeID = nodeID
-	opts.ShardNo = shardNo
+	opts.NodeId = nodeId
+	if opts.Storage == nil {
+		opts.Storage = NewMemoryStorage()
+	}
 	rc := &Replica{
-		nodeID:          nodeID,
-		shardNo:         shardNo,
-		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeID, shardNo)),
+		nodeID:          nodeId,
+		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d]", nodeId)),
 		opts:            opts,
 		lastSyncInfoMap: map[uint64]*SyncInfo{},
 		// pongMap:          map[uint64]bool{},
 		activeReplicas: make(map[uint64]bool),
 		messageWait:    newMessageWait(opts.MessageSendInterval, opts.ReplicaMaxCount),
 		replicaLog:     newReplicaLog(opts),
-		testMap:        map[uint64]uint64{},
 	}
 
 	lastLeaderTerm, err := rc.opts.Storage.LeaderLastTerm()
@@ -68,14 +75,16 @@ func New(nodeID uint64, shardNo string, optList ...Option) *Replica {
 		rc.Panic("get last leader term failed", zap.Error(err))
 	}
 	for _, replicaID := range rc.opts.Replicas {
-		if replicaID == nodeID {
+		if replicaID == nodeId {
 			continue
 		}
 		rc.replicas = append(rc.replicas, replicaID)
 	}
 
 	rc.localLeaderLastTerm = lastLeaderTerm
-	// rc.becomeFollower(rc.state.term, None)
+	if rc.opts.ElectionOn {
+		rc.becomeFollower(rc.replicaLog.term, None)
+	}
 
 	rc.preHardState = HardState{
 		Term:     rc.replicaLog.term,
@@ -114,6 +123,7 @@ func (r *Replica) BecomeFollower(term uint32, leaderID uint64) {
 func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.stepFunc = r.stepFollower
 	r.reset(term)
+	r.tickFnc = r.tickElection
 	r.replicaLog.term = term
 	r.leader = leaderID
 	r.role = RoleFollower
@@ -127,14 +137,29 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 
 }
 
+func (r *Replica) becomeCandidate() {
+	if r.role == RoleLeader {
+		r.Panic("invalid transition [leader -> candidate]")
+	}
+	r.stepFunc = r.stepCandidate
+	r.reset(r.replicaLog.term + 1)
+	r.tickFnc = r.tickElection
+	r.voteFor = r.opts.NodeId
+	r.leader = None
+	r.role = RoleCandidate
+	r.Debug("become candidate", zap.Uint32("term", r.replicaLog.term))
+}
+
 func (r *Replica) BecomeLeader(term uint32) {
 
 	r.becomeLeader(term)
 }
 
 func (r *Replica) becomeLeader(term uint32) {
+
 	r.stepFunc = r.stepLeader
 	r.reset(term)
+	r.tickFnc = r.tickHeartbeat
 	r.replicaLog.term = term
 	r.leader = r.nodeID
 	r.role = RoleLeader
@@ -155,6 +180,28 @@ func (r *Replica) becomeLeader(term uint32) {
 		}
 	}
 	r.activeReplicas = make(map[uint64]bool)
+}
+
+// 开始选举
+func (r *Replica) campaign() {
+	r.becomeCandidate()
+	for _, nodeId := range r.opts.Replicas {
+		if nodeId == r.opts.NodeId {
+			// 自己给自己投一票
+			r.send(Message{To: nodeId, From: nodeId, Term: r.replicaLog.term, MsgType: MsgVoteResp})
+			continue
+		}
+		r.Info("sent vote request", zap.Uint64("from", r.opts.NodeId), zap.Uint64("to", nodeId), zap.Uint32("term", r.replicaLog.term))
+		r.sendRequestVote(nodeId)
+	}
+}
+
+func (r *Replica) sendRequestVote(nodeId uint64) {
+	r.send(r.newMsgVote(nodeId))
+}
+
+func (r *Replica) hup() {
+	r.campaign()
 }
 
 // func (r *Replica) becomeCandidate() {
@@ -263,6 +310,7 @@ func (r *Replica) putMsgIfNeed() {
 
 	// 副本来同步日志
 	if r.followNeedSync() {
+		r.Debug("follow need sync....")
 		r.messageWait.resetSync()
 		msg := r.newSyncMsg()
 		r.msgs = append(r.msgs, msg)
@@ -287,7 +335,7 @@ func (r *Replica) putMsgIfNeed() {
 
 func (r *Replica) acceptReady(rd Ready) {
 
-	r.msgs = nil
+	r.msgs = r.msgs[:0]
 	rd.HardState = EmptyHardState
 	r.replicaLog.acceptUnstable()
 	if r.hasUnapplyLogs() {
@@ -299,11 +347,73 @@ func (r *Replica) reset(term uint32) {
 	if r.replicaLog.term != term {
 		r.replicaLog.term = term
 	}
+	r.voteFor = None
+	r.votes = make(map[uint64]bool)
 	r.leader = None
+	r.electionElapsed = 0
+	r.heartbeatElapsed = 0
+	r.resetRandomizedElectionTimeout()
 }
 
 func (r *Replica) Tick() {
 	r.messageWait.tick()
+	r.tickFnc()
+
+}
+
+func (r *Replica) tickElection() {
+
+	if !r.opts.ElectionOn { // 禁止选举
+		return
+	}
+
+	r.electionElapsed++
+
+	// r.Debug("electionElapsed--->", zap.Int("electionElapsed", r.electionElapsed))
+	if r.pastElectionTimeout() { // 超时开始进行选举
+		r.electionElapsed = 0
+		err := r.Step(Message{
+			MsgType: MsgHup,
+		})
+		if err != nil {
+			r.Debug("node tick election error", zap.Error(err))
+			return
+		}
+	}
+}
+
+func (r *Replica) tickHeartbeat() {
+
+	if !r.isLeader() {
+		r.Warn("not leader, but call tickHeartbeat")
+		return
+	}
+
+	if !r.opts.ElectionOn {
+		return
+	}
+
+	r.heartbeatElapsed++
+	r.electionElapsed++
+
+	if r.electionElapsed >= r.opts.ElectionTimeoutTick {
+		r.electionElapsed = 0
+	}
+
+	if r.heartbeatElapsed >= r.opts.HeartbeatTimeoutTick {
+		r.heartbeatElapsed = 0
+		if err := r.Step(Message{From: r.opts.NodeId, MsgType: MsgBeat}); err != nil {
+			r.Debug("error occurred during checking sending heartbeat", zap.Error(err))
+		}
+	}
+}
+
+func (r *Replica) pastElectionTimeout() bool {
+	return r.electionElapsed >= r.randomizedElectionTimeout
+}
+
+func (r *Replica) resetRandomizedElectionTimeout() {
+	r.randomizedElectionTimeout = r.opts.ElectionTimeoutTick + globalRand.Intn(r.opts.ElectionTimeoutTick)
 }
 
 // 是否有未提交的日志
@@ -362,6 +472,15 @@ func (r *Replica) NewProposeMessageWithLogs(logs []Log) Message {
 	}
 }
 
+func NewProposeMessageWithLogs(nodeId uint64, term uint32, logs []Log) Message {
+	return Message{
+		MsgType: MsgPropose,
+		From:    nodeId,
+		Term:    term,
+		Logs:    logs,
+	}
+}
+
 func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
 	return Message{
 		MsgType:      MsgApplyLogsResp,
@@ -371,11 +490,30 @@ func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
 	}
 }
 
+func NewMsgApplyLogsRespMessage(nodeId uint64, term uint32, appliedIdx uint64) Message {
+	return Message{
+		MsgType:      MsgApplyLogsResp,
+		From:         nodeId,
+		Term:         term,
+		AppliedIndex: appliedIdx,
+	}
+}
+
 func (r *Replica) NewMsgStoreAppendResp(index uint64) Message {
 	return Message{
 		MsgType: MsgStoreAppendResp,
 		From:    r.nodeID,
 		To:      r.nodeID,
+		Index:   index,
+	}
+
+}
+
+func NewMsgStoreAppendResp(nodeId uint64, index uint64) Message {
+	return Message{
+		MsgType: MsgStoreAppendResp,
+		From:    nodeId,
+		To:      nodeId,
 		Index:   index,
 	}
 
@@ -407,6 +545,16 @@ func (r *Replica) NewMsgSyncGetResp(to uint64, startIndex uint64, logs []Log) Me
 	return Message{
 		MsgType: MsgSyncGetResp,
 		From:    r.nodeID,
+		To:      to,
+		Logs:    logs,
+		Index:   startIndex,
+	}
+}
+
+func NewMsgSyncGetResp(from uint64, to uint64, startIndex uint64, logs []Log) Message {
+	return Message{
+		MsgType: MsgSyncGetResp,
+		From:    from,
 		To:      to,
 		Logs:    logs,
 		Index:   startIndex,
@@ -493,6 +641,26 @@ func (r *Replica) newMsgStoreAppend(logs []Log) Message {
 		Logs:    logs,
 	}
 
+}
+
+func (r *Replica) newMsgVote(nodeId uint64) Message {
+	return Message{
+		From:    r.opts.NodeId,
+		To:      nodeId,
+		MsgType: MsgVote,
+		Term:    r.replicaLog.term,
+		Index:   r.replicaLog.lastLogIndex,
+	}
+}
+
+func (r *Replica) newMsgVoteResp(to uint64, term uint32) Message {
+	return Message{
+		From:    r.opts.NodeId,
+		To:      to,
+		MsgType: MsgVoteResp,
+		Term:    term,
+		Index:   r.replicaLog.lastLogIndex,
+	}
 }
 
 func (r *Replica) UnstableLogLen() int {

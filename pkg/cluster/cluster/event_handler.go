@@ -92,8 +92,8 @@ func (e *eventHandler) proposeAndWaitCommits(ctx context.Context, logs []replica
 	// 	c.Error("add wait index failed", zap.Error(err))
 	// 	return nil, err
 	// }
-	proposeLogSpan.SetUint64("firstMessageId", firstLog.MessageId)
-	proposeLogSpan.SetUint64("lastMessageId", lastLog.MessageId)
+	proposeLogSpan.SetUint64("firstMessageId", firstLog.Id)
+	proposeLogSpan.SetUint64("lastMessageId", lastLog.Id)
 	proposeLogSpan.SetInt("logCount", len(logs))
 
 	// req := newProposeReq(c.rc.NewProposeMessageWithLogs(logs))
@@ -116,7 +116,7 @@ func (e *eventHandler) proposeAndWaitCommits(ctx context.Context, logs []replica
 	// }
 	messageIds := make([]uint64, 0, len(logs))
 	for _, log := range logs {
-		messageIds = append(messageIds, log.MessageId)
+		messageIds = append(messageIds, log.Id)
 	}
 	key := strconv.FormatUint(messageIds[len(messageIds)-1], 10)
 	waitC := e.messageWait.addWait(ctx, key, messageIds)
@@ -154,15 +154,22 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	var (
 		err      error
 		handleOk bool
+		start    time.Time
+		end      time.Duration
 	)
 
 	// propose
-	start := time.Now()
-	handleOk, err = e.handleProposes()
-	end := time.Since(start)
-	if end > time.Millisecond*1 {
-		e.Info("handleProposes", zap.Duration("time", end))
+	if e.opts.EnableLazyCatchUp {
+		start = time.Now()
 	}
+	handleOk, err = e.handleProposes()
+	if e.opts.EnableLazyCatchUp {
+		end = time.Since(start)
+		if end > time.Millisecond*1 {
+			e.Info("handleProposes", zap.Duration("time", end))
+		}
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -171,12 +178,19 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// append log task
-	start = time.Now()
-	handleOk, err = e.handleAppendLogTask()
-	end = time.Since(start)
-	if end > time.Millisecond*1 {
-		e.Info("handleAppendLogTask", zap.Duration("time", end))
+	if e.opts.EnableLazyCatchUp {
+		start = time.Now()
 	}
+
+	handleOk, err = e.handleAppendLogTask()
+
+	if e.opts.EnableLazyCatchUp {
+		end = time.Since(start)
+		if end > time.Millisecond*1 {
+			e.Info("handleAppendLogTask", zap.Duration("time", end))
+		}
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -185,12 +199,19 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// recv message
-	start = time.Now()
-	handleOk, err = e.handleRecvMessages()
-	end = time.Since(start)
-	if end > time.Millisecond*1 {
-		e.Info("handleRecvMessages", zap.Duration("time", end))
+	if e.opts.EnableLazyCatchUp {
+		start = time.Now()
 	}
+
+	handleOk, err = e.handleRecvMessages()
+
+	if e.opts.EnableLazyCatchUp {
+		end = time.Since(start)
+		if end > time.Millisecond*1 {
+			e.Info("handleRecvMessages", zap.Duration("time", end))
+		}
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -199,12 +220,18 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// sync logs task
-	start = time.Now()
-	handleOk, err = e.handleSyncTask()
-	end = time.Since(start)
-	if end > time.Millisecond*1 {
-		e.Info("handleSyncTask", zap.Duration("time", end))
+	if e.opts.EnableLazyCatchUp {
+		start = time.Now()
 	}
+
+	handleOk, err = e.handleSyncTask()
+	if e.opts.EnableLazyCatchUp {
+		end = time.Since(start)
+		if end > time.Millisecond*1 {
+			e.Info("handleSyncTask", zap.Duration("time", end))
+		}
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -213,12 +240,17 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// get logs task
-	start = time.Now()
-	handleOk, err = e.handleGetLogTask()
-	end = time.Since(start)
-	if end > time.Millisecond*1 {
-		e.Info("handleGetLogTask", zap.Duration("time", end))
+	if e.opts.EnableLazyCatchUp {
+		start = time.Now()
 	}
+	handleOk, err = e.handleGetLogTask()
+	if e.opts.EnableLazyCatchUp {
+		end = time.Since(start)
+		if end > time.Millisecond*1 {
+			e.Info("handleGetLogTask", zap.Duration("time", end))
+		}
+	}
+
 	if err != nil {
 		return false, err
 	}
@@ -227,11 +259,15 @@ func (e *eventHandler) handleEvents() (bool, error) {
 	}
 
 	// apply logs task
-	start = time.Now()
+	if e.opts.EnableLazyCatchUp {
+		start = time.Now()
+	}
 	handleOk, err = e.handleApplyLogTask()
-	end = time.Since(start)
-	if end > time.Millisecond*1 {
-		e.Info("handleApplyLogTask", zap.Duration("time", end))
+	if e.opts.EnableLazyCatchUp {
+		end = time.Since(start)
+		if end > time.Millisecond*1 {
+			e.Info("handleApplyLogTask", zap.Duration("time", end))
+		}
 	}
 	if err != nil {
 		return false, err
@@ -266,7 +302,7 @@ func (e *eventHandler) handleProposes() (bool, error) {
 			lg.Index = e.replicaAction.lastLogIndexNoLock() + 1 + uint64(i)
 			lg.Term = e.replicaAction.termNoLock()
 			proposeReq.logs[i] = lg
-			e.messageWait.didPropose(proposeReq.key, lg.MessageId, lg.Index)
+			e.messageWait.didPropose(proposeReq.key, lg.Id, lg.Index)
 		}
 
 		err = e.replicaAction.step(e.replicaAction.newProposeMessageWithLogs(proposeReq.logs))

@@ -175,6 +175,26 @@ func Warn(msg string, fields ...zap.Field) {
 	warnLogger.Warn(msg, fields...)
 }
 
+func Sync() error {
+	err := panicLogger.Sync()
+	if err != nil {
+		fmt.Println("panicLogger sync error", err)
+	}
+	err = errorLogger.Sync()
+	if err != nil {
+		fmt.Println("errorLogger sync error", err)
+	}
+	err = warnLogger.Sync()
+	if err != nil {
+		fmt.Println("warnLogger sync error", err)
+	}
+	err = logger.Sync()
+	if err != nil {
+		fmt.Println("logger sync error", err)
+	}
+	return nil
+}
+
 // Log Log
 type Log interface {
 	Info(msg string, fields ...zap.Field)

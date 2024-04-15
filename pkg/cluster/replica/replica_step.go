@@ -12,41 +12,68 @@ func (r *Replica) Step(m Message) error {
 	case m.Term == 0: // 本地消息
 		// r.Warn("term is zero", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 	case m.Term > r.replicaLog.term:
-		// 高任期消息
-		if m.MsgType == MsgPing {
-			r.becomeFollower(m.Term, m.From)
+		switch m.MsgType {
+		case MsgVote:
+		case MsgVoteResp:
+		default:
+			r.Debug("received message with higher term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+			// 高任期消息
+			if m.MsgType == MsgPing || m.MsgType == MsgLeaderTermStartIndexResp || m.MsgType == MsgSyncResp {
+				r.becomeFollower(m.Term, m.From)
+			} else {
+				r.Warn("become follower but leader is none", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+				r.becomeFollower(m.Term, None)
+			}
 		}
+
 	default:
 
 	}
 
-	switch {
-	case m.MsgType == MsgStoreAppendResp: // 存储追加响应
+	switch m.MsgType {
+	case MsgStoreAppendResp: // 存储追加响应
 		if m.Index != 0 {
 			r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			r.replicaLog.stableTo(m.Index)
 		}
-	case m.MsgType == MsgApplyLogsResp: // 应用日志响应
-		// if m.Index > r.replicaLog.committedIndex {
-		// 	r.Error("invalid apply logs resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
-		// } else {
-		// 	if m.Index > r.replicaLog.appliedIndex {
-		// 		r.replicaLog.appliedIndex = m.Index
-		// 	}
-		// }
-		// r.messageWait.finish(r.nodeID, MsgApplyLogsReq)
+	case MsgApplyLogsResp: // 应用日志响应
 		if m.CommittedIndex > r.replicaLog.appliedIndex {
 			var size logEncodingSize = 0
 			r.replicaLog.appliedTo(m.CommittedIndex, size)
 			r.reduceUncommittedSize(size)
 		}
+
+	case MsgHup:
+		r.hup()
+	case MsgVote: // 收到投票请求
+		if r.canVote(m) {
+			r.send(r.newMsgVoteResp(m.From, m.Term))
+			r.electionElapsed = 0
+			r.voteFor = m.From
+			r.Info("agree vote", zap.Uint64("voteFor", m.From), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
+		} else {
+			if r.voteFor != None {
+				r.Info("already vote for other", zap.Uint64("voteFor", r.voteFor))
+			} else if m.Index < r.replicaLog.lastLogIndex {
+				r.Info("lower config version, reject vote")
+			} else if m.Term < r.replicaLog.term {
+				r.Info("lower term, reject vote")
+			}
+		}
+
+	default:
+		err := r.stepFunc(m)
+		if err != nil {
+			return err
+		}
 	}
 
-	err := r.stepFunc(m)
-	if err != nil {
-		return err
-	}
 	return nil
+}
+
+// 是否可以投票
+func (r *Replica) canVote(m Message) bool {
+	return (r.voteFor == None || (r.voteFor == m.From && r.leader == None)) && m.Index >= r.replicaLog.lastLogIndex && m.Term >= r.replicaLog.term
 }
 
 func (r *Replica) stepLeader(m Message) error {
@@ -75,6 +102,8 @@ func (r *Replica) stepLeader(m Message) error {
 			r.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
 
+	case MsgBeat:
+		r.sendPing()
 	case MsgSync: // 追随者向领导同步消息
 		// r.Info("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
 		r.activeReplica(m.From)
@@ -146,6 +175,7 @@ func (r *Replica) stepLeader(m Message) error {
 func (r *Replica) stepFollower(m Message) error {
 	switch m.MsgType {
 	case MsgPing:
+		r.electionElapsed = 0
 		r.send(r.newPong(m.From))
 		// r.Debug("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
@@ -161,6 +191,8 @@ func (r *Replica) stepFollower(m Message) error {
 	// 	seq := r.messageWait.next(r.leader, MsgSync)
 	// 	r.send(r.newSyncMsg(seq))
 	case MsgSyncResp: // 领导返回同步消息的结果
+
+		r.electionElapsed = 0
 		if len(m.Logs) > 0 {
 			r.messageWait.immediatelySync()
 			// r.Info("recv sync resp", zap.Int("logCount", len(m.Logs)), zap.Uint64("startLogIndex", m.Logs[0].Index), zap.Uint64("endLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
@@ -169,7 +201,7 @@ func (r *Replica) stepFollower(m Message) error {
 		// if len(m.Logs) > 0 {
 		// 	force = true
 		// }
-		// r.Debug("recv sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex), zap.Bool("force", force))
+		r.Debug("recv sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
 		// r.messageWait.finishWithForce(m.From, MsgSync, force) // 完成同步消息，可以继续同步
 
 		if r.disabledToSync {
@@ -238,6 +270,36 @@ func (r *Replica) stepFollower(m Message) error {
 		r.Info("enable to sync", zap.Uint64("leader", r.leader), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", m.Term))
 	}
 	return nil
+}
+
+func (r *Replica) stepCandidate(m Message) error {
+	switch m.MsgType {
+	case MsgPing:
+		r.becomeFollower(m.Term, m.From)
+		r.send(r.newPong(m.From))
+	case MsgVoteResp:
+		r.Info("received vote response", zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
+		r.poll(m)
+	}
+	return nil
+}
+
+func (r *Replica) poll(m Message) {
+	r.votes[m.From] = true
+	var granted int
+	for _, v := range r.votes {
+		if v {
+			granted++
+		}
+	}
+	if len(r.votes) < r.quorum() { // 投票数小于法定数
+		return
+	}
+	if granted >= r.quorum() {
+		r.becomeLeader(r.replicaLog.term) // 成为领导者
+	} else {
+		r.becomeFollower(r.replicaLog.term, None)
+	}
 }
 
 func (r *Replica) appendLog(logs ...Log) (accepted bool) {
@@ -339,7 +401,7 @@ func (r *Replica) committedIndexForFollow(leaderCommittedIndex uint64) uint64 {
 }
 
 func (r *Replica) quorum() int {
-	return (len(r.replicas) + 1) / 2 //  r.replicas 不包含本节点
+	return (len(r.replicas)+1)/2 + 1 //  r.replicas 不包含本节点
 }
 
 // 通过副本同步信息计算已提交下标
@@ -440,7 +502,7 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 // 是否是单机
 func (r *Replica) isSingle() bool {
 
-	return len(r.opts.Replicas) == 0 || (len(r.opts.Replicas) == 1 && r.opts.Replicas[0] == r.opts.NodeID)
+	return len(r.opts.Replicas) == 0 || (len(r.opts.Replicas) == 1 && r.opts.Replicas[0] == r.opts.NodeId)
 }
 
 func (r *Replica) sendPingIfNeed() bool {
@@ -454,7 +516,7 @@ func (r *Replica) sendPingIfNeed() bool {
 
 	hasPing := false
 	for _, replicaId := range r.replicas {
-		if replicaId == r.opts.NodeID {
+		if replicaId == r.opts.NodeId {
 			continue
 		}
 		if !r.isActiveReplica(replicaId) {
@@ -467,6 +529,18 @@ func (r *Replica) sendPingIfNeed() bool {
 
 }
 
+func (r *Replica) sendPing() {
+	if !r.isLeader() {
+		return
+	}
+	for _, replicaId := range r.replicas {
+		if replicaId == r.opts.NodeId {
+			continue
+		}
+		r.send(r.newPing(replicaId))
+	}
+}
+
 func (r *Replica) hasNeedPing() bool {
 	if !r.isLeader() {
 		return false
@@ -477,7 +551,7 @@ func (r *Replica) hasNeedPing() bool {
 	}
 
 	for _, replicaId := range r.replicas {
-		if replicaId == r.opts.NodeID {
+		if replicaId == r.opts.NodeId {
 			continue
 		}
 

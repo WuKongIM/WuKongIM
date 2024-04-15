@@ -196,7 +196,7 @@ func (s *Server) ProposeChannelMessages(ctx context.Context, channelID string, c
 	}
 	messageIdMap := make(map[uint64]uint64)
 	for i, item := range messageItems {
-		messageIdMap[logs[i].MessageId] = item.messageSeq
+		messageIdMap[logs[i].Id] = item.messageSeq
 	}
 	return messageIdMap, nil
 }
@@ -206,8 +206,8 @@ func (s *Server) ProposeChannelMeta(ctx context.Context, channelID string, chann
 	messageId := uint64(s.messageIDGen.Generate().Int64())
 	resultMap, err := s.ProposeToSlot(ctx, slotId, []replica.Log{
 		{
-			MessageId: messageId,
-			Data:      meta,
+			Id:   messageId,
+			Data: meta,
 		},
 	})
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *Server) ProposeToSlot(ctx context.Context, slotId uint32, logs []replic
 
 	messageIdMap := make(map[uint64]uint64)
 	for i, item := range messageItems {
-		messageIdMap[logs[i].MessageId] = item.messageSeq
+		messageIdMap[logs[i].Id] = item.messageSeq
 	}
 	return messageIdMap, nil
 }

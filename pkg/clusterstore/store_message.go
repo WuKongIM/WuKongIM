@@ -26,8 +26,8 @@ func (s *Store) AppendMessages(ctx context.Context, channelID string, channelTyp
 			return nil, err
 		}
 		logs[i] = replica.Log{
-			MessageId: uint64(msg.MessageID),
-			Data:      data,
+			Id:   uint64(msg.MessageID),
+			Data: data,
 		}
 	}
 
@@ -126,8 +126,8 @@ func (s *Store) AppendMessagesOfUser(subscriber string, messages []wkdb.Message)
 			return nil, err
 		}
 		logs = append(logs, replica.Log{
-			MessageId: uint64(message.MessageID),
-			Data:      cmdData,
+			Id:   uint64(message.MessageID),
+			Data: cmdData,
 		})
 
 	}
@@ -227,10 +227,10 @@ func (s *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex
 			return nil, err
 		}
 		logs[i] = replica.Log{
-			MessageId: uint64(msg.MessageID),
-			Index:     uint64(msg.MessageSeq),
-			Term:      uint32(msg.Term),
-			Data:      data,
+			Id:    uint64(msg.MessageID),
+			Index: uint64(msg.MessageSeq),
+			Term:  uint32(msg.Term),
+			Data:  data,
 		}
 	}
 	s.Debug("get logs", zap.String("shardNo", shardNo), zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex), zap.Int("logCount", len(logs)), zap.Uint64("firstLogIndex", logs[0].Index), zap.Uint64("lastLogIndex", logs[len(logs)-1].Index))

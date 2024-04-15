@@ -1,10 +1,13 @@
 package replica
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
+	"sync"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -68,10 +71,11 @@ const (
 type MsgType uint16
 
 const (
-	MsgUnknown          MsgType = iota // 未知
-	MsgAppointLeaderReq                // 任命领导请求 （上级领导发送任命消息给各节点，如果任命的是自己则变成领导，否者变成追随者，会一直尝试发送并且收到大多数响应后停止发送）
-	// MsgAppointLeaderResp                       // 任命领导响应 (上级领导)
-	MsgPropose // 提案（领导）
+	MsgUnknown  MsgType = iota // 未知
+	MsgVote                    // 请求投票
+	MsgVoteResp                // 请求投票响应
+	MsgPropose                 // 提案（领导）
+	MsgHup                     // 开始选举
 	// MsgNotifySync                 // 通知追随者同步日志（领导）
 	// MsgNotifySyncAck              // 通知追随者同步日志回执（领导）
 	MsgSync                     // 同步日志 （追随者）
@@ -84,6 +88,7 @@ const (
 	MsgStoreAppendResp          // 存储追加日志响应
 	MsgApplyLogsReq             // 应用日志请求
 	MsgApplyLogsResp            // 应用日志响应
+	MsgBeat                     // 触发ping
 	MsgPing                     // ping
 	MsgPong                     // pong
 	MsgMaxValue
@@ -93,10 +98,12 @@ func (m MsgType) String() string {
 	switch m {
 	case MsgUnknown:
 		return "MsgUnknown[0]"
-	case MsgAppointLeaderReq:
-		return "MsgAppointLeaderReq"
-	// case MsgAppointLeaderResp:
-	// return "MsgAppointLeaderResp"
+	case MsgVote:
+		return "MsgVote"
+	case MsgVoteResp:
+		return "MsgVoteResp"
+	case MsgHup:
+		return "MsgHup"
 	case MsgPropose:
 		return "MsgPropose"
 	case MsgSync:
@@ -115,6 +122,8 @@ func (m MsgType) String() string {
 		return "MsgApplyLogsReq"
 	case MsgApplyLogsResp:
 		return "MsgApplyLogsResp"
+	case MsgBeat:
+		return "MsgBeat"
 	case MsgPing:
 		return "MsgPing"
 	case MsgPong:
@@ -290,16 +299,18 @@ func IsEmptyReady(rd Ready) bool {
 	return len(rd.Messages) == 0 && IsEmptyHardState(rd.HardState)
 }
 
+var EmptyLog = Log{}
+
 type Log struct {
-	MessageId uint64
-	Index     uint64 // 日志下标
-	Term      uint32 // 领导任期
-	Data      []byte // 日志数据
+	Id    uint64
+	Index uint64 // 日志下标
+	Term  uint32 // 领导任期
+	Data  []byte // 日志数据
 }
 
 func (l *Log) Marshal() ([]byte, error) {
 	resultBytes := make([]byte, l.LogSize())
-	binary.BigEndian.PutUint64(resultBytes[0:8], l.MessageId)
+	binary.BigEndian.PutUint64(resultBytes[0:8], l.Id)
 	binary.BigEndian.PutUint64(resultBytes[8:16], l.Index)
 	binary.BigEndian.PutUint32(resultBytes[16:20], l.Term)
 	copy(resultBytes[20:], l.Data)
@@ -310,7 +321,7 @@ func (l *Log) Unmarshal(data []byte) error {
 	if len(data) < 20 {
 		return fmt.Errorf("log data is too short[%d]", len(data))
 	}
-	l.MessageId = binary.BigEndian.Uint64(data[0:8])
+	l.Id = binary.BigEndian.Uint64(data[0:8])
 	l.Index = binary.BigEndian.Uint64(data[8:16])
 	l.Term = binary.BigEndian.Uint32(data[16:20])
 	l.Data = data[20:]
@@ -357,4 +368,17 @@ func PrintMessages(msgs []Message) {
 		fmt.Printf("type:%s, from:%d, to:%d, term:%d, index:%d, committedIndex:%d, logs:%d\n",
 			m.MsgType.String(), m.From, m.To, m.Term, m.Index, m.CommittedIndex, len(m.Logs))
 	}
+}
+
+var globalRand = &lockedRand{}
+
+type lockedRand struct {
+	mu sync.Mutex
+}
+
+func (r *lockedRand) Intn(n int) int {
+	r.mu.Lock()
+	v, _ := rand.Int(rand.Reader, big.NewInt(int64(n)))
+	r.mu.Unlock()
+	return int(v.Int64())
 }

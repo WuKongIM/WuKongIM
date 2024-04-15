@@ -87,6 +87,9 @@ type Options struct {
 
 	// MaxProposeLogCount 每次Propose最大日志数量
 	MaxProposeLogCount int
+
+	// 延迟捕捉日志开关
+	EnableLazyCatchUp bool
 }
 
 func NewOptions(optList ...Option) *Options {
@@ -100,7 +103,7 @@ func NewOptions(optList ...Option) *Options {
 		SlotCount:                    256,
 		SlotMaxReplicaCount:          3,
 		ProposeTimeout:               time.Minute * 5,
-		ChannelGroupCount:            128,
+		ChannelGroupCount:            64,
 		ChannelMaxReplicaCount:       3,
 		ReqTimeout:                   time.Second * 10,
 		LogLevel:                     zapcore.InfoLevel,
@@ -115,6 +118,7 @@ func NewOptions(optList ...Option) *Options {
 		LogSyncLimitSizeOfEach:       1024 * 1024 * 20, // 20M
 		DefaultGoroutinePoolSize:     10240,
 		MaxProposeLogCount:           1000,
+		EnableLazyCatchUp:            false,
 	}
 	for _, opt := range optList {
 		opt(opts)

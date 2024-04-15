@@ -5,11 +5,11 @@ import (
 )
 
 type messageWait struct {
-	messageSendIntervalTickCount int
-	syncTimeoutTickCount         int
+	messageSendIntervalTickCount int // 消息发送间隔
 	replicaMaxCount              int
 	waits                        [][]*waitInfo
 
+	syncIntervalTickCount               int // 同步消息发送间隔
 	syncTickCount                       int
 	pingTickCount                       int
 	msgLeaderTermStartIndexReqTickCount int
@@ -17,12 +17,13 @@ type messageWait struct {
 
 func newMessageWait(messageSendInterval time.Duration, replicaMaxCount int) *messageWait {
 	messageSendIntervalTickCount := 2
+	syncIntervalTickCount := 20
 	return &messageWait{
 		messageSendIntervalTickCount:        messageSendIntervalTickCount, // 如果某个消息在指定时间内没有收到ack，则认为超时，超时后可以重发此消息
-		syncTimeoutTickCount:                10,
 		waits:                               make([][]*waitInfo, MsgMaxValue),
 		replicaMaxCount:                     replicaMaxCount,
-		syncTickCount:                       messageSendIntervalTickCount,
+		syncIntervalTickCount:               syncIntervalTickCount,
+		syncTickCount:                       1,
 		pingTickCount:                       messageSendIntervalTickCount,
 		msgLeaderTermStartIndexReqTickCount: messageSendIntervalTickCount,
 	}
@@ -38,8 +39,7 @@ func (m *messageWait) resetPing() {
 }
 
 func (m *messageWait) canSync() bool {
-
-	return m.syncTickCount >= m.messageSendIntervalTickCount
+	return m.syncTickCount >= m.syncIntervalTickCount
 }
 
 func (m *messageWait) resetSync() {
@@ -47,7 +47,7 @@ func (m *messageWait) resetSync() {
 }
 
 func (m *messageWait) immediatelySync() {
-	m.syncTickCount = m.messageSendIntervalTickCount
+	m.syncTickCount = m.syncIntervalTickCount
 }
 
 func (m *messageWait) canMsgLeaderTermStartIndex() bool {

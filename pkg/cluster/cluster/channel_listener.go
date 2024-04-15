@@ -92,11 +92,16 @@ func (c *ChannelListener) tick() {
 }
 
 func (c *ChannelListener) ready() {
-	hasEvent := true
-	var err error
+	var (
+		err        error
+		hasEvent   = true
+		batchStart time.Time
+	)
 	for hasEvent {
 		hasEvent = false
-		batchStart := time.Now()
+		if c.opts.EnableLazyCatchUp {
+			batchStart = time.Now()
+		}
 		c.channels.foreach(func(ch *channel) {
 			if ch.isDestroy() {
 				return
@@ -122,8 +127,10 @@ func (c *ChannelListener) ready() {
 			}
 
 		})
-		if time.Since(batchStart) > time.Millisecond*10 {
-			c.Info("ready batch delay high", zap.Duration("cost", time.Since(batchStart)), zap.Int("channels", c.channels.len()))
+		if c.opts.EnableLazyCatchUp {
+			if time.Since(batchStart) > time.Millisecond*10 {
+				c.Info("ready batch delay high", zap.Duration("cost", time.Since(batchStart)), zap.Int("channels", c.channels.len()))
+			}
 		}
 	}
 }

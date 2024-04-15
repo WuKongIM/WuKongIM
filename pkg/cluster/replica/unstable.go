@@ -53,6 +53,10 @@ func (u *unstable) nextLogs() []Log {
 	return u.logs[inProgress:]
 }
 
+func (u *unstable) hasNextLogs() bool {
+	return int(u.offsetInProgress-u.offset) < len(u.logs)
+}
+
 // shrinkLogsArray discards the underlying array used by the entries slice
 // if most of it isn't being used. This avoids holding references to a bunch of
 // potentially large entries that aren't needed anymore. Simply clearing the
