@@ -14,8 +14,7 @@ const (
 )
 
 type Options struct {
-	NodeID                uint64   // 当前节点ID
-	ShardNo               string   // 分区编号
+	NodeId                uint64   // 当前节点ID
 	Replicas              []uint64 // 副本节点ID集合
 	Storage               IStorage
 	MaxUncommittedLogSize uint64
@@ -25,6 +24,9 @@ type Options struct {
 	ActiveReplicaMaxTick  int           // 最大空闲时间
 	AckMode               AckMode       // AckMode
 	ReplicaMaxCount       int           // 副本最大数量
+	ElectionOn            bool          // 是否开启选举
+	ElectionTimeoutTick   int           // 选举超时tick次数，超过次tick数则发起选举
+	HeartbeatTimeoutTick  int           // 心跳超时tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
 	// LastSyncInfoMap       map[uint64]*SyncInfo
 }
 
@@ -37,6 +39,9 @@ func NewOptions() *Options {
 		ActiveReplicaMaxTick: 10,
 		AckMode:              AckModeMajority,
 		ReplicaMaxCount:      3,
+		ElectionOn:           false,
+		ElectionTimeoutTick:  10,
+		HeartbeatTimeoutTick: 2,
 	}
 }
 
@@ -87,5 +92,23 @@ func WithAckMode(ackMode AckMode) Option {
 func WithReplicaMaxCount(count int) Option {
 	return func(o *Options) {
 		o.ReplicaMaxCount = count
+	}
+}
+
+func WithElectionOn(electionOn bool) Option {
+	return func(o *Options) {
+		o.ElectionOn = electionOn
+	}
+}
+
+func WithElectionTimeoutTick(tick int) Option {
+	return func(o *Options) {
+		o.ElectionTimeoutTick = tick
+	}
+}
+
+func WithHeartbeatTimeoutTick(tick int) Option {
+	return func(o *Options) {
+		o.HeartbeatTimeoutTick = tick
 	}
 }

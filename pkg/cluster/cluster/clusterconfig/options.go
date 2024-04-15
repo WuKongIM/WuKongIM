@@ -10,7 +10,7 @@ type Options struct {
 	NodeId               uint64
 	ConfigPath           string        // 集群配置文件路径
 	ElectionTimeoutTick  int           // 选举超时tick次数
-	HeartbeatTimeoutTick int           // 心跳超时tick次数
+	HeartbeatTimeoutTick int           // 心跳超时tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
 	Replicas             []uint64      // 副本列表 (必须包含自己本身的id)
 	Transport            ITransport    // 传输层
 	AppliedConfigVersion uint64        // 已应用的配置版本

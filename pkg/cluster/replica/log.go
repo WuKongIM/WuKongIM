@@ -167,7 +167,7 @@ func (r *replicaLog) nextUnstableLogs() []Log {
 // hasNextUnstableLogs returns if there are any logs that are available to be
 // written to the local stable log and are not already in-progress.
 func (r *replicaLog) hasNextUnstableLogs() bool {
-	return len(r.nextUnstableLogs()) > 0
+	return r.unstable.hasNextLogs()
 }
 
 // 是否有未应用的日志
