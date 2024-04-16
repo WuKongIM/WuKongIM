@@ -12,18 +12,13 @@ func (r *Replica) Step(m Message) error {
 	case m.Term == 0: // 本地消息
 		// r.Warn("term is zero", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 	case m.Term > r.replicaLog.term:
-		switch m.MsgType {
-		case MsgVote:
-		case MsgVoteResp:
-		default:
-			r.Debug("received message with higher term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
-			// 高任期消息
-			if m.MsgType == MsgPing || m.MsgType == MsgLeaderTermStartIndexResp || m.MsgType == MsgSyncResp {
-				r.becomeFollower(m.Term, m.From)
-			} else {
-				r.Warn("become follower but leader is none", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
-				r.becomeFollower(m.Term, None)
-			}
+		r.Debug("received message with higher term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+		// 高任期消息
+		if m.MsgType == MsgPing || m.MsgType == MsgLeaderTermStartIndexResp || m.MsgType == MsgSyncResp {
+			r.becomeFollower(m.Term, m.From)
+		} else {
+			r.Warn("become follower but leader is none", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+			r.becomeFollower(m.Term, None)
 		}
 
 	default:
@@ -176,6 +171,10 @@ func (r *Replica) stepFollower(m Message) error {
 	switch m.MsgType {
 	case MsgPing:
 		r.electionElapsed = 0
+		if r.leader == None {
+			r.becomeFollower(m.Term, m.From)
+
+		}
 		r.send(r.newPong(m.From))
 		// r.Debug("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
@@ -201,7 +200,7 @@ func (r *Replica) stepFollower(m Message) error {
 		// if len(m.Logs) > 0 {
 		// 	force = true
 		// }
-		r.Debug("recv sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
+		// r.Debug("recv sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
 		// r.messageWait.finishWithForce(m.From, MsgSync, force) // 完成同步消息，可以继续同步
 
 		if r.disabledToSync {

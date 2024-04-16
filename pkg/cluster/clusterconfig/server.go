@@ -3,7 +3,7 @@ package clusterconfig
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -53,11 +53,8 @@ func (s *Server) Stop() {
 	s.configReactor.Stop()
 }
 
-func (s *Server) AddMessage(m replica.Message) {
-	s.configReactor.AddMessage(reactor.Message{
-		HandlerKey: s.handlerKey,
-		Message:    m,
-	})
+func (s *Server) AddMessage(m reactor.Message) {
+	s.configReactor.AddMessage(m)
 }
 
 func (s *Server) AppliedConfig() *pb.Config {
@@ -65,7 +62,7 @@ func (s *Server) AppliedConfig() *pb.Config {
 }
 
 func (s *Server) send(m reactor.Message) {
-	s.opts.Send(m.Message)
+	s.opts.Send(m)
 }
 
 func (s *Server) run() {

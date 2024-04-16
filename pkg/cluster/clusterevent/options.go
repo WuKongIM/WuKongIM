@@ -1,5 +1,9 @@
 package clusterevent
 
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+)
+
 type Options struct {
 	NodeId              uint64
 	InitNodes           map[uint64]string
@@ -7,6 +11,7 @@ type Options struct {
 	SlotMaxReplicaCount uint32 // 每个槽位最大副本数量
 	ConfigDir           string
 	Ready               func(msgs []Message)
+	Send                func(m reactor.Message) // 发送消息
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -50,5 +55,17 @@ func WithReady(f func(msgs []Message)) Option {
 
 	return func(o *Options) {
 		o.Ready = f
+	}
+}
+
+func WithSend(f func(m reactor.Message)) Option {
+	return func(o *Options) {
+		o.Send = f
+	}
+}
+
+func WithConfigDir(configDir string) Option {
+	return func(o *Options) {
+		o.ConfigDir = configDir
 	}
 }

@@ -44,19 +44,6 @@ func (h *handlerList) add(handler *handler) {
 	h.count++
 }
 
-func (h *handlerList) addNode(node *handlerNode) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.head == nil {
-		h.head = node
-	} else {
-		h.tail.next = node
-		node.pre = h.tail
-	}
-	h.tail = node
-	h.count++
-}
-
 func (h *handlerList) remove(key string) *handler {
 	h.mu.Lock()
 	defer h.mu.Unlock()

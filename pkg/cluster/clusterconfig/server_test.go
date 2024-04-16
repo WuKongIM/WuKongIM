@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
@@ -25,7 +25,7 @@ func TestServer(t *testing.T) {
 			2: "127.0.0.1:10002",
 			3: "127.0.0.1:10003",
 		}),
-		clusterconfig.WithSend(func(m replica.Message) {
+		clusterconfig.WithSend(func(m reactor.Message) {
 			nk.send(m)
 		}),
 		clusterconfig.WithConfigPath(t.TempDir()+"/config1.json"),
@@ -38,7 +38,7 @@ func TestServer(t *testing.T) {
 			2: "127.0.0.1:10002",
 			3: "127.0.0.1:10003",
 		}),
-		clusterconfig.WithSend(func(m replica.Message) {
+		clusterconfig.WithSend(func(m reactor.Message) {
 			nk.send(m)
 		}),
 		clusterconfig.WithConfigPath(t.TempDir()+"/config2.json"),
@@ -50,7 +50,7 @@ func TestServer(t *testing.T) {
 			2: "127.0.0.1:10002",
 			3: "127.0.0.1:10003",
 		}),
-		clusterconfig.WithSend(func(m replica.Message) {
+		clusterconfig.WithSend(func(m reactor.Message) {
 			nk.send(m)
 		}),
 		clusterconfig.WithConfigPath(t.TempDir()+"/config3.json"),
@@ -85,7 +85,7 @@ func newTestNetowrk() *testNetowrk {
 	}
 }
 
-func (t *testNetowrk) send(m replica.Message) {
+func (t *testNetowrk) send(m reactor.Message) {
 	s := t.serverMap[m.To]
 	s.AddMessage(m)
 }

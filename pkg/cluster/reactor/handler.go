@@ -13,14 +13,15 @@ import (
 type IHandler interface {
 	// LastLogIndexAndTerm 获取最后一条日志的索引和任期
 	LastLogIndexAndTerm() (uint64, uint32)
+	HasReady() bool
 	// Ready 获取ready事件
 	Ready() replica.Ready
 	// GetAndMergeLogs 获取并合并日志
 	GetAndMergeLogs(msg replica.Message) ([]replica.Log, error)
 	// AppendLog 追加日志
 	AppendLog(logs []replica.Log) error
-	// ApplyLog 应用日志
-	ApplyLog(logs []replica.Log) error
+	// ApplyLog 应用日志 [startLogIndex,endLogIndex) 之间的日志
+	ApplyLog(startLogIndex, endLogIndex uint64) error
 	// SlowDown 降速
 	SlowDown()
 	// SetHardState 设置HardState
@@ -35,17 +36,12 @@ type IHandler interface {
 	SetAppliedIndex(index uint64) error
 	// IsPrepared 是否准备好
 	IsPrepared() bool
-	// Logs 获取日志 [startLogIndex, endLogIndex) 之间的日志
-	Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error)
 }
 
 type handler struct {
 	key      string
 	handler  IHandler
 	msgQueue *MessageQueue
-
-	isElectionInProgress bool // 选举中
-	isElectionCompleted  bool // 是否完成选举
 
 	proposeQueue *proposeQueue // 提案队列
 	proposeWait  *proposeWait  // 提案等待
@@ -96,6 +92,10 @@ func (h *handler) ready() replica.Ready {
 	return h.handler.Ready()
 }
 
+func (h *handler) hasReady() bool {
+	return h.handler.HasReady()
+}
+
 func (h *handler) setHardState(hd replica.HardState) {
 	h.handler.SetHardState(hd)
 }
@@ -128,8 +128,8 @@ func (h *handler) appendLogs(logs []replica.Log) error {
 	return h.handler.AppendLog(logs)
 }
 
-func (h *handler) applyLogs(logs []replica.Log) error {
-	return h.handler.ApplyLog(logs)
+func (h *handler) applyLogs(startLogIndex, endLogIndex uint64) error {
+	return h.handler.ApplyLog(startLogIndex, endLogIndex)
 }
 
 func (h *handler) addPropose(req proposeReq) {
@@ -229,8 +229,4 @@ func (h *handler) setMsgSyncResp(msg replica.Message) {
 
 func (h *handler) step(m replica.Message) error {
 	return h.handler.Step(m)
-}
-
-func (h *handler) logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
-	return h.handler.Logs(startLogIndex, endLogIndex, limitSize)
 }

@@ -17,6 +17,7 @@ type Options struct {
 	NodeId                uint64   // 当前节点ID
 	Replicas              []uint64 // 副本节点ID集合
 	Storage               IStorage
+	LogPrefix             string // 日志前缀
 	MaxUncommittedLogSize uint64
 	AppliedIndex          uint64        // 已应用的日志下标
 	SyncLimitSize         uint64        // 每次同步日志数据的最大大小（过小影响吞吐量，过大导致消息阻塞，默认为4M）
@@ -42,6 +43,7 @@ func NewOptions() *Options {
 		ElectionOn:           false,
 		ElectionTimeoutTick:  10,
 		HeartbeatTimeoutTick: 2,
+		LogPrefix:            "default",
 	}
 }
 
@@ -110,5 +112,11 @@ func WithElectionTimeoutTick(tick int) Option {
 func WithHeartbeatTimeoutTick(tick int) Option {
 	return func(o *Options) {
 		o.HeartbeatTimeoutTick = tick
+	}
+}
+
+func WithLogPrefix(prefix string) Option {
+	return func(o *Options) {
+		o.LogPrefix = prefix
 	}
 }

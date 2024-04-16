@@ -1,4 +1,4 @@
-package pb
+package cpb
 
 import (
 	"google.golang.org/protobuf/proto"

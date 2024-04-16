@@ -27,11 +27,11 @@ func (c *channelManager) stop() {
 }
 
 func (c *channelManager) add(ch *channel) {
-	c.channelReactor.AddHandler(ch.channelKey, ch)
+	c.channelReactor.AddHandler(ch.key, ch)
 }
 
 func (c *channelManager) remove(ch *channel) {
-	c.channelReactor.RemoveHandler(ch.channelKey)
+	c.channelReactor.RemoveHandler(ch.key)
 }
 
 func (c *channelManager) get(channelKey string) reactor.IHandler {
