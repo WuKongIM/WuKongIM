@@ -1,11 +1,9 @@
 package wkstore
 
-import (
-	"io/ioutil"
-)
+import "os"
 
 func newTestStoreConfig() *StoreConfig {
-	dir, err := ioutil.TempDir("", "commitlog-index")
+	dir, err := os.MkdirTemp("", "commitlog-index")
 	if err != nil {
 		panic(err)
 	}
