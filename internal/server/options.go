@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	"github.com/WuKongIM/crypto/tls"
 	"github.com/pkg/errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"

@@ -11,8 +11,8 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/ring"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/WuKongIM/crypto/tls"
 
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
