@@ -1,7 +1,6 @@
 package wkstore
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -19,7 +18,7 @@ func makeSegment(t *testing.T, dir string) *segment {
 }
 
 func TestSegmentAppend(t *testing.T) {
-	dir, err := ioutil.TempDir("", "commitlog-index")
+	dir, err := os.MkdirTemp("", "commitlog-index")
 	assert.NoError(t, err)
 	sg := makeSegment(t, dir)
 	defer func() {
@@ -49,7 +48,7 @@ func TestSegmentAppend(t *testing.T) {
 }
 
 func TestSanitySimpleCheck(t *testing.T) {
-	dir, err := ioutil.TempDir("", "commitlog-index")
+	dir, err := os.MkdirTemp("", "commitlog-index")
 	assert.NoError(t, err)
 	sg := makeSegment(t, dir)
 	defer func() {
@@ -70,7 +69,7 @@ func TestSanitySimpleCheck(t *testing.T) {
 }
 
 func TestSegmentSanityCheck(t *testing.T) {
-	dir, err := ioutil.TempDir("", "commitlog-index")
+	dir, err := os.MkdirTemp("", "commitlog-index")
 	assert.NoError(t, err)
 	sg := makeSegment(t, dir)
 
@@ -101,7 +100,7 @@ func TestSegmentSanityCheck(t *testing.T) {
 }
 
 func TestSegmentReadLogs(t *testing.T) {
-	dir, err := ioutil.TempDir("", "commitlog-index")
+	dir, err := os.MkdirTemp("", "commitlog-index")
 	assert.NoError(t, err)
 	cfg := NewStoreConfig()
 	cfg.SegmentMaxBytes = 1024 * 1024 * 10

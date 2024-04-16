@@ -1,7 +1,7 @@
 package wkutil
 
 import (
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -16,7 +16,7 @@ func GetExternalIP() (string, error) {
 	}
 	defer resp.Body.Close()
 
-	resultBytes, err := ioutil.ReadAll(resp.Body)
+	resultBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
