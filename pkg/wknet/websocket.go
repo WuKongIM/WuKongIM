@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	"github.com/WuKongIM/crypto/tls"
 	"go.uber.org/zap"
 
 	"github.com/gobwas/ws"
