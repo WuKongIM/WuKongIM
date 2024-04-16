@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
@@ -97,6 +97,11 @@ func (c *Config) apply(data []byte) error {
 		return err
 	}
 
+	if newCfg.Version <= c.appliedCfg.Version {
+		c.Warn("apply config version <= applied config version", zap.Uint64("version", newCfg.Version), zap.Uint64("appliedVersion", c.appliedCfg.Version))
+		return nil
+	}
+
 	err = c.cfgFile.Truncate(0)
 	if err != nil {
 		return err
@@ -105,7 +110,10 @@ func (c *Config) apply(data []byte) error {
 	if _, err := c.cfgFile.WriteAt([]byte(wkutil.ToJSON(newCfg)), 0); err != nil {
 		return err
 	}
-	c.appliedCfg = c.cfg.Clone()
+	c.appliedCfg = newCfg.Clone()
+	if newCfg.Version > c.cfg.Version {
+		c.cfg = newCfg.Clone()
+	}
 	return nil
 }
 

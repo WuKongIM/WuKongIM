@@ -28,18 +28,21 @@ func New(opts *Options) *Reactor {
 		r.Panic("create task pool error", zap.Error(err))
 	}
 	r.taskPool = taskPool
-	return r
-}
-
-func (r *Reactor) Start() error {
 
 	for i := 0; i < int(r.opts.SubReactorNum); i++ {
 		sub := r.newReactorSub(i)
 		r.subReactors = append(r.subReactors, sub)
+	}
+	return r
+}
+
+func (r *Reactor) Start() error {
+	for _, sub := range r.subReactors {
 		err := sub.Start()
 		if err != nil {
 			return err
 		}
+
 	}
 	return nil
 }
@@ -69,6 +72,7 @@ func (r *Reactor) AddHandler(key string, handler IHandler) {
 }
 
 func (r *Reactor) RemoveHandler(key string) {
+
 	sub := r.reactorSub(key)
 	h := sub.removeHandler(key)
 	putHandlerToPool(h)
@@ -83,9 +87,22 @@ func (r *Reactor) Handler(key string) IHandler {
 	return h.handler
 }
 
+func (r *Reactor) ExistHandler(key string) bool {
+	sub := r.reactorSub(key)
+	return sub.existHandler(key)
+}
+
 func (r *Reactor) AddMessage(m Message) {
 	sub := r.reactorSub(m.HandlerKey)
 	sub.addMessage(m)
+}
+
+func (r *Reactor) HandlerLen() int {
+	len := 0
+	for _, sub := range r.subReactors {
+		len += sub.handlerLen()
+	}
+	return len
 }
 
 func (r *Reactor) newReactorSub(i int) *ReactorSub {

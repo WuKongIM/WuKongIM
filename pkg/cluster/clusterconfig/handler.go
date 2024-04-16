@@ -58,6 +58,10 @@ func (h *handler) LastLogIndexAndTerm() (uint64, uint32) {
 	return lg.Index, h.cfg.term()
 }
 
+func (h *handler) HasReady() bool {
+	return h.rc.HasReady()
+}
+
 // Ready 获取ready事件
 func (h *handler) Ready() replica.Ready {
 	return h.rc.Ready()
@@ -80,10 +84,6 @@ func (h *handler) GetAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
 	}, nil
 }
 
-func (h *handler) Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
-	return h.memoryStorage.Logs(startLogIndex, endLogIndex)
-}
-
 // AppendLog 追加日志
 func (h *handler) AppendLog(logs []replica.Log) error {
 	_ = h.memoryStorage.TruncateLogTo(1)
@@ -92,12 +92,16 @@ func (h *handler) AppendLog(logs []replica.Log) error {
 }
 
 // ApplyLog 应用日志
-func (h *handler) ApplyLog(logs []replica.Log) error {
-	if len(logs) == 0 {
+func (h *handler) ApplyLog(startLogIndex, endLogIndex uint64) error {
+	lastLog := h.memoryStorage.LastLog()
+	if replica.IsEmptyLog(lastLog) {
 		return nil
 	}
-	lastLog := logs[len(logs)-1]
 	err := h.cfg.apply(lastLog.Data)
+
+	// 触发配置已应用事件
+	h.opts.Event.OnAppliedConfig()
+
 	return err
 }
 

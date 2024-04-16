@@ -5,7 +5,8 @@ import (
 	"os"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
@@ -14,6 +15,7 @@ import (
 
 type Server struct {
 	stopper      *syncutil.Stopper
+	advanceC     chan struct{} // 推进
 	cfgServer    *clusterconfig.Server
 	preRemoteCfg *pb.Config // 上一次配置
 
@@ -43,14 +45,17 @@ func New(opts *Options) *Server {
 		opts:          opts,
 		Log:           wklog.NewWKLog("clusterevent"),
 		stopper:       syncutil.NewStopper(),
-		cfgServer: clusterconfig.New(clusterconfig.NewOptions(
-			clusterconfig.WithNodeId(opts.NodeId),
-			clusterconfig.WithInitNodes(opts.InitNodes),
-			clusterconfig.WithSlotCount(opts.SlotCount),
-			clusterconfig.WithSlotMaxReplicaCount(opts.SlotMaxReplicaCount),
-			clusterconfig.WithConfigPath(remoteCfgPath),
-		)),
+		advanceC:      make(chan struct{}, 1),
 	}
+	s.cfgServer = clusterconfig.New(clusterconfig.NewOptions(
+		clusterconfig.WithNodeId(opts.NodeId),
+		clusterconfig.WithInitNodes(opts.InitNodes),
+		clusterconfig.WithSlotCount(opts.SlotCount),
+		clusterconfig.WithSlotMaxReplicaCount(opts.SlotMaxReplicaCount),
+		clusterconfig.WithConfigPath(remoteCfgPath),
+		clusterconfig.WithSend(opts.Send),
+		clusterconfig.WithOnAppliedConfig(s.advance),
+	))
 	err = s.loadLocalConfig()
 	if err != nil {
 		s.Panic("Load local config failed!", zap.Error(err))
@@ -111,6 +116,10 @@ func (s *Server) Step(m Message) {
 	}
 }
 
+func (s *Server) AddMessage(m reactor.Message) {
+	s.cfgServer.AddMessage(m)
+}
+
 func (s *Server) loadLocalConfig() error {
 	clusterCfgPath := s.localCfgPath
 	var err error
@@ -131,13 +140,13 @@ func (s *Server) loadLocalConfig() error {
 	return nil
 }
 
-func (s *Server) saveLocalConfig() error {
+func (s *Server) saveLocalConfig(cfg *pb.Config) error {
 
 	err := s.localCfgFile.Truncate(0)
 	if err != nil {
 		return err
 	}
-	if _, err := s.localCfgFile.WriteAt([]byte(wkutil.ToJSON(s.localCfg)), 0); err != nil {
+	if _, err := s.localCfgFile.WriteAt([]byte(wkutil.ToJSON(cfg)), 0); err != nil {
 		return err
 	}
 	return nil

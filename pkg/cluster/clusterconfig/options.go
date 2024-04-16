@@ -3,8 +3,8 @@ package clusterconfig
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 )
 
 type Options struct {
@@ -19,7 +19,11 @@ type Options struct {
 	Role                 pb.NodeRole             // 节点角色
 	MessageSendInterval  time.Duration           // 消息发送间隔
 	MaxIdleInterval      time.Duration           // 最大空闲间隔
-	Send                 func(m replica.Message) // 发送消息
+	Send                 func(m reactor.Message) // 发送消息
+
+	Event struct {
+		OnAppliedConfig func()
+	}
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -30,6 +34,13 @@ func NewOptions(opt ...Option) *Options {
 		HeartbeatTimeoutTick: 1,
 		MaxIdleInterval:      time.Second * 1,
 		SlotMaxReplicaCount:  3,
+		Event: struct {
+			OnAppliedConfig func()
+		}{
+			OnAppliedConfig: func() {
+
+			},
+		},
 	}
 	for _, o := range opt {
 		o(opts)
@@ -100,7 +111,7 @@ func WithMaxIdleInterval(interval time.Duration) Option {
 	}
 }
 
-func WithSend(send func(m replica.Message)) Option {
+func WithSend(send func(m reactor.Message)) Option {
 	return func(o *Options) {
 		o.Send = send
 	}
@@ -109,5 +120,11 @@ func WithSend(send func(m replica.Message)) Option {
 func WithSlotMaxReplicaCount(slotMaxReplicaCount uint32) Option {
 	return func(o *Options) {
 		o.SlotMaxReplicaCount = slotMaxReplicaCount
+	}
+}
+
+func WithOnAppliedConfig(f func()) Option {
+	return func(o *Options) {
+		o.Event.OnAppliedConfig = f
 	}
 }

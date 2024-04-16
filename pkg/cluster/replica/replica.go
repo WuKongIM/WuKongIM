@@ -61,7 +61,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 	}
 	rc := &Replica{
 		nodeID:          nodeId,
-		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d]", nodeId)),
+		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeId, opts.LogPrefix)),
 		opts:            opts,
 		lastSyncInfoMap: map[uint64]*SyncInfo{},
 		// pongMap:          map[uint64]bool{},
@@ -82,9 +82,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 	}
 
 	rc.localLeaderLastTerm = lastLeaderTerm
-	if rc.opts.ElectionOn {
-		rc.becomeFollower(rc.replicaLog.term, None)
-	}
+	rc.becomeFollower(rc.replicaLog.term, None)
 
 	rc.preHardState = HardState{
 		Term:     rc.replicaLog.term,
@@ -310,7 +308,6 @@ func (r *Replica) putMsgIfNeed() {
 
 	// 副本来同步日志
 	if r.followNeedSync() {
-		r.Debug("follow need sync....")
 		r.messageWait.resetSync()
 		msg := r.newSyncMsg()
 		r.msgs = append(r.msgs, msg)

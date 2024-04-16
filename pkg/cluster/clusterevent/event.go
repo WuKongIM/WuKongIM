@@ -1,6 +1,10 @@
 package clusterevent
 
-import "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+import (
+	"fmt"
+
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+)
 
 type EventType int
 
@@ -21,6 +25,27 @@ const (
 	// EventTypeSlotDelete 槽删除
 	EventTypeSlotDelete
 )
+
+func (e EventType) String() string {
+	switch e {
+	case EventTypeNodeAdd:
+		return "EventTypeNodeAdd"
+	case EventTypeNodeUpdate:
+		return "EventTypeNodeUpdate"
+	case EventTypeNodeDelete:
+		return "EventTypeNodeDelete"
+	case EventTypeNodeAddResp:
+		return "EventTypeNodeAddResp"
+	case EventTypeSlotAdd:
+		return "EventTypeSlotAdd"
+	case EventTypeSlotUpdate:
+		return "EventTypeSlotUpdate"
+	case EventTypeSlotDelete:
+		return "EventTypeSlotDelete"
+	}
+	return fmt.Sprintf("EventTypeNone[%d]", e)
+
+}
 
 type Message struct {
 	Type         EventType

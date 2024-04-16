@@ -29,7 +29,7 @@ func NewReactorSub(index int, opts *Options) *ReactorSub {
 		stopper:     syncutil.NewStopper(),
 		opts:        opts,
 		handlers:    newHandlerList(),
-		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%d]", index)),
+		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%d:%d]", opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 10000),
 		avdanceC:    make(chan struct{}, 1),
 	}
@@ -135,6 +135,9 @@ func (r *ReactorSub) readyEvents() {
 }
 
 func (r *ReactorSub) handleReady(handler *handler) bool {
+	if !handler.hasReady() {
+		return false
+	}
 	rd := handler.ready()
 	if replica.IsEmptyReady(rd) {
 		return false
@@ -524,6 +527,7 @@ func (r *ReactorSub) handleStoreAppend(handler *handler, msg replica.Message) {
 }
 
 func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
+
 	applyingIndex := msg.ApplyingIndex
 	committedIndex := msg.CommittedIndex
 	if applyingIndex > committedIndex {
@@ -538,12 +542,7 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 
 	tk := newApplyLogsTask(committedIndex)
 	tk.setExec(func() error {
-		logs, err := handler.logs(msg.ApplyingIndex+1, msg.CommittedIndex+1, 0)
-		if err != nil {
-			r.Panic("get logs error", zap.Error(err))
-			return err
-		}
-		err = handler.applyLogs(logs)
+		err := handler.applyLogs(msg.ApplyingIndex+1, msg.CommittedIndex+1)
 		if err != nil {
 			r.Panic("apply logs error", zap.Error(err))
 			return err
@@ -557,13 +556,11 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 }
 
 func (r *ReactorSub) addHandler(handler *handler) {
-
 	r.handlers.add(handler)
 
 }
 
 func (r *ReactorSub) removeHandler(key string) *handler {
-
 	return r.handlers.remove(key)
 }
 
@@ -572,10 +569,18 @@ func (r *ReactorSub) handler(key string) *handler {
 	return r.handlers.get(key)
 }
 
+func (r *ReactorSub) existHandler(key string) bool {
+	return r.handlers.exist(key)
+}
+
+func (r *ReactorSub) handlerLen() int {
+	return r.handlers.len()
+}
+
 func (r *ReactorSub) addMessage(m Message) {
 	handler := r.handlers.get(m.HandlerKey)
 	if handler == nil {
-		r.Warn("handler not exist", zap.String("handlerKey", m.HandlerKey))
+		r.Warn("handler not exist", zap.String("handlerKey", m.HandlerKey), zap.Int("handlers", r.handlers.len()))
 		return
 	}
 	handler.addMessage(m)

@@ -286,7 +286,6 @@ func (c *channel) appendLogs(msg replica.Message) error {
 	}
 	c.Debug("append log done", zap.Uint64("firstLogIndex", firstLog.Index), zap.Uint64("lastLogIndex", lastLog.Index), zap.Int("logCount", len(msg.Logs)), zap.Duration("cost", time.Since(start)))
 	return nil
-
 }
 
 func (c *channel) applyLogs(msg replica.Message) error {

@@ -301,6 +301,10 @@ func IsEmptyReady(rd Ready) bool {
 
 var EmptyLog = Log{}
 
+func IsEmptyLog(v Log) bool {
+	return v.Id == 0 && v.Index == 0 && v.Term == 0 && len(v.Data) == 0
+}
+
 type Log struct {
 	Id    uint64
 	Index uint64 // 日志下标

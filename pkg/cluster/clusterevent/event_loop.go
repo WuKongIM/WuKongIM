@@ -3,7 +3,7 @@ package clusterevent
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
 	"go.uber.org/zap"
 )
 
@@ -17,9 +17,18 @@ func (s *Server) loop() {
 		select {
 		case <-tk.C:
 			s.tick()
+		case <-s.advanceC:
 		case <-s.stopper.ShouldStop():
 			return
 		}
+	}
+}
+
+func (s *Server) advance() {
+	select {
+	case <-s.advanceC:
+	case <-s.stopper.ShouldStop():
+	default:
 	}
 }
 
@@ -37,6 +46,7 @@ func (s *Server) tick() {
 
 	if s.preRemoteCfg.Version < s.cfgServer.AppliedConfig().Version {
 		s.preRemoteCfg = s.cfgServer.AppliedConfig().Clone()
+		s.Debug("clone......", zap.Uint64("version", s.preRemoteCfg.Version))
 	}
 
 	if s.localCfg.Version >= s.preRemoteCfg.Version {
@@ -54,7 +64,7 @@ func (s *Server) tick() {
 	hasEvent := len(s.msgs) > 0
 
 	if hasEvent && s.localCfg.Version < s.preRemoteCfg.Version {
-		err := s.saveLocalConfig()
+		err := s.saveLocalConfig(s.preRemoteCfg)
 		if err != nil {
 			s.Warn("save local config error", zap.Error(err))
 		} else {
@@ -65,6 +75,7 @@ func (s *Server) tick() {
 }
 
 func (s *Server) checkNodes() {
+	s.Debug("checkNodes....")
 	// ==================== check add or update node ====================
 	newNodes := make([]*pb.Node, 0, len(s.preRemoteCfg.Nodes)-len(s.localCfg.Nodes))
 	updateNodes := make([]*pb.Node, 0, len(s.preRemoteCfg.Nodes))
