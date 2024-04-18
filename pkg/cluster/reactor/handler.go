@@ -3,10 +3,12 @@ package reactor
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +19,7 @@ type IHandler interface {
 	// Ready 获取ready事件
 	Ready() replica.Ready
 	// GetAndMergeLogs 获取并合并日志
-	GetAndMergeLogs(msg replica.Message) ([]replica.Log, error)
+	GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error)
 	// AppendLog 追加日志
 	AppendLog(logs []replica.Log) error
 	// ApplyLog 应用日志 [startLogIndex,endLogIndex) 之间的日志
@@ -43,6 +45,12 @@ type handler struct {
 	handler  IHandler
 	msgQueue *MessageQueue
 
+	lastIndex     atomic.Uint64 // 当前频道最后一条日志索引
+	lastIndexLock sync.Mutex
+
+	appliedIndex     atomic.Uint64 // 已应用的索引
+	appliedIndexLock sync.Mutex
+
 	proposeQueue *proposeQueue // 提案队列
 	proposeWait  *proposeWait  // 提案等待
 
@@ -65,6 +73,7 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.key = key
 	h.handler = handler
 	h.msgQueue = r.newMessageQueue()
+	h.lastIndex.Store(0)
 
 	h.appendLogStoreQueue = newTaskQueue(r.taskPool, r.opts.InitialTaskQueueCap)
 	h.applyLogStoreQueue = newTaskQueue(r.taskPool, r.opts.InitialTaskQueueCap)
@@ -120,8 +129,8 @@ func (h *handler) addGetLogsTask(task task) {
 	h.getLogsTaskQueue.add(task)
 }
 
-func (h *handler) getAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
-	return h.handler.GetAndMergeLogs(msg)
+func (h *handler) getAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
+	return h.handler.GetAndMergeLogs(lastIndex, msg)
 }
 
 func (h *handler) appendLogs(logs []replica.Log) error {
@@ -148,7 +157,7 @@ func (h *handler) didCommit(startLogIndex uint64, endLogIndex uint64) {
 	h.proposeWait.didCommit(startLogIndex, endLogIndex)
 }
 
-func (h *handler) addWait(ctx context.Context, key string, ids []uint64) chan []*ProposeResult {
+func (h *handler) addWait(ctx context.Context, key string, ids []uint64) chan []ProposeResult {
 	return h.proposeWait.add(ctx, key, ids)
 }
 
@@ -180,12 +189,16 @@ func (h *handler) removeFirstApplyLogStoreTask() {
 	h.applyLogStoreQueue.removeFirst()
 }
 
-func (h *handler) setLastIndex(index uint64) error {
-	return h.handler.SetLastIndex(index)
+func (h *handler) setLastIndex() error {
+	h.lastIndexLock.Lock()
+	defer h.lastIndexLock.Unlock()
+	return h.handler.SetLastIndex(h.lastIndex.Load())
 }
 
-func (h *handler) setAppliedIndex(index uint64) error {
-	return h.handler.SetAppliedIndex(index)
+func (h *handler) setAppliedIndex() error {
+	h.appliedIndexLock.Lock()
+	defer h.appliedIndexLock.Unlock()
+	return h.handler.SetAppliedIndex(h.appliedIndex.Load())
 }
 
 func (h *handler) isPrepared() bool {
@@ -193,6 +206,9 @@ func (h *handler) isPrepared() bool {
 }
 
 func (h *handler) tick() {
+	if !h.isPrepared() {
+		return
+	}
 	h.handler.Tick()
 }
 

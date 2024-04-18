@@ -453,7 +453,7 @@ func (s *ConversationAPI) getRecentMessagesForCluster(uid string, msgCount int, 
 
 func (s *ConversationAPI) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageReq, uid string, msgCount int) ([]*channelRecentMessage, error) {
 
-	nodeInfo, err := s.s.cluster.NodeInfoByID(nodeID) // 获取频道的领导节点
+	nodeInfo, err := s.s.cluster.NodeInfoById(nodeID) // 获取频道的领导节点
 	if err != nil {
 		s.Error("通过节点ID获取节点失败！", zap.Uint64("nodeID", nodeID))
 		return nil, err

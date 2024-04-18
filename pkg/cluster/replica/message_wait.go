@@ -16,7 +16,7 @@ type messageWait struct {
 }
 
 func newMessageWait(messageSendInterval time.Duration, replicaMaxCount int) *messageWait {
-	messageSendIntervalTickCount := 2
+	messageSendIntervalTickCount := 1
 	syncIntervalTickCount := 20
 	return &messageWait{
 		messageSendIntervalTickCount:        messageSendIntervalTickCount, // 如果某个消息在指定时间内没有收到ack，则认为超时，超时后可以重发此消息

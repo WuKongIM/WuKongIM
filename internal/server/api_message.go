@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -224,7 +224,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 				fakeChannelID = GetFakeChannelIDWith(req.FromUID, channelID)
 			}
 
-			var leaderInfo clusterconfig.NodeInfo
+			var leaderInfo *pb.Node
 
 			if req.Header.SyncOnce == 1 {
 				leaderInfo, err = m.s.cluster.SlotLeaderOfChannel(fakeChannelID, wkproto.ChannelTypePerson) // 获取频道的槽领导节点
@@ -358,14 +358,20 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 			}
 			msg.StreamSeq = streamSeq // stream seq
 		} else {
-			messageIdAndSeqMap, err := m.s.store.AppendMessages(m.s.ctx, fakeChannelID, channelType, messages)
+			results, err := m.s.store.AppendMessages(m.s.ctx, fakeChannelID, channelType, messages)
 			if err != nil {
 				m.Error("Failed to save history message", zap.Error(err))
 				return 0, 0, errors.New("failed to save history message")
 			}
 			for i := 0; i < len(messages); i++ {
 				message := messages[i]
-				messageSeq := messageIdAndSeqMap[uint64(message.MessageID)]
+				var messageSeq uint32
+				for _, result := range results {
+					if message.MessageID == int64(result.LogId()) {
+						messageSeq = uint32(result.LogIndex())
+						break
+					}
+				}
 				if messageSeq > 0 {
 					messages[i].MessageSeq = uint32(messageSeq)
 				}

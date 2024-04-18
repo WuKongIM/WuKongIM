@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -21,8 +20,6 @@ type slot struct {
 	isPrepared bool
 	wklog.Log
 	opts *Options
-
-	lastIndex atomic.Uint64 // 当前频道最后一条日志索引
 }
 
 func newSlot(st *pb.Slot, opts *Options) *slot {
@@ -33,6 +30,7 @@ func newSlot(st *pb.Slot, opts *Options) *slot {
 		Log:        wklog.NewWKLog(fmt.Sprintf("slot[%d]", st.Id)),
 		isPrepared: true,
 	}
+
 	s.rc = replica.New(opts.NodeId, replica.WithLogPrefix(fmt.Sprintf("slot-%d", st.Id)), replica.WithElectionOn(false), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(s.key, s.opts.SlotLogStorage)))
 	return s
 }
@@ -44,6 +42,8 @@ func (s *slot) becomeFollower(term uint32, leader uint64) {
 func (s *slot) becomeLeader(term uint32) {
 	s.rc.BecomeLeader(term)
 }
+
+// --------------------------IHandler-------------------------------
 
 func (s *slot) LastLogIndexAndTerm() (uint64, uint32) {
 
@@ -59,7 +59,7 @@ func (s *slot) Ready() replica.Ready {
 	return s.rc.Ready()
 }
 
-func (s *slot) GetAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
+func (s *slot) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
 
 	unstableLogs := msg.Logs
 	startIndex := msg.Index
@@ -67,12 +67,11 @@ func (s *slot) GetAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
 		startIndex = unstableLogs[len(unstableLogs)-1].Index + 1
 	}
 	shardNo := s.key
-	lastIndex := s.lastIndex.Load()
 	var err error
 	if lastIndex == 0 {
 		lastIndex, err = s.opts.SlotLogStorage.LastIndex(shardNo)
 		if err != nil {
-			s.Error("handleSyncGet: get last index error", zap.Error(err))
+			s.Error("GetAndMergeLogs: get last index error", zap.Error(err))
 			return nil, err
 		}
 	}
@@ -84,9 +83,11 @@ func (s *slot) GetAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
 			s.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
 			return nil, err
 		}
+		s.Debug("getLogs...", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex+1), zap.Int("logs", len(logs)))
 		resultLogs = extend(logs, unstableLogs)
 	} else {
-		// c.Warn("handleSyncGet: startIndex > lastIndex", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
+		s.Warn("GetAndMergeLogs: startIndex > lastIndex", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex), zap.Int("unstableLogs", len(unstableLogs)))
+		resultLogs = unstableLogs
 	}
 	return resultLogs, nil
 
@@ -96,7 +97,7 @@ func (s *slot) AppendLog(logs []replica.Log) error {
 
 	lastLog := logs[len(logs)-1]
 	start := time.Now()
-	s.Debug("append log", zap.Uint64("lastLogIndex", lastLog.Index))
+	s.Debug("append log", zap.Uint64("firstLogIndex", logs[0].Index), zap.Uint64("lastLogIndex", lastLog.Index))
 	err := s.opts.SlotLogStorage.AppendLog(s.key, logs)
 	if err != nil {
 		s.Panic("append log error", zap.Error(err))
@@ -141,9 +142,8 @@ func (s *slot) Step(m replica.Message) error {
 }
 
 func (s *slot) SetLastIndex(index uint64) error {
-	lastIndex := s.lastIndex.Load()
 	shardNo := s.key
-	err := s.opts.SlotLogStorage.SetLastIndex(shardNo, lastIndex)
+	err := s.opts.SlotLogStorage.SetLastIndex(shardNo, index)
 	if err != nil {
 		s.Error("set last index error", zap.Error(err))
 	}

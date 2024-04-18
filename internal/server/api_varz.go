@@ -72,25 +72,25 @@ func CreateVarz(s *Server) *Varz {
 	s.retryQueue.inFlightMutex.Unlock()
 	goroutine := runtime.NumGoroutine()
 
-	requestGoroutine := s.cluster.Monitor().RequestGoroutine()
-	messageGoroutine := s.cluster.Monitor().MessageGoroutine()
+	// requestGoroutine := s.cluster.Monitor().RequestGoroutine()
+	// messageGoroutine := s.cluster.Monitor().MessageGoroutine()
 	return &Varz{
-		ServerID:            fmt.Sprintf("%d", opts.Cluster.NodeId),
-		ServerName:          "WuKongIM",
-		Version:             version.Version,
-		Connections:         connCount,
-		Uptime:              myUptime(time.Since(s.start)),
-		CPU:                 pcpu,
-		Mem:                 rss,
-		Goroutine:           goroutine,
-		ClusterReqGoroutine: requestGoroutine,
-		ClusterMsgGoroutine: messageGoroutine,
-		InMsgs:              s.inMsgs.Load(),
-		OutMsgs:             s.outMsgs.Load(),
-		InBytes:             s.inBytes.Load(),
-		OutBytes:            s.outBytes.Load(),
-		SlowClients:         s.slowClients.Load(),
-		RetryQueue:          int64(retryQueueF),
+		ServerID:    fmt.Sprintf("%d", opts.Cluster.NodeId),
+		ServerName:  "WuKongIM",
+		Version:     version.Version,
+		Connections: connCount,
+		Uptime:      myUptime(time.Since(s.start)),
+		CPU:         pcpu,
+		Mem:         rss,
+		Goroutine:   goroutine,
+		// ClusterReqGoroutine: requestGoroutine,
+		// ClusterMsgGoroutine: messageGoroutine,
+		InMsgs:      s.inMsgs.Load(),
+		OutMsgs:     s.outMsgs.Load(),
+		InBytes:     s.inBytes.Load(),
+		OutBytes:    s.outBytes.Load(),
+		SlowClients: s.slowClients.Load(),
+		RetryQueue:  int64(retryQueueF),
 
 		TCPAddr:        opts.External.TCPAddr,
 		WSAddr:         opts.External.WSAddr,

@@ -47,6 +47,15 @@ func (n *nodeManager) nodes() []*node {
 	return nodes
 }
 
+func (n *nodeManager) stop() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, node := range n.nodeMap {
+		node.stop()
+	}
+
+}
+
 func (n *nodeManager) outboundFlightMessageCount() int64 {
 	n.mu.RLock()
 	defer n.mu.RUnlock()

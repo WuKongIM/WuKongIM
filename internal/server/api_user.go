@@ -188,7 +188,7 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 
 func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*OnlinestatusResp, error) {
 
-	nodeInfo, err := u.s.cluster.NodeInfoByID(nodeID) // 获取频道的领导节点
+	nodeInfo, err := u.s.cluster.NodeInfoById(nodeID) // 获取频道的领导节点
 	if err != nil {
 		u.Error("获取频道所在节点失败！", zap.Error(err), zap.Uint64("nodeID", nodeID))
 		return nil, errors.New("获取频道所在节点失败！")

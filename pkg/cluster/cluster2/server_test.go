@@ -16,7 +16,7 @@ func TestServer(t *testing.T) {
 
 	s1 := cluster.New(cluster.NewOptions(
 		cluster.WithNodeId(1),
-		cluster.WithConfigDir(t.TempDir()+"/config1"),
+		cluster.WithDataDir(t.TempDir()+"/config1"),
 		cluster.WithAddr("127.0.0.1:10001"),
 		cluster.WithInitNodes(map[uint64]string{
 			1: "127.0.0.1:10001",
@@ -26,7 +26,7 @@ func TestServer(t *testing.T) {
 	))
 	s2 := cluster.New(cluster.NewOptions(
 		cluster.WithNodeId(2),
-		cluster.WithConfigDir(t.TempDir()+"test/config2"),
+		cluster.WithDataDir(t.TempDir()+"test/config2"),
 		cluster.WithAddr("127.0.0.1:10002"),
 		cluster.WithInitNodes(map[uint64]string{
 			1: "127.0.0.1:10001",
@@ -36,7 +36,7 @@ func TestServer(t *testing.T) {
 	))
 	s3 := cluster.New(cluster.NewOptions(
 		cluster.WithNodeId(3),
-		cluster.WithConfigDir(t.TempDir()+"test/config3"),
+		cluster.WithDataDir(t.TempDir()+"test/config3"),
 		cluster.WithAddr("127.0.0.1:10003"),
 		cluster.WithInitNodes(map[uint64]string{
 			1: "127.0.0.1:10001",

@@ -54,7 +54,7 @@ type slot struct {
 func newSlot(st *pb.Slot, appliedIdx uint64, advance func(), s *Server) *slot {
 	shardNo := GetSlotShardNo(st.Id)
 	shardId := GetShardId(shardNo)
-	rc := replica.New(s.opts.NodeID, shardNo, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithReplicaMaxCount(int(st.ReplicaCount)), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.ShardLogStorage)))
+	rc := replica.New(s.opts.NodeID, replica.WithAppliedIndex(appliedIdx), replica.WithReplicas(st.Replicas), replica.WithReplicaMaxCount(int(st.ReplicaCount)), replica.WithStorage(newProxyReplicaStorage(shardNo, s.opts.ShardLogStorage)))
 	if st.Leader == s.opts.NodeID {
 		rc.BecomeLeader(st.Term)
 	} else {

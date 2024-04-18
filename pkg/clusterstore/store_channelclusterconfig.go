@@ -1,6 +1,8 @@
 package clusterstore
 
 import (
+	"context"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
 
@@ -38,4 +40,23 @@ func (c *ChannelClusterConfigStore) GetAll(offsetId uint64, limit int) ([]wkdb.C
 func (c *ChannelClusterConfigStore) GetWithSlotId(slotId uint32) ([]wkdb.ChannelClusterConfig, error) {
 
 	return c.store.wdb.GetChannelClusterConfigWithSlotId(slotId)
+}
+
+func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
+	cfgData, err := cfg.Marshal()
+	if err != nil {
+		return err
+	}
+
+	data, err := EncodeCMDChannelClusterConfigSave(cfg.ChannelId, cfg.ChannelType, cfgData)
+	if err != nil {
+		return err
+	}
+	cmd := NewCMD(CMDChannelClusterConfigSave, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = c.store.opts.Cluster.ProposeChannelMeta(ctx, cfg.ChannelId, cfg.ChannelType, cmdData)
+	return err
 }

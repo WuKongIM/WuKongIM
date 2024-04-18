@@ -3,7 +3,7 @@ package clusterevent
 import (
 	"time"
 
-	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"go.uber.org/zap"
 )
 

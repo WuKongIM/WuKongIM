@@ -3,7 +3,7 @@ package clusterevent
 import (
 	"fmt"
 
-	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 )
 
 type EventType int

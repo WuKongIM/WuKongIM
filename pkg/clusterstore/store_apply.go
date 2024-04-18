@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"go.uber.org/zap"
 )
 
@@ -55,6 +56,8 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		return s.handleAddOrUpdateConversations(cmd)
 	case CMDDeleteConversation: // 删除会话
 		return s.handleDeleteConversation(cmd)
+	case CMDChannelClusterConfigSave: // 保存频道分布式配置
+		return s.handleChannelClusterConfigSave(cmd)
 	case CMDAppendMessagesOfUser: // 向用户队列里增加消息
 		return s.handleAppendMessagesOfUser(cmd)
 		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置
@@ -183,6 +186,24 @@ func (s *Store) handleDeleteConversation(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.DeleteConversation(uid, deleteChannelID, deleteChannelType)
+}
+
+func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
+	_, _, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
+	if err != nil {
+		return err
+	}
+	channelClusterConfig := wkdb.ChannelClusterConfig{}
+	err = channelClusterConfig.Unmarshal(configData)
+	if err != nil {
+		return err
+	}
+
+	err = s.wdb.SaveChannelClusterConfig(channelClusterConfig)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {

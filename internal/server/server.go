@@ -17,8 +17,9 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster/clusterconfig/pb"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -66,7 +67,7 @@ type Server struct {
 	ipBlacklistLock sync.RWMutex      // ip黑名单列表锁
 	reqIDGen        *idutil.Generator
 
-	cluster cluster.ICluster
+	cluster icluster.Cluster
 
 	peerInFlightQueue *PeerInFlightQueue // 正在往节点投递的节点消息
 
@@ -174,24 +175,6 @@ func New(opts *Options) *Server {
 			trace.WithEndpoint(s.opts.Trace.Endpoint),
 			trace.WithServiceName(s.opts.Trace.ServiceName),
 			trace.WithServiceHostName(s.opts.Trace.ServiceHostName),
-			trace.WithRequestPoolRunning(func() int64 {
-				return s.cluster.Monitor().RequestGoroutine()
-			}),
-			trace.WithMessagePoolRunning(func() int64 {
-				return s.cluster.Monitor().MessageGoroutine()
-			}),
-			trace.WithOutboundFlightMessageBytes(func() int64 {
-				return s.cluster.Monitor().OutboundFlightMessageBytes()
-			}),
-			trace.WithOutboundFlightMessageCount(func() int64 {
-				return s.cluster.Monitor().OutboundFlightMessageCount()
-			}),
-			trace.WithInboundFlightMessageBytes(func() int64 {
-				return s.cluster.Monitor().InboundFlightMessageBytes()
-			}),
-			trace.WithInboundFlightMessageCount(func() int64 {
-				return s.cluster.Monitor().InboundFlightMessageCount()
-			}),
 		))
 	trace.SetGlobalTrace(s.trace)
 
@@ -205,8 +188,8 @@ func New(opts *Options) *Server {
 		role = pb.NodeRole_NodeRoleProxy
 	}
 	clusterServer := cluster.New(
-		s.opts.Cluster.NodeId,
 		cluster.NewOptions(
+			cluster.WithNodeId(s.opts.Cluster.NodeId),
 			cluster.WithAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
 			cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
 			cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
@@ -216,7 +199,7 @@ func New(opts *Options) *Server {
 			cluster.WithServerAddr(s.opts.Cluster.ServerAddr),
 			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
 			cluster.WithApiServerAddr(s.opts.External.APIUrl),
-			cluster.WithChannelMaxReplicaCount(uint16(s.opts.Cluster.ChannelReplicaCount)),
+			cluster.WithChannelMaxReplicaCount(s.opts.Cluster.ChannelReplicaCount),
 			cluster.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
 			cluster.WithLogLevel(s.opts.Logger.Level),
 			cluster.WithAppVersion(version.Version),

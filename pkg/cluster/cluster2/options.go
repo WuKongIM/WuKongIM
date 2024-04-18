@@ -4,18 +4,28 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"go.uber.org/zap/zapcore"
 )
 
 type Options struct {
-	NodeId              uint64
-	Addr                string // 分布式监听地址
-	InitNodes           map[uint64]string
-	SlotCount           uint32 // 槽位数量
-	SlotMaxReplicaCount uint32 // 每个槽位最大副本数量
-	ConfigDir           string
-	ReqTimeout          time.Duration
+	NodeId                uint64
+	Role                  pb.NodeRole // 节点角色
+	Addr                  string      // 分布式监听地址
+	ServerAddr            string      // 分布式可访问地址
+	ApiServerAddr         string      // api服务地址
+	AppVersion            string      // 当前应用版本
+	InitNodes             map[uint64]string
+	SlotCount             uint32 // 槽位数量
+	SlotMaxReplicaCount   uint32 // 每个槽位最大副本数量
+	Seed                  string // 种子节点
+	DataDir               string
+	ReqTimeout            time.Duration         // 请求超时时间
+	ProposeTimeout        time.Duration         // 提案超时时间
+	LogLevel              zapcore.Level         // 日志级别
+	ChannelClusterStorage ChannelClusterStorage // 频道分布式存储
 	// LogSyncLimitSizeOfEach 每次日志同步大小
 	LogSyncLimitSizeOfEach int
 	// SendQueueLength 是用于在节点主机之间交换消息的发送队列的长度。
@@ -47,21 +57,36 @@ type Options struct {
 
 	// Send 发送消息
 	Send func(shardType ShardType, m reactor.Message)
+	// ChannelElectionPoolSize 频道选举协程池大小(意味着同时在选举的频道数量)
+	ChannelElectionPoolSize int
+	// MaxChannelElectionBatchLen 批量选举，每次最多选举多少个频道（默认100）
+	MaxChannelElectionBatchLen int
+
+	// ChannelMaxReplicaCount 频道最大副本数量
+	ChannelMaxReplicaCount int
+
+	// ChannelLoadPoolSize 加载频道的协程池大小
+	ChannelLoadPoolSize int
 }
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SlotCount:              128,
-		SlotMaxReplicaCount:    3,
-		ConfigDir:              "clusterconfig",
-		ReqTimeout:             3 * time.Second,
-		SendQueueLength:        1024 * 10,
-		MaxMessageBatchSize:    64 * 1024 * 1024, // 64M
-		ReceiveQueueLength:     1024,
-		LazyFreeCycle:          1,
-		InitialTaskQueueCap:    24,
-		LogSyncLimitSizeOfEach: 1024 * 1024 * 20, // 20M
-		Addr:                   "tcp://127.0.0.1:10001",
+		SlotCount:                  128,
+		SlotMaxReplicaCount:        3,
+		DataDir:                    "clusterdata",
+		ReqTimeout:                 3 * time.Second,
+		ProposeTimeout:             5 * time.Second,
+		SendQueueLength:            1024 * 10,
+		MaxMessageBatchSize:        64 * 1024 * 1024, // 64M
+		ReceiveQueueLength:         1024,
+		LazyFreeCycle:              1,
+		InitialTaskQueueCap:        24,
+		LogSyncLimitSizeOfEach:     1024 * 1024 * 20, // 20M
+		Addr:                       "tcp://127.0.0.1:10001",
+		ChannelElectionPoolSize:    10,
+		MaxChannelElectionBatchLen: 100,
+		ChannelMaxReplicaCount:     3,
+		ChannelLoadPoolSize:        1000,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -169,8 +194,86 @@ func WithAddr(addr string) Option {
 	}
 }
 
-func WithConfigDir(dir string) Option {
+func WithDataDir(dir string) Option {
 	return func(o *Options) {
-		o.ConfigDir = dir
+		o.DataDir = dir
+	}
+}
+
+func WithChannelClusterStorage(storage ChannelClusterStorage) Option {
+	return func(o *Options) {
+		o.ChannelClusterStorage = storage
+	}
+}
+
+func WithProposeTimeout(timeout time.Duration) Option {
+	return func(o *Options) {
+		o.ProposeTimeout = timeout
+	}
+}
+
+func WithChannelElectionPoolSize(size int) Option {
+	return func(o *Options) {
+		o.ChannelElectionPoolSize = size
+	}
+}
+
+func WithMaxChannelElectionBatchLen(len int) Option {
+	return func(o *Options) {
+		o.MaxChannelElectionBatchLen = len
+	}
+}
+
+func WithChannelMaxReplicaCount(count int) Option {
+	return func(o *Options) {
+		o.ChannelMaxReplicaCount = count
+	}
+}
+
+func WithMaxSendQueueSize(size uint64) Option {
+	return func(o *Options) {
+		o.MaxSendQueueSize = size
+	}
+}
+
+func WithRole(role pb.NodeRole) Option {
+	return func(o *Options) {
+		o.Role = role
+	}
+}
+
+func WithSeed(seed string) Option {
+	return func(o *Options) {
+		o.Seed = seed
+	}
+}
+
+func WithServerAddr(addr string) Option {
+	return func(o *Options) {
+		o.ServerAddr = addr
+	}
+}
+
+func WithMessageLogStorage(storage IShardLogStorage) Option {
+	return func(o *Options) {
+		o.MessageLogStorage = storage
+	}
+}
+
+func WithApiServerAddr(addr string) Option {
+	return func(o *Options) {
+		o.ApiServerAddr = addr
+	}
+}
+
+func WithLogLevel(level zapcore.Level) Option {
+	return func(o *Options) {
+		o.LogLevel = level
+	}
+}
+
+func WithAppVersion(version string) Option {
+	return func(o *Options) {
+		o.AppVersion = version
 	}
 }

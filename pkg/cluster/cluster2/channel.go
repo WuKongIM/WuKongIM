@@ -2,12 +2,12 @@ package cluster
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -21,25 +21,48 @@ type channel struct {
 	opts        *Options
 	isPrepared  bool
 	wklog.Log
-	lastIndex atomic.Uint64 // 当前频道最后一条日志索引
+	mu  sync.Mutex
+	cfg wkdb.ChannelClusterConfig
 }
 
 func newChannel(channelId string, channelType uint8, opts *Options) *channel {
+	key := ChannelToKey(channelId, channelType)
 	c := &channel{
-		key:         ChannelToKey(channelId, channelType),
+		key:         key,
 		channelId:   channelId,
 		channelType: channelType,
 		opts:        opts,
-		Log:         wklog.NewWKLog("cluster.channel"),
+		Log:         wklog.NewWKLog(fmt.Sprintf("cluster.channel[%s]", key)),
 	}
-
 	return c
 }
 
 func (c *channel) bootstrap(cfg wkdb.ChannelClusterConfig) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	rc := replica.New(c.opts.NodeId, replica.WithLogPrefix(fmt.Sprintf("channel-%s", c.key)), replica.WithElectionOn(false), replica.WithReplicas(cfg.Replicas), replica.WithStorage(newProxyReplicaStorage(c.key, c.opts.MessageLogStorage)))
 	c.rc = rc
+	if cfg.LeaderId == c.opts.NodeId {
+		rc.BecomeLeader(cfg.Term)
+	} else {
+		rc.BecomeFollower(cfg.Term, cfg.LeaderId)
+	}
+	c.isPrepared = true
+	c.cfg = cfg
 	return nil
+}
+
+func (c *channel) leaderId() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cfg.LeaderId
+}
+
+func (c *channel) isLeader() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cfg.LeaderId == c.opts.NodeId
 }
 
 // --------------------------IHandler-------------------------------
@@ -56,19 +79,17 @@ func (c *channel) Ready() replica.Ready {
 	return c.rc.Ready()
 }
 
-func (c *channel) GetAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
+func (c *channel) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
 	unstableLogs := msg.Logs
 	startIndex := msg.Index
 	if len(unstableLogs) > 0 {
 		startIndex = unstableLogs[len(unstableLogs)-1].Index + 1
 	}
-
-	lastIndex := c.lastIndex.Load()
 	var err error
 	if lastIndex == 0 {
 		lastIndex, err = c.opts.MessageLogStorage.LastIndex(c.key)
 		if err != nil {
-			c.Error("handleSyncGet: get last index error", zap.Error(err))
+			c.Error("GetAndMergeLogs: get last index error", zap.Error(err))
 			return nil, err
 		}
 	}
@@ -80,6 +101,10 @@ func (c *channel) GetAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
 			return nil, err
 		}
 		resultLogs = extend(unstableLogs, logs)
+	} else {
+		c.Warn("GetAndMergeLogs: startIndex > lastIndex", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex), zap.Int("unstableLogs", len(unstableLogs)))
+		resultLogs = unstableLogs
+
 	}
 
 	return resultLogs, nil
@@ -103,7 +128,17 @@ func (c *channel) SlowDown() {
 }
 
 func (c *channel) SetHardState(hd replica.HardState) {
-
+	err := c.opts.ChannelClusterStorage.Save(wkdb.ChannelClusterConfig{
+		ChannelId:       c.channelId,
+		ChannelType:     c.channelType,
+		LeaderId:        hd.LeaderId,
+		Term:            hd.Term,
+		Replicas:        c.cfg.Replicas,
+		ReplicaMaxCount: c.cfg.ReplicaMaxCount,
+	})
+	if err != nil {
+		c.Warn("save channel cluster config error", zap.Error(err))
+	}
 }
 
 func (c *channel) Tick() {
@@ -115,7 +150,6 @@ func (c *channel) Step(m replica.Message) error {
 }
 
 func (c *channel) SetLastIndex(index uint64) error {
-	c.lastIndex.Store(index)
 	return c.setLastIndex(index)
 }
 
@@ -140,6 +174,8 @@ func (c *channel) setAppliedIndex(index uint64) error {
 }
 
 func (c *channel) IsPrepared() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.isPrepared
 }
 

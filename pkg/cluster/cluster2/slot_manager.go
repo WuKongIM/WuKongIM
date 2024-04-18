@@ -1,6 +1,11 @@
 package cluster
 
-import "github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+import (
+	"context"
+
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+)
 
 type slotManager struct {
 	slotReactor *reactor.Reactor
@@ -16,6 +21,7 @@ func newSlotManager(opts *Options) *slotManager {
 	sm.slotReactor = reactor.New(reactor.NewOptions(
 		reactor.WithNodeId(opts.NodeId),
 		reactor.WithSend(sm.onSend),
+		reactor.WithIsCommittedAfterApplied(true),
 	))
 
 	return sm
@@ -30,8 +36,16 @@ func (s *slotManager) stop() {
 	s.slotReactor.Stop()
 }
 
+func (s *slotManager) proposeAndWait(ctx context.Context, slotId uint32, logs []replica.Log) ([]reactor.ProposeResult, error) {
+	return s.slotReactor.ProposeAndWait(ctx, SlotIdToKey(slotId), logs)
+}
+
 func (s *slotManager) add(st *slot) {
 	s.slotReactor.AddHandler(st.key, st)
+}
+
+func (s *slotManager) get(slotId uint32) reactor.IHandler {
+	return s.slotReactor.Handler(SlotIdToKey(slotId))
 }
 
 func (s *slotManager) addMessage(m reactor.Message) {

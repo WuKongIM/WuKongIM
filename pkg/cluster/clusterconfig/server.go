@@ -1,9 +1,11 @@
 package clusterconfig
 
 import (
+	"context"
+	"fmt"
 	"time"
 
-	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -18,6 +20,9 @@ type Server struct {
 	handlerKey    string
 	handler       *handler
 	stopper       *syncutil.Stopper
+	cancelCtx     context.Context
+	cancelFnc     context.CancelFunc
+
 	wklog.Log
 }
 
@@ -31,7 +36,7 @@ func New(opts *Options) *Server {
 	}
 	reactorOptions := reactor.NewOptions(reactor.WithNodeId(opts.NodeId), reactor.WithSend(s.send), reactor.WithSubReactorNum(1), reactor.WithTaskPoolSize(10))
 	s.configReactor = reactor.New(reactorOptions)
-
+	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	return s
 }
 
@@ -49,16 +54,67 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
+	fmt.Println("clusterconfig stop1")
+	s.cancelFnc()
 	s.stopper.Stop()
+	fmt.Println("clusterconfig stop2")
 	s.configReactor.Stop()
+	fmt.Println("clusterconfig stop3")
 }
 
+// AddMessage 添加消息
 func (s *Server) AddMessage(m reactor.Message) {
 	s.configReactor.AddMessage(m)
 }
 
+// AppliedConfig 获取应用配置
 func (s *Server) AppliedConfig() *pb.Config {
 	return s.cfg.appliedConfig()
+}
+
+// Config 当前配置
+func (s *Server) Config() *pb.Config {
+	return s.cfg.config()
+}
+
+// SlotCount 获取槽数量
+func (s *Server) SlotCount() uint32 {
+	return s.cfg.slotCount()
+}
+
+// Slot 获取槽信息
+func (s *Server) Slot(id uint32) *pb.Slot {
+	return s.cfg.slot(id)
+}
+
+func (s *Server) Slots() []*pb.Slot {
+	return s.cfg.slots()
+}
+
+func (s *Server) Nodes() []*pb.Node {
+	return s.cfg.nodes()
+}
+
+func (s *Server) Node(id uint64) *pb.Node {
+	return s.cfg.node(id)
+}
+
+// NodeOnline 节点是否在线
+func (s *Server) NodeOnline(nodeId uint64) bool {
+	return s.cfg.nodeOnline(nodeId)
+}
+
+// AllowVoteNodes 获取允许投票的节点
+func (s *Server) AllowVoteNodes() []*pb.Node {
+	return s.cfg.allowVoteNodes()
+}
+
+func (s *Server) IsLeader() bool {
+	return s.handler.isLeader()
+}
+
+func (s *Server) LeaderId() uint64 {
+	return s.handler.LeaderId()
 }
 
 func (s *Server) send(m reactor.Message) {
@@ -67,6 +123,10 @@ func (s *Server) send(m reactor.Message) {
 
 func (s *Server) run() {
 	tk := time.NewTicker(time.Millisecond * 250)
+	defer func() {
+		fmt.Println("run....end....")
+
+	}()
 	for {
 		select {
 		case <-tk.C:
@@ -141,7 +201,7 @@ func (s *Server) checkClusterConfig() {
 			s.Error("get data error", zap.Error(err))
 			return
 		}
-		err = s.configReactor.Propose(s.handlerKey, []replica.Log{
+		_, err = s.configReactor.ProposeAndWait(s.cancelCtx, s.handlerKey, []replica.Log{
 			{
 				Id:    s.cfg.id(),
 				Index: s.cfg.version(),

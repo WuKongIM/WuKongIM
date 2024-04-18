@@ -56,6 +56,14 @@ func (p *proposeQueue) pop() (proposeReq, bool) {
 
 type ProposeResult struct {
 	Id        uint64
-	LogIndex  uint64
+	Index     uint64
 	committed bool
+}
+
+func (p ProposeResult) LogId() uint64 {
+	return p.Id
+}
+
+func (p ProposeResult) LogIndex() uint64 {
+	return p.Index
 }

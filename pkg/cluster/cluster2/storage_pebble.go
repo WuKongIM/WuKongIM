@@ -56,10 +56,12 @@ func (p *PebbleShardLogStorage) AppendLog(shardNo string, logs []replica.Log) er
 		return err
 	}
 	if logs[len(logs)-1].Index <= lastIndex {
+		p.Warn("log index is less than last index", zap.Uint64("logIndex", logs[len(logs)-1].Index), zap.Uint64("lastIndex", lastIndex))
 		return nil
 	}
 
 	batch := p.db.NewBatch()
+	defer batch.Close()
 	for _, lg := range logs {
 		if lg.Index <= lastIndex {
 			continue
@@ -159,6 +161,40 @@ func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLo
 func (p *PebbleShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	lastIndex, _, err := p.getMaxIndex(shardNo)
 	return lastIndex, err
+}
+
+func (p *PebbleShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint32, error) {
+	lastIndex, err := p.LastIndex(shardNo)
+	if err != nil {
+		return 0, 0, err
+	}
+	if lastIndex == 0 {
+		return 0, 0, nil
+	}
+	log, err := p.getLog(shardNo, lastIndex)
+	if err != nil {
+		return 0, 0, err
+	}
+	return lastIndex, log.Term, nil
+}
+
+func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (replica.Log, error) {
+	keyData := key.NewLogKey(shardNo, index)
+	logData, closer, err := p.db.Get(keyData)
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return replica.Log{}, nil
+		}
+		return replica.Log{}, err
+	}
+	defer closer.Close()
+	var log replica.Log
+	err = log.Unmarshal(logData)
+	if err != nil {
+		return replica.Log{}, err
+	}
+	return log, nil
+
 }
 
 func (p *PebbleShardLogStorage) SetLastIndex(shardNo string, index uint64) error {
