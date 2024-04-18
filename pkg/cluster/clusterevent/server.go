@@ -1,11 +1,12 @@
 package clusterevent
 
 import (
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
-	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/cpb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -70,8 +71,11 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
+	fmt.Println("clusterevent stop1")
 	s.stopper.Stop()
+	fmt.Println("clusterevent stop2")
 	s.cfgServer.Stop()
+	fmt.Println("clusterevent stop3")
 }
 
 func (s *Server) Step(m Message) {
@@ -118,6 +122,50 @@ func (s *Server) Step(m Message) {
 
 func (s *Server) AddMessage(m reactor.Message) {
 	s.cfgServer.AddMessage(m)
+}
+
+func (s *Server) SlotCount() uint32 {
+	return s.cfgServer.SlotCount()
+}
+
+func (s *Server) Slot(id uint32) *pb.Slot {
+	return s.cfgServer.Slot(id)
+}
+
+// NodeOnline 节点是否在线
+func (s *Server) NodeOnline(nodeId uint64) bool {
+	return s.cfgServer.NodeOnline(nodeId)
+}
+
+func (s *Server) Nodes() []*pb.Node {
+	return s.cfgServer.Nodes()
+}
+
+func (s *Server) Node(id uint64) *pb.Node {
+	return s.cfgServer.Node(id)
+}
+
+func (s *Server) IsLeader() bool {
+	return s.cfgServer.IsLeader()
+}
+
+func (s *Server) LeaderId() uint64 {
+	return s.cfgServer.LeaderId()
+}
+
+// AppliedConfig 获取应用配置
+func (s *Server) AppliedConfig() *pb.Config {
+	return s.cfgServer.AppliedConfig()
+}
+
+// Config 当前配置
+func (s *Server) Config() *pb.Config {
+	return s.cfgServer.Config()
+}
+
+// AllowVoteNodes 获取允许投票的节点
+func (s *Server) AllowVoteNodes() []*pb.Node {
+	return s.cfgServer.AllowVoteNodes()
 }
 
 func (s *Server) loadLocalConfig() error {

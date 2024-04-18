@@ -31,18 +31,22 @@ type Options struct {
 
 	// EnableLazyCatchUp 延迟捕捉日志开关
 	EnableLazyCatchUp bool
+
+	// IsCommittedAfterApplied 是否在状态机应用日志后才视为提交, 如果为false 则多数节点追加日志后即视为提交
+	IsCommittedAfterApplied bool
 }
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SubReactorNum:       16,
-		TickInterval:        time.Millisecond * 100,
-		ReceiveQueueLength:  1024,
-		LazyFreeCycle:       1,
-		InitialTaskQueueCap: 100,
-		TaskPoolSize:        10000,
-		MaxProposeLogCount:  1000,
-		EnableLazyCatchUp:   true,
+		SubReactorNum:           16,
+		TickInterval:            time.Millisecond * 100,
+		ReceiveQueueLength:      1024,
+		LazyFreeCycle:           1,
+		InitialTaskQueueCap:     100,
+		TaskPoolSize:            10000,
+		MaxProposeLogCount:      1000,
+		EnableLazyCatchUp:       false,
+		IsCommittedAfterApplied: false,
 	}
 
 	for _, o := range opt {
@@ -117,5 +121,11 @@ func WithMaxProposeLogCount(count int) Option {
 func WithEnableLazyCatchUp(enable bool) Option {
 	return func(o *Options) {
 		o.EnableLazyCatchUp = enable
+	}
+}
+
+func WithIsCommittedAfterApplied(isCommittedAfterApplied bool) Option {
+	return func(o *Options) {
+		o.IsCommittedAfterApplied = isCommittedAfterApplied
 	}
 }

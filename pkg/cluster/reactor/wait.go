@@ -29,34 +29,31 @@ type proposeWait struct {
 	mu sync.Mutex
 	wklog.Log
 
-	proposeResultMap map[string][]*ProposeResult
-	proposeWaitMap   map[string]chan []*ProposeResult
-	logIndexs        []uint64
-	logIds           []uint64
-	offset           uint64
+	proposeResultMap map[string][]ProposeResult
+	proposeWaitMap   map[string]chan []ProposeResult
 	hasAdd           atomic.Bool
 }
 
 func newProposeWait() *proposeWait {
 	return &proposeWait{
 		Log:              wklog.NewWKLog("proposeWait"),
-		proposeWaitMap:   make(map[string]chan []*ProposeResult),
-		proposeResultMap: make(map[string][]*ProposeResult),
+		proposeWaitMap:   make(map[string]chan []ProposeResult),
+		proposeResultMap: make(map[string][]ProposeResult),
 	}
 }
 
 // TODO: 此方法返回创建ProposeResult导致内存过高，需要优化
-func (m *proposeWait) add(ctx context.Context, key string, ids []uint64) chan []*ProposeResult {
+func (m *proposeWait) add(ctx context.Context, key string, ids []uint64) chan []ProposeResult {
 	m.hasAdd.Store(true)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if len(ids) == 0 {
 		m.Panic("addWait ids is empty")
 	}
-	waitC := make(chan []*ProposeResult, 1)
-	items := make([]*ProposeResult, len(ids))
+	waitC := make(chan []ProposeResult, 1)
+	items := make([]ProposeResult, len(ids))
 	for i, id := range ids {
-		items[i] = &ProposeResult{
+		items[i] = ProposeResult{
 			Id: id,
 		}
 	}
@@ -111,12 +108,13 @@ func (m *proposeWait) didPropose(key string, logId uint64, logIndex uint64) {
 		m.Panic("didPropose logIndex is 0")
 	}
 	items := m.proposeResultMap[key]
-	for _, item := range items {
+	for i, item := range items {
 		if item.Id == logId {
-			item.LogIndex = logIndex
+			items[i].Index = logIndex
 			break
 		}
 	}
+	m.proposeResultMap[key] = items
 }
 
 // didCommit 提交[startLogIndex, endLogIndex)范围的消息
@@ -136,11 +134,11 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 	keysToDelete := make([]string, 0, 500)
 	for key, items := range m.proposeResultMap {
 		shouldCommit := true
-		for _, item := range items {
-			if item.LogIndex >= startLogIndex && item.LogIndex < endLogIndex {
-				item.committed = true
+		for i, item := range items {
+			if item.Index >= startLogIndex && item.Index < endLogIndex {
+				items[i].committed = true
 			}
-			if !item.committed {
+			if !items[i].committed {
 				shouldCommit = false
 			}
 		}

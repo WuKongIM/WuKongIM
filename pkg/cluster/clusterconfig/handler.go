@@ -1,6 +1,8 @@
 package clusterconfig
 
 import (
+	"sync"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -16,6 +18,8 @@ type handler struct {
 	opts          *Options
 	wklog.Log
 	leaderId uint64
+
+	mu sync.Mutex
 }
 
 func newHandler(cfg *Config, opts *Options) *handler {
@@ -25,28 +29,11 @@ func newHandler(cfg *Config, opts *Options) *handler {
 		opts:          opts,
 		Log:           wklog.NewWKLog("clusterconfig.handler"),
 	}
-	data, err := cfg.data()
-	if err != nil {
-		h.Panic("get config data error", zap.Error(err))
-	}
-	err = h.memoryStorage.AppendLog([]replica.Log{
-		{
-			Id:    cfg.id(),
-			Index: cfg.version(),
-			Term:  cfg.term(),
-			Data:  data,
-		},
-	})
-	if err != nil {
-		h.Panic("append log error", zap.Error(err))
-	}
-
 	replicas := make([]uint64, 0, len(opts.InitNodes))
 	for replicaId := range opts.InitNodes {
 		replicas = append(replicas, replicaId)
 	}
-
-	h.rc = replica.New(opts.NodeId, replica.WithReplicas(replicas), replica.WithElectionOn(true), replica.WithStorage(h.memoryStorage), replica.WithAppliedIndex(cfg.version()))
+	h.rc = replica.New(opts.NodeId, replica.WithLogPrefix("config"), replica.WithReplicas(replicas), replica.WithElectionOn(true), replica.WithStorage(h.memoryStorage), replica.WithAppliedIndex(cfg.version()))
 	return h
 }
 
@@ -54,8 +41,7 @@ func newHandler(cfg *Config, opts *Options) *handler {
 
 // LastLogIndexAndTerm 获取最后一条日志的索引和任期
 func (h *handler) LastLogIndexAndTerm() (uint64, uint32) {
-	lg := h.memoryStorage.LastLog()
-	return lg.Index, h.cfg.term()
+	return h.rc.LastLogIndex(), h.rc.Term()
 }
 
 func (h *handler) HasReady() bool {
@@ -68,25 +54,46 @@ func (h *handler) Ready() replica.Ready {
 }
 
 // GetAndMergeLogs 获取并合并日志
-func (h *handler) GetAndMergeLogs(msg replica.Message) ([]replica.Log, error) {
+func (h *handler) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
 
-	data, err := h.cfg.data()
+	unstableLogs := msg.Logs
+	startIndex := msg.Index
+	if len(unstableLogs) > 0 {
+		startIndex = unstableLogs[len(unstableLogs)-1].Index + 1
+	}
+
+	var err error
+	if lastIndex == 0 {
+		lastIndex, err = h.memoryStorage.LastIndex()
+		if err != nil {
+			h.Error("getAndMergeLogs: get last index error", zap.Error(err))
+			return nil, err
+		}
+	}
+	var resultLogs []replica.Log
+	if startIndex <= lastIndex {
+		logs, err := h.getLogs(startIndex, lastIndex+1)
+		if err != nil {
+			h.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
+			return nil, err
+		}
+		resultLogs = extend(unstableLogs, logs)
+	}
+
+	return resultLogs, nil
+}
+
+func (h *handler) getLogs(startLogIndex uint64, endLogIndex uint64) ([]replica.Log, error) {
+	logs, err := h.memoryStorage.Logs(startLogIndex, endLogIndex)
 	if err != nil {
+		h.Error("get logs error", zap.Error(err))
 		return nil, err
 	}
-	return []replica.Log{
-		{
-			Id:    h.cfg.id(),
-			Index: h.cfg.version(),
-			Term:  h.cfg.term(),
-			Data:  data,
-		},
-	}, nil
+	return logs, nil
 }
 
 // AppendLog 追加日志
 func (h *handler) AppendLog(logs []replica.Log) error {
-	_ = h.memoryStorage.TruncateLogTo(1)
 	err := h.memoryStorage.AppendLog(logs)
 	return err
 }
@@ -112,6 +119,8 @@ func (h *handler) SlowDown() {
 
 // SetHardState 设置HardState
 func (h *handler) SetHardState(hd replica.HardState) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.leaderId = hd.LeaderId
 }
 
@@ -141,5 +150,24 @@ func (h *handler) IsPrepared() bool {
 }
 
 func (h *handler) isLeader() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	return h.opts.NodeId == h.leaderId
+}
+
+func (h *handler) LeaderId() uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.leaderId
+}
+
+func extend(dst, vals []replica.Log) []replica.Log {
+	need := len(dst) + len(vals)
+	if need <= cap(dst) {
+		return append(dst, vals...) // does not allocate
+	}
+	buf := make([]replica.Log, need) // allocates precisely what's needed
+	copy(buf, dst)
+	copy(buf[len(dst):], vals)
+	return buf
 }

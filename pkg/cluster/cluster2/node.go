@@ -63,8 +63,11 @@ func (n *node) start() {
 }
 
 func (n *node) stop() {
+	n.Debug("close")
 	n.stopper.Stop()
+	n.Debug("close1")
 	n.client.Close()
+	n.Debug("close2")
 }
 
 func (n *node) online() bool {
@@ -145,7 +148,7 @@ func (n *node) requestWithContext(ctx context.Context, path string, body []byte)
 }
 
 // requestChannelLastLogInfo 请求channel的最后一条日志信息
-func (n *node) requestChannelLastLogInfo(ctx context.Context, req *ChannelLastLogInfoReq) (*ChannelLastLogInfoResponse, error) {
+func (n *node) requestChannelLastLogInfo(ctx context.Context, req ChannelLastLogInfoReqSet) (ChannelLastLogInfoResponseSet, error) {
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, err
@@ -157,7 +160,7 @@ func (n *node) requestChannelLastLogInfo(ctx context.Context, req *ChannelLastLo
 	if resp.Status != proto.Status_OK {
 		return nil, fmt.Errorf("requestChannelLastLogInfo is failed, status:%d", resp.Status)
 	}
-	channelLastLogInfoResp := &ChannelLastLogInfoResponse{}
+	channelLastLogInfoResp := ChannelLastLogInfoResponseSet{}
 	err = channelLastLogInfoResp.Unmarshal(resp.Body)
 	if err != nil {
 		return nil, err
@@ -175,7 +178,7 @@ func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClus
 		return wkdb.EmptyChannelClusterConfig, err
 	}
 	if resp.Status != proto.Status_OK {
-		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("requestChannelClusterConfig is failed, status:%d", resp.Status)
+		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("requestChannelClusterConfig is failed,nodeId: %d status:%d err:%s", n.id, resp.Status, []byte(resp.Body))
 	}
 	channelClusterConfigResp := wkdb.ChannelClusterConfig{}
 	err = channelClusterConfigResp.Unmarshal(resp.Body)

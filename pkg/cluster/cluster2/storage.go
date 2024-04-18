@@ -17,6 +17,8 @@ type IShardLogStorage interface {
 	Logs(shardNo string, startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error)
 	// 最后一条日志的索引
 	LastIndex(shardNo string) (uint64, error)
+	// LastIndexAndTerm 获取最后一条日志的索引和任期
+	LastIndexAndTerm(shardNo string) (uint64, uint32, error)
 	// SetLastIndex 设置最后一条日志的索引
 	SetLastIndex(shardNo string, index uint64) error
 	// SetAppliedIndex(shardNo string, index uint64) error

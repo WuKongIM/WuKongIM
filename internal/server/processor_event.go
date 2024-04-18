@@ -577,12 +577,19 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 			storeMessages = append(storeMessages, cloneMsg.Message)
 		}
 		if len(storeMessages) > 0 {
-			messageIdAndSeqMap, err := p.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
+			results, err := p.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
 			if err != nil {
 				return nil, err
 			}
 			for _, storeMessage := range storeMessages {
-				messageSeqMap[fmt.Sprintf("%s-%d", subscriber, storeMessage.MessageID)] = uint32(messageIdAndSeqMap[uint64(storeMessage.MessageID)])
+				var messageSeq uint32
+				for _, result := range results {
+					if storeMessage.MessageID == int64(result.LogId()) {
+						messageSeq = uint32(result.LogIndex())
+						break
+					}
+				}
+				messageSeqMap[fmt.Sprintf("%s-%d", subscriber, storeMessage.MessageID)] = messageSeq
 			}
 		}
 	}

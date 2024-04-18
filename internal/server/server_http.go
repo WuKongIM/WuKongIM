@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster2"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-contrib/pprof"

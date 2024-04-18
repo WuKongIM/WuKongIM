@@ -28,7 +28,7 @@ func (r *Replica) Step(m Message) error {
 	switch m.MsgType {
 	case MsgStoreAppendResp: // 存储追加响应
 		if m.Index != 0 {
-			r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
+			r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeID", r.nodeID), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			r.replicaLog.stableTo(m.Index)
 		}
 	case MsgApplyLogsResp: // 应用日志响应
@@ -157,7 +157,7 @@ func (r *Replica) stepLeader(m Message) error {
 			}
 			if lastIndex == 0 {
 				r.Error("leader term start index not found", zap.Uint32("term", syncTerm), zap.Uint32("leaderTerm", r.replicaLog.term))
-				return ErrLeaderTermStartIndexNotFound
+				// return ErrLeaderTermStartIndexNotFound
 			}
 			r.Info("send leader term start index resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("syncTerm", syncTerm), zap.Uint64("lastIndex", lastIndex))
 			r.send(r.newLeaderTermStartIndexResp(m.From, syncTerm, lastIndex)) // 副本truncate日志到这个下标（不会保留lastIndex的日志）

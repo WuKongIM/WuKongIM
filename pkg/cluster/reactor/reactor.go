@@ -54,7 +54,7 @@ func (r *Reactor) Stop() {
 	}
 
 }
-func (r *Reactor) ProposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]*ProposeResult, error) {
+func (r *Reactor) ProposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]ProposeResult, error) {
 	sub := r.reactorSub(handleKey)
 	return sub.proposeAndWait(ctx, handleKey, logs)
 }
@@ -106,7 +106,7 @@ func (r *Reactor) HandlerLen() int {
 }
 
 func (r *Reactor) newReactorSub(i int) *ReactorSub {
-	return NewReactorSub(i, r.opts)
+	return NewReactorSub(i, r)
 }
 
 func (r *Reactor) reactorSub(key string) *ReactorSub {

@@ -2,7 +2,6 @@ package clusterconfig_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
@@ -72,7 +71,9 @@ func TestServer(t *testing.T) {
 	defer s2.Stop()
 	defer s3.Stop()
 
-	time.Sleep(time.Second * 10)
+	s1.MustWaitConfigVersion(1)
+	s2.MustWaitConfigVersion(1)
+	s3.MustWaitConfigVersion(1)
 }
 
 type testNetowrk struct {

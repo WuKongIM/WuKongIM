@@ -1,12 +1,15 @@
 package clusterstore
 
-import "github.com/WuKongIM/WuKongIM/pkg/wkstore"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
+	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
+)
 
 type Options struct {
-	NodeID    uint64   // 节点ID
-	Cluster   ICluster // 集群服务接口
-	DataDir   string   // 数据目录
-	SlotCount uint32   // 槽数量
+	NodeID    uint64           // 节点ID
+	Cluster   icluster.Propose // 集群服务接口
+	DataDir   string           // 数据目录
+	SlotCount uint32           // 槽数量
 
 	DecodeMessageFnc func(msg []byte) (wkstore.Message, error)
 }
@@ -28,7 +31,7 @@ func newOptions() *Options {
 
 type Option func(*Options)
 
-func WithCluster(cluster ICluster) Option {
+func WithCluster(cluster icluster.Propose) Option {
 	return func(o *Options) {
 		o.Cluster = cluster
 	}

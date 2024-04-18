@@ -22,14 +22,16 @@ type ReactorSub struct {
 	tmpHandlers []*handler
 
 	avdanceC chan struct{}
+	mr       *Reactor
 }
 
-func NewReactorSub(index int, opts *Options) *ReactorSub {
+func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 	return &ReactorSub{
+		mr:          mr,
 		stopper:     syncutil.NewStopper(),
-		opts:        opts,
+		opts:        mr.opts,
 		handlers:    newHandlerList(),
-		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%d:%d]", opts.NodeId, index)),
+		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%d:%d]", mr.opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 10000),
 		avdanceC:    make(chan struct{}, 1),
 	}
@@ -62,7 +64,7 @@ func (r *ReactorSub) run() {
 	}
 }
 
-func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]*ProposeResult, error) {
+func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]ProposeResult, error) {
 
 	// -------------------- 初始化提案数据 --------------------
 	handler := r.handlers.get(handleKey)
@@ -77,11 +79,12 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 
 	// -------------------- 获得等待提交提案的句柄 --------------------
 	waitC := handler.addWait(ctx, key, ids)
-	defer close(waitC)
 
 	// -------------------- 添加提案请求 --------------------
 	req := newProposeReq(key, logs)
 	handler.addPropose(req)
+
+	r.advance()
 
 	// -------------------- 等待提案结果 --------------------
 	select {
@@ -124,13 +127,29 @@ func (r *ReactorSub) readyEvents() {
 
 	r.handlers.readHandlers(&r.tmpHandlers)
 
-	for _, handler := range r.tmpHandlers {
-		if !handler.isPrepared() {
-			continue
+	hasEvent := true
+	var err error
+
+	for hasEvent {
+		hasEvent = false
+		for _, handler := range r.tmpHandlers {
+			if !handler.isPrepared() {
+				continue
+			}
+			has := r.handleReady(handler)
+			if has {
+				hasEvent = true
+			}
+			has, err = r.handleEvent(handler)
+			if err != nil {
+				r.Error("handle event failed", zap.Error(err))
+			}
+			if has {
+				hasEvent = true
+			}
 		}
-		r.handleReady(handler)
-		r.handleEvent(handler)
 	}
+
 	r.tmpHandlers = r.tmpHandlers[:0]
 }
 
@@ -144,7 +163,13 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 	}
 
 	if !replica.IsEmptyHardState(rd.HardState) {
-		handler.setHardState(rd.HardState)
+		err := r.mr.taskPool.Submit(func() {
+			handler.setHardState(rd.HardState)
+		})
+		if err != nil {
+			r.Error("submit set hard state task failed", zap.Error(err))
+		}
+
 	}
 
 	for _, m := range rd.Messages {
@@ -363,11 +388,18 @@ func (r *ReactorSub) handleAppendLogTask(handler *handler) (bool, error) {
 			r.Panic("step local store message failed", zap.Error(err))
 			return false, err
 		}
-		err = handler.setLastIndex(firstTask.resp().Index) // TODO: 耗时操作，不应该放到ready里执行，后续要优化
+		handler.lastIndex.Store(firstTask.resp().Index)
+
+		err = r.mr.taskPool.Submit(func() {
+			err = handler.setLastIndex()
+			if err != nil {
+				r.Panic("set last index failed", zap.Error(err))
+			}
+		})
 		if err != nil {
-			r.Panic("set last index failed", zap.Error(err))
-			return false, err
+			r.Error("submit set last index task failed", zap.Error(err))
 		}
+
 		hasEvent = true
 		handler.removeFirstAppendLogStoreTask()
 		firstTask = handler.firstAppendLogStoreTask()
@@ -437,20 +469,26 @@ func (r *ReactorSub) handleApplyLogTask(handler *handler) (bool, error) {
 			break
 		}
 		if firstTask.hasErr() {
-			r.Panic("apply log store message failed", zap.Error(firstTask.err()))
+			handler.Panic("apply log store message failed", zap.Error(firstTask.err()))
 			return false, firstTask.err()
 		}
 		resp := firstTask.resp()
 		err := handler.step(resp)
 		if err != nil {
-			r.Panic("step apply store message failed", zap.Error(err))
+			handler.Panic("step apply store message failed", zap.Error(err))
 			return false, err
 		}
-		err = handler.setAppliedIndex(resp.AppliedIndex) // TODO: 耗时操作，不应该放到ready里执行，后续要优化
+		handler.appliedIndex.Store(resp.AppliedIndex)
+		err = r.mr.taskPool.Submit(func() {
+			err = handler.setAppliedIndex()
+			if err != nil {
+				handler.Panic("set applied index failed", zap.Error(err))
+			}
+		})
 		if err != nil {
-			r.Panic("set applied index failed", zap.Error(err))
-			return false, err
+			handler.Panic("submit set applied index task failed", zap.Error(err))
 		}
+
 		hasEvent = true
 		handler.removeFirstApplyLogStoreTask()
 		firstTask = handler.firstApplyLogStoreTask()
@@ -490,8 +528,9 @@ func (r *ReactorSub) handleSyncGet(handler *handler, msg replica.Message) {
 	r.Debug("query logs", zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
 	tk := newGetLogsTask(msg.From, msg.Index)
 
+	lastIndex := handler.lastIndex.Load()
 	tk.setExec(func() error {
-		resultLogs, err := handler.getAndMergeLogs(msg)
+		resultLogs, err := handler.getAndMergeLogs(lastIndex, msg)
 		if err != nil {
 			r.Error("get logs error", zap.Error(err))
 		}
@@ -538,7 +577,9 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 		r.Panic("committedIndex is 0", zap.Uint64("applyingIndex", applyingIndex), zap.Uint64("committedIndex", committedIndex))
 	}
 
-	handler.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
+	if !r.opts.IsCommittedAfterApplied {
+		handler.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
+	}
 
 	tk := newApplyLogsTask(committedIndex)
 	tk.setExec(func() error {
@@ -546,6 +587,9 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 		if err != nil {
 			r.Panic("apply logs error", zap.Error(err))
 			return err
+		}
+		if r.opts.IsCommittedAfterApplied {
+			handler.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
 		}
 		tk.setResp(replica.NewMsgApplyLogsRespMessage(r.opts.NodeId, msg.Term, committedIndex))
 		tk.taskFinished()
