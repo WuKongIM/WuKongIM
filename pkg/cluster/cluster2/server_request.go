@@ -18,6 +18,11 @@ func (s *Server) setRoutes() {
 	s.netServer.Route("/channel/proposeMessage", s.handleProposeMessage)
 	// 向槽提案数据
 	s.netServer.Route("/slot/propose", s.handleSlotPropose)
+	// 提案更新api服务地址
+	s.netServer.Route("/config/proposeUpdateApiServerAddr", s.handleUpdateApiServerAddr)
+
+	// 获取槽日志信息
+	s.netServer.Route("/slot/logInfo", s.handleSlotLogInfo)
 }
 
 func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
@@ -159,6 +164,10 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 	c.Write(data)
 }
 
+func (s *Server) getFrom(c *wkserver.Context) (uint64, error) {
+	return strconv.ParseUint(c.Conn().UID(), 10, 64)
+}
+
 func (s *Server) handleSlotPropose(c *wkserver.Context) {
 	req := &SlotProposeReq{}
 	if err := req.Unmarshal(c.Body()); err != nil {
@@ -199,6 +208,52 @@ func (s *Server) handleSlotPropose(c *wkserver.Context) {
 	c.Write(data)
 }
 
-func (s *Server) getFrom(c *wkserver.Context) (uint64, error) {
-	return strconv.ParseUint(c.Conn().UID(), 10, 64)
+func (s *Server) handleUpdateApiServerAddr(c *wkserver.Context) {
+	req := &UpdateApiServerAddrReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal UpdateApiServerAddrReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if !s.clusterEventServer.IsLeader() {
+		s.Error("not leader,handleUpdateApiServerAddr failed")
+		c.WriteErr(ErrNotIsLeader)
+		return
+	}
+
+	err := s.clusterEventServer.ProposeUpdateApiServerAddr(req.NodeId, req.ApiServerAddr)
+	if err != nil {
+		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteOk()
+
+}
+
+func (s *Server) handleSlotLogInfo(c *wkserver.Context) {
+	req := &SlotLogInfoReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal SlotLogInfoReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	slotInfos, err := s.slotInfos(req.SlotIds)
+	if err != nil {
+		s.Error("get slotInfos failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	resp := &SlotLogInfoResp{
+		NodeId: s.opts.NodeId,
+		Slots:  slotInfos,
+	}
+	data, err := resp.Marshal()
+	if err != nil {
+		s.Error("marshal SlotLogInfoResp failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
 }

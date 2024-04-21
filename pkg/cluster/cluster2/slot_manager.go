@@ -22,6 +22,7 @@ func newSlotManager(opts *Options) *slotManager {
 		reactor.WithNodeId(opts.NodeId),
 		reactor.WithSend(sm.onSend),
 		reactor.WithIsCommittedAfterApplied(true),
+		reactor.WithReactorType(reactor.ReactorTypeSlot),
 	))
 
 	return sm

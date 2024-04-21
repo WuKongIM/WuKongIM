@@ -63,6 +63,9 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			s.Error("unmarshal request error", zap.Error(err))
 			return
 		}
+		if s.requestPool.Running() > s.opts.RequestPoolSize-10 {
+			s.Warn("request pool will full", zap.Int("running", s.requestPool.Running()), zap.Int("size", s.opts.RequestPoolSize))
+		}
 		err = s.requestPool.Submit(func() {
 			s.handleRequest(conn, req)
 		})
@@ -85,6 +88,9 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			return
 		}
 		if s.opts.MessagePoolOn {
+			if s.messagePool.Running() > s.opts.MessagePoolSize-10 {
+				s.Warn("message pool will full", zap.Int("running", s.messagePool.Running()), zap.Int("size", s.opts.MessagePoolSize))
+			}
 			err = s.messagePool.Submit(func(cn wknet.Conn, m *proto.Message) func() {
 				return func() {
 					s.handleMessage(cn, m)

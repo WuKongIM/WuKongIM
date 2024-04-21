@@ -75,6 +75,12 @@ func (c *Config) setVersion(version uint64) {
 	c.cfg.Version = version
 }
 
+func (c *Config) versionInc() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cfg.Version++
+}
+
 func (c *Config) term() uint32 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -153,6 +159,28 @@ func (c *Config) addNode(node *pb.Node) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.cfg.Nodes = append(c.cfg.Nodes, node)
+}
+
+func (c *Config) updateNode(n *pb.Node) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, node := range c.cfg.Nodes {
+		if node.Id == n.Id {
+			c.cfg.Nodes[i] = n
+			return
+		}
+	}
+}
+
+func (c *Config) updateApiServerAddr(nodeId uint64, addr string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, node := range c.cfg.Nodes {
+		if node.Id == nodeId {
+			node.ApiServerAddr = addr
+			return
+		}
+	}
 }
 
 // 获取已经应用的配置

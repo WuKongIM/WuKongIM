@@ -150,6 +150,8 @@ type Message struct {
 
 	ApplyingIndex uint64 // 应用中的下表
 	AppliedIndex  uint64
+
+	SpeedLevel SpeedLevel // 只有msgSync和ping才编码
 }
 
 func (m Message) Marshal() ([]byte, error) {
@@ -164,8 +166,9 @@ func (m Message) Marshal() ([]byte, error) {
 	binary.BigEndian.PutUint32(resultBytes[18:], m.Term)
 	binary.BigEndian.PutUint64(resultBytes[22:], m.Index)
 	binary.BigEndian.PutUint64(resultBytes[30:], m.CommittedIndex)
+	resultBytes[38] = byte(m.SpeedLevel)
 
-	offset := 38
+	offset := 39
 	for _, l := range m.Logs {
 		logData, err := l.Marshal()
 		if err != nil {
@@ -186,6 +189,7 @@ func (m Message) MarshalMsgSync() []byte {
 	binary.BigEndian.PutUint64(resultBytes[2:10], m.From)
 	binary.BigEndian.PutUint64(resultBytes[10:18], m.To)
 	binary.BigEndian.PutUint64(resultBytes[18:26], m.Index)
+	resultBytes[26] = byte(m.SpeedLevel)
 	return resultBytes
 }
 
@@ -203,8 +207,9 @@ func UnmarshalMessage(data []byte) (Message, error) {
 	m.Term = binary.BigEndian.Uint32(data[18:22])
 	m.Index = binary.BigEndian.Uint64(data[22:30])
 	m.CommittedIndex = binary.BigEndian.Uint64(data[30:38])
+	m.SpeedLevel = SpeedLevel(data[38])
 
-	offset := 38
+	offset := 39
 	for offset < len(data) {
 		logLen := binary.BigEndian.Uint16(data[offset : offset+2])
 		offset += 2
@@ -225,11 +230,12 @@ func UnmarshalMessageSync(data []byte) (Message, error) {
 	m.From = binary.BigEndian.Uint64(data[2:10])
 	m.To = binary.BigEndian.Uint64(data[10:18])
 	m.Index = binary.BigEndian.Uint64(data[18:26])
+	m.SpeedLevel = SpeedLevel(data[26])
 	return m, nil
 }
 
 func MsgSyncFixSize() int {
-	return 2 + 8 + 8 + 8 // msgType + from + to + index
+	return 2 + 8 + 8 + 8 + 1 // msgType + from + to + index + speedLevel
 }
 
 // func (m Message) MarshalWithEncoder(enc *wkproto.Encoder) error {
@@ -270,7 +276,7 @@ func MsgSyncFixSize() int {
 // }
 
 func (m Message) Size() int {
-	size := 2 + 8 + 8 + 4 + 8 + 8 // msgType + from + to + term   + index + committedIndex
+	size := 2 + 8 + 8 + 4 + 8 + 8 + 1 // msgType + from + to + term   + index + committedIndex + speedLevel
 	for _, l := range m.Logs {
 		size += 2 // log len
 		size += l.LogSize()
@@ -386,3 +392,14 @@ func (r *lockedRand) Intn(n int) int {
 	r.mu.Unlock()
 	return int(v.Int64())
 }
+
+type SpeedLevel uint8
+
+const (
+	LevelFast    SpeedLevel = iota // 最快速度
+	LevelNormal                    // 正常速度
+	LevelMiddle                    // 中等速度
+	LevelSlow                      // 慢速度
+	LevelSlowest                   // 最慢速度
+	LevelStop                      // 停止
+)

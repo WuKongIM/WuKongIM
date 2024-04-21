@@ -20,6 +20,12 @@ func (r *Replica) Step(m Message) error {
 			r.Warn("become follower but leader is none", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
 			r.becomeFollower(m.Term, None)
 		}
+	case m.Term < r.replicaLog.term:
+		r.Warn("received message with lower term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+		if m.MsgType == MsgLeaderTermStartIndexReq {
+			return r.stepFunc(m)
+		}
+		return nil
 
 	default:
 
@@ -130,17 +136,6 @@ func (r *Replica) stepLeader(m Message) error {
 		}
 		if needSendResp {
 			r.send(r.newMsgSyncResp(m.From, m.Index, nil))
-			// r.send(Message{
-			// 	MsgType:        MsgSyncResp,
-			// 	From:           r.nodeID,
-			// 	To:             m.From,
-			// 	Term:           r.replicaLog.term,
-			// 	Logs:           logs,
-			// 	Index:          m.Index,
-			// 	CommittedIndex: r.replicaLog.committedIndex,
-			// 	TraceIDs:       m.TraceIDs,
-			// 	SpanIDs:        m.SpanIDs,
-			// })
 		}
 	case MsgSyncGetResp: // 领导收到追随者的同步获取响应
 		r.send(r.newMsgSyncResp(m.To, m.Index, m.Logs))
@@ -175,6 +170,7 @@ func (r *Replica) stepFollower(m Message) error {
 			r.becomeFollower(m.Term, m.From)
 
 		}
+		r.SetSpeedLevel(m.SpeedLevel) // 设置同步速度
 		r.send(r.newPong(m.From))
 		// r.Debug("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
@@ -190,11 +186,13 @@ func (r *Replica) stepFollower(m Message) error {
 	// 	seq := r.messageWait.next(r.leader, MsgSync)
 	// 	r.send(r.newSyncMsg(seq))
 	case MsgSyncResp: // 领导返回同步消息的结果
-
+		r.SetSpeedLevel(m.SpeedLevel) // 设置同步速度
 		r.electionElapsed = 0
 		if len(m.Logs) > 0 {
 			r.messageWait.immediatelySync()
 			// r.Info("recv sync resp", zap.Int("logCount", len(m.Logs)), zap.Uint64("startLogIndex", m.Logs[0].Index), zap.Uint64("endLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
+		} else {
+			r.messageWait.quickSync()
 		}
 		// force := false
 		// if len(m.Logs) > 0 {
@@ -265,7 +263,8 @@ func (r *Replica) stepFollower(m Message) error {
 		lastIdx := r.replicaLog.lastIndex()
 		r.replicaLog.lastLogIndex = lastIdx
 		r.localLeaderLastTerm = m.Term
-		r.disabledToSync = false // 现在可以去同步领导的日志了
+		r.disabledToSync = false        // 现在可以去同步领导的日志了
+		r.messageWait.immediatelySync() // 立马可以同步了
 		r.Info("enable to sync", zap.Uint64("leader", r.leader), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", m.Term))
 	}
 	return nil
@@ -446,7 +445,7 @@ func (r *Replica) committedIndexForLeader() uint64 {
 			if syncInfo.LastSyncLogIndex-1 >= maxLogIndex {
 				count++
 			}
-			if count >= quorum {
+			if count+1 >= quorum {
 				newCommitted = maxLogIndex
 				break
 			}

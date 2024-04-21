@@ -3,6 +3,7 @@ package wkdb
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -60,7 +61,7 @@ func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, start
 	}
 
 	// 获取频道的最大的messageSeq，超过这个的消息都视为无效
-	lastSeq, err := wk.GetChannelLastMessageSeq(channelId, channelType)
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,7 @@ func (wk *wukongDB) LoadNextRangeMsgs(channelId string, channelType uint8, start
 	}
 
 	// 获取频道的最大的messageSeq，超过这个的消息都视为无效
-	lastSeq, err := wk.GetChannelLastMessageSeq(channelId, channelType)
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +130,7 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 }
 
 func (wk *wukongDB) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error) {
-	lastSeq, err := wk.GetChannelLastMessageSeq(channelID, channelType)
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelID, channelType)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func (wk *wukongDB) LoadLastMsgs(channelID string, channelType uint8, limit int)
 }
 
 func (wk *wukongDB) LoadLastMsgsWithEnd(channelID string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error) {
-	lastSeq, err := wk.GetChannelLastMessageSeq(channelID, channelType)
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelID, channelType)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +168,7 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 		return fmt.Errorf("messageSeq[%d] must be greater than 0", messageSeq)
 
 	}
-	lastMsgSeq, err := wk.GetChannelLastMessageSeq(channelId, channelType)
+	lastMsgSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return err
 	}
@@ -197,17 +198,21 @@ func min(x, y uint64) uint64 {
 	}
 	return y
 }
-func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, error) {
+func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, uint64, error) {
 	db := wk.shardDB(channelId)
 	result, closer, err := db.Get(key.NewChannelLastMessageSeqKey(channelId, channelType))
 	if err != nil {
 		if err == pebble.ErrNotFound {
-			return 0, nil
+			return 0, 0, nil
 		}
-		return 0, err
+		return 0, 0, err
 	}
 	defer closer.Close()
-	return wk.endian.Uint64(result), nil
+
+	seq := wk.endian.Uint64(result)
+	setTime := wk.endian.Uint64(result[8:])
+
+	return seq, setTime, nil
 }
 
 func (wk *wukongDB) SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error {
@@ -216,9 +221,12 @@ func (wk *wukongDB) SetChannelLastMessageSeq(channelId string, channelType uint8
 }
 
 func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer) error {
-	seqBytes := make([]byte, 8)
-	wk.endian.PutUint64(seqBytes, seq)
-	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), seqBytes, wk.wo)
+	data := make([]byte, 16)
+	wk.endian.PutUint64(data, seq)
+	setTime := time.Now().UnixNano()
+	wk.endian.PutUint64(data[8:], uint64(setTime))
+
+	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data, wk.wo)
 }
 
 func (wk *wukongDB) parseChannelMessages(iter *pebble.Iterator, limit int) ([]Message, error) {

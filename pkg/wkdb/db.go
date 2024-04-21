@@ -42,7 +42,7 @@ type MessageDB interface {
 	// LoadLastMsgs 加载最后的消息
 	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
 	// GetChannelLastMessageSeq 获取最后一条消息的seq
-	GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, error)
+	GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, uint64, error)
 
 	// SetChannelLastMessageSeq 设置最后一条消息的seq
 	SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error

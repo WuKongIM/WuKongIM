@@ -1,6 +1,7 @@
 package clusterevent
 
 import (
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
@@ -8,7 +9,7 @@ import (
 )
 
 func (s *Server) loop() {
-	tk := time.NewTicker(time.Millisecond * 500)
+	tk := time.NewTicker(time.Millisecond * 250)
 	for {
 		if s.hasReady() {
 			msgs := s.ready()
@@ -44,9 +45,12 @@ func (s *Server) ready() []Message {
 
 func (s *Server) tick() {
 
+	if s.IsLeader() {
+		s.checkNodeOnlineStatus() // 检查在线状态
+	}
+
 	if s.preRemoteCfg.Version < s.cfgServer.AppliedConfig().Version {
 		s.preRemoteCfg = s.cfgServer.AppliedConfig().Clone()
-		s.Debug("clone......", zap.Uint64("version", s.preRemoteCfg.Version))
 	}
 
 	if s.localCfg.Version >= s.preRemoteCfg.Version {
@@ -61,6 +65,21 @@ func (s *Server) tick() {
 	// 检查槽的变化
 	s.checkSlots()
 
+	// 检查槽的领导是否有效
+	if s.IsLeader() {
+		s.checkSlotLeader()
+	}
+
+	// 检查自己的apiUrl是否被提案
+	if strings.TrimSpace(s.opts.ApiServerAddr) != "" {
+		localNode := s.cfgServer.Node(s.opts.NodeId)
+		if localNode != nil && localNode.ApiServerAddr != s.opts.ApiServerAddr {
+			s.msgs = append(s.msgs, Message{
+				Type: EventTypeApiServerAddrUpdate,
+			})
+		}
+	}
+
 	hasEvent := len(s.msgs) > 0
 
 	if hasEvent && s.localCfg.Version < s.preRemoteCfg.Version {
@@ -74,8 +93,43 @@ func (s *Server) tick() {
 
 }
 
+func (s *Server) checkNodeOnlineStatus() {
+	// 节点在线状态检查
+	if s.IsLeader() {
+		s.pongTickMapLock.Lock()
+		var changeNodes []*pb.Node
+		for _, n := range s.Nodes() {
+			if n.Id == s.opts.NodeId {
+				continue
+			}
+			tk := s.pongTickMap[n.Id]
+			tk += 1
+			s.pongTickMap[n.Id] = tk
+
+			if tk > s.opts.PongMaxTick && n.Online { // 超过最大pong tick数，认为节点离线
+				cloneNode := n.Clone()
+				cloneNode.Online = false
+				cloneNode.OfflineCount++
+				cloneNode.LastOffline = time.Now().Unix()
+				changeNodes = append(changeNodes, cloneNode)
+
+			} else if tk <= s.opts.PongMaxTick && !n.Online { // 原来是离线节点，现在在线
+				cloneNode := n.Clone()
+				cloneNode.Online = true
+				changeNodes = append(changeNodes, cloneNode)
+			}
+		}
+		if len(changeNodes) > 0 {
+			s.msgs = append(s.msgs, Message{
+				Type:  EventTypeNodeOnlieChange,
+				Nodes: changeNodes,
+			})
+		}
+		s.pongTickMapLock.Unlock()
+	}
+}
+
 func (s *Server) checkNodes() {
-	s.Debug("checkNodes....")
 	// ==================== check add or update node ====================
 	newNodes := make([]*pb.Node, 0, len(s.preRemoteCfg.Nodes)-len(s.localCfg.Nodes))
 	updateNodes := make([]*pb.Node, 0, len(s.preRemoteCfg.Nodes))
@@ -98,6 +152,7 @@ func (s *Server) checkNodes() {
 			updateNodes = append(updateNodes, remoteNode)
 		}
 	}
+
 	if len(newNodes) > 0 {
 		s.msgs = append(s.msgs, Message{
 			Type:  EventTypeNodeAdd,
@@ -188,4 +243,28 @@ func (s *Server) checkSlots() {
 			Slots: deleteSlots,
 		})
 	}
+}
+
+func (s *Server) checkSlotLeader() {
+	// ==================== check need election slots ====================
+	var needElectionSlots []*pb.Slot // 需要重新选举的槽
+	for _, remoteSlot := range s.preRemoteCfg.Slots {
+		slot := s.cfgServer.Slot(remoteSlot.Id)
+		if slot == nil || remoteSlot.Leader == 0 {
+			continue
+		}
+		if !s.cfgServer.NodeOnline(remoteSlot.Leader) { // 领导节点没在线了，需要重新选举
+			needElectionSlots = append(needElectionSlots, remoteSlot)
+		}
+	}
+
+	if len(needElectionSlots) == 0 {
+		return
+	}
+
+	s.msgs = append(s.msgs, Message{
+		Type:  EventTypeSlotNeedElection,
+		Slots: needElectionSlots,
+	})
+
 }

@@ -86,7 +86,7 @@ func TestGetChannelMaxMessageSeq(t *testing.T) {
 	err = d.AppendMessages(channelId, channelType, messages)
 	assert.NoError(t, err)
 
-	seq, err := d.GetChannelLastMessageSeq(channelId, channelType)
+	seq, _, err := d.GetChannelLastMessageSeq(channelId, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(num), seq)
 }
@@ -125,7 +125,7 @@ func TestTruncateLogTo(t *testing.T) {
 	err = d.TruncateLogTo(channelId, channelType, 50)
 	assert.NoError(t, err)
 
-	seq, err := d.GetChannelLastMessageSeq(channelId, channelType)
+	seq, _, err := d.GetChannelLastMessageSeq(channelId, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(50), seq)
 

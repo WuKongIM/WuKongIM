@@ -10,8 +10,11 @@ type Options struct {
 	SlotCount           uint32 // 槽位数量
 	SlotMaxReplicaCount uint32 // 每个槽位最大副本数量
 	ConfigDir           string
+	ApiServerAddr       string // api服务地址
 	Ready               func(msgs []Message)
 	Send                func(m reactor.Message) // 发送消息
+	// PongMaxTick 节点超过多少tick没有回应心跳就认为是掉线
+	PongMaxTick int
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -19,6 +22,7 @@ func NewOptions(opt ...Option) *Options {
 		SlotCount:           128,
 		SlotMaxReplicaCount: 3,
 		ConfigDir:           "clusterconfig",
+		PongMaxTick:         10,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -67,5 +71,11 @@ func WithSend(f func(m reactor.Message)) Option {
 func WithConfigDir(configDir string) Option {
 	return func(o *Options) {
 		o.ConfigDir = configDir
+	}
+}
+
+func WithApiServerAddr(apiServerAddr string) Option {
+	return func(o *Options) {
+		o.ApiServerAddr = apiServerAddr
 	}
 }

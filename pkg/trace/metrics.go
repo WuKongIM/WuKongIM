@@ -242,4 +242,7 @@ type IClusterMetrics interface {
 	SlotElectionSuccessCountAdd(v int64)
 	// SlotElectionFailCountAdd  槽位选举失败次数
 	SlotElectionFailCountAdd(v int64)
+
+	// ProposeLatencyAdd 提案延迟统计
+	ProposeLatencyAdd(kind ClusterKind, v int64)
 }

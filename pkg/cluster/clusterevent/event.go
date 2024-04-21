@@ -24,6 +24,12 @@ const (
 	EventTypeSlotUpdate
 	// EventTypeSlotDelete 槽删除
 	EventTypeSlotDelete
+	// EventTypeApiServerAddrUpdate api服务地址更新
+	EventTypeApiServerAddrUpdate
+	// EventTypeNodeOnlieChange 节点在线状态改变
+	EventTypeNodeOnlieChange
+	// EventTypeSlotNeedElection 槽需要重新选举
+	EventTypeSlotNeedElection
 )
 
 func (e EventType) String() string {
@@ -42,6 +48,12 @@ func (e EventType) String() string {
 		return "EventTypeSlotUpdate"
 	case EventTypeSlotDelete:
 		return "EventTypeSlotDelete"
+	case EventTypeApiServerAddrUpdate:
+		return "EventTypeApiServerAddrUpdate"
+	case EventTypeNodeOnlieChange:
+		return "EventTypeNodeOnlieChange"
+	case EventTypeSlotNeedElection:
+		return "EventTypeSlotNeedElection"
 	}
 	return fmt.Sprintf("EventTypeNone[%d]", e)
 

@@ -461,7 +461,7 @@ func (s *Server) getSlotMaxLogIndex(slotId uint32) (uint64, error) {
 		return lastIdx, nil
 	}
 
-	slotLogResp, err := s.nodeManager.requestSlotLogInfo(slot.Leader, &SlotLogInfoReq{
+	slotLogResp, err := s.nodeManager.requestSlotLogInfo(s.cancelCtx, slot.Leader, &SlotLogInfoReq{
 		SlotIds: []uint32{slotId},
 	})
 	if err != nil {

@@ -60,7 +60,8 @@ func (s *Store) LoadPrevRangeMsgs(channelID string, channelType uint8, start, en
 }
 
 func (s *Store) GetLastMsgSeq(channelID string, channelType uint8) (uint64, error) {
-	return s.wdb.GetChannelLastMessageSeq(channelID, channelType)
+	seq, _, err := s.wdb.GetChannelLastMessageSeq(channelID, channelType)
+	return seq, err
 }
 
 func (s *Store) GetMessagesOfNotifyQueue(count int) ([]wkdb.Message, error) {
@@ -173,16 +174,17 @@ func (m *MessageShardLogStorage) Close() error {
 
 func (s *MessageShardLogStorage) AppendLog(shardNo string, logs []replica.Log) error {
 	channelID, channelType := cluster.ChannelFromlKey(shardNo)
-	lastIndex, err := s.LastIndex(shardNo)
-	if err != nil {
-		s.Error("get last index err", zap.Error(err))
-		return err
-	}
-	lastLog := logs[len(logs)-1]
-	if lastLog.Index <= lastIndex {
-		s.Panic("log index is less than last index", zap.Uint64("logIndex", lastLog.Index), zap.Uint64("lastIndex", lastIndex))
-		return nil
-	}
+	// lastIndex, err := s.LastIndex(shardNo)
+	// if err != nil {
+	// 	s.Error("get last index err", zap.Error(err))
+	// 	return err
+	// }
+	// lastLog := logs[len(logs)-1]
+	// if lastLog.Index <= lastIndex {
+	// 	s.Panic("log index is less than last index", zap.Uint64("logIndex", lastLog.Index), zap.Uint64("lastIndex", lastIndex))
+	// 	return nil
+	// }
+	var err error
 
 	msgs := make([]wkdb.Message, len(logs))
 	for idx, log := range logs {
@@ -246,7 +248,7 @@ func (s *MessageShardLogStorage) TruncateLogTo(shardNo string, index uint64) err
 // 最后一条日志的索引
 func (s *MessageShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	channelId, channelType := cluster.ChannelFromlKey(shardNo)
-	lastMsgSeq, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
+	lastMsgSeq, _, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return 0, err
 	}
@@ -309,11 +311,11 @@ func (s *MessageShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shard
 
 func (s *MessageShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
 	channelId, channelType := cluster.ChannelFromlKey(shardNo)
-	lastMsgSeq, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
+	lastMsgSeq, appendTime, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return 0, 0, err
 	}
-	return uint64(lastMsgSeq), 0, nil
+	return uint64(lastMsgSeq), appendTime, nil
 }
 
 // 是用户自己的频道
