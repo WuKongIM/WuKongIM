@@ -70,6 +70,10 @@ type clusterMetrics struct {
 	// outbound flight
 	outboundFlightMessageCount metric.Int64UpDownCounter
 	outboundFlightMessageBytes metric.Int64UpDownCounter
+
+	// propose
+	channelProposeLatency metric.Int64Histogram
+	slotProposeLatency    metric.Int64Histogram
 }
 
 func newClusterMetrics(opts *Options) IClusterMetrics {
@@ -187,48 +191,20 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 		return nil
 	}, clusterPongIncomingBytes, clusterPongIncomingCount, clusterPongOutgoingBytes, clusterPongOutgoingCount)
 
-	// RequestGoroutinePoolRunningCount
-	requestGoroutinePoolRunningCount, err := meter.Int64ObservableUpDownCounter("cluster_request_goroutine_pool_running_count")
+	var err error
+	// propose
+	c.channelProposeLatency, err = meter.Int64Histogram(
+		"cluster_channel_propose_latency",
+	)
 	if err != nil {
-		c.Panic("cluster_request_goroutine_pool_running_count error", zap.Error(err))
+		c.Panic("cluster_channel_propose_latency error", zap.Error(err))
 	}
+	c.slotProposeLatency, err = meter.Int64Histogram(
+		"cluster_slot_propose_latency",
+	)
+	if err != nil {
+		c.Panic("cluster_slot_propose_latency error", zap.Error(err))
 
-	messageGoroutinePoolRunningCount, err := meter.Int64ObservableUpDownCounter("cluster_message_goroutine_pool_running_count")
-	if err != nil {
-		c.Panic("cluster_message_goroutine_pool_running_count error", zap.Error(err))
-	}
-
-	// inbound flight
-	inboundFlightMessageCount, err := meter.Int64ObservableUpDownCounter("cluster_inbound_flight_message_count")
-	if err != nil {
-		c.Panic("cluster_inbound_flight_message_count error", zap.Error(err))
-	}
-	inboundFlightMessageBytes, err := meter.Int64ObservableUpDownCounter("cluster_inbound_flight_message_bytes")
-	if err != nil {
-		c.Panic("cluster_inbound_flight_message_bytes error", zap.Error(err))
-	}
-	// outbound flight
-	outboundFlightMessageCount, err := meter.Int64ObservableUpDownCounter("cluster_outbound_flight_message_count")
-	if err != nil {
-		c.Panic("cluster_outbound_flight_message_count error", zap.Error(err))
-	}
-
-	outboundFlightMessageBytes, err := meter.Int64ObservableUpDownCounter("cluster_outbound_flight_message_bytes")
-	if err != nil {
-		c.Panic("cluster_outbound_flight_message_bytes error", zap.Error(err))
-	}
-
-	_, err = meter.RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
-		obs.ObserveInt64(requestGoroutinePoolRunningCount, opts.RequestPoolRunning())
-		obs.ObserveInt64(messageGoroutinePoolRunningCount, opts.MessagePoolRunning())
-		obs.ObserveInt64(inboundFlightMessageCount, opts.InboundFlightMessageCount())
-		obs.ObserveInt64(inboundFlightMessageBytes, opts.InboundFlightMessageBytes())
-		obs.ObserveInt64(outboundFlightMessageCount, opts.OutboundFlightMessageCount())
-		obs.ObserveInt64(outboundFlightMessageBytes, opts.OutboundFlightMessageBytes())
-		return nil
-	}, requestGoroutinePoolRunningCount, messageGoroutinePoolRunningCount, inboundFlightMessageCount, inboundFlightMessageBytes, outboundFlightMessageCount, outboundFlightMessageBytes)
-	if err != nil {
-		c.Panic("register callback error", zap.Error(err))
 	}
 
 	return c
@@ -477,4 +453,13 @@ func (c *clusterMetrics) SlotElectionSuccessCountAdd(v int64) {
 
 func (c *clusterMetrics) SlotElectionFailCountAdd(v int64) {
 
+}
+
+func (c *clusterMetrics) ProposeLatencyAdd(kind ClusterKind, v int64) {
+	switch kind {
+	case ClusterKindChannel:
+		c.channelProposeLatency.Record(c.ctx, v)
+	case ClusterKindSlot:
+		c.slotProposeLatency.Record(c.ctx, v)
+	}
 }

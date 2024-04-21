@@ -464,31 +464,6 @@ func (c *ChannelProposeResp) Unmarshal(data []byte) error {
 	return nil
 }
 
-type UpdateNodeApiServerAddrReq struct {
-	NodeId        uint64 // 节点ID
-	ApiServerAddr string // API服务地址
-}
-
-func (u *UpdateNodeApiServerAddrReq) Marshal() ([]byte, error) {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-	enc.WriteUint64(u.NodeId)
-	enc.WriteString(u.ApiServerAddr)
-	return enc.Bytes(), nil
-}
-
-func (u *UpdateNodeApiServerAddrReq) Unmarshal(data []byte) error {
-	dec := wkproto.NewDecoder(data)
-	var err error
-	if u.NodeId, err = dec.Uint64(); err != nil {
-		return err
-	}
-	if u.ApiServerAddr, err = dec.String(); err != nil {
-		return err
-	}
-	return nil
-}
-
 type SlotProposeReq struct {
 	SlotId uint32
 	Logs   []replica.Log // 数据
@@ -616,8 +591,9 @@ func (s *SlotLogInfoReq) Unmarshal(data []byte) error {
 }
 
 type SlotInfo struct {
-	SlotId   uint32
-	LogIndex uint64
+	SlotId   uint32 // 槽Id
+	LogIndex uint64 // 日志下标
+	LogTerm  uint32 // 日期任期
 }
 
 type SlotLogInfoResp struct {
@@ -633,6 +609,7 @@ func (s *SlotLogInfoResp) Marshal() ([]byte, error) {
 	for _, slot := range s.Slots {
 		enc.WriteUint32(slot.SlotId)
 		enc.WriteUint64(slot.LogIndex)
+		enc.WriteUint32(slot.LogTerm)
 	}
 	return enc.Bytes(), nil
 }
@@ -654,6 +631,9 @@ func (s *SlotLogInfoResp) Unmarshal(data []byte) error {
 				return err
 			}
 			if s.Slots[i].LogIndex, err = dec.Uint64(); err != nil {
+				return err
+			}
+			if s.Slots[i].LogTerm, err = dec.Uint32(); err != nil {
 				return err
 			}
 		}
@@ -757,6 +737,31 @@ func (s *SlotMigrateFinishReq) Unmarshal(data []byte) error {
 		return err
 	}
 	if s.To, err = dec.Uint64(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type UpdateApiServerAddrReq struct {
+	NodeId        uint64
+	ApiServerAddr string
+}
+
+func (u *UpdateApiServerAddrReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(u.NodeId)
+	enc.WriteString(u.ApiServerAddr)
+	return enc.Bytes(), nil
+}
+
+func (u *UpdateApiServerAddrReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if u.NodeId, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if u.ApiServerAddr, err = dec.String(); err != nil {
 		return err
 	}
 	return nil

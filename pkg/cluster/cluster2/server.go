@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -86,6 +86,7 @@ func New(opts *Options) *Server {
 		clusterevent.WithReady(s.onEvent),
 		clusterevent.WithSend(s.onSend),
 		clusterevent.WithConfigDir(cfgDir),
+		clusterevent.WithApiServerAddr(opts.ApiServerAddr),
 	))
 
 	channelElectionPool, err := ants.NewPool(s.opts.ChannelElectionPoolSize, ants.WithNonblocking(false), ants.WithDisablePurge(true), ants.WithPanicHandler(func(err interface{}) {
@@ -131,6 +132,14 @@ func (s *Server) Start() error {
 		}
 	}
 
+	slots := s.clusterEventServer.Slots()
+	for _, slot := range slots {
+		if !wkutil.ArrayContainsUint64(slot.Replicas, s.opts.NodeId) {
+			continue
+		}
+		s.addSlot(slot)
+	}
+
 	// channel election manager
 	err = s.channelElectionManager.start()
 	if err != nil {
@@ -165,35 +174,34 @@ func (s *Server) Start() error {
 func (s *Server) Stop() {
 	close(s.stopC)
 	s.cancelFnc()
-	fmt.Println("node stopped1")
 	s.nodeManager.stop()
-	fmt.Println("node stopped2")
 	s.channelElectionManager.stop()
-	fmt.Println("node stopped3")
 	s.netServer.Stop()
-	fmt.Println("node stopped4")
 	s.clusterEventServer.Stop()
-	fmt.Println("node stopped5")
 	s.slotManager.stop()
-	fmt.Println("node stopped6")
 	s.channelManager.stop()
-	fmt.Println("node stopped7")
 	s.channelKeyLock.StopCleanLoop()
-	fmt.Println("node stopped8")
 	s.slotStorage.Close()
 
-	s.Debug("Server stopped")
 }
 
 func (s *Server) AddSlotMessage(m reactor.Message) {
+
+	// 统计引入的消息
+	traceIncomingMessage(trace.ClusterKindSlot, m.MsgType, int64(m.Size()))
+
 	s.slotManager.addMessage(m)
 }
 
 func (s *Server) AddConfigMessage(m reactor.Message) {
+
 	s.clusterEventServer.AddMessage(m)
 }
 
 func (s *Server) AddChannelMessage(m reactor.Message) {
+
+	// 统计引入的消息
+	traceIncomingMessage(trace.ClusterKindChannel, m.MsgType, int64(m.Size()))
 
 	ch := s.channelManager.getWithHandleKey(m.HandlerKey)
 	if ch != nil {
@@ -212,6 +220,10 @@ func (s *Server) AddChannelMessage(m reactor.Message) {
 	s.channelLoadMap[m.HandlerKey] = struct{}{}
 	s.channelLoadMapLock.Unlock()
 
+	running := s.channelLoadPool.Running()
+	if running > s.opts.ChannelLoadPoolSize-10 {
+		s.Warn("channelLoadPool is busy", zap.Int("running", running), zap.Int("size", s.opts.ChannelLoadPoolSize))
+	}
 	err := s.channelLoadPool.Submit(func() {
 		channelId, channelType := ChannelFromlKey(m.HandlerKey)
 		if channelId == "" {
@@ -230,87 +242,6 @@ func (s *Server) AddChannelMessage(m reactor.Message) {
 	}
 }
 
-func (s *Server) onEvent(msgs []clusterevent.Message) {
-	s.Debug("收到分布式事件....")
-	handled := false
-	for _, msg := range msgs {
-		handled = s.handleClusterEvent(msg)
-		if handled {
-			s.clusterEventServer.Step(msg)
-		}
-	}
-}
-
-func (s *Server) handleClusterEvent(m clusterevent.Message) bool {
-
-	switch m.Type {
-	case clusterevent.EventTypeNodeAdd: // 添加节点
-		s.handleNodeAdd(m)
-	case clusterevent.EventTypeNodeUpdate: // 修改节点
-		s.handleNodeUpdate(m)
-	case clusterevent.EventTypeSlotAdd: // 添加槽
-		s.handleSlotAdd(m)
-	}
-	return true
-
-}
-
-func (s *Server) handleNodeAdd(m clusterevent.Message) {
-	for _, node := range m.Nodes {
-		if s.nodeManager.exist(node.Id) {
-			continue
-		}
-		if s.opts.NodeId == node.Id {
-			continue
-		}
-		if strings.TrimSpace(node.ClusterAddr) != "" {
-			s.nodeManager.addNode(s.newNodeByNodeInfo(node.Id, node.ClusterAddr))
-		}
-	}
-}
-
-func (s *Server) handleNodeUpdate(m clusterevent.Message) {
-	for _, node := range m.Nodes {
-		if node.Id == s.opts.NodeId {
-			continue
-		}
-		if !s.nodeManager.exist(node.Id) && strings.TrimSpace(node.ClusterAddr) != "" {
-			s.nodeManager.addNode(s.newNodeByNodeInfo(node.Id, node.ClusterAddr))
-			continue
-		}
-		n := s.nodeManager.node(node.Id)
-		if n != nil && n.addr != node.ClusterAddr {
-			s.nodeManager.removeNode(n.id)
-			n.stop()
-			s.nodeManager.addNode(s.newNodeByNodeInfo(node.Id, node.ClusterAddr))
-			continue
-		}
-
-	}
-}
-
-func (s *Server) handleSlotAdd(m clusterevent.Message) {
-	for _, slot := range m.Slots {
-		if s.slotManager.exist(slot.Id) {
-			continue
-		}
-		if !wkutil.ArrayContainsUint64(slot.Replicas, s.opts.NodeId) {
-			continue
-		}
-		st := s.newSlot(slot)
-		s.slotManager.add(st)
-
-		if slot.Leader != 0 {
-			if slot.Leader == s.opts.NodeId {
-				st.becomeLeader(slot.Term)
-			} else {
-				st.becomeFollower(slot.Term, slot.Leader)
-			}
-		}
-
-	}
-}
-
 func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
 	n := newNode(nodeID, s.serverUid(s.opts.NodeId), addr, s.opts)
 	n.start()
@@ -324,11 +255,31 @@ func (s *Server) newSlot(st *pb.Slot) *slot {
 
 }
 
+func (s *Server) addSlot(slot *pb.Slot) {
+	st := s.newSlot(slot)
+	s.slotManager.add(st)
+	if slot.Leader != 0 {
+		if slot.Leader == s.opts.NodeId {
+			st.becomeLeader(slot.Term)
+		} else {
+			st.becomeFollower(slot.Term, slot.Leader)
+		}
+	}
+}
+
 func (s *Server) serverUid(id uint64) string {
 	return fmt.Sprintf("%d", id)
 }
 
 func (s *Server) send(shardType ShardType, m reactor.Message) {
+
+	// 输出消息统计
+	if shardType == ShardTypeSlot {
+		traceOutgoingMessage(trace.ClusterKindSlot, m.MsgType, int64(m.Size()))
+	} else if shardType == ShardTypeChannel {
+		traceOutgoingMessage(trace.ClusterKindChannel, m.MsgType, int64(m.Size()))
+	}
+
 	node := s.nodeManager.node(m.To)
 	if node == nil {
 		s.Warn("send failed, node not exist", zap.Uint64("to", m.To))
@@ -367,6 +318,9 @@ func (s *Server) onSend(m reactor.Message) {
 }
 
 func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
+
+	trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(1)
+	trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(int64(m.Size()))
 
 	switch m.MsgType {
 	case MsgTypeConfig:

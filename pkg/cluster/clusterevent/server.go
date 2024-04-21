@@ -1,13 +1,16 @@
 package clusterevent
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
@@ -28,6 +31,10 @@ type Server struct {
 	wklog.Log
 
 	msgs []Message
+
+	// 用于记录每个节点的最后一次的回应心跳的tick间隔
+	pongTickMap     map[uint64]int
+	pongTickMapLock sync.RWMutex
 }
 
 func New(opts *Options) *Server {
@@ -47,6 +54,7 @@ func New(opts *Options) *Server {
 		Log:           wklog.NewWKLog("clusterevent"),
 		stopper:       syncutil.NewStopper(),
 		advanceC:      make(chan struct{}, 1),
+		pongTickMap:   make(map[uint64]int),
 	}
 	s.cfgServer = clusterconfig.New(clusterconfig.NewOptions(
 		clusterconfig.WithNodeId(opts.NodeId),
@@ -117,11 +125,24 @@ func (s *Server) Step(m Message) {
 			}
 		}
 		s.localCfg.Nodes = newNodes
+	case EventTypeApiServerAddrUpdate:
+		for _, n := range s.localCfg.Nodes {
+			if n.Id == s.opts.NodeId {
+				n.ApiServerAddr = s.opts.ApiServerAddr
+				break
+			}
+		}
 	}
 }
 
 func (s *Server) AddMessage(m reactor.Message) {
 	s.cfgServer.AddMessage(m)
+
+	if s.IsLeader() && m.MsgType == replica.MsgPong {
+		s.pongTickMapLock.Lock()
+		s.pongTickMap[m.From] = 0
+		s.pongTickMapLock.Unlock()
+	}
 }
 
 func (s *Server) SlotCount() uint32 {
@@ -130,6 +151,10 @@ func (s *Server) SlotCount() uint32 {
 
 func (s *Server) Slot(id uint32) *pb.Slot {
 	return s.cfgServer.Slot(id)
+}
+
+func (s *Server) Slots() []*pb.Slot {
+	return s.cfgServer.Slots()
 }
 
 // NodeOnline 节点是否在线
@@ -166,6 +191,14 @@ func (s *Server) Config() *pb.Config {
 // AllowVoteNodes 获取允许投票的节点
 func (s *Server) AllowVoteNodes() []*pb.Node {
 	return s.cfgServer.AllowVoteNodes()
+}
+
+func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string) error {
+	return s.cfgServer.ProposeUpdateApiServerAddr(nodeId, apiServerAddr)
+}
+
+func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
+	return s.cfgServer.ProposeConfig(ctx, cfg)
 }
 
 func (s *Server) loadLocalConfig() error {

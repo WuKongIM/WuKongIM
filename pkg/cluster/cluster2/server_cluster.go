@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
@@ -226,6 +227,7 @@ func (s *Server) ProposeChannelMeta(ctx context.Context, channelId string, chann
 }
 
 func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (*channel, error) {
+	start := time.Now()
 	slotId := s.getChannelSlotId(channelId)
 	slotInfo := s.clusterEventServer.Slot(slotId)
 	if slotInfo == nil {
@@ -310,7 +312,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 			return nil, err
 		}
 	}
-	ch.Info("loadOrCreateChannel success", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	ch.Info("loadOrCreateChannel success", zap.Duration("cost", time.Since(start)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 	return ch, nil
 }
 
@@ -370,7 +372,6 @@ func (s *Server) needElectionLeader(cfg wkdb.ChannelClusterConfig) bool {
 
 func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClusterConfig, ch *channel) (wkdb.ChannelClusterConfig, error) {
 
-	fmt.Println("electionChannelLeader--->")
 	resultC := make(chan electionResp, 1)
 	req := electionReq{
 		ch:      ch,

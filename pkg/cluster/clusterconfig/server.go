@@ -3,12 +3,14 @@ package clusterconfig
 import (
 	"context"
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
@@ -22,44 +24,61 @@ type Server struct {
 	stopper       *syncutil.Stopper
 	cancelCtx     context.Context
 	cancelFnc     context.CancelFunc
+	cfgGenId      *snowflake.Node
+
+	storage *PebbleShardLogStorage
 
 	wklog.Log
 }
 
 func New(opts *Options) *Server {
+
+	dataDir := path.Dir(opts.ConfigPath)
 	s := &Server{
 		opts:       opts,
 		handlerKey: "config",
 		cfg:        NewConfig(opts),
 		stopper:    syncutil.NewStopper(),
 		Log:        wklog.NewWKLog("clusterconfig.server"),
+		storage:    NewPebbleShardLogStorage(path.Join(dataDir, "logdb")),
 	}
 	reactorOptions := reactor.NewOptions(reactor.WithNodeId(opts.NodeId), reactor.WithSend(s.send), reactor.WithSubReactorNum(1), reactor.WithTaskPoolSize(10))
 	s.configReactor = reactor.New(reactorOptions)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
+	var err error
+	s.cfgGenId, err = snowflake.NewNode(int64(opts.NodeId))
+	if err != nil {
+		s.Panic("snowflake.NewNode failed", zap.Error(err))
+	}
 	return s
 }
 
 func (s *Server) Start() error {
 
-	s.stopper.RunWorker(s.run)
-
-	err := s.configReactor.Start()
+	err := s.storage.Open()
 	if err != nil {
 		return err
 	}
-	s.handler = newHandler(s.cfg, s.opts)
+
+	s.stopper.RunWorker(s.run)
+
+	err = s.configReactor.Start()
+	if err != nil {
+		return err
+	}
+	s.handler = newHandler(s.cfg, s.storage, s.opts)
 	s.configReactor.AddHandler("config", s.handler)
 	return nil
 }
 
 func (s *Server) Stop() {
-	fmt.Println("clusterconfig stop1")
 	s.cancelFnc()
 	s.stopper.Stop()
-	fmt.Println("clusterconfig stop2")
 	s.configReactor.Stop()
-	fmt.Println("clusterconfig stop3")
+	err := s.storage.Close()
+	if err != nil {
+		s.Error("storage close error", zap.Error(err))
+	}
 }
 
 // AddMessage 添加消息
@@ -117,16 +136,70 @@ func (s *Server) LeaderId() uint64 {
 	return s.handler.LeaderId()
 }
 
+func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string) error {
+	node := s.Node(nodeId)
+	if node == nil {
+		s.Error("proposeUpdateApiServerAddr failed, node not found", zap.Uint64("nodeId", nodeId))
+		return fmt.Errorf("node not found")
+	}
+	s.cfg.versionInc()
+	s.cfg.updateApiServerAddr(nodeId, apiServerAddr)
+	data, err := s.cfg.data()
+	if err != nil {
+		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
+		return err
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
+	defer cancel()
+
+	err = s.proposeAndWait(timeoutCtx, []replica.Log{
+		{
+			Id:   uint64(s.cfgGenId.Generate().Int64()),
+			Data: data,
+		},
+	})
+	if err != nil {
+		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
+
+	data, err := cfg.Marshal()
+	if err != nil {
+		s.Error("ProposeConfig failed", zap.Error(err))
+		return err
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
+	defer cancel()
+	err = s.proposeAndWait(timeoutCtx, []replica.Log{
+		{
+			Id:   uint64(s.cfgGenId.Generate().Int64()),
+			Data: data,
+		},
+	})
+	if err != nil {
+		s.Error("ProposeConfig failed", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (s *Server) proposeAndWait(ctx context.Context, logs []replica.Log) error {
+	_, err := s.configReactor.ProposeAndWait(ctx, s.handlerKey, logs)
+	return err
+}
+
 func (s *Server) send(m reactor.Message) {
 	s.opts.Send(m)
 }
 
 func (s *Server) run() {
 	tk := time.NewTicker(time.Millisecond * 250)
-	defer func() {
-		fmt.Println("run....end....")
-
-	}()
 	for {
 		select {
 		case <-tk.C:
@@ -172,7 +245,7 @@ func (s *Server) checkClusterConfig() {
 			for i := uint32(0); i < s.opts.SlotCount; i++ {
 				slot := &pb.Slot{
 					Id:           i,
-					ReplicaCount: s.opts.SlotCount,
+					ReplicaCount: s.opts.SlotMaxReplicaCount,
 				}
 				if len(replicas) <= int(replicaCount) {
 					slot.Replicas = replicas
@@ -195,18 +268,16 @@ func (s *Server) checkClusterConfig() {
 	}
 
 	if hasUpdate {
-		s.cfg.setVersion(s.cfg.version() + 1)
+		s.cfg.versionInc()
 		data, err := s.cfg.data()
 		if err != nil {
 			s.Error("get data error", zap.Error(err))
 			return
 		}
-		_, err = s.configReactor.ProposeAndWait(s.cancelCtx, s.handlerKey, []replica.Log{
+		err = s.proposeAndWait(s.cancelCtx, []replica.Log{
 			{
-				Id:    s.cfg.id(),
-				Index: s.cfg.version(),
-				Term:  s.cfg.term(),
-				Data:  data,
+				Id:   s.cfg.id(),
+				Data: data,
 			},
 		})
 		if err != nil {

@@ -46,8 +46,8 @@ type Replica struct {
 	replicaLog      *replicaLog
 	uncommittedSize logEncodingSize
 
-	hasFirstSyncResp bool // 是否有第一次同步的回应
-
+	hasFirstSyncResp bool       // 是否有第一次同步的回应
+	speedLevel       SpeedLevel // 当前速度等级
 }
 
 func New(nodeId uint64, optList ...Option) *Replica {
@@ -66,8 +66,9 @@ func New(nodeId uint64, optList ...Option) *Replica {
 		lastSyncInfoMap: map[uint64]*SyncInfo{},
 		// pongMap:          map[uint64]bool{},
 		activeReplicas: make(map[uint64]bool),
-		messageWait:    newMessageWait(opts.MessageSendInterval, opts.ReplicaMaxCount),
+		messageWait:    newMessageWait(opts.ReplicaMaxCount),
 		replicaLog:     newReplicaLog(opts),
+		speedLevel:     LevelFast,
 	}
 
 	lastLeaderTerm, err := rc.opts.Storage.LeaderLastTerm()
@@ -116,6 +117,58 @@ func (r *Replica) Propose(data []byte) error {
 func (r *Replica) BecomeFollower(term uint32, leaderID uint64) {
 
 	r.becomeFollower(term, leaderID)
+}
+
+// 降速
+func (r *Replica) SlowDown() {
+	if !r.isLeader() {
+		return
+	}
+	switch r.speedLevel {
+	case LevelFast:
+		r.speedLevel = LevelNormal
+	case LevelNormal:
+		r.speedLevel = LevelMiddle
+	case LevelMiddle:
+		r.speedLevel = LevelSlow
+	case LevelSlow:
+		r.speedLevel = LevelSlowest
+	case LevelSlowest:
+		r.speedLevel = LevelStop
+	}
+	r.SetSpeedLevel(r.speedLevel)
+
+}
+
+func (r *Replica) SetSpeedLevel(level SpeedLevel) {
+
+	var notify bool
+
+	if r.speedLevel != level {
+		notify = true
+	}
+
+	r.speedLevel = level
+
+	switch level {
+	case LevelFast:
+		r.messageWait.setSyncIntervalTickCount(1)
+	case LevelNormal:
+		r.messageWait.setSyncIntervalTickCount(2)
+	case LevelSlow:
+		r.messageWait.setSyncIntervalTickCount(10)
+	case LevelSlowest:
+		r.messageWait.setSyncIntervalTickCount(50)
+	case LevelStop: // 这种情况基本是停止状态，要么等待重新激活，要么等待被销毁
+		r.messageWait.setSyncIntervalTickCount(100000)
+	}
+	if notify && r.isLeader() {
+		r.sendPing()
+	}
+}
+
+func (r *Replica) SpeedLevel() SpeedLevel {
+	return r.speedLevel
 }
 
 func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
@@ -270,17 +323,20 @@ func (r *Replica) HasReady() bool {
 	if r.hasMsgs() {
 		return true
 	}
-	if r.disabledToSync {
-		return !r.isLeader() && r.messageWait.canMsgLeaderTermStartIndex()
-	}
 
-	if r.followNeedSync() {
-		return true
-	}
+	if r.speedLevel != LevelStop {
+		if r.disabledToSync {
+			return !r.isLeader() && r.messageWait.canMsgLeaderTermStartIndex()
+		}
 
-	if r.isLeader() {
-		if r.hasNeedPing() {
+		if r.followNeedSync() {
 			return true
+		}
+
+		if r.isLeader() {
+			if r.hasNeedPing() {
+				return true
+			}
 		}
 	}
 
@@ -297,28 +353,30 @@ func (r *Replica) HasReady() bool {
 
 // 放入消息
 func (r *Replica) putMsgIfNeed() {
-
-	if r.disabledToSync {
-		if !r.IsLeader() && r.messageWait.canMsgLeaderTermStartIndex() {
-			r.messageWait.resetMsgLeaderTermStartIndex()
-			r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
+	if r.speedLevel != LevelStop {
+		if r.disabledToSync {
+			if !r.IsLeader() && r.messageWait.canMsgLeaderTermStartIndex() {
+				r.messageWait.resetMsgLeaderTermStartIndex()
+				r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
+			}
+			return
 		}
-		return
-	}
 
-	// 副本来同步日志
-	if r.followNeedSync() {
-		r.messageWait.resetSync()
-		msg := r.newSyncMsg()
-		r.msgs = append(r.msgs, msg)
-	}
+		// 副本来同步日志
+		if r.followNeedSync() {
+			r.messageWait.resetSync()
+			msg := r.newSyncMsg()
+			r.msgs = append(r.msgs, msg)
+		}
 
-	if r.isLeader() {
-		r.sendPingIfNeed()
+		if r.isLeader() {
+			r.sendPingIfNeed()
+		}
 	}
 
 	// 追加日志
 	if r.hasUnstableLogs() {
+
 		logs := r.replicaLog.nextUnstableLogs()
 		r.msgs = append(r.msgs, r.newMsgStoreAppend(logs))
 	}
@@ -334,7 +392,11 @@ func (r *Replica) acceptReady(rd Ready) {
 
 	r.msgs = r.msgs[:0]
 	rd.HardState = EmptyHardState
-	r.replicaLog.acceptUnstable()
+	if r.hasUnstableLogs() {
+		r.messageWait.resetAppendLog()
+		r.replicaLog.acceptUnstable()
+	}
+
 	if r.hasUnapplyLogs() {
 		r.replicaLog.acceptApplying(r.replicaLog.committedIndex, 0)
 	}
@@ -420,7 +482,9 @@ func (r *Replica) resetRandomizedElectionTimeout() {
 
 // 是否有未存储的日志
 func (r *Replica) hasUnstableLogs() bool {
-
+	if !r.messageWait.canAppendLog() {
+		return false
+	}
 	return r.replicaLog.hasNextUnstableLogs()
 }
 
@@ -535,6 +599,7 @@ func (r *Replica) newMsgSyncResp(to uint64, startIndex uint64, logs []Log) Messa
 		Logs:           logs,
 		Index:          startIndex,
 		CommittedIndex: r.replicaLog.committedIndex,
+		SpeedLevel:     r.speedLevel,
 	}
 }
 
@@ -589,6 +654,7 @@ func (r *Replica) newPing(to uint64) Message {
 		Term:           r.replicaLog.term,
 		Index:          r.replicaLog.lastLogIndex,
 		CommittedIndex: r.replicaLog.committedIndex,
+		SpeedLevel:     r.speedLevel,
 	}
 }
 

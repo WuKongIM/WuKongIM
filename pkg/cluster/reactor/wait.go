@@ -147,6 +147,7 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 			waitC <- items
 			close(waitC)
 			keysToDelete = append(keysToDelete, key)
+
 		}
 	}
 	for _, key := range keysToDelete {

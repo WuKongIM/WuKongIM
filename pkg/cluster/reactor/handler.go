@@ -26,6 +26,10 @@ type IHandler interface {
 	ApplyLog(startLogIndex, endLogIndex uint64) error
 	// SlowDown 降速
 	SlowDown()
+	// SetSpeedLevel 设置同步速度等级
+	SetSpeedLevel(level replica.SpeedLevel)
+	// SpeedLevel 获取当前同步速度等级
+	SpeedLevel() replica.SpeedLevel
 	// SetHardState 设置HardState
 	SetHardState(hd replica.HardState)
 	// Tick tick
@@ -38,6 +42,8 @@ type IHandler interface {
 	SetAppliedIndex(index uint64) error
 	// IsPrepared 是否准备好
 	IsPrepared() bool
+	// 是否是领导者
+	IsLeader() bool
 }
 
 type handler struct {
@@ -57,6 +63,8 @@ type handler struct {
 	appendLogStoreQueue *taskQueue // 追加日志任务队列
 	applyLogStoreQueue  *taskQueue // 应用日志任务队列
 	getLogsTaskQueue    *taskQueue // 获取日志任务队列
+
+	proposeIntervalTick int // 提案间隔tick数量
 
 	sync struct {
 		syncingLogIndex uint64        // 正在同步的日志索引
@@ -95,6 +103,7 @@ func (h *handler) reset() {
 	h.getLogsTaskQueue = nil
 	h.proposeQueue = nil
 	h.proposeWait = nil
+	h.proposeIntervalTick = 0
 }
 
 func (h *handler) ready() replica.Ready {
@@ -206,10 +215,63 @@ func (h *handler) isPrepared() bool {
 }
 
 func (h *handler) tick() {
-	if !h.isPrepared() {
-		return
-	}
 	h.handler.Tick()
+	h.proposeIntervalTick++
+}
+
+func (h *handler) resetProposeIntervalTick() {
+	h.proposeIntervalTick = 0
+	h.handler.SetSpeedLevel(replica.LevelFast)
+}
+
+func (h *handler) slowDown() {
+	h.handler.SlowDown()
+}
+
+func (h *handler) speedLevel() replica.SpeedLevel {
+	return h.handler.SpeedLevel()
+}
+
+// 是否需要降速
+func (h *handler) shouldSlowDown() bool {
+	switch h.speedLevel() {
+	case replica.LevelFast:
+		if h.proposeIntervalTick > LevelFastTick {
+			return true
+		}
+		return false
+	case replica.LevelNormal:
+		if h.proposeIntervalTick > LevelNormal {
+			return true
+		}
+		return false
+	case replica.LevelMiddle:
+		if h.proposeIntervalTick > LevelMiddle {
+			return true
+		}
+		return false
+	case replica.LevelSlow:
+		if h.proposeIntervalTick > LevelSlow {
+			return true
+		}
+		return false
+	case replica.LevelSlowest:
+		if h.proposeIntervalTick > LevelSlowest {
+			return true
+		}
+		return false
+	case replica.LevelStop:
+		return false
+	}
+	return false
+}
+
+func (h *handler) shouldDestroy() bool {
+	return h.proposeIntervalTick > LevelDestroy
+}
+
+func (h *handler) isLeader() bool {
+	return h.handler.IsLeader()
 }
 
 func (h *handler) getAndResetMsgSyncResp() (replica.Message, bool) {

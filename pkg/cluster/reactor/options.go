@@ -2,11 +2,33 @@ package reactor
 
 import "time"
 
+type ReactorType int
+
+const (
+	ReactorTypeNormal ReactorType = iota
+	ReactorTypeSlot
+	ReactorTypeChannel
+)
+
+func (r ReactorType) String() string {
+	switch r {
+	case ReactorTypeNormal:
+		return "normal"
+	case ReactorTypeSlot:
+		return "slot"
+	case ReactorTypeChannel:
+		return "channel"
+	default:
+		return "unknown"
+	}
+}
+
 type Options struct {
 	SubReactorNum uint32
 	TickInterval  time.Duration // 每次tick间隔
 	NodeId        uint64
 	Send          func(m Message) // 发送消息
+	ReactorType   ReactorType     // reactor类型
 
 	// MaxReceiveQueueSize is the maximum size in bytes of each receive queue.
 	// Once the maximum size is reached, further replication messages will be
@@ -34,19 +56,21 @@ type Options struct {
 
 	// IsCommittedAfterApplied 是否在状态机应用日志后才视为提交, 如果为false 则多数节点追加日志后即视为提交
 	IsCommittedAfterApplied bool
+	AutoSlowDownOn          bool // 是否开启自动降速
 }
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
 		SubReactorNum:           16,
-		TickInterval:            time.Millisecond * 100,
+		TickInterval:            time.Millisecond * 150,
 		ReceiveQueueLength:      1024,
 		LazyFreeCycle:           1,
 		InitialTaskQueueCap:     100,
 		TaskPoolSize:            10000,
 		MaxProposeLogCount:      1000,
-		EnableLazyCatchUp:       false,
+		EnableLazyCatchUp:       true,
 		IsCommittedAfterApplied: false,
+		AutoSlowDownOn:          false,
 	}
 
 	for _, o := range opt {
@@ -127,5 +151,17 @@ func WithEnableLazyCatchUp(enable bool) Option {
 func WithIsCommittedAfterApplied(isCommittedAfterApplied bool) Option {
 	return func(o *Options) {
 		o.IsCommittedAfterApplied = isCommittedAfterApplied
+	}
+}
+
+func WithReactorType(reactorType ReactorType) Option {
+	return func(o *Options) {
+		o.ReactorType = reactorType
+	}
+}
+
+func WithAutoSlowDownOn(v bool) Option {
+	return func(o *Options) {
+		o.AutoSlowDownOn = v
 	}
 }

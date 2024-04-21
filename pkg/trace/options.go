@@ -3,16 +3,9 @@ package trace
 type Options struct {
 	TraceOn bool // 是否开启trace
 	// Endpoint is the address of the collector to which the exporter will send the spans.
-	Endpoint           string
-	ServiceName        string
-	ServiceHostName    string
-	RequestPoolRunning func() int64
-	MessagePoolRunning func() int64
-
-	OutboundFlightMessageCount func() int64
-	OutboundFlightMessageBytes func() int64
-	InboundFlightMessageCount  func() int64
-	InboundFlightMessageBytes  func() int64
+	Endpoint        string
+	ServiceName     string
+	ServiceHostName string
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -47,41 +40,5 @@ func WithServiceName(name string) Option {
 func WithServiceHostName(name string) Option {
 	return func(o *Options) {
 		o.ServiceHostName = name
-	}
-}
-
-func WithRequestPoolRunning(f func() int64) Option {
-	return func(o *Options) {
-		o.RequestPoolRunning = f
-	}
-}
-
-func WithMessagePoolRunning(f func() int64) Option {
-	return func(o *Options) {
-		o.MessagePoolRunning = f
-	}
-}
-
-func WithOutboundFlightMessageCount(f func() int64) Option {
-	return func(o *Options) {
-		o.OutboundFlightMessageCount = f
-	}
-}
-
-func WithOutboundFlightMessageBytes(f func() int64) Option {
-	return func(o *Options) {
-		o.OutboundFlightMessageBytes = f
-	}
-}
-
-func WithInboundFlightMessageCount(f func() int64) Option {
-	return func(o *Options) {
-		o.InboundFlightMessageCount = f
-	}
-}
-
-func WithInboundFlightMessageBytes(f func() int64) Option {
-	return func(o *Options) {
-		o.InboundFlightMessageBytes = f
 	}
 }

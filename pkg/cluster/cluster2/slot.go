@@ -86,7 +86,6 @@ func (s *slot) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica
 		s.Debug("getLogs...", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex+1), zap.Int("logs", len(logs)))
 		resultLogs = extend(logs, unstableLogs)
 	} else {
-		s.Warn("GetAndMergeLogs: startIndex > lastIndex", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex), zap.Int("unstableLogs", len(unstableLogs)))
 		resultLogs = unstableLogs
 	}
 	return resultLogs, nil
@@ -125,7 +124,15 @@ func (s *slot) ApplyLog(startLogIndex, endLogIndex uint64) error {
 }
 
 func (s *slot) SlowDown() {
+	s.rc.SlowDown()
+}
 
+func (s *slot) SpeedLevel() replica.SpeedLevel {
+	return s.rc.SpeedLevel()
+}
+
+func (s *slot) SetSpeedLevel(level replica.SpeedLevel) {
+	s.rc.SetSpeedLevel(level)
 }
 
 func (s *slot) SetHardState(hd replica.HardState) {
@@ -161,6 +168,10 @@ func (s *slot) SetAppliedIndex(index uint64) error {
 
 func (s *slot) IsPrepared() bool {
 	return s.isPrepared
+}
+
+func (s *slot) IsLeader() bool {
+	return s.rc.IsLeader()
 }
 
 func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

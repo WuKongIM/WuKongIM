@@ -102,7 +102,6 @@ func (c *channel) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]repl
 		}
 		resultLogs = extend(unstableLogs, logs)
 	} else {
-		c.Warn("GetAndMergeLogs: startIndex > lastIndex", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex), zap.Int("unstableLogs", len(unstableLogs)))
 		resultLogs = unstableLogs
 
 	}
@@ -124,7 +123,15 @@ func (c *channel) ApplyLog(startLogIndex, endLogIndex uint64) error {
 }
 
 func (c *channel) SlowDown() {
+	c.rc.SlowDown()
+}
 
+func (c *channel) SetSpeedLevel(level replica.SpeedLevel) {
+	c.rc.SetSpeedLevel(level)
+}
+
+func (c *channel) SpeedLevel() replica.SpeedLevel {
+	return c.rc.SpeedLevel()
 }
 
 func (c *channel) SetHardState(hd replica.HardState) {
@@ -177,6 +184,10 @@ func (c *channel) IsPrepared() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.isPrepared
+}
+
+func (c *channel) IsLeader() bool {
+	return c.isLeader()
 }
 
 func (c *channel) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

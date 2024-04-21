@@ -13,6 +13,7 @@ import (
 
 var (
 	ErrReactorSubStopped = errors.New("reactor sub stopped")
+	ErrNotLeader         = errors.New("not leader")
 )
 
 var hashPool = sync.Pool{
@@ -78,4 +79,15 @@ const (
 	syncStatusNone    syncStatus = iota // 无状态
 	syncStatusSyncing                   // 同步中
 	syncStatusSynced                    // 已同步
+)
+
+const (
+	// LevelFastTick 如果tick数超过 100 将降速为normal
+	LevelFastTick int = 100
+	// LevelNormalTick 如果tick数超过 200 将降速为middle
+	LevelNormal  int = 200
+	LevelMiddle  int = 300
+	LevelSlow    int = 400
+	LevelSlowest int = 500
+	LevelDestroy int = 600
 )

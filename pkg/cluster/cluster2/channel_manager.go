@@ -19,6 +19,8 @@ func newChannelManager(opts *Options) *channelManager {
 	cm.channelReactor = reactor.New(reactor.NewOptions(
 		reactor.WithNodeId(opts.NodeId),
 		reactor.WithSend(cm.onSend),
+		reactor.WithReactorType(reactor.ReactorTypeChannel),
+		reactor.WithAutoSlowDownOn(true),
 	))
 	return cm
 }

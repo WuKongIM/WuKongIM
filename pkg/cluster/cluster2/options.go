@@ -52,9 +52,7 @@ type Options struct {
 	SlotLogStorage IShardLogStorage
 	// MessageLogStorage 消息日志存储
 	MessageLogStorage IShardLogStorage
-
-	OnSlotApply func(slotId uint32, logs []replica.Log) error
-
+	OnSlotApply       func(slotId uint32, logs []replica.Log) error
 	// Send 发送消息
 	Send func(shardType ShardType, m reactor.Message)
 	// ChannelElectionPoolSize 频道选举协程池大小(意味着同时在选举的频道数量)
@@ -74,8 +72,8 @@ func NewOptions(opt ...Option) *Options {
 		SlotCount:                  128,
 		SlotMaxReplicaCount:        3,
 		DataDir:                    "clusterdata",
-		ReqTimeout:                 3 * time.Second,
-		ProposeTimeout:             5 * time.Second,
+		ReqTimeout:                 10 * time.Second,
+		ProposeTimeout:             10 * time.Second,
 		SendQueueLength:            1024 * 10,
 		MaxMessageBatchSize:        64 * 1024 * 1024, // 64M
 		ReceiveQueueLength:         1024,

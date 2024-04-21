@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
@@ -125,6 +126,8 @@ func (n *node) processMessages() {
 					done = true
 				}
 			}
+			trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(int64(size))
+			trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(int64(len(msgs)))
 			if err = n.sendBatch(msgs); err != nil {
 				if n.client.ConnectStatus() == client.CONNECTED { // 只有连接状态下才打印错误日志
 					n.Error("sendBatch is failed", zap.Error(err))
@@ -132,7 +135,7 @@ func (n *node) processMessages() {
 			}
 			size = 0
 			msgs = msgs[:0]
-			// time.Sleep(time.Millisecond * 2)
+			time.Sleep(time.Millisecond * 2)
 		case <-n.stopper.ShouldStop():
 			return
 		}
@@ -209,12 +212,12 @@ func (n *node) requestChannelProposeMessage(ctx context.Context, req *ChannelPro
 }
 
 // 请求更新节点api地址
-func (n *node) requestUpdateNodeApiServerAddr(ctx context.Context, req *UpdateNodeApiServerAddrReq) error {
+func (n *node) requestUpdateNodeApiServerAddr(ctx context.Context, req *UpdateApiServerAddrReq) error {
 	data, err := req.Marshal()
 	if err != nil {
 		return err
 	}
-	resp, err := n.client.RequestWithContext(ctx, "/node/updateApiServerAddr", data)
+	resp, err := n.client.RequestWithContext(ctx, "/config/proposeUpdateApiServerAddr", data)
 	if err != nil {
 		return err
 	}

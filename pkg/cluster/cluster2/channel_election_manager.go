@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -64,6 +63,10 @@ func (c *channelElectionManager) loop() {
 			}
 
 			// 提交选举任务
+			running := c.s.channelElectionPool.Running()
+			if running >= c.s.opts.ChannelElectionPoolSize-1 {
+				c.Warn("channelElectionPool is busy", zap.Int("running", running), zap.Int("size", c.s.opts.ChannelElectionPoolSize))
+			}
 			err = c.s.channelElectionPool.Submit(func(reqs []electionReq) func() {
 				return func() {
 					c.election(reqs)
@@ -93,6 +96,12 @@ func (c *channelElectionManager) addElectionReq(req electionReq) error {
 }
 
 func (c *channelElectionManager) election(reqs []electionReq) {
+
+	// start := time.Now()
+	// defer func() {
+	// 	c.Info("channel election", zap.Duration("cost", time.Since(start)), zap.Int("num", len(reqs)))
+	// }()
+
 	channelLastLogInfoMap, err := c.requestChannelLastLogInfos(reqs)
 	if err != nil {
 		c.Error("requestChannelLastLogInfos failed", zap.Error(err))
@@ -103,7 +112,6 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 		}
 		return
 	}
-	fmt.Println("channelLastLogInfoMap--->", channelLastLogInfoMap)
 
 	for _, req := range reqs {
 		lastInfoResps := make([]*replicaChannelLastLogInfoResponse, 0, len(req.cfg.Replicas))

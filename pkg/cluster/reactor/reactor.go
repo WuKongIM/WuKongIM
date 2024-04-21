@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -21,7 +22,7 @@ type Reactor struct {
 func New(opts *Options) *Reactor {
 	r := &Reactor{
 		opts: opts,
-		Log:  wklog.NewWKLog("Reactor"),
+		Log:  wklog.NewWKLog(fmt.Sprintf("Reactor[%s]", opts.ReactorType.String())),
 	}
 	taskPool, err := ants.NewPool(opts.TaskPoolSize)
 	if err != nil {
@@ -57,11 +58,6 @@ func (r *Reactor) Stop() {
 func (r *Reactor) ProposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]ProposeResult, error) {
 	sub := r.reactorSub(handleKey)
 	return sub.proposeAndWait(ctx, handleKey, logs)
-}
-
-func (r *Reactor) Propose(handleKey string, logs []replica.Log) error {
-	sub := r.reactorSub(handleKey)
-	return sub.propose(handleKey, logs)
 }
 
 func (r *Reactor) AddHandler(key string, handler IHandler) {
@@ -118,4 +114,16 @@ func (r *Reactor) reactorSub(key string) *ReactorSub {
 
 func (r *Reactor) newMessageQueue() *MessageQueue {
 	return NewMessageQueue(r.opts.ReceiveQueueLength, false, r.opts.LazyFreeCycle, r.opts.MaxReceiveQueueSize)
+}
+
+func (r *Reactor) submitTask(f func()) error {
+	running := r.taskPool.Running()
+	offsetSize := 10
+	if r.opts.TaskPoolSize <= 100 {
+		offsetSize = 1
+	}
+	if running > r.opts.TaskPoolSize-offsetSize {
+		r.Warn("task pool is full", zap.Int("running", running), zap.Int("size", r.opts.TaskPoolSize))
+	}
+	return r.taskPool.Submit(f)
 }

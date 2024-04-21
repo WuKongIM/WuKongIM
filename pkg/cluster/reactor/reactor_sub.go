@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
@@ -31,7 +32,7 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		stopper:     syncutil.NewStopper(),
 		opts:        mr.opts,
 		handlers:    newHandlerList(),
-		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%d:%d]", mr.opts.NodeId, index)),
+		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 10000),
 		avdanceC:    make(chan struct{}, 1),
 	}
@@ -66,11 +67,33 @@ func (r *ReactorSub) run() {
 
 func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]ProposeResult, error) {
 
+	// -------------------- 延迟统计 --------------------
+	startTime := time.Now()
+	defer func() {
+		end := time.Since(startTime)
+		switch r.opts.ReactorType {
+		case ReactorTypeSlot:
+			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindSlot, end.Milliseconds())
+		case ReactorTypeChannel:
+			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
+		}
+		if r.opts.EnableLazyCatchUp {
+			if end > time.Millisecond*500 {
+				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.Int("logs", len(logs)))
+			}
+		}
+	}()
 	// -------------------- 初始化提案数据 --------------------
 	handler := r.handlers.get(handleKey)
 	if handler == nil {
 		return nil, nil
 	}
+	handler.resetProposeIntervalTick() // 重置提案间隔tick
+
+	if !handler.isLeader() {
+		return nil, ErrNotLeader
+	}
+
 	ids := make([]uint64, 0, len(logs))
 	for _, log := range logs {
 		ids = append(ids, log.Id)
@@ -98,23 +121,24 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 
 }
 
-func (r *ReactorSub) propose(handleKey string, logs []replica.Log) error {
-	// -------------------- 初始化提案数据 --------------------
-	handler := r.handlers.get(handleKey)
-	if handler == nil {
-		return nil
-	}
-	ids := make([]uint64, 0, len(logs))
-	for _, log := range logs {
-		ids = append(ids, log.Id)
-	}
-	key := strconv.FormatUint(ids[len(ids)-1], 10)
+// func (r *ReactorSub) propose(handleKey string, logs []replica.Log) error {
+// 	// -------------------- 初始化提案数据 --------------------
+// 	handler := r.handlers.get(handleKey)
+// 	if handler == nil {
+// 		return nil
+// 	}
+// 	ids := make([]uint64, 0, len(logs))
+// 	for _, log := range logs {
+// 		ids = append(ids, log.Id)
+// 	}
+// 	key := strconv.FormatUint(ids[len(ids)-1], 10)
 
-	// -------------------- 添加提案请求 --------------------
-	req := newProposeReq(key, logs)
-	handler.addPropose(req)
-	return nil
-}
+// 	// -------------------- 添加提案请求 --------------------
+// 	req := newProposeReq(key, logs)
+// 	handler.addPropose(req)
+// 	r.advance()
+// 	return nil
+// }
 
 func (r *ReactorSub) advance() {
 	select {
@@ -163,7 +187,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 	}
 
 	if !replica.IsEmptyHardState(rd.HardState) {
-		err := r.mr.taskPool.Submit(func() {
+		err := r.mr.submitTask(func() {
 			handler.setHardState(rd.HardState)
 		})
 		if err != nil {
@@ -192,9 +216,9 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 				if m.Index > handler.sync.syncingLogIndex || time.Since(handler.sync.startSyncTime) > handler.sync.syncTimeout {
 					handler.sync.syncingLogIndex = m.Index
 					handler.sync.startSyncTime = time.Now()
-					r.Warn("sync timeout...", zap.Uint64("index", m.Index), zap.Uint64("to", m.To))
+					// r.Warn("sync timeout...", zap.Uint64("index", m.Index), zap.Uint64("to", m.To))
 				} else {
-					r.Debug("syncing...", zap.Uint64("index", m.Index))
+					// r.Debug("syncing...", zap.Uint64("index", m.Index))
 					continue
 				}
 			case syncStatusSynced:
@@ -202,6 +226,14 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 				continue
 			}
 		}
+
+		// if r.opts.ReactorType == ReactorTypeChannel {
+		// 	if m.MsgType == replica.MsgSync {
+		// 		r.Info("sync...")
+		// 	} else if m.MsgType == replica.MsgSyncResp {
+		// 		r.Info("syncResp...")
+		// 	}
+		// }
 
 		r.opts.Send(Message{
 			HandlerKey: handler.key,
@@ -390,7 +422,7 @@ func (r *ReactorSub) handleAppendLogTask(handler *handler) (bool, error) {
 		}
 		handler.lastIndex.Store(firstTask.resp().Index)
 
-		err = r.mr.taskPool.Submit(func() {
+		err = r.mr.submitTask(func() {
 			err = handler.setLastIndex()
 			if err != nil {
 				r.Panic("set last index failed", zap.Error(err))
@@ -479,7 +511,7 @@ func (r *ReactorSub) handleApplyLogTask(handler *handler) (bool, error) {
 			return false, err
 		}
 		handler.appliedIndex.Store(resp.AppliedIndex)
-		err = r.mr.taskPool.Submit(func() {
+		err = r.mr.submitTask(func() {
 			err = handler.setAppliedIndex()
 			if err != nil {
 				handler.Panic("set applied index failed", zap.Error(err))
@@ -500,7 +532,22 @@ func (r *ReactorSub) tick() {
 	r.handlers.readHandlers(&r.tmpHandlers)
 
 	for _, handler := range r.tmpHandlers {
+		if !handler.isPrepared() {
+			continue
+		}
 		handler.tick()
+
+		if handler.isLeader() && r.opts.AutoSlowDownOn {
+			if handler.shouldSlowDown() {
+				handler.slowDown() // 降速
+				r.Debug("slow down", zap.String("handler", handler.key), zap.Uint8("speedLevel", uint8(handler.speedLevel())))
+			}
+		}
+		if handler.speedLevel() == replica.LevelStop && handler.shouldDestroy() { // 如果速度将为停止并可销毁
+			r.Debug("remove handler", zap.String("handler", handler.key))
+			r.handlers.remove(handler.key)
+		}
+
 	}
 	r.tmpHandlers = r.tmpHandlers[:0]
 }
@@ -530,6 +577,10 @@ func (r *ReactorSub) handleSyncGet(handler *handler, msg replica.Message) {
 
 	lastIndex := handler.lastIndex.Load()
 	tk.setExec(func() error {
+		var start time.Time
+		if r.opts.EnableLazyCatchUp {
+			start = time.Now()
+		}
 		resultLogs, err := handler.getAndMergeLogs(lastIndex, msg)
 		if err != nil {
 			r.Error("get logs error", zap.Error(err))
@@ -539,6 +590,12 @@ func (r *ReactorSub) handleSyncGet(handler *handler, msg replica.Message) {
 		tk.taskFinished()
 		if len(resultLogs) > 0 {
 			r.advance()
+		}
+		if r.opts.EnableLazyCatchUp {
+			end := time.Since(start)
+			if end > time.Millisecond*100 {
+				r.Info("get logs", zap.Duration("cost", end), zap.Int("logs", len(resultLogs)), zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
+			}
 		}
 		return nil
 	})
@@ -552,6 +609,11 @@ func (r *ReactorSub) handleStoreAppend(handler *handler, msg replica.Message) {
 	lastLog := msg.Logs[len(msg.Logs)-1]
 	tk := newStoreAppendTask(lastLog.Index)
 	tk.setExec(func() error {
+		var start time.Time
+		if r.opts.EnableLazyCatchUp {
+			start = time.Now()
+		}
+
 		err := handler.appendLogs(msg.Logs)
 		if err != nil {
 			r.Panic("append logs error", zap.Error(err))
@@ -560,6 +622,13 @@ func (r *ReactorSub) handleStoreAppend(handler *handler, msg replica.Message) {
 		tk.setResp(replica.NewMsgStoreAppendResp(r.opts.NodeId, lastLog.Index))
 		tk.taskFinished()
 		r.advance()
+
+		if r.opts.EnableLazyCatchUp {
+			end := time.Since(start)
+			if end > time.Millisecond*100 {
+				r.Info("append logs", zap.Duration("cost", end), zap.Int("logs", len(msg.Logs)), zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
+			}
+		}
 		return nil
 	})
 	handler.addAppendLogStoreTask(tk)
@@ -583,6 +652,12 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 
 	tk := newApplyLogsTask(committedIndex)
 	tk.setExec(func() error {
+
+		var start time.Time
+		if r.opts.EnableLazyCatchUp {
+			start = time.Now()
+		}
+
 		err := handler.applyLogs(msg.ApplyingIndex+1, msg.CommittedIndex+1)
 		if err != nil {
 			r.Panic("apply logs error", zap.Error(err))
@@ -594,6 +669,14 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 		tk.setResp(replica.NewMsgApplyLogsRespMessage(r.opts.NodeId, msg.Term, committedIndex))
 		tk.taskFinished()
 		r.advance()
+
+		if r.opts.EnableLazyCatchUp {
+			end := time.Since(start)
+			if end > time.Millisecond*100 {
+				r.Info("apply logs", zap.Duration("cost", end), zap.Uint64("startApplyingIndex", msg.ApplyingIndex+1), zap.Uint64("endApplyingIndex", msg.CommittedIndex+1))
+			}
+		}
+
 		return nil
 	})
 	handler.addApplyLogStoreTask(tk)
@@ -628,4 +711,6 @@ func (r *ReactorSub) addMessage(m Message) {
 		return
 	}
 	handler.addMessage(m)
+	r.advance() // 推进
+
 }

@@ -46,6 +46,7 @@ func (m *MemoryStorage) AppendLog(logs []Log) error {
 }
 
 func (m *MemoryStorage) Logs(startLogIndex, endLogIndex uint64) ([]Log, error) {
+
 	if startLogIndex == 0 {
 		startLogIndex = 1
 	}
@@ -61,7 +62,17 @@ func (m *MemoryStorage) Logs(startLogIndex, endLogIndex uint64) ([]Log, error) {
 	if endLogIndex > m.lastIndex()+1 {
 		return nil, nil
 	}
-	return m.logs[startLogIndex-1 : endLogIndex-1], nil
+
+	firstIdx, _ := m.FirstIndex()
+
+	start := startLogIndex
+	end := endLogIndex
+	if firstIdx > 0 {
+		start = startLogIndex - firstIdx
+		end = endLogIndex - firstIdx
+	}
+
+	return m.logs[start:end], nil
 }
 
 func (m *MemoryStorage) TruncateLogTo(index uint64) error {
@@ -72,7 +83,9 @@ func (m *MemoryStorage) TruncateLogTo(index uint64) error {
 		m.logs = nil
 		return nil
 	}
-	m.logs = m.logs[:index-1]
+	firstIdx, _ := m.FirstIndex()
+	end := index - firstIdx
+	m.logs = m.logs[:end-1]
 	return nil
 }
 
@@ -88,6 +101,9 @@ func (m *MemoryStorage) lastIndex() uint64 {
 }
 
 func (m *MemoryStorage) FirstIndex() (uint64, error) {
+	if len(m.logs) > 0 {
+		return m.logs[0].Index, nil
+	}
 	return 0, nil
 }
 
