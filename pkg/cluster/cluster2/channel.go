@@ -118,7 +118,6 @@ func (c *channel) AppendLog(logs []replica.Log) error {
 }
 
 func (c *channel) ApplyLog(startLogIndex, endLogIndex uint64) error {
-
 	return nil
 }
 
@@ -135,14 +134,17 @@ func (c *channel) SpeedLevel() replica.SpeedLevel {
 }
 
 func (c *channel) SetHardState(hd replica.HardState) {
-	err := c.opts.ChannelClusterStorage.Save(wkdb.ChannelClusterConfig{
+
+	c.cfg = wkdb.ChannelClusterConfig{
 		ChannelId:       c.channelId,
 		ChannelType:     c.channelType,
 		LeaderId:        hd.LeaderId,
 		Term:            hd.Term,
 		Replicas:        c.cfg.Replicas,
 		ReplicaMaxCount: c.cfg.ReplicaMaxCount,
-	})
+	}
+
+	err := c.opts.ChannelClusterStorage.Save(c.cfg)
 	if err != nil {
 		c.Warn("save channel cluster config error", zap.Error(err))
 	}
@@ -186,8 +188,8 @@ func (c *channel) IsPrepared() bool {
 	return c.isPrepared
 }
 
-func (c *channel) IsLeader() bool {
-	return c.isLeader()
+func (c *channel) LeaderId() uint64 {
+	return c.leaderId()
 }
 
 func (c *channel) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
@@ -20,6 +21,8 @@ type slot struct {
 	isPrepared bool
 	wklog.Log
 	opts *Options
+
+	mu sync.Mutex
 }
 
 func newSlot(st *pb.Slot, opts *Options) *slot {
@@ -41,6 +44,20 @@ func (s *slot) becomeFollower(term uint32, leader uint64) {
 
 func (s *slot) becomeLeader(term uint32) {
 	s.rc.BecomeLeader(term)
+}
+
+func (s *slot) update(st *pb.Slot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rc.SetReplicas(st.Replicas)
+	s.st = st
+	if s.rc.LeaderId() != st.Leader {
+		if st.Leader == s.opts.NodeId {
+			s.rc.BecomeLeader(st.Term)
+		} else {
+			s.rc.BecomeFollower(st.Term, st.Leader)
+		}
+	}
 }
 
 // --------------------------IHandler-------------------------------
@@ -170,8 +187,8 @@ func (s *slot) IsPrepared() bool {
 	return s.isPrepared
 }
 
-func (s *slot) IsLeader() bool {
-	return s.rc.IsLeader()
+func (s *slot) LeaderId() uint64 {
+	return s.rc.LeaderId()
 }
 
 func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

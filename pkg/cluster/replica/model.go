@@ -152,6 +152,8 @@ type Message struct {
 	AppliedIndex  uint64
 
 	SpeedLevel SpeedLevel // 只有msgSync和ping才编码
+
+	Reject bool // 拒绝
 }
 
 func (m Message) Marshal() ([]byte, error) {
@@ -167,8 +169,13 @@ func (m Message) Marshal() ([]byte, error) {
 	binary.BigEndian.PutUint64(resultBytes[22:], m.Index)
 	binary.BigEndian.PutUint64(resultBytes[30:], m.CommittedIndex)
 	resultBytes[38] = byte(m.SpeedLevel)
+	var b byte = 0
+	if m.Reject {
+		b = 1
+	}
+	resultBytes[39] = b
 
-	offset := 39
+	offset := 40
 	for _, l := range m.Logs {
 		logData, err := l.Marshal()
 		if err != nil {
@@ -208,8 +215,9 @@ func UnmarshalMessage(data []byte) (Message, error) {
 	m.Index = binary.BigEndian.Uint64(data[22:30])
 	m.CommittedIndex = binary.BigEndian.Uint64(data[30:38])
 	m.SpeedLevel = SpeedLevel(data[38])
+	m.Reject = data[39] == 1
 
-	offset := 39
+	offset := 40
 	for offset < len(data) {
 		logLen := binary.BigEndian.Uint16(data[offset : offset+2])
 		offset += 2
@@ -276,7 +284,7 @@ func MsgSyncFixSize() int {
 // }
 
 func (m Message) Size() int {
-	size := 2 + 8 + 8 + 4 + 8 + 8 + 1 // msgType + from + to + term   + index + committedIndex + speedLevel
+	size := 2 + 8 + 8 + 4 + 8 + 8 + 1 + 1 // msgType + from + to + term   + index + committedIndex + speedLevel +reject
 	for _, l := range m.Logs {
 		size += 2 // log len
 		size += l.LogSize()

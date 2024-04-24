@@ -42,8 +42,8 @@ type IHandler interface {
 	SetAppliedIndex(index uint64) error
 	// IsPrepared 是否准备好
 	IsPrepared() bool
-	// 是否是领导者
-	IsLeader() bool
+	// 领导者Id
+	LeaderId() uint64
 }
 
 type handler struct {
@@ -74,9 +74,11 @@ type handler struct {
 		resp            replica.Message
 	}
 	wklog.Log
+	r *Reactor
 }
 
 func (h *handler) init(key string, handler IHandler, r *Reactor) {
+	h.r = r
 	h.Log = wklog.NewWKLog(fmt.Sprintf("handler[%s]", key))
 	h.key = key
 	h.handler = handler
@@ -87,7 +89,7 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.applyLogStoreQueue = newTaskQueue(r.taskPool, r.opts.InitialTaskQueueCap)
 	h.getLogsTaskQueue = newTaskQueue(r.taskPool, r.opts.InitialTaskQueueCap)
 	h.proposeQueue = newProposeQueue()
-	h.proposeWait = newProposeWait()
+	h.proposeWait = newProposeWait(key)
 	h.sync.syncTimeout = 5 * time.Second
 
 }
@@ -104,6 +106,15 @@ func (h *handler) reset() {
 	h.proposeQueue = nil
 	h.proposeWait = nil
 	h.proposeIntervalTick = 0
+	h.resetSync()
+}
+
+func (h *handler) resetSync() {
+	h.sync.syncStatus = syncStatusNone
+	h.sync.syncingLogIndex = 0
+	h.sync.startSyncTime = time.Time{}
+	h.sync.resp = replica.EmptyMessage
+
 }
 
 func (h *handler) ready() replica.Ready {
@@ -221,7 +232,7 @@ func (h *handler) tick() {
 
 func (h *handler) resetProposeIntervalTick() {
 	h.proposeIntervalTick = 0
-	h.handler.SetSpeedLevel(replica.LevelFast)
+	h.resetSlowDown()
 }
 
 func (h *handler) slowDown() {
@@ -230,6 +241,10 @@ func (h *handler) slowDown() {
 
 func (h *handler) speedLevel() replica.SpeedLevel {
 	return h.handler.SpeedLevel()
+}
+
+func (h *handler) resetSlowDown() {
+	h.handler.SetSpeedLevel(replica.LevelFast)
 }
 
 // 是否需要降速
@@ -271,7 +286,11 @@ func (h *handler) shouldDestroy() bool {
 }
 
 func (h *handler) isLeader() bool {
-	return h.handler.IsLeader()
+	return h.handler.LeaderId() == h.r.opts.NodeId
+}
+
+func (h *handler) leaderId() uint64 {
+	return h.handler.LeaderId()
 }
 
 func (h *handler) getAndResetMsgSyncResp() (replica.Message, bool) {

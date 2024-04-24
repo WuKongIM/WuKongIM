@@ -187,6 +187,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 	}
 
 	if !replica.IsEmptyHardState(rd.HardState) {
+		handler.resetSync() // 领导发生改变 重置同步状态
 		err := r.mr.submitTask(func() {
 			handler.setHardState(rd.HardState)
 		})
@@ -234,6 +235,12 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 		// 		r.Info("syncResp...")
 		// 	}
 		// }
+
+		if r.opts.AutoSlowDownOn {
+			if m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0 { // 还有副本同步到日志，不降速
+				handler.resetSlowDown()
+			}
+		}
 
 		r.opts.Send(Message{
 			HandlerKey: handler.key,
@@ -543,9 +550,11 @@ func (r *ReactorSub) tick() {
 				r.Debug("slow down", zap.String("handler", handler.key), zap.Uint8("speedLevel", uint8(handler.speedLevel())))
 			}
 		}
-		if handler.speedLevel() == replica.LevelStop && handler.shouldDestroy() { // 如果速度将为停止并可销毁
-			r.Debug("remove handler", zap.String("handler", handler.key))
-			r.handlers.remove(handler.key)
+		if r.opts.ReactorType == ReactorTypeChannel {
+			if handler.speedLevel() == replica.LevelStop && handler.shouldDestroy() { // 如果速度将为停止并可销毁
+				r.Debug("remove handler, speed stop", zap.String("handler", handler.key))
+				r.handlers.remove(handler.key)
+			}
 		}
 
 	}
@@ -647,6 +656,7 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 	}
 
 	if !r.opts.IsCommittedAfterApplied {
+		r.Debug("did commit", zap.Uint64("applyingIndex", applyingIndex), zap.Uint64("committedIndex", committedIndex))
 		handler.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
 	}
 
@@ -705,11 +715,13 @@ func (r *ReactorSub) handlerLen() int {
 }
 
 func (r *ReactorSub) addMessage(m Message) {
+
 	handler := r.handlers.get(m.HandlerKey)
 	if handler == nil {
 		r.Warn("handler not exist", zap.String("handlerKey", m.HandlerKey), zap.Int("handlers", r.handlers.len()))
 		return
 	}
+
 	handler.addMessage(m)
 	r.advance() // 推进
 

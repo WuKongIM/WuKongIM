@@ -364,9 +364,9 @@ func (c *channel) sendMessage(msg replica.Message) {
 			if msg.Index > c.sync.syncingLogIndex || time.Since(c.sync.startSyncTime) > c.sync.syncTimeout {
 				c.sync.syncingLogIndex = msg.Index
 				c.sync.startSyncTime = time.Now()
-				c.Warn("sync timeout...", zap.Uint64("index", msg.Index), zap.Uint64("to", msg.To))
+				// c.Warn("sync timeout...", zap.Uint64("index", msg.Index), zap.Uint64("to", msg.To))
 			} else {
-				c.Debug("syncing...", zap.Uint64("index", msg.Index))
+				// c.Debug("syncing...", zap.Uint64("index", msg.Index))
 				return
 			}
 		case syncStatusSynced:

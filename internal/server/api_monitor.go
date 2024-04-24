@@ -374,10 +374,29 @@ func (m *MonitorAPI) conversations(c *wkhttp.Context) {
 
 	conversationResults := make([]*syncUserConversationResp, 0)
 	if m.s.opts.Conversation.On {
-		conversations := m.s.conversationManager.GetConversations(uid, 0, nil)
-		if len(conversations) > 0 {
+		sessions, err := m.s.store.GetLastSessionsByUid(uid, m.s.opts.Conversation.UserMaxCount)
+		if err != nil {
+			m.Error("get last sessions by uid error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		sessionIds := make([]uint64, 0, len(sessions))
+		for _, session := range sessions {
+			sessionIds = append(sessionIds, session.Id)
+		}
+		conversations, err := m.s.store.GetConversationBySessionIds(uid, sessionIds)
+		if err != nil {
+			m.Error("get conversation by session ids error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+
+		for _, session := range sessions {
 			for _, conversation := range conversations {
-				conversationResults = append(conversationResults, newSyncUserConversationResp(conversation))
+				if session.Id == conversation.SessionId {
+					conversationResults = append(conversationResults, newSyncUserConversationResp(conversation, session))
+					break
+				}
 			}
 		}
 	}

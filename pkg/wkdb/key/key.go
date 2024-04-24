@@ -202,6 +202,20 @@ func ParseSubscriberColumnKey(key []byte) (id uint64, columnName [2]byte, err er
 	return
 }
 
+// ---------------------- Subscriber Channel Relation ----------------------
+
+func NewSubscriberChannelRelationColumnKey(id uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableSubscriberChannelRelation.Size)
+	key[0] = TableSubscriberChannelRelation.Id[0]
+	key[1] = TableSubscriberChannelRelation.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], id)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
 // ---------------------- ChannelInfo ----------------------
 
 func NewChannelInfoColumnKey(id uint64, columnName [2]byte) []byte {
@@ -448,7 +462,7 @@ func NewConversationPrimaryKey(uid string, primaryKey uint64) []byte {
 }
 
 // NewConversationIndexChannelKey 创建一个channel唯一索引的 key
-func NewConversationIndexChannelKey(uid string, channelId string, channelType uint8) []byte {
+func NewConversationIndexSessionIdKey(uid string, sessionId uint64) []byte {
 	key := make([]byte, TableConversation.IndexSize)
 	key[0] = TableConversation.Id[0]
 	key[1] = TableConversation.Id[1]
@@ -456,28 +470,10 @@ func NewConversationIndexChannelKey(uid string, channelId string, channelType ui
 	key[3] = 0
 	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
 
-	key[12] = TableConversation.Index.Channel[0]
-	key[13] = TableConversation.Index.Channel[1]
+	key[12] = TableConversation.Index.SessionId[0]
+	key[13] = TableConversation.Index.SessionId[1]
 
-	channelHash := channelIdToNum(channelId, channelType)
-	binary.BigEndian.PutUint64(key[14:], channelHash)
-
-	return key
-}
-
-func NewConversationSecondIndexTimestampKey(uid string, timestamp uint64, primaryKey uint64) []byte {
-	key := make([]byte, TableConversation.SecondIndexSize)
-	key[0] = TableConversation.Id[0]
-	key[1] = TableConversation.Id[1]
-	key[2] = dataTypeSecondIndex
-	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
-
-	key[12] = TableConversation.SecondIndex.Timestamp[0]
-	key[13] = TableConversation.SecondIndex.Timestamp[1]
-
-	binary.BigEndian.PutUint64(key[14:], timestamp)
-	binary.BigEndian.PutUint64(key[22:], primaryKey)
+	binary.BigEndian.PutUint64(key[14:], sessionId)
 
 	return key
 }
@@ -591,4 +587,86 @@ func NewChannelCommonColumnKey(channelId string, channelType uint8, columnName [
 	key[12] = columnName[0]
 	key[13] = columnName[1]
 	return key
+}
+
+// ---------------------- Session ----------------------
+
+func NewSessionColumnKey(uid string, primaryKey uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableSession.Size)
+	key[0] = TableSession.Id[0]
+	key[1] = TableSession.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[12:], primaryKey)
+	key[20] = columnName[0]
+	key[21] = columnName[1]
+	return key
+}
+
+func NewSessionPrimaryKey(uid string, primaryKey uint64) []byte {
+	key := make([]byte, 20)
+	key[0] = TableSession.Id[0]
+	key[1] = TableSession.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[12:], primaryKey)
+	return key
+}
+
+func NewSessionChannelIndexKey(uid string, channelId string, channelType uint8) []byte {
+	key := make([]byte, TableSession.IndexSize)
+	key[0] = TableSession.Id[0]
+	key[1] = TableSession.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+
+	key[12] = TableSession.Index.Channel[0]
+	key[13] = TableSession.Index.Channel[1]
+
+	channelHash := channelIdToNum(channelId, channelType)
+	binary.BigEndian.PutUint64(key[14:], channelHash)
+	return key
+}
+
+func NewSessionSecondIndexKey(uid string, columnName [2]byte, columnValue uint64, primaryKey uint64) []byte {
+	key := make([]byte, TableSession.SecondIndexSize)
+	key[0] = TableSession.Id[0]
+	key[1] = TableSession.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	binary.BigEndian.PutUint64(key[14:], columnValue)
+	binary.BigEndian.PutUint64(key[22:], primaryKey)
+
+	return key
+
+}
+
+func ParseSessionSecondIndexKey(key []byte) (primaryKey uint64, columnName [2]byte, columnValue uint64, err error) {
+	if len(key) != TableSession.SecondIndexSize {
+		err = fmt.Errorf("session: second index invalid key length, keyLen: %d", len(key))
+		return
+	}
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	columnValue = binary.BigEndian.Uint64(key[14:])
+	primaryKey = binary.BigEndian.Uint64(key[22:])
+
+	return
+}
+
+func ParseSessionColumnKey(key []byte) (primaryKey uint64, columnName [2]byte, err error) {
+	if len(key) != TableSession.Size {
+		err = fmt.Errorf("session: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	primaryKey = binary.BigEndian.Uint64(key[12:])
+	columnName[0] = key[20]
+	columnName[1] = key[21]
+	return
 }

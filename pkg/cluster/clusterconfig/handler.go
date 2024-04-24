@@ -127,7 +127,7 @@ func (h *handler) ApplyLog(startLogIndex, endLogIndex uint64) error {
 	if replica.IsEmptyLog(lastLog) {
 		return nil
 	}
-	err = h.cfg.apply(lastLog.Data)
+	err = h.cfg.apply(lastLog.Data, lastLog.Index, lastLog.Term)
 
 	// 触发配置已应用事件
 	h.opts.Event.OnAppliedConfig()
@@ -168,12 +168,12 @@ func (h *handler) Step(m replica.Message) error {
 
 // SetLastIndex 设置最后一条日志的索引
 func (h *handler) SetLastIndex(index uint64) error {
-	return nil
+	return h.storage.SetLastIndex(index)
 }
 
 // SetAppliedIndex 设置已应用的索引
 func (h *handler) SetAppliedIndex(index uint64) error {
-	return nil
+	return h.storage.SetAppliedIndex(index)
 }
 
 // IsPrepared 是否准备好

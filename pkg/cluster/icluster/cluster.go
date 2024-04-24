@@ -38,6 +38,8 @@ type Cluster interface {
 	OnMessage(f func(msg *proto.Message))
 	// NodeIsOnline 节点是否在线
 	NodeIsOnline(nodeId uint64) bool
+	//  GetSlotId 获取槽ID
+	GetSlotId(v string) uint32
 	// Monitor 获取监控信息
 	// Monitor() IMonitor
 }
@@ -45,10 +47,10 @@ type Cluster interface {
 type Propose interface {
 	// ProposeChannelMessages 批量提交消息到指定的channel
 	ProposeChannelMessages(ctx context.Context, channelId string, channelType uint8, logs []replica.Log) ([]ProposeResult, error)
-	// ProposeToSlots 提案数据到指定的槽
+	// ProposeToSlots 提案日志到指定的槽
 	ProposeToSlot(ctx context.Context, slotId uint32, logs []replica.Log) ([]ProposeResult, error)
-	// ProposeChannelMeta 提案频道元数据
-	ProposeChannelMeta(ctx context.Context, channelId string, channelType uint8, meta []byte) (ProposeResult, error)
+	// ProposeDataToSlot 提案数据到指定的槽
+	ProposeDataToSlot(ctx context.Context, slotId uint32, data []byte) (ProposeResult, error)
 }
 
 type ProposeResult interface {

@@ -110,22 +110,45 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 		}
 	}
 
-	conversation := s.s.conversationManager.GetConversation(req.UID, req.ChannelID, req.ChannelType)
-	if wkdb.IsEmptyConversation(conversation) && req.MessageSeq > 0 {
-		conversation = wkdb.Conversation{
-			UID:         req.UID,
-			ChannelId:   req.ChannelID,
-			ChannelType: req.ChannelType,
-			LastMsgSeq:  uint64(req.MessageSeq),
-		}
-		s.s.conversationManager.AddOrUpdateConversation(req.UID, conversation)
-	} else {
-		err := s.s.conversationManager.SetConversationUnread(req.UID, req.ChannelID, req.ChannelType, 0, uint64(req.MessageSeq))
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
+	fakeChannelId := req.ChannelID
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelId = GetFakeChannelIDWith(req.UID, req.ChannelID)
+
 	}
+
+	session, err := s.s.store.GetSessionByChannel(req.UID, fakeChannelId, req.ChannelType)
+	if err != nil {
+		s.Error("Failed to query session", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if wkdb.IsEmptySession(session) {
+		c.ResponseOK()
+		return
+	}
+
+	// 获取此频道最新的消息
+	msgSeq, err := s.s.store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	if err != nil {
+		s.Error("Failed to query last message", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	fmt.Println("clearConversationUnread--->msgSeq:", msgSeq, "sessionId:", session.Id)
+
+	conversation := wkdb.Conversation{
+		SessionId:      session.Id,
+		UnreadCount:    0,
+		ReadedToMsgSeq: msgSeq,
+	}
+
+	err = s.s.store.AddOrUpdateConversations(req.UID, []wkdb.Conversation{conversation})
+	if err != nil {
+		s.Error("Failed to add conversation", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
 	c.ResponseOK()
 }
 
@@ -168,22 +191,50 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		}
 	}
 
-	conversation := s.s.conversationManager.GetConversation(req.UID, req.ChannelID, req.ChannelType)
-	if wkdb.IsEmptyConversation(conversation) && req.MessageSeq > 0 && req.Unread == 0 {
-		conversation = wkdb.Conversation{
-			UID:         req.UID,
-			ChannelId:   req.ChannelID,
-			ChannelType: req.ChannelType,
-			UnreadCount: 0,
-			LastMsgSeq:  uint64(req.MessageSeq),
-		}
-		s.s.conversationManager.AddOrUpdateConversation(req.UID, conversation)
-	} else {
-		err := s.s.conversationManager.SetConversationUnread(req.UID, req.ChannelID, req.ChannelType, req.Unread, uint64(req.MessageSeq))
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
+	fakeChannelId := req.ChannelID
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelId = GetFakeChannelIDWith(req.UID, req.ChannelID)
+
+	}
+	// 获取此频道最新的消息
+	msgSeq, err := s.s.store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	if err != nil {
+		s.Error("Failed to query last message", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	session, err := s.s.store.GetSessionByChannel(req.UID, fakeChannelId, req.ChannelType)
+	if err != nil {
+		s.Error("Failed to query session", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	fmt.Println("clearConversationUnread--->msgSeq:", msgSeq, "sessionId:", session.Id)
+
+	var unread uint32 = 0
+	var readedMsgSeq uint64 = msgSeq
+
+	if uint64(req.Unread) > msgSeq {
+		unread = 1
+		readedMsgSeq = msgSeq - 1
+	} else if req.Unread > 0 {
+		unread = uint32(req.Unread)
+		readedMsgSeq = msgSeq - uint64(req.Unread)
+	}
+
+	conversation := wkdb.Conversation{
+		SessionId:      session.Id,
+		UnreadCount:    unread,
+		ReadedToMsgSeq: readedMsgSeq,
+	}
+
+	err = s.s.store.AddOrUpdateConversations(req.UID, []wkdb.Conversation{conversation})
+	if err != nil {
+		s.Error("Failed to add conversation", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
 
 	c.ResponseOK()
@@ -218,13 +269,13 @@ func (s *ConversationAPI) deleteConversation(c *wkhttp.Context) {
 		}
 	}
 
-	// 删除最近会话
-	err = s.s.conversationManager.DeleteConversation([]string{req.UID}, req.ChannelID, req.ChannelType)
+	err = s.s.store.DeleteSessionAndConversationByChannel(req.UID, req.ChannelID, req.ChannelType)
 	if err != nil {
-		s.Error("删除最近会话！", zap.Error(err))
+		s.Error("删除会话！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
+
 	c.ResponseOK()
 }
 
@@ -266,48 +317,84 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 
 	// 获取用户最近会话基础数据
 
-	conversations := s.s.conversationManager.GetConversations(req.UID, req.Version, req.Larges)
-	var newConversations = make([]wkdb.Conversation, 0, len(conversations)+20)
-	if conversations != nil {
-		newConversations = append(newConversations, conversations...)
-	}
+	var (
+		sessions []wkdb.Session
+		resps    []*syncUserConversationResp
+	)
 
-	// ==================== 获取大群频道的最近会话 ====================
-	if len(req.Larges) > 0 && req.MsgCount > 0 {
-		for _, largeChannel := range req.Larges {
-			var existConversation wkdb.Conversation
-			for _, cs := range conversations {
-				if cs.ChannelId == largeChannel.ChannelID && cs.ChannelType == largeChannel.ChannelType {
-					existConversation = cs
-					break
-				}
-			}
-			if wkdb.IsEmptyConversation(existConversation) {
-				newConversations = append(newConversations, wkdb.Conversation{
-					UID:         req.UID,
-					ChannelId:   largeChannel.ChannelID,
-					ChannelType: largeChannel.ChannelType,
-					UnreadCount: 0, // 超大群未读数，服务器不做计算
-				})
-
-			}
+	// ==================== 获取用户活跃的session ====================
+	if req.Version <= 0 {
+		sessions, err = s.s.store.GetLastSessionsByUid(req.UID, s.s.opts.Conversation.UserMaxCount)
+		if err != nil {
+			s.Error("获取session失败！", zap.Error(err), zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取session失败！"))
+			return
+		}
+	} else {
+		sessions, err = s.s.store.GetSessionsGreaterThanUpdatedAtByUid(req.UID, req.Version, s.s.opts.Conversation.UserMaxCount)
+		if err != nil {
+			s.Error("获取session失败！", zap.Error(err), zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取session失败！"))
+			return
 		}
 	}
 
-	// ==================== 返回最近会话的数据组合 ====================
-	resps := make([]*syncUserConversationResp, 0, len(newConversations))
-	if len(newConversations) > 0 {
-		for _, conversation := range newConversations {
-			syncUserConversationR := newSyncUserConversationResp(conversation)
-			resps = append(resps, syncUserConversationR)
+	if len(sessions) == 0 {
+		c.JSON(http.StatusOK, resps)
+		return
+	}
 
-			msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", conversation.ChannelId, conversation.ChannelType)]
-			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
-				ChannelID:   conversation.ChannelId,
-				ChannelType: conversation.ChannelType,
-				LastMsgSeq:  msgSeq,
-			})
+	sessionIds := make([]uint64, 0, len(sessions))
+	for _, session := range sessions {
+		sessionIds = append(sessionIds, session.Id)
+	}
+
+	// ==================== 根据session获取到对应最近会话 ====================
+	conversations, err := s.s.store.GetConversationBySessionIds(req.UID, sessionIds)
+	if err != nil {
+		s.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID))
+		c.ResponseError(errors.New("获取conversation失败！"))
+		return
+	}
+
+	fmt.Println("conversations---->", len(conversations), sessionIds)
+
+	for _, sess := range sessions {
+		exist := false
+		var currentConversation wkdb.Conversation
+		realChannelId := sess.ChannelId
+		if sess.ChannelType == wkproto.ChannelTypePerson {
+			from, to := GetFromUIDAndToUIDWith(sess.ChannelId)
+			if req.UID == from {
+				realChannelId = to
+			} else {
+				realChannelId = from
+			}
 		}
+
+		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, sess.ChannelType)]
+		for _, conversation := range conversations {
+			if conversation.SessionId == sess.Id {
+				exist = true
+				currentConversation = conversation
+				break
+			}
+		}
+		if !exist {
+			currentConversation = wkdb.Conversation{
+				Uid:            req.UID,
+				SessionId:      sess.Id,
+				UnreadCount:    0,
+				ReadedToMsgSeq: 0,
+			}
+		}
+		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
+			ChannelID:   realChannelId,
+			ChannelType: sess.ChannelType,
+			LastMsgSeq:  msgSeq,
+		})
+		syncUserConversationR := newSyncUserConversationResp(currentConversation, sess)
+		resps = append(resps, syncUserConversationR)
 	}
 
 	// ==================== 获取最近会话的最近的消息列表 ====================
@@ -334,6 +421,16 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 				resp := resps[i]
 				for _, channelRecentMessage := range channelRecentMessages {
 					if resp.ChannelID == channelRecentMessage.ChannelID && resp.ChannelType == channelRecentMessage.ChannelType {
+						if len(channelRecentMessage.Messages) > 0 {
+							lastMsg := channelRecentMessage.Messages[len(channelRecentMessage.Messages)-1]
+							resp.LastMsgSeq = uint32(lastMsg.MessageSeq)
+							resp.LastClientMsgNo = lastMsg.ClientMsgNo
+							resp.Timestamp = int64(lastMsg.Timestamp)
+							if lastMsg.MessageSeq > uint64(resp.ReadedToMsgSeq) {
+								resp.Unread = int(lastMsg.MessageSeq - uint64(resp.ReadedToMsgSeq))
+							}
+
+						}
 						resp.Recents = channelRecentMessage.Messages
 					}
 				}
@@ -500,6 +597,7 @@ func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels [
 				s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
 				return nil, err
 			}
+			fmt.Println("recentMessages----->", len(recentMessages), fakeChannelID, channel.LastMsgSeq)
 			messageResps := MessageRespSlice{}
 			if len(recentMessages) > 0 {
 				for _, recentMessage := range recentMessages {

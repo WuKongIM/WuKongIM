@@ -102,7 +102,7 @@ func (u *unstable) truncateAndAppend(logs []Log) {
 
 func (u *unstable) truncateLogTo(index uint64) {
 	if index < u.offset {
-		u.Warn(fmt.Sprintf("truncateLogTo %d is out of bound %d", index, u.offset))
+		u.Debug(fmt.Sprintf("truncateLogTo %d is out of bound %d", index, u.offset))
 		return
 	}
 	// 从offset开始截取

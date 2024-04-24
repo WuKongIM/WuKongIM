@@ -75,6 +75,10 @@ func (m *messageWait) resetMsgLeaderTermStartIndex() {
 	m.msgLeaderTermStartIndexReqTickCount = 0
 }
 
+func (m *messageWait) immediatelyLeaderTermStartIndex() {
+	m.msgLeaderTermStartIndexReqTickCount = m.messageSendIntervalTickCount
+}
+
 func (m *messageWait) canAppendLog() bool {
 	return m.appendLogTickCount >= m.messageSendIntervalTickCount
 }

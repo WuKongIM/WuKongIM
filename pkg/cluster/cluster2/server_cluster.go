@@ -59,7 +59,7 @@ func (s *Server) LeaderOfChannelForRead(channelId string, channelType uint8) (*p
 }
 
 func (s *Server) SlotLeaderIdOfChannel(channelId string, channelType uint8) (nodeID uint64, err error) {
-	slotId := s.getChannelSlotId(channelId)
+	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {
 		return 0, ErrSlotNotFound
@@ -68,7 +68,7 @@ func (s *Server) SlotLeaderIdOfChannel(channelId string, channelType uint8) (nod
 }
 
 func (s *Server) SlotLeaderOfChannel(channelId string, channelType uint8) (*pb.Node, error) {
-	slotId := s.getChannelSlotId(channelId)
+	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {
 		s.Error("SlotLeaderOfChannel failed, slot not exist", zap.Uint32("slotId", slotId))
@@ -88,7 +88,7 @@ func (s *Server) SlotLeaderOfChannel(channelId string, channelType uint8) (*pb.N
 }
 
 func (s *Server) IsSlotLeaderOfChannel(channelID string, channelType uint8) (bool, error) {
-	slotId := s.getChannelSlotId(channelID)
+	slotId := s.getSlotId(channelID)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {
 		return false, ErrSlotNotFound
@@ -207,36 +207,33 @@ func (s *Server) ProposeToSlot(ctx context.Context, slotId uint32, logs []replic
 	return iresults, nil
 }
 
-func (s *Server) ProposeChannelMeta(ctx context.Context, channelId string, channelType uint8, meta []byte) (icluster.ProposeResult, error) {
-	slotId := s.getChannelSlotId(channelId)
+func (s *Server) ProposeDataToSlot(ctx context.Context, slotId uint32, data []byte) (icluster.ProposeResult, error) {
 	logId := uint64(s.logIdGen.Generate().Int64())
 	results, err := s.ProposeToSlot(ctx, slotId, []replica.Log{
 		{
 			Id:   logId,
-			Data: meta,
+			Data: data,
 		},
 	})
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	if len(results) == 0 {
 		return nil, nil
 	}
 	return results[0], nil
+}
 
+func (s *Server) GetSlotId(v string) uint32 {
+	return s.getSlotId(v)
 }
 
 func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (*channel, error) {
 	start := time.Now()
-	slotId := s.getChannelSlotId(channelId)
+	slotId := s.getSlotId(channelId)
 	slotInfo := s.clusterEventServer.Slot(slotId)
 	if slotInfo == nil {
 		s.Error("loadOrCreateChannel failed, slot info not exist", zap.Uint32("slotId", slotId))
-		return nil, ErrSlotNotExist
-	}
-	slot := s.slotManager.get(slotId)
-	if slot == nil {
-		s.Error("loadOrCreateChannel failed, slot not exist", zap.Uint32("slotId", slotId))
 		return nil, ErrSlotNotExist
 	}
 	s.channelKeyLock.Lock(channelId)
@@ -246,12 +243,11 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 	channelHandler := s.channelManager.get(channelId, channelType)
 	if channelHandler == nil {
 		ch = newChannel(channelId, channelType, s.opts)
-		s.channelManager.add(ch)
 	} else {
 		ch = channelHandler.(*channel)
 	}
 
-	if ch.IsPrepared() { // 如果频道已经准备好了，直接返回
+	if ch.IsPrepared() && s.clusterEventServer.NodeOnline(ch.leaderId()) { // 如果频道已经准备好了并且领导者在线，直接返回
 		return ch, nil
 	}
 
@@ -287,12 +283,13 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 		}
 	} else {
 		// 如果没有配置向频道槽领导请求频道的分布式配置
-		if wkdb.IsEmptyChannelClusterConfig(clusterCfg) {
+		if wkdb.IsEmptyChannelClusterConfig(clusterCfg) || !s.clusterEventServer.NodeOnline(clusterCfg.LeaderId) {
 			clusterCfg, err = s.requestChannelClusterConfigFromSlotLeader(channelId, channelType)
 			if err != nil {
 				s.Error("requestChannelClusterConfigFromSlotLeader failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
 				return nil, err
 			}
+			// TODO: 这里是否需要将请求到的clusterCfg保存到本地，如果保存，后续clusterCfg更新，此节点将不会跟着更新了，不保存的话，每次都需要请求
 		}
 	}
 
@@ -305,6 +302,8 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 		}
 	}
 	if wkutil.ArrayContainsUint64(clusterCfg.Replicas, s.opts.NodeId) { // 只有当前节点在副本列表中才启动频道的分布式
+		s.channelManager.remove(ch)
+		s.channelManager.add(ch)
 		// 启动频道的分布式
 		err = ch.bootstrap(clusterCfg)
 		if err != nil {
@@ -386,6 +385,7 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 
 	select {
 	case resp := <-resultC:
+		s.Debug("electionChannelLeader success", zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
 		return resp.cfg, resp.err
 	case <-ctx.Done():
 		return wkdb.EmptyChannelClusterConfig, ctx.Err()
@@ -397,7 +397,7 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 
 // 从频道所在槽获取频道的分布式信息
 func (s *Server) requestChannelClusterConfigFromSlotLeader(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
-	slotId := s.getChannelSlotId(channelId)
+	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {
 		return wkdb.EmptyChannelClusterConfig, ErrSlotNotExist
@@ -425,7 +425,7 @@ func (s *Server) loadChannelClusterConfig(channelId string, channelType uint8) (
 	if ch != nil { // 如果频道已经存在，直接返回
 		return ch.(*channel).cfg, nil
 	}
-	slotId := s.getChannelSlotId(channelId)
+	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {
 		s.Warn("loadChannelOnlyRead failed, slot not exist", zap.Uint32("slotId", slotId))

@@ -21,11 +21,13 @@ func (r *Replica) Step(m Message) error {
 			r.becomeFollower(m.Term, None)
 		}
 	case m.Term < r.replicaLog.term:
-		r.Warn("received message with lower term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
-		if m.MsgType == MsgLeaderTermStartIndexReq {
-			return r.stepFunc(m)
+		if m.MsgType != MsgLeaderTermStartIndexResp {
+			r.Warn("received message with lower term", zap.Uint32("term", m.Term), zap.Uint32("currentTerm", r.replicaLog.term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+			if m.MsgType == MsgLeaderTermStartIndexReq {
+				return r.stepFunc(m)
+			}
+			return nil
 		}
-		return nil
 
 	default:
 
@@ -48,7 +50,7 @@ func (r *Replica) Step(m Message) error {
 		r.hup()
 	case MsgVote: // 收到投票请求
 		if r.canVote(m) {
-			r.send(r.newMsgVoteResp(m.From, m.Term))
+			r.send(r.newMsgVoteResp(m.From, m.Term, false))
 			r.electionElapsed = 0
 			r.voteFor = m.From
 			r.Info("agree vote", zap.Uint64("voteFor", m.From), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
@@ -60,6 +62,7 @@ func (r *Replica) Step(m Message) error {
 			} else if m.Term < r.replicaLog.term {
 				r.Info("lower term, reject vote")
 			}
+			r.send(r.newMsgVoteResp(m.From, m.Term, true))
 		}
 
 	default:
@@ -229,40 +232,42 @@ func (r *Replica) stepFollower(m Message) error {
 		// 是否有term对应的StartOffset大于领导返回的LastOffset，
 		// 如果有则将当前term的startOffset设置为LastOffset，
 		// 并且当前term为最新的term（也就是删除比当前term大的LeaderTermSequence的记录）
+		if m.Index > 0 {
+			termStartIndex, err := r.opts.Storage.LeaderTermStartIndex(m.Term)
+			if err != nil {
+				r.Error("follower: leader term start index not found", zap.Uint32("term", m.Term))
+				return err
+			}
+			if termStartIndex == 0 {
+				err := r.opts.Storage.SetLeaderTermStartIndex(m.Term, m.Index)
+				if err != nil {
+					r.Error("set leader term start index failed", zap.Error(err))
+					return err
+				}
+			} else if termStartIndex > m.Index {
+				err := r.opts.Storage.SetLeaderTermStartIndex(m.Term, m.Index)
+				if err != nil {
+					r.Error("set leader term start index failed", zap.Error(err))
+					return err
+				}
+				err = r.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(m.Term)
+				if err != nil {
+					r.Error("delete leader term start index failed", zap.Error(err))
+					return err
+				}
+			}
+			r.Info("truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
+			err = r.opts.Storage.TruncateLogTo(m.Index)
+			if err != nil {
+				r.Error("truncate log failed", zap.Error(err))
+				return err
+			}
+			r.replicaLog.unstable.truncateLogTo(m.Index)
+			lastIdx := r.replicaLog.lastIndex()
+			r.replicaLog.lastLogIndex = lastIdx
+			r.localLeaderLastTerm = m.Term
+		}
 
-		termStartIndex, err := r.opts.Storage.LeaderTermStartIndex(m.Term)
-		if err != nil {
-			r.Error("follower: leader term start index not found", zap.Uint32("term", m.Term))
-			return err
-		}
-		if termStartIndex == 0 {
-			err := r.opts.Storage.SetLeaderTermStartIndex(m.Term, m.Index)
-			if err != nil {
-				r.Error("set leader term start index failed", zap.Error(err))
-				return err
-			}
-		} else if termStartIndex > m.Index {
-			err := r.opts.Storage.SetLeaderTermStartIndex(m.Term, m.Index)
-			if err != nil {
-				r.Error("set leader term start index failed", zap.Error(err))
-				return err
-			}
-			err = r.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(m.Term)
-			if err != nil {
-				r.Error("delete leader term start index failed", zap.Error(err))
-				return err
-			}
-		}
-		r.Info("truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
-		err = r.opts.Storage.TruncateLogTo(m.Index)
-		if err != nil {
-			r.Error("truncate log failed", zap.Error(err))
-			return err
-		}
-		r.replicaLog.unstable.truncateLogTo(m.Index)
-		lastIdx := r.replicaLog.lastIndex()
-		r.replicaLog.lastLogIndex = lastIdx
-		r.localLeaderLastTerm = m.Term
 		r.disabledToSync = false        // 现在可以去同步领导的日志了
 		r.messageWait.immediatelySync() // 立马可以同步了
 		r.Info("enable to sync", zap.Uint64("leader", r.leader), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", m.Term))
@@ -276,14 +281,14 @@ func (r *Replica) stepCandidate(m Message) error {
 		r.becomeFollower(m.Term, m.From)
 		r.send(r.newPong(m.From))
 	case MsgVoteResp:
-		r.Info("received vote response", zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
+		r.Info("received vote response", zap.Bool("reject", m.Reject), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
 		r.poll(m)
 	}
 	return nil
 }
 
 func (r *Replica) poll(m Message) {
-	r.votes[m.From] = true
+	r.votes[m.From] = !m.Reject
 	var granted int
 	for _, v := range r.votes {
 		if v {
@@ -295,6 +300,7 @@ func (r *Replica) poll(m Message) {
 	}
 	if granted >= r.quorum() {
 		r.becomeLeader(r.replicaLog.term) // 成为领导者
+		r.sendPing()
 	} else {
 		r.becomeFollower(r.replicaLog.term, None)
 	}

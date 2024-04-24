@@ -96,6 +96,7 @@ func New(opts *Options) *Server {
 	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
 	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
 	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
+	storeOpts.GetSlotId = s.getSlotId
 	s.store = clusterstore.NewStore(storeOpts)
 
 	s.apiServer = NewAPIServer(s)
@@ -327,13 +328,16 @@ func (s *Server) Stop() error {
 
 	defer s.Info("Server is exited")
 
+	s.conversationManager.Stop()
+
+	fmt.Println("conversationManager stopped")
+
 	s.trace.Stop()
 
 	s.timingWheel.Stop()
 
 	s.retryQueue.Stop()
 	_ = s.dispatch.Stop()
-	s.conversationManager.Stop()
 	s.apiServer.Stop()
 	s.webhook.Stop()
 
@@ -431,4 +435,8 @@ func (s *Server) printIpBlacklist() {
 			s.Info(fmt.Sprintf("ip: %s, block count: %d", ip, count))
 		}
 	}
+}
+
+func (s *Server) getSlotId(v string) uint32 {
+	return s.cluster.GetSlotId(v)
 }

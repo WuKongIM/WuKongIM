@@ -146,6 +146,12 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	// cluster event server
+	err = s.clusterEventServer.Start()
+	if err != nil {
+		return err
+	}
+
 	// net server
 	s.setRoutes()
 	s.netServer.OnMessage(s.onMessage)
@@ -163,11 +169,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	// cluster event server
-	err = s.clusterEventServer.Start()
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -231,7 +233,7 @@ func (s *Server) AddChannelMessage(m reactor.Message) {
 		}
 		_, err := s.loadOrCreateChannel(s.cancelCtx, channelId, channelType)
 		if err != nil {
-			s.Error("loadOrCreateChannel failed", zap.Error(err), zap.String("handlerKey", m.HandlerKey), zap.String("msgType", m.MsgType.String()))
+			s.Error("loadOrCreateChannel failed", zap.Error(err), zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.MsgType.String()))
 		}
 		s.channelLoadMapLock.Lock()
 		delete(s.channelLoadMap, m.HandlerKey)
@@ -265,6 +267,16 @@ func (s *Server) addSlot(slot *pb.Slot) {
 			st.becomeFollower(slot.Term, slot.Leader)
 		}
 	}
+}
+
+func (s *Server) updateSlot(st *pb.Slot) {
+	handler := s.slotManager.get(st.Id)
+	if handler == nil {
+		s.addSlot(st)
+		return
+	}
+	handler.(*slot).update(st)
+
 }
 
 func (s *Server) serverUid(id uint64) string {
@@ -352,10 +364,10 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 }
 
 // 获取频道所在的slotId
-func (s *Server) getChannelSlotId(channelId string) uint32 {
+func (s *Server) getSlotId(v string) uint32 {
 	var slotCount uint32 = s.clusterEventServer.SlotCount()
 	if slotCount == 0 {
 		slotCount = s.opts.SlotCount
 	}
-	return wkutil.GetSlotNum(int(slotCount), channelId)
+	return wkutil.GetSlotNum(int(slotCount), v)
 }

@@ -40,7 +40,7 @@ func New(opts *Options) *Server {
 		cfg:        NewConfig(opts),
 		stopper:    syncutil.NewStopper(),
 		Log:        wklog.NewWKLog("clusterconfig.server"),
-		storage:    NewPebbleShardLogStorage(path.Join(dataDir, "logdb")),
+		storage:    NewPebbleShardLogStorage(path.Join(dataDir, "cfglogdb")),
 	}
 	reactorOptions := reactor.NewOptions(reactor.WithNodeId(opts.NodeId), reactor.WithSend(s.send), reactor.WithSubReactorNum(1), reactor.WithTaskPoolSize(10))
 	s.configReactor = reactor.New(reactorOptions)

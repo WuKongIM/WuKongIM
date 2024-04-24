@@ -48,6 +48,10 @@ func (s *Slot) Equal(v *Slot) bool {
 		return false
 	}
 
+	if s.Leader != v.Leader {
+		return false
+	}
+
 	for _, replicaId := range s.Replicas {
 		exist := false
 		for _, rId := range v.Replicas {

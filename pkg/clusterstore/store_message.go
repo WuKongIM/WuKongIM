@@ -215,6 +215,16 @@ func (s *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex
 		messages []wkdb.Message
 		err      error
 	)
+
+	lastIdx, err := s.LastIndex(shardNo)
+	if err != nil {
+		return nil, err
+	}
+
+	if endLogIndex == 0 || endLogIndex > lastIdx+1 {
+		endLogIndex = lastIdx + 1
+	}
+
 	messages, err = s.db.LoadNextRangeMsgsForSize(channelID, channelType, startLogIndex, endLogIndex, limitSize)
 	if err != nil {
 		return nil, err
@@ -267,9 +277,10 @@ func (s *MessageShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint3
 	channelId, channelType := cluster.ChannelFromlKey(shardNo)
 	msg, err := s.db.LoadMsg(channelId, channelType, lastIndex)
 	if err != nil {
+		s.Error("load last msg err", zap.Error(err), zap.String("shardNo", shardNo), zap.Uint64("lastIndex", lastIndex))
 		return 0, 0, err
 	}
-	return uint64(msg.MessageID), uint32(msg.Term), nil
+	return uint64(msg.MessageSeq), uint32(msg.Term), nil
 }
 
 func (s *MessageShardLogStorage) SetLastIndex(shardNo string, index uint64) error {

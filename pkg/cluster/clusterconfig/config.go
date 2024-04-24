@@ -93,7 +93,7 @@ func (c *Config) data() ([]byte, error) {
 	return c.cfg.Marshal()
 }
 
-func (c *Config) apply(data []byte) error {
+func (c *Config) apply(data []byte, logIndex uint64, term uint32) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -102,6 +102,8 @@ func (c *Config) apply(data []byte) error {
 	if err != nil {
 		return err
 	}
+	newCfg.Term = term
+	newCfg.Version = logIndex
 
 	if newCfg.Version <= c.appliedCfg.Version {
 		c.Warn("apply config version <= applied config version", zap.Uint64("version", newCfg.Version), zap.Uint64("appliedVersion", c.appliedCfg.Version))

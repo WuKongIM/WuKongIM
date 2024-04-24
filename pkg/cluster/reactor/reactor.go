@@ -71,7 +71,9 @@ func (r *Reactor) RemoveHandler(key string) {
 
 	sub := r.reactorSub(key)
 	h := sub.removeHandler(key)
-	putHandlerToPool(h)
+	if h != nil {
+		putHandlerToPool(h)
+	}
 }
 
 func (r *Reactor) Handler(key string) IHandler {

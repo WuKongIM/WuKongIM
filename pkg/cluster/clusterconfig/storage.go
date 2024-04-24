@@ -3,6 +3,7 @@ package clusterconfig
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -175,6 +176,7 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm() (uint64, uint32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
+	fmt.Println("LastIndexAndTerm---->", lastIndex, log.Term)
 	return lastIndex, log.Term, nil
 }
 

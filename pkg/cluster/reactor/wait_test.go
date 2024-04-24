@@ -12,7 +12,7 @@ import (
 
 func TestMessageWait(t *testing.T) {
 	messageIds := []uint64{1, 2, 3}
-	m := newProposeWait()
+	m := newProposeWait("test")
 	key := "test"
 	waitC := m.add(context.Background(), key, messageIds)
 
@@ -46,7 +46,7 @@ func TestMessageWait(t *testing.T) {
 
 func BenchmarkMessageWait(b *testing.B) {
 	messageIds := make([]uint64, 0)
-	m := newProposeWait()
+	m := newProposeWait("test")
 
 	b.StartTimer()
 	num := b.N

@@ -65,6 +65,20 @@ const (
 	CMDChannelClusterConfigSave
 	// 频道分布式配置删除
 	CMDChannelClusterConfigDelete
+	// 添加或更新session
+	CMDAddOrUpdateSession
+
+	// 删除指定用户的session
+	CMDDeleteSessionByUid
+	// 通过id删除session
+	CMDDeleteSession
+
+	// 通过channel删除session
+	CMDDeleteSessionByChannel
+	// 通过channel删除session和会话
+	CMDDeleteSessionAndConversationByChannel
+	// 更新session的更新时间
+	CMDUpdateSessionUpdatedAt
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -127,6 +141,18 @@ func (c CMDType) String() string {
 		return "CMDChannelClusterConfigSave"
 	case CMDChannelClusterConfigDelete:
 		return "CMDChannelClusterConfigDelete"
+	case CMDAddOrUpdateSession:
+		return "CMDAddOrUpdateSession"
+	case CMDDeleteSessionByUid:
+		return "CMDDeleteSessionByUid"
+	case CMDDeleteSession:
+		return "CMDDeleteSession"
+	case CMDDeleteSessionByChannel:
+		return "CMDDeleteSessionByChannel"
+	case CMDDeleteSessionAndConversationByChannel:
+		return "CMDDeleteSessionAndConversationByChannel"
+	case CMDUpdateSessionUpdatedAt:
+		return "CMDUpdateSessionUpdatedAt"
 	default:
 		return "CMDUnknown"
 	}
@@ -301,38 +327,46 @@ func (c *CMD) DecodeAddOrUpdateChannel() (wkdb.ChannelInfo, error) {
 // EncodeCMDAddOrUpdateConversations EncodeCMDAddOrUpdateConversations
 func EncodeCMDAddOrUpdateConversations(uid string, conversations []wkdb.Conversation) ([]byte, error) {
 
-	var conversationSet wkdb.ConversationSet
-	if len(conversations) > 0 {
-		conversationSet = wkdb.ConversationSet(conversations)
-
-	}
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(uid)
-	if conversationSet != nil {
-		data, err := conversationSet.Marshal()
+	encoder.WriteUint32(uint32(len(conversations)))
+	for _, conversation := range conversations {
+		data, err := conversation.Marshal()
 		if err != nil {
 			return nil, err
 		}
-		encoder.WriteBytes(data)
+		encoder.WriteBinary(data)
 	}
 	return encoder.Bytes(), nil
 }
 
 // DecodeCMDAddOrUpdateConversations DecodeCMDAddOrUpdateConversations
-func (c *CMD) DecodeCMDAddOrUpdateConversations() (uid string, conversations wkdb.ConversationSet, err error) {
+func (c *CMD) DecodeCMDAddOrUpdateConversations() (uid string, conversations []wkdb.Conversation, err error) {
 	if len(c.Data) == 0 {
-		return "", nil, nil
+		return
 	}
 	decoder := wkproto.NewDecoder(c.Data)
 	if uid, err = decoder.String(); err != nil {
 		return
 	}
 
-	var data []byte
-	data, _ = decoder.BinaryAll()
-	if len(data) > 0 {
-		err = conversations.Unmarshal(data)
+	var count uint32
+	if count, err = decoder.Uint32(); err != nil {
+		return
+	}
+	for i := uint32(0); i < count; i++ {
+		var conversationBytes []byte
+		if conversationBytes, err = decoder.Binary(); err != nil {
+			return
+		}
+		var conversation = &wkdb.Conversation{}
+		err = conversation.Unmarshal(conversationBytes)
+		if err != nil {
+			return
+		}
+		conversations = append(conversations, *conversation)
+
 	}
 
 	return
@@ -472,6 +506,105 @@ func (c *CMD) DecodeCMDAppendMessagesOfUser() (uid string, messages []wkdb.Messa
 			return
 		}
 		messages = append(messages, *msg)
+	}
+	return
+}
+
+func EncodeCMDDeleteSession(uid string, sessionId uint64) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteUint64(sessionId)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDDeleteSession() (uid string, sessionId uint64, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if sessionId, err = decoder.Uint64(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDDeleteSessionByChannel(uid string, channelId string, channelType uint8) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDDeleteSessionByChannel() (uid string, channelId string, channelType uint8, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDDeleteSessionAndConversationByChannel(uid string, channelId string, channelType uint8) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDDeleteSessionAndConversationByChannel() (uid string, channelId string, channelType uint8, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDUpdateSessionUpdatedAt(uids []string, channelId string, channelType uint8) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteUint32(uint32(len(uids)))
+	for _, uid := range uids {
+		encoder.WriteString(uid)
+	}
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDUpdateSessionUpdatedAt() (uids []string, channelId string, channelType uint8, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	var count uint32
+	if count, err = decoder.Uint32(); err != nil {
+		return
+	}
+	for i := uint32(0); i < count; i++ {
+		var uid string
+		if uid, err = decoder.String(); err != nil {
+			return
+		}
+		uids = append(uids, uid)
+	}
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
 	}
 	return
 }

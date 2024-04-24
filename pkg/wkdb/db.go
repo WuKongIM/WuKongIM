@@ -9,13 +9,14 @@ type DB interface {
 	UserDB
 	// channel
 	ChannelDB
-	// 会话
+	// 最近会话
 	ConversationDB
 	// 频道分布式配置
 	ChannelClusterConfigDB
-
 	// 领导任期开始的第一条日志索引
 	LeaderTermSequenceDB
+	// 会话
+	SessionDB
 }
 
 type MessageDB interface {
@@ -128,13 +129,15 @@ type ConversationDB interface {
 	AddOrUpdateConversations(uid string, conversations []Conversation) error
 
 	// DeleteConversation 删除最近会话
-	DeleteConversation(uid string, channelId string, channelType uint8) error
+	DeleteConversation(uid string, sessionId uint64) error
 
 	// GetConversations 获取指定用户的最近会话
 	GetConversations(uid string) ([]Conversation, error)
 
 	// GetConversation 获取指定用户的指定会话
-	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)
+	GetConversation(uid string, sessionId uint64) (Conversation, error)
+
+	GetConversationBySessionIds(uid string, sessionIds []uint64) ([]Conversation, error)
 }
 
 type ChannelClusterConfigDB interface {
@@ -167,4 +170,30 @@ type LeaderTermSequenceDB interface {
 	LeaderTermStartIndex(shardNo string, term uint32) (uint64, error)
 	// DeleteLeaderTermStartIndexGreaterThanTerm 删除比传入的term大的的LeaderTermStartIndex记录
 	DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
+}
+
+type SessionDB interface {
+	// AddOrUpdateSession 添加或更新session
+	AddOrUpdateSession(session Session) (Session, error)
+	// GetSession 获取session
+	GetSession(uid string, id uint64) (Session, error)
+	// DeleteSession 删除session
+	DeleteSession(uid string, id uint64) error
+	DeleteSessionByChannel(uid string, channelId string, channelType uint8) error
+	// DeleteSessionAndConversationByChannel 删除session和最近会话
+	DeleteSessionAndConversationByChannel(uid string, channelId string, channelType uint8) error
+	// GetSessions 获取用户的session
+	GetSessions(uid string) ([]Session, error)
+	// DeleteSessionByUid 删除用户的session
+	DeleteSessionByUid(uid string) error
+	// GetSessionByChannel 获取用户某个频道的session
+	GetSessionByChannel(uid string, channelId string, channelType uint8) (Session, error)
+	//	 UpdateSessionUpdatedAt 更新session的更新时间
+	UpdateSessionUpdatedAt(uids []string, channelId string, channelType uint8) error
+	//	 GetLastSessionsByUid 获取用户最近的session
+	// limit 为0表示不做限制
+	GetLastSessionsByUid(uid string, limit int) ([]Session, error)
+	// 获取大于指定更新时间的session(不包含updatedAt)
+	// limit 为0表示不做限制
+	GetSessionsGreaterThanUpdatedAtByUid(uid string, updatedAt int64, limit int) ([]Session, error)
 }

@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -41,6 +42,7 @@ func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
 
 	resps := make([]*ChannelLastLogInfoResponse, 0, len(reqs))
 	for _, req := range reqs {
+		fmt.Println("request......", req.ChannelId, req.ChannelType)
 		shardNo := ChannelToKey(req.ChannelId, req.ChannelType)
 		lastIndex, term, err := s.opts.MessageLogStorage.LastIndexAndTerm(shardNo)
 		if err != nil {
@@ -75,7 +77,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 
-	slotId := s.getChannelSlotId(req.ChannelId)
+	slotId := s.getSlotId(req.ChannelId)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {
 		s.Error("slot not found", zap.Uint32("slotId", slotId))
@@ -142,7 +144,7 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 			c.WriteErr(errors.New("leaderId is from"))
 			return
 		}
-		s.Error("not leader,handleProposeMessage failed", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		s.Error("not is leader,handleProposeMessage failed", zap.Uint64("leaderId", ch.leaderId()), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(ErrOldChannelClusterConfig)
 		return
 	}

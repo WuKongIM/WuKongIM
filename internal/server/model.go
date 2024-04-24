@@ -467,20 +467,27 @@ type syncUserConversationResp struct {
 	LastMsgSeq      uint32         `json:"last_msg_seq"`       // 最后一条消息seq
 	LastClientMsgNo string         `json:"last_client_msg_no"` // 最后一次消息客户端编号
 	OffsetMsgSeq    int64          `json:"offset_msg_seq"`     // 偏移位的消息seq
+	ReadedToMsgSeq  uint32         `json:"readed_to_msg_seq"`  // 已读至的消息seq
 	Version         int64          `json:"version"`            // 数据版本
 	Recents         []*MessageResp `json:"recents"`            // 最近N条消息
 }
 
-func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConversationResp {
-
+func newSyncUserConversationResp(conversation wkdb.Conversation, session wkdb.Session) *syncUserConversationResp {
+	realChannelId := session.ChannelId
+	if session.ChannelType == wkproto.ChannelTypePerson {
+		from, to := GetFromUIDAndToUIDWith(session.ChannelId)
+		if from == session.Uid {
+			realChannelId = to
+		} else {
+			realChannelId = from
+		}
+	}
 	return &syncUserConversationResp{
-		ChannelID:       conversation.ChannelId,
-		ChannelType:     conversation.ChannelType,
-		Unread:          int(conversation.UnreadCount),
-		Timestamp:       conversation.Timestamp,
-		LastMsgSeq:      uint32(conversation.LastMsgSeq),
-		LastClientMsgNo: conversation.LastClientMsgNo,
-		Version:         conversation.Version,
+		ChannelID:      realChannelId,
+		ChannelType:    session.ChannelType,
+		Unread:         int(conversation.UnreadCount),
+		Version:        session.UpdatedAt.UnixNano(),
+		ReadedToMsgSeq: uint32(conversation.ReadedToMsgSeq),
 	}
 }
 

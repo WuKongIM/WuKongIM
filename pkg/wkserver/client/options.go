@@ -10,6 +10,7 @@ type Options struct {
 	ConnectTimeout    time.Duration
 	Reconnect         bool
 	RequestTimeout    time.Duration
+	HandshakeTimeout  time.Duration
 	UID               string
 	Token             string
 	DefaultBufSize    int // The size of the bufio reader/writer on top of the socket.
@@ -36,6 +37,7 @@ func NewOptions() *Options {
 		ConnectTimeout:    time.Second * 5,
 		Reconnect:         true,
 		RequestTimeout:    time.Second * 5,
+		HandshakeTimeout:  time.Second * 2,
 		DefaultBufSize:    32768,
 		ReconnectBufSize:  8 * 1024 * 1024,
 		Timeout:           2 * time.Second,
