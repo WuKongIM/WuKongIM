@@ -12,6 +12,8 @@ type Options struct {
 	SlotCount uint32           // 槽数量
 
 	DecodeMessageFnc func(msg []byte) (wkstore.Message, error)
+
+	GetSlotId func(uid string) uint32
 }
 
 func NewOptions(nodeID uint64, opts ...Option) *Options {

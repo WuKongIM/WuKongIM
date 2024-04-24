@@ -36,6 +36,8 @@ func (s *Server) handleClusterEvent(m clusterevent.Message) error {
 		s.handleNodeUpdate(m)
 	case clusterevent.EventTypeSlotAdd: // 添加槽
 		s.handleSlotAdd(m)
+	case clusterevent.EventTypeSlotUpdate: // 修改槽
+		s.handleSlotUpdate(m)
 	case clusterevent.EventTypeApiServerAddrUpdate: // api服务地址更新
 		return s.handleApiServerAddrUpdate()
 	case clusterevent.EventTypeNodeOnlieChange: // 在线状态改变
@@ -155,6 +157,18 @@ func (s *Server) handleSlotAdd(m clusterevent.Message) {
 			continue
 		}
 		s.addSlot(slot)
+	}
+}
+
+func (s *Server) handleSlotUpdate(m clusterevent.Message) {
+	for _, slot := range m.Slots {
+		if !s.slotManager.exist(slot.Id) {
+			continue
+		}
+		if !wkutil.ArrayContainsUint64(slot.Replicas, s.opts.NodeId) {
+			continue
+		}
+		s.updateSlot(slot)
 	}
 }
 
@@ -329,7 +343,16 @@ func (s *Server) calculateSlotLeaderBySlot(slotLogInfos map[uint64]map[uint32]Sl
 	var maxLogIndex uint64
 	var maxLogTerm uint32
 	for replicaId, logIndexMap := range slotLogInfos {
-		slotInfo := logIndexMap[slotId]
+		slotInfo, ok := logIndexMap[slotId]
+		if !ok {
+			continue
+		}
+		if leader == 0 {
+			leader = replicaId
+			maxLogIndex = slotInfo.LogIndex
+			maxLogTerm = slotInfo.LogTerm
+			continue
+		}
 		if slotInfo.LogTerm > maxLogTerm {
 			leader = replicaId
 			maxLogIndex = slotInfo.LogIndex

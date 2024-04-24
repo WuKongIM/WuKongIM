@@ -597,6 +597,12 @@ func (p *Processor) storeMessageToUserQueueIfNeed(messages []*Message, subscribe
 }
 
 func (p *Processor) updateConversations(m *Message, subscribers []string) {
-	p.s.conversationManager.PushMessage(m, subscribers)
+
+	fakeChannelId := m.ChannelID
+	if m.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelId = GetFakeChannelIDWith(m.FromUID, m.ChannelID)
+	}
+
+	p.s.conversationManager.Push(fakeChannelId, m.ChannelType, subscribers)
 
 }

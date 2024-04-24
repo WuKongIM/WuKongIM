@@ -187,8 +187,8 @@ func (p *proxyReplicaStorage) Logs(startLogIndex uint64, endLogIndex uint64, lim
 	return p.storage.Logs(p.shardNo, startLogIndex, endLogIndex, limitSize)
 }
 
-func (p *proxyReplicaStorage) LastIndex() (uint64, error) {
-	return p.storage.LastIndex(p.shardNo)
+func (p *proxyReplicaStorage) LastIndexAndTerm() (uint64, uint32, error) {
+	return p.storage.LastIndexAndTerm(p.shardNo)
 }
 
 func (p *proxyReplicaStorage) FirstIndex() (uint64, error) {

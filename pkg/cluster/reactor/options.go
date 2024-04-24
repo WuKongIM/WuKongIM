@@ -57,6 +57,9 @@ type Options struct {
 	// IsCommittedAfterApplied 是否在状态机应用日志后才视为提交, 如果为false 则多数节点追加日志后即视为提交
 	IsCommittedAfterApplied bool
 	AutoSlowDownOn          bool // 是否开启自动降速
+
+	// LeaderTimeoutMaxTick 领导者最大超时tick数，超过这个tick数认为领导者已经丢失
+	LeaderTimeoutMaxTick int
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -71,6 +74,7 @@ func NewOptions(opt ...Option) *Options {
 		EnableLazyCatchUp:       true,
 		IsCommittedAfterApplied: false,
 		AutoSlowDownOn:          false,
+		LeaderTimeoutMaxTick:    25,
 	}
 
 	for _, o := range opt {

@@ -2,10 +2,12 @@ package reactor
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 var emptyMessageItem = messageItem{}
@@ -34,9 +36,9 @@ type proposeWait struct {
 	hasAdd           atomic.Bool
 }
 
-func newProposeWait() *proposeWait {
+func newProposeWait(key string) *proposeWait {
 	return &proposeWait{
-		Log:              wklog.NewWKLog("proposeWait"),
+		Log:              wklog.NewWKLog(fmt.Sprintf("proposeWait[%s]", key)),
 		proposeWaitMap:   make(map[string]chan []ProposeResult),
 		proposeResultMap: make(map[string][]ProposeResult),
 	}
@@ -57,6 +59,8 @@ func (m *proposeWait) add(ctx context.Context, key string, ids []uint64) chan []
 			Id: id,
 		}
 	}
+
+	m.Debug("addWait", zap.String("key", key), zap.Any("ids", ids))
 
 	m.proposeResultMap[key] = items
 	m.proposeWaitMap[key] = waitC
@@ -107,6 +111,7 @@ func (m *proposeWait) didPropose(key string, logId uint64, logIndex uint64) {
 	if logIndex == 0 {
 		m.Panic("didPropose logIndex is 0")
 	}
+	m.Debug("didPropose", zap.String("key", key), zap.Uint64("logId", logId), zap.Uint64("logIndex", logIndex))
 	items := m.proposeResultMap[key]
 	for i, item := range items {
 		if item.Id == logId {
@@ -143,6 +148,7 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 			}
 		}
 		if shouldCommit {
+			m.Debug("didCommit", zap.String("key", key), zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex))
 			waitC := m.proposeWaitMap[key]
 			waitC <- items
 			close(waitC)

@@ -57,6 +57,7 @@ func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.Channe
 	if err != nil {
 		return err
 	}
-	_, err = c.store.opts.Cluster.ProposeChannelMeta(ctx, cfg.ChannelId, cfg.ChannelType, cmdData)
+	slotId := c.store.opts.GetSlotId(cfg.ChannelId)
+	_, err = c.store.opts.Cluster.ProposeDataToSlot(ctx, slotId, cmdData)
 	return err
 }

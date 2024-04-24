@@ -334,12 +334,6 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 			return
 		}
 		channel.RemoveSubscribers(req.Subscribers)
-		err = ch.s.conversationManager.DeleteConversation(req.Subscribers, req.ChannelID, req.ChannelType)
-		if err != nil {
-			ch.Error("删除最近会话失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
 	}
 
 	c.ResponseOK()

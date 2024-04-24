@@ -23,6 +23,7 @@ type wukongDB struct {
 	endian   binary.ByteOrder
 	wklog.Log
 	prmaryKeyGen *snowflake.Node // 消息ID生成器
+	noSync       *pebble.WriteOptions
 }
 
 func NewWukongDB(opts *Options) *wukongDB {
@@ -35,8 +36,13 @@ func NewWukongDB(opts *Options) *wukongDB {
 		shardNum:     16,
 		prmaryKeyGen: prmaryKeyGen,
 		endian:       binary.BigEndian,
-		wo:           &pebble.WriteOptions{},
-		Log:          wklog.NewWKLog("wukongDB"),
+		wo: &pebble.WriteOptions{
+			Sync: true,
+		},
+		noSync: &pebble.WriteOptions{
+			Sync: false,
+		},
+		Log: wklog.NewWKLog("wukongDB"),
 	}
 }
 
@@ -64,8 +70,16 @@ func (wk *wukongDB) Close() error {
 }
 
 func (wk *wukongDB) shardDB(v string) *pebble.DB {
-	shardId := crc32.ChecksumIEEE([]byte(v)) % wk.shardNum
+	shardId := wk.shardId(v)
 	return wk.dbs[shardId]
+}
+
+func (wk *wukongDB) shardId(v string) uint32 {
+	return crc32.ChecksumIEEE([]byte(v)) % wk.shardNum
+}
+
+func (wk *wukongDB) shardDBById(id uint32) *pebble.DB {
+	return wk.dbs[id]
 }
 
 func (wk *wukongDB) defaultShardDB() *pebble.DB {

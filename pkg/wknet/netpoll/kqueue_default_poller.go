@@ -152,7 +152,6 @@ func (p *Poller) DeleteWrite(fd int) error {
 }
 
 func (p *Poller) DeleteReadAndWrite(fd int) error {
-
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_READ},
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_WRITE},

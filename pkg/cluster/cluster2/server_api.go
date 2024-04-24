@@ -145,7 +145,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 	channelClusterConfigResps := make([]*ChannelClusterConfigResp, 0, len(channelClusterConfigs))
 
 	for _, cfg := range channelClusterConfigs {
-		slotId := s.getChannelSlotId(cfg.ChannelId)
+		slotId := s.getSlotId(cfg.ChannelId)
 		slot := s.clusterEventServer.Slot(slotId)
 		if slot == nil {
 			s.Error("slot not found", zap.Uint32("slotId", slotId))
@@ -421,7 +421,7 @@ func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
 		return
 	}
 
-	slotId := s.getChannelSlotId(channelId)
+	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {
 		s.Error("slot not found", zap.Uint32("slotId", slotId))

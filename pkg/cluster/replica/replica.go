@@ -136,7 +136,7 @@ func (r *Replica) SlowDown() {
 	case LevelSlowest:
 		r.speedLevel = LevelStop
 	}
-	r.SetSpeedLevel(r.speedLevel)
+	r.setSpeedLevel(r.speedLevel)
 
 }
 
@@ -147,6 +147,13 @@ func (r *Replica) SetSpeedLevel(level SpeedLevel) {
 	if r.speedLevel != level {
 		notify = true
 	}
+	r.setSpeedLevel(level)
+	if notify && r.isLeader() {
+		r.sendPing()
+	}
+}
+
+func (r *Replica) setSpeedLevel(level SpeedLevel) {
 
 	r.speedLevel = level
 
@@ -162,9 +169,7 @@ func (r *Replica) SetSpeedLevel(level SpeedLevel) {
 	case LevelStop: // 这种情况基本是停止状态，要么等待重新激活，要么等待被销毁
 		r.messageWait.setSyncIntervalTickCount(100000)
 	}
-	if notify && r.isLeader() {
-		r.sendPing()
-	}
+
 }
 
 func (r *Replica) SpeedLevel() SpeedLevel {
@@ -180,6 +185,8 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.role = RoleFollower
 
 	r.Debug("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
+
+	r.messageWait.immediatelySync() // 立马可以同步了
 
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
 		r.Info("disable to sync resolve log conflicts", zap.Uint64("leader", r.leader))
@@ -411,7 +418,9 @@ func (r *Replica) reset(term uint32) {
 	r.leader = None
 	r.electionElapsed = 0
 	r.heartbeatElapsed = 0
+	r.setSpeedLevel(LevelFast)
 	r.resetRandomizedElectionTimeout()
+	r.messageWait.immediatelyLeaderTermStartIndex()
 }
 
 func (r *Replica) Tick() {
@@ -716,13 +725,14 @@ func (r *Replica) newMsgVote(nodeId uint64) Message {
 	}
 }
 
-func (r *Replica) newMsgVoteResp(to uint64, term uint32) Message {
+func (r *Replica) newMsgVoteResp(to uint64, term uint32, reject bool) Message {
 	return Message{
 		From:    r.opts.NodeId,
 		To:      to,
 		MsgType: MsgVoteResp,
 		Term:    term,
 		Index:   r.replicaLog.lastLogIndex,
+		Reject:  reject,
 	}
 }
 

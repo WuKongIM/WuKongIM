@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -52,7 +53,7 @@ func newNode(id uint64, uid string, addr string, opts *Options) *node {
 }
 
 func (n *node) connectStatusChange(status client.ConnectStatus) {
-	n.Info("节点连接状态改变", zap.String("status", status.String()))
+	// n.Debug("节点连接状态改变", zap.String("status", status.String()))
 }
 
 func (n *node) start() {
@@ -69,10 +70,6 @@ func (n *node) stop() {
 	n.Debug("close1")
 	n.client.Close()
 	n.Debug("close2")
-}
-
-func (n *node) online() bool {
-	return time.Since(n.client.LastActivity()) < n.activityTimeout
 }
 
 func (n *node) send(msg *proto.Message) error {
@@ -109,6 +106,11 @@ func (n *node) processMessages() {
 	for {
 		select {
 		case msg := <-n.sendQueue.ch:
+
+			if n.client.ConnectStatus() != client.CONNECTED {
+				continue
+			}
+
 			n.sendQueue.decrease(msg)
 			size += uint64(msg.Size())
 			msgs = append(msgs, msg)
@@ -128,6 +130,7 @@ func (n *node) processMessages() {
 			}
 			trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(int64(size))
 			trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(int64(len(msgs)))
+
 			if err = n.sendBatch(msgs); err != nil {
 				if n.client.ConnectStatus() == client.CONNECTED { // 只有连接状态下才打印错误日志
 					n.Error("sendBatch is failed", zap.Error(err))
@@ -152,6 +155,7 @@ func (n *node) requestWithContext(ctx context.Context, path string, body []byte)
 
 // requestChannelLastLogInfo 请求channel的最后一条日志信息
 func (n *node) requestChannelLastLogInfo(ctx context.Context, req ChannelLastLogInfoReqSet) (ChannelLastLogInfoResponseSet, error) {
+	fmt.Println("requestChannelLastLogInfo....")
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, err
@@ -201,6 +205,9 @@ func (n *node) requestChannelProposeMessage(ctx context.Context, req *ChannelPro
 		return nil, err
 	}
 	if resp.Status != proto.Status_OK {
+		if len(resp.Body) > 0 {
+			return nil, errors.New(string(resp.Body))
+		}
 		return nil, fmt.Errorf("requestProposeMessage is failed, status:%d", resp.Status)
 	}
 	proposeMessageResp := &ChannelProposeResp{}

@@ -102,12 +102,16 @@ func (c *Client) run(connectChan chan struct{}) {
 	if c.running.Load() {
 		return
 	}
+	defer func() {
+		fmt.Println("loop read end.....")
+	}()
 	for {
 		if c.forceDisconnect {
 			return
 		}
 
 		c.running.Store(true)
+		c.stopped.Store(false)
 		c.disconnect()
 
 		c.connectStatusChange(CONNECTING)
@@ -115,7 +119,7 @@ func (c *Client) run(connectChan chan struct{}) {
 		conn, err := net.DialTimeout("tcp", c.addr, c.opts.ConnectTimeout)
 		if err != nil {
 			// 处理错误
-			c.Info("connect is error", zap.Error(err))
+			c.Debug("connect is error", zap.Error(err))
 			time.Sleep(errSleepDuri)
 			continue
 		}
@@ -141,6 +145,7 @@ func (c *Client) run(connectChan chan struct{}) {
 
 		c.loopRead()
 	}
+
 }
 
 func (c *Client) onOutboundClose() {
@@ -203,7 +208,7 @@ func (c *Client) handshake() error {
 	if err != nil {
 		return err
 	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.RequestTimeout)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.HandshakeTimeout)
 	defer cancel()
 	select {
 	case x := <-ch:

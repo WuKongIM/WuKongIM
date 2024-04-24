@@ -3,6 +3,7 @@ package wkdb
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -128,66 +129,103 @@ func (c *ChannelInfo) Unmarshal(data []byte) error {
 var EmptyConversation = Conversation{}
 
 func IsEmptyConversation(c Conversation) bool {
-	return strings.TrimSpace(c.UID) == ""
+	return c.SessionId == 0
+}
+
+var EmptySession = Session{}
+
+func IsEmptySession(s Session) bool {
+	return s.ChannelId == ""
+}
+
+type Session struct {
+	Id          uint64
+	Uid         string
+	ChannelId   string
+	ChannelType uint8
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (s *Session) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(s.Id)
+	enc.WriteString(s.Uid)
+	enc.WriteString(s.ChannelId)
+	enc.WriteUint8(s.ChannelType)
+	enc.WriteInt64(s.CreatedAt.Unix())
+	enc.WriteInt64(s.UpdatedAt.Unix())
+	return enc.Bytes(), nil
+}
+
+func (s *Session) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if s.Id, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if s.Uid, err = dec.String(); err != nil {
+		return err
+	}
+	if s.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if s.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	var createdAt int64
+	if createdAt, err = dec.Int64(); err != nil {
+		return err
+	}
+	s.CreatedAt = time.Unix(createdAt, 0)
+	var updatedAt int64
+	if updatedAt, err = dec.Int64(); err != nil {
+		return err
+	}
+	s.UpdatedAt = time.Unix(updatedAt, 0)
+	return nil
+
 }
 
 // Conversation Conversation
 type Conversation struct {
-	Id              uint64
-	UID             string // User UID (user who belongs to the most recent session)
-	ChannelId       string // Conversation channel
-	ChannelType     uint8
-	UnreadCount     uint32 // Number of unread messages
-	Timestamp       int64  // Last session timestamp (10 digits)
-	LastMsgSeq      uint64 // Sequence number of the last message
-	LastClientMsgNo string // Last message client number
-	LastMsgID       int64  // Last message ID
-	Version         int64  // Data version
+	Id             uint64
+	Uid            string // 用户uid
+	SessionId      uint64 // session id
+	UnreadCount    uint32 // 未读消息数量（这个可以用户自己设置）
+	ReadedToMsgSeq uint64 // 已经读至的消息序号
 }
 
 func (c *Conversation) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteString(c.UID)
-	enc.WriteString(c.ChannelId)
-	enc.WriteUint8(c.ChannelType)
+	enc.WriteUint64(c.Id)
+	enc.WriteString(c.Uid)
+	enc.WriteUint64(c.SessionId)
 	enc.WriteUint32(c.UnreadCount)
-	enc.WriteInt64(c.Timestamp)
-	enc.WriteUint64(c.LastMsgSeq)
-	enc.WriteString(c.LastClientMsgNo)
-	enc.WriteInt64(c.LastMsgID)
-	enc.WriteInt64(c.Version)
+	enc.WriteUint64(c.ReadedToMsgSeq)
 	return enc.Bytes(), nil
 }
 
 func (c *Conversation) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if c.UID, err = dec.String(); err != nil {
+	if c.Id, err = dec.Uint64(); err != nil {
 		return err
 	}
-	if c.ChannelId, err = dec.String(); err != nil {
+
+	if c.Uid, err = dec.String(); err != nil {
 		return err
 	}
-	if c.ChannelType, err = dec.Uint8(); err != nil {
+
+	if c.SessionId, err = dec.Uint64(); err != nil {
 		return err
 	}
 	if c.UnreadCount, err = dec.Uint32(); err != nil {
 		return err
 	}
-	if c.Timestamp, err = dec.Int64(); err != nil {
-		return err
-	}
-	if c.LastMsgSeq, err = dec.Uint64(); err != nil {
-		return err
-	}
-	if c.LastClientMsgNo, err = dec.String(); err != nil {
-		return err
-	}
-	if c.LastMsgID, err = dec.Int64(); err != nil {
-		return err
-	}
-	if c.Version, err = dec.Int64(); err != nil {
+	if c.ReadedToMsgSeq, err = dec.Uint64(); err != nil {
 		return err
 	}
 	return nil

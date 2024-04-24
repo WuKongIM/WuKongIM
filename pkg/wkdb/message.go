@@ -70,6 +70,8 @@ func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, start
 		maxSeq = lastSeq + 1
 	}
 
+	fmt.Println("channelId", channelId, "minSeq", minSeq, "maxSeq", maxSeq, "lastSeq", lastSeq, "limit", limit, "startMessageSeq", startMessageSeq, "endMessageSeq", endMessageSeq)
+
 	db := wk.shardDB(channelId)
 
 	iter := db.NewIter(&pebble.IterOptions{
@@ -150,6 +152,7 @@ func (wk *wukongDB) LoadNextRangeMsgsForSize(channelId string, channelType uint8
 
 	minSeq := startMessageSeq
 	maxSeq := endMessageSeq
+
 	if endMessageSeq == 0 {
 		maxSeq = math.MaxUint64
 	}
@@ -211,7 +214,6 @@ func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8
 
 	seq := wk.endian.Uint64(result)
 	setTime := wk.endian.Uint64(result[8:])
-
 	return seq, setTime, nil
 }
 

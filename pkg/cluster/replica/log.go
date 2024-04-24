@@ -60,21 +60,14 @@ func newReplicaLog(opts *Options) *replicaLog {
 		maxApplyingLogsSize: noLimit,
 	}
 
-	lastIndex, err := rg.opts.Storage.LastIndex()
+	lastIndex, term, err := rg.opts.Storage.LastIndexAndTerm()
 	if err != nil {
-		rg.Panic("get last index failed", zap.Error(err))
+		rg.Panic("get last index failed", zap.Error(err), zap.Uint64("lastIndex", lastIndex), zap.Uint32("term", term))
 	}
-	lastLeaderTerm, err := rg.opts.Storage.LeaderLastTerm()
-	if err != nil {
-		rg.Panic("get last leader term failed", zap.Error(err))
-	}
+
 	rg.lastLogIndex = lastIndex
 	rg.committedIndex = opts.AppliedIndex
-	if lastLeaderTerm == 0 {
-		rg.term = 1
-	} else {
-		rg.term = lastLeaderTerm
-	}
+	rg.term = term
 	rg.unstable.offset = lastIndex + 1
 	rg.unstable.offsetInProgress = lastIndex + 1
 

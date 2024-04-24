@@ -167,11 +167,8 @@ func (c ChannelLastLogInfoReqSet) Marshal() ([]byte, error) {
 	defer enc.End()
 	enc.WriteUint16(uint16(len(c)))
 	for _, req := range c {
-		data, err := req.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		enc.WriteBinary(data)
+		enc.WriteString(req.ChannelId)
+		enc.WriteUint8(req.ChannelType)
 	}
 	return enc.Bytes(), nil
 }
@@ -187,7 +184,10 @@ func (c *ChannelLastLogInfoReqSet) Unmarshal(data []byte) error {
 		*c = make([]*ChannelLastLogInfoReq, reqLen)
 		for i := uint16(0); i < reqLen; i++ {
 			req := &ChannelLastLogInfoReq{}
-			if err = req.Unmarshal(data); err != nil {
+			if req.ChannelId, err = dec.String(); err != nil {
+				return err
+			}
+			if req.ChannelType, err = dec.Uint8(); err != nil {
 				return err
 			}
 			(*c)[i] = req

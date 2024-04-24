@@ -73,9 +73,13 @@ func New(opts *Options) *Server {
 }
 
 func (s *Server) Start() error {
+	err := s.cfgServer.Start()
+	if err != nil {
+		return err
+	}
 	s.preRemoteCfg = s.cfgServer.AppliedConfig().Clone()
 	s.stopper.RunWorker(s.loop)
-	return s.cfgServer.Start()
+	return nil
 }
 
 func (s *Server) Stop() {
