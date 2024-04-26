@@ -8,18 +8,19 @@ import (
 )
 
 type Options struct {
-	NodeId               uint64
-	ConfigPath           string                  // 集群配置文件路径
-	ElectionTimeoutTick  int                     // 选举超时tick次数
-	HeartbeatTimeoutTick int                     // 心跳超时tick次数
-	InitNodes            map[uint64]string       // 初始化节点列表 key为节点id，value为分布式通讯的地址
-	ProposeTimeout       time.Duration           // 提议超时时间
-	SlotCount            uint32                  // 槽位数量
-	SlotMaxReplicaCount  uint32                  // 每个槽位最大副本数量
-	Role                 pb.NodeRole             // 节点角色
-	MessageSendInterval  time.Duration           // 消息发送间隔
-	MaxIdleInterval      time.Duration           // 最大空闲间隔
-	Send                 func(m reactor.Message) // 发送消息
+	NodeId                 uint64
+	ConfigPath             string                  // 集群配置文件路径
+	ElectionTimeoutTick    int                     // 选举超时tick次数
+	HeartbeatTimeoutTick   int                     // 心跳超时tick次数
+	InitNodes              map[uint64]string       // 初始化节点列表 key为节点id，value为分布式通讯的地址
+	ProposeTimeout         time.Duration           // 提议超时时间
+	SlotCount              uint32                  // 槽位数量
+	SlotMaxReplicaCount    uint32                  // 每个槽位最大副本数量
+	ChannelMaxReplicaCount uint32                  // 每个频道最大副本数量
+	Role                   pb.NodeRole             // 节点角色
+	MessageSendInterval    time.Duration           // 消息发送间隔
+	MaxIdleInterval        time.Duration           // 最大空闲间隔
+	Send                   func(m reactor.Message) // 发送消息
 
 	Event struct {
 		OnAppliedConfig func()
@@ -28,12 +29,13 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		ConfigPath:           "clusterconfig.json",
-		SlotCount:            128,
-		ElectionTimeoutTick:  10,
-		HeartbeatTimeoutTick: 1,
-		MaxIdleInterval:      time.Second * 1,
-		SlotMaxReplicaCount:  3,
+		ConfigPath:             "clusterconfig.json",
+		SlotCount:              128,
+		ElectionTimeoutTick:    10,
+		HeartbeatTimeoutTick:   1,
+		MaxIdleInterval:        time.Second * 1,
+		SlotMaxReplicaCount:    3,
+		ChannelMaxReplicaCount: 3,
 		Event: struct {
 			OnAppliedConfig func()
 		}{

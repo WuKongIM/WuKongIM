@@ -597,7 +597,6 @@ func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels [
 				s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
 				return nil, err
 			}
-			fmt.Println("recentMessages----->", len(recentMessages), fakeChannelID, channel.LastMsgSeq)
 			messageResps := MessageRespSlice{}
 			if len(recentMessages) > 0 {
 				for _, recentMessage := range recentMessages {

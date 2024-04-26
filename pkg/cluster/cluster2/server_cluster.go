@@ -389,7 +389,7 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 		return resp.cfg, resp.err
 	case <-ctx.Done():
 		return wkdb.EmptyChannelClusterConfig, ctx.Err()
-	case <-s.stopC:
+	case <-s.stopper.ShouldStop():
 		return wkdb.EmptyChannelClusterConfig, ErrStopped
 	}
 

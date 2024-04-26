@@ -38,6 +38,10 @@ func (m *messageWait) resetPing() {
 	m.pingTickCount = 0
 }
 
+func (m *messageWait) immediatelyPing() {
+	m.pingTickCount = m.messageSendIntervalTickCount
+}
+
 // 是否可以同步
 func (m *messageWait) canSync() bool {
 	if m.syncIntervalTickCount > m.syncMaxIntervalTickCount {

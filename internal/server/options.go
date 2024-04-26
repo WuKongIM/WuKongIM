@@ -147,7 +147,6 @@ type Options struct {
 		ReqTimeout                 time.Duration // 请求超时时间
 		Role                       Role          // 节点角色 replica, proxy
 		Seed                       string        // 种子节点
-		ReplicaCount               int           // 节点副本数量
 		SlotReplicaCount           int           // 每个槽的副本数量
 		ChannelReplicaCount        int           // 每个频道的副本数量
 		SlotCount                  int           // 槽数量
@@ -282,7 +281,6 @@ func NewOptions() *Options {
 			ReqTimeout                 time.Duration
 			Role                       Role
 			Seed                       string
-			ReplicaCount               int
 			SlotReplicaCount           int
 			ChannelReplicaCount        int
 			SlotCount                  int
@@ -297,7 +295,6 @@ func NewOptions() *Options {
 			ReqTimeout:                 time.Second * 10,
 			Role:                       RoleReplica,
 			SlotCount:                  128,
-			ReplicaCount:               3,
 			SlotReplicaCount:           3,
 			ChannelReplicaCount:        3,
 			PeerRPCMsgTimeout:          time.Second * 20,
@@ -482,7 +479,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		wklog.Panic("cluster.role must be proxy or replica, but got " + role)
 	}
 	o.Cluster.GRPCAddr = o.getString("cluster.grpcAddr", o.Cluster.GRPCAddr)
-	o.Cluster.ReplicaCount = o.getInt("cluster.replicaCount", o.Cluster.ReplicaCount)
 	o.Cluster.SlotReplicaCount = o.getInt("cluster.slotReplicaCount", o.Cluster.SlotReplicaCount)
 	o.Cluster.ChannelReplicaCount = o.getInt("cluster.channelReplicaCount", o.Cluster.ChannelReplicaCount)
 	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)

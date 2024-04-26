@@ -26,7 +26,8 @@ type Server struct {
 	cancelFnc     context.CancelFunc
 	cfgGenId      *snowflake.Node
 
-	storage *PebbleShardLogStorage
+	storage   *PebbleShardLogStorage
+	initNodes map[uint64]string // 初始化节点
 
 	wklog.Log
 }
@@ -41,6 +42,7 @@ func New(opts *Options) *Server {
 		stopper:    syncutil.NewStopper(),
 		Log:        wklog.NewWKLog("clusterconfig.server"),
 		storage:    NewPebbleShardLogStorage(path.Join(dataDir, "cfglogdb")),
+		initNodes:  opts.InitNodes,
 	}
 	reactorOptions := reactor.NewOptions(reactor.WithNodeId(opts.NodeId), reactor.WithSend(s.send), reactor.WithSubReactorNum(1), reactor.WithTaskPoolSize(10))
 	s.configReactor = reactor.New(reactorOptions)
@@ -50,6 +52,7 @@ func New(opts *Options) *Server {
 	if err != nil {
 		s.Panic("snowflake.NewNode failed", zap.Error(err))
 	}
+
 	return s
 }
 
@@ -101,6 +104,10 @@ func (s *Server) SlotCount() uint32 {
 	return s.cfg.slotCount()
 }
 
+func (s *Server) SlotReplicaCount() uint32 {
+	return s.cfg.slotReplicaCount()
+}
+
 // Slot 获取槽信息
 func (s *Server) Slot(id uint32) *pb.Slot {
 	return s.cfg.slot(id)
@@ -128,6 +135,16 @@ func (s *Server) AllowVoteNodes() []*pb.Node {
 	return s.cfg.allowVoteNodes()
 }
 
+// 获取允许投票的并且已经加入了的节点数量
+func (s *Server) AllowVoteAndJoinedNodes() []*pb.Node {
+	return s.cfg.allowVoteAndJoinedNodes()
+}
+
+// OnlineNodes 获取在线节点
+func (s *Server) OnlineNodes() []*pb.Node {
+	return s.cfg.onlineNodes()
+}
+
 func (s *Server) IsLeader() bool {
 	return s.handler.isLeader()
 }
@@ -136,15 +153,29 @@ func (s *Server) LeaderId() uint64 {
 	return s.handler.LeaderId()
 }
 
+func (s *Server) SetIsPrepared(prepared bool) {
+	s.handler.SetIsPrepared(prepared)
+}
+
+// NodeConfigVersion 获取节点的配置版本（只有主节点才有这个信息）
+func (s *Server) NodeConfigVersion(nodeId uint64) uint64 {
+	return s.handler.configVersion(nodeId)
+}
+
 func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string) error {
 	node := s.Node(nodeId)
 	if node == nil {
 		s.Error("proposeUpdateApiServerAddr failed, node not found", zap.Uint64("nodeId", nodeId))
 		return fmt.Errorf("node not found")
 	}
-	s.cfg.versionInc()
-	s.cfg.updateApiServerAddr(nodeId, apiServerAddr)
-	data, err := s.cfg.data()
+	newCfg := s.cfg.cfg.Clone()
+	for i, node := range newCfg.Nodes {
+		if node.Id == nodeId {
+			newCfg.Nodes[i].ApiServerAddr = apiServerAddr
+			break
+		}
+	}
+	data, err := newCfg.Marshal()
 	if err != nil {
 		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
 		return err
@@ -189,6 +220,46 @@ func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
 	return nil
 }
 
+func (s *Server) ProposeJoin(ctx context.Context, node *pb.Node) error {
+
+	if s.cfg.hasWillJoinNode() || s.cfg.hasJoiningNode() {
+		s.Error("ProposeJoin failed, there is a joining node")
+		return fmt.Errorf("there is a joining node")
+
+	}
+
+	newCfg := s.cfg.cfg.Clone()
+
+	exist := false
+	for _, n := range newCfg.Nodes {
+		if n.Id == node.Id {
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		newCfg.Nodes = append(newCfg.Nodes, node)
+	}
+
+	data, err := newCfg.Marshal()
+	if err != nil {
+		s.Error("ProposeJoin failed", zap.Error(err))
+		return err
+	}
+
+	err = s.proposeAndWait(ctx, []replica.Log{
+		{
+			Id:   uint64(s.cfgGenId.Generate().Int64()),
+			Data: data,
+		},
+	})
+	if err != nil {
+		s.Error("ProposeJoin failed", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
 func (s *Server) proposeAndWait(ctx context.Context, logs []replica.Log) error {
 	_, err := s.configReactor.ProposeAndWait(ctx, s.handlerKey, logs)
 	return err
@@ -215,8 +286,8 @@ func (s *Server) checkClusterConfig() {
 		return
 	}
 	hasUpdate := false
-	if len(s.cfg.nodes()) != len(s.opts.InitNodes) {
-		for replicaId, addr := range s.opts.InitNodes {
+	if len(s.cfg.nodes()) < len(s.initNodes) {
+		for replicaId, addr := range s.initNodes {
 			if !s.cfg.hasNode(replicaId) {
 				s.cfg.addNode(&pb.Node{
 					Id:          replicaId,
@@ -224,7 +295,7 @@ func (s *Server) checkClusterConfig() {
 					ClusterAddr: addr,
 					Online:      true,
 					CreatedAt:   time.Now().Unix(),
-					Status:      pb.NodeStatus_NodeStatusDone,
+					Status:      pb.NodeStatus_NodeStatusJoined,
 				})
 				hasUpdate = true
 			}
@@ -232,9 +303,11 @@ func (s *Server) checkClusterConfig() {
 	}
 
 	if len(s.cfg.slots()) == 0 {
+
+		fmt.Println("no slots")
 		replicas := make([]uint64, 0, len(s.cfg.nodes())) // 有效副本集合
 		for _, node := range s.cfg.nodes() {
-			if !node.AllowVote || node.Status != pb.NodeStatus_NodeStatusDone {
+			if !node.AllowVote || node.Status != pb.NodeStatus_NodeStatusJoined {
 				continue
 			}
 			replicas = append(replicas, node.Id)
@@ -244,8 +317,7 @@ func (s *Server) checkClusterConfig() {
 			replicaCount := s.opts.SlotMaxReplicaCount
 			for i := uint32(0); i < s.opts.SlotCount; i++ {
 				slot := &pb.Slot{
-					Id:           i,
-					ReplicaCount: s.opts.SlotMaxReplicaCount,
+					Id: i,
 				}
 				if len(replicas) <= int(replicaCount) {
 					slot.Replicas = replicas
@@ -268,15 +340,15 @@ func (s *Server) checkClusterConfig() {
 	}
 
 	if hasUpdate {
-		s.cfg.versionInc()
 		data, err := s.cfg.data()
 		if err != nil {
 			s.Error("get data error", zap.Error(err))
 			return
 		}
+		fmt.Println("proposeAndWait....")
 		err = s.proposeAndWait(s.cancelCtx, []replica.Log{
 			{
-				Id:   s.cfg.id(),
+				Id:   uint64(s.cfgGenId.Generate().Int64()),
 				Data: data,
 			},
 		})

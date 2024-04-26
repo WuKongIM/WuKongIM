@@ -1,1 +1,0 @@
-protoc ./pkg/multiraft/pb/raft.proto --go_out=./pkg/multiraft/pb

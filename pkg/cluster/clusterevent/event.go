@@ -30,6 +30,22 @@ const (
 	EventTypeNodeOnlieChange
 	// EventTypeSlotNeedElection 槽需要重新选举
 	EventTypeSlotNeedElection
+	// EventTypeSlotLeaderTransfer 槽leader转移
+	EventTypeSlotLeaderTransfer
+	// EventTypeSlotElectionStart 槽开始选举
+	EventTypeSlotElectionStart
+	// EventTypeSlotLeaderTransferCheck 槽leader转移检查(检查槽是否可以进行leader转移了)
+	EventTypeSlotLeaderTransferCheck
+	// EventTypeSlotLeaderTransferStart 开始槽领导的转移
+	EventTypeSlotLeaderTransferStart
+	// EventTypeSlotMigratePrepared 槽迁移已准备
+	EventTypeSlotMigratePrepared
+	// EventTypeSlotLearnerCheck 检查槽的学习者是否达到要求
+	EventTypeSlotLearnerCheck
+	// EventTypeSlotLearnerToReplica 学习者转换成副本
+	EventTypeSlotLearnerToReplica
+	// EventTypeNodeJoinSuccess 节点加入成功
+	EventTypeNodeJoinSuccess
 )
 
 func (e EventType) String() string {
@@ -54,14 +70,30 @@ func (e EventType) String() string {
 		return "EventTypeNodeOnlieChange"
 	case EventTypeSlotNeedElection:
 		return "EventTypeSlotNeedElection"
+	case EventTypeSlotLeaderTransfer:
+		return "EventTypeSlotLeaderTransfer"
+	case EventTypeSlotElectionStart:
+		return "EventTypeSlotElectionStart"
+	case EventTypeSlotLeaderTransferCheck:
+		return "EventTypeSlotLeaderTransferCheck"
+	case EventTypeSlotLeaderTransferStart:
+		return "EventTypeSlotLeaderTransferStart"
+	case EventTypeSlotMigratePrepared:
+		return "EventTypeSlotMigratePrepared"
+	case EventTypeSlotLearnerCheck:
+		return "EventTypeSlotLearnerCheck"
+	case EventTypeSlotLearnerToReplica:
+		return "EventTypeSlotLearnerToReplica"
+	case EventTypeNodeJoinSuccess:
+		return "EventTypeNodeJoinSuccess"
 	}
 	return fmt.Sprintf("EventTypeNone[%d]", e)
 
 }
 
 type Message struct {
-	Type         EventType
-	Nodes        []*pb.Node
-	Slots        []*pb.Slot
-	SlotMigrates []*pb.SlotMigrate
+	Type         EventType         // 事件类型
+	Nodes        []*pb.Node        // 节点
+	Slots        []*pb.Slot        // 槽
+	SlotMigrates []*pb.SlotMigrate // 槽迁移
 }

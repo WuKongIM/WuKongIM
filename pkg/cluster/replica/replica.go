@@ -9,7 +9,6 @@ import (
 
 type Replica struct {
 	nodeID   uint64
-	shardNo  string
 	opts     *Options
 	replicas []uint64 // 副本节点ID集合（不包含本节点）
 	// -------------------- 节点状态 --------------------
@@ -83,14 +82,23 @@ func New(nodeId uint64, optList ...Option) *Replica {
 	}
 
 	rc.localLeaderLastTerm = lastLeaderTerm
-	rc.becomeFollower(rc.replicaLog.term, None)
 
-	rc.preHardState = HardState{
-		Term:     rc.replicaLog.term,
-		LeaderId: rc.leader,
+	if rc.IsSingleNode() { // 如果是单节点，直接成为领导
+		var term uint32 = 1
+		if rc.replicaLog.term > 0 {
+			term = rc.replicaLog.term
+		}
+		rc.becomeLeader(term)
+	} else {
+		rc.becomeFollower(rc.replicaLog.term, None)
 	}
 
 	return rc
+}
+
+// 是否是单节点
+func (r *Replica) IsSingleNode() bool {
+	return len(r.replicas) == 0
 }
 
 func (r *Replica) activeReplica(replicaId uint64) {
@@ -117,6 +125,14 @@ func (r *Replica) Propose(data []byte) error {
 func (r *Replica) BecomeFollower(term uint32, leaderID uint64) {
 
 	r.becomeFollower(term, leaderID)
+}
+
+func (r *Replica) BecomeCandidate() {
+	r.becomeCandidate()
+}
+
+func (R *Replica) BecomeCandidateWithTerm(term uint32) {
+	R.becomeCandidateWithTerm(term)
 }
 
 // 降速
@@ -184,7 +200,7 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.leader = leaderID
 	r.role = RoleFollower
 
-	r.Debug("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
+	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
 	r.messageWait.immediatelySync() // 立马可以同步了
 
@@ -196,16 +212,20 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 }
 
 func (r *Replica) becomeCandidate() {
+	r.becomeCandidateWithTerm(r.replicaLog.term + 1)
+}
+
+func (r *Replica) becomeCandidateWithTerm(term uint32) {
 	if r.role == RoleLeader {
 		r.Panic("invalid transition [leader -> candidate]")
 	}
 	r.stepFunc = r.stepCandidate
-	r.reset(r.replicaLog.term + 1)
+	r.reset(term)
 	r.tickFnc = r.tickElection
 	r.voteFor = r.opts.NodeId
 	r.leader = None
 	r.role = RoleCandidate
-	r.Debug("become candidate", zap.Uint32("term", r.replicaLog.term))
+	r.Info("become candidate", zap.Uint32("term", r.replicaLog.term))
 }
 
 func (r *Replica) BecomeLeader(term uint32) {
@@ -223,7 +243,7 @@ func (r *Replica) becomeLeader(term uint32) {
 	r.role = RoleLeader
 	r.disabledToSync = false
 
-	r.Debug("become leader", zap.Uint32("term", r.replicaLog.term))
+	r.Info("become leader", zap.Uint32("term", r.replicaLog.term))
 
 	if r.replicaLog.lastLogIndex > 0 {
 		lastTerm, err := r.opts.Storage.LeaderLastTerm()
@@ -238,6 +258,8 @@ func (r *Replica) becomeLeader(term uint32) {
 		}
 	}
 	r.activeReplicas = make(map[uint64]bool)
+	r.messageWait.immediatelyPing() // 立马可以发起ping
+
 }
 
 // 开始选举
@@ -285,6 +307,18 @@ func (r *Replica) LeaderId() uint64 {
 	return r.leader
 }
 
+// 获取某个副本的最新日志下标（领导节点才有这个信息）
+func (r *Replica) GetReplicaLastLog(replicaId uint64) uint64 {
+	if replicaId == r.opts.NodeId {
+		return r.LastLogIndex()
+	}
+	syncInfo := r.lastSyncInfoMap[replicaId]
+	if syncInfo != nil && syncInfo.LastSyncLogIndex > 0 {
+		return syncInfo.LastSyncLogIndex - 1
+	}
+	return 0
+}
+
 func (r *Replica) SetReplicas(replicas []uint64) {
 
 	r.opts.Replicas = replicas
@@ -307,13 +341,17 @@ func (r *Replica) isLeader() bool {
 	return r.role == RoleLeader
 }
 
+func (r *Replica) hardStateChange() bool {
+	return r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.replicaLog.term
+}
+
 func (r *Replica) readyWithoutAccept() Ready {
 	r.putMsgIfNeed()
 
 	rd := Ready{
 		Messages: r.msgs,
 	}
-	if r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.replicaLog.term {
+	if r.hardStateChange() {
 		rd.HardState = HardState{
 			LeaderId: r.leader,
 			Term:     r.replicaLog.term,
@@ -328,6 +366,10 @@ func (r *Replica) readyWithoutAccept() Ready {
 
 func (r *Replica) HasReady() bool {
 	if r.hasMsgs() {
+		return true
+	}
+
+	if r.hardStateChange() {
 		return true
 	}
 

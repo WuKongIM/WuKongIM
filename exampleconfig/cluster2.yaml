@@ -1,4 +1,4 @@
-mode: "release" 
+mode: "debug" 
 addr: "tcp://0.0.0.0:5120" # tcp监听地址
 httpAddr: "0.0.0.0:5002" 
 wsAddr: "ws://0.0.0.0:5220" 
@@ -13,11 +13,9 @@ conversation:
 cluster:
   nodeId: 2
   addr: "tcp://127.0.0.1:10002" # 分布式监听地址
-  grpcAddr: "127.0.0.1:11112"
   slotCount: 128
-  replicaCount: 2
-  slotReplicaCount: 2
-  channelReplicaCount: 2
+  slotReplicaCount: 3
+  channelReplicaCount: 3
   nodes:
     - "1@127.0.0.1:10001"
     - "2@127.0.0.1:10002"
