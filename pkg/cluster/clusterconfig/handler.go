@@ -1,11 +1,13 @@
 package clusterconfig
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -16,9 +18,10 @@ type handler struct {
 	cfg  *Config
 	opts *Options
 	wklog.Log
-	leaderId uint64
-	storage  *PebbleShardLogStorage
-	mu       sync.Mutex
+	leaderId   uint64
+	storage    *PebbleShardLogStorage
+	mu         sync.Mutex
+	isPrepared atomic.Bool
 }
 
 func newHandler(cfg *Config, storage *PebbleShardLogStorage, opts *Options) *handler {
@@ -33,6 +36,7 @@ func newHandler(cfg *Config, storage *PebbleShardLogStorage, opts *Options) *han
 	for replicaId := range opts.InitNodes {
 		replicas = append(replicas, replicaId)
 	}
+	h.isPrepared.Store(true)
 
 	// data, err := cfg.data()
 	// if err != nil {
@@ -55,6 +59,21 @@ func newHandler(cfg *Config, storage *PebbleShardLogStorage, opts *Options) *han
 
 	h.rc = replica.New(opts.NodeId, replica.WithLogPrefix("config"), replica.WithReplicas(replicas), replica.WithElectionOn(true), replica.WithStorage(h.storage), replica.WithAppliedIndex(cfg.version()))
 	return h
+}
+
+func (h *handler) updateConfig() {
+	nodes := h.cfg.allowVoteNodes()
+	replicas := make([]uint64, 0, len(nodes))
+	for _, node := range nodes {
+		replicas = append(replicas, node.Id)
+	}
+	h.rc.SetReplicas(replicas)
+
+}
+
+// 获取某个副本的最新配置版本（领导节点才有这个信息）
+func (h *handler) configVersion(replicaId uint64) uint64 {
+	return h.rc.GetReplicaLastLog(replicaId)
 }
 
 // -------------------- implement IHandler --------------------
@@ -127,7 +146,12 @@ func (h *handler) ApplyLog(startLogIndex, endLogIndex uint64) error {
 	if replica.IsEmptyLog(lastLog) {
 		return nil
 	}
+
+	h.Debug("apply config log", zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex), zap.Uint64("lastLogIndex", lastLog.Index), zap.Uint32("lastLogTerm", lastLog.Term))
+
 	err = h.cfg.apply(lastLog.Data, lastLog.Index, lastLog.Term)
+
+	h.updateConfig() // 更新配置
 
 	// 触发配置已应用事件
 	h.opts.Event.OnAppliedConfig()
@@ -153,6 +177,7 @@ func (h *handler) SetHardState(hd replica.HardState) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.leaderId = hd.LeaderId
+	fmt.Println("SetHardState.....")
 }
 
 // Tick tick
@@ -178,7 +203,11 @@ func (h *handler) SetAppliedIndex(index uint64) error {
 
 // IsPrepared 是否准备好
 func (h *handler) IsPrepared() bool {
-	return true
+	return h.isPrepared.Load()
+}
+
+func (h *handler) SetIsPrepared(prepared bool) {
+	h.isPrepared.Store(prepared)
 }
 
 func (h *handler) IsLeader() bool {
@@ -195,6 +224,11 @@ func (h *handler) LeaderId() uint64 {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.leaderId
+}
+
+func (h *handler) PausePropopose() bool {
+
+	return false
 }
 
 func extend(dst, vals []replica.Log) []replica.Log {

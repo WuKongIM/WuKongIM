@@ -23,7 +23,9 @@ type Config struct {
 func NewConfig(opts *Options) *Config {
 	cfg := &Config{
 		cfg: &pb.Config{
-			SlotCount: opts.SlotCount,
+			SlotCount:           opts.SlotCount,
+			SlotReplicaCount:    opts.SlotMaxReplicaCount,
+			ChannelReplicaCount: opts.ChannelMaxReplicaCount,
 		},
 		opts: opts,
 		Log:  wklog.NewWKLog("cluster.config"),
@@ -205,6 +207,12 @@ func (c *Config) slotCount() uint32 {
 	return c.cfg.SlotCount
 }
 
+func (c *Config) slotReplicaCount() uint32 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cfg.SlotReplicaCount
+}
+
 // 根据id获取slot信息
 func (c *Config) slot(id uint32) *pb.Slot {
 	c.mu.RLock()
@@ -242,6 +250,32 @@ func (c *Config) allowVoteNodes() []*pb.Node {
 	return nodes
 }
 
+// 获取允许投票的并且已经加入了的节点数量
+func (c *Config) allowVoteAndJoinedNodes() []*pb.Node {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var nodes []*pb.Node
+	for _, node := range c.cfg.Nodes {
+		if node.AllowVote && node.Status == pb.NodeStatus_NodeStatusJoined {
+			nodes = append(nodes, node)
+		}
+	}
+	return nodes
+}
+
+// 获取所有在线节点
+func (c *Config) onlineNodes() []*pb.Node {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var nodes []*pb.Node
+	for _, node := range c.cfg.Nodes {
+		if node.Online {
+			nodes = append(nodes, node)
+		}
+	}
+	return nodes
+}
+
 func (c *Config) node(id uint64) *pb.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -251,4 +285,27 @@ func (c *Config) node(id uint64) *pb.Node {
 		}
 	}
 	return nil
+}
+
+// 是否有加入中的节点
+func (c *Config) hasJoiningNode() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, n := range c.cfg.Nodes {
+		if n.Status == pb.NodeStatus_NodeStatusJoining {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Config) hasWillJoinNode() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, n := range c.cfg.Nodes {
+		if n.Status == pb.NodeStatus_NodeStatusWillJoin {
+			return true
+		}
+	}
+	return false
 }

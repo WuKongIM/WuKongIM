@@ -180,10 +180,14 @@ func New(opts *Options) *Server {
 	trace.SetGlobalTrace(s.trace)
 
 	initNodes := make(map[uint64]string)
-	for _, node := range s.opts.Cluster.Nodes {
-		serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
-		initNodes[node.Id] = serverAddr
+
+	if len(s.opts.Cluster.Nodes) > 0 {
+		for _, node := range s.opts.Cluster.Nodes {
+			serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
+			initNodes[node.Id] = serverAddr
+		}
 	}
+
 	role := pb.NodeRole_NodeRoleReplica
 	if s.opts.Cluster.Role == RoleProxy {
 		role = pb.NodeRole_NodeRoleProxy

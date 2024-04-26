@@ -90,6 +90,10 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	}
 	handler.resetProposeIntervalTick() // 重置提案间隔tick
 
+	if handler.pausePropopose() {
+		return nil, ErrPausePropopose
+	}
+
 	if !handler.isLeader() {
 		return nil, ErrNotLeader
 	}

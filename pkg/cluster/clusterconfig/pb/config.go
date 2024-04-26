@@ -23,22 +23,22 @@ func (s *Slot) Clone() *Slot {
 	return proto.Clone(s).(*Slot)
 }
 
-func (s *SlotMigrate) Equal(v *SlotMigrate) bool {
-	if s.From != v.From {
-		return false
-	}
-	if s.To != v.To {
-		return false
-	}
-	if s.Slot != v.Slot {
-		return false
-	}
-	if s.Status != v.Status {
-		return false
-	}
-	return true
+// func (s *SlotMigrate) Equal(v *SlotMigrate) bool {
+// 	if s.From != v.From {
+// 		return false
+// 	}
+// 	if s.To != v.To {
+// 		return false
+// 	}
+// 	if s.Slot != v.Slot {
+// 		return false
+// 	}
+// 	if s.Status != v.Status {
+// 		return false
+// 	}
+// 	return true
 
-}
+// }
 
 func (s *Slot) Equal(v *Slot) bool {
 	if s.Id != v.Id {
@@ -49,6 +49,18 @@ func (s *Slot) Equal(v *Slot) bool {
 	}
 
 	if s.Leader != v.Leader {
+		return false
+	}
+
+	if s.LeaderTransferTo != v.LeaderTransferTo {
+		return false
+	}
+
+	if s.Term != v.Term {
+		return false
+	}
+
+	if s.Status != v.Status {
 		return false
 	}
 
@@ -76,37 +88,20 @@ func (n *Node) Equal(v *Node) bool {
 	if n.ApiServerAddr != v.ApiServerAddr {
 		return false
 	}
-	if len(n.Imports) != len(v.Imports) {
-		return false
-	}
-	if len(n.Exports) != len(v.Exports) {
+	if n.Status != v.Status {
 		return false
 	}
 
-	for _, imp := range n.Imports {
-		exist := false
-		for _, vimp := range v.Imports {
-			if imp.Equal(vimp) {
-				exist = true
-				break
-			}
-		}
-		if !exist {
-			return false
-		}
+	if n.Online != v.Online {
+		return false
 	}
 
-	for _, exp := range n.Exports {
-		exist := false
-		for _, vexp := range v.Exports {
-			if exp.Equal(vexp) {
-				exist = true
-				break
-			}
-		}
-		if !exist {
-			return false
-		}
+	if n.AllowVote != v.AllowVote {
+		return false
+	}
+
+	if n.ClusterAddr != v.ClusterAddr {
+		return false
 	}
 	return true
 }

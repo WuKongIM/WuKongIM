@@ -307,6 +307,21 @@ func (n *node) requestSlotMigrateFinished(ctx context.Context, req *SlotMigrateF
 	return nil
 }
 
+func (n *node) requestChangeSlotRole(ctx context.Context, req *ChangeSlotRoleReq) error {
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
+	resp, err := n.client.RequestWithContext(ctx, "/slot/changeRole", data)
+	if err != nil {
+		return err
+	}
+	if resp.Status != proto.Status_OK {
+		return fmt.Errorf("requestChangeSlotRole is failed, status:%d", resp.Status)
+	}
+	return nil
+}
+
 type sendQueue struct {
 	ch    chan *proto.Message
 	rl    *RateLimiter

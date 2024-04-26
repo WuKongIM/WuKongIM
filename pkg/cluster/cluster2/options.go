@@ -11,16 +11,20 @@ import (
 )
 
 type Options struct {
-	NodeId                uint64
-	Role                  pb.NodeRole // 节点角色
-	Addr                  string      // 分布式监听地址
-	ServerAddr            string      // 分布式可访问地址
-	ApiServerAddr         string      // api服务地址
-	AppVersion            string      // 当前应用版本
-	InitNodes             map[uint64]string
-	SlotCount             uint32 // 槽位数量
-	SlotMaxReplicaCount   uint32 // 每个槽位最大副本数量
-	Seed                  string // 种子节点
+	NodeId        uint64
+	Role          pb.NodeRole // 节点角色
+	Addr          string      // 分布式监听地址
+	ServerAddr    string      // 分布式可访问地址
+	ApiServerAddr string      // api服务地址
+	AppVersion    string      // 当前应用版本
+	// InitNodes 集群初始节点，key为节点id，value为节点内网通信地址
+	InitNodes map[uint64]string
+	// SlotCount 槽位数量
+	SlotCount uint32
+	// SlotMaxReplicaCount 每个槽位最大副本数量
+	SlotMaxReplicaCount uint32
+	// Seed  种子节点，可以引导新节点加入集群  格式：nodeId@ip:port （nodeId为种子节点的nodeId）
+	Seed                  string
 	DataDir               string
 	ReqTimeout            time.Duration         // 请求超时时间
 	ProposeTimeout        time.Duration         // 提案超时时间
@@ -65,6 +69,12 @@ type Options struct {
 
 	// ChannelLoadPoolSize 加载频道的协程池大小
 	ChannelLoadPoolSize int
+
+	//  LeaderTransferMinLogGap  转移领导的最小日志差距（ 当日志差距小于这个值时，可以进行领导转移了）
+	LeaderTransferMinLogGap uint64
+
+	// LearnerMinLogGap  学习者最小日志差距（ 当日志差距小于这个值时，可以认为已学习达到要求）
+	LearnerMinLogGap uint64
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -85,6 +95,8 @@ func NewOptions(opt ...Option) *Options {
 		MaxChannelElectionBatchLen: 100,
 		ChannelMaxReplicaCount:     3,
 		ChannelLoadPoolSize:        1000,
+		LeaderTransferMinLogGap:    20,
+		LearnerMinLogGap:           100,
 	}
 	for _, o := range opt {
 		o(opts)

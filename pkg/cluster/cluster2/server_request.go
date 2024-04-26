@@ -1,10 +1,13 @@
 package cluster
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"go.uber.org/zap"
@@ -24,6 +27,11 @@ func (s *Server) setRoutes() {
 
 	// 获取槽日志信息
 	s.netServer.Route("/slot/logInfo", s.handleSlotLogInfo)
+	// 更改slot角色
+	s.netServer.Route("/slot/changeRole", s.handleSlotChangeRole)
+
+	// 节点加入集群
+	s.netServer.Route("/cluster/join", s.handleClusterJoin)
 }
 
 func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
@@ -258,4 +266,91 @@ func (s *Server) handleSlotLogInfo(c *wkserver.Context) {
 		return
 	}
 	c.Write(data)
+}
+
+func (s *Server) handleSlotChangeRole(c *wkserver.Context) {
+	req := &ChangeSlotRoleReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal SlotChangeRoleReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	for _, slotId := range req.SlotIds {
+		handler := s.slotManager.get(slotId)
+		if handler == nil {
+			continue
+		}
+		st := handler.(*slot)
+		st.changeRole(req.Role)
+	}
+	c.WriteOk()
+}
+
+func (s *Server) handleClusterJoin(c *wkserver.Context) {
+	req := &ClusterJoinReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal ClusterJoinReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if !s.clusterEventServer.IsLeader() {
+		resp, err := s.nodeManager.requestClusterJoin(s.clusterEventServer.LeaderId(), req)
+		if err != nil {
+			s.Error("requestClusterJoin failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		data, err := resp.Marshal()
+		if err != nil {
+			s.Error("marshal ClusterJoinResp failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		c.Write(data)
+		return
+	}
+
+	allowVote := false
+	if req.Role == pb.NodeRole_NodeRoleReplica {
+		allowVote = true
+	}
+
+	resp := ClusterJoinResp{}
+
+	nodeInfos := make([]*NodeInfo, 0, len(s.clusterEventServer.Nodes()))
+	for _, node := range s.clusterEventServer.Nodes() {
+		nodeInfos = append(nodeInfos, &NodeInfo{
+			NodeId:     node.Id,
+			ServerAddr: node.ClusterAddr,
+		})
+	}
+	resp.Nodes = nodeInfos
+
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)
+	defer cancel()
+	err := s.clusterEventServer.ProposeJoin(timeoutCtx, &pb.Node{
+		Id:          req.NodeId,
+		ClusterAddr: req.ServerAddr,
+		Join:        true,
+		Online:      true,
+		Role:        req.Role,
+		AllowVote:   allowVote,
+		CreatedAt:   time.Now().Unix(),
+		Status:      pb.NodeStatus_NodeStatusWillJoin,
+	})
+	if err != nil {
+		s.Error("proposeJoin failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	result, err := resp.Marshal()
+	if err != nil {
+		s.Error("marshal ClusterJoinResp failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(result)
 }

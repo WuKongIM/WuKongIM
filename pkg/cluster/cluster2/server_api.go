@@ -520,12 +520,13 @@ func NewNodeConfigFromNode(n *pb.Node) *NodeConfig {
 		lastOffline = wkutil.ToyyyyMMddHHmm(time.Unix(n.LastOffline, 0))
 	}
 	status := ""
-	if n.Status == pb.NodeStatus_NodeStatusDone {
+	if n.Status == pb.NodeStatus_NodeStatusJoined {
 		status = "已加入"
-	} else if n.Status == pb.NodeStatus_NodeStatusWillJoin {
-		status = "将加入"
+
 	} else if n.Status == pb.NodeStatus_NodeStatusJoining {
 		status = "加入中"
+	} else if n.Status == pb.NodeStatus_NodeStatusWillJoin {
+		status = "将加入"
 	}
 	return &NodeConfig{
 		Id:            n.Id,
@@ -536,10 +537,6 @@ func NewNodeConfigFromNode(n *pb.Node) *NodeConfig {
 		OfflineCount:  int(n.OfflineCount),
 		LastOffline:   lastOffline,
 		AllowVote:     wkutil.BoolToInt(n.AllowVote),
-		Exports:       convertSlotMigrate(n.Exports),
-		ExportCount:   len(n.Exports),
-		Imports:       convertSlotMigrate(n.Imports),
-		ImportCount:   len(n.Imports),
 		Status:        n.Status,
 		StatusFormat:  status,
 	}
@@ -550,18 +547,6 @@ type SlotMigrate struct {
 	From   uint64           `json:"from"`
 	To     uint64           `json:"to"`
 	Status pb.MigrateStatus `json:"status"`
-}
-
-func convertSlotMigrate(mg []*pb.SlotMigrate) []*SlotMigrate {
-	res := make([]*SlotMigrate, 0, len(mg))
-	for _, m := range mg {
-		res = append(res, &SlotMigrate{
-			Slot: m.Slot,
-			From: m.From,
-			To:   m.To,
-		})
-	}
-	return res
 }
 
 // 请求指定节点的配置信息
@@ -676,7 +661,6 @@ type SlotResp struct {
 	LeaderId     uint64   `json:"leader_id"`
 	Term         uint32   `json:"term"`
 	Replicas     []uint64 `json:"replicas"`
-	ReplicaCount uint32   `json:"replica_count"`
 	ChannelCount int      `json:"channel_count"`
 	LogIndex     uint64   `json:"log_index"`
 }
@@ -687,7 +671,6 @@ func NewSlotResp(st *pb.Slot, channelCount int) *SlotResp {
 		LeaderId:     st.Leader,
 		Term:         st.Term,
 		Replicas:     st.Replicas,
-		ReplicaCount: st.ReplicaCount,
 		ChannelCount: channelCount,
 	}
 }
@@ -718,7 +701,6 @@ type SlotClusterConfigResp struct {
 	LeaderId          uint64   `json:"leader_id"`            // 领导者ID
 	Term              uint32   `json:"term"`                 // 任期
 	Replicas          []uint64 `json:"replicas"`             // 副本节点ID集合
-	ReplicaCount      uint32   `json:"replica_count"`        // 副本数量
 	LogMaxIndex       uint64   `json:"log_max_index"`        // 本地日志最大索引
 	LeaderLogMaxIndex uint64   `json:"leader_log_max_index"` // 领导者日志最大索引
 	AppliedIndex      uint64   `json:"applied_index"`        // 已应用索引
@@ -730,7 +712,6 @@ func NewSlotClusterConfigRespFromClusterConfig(appliedIdx, logMaxIndex uint64, l
 		LeaderId:          slot.Leader,
 		Term:              slot.Term,
 		Replicas:          slot.Replicas,
-		ReplicaCount:      slot.ReplicaCount,
 		LogMaxIndex:       logMaxIndex,
 		LeaderLogMaxIndex: leaderLogMaxIndex,
 		AppliedIndex:      appliedIdx,

@@ -767,6 +767,46 @@ func (u *UpdateApiServerAddrReq) Unmarshal(data []byte) error {
 	return nil
 }
 
+type ChangeSlotRoleReq struct {
+	Role    replica.Role
+	SlotIds []uint32
+}
+
+func (c *ChangeSlotRoleReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint8(uint8(c.Role))
+	enc.WriteUint16(uint16(len(c.SlotIds)))
+	for _, slotId := range c.SlotIds {
+		enc.WriteUint32(slotId)
+	}
+	return enc.Bytes(), nil
+}
+
+func (c *ChangeSlotRoleReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var role uint8
+	if role, err = dec.Uint8(); err != nil {
+		return err
+	}
+	c.Role = replica.Role(role)
+	var slotIdsLen uint16
+	if slotIdsLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+	if slotIdsLen > 0 {
+		c.SlotIds = make([]uint32, slotIdsLen)
+		for i := uint16(0); i < slotIdsLen; i++ {
+			if c.SlotIds[i], err = dec.Uint32(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+
+}
+
 type NodeInfo struct {
 	NodeId     uint64
 	ServerAddr string

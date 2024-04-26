@@ -2,9 +2,12 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"runtime/debug"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
+	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/zap"
 )
@@ -40,7 +44,6 @@ type Server struct {
 	channelLoadPool        *ants.Pool              // 加载频道的协程池
 	channelLoadMap         map[string]struct{}     // 频道是否在加载中的map
 	channelLoadMapLock     sync.RWMutex            // 频道是否在加载中的map锁
-	stopC                  chan struct{}
 	cancelCtx              context.Context
 	cancelFnc              context.CancelFunc
 	onMessageFnc           func(msg *proto.Message) // 上层处理消息的函数
@@ -49,6 +52,8 @@ type Server struct {
 	apiPrefix              string    // api前缀
 	uptime                 time.Time // 服务器启动时间
 	wklog.Log
+
+	stopper *syncutil.Stopper
 }
 
 func New(opts *Options) *Server {
@@ -60,8 +65,8 @@ func New(opts *Options) *Server {
 		channelManager: newChannelManager(opts),
 		Log:            wklog.NewWKLog(fmt.Sprintf("cluster[%d]", opts.NodeId)),
 		channelKeyLock: keylock.NewKeyLock(),
-		stopC:          make(chan struct{}),
 		channelLoadMap: make(map[string]struct{}),
+		stopper:        syncutil.NewStopper(),
 	}
 
 	if opts.SlotLogStorage == nil {
@@ -77,10 +82,22 @@ func New(opts *Options) *Server {
 
 	cfgDir := path.Join(opts.DataDir, "config")
 
+	initNodes := opts.InitNodes
+	if len(initNodes) == 0 {
+		if strings.TrimSpace(s.opts.Seed) != "" {
+			seedNodeID, seedAddr, err := seedNode(s.opts.Seed)
+			if err != nil {
+				panic(err)
+			}
+			initNodes[seedNodeID] = seedAddr
+		}
+		initNodes[s.opts.NodeId] = strings.ReplaceAll(s.opts.Addr, "tcp://", "")
+	}
+
 	opts.Send = s.send
 	s.clusterEventServer = clusterevent.New(clusterevent.NewOptions(
 		clusterevent.WithNodeId(opts.NodeId),
-		clusterevent.WithInitNodes(opts.InitNodes),
+		clusterevent.WithInitNodes(initNodes),
 		clusterevent.WithSlotCount(opts.SlotCount),
 		clusterevent.WithSlotMaxReplicaCount(opts.SlotMaxReplicaCount),
 		clusterevent.WithReady(s.onEvent),
@@ -123,7 +140,15 @@ func (s *Server) Start() error {
 
 	s.channelKeyLock.StartCleanLoop()
 
-	if len(s.opts.InitNodes) > 0 {
+	nodes := s.clusterEventServer.Nodes()
+	if len(nodes) > 0 {
+		for _, node := range nodes {
+			if node.Id == s.opts.NodeId {
+				continue
+			}
+			s.nodeManager.addNode(s.newNodeByNodeInfo(node.Id, node.ClusterAddr))
+		}
+	} else if len(s.opts.InitNodes) > 0 {
 		for nodeId, clusterAddr := range s.opts.InitNodes {
 			if nodeId == s.opts.NodeId {
 				continue
@@ -132,6 +157,7 @@ func (s *Server) Start() error {
 		}
 	}
 
+	// 分布式事件开启
 	slots := s.clusterEventServer.Slots()
 	for _, slot := range slots {
 		if !wkutil.ArrayContainsUint64(slot.Replicas, s.opts.NodeId) {
@@ -170,12 +196,18 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	// 如果有新加入的节点 则执行加入逻辑
+	if s.needJoin() { // 需要加入集群
+		s.clusterEventServer.SetIsPrepared(false) // 先将节点集群准备状态设置为false，等待加入集群后再设置为true
+		s.stopper.RunWorker(s.joinLoop)
+	}
+
 	return nil
 }
 
 func (s *Server) Stop() {
-	close(s.stopC)
 	s.cancelFnc()
+	s.stopper.Stop()
 	s.nodeManager.stop()
 	s.channelElectionManager.stop()
 	s.netServer.Stop()
@@ -260,16 +292,10 @@ func (s *Server) newSlot(st *pb.Slot) *slot {
 func (s *Server) addSlot(slot *pb.Slot) {
 	st := s.newSlot(slot)
 	s.slotManager.add(st)
-	if slot.Leader != 0 {
-		if slot.Leader == s.opts.NodeId {
-			st.becomeLeader(slot.Term)
-		} else {
-			st.becomeFollower(slot.Term, slot.Leader)
-		}
-	}
+	st.update(slot)
 }
 
-func (s *Server) updateSlot(st *pb.Slot) {
+func (s *Server) addOrUpdateSlot(st *pb.Slot) {
 	handler := s.slotManager.get(st.Id)
 	if handler == nil {
 		s.addSlot(st)
@@ -370,4 +396,62 @@ func (s *Server) getSlotId(v string) uint32 {
 		slotCount = s.opts.SlotCount
 	}
 	return wkutil.GetSlotNum(int(slotCount), v)
+}
+
+// 是否是单机模式
+func (s *Server) isSingleNode() bool {
+	return strings.TrimSpace(s.opts.Seed) == "" && len(s.opts.InitNodes) == 0
+}
+
+// 是否需要加入集群
+func (s *Server) needJoin() bool {
+	if strings.TrimSpace(s.opts.Seed) == "" {
+		return false
+	}
+	seedNodeId, _, _ := seedNode(s.opts.Seed) // New里已经验证过seed了  所以这里不必再处理error了
+	seedNode := s.clusterEventServer.Node(seedNodeId)
+	return seedNode == nil
+}
+
+func (s *Server) joinLoop() {
+	seedNodeId, _, _ := seedNode(s.opts.Seed)
+	req := &ClusterJoinReq{
+		NodeId:     s.opts.NodeId,
+		ServerAddr: s.opts.ServerAddr,
+		Role:       s.opts.Role,
+	}
+	for {
+		select {
+		case <-time.After(time.Second * 2):
+			fmt.Println("join....")
+			resp, err := s.nodeManager.requestClusterJoin(seedNodeId, req)
+			if err != nil {
+				s.Error("requestClusterJoin failed", zap.Error(err))
+				continue
+			}
+			if len(resp.Nodes) > 0 {
+				for _, n := range resp.Nodes {
+					s.addOrUpdateNode(n.NodeId, n.ServerAddr)
+				}
+			}
+			s.clusterEventServer.SetIsPrepared(true)
+			return
+		case <-s.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func seedNode(seed string) (uint64, string, error) {
+	seedArray := strings.Split(seed, "@")
+	if len(seedArray) < 2 {
+		return 0, "", errors.New("seed format error")
+	}
+	seedNodeIDStr := seedArray[0]
+	seedAddr := seedArray[1]
+	seedNodeID, err := strconv.ParseUint(seedNodeIDStr, 10, 64)
+	if err != nil {
+		return 0, "", err
+	}
+	return seedNodeID, seedAddr, nil
 }

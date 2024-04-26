@@ -101,7 +101,7 @@ func (r *Replica) stepLeader(m Message) error {
 		if !r.appendLog(m.Logs...) {
 			return ErrProposalDropped
 		}
-		if r.isSingle() || r.opts.AckMode == AckModeNone { // 单机
+		if r.IsSingleNode() || r.opts.AckMode == AckModeNone { // 单机
 			r.Debug("no ack", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.replicaLog.term), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 			r.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
@@ -413,7 +413,7 @@ func (r *Replica) committedIndexForLeader() uint64 {
 
 	committed := r.replicaLog.committedIndex
 	quorum := r.quorum() // r.replicas 不包含本节点
-	if quorum == 0 {     // 如果少于或等于一个节点，那么直接返回最后一条日志下标
+	if quorum <= 1 {     // 如果少于或等于一个节点，那么直接返回最后一条日志下标
 		return r.replicaLog.lastIndex()
 	}
 
@@ -503,14 +503,12 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 	}
 }
 
-// 是否是单机
-func (r *Replica) isSingle() bool {
-
-	return len(r.opts.Replicas) == 0 || (len(r.opts.Replicas) == 1 && r.opts.Replicas[0] == r.opts.NodeId)
-}
-
 func (r *Replica) sendPingIfNeed() bool {
 	if !r.isLeader() {
+		return false
+	}
+
+	if r.IsSingleNode() { // 单节点不需要发ping
 		return false
 	}
 
@@ -547,6 +545,10 @@ func (r *Replica) sendPing() {
 
 func (r *Replica) hasNeedPing() bool {
 	if !r.isLeader() {
+		return false
+	}
+
+	if r.IsSingleNode() { // 单节点不需要发ping
 		return false
 	}
 

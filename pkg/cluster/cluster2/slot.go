@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -23,6 +24,8 @@ type slot struct {
 	opts *Options
 
 	mu sync.Mutex
+
+	pausePropopose atomic.Bool // 是否暂停提案
 }
 
 func newSlot(st *pb.Slot, opts *Options) *slot {
@@ -33,8 +36,12 @@ func newSlot(st *pb.Slot, opts *Options) *slot {
 		Log:        wklog.NewWKLog(fmt.Sprintf("slot[%d]", st.Id)),
 		isPrepared: true,
 	}
+	appliedIdx, err := opts.SlotLogStorage.AppliedIndex(s.key)
+	if err != nil {
+		s.Panic("get applied index error", zap.Error(err))
 
-	s.rc = replica.New(opts.NodeId, replica.WithLogPrefix(fmt.Sprintf("slot-%d", st.Id)), replica.WithElectionOn(false), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(s.key, s.opts.SlotLogStorage)))
+	}
+	s.rc = replica.New(opts.NodeId, replica.WithLogPrefix(fmt.Sprintf("slot-%d", st.Id)), replica.WithAppliedIndex(appliedIdx), replica.WithElectionOn(false), replica.WithReplicas(st.Replicas), replica.WithStorage(newProxyReplicaStorage(s.key, s.opts.SlotLogStorage)))
 	return s
 }
 
@@ -46,18 +53,49 @@ func (s *slot) becomeLeader(term uint32) {
 	s.rc.BecomeLeader(term)
 }
 
+func (s *slot) setPausePropopose(pausePropopose bool) {
+	s.pausePropopose.Store(pausePropopose)
+}
+
+func (s *slot) changeRole(role replica.Role) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch role {
+	case replica.RoleLeader:
+		s.rc.BecomeLeader(s.rc.Term())
+	case replica.RoleCandidate:
+		s.rc.BecomeCandidateWithTerm(s.rc.Term())
+	case replica.RoleFollower:
+		s.rc.BecomeFollower(s.rc.Term(), s.rc.LeaderId())
+	}
+}
+
 func (s *slot) update(st *pb.Slot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.rc.SetReplicas(st.Replicas)
 	s.st = st
-	if s.rc.LeaderId() != st.Leader {
-		if st.Leader == s.opts.NodeId {
-			s.rc.BecomeLeader(st.Term)
+	if st.Status == pb.SlotStatus_SlotStatusCandidate { // 槽进入候选者状态
+		if s.rc.IsLeader() { // 领导节点不能直接转candidate，replica里会panic，领导转换成follower是一样的
+			s.rc.BecomeFollower(st.Term, 0)
 		} else {
-			s.rc.BecomeFollower(st.Term, st.Leader)
+			s.rc.BecomeCandidateWithTerm(st.Term)
+		}
+
+	} else if st.Status == pb.SlotStatus_SlotStatusLeaderTransfer { // 槽进入领导者转移状态
+		if st.Leader == s.opts.NodeId && st.LeaderTransferTo != st.Leader { // 如果当前槽领导将要被转移，则先暂停提案，等需要转移的节点的日志追上来
+			s.pausePropopose.Store(true)
+		}
+	} else if st.Status == pb.SlotStatus_SlotStatusNormal { // 槽进入正常状态
+		if s.rc.LeaderId() != st.Leader {
+			if st.Leader == s.opts.NodeId {
+				s.rc.BecomeLeader(st.Term)
+			} else {
+				s.rc.BecomeFollower(st.Term, st.Leader)
+			}
 		}
 	}
+
 }
 
 // --------------------------IHandler-------------------------------
@@ -189,6 +227,11 @@ func (s *slot) IsPrepared() bool {
 
 func (s *slot) LeaderId() uint64 {
 	return s.rc.LeaderId()
+}
+
+func (s *slot) PausePropopose() bool {
+
+	return s.pausePropopose.Load()
 }
 
 func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

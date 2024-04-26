@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
@@ -35,6 +36,8 @@ type Server struct {
 	// 用于记录每个节点的最后一次的回应心跳的tick间隔
 	pongTickMap     map[uint64]int
 	pongTickMapLock sync.RWMutex
+
+	preLearnCheckTime time.Time // 上次学习者检查时间
 }
 
 func New(opts *Options) *Server {
@@ -136,7 +139,46 @@ func (s *Server) Step(m Message) {
 				break
 			}
 		}
+	case EventTypeSlotAdd:
+		for _, slot := range m.Slots {
+			exist := false
+			for _, localSlot := range s.localCfg.Slots {
+				if slot.Equal(localSlot) {
+					exist = true
+					break
+				}
+			}
+			if !exist {
+				s.localCfg.Slots = append(s.localCfg.Slots, slot)
+			}
+
+		}
+	case EventTypeSlotUpdate:
+		for _, slot := range m.Slots {
+			for i, localSlot := range s.localCfg.Slots {
+				if slot.Id == localSlot.Id {
+					s.localCfg.Slots[i] = slot
+					break
+				}
+			}
+		}
+	case EventTypeSlotDelete:
+		newSlots := make([]*pb.Slot, 0, len(s.localCfg.Slots))
+		for _, localSlot := range s.localCfg.Slots {
+			exist := false
+			for _, slot := range m.Slots {
+				if localSlot.Id == slot.Id {
+					exist = true
+					break
+				}
+			}
+			if !exist {
+				newSlots = append(newSlots, localSlot)
+			}
+		}
+		s.localCfg.Slots = newSlots
 	}
+	s.acceptReady()
 }
 
 func (s *Server) AddMessage(m reactor.Message) {
@@ -153,6 +195,9 @@ func (s *Server) SlotCount() uint32 {
 	return s.cfgServer.SlotCount()
 }
 
+func (s *Server) SlotReplicaCount() uint32 {
+	return s.cfgServer.SlotReplicaCount()
+}
 func (s *Server) Slot(id uint32) *pb.Slot {
 	return s.cfgServer.Slot(id)
 }
@@ -192,9 +237,23 @@ func (s *Server) Config() *pb.Config {
 	return s.cfgServer.Config()
 }
 
+// NodeConfigVersion 获取节点的配置版本（只有主节点才有这个信息）
+func (s *Server) NodeConfigVersion(nodeId uint64) uint64 {
+	return s.cfgServer.NodeConfigVersion(nodeId)
+}
+
 // AllowVoteNodes 获取允许投票的节点
 func (s *Server) AllowVoteNodes() []*pb.Node {
 	return s.cfgServer.AllowVoteNodes()
+}
+
+// 获取允许投票的并且已经加入了的节点数量
+func (s *Server) AllowVoteAndJoinedNodes() []*pb.Node {
+	return s.cfgServer.AllowVoteAndJoinedNodes()
+}
+
+func (s *Server) SetIsPrepared(prepared bool) {
+	s.cfgServer.SetIsPrepared(prepared)
 }
 
 func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string) error {
@@ -203,6 +262,11 @@ func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string)
 
 func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
 	return s.cfgServer.ProposeConfig(ctx, cfg)
+}
+
+// ProposeJoin 提案新节点加入
+func (s *Server) ProposeJoin(ctx context.Context, node *pb.Node) error {
+	return s.cfgServer.ProposeJoin(ctx, node)
 }
 
 func (s *Server) loadLocalConfig() error {

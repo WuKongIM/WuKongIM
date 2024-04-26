@@ -14,6 +14,7 @@ import (
 var (
 	ErrReactorSubStopped = errors.New("reactor sub stopped")
 	ErrNotLeader         = errors.New("not leader")
+	ErrPausePropopose    = errors.New("pause propose")
 )
 
 var hashPool = sync.Pool{

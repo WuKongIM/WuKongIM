@@ -1,6 +1,8 @@
 package clusterevent
 
 import (
+	"time"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 )
 
@@ -15,14 +17,17 @@ type Options struct {
 	Send                func(m reactor.Message) // 发送消息
 	// PongMaxTick 节点超过多少tick没有回应心跳就认为是掉线
 	PongMaxTick int
+	// 学习者检查间隔（每隔这个间隔时间检查下学习者的日志）
+	LearnerCheckInterval time.Duration
 }
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SlotCount:           128,
-		SlotMaxReplicaCount: 3,
-		ConfigDir:           "clusterconfig",
-		PongMaxTick:         10,
+		SlotCount:            128,
+		SlotMaxReplicaCount:  3,
+		ConfigDir:            "clusterconfig",
+		PongMaxTick:          10,
+		LearnerCheckInterval: time.Second * 2,
 	}
 	for _, o := range opt {
 		o(opts)

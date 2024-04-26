@@ -40,8 +40,13 @@ func newChannel(channelId string, channelType uint8, opts *Options) *channel {
 func (c *channel) bootstrap(cfg wkdb.ChannelClusterConfig) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	appliedIdx, err := c.opts.MessageLogStorage.AppliedIndex(c.key)
+	if err != nil {
+		c.Error("get applied index error", zap.Error(err))
+		return err
 
-	rc := replica.New(c.opts.NodeId, replica.WithLogPrefix(fmt.Sprintf("channel-%s", c.key)), replica.WithElectionOn(false), replica.WithReplicas(cfg.Replicas), replica.WithStorage(newProxyReplicaStorage(c.key, c.opts.MessageLogStorage)))
+	}
+	rc := replica.New(c.opts.NodeId, replica.WithLogPrefix(fmt.Sprintf("channel-%s", c.key)), replica.WithAppliedIndex(appliedIdx), replica.WithElectionOn(false), replica.WithReplicas(cfg.Replicas), replica.WithStorage(newProxyReplicaStorage(c.key, c.opts.MessageLogStorage)))
 	c.rc = rc
 	if cfg.LeaderId == c.opts.NodeId {
 		rc.BecomeLeader(cfg.Term)
@@ -190,6 +195,11 @@ func (c *channel) IsPrepared() bool {
 
 func (c *channel) LeaderId() uint64 {
 	return c.leaderId()
+}
+
+func (c *channel) PausePropopose() bool {
+
+	return false
 }
 
 func (c *channel) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

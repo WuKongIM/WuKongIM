@@ -44,6 +44,8 @@ type IHandler interface {
 	IsPrepared() bool
 	// 领导者Id
 	LeaderId() uint64
+	// PausePropopose 是否暂停提案
+	PausePropopose() bool
 }
 
 type handler struct {
@@ -291,6 +293,11 @@ func (h *handler) isLeader() bool {
 
 func (h *handler) leaderId() uint64 {
 	return h.handler.LeaderId()
+}
+
+func (h *handler) pausePropopose() bool {
+	return h.handler.PausePropopose()
+
 }
 
 func (h *handler) getAndResetMsgSyncResp() (replica.Message, bool) {

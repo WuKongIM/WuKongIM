@@ -117,3 +117,13 @@ func (n *nodeManager) requestSlotMigrateFinished(to uint64, req *SlotMigrateFini
 	defer cancel()
 	return node.requestSlotMigrateFinished(timeoutCtx, req)
 }
+
+func (n *nodeManager) requestChangeSlotRole(to uint64, req *ChangeSlotRoleReq) error {
+	node := n.node(to)
+	if node == nil {
+		return fmt.Errorf("node[%d] not found", to)
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
+	defer cancel()
+	return node.requestChangeSlotRole(timeoutCtx, req)
+}

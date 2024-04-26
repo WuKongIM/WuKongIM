@@ -6,12 +6,12 @@ rootDir: "./wukongimdata/5"
 monitor:
   on: false
 demo:
-  on: false
+  on: true
+  addr: "0.0.0.0:5175"
 conversation:
   on: true    
 cluster:
   nodeId: 5
   addr: "tcp://127.0.0.1:10005" # 分布式监听地址
   serverAddr: "127.0.0.1:10005" # 节点通讯地址
-  grpcAddr: "127.0.0.1:11115"
-  seed: "1@127.0.0.1:10001"  # 其他已集群的节点的grpc地址，注意：这里的地址是集群节点的grpc地址，不是raft地址
+  seed: "1@127.0.0.1:10001"  # 其他任意集群内的节点
