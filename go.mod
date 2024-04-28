@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
-	github.com/WuKongIM/WuKongIMGoProto v1.0.2-0.20240323040728-b48dabd1e228
+	github.com/WuKongIM/WuKongIMGoProto v0.0.0-20240428084126-e0911b8916b6
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/eapache/queue v1.1.0
@@ -132,4 +132,4 @@ require (
 )
 
 // replace github.com/WuKongIM/WuKongIMGoSDK => ../../WuKongIMGoSDK
-replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto
+// replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto

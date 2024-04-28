@@ -27,6 +27,8 @@ func (s *SystemAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/system/ip/blacklist_add", s.ipBlacklistAdd)       // 添加ip黑名单
 	r.POST("/system/ip/blacklist_remove", s.ipBlacklistRemove) // 移除ip白名单
 	r.GET("/system/ip/blacklist", s.ipBlacklist)               // 获取ip黑名单列表
+
+	r.GET("/health", s.health) // 监控检查
 }
 
 func (s *SystemAPI) ipBlacklistAdd(c *wkhttp.Context) {
@@ -85,4 +87,8 @@ func (s *SystemAPI) ipBlacklist(c *wkhttp.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, ips)
+}
+
+func (s *SystemAPI) health(c *wkhttp.Context) {
+	c.ResponseOK()
 }

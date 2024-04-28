@@ -3630,10 +3630,10 @@ ws@^8.13.0:
   resolved "https://registry.npmjs.org/ws/-/ws-8.13.0.tgz"
   integrity sha512-x9vcZYTrFPC7aSIbj7sRCYo7L/Xb8Iy+pW0ng0wt2vCJv7M9HOMy0UoN3rr+IFC7hb7vXoqS+P9ktyLLLhO+LA==
 
-wukongimjssdk@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/wukongimjssdk/-/wukongimjssdk-1.1.0.tgz#3b8457875abdcd3d9cef5b6e9ad8a9684d229cbf"
-  integrity sha512-66+ly3BEdVMVRwBp/4WbT2nM6tJhexaaEDFNkmR3Dh/YN+mD6YEskADRWnsGguzFzS2fatFgXUH+AcqBcb3qVg==
+wukongimjssdk@^1.2.2:
+  version "1.2.7"
+  resolved "https://registry.yarnpkg.com/wukongimjssdk/-/wukongimjssdk-1.2.7.tgz#db9af096efff467d6d1766c5ea50f16fe386662c"
+  integrity sha512-Okx+hTDLhMSDCicA2od9VBvSlfzNLtxMw4drbqaUx31hp09G5LSgthhWz9rfJl8AbmljhwPGo28B9bOZGjAgkw==
   dependencies:
     "@types/bignumber.js" "^5.0.0"
     "@types/crypto-js" "^4.0.2"
