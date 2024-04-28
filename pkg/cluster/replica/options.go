@@ -14,8 +14,7 @@ const (
 )
 
 type Options struct {
-	NodeId                uint64   // 当前节点ID
-	Replicas              []uint64 // 副本节点ID集合
+	NodeId                uint64 // 当前节点ID
 	Storage               IStorage
 	LogPrefix             string // 日志前缀
 	MaxUncommittedLogSize uint64
@@ -28,7 +27,11 @@ type Options struct {
 	ElectionOn            bool          // 是否开启选举
 	ElectionTimeoutTick   int           // 选举超时tick次数，超过次tick数则发起选举
 	HeartbeatTimeoutTick  int           // 心跳超时tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
+	Config                *Config
 	// LastSyncInfoMap       map[uint64]*SyncInfo
+	OnConfigChange             func(cfg *Config)
+	AutoLearnerToFollower      bool   // 自动将学习者转换为跟随者
+	LearnerToFollowerMinLogGap uint64 // 学习者转换为跟随者的最小日志差距，需要AutoLearnerToFollower开启 (当学习者的日志与领导者的日志差距小于这个配置时，学习者会转换为跟随者)
 }
 
 func NewOptions() *Options {
@@ -36,24 +39,20 @@ func NewOptions() *Options {
 		MaxUncommittedLogSize: 1024 * 1024 * 1024,
 		SyncLimitSize:         1024 * 1024 * 20, // 20M
 		// LastSyncInfoMap:       map[uint64]*SyncInfo{},
-		MessageSendInterval:  time.Millisecond * 150,
-		ActiveReplicaMaxTick: 10,
-		AckMode:              AckModeMajority,
-		ReplicaMaxCount:      3,
-		ElectionOn:           false,
-		ElectionTimeoutTick:  10,
-		HeartbeatTimeoutTick: 2,
-		LogPrefix:            "default",
+		MessageSendInterval:        time.Millisecond * 150,
+		ActiveReplicaMaxTick:       10,
+		AckMode:                    AckModeMajority,
+		ReplicaMaxCount:            3,
+		ElectionOn:                 false,
+		ElectionTimeoutTick:        10,
+		HeartbeatTimeoutTick:       2,
+		LogPrefix:                  "default",
+		LearnerToFollowerMinLogGap: 100,
+		AutoLearnerToFollower:      false,
 	}
 }
 
 type Option func(o *Options)
-
-func WithReplicas(replicas []uint64) Option {
-	return func(o *Options) {
-		o.Replicas = replicas
-	}
-}
 
 func WithStorage(storage IStorage) Option {
 	return func(o *Options) {
@@ -118,5 +117,29 @@ func WithHeartbeatTimeoutTick(tick int) Option {
 func WithLogPrefix(prefix string) Option {
 	return func(o *Options) {
 		o.LogPrefix = prefix
+	}
+}
+
+func WithConfig(config *Config) Option {
+	return func(o *Options) {
+		o.Config = config
+	}
+}
+
+func WithOnConfigChange(fn func(cfg *Config)) Option {
+	return func(o *Options) {
+		o.OnConfigChange = fn
+	}
+}
+
+func WithAutoLearnerToFollower(auto bool) Option {
+	return func(o *Options) {
+		o.AutoLearnerToFollower = auto
+	}
+}
+
+func WithLearnerToFollowerMinLogGap(gap uint64) Option {
+	return func(o *Options) {
+		o.LearnerToFollowerMinLogGap = gap
 	}
 }

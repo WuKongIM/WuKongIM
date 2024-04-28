@@ -17,15 +17,17 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/monitor"
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster2"
+	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"github.com/WuKongIM/WuKongIM/pkg/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/version"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"github.com/panjf2000/ants/v2"
@@ -276,14 +278,12 @@ func (s *Server) Start() error {
 		panic(err)
 	}
 
-	if s.opts.ClusterOn() {
-		s.dispatch.processor.SetRoutes()
-		err = s.cluster.Start()
-		if err != nil {
-			return err
-		}
-		s.peerInFlightQueue.Start()
+	s.dispatch.processor.SetRoutes()
+	err = s.cluster.Start()
+	if err != nil {
+		return err
 	}
+	s.peerInFlightQueue.Start()
 
 	err = s.dispatch.Start()
 	if err != nil {
@@ -345,10 +345,8 @@ func (s *Server) Stop() error {
 	s.apiServer.Stop()
 	s.webhook.Stop()
 
-	if s.opts.ClusterOn() {
-		s.peerInFlightQueue.Stop()
-		s.cluster.Stop()
-	}
+	s.peerInFlightQueue.Stop()
+	s.cluster.Stop()
 
 	if s.opts.Monitor.On {
 		_ = s.monitorServer.Stop()
@@ -372,11 +370,54 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	}, f)
 }
 
+// 重试投递
+func (s *Server) startDeliveryPeerDataForRetry(data *PeerInFlightData) {
+
+	if s.cluster.NodeIsOnline(data.PeerID) {
+		s.startDeliveryPeerData(data)
+		return
+	}
+
+	// 如果是重试的情况，需要检查是否投递节点挂掉了？，如果挂掉了，则需要重新计算频道所在节点
+
+	req := &rpc.ForwardRecvPacketReq{}
+	err := req.Unmarshal(data.Data)
+	if err != nil {
+		s.Warn("unmarshal ForwardRecvPacketReq err", zap.Error(err))
+		return
+	}
+	nodeSubscribersMap, err := s.calcNodeSubscribers(req.Subscribers)
+	if err != nil {
+		s.Warn("calcNodeSubscribers err", zap.Error(err))
+		return
+	}
+	for nodeId, subscribers := range nodeSubscribersMap {
+		newReq := req.Clone()
+		newReq.Subscribers = subscribers
+		data, err := newReq.Marshal()
+		if err != nil {
+			s.Warn("marshal ForwardRecvPacketReq err", zap.Error(err))
+			return
+		}
+		err = s.forwardRecvPacketReq(nodeId, data)
+		if err != nil {
+			s.Warn("请求grpc投递节点数据失败！", zap.Uint64("nodeId", nodeId), zap.Error(err))
+			return
+		}
+	}
+	err = s.peerInFlightQueue.finishMessage(req.No)
+	if err != nil {
+		s.Warn("finishMessage err", zap.Error(err))
+		return
+	}
+
+}
+
 func (s *Server) startDeliveryPeerData(req *PeerInFlightData) {
 
 	s.Debug("开始投递节点数据", zap.String("no", req.No), zap.Uint64("nodeId", req.PeerID), zap.Int("dataSize", len(req.Data)))
 
-	s.peerInFlightQueue.startInFlightTimeout(req) // 重新投递
+	s.peerInFlightQueue.startInFlightTimeout(req) // 加入重试队列
 
 	err := s.forwardRecvPacketReq(req.PeerID, req.Data)
 	if err != nil {
@@ -443,4 +484,24 @@ func (s *Server) printIpBlacklist() {
 
 func (s *Server) getSlotId(v string) uint32 {
 	return s.cluster.GetSlotId(v)
+}
+
+// 计算订阅者所在节点
+func (s *Server) calcNodeSubscribers(subscribers []string) (map[uint64][]string, error) {
+	subscriberNodeIDMap := make(map[uint64][]string)
+	for _, subscriber := range subscribers {
+		leaderInfo, err := s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return nil, err
+		}
+		nodeSubscribers, ok := subscriberNodeIDMap[leaderInfo.Id]
+		if !ok {
+			nodeSubscribers = make([]string, 0)
+		}
+		nodeSubscribers = append(nodeSubscribers, subscriber)
+		subscriberNodeIDMap[leaderInfo.Id] = nodeSubscribers
+	}
+	return subscriberNodeIDMap, nil
+
 }

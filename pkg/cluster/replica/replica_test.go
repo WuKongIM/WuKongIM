@@ -18,7 +18,9 @@ func TestElection(t *testing.T) {
 
 	var nodeId uint64 = 1
 	electionTimeoutTick := 10
-	rc := replica.New(nodeId, replica.WithReplicas([]uint64{1, 2, 3}), replica.WithElectionOn(true), replica.WithElectionTimeoutTick(electionTimeoutTick))
+	rc := replica.New(nodeId, replica.WithConfig(&replica.Config{
+		Replicas: []uint64{1, 2, 3},
+	}), replica.WithElectionOn(true), replica.WithElectionTimeoutTick(electionTimeoutTick))
 
 	electionWait := sync.WaitGroup{}
 	electionWait.Add(1)
@@ -31,7 +33,7 @@ func TestElection(t *testing.T) {
 					err := rc.Step(m)
 					assert.NoError(t, err)
 				} else {
-					if m.MsgType == replica.MsgVote {
+					if m.MsgType == replica.MsgVoteReq {
 						err := rc.Step(replica.Message{
 							MsgType: replica.MsgVoteResp,
 							From:    m.To,

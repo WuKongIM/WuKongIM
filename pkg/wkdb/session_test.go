@@ -306,7 +306,13 @@ func TestUpdateSessionUpdatedAt(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	err = d.UpdateSessionUpdatedAt([]string{"u1", "u2"}, "test1", 1)
+	err = d.UpdateSessionUpdatedAt([]*wkdb.UpdateSessionUpdatedAtModel{
+		{
+			Uids:        []string{"u1", "u2"},
+			ChannelId:   "test1",
+			ChannelType: 1,
+		},
+	})
 	assert.NoError(t, err)
 
 	resultSession, err := d.GetSessionByChannel("u1", "test1", 1)

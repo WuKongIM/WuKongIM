@@ -7,14 +7,15 @@ import (
 )
 
 type Options struct {
-	NodeId              uint64
-	InitNodes           map[uint64]string
-	SlotCount           uint32 // 槽位数量
-	SlotMaxReplicaCount uint32 // 每个槽位最大副本数量
-	ConfigDir           string
-	ApiServerAddr       string // api服务地址
-	Ready               func(msgs []Message)
-	Send                func(m reactor.Message) // 发送消息
+	NodeId                 uint64
+	InitNodes              map[uint64]string
+	SlotCount              uint32 // 槽位数量
+	SlotMaxReplicaCount    uint32 // 每个槽位最大副本数量
+	ChannelMaxReplicaCount uint32 // 每个频道最大副本数量
+	ConfigDir              string
+	ApiServerAddr          string // api服务地址
+	Ready                  func(msgs []Message)
+	Send                   func(m reactor.Message) // 发送消息
 	// PongMaxTick 节点超过多少tick没有回应心跳就认为是掉线
 	PongMaxTick int
 	// 学习者检查间隔（每隔这个间隔时间检查下学习者的日志）
@@ -23,11 +24,12 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SlotCount:            128,
-		SlotMaxReplicaCount:  3,
-		ConfigDir:            "clusterconfig",
-		PongMaxTick:          10,
-		LearnerCheckInterval: time.Second * 2,
+		SlotCount:              128,
+		SlotMaxReplicaCount:    3,
+		ChannelMaxReplicaCount: 3,
+		ConfigDir:              "clusterconfig",
+		PongMaxTick:            10,
+		LearnerCheckInterval:   time.Second * 2,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -58,6 +60,13 @@ func WithSlotMaxReplicaCount(slotMaxReplicaCount uint32) Option {
 	return func(o *Options) {
 		o.SlotMaxReplicaCount = slotMaxReplicaCount
 	}
+}
+
+func WithChannelMaxReplicaCount(channelMaxReplicaCount uint32) Option {
+	return func(o *Options) {
+		o.ChannelMaxReplicaCount = channelMaxReplicaCount
+	}
+
 }
 
 func WithReady(f func(msgs []Message)) Option {

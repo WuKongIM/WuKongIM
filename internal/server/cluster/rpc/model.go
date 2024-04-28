@@ -78,6 +78,10 @@ func (f *ForwardRecvPacketReq) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, f)
 }
 
+func (f *ForwardRecvPacketReq) Clone() *ForwardRecvPacketReq {
+	return proto.Clone(f).(*ForwardRecvPacketReq)
+}
+
 func (r *RecvacksReq) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, r)
 }

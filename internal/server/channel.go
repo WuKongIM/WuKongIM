@@ -468,7 +468,7 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 		ChannelType: c.ChannelInfo.ChannelType,
 	}
 	if c.s.opts.ClusterOn() {
-		nodeIDSubscribersMap, err := c.calcNodeSubscribers(subscribers)
+		nodeIDSubscribersMap, err := c.s.calcNodeSubscribers(subscribers)
 		if err != nil {
 			c.Error("计算订阅者所在节点失败！", zap.Error(err))
 			return err
@@ -493,26 +493,6 @@ func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID s
 	}
 
 	return nil
-}
-
-// 计算订阅者所在节点
-func (c *Channel) calcNodeSubscribers(subscribers []string) (map[uint64][]string, error) {
-	subscriberNodeIDMap := make(map[uint64][]string)
-	for _, subscriber := range subscribers {
-		leaderInfo, err := c.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的领导节点
-		if err != nil {
-			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-			return nil, err
-		}
-		nodeSubscribers, ok := subscriberNodeIDMap[leaderInfo.Id]
-		if !ok {
-			nodeSubscribers = make([]string, 0)
-		}
-		nodeSubscribers = append(nodeSubscribers, subscriber)
-		subscriberNodeIDMap[leaderInfo.Id] = nodeSubscribers
-	}
-	return subscriberNodeIDMap, nil
-
 }
 
 // forward to other node subscribers

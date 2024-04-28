@@ -24,6 +24,7 @@ type wukongDB struct {
 	wklog.Log
 	prmaryKeyGen *snowflake.Node // 消息ID生成器
 	noSync       *pebble.WriteOptions
+	dblock       *dblock
 }
 
 func NewWukongDB(opts *Options) *wukongDB {
@@ -42,11 +43,14 @@ func NewWukongDB(opts *Options) *wukongDB {
 		noSync: &pebble.WriteOptions{
 			Sync: false,
 		},
-		Log: wklog.NewWKLog("wukongDB"),
+		Log:    wklog.NewWKLog("wukongDB"),
+		dblock: newDBLock(),
 	}
 }
 
 func (wk *wukongDB) Open() error {
+
+	wk.dblock.start()
 
 	for i := 0; i < int(wk.shardNum); i++ {
 		db, err := pebble.Open(filepath.Join(wk.opts.DataDir, "wukongimdb", fmt.Sprintf("shard%03d", i)), &pebble.Options{
@@ -66,6 +70,7 @@ func (wk *wukongDB) Close() error {
 			wk.Error("close db error", zap.Error(err))
 		}
 	}
+	wk.dblock.stop()
 	return nil
 }
 

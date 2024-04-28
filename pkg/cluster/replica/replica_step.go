@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -15,10 +16,21 @@ func (r *Replica) Step(m Message) error {
 		r.Debug("received message with higher term", zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
 		// 高任期消息
 		if m.MsgType == MsgPing || m.MsgType == MsgLeaderTermStartIndexResp || m.MsgType == MsgSyncResp {
-			r.becomeFollower(m.Term, m.From)
+			if r.role == RoleLearner {
+				r.becomeLearner(m.Term, m.From)
+			} else {
+				r.becomeFollower(m.Term, m.From)
+			}
+
 		} else {
-			r.Warn("become follower but leader is none", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
-			r.becomeFollower(m.Term, None)
+			if r.role == RoleLearner {
+				r.Warn("become learner but leader is none", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+				r.becomeLearner(m.Term, None)
+			} else {
+				r.Warn("become follower but leader is none", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+				r.becomeFollower(m.Term, None)
+			}
+
 		}
 	case m.Term < r.replicaLog.term:
 		if m.MsgType != MsgLeaderTermStartIndexResp {
@@ -28,7 +40,6 @@ func (r *Replica) Step(m Message) error {
 			}
 			return nil
 		}
-
 	default:
 
 	}
@@ -36,7 +47,7 @@ func (r *Replica) Step(m Message) error {
 	switch m.MsgType {
 	case MsgStoreAppendResp: // 存储追加响应
 		if m.Index != 0 {
-			r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeID", r.nodeID), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
+			r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeId", r.nodeId), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			r.replicaLog.stableTo(m.Index)
 		}
 	case MsgApplyLogsResp: // 应用日志响应
@@ -48,7 +59,7 @@ func (r *Replica) Step(m Message) error {
 
 	case MsgHup:
 		r.hup()
-	case MsgVote: // 收到投票请求
+	case MsgVoteReq: // 收到投票请求
 		if r.canVote(m) {
 			r.send(r.newMsgVoteResp(m.From, m.Term, false))
 			r.electionElapsed = 0
@@ -63,6 +74,20 @@ func (r *Replica) Step(m Message) error {
 				r.Info("lower term, reject vote")
 			}
 			r.send(r.newMsgVoteResp(m.From, m.Term, true))
+		}
+	case MsgConfigResp:
+		confData := m.Logs[0].Data
+		if len(confData) > 0 {
+			cfg := NewConfig()
+			err := cfg.Unmarshal(confData)
+			if err != nil {
+				r.Error("unmarshal config failed", zap.Error(err))
+				return err
+			}
+			r.switchConfig(cfg)
+			if r.opts.OnConfigChange != nil {
+				r.opts.OnConfigChange(cfg)
+			}
 		}
 
 	default:
@@ -84,31 +109,34 @@ func (r *Replica) stepLeader(m Message) error {
 
 	switch m.MsgType {
 	case MsgPong:
-		if m.To != r.nodeID {
-			r.Warn("receive pong, but msg to is not self", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
+		if m.To != r.nodeId {
+			r.Warn("receive pong, but msg to is not self", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			return nil
 		}
 		if m.Term != r.replicaLog.term {
-			r.Warn("receive pong, but msg term is not self term", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
+			r.Warn("receive pong, but msg term is not self term", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			return nil
 		}
 		// r.Debug("receive pong", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("leaderCommittedIndex", r.replicaLog.committedIndex), zap.Uint64("committedIndex", m.CommittedIndex))
 		r.activeReplica(m.From) // 副本已激活
 	case MsgPropose: // 收到提案消息
 		if len(m.Logs) == 0 {
-			r.Panic("MsgPropose logs is empty", zap.Uint64("nodeID", r.nodeID))
+			r.Panic("MsgPropose logs is empty", zap.Uint64("nodeId", r.nodeId))
 		}
 		if !r.appendLog(m.Logs...) {
 			return ErrProposalDropped
 		}
 		if r.IsSingleNode() || r.opts.AckMode == AckModeNone { // 单机
-			r.Debug("no ack", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.replicaLog.term), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+			r.Debug("no ack", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.replicaLog.term), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 			r.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
 
 	case MsgBeat:
 		r.sendPing()
-	case MsgSync: // 追随者向领导同步消息
+	case MsgSyncReq: // 追随者向领导同步消息
+		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
+			r.Debug("recv MsgSyncReq", zap.Uint64("from", m.From), zap.Uint64("index", m.Index))
+		}
 		// r.Info("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
 		r.activeReplica(m.From)
 		var needSendResp bool = true
@@ -129,21 +157,43 @@ func (r *Replica) stepLeader(m Message) error {
 				// if len(logs) > 0 {
 				// 	r.Debug("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("firstLogIndex", logs[0].Index), zap.Uint64("lastLogIndex", logs[len(logs)-1].Index), zap.Uint64("localLastLogIndex", r.replicaLog.lastIndex()), zap.Int("logCount", len(logs)))
 				// }
-				r.updateReplicSyncInfo(m)      // 更新副本同步信息
-				r.updateLeaderCommittedIndex() // 更新领导的提交索引
+				if !r.isLearner(m.From) {
+					r.updateReplicSyncInfo(m)      // 更新副本同步信息
+					r.updateLeaderCommittedIndex() // 更新领导的提交索引
+				}
 
 			} else {
-				r.updateReplicSyncInfo(m)      // 更新副本同步信息
-				r.updateLeaderCommittedIndex() // 更新领导的提交索引
+				if !r.isLearner(m.From) {
+					r.updateReplicSyncInfo(m)      // 更新副本同步信息
+					r.updateLeaderCommittedIndex() // 更新领导的提交索引
+				}
 			}
 		}
 		if needSendResp {
 			r.send(r.newMsgSyncResp(m.From, m.Index, nil))
 		}
+
+		if r.opts.AutoLearnerToFollower && r.isLearner(m.From) {
+			if m.Index+r.opts.LearnerToFollowerMinLogGap >= r.replicaLog.lastLogIndex {
+				// 移除learner
+				r.removeLearner(m.From)
+				// 添加到replicas
+				r.addReplica(m.From)
+				r.opts.Config.Version++
+				if r.opts.OnConfigChange != nil {
+					r.opts.OnConfigChange(r.opts.Config)
+				}
+			}
+
+		}
+
 	case MsgSyncGetResp: // 领导收到追随者的同步获取响应
 		r.send(r.newMsgSyncResp(m.To, m.Index, m.Logs))
 
 	case MsgLeaderTermStartIndexReq: // 领导收到跟随者的任期开始索引请求
+		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
+			r.Debug("recv msgLeaderTermStartIndexReq", zap.Uint64("from", m.From))
+		}
 		// 如果MsgLeaderTermStartIndexReq的term等于领导的term则领导返回当前最新日志下标，否则返回MsgLeaderTermStartIndexReq里的term+1的 任期的第一条日志下标，返回的这个值称为LastOffset
 		if m.Term == r.replicaLog.term {
 			r.send(r.newLeaderTermStartIndexResp(m.From, r.replicaLog.term, r.replicaLog.lastLogIndex+1)) // 当前最新日志下标 + 1 副本truncate日志到这个下标,也就是不会truncate
@@ -157,9 +207,11 @@ func (r *Replica) stepLeader(m Message) error {
 				r.Error("leader term start index not found", zap.Uint32("term", syncTerm), zap.Uint32("leaderTerm", r.replicaLog.term))
 				// return ErrLeaderTermStartIndexNotFound
 			}
-			r.Info("send leader term start index resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("syncTerm", syncTerm), zap.Uint64("lastIndex", lastIndex))
+			r.Info("send leader term start index resp", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint32("syncTerm", syncTerm), zap.Uint64("lastIndex", lastIndex))
 			r.send(r.newLeaderTermStartIndexResp(m.From, syncTerm, lastIndex)) // 副本truncate日志到这个下标（不会保留lastIndex的日志）
 		}
+	case MsgConfigReq: // 收到配置请求
+		r.send(r.newMsgConfigResp(m.From))
 	}
 
 	return nil
@@ -173,22 +225,19 @@ func (r *Replica) stepFollower(m Message) error {
 			r.becomeFollower(m.Term, m.From)
 
 		}
+		if m.ConfVersion > r.opts.Config.Version { // 如果本地配置版本小于领导的配置版本，那么请求领导的配置
+			r.send(r.newMsgConfigReq(m.From))
+		}
+
 		r.SetSpeedLevel(m.SpeedLevel) // 设置同步速度
 		r.send(r.newPong(m.From))
 		// r.Debug("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 		r.replicaLog.leaderLastLogIndex = m.Index
-	// case MsgNotifySync: // 收到同步通知
-	// 	if r.disabledToSync {
-	// 		r.Info("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.replicaLog.term))
-	// 		return nil
-	// 	}
-	// 	r.Info("receive notify sync", zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index))
-	// 	r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
-	// 	// 发送同步消息
-	// 	seq := r.messageWait.next(r.leader, MsgSync)
-	// 	r.send(r.newSyncMsg(seq))
 	case MsgSyncResp: // 领导返回同步消息的结果
+		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
+			r.Debug("recv MsgSyncResp", zap.Uint64("from", m.From))
+		}
 		r.SetSpeedLevel(m.SpeedLevel) // 设置同步速度
 		r.electionElapsed = 0
 		if len(m.Logs) > 0 {
@@ -197,13 +246,6 @@ func (r *Replica) stepFollower(m Message) error {
 		} else {
 			r.messageWait.quickSync()
 		}
-		// force := false
-		// if len(m.Logs) > 0 {
-		// 	force = true
-		// }
-		// r.Debug("recv sync resp", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
-		// r.messageWait.finishWithForce(m.From, MsgSync, force) // 完成同步消息，可以继续同步
-
 		if r.disabledToSync {
 			r.Debug("disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.replicaLog.term))
 			return nil
@@ -218,59 +260,65 @@ func (r *Replica) stepFollower(m Message) error {
 			}
 		}
 		r.replicaLog.leaderCommittedIndex = m.CommittedIndex
-		r.hasFirstSyncResp = true
+		// r.hasFirstSyncResp = true
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 
-		// if uint32(len(m.Logs)) > 0 && m.Logs[len(m.Logs)-1].Index >= r.replicaLog.lastLogIndex { // 如果已经获取到最新的日志，则立马发起下一次同步，这次同步主要目的是为了通知领导自己所有数据已同步完毕，这样领导好更新自己的committedIndex
-		// 	r.Info("sync......")
-		// 	seq := r.messageWait.next(r.leader, MsgSync)
-		// 	r.send(r.newSyncMsg(seq))
-		// }
-
 	case MsgLeaderTermStartIndexResp: // 收到领导的任期开始索引响应
-		// Follower检查本地的LeaderTermSequence
-		// 是否有term对应的StartOffset大于领导返回的LastOffset，
-		// 如果有则将当前term的startOffset设置为LastOffset，
-		// 并且当前term为最新的term（也就是删除比当前term大的LeaderTermSequence的记录）
-		if m.Index > 0 {
-			termStartIndex, err := r.opts.Storage.LeaderTermStartIndex(m.Term)
-			if err != nil {
-				r.Error("follower: leader term start index not found", zap.Uint32("term", m.Term))
-				return err
-			}
-			if termStartIndex == 0 {
-				err := r.opts.Storage.SetLeaderTermStartIndex(m.Term, m.Index)
-				if err != nil {
-					r.Error("set leader term start index failed", zap.Error(err))
-					return err
-				}
-			} else if termStartIndex > m.Index {
-				err := r.opts.Storage.SetLeaderTermStartIndex(m.Term, m.Index)
-				if err != nil {
-					r.Error("set leader term start index failed", zap.Error(err))
-					return err
-				}
-				err = r.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(m.Term)
-				if err != nil {
-					r.Error("delete leader term start index failed", zap.Error(err))
-					return err
-				}
-			}
-			r.Info("truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
-			err = r.opts.Storage.TruncateLogTo(m.Index)
-			if err != nil {
-				r.Error("truncate log failed", zap.Error(err))
-				return err
-			}
-			r.replicaLog.unstable.truncateLogTo(m.Index)
-			lastIdx := r.replicaLog.lastIndex()
-			r.replicaLog.lastLogIndex = lastIdx
-			r.localLeaderLastTerm = m.Term
+		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
+			r.Debug("recv msgLeaderTermStartIndexResp", zap.Uint64("from", m.From))
+		}
+		err := r.handleLeaderTermStartIndexResp(m.Index, m.Term)
+		if err != nil {
+			return err
 		}
 
+		r.disabledToSync = false // 现在可以去同步领导的日志了
+		r.messageWait.resetSync()
+		r.send(r.newSyncMsg()) // 立马发送同步消息
+		r.Info("enable to sync", zap.Uint64("leader", r.leader), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", m.Term))
+	}
+	return nil
+}
+
+func (r *Replica) stepLearner(m Message) error {
+	switch m.MsgType {
+	case MsgPing:
+		if r.leader == None {
+			r.becomeLearner(m.Term, m.From)
+		}
+		if m.ConfVersion > r.opts.Config.Version { // 如果本地配置版本小于领导的配置版本，那么请求领导的配置
+
+			r.send(r.newMsgConfigReq(m.From))
+		}
+		r.SetSpeedLevel(m.SpeedLevel) // 设置同步速度
+		r.send(r.newPong(m.From))
+		r.replicaLog.leaderLastLogIndex = m.Index
+	case MsgSyncResp: // 领导返回同步消息的结果
+		r.SetSpeedLevel(m.SpeedLevel) // 设置同步速度
+		r.electionElapsed = 0
+		r.messageWait.quickSync()
+		if r.disabledToSync {
+			r.Debug("learner: disabled to sync", zap.Uint64("leader", r.leader), zap.Uint32("term", r.replicaLog.term))
+			return nil
+		}
+		if len(m.Logs) > 0 {
+			if m.Logs[len(m.Logs)-1].Index <= r.LastLogIndex() {
+				r.Panic("learner: append log reject", zap.Uint64("leader", r.leader), zap.Uint64("maxLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint64("localLastLogIndex", r.LastLogIndex()))
+				return nil
+			}
+			if !r.appendLog(m.Logs...) {
+				return ErrProposalDropped
+			}
+		}
+		r.replicaLog.leaderCommittedIndex = m.CommittedIndex
+	case MsgLeaderTermStartIndexResp: // 收到领导的任期开始索引响应
+		err := r.handleLeaderTermStartIndexResp(m.Index, m.Term)
+		if err != nil {
+			return err
+		}
 		r.disabledToSync = false        // 现在可以去同步领导的日志了
 		r.messageWait.immediatelySync() // 立马可以同步了
-		r.Info("enable to sync", zap.Uint64("leader", r.leader), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", m.Term))
+		r.Info("learner: enable to sync", zap.Uint64("leader", r.leader), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", m.Term))
 	}
 	return nil
 }
@@ -278,6 +326,9 @@ func (r *Replica) stepFollower(m Message) error {
 func (r *Replica) stepCandidate(m Message) error {
 	switch m.MsgType {
 	case MsgPing:
+		if m.ConfVersion > r.opts.Config.Version { // 如果本地配置版本小于领导的配置版本，那么请求领导的配置
+			r.send(r.newMsgConfigReq(m.From))
+		}
 		r.becomeFollower(m.Term, m.From)
 		r.send(r.newPong(m.From))
 	case MsgVoteResp:
@@ -340,6 +391,49 @@ func (r *Replica) appendLog(logs ...Log) (accepted bool) {
 	}
 	r.replicaLog.appendLog(logs...)
 	return true
+}
+
+func (r *Replica) handleLeaderTermStartIndexResp(index uint64, term uint32) error {
+	// Follower检查本地的LeaderTermSequence
+	// 是否有term对应的StartOffset大于领导返回的LastOffset，
+	// 如果有则将当前term的startOffset设置为LastOffset，
+	// 并且当前term为最新的term（也就是删除比当前term大的LeaderTermSequence的记录）
+	if index > 0 {
+		termStartIndex, err := r.opts.Storage.LeaderTermStartIndex(term)
+		if err != nil {
+			r.Error("follower: leader term start index not found", zap.Uint32("term", term))
+			return err
+		}
+		if termStartIndex == 0 {
+			err := r.opts.Storage.SetLeaderTermStartIndex(term, index)
+			if err != nil {
+				r.Error("set leader term start index failed", zap.Error(err))
+				return err
+			}
+		} else if termStartIndex > index {
+			err := r.opts.Storage.SetLeaderTermStartIndex(term, index)
+			if err != nil {
+				r.Error("set leader term start index failed", zap.Error(err))
+				return err
+			}
+			err = r.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(term)
+			if err != nil {
+				r.Error("delete leader term start index failed", zap.Error(err))
+				return err
+			}
+		}
+		r.Info("truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", term), zap.Uint64("index", index))
+		err = r.opts.Storage.TruncateLogTo(index)
+		if err != nil {
+			r.Error("truncate log failed", zap.Error(err))
+			return err
+		}
+		r.replicaLog.unstable.truncateLogTo(index)
+		lastIdx := r.replicaLog.lastIndex()
+		r.replicaLog.lastLogIndex = lastIdx
+		r.localLeaderLastTerm = term
+	}
+	return nil
 }
 
 // func (r *Replica) getLogs(startLogIndex uint64, endLogIndex uint64, limit uint32) ([]Log, error) {
@@ -472,7 +566,7 @@ func (r *Replica) updateFollowCommittedIndex(leaderCommittedIndex uint64) {
 	newCommittedIndex := r.committedIndexForFollow(leaderCommittedIndex)
 	if newCommittedIndex > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommittedIndex
-		r.Debug("update follow committed index", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", r.replicaLog.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Debug("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.replicaLog.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 }
 
@@ -526,6 +620,17 @@ func (r *Replica) sendPingIfNeed() bool {
 			hasPing = true
 		}
 	}
+	if len(r.opts.Config.Learners) > 0 {
+		for _, replicaId := range r.opts.Config.Learners {
+			if replicaId == r.opts.NodeId {
+				continue
+			}
+			if !r.isActiveReplica(replicaId) {
+				r.send(r.newPing(replicaId))
+				hasPing = true
+			}
+		}
+	}
 	r.messageWait.resetPing()
 	return hasPing
 
@@ -540,6 +645,15 @@ func (r *Replica) sendPing() {
 			continue
 		}
 		r.send(r.newPing(replicaId))
+	}
+	if len(r.opts.Config.Learners) > 0 {
+		r.Debug("learners------------->zzz->", zap.Any("learners", r.opts.Config.Learners))
+		for _, replicaId := range r.opts.Config.Learners {
+			if replicaId == r.opts.NodeId {
+				continue
+			}
+			r.send(r.newPing(replicaId))
+		}
 	}
 }
 

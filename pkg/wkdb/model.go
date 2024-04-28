@@ -275,15 +275,29 @@ func IsEmptyChannelClusterConfig(cfg ChannelClusterConfig) bool {
 	return strings.TrimSpace(cfg.ChannelId) == ""
 }
 
+type ChannelClusterStatus uint8
+
+const (
+	ChannelClusterStatusNormal         ChannelClusterStatus = iota // 正常
+	ChannelClusterStatusCandidate                                  // 候选者
+	ChannelClusterStatusLeaderTransfer                             // 领导者转移
+)
+
 // 频道分布式配置
 type ChannelClusterConfig struct {
-	Id              uint64   // ID
-	ChannelId       string   // 频道ID
-	ChannelType     uint8    // 频道类型
-	ReplicaMaxCount uint16   // 副本最大数量
-	Replicas        []uint64 // 副本节点ID集合
-	LeaderId        uint64   // 领导者ID
-	Term            uint32   // 任期
+	Id               uint64               // ID
+	ChannelId        string               // 频道ID
+	ChannelType      uint8                // 频道类型
+	ReplicaMaxCount  uint16               // 副本最大数量
+	Replicas         []uint64             // 副本节点ID集合
+	Learners         []uint64             // 学习者节点ID集合
+	LeaderId         uint64               // 领导者ID
+	Term             uint32               // 任期
+	MigrateFrom      uint64               // 迁移源
+	MigrateTo        uint64               // 迁移目标
+	LeaderTransferTo uint64               // 领导者转移目标
+	Status           ChannelClusterStatus // 状态
+	ConfVersion      uint64               // 配置文件版本号
 
 	version uint16 // 数据协议版本
 }
@@ -302,8 +316,19 @@ func (c *ChannelClusterConfig) Marshal() ([]byte, error) {
 			enc.WriteUint64(replica)
 		}
 	}
+	enc.WriteUint16(uint16(len(c.Learners)))
+	if len(c.Learners) > 0 {
+		for _, learner := range c.Learners {
+			enc.WriteUint64(learner)
+		}
+	}
 	enc.WriteUint64(c.LeaderId)
 	enc.WriteUint32(c.Term)
+	enc.WriteUint64(c.MigrateFrom)
+	enc.WriteUint64(c.MigrateTo)
+	enc.WriteUint64(c.LeaderTransferTo)
+	enc.WriteUint8(uint8(c.Status))
+	enc.WriteUint64(c.ConfVersion)
 	return enc.Bytes(), nil
 }
 
@@ -334,16 +359,102 @@ func (c *ChannelClusterConfig) Unmarshal(data []byte) error {
 			}
 		}
 	}
+
+	var learnersLen uint16
+	if learnersLen, err = dec.Uint16(); err != nil {
+		return err
+	}
+
+	if learnersLen > 0 {
+		c.Learners = make([]uint64, learnersLen)
+		for i := uint16(0); i < learnersLen; i++ {
+			if c.Learners[i], err = dec.Uint64(); err != nil {
+				return err
+			}
+		}
+	}
+
 	if c.LeaderId, err = dec.Uint64(); err != nil {
 		return err
 	}
 	if c.Term, err = dec.Uint32(); err != nil {
 		return err
 	}
+	if c.MigrateFrom, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	if c.MigrateTo, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	if c.LeaderTransferTo, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	if c.ConfVersion, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	var status uint8
+	if status, err = dec.Uint8(); err != nil {
+		return err
+	}
+	c.Status = ChannelClusterStatus(status)
 	return nil
 }
 
 func (c *ChannelClusterConfig) String() string {
 	return fmt.Sprintf("ChannelId: %s, ChannelType: %d, ReplicaMaxCount: %d, Replicas: %v, LeaderId: %d, Term: %d",
 		c.ChannelId, c.ChannelType, c.ReplicaMaxCount, c.Replicas, c.LeaderId, c.Term)
+}
+
+type UpdateSessionUpdatedAtModel struct {
+	Uids        []string
+	ChannelId   string
+	ChannelType uint8
+}
+
+func (u *UpdateSessionUpdatedAtModel) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint16(uint16(len(u.Uids)))
+	for _, uid := range u.Uids {
+		enc.WriteString(uid)
+	}
+	enc.WriteString(u.ChannelId)
+	enc.WriteUint8(u.ChannelType)
+	return enc.Bytes(), nil
+}
+
+func (u *UpdateSessionUpdatedAtModel) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var size uint16
+	if size, err = dec.Uint16(); err != nil {
+		return err
+	}
+	for i := 0; i < int(size); i++ {
+		uid, err := dec.String()
+		if err != nil {
+			return err
+		}
+		u.Uids = append(u.Uids, uid)
+	}
+	if u.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if u.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *UpdateSessionUpdatedAtModel) Size() int {
+	size := 2 // uid len
+	for _, uid := range u.Uids {
+		size = size + 2 + len(uid) // string len + uid
+	}
+	size = size + 2 + len(u.ChannelId) + 1 // string len + channel id + channel type
+	return size
 }

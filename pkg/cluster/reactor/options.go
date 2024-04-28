@@ -71,7 +71,7 @@ func NewOptions(opt ...Option) *Options {
 		InitialTaskQueueCap:     100,
 		TaskPoolSize:            10000,
 		MaxProposeLogCount:      1000,
-		EnableLazyCatchUp:       true,
+		EnableLazyCatchUp:       false,
 		IsCommittedAfterApplied: false,
 		AutoSlowDownOn:          false,
 		LeaderTimeoutMaxTick:    25,

@@ -7,9 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
+	"github.com/panjf2000/ants/v2"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +22,7 @@ type ConversationManager struct {
 	stopper *syncutil.Stopper
 	s       *Server
 	wklog.Log
+	savePool *ants.Pool // 保存session的协程池
 }
 
 func NewConversationManager(s *Server) *ConversationManager {
@@ -31,6 +36,10 @@ func NewConversationManager(s *Server) *ConversationManager {
 	if err != nil {
 		cm.Panic("Failed to create cache", zap.Error(err))
 
+	}
+	cm.savePool, err = ants.NewPool(s.opts.Conversation.SavePoolSize)
+	if err != nil {
+		cm.Panic("Failed to create save pool", zap.Error(err))
 	}
 	return cm
 }
@@ -71,7 +80,15 @@ func (c *ConversationManager) loop() {
 func (c *ConversationManager) save() {
 	keys := c.cache.Keys()
 	var err error
+
+	slotSessionMap := make(map[uint32][]*wkdb.UpdateSessionUpdatedAtModel)
+	var byteSize uint64
 	for _, key := range keys {
+
+		if c.s.opts.Conversation.BytesPerSave > 0 && byteSize > c.s.opts.Conversation.BytesPerSave { // 超过保存的字节数，就退出
+			break
+		}
+
 		channelSubscribers, ok := c.cache.Get(key)
 		if !ok {
 			continue
@@ -85,25 +102,78 @@ func (c *ConversationManager) save() {
 		}
 
 		if len(subscribers) == 1 {
-			fmt.Println("UpdateSessionUpdatedAt1:", subscribers[0])
 			slotId := c.s.getSlotId(subscribers[0])
-			err = c.s.store.UpdateSessionUpdatedAt(slotId, subscribers, channelId, channelType)
-			if err != nil {
-				c.Error("Failed to update session", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			model := &wkdb.UpdateSessionUpdatedAtModel{
+				Uids:        subscribers,
+				ChannelId:   channelId,
+				ChannelType: channelType,
 			}
+			slotSessionMap[slotId] = append(slotSessionMap[slotId], model)
+			byteSize += uint64(model.Size())
+
 		} else {
 			slotSubscribersMap := c.subscribersSplitBySlotId(subscribers) // 按照slotId来分组subscribers
 			for slotId, slotSubscribers := range slotSubscribersMap {
-				fmt.Println("UpdateSessionUpdatedAt2:", slotId, "slotSubscribers:", slotSubscribers)
-				err = c.s.store.UpdateSessionUpdatedAt(slotId, slotSubscribers, channelId, channelType)
-				if err != nil {
-					c.Error("Failed to update session", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+				model := &wkdb.UpdateSessionUpdatedAtModel{
+					Uids:        slotSubscribers,
+					ChannelId:   channelId,
+					ChannelType: channelType,
 				}
+				slotSessionMap[slotId] = append(slotSessionMap[slotId], model)
+				byteSize += uint64(model.Size())
 			}
+
 		}
 
 		c.cache.Remove(key)
 	}
+	if len(slotSessionMap) == 0 {
+		return
+	}
+
+	for slotId, models := range slotSessionMap {
+		running := c.savePool.Running()
+		if running > c.s.opts.Conversation.SavePoolSize+10 {
+			c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
+		}
+		err = c.savePool.Submit(func(stid uint32, ms []*wkdb.UpdateSessionUpdatedAtModel) func() {
+			return func() {
+				err = c.s.store.UpdateSessionUpdatedAt(stid, ms)
+				if err != nil {
+					c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
+					// 如果失败 则重新加入队列里
+					for _, model := range ms {
+						c.Push(model.ChannelId, model.ChannelType, model.Uids)
+					}
+				}
+			}
+		}(slotId, models))
+		if err != nil {
+			c.Error("Failed to submit save pool", zap.Error(err))
+		}
+	}
+
+}
+
+// 从换成中获取用户的会话channel
+func (c *ConversationManager) GetUserChannelFromCache(uid string) []wkproto.Channel {
+	keys := c.cache.Keys()
+
+	var channels []wkproto.Channel
+	for _, key := range keys {
+		channelId, channelType := c.channelFromKey(key)
+		subscribers, _ := c.cache.Get(key)
+		if subscribers != nil {
+			if wkutil.ArrayContains(subscribers.subscribers(), uid) {
+				channel := wkproto.Channel{
+					ChannelID:   channelId,
+					ChannelType: channelType,
+				}
+				channels = append(channels, channel)
+			}
+		}
+	}
+	return channels
 }
 
 // 按slotId来分组subscribers

@@ -63,22 +63,23 @@ const (
 )
 
 const (
-	RoleFollower Role = iota
-	RoleCandidate
-	RoleLeader
+	RoleFollower  Role = iota // 追随者
+	RoleCandidate             // 候选者
+	RoleLeader                // 领导
+	RoleLearner               // 学习者
 )
 
 type MsgType uint16
 
 const (
 	MsgUnknown  MsgType = iota // 未知
-	MsgVote                    // 请求投票
+	MsgVoteReq                 // 请求投票
 	MsgVoteResp                // 请求投票响应
 	MsgPropose                 // 提案（领导）
 	MsgHup                     // 开始选举
 	// MsgNotifySync                 // 通知追随者同步日志（领导）
 	// MsgNotifySyncAck              // 通知追随者同步日志回执（领导）
-	MsgSync                     // 同步日志 （追随者）
+	MsgSyncReq                  // 同步日志 （追随者）
 	MsgSyncGet                  // 同步日志获取（领导，本地）
 	MsgSyncGetResp              // 同步日志获取响应（追随者）
 	MsgSyncResp                 // 同步日志响应（领导）
@@ -86,11 +87,13 @@ const (
 	MsgLeaderTermStartIndexResp // 领导任期开始偏移量响应（领导）
 	MsgStoreAppend              // 存储追加日志
 	MsgStoreAppendResp          // 存储追加日志响应
-	MsgApplyLogsReq             // 应用日志请求
+	MsgApplyLogs                // 应用日志请求
 	MsgApplyLogsResp            // 应用日志响应
 	MsgBeat                     // 触发ping
 	MsgPing                     // ping
 	MsgPong                     // pong
+	MsgConfigReq                // 配置请求
+	MsgConfigResp               // 配置响应
 	MsgMaxValue
 )
 
@@ -98,16 +101,16 @@ func (m MsgType) String() string {
 	switch m {
 	case MsgUnknown:
 		return "MsgUnknown[0]"
-	case MsgVote:
-		return "MsgVote"
+	case MsgVoteReq:
+		return "MsgVoteReq"
 	case MsgVoteResp:
 		return "MsgVoteResp"
 	case MsgHup:
 		return "MsgHup"
 	case MsgPropose:
 		return "MsgPropose"
-	case MsgSync:
-		return "MsgSync"
+	case MsgSyncReq:
+		return "MsgSyncReq"
 	case MsgSyncGet:
 		return "MsgSyncGet"
 	case MsgSyncGetResp:
@@ -118,8 +121,8 @@ func (m MsgType) String() string {
 		return "MsgLeaderTermStartIndexReq"
 	case MsgLeaderTermStartIndexResp:
 		return "MsgLeaderTermStartIndexResp"
-	case MsgApplyLogsReq:
-		return "MsgApplyLogsReq"
+	case MsgApplyLogs:
+		return "MsgApplyLogs"
 	case MsgApplyLogsResp:
 		return "MsgApplyLogsResp"
 	case MsgBeat:
@@ -132,6 +135,10 @@ func (m MsgType) String() string {
 		return "MsgStoreAppend"
 	case MsgStoreAppendResp:
 		return "MsgStoreAppendResp"
+	case MsgConfigReq:
+		return "MsgConfigReq"
+	case MsgConfigResp:
+		return "MsgConfigResp"
 	default:
 		return fmt.Sprintf("MsgUnkown[%d]", m)
 	}
@@ -144,21 +151,21 @@ type Message struct {
 	From           uint64
 	To             uint64
 	Term           uint32 // 领导任期
-	Logs           []Log
 	Index          uint64
 	CommittedIndex uint64 // 已提交日志下标
 
 	ApplyingIndex uint64 // 应用中的下表
 	AppliedIndex  uint64
 
-	SpeedLevel SpeedLevel // 只有msgSync和ping才编码
-
-	Reject bool // 拒绝
+	SpeedLevel  SpeedLevel // 只有msgSync和ping才编码
+	Reject      bool       // 拒绝
+	ConfVersion uint64     // 配置版本
+	Logs        []Log
 }
 
 func (m Message) Marshal() ([]byte, error) {
 
-	if m.MsgType == MsgSync {
+	if m.MsgType == MsgSyncReq {
 		return m.MarshalMsgSync(), nil
 	}
 	resultBytes := make([]byte, m.Size())
@@ -175,7 +182,9 @@ func (m Message) Marshal() ([]byte, error) {
 	}
 	resultBytes[39] = b
 
-	offset := 40
+	binary.BigEndian.PutUint64(resultBytes[40:], m.ConfVersion)
+
+	offset := 48
 	for _, l := range m.Logs {
 		logData, err := l.Marshal()
 		if err != nil {
@@ -203,7 +212,7 @@ func (m Message) MarshalMsgSync() []byte {
 func UnmarshalMessage(data []byte) (Message, error) {
 
 	msgType := binary.BigEndian.Uint16(data[0:2])
-	if msgType == uint16(MsgSync) {
+	if msgType == uint16(MsgSyncReq) {
 		return UnmarshalMessageSync(data)
 	}
 
@@ -216,8 +225,9 @@ func UnmarshalMessage(data []byte) (Message, error) {
 	m.CommittedIndex = binary.BigEndian.Uint64(data[30:38])
 	m.SpeedLevel = SpeedLevel(data[38])
 	m.Reject = data[39] == 1
+	m.ConfVersion = binary.BigEndian.Uint64(data[40:48])
 
-	offset := 40
+	offset := 48
 	for offset < len(data) {
 		logLen := binary.BigEndian.Uint16(data[offset : offset+2])
 		offset += 2
@@ -234,7 +244,7 @@ func UnmarshalMessage(data []byte) (Message, error) {
 
 func UnmarshalMessageSync(data []byte) (Message, error) {
 	m := Message{}
-	m.MsgType = MsgSync
+	m.MsgType = MsgSyncReq
 	m.From = binary.BigEndian.Uint64(data[2:10])
 	m.To = binary.BigEndian.Uint64(data[10:18])
 	m.Index = binary.BigEndian.Uint64(data[18:26])
@@ -284,7 +294,7 @@ func MsgSyncFixSize() int {
 // }
 
 func (m Message) Size() int {
-	size := 2 + 8 + 8 + 4 + 8 + 8 + 1 + 1 // msgType + from + to + term   + index + committedIndex + speedLevel +reject
+	size := 2 + 8 + 8 + 4 + 8 + 8 + 1 + 1 + 8 // msgType + from + to + term   + index + committedIndex + speedLevel +reject + confVersion
 	for _, l := range m.Logs {
 		size += 2 // log len
 		size += l.LogSize()
@@ -411,3 +421,61 @@ const (
 	LevelSlowest                   // 最慢速度
 	LevelStop                      // 停止
 )
+
+type Config struct {
+	Replicas []uint64 // 副本集合（包含当前节点自己）
+	Learners []uint64 // 学习节点集合
+	Version  uint64   // 配置版本
+}
+
+func NewConfig() *Config {
+	return &Config{}
+}
+
+func (c *Config) Marshal() ([]byte, error) {
+
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(uint32(len(c.Replicas)))
+	for _, id := range c.Replicas {
+		enc.WriteUint64(id)
+	}
+	enc.WriteUint32(uint32(len(c.Learners)))
+	for _, id := range c.Learners {
+		enc.WriteUint64(id)
+	}
+	enc.WriteUint64(c.Version)
+	return enc.Bytes(), nil
+}
+
+func (c *Config) Unmarshal(data []byte) error {
+
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var size uint32
+	if size, err = dec.Uint32(); err != nil {
+		return err
+	}
+	c.Replicas = make([]uint64, size)
+	for i := 0; i < int(size); i++ {
+		if c.Replicas[i], err = dec.Uint64(); err != nil {
+			return err
+		}
+	}
+
+	if size, err = dec.Uint32(); err != nil {
+		return err
+	}
+	c.Learners = make([]uint64, size)
+	for i := 0; i < int(size); i++ {
+		if c.Learners[i], err = dec.Uint64(); err != nil {
+			return err
+		}
+	}
+
+	if c.Version, err = dec.Uint64(); err != nil {
+		return err
+	}
+	return nil
+
+}

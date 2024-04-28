@@ -122,16 +122,19 @@ func TestTruncateLogTo(t *testing.T) {
 	err = d.AppendMessages(channelId, channelType, messages)
 	assert.NoError(t, err)
 
-	err = d.TruncateLogTo(channelId, channelType, 50)
+	err = d.SetChannelLastMessageSeq(channelId, channelType, uint64(messages[len(messages)-1].MessageSeq))
 	assert.NoError(t, err)
 
-	seq, _, err := d.GetChannelLastMessageSeq(channelId, channelType)
+	err = d.TruncateLogTo(channelId, channelType, 51)
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(50), seq)
 
-	resultMessages, err := d.LoadPrevRangeMsgs(channelId, channelType, 50, 0, 50)
+	resultMessages, err := d.LoadNextRangeMsgs(channelId, channelType, 51, 0, 0)
 	assert.NoError(t, err)
-	assert.Len(t, resultMessages, 50)
+	assert.Equal(t, 0, len(resultMessages))
+
+	resultMessages, err = d.LoadNextRangeMsgs(channelId, channelType, 0, 51, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, 50, len(resultMessages))
 	assert.Equal(t, uint32(1), resultMessages[0].MessageSeq)
 	assert.Equal(t, uint32(50), resultMessages[len(resultMessages)-1].MessageSeq)
 }

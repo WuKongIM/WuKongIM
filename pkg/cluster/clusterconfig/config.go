@@ -250,7 +250,7 @@ func (c *Config) allowVoteNodes() []*pb.Node {
 	return nodes
 }
 
-// 获取允许投票的并且已经加入了的节点数量
+// 获取允许投票的并且已经加入了的节点集合
 func (c *Config) allowVoteAndJoinedNodes() []*pb.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -261,6 +261,19 @@ func (c *Config) allowVoteAndJoinedNodes() []*pb.Node {
 		}
 	}
 	return nodes
+}
+
+// 获取允许投票的并且已经加入了的节点数量
+func (c *Config) allowVoteAndJoinedNodeCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var count int
+	for _, node := range c.cfg.Nodes {
+		if node.AllowVote && node.Status == pb.NodeStatus_NodeStatusJoined {
+			count++
+		}
+	}
+	return count
 }
 
 // 获取所有在线节点
