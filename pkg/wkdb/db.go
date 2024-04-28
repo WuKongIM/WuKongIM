@@ -189,7 +189,7 @@ type SessionDB interface {
 	// GetSessionByChannel 获取用户某个频道的session
 	GetSessionByChannel(uid string, channelId string, channelType uint8) (Session, error)
 	//	 UpdateSessionUpdatedAt 更新session的更新时间
-	UpdateSessionUpdatedAt(uids []string, channelId string, channelType uint8) error
+	UpdateSessionUpdatedAt(models []*UpdateSessionUpdatedAtModel) error
 	//	 GetLastSessionsByUid 获取用户最近的session
 	// limit 为0表示不做限制
 	GetLastSessionsByUid(uid string, limit int) ([]Session, error)

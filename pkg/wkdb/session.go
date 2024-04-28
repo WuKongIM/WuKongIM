@@ -157,29 +157,36 @@ func (wk *wukongDB) GetSessionByChannel(uid string, channelId string, channelTyp
 	return wk.GetSession(uid, sessionId)
 }
 
-func (wk *wukongDB) UpdateSessionUpdatedAt(uids []string, channelId string, channelType uint8) error {
+func (wk *wukongDB) UpdateSessionUpdatedAt(models []*UpdateSessionUpdatedAtModel) error {
+
+	wk.dblock.updateSessionUpdatedAtLock.Lock()
+	defer wk.dblock.updateSessionUpdatedAtLock.Unlock()
 
 	dbUidsMap := make(map[uint32][]string)
-	for _, uid := range uids {
-		shardId := wk.shardId(uid)
-		dbUidsMap[shardId] = append(dbUidsMap[shardId], uid)
-	}
 
-	for shardId, uids := range dbUidsMap {
-		if err := wk.updateSessionUpdatedAt(shardId, uids, channelId, channelType); err != nil {
-			return err
+	for _, model := range models {
+		for _, uid := range model.Uids {
+			shardId := wk.shardId(uid)
+			dbUidsMap[shardId] = append(dbUidsMap[shardId], uid)
+		}
+
+		for shardId, uids := range dbUidsMap {
+			shardDB := wk.shardDBById(shardId)
+			batch := shardDB.NewBatch()
+			defer batch.Close()
+			if err := wk.updateSessionUpdatedAt(uids, model.ChannelId, model.ChannelType, batch); err != nil {
+				return err
+			}
+			if err := batch.Commit(wk.wo); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (wk *wukongDB) updateSessionUpdatedAt(shardId uint32, uids []string, channelId string, channelType uint8) error {
-	db := wk.shardDBById(shardId)
-
-	w := db.NewBatch()
-	defer w.Close()
-
+func (wk *wukongDB) updateSessionUpdatedAt(uids []string, channelId string, channelType uint8, w pebble.Writer) error {
 	nw := time.Now()
 	updatedAtBytes := make([]byte, 8)
 	wk.endian.PutUint64(updatedAtBytes, uint64(nw.UnixNano()))
@@ -209,7 +216,7 @@ func (wk *wukongDB) updateSessionUpdatedAt(shardId uint32, uids []string, channe
 		}
 	}
 
-	return w.Commit(wk.wo)
+	return nil
 }
 
 func (wk *wukongDB) GetLastSessionsByUid(uid string, limit int) ([]Session, error) {

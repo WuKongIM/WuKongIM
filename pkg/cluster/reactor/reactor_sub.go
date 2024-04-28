@@ -211,7 +211,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			continue
 		}
 
-		if m.MsgType == replica.MsgSync {
+		if m.MsgType == replica.MsgSyncReq {
 			switch handler.sync.syncStatus {
 			case syncStatusNone:
 				handler.sync.startSyncTime = time.Now()
@@ -232,13 +232,13 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			}
 		}
 
-		// if r.opts.ReactorType == ReactorTypeChannel {
-		// 	if m.MsgType == replica.MsgSync {
-		// 		r.Info("sync...")
-		// 	} else if m.MsgType == replica.MsgSyncResp {
-		// 		r.Info("syncResp...")
-		// 	}
-		// }
+		if r.opts.ReactorType == ReactorTypeChannel {
+			// if m.MsgType == replica.MsgSyncReq {
+			// 	r.Info("sync...")
+			// } else if m.MsgType == replica.MsgSyncResp {
+			// 	r.Info("syncResp...")
+			// }
+		}
 
 		if r.opts.AutoSlowDownOn {
 			if m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0 { // 还有副本同步到日志，不降速
@@ -571,7 +571,7 @@ func (r *ReactorSub) handleLocalMsg(handler *handler, msg replica.Message) {
 		r.handleSyncGet(handler, msg)
 	case replica.MsgStoreAppend:
 		r.handleStoreAppend(handler, msg)
-	case replica.MsgApplyLogsReq:
+	case replica.MsgApplyLogs:
 		r.handleApplyLogsReq(handler, msg)
 	case replica.MsgVoteResp:
 		err := handler.step(msg)
@@ -585,7 +585,6 @@ func (r *ReactorSub) handleSyncGet(handler *handler, msg replica.Message) {
 	if msg.Index <= 0 {
 		return
 	}
-	r.Debug("query logs", zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
 	tk := newGetLogsTask(msg.From, msg.Index)
 
 	lastIndex := handler.lastIndex.Load()
@@ -639,7 +638,7 @@ func (r *ReactorSub) handleStoreAppend(handler *handler, msg replica.Message) {
 		if r.opts.EnableLazyCatchUp {
 			end := time.Since(start)
 			if end > time.Millisecond*100 {
-				r.Info("append logs", zap.Duration("cost", end), zap.Int("logs", len(msg.Logs)), zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
+				r.Debug("append logs", zap.Duration("cost", end), zap.Int("logs", len(msg.Logs)), zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
 			}
 		}
 		return nil
@@ -719,6 +718,12 @@ func (r *ReactorSub) handlerLen() int {
 }
 
 func (r *ReactorSub) addMessage(m Message) {
+
+	if r.opts.ReactorType == ReactorTypeChannel {
+		if m.MsgType == replica.MsgPing {
+			r.Debug("add message", zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.Message.MsgType.String()))
+		}
+	}
 
 	handler := r.handlers.get(m.HandlerKey)
 	if handler == nil {

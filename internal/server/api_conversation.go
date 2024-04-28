@@ -397,6 +397,37 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		resps = append(resps, syncUserConversationR)
 	}
 
+	// 获取还没保存的最近会话的频道
+	recentChannels := s.s.conversationManager.GetUserChannelFromCache(req.UID)
+
+	// 将还没保存的频道也作为最近会话返回
+	for _, recentChannel := range recentChannels {
+		exist := false
+		for _, channelRecentMessageReq := range channelRecentMessageReqs {
+			if channelRecentMessageReq.ChannelID == recentChannel.ChannelID && channelRecentMessageReq.ChannelType == recentChannel.ChannelType {
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
+				ChannelID:   recentChannel.ChannelID,
+				ChannelType: recentChannel.ChannelType,
+				LastMsgSeq:  channelLastMsgMap[fmt.Sprintf("%s-%d", recentChannel.ChannelID, recentChannel.ChannelType)],
+			})
+			syncUserConversationR := newSyncUserConversationResp(wkdb.Conversation{
+				Uid:            req.UID,
+				UnreadCount:    0,
+				ReadedToMsgSeq: 0,
+			}, wkdb.Session{
+				Uid:         req.UID,
+				ChannelId:   recentChannel.ChannelID,
+				ChannelType: recentChannel.ChannelType,
+			})
+			resps = append(resps, syncUserConversationR)
+		}
+	}
+
 	// ==================== 获取最近会话的最近的消息列表 ====================
 	if req.MsgCount > 0 {
 		var channelRecentMessages []*channelRecentMessage

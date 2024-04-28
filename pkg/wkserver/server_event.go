@@ -162,6 +162,7 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 		s.Debug("route not found", zap.String("path", req.Path))
 		return
 	}
+	s.Debug("request path", zap.String("path", req.Path), zap.String("from", conn.UID()))
 	ctx := NewContext(conn)
 	ctx.req = req
 	ctx.proto = s.proto

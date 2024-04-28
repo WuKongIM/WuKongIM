@@ -125,6 +125,12 @@ func WithSlotMaxReplicaCount(slotMaxReplicaCount uint32) Option {
 	}
 }
 
+func WithChannelMaxReplicaCount(channelMaxReplicaCount uint32) Option {
+	return func(o *Options) {
+		o.ChannelMaxReplicaCount = channelMaxReplicaCount
+	}
+}
+
 func WithOnAppliedConfig(f func()) Option {
 	return func(o *Options) {
 		o.Event.OnAppliedConfig = f

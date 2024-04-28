@@ -114,7 +114,7 @@ func newEncoderConfig() zapcore.EncoderConfig {
 		EncodeCaller:  zapcore.FullCallerEncoder,     // 全路径编码器
 		EncodeName:    zapcore.FullNameEncoder,
 		EncodeTime: func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString(t.Format("2006-01-02 15:04:05"))
+			enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
 		},
 		EncodeDuration: func(d time.Duration, enc zapcore.PrimitiveArrayEncoder) {
 			enc.AppendInt64(int64(d) / 1000000)

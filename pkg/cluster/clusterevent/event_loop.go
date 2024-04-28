@@ -189,9 +189,8 @@ func (s *Server) checkNodeOnlineStatus() bool {
 }
 
 func (s *Server) checkNodes() {
-	fmt.Println("checkNodes---->", len(s.preRemoteCfg.Nodes), len(s.localCfg.Nodes))
 	// ==================== check add or update node ====================
-	newNodes := make([]*pb.Node, 0, len(s.preRemoteCfg.Nodes)-len(s.localCfg.Nodes))
+	newNodes := make([]*pb.Node, 0, len(s.preRemoteCfg.Nodes))
 	updateNodes := make([]*pb.Node, 0, len(s.preRemoteCfg.Nodes))
 	for _, remoteNode := range s.preRemoteCfg.Nodes {
 		exist := false
@@ -673,9 +672,7 @@ func (s *Server) checkSlotMigrateStart() bool {
 	if len(slots) == 0 {
 		return false
 	}
-	if !s.hasMigrate() {
-		return false
-	}
+
 	if !s.hasGraduateLearner() { // 没有毕业的学习者
 		return false
 	}
@@ -689,31 +686,32 @@ func (s *Server) checkSlotMigrateStart() bool {
 			if learner.Status != pb.LearnerStatus_LearnerStatusGraduate {
 				continue
 			}
-			if slot.MigrateTo == 0 || slot.MigrateFrom == 0 {
-				continue
-			}
 
 			newSlot := slot.Clone()
-			if slot.Leader == slot.MigrateTo { // 如果迁出的节点是槽是领导者，则需要先转移领导
-				newSlot.LeaderTransferTo = slot.MigrateTo
+			if slot.MigrateTo != 0 && slot.MigrateFrom != 0 {
+				if slot.Leader == slot.MigrateTo { // 如果迁出的节点是槽是领导者，则需要先转移领导
+					newSlot.LeaderTransferTo = slot.MigrateTo
+					newSlot.Status = pb.SlotStatus_SlotStatusLeaderTransfer
+				} else { // 如果迁出的槽不是领导者，则直接开始迁移
+					if !wkutil.ArrayContainsUint64(slot.Replicas, slot.MigrateTo) { // 没在副本列表，则添加到副本列表里
+						newSlot.Replicas = append(newSlot.Replicas, slot.MigrateTo)
+					}
+				}
+				// 移除MigrateFrom的副本
+				for i, replicaId := range newSlot.Replicas {
+					if replicaId == slot.MigrateFrom {
+						newSlot.Replicas = append(newSlot.Replicas[:i], newSlot.Replicas[i+1:]...)
+						break
+					}
+				}
 				newSlot.MigrateFrom = 0
 				newSlot.MigrateTo = 0
-				newSlot.Status = pb.SlotStatus_SlotStatusLeaderTransfer
-			} else { // 如果迁出的槽不是领导者，则直接开始迁移
-				if !wkutil.ArrayContainsUint64(slot.Replicas, slot.MigrateTo) { // 没在副本列表，则添加到副本列表里
-					newSlot.Replicas = append(newSlot.Replicas, slot.MigrateTo)
-				}
-			}
-			// 移除MigrateFrom的副本
-			for i, replicaId := range newSlot.Replicas {
-				if replicaId == slot.MigrateFrom {
-					newSlot.Replicas = append(newSlot.Replicas[:i], newSlot.Replicas[i+1:]...)
-					break
+			} else {
+				if !wkutil.ArrayContainsUint64(slot.Replicas, learner.LearnerId) { // 没在副本列表，则添加到副本列表里
+					newSlot.Replicas = append(newSlot.Replicas, learner.LearnerId)
 				}
 			}
 
-			newSlot.MigrateFrom = 0
-			newSlot.MigrateTo = 0
 			// 删除合并完成的学习者
 			for i, lr := range newSlot.Learners {
 				if lr.LearnerId == learner.LearnerId {

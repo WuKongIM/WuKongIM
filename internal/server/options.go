@@ -108,6 +108,9 @@ type Options struct {
 		SyncInterval time.Duration // 最近会话同步间隔
 		SyncOnce     int           //  当多少最近会话数量发送变化就保存一次
 		UserMaxCount int           // 每个用户最大最近会话数量 默认为500
+		BytesPerSave uint64        // 每次保存的最近会话数据大小 如果为0 则表示不限制
+		SavePoolSize int           // 保存最近会话协程池大小
+
 	}
 	ManagerToken   string // 管理者的token
 	ManagerUID     string // 管理者的uid
@@ -230,12 +233,16 @@ func NewOptions() *Options {
 			SyncInterval time.Duration
 			SyncOnce     int
 			UserMaxCount int
+			BytesPerSave uint64
+			SavePoolSize int
 		}{
 			On:           true,
 			CacheExpire:  time.Hour * 24 * 1, // 1天过期
 			UserMaxCount: 1000,
-			SyncInterval: time.Second * 2,
+			SyncInterval: time.Minute * 1,
 			SyncOnce:     100,
+			BytesPerSave: 1024 * 1024 * 5,
+			SavePoolSize: 100,
 		},
 		DeliveryMsgPoolSize: 10240,
 		EventPoolSize:       1024,
@@ -411,6 +418,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Conversation.SyncInterval = o.getDuration("conversation.syncInterval", o.Conversation.SyncInterval)
 	o.Conversation.SyncOnce = o.getInt("conversation.syncOnce", o.Conversation.SyncOnce)
 	o.Conversation.UserMaxCount = o.getInt("conversation.userMaxCount", o.Conversation.UserMaxCount)
+	o.Conversation.BytesPerSave = o.getUint64("conversation.bytesPerSave", o.Conversation.BytesPerSave)
 
 	if o.WSSConfig.CertFile != "" && o.WSSConfig.KeyFile != "" {
 		certificate, err := tls.LoadX509KeyPair(o.WSSConfig.CertFile, o.WSSConfig.KeyFile)

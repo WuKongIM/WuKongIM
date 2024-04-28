@@ -57,7 +57,9 @@ func newHandler(cfg *Config, storage *PebbleShardLogStorage, opts *Options) *han
 	// 	})
 	// }
 
-	h.rc = replica.New(opts.NodeId, replica.WithLogPrefix("config"), replica.WithReplicas(replicas), replica.WithElectionOn(true), replica.WithStorage(h.storage), replica.WithAppliedIndex(cfg.version()))
+	h.rc = replica.New(opts.NodeId, replica.WithLogPrefix("config"), replica.WithConfig(&replica.Config{
+		Replicas: replicas,
+	}), replica.WithElectionOn(true), replica.WithStorage(h.storage), replica.WithAppliedIndex(cfg.version()))
 	return h
 }
 
@@ -67,7 +69,9 @@ func (h *handler) updateConfig() {
 	for _, node := range nodes {
 		replicas = append(replicas, node.Id)
 	}
-	h.rc.SetReplicas(replicas)
+	h.rc.SetConfig(&replica.Config{
+		Replicas: replicas,
+	})
 
 }
 

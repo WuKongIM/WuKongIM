@@ -3,12 +3,24 @@ package wkdb
 import (
 	"encoding/binary"
 	"math"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelClusterConfig) error {
+
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			wk.Debug("save channel cluster config", zap.Duration("cost", time.Since(start)), zap.String("channelId", channelClusterConfig.ChannelId), zap.Uint8("channelType", channelClusterConfig.ChannelType))
+		}()
+	}
+
+	wk.dblock.channelClusterConfig.lockByChannel(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
+	defer wk.dblock.channelClusterConfig.unlockByChannel(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
 
 	primaryKey, err := wk.getChannelClusterConfigPrimaryKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
 	if err != nil {
@@ -17,11 +29,14 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 	if primaryKey == 0 {
 		primaryKey = uint64(wk.prmaryKeyGen.Generate().Int64())
 	}
+	db := wk.defaultShardDB()
 
-	if err := wk.writeChannelClusterConfig(primaryKey, channelClusterConfig); err != nil {
+	batch := db.NewBatch()
+	defer batch.Close()
+	if err := wk.writeChannelClusterConfig(primaryKey, channelClusterConfig, batch); err != nil {
 		return err
 	}
-	return nil
+	return batch.Commit(wk.wo)
 }
 
 func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error) {
@@ -111,23 +126,22 @@ func (wk *wukongDB) getChannelClusterConfigPrimaryKey(channelId string, channelT
 	return binary.BigEndian.Uint64(primaryKey), nil
 }
 
-func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterConfig ChannelClusterConfig) error {
+func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
 
-	db := wk.defaultShardDB()
 	// channelId
-	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelId), []byte(channelClusterConfig.ChannelId), wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelId), []byte(channelClusterConfig.ChannelId), wk.noSync); err != nil {
 		return err
 	}
 
 	// channelType
-	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelType), []byte{channelClusterConfig.ChannelType}, wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelType), []byte{channelClusterConfig.ChannelType}, wk.noSync); err != nil {
 		return err
 	}
 
 	// replicaMaxCount
 	var replicaMaxCountBytes = make([]byte, 2)
 	binary.BigEndian.PutUint16(replicaMaxCountBytes, channelClusterConfig.ReplicaMaxCount)
-	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ReplicaMaxCount), replicaMaxCountBytes, wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ReplicaMaxCount), replicaMaxCountBytes, wk.noSync); err != nil {
 		return err
 	}
 
@@ -136,35 +150,79 @@ func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterC
 	for i, replica := range channelClusterConfig.Replicas {
 		binary.BigEndian.PutUint64(replicasBytes[i*8:], replica)
 	}
-	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Replicas), replicasBytes, wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Replicas), replicasBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	// learners
+	var learnersBytes = make([]byte, 8*len(channelClusterConfig.Learners))
+	for i, learner := range channelClusterConfig.Learners {
+		binary.BigEndian.PutUint64(learnersBytes[i*8:], learner)
+	}
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Learners), learnersBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// leaderId
 	leaderIdBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(leaderIdBytes, channelClusterConfig.LeaderId)
-	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.LeaderId), leaderIdBytes, wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.LeaderId), leaderIdBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// term
 	termBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(termBytes, channelClusterConfig.Term)
-	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Term), termBytes, wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Term), termBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	// migrateFrom
+	migrateFromBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(migrateFromBytes, channelClusterConfig.MigrateFrom)
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.MigrateFrom), migrateFromBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	// migrateTo
+	migrateToBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(migrateToBytes, channelClusterConfig.MigrateTo)
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.MigrateTo), migrateToBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	// leaderTransferTo
+	leaderTransferToBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(leaderTransferToBytes, channelClusterConfig.LeaderTransferTo)
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.LeaderTransferTo), leaderTransferToBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	// status
+	statusBytes := make([]byte, 1)
+	statusBytes[0] = uint8(channelClusterConfig.Status)
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Status), statusBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	// config version
+	configVersionBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(configVersionBytes, channelClusterConfig.ConfVersion)
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ConfVersion), configVersionBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	//version
 	versionBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(versionBytes, channelClusterConfig.version)
-	if err := db.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Version), versionBytes, wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Version), versionBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// channel index
 	primaryKeyBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(primaryKeyBytes, primaryKey)
-	if err := db.Set(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), primaryKeyBytes, wk.wo); err != nil {
+	if err := w.Set(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), primaryKeyBytes, wk.noSync); err != nil {
 		return err
 	}
 
@@ -225,10 +283,24 @@ func (wk *wukongDB) parseChannelClusterConfig(iter *pebble.Iterator, limit int, 
 				replicas[i] = wk.endian.Uint64(iter.Value()[i*8:])
 			}
 			preChannelClusterConfig.Replicas = replicas
+		case key.TableChannelClusterConfig.Column.Learners:
+			learners := make([]uint64, len(iter.Value())/8)
+			for i := 0; i < len(learners); i++ {
+				learners[i] = wk.endian.Uint64(iter.Value()[i*8:])
+			}
+			preChannelClusterConfig.Learners = learners
 		case key.TableChannelClusterConfig.Column.LeaderId:
 			preChannelClusterConfig.LeaderId = wk.endian.Uint64(iter.Value())
 		case key.TableChannelClusterConfig.Column.Term:
 			preChannelClusterConfig.Term = wk.endian.Uint32(iter.Value())
+		case key.TableChannelClusterConfig.Column.MigrateFrom:
+			preChannelClusterConfig.MigrateFrom = wk.endian.Uint64(iter.Value())
+		case key.TableChannelClusterConfig.Column.MigrateTo:
+			preChannelClusterConfig.MigrateTo = wk.endian.Uint64(iter.Value())
+		case key.TableChannelClusterConfig.Column.LeaderTransferTo:
+			preChannelClusterConfig.LeaderTransferTo = wk.endian.Uint64(iter.Value())
+		case key.TableChannelClusterConfig.Column.Status:
+			preChannelClusterConfig.Status = ChannelClusterStatus(iter.Value()[0])
 		case key.TableChannelClusterConfig.Column.Version:
 			preChannelClusterConfig.version = wk.endian.Uint16(iter.Value())
 		}

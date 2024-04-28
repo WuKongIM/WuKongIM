@@ -135,9 +135,14 @@ func (s *Server) AllowVoteNodes() []*pb.Node {
 	return s.cfg.allowVoteNodes()
 }
 
-// 获取允许投票的并且已经加入了的节点数量
+// 获取允许投票的并且已经加入了的节点集合
 func (s *Server) AllowVoteAndJoinedNodes() []*pb.Node {
 	return s.cfg.allowVoteAndJoinedNodes()
+}
+
+// 获取允许投票的并且已经加入了的节点数量
+func (s *Server) AllowVoteAndJoinedNodeCount() int {
+	return s.cfg.allowVoteAndJoinedNodeCount()
 }
 
 // OnlineNodes 获取在线节点

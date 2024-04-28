@@ -96,7 +96,7 @@ func (n *PeerInFlightQueue) processInFlightQueue(t int64) {
 			break
 		}
 		// 开始投递
-		n.s.startDeliveryPeerData(data)
+		n.s.startDeliveryPeerDataForRetry(data)
 	}
 }
 

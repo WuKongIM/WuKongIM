@@ -2,13 +2,15 @@ package replica
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
 type Replica struct {
-	nodeID   uint64
+	nodeId   uint64
 	opts     *Options
 	replicas []uint64 // 副本节点ID集合（不包含本节点）
 	// -------------------- 节点状态 --------------------
@@ -45,8 +47,8 @@ type Replica struct {
 	replicaLog      *replicaLog
 	uncommittedSize logEncodingSize
 
-	hasFirstSyncResp bool       // 是否有第一次同步的回应
-	speedLevel       SpeedLevel // 当前速度等级
+	// hasFirstSyncResp bool       // 是否有第一次同步的回应
+	speedLevel SpeedLevel // 当前速度等级
 }
 
 func New(nodeId uint64, optList ...Option) *Replica {
@@ -59,7 +61,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 		opts.Storage = NewMemoryStorage()
 	}
 	rc := &Replica{
-		nodeID:          nodeId,
+		nodeId:          nodeId,
 		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeId, opts.LogPrefix)),
 		opts:            opts,
 		lastSyncInfoMap: map[uint64]*SyncInfo{},
@@ -74,7 +76,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 	if err != nil {
 		rc.Panic("get last leader term failed", zap.Error(err))
 	}
-	for _, replicaID := range rc.opts.Replicas {
+	for _, replicaID := range rc.opts.Config.Replicas {
 		if replicaID == nodeId {
 			continue
 		}
@@ -192,6 +194,10 @@ func (r *Replica) SpeedLevel() SpeedLevel {
 	return r.speedLevel
 }
 
+func (r *Replica) Role() Role {
+	return r.role
+}
+
 func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.stepFunc = r.stepFollower
 	r.reset(term)
@@ -209,6 +215,23 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 		r.disabledToSync = true // 禁止去同步领导的日志,等待本地日志冲突解决后，再去同步领导的日志
 	}
 
+}
+
+func (r *Replica) becomeLearner(term uint32, leaderID uint64) {
+	r.stepFunc = r.stepLearner
+	r.reset(term)
+	r.tickFnc = nil
+	r.replicaLog.term = term
+	r.leader = leaderID
+	r.role = RoleLearner
+
+	r.Info("become learner", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
+	r.messageWait.immediatelySync() // 立马可以同步了
+
+	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
+		r.Info("disable to sync resolve log conflicts", zap.Uint64("leader", r.leader))
+		r.disabledToSync = true // 禁止去同步领导的日志,等待本地日志冲突解决后，再去同步领导的日志
+	}
 }
 
 func (r *Replica) becomeCandidate() {
@@ -233,13 +256,17 @@ func (r *Replica) BecomeLeader(term uint32) {
 	r.becomeLeader(term)
 }
 
+func (r *Replica) BecomeLearner(term uint32, leaderID uint64) {
+	r.becomeLearner(term, leaderID)
+}
+
 func (r *Replica) becomeLeader(term uint32) {
 
 	r.stepFunc = r.stepLeader
 	r.reset(term)
 	r.tickFnc = r.tickHeartbeat
 	r.replicaLog.term = term
-	r.leader = r.nodeID
+	r.leader = r.nodeId
 	r.role = RoleLeader
 	r.disabledToSync = false
 
@@ -265,7 +292,7 @@ func (r *Replica) becomeLeader(term uint32) {
 // 开始选举
 func (r *Replica) campaign() {
 	r.becomeCandidate()
-	for _, nodeId := range r.opts.Replicas {
+	for _, nodeId := range r.opts.Config.Replicas {
 		if nodeId == r.opts.NodeId {
 			// 自己给自己投一票
 			r.send(Message{To: nodeId, From: nodeId, Term: r.replicaLog.term, MsgType: MsgVoteResp})
@@ -277,7 +304,7 @@ func (r *Replica) campaign() {
 }
 
 func (r *Replica) sendRequestVote(nodeId uint64) {
-	r.send(r.newMsgVote(nodeId))
+	r.send(r.newMsgVoteReq(nodeId))
 }
 
 func (r *Replica) hup() {
@@ -319,23 +346,47 @@ func (r *Replica) GetReplicaLastLog(replicaId uint64) uint64 {
 	return 0
 }
 
-func (r *Replica) SetReplicas(replicas []uint64) {
-
-	r.opts.Replicas = replicas
+func (r *Replica) SetConfig(cfg *Config) {
+	r.opts.Config = cfg
 	r.replicas = nil
-	for _, replicaID := range r.opts.Replicas {
-		if replicaID == r.nodeID {
+	for _, replicaID := range cfg.Replicas {
+		if replicaID == r.nodeId {
 			continue
 		}
 		r.replicas = append(r.replicas, replicaID)
 	}
 }
 
-// HasFirstSyncResp 有收到领导的第一次同步的回应
-func (r *Replica) HasFirstSyncResp() bool {
-
-	return r.hasFirstSyncResp
+func (r *Replica) SwitchConfig(cfg *Config) {
+	r.switchConfig(cfg)
 }
+
+func (r *Replica) switchConfig(cfg *Config) {
+	r.SetConfig(cfg)
+	if r.role == RoleLearner {
+		if !wkutil.ArrayContainsUint64(cfg.Learners, r.opts.NodeId) && wkutil.ArrayContainsUint64(cfg.Replicas, r.opts.NodeId) {
+			r.becomeFollower(r.replicaLog.term, r.leader)
+		}
+	}
+}
+
+func (r *Replica) isLearner(nodeId uint64) bool {
+	if len(r.opts.Config.Learners) == 0 {
+		return false
+	}
+	for _, learner := range r.opts.Config.Learners {
+		if learner == nodeId {
+			return true
+		}
+	}
+	return false
+}
+
+// // HasFirstSyncResp 有收到领导的第一次同步的回应
+// func (r *Replica) HasFirstSyncResp() bool {
+
+// 	return r.hasFirstSyncResp
+// }
 
 func (r *Replica) isLeader() bool {
 	return r.role == RoleLeader
@@ -407,6 +458,9 @@ func (r *Replica) putMsgIfNeed() {
 			if !r.IsLeader() && r.messageWait.canMsgLeaderTermStartIndex() {
 				r.messageWait.resetMsgLeaderTermStartIndex()
 				r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
+				if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
+					r.Debug("send leaderTermStartIndexReq")
+				}
 			}
 			return
 		}
@@ -416,6 +470,9 @@ func (r *Replica) putMsgIfNeed() {
 			r.messageWait.resetSync()
 			msg := r.newSyncMsg()
 			r.msgs = append(r.msgs, msg)
+			if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
+				r.Debug("send sync", zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
+			}
 		}
 
 		if r.isLeader() {
@@ -467,8 +524,9 @@ func (r *Replica) reset(term uint32) {
 
 func (r *Replica) Tick() {
 	r.messageWait.tick()
-	r.tickFnc()
-
+	if r.tickFnc != nil {
+		r.tickFnc()
+	}
 }
 
 func (r *Replica) tickElection() {
@@ -563,7 +621,7 @@ func (r *Replica) reduceUncommittedSize(s logEncodingSize) {
 func (r *Replica) NewProposeMessage(data []byte) Message {
 	return Message{
 		MsgType: MsgPropose,
-		From:    r.nodeID,
+		From:    r.nodeId,
 		Term:    r.replicaLog.term,
 		Logs: []Log{
 			{
@@ -578,7 +636,7 @@ func (r *Replica) NewProposeMessage(data []byte) Message {
 func (r *Replica) NewProposeMessageWithLogs(logs []Log) Message {
 	return Message{
 		MsgType: MsgPropose,
-		From:    r.nodeID,
+		From:    r.nodeId,
 		Term:    r.replicaLog.term,
 		Logs:    logs,
 	}
@@ -596,7 +654,7 @@ func NewProposeMessageWithLogs(nodeId uint64, term uint32, logs []Log) Message {
 func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
 	return Message{
 		MsgType:      MsgApplyLogsResp,
-		From:         r.nodeID,
+		From:         r.nodeId,
 		Term:         r.replicaLog.term,
 		AppliedIndex: appliedIdx,
 	}
@@ -614,8 +672,8 @@ func NewMsgApplyLogsRespMessage(nodeId uint64, term uint32, appliedIdx uint64) M
 func (r *Replica) NewMsgStoreAppendResp(index uint64) Message {
 	return Message{
 		MsgType: MsgStoreAppendResp,
-		From:    r.nodeID,
-		To:      r.nodeID,
+		From:    r.nodeId,
+		To:      r.nodeId,
 		Index:   index,
 	}
 
@@ -635,7 +693,7 @@ func (r *Replica) newMsgSyncGet(from uint64, index uint64, unstableLogs []Log) M
 	return Message{
 		MsgType: MsgSyncGet,
 		From:    from,
-		To:      r.nodeID,
+		To:      r.nodeId,
 		Index:   index,
 		Logs:    unstableLogs,
 	}
@@ -644,7 +702,7 @@ func (r *Replica) newMsgSyncGet(from uint64, index uint64, unstableLogs []Log) M
 func (r *Replica) newMsgSyncResp(to uint64, startIndex uint64, logs []Log) Message {
 	return Message{
 		MsgType:        MsgSyncResp,
-		From:           r.nodeID,
+		From:           r.nodeId,
 		To:             to,
 		Term:           r.replicaLog.term,
 		Logs:           logs,
@@ -657,7 +715,7 @@ func (r *Replica) newMsgSyncResp(to uint64, startIndex uint64, logs []Log) Messa
 func (r *Replica) NewMsgSyncGetResp(to uint64, startIndex uint64, logs []Log) Message {
 	return Message{
 		MsgType: MsgSyncGetResp,
-		From:    r.nodeID,
+		From:    r.nodeId,
 		To:      to,
 		Logs:    logs,
 		Index:   startIndex,
@@ -677,9 +735,9 @@ func NewMsgSyncGetResp(from uint64, to uint64, startIndex uint64, logs []Log) Me
 func (r *Replica) newApplyLogReqMsg(applyingIndex, appliedIndex, committedIndex uint64) Message {
 
 	return Message{
-		MsgType:        MsgApplyLogsReq,
-		From:           r.nodeID,
-		To:             r.nodeID,
+		MsgType:        MsgApplyLogs,
+		From:           r.nodeId,
+		To:             r.nodeId,
 		Term:           r.replicaLog.term,
 		ApplyingIndex:  applyingIndex,
 		AppliedIndex:   appliedIndex,
@@ -689,8 +747,8 @@ func (r *Replica) newApplyLogReqMsg(applyingIndex, appliedIndex, committedIndex 
 
 func (r *Replica) newSyncMsg() Message {
 	return Message{
-		MsgType: MsgSync,
-		From:    r.nodeID,
+		MsgType: MsgSyncReq,
+		From:    r.nodeId,
 		To:      r.leader,
 		Term:    r.replicaLog.term,
 		Index:   r.replicaLog.lastLogIndex + 1,
@@ -700,12 +758,13 @@ func (r *Replica) newSyncMsg() Message {
 func (r *Replica) newPing(to uint64) Message {
 	return Message{
 		MsgType:        MsgPing,
-		From:           r.nodeID,
+		From:           r.nodeId,
 		To:             to,
 		Term:           r.replicaLog.term,
 		Index:          r.replicaLog.lastLogIndex,
 		CommittedIndex: r.replicaLog.committedIndex,
 		SpeedLevel:     r.speedLevel,
+		ConfVersion:    r.opts.Config.Version,
 	}
 }
 
@@ -721,7 +780,7 @@ func (r *Replica) newLeaderTermStartIndexReqMsg() Message {
 
 	return Message{
 		MsgType: MsgLeaderTermStartIndexReq,
-		From:    r.nodeID,
+		From:    r.nodeId,
 		To:      r.leader,
 		Term:    term,
 	}
@@ -730,7 +789,7 @@ func (r *Replica) newLeaderTermStartIndexReqMsg() Message {
 func (r *Replica) newPong(to uint64) Message {
 	return Message{
 		MsgType:        MsgPong,
-		From:           r.nodeID,
+		From:           r.nodeId,
 		To:             to,
 		Term:           r.replicaLog.term,
 		CommittedIndex: r.replicaLog.committedIndex,
@@ -740,7 +799,7 @@ func (r *Replica) newPong(to uint64) Message {
 func (r *Replica) newLeaderTermStartIndexResp(to uint64, term uint32, index uint64) Message {
 	return Message{
 		MsgType: MsgLeaderTermStartIndexResp,
-		From:    r.nodeID,
+		From:    r.nodeId,
 		To:      to,
 		Term:    term,
 		Index:   index,
@@ -750,18 +809,18 @@ func (r *Replica) newLeaderTermStartIndexResp(to uint64, term uint32, index uint
 func (r *Replica) newMsgStoreAppend(logs []Log) Message {
 	return Message{
 		MsgType: MsgStoreAppend,
-		From:    r.nodeID,
-		To:      r.nodeID,
+		From:    r.nodeId,
+		To:      r.nodeId,
 		Logs:    logs,
 	}
 
 }
 
-func (r *Replica) newMsgVote(nodeId uint64) Message {
+func (r *Replica) newMsgVoteReq(nodeId uint64) Message {
 	return Message{
 		From:    r.opts.NodeId,
 		To:      nodeId,
-		MsgType: MsgVote,
+		MsgType: MsgVoteReq,
 		Term:    r.replicaLog.term,
 		Index:   r.replicaLog.lastLogIndex,
 	}
@@ -775,6 +834,31 @@ func (r *Replica) newMsgVoteResp(to uint64, term uint32, reject bool) Message {
 		Term:    term,
 		Index:   r.replicaLog.lastLogIndex,
 		Reject:  reject,
+	}
+}
+
+func (r *Replica) newMsgConfigReq(to uint64) Message {
+	return Message{
+		MsgType: MsgConfigReq,
+		From:    r.nodeId,
+		To:      to,
+		Term:    r.replicaLog.term,
+	}
+}
+
+func (r *Replica) newMsgConfigResp(to uint64) Message {
+	data, _ := r.opts.Config.Marshal()
+	return Message{
+		MsgType:     MsgConfigResp,
+		Term:        r.replicaLog.term,
+		From:        r.nodeId,
+		To:          to,
+		ConfVersion: r.opts.Config.Version,
+		Logs: []Log{
+			{
+				Data: data,
+			},
+		},
 	}
 }
 
@@ -802,4 +886,24 @@ func (r *Replica) followNeedSync() bool {
 		return false
 	}
 	return true
+}
+
+func (r *Replica) removeLearner(learnerId uint64) {
+	for i, id := range r.opts.Config.Learners {
+		if id == learnerId {
+			r.opts.Config.Learners = append(r.opts.Config.Learners[:i], r.opts.Config.Learners[i+1:]...)
+			return
+		}
+	}
+}
+
+func (r *Replica) addReplica(replicaId uint64) {
+	if !wkutil.ArrayContainsUint64(r.opts.Config.Replicas, replicaId) {
+		r.opts.Config.Replicas = append(r.opts.Config.Replicas, replicaId)
+	}
+
+	if !wkutil.ArrayContainsUint64(r.replicas, replicaId) {
+		r.replicas = append(r.replicas, replicaId)
+	}
+
 }

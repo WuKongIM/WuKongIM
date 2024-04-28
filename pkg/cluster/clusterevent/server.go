@@ -64,6 +64,7 @@ func New(opts *Options) *Server {
 		clusterconfig.WithInitNodes(opts.InitNodes),
 		clusterconfig.WithSlotCount(opts.SlotCount),
 		clusterconfig.WithSlotMaxReplicaCount(opts.SlotMaxReplicaCount),
+		clusterconfig.WithChannelMaxReplicaCount(opts.ChannelMaxReplicaCount),
 		clusterconfig.WithConfigPath(remoteCfgPath),
 		clusterconfig.WithSend(opts.Send),
 		clusterconfig.WithOnAppliedConfig(s.advance),
@@ -247,11 +248,17 @@ func (s *Server) AllowVoteNodes() []*pb.Node {
 	return s.cfgServer.AllowVoteNodes()
 }
 
-// 获取允许投票的并且已经加入了的节点数量
+// AllowVoteAndJoinedNodes 获取允许投票的并且已经加入了的节点集合
 func (s *Server) AllowVoteAndJoinedNodes() []*pb.Node {
 	return s.cfgServer.AllowVoteAndJoinedNodes()
 }
 
+// AllowVoteAndJoinedNodeCount 获取允许投票的并且已经加入了的节点数量
+func (s *Server) AllowVoteAndJoinedNodeCount() int {
+	return s.cfgServer.AllowVoteAndJoinedNodeCount()
+}
+
+// SetIsPrepared 设置节点是否已经准备好
 func (s *Server) SetIsPrepared(prepared bool) {
 	s.cfgServer.SetIsPrepared(prepared)
 }

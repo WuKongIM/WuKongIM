@@ -310,13 +310,19 @@ var TableChannelClusterConfig = struct {
 		Channel [2]byte
 	}
 	Column struct {
-		ChannelId       [2]byte
-		ChannelType     [2]byte
-		ReplicaMaxCount [2]byte
-		Replicas        [2]byte
-		LeaderId        [2]byte
-		Term            [2]byte
-		Version         [2]byte
+		ChannelId        [2]byte
+		ChannelType      [2]byte
+		ReplicaMaxCount  [2]byte
+		Replicas         [2]byte
+		Learners         [2]byte
+		LeaderId         [2]byte
+		Term             [2]byte
+		MigrateFrom      [2]byte
+		MigrateTo        [2]byte
+		LeaderTransferTo [2]byte
+		Status           [2]byte
+		ConfVersion      [2]byte
+		Version          [2]byte
 	}
 }{
 	Id:        [2]byte{0x0A, 0x01},
@@ -326,21 +332,33 @@ var TableChannelClusterConfig = struct {
 		Channel [2]byte
 	}{},
 	Column: struct {
-		ChannelId       [2]byte
-		ChannelType     [2]byte
-		ReplicaMaxCount [2]byte
-		Replicas        [2]byte
-		LeaderId        [2]byte
-		Term            [2]byte
-		Version         [2]byte
+		ChannelId        [2]byte
+		ChannelType      [2]byte
+		ReplicaMaxCount  [2]byte
+		Replicas         [2]byte
+		Learners         [2]byte
+		LeaderId         [2]byte
+		Term             [2]byte
+		MigrateFrom      [2]byte
+		MigrateTo        [2]byte
+		LeaderTransferTo [2]byte
+		Status           [2]byte
+		ConfVersion      [2]byte
+		Version          [2]byte
 	}{
-		ChannelId:       [2]byte{0x0A, 0x01},
-		ChannelType:     [2]byte{0x0A, 0x02},
-		ReplicaMaxCount: [2]byte{0x0A, 0x03},
-		Replicas:        [2]byte{0x0A, 0x04},
-		LeaderId:        [2]byte{0x0A, 0x05},
-		Term:            [2]byte{0x0A, 0x06},
-		Version:         [2]byte{0x0A, 0x07},
+		ChannelId:        [2]byte{0x0A, 0x01},
+		ChannelType:      [2]byte{0x0A, 0x02},
+		ReplicaMaxCount:  [2]byte{0x0A, 0x03},
+		Replicas:         [2]byte{0x0A, 0x04},
+		Learners:         [2]byte{0x0A, 0x05},
+		LeaderId:         [2]byte{0x0A, 0x06},
+		Term:             [2]byte{0x0A, 0x07},
+		MigrateFrom:      [2]byte{0x0A, 0x08},
+		MigrateTo:        [2]byte{0x0A, 0x09},
+		LeaderTransferTo: [2]byte{0x0A, 0x0A},
+		Status:           [2]byte{0x0A, 0x0B},
+		ConfVersion:      [2]byte{0x0A, 0x0C},
+		Version:          [2]byte{0x0A, 0x0D},
 	},
 }
 
