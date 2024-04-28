@@ -116,7 +116,6 @@ func (s *Server) loopJoin() {
 
 func (s *Server) join(nodes []string) {
 	if len(nodes) > 0 {
-		fmt.Println("节点数量--->", len(nodes), nodes)
 		_, err := s.gossipServer.Join(nodes)
 		if err != nil {
 			s.Error("Join gossip server failed!", zap.Error(err))

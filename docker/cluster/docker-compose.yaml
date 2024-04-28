@@ -5,8 +5,10 @@ services:
     image: wukongim/wukongim:v2.0.0-beta-20240428
     container_name: wukongim1
     environment:
-    - "WK_CLUSTER_NODEID=1001"
-    - "WK_CLUSTER_NODES=[1001@node1.tgo.ai,1002@node2.tgo.ai,1003@node3.tgo.ai]"
+    - "WK_CLUSTER_NODEID=1001"  # 节点ID，必须数字
+    - "WK_EXTERNAL_APIURL=http://node1.tgo.local:5001" # 节点对外API地址
+    - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200" # 节点对外WS地址， 这里IP视情况修改
+    - "WK_CLUSTER_NODES=1001@node1.tgo.local 1002@node2.tgo.local 1003@node3.tgo.local" # 集群节点列表
     healthcheck:
       test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
       interval: 10s
@@ -15,22 +17,18 @@ services:
     networks:
       wukongim-bridge:
         aliases:
-        - node1.tgo.ai
-    ports:
-      - 1883:1883
-      - 8083:8083
-      - 8084:8084
-      - 8883:8883
-      - 18083:18083
+        - node1.tgo.local # docker内部别名
     volumes:
-      - $PWD/wukongim2_data:/root/wukongim
+      - $PWD/wukongim1_data:/root/wukongim
 
   wukongim2:
     image: wukongim/wukongim:v2.0.0-beta-20240428
     container_name: wukongim2
     environment:
       - "WK_CLUSTER_NODEID=1002"
-      - "WK_CLUSTER_NODES=[1001@node1.tgo.ai,1002@node2.tgo.ai,1003@node3.tgo.ai]"
+      - "WK_EXTERNAL_APIURL=http://node2.tgo.local:5001"
+      - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"
+      - "WK_CLUSTER_NODES=1001@node1.tgo.local 1002@node2.tgo.local 1003@node3.tgo.local"
     healthcheck:
       test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
       interval: 10s
@@ -39,14 +37,18 @@ services:
     networks:
       wukongim-bridge:
         aliases:
-        - node2.tgo.ai
+        - node2.tgo.local
+    volumes:
+      - $PWD/wukongim2_data:/root/wukongim    
 
   wukongim3:
     image: wukongim/wukongim:v2.0.0-beta-20240428
     container_name: wukongim3
     environment:
       - "WK_CLUSTER_NODEID=1003"
-      - "WK_CLUSTER_NODES=[1001@node1.tgo.ai,1002@node2.tgo.ai,1003@node3.tgo.ai]"
+      - "WK_EXTERNAL_APIURL=http://node3.tgo.local:5001"
+      - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"
+      - "WK_CLUSTER_NODES=1001@node1.tgo.local 1002@node2.tgo.local 1003@node3.tgo.local"
     healthcheck:
       test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
       interval: 10s
@@ -55,9 +57,24 @@ services:
     networks:
       wukongim-bridge:
         aliases:
-        - node3.tgo.ai
+        - node3.tgo.local
     volumes:
-      - $PWD/wukongim3_data:/root/wukongim    
+      - $PWD/wukongim3_data:/root/wukongim  
+  nginx:
+    image: nginx:1.19.2-alpine
+    container_name: apigateway
+    hostname: apigateway
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/wukongim.conf
+    networks:
+      wukongim-bridge:
+        aliases:
+        - apigateway.tgo.local  
+    ports:
+      - "15001:5001"
+      - "15200:5200"
+      - "15300:5300"
+      - "15172:5172"      
 
 networks:
   wukongim-bridge:

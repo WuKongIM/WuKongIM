@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -102,8 +101,6 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 	// defer func() {
 	// 	c.Info("channel election", zap.Duration("cost", time.Since(start)), zap.Int("num", len(reqs)))
 	// }()
-	fmt.Println("election....1")
-
 	channelLastLogInfoMap, err := c.requestChannelLastLogInfos(reqs)
 	if err != nil {
 		c.Error("requestChannelLastLogInfos failed", zap.Error(err))
@@ -114,15 +111,10 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 		}
 		return
 	}
-
-	fmt.Println("election....2->", len(channelLastLogInfoMap))
-
 	for _, req := range reqs {
 		lastInfoResps := make([]*replicaChannelLastLogInfoResponse, 0, len(req.cfg.Replicas))
 		for replicaId, resps := range channelLastLogInfoMap {
-			fmt.Println("replicaId--->", replicaId, len(resps))
 			for _, resp := range resps {
-				fmt.Println("resp.ChannelId---->", resp.ChannelId, resp.ChannelType)
 				if req.ch.channelId == resp.ChannelId && req.ch.channelType == resp.ChannelType {
 					lastInfoResps = append(lastInfoResps, &replicaChannelLastLogInfoResponse{
 						replicaId:                  replicaId,
@@ -201,7 +193,6 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 			replicaReqMap[replicaId] = append(replicaReqMap[replicaId], req)
 		}
 	}
-	fmt.Println("requestChannelLastLogInfos----->1")
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	requestGroup, ctx := errgroup.WithContext(timeoutCtx)
@@ -211,15 +202,12 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 		if !c.s.clusterEventServer.NodeOnline(replicaId) { // 如果节点不在线，则忽略对此节点的请求
 			continue
 		}
-		fmt.Println("request0000....reqs->", replicaId, len(reqs))
 		if replicaId == c.opts.NodeId { // 如果是自己，则直接返回
 			for _, req := range reqs {
-				fmt.Println("request0000....1")
 				lastIndex, lastTerm, err := c.s.opts.MessageLogStorage.LastIndexAndTerm(req.ch.key)
 				if err != nil {
 					return nil, err
 				}
-				fmt.Println("request0000....2")
 				channelLogInfoMapLock.Lock()
 				channelLastLogInfosMap[replicaId] = append(channelLastLogInfosMap[replicaId], &ChannelLastLogInfoResponse{
 					ChannelId:   req.ch.channelId,
@@ -228,43 +216,31 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 					Term:        lastTerm,
 				})
 				channelLogInfoMapLock.Unlock()
-				fmt.Println("request0000....3")
 			}
 			continue
 		}
 		channelLastLogInfoReqs := make([]*ChannelLastLogInfoReq, 0, len(reqs))
 		for _, req := range reqs {
-			fmt.Println("request0000....4")
 			channelLastLogInfoReqs = append(channelLastLogInfoReqs, &ChannelLastLogInfoReq{
 				ChannelId:   req.ch.channelId,
 				ChannelType: req.ch.channelType,
 			})
-			fmt.Println("request0000....5")
 		}
 		requestGroup.Go(func(rcId uint64, logReqs []*ChannelLastLogInfoReq) func() error {
 			return func() error {
-				fmt.Println("request11....")
 				node := c.s.nodeManager.node(rcId)
 				if node == nil {
 					c.Warn("node is not found", zap.Uint64("nodeID", rcId))
 					return nil
 				}
-				fmt.Println("request22....")
 				resps, err := node.requestChannelLastLogInfo(ctx, ChannelLastLogInfoReqSet(logReqs))
 				if err != nil {
 					c.Warn("requestChannelLastLogInfo failed", zap.Error(err))
 					return nil
 				}
-				for _, logReq := range logReqs {
-					fmt.Println("req--->", logReq.ChannelId, logReq.ChannelType)
-				}
-				for _, resp := range resps {
-					fmt.Println("resp---->", resp.ChannelId, resp.ChannelType, resp.LogIndex, resp.Term)
-				}
 				channelLogInfoMapLock.Lock()
 				channelLastLogInfosMap[rcId] = []*ChannelLastLogInfoResponse(resps)
 				channelLogInfoMapLock.Unlock()
-				fmt.Println("request333....")
 				return nil
 			}
 		}(replicaId, channelLastLogInfoReqs))

@@ -2,7 +2,6 @@ package clusterstore
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -418,36 +417,36 @@ func (c *CMD) DecodeCMDStreamEnd() (channelID string, channelType uint8, streamN
 	return
 }
 
-func EncodeCMDAppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
+// func EncodeCMDAppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) []byte {
+// 	encoder := wkproto.NewEncoder()
+// 	defer encoder.End()
 
-	encoder.WriteString(channelID)
-	encoder.WriteUint8(channelType)
-	encoder.WriteString(streamNo)
-	encoder.WriteBinary(wkstore.EncodeStreamItem(item))
+// 	encoder.WriteString(channelID)
+// 	encoder.WriteUint8(channelType)
+// 	encoder.WriteString(streamNo)
+// 	encoder.WriteBinary(wkstore.EncodeStreamItem(item))
 
-	return encoder.Bytes()
-}
-func (c *CMD) DecodeCMDAppendStreamItem() (channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	if channelID, err = decoder.String(); err != nil {
-		return
-	}
-	if channelType, err = decoder.Uint8(); err != nil {
-		return
-	}
-	if streamNo, err = decoder.String(); err != nil {
-		return
-	}
-	var itemBytes []byte
-	itemBytes, err = decoder.Binary()
-	if err != nil {
-		return
-	}
-	item, err = wkstore.DecodeStreamItem(itemBytes)
-	return
-}
+// 	return encoder.Bytes()
+// }
+// func (c *CMD) DecodeCMDAppendStreamItem() (channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem, err error) {
+// 	decoder := wkproto.NewDecoder(c.Data)
+// 	if channelID, err = decoder.String(); err != nil {
+// 		return
+// 	}
+// 	if channelType, err = decoder.Uint8(); err != nil {
+// 		return
+// 	}
+// 	if streamNo, err = decoder.String(); err != nil {
+// 		return
+// 	}
+// 	var itemBytes []byte
+// 	itemBytes, err = decoder.Binary()
+// 	if err != nil {
+// 		return
+// 	}
+// 	item, err = wkstore.DecodeStreamItem(itemBytes)
+// 	return
+// }
 
 func EncodeCMDChannelClusterConfigSave(channelID string, channelType uint8, data []byte) ([]byte, error) {
 	encoder := wkproto.NewEncoder()

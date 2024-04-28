@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -726,6 +727,11 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	}
 	if ch.s.opts.ClusterOn() {
 		leaderInfo, err := ch.s.cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+		if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
+			ch.Info("频道集群从未初始化，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.JSON(http.StatusOK, emptySyncMessageResp)
+			return
+		}
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))

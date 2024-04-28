@@ -45,6 +45,9 @@ func NewConversationManager(s *Server) *ConversationManager {
 }
 
 func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids []string) {
+	if strings.TrimSpace(fakeChannelId) == "" || len(uids) == 0 {
+		return
+	}
 	channelKey := c.getChannelKey(fakeChannelId, channelType)
 	channelSubscribers, ok := c.cache.Get(channelKey)
 	if !ok {

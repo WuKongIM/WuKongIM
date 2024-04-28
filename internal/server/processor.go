@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/bwmarrin/snowflake"
@@ -876,17 +874,17 @@ func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID stri
 		if m.NoPersist || m.SyncOnce {
 			continue
 		}
-		if m.StreamIng() { // 流消息单独存储
-			_, err := p.s.store.AppendStreamItem(GetFakeChannelIDWith(fromUID, m.ChannelID), m.ChannelType, m.StreamNo, &wkstore.StreamItem{
-				ClientMsgNo: m.ClientMsgNo,
-				Blob:        m.Payload,
-			})
-			if err != nil {
-				p.Error("store stream item err", zap.Error(err))
-				return nil, err
-			}
-			continue
-		}
+		// if m.StreamIng() { // 流消息单独存储
+		// 	_, err := p.s.store.AppendStreamItem(GetFakeChannelIDWith(fromUID, m.ChannelID), m.ChannelType, m.StreamNo, &wkstore.StreamItem{
+		// 		ClientMsgNo: m.ClientMsgNo,
+		// 		Blob:        m.Payload,
+		// 	})
+		// 	if err != nil {
+		// 		p.Error("store stream item err", zap.Error(err))
+		// 		return nil, err
+		// 	}
+		// 	continue
+		// }
 		storeMessages = append(storeMessages, m.Message)
 	}
 	if len(storeMessages) == 0 {
@@ -975,67 +973,67 @@ func (p *Processor) processSubs(conn wknet.Conn, subPackets []*wkproto.SubPacket
 
 func (p *Processor) processSub(conn wknet.Conn, subPacket *wkproto.SubPacket) {
 
-	channelIDUrl, err := url.Parse(subPacket.ChannelID)
-	if err != nil {
-		p.Warn("订阅的频道ID不合法！", zap.Error(err), zap.String("channelID", subPacket.ChannelID))
-		return
-	}
-	channelID := channelIDUrl.Path
-	if strings.TrimSpace(channelID) == "" {
-		p.Warn("订阅的频道ID不能为空！", zap.String("channelID", subPacket.ChannelID))
-		return
-	}
+	// channelIDUrl, err := url.Parse(subPacket.ChannelID)
+	// if err != nil {
+	// 	p.Warn("订阅的频道ID不合法！", zap.Error(err), zap.String("channelID", subPacket.ChannelID))
+	// 	return
+	// }
+	// channelID := channelIDUrl.Path
+	// if strings.TrimSpace(channelID) == "" {
+	// 	p.Warn("订阅的频道ID不能为空！", zap.String("channelID", subPacket.ChannelID))
+	// 	return
+	// }
 
-	paramMap := map[string]interface{}{}
+	// paramMap := map[string]interface{}{}
 
-	values := channelIDUrl.Query()
-	for key, value := range values {
-		if len(value) > 0 {
-			paramMap[key] = value[0]
-		}
-	}
+	// values := channelIDUrl.Query()
+	// for key, value := range values {
+	// 	if len(value) > 0 {
+	// 		paramMap[key] = value[0]
+	// 	}
+	// }
 
-	if subPacket.ChannelType != wkproto.ChannelTypeData {
-		p.Warn("订阅的频道类型不正确！", zap.Uint8("channelType", subPacket.ChannelType))
-		p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonNotSupportChannelType))
-		return
-	}
+	// if subPacket.ChannelType != wkproto.ChannelTypeData {
+	// 	p.Warn("订阅的频道类型不正确！", zap.Uint8("channelType", subPacket.ChannelType))
+	// 	p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonNotSupportChannelType))
+	// 	return
+	// }
 
-	channel, err := p.s.channelManager.GetChannel(channelID, subPacket.ChannelType)
-	if err != nil {
-		p.Warn("获取频道失败！", zap.Error(err))
-		p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSystemError))
-		return
-	}
-	if channel == nil {
-		p.Warn("频道不存在！", zap.String("channelID", channelID), zap.Uint8("channelType", subPacket.ChannelType))
-		p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonChannelNotExist))
-		return
-	}
+	// channel, err := p.s.channelManager.GetChannel(channelID, subPacket.ChannelType)
+	// if err != nil {
+	// 	p.Warn("获取频道失败！", zap.Error(err))
+	// 	p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSystemError))
+	// 	return
+	// }
+	// if channel == nil {
+	// 	p.Warn("频道不存在！", zap.String("channelID", channelID), zap.Uint8("channelType", subPacket.ChannelType))
+	// 	p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonChannelNotExist))
+	// 	return
+	// }
 
-	connCtx := conn.Context().(*connContext)
-	if subPacket.Action == wkproto.Subscribe {
-		if strings.TrimSpace(subPacket.Param) != "" {
-			paramM, _ := wkutil.JSONToMap(subPacket.Param)
-			if len(paramM) > 0 {
-				for k, v := range paramM {
-					paramMap[k] = v
-				}
-			}
-		}
-		channel.AddSubscriber(conn.UID())
-		connCtx.subscribeChannel(channelID, subPacket.ChannelType, paramMap)
-	} else {
+	// connCtx := conn.Context().(*connContext)
+	// if subPacket.Action == wkproto.Subscribe {
+	// 	if strings.TrimSpace(subPacket.Param) != "" {
+	// 		paramM, _ := wkutil.JSONToMap(subPacket.Param)
+	// 		if len(paramM) > 0 {
+	// 			for k, v := range paramM {
+	// 				paramMap[k] = v
+	// 			}
+	// 		}
+	// 	}
+	// 	channel.AddSubscriber(conn.UID())
+	// 	connCtx.subscribeChannel(channelID, subPacket.ChannelType, paramMap)
+	// } else {
 
-		if !p.s.connManager.ExistConnsWithUID(conn.UID()) {
-			channel.RemoveSubscriber(conn.UID())
-		}
-		if subPacket.ChannelType == wkproto.ChannelTypeData && len(channel.GetAllSubscribers()) == 0 {
-			p.s.channelManager.RemoveDataChannel(channelID, subPacket.ChannelType)
-		}
-		connCtx.unscribeChannel(channelID, subPacket.ChannelType)
-	}
-	p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSuccess))
+	// 	if !p.s.connManager.ExistConnsWithUID(conn.UID()) {
+	// 		channel.RemoveSubscriber(conn.UID())
+	// 	}
+	// 	if subPacket.ChannelType == wkproto.ChannelTypeData && len(channel.GetAllSubscribers()) == 0 {
+	// 		p.s.channelManager.RemoveDataChannel(channelID, subPacket.ChannelType)
+	// 	}
+	// 	connCtx.unscribeChannel(channelID, subPacket.ChannelType)
+	// }
+	// p.response(conn, p.getSuback(subPacket, channelID, wkproto.ReasonSuccess))
 }
 
 func (p *Processor) getSuback(subPacket *wkproto.SubPacket, channelID string, reasonCode wkproto.ReasonCode) *wkproto.SubackPacket {

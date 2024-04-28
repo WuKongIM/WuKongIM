@@ -5,15 +5,12 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 // PeerInFlightData PeerInFlightData
 type PeerInFlightData struct {
-	wkstore.PeerInFlightDataModel
+	PeerInFlightDataModel
 	pri   int64 // 优先级的时间点 值越小越优先
 	index int
 }
@@ -113,45 +110,45 @@ func (n *PeerInFlightQueue) popInFlightMessage(no string) (*PeerInFlightData, er
 
 // Start 开始运行重试
 func (n *PeerInFlightQueue) Start() {
-	peerInFlightDatas, err := n.s.store.GetPeerInFlightData() // TODO: 分布式情况多节点下，这里存在重复投递的可能，但是就算重复投递，客户端有去重机制所以也不影响，后面可以修正
-	if err != nil {
-		panic(err)
-	}
-	err = n.s.store.ClearPeerInFlightData()
-	if err != nil {
-		panic(err)
-	}
+	// peerInFlightDatas, err := n.s.store.GetPeerInFlightData() // TODO: 分布式情况多节点下，这里存在重复投递的可能，但是就算重复投递，客户端有去重机制所以也不影响，后面可以修正
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// err = n.s.store.ClearPeerInFlightData()
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	if len(peerInFlightDatas) > 0 {
-		for _, peerInFlightDataModel := range peerInFlightDatas {
-			n.startInFlightTimeout(&PeerInFlightData{
-				PeerInFlightDataModel: *peerInFlightDataModel,
-			})
-		}
+	// if len(peerInFlightDatas) > 0 {
+	// 	for _, peerInFlightDataModel := range peerInFlightDatas {
+	// 		n.startInFlightTimeout(&PeerInFlightData{
+	// 			PeerInFlightDataModel: *peerInFlightDataModel,
+	// 		})
+	// 	}
 
-	}
-	n.s.Schedule(n.s.opts.Cluster.PeerRPCTimeoutScanInterval, func() {
-		now := time.Now().UnixNano()
-		n.processInFlightQueue(now)
-	})
+	// }
+	// n.s.Schedule(n.s.opts.Cluster.PeerRPCTimeoutScanInterval, func() {
+	// 	now := time.Now().UnixNano()
+	// 	n.processInFlightQueue(now)
+	// })
 }
 
 // Stop Stop
 func (n *PeerInFlightQueue) Stop() {
 	n.Debug("stop...")
-	datas := make([]*wkstore.PeerInFlightDataModel, 0)
-	n.infFlights.Range(func(key, value interface{}) bool {
-		datas = append(datas, &value.(*PeerInFlightData).PeerInFlightDataModel)
-		return true
-	})
-	if len(datas) > 0 {
-		n.Warn("存在节点投递数据未投递。", zap.Int("count", len(datas)))
-		err := n.s.store.AddPeerInFlightData(datas)
-		if err != nil {
-			n.Error("异常退出", zap.Error(err), zap.String("data", wkutil.ToJSON(datas)))
-			return
-		}
-	}
+	// datas := make([]*wkstore.PeerInFlightDataModel, 0)
+	// n.infFlights.Range(func(key, value interface{}) bool {
+	// 	datas = append(datas, &value.(*PeerInFlightData).PeerInFlightDataModel)
+	// 	return true
+	// })
+	// if len(datas) > 0 {
+	// 	n.Warn("存在节点投递数据未投递。", zap.Int("count", len(datas)))
+	// 	err := n.s.store.AddPeerInFlightData(datas)
+	// 	if err != nil {
+	// 		n.Error("异常退出", zap.Error(err), zap.String("data", wkutil.ToJSON(datas)))
+	// 		return
+	// 	}
+	// }
 	n.Info("正常退出")
 }
 

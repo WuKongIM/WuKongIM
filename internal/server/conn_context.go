@@ -1,14 +1,12 @@
 package server
 
 import (
-	"fmt"
 	"sync"
 
 	"go.uber.org/zap"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -28,16 +26,16 @@ type connContext struct {
 	inflightCount int // frame inflight count
 	wklog.Log
 
-	subscriberInfos    map[string]*wkstore.SubscribeInfo // 订阅的频道数据, key: channel, value: SubscriberInfo
-	subscriberInfoLock sync.RWMutex
+	// subscriberInfos    map[string]*wkstore.SubscribeInfo // 订阅的频道数据, key: channel, value: SubscriberInfo
+	// subscriberInfoLock sync.RWMutex
 }
 
 func newConnContext(s *Server) *connContext {
 	c := &connContext{
-		s:               s,
-		mu:              sync.RWMutex{},
-		Log:             wklog.NewWKLog("connContext"),
-		subscriberInfos: make(map[string]*wkstore.SubscribeInfo),
+		s:   s,
+		mu:  sync.RWMutex{},
+		Log: wklog.NewWKLog("connContext"),
+		// subscriberInfos: make(map[string]*wkstore.SubscribeInfo),
 	}
 	return c
 }
@@ -96,25 +94,25 @@ func (c *connContext) enableRead() {
 }
 
 // 订阅频道
-func (c *connContext) subscribeChannel(channelID string, channelType uint8, param map[string]interface{}) {
-	c.subscriberInfoLock.Lock()
-	defer c.subscriberInfoLock.Unlock()
-	key := fmt.Sprintf("%s-%d", channelID, channelType)
-	if c.conn != nil {
-		c.subscriberInfos[key] = &wkstore.SubscribeInfo{
-			UID:   c.conn.UID(),
-			Param: param,
-		}
-	}
-}
+// func (c *connContext) subscribeChannel(channelID string, channelType uint8, param map[string]interface{}) {
+// 	c.subscriberInfoLock.Lock()
+// 	defer c.subscriberInfoLock.Unlock()
+// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
+// 	if c.conn != nil {
+// 		c.subscriberInfos[key] = &wkstore.SubscribeInfo{
+// 			UID:   c.conn.UID(),
+// 			Param: param,
+// 		}
+// 	}
+// }
 
 // 取消订阅
-func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
-	c.subscriberInfoLock.Lock()
-	defer c.subscriberInfoLock.Unlock()
-	key := fmt.Sprintf("%s-%d", channelID, channelType)
-	delete(c.subscriberInfos, key)
-}
+// func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
+// 	c.subscriberInfoLock.Lock()
+// 	defer c.subscriberInfoLock.Unlock()
+// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
+// 	delete(c.subscriberInfos, key)
+// }
 
 // 是否订阅
 // func (c *connContext) isSubscribed(channelID string, channelType uint8) bool {
@@ -125,12 +123,12 @@ func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
 // 	return ok
 // }
 
-func (c *connContext) getSubscribeInfo(channelID string, channelType uint8) *wkstore.SubscribeInfo {
-	c.subscriberInfoLock.RLock()
-	defer c.subscriberInfoLock.RUnlock()
-	key := fmt.Sprintf("%s-%d", channelID, channelType)
-	return c.subscriberInfos[key]
-}
+// func (c *connContext) getSubscribeInfo(channelID string, channelType uint8) *wkstore.SubscribeInfo {
+// 	c.subscriberInfoLock.RLock()
+// 	defer c.subscriberInfoLock.RUnlock()
+// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
+// 	return c.subscriberInfos[key]
+// }
 
 func (c *connContext) init() {
 	c.frameCaches = make([]wkproto.Frame, 0, 250)

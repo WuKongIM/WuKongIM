@@ -2,10 +2,8 @@ package reactor
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -55,19 +53,13 @@ func BenchmarkMessageWait(b *testing.B) {
 	}
 	key := strconv.FormatUint(messageIds[len(messageIds)-1], 10)
 
-	fmt.Println("num", num)
-
 	_ = m.add(context.Background(), key, messageIds)
 
-	start := time.Now()
 	for i := 1; i <= num; i++ {
 		m.didPropose(key, uint64(i), uint64(i))
 	}
-	fmt.Println("didPropose time", time.Since(start))
 
-	start = time.Now()
 	m.didCommit(1, uint64(num)+1)
-	fmt.Println("didCommit time", time.Since(start))
 
 	// select {
 	// case <-waitC:

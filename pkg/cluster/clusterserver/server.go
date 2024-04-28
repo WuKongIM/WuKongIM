@@ -425,7 +425,6 @@ func (s *Server) joinLoop() {
 	for {
 		select {
 		case <-time.After(time.Second * 2):
-			fmt.Println("join....")
 			resp, err := s.nodeManager.requestClusterJoin(seedNodeId, req)
 			if err != nil {
 				s.Error("requestClusterJoin failed", zap.Error(err))

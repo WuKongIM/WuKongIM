@@ -134,8 +134,6 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	fmt.Println("clearConversationUnread--->msgSeq:", msgSeq, "sessionId:", session.Id)
-
 	conversation := wkdb.Conversation{
 		SessionId:      session.Id,
 		UnreadCount:    0,
@@ -210,8 +208,6 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-
-	fmt.Println("clearConversationUnread--->msgSeq:", msgSeq, "sessionId:", session.Id)
 
 	var unread uint32 = 0
 	var readedMsgSeq uint64 = msgSeq
@@ -339,11 +335,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		}
 	}
 
-	if len(sessions) == 0 {
-		c.JSON(http.StatusOK, resps)
-		return
-	}
-
 	sessionIds := make([]uint64, 0, len(sessions))
 	for _, session := range sessions {
 		sessionIds = append(sessionIds, session.Id)
@@ -356,8 +347,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		c.ResponseError(errors.New("获取conversation失败！"))
 		return
 	}
-
-	fmt.Println("conversations---->", len(conversations), sessionIds)
 
 	for _, sess := range sessions {
 		exist := false
@@ -400,20 +389,32 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	// 获取还没保存的最近会话的频道
 	recentChannels := s.s.conversationManager.GetUserChannelFromCache(req.UID)
 
+	fmt.Println("recentChannels---->", len(recentChannels))
+
 	// 将还没保存的频道也作为最近会话返回
 	for _, recentChannel := range recentChannels {
+		realChannelId := recentChannel.ChannelID
+		fmt.Println("realChannelId----->", realChannelId)
+		if recentChannel.ChannelType == wkproto.ChannelTypePerson {
+			from, to := GetFromUIDAndToUIDWith(recentChannel.ChannelID)
+			if req.UID == from {
+				realChannelId = to
+			} else {
+				realChannelId = from
+			}
+		}
 		exist := false
 		for _, channelRecentMessageReq := range channelRecentMessageReqs {
-			if channelRecentMessageReq.ChannelID == recentChannel.ChannelID && channelRecentMessageReq.ChannelType == recentChannel.ChannelType {
+			if channelRecentMessageReq.ChannelID == realChannelId && channelRecentMessageReq.ChannelType == recentChannel.ChannelType {
 				exist = true
 				break
 			}
 		}
 		if !exist {
 			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
-				ChannelID:   recentChannel.ChannelID,
+				ChannelID:   realChannelId,
 				ChannelType: recentChannel.ChannelType,
-				LastMsgSeq:  channelLastMsgMap[fmt.Sprintf("%s-%d", recentChannel.ChannelID, recentChannel.ChannelType)],
+				LastMsgSeq:  channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, recentChannel.ChannelType)],
 			})
 			syncUserConversationR := newSyncUserConversationResp(wkdb.Conversation{
 				Uid:            req.UID,

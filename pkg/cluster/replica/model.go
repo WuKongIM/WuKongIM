@@ -233,7 +233,6 @@ func UnmarshalMessage(data []byte) (Message, error) {
 		offset += 2
 		l := Log{}
 		if err := l.Unmarshal(data[offset : offset+int(logLen)]); err != nil {
-			fmt.Println("unmarshal log error:", err, len(data), offset, logLen)
 			return m, err
 		}
 		m.Logs = append(m.Logs, l)

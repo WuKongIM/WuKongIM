@@ -2,7 +2,6 @@ package clusterstore
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 )
 
 type Options struct {
@@ -10,8 +9,6 @@ type Options struct {
 	Cluster   icluster.Propose // 集群服务接口
 	DataDir   string           // 数据目录
 	SlotCount uint32           // 槽数量
-
-	DecodeMessageFnc func(msg []byte) (wkstore.Message, error)
 
 	GetSlotId func(uid string) uint32
 }
