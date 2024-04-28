@@ -6,6 +6,8 @@
 
 `本项目需要在go1.20.0或以上环境编译`
 
+#### 2.0.0-beta版本发布正式发布！（beta版本不建议上生产，生产请使用1.2.x的版本）
+
 
 [English](./README.md)
 
@@ -78,7 +80,11 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 监控系统开发
 - [x] 支持Windows系统(仅开发用)
 - [x] 支持流式消息，类似chatgpt的结果输出流
-- [ ] 支持分布式
+- [x] 支持分布式
+    - [x] 去中心化设计，任意一个节点宕机，集群自动修复
+    - [x] 集群节点之间数据互备，任意一个节点损害，不影响数据完整性
+    - [x] 支持集群快速自动扩容
+    - [ ] 支持长连接CDN，解决跨国跨地区长连接不稳定问题
 
 
 
@@ -90,7 +96,7 @@ web聊天场景演示： http://imdemo.githubim.com
 
 ```shell
 
-docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5210:5210 -p 5300:5300  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:v1.2
+docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5210:5210 -p 5300:5300  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:v2.0.0-beta-20240428
 
 ```
 
