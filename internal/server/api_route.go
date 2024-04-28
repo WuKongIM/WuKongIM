@@ -19,7 +19,8 @@ type RouteAPI struct {
 // NewRouteAPI NewRouteAPI
 func NewRouteAPI(s *Server) *RouteAPI {
 	return &RouteAPI{
-		s: s,
+		s:   s,
+		Log: wklog.NewWKLog("RouteAPI"),
 	}
 }
 

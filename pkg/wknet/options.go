@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	"github.com/WuKongIM/crypto/tls"
 )
 
 type Options struct {

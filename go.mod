@@ -1,10 +1,11 @@
 module github.com/WuKongIM/WuKongIM
 
-go 1.20
+go 1.22.1
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
 	github.com/WuKongIM/WuKongIMGoProto v1.0.2
+	github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/eapache/queue v1.1.0
@@ -17,8 +18,8 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/hashicorp/memberlist v0.3.1
 	github.com/lni/goutils v1.3.1-0.20220604063047-388d67b4dbc4
-	github.com/panjf2000/ants/v2 v2.7.1
-	github.com/panjf2000/gnet/v2 v2.2.5
+	github.com/panjf2000/ants/v2 v2.9.0
+	github.com/panjf2000/gnet/v2 v2.4.2
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.18.0
 	github.com/sendgrid/rest v2.6.9+incompatible
@@ -33,11 +34,11 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.24.0
 	go.opentelemetry.io/otel/trace v1.24.0
 	go.uber.org/zap v1.24.0
-	golang.org/x/crypto v0.16.0
-	golang.org/x/sync v0.5.0
+	golang.org/x/crypto v0.22.0
+	golang.org/x/sync v0.6.0
 	google.golang.org/grpc v1.61.1
 	google.golang.org/protobuf v1.32.0
-	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
@@ -90,13 +91,12 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.24.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
 	golang.org/x/exp v0.0.0-20200513190911-00229845015e // indirect
-	golang.org/x/net v0.19.0 // indirect
+	golang.org/x/net v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240102182953-50ed04b92917 // indirect
 )
 
 require (
-	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -115,7 +115,7 @@ require (
 	github.com/subosito/gotenv v1.4.2 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/sys v0.17.0
+	golang.org/x/sys v0.19.0
 	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

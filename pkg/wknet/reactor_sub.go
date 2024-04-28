@@ -30,7 +30,7 @@ type ReactorSub struct {
 
 // NewReactorSub instantiates a sub reactor.
 func NewReactorSub(eg *Engine, index int) *ReactorSub {
-	poller := netpoll.NewPoller("connPoller")
+	poller := netpoll.NewPoller(index, "connPoller")
 
 	return &ReactorSub{
 		eg:         eg,

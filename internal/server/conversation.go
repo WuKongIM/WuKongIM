@@ -188,7 +188,6 @@ func (c *ConversationManager) subscribersSplitBySlotId(subscribers []string) map
 		subscribersMap[slotId] = append(subscribersMap[slotId], subscriber)
 	}
 	return subscribersMap
-
 }
 
 type channelSubscribers struct {

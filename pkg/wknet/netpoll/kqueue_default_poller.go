@@ -28,7 +28,7 @@ type Poller struct {
 }
 
 // NewPoller instantiates a poller.
-func NewPoller(name string) *Poller {
+func NewPoller(index int, name string) *Poller {
 	poller := new(Poller)
 	poller.name = name
 	var err error
@@ -44,7 +44,7 @@ func NewPoller(name string) *Poller {
 		poller = nil
 		panic(err)
 	}
-	poller.Log = wklog.NewWKLog(fmt.Sprintf("KqueuePoller-%s", name))
+	poller.Log = wklog.NewWKLog(fmt.Sprintf("KqueuePoller-%s[%d]", name, index))
 	return poller
 }
 
@@ -152,6 +152,7 @@ func (p *Poller) DeleteWrite(fd int) error {
 }
 
 func (p *Poller) DeleteReadAndWrite(fd int) error {
+
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_READ},
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_WRITE},

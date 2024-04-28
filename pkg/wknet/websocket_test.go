@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	stls "github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	stls "github.com/WuKongIM/crypto/tls"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 )

@@ -41,9 +41,9 @@ func NewAcceptor(eg *Engine) *Acceptor {
 	a := &Acceptor{
 		eg:              eg,
 		reactorSubs:     reactorSubs,
-		listenPoller:    netpoll.NewPoller("listenerPoller"),
-		listenWSPoller:  netpoll.NewPoller("listenWSPoller"),
-		listenWSSPoller: netpoll.NewPoller("listenWSSPoller"),
+		listenPoller:    netpoll.NewPoller(0, "listenerPoller"),
+		listenWSPoller:  netpoll.NewPoller(0, "listenWSPoller"),
+		listenWSSPoller: netpoll.NewPoller(0, "listenWSSPoller"),
 		Log:             wklog.NewWKLog("Acceptor"),
 	}
 
