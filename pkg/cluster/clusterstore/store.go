@@ -8,7 +8,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"go.uber.org/zap"
 )
 
@@ -36,10 +35,6 @@ func NewStore(opts *Options) *Store {
 		s.Panic("create data dir err", zap.Error(err))
 	}
 
-	storeCfg := wkstore.NewStoreConfig()
-	storeCfg.DataDir = opts.DataDir
-	storeCfg.SlotNum = int(opts.SlotCount)
-	storeCfg.DecodeMessageFnc = opts.DecodeMessageFnc
 	s.wdb = wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(opts.DataDir), wkdb.WithNodeId(opts.NodeID), wkdb.WithSlotCount(int(opts.SlotCount))))
 	s.messageShardLogStorage = NewMessageShardLogStorage(s.wdb)
 	return s
@@ -63,18 +58,18 @@ func (s *Store) Close() {
 	s.lock.StopCleanLoop()
 }
 
-func (s *Store) GetPeerInFlightData() ([]*wkstore.PeerInFlightDataModel, error) {
-	// return s.db.GetPeerInFlightData()
-	return nil, nil
-}
+// func (s *Store) GetPeerInFlightData() ([]*wkstore.PeerInFlightDataModel, error) {
+// 	// return s.db.GetPeerInFlightData()
+// 	return nil, nil
+// }
 
-func (s *Store) ClearPeerInFlightData() error {
-	return nil
-}
+// func (s *Store) ClearPeerInFlightData() error {
+// 	return nil
+// }
 
-func (s *Store) AddPeerInFlightData(data []*wkstore.PeerInFlightDataModel) error {
-	return nil
-}
+// func (s *Store) AddPeerInFlightData(data []*wkstore.PeerInFlightDataModel) error {
+// 	return nil
+// }
 
 func (s *Store) AddSystemUIDs(uids []string) error {
 	// return s.db.AddSystemUIDs(uids)

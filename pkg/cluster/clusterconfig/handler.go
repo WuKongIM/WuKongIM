@@ -1,7 +1,6 @@
 package clusterconfig
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
@@ -181,7 +180,6 @@ func (h *handler) SetHardState(hd replica.HardState) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.leaderId = hd.LeaderId
-	fmt.Println("SetHardState.....")
 }
 
 // Tick tick

@@ -7,7 +7,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
@@ -519,7 +518,7 @@ func (c *Channel) forwardToOtherPeerSubscribers(messages []*Message, large bool,
 	}
 	reqData, _ := req.Marshal()
 	c.s.startDeliveryPeerData(&PeerInFlightData{
-		PeerInFlightDataModel: wkstore.PeerInFlightDataModel{
+		PeerInFlightDataModel: PeerInFlightDataModel{
 			No:     req.No,
 			PeerID: nodeId,
 			Data:   reqData,

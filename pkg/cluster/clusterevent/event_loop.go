@@ -1,7 +1,6 @@
 package clusterevent
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -213,7 +212,6 @@ func (s *Server) checkNodes() {
 	}
 
 	if len(newNodes) > 0 {
-		fmt.Println("newNodes---->", len(newNodes))
 		s.msgs = append(s.msgs, Message{
 			Type:  EventTypeNodeAdd,
 			Nodes: newNodes,

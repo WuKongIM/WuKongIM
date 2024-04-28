@@ -1,7 +1,7 @@
 
 ## 配置是yaml格式，请严格注意缩进.
 
-mode: "debug" # 运行模式 模式 debug 测试 release 正式 bench 压力测试
+mode: "release" # 运行模式 模式 debug 测试 release 正式 bench 压力测试
 #addr: "tcp://0.0.0.0:5100" # tcp监听地址
 #httpAddr: "0.0.0.0:5001" #  http api的监听地址  默认：0.0.0.0:5001
 #dataDir: "wukongim" # 数据存储目录
@@ -29,9 +29,9 @@ external: # 公网配置
 #monitor: 
 #  on: true # 是否开启监控
 #  addr: "0.0.0.0:5300" # 监控监听地址 默认为 0.0.0.0:5300
-#demo: 
-#  on: true # 是否开启demo
-#  addr: "0.0.0.0:5172" # demo监听地址 默认为 0.0.0.0:5172
+demo: 
+ on: true # 是否开启demo
+ addr: "0.0.0.0:5172" # demo监听地址 默认为 0.0.0.0:5172
 #channel:
 #  cacheCount: 1000 # 频道缓存数量 频道被加载后会缓存到内存中，如果频道数量过多，会占用大量内存，可以通过此配置限制缓存数量
 #  createIfNoExist: true # 频道不存在时是否自动创建 默认为true

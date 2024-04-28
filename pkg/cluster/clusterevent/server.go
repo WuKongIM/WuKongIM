@@ -2,7 +2,6 @@ package clusterevent
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -87,11 +86,8 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
-	fmt.Println("clusterevent stop1")
 	s.stopper.Stop()
-	fmt.Println("clusterevent stop2")
 	s.cfgServer.Stop()
-	fmt.Println("clusterevent stop3")
 }
 
 func (s *Server) Step(m Message) {

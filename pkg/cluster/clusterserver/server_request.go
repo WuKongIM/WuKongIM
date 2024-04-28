@@ -3,7 +3,6 @@ package cluster
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -50,7 +49,6 @@ func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
 
 	resps := make([]*ChannelLastLogInfoResponse, 0, len(reqs))
 	for _, req := range reqs {
-		fmt.Println("request......", req.ChannelId, req.ChannelType)
 		shardNo := ChannelToKey(req.ChannelId, req.ChannelType)
 		lastIndex, term, err := s.opts.MessageLogStorage.LastIndexAndTerm(shardNo)
 		if err != nil {

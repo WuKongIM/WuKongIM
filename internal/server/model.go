@@ -7,12 +7,9 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 type everyScheduler struct {
@@ -346,7 +343,7 @@ type MessageResp struct {
 	Expire       uint32             `json:"expire"`                // 消息过期时间
 	Timestamp    int32              `json:"timestamp"`             // 服务器消息时间戳(10位，到秒)
 	Payload      []byte             `json:"payload"`               // 消息内容
-	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
+	// Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
 func (m *MessageResp) from(messageD wkdb.Message, store *clusterstore.Store) {
@@ -381,35 +378,35 @@ func (m *MessageResp) from(messageD wkdb.Message, store *clusterstore.Store) {
 	m.Topic = messageD.Topic
 	m.Payload = messageD.Payload
 
-	if strings.TrimSpace(messageD.StreamNo) != "" && store != nil {
-		streamItems, err := store.GetStreamItems(GetFakeChannelIDWith(messageD.FromUID, messageD.ChannelID), messageD.ChannelType, messageD.StreamNo)
-		if err != nil {
-			wklog.Error("获取streamItems失败！", zap.Error(err))
-		}
-		if len(streamItems) > 0 {
-			streamItemResps := make([]*StreamItemResp, 0, len(streamItems))
-			for _, streamItem := range streamItems {
-				streamItemResps = append(streamItemResps, newStreamItemResp(streamItem))
-			}
-			m.Streams = streamItemResps
-		}
-	}
+	// if strings.TrimSpace(messageD.StreamNo) != "" && store != nil {
+	// 	streamItems, err := store.GetStreamItems(GetFakeChannelIDWith(messageD.FromUID, messageD.ChannelID), messageD.ChannelType, messageD.StreamNo)
+	// 	if err != nil {
+	// 		wklog.Error("获取streamItems失败！", zap.Error(err))
+	// 	}
+	// 	if len(streamItems) > 0 {
+	// 		streamItemResps := make([]*StreamItemResp, 0, len(streamItems))
+	// 		for _, streamItem := range streamItems {
+	// 			streamItemResps = append(streamItemResps, newStreamItemResp(streamItem))
+	// 		}
+	// 		m.Streams = streamItemResps
+	// 	}
+	// }
 }
 
-type StreamItemResp struct {
-	StreamSeq   uint32 `json:"stream_seq"`    // 流序号
-	ClientMsgNo string `json:"client_msg_no"` // 客户端消息唯一编号
-	Blob        []byte `json:"blob"`          // 消息内容
-}
+// type StreamItemResp struct {
+// 	StreamSeq   uint32 `json:"stream_seq"`    // 流序号
+// 	ClientMsgNo string `json:"client_msg_no"` // 客户端消息唯一编号
+// 	Blob        []byte `json:"blob"`          // 消息内容
+// }
 
-func newStreamItemResp(m *wkstore.StreamItem) *StreamItemResp {
+// func newStreamItemResp(m *wkstore.StreamItem) *StreamItemResp {
 
-	return &StreamItemResp{
-		StreamSeq:   m.StreamSeq,
-		ClientMsgNo: m.ClientMsgNo,
-		Blob:        m.Blob,
-	}
-}
+// 	return &StreamItemResp{
+// 		StreamSeq:   m.StreamSeq,
+// 		ClientMsgNo: m.ClientMsgNo,
+// 		Blob:        m.Blob,
+// 	}
+// }
 
 type MessageOfflineNotify struct {
 	MessageResp
@@ -546,8 +543,8 @@ type ChannelInfoResp struct {
 	Ban   int `json:"ban"`   // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
 }
 
-func (c ChannelInfoResp) ToChannelInfo() *wkstore.ChannelInfo {
-	return &wkstore.ChannelInfo{
+func (c ChannelInfoResp) ToChannelInfo() *wkdb.ChannelInfo {
+	return &wkdb.ChannelInfo{
 		Large: c.Large == 1,
 		Ban:   c.Ban == 1,
 	}
@@ -678,6 +675,8 @@ func (r syncReq) Check() error {
 	return nil
 }
 
+var emptySyncMessageResp = syncMessageResp{}
+
 type syncMessageResp struct {
 	StartMessageSeq uint64         `json:"start_message_seq"` // 开始序列号
 	EndMessageSeq   uint64         `json:"end_message_seq"`   // 结束序列号
@@ -715,4 +714,10 @@ type messageStreamEndReq struct {
 	StreamNo    string `json:"stream_no"`    // 消息流编号
 	ChannelID   string `json:"channel_id"`   // 频道ID
 	ChannelType uint8  `json:"channel_type"` // 频道类型
+}
+
+type PeerInFlightDataModel struct {
+	No     string
+	PeerID uint64
+	Data   []byte
 }

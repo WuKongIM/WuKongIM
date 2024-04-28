@@ -9,7 +9,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -80,28 +79,28 @@ func (s *Store) GetMessageShardLogStorage() *MessageShardLogStorage {
 	return s.messageShardLogStorage
 }
 
-// SaveStreamMeta 保存消息流元数据
-func (s *Store) SaveStreamMeta(meta *wkstore.StreamMeta) error {
-	return nil
-}
+// // SaveStreamMeta 保存消息流元数据
+// func (s *Store) SaveStreamMeta(meta *wkstore.StreamMeta) error {
+// 	return nil
+// }
 
-// StreamEnd 结束流
-func (s *Store) StreamEnd(channelID string, channelType uint8, streamNo string) error {
-	return nil
-}
+// // StreamEnd 结束流
+// func (s *Store) StreamEnd(channelID string, channelType uint8, streamNo string) error {
+// 	return nil
+// }
 
-func (s *Store) GetStreamMeta(channelID string, channelType uint8, streamNo string) (*wkstore.StreamMeta, error) {
-	return nil, nil
-}
+// func (s *Store) GetStreamMeta(channelID string, channelType uint8, streamNo string) (*wkstore.StreamMeta, error) {
+// 	return nil, nil
+// }
 
-func (s *Store) GetStreamItems(channelID string, channelType uint8, streamNo string) ([]*wkstore.StreamItem, error) {
-	return nil, nil
-}
+// func (s *Store) GetStreamItems(channelID string, channelType uint8, streamNo string) ([]*wkstore.StreamItem, error) {
+// 	return nil, nil
+// }
 
-// AppendStreamItem 追加消息流
-func (s *Store) AppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) (uint32, error) {
-	return 0, nil
-}
+// // AppendStreamItem 追加消息流
+// func (s *Store) AppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) (uint32, error) {
+// 	return 0, nil
+// }
 
 func (s *Store) UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint64) error {
 	return nil

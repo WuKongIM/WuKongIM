@@ -117,7 +117,6 @@ func (c *ConnManager) RemoveConnWithID(uid string, deviceId string) {
 			if deviceId == conn.DeviceID() {
 				devices = append(devices[:index], devices[index+1:]...)
 				c.userConnMap[conn.UID()] = devices
-				fmt.Println("RemoveConnWithID----2>", uid, deviceId, devices)
 			}
 		}
 	}

@@ -478,8 +478,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.NodeId = o.getUint64("cluster.nodeId", o.Cluster.NodeId)
 	defaultPort := ""
 	clusterAddrs := strings.Split(o.Cluster.Addr, ":")
-	if len(clusterAddrs) == 2 {
-		defaultPort = clusterAddrs[1]
+	if len(clusterAddrs) >= 2 {
+		defaultPort = clusterAddrs[len(clusterAddrs)-1]
 	}
 	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
 	role := o.getString("cluster.role", string(o.Cluster.Role))

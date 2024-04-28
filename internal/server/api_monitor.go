@@ -1,20 +1,8 @@
 package server
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 type MonitorAPI struct {
@@ -38,406 +26,406 @@ func (m *MonitorAPI) Route(r *wkhttp.WKHttp) {
 	varz := NewVarzAPI(m.s)
 	connz := NewConnzAPI(m.s)
 
-	r.GET("/api/varz", varz.HandleVarz)          // 系统变量
-	r.GET("/api/connz", connz.HandleConnz)       // 系统客户端连接
-	r.GET("/api/metrics", m.s.monitor.Monitor)   // prometheus监控
-	r.GET("/api/chart/realtime", m.realtime)     // 首页实时数据
-	r.GET("/api/channels", m.channels)           // 频道
-	r.GET("/api/messages", m.messages)           // 消息
-	r.GET("/api/conversations", m.conversations) // 最近会话
-	// r.GET("/chart/upstream_packet_count", m.upstreamPacketCount)
+	r.GET("/api/varz", varz.HandleVarz)        // 系统变量
+	r.GET("/api/connz", connz.HandleConnz)     // 系统客户端连接
+	r.GET("/api/metrics", m.s.monitor.Monitor) // prometheus监控
+	// r.GET("/api/chart/realtime", m.realtime)     // 首页实时数据
+	// r.GET("/api/channels", m.channels)           // 频道
+	// r.GET("/api/messages", m.messages)           // 消息
+	// r.GET("/api/conversations", m.conversations) // 最近会话
+	// // r.GET("/chart/upstream_packet_count", m.upstreamPacketCount)
 
-	go m.startRealtimePublish() // 开启实时数据推送
-	go m.startConnzPublish()    // 开启连接数据推送
-	go m.startVarzPublish()     // 开启变量数据推送
-
-}
-
-func (m *MonitorAPI) realtime(c *wkhttp.Context) {
-	last := c.Query("last")
-	connNums := m.s.monitor.ConnNums()
-	upstreamPackages := m.s.monitor.UpstreamPackageSample()
-	upstreamTraffics := m.s.monitor.UpstreamTrafficSample()
-
-	downstreamPackages := m.s.monitor.DownstreamPackageSample()
-	downstreamTraffics := m.s.monitor.DownstreamTrafficSample()
-
-	var realtimeData realtimeData
-	if last == "1" {
-		if len(connNums) > 0 {
-			realtimeData.ConnNums = connNums[len(connNums)-1:]
-		}
-		if len(upstreamPackages) > 0 {
-			realtimeData.UpstreamPackets = upstreamPackages[len(upstreamPackages)-1:]
-		}
-		if len(downstreamPackages) > 0 {
-			realtimeData.DownstreamPackets = downstreamPackages[len(downstreamPackages)-1:]
-		}
-		if len(upstreamTraffics) > 0 {
-			realtimeData.UpstreamTraffics = upstreamTraffics[len(upstreamTraffics)-1:]
-		}
-		if len(downstreamTraffics) > 0 {
-			realtimeData.DownstreamTraffics = downstreamTraffics[len(downstreamTraffics)-1:]
-		}
-	} else {
-		realtimeData.ConnNums = connNums
-		realtimeData.UpstreamPackets = upstreamPackages
-		realtimeData.DownstreamPackets = downstreamPackages
-		realtimeData.UpstreamTraffics = upstreamTraffics
-		realtimeData.DownstreamTraffics = downstreamTraffics
-	}
-	c.JSON(http.StatusOK, realtimeData)
-}
-
-func (m *MonitorAPI) startRealtimePublish() {
-
-	tk := time.NewTicker(time.Second)
-
-	for {
-		select {
-		case <-tk.C:
-			m.realtimePublish()
-		case <-m.s.stopChan:
-			return
-		}
-	}
+	// go m.startRealtimePublish() // 开启实时数据推送
+	// go m.startConnzPublish()    // 开启连接数据推送
+	// go m.startVarzPublish()     // 开启变量数据推送
 
 }
 
-func (m *MonitorAPI) startConnzPublish() {
-	tk := time.NewTicker(time.Second)
-	for {
-		select {
-		case <-tk.C:
-			m.connzPublish()
-		case <-m.s.stopChan:
-			return
-		}
-	}
+// func (m *MonitorAPI) realtime(c *wkhttp.Context) {
+// 	last := c.Query("last")
+// 	connNums := m.s.monitor.ConnNums()
+// 	upstreamPackages := m.s.monitor.UpstreamPackageSample()
+// 	upstreamTraffics := m.s.monitor.UpstreamTrafficSample()
 
-}
+// 	downstreamPackages := m.s.monitor.DownstreamPackageSample()
+// 	downstreamTraffics := m.s.monitor.DownstreamTrafficSample()
 
-func (m *MonitorAPI) startVarzPublish() {
-	tk := time.NewTicker(time.Second)
-	for {
-		select {
-		case <-tk.C:
-			m.varzPublish()
-		case <-m.s.stopChan:
-			return
-		}
-	}
+// 	var realtimeData realtimeData
+// 	if last == "1" {
+// 		if len(connNums) > 0 {
+// 			realtimeData.ConnNums = connNums[len(connNums)-1:]
+// 		}
+// 		if len(upstreamPackages) > 0 {
+// 			realtimeData.UpstreamPackets = upstreamPackages[len(upstreamPackages)-1:]
+// 		}
+// 		if len(downstreamPackages) > 0 {
+// 			realtimeData.DownstreamPackets = downstreamPackages[len(downstreamPackages)-1:]
+// 		}
+// 		if len(upstreamTraffics) > 0 {
+// 			realtimeData.UpstreamTraffics = upstreamTraffics[len(upstreamTraffics)-1:]
+// 		}
+// 		if len(downstreamTraffics) > 0 {
+// 			realtimeData.DownstreamTraffics = downstreamTraffics[len(downstreamTraffics)-1:]
+// 		}
+// 	} else {
+// 		realtimeData.ConnNums = connNums
+// 		realtimeData.UpstreamPackets = upstreamPackages
+// 		realtimeData.DownstreamPackets = downstreamPackages
+// 		realtimeData.UpstreamTraffics = upstreamTraffics
+// 		realtimeData.DownstreamTraffics = downstreamTraffics
+// 	}
+// 	c.JSON(http.StatusOK, realtimeData)
+// }
 
-}
+// func (m *MonitorAPI) startRealtimePublish() {
 
-func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscribeInfo *wkstore.SubscribeInfo) interface{}) {
-	monitorChannel, err := m.s.channelManager.GetChannel(fmt.Sprintf("%s_%s", m.monitorChannelPrefix, typ), wkproto.ChannelTypeData)
-	if err != nil {
-		m.Error("realtimePublish fail", zap.Error(err))
-		return
-	}
-	if monitorChannel == nil {
-		return
-	}
-	subscribers := monitorChannel.GetAllSubscribers()
-	if len(subscribers) == 0 {
-		return
-	}
+// 	tk := time.NewTicker(time.Second)
 
-	for _, subscriber := range subscribers {
-		conns := m.s.connManager.GetConnsWithUID(subscriber)
-		if len(conns) == 0 {
-			continue
-		}
-		var rDataBytes []byte
-		for _, conn := range conns {
-			if conn == nil {
-				continue
-			}
+// 	for {
+// 		select {
+// 		case <-tk.C:
+// 			m.realtimePublish()
+// 		case <-m.s.stopChan:
+// 			return
+// 		}
+// 	}
 
-			connCtx := conn.Context().(*connContext)
+// }
 
-			subscribeInfo := connCtx.getSubscribeInfo(monitorChannel.ChannelId, monitorChannel.ChannelType)
-			if subscribeInfo == nil { // 说明该连接没有订阅该频道
-				continue
-			}
-			data := dataCallback(subscribeInfo)
-			rDataBytes = []byte(wkutil.ToJSON(data))
-			recvPacket := &wkproto.RecvPacket{
-				Framer: wkproto.Framer{
-					NoPersist: true,
-					RedDot:    false,
-					SyncOnce:  false,
-				},
-				MessageID:   m.s.dispatch.processor.genMessageID(),
-				Timestamp:   int32(time.Now().Unix()),
-				ChannelID:   monitorChannel.ChannelId,
-				ChannelType: monitorChannel.ChannelType,
-				Payload:     rDataBytes,
-			}
-			encryptPayload, _ := encryptMessagePayload(rDataBytes, conn)
-			recvPacket.Payload = encryptPayload
+// func (m *MonitorAPI) startConnzPublish() {
+// 	tk := time.NewTicker(time.Second)
+// 	for {
+// 		select {
+// 		case <-tk.C:
+// 			m.connzPublish()
+// 		case <-m.s.stopChan:
+// 			return
+// 		}
+// 	}
 
-			msgKey, _ := makeMsgKey(recvPacket.VerityString(), conn)
-			recvPacket.MsgKey = msgKey
+// }
 
-			m.s.dispatch.dataOutFrames(conn, recvPacket)
-		}
-	}
-}
+// func (m *MonitorAPI) startVarzPublish() {
+// 	tk := time.NewTicker(time.Second)
+// 	for {
+// 		select {
+// 		case <-tk.C:
+// 			m.varzPublish()
+// 		case <-m.s.stopChan:
+// 			return
+// 		}
+// 	}
 
-func (m *MonitorAPI) varzPublish() {
-	m.writeDataToMonitor("varz", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
-		show := ""
-		if subscriberInfo != nil && subscriberInfo.Param != nil {
-			if subscriberInfo.Param["show"] != nil {
-				show = subscriberInfo.Param["show"].(string)
-			}
-		}
-		varz := CreateVarz(m.s)
-		connLimit := 20
-		if show == "conn" {
-			resultConns := m.s.GetConnInfos(ByInMsgDesc, 0, connLimit)
-			connInfos := make([]*ConnInfo, 0, len(resultConns))
-			for _, resultConn := range resultConns {
-				if resultConn == nil || !resultConn.IsAuthed() {
-					continue
-				}
-				connInfos = append(connInfos, newConnInfo(resultConn))
-			}
-			varz.Conns = connInfos
-		}
-		return varz
-	})
-}
+// }
 
-func (m *MonitorAPI) realtimePublish() {
-	m.writeDataToMonitor("realtime", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
-		return m.getRealtimeData()
-	})
-}
+// func (m *MonitorAPI) writeDataToMonitor(typ string, dataCallback func(subscribeInfo *wkstore.SubscribeInfo) interface{}) {
+// 	monitorChannel, err := m.s.channelManager.GetChannel(fmt.Sprintf("%s_%s", m.monitorChannelPrefix, typ), wkproto.ChannelTypeData)
+// 	if err != nil {
+// 		m.Error("realtimePublish fail", zap.Error(err))
+// 		return
+// 	}
+// 	if monitorChannel == nil {
+// 		return
+// 	}
+// 	subscribers := monitorChannel.GetAllSubscribers()
+// 	if len(subscribers) == 0 {
+// 		return
+// 	}
 
-func (m *MonitorAPI) connzPublish() {
-	var (
-		sortOpt   SortOpt
-		offset    int
-		limit     int = 20
-		connInfos []*ConnInfo
-	)
-	m.writeDataToMonitor("connz", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
-		if subscriberInfo != nil && subscriberInfo.Param != nil {
-			if subscriberInfo.Param["sort_opt"] != nil {
-				sortOpt = SortOpt(subscriberInfo.Param["sort_opt"].(string))
-			}
-			if subscriberInfo.Param["offset"] != nil {
-				offsetI64, _ := subscriberInfo.Param["offset"].(json.Number).Int64()
-				offset = int(offsetI64)
-			}
-			if subscriberInfo.Param["limit"] != nil {
-				limitI64, _ := subscriberInfo.Param["limit"].(json.Number).Int64()
-				limit = int(limitI64)
-			}
-		}
-		resultConns := m.s.GetConnInfos(sortOpt, offset, limit)
-		connInfos = make([]*ConnInfo, 0, len(resultConns))
-		for _, resultConn := range resultConns {
-			if resultConn == nil || !resultConn.IsAuthed() {
-				continue
-			}
-			connInfos = append(connInfos, newConnInfo(resultConn))
-		}
-		return connInfos
-	})
-}
+// 	for _, subscriber := range subscribers {
+// 		conns := m.s.connManager.GetConnsWithUID(subscriber)
+// 		if len(conns) == 0 {
+// 			continue
+// 		}
+// 		var rDataBytes []byte
+// 		for _, conn := range conns {
+// 			if conn == nil {
+// 				continue
+// 			}
 
-func (m *MonitorAPI) getRealtimeData() *realtimeData {
-	connNums := m.s.monitor.ConnNums()
-	upstreamPackages := m.s.monitor.UpstreamPackageSample()
-	upstreamTraffics := m.s.monitor.UpstreamTrafficSample()
+// 			connCtx := conn.Context().(*connContext)
 
-	downstreamPackages := m.s.monitor.DownstreamPackageSample()
-	downstreamTraffics := m.s.monitor.DownstreamTrafficSample()
+// 			subscribeInfo := connCtx.getSubscribeInfo(monitorChannel.ChannelId, monitorChannel.ChannelType)
+// 			if subscribeInfo == nil { // 说明该连接没有订阅该频道
+// 				continue
+// 			}
+// 			data := dataCallback(subscribeInfo)
+// 			rDataBytes = []byte(wkutil.ToJSON(data))
+// 			recvPacket := &wkproto.RecvPacket{
+// 				Framer: wkproto.Framer{
+// 					NoPersist: true,
+// 					RedDot:    false,
+// 					SyncOnce:  false,
+// 				},
+// 				MessageID:   m.s.dispatch.processor.genMessageID(),
+// 				Timestamp:   int32(time.Now().Unix()),
+// 				ChannelID:   monitorChannel.ChannelId,
+// 				ChannelType: monitorChannel.ChannelType,
+// 				Payload:     rDataBytes,
+// 			}
+// 			encryptPayload, _ := encryptMessagePayload(rDataBytes, conn)
+// 			recvPacket.Payload = encryptPayload
 
-	var realtimeData = &realtimeData{}
+// 			msgKey, _ := makeMsgKey(recvPacket.VerityString(), conn)
+// 			recvPacket.MsgKey = msgKey
 
-	if len(connNums) > 0 {
-		realtimeData.ConnNums = connNums[len(connNums)-1:]
-	}
-	if len(upstreamPackages) > 0 {
-		realtimeData.UpstreamPackets = upstreamPackages[len(upstreamPackages)-1:]
-	}
-	if len(downstreamPackages) > 0 {
-		realtimeData.DownstreamPackets = downstreamPackages[len(downstreamPackages)-1:]
-	}
-	if len(upstreamTraffics) > 0 {
-		realtimeData.UpstreamTraffics = upstreamTraffics[len(upstreamTraffics)-1:]
-	}
-	if len(downstreamTraffics) > 0 {
-		realtimeData.DownstreamTraffics = downstreamTraffics[len(downstreamTraffics)-1:]
-	}
-	return realtimeData
-}
+// 			m.s.dispatch.dataOutFrames(conn, recvPacket)
+// 		}
+// 	}
+// }
 
-func (m *MonitorAPI) channels(c *wkhttp.Context) {
-	channelID := c.Query("channel_id")
-	channelTypeI, _ := strconv.Atoi(c.Query("channel_type"))
-	channelType := uint8(channelTypeI)
+// func (m *MonitorAPI) varzPublish() {
+// 	m.writeDataToMonitor("varz", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
+// 		show := ""
+// 		if subscriberInfo != nil && subscriberInfo.Param != nil {
+// 			if subscriberInfo.Param["show"] != nil {
+// 				show = subscriberInfo.Param["show"].(string)
+// 			}
+// 		}
+// 		varz := CreateVarz(m.s)
+// 		connLimit := 20
+// 		if show == "conn" {
+// 			resultConns := m.s.GetConnInfos(ByInMsgDesc, 0, connLimit)
+// 			connInfos := make([]*ConnInfo, 0, len(resultConns))
+// 			for _, resultConn := range resultConns {
+// 				if resultConn == nil || !resultConn.IsAuthed() {
+// 					continue
+// 				}
+// 				connInfos = append(connInfos, newConnInfo(resultConn))
+// 			}
+// 			varz.Conns = connInfos
+// 		}
+// 		return varz
+// 	})
+// }
 
-	fakeChannelID := channelID
-	if channelType == wkproto.ChannelTypePerson {
-		fromUID, toUID := GetFromUIDAndToUIDWith(channelID)
-		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
-	}
-	channelInfo, err := m.s.channelManager.GetChannel(fakeChannelID, channelType)
-	if err != nil {
-		m.Error("get channel error", zap.Error(err))
-		c.ResponseError(err)
-		return
-	}
-	if channelInfo == nil {
-		c.ResponseError(ErrChannelNotFound)
-		return
-	}
-	subscribers, err := m.s.store.GetSubscribers(fakeChannelID, channelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	allowlist, err := m.s.store.GetAllowlist(fakeChannelID, channelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	denylist, err := m.s.store.GetDenylist(fakeChannelID, channelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	lastMsgSeq, err := m.s.store.GetLastMsgSeq(fakeChannelID, channelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	topic := m.topicName(fakeChannelID, channelType)
-	slotNum := wkutil.GetSlotNum(m.s.opts.Cluster.SlotCount, topic)
-	c.JSON(http.StatusOK, newChannelInfoResult(channelInfo, lastMsgSeq, slotNum, subscribers, allowlist, denylist))
-}
+// func (m *MonitorAPI) realtimePublish() {
+// 	m.writeDataToMonitor("realtime", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
+// 		return m.getRealtimeData()
+// 	})
+// }
 
-func (m *MonitorAPI) topicName(channelID string, channelType uint8) string {
-	return fmt.Sprintf("%d-%s", channelType, channelID)
-}
+// func (m *MonitorAPI) connzPublish() {
+// 	var (
+// 		sortOpt   SortOpt
+// 		offset    int
+// 		limit     int = 20
+// 		connInfos []*ConnInfo
+// 	)
+// 	m.writeDataToMonitor("connz", func(subscriberInfo *wkstore.SubscribeInfo) interface{} {
+// 		if subscriberInfo != nil && subscriberInfo.Param != nil {
+// 			if subscriberInfo.Param["sort_opt"] != nil {
+// 				sortOpt = SortOpt(subscriberInfo.Param["sort_opt"].(string))
+// 			}
+// 			if subscriberInfo.Param["offset"] != nil {
+// 				offsetI64, _ := subscriberInfo.Param["offset"].(json.Number).Int64()
+// 				offset = int(offsetI64)
+// 			}
+// 			if subscriberInfo.Param["limit"] != nil {
+// 				limitI64, _ := subscriberInfo.Param["limit"].(json.Number).Int64()
+// 				limit = int(limitI64)
+// 			}
+// 		}
+// 		resultConns := m.s.GetConnInfos(sortOpt, offset, limit)
+// 		connInfos = make([]*ConnInfo, 0, len(resultConns))
+// 		for _, resultConn := range resultConns {
+// 			if resultConn == nil || !resultConn.IsAuthed() {
+// 				continue
+// 			}
+// 			connInfos = append(connInfos, newConnInfo(resultConn))
+// 		}
+// 		return connInfos
+// 	})
+// }
 
-func (m *MonitorAPI) messages(c *wkhttp.Context) {
-	channelID := c.Query("channel_id")
-	channelTypeI, _ := strconv.Atoi(c.Query("channel_type"))
-	channelType := uint8(channelTypeI)
-	limt, _ := strconv.Atoi(c.Query("limit"))
-	startMessageSeq, _ := strconv.ParseUint(c.Query("start_message_seq"), 10, 64)
-	if limt <= 0 {
-		limt = 20
-	}
-	fakeChannelID := channelID
-	if channelType == wkproto.ChannelTypePerson {
-		fromUID, toUID := GetFromUIDAndToUIDWith(channelID)
-		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
-	}
+// func (m *MonitorAPI) getRealtimeData() *realtimeData {
+// 	connNums := m.s.monitor.ConnNums()
+// 	upstreamPackages := m.s.monitor.UpstreamPackageSample()
+// 	upstreamTraffics := m.s.monitor.UpstreamTrafficSample()
 
-	messages, err := m.s.store.LoadNextRangeMsgs(fakeChannelID, channelType, startMessageSeq, 0, limt)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	maxMsgSeq, _ := m.s.store.GetLastMsgSeq(fakeChannelID, channelType)
-	messageResps := make([]*MessageResp, 0)
-	if len(messages) > 0 {
-		for _, message := range messages {
-			msgResp := &MessageResp{}
-			msgResp.from(message, m.s.store)
-			messageResps = append(messageResps, msgResp)
-		}
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"data":              messageResps,
-		"limit":             limt,
-		"start_message_seq": startMessageSeq,
-		"max_message_seq":   maxMsgSeq,
-	})
-}
+// 	downstreamPackages := m.s.monitor.DownstreamPackageSample()
+// 	downstreamTraffics := m.s.monitor.DownstreamTrafficSample()
 
-func (m *MonitorAPI) conversations(c *wkhttp.Context) {
-	uid := c.Query("uid")
+// 	var realtimeData = &realtimeData{}
 
-	if strings.TrimSpace(uid) == "" {
-		c.ResponseError(ErrParamInvalid)
-		return
-	}
+// 	if len(connNums) > 0 {
+// 		realtimeData.ConnNums = connNums[len(connNums)-1:]
+// 	}
+// 	if len(upstreamPackages) > 0 {
+// 		realtimeData.UpstreamPackets = upstreamPackages[len(upstreamPackages)-1:]
+// 	}
+// 	if len(downstreamPackages) > 0 {
+// 		realtimeData.DownstreamPackets = downstreamPackages[len(downstreamPackages)-1:]
+// 	}
+// 	if len(upstreamTraffics) > 0 {
+// 		realtimeData.UpstreamTraffics = upstreamTraffics[len(upstreamTraffics)-1:]
+// 	}
+// 	if len(downstreamTraffics) > 0 {
+// 		realtimeData.DownstreamTraffics = downstreamTraffics[len(downstreamTraffics)-1:]
+// 	}
+// 	return realtimeData
+// }
 
-	conversationResults := make([]*syncUserConversationResp, 0)
-	if m.s.opts.Conversation.On {
-		sessions, err := m.s.store.GetLastSessionsByUid(uid, m.s.opts.Conversation.UserMaxCount)
-		if err != nil {
-			m.Error("get last sessions by uid error", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-		sessionIds := make([]uint64, 0, len(sessions))
-		for _, session := range sessions {
-			sessionIds = append(sessionIds, session.Id)
-		}
-		conversations, err := m.s.store.GetConversationBySessionIds(uid, sessionIds)
-		if err != nil {
-			m.Error("get conversation by session ids error", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
+// func (m *MonitorAPI) channels(c *wkhttp.Context) {
+// 	channelID := c.Query("channel_id")
+// 	channelTypeI, _ := strconv.Atoi(c.Query("channel_type"))
+// 	channelType := uint8(channelTypeI)
 
-		for _, session := range sessions {
-			for _, conversation := range conversations {
-				if session.Id == conversation.SessionId {
-					conversationResults = append(conversationResults, newSyncUserConversationResp(conversation, session))
-					break
-				}
-			}
-		}
-	}
+// 	fakeChannelID := channelID
+// 	if channelType == wkproto.ChannelTypePerson {
+// 		fromUID, toUID := GetFromUIDAndToUIDWith(channelID)
+// 		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
+// 	}
+// 	channelInfo, err := m.s.channelManager.GetChannel(fakeChannelID, channelType)
+// 	if err != nil {
+// 		m.Error("get channel error", zap.Error(err))
+// 		c.ResponseError(err)
+// 		return
+// 	}
+// 	if channelInfo == nil {
+// 		c.ResponseError(ErrChannelNotFound)
+// 		return
+// 	}
+// 	subscribers, err := m.s.store.GetSubscribers(fakeChannelID, channelType)
+// 	if err != nil {
+// 		c.ResponseError(err)
+// 		return
+// 	}
+// 	allowlist, err := m.s.store.GetAllowlist(fakeChannelID, channelType)
+// 	if err != nil {
+// 		c.ResponseError(err)
+// 		return
+// 	}
+// 	denylist, err := m.s.store.GetDenylist(fakeChannelID, channelType)
+// 	if err != nil {
+// 		c.ResponseError(err)
+// 		return
+// 	}
+// 	lastMsgSeq, err := m.s.store.GetLastMsgSeq(fakeChannelID, channelType)
+// 	if err != nil {
+// 		c.ResponseError(err)
+// 		return
+// 	}
+// 	topic := m.topicName(fakeChannelID, channelType)
+// 	slotNum := wkutil.GetSlotNum(m.s.opts.Cluster.SlotCount, topic)
+// 	c.JSON(http.StatusOK, newChannelInfoResult(channelInfo, lastMsgSeq, slotNum, subscribers, allowlist, denylist))
+// }
 
-	c.JSON(http.StatusOK, gin.H{
-		"on":            m.s.opts.Conversation.On,
-		"conversations": conversationResults,
-	})
-}
+// func (m *MonitorAPI) topicName(channelID string, channelType uint8) string {
+// 	return fmt.Sprintf("%d-%s", channelType, channelID)
+// }
 
-type realtimeData struct {
-	ConnNums           []int `json:"conn_nums"`
-	UpstreamPackets    []int `json:"upstream_packets"`
-	UpstreamTraffics   []int `json:"upstream_traffics"`
-	DownstreamPackets  []int `json:"downstream_packets"`
-	DownstreamTraffics []int `json:"downstream_traffics"`
-}
+// func (m *MonitorAPI) messages(c *wkhttp.Context) {
+// 	channelID := c.Query("channel_id")
+// 	channelTypeI, _ := strconv.Atoi(c.Query("channel_type"))
+// 	channelType := uint8(channelTypeI)
+// 	limt, _ := strconv.Atoi(c.Query("limit"))
+// 	startMessageSeq, _ := strconv.ParseUint(c.Query("start_message_seq"), 10, 64)
+// 	if limt <= 0 {
+// 		limt = 20
+// 	}
+// 	fakeChannelID := channelID
+// 	if channelType == wkproto.ChannelTypePerson {
+// 		fromUID, toUID := GetFromUIDAndToUIDWith(channelID)
+// 		fakeChannelID = GetFakeChannelIDWith(fromUID, toUID)
+// 	}
 
-type channelInfoResult struct {
-	ChannelID   string   `json:"channel_id"`
-	ChannelType uint8    `json:"channel_type"`
-	Ban         bool     `json:"ban"`                   // 是否被封
-	Large       bool     `json:"large"`                 // 是否是超大群
-	LastMsgSeq  uint64   `json:"last_msg_seq"`          // 最后一条消息的seq
-	Subscribers []string `json:"subscribers,omitempty"` // 订阅者集合
-	AllowList   []string `json:"allow_list,omitempty"`  // 白名单
-	DenyList    []string `json:"deny_list,omitempty"`   // 黑名单
-	SlotNum     uint32   `json:"slot_num"`              // slot编号
-}
+// 	messages, err := m.s.store.LoadNextRangeMsgs(fakeChannelID, channelType, startMessageSeq, 0, limt)
+// 	if err != nil {
+// 		c.ResponseError(err)
+// 		return
+// 	}
+// 	maxMsgSeq, _ := m.s.store.GetLastMsgSeq(fakeChannelID, channelType)
+// 	messageResps := make([]*MessageResp, 0)
+// 	if len(messages) > 0 {
+// 		for _, message := range messages {
+// 			msgResp := &MessageResp{}
+// 			msgResp.from(message, m.s.store)
+// 			messageResps = append(messageResps, msgResp)
+// 		}
+// 	}
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"data":              messageResps,
+// 		"limit":             limt,
+// 		"start_message_seq": startMessageSeq,
+// 		"max_message_seq":   maxMsgSeq,
+// 	})
+// }
 
-func newChannelInfoResult(channelInfo *Channel, lastMsgSeq uint64, slotNum uint32, subscribers []string, allowList []string, denyList []string) *channelInfoResult {
+// func (m *MonitorAPI) conversations(c *wkhttp.Context) {
+// 	uid := c.Query("uid")
 
-	return &channelInfoResult{
-		ChannelID:   channelInfo.ChannelId,
-		ChannelType: channelInfo.ChannelType,
-		Ban:         channelInfo.Ban,
-		Large:       channelInfo.Large,
-		LastMsgSeq:  lastMsgSeq,
-		Subscribers: subscribers,
-		AllowList:   allowList,
-		DenyList:    denyList,
-		SlotNum:     slotNum,
-	}
-}
+// 	if strings.TrimSpace(uid) == "" {
+// 		c.ResponseError(ErrParamInvalid)
+// 		return
+// 	}
+
+// 	conversationResults := make([]*syncUserConversationResp, 0)
+// 	if m.s.opts.Conversation.On {
+// 		sessions, err := m.s.store.GetLastSessionsByUid(uid, m.s.opts.Conversation.UserMaxCount)
+// 		if err != nil {
+// 			m.Error("get last sessions by uid error", zap.Error(err))
+// 			c.ResponseError(err)
+// 			return
+// 		}
+// 		sessionIds := make([]uint64, 0, len(sessions))
+// 		for _, session := range sessions {
+// 			sessionIds = append(sessionIds, session.Id)
+// 		}
+// 		conversations, err := m.s.store.GetConversationBySessionIds(uid, sessionIds)
+// 		if err != nil {
+// 			m.Error("get conversation by session ids error", zap.Error(err))
+// 			c.ResponseError(err)
+// 			return
+// 		}
+
+// 		for _, session := range sessions {
+// 			for _, conversation := range conversations {
+// 				if session.Id == conversation.SessionId {
+// 					conversationResults = append(conversationResults, newSyncUserConversationResp(conversation, session))
+// 					break
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"on":            m.s.opts.Conversation.On,
+// 		"conversations": conversationResults,
+// 	})
+// }
+
+// type realtimeData struct {
+// 	ConnNums           []int `json:"conn_nums"`
+// 	UpstreamPackets    []int `json:"upstream_packets"`
+// 	UpstreamTraffics   []int `json:"upstream_traffics"`
+// 	DownstreamPackets  []int `json:"downstream_packets"`
+// 	DownstreamTraffics []int `json:"downstream_traffics"`
+// }
+
+// type channelInfoResult struct {
+// 	ChannelID   string   `json:"channel_id"`
+// 	ChannelType uint8    `json:"channel_type"`
+// 	Ban         bool     `json:"ban"`                   // 是否被封
+// 	Large       bool     `json:"large"`                 // 是否是超大群
+// 	LastMsgSeq  uint64   `json:"last_msg_seq"`          // 最后一条消息的seq
+// 	Subscribers []string `json:"subscribers,omitempty"` // 订阅者集合
+// 	AllowList   []string `json:"allow_list,omitempty"`  // 白名单
+// 	DenyList    []string `json:"deny_list,omitempty"`   // 黑名单
+// 	SlotNum     uint32   `json:"slot_num"`              // slot编号
+// }
+
+// func newChannelInfoResult(channelInfo *Channel, lastMsgSeq uint64, slotNum uint32, subscribers []string, allowList []string, denyList []string) *channelInfoResult {
+
+// 	return &channelInfoResult{
+// 		ChannelID:   channelInfo.ChannelId,
+// 		ChannelType: channelInfo.ChannelType,
+// 		Ban:         channelInfo.Ban,
+// 		Large:       channelInfo.Large,
+// 		LastMsgSeq:  lastMsgSeq,
+// 		Subscribers: subscribers,
+// 		AllowList:   allowList,
+// 		DenyList:    denyList,
+// 		SlotNum:     slotNum,
+// 	}
+// }

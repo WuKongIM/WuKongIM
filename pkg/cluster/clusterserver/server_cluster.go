@@ -285,7 +285,6 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 			needProposeCfg = true
 		} else {
 			// 如果副本没有达到设置的要求，则尝试将新节点加入到副本列表
-			fmt.Println("clusterCfg.Learners---->", clusterCfg.Learners, clusterCfg.Replicas, allowVoteAndJoinedNodeCount, clusterCfg.ReplicaMaxCount)
 			if len(clusterCfg.Learners) == 0 && len(clusterCfg.Replicas) < int(clusterCfg.ReplicaMaxCount) { // 如果当前副本数量小于最大副本数量，则看是否有节点可以加入副本
 
 				if len(clusterCfg.Replicas) < allowVoteAndJoinedNodeCount { // 如果有更多节点可以加入副本，则执行副本加入逻辑
@@ -296,7 +295,6 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 							newReplicaIds = append(newReplicaIds, node.Id)
 						}
 					}
-					fmt.Println("newReplicaIds---->", newReplicaIds)
 					rand.Shuffle(len(newReplicaIds), func(i, j int) {
 						newReplicaIds[i], newReplicaIds[j] = newReplicaIds[j], newReplicaIds[i]
 					})
@@ -306,7 +304,6 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 							break
 						}
 					}
-					fmt.Println("clusterCfg.Learners---->", clusterCfg.Learners)
 					needProposeCfg = true
 				}
 			}
@@ -502,7 +499,7 @@ func (s *Server) loadChannelClusterConfig(channelId string, channelType uint8) (
 	if slot.Leader == s.opts.NodeId {
 		if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 			s.Error("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-			return wkdb.EmptyChannelClusterConfig, fmt.Errorf("channel cluster config is not found")
+			return wkdb.EmptyChannelClusterConfig, ErrChannelClusterConfigNotFound
 		}
 	} else if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		// 向频道所在槽的领导请求频道的分布式配置（这种情况不需要保存clusterConfig，因为说明此节点不是槽领导也不是频道副本，如果保存clusterConfig，后续clusterConfig更新，则此节点将不会跟着更新了）
@@ -513,7 +510,7 @@ func (s *Server) loadChannelClusterConfig(channelId string, channelType uint8) (
 	}
 	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		s.Error("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("channel cluster config is not found")
+		return wkdb.EmptyChannelClusterConfig, ErrChannelClusterConfigNotFound
 	}
 	return clusterConfig, nil
 }

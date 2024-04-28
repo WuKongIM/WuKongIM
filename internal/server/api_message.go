@@ -11,7 +11,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
@@ -348,15 +347,15 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if !msg.NoPersist && !msg.SyncOnce && !m.s.opts.IsTmpChannel(channelID) {
 
 		if msg.StreamIng() {
-			streamSeq, err := m.s.store.AppendStreamItem(fakeChannelID, channelType, msg.StreamNo, &wkstore.StreamItem{
-				ClientMsgNo: msg.ClientMsgNo,
-				Blob:        msg.Payload,
-			})
-			if err != nil {
-				m.Error("Failed to save stream message", zap.Error(err))
-				return 0, 0, errors.New("failed to save stream message")
-			}
-			msg.StreamSeq = streamSeq // stream seq
+			// streamSeq, err := m.s.store.AppendStreamItem(fakeChannelID, channelType, msg.StreamNo, &wkstore.StreamItem{
+			// 	ClientMsgNo: msg.ClientMsgNo,
+			// 	Blob:        msg.Payload,
+			// })
+			// if err != nil {
+			// 	m.Error("Failed to save stream message", zap.Error(err))
+			// 	return 0, 0, errors.New("failed to save stream message")
+			// }
+			// msg.StreamSeq = streamSeq // stream seq
 		} else {
 			results, err := m.s.store.AppendMessages(m.s.ctx, fakeChannelID, channelType, messages)
 			if err != nil {
@@ -429,7 +428,7 @@ func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
 	streamNo := wkutil.GenUUID()
 	streamFlag := wkproto.StreamFlagStart
 
-	messageID, messageSeq, err := m.sendMessageToChannel(MessageSendReq{
+	_, _, err := m.sendMessageToChannel(MessageSendReq{
 		Header:      req.Header,
 		ClientMsgNo: clientMsgNo,
 		StreamNo:    streamNo,
@@ -444,19 +443,19 @@ func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	err = m.s.store.SaveStreamMeta(&wkstore.StreamMeta{
-		StreamNo:    streamNo,
-		MessageID:   messageID,
-		ChannelID:   channelID,
-		ChannelType: channelType,
-		MessageSeq:  messageSeq,
-		StreamFlag:  streamFlag,
-	})
-	if err != nil {
-		m.Error("保存流消息元数据失败！", zap.Error(err))
-		c.ResponseError(err)
-		return
-	}
+	// err = m.s.store.SaveStreamMeta(&wkstore.StreamMeta{
+	// 	StreamNo:    streamNo,
+	// 	MessageID:   messageID,
+	// 	ChannelID:   channelID,
+	// 	ChannelType: channelType,
+	// 	MessageSeq:  messageSeq,
+	// 	StreamFlag:  streamFlag,
+	// })
+	// if err != nil {
+	// 	m.Error("保存流消息元数据失败！", zap.Error(err))
+	// 	c.ResponseError(err)
+	// 	return
+	// }
 
 	c.JSON(http.StatusOK, gin.H{
 		"stream_no": streamNo,
@@ -466,37 +465,37 @@ func (m *MessageAPI) streamMessageStart(c *wkhttp.Context) {
 
 func (m *MessageAPI) streamMessageEnd(c *wkhttp.Context) {
 
-	var req messageStreamEndReq
-	if err := c.BindJSON(&req); err != nil {
-		m.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(err)
-		return
-	}
-	if m.s.opts.ClusterOn() {
-		c.ResponseError(errors.New("分布式暂不支持流消息"))
-		return
-	}
+	// var req messageStreamEndReq
+	// if err := c.BindJSON(&req); err != nil {
+	// 	m.Error("数据格式有误！", zap.Error(err))
+	// 	c.ResponseError(err)
+	// 	return
+	// }
+	// if m.s.opts.ClusterOn() {
+	// 	c.ResponseError(errors.New("分布式暂不支持流消息"))
+	// 	return
+	// }
 
-	streamMeta, err := m.s.store.GetStreamMeta(req.ChannelID, req.ChannelType, req.StreamNo)
-	if err != nil {
-		m.Error("获取流消息元数据失败！", zap.Error(err))
-		c.ResponseError(err)
-		return
-	}
-	if streamMeta == nil {
-		m.Error("流消息元数据不存在！", zap.Error(err), zap.String("streamNo", req.StreamNo))
-		c.ResponseError(errors.New("流消息元数据不存在！"))
-		return
-	}
+	// streamMeta, err := m.s.store.GetStreamMeta(req.ChannelID, req.ChannelType, req.StreamNo)
+	// if err != nil {
+	// 	m.Error("获取流消息元数据失败！", zap.Error(err))
+	// 	c.ResponseError(err)
+	// 	return
+	// }
+	// if streamMeta == nil {
+	// 	m.Error("流消息元数据不存在！", zap.Error(err), zap.String("streamNo", req.StreamNo))
+	// 	c.ResponseError(errors.New("流消息元数据不存在！"))
+	// 	return
+	// }
 
-	streamMeta.StreamFlag = wkproto.StreamFlagEnd
+	// streamMeta.StreamFlag = wkproto.StreamFlagEnd
 
-	err = m.s.store.SaveStreamMeta(streamMeta)
-	if err != nil {
-		m.Error("保存流消息元数据失败！", zap.Error(err))
-		c.ResponseError(err)
-		return
-	}
-	c.ResponseOK()
+	// err = m.s.store.SaveStreamMeta(streamMeta)
+	// if err != nil {
+	// 	m.Error("保存流消息元数据失败！", zap.Error(err))
+	// 	c.ResponseError(err)
+	// 	return
+	// }
+	// c.ResponseOK()
 
 }

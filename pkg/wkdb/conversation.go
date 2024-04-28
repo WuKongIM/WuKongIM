@@ -1,7 +1,6 @@
 package wkdb
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
@@ -17,7 +16,6 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 		if err != nil {
 			return err
 		}
-		fmt.Println("AddOrUpdateConversations-uid:", uid, "sessionId:", cn.SessionId, id)
 		if id == 0 {
 			id = uint64(wk.prmaryKeyGen.Generate().Int64())
 		}
@@ -112,7 +110,9 @@ func (wk *wukongDB) GetConversation(uid string, sessionId uint64) (Conversation,
 }
 
 func (wk *wukongDB) GetConversationBySessionIds(uid string, sessionIds []uint64) ([]Conversation, error) {
-
+	if len(sessionIds) == 0 {
+		return nil, nil
+	}
 	db := wk.shardDB(uid)
 
 	conversations := make([]Conversation, 0)

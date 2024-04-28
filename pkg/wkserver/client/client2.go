@@ -102,9 +102,6 @@ func (c *Client) run(connectChan chan struct{}) {
 	if c.running.Load() {
 		return
 	}
-	defer func() {
-		fmt.Println("loop read end.....")
-	}()
 	for {
 		if c.forceDisconnect {
 			return

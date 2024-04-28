@@ -309,7 +309,6 @@ func (s *Server) checkClusterConfig() {
 
 	if len(s.cfg.slots()) == 0 {
 
-		fmt.Println("no slots")
 		replicas := make([]uint64, 0, len(s.cfg.nodes())) // 有效副本集合
 		for _, node := range s.cfg.nodes() {
 			if !node.AllowVote || node.Status != pb.NodeStatus_NodeStatusJoined {
@@ -350,7 +349,6 @@ func (s *Server) checkClusterConfig() {
 			s.Error("get data error", zap.Error(err))
 			return
 		}
-		fmt.Println("proposeAndWait....")
 		err = s.proposeAndWait(s.cancelCtx, []replica.Log{
 			{
 				Id:   uint64(s.cfgGenId.Generate().Int64()),

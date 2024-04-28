@@ -50,7 +50,7 @@ func (d *Datasource) GetChannelInfo(channelID string, channelType uint8) (wkdb.C
 		return wkdb.EmptyChannelInfo, err
 	}
 	channelInfo := channelInfoResp.ToChannelInfo()
-	channelInfo.ChannelID = channelID
+	channelInfo.ChannelId = channelID
 	channelInfo.ChannelType = channelType
 	return wkdb.EmptyChannelInfo, nil
 
