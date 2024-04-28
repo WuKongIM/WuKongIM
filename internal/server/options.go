@@ -476,6 +476,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	// =================== cluster ===================
 	o.Cluster.NodeId = o.getUint64("cluster.nodeId", o.Cluster.NodeId)
+	defaultPort := ""
+	clusterAddrs := strings.Split(o.Cluster.Addr, ":")
+	if len(clusterAddrs) == 2 {
+		defaultPort = clusterAddrs[1]
+	}
 	o.Cluster.Addr = o.getString("cluster.addr", o.Cluster.Addr)
 	role := o.getString("cluster.role", string(o.Cluster.Role))
 	switch role {
@@ -506,9 +511,16 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 			if err != nil {
 				continue
 			}
+
+			addr := nodeStrs[1]
+			hasPort := strings.Contains(addr, ":")
+			if !hasPort {
+				addr = fmt.Sprintf("%s:%s", addr, defaultPort)
+			}
+
 			o.Cluster.Nodes = append(o.Cluster.Nodes, &Node{
 				Id:         nodeID,
-				ServerAddr: nodeStrs[1],
+				ServerAddr: addr,
 			})
 		}
 	}

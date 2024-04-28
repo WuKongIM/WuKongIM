@@ -1,0 +1,64 @@
+version: '3'
+
+services:
+  wukongim1:
+    image: wukongim/wukongim:v2.0.0-beta-20240428
+    container_name: wukongim1
+    environment:
+    - "WK_CLUSTER_NODEID=1001"
+    - "WK_CLUSTER_NODES=[1001@node1.tgo.ai,1002@node2.tgo.ai,1003@node3.tgo.ai]"
+    healthcheck:
+      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      wukongim-bridge:
+        aliases:
+        - node1.tgo.ai
+    ports:
+      - 1883:1883
+      - 8083:8083
+      - 8084:8084
+      - 8883:8883
+      - 18083:18083
+    volumes:
+      - $PWD/wukongim2_data:/root/wukongim
+
+  wukongim2:
+    image: wukongim/wukongim:v2.0.0-beta-20240428
+    container_name: wukongim2
+    environment:
+      - "WK_CLUSTER_NODEID=1002"
+      - "WK_CLUSTER_NODES=[1001@node1.tgo.ai,1002@node2.tgo.ai,1003@node3.tgo.ai]"
+    healthcheck:
+      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      wukongim-bridge:
+        aliases:
+        - node2.tgo.ai
+
+  wukongim3:
+    image: wukongim/wukongim:v2.0.0-beta-20240428
+    container_name: wukongim3
+    environment:
+      - "WK_CLUSTER_NODEID=1003"
+      - "WK_CLUSTER_NODES=[1001@node1.tgo.ai,1002@node2.tgo.ai,1003@node3.tgo.ai]"
+    healthcheck:
+      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      wukongim-bridge:
+        aliases:
+        - node3.tgo.ai
+    volumes:
+      - $PWD/wukongim3_data:/root/wukongim    
+
+networks:
+  wukongim-bridge:
+    driver: bridge
