@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
+	"github.com/WuKongIM/crypto/tls"
 	"github.com/pkg/errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"

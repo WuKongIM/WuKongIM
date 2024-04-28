@@ -8,10 +8,12 @@
 package netpoll
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
@@ -20,11 +22,11 @@ type Poller struct {
 	wklog.Log
 	fd       int
 	efd      int
-	shutdown bool
+	shutdown atomic.Bool
 	name     string
 }
 
-func NewPoller(name string) *Poller {
+func NewPoller(index int, name string) *Poller {
 	var (
 		err    error
 		poller = new(Poller)
@@ -39,7 +41,7 @@ func NewPoller(name string) *Poller {
 		unix.Close(poller.fd)
 		panic(err)
 	}
-	poller.Log = wklog.NewWKLog("epollPoller")
+	poller.Log = wklog.NewWKLog(fmt.Sprintf("epollPoller[%d]", index))
 
 	err = poller.AddRead(poller.efd)
 	if err != nil {
@@ -51,12 +53,11 @@ func NewPoller(name string) *Poller {
 
 // Polling blocks the current goroutine, waiting for network-events.
 func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
-	// el := newEventList(InitPollEventsCap)
+	el := newEventList(InitPollEventsCap)
 	msec := -1
-	p.shutdown = false
-	events := make([]unix.EpollEvent, 100)
-	for !p.shutdown {
-		n, err := unix.EpollWait(p.fd, events, msec)
+	p.shutdown.Store(false)
+	for !p.shutdown.Load() {
+		n, err := unix.EpollWait(p.fd, el.events, msec)
 		if n == 0 || (n < 0 && err == unix.EINTR) {
 			msec = -1
 			runtime.Gosched()
@@ -72,14 +73,13 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 
 		// test := make([]byte, 10000)
 		for i := 0; i < n; i++ {
-			event := events[i]
-			evt := event.Events
-			fd := event.Fd
+			evt := el.events[i]
+			fd := evt.Fd
 			pollEvent = PollEventUnknown
-			triggerRead = evt&readEvents != 0
-			triggerWrite = evt&unix.EPOLLOUT != 0
-			triggerHup = evt&(unix.EPOLLHUP|unix.EPOLLRDHUP) != 0
-			triggerError = evt&unix.EPOLLERR != 0
+			triggerRead = evt.Events&readEvents != 0
+			triggerWrite = evt.Events&unix.EPOLLOUT != 0
+			triggerHup = evt.Events&(unix.EPOLLHUP|unix.EPOLLRDHUP) != 0
+			triggerError = evt.Events&unix.EPOLLERR != 0
 
 			if triggerHup || triggerError {
 				pollEvent = PollEventClose
@@ -102,11 +102,11 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 				}
 			}
 		}
-		// if n == el.size {
-		// 	el.expand()
-		// } else if n < el.size>>1 {
-		// 	el.shrink()
-		// }
+		if n == el.size {
+			el.expand()
+		} else if n < el.size>>1 {
+			el.shrink()
+		}
 	}
 	return nil
 }
@@ -153,6 +153,6 @@ func (p *Poller) Delete(fd int) error {
 
 // Close closes the poller.
 func (p *Poller) Close() error {
-	p.shutdown = true
+	p.shutdown.Store(true)
 	return os.NewSyscallError("close", unix.Close(p.efd))
 }

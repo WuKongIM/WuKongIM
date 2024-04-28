@@ -11,8 +11,8 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/ring"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet/crypto/tls"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/WuKongIM/crypto/tls"
 
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -314,7 +314,6 @@ func (d *DefaultConn) closeNeedLock() error {
 	d.mu.Unlock()                // 这里先解锁，避免OnClose中调用conn的方法导致死锁
 	d.eg.eventHandler.OnClose(d) // call the close handler
 	d.mu.Lock()
-
 	err := d.reactorSub.DeleteFd(d)
 	if err != nil {
 		d.Debug("delete fd from poller error", zap.Int("fd", d.fd.fd), zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
