@@ -378,11 +378,12 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 		return
 	}
 
-	err := ch.s.store.DeleteChannelAndClearMessages(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
+	// TODO： 这里要试情况是否删除消息
+	// err := ch.s.store.DeleteChannelAndClearMessages(req.ChannelID, req.ChannelType)
+	// if err != nil {
+	// 	c.ResponseError(err)
+	// 	return
+	// }
 
 	cha, err := ch.s.store.GetChannel(req.ChannelID, req.ChannelType)
 	if err != nil {
