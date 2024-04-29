@@ -105,15 +105,17 @@ type Store interface {
 type ChannelInfo struct {
 	ChannelID   string `json:"-"`
 	ChannelType uint8  `json:"-"`
-	Ban         bool   `json:"ban"`   // 是否被封
-	Large       bool   `json:"large"` // 是否是超大群
+	Ban         bool   `json:"ban"`     // 是否被封
+	Large       bool   `json:"large"`   // 是否是超大群
+	Disband     bool   `json:"disband"` // 是否解散
 }
 
 // ToMap ToMap
 func (c *ChannelInfo) ToMap() map[string]interface{} {
 	return map[string]interface{}{
-		"ban":   c.Ban,
-		"large": c.Large,
+		"ban":     c.Ban,
+		"large":   c.Large,
+		"disband": c.Disband,
 	}
 }
 
@@ -130,6 +132,9 @@ func (c *ChannelInfo) from(mp map[string]interface{}) {
 	}
 	if mp["large"] != nil {
 		c.Large = mp["large"].(bool)
+	}
+	if mp["disband"] != nil {
+		c.Disband = mp["disband"].(bool)
 	}
 
 }

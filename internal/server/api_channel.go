@@ -384,7 +384,31 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 		return
 	}
 
-	ch.s.channelManager.DeleteChannel(req.ChannelID, req.ChannelType)
+	cha, err := ch.s.store.GetChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	if cha == nil {
+		c.ResponseOK()
+		return
+	}
+	cha.Disband = true
+	err = ch.s.store.AddOrUpdateChannel(cha)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	err = ch.s.channelManager.DeleteChannel(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+	err = ch.s.store.RemoveAllSubscriber(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
 	c.ResponseOK()
 }
 
