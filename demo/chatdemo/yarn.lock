@@ -558,10 +558,10 @@ vue@^3.2.45:
     "@vue/server-renderer" "3.3.4"
     "@vue/shared" "3.3.4"
 
-wukongimjssdk@^1.2.4:
-  version "1.2.4"
-  resolved "https://registry.yarnpkg.com/wukongimjssdk/-/wukongimjssdk-1.2.4.tgz#1b716c02f12f9cdab755d26f9aea2b36f184bf31"
-  integrity sha512-HdiEvRxWVNniC0inSj/AzoSRXP1TF8u4WKsayyW+JA65eum8Q5xw2Si7KuCWs/6lqp0t5rNO0qj7Jzsh5WnLCg==
+wukongimjssdk@^1.2.10:
+  version "1.2.10"
+  resolved "https://registry.yarnpkg.com/wukongimjssdk/-/wukongimjssdk-1.2.10.tgz#2aad714d9b04ca4ceae11bb527328bbeb715cb64"
+  integrity sha512-MX4NJoXGV+KnxZ6kK8UwsjLWEewGQudmCGV2d4/vrtI99Z78EkfWARPyVGX3jkqX0vwDzxid2JrcQewuo3vXGA==
   dependencies:
     "@types/bignumber.js" "^5.0.0"
     "@types/crypto-js" "^4.0.2"

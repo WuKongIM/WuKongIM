@@ -4,7 +4,7 @@ go 1.22.1
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
-	github.com/WuKongIM/WuKongIMGoProto v1.0.2
+	github.com/WuKongIM/WuKongIMGoProto v1.0.3
 	github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble v1.0.0

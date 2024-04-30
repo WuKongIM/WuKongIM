@@ -250,6 +250,7 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 		ReasonCode:    wkproto.ReasonSuccess,
 		TimeDiff:      timeDiff,
 		ServerVersion: lastVersion,
+		NodeId:        p.s.opts.Cluster.NodeId,
 	}
 	connack.HasServerVersion = hasServerVersion
 	p.response(conn, connack)
@@ -316,13 +317,27 @@ func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.Co
 
 	// -------------------- response connack --------------------
 
+	lastVersion := connectPacket.Version
+	hasServerVersion := false
+	if connectPacket.Version > wkproto.LatestVersion {
+		lastVersion = wkproto.LatestVersion
+	}
+	if connectPacket.Version > 3 {
+		hasServerVersion = true
+	}
+
+	connack := &wkproto.ConnackPacket{
+		Salt:          connResp.AesIV,
+		ServerKey:     connResp.ServerPublicKey,
+		ReasonCode:    wkproto.ReasonSuccess,
+		TimeDiff:      timeDiff,
+		NodeId:        p.s.opts.Cluster.NodeId,
+		ServerVersion: lastVersion,
+	}
+	connack.HasServerVersion = hasServerVersion
+
 	p.s.Debug("Auth Success", zap.Any("conn", conn))
-	p.response(conn, &wkproto.ConnackPacket{
-		Salt:       connResp.AesIV,
-		ServerKey:  connResp.ServerPublicKey,
-		ReasonCode: wkproto.ReasonSuccess,
-		TimeDiff:   timeDiff,
-	})
+	p.response(conn, connack)
 
 }
 
