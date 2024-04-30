@@ -2,8 +2,6 @@
 
 9年积累，沉淀出来的高性能通用通讯服务，支持即时通讯，站内/系统消息，消息中台，物联网通讯，音视频信令，直播弹幕，客服系统，AI通讯，即时社区等场景。
 
-（注意：此项目是一个通用的底层即时通讯服务，上层需要对接自己的具体业务系统（通过webhook和datasource机制非常轻松与自己业务系统对接），此项目核心点主要维护大量客户端的长连接，并根据第三方业务系统配置的投递消息规则进行消息投递。）
-
 `本项目需要在go1.20.0或以上环境编译`
 
 #### 2.0.0-beta版本发布正式发布！（beta版本不建议上生产，生产请使用1.2.x的版本）
@@ -28,14 +26,21 @@
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
 <a href="https://join.slack.com/t/wukongim/shared_invite/zt-22o7we8on-2iKNUmgigB9ERdF9XUivmw"><img src="https://img.shields.io/badge/Slack-99%2B-blueviolet?logo=slack&amp;logoColor=white"></a>
 
+架构图
+--------
+
+![架构图](./docs/architecture/cluster.png)
+
+
+节点故障转移演示
+--------
+
+![节点故障转移演示](./docs/architecture/cluster-failover.webp)
+
 演示
 --------
 
 **聊天Demo**
-
-![image](./docs/demo.gif)
-
-Demo源码： https://github.com/WuKongIM/WuKongIMJSSDK/tree/main/examples
 
 web聊天场景演示： http://imdemo.githubim.com
 
@@ -45,6 +50,7 @@ web聊天场景演示： http://imdemo.githubim.com
 --------
 
 深知开发一个即时通讯系统的复杂性，我们希望通过开源的方式，让更多的开发者可以快速的搭建自己的即时通讯系统，让信息传递更简单。 -->
+
 
 
 特点
@@ -92,93 +98,46 @@ web聊天场景演示： http://imdemo.githubim.com
 ---------------
 
 
-### Docker部署
+### Docker部署（单机）
 
 ```shell
 
-docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5210:5210 -p 5300:5300  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:v2.0.0-beta-20240428
+docker run -d -p 15001:5001 -p 15100:5100 -p 15172:5172 -p 15200:5200 -p 15210:5210 -p 15300:5300  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:v2.0.0-beta-20240428
 
 ```
 
-### 二进制部署
-
-
-```shell
-
-wget -O wukongim https://github.com/WuKongIM/WuKongIM/releases/download/v1.2.1/wukongim-linux-amd64  # 其他系统请查看 https://github.com/WuKongIM/WuKongIM/releases
-
-```
-
-```shell
-
-chmod +x wukongim
-
-```
-
-启动
-
-```shell
-
-./wukongim --config config/wk.yaml
-
-```
-
-### 源码部署
-
-```shell
+### Docker部署（分布式）
+    
+```yaml
 
 git clone https://github.com/WuKongIM/WuKongIM.git
 
-cd WuKongIM
+cd ./WuKongIM/docker/cluster
 
-go run main.go --config config/wk.yaml
+sudo docker compose up -d
 
 ```
 
 
 ### 访问
 
-查询系统信息: http://127.0.0.1:5001/varz
+查询系统信息: http://127.0.0.1:15001/varz
 
-查看监控信息： http://127.0.0.1:5300/web
+查看监控信息： http://127.0.0.1:15300/web
 
-客户端演示地址：http://127.0.0.1:5172/chatdemo
+客户端演示地址：http://127.0.0.1:15172/chatdemo (分布式地址为：http://127.0.0.1:15172/login)
 
 端口解释:
 
 ```
-5001: api端口
-5100: tcp长连接端口
-5172: demo端口
-5200: websocket长连接端口
-5300: 监控系统端口
+15001: api端口
+15100: tcp长连接端口
+15172: demo端口
+15200: websocket长连接端口
+15300: 监控系统端口
 ```
 
-分布式部署
----------------
 
-
-启动集群
-
-```shell
-
-./wukongim  --node-id=1001 --listen-addr=192.168.1.11:10001 --init-nodes=1001@192.168.1.11:10001,1002@192.168.1.12:10001
-
-./wukongim  --node-id=1002 --listen-addr=192.168.1.12:10001 --init-nodes=1001@192.168.1.11:10001,1002@192.168.1.12:10001
-
-```
-
-加入集群
-
-```shell
-
-./wukongim --node-id=1003 --listen-addr=192.168.1.13:1001 --join=192.168.1.11:10001
-
-```
-
-`
---join: 指定现有集群中的任意节点，新节点会自动加入到集群中
-`
 
 
 配套SDK源码和Demo
