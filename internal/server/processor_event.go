@@ -314,11 +314,6 @@ func (p *Processor) OnConnectReq(req *rpc.ConnectReq) (*rpc.ConnectResp, error) 
 
 	p.s.connManager.AddConn(proxyConn)
 
-	// -------------------- user online --------------------
-	// 在线webhook
-	onlineCount, totalOnlineCount := p.s.connManager.GetConnCountWith(uid, connectPacket.DeviceFlag)
-	p.s.webhook.Online(uid, connectPacket.DeviceFlag, proxyConn.ID(), onlineCount, totalOnlineCount)
-
 	return &rpc.ConnectResp{
 		ReasonCode:      uint32(wkproto.ReasonSuccess),
 		DeviceLevel:     uint32(devceLevel),
@@ -416,6 +411,7 @@ func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, e
 		return proto.Status_OK, nil
 	}
 	reminData := req.Data
+	var frames []wkproto.Frame
 	for len(reminData) > 0 {
 		f, size, err := p.s.opts.Proto.DecodeFrame(reminData, uint8(conn.ProtoVersion()))
 		if err != nil {
@@ -426,8 +422,9 @@ func (p *Processor) OnConnectWriteReq(req *rpc.ConnectWriteReq) (proto.Status, e
 			p.Debug("收到转发的RecvPacket", zap.Uint32("messageSeq", recv.MessageSeq))
 		}
 		reminData = reminData[size:]
+		frames = append(frames, f)
 	}
-	p.s.dispatch.dataOut(conn, req.Data)
+	p.s.dispatch.dataOutFrames(conn, frames...)
 	return proto.Status_OK, nil
 }
 

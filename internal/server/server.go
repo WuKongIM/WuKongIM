@@ -16,7 +16,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/RussellLuo/timingwheel"
-	"github.com/WuKongIM/WuKongIM/internal/monitor"
 	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
@@ -50,7 +49,6 @@ type Server struct {
 	start               time.Time                // 服务开始时间
 	timingWheel         *timingwheel.TimingWheel // Time wheel delay task
 	deliveryManager     *DeliveryManager         // 消息投递管理
-	monitor             monitor.IMonitor         // Data monitoring
 	dispatch            *Dispatch                // 消息流入流出分发器
 	store               *clusterstore.Store      // 存储相关接口
 	connManager         *ConnManager             // conn manager
@@ -93,8 +91,6 @@ func New(opts *Options) *Server {
 
 	gin.SetMode(opts.GinMode)
 
-	monitor.SetMonitorOn(opts.Monitor.On) // 监控开关
-
 	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
 	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
 	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
@@ -111,7 +107,6 @@ func New(opts *Options) *Server {
 	s.conversationManager = NewConversationManager(s)
 	s.retryQueue = NewRetryQueue(s)
 	s.webhook = NewWebhook(s)
-	s.monitor = monitor.GetMonitor() // 监控
 	s.monitorServer = NewMonitorServer(s)
 	s.demoServer = NewDemoServer(s)
 	var err error
@@ -119,8 +114,6 @@ func New(opts *Options) *Server {
 	if err != nil {
 		panic(err)
 	}
-
-	monitor.SetMonitorOn(s.opts.Monitor.On) // 监控开关
 
 	// clusterOpts := cluster.NewOptions()
 	// clusterOpts.PeerID = s.opts.Cluster.NodeId
@@ -273,7 +266,13 @@ func (s *Server) Start() error {
 
 	defer s.Info("Server is ready")
 
-	err := s.store.Open()
+	err := s.trace.Start()
+	if err != nil {
+		return err
+
+	}
+
+	err = s.store.Open()
 	if err != nil {
 		panic(err)
 	}
@@ -306,7 +305,6 @@ func (s *Server) Start() error {
 	})
 
 	if s.opts.Monitor.On {
-		s.monitor.Start()
 		s.monitorServer.Start()
 	}
 	if s.opts.Demo.On {
@@ -314,12 +312,6 @@ func (s *Server) Start() error {
 	}
 
 	s.timingWheel.Start()
-
-	err = s.trace.Start()
-	if err != nil {
-		return err
-
-	}
 
 	s.started = true
 
@@ -350,7 +342,6 @@ func (s *Server) Stop() error {
 
 	if s.opts.Monitor.On {
 		_ = s.monitorServer.Stop()
-		s.monitor.Stop()
 	}
 	if s.opts.Demo.On {
 		s.demoServer.Stop()

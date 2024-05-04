@@ -1,7 +1,6 @@
 package wknet
 
 import (
-	"fmt"
 	"runtime"
 	"time"
 
@@ -35,10 +34,14 @@ type Options struct {
 	SocketSendBuffer int
 	// TCPKeepAlive sets up a duration for (SO_KEEPALIVE) socket option.
 	TCPKeepAlive time.Duration
+
+	Event struct {
+		OnReadBytes  func(n int) // 读到的字节大小
+		OnWirteBytes func(n int) // 写出字节大小
+	}
 }
 
 func NewOptions() *Options {
-	fmt.Println("runtime.NumCPU()---->", runtime.NumCPU())
 	return &Options{
 		Addr:               "tcp://127.0.0.1:5100",
 		MaxOpenFiles:       GetMaxOpenFiles(),
@@ -114,5 +117,18 @@ func WithSocketSendBuffer(sendBuf int) Option {
 func WithTCPKeepAlive(v time.Duration) Option {
 	return func(opts *Options) {
 		opts.TCPKeepAlive = v
+	}
+}
+
+func WithOnReadBytes(f func(n int)) Option {
+	return func(opts *Options) {
+		opts.Event.OnReadBytes = f
+	}
+}
+
+func WithOnWirteBytes(f func(n int)) Option {
+
+	return func(opts *Options) {
+		opts.Event.OnWirteBytes = f
 	}
 }

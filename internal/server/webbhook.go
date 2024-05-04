@@ -324,7 +324,6 @@ func (w *Webhook) sendWebhookForGRPC(event string, data []byte) error {
 	})
 	w.Debug("webhook grpc 请求结束 耗时", zap.Int64("mill", time.Now().UnixNano()/1000/1000-startTime))
 
-	w.s.monitor.WebhookObserve(event, time.Since(startNow))
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 )
 
 type channelManager struct {
@@ -21,6 +22,9 @@ func newChannelManager(opts *Options) *channelManager {
 		reactor.WithSend(cm.onSend),
 		reactor.WithReactorType(reactor.ReactorTypeChannel),
 		reactor.WithAutoSlowDownOn(true),
+		reactor.WithOnHandlerRemove(func(h reactor.IHandler) {
+			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
+		}),
 	))
 	return cm
 }
@@ -34,6 +38,7 @@ func (c *channelManager) stop() {
 }
 
 func (c *channelManager) add(ch *channel) {
+	trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(1)
 	c.channelReactor.AddHandler(ch.key, ch)
 }
 

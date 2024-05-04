@@ -657,21 +657,35 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 }
 
 type SlotResp struct {
-	Id           uint32   `json:"id"`
-	LeaderId     uint64   `json:"leader_id"`
-	Term         uint32   `json:"term"`
-	Replicas     []uint64 `json:"replicas"`
-	ChannelCount int      `json:"channel_count"`
-	LogIndex     uint64   `json:"log_index"`
+	Id           uint32        `json:"id"`
+	LeaderId     uint64        `json:"leader_id"`
+	Term         uint32        `json:"term"`
+	Replicas     []uint64      `json:"replicas"`
+	ChannelCount int           `json:"channel_count"`
+	LogIndex     uint64        `json:"log_index"`
+	Status       pb.SlotStatus `json:"status"`
+	StatusFormat string        `json:"status_format"`
 }
 
 func NewSlotResp(st *pb.Slot, channelCount int) *SlotResp {
+	statusFormat := ""
+	switch st.Status {
+	case pb.SlotStatus_SlotStatusNormal:
+		statusFormat = "正常"
+	case pb.SlotStatus_SlotStatusCandidate:
+		statusFormat = "候选中"
+	case pb.SlotStatus_SlotStatusLeaderTransfer:
+		statusFormat = "领导者转移中"
+
+	}
 	return &SlotResp{
 		Id:           st.Id,
 		LeaderId:     st.Leader,
 		Term:         st.Term,
 		Replicas:     st.Replicas,
 		ChannelCount: channelCount,
+		Status:       st.Status,
+		StatusFormat: statusFormat,
 	}
 }
 

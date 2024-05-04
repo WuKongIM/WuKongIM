@@ -19,6 +19,11 @@ type clusterMetrics struct {
 	messageIncomingCount atomic.Int64
 	messageOutgoingCount atomic.Int64
 
+	channelMsgIncomingBytes atomic.Int64
+	channelMsgOutgoingBytes atomic.Int64
+	channelMsgIncomingCount atomic.Int64
+	channelMsgOutgoingCount atomic.Int64
+
 	messageConcurrency atomic.Int64
 
 	// sendPacket
@@ -26,6 +31,9 @@ type clusterMetrics struct {
 	sendPacketIncomingCount atomic.Int64
 	sendPacketOutgoingBytes atomic.Int64
 	sendPacketOutgoingCount atomic.Int64
+
+	// channel
+	channelActiveCount metric.Int64UpDownCounter
 
 	// channel log
 	channelLogIncomingBytes atomic.Int64
@@ -72,8 +80,13 @@ type clusterMetrics struct {
 	outboundFlightMessageBytes metric.Int64UpDownCounter
 
 	// propose
-	channelProposeLatency metric.Int64Histogram
-	slotProposeLatency    metric.Int64Histogram
+	channelProposeLatency           metric.Int64Histogram
+	channelProposeCount             atomic.Int64 // 频道提案数量
+	channelProposeFailedCount       atomic.Int64 // 频道提案失败数量
+	channelProposeLatencyUnder500ms atomic.Int64 // 小于500ms的频道提案
+	channelProposeLatencyOver500ms  atomic.Int64 // 超过500ms的频道提案
+
+	slotProposeLatency metric.Int64Histogram
 }
 
 func newClusterMetrics(opts *Options) IClusterMetrics {
@@ -84,21 +97,31 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 	}
 
 	// message
-	messageIncomingBytes := NewInt64ObservableCounter("cluster_message_incoming_bytes")
-	messageOutgoingBytes := NewInt64ObservableCounter("cluster_message_outgoing_bytes")
-	messageIncomingCount := NewInt64ObservableCounter("cluster_message_incoming_count")
-	messageOutgoingCount := NewInt64ObservableCounter("cluster_message_outgoing_count")
+	msgIncomingBytes := NewInt64ObservableCounter("cluster_msg_incoming_bytes")
+	msgOutgoingBytes := NewInt64ObservableCounter("cluster_msg_outgoing_bytes")
+	msgIncomingCount := NewInt64ObservableCounter("cluster_msg_incoming_count")
+	msgOutgoingCount := NewInt64ObservableCounter("cluster_msg_outgoing_count")
+
+	// channel message
+	channelMsgIncomingBytes := NewInt64ObservableCounter("cluster_channel_msg_incoming_bytes")
+	channelMsgOutgoingBytes := NewInt64ObservableCounter("cluster_channel_msg_outgoing_bytes")
+	channelMsgIncomingCount := NewInt64ObservableCounter("cluster_channel_msg_incoming_count")
+	channelMsgOutgoingCount := NewInt64ObservableCounter("cluster_channel_msg_outgoing_count")
 
 	messageConcurrency := NewInt64ObservableCounter("cluster_message_concurrency")
 
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
-		obs.ObserveInt64(messageIncomingBytes, c.messageIncomingBytes.Load())
-		obs.ObserveInt64(messageOutgoingBytes, c.messageOutgoingBytes.Load())
-		obs.ObserveInt64(messageIncomingCount, c.messageIncomingCount.Load())
-		obs.ObserveInt64(messageOutgoingCount, c.messageOutgoingCount.Load())
+		obs.ObserveInt64(msgIncomingBytes, c.messageIncomingBytes.Load())
+		obs.ObserveInt64(msgOutgoingBytes, c.messageOutgoingBytes.Load())
+		obs.ObserveInt64(msgIncomingCount, c.messageIncomingCount.Load())
+		obs.ObserveInt64(msgOutgoingCount, c.messageOutgoingCount.Load())
 		obs.ObserveInt64(messageConcurrency, c.messageConcurrency.Load())
+		obs.ObserveInt64(channelMsgIncomingBytes, c.channelMsgIncomingBytes.Load())
+		obs.ObserveInt64(channelMsgOutgoingBytes, c.channelMsgOutgoingBytes.Load())
+		obs.ObserveInt64(channelMsgIncomingCount, c.channelMsgIncomingCount.Load())
+		obs.ObserveInt64(channelMsgOutgoingCount, c.channelMsgOutgoingCount.Load())
 		return nil
-	}, messageIncomingBytes, messageOutgoingBytes, messageIncomingCount, messageOutgoingCount, messageConcurrency)
+	}, msgIncomingBytes, msgOutgoingBytes, msgIncomingCount, msgOutgoingCount, messageConcurrency, channelMsgIncomingBytes, channelMsgOutgoingBytes, channelMsgIncomingCount, channelMsgOutgoingCount)
 
 	// sendpacket
 	sendPacketIncomingBytes := NewInt64ObservableCounter("cluster_sendpacket_incoming_bytes")
@@ -117,6 +140,8 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 	channelLogIncomingCount := NewInt64ObservableCounter("cluster_channel_log_incoming_count")
 	channelLogOutgoingBytes := NewInt64ObservableCounter("cluster_channel_log_outgoing_bytes")
 	channelLogOutgoingCount := NewInt64ObservableCounter("cluster_channel_log_outgoing_count")
+
+	c.channelActiveCount = NewInt64UpDownCounter("cluster_channel_active_count")
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(channelLogIncomingBytes, c.channelLogIncomingBytes.Load())
 		obs.ObserveInt64(channelLogIncomingCount, c.channelLogIncomingCount.Load())
@@ -164,10 +189,10 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 	}, msgSyncIncomingBytes, msgSyncOutgoingBytes, msgSyncIncomingCount, msgSyncOutgoingCount, msgSyncRespIncomingBytes, msgSyncRespOutgoingBytes, msgSyncRespIncomingCount, msgSyncRespOutgoingCount, channelMsgSyncIncomingBytes, channelMsgSyncOutgoingBytes, channelMsgSyncIncomingCount, channelMsgSyncOutgoingCount, slotMsgSyncIncomingBytes, slotMsgSyncOutgoingBytes, slotMsgSyncIncomingCount, slotMsgSyncOutgoingCount)
 
 	// cluster ping
-	clusterPingIncomingBytes := NewInt64ObservableCounter("cluster_clusterping_incoming_bytes")
-	clusterPingIncomingCount := NewInt64ObservableCounter("cluster_clusterping_incoming_count")
-	clusterPingOutgoingBytes := NewInt64ObservableCounter("cluster_clusterping_outgoing_bytes")
-	clusterPingOutgoingCount := NewInt64ObservableCounter("cluster_clusterping_outgoing_count")
+	clusterPingIncomingBytes := NewInt64ObservableCounter("cluster_msg_ping_incoming_bytes")
+	clusterPingIncomingCount := NewInt64ObservableCounter("cluster_msg_ping_incoming_count")
+	clusterPingOutgoingBytes := NewInt64ObservableCounter("cluster_msg_ping_outgoing_bytes")
+	clusterPingOutgoingCount := NewInt64ObservableCounter("cluster_msg_ping_outgoing_count")
 
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(clusterPingIncomingBytes, c.clusterPingIncomingBytes.Load())
@@ -178,16 +203,17 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 	}, clusterPingIncomingBytes, clusterPingIncomingCount, clusterPingOutgoingBytes, clusterPingOutgoingCount)
 
 	// cluster pong
-	clusterPongIncomingBytes := NewInt64ObservableCounter("cluster_clusterpong_incoming_bytes")
-	clusterPongIncomingCount := NewInt64ObservableCounter("cluster_clusterpong_incoming_count")
-	clusterPongOutgoingBytes := NewInt64ObservableCounter("cluster_clusterpong_outgoing_bytes")
-	clusterPongOutgoingCount := NewInt64ObservableCounter("cluster_clusterpong_outgoing_count")
+	clusterPongIncomingBytes := NewInt64ObservableCounter("cluster_msg_pong_incoming_bytes")
+	clusterPongIncomingCount := NewInt64ObservableCounter("cluster_msg_pong_incoming_count")
+	clusterPongOutgoingBytes := NewInt64ObservableCounter("cluster_msg_pong_outgoing_bytes")
+	clusterPongOutgoingCount := NewInt64ObservableCounter("cluster_msg_pong_outgoing_count")
 
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(clusterPongIncomingBytes, c.clusterPongIncomingBytes.Load())
 		obs.ObserveInt64(clusterPongIncomingCount, c.clusterPongIncomingCount.Load())
 		obs.ObserveInt64(clusterPongOutgoingBytes, c.clusterPongOutgoingBytes.Load())
 		obs.ObserveInt64(clusterPongOutgoingCount, c.clusterPongOutgoingCount.Load())
+
 		return nil
 	}, clusterPongIncomingBytes, clusterPongIncomingCount, clusterPongOutgoingBytes, clusterPongOutgoingCount)
 
@@ -206,21 +232,48 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 		c.Panic("cluster_slot_propose_latency error", zap.Error(err))
 
 	}
+	channelProposeCount := NewInt64ObservableCounter("cluster_channel_propose_count")
+	channelProposeFailedCount := NewInt64ObservableCounter("cluster_channel_propose_failed_count")
+	channelProposeLatencyOver500ms := NewInt64ObservableCounter("cluster_channel_propose_latency_over_500ms")
+	channelProposeLatencyUnder500ms := NewInt64ObservableCounter("cluster_channel_propose_latency_under_500ms")
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(channelProposeCount, c.channelProposeCount.Load())
+		obs.ObserveInt64(channelProposeFailedCount, c.channelProposeFailedCount.Load())
+		obs.ObserveInt64(channelProposeLatencyOver500ms, c.channelProposeLatencyOver500ms.Load())
+		obs.ObserveInt64(channelProposeLatencyUnder500ms, c.channelProposeLatencyUnder500ms.Load())
+		return nil
+	}, channelProposeCount, channelProposeFailedCount, channelProposeLatencyUnder500ms, channelProposeLatencyOver500ms)
 
 	return c
 }
 
-func (c *clusterMetrics) MessageIncomingBytesAdd(v int64) {
+func (c *clusterMetrics) MessageIncomingBytesAdd(kind ClusterKind, v int64) {
 	c.messageIncomingBytes.Add(v)
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgIncomingBytes.Add(v)
+	}
 }
-func (c *clusterMetrics) MessageOutgoingBytesAdd(v int64) {
+func (c *clusterMetrics) MessageOutgoingBytesAdd(kind ClusterKind, v int64) {
 	c.messageOutgoingBytes.Add(v)
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgOutgoingBytes.Add(v)
+	}
 }
-func (c *clusterMetrics) MessageIncomingCountAdd(v int64) {
+func (c *clusterMetrics) MessageIncomingCountAdd(kind ClusterKind, v int64) {
 	c.messageIncomingCount.Add(v)
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgIncomingCount.Add(v)
+	}
 }
-func (c *clusterMetrics) MessageOutgoingCountAdd(v int64) {
+func (c *clusterMetrics) MessageOutgoingCountAdd(kind ClusterKind, v int64) {
 	c.messageOutgoingCount.Add(v)
+	switch kind {
+	case ClusterKindChannel:
+		c.channelMsgOutgoingCount.Add(v)
+	}
 }
 
 func (c *clusterMetrics) MessageConcurrencyAdd(v int64) {
@@ -427,8 +480,8 @@ func (c *clusterMetrics) ForwardConnPongCountAdd(v int64) {
 
 }
 
-func (c *clusterMetrics) ChannelReplicaActiveCountAdd(v int64) {
-
+func (c *clusterMetrics) ChannelActiveCountAdd(v int64) {
+	c.channelActiveCount.Add(c.ctx, v)
 }
 
 func (c *clusterMetrics) ChannelElectionCountAdd(v int64) {
@@ -459,7 +512,21 @@ func (c *clusterMetrics) ProposeLatencyAdd(kind ClusterKind, v int64) {
 	switch kind {
 	case ClusterKindChannel:
 		c.channelProposeLatency.Record(c.ctx, v)
+		if v > 500 {
+			c.channelProposeLatencyOver500ms.Add(1)
+		} else {
+			c.channelProposeLatencyUnder500ms.Add(1)
+		}
+		c.channelProposeCount.Add(1)
 	case ClusterKindSlot:
 		c.slotProposeLatency.Record(c.ctx, v)
+	}
+}
+
+func (c *clusterMetrics) ProposeFailedCountAdd(kind ClusterKind, v int64) {
+	switch kind {
+	case ClusterKindChannel:
+		c.channelProposeFailedCount.Add(v)
+	case ClusterKindSlot:
 	}
 }

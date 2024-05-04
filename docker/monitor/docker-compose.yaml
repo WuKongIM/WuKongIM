@@ -5,6 +5,20 @@ services:
     ports:
       - "16686:16686"
       - "4318:4318"
+  node-exporter:
+    image: prom/node-exporter:v1.8.0
+    container_name: node_exporter
+    privileged: true
+    command:
+      - '--path.rootfs=/host'
+    pid: host
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - '/:/host:ro,rslave'
+    ports:
+      - "9100:9100"    
   prometheus:
     image: prom/prometheus:latest
     volumes:

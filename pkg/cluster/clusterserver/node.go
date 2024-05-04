@@ -128,8 +128,7 @@ func (n *node) processMessages() {
 					done = true
 				}
 			}
-			trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(int64(size))
-			trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(int64(len(msgs)))
+			trace.GlobalTrace.Metrics.System().IntranetOutgoingAdd(int64(size))
 
 			if err = n.sendBatch(msgs); err != nil {
 				if n.client.ConnectStatus() == client.CONNECTED { // 只有连接状态下才打印错误日志

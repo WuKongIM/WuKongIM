@@ -5,9 +5,11 @@ import (
 	"strings"
 
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -49,6 +51,7 @@ func NewAPIServer(s *Server) *APIServer {
 // Start 开始
 func (s *APIServer) Start() {
 
+	// 认证中间件
 	s.r.Use(func(c *wkhttp.Context) { // 管理者权限判断
 		if strings.TrimSpace(s.s.opts.ManagerToken) == "" {
 			c.Next()
@@ -61,6 +64,9 @@ func (s *APIServer) Start() {
 		}
 		c.Next()
 	})
+
+	// 带宽流量计算中间件
+	s.r.Use(bandwidthMiddleware())
 
 	s.setRoutes()
 	go func() {
@@ -114,8 +120,57 @@ func (s *APIServer) setRoutes() {
 		clusterServer.ServerAPI(s.r, "/cluster")
 	}
 	// 监控
-	metricHandler := s.s.trace.Handler()
-	s.r.GET("/metrics", func(c *wkhttp.Context) {
-		metricHandler.ServeHTTP(c.Writer, c.Request)
-	})
+	s.s.trace.Route(s.r)
+
+}
+
+func bandwidthMiddleware() wkhttp.HandlerFunc {
+
+	return func(c *wkhttp.Context) {
+
+		// fpath := c.FullPath()
+		// if strings.HasPrefix(fpath, "/metrics") { // 监控不计算外网带宽
+		// 	c.Next()
+		// 	return
+		// }
+		// 获取请求大小
+		requestSize := computeRequestSize(c.Request)
+		trace.GlobalTrace.Metrics.System().ExtranetIncomingAdd(int64(requestSize))
+
+		// 获取响应大小
+		blw := &bodyLogWriter{ResponseWriter: c.Writer}
+		c.Writer = blw
+		c.Next()
+		trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(blw.size))
+
+	}
+}
+
+type bodyLogWriter struct {
+	gin.ResponseWriter
+	size int
+}
+
+func (blw *bodyLogWriter) Write(b []byte) (int, error) {
+	blw.size += len(b)
+	return blw.ResponseWriter.Write(b)
+}
+
+func computeRequestSize(r *http.Request) int {
+	// 计算请求头部大小
+	requestSize := 0
+	if r.URL != nil {
+		requestSize += len(r.URL.String())
+	}
+	requestSize += len(r.Method)
+	requestSize += len(r.Proto)
+	for name, values := range r.Header {
+		requestSize += len(name)
+		for _, value := range values {
+			requestSize += len(value)
+		}
+	}
+	// 计算请求体大小
+	requestSize += int(r.ContentLength)
+	return requestSize
 }

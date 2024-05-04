@@ -1,5 +1,7 @@
 package trace
 
+import "github.com/WuKongIM/WuKongIM/pkg/wkhttp"
+
 type ClusterKind int
 
 const (
@@ -9,6 +11,8 @@ const (
 	ClusterKindSlot
 	// ClusterKindChannel 频道
 	ClusterKindChannel
+	// ClusterKindConfig 配置
+	ClusterKindConfig
 )
 
 type IMetrics interface {
@@ -20,6 +24,8 @@ type IMetrics interface {
 	Cluster() IClusterMetrics
 	// DB 数据库监控
 	DB() IDBMetrics
+
+	Route(r *wkhttp.WKHttp)
 }
 
 // SystemMetrics 系统监控
@@ -58,7 +64,7 @@ type IAppMetrics interface {
 	OnlineDeviceCountAdd(v int64)
 
 	// MessageLatencyOb 消息延迟
-	MessageLatencyOb(v float64)
+	MessageLatencyOb(v int64)
 
 	// PingBytesAdd ping流量
 	PingBytesAdd(v int64)
@@ -104,14 +110,14 @@ type IAppMetrics interface {
 // IClusterMetrics 分布式监控
 type IClusterMetrics interface {
 	// MessageIncomingBytesAdd 消息入口流量
-	MessageIncomingBytesAdd(v int64)
+	MessageIncomingBytesAdd(kind ClusterKind, v int64)
 	// MessageOutgoingBytesAdd 消息出口流量
-	MessageOutgoingBytesAdd(v int64)
+	MessageOutgoingBytesAdd(kind ClusterKind, v int64)
 
 	// MessageIncomingCountAdd 消息入口数量
-	MessageIncomingCountAdd(v int64)
+	MessageIncomingCountAdd(kind ClusterKind, v int64)
 	// MessageOutgoingCountAdd 消息出口数量
-	MessageOutgoingCountAdd(v int64)
+	MessageOutgoingCountAdd(kind ClusterKind, v int64)
 
 	// MessageConcurrencyAdd 消息并发数
 	MessageConcurrencyAdd(v int64)
@@ -226,8 +232,8 @@ type IClusterMetrics interface {
 	// ForwardConnPongCountAdd 转发连接pong数量（如果客户端没有连接到真正的逻辑节点，则代理节点会转发pong给真正的逻辑节点）
 	ForwardConnPongCountAdd(v int64)
 
-	// ChannelReplicaActiveCountAdd 频道副本激活数量
-	ChannelReplicaActiveCountAdd(v int64)
+	// ChannelActiveCountAdd 频道激活数量
+	ChannelActiveCountAdd(v int64)
 
 	// ChannelElectionCountAdd 频道选举次数
 	ChannelElectionCountAdd(v int64)
@@ -245,4 +251,7 @@ type IClusterMetrics interface {
 
 	// ProposeLatencyAdd 提案延迟统计
 	ProposeLatencyAdd(kind ClusterKind, v int64)
+
+	// ProposeFailedCountAdd 提案失败的次数
+	ProposeFailedCountAdd(kind ClusterKind, v int64)
 }

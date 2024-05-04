@@ -35,7 +35,6 @@ func (r *RetryQueue) startInFlightTimeout(msg *Message) {
 	r.pushInFlightMessage(msg)
 	r.addToInFlightPQ(msg)
 
-	r.s.monitor.RetryQueueMsgInc()
 }
 
 func (r *RetryQueue) addToInFlightPQ(msg *Message) {
@@ -80,8 +79,6 @@ func (r *RetryQueue) finishMessage(uid string, deviceID string, messageID int64)
 	}
 	r.removeFromInFlightPQ(msg)
 
-	r.s.monitor.RetryQueueMsgDec()
-
 	return nil
 }
 func (r *RetryQueue) removeFromInFlightPQ(msg *Message) {
@@ -122,7 +119,6 @@ func (r *RetryQueue) Start() {
 	r.s.Schedule(time.Minute*5, func() {
 		r.inFlightMutex.Lock()
 		defer r.inFlightMutex.Unlock()
-		r.s.monitor.InFlightMessagesSet(len(r.inFlightMessages))
 	})
 }
 

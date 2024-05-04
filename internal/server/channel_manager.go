@@ -138,7 +138,6 @@ func (cm *ChannelManager) CreateTmpChannel(channelID string, channelType uint8, 
 			channel.AddSubscriber(subscriber)
 		}
 	}
-	cm.s.monitor.TmpChannelCacheCountInc()
 	cm.tmpChannelCache.Add(fmt.Sprintf("%s-%d", channelID, channelType), channel)
 	return nil
 }
@@ -163,7 +162,6 @@ func (cm *ChannelManager) GetPersonChannel(channelID string, channelType uint8) 
 	} else {
 		channel.AddSubscriber(channelID) // 将频道添加到订阅者里
 	}
-	cm.s.monitor.ChannelCacheCountInc()
 	cm.channelCache.Add(key, channel)
 	return channel, nil
 }
@@ -203,6 +201,5 @@ func (cm *ChannelManager) DeleteChannel(channelID string, channelType uint8) err
 
 // DeleteChannelFromCache DeleteChannelFromCache
 func (cm *ChannelManager) DeleteChannelFromCache(channelID string, channelType uint8) {
-	cm.s.monitor.ChannelCacheCountDec()
 	cm.channelCache.Remove(fmt.Sprintf("%s-%d", channelID, channelType))
 }

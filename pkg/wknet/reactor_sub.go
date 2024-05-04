@@ -110,7 +110,7 @@ func (r *ReactorSub) run() {
 	})
 
 	if err != nil && !r.stopped.Load() {
-		panic(err)
+		r.Panic("poller error", zap.Error(err), zap.Int("idx", r.idx))
 	}
 }
 

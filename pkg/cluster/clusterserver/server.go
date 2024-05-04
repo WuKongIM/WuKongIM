@@ -25,6 +25,7 @@ import (
 	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -52,6 +53,8 @@ type Server struct {
 	apiPrefix              string    // api前缀
 	uptime                 time.Time // 服务器启动时间
 	wklog.Log
+
+	stopped atomic.Bool
 
 	stopper *syncutil.Stopper
 }
@@ -124,7 +127,15 @@ func New(opts *Options) *Server {
 		s.Panic("new channelLoadPool failed", zap.Error(err))
 	}
 
-	s.netServer = wkserver.New(opts.Addr, wkserver.WithMessagePoolOn(false))
+	s.netServer = wkserver.New(
+		opts.Addr, wkserver.WithMessagePoolOn(false),
+		wkserver.WithOnRequest(func(conn wknet.Conn, req *proto.Request) {
+			trace.GlobalTrace.Metrics.System().IntranetIncomingAdd(int64(len(req.Body)))
+		}),
+		wkserver.WithOnResponse(func(conn wknet.Conn, resp *proto.Response) {
+			trace.GlobalTrace.Metrics.System().IntranetOutgoingAdd(int64(len(resp.Body)))
+		}),
+	)
 	s.channelElectionManager = newChannelElectionManager(s)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	return s
@@ -207,6 +218,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
+	s.stopped.Store(true)
 	s.cancelFnc()
 	s.stopper.Stop()
 	s.nodeManager.stop()
@@ -313,6 +325,9 @@ func (s *Server) serverUid(id uint64) string {
 }
 
 func (s *Server) send(shardType ShardType, m reactor.Message) {
+	if s.stopped.Load() {
+		return
+	}
 	// 输出消息统计
 	if shardType == ShardTypeSlot {
 		traceOutgoingMessage(trace.ClusterKindSlot, m.MsgType, int64(m.Size()))
@@ -342,10 +357,24 @@ func (s *Server) send(shardType ShardType, m reactor.Message) {
 		s.Error("send failed, invalid shardType", zap.Uint8("shardType", uint8(shardType)))
 		return
 	}
-	err = node.send(&proto.Message{
+	msg := &proto.Message{
 		MsgType: msgType,
 		Content: data,
-	})
+	}
+
+	switch msg.MsgType {
+	case MsgTypeChannel:
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindChannel, int64(msg.Size()))
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(trace.ClusterKindChannel, 1)
+	case MsgTypeSlot:
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindSlot, int64(msg.Size()))
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(trace.ClusterKindSlot, 1)
+	case MsgTypeConfig:
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindConfig, int64(msg.Size()))
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(trace.ClusterKindConfig, 1)
+	}
+
+	err = node.send(msg)
 	if err != nil {
 		s.Error("send failed", zap.Error(err))
 		return
@@ -358,9 +387,12 @@ func (s *Server) onSend(m reactor.Message) {
 }
 
 func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
+	if s.stopped.Load() {
+		return
+	}
+	msgSize := int64(m.Size())
 
-	trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(1)
-	trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(int64(m.Size()))
+	trace.GlobalTrace.Metrics.System().IntranetIncomingAdd(msgSize) // 内网流量统计
 
 	switch m.MsgType {
 	case MsgTypeConfig:
@@ -369,6 +401,8 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 			s.Error("UnmarshalMessage failed", zap.Error(err))
 			return
 		}
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindConfig, 1)
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindConfig, msgSize)
 		s.AddConfigMessage(msg)
 	case MsgTypeSlot:
 		msg, err := reactor.UnmarshalMessage(m.Content)
@@ -376,6 +410,8 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 			s.Error("UnmarshalMessage failed", zap.Error(err))
 			return
 		}
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindSlot, 1)
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindSlot, msgSize)
 		s.AddSlotMessage(msg)
 	case MsgTypeChannel:
 		msg, err := reactor.UnmarshalMessage(m.Content)
@@ -383,8 +419,12 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 			s.Error("UnmarshalMessage failed", zap.Error(err))
 			return
 		}
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindChannel, 1)
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindChannel, msgSize)
 		s.AddChannelMessage(msg)
 	default:
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindUnknown, 1)
+		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindUnknown, msgSize)
 		if s.onMessageFnc != nil {
 			s.onMessageFnc(m)
 		}

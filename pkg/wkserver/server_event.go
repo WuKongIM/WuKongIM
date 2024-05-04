@@ -179,6 +179,11 @@ func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, er
 		Path: p,
 		Body: body,
 	}
+
+	if s.opts.OnRequest != nil {
+		s.opts.OnRequest(conn, r)
+	}
+
 	data, err := r.Marshal()
 	if err != nil {
 		return nil, err
@@ -200,7 +205,11 @@ func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, er
 		if x == nil {
 			return nil, errors.New("unknown error")
 		}
-		return x.(*proto.Response), nil
+		resp := x.(*proto.Response)
+		if s.opts.OnResponse != nil {
+			s.opts.OnResponse(conn, resp)
+		}
+		return resp, nil
 	case <-timeoutCtx.Done():
 		return nil, timeoutCtx.Err()
 	}
