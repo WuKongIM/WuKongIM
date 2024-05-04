@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -22,7 +23,18 @@ type Dispatch struct {
 
 func NewDispatch(s *Server) *Dispatch {
 	return &Dispatch{
-		engine:    wknet.NewEngine(wknet.WithAddr(s.opts.Addr), wknet.WithWSAddr(s.opts.WSAddr), wknet.WithWSSAddr(s.opts.WSSAddr), wknet.WithWSTLSConfig(s.opts.WSTLSConfig)),
+		engine: wknet.NewEngine(
+			wknet.WithAddr(s.opts.Addr),
+			wknet.WithWSAddr(s.opts.WSAddr),
+			wknet.WithWSSAddr(s.opts.WSSAddr),
+			wknet.WithWSTLSConfig(s.opts.WSTLSConfig),
+			wknet.WithOnReadBytes(func(n int) {
+				trace.GlobalTrace.Metrics.System().ExtranetIncomingAdd(int64(n))
+			}),
+			wknet.WithOnWirteBytes(func(n int) {
+				trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(n))
+			}),
+		),
 		s:         s,
 		processor: NewProcessor(s),
 		Log:       wklog.NewWKLog("Dispatch"),
@@ -69,7 +81,7 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 		return nil
 	}
 	if !conn.IsAuthed() { // conn is not authed must be connect packet
-		packet, _, err := d.s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
+		packet, size, err := d.s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
 		if err != nil {
 			d.Warn("Failed to decode the message", zap.Error(err))
 			conn.Close()
@@ -87,6 +99,8 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 		//  process conn auth
 		_, _ = conn.Discard(len(data))
 		d.processor.processAuth(conn, packet.(*wkproto.ConnectPacket))
+		d.s.trace.Metrics.App().ConnPacketCountAdd(1)
+		d.s.trace.Metrics.App().ConnPacketBytesAdd(int64(size))
 	} else { // authed
 		offset := 0
 		for len(data) > offset {
@@ -101,14 +115,27 @@ func (d *Dispatch) dataIn(conn wknet.Conn) error {
 			}
 
 			// 统计
-			d.s.monitor.UpstreamPackageAdd(1)
-			d.s.monitor.UpstreamTrafficAdd(size)
 			d.s.stats.inMsgs.Add(1)
 			d.s.stats.inBytes.Add(int64(size))
 
 			connStats := conn.ConnStats()
-			connStats.InMsgs.Add(1)
-			connStats.InBytes.Add(int64(size))
+			connStats.InPackets.Add(1)
+			connStats.InPacketBytes.Add(int64(size))
+
+			switch frame.GetFrameType() {
+			case wkproto.SEND:
+				connStats.InMsgs.Add(1)
+				connStats.InMsgBytes.Add(int64(size))
+				d.s.trace.Metrics.App().SendPacketCountAdd(1)
+				d.s.trace.Metrics.App().SendPacketBytesAdd(int64(size))
+			case wkproto.RECVACK:
+				d.s.trace.Metrics.App().RecvackPacketCountAdd(1)
+				d.s.trace.Metrics.App().RecvackPacketBytesAdd(int64(size))
+			case wkproto.PING:
+				d.s.trace.Metrics.App().PingCountAdd(1)
+				d.s.trace.Metrics.App().PingBytesAdd(int64(size))
+
+			}
 
 			// context
 			connCtx := conn.Context().(*connContext)
@@ -131,21 +158,38 @@ func (d *Dispatch) dataOutFrames(conn wknet.Conn, frames ...wkproto.Frame) {
 
 	// 统计
 	connStats := conn.ConnStats()
-	d.s.monitor.DownstreamPackageAdd(len(frames))
 	d.s.outMsgs.Add(int64(len(frames)))
-	connStats.OutMsgs.Add(int64(len(frames)))
+	connStats.OutPackets.Add(int64(len(frames)))
 
 	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
 	for _, frame := range frames {
+
 		data, err := d.s.opts.Proto.EncodeFrame(frame, uint8(conn.ProtoVersion()))
 		if err != nil {
 			d.Warn("Failed to encode the message", zap.Error(err))
 		} else {
 			// 统计
 			dataLen := len(data)
-			d.s.monitor.DownstreamTrafficAdd(dataLen)
 			d.s.outBytes.Add(int64(dataLen))
-			connStats.OutBytes.Add(int64(dataLen))
+
+			connStats.OutPacketBytes.Add(int64(dataLen))
+
+			switch frame.GetFrameType() {
+			case wkproto.CONNACK:
+				d.s.trace.Metrics.App().ConnackPacketCountAdd(1)
+				d.s.trace.Metrics.App().ConnackPacketBytesAdd(int64(dataLen))
+			case wkproto.RECV:
+				connStats.OutMsgs.Add(1)
+				connStats.OutMsgBytes.Add(int64(dataLen))
+				d.s.trace.Metrics.App().RecvPacketCountAdd(1)
+				d.s.trace.Metrics.App().RecvPacketBytesAdd(int64(dataLen))
+			case wkproto.SENDACK:
+				d.s.trace.Metrics.App().SendackPacketCountAdd(1)
+				d.s.trace.Metrics.App().SendackPacketBytesAdd(int64(dataLen))
+			case wkproto.PONG:
+				d.s.trace.Metrics.App().PongCountAdd(1)
+				d.s.trace.Metrics.App().PongBytesAdd(int64(dataLen))
+			}
 
 			if wsok {
 				err = wsConn.WriteServerBinary(data)
@@ -169,39 +213,49 @@ func (d *Dispatch) dataOutFrames(conn wknet.Conn, frames ...wkproto.Frame) {
 
 }
 
-func (d *Dispatch) dataOut(conn wknet.Conn, data []byte) {
-	if len(data) == 0 {
-		return
-	}
-	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
-	if wsok {
-		err := wsConn.WriteServerBinary(data)
-		if err != nil {
-			d.Warn("Failed to write the message", zap.Error(err))
-		}
+// func (d *Dispatch) dataOut(conn wknet.Conn, data []byte) {
+// 	if len(data) == 0 {
+// 		return
+// 	}
+// 	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
+// 	if wsok {
+// 		err := wsConn.WriteServerBinary(data)
+// 		if err != nil {
+// 			d.Warn("Failed to write the message", zap.Error(err))
+// 		}
 
-	} else {
-		_, err := conn.WriteToOutboundBuffer(data)
-		if err != nil {
-			d.Warn("Failed to write the message", zap.Error(err))
-		}
-	}
-	err := conn.WakeWrite()
-	if err != nil {
-		d.Warn("Failed to wake write", zap.Error(err))
-	}
-}
+// 	} else {
+// 		_, err := conn.WriteToOutboundBuffer(data)
+// 		if err != nil {
+// 			d.Warn("Failed to write the message", zap.Error(err))
+// 		}
+// 	}
+// 	err := conn.WakeWrite()
+// 	if err != nil {
+// 		d.Warn("Failed to wake write", zap.Error(err))
+// 	}
+// }
 
 func (d *Dispatch) onConnect(conn wknet.Conn) error {
 	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
-	d.s.monitor.ConnInc()
+	d.s.trace.Metrics.App().ConnCountAdd(1)
 	return nil
 }
 
 func (d *Dispatch) onClose(conn wknet.Conn) {
-	d.Debug("conn close for OnClose", zap.Any("conn", conn))
+	d.Info("conn close for OnClose", zap.Any("conn", conn))
+
 	d.processor.processClose(conn)
-	d.s.monitor.ConnDec()
+
+	onlineCount, totalOnlineCount := d.s.connManager.GetConnCountWith(conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag())) // 指定的uid和设备下没有新的客户端才算真真的下线（TODO: 有时候离线要比在线晚触发导致不正确）
+	d.s.webhook.Offline(conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.ID(), onlineCount, totalOnlineCount)     // 触发离线webhook
+	if totalOnlineCount == 0 {
+		d.s.trace.Metrics.App().OnlineUserCountAdd(-1)
+	}
+	d.s.trace.Metrics.App().OnlineDeviceCountAdd(-1)
+
+	d.s.trace.Metrics.App().ConnCountAdd(-1)
+
 }
 
 func (d *Dispatch) Start() error {

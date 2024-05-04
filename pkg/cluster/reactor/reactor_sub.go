@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +25,7 @@ type ReactorSub struct {
 
 	avdanceC chan struct{}
 	mr       *Reactor
+	stopped  atomic.Bool
 }
 
 func NewReactorSub(index int, mr *Reactor) *ReactorSub {
@@ -44,6 +46,7 @@ func (r *ReactorSub) Start() error {
 }
 
 func (r *ReactorSub) Stop() {
+	r.stopped.Store(true)
 	r.stopper.Stop()
 }
 
@@ -66,7 +69,9 @@ func (r *ReactorSub) run() {
 }
 
 func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]ProposeResult, error) {
-
+	if r.stopped.Load() {
+		return nil, ErrReactorSubStopped
+	}
 	// -------------------- 延迟统计 --------------------
 	startTime := time.Now()
 	defer func() {
@@ -76,6 +81,9 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindSlot, end.Milliseconds())
 		case ReactorTypeChannel:
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
+			if err := recover(); err != nil {
+				trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
+			}
 		}
 		if r.opts.EnableLazyCatchUp {
 			if end > time.Millisecond*500 {
@@ -159,6 +167,9 @@ func (r *ReactorSub) readyEvents() {
 	var err error
 
 	for hasEvent {
+		if r.stopped.Load() {
+			return
+		}
 		hasEvent = false
 		for _, handler := range r.tmpHandlers {
 			if !handler.isPrepared() {
@@ -557,7 +568,7 @@ func (r *ReactorSub) tick() {
 		if r.opts.ReactorType == ReactorTypeChannel {
 			if handler.speedLevel() == replica.LevelStop && handler.shouldDestroy() { // 如果速度将为停止并可销毁
 				r.Debug("remove handler, speed stop", zap.String("handler", handler.key))
-				r.handlers.remove(handler.key)
+				_ = r.removeHandler(handler.key)
 			}
 		}
 
@@ -701,7 +712,11 @@ func (r *ReactorSub) addHandler(handler *handler) {
 }
 
 func (r *ReactorSub) removeHandler(key string) *handler {
-	return r.handlers.remove(key)
+	hd := r.handlers.remove(key)
+	if r.opts.Event.OnHandlerRemove != nil {
+		r.opts.Event.OnHandlerRemove(hd.handler)
+	}
+	return hd
 }
 
 func (r *ReactorSub) handler(key string) *handler {

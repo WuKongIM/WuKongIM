@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
@@ -65,6 +66,10 @@ func (t *Trace) Stop() {
 
 func (t *Trace) Handler() http.Handler {
 	return promhttp.Handler()
+}
+
+func (t *Trace) Route(r *wkhttp.WKHttp) {
+	t.Metrics.Route(r)
 }
 
 func (t *Trace) StartSpan(ctx context.Context, name string) (context.Context, Span) {

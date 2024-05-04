@@ -4,7 +4,8 @@ httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
 rootDir: "./wukongimdata/1"
 monitor:
-  on: false
+  on: true
+  addr: "0.0.0.0:5301"
 demo:
   on: true  
 conversation:

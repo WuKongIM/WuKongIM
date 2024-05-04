@@ -45,6 +45,9 @@ func (w *WSConn) ReadToInboundBuffer() (int, error) {
 	if err != nil || n == 0 {
 		return 0, err
 	}
+	if w.eg.options.Event.OnReadBytes != nil {
+		w.eg.options.Event.OnReadBytes(n)
+	}
 	_, err = w.tmpInboundBuffer.Write(readBuffer[:n])
 	if err != nil {
 		return 0, err
@@ -187,11 +190,11 @@ func (w *WSConn) PeekFromTemp(n int) ([]byte, error) {
 }
 
 func (w *WSConn) DiscardFromTemp(n int) {
-	w.tmpInboundBuffer.Discard(n)
+	_, _ = w.tmpInboundBuffer.Discard(n)
 }
 
 func (w *WSConn) Close() error {
-	w.tmpInboundBuffer.Release()
+	_ = w.tmpInboundBuffer.Release()
 	return w.DefaultConn.Close()
 }
 
@@ -219,6 +222,9 @@ func (w *WSSConn) ReadToInboundBuffer() (int, error) {
 	n, err := w.d.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
+	}
+	if w.d.eg.options.Event.OnReadBytes != nil {
+		w.d.eg.options.Event.OnReadBytes(n)
 	}
 
 	_, err = w.tmpInboundBuffer.Write(readBuffer[:n])
@@ -269,7 +275,7 @@ func (w *WSSConn) peekFromWSTemp(n int) ([]byte, error) {
 }
 
 func (w *WSSConn) discardFromWSTemp(n int) {
-	w.wsTmpInboundBuffer.Discard(n)
+	_, _ = w.wsTmpInboundBuffer.Discard(n)
 }
 
 func (w *WSSConn) upgrade() error {
@@ -340,7 +346,7 @@ func (w *WSSConn) unpacketWSData() error {
 
 func (w *WSSConn) Close() error {
 	w.upgraded = false
-	w.wsTmpInboundBuffer.Release()
+	_ = w.wsTmpInboundBuffer.Release()
 	return w.TLSConn.Close()
 }
 

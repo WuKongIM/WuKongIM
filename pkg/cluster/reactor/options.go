@@ -60,6 +60,11 @@ type Options struct {
 
 	// LeaderTimeoutMaxTick 领导者最大超时tick数，超过这个tick数认为领导者已经丢失
 	LeaderTimeoutMaxTick int
+
+	Event struct {
+		// handler被移除事件
+		OnHandlerRemove func(h IHandler)
+	}
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -167,5 +172,17 @@ func WithReactorType(reactorType ReactorType) Option {
 func WithAutoSlowDownOn(v bool) Option {
 	return func(o *Options) {
 		o.AutoSlowDownOn = v
+	}
+}
+
+func WithLeaderTimeoutMaxTick(tick int) Option {
+	return func(o *Options) {
+		o.LeaderTimeoutMaxTick = tick
+	}
+}
+
+func WithOnHandlerRemove(f func(h IHandler)) Option {
+	return func(o *Options) {
+		o.Event.OnHandlerRemove = f
 	}
 }

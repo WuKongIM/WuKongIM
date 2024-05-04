@@ -239,6 +239,7 @@ func (wk *wukongDB) parseChannelClusterConfig(iter *pebble.Iterator, limit int, 
 		hasData                 bool = false
 	)
 	for iter.First(); iter.Valid(); iter.Next() {
+
 		id, columnName, err := key.ParseChannelClusterConfigColumnKey(iter.Key())
 		if err != nil {
 			return nil, err
@@ -307,7 +308,14 @@ func (wk *wukongDB) parseChannelClusterConfig(iter *pebble.Iterator, limit int, 
 		hasData = true
 	}
 	if lastNeedAppend && hasData {
-		clusterConfigs = append(clusterConfigs, preChannelClusterConfig)
+		if filterSlot {
+			resultSlotId := wk.channelSlotId(preChannelClusterConfig.ChannelId, preChannelClusterConfig.ChannelType)
+			if resultSlotId == slotId {
+				clusterConfigs = append(clusterConfigs, preChannelClusterConfig)
+			}
+		} else {
+			clusterConfigs = append(clusterConfigs, preChannelClusterConfig)
+		}
 	}
 	return clusterConfigs, nil
 }

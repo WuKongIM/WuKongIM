@@ -69,7 +69,7 @@ func (m *MonitorServer) Start() {
 		c.Next()
 	})
 
-	m.r.GetGinRoute().Use(gzip.Gzip(gzip.DefaultCompression))
+	m.r.GetGinRoute().Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/metrics"})))
 
 	st, _ := fs.Sub(version.WebFs, "web/dist")
 	m.r.GetGinRoute().NoRoute(func(c *gin.Context) {
@@ -84,6 +84,12 @@ func (m *MonitorServer) Start() {
 	// 监控api
 	monitorapi := NewMonitorAPI(m.s)
 	monitorapi.Route(m.r)
+
+	// 监控收集
+	metricHandler := m.s.trace.Handler()
+	m.r.GET("/metrics", func(c *wkhttp.Context) {
+		metricHandler.ServeHTTP(c.Writer, c.Request)
+	})
 
 	go func() {
 		err := m.r.Run(m.addr) // listen and serve

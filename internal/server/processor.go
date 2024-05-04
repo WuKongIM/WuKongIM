@@ -259,6 +259,11 @@ func (p *Processor) processLocalAuth(conn wknet.Conn, connectPacket *wkproto.Con
 	// 在线webhook
 	onlineCount, totalOnlineCount := p.s.connManager.GetConnCountWith(uid, connectPacket.DeviceFlag)
 	p.s.webhook.Online(uid, connectPacket.DeviceFlag, conn.ID(), onlineCount, totalOnlineCount)
+	if totalOnlineCount <= 1 {
+		p.s.trace.Metrics.App().OnlineUserCountAdd(1) // 统计在线用户数
+	}
+	p.s.trace.Metrics.App().OnlineDeviceCountAdd(1) // 统计在线设备数
+
 }
 
 func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacket) {
@@ -338,6 +343,15 @@ func (p *Processor) processRemoteAuth(conn wknet.Conn, connectPacket *wkproto.Co
 
 	p.s.Debug("Auth Success", zap.Any("conn", conn))
 	p.response(conn, connack)
+
+	// -------------------- user online --------------------
+	// 在线webhook
+	onlineCount, totalOnlineCount := p.s.connManager.GetConnCountWith(uid, connectPacket.DeviceFlag)
+	p.s.webhook.Online(uid, connectPacket.DeviceFlag, conn.ID(), onlineCount, totalOnlineCount)
+	if totalOnlineCount <= 1 {
+		p.s.trace.Metrics.App().OnlineUserCountAdd(1) // 统计在线用户数
+	}
+	p.s.trace.Metrics.App().OnlineDeviceCountAdd(1) // 统计在线设备数
 
 }
 
@@ -1117,8 +1131,7 @@ func (p *Processor) processRecvacks(conn wknet.Conn, acks []*wkproto.RecvackPack
 
 // #################### process conn close ####################
 func (p *Processor) processClose(conn wknet.Conn) {
-	p.Debug("conn is close", zap.Any("conn", conn))
-
+	p.Info("conn is close", zap.Any("conn", conn))
 	if p.s.opts.ClusterOn() {
 		leaderInfo, err := p.s.cluster.SlotLeaderOfChannel(conn.UID(), wkproto.ChannelTypePerson) // 获取频道的槽领导节点
 		if err != nil {
@@ -1142,8 +1155,6 @@ func (p *Processor) processClose(conn wknet.Conn) {
 		connCtx.release()
 		p.connContextPool.Put(connCtx)
 
-		onlineCount, totalOnlineCount := p.s.connManager.GetConnCountWith(conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag())) // 指定的uid和设备下没有新的客户端才算真真的下线（TODO: 有时候离线要比在线晚触发导致不正确）
-		p.s.webhook.Offline(conn.UID(), wkproto.DeviceFlag(conn.DeviceFlag()), conn.ID(), onlineCount, totalOnlineCount)     // 触发离线webhook
 	}
 }
 

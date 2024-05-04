@@ -159,9 +159,10 @@ type Options struct {
 	}
 
 	Trace struct {
-		Endpoint        string
-		ServiceName     string
-		ServiceHostName string
+		Endpoint         string
+		ServiceName      string
+		ServiceHostName  string
+		PrometheusApiUrl string // prometheus api url
 	}
 
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
@@ -308,13 +309,15 @@ func NewOptions() *Options {
 			PeerRPCTimeoutScanInterval: time.Second * 1,
 		},
 		Trace: struct {
-			Endpoint        string
-			ServiceName     string
-			ServiceHostName string
+			Endpoint         string
+			ServiceName      string
+			ServiceHostName  string
+			PrometheusApiUrl string
 		}{
-			Endpoint:        "127.0.0.1:4318",
-			ServiceName:     "wukongim",
-			ServiceHostName: "imnode",
+			Endpoint:         "127.0.0.1:4318",
+			ServiceName:      "wukongim",
+			ServiceHostName:  "imnode",
+			PrometheusApiUrl: "http://127.0.0.1:9090",
 		},
 	}
 }
