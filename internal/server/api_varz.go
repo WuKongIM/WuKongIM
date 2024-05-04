@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -69,6 +70,7 @@ func CreateVarz(s *Server) *Varz {
 	s.retryQueue.inFlightMutex.Lock()
 	retryQueueF := math.Max(float64(len(s.retryQueue.inFlightMessages)), float64(len(s.retryQueue.inFlightPQ)))
 	s.retryQueue.inFlightMutex.Unlock()
+
 	return &Varz{
 		ServerID:    fmt.Sprintf("%d", opts.ID),
 		ServerName:  "WuKongIM",
@@ -76,6 +78,7 @@ func CreateVarz(s *Server) *Varz {
 		Connections: connCount,
 		Uptime:      myUptime(time.Since(s.start)),
 		CPU:         pcpu,
+		Goroutine:   runtime.NumGoroutine(),
 		Mem:         rss,
 		InMsgs:      s.inMsgs.Load(),
 		OutMsgs:     s.outMsgs.Load(),
@@ -104,6 +107,7 @@ type Varz struct {
 	Version     string  `json:"version"`     // 服务端版本
 	Connections int     `json:"connections"` // 当前连接数量
 	Uptime      string  `json:"uptime"`      // 上线时间
+	Goroutine   int     `json:"goroutine"`   // goroutine数量
 	Mem         int64   `json:"mem"`         // 内存
 	CPU         float64 `json:"cpu"`         // cpu
 

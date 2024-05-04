@@ -79,11 +79,11 @@ func (cm *ConversationManager) Start() {
 // Stop Stop
 func (cm *ConversationManager) Stop() {
 	if cm.s.opts.Conversation.On {
-		close(cm.stopChan)
+		cm.FlushConversations()
 		// Wait for the queue to complete
 		cm.queue.Wait()
 
-		cm.FlushConversations()
+		close(cm.stopChan)
 
 		cm.crontab.Stop()
 	}

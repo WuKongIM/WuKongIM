@@ -38,7 +38,7 @@ type Webhook struct {
 }
 
 func NewWebhook(s *Server) *Webhook {
-	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: false}
+	options := ants.Options{ExpiryDuration: 10 * time.Second, Nonblocking: true}
 	eventPool, err := ants.NewPool(s.opts.EventPoolSize, ants.WithOptions(options), ants.WithPanicHandler(func(err interface{}) {
 		stack := debug.Stack()
 		s.Error("事件池panic", zap.Error(err.(error)), zap.String("stack", string(stack)))

@@ -60,6 +60,8 @@ type Client struct {
 	onSendack OnSendack
 
 	err error
+
+	lastSendMsgTime time.Time // 最后发送消息时间
 }
 
 func New(addr string, opt ...Option) *Client {
@@ -342,7 +344,7 @@ func (c *Client) FlushTimeout(timeout time.Duration) (err error) {
 	// in processPong() if this code here times out just when
 	// PONG was received.
 	ch := make(chan struct{}, 1)
-	c.sendPing(ch) // 注意这里flush是发送ping请求 因为sendPing执行了writer.flush 同时发送ping请求如果有pong响应则说明消息一定发送成功了
+	_ = c.sendPing(ch) // 注意这里flush是发送ping请求 因为sendPing执行了writer.flush 同时发送ping请求如果有pong响应则说明消息一定发送成功了
 	c.mu.Unlock()
 
 	select {
@@ -361,6 +363,10 @@ func (c *Client) FlushTimeout(timeout time.Duration) (err error) {
 	}
 	return
 
+}
+
+func (c *Client) LastSendMsgTime() time.Time {
+	return c.lastSendMsgTime
 }
 
 // FIXME: This is a hack
@@ -438,7 +444,10 @@ func (c *Client) sendPing(ch chan struct{}) error {
 	if err != nil {
 		return err
 	}
-	c.writer.appendBufs(data)
+	err = c.writer.appendBufs(data)
+	if err != nil {
+		return err
+	}
 	c.writer.flush()
 
 	return nil
@@ -575,7 +584,7 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 	opts := NewSendOptions()
 	if len(opt) > 0 {
 		for _, op := range opt {
-			op(opts)
+			_ = op(opts)
 		}
 	}
 	var err error
@@ -585,7 +594,7 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 		// 加密消息内容
 		newPayload, err = wkutil.AesEncryptPkcs7Base64(payload, []byte(c.aesKey), []byte(c.salt))
 		if err != nil {
-			c.Error("加密消息payload失败！", zap.Error(err))
+			c.Error("加密消息payload失败！", zap.Error(err), zap.String("aesKey", c.aesKey), zap.String("salt", c.salt))
 			return err
 		}
 	} else {
@@ -622,6 +631,7 @@ func (c *Client) SendMessage(channel *Channel, payload []byte, opt ...SendOption
 		}
 		packet.MsgKey = wkutil.MD5(string(actMsgKey))
 	}
+	c.lastSendMsgTime = time.Now()
 	return c.appendPacket(packet)
 }
 func (c *Client) Close() {
@@ -699,6 +709,7 @@ func (c *Client) sendConnect() error {
 
 	shareKey := wkutil.GetCurve25519Key(c.clientPrivKey, serverPubKey) // 共享key
 	c.aesKey = wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
+	c.status = CONNECTED
 
 	return nil
 }
@@ -765,6 +776,10 @@ func (c *Client) bindToNewConn(conn net.Conn) {
 // Test if Conn is connected or connecting.
 func (c *Client) isConnected() bool {
 	return c.status == CONNECTED
+}
+
+func (c *Client) IsConnected() bool {
+	return c.isConnected()
 }
 
 // Test if Conn is in the process of connecting
