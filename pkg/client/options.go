@@ -44,7 +44,7 @@ func NewOptions() *Options {
 	return &Options{
 		ProtoVersion:     wkproto.LatestVersion,
 		AutoReconn:       false,
-		DefaultBufSize:   32768,
+		DefaultBufSize:   1024 * 1024 * 3,
 		ReconnectBufSize: 8 * 1024 * 1024,
 		Timeout:          2 * time.Second,
 		PingInterval:     2 * time.Minute,
