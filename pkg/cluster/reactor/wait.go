@@ -28,7 +28,7 @@ type messageWaitItem struct {
 }
 
 type proposeWait struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 	wklog.Log
 
 	proposeResultMap map[string][]ProposeResult
@@ -106,20 +106,22 @@ func (m *proposeWait) waitItemsWithStartSeq(startMessageSeq uint64) []messageWai
 
 // TODO 此方法startMessageSeq 至 endMessageSeq的跨度十万需要10来秒 很慢 需要优化
 func (m *proposeWait) didPropose(key string, logId uint64, logIndex uint64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	if logIndex == 0 {
 		m.Panic("didPropose logIndex is 0")
 	}
 	m.Debug("didPropose", zap.String("key", key), zap.Uint64("logId", logId), zap.Uint64("logIndex", logIndex))
+	m.mu.RLock()
 	items := m.proposeResultMap[key]
+	m.mu.RUnlock()
 	for i, item := range items {
 		if item.Id == logId {
 			items[i].Index = logIndex
 			break
 		}
 	}
+	m.mu.Lock()
 	m.proposeResultMap[key] = items
+	m.mu.Unlock()
 }
 
 // didCommit 提交[startLogIndex, endLogIndex)范围的消息

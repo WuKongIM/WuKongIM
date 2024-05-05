@@ -85,14 +85,16 @@ func New(nodeId uint64, optList ...Option) *Replica {
 
 	rc.localLeaderLastTerm = lastLeaderTerm
 
-	if rc.IsSingleNode() { // 如果是单节点，直接成为领导
-		var term uint32 = 1
-		if rc.replicaLog.term > 0 {
-			term = rc.replicaLog.term
+	if rc.opts.ElectionOn {
+		if rc.IsSingleNode() { // 如果是单节点，直接成为领导
+			var term uint32 = 1
+			if rc.replicaLog.term > 0 {
+				term = rc.replicaLog.term
+			}
+			rc.becomeLeader(term)
+		} else {
+			rc.becomeFollower(rc.replicaLog.term, None)
 		}
-		rc.becomeLeader(term)
-	} else {
-		rc.becomeFollower(rc.replicaLog.term, None)
 	}
 
 	return rc

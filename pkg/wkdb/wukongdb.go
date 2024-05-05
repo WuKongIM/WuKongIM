@@ -3,7 +3,8 @@ package wkdb
 import (
 	"encoding/binary"
 	"fmt"
-	"hash/crc32"
+	"hash"
+	"hash/fnv"
 	"path/filepath"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -25,18 +26,21 @@ type wukongDB struct {
 	prmaryKeyGen *snowflake.Node // 消息ID生成器
 	noSync       *pebble.WriteOptions
 	dblock       *dblock
+
+	h hash.Hash32
 }
 
-func NewWukongDB(opts *Options) *wukongDB {
+func NewWukongDB(opts *Options) DB {
 	prmaryKeyGen, err := snowflake.NewNode(int64(opts.NodeId))
 	if err != nil {
 		panic(err)
 	}
 	return &wukongDB{
 		opts:         opts,
-		shardNum:     16,
+		shardNum:     uint32(opts.ShardNum),
 		prmaryKeyGen: prmaryKeyGen,
 		endian:       binary.BigEndian,
+		h:            fnv.New32(),
 		wo: &pebble.WriteOptions{
 			Sync: true,
 		},
@@ -80,7 +84,13 @@ func (wk *wukongDB) shardDB(v string) *pebble.DB {
 }
 
 func (wk *wukongDB) shardId(v string) uint32 {
-	return crc32.ChecksumIEEE([]byte(v)) % wk.shardNum
+	if wk.opts.ShardNum == 1 {
+		return 0
+	}
+	h := fnv.New32()
+	h.Write([]byte(v))
+
+	return h.Sum32() % wk.shardNum
 }
 
 func (wk *wukongDB) shardDBById(id uint32) *pebble.DB {

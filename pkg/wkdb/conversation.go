@@ -182,28 +182,28 @@ func (wk *wukongDB) writeConversation(id uint64, uid string, conversation Conver
 	)
 
 	// uid
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.Uid), []byte(uid), wk.wo); err != nil {
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.Uid), []byte(uid), wk.noSync); err != nil {
 		return err
 	}
 
 	// sessionId
 	sessionIdBytes := make([]byte, 8)
 	wk.endian.PutUint64(sessionIdBytes, conversation.SessionId)
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.SessionId), sessionIdBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.SessionId), sessionIdBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// unreadCount
 	var unreadCountBytes = make([]byte, 4)
 	wk.endian.PutUint32(unreadCountBytes, conversation.UnreadCount)
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.UnreadCount), unreadCountBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.UnreadCount), unreadCountBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// readedToMsgSeq
 	var msgSeqBytes = make([]byte, 8)
 	wk.endian.PutUint64(msgSeqBytes, conversation.ReadedToMsgSeq)
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.noSync); err != nil {
 		return err
 	}
 

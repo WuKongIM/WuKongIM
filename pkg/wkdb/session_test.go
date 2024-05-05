@@ -8,8 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func newTestDB(t testing.TB) wkdb.DB {
+	return wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir()), wkdb.WithShardNum(2)))
+}
+
 func TestAddOrUpdateSession(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -32,7 +36,7 @@ func TestAddOrUpdateSession(t *testing.T) {
 }
 
 func TestGetSession(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -63,7 +67,7 @@ func TestGetSession(t *testing.T) {
 }
 
 func TestDeleteSession(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -94,7 +98,7 @@ func TestDeleteSession(t *testing.T) {
 }
 
 func TestDeleteSessionByChannel(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -125,7 +129,7 @@ func TestDeleteSessionByChannel(t *testing.T) {
 }
 
 func TestDeleteSessionAndConversationByChannel(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -156,7 +160,7 @@ func TestDeleteSessionAndConversationByChannel(t *testing.T) {
 }
 
 func TestGetSessions(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -193,7 +197,7 @@ func TestGetSessions(t *testing.T) {
 }
 
 func TestDeleteSessionByUid(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -233,7 +237,7 @@ func TestDeleteSessionByUid(t *testing.T) {
 }
 
 func TestGetSessionByChannel(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -275,7 +279,7 @@ func TestGetSessionByChannel(t *testing.T) {
 }
 
 func TestUpdateSessionUpdatedAt(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -321,7 +325,7 @@ func TestUpdateSessionUpdatedAt(t *testing.T) {
 }
 
 func TestGetLastSessionsByUid(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -364,7 +368,7 @@ func TestGetLastSessionsByUid(t *testing.T) {
 }
 
 func TestGetSessionsGreaterThanUpdatedAtByUid(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 

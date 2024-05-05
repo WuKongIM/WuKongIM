@@ -24,7 +24,7 @@ func NewOptions(nodeID uint64, opts ...Option) *Options {
 
 func newOptions() *Options {
 	return &Options{
-		SlotCount: 256,
+		SlotCount: 128,
 	}
 }
 

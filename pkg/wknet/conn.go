@@ -943,3 +943,44 @@ func (e *eofBuff) Read(p []byte) (int, error) {
 
 // 	return newFd, nil
 // }
+
+type connMatrix struct {
+	connCount atomic.Int32
+	conns     map[int]Conn
+}
+
+func newConnMatrix() *connMatrix {
+	return &connMatrix{
+		conns: make(map[int]Conn),
+	}
+}
+
+func (cm *connMatrix) iterate(f func(Conn) bool) {
+	for _, c := range cm.conns {
+		if c != nil {
+			if !f(c) {
+				return
+			}
+		}
+	}
+}
+func (cm *connMatrix) countAdd(delta int32) {
+	cm.connCount.Add(delta)
+}
+
+func (cm *connMatrix) addConn(c Conn) {
+	cm.conns[c.Fd().Fd()] = c
+	cm.countAdd(1)
+}
+
+func (cm *connMatrix) delConn(c Conn) {
+	delete(cm.conns, c.Fd().Fd())
+	cm.countAdd(-1)
+}
+
+func (cm *connMatrix) getConn(fd int) Conn {
+	return cm.conns[fd]
+}
+func (cm *connMatrix) loadCount() (n int32) {
+	return cm.connCount.Load()
+}

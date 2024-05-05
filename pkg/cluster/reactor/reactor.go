@@ -115,7 +115,7 @@ func (r *Reactor) reactorSub(key string) *ReactorSub {
 }
 
 func (r *Reactor) newMessageQueue() *MessageQueue {
-	return NewMessageQueue(r.opts.ReceiveQueueLength, false, r.opts.LazyFreeCycle, r.opts.MaxReceiveQueueSize)
+	return NewMessageQueue(r.opts.ReceiveQueueLength, r.opts.MaxReceiveQueueSize)
 }
 
 func (r *Reactor) submitTask(f func()) error {

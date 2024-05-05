@@ -293,6 +293,7 @@ func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term u
 	})
 	defer iter.Close()
 	batch := p.db.NewBatch()
+	defer batch.Close()
 	var err error
 	for iter.First(); iter.Valid(); iter.Next() {
 		err = batch.Delete(iter.Key(), p.wo)

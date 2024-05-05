@@ -9,7 +9,7 @@ import (
 )
 
 func TestAppendMessageOfNotifyQueue(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -49,7 +49,7 @@ func TestAppendMessageOfNotifyQueue(t *testing.T) {
 }
 
 func TestGetMessagesOfNotifyQueue(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -108,7 +108,7 @@ func TestGetMessagesOfNotifyQueue(t *testing.T) {
 }
 
 func TestRemoveMessagesOfNotifyQueue(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 

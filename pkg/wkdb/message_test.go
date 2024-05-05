@@ -1,15 +1,16 @@
-package wkdb
+package wkdb_test
 
 import (
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadPrevRangeMsgs(t *testing.T) {
 
-	d := NewWukongDB(NewOptions(WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -18,7 +19,7 @@ func TestLoadPrevRangeMsgs(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	messages := []Message{}
+	messages := []wkdb.Message{}
 
 	channelId := "channel"
 	channelType := uint8(2)
@@ -26,7 +27,7 @@ func TestLoadPrevRangeMsgs(t *testing.T) {
 	num := 100
 
 	for i := 0; i < num; i++ {
-		messages = append(messages, Message{
+		messages = append(messages, wkdb.Message{
 			RecvPacket: wkproto.RecvPacket{
 				ChannelID:   channelId,
 				ChannelType: channelType,
@@ -56,7 +57,7 @@ func TestLoadPrevRangeMsgs(t *testing.T) {
 }
 
 func TestGetChannelMaxMessageSeq(t *testing.T) {
-	d := NewWukongDB(NewOptions(WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -65,7 +66,7 @@ func TestGetChannelMaxMessageSeq(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	messages := []Message{}
+	messages := []wkdb.Message{}
 
 	channelId := "channel"
 	channelType := uint8(2)
@@ -73,7 +74,7 @@ func TestGetChannelMaxMessageSeq(t *testing.T) {
 	num := 100
 
 	for i := 0; i < num; i++ {
-		messages = append(messages, Message{
+		messages = append(messages, wkdb.Message{
 			RecvPacket: wkproto.RecvPacket{
 				ChannelID:   channelId,
 				ChannelType: channelType,
@@ -92,7 +93,7 @@ func TestGetChannelMaxMessageSeq(t *testing.T) {
 }
 
 func TestTruncateLogTo(t *testing.T) {
-	d := NewWukongDB(NewOptions(WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -101,7 +102,7 @@ func TestTruncateLogTo(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	messages := []Message{}
+	messages := []wkdb.Message{}
 
 	channelId := "channel"
 	channelType := uint8(2)
@@ -109,7 +110,7 @@ func TestTruncateLogTo(t *testing.T) {
 	num := 100
 
 	for i := 0; i < num; i++ {
-		messages = append(messages, Message{
+		messages = append(messages, wkdb.Message{
 			RecvPacket: wkproto.RecvPacket{
 				ChannelID:   channelId,
 				ChannelType: channelType,
@@ -137,4 +138,37 @@ func TestTruncateLogTo(t *testing.T) {
 	assert.Equal(t, 50, len(resultMessages))
 	assert.Equal(t, uint32(1), resultMessages[0].MessageSeq)
 	assert.Equal(t, uint32(50), resultMessages[len(resultMessages)-1].MessageSeq)
+}
+
+func BenchmarkAppendMessages(b *testing.B) {
+	d := newTestDB(b)
+	err := d.Open()
+	assert.NoError(b, err)
+
+	defer func() {
+		err := d.Close()
+		assert.NoError(b, err)
+	}()
+
+	channelId := "channel"
+	channelType := uint8(2)
+
+	b.ResetTimer()
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			err = d.AppendMessages(channelId, channelType, []wkdb.Message{
+				{
+					RecvPacket: wkproto.RecvPacket{
+						ChannelID:   channelId,
+						ChannelType: channelType,
+						MessageSeq:  1,
+						Payload:     []byte("hello"),
+					},
+				},
+			})
+			assert.NoError(b, err)
+		}
+
+	})
 }

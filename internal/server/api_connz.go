@@ -33,7 +33,7 @@ func (co *ConnzAPI) Route(r *wkhttp.WKHttp) {
 }
 
 func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
-	conns := co.s.dispatch.engine.GetAllConn()
+
 	sortStr := c.Query("sort")
 	offset64, _ := strconv.ParseInt(c.Query("offset"), 10, 64)
 	limit64, _ := strconv.ParseInt(c.Query("limit"), 10, 64)
@@ -73,36 +73,36 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		sortOpt = SortOpt(sortStr)
 	}
 	var connInfos []*ConnInfo
-	if strings.TrimSpace(uid) != "" {
-		connInfos = make([]*ConnInfo, 0, 4)
-		if len(conns) > 0 {
-			for _, conn := range conns {
-				connInfos = append(connInfos, newConnInfo(conn))
-			}
+	resultConns := co.s.GetConnInfos(uid, sortOpt, offset, limit)
+	connInfos = make([]*ConnInfo, 0, len(resultConns))
+	for _, resultConn := range resultConns {
+		if resultConn == nil || !resultConn.IsAuthed() {
+			continue
 		}
-
-	} else {
-		resultConns := co.s.GetConnInfos(sortOpt, offset, limit)
-		connInfos = make([]*ConnInfo, 0, len(resultConns))
-		for _, resultConn := range resultConns {
-			if resultConn == nil || !resultConn.IsAuthed() {
-				continue
-			}
-			connInfos = append(connInfos, newConnInfo(resultConn))
-		}
+		connInfos = append(connInfos, newConnInfo(resultConn))
 	}
 
 	c.JSON(http.StatusOK, Connz{
 		Connections: connInfos,
 		Now:         time.Now(),
-		Total:       len(conns),
+		Total:       co.s.dispatch.engine.ConnCount(),
 		Offset:      offset,
 		Limit:       limit,
 	})
 }
 
-func (s *Server) GetConnInfos(sortOpt SortOpt, offset, limit int) []wknet.Conn {
+func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []wknet.Conn {
 	conns := s.dispatch.engine.GetAllConn()
+	if strings.TrimSpace(uid) != "" {
+		uidConns := make([]wknet.Conn, 0, 10)
+		for _, conn := range conns {
+			if conn.UID() == uid {
+				uidConns = append(uidConns, conn)
+			}
+		}
+		conns = uidConns
+	}
+
 	switch sortOpt {
 	case ByID:
 		sort.Sort(byID{Conns: conns})

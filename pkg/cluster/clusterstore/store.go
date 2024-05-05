@@ -46,11 +46,13 @@ func (s *Store) Open() error {
 	if err != nil {
 		return err
 	}
-	return nil
+	err = s.messageShardLogStorage.Open()
+	return err
 }
 
 func (s *Store) Close() {
 	s.Debug("close...")
+	s.messageShardLogStorage.Close()
 	err := s.wdb.Close()
 	if err != nil {
 		s.Warn("close message storage err", zap.Error(err))

@@ -16,7 +16,10 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
-			wk.Info("appendMessages done", zap.Duration("cost", time.Since(start)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
+			cost := time.Since(start)
+			if cost.Milliseconds() > 200 {
+				wk.Info("appendMessages done", zap.Duration("cost", cost), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
+			}
 		}()
 	}
 
@@ -30,6 +33,44 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 	}
 
 	return batch.Commit(wk.wo)
+}
+
+func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
+
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			cost := time.Since(start)
+			if cost.Milliseconds() > 200 {
+				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)))
+			}
+		}()
+	}
+
+	// 按照db进行分组
+	dbMap := make(map[uint32][]AppendMessagesReq)
+	for _, req := range reqs {
+		shardId := wk.shardId(req.ChannelId)
+		dbMap[shardId] = append(dbMap[shardId], req)
+	}
+
+	for shardId, reqs := range dbMap {
+		db := wk.shardDBById(shardId)
+		batch := db.NewBatch()
+		defer batch.Close()
+		for _, req := range reqs {
+			for _, msg := range req.Messages {
+				if err := wk.writeMessage(req.ChannelId, req.ChannelType, msg, batch); err != nil {
+					return err
+				}
+			}
+		}
+		if err := batch.Commit(wk.wo); err != nil {
+			return err
+		}
+	}
+	return nil
+
 }
 
 // 情况1: startMessageSeq=100, endMessageSeq=0, limit=10 返回的消息seq为91-100的消息 (limit生效)
@@ -207,7 +248,7 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 	if err != nil {
 		return err
 	}
-	err = wk.setChannelLastMessageSeq(channelId, channelType, min(messageSeq-1, lastMsgSeq), batch)
+	err = wk.setChannelLastMessageSeq(channelId, channelType, min(messageSeq-1, lastMsgSeq), batch, wk.noSync)
 	if err != nil {
 		return err
 	}
@@ -238,17 +279,60 @@ func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8
 }
 
 func (wk *wukongDB) SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error {
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			cost := time.Since(start)
+			if cost.Milliseconds() > 200 {
+				wk.Info("SetChannelLastMessageSeq done", zap.Duration("cost", cost), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			}
+		}()
+	}
 	db := wk.shardDB(channelId)
-	return wk.setChannelLastMessageSeq(channelId, channelType, seq, db)
+	return wk.setChannelLastMessageSeq(channelId, channelType, seq, db, wk.wo)
 }
 
-func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer) error {
+func (wk *wukongDB) SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSeqReq) error {
+
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			cost := time.Since(start)
+			if cost.Milliseconds() > 200 {
+				wk.Info("SetChannellastMessageSeqBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)))
+			}
+		}()
+	}
+	// 按照db进行分组
+	dbMap := make(map[uint32][]SetChannelLastMessageSeqReq)
+	for _, req := range reqs {
+		shardId := wk.shardId(req.ChannelId)
+		dbMap[shardId] = append(dbMap[shardId], req)
+	}
+
+	for shardId, reqs := range dbMap {
+		db := wk.shardDBById(shardId)
+		batch := db.NewBatch()
+		defer batch.Close()
+		for _, req := range reqs {
+			if err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, req.Seq, batch, wk.noSync); err != nil {
+				return err
+			}
+		}
+		if err := batch.Commit(wk.wo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer, o *pebble.WriteOptions) error {
 	data := make([]byte, 16)
 	wk.endian.PutUint64(data, seq)
 	setTime := time.Now().UnixNano()
 	wk.endian.PutUint64(data[8:], uint64(setTime))
 
-	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data, wk.wo)
+	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data, o)
 }
 
 func (wk *wukongDB) parseChannelMessages(iter *pebble.Iterator, limit int) ([]Message, error) {

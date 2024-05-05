@@ -8,7 +8,7 @@ import (
 )
 
 func TestSaveChannelClusterConfig(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -35,7 +35,7 @@ func TestSaveChannelClusterConfig(t *testing.T) {
 }
 
 func TestGetChannelClusterConfig(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -72,7 +72,7 @@ func TestGetChannelClusterConfig(t *testing.T) {
 }
 
 func TestGetChannelClusterConfigs(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -115,7 +115,7 @@ func TestGetChannelClusterConfigs(t *testing.T) {
 }
 
 func TestDeleteChannelClusterConfig(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 

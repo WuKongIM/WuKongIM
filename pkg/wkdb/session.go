@@ -71,19 +71,19 @@ func (wk *wukongDB) deleteSession(uid string, id uint64, w pebble.Writer) error 
 	if IsEmptySession(session) {
 		return nil
 	}
-	if err := w.DeleteRange(key.NewSessionColumnKey(uid, id, [2]byte{0x00, 0x00}), key.NewSessionColumnKey(uid, id, [2]byte{0xff, 0xff}), wk.wo); err != nil {
+	if err := w.DeleteRange(key.NewSessionColumnKey(uid, id, [2]byte{0x00, 0x00}), key.NewSessionColumnKey(uid, id, [2]byte{0xff, 0xff}), wk.noSync); err != nil {
 		return err
 	}
 
-	if err = w.Delete(key.NewSessionChannelIndexKey(uid, session.ChannelId, session.ChannelType), wk.wo); err != nil {
+	if err = w.Delete(key.NewSessionChannelIndexKey(uid, session.ChannelId, session.ChannelType), wk.noSync); err != nil {
 		return err
 	}
 
-	if err = w.Delete(key.NewSessionSecondIndexKey(uid, key.TableSession.Column.CreatedAt, uint64(session.CreatedAt.UnixNano()), id), wk.wo); err != nil {
+	if err = w.Delete(key.NewSessionSecondIndexKey(uid, key.TableSession.Column.CreatedAt, uint64(session.CreatedAt.UnixNano()), id), wk.noSync); err != nil {
 		return err
 	}
 
-	if err = w.Delete(key.NewSessionSecondIndexKey(uid, key.TableSession.Column.UpdatedAt, uint64(session.UpdatedAt.UnixNano()), id), wk.wo); err != nil {
+	if err = w.Delete(key.NewSessionSecondIndexKey(uid, key.TableSession.Column.UpdatedAt, uint64(session.UpdatedAt.UnixNano()), id), wk.noSync); err != nil {
 		return err
 	}
 
@@ -210,7 +210,7 @@ func (wk *wukongDB) updateSessionUpdatedAt(uids []string, channelId string, chan
 				return err
 			}
 		} else {
-			if err = w.Set(key.NewSessionColumnKey(uid, sessionId, key.TableSession.Column.UpdatedAt), updatedAtBytes, wk.wo); err != nil {
+			if err = w.Set(key.NewSessionColumnKey(uid, sessionId, key.TableSession.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
 				return err
 			}
 		}
@@ -364,17 +364,17 @@ func (wk *wukongDB) writeSession(id uint64, session Session, w pebble.Writer) er
 	)
 
 	// uid
-	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.Uid), []byte(session.Uid), wk.wo); err != nil {
+	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.Uid), []byte(session.Uid), wk.noSync); err != nil {
 		return err
 	}
 
 	// channelId
-	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.ChannelId), []byte(session.ChannelId), wk.wo); err != nil {
+	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.ChannelId), []byte(session.ChannelId), wk.noSync); err != nil {
 		return err
 	}
 
 	// channelType
-	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.ChannelType), []byte{session.ChannelType}, wk.wo); err != nil {
+	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.ChannelType), []byte{session.ChannelType}, wk.noSync); err != nil {
 		return err
 	}
 
@@ -382,7 +382,7 @@ func (wk *wukongDB) writeSession(id uint64, session Session, w pebble.Writer) er
 	createdAtBytes := make([]byte, 8)
 	createdAt := uint64(session.CreatedAt.UnixNano())
 	wk.endian.PutUint64(createdAtBytes, createdAt)
-	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.CreatedAt), createdAtBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.CreatedAt), createdAtBytes, wk.noSync); err != nil {
 		return err
 	}
 
@@ -390,24 +390,24 @@ func (wk *wukongDB) writeSession(id uint64, session Session, w pebble.Writer) er
 	updatedAtBytes := make([]byte, 8)
 	updatedAt := uint64(session.UpdatedAt.UnixNano())
 	wk.endian.PutUint64(updatedAtBytes, updatedAt)
-	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.UpdatedAt), updatedAtBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewSessionColumnKey(session.Uid, id, key.TableSession.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// channel index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, id)
-	if err = w.Set(key.NewSessionChannelIndexKey(session.Uid, session.ChannelId, session.ChannelType), idBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewSessionChannelIndexKey(session.Uid, session.ChannelId, session.ChannelType), idBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// createdAt second index
-	if err = w.Set(key.NewSessionSecondIndexKey(session.Uid, key.TableSession.Column.CreatedAt, createdAt, id), nil, wk.wo); err != nil {
+	if err = w.Set(key.NewSessionSecondIndexKey(session.Uid, key.TableSession.Column.CreatedAt, createdAt, id), nil, wk.noSync); err != nil {
 		return err
 	}
 
 	// updatedAt second index
-	if err = w.Set(key.NewSessionSecondIndexKey(session.Uid, key.TableSession.Column.UpdatedAt, updatedAt, id), nil, wk.wo); err != nil {
+	if err = w.Set(key.NewSessionSecondIndexKey(session.Uid, key.TableSession.Column.UpdatedAt, updatedAt, id), nil, wk.noSync); err != nil {
 		return err
 	}
 

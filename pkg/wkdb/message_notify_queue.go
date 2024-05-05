@@ -10,6 +10,7 @@ import (
 // AppendMessageOfNotifyQueue 添加消息到通知队列
 func (wk *wukongDB) AppendMessageOfNotifyQueue(messages []Message) error {
 	batch := wk.defaultShardDB().NewBatch()
+	defer batch.Close()
 	for _, msg := range messages {
 		if err := wk.writeMessageOfNotifyQueue(msg, batch); err != nil {
 			return err

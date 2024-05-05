@@ -36,7 +36,7 @@ type Options struct {
 	// is unlimited.
 	MaxReceiveQueueSize uint64
 
-	// ReceiveQueueLength 接收队列的长度。
+	// ReceiveQueueLength 处理者接收队列的长度。
 	ReceiveQueueLength uint64
 
 	// LazyFreeCycle defines how often should entry queue and message queue
@@ -69,12 +69,12 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SubReactorNum:           16,
+		SubReactorNum:           128,
 		TickInterval:            time.Millisecond * 150,
 		ReceiveQueueLength:      1024,
 		LazyFreeCycle:           1,
 		InitialTaskQueueCap:     100,
-		TaskPoolSize:            10000,
+		TaskPoolSize:            100000,
 		MaxProposeLogCount:      1000,
 		EnableLazyCatchUp:       false,
 		IsCommittedAfterApplied: false,
