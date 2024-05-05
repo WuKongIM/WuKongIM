@@ -14,7 +14,7 @@ type slot struct {
 }
 
 func newSlot(num uint32, cfg *StoreConfig) *slot {
-	topicCache, err := lru.NewWithEvict(100, func(key string, value *topic) {
+	topicCache, err := lru.NewWithEvict(1000, func(key string, value *topic) {
 		value.close()
 	})
 	if err != nil {
