@@ -240,7 +240,7 @@ func NewOptions() *Options {
 			On:           true,
 			CacheExpire:  time.Hour * 24 * 1, // 1天过期
 			UserMaxCount: 1000,
-			SyncInterval: time.Minute * 1,
+			SyncInterval: time.Minute * 5,
 			SyncOnce:     100,
 			BytesPerSave: 1024 * 1024 * 5,
 			SavePoolSize: 100,

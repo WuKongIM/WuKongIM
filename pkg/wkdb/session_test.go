@@ -312,7 +312,7 @@ func TestUpdateSessionUpdatedAt(t *testing.T) {
 
 	err = d.UpdateSessionUpdatedAt([]*wkdb.UpdateSessionUpdatedAtModel{
 		{
-			Uids:        []string{"u1", "u2"},
+			Uids:        map[string]uint64{"u1": 0, "u2": 0},
 			ChannelId:   "test1",
 			ChannelType: 1,
 		},

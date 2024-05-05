@@ -19,3 +19,12 @@ func CopyFile(dstName, srcName string) (written int64, err error) {
 	defer dst.Close()
 	return io.Copy(dst, src)
 }
+
+func WriteFile(filename string, data []byte) error {
+	return os.WriteFile(filename, data, 0644)
+}
+
+func ReadFile(filename string) ([]byte, error) {
+	return os.ReadFile(filename)
+
+}

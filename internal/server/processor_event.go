@@ -600,6 +600,6 @@ func (p *Processor) updateConversations(m *Message, subscribers []string) {
 		fakeChannelId = GetFakeChannelIDWith(m.FromUID, m.ChannelID)
 	}
 
-	p.s.conversationManager.Push(fakeChannelId, m.ChannelType, subscribers)
+	p.s.conversationManager.Push(fakeChannelId, m.ChannelType, subscribers, m.FromUID, uint64(m.MessageSeq))
 
 }

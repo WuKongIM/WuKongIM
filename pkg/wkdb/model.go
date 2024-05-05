@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -410,7 +411,7 @@ func (c *ChannelClusterConfig) String() string {
 }
 
 type UpdateSessionUpdatedAtModel struct {
-	Uids        []string
+	Uids        map[string]uint64 // 用户uid和对应的已读消息的messageSeq
 	ChannelId   string
 	ChannelType uint8
 }
@@ -419,8 +420,9 @@ func (u *UpdateSessionUpdatedAtModel) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint16(uint16(len(u.Uids)))
-	for _, uid := range u.Uids {
+	for uid, messageSeq := range u.Uids {
 		enc.WriteString(uid)
+		enc.WriteUint64(messageSeq)
 	}
 	enc.WriteString(u.ChannelId)
 	enc.WriteUint8(u.ChannelType)
@@ -439,7 +441,11 @@ func (u *UpdateSessionUpdatedAtModel) Unmarshal(data []byte) error {
 		if err != nil {
 			return err
 		}
-		u.Uids = append(u.Uids, uid)
+		messageSeq, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		u.Uids[uid] = messageSeq
 	}
 	if u.ChannelId, err = dec.String(); err != nil {
 		return err
@@ -452,8 +458,8 @@ func (u *UpdateSessionUpdatedAtModel) Unmarshal(data []byte) error {
 
 func (u *UpdateSessionUpdatedAtModel) Size() int {
 	size := 2 // uid len
-	for _, uid := range u.Uids {
-		size = size + 2 + len(uid) // string len + uid
+	for uid, _ := range u.Uids {
+		size = size + 2 + len(uid) + 8 // string len + uid + messageSeq
 	}
 	size = size + 2 + len(u.ChannelId) + 1 // string len + channel id + channel type
 	return size
@@ -469,4 +475,23 @@ type AppendMessagesReq struct {
 	ChannelId   string
 	ChannelType uint8
 	Messages    []Message
+}
+
+func ChannelToKey(channelId string, channelType uint8) string {
+	var b strings.Builder
+	b.WriteString(channelId)
+	b.WriteString("-")
+	b.WriteString(strconv.FormatInt(int64(channelType), 10))
+	return b.String()
+}
+
+func channelFromKey(key string) (channelId string, channelType uint8) {
+	idx := strings.Index(key, "-")
+	if idx == -1 {
+		return
+	}
+	channelId = key[:idx]
+	channelTypeI64, _ := strconv.ParseUint(key[idx+1:], 10, 8)
+	channelType = uint8(channelTypeI64)
+	return
 }
