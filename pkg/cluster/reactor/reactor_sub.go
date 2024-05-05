@@ -81,9 +81,6 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindSlot, end.Milliseconds())
 		case ReactorTypeChannel:
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
-			if err := recover(); err != nil {
-				trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
-			}
 		}
 		if r.opts.EnableLazyCatchUp {
 			if end > time.Millisecond*500 {
@@ -126,8 +123,10 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	case items := <-waitC:
 		return items, nil
 	case <-ctx.Done():
+		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, ctx.Err()
 	case <-r.stopper.ShouldStop():
+		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, ErrReactorSubStopped
 	}
 
@@ -171,6 +170,7 @@ func (r *ReactorSub) readyEvents() {
 			return
 		}
 		hasEvent = false
+		startTime := time.Now()
 		for _, handler := range r.tmpHandlers {
 			if !handler.isPrepared() {
 				continue
@@ -186,6 +186,10 @@ func (r *ReactorSub) readyEvents() {
 			if has {
 				hasEvent = true
 			}
+		}
+		end := time.Since(startTime)
+		if end > time.Second*1 {
+			r.Info("handle event", zap.Duration("cost", end), zap.Int("handlers", len(r.tmpHandlers)))
 		}
 	}
 

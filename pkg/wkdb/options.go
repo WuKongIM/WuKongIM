@@ -7,6 +7,7 @@ type Options struct {
 	SlotCount         int // 槽位数量
 	// 耗时配置开启
 	EnableCost bool
+	ShardNum   int // 数据库分区数量，一但设置就不能修改
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -14,7 +15,8 @@ func NewOptions(opt ...Option) *Options {
 		DataDir:           "./data",
 		ConversationLimit: 10000,
 		SlotCount:         128,
-		EnableCost:        false,
+		EnableCost:        true,
+		ShardNum:          1, // TODO：发现开启多个分区的性能还不如1个分区，后续再优化
 	}
 	for _, f := range opt {
 		f(o)
@@ -39,5 +41,23 @@ func WithNodeId(nodeId uint64) Option {
 func WithSlotCount(slotCount int) Option {
 	return func(o *Options) {
 		o.SlotCount = slotCount
+	}
+}
+
+func WithConversationLimit(limit int) Option {
+	return func(o *Options) {
+		o.ConversationLimit = limit
+	}
+}
+
+func WithEnableCost() Option {
+	return func(o *Options) {
+		o.EnableCost = true
+	}
+}
+
+func WithShardNum(shardNum int) Option {
+	return func(o *Options) {
+		o.ShardNum = shardNum
 	}
 }

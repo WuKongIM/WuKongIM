@@ -55,7 +55,7 @@ type replicaLog struct {
 func newReplicaLog(opts *Options) *replicaLog {
 	rg := &replicaLog{
 		unstable:            newUnstable(),
-		Log:                 wklog.NewWKLog("replica"),
+		Log:                 wklog.NewWKLog(fmt.Sprintf("replicaLog[%d:%s]", opts.NodeId, opts.LogPrefix)),
 		opts:                opts,
 		maxApplyingLogsSize: noLimit,
 	}
@@ -65,6 +65,9 @@ func newReplicaLog(opts *Options) *replicaLog {
 		rg.Panic("get last index failed", zap.Error(err), zap.Uint64("lastIndex", lastIndex), zap.Uint32("term", term))
 	}
 
+	if lastIndex < opts.AppliedIndex {
+		rg.Panic("last index is less than applied index", zap.Uint64("lastIndex", lastIndex), zap.Uint64("appliedIndex", opts.AppliedIndex))
+	}
 	rg.lastLogIndex = lastIndex
 	rg.committedIndex = opts.AppliedIndex
 	rg.term = term

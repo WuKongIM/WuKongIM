@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"strconv"
+	"strings"
 )
+
+var h = fnv.New64a()
 
 // ---------------------- Message ----------------------
 func NewMessageColumnKey(channelId string, channelType uint8, messageSeq uint64, columnName [2]byte) []byte {
@@ -64,7 +68,11 @@ func channelIdToNum(channelId string, channelType uint8) uint64 {
 }
 
 func ChannelKey(channelID string, channelType uint8) string {
-	return fmt.Sprintf("%d-%s", channelType, channelID)
+	var b strings.Builder
+	b.WriteString(channelID)
+	b.WriteByte('-')
+	b.WriteString(strconv.FormatInt(int64(channelType), 10))
+	return b.String()
 }
 
 func hashWithString(s string) uint64 {

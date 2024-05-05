@@ -2,13 +2,10 @@ package trace
 
 import (
 	"context"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/shirou/gopsutil/cpu"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/atomic"
-	"go.uber.org/zap"
 )
 
 type systemMetrics struct {
@@ -34,23 +31,14 @@ func newSystemMetrics(opts *Options) *systemMetrics {
 	extranetIncomingBytes := NewInt64ObservableCounter("system_extranet_incoming_bytes")
 	extranetOutgoingBytes := NewInt64ObservableCounter("system_extranet_outgoing_bytes")
 
-	cpuPercent := NewFloat64ObservableGauge("system_cpu_percent")
-
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(intranetIncomingBytes, s.intranetIncomingBytes.Load())
 		obs.ObserveInt64(intranetOutgoingBytes, s.intranetOutgoingBytes.Load())
 		obs.ObserveInt64(extranetIncomingBytes, s.extranetIncomingBytes.Load())
 		obs.ObserveInt64(extranetOutgoingBytes, s.extranetOutgoingBytes.Load())
 
-		// 获取一段时间内的CPU使用率
-		percentages, err := cpu.Percent(time.Second, false)
-		if err != nil {
-			s.Error("Error retrieving CPU usage", zap.Error(err))
-		}
-		obs.ObserveFloat64(cpuPercent, percentages[0])
-
 		return nil
-	}, intranetIncomingBytes, intranetOutgoingBytes, extranetIncomingBytes, extranetOutgoingBytes, cpuPercent)
+	}, intranetIncomingBytes, intranetOutgoingBytes, extranetIncomingBytes, extranetOutgoingBytes)
 
 	return s
 }

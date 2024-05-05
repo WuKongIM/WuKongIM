@@ -44,7 +44,7 @@ func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 	varz := CreateVarz(v.s)
 
 	if show == "conn" {
-		resultConns := v.s.GetConnInfos(ByInMsgDesc, 0, connLimit)
+		resultConns := v.s.GetConnInfos("", ByInMsgDesc, 0, connLimit)
 		connInfos := make([]*ConnInfo, 0, len(resultConns))
 		for _, resultConn := range resultConns {
 			if resultConn == nil || !resultConn.IsAuthed() {

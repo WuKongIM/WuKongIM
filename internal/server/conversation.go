@@ -14,12 +14,14 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
 type ConversationManager struct {
 	cache   *lru.Cache[string, *channelSubscribers]
 	stopper *syncutil.Stopper
+	stopped atomic.Bool
 	s       *Server
 	wklog.Log
 	savePool *ants.Pool // 保存session的协程池
@@ -64,13 +66,15 @@ func (c *ConversationManager) Start() {
 }
 
 func (c *ConversationManager) Stop() {
+	c.stopped.Store(true)
 	c.stopper.Stop()
 	c.save()
 }
 
 func (c *ConversationManager) loop() {
 	tk := time.NewTicker(c.s.opts.Conversation.SyncInterval)
-	for {
+	for !c.stopped.Load() {
+
 		c.save()
 		select {
 		case <-tk.C:
@@ -82,14 +86,16 @@ func (c *ConversationManager) loop() {
 
 func (c *ConversationManager) save() {
 	keys := c.cache.Keys()
-	var err error
+	// var err error
 
 	slotSessionMap := make(map[uint32][]*wkdb.UpdateSessionUpdatedAtModel)
 	var byteSize uint64
 	for _, key := range keys {
-
 		if c.s.opts.Conversation.BytesPerSave > 0 && byteSize > c.s.opts.Conversation.BytesPerSave { // 超过保存的字节数，就退出
 			break
+		}
+		if c.stopped.Load() {
+			return
 		}
 
 		channelSubscribers, ok := c.cache.Get(key)
@@ -134,27 +140,27 @@ func (c *ConversationManager) save() {
 		return
 	}
 
-	for slotId, models := range slotSessionMap {
-		running := c.savePool.Running()
-		if running > c.s.opts.Conversation.SavePoolSize+10 {
-			c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
-		}
-		err = c.savePool.Submit(func(stid uint32, ms []*wkdb.UpdateSessionUpdatedAtModel) func() {
-			return func() {
-				err = c.s.store.UpdateSessionUpdatedAt(stid, ms)
-				if err != nil {
-					c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
-					// 如果失败 则重新加入队列里
-					for _, model := range ms {
-						c.Push(model.ChannelId, model.ChannelType, model.Uids)
-					}
-				}
-			}
-		}(slotId, models))
-		if err != nil {
-			c.Error("Failed to submit save pool", zap.Error(err))
-		}
-	}
+	// for slotId, models := range slotSessionMap {
+	// 	running := c.savePool.Running()
+	// 	if running > c.s.opts.Conversation.SavePoolSize+10 {
+	// 		c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
+	// 	}
+	// 	err = c.savePool.Submit(func(stid uint32, ms []*wkdb.UpdateSessionUpdatedAtModel) func() {
+	// 		return func() {
+	// 			err = c.s.store.UpdateSessionUpdatedAt(stid, ms)
+	// 			if err != nil {
+	// 				c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
+	// 				// 如果失败 则重新加入队列里
+	// 				for _, model := range ms {
+	// 					c.Push(model.ChannelId, model.ChannelType, model.Uids)
+	// 				}
+	// 			}
+	// 		}
+	// 	}(slotId, models))
+	// 	if err != nil {
+	// 		c.Error("Failed to submit save pool", zap.Error(err))
+	// 	}
+	// }
 
 }
 

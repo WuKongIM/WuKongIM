@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
@@ -11,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
@@ -150,29 +152,53 @@ func (s *Store) getChannelSlotId(channelId string) uint32 {
 	return wkutil.GetSlotNum(int(s.opts.SlotCount), channelId)
 }
 
+type setLastIndexReq struct {
+	shardNo string
+	index   uint64
+
+	resultC chan error
+}
+
+type appendLogsReq struct {
+	shardNo string
+	logs    []replica.Log
+	resultC chan error
+}
+
 type MessageShardLogStorage struct {
 	db wkdb.DB
 	wklog.Log
+	setLastIndexChan chan setLastIndexReq
+	appendLogsChan   chan appendLogsReq
+	stopper          *syncutil.Stopper
 }
 
 func NewMessageShardLogStorage(db wkdb.DB) *MessageShardLogStorage {
 	return &MessageShardLogStorage{
-		db:  db,
-		Log: wklog.NewWKLog("MessageShardLogStorage"),
+		db:               db,
+		Log:              wklog.NewWKLog("MessageShardLogStorage"),
+		setLastIndexChan: make(chan setLastIndexReq, 1024),
+		appendLogsChan:   make(chan appendLogsReq, 1024),
+		stopper:          syncutil.NewStopper(),
 	}
 }
 
 func (m *MessageShardLogStorage) Open() error {
 
-	return m.db.Open()
+	for i := 0; i < 1; i++ { // 开启指定协程来消费请求(TODO: 这里开启一个协程就可以了 开启多个反而会导致数据库变慢)
+		m.stopper.RunWorker(m.loopSetLastIndex)
+		m.stopper.RunWorker(m.loopAppendLogsChan)
+	}
+
+	return nil
 }
 
 func (m *MessageShardLogStorage) Close() error {
-	return m.db.Close()
+	m.stopper.Stop()
+	return nil
 }
 
 func (s *MessageShardLogStorage) AppendLog(shardNo string, logs []replica.Log) error {
-	channelID, channelType := cluster.ChannelFromlKey(shardNo)
 	// lastIndex, err := s.LastIndex(shardNo)
 	// if err != nil {
 	// 	s.Error("get last index err", zap.Error(err))
@@ -183,27 +209,43 @@ func (s *MessageShardLogStorage) AppendLog(shardNo string, logs []replica.Log) e
 	// 	s.Panic("log index is less than last index", zap.Uint64("logIndex", lastLog.Index), zap.Uint64("lastIndex", lastIndex))
 	// 	return nil
 	// }
-	var err error
 
-	msgs := make([]wkdb.Message, len(logs))
-	for idx, log := range logs {
-		msg := &wkdb.Message{}
-		err = msg.Unmarshal(log.Data)
-		if err != nil {
-			return err
-		}
-		msg.MessageSeq = uint32(log.Index)
-		msg.Term = uint64(log.Term)
-		msgs[idx] = *msg
+	// var err error
+
+	// msgs := make([]wkdb.Message, len(logs))
+	// for idx, log := range logs {
+	// 	msg := &wkdb.Message{}
+	// 	err = msg.Unmarshal(log.Data)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	msg.MessageSeq = uint32(log.Index)
+	// 	msg.Term = uint64(log.Term)
+	// 	msgs[idx] = *msg
+	// }
+
+	// err = s.db.AppendMessages(channelID, channelType, msgs)
+	// if err != nil {
+	// 	s.Error("AppendMessages err", zap.Error(err))
+	// 	return err
+	// }
+
+	req := appendLogsReq{
+		shardNo: shardNo,
+		logs:    logs,
+		resultC: make(chan error, 1),
 	}
-
-	err = s.db.AppendMessages(channelID, channelType, msgs)
-	if err != nil {
-		s.Error("AppendMessages err", zap.Error(err))
+	select {
+	case s.appendLogsChan <- req:
+	case <-s.stopper.ShouldStop():
+		return errors.New("clusterstore stop")
+	}
+	select {
+	case err := <-req.resultC:
 		return err
+	case <-s.stopper.ShouldStop():
+		return errors.New("clusterstore stop")
 	}
-
-	return nil
 }
 
 // 获取日志
@@ -256,6 +298,7 @@ func (s *MessageShardLogStorage) TruncateLogTo(shardNo string, index uint64) err
 // 最后一条日志的索引
 func (s *MessageShardLogStorage) LastIndex(shardNo string) (uint64, error) {
 	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+
 	lastMsgSeq, _, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return 0, err
@@ -282,8 +325,131 @@ func (s *MessageShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint3
 }
 
 func (s *MessageShardLogStorage) SetLastIndex(shardNo string, index uint64) error {
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
-	return s.db.SetChannelLastMessageSeq(channelId, channelType, index)
+	req := setLastIndexReq{
+		shardNo: shardNo,
+		index:   index,
+		resultC: make(chan error, 1),
+	}
+	select {
+	case s.setLastIndexChan <- req:
+	case <-s.stopper.ShouldStop():
+		return errors.New("clusterstore stop")
+	}
+	select {
+	case err := <-req.resultC:
+		return err
+	case <-s.stopper.ShouldStop():
+		return errors.New("clusterstore stop")
+	}
+}
+
+func (s *MessageShardLogStorage) loopSetLastIndex() {
+	done := false
+	reqs := make([]setLastIndexReq, 0, 1024)
+	setReqs := make([]wkdb.SetChannelLastMessageSeqReq, 0, 1024)
+	for {
+		select {
+		case firstSeq := <-s.setLastIndexChan:
+			reqs = append(reqs, firstSeq)
+			// 取出所有的请求
+			for !done {
+				select {
+				case req := <-s.setLastIndexChan:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			// 按照shardNo分组
+			for _, req := range reqs {
+				channelId, channelType := cluster.ChannelFromlKey(req.shardNo)
+				setReqs = append(setReqs, wkdb.SetChannelLastMessageSeqReq{
+					ChannelId:   channelId,
+					ChannelType: channelType,
+					Seq:         req.index,
+				})
+			}
+
+			err := s.db.SetChannellastMessageSeqBatch(setReqs)
+			if err != nil {
+				for _, req := range reqs {
+					req.resultC <- err
+				}
+			} else {
+				for _, req := range reqs {
+					req.resultC <- nil
+				}
+			}
+			setReqs = setReqs[:0]
+			reqs = reqs[:0]
+			done = false
+		case <-s.stopper.ShouldStop():
+			return
+		}
+
+	}
+}
+
+func (s *MessageShardLogStorage) loopAppendLogsChan() {
+	done := false
+	reqs := make([]appendLogsReq, 0, 1024)
+	appendReqs := make([]wkdb.AppendMessagesReq, 0, 1024)
+	for {
+		select {
+		case firstSeq := <-s.appendLogsChan:
+			reqs = append(reqs, firstSeq)
+			// 取出所有的请求
+			for !done {
+				select {
+				case req := <-s.appendLogsChan:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			// 按照shardNo分组
+			for _, req := range reqs {
+				channelId, channelType := cluster.ChannelFromlKey(req.shardNo)
+				msgs := make([]wkdb.Message, len(req.logs))
+				for idx, log := range req.logs {
+					msg := wkdb.Message{}
+					err := msg.Unmarshal(log.Data)
+					if err != nil {
+						for _, req := range reqs {
+							req.resultC <- err
+						}
+						continue
+					}
+					msg.MessageSeq = uint32(log.Index)
+					msg.Term = uint64(log.Term)
+					msgs[idx] = msg
+				}
+				appendReqs = append(appendReqs, wkdb.AppendMessagesReq{
+					ChannelId:   channelId,
+					ChannelType: channelType,
+					Messages:    msgs,
+				})
+			}
+			err := s.db.AppendMessagesBatch(appendReqs)
+			if err != nil {
+				for _, req := range reqs {
+					req.resultC <- err
+				}
+			} else {
+				for _, req := range reqs {
+					req.resultC <- nil
+				}
+			}
+			appendReqs = appendReqs[:0]
+			reqs = reqs[:0]
+			done = false
+
+		case <-s.stopper.ShouldStop():
+			return
+		}
+
+	}
+
 }
 
 // 获取第一条日志的索引

@@ -8,7 +8,7 @@ import (
 )
 
 func TestAddSubscribers(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -26,7 +26,7 @@ func TestAddSubscribers(t *testing.T) {
 }
 
 func TestGetSubscribers(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -49,7 +49,7 @@ func TestGetSubscribers(t *testing.T) {
 }
 
 func TestRemoveSubscribers(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -76,7 +76,7 @@ func TestRemoveSubscribers(t *testing.T) {
 }
 
 func TestRemoveAllSubscriber(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestRemoveAllSubscriber(t *testing.T) {
 }
 
 func TestAddOrUpdateChannel(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -122,7 +122,7 @@ func TestAddOrUpdateChannel(t *testing.T) {
 }
 
 func TestGetChannel(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -150,7 +150,7 @@ func TestGetChannel(t *testing.T) {
 }
 
 func TestExistChannel(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -174,7 +174,7 @@ func TestExistChannel(t *testing.T) {
 }
 
 func TestDeleteChannel(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -201,7 +201,7 @@ func TestDeleteChannel(t *testing.T) {
 }
 
 func TestAddDenylist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -220,7 +220,7 @@ func TestAddDenylist(t *testing.T) {
 }
 
 func TestGetDenylist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -243,7 +243,7 @@ func TestGetDenylist(t *testing.T) {
 }
 
 func TestRemoveDenylist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -270,7 +270,7 @@ func TestRemoveDenylist(t *testing.T) {
 }
 
 func TestRemoveAllDenylist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -296,7 +296,7 @@ func TestRemoveAllDenylist(t *testing.T) {
 }
 
 func TestAddAllowlist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -315,7 +315,7 @@ func TestAddAllowlist(t *testing.T) {
 }
 
 func TestGetAllowlist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -338,7 +338,7 @@ func TestGetAllowlist(t *testing.T) {
 }
 
 func TestRemoveAllowlist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -365,7 +365,7 @@ func TestRemoveAllowlist(t *testing.T) {
 }
 
 func TestRemoveAllAllowlist(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 

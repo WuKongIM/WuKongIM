@@ -8,7 +8,7 @@ import (
 )
 
 func TestAddOrUpdateConversations(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -39,7 +39,7 @@ func TestAddOrUpdateConversations(t *testing.T) {
 }
 
 func TestGetConversations(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -85,7 +85,7 @@ func TestGetConversations(t *testing.T) {
 }
 
 func TestDeleteConversation(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 
@@ -125,7 +125,7 @@ func TestDeleteConversation(t *testing.T) {
 }
 
 func TestGetConversationBySessionIds(t *testing.T) {
-	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
+	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
 

@@ -458,3 +458,15 @@ func (u *UpdateSessionUpdatedAtModel) Size() int {
 	size = size + 2 + len(u.ChannelId) + 1 // string len + channel id + channel type
 	return size
 }
+
+type SetChannelLastMessageSeqReq struct {
+	ChannelId   string
+	ChannelType uint8
+	Seq         uint64
+}
+
+type AppendMessagesReq struct {
+	ChannelId   string
+	ChannelType uint8
+	Messages    []Message
+}

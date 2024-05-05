@@ -54,13 +54,13 @@ func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) err
 	defer batch.Close()
 
 	// 删除数据
-	err := batch.DeleteRange(key.NewSubscriberPrimaryKey(channelId, channelType, 0), key.NewSubscriberPrimaryKey(channelId, channelType, math.MaxUint64), wk.wo)
+	err := batch.DeleteRange(key.NewSubscriberPrimaryKey(channelId, channelType, 0), key.NewSubscriberPrimaryKey(channelId, channelType, math.MaxUint64), wk.noSync)
 	if err != nil {
 		return err
 	}
 
 	// 删除索引
-	err = batch.DeleteRange(key.NewSubscriberIndexUidLowKey(channelId, channelType), key.NewSubscriberIndexUidHighKey(channelId, channelType), wk.wo)
+	err = batch.DeleteRange(key.NewSubscriberIndexUidLowKey(channelId, channelType), key.NewSubscriberIndexUidHighKey(channelId, channelType), wk.noSync)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 	batch := wk.shardDB(channelId).NewBatch()
 	defer batch.Close()
 	// 删除索引
-	err = batch.Delete(key.NewChannelInfoIndexKey(channelId, channelType), wk.wo)
+	err = batch.Delete(key.NewChannelInfoIndexKey(channelId, channelType), wk.noSync)
 	if err != nil {
 		return err
 	}
@@ -151,19 +151,21 @@ func (wk *wukongDB) UpdateChannelAppliedIndex(channelId string, channelType uint
 
 	indexBytes := make([]byte, 8)
 	wk.endian.PutUint64(indexBytes, index)
-	return wk.shardDB(channelId).Set(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Id), indexBytes, wk.wo)
+	return wk.shardDB(channelId).Set(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Column.AppliedIndex), indexBytes, wk.wo)
 }
 
 func (wk *wukongDB) GetChannelAppliedIndex(channelId string, channelType uint8) (uint64, error) {
 
-	data, closer, err := wk.shardDB(channelId).Get(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Id))
+	data, closer, err := wk.shardDB(channelId).Get(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Column.AppliedIndex))
+	if closer != nil {
+		defer closer.Close()
+	}
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil
 		}
 		return 0, err
 	}
-	defer closer.Close()
 
 	return wk.endian.Uint64(data), nil
 }
@@ -212,13 +214,13 @@ func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error
 	defer batch.Close()
 
 	// 删除数据
-	err := batch.DeleteRange(key.NewDenylistPrimaryKey(channelId, channelType, 0), key.NewDenylistPrimaryKey(channelId, channelType, math.MaxUint64), wk.wo)
+	err := batch.DeleteRange(key.NewDenylistPrimaryKey(channelId, channelType, 0), key.NewDenylistPrimaryKey(channelId, channelType, math.MaxUint64), wk.noSync)
 	if err != nil {
 		return err
 	}
 
 	// 删除索引
-	err = batch.DeleteRange(key.NewDenylistIndexUidLowKey(channelId, channelType), key.NewDenylistIndexUidHighKey(channelId, channelType), wk.wo)
+	err = batch.DeleteRange(key.NewDenylistIndexUidLowKey(channelId, channelType), key.NewDenylistIndexUidHighKey(channelId, channelType), wk.noSync)
 	if err != nil {
 		return err
 	}
@@ -406,35 +408,35 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 		err error
 	)
 	// channelId
-	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.ChannelId), []byte(channelInfo.ChannelId), wk.wo); err != nil {
+	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.ChannelId), []byte(channelInfo.ChannelId), wk.noSync); err != nil {
 		return err
 	}
 
 	// channelType
 	channelTypeBytes := make([]byte, 1)
 	channelTypeBytes[0] = channelInfo.ChannelType
-	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.ChannelType), channelTypeBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.ChannelType), channelTypeBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// ban
 	banBytes := make([]byte, 1)
 	banBytes[0] = wkutil.BoolToUint8(channelInfo.Ban)
-	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.Ban), banBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.Ban), banBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// large
 	largeBytes := make([]byte, 1)
 	largeBytes[0] = wkutil.BoolToUint8(channelInfo.Large)
-	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.Large), largeBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.Large), largeBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// channel index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, primaryKey)
-	if err = w.Set(key.NewChannelInfoIndexKey(channelInfo.ChannelId, channelInfo.ChannelType), idBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewChannelInfoIndexKey(channelInfo.ChannelId, channelInfo.ChannelType), idBytes, wk.noSync); err != nil {
 		return err
 	}
 

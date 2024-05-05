@@ -87,9 +87,9 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.msgQueue = r.newMessageQueue()
 	h.lastIndex.Store(0)
 
-	h.appendLogStoreQueue = newTaskQueue(r.taskPool, r.opts.InitialTaskQueueCap)
-	h.applyLogStoreQueue = newTaskQueue(r.taskPool, r.opts.InitialTaskQueueCap)
-	h.getLogsTaskQueue = newTaskQueue(r.taskPool, r.opts.InitialTaskQueueCap)
+	h.appendLogStoreQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
+	h.applyLogStoreQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
+	h.getLogsTaskQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
 	h.proposeQueue = newProposeQueue()
 	h.proposeWait = newProposeWait(key)
 	h.sync.syncTimeout = 5 * time.Second
@@ -100,7 +100,7 @@ func (h *handler) reset() {
 	h.Log = nil
 	h.handler = nil
 	h.key = ""
-	h.msgQueue.gc()
+	h.msgQueue = nil
 	h.msgQueue = nil
 	h.appendLogStoreQueue = nil
 	h.applyLogStoreQueue = nil

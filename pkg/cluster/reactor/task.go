@@ -7,21 +7,24 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"github.com/panjf2000/ants/v2"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
 )
 
 type taskQueue struct {
 	mu                  sync.RWMutex
 	tasks               []task
 	initialTaskQueueCap int
-	pool                *ants.Pool
+	r                   *Reactor
+	wklog.Log
 }
 
-func newTaskQueue(pool *ants.Pool, initialTaskQueueCap int) *taskQueue {
+func newTaskQueue(r *Reactor, initialTaskQueueCap int) *taskQueue {
 	return &taskQueue{
 		initialTaskQueueCap: initialTaskQueueCap,
 		tasks:               make([]task, 0, initialTaskQueueCap),
-		pool:                pool,
+		r:                   r,
+		Log:                 wklog.NewWKLog("taskQueue"),
 	}
 }
 
@@ -31,13 +34,16 @@ func (t *taskQueue) add(task task) {
 	t.mu.Unlock()
 
 	if task.needExec() {
-		t.pool.Submit(func() {
+		err := t.r.submitTask(func() {
 			if err := task.exec(); err != nil {
 				fmt.Println("task exec error:", err)
 				task.setErr(err)
 			}
 			task.taskFinished()
 		})
+		if err != nil {
+			t.Error("submit task error", zap.String("taskKey", task.taskKey()), zap.Error(err))
+		}
 	}
 }
 
