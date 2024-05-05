@@ -581,8 +581,9 @@ func EncodeCMDUpdateSessionUpdatedAt(models []*wkdb.UpdateSessionUpdatedAtModel)
 	encoder.WriteUint32(uint32(len(models)))
 	for _, model := range models {
 		encoder.WriteUint16(uint16(len(model.Uids)))
-		for _, uid := range model.Uids {
+		for uid, seq := range model.Uids {
 			encoder.WriteString(uid)
+			encoder.WriteUint64(seq)
 		}
 		encoder.WriteString(model.ChannelId)
 		encoder.WriteUint8(model.ChannelType)
@@ -601,7 +602,9 @@ func (c *CMD) DecodeCMDUpdateSessionUpdatedAt() (models []*wkdb.UpdateSessionUpd
 	}
 
 	for i := uint32(0); i < count; i++ {
-		var model = &wkdb.UpdateSessionUpdatedAtModel{}
+		var model = &wkdb.UpdateSessionUpdatedAtModel{
+			Uids: map[string]uint64{},
+		}
 		var uidCount uint16
 		if uidCount, err = decoder.Uint16(); err != nil {
 			return
@@ -611,7 +614,12 @@ func (c *CMD) DecodeCMDUpdateSessionUpdatedAt() (models []*wkdb.UpdateSessionUpd
 			if uid, err = decoder.String(); err != nil {
 				return
 			}
-			model.Uids = append(model.Uids, uid)
+
+			var seq uint64
+			if seq, err = decoder.Uint64(); err != nil {
+				return
+			}
+			model.Uids[uid] = seq
 		}
 		if model.ChannelId, err = decoder.String(); err != nil {
 			return

@@ -162,35 +162,51 @@ func (wk *wukongDB) UpdateSessionUpdatedAt(models []*UpdateSessionUpdatedAtModel
 	wk.dblock.updateSessionUpdatedAtLock.Lock()
 	defer wk.dblock.updateSessionUpdatedAtLock.Unlock()
 
-	dbUidsMap := make(map[uint32][]string)
+	// dbUidsMap := make(map[uint32][]string)
+
+	dbUidsMap := make(map[uint32]map[string]map[string]uint64)
 
 	for _, model := range models {
-		for _, uid := range model.Uids {
+		for uid, seq := range model.Uids {
 			shardId := wk.shardId(uid)
-			dbUidsMap[shardId] = append(dbUidsMap[shardId], uid)
+			channelUidsMap := dbUidsMap[shardId]
+			if channelUidsMap == nil {
+				channelUidsMap = make(map[string]map[string]uint64)
+				dbUidsMap[shardId] = channelUidsMap
+			}
+			uidSeqMap := channelUidsMap[ChannelToKey(model.ChannelId, model.ChannelType)]
+			if uidSeqMap == nil {
+				uidSeqMap = make(map[string]uint64)
+			}
+			uidSeqMap[uid] = seq
+			channelUidsMap[ChannelToKey(model.ChannelId, model.ChannelType)] = uidSeqMap
+
+		}
+	}
+	for shardId, channelUidsMap := range dbUidsMap {
+		shardDB := wk.shardDBById(shardId)
+		batch := shardDB.NewBatch()
+		defer batch.Close()
+		for channelKey, uidSeqArrayMap := range channelUidsMap {
+			channelId, channelType := channelFromKey(channelKey)
+			if err := wk.updateSessionUpdatedAt(uidSeqArrayMap, channelId, channelType, batch); err != nil {
+				return err
+			}
 		}
 
-		for shardId, uids := range dbUidsMap {
-			shardDB := wk.shardDBById(shardId)
-			batch := shardDB.NewBatch()
-			defer batch.Close()
-			if err := wk.updateSessionUpdatedAt(uids, model.ChannelId, model.ChannelType, batch); err != nil {
-				return err
-			}
-			if err := batch.Commit(wk.wo); err != nil {
-				return err
-			}
+		if err := batch.Commit(wk.wo); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func (wk *wukongDB) updateSessionUpdatedAt(uids []string, channelId string, channelType uint8, w pebble.Writer) error {
+func (wk *wukongDB) updateSessionUpdatedAt(uids map[string]uint64, channelId string, channelType uint8, w pebble.Writer) error {
 	nw := time.Now()
 	updatedAtBytes := make([]byte, 8)
 	wk.endian.PutUint64(updatedAtBytes, uint64(nw.UnixNano()))
-	for _, uid := range uids {
+	for uid, messageSeq := range uids {
 
 		sessionId, err := wk.getSessionIdByChannel(uid, channelId, channelType)
 		if err != nil {
@@ -211,6 +227,13 @@ func (wk *wukongDB) updateSessionUpdatedAt(uids []string, channelId string, chan
 			}
 		} else {
 			if err = w.Set(key.NewSessionColumnKey(uid, sessionId, key.TableSession.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
+				return err
+			}
+		}
+
+		if messageSeq > 0 { // 如果消息seq大于0，更新会话的已读消息seq
+			err = wk.updateOrAddReadedToMsgSeq(uid, sessionId, messageSeq, w)
+			if err != nil {
 				return err
 			}
 		}

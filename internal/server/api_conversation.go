@@ -202,6 +202,8 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		return
 	}
 
+	fmt.Println("msgSeq---->", msgSeq)
+
 	session, err := s.s.store.GetSessionByChannel(req.UID, fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("Failed to query session", zap.Error(err))
@@ -225,6 +227,8 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		UnreadCount:    unread,
 		ReadedToMsgSeq: readedMsgSeq,
 	}
+
+	fmt.Println("session.id--->", session.Id, readedMsgSeq)
 
 	err = s.s.store.AddOrUpdateConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
@@ -335,6 +339,17 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		}
 	}
 
+	// 获取用户缓存的最近会话
+	cacheConversations := s.s.conversationManager.GetUserConversationFromCache(req.UID)
+	cacheConversationMap := map[string]uint64{}
+	for _, cacheConversation := range cacheConversations {
+		if cacheConversation.readedMsgSeq > 0 {
+			cacheConversationMap[fmt.Sprintf("%s-%d", cacheConversation.channelId, cacheConversation.channelType)] = cacheConversation.readedMsgSeq
+		}
+	}
+
+	fmt.Println("cacheConversationMap---->", len(cacheConversations), cacheConversationMap)
+
 	sessionIds := make([]uint64, 0, len(sessions))
 	for _, session := range sessions {
 		sessionIds = append(sessionIds, session.Id)
@@ -347,6 +362,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		c.ResponseError(errors.New("获取conversation失败！"))
 		return
 	}
+	fmt.Println("conversations---->", len(conversations), sessionIds)
 
 	for _, sess := range sessions {
 		exist := false
@@ -360,8 +376,11 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 				realChannelId = from
 			}
 		}
-
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, sess.ChannelType)]
+		cacheMsgSeq := cacheConversationMap[fmt.Sprintf("%s-%d", sess.ChannelId, sess.ChannelType)]
+		if cacheMsgSeq > msgSeq {
+			msgSeq = cacheMsgSeq
+		}
 		for _, conversation := range conversations {
 			if conversation.SessionId == sess.Id {
 				exist = true
@@ -370,33 +389,33 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			}
 		}
 		if !exist {
+			fmt.Println("not exist.....", msgSeq)
 			currentConversation = wkdb.Conversation{
 				Uid:            req.UID,
 				SessionId:      sess.Id,
 				UnreadCount:    0,
-				ReadedToMsgSeq: 0,
+				ReadedToMsgSeq: msgSeq,
 			}
 		}
+		if currentConversation.ReadedToMsgSeq > msgSeq {
+			msgSeq = currentConversation.ReadedToMsgSeq
+		}
+		fmt.Println("not exist2222.....", msgSeq)
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
 			ChannelID:   realChannelId,
 			ChannelType: sess.ChannelType,
 			LastMsgSeq:  msgSeq,
 		})
+		currentConversation.ReadedToMsgSeq = msgSeq
 		syncUserConversationR := newSyncUserConversationResp(currentConversation, sess)
 		resps = append(resps, syncUserConversationR)
 	}
 
-	// 获取还没保存的最近会话的频道
-	recentChannels := s.s.conversationManager.GetUserChannelFromCache(req.UID)
-
-	fmt.Println("recentChannels---->", len(recentChannels))
-
 	// 将还没保存的频道也作为最近会话返回
-	for _, recentChannel := range recentChannels {
-		realChannelId := recentChannel.ChannelID
-		fmt.Println("realChannelId----->", realChannelId)
-		if recentChannel.ChannelType == wkproto.ChannelTypePerson {
-			from, to := GetFromUIDAndToUIDWith(recentChannel.ChannelID)
+	for _, cacheConversation := range cacheConversations {
+		realChannelId := cacheConversation.channelId
+		if cacheConversation.channelType == wkproto.ChannelTypePerson {
+			from, to := GetFromUIDAndToUIDWith(cacheConversation.channelId)
 			if req.UID == from {
 				realChannelId = to
 			} else {
@@ -405,25 +424,29 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		}
 		exist := false
 		for _, channelRecentMessageReq := range channelRecentMessageReqs {
-			if channelRecentMessageReq.ChannelID == realChannelId && channelRecentMessageReq.ChannelType == recentChannel.ChannelType {
+			if channelRecentMessageReq.ChannelID == realChannelId && channelRecentMessageReq.ChannelType == cacheConversation.channelType {
 				exist = true
 				break
 			}
 		}
 		if !exist {
+			msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, cacheConversation.channelType)]
+			if cacheConversation.readedMsgSeq > msgSeq {
+				msgSeq = cacheConversation.readedMsgSeq
+			}
 			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
 				ChannelID:   realChannelId,
-				ChannelType: recentChannel.ChannelType,
-				LastMsgSeq:  channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, recentChannel.ChannelType)],
+				ChannelType: cacheConversation.channelType,
+				LastMsgSeq:  msgSeq,
 			})
 			syncUserConversationR := newSyncUserConversationResp(wkdb.Conversation{
 				Uid:            req.UID,
 				UnreadCount:    0,
-				ReadedToMsgSeq: 0,
+				ReadedToMsgSeq: msgSeq,
 			}, wkdb.Session{
 				Uid:         req.UID,
-				ChannelId:   recentChannel.ChannelID,
-				ChannelType: recentChannel.ChannelType,
+				ChannelId:   cacheConversation.channelId,
+				ChannelType: cacheConversation.channelType,
 			})
 			resps = append(resps, syncUserConversationR)
 		}
@@ -624,7 +647,11 @@ func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels [
 			if channel.ChannelType == wkproto.ChannelTypePerson {
 				fakeChannelID = GetFakeChannelIDWith(uid, channel.ChannelID)
 			}
-			recentMessages, err = s.s.store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, channel.LastMsgSeq, msgCount)
+			msgSeq := channel.LastMsgSeq
+			if msgSeq > 0 {
+				msgSeq = msgSeq - 1
+			}
+			recentMessages, err = s.s.store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, msgSeq, msgCount)
 			if err != nil {
 				s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
 				return nil, err

@@ -2,6 +2,8 @@ package server
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,7 +12,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
@@ -46,7 +47,7 @@ func NewConversationManager(s *Server) *ConversationManager {
 	return cm
 }
 
-func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids []string) {
+func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids []string, fromUid string, messageSeq uint64) {
 	if strings.TrimSpace(fakeChannelId) == "" || len(uids) == 0 {
 		return
 	}
@@ -57,25 +58,46 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids
 		c.cache.Add(channelKey, channelSubscribers)
 	}
 	for _, subscriber := range uids {
-		channelSubscribers.add(subscriber)
+		if fromUid != "" && fromUid == subscriber {
+			channelSubscribers.add(subscriber, messageSeq)
+		} else {
+			channelSubscribers.add(subscriber, 0)
+		}
+
+	}
+}
+
+func (c *ConversationManager) push(fakeChannelId string, channelType uint8, uids map[string]uint64) {
+	if strings.TrimSpace(fakeChannelId) == "" || len(uids) == 0 {
+		return
+	}
+	channelKey := c.getChannelKey(fakeChannelId, channelType)
+	channelSubscribers, ok := c.cache.Get(channelKey)
+	if !ok {
+		channelSubscribers = newChannelSubscribers(len(uids))
+		c.cache.Add(channelKey, channelSubscribers)
+	}
+	for subscriber, seq := range uids {
+		channelSubscribers.add(subscriber, seq)
 	}
 }
 
 func (c *ConversationManager) Start() {
+	c.restoreLocal()
 	c.stopper.RunWorker(c.loop)
 }
 
 func (c *ConversationManager) Stop() {
 	c.stopped.Store(true)
 	c.stopper.Stop()
-	c.save()
+	c.saveToLocal()
 }
 
 func (c *ConversationManager) loop() {
 	tk := time.NewTicker(c.s.opts.Conversation.SyncInterval)
 	for !c.stopped.Load() {
 
-		c.save()
+		c.proposeSave()
 		select {
 		case <-tk.C:
 		case <-c.stopper.ShouldStop():
@@ -84,7 +106,64 @@ func (c *ConversationManager) loop() {
 	}
 }
 
-func (c *ConversationManager) save() {
+// 保存到本地
+func (c *ConversationManager) saveToLocal() {
+	keys := c.cache.Keys()
+	saveMap := make(map[string]map[string]uint64)
+	for _, key := range keys {
+		channelSubscribers, ok := c.cache.Get(key)
+		if !ok {
+			continue
+		}
+		saveMap[key] = channelSubscribers.subscriberMap
+	}
+	if len(saveMap) > 0 {
+
+		// 保存到本地文件
+		strs := wkutil.ToJSON(saveMap)
+
+		savePath := path.Join(c.s.opts.DataDir, "localsession.json")
+		err := wkutil.WriteFile(savePath, []byte(strs))
+		if err != nil {
+			c.Error("Failed to save local session", zap.Error(err))
+		}
+	}
+}
+
+// 恢复本地数据
+func (c *ConversationManager) restoreLocal() {
+	savePath := path.Join(c.s.opts.DataDir, "localsession.json")
+	data, err := wkutil.ReadFile(savePath)
+	if err != nil {
+		c.Error("Failed to read local session", zap.Error(err))
+		return
+	}
+	if len(data) == 0 {
+		return
+	}
+	var saveMap map[string]map[string]uint64
+	err = wkutil.ReadJSONByByte(data, &saveMap)
+	if err != nil {
+		c.Error("Failed to parse local session", zap.Error(err))
+		return
+	}
+	for key, subscribers := range saveMap {
+		channelSubscribers := newChannelSubscribers(len(subscribers))
+		for subscriber, messageSeq := range subscribers {
+			channelSubscribers.add(subscriber, messageSeq)
+		}
+		c.cache.Add(key, channelSubscribers)
+	}
+
+	err = os.Remove(savePath)
+	if err != nil {
+		c.Error("remove file failed", zap.String("savePath", savePath))
+	}
+
+}
+
+// 提案保存
+func (c *ConversationManager) proposeSave() {
 	keys := c.cache.Keys()
 	// var err error
 
@@ -110,28 +189,15 @@ func (c *ConversationManager) save() {
 			continue
 		}
 
-		if len(subscribers) == 1 {
-			slotId := c.s.getSlotId(subscribers[0])
+		slotSubscribersMap := c.subscribersSplitBySlotId(subscribers) // 按照slotId来分组subscribers
+		for slotId, slotSubscribers := range slotSubscribersMap {
 			model := &wkdb.UpdateSessionUpdatedAtModel{
-				Uids:        subscribers,
+				Uids:        slotSubscribers,
 				ChannelId:   channelId,
 				ChannelType: channelType,
 			}
 			slotSessionMap[slotId] = append(slotSessionMap[slotId], model)
 			byteSize += uint64(model.Size())
-
-		} else {
-			slotSubscribersMap := c.subscribersSplitBySlotId(subscribers) // 按照slotId来分组subscribers
-			for slotId, slotSubscribers := range slotSubscribersMap {
-				model := &wkdb.UpdateSessionUpdatedAtModel{
-					Uids:        slotSubscribers,
-					ChannelId:   channelId,
-					ChannelType: channelType,
-				}
-				slotSessionMap[slotId] = append(slotSessionMap[slotId], model)
-				byteSize += uint64(model.Size())
-			}
-
 		}
 
 		c.cache.Remove(key)
@@ -140,77 +206,87 @@ func (c *ConversationManager) save() {
 		return
 	}
 
-	// for slotId, models := range slotSessionMap {
-	// 	running := c.savePool.Running()
-	// 	if running > c.s.opts.Conversation.SavePoolSize+10 {
-	// 		c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
-	// 	}
-	// 	err = c.savePool.Submit(func(stid uint32, ms []*wkdb.UpdateSessionUpdatedAtModel) func() {
-	// 		return func() {
-	// 			err = c.s.store.UpdateSessionUpdatedAt(stid, ms)
-	// 			if err != nil {
-	// 				c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
-	// 				// 如果失败 则重新加入队列里
-	// 				for _, model := range ms {
-	// 					c.Push(model.ChannelId, model.ChannelType, model.Uids)
-	// 				}
-	// 			}
-	// 		}
-	// 	}(slotId, models))
-	// 	if err != nil {
-	// 		c.Error("Failed to submit save pool", zap.Error(err))
-	// 	}
-	// }
+	var err error
+	for slotId, models := range slotSessionMap {
+		running := c.savePool.Running()
+		if running > c.s.opts.Conversation.SavePoolSize+10 {
+			c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
+		}
+		err = c.savePool.Submit(func(stid uint32, ms []*wkdb.UpdateSessionUpdatedAtModel) func() {
+			return func() {
+				err := c.s.store.UpdateSessionUpdatedAt(stid, ms)
+				if err != nil {
+					c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
+					// 如果失败 则重新加入队列里
+					for _, model := range ms {
+						c.push(model.ChannelId, model.ChannelType, model.Uids)
+					}
+				}
+			}
+		}(slotId, models))
+		if err != nil {
+			c.Error("Failed to submit save pool", zap.Error(err))
+		}
+	}
 
 }
 
 // 从换成中获取用户的会话channel
-func (c *ConversationManager) GetUserChannelFromCache(uid string) []wkproto.Channel {
+func (c *ConversationManager) GetUserConversationFromCache(uid string) []conversationCacheInfo {
 	keys := c.cache.Keys()
 
-	var channels []wkproto.Channel
+	var conversations []conversationCacheInfo
 	for _, key := range keys {
 		channelId, channelType := c.channelFromKey(key)
 		subscribers, _ := c.cache.Get(key)
 		if subscribers != nil {
-			if wkutil.ArrayContains(subscribers.subscribers(), uid) {
-				channel := wkproto.Channel{
-					ChannelID:   channelId,
-					ChannelType: channelType,
+			seq, exist := subscribers.exist(uid)
+			if exist {
+				channel := conversationCacheInfo{
+					channelId:    channelId,
+					channelType:  channelType,
+					readedMsgSeq: seq,
 				}
-				channels = append(channels, channel)
+				conversations = append(conversations, channel)
 			}
 		}
 	}
-	return channels
+	return conversations
 }
 
 // 按slotId来分组subscribers
 
-func (c *ConversationManager) subscribersSplitBySlotId(subscribers []string) map[uint32][]string {
-	subscribersMap := make(map[uint32][]string)
-	for _, subscriber := range subscribers {
+func (c *ConversationManager) subscribersSplitBySlotId(subscribers map[string]uint64) map[uint32]map[string]uint64 {
+	subscribersMap := make(map[uint32]map[string]uint64)
+	for subscriber, seq := range subscribers {
 		slotId := c.s.getSlotId(subscriber)
-		subscribersMap[slotId] = append(subscribersMap[slotId], subscriber)
+		subscribersMap[slotId] = map[string]uint64{
+			subscriber: seq,
+		}
 	}
 	return subscribersMap
 }
 
 type channelSubscribers struct {
-	subscriberMap map[string]struct{}
+	subscriberMap map[string]uint64 // 订阅者和已读消息messageSeq
 	mu            sync.RWMutex
 }
 
 func newChannelSubscribers(cap int) *channelSubscribers {
 	return &channelSubscribers{
-		subscriberMap: make(map[string]struct{}, cap),
+		subscriberMap: make(map[string]uint64, cap),
 	}
 }
 
-func (c *channelSubscribers) add(subscriber string) {
+func (c *channelSubscribers) add(subscriber string, messageSeq uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.subscriberMap[subscriber] = struct{}{}
+	oldSeq, ok := c.subscriberMap[subscriber]
+	if ok && oldSeq > messageSeq {
+		return
+	}
+	c.subscriberMap[subscriber] = messageSeq
+
 }
 
 func (c *channelSubscribers) remove(subscriber string) {
@@ -219,14 +295,17 @@ func (c *channelSubscribers) remove(subscriber string) {
 	delete(c.subscriberMap, subscriber)
 }
 
-func (c *channelSubscribers) subscribers() []string {
+func (c *channelSubscribers) exist(subscriber string) (uint64, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	subscribers := make([]string, 0, len(c.subscriberMap))
-	for subscriber := range c.subscriberMap {
-		subscribers = append(subscribers, subscriber)
-	}
-	return subscribers
+	seq, ok := c.subscriberMap[subscriber]
+	return seq, ok
+}
+
+func (c *channelSubscribers) subscribers() map[string]uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.subscriberMap
 }
 
 func (cm *ConversationManager) getChannelKey(channelId string, channelType uint8) string {
@@ -733,3 +812,10 @@ func (c *ConversationManager) channelFromKey(key string) (string, uint8) {
 // func (s conversationSlice) Less(i, j int) bool {
 // 	return s[i].Timestamp > s[j].Timestamp
 // }
+
+type conversationCacheInfo struct {
+	channelId    string
+	channelType  uint8
+	uid          string
+	readedMsgSeq uint64 // 已读至的messageSeq
+}

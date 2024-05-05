@@ -164,6 +164,28 @@ func (wk *wukongDB) GetConversationBySessionIds(uid string, sessionIds []uint64)
 // 	return ids, nil
 // }
 
+func (wk *wukongDB) updateOrAddReadedToMsgSeq(uid string, sessionId uint64, msgSeq uint64, w pebble.Writer) error {
+	id, err := wk.getConversationIdBySession(uid, sessionId)
+	if err != nil {
+		return err
+	}
+	if id == 0 {
+		id = uint64(wk.prmaryKeyGen.Generate().Int64())
+		if err := wk.writeConversation(uint64(id), uid, Conversation{
+			Id:             id,
+			Uid:            uid,
+			SessionId:      sessionId,
+			UnreadCount:    0,
+			ReadedToMsgSeq: msgSeq,
+		}, w); err != nil {
+			return err
+		}
+	}
+	var msgSeqBytes = make([]byte, 8)
+	wk.endian.PutUint64(msgSeqBytes, msgSeq)
+	return w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.noSync)
+}
+
 func (wk *wukongDB) getConversationIdBySession(uid string, sessionId uint64) (uint64, error) {
 	idBytes, closer, err := wk.shardDB(uid).Get(key.NewConversationIndexSessionIdKey(uid, sessionId))
 	if err != nil {
@@ -210,7 +232,7 @@ func (wk *wukongDB) writeConversation(id uint64, uid string, conversation Conver
 	// session index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, id)
-	if err = w.Set(key.NewConversationIndexSessionIdKey(uid, conversation.SessionId), idBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewConversationIndexSessionIdKey(uid, conversation.SessionId), idBytes, wk.noSync); err != nil {
 		return err
 	}
 
