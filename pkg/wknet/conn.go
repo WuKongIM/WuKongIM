@@ -725,22 +725,22 @@ func (t *TLSConn) BuffWriter() io.Writer {
 }
 
 func (t *TLSConn) ID() int64 {
-	return t.d.id
+	return t.d.ID()
 }
 func (t *TLSConn) SetID(id int64) {
-	t.d.id = id
+	t.d.SetID(id)
 }
 
 func (t *TLSConn) UID() string {
-	return t.d.uid
+	return t.d.UID()
 }
 
 func (t *TLSConn) SetUID(uid string) {
-	t.d.uid = uid
+	t.d.SetUID(uid)
 }
 
 func (t *TLSConn) Fd() NetFd {
-	return t.d.fd
+	return t.d.Fd()
 }
 
 func (t *TLSConn) LocalAddr() net.Addr {
@@ -789,23 +789,23 @@ func (t *TLSConn) WakeWrite() error {
 }
 
 func (t *TLSConn) DeviceFlag() uint8 {
-	return t.d.deviceFlag
+	return t.d.DeviceFlag()
 }
 
 func (t *TLSConn) SetDeviceFlag(flag uint8) {
-	t.d.deviceFlag = flag
+	t.d.SetDeviceFlag(flag)
 }
 
 func (t *TLSConn) DeviceLevel() uint8 {
-	return t.d.deviceLevel
+	return t.d.DeviceLevel()
 }
 
 func (t *TLSConn) SetDeviceLevel(level uint8) {
-	t.d.deviceLevel = level
+	t.d.SetDeviceLevel(level)
 }
 
 func (t *TLSConn) DeviceID() string {
-	return t.d.deviceID
+	return t.d.DeviceID()
 }
 func (t *TLSConn) SetDeviceID(id string) {
 	t.d.deviceID = id
@@ -933,5 +933,45 @@ func (e *eofBuff) Read(p []byte) (int, error) {
 // 		return 0, err
 // 	}
 
-// 	return newFd, nil
-// }
+//		return newFd, nil
+//	}
+type connMatrix struct {
+	connCount atomic.Int32
+	conns     map[int]Conn
+}
+
+func newConnMatrix() *connMatrix {
+	return &connMatrix{
+		conns: make(map[int]Conn),
+	}
+}
+
+func (cm *connMatrix) iterate(f func(Conn) bool) {
+	for _, c := range cm.conns {
+		if c != nil {
+			if !f(c) {
+				return
+			}
+		}
+	}
+}
+func (cm *connMatrix) countAdd(delta int32) {
+	cm.connCount.Add(delta)
+}
+
+func (cm *connMatrix) addConn(c Conn) {
+	cm.conns[c.Fd().Fd()] = c
+	cm.countAdd(1)
+}
+
+func (cm *connMatrix) delConn(c Conn) {
+	delete(cm.conns, c.Fd().Fd())
+	cm.countAdd(-1)
+}
+
+func (cm *connMatrix) getConn(fd int) Conn {
+	return cm.conns[fd]
+}
+func (cm *connMatrix) loadCount() (n int32) {
+	return cm.connCount.Load()
+}
