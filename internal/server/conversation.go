@@ -12,6 +12,7 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/robfig/cron/v3"
+	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
 )
 
@@ -24,7 +25,7 @@ type ConversationManager struct {
 	userConversationMapBucketLocks []sync.RWMutex
 	bucketNum                      int
 	needSaveConversationMap        map[string]bool
-	mu                             sync.RWMutex
+	mu                             deadlock.RWMutex
 	stopChan                       chan struct{} //停止信号
 	calcChan                       chan interface{}
 	needSaveChan                   chan string
@@ -79,9 +80,13 @@ func (cm *ConversationManager) Start() {
 // Stop Stop
 func (cm *ConversationManager) Stop() {
 	if cm.s.opts.Conversation.On {
+		fmt.Println("ConversationManager stop....1")
 		cm.FlushConversations()
+		fmt.Println("ConversationManager stop....2")
 		// Wait for the queue to complete
 		cm.queue.Wait()
+		fmt.Println("ConversationManager stop....3")
+		cm.queue.Close()
 
 		close(cm.stopChan)
 
@@ -114,6 +119,7 @@ func (cm *ConversationManager) clearExpireConversations() {
 
 // 保存最近会话
 func (cm *ConversationManager) calcLoop() {
+
 	for {
 		messageMapObj := cm.queue.Pop()
 		if messageMapObj == nil {

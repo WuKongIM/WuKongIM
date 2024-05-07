@@ -116,7 +116,7 @@ func (r *ReactorSub) run() {
 
 func (r *ReactorSub) CloseConn(c Conn, er error) (rerr error) {
 	r.Debug("connection error", zap.Error(er), zap.Int64("id", c.ID()), zap.Int("fd", c.Fd().fd))
-	return c.Close()
+	return c.CloseWithErr(er)
 }
 
 func (r *ReactorSub) read(c Conn) error {

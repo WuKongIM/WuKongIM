@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
-	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/atomic"
 )
 
 type Engine struct {
-	connMatrix      *connMatrix              // 在线连接
-	connsUnixLock   deadlock.RWMutex         // 在线连接锁
+	connsUnix       []Conn                   // 在线连接
+	connsUnixLock   sync.RWMutex             // 在线连接锁
 	options         *Options                 // 配置
 	eventHandler    *EventHandler            // 事件
 	reactorMain     *ReactorMain             // 主reactor
@@ -32,7 +31,7 @@ func NewEngine(opts ...Option) *Engine {
 	}
 
 	eg = &Engine{
-		connMatrix:   newConnMatrix(),
+		connsUnix:    make([]Conn, options.MaxOpenFiles),
 		options:      options,
 		eventHandler: NewEventHandler(),
 		timingWheel:  timingwheel.NewTimingWheel(time.Millisecond*10, 1000),
@@ -62,35 +61,44 @@ func (e *Engine) Stop() error {
 
 func (e *Engine) AddConn(conn Conn) {
 	e.connsUnixLock.Lock()
-	e.connMatrix.addConn(conn)
+	e.connsUnix[conn.Fd().fd] = conn
 	e.connsUnixLock.Unlock()
 }
 
 func (e *Engine) RemoveConn(conn Conn) {
 	e.connsUnixLock.Lock()
-	e.connMatrix.delConn(conn)
+	e.connsUnix[conn.Fd().fd] = nil
 	e.connsUnixLock.Unlock()
 }
 
 func (e *Engine) GetConn(fd int) Conn {
 	e.connsUnixLock.RLock()
 	defer e.connsUnixLock.RUnlock()
-	return e.connMatrix.getConn(fd)
+	return e.connsUnix[fd]
 }
 
 func (e *Engine) GetAllConn() []Conn {
 	e.connsUnixLock.RLock()
 	defer e.connsUnixLock.RUnlock()
-	conns := make([]Conn, 0, e.connMatrix.loadCount())
-	e.connMatrix.iterate(func(conn Conn) bool {
-		conns = append(conns, conn)
-		return true
-	})
+	conns := make([]Conn, 0, 50)
+	for _, conn := range e.connsUnix {
+		if conn != nil {
+			conns = append(conns, conn)
+		}
+	}
 	return conns
 }
 
 func (e *Engine) ConnCount() int {
-	return int(e.connMatrix.loadCount())
+	e.connsUnixLock.RLock()
+	defer e.connsUnixLock.RUnlock()
+	var count int
+	for _, conn := range e.connsUnix {
+		if conn != nil {
+			count++
+		}
+	}
+	return count
 }
 
 // Schedule 延迟任务
