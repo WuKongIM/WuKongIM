@@ -30,6 +30,11 @@ func (s *Server) onEvent(msgs []clusterevent.Message) {
 
 func (s *Server) handleClusterEvent(m clusterevent.Message) error {
 
+	if s.stopped.Load() {
+		s.Debug("server stopped")
+		return nil
+	}
+
 	switch m.Type {
 	case clusterevent.EventTypeNodeAdd: // 添加节点
 		s.handleNodeAdd(m)

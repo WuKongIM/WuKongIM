@@ -136,6 +136,7 @@ func TestGetChannel(t *testing.T) {
 		ChannelType: 1,
 		Ban:         true,
 		Large:       true,
+		Disband:     true,
 	}
 	err = d.AddOrUpdateChannel(channelInfo)
 	assert.NoError(t, err)
@@ -147,6 +148,7 @@ func TestGetChannel(t *testing.T) {
 	assert.Equal(t, channelInfo.ChannelType, channelInfo2.ChannelType)
 	assert.Equal(t, channelInfo.Ban, channelInfo2.Ban)
 	assert.Equal(t, channelInfo.Large, channelInfo2.Large)
+	assert.Equal(t, channelInfo.Disband, channelInfo2.Disband)
 }
 
 func TestExistChannel(t *testing.T) {
@@ -164,6 +166,7 @@ func TestExistChannel(t *testing.T) {
 		ChannelType: 1,
 		Ban:         true,
 		Large:       true,
+		Disband:     true,
 	}
 	err = d.AddOrUpdateChannel(channelInfo)
 	assert.NoError(t, err)

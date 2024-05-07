@@ -527,6 +527,7 @@ type ChannelInfoReq struct {
 	ChannelType uint8  `json:"channel_type"` // 频道类型
 	Large       int    `json:"large"`        // 是否是超大群
 	Ban         int    `json:"ban"`          // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
+	Disband     int    `json:"disband"`      // 是否解散频道
 }
 
 func (c ChannelInfoReq) ToChannelInfo() wkdb.ChannelInfo {
@@ -535,12 +536,14 @@ func (c ChannelInfoReq) ToChannelInfo() wkdb.ChannelInfo {
 		ChannelType: c.ChannelType,
 		Large:       c.Large == 1,
 		Ban:         c.Ban == 1,
+		Disband:     c.Disband == 1,
 	}
 }
 
 type ChannelInfoResp struct {
-	Large int `json:"large"` // 是否是超大群
-	Ban   int `json:"ban"`   // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
+	Large   int `json:"large"`   // 是否是超大群
+	Ban     int `json:"ban"`     // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
+	Disband int `json:"disband"` // 是否解散频道
 }
 
 func (c ChannelInfoResp) ToChannelInfo() *wkdb.ChannelInfo {

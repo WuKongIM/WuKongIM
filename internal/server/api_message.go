@@ -292,8 +292,8 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelID string, 
 	if channel == nil {
 		return 0, 0, errors.New("频道信息不存在！")
 	}
-	if channel.Large && req.Header.SyncOnce == 1 {
-		m.Error("超大群不支持发送SyncOnce类型消息！", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
+	if channel.Large && (req.Header.SyncOnce == 1 && req.Header.NoPersist == 0) {
+		m.Error("超大群不支持发送带存储的SyncOnce类型消息！", zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
 		return 0, 0, errors.New("超大群不支持发送SyncOnce类型消息！")
 	}
 

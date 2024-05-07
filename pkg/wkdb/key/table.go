@@ -169,6 +169,7 @@ var TableChannelInfo = struct {
 		ChannelType [2]byte
 		Ban         [2]byte
 		Large       [2]byte
+		Disband     [2]byte
 	}
 	Index struct {
 		Channel [2]byte
@@ -182,11 +183,13 @@ var TableChannelInfo = struct {
 		ChannelType [2]byte
 		Ban         [2]byte
 		Large       [2]byte
+		Disband     [2]byte
 	}{
 		ChannelId:   [2]byte{0x05, 0x01},
 		ChannelType: [2]byte{0x05, 0x02},
 		Ban:         [2]byte{0x05, 0x03},
 		Large:       [2]byte{0x05, 0x04},
+		Disband:     [2]byte{0x05, 0x05},
 	},
 	Index: struct {
 		Channel [2]byte

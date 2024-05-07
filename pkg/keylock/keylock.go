@@ -4,6 +4,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
+)
+
+const (
+	defaultCleanInterval = 1 * time.Hour //默认1小时清理一次
 )
 
 // KeyLock KeyLock
@@ -18,7 +25,7 @@ type KeyLock struct {
 func NewKeyLock() *KeyLock {
 	return &KeyLock{
 		locks:         make(map[string]*innerLock),
-		cleanInterval: time.Hour * 1, // 1小时清理下锁
+		cleanInterval: defaultCleanInterval, // 1小时清理下锁
 		stopChan:      make(chan struct{}),
 	}
 }
@@ -59,6 +66,7 @@ func (l *KeyLock) Unlock(key string) {
 
 // Clean 清理空闲锁
 func (l *KeyLock) Clean() {
+	wklog.Info("KeyLock clean...", zap.Int("locks", len(l.locks)))
 	l.mutex.Lock()
 	for k, v := range l.locks {
 		if v.count == 0 {
