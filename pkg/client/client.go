@@ -551,7 +551,7 @@ func (c *Client) handleRecvPacket(packet *wkproto.RecvPacket) {
 		if !packet.Setting.IsSet(wkproto.SettingNoEncrypt) {
 			payload, err = wkutil.AesDecryptPkcs7Base64(packet.Payload, []byte(c.aesKey), []byte(c.salt))
 			if err != nil {
-				panic(err)
+				c.Panic("解密消息payload失败！", zap.Error(err), zap.String("payload", string(packet.Payload)), zap.String("aesKey", c.aesKey), zap.String("salt", c.salt))
 			}
 			packet.Payload = payload
 		}

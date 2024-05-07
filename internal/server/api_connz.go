@@ -120,9 +120,9 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 		sort.Sort(byInMsgBytes{Conns: conns})
 	case ByInMsgBytesDesc:
 		sort.Sort(byInMsgBytesDesc{Conns: conns})
-	case ByOutBytes:
+	case ByOutMsgBytes:
 		sort.Sort(byOutMsgBytes{Conns: conns})
-	case ByOutBytesDesc:
+	case ByOutMsgBytesDesc:
 		sort.Sort(byOutMsgBytesDesc{Conns: conns})
 	case ByOutPacket:
 		sort.Sort(byOutPacket{Conns: conns})
@@ -132,6 +132,10 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 		sort.Sort(byInPacket{Conns: conns})
 	case ByInPacketDesc:
 		sort.Sort(byInPacketDesc{Conns: conns})
+	case ByInPacketBytes:
+		sort.Sort(byInPacketBytes{Conns: conns})
+	case ByInPacketBytesDesc:
+		sort.Sort(byInPacketBytesDesc{Conns: conns})
 	case ByOutPacketBytes:
 		sort.Sort(byOutPacketBytes{Conns: conns})
 	case ByOutPacketBytesDesc:
@@ -260,8 +264,8 @@ const (
 	ByOutMsgDesc         SortOpt = "outMsgDesc"         // 通过发送消息排序
 	ByInMsgBytes         SortOpt = "inMsgBytes"         // 通过收到字节数排序
 	ByInMsgBytesDesc     SortOpt = "inMsgBytesDesc"     // 通过收到字节数排序
-	ByOutBytes           SortOpt = "outBytes"           // 通过发送字节数排序
-	ByOutBytesDesc       SortOpt = "outBytesDesc"       // 通过发送字节数排序
+	ByOutMsgBytes        SortOpt = "outMsgBytes"        // 通过发送字节数排序
+	ByOutMsgBytesDesc    SortOpt = "outMsgBytesDesc"    // 通过发送字节数排序
 	ByPendingBytes       SortOpt = "pendingBytes"       // 通过等待发送字节数排序
 	ByPendingBytesDesc   SortOpt = "pendingBytesDesc"   // 通过等待发送字节数排序
 	ByUptime             SortOpt = "uptime"             // 通过启动时间排序

@@ -264,6 +264,10 @@ func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
 		c.Debug("channel is banned", zap.String("uid", uid))
 		return false, wkproto.ReasonBan
 	}
+	if c.Disband { // 频道已解散
+		c.Debug("channel is disband", zap.String("uid", uid))
+		return false, wkproto.ReasonDisband
+	}
 
 	if c.IsDenylist(uid) { // 黑名单判断
 		c.Debug("in blacklist", zap.String("uid", uid))

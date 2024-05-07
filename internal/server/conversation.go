@@ -15,6 +15,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
+	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -134,7 +135,7 @@ func (c *ConversationManager) saveToLocal() {
 func (c *ConversationManager) restoreLocal() {
 	savePath := path.Join(c.s.opts.DataDir, "localsession.json")
 	data, err := wkutil.ReadFile(savePath)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		c.Error("Failed to read local session", zap.Error(err))
 		return
 	}

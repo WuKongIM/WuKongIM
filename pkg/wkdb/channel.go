@@ -433,6 +433,13 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 		return err
 	}
 
+	// disband
+	disbandBytes := make([]byte, 1)
+	disbandBytes[0] = wkutil.BoolToUint8(channelInfo.Disband)
+	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.Disband), disbandBytes, wk.noSync); err != nil {
+		return err
+	}
+
 	// channel index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, primaryKey)
@@ -479,6 +486,8 @@ func (wk *wukongDB) parseChannelInfo(iter *pebble.Iterator, limit int) ([]Channe
 			preChannelInfo.Ban = wkutil.Uint8ToBool(iter.Value()[0])
 		case key.TableChannelInfo.Column.Large:
 			preChannelInfo.Large = wkutil.Uint8ToBool(iter.Value()[0])
+		case key.TableChannelInfo.Column.Disband:
+			preChannelInfo.Disband = wkutil.Uint8ToBool(iter.Value()[0])
 
 		}
 		hasData = true

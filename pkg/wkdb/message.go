@@ -199,7 +199,10 @@ func (wk *wukongDB) LoadNextRangeMsgsForSize(channelId string, channelType uint8
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
-			wk.Info("loadNextRangeMsgsForSize done", zap.Duration("cost", time.Since(start)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("startMessageSeq", startMessageSeq), zap.Uint64("endMessageSeq", endMessageSeq))
+			cost := time.Since(start)
+			if cost.Milliseconds() > 200 {
+				wk.Info("loadNextRangeMsgsForSize done", zap.Duration("cost", time.Since(start)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("startMessageSeq", startMessageSeq), zap.Uint64("endMessageSeq", endMessageSeq))
+			}
 		}()
 	}
 

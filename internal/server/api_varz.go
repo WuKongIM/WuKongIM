@@ -70,8 +70,6 @@ func CreateVarz(s *Server) *Varz {
 	s.retryQueue.inFlightMutex.Lock()
 	retryQueueF := math.Max(float64(len(s.retryQueue.inFlightMessages)), float64(len(s.retryQueue.inFlightPQ)))
 	s.retryQueue.inFlightMutex.Unlock()
-	goroutine := runtime.NumGoroutine()
-
 	// requestGoroutine := s.cluster.Monitor().RequestGoroutine()
 	// messageGoroutine := s.cluster.Monitor().MessageGoroutine()
 	return &Varz{
@@ -81,8 +79,8 @@ func CreateVarz(s *Server) *Varz {
 		Connections: connCount,
 		Uptime:      myUptime(time.Since(s.start)),
 		CPU:         pcpu,
+		Goroutine:   runtime.NumGoroutine(),
 		Mem:         rss,
-		Goroutine:   goroutine,
 		// ClusterReqGoroutine: requestGoroutine,
 		// ClusterMsgGoroutine: messageGoroutine,
 		InMsgs:      s.inMsgs.Load(),

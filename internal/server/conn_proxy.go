@@ -271,6 +271,12 @@ func (p *ProxyClientConn) Close() error {
 	return nil
 }
 
+func (p *ProxyClientConn) CloseWithErr(er error) error {
+	p.Debug("close with error", zap.Error(er), zap.String("conn", p.String()))
+	err := p.Close()
+	return err
+}
+
 func (p *ProxyClientConn) RemoteAddr() net.Addr {
 	return nil
 }

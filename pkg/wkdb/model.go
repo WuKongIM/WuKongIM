@@ -81,6 +81,7 @@ type ChannelInfo struct {
 	ChannelType uint8  // 频道类型
 	Ban         bool   // 是否被封
 	Large       bool   // 是否是超大群
+	Disband     bool   // 是否解散
 }
 
 func NewChannelInfo(channelId string, channelType uint8) ChannelInfo {
@@ -102,6 +103,7 @@ func (c *ChannelInfo) Marshal() ([]byte, error) {
 	enc.WriteUint8(c.ChannelType)
 	enc.WriteUint8(wkutil.BoolToUint8(c.Ban))
 	enc.WriteUint8(wkutil.BoolToUint8(c.Large))
+	enc.WriteUint8(wkutil.BoolToUint8(c.Disband))
 	return enc.Bytes(), nil
 }
 
@@ -122,8 +124,15 @@ func (c *ChannelInfo) Unmarshal(data []byte) error {
 	if large, err = dec.Uint8(); err != nil {
 		return err
 	}
+	var disband uint8
+	if disband, err = dec.Uint8(); err != nil {
+		return err
+	}
+
 	c.Ban = wkutil.Uint8ToBool(ban)
 	c.Large = wkutil.Uint8ToBool(large)
+
+	c.Disband = wkutil.Uint8ToBool(disband)
 	return nil
 }
 
