@@ -1,11 +1,11 @@
 package wknet
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"sync"
 	"syscall"
 	"time"
 
@@ -13,6 +13,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/ring"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/WuKongIM/crypto/tls"
+	"github.com/sasha-s/go-deadlock"
+	"golang.org/x/sys/unix"
 
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -80,6 +82,7 @@ type Conn interface {
 	IsClosed() bool
 	// Close closes the connection.
 	Close() error
+	CloseWithErr(err error) error
 	// RemoteAddr returns the remote network address.
 	RemoteAddr() net.Addr
 	// LocalAddr returns the local network address.
@@ -131,7 +134,7 @@ type DefaultConn struct {
 	outboundBuffer OutboundBuffer // outboundBuffer OutboundBuffer
 	closed         atomic.Bool    // if the connection is closed
 	isWAdded       bool           // if the connection is added to the write event
-	mu             sync.RWMutex
+	mu             deadlock.RWMutex
 	context        interface{}
 	authed         bool // if the connection is authed
 	protoVersion   int
@@ -301,23 +304,26 @@ func (d *DefaultConn) Fd() NetFd {
 }
 
 // 调用次方法需要加锁
-func (d *DefaultConn) closeNeedLock() error {
+func (d *DefaultConn) closeNeedLock(closeErr error) error {
 
 	if d.closed.Load() {
 		return nil
 	}
 	d.closed.Store(true)
 
-	_ = d.fd.Close()
+	if closeErr != nil && !errors.Is(closeErr, unix.ECONNRESET) { // ECONNRESET表示fd已经关闭，不需要再次关闭
+		err := d.reactorSub.DeleteFd(d) // 先删除fd
+		if err != nil {
+			d.Debug("delete fd from poller error", zap.Error(err), zap.Int("fd", d.Fd().fd), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+		}
+	}
+
+	_ = d.fd.Close()             // 后关闭fd
 	d.eg.RemoveConn(d)           // remove from the engine
 	d.reactorSub.ConnDec()       // decrease the connection count
 	d.mu.Unlock()                // 这里先解锁，避免OnClose中调用conn的方法导致死锁
 	d.eg.eventHandler.OnClose(d) // call the close handler
 	d.mu.Lock()
-	err := d.reactorSub.DeleteFd(d)
-	if err != nil {
-		d.Debug("delete fd from poller error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
-	}
 
 	d.release()
 
@@ -327,7 +333,14 @@ func (d *DefaultConn) closeNeedLock() error {
 func (d *DefaultConn) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.closeNeedLock()
+	return d.closeNeedLock(nil)
+}
+
+func (d *DefaultConn) CloseWithErr(err error) error {
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.closeNeedLock(err)
 }
 
 func (d *DefaultConn) RemoteAddr() net.Addr {
@@ -544,7 +557,7 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 			if d.closed.Load() {
 				return
 			}
-			d.closeNeedLock()
+			d.closeNeedLock(nil)
 		})
 	}
 }
@@ -774,6 +787,11 @@ func (t *TLSConn) SetWriteDeadline(tim time.Time) error {
 func (t *TLSConn) Close() error {
 	t.tmpInboundBuffer.Release()
 	return t.d.Close()
+}
+
+func (t *TLSConn) CloseWithErr(err error) error {
+	t.tmpInboundBuffer.Release()
+	return t.d.CloseWithErr(err)
 }
 
 func (t *TLSConn) Context() interface{} {
