@@ -596,7 +596,14 @@ func (d *DefaultConn) flush() error {
 	case syscall.EAGAIN:
 		d.Error("write error", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
 	default:
-		return d.reactorSub.CloseConn(d, os.NewSyscallError("write", err))
+		// d.reactorSub.CloseConn 里使用了d.mu的锁，所以这里先要解锁，调用完后再锁上
+		d.mu.Unlock()
+		err = d.reactorSub.CloseConn(d, os.NewSyscallError("write", err))
+		d.mu.Lock()
+		if err != nil {
+			d.Error("failed to close conn", zap.Error(err), zap.String("uid", d.uid), zap.String("deviceID", d.deviceID))
+			return err
+		}
 	}
 	// All data have been drained, it's no need to monitor the writable events,
 	// remove the writable event from poller to help the future event-loops.
