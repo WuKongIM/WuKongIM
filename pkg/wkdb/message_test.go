@@ -178,3 +178,42 @@ func BenchmarkAppendMessages(b *testing.B) {
 
 	})
 }
+
+func TestSearchMessages(t *testing.T) {
+	d := newTestDB(t)
+	err := d.Open()
+	assert.NoError(t, err)
+
+	defer func() {
+		err := d.Close()
+		assert.NoError(t, err)
+	}()
+
+	messages := []wkdb.Message{}
+
+	channelId := "channel"
+	channelType := uint8(2)
+
+	num := 100
+
+	for i := 0; i < num; i++ {
+		messages = append(messages, wkdb.Message{
+			RecvPacket: wkproto.RecvPacket{
+				ChannelID:   channelId,
+				ChannelType: channelType,
+				MessageSeq:  uint32(i + 1),
+				Payload:     []byte("hello"),
+			},
+		})
+	}
+
+	err = d.AppendMessages(channelId, channelType, messages)
+	assert.NoError(t, err)
+
+	resultMessages, err := d.SearchMessages(wkdb.MessageReq{
+		Limit: 10,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 10, len(resultMessages))
+
+}

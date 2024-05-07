@@ -17,7 +17,7 @@ import (
 func (s *Server) onEvent(msgs []clusterevent.Message) {
 	var err error
 	for _, msg := range msgs {
-		s.Debug("收到分布式事件....", zap.String("type", msg.Type.String()))
+		s.Info("收到分布式事件....", zap.String("type", msg.Type.String()))
 
 		err = s.handleClusterEvent(msg)
 		if err == nil {
@@ -688,11 +688,13 @@ func (s *Server) handleSlotLeaderTransferStart(m clusterevent.Message) error {
 		return err
 	}
 
+	if len(replicaLastLogInfoMap) == 0 {
+		s.Warn("replicaLastLogInfoMap is empty")
+		return nil
+	}
+
 	var newSlots []*pb.Slot
 	for _, st := range m.Slots {
-		if st.LeaderTransferTo == 0 || st.Leader == st.LeaderTransferTo {
-			continue
-		}
 
 		oldLeaderCfgVersion := s.clusterEventServer.NodeConfigVersion(st.Leader)
 		newLeaderCfgVersion := s.clusterEventServer.NodeConfigVersion(st.LeaderTransferTo)
@@ -707,12 +709,12 @@ func (s *Server) handleSlotLeaderTransferStart(m clusterevent.Message) error {
 		leaderSlotInfoMap := replicaLastLogInfoMap[st.Leader]
 		transferSlotInfoMap := replicaLastLogInfoMap[st.LeaderTransferTo]
 		if leaderSlotInfoMap == nil || transferSlotInfoMap == nil {
-			s.Debug("leader or transfer slot info not found", zap.Uint32("slotId", st.Id))
+			s.Warn("leader or transfer slot info not found", zap.Uint32("slotId", st.Id))
 			continue
 		}
 		leaderSlotLogInfo, ok := leaderSlotInfoMap[st.Id]
 		if !ok {
-			s.Debug("leader slot log info not found", zap.Uint32("slotId", st.Id))
+			s.Warn("leader slot log info not found", zap.Uint32("slotId", st.Id))
 			continue
 		}
 		transferSlotLogInfo := transferSlotInfoMap[st.Id]
@@ -721,6 +723,8 @@ func (s *Server) handleSlotLeaderTransferStart(m clusterevent.Message) error {
 			newSlot := st.Clone()
 			newSlot.Status = pb.SlotStatus_SlotStatusCandidate // 修改槽状态为选举状态
 			newSlots = append(newSlots, newSlot)
+		} else {
+			s.Info("the log has not been followed", zap.Uint64("transfer", st.LeaderTransferTo), zap.Uint64("leaderLogIndex", leaderSlotLogInfo.LogIndex), zap.Uint64("transferLogIndex", transferSlotLogInfo.LogIndex), zap.Uint32("slotId", st.Id), zap.Uint64("leader", st.Leader))
 		}
 	}
 

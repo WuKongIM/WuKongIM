@@ -89,6 +89,10 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 		}
 	}
 
+	if cfg.LeaderTransferTo != 0 && cfg.LeaderTransferTo == c.opts.NodeId {
+		isLearner = true
+	}
+
 	replicaCfg := &replica.Config{
 		Replicas: cfg.Replicas,
 		Learners: cfg.Learners,
@@ -111,7 +115,9 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 				c.pausePropopose.Store(true)
 			}
 		} else if cfg.Status == wkdb.ChannelClusterStatusNormal { // 槽进入正常状态
+
 			if cfg.LeaderId == c.opts.NodeId {
+				c.pausePropopose.Store(false)
 				c.rc.BecomeLeader(cfg.Term)
 			} else {
 				c.rc.BecomeFollower(cfg.Term, cfg.LeaderId)

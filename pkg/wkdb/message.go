@@ -126,7 +126,15 @@ func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, start
 	})
 	defer iter.Close()
 
-	return wk.parseChannelMessages(iter, limit)
+	msgs := make([]Message, 0)
+	err = wk.iteratorChannelMessages(iter, limit, func(m Message) bool {
+		msgs = append(msgs, m)
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return msgs, nil
 }
 
 func (wk *wukongDB) LoadNextRangeMsgs(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]Message, error) {
@@ -153,7 +161,17 @@ func (wk *wukongDB) LoadNextRangeMsgs(channelId string, channelType uint8, start
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
 	})
 	defer iter.Close()
-	return wk.parseChannelMessages(iter, limit)
+
+	msgs := make([]Message, 0)
+
+	err = wk.iteratorChannelMessages(iter, limit, func(m Message) bool {
+		msgs = append(msgs, m)
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return msgs, nil
 
 }
 
@@ -166,14 +184,18 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, seq+1),
 	})
 	defer iter.Close()
-	msgs, err := wk.parseChannelMessages(iter, 1)
+	var msg Message
+	err := wk.iteratorChannelMessages(iter, 1, func(m Message) bool {
+		msg = m
+		return false
+	})
 	if err != nil {
 		return EmptyMessage, err
 	}
-	if len(msgs) == 0 {
+	if IsEmptyMessage(msg) {
 		return EmptyMessage, fmt.Errorf("message not found")
 	}
-	return msgs[0], nil
+	return msg, nil
 
 }
 
@@ -235,23 +257,19 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 		}()
 	}
 
-	lastMsgSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
-	if err != nil {
-		return err
-	}
 	db := wk.shardDB(channelId)
-	err = db.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, lastMsgSeq+1), wk.noSync)
+	err := db.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), wk.noSync)
 	if err != nil {
 		return err
 	}
 	batch := db.NewBatch()
 	defer batch.Close()
 
-	err = batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, lastMsgSeq+1), wk.noSync)
+	err = batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), wk.noSync)
 	if err != nil {
 		return err
 	}
-	err = wk.setChannelLastMessageSeq(channelId, channelType, min(messageSeq-1, lastMsgSeq), batch, wk.noSync)
+	err = wk.setChannelLastMessageSeq(channelId, channelType, messageSeq-1, batch, wk.noSync)
 	if err != nil {
 		return err
 	}
@@ -329,6 +347,26 @@ func (wk *wukongDB) SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSe
 	return nil
 }
 
+func (wk *wukongDB) SearchMessages(req MessageReq) ([]Message, error) {
+	db := wk.defaultShardDB() // TODO: SearchMessages方法目前只有一个分区db的时候才生效
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewMessageLowKey(),
+		UpperBound: key.NewMessageHighKey(),
+	})
+	defer iter.Close()
+
+	msgs := make([]Message, 0)
+	err := wk.iteratorChannelMessages(iter, req.Limit, func(m Message) bool {
+		msgs = append(msgs, m)
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return msgs, nil
+}
+
 func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer, o *pebble.WriteOptions) error {
 	data := make([]byte, 16)
 	wk.endian.PutUint64(data, seq)
@@ -338,9 +376,9 @@ func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8
 	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data, o)
 }
 
-func (wk *wukongDB) parseChannelMessages(iter *pebble.Iterator, limit int) ([]Message, error) {
+func (wk *wukongDB) iteratorChannelMessages(iter *pebble.Iterator, limit int, iterFnc func(m Message) bool) error {
 	var (
-		msgs           = make([]Message, 0, limit)
+		size           int
 		preMessageSeq  uint64
 		preMessage     Message
 		lastNeedAppend bool = true
@@ -350,13 +388,19 @@ func (wk *wukongDB) parseChannelMessages(iter *pebble.Iterator, limit int) ([]Me
 	for iter.First(); iter.Valid(); iter.Next() {
 		messageSeq, coulmnName, err := key.ParseMessageColumnKey(iter.Key())
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if preMessageSeq != messageSeq {
 			if preMessageSeq != 0 {
-				msgs = append(msgs, preMessage)
-				if limit != 0 && len(msgs) >= limit {
+				size++
+				if iterFnc != nil {
+					if !iterFnc(preMessage) {
+						lastNeedAppend = false
+						break
+					}
+				}
+				if limit != 0 && size >= limit {
 					lastNeedAppend = false
 					break
 				}
@@ -398,10 +442,12 @@ func (wk *wukongDB) parseChannelMessages(iter *pebble.Iterator, limit int) ([]Me
 	}
 
 	if lastNeedAppend && hasData {
-		msgs = append(msgs, preMessage)
+		if iterFnc != nil {
+			_ = iterFnc(preMessage)
+		}
 	}
 
-	return msgs, nil
+	return nil
 
 }
 

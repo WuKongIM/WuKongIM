@@ -96,7 +96,7 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 	if strings.TrimSpace(uid) != "" {
 		uidConns := make([]wknet.Conn, 0, 10)
 		for _, conn := range conns {
-			if conn.UID() == uid {
+			if strings.Contains(conn.UID(), uid) {
 				uidConns = append(uidConns, conn)
 			}
 		}
@@ -148,6 +148,15 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 		sort.Sort(byUptime{Conns: conns})
 	case ByUptimeDesc:
 		sort.Sort(byUptimeDesc{Conns: conns})
+	case ByIdle:
+		sort.Sort(byIdle{Conns: conns})
+	case ByIdleDesc:
+		sort.Sort(byIdleDesc{Conns: conns})
+	case ByProtoVersion:
+		sort.Sort(byProtoVersion{Conns: conns})
+	case ByProtoVersionDesc:
+		sort.Sort(byProtoVersionDesc{Conns: conns})
+
 	}
 
 	minoff := offset
@@ -278,6 +287,10 @@ const (
 	ByInPacketBytesDesc  SortOpt = "inPacketBytesDesc"  // 通过接收包字节数排序
 	ByOutPacketBytes     SortOpt = "outPacketBytes"     // 通过发送包字节数排序
 	ByOutPacketBytesDesc SortOpt = "outPacketBytesDesc" // 通过发送包字节数排序
+	ByIdle               SortOpt = "idle"               // 通过闲置时间排序
+	ByIdleDesc           SortOpt = "idleDesc"           // 通过闲置时间排序
+	ByProtoVersion       SortOpt = "protoVersion"       // 通过协议版本排序
+	ByProtoVersionDesc   SortOpt = "protoVersionDesc"   // 通过协议版本排序
 
 )
 
@@ -498,3 +511,40 @@ func (l byUptimeDesc) Less(i, j int) bool {
 }
 func (l byUptimeDesc) Len() int      { return len(l.Conns) }
 func (l byUptimeDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+
+// idle
+type byIdle struct{ Conns []wknet.Conn }
+
+func (l byIdle) Less(i, j int) bool {
+	return l.Conns[i].LastActivity().Before(l.Conns[j].LastActivity())
+}
+func (l byIdle) Len() int      { return len(l.Conns) }
+func (l byIdle) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+
+// idleDesc
+type byIdleDesc struct{ Conns []wknet.Conn }
+
+func (l byIdleDesc) Less(i, j int) bool {
+	return l.Conns[i].LastActivity().After(l.Conns[j].LastActivity())
+}
+func (l byIdleDesc) Len() int      { return len(l.Conns) }
+func (l byIdleDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+
+// protoVersion
+type byProtoVersion struct{ Conns []wknet.Conn }
+
+func (l byProtoVersion) Less(i, j int) bool {
+	return l.Conns[i].ProtoVersion() < l.Conns[j].ProtoVersion()
+}
+func (l byProtoVersion) Len() int      { return len(l.Conns) }
+func (l byProtoVersion) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+
+// protoVersionDesc
+type byProtoVersionDesc struct{ Conns []wknet.Conn }
+
+func (l byProtoVersionDesc) Less(i, j int) bool {
+	return l.Conns[i].ProtoVersion() > l.Conns[j].ProtoVersion()
+}
+
+func (l byProtoVersionDesc) Len() int      { return len(l.Conns) }
+func (l byProtoVersionDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }

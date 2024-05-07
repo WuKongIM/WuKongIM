@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -91,6 +92,9 @@ func (r *Replica) Step(m Message) error {
 		}
 
 	default:
+		if r.stepFunc == nil {
+			fmt.Println("------->", r.role, m.MsgType.String())
+		}
 		err := r.stepFunc(m)
 		if err != nil {
 			return err

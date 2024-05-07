@@ -9,7 +9,7 @@ import (
 )
 
 func newTestDB(t testing.TB) wkdb.DB {
-	return wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir()), wkdb.WithShardNum(2)))
+	return wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir()), wkdb.WithShardNum(1)))
 }
 
 func TestAddOrUpdateSession(t *testing.T) {

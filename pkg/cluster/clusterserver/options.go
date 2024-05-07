@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -75,6 +76,10 @@ type Options struct {
 
 	// LearnerMinLogGap  学习者最小日志差距（ 当日志差距小于这个值时，可以认为已学习达到要求）
 	LearnerMinLogGap uint64
+
+	DB wkdb.DB
+
+	PageSize int
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -97,6 +102,7 @@ func NewOptions(opt ...Option) *Options {
 		ChannelLoadPoolSize:        1000,
 		LeaderTransferMinLogGap:    20,
 		LearnerMinLogGap:           100,
+		PageSize:                   20,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -285,5 +291,18 @@ func WithLogLevel(level zapcore.Level) Option {
 func WithAppVersion(version string) Option {
 	return func(o *Options) {
 		o.AppVersion = version
+	}
+}
+
+func WithDB(db wkdb.DB) Option {
+	return func(o *Options) {
+		o.DB = db
+	}
+}
+
+func WithPageSize(pageSize int) Option {
+
+	return func(o *Options) {
+		o.PageSize = pageSize
 	}
 }
