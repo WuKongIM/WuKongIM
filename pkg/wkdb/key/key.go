@@ -38,6 +38,25 @@ func NewMessagePrimaryKey(channelId string, channelType uint8, messageSeq uint64
 	return key
 }
 
+func NewMessageLowKey() []byte {
+	key := make([]byte, 12)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	return key
+}
+
+func NewMessageHighKey() []byte {
+	key := make([]byte, 12)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 1
+	return key
+
+}
+
 func NewChannelLastMessageSeqKey(channelId string, channelType uint8) []byte {
 	key := make([]byte, 12)
 	channelHash := channelIdToNum(channelId, channelType)

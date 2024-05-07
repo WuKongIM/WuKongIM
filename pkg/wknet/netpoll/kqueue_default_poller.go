@@ -81,7 +81,9 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 				triggerHup = evt.Flags&syscall.EV_EOF != 0
 
 				// p.Debug("poll....", zap.Int("fd", fd), zap.Bool("read", triggerRead), zap.Bool("write", triggerWrite), zap.Bool("hup", triggerHup))
-
+				if evt.Flags&syscall.EV_DELETE > 0 {
+					continue
+				}
 				if triggerHup {
 					pollEvent = PollEventClose
 				} else if triggerRead {

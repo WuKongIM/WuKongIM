@@ -14,21 +14,27 @@ import (
 )
 
 type PebbleShardLogStorage struct {
-	db   *pebble.DB
-	path string
-	wo   *pebble.WriteOptions
+	db     *pebble.DB
+	path   string
+	wo     *pebble.WriteOptions
+	noSync *pebble.WriteOptions
 	wklog.Log
 }
 
 func NewPebbleShardLogStorage(path string) *PebbleShardLogStorage {
 	return &PebbleShardLogStorage{
-		path: path,
+		path:   path,
+		wo:     &pebble.WriteOptions{Sync: true},
+		noSync: &pebble.WriteOptions{Sync: false},
+		Log:    wklog.NewWKLog("ConfigPebbleShardLogStorage"),
 	}
 }
 
 func (p *PebbleShardLogStorage) Open() error {
 	var err error
-	p.db, err = pebble.Open(p.path, &pebble.Options{})
+	p.db, err = pebble.Open(p.path, &pebble.Options{
+		FormatMajorVersion: pebble.FormatNewest,
+	})
 	if err != nil {
 		return err
 	}
@@ -46,37 +52,25 @@ func (p *PebbleShardLogStorage) Close() error {
 // AppendLog 追加日志
 func (p *PebbleShardLogStorage) AppendLog(logs []replica.Log) error {
 
-	lastIndex, err := p.LastIndex()
-	if err != nil {
-		return err
-	}
-	if logs[len(logs)-1].Index <= lastIndex {
-		p.Warn("log index is less than last index", zap.Uint64("logIndex", logs[len(logs)-1].Index), zap.Uint64("lastIndex", lastIndex))
-		return nil
-	}
-
 	batch := p.db.NewBatch()
 	defer batch.Close()
 	for _, lg := range logs {
-		if lg.Index <= lastIndex {
-			continue
-		}
 		logData, err := lg.Marshal()
 		if err != nil {
 			return err
 		}
 		keyData := key.NewLogKey(lg.Index)
-		err = batch.Set(keyData, logData, p.wo)
+		err = batch.Set(keyData, logData, p.noSync)
 		if err != nil {
 			return err
 		}
 	}
-	err = batch.Commit(p.wo)
+	err := batch.Commit(p.wo)
 	if err != nil {
 		return err
 	}
+	return nil
 
-	return p.saveMaxIndex(logs[len(logs)-1].Index)
 }
 
 // TruncateLogTo 截断日志
@@ -84,26 +78,22 @@ func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
 	if index == 0 {
 		return errors.New("index must be greater than 0")
 	}
-	if index > 0 {
-		lastIndex, _, err := p.getMaxIndex()
-		if err != nil {
-			p.Error("get max index error", zap.Error(err))
-			return err
-		}
-		if index > lastIndex {
-			return nil
-		}
+	appliedIdx, err := p.AppliedIndex()
+	if err != nil {
+		p.Error("get max index error", zap.Error(err))
+		return err
+	}
+	if index >= appliedIdx {
+		p.Panic("applied  must be less than index  index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx))
+		return nil
 	}
 	keyData := key.NewLogKey(index)
 	maxKeyData := key.NewLogKey(math.MaxUint64)
-	err := p.db.DeleteRange(keyData, maxKeyData, p.wo)
+	err = p.db.DeleteRange(keyData, maxKeyData, p.wo)
 	if err != nil {
 		return err
 	}
-	if index > 0 {
-		return p.saveMaxIndex(index - 1)
-	}
-	return p.saveMaxIndex(0)
+	return p.saveMaxIndex(index - 1)
 }
 
 // func (p *PebbleShardLogStorage) realLastIndex(shardNo string) (uint64, error) {
@@ -125,9 +115,17 @@ func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
 
 func (p *PebbleShardLogStorage) Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 
+	lastIndex, err := p.LastIndex()
+	if err != nil {
+		return nil, err
+	}
+
 	lowKey := key.NewLogKey(startLogIndex)
 	if endLogIndex == 0 {
-		endLogIndex = math.MaxUint64
+		endLogIndex = lastIndex + 1
+	}
+	if endLogIndex > lastIndex {
+		endLogIndex = lastIndex + 1
 	}
 	highKey := key.NewLogKey(endLogIndex)
 	iter := p.db.NewIter(&pebble.IterOptions{

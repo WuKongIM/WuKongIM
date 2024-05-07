@@ -16,6 +16,10 @@ var (
 
 var EmptyMessage = Message{}
 
+func IsEmptyMessage(m Message) bool {
+	return m.MessageID == 0 && m.MessageSeq == 0
+}
+
 type Message struct {
 	wkproto.RecvPacket
 	Term uint64 // raft term

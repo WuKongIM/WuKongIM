@@ -65,6 +65,9 @@ type MessageDB interface {
 	AppendMessagesOfUserQueue(uid string, messages []Message) error
 	// UpdateMessageOfUserQueueCursorIfNeed 更新用户队列的游标
 	UpdateMessageOfUserQueueCursorIfNeed(uid string, messageSeq uint64) error
+
+	// 搜索消息
+	SearchMessages(req MessageReq) ([]Message, error)
 }
 
 type UserDB interface {
@@ -200,4 +203,11 @@ type SessionDB interface {
 	// 获取大于指定更新时间的session(不包含updatedAt)
 	// limit 为0表示不做限制
 	GetSessionsGreaterThanUpdatedAtByUid(uid string, updatedAt int64, limit int) ([]Session, error)
+}
+
+type MessageReq struct {
+	FromUid     string // 发送者uid
+	ChannelId   string // 频道id
+	ChannelType uint8  // 频道类型
+	Limit       int    // 消息限制
 }

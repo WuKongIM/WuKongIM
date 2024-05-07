@@ -55,10 +55,6 @@ func (s *slot) becomeLeader(term uint32) {
 	s.rc.BecomeLeader(term)
 }
 
-func (s *slot) setPausePropopose(pausePropopose bool) {
-	s.pausePropopose.Store(pausePropopose)
-}
-
 func (s *slot) changeRole(role replica.Role) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -87,6 +83,9 @@ func (s *slot) update(st *pb.Slot) {
 			learnerIds = append(learnerIds, learner.LearnerId)
 		}
 	}
+	if st.LeaderTransferTo != 0 && st.LeaderTransferTo == s.opts.NodeId {
+		isLearner = true
+	}
 	cfg := &replica.Config{
 		Replicas: st.Replicas,
 		Learners: learnerIds,
@@ -109,8 +108,10 @@ func (s *slot) update(st *pb.Slot) {
 				s.pausePropopose.Store(true)
 			}
 		} else if st.Status == pb.SlotStatus_SlotStatusNormal { // 槽进入正常状态
+
 			if s.rc.LeaderId() != st.Leader {
 				if st.Leader == s.opts.NodeId {
+					s.pausePropopose.Store(false)
 					s.rc.BecomeLeader(st.Term)
 				} else {
 					s.rc.BecomeFollower(st.Term, st.Leader)

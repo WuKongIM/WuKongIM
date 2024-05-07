@@ -34,6 +34,7 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet)                             // 槽分布式配置
 	route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)                                // 获取某个槽的所有频道信息
 	route.GET(s.formatPath("/info"), s.clusterInfoGet)                                               // 获取集群信息
+	route.GET(s.formatPath("/messages"), s.messagesGet)                                              // 搜索消息
 }
 
 func (s *Server) nodesGet(c *wkhttp.Context) {
@@ -445,6 +446,35 @@ func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (s *Server) messagesGet(c *wkhttp.Context) {
+	limit := wkutil.ParseInt(c.Query("limit"))
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
+
+	if nodeId != 0 && nodeId != s.opts.NodeId {
+		node := s.clusterEventServer.Node(nodeId)
+		c.Forward(fmt.Sprintf("%s%s", node.ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
+	if limit <= 0 {
+		limit = s.opts.PageSize
+	}
+	messages, err := s.opts.DB.SearchMessages(wkdb.MessageReq{
+		Limit: limit,
+	})
+	if err != nil {
+		s.Error("查询消息失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	resps := make([]*messageResp, 0, len(messages))
+	for _, message := range messages {
+		resps = append(resps, newMessageResp(message))
+	}
+	c.JSON(http.StatusOK, resps)
+}
+
 func (s *Server) getSlotMaxLogIndex(slotId uint32) (uint64, error) {
 
 	slot := s.clusterEventServer.Slot(slotId)
@@ -608,19 +638,21 @@ type ChannelClusterConfigRespTotal struct {
 }
 
 type ChannelClusterConfigResp struct {
-	ChannelID         string   `json:"channel_id"`          // 频道ID
-	ChannelType       uint8    `json:"channel_type"`        // 频道类型
-	ChannelTypeFormat string   `json:"channel_type_format"` // 频道类型格式化
-	ReplicaCount      uint16   `json:"replica_count"`       // 副本数量
-	Replicas          []uint64 `json:"replicas"`            // 副本节点ID集合
-	LeaderId          uint64   `json:"leader_id"`           // 领导者ID
-	Term              uint32   `json:"term"`                // 任期
-	SlotId            uint32   `json:"slot_id"`             // 槽位ID
-	SlotLeaderId      uint64   `json:"slot_leader_id"`      // 槽位领导者ID
-	MaxMessageSeq     uint64   `json:"max_message_seq"`     // 最大消息序号
-	LastAppendTime    string   `json:"last_append_time"`    // 最后一次追加时间
-	Active            int      `json:"active"`              // 是否激活
-	ActiveFormat      string   `json:"active_format"`       // 状态格式化
+	ChannelID         string                    `json:"channel_id"`          // 频道ID
+	ChannelType       uint8                     `json:"channel_type"`        // 频道类型
+	ChannelTypeFormat string                    `json:"channel_type_format"` // 频道类型格式化
+	ReplicaCount      uint16                    `json:"replica_count"`       // 副本数量
+	Replicas          []uint64                  `json:"replicas"`            // 副本节点ID集合
+	LeaderId          uint64                    `json:"leader_id"`           // 领导者ID
+	Term              uint32                    `json:"term"`                // 任期
+	SlotId            uint32                    `json:"slot_id"`             // 槽位ID
+	SlotLeaderId      uint64                    `json:"slot_leader_id"`      // 槽位领导者ID
+	MaxMessageSeq     uint64                    `json:"max_message_seq"`     // 最大消息序号
+	LastAppendTime    string                    `json:"last_append_time"`    // 最后一次追加时间
+	Active            int                       `json:"active"`              // 是否激活
+	ActiveFormat      string                    `json:"active_format"`       // 状态格式化
+	Status            wkdb.ChannelClusterStatus `json:"status"`              // 状态
+	StatusFormat      string                    `json:"status_format"`       // 状态格式化
 }
 
 func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg wkdb.ChannelClusterConfig) *ChannelClusterConfigResp {
@@ -643,6 +675,15 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 	default:
 		channelTypeFormat = fmt.Sprintf("未知(%d)", cfg.ChannelType)
 	}
+
+	statusFormat := "未知"
+	if cfg.Status == wkdb.ChannelClusterStatusNormal {
+		statusFormat = "正常"
+	} else if cfg.Status == wkdb.ChannelClusterStatusCandidate {
+		statusFormat = "候选中"
+	} else if cfg.Status == wkdb.ChannelClusterStatusLeaderTransfer {
+		statusFormat = "领导者转移中"
+	}
 	return &ChannelClusterConfigResp{
 		ChannelID:         cfg.ChannelId,
 		ChannelType:       cfg.ChannelType,
@@ -653,6 +694,8 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 		Term:              cfg.Term,
 		SlotId:            slotId,
 		SlotLeaderId:      slotLeaderId,
+		Status:            cfg.Status,
+		StatusFormat:      statusFormat,
 	}
 }
 
@@ -677,6 +720,9 @@ func NewSlotResp(st *pb.Slot, channelCount int) *SlotResp {
 	case pb.SlotStatus_SlotStatusLeaderTransfer:
 		statusFormat = "领导者转移中"
 
+	}
+	if st.LeaderTransferTo != 0 {
+		statusFormat = fmt.Sprintf("领导者转移中(%d)", st.LeaderTransferTo)
 	}
 	return &SlotResp{
 		Id:           st.Id,
@@ -729,5 +775,34 @@ func NewSlotClusterConfigRespFromClusterConfig(appliedIdx, logMaxIndex uint64, l
 		LogMaxIndex:       logMaxIndex,
 		LeaderLogMaxIndex: leaderLogMaxIndex,
 		AppliedIndex:      appliedIdx,
+	}
+}
+
+type messageResp struct {
+	MessageId   string `json:"message_id"`    // 服务端的消息ID(全局唯一)
+	MessageSeq  uint32 `json:"message_seq"`   // 消息序列号 （用户唯一，有序递增）
+	ClientMsgNo string `json:"client_msg_no"` // 客户端唯一标示
+	Timestamp   int32  `json:"timestamp"`     // 服务器消息时间戳(10位，到秒)
+	ChannelId   string `json:"channel_id"`    // 频道ID
+	ChannelType uint8  `json:"channel_type"`  // 频道类型
+	Topic       string `json:"topic"`         // 话题ID
+	FromUid     string `json:"from_uid"`      // 发送者UID
+	Payload     []byte `json:"payload"`       // 消息内容
+	Expire      uint32 `json:"expire"`        // 消息过期时间 0 表示永不过期
+}
+
+func newMessageResp(m wkdb.Message) *messageResp {
+
+	return &messageResp{
+		MessageId:   strconv.FormatInt(m.MessageID, 10),
+		MessageSeq:  m.MessageSeq,
+		ClientMsgNo: m.ClientMsgNo,
+		Timestamp:   m.Timestamp,
+		ChannelId:   m.ChannelID,
+		ChannelType: m.ChannelType,
+		Topic:       m.Topic,
+		FromUid:     m.FromUID,
+		Payload:     m.Payload,
+		Expire:      m.Expire,
 	}
 }

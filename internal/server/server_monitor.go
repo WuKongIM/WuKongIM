@@ -81,9 +81,9 @@ func (m *MonitorServer) Start() {
 
 	m.r.GetGinRoute().StaticFS("/web", http.FS(st))
 
-	// 监控api
-	monitorapi := NewMonitorAPI(m.s)
-	monitorapi.Route(m.r)
+	// // 监控api
+	// monitorapi := NewMonitorAPI(m.s)
+	// monitorapi.Route(m.r)
 
 	// 监控收集
 	metricHandler := m.s.trace.Handler()

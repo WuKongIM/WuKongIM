@@ -97,3 +97,7 @@ func (s *Store) AddIPBlacklist(ips []string) error {
 	// return s.db.AddIPBlacklist(ips)
 	return nil
 }
+
+func (s *Store) DB() wkdb.DB {
+	return s.wdb
+}

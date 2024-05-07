@@ -203,6 +203,7 @@ func New(opts *Options) *Server {
 			cluster.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
 			cluster.WithLogLevel(s.opts.Logger.Level),
 			cluster.WithAppVersion(version.Version),
+			cluster.WithDB(s.store.DB()),
 			cluster.WithOnSlotApply(func(slotId uint32, logs []replica.Log) error {
 
 				return s.store.OnMetaApply(slotId, logs)

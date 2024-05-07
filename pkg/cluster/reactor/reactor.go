@@ -3,6 +3,7 @@ package reactor
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -24,7 +25,11 @@ func New(opts *Options) *Reactor {
 		opts: opts,
 		Log:  wklog.NewWKLog(fmt.Sprintf("Reactor[%s]", opts.ReactorType.String())),
 	}
-	taskPool, err := ants.NewPool(opts.TaskPoolSize)
+	taskPool, err := ants.NewPool(opts.TaskPoolSize, ants.WithPanicHandler(func(err interface{}) {
+		stack := debug.Stack()
+		r.Error("消息投递panic", zap.Error(err.(error)), zap.String("stack", string(stack)))
+
+	}))
 	if err != nil {
 		r.Panic("create task pool error", zap.Error(err))
 	}
