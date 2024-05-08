@@ -27,7 +27,7 @@ func New(opts *Options) *Reactor {
 	}
 	taskPool, err := ants.NewPool(opts.TaskPoolSize, ants.WithPanicHandler(func(err interface{}) {
 		stack := debug.Stack()
-		r.Error("消息投递panic", zap.Error(err.(error)), zap.String("stack", string(stack)))
+		r.Panic("执行任务失败", zap.Any("error", err), zap.String("stack", string(stack)))
 
 	}))
 	if err != nil {

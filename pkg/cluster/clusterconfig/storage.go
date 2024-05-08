@@ -64,6 +64,10 @@ func (p *PebbleShardLogStorage) AppendLog(logs []replica.Log) error {
 		if err != nil {
 			return err
 		}
+		err = p.saveMaxIndexWithWriter(lg.Index, batch, p.noSync)
+		if err != nil {
+			return err
+		}
 	}
 	err := batch.Commit(p.wo)
 	if err != nil {
@@ -83,8 +87,8 @@ func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
 		p.Error("get max index error", zap.Error(err))
 		return err
 	}
-	if index >= appliedIdx {
-		p.Panic("applied  must be less than index  index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx))
+	if index <= appliedIdx {
+		p.Panic("index must be less than  applied index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx))
 		return nil
 	}
 	keyData := key.NewLogKey(index)
@@ -115,18 +119,18 @@ func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
 
 func (p *PebbleShardLogStorage) Logs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 
-	lastIndex, err := p.LastIndex()
-	if err != nil {
-		return nil, err
-	}
+	// lastIndex, err := p.LastIndex()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	lowKey := key.NewLogKey(startLogIndex)
 	if endLogIndex == 0 {
-		endLogIndex = lastIndex + 1
+		endLogIndex = math.MaxUint64
 	}
-	if endLogIndex > lastIndex {
-		endLogIndex = lastIndex + 1
-	}
+	// if endLogIndex > lastIndex {
+	// 	endLogIndex = lastIndex + 1
+	// }
 	highKey := key.NewLogKey(endLogIndex)
 	iter := p.db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
@@ -303,6 +307,10 @@ func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term u
 }
 
 func (p *PebbleShardLogStorage) saveMaxIndex(index uint64) error {
+	return p.saveMaxIndexWithWriter(index, p.db, p.wo)
+}
+
+func (p *PebbleShardLogStorage) saveMaxIndexWithWriter(index uint64, w pebble.Writer, o *pebble.WriteOptions) error {
 	maxIndexKeyData := key.NewMaxIndexKey()
 	maxIndexdata := make([]byte, 8)
 	binary.BigEndian.PutUint64(maxIndexdata, index)
@@ -310,7 +318,7 @@ func (p *PebbleShardLogStorage) saveMaxIndex(index uint64) error {
 	lastTimeData := make([]byte, 8)
 	binary.BigEndian.PutUint64(lastTimeData, uint64(lastTime))
 
-	err := p.db.Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...), p.wo)
+	err := w.Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...), o)
 	return err
 }
 

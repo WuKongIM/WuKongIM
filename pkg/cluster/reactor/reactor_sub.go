@@ -26,22 +26,28 @@ type ReactorSub struct {
 	avdanceC chan struct{}
 	mr       *Reactor
 	stopped  atomic.Bool
+
+	appendLogC     chan AppendLogReq // 追加日志请求的通道
+	appendLogStepC chan []AppendLogReq
 }
 
 func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 	return &ReactorSub{
-		mr:          mr,
-		stopper:     syncutil.NewStopper(),
-		opts:        mr.opts,
-		handlers:    newHandlerList(),
-		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
-		tmpHandlers: make([]*handler, 0, 10000),
-		avdanceC:    make(chan struct{}, 1),
+		mr:             mr,
+		stopper:        syncutil.NewStopper(),
+		opts:           mr.opts,
+		handlers:       newHandlerList(),
+		Log:            wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
+		tmpHandlers:    make([]*handler, 0, 10000),
+		avdanceC:       make(chan struct{}, 1),
+		appendLogC:     make(chan AppendLogReq, 1000),
+		appendLogStepC: make(chan []AppendLogReq, 1000),
 	}
 }
 
 func (r *ReactorSub) Start() error {
 	r.stopper.RunWorker(r.run)
+	r.stopper.RunWorker(r.appendLogLoop)
 	return nil
 }
 
@@ -61,6 +67,18 @@ func (r *ReactorSub) run() {
 		select {
 		case <-tick.C:
 			r.tick()
+		case reqs := <-r.appendLogStepC:
+			for _, req := range reqs {
+				handler := r.handlers.get(req.HandleKey)
+				if handler != nil {
+					lastLog := req.Logs[len(req.Logs)-1]
+					err := handler.step(replica.NewMsgStoreAppendResp(r.opts.NodeId, lastLog.Index))
+					if err != nil {
+						r.Error("step local store message failed", zap.Error(err))
+					}
+				}
+			}
+
 		case <-r.avdanceC:
 		case <-r.stopper.ShouldStop():
 			return
@@ -247,13 +265,15 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			}
 		}
 
-		if r.opts.ReactorType == ReactorTypeChannel {
-			// if m.MsgType == replica.MsgSyncReq {
-			// 	r.Info("sync...")
-			// } else if m.MsgType == replica.MsgSyncResp {
-			// 	r.Info("syncResp...")
-			// }
-		}
+		// if r.opts.ReactorType == ReactorTypeConfig {
+		// 	if m.MsgType == replica.MsgSyncReq {
+		// 		lastIdex, _ := handler.lastLogIndexAndTerm()
+		// 		r.Info("sync...", zap.Uint64("index", m.Index), zap.Uint64("from", m.From), zap.Uint64("lastIndex", lastIdex))
+		// 	} else if m.MsgType == replica.MsgSyncResp {
+		// 		lastIdex, _ := handler.lastLogIndexAndTerm()
+		// 		r.Info("syncResp...", zap.Uint64("index", m.Index), zap.Uint64("from", m.From), zap.Uint64("lastIndex", lastIdex))
+		// 	}
+		// }
 
 		if r.opts.AutoSlowDownOn {
 			if m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0 { // 还有副本同步到日志，不降速
@@ -296,24 +316,24 @@ func (r *ReactorSub) handleEvent(handler *handler) (bool, error) {
 		hasEvent = true
 	}
 
-	// -------------------- 处理追加日志任务结果 --------------------
-	if r.opts.EnableLazyCatchUp {
-		start = time.Now()
-	}
-	handleOk, err = r.handleAppendLogTask(handler)
-	if r.opts.EnableLazyCatchUp {
-		end = time.Since(start)
-		if end > time.Millisecond*1 {
-			r.Info("handleAppendLogTask", zap.Duration("time", end))
-		}
-	}
+	// // -------------------- 处理追加日志任务结果 --------------------
+	// if r.opts.EnableLazyCatchUp {
+	// 	start = time.Now()
+	// }
+	// handleOk, err = r.handleAppendLogTask(handler)
+	// if r.opts.EnableLazyCatchUp {
+	// 	end = time.Since(start)
+	// 	if end > time.Millisecond*1 {
+	// 		r.Info("handleAppendLogTask", zap.Duration("time", end))
+	// 	}
+	// }
 
-	if err != nil {
-		return false, err
-	}
-	if handleOk {
-		hasEvent = true
-	}
+	// if err != nil {
+	// 	return false, err
+	// }
+	// if handleOk {
+	// 	hasEvent = true
+	// }
 
 	// -------------------- 处理收到的消息 --------------------
 	if r.opts.EnableLazyCatchUp {
@@ -428,42 +448,42 @@ func (r *ReactorSub) handleProposes(handler *handler) (bool, error) {
 	return hasEvent, nil
 }
 
-func (r *ReactorSub) handleAppendLogTask(handler *handler) (bool, error) {
-	firstTask := handler.firstAppendLogStoreTask()
-	var (
-		hasEvent bool
-	)
-	for firstTask != nil {
-		if !firstTask.isTaskFinished() {
-			break
-		}
-		if firstTask.hasErr() {
-			r.Panic("append log store message failed", zap.Error(firstTask.err()))
-			return false, firstTask.err()
-		}
-		err := handler.step(firstTask.resp())
-		if err != nil {
-			r.Panic("step local store message failed", zap.Error(err))
-			return false, err
-		}
-		handler.lastIndex.Store(firstTask.resp().Index)
+// func (r *ReactorSub) handleAppendLogTask(handler *handler) (bool, error) {
+// 	firstTask := handler.firstAppendLogStoreTask()
+// 	var (
+// 		hasEvent bool
+// 	)
+// 	for firstTask != nil {
+// 		if !firstTask.isTaskFinished() {
+// 			break
+// 		}
+// 		if firstTask.hasErr() {
+// 			r.Panic("append log store message failed", zap.Error(firstTask.err()))
+// 			return false, firstTask.err()
+// 		}
+// 		err := handler.step(firstTask.resp())
+// 		if err != nil {
+// 			r.Panic("step local store message failed", zap.Error(err))
+// 			return false, err
+// 		}
+// 		handler.lastIndex.Store(firstTask.resp().Index)
 
-		err = r.mr.submitTask(func() {
-			err = handler.setLastIndex()
-			if err != nil {
-				r.Panic("set last index failed", zap.Error(err))
-			}
-		})
-		if err != nil {
-			r.Error("submit set last index task failed", zap.Error(err))
-		}
+// 		err = r.mr.submitTask(func() {
+// 			err = handler.setLastIndex()
+// 			if err != nil {
+// 				r.Panic("set last index failed", zap.Error(err))
+// 			}
+// 		})
+// 		if err != nil {
+// 			r.Error("submit set last index task failed", zap.Error(err))
+// 		}
 
-		hasEvent = true
-		handler.removeFirstAppendLogStoreTask()
-		firstTask = handler.firstAppendLogStoreTask()
-	}
-	return hasEvent, nil
-}
+// 		hasEvent = true
+// 		handler.removeFirstAppendLogStoreTask()
+// 		firstTask = handler.firstAppendLogStoreTask()
+// 	}
+// 	return hasEvent, nil
+// }
 
 func (r *ReactorSub) handleRecvMessages(handler *handler) bool {
 	// 处理收到的消息
@@ -612,6 +632,7 @@ func (r *ReactorSub) handleSyncGet(handler *handler, msg replica.Message) {
 		if err != nil {
 			r.Error("get logs error", zap.Error(err))
 		}
+
 		resp := replica.NewMsgSyncGetResp(r.opts.NodeId, msg.From, msg.Index, resultLogs)
 		tk.setResp(resp)
 		tk.taskFinished()
@@ -633,32 +654,36 @@ func (r *ReactorSub) handleStoreAppend(handler *handler, msg replica.Message) {
 	if len(msg.Logs) == 0 {
 		return
 	}
-	lastLog := msg.Logs[len(msg.Logs)-1]
-	tk := newStoreAppendTask(lastLog.Index)
-	tk.setExec(func() error {
-		var start time.Time
-		if r.opts.EnableLazyCatchUp {
-			start = time.Now()
-		}
 
-		err := handler.appendLogs(msg.Logs)
-		if err != nil {
-			r.Panic("append logs error", zap.Error(err))
-			return err
-		}
-		tk.setResp(replica.NewMsgStoreAppendResp(r.opts.NodeId, lastLog.Index))
-		tk.taskFinished()
-		r.advance()
+	// 追加日志
+	r.appendLogs(handler.key, msg.Logs)
 
-		if r.opts.EnableLazyCatchUp {
-			end := time.Since(start)
-			if end > time.Millisecond*100 {
-				r.Debug("append logs", zap.Duration("cost", end), zap.Int("logs", len(msg.Logs)), zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
-			}
-		}
-		return nil
-	})
-	handler.addAppendLogStoreTask(tk)
+	// lastLog := msg.Logs[len(msg.Logs)-1]
+	// tk := newStoreAppendTask(lastLog.Index)
+	// tk.setExec(func() error {
+	// 	var start time.Time
+	// 	if r.opts.EnableLazyCatchUp {
+	// 		start = time.Now()
+	// 	}
+
+	// 	err := handler.appendLogs(msg.Logs)
+	// 	if err != nil {
+	// 		r.Panic("append logs error", zap.Error(err))
+	// 		return err
+	// 	}
+	// 	tk.setResp(replica.NewMsgStoreAppendResp(r.opts.NodeId, lastLog.Index))
+	// 	tk.taskFinished()
+	// 	r.advance()
+
+	// 	if r.opts.EnableLazyCatchUp {
+	// 		end := time.Since(start)
+	// 		if end > time.Millisecond*100 {
+	// 			r.Debug("append logs", zap.Duration("cost", end), zap.Int("logs", len(msg.Logs)), zap.Uint64("index", msg.Index), zap.Uint64("from", msg.From))
+	// 		}
+	// 	}
+	// 	return nil
+	// })
+	// handler.addAppendLogStoreTask(tk)
 }
 
 func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
@@ -753,4 +778,56 @@ func (r *ReactorSub) addMessage(m Message) {
 	handler.addMessage(m)
 	r.advance() // 推进
 
+}
+
+func (r *ReactorSub) appendLogs(handleKey string, logs []replica.Log) {
+
+	select {
+	case r.appendLogC <- AppendLogReq{
+		HandleKey: handleKey,
+		Logs:      logs,
+	}:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *ReactorSub) appendLogLoop() {
+
+	done := false
+	var err error
+	for {
+		reqs := make([]AppendLogReq, 0, 100)
+		select {
+		case req := <-r.appendLogC:
+			reqs = append(reqs, req)
+
+			// 取出所有的请求
+			for !done {
+				select {
+				case req := <-r.appendLogC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			err = r.opts.Event.OnAppendLogs(reqs)
+			if err != nil {
+				r.Error("on append logs failed", zap.Error(err))
+			} else {
+				// 回执
+				select {
+				case r.appendLogStepC <- reqs:
+				case <-r.stopper.ShouldStop():
+					return
+				}
+
+			}
+			// 清空
+			done = false
+
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
 }

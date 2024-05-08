@@ -44,7 +44,24 @@ func New(opts *Options) *Server {
 		storage:    NewPebbleShardLogStorage(path.Join(dataDir, "cfglogdb")),
 		initNodes:  opts.InitNodes,
 	}
-	reactorOptions := reactor.NewOptions(reactor.WithNodeId(opts.NodeId), reactor.WithSend(s.send), reactor.WithSubReactorNum(1), reactor.WithTaskPoolSize(10))
+	reactorOptions := reactor.NewOptions(
+		reactor.WithNodeId(opts.NodeId),
+		reactor.WithReactorType(reactor.ReactorTypeConfig),
+		reactor.WithSend(s.send),
+		reactor.WithSubReactorNum(1),
+		reactor.WithTaskPoolSize(10),
+		reactor.WithOnAppendLogs(func(reqs []reactor.AppendLogReq) error {
+			if len(reqs) == 1 {
+				return s.storage.AppendLog(reqs[0].Logs)
+			}
+			var logs []replica.Log
+			for _, req := range reqs {
+				logs = append(logs, req.Logs...)
+			}
+
+			return s.storage.AppendLog(logs)
+		}),
+	)
 	s.configReactor = reactor.New(reactorOptions)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	var err error

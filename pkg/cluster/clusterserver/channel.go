@@ -3,7 +3,6 @@ package cluster
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -87,10 +86,6 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 				break
 			}
 		}
-	}
-
-	if cfg.LeaderTransferTo != 0 && cfg.LeaderTransferTo == c.opts.NodeId {
-		isLearner = true
 	}
 
 	replicaCfg := &replica.Config{
@@ -181,6 +176,18 @@ func (c *channel) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]repl
 			c.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
 			return nil, err
 		}
+		startLogLen := len(logs)
+		// 检查logs的连续性，只保留连续的日志
+		for i, log := range logs {
+			if log.Index != startIndex+uint64(i) {
+				logs = logs[:i]
+				break
+			}
+		}
+		if len(logs) != startLogLen {
+			c.Warn("the log is not continuous and has been truncated ", zap.Uint64("lastIndex", lastIndex), zap.Uint64("msgIndex", msg.Index), zap.Int("startLogLen", startLogLen), zap.Int("endLogLen", len(logs)))
+		}
+
 		resultLogs = extend(unstableLogs, logs)
 	} else {
 		resultLogs = unstableLogs
@@ -188,20 +195,6 @@ func (c *channel) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]repl
 	}
 
 	return resultLogs, nil
-}
-
-func (c *channel) AppendLog(logs []replica.Log) error {
-	if len(logs) == 0 {
-		return nil
-	}
-	start := time.Now()
-	lastLog := logs[len(logs)-1]
-	err := c.opts.MessageLogStorage.AppendLog(c.key, logs)
-	if err != nil {
-		c.Panic("append log error", zap.Error(err))
-	}
-	c.Debug("append log done", zap.Uint64("lastLogIndex", lastLog.Index), zap.Duration("cost", time.Since(start)))
-	return nil
 }
 
 func (c *channel) ApplyLog(startLogIndex, endLogIndex uint64) error {
@@ -243,18 +236,6 @@ func (c *channel) Tick() {
 
 func (c *channel) Step(m replica.Message) error {
 	return c.rc.Step(m)
-}
-
-func (c *channel) SetLastIndex(index uint64) error {
-	return c.setLastIndex(index)
-}
-
-func (c *channel) setLastIndex(index uint64) error {
-	err := c.opts.MessageLogStorage.SetLastIndex(c.key, index)
-	if err != nil {
-		c.Error("set last index error", zap.Error(err))
-	}
-	return err
 }
 
 func (c *channel) SetAppliedIndex(index uint64) error {

@@ -8,6 +8,7 @@ const (
 	ReactorTypeNormal ReactorType = iota
 	ReactorTypeSlot
 	ReactorTypeChannel
+	ReactorTypeConfig
 )
 
 func (r ReactorType) String() string {
@@ -18,6 +19,8 @@ func (r ReactorType) String() string {
 		return "slot"
 	case ReactorTypeChannel:
 		return "channel"
+	case ReactorTypeConfig:
+		return "config"
 	default:
 		return "unknown"
 	}
@@ -62,8 +65,10 @@ type Options struct {
 	LeaderTimeoutMaxTick int
 
 	Event struct {
-		// handler被移除事件
+		// OnHandlerRemove handler被移除事件
 		OnHandlerRemove func(h IHandler)
+		// OnAppendLogs 批量追加日志事件
+		OnAppendLogs func(reqs []AppendLogReq) error
 	}
 }
 
@@ -184,5 +189,11 @@ func WithLeaderTimeoutMaxTick(tick int) Option {
 func WithOnHandlerRemove(f func(h IHandler)) Option {
 	return func(o *Options) {
 		o.Event.OnHandlerRemove = f
+	}
+}
+
+func WithOnAppendLogs(f func(reqs []AppendLogReq) error) Option {
+	return func(o *Options) {
+		o.Event.OnAppendLogs = f
 	}
 }

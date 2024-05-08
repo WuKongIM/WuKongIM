@@ -429,6 +429,10 @@ func (s *Server) autoBalanceSlotLeaders() bool {
 				if slot.Leader == exportNodeId && wkutil.ArrayContainsUint64(slot.Replicas, importNodeId) { // 只有这个槽的领导属于exportNodeId，且importNodeId是这个槽的副本节点才能转移
 					newSlot := slot.Clone()
 					newSlot.LeaderTransferTo = importNodeId
+					newSlot.Learners = append(newSlot.Learners, &pb.Learner{
+						LearnerId: importNodeId,
+						Status:    pb.LearnerStatus_LearnerStatusLearning,
+					})
 					newSlots = append(newSlots, newSlot)
 					exportLeaderCount--
 					importLeaderCount--

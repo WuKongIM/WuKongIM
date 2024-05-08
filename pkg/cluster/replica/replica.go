@@ -491,7 +491,8 @@ func (r *Replica) putMsgIfNeed() {
 
 	// 应用日志
 	if r.hasUnapplyLogs() {
-		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.applyingIndex, r.replicaLog.appliedIndex, r.replicaLog.committedIndex))
+		var applyCommittedIndex = r.replicaLog.applyCommittedIndex()
+		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.applyingIndex, r.replicaLog.appliedIndex, applyCommittedIndex))
 	}
 
 }
@@ -506,7 +507,8 @@ func (r *Replica) acceptReady(rd Ready) {
 	}
 
 	if r.hasUnapplyLogs() {
-		r.replicaLog.acceptApplying(r.replicaLog.committedIndex, 0)
+		var applyCommittedIndex = r.replicaLog.applyCommittedIndex()
+		r.replicaLog.acceptApplying(applyCommittedIndex, 0)
 	}
 }
 
@@ -650,15 +652,6 @@ func NewProposeMessageWithLogs(nodeId uint64, term uint32, logs []Log) Message {
 		From:    nodeId,
 		Term:    term,
 		Logs:    logs,
-	}
-}
-
-func (r *Replica) NewMsgApplyLogsRespMessage(appliedIdx uint64) Message {
-	return Message{
-		MsgType:      MsgApplyLogsResp,
-		From:         r.nodeId,
-		Term:         r.replicaLog.term,
-		AppliedIndex: appliedIdx,
 	}
 }
 

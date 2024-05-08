@@ -119,7 +119,22 @@ func (h *handler) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]repl
 			h.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
 			return nil, err
 		}
+
+		startLogLen := len(logs)
+		// 检查logs的连续性，只保留连续的日志
+		for i, log := range logs {
+			if log.Index != startIndex+uint64(i) {
+				logs = logs[:i]
+				break
+			}
+		}
+		if len(logs) != startLogLen {
+			h.Warn("the log is not continuous and has been truncated ", zap.Uint64("lastIndex", lastIndex), zap.Uint64("msgIndex", msg.Index), zap.Int("startLogLen", startLogLen), zap.Int("endLogLen", len(logs)))
+		}
+
 		resultLogs = extend(unstableLogs, logs)
+	} else {
+		resultLogs = unstableLogs
 	}
 
 	return resultLogs, nil
@@ -134,20 +149,16 @@ func (h *handler) getLogs(startLogIndex uint64, endLogIndex uint64) ([]replica.L
 	return logs, nil
 }
 
-// AppendLog 追加日志
-func (h *handler) AppendLog(logs []replica.Log) error {
-	err := h.storage.AppendLog(logs)
-	return err
-}
-
 // ApplyLog 应用日志
 func (h *handler) ApplyLog(startLogIndex, endLogIndex uint64) error {
-	lastLog, err := h.storage.LastLog()
-	if err != nil {
-		return err
-	}
-	if replica.IsEmptyLog(lastLog) {
+	if endLogIndex == 0 {
 		return nil
+	}
+	lastLog, err := h.storage.getLog(endLogIndex - 1)
+	if err != nil {
+		h.Error("get last log error", zap.Error(err))
+		return err
+
 	}
 
 	h.Debug("apply config log", zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex), zap.Uint64("lastLogIndex", lastLog.Index), zap.Uint32("lastLogTerm", lastLog.Term))

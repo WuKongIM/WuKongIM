@@ -40,9 +40,6 @@ func TestLoadPrevRangeMsgs(t *testing.T) {
 	err = d.AppendMessages(channelId, channelType, messages)
 	assert.NoError(t, err)
 
-	err = d.SetChannelLastMessageSeq(channelId, channelType, uint64(messages[len(messages)-1].MessageSeq))
-	assert.NoError(t, err)
-
 	resultMessages, err := d.LoadPrevRangeMsgs(channelId, channelType, uint64(num), 0, num)
 	assert.NoError(t, err)
 	assert.Len(t, resultMessages, num)
@@ -90,9 +87,6 @@ func TestGetChannelMaxMessageSeq(t *testing.T) {
 	err = d.AppendMessages(channelId, channelType, messages)
 	assert.NoError(t, err)
 
-	err = d.SetChannelLastMessageSeq(channelId, channelType, uint64(messages[len(messages)-1].MessageSeq))
-	assert.NoError(t, err)
-
 	seq, _, err := d.GetChannelLastMessageSeq(channelId, channelType)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(num), seq)
@@ -127,9 +121,6 @@ func TestTruncateLogTo(t *testing.T) {
 	}
 
 	err = d.AppendMessages(channelId, channelType, messages)
-	assert.NoError(t, err)
-
-	err = d.SetChannelLastMessageSeq(channelId, channelType, uint64(messages[len(messages)-1].MessageSeq))
 	assert.NoError(t, err)
 
 	err = d.TruncateLogTo(channelId, channelType, 51)

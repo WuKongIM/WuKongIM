@@ -83,9 +83,7 @@ func (s *slot) update(st *pb.Slot) {
 			learnerIds = append(learnerIds, learner.LearnerId)
 		}
 	}
-	if st.LeaderTransferTo != 0 && st.LeaderTransferTo == s.opts.NodeId {
-		isLearner = true
-	}
+
 	cfg := &replica.Config{
 		Replicas: st.Replicas,
 		Learners: learnerIds,
@@ -162,25 +160,25 @@ func (s *slot) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica
 			s.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
 			return nil, err
 		}
+		startLogLen := len(logs)
+		// 检查logs的连续性，只保留连续的日志
+		for i, log := range logs {
+			if log.Index != startIndex+uint64(i) {
+				logs = logs[:i]
+				break
+			}
+		}
+		if len(logs) != startLogLen {
+			s.Warn("the log is not continuous and has been truncated ", zap.Uint64("lastIndex", lastIndex), zap.Uint64("msgIndex", msg.Index), zap.Int("startLogLen", startLogLen), zap.Int("endLogLen", len(logs)))
+		}
+
 		s.Debug("getLogs...", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex+1), zap.Int("logs", len(logs)))
-		resultLogs = extend(logs, unstableLogs)
+		resultLogs = extend(unstableLogs, logs)
 	} else {
 		resultLogs = unstableLogs
 	}
 	return resultLogs, nil
 
-}
-
-func (s *slot) AppendLog(logs []replica.Log) error {
-
-	lastLog := logs[len(logs)-1]
-	start := time.Now()
-	err := s.opts.SlotLogStorage.AppendLog(s.key, logs)
-	if err != nil {
-		s.Panic("append log error", zap.Error(err))
-	}
-	s.Debug("append log done", zap.Uint64("lastLogIndex", lastLog.Index), zap.Duration("cost", time.Since(start)))
-	return nil
 }
 
 func (s *slot) ApplyLog(startLogIndex, endLogIndex uint64) error {
@@ -229,15 +227,6 @@ func (s *slot) Tick() {
 func (s *slot) Step(m replica.Message) error {
 
 	return s.rc.Step(m)
-}
-
-func (s *slot) SetLastIndex(index uint64) error {
-	shardNo := s.key
-	err := s.opts.SlotLogStorage.SetLastIndex(shardNo, index)
-	if err != nil {
-		s.Error("set last index error", zap.Error(err))
-	}
-	return nil
 }
 
 func (s *slot) SetAppliedIndex(index uint64) error {
