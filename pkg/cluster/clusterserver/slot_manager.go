@@ -23,6 +23,12 @@ func newSlotManager(opts *Options) *slotManager {
 		reactor.WithSend(sm.onSend),
 		reactor.WithIsCommittedAfterApplied(true),
 		reactor.WithReactorType(reactor.ReactorTypeSlot),
+		reactor.WithOnAppendLogs(func(reqs []reactor.AppendLogReq) error {
+			if reqs == nil {
+				return nil
+			}
+			return opts.SlotLogStorage.AppendLogBatch(reqs)
+		}),
 	))
 
 	return sm

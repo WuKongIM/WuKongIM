@@ -25,6 +25,9 @@ func newChannelManager(opts *Options) *channelManager {
 		reactor.WithOnHandlerRemove(func(h reactor.IHandler) {
 			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
 		}),
+		reactor.WithOnAppendLogs(func(reqs []reactor.AppendLogReq) error {
+			return cm.opts.MessageLogStorage.AppendLogBatch(reqs)
+		}),
 	))
 	return cm
 }

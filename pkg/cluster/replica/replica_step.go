@@ -191,7 +191,7 @@ func (r *Replica) stepLeader(m Message) error {
 
 		}
 
-	case MsgSyncGetResp: // 领导收到追随者的同步获取响应
+	case MsgSyncGetResp: // 领导已查询到追随者的日志了，发给追随者
 		r.send(r.newMsgSyncResp(m.To, m.Index, m.Logs))
 
 	case MsgLeaderTermStartIndexReq: // 领导收到跟随者的任期开始索引请求

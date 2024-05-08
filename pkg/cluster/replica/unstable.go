@@ -14,9 +14,9 @@ type unstable struct {
 	wklog.Log
 }
 
-func newUnstable() *unstable {
+func newUnstable(prefix string) *unstable {
 	return &unstable{
-		Log:    wklog.NewWKLog("replica.unstable"),
+		Log:    wklog.NewWKLog(fmt.Sprintf("replica.unstable[%s]", prefix)),
 		offset: 1, // 日志下标是从1开始的 所以offset初始化值为1
 	}
 }

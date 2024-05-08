@@ -3,13 +3,15 @@ package cluster
 import (
 	"errors"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 )
 
 // 日志分区存储
 type IShardLogStorage interface {
-	// AppendLog 追加日志
-	AppendLog(shardNo string, logs []replica.Log) error
+
+	// AppendLogBatch 批量追加日志
+	AppendLogBatch(reqs []reactor.AppendLogReq) error
 	// TruncateLogTo 截断日志, 从index开始截断,index不能为0 （保留下来的内容不包含index）
 	TruncateLogTo(shardNo string, index uint64) error
 	// 获取日志 [startLogIndex, endLogIndex) 之间的日志
@@ -20,7 +22,7 @@ type IShardLogStorage interface {
 	// LastIndexAndTerm 获取最后一条日志的索引和任期
 	LastIndexAndTerm(shardNo string) (uint64, uint32, error)
 	// SetLastIndex 设置最后一条日志的索引
-	SetLastIndex(shardNo string, index uint64) error
+	// SetLastIndex(shardNo string, index uint64) error
 	// SetAppliedIndex(shardNo string, index uint64) error
 	//	 获取最后一条日志的索引和追加时间
 	//
@@ -173,10 +175,6 @@ func newProxyReplicaStorage(shardNo string, storage IShardLogStorage) *proxyRepl
 		storage: storage,
 		shardNo: shardNo,
 	}
-}
-
-func (p *proxyReplicaStorage) AppendLog(logs []replica.Log) error {
-	return p.storage.AppendLog(p.shardNo, logs)
 }
 
 func (p *proxyReplicaStorage) TruncateLogTo(index uint64) error {

@@ -30,6 +30,10 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 		if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
 			return err
 		}
+		err := wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch, wk.noSync)
+		if err != nil {
+			return err
+		}
 	}
 
 	return batch.Commit(wk.wo)
@@ -41,7 +45,7 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 		start := time.Now()
 		defer func() {
 			cost := time.Since(start)
-			if cost.Milliseconds() > 200 {
+			if cost > time.Millisecond*200 {
 				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)))
 			}
 		}()
@@ -59,10 +63,15 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 		batch := db.NewBatch()
 		defer batch.Close()
 		for _, req := range reqs {
+			lastMsg := req.Messages[len(req.Messages)-1]
 			for _, msg := range req.Messages {
 				if err := wk.writeMessage(req.ChannelId, req.ChannelType, msg, batch); err != nil {
 					return err
 				}
+			}
+			err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(lastMsg.MessageSeq), batch, wk.noSync)
+			if err != nil {
+				return err
 			}
 		}
 		if err := batch.Commit(wk.wo); err != nil {
@@ -314,7 +323,9 @@ func (wk *wukongDB) SetChannelLastMessageSeq(channelId string, channelType uint8
 }
 
 func (wk *wukongDB) SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSeqReq) error {
-
+	if len(reqs) == 0 {
+		return nil
+	}
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {

@@ -150,7 +150,7 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 			}
 		}
 		if shouldCommit {
-			m.Debug("didCommit", zap.String("key", key), zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex))
+			// m.Debug("didCommit", zap.String("key", key), zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex))
 			waitC := m.proposeWaitMap[key]
 			waitC <- items
 			close(waitC)

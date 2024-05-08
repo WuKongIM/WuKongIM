@@ -46,7 +46,7 @@ type replicaLog struct {
 	// enough progress is acknowledged.
 	applyingLogsPaused bool
 
-	// 已追加
+	// 已追加(表示已经存储到磁盘的日志下标)
 	appendedIndex uint64
 
 	opts *Options
@@ -54,7 +54,7 @@ type replicaLog struct {
 
 func newReplicaLog(opts *Options) *replicaLog {
 	rg := &replicaLog{
-		unstable:            newUnstable(),
+		unstable:            newUnstable(opts.LogPrefix),
 		Log:                 wklog.NewWKLog(fmt.Sprintf("replicaLog[%d:%s]", opts.NodeId, opts.LogPrefix)),
 		opts:                opts,
 		maxApplyingLogsSize: noLimit,
@@ -143,8 +143,9 @@ func (r *replicaLog) acceptApplying(i uint64, size logEncodingSize) {
 	//    allowed to return had there been no size limit. If these indexes are
 	//    not equal, then the returned entries slice must have been truncated to
 	//    adhere to the memory limit.
-	r.applyingLogsPaused = r.applyingLogsSize >= r.maxApplyingLogsSize ||
-		i < r.maxAppliableIndex()
+	// r.applyingLogsPaused = r.applyingLogsSize >= r.maxApplyingLogsSize ||
+	// 	i < r.maxAppliableIndex()
+	r.applyingLogsPaused = r.applyingLogsSize >= r.maxApplyingLogsSize
 }
 
 func (r *replicaLog) acceptUnstable() { r.unstable.acceptInProgress() }
@@ -170,17 +171,30 @@ func (r *replicaLog) hasNextUnstableLogs() bool {
 func (r *replicaLog) hasUnapplyLogs() bool {
 	if r.applyingLogsPaused {
 		// Log application outstanding size limit reached.
-		return false
-	}
-	if r.appliedIndex >= r.appendedIndex {
-		return false
-	}
-
-	if r.appendedIndex < r.committedIndex {
+		r.Warn("paused apply log")
 		return false
 	}
 
-	return r.committedIndex > r.applyingIndex
+	// 如果已经存储的日志小于等于已提交的日志，说明不需要再应用日志
+	if r.appendedIndex <= r.appliedIndex {
+		return false
+	}
+
+	var applyCommittedIndex = r.applyCommittedIndex()
+
+	return applyCommittedIndex > r.applyingIndex
+}
+
+// 可以应用的已提交的日志下标
+func (r *replicaLog) applyCommittedIndex() uint64 {
+	var committedIndex uint64
+	// 如果已提交的日志，还没存储，则不能去应用，只能应用已存储了的日志（后续存储后，才会被应用）
+	if r.committedIndex > r.appendedIndex {
+		committedIndex = r.appendedIndex
+	} else {
+		committedIndex = r.committedIndex
+	}
+	return committedIndex
 }
 
 func (r *replicaLog) getLogsFromUnstable(lo, hi uint64, maxSize logEncodingSize) ([]Log, error) {

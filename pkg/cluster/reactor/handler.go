@@ -20,8 +20,6 @@ type IHandler interface {
 	Ready() replica.Ready
 	// GetAndMergeLogs 获取并合并日志
 	GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error)
-	// AppendLog 追加日志
-	AppendLog(logs []replica.Log) error
 	// ApplyLog 应用日志 [startLogIndex,endLogIndex) 之间的日志
 	ApplyLog(startLogIndex, endLogIndex uint64) error
 	// SlowDown 降速
@@ -36,8 +34,6 @@ type IHandler interface {
 	Tick()
 	// Step 步进消息
 	Step(m replica.Message) error
-	// SetLastIndex 设置最后一条日志的索引
-	SetLastIndex(index uint64) error
 	// SetAppliedIndex 设置已应用的索引
 	SetAppliedIndex(index uint64) error
 	// IsPrepared 是否准备好
@@ -62,9 +58,8 @@ type handler struct {
 	proposeQueue *proposeQueue // 提案队列
 	proposeWait  *proposeWait  // 提案等待
 
-	appendLogStoreQueue *taskQueue // 追加日志任务队列
-	applyLogStoreQueue  *taskQueue // 应用日志任务队列
-	getLogsTaskQueue    *taskQueue // 获取日志任务队列
+	applyLogStoreQueue *taskQueue // 应用日志任务队列
+	getLogsTaskQueue   *taskQueue // 获取日志任务队列
 
 	proposeIntervalTick int // 提案间隔tick数量
 
@@ -87,7 +82,6 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.msgQueue = r.newMessageQueue()
 	h.lastIndex.Store(0)
 
-	h.appendLogStoreQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
 	h.applyLogStoreQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
 	h.getLogsTaskQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
 	h.proposeQueue = newProposeQueue()
@@ -102,7 +96,6 @@ func (h *handler) reset() {
 	h.key = ""
 	h.msgQueue = nil
 	h.msgQueue = nil
-	h.appendLogStoreQueue = nil
 	h.applyLogStoreQueue = nil
 	h.getLogsTaskQueue = nil
 	h.proposeQueue = nil
@@ -139,10 +132,6 @@ func (h *handler) getMessages() []Message {
 	return h.msgQueue.Get()
 }
 
-func (h *handler) addAppendLogStoreTask(task task) {
-	h.appendLogStoreQueue.add(task)
-}
-
 func (h *handler) addApplyLogStoreTask(task task) {
 	h.applyLogStoreQueue.add(task)
 }
@@ -153,10 +142,6 @@ func (h *handler) addGetLogsTask(task task) {
 
 func (h *handler) getAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
 	return h.handler.GetAndMergeLogs(lastIndex, msg)
-}
-
-func (h *handler) appendLogs(logs []replica.Log) error {
-	return h.handler.AppendLog(logs)
 }
 
 func (h *handler) applyLogs(startLogIndex, endLogIndex uint64) error {
@@ -187,14 +172,6 @@ func (h *handler) lastLogIndexAndTerm() (uint64, uint32) {
 	return h.handler.LastLogIndexAndTerm()
 }
 
-func (h *handler) firstAppendLogStoreTask() task {
-	return h.appendLogStoreQueue.first()
-}
-
-func (h *handler) removeFirstAppendLogStoreTask() {
-	h.appendLogStoreQueue.removeFirst()
-}
-
 func (h *handler) allGetLogsTask() []task {
 	return h.getLogsTaskQueue.getAll()
 }
@@ -209,12 +186,6 @@ func (h *handler) firstApplyLogStoreTask() task {
 
 func (h *handler) removeFirstApplyLogStoreTask() {
 	h.applyLogStoreQueue.removeFirst()
-}
-
-func (h *handler) setLastIndex() error {
-	h.lastIndexLock.Lock()
-	defer h.lastIndexLock.Unlock()
-	return h.handler.SetLastIndex(h.lastIndex.Load())
 }
 
 func (h *handler) setAppliedIndex() error {
