@@ -401,9 +401,10 @@ func (s *segment) sync() error {
 }
 
 func (s *segment) close() error {
+	err := s.sync()
 	s.segmentFile.Close()
 	s.index.Close()
-	return nil
+	return err
 }
 
 func (s *segment) backup() error {
