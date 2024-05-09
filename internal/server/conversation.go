@@ -120,6 +120,11 @@ func (cm *ConversationManager) clearExpireConversations() {
 // 保存最近会话
 func (cm *ConversationManager) calcLoop() {
 
+	defer func() {
+		if err := recover(); err != nil {
+			cm.Error("calcLoop panic", zap.Any("error", err))
+		}
+	}()
 	for {
 		messageMapObj := cm.queue.Pop()
 		if messageMapObj == nil {
@@ -136,6 +141,13 @@ func (cm *ConversationManager) calcLoop() {
 }
 
 func (cm *ConversationManager) saveloop() {
+
+	defer func() {
+		if err := recover(); err != nil {
+			cm.Error("saveloop panic", zap.Any("error", err))
+		}
+	}()
+
 	ticker := time.NewTicker(cm.s.opts.Conversation.SyncInterval)
 
 	needSync := false
