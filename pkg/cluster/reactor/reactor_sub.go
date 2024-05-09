@@ -141,9 +141,11 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	case items := <-waitC:
 		return items, nil
 	case <-ctx.Done():
+		handler.removeWait(key)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, ctx.Err()
 	case <-r.stopper.ShouldStop():
+		handler.removeWait(key)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, ErrReactorSubStopped
 	}

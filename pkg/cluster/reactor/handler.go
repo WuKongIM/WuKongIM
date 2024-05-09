@@ -168,6 +168,10 @@ func (h *handler) addWait(ctx context.Context, key string, ids []uint64) chan []
 	return h.proposeWait.add(ctx, key, ids)
 }
 
+func (h *handler) removeWait(key string) {
+	h.proposeWait.remove(key)
+}
+
 func (h *handler) lastLogIndexAndTerm() (uint64, uint32) {
 	return h.handler.LastLogIndexAndTerm()
 }
