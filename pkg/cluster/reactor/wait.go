@@ -165,6 +165,13 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 
 }
 
+func (m *proposeWait) remove(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.proposeResultMap, key)
+	delete(m.proposeWaitMap, key)
+}
+
 func max(a, b uint64) uint64 {
 	if a > b {
 		return a
