@@ -105,7 +105,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 	}
 	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 		s.Error("clusterConfig not found", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(ErrClusterConfigNotFound)
+		c.WriteErr(ErrChannelClusterConfigNotFound)
 		return
 	}
 

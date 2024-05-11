@@ -426,7 +426,8 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindUnknown, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindUnknown, msgSize)
 		if s.onMessageFnc != nil {
-			s.onMessageFnc(m)
+			fmt.Println("msg.MsgType---->", m.MsgType)
+			go s.onMessageFnc(m) // TODO: 这里需要优化
 		}
 	}
 }

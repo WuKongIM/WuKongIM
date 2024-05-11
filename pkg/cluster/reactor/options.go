@@ -64,12 +64,18 @@ type Options struct {
 	// LeaderTimeoutMaxTick 领导者最大超时tick数，超过这个tick数认为领导者已经丢失
 	LeaderTimeoutMaxTick int
 
+	// AppendLogWorkerNum 处理追加日志的协程数量 (如果太大会导致大量协程去写db，导致db性能下降，如果太小阻塞追加日志的速度，默认是10)
+	AppendLogWorkerNum int
+
 	Event struct {
 		// OnHandlerRemove handler被移除事件
 		OnHandlerRemove func(h IHandler)
 		// OnAppendLogs 批量追加日志事件
 		OnAppendLogs func(reqs []AppendLogReq) error
 	}
+
+	// ProposeTimeout 提案超时
+	ProposeTimeout time.Duration
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -81,10 +87,12 @@ func NewOptions(opt ...Option) *Options {
 		InitialTaskQueueCap:     100,
 		TaskPoolSize:            100000,
 		MaxProposeLogCount:      1000,
-		EnableLazyCatchUp:       false,
+		EnableLazyCatchUp:       true,
 		IsCommittedAfterApplied: false,
 		AutoSlowDownOn:          false,
 		LeaderTimeoutMaxTick:    25,
+		AppendLogWorkerNum:      1,
+		ProposeTimeout:          time.Minute * 2,
 	}
 
 	for _, o := range opt {

@@ -200,7 +200,7 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		}
 		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
 		if !leaderIsSelf {
-			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			ch.Info("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}

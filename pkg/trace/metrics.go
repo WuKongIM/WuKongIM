@@ -52,6 +52,110 @@ type ISystemMetrics interface {
 
 // IDBMetrics 数据库监控
 type IDBMetrics interface {
+	// ========== compact 压缩相关 ==========
+	// CompactTotalCountSet 压缩总次数
+	CompactTotalCountSet(shardId uint32, v int64)
+	// CompactDefaultCountSet （还没搞清楚😂）
+	CompactDefaultCountSet(shardId uint32, v int64)
+	// CompactDeleteOnlyCountSet 删除次数
+	CompactDeleteOnlyCountSet(shardId uint32, v int64)
+	// CompactElisionOnlyCountSet 移除了多余数据次数
+	CompactElisionOnlyCountSet(shardId uint32, v int64)
+	// CompactMoveCountSet 移动次数
+	CompactMoveCountSet(shardId uint32, v int64)
+	// CompactReadCountSet 读取次数
+	CompactReadCountSet(shardId uint32, v int64)
+	// CompactRewriteCountSet 重写次数
+	CompactRewriteCountSet(shardId uint32, v int64)
+	// CompactMultiLevelCount 多级压缩次数
+	CompactMultiLevelCount(shardId uint32, v int64)
+	// CompactEstimatedDebtSet 预计还要压缩多少个字节才能到达稳定状态，这个值越大，说明需要压缩的数据越多
+	CompactEstimatedDebtSet(shardId uint32, v int64)
+	// CompactInProgressBytesSet 正在压缩的字节数量
+	CompactInProgressBytesSet(shardId uint32, v int64)
+	// CompactInProgressSet 正在压缩的操作数量
+	CompactNumInProgressSet(shardId uint32, v int64)
+	// CompactMarkedFilesSet 被标记需要压缩的文件数量
+	CompactMarkedFilesSet(shardId uint32, v int64)
+
+	// ========== flush 相关 ==========
+	// FlushCountSet flush次数
+	FlushCountAdd(shardId uint32, v int64)
+	// FlushBytesSet flush字节数量
+	FlushBytesAdd(shardId uint32, v int64)
+	// FlushNumInProgressSet 进行中的flush数量
+	FlushNumInProgressAdd(shardId uint32, v int64)
+	// FlushAsIngestCountSet flush作为ingest的次数
+	FlushAsIngestCountAdd(shardId uint32, v int64)
+	// FlushAsIngestTableCountSet flush作为ingest的表数量
+	FlushAsIngestTableCountAdd(shardId uint32, v int64)
+	// FlushAsIngestBytesSet flush作为ingest的字节数量
+	FlushAsIngestBytesAdd(shardId uint32, v int64)
+
+	// ========== memtable 内存表相关 ==========
+	MemTableSizeSet(shardId uint32, v int64)
+	MemTableCountSet(shardId uint32, v int64)
+	// MemTableZombieSizeSet 那些已经被标记为删除但尚未从物理存储中清除的数据大小。
+	MemTableZombieSizeSet(shardId uint32, v int64)
+	// MemTableZombieCountSet 那些已经被标记为删除但尚未从物理存储中清除的数据数量。
+	MemTableZombieCountSet(shardId uint32, v int64)
+
+	// ========== Snapshots 镜像相关 ==========
+	// SnapshotsCountSet 当前打开的镜像数量
+	SnapshotsCountSet(shardId uint32, v int64)
+
+	// ========== TableCache 相关 ==========
+	// TableCacheSizeSet 表缓存大小
+	TableCacheSizeSet(shardId uint32, v int64)
+	// TableCacheCountSet 表缓存数量
+	TableCacheCountSet(shardId uint32, v int64)
+
+	// ========== TableIters 相关 ==========
+	// TableItersCountSet sstable iterators数量
+	TableItersCountSet(shardId uint32, v int64)
+
+	// ========== WAL 相关 ==========
+
+	// WALFilesCountSet WAL文件数量
+	WALFilesCountSet(shardId uint32, v int64)
+	// WALSizeSet WAL数据大小
+	WALSizeSet(shardId uint32, v int64)
+	// WALPhysicalSizeSet WAL物理硬盘上的大小
+	WALPhysicalSizeSet(shardId uint32, v int64)
+	// WALObsoleteFilesCountSet WAL过时文件数量
+	WALObsoleteFilesCountSet(shardId uint32, v int64)
+	// WALObsoletePhysicalSizeSet WAL过时物理大小
+	WALObsoletePhysicalSizeSet(shardId uint32, v int64)
+	// WALBytesInSet 写入WAL的逻辑字节数
+	WALBytesInSet(shardId uint32, v int64)
+	// WALBytesWrittenSet 写入WAL的字节数
+	WALBytesWrittenSet(shardId uint32, v int64)
+
+	// ========== Log Writer 相关 ==========
+	LogWriterBytesSet(shardId uint32, v int64)
+
+	// ========== DB 相关 ==========
+	DiskSpaceUsageSet(shardId uint32, v int64)
+
+	// ========== level 相关 ==========
+	LevelNumFilesSet(shardId uint32, v int64)
+	LevelFileSizeSet(shardId uint32, v int64)
+	LevelCompactScoreSet(shardId uint32, v int64)
+	LevelBytesInSet(shardId uint32, v int64)
+	LevelBytesIngestedSet(shardId uint32, v int64)
+	LevelBytesMovedSet(shardId uint32, v int64)
+	LevelBytesReadSet(shardId uint32, v int64)
+	LevelBytesCompactedSet(shardId uint32, v int64)
+	LevelBytesFlushedSet(shardId uint32, v int64)
+	LevelTablesCompactedSet(shardId uint32, v int64)
+	LevelTablesFlushedSet(shardId uint32, v int64)
+	LevelTablesIngestedSet(shardId uint32, v int64)
+	LevelTablesMovedSet(shardId uint32, v int64)
+
+	// ========== message 相关 ==========
+
+	// 消息批量追加次数
+	MessageAppendBatchCountAdd(v int64)
 }
 
 // AppMetrics 应用监控

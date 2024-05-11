@@ -22,6 +22,7 @@ type metrics struct {
 	cluster IClusterMetrics
 	app     IAppMetrics
 	system  ISystemMetrics
+	db      IDBMetrics
 	opts    *Options
 	wklog.Log
 }
@@ -31,6 +32,7 @@ func newMetrics(opts *Options) *metrics {
 		cluster: newClusterMetrics(opts),
 		app:     newAppMetrics(opts),
 		system:  newSystemMetrics(opts),
+		db:      newDBMetrics(opts),
 		opts:    opts,
 		Log:     wklog.NewWKLog("Metrics"),
 	}
@@ -53,7 +55,7 @@ func (d *metrics) Cluster() IClusterMetrics {
 
 // DB 数据库监控
 func (d *metrics) DB() IDBMetrics {
-	return nil
+	return d.db
 }
 
 func (d *metrics) Route(r *wkhttp.WKHttp) {

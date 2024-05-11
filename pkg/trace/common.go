@@ -34,6 +34,14 @@ func NewFloat64ObservableGauge(name string) metric.Float64ObservableGauge {
 	return v
 }
 
+func NewInt64ObservableGauge(name string) metric.Int64ObservableGauge {
+	v, err := meter.Int64ObservableGauge(name)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 func RegisterCallback(f metric.Callback, instruments ...metric.Observable) {
 	_, err := meter.RegisterCallback(f, instruments...)
 	if err != nil {

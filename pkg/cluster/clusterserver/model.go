@@ -29,7 +29,6 @@ var (
 	ErrSlotNotIsLeader              = errors.New("slot not is leader")
 	ErrTermZero                     = errors.New("term is zero")
 	ErrChannelNotFound              = errors.New("channel not found")
-	ErrClusterConfigNotFound        = errors.New("clusterConfig not found")
 	ErrOldChannelClusterConfig      = errors.New("old channel cluster config")
 	ErrNodeAlreadyExists            = errors.New("node already exists")
 	ErrProposeFailed                = errors.New("propose failed")
