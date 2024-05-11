@@ -1,10 +1,10 @@
 
 ## 配置是yaml格式，请严格注意缩进.
 
-mode: "debug" # 运行模式 模式 debug 测试 release 正式 bench 压力测试
+mode: "release" # 运行模式 模式 debug 测试 release 正式 bench 压力测试
 #addr: "tcp://0.0.0.0:5100" # tcp监听地址
 #httpAddr: "0.0.0.0:5001" #  http api的监听地址  默认：0.0.0.0:5001
-rootDir: "./wukongimdata" # 数据存储目录
+# rootDir: "./wukongimdata" # 数据存储目录
 #tokenAuthOn: false # 是否开启token验证 默认为false，如果不开启任何人都可以连接到此节点，生产环境建议开启
 #managerUID: "" # 管理员UID  默认为 ____manager
 #managerToken: "" # 管理员token 如果此字段有值，则API接口需要在请求头中添加token字段，值为此字段的值
