@@ -27,27 +27,26 @@ type ReactorSub struct {
 	mr       *Reactor
 	stopped  atomic.Bool
 
-	appendLogC     chan AppendLogReq // 追加日志请求的通道
-	appendLogStepC chan []AppendLogReq
+	storeAppendRespC chan *handler
 }
 
 func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 	return &ReactorSub{
-		mr:             mr,
-		stopper:        syncutil.NewStopper(),
-		opts:           mr.opts,
-		handlers:       newHandlerList(),
-		Log:            wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
-		tmpHandlers:    make([]*handler, 0, 10000),
-		avdanceC:       make(chan struct{}, 1),
-		appendLogC:     make(chan AppendLogReq, 1000),
-		appendLogStepC: make(chan []AppendLogReq, 1000),
+		mr:          mr,
+		stopper:     syncutil.NewStopper(),
+		opts:        mr.opts,
+		handlers:    newHandlerList(),
+		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
+		tmpHandlers: make([]*handler, 0, 10000),
+		avdanceC:    make(chan struct{}, 1),
+
+		storeAppendRespC: make(chan *handler, 1000),
 	}
 }
 
 func (r *ReactorSub) Start() error {
 	r.stopper.RunWorker(r.run)
-	r.stopper.RunWorker(r.appendLogLoop)
+
 	return nil
 }
 
@@ -67,16 +66,10 @@ func (r *ReactorSub) run() {
 		select {
 		case <-tick.C:
 			r.tick()
-		case reqs := <-r.appendLogStepC:
-			for _, req := range reqs {
-				handler := r.handlers.get(req.HandleKey)
-				if handler != nil {
-					lastLog := req.Logs[len(req.Logs)-1]
-					err := handler.step(replica.NewMsgStoreAppendResp(r.opts.NodeId, lastLog.Index))
-					if err != nil {
-						r.Error("step local store message failed", zap.Error(err))
-					}
-				}
+		case handler := <-r.storeAppendRespC:
+			err := handler.step(replica.NewMsgStoreAppendResp(r.opts.NodeId, handler.lastIndex.Load()))
+			if err != nil {
+				r.Error("step local store message failed", zap.Error(err))
 			}
 
 		case <-r.avdanceC:
@@ -101,7 +94,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
 		}
 		if r.opts.EnableLazyCatchUp {
-			if end > time.Millisecond*500 {
+			if end > time.Millisecond*200 {
 				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.Int("logs", len(logs)))
 			}
 		}
@@ -136,14 +129,17 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 
 	r.advance()
 
+	timeoutCtx, cancel := context.WithTimeout(ctx, r.opts.ProposeTimeout)
+	defer cancel()
+
 	// -------------------- 等待提案结果 --------------------
 	select {
 	case items := <-waitC:
 		return items, nil
-	case <-ctx.Done():
+	case <-timeoutCtx.Done():
 		handler.removeWait(key)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
-		return nil, ctx.Err()
+		return nil, timeoutCtx.Err()
 	case <-r.stopper.ShouldStop():
 		handler.removeWait(key)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
@@ -658,7 +654,7 @@ func (r *ReactorSub) handleStoreAppend(handler *handler, msg replica.Message) {
 	}
 
 	// 追加日志
-	r.appendLogs(handler.key, msg.Logs)
+	r.mr.appendLogs(handler.key, msg.Logs)
 
 	// lastLog := msg.Logs[len(msg.Logs)-1]
 	// tk := newStoreAppendTask(lastLog.Index)
@@ -780,56 +776,4 @@ func (r *ReactorSub) addMessage(m Message) {
 	handler.addMessage(m)
 	r.advance() // 推进
 
-}
-
-func (r *ReactorSub) appendLogs(handleKey string, logs []replica.Log) {
-
-	select {
-	case r.appendLogC <- AppendLogReq{
-		HandleKey: handleKey,
-		Logs:      logs,
-	}:
-	case <-r.stopper.ShouldStop():
-		return
-	}
-}
-
-func (r *ReactorSub) appendLogLoop() {
-
-	done := false
-	var err error
-	for {
-		reqs := make([]AppendLogReq, 0, 100)
-		select {
-		case req := <-r.appendLogC:
-			reqs = append(reqs, req)
-
-			// 取出所有的请求
-			for !done {
-				select {
-				case req := <-r.appendLogC:
-					reqs = append(reqs, req)
-				default:
-					done = true
-				}
-			}
-			err = r.opts.Event.OnAppendLogs(reqs)
-			if err != nil {
-				r.Error("on append logs failed", zap.Error(err))
-			} else {
-				// 回执
-				select {
-				case r.appendLogStepC <- reqs:
-				case <-r.stopper.ShouldStop():
-					return
-				}
-
-			}
-			// 清空
-			done = false
-
-		case <-r.stopper.ShouldStop():
-			return
-		}
-	}
 }

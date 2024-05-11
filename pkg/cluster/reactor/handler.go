@@ -3,6 +3,7 @@ package reactor
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,7 +77,11 @@ type handler struct {
 
 func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.r = r
-	h.Log = wklog.NewWKLog(fmt.Sprintf("handler[%s]", key))
+	var b strings.Builder
+	b.WriteString("handler[")
+	b.WriteString(key)
+	b.WriteString("]")
+	h.Log = wklog.NewWKLog(fmt.Sprintf("handler[%s]", b.String()))
 	h.key = key
 	h.handler = handler
 	h.msgQueue = r.newMessageQueue()

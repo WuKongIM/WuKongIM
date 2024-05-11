@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/server"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/judwhite/go-svc"
+	"github.com/sasha-s/go-deadlock"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -86,6 +87,8 @@ func initServer() {
 	logOpts.LogDir = serverOpts.Logger.Dir
 	logOpts.LineNum = serverOpts.Logger.LineNum
 	wklog.Configure(logOpts)
+
+	deadlock.Opts.Disable = true // 禁用deadlock检测
 
 	s := server.New(serverOpts)
 	if daemon {

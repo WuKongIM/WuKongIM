@@ -1,14 +1,17 @@
 package wkdb
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []Message) error {
@@ -41,45 +44,75 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 
 func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 
+	// 监控
+	trace.GlobalTrace.Metrics.DB().MessageAppendBatchCountAdd(1)
+
+	// 按照db进行分组
+	dbMap := make(map[uint32][]AppendMessagesReq)
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
 			cost := time.Since(start)
-			if cost > time.Millisecond*200 {
-				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)))
+			if cost > time.Millisecond*500 {
+				msgCount := 0
+				for _, req := range reqs {
+					msgCount += len(req.Messages)
+				}
+				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)), zap.Int("msgCount", msgCount), zap.Int("dbCount", len(dbMap)))
 			}
 		}()
 	}
 
-	// 按照db进行分组
-	dbMap := make(map[uint32][]AppendMessagesReq)
 	for _, req := range reqs {
 		shardId := wk.shardId(req.ChannelId)
 		dbMap[shardId] = append(dbMap[shardId], req)
 	}
 
+	if len(dbMap) == 1 { // 如果只有一条消息 则不需要开启协程
+		for shardId, reqs := range dbMap {
+			db := wk.shardDBById(shardId)
+			return wk.writeMessagesBatch(db, reqs)
+		}
+		return nil
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(wk.cancelCtx, time.Second*5)
+	defer cancel()
+
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
 	for shardId, reqs := range dbMap {
-		db := wk.shardDBById(shardId)
-		batch := db.NewBatch()
-		defer batch.Close()
-		for _, req := range reqs {
-			lastMsg := req.Messages[len(req.Messages)-1]
-			for _, msg := range req.Messages {
-				if err := wk.writeMessage(req.ChannelId, req.ChannelType, msg, batch); err != nil {
-					return err
-				}
+		requestGroup.Go(func(sid uint32, rqs []AppendMessagesReq) func() error {
+			return func() error {
+				db := wk.shardDBById(sid)
+				return wk.writeMessagesBatch(db, rqs)
 			}
-			err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(lastMsg.MessageSeq), batch, wk.noSync)
-			if err != nil {
+		}(shardId, reqs))
+
+	}
+	return requestGroup.Wait()
+
+}
+
+func (wk *wukongDB) writeMessagesBatch(db *pebble.DB, reqs []AppendMessagesReq) error {
+	batch := db.NewBatch()
+	defer batch.Close()
+	for _, req := range reqs {
+		lastMsg := req.Messages[len(req.Messages)-1]
+		for _, msg := range req.Messages {
+			if err := wk.writeMessage(req.ChannelId, req.ChannelType, msg, batch); err != nil {
 				return err
 			}
 		}
-		if err := batch.Commit(wk.wo); err != nil {
+		err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(lastMsg.MessageSeq), batch, wk.noSync)
+		if err != nil {
 			return err
 		}
 	}
+	if err := batch.Commit(wk.wo); err != nil {
+		return err
+	}
 	return nil
-
 }
 
 // 情况1: startMessageSeq=100, endMessageSeq=0, limit=10 返回的消息seq为91-100的消息 (limit生效)

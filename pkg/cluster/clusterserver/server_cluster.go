@@ -138,7 +138,9 @@ func (s *Server) NodeIsOnline(nodeId uint64) bool {
 }
 
 func (s *Server) ProposeChannelMessages(ctx context.Context, channelId string, channelType uint8, logs []replica.Log) ([]icluster.ProposeResult, error) {
-
+	if s.stopped.Load() {
+		return nil, ErrStopped
+	}
 	// 加载或创建频道
 	ch, err := s.loadOrCreateChannel(ctx, channelId, channelType)
 	if err != nil {

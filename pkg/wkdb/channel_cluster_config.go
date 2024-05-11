@@ -113,13 +113,16 @@ func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelC
 
 func (wk *wukongDB) getChannelClusterConfigPrimaryKey(channelId string, channelType uint8) (uint64, error) {
 	primaryKey, closer, err := wk.defaultShardDB().Get(key.NewChannelClusterConfigIndexKey(channelId, channelType))
+	if closer != nil {
+		defer closer.Close()
+	}
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil
 		}
 		return 0, err
 	}
-	defer closer.Close()
+
 	if len(primaryKey) == 0 {
 		return 0, nil
 	}

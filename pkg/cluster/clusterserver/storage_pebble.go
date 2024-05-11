@@ -36,11 +36,41 @@ func NewPebbleShardLogStorage(path string) *PebbleShardLogStorage {
 	}
 }
 
+func (p *PebbleShardLogStorage) defaultPebbleOptions() *pebble.Options {
+	blockSize := 32 * 1024
+	sz := 16 * 1024 * 1024
+	levelSizeMultiplier := 2
+
+	lopts := make([]pebble.LevelOptions, 0)
+	var numOfLevels int64 = 7
+	for l := int64(0); l < numOfLevels; l++ {
+		opt := pebble.LevelOptions{
+			Compression:    pebble.NoCompression,
+			BlockSize:      blockSize,
+			TargetFileSize: 16 * 1024 * 1024,
+		}
+		sz = sz * levelSizeMultiplier
+		lopts = append(lopts, opt)
+	}
+	return &pebble.Options{
+		Levels:             lopts,
+		FormatMajorVersion: pebble.FormatNewest,
+		// 控制写缓冲区的大小。较大的写缓冲区可以减少磁盘写入次数，但会占用更多内存。
+		MemTableSize: 128 * 1024 * 1024,
+		// 当队列中的MemTables的大小超过 MemTableStopWritesThreshold*MemTableSize 时，将停止写入，
+		// 直到被刷到磁盘，这个值不能小于2
+		MemTableStopWritesThreshold: 4,
+		// MANIFEST 文件的大小
+		MaxManifestFileSize:       128 * 1024 * 1024,
+		LBaseMaxBytes:             4 * 1024 * 1024 * 1024,
+		L0CompactionFileThreshold: 8,
+		L0StopWritesThreshold:     24,
+	}
+}
+
 func (p *PebbleShardLogStorage) Open() error {
 	var err error
-	p.db, err = pebble.Open(p.path, &pebble.Options{
-		FormatMajorVersion: pebble.FormatNewest,
-	})
+	p.db, err = pebble.Open(p.path, p.defaultPebbleOptions())
 	if err != nil {
 		return err
 	}

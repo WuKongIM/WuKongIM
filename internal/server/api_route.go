@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -48,6 +49,7 @@ func (a *RouteAPI) routeUserIMAddrOfBatch(c *wkhttp.Context) {
 		return
 	}
 
+	fmt.Println("a.s.opts.External.TCPAddr:", a.s.opts.External.TCPAddr)
 	c.JSON(http.StatusOK, []userAddrResp{
 		{
 			UIDs:    uids,
