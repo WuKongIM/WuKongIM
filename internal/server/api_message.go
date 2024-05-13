@@ -440,5 +440,7 @@ func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
 			resps = append(resps, resp)
 		}
 	}
-	c.JSON(http.StatusOK, resps)
+	c.JSON(http.StatusOK, &syncMessageResp{
+		Messages: resps,
+	})
 }
