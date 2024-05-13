@@ -40,6 +40,8 @@ func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/streammessage/start", m.streamMessageStart) // 流消息开始
 	r.POST("/streammessage/end", m.streamMessageEnd)     // 流消息结束
 
+	r.POST("/messages", m.searchMessages) // 查询消息
+
 }
 
 // 消息同步
@@ -394,4 +396,49 @@ func (m *MessageAPI) streamMessageEnd(c *wkhttp.Context) {
 	}
 	c.ResponseOK()
 
+}
+
+func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
+	var req struct {
+		ChannelID   string   `json:"channel_id"`
+		ChannelType uint8    `json:"channel_type"`
+		MessageSeqs []uint32 `json:"message_seqs"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if strings.TrimSpace(req.ChannelID) == "" {
+		c.ResponseError(errors.New("channel_id不能为空！"))
+		return
+	}
+
+	if len(req.MessageSeqs) == 0 {
+		c.ResponseError(errors.New("message_seqs不能为空！"))
+		return
+
+	}
+	var messages []wkstore.Message
+	for _, seq := range req.MessageSeqs {
+		msg, err := m.s.store.LoadMsg(req.ChannelID, req.ChannelType, seq)
+		if err != nil {
+			m.Error("查询消息失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		if msg != nil {
+			messages = append(messages, msg)
+		}
+	}
+
+	resps := make([]*MessageResp, 0, len(messages))
+	if len(messages) > 0 {
+		for _, message := range messages {
+			resp := &MessageResp{}
+			resp.from(message.(*Message), m.s.store)
+			resps = append(resps, resp)
+		}
+	}
+	c.JSON(http.StatusOK, resps)
 }
