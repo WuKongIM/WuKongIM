@@ -240,7 +240,6 @@ func (u *userReactorSub) removeConnContext(uid string, deviceId string) {
 }
 
 func (u *userReactorSub) addConnContext(conn *connContext) {
-	fmt.Println("conn.uid--->", conn.uid)
 	uh := u.getUser(conn.uid)
 	if uh == nil {
 		uh = newUserHandler(conn.uid)

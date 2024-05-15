@@ -36,6 +36,7 @@ type Server struct {
 	cluster     icluster.Cluster  // 分布式
 	reqIDGen    *idutil.Generator // 请求ID生成器
 	ctx         context.Context
+	cancel      context.CancelFunc
 	timingWheel *timingwheel.TimingWheel // Time wheel delay task
 	start       time.Time                // 服务开始时间
 	store       *clusterstore.Store      // 存储相关接口
@@ -60,9 +61,10 @@ func New(opts *Options) *Server {
 		Log:         wklog.NewWKLog("Server"),
 		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
-		ctx:         context.Background(),
 		start:       now,
 	}
+
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	s.trace = trace.New(
 		s.ctx,
@@ -246,6 +248,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() error {
+	s.cancel()
 	s.cluster.Stop()
 	s.apiServer.Stop()
 	if s.opts.Demo.On {

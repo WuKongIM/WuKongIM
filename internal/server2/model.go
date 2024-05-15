@@ -10,6 +10,8 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
+var defaultWkproto = wkproto.New()
+
 type ReactorChannelMessage struct {
 	Persist      bool   // 是否持久化
 	FromUid      string // 发送者
@@ -21,9 +23,47 @@ type ReactorChannelMessage struct {
 	Index        uint64
 }
 
-func (m *ReactorChannelMessage) Size() uint64 {
+func (r *ReactorChannelMessage) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
 
-	return 0
+	enc.WriteUint8(wkutil.BoolToUint8(r.Persist))
+	enc.WriteString(r.FromUid)
+	enc.WriteString(r.FromDeviceId)
+	enc.WriteInt64(r.MessageId)
+	enc.WriteUint32(r.MessageSeq)
+
+	var packetData []byte
+	var err error
+	if r.SendPacket != nil {
+		packetData, err = defaultWkproto.EncodeFrame(r.SendPacket, wkproto.LatestVersion)
+		if err != nil {
+			return nil, err
+		}
+	}
+	enc.WriteBinary(packetData)
+	enc.WriteUint8(uint8(r.ReasonCode))
+	enc.WriteUint64(r.Index)
+
+	return enc.Bytes(), nil
+}
+
+func (m *ReactorChannelMessage) Size() uint64 {
+	size := uint64(0)
+
+	size += 1
+	size += uint64(len(m.FromUid)) + 2
+	size += uint64(len(m.FromDeviceId)) + 2
+	size += 8 // messageId
+	size += 4 // messageSeq
+	if m.SendPacket != nil {
+		size += uint64(m.SendPacket.RemainingLength) + 2
+	} else {
+		size += 2
+	}
+	size += 1 // reasonCode
+	size += 8 // index
+	return size
 }
 
 type ReactorUserMessage struct {

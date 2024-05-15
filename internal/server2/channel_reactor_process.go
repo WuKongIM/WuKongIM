@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -76,7 +77,17 @@ func (r *channelReactor) processStorageLoop() {
 			for !done {
 				select {
 				case req := <-r.processStorageC:
-					reqs = append(reqs, req)
+					exist := false
+					for _, r := range reqs {
+						if r.ch.channelId == req.ch.channelId && r.ch.channelType == req.ch.channelType {
+							r.messages = append(r.messages, req.messages...)
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						reqs = append(reqs, req)
+					}
 				default:
 					done = true
 				}
@@ -93,13 +104,57 @@ func (r *channelReactor) processStorageLoop() {
 }
 
 func (r *channelReactor) processStorage(reqs []*storageReq) {
-
-	// 消息存储
-
-	// 返回结果
+	var gerr error
 	for _, req := range reqs {
+		sotreMessages := make([]wkdb.Message, 0, 1024)
+		for _, msg := range req.messages {
+			sendPacket := msg.SendPacket
+			sotreMessages = append(sotreMessages, wkdb.Message{
+				RecvPacket: wkproto.RecvPacket{
+					Framer: wkproto.Framer{
+						RedDot:    sendPacket.Framer.RedDot,
+						SyncOnce:  sendPacket.Framer.SyncOnce,
+						NoPersist: sendPacket.Framer.NoPersist,
+					},
+					MessageID:   msg.MessageId,
+					ClientMsgNo: sendPacket.ClientMsgNo,
+					ClientSeq:   sendPacket.ClientSeq,
+					FromUID:     msg.FromUid,
+					ChannelID:   sendPacket.ChannelID,
+					ChannelType: sendPacket.ChannelType,
+					Expire:      sendPacket.Expire,
+					Timestamp:   int32(time.Now().Unix()),
+					Payload:     sendPacket.Payload,
+				},
+			})
+		}
+		// fmt.Println("sotreMessages---->", len(sotreMessages))
+		// 存储消息
+		results, err := r.s.store.AppendMessages(r.s.ctx, req.ch.channelId, req.ch.channelType, sotreMessages)
+		if err != nil {
+			r.Error("AppendMessages error", zap.Error(err))
+		}
+		if len(results) > 0 {
+			for _, result := range results {
+				for _, msg := range req.messages {
+					if msg.MessageId == int64(result.LogId()) {
+						msg.MessageId = int64(result.LogId())
+						msg.MessageSeq = uint32(result.LogIndex())
+						break
+					}
+				}
+			}
+		}
+		var reason Reason
+		if gerr != nil {
+			reason = ReasonError
+		} else {
+			reason = ReasonSuccess
+
+		}
 		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Messages: req.messages, Reason: ReasonSuccess})
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Messages: req.messages, Reason: reason})
+
 	}
 
 }
@@ -124,10 +179,9 @@ func (r *channelReactor) addDeliverReq(req *deliverReq) {
 }
 
 func (r *channelReactor) processDeliverLoop() {
-
+	reqs := make([]*deliverReq, 0, 1024)
+	done := false
 	for {
-		reqs := make([]*deliverReq, 0, 1024)
-		done := false
 		select {
 		case req := <-r.processDeliverC:
 			reqs = append(reqs, req)
@@ -142,8 +196,8 @@ func (r *channelReactor) processDeliverLoop() {
 			}
 			r.processDeliver(reqs)
 
-			// reqs = reqs[:0]
-			// done = false
+			reqs = reqs[:0]
+			done = false
 		case <-r.stopper.ShouldStop():
 			return
 		}

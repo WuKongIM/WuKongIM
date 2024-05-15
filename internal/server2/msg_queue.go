@@ -101,8 +101,7 @@ type userMsgQueue struct {
 	offsetInProgress uint64
 	wklog.Log
 
-	lastIndex       uint64 // 最新下标
-	processingIndex uint64 // 正在处理中的下标
+	lastIndex uint64 // 最新下标
 }
 
 func newUserMsgQueue(prefix string) *userMsgQueue {
