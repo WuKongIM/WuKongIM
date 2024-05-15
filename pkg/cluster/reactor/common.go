@@ -28,7 +28,6 @@ func hashWthString(key string) uint32 {
 		wklog.Panic("key is nil", zap.String("key", key))
 		return 0
 	}
-	fnv.New32a()
 	h := hashPool.Get().(hash.Hash32)
 	_, err := h.Write([]byte(key))
 	if err != nil {
