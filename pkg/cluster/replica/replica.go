@@ -472,9 +472,6 @@ func (r *Replica) putMsgIfNeed() {
 			r.messageWait.resetSync()
 			msg := r.newSyncMsg()
 			r.msgs = append(r.msgs, msg)
-			if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
-				r.Debug("send sync", zap.Uint64("to", msg.To), zap.Uint64("index", msg.Index))
-			}
 		}
 
 		if r.isLeader() {

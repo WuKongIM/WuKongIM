@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/internal/server"
+	server "github.com/WuKongIM/WuKongIM/internal/server2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/judwhite/go-svc"
 	"github.com/sasha-s/go-deadlock"

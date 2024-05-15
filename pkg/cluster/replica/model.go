@@ -80,8 +80,8 @@ const (
 	// MsgNotifySync                 // 通知追随者同步日志（领导）
 	// MsgNotifySyncAck              // 通知追随者同步日志回执（领导）
 	MsgSyncReq                  // 同步日志 （追随者）
-	MsgSyncGet                  // 同步日志获取（领导，本地）
-	MsgSyncGetResp              // 同步日志获取响应（追随者）
+	MsgSyncGet                  // 日志获取（领导，本地）
+	MsgSyncGetResp              // 日志获取响应（追随者）
 	MsgSyncResp                 // 同步日志响应（领导）
 	MsgLeaderTermStartIndexReq  // 领导任期开始偏移量请求 （追随者）
 	MsgLeaderTermStartIndexResp // 领导任期开始偏移量响应（领导）

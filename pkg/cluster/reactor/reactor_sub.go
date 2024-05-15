@@ -127,7 +127,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	req := newProposeReq(key, logs)
 	handler.addPropose(req)
 
-	r.advance()
+	// r.advance()
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, r.opts.ProposeTimeout)
 	defer cancel()

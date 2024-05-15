@@ -123,6 +123,9 @@ func (p *Poller) Polling(callback func(fd int, event PollEvent) error) error {
 // AddRead registers the given file-descriptor with readable event to the poller.
 func (p *Poller) AddRead(fd int) error {
 	// fmt.Println("AddRead---->", fd)
+	if fd == 0 {
+		return nil
+	}
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_ADD, Filter: unix.EVFILT_READ},
 	}, nil, nil)
@@ -131,6 +134,9 @@ func (p *Poller) AddRead(fd int) error {
 
 func (p *Poller) AddWrite(fd int) error {
 	// fmt.Println("AddWrite---->", fd)
+	if fd == 0 {
+		return nil
+	}
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_ADD, Filter: unix.EVFILT_WRITE},
 	}, nil, nil)
@@ -139,6 +145,9 @@ func (p *Poller) AddWrite(fd int) error {
 
 // DeleteRead deletes the given file-descriptor from the poller.
 func (p *Poller) DeleteRead(fd int) error {
+	if fd == 0 {
+		return nil
+	}
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_READ},
 	}, nil, nil)
@@ -147,6 +156,9 @@ func (p *Poller) DeleteRead(fd int) error {
 
 // DeleteWrite deletes the given file-descriptor from the poller.
 func (p *Poller) DeleteWrite(fd int) error {
+	if fd == 0 {
+		return nil
+	}
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_WRITE},
 	}, nil, nil)
@@ -154,7 +166,9 @@ func (p *Poller) DeleteWrite(fd int) error {
 }
 
 func (p *Poller) DeleteReadAndWrite(fd int) error {
-
+	if fd == 0 {
+		return nil
+	}
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_READ},
 		{Ident: uint64(fd), Flags: unix.EV_DELETE, Filter: unix.EVFILT_WRITE},

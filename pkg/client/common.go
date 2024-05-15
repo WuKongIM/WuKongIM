@@ -1,6 +1,8 @@
 package client
 
-import wkproto "github.com/WuKongIM/WuKongIMGoProto"
+import (
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+)
 
 func parse(buff []byte) ([]byte, []byte, error) {
 	if len(buff) == 0 {
@@ -16,6 +18,7 @@ func parse(buff []byte) ([]byte, []byte, error) {
 			offset++
 			continue
 		}
+
 		reminLen, readSize, has := decodeLength(buff[offset+1:])
 		if !has {
 			break

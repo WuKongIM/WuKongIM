@@ -929,6 +929,7 @@ func (p *Processor) storeChannelMessagesIfNeed(ctx context.Context, fromUID stri
 	storeSpan.SetUint8("channelType", firstMessage.ChannelType)
 	storeSpan.SetInt("messageCount", len(storeMessages))
 	defer storeSpan.End()
+
 	results, err := p.s.store.AppendMessages(storeCtx, fakeChannelID, firstMessage.ChannelType, storeMessages)
 	if err != nil {
 		p.Error("store message err", zap.Error(err))
