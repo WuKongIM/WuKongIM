@@ -92,7 +92,7 @@ func NewOptions(opt ...Option) *Options {
 		AutoSlowDownOn:          false,
 		LeaderTimeoutMaxTick:    25,
 		AppendLogWorkerNum:      1,
-		ProposeTimeout:          time.Minute * 2,
+		ProposeTimeout:          time.Second * 30,
 	}
 
 	for _, o := range opt {

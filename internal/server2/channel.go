@@ -31,15 +31,14 @@ type channel struct {
 
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
 	key := ChannelToKey(channelId, channelType)
-	fmt.Println("newChannel------>>>>>>>>>>>>>>>>>", key)
 	return &channel{
 		key:            key,
 		channelId:      channelId,
 		channelType:    channelType,
 		msgQueue:       newChannelMsgQueue(channelId),
 		hotspotSenders: make(map[string]struct{}),
-		stroageMaxSize: 1024 * 1024,
-		deliverMaxSize: 1024 * 1024,
+		stroageMaxSize: 1024 * 1024 * 2,
+		deliverMaxSize: 1024 * 1024 * 2,
 		Log:            wklog.NewWKLog(fmt.Sprintf("channel[%s]", key)),
 		r:              sub.r,
 		sub:            sub,

@@ -54,7 +54,9 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 func (r *channelReactor) start() error {
 
 	r.stopper.RunWorker(r.processPermissionLoop)
-	r.stopper.RunWorker(r.processStorageLoop)
+	for i := 0; i < 10; i++ {
+		r.stopper.RunWorker(r.processStorageLoop)
+	}
 	r.stopper.RunWorker(r.processDeliverLoop)
 	r.stopper.RunWorker(r.processSendackLoop)
 
