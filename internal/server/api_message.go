@@ -400,6 +400,7 @@ func (m *MessageAPI) streamMessageEnd(c *wkhttp.Context) {
 
 func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
 	var req struct {
+		LoginUid    string   `json:"login_uid"`
 		ChannelID   string   `json:"channel_id"`
 		ChannelType uint8    `json:"channel_type"`
 		MessageSeqs []uint32 `json:"message_seqs"`
@@ -419,9 +420,13 @@ func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
 		return
 
 	}
+	fakeChannelid := req.ChannelID
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelid = GetFakeChannelIDWith(req.LoginUid, req.ChannelID)
+	}
 	var messages []wkstore.Message
 	for _, seq := range req.MessageSeqs {
-		msg, err := m.s.store.LoadMsg(req.ChannelID, req.ChannelType, seq)
+		msg, err := m.s.store.LoadMsg(fakeChannelid, req.ChannelType, seq)
 		if err != nil {
 			m.Error("查询消息失败！", zap.Error(err))
 			c.ResponseError(err)
