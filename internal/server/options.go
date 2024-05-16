@@ -12,6 +12,7 @@ import (
 
 	"github.com/WuKongIM/crypto/tls"
 	"github.com/pkg/errors"
+	"github.com/sasha-s/go-deadlock"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
@@ -137,6 +138,8 @@ type Options struct {
 	// MessageMaxRetryCount int           // 消息最大重试次数
 	// TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 
+	DeadlockCheck bool // 是否开启死锁检查
+	PprofOn       bool // 是否开启pprof
 }
 
 func NewOptions() *Options {
@@ -157,6 +160,7 @@ func NewOptions() *Options {
 		RootDir:              path.Join(homeDir, "wukongim"),
 		ManagerUID:           "____manager",
 		WhitelistOffOfPerson: true,
+		DeadlockCheck:        false,
 		Logger: struct {
 			Dir     string
 			Level   zapcore.Level
@@ -398,6 +402,12 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 		o.External.APIUrl = fmt.Sprintf("http://%s:%d", ip, portInt64)
 	}
+
+	o.DeadlockCheck = o.getBool("deadlockCheck", o.DeadlockCheck)
+
+	deadlock.Opts.Disable = !o.DeadlockCheck
+
+	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
 
 }
 

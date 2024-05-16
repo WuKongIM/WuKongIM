@@ -22,7 +22,10 @@ type APIServer struct {
 func NewAPIServer(s *Server) *APIServer {
 	r := wkhttp.New()
 	r.Use(wkhttp.CORSMiddleware())
-	pprof.Register(r.GetGinRoute()) // 注册pprof
+
+	if s.opts.PprofOn {
+		pprof.Register(r.GetGinRoute()) // 注册pprof
+	}
 
 	r.Use(func(c *wkhttp.Context) { // ip黑名单判断
 		clientIP := c.Request.Header.Get("X-Forwarded-For")
