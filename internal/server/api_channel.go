@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -68,6 +69,8 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	//################### 频道消息 ###################
 	// 同步频道消息
 	r.POST("/channel/messagesync", ch.syncMessages)
+
+	r.GET("/channel/max_message_seq", ch.getChannelMaxMessageSeq)
 
 }
 
@@ -593,5 +596,24 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		EndMessageSeq:   req.EndMessageSeq,
 		More:            wkutil.BoolToInt(more),
 		Messages:        messageResps,
+	})
+}
+
+func (ch *ChannelAPI) getChannelMaxMessageSeq(c *wkhttp.Context) {
+	channelId := c.Query("channel_id")
+	channelType := wkutil.StringToUint8(c.Query("channel_type"))
+
+	if channelId == "" {
+		c.ResponseError(errors.New("channel_id不能为空"))
+		return
+	}
+	msgSeq, err := ch.s.store.GetLastMsgSeq(channelId, channelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message_seq": msgSeq,
 	})
 }
