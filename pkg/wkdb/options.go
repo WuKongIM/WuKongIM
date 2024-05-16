@@ -16,7 +16,7 @@ func NewOptions(opt ...Option) *Options {
 		ConversationLimit: 10000,
 		SlotCount:         128,
 		EnableCost:        true,
-		ShardNum:          1, // TODO：发现开启多个分区的性能还不如1个分区，后续再优化
+		ShardNum:          16,
 	}
 	for _, f := range opt {
 		f(o)
