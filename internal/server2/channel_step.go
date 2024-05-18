@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -10,25 +11,26 @@ func (c *channel) step(a *ChannelAction) error {
 
 	switch a.ActionType {
 	case ChannelActionSend: // 发送
-		fromUid := a.Messages[0].FromUid // 消息是按照发送者分组的，所以取第一个即可
-		if c.hotspotSender(fromUid) {    // 是热点发送者说明有权限发送消息，就不需要做权限校验了
+
+		fromUid := a.Messages[0].FromUid                                                                                            // 消息是按照发送者分组的，所以取第一个即可
+		if c.channelType == wkproto.ChannelTypeInfo || c.isCacheSubscriber(fromUid) || c.channelType == wkproto.ChannelTypePerson { // 如果是信息频道或者发送者在热点内，不需要权限校验
 			c.appendMessage(a.Messages...)
-		} else { // 不是热点发送者，需要校验权限
+		} else {
 			c.exec(&ChannelAction{ActionType: ChannelActionPermission, Messages: a.Messages})
 		}
-
 	case ChannelActionPermissionResp: // 权限校验返回
 		if len(a.Messages) == 0 {
 			return nil
 		}
 		if a.Reason == ReasonSuccess {
-			// fmt.Println("权限校验成功....", len(a.Messages))
+			fmt.Println("权限校验成功....", len(a.Messages))
 			c.appendMessage(a.Messages...)
 			fromUid := a.Messages[0].FromUid
-			c.setHotspotSender(fromUid)
+			c.setCacheSubscriber(fromUid)
 		} else {
 			// 权限校验失败，需要通知发送者
-			c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason})
+			fmt.Println("权限验证失败")
+			c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
 		}
 
 	case ChannelActionStorageResp: // 存储完成
@@ -42,7 +44,7 @@ func (c *channel) step(a *ChannelAction) error {
 			}
 		}
 		// 消息存储完毕后，需要通知发送者
-		c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason})
+		c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
 
 	case ChannelActionDeliverResp: // 消息投递返回
 		if len(a.Messages) == 0 {

@@ -51,7 +51,11 @@ type Server struct {
 	demoServer *DemoServer // demo server
 	apiServer  *APIServer  // api服务
 
-	systemUIDManager *SystemUIDManager
+	systemUIDManager *SystemUIDManager // 系统账号管理
+
+	tagManager     *tagManager     // tag管理
+	deliverManager *deliverManager // 消息投递管理
+	retryManager   *retryManager   // 消息重试管理
 }
 
 func New(opts *Options) *Server {
@@ -62,6 +66,7 @@ func New(opts *Options) *Server {
 		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
 		start:       now,
+		tagManager:  newTagManager(),
 	}
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
@@ -110,6 +115,7 @@ func New(opts *Options) *Server {
 	s.demoServer = NewDemoServer(s)
 	s.systemUIDManager = NewSystemUIDManager(s)
 	s.apiServer = NewAPIServer(s)
+	s.retryManager = newRetryManager(s)
 
 	initNodes := make(map[uint64]string)
 
@@ -159,6 +165,8 @@ func New(opts *Options) *Server {
 		s.handleClusterMessage(msg)
 	})
 
+	s.deliverManager = newDeliverManager(s)
+
 	return s
 }
 
@@ -203,10 +211,16 @@ func (s *Server) Start() error {
 
 	defer s.Info("Server is ready")
 
+	s.timingWheel.Start()
+
 	err := s.trace.Start()
 	if err != nil {
 		return err
 
+	}
+	err = s.tagManager.start()
+	if err != nil {
+		return err
 	}
 
 	err = s.store.Open()
@@ -244,11 +258,27 @@ func (s *Server) Start() error {
 	if s.opts.Demo.On {
 		s.demoServer.Start()
 	}
-	return err
+
+	err = s.deliverManager.start()
+	if err != nil {
+		return err
+	}
+
+	err = s.retryManager.start()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Server) Stop() error {
 	s.cancel()
+
+	s.deliverManager.stop()
+
+	s.retryManager.stop()
+
 	s.cluster.Stop()
 	s.apiServer.Stop()
 	if s.opts.Demo.On {
@@ -264,6 +294,11 @@ func (s *Server) Stop() error {
 	s.trace.Stop()
 
 	s.store.Close()
+
+	s.tagManager.stop()
+
+	s.timingWheel.Stop()
+
 	s.Info("Server is stopped")
 
 	return nil
@@ -318,7 +353,7 @@ func (s *Server) onData(conn wknet.Conn) error {
 	} else {
 		offset := 0
 		for len(data) > offset {
-			frame, size, err := s.opts.Proto.DecodeFrame(data[offset:], uint8(conn.ProtoVersion()))
+			frame, size, err := s.opts.Proto.DecodeFrame(data[offset:], connCtx.protoVersion)
 			if err != nil { //
 				s.Warn("Failed to decode the message", zap.Error(err))
 				conn.Close()
@@ -449,4 +484,11 @@ func (s *Server) responseConnack(c wknet.Conn, timeDiff int64, code wkproto.Reas
 		ReasonCode: code,
 		TimeDiff:   timeDiff,
 	})
+}
+
+// Schedule 延迟任务
+func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
+	return s.timingWheel.ScheduleFunc(&everyScheduler{
+		Interval: interval,
+	}, f)
 }

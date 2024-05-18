@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"strings"
 	"time"
 
@@ -141,14 +140,19 @@ func (s *Server) handleAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacke
 
 	// connCtx := p.connContextPool.Get().(*connContext)
 
-	fmt.Println("conn.UID()---->", connectPacket.UID)
+	lastVersion := connectPacket.Version
+	hasServerVersion := false
+	if connectPacket.Version > wkproto.LatestVersion {
+		lastVersion = wkproto.LatestVersion
+	}
+
 	connInfo := connInfo{
 		id:           conn.ID(),
 		uid:          connectPacket.UID,
 		deviceId:     connectPacket.DeviceID,
 		deviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
 		deviceLevel:  devceLevel,
-		protoVersion: connectPacket.Version,
+		protoVersion: lastVersion,
 		aesKey:       aesKey,
 		aesIV:        aesIV,
 	}
@@ -163,11 +167,6 @@ func (s *Server) handleAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacke
 
 	// -------------------- response connack --------------------
 
-	lastVersion := connectPacket.Version
-	hasServerVersion := false
-	if connectPacket.Version > wkproto.LatestVersion {
-		lastVersion = wkproto.LatestVersion
-	}
 	if connectPacket.Version > 3 {
 		hasServerVersion = true
 	}

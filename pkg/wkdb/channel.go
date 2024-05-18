@@ -48,6 +48,21 @@ func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subsc
 	return w.Commit(wk.wo)
 }
 
+func (wk *wukongDB) ExistSubscriber(channelId string, channelType uint8, uid string) (bool, error) {
+	uidIndexKey := key.NewSubscriberIndexUidKey(channelId, channelType, uid)
+	_, closer, err := wk.shardDB(channelId).Get(uidIndexKey)
+	if closer != nil {
+		defer closer.Close()
+	}
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) error {
 
 	batch := wk.shardDB(channelId).NewBatch()
@@ -191,6 +206,21 @@ func (wk *wukongDB) GetDenylist(channelId string, channelType uint8) ([]string, 
 	return wk.parseDenylist(iter, 0)
 }
 
+func (wk *wukongDB) ExistDenylist(channelId string, channelType uint8, uid string) (bool, error) {
+	uidIndexKey := key.NewDenylistIndexUidKey(channelId, channelType, uid)
+	_, closer, err := wk.shardDB(channelId).Get(uidIndexKey)
+	if closer != nil {
+		defer closer.Close()
+	}
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []string) error {
 	idMap, err := wk.getDenylistIdsByUids(channelId, channelType, uids)
 	if err != nil {
@@ -246,7 +276,41 @@ func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]string,
 		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
 	})
 	defer iter.Close()
-	return wk.parseAllowlist(iter, 0)
+	uids := make([]string, 0)
+	err := wk.iterateAllowlist(iter, func(uid string) bool {
+		uids = append(uids, uid)
+		return true
+	})
+	return uids, err
+}
+
+func (wk *wukongDB) HasAllowlist(channelId string, channelType uint8) (bool, error) {
+	iter := wk.shardDB(channelId).NewIter(&pebble.IterOptions{
+		LowerBound: key.NewAllowlistPrimaryKey(channelId, channelType, 0),
+		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
+	})
+	defer iter.Close()
+	var exist = false
+	err := wk.iterateAllowlist(iter, func(uid string) bool {
+		exist = true
+		return false
+	})
+	return exist, err
+}
+
+func (wk *wukongDB) ExistAllowlist(channeId string, channelType uint8, uid string) (bool, error) {
+	uidIndexKey := key.NewAllowlistIndexUidKey(channeId, channelType, uid)
+	_, closer, err := wk.shardDB(channeId).Get(uidIndexKey)
+	if closer != nil {
+		defer closer.Close()
+	}
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []string) error {
@@ -646,10 +710,8 @@ func (wk *wukongDB) writeAllowlist(channelId string, channelType uint8, id uint6
 	return nil
 }
 
-func (wk *wukongDB) parseAllowlist(iter *pebble.Iterator, limit int) ([]string, error) {
-
+func (wk *wukongDB) iterateAllowlist(iter *pebble.Iterator, iterFnc func(uid string) bool) error {
 	var (
-		uids           = make([]string, 0, limit)
 		preId          uint64
 		preUid         string
 		lastNeedAppend bool = true
@@ -658,12 +720,11 @@ func (wk *wukongDB) parseAllowlist(iter *pebble.Iterator, limit int) ([]string, 
 	for iter.First(); iter.Valid(); iter.Next() {
 		id, columnName, err := key.ParseAllowlistColumnKey(iter.Key())
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if id != preId {
 			if preId != 0 {
-				uids = append(uids, preUid)
-				if limit != 0 && len(uids) >= limit {
+				if !iterFnc(preUid) {
 					lastNeedAppend = false
 					break
 				}
@@ -678,7 +739,45 @@ func (wk *wukongDB) parseAllowlist(iter *pebble.Iterator, limit int) ([]string, 
 		hasData = true
 	}
 	if lastNeedAppend && hasData {
-		uids = append(uids, preUid)
+		_ = iterFnc(preUid)
 	}
-	return uids, nil
+	return nil
+
 }
+
+// func (wk *wukongDB) parseAllowlist(iter *pebble.Iterator, limit int) ([]string, error) {
+
+// 	var (
+// 		uids           = make([]string, 0, limit)
+// 		preId          uint64
+// 		preUid         string
+// 		lastNeedAppend bool = true
+// 		hasData        bool = false
+// 	)
+// 	for iter.First(); iter.Valid(); iter.Next() {
+// 		id, columnName, err := key.ParseAllowlistColumnKey(iter.Key())
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		if id != preId {
+// 			if preId != 0 {
+// 				uids = append(uids, preUid)
+// 				if limit != 0 && len(uids) >= limit {
+// 					lastNeedAppend = false
+// 					break
+// 				}
+// 			}
+// 			preId = id
+// 			preUid = ""
+// 		}
+// 		if columnName == key.TableAllowlist.Column.Uid {
+// 			preUid = string(iter.Value())
+
+// 		}
+// 		hasData = true
+// 	}
+// 	if lastNeedAppend && hasData {
+// 		uids = append(uids, preUid)
+// 	}
+// 	return uids, nil
+// }

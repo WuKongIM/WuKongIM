@@ -12,11 +12,22 @@ import (
 	"go.uber.org/zap"
 )
 
+type channelRole int
+
+const (
+	channelRoleUnknow = iota
+	channelRoleLeader // 领导 （领导负责频道逻辑的真实处理）
+	channelRoleProxy  // 代理 （代理不处理逻辑，只将逻辑转发给领导）
+)
+
 type ChannelActionType int
 
 const (
+	ChannelActionUnknow ChannelActionType = iota
+	// ChannelActionInit 频道初始化
+	ChannelActionInit
 	// ChannelActionSend 发送
-	ChannelActionSend ChannelActionType = iota
+	ChannelActionSend
 	// ChannelActionPermission 权限判断
 	ChannelActionPermission
 	// ChannelActionPermissionResp 权限判断返回
@@ -29,10 +40,9 @@ const (
 	ChannelActionDeliver
 	// ChannelActionDeliverResp 消息投递返回
 	ChannelActionDeliverResp
-	ChannelActionSendack     // 发送ack
-	ChannelActionSendackResp // 发送ack返回
-	ChannelActionJoin        // 加入频道
-	ChannelActionLeave       // 离开频道
+	ChannelActionSendack // 发送ack
+	ChannelActionJoin    // 加入频道
+	ChannelActionLeave   // 离开频道
 
 )
 
@@ -54,8 +64,6 @@ func (c ChannelActionType) String() string {
 		return "ChannelActionDeliverResp"
 	case ChannelActionSendack:
 		return "ChannelActionSendack"
-	case ChannelActionSendackResp:
-		return "ChannelActionSendackResp"
 	case ChannelActionJoin:
 		return "ChannelActionJoin"
 	case ChannelActionLeave:
@@ -103,14 +111,6 @@ func GetCommunityTopicParentChannelID(channelID string) string {
 	}
 	return ""
 }
-
-type channelRole int
-
-const (
-	channelRoleUnknow = iota
-	channelRoleLeader // 领导
-	channelRoleProxy  // 代理
-)
 
 type Reason int
 

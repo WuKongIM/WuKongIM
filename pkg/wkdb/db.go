@@ -80,10 +80,13 @@ type UserDB interface {
 
 type ChannelDB interface {
 	// AddSubscribers 添加订阅者
-	AddSubscribers(channelId string, channelType uint8, subscribers []string) error
+	AddSubscribers(channelId string, channelType uint8, uids []string) error
 
 	// RemoveSubscribers 移除订阅者
-	RemoveSubscribers(channelId string, channelType uint8, subscribers []string) error
+	RemoveSubscribers(channelId string, channelType uint8, uids []string) error
+
+	// ExistSubscriber 判断订阅者是否存在
+	ExistSubscriber(channelId string, channelType uint8, uid string) (bool, error)
 
 	// RemoveAllSubscriber 移除所有订阅者
 	RemoveAllSubscriber(channelId string, channelType uint8) error
@@ -114,6 +117,9 @@ type ChannelDB interface {
 	// RemoveAllDenylist 移除所有黑名单
 	RemoveAllDenylist(channelId string, channelType uint8) error
 
+	// ExistDenylist 判断黑名单是否存在
+	ExistDenylist(channelId string, channelType uint8, uid string) (bool, error)
+
 	// AddAllowlist 添加白名单
 	AddAllowlist(channelId string, channelType uint8, uids []string) error
 
@@ -125,6 +131,13 @@ type ChannelDB interface {
 
 	// RemoveAllAllowlist 移除所有白名单
 	RemoveAllAllowlist(channelId string, channelType uint8) error
+
+	// ExistAllowlist 判断白名单是否存在
+	ExistAllowlist(channelId string, channelType uint8, uid string) (bool, error)
+
+	// HasAllowlist  判断是否有白名单
+	HasAllowlist(channelId string, channelType uint8) (bool, error)
+
 	// 更新频道的应用索引
 	UpdateChannelAppliedIndex(channelId string, channelType uint8, index uint64) error
 	// 获取频道的应用索引

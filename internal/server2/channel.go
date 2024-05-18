@@ -2,9 +2,13 @@ package server
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/zap"
 )
 
 type channel struct {
@@ -12,12 +16,14 @@ type channel struct {
 	channelId   string
 	channelType uint8
 
+	info wkdb.ChannelInfo
+
 	msgQueue *channelMsgQueue
 
 	actions []*ChannelAction
 
-	// 热点发送者 （比较活跃有权限的发送者）
-	hotspotSenders map[string]struct{}
+	// 缓存的订阅者 （不是全部的频道订阅者，是比较活跃的订阅者）
+	cacheSubscribers map[string]struct{}
 
 	// options
 	stroageMaxSize uint64 // 每次存储的最大字节数量
@@ -26,22 +32,24 @@ type channel struct {
 	r   *channelReactor
 	sub *channelReactorSub
 
+	mu sync.Mutex
+
 	wklog.Log
 }
 
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
 	key := ChannelToKey(channelId, channelType)
 	return &channel{
-		key:            key,
-		channelId:      channelId,
-		channelType:    channelType,
-		msgQueue:       newChannelMsgQueue(channelId),
-		hotspotSenders: make(map[string]struct{}),
-		stroageMaxSize: 1024 * 1024 * 2,
-		deliverMaxSize: 1024 * 1024 * 2,
-		Log:            wklog.NewWKLog(fmt.Sprintf("channel[%s]", key)),
-		r:              sub.r,
-		sub:            sub,
+		key:              key,
+		channelId:        channelId,
+		channelType:      channelType,
+		msgQueue:         newChannelMsgQueue(channelId),
+		cacheSubscribers: make(map[string]struct{}),
+		stroageMaxSize:   1024 * 1024 * 2,
+		deliverMaxSize:   1024 * 1024 * 2,
+		Log:              wklog.NewWKLog(fmt.Sprintf("channel[%s]", key)),
+		r:                sub.r,
+		sub:              sub,
 	}
 
 }
@@ -64,7 +72,6 @@ func (c *channel) ready() ready {
 	if c.hasUnstorage() {
 		msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagedIndex+1, c.msgQueue.lastIndex+1, c.stroageMaxSize)
 		if len(msgs) > 0 {
-			// fmt.Println("存储消息--->", len(msgs))
 			lastMsg := msgs[len(msgs)-1]
 			c.msgQueue.storagingIndex = lastMsg.Index
 			c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
@@ -129,17 +136,60 @@ func (c *channel) advance() {
 	c.sub.advance()
 }
 
-// 是否是热点发送者
-func (c *channel) hotspotSender(uid string) bool {
-	_, ok := c.hotspotSenders[uid]
+// 是否是缓存中的订阅者
+func (c *channel) isCacheSubscriber(uid string) bool {
+	_, ok := c.cacheSubscribers[uid]
 	return ok
 }
 
-// 设置为热点发送者
-func (c *channel) setHotspotSender(uid string) {
-	c.hotspotSenders[uid] = struct{}{}
+// 设置为缓存订阅者
+func (c *channel) setCacheSubscriber(uid string) {
+	c.cacheSubscribers[uid] = struct{}{}
 }
 
 type ready struct {
 	actions []*ChannelAction
+}
+
+func (c *channel) makeReceiverTag() (*tag, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var subscribers []string
+	var err error
+	if c.channelType == wkproto.ChannelTypePerson {
+		if c.r.s.opts.IsFakeChannel(c.channelId) { // fake个人频道
+			subscribers = strings.Split(c.channelId, "@")
+		}
+	} else {
+		subscribers, err = c.r.s.store.GetSubscribers(c.channelId, c.channelType)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var nodeUserList = make([]*nodeUsers, 0, 20)
+	for _, subscriber := range subscribers {
+		leaderInfo, err := c.r.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的槽领导节点
+		if err != nil {
+			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return nil, err
+		}
+		exist := false
+		for _, nodeUser := range nodeUserList {
+			if nodeUser.nodeId == leaderInfo.Id {
+				nodeUser.uids = append(nodeUser.uids, subscriber)
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			nodeUserList = append(nodeUserList, &nodeUsers{
+				nodeId: leaderInfo.Id,
+				uids:   []string{subscriber},
+			})
+		}
+	}
+	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(c.channelId, c.channelType, nodeUserList)
+	return newTag, nil
 }

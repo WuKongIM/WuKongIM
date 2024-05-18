@@ -45,7 +45,6 @@ func (c *connContext) addOtherPacket(packet wkproto.Frame) {
 }
 
 func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
-
 	_ = c.subReactor.proposeSend(c, packet)
 }
 
@@ -54,6 +53,7 @@ func (c *connContext) write(d []byte) {
 		ActionType: UserActionProcess,
 		Messages: []*ReactorUserMessage{
 			{
+				ConnId:   c.id,
 				Uid:      c.uid,
 				DeviceId: c.deviceId,
 				OutBytes: d,

@@ -173,7 +173,7 @@ func (r *userReactor) processWriteLoop() {
 func (r *userReactor) processWrite(reqs []*writeReq) {
 	for _, req := range reqs {
 		conn := r.getConnContext(req.toUid, req.toDeviceId)
-		if conn == nil {
+		if conn == nil || len(req.data) == 0 {
 			return
 		}
 		r.s.responseData(conn.conn, req.data)
