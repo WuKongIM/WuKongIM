@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/sasha-s/go-deadlock"
 )
 
@@ -11,7 +12,7 @@ type userHandler struct {
 	actions []*UserAction
 	conns   []*connContext
 
-	msgQueue *userMsgQueue
+	processMsgQueue *userMsgQueue // 处理消息的队列
 
 	mu deadlock.RWMutex
 }
@@ -19,31 +20,32 @@ type userHandler struct {
 func newUserHandler(uid string) *userHandler {
 
 	return &userHandler{
-		uid:      uid,
-		msgQueue: newUserMsgQueue(fmt.Sprintf("user:%s", uid)),
+		uid:             uid,
+		processMsgQueue: newUserMsgQueue(fmt.Sprintf("user:process:%s", uid)),
 	}
 }
 
 func (u *userHandler) hasReady() bool {
-	if u.msgQueue.hasNextMessages() {
+	if u.processMsgQueue.hasNextMessages() {
 		return true
 	}
 	return len(u.actions) > 0
 }
 
 func (u *userHandler) ready() userReady {
-	messages := u.msgQueue.nextMessages()
 
-	if len(messages) > 0 {
+	// 处理消息
+	proccessMsgs := u.processMsgQueue.nextMessages()
+	if len(proccessMsgs) > 0 {
 		u.actions = append(u.actions, &UserAction{
 			ActionType: UserActionProcess,
-			Messages:   messages,
+			Messages:   proccessMsgs,
 		})
 	}
 
 	actions := u.actions
 	u.actions = nil
-	u.msgQueue.acceptInProgress()
+	u.processMsgQueue.acceptInProgress()
 	return userReady{
 		actions: actions,
 	}
@@ -52,6 +54,8 @@ func (u *userHandler) ready() userReady {
 func (u *userHandler) addConnIfNotExist(conn *connContext) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+
+	fmt.Println("addConnIfNotExist--->", conn.id)
 
 	exist := false
 	for _, c := range u.conns {
@@ -84,6 +88,17 @@ func (u *userHandler) getConn(deviceId string) *connContext {
 	return nil
 }
 
+func (u *userHandler) getConnById(id int64) *connContext {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	for _, c := range u.conns {
+		if c.id == id {
+			return c
+		}
+	}
+	return nil
+}
+
 func (u *userHandler) getConns() []*connContext {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
@@ -105,6 +120,19 @@ func (u *userHandler) removeConn(deviceId string) {
 			return
 		}
 	}
+}
+
+// 用户是否存在主设备在线
+func (u *userHandler) hasMasterDevice() bool {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	for _, c := range u.conns {
+		if c.deviceLevel == wkproto.DeviceLevelMaster {
+			return true
+		}
+	}
+	return false
+
 }
 
 type userReady struct {

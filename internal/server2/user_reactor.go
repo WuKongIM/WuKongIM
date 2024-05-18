@@ -77,6 +77,10 @@ func (u *userReactor) getUser(uid string) *userHandler {
 	return u.reactorSub(uid).getUser(uid)
 }
 
+func (u *userReactor) existUser(uid string) bool {
+	return u.reactorSub(uid).existUser(uid)
+}
+
 func (u *userReactor) addConnContext(conn *connContext) {
 	u.reactorSub(conn.uid).addConnContext(conn)
 }

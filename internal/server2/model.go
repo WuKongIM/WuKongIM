@@ -3,6 +3,7 @@ package server
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -67,11 +68,13 @@ func (m *ReactorChannelMessage) Size() uint64 {
 }
 
 type ReactorUserMessage struct {
-	Uid      string
-	DeviceId string
-	InPacket wkproto.Frame // 输入的包
-	OutBytes []byte        // 需要输出的字节
-	Index    uint64        // 消息下标
+	ConnId         int64         // 连接id
+	Uid            string        // 用户ID
+	DeviceId       string        // 设备ID
+	InPacket       wkproto.Frame // 输入的包
+	OutBytes       []byte        // 需要输出的字节
+	Index          uint64        // 消息下标
+	SenderDeviceId string        // 发送者设备ID
 }
 
 func (m *ReactorUserMessage) Size() uint64 {
@@ -84,6 +87,7 @@ type ChannelAction struct {
 	Index      uint64
 	EndIndex   uint64
 	Reason     Reason
+	ReasonCode wkproto.ReasonCode
 	Messages   []*ReactorChannelMessage
 }
 
@@ -213,4 +217,12 @@ func (c ChannelInfoResp) ToChannelInfo() *wkdb.ChannelInfo {
 		Large: c.Large == 1,
 		Ban:   c.Ban == 1,
 	}
+}
+
+type everyScheduler struct {
+	Interval time.Duration
+}
+
+func (s *everyScheduler) Next(prev time.Time) time.Time {
+	return prev.Add(s.Interval)
 }

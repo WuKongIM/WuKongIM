@@ -17,6 +17,10 @@ func (s *Store) AddSubscribers(channelID string, channelType uint8, subscribers 
 	return err
 }
 
+func (s *Store) ExistSubscriber(channelId string, channelType uint8, uid string) (bool, error) {
+	return s.wdb.ExistSubscriber(channelId, channelType, uid)
+}
+
 // RemoveSubscribers 移除订阅者
 func (s *Store) RemoveSubscribers(channelId string, channelType uint8, subscribers []string) error {
 	data := EncodeSubscribers(channelId, channelType, subscribers)
@@ -99,6 +103,11 @@ func (s *Store) GetDenylist(channelId string, channelType uint8) ([]string, erro
 	return s.wdb.GetDenylist(channelId, channelType)
 }
 
+func (s *Store) ExistDenylist(channelId string, channelType uint8, uid string) (bool, error) {
+
+	return s.wdb.ExistDenylist(channelId, channelType, uid)
+}
+
 func (s *Store) RemoveAllDenylist(channelId string, channelType uint8) error {
 	cmd := NewCMD(CMDRemoveAllDenylist, nil)
 	cmdData, err := cmd.Marshal()
@@ -138,6 +147,10 @@ func (s *Store) GetAllowlist(channelID string, channelType uint8) ([]string, err
 	return s.wdb.GetAllowlist(channelID, channelType)
 }
 
+func (s *Store) ExistAllowlist(channelId string, channelType uint8, uid string) (bool, error) {
+	return s.wdb.ExistAllowlist(channelId, channelType, uid)
+}
+
 func (s *Store) RemoveAllAllowlist(channelId string, channelType uint8) error {
 	cmd := NewCMD(CMDRemoveAllAllowlist, nil)
 	cmdData, err := cmd.Marshal()
@@ -159,6 +172,11 @@ func (s *Store) RemoveAllowlist(channelId string, channelType uint8, uids []stri
 	slotId := s.opts.GetSlotId(channelId)
 	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
 	return err
+}
+
+// 是否存在白名单
+func (s *Store) HasAllowlist(channelId string, channelType uint8) (bool, error) {
+	return s.wdb.HasAllowlist(channelId, channelType)
 }
 
 // func (s *Store) DeleteChannelClusterConfig(channelID string, channelType uint8) error {

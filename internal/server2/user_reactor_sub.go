@@ -169,6 +169,7 @@ func (u *userReactorSub) handleSendPackets(fromUid string, fromDeviceId string, 
 }
 
 func (u *userReactorSub) handleOutBytes(fromUid string, fromDeviceId string, outBytes []byte) {
+
 	if len(outBytes) == 0 {
 		return
 	}
@@ -188,6 +189,10 @@ func (u *userReactorSub) addUserIfNotExist(h *userHandler) {
 
 func (u *userReactorSub) getUser(uid string) *userHandler {
 	return u.users.get(uid)
+}
+
+func (u *userReactorSub) existUser(uid string) bool {
+	return u.users.exist(uid)
 }
 
 func (u *userReactorSub) getConnContext(uid string, deviceId string) *connContext {

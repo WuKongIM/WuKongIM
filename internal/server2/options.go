@@ -145,6 +145,7 @@ type Options struct {
 		Interval     time.Duration // 消息重试间隔，如果消息发送后在此间隔内没有收到ack，将会在此间隔后重新发送
 		MaxCount     int           // 消息最大重试次数
 		ScanInterval time.Duration //  每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
+		WorkerCount  int           // worker数量
 	}
 
 	Cluster struct {
@@ -180,6 +181,10 @@ type Options struct {
 	// MessageMaxRetryCount int           // 消息最大重试次数
 	// TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 
+	Deliver struct {
+		Count    int // 投递者数量
+		MaxRetry int // 最大重试次数
+	}
 }
 
 func NewOptions() *Options {
@@ -263,10 +268,12 @@ func NewOptions() *Options {
 			Interval     time.Duration
 			MaxCount     int
 			ScanInterval time.Duration
+			WorkerCount  int
 		}{
 			Interval:     time.Second * 60,
 			ScanInterval: time.Second * 5,
 			MaxCount:     5,
+			WorkerCount:  24,
 		},
 		Webhook: struct {
 			HTTPAddr                    string
@@ -342,6 +349,13 @@ func NewOptions() *Options {
 			AuthPoolSize int
 		}{
 			AuthPoolSize: 100,
+		},
+		Deliver: struct {
+			Count    int
+			MaxRetry int
+		}{
+			Count:    32,
+			MaxRetry: 10,
 		},
 	}
 }
@@ -439,6 +453,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.MessageRetry.Interval = o.getDuration("messageRetry.interval", o.MessageRetry.Interval)
 	o.MessageRetry.ScanInterval = o.getDuration("messageRetry.scanInterval", o.MessageRetry.ScanInterval)
 	o.MessageRetry.MaxCount = o.getInt("messageRetry.maxCount", o.MessageRetry.MaxCount)
+	o.MessageRetry.WorkerCount = o.getInt("messageRetry.workerCount", o.MessageRetry.WorkerCount)
 
 	o.Conversation.On = o.getBool("conversation.on", o.Conversation.On)
 	o.Conversation.CacheExpire = o.getDuration("conversation.cacheExpire", o.Conversation.CacheExpire)
@@ -558,6 +573,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
 	o.Trace.ServiceName = o.getString("trace.serviceName", o.Trace.ServiceName)
 	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
+
+	// =================== deliver ===================
+	o.Deliver.Count = o.getInt("deliver.count", o.Deliver.Count)
+	o.Deliver.MaxRetry = o.getInt("deliver.maxRetry", o.Deliver.MaxRetry)
 
 	// =================== reactor ===================
 	o.Reactor.ChannelSubCount = o.getInt("reactor.channelSubCount", o.Reactor.ChannelSubCount)
