@@ -116,6 +116,7 @@ func (s *Server) Route(path string, handler wkserver.Handler) {
 func (s *Server) RequestWithContext(ctx context.Context, toNodeId uint64, path string, body []byte) (*proto.Response, error) {
 	node := s.nodeManager.node(toNodeId)
 	if node == nil {
+		s.Error("node not found", zap.Uint64("nodeId", toNodeId))
 		return nil, ErrNodeNotFound
 	}
 	return node.requestWithContext(ctx, path, body)
@@ -129,7 +130,7 @@ func (s *Server) Send(toNodeId uint64, msg *proto.Message) error {
 	return node.send(msg)
 }
 
-func (s *Server) OnMessage(f func(msg *proto.Message)) {
+func (s *Server) OnMessage(f func(fromId uint64, msg *proto.Message)) {
 	s.onMessageFnc = f
 }
 
@@ -232,9 +233,17 @@ func (s *Server) GetSlotId(v string) uint32 {
 
 func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (*channel, error) {
 
-	s.Debug("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	// s.Info("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 	start := time.Now()
+
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*200 {
+			s.Warn("loadOrCreateChannel cost too long", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		}
+	}()
+
 	slotId := s.getSlotId(channelId)
 	slotInfo := s.clusterEventServer.Slot(slotId)
 	if slotInfo == nil {

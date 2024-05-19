@@ -48,6 +48,18 @@ func (s *Slot) Equal(v *Slot) bool {
 		return false
 	}
 
+	if len(s.Learners) != len(v.Learners) {
+		return false
+	}
+
+	if s.MigrateFrom != v.MigrateFrom {
+		return false
+	}
+
+	if s.MigrateTo != v.MigrateTo {
+		return false
+	}
+
 	if s.Leader != v.Leader {
 		return false
 	}
@@ -68,6 +80,19 @@ func (s *Slot) Equal(v *Slot) bool {
 		exist := false
 		for _, rId := range v.Replicas {
 			if replicaId == rId {
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			return false
+		}
+	}
+
+	for _, learnerId := range s.Learners {
+		exist := false
+		for _, lId := range v.Learners {
+			if learnerId == lId {
 				exist = true
 				break
 			}

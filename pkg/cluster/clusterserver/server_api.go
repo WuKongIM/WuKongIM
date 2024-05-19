@@ -583,6 +583,7 @@ type SlotMigrate struct {
 func (s *Server) requestNodeInfo(nodeId uint64) (*NodeConfig, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
+		s.Error("node not found", zap.Uint64("nodeId", nodeId))
 		return nil, errors.New("node not found")
 	}
 	resp, err := network.Get(fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath("/node")), nil, nil)
@@ -743,6 +744,7 @@ type SlotRespTotal struct {
 func (s *Server) requestSlotInfo(nodeId uint64, slotIds []uint32) ([]*SlotResp, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
+		s.Error("node not found", zap.Uint64("nodeId", nodeId))
 		return nil, errors.New("node not found")
 	}
 	resp, err := network.Get(fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath("/slots")), map[string]string{

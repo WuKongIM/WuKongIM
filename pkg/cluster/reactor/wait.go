@@ -60,7 +60,7 @@ func (m *proposeWait) add(ctx context.Context, key string, ids []uint64) chan []
 		}
 	}
 
-	m.Debug("addWait", zap.String("key", key), zap.Any("ids", ids))
+	m.Debug("addWait", zap.String("key", key), zap.Int("ids", len(ids)))
 
 	m.proposeResultMap[key] = items
 	m.proposeWaitMap[key] = waitC
@@ -109,7 +109,7 @@ func (m *proposeWait) didPropose(key string, logId uint64, logIndex uint64) {
 	if logIndex == 0 {
 		m.Panic("didPropose logIndex is 0")
 	}
-	m.Debug("didPropose", zap.String("key", key), zap.Uint64("logId", logId), zap.Uint64("logIndex", logIndex))
+	// m.Debug("didPropose", zap.String("key", key), zap.Uint64("logId", logId), zap.Uint64("logIndex", logIndex))
 	m.mu.RLock()
 	items := m.proposeResultMap[key]
 	m.mu.RUnlock()

@@ -12,7 +12,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
@@ -155,14 +154,12 @@ func (s *Store) getChannelSlotId(channelId string) uint32 {
 type MessageShardLogStorage struct {
 	db wkdb.DB
 	wklog.Log
-	stopper *syncutil.Stopper
 }
 
 func NewMessageShardLogStorage(db wkdb.DB) *MessageShardLogStorage {
 	return &MessageShardLogStorage{
-		db:      db,
-		Log:     wklog.NewWKLog("MessageShardLogStorage"),
-		stopper: syncutil.NewStopper(),
+		db:  db,
+		Log: wklog.NewWKLog("MessageShardLogStorage"),
 	}
 }
 
@@ -172,7 +169,6 @@ func (m *MessageShardLogStorage) Open() error {
 }
 
 func (m *MessageShardLogStorage) Close() error {
-	m.stopper.Stop()
 	return nil
 }
 

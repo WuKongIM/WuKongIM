@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -92,9 +91,6 @@ func (r *Replica) Step(m Message) error {
 		}
 
 	default:
-		if r.stepFunc == nil {
-			fmt.Println("------->", r.role, m.MsgType.String())
-		}
 		err := r.stepFunc(m)
 		if err != nil {
 			return err
@@ -195,9 +191,6 @@ func (r *Replica) stepLeader(m Message) error {
 		r.send(r.newMsgSyncResp(m.To, m.Index, m.Logs))
 
 	case MsgLeaderTermStartIndexReq: // 领导收到跟随者的任期开始索引请求
-		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
-			r.Debug("recv msgLeaderTermStartIndexReq", zap.Uint64("from", m.From))
-		}
 		// 如果MsgLeaderTermStartIndexReq的term等于领导的term则领导返回当前最新日志下标，否则返回MsgLeaderTermStartIndexReq里的term+1的 任期的第一条日志下标，返回的这个值称为LastOffset
 		if m.Term == r.replicaLog.term {
 			r.send(r.newLeaderTermStartIndexResp(m.From, r.replicaLog.term, r.replicaLog.lastLogIndex+1)) // 当前最新日志下标 + 1 副本truncate日志到这个下标,也就是不会truncate

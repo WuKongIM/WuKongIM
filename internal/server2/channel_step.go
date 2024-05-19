@@ -2,60 +2,117 @@ package server
 
 import (
 	"fmt"
-
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"go.uber.org/zap"
 )
 
 func (c *channel) step(a *ChannelAction) error {
 
 	switch a.ActionType {
-	case ChannelActionSend: // 发送
+	case ChannelActionInitResp: // 初始化返回
+		if a.Reason == ReasonSuccess {
+			c.status = channelStatusInitialized
+			if a.LeaderId == c.r.opts.Cluster.NodeId {
+				c.becomeLeader()
+			} else {
+				c.becomeProxy(a.LeaderId)
+			}
 
-		fromUid := a.Messages[0].FromUid                                                                                            // 消息是按照发送者分组的，所以取第一个即可
-		if c.channelType == wkproto.ChannelTypeInfo || c.isCacheSubscriber(fromUid) || c.channelType == wkproto.ChannelTypePerson { // 如果是信息频道或者发送者在热点内，不需要权限校验
-			c.appendMessage(a.Messages...)
 		} else {
-			c.exec(&ChannelAction{ActionType: ChannelActionPermission, Messages: a.Messages})
+			c.status = channelStatusUninitialized
 		}
-	case ChannelActionPermissionResp: // 权限校验返回
+	case ChannelActionSend: // 发送
+		c.appendMessage(a.Messages...) // 消息是按照发送者分组的，所以取第一个即可
+	case ChannelActionPayloadDecryptResp: // paylaod解密
+		c.payloadDecrypting = false
 		if len(a.Messages) == 0 {
 			return nil
 		}
-		if a.Reason == ReasonSuccess {
-			fmt.Println("权限校验成功....", len(a.Messages))
-			c.appendMessage(a.Messages...)
-			fromUid := a.Messages[0].FromUid
-			c.setCacheSubscriber(fromUid)
-		} else {
-			// 权限校验失败，需要通知发送者
-			fmt.Println("权限验证失败")
-			c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
+		lastMsg := a.Messages[len(a.Messages)-1]
+		if lastMsg.Index > c.msgQueue.payloadDecryptedIndex {
+			c.msgQueue.payloadDecryptedIndex = lastMsg.Index
+		}
+		for _, decryptMsg := range a.Messages {
+			for _, msg := range c.msgQueue.messages {
+				if msg.MessageId == decryptMsg.MessageId {
+					msg.SendPacket.Payload = decryptMsg.SendPacket.Payload
+					msg.IsEncrypt = decryptMsg.IsEncrypt
+					break
+				}
+			}
+		}
+	default:
+		if c.stepFnc != nil {
+			return c.stepFnc(a)
+		}
+	}
+
+	return nil
+}
+
+func (c *channel) stepLeader(a *ChannelAction) error {
+	switch a.ActionType {
+	case ChannelActionPermissionCheckResp: // 权限校验返回
+		c.permissionChecking = false
+		if len(a.Messages) == 0 {
+			return nil
+		}
+		lastMsg := a.Messages[len(a.Messages)-1]
+		if lastMsg.Index > c.msgQueue.permissionCheckedIndex {
+			c.msgQueue.permissionCheckedIndex = lastMsg.Index
 		}
 
 	case ChannelActionStorageResp: // 存储完成
-		if a.Reason == ReasonSuccess {
-			lastMsg := a.Messages[len(a.Messages)-1]
-			if lastMsg.Index == c.msgQueue.storagingIndex {
-				c.msgQueue.storagedIndex = lastMsg.Index
-				// fmt.Println("存储消息成功--->", lastMsg.Index)
-			} else {
-				c.Error("严重，存储不是按照下表顺序进行的！", zap.Uint64("lastIndex", lastMsg.Index), zap.Uint64("storagingIndex", c.msgQueue.storagingIndex))
-			}
+		c.storaging = false
+		if len(a.Messages) == 0 {
+			return nil
+		}
+		lastMsg := a.Messages[len(a.Messages)-1]
+		if lastMsg.Index > c.msgQueue.storagedIndex {
+			c.msgQueue.storagedIndex = lastMsg.Index
 		}
 		// 消息存储完毕后，需要通知发送者
 		c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
 
 	case ChannelActionDeliverResp: // 消息投递返回
+		c.delivering = false
 		if len(a.Messages) == 0 {
 			fmt.Println("messages is empty")
 			return nil
 		}
 		lastMsg := a.Messages[len(a.Messages)-1]
-		// fmt.Println("投递消息成功--->", lastMsg.Index)
-		c.msgQueue.deliverTo(lastMsg.Index)
+		if lastMsg.Index > c.msgQueue.deliveredIndex {
+			c.msgQueue.deliveredIndex = lastMsg.Index
+			c.msgQueue.truncateTo(lastMsg.Index)
+		}
 	}
 
+	return nil
+}
+
+func (c *channel) stepProxy(a *ChannelAction) error {
+
+	switch a.ActionType {
+	case ChannelActionForwardResp: // 转发
+		c.forwarding = false
+		if len(a.Messages) == 0 {
+			return nil
+		}
+		lastMsg := a.Messages[len(a.Messages)-1]
+		if lastMsg.Index > c.msgQueue.forwardedIndex {
+			c.msgQueue.forwardedIndex = lastMsg.Index
+			c.msgQueue.truncateTo(lastMsg.Index)
+		}
+	case ChannelActionLeaderChange: // leader变更
+		a.LeaderId = c.leaderId
+		if c.role == channelRoleLeader { // 当前节点是leader
+			if a.LeaderId != c.r.opts.Cluster.NodeId {
+				c.becomeProxy(a.LeaderId)
+			}
+		} else if c.role == channelRoleProxy {
+			if a.LeaderId == c.r.opts.Cluster.NodeId {
+				c.becomeLeader()
+			}
+		}
+	}
 	return nil
 }
 

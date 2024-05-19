@@ -13,10 +13,22 @@ type channelMsgQueue struct {
 	offsetInProgress uint64
 	wklog.Log
 
-	lastIndex       uint64 // 最新下标
-	storagingIndex  uint64 // 正在存储的下标
-	storagedIndex   uint64 // 已存储的下标
+	lastIndex uint64 // 最新下标
+
+	payloadDecryptingIndex uint64 // 正在解密的下标
+	payloadDecryptedIndex  uint64 // 已解密的下标
+
+	permissionCheckingIndex uint64 // 正在检查权限的下标
+	permissionCheckedIndex  uint64 // 已检查权限的下标
+
+	storagingIndex uint64 // 正在存储的下标
+	storagedIndex  uint64 // 已存储的下标
+
 	deliveringIndex uint64 // 正在投递的下标
+	deliveredIndex  uint64 // 已投递的下标
+
+	forwardingIndex uint64 // 转发中的下标
+	forwardedIndex  uint64 // 已转发下标
 }
 
 func newChannelMsgQueue(prefix string) *channelMsgQueue {
@@ -27,8 +39,8 @@ func newChannelMsgQueue(prefix string) *channelMsgQueue {
 	}
 }
 
-// deliverTo 投递了index之前的消息
-func (m *channelMsgQueue) deliverTo(index uint64) {
+// truncateTo 裁剪index之前的消息
+func (m *channelMsgQueue) truncateTo(index uint64) {
 	num := int(index + 1 - m.offset)
 	m.messages = m.messages[num:]
 	m.offset = index + 1
@@ -68,8 +80,11 @@ func (m *channelMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []
 		return nil
 	}
 	if lo >= m.offset {
-		logs := m.slice(lo, hi)
-		return limitSize(logs, maxSize)
+		msgs := m.slice(lo, hi)
+		if maxSize == 0 {
+			return msgs
+		}
+		return limitSize(msgs, maxSize)
 	}
 	return nil
 }

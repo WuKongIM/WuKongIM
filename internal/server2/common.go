@@ -12,6 +12,13 @@ import (
 	"go.uber.org/zap"
 )
 
+type ClusterMsgType uint32
+
+const (
+	// 频道消息转发
+	ClusterMsgTypeChannelForward ClusterMsgType = 1001
+)
+
 type channelRole int
 
 const (
@@ -26,12 +33,19 @@ const (
 	ChannelActionUnknow ChannelActionType = iota
 	// ChannelActionInit 频道初始化
 	ChannelActionInit
+	// ChannelActionInitResp 频道初始化返回
+	ChannelActionInitResp
 	// ChannelActionSend 发送
 	ChannelActionSend
-	// ChannelActionPermission 权限判断
-	ChannelActionPermission
-	// ChannelActionPermissionResp 权限判断返回
-	ChannelActionPermissionResp
+
+	// payload解密
+	ChannelActionPayloadDecrypt
+	ChannelActionPayloadDecryptResp
+
+	// ChannelActionPermissionCheck 权限检查
+	ChannelActionPermissionCheck
+	// ChannelActionPermissionCheckResp 权限判断返回
+	ChannelActionPermissionCheckResp
 	// ChannelActionStorage 存储消息
 	ChannelActionStorage
 	// ChannelActionTypeStorageResp 存储消息返回
@@ -40,20 +54,27 @@ const (
 	ChannelActionDeliver
 	// ChannelActionDeliverResp 消息投递返回
 	ChannelActionDeliverResp
-	ChannelActionSendack // 发送ack
-	ChannelActionJoin    // 加入频道
-	ChannelActionLeave   // 离开频道
+	// ChannelForward 转发消息给领导
+	ChannelActionForward
+	// ChannelActionForwardResp 转发消息给领导返回
+	ChannelActionForwardResp
+	ChannelActionLeaderChange // 领导变更
+	ChannelActionSendack      // 发送ack
+	ChannelActionJoin         // 加入频道
+	ChannelActionLeave        // 离开频道
 
 )
 
 func (c ChannelActionType) String() string {
 	switch c {
+	case ChannelActionInit:
+		return "ChannelActionInit"
 	case ChannelActionSend:
 		return "ChannelActionSend"
-	case ChannelActionPermission:
-		return "ChannelActionPermission"
-	case ChannelActionPermissionResp:
-		return "ChannelActionPermissionResp"
+	case ChannelActionPermissionCheck:
+		return "ChannelActionPermissionCheck"
+	case ChannelActionPermissionCheckResp:
+		return "ChannelActionPermissionCheckResp"
 	case ChannelActionStorage:
 		return "ChannelActionStorage"
 	case ChannelActionStorageResp:
@@ -68,6 +89,13 @@ func (c ChannelActionType) String() string {
 		return "ChannelActionJoin"
 	case ChannelActionLeave:
 		return "ChannelActionLeave"
+	case ChannelActionForward:
+		return "ChannelActionForward"
+	case ChannelActionForwardResp:
+		return "ChannelActionForwardResp"
+	case ChannelActionLeaderChange:
+		return "ChannelActionLeaderChange"
+
 	}
 	return "unknow"
 }
@@ -162,3 +190,11 @@ func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
 	}
 	return bodyBytes, nil
 }
+
+type channelStatus int
+
+const (
+	channelStatusUninitialized = iota // 未初始化
+	channelStatusInitializing         // 初始化中
+	channelStatusInitialized          // 初始化完成
+)

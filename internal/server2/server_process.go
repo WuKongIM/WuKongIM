@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"time"
 
@@ -37,6 +38,8 @@ func (s *Server) handleAuth(conn wknet.Conn, connectPacket *wkproto.ConnectPacke
 		err        error
 		// devceLevelI uint8
 	)
+
+	fmt.Println("handleAuth---->", uid)
 
 	if strings.TrimSpace(connectPacket.ClientKey) == "" {
 		s.responseConnackAuthFail(conn)

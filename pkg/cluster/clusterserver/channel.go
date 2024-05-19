@@ -98,21 +98,24 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 	if isLearner {
 		c.rc.BecomeLearner(cfg.Term, cfg.LeaderId)
 	} else {
-		if cfg.Status == wkdb.ChannelClusterStatusCandidate { // 槽进入候选者状态
+		if cfg.Status == wkdb.ChannelClusterStatusLeaderTransfer { // 槽进入领导者转移状态
+			if cfg.LeaderId == c.opts.NodeId && cfg.LeaderTransferTo != cfg.LeaderId { // 如果当前槽领导将要被转移，则先暂停提案，等需要转移的节点的日志追上来
+				c.pausePropopose.Store(true)
+			}
+		} else if cfg.Status == wkdb.ChannelClusterStatusNormal { // 槽进入正常状态
+			if cfg.LeaderId == c.opts.NodeId {
+				c.pausePropopose.Store(false)
+			}
+		}
+
+		if cfg.Status == wkdb.ChannelClusterStatusCandidate {
 			if c.rc.IsLeader() { // 领导节点不能直接转candidate，replica里会panic，领导转换成follower是一样的
 				c.rc.BecomeFollower(cfg.Term, 0)
 			} else {
 				c.rc.BecomeCandidateWithTerm(cfg.Term)
 			}
-
-		} else if cfg.Status == wkdb.ChannelClusterStatusLeaderTransfer { // 槽进入领导者转移状态
-			if cfg.LeaderId == c.opts.NodeId && cfg.LeaderTransferTo != cfg.LeaderId { // 如果当前槽领导将要被转移，则先暂停提案，等需要转移的节点的日志追上来
-				c.pausePropopose.Store(true)
-			}
-		} else if cfg.Status == wkdb.ChannelClusterStatusNormal { // 槽进入正常状态
-
+		} else {
 			if cfg.LeaderId == c.opts.NodeId {
-				c.pausePropopose.Store(false)
 				c.rc.BecomeLeader(cfg.Term)
 			} else {
 				c.rc.BecomeFollower(cfg.Term, cfg.LeaderId)

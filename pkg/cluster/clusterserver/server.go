@@ -47,8 +47,8 @@ type Server struct {
 	channelLoadMapLock     sync.RWMutex            // 频道是否在加载中的map锁
 	cancelCtx              context.Context
 	cancelFnc              context.CancelFunc
-	onMessageFnc           func(msg *proto.Message) // 上层处理消息的函数
-	logIdGen               *snowflake.Node          // 日志id生成
+	onMessageFnc           func(fromNodeId uint64, msg *proto.Message) // 上层处理消息的函数
+	logIdGen               *snowflake.Node                             // 日志id生成
 	slotStorage            *PebbleShardLogStorage
 	apiPrefix              string    // api前缀
 	uptime                 time.Time // 服务器启动时间
@@ -324,6 +324,11 @@ func (s *Server) serverUid(id uint64) string {
 	return fmt.Sprintf("%d", id)
 }
 
+func (s *Server) uidToServerId(uid string) uint64 {
+	id, _ := strconv.ParseUint(uid, 10, 64)
+	return id
+}
+
 func (s *Server) send(shardType ShardType, m reactor.Message) {
 	if s.stopped.Load() {
 		return
@@ -393,7 +398,6 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 	msgSize := int64(m.Size())
 
 	trace.GlobalTrace.Metrics.System().IntranetIncomingAdd(msgSize) // 内网流量统计
-
 	switch m.MsgType {
 	case MsgTypeConfig:
 		msg, err := reactor.UnmarshalMessage(m.Content)
@@ -423,11 +427,12 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindChannel, msgSize)
 		s.AddChannelMessage(msg)
 	default:
+		fromNodeId := s.uidToServerId(c.UID())
+
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindUnknown, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindUnknown, msgSize)
 		if s.onMessageFnc != nil {
-			fmt.Println("msg.MsgType---->", m.MsgType)
-			go s.onMessageFnc(m) // TODO: 这里需要优化
+			s.onMessageFnc(fromNodeId, m) // 这里要注意，消息处理的时候不能阻塞，要不然整个分布式将变慢或卡住
 		}
 	}
 }

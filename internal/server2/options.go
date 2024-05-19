@@ -487,12 +487,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		addrPairs := strings.Split(o.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 
-		var err error
-
-		if err != nil {
-			panic(err)
-		}
-
 		o.External.TCPAddr = fmt.Sprintf("%s:%d", ip, portInt64)
 	}
 	if strings.TrimSpace(o.External.WSAddr) == "" {
