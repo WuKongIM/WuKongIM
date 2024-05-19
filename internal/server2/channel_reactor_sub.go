@@ -122,7 +122,16 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 
 	for _, action := range rd.actions {
 		switch action.ActionType {
-		case ChannelActionPermission: // 权限校验
+		case ChannelActionInit: // 初始化
+			r.r.addInitReq(&initReq{
+				ch: ch,
+			})
+		case ChannelActionPayloadDecrypt: // 消息解密
+			r.r.addPayloadDecryptReq(&payloadDecryptReq{
+				ch:       ch,
+				messages: action.Messages,
+			})
+		case ChannelActionPermissionCheck: // 权限校验
 			fromUid := action.Messages[0].FromUid
 			r.r.addPermissionReq(&permissionReq{
 				ch:       ch,
@@ -144,6 +153,12 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 				ch:         ch,
 				reasonCode: action.ReasonCode,
 				messages:   action.Messages,
+			})
+		case ChannelActionForward: // 转发消息
+			r.r.addForwardReq(&forwardReq{
+				ch:       ch,
+				messages: action.Messages,
+				leaderId: action.LeaderId,
 			})
 		}
 	}

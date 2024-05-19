@@ -43,9 +43,9 @@ func (r *retryManager) addRetry(msg *retryMessage) {
 	r.retryQueues[index].startInFlightTimeout(msg)
 }
 
-func (r *retryManager) removeRetry(connId int64, messageId int64) {
+func (r *retryManager) removeRetry(connId int64, messageId int64) error {
 	index := messageId % int64(len(r.retryQueues))
-	r.retryQueues[index].finishMessage(connId, messageId)
+	return r.retryQueues[index].finishMessage(connId, messageId)
 }
 
 func (r *retryManager) retry(msg *retryMessage) {
@@ -65,8 +65,10 @@ func (r *retryManager) retry(msg *retryMessage) {
 		r.Debug("conn offline", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
 		return
 	}
+	// 添加到重试队列
 	r.addRetry(msg)
 
+	// 发送消息
 	conn.write(msg.recvPacketData)
 
 }

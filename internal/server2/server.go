@@ -21,11 +21,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"github.com/panjf2000/ants/v2"
+	"github.com/pkg/errors"
 	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.uber.org/zap"
 )
@@ -161,8 +163,8 @@ func New(opts *Options) *Server {
 	s.cluster = clusterServer
 	storeOpts.Cluster = clusterServer
 
-	clusterServer.OnMessage(func(msg *proto.Message) {
-		s.handleClusterMessage(msg)
+	clusterServer.OnMessage(func(fromNodeId uint64, msg *proto.Message) {
+		s.handleClusterMessage(fromNodeId, msg)
 	})
 
 	s.deliverManager = newDeliverManager(s)
@@ -381,7 +383,10 @@ func (s *Server) onConnect(conn wknet.Conn) error {
 }
 
 func (s *Server) onClose(conn wknet.Conn) {
-
+	connCtx := conn.Context()
+	if connCtx != nil {
+		s.userReactor.removeConnContextById(connCtx.(*connContext).uid, connCtx.(*connContext).id)
+	}
 }
 
 func gnetUnpacket(buff []byte) ([]byte, error) {
@@ -491,4 +496,42 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	return s.timingWheel.ScheduleFunc(&everyScheduler{
 		Interval: interval,
 	}, f)
+}
+
+// decode payload
+func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *connContext) ([]byte, error) {
+	aesKey, aesIV := conn.aesKey, conn.aesIV
+	vail, err := s.sendPacketIsVail(sendPacket, conn)
+	if err != nil {
+		return nil, err
+	}
+	if !vail {
+		return nil, errors.New("sendPacket is illegal！")
+	}
+	// decode payload
+	decodePayload, err := wkutil.AesDecryptPkcs7Base64(sendPacket.Payload, []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		s.Error("Failed to decode payload！", zap.Error(err))
+		return nil, err
+	}
+
+	return decodePayload, nil
+}
+
+// send packet is vail
+func (s *Server) sendPacketIsVail(sendPacket *wkproto.SendPacket, conn *connContext) (bool, error) {
+	aesKey, aesIV := conn.aesKey, conn.aesIV
+	signStr := sendPacket.VerityString()
+	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
+	if err != nil {
+		s.Error("msgKey is illegal！", zap.Error(err), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", conn))
+		return false, err
+	}
+	actMsgKeyStr := sendPacket.MsgKey
+	exceptMsgKey := wkutil.MD5(string(actMsgKey))
+	if actMsgKeyStr != exceptMsgKey {
+		s.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", conn))
+		return false, errors.New("msgKey is illegal！")
+	}
+	return true, nil
 }

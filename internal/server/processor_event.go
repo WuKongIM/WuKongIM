@@ -24,7 +24,7 @@ func (p *Processor) SetRoutes() {
 	p.s.cluster.Route("/wk/recvackPacket", p.handleOnRecvackPacketReq)
 }
 
-func (p *Processor) handleClusterMessage(msg *proto.Message) {
+func (p *Processor) handleClusterMessage(fromNodeId uint64, msg *proto.Message) {
 	switch ClusterMsgType(msg.MsgType) {
 	case ClusterMsgTypeConnWrite: // 远程连接写入
 		p.handleConnWrite(msg)

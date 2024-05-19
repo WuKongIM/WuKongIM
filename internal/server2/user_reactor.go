@@ -89,6 +89,9 @@ func (u *userReactor) getConnContext(uid string, deviceId string) *connContext {
 	return u.reactorSub(uid).getConnContext(uid, deviceId)
 }
 
+func (u *userReactor) getConnContextById(uid string, connId int64) *connContext {
+	return u.reactorSub(uid).getConnContextById(uid, connId)
+}
 func (u *userReactor) getConnContexts(uid string) []*connContext {
 	return u.reactorSub(uid).getConnContexts(uid)
 }
@@ -109,6 +112,10 @@ func (u *userReactor) removeConnContext(uid string, deviceId string) {
 	u.reactorSub(uid).removeConnContext(uid, deviceId)
 }
 
+func (u *userReactor) removeConnContextById(uid string, id int64) {
+	u.reactorSub(uid).removeConnContextById(uid, id)
+}
+
 func (u *userReactor) reactorSub(uid string) *userReactorSub {
 
 	h := fnv.New32a()
@@ -126,6 +133,15 @@ func (u *userReactor) writePacketByDeviceId(uid string, deviceId string, packet 
 	conn := u.getConnContext(uid, deviceId)
 	if conn == nil {
 		u.Error("conn not found", zap.String("uid", uid), zap.String("deviceId", deviceId))
+		return ErrConnNotFound
+	}
+	return u.reactorSub(uid).writePacket(conn, packet)
+}
+
+func (u *userReactor) writePacketByConnId(uid string, connId int64, packet wkproto.Frame) error {
+	conn := u.getConnContextById(uid, connId)
+	if conn == nil {
+		u.Error("conn not found", zap.String("uid", uid), zap.Int64("connId", connId), zap.String("frameType", packet.GetFrameType().String()))
 		return ErrConnNotFound
 	}
 	return u.reactorSub(uid).writePacket(conn, packet)

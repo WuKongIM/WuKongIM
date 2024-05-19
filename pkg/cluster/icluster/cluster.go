@@ -35,7 +35,7 @@ type Cluster interface {
 	// Send 发送消息给指定的节点, MsgType 使用 1000 - 2000之间的值
 	Send(toNodeId uint64, msg *proto.Message) error
 	// OnMessage 设置接收消息的回调
-	OnMessage(f func(msg *proto.Message))
+	OnMessage(f func(fromNodeId uint64, msg *proto.Message))
 	// NodeIsOnline 节点是否在线
 	NodeIsOnline(nodeId uint64) bool
 	//  GetSlotId 获取槽ID

@@ -11,15 +11,18 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
+var defaultProtoVersion uint8 = 4
 var defaultWkproto = wkproto.New()
 
 type ReactorChannelMessage struct {
-	Persist      bool   // 是否持久化
+	FromConnId   int64  // 发送者连接ID
 	FromUid      string // 发送者
 	FromDeviceId string // 发送者设备ID
+	FromNodeId   uint64 // 如果不为0，则表示此消息是从其他节点转发过来的
 	MessageId    int64
 	MessageSeq   uint32
 	SendPacket   *wkproto.SendPacket
+	IsEncrypt    bool // SendPacket的payload是否加密
 	ReasonCode   wkproto.ReasonCode
 	Index        uint64
 }
@@ -27,34 +30,70 @@ type ReactorChannelMessage struct {
 func (r *ReactorChannelMessage) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-
-	enc.WriteUint8(wkutil.BoolToUint8(r.Persist))
+	enc.WriteInt64(r.FromConnId)
 	enc.WriteString(r.FromUid)
 	enc.WriteString(r.FromDeviceId)
+	enc.WriteUint64(r.FromNodeId)
 	enc.WriteInt64(r.MessageId)
-	enc.WriteUint32(r.MessageSeq)
 
 	var packetData []byte
 	var err error
 	if r.SendPacket != nil {
-		packetData, err = defaultWkproto.EncodeFrame(r.SendPacket, wkproto.LatestVersion)
+		packetData, err = defaultWkproto.EncodeFrame(r.SendPacket, defaultProtoVersion)
 		if err != nil {
 			return nil, err
 		}
 	}
 	enc.WriteBinary(packetData)
-	enc.WriteUint8(uint8(r.ReasonCode))
-	enc.WriteUint64(r.Index)
 
 	return enc.Bytes(), nil
+}
+
+func (r *ReactorChannelMessage) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+
+	if r.FromConnId, err = dec.Int64(); err != nil {
+		return err
+	}
+	if r.FromUid, err = dec.String(); err != nil {
+		return err
+	}
+	if r.FromDeviceId, err = dec.String(); err != nil {
+		return err
+	}
+
+	if r.FromNodeId, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	if r.MessageId, err = dec.Int64(); err != nil {
+		return err
+	}
+	var packetData []byte
+	if packetData, err = dec.Binary(); err != nil {
+		return err
+	}
+	if len(packetData) > 0 {
+		r.SendPacket = &wkproto.SendPacket{}
+		packet, _, err := defaultWkproto.DecodeFrame(packetData, defaultProtoVersion)
+		if err != nil {
+			return err
+		}
+		r.SendPacket = packet.(*wkproto.SendPacket)
+	}
+
+	return nil
 }
 
 func (m *ReactorChannelMessage) Size() uint64 {
 	size := uint64(0)
 
 	size += 1
+	size += 8 // FromConnId
 	size += uint64(len(m.FromUid)) + 2
 	size += uint64(len(m.FromDeviceId)) + 2
+	size += 8 // FromNodeId
 	size += 8 // messageId
 	size += 4 // messageSeq
 	if m.SendPacket != nil {
@@ -62,9 +101,77 @@ func (m *ReactorChannelMessage) Size() uint64 {
 	} else {
 		size += 2
 	}
-	size += 1 // reasonCode
-	size += 8 // index
 	return size
+}
+
+type ReactorChannelMessageSet []*ReactorChannelMessage
+
+func (rs ReactorChannelMessageSet) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteUint32(uint32(len(rs)))
+
+	for _, r := range rs {
+		enc.WriteInt64(r.FromConnId)
+		enc.WriteString(r.FromUid)
+		enc.WriteString(r.FromDeviceId)
+		enc.WriteUint64(r.FromNodeId)
+		enc.WriteInt64(r.MessageId)
+
+		var packetData []byte
+		var err error
+		if r.SendPacket != nil {
+			packetData, err = defaultWkproto.EncodeFrame(r.SendPacket, defaultProtoVersion)
+			if err != nil {
+				return nil, err
+			}
+		}
+		enc.WriteBinary(packetData)
+	}
+
+	return enc.Bytes(), nil
+}
+
+func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+
+	for i := 0; i < int(count); i++ {
+		r := &ReactorChannelMessage{}
+		if r.FromConnId, err = dec.Int64(); err != nil {
+			return err
+		}
+		if r.FromUid, err = dec.String(); err != nil {
+			return err
+		}
+		if r.FromDeviceId, err = dec.String(); err != nil {
+			return err
+		}
+		if r.FromNodeId, err = dec.Uint64(); err != nil {
+			return err
+		}
+		if r.MessageId, err = dec.Int64(); err != nil {
+			return err
+		}
+		packetData, err := dec.Binary()
+		if err != nil {
+			return err
+		}
+		packet, _, err := defaultWkproto.DecodeFrame(packetData, defaultProtoVersion)
+		if err != nil {
+			return err
+		}
+		r.SendPacket = packet.(*wkproto.SendPacket)
+		*rs = append(*rs, r)
+	}
+	return nil
 }
 
 type ReactorUserMessage struct {
@@ -89,6 +196,7 @@ type ChannelAction struct {
 	Reason     Reason
 	ReasonCode wkproto.ReasonCode
 	Messages   []*ReactorChannelMessage
+	LeaderId   uint64 // 频道领导节点ID
 }
 
 type Message struct {
@@ -217,6 +325,66 @@ func (c ChannelInfoResp) ToChannelInfo() *wkdb.ChannelInfo {
 		Large: c.Large == 1,
 		Ban:   c.Ban == 1,
 	}
+}
+
+type ForwardSendackPacket struct {
+	Uid     string
+	ConnId  int64
+	Sendack *wkproto.SendackPacket
+}
+
+type ForwardSendackPacketSet []*ForwardSendackPacket
+
+func (rs ForwardSendackPacketSet) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteUint32(uint32(len(rs)))
+
+	for _, r := range rs {
+		enc.WriteString(r.Uid)
+		enc.WriteInt64(r.ConnId)
+		sendackData, err := defaultWkproto.EncodeFrame(r.Sendack, defaultProtoVersion)
+		if err != nil {
+			return nil, err
+		}
+		enc.WriteBinary(sendackData)
+	}
+
+	return enc.Bytes(), nil
+}
+
+func (rs *ForwardSendackPacketSet) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+
+	for i := 0; i < int(count); i++ {
+		r := &ForwardSendackPacket{}
+		if r.Uid, err = dec.String(); err != nil {
+			return err
+		}
+		if r.ConnId, err = dec.Int64(); err != nil {
+			return err
+		}
+		var sendackData []byte
+		if sendackData, err = dec.Binary(); err != nil {
+			return err
+		}
+		sendack, _, err := defaultWkproto.DecodeFrame(sendackData, defaultProtoVersion)
+		if err != nil {
+			return err
+		}
+		r.Sendack = sendack.(*wkproto.SendackPacket)
+		*rs = append(*rs, r)
+	}
+	return nil
+
 }
 
 type everyScheduler struct {

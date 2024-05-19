@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -20,6 +21,8 @@ type userReactorSub struct {
 	index int
 
 	stepUserC chan stepUser
+
+	mu sync.Mutex
 }
 
 func newUserReactorSub(index int, r *userReactor) *userReactorSub {
@@ -85,7 +88,7 @@ func (u *userReactorSub) step(uid string, action *UserAction) error {
 
 func (u *userReactorSub) proposeSend(conn *connContext, sendPacket *wkproto.SendPacket) error {
 
-	return u.r.s.channelReactor.proposeSend(conn.uid, conn.deviceId, sendPacket)
+	return u.r.s.channelReactor.proposeSend(conn.uid, conn.deviceId, conn.id, u.r.s.opts.Cluster.NodeId, true, sendPacket)
 }
 
 func (u *userReactorSub) stepWait(uid string, action *UserAction) error {
@@ -117,18 +120,12 @@ func (u *userReactorSub) readys() {
 				msgs := a.Messages
 				for _, msg := range msgs {
 					if msg.InPacket != nil {
-						if msg.InPacket.GetFrameType() == wkproto.SEND {
-							u.handleSendPackets(msg.Uid, msg.DeviceId, msg.InPacket.(*wkproto.SendPacket))
-						} else {
-							u.handleOtherPackets(msg.Uid, msg.DeviceId, msg.InPacket)
-						}
-
+						u.handleOtherPackets(msg.Uid, msg.DeviceId, msg.ConnId, msg.InPacket)
 					}
 					if len(msg.OutBytes) > 0 {
 						u.handleOutBytes(msg.Uid, msg.DeviceId, msg.OutBytes)
 					}
 				}
-
 			}
 		}
 		return true
@@ -143,10 +140,11 @@ func (u *userReactorSub) advance() {
 
 }
 
-func (u *userReactorSub) handleOtherPackets(fromUid string, fromDeviceId string, packet wkproto.Frame) {
+func (u *userReactorSub) handleOtherPackets(fromUid string, fromDeviceId string, connId int64, packet wkproto.Frame) {
 	switch packet.GetFrameType() {
 	case wkproto.PING:
 		u.r.addPingReq(&pingReq{
+			fromConnId:   connId,
 			fromUid:      fromUid,
 			fromDeviceId: fromDeviceId,
 		})
@@ -158,13 +156,6 @@ func (u *userReactorSub) handleOtherPackets(fromUid string, fromDeviceId string,
 		})
 	default:
 		u.Error("unknown frame type", zap.String("frameType", packet.GetFrameType().String()))
-	}
-}
-
-func (u *userReactorSub) handleSendPackets(fromUid string, fromDeviceId string, sendPacket *wkproto.SendPacket) {
-	err := u.r.s.channelReactor.proposeSend(fromUid, fromDeviceId, sendPacket)
-	if err != nil {
-		u.r.Error("propose send error", zap.Error(err))
 	}
 }
 
@@ -182,6 +173,8 @@ func (u *userReactorSub) handleOutBytes(fromUid string, fromDeviceId string, out
 }
 
 func (u *userReactorSub) addUserIfNotExist(h *userHandler) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	if u.getUser(h.uid) == nil {
 		u.users.add(h)
 	}
@@ -201,6 +194,14 @@ func (u *userReactorSub) getConnContext(uid string, deviceId string) *connContex
 		return nil
 	}
 	return uh.getConn(deviceId)
+}
+
+func (u *userReactorSub) getConnContextById(uid string, id int64) *connContext {
+	uh := u.getUser(uid)
+	if uh == nil {
+		return nil
+	}
+	return uh.getConnById(id)
 }
 
 func (u *userReactorSub) getConnContexts(uid string) []*connContext {
@@ -237,14 +238,37 @@ func (u *userReactorSub) getConnContextByDeviceFlag(uid string, deviceFlag wkpro
 }
 
 func (u *userReactorSub) removeConnContext(uid string, deviceId string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
 	uh := u.getUser(uid)
 	if uh == nil {
 		return
 	}
 	uh.removeConn(deviceId)
+
+	if uh.getConnCount() <= 0 {
+		u.users.remove(uh.uid)
+	}
+}
+
+func (u *userReactorSub) removeConnContextById(uid string, id int64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	uh := u.getUser(uid)
+	if uh == nil {
+		return
+	}
+	uh.removeConnById(id)
+
+	if uh.getConnCount() <= 0 {
+		u.users.remove(uh.uid)
+	}
 }
 
 func (u *userReactorSub) addConnContext(conn *connContext) {
+
 	uh := u.getUser(conn.uid)
 	if uh == nil {
 		uh = newUserHandler(conn.uid)
@@ -253,24 +277,18 @@ func (u *userReactorSub) addConnContext(conn *connContext) {
 	uh.addConnIfNotExist(conn)
 }
 
-func (u *userReactorSub) addConnIfNotExist(conn *connContext) {
-	u.users.iter(func(uh *userHandler) bool {
-		if uh.uid == conn.uid {
-			uh.addConnIfNotExist(conn)
-			return false
-		}
-		return true
-	})
-}
-
 func (u *userReactorSub) removeConn(uid string, deviceId string) {
-	u.users.iter(func(uh *userHandler) bool {
-		if uh.uid == uid {
-			uh.removeConn(deviceId)
-			return false
-		}
-		return true
-	})
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	uh := u.getUser(uid)
+	if uh == nil {
+		return
+	}
+	uh.removeConn(deviceId)
+	if uh.getConnCount() <= 0 {
+		u.users.remove(uh.uid)
+	}
 }
 
 func (u *userReactorSub) writePacket(conn *connContext, packet wkproto.Frame) error {

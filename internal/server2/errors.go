@@ -6,3 +6,10 @@ var (
 	ErrConnNotFound   = fmt.Errorf("conn not found")
 	ErrReactorStopped = fmt.Errorf("reactor stopped")
 )
+
+type errCode int32
+
+var (
+	// 不是频道领导节点
+	errCodeNotIsChannelLeader errCode = 1001
+)

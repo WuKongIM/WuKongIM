@@ -122,6 +122,17 @@ func (u *userHandler) removeConn(deviceId string) {
 	}
 }
 
+func (u *userHandler) removeConnById(id int64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	for i, c := range u.conns {
+		if c.id == id {
+			u.conns = append(u.conns[:i], u.conns[i+1:]...)
+			return
+		}
+	}
+}
+
 // 用户是否存在主设备在线
 func (u *userHandler) hasMasterDevice() bool {
 	u.mu.RLock()

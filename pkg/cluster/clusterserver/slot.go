@@ -94,6 +94,17 @@ func (s *slot) update(st *pb.Slot) {
 	if isLearner {
 		s.rc.BecomeLearner(st.Term, st.Leader)
 	} else {
+		if st.Status == pb.SlotStatus_SlotStatusLeaderTransfer { // 槽进入领导者转移状态
+			if st.Leader == s.opts.NodeId && st.LeaderTransferTo != st.Leader { // 如果当前槽领导将要被转移，则先暂停提案，等需要转移的节点的日志追上来
+				s.pausePropopose.Store(true)
+			}
+		} else if st.Status == pb.SlotStatus_SlotStatusNormal { // 槽进入正常状态
+
+			if st.Leader == s.opts.NodeId {
+				s.pausePropopose.Store(false)
+			}
+		}
+
 		if st.Status == pb.SlotStatus_SlotStatusCandidate { // 槽进入候选者状态
 			if s.rc.IsLeader() { // 领导节点不能直接转candidate，replica里会panic，领导转换成follower是一样的
 				s.rc.BecomeFollower(st.Term, 0)
@@ -101,19 +112,11 @@ func (s *slot) update(st *pb.Slot) {
 				s.rc.BecomeCandidateWithTerm(st.Term)
 			}
 
-		} else if st.Status == pb.SlotStatus_SlotStatusLeaderTransfer { // 槽进入领导者转移状态
-			if st.Leader == s.opts.NodeId && st.LeaderTransferTo != st.Leader { // 如果当前槽领导将要被转移，则先暂停提案，等需要转移的节点的日志追上来
-				s.pausePropopose.Store(true)
-			}
-		} else if st.Status == pb.SlotStatus_SlotStatusNormal { // 槽进入正常状态
-
-			if s.rc.LeaderId() != st.Leader {
-				if st.Leader == s.opts.NodeId {
-					s.pausePropopose.Store(false)
-					s.rc.BecomeLeader(st.Term)
-				} else {
-					s.rc.BecomeFollower(st.Term, st.Leader)
-				}
+		} else {
+			if st.Leader == s.opts.NodeId {
+				s.rc.BecomeLeader(st.Term)
+			} else {
+				s.rc.BecomeFollower(st.Term, st.Leader)
 			}
 		}
 	}

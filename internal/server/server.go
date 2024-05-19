@@ -219,8 +219,8 @@ func New(opts *Options) *Server {
 	storeOpts.Cluster = clusterServer
 	s.peerInFlightQueue = NewPeerInFlightQueue(s)
 
-	clusterServer.OnMessage(func(msg *proto.Message) {
-		s.dispatch.processor.handleClusterMessage(msg)
+	clusterServer.OnMessage(func(fromNodeId uint64, msg *proto.Message) {
+		s.dispatch.processor.handleClusterMessage(fromNodeId, msg)
 	})
 
 	return s

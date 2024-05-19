@@ -53,11 +53,14 @@ func (s *Store) Open() error {
 func (s *Store) Close() {
 	s.Debug("close...")
 	s.messageShardLogStorage.Close()
+	s.Debug("close1...")
 	err := s.wdb.Close()
 	if err != nil {
 		s.Warn("close message storage err", zap.Error(err))
 	}
+	s.Debug("close2...")
 	s.lock.StopCleanLoop()
+	s.Debug("close3...")
 }
 
 // func (s *Store) GetPeerInFlightData() ([]*wkstore.PeerInFlightDataModel, error) {

@@ -2,13 +2,249 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
+
+// =================================== 初始化 ===================================
+
+func (r *channelReactor) addInitReq(req *initReq) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	select {
+	case r.processInitC <- req:
+	case <-timeoutCtx.Done():
+		r.Error("addInitReq timeout", zap.String("channelId", req.ch.channelId))
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *channelReactor) processInitLoop() {
+	for {
+		select {
+		case req := <-r.processInitC:
+			r.processInit(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *channelReactor) processInit(req *initReq) {
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	defer cancel()
+	node, err := r.s.cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+	sub := r.reactorSub(req.ch.key)
+	if err != nil {
+		r.Error("channel init failed", zap.Error(err))
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionInitResp, Reason: ReasonError})
+		return
+	}
+	sub.step(req.ch, &ChannelAction{ActionType: ChannelActionInitResp, LeaderId: node.Id, Reason: ReasonSuccess})
+}
+
+type initReq struct {
+	ch *channel
+}
+
+// =================================== payload解密 ===================================
+
+func (r *channelReactor) addPayloadDecryptReq(req *payloadDecryptReq) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	select {
+	case r.processPayloadDecryptC <- req:
+	case <-timeoutCtx.Done():
+		r.Error("addPayloadDecryptReq timeout", zap.String("channelId", req.ch.channelId))
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *channelReactor) processPayloadDecryptLoop() {
+	for {
+		select {
+		case req := <-r.processPayloadDecryptC:
+			r.processPayloadDecrypt(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
+
+	for _, msg := range req.messages {
+		if !msg.IsEncrypt || msg.FromConnId == 0 { // 没有加密，直接跳过,没有连接id解密不了，也直接跳过
+			continue
+		}
+		var err error
+		var decryptPayload []byte
+		conn := r.s.userReactor.getConnContextById(msg.FromUid, msg.FromConnId)
+		if conn != nil {
+			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
+			if err != nil {
+				r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))
+			}
+		}
+		if len(decryptPayload) > 0 {
+			msg.SendPacket.Payload = decryptPayload
+			msg.IsEncrypt = false
+		}
+	}
+	sub := r.reactorSub(req.ch.key)
+	sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPayloadDecryptResp, Messages: req.messages})
+
+}
+
+type payloadDecryptReq struct {
+	ch       *channel
+	messages []*ReactorChannelMessage
+}
+
+// =================================== 转发 ===================================
+
+func (r *channelReactor) addForwardReq(req *forwardReq) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	select {
+	case r.processForwardC <- req:
+	case <-timeoutCtx.Done():
+		r.Error("addForwardReq timeout", zap.String("channelId", req.ch.channelId))
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *channelReactor) processForwardLoop() {
+	reqs := make([]*forwardReq, 0, 1024)
+	done := false
+	for {
+		select {
+		case req := <-r.processForwardC:
+			reqs = append(reqs, req)
+			// 取出所有req
+			for !done {
+				select {
+				case req := <-r.processForwardC:
+					exist := false
+					for _, r := range reqs {
+						if r.ch.channelId == req.ch.channelId && r.ch.channelType == req.ch.channelType {
+							r.messages = append(r.messages, req.messages...)
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						reqs = append(reqs, req)
+					}
+				default:
+					done = true
+				}
+			}
+			r.processForward(reqs)
+
+			reqs = reqs[:0]
+			done = false
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+
+}
+
+func (r *channelReactor) processForward(reqs []*forwardReq) {
+	for _, req := range reqs {
+		newLeaderId, err := r.handleForward(req)
+		var reason Reason
+		if err != nil {
+			reason = ReasonError
+			r.Error("handleForward error", zap.Error(err))
+		} else {
+			reason = ReasonSuccess
+		}
+		if newLeaderId > 0 {
+			sub := r.reactorSub(req.ch.key)
+			sub.step(req.ch, &ChannelAction{ActionType: ChannelActionLeaderChange, LeaderId: newLeaderId})
+		}
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionForwardResp, Messages: req.messages, Reason: reason})
+	}
+
+}
+
+func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
+	if len(req.messages) == 0 {
+		return 0, nil
+	}
+
+	if req.leaderId == 0 {
+		r.Warn("leaderId is 0", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		return 0, errors.New("leaderId is 0")
+	}
+
+	needChangeLeader, err := r.requestChannelFoward(req.leaderId, req.messages)
+	if err != nil {
+		r.Error("requestChannelFoward error", zap.Error(err))
+		return 0, err
+	}
+	if needChangeLeader { // 接受转发请求的节点并非频道领导节点，所以这里要重新获取频道领导
+		// 重新获取频道领导
+		timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+		defer cancel()
+		node, err := r.s.cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+		if err != nil {
+			r.Error("LeaderOfChannel error", zap.Error(err))
+			return 0, err
+		}
+		return node.Id, nil
+	}
+
+	return 0, nil
+}
+
+func (r *channelReactor) requestChannelFoward(nodeId uint64, messages []*ReactorChannelMessage) (bool, error) {
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	defer cancel()
+
+	messageSet := ReactorChannelMessageSet(messages)
+	data, err := messageSet.Marshal()
+	if err != nil {
+		return false, err
+	}
+	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/channelFoward", data)
+	if err != nil {
+		return false, err
+	}
+	if resp.Status == proto.Status(errCodeNotIsChannelLeader) { // 转发下去的节点不是频道领导，这时候要重新获取下领导节点
+		return true, nil
+	}
+
+	if resp.Status != proto.Status_OK {
+		var err error
+		if len(resp.Body) > 0 {
+			err = errors.New(string(resp.Body))
+		} else {
+			err = fmt.Errorf("requestChannelFoward failed, status[%d] error", resp.Status)
+		}
+		return false, err
+	}
+	return false, nil
+
+}
+
+type forwardReq struct {
+	ch       *channel
+	leaderId uint64
+	messages []*ReactorChannelMessage
+}
 
 // =================================== 发送权限判断 ===================================
 func (r *channelReactor) addPermissionReq(req *permissionReq) {
@@ -36,14 +272,13 @@ func (r *channelReactor) processPermissionLoop() {
 
 func (r *channelReactor) processPermission(req *permissionReq) {
 
-	fmt.Println("权限判断", req.fromUid, req.ch.channelId)
 	// 权限判断
 	sub := r.reactorSub(req.ch.key)
 	reasonCode, err := r.hasPermission(req.ch.channelId, req.ch.channelType, req.fromUid, req.ch)
 	if err != nil {
 		r.Error("hasPermission error", zap.Error(err))
 		// 返回错误
-		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionResp, Messages: req.messages, Reason: ReasonError})
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionCheckResp, Messages: req.messages, Reason: ReasonError})
 		return
 	}
 	reason := ReasonSuccess
@@ -51,10 +286,15 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 		reason = ReasonError
 	}
 	// 返回成功
-	sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionResp, Messages: req.messages, Reason: reason, ReasonCode: reasonCode})
+	sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionCheckResp, Messages: req.messages, Reason: reason, ReasonCode: reasonCode})
 }
 
 func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid string, ch *channel) (wkproto.ReasonCode, error) {
+
+	if channelType == wkproto.ChannelTypeInfo || channelType == wkproto.ChannelTypePerson {
+		return wkproto.ReasonSuccess, nil
+	}
+
 	systemAccount := r.s.systemUIDManager.SystemUID(uid)
 	if systemAccount { // 如果是系统账号，则直接通过
 		return wkproto.ReasonSuccess, nil
@@ -174,6 +414,10 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 	for _, req := range reqs {
 		sotreMessages := make([]wkdb.Message, 0, 1024)
 		for _, msg := range req.messages {
+			if msg.IsEncrypt {
+				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+				continue
+			}
 			sendPacket := msg.SendPacket
 			sotreMessages = append(sotreMessages, wkdb.Message{
 				RecvPacket: wkproto.RecvPacket{
@@ -194,7 +438,6 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 				},
 			})
 		}
-		// fmt.Println("sotreMessages---->", len(sotreMessages))
 		// 存储消息
 		results, err := r.s.store.AppendMessages(r.s.ctx, req.ch.channelId, req.ch.channelType, sotreMessages)
 		if err != nil {
@@ -273,27 +516,68 @@ func (r *channelReactor) processSendackLoop() {
 }
 
 func (r *channelReactor) processSendack(reqs []*sendackReq) {
-	// 发送回执
-	// 返回结果
 	var err error
+	nodeFowardSendackPacketMap := map[uint64][]*ForwardSendackPacket{}
 	for _, req := range reqs {
 		for _, msg := range req.messages {
-			err = r.s.userReactor.writePacketByDeviceId(msg.FromUid, msg.FromDeviceId, &wkproto.SendackPacket{
+			sendack := &wkproto.SendackPacket{
 				Framer:      msg.SendPacket.Framer,
 				MessageID:   msg.MessageId,
 				MessageSeq:  msg.MessageSeq,
 				ClientSeq:   msg.SendPacket.ClientSeq,
 				ClientMsgNo: msg.SendPacket.ClientMsgNo,
 				ReasonCode:  req.reasonCode,
-			})
-			if err != nil {
-				r.Error("writePacketByDeviceId error", zap.Error(err))
+			}
+			if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
+				err = r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
+				if err != nil {
+					r.Error("writePacketByConnId error", zap.Error(err))
+				}
+			} else { // 连接在其他节点，需要将消息转发出去
+				packets := nodeFowardSendackPacketMap[msg.FromNodeId]
+				packets = append(packets, &ForwardSendackPacket{
+					Uid:     msg.FromUid,
+					ConnId:  msg.FromConnId,
+					Sendack: sendack,
+				})
+				nodeFowardSendackPacketMap[msg.FromNodeId] = packets
 			}
 		}
-
 		// sub := r.reactorSub(req.ch.key)
 		// sub.step(req.ch, &ChannelAction{ActionType: ChannelActionSendackResp, Messages: req.messages})
 	}
+
+	for nodeId, forwardSendackPackets := range nodeFowardSendackPacketMap {
+		err = r.requestForwardSendack(nodeId, forwardSendackPackets)
+		if err != nil {
+			r.Error("requestForwardSendack error", zap.Error(err))
+		}
+	}
+}
+
+func (r *channelReactor) requestForwardSendack(nodeId uint64, packets []*ForwardSendackPacket) error {
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	defer cancel()
+
+	packetSet := ForwardSendackPacketSet(packets)
+	data, err := packetSet.Marshal()
+	if err != nil {
+		return err
+	}
+	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/forwardSendack", data)
+	if err != nil {
+		return err
+	}
+	if resp.Status != proto.Status_OK {
+		var err error
+		if len(resp.Body) > 0 {
+			err = errors.New(string(resp.Body))
+		} else {
+			err = fmt.Errorf("requestForwardSendack failed, status[%d] error", resp.Status)
+		}
+		return err
+	}
+	return nil
 }
 
 type sendackReq struct {

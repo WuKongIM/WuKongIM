@@ -104,9 +104,22 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
-		s.Error("clusterConfig not found", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(ErrChannelClusterConfigNotFound)
-		return
+		// s.Error("clusterConfig not found", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		// c.WriteErr(ErrChannelClusterConfigNotFound)
+		// return
+		channel, err := s.loadOrCreateChannel(s.cancelCtx, req.ChannelId, req.ChannelType)
+		if err != nil {
+			s.Error("fetchChannel failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		if channel == nil {
+			s.Error("create channel failed", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+			c.WriteErr(ErrChannelNotFound)
+			return
+		}
+		clusterConfig = channel.cfg
+
 	}
 
 	data, err := clusterConfig.Marshal()
