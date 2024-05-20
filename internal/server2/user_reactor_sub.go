@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -67,23 +66,17 @@ func (u *userReactorSub) loop() {
 	}
 }
 
-func (u *userReactorSub) step(uid string, action *UserAction) error {
+func (u *userReactorSub) step(uid string, action *UserAction) {
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case u.stepUserC <- stepUser{
 		uid:    uid,
 		action: action,
 		waitC:  nil,
 	}:
-	case <-timeoutCtx.Done():
-		u.Error("step timeout", zap.String("uid", uid))
-		return timeoutCtx.Err()
 	case <-u.stopper.ShouldStop():
-		return ErrReactorStopped
+		return
 	}
-	return nil
 }
 
 func (u *userReactorSub) proposeSend(conn *connContext, sendPacket *wkproto.SendPacket) error {
@@ -114,22 +107,48 @@ func (u *userReactorSub) stepWait(uid string, action *UserAction) error {
 func (u *userReactorSub) readys() {
 	u.users.iter(func(uh *userHandler) bool {
 		if uh.hasReady() {
-			rd := uh.ready()
-			for _, a := range rd.actions {
-
-				msgs := a.Messages
-				for _, msg := range msgs {
-					if msg.InPacket != nil {
-						u.handleOtherPackets(msg.Uid, msg.DeviceId, msg.ConnId, msg.InPacket)
-					}
-					if len(msg.OutBytes) > 0 {
-						u.handleOutBytes(msg.Uid, msg.DeviceId, msg.OutBytes)
-					}
-				}
-			}
+			u.handleReady(uh)
 		}
 		return true
 	})
+}
+
+func (u *userReactorSub) handleReady(uh *userHandler) {
+	rd := uh.ready()
+	for _, action := range rd.actions {
+		switch action.ActionType {
+		case UserActionInit: // 用户初始化请求
+			u.r.addInitReq(&userInitReq{
+				uid: uh.uid,
+			})
+		case UserActionPing: // 用户发送ping
+			u.r.addPingReq(&pingReq{
+				uid:      uh.uid,
+				messages: action.Messages,
+			})
+		case UserActionRecvack: // 用户发送recvack
+			u.r.addRecvackReq(&recvackReq{
+				uid:      uh.uid,
+				messages: action.Messages,
+			})
+		case UserActionRecv: // 用户接受消息
+			u.r.addWriteReq(&writeReq{
+				uid:      uh.uid,
+				messages: action.Messages,
+			})
+		default:
+			u.Error("unknown action type", zap.String("actionType", action.ActionType.String()))
+		}
+		// msgs := a.Messages
+		// for _, msg := range msgs {
+		// 	if msg.InPacket != nil {
+		// 		u.handleOtherPackets(msg.Uid, msg.DeviceId, msg.ConnId, msg.InPacket)
+		// 	}
+		// 	if len(msg.OutBytes) > 0 {
+		// 		u.handleOutBytes(msg.Uid, msg.DeviceId, msg.OutBytes)
+		// 	}
+		// }
+	}
 }
 
 func (u *userReactorSub) advance() {
@@ -137,38 +156,6 @@ func (u *userReactorSub) advance() {
 	case u.advanceC <- struct{}{}:
 	default:
 	}
-
-}
-
-func (u *userReactorSub) handleOtherPackets(fromUid string, fromDeviceId string, connId int64, packet wkproto.Frame) {
-	switch packet.GetFrameType() {
-	case wkproto.PING:
-		u.r.addPingReq(&pingReq{
-			fromConnId:   connId,
-			fromUid:      fromUid,
-			fromDeviceId: fromDeviceId,
-		})
-	case wkproto.RECVACK:
-		u.r.addRecvackReq(&recvackReq{
-			fromUid:      fromUid,
-			fromDeviceId: fromDeviceId,
-			recvack:      packet.(*wkproto.RecvackPacket),
-		})
-	default:
-		u.Error("unknown frame type", zap.String("frameType", packet.GetFrameType().String()))
-	}
-}
-
-func (u *userReactorSub) handleOutBytes(fromUid string, fromDeviceId string, outBytes []byte) {
-
-	if len(outBytes) == 0 {
-		return
-	}
-	u.r.addWriteReq(&writeReq{
-		toUid:      fromUid,
-		toDeviceId: fromDeviceId,
-		data:       outBytes,
-	})
 
 }
 
@@ -271,7 +258,7 @@ func (u *userReactorSub) addConnContext(conn *connContext) {
 
 	uh := u.getUser(conn.uid)
 	if uh == nil {
-		uh = newUserHandler(conn.uid)
+		uh = newUserHandler(conn.uid, u)
 		u.addUserIfNotExist(uh)
 	}
 	uh.addConnIfNotExist(conn)

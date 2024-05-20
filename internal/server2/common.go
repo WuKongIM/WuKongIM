@@ -23,8 +23,8 @@ type channelRole int
 
 const (
 	channelRoleUnknow = iota
-	channelRoleLeader // 领导 （领导负责频道逻辑的真实处理）
-	channelRoleProxy  // 代理 （代理不处理逻辑，只将逻辑转发给领导）
+	channelRoleLeader // 领导 （领导负责频道数据的真实处理）
+	channelRoleProxy  // 代理 （代理不处理数据，只将数据转发给领导）
 )
 
 type ChannelActionType int
@@ -103,10 +103,46 @@ func (c ChannelActionType) String() string {
 type UserActionType int
 
 const (
-	UserActionTypeNone    UserActionType = iota
-	UserActionProcess                    // 处理消息
-	UserActionProcessResp                // 处理消息返回
+	UserActionTypeNone UserActionType = iota
+	UserActionInit                    // 初始化
+	UserActionInitResp                // 初始化返回
+	UserActionSend                    // 发送消息
+	UserActionPing                    // 发送ping消息
+	UserActionPingResp
+	UserActionRecvack            // 发送recvack消息
+	UserActionRecvackResp        // 发送recvack消息返回
+	UserActionForwardRecvack     // 转发recvack包给领导节点
+	UserActionForwardRecvackResp // 转发返回
+	UserActionRecv               // 接收消息
+	UserActionRecvResp           // 接受消息返回
 )
+
+func (u UserActionType) String() string {
+	switch u {
+	case UserActionInit:
+		return "UserActionInit"
+	case UserActionSend:
+		return "UserActionSend"
+	case UserActionPing:
+		return "UserActionPing"
+	case UserActionPingResp:
+		return "UserActionPingResp"
+	case UserActionRecvack:
+		return "UserActionRecvack"
+	case UserActionRecvackResp:
+		return "UserActionRecvackResp"
+	case UserActionRecv:
+		return "UserActionRecv"
+	case UserActionRecvResp:
+		return "UserActionRecvResp"
+	case UserActionForwardRecvack:
+		return "UserActionForwardRecvack"
+	case UserActionForwardRecvackResp:
+		return "UserActionForwardRecvackResp"
+
+	}
+	return "unknow"
+}
 
 // GetFakeChannelIDWith GetFakeChannelIDWith
 func GetFakeChannelIDWith(fromUID, toUID string) string {
@@ -191,10 +227,28 @@ func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
 	return bodyBytes, nil
 }
 
+// 频道状态
 type channelStatus int
 
 const (
-	channelStatusUninitialized = iota // 未初始化
-	channelStatusInitializing         // 初始化中
-	channelStatusInitialized          // 初始化完成
+	channelStatusUninitialized channelStatus = iota // 未初始化
+	channelStatusInitializing                       // 初始化中
+	channelStatusInitialized                        // 初始化完成
+)
+
+// 用户状态
+type userStatus int
+
+const (
+	userStatusUninitialized userStatus = iota // 未初始化
+	userStatusInitializing                    // 初始化中
+	userStatusInitialized                     // 初始化完成
+)
+
+type userRole int
+
+const (
+	userRoleUnknow = iota
+	userRoleLeader // 领导 （领导负责用户数据的真实处理）
+	userRoleProxy  // 代理 （代理不处理逻辑，只将数据转发给领导）
 )

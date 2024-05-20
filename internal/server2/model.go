@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -175,13 +174,12 @@ func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
 }
 
 type ReactorUserMessage struct {
-	ConnId         int64         // 连接id
-	Uid            string        // 用户ID
-	DeviceId       string        // 设备ID
-	InPacket       wkproto.Frame // 输入的包
-	OutBytes       []byte        // 需要输出的字节
-	Index          uint64        // 消息下标
-	SenderDeviceId string        // 发送者设备ID
+	ConnId   int64         // 连接id
+	Uid      string        // 用户ID
+	DeviceId string        // 设备ID
+	InPacket wkproto.Frame // 输入的包
+	OutBytes []byte        // 需要输出的字节
+	Index    uint64        // 消息下标
 }
 
 func (m *ReactorUserMessage) Size() uint64 {
@@ -197,23 +195,6 @@ type ChannelAction struct {
 	ReasonCode wkproto.ReasonCode
 	Messages   []*ReactorChannelMessage
 	LeaderId   uint64 // 频道领导节点ID
-}
-
-type Message struct {
-	wkdb.Message
-	ToUID          string             // 接受者
-	Subscribers    []string           // 订阅者 如果此字段有值 则表示消息只发送给指定的订阅者
-	fromDeviceFlag wkproto.DeviceFlag // 发送者设备标示
-	fromDeviceID   string             // 发送者设备ID
-	// term
-	term uint64 // 当前领导term
-	// 重试相同的toDeviceID
-	toDeviceID string // 指定设备ID
-	large      bool   // 是否是超大群
-	// ------- 优先队列用到 ------
-	index      int   //在切片中的索引值
-	pri        int64 // 优先级的时间点 值越小越优先
-	retryCount int   // 当前重试次数
 }
 
 // MessageResp 消息返回
@@ -237,7 +218,7 @@ type MessageResp struct {
 	// Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
-func (m *MessageResp) from(messageD wkdb.Message, store *clusterstore.Store) {
+func (m *MessageResp) from(messageD wkdb.Message) {
 	m.Header.NoPersist = wkutil.BoolToInt(messageD.NoPersist)
 	m.Header.RedDot = wkutil.BoolToInt(messageD.RedDot)
 	m.Header.SyncOnce = wkutil.BoolToInt(messageD.SyncOnce)
@@ -393,4 +374,41 @@ type everyScheduler struct {
 
 func (s *everyScheduler) Next(prev time.Time) time.Time {
 	return prev.Add(s.Interval)
+}
+
+// 转发写请求
+type FowardWriteReq struct {
+	Uid      string
+	DeviceId string
+	ConnId   int64
+	Data     []byte
+}
+
+func (f *FowardWriteReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(f.Uid)
+	enc.WriteString(f.DeviceId)
+	enc.WriteInt64(f.ConnId)
+	enc.WriteBytes(f.Data)
+	return enc.Bytes(), nil
+}
+
+func (f *FowardWriteReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if f.Uid, err = dec.String(); err != nil {
+		return err
+	}
+	if f.DeviceId, err = dec.String(); err != nil {
+		return err
+	}
+	if f.ConnId, err = dec.Int64(); err != nil {
+		return err
+	}
+	if f.Data, err = dec.BinaryAll(); err != nil {
+		return err
+	}
+
+	return nil
 }
