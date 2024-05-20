@@ -62,7 +62,7 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 		stroageMaxSize:   1024 * 1024 * 2,
 		deliverMaxSize:   1024 * 1024 * 2,
 		forwardMaxSize:   1024 * 1024 * 2,
-		Log:              wklog.NewWKLog(fmt.Sprintf("channel[%s]", key)),
+		Log:              wklog.NewWKLog(fmt.Sprintf("channelHandler[%s]", key)),
 		r:                sub.r,
 		sub:              sub,
 	}
@@ -249,6 +249,7 @@ func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId in
 
 func (c *channel) becomeLeader() {
 	c.resetIndex()
+	c.leaderId = 0
 	c.role = channelRoleLeader
 	c.stepFnc = c.stepLeader
 	c.Info("become logic leader")

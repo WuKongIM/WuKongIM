@@ -33,6 +33,9 @@ func (s *Server) setClusterRoutes() {
 
 	// 转发sendack回执信息到源节点
 	s.cluster.Route("/wk/forwardSendack", s.handleForwardSendack)
+
+	// 转发连接写数据
+	s.cluster.Route("/wk/connWrite", s.handleConnWrite)
 }
 
 func (s *Server) handleChannelForward(c *wkserver.Context) {
@@ -116,5 +119,34 @@ func (s *Server) handleForwardSendack(c *wkserver.Context) {
 			return
 		}
 	}
+	c.WriteOk()
+}
+
+func (s *Server) handleConnWrite(c *wkserver.Context) {
+	var fowardWriteReq = &FowardWriteReq{}
+	err := fowardWriteReq.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("handleConnWrite Unmarshal err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if len(fowardWriteReq.Data) == 0 {
+		c.WriteOk()
+		return
+	}
+
+	conn := s.userReactor.getConnContextById(fowardWriteReq.Uid, fowardWriteReq.ConnId)
+	if conn == nil {
+		s.Error("handleConnWrite: conn not found", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
+		c.WriteErr(err)
+		return
+	}
+	if conn.conn == nil {
+		s.Error("handleConnWrite: conn is nil", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
+		c.WriteErr(err)
+		return
+	}
+	s.responseData(conn.conn, fowardWriteReq.Data)
 	c.WriteOk()
 }

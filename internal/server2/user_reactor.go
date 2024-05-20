@@ -7,7 +7,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
-	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
 )
 
@@ -15,11 +14,12 @@ type userReactor struct {
 	processPingC    chan *pingReq
 	processRecvackC chan *recvackReq
 	processWriteC   chan *writeReq
+	processInitC    chan *userInitReq
 	stopper         *syncutil.Stopper
 	wklog.Log
 	s    *Server
 	subs []*userReactorSub
-	mu   deadlock.RWMutex
+	// mu   deadlock.RWMutex
 }
 
 func newUserReactor(s *Server) *userReactor {
@@ -27,6 +27,7 @@ func newUserReactor(s *Server) *userReactor {
 		processPingC:    make(chan *pingReq, 1024),
 		processRecvackC: make(chan *recvackReq, 1024),
 		processWriteC:   make(chan *writeReq, 1024),
+		processInitC:    make(chan *userInitReq, 1024),
 		stopper:         syncutil.NewStopper(),
 		Log:             wklog.NewWKLog("userReactor"),
 		s:               s,
@@ -42,6 +43,7 @@ func newUserReactor(s *Server) *userReactor {
 }
 
 func (u *userReactor) start() error {
+	u.stopper.RunWorker(u.processInitLoop)
 	u.stopper.RunWorker(u.processPingLoop)
 	u.stopper.RunWorker(u.processWriteLoop)
 	u.stopper.RunWorker(u.processRecvackLoop)

@@ -1,8 +1,11 @@
 package server
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 type connInfo struct {
@@ -14,13 +17,17 @@ type connInfo struct {
 	aesKey       string
 	aesIV        string
 	protoVersion uint8
+
+	closed atomic.Bool
 }
 
 type connContext struct {
 	connInfo
-	conn wknet.Conn
-
+	conn       wknet.Conn
 	subReactor *userReactorSub
+
+	realNodeId uint64 // 真实的节点id
+	isRealConn bool   // 是否是真实的连接
 }
 
 func newConnContext(connInfo connInfo, conn wknet.Conn, subReactor *userReactorSub) *connContext {
@@ -28,12 +35,22 @@ func newConnContext(connInfo connInfo, conn wknet.Conn, subReactor *userReactorS
 		connInfo:   connInfo,
 		conn:       conn,
 		subReactor: subReactor,
+		isRealConn: true,
+	}
+}
+
+func newConnContextProxy(realNodeId uint64, connInfo connInfo, subReactor *userReactorSub) *connContext {
+	return &connContext{
+		connInfo:   connInfo,
+		subReactor: subReactor,
+		realNodeId: realNodeId,
+		isRealConn: false,
 	}
 }
 
 func (c *connContext) addOtherPacket(packet wkproto.Frame) {
-	_ = c.subReactor.step(c.uid, &UserAction{
-		ActionType: UserActionProcess,
+	c.subReactor.step(c.uid, &UserAction{
+		ActionType: UserActionSend,
 		Messages: []*ReactorUserMessage{
 			{
 				ConnId:   c.id,
@@ -51,8 +68,8 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 }
 
 func (c *connContext) write(d []byte) {
-	_ = c.subReactor.step(c.uid, &UserAction{
-		ActionType: UserActionProcess,
+	c.subReactor.step(c.uid, &UserAction{
+		ActionType: UserActionRecv,
 		Messages: []*ReactorUserMessage{
 			{
 				ConnId:   c.id,
@@ -65,9 +82,18 @@ func (c *connContext) write(d []byte) {
 }
 
 func (c *connContext) close() {
-
+	if c.closed.Load() {
+		return
+	}
+	c.closed.Store(true)
+	if c.conn != nil {
+		err := c.conn.Close()
+		if err != nil {
+			wklog.Error("conn close error", zap.Error(err))
+		}
+	}
 }
 
 func (c *connContext) isClosed() bool {
-	return false
+	return c.closed.Load()
 }

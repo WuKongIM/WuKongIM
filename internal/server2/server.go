@@ -459,7 +459,11 @@ func (s *Server) responseWithConn(conn wknet.Conn, packet wkproto.Frame) {
 }
 
 func (s *Server) responseData(conn wknet.Conn, data []byte) {
+	s.responseDataNoFlush(conn, data)
+	s.flushConnData(conn)
+}
 
+func (s *Server) responseDataNoFlush(conn wknet.Conn, data []byte) {
 	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
 	if wsok {
 		err := wsConn.WriteServerBinary(data)
@@ -473,6 +477,9 @@ func (s *Server) responseData(conn wknet.Conn, data []byte) {
 			s.Warn("Failed to write the message", zap.Error(err))
 		}
 	}
+}
+
+func (s *Server) flushConnData(conn wknet.Conn) {
 	err := conn.WakeWrite()
 	if err != nil {
 		s.Warn("Failed to wake write", zap.Error(err), zap.String("uid", conn.UID()), zap.Int("fd", conn.Fd().Fd()), zap.String("deviceId", conn.DeviceID()))

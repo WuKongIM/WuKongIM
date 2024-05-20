@@ -116,7 +116,8 @@ type userMsgQueue struct {
 	offsetInProgress uint64
 	wklog.Log
 
-	lastIndex uint64 // 最新下标
+	processingIndex uint64 // 正在处理的下标
+	lastIndex       uint64 // 最新下标
 }
 
 func newUserMsgQueue(prefix string) *userMsgQueue {
@@ -127,8 +128,8 @@ func newUserMsgQueue(prefix string) *userMsgQueue {
 	}
 }
 
-// deliverTo 投递了index之前的消息
-func (m *userMsgQueue) processTo(index uint64) {
+// truncateTo 裁剪index之前的消息
+func (m *userMsgQueue) truncateTo(index uint64) {
 	num := int(index + 1 - m.offset)
 	m.messages = m.messages[num:]
 	m.offset = index + 1
@@ -166,13 +167,13 @@ func (m *userMsgQueue) shrinkMessagesArray() {
 	}
 }
 
-func (m *userMsgQueue) acceptInProgress() {
-	if len(m.messages) > 0 {
-		lastMsg := m.messages[len(m.messages)-1]
-		m.offsetInProgress = lastMsg.Index + 1
-		m.processTo(lastMsg.Index)
-	}
-}
+// func (m *userMsgQueue) acceptInProgress() {
+// 	if len(m.messages) > 0 {
+// 		lastMsg := m.messages[len(m.messages)-1]
+// 		m.offsetInProgress = lastMsg.Index + 1
+// 		m.processTo(lastMsg.Index)
+// 	}
+// }
 
 func (m *userMsgQueue) slice(lo uint64, hi uint64) []*ReactorUserMessage {
 

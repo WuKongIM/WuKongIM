@@ -15,12 +15,8 @@ import (
 // =================================== 初始化 ===================================
 
 func (r *channelReactor) addInitReq(req *initReq) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case r.processInitC <- req:
-	case <-timeoutCtx.Done():
-		r.Error("addInitReq timeout", zap.String("channelId", req.ch.channelId))
 	case <-r.stopper.ShouldStop():
 		return
 	}
@@ -112,12 +108,8 @@ type payloadDecryptReq struct {
 // =================================== 转发 ===================================
 
 func (r *channelReactor) addForwardReq(req *forwardReq) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case r.processForwardC <- req:
-	case <-timeoutCtx.Done():
-		r.Error("addForwardReq timeout", zap.String("channelId", req.ch.channelId))
 	case <-r.stopper.ShouldStop():
 		return
 	}
@@ -248,12 +240,8 @@ type forwardReq struct {
 
 // =================================== 发送权限判断 ===================================
 func (r *channelReactor) addPermissionReq(req *permissionReq) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case r.processPermissionC <- req:
-	case <-timeoutCtx.Done():
-		r.Error("addPermissionReq timeout", zap.String("fromUid", req.fromUid), zap.String("channelId", req.ch.channelId))
 	case <-r.stopper.ShouldStop():
 		return
 	}
@@ -360,12 +348,8 @@ type permissionReq struct {
 // =================================== 消息存储 ===================================
 
 func (r *channelReactor) addStorageReq(req *storageReq) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case r.processStorageC <- req:
-	case <-timeoutCtx.Done():
-		r.Error("addStorageReq timeout", zap.String("channelId", req.ch.channelId))
 	case <-r.stopper.ShouldStop():
 		return
 	}
@@ -478,12 +462,8 @@ type storageReq struct {
 // =================================== 发送回执 ===================================
 
 func (r *channelReactor) addSendackReq(req *sendackReq) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case r.processSendackC <- req:
-	case <-timeoutCtx.Done():
-		r.Error("addSendackReq timeout", zap.String("channelId", req.ch.channelId))
 	case <-r.stopper.ShouldStop():
 		return
 	}
@@ -589,12 +569,8 @@ type sendackReq struct {
 // =================================== 消息投递 ===================================
 
 func (r *channelReactor) addDeliverReq(req *deliverReq) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case r.processDeliverC <- req:
-	case <-timeoutCtx.Done():
-		r.Error("addDeliverReq timeout", zap.String("channelId", req.ch.channelId))
 	case <-r.stopper.ShouldStop():
 		return
 	}
