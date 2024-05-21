@@ -69,7 +69,12 @@ func (r *retryManager) retry(msg *retryMessage) {
 	r.addRetry(msg)
 
 	// 发送消息
-	conn.write(msg.recvPacketData)
+	err := conn.write(msg.recvPacketData)
+	if err != nil {
+		r.Warn("write message failed", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId), zap.Error(err))
+		conn.close()
+		return
+	}
 
 }
 

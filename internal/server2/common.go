@@ -100,21 +100,30 @@ func (c ChannelActionType) String() string {
 	return "unknow"
 }
 
-type UserActionType int
+type UserActionType uint8
 
 const (
 	UserActionTypeNone UserActionType = iota
 	UserActionInit                    // 初始化
 	UserActionInitResp                // 初始化返回
-	UserActionSend                    // 发送消息
-	UserActionPing                    // 发送ping消息
+	UserActionConnect                 // 连接
+
+	UserActionAuth     // 认证
+	UserActionAuthResp // 认证返回
+
+	UserActionSend // 发送消息
+	UserActionPing // 发送ping消息
 	UserActionPingResp
 	UserActionRecvack            // 发送recvack消息
 	UserActionRecvackResp        // 发送recvack消息返回
-	UserActionForwardRecvack     // 转发recvack包给领导节点
 	UserActionForwardRecvackResp // 转发返回
 	UserActionRecv               // 接收消息
 	UserActionRecvResp           // 接受消息返回
+
+	UserActionForward     // 转发action
+	UserActionForwardResp // 转发action返回
+
+	UserActionLeaderChange // 领导变更
 )
 
 func (u UserActionType) String() string {
@@ -123,6 +132,8 @@ func (u UserActionType) String() string {
 		return "UserActionInit"
 	case UserActionSend:
 		return "UserActionSend"
+	case UserActionInitResp:
+		return "UserActionInitResp"
 	case UserActionPing:
 		return "UserActionPing"
 	case UserActionPingResp:
@@ -135,10 +146,20 @@ func (u UserActionType) String() string {
 		return "UserActionRecv"
 	case UserActionRecvResp:
 		return "UserActionRecvResp"
-	case UserActionForwardRecvack:
-		return "UserActionForwardRecvack"
+	case UserActionForward:
+		return "UserActionForward"
 	case UserActionForwardRecvackResp:
 		return "UserActionForwardRecvackResp"
+	case UserActionForwardResp:
+		return "UserActionForwardResp"
+	case UserActionLeaderChange:
+		return "UserActionLeaderChange"
+	case UserActionConnect:
+		return "UserActionConnect"
+	case UserActionAuth:
+		return "UserActionAuth"
+	case UserActionAuthResp:
+		return "UserActionAuthResp"
 
 	}
 	return "unknow"

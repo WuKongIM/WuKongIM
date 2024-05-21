@@ -328,7 +328,7 @@ func (s *Server) onData(conn wknet.Conn) error {
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
 		connCtx = connCtxObj.(*connContext)
-		isAuth = true
+		isAuth = connCtx.isAuth.Load()
 	} else {
 		isAuth = false
 	}
@@ -349,9 +349,25 @@ func (s *Server) onData(conn wknet.Conn) error {
 			conn.Close()
 			return nil
 		}
+		connectPacket := packet.(*wkproto.ConnectPacket)
+		sub := s.userReactor.reactorSub(connectPacket.UID)
+		connInfo := connInfo{
+			connId:       conn.ID(),
+			uid:          connectPacket.UID,
+			deviceId:     connectPacket.DeviceID,
+			deviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
+			protoVersion: connectPacket.Version,
+		}
+		connCtx = newConnContext(connInfo, conn, sub)
+		conn.SetContext(connCtx)
+
+		s.userReactor.addConnContext(connCtx)
+
+		connCtx.addConnectPacket(connectPacket)
+
 		//  process conn auth
 		_, _ = conn.Discard(len(data))
-		s.processAuth(conn, packet.(*wkproto.ConnectPacket))
+		// s.processAuth(conn, packet.(*wkproto.ConnectPacket))
 	} else {
 		offset := 0
 		for len(data) > offset {
@@ -385,7 +401,7 @@ func (s *Server) onConnect(conn wknet.Conn) error {
 func (s *Server) onClose(conn wknet.Conn) {
 	connCtx := conn.Context()
 	if connCtx != nil {
-		s.userReactor.removeConnContextById(connCtx.(*connContext).uid, connCtx.(*connContext).id)
+		s.userReactor.removeConnContextById(connCtx.(*connContext).uid, connCtx.(*connContext).connId)
 	}
 }
 
@@ -486,13 +502,13 @@ func (s *Server) flushConnData(conn wknet.Conn) {
 	}
 }
 
-func (s *Server) responseConnackAuthFail(c wknet.Conn) {
+func (s *Server) responseConnackAuthFail(c *connContext) {
 	s.responseConnack(c, 0, wkproto.ReasonAuthFail)
 }
 
-func (s *Server) responseConnack(c wknet.Conn, timeDiff int64, code wkproto.ReasonCode) {
+func (s *Server) responseConnack(c *connContext, timeDiff int64, code wkproto.ReasonCode) {
 
-	s.responseWithConn(c, &wkproto.ConnackPacket{
+	s.response(c, &wkproto.ConnackPacket{
 		ReasonCode: code,
 		TimeDiff:   timeDiff,
 	})

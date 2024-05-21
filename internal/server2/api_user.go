@@ -291,7 +291,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		oldConns := u.s.userReactor.getConnContextByDeviceFlag(req.UID, req.DeviceFlag)
 		if len(oldConns) > 0 {
 			for _, oldConn := range oldConns {
-				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.id), zap.String("deviceFlag", req.DeviceFlag.String()))
+				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.connId), zap.String("deviceFlag", req.DeviceFlag.String()))
 				_ = u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
 					ReasonCode: wkproto.ReasonConnectKick,
 					Reason:     "账号在其他设备上登录",

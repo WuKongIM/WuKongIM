@@ -11,11 +11,14 @@ import (
 )
 
 type userReactor struct {
-	processPingC    chan *pingReq
-	processRecvackC chan *recvackReq
-	processWriteC   chan *writeReq
-	processInitC    chan *userInitReq
-	stopper         *syncutil.Stopper
+	processInitC    chan *userInitReq // 初始化请求
+	processAuthC    chan *userAuthReq // 认证请求
+	processPingC    chan *pingReq     // ping请求
+	processRecvackC chan *recvackReq  // recvack请求
+	processWriteC   chan *writeReq    // 写请求
+
+	processForwardUserActionC chan *UserAction // 转发用户行为请求
+	stopper                   *syncutil.Stopper
 	wklog.Log
 	s    *Server
 	subs []*userReactorSub
@@ -24,13 +27,15 @@ type userReactor struct {
 
 func newUserReactor(s *Server) *userReactor {
 	u := &userReactor{
-		processPingC:    make(chan *pingReq, 1024),
-		processRecvackC: make(chan *recvackReq, 1024),
-		processWriteC:   make(chan *writeReq, 1024),
-		processInitC:    make(chan *userInitReq, 1024),
-		stopper:         syncutil.NewStopper(),
-		Log:             wklog.NewWKLog("userReactor"),
-		s:               s,
+		processInitC:              make(chan *userInitReq, 1024),
+		processAuthC:              make(chan *userAuthReq, 1024),
+		processPingC:              make(chan *pingReq, 1024),
+		processRecvackC:           make(chan *recvackReq, 1024),
+		processWriteC:             make(chan *writeReq, 1024),
+		processForwardUserActionC: make(chan *UserAction, 1024),
+		stopper:                   syncutil.NewStopper(),
+		Log:                       wklog.NewWKLog("userReactor"),
+		s:                         s,
 	}
 
 	u.subs = make([]*userReactorSub, s.opts.Reactor.UserSubCount)
@@ -44,9 +49,11 @@ func newUserReactor(s *Server) *userReactor {
 
 func (u *userReactor) start() error {
 	u.stopper.RunWorker(u.processInitLoop)
+	u.stopper.RunWorker(u.processAuthLoop)
 	u.stopper.RunWorker(u.processPingLoop)
 	u.stopper.RunWorker(u.processWriteLoop)
 	u.stopper.RunWorker(u.processRecvackLoop)
+	u.stopper.RunWorker(u.processForwardUserActionLoop)
 
 	for _, sub := range u.subs {
 		err := sub.start()

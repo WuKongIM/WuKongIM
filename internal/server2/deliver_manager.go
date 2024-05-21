@@ -241,14 +241,20 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				if !recvPacket.NoPersist { // 只有存储的消息才重试
 					d.dm.s.retryManager.addRetry(&retryMessage{
 						uid:            toUid,
-						connId:         conn.id,
+						connId:         conn.connId,
 						messageId:      message.MessageId,
 						recvPacketData: recvPacketData,
 					})
 				}
 
 				// 写入包
-				conn.write(recvPacketData)
+				err = conn.write(recvPacketData)
+				if err != nil {
+					d.Error("write recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
+					if !conn.isClosed() {
+						conn.close() // 写入不进去就关闭连接，这样客户端会获取离线的，如果不关闭，会导致丢消息的假象
+					}
+				}
 			}
 		}
 

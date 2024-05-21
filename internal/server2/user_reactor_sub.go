@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -59,6 +60,8 @@ func (u *userReactorSub) loop() {
 				if req.waitC != nil {
 					req.waitC <- err
 				}
+			} else {
+				u.Warn("loop: user not found", zap.String("uid", req.uid), zap.String("action", req.action.ActionType.String()))
 			}
 		case <-u.stopper.ShouldStop():
 			return
@@ -79,9 +82,22 @@ func (u *userReactorSub) step(uid string, action *UserAction) {
 	}
 }
 
+func (u *userReactorSub) stepNoWait(uid string, action *UserAction) error {
+	select {
+	case u.stepUserC <- stepUser{
+		uid:    uid,
+		action: action,
+		waitC:  nil,
+	}:
+	default:
+		return errors.New("stepUserC full")
+	}
+	return nil
+}
+
 func (u *userReactorSub) proposeSend(conn *connContext, sendPacket *wkproto.SendPacket) error {
 
-	return u.r.s.channelReactor.proposeSend(conn.uid, conn.deviceId, conn.id, u.r.s.opts.Cluster.NodeId, true, sendPacket)
+	return u.r.s.channelReactor.proposeSend(conn.uid, conn.deviceId, conn.connId, u.r.s.opts.Cluster.NodeId, true, sendPacket)
 }
 
 func (u *userReactorSub) stepWait(uid string, action *UserAction) error {
@@ -121,6 +137,11 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 			u.r.addInitReq(&userInitReq{
 				uid: uh.uid,
 			})
+		case UserActionAuth: // 用户连接认证请求
+			u.r.addAuthReq(&userAuthReq{
+				uid:      uh.uid,
+				messages: action.Messages,
+			})
 		case UserActionPing: // 用户发送ping
 			u.r.addPingReq(&pingReq{
 				uid:      uh.uid,
@@ -136,6 +157,8 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 				uid:      uh.uid,
 				messages: action.Messages,
 			})
+		case UserActionForward: // 转发action
+			u.r.addForwardUserActionReq(action)
 		default:
 			u.Error("unknown action type", zap.String("actionType", action.ActionType.String()))
 		}
@@ -163,6 +186,8 @@ func (u *userReactorSub) addUserIfNotExist(h *userHandler) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.getUser(h.uid) == nil {
+		fmt.Println("addUserIfNotExist--->", h.uid)
+		u.Info("addUserIfNotExist...", zap.String("uid", h.uid))
 		u.users.add(h)
 	}
 }
@@ -232,6 +257,7 @@ func (u *userReactorSub) removeConnContext(uid string, deviceId string) {
 	if uh == nil {
 		return
 	}
+	fmt.Println("removeConnContext--->", uid, deviceId)
 	uh.removeConn(deviceId)
 
 	if uh.getConnCount() <= 0 {
@@ -283,8 +309,7 @@ func (u *userReactorSub) writePacket(conn *connContext, packet wkproto.Frame) er
 	if err != nil {
 		return err
 	}
-	conn.write(data)
-	return nil
+	return conn.write(data)
 }
 
 type stepUser struct {
