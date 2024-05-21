@@ -11,7 +11,11 @@ import (
 type userHandler struct {
 	uid     string
 	actions []*UserAction
-	conns   []*connContext
+
+	authing   bool          // 正在认证
+	authQueue *userMsgQueue // 认证消息队列
+
+	conns []*connContext
 
 	sendPing  bool          // 正在发送ping
 	pingQueue *userMsgQueue // ping消息队列
@@ -42,6 +46,7 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 
 	return &userHandler{
 		uid:          uid,
+		authQueue:    newUserMsgQueue(fmt.Sprintf("user:auth:%s", uid)),
 		pingQueue:    newUserMsgQueue(fmt.Sprintf("user:ping:%s", uid)),
 		recvackQueue: newUserMsgQueue(fmt.Sprintf("user:recvack:%s", uid)),
 		recvMsgQueue: newUserMsgQueue(fmt.Sprintf("user:recv:%s", uid)),
@@ -55,19 +60,17 @@ func (u *userHandler) hasReady() bool {
 		return u.status != userStatusInitializing
 	}
 
+	if u.hasAuth() {
+		return true
+	}
+	if u.hasRecvack() {
+		return true
+	}
+	if u.hasRecvMsg() {
+		return true
+	}
 	if u.role == userRoleLeader {
 		if u.hasPing() {
-			return true
-		}
-		if u.hasRecvack() {
-			return true
-		}
-
-		if u.hasRecvMsg() {
-			return true
-		}
-	} else {
-		if u.hasForwardRecvack() {
 			return true
 		}
 	}
@@ -84,6 +87,12 @@ func (u *userHandler) ready() userReady {
 		u.actions = append(u.actions, &UserAction{ActionType: UserActionInit})
 	} else {
 		if u.role == userRoleLeader {
+			// 连接认证
+			if u.hasAuth() {
+				u.authing = true
+				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
+				u.actions = append(u.actions, &UserAction{ActionType: UserActionAuth, Messages: msgs})
+			}
 			// 发送ping
 			if u.hasPing() {
 				u.sendPing = true
@@ -98,18 +107,43 @@ func (u *userHandler) ready() userReady {
 				u.actions = append(u.actions, &UserAction{ActionType: UserActionRecvack, Messages: msgs})
 			}
 
-			// 接受消息
-			if u.hasRecvMsg() {
-				u.recvMsging = true
-				msgs := u.recvMsgQueue.sliceWithSize(u.recvMsgQueue.processingIndex+1, u.recvMsgQueue.lastIndex+1, 0)
-				u.actions = append(u.actions, &UserAction{ActionType: UserActionRecv, Messages: msgs})
-			}
 		} else {
-			if u.hasForwardRecvack() {
+			// 转发用户action
+			if u.hasRecvack() {
 				u.forwardRecvacking = true
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
-				u.actions = append(u.actions, &UserAction{ActionType: UserActionForwardRecvack, Messages: msgs})
+				u.actions = append(u.actions, &UserAction{
+					ActionType: UserActionForward,
+					Uid:        u.uid,
+					LeaderId:   u.leaderId,
+					Forward: &UserAction{
+						ActionType: UserActionSend,
+						Uid:        u.uid,
+						Messages:   msgs,
+					}})
 			}
+			// 转发连接认证消息
+			if u.hasAuth() {
+				u.authing = true
+				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
+				u.actions = append(u.actions, &UserAction{
+					ActionType: UserActionForward,
+					Uid:        u.uid,
+					LeaderId:   u.leaderId,
+					Forward: &UserAction{
+						ActionType: UserActionConnect,
+						Uid:        u.uid,
+						Messages:   msgs,
+					},
+				})
+			}
+
+		}
+		// 接受消息
+		if u.hasRecvMsg() {
+			u.recvMsging = true
+			msgs := u.recvMsgQueue.sliceWithSize(u.recvMsgQueue.processingIndex+1, u.recvMsgQueue.lastIndex+1, 0)
+			u.actions = append(u.actions, &UserAction{ActionType: UserActionRecv, Messages: msgs})
 		}
 
 	}
@@ -128,11 +162,11 @@ func (u *userHandler) hasRecvack() bool {
 	return u.recvackQueue.processingIndex < u.recvackQueue.lastIndex
 }
 
-func (u *userHandler) hasForwardRecvack() bool {
-	if u.forwardRecvacking {
+func (u *userHandler) hasAuth() bool {
+	if u.authing {
 		return false
 	}
-	return u.recvackQueue.processingIndex < u.recvackQueue.lastIndex
+	return u.authQueue.processingIndex < u.authQueue.lastIndex
 }
 
 func (u *userHandler) hasPing() bool {
@@ -194,11 +228,13 @@ func (u *userHandler) reset() {
 	u.pingQueue.processingIndex = 0
 	u.recvackQueue.processingIndex = 0
 	u.recvMsgQueue.processingIndex = 0
+	u.authQueue.processingIndex = 0
 
 	u.sendPing = false
 	u.sendRecvacking = false
 	u.recvMsging = false
 	u.forwardRecvacking = false
+	u.authing = false
 
 	// 将ping和recvack队列里的数据清空掉，因为这些数据已无意义
 	// 但是recvMsgQueue里的数据还是有意义的，因为这些数据是需要投递给用户的
@@ -231,7 +267,7 @@ func (u *userHandler) getConnById(id int64) *connContext {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
 	for _, c := range u.conns {
-		if c.id == id {
+		if c.connId == id {
 			return c
 		}
 	}
@@ -265,7 +301,7 @@ func (u *userHandler) removeConnById(id int64) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	for i, c := range u.conns {
-		if c.id == id {
+		if c.connId == id {
 			u.conns = append(u.conns[:i], u.conns[i+1:]...)
 			return
 		}
@@ -291,8 +327,86 @@ type userReady struct {
 
 type UserAction struct {
 	ActionType UserActionType
+	Uid        string
 	Messages   []*ReactorUserMessage
 	LeaderId   uint64 // 用户所在的领导节点
+	Conn       *connContext
 	Index      uint64
 	Reason     Reason
+
+	Forward *UserAction
+}
+
+func (u *UserAction) MarshalWithEncoder(enc *wkproto.Encoder) error {
+	enc.WriteUint8(uint8(u.ActionType))
+	enc.WriteString(u.Uid)
+	enc.WriteInt32(int32(len(u.Messages)))
+	for _, m := range u.Messages {
+		err := m.MarshalWithEncoder(enc)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (u *UserAction) UnmarshalWithDecoder(dec *wkproto.Decoder) error {
+	var err error
+	var t uint8
+
+	// type
+	if t, err = dec.Uint8(); err != nil {
+		return err
+	}
+	u.ActionType = UserActionType(t)
+
+	// uid
+	if u.Uid, err = dec.String(); err != nil {
+		return err
+	}
+
+	// messages
+	var msgCount int32
+	if msgCount, err = dec.Int32(); err != nil {
+		return err
+	}
+	for i := 0; i < int(msgCount); i++ {
+		m := &ReactorUserMessage{}
+		if err = m.UnmarshalWithDecoder(dec); err != nil {
+			return err
+		}
+		u.Messages = append(u.Messages, m)
+	}
+	return nil
+}
+
+type UserActionSet []*UserAction
+
+func (u UserActionSet) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteInt32(int32(len(u)))
+	for _, a := range u {
+		if err := a.MarshalWithEncoder(enc); err != nil {
+			return nil, err
+		}
+	}
+	return enc.Bytes(), nil
+}
+
+func (u *UserActionSet) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var count int32
+	if count, err = dec.Int32(); err != nil {
+		return err
+	}
+	for i := 0; i < int(count); i++ {
+		a := &UserAction{}
+		if err = a.UnmarshalWithDecoder(dec); err != nil {
+			return err
+		}
+		*u = append(*u, a)
+	}
+	return nil
 }

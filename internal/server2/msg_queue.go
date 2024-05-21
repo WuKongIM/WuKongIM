@@ -184,6 +184,9 @@ func (m *userMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []*Re
 	if lo == hi {
 		return nil
 	}
+	if maxSize == 0 {
+		return m.slice(lo, hi)
+	}
 	if lo >= m.offset {
 		logs := m.slice(lo, hi)
 		return limitSizeWithUser(logs, maxSize)

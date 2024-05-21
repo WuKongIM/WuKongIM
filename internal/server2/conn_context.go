@@ -9,7 +9,8 @@ import (
 )
 
 type connInfo struct {
-	id           int64
+	connId       int64 // 连接在本节点的id
+	proxyConnId  int64 // 连接在代理节点的id
 	uid          string
 	deviceId     string
 	deviceFlag   wkproto.DeviceFlag
@@ -19,6 +20,8 @@ type connInfo struct {
 	protoVersion uint8
 
 	closed atomic.Bool
+
+	isAuth atomic.Bool // 是否已经认证
 }
 
 type connContext struct {
@@ -53,13 +56,30 @@ func (c *connContext) addOtherPacket(packet wkproto.Frame) {
 		ActionType: UserActionSend,
 		Messages: []*ReactorUserMessage{
 			{
-				ConnId:   c.id,
-				Uid:      c.uid,
-				DeviceId: c.deviceId,
-				InPacket: packet,
+				ConnId:     c.connId,
+				DeviceId:   c.deviceId,
+				InPacket:   packet,
+				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
 			},
 		},
 	})
+}
+
+func (c *connContext) addConnectPacket(packet *wkproto.ConnectPacket) {
+	err := c.subReactor.stepNoWait(c.uid, &UserAction{
+		ActionType: UserActionConnect,
+		Messages: []*ReactorUserMessage{
+			{
+				ConnId:     c.connId,
+				DeviceId:   c.deviceId,
+				InPacket:   packet,
+				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
+			},
+		},
+	})
+	if err != nil {
+		wklog.Error("addConnectPacket error", zap.String("uid", c.uid), zap.Error(err))
+	}
 }
 
 func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
@@ -67,15 +87,15 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 	_ = c.subReactor.proposeSend(c, packet)
 }
 
-func (c *connContext) write(d []byte) {
-	c.subReactor.step(c.uid, &UserAction{
+func (c *connContext) write(d []byte) error {
+	return c.subReactor.stepNoWait(c.uid, &UserAction{
 		ActionType: UserActionRecv,
 		Messages: []*ReactorUserMessage{
 			{
-				ConnId:   c.id,
-				Uid:      c.uid,
-				DeviceId: c.deviceId,
-				OutBytes: d,
+				ConnId:     c.connId,
+				DeviceId:   c.deviceId,
+				OutBytes:   d,
+				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
 			},
 		},
 	})

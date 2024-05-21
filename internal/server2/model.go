@@ -174,17 +174,87 @@ func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
 }
 
 type ReactorUserMessage struct {
-	ConnId   int64         // 连接id
-	Uid      string        // 用户ID
-	DeviceId string        // 设备ID
-	InPacket wkproto.Frame // 输入的包
-	OutBytes []byte        // 需要输出的字节
-	Index    uint64        // 消息下标
+	FromNodeId uint64        // 源节点Id
+	ConnId     int64         // 连接id
+	DeviceId   string        // 设备ID
+	InPacket   wkproto.Frame // 输入的包
+	OutBytes   []byte        // 需要输出的字节
+	Index      uint64        // 消息下标
+
 }
 
+// 这个大小是不准确的，只是一个大概的值，目的是计算传输的数据量
 func (m *ReactorUserMessage) Size() uint64 {
+	var size uint64 = 0
+	size += 8 // ConnId
+	size += (uint64(len(m.DeviceId)) + 2)
+	if m.InPacket != nil {
+		size += (1 + uint64(m.InPacket.GetRemainingLength()) + 2)
+	} else {
+		size += (1 + uint64(len(m.OutBytes))) + 2
+	}
 
-	return 0
+	return size
+}
+
+func (m *ReactorUserMessage) MarshalWithEncoder(encoder *wkproto.Encoder) error {
+	encoder.WriteUint64(m.FromNodeId)
+	encoder.WriteInt64(m.ConnId)
+	encoder.WriteString(m.DeviceId)
+
+	var packetData []byte
+	var err error
+	if m.InPacket != nil {
+		packetData, err = defaultWkproto.EncodeFrame(m.InPacket, defaultProtoVersion)
+		if err != nil {
+			return err
+		}
+	}
+	if len(packetData) > 0 {
+		encoder.WriteUint8(1) // 有包数据
+		encoder.WriteBinary(packetData)
+	} else {
+		encoder.WriteUint8(0) // 没包数据
+		encoder.WriteBinary(m.OutBytes)
+	}
+	return nil
+}
+
+func (m *ReactorUserMessage) UnmarshalWithDecoder(decoder *wkproto.Decoder) error {
+	var err error
+	if m.FromNodeId, err = decoder.Uint64(); err != nil {
+		return err
+	}
+
+	if m.ConnId, err = decoder.Int64(); err != nil {
+		return err
+	}
+	if m.DeviceId, err = decoder.String(); err != nil {
+		return err
+	}
+
+	hasPacket, err := decoder.Uint8()
+	if err != nil {
+		return err
+	}
+	if hasPacket == 1 {
+		packetData, err := decoder.Binary()
+		if err != nil {
+			return err
+		}
+		packet, _, err := defaultWkproto.DecodeFrame(packetData, defaultProtoVersion)
+		if err != nil {
+			return err
+		}
+		m.InPacket = packet
+	} else {
+		m.OutBytes, err = decoder.Binary()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+
 }
 
 type ChannelAction struct {
