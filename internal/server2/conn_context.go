@@ -52,6 +52,8 @@ func newConnContextProxy(realNodeId uint64, connInfo connInfo, subReactor *userR
 }
 
 func (c *connContext) addOtherPacket(packet wkproto.Frame) {
+
+	// fmt.Println("addOtherPacket....", zap.String("frameType", packet.GetFrameType().String()))
 	c.subReactor.step(c.uid, &UserAction{
 		ActionType: UserActionSend,
 		Messages: []*ReactorUserMessage{
@@ -88,7 +90,7 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 }
 
 func (c *connContext) write(d []byte) error {
-	return c.subReactor.stepNoWait(c.uid, &UserAction{
+	c.subReactor.step(c.uid, &UserAction{
 		ActionType: UserActionRecv,
 		Messages: []*ReactorUserMessage{
 			{
@@ -99,6 +101,7 @@ func (c *connContext) write(d []byte) error {
 			},
 		},
 	})
+	return nil
 }
 
 func (c *connContext) close() {

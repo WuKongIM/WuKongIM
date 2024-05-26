@@ -145,8 +145,11 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 			})
 		case ChannelActionDeliver: // 消息投递
 			r.r.addDeliverReq(&deliverReq{
-				ch:       ch,
-				messages: action.Messages,
+				ch:          ch,
+				channelId:   ch.channelId,
+				channelType: ch.channelType,
+				tagKey:      ch.receiverTagKey.Load(),
+				messages:    action.Messages,
 			})
 		case ChannelActionSendack: // 发送回执
 			r.r.addSendackReq(&sendackReq{

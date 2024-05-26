@@ -1,9 +1,5 @@
 package server
 
-import (
-	"fmt"
-)
-
 func (c *channel) step(a *ChannelAction) error {
 
 	switch a.ActionType {
@@ -19,8 +15,10 @@ func (c *channel) step(a *ChannelAction) error {
 		} else {
 			c.status = channelStatusUninitialized
 		}
+		// c.Info("channel init resp", zap.Int("status", int(c.status)), zap.Uint64("leaderId", c.leaderId))
 	case ChannelActionSend: // 发送
 		c.appendMessage(a.Messages...) // 消息是按照发送者分组的，所以取第一个即可
+		// c.Info("channel send", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	case ChannelActionPayloadDecryptResp: // paylaod解密
 		c.payloadDecrypting = false
 		if len(a.Messages) == 0 {
@@ -39,6 +37,7 @@ func (c *channel) step(a *ChannelAction) error {
 				}
 			}
 		}
+		// c.Info("channel payload decrypt resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	default:
 		if c.stepFnc != nil {
 			return c.stepFnc(a)
@@ -52,13 +51,10 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionPermissionCheckResp: // 权限校验返回
 		c.permissionChecking = false
-		if len(a.Messages) == 0 {
-			return nil
+		if a.Index > c.msgQueue.permissionCheckedIndex {
+			c.msgQueue.permissionCheckedIndex = a.Index
 		}
-		lastMsg := a.Messages[len(a.Messages)-1]
-		if lastMsg.Index > c.msgQueue.permissionCheckedIndex {
-			c.msgQueue.permissionCheckedIndex = lastMsg.Index
-		}
+		// c.Info("channel permission check resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 	case ChannelActionStorageResp: // 存储完成
 		c.storaging = false
@@ -72,17 +68,15 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 		// 消息存储完毕后，需要通知发送者
 		c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
 
+		// c.Info("channel storage resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+
 	case ChannelActionDeliverResp: // 消息投递返回
 		c.delivering = false
-		if len(a.Messages) == 0 {
-			fmt.Println("messages is empty")
-			return nil
+		if a.Index > c.msgQueue.deliveredIndex {
+			c.msgQueue.deliveredIndex = a.Index
+			c.msgQueue.truncateTo(a.Index)
 		}
-		lastMsg := a.Messages[len(a.Messages)-1]
-		if lastMsg.Index > c.msgQueue.deliveredIndex {
-			c.msgQueue.deliveredIndex = lastMsg.Index
-			c.msgQueue.truncateTo(lastMsg.Index)
-		}
+		// c.Info("channel deliver resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	}
 
 	return nil

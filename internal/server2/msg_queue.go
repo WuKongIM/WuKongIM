@@ -214,3 +214,82 @@ func limitSizeWithUser(messages []*ReactorUserMessage, maxSize uint64) []*Reacto
 	}
 	return messages
 }
+
+// 投递消息队列
+type deliverMsgQueue struct {
+	messages         []*ReactorChannelMessage
+	offset           uint64
+	offsetInProgress uint64
+	wklog.Log
+
+	lastIndex uint64 // 最新下标
+
+	deliveringIndex uint64 // 正在投递的下标
+	deliveredIndex  uint64 // 已投递的下标
+
+}
+
+func newDeliverMsgQueue(prefix string) *deliverMsgQueue {
+	return &deliverMsgQueue{
+		Log:              wklog.NewWKLog(fmt.Sprintf("node.msgQueue[%s]", prefix)),
+		offset:           1, // 消息下标是从1开始的 所以offset初始化值为1
+		offsetInProgress: 1,
+	}
+}
+
+// truncateTo 裁剪index之前的消息
+func (m *deliverMsgQueue) truncateTo(index uint64) {
+	num := int(index + 1 - m.offset)
+	m.messages = m.messages[num:]
+	m.offset = index + 1
+	m.offsetInProgress = max(m.offsetInProgress, m.offset)
+	m.shrinkMessagesArray()
+}
+
+func (m *deliverMsgQueue) appendMessage(message *ReactorChannelMessage) {
+	m.messages = append(m.messages, message)
+	m.lastIndex++
+}
+
+func (m *deliverMsgQueue) shrinkMessagesArray() {
+	const lenMultiple = 2
+	if len(m.messages) == 0 {
+		m.messages = nil
+	} else if len(m.messages)*lenMultiple < cap(m.messages) {
+		newMessages := make([]*ReactorChannelMessage, len(m.messages))
+		copy(newMessages, m.messages)
+		m.messages = newMessages
+	}
+}
+
+func (m *deliverMsgQueue) acceptInProgress() {
+	if len(m.messages) > 0 {
+		m.offsetInProgress = m.messages[len(m.messages)-1].Index + 1
+	}
+}
+
+func (m *deliverMsgQueue) slice(lo uint64, hi uint64) []*ReactorChannelMessage {
+
+	return m.messages[lo-m.offset : hi-m.offset : hi-m.offset]
+}
+
+func (m *deliverMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []*ReactorChannelMessage {
+	if lo == hi {
+		return nil
+	}
+	if lo >= m.offset {
+		msgs := m.slice(lo, hi)
+		if maxSize == 0 {
+			return msgs
+		}
+		return limitSize(msgs, maxSize)
+	}
+	return nil
+}
+
+func (m *deliverMsgQueue) first() *ReactorChannelMessage {
+	if len(m.messages) == 0 {
+		return nil
+	}
+	return m.messages[0]
+}

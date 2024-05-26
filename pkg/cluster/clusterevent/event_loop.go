@@ -11,7 +11,7 @@ import (
 
 func (s *Server) loop() {
 	tk := time.NewTicker(time.Millisecond * 250)
-	for {
+	for !s.stopped.Load() {
 		if s.hasReady() {
 			msgs := s.ready()
 			s.opts.Ready(msgs)

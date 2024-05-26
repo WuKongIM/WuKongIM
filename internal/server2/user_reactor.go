@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -18,10 +19,13 @@ type userReactor struct {
 	processWriteC   chan *writeReq    // 写请求
 
 	processForwardUserActionC chan *UserAction // 转发用户行为请求
-	stopper                   *syncutil.Stopper
+
+	stopper *syncutil.Stopper
 	wklog.Log
 	s    *Server
 	subs []*userReactorSub
+
+	stopped atomic.Bool
 	// mu   deadlock.RWMutex
 }
 
@@ -48,12 +52,15 @@ func newUserReactor(s *Server) *userReactor {
 }
 
 func (u *userReactor) start() error {
-	u.stopper.RunWorker(u.processInitLoop)
-	u.stopper.RunWorker(u.processAuthLoop)
-	u.stopper.RunWorker(u.processPingLoop)
-	u.stopper.RunWorker(u.processWriteLoop)
-	u.stopper.RunWorker(u.processRecvackLoop)
-	u.stopper.RunWorker(u.processForwardUserActionLoop)
+
+	for i := 0; i < 100; i++ {
+		u.stopper.RunWorker(u.processInitLoop)
+		u.stopper.RunWorker(u.processAuthLoop)
+		u.stopper.RunWorker(u.processPingLoop)
+		u.stopper.RunWorker(u.processWriteLoop)
+		u.stopper.RunWorker(u.processRecvackLoop)
+		u.stopper.RunWorker(u.processForwardUserActionLoop)
+	}
 
 	for _, sub := range u.subs {
 		err := sub.start()
@@ -68,7 +75,7 @@ func (u *userReactor) start() error {
 func (u *userReactor) stop() {
 
 	u.Info("UserReactor stop")
-
+	u.stopped.Store(true)
 	u.stopper.Stop()
 
 	fmt.Println("userReactor stop--->1")

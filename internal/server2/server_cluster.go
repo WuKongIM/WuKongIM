@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,7 +38,14 @@ func (s *Server) setClusterRoutes() {
 	// 转发userAction
 	s.cluster.Route("/wk/userAction", s.handleUserAction)
 
+	// 用户认证结果（这个是领导节点认证通过后，通知代理节点的结果）
 	s.cluster.Route("/wk/userAuthResult", s.handleUserAuthResult)
+
+	// 投递消息（将需要投递的消息转发给对应用户的逻辑节点）
+	s.cluster.Route("/wk/deliver", s.handleDeliver)
+
+	// 通过tag获取当前节点需要投递的用户集合
+	s.cluster.Route("/wk/getNodeUidsByTag", s.getNodeUidsByTag)
 }
 
 func (s *Server) handleChannelForward(c *wkserver.Context) {
@@ -48,8 +56,6 @@ func (s *Server) handleChannelForward(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
-
-	fmt.Println("handleChannelForward--->", len(reactorChannelMessageSet))
 
 	if len(reactorChannelMessageSet) == 0 {
 		c.WriteOk()
@@ -75,8 +81,6 @@ func (s *Server) handleChannelForward(c *wkserver.Context) {
 		c.WriteErrorAndStatus(err, proto.Status(errCodeNotIsChannelLeader))
 		return
 	}
-	lastMsg := reactorChannelMessageSet[len(reactorChannelMessageSet)-1]
-	fmt.Println("handleChannelForward--->", lastMsg.MessageId)
 	for _, reactorChannelMessage := range reactorChannelMessageSet {
 		sendPacket := reactorChannelMessage.SendPacket
 		// 提案频道消息
@@ -110,7 +114,7 @@ func (s *Server) handleForwardSendack(c *wkserver.Context) {
 		conn := s.userReactor.getConnContextById(forwardSendackPacket.Uid, forwardSendackPacket.ConnId)
 		if conn == nil {
 			s.Error("handleForwardSendack: conn not found", zap.String("uid", forwardSendackPacket.Uid), zap.Int64("connId", forwardSendackPacket.ConnId))
-			c.WriteErr(err)
+			c.WriteErr(errors.New("conn not found"))
 			return
 		}
 
@@ -141,7 +145,7 @@ func (s *Server) handleConnWrite(c *wkserver.Context) {
 	conn := s.userReactor.getConnContextById(fowardWriteReq.Uid, fowardWriteReq.ConnId)
 	if conn == nil {
 		s.Error("handleConnWrite: conn not found", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
-		c.WriteErr(err)
+		c.WriteErr(errors.New("conn not found"))
 		return
 	}
 	if conn.conn == nil {
@@ -244,5 +248,87 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 	}
 
 	c.WriteOk()
+
+}
+
+func (s *Server) handleDeliver(c *wkserver.Context) {
+	var channelMsgSet ChannelMessagesSet
+	err := channelMsgSet.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("handleDeliver Unmarshal err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	for _, channelMsg := range channelMsgSet {
+		s.deliverManager.deliver(&deliverReq{
+			channelId:   channelMsg.ChannelId,
+			channelType: channelMsg.ChannelType,
+			channelKey:  ChannelToKey(channelMsg.ChannelId, channelMsg.ChannelType),
+			messages:    channelMsg.Messages,
+			tagKey:      channelMsg.TagKey,
+		})
+	}
+	c.WriteOk()
+}
+
+func (s *Server) getNodeUidsByTag(c *wkserver.Context) {
+	req := &tagReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("getNodeUidsByTag Unmarshal err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if req.channelId == "" {
+		c.WriteErr(ErrChannelIdIsEmpty)
+		return
+	}
+
+	if req.nodeId == 0 {
+		c.WriteErr(errors.New("node is 0"))
+		return
+	}
+
+	if req.tagKey == "" {
+		c.WriteErr(errors.New("tagKey is nil"))
+		return
+	}
+
+	isLeader, err := s.cluster.IsLeaderOfChannel(s.ctx, req.channelId, req.channelType)
+	if err != nil {
+		s.Error("getNodeUidsByTag: IsLeaderOfChannel failed", zap.Error(err), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+		c.WriteErr(err)
+		return
+	}
+	if !isLeader {
+		s.Error("getNodeUidsByTag: not is leader", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+		c.WriteErrorAndStatus(err, proto.Status(errCodeNotIsChannelLeader))
+		return
+	}
+
+	tag := s.tagManager.getReceiverTag(req.tagKey)
+	if tag == nil {
+		ch := s.channelReactor.loadOrCreateChannel(req.channelId, req.channelType)
+		tag, err = ch.makeReceiverTag()
+		if err != nil {
+			s.Error("getNodeUidsByTag: makeReceiverTag failed", zap.Error(err), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+			c.WriteErr(err)
+			return
+		}
+	}
+
+	var uids []string
+	for _, nodeUser := range tag.users {
+		if nodeUser.nodeId == req.nodeId {
+			uids = nodeUser.uids
+			break
+		}
+	}
+	var resp = &tagResp{
+		tagKey: tag.key,
+		uids:   uids,
+	}
+	c.Write(resp.Marshal())
 
 }

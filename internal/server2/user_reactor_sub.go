@@ -186,8 +186,6 @@ func (u *userReactorSub) addUserIfNotExist(h *userHandler) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.getUser(h.uid) == nil {
-		fmt.Println("addUserIfNotExist--->", h.uid)
-		u.Info("addUserIfNotExist...", zap.String("uid", h.uid))
 		u.users.add(h)
 	}
 }

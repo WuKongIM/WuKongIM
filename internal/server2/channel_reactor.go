@@ -54,23 +54,19 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		sub := newChannelReactorSub(i, r)
 		r.subs[i] = sub
 	}
+
 	return r
 }
 
 func (r *channelReactor) start() error {
 
-	r.stopper.RunWorker(r.processInitLoop)
-	r.stopper.RunWorker(r.processPayloadDecryptLoop)
-	r.stopper.RunWorker(r.processPermissionLoop)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
+		r.stopper.RunWorker(r.processInitLoop)
+		r.stopper.RunWorker(r.processPayloadDecryptLoop)
+		r.stopper.RunWorker(r.processPermissionLoop)
 		r.stopper.RunWorker(r.processStorageLoop)
-	}
-	r.stopper.RunWorker(r.processDeliverLoop)
-	for i := 0; i < 100; i++ {
+		r.stopper.RunWorker(r.processDeliverLoop)
 		r.stopper.RunWorker(r.processSendackLoop)
-	}
-
-	for i := 0; i < 100; i++ {
 		r.stopper.RunWorker(r.processForwardLoop)
 	}
 

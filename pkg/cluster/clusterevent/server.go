@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -37,6 +38,8 @@ type Server struct {
 	pongTickMapLock sync.RWMutex
 
 	preLearnCheckTime time.Time // 上次学习者检查时间
+
+	stopped atomic.Bool
 }
 
 func New(opts *Options) *Server {
@@ -86,6 +89,8 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
+	s.Info("Stopping clusterevent server...")
+	s.stopped.Store(true)
 	s.stopper.Stop()
 	s.cfgServer.Stop()
 }

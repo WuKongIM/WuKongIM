@@ -25,7 +25,7 @@ func (r *userReactor) addInitReq(req *userInitReq) {
 }
 
 func (r *userReactor) processInitLoop() {
-	for {
+	for !r.stopped.Load() {
 		select {
 		case req := <-r.processInitC:
 			r.processInit(req)
@@ -66,7 +66,7 @@ func (r *userReactor) addAuthReq(req *userAuthReq) {
 }
 
 func (r *userReactor) processAuthLoop() {
-	for {
+	for !r.stopped.Load() {
 		select {
 		case req := <-r.processAuthC:
 			r.processAuth(req)
@@ -98,10 +98,8 @@ func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.R
 	)
 	var connCtx *connContext
 	if msg.FromNodeId == r.s.opts.Cluster.NodeId {
-		fmt.Println("processAuth------>11")
 		connCtx = r.getConnContextById(uid, msg.ConnId)
 	} else {
-		fmt.Println("processAuth------>22")
 		sub := r.reactorSub(uid)
 		connInfo := connInfo{
 			connId:       r.s.engine.GenClientID(), // 分配一个本地的连接id
@@ -184,7 +182,6 @@ func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.R
 				if oldConn.connId == connCtx.connId { // 不能把自己踢了
 					continue
 				}
-				fmt.Println("remove----------1")
 				r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
 				if oldConn.deviceId != connectPacket.DeviceID {
 					r.Info("same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.deviceId))
@@ -205,7 +202,6 @@ func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.R
 		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceID踢掉
 			for _, oldConn := range oldConns {
 				if oldConn.connId != connCtx.connId && oldConn.deviceId == connectPacket.DeviceID {
-					fmt.Println("remove----------2", oldConn.connId, connCtx.connId)
 					r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
 					r.s.timingWheel.AfterFunc(time.Second*5, func() {
 						oldConn.close()
@@ -406,7 +402,7 @@ func (r *userReactor) addPingReq(req *pingReq) {
 func (r *userReactor) processPingLoop() {
 	reqs := make([]*pingReq, 0, 100)
 	done := false
-	for {
+	for !r.stopped.Load() {
 		select {
 		case req := <-r.processPingC:
 			reqs = append(reqs, req)
@@ -495,7 +491,7 @@ func (r *userReactor) addRecvackReq(req *recvackReq) {
 }
 
 func (r *userReactor) processRecvackLoop() {
-	for {
+	for !r.stopped.Load() {
 		select {
 		case req := <-r.processRecvackC:
 			r.processRecvack(req)
@@ -506,6 +502,23 @@ func (r *userReactor) processRecvackLoop() {
 }
 
 func (r *userReactor) processRecvack(req *recvackReq) {
+
+	// r.s.retryManager.removeRetry()
+
+	for _, msg := range req.messages {
+		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
+		r.Info("remove retry", zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
+		err := r.s.retryManager.removeRetry(msg.ConnId, recvackPacket.MessageID)
+		if err != nil {
+			r.Warn("removeRetry error", zap.Error(err), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
+		}
+	}
+	lastMsg := req.messages[len(req.messages)-1]
+	r.reactorSub(req.uid).step(req.uid, &UserAction{
+		ActionType: UserActionRecvackResp,
+		Index:      lastMsg.Index,
+		Reason:     ReasonSuccess,
+	})
 
 	// conn := r.getConnContext(req.fromUid, req.fromDeviceId)
 	// if conn == nil {
@@ -548,7 +561,7 @@ func (r *userReactor) addWriteReq(req *writeReq) {
 func (r *userReactor) processWriteLoop() {
 	reqs := make([]*writeReq, 0, 100)
 	done := false
-	for {
+	for !r.stopped.Load() {
 		select {
 		case req := <-r.processWriteC:
 			reqs = append(reqs, req)
@@ -610,7 +623,6 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 
 func (r *userReactor) handleWrite(req *writeReq) error {
 
-	fmt.Println("handleWrite---->", req.uid)
 	sub := r.reactorSub(req.uid)
 
 	var connDataMap = map[string][]byte{}
@@ -630,17 +642,14 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 		}
 
 		if conn.isRealConn { // 是真实节点直接返回数据
-			fmt.Println("isRealConn....")
 			connId := deviceIdConnIdMap[deviceId]
 			if connId == conn.connId {
-				fmt.Println("isRealConn222....", data)
 				r.s.responseData(conn.conn, data)
 			} else {
 				r.Warn("connId not match", zap.String("uid", req.uid), zap.Int64("expectConnId", connId), zap.Int64("actConnId", conn.connId))
 			}
 
 		} else { // 是代理连接，转发数据到真实连接
-			fmt.Println("fowardWriteReq---->")
 			err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
 				Uid:      req.uid,
 				DeviceId: deviceId,
@@ -692,7 +701,7 @@ func (r *userReactor) addForwardUserActionReq(action *UserAction) {
 func (r *userReactor) processForwardUserActionLoop() {
 	actions := make([]*UserAction, 0, 100)
 	done := false
-	for {
+	for !r.stopped.Load() {
 		select {
 		case req := <-r.processForwardUserActionC:
 			actions = append(actions, req)
@@ -715,7 +724,6 @@ func (r *userReactor) processForwardUserActionLoop() {
 }
 
 func (r *userReactor) processForwardUserAction(actions []*UserAction) {
-	fmt.Println("processForwardUserAction--->", len(actions))
 	userForwardActionMap := map[string][]*UserAction{} // 用户对应的action
 	userLeaderMap := map[string]uint64{}               // 用户对应的领导节点
 	// 按照用户分组
@@ -729,6 +737,7 @@ func (r *userReactor) processForwardUserAction(actions []*UserAction) {
 	var reason Reason
 	for uid, fowardActions := range userForwardActionMap {
 		leaderId := userLeaderMap[uid]
+
 		reason = ReasonSuccess
 		newLeaderId, err := r.handleForwardUserAction(uid, leaderId, fowardActions)
 		if err != nil {
@@ -752,6 +761,9 @@ func (r *userReactor) processForwardUserAction(actions []*UserAction) {
 			Reason:     reason,
 			Messages:   messages,
 		})
+		if err != nil {
+			r.Error("forwardUserActionPool.Submit error", zap.Error(err))
+		}
 
 	}
 
@@ -776,13 +788,9 @@ func (r *userReactor) handleForwardUserAction(uid string, leaderId uint64, actio
 }
 
 func (r *userReactor) forwardUserAction(nodeId uint64, actions []*UserAction) (bool, error) {
-	fmt.Println("forwardUserAction---->", nodeId, actions)
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
 
-	for _, action := range actions {
-		fmt.Println("action---->", action.ActionType.String())
-	}
 	actionSet := UserActionSet(actions)
 
 	data, err := actionSet.Marshal()

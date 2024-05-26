@@ -7,7 +7,9 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -39,6 +41,8 @@ type channel struct {
 	status   channelStatus // 频道状态
 	role     channelRole   // 频道角色
 	leaderId uint64        // 频道领导节点
+
+	receiverTagKey atomic.String // 当前频道的接受者的tag key
 
 	wklog.Log
 
@@ -128,6 +132,7 @@ func (c *channel) ready() ready {
 					c.msgQueue.permissionCheckingIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
 				}
+				// c.Info("permissionChecking...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 			}
 
 			// 如果有未存储的消息，则继续存储
@@ -139,6 +144,7 @@ func (c *channel) ready() ready {
 					c.msgQueue.storagingIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
 				}
+				// c.Info("storaging...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 			}
 
@@ -151,6 +157,7 @@ func (c *channel) ready() ready {
 					c.msgQueue.deliveringIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionDeliver, Messages: msgs})
 				}
+				// c.Info("delivering...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 			}
 		} else if c.role == channelRoleProxy {
@@ -163,6 +170,7 @@ func (c *channel) ready() ready {
 					c.msgQueue.forwardingIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionForward, LeaderId: c.leaderId, Messages: msgs})
 				}
+				// c.Info("forwarding...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 			}
 		}
 
@@ -339,6 +347,8 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 			})
 		}
 	}
-	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(c.channelId, c.channelType, nodeUserList)
+	receiverTagKey := wkutil.GenUUID()
+	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList)
+	c.receiverTagKey.Store(receiverTagKey)
 	return newTag, nil
 }

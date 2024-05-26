@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
@@ -19,21 +21,22 @@ type deliverManager struct {
 
 	nextDeliverIndex int // 下一个投递者索引
 
-	retryManager *retryManager
+	nodeManager *nodeManager // 节点管理
 }
 
 func newDeliverManager(s *Server) *deliverManager {
 
 	d := &deliverManager{
-		s:         s,
-		Log:       wklog.NewWKLog("deliveryManager"),
-		deliverrs: make([]*deliverr, s.opts.Deliver.Count),
+		s:           s,
+		Log:         wklog.NewWKLog("deliveryManager"),
+		deliverrs:   make([]*deliverr, s.opts.Deliver.DeliverrCount),
+		nodeManager: newNodeManager(s),
 	}
 	return d
 }
 
 func (d *deliverManager) start() error {
-	for i := 0; i < d.s.opts.Deliver.Count; i++ {
+	for i := 0; i < d.s.opts.Deliver.DeliverrCount; i++ {
 		deliverr := newDeliverr(i, d)
 		d.deliverrs[i] = deliverr
 		err := deliverr.start()
@@ -48,6 +51,8 @@ func (d *deliverManager) stop() {
 	for _, deliverr := range d.deliverrs {
 		deliverr.stop()
 	}
+
+	d.nodeManager.stop()
 }
 
 func (d *deliverManager) deliver(req *deliverReq) {
@@ -135,22 +140,64 @@ func (d *deliverr) handleDeliverReqs(req []*deliverReq) {
 	}
 }
 
+// 请求节点对应tag的用户集合
+func (d *deliverr) requestNodeChannelTag(nodeId uint64, req *tagReq) (*tagResp, error) {
+	timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
+	defer cancel()
+	data := req.Marshal()
+	resp, err := d.dm.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/getNodeUidsByTag", data)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != proto.Status_OK {
+		return nil, fmt.Errorf("requestNodeChannelTag failed, status: %d err:%s", resp.Status, string(resp.Body))
+	}
+	var tagResp = &tagResp{}
+	err = tagResp.Unmarshal(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return tagResp, nil
+}
 func (d *deliverr) handleDeliverReq(req *deliverReq) {
 
-	channelId, channelType := req.ch.channelId, req.ch.channelType
-	tag := d.dm.s.tagManager.getReceiverTag(channelId, channelType)
-	var err error
-	if tag == nil {
-		tag, err = req.ch.makeReceiverTag()
+	// ================== 获取tag信息 ==================
+	var tg = d.dm.s.tagManager.getReceiverTag(req.tagKey)
+	if tg == nil {
+		leader, err := d.dm.s.cluster.LeaderOfChannelForRead(req.channelId, req.channelType)
 		if err != nil {
-			d.Error("makeReceiverTag failed", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Error(err))
+			d.Error("getLeaderOfChannel failed", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Error(err))
 			return
 		}
+		if leader.Id == d.dm.s.opts.Cluster.NodeId {
+			d.Error("getReceiverTag failed", zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+			return
+		}
+		tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
+			channelId:   req.channelId,
+			channelType: req.channelType,
+			tagKey:      req.tagKey,
+			nodeId:      d.dm.s.opts.Cluster.NodeId,
+		})
+		if err != nil {
+			d.Error("requestNodeTag failed", zap.Error(err), zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+			return
+		}
+		tg = d.dm.s.tagManager.addOrUpdateReceiverTag(tagResp.tagKey, []*nodeUsers{
+			{
+				uids:   tagResp.uids,
+				nodeId: d.dm.s.opts.Cluster.NodeId,
+			},
+		})
 	}
-	for _, nodeUser := range tag.users {
+
+	// ================== 投递消息 ==================
+	for _, nodeUser := range tg.users {
 		if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId { // 只投递本节点的
 			d.deliver(req, nodeUser.uids)
 			break
+		} else { // 非本节点的转发给对应节点去投递
+			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
 		}
 	}
 }
@@ -248,6 +295,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				}
 
 				// 写入包
+				d.Info("deliverr recvPacket", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
 				err = conn.write(recvPacketData)
 				if err != nil {
 					d.Error("write recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
