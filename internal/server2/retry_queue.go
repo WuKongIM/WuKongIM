@@ -63,7 +63,7 @@ func (r *RetryQueue) popInFlightMessage(connId int64, messageId int64) (*retryMe
 	key := r.getInFlightKey(connId, messageId)
 	msg, ok := r.inFlightMessages[key]
 	if !ok {
-		r.s.Warn("ID not in flight", zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
+		r.s.Warn("ID not in flight", zap.Int64("connId", connId), zap.Int64("messageId", messageId))
 		return nil, errors.New("ID not in flight")
 	}
 	delete(r.inFlightMessages, key)

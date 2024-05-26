@@ -120,8 +120,7 @@ func New(opts *Options) *Server {
 	s.channelElectionPool = channelElectionPool
 
 	s.channelLoadPool, err = ants.NewPool(s.opts.ChannelLoadPoolSize, ants.WithNonblocking(true), ants.WithPanicHandler(func(err interface{}) {
-		stack := debug.Stack()
-		s.Panic("频道加载协程池崩溃", zap.Error(err.(error)), zap.String("stack", string(stack)))
+		s.Panic("频道加载协程池崩溃", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {
 		s.Panic("new channelLoadPool failed", zap.Error(err))

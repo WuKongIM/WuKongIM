@@ -467,6 +467,15 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 
 // 从频道所在槽获取频道的分布式信息
 func (s *Server) requestChannelClusterConfigFromSlotLeader(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
+
+	start := time.Now()
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*200 {
+			s.Warn("requestChannelClusterConfigFromSlotLeader cost too long", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		}
+	}()
+
 	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)
 	if slot == nil {

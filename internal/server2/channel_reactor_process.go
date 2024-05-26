@@ -43,6 +43,12 @@ func (r *channelReactor) processInit(req *initReq) {
 		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionInitResp, Reason: ReasonError})
 		return
 	}
+	_, err = req.ch.makeReceiverTag()
+	if err != nil {
+		r.Error("processInit: makeReceiverTag failed", zap.Error(err))
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionInitResp, LeaderId: node.Id, Reason: ReasonError})
+		return
+	}
 	sub.step(req.ch, &ChannelAction{ActionType: ChannelActionInitResp, LeaderId: node.Id, Reason: ReasonSuccess})
 }
 
@@ -168,6 +174,10 @@ func (r *channelReactor) processForward(reqs []*forwardReq) {
 		}
 		sub := r.reactorSub(req.ch.key)
 		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionForwardResp, Messages: req.messages, Reason: reason})
+		if err != nil {
+			r.Error("processForwardPool.Submit error", zap.Error(err))
+		}
+
 	}
 
 }
@@ -266,7 +276,8 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 	if err != nil {
 		r.Error("hasPermission error", zap.Error(err))
 		// 返回错误
-		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionCheckResp, Messages: req.messages, Reason: ReasonError})
+		lastMsg := req.messages[len(req.messages)-1]
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionCheckResp, Index: lastMsg.Index, Reason: ReasonError})
 		return
 	}
 	reason := ReasonSuccess
@@ -274,7 +285,8 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 		reason = ReasonError
 	}
 	// 返回成功
-	sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionCheckResp, Messages: req.messages, Reason: reason, ReasonCode: reasonCode})
+	lastMsg := req.messages[len(req.messages)-1]
+	sub.step(req.ch, &ChannelAction{ActionType: ChannelActionPermissionCheckResp, Index: lastMsg.Index, Reason: reason, ReasonCode: reasonCode})
 }
 
 func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid string, ch *channel) (wkproto.ReasonCode, error) {
@@ -395,6 +407,7 @@ func (r *channelReactor) processStorageLoop() {
 }
 
 func (r *channelReactor) processStorage(reqs []*storageReq) {
+	r.Info("processStorage start...")
 	for _, req := range reqs {
 		sotreMessages := make([]wkdb.Message, 0, 1024)
 		for _, msg := range req.messages {
@@ -451,6 +464,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Messages: req.messages, Reason: reason, ReasonCode: reasonCode})
 
 	}
+	r.Info("processStorage done...")
 
 }
 
@@ -532,6 +546,9 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 		if err != nil {
 			r.Error("requestForwardSendack error", zap.Error(err))
 		}
+		if err != nil {
+			r.Error("channelForwardSendackPool.Submit error", zap.Error(err))
+		}
 	}
 }
 
@@ -589,7 +606,7 @@ func (r *channelReactor) processDeliverLoop() {
 				case req := <-r.processDeliverC:
 					exist := false
 					for _, r := range reqs {
-						if r.ch.channelId == req.ch.channelId && r.ch.channelType == req.ch.channelType {
+						if r.channelId == req.channelId && r.channelType == req.channelType {
 							r.messages = append(r.messages, req.messages...)
 							exist = true
 							break
@@ -616,9 +633,10 @@ func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 
 	for _, req := range reqs {
 		r.handleDeliver(req)
-		sub := r.reactorSub(req.ch.key)
+		sub := r.reactorSub(req.channelKey)
 		reason := ReasonSuccess
-		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionDeliverResp, Messages: req.messages, Reason: reason})
+		lastIndex := req.messages[len(req.messages)-1].Index
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionDeliverResp, Index: lastIndex, Reason: reason})
 	}
 }
 
@@ -627,6 +645,10 @@ func (r *channelReactor) handleDeliver(req *deliverReq) {
 }
 
 type deliverReq struct {
-	ch       *channel
-	messages []*ReactorChannelMessage
+	ch          *channel
+	channelId   string
+	channelType uint8
+	channelKey  string
+	tagKey      string
+	messages    []*ReactorChannelMessage
 }

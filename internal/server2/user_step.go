@@ -8,7 +8,6 @@ import (
 )
 
 func (u *userHandler) step(a *UserAction) error {
-	fmt.Println("a---->", a.ActionType.String())
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
@@ -22,27 +21,35 @@ func (u *userHandler) step(a *UserAction) error {
 		} else {
 			u.status = userStatusUninitialized
 		}
+		// u.Info("init finished")
 	case UserActionConnect: // 连接
 		for _, msg := range a.Messages {
 			msg.Index = u.authQueue.lastIndex + 1
 			u.authQueue.appendMessage(msg)
 		}
+		// u.Info("connecting...")
 	case UserActionRecv: // 收消息
 		for _, msg := range a.Messages {
 			msg.Index = u.recvMsgQueue.lastIndex + 1
 			u.recvMsgQueue.appendMessage(msg)
+			// if msg.InPacket != nil {
+			// 	u.Info("recv...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
+			// } else {
+			// 	u.Info("recv...", zap.Int("size", len(msg.OutBytes)))
+			// }
+
 		}
+
 	case UserActionRecvResp: // 收消息返回
 		u.recvMsging = false
 		if a.Index == 0 {
 			panic("0")
 		}
-		fmt.Println("UserActionRecvResp....>>", a.Index)
 		if a.Reason == ReasonSuccess && u.recvMsgQueue.processingIndex < a.Index {
-			fmt.Println("truncateTo....>>", a.Index)
 			u.recvMsgQueue.processingIndex = a.Index
 			u.recvMsgQueue.truncateTo(a.Index)
 		}
+		// u.Info("recv resp...")
 
 	default:
 		return u.stepFnc(a)
@@ -61,6 +68,7 @@ func (u *userHandler) stepLeader(a *UserAction) error {
 			u.authQueue.processingIndex = a.Index
 			u.authQueue.truncateTo(a.Index)
 		}
+		// u.Info("auth resp...")
 	case UserActionSend: // 发送消息
 		for _, msg := range a.Messages {
 			switch msg.InPacket.GetFrameType() {
@@ -74,6 +82,7 @@ func (u *userHandler) stepLeader(a *UserAction) error {
 				u.Error("unknown frame type", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 				return fmt.Errorf("unknown packet type: %v", msg.InPacket.GetFrameType())
 			}
+			u.Info("leader: sending...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 		}
 
 	case UserActionPingResp: // ping处理返回
@@ -82,12 +91,14 @@ func (u *userHandler) stepLeader(a *UserAction) error {
 			u.pingQueue.processingIndex = a.Index
 			u.pingQueue.truncateTo(a.Index)
 		}
+		// u.Info("ping resp...")
 	case UserActionRecvackResp: // recvack处理返回
 		u.sendRecvacking = false
 		if a.Reason == ReasonSuccess && u.recvackQueue.processingIndex < a.Index {
 			u.recvackQueue.processingIndex = a.Index
 			u.recvackQueue.truncateTo(a.Index)
 		}
+		// u.Info("recvack resp...")
 
 	}
 	return nil
@@ -116,6 +127,7 @@ func (u *userHandler) stepProxy(a *UserAction) error {
 				u.Error("unknown frame type", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 				return fmt.Errorf("unknown packet type: %v", msg.InPacket.GetFrameType())
 			}
+			// u.Info("proxy: sending...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 		}
 	case UserActionForwardResp: // 转发recvack处理返回
 		if a.Reason == ReasonSuccess {
@@ -142,6 +154,7 @@ func (u *userHandler) stepProxy(a *UserAction) error {
 				u.authQueue.truncateTo(maxAuthIndex)
 			}
 		}
+		// u.Info("forward resp...")
 	}
 	return nil
 }

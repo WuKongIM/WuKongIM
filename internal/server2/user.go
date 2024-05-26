@@ -92,12 +92,14 @@ func (u *userHandler) ready() userReady {
 				u.authing = true
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, &UserAction{ActionType: UserActionAuth, Messages: msgs})
+				// u.Info("send auth...")
 			}
 			// 发送ping
 			if u.hasPing() {
 				u.sendPing = true
 				msgs := u.pingQueue.sliceWithSize(u.pingQueue.processingIndex+1, u.pingQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, &UserAction{ActionType: UserActionPing, Messages: msgs})
+				// u.Info("send ping...")
 			}
 
 			// 发送recvack
@@ -105,6 +107,7 @@ func (u *userHandler) ready() userReady {
 				u.sendRecvacking = true
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, &UserAction{ActionType: UserActionRecvack, Messages: msgs})
+				// u.Info("send recvack...")
 			}
 
 		} else {
@@ -121,6 +124,7 @@ func (u *userHandler) ready() userReady {
 						Uid:        u.uid,
 						Messages:   msgs,
 					}})
+				// u.Info("forward recvack...")
 			}
 			// 转发连接认证消息
 			if u.hasAuth() {
@@ -136,6 +140,7 @@ func (u *userHandler) ready() userReady {
 						Messages:   msgs,
 					},
 				})
+				// u.Info("forward auth...")
 			}
 
 		}
@@ -144,6 +149,7 @@ func (u *userHandler) ready() userReady {
 			u.recvMsging = true
 			msgs := u.recvMsgQueue.sliceWithSize(u.recvMsgQueue.processingIndex+1, u.recvMsgQueue.lastIndex+1, 0)
 			u.actions = append(u.actions, &UserAction{ActionType: UserActionRecv, Messages: msgs})
+			// u.Info("recv msg...", zap.Int("msgCount", len(msgs)))
 		}
 
 	}

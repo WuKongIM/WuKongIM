@@ -182,8 +182,10 @@ type Options struct {
 	// TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 
 	Deliver struct {
-		Count    int // 投递者数量
-		MaxRetry int // 最大重试次数
+		DeliverrCount         int    // 投递者数量
+		MaxRetry              int    // 最大重试次数
+		MaxDeliverSizePerNode uint64 // 节点每次最大投递大小
+		// DeliverWorkerCountPerNode int    // 每个节点投递协程数量
 	}
 }
 
@@ -351,11 +353,15 @@ func NewOptions() *Options {
 			AuthPoolSize: 100,
 		},
 		Deliver: struct {
-			Count    int
-			MaxRetry int
+			DeliverrCount         int
+			MaxRetry              int
+			MaxDeliverSizePerNode uint64
+			// DeliverWorkerCountPerNode int
 		}{
-			Count:    32,
-			MaxRetry: 10,
+			DeliverrCount:         32,
+			MaxRetry:              10,
+			MaxDeliverSizePerNode: 1024 * 1024 * 5,
+			// DeliverWorkerCountPerNode: 10,
 		},
 	}
 }
@@ -569,8 +575,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
 
 	// =================== deliver ===================
-	o.Deliver.Count = o.getInt("deliver.count", o.Deliver.Count)
+	o.Deliver.DeliverrCount = o.getInt("deliver.deliverrCount", o.Deliver.DeliverrCount)
 	o.Deliver.MaxRetry = o.getInt("deliver.maxRetry", o.Deliver.MaxRetry)
+	// o.Deliver.DeliverWorkerCountPerNode = o.getInt("deliver.deliverWorkerCountPerNode", o.Deliver.DeliverWorkerCountPerNode)
+	o.Deliver.MaxDeliverSizePerNode = o.getUint64("deliver.maxDeliverSizePerNode", o.Deliver.MaxDeliverSizePerNode)
 
 	// =================== reactor ===================
 	o.Reactor.ChannelSubCount = o.getInt("reactor.channelSubCount", o.Reactor.ChannelSubCount)

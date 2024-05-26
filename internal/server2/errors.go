@@ -3,8 +3,9 @@ package server
 import "fmt"
 
 var (
-	ErrConnNotFound   = fmt.Errorf("conn not found")
-	ErrReactorStopped = fmt.Errorf("reactor stopped")
+	ErrConnNotFound     = fmt.Errorf("conn not found")
+	ErrReactorStopped   = fmt.Errorf("reactor stopped")
+	ErrChannelIdIsEmpty = fmt.Errorf("channel id is empty")
 )
 
 type errCode int32

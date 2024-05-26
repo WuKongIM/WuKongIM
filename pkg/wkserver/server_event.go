@@ -3,6 +3,7 @@ package wkserver
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -162,11 +163,13 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 		s.Debug("route not found", zap.String("path", req.Path))
 		return
 	}
-	s.Info("request path", zap.String("path", req.Path), zap.String("from", conn.UID()))
+	start := time.Now()
 	ctx := NewContext(conn)
 	ctx.req = req
 	ctx.proto = s.proto
 	h(ctx)
+	s.Info("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
+
 }
 
 func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, error) {
