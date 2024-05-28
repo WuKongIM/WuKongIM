@@ -1,13 +1,19 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
-func (u *userHandler) step(a *UserAction) error {
+func (u *userHandler) step(a UserAction) error {
+	if a.UniqueNo != u.uniqueNo {
+		u.Warn("uniqueNo not equal", zap.String("uniqueNo", a.UniqueNo), zap.String("userUniqueNo", u.uniqueNo), zap.String("actionType", a.ActionType.String()))
+		return errors.New("uniqueNo not equal")
+	}
+
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
@@ -21,13 +27,14 @@ func (u *userHandler) step(a *UserAction) error {
 		} else {
 			u.status = userStatusUninitialized
 		}
-		// u.Info("init finished")
+		u.Info("init finished")
 	case UserActionConnect: // 连接
 		for _, msg := range a.Messages {
 			msg.Index = u.authQueue.lastIndex + 1
+			u.Info("add auth message...", zap.Uint64("index", msg.Index))
 			u.authQueue.appendMessage(msg)
 		}
-		// u.Info("connecting...")
+
 	case UserActionRecv: // 收消息
 		for _, msg := range a.Messages {
 			msg.Index = u.recvMsgQueue.lastIndex + 1
@@ -52,6 +59,10 @@ func (u *userHandler) step(a *UserAction) error {
 		// u.Info("recv resp...")
 
 	default:
+		if u.stepFnc == nil {
+			u.Warn("stepFnc is nil")
+			return nil
+		}
 		return u.stepFnc(a)
 	}
 
@@ -59,13 +70,14 @@ func (u *userHandler) step(a *UserAction) error {
 
 }
 
-func (u *userHandler) stepLeader(a *UserAction) error {
+func (u *userHandler) stepLeader(a UserAction) error {
 	switch a.ActionType {
 
 	case UserActionAuthResp:
 		u.authing = false
 		if a.Reason == ReasonSuccess && u.authQueue.processingIndex < a.Index {
 			u.authQueue.processingIndex = a.Index
+			u.Info("auth resp...", zap.Uint64("index", a.Index))
 			u.authQueue.truncateTo(a.Index)
 		}
 		// u.Info("auth resp...")
@@ -82,7 +94,7 @@ func (u *userHandler) stepLeader(a *UserAction) error {
 				u.Error("unknown frame type", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 				return fmt.Errorf("unknown packet type: %v", msg.InPacket.GetFrameType())
 			}
-			u.Info("leader: sending...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
+			// u.Info("leader: sending...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 		}
 
 	case UserActionPingResp: // ping处理返回
@@ -100,11 +112,16 @@ func (u *userHandler) stepLeader(a *UserAction) error {
 		}
 		// u.Info("recvack resp...")
 
+	case UserActionNodePong: // 追随者pong
+		for _, msg := range a.Messages {
+			u.pongTimeoutTick[msg.FromNodeId] = 0
+		}
+
 	}
 	return nil
 }
 
-func (u *userHandler) stepProxy(a *UserAction) error {
+func (u *userHandler) stepProxy(a UserAction) error {
 	switch a.ActionType {
 	case UserActionSend: // 发送消息
 		for _, msg := range a.Messages {
@@ -113,7 +130,7 @@ func (u *userHandler) stepProxy(a *UserAction) error {
 				// 如果是代理角色，那么连接也只可能是真实连接，则直接回应连接的pong（TODO: 这里协议版本理论上应该使用用户的协议版本，但是考虑到ping/pong协议一般不会变动，所以这里用任意协议版本也问题不大）
 				pongData, _ := defaultWkproto.EncodeFrame(&wkproto.PongPacket{}, defaultProtoVersion)
 
-				m := &ReactorUserMessage{
+				m := ReactorUserMessage{
 					ConnId:   msg.ConnId,
 					DeviceId: msg.DeviceId,
 					OutBytes: pongData,
@@ -130,31 +147,32 @@ func (u *userHandler) stepProxy(a *UserAction) error {
 			// u.Info("proxy: sending...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 		}
 	case UserActionForwardResp: // 转发recvack处理返回
-		if a.Reason == ReasonSuccess {
-			var maxRecvackIndex uint64
-			var maxAuthIndex uint64
-			for _, msg := range a.Messages {
-				if msg.InPacket != nil && msg.InPacket.GetFrameType() == wkproto.RECVACK {
-					if msg.Index > maxRecvackIndex {
-						maxRecvackIndex = msg.Index
-					}
-				}
-				if msg.InPacket != nil && msg.InPacket.GetFrameType() == wkproto.CONNECT {
-					if msg.Index > maxAuthIndex {
-						maxAuthIndex = msg.Index
-					}
+		if a.Forward.ActionType == UserActionSend {
+			u.sendRecvacking = false
+			if a.Reason == ReasonSuccess {
+				if u.recvackQueue.processingIndex < a.Index {
+					u.recvackQueue.processingIndex = a.Index
+					u.recvackQueue.truncateTo(a.Forward.Index)
 				}
 			}
-			if u.recvackQueue.processingIndex < maxRecvackIndex {
-				u.recvackQueue.processingIndex = maxRecvackIndex
-				u.recvackQueue.truncateTo(maxRecvackIndex)
-			}
-			if u.authQueue.processingIndex < maxAuthIndex {
-				u.authQueue.processingIndex = maxAuthIndex
-				u.authQueue.truncateTo(maxAuthIndex)
+		} else if a.Forward.ActionType == UserActionConnect {
+			u.authing = false
+			if a.Reason == ReasonSuccess {
+				if u.authQueue.processingIndex < a.Index {
+					u.authQueue.processingIndex = a.Index
+					u.authQueue.truncateTo(a.Index)
+				}
 			}
 		}
-		// u.Info("forward resp...")
+
+		u.Info("forward resp...")
+
+	case UserActionNodePing: // 用户节点ping, 用户的领导发送给追随者的ping
+		u.actions = append(u.actions, UserAction{
+			ActionType: UserActionNodePong,
+			Uid:        u.uid,
+			LeaderId:   u.leaderId,
+		})
 	}
 	return nil
 }

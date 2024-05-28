@@ -94,7 +94,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
 		}
 		if r.opts.EnableLazyCatchUp {
-			if end > time.Millisecond*200 {
+			if end > 0 {
 				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.Int("logs", len(logs)))
 			}
 		}
@@ -111,6 +111,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	}
 
 	if !handler.isLeader() {
+		r.Error("not leader", zap.String("handler", handler.key), zap.Uint64("leader", handler.leaderId()))
 		return nil, ErrNotLeader
 	}
 
@@ -340,7 +341,7 @@ func (r *ReactorSub) handleEvent(handler *handler) (bool, error) {
 	handleOk = r.handleRecvMessages(handler)
 	if r.opts.EnableLazyCatchUp {
 		end = time.Since(start)
-		if end > time.Millisecond*1 {
+		if end > time.Millisecond*20 {
 			r.Info("handleRecvMessages", zap.Duration("time", end))
 		}
 	}
@@ -697,7 +698,7 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 	}
 
 	if !r.opts.IsCommittedAfterApplied {
-		r.Debug("did commit", zap.Uint64("applyingIndex", applyingIndex), zap.Uint64("committedIndex", committedIndex))
+		// r.Debug("did commit", zap.Uint64("applyingIndex", applyingIndex), zap.Uint64("committedIndex", committedIndex))
 		handler.didCommit(msg.ApplyingIndex+1, msg.CommittedIndex+1)
 	}
 
@@ -761,11 +762,11 @@ func (r *ReactorSub) handlerLen() int {
 
 func (r *ReactorSub) addMessage(m Message) {
 
-	if r.opts.ReactorType == ReactorTypeChannel {
-		if m.MsgType == replica.MsgPing {
-			r.Debug("add message", zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.Message.MsgType.String()))
-		}
-	}
+	// if r.opts.ReactorType == ReactorTypeChannel {
+	// 	if m.MsgType == replica.MsgPing {
+	// 		r.Debug("add message", zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.Message.MsgType.String()))
+	// 	}
+	// }
 
 	handler := r.handlers.get(m.HandlerKey)
 	if handler == nil {

@@ -235,7 +235,7 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 		return EmptyMessage, err
 	}
 	if IsEmptyMessage(msg) {
-		return EmptyMessage, fmt.Errorf("message not found")
+		return EmptyMessage, ErrMessageNotFound
 	}
 	return msg, nil
 
@@ -245,6 +245,9 @@ func (wk *wukongDB) LoadLastMsgs(channelID string, channelType uint8, limit int)
 	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelID, channelType)
 	if err != nil {
 		return nil, err
+	}
+	if lastSeq == 0 {
+		return nil, nil
 	}
 	return wk.LoadPrevRangeMsgs(channelID, channelType, lastSeq, 0, limit)
 

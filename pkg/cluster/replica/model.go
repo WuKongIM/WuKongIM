@@ -58,15 +58,15 @@ var (
 type Role uint8
 
 const (
-	None uint64 = 0
-	All  uint64 = math.MaxUint64 - 1
-)
-
-const (
 	RoleFollower  Role = iota // 追随者
 	RoleCandidate             // 候选者
 	RoleLeader                // 领导
 	RoleLearner               // 学习者
+)
+
+const (
+	None uint64 = 0
+	All  uint64 = math.MaxUint64 - 1
 )
 
 type MsgType uint16

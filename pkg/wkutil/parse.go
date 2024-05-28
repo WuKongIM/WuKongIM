@@ -7,6 +7,11 @@ func ParseInt(str string) int {
 	return int(limitI64)
 }
 
+func ParseUint8(str string) uint8 {
+	v, _ := strconv.ParseUint(str, 10, 8)
+	return uint8(v)
+}
+
 func ParseInt64(str string) int64 {
 	v, _ := strconv.ParseInt(str, 10, 64)
 	return v

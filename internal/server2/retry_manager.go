@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -22,7 +23,7 @@ func newRetryManager(s *Server) *retryManager {
 func (r *retryManager) start() error {
 
 	for i := 0; i < r.s.opts.MessageRetry.WorkerCount; i++ {
-		retryQueue := NewRetryQueue(r.s)
+		retryQueue := NewRetryQueue(i, r.s)
 		r.retryQueues[i] = retryQueue
 		retryQueue.Start()
 	}
@@ -49,7 +50,7 @@ func (r *retryManager) removeRetry(connId int64, messageId int64) error {
 }
 
 func (r *retryManager) retry(msg *retryMessage) {
-	r.Debug("retry msg", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
+	r.Debug("retry msg", zap.Int("retryCount", msg.retry), zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
 	msg.retry++
 	if msg.retry > r.s.opts.MessageRetry.MaxCount {
 		r.Debug("exceeded the maximum number of retries", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int("messageMaxRetryCount", r.s.opts.MessageRetry.MaxCount))
@@ -70,7 +71,7 @@ func (r *retryManager) retry(msg *retryMessage) {
 
 	// 发送消息
 	r.Info("retry send message", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
-	err := conn.write(msg.recvPacketData)
+	err := conn.write(msg.recvPacketData, wkproto.RECV)
 	if err != nil {
 		r.Warn("write message failed", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId), zap.Error(err))
 		conn.close()

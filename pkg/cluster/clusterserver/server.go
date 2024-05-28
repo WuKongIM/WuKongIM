@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -111,8 +110,7 @@ func New(opts *Options) *Server {
 	))
 
 	channelElectionPool, err := ants.NewPool(s.opts.ChannelElectionPoolSize, ants.WithNonblocking(false), ants.WithDisablePurge(true), ants.WithPanicHandler(func(err interface{}) {
-		stack := debug.Stack()
-		s.Panic("频道选举协程池崩溃", zap.Error(err.(error)), zap.String("stack", string(stack)))
+		s.Panic("频道选举协程池崩溃", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {
 		s.Panic("new channelElectionPool failed", zap.Error(err))
@@ -394,6 +392,16 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 	if s.stopped.Load() {
 		return
 	}
+
+	start := time.Now()
+
+	defer func() {
+		cost := time.Since(start)
+		if cost > time.Millisecond*200 {
+			s.Info("handle cluster message too cost...", zap.Duration("cost", cost))
+		}
+	}()
+
 	msgSize := int64(m.Size())
 
 	trace.GlobalTrace.Metrics.System().IntranetIncomingAdd(msgSize) // 内网流量统计

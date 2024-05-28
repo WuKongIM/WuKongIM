@@ -116,9 +116,14 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 			}
 		} else {
 			if cfg.LeaderId == c.opts.NodeId {
-				c.rc.BecomeLeader(cfg.Term)
+				if c.rc.Term() != cfg.Term || !c.rc.IsLeader() {
+					c.rc.BecomeLeader(cfg.Term)
+				}
 			} else {
-				c.rc.BecomeFollower(cfg.Term, cfg.LeaderId)
+				if c.rc.Term() != cfg.Term || c.rc.LeaderId() != cfg.LeaderId || !c.rc.IsFollower() {
+					c.rc.BecomeFollower(cfg.Term, cfg.LeaderId)
+				}
+
 			}
 		}
 	}

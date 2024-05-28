@@ -430,10 +430,12 @@ func (s *Server) needElectionLeader(cfg wkdb.ChannelClusterConfig) bool {
 
 	// 如果频道的领导者为空，说明需要选举领导
 	if cfg.LeaderId == 0 {
+		s.Debug("leaderId is 0 , need election...")
 		return true
 	}
 	// 如果频道领导不在线，说明需要选举领导
 	if !s.clusterEventServer.NodeOnline(cfg.LeaderId) {
+		s.Debug("leaderId is offline, need election...", zap.Uint64("leaderId", cfg.LeaderId), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
 		return true
 	}
 	return false

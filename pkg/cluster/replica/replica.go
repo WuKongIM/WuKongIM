@@ -2,7 +2,6 @@ package replica
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -331,6 +330,10 @@ func (r *Replica) IsLeader() bool {
 	return r.isLeader()
 }
 
+func (r *Replica) IsFollower() bool {
+	return r.role == RoleFollower
+}
+
 func (r *Replica) LeaderId() uint64 {
 
 	return r.leader
@@ -460,9 +463,6 @@ func (r *Replica) putMsgIfNeed() {
 			if !r.IsLeader() && r.messageWait.canMsgLeaderTermStartIndex() {
 				r.messageWait.resetMsgLeaderTermStartIndex()
 				r.msgs = append(r.msgs, r.newLeaderTermStartIndexReqMsg())
-				if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
-					r.Debug("send leaderTermStartIndexReq")
-				}
 			}
 			return
 		}

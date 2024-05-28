@@ -172,8 +172,10 @@ type Options struct {
 	}
 
 	Reactor struct {
-		ChannelSubCount int // channel reactor sub 的数量
-		UserSubCount    int // user reactor sub 的数量
+		ChannelSubCount         int // channel reactor sub 的数量
+		UserSubCount            int // user reactor sub 的数量
+		UserNodePingTick        int // 用户节点tick间隔
+		UserNodePongTimeoutTick int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
 	}
 	DeadlockCheck bool // 死锁检查
 
@@ -341,11 +343,15 @@ func NewOptions() *Options {
 			PrometheusApiUrl: "http://127.0.0.1:9090",
 		},
 		Reactor: struct {
-			ChannelSubCount int
-			UserSubCount    int
+			ChannelSubCount         int
+			UserSubCount            int
+			UserNodePingTick        int
+			UserNodePongTimeoutTick int
 		}{
-			ChannelSubCount: 128,
-			UserSubCount:    128,
+			ChannelSubCount:         128,
+			UserSubCount:            128,
+			UserNodePingTick:        10,
+			UserNodePongTimeoutTick: 10 * 2,
 		},
 		Process: struct {
 			AuthPoolSize int
@@ -583,6 +589,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	// =================== reactor ===================
 	o.Reactor.ChannelSubCount = o.getInt("reactor.channelSubCount", o.Reactor.ChannelSubCount)
 	o.Reactor.UserSubCount = o.getInt("reactor.userSubCount", o.Reactor.UserSubCount)
+	o.Reactor.UserNodePingTick = o.getInt("reactor.userNodePingTick", o.Reactor.UserNodePingTick)
+	o.Reactor.UserNodePongTimeoutTick = o.getInt("reactor.userNodePongTimeoutTick", o.Reactor.UserNodePongTimeoutTick)
 
 	deadlock.Opts.Disable = !o.DeadlockCheck
 

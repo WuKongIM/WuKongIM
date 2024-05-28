@@ -29,6 +29,6 @@ func (w *webhook) Online(uid string, deviceFlag wkproto.DeviceFlag, connId int64
 
 }
 
-func (w *webhook) notifyOfflineMsg(msg *ReactorChannelMessage, uids []string) {
+func (w *webhook) notifyOfflineMsg(msg ReactorChannelMessage, uids []string) {
 
 }

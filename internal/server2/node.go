@@ -33,22 +33,19 @@ func (n *nodeManager) stop() {
 }
 
 func (n *nodeManager) deliver(nodeId uint64, req *deliverReq) {
-	n.RLock()
+	n.Lock()
+	defer n.Unlock()
 	node := n.nodes[nodeId]
-	n.RUnlock()
-
 	if node == nil {
 		node = newNode(nodeId, n.s)
-		n.Lock()
 		n.nodes[nodeId] = node
-		n.Unlock()
 		node.start()
 	}
 	node.deliver(req)
 }
 
 type node struct {
-	deliverReq chan []*ReactorChannelMessage
+	deliverReq chan []ReactorChannelMessage
 	stopper    *syncutil.Stopper
 	nodeId     uint64
 	s          *Server
@@ -57,7 +54,7 @@ type node struct {
 
 	delivering bool
 
-	stepC chan []*ReactorChannelMessage
+	stepC chan []ReactorChannelMessage
 
 	deliverRespC chan *deliverResp
 	wklog.Log
@@ -65,9 +62,9 @@ type node struct {
 
 func newNode(nodeId uint64, s *Server) *node {
 	return &node{
-		deliverReq:   make(chan []*ReactorChannelMessage, 1024),
+		deliverReq:   make(chan []ReactorChannelMessage, 1024),
 		deliverRespC: make(chan *deliverResp),
-		stepC:        make(chan []*ReactorChannelMessage, 1024),
+		stepC:        make(chan []ReactorChannelMessage, 1024),
 		stopper:      syncutil.NewStopper(),
 		nodeId:       nodeId,
 		Log:          wklog.NewWKLog(fmt.Sprintf("deliver.node[%d]", nodeId)),
@@ -99,12 +96,14 @@ func (n *node) loopHandleReq() {
 func (n *node) loop() {
 	tk := time.NewTicker(time.Millisecond * 200)
 	for {
-		msgs := n.ready()
-		if len(msgs) > 0 {
-			select {
-			case n.deliverReq <- msgs:
-			case <-n.stopper.ShouldStop():
-				return
+		if n.hasReady() {
+			msgs := n.ready()
+			if len(msgs) > 0 {
+				select {
+				case n.deliverReq <- msgs:
+				case <-n.stopper.ShouldStop():
+					return
+				}
 			}
 		}
 		select {
@@ -117,11 +116,13 @@ func (n *node) loop() {
 		case resp := <-n.deliverRespC:
 			n.delivering = false
 			if resp.success {
-				if resp.index > n.deliverQueue.deliveredIndex {
-					n.deliverQueue.deliveredIndex = resp.index
+				if resp.index > n.deliverQueue.deliveringIndex {
+					n.deliverQueue.deliveringIndex = resp.index
 					n.deliverQueue.truncateTo(resp.index)
 				}
 			}
+		case <-n.stopper.ShouldStop():
+			return
 		}
 	}
 }
@@ -134,22 +135,27 @@ func (n *node) deliver(req *deliverReq) {
 	}
 }
 
-func (n *node) ready() []*ReactorChannelMessage {
+func (n *node) hasReady() bool {
+	if n.delivering {
+		return false
+	}
+	return n.deliverQueue.deliveringIndex < n.deliverQueue.lastIndex
+}
+
+func (n *node) ready() []ReactorChannelMessage {
 	if n.deliverQueue.deliveringIndex < n.deliverQueue.lastIndex {
 		n.delivering = true
 		msgs := n.deliverQueue.sliceWithSize(n.deliverQueue.deliveringIndex+1, n.deliverQueue.lastIndex+1, n.s.opts.Deliver.MaxDeliverSizePerNode)
 		if len(msgs) == 0 {
 			n.Panic("get msgs failed", zap.Uint64("startIndex", n.deliverQueue.deliveringIndex+1), zap.Uint64("endIndex", n.deliverQueue.lastIndex+1), zap.Uint64("maxDeliverSizePerNode", n.s.opts.Deliver.MaxDeliverSizePerNode))
 		}
-		lastMsg := msgs[len(msgs)-1]
-		n.deliverQueue.deliveringIndex = lastMsg.Index
 		return msgs
 	}
 	return nil
 
 }
 
-func (n *node) handleDeliverMsgs(msgs []*ReactorChannelMessage) {
+func (n *node) handleDeliverMsgs(msgs []ReactorChannelMessage) {
 	err := n.requestDeliver(msgs)
 	var success = true
 	if err != nil {
@@ -163,7 +169,7 @@ func (n *node) handleDeliverMsgs(msgs []*ReactorChannelMessage) {
 	}
 }
 
-func (n *node) requestDeliver(msgs []*ReactorChannelMessage) error {
+func (n *node) requestDeliver(msgs []ReactorChannelMessage) error {
 
 	channelMessages := make([]*ChannelMessages, 0)
 	var err error

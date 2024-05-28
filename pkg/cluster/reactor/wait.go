@@ -7,7 +7,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
-	"go.uber.org/zap"
 )
 
 var emptyMessageItem = messageItem{}
@@ -60,7 +59,7 @@ func (m *proposeWait) add(ctx context.Context, key string, ids []uint64) chan []
 		}
 	}
 
-	m.Debug("addWait", zap.String("key", key), zap.Int("ids", len(ids)))
+	// m.Debug("addWait", zap.String("key", key), zap.Int("ids", len(ids)))
 
 	m.proposeResultMap[key] = items
 	m.proposeWaitMap[key] = waitC

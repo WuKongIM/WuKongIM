@@ -89,6 +89,12 @@ func (e *Engine) GetAllConn() []Conn {
 	return conns
 }
 
+func (e *Engine) Iterator(f func(conn Conn) bool) {
+	e.connsUnixLock.RLock()
+	defer e.connsUnixLock.RUnlock()
+	e.connMatrix.iterate(f)
+}
+
 func (e *Engine) ConnCount() int {
 	return int(e.connMatrix.loadCount())
 }

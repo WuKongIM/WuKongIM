@@ -58,6 +58,8 @@ type Server struct {
 	tagManager     *tagManager     // tag管理
 	deliverManager *deliverManager // 消息投递管理
 	retryManager   *retryManager   // 消息重试管理
+
+	conversationManager *ConversationManager // 会话管理
 }
 
 func New(opts *Options) *Server {
@@ -68,7 +70,6 @@ func New(opts *Options) *Server {
 		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
 		start:       now,
-		tagManager:  newTagManager(),
 	}
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
@@ -98,6 +99,7 @@ func New(opts *Options) *Server {
 	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
 	storeOpts.GetSlotId = s.getSlotId
 	s.store = clusterstore.NewStore(storeOpts)
+	s.tagManager = newTagManager(s)
 
 	s.engine = wknet.NewEngine(
 		wknet.WithAddr(s.opts.Addr),
@@ -118,6 +120,7 @@ func New(opts *Options) *Server {
 	s.systemUIDManager = NewSystemUIDManager(s)
 	s.apiServer = NewAPIServer(s)
 	s.retryManager = newRetryManager(s)
+	s.conversationManager = NewConversationManager(s)
 
 	initNodes := make(map[uint64]string)
 
@@ -215,7 +218,12 @@ func (s *Server) Start() error {
 
 	s.timingWheel.Start()
 
-	err := s.trace.Start()
+	err := s.tagManager.start()
+	if err != nil {
+		return err
+	}
+
+	err = s.trace.Start()
 	if err != nil {
 		return err
 
@@ -271,17 +279,26 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	s.conversationManager.Start()
+
 	return nil
 }
 
 func (s *Server) Stop() error {
+
+	s.Info("Server stoping...")
+
 	s.cancel()
 
 	s.deliverManager.stop()
+	fmt.Println("deliverManager stopped")
 
 	s.retryManager.stop()
-
+	fmt.Println("retryManager stopped")
+	s.conversationManager.Stop()
+	fmt.Println("conversationManager stopped")
 	s.cluster.Stop()
+	fmt.Println("cluster stopped")
 	s.apiServer.Stop()
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
@@ -300,6 +317,8 @@ func (s *Server) Stop() error {
 	s.tagManager.stop()
 
 	s.timingWheel.Stop()
+
+	s.tagManager.stop()
 
 	s.Info("Server is stopped")
 
@@ -401,6 +420,7 @@ func (s *Server) onConnect(conn wknet.Conn) error {
 func (s *Server) onClose(conn wknet.Conn) {
 	connCtx := conn.Context()
 	if connCtx != nil {
+		fmt.Println("conn close----------->", connCtx.(*connContext).uid, connCtx.(*connContext).connId)
 		s.userReactor.removeConnContextById(connCtx.(*connContext).uid, connCtx.(*connContext).connId)
 	}
 }
@@ -458,61 +478,52 @@ func decodeLength(data []byte) (int, int, bool) {
 	return int(rLength), offset, true
 }
 
-func (s *Server) response(connCtx *connContext, packet wkproto.Frame) {
-	err := s.userReactor.writePacket(connCtx, packet)
-	if err != nil {
-		s.Error("write packet error", zap.Error(err))
-	}
-}
+// func (s *Server) response(connCtx *connContext, packet wkproto.Frame) {
+// 	err := s.userReactor.writePacket(connCtx, packet)
+// 	if err != nil {
+// 		s.Error("write packet error", zap.Error(err))
+// 	}
+// }
 
-func (s *Server) responseWithConn(conn wknet.Conn, packet wkproto.Frame) {
-	data, err := s.opts.Proto.EncodeFrame(packet, uint8(conn.ProtoVersion()))
-	if err != nil {
-		s.Error("encode frame error", zap.Error(err))
-		return
-	}
-	s.responseData(conn, data)
-}
+// func (s *Server) responseData(conn wknet.Conn, data []byte) {
+// 	s.responseDataNoFlush(conn, data)
+// 	s.flushConnData(conn)
+// }
 
-func (s *Server) responseData(conn wknet.Conn, data []byte) {
-	s.responseDataNoFlush(conn, data)
-	s.flushConnData(conn)
-}
+// func (s *Server) responseDataNoFlush(conn wknet.Conn, data []byte) {
+// 	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
+// 	if wsok {
+// 		err := wsConn.WriteServerBinary(data)
+// 		if err != nil {
+// 			s.Warn("Failed to write the message", zap.Error(err))
+// 		}
 
-func (s *Server) responseDataNoFlush(conn wknet.Conn, data []byte) {
-	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
-	if wsok {
-		err := wsConn.WriteServerBinary(data)
-		if err != nil {
-			s.Warn("Failed to write the message", zap.Error(err))
-		}
+// 	} else {
+// 		_, err := conn.WriteToOutboundBuffer(data)
+// 		if err != nil {
+// 			s.Warn("Failed to write the message", zap.Error(err))
+// 		}
+// 	}
+// }
 
-	} else {
-		_, err := conn.WriteToOutboundBuffer(data)
-		if err != nil {
-			s.Warn("Failed to write the message", zap.Error(err))
-		}
-	}
-}
+// func (s *Server) flushConnData(conn wknet.Conn) {
+// 	err := conn.WakeWrite()
+// 	if err != nil {
+// 		s.Warn("Failed to wake write", zap.Error(err), zap.String("uid", conn.UID()), zap.Int("fd", conn.Fd().Fd()), zap.String("deviceId", conn.DeviceID()))
+// 	}
+// }
 
-func (s *Server) flushConnData(conn wknet.Conn) {
-	err := conn.WakeWrite()
-	if err != nil {
-		s.Warn("Failed to wake write", zap.Error(err), zap.String("uid", conn.UID()), zap.Int("fd", conn.Fd().Fd()), zap.String("deviceId", conn.DeviceID()))
-	}
-}
+// func (s *Server) responseConnackAuthFail(c *connContext) {
+// 	s.responseConnack(c, 0, wkproto.ReasonAuthFail)
+// }
 
-func (s *Server) responseConnackAuthFail(c *connContext) {
-	s.responseConnack(c, 0, wkproto.ReasonAuthFail)
-}
+// func (s *Server) responseConnack(c *connContext, timeDiff int64, code wkproto.ReasonCode) {
 
-func (s *Server) responseConnack(c *connContext, timeDiff int64, code wkproto.ReasonCode) {
-
-	s.response(c, &wkproto.ConnackPacket{
-		ReasonCode: code,
-		TimeDiff:   timeDiff,
-	})
-}
+// 	s.response(c, &wkproto.ConnackPacket{
+// 		ReasonCode: code,
+// 		TimeDiff:   timeDiff,
+// 	})
+// }
 
 // Schedule 延迟任务
 func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {

@@ -83,7 +83,7 @@ func (r *channelReactor) processPayloadDecryptLoop() {
 
 func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 
-	for _, msg := range req.messages {
+	for i, msg := range req.messages {
 		if !msg.IsEncrypt || msg.FromConnId == 0 { // 没有加密，直接跳过,没有连接id解密不了，也直接跳过
 			continue
 		}
@@ -99,6 +99,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 		if len(decryptPayload) > 0 {
 			msg.SendPacket.Payload = decryptPayload
 			msg.IsEncrypt = false
+			req.messages[i] = msg
 		}
 	}
 	sub := r.reactorSub(req.ch.key)
@@ -108,7 +109,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 
 type payloadDecryptReq struct {
 	ch       *channel
-	messages []*ReactorChannelMessage
+	messages []ReactorChannelMessage
 }
 
 // =================================== 转发 ===================================
@@ -174,9 +175,6 @@ func (r *channelReactor) processForward(reqs []*forwardReq) {
 		}
 		sub := r.reactorSub(req.ch.key)
 		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionForwardResp, Messages: req.messages, Reason: reason})
-		if err != nil {
-			r.Error("processForwardPool.Submit error", zap.Error(err))
-		}
 
 	}
 
@@ -212,7 +210,7 @@ func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
 	return 0, nil
 }
 
-func (r *channelReactor) requestChannelFoward(nodeId uint64, messages []*ReactorChannelMessage) (bool, error) {
+func (r *channelReactor) requestChannelFoward(nodeId uint64, messages []ReactorChannelMessage) (bool, error) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
 
@@ -245,7 +243,7 @@ func (r *channelReactor) requestChannelFoward(nodeId uint64, messages []*Reactor
 type forwardReq struct {
 	ch       *channel
 	leaderId uint64
-	messages []*ReactorChannelMessage
+	messages []ReactorChannelMessage
 }
 
 // =================================== 发送权限判断 ===================================
@@ -300,11 +298,13 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid 
 		return wkproto.ReasonSuccess, nil
 	}
 
-	if ch.info.Ban { // 频道被封禁
+	channelInfo := ch.info
+
+	if channelInfo.Ban { // 频道被封禁
 		return wkproto.ReasonBan, nil
 	}
 
-	if ch.info.Disband { // 频道已解散
+	if channelInfo.Disband { // 频道已解散
 		return wkproto.ReasonDisband, nil
 	}
 
@@ -354,7 +354,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid 
 type permissionReq struct {
 	fromUid  string
 	ch       *channel
-	messages []*ReactorChannelMessage
+	messages []ReactorChannelMessage
 }
 
 // =================================== 消息存储 ===================================
@@ -470,7 +470,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 
 type storageReq struct {
 	ch       *channel
-	messages []*ReactorChannelMessage
+	messages []ReactorChannelMessage
 }
 
 // =================================== 发送回执 ===================================
@@ -546,9 +546,6 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 		if err != nil {
 			r.Error("requestForwardSendack error", zap.Error(err))
 		}
-		if err != nil {
-			r.Error("channelForwardSendackPool.Submit error", zap.Error(err))
-		}
 	}
 }
 
@@ -580,7 +577,7 @@ func (r *channelReactor) requestForwardSendack(nodeId uint64, packets []*Forward
 type sendackReq struct {
 	ch         *channel
 	reasonCode wkproto.ReasonCode
-	messages   []*ReactorChannelMessage
+	messages   []ReactorChannelMessage
 }
 
 // =================================== 消息投递 ===================================
@@ -650,5 +647,5 @@ type deliverReq struct {
 	channelType uint8
 	channelKey  string
 	tagKey      string
-	messages    []*ReactorChannelMessage
+	messages    []ReactorChannelMessage
 }

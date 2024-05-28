@@ -114,7 +114,7 @@ func (c *channel) exec(a *ChannelAction) {
 	c.actions = append(c.actions, a)
 }
 
-func (c *channel) appendMessage(messages ...*ReactorChannelMessage) {
+func (c *channel) appendMessage(messages ...ReactorChannelMessage) {
 
 	for _, message := range messages {
 		message.Index = c.msgQueue.lastIndex + 1

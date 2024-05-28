@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -47,7 +46,7 @@ func (r *Replica) Step(m Message) error {
 	switch m.MsgType {
 	case MsgStoreAppendResp: // 存储追加响应
 		if m.Index != 0 {
-			r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeId", r.nodeId), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
+			// r.Debug("stableTo", zap.Uint64("index", m.Index), zap.Uint64("nodeId", r.nodeId), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			r.replicaLog.stableTo(m.Index)
 		}
 	case MsgApplyLogsResp: // 应用日志响应
@@ -134,9 +133,6 @@ func (r *Replica) stepLeader(m Message) error {
 	case MsgBeat:
 		r.sendPing()
 	case MsgSyncReq: // 追随者向领导同步消息
-		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
-			r.Debug("recv MsgSyncReq", zap.Uint64("from", m.From), zap.Uint64("index", m.Index))
-		}
 		// r.Info("recv sync", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("index", m.Index), zap.Uint64("committedIndex", m.CommittedIndex))
 		r.activeReplica(m.From)
 		var needSendResp bool = true
@@ -232,9 +228,6 @@ func (r *Replica) stepFollower(m Message) error {
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 		r.replicaLog.leaderLastLogIndex = m.Index
 	case MsgSyncResp: // 领导返回同步消息的结果
-		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
-			r.Debug("recv MsgSyncResp", zap.Uint64("from", m.From))
-		}
 		r.SetSpeedLevel(m.SpeedLevel) // 设置同步速度
 		r.electionElapsed = 0
 		if len(m.Logs) > 0 {
@@ -261,9 +254,6 @@ func (r *Replica) stepFollower(m Message) error {
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 
 	case MsgLeaderTermStartIndexResp: // 收到领导的任期开始索引响应
-		if strings.Contains(r.opts.LogPrefix, "channel-1#u2@u1") {
-			r.Debug("recv msgLeaderTermStartIndexResp", zap.Uint64("from", m.From))
-		}
 		err := r.handleLeaderTermStartIndexResp(m.Index, m.Term)
 		if err != nil {
 			return err
@@ -563,7 +553,7 @@ func (r *Replica) updateFollowCommittedIndex(leaderCommittedIndex uint64) {
 	newCommittedIndex := r.committedIndexForFollow(leaderCommittedIndex)
 	if newCommittedIndex > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommittedIndex
-		r.Debug("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.replicaLog.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		// r.Debug("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.replicaLog.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 }
 
@@ -574,7 +564,7 @@ func (r *Replica) updateLeaderCommittedIndex() bool {
 	if newCommitted > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommitted
 		updated = true
-		r.Debug("update leader committed index", zap.Uint64("lastIndex", r.LastLogIndex()), zap.Uint32("term", r.replicaLog.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		// r.Debug("update leader committed index", zap.Uint64("lastIndex", r.LastLogIndex()), zap.Uint32("term", r.replicaLog.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 	return updated
 }
@@ -590,7 +580,7 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 	if m.Index > syncInfo.LastSyncLogIndex {
 		syncInfo.LastSyncLogIndex = m.Index
 		syncInfo.LastSyncTime = uint64(time.Now().UnixNano())
-		r.Debug("update replic sync info", zap.Uint32("term", r.replicaLog.term), zap.Uint64("from", from), zap.Uint64("lastSyncLogIndex", syncInfo.LastSyncLogIndex))
+		// r.Debug("update replic sync info", zap.Uint32("term", r.replicaLog.term), zap.Uint64("from", from), zap.Uint64("lastSyncLogIndex", syncInfo.LastSyncLogIndex))
 	}
 }
 

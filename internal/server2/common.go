@@ -2,21 +2,24 @@ package server
 
 import (
 	"fmt"
-	"io"
+	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/sendgrid/rest"
 	"go.uber.org/zap"
 )
 
 type ClusterMsgType uint32
 
 const (
-	// 频道消息转发
-	ClusterMsgTypeChannelForward ClusterMsgType = 1001
+	// 节点ping
+	ClusterMsgTypeNodePing ClusterMsgType = 1001
+	// 节点Pong
+	ClusterMsgTypeNodePong ClusterMsgType = 1002
 )
 
 type channelRole int
@@ -124,6 +127,12 @@ const (
 	UserActionForwardResp // 转发action返回
 
 	UserActionLeaderChange // 领导变更
+
+	UserActionNodePing         // 用户节点ping, 用户的领导发送给追随者的ping
+	UserActionNodePong         // 用户节点pong, 用户的追随者返回给领导的pong
+	UserActionProxyNodeTimeout // 代理节点超时
+
+	UserActionClose // 关闭
 )
 
 func (u UserActionType) String() string {
@@ -160,6 +169,14 @@ func (u UserActionType) String() string {
 		return "UserActionAuth"
 	case UserActionAuthResp:
 		return "UserActionAuthResp"
+	case UserActionNodePing:
+		return "UserActionNodePing"
+	case UserActionNodePong:
+		return "UserActionNodePong"
+	case UserActionProxyNodeTimeout:
+		return "UserActionProxyNodeTimeout"
+	case UserActionClose:
+		return "UserActionClose"
 
 	}
 	return "unknow"
@@ -237,17 +254,6 @@ func parseAddr(addr string) (string, int64) {
 	return addrPairs[0], portInt64
 }
 
-func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
-	bodyBytes, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		return nil, err
-	}
-	if err := wkutil.ReadJSONByByte(bodyBytes, obj); err != nil {
-		return nil, err
-	}
-	return bodyBytes, nil
-}
-
 // 频道状态
 type channelStatus int
 
@@ -273,3 +279,51 @@ const (
 	userRoleLeader // 领导 （领导负责用户数据的真实处理）
 	userRoleProxy  // 代理 （代理不处理逻辑，只将数据转发给领导）
 )
+
+func handlerIMError(resp *rest.Response) error {
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest {
+			resultMap, err := wkutil.JSONToMap(resp.Body)
+			if err != nil {
+				return err
+			}
+			if resultMap != nil && resultMap["msg"] != nil {
+				return fmt.Errorf("IM服务失败！ -> %s", resultMap["msg"])
+			}
+		}
+		return fmt.Errorf("IM服务返回状态[%d]失败！", resp.StatusCode)
+	}
+	return nil
+}
+
+func myUptime(d time.Duration) string {
+	// Just use total seconds for uptime, and display days / years
+	tsecs := d / time.Second
+	tmins := tsecs / 60
+	thrs := tmins / 60
+	tdays := thrs / 24
+	tyrs := tdays / 365
+
+	if tyrs > 0 {
+		return fmt.Sprintf("%dy%dd%dh%dm%ds", tyrs, tdays%365, thrs%24, tmins%60, tsecs%60)
+	}
+	if tdays > 0 {
+		return fmt.Sprintf("%dd%dh%dm%ds", tdays, thrs%24, tmins%60, tsecs%60)
+	}
+	if thrs > 0 {
+		return fmt.Sprintf("%dh%dm%ds", thrs, tmins%60, tsecs%60)
+	}
+	if tmins > 0 {
+		return fmt.Sprintf("%dm%ds", tmins, tsecs%60)
+	}
+	return fmt.Sprintf("%ds", tsecs)
+}
+
+func serverUid(id uint64) string {
+	return fmt.Sprintf("%d", id)
+}
+
+func uidToServerId(uid string) uint64 {
+	id, _ := strconv.ParseUint(uid, 10, 64)
+	return id
+}
