@@ -235,7 +235,7 @@ func (c *channel) tick() {
 func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) error {
 
 	messageId := c.r.messageIDGen.Generate().Int64() // 生成唯一消息ID
-	message := &ReactorChannelMessage{
+	message := ReactorChannelMessage{
 		FromConnId:   fromConnId,
 		FromUid:      fromUid,
 		FromDeviceId: fromDeviceId,
@@ -247,7 +247,7 @@ func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId in
 
 	err := c.sub.stepWait(c, &ChannelAction{
 		ActionType: ChannelActionSend,
-		Messages:   []*ReactorChannelMessage{message},
+		Messages:   []ReactorChannelMessage{message},
 	})
 	if err != nil {
 		return err
@@ -269,7 +269,7 @@ func (c *channel) becomeProxy(leaderId uint64) {
 	c.role = channelRoleProxy
 	c.leaderId = leaderId
 	c.stepFnc = c.stepProxy
-	c.Info("become logic proxy")
+	c.Info("become logic proxy", zap.Uint64("leaderId", c.leaderId))
 }
 
 func (c *channel) resetIndex() {
@@ -347,8 +347,13 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 			})
 		}
 	}
+	if c.receiverTagKey.Load() != "" {
+		// 释放掉之前的tag
+		c.r.s.tagManager.releaseReceiverTag(c.receiverTagKey.Load())
+	}
 	receiverTagKey := wkutil.GenUUID()
 	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList)
+	newTag.ref.Inc() // tag引用计数加1
 	c.receiverTagKey.Store(receiverTagKey)
 	return newTag, nil
 }

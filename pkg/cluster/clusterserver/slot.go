@@ -114,9 +114,14 @@ func (s *slot) update(st *pb.Slot) {
 
 		} else {
 			if st.Leader == s.opts.NodeId {
-				s.rc.BecomeLeader(st.Term)
+				if s.rc.Term() != st.Term || !s.rc.IsLeader() {
+					s.rc.BecomeLeader(st.Term)
+				}
+
 			} else {
-				s.rc.BecomeFollower(st.Term, st.Leader)
+				if s.rc.Term() != st.Term || s.rc.LeaderId() != st.Leader || !s.rc.IsFollower() {
+					s.rc.BecomeFollower(st.Term, st.Leader)
+				}
 			}
 		}
 	}
@@ -175,7 +180,6 @@ func (s *slot) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica
 			s.Warn("the log is not continuous and has been truncated ", zap.Uint64("lastIndex", lastIndex), zap.Uint64("msgIndex", msg.Index), zap.Int("startLogLen", startLogLen), zap.Int("endLogLen", len(logs)))
 		}
 
-		s.Debug("getLogs...", zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex+1), zap.Int("logs", len(logs)))
 		resultLogs = extend(unstableLogs, logs)
 	} else {
 		resultLogs = unstableLogs

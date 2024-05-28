@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ import (
 
 var defaultProtoVersion uint8 = 4
 var defaultWkproto = wkproto.New()
+
+var EmptyReactorChannelMessage = ReactorChannelMessage{}
 
 type ReactorChannelMessage struct {
 	FromConnId   int64  // 发送者连接ID
@@ -103,7 +106,7 @@ func (m *ReactorChannelMessage) Size() uint64 {
 	return size
 }
 
-type ReactorChannelMessageSet []*ReactorChannelMessage
+type ReactorChannelMessageSet []ReactorChannelMessage
 
 func (rs ReactorChannelMessageSet) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
@@ -143,7 +146,7 @@ func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
 	}
 
 	for i := 0; i < int(count); i++ {
-		r := &ReactorChannelMessage{}
+		r := ReactorChannelMessage{}
 		if r.FromConnId, err = dec.Int64(); err != nil {
 			return err
 		}
@@ -173,13 +176,16 @@ func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
 	return nil
 }
 
+var EmptyReactorUserMessage = ReactorUserMessage{}
+
 type ReactorUserMessage struct {
 	FromNodeId uint64        // 源节点Id
 	ConnId     int64         // 连接id
 	DeviceId   string        // 设备ID
 	InPacket   wkproto.Frame // 输入的包
-	OutBytes   []byte        // 需要输出的字节
-	Index      uint64        // 消息下标
+	FrameType  wkproto.FrameType
+	OutBytes   []byte // 需要输出的字节
+	Index      uint64 // 消息下标
 
 }
 
@@ -215,6 +221,7 @@ func (m *ReactorUserMessage) MarshalWithEncoder(encoder *wkproto.Encoder) error 
 		encoder.WriteBinary(packetData)
 	} else {
 		encoder.WriteUint8(0) // 没包数据
+		encoder.WriteUint8(uint8(m.FrameType))
 		encoder.WriteBinary(m.OutBytes)
 	}
 	return nil
@@ -248,6 +255,11 @@ func (m *ReactorUserMessage) UnmarshalWithDecoder(decoder *wkproto.Decoder) erro
 		}
 		m.InPacket = packet
 	} else {
+		frameType, err := decoder.Uint8()
+		if err != nil {
+			return err
+		}
+		m.FrameType = wkproto.FrameType(frameType)
 		m.OutBytes, err = decoder.Binary()
 		if err != nil {
 			return err
@@ -263,7 +275,7 @@ type ChannelAction struct {
 	EndIndex   uint64
 	Reason     Reason
 	ReasonCode wkproto.ReasonCode
-	Messages   []*ReactorChannelMessage
+	Messages   []ReactorChannelMessage
 	LeaderId   uint64 // 频道领导节点ID
 }
 
@@ -448,10 +460,11 @@ func (s *everyScheduler) Next(prev time.Time) time.Time {
 
 // 转发写请求
 type FowardWriteReq struct {
-	Uid      string
-	DeviceId string
-	ConnId   int64
-	Data     []byte
+	Uid            string
+	DeviceId       string
+	ConnId         int64
+	RecvFrameCount uint32 // recv消息数量 (统计用)
+	Data           []byte
 }
 
 func (f *FowardWriteReq) Marshal() ([]byte, error) {
@@ -460,6 +473,7 @@ func (f *FowardWriteReq) Marshal() ([]byte, error) {
 	enc.WriteString(f.Uid)
 	enc.WriteString(f.DeviceId)
 	enc.WriteInt64(f.ConnId)
+	enc.WriteUint32(f.RecvFrameCount)
 	enc.WriteBytes(f.Data)
 	return enc.Bytes(), nil
 }
@@ -476,9 +490,269 @@ func (f *FowardWriteReq) Unmarshal(data []byte) error {
 	if f.ConnId, err = dec.Int64(); err != nil {
 		return err
 	}
+
+	if f.RecvFrameCount, err = dec.Uint32(); err != nil {
+		return err
+	}
+
 	if f.Data, err = dec.BinaryAll(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+type clearConversationUnreadReq struct {
+	UID         string `json:"uid"`
+	ChannelID   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+	MessageSeq  uint32 `json:"message_seq"` // messageSeq 只有超大群才会传 因为超大群最近会话服务器不会维护，需要客户端传递messageSeq进行主动维护
+}
+
+func (req clearConversationUnreadReq) Check() error {
+	if req.UID == "" {
+		return errors.New("uid cannot be empty")
+	}
+	if req.ChannelID == "" || req.ChannelType == 0 {
+		return errors.New("channel_id or channel_type cannot be empty")
+	}
+	return nil
+}
+
+type deleteChannelReq struct {
+	UID         string `json:"uid"`
+	ChannelID   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+}
+
+func (req deleteChannelReq) Check() error {
+	if len(req.UID) <= 0 {
+		return errors.New("Uid cannot be empty")
+	}
+	if req.ChannelID == "" || req.ChannelType == 0 {
+		return errors.New("channel_id or channel_type cannot be empty")
+	}
+	return nil
+}
+
+type syncUserConversationResp struct {
+	ChannelID       string         `json:"channel_id"`         // 频道ID
+	ChannelType     uint8          `json:"channel_type"`       // 频道类型
+	Unread          int            `json:"unread"`             // 未读消息
+	Timestamp       int64          `json:"timestamp"`          // 最后一次会话时间
+	LastMsgSeq      uint32         `json:"last_msg_seq"`       // 最后一条消息seq
+	LastClientMsgNo string         `json:"last_client_msg_no"` // 最后一次消息客户端编号
+	OffsetMsgSeq    int64          `json:"offset_msg_seq"`     // 偏移位的消息seq
+	ReadedToMsgSeq  uint32         `json:"readed_to_msg_seq"`  // 已读至的消息seq
+	Version         int64          `json:"version"`            // 数据版本
+	Recents         []*MessageResp `json:"recents"`            // 最近N条消息
+}
+
+func newSyncUserConversationResp(conversation wkdb.Conversation, session wkdb.Session) *syncUserConversationResp {
+	realChannelId := session.ChannelId
+	if session.ChannelType == wkproto.ChannelTypePerson {
+		from, to := GetFromUIDAndToUIDWith(session.ChannelId)
+		if from == session.Uid {
+			realChannelId = to
+		} else {
+			realChannelId = from
+		}
+	}
+	return &syncUserConversationResp{
+		ChannelID:      realChannelId,
+		ChannelType:    session.ChannelType,
+		Unread:         int(conversation.UnreadCount),
+		Version:        session.UpdatedAt.UnixNano(),
+		ReadedToMsgSeq: uint32(conversation.ReadedToMsgSeq),
+	}
+}
+
+type channelRecentMessageReq struct {
+	ChannelID   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+	LastMsgSeq  uint64 `json:"last_msg_seq"`
+}
+
+type channelRecentMessage struct {
+	ChannelID   string         `json:"channel_id"`
+	ChannelType uint8          `json:"channel_type"`
+	Messages    []*MessageResp `json:"messages"`
+}
+
+type MessageRespSlice []*MessageResp
+
+func (m MessageRespSlice) Len() int { return len(m) }
+
+func (m MessageRespSlice) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
+
+func (m MessageRespSlice) Less(i, j int) bool { return m[i].MessageSeq < m[j].MessageSeq }
+
+// ChannelCreateReq 频道创建请求
+type ChannelCreateReq struct {
+	ChannelInfoReq
+	Subscribers []string `json:"subscribers"` // 订阅者
+}
+
+// Check 检查请求参数
+func (r ChannelCreateReq) Check() error {
+	if strings.TrimSpace(r.ChannelID) == "" {
+		return errors.New("频道ID不能为空！")
+	}
+	if r.ChannelType == 0 {
+		return errors.New("频道类型错误！")
+	}
+	return nil
+}
+
+type subscriberAddReq struct {
+	ChannelID      string   `json:"channel_id"`      // 频道ID
+	ChannelType    uint8    `json:"channel_type"`    // 频道类型
+	Reset          int      `json:"reset"`           // 是否重置订阅者 （0.不重置 1.重置），选择重置，将删除原来的所有成员
+	TempSubscriber int      `json:"temp_subscriber"` //  是否是临时订阅者 (1. 是 0. 否)
+	Subscribers    []string `json:"subscribers"`     // 订阅者
+}
+
+func (s subscriberAddReq) Check() error {
+	if strings.TrimSpace(s.ChannelID) == "" {
+		return errors.New("频道ID不能为空！")
+	}
+	if stringArrayIsEmpty(s.Subscribers) {
+		return errors.New("订阅者不能为空！")
+	}
+	return nil
+}
+
+type subscriberRemoveReq struct {
+	ChannelID      string   `json:"channel_id"`
+	ChannelType    uint8    `json:"channel_type"`
+	TempSubscriber int      `json:"temp_subscriber"` //  是否是临时订阅者 (1. 是 0. 否)
+	Subscribers    []string `json:"subscribers"`
+}
+
+func (s subscriberRemoveReq) Check() error {
+	if strings.TrimSpace(s.ChannelID) == "" {
+		return errors.New("频道ID不能为空！")
+	}
+	if stringArrayIsEmpty(s.Subscribers) {
+		return errors.New("订阅者不能为空！")
+	}
+	return nil
+}
+
+func stringArrayIsEmpty(array []string) bool {
+	if len(array) == 0 {
+		return true
+	}
+	emptyCount := 0
+	for _, a := range array {
+		if strings.TrimSpace(a) == "" {
+			emptyCount++
+		}
+	}
+	return emptyCount >= len(array)
+}
+
+type blacklistReq struct {
+	ChannelID   string   `json:"channel_id"`   // 频道ID
+	ChannelType uint8    `json:"channel_type"` // 频道类型
+	UIDs        []string `json:"uids"`         // 订阅者
+}
+
+func (r blacklistReq) Check() error {
+	if r.ChannelID == "" {
+		return errors.New("channel_id不能为空！")
+	}
+	if r.ChannelType == 0 {
+		return errors.New("频道类型不能为0！")
+	}
+	if len(r.UIDs) <= 0 {
+		return errors.New("uids不能为空！")
+	}
+	return nil
+}
+
+// ChannelDeleteReq 删除频道请求
+type ChannelDeleteReq struct {
+	ChannelID   string `json:"channel_id"`   // 频道ID
+	ChannelType uint8  `json:"channel_type"` // 频道类型
+}
+
+type whitelistReq struct {
+	ChannelID   string   `json:"channel_id"`   // 频道ID
+	ChannelType uint8    `json:"channel_type"` // 频道类型
+	UIDs        []string `json:"uids"`         // 订阅者
+}
+
+func (r whitelistReq) Check() error {
+	if r.ChannelID == "" {
+		return errors.New("channel_id不能为空！")
+	}
+	if r.ChannelType == 0 {
+		return errors.New("频道类型不能为0！")
+	}
+	if stringArrayIsEmpty(r.UIDs) {
+		return errors.New("uids不能为空！")
+	}
+	return nil
+}
+
+type syncReq struct {
+	UID        string `json:"uid"`         // 用户uid
+	MessageSeq uint64 `json:"message_seq"` // 客户端最大消息序列号
+	Limit      int    `json:"limit"`       // 消息数量限制
+}
+
+func (r syncReq) Check() error {
+	if strings.TrimSpace(r.UID) == "" {
+		return errors.New("用户uid不能为空！")
+	}
+	if r.Limit < 0 {
+		return errors.New("limit不能为负数！")
+	}
+	return nil
+}
+
+var emptySyncMessageResp = syncMessageResp{}
+
+type syncMessageResp struct {
+	StartMessageSeq uint64         `json:"start_message_seq"` // 开始序列号
+	EndMessageSeq   uint64         `json:"end_message_seq"`   // 结束序列号
+	More            int            `json:"more"`              // 是否还有更多 1.是 0.否
+	Messages        []*MessageResp `json:"messages"`          // 消息数据
+}
+
+type syncackReq struct {
+	// 用户uid
+	UID string `json:"uid"`
+	// 最后一次同步的message_seq
+	LastMessageSeq uint64 `json:"last_message_seq"`
+}
+
+func (s syncackReq) Check() error {
+	if strings.TrimSpace(s.UID) == "" {
+		return errors.New("用户UID不能为空！")
+	}
+	if s.LastMessageSeq == 0 {
+		return errors.New("最后一次messageSeq不能为0！")
+	}
+	return nil
+}
+
+// ChannelInfoReq ChannelInfoReq
+type ChannelInfoReq struct {
+	ChannelID   string `json:"channel_id"`   // 频道ID
+	ChannelType uint8  `json:"channel_type"` // 频道类型
+	Large       int    `json:"large"`        // 是否是超大群
+	Ban         int    `json:"ban"`          // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
+	Disband     int    `json:"disband"`      // 是否解散频道
+}
+
+func (c ChannelInfoReq) ToChannelInfo() wkdb.ChannelInfo {
+	return wkdb.ChannelInfo{
+		ChannelId:   c.ChannelID,
+		ChannelType: c.ChannelType,
+		Large:       c.Large == 1,
+		Ban:         c.Ban == 1,
+		Disband:     c.Disband == 1,
+	}
 }

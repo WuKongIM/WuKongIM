@@ -4,18 +4,23 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/sasha-s/go-deadlock"
+	"go.uber.org/zap"
 )
 
 type userHandler struct {
-	uid     string
-	actions []*UserAction
+	uniqueNo string // 唯一标识，所有step只处理相同标识的消息
+	uid      string
+	actions  []UserAction
 
 	authing   bool          // 正在认证
 	authQueue *userMsgQueue // 认证消息队列
 
 	conns []*connContext
+
+	connNodeIds []uint64 // 连接涉及到的节点id集合
 
 	sendPing  bool          // 正在发送ping
 	pingQueue *userMsgQueue // ping消息队列
@@ -26,33 +31,39 @@ type userHandler struct {
 	recvMsging   bool          // 正在收消息
 	recvMsgQueue *userMsgQueue // 接收消息的队列
 
-	forwardRecvacking bool // 转发recvack中
-
 	leaderId uint64 // 用户所在的领导节点
 
 	status userStatus // 用户状态
 	role   userRole   // 用户角色
 
-	stepFnc func(*UserAction) error
+	stepFnc func(UserAction) error
 
 	sub *userReactorSub
 
 	mu deadlock.RWMutex
+
+	pingTick        int
+	pongTimeoutTick map[uint64]int
 
 	wklog.Log
 }
 
 func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 
-	return &userHandler{
-		uid:          uid,
-		authQueue:    newUserMsgQueue(fmt.Sprintf("user:auth:%s", uid)),
-		pingQueue:    newUserMsgQueue(fmt.Sprintf("user:ping:%s", uid)),
-		recvackQueue: newUserMsgQueue(fmt.Sprintf("user:recvack:%s", uid)),
-		recvMsgQueue: newUserMsgQueue(fmt.Sprintf("user:recv:%s", uid)),
-		Log:          wklog.NewWKLog(fmt.Sprintf("userHandler[%s]", uid)),
-		sub:          sub,
+	u := &userHandler{
+		uid:             uid,
+		authQueue:       newUserMsgQueue(fmt.Sprintf("user:auth:%s", uid)),
+		pingQueue:       newUserMsgQueue(fmt.Sprintf("user:ping:%s", uid)),
+		recvackQueue:    newUserMsgQueue(fmt.Sprintf("user:recvack:%s", uid)),
+		recvMsgQueue:    newUserMsgQueue(fmt.Sprintf("user:recv:%s", uid)),
+		Log:             wklog.NewWKLog(fmt.Sprintf("userHandler[%s]", uid)),
+		sub:             sub,
+		pongTimeoutTick: make(map[uint64]int),
+		uniqueNo:        wkutil.GenUUID(),
 	}
+
+	u.Info("new user handler")
+	return u
 }
 
 func (u *userHandler) hasReady() bool {
@@ -84,21 +95,21 @@ func (u *userHandler) ready() userReady {
 			return userReady{}
 		}
 		u.status = userStatusInitializing
-		u.actions = append(u.actions, &UserAction{ActionType: UserActionInit})
+		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionInit})
 	} else {
 		if u.role == userRoleLeader {
 			// 连接认证
 			if u.hasAuth() {
 				u.authing = true
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
-				u.actions = append(u.actions, &UserAction{ActionType: UserActionAuth, Messages: msgs})
-				// u.Info("send auth...")
+				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionAuth, Messages: msgs})
+				u.Info("send auth...")
 			}
 			// 发送ping
 			if u.hasPing() {
 				u.sendPing = true
 				msgs := u.pingQueue.sliceWithSize(u.pingQueue.processingIndex+1, u.pingQueue.lastIndex+1, 0)
-				u.actions = append(u.actions, &UserAction{ActionType: UserActionPing, Messages: msgs})
+				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionPing, Messages: msgs})
 				// u.Info("send ping...")
 			}
 
@@ -106,16 +117,17 @@ func (u *userHandler) ready() userReady {
 			if u.hasRecvack() {
 				u.sendRecvacking = true
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
-				u.actions = append(u.actions, &UserAction{ActionType: UserActionRecvack, Messages: msgs})
+				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionRecvack, Messages: msgs})
 				// u.Info("send recvack...")
 			}
 
 		} else {
 			// 转发用户action
 			if u.hasRecvack() {
-				u.forwardRecvacking = true
+				u.sendRecvacking = true
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
-				u.actions = append(u.actions, &UserAction{
+				u.actions = append(u.actions, UserAction{
+					UniqueNo:   u.uniqueNo,
 					ActionType: UserActionForward,
 					Uid:        u.uid,
 					LeaderId:   u.leaderId,
@@ -130,7 +142,8 @@ func (u *userHandler) ready() userReady {
 			if u.hasAuth() {
 				u.authing = true
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
-				u.actions = append(u.actions, &UserAction{
+				u.actions = append(u.actions, UserAction{
+					UniqueNo:   u.uniqueNo,
 					ActionType: UserActionForward,
 					Uid:        u.uid,
 					LeaderId:   u.leaderId,
@@ -140,7 +153,7 @@ func (u *userHandler) ready() userReady {
 						Messages:   msgs,
 					},
 				})
-				// u.Info("forward auth...")
+				u.Info("forward auth...")
 			}
 
 		}
@@ -148,7 +161,7 @@ func (u *userHandler) ready() userReady {
 		if u.hasRecvMsg() {
 			u.recvMsging = true
 			msgs := u.recvMsgQueue.sliceWithSize(u.recvMsgQueue.processingIndex+1, u.recvMsgQueue.lastIndex+1, 0)
-			u.actions = append(u.actions, &UserAction{ActionType: UserActionRecv, Messages: msgs})
+			u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionRecv, Messages: msgs})
 			// u.Info("recv msg...", zap.Int("msgCount", len(msgs)))
 		}
 
@@ -190,22 +203,6 @@ func (u *userHandler) hasRecvMsg() bool {
 
 }
 
-func (u *userHandler) addConnIfNotExist(conn *connContext) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	exist := false
-	for _, c := range u.conns {
-		if c.deviceId == conn.deviceId {
-			exist = true
-			break
-		}
-	}
-	if !exist {
-		u.conns = append(u.conns, conn)
-	}
-}
-
 // 是否已初始化
 func (u *userHandler) isInitialized() bool {
 
@@ -226,7 +223,7 @@ func (u *userHandler) becomeProxy(leaderId uint64) {
 	u.role = userRoleProxy
 	u.stepFnc = u.stepProxy
 
-	u.Info("become logic proxy")
+	u.Info("become logic proxy", zap.Uint64("leaderId", u.leaderId))
 }
 
 func (u *userHandler) reset() {
@@ -239,7 +236,6 @@ func (u *userHandler) reset() {
 	u.sendPing = false
 	u.sendRecvacking = false
 	u.recvMsging = false
-	u.forwardRecvacking = false
 	u.authing = false
 
 	// 将ping和recvack队列里的数据清空掉，因为这些数据已无意义
@@ -256,6 +252,68 @@ func (u *userHandler) reset() {
 
 func (u *userHandler) tick() {
 
+	if u.role != userRoleLeader { // 非领导不能发ping
+		return
+	}
+	u.pingTick++
+
+	for _, proxyNodeId := range u.connNodeIds {
+		u.pongTimeoutTick[proxyNodeId]++
+	}
+	// u.pongTimeoutTick++
+
+	if u.pingTick >= u.sub.r.s.opts.Reactor.UserNodePingTick {
+		u.pingTick = 0
+		var messages []ReactorUserMessage
+		if len(u.conns) > 0 {
+			for _, c := range u.conns {
+				if c.realNodeId == 0 || c.realNodeId == c.subReactor.r.s.opts.Cluster.NodeId {
+					continue
+				}
+				messages = append(messages, ReactorUserMessage{
+					FromNodeId: c.realNodeId,
+					DeviceId:   c.deviceId,
+					ConnId:     c.proxyConnId,
+				})
+			}
+			if len(messages) > 0 {
+				u.actions = append(u.actions, UserAction{ActionType: UserActionNodePing, Uid: u.uid, Messages: messages})
+			}
+
+		} else {
+			// 没有任何连接了，可以关闭了
+			u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
+		}
+	}
+
+	// 检查代理节点是否超时
+	for _, proxyNodeId := range u.connNodeIds {
+		if u.pongTimeoutTick[proxyNodeId] >= u.sub.r.s.opts.Reactor.UserNodePongTimeoutTick {
+			u.Warn("user node pong timeout", zap.String("uid", u.uid), zap.Uint64("proxyNodeId", proxyNodeId))
+			u.actions = append(u.actions, UserAction{ActionType: UserActionProxyNodeTimeout, Uid: u.uid, Messages: []ReactorUserMessage{
+				{FromNodeId: proxyNodeId},
+			}})
+		}
+	}
+
+}
+
+func (u *userHandler) addConnIfNotExist(conn *connContext) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	exist := false
+	for _, c := range u.conns {
+		if c.deviceId == conn.deviceId {
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		u.conns = append(u.conns, conn)
+	}
+
+	u.resetConnNodeIds()
 }
 
 func (u *userHandler) getConn(deviceId string) *connContext {
@@ -280,6 +338,17 @@ func (u *userHandler) getConnById(id int64) *connContext {
 	return nil
 }
 
+func (u *userHandler) getConnByProxyConnId(nodeId uint64, proxyConnId int64) *connContext {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	for _, c := range u.conns {
+		if c.realNodeId == nodeId && c.proxyConnId == proxyConnId {
+			return c
+		}
+	}
+	return nil
+}
+
 func (u *userHandler) getConns() []*connContext {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
@@ -292,16 +361,17 @@ func (u *userHandler) getConnCount() int {
 	return len(u.conns)
 }
 
-func (u *userHandler) removeConn(deviceId string) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	for i, c := range u.conns {
-		if c.deviceId == deviceId {
-			u.conns = append(u.conns[:i], u.conns[i+1:]...)
-			return
-		}
-	}
-}
+// func (u *userHandler) removeConn(deviceId string) {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
+// 	for i, c := range u.conns {
+// 		if c.deviceId == deviceId {
+// 			u.conns = append(u.conns[:i], u.conns[i+1:]...)
+// 			break
+// 		}
+// 	}
+// 	u.resetConnNodeIds()
+// }
 
 func (u *userHandler) removeConnById(id int64) {
 	u.mu.Lock()
@@ -309,7 +379,45 @@ func (u *userHandler) removeConnById(id int64) {
 	for i, c := range u.conns {
 		if c.connId == id {
 			u.conns = append(u.conns[:i], u.conns[i+1:]...)
-			return
+			break
+		}
+	}
+	u.resetConnNodeIds()
+
+}
+
+// 移除指定节点id的所有连接
+func (u *userHandler) removeConnsByNodeId(nodeId uint64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	newConns := make([]*connContext, 0, len(u.conns))
+	for i := 0; i < len(u.conns); i++ {
+		if u.conns[i].realNodeId != nodeId {
+			newConns = append(newConns, u.conns[i])
+		}
+	}
+	u.conns = newConns
+	u.resetConnNodeIds()
+
+}
+
+func (u *userHandler) resetConnNodeIds() {
+	u.connNodeIds = u.connNodeIds[:0]
+	for _, conn := range u.conns {
+		if conn.realNodeId == 0 {
+			continue
+		}
+		var exist = false
+		for _, connNodeId := range u.connNodeIds {
+
+			if connNodeId == conn.realNodeId {
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			u.connNodeIds = append(u.connNodeIds, conn.realNodeId)
 		}
 	}
 }
@@ -328,15 +436,15 @@ func (u *userHandler) hasMasterDevice() bool {
 }
 
 type userReady struct {
-	actions []*UserAction
+	actions []UserAction
 }
 
 type UserAction struct {
+	UniqueNo   string
 	ActionType UserActionType
 	Uid        string
-	Messages   []*ReactorUserMessage
+	Messages   []ReactorUserMessage
 	LeaderId   uint64 // 用户所在的领导节点
-	Conn       *connContext
 	Index      uint64
 	Reason     Reason
 
@@ -377,7 +485,7 @@ func (u *UserAction) UnmarshalWithDecoder(dec *wkproto.Decoder) error {
 		return err
 	}
 	for i := 0; i < int(msgCount); i++ {
-		m := &ReactorUserMessage{}
+		m := ReactorUserMessage{}
 		if err = m.UnmarshalWithDecoder(dec); err != nil {
 			return err
 		}
@@ -386,7 +494,7 @@ func (u *UserAction) UnmarshalWithDecoder(dec *wkproto.Decoder) error {
 	return nil
 }
 
-type UserActionSet []*UserAction
+type UserActionSet []UserAction
 
 func (u UserActionSet) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
@@ -408,7 +516,7 @@ func (u *UserActionSet) Unmarshal(data []byte) error {
 		return err
 	}
 	for i := 0; i < int(count); i++ {
-		a := &UserAction{}
+		a := UserAction{}
 		if err = a.UnmarshalWithDecoder(dec); err != nil {
 			return err
 		}

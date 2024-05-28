@@ -2,11 +2,14 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/RussellLuo/timingwheel"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
 
@@ -17,16 +20,20 @@ type RetryQueue struct {
 	inFlightMutex    sync.Mutex
 	s                *Server
 	fakeMessageID    int64
+	wklog.Log
+
+	retryTimer *timingwheel.Timer
 }
 
 // NewRetryQueue NewRetryQueue
-func NewRetryQueue(s *Server) *RetryQueue {
+func NewRetryQueue(index int, s *Server) *RetryQueue {
 
 	return &RetryQueue{
-		inFlightPQ:       newInFlightPqueue(1024),
+		inFlightPQ:       newInFlightPqueue(4056),
 		inFlightMessages: make(map[string]*retryMessage),
 		s:                s,
 		fakeMessageID:    10000,
+		Log:              wklog.NewWKLog(fmt.Sprintf("RetryQueue[%d]", index)),
 	}
 }
 
@@ -50,7 +57,7 @@ func (r *RetryQueue) pushInFlightMessage(msg *retryMessage) {
 	key := r.getInFlightKey(msg.connId, msg.messageId)
 	_, ok := r.inFlightMessages[key]
 	if ok {
-		r.s.Warn("ID already in flight", zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
+		r.Warn("ID already in flight", zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
 		return
 	}
 	r.inFlightMessages[key] = msg
@@ -63,7 +70,7 @@ func (r *RetryQueue) popInFlightMessage(connId int64, messageId int64) (*retryMe
 	key := r.getInFlightKey(connId, messageId)
 	msg, ok := r.inFlightMessages[key]
 	if !ok {
-		r.s.Warn("ID not in flight", zap.Int64("connId", connId), zap.Int64("messageId", messageId))
+		r.Warn("ID not in flight", zap.Int64("connId", connId), zap.Int64("messageId", messageId))
 		return nil, errors.New("ID not in flight")
 	}
 	delete(r.inFlightMessages, key)
@@ -107,7 +114,7 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 		}
 		err := r.finishMessage(msg.connId, msg.messageId)
 		if err != nil {
-			r.s.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
+			r.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
 			break
 		}
 		r.s.retryManager.retry(msg) // 重试
@@ -116,11 +123,15 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 
 // Start 开始运行重试
 func (r *RetryQueue) Start() {
-	r.s.Schedule(r.s.opts.MessageRetry.ScanInterval, func() {
+	r.retryTimer = r.s.Schedule(r.s.opts.MessageRetry.ScanInterval, func() {
 		now := time.Now().UnixNano()
 		r.processInFlightQueue(now)
 	})
 }
 
 func (r *RetryQueue) Stop() {
+	if r.retryTimer != nil {
+		r.retryTimer.Stop()
+		r.retryTimer = nil
+	}
 }

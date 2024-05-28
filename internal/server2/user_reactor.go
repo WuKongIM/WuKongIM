@@ -18,7 +18,11 @@ type userReactor struct {
 	processRecvackC chan *recvackReq  // recvack请求
 	processWriteC   chan *writeReq    // 写请求
 
-	processForwardUserActionC chan *UserAction // 转发用户行为请求
+	processForwardUserActionC chan UserAction           // 转发用户行为请求
+	processNodePingC          chan *nodePingReq         // 节点ping请求
+	processNodePongC          chan *nodePongReq         // 节点pong请求
+	processProxyNodeTimeoutC  chan *proxyNodeTimeoutReq // 代理节点超时
+	processCloseC             chan *userCloseReq        // 关闭请求
 
 	stopper *syncutil.Stopper
 	wklog.Log
@@ -36,7 +40,11 @@ func newUserReactor(s *Server) *userReactor {
 		processPingC:              make(chan *pingReq, 1024),
 		processRecvackC:           make(chan *recvackReq, 1024),
 		processWriteC:             make(chan *writeReq, 1024),
-		processForwardUserActionC: make(chan *UserAction, 1024),
+		processForwardUserActionC: make(chan UserAction, 1024),
+		processNodePingC:          make(chan *nodePingReq, 1024),
+		processNodePongC:          make(chan *nodePongReq, 1024),
+		processProxyNodeTimeoutC:  make(chan *proxyNodeTimeoutReq, 1024),
+		processCloseC:             make(chan *userCloseReq, 1024),
 		stopper:                   syncutil.NewStopper(),
 		Log:                       wklog.NewWKLog("userReactor"),
 		s:                         s,
@@ -60,6 +68,10 @@ func (u *userReactor) start() error {
 		u.stopper.RunWorker(u.processWriteLoop)
 		u.stopper.RunWorker(u.processRecvackLoop)
 		u.stopper.RunWorker(u.processForwardUserActionLoop)
+		u.stopper.RunWorker(u.processNodePingLoop)
+		u.stopper.RunWorker(u.processNodePongLoop)
+		u.stopper.RunWorker(u.processProxyNodeTimeoutLoop)
+		u.stopper.RunWorker(u.processCloseLoop)
 	}
 
 	for _, sub := range u.subs {
@@ -97,6 +109,14 @@ func (u *userReactor) existUser(uid string) bool {
 	return u.reactorSub(uid).existUser(uid)
 }
 
+func (u *userReactor) removeUserByUniqueNo(uid string, uniqueNo string) {
+	u.reactorSub(uid).removeUserByUniqueNo(uid, uniqueNo)
+}
+
+func (u *userReactor) removeUser(uid string) {
+	u.reactorSub(uid).removeUser(uid)
+}
+
 func (u *userReactor) addConnContext(conn *connContext) {
 	u.reactorSub(conn.uid).addConnContext(conn)
 }
@@ -107,6 +127,10 @@ func (u *userReactor) getConnContext(uid string, deviceId string) *connContext {
 
 func (u *userReactor) getConnContextById(uid string, connId int64) *connContext {
 	return u.reactorSub(uid).getConnContextById(uid, connId)
+}
+
+func (u *userReactor) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
+	return u.reactorSub(uid).getConnContextByProxyConnId(uid, nodeId, proxyConnId)
 }
 func (u *userReactor) getConnContexts(uid string) []*connContext {
 	return u.reactorSub(uid).getConnContexts(uid)
@@ -124,12 +148,17 @@ func (u *userReactor) getConnContextCount(uid string) int {
 	return u.reactorSub(uid).getConnContextCount(uid)
 }
 
-func (u *userReactor) removeConnContext(uid string, deviceId string) {
-	u.reactorSub(uid).removeConnContext(uid, deviceId)
-}
+// func (u *userReactor) removeConnContext(uid string, deviceId string) {
+// 	u.reactorSub(uid).removeConnContext(uid, deviceId)
+// }
 
 func (u *userReactor) removeConnContextById(uid string, id int64) {
 	u.reactorSub(uid).removeConnContextById(uid, id)
+}
+
+// 移除指定节点的所有连接
+func (u *userReactor) removeConnsByNodeId(uid string, nodeId uint64) {
+	u.reactorSub(uid).removeConnsByNodeId(uid, nodeId)
 }
 
 func (u *userReactor) reactorSub(uid string) *userReactorSub {
@@ -139,6 +168,10 @@ func (u *userReactor) reactorSub(uid string) *userReactorSub {
 
 	i := h.Sum32() % uint32(len(u.subs))
 	return u.subs[i]
+}
+
+func (u *userReactor) step(uid string, a UserAction) {
+	u.reactorSub(uid).step(uid, a)
 }
 
 func (u *userReactor) writePacket(conn *connContext, packet wkproto.Frame) error {

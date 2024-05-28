@@ -52,10 +52,14 @@ func (u *userReactorSub) loop() {
 		u.readys()
 		select {
 		case <-tk.C:
+			u.ticks()
 		case <-u.advanceC:
 		case req := <-u.stepUserC:
 			userHanlder := u.getUser(req.uid)
 			if userHanlder != nil {
+				if req.action.UniqueNo == "" {
+					req.action.UniqueNo = userHanlder.uniqueNo
+				}
 				err := userHanlder.step(req.action)
 				if req.waitC != nil {
 					req.waitC <- err
@@ -69,7 +73,7 @@ func (u *userReactorSub) loop() {
 	}
 }
 
-func (u *userReactorSub) step(uid string, action *UserAction) {
+func (u *userReactorSub) step(uid string, action UserAction) {
 
 	select {
 	case u.stepUserC <- stepUser{
@@ -82,7 +86,7 @@ func (u *userReactorSub) step(uid string, action *UserAction) {
 	}
 }
 
-func (u *userReactorSub) stepNoWait(uid string, action *UserAction) error {
+func (u *userReactorSub) stepNoWait(uid string, action UserAction) error {
 	select {
 	case u.stepUserC <- stepUser{
 		uid:    uid,
@@ -100,7 +104,7 @@ func (u *userReactorSub) proposeSend(conn *connContext, sendPacket *wkproto.Send
 	return u.r.s.channelReactor.proposeSend(conn.uid, conn.deviceId, conn.connId, u.r.s.opts.Cluster.NodeId, true, sendPacket)
 }
 
-func (u *userReactorSub) stepWait(uid string, action *UserAction) error {
+func (u *userReactorSub) stepWait(uid string, action UserAction) error {
 	waitC := make(chan error, 1)
 	select {
 	case u.stepUserC <- stepUser{
@@ -129,36 +133,72 @@ func (u *userReactorSub) readys() {
 	})
 }
 
+func (u *userReactorSub) ticks() {
+	u.users.iter(func(uh *userHandler) bool {
+		uh.tick()
+		return true
+	})
+}
+
 func (u *userReactorSub) handleReady(uh *userHandler) {
 	rd := uh.ready()
 	for _, action := range rd.actions {
 		switch action.ActionType {
 		case UserActionInit: // 用户初始化请求
 			u.r.addInitReq(&userInitReq{
-				uid: uh.uid,
+				uniqueNo: action.UniqueNo,
+				uid:      uh.uid,
 			})
 		case UserActionAuth: // 用户连接认证请求
 			u.r.addAuthReq(&userAuthReq{
+				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
 			})
 		case UserActionPing: // 用户发送ping
 			u.r.addPingReq(&pingReq{
+				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
 			})
 		case UserActionRecvack: // 用户发送recvack
 			u.r.addRecvackReq(&recvackReq{
+				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
 			})
 		case UserActionRecv: // 用户接受消息
 			u.r.addWriteReq(&writeReq{
+				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
 			})
 		case UserActionForward: // 转发action
 			u.r.addForwardUserActionReq(action)
+		case UserActionNodePing: // 用户节点ping, 用户的领导发送给追随者的ping
+			u.r.addNodePingReq(&nodePingReq{
+				uid:      uh.uid,
+				messages: action.Messages,
+			})
+		case UserActionNodePong: // 用户节点pong, 用户的追随者返回给领导的pong
+			u.r.addNodePongReq(&nodePongReq{
+				uniqueNo: action.UniqueNo,
+				uid:      uh.uid,
+				leaderId: action.LeaderId,
+			})
+
+		case UserActionProxyNodeTimeout: // 用户节点pong超时
+			u.r.addProxyNodeTimeoutReq(&proxyNodeTimeoutReq{
+				uniqueNo: action.UniqueNo,
+				uid:      uh.uid,
+				messages: action.Messages,
+			})
+		case UserActionClose: // 用户关闭
+			u.r.addCloseReq(&userCloseReq{
+				uniqueNo: action.UniqueNo,
+				uid:      uh.uid,
+			})
+
 		default:
 			u.Error("unknown action type", zap.String("actionType", action.ActionType.String()))
 		}
@@ -198,6 +238,23 @@ func (u *userReactorSub) existUser(uid string) bool {
 	return u.users.exist(uid)
 }
 
+func (u *userReactorSub) removeUser(uid string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.users.remove(uid)
+}
+
+func (u *userReactorSub) removeUserByUniqueNo(uid string, uniqueNo string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	user := u.users.get(uid)
+	if user != nil {
+		if user.uniqueNo == uniqueNo {
+			u.users.remove(uid)
+		}
+	}
+}
+
 func (u *userReactorSub) getConnContext(uid string, deviceId string) *connContext {
 	uh := u.getUser(uid)
 	if uh == nil {
@@ -212,6 +269,14 @@ func (u *userReactorSub) getConnContextById(uid string, id int64) *connContext {
 		return nil
 	}
 	return uh.getConnById(id)
+}
+
+func (u *userReactorSub) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
+	uh := u.getUser(uid)
+	if uh == nil {
+		return nil
+	}
+	return uh.getConnByProxyConnId(nodeId, proxyConnId)
 }
 
 func (u *userReactorSub) getConnContexts(uid string) []*connContext {
@@ -247,21 +312,20 @@ func (u *userReactorSub) getConnContextByDeviceFlag(uid string, deviceFlag wkpro
 	return conns
 }
 
-func (u *userReactorSub) removeConnContext(uid string, deviceId string) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+// func (u *userReactorSub) removeConnContext(uid string, deviceId string) {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
 
-	uh := u.getUser(uid)
-	if uh == nil {
-		return
-	}
-	fmt.Println("removeConnContext--->", uid, deviceId)
-	uh.removeConn(deviceId)
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return
+// 	}
+// 	uh.removeConn(deviceId)
 
-	if uh.getConnCount() <= 0 {
-		u.users.remove(uh.uid)
-	}
-}
+// 	if uh.getConnCount() <= 0 {
+// 		u.users.remove(uh.uid)
+// 	}
+// }
 
 func (u *userReactorSub) removeConnContextById(uid string, id int64) {
 	u.mu.Lock()
@@ -274,8 +338,24 @@ func (u *userReactorSub) removeConnContextById(uid string, id int64) {
 	uh.removeConnById(id)
 
 	if uh.getConnCount() <= 0 {
+		u.Info("remove user", zap.String("uid", uh.uid))
 		u.users.remove(uh.uid)
 	}
+}
+
+func (u *userReactorSub) removeConnsByNodeId(uid string, nodeId uint64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	uh := u.getUser(uid)
+	if uh == nil {
+		return
+	}
+	uh.removeConnsByNodeId(nodeId)
+	if uh.getConnCount() <= 0 {
+		u.users.remove(uh.uid)
+		u.Info("remove user", zap.String("uid", uh.uid))
+	}
+
 }
 
 func (u *userReactorSub) addConnContext(conn *connContext) {
@@ -288,30 +368,27 @@ func (u *userReactorSub) addConnContext(conn *connContext) {
 	uh.addConnIfNotExist(conn)
 }
 
-func (u *userReactorSub) removeConn(uid string, deviceId string) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+// func (u *userReactorSub) removeConn(uid string, deviceId string) {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
 
-	uh := u.getUser(uid)
-	if uh == nil {
-		return
-	}
-	uh.removeConn(deviceId)
-	if uh.getConnCount() <= 0 {
-		u.users.remove(uh.uid)
-	}
-}
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return
+// 	}
+// 	uh.removeConn(deviceId)
+// 	if uh.getConnCount() <= 0 {
+// 		u.users.remove(uh.uid)
+// 	}
+// }
 
 func (u *userReactorSub) writePacket(conn *connContext, packet wkproto.Frame) error {
-	data, err := u.r.s.opts.Proto.EncodeFrame(packet, conn.protoVersion)
-	if err != nil {
-		return err
-	}
-	return conn.write(data)
+
+	return conn.writePacket(packet)
 }
 
 type stepUser struct {
 	uid    string
-	action *UserAction
+	action UserAction
 	waitC  chan error
 }

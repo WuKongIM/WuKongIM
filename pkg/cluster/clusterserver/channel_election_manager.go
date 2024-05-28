@@ -85,6 +85,7 @@ func (c *channelElectionManager) loop() {
 
 // 添加选举请求
 func (c *channelElectionManager) addElectionReq(req electionReq) error {
+	c.Panic("addElectionReq....", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	select {
 	case c.electionC <- req:
 	case <-c.stopper.ShouldStop():
@@ -97,10 +98,10 @@ func (c *channelElectionManager) addElectionReq(req electionReq) error {
 
 func (c *channelElectionManager) election(reqs []electionReq) {
 
-	// start := time.Now()
-	// defer func() {
-	// 	c.Info("channel election", zap.Duration("cost", time.Since(start)), zap.Int("num", len(reqs)))
-	// }()
+	start := time.Now()
+	defer func() {
+		c.Info("channel election", zap.Duration("cost", time.Since(start)), zap.Int("num", len(reqs)))
+	}()
 	channelLastLogInfoMap, err := c.requestChannelLastLogInfos(reqs)
 	if err != nil {
 		c.Error("requestChannelLastLogInfos failed", zap.Error(err))

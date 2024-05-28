@@ -54,13 +54,17 @@ func New(addr string, ops ...Option) *Server {
 		metrics:     newMetrics(),
 		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
 	}
-	requestPool, err := ants.NewPool(opts.RequestPoolSize)
+	requestPool, err := ants.NewPool(opts.RequestPoolSize, ants.WithPanicHandler(func(i interface{}) {
+		s.Panic("request pool panic", zap.Any("panic", i), zap.Stack("stack"))
+	}))
 	if err != nil {
 		s.Panic("new request pool error", zap.Error(err))
 	}
 	s.requestPool = requestPool
 
-	messagePool, err := ants.NewPool(opts.MessagePoolSize)
+	messagePool, err := ants.NewPool(opts.MessagePoolSize, ants.WithPanicHandler(func(i interface{}) {
+		s.Panic("message pool panic", zap.Any("panic", i), zap.Stack("stack"))
+	}))
 	if err != nil {
 		s.Panic("new message pool error", zap.Error(err))
 	}

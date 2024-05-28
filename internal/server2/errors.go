@@ -15,4 +15,7 @@ var (
 	errCodeNotIsChannelLeader errCode = 1001
 	// 不是用户领导节点
 	errCodeNotIsUserLeader errCode = 1002
+
+	// 连接未找到
+	errCodeConnNotFound errCode = 1003
 )

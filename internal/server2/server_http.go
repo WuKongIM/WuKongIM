@@ -80,8 +80,8 @@ func (s *APIServer) Stop() {
 }
 
 func (s *APIServer) setRoutes() {
-	// connz := NewConnzAPI(s.s)
-	// connz.Route(s.r)
+	connz := NewConnzAPI(s.s)
+	connz.Route(s.r)
 
 	// varz := NewVarzAPI(s.s)
 	// varz.Route(s.r)
@@ -91,12 +91,12 @@ func (s *APIServer) setRoutes() {
 	u.Route(s.r)
 
 	// 频道相关API
-	// channel := NewChannelAPI(s.s)
-	// channel.Route(s.r)
+	channel := NewChannelAPI(s.s)
+	channel.Route(s.r)
 
-	// // 最近会话API
-	// conversation := NewConversationAPI(s.s)
-	// conversation.Route(s.r)
+	// 最近会话API
+	conversation := NewConversationAPI(s.s)
+	conversation.Route(s.r)
 
 	// // 消息相关API
 	// message := NewMessageAPI(s.s)

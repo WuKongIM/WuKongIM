@@ -28,7 +28,7 @@ func NewOptions(opt ...Option) *Options {
 		SlotMaxReplicaCount:    3,
 		ChannelMaxReplicaCount: 3,
 		ConfigDir:              "clusterconfig",
-		PongMaxTick:            10,
+		PongMaxTick:            30,
 		LearnerCheckInterval:   time.Second * 2,
 	}
 	for _, o := range opt {

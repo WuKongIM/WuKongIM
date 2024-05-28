@@ -44,7 +44,8 @@ func (r *userReactor) processInit(req *userInitReq) {
 		r.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 	}
 
-	r.reactorSub(req.uid).step(req.uid, &UserAction{
+	r.reactorSub(req.uid).step(req.uid, UserAction{
+		UniqueNo:   req.uniqueNo,
 		ActionType: UserActionInitResp,
 		LeaderId:   leaderId,
 		Reason:     reason,
@@ -52,7 +53,8 @@ func (r *userReactor) processInit(req *userInitReq) {
 }
 
 type userInitReq struct {
-	uid string
+	uniqueNo string
+	uid      string
 }
 
 // =================================== auth ===================================
@@ -80,10 +82,12 @@ func (r *userReactor) processAuthLoop() {
 func (r *userReactor) processAuth(req *userAuthReq) {
 
 	for _, msg := range req.messages {
+		r.Debug("processAuth", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Any("msg", msg))
 		_, _ = r.handleAuth(req.uid, msg)
 	}
 	lastIndex := req.messages[len(req.messages)-1].Index
-	r.reactorSub(req.uid).step(req.uid, &UserAction{
+	r.reactorSub(req.uid).step(req.uid, UserAction{
+		UniqueNo:   req.uniqueNo,
 		ActionType: UserActionAuthResp,
 		Reason:     ReasonSuccess,
 		Index:      lastIndex,
@@ -91,7 +95,7 @@ func (r *userReactor) processAuth(req *userAuthReq) {
 
 }
 
-func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.ReasonCode, error) {
+func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.ReasonCode, error) {
 	var (
 		connectPacket = msg.InPacket.(*wkproto.ConnectPacket)
 		devceLevel    wkproto.DeviceLevel
@@ -185,7 +189,8 @@ func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.R
 				r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
 				if oldConn.deviceId != connectPacket.DeviceID {
 					r.Info("same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.deviceId))
-					r.s.response(oldConn, &wkproto.DisconnectPacket{
+
+					_ = oldConn.writeDirectlyPacket(&wkproto.DisconnectPacket{
 						ReasonCode: wkproto.ReasonConnectKick,
 						Reason:     "login in other device",
 					})
@@ -197,7 +202,7 @@ func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.R
 						oldConn.close() // Close old connection
 					})
 				}
-				r.Debug("close old conn", zap.Any("oldConn", oldConn))
+				r.Info("master: close old conn", zap.Any("oldConn", oldConn))
 			}
 		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceID踢掉
 			for _, oldConn := range oldConns {
@@ -206,6 +211,7 @@ func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.R
 					r.s.timingWheel.AfterFunc(time.Second*5, func() {
 						oldConn.close()
 					})
+					r.Info("slave: close old conn", zap.Any("oldConn", oldConn))
 				}
 			}
 		}
@@ -265,10 +271,8 @@ func (r *userReactor) handleAuth(uid string, msg *ReactorUserMessage) (wkproto.R
 
 func (r *userReactor) authResponse(connCtx *connContext, packet *wkproto.ConnackPacket) {
 	if connCtx.isRealConn {
-		fmt.Println("authResponse111---->", packet.ReasonCode)
-		r.s.response(connCtx, packet)
+		_ = connCtx.writeDirectlyPacket(packet)
 	} else {
-		fmt.Println("authResponse222----2>", packet.ReasonCode, connCtx.protoVersion)
 		status, err := r.requestUserAuthResult(connCtx.realNodeId, &UserAuthResult{
 			ReasonCode:   packet.ReasonCode,
 			Uid:          connCtx.uid,
@@ -286,6 +290,7 @@ func (r *userReactor) authResponse(connCtx *connContext, packet *wkproto.Connack
 		if status == proto.Status_NotFound { // 这个代号说明代理服务器不存在此连接了，所以这里也直接移除
 			r.Error("requestUserAuthResult not found", zap.String("uid", connCtx.uid), zap.String("deviceId", connCtx.deviceId))
 			r.removeConnContextById(connCtx.uid, connCtx.connId)
+			connCtx.close()
 		}
 	}
 }
@@ -317,8 +322,9 @@ func (r *userReactor) requestUserAuthResult(nodeId uint64, result *UserAuthResul
 }
 
 type userAuthReq struct {
+	uniqueNo string
 	uid      string
-	messages []*ReactorUserMessage
+	messages []ReactorUserMessage
 }
 
 // 用户认证结果
@@ -434,7 +440,6 @@ func (r *userReactor) processPingLoop() {
 }
 
 func (r *userReactor) processPing(reqs []*pingReq) {
-	fmt.Println("processPing......")
 	for _, req := range reqs {
 		if len(req.messages) == 0 {
 			continue
@@ -447,7 +452,8 @@ func (r *userReactor) processPing(reqs []*pingReq) {
 		}
 
 		lastMsg := req.messages[len(req.messages)-1]
-		r.reactorSub(req.uid).step(req.uid, &UserAction{
+		r.reactorSub(req.uid).step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
 			ActionType: UserActionPingResp,
 			Reason:     reason,
 			Index:      lastMsg.Index,
@@ -476,8 +482,9 @@ func (r *userReactor) handlePing(req *pingReq) error {
 }
 
 type pingReq struct {
+	uniqueNo string
 	uid      string
-	messages []*ReactorUserMessage
+	messages []ReactorUserMessage
 }
 
 // =================================== recvack ===================================
@@ -507,14 +514,15 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 
 	for _, msg := range req.messages {
 		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
-		r.Info("remove retry", zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
+		r.Info("remove retry", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
 		err := r.s.retryManager.removeRetry(msg.ConnId, recvackPacket.MessageID)
 		if err != nil {
 			r.Warn("removeRetry error", zap.Error(err), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
 		}
 	}
 	lastMsg := req.messages[len(req.messages)-1]
-	r.reactorSub(req.uid).step(req.uid, &UserAction{
+	r.reactorSub(req.uid).step(req.uid, UserAction{
+		UniqueNo:   req.uniqueNo,
 		ActionType: UserActionRecvackResp,
 		Index:      lastMsg.Index,
 		Reason:     ReasonSuccess,
@@ -544,8 +552,9 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 }
 
 type recvackReq struct {
+	uniqueNo string
 	uid      string
-	messages []*ReactorUserMessage
+	messages []ReactorUserMessage
 }
 
 // =================================== write ===================================
@@ -607,7 +616,8 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 				maxIndex = msg.Index
 			}
 		}
-		r.reactorSub(req.uid).step(req.uid, &UserAction{
+		r.reactorSub(req.uid).step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
 			ActionType: UserActionRecvResp,
 			Index:      maxIndex,
 			Reason:     reason,
@@ -626,9 +636,14 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 	sub := r.reactorSub(req.uid)
 
 	var connDataMap = map[string][]byte{}
-	var deviceIdConnIdMap = map[string]int64{} // 设备id对应的连接id
+	var deviceIdConnIdMap = map[string]int64{}  // 设备id对应的连接id
+	var recvFrameCountMap = map[string]uint32{} // 设备id对应的接收帧数
 	for _, msg := range req.messages {
 		deviceIdConnIdMap[msg.DeviceId] = msg.ConnId
+		if msg.FrameType == wkproto.RECV {
+			recvFrameCountMap[msg.DeviceId]++
+		}
+
 		data := connDataMap[msg.DeviceId]
 		data = append(data, msg.OutBytes...)
 		connDataMap[msg.DeviceId] = data
@@ -641,24 +656,31 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 			continue
 		}
 
+		recvFrameCount := recvFrameCountMap[deviceId]
+
 		if conn.isRealConn { // 是真实节点直接返回数据
 			connId := deviceIdConnIdMap[deviceId]
 			if connId == conn.connId {
-				r.s.responseData(conn.conn, data)
+				_ = conn.writeDirectly(data, recvFrameCount)
 			} else {
 				r.Warn("connId not match", zap.String("uid", req.uid), zap.Int64("expectConnId", connId), zap.Int64("actConnId", conn.connId))
 			}
 
 		} else { // 是代理连接，转发数据到真实连接
-			err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
-				Uid:      req.uid,
-				DeviceId: deviceId,
-				ConnId:   conn.proxyConnId,
-				Data:     data,
+
+			status, err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
+				Uid:            req.uid,
+				DeviceId:       deviceId,
+				ConnId:         conn.proxyConnId,
+				RecvFrameCount: recvFrameCount,
+				Data:           data,
 			})
 			if err != nil {
 				r.Error("fowardWriteReq error", zap.Error(err))
 				return err
+			}
+			if status == proto.Status(errCodeConnNotFound) { // 连接不存在了，所以这里也移除
+				r.removeConnContextById(conn.uid, conn.connId)
 			}
 		}
 	}
@@ -666,31 +688,32 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 }
 
 // 转发写请求
-func (r *userReactor) fowardWriteReq(nodeId uint64, req *FowardWriteReq) error {
+func (r *userReactor) fowardWriteReq(nodeId uint64, req *FowardWriteReq) (proto.Status, error) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
 	data, err := req.Marshal()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/connWrite", data)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if resp.Status != proto.Status_OK {
-		return fmt.Errorf("fowardWriteReq failed, status=%d", resp.Status)
+	if resp.Status == proto.Status_OK {
+		return proto.Status_OK, nil
 	}
-	return nil
+	return resp.Status, nil
 }
 
 type writeReq struct {
+	uniqueNo string
 	uid      string
-	messages []*ReactorUserMessage
+	messages []ReactorUserMessage
 }
 
 // =================================== 转发userAction ===================================
 
-func (r *userReactor) addForwardUserActionReq(action *UserAction) {
+func (r *userReactor) addForwardUserActionReq(action UserAction) {
 	select {
 	case r.processForwardUserActionC <- action:
 	case <-r.stopper.ShouldStop():
@@ -699,7 +722,7 @@ func (r *userReactor) addForwardUserActionReq(action *UserAction) {
 }
 
 func (r *userReactor) processForwardUserActionLoop() {
-	actions := make([]*UserAction, 0, 100)
+	actions := make([]UserAction, 0, 100)
 	done := false
 	for !r.stopped.Load() {
 		select {
@@ -723,13 +746,13 @@ func (r *userReactor) processForwardUserActionLoop() {
 	}
 }
 
-func (r *userReactor) processForwardUserAction(actions []*UserAction) {
-	userForwardActionMap := map[string][]*UserAction{} // 用户对应的action
-	userLeaderMap := map[string]uint64{}               // 用户对应的领导节点
+func (r *userReactor) processForwardUserAction(actions []UserAction) {
+	userForwardActionMap := map[string][]UserAction{} // 用户对应的action
+	userLeaderMap := map[string]uint64{}              // 用户对应的领导节点
 	// 按照用户分组
 	for _, action := range actions {
 		forwardActions := userForwardActionMap[action.Uid]
-		forwardActions = append(forwardActions, action.Forward)
+		forwardActions = append(forwardActions, *action.Forward)
 		userForwardActionMap[action.Uid] = forwardActions
 		userLeaderMap[action.Uid] = action.LeaderId
 	}
@@ -746,30 +769,27 @@ func (r *userReactor) processForwardUserAction(actions []*UserAction) {
 		}
 		sub := r.reactorSub(uid)
 		if newLeaderId > 0 {
-			sub.step(uid, &UserAction{
+			sub.step(uid, UserAction{
 				ActionType: UserActionLeaderChange,
 				LeaderId:   newLeaderId,
 			})
 		}
-		messages := make([]*ReactorUserMessage, 0)
-		for _, action := range fowardActions {
-			messages = append(messages, action.Messages...)
-		}
-		sub.step(uid, &UserAction{
-			ActionType: UserActionForwardResp,
-			Uid:        uid,
-			Reason:     reason,
-			Messages:   messages,
-		})
-		if err != nil {
-			r.Error("forwardUserActionPool.Submit error", zap.Error(err))
+		for _, forwardAction := range fowardActions {
+			lastMsg := forwardAction.Messages[len(forwardAction.Messages)-1]
+			sub.step(uid, UserAction{
+				ActionType: UserActionForwardResp,
+				Uid:        uid,
+				Reason:     reason,
+				Index:      lastMsg.Index,
+				Forward:    &forwardAction,
+			})
 		}
 
 	}
 
 }
 
-func (r *userReactor) handleForwardUserAction(uid string, leaderId uint64, actions []*UserAction) (uint64, error) {
+func (r *userReactor) handleForwardUserAction(uid string, leaderId uint64, actions []UserAction) (uint64, error) {
 	needChangeLeader, err := r.forwardUserAction(leaderId, actions)
 	if err != nil {
 		return 0, err
@@ -787,7 +807,7 @@ func (r *userReactor) handleForwardUserAction(uid string, leaderId uint64, actio
 	return 0, nil
 }
 
-func (r *userReactor) forwardUserAction(nodeId uint64, actions []*UserAction) (bool, error) {
+func (r *userReactor) forwardUserAction(nodeId uint64, actions []UserAction) (bool, error) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
 
@@ -809,4 +829,312 @@ func (r *userReactor) forwardUserAction(nodeId uint64, actions []*UserAction) (b
 		return false, fmt.Errorf("forwardUserAction failed, status=%d", resp.Status)
 	}
 	return false, nil
+}
+
+// =================================== node ping ===================================
+
+func (r *userReactor) addNodePingReq(req *nodePingReq) {
+	select {
+	case r.processNodePingC <- req:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *userReactor) processNodePingLoop() {
+
+	reqs := make([]*nodePingReq, 0, 10)
+	done := false
+	for !r.stopped.Load() {
+		select {
+		case req := <-r.processNodePingC:
+			reqs = append(reqs, req)
+
+			for !done {
+				select {
+				case req := <-r.processNodePingC:
+					exist := false
+					for _, r := range reqs {
+						if r.uid == req.uid {
+							r.messages = append(r.messages, req.messages...)
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						reqs = append(reqs, req)
+					}
+				default:
+					done = true
+				}
+			}
+			r.processNodePing(reqs)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *userReactor) processNodePing(reqs []*nodePingReq) {
+	// r.s.cluster.PingNode(req.nodeId)
+
+	nodeIdMap := map[uint64][]*userConns{} // 按照节点分组
+	for _, req := range reqs {
+		for _, msg := range req.messages {
+			userNodePings := nodeIdMap[msg.FromNodeId]
+			exist := false
+			for _, userNodePing := range userNodePings {
+				if userNodePing.uid == req.uid {
+					exist = true
+					userNodePing.connIds = append(userNodePing.connIds, msg.ConnId)
+					break
+				}
+			}
+			if !exist {
+				userNodePings = append(userNodePings, &userConns{
+					uid:     req.uid,
+					connIds: []int64{msg.ConnId},
+				})
+				nodeIdMap[msg.FromNodeId] = userNodePings
+			}
+		}
+	}
+
+	for nodeId, userNodePings := range nodeIdMap {
+		req := &userNodePingReq{
+			leaderId: r.s.opts.Cluster.NodeId,
+			pings:    userNodePings,
+		}
+		data, err := req.Marshal()
+		if err != nil {
+			r.Error("userNodePingReq.Marshal error", zap.Error(err))
+			return
+		}
+		msg := &proto.Message{
+			MsgType: uint32(ClusterMsgTypeNodePing),
+			Content: data,
+		}
+		err = r.s.cluster.Send(nodeId, msg)
+		if err != nil {
+			r.Error("cluster.Send error", zap.Error(err), zap.Uint64("nodeId", nodeId))
+		}
+	}
+
+}
+
+type nodePingReq struct {
+	uid      string
+	messages []ReactorUserMessage
+}
+
+type userNodePingReq struct {
+	leaderId uint64
+	pings    []*userConns
+}
+
+func (u *userNodePingReq) Marshal() ([]byte, error) {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteUint64(u.leaderId)
+	encoder.WriteUint32(uint32(len(u.pings)))
+	for _, ping := range u.pings {
+		encoder.WriteString(ping.uid)
+		encoder.WriteUint32(uint32(len(ping.connIds)))
+		for _, connId := range ping.connIds {
+			encoder.WriteInt64(connId)
+		}
+	}
+	return encoder.Bytes(), nil
+}
+
+func (u *userNodePingReq) Unmarshal(data []byte) error {
+	decoder := wkproto.NewDecoder(data)
+	var err error
+	if u.leaderId, err = decoder.Uint64(); err != nil {
+		return err
+	}
+	pingCount, err := decoder.Uint32()
+	if err != nil {
+		return err
+	}
+	u.pings = make([]*userConns, 0, pingCount)
+	for i := 0; i < int(pingCount); i++ {
+		ping := &userConns{}
+		if ping.uid, err = decoder.String(); err != nil {
+			return err
+		}
+		connCount, err := decoder.Uint32()
+		if err != nil {
+			return err
+		}
+		ping.connIds = make([]int64, 0, connCount)
+		for j := 0; j < int(connCount); j++ {
+			connId, err := decoder.Int64()
+			if err != nil {
+				return err
+			}
+			ping.connIds = append(ping.connIds, connId)
+		}
+		u.pings = append(u.pings, ping)
+	}
+	return nil
+}
+
+// =================================== node pong ===================================
+
+func (r *userReactor) addNodePongReq(req *nodePongReq) {
+	select {
+	case r.processNodePongC <- req:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *userReactor) processNodePongLoop() {
+	for !r.stopped.Load() {
+		select {
+		case req := <-r.processNodePongC:
+			r.processNodePong(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *userReactor) processNodePong(req *nodePongReq) {
+
+	userHandler := r.s.userReactor.getUser(req.uid)
+	if userHandler == nil {
+		r.Warn("userHandler not found, not reply pong", zap.String("uid", req.uid))
+		return
+	}
+
+	conns := userHandler.getConns()
+
+	connIds := make([]int64, 0, len(conns))
+	for _, conn := range conns {
+		connIds = append(connIds, conn.connId)
+	}
+
+	userConnsReq := userConns{
+		uid:     req.uid,
+		connIds: connIds,
+	}
+	data, err := userConnsReq.Marshal()
+	if err != nil {
+		r.Error("userConnsReq.Marshal error", zap.Error(err))
+		return
+	}
+
+	err = r.s.cluster.Send(req.leaderId, &proto.Message{
+		MsgType: uint32(ClusterMsgTypeNodePong),
+		Content: data,
+	})
+	if err != nil {
+		r.Error("cluster.send failed", zap.Error(err), zap.String("uid", req.uid), zap.Uint64("leaderId", req.leaderId))
+	}
+}
+
+type nodePongReq struct {
+	uniqueNo string
+	uid      string
+	leaderId uint64
+}
+
+// 节点之间的ping，领导发送给从节点
+type userConns struct {
+	uid     string
+	connIds []int64
+}
+
+func (u *userConns) Marshal() ([]byte, error) {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(u.uid)
+	for _, connId := range u.connIds {
+		encoder.WriteInt64(connId)
+	}
+	return encoder.Bytes(), nil
+}
+
+func (u *userConns) Unmarshal(data []byte) error {
+	decoder := wkproto.NewDecoder(data)
+	var err error
+	if u.uid, err = decoder.String(); err != nil {
+		return err
+	}
+	u.connIds = make([]int64, 0)
+	for decoder.Len() > 0 {
+		connId, err := decoder.Int64()
+		if err != nil {
+			break
+		}
+		u.connIds = append(u.connIds, connId)
+	}
+	return nil
+}
+
+// =================================== proxy node timeout ===================================
+
+func (r *userReactor) addProxyNodeTimeoutReq(req *proxyNodeTimeoutReq) {
+	select {
+	case r.processProxyNodeTimeoutC <- req:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *userReactor) processProxyNodeTimeoutLoop() {
+	for !r.stopped.Load() {
+		select {
+		case req := <-r.processProxyNodeTimeoutC:
+			r.processProxyNodeTimeout(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *userReactor) processProxyNodeTimeout(req *proxyNodeTimeoutReq) {
+	for _, msg := range req.messages {
+		r.Debug("proxy node timeout", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Uint64("fromNodeId", msg.FromNodeId))
+		r.s.userReactor.removeConnsByNodeId(req.uid, msg.FromNodeId)
+	}
+}
+
+type proxyNodeTimeoutReq struct {
+	uniqueNo string
+	uid      string
+	messages []ReactorUserMessage
+}
+
+// =================================== close ===================================
+
+func (r *userReactor) addCloseReq(req *userCloseReq) {
+	select {
+	case r.processCloseC <- req:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+
+}
+
+func (r *userReactor) processCloseLoop() {
+	for !r.stopped.Load() {
+		select {
+		case req := <-r.processCloseC:
+			r.processClose(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *userReactor) processClose(req *userCloseReq) {
+	r.removeUserByUniqueNo(req.uid, req.uniqueNo)
+}
+
+type userCloseReq struct {
+	uniqueNo string
+	uid      string
 }

@@ -5,7 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/RussellLuo/timingwheel"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 type tagManager struct {
@@ -13,22 +16,51 @@ type tagManager struct {
 
 	tags []*tag
 
-	mu sync.RWMutex
+	mu         sync.RWMutex
+	s          *Server
+	cleanTimer *timingwheel.Timer
 }
 
-func newTagManager() *tagManager {
+func newTagManager(s *Server) *tagManager {
 	return &tagManager{
 		receiverPrefix: "receiver:",
+		s:              s,
 	}
 }
 
 func (t *tagManager) start() error {
+	t.cleanTimer = t.s.Schedule(time.Hour, func() {
+		t.mu.Lock()
+		defer t.mu.Unlock()
 
+		tagLen := len(t.tags)
+
+		for i := 0; i < tagLen; i++ {
+			tg := t.tags[i]
+			if tg.ref.Load() > 0 { // tag被引用，不清除
+				continue
+			}
+
+			// 30分钟没有被引用的tag，清除
+			if time.Since(tg.createdAt) > time.Minute*30 {
+				t.s.Info("tag is expired, remove it", zap.String("key", tg.key))
+				tags := make([]*tag, 0, len(t.tags)-1)
+				for _, tag := range t.tags {
+					if tag.key != tg.key {
+						tags = append(tags, tag)
+					}
+				}
+				t.tags = tags
+			}
+		}
+	})
 	return nil
 }
 
 func (t *tagManager) stop() {
-
+	if t.cleanTimer != nil {
+		t.cleanTimer.Stop()
+	}
 }
 
 // 添加频道接受者tag
@@ -67,27 +99,13 @@ func (t *tagManager) getReceiverTag(key string) *tag {
 	return nil
 }
 
-// 获取频道接受者tag 并引用计数
-func (t *tagManager) getReceiverTagAndRef(channelId string, channelType uint8) *tag {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	key := t.receiverTagKey(channelId, channelType)
-	for _, tag := range t.tags {
-		if tag.key == key {
-			tag.ref++
-			return tag
-		}
-	}
-	return nil
-}
-
 // 释放频道接受者tag
 func (t *tagManager) releaseReceiverTag(key string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for _, tag := range t.tags {
 		if tag.key == key {
-			tag.ref--
+			tag.ref.Dec()
 			return
 		}
 	}
@@ -178,8 +196,8 @@ func (t *tagResp) Unmarshal(data []byte) error {
 type tag struct {
 	key       string
 	users     []*nodeUsers
-	ref       int       // 引用计数
-	createdAt time.Time // 创建时间
+	ref       atomic.Int32 // 引用计数
+	createdAt time.Time    // 创建时间
 }
 
 func (t *tag) Marshal() []byte {

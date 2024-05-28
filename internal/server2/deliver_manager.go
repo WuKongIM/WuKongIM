@@ -48,11 +48,15 @@ func (d *deliverManager) start() error {
 }
 
 func (d *deliverManager) stop() {
+	fmt.Println("deliverManager--------stop1")
 	for _, deliverr := range d.deliverrs {
 		deliverr.stop()
 	}
+	fmt.Println("deliverManager--------stop2")
 
 	d.nodeManager.stop()
+
+	fmt.Println("deliverManager--------stop3")
 }
 
 func (d *deliverManager) deliver(req *deliverReq) {
@@ -194,8 +198,12 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 	// ================== 投递消息 ==================
 	for _, nodeUser := range tg.users {
 		if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId { // 只投递本节点的
+			// 更新最近会话
+			lastMsg := req.messages[len(req.messages)-1]
+			d.dm.s.conversationManager.Push(req.channelId, req.channelType, nodeUser.uids, lastMsg.FromUid, uint64(lastMsg.MessageSeq))
+			// 投递消息
 			d.deliver(req, nodeUser.uids)
-			break
+
 		} else { // 非本节点的转发给对应节点去投递
 			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
 		}
@@ -219,6 +227,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 			offlineUids = append(offlineUids, toUid)
 		}
 
+		// 获取当前用户的所有连接
 		conns := userHandler.getConns()
 
 		for _, conn := range conns {
@@ -227,6 +236,8 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				if conn.uid == message.FromUid && conn.deviceId == message.FromDeviceId { // 自己发的不处理
 					continue
 				}
+
+				// d.Info("deliver message to user", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Int64("connId", conn.connId), zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId))
 
 				sendPacket := message.SendPacket
 
@@ -295,8 +306,8 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				}
 
 				// 写入包
-				d.Info("deliverr recvPacket", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
-				err = conn.write(recvPacketData)
+				// d.Info("deliverr recvPacket", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
+				err = conn.write(recvPacketData, wkproto.RECV)
 				if err != nil {
 					d.Error("write recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
 					if !conn.isClosed() {

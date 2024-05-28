@@ -1,12 +1,30 @@
 package server
 
 import (
+	"errors"
+	"fmt"
+	"time"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
+
+type connStats struct {
+	inPacketCount  atomic.Int64 // 输入包数量
+	outPacketCount atomic.Int64 // 输出包数量
+
+	inPacketByteCount  atomic.Int64 // 输入包字节数量
+	outPacketByteCount atomic.Int64 // 输出包字节数量
+
+	inMsgCount  atomic.Int64 // 输入消息数量
+	outMsgCount atomic.Int64 // 输出消息数量
+
+	inMsgByteCount  atomic.Int64 // 输入消息字节数量
+	outMsgByteCount atomic.Int64 // 输出消息字节数量
+}
 
 type connInfo struct {
 	connId       int64 // 连接在本节点的id
@@ -22,24 +40,37 @@ type connInfo struct {
 	closed atomic.Bool
 
 	isAuth atomic.Bool // 是否已经认证
+
 }
 
 type connContext struct {
-	connInfo
+	connInfo   // 连接信息
+	connStats  // 统计信息
 	conn       wknet.Conn
 	subReactor *userReactorSub
 
 	realNodeId uint64 // 真实的节点id
 	isRealConn bool   // 是否是真实的连接
+
+	uptime atomic.Time // 启动时间
+
+	lastActivity atomic.Time // 最后活动时间
+
+	wklog.Log
 }
 
 func newConnContext(connInfo connInfo, conn wknet.Conn, subReactor *userReactorSub) *connContext {
-	return &connContext{
+	c := &connContext{
 		connInfo:   connInfo,
 		conn:       conn,
 		subReactor: subReactor,
 		isRealConn: true,
+		Log:        wklog.NewWKLog(fmt.Sprintf("connContext[%s]", connInfo.uid)),
 	}
+
+	c.uptime.Store(time.Now())
+
+	return c
 }
 
 func newConnContextProxy(realNodeId uint64, connInfo connInfo, subReactor *userReactorSub) *connContext {
@@ -48,15 +79,23 @@ func newConnContextProxy(realNodeId uint64, connInfo connInfo, subReactor *userR
 		subReactor: subReactor,
 		realNodeId: realNodeId,
 		isRealConn: false,
+		Log:        wklog.NewWKLog(fmt.Sprintf("connContext[%s]", connInfo.uid)),
 	}
 }
 
 func (c *connContext) addOtherPacket(packet wkproto.Frame) {
 
+	// 保持活动
+	c.keepActivity()
+
+	// 数据统计
+	c.inPacketCount.Add(1)
+	c.inPacketByteCount.Add(packet.GetFrameSize())
+
 	// fmt.Println("addOtherPacket....", zap.String("frameType", packet.GetFrameType().String()))
-	c.subReactor.step(c.uid, &UserAction{
+	c.subReactor.step(c.uid, UserAction{
 		ActionType: UserActionSend,
-		Messages: []*ReactorUserMessage{
+		Messages: []ReactorUserMessage{
 			{
 				ConnId:     c.connId,
 				DeviceId:   c.deviceId,
@@ -68,9 +107,16 @@ func (c *connContext) addOtherPacket(packet wkproto.Frame) {
 }
 
 func (c *connContext) addConnectPacket(packet *wkproto.ConnectPacket) {
-	err := c.subReactor.stepNoWait(c.uid, &UserAction{
+	// 保持活动
+	c.keepActivity()
+
+	// 数据统计
+	c.inPacketCount.Add(1)
+	c.inPacketByteCount.Add(packet.GetFrameSize())
+
+	err := c.subReactor.stepNoWait(c.uid, UserAction{
 		ActionType: UserActionConnect,
-		Messages: []*ReactorUserMessage{
+		Messages: []ReactorUserMessage{
 			{
 				ConnId:     c.connId,
 				DeviceId:   c.deviceId,
@@ -86,22 +132,94 @@ func (c *connContext) addConnectPacket(packet *wkproto.ConnectPacket) {
 
 func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 
+	// 保持活动
+	c.keepActivity()
+
+	// 数据统计
+	c.inPacketCount.Add(1)
+	c.inPacketByteCount.Add(packet.GetFrameSize())
+
+	c.inMsgCount.Add(1)
+	c.inMsgByteCount.Add(packet.GetFrameSize())
+
+	// 提案发送至频道
 	_ = c.subReactor.proposeSend(c, packet)
 }
 
-func (c *connContext) write(d []byte) error {
-	c.subReactor.step(c.uid, &UserAction{
+func (c *connContext) writePacket(packet wkproto.Frame) error {
+	data, err := c.subReactor.r.s.opts.Proto.EncodeFrame(packet, c.protoVersion)
+	if err != nil {
+		return err
+	}
+	return c.write(data, packet.GetFrameType())
+}
+
+func (c *connContext) write(d []byte, frameType wkproto.FrameType) error {
+
+	c.subReactor.step(c.uid, UserAction{
 		ActionType: UserActionRecv,
-		Messages: []*ReactorUserMessage{
+		Messages: []ReactorUserMessage{
 			{
 				ConnId:     c.connId,
 				DeviceId:   c.deviceId,
+				FrameType:  frameType,
 				OutBytes:   d,
 				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
 			},
 		},
 	})
 	return nil
+}
+
+func (c *connContext) writeDirectlyPacket(packet wkproto.Frame) error {
+
+	data, err := c.subReactor.r.s.opts.Proto.EncodeFrame(packet, c.protoVersion)
+	if err != nil {
+		return err
+	}
+
+	var count = uint32(0)
+	if packet.GetFrameType() == wkproto.RECV {
+		count = 1
+	}
+
+	return c.writeDirectly(data, count)
+}
+
+// 直接写入连接
+func (c *connContext) writeDirectly(data []byte, recvFrameCount uint32) error {
+
+	if recvFrameCount > 0 {
+		c.outMsgCount.Add(int64(recvFrameCount))
+		c.outMsgByteCount.Add(int64(len(data))) // TODO: 这里其实有点不准确，因为data不一定都是recv包, 但是大体上recv包占大多数
+	}
+
+	c.outPacketCount.Add(1)
+	c.outPacketByteCount.Add(int64(len(data)))
+
+	if c.conn == nil {
+		c.Error("writeDirectly failed, conn is nil", zap.String("conn", c.String()))
+		return errors.New("writeDirectly failed, conn is nil")
+	}
+	conn := c.conn
+	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
+	if wsok {
+		err := wsConn.WriteServerBinary(data)
+		if err != nil {
+			c.Warn("Failed to write the message", zap.Error(err))
+		}
+
+	} else {
+		_, err := conn.WriteToOutboundBuffer(data)
+		if err != nil {
+			c.Warn("Failed to write the message", zap.Error(err))
+		}
+	}
+	return conn.WakeWrite()
+}
+
+func (c *connContext) keepActivity() {
+	c.lastActivity.Store(time.Now())
 }
 
 func (c *connContext) close() {
@@ -119,4 +237,8 @@ func (c *connContext) close() {
 
 func (c *connContext) isClosed() bool {
 	return c.closed.Load()
+}
+
+func (c *connContext) String() string {
+	return fmt.Sprintf("uid: %s connId: %d deviceId: %s deviceFlag: %s isRealConn: %v proxyConnId: %d realNodeId: %d", c.uid, c.connId, c.deviceId, c.deviceFlag.String(), c.isRealConn, c.proxyConnId, c.realNodeId)
 }
