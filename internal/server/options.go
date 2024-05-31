@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/crypto/tls"
 	"github.com/pkg/errors"
+	"github.com/sasha-s/go-deadlock"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
@@ -136,10 +137,15 @@ type Options struct {
 	WhitelistOffOfPerson bool // 是否关闭个人白名单验证
 	DeliveryMsgPoolSize  int  // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
 
+	Process struct {
+		AuthPoolSize int // 鉴权协程池大小
+	}
+
 	MessageRetry struct {
 		Interval     time.Duration // 消息重试间隔，如果消息发送后在此间隔内没有收到ack，将会在此间隔后重新发送
 		MaxCount     int           // 消息最大重试次数
 		ScanInterval time.Duration //  每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
+		WorkerCount  int           // worker数量
 	}
 
 	Cluster struct {
@@ -165,10 +171,24 @@ type Options struct {
 		PrometheusApiUrl string // prometheus api url
 	}
 
+	Reactor struct {
+		ChannelSubCount         int // channel reactor sub 的数量
+		UserSubCount            int // user reactor sub 的数量
+		UserNodePingTick        int // 用户节点tick间隔
+		UserNodePongTimeoutTick int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
+	}
+	DeadlockCheck bool // 死锁检查
+
 	// MsgRetryInterval     time.Duration // Message sending timeout time, after this time it will try again
 	// MessageMaxRetryCount int           // 消息最大重试次数
 	// TimeoutScanInterval time.Duration // 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 
+	Deliver struct {
+		DeliverrCount         int    // 投递者数量
+		MaxRetry              int    // 最大重试次数
+		MaxDeliverSizePerNode uint64 // 节点每次最大投递大小
+		// DeliverWorkerCountPerNode int    // 每个节点投递协程数量
+	}
 }
 
 func NewOptions() *Options {
@@ -189,6 +209,7 @@ func NewOptions() *Options {
 		RootDir:              path.Join(homeDir, "wukongim"),
 		ManagerUID:           "____manager",
 		WhitelistOffOfPerson: true,
+		DeadlockCheck:        false,
 		Logger: struct {
 			Dir     string
 			Level   zapcore.Level
@@ -251,10 +272,12 @@ func NewOptions() *Options {
 			Interval     time.Duration
 			MaxCount     int
 			ScanInterval time.Duration
+			WorkerCount  int
 		}{
 			Interval:     time.Second * 60,
 			ScanInterval: time.Second * 5,
 			MaxCount:     5,
+			WorkerCount:  24,
 		},
 		Webhook: struct {
 			HTTPAddr                    string
@@ -318,6 +341,33 @@ func NewOptions() *Options {
 			ServiceName:      "wukongim",
 			ServiceHostName:  "imnode",
 			PrometheusApiUrl: "http://127.0.0.1:9090",
+		},
+		Reactor: struct {
+			ChannelSubCount         int
+			UserSubCount            int
+			UserNodePingTick        int
+			UserNodePongTimeoutTick int
+		}{
+			ChannelSubCount:         128,
+			UserSubCount:            128,
+			UserNodePingTick:        10,
+			UserNodePongTimeoutTick: 10 * 2,
+		},
+		Process: struct {
+			AuthPoolSize int
+		}{
+			AuthPoolSize: 100,
+		},
+		Deliver: struct {
+			DeliverrCount         int
+			MaxRetry              int
+			MaxDeliverSizePerNode uint64
+			// DeliverWorkerCountPerNode int
+		}{
+			DeliverrCount:         32,
+			MaxRetry:              10,
+			MaxDeliverSizePerNode: 1024 * 1024 * 5,
+			// DeliverWorkerCountPerNode: 10,
 		},
 	}
 }
@@ -415,6 +465,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.MessageRetry.Interval = o.getDuration("messageRetry.interval", o.MessageRetry.Interval)
 	o.MessageRetry.ScanInterval = o.getDuration("messageRetry.scanInterval", o.MessageRetry.ScanInterval)
 	o.MessageRetry.MaxCount = o.getInt("messageRetry.maxCount", o.MessageRetry.MaxCount)
+	o.MessageRetry.WorkerCount = o.getInt("messageRetry.workerCount", o.MessageRetry.WorkerCount)
 
 	o.Conversation.On = o.getBool("conversation.on", o.Conversation.On)
 	o.Conversation.CacheExpire = o.getDuration("conversation.cacheExpire", o.Conversation.CacheExpire)
@@ -435,6 +486,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		}
 	}
 
+	o.DeadlockCheck = o.getBool("deadlockCheck", o.DeadlockCheck)
+
 	o.ConfigureDataDir() // 数据目录
 	o.configureLog(vp)   // 日志配置
 
@@ -445,12 +498,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	if strings.TrimSpace(o.External.TCPAddr) == "" {
 		addrPairs := strings.Split(o.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-
-		var err error
-
-		if err != nil {
-			panic(err)
-		}
 
 		o.External.TCPAddr = fmt.Sprintf("%s:%d", ip, portInt64)
 	}
@@ -532,6 +579,20 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
 	o.Trace.ServiceName = o.getString("trace.serviceName", o.Trace.ServiceName)
 	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
+
+	// =================== deliver ===================
+	o.Deliver.DeliverrCount = o.getInt("deliver.deliverrCount", o.Deliver.DeliverrCount)
+	o.Deliver.MaxRetry = o.getInt("deliver.maxRetry", o.Deliver.MaxRetry)
+	// o.Deliver.DeliverWorkerCountPerNode = o.getInt("deliver.deliverWorkerCountPerNode", o.Deliver.DeliverWorkerCountPerNode)
+	o.Deliver.MaxDeliverSizePerNode = o.getUint64("deliver.maxDeliverSizePerNode", o.Deliver.MaxDeliverSizePerNode)
+
+	// =================== reactor ===================
+	o.Reactor.ChannelSubCount = o.getInt("reactor.channelSubCount", o.Reactor.ChannelSubCount)
+	o.Reactor.UserSubCount = o.getInt("reactor.userSubCount", o.Reactor.UserSubCount)
+	o.Reactor.UserNodePingTick = o.getInt("reactor.userNodePingTick", o.Reactor.UserNodePingTick)
+	o.Reactor.UserNodePongTimeoutTick = o.getInt("reactor.userNodePongTimeoutTick", o.Reactor.UserNodePongTimeoutTick)
+
+	deadlock.Opts.Disable = !o.DeadlockCheck
 
 }
 

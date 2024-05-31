@@ -16,7 +16,7 @@ func (wk *wukongDB) AppendMessageOfNotifyQueue(messages []Message) error {
 			return err
 		}
 	}
-	return batch.Commit(wk.wo)
+	return batch.Commit(wk.sync)
 }
 
 // GetMessagesOfNotifyQueue 获取通知队列的消息
@@ -38,11 +38,11 @@ func (wk *wukongDB) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
 	defer batch.Close()
 
 	for _, messageID := range messageIDs {
-		if err := batch.Delete(key.NewMessageNotifyQueueKey(uint64(messageID)), wk.wo); err != nil {
+		if err := batch.Delete(key.NewMessageNotifyQueueKey(uint64(messageID)), wk.sync); err != nil {
 			return err
 		}
 	}
-	return batch.Commit(wk.wo)
+	return batch.Commit(wk.sync)
 }
 
 func (wk *wukongDB) writeMessageOfNotifyQueue(msg Message, w *pebble.Batch) error {
@@ -50,7 +50,7 @@ func (wk *wukongDB) writeMessageOfNotifyQueue(msg Message, w *pebble.Batch) erro
 	if err != nil {
 		return err
 	}
-	return w.Set(key.NewMessageNotifyQueueKey(uint64(msg.MessageID)), data, wk.wo)
+	return w.Set(key.NewMessageNotifyQueueKey(uint64(msg.MessageID)), data, wk.sync)
 }
 
 func (wk *wukongDB) parseMessageOfNotifyQueue(iter *pebble.Iterator, limit int) ([]Message, error) {

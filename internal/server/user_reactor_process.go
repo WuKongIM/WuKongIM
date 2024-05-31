@@ -134,19 +134,19 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 			r.authResponseConnackAuthFail(connCtx)
 			return wkproto.ReasonAuthFail, errors.New("token is empty")
 		}
-		user, err := r.s.store.GetUser(uid, connectPacket.DeviceFlag.ToUint8())
+		device, err := r.s.store.GetDevice(uid, uint64(connectPacket.DeviceFlag))
 		if err != nil {
-			r.Error("get user token err", zap.Error(err))
+			r.Error("get device token err", zap.Error(err))
 			r.authResponseConnackAuthFail(connCtx)
 			return wkproto.ReasonAuthFail, err
 
 		}
-		if user.Token != connectPacket.Token {
-			r.Error("token verify fail", zap.String("expectToken", user.Token), zap.String("actToken", connectPacket.Token), zap.Any("conn", connCtx))
+		if device.Token != connectPacket.Token {
+			r.Error("token verify fail", zap.String("expectToken", device.Token), zap.String("actToken", connectPacket.Token), zap.Any("conn", connCtx))
 			r.authResponseConnackAuthFail(connCtx)
 			return wkproto.ReasonAuthFail, errors.New("token verify fail")
 		}
-		devceLevel = wkproto.DeviceLevel(user.DeviceLevel)
+		devceLevel = wkproto.DeviceLevel(device.DeviceLevel)
 	} else {
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
 	}
@@ -154,7 +154,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	// -------------------- ban  --------------------
 	userChannelInfo, err := r.s.store.GetChannel(uid, wkproto.ChannelTypePerson)
 	if err != nil {
-		r.Error("get user channel info err", zap.Error(err))
+		r.Error("get device channel info err", zap.Error(err))
 		r.authResponseConnackAuthFail(connCtx)
 		return wkproto.ReasonAuthFail, err
 	}
@@ -163,9 +163,9 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 		ban = userChannelInfo.Ban
 	}
 	if ban {
-		r.Error("user is ban", zap.String("uid", uid))
+		r.Error("device is ban", zap.String("uid", uid))
 		r.authResponseConnack(connCtx, wkproto.ReasonBan)
-		return wkproto.ReasonBan, errors.New("user is ban")
+		return wkproto.ReasonBan, errors.New("device is ban")
 	}
 
 	// -------------------- get message encrypt key --------------------

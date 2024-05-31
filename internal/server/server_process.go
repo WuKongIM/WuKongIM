@@ -1,11 +1,8 @@
 package server
 
 import (
-	"context"
 	"encoding/base64"
 
-	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
-	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
@@ -185,17 +182,6 @@ import (
 // 	}
 // 	s.trace.Metrics.App().OnlineDeviceCountAdd(1) // 统计在线设备数
 // }
-
-func (s *Server) connPing(nodeId uint64, req *rpc.ConnPingReq) (proto.Status, error) {
-	timeoutCtx, cancel := context.WithTimeout(s.ctx, s.opts.Cluster.ReqTimeout)
-	defer cancel()
-	data, _ := req.Marshal()
-	resp, err := s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/connPing", data)
-	if err != nil {
-		return 0, err
-	}
-	return resp.Status, nil
-}
 
 // 获取客户端的aesKey和aesIV
 // dhServerPrivKey  服务端私钥

@@ -1,13 +1,20 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/sendgrid/rest"
+	"go.uber.org/zap"
 )
 
 var (
@@ -125,4 +132,85 @@ func traceIncomingMessage(kind trace.ClusterKind, msgType replica.MsgType, size 
 		trace.GlobalTrace.Metrics.Cluster().MsgLeaderTermStartIndexRespIncomingBytesAdd(kind, size)
 
 	}
+}
+
+func handlerIMError(resp *rest.Response) error {
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest {
+			resultMap, err := wkutil.JSONToMap(resp.Body)
+			if err != nil {
+				return err
+			}
+			if resultMap != nil && resultMap["msg"] != nil {
+				return fmt.Errorf("IM服务失败！ -> %s", resultMap["msg"])
+			}
+		}
+		return fmt.Errorf("IM服务返回状态[%d]失败！", resp.StatusCode)
+	}
+	return nil
+}
+
+func (s *Server) formatPath(path string) string {
+	var prefix = s.apiPrefix
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	prefix = strings.TrimSuffix(prefix, "/")
+	path = strings.TrimPrefix(path, "/")
+
+	return fmt.Sprintf("%s/%s", prefix, path)
+}
+
+// 请求指定节点的配置信息
+func (s *Server) requestNodeInfo(nodeId uint64) (*NodeConfig, error) {
+	node := s.clusterEventServer.Node(nodeId)
+	if node == nil {
+		s.Error("node not found", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("node not found")
+	}
+	resp, err := network.Get(fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath("/node")), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	nodeCfg := &NodeConfig{}
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), nodeCfg)
+	if err != nil {
+		return nil, err
+	}
+	return nodeCfg, nil
+}
+func (s *Server) getLocalNodeInfo() *NodeConfig {
+	leaderId := s.clusterEventServer.LeaderId()
+	node := s.clusterEventServer.Node(s.opts.NodeId)
+
+	cfg := s.clusterEventServer.Config()
+
+	nodeCfg := NewNodeConfigFromNode(node)
+	nodeCfg.IsLeader = wkutil.BoolToInt(leaderId == node.Id)
+	nodeCfg.SlotCount = s.getNodeSlotCount(node.Id, cfg)
+	nodeCfg.SlotLeaderCount = s.getNodeSlotLeaderCount(node.Id, cfg)
+	nodeCfg.Uptime = myUptime(time.Since(s.uptime))
+	nodeCfg.AppVersion = s.opts.AppVersion
+	nodeCfg.ConfigVersion = cfg.Version
+	return nodeCfg
+}
+
+func (s *Server) getNodeSlotCount(nodeId uint64, cfg *pb.Config) int {
+	count := 0
+	for _, st := range cfg.Slots {
+		if wkutil.ArrayContainsUint64(st.Replicas, nodeId) {
+			count++
+		}
+	}
+	return count
+}
+
+func (s *Server) getNodeSlotLeaderCount(nodeId uint64, cfg *pb.Config) int {
+	count := 0
+	for _, st := range cfg.Slots {
+		if st.Leader == nodeId {
+			count++
+		}
+	}
+	return count
 }

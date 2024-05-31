@@ -32,10 +32,6 @@ func NewAPIServer(s *Server) *APIServer {
 		if strings.TrimSpace(clientIP) == "" {
 			clientIP = c.ClientIP()
 		}
-		if !s.AllowIP(clientIP) {
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
 		c.Next()
 	})
 
@@ -87,8 +83,8 @@ func (s *APIServer) setRoutes() {
 	connz := NewConnzAPI(s.s)
 	connz.Route(s.r)
 
-	varz := NewVarzAPI(s.s)
-	varz.Route(s.r)
+	// varz := NewVarzAPI(s.s)
+	// varz.Route(s.r)
 
 	// 用户相关API
 	u := NewUserAPI(s.s)
@@ -102,17 +98,17 @@ func (s *APIServer) setRoutes() {
 	conversation := NewConversationAPI(s.s)
 	conversation.Route(s.r)
 
-	// 消息相关API
-	message := NewMessageAPI(s.s)
-	message.Route(s.r)
+	// // 消息相关API
+	// message := NewMessageAPI(s.s)
+	// message.Route(s.r)
 
 	// 路由api
 	routeapi := NewRouteAPI(s.s)
 	routeapi.Route(s.r)
 
-	// 系统api
-	system := NewSystemAPI(s.s)
-	system.Route(s.r)
+	// // 系统api
+	// system := NewSystemAPI(s.s)
+	// system.Route(s.r)
 
 	// 分布式api
 	clusterServer, ok := s.s.cluster.(*cluster.Server)

@@ -76,92 +76,94 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 	resultConns := co.s.GetConnInfos(uid, sortOpt, offset, limit)
 	connInfos = make([]*ConnInfo, 0, len(resultConns))
 	for _, resultConn := range resultConns {
-		if resultConn == nil || !resultConn.IsAuthed() {
-			continue
-		}
 		connInfos = append(connInfos, newConnInfo(resultConn))
 	}
 
 	c.JSON(http.StatusOK, Connz{
 		Connections: connInfos,
 		Now:         time.Now(),
-		Total:       co.s.dispatch.engine.ConnCount(),
+		Total:       co.s.engine.ConnCount(),
 		Offset:      offset,
 		Limit:       limit,
 	})
 }
 
-func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []wknet.Conn {
-	conns := s.dispatch.engine.GetAllConn()
-	if strings.TrimSpace(uid) != "" {
-		uidConns := make([]wknet.Conn, 0, 10)
-		for _, conn := range conns {
-			if strings.Contains(conn.UID(), uid) {
-				uidConns = append(uidConns, conn)
-			}
+func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []*connContext {
+	connCtxs := make([]*connContext, 0, s.engine.ConnCount())
+	s.engine.Iterator(func(c wknet.Conn) bool {
+		if c.Context() == nil { // 没有上下文的连接不处理
+			return true
 		}
-		conns = uidConns
-	}
+		connCtx := c.Context().(*connContext)
+		if strings.TrimSpace(uid) != "" {
+			if strings.Contains(connCtx.uid, uid) {
+				connCtxs = append(connCtxs, connCtx)
+			}
+		} else {
+			connCtxs = append(connCtxs, connCtx)
+		}
+		return true
+	})
 
 	switch sortOpt {
 	case ByID:
-		sort.Sort(byID{Conns: conns})
+		sort.Sort(byID{Conns: connCtxs})
 	case ByIDDesc:
-		sort.Sort(byIDDesc{Conns: conns})
+		sort.Sort(byIDDesc{Conns: connCtxs})
 	case ByInMsg:
-		sort.Sort(byInMsg{Conns: conns})
+		sort.Sort(byInMsg{Conns: connCtxs})
 	case ByInMsgDesc:
-		sort.Sort(byInMsgDesc{Conns: conns})
+		sort.Sort(byInMsgDesc{Conns: connCtxs})
 	case ByOutMsg:
-		sort.Sort(byOutMsg{Conns: conns})
+		sort.Sort(byOutMsg{Conns: connCtxs})
 	case ByOutMsgDesc:
-		sort.Sort(byOutMsgDesc{Conns: conns})
+		sort.Sort(byOutMsgDesc{Conns: connCtxs})
 	case ByInMsgBytes:
-		sort.Sort(byInMsgBytes{Conns: conns})
+		sort.Sort(byInMsgBytes{Conns: connCtxs})
 	case ByInMsgBytesDesc:
-		sort.Sort(byInMsgBytesDesc{Conns: conns})
+		sort.Sort(byInMsgBytesDesc{Conns: connCtxs})
 	case ByOutMsgBytes:
-		sort.Sort(byOutMsgBytes{Conns: conns})
+		sort.Sort(byOutMsgBytes{Conns: connCtxs})
 	case ByOutMsgBytesDesc:
-		sort.Sort(byOutMsgBytesDesc{Conns: conns})
+		sort.Sort(byOutMsgBytesDesc{Conns: connCtxs})
 	case ByOutPacket:
-		sort.Sort(byOutPacket{Conns: conns})
+		sort.Sort(byOutPacket{Conns: connCtxs})
 	case ByOutPacketDesc:
-		sort.Sort(byOutPacketDesc{Conns: conns})
+		sort.Sort(byOutPacketDesc{Conns: connCtxs})
 	case ByInPacket:
-		sort.Sort(byInPacket{Conns: conns})
+		sort.Sort(byInPacket{Conns: connCtxs})
 	case ByInPacketDesc:
-		sort.Sort(byInPacketDesc{Conns: conns})
+		sort.Sort(byInPacketDesc{Conns: connCtxs})
 	case ByInPacketBytes:
-		sort.Sort(byInPacketBytes{Conns: conns})
+		sort.Sort(byInPacketBytes{Conns: connCtxs})
 	case ByInPacketBytesDesc:
-		sort.Sort(byInPacketBytesDesc{Conns: conns})
+		sort.Sort(byInPacketBytesDesc{Conns: connCtxs})
 	case ByOutPacketBytes:
-		sort.Sort(byOutPacketBytes{Conns: conns})
+		sort.Sort(byOutPacketBytes{Conns: connCtxs})
 	case ByOutPacketBytesDesc:
-		sort.Sort(byOutPacketBytesDesc{Conns: conns})
-	case ByPendingBytes:
-		sort.Sort(byPendingBytes{Conns: conns})
-	case ByPendingBytesDesc:
-		sort.Sort(byPendingBytesDesc{Conns: conns})
+		sort.Sort(byOutPacketBytesDesc{Conns: connCtxs})
+	// case ByPendingBytes:
+	// sort.Sort(byPendingBytes{Conns: connCtxs})
+	// case ByPendingBytesDesc:
+	// sort.Sort(byPendingBytesDesc{Conns: connCtxs})
 	case ByUptime:
-		sort.Sort(byUptime{Conns: conns})
+		sort.Sort(byUptime{Conns: connCtxs})
 	case ByUptimeDesc:
-		sort.Sort(byUptimeDesc{Conns: conns})
+		sort.Sort(byUptimeDesc{Conns: connCtxs})
 	case ByIdle:
-		sort.Sort(byIdle{Conns: conns})
+		sort.Sort(byIdle{Conns: connCtxs})
 	case ByIdleDesc:
-		sort.Sort(byIdleDesc{Conns: conns})
+		sort.Sort(byIdleDesc{Conns: connCtxs})
 	case ByProtoVersion:
-		sort.Sort(byProtoVersion{Conns: conns})
+		sort.Sort(byProtoVersion{Conns: connCtxs})
 	case ByProtoVersionDesc:
-		sort.Sort(byProtoVersionDesc{Conns: conns})
+		sort.Sort(byProtoVersionDesc{Conns: connCtxs})
 
 	}
 
 	minoff := offset
 	maxoff := offset + limit
-	maxIndex := len(conns)
+	maxIndex := len(connCtxs)
 
 	if minoff > maxIndex {
 		minoff = maxIndex
@@ -170,7 +172,7 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 		maxoff = maxIndex
 	}
 
-	resultConns := conns[minoff:maxoff]
+	resultConns := connCtxs[minoff:maxoff]
 
 	return resultConns
 }
@@ -205,47 +207,47 @@ type ConnInfo struct {
 	Version        uint8     `json:"version"`          // 客户端协议版本
 }
 
-func newConnInfo(c wknet.Conn) *ConnInfo {
+func newConnInfo(connCtx *connContext) *ConnInfo {
 	var (
 		now  = time.Now()
 		host string
 		port int
 	)
-
-	if c.RemoteAddr() != nil {
-		hostStr, portStr, _ := net.SplitHostPort(c.RemoteAddr().String())
+	conn := connCtx.conn
+	if conn.RemoteAddr() != nil {
+		hostStr, portStr, _ := net.SplitHostPort(conn.RemoteAddr().String())
 		port, _ = strconv.Atoi(portStr)
 		host = hostStr
 	}
-	connStats := c.ConnStats()
+	connStats := connCtx.connStats
 
 	return &ConnInfo{
-		ID:             c.ID(),
-		UID:            c.UID(),
-		IP:             host,
-		Port:           port,
-		LastActivity:   c.LastActivity(),
-		Uptime:         myUptime(now.Sub(c.Uptime())),
-		Idle:           myUptime(now.Sub(c.LastActivity())),
-		PendingBytes:   c.OutboundBuffer().BoundBufferSize(),
-		InMsgs:         connStats.InMsgs.Load(),
-		OutMsgs:        connStats.OutMsgs.Load(),
-		InMsgBytes:     connStats.InMsgBytes.Load(),
-		OutMsgBytes:    connStats.OutMsgBytes.Load(),
-		InPackets:      connStats.InPackets.Load(),
-		OutPackets:     connStats.OutPackets.Load(),
-		InPacketBytes:  connStats.InPacketBytes.Load(),
-		OutPacketBytes: connStats.OutPacketBytes.Load(),
-		Device:         device(c),
-		DeviceID:       c.DeviceID(),
-		Version:        uint8(c.ProtoVersion()),
+		ID:           connCtx.connId,
+		UID:          connCtx.uid,
+		IP:           host,
+		Port:         port,
+		LastActivity: connCtx.lastActivity.Load(),
+		Uptime:       myUptime(now.Sub(connCtx.uptime.Load())),
+		Idle:         myUptime(now.Sub(connCtx.lastActivity.Load())),
+		// PendingBytes:   c.OutboundBuffer().BoundBufferSize(),
+		InMsgs:         connStats.inMsgCount.Load(),
+		OutMsgs:        connStats.outMsgCount.Load(),
+		InMsgBytes:     connStats.inMsgByteCount.Load(),
+		OutMsgBytes:    connStats.outMsgByteCount.Load(),
+		InPackets:      connStats.inPacketCount.Load(),
+		OutPackets:     connStats.outPacketCount.Load(),
+		InPacketBytes:  connStats.inPacketByteCount.Load(),
+		OutPacketBytes: connStats.outPacketByteCount.Load(),
+		Device:         device(connCtx),
+		DeviceID:       connCtx.deviceId,
+		Version:        connCtx.protoVersion,
 	}
 }
 
-func device(conn wknet.Conn) string {
+func device(connCtx *connContext) string {
 	d := "未知"
 	level := "主"
-	switch wkproto.DeviceFlag(conn.DeviceFlag()) {
+	switch wkproto.DeviceFlag(connCtx.deviceFlag) {
 	case wkproto.APP:
 		d = "App"
 	case wkproto.PC:
@@ -254,7 +256,7 @@ func device(conn wknet.Conn) string {
 		d = "Web"
 	}
 
-	if wkproto.DeviceLevel(conn.DeviceLevel()) == wkproto.DeviceLevelSlave {
+	if wkproto.DeviceLevel(connCtx.deviceLevel) == wkproto.DeviceLevelSlave {
 		level = "从"
 	}
 
@@ -295,10 +297,10 @@ const (
 )
 
 // byID
-type byID struct{ Conns []wknet.Conn }
+type byID struct{ Conns []*connContext }
 
 func (l byID) Less(i, j int) bool {
-	return l.Conns[i].ID() < l.Conns[j].ID()
+	return l.Conns[i].connId < l.Conns[j].connId
 }
 
 func (l byID) Len() int {
@@ -307,10 +309,10 @@ func (l byID) Len() int {
 func (l byID) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // byIDDesc
-type byIDDesc struct{ Conns []wknet.Conn }
+type byIDDesc struct{ Conns []*connContext }
 
 func (l byIDDesc) Less(i, j int) bool {
-	return l.Conns[i].ID() > l.Conns[j].ID()
+	return l.Conns[i].connId > l.Conns[j].connId
 }
 
 func (l byIDDesc) Len() int {
@@ -319,18 +321,18 @@ func (l byIDDesc) Len() int {
 func (l byIDDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // inMsg
-type byInMsg struct{ Conns []wknet.Conn }
+type byInMsg struct{ Conns []*connContext }
 
 func (l byInMsg) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InMsgs.Load() < l.Conns[j].ConnStats().InMsgs.Load()
+	return l.Conns[i].inMsgCount.Load() < l.Conns[j].inMsgCount.Load()
 }
 func (l byInMsg) Len() int      { return len(l.Conns) }
 func (l byInMsg) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byInMsgDesc struct{ Conns []wknet.Conn }
+type byInMsgDesc struct{ Conns []*connContext }
 
 func (l byInMsgDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InMsgs.Load() > l.Conns[j].ConnStats().InMsgs.Load()
+	return l.Conns[i].inMsgCount.Load() > l.Conns[j].inMsgCount.Load()
 }
 
 func (l byInMsgDesc) Len() int      { return len(l.Conns) }
@@ -338,73 +340,73 @@ func (l byInMsgDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Con
 
 // byOutMsg
 
-type byOutMsg struct{ Conns []wknet.Conn }
+type byOutMsg struct{ Conns []*connContext }
 
 func (l byOutMsg) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutMsgs.Load() < l.Conns[j].ConnStats().OutMsgs.Load()
+	return l.Conns[i].outMsgCount.Load() < l.Conns[j].outMsgCount.Load()
 }
 func (l byOutMsg) Len() int      { return len(l.Conns) }
 func (l byOutMsg) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byOutMsgDesc struct{ Conns []wknet.Conn }
+type byOutMsgDesc struct{ Conns []*connContext }
 
 func (l byOutMsgDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutMsgs.Load() > l.Conns[j].ConnStats().OutMsgs.Load()
+	return l.Conns[i].outMsgCount.Load() > l.Conns[j].outMsgCount.Load()
 }
 func (l byOutMsgDesc) Len() int      { return len(l.Conns) }
 func (l byOutMsgDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // byInMsgBytes
 
-type byInMsgBytes struct{ Conns []wknet.Conn }
+type byInMsgBytes struct{ Conns []*connContext }
 
 func (l byInMsgBytes) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InMsgBytes.Load() < l.Conns[j].ConnStats().InMsgBytes.Load()
+	return l.Conns[i].inMsgByteCount.Load() < l.Conns[j].inMsgByteCount.Load()
 }
 func (l byInMsgBytes) Len() int      { return len(l.Conns) }
 func (l byInMsgBytes) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byInMsgBytesDesc struct{ Conns []wknet.Conn }
+type byInMsgBytesDesc struct{ Conns []*connContext }
 
 func (l byInMsgBytesDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InMsgBytes.Load() > l.Conns[j].ConnStats().InMsgBytes.Load()
+	return l.Conns[i].inMsgByteCount.Load() > l.Conns[j].inMsgByteCount.Load()
 }
 func (l byInMsgBytesDesc) Len() int      { return len(l.Conns) }
 func (l byInMsgBytesDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // outMsgBytes
 
-type byOutMsgBytes struct{ Conns []wknet.Conn }
+type byOutMsgBytes struct{ Conns []*connContext }
 
 func (l byOutMsgBytes) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutMsgBytes.Load() < l.Conns[j].ConnStats().OutMsgBytes.Load()
+	return l.Conns[i].outMsgByteCount.Load() < l.Conns[j].outMsgByteCount.Load()
 }
 func (l byOutMsgBytes) Len() int      { return len(l.Conns) }
 func (l byOutMsgBytes) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byOutMsgBytesDesc struct{ Conns []wknet.Conn }
+type byOutMsgBytesDesc struct{ Conns []*connContext }
 
 func (l byOutMsgBytesDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutMsgBytes.Load() > l.Conns[j].ConnStats().OutMsgBytes.Load()
+	return l.Conns[i].outMsgByteCount.Load() > l.Conns[j].outMsgByteCount.Load()
 }
 func (l byOutMsgBytesDesc) Len() int      { return len(l.Conns) }
 func (l byOutMsgBytesDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // outPacketBytes
 
-type byOutPacketBytes struct{ Conns []wknet.Conn }
+type byOutPacketBytes struct{ Conns []*connContext }
 
 func (l byOutPacketBytes) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutPacketBytes.Load() < l.Conns[j].ConnStats().OutPacketBytes.Load()
+	return l.Conns[i].outPacketByteCount.Load() < l.Conns[j].outPacketByteCount.Load()
 }
 
 func (l byOutPacketBytes) Len() int      { return len(l.Conns) }
 func (l byOutPacketBytes) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byOutPacketBytesDesc struct{ Conns []wknet.Conn }
+type byOutPacketBytesDesc struct{ Conns []*connContext }
 
 func (l byOutPacketBytesDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutPacketBytes.Load() > l.Conns[j].ConnStats().OutPacketBytes.Load()
+	return l.Conns[i].outPacketByteCount.Load() > l.Conns[j].outPacketByteCount.Load()
 }
 
 func (l byOutPacketBytesDesc) Len() int { return len(l.Conns) }
@@ -413,19 +415,19 @@ func (l byOutPacketBytesDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[
 
 // inPacketBytes
 
-type byInPacketBytes struct{ Conns []wknet.Conn }
+type byInPacketBytes struct{ Conns []*connContext }
 
 func (l byInPacketBytes) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InPacketBytes.Load() < l.Conns[j].ConnStats().InPacketBytes.Load()
+	return l.Conns[i].inPacketByteCount.Load() < l.Conns[j].inPacketByteCount.Load()
 }
 
 func (l byInPacketBytes) Len() int      { return len(l.Conns) }
 func (l byInPacketBytes) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byInPacketBytesDesc struct{ Conns []wknet.Conn }
+type byInPacketBytesDesc struct{ Conns []*connContext }
 
 func (l byInPacketBytesDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InPacketBytes.Load() > l.Conns[j].ConnStats().InPacketBytes.Load()
+	return l.Conns[i].inPacketByteCount.Load() > l.Conns[j].inPacketByteCount.Load()
 }
 
 func (l byInPacketBytesDesc) Len() int { return len(l.Conns) }
@@ -434,20 +436,20 @@ func (l byInPacketBytesDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j
 
 // outPacket
 
-type byOutPacket struct{ Conns []wknet.Conn }
+type byOutPacket struct{ Conns []*connContext }
 
 func (l byOutPacket) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutPackets.Load() < l.Conns[j].ConnStats().OutPackets.Load()
+	return l.Conns[i].outPacketCount.Load() < l.Conns[j].outPacketCount.Load()
 }
 
 func (l byOutPacket) Len() int { return len(l.Conns) }
 
 func (l byOutPacket) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byOutPacketDesc struct{ Conns []wknet.Conn }
+type byOutPacketDesc struct{ Conns []*connContext }
 
 func (l byOutPacketDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().OutPackets.Load() > l.Conns[j].ConnStats().OutPackets.Load()
+	return l.Conns[i].outPacketCount.Load() > l.Conns[j].outPacketCount.Load()
 }
 
 func (l byOutPacketDesc) Len() int { return len(l.Conns) }
@@ -456,20 +458,20 @@ func (l byOutPacketDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l
 
 // inPacket
 
-type byInPacket struct{ Conns []wknet.Conn }
+type byInPacket struct{ Conns []*connContext }
 
 func (l byInPacket) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InPackets.Load() < l.Conns[j].ConnStats().InPackets.Load()
+	return l.Conns[i].inPacketCount.Load() < l.Conns[j].inPacketCount.Load()
 }
 
 func (l byInPacket) Len() int { return len(l.Conns) }
 
 func (l byInPacket) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byInPacketDesc struct{ Conns []wknet.Conn }
+type byInPacketDesc struct{ Conns []*connContext }
 
 func (l byInPacketDesc) Less(i, j int) bool {
-	return l.Conns[i].ConnStats().InPackets.Load() > l.Conns[j].ConnStats().InPackets.Load()
+	return l.Conns[i].inPacketCount.Load() > l.Conns[j].inPacketCount.Load()
 }
 
 func (l byInPacketDesc) Len() int { return len(l.Conns) }
@@ -478,72 +480,72 @@ func (l byInPacketDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.
 
 // PendingBytes
 
-type byPendingBytes struct{ Conns []wknet.Conn }
+// type byPendingBytes struct{ Conns []*connContext }
 
-func (l byPendingBytes) Less(i, j int) bool {
-	return l.Conns[i].OutboundBuffer().BoundBufferSize() < l.Conns[j].OutboundBuffer().BoundBufferSize()
-}
-func (l byPendingBytes) Len() int      { return len(l.Conns) }
-func (l byPendingBytes) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+// func (l byPendingBytes) Less(i, j int) bool {
+// 	return l.Conns[i].OutboundBuffer().BoundBufferSize() < l.Conns[j].OutboundBuffer().BoundBufferSize()
+// }
+// func (l byPendingBytes) Len() int      { return len(l.Conns) }
+// func (l byPendingBytes) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byPendingBytesDesc struct{ Conns []wknet.Conn }
+// type byPendingBytesDesc struct{ Conns []*connContext }
 
-func (l byPendingBytesDesc) Less(i, j int) bool {
-	return l.Conns[i].OutboundBuffer().BoundBufferSize() > l.Conns[j].OutboundBuffer().BoundBufferSize()
-}
-func (l byPendingBytesDesc) Len() int      { return len(l.Conns) }
-func (l byPendingBytesDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
+// func (l byPendingBytesDesc) Less(i, j int) bool {
+// 	return l.Conns[i].OutboundBuffer().BoundBufferSize() > l.Conns[j].OutboundBuffer().BoundBufferSize()
+// }
+// func (l byPendingBytesDesc) Len() int      { return len(l.Conns) }
+// func (l byPendingBytesDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // uptime
 
-type byUptime struct{ Conns []wknet.Conn }
+type byUptime struct{ Conns []*connContext }
 
 func (l byUptime) Less(i, j int) bool {
-	return l.Conns[i].Uptime().Before(l.Conns[j].Uptime())
+	return l.Conns[i].uptime.Load().Before(l.Conns[j].uptime.Load())
 }
 func (l byUptime) Len() int      { return len(l.Conns) }
 func (l byUptime) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
-type byUptimeDesc struct{ Conns []wknet.Conn }
+type byUptimeDesc struct{ Conns []*connContext }
 
 func (l byUptimeDesc) Less(i, j int) bool {
-	return l.Conns[i].Uptime().After(l.Conns[j].Uptime())
+	return l.Conns[i].uptime.Load().After(l.Conns[j].uptime.Load())
 }
 func (l byUptimeDesc) Len() int      { return len(l.Conns) }
 func (l byUptimeDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // idle
-type byIdle struct{ Conns []wknet.Conn }
+type byIdle struct{ Conns []*connContext }
 
 func (l byIdle) Less(i, j int) bool {
-	return l.Conns[i].LastActivity().Before(l.Conns[j].LastActivity())
+	return l.Conns[i].lastActivity.Load().Before(l.Conns[j].lastActivity.Load())
 }
 func (l byIdle) Len() int      { return len(l.Conns) }
 func (l byIdle) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // idleDesc
-type byIdleDesc struct{ Conns []wknet.Conn }
+type byIdleDesc struct{ Conns []*connContext }
 
 func (l byIdleDesc) Less(i, j int) bool {
-	return l.Conns[i].LastActivity().After(l.Conns[j].LastActivity())
+	return l.Conns[i].lastActivity.Load().After(l.Conns[j].lastActivity.Load())
 }
 func (l byIdleDesc) Len() int      { return len(l.Conns) }
 func (l byIdleDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // protoVersion
-type byProtoVersion struct{ Conns []wknet.Conn }
+type byProtoVersion struct{ Conns []*connContext }
 
 func (l byProtoVersion) Less(i, j int) bool {
-	return l.Conns[i].ProtoVersion() < l.Conns[j].ProtoVersion()
+	return l.Conns[i].protoVersion < l.Conns[j].protoVersion
 }
 func (l byProtoVersion) Len() int      { return len(l.Conns) }
 func (l byProtoVersion) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
 
 // protoVersionDesc
-type byProtoVersionDesc struct{ Conns []wknet.Conn }
+type byProtoVersionDesc struct{ Conns []*connContext }
 
 func (l byProtoVersionDesc) Less(i, j int) bool {
-	return l.Conns[i].ProtoVersion() > l.Conns[j].ProtoVersion()
+	return l.Conns[i].protoVersion > l.Conns[j].protoVersion
 }
 
 func (l byProtoVersionDesc) Len() int      { return len(l.Conns) }

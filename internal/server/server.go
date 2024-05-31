@@ -7,16 +7,11 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
-	"go.etcd.io/etcd/pkg/v3/idutil"
-	"go.uber.org/atomic"
-	"go.uber.org/zap"
-
 	"github.com/RussellLuo/timingwheel"
-	"github.com/WuKongIM/WuKongIM/internal/server/cluster/rpc"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
@@ -24,56 +19,47 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"github.com/panjf2000/ants/v2"
+	"github.com/pkg/errors"
+	"go.etcd.io/etcd/pkg/v3/idutil"
+	"go.uber.org/zap"
 )
 
-type stats struct {
-	inMsgs      atomic.Int64
-	outMsgs     atomic.Int64
-	inBytes     atomic.Int64
-	outBytes    atomic.Int64
-	slowClients atomic.Int64
-}
-
 type Server struct {
-	stats                                        // 统计信息
-	opts                *Options                 // 配置
-	wklog.Log                                    // 日志
-	handleGoroutinePool *ants.Pool               // 处理逻辑的池
-	apiServer           *APIServer               // api服务
-	start               time.Time                // 服务开始时间
-	timingWheel         *timingwheel.TimingWheel // Time wheel delay task
-	deliveryManager     *DeliveryManager         // 消息投递管理
-	dispatch            *Dispatch                // 消息流入流出分发器
-	store               *clusterstore.Store      // 存储相关接口
-	connManager         *ConnManager             // conn manager
-	systemUIDManager    *SystemUIDManager        // System uid management, system uid can send messages to everyone without any restrictions
-	datasource          IDatasource              // 数据源（提供数据源 订阅者，黑名单，白名单这些数据可以交由第三方提供）
-	channelManager      *ChannelManager          // channel manager
-	conversationManager *ConversationManager     // conversation manager
-	retryQueue          *RetryQueue              // retry queue
-	webhook             *Webhook                 // webhook
-	monitorServer       *MonitorServer           // 监控服务
-	demoServer          *DemoServer              // demo server
-	started             bool                     // 服务是否已经启动
-	stopChan            chan struct{}            // 服务停止通道
+	opts        *Options          // 配置
+	wklog.Log                     // 日志
+	cluster     icluster.Cluster  // 分布式
+	reqIDGen    *idutil.Generator // 请求ID生成器
+	ctx         context.Context
+	cancel      context.CancelFunc
+	timingWheel *timingwheel.TimingWheel // Time wheel delay task
+	start       time.Time                // 服务开始时间
+	store       *clusterstore.Store      // 存储相关接口
+	engine      *wknet.Engine            // 长连接引擎
+	authPool    *ants.Pool               // 认证的协程池
 
-	ipBlacklist     map[string]uint64 // ip黑名单列表
-	ipBlacklistLock sync.RWMutex      // ip黑名单列表锁
-	reqIDGen        *idutil.Generator
+	userReactor    *userReactor    // 用户的reactor
+	channelReactor *channelReactor // 频道的reactor
+	webhook        *webhook        // webhook
+	trace          *trace.Trace    // 监控
 
-	cluster icluster.Cluster
+	demoServer *DemoServer // demo server
+	apiServer  *APIServer  // api服务
 
-	peerInFlightQueue *PeerInFlightQueue // 正在往节点投递的节点消息
+	systemUIDManager *SystemUIDManager // 系统账号管理
 
-	trace *trace.Trace
+	tagManager     *tagManager     // tag管理
+	deliverManager *deliverManager // 消息投递管理
+	retryManager   *retryManager   // 消息重试管理
 
-	ctx context.Context
+	conversationManager *ConversationManager // 会话管理
 }
 
 func New(opts *Options) *Server {
@@ -82,88 +68,11 @@ func New(opts *Options) *Server {
 		opts:        opts,
 		Log:         wklog.NewWKLog("Server"),
 		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
-		start:       now,
-		stopChan:    make(chan struct{}),
-		ipBlacklist: map[string]uint64{},
 		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
-		ctx:         context.Background(),
+		start:       now,
 	}
 
-	gin.SetMode(opts.GinMode)
-
-	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
-	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
-	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
-	storeOpts.GetSlotId = s.getSlotId
-	s.store = clusterstore.NewStore(storeOpts)
-
-	s.apiServer = NewAPIServer(s)
-	s.deliveryManager = NewDeliveryManager(s)
-	s.dispatch = NewDispatch(s)
-	s.connManager = NewConnManager(s)
-	s.systemUIDManager = NewSystemUIDManager(s)
-	s.datasource = NewDatasource(s)
-	s.channelManager = NewChannelManager(s)
-	s.conversationManager = NewConversationManager(s)
-	s.retryQueue = NewRetryQueue(s)
-	s.webhook = NewWebhook(s)
-	s.monitorServer = NewMonitorServer(s)
-	s.demoServer = NewDemoServer(s)
-	var err error
-	s.handleGoroutinePool, err = ants.NewPool(s.opts.HandlePoolSize)
-	if err != nil {
-		panic(err)
-	}
-
-	// clusterOpts := cluster.NewOptions()
-	// clusterOpts.PeerID = s.opts.Cluster.NodeId
-	// clusterOpts.Addr = strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")
-	// clusterOpts.Join = s.opts.Cluster.Join
-	// clusterOpts.GRPCAddr = strings.ReplaceAll(s.opts.Cluster.GRPCAddr, "tcp://", "")
-	// clusterOpts.DataDir = path.Join(opts.DataDir, "cluster", fmt.Sprintf("%d", s.opts.Cluster.NodeId))
-	// clusterOpts.SlotCount = s.opts.Cluster.SlotCount
-	// clusterOpts.ReplicaCount = s.opts.Cluster.ReplicaCount
-	// clusterOpts.GRPCEvent = s.dispatch.processor
-	// clusterOpts.APIServerAddr = s.opts.External.APIUrl
-	// clusterOpts.OnSlotApply = func(slotID uint32, entries []sm.Entry) ([]sm.Entry, error) {
-	// 	if len(entries) == 0 {
-	// 		return nil, nil
-	// 	}
-	// 	resultEntries := make([]sm.Entry, 0, len(entries))
-	// 	for _, entry := range entries {
-	// 		cmd := &CMDReq{}
-	// 		err := cmd.Unmarshal(entry.Cmd)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 		cmd.SlotID = &slotID
-	// 		cmdResp, err := s.fsm.Apply(cmd)
-	// 		if err != nil {
-	// 			s.Error("状态机应用数据失败！，严重错误！", zap.Error(err))
-	// 			return nil, err
-	// 		}
-	// 		if cmdResp != nil {
-	// 			respData, err := cmdResp.Marshal()
-	// 			if err != nil {
-	// 				return nil, err
-	// 			}
-	// 			entry.Result.Data = respData
-	// 		}
-	// 		resultEntries = append(resultEntries, entry)
-	// 	}
-	// 	return resultEntries, nil
-	// }
-	// if len(s.opts.Cluster.Peers) > 0 {
-	// 	peers := make([]cluster.Peer, 0)
-	// 	for _, peer := range s.opts.Cluster.Peers {
-	// 		serverAddr := strings.ReplaceAll(peer.ServerAddr, "tcp://", "")
-	// 		peers = append(peers, cluster.Peer{
-	// 			ID:         peer.ID,
-	// 			ServerAddr: serverAddr,
-	// 		})
-	// 	}
-	// 	clusterOpts.Peers = peers
-	// }
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	s.trace = trace.New(
 		s.ctx,
@@ -173,6 +82,45 @@ func New(opts *Options) *Server {
 			trace.WithServiceHostName(s.opts.Trace.ServiceHostName),
 		))
 	trace.SetGlobalTrace(s.trace)
+
+	var err error
+	s.authPool, err = ants.NewPool(opts.Process.AuthPoolSize, ants.WithPanicHandler(func(i interface{}) {
+		stack := debug.Stack()
+		s.Panic("authPool panic", zap.String("stack", string(stack)))
+	}))
+	if err != nil {
+		s.Panic("create auth pool error", zap.Error(err))
+	}
+
+	gin.SetMode(opts.GinMode)
+
+	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
+	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
+	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
+	storeOpts.GetSlotId = s.getSlotId
+	s.store = clusterstore.NewStore(storeOpts)
+	s.tagManager = newTagManager(s)
+
+	s.engine = wknet.NewEngine(
+		wknet.WithAddr(s.opts.Addr),
+		wknet.WithWSAddr(s.opts.WSAddr),
+		wknet.WithWSSAddr(s.opts.WSSAddr),
+		wknet.WithWSTLSConfig(s.opts.WSTLSConfig),
+		wknet.WithOnReadBytes(func(n int) {
+			trace.GlobalTrace.Metrics.System().ExtranetIncomingAdd(int64(n))
+		}),
+		wknet.WithOnWirteBytes(func(n int) {
+			trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(n))
+		}),
+	)
+	s.webhook = newWebhook(s)
+	s.channelReactor = newChannelReactor(s, opts)
+	s.userReactor = newUserReactor(s)
+	s.demoServer = NewDemoServer(s)
+	s.systemUIDManager = NewSystemUIDManager(s)
+	s.apiServer = NewAPIServer(s)
+	s.retryManager = newRetryManager(s)
+	s.conversationManager = NewConversationManager(s)
 
 	initNodes := make(map[uint64]string)
 
@@ -217,11 +165,12 @@ func New(opts *Options) *Server {
 	)
 	s.cluster = clusterServer
 	storeOpts.Cluster = clusterServer
-	s.peerInFlightQueue = NewPeerInFlightQueue(s)
 
 	clusterServer.OnMessage(func(fromNodeId uint64, msg *proto.Message) {
-		s.dispatch.processor.handleClusterMessage(fromNodeId, msg)
+		s.handleClusterMessage(fromNodeId, msg)
 	})
+
+	s.deliverManager = newDeliverManager(s)
 
 	return s
 }
@@ -267,96 +216,314 @@ func (s *Server) Start() error {
 
 	defer s.Info("Server is ready")
 
-	err := s.trace.Start()
+	s.timingWheel.Start()
+
+	err := s.tagManager.start()
+	if err != nil {
+		return err
+	}
+
+	err = s.trace.Start()
 	if err != nil {
 		return err
 
+	}
+	err = s.tagManager.start()
+	if err != nil {
+		return err
 	}
 
 	err = s.store.Open()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	s.dispatch.processor.SetRoutes()
+	s.setClusterRoutes()
 	err = s.cluster.Start()
 	if err != nil {
 		return err
 	}
-	s.peerInFlightQueue.Start()
 
-	err = s.dispatch.Start()
-	if err != nil {
-		panic(err)
-	}
 	s.apiServer.Start()
 
-	s.conversationManager.Start()
-	s.webhook.Start()
-
-	s.retryQueue.Start()
-
-	s.timingWheel.Start()
-
-	s.initIPBlacklist() // 初始化ip黑名单
-
-	// 打印黑名单阻止情况
-	s.Schedule(5*time.Minute, func() {
-		s.printIpBlacklist()
-	})
-
-	if s.opts.Monitor.On {
-		s.monitorServer.Start()
+	err = s.channelReactor.start()
+	if err != nil {
+		return err
 	}
+
+	err = s.userReactor.start()
+	if err != nil {
+		return err
+	}
+
+	s.engine.OnConnect(s.onConnect)
+	s.engine.OnData(s.onData)
+	s.engine.OnClose(s.onClose)
+
+	err = s.engine.Start()
+	if err != nil {
+		return err
+	}
+
 	if s.opts.Demo.On {
 		s.demoServer.Start()
 	}
 
-	s.timingWheel.Start()
+	err = s.deliverManager.start()
+	if err != nil {
+		return err
+	}
 
-	s.started = true
+	err = s.retryManager.start()
+	if err != nil {
+		return err
+	}
+
+	s.conversationManager.Start()
 
 	return nil
 }
 
 func (s *Server) Stop() error {
-	s.started = false
-	s.Info("Server is Stoping...")
 
-	defer s.Info("Server is exited")
+	s.Info("Server stoping...")
 
+	s.cancel()
+
+	s.deliverManager.stop()
+	fmt.Println("deliverManager stopped")
+
+	s.retryManager.stop()
+	fmt.Println("retryManager stopped")
 	s.conversationManager.Stop()
-
 	fmt.Println("conversationManager stopped")
-
-	s.trace.Stop()
-
-	s.timingWheel.Stop()
-
-	s.retryQueue.Stop()
-	_ = s.dispatch.Stop()
-	s.apiServer.Stop()
-	s.webhook.Stop()
-
-	s.peerInFlightQueue.Stop()
 	s.cluster.Stop()
-
-	if s.opts.Monitor.On {
-		_ = s.monitorServer.Stop()
-	}
+	fmt.Println("cluster stopped")
+	s.apiServer.Stop()
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
 	}
-	fmt.Println("Server is Stoping...7")
-	s.store.Close()
-	fmt.Println("Server is Stoping...8")
-	close(s.stopChan)
-	fmt.Println("Server is Stoping...9")
+	s.channelReactor.stop()
+	s.userReactor.stop()
 
-	s.Debug("stopped")
+	err := s.engine.Stop()
+	if err != nil {
+		s.Error("engine stop error", zap.Error(err))
+	}
+	s.trace.Stop()
+
+	s.store.Close()
+
+	s.tagManager.stop()
+
+	s.timingWheel.Stop()
+
+	s.tagManager.stop()
+
+	s.Info("Server is stopped")
 
 	return nil
 }
+
+func (s *Server) getSlotId(v string) uint32 {
+	return s.cluster.GetSlotId(v)
+}
+
+func (s *Server) onData(conn wknet.Conn) error {
+	buff, err := conn.Peek(-1)
+	if err != nil {
+		return err
+	}
+	if len(buff) == 0 {
+		return nil
+	}
+	data, _ := gnetUnpacket(buff)
+	if len(data) == 0 {
+		return nil
+	}
+
+	var isAuth bool
+	var connCtx *connContext
+	connCtxObj := conn.Context()
+	if connCtxObj != nil {
+		connCtx = connCtxObj.(*connContext)
+		isAuth = connCtx.isAuth.Load()
+	} else {
+		isAuth = false
+	}
+
+	if !isAuth {
+		packet, _, err := s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
+		if err != nil {
+			s.Warn("Failed to decode the message", zap.Error(err))
+			conn.Close()
+			return nil
+		}
+		if packet == nil {
+			s.Warn("message is nil", zap.ByteString("data", data))
+			return nil
+		}
+		if packet.GetFrameType() != wkproto.CONNECT {
+			s.Warn("请先进行连接！")
+			conn.Close()
+			return nil
+		}
+		connectPacket := packet.(*wkproto.ConnectPacket)
+		sub := s.userReactor.reactorSub(connectPacket.UID)
+		connInfo := connInfo{
+			connId:       conn.ID(),
+			uid:          connectPacket.UID,
+			deviceId:     connectPacket.DeviceID,
+			deviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
+			protoVersion: connectPacket.Version,
+		}
+		connCtx = newConnContext(connInfo, conn, sub)
+		conn.SetContext(connCtx)
+
+		s.userReactor.addConnContext(connCtx)
+
+		connCtx.addConnectPacket(connectPacket)
+
+		//  process conn auth
+		_, _ = conn.Discard(len(data))
+		// s.processAuth(conn, packet.(*wkproto.ConnectPacket))
+	} else {
+		offset := 0
+		for len(data) > offset {
+			frame, size, err := s.opts.Proto.DecodeFrame(data[offset:], connCtx.protoVersion)
+			if err != nil { //
+				s.Warn("Failed to decode the message", zap.Error(err))
+				conn.Close()
+				return err
+			}
+			if frame == nil {
+				break
+			}
+			offset += size
+			if frame.GetFrameType() == wkproto.SEND {
+				connCtx.addSendPacket(frame.(*wkproto.SendPacket))
+			} else {
+				connCtx.addOtherPacket(frame)
+			}
+		}
+		_, _ = conn.Discard(offset)
+	}
+
+	return nil
+}
+
+func (s *Server) onConnect(conn wknet.Conn) error {
+	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
+	return nil
+}
+
+func (s *Server) onClose(conn wknet.Conn) {
+	connCtx := conn.Context()
+	if connCtx != nil {
+		fmt.Println("conn close----------->", connCtx.(*connContext).uid, connCtx.(*connContext).connId)
+		s.userReactor.removeConnContextById(connCtx.(*connContext).uid, connCtx.(*connContext).connId)
+	}
+}
+
+func gnetUnpacket(buff []byte) ([]byte, error) {
+	// buff, _ := c.Peek(-1)
+	if len(buff) <= 0 {
+		return nil, nil
+	}
+	offset := 0
+
+	for len(buff) > offset {
+		typeAndFlags := buff[offset]
+		packetType := wkproto.FrameType(typeAndFlags >> 4)
+		if packetType == wkproto.PING || packetType == wkproto.PONG {
+			offset++
+			continue
+		}
+		reminLen, readSize, has := decodeLength(buff[offset+1:])
+		if !has {
+			break
+		}
+		dataEnd := offset + readSize + reminLen + 1
+		if len(buff) >= dataEnd { // 总数据长度大于当前包数据长度 说明还有包可读。
+			offset = dataEnd
+			continue
+		} else {
+			break
+		}
+	}
+
+	if offset > 0 {
+		return buff[:offset], nil
+	}
+
+	return nil, nil
+}
+
+func decodeLength(data []byte) (int, int, bool) {
+	var rLength uint32
+	var multiplier uint32
+	offset := 0
+	for multiplier < 27 { //fix: Infinite '(digit & 128) == 1' will cause the dead loop
+		if offset >= len(data) {
+			return 0, 0, false
+		}
+		digit := data[offset]
+		offset++
+		rLength |= uint32(digit&127) << multiplier
+		if (digit & 128) == 0 {
+			break
+		}
+		multiplier += 7
+	}
+	return int(rLength), offset, true
+}
+
+// func (s *Server) response(connCtx *connContext, packet wkproto.Frame) {
+// 	err := s.userReactor.writePacket(connCtx, packet)
+// 	if err != nil {
+// 		s.Error("write packet error", zap.Error(err))
+// 	}
+// }
+
+// func (s *Server) responseData(conn wknet.Conn, data []byte) {
+// 	s.responseDataNoFlush(conn, data)
+// 	s.flushConnData(conn)
+// }
+
+// func (s *Server) responseDataNoFlush(conn wknet.Conn, data []byte) {
+// 	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
+// 	if wsok {
+// 		err := wsConn.WriteServerBinary(data)
+// 		if err != nil {
+// 			s.Warn("Failed to write the message", zap.Error(err))
+// 		}
+
+// 	} else {
+// 		_, err := conn.WriteToOutboundBuffer(data)
+// 		if err != nil {
+// 			s.Warn("Failed to write the message", zap.Error(err))
+// 		}
+// 	}
+// }
+
+// func (s *Server) flushConnData(conn wknet.Conn) {
+// 	err := conn.WakeWrite()
+// 	if err != nil {
+// 		s.Warn("Failed to wake write", zap.Error(err), zap.String("uid", conn.UID()), zap.Int("fd", conn.Fd().Fd()), zap.String("deviceId", conn.DeviceID()))
+// 	}
+// }
+
+// func (s *Server) responseConnackAuthFail(c *connContext) {
+// 	s.responseConnack(c, 0, wkproto.ReasonAuthFail)
+// }
+
+// func (s *Server) responseConnack(c *connContext, timeDiff int64, code wkproto.ReasonCode) {
+
+// 	s.response(c, &wkproto.ConnackPacket{
+// 		ReasonCode: code,
+// 		TimeDiff:   timeDiff,
+// 	})
+// }
 
 // Schedule 延迟任务
 func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
@@ -365,138 +532,40 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 	}, f)
 }
 
-// 重试投递
-func (s *Server) startDeliveryPeerDataForRetry(data *PeerInFlightData) {
-
-	if s.cluster.NodeIsOnline(data.PeerID) {
-		s.startDeliveryPeerData(data)
-		return
-	}
-
-	// 如果是重试的情况，需要检查是否投递节点挂掉了？，如果挂掉了，则需要重新计算频道所在节点
-
-	req := &rpc.ForwardRecvPacketReq{}
-	err := req.Unmarshal(data.Data)
+// decode payload
+func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *connContext) ([]byte, error) {
+	aesKey, aesIV := conn.aesKey, conn.aesIV
+	vail, err := s.sendPacketIsVail(sendPacket, conn)
 	if err != nil {
-		s.Warn("unmarshal ForwardRecvPacketReq err", zap.Error(err))
-		return
+		return nil, err
 	}
-	nodeSubscribersMap, err := s.calcNodeSubscribers(req.Subscribers)
+	if !vail {
+		return nil, errors.New("sendPacket is illegal！")
+	}
+	// decode payload
+	decodePayload, err := wkutil.AesDecryptPkcs7Base64(sendPacket.Payload, []byte(aesKey), []byte(aesIV))
 	if err != nil {
-		s.Warn("calcNodeSubscribers err", zap.Error(err))
-		return
+		s.Error("Failed to decode payload！", zap.Error(err))
+		return nil, err
 	}
-	for nodeId, subscribers := range nodeSubscribersMap {
-		newReq := req.Clone()
-		newReq.Subscribers = subscribers
-		data, err := newReq.Marshal()
-		if err != nil {
-			s.Warn("marshal ForwardRecvPacketReq err", zap.Error(err))
-			return
-		}
-		err = s.forwardRecvPacketReq(nodeId, data)
-		if err != nil {
-			s.Warn("请求grpc投递节点数据失败！", zap.Uint64("nodeId", nodeId), zap.Error(err))
-			return
-		}
-	}
-	err = s.peerInFlightQueue.finishMessage(req.No)
+
+	return decodePayload, nil
+}
+
+// send packet is vail
+func (s *Server) sendPacketIsVail(sendPacket *wkproto.SendPacket, conn *connContext) (bool, error) {
+	aesKey, aesIV := conn.aesKey, conn.aesIV
+	signStr := sendPacket.VerityString()
+	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
 	if err != nil {
-		s.Warn("finishMessage err", zap.Error(err))
-		return
+		s.Error("msgKey is illegal！", zap.Error(err), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", conn))
+		return false, err
 	}
-
-}
-
-func (s *Server) startDeliveryPeerData(req *PeerInFlightData) {
-
-	s.Debug("开始投递节点数据", zap.String("no", req.No), zap.Uint64("nodeId", req.PeerID), zap.Int("dataSize", len(req.Data)))
-
-	s.peerInFlightQueue.startInFlightTimeout(req) // 加入重试队列
-
-	err := s.forwardRecvPacketReq(req.PeerID, req.Data)
-	if err != nil {
-		s.Warn("请求grpc投递节点数据失败！", zap.Uint64("nodeId", req.PeerID), zap.Error(err))
-		return
+	actMsgKeyStr := sendPacket.MsgKey
+	exceptMsgKey := wkutil.MD5(string(actMsgKey))
+	if actMsgKeyStr != exceptMsgKey {
+		s.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", conn))
+		return false, errors.New("msgKey is illegal！")
 	}
-	err = s.peerInFlightQueue.finishMessage(req.No)
-	if err != nil {
-		s.Warn("finishMessage err", zap.Error(err))
-		return
-	}
-}
-
-func (s *Server) AllowIP(ip string) bool {
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	blockCount, ok := s.ipBlacklist[ip]
-	if ok {
-		s.ipBlacklist[ip] = blockCount + 1
-		return false
-	}
-	return true
-}
-
-func (s *Server) AddIPBlacklist(ips []string) {
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	for _, ip := range ips {
-		s.ipBlacklist[ip] = 0
-	}
-
-}
-
-func (s *Server) initIPBlacklist() {
-	ips, err := s.store.GetIPBlacklist()
-	if err != nil {
-		s.Error("获取ip黑名单失败！", zap.Error(err))
-		return
-	}
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	for _, ip := range ips {
-		s.ipBlacklist[ip] = 0
-	}
-}
-
-func (s *Server) RemoveIPBlacklist(ips []string) {
-	s.ipBlacklistLock.Lock()
-	defer s.ipBlacklistLock.Unlock()
-	for _, ip := range ips {
-		delete(s.ipBlacklist, ip)
-	}
-}
-
-func (s *Server) printIpBlacklist() {
-	s.ipBlacklistLock.RLock()
-	defer s.ipBlacklistLock.RUnlock()
-	for ip, count := range s.ipBlacklist {
-		if count > 0 {
-			s.Info(fmt.Sprintf("ip: %s, block count: %d", ip, count))
-		}
-	}
-}
-
-func (s *Server) getSlotId(v string) uint32 {
-	return s.cluster.GetSlotId(v)
-}
-
-// 计算订阅者所在节点
-func (s *Server) calcNodeSubscribers(subscribers []string) (map[uint64][]string, error) {
-	subscriberNodeIDMap := make(map[uint64][]string)
-	for _, subscriber := range subscribers {
-		leaderInfo, err := s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的领导节点
-		if err != nil {
-			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-			return nil, err
-		}
-		nodeSubscribers, ok := subscriberNodeIDMap[leaderInfo.Id]
-		if !ok {
-			nodeSubscribers = make([]string, 0)
-		}
-		nodeSubscribers = append(nodeSubscribers, subscriber)
-		subscriberNodeIDMap[leaderInfo.Id] = nodeSubscribers
-	}
-	return subscriberNodeIDMap, nil
-
+	return true, nil
 }

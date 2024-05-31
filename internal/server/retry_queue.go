@@ -3,33 +3,41 @@ package server
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/RussellLuo/timingwheel"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
 
 // RetryQueue 重试队列
 type RetryQueue struct {
 	inFlightPQ       inFlightPqueue
-	inFlightMessages map[string]*Message
+	inFlightMessages map[string]*retryMessage
 	inFlightMutex    sync.Mutex
 	s                *Server
 	fakeMessageID    int64
+	wklog.Log
+
+	retryTimer *timingwheel.Timer
 }
 
 // NewRetryQueue NewRetryQueue
-func NewRetryQueue(s *Server) *RetryQueue {
+func NewRetryQueue(index int, s *Server) *RetryQueue {
 
 	return &RetryQueue{
-		inFlightPQ:       newInFlightPqueue(1024),
-		inFlightMessages: make(map[string]*Message),
+		inFlightPQ:       newInFlightPqueue(4056),
+		inFlightMessages: make(map[string]*retryMessage),
 		s:                s,
 		fakeMessageID:    10000,
+		Log:              wklog.NewWKLog(fmt.Sprintf("RetryQueue[%d]", index)),
 	}
 }
 
-func (r *RetryQueue) startInFlightTimeout(msg *Message) {
+func (r *RetryQueue) startInFlightTimeout(msg *retryMessage) {
 	now := time.Now()
 	msg.pri = now.Add(r.s.opts.MessageRetry.Interval).UnixNano()
 	r.pushInFlightMessage(msg)
@@ -37,43 +45,47 @@ func (r *RetryQueue) startInFlightTimeout(msg *Message) {
 
 }
 
-func (r *RetryQueue) addToInFlightPQ(msg *Message) {
+func (r *RetryQueue) addToInFlightPQ(msg *retryMessage) {
 	r.inFlightMutex.Lock()
 	defer r.inFlightMutex.Unlock()
 	r.inFlightPQ.Push(msg)
 
 }
-func (r *RetryQueue) pushInFlightMessage(msg *Message) {
+func (r *RetryQueue) pushInFlightMessage(msg *retryMessage) {
 	r.inFlightMutex.Lock()
 	defer r.inFlightMutex.Unlock()
-	key := r.getInFlightKey(msg.ToUID, msg.toDeviceID, msg.MessageID)
+	key := r.getInFlightKey(msg.connId, msg.messageId)
 	_, ok := r.inFlightMessages[key]
 	if ok {
-		r.s.Warn("ID already in flight", zap.String("uid", msg.ToUID), zap.String("deviceID", msg.toDeviceID), zap.Int64("messageID", msg.MessageID))
+		r.Warn("ID already in flight", zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
 		return
 	}
 	r.inFlightMessages[key] = msg
 
 }
 
-func (r *RetryQueue) popInFlightMessage(uid string, deviceID string, messageID int64) (*Message, error) {
+func (r *RetryQueue) popInFlightMessage(connId int64, messageId int64) (*retryMessage, error) {
 	r.inFlightMutex.Lock()
 	defer r.inFlightMutex.Unlock()
-	key := r.getInFlightKey(uid, deviceID, messageID)
+	key := r.getInFlightKey(connId, messageId)
 	msg, ok := r.inFlightMessages[key]
 	if !ok {
-		r.s.Warn("ID not in flight", zap.String("uid", uid), zap.String("deviceID", deviceID), zap.Int64("messageID", messageID))
+		r.Warn("ID not in flight", zap.Int64("connId", connId), zap.Int64("messageId", messageId))
 		return nil, errors.New("ID not in flight")
 	}
 	delete(r.inFlightMessages, key)
 	return msg, nil
 }
 
-func (r *RetryQueue) getInFlightKey(uid string, deviceID string, messageID int64) string {
-	return fmt.Sprintf("%s_%s_%d", uid, deviceID, messageID)
+func (r *RetryQueue) getInFlightKey(connId int64, messageId int64) string {
+	var b strings.Builder
+	b.WriteString(strconv.FormatInt(connId, 10))
+	b.WriteString(":")
+	b.WriteString(strconv.FormatInt(messageId, 10))
+	return b.String()
 }
-func (r *RetryQueue) finishMessage(uid string, deviceID string, messageID int64) error {
-	msg, err := r.popInFlightMessage(uid, deviceID, messageID)
+func (r *RetryQueue) finishMessage(connId int64, messageId int64) error {
+	msg, err := r.popInFlightMessage(connId, messageId)
 	if err != nil {
 		return err
 	}
@@ -81,7 +93,7 @@ func (r *RetryQueue) finishMessage(uid string, deviceID string, messageID int64)
 
 	return nil
 }
-func (r *RetryQueue) removeFromInFlightPQ(msg *Message) {
+func (r *RetryQueue) removeFromInFlightPQ(msg *retryMessage) {
 	r.inFlightMutex.Lock()
 	if msg.index == -1 {
 		// this item has already been popped off the pqueue
@@ -100,27 +112,28 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 		if msg == nil {
 			break
 		}
-		err := r.finishMessage(msg.ToUID, msg.toDeviceID, msg.MessageID)
+		err := r.finishMessage(msg.connId, msg.messageId)
 		if err != nil {
-			r.s.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.String("toDeviceID", msg.toDeviceID), zap.Int64("messageID", msg.MessageID))
+			r.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
 			break
 		}
-		r.s.deliveryManager.startRetryDeliveryMsg(msg)
+		r.s.retryManager.retry(msg) // 重试
 	}
 }
 
 // Start 开始运行重试
 func (r *RetryQueue) Start() {
-	r.s.Schedule(r.s.opts.MessageRetry.ScanInterval, func() {
+	r.retryTimer = r.s.Schedule(r.s.opts.MessageRetry.ScanInterval, func() {
 		now := time.Now().UnixNano()
 		r.processInFlightQueue(now)
-	})
-
-	r.s.Schedule(time.Minute*5, func() {
-		r.inFlightMutex.Lock()
-		defer r.inFlightMutex.Unlock()
 	})
 }
 
 func (r *RetryQueue) Stop() {
+	if r.retryTimer != nil {
+		fmt.Println("RetryQueue stop.....1")
+		r.retryTimer.Stop()
+		fmt.Println("RetryQueue stop.....2")
+		r.retryTimer = nil
+	}
 }

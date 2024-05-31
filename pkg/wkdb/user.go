@@ -2,14 +2,112 @@ package wkdb
 
 import (
 	"math"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/cockroachdb/pebble"
 )
 
-func (wk *wukongDB) getUserIdByUid(uid string) (uint64, error) {
-	uidIndexKey := key.NewUserIndexUidKey(uid)
-	uidIndexValue, closer, err := wk.shardDB(uid).Get(uidIndexKey)
+func (wk *wukongDB) GetUser(uid string) (User, error) {
+
+	id, err := wk.getUserId(uid)
+	if err != nil {
+		return EmptyUser, err
+	}
+
+	if id == 0 {
+		return EmptyUser, ErrUserNotExist
+	}
+
+	db := wk.shardDB(uid)
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewUserColumnKey(id, key.MinColumnKey),
+		UpperBound: key.NewUserColumnKey(id, key.MaxColumnKey),
+	})
+	defer iter.Close()
+
+	var usr = EmptyUser
+
+	err = wk.iteratorUser(iter, func(u User) bool {
+		if u.Id == id {
+			usr = u
+			return false
+		}
+		return true
+	})
+	if err != nil {
+		return EmptyUser, err
+	}
+	if usr == EmptyUser {
+		return EmptyUser, ErrUserNotExist
+	}
+	return usr, nil
+}
+
+func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
+	if req.Uid != "" {
+		us, err := wk.GetUser(req.Uid)
+		if err != nil {
+			return nil, err
+		}
+		return []User{us}, nil
+	}
+	var users []User
+	currentSize := 0
+	for _, db := range wk.dbs {
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewUserColumnKey(0, key.MinColumnKey),
+			UpperBound: key.NewUserColumnKey(math.MaxUint64, key.MaxColumnKey),
+		})
+		defer iter.Close()
+
+		err := wk.iteratorUser(iter, func(u User) bool {
+			if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
+				return false
+			}
+			currentSize++
+			if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
+				users = append(users, u)
+				return true
+			}
+			return true
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return users, nil
+
+}
+
+func (wk *wukongDB) AddOrUpdateUser(u User) error {
+	isCreate := false
+	if u.Id == 0 {
+		// 获取uid的索引主键
+		id, err := wk.getUserId(u.Uid)
+		if err != nil {
+			return err
+		}
+		if id != 0 {
+			u.Id = id
+		} else {
+			isCreate = true
+			u.Id = uint64(wk.prmaryKeyGen.Generate().Int64())
+		}
+	}
+	db := wk.shardDB(u.Uid)
+	batch := db.NewBatch()
+	defer batch.Close()
+	err := wk.writeUser(u, isCreate, batch)
+	if err != nil {
+		return err
+	}
+	return batch.Commit(wk.sync)
+}
+
+func (wk *wukongDB) getUserId(uid string) (uint64, error) {
+	indexKey := key.NewUserIndexUidKey(uid)
+	uidIndexValue, closer, err := wk.shardDB(uid).Get(indexKey)
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil
@@ -24,107 +122,42 @@ func (wk *wukongDB) getUserIdByUid(uid string) (uint64, error) {
 	return wk.endian.Uint64(uidIndexValue), nil
 }
 
-func (wk *wukongDB) GetUser(uid string, deviceFlag uint8) (User, error) {
-
-	// 获取uid的索引主键
-	id, err := wk.getUserIdByUid(uid)
-	if err != nil {
-		return EmptyUser, err
-	}
-
-	db := wk.shardDB(uid)
-	// 获取用户信息
-	var iter *pebble.Iterator
-	if id > 0 {
-		iter = db.NewIter(&pebble.IterOptions{
-			LowerBound: key.NewUserColumnKey(id, [2]byte{0, 0}),
-			UpperBound: key.NewUserColumnKey(id, [2]byte{0xff, 0xff}),
-		})
-	} else {
-		iter = db.NewIter(&pebble.IterOptions{
-			LowerBound: key.NewUserColumnKey(0, [2]byte{0, 0}),
-			UpperBound: key.NewUserColumnKey(math.MaxUint64, [2]byte{0xff, 0xff}),
-		})
-
-	}
-	defer iter.Close()
-
-	users, err := wk.parseUser(iter, id, 1)
-	if err != nil {
-		if err == pebble.ErrNotFound {
-			return EmptyUser, nil
-		}
-		return EmptyUser, err
-	}
-
-	if len(users) == 0 {
-		return EmptyUser, nil
-	}
-	return users[0], nil
-}
-
-func (wk *wukongDB) UpdateUser(u User) error {
-
-	if u.Id == 0 {
-		// 获取uid的索引主键
-		id, err := wk.getUserIdByUid(u.Uid)
-		if err != nil {
-			return err
-		}
-		if id != 0 {
-			u.Id = id
-		} else {
-			u.Id = uint64(wk.prmaryKeyGen.Generate().Int64())
-		}
-	}
-	db := wk.shardDB(u.Uid)
-	batch := db.NewBatch()
-	defer batch.Close()
-	err := wk.writeUser(u, batch)
-	if err != nil {
-		return err
-	}
-	return batch.Commit(wk.wo)
-}
-
-func (wk *wukongDB) writeUser(u User, w pebble.Writer) error {
+func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
 	var (
 		err error
 	)
+
 	// uid
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.Uid), []byte(u.Uid), wk.wo); err != nil {
+	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.Uid), []byte(u.Uid), wk.sync); err != nil {
 		return err
 	}
 
-	// token
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.Token), []byte(u.Token), wk.wo); err != nil {
+	// updatedAt
+	var nowBytes = make([]byte, 8)
+	wk.endian.PutUint64(nowBytes, uint64(time.Now().Unix()))
+	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.UpdatedAt), nowBytes, wk.sync); err != nil {
 		return err
 	}
 
-	// deviceFlag
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.DeviceFlag), []byte{u.DeviceFlag}, wk.wo); err != nil {
-		return err
+	// createdAt
+	if isCreate {
+		err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.CreatedAt), nowBytes, wk.sync)
+		if err != nil {
+			return err
+		}
 	}
-
-	// deviceLevel
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.DeviceLevel), []byte{u.DeviceLevel}, wk.wo); err != nil {
-		return err
-	}
-
 	// uid index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, u.Id)
-	if err = w.Set(key.NewUserIndexUidKey(u.Uid), idBytes, wk.wo); err != nil {
+	if err = w.Set(key.NewUserIndexUidKey(u.Uid), idBytes, wk.sync); err != nil {
 		return err
 	}
+
 	return nil
 }
 
-// 解析出用户信息
-// id !=0 时，解析出id对应的用户信息
-func (wk *wukongDB) parseUser(iter *pebble.Iterator, id uint64, limit int) ([]User, error) {
+func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, iterFnc func(u User) bool) error {
 	var (
-		users          = make([]User, 0, limit)
 		preId          uint64
 		preUser        User
 		lastNeedAppend bool = true
@@ -134,17 +167,12 @@ func (wk *wukongDB) parseUser(iter *pebble.Iterator, id uint64, limit int) ([]Us
 	for iter.First(); iter.Valid(); iter.Next() {
 		primaryKey, columnName, err := key.ParseUserColumnKey(iter.Key())
 		if err != nil {
-			return nil, err
-		}
-
-		if id != 0 && primaryKey != id {
-			continue
+			return err
 		}
 
 		if preId != primaryKey {
 			if preId != 0 {
-				users = append(users, preUser)
-				if len(users) >= limit {
+				if !iterFnc(preUser) {
 					lastNeedAppend = false
 					break
 				}
@@ -156,19 +184,18 @@ func (wk *wukongDB) parseUser(iter *pebble.Iterator, id uint64, limit int) ([]Us
 		switch columnName {
 		case key.TableUser.Column.Uid:
 			preUser.Uid = string(iter.Value())
-		case key.TableUser.Column.Token:
-			preUser.Token = string(iter.Value())
-		case key.TableUser.Column.DeviceFlag:
-			preUser.DeviceFlag = iter.Value()[0]
-		case key.TableUser.Column.DeviceLevel:
-			preUser.DeviceLevel = iter.Value()[0]
+		case key.TableUser.Column.CreatedAt:
+			preUser.CreatedAt = time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+		case key.TableUser.Column.UpdatedAt:
+			preUser.UpdatedAt = time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+
 		}
 		lastNeedAppend = true
 		hasData = true
 	}
 
 	if lastNeedAppend && hasData {
-		users = append(users, preUser)
+		_ = iterFnc(preUser)
 	}
-	return users, nil
+	return nil
 }

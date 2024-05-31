@@ -1,146 +1,244 @@
 package server
 
 import (
-	"sync"
-
-	"go.uber.org/zap"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
-// type connStats struct {
-// 	inMsgs   atomic.Int64 // recv msg count
-// 	outMsgs  atomic.Int64
-// 	inBytes  atomic.Int64
-// 	outBytes atomic.Int64
-// }
+type connStats struct {
+	inPacketCount  atomic.Int64 // 输入包数量
+	outPacketCount atomic.Int64 // 输出包数量
 
-type connContext struct {
-	isDisableRead bool
-	conn          wknet.Conn
-	mu            sync.RWMutex
-	frameCaches   []wkproto.Frame
-	s             *Server
-	inflightCount int // frame inflight count
-	wklog.Log
+	inPacketByteCount  atomic.Int64 // 输入包字节数量
+	outPacketByteCount atomic.Int64 // 输出包字节数量
 
-	// subscriberInfos    map[string]*wkstore.SubscribeInfo // 订阅的频道数据, key: channel, value: SubscriberInfo
-	// subscriberInfoLock sync.RWMutex
+	inMsgCount  atomic.Int64 // 输入消息数量
+	outMsgCount atomic.Int64 // 输出消息数量
+
+	inMsgByteCount  atomic.Int64 // 输入消息字节数量
+	outMsgByteCount atomic.Int64 // 输出消息字节数量
 }
 
-func newConnContext(s *Server) *connContext {
+type connInfo struct {
+	connId       int64 // 连接在本节点的id
+	proxyConnId  int64 // 连接在代理节点的id
+	uid          string
+	deviceId     string
+	deviceFlag   wkproto.DeviceFlag
+	deviceLevel  wkproto.DeviceLevel
+	aesKey       string
+	aesIV        string
+	protoVersion uint8
+
+	closed atomic.Bool
+
+	isAuth atomic.Bool // 是否已经认证
+
+}
+
+type connContext struct {
+	connInfo   // 连接信息
+	connStats  // 统计信息
+	conn       wknet.Conn
+	subReactor *userReactorSub
+
+	realNodeId uint64 // 真实的节点id
+	isRealConn bool   // 是否是真实的连接
+
+	uptime atomic.Time // 启动时间
+
+	lastActivity atomic.Time // 最后活动时间
+
+	wklog.Log
+}
+
+func newConnContext(connInfo connInfo, conn wknet.Conn, subReactor *userReactorSub) *connContext {
 	c := &connContext{
-		s:   s,
-		mu:  sync.RWMutex{},
-		Log: wklog.NewWKLog("connContext"),
-		// subscriberInfos: make(map[string]*wkstore.SubscribeInfo),
+		connInfo:   connInfo,
+		conn:       conn,
+		subReactor: subReactor,
+		isRealConn: true,
+		Log:        wklog.NewWKLog(fmt.Sprintf("connContext[%s]", connInfo.uid)),
 	}
+
+	c.uptime.Store(time.Now())
+
 	return c
 }
 
-func (c *connContext) putFrame(frame wkproto.Frame) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.inflightCount++
-	c.frameCaches = append(c.frameCaches, frame)
-	if c.s.opts.UserMsgQueueMaxSize > 0 && int(c.inflightCount) > c.s.opts.UserMsgQueueMaxSize {
-		c.disableRead()
+func newConnContextProxy(realNodeId uint64, connInfo connInfo, subReactor *userReactorSub) *connContext {
+	return &connContext{
+		connInfo:   connInfo,
+		subReactor: subReactor,
+		realNodeId: realNodeId,
+		isRealConn: false,
+		Log:        wklog.NewWKLog(fmt.Sprintf("connContext[%s]", connInfo.uid)),
 	}
 }
 
-func (c *connContext) popFrames() []wkproto.Frame {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	newFrames := c.frameCaches[:]
-	// copy(newFrames, c.frameCaches)
-	c.frameCaches = make([]wkproto.Frame, 0, 250)
-	return newFrames
+func (c *connContext) addOtherPacket(packet wkproto.Frame) {
 
+	// 保持活动
+	c.keepActivity()
+
+	// 数据统计
+	c.inPacketCount.Add(1)
+	c.inPacketByteCount.Add(packet.GetFrameSize())
+
+	// fmt.Println("addOtherPacket....", zap.String("frameType", packet.GetFrameType().String()))
+	c.subReactor.step(c.uid, UserAction{
+		ActionType: UserActionSend,
+		Messages: []ReactorUserMessage{
+			{
+				ConnId:     c.connId,
+				DeviceId:   c.deviceId,
+				InPacket:   packet,
+				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
+			},
+		},
+	})
 }
 
-func (c *connContext) finishFrames(count int) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.inflightCount -= count
-	if c.s.opts.UserMsgQueueMaxSize > 0 && int(c.inflightCount) <= c.s.opts.UserMsgQueueMaxSize {
-		c.enableRead()
+func (c *connContext) addConnectPacket(packet *wkproto.ConnectPacket) {
+	// 保持活动
+	c.keepActivity()
+
+	// 数据统计
+	c.inPacketCount.Add(1)
+	c.inPacketByteCount.Add(packet.GetFrameSize())
+
+	err := c.subReactor.stepNoWait(c.uid, UserAction{
+		ActionType: UserActionConnect,
+		Messages: []ReactorUserMessage{
+			{
+				ConnId:     c.connId,
+				DeviceId:   c.deviceId,
+				InPacket:   packet,
+				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
+			},
+		},
+	})
+	if err != nil {
+		wklog.Error("addConnectPacket error", zap.String("uid", c.uid), zap.Error(err))
 	}
 }
 
-// disable read data from  conn
-func (c *connContext) disableRead() {
-	if c.isDisableRead {
+func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
+
+	// 保持活动
+	c.keepActivity()
+
+	// 数据统计
+	c.inPacketCount.Add(1)
+	c.inPacketByteCount.Add(packet.GetFrameSize())
+
+	c.inMsgCount.Add(1)
+	c.inMsgByteCount.Add(packet.GetFrameSize())
+
+	// 提案发送至频道
+	_ = c.subReactor.proposeSend(c, packet)
+}
+
+func (c *connContext) writePacket(packet wkproto.Frame) error {
+	data, err := c.subReactor.r.s.opts.Proto.EncodeFrame(packet, c.protoVersion)
+	if err != nil {
+		return err
+	}
+	return c.write(data, packet.GetFrameType())
+}
+
+func (c *connContext) write(d []byte, frameType wkproto.FrameType) error {
+
+	c.subReactor.step(c.uid, UserAction{
+		ActionType: UserActionRecv,
+		Messages: []ReactorUserMessage{
+			{
+				ConnId:     c.connId,
+				DeviceId:   c.deviceId,
+				FrameType:  frameType,
+				OutBytes:   d,
+				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
+			},
+		},
+	})
+	return nil
+}
+
+func (c *connContext) writeDirectlyPacket(packet wkproto.Frame) error {
+
+	data, err := c.subReactor.r.s.opts.Proto.EncodeFrame(packet, c.protoVersion)
+	if err != nil {
+		return err
+	}
+
+	var count = uint32(0)
+	if packet.GetFrameType() == wkproto.RECV {
+		count = 1
+	}
+
+	return c.writeDirectly(data, count)
+}
+
+// 直接写入连接
+func (c *connContext) writeDirectly(data []byte, recvFrameCount uint32) error {
+
+	if recvFrameCount > 0 {
+		c.outMsgCount.Add(int64(recvFrameCount))
+		c.outMsgByteCount.Add(int64(len(data))) // TODO: 这里其实有点不准确，因为data不一定都是recv包, 但是大体上recv包占大多数
+	}
+
+	c.outPacketCount.Add(1)
+	c.outPacketByteCount.Add(int64(len(data)))
+
+	if c.conn == nil {
+		c.Error("writeDirectly failed, conn is nil", zap.String("conn", c.String()))
+		return errors.New("writeDirectly failed, conn is nil")
+	}
+	conn := c.conn
+	wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
+	if wsok {
+		err := wsConn.WriteServerBinary(data)
+		if err != nil {
+			c.Warn("Failed to write the message", zap.Error(err))
+		}
+
+	} else {
+		_, err := conn.WriteToOutboundBuffer(data)
+		if err != nil {
+			c.Warn("Failed to write the message", zap.Error(err))
+		}
+	}
+	return conn.WakeWrite()
+}
+
+func (c *connContext) keepActivity() {
+	c.lastActivity.Store(time.Now())
+}
+
+func (c *connContext) close() {
+	if c.closed.Load() {
 		return
 	}
-	c.s.slowClients.Add(1)
-	c.isDisableRead = true
-	c.Info("流量限制开始!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()))
-	_ = c.conn.ReactorSub().RemoveRead(c.conn)
-
-}
-
-// enable read data from  conn
-func (c *connContext) enableRead() {
-	if !c.isDisableRead {
-		return
+	c.closed.Store(true)
+	if c.conn != nil {
+		err := c.conn.Close()
+		if err != nil {
+			wklog.Error("conn close error", zap.Error(err))
+		}
 	}
-	c.s.slowClients.Sub(1)
-	c.isDisableRead = false
-	c.Info("流量限制解除!", zap.String("uid", c.conn.UID()), zap.Int64("id", c.conn.ID()))
-	_ = c.conn.ReactorSub().AddRead(c.conn)
 }
 
-// 订阅频道
-// func (c *connContext) subscribeChannel(channelID string, channelType uint8, param map[string]interface{}) {
-// 	c.subscriberInfoLock.Lock()
-// 	defer c.subscriberInfoLock.Unlock()
-// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
-// 	if c.conn != nil {
-// 		c.subscriberInfos[key] = &wkstore.SubscribeInfo{
-// 			UID:   c.conn.UID(),
-// 			Param: param,
-// 		}
-// 	}
-// }
-
-// 取消订阅
-// func (c *connContext) unscribeChannel(channelID string, channelType uint8) {
-// 	c.subscriberInfoLock.Lock()
-// 	defer c.subscriberInfoLock.Unlock()
-// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
-// 	delete(c.subscriberInfos, key)
-// }
-
-// 是否订阅
-// func (c *connContext) isSubscribed(channelID string, channelType uint8) bool {
-// 	c.subscriberInfoLock.RLock()
-// 	defer c.subscriberInfoLock.RUnlock()
-// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
-// 	_, ok := c.subscriberInfos[key]
-// 	return ok
-// }
-
-// func (c *connContext) getSubscribeInfo(channelID string, channelType uint8) *wkstore.SubscribeInfo {
-// 	c.subscriberInfoLock.RLock()
-// 	defer c.subscriberInfoLock.RUnlock()
-// 	key := fmt.Sprintf("%s-%d", channelID, channelType)
-// 	return c.subscriberInfos[key]
-// }
-
-func (c *connContext) init() {
-	c.frameCaches = make([]wkproto.Frame, 0, 250)
-	c.Log = wklog.NewWKLog("connContext")
+func (c *connContext) isClosed() bool {
+	return c.closed.Load()
 }
 
-func (c *connContext) release() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.inflightCount = 0
-	c.Log = nil
-	c.isDisableRead = false
-	c.frameCaches = nil
-	c.conn = nil
+func (c *connContext) String() string {
+	return fmt.Sprintf("uid: %s connId: %d deviceId: %s deviceFlag: %s isRealConn: %v proxyConnId: %d realNodeId: %d", c.uid, c.connId, c.deviceId, c.deviceFlag.String(), c.isRealConn, c.proxyConnId, c.realNodeId)
 }

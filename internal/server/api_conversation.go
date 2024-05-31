@@ -658,7 +658,7 @@ func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels [
 			if len(recentMessages) > 0 {
 				for _, recentMessage := range recentMessages {
 					messageResp := &MessageResp{}
-					messageResp.from(recentMessage, s.s.store)
+					messageResp.from(recentMessage)
 					messageResps = append(messageResps, messageResp)
 				}
 			}

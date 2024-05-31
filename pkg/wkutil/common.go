@@ -2,6 +2,7 @@ package wkutil
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"math"
 	"math/rand"
@@ -232,4 +233,8 @@ func Uint32ArrayToStringArray(arr []uint32) (newArr []string) {
 		newArr = append(newArr, strconv.Itoa(int(v)))
 	}
 	return
+}
+
+func Base64Decode(str string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(str)
 }

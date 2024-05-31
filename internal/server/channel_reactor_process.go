@@ -427,7 +427,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 					ClientMsgNo: sendPacket.ClientMsgNo,
 					ClientSeq:   sendPacket.ClientSeq,
 					FromUID:     msg.FromUid,
-					ChannelID:   sendPacket.ChannelID,
+					ChannelID:   req.ch.channelId,
 					ChannelType: sendPacket.ChannelType,
 					Expire:      sendPacket.Expire,
 					Timestamp:   int32(time.Now().Unix()),

@@ -4,16 +4,22 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math/big"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/zap"
 )
 
 var (
@@ -838,3 +844,331 @@ const (
 	syncStatusSyncing                   // 同步中
 	syncStatusSynced                    // 已同步
 )
+
+type ChannelClusterConfigRespTotal struct {
+	Total int                         `json:"total"` // 总数
+	Data  []*ChannelClusterConfigResp `json:"data"`
+}
+
+type ChannelClusterConfigResp struct {
+	ChannelID         string                    `json:"channel_id"`          // 频道ID
+	ChannelType       uint8                     `json:"channel_type"`        // 频道类型
+	ChannelTypeFormat string                    `json:"channel_type_format"` // 频道类型格式化
+	ReplicaCount      uint16                    `json:"replica_count"`       // 副本数量
+	Replicas          []uint64                  `json:"replicas"`            // 副本节点ID集合
+	LeaderId          uint64                    `json:"leader_id"`           // 领导者ID
+	Term              uint32                    `json:"term"`                // 任期
+	SlotId            uint32                    `json:"slot_id"`             // 槽位ID
+	SlotLeaderId      uint64                    `json:"slot_leader_id"`      // 槽位领导者ID
+	MaxMessageSeq     uint64                    `json:"max_message_seq"`     // 最大消息序号
+	LastAppendTime    string                    `json:"last_append_time"`    // 最后一次追加时间
+	Active            int                       `json:"active"`              // 是否激活
+	ActiveFormat      string                    `json:"active_format"`       // 状态格式化
+	Status            wkdb.ChannelClusterStatus `json:"status"`              // 状态
+	StatusFormat      string                    `json:"status_format"`       // 状态格式化
+}
+
+func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg wkdb.ChannelClusterConfig) *ChannelClusterConfigResp {
+
+	channelTypeFormat := ""
+
+	switch cfg.ChannelType {
+	case wkproto.ChannelTypeGroup:
+		channelTypeFormat = "群组"
+	case wkproto.ChannelTypePerson:
+		channelTypeFormat = "个人"
+	case wkproto.ChannelTypeCommunity:
+		channelTypeFormat = "社区"
+	case wkproto.ChannelTypeCustomerService:
+		channelTypeFormat = "客服"
+	case wkproto.ChannelTypeInfo:
+		channelTypeFormat = "资讯"
+	case wkproto.ChannelTypeData:
+		channelTypeFormat = "数据"
+	default:
+		channelTypeFormat = fmt.Sprintf("未知(%d)", cfg.ChannelType)
+	}
+
+	statusFormat := "未知"
+	if cfg.Status == wkdb.ChannelClusterStatusNormal {
+		statusFormat = "正常"
+	} else if cfg.Status == wkdb.ChannelClusterStatusCandidate {
+		statusFormat = "候选中"
+	} else if cfg.Status == wkdb.ChannelClusterStatusLeaderTransfer {
+		statusFormat = "领导者转移中"
+	}
+	return &ChannelClusterConfigResp{
+		ChannelID:         cfg.ChannelId,
+		ChannelType:       cfg.ChannelType,
+		ChannelTypeFormat: channelTypeFormat,
+		ReplicaCount:      cfg.ReplicaMaxCount,
+		Replicas:          cfg.Replicas,
+		LeaderId:          cfg.LeaderId,
+		Term:              cfg.Term,
+		SlotId:            slotId,
+		SlotLeaderId:      slotLeaderId,
+		Status:            cfg.Status,
+		StatusFormat:      statusFormat,
+	}
+}
+
+type SlotResp struct {
+	Id           uint32        `json:"id"`
+	LeaderId     uint64        `json:"leader_id"`
+	Term         uint32        `json:"term"`
+	Replicas     []uint64      `json:"replicas"`
+	ChannelCount int           `json:"channel_count"`
+	LogIndex     uint64        `json:"log_index"`
+	Status       pb.SlotStatus `json:"status"`
+	StatusFormat string        `json:"status_format"`
+}
+
+func NewSlotResp(st *pb.Slot, channelCount int) *SlotResp {
+	statusFormat := ""
+	switch st.Status {
+	case pb.SlotStatus_SlotStatusNormal:
+		statusFormat = "正常"
+	case pb.SlotStatus_SlotStatusCandidate:
+		statusFormat = "候选中"
+	case pb.SlotStatus_SlotStatusLeaderTransfer:
+		statusFormat = "领导者转移中"
+
+	}
+	if st.LeaderTransferTo != 0 {
+		statusFormat = fmt.Sprintf("领导者转移中(%d)", st.LeaderTransferTo)
+	}
+	return &SlotResp{
+		Id:           st.Id,
+		LeaderId:     st.Leader,
+		Term:         st.Term,
+		Replicas:     st.Replicas,
+		ChannelCount: channelCount,
+		Status:       st.Status,
+		StatusFormat: statusFormat,
+	}
+}
+
+type SlotRespTotal struct {
+	Total int         `json:"total"` // 总数
+	Data  []*SlotResp `json:"data"`  // 槽位信息
+}
+
+func (s *Server) requestSlotInfo(nodeId uint64, slotIds []uint32) ([]*SlotResp, error) {
+	node := s.clusterEventServer.Node(nodeId)
+	if node == nil {
+		s.Error("node not found", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("node not found")
+	}
+	resp, err := network.Get(fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath("/slots")), map[string]string{
+		"ids": strings.Join(wkutil.Uint32ArrayToStringArray(slotIds), ","),
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	slotResps := make([]*SlotResp, 0)
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &slotResps)
+	return slotResps, err
+}
+
+type SlotClusterConfigResp struct {
+	Id                uint32   `json:"id"`                   // 槽位ID
+	LeaderId          uint64   `json:"leader_id"`            // 领导者ID
+	Term              uint32   `json:"term"`                 // 任期
+	Replicas          []uint64 `json:"replicas"`             // 副本节点ID集合
+	LogMaxIndex       uint64   `json:"log_max_index"`        // 本地日志最大索引
+	LeaderLogMaxIndex uint64   `json:"leader_log_max_index"` // 领导者日志最大索引
+	AppliedIndex      uint64   `json:"applied_index"`        // 已应用索引
+}
+
+func NewSlotClusterConfigRespFromClusterConfig(appliedIdx, logMaxIndex uint64, leaderLogMaxIndex uint64, slot *pb.Slot) *SlotClusterConfigResp {
+	return &SlotClusterConfigResp{
+		Id:                slot.Id,
+		LeaderId:          slot.Leader,
+		Term:              slot.Term,
+		Replicas:          slot.Replicas,
+		LogMaxIndex:       logMaxIndex,
+		LeaderLogMaxIndex: leaderLogMaxIndex,
+		AppliedIndex:      appliedIdx,
+	}
+}
+
+type messageRespTotal struct {
+	Total int            `json:"total"` // 总数
+	Data  []*messageResp `json:"data"`
+}
+
+type messageResp struct {
+	MessageId       string `json:"message_id"`       // 服务端的消息ID(全局唯一)
+	MessageSeq      uint32 `json:"message_seq"`      // 消息序列号 （用户唯一，有序递增）
+	ClientMsgNo     string `json:"client_msg_no"`    // 客户端唯一标示
+	Timestamp       int32  `json:"timestamp"`        // 服务器消息时间戳(10位，到秒)
+	TimestampForamt string `json:"timestamp_format"` // 服务器消息时间戳格式化
+	ChannelId       string `json:"channel_id"`       // 频道ID
+	ChannelType     uint8  `json:"channel_type"`     // 频道类型
+	Topic           string `json:"topic"`            // 话题ID
+	FromUid         string `json:"from_uid"`         // 发送者UID
+	Payload         []byte `json:"payload"`          // 消息内容
+	Expire          uint32 `json:"expire"`           // 消息过期时间 0 表示永不过期
+}
+
+func newMessageResp(m wkdb.Message) *messageResp {
+
+	timestampFormat := wkutil.ToyyyyMMddHHmm(time.Unix(int64(m.Timestamp), 0))
+
+	return &messageResp{
+		MessageId:       strconv.FormatInt(m.MessageID, 10),
+		MessageSeq:      m.MessageSeq,
+		ClientMsgNo:     m.ClientMsgNo,
+		Timestamp:       m.Timestamp,
+		TimestampForamt: timestampFormat,
+		ChannelId:       m.ChannelID,
+		ChannelType:     m.ChannelType,
+		Topic:           m.Topic,
+		FromUid:         m.FromUID,
+		Payload:         m.Payload,
+		Expire:          m.Expire,
+	}
+}
+
+type NodeConfig struct {
+	Id              uint64         `json:"id"`                          // 节点ID
+	IsLeader        int            `json:"is_leader,omitempty"`         // 是否是leader
+	Role            pb.NodeRole    `json:"role"`                        // 节点角色
+	ClusterAddr     string         `json:"cluster_addr"`                // 集群地址
+	ApiServerAddr   string         `json:"api_server_addr,omitempty"`   // API服务地址
+	Online          int            `json:"online,omitempty"`            // 是否在线
+	OfflineCount    int            `json:"offline_count,omitempty"`     // 下线次数
+	LastOffline     string         `json:"last_offline,omitempty"`      // 最后一次下线时间
+	AllowVote       int            `json:"allow_vote"`                  // 是否允许投票
+	SlotCount       int            `json:"slot_count,omitempty"`        // 槽位数量
+	SlotLeaderCount int            `json:"slot_leader_count,omitempty"` // 槽位领导者数量
+	ExportCount     int            `json:"export_count,omitempty"`      // 迁出槽位数量
+	Exports         []*SlotMigrate `json:"exports,omitempty"`           // 迁移槽位
+	ImportCount     int            `json:"import_count,omitempty"`      // 迁入槽位数量
+	Imports         []*SlotMigrate `json:"imports,omitempty"`           // 迁入槽位
+	Uptime          string         `json:"uptime,omitempty"`            // 运行时间
+	AppVersion      string         `json:"app_version,omitempty"`       // 应用版本
+	ConfigVersion   uint64         `json:"config_version,omitempty"`    // 配置版本
+	Status          pb.NodeStatus  `json:"status,omitempty"`            // 状态
+	StatusFormat    string         `json:"status_format,omitempty"`     // 状态格式化
+}
+
+func NewNodeConfigFromNode(n *pb.Node) *NodeConfig {
+	// lastOffline format string
+	lastOffline := ""
+	if n.LastOffline != 0 {
+		lastOffline = wkutil.ToyyyyMMddHHmm(time.Unix(n.LastOffline, 0))
+	}
+	status := ""
+	if n.Status == pb.NodeStatus_NodeStatusJoined {
+		status = "已加入"
+
+	} else if n.Status == pb.NodeStatus_NodeStatusJoining {
+		status = "加入中"
+	} else if n.Status == pb.NodeStatus_NodeStatusWillJoin {
+		status = "将加入"
+	}
+	return &NodeConfig{
+		Id:            n.Id,
+		Role:          n.Role,
+		ClusterAddr:   n.ClusterAddr,
+		ApiServerAddr: n.ApiServerAddr,
+		Online:        wkutil.BoolToInt(n.Online),
+		OfflineCount:  int(n.OfflineCount),
+		LastOffline:   lastOffline,
+		AllowVote:     wkutil.BoolToInt(n.AllowVote),
+		Status:        n.Status,
+		StatusFormat:  status,
+	}
+}
+
+type SlotMigrate struct {
+	Slot   uint32           `json:"slot_id"`
+	From   uint64           `json:"from"`
+	To     uint64           `json:"to"`
+	Status pb.MigrateStatus `json:"status"`
+}
+
+type NodeConfigTotal struct {
+	Total int           `json:"total"` // 总数
+	Data  []*NodeConfig `json:"data"`
+}
+
+type channelInfoResp struct {
+	Id                uint64 `json:"id"`                   // 主键
+	Slot              uint32 `json:"slot"`                 // 槽位ID
+	ChannelId         string `json:"channel_id"`           // 频道ID
+	ChannelType       uint8  `json:"channel_type"`         // 频道类型
+	Ban               int    `json:"ban"`                  // 是否禁言
+	Disband           int    `json:"disband"`              // 是否解散
+	SubscriberCount   int    `json:"subscriber_count"`     // 订阅者数量
+	AllowlistCount    int    `json:"allowlist_count"`      // 白名单数量
+	DenylistCount     int    `json:"denylist_count"`       // 黑名单数量
+	LastMsgSeq        uint64 `json:"last_msg_seq"`         // 频道最新消息序号
+	LastMsgTime       uint64 `json:"last_msg_time"`        // 频道最新消息时间
+	LastMsgTimeFormat string `json:"last_msg_time_format"` // 频道最新消息时间格式化
+	StatusFormat      string `json:"status_format"`        // 状态格式化
+}
+
+func newChannelInfoResp(ch wkdb.ChannelInfo, slotId uint32) *channelInfoResp {
+
+	lastMsgTimeFormat := ""
+	if ch.LastMsgTime != 0 {
+		lastMsgTimeFormat = wkutil.ToyyyyMMddHHmm(time.Unix(int64(ch.LastMsgTime/1e9), 0))
+	}
+
+	statusFormat := "正常"
+	if ch.Disband {
+		statusFormat = "解散"
+	}
+	if ch.Ban {
+		statusFormat = "封禁"
+	}
+
+	return &channelInfoResp{
+		Id:                ch.Id,
+		Slot:              slotId,
+		ChannelId:         ch.ChannelId,
+		ChannelType:       ch.ChannelType,
+		Ban:               wkutil.BoolToInt(ch.Ban),
+		Disband:           wkutil.BoolToInt(ch.Disband),
+		SubscriberCount:   ch.SubscriberCount,
+		AllowlistCount:    ch.AllowlistCount,
+		DenylistCount:     ch.DenylistCount,
+		LastMsgSeq:        ch.LastMsgSeq,
+		LastMsgTime:       ch.LastMsgTime,
+		LastMsgTimeFormat: lastMsgTimeFormat,
+		StatusFormat:      statusFormat,
+	}
+}
+
+type channelInfoRespTotal struct {
+	Total int                `json:"total"` // 总数
+	Data  []*channelInfoResp `json:"data"`
+}
+
+type userResp struct {
+	Uid               string `json:"uid"`                 // 用户ID
+	CreatedAt         int64  `json:"created_at"`          // 创建时间
+	UpdatedAt         int64  `json:"updated_at"`          // 更新时间
+	CreatedAtFormat   string `json:"created_at_format"`   // 创建时间格式化
+	UpdatedAtFormat   string `json:"updated_at_format"`   // 更新时间格式化
+	DeviceTotalCount  int    `json:"device_total_count"`  // 总设备数量
+	DeviceOnlineCount int    `json:"device_online_count"` // 在线设备数量
+}
+
+func newUserResp(u wkdb.User) *userResp {
+
+	return &userResp{
+		Uid:             u.Uid,
+		CreatedAt:       u.CreatedAt.Unix(),
+		UpdatedAt:       u.UpdatedAt.Unix(),
+		CreatedAtFormat: wkutil.ToyyyyMMddHHmm(u.CreatedAt),
+		UpdatedAtFormat: wkutil.ToyyyyMMddHHmm(u.UpdatedAt),
+	}
+}
+
+type userRespTotal struct {
+	Total int         `json:"total"` // 总数
+	Data  []*userResp `json:"data"`
+}

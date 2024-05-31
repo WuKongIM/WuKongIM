@@ -9,8 +9,10 @@ type CMDType uint16
 
 const (
 	CMDUnknown CMDType = iota
-	// 更新用户token
-	CMDUpdateUser
+	// 添加或更新设备
+	CMDAddOrUpdateDevice
+	// 添加或更新用户
+	CMDAddOrUpdateUser
 	// CMDUpdateMessageOfUserCursorIfNeed CMDUpdateMessageOfUserCursorIfNeed
 	// 更新用户消息游标
 	CMDUpdateMessageOfUserCursorIfNeed
@@ -86,8 +88,8 @@ func (c CMDType) Uint16() uint16 {
 
 func (c CMDType) String() string {
 	switch c {
-	case CMDUpdateUser:
-		return "CMDUpdateUser"
+	case CMDAddOrUpdateDevice:
+		return "CMDAddOrUpdateDevice"
 	case CMDUpdateMessageOfUserCursorIfNeed:
 		return "CMDUpdateMessageOfUserCursorIfNeed"
 	case CMDAddOrUpdateChannel:
@@ -260,14 +262,10 @@ func EncodeChannel(channelId string, channelType uint8) []byte {
 	return encoder.Bytes()
 }
 
-// EncodeUserToken EncodeUserToken
 func EncodeCMDUser(u wkdb.User) []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteString(u.Uid)
-	enc.WriteUint8(u.DeviceFlag)
-	enc.WriteUint8(u.DeviceLevel)
-	enc.WriteString(u.Token)
 	return enc.Bytes()
 }
 
@@ -276,14 +274,33 @@ func (c *CMD) DecodeCMDUser() (u wkdb.User, err error) {
 	if u.Uid, err = decoder.String(); err != nil {
 		return
 	}
-	if u.DeviceFlag, err = decoder.Uint8(); err != nil {
+	return
+}
+
+// EncodeCMDDevice EncodeCMDDevice
+func EncodeCMDDevice(d wkdb.Device) []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(d.Uid)
+	enc.WriteUint64(d.DeviceFlag)
+	enc.WriteUint8(d.DeviceLevel)
+	enc.WriteString(d.Token)
+	return enc.Bytes()
+}
+
+func (c *CMD) DecodeCMDDevice() (d wkdb.Device, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if d.Uid, err = decoder.String(); err != nil {
+		return
+	}
+	if d.DeviceFlag, err = decoder.Uint64(); err != nil {
 		return
 	}
 
-	if u.DeviceLevel, err = decoder.Uint8(); err != nil {
+	if d.DeviceLevel, err = decoder.Uint8(); err != nil {
 		return
 	}
-	if u.Token, err = decoder.String(); err != nil {
+	if d.Token, err = decoder.String(); err != nil {
 		return
 	}
 	return
