@@ -24,7 +24,7 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 		}
 	}
 
-	return batch.Commit(wk.wo)
+	return batch.Commit(wk.sync)
 }
 
 // GetConversations 获取指定用户的最近会话
@@ -53,7 +53,7 @@ func (wk *wukongDB) DeleteConversation(uid string, sessionId uint64) error {
 	if err != nil {
 		return err
 	}
-	return batch.Commit(wk.wo)
+	return batch.Commit(wk.sync)
 
 }
 

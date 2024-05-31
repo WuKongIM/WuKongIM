@@ -201,7 +201,7 @@ func TestSearchMessages(t *testing.T) {
 	err = d.AppendMessages(channelId, channelType, messages)
 	assert.NoError(t, err)
 
-	resultMessages, err := d.SearchMessages(wkdb.MessageReq{
+	resultMessages, err := d.SearchMessages(wkdb.MessageSearchReq{
 		Limit: 10,
 	})
 	assert.NoError(t, err)

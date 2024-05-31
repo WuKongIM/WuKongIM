@@ -30,8 +30,10 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		return s.handleAddSubscribers(cmd)
 	case CMDRemoveSubscribers: // 移除订阅者
 		return s.handleRemoveSubscribers(cmd)
-	case CMDUpdateUser: // 更新用户信息
-		return s.handleUpdateUser(cmd)
+	case CMDAddOrUpdateUser: // 添加或更新用户
+		return s.handleAddOrUpdateUser(cmd)
+	case CMDAddOrUpdateDevice: // 更新设备信息
+		return s.handleAddOrUpdateDevice(cmd)
 	case CMDUpdateMessageOfUserCursorIfNeed: // 更新用户消息队列的游标，用户读到的位置
 		return s.handleUpdateMessageOfUserCursorIfNeed(cmd)
 	case CMDAddOrUpdateChannel: // 添加或更新频道
@@ -96,12 +98,20 @@ func (s *Store) handleRemoveSubscribers(cmd *CMD) error {
 	return s.wdb.RemoveSubscribers(channelId, channelType, subscribers)
 }
 
-func (s *Store) handleUpdateUser(cmd *CMD) error {
+func (s *Store) handleAddOrUpdateUser(cmd *CMD) error {
 	u, err := cmd.DecodeCMDUser()
 	if err != nil {
 		return err
 	}
-	return s.wdb.UpdateUser(u)
+	return s.wdb.AddOrUpdateUser(u)
+}
+
+func (s *Store) handleAddOrUpdateDevice(cmd *CMD) error {
+	u, err := cmd.DecodeCMDDevice()
+	if err != nil {
+		return err
+	}
+	return s.wdb.AddOrUpdateDevice(u)
 }
 
 func (s *Store) handleUpdateMessageOfUserCursorIfNeed(cmd *CMD) error {

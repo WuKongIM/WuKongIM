@@ -35,6 +35,7 @@ func (t *tagManager) start() error {
 
 		tagLen := len(t.tags)
 
+		var needRemoveTags []*tag
 		for i := 0; i < tagLen; i++ {
 			tg := t.tags[i]
 			if tg.ref.Load() > 0 { // tag被引用，不清除
@@ -44,14 +45,29 @@ func (t *tagManager) start() error {
 			// 30分钟没有被引用的tag，清除
 			if time.Since(tg.createdAt) > time.Minute*30 {
 				t.s.Info("tag is expired, remove it", zap.String("key", tg.key))
-				tags := make([]*tag, 0, len(t.tags)-1)
 				for _, tag := range t.tags {
-					if tag.key != tg.key {
-						tags = append(tags, tag)
+					if tag.key == tg.key {
+						needRemoveTags = append(needRemoveTags, tag)
+						break
 					}
 				}
-				t.tags = tags
 			}
+		}
+		if len(needRemoveTags) > 0 {
+			newTags := make([]*tag, 0, len(t.tags)-len(needRemoveTags))
+			for _, tag := range t.tags {
+				var exist bool
+				for _, needRemoveTag := range needRemoveTags {
+					if tag.key == needRemoveTag.key {
+						exist = true
+						break
+					}
+				}
+				if !exist {
+					newTags = append(newTags, tag)
+				}
+			}
+			t.tags = newTags
 		}
 	})
 	return nil

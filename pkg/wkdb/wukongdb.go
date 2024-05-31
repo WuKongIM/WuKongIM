@@ -23,7 +23,7 @@ type wukongDB struct {
 	dbs      []*pebble.DB
 	shardNum uint32 // 分区数量，这个一但设置就不能修改
 	opts     *Options
-	wo       *pebble.WriteOptions
+	sync     *pebble.WriteOptions
 	endian   binary.ByteOrder
 	wklog.Log
 	prmaryKeyGen *snowflake.Node // 消息ID生成器
@@ -49,7 +49,7 @@ func NewWukongDB(opts *Options) DB {
 		cancelCtx:    cancelCtx,
 		cancelFunc:   cancelFunc,
 		h:            fnv.New32(),
-		wo: &pebble.WriteOptions{
+		sync: &pebble.WriteOptions{
 			Sync: true,
 		},
 		noSync: &pebble.WriteOptions{

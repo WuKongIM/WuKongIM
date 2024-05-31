@@ -50,24 +50,7 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/channel/whitelist_add", ch.whitelistAdd) // 添加白名单
 	r.POST("/channel/whitelist_set", ch.whitelistSet) // 设置白明单（覆盖
 	r.POST("/channel/whitelist_remove", ch.whitelistRemove)
-	r.GET("/channel/whitelist", func(c *wkhttp.Context) {
-		channelID := c.Query("channel_id")
-		channel, err := ch.s.channelManager.GetChannel(channelID, wkproto.ChannelTypeGroup)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
-		if channel == nil {
-			c.ResponseError(errors.New("频道不存在！"))
-			return
-		}
-		whitelist := make([]string, 0)
-		channel.whitelist.Range(func(key, value interface{}) bool {
-			whitelist = append(whitelist, key.(string))
-			return true
-		})
-		c.JSON(http.StatusOK, whitelist)
-	})
+	r.GET("/channel/whitelist", ch.whitelistGet) // 获取白名单
 	//################### 频道消息 ###################
 	// 同步频道消息
 	r.POST("/channel/messagesync", ch.syncMessages)
@@ -92,7 +75,7 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的槽领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -129,7 +112,13 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 			return
 		}
 	}
-	ch.s.channelManager.DeleteChannelFromCache(req.ChannelID, req.ChannelType)
+
+	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if cacheChannel != nil {
+		cacheChannel.info = channelInfo
+	}
+
 	c.ResponseOK()
 }
 
@@ -165,10 +154,10 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 		c.ResponseError(errors.New("添加或更新频道信息失败！"))
 		return
 	}
-	// 如果有缓存则更新缓存
-	channel := ch.s.channelManager.getChannelFromCache(req.ChannelID, req.ChannelType)
-	if channel != nil {
-		channel.ChannelInfo = channelInfo
+	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if cacheChannel != nil {
+		cacheChannel.info = channelInfo
 	}
 	c.ResponseOK()
 }
@@ -188,6 +177,12 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		c.ResponseError(errors.New("个人频道不支持添加订阅者！"))
 		return
 	}
+
+	if req.TempSubscriber == 1 {
+		c.ResponseError(errors.New("新版本临时订阅者已不支持！"))
+		return
+	}
+
 	if req.ChannelType == 0 {
 		req.ChannelType = wkproto.ChannelTypeGroup //默认为群
 	}
@@ -206,46 +201,33 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		}
 	}
 
-	channel, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	exist, err := ch.s.store.ExistChannel(req.ChannelID, req.ChannelType)
 	if err != nil {
-		ch.Error("获取频道失败！", zap.String("channel", req.ChannelID), zap.Error(err))
-		c.ResponseError(errors.Wrap(err, "获取频道失败！"))
+		ch.Error("查询频道失败！", zap.Error(err))
+		c.ResponseError(errors.New("查询频道失败！"))
 		return
 	}
-	if channel == nil {
-		ch.Error("频道不存在！", zap.String("channel_id", req.ChannelID), zap.Uint8("channel_type", req.ChannelType))
-		c.ResponseError(errors.New("频道并不存在！"))
-		return
+	if !exist { // 如果没有频道则创建
+		fmt.Println("create channel---->", req.ChannelID)
+		channelInfo := wkdb.NewChannelInfo(req.ChannelID, req.ChannelType)
+		err = ch.s.store.AddOrUpdateChannel(channelInfo)
+		if err != nil {
+			ch.Error("创建频道失败！", zap.Error(err))
+			c.ResponseError(errors.New("创建频道失败！"))
+			return
+		}
 	}
-	if req.TempSubscriber == 1 {
-		err = ch.addTmpSubscriberWithReq(req, channel)
-		if err != nil {
-			ch.Error("添加临时频道失败！", zap.Error(err))
-			c.ResponseError(errors.New("添加临时频道失败！"))
-			return
-		}
-	} else {
-		err = ch.addSubscriberWithReq(req, channel)
-		if err != nil {
-			ch.Error("添加频道失败！", zap.Error(err))
-			c.ResponseError(errors.New("添加频道失败！"))
-			return
-		}
+
+	err = ch.addSubscriberWithReq(req)
+	if err != nil {
+		ch.Error("添加频道失败！", zap.Error(err))
+		c.ResponseError(errors.New("添加频道失败！"))
+		return
 	}
 	c.ResponseOK()
 }
 
-func (ch *ChannelAPI) addTmpSubscriberWithReq(req subscriberAddReq, channel *Channel) error {
-	if req.Reset == 1 {
-		channel.RemoveAllTmpSubscriber()
-	}
-
-	channel.AddTmpSubscribers(req.Subscribers)
-
-	return nil
-}
-
-func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq, channel *Channel) error {
+func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	var err error
 	existSubscribers := make([]string, 0)
 	if req.Reset == 1 {
@@ -254,9 +236,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq, channel *Channe
 			ch.Error("移除所有订阅者失败！", zap.Error(err))
 			return err
 		}
-		channel.RemoveAllSubscriber()
 	} else {
-
 		existSubscribers, err = ch.s.store.GetSubscribers(req.ChannelID, req.ChannelType)
 		if err != nil {
 			ch.Error("获取所有订阅者失败！", zap.Error(err))
@@ -278,9 +258,17 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq, channel *Channe
 			ch.Error("添加订阅者失败！", zap.Error(err))
 			return err
 		}
-		channel.AddSubscribers(newSubscribers)
 	}
-
+	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if channel != nil {
+		// 重新生成接收者标签
+		_, err = channel.makeReceiverTag()
+		if err != nil {
+			ch.Error("创建接收者标签失败！", zap.Error(err))
+			return err
+		}
+	}
 	return nil
 }
 
@@ -313,28 +301,24 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 			return
 		}
 	}
-	channel, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+
+	err = ch.s.store.RemoveSubscribers(req.ChannelID, req.ChannelType, req.Subscribers)
 	if err != nil {
-		ch.Error("获取频道失败！", zap.Error(err), zap.String("channelId", req.ChannelID))
-		c.ResponseError(errors.Wrap(err, "获取频道失败！"))
-		return
-	}
-	if channel == nil {
-		ch.Error("频道不存在！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-		c.ResponseError(errors.New("频道不存在！"))
+		ch.Error("移除订阅者失败！", zap.Error(err))
+		c.ResponseError(err)
 		return
 	}
 
-	if req.TempSubscriber == 1 {
-		channel.RemoveTmpSubscribers(req.Subscribers)
-	} else {
-		err = ch.s.store.RemoveSubscribers(req.ChannelID, req.ChannelType, req.Subscribers)
+	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if channel != nil {
+		// 重新生成接收者标签
+		_, err = channel.makeReceiverTag()
 		if err != nil {
-			ch.Error("移除订阅者失败！", zap.Error(err))
+			ch.Error("创建接收者标签失败！", zap.Error(err))
 			c.ResponseError(err)
 			return
 		}
-		channel.RemoveSubscribers(req.Subscribers)
 	}
 
 	c.ResponseOK()
@@ -377,13 +361,6 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.AddDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -430,13 +407,6 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 			return
 		}
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.SetDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -474,13 +444,6 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	// 缓存中移除
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.RemoveDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -518,11 +481,6 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 		return
 	}
 
-	err = ch.s.channelManager.DeleteChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
 	c.ResponseOK()
 }
 
@@ -567,13 +525,6 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.AddAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -619,13 +570,6 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 			return
 		}
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.SetAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -664,15 +608,37 @@ func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	// 缓存中移除
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+
+	c.ResponseOK()
+}
+
+func (ch *ChannelAPI) whitelistGet(c *wkhttp.Context) {
+	channelId := c.Query("channel_id")
+	channelType := wkutil.ParseUint8(c.Query("channel_type"))
+
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(channelId, channelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), nil)
+			return
+		}
+	}
+
+	whitelist, err := ch.s.store.GetAllowlist(channelId, channelType)
 	if err != nil {
+		ch.Error("获取白名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	channelObj.RemoveAllowlist(req.UIDs)
 
-	c.ResponseOK()
+	c.JSON(http.StatusOK, whitelist)
 }
 
 type PullMode int // 拉取模式
@@ -748,10 +714,8 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
 		messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
 	} else if req.PullMode == PullModeUp { // 向上拉取
-		fmt.Println("向上拉取....")
 		messages, err = ch.s.store.LoadNextRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	} else {
-		fmt.Println("向下拉取....")
 		messages, err = ch.s.store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	}
 	if err != nil {
@@ -762,7 +726,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			messageResp := &MessageResp{}
-			messageResp.from(message, ch.s.store)
+			messageResp.from(message)
 			messageResps = append(messageResps, messageResp)
 		}
 	}

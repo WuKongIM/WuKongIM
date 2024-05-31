@@ -83,9 +83,9 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 // 这里清空token 让设备去重新登录 空token是不让登录的
 func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
 
-	err := u.s.store.UpdateUser(wkdb.User{
+	err := u.s.store.AddOrUpdateDevice(wkdb.Device{
 		Uid:         uid,
-		DeviceFlag:  deviceFlag.ToUint8(),
+		DeviceFlag:  uint64(deviceFlag),
 		DeviceLevel: uint8(wkproto.DeviceLevelMaster),
 		Token:       "",
 	}) // 这里的deviceLevel可以随便给 不影响逻辑 这里随便给的master
@@ -93,14 +93,14 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 		u.Error("清空用户token失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
 		return err
 	}
-	oldConns := u.s.connManager.GetConnsWith(uid, deviceFlag)
+	oldConns := u.s.userReactor.getConnContextByDeviceFlag(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
-			u.s.dispatch.dataOutFrames(oldConn, &wkproto.DisconnectPacket{
+			u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
 				ReasonCode: wkproto.ReasonConnectKick,
 			})
 			u.s.timingWheel.AfterFunc(time.Second*2, func() {
-				oldConn.Close()
+				oldConn.close()
 			})
 		}
 	}
@@ -212,15 +212,17 @@ func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*Onlinest
 }
 
 func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
-	conns := u.s.connManager.GetOnlineConns(uids)
 
-	onlineStatusResps := make([]*OnlinestatusResp, 0, len(conns))
-	for _, conn := range conns {
-		onlineStatusResps = append(onlineStatusResps, &OnlinestatusResp{
-			UID:        conn.UID(),
-			DeviceFlag: conn.DeviceFlag(),
-			Online:     1,
-		})
+	onlineStatusResps := make([]*OnlinestatusResp, 0)
+	for _, uid := range uids {
+		conns := u.s.userReactor.getConnContexts(uid)
+		for _, conn := range conns {
+			onlineStatusResps = append(onlineStatusResps, &OnlinestatusResp{
+				UID:        conn.uid,
+				DeviceFlag: uint8(conn.deviceFlag),
+				Online:     1,
+			})
+		}
 	}
 	return onlineStatusResps
 }
@@ -272,9 +274,20 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
-	err = u.s.store.UpdateUser(wkdb.User{
+	// 添加或更新用户
+	err = u.s.store.AddOrUpdateUser(wkdb.User{
+		Uid: req.UID,
+	})
+	if err != nil {
+		u.Error("更新用户失败！", zap.Error(err))
+		c.ResponseError(errors.Wrap(err, "更新用户失败！"))
+		return
+	}
+
+	// 添加或更新设备
+	err = u.s.store.AddOrUpdateDevice(wkdb.Device{
 		Uid:         req.UID,
-		DeviceFlag:  req.DeviceFlag.ToUint8(),
+		DeviceFlag:  uint64(req.DeviceFlag),
 		DeviceLevel: uint8(req.DeviceLevel),
 		Token:       req.Token,
 	})
@@ -286,16 +299,17 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 
 	if req.DeviceLevel == wkproto.DeviceLevelMaster {
 		// 如果存在旧连接，则发起踢出请求
-		oldConns := u.s.connManager.GetConnsWith(req.UID, req.DeviceFlag)
+		oldConns := u.s.userReactor.getConnContextByDeviceFlag(req.UID, req.DeviceFlag)
 		if len(oldConns) > 0 {
 			for _, oldConn := range oldConns {
-				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ID()), zap.String("deviceFlag", req.DeviceFlag.String()))
-				u.s.dispatch.dataOutFrames(oldConn, &wkproto.DisconnectPacket{
+				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.connId), zap.String("deviceFlag", req.DeviceFlag.String()))
+				_ = u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
 					ReasonCode: wkproto.ReasonConnectKick,
 					Reason:     "账号在其他设备上登录",
 				})
+
 				u.s.timingWheel.AfterFunc(time.Second*10, func() {
-					oldConn.Close()
+					oldConn.close()
 				})
 			}
 		}

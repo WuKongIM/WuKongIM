@@ -68,24 +68,53 @@ func (m *Message) Marshal() ([]byte, error) {
 	return enc.Bytes(), nil
 }
 
+var EmptyDevice = Device{}
+
+type Device struct {
+	Id           uint64
+	Uid          string    // 用户唯一uid
+	Token        string    // 设备token
+	DeviceFlag   uint64    // 设备标记 (TODO: 这里deviceFlag弄成uint64是为了以后扩展)
+	DeviceLevel  uint8     // 设备等级
+	ConnCount    uint32    // 连接数量
+	SendMsgCount uint64    // 发送消息数量
+	RecvMsgCount uint64    // 接收消息数量
+	SendMsgBytes uint64    // 发送消息字节数
+	RecvMsgBytes uint64    // 接收消息字节数
+	CreatedAt    time.Time // 创建时间
+	UpdatedAt    time.Time // 更新时间
+}
+
 var EmptyUser = User{}
 
 type User struct {
-	Id          uint64
-	Uid         string
-	Token       string
-	DeviceFlag  uint8
-	DeviceLevel uint8
+	Id                uint64
+	Uid               string    // 用户uid
+	DeviceCount       uint32    // 设备数量
+	OnlineDeviceCount uint32    // 在线设备数量
+	ConnCount         uint32    // 连接数量
+	SendMsgCount      uint64    // 发送消息数量
+	RecvMsgCount      uint64    // 接收消息数量
+	SendMsgBytes      uint64    // 发送消息字节数
+	RecvMsgBytes      uint64    // 接收消息字节数
+	CreatedAt         time.Time // 创建时间
+	UpdatedAt         time.Time // 更新时间
 }
 
 var EmptyChannelInfo = ChannelInfo{}
 
 type ChannelInfo struct {
-	ChannelId   string // 频道ID
-	ChannelType uint8  // 频道类型
-	Ban         bool   // 是否被封
-	Large       bool   // 是否是超大群
-	Disband     bool   // 是否解散
+	Id              uint64 // ID
+	ChannelId       string // 频道ID
+	ChannelType     uint8  // 频道类型
+	Ban             bool   // 是否被封
+	Large           bool   // 是否是超大群
+	Disband         bool   // 是否解散
+	SubscriberCount int    // 订阅者数量
+	DenylistCount   int    // 黑名单数量
+	AllowlistCount  int    // 白名单数量
+	LastMsgSeq      uint64 // 最新消息序号
+	LastMsgTime     uint64 // 最后一次消息时间
 }
 
 func NewChannelInfo(channelId string, channelType uint8) ChannelInfo {

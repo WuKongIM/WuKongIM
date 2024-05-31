@@ -9,7 +9,8 @@ import (
 	"strings"
 )
 
-var h = fnv.New64a()
+var MinColumnKey = [2]byte{0x00, 0x00}
+var MaxColumnKey = [2]byte{0xff, 0xff}
 
 // ---------------------- Message ----------------------
 func NewMessageColumnKey(channelId string, channelType uint8, messageSeq uint64, columnName [2]byte) []byte {
@@ -21,6 +22,18 @@ func NewMessageColumnKey(channelId string, channelType uint8, messageSeq uint64,
 	key[3] = 0
 	binary.BigEndian.PutUint64(key[4:], channelHash)
 	binary.BigEndian.PutUint64(key[12:], messageSeq)
+	key[20] = columnName[0]
+	key[21] = columnName[1]
+	return key
+}
+
+func NewMessageColumnKeyWithPrimary(primary [16]byte, columnName [2]byte) []byte {
+	key := make([]byte, TableMessage.Size)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	copy(key[4:], primary[:])
 	key[20] = columnName[0]
 	key[21] = columnName[1]
 	return key
@@ -44,6 +57,8 @@ func NewMessageLowKey() []byte {
 	key[1] = TableMessage.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], 0)
+	binary.BigEndian.PutUint64(key[12:], 0)
 	return key
 }
 
@@ -52,9 +67,43 @@ func NewMessageHighKey() []byte {
 	key[0] = TableMessage.Id[0]
 	key[1] = TableMessage.Id[1]
 	key[2] = dataTypeTable
-	key[3] = 1
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], math.MaxUint64)
+	binary.BigEndian.PutUint64(key[12:], math.MaxUint64)
 	return key
 
+}
+
+func NewMessageSearchLowKeWith(channelId string, channelType uint8, messageSeq uint64) []byte {
+	key := make([]byte, 20)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	if strings.TrimSpace(channelId) != "" && channelType != 0 {
+		channelHash := channelIdToNum(channelId, channelType)
+		binary.BigEndian.PutUint64(key[4:], channelHash)
+	} else {
+		binary.BigEndian.PutUint64(key[4:], 0)
+	}
+	binary.BigEndian.PutUint64(key[12:], messageSeq)
+	return key
+}
+
+func NewMessageSearchHighKeWith(channelId string, channelType uint8, messageSeq uint64) []byte {
+	key := make([]byte, 20)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	if strings.TrimSpace(channelId) != "" && channelType != 0 {
+		channelHash := channelIdToNum(channelId, channelType)
+		binary.BigEndian.PutUint64(key[4:], channelHash)
+	} else {
+		binary.BigEndian.PutUint64(key[4:], math.MaxUint64)
+	}
+	binary.BigEndian.PutUint64(key[12:], messageSeq)
+	return key
 }
 
 func NewChannelLastMessageSeqKey(channelId string, channelType uint8) []byte {
@@ -86,6 +135,12 @@ func channelIdToNum(channelId string, channelType uint8) uint64 {
 	return h.Sum64()
 }
 
+func ChannelIdToNum(channelId string, channelType uint8) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(ChannelKey(channelId, channelType)))
+	return h.Sum64()
+}
+
 func ChannelKey(channelID string, channelType uint8) string {
 	var b strings.Builder
 	b.WriteString(channelID)
@@ -98,6 +153,68 @@ func hashWithString(s string) uint64 {
 	h := fnv.New64a()
 	h.Write([]byte(s))
 	return h.Sum64()
+}
+
+func NewMessageIndexMessageIdKey(messageId uint64) []byte {
+	key := make([]byte, TableMessage.IndexSize)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = TableMessage.Index.MessageId[0]
+	key[5] = TableMessage.Index.MessageId[1]
+	binary.BigEndian.PutUint64(key[6:], messageId)
+	return key
+
+}
+
+func NewMessageSecondIndexFromUidKey(uid string, primaryKey [16]byte) []byte {
+	key := make([]byte, TableMessage.SecondIndexSize)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = TableMessage.SecondIndex.FromUid[0]
+	key[5] = TableMessage.SecondIndex.FromUid[1]
+	binary.BigEndian.PutUint64(key[6:], hashWithString(uid))
+	copy(key[14:], primaryKey[:])
+	return key
+}
+
+func NewMessageSecondIndexClientMsgNoKey(clientMsgNo string, primaryKey [16]byte) []byte {
+	key := make([]byte, TableMessage.SecondIndexSize)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = TableMessage.SecondIndex.ClientMsgNo[0]
+	key[5] = TableMessage.SecondIndex.ClientMsgNo[1]
+	binary.BigEndian.PutUint64(key[6:], hashWithString(clientMsgNo))
+	copy(key[14:], primaryKey[:])
+	return key
+
+}
+
+func NewMessageIndexTimestampKey(timestamp uint64, primaryKey [16]byte) []byte {
+	key := make([]byte, TableMessage.SecondIndexSize)
+	key[0] = TableMessage.Id[0]
+	key[1] = TableMessage.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = TableMessage.SecondIndex.Timestamp[0]
+	key[5] = TableMessage.SecondIndex.Timestamp[1]
+	binary.BigEndian.PutUint64(key[6:], timestamp)
+	copy(key[14:], primaryKey[:])
+	return key
+
+}
+
+func ParseMessageSecondIndexKey(key []byte) (primaryKey [16]byte, err error) {
+	if len(key) != TableMessage.IndexSize {
+		return [16]byte{}, fmt.Errorf("message: invalid index key length, keyLen: %d", len(key))
+	}
+	copy(primaryKey[:], key[14:])
+	return
 }
 
 // ---------------------- User ----------------------
@@ -131,6 +248,47 @@ func NewUserIndexUidKey(uid string) []byte {
 func ParseUserColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
 	if len(key) != TableUser.Size {
 		err = fmt.Errorf("user: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	id = binary.BigEndian.Uint64(key[4:])
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	return
+}
+
+// ---------------------- Device ----------------------
+
+func NewDeviceColumnKey(id uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableDevice.Size)
+	key[0] = TableDevice.Id[0]
+	key[1] = TableDevice.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], id)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+
+}
+
+func NewDeviceIndexUidAndDeviceFlagKey(uid string, deviceFlag uint64) []byte {
+	key := make([]byte, TableDevice.IndexSize)
+	key[0] = TableDevice.Id[0]
+	key[1] = TableDevice.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = TableDevice.Index.Device[0]
+	key[5] = TableDevice.Index.Device[1]
+	uidHash := hashWithString(uid)
+	binary.BigEndian.PutUint64(key[6:], uidHash)
+	binary.BigEndian.PutUint64(key[14:], deviceFlag)
+
+	return key
+}
+
+func ParseDeviceColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
+	if len(key) != TableDevice.Size {
+		err = fmt.Errorf("device: invalid key length, keyLen: %d", len(key))
 		return
 	}
 	id = binary.BigEndian.Uint64(key[4:])
@@ -269,6 +427,31 @@ func NewChannelInfoIndexKey(channelId string, channelType uint8) []byte {
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
 	return key
+}
+
+func NewChannelInfoSecondIndexKey(indexName [2]byte, columnValue uint64, id uint64) []byte {
+	key := make([]byte, TableChannelInfo.SecondIndexSize)
+	key[0] = TableChannelInfo.Id[0]
+	key[1] = TableChannelInfo.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = indexName[0]
+	key[5] = indexName[1]
+	binary.BigEndian.PutUint64(key[6:], columnValue)
+	binary.BigEndian.PutUint64(key[14:], id)
+
+	return key
+}
+
+func ParseChannelInfoSecondIndexKey(key []byte) (columnValue uint64, id uint64, err error) {
+	if len(key) != TableChannelInfo.SecondIndexSize {
+		err = fmt.Errorf("channelInfo: second index invalid key length, keyLen: %d", len(key))
+		return
+	}
+	columnValue = binary.BigEndian.Uint64(key[6:])
+	id = binary.BigEndian.Uint64(key[14:])
+	return
+
 }
 
 func ParseChannelInfoColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {

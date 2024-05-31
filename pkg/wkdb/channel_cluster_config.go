@@ -36,7 +36,7 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 	if err := wk.writeChannelClusterConfig(primaryKey, channelClusterConfig, batch); err != nil {
 		return err
 	}
-	return batch.Commit(wk.wo)
+	return batch.Commit(wk.sync)
 }
 
 func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error) {
@@ -74,7 +74,7 @@ func (wk *wukongDB) DeleteChannelClusterConfig(channelId string, channelType uin
 	if primaryKey == 0 {
 		return nil
 	}
-	return wk.defaultShardDB().DeleteRange(key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0x00, 0x00}), key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0xff, 0xff}), wk.wo)
+	return wk.defaultShardDB().DeleteRange(key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0x00, 0x00}), key.NewChannelClusterConfigColumnKey(primaryKey, [2]byte{0xff, 0xff}), wk.sync)
 }
 
 func (wk *wukongDB) GetChannelClusterConfigs(offsetId uint64, limit int) ([]ChannelClusterConfig, error) {

@@ -23,7 +23,7 @@ func (wk *wukongDB) AddOrUpdateSession(session Session) (Session, error) {
 	if err := wk.writeSession(id, session, w); err != nil {
 		return EmptySession, err
 	}
-	err := w.Commit(wk.wo)
+	err := w.Commit(wk.sync)
 	if err != nil {
 		return EmptySession, err
 	}
@@ -60,7 +60,7 @@ func (wk *wukongDB) DeleteSession(uid string, id uint64) error {
 	if err != nil {
 		return err
 	}
-	return batch.Commit(wk.wo)
+	return batch.Commit(wk.sync)
 }
 
 func (wk *wukongDB) deleteSession(uid string, id uint64, w pebble.Writer) error {
@@ -125,7 +125,7 @@ func (wk *wukongDB) DeleteSessionAndConversationByChannel(uid string, channelId 
 	if err = wk.deleteSession(uid, sessionId, batch); err != nil {
 		return err
 	}
-	return batch.Commit(wk.wo)
+	return batch.Commit(wk.sync)
 }
 
 func (wk *wukongDB) GetSessions(uid string) ([]Session, error) {
@@ -140,7 +140,7 @@ func (wk *wukongDB) GetSessions(uid string) ([]Session, error) {
 
 func (wk *wukongDB) DeleteSessionByUid(uid string) error {
 
-	return wk.shardDB(uid).DeleteRange(key.NewSessionColumnKey(uid, 0, [2]byte{0x00, 0x00}), key.NewSessionColumnKey(uid, math.MaxUint64, [2]byte{0xff, 0xff}), wk.wo)
+	return wk.shardDB(uid).DeleteRange(key.NewSessionColumnKey(uid, 0, [2]byte{0x00, 0x00}), key.NewSessionColumnKey(uid, math.MaxUint64, [2]byte{0xff, 0xff}), wk.sync)
 
 }
 
@@ -194,7 +194,7 @@ func (wk *wukongDB) UpdateSessionUpdatedAt(models []*UpdateSessionUpdatedAtModel
 			}
 		}
 
-		if err := batch.Commit(wk.wo); err != nil {
+		if err := batch.Commit(wk.sync); err != nil {
 			return err
 		}
 	}

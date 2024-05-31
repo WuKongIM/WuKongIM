@@ -7,6 +7,8 @@ type DB interface {
 	MessageDB
 	// 用户
 	UserDB
+	// 设备
+	DeviceDB
 	// channel
 	ChannelDB
 	// 最近会话
@@ -20,6 +22,9 @@ type DB interface {
 }
 
 type MessageDB interface {
+
+	// GetMessage 获取指定消息id的消息
+	GetMessage(messageId uint64) (Message, error)
 
 	// AppendMessages appends messages to the db.
 	AppendMessages(channelId string, channelType uint8, msgs []Message) error
@@ -67,15 +72,32 @@ type MessageDB interface {
 	UpdateMessageOfUserQueueCursorIfNeed(uid string, messageSeq uint64) error
 
 	// 搜索消息
-	SearchMessages(req MessageReq) ([]Message, error)
+	SearchMessages(req MessageSearchReq) ([]Message, error)
+}
+
+type DeviceDB interface {
+	// GetDevice 获取设备
+	GetDevice(uid string, deviceFlag uint64) (Device, error)
+
+	// GetDevices 获取用户的所有设备
+	GetDevices(uid string) ([]Device, error)
+
+	// GetDeviceCount 获取用户的设备数量
+	GetDeviceCount(uid string) (int, error)
+
+	// AddOrUpdateDevice 添加或更新设备
+	AddOrUpdateDevice(device Device) error
 }
 
 type UserDB interface {
-	// GetUserToken 获取用户的token
-	GetUser(uid string, deviceFlag uint8) (User, error)
+	// GetUserToken 获取用户信息
+	GetUser(uid string) (User, error)
 
-	// UpdateUserToken 更新用户的token
-	UpdateUser(u User) error
+	// SearchUser 搜索用户
+	SearchUser(req UserSearchReq) ([]User, error)
+
+	// AddOrUpdateUser 添加或更新用户
+	AddOrUpdateUser(u User) error
 }
 
 type ChannelDB interface {
@@ -142,6 +164,9 @@ type ChannelDB interface {
 	UpdateChannelAppliedIndex(channelId string, channelType uint8, index uint64) error
 	// 获取频道的应用索引
 	GetChannelAppliedIndex(channelId string, channelType uint8) (uint64, error)
+
+	// SearchChannels 搜索频道
+	SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error)
 }
 
 type ConversationDB interface {
@@ -218,9 +243,34 @@ type SessionDB interface {
 	GetSessionsGreaterThanUpdatedAtByUid(uid string, updatedAt int64, limit int) ([]Session, error)
 }
 
-type MessageReq struct {
+type MessageSearchReq struct {
+	MessageId   int64
 	FromUid     string // 发送者uid
 	ChannelId   string // 频道id
 	ChannelType uint8  // 频道类型
 	Limit       int    // 消息限制
+	Payload     []byte // payload内容
+	CurrentPage int    // 当前页码
+	ClientMsgNo string // 客户端消息编号
+}
+
+type ChannelSearchReq struct {
+	ChannelId          string // 频道id
+	ChannelType        uint8  // 频道类型
+	Ban                *bool  // 是否被禁用
+	Disband            *bool  // 是否解散
+	SubscriberCountGte *int   // 大于等于的订阅者数量
+	SubscriberCountLte *int   // 小于等于的订阅者数量
+	DenylistCountGte   *int   // 大于等于的黑名单数量
+	DenylistCountLte   *int   // 小于等于的黑名单数量
+	AllowlistCountGte  *int   // 大于等于的白名单数量
+	AllowlistCountLte  *int   // 小于等于的白名单数量
+	Limit              int    // 限制查询数量
+	CurrentPage        int    // 当前页码
+}
+
+type UserSearchReq struct {
+	Uid         string // 用户id
+	Limit       int    // 限制查询数量
+	CurrentPage int    // 当前页码
 }
