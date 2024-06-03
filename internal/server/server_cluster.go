@@ -395,7 +395,7 @@ func (s *Server) handleNodePing(fromNodeId uint64, msg *proto.Message) {
 				conn.close()
 			}
 		}
-		fmt.Println("conns-------->", len(conns), conns)
+		// fmt.Println("conns-------->", len(conns), conns)
 		sub.step(ping.uid, UserAction{
 			ActionType: UserActionNodePing,
 			Uid:        ping.uid,

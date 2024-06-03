@@ -16,19 +16,21 @@ type channelMsgQueue struct {
 	lastIndex uint64 // 最新下标
 
 	payloadDecryptingIndex uint64 // 正在解密的下标
-	payloadDecryptedIndex  uint64 // 已解密的下标
+	// payloadDecryptedIndex  uint64 // 已解密的下标
 
 	permissionCheckingIndex uint64 // 正在检查权限的下标
-	permissionCheckedIndex  uint64 // 已检查权限的下标
+	// permissionCheckedIndex  uint64 // 已检查权限的下标
 
 	storagingIndex uint64 // 正在存储的下标
-	storagedIndex  uint64 // 已存储的下标
+	// storagedIndex  uint64 // 已存储的下标
+
+	sendackingIndex uint64 // 正在发送回执的下标
 
 	deliveringIndex uint64 // 正在投递的下标
-	deliveredIndex  uint64 // 已投递的下标
+	// deliveredIndex  uint64 // 已投递的下标
 
 	forwardingIndex uint64 // 转发中的下标
-	forwardedIndex  uint64 // 已转发下标
+	// forwardedIndex  uint64 // 已转发下标
 }
 
 func newChannelMsgQueue(prefix string) *channelMsgQueue {
@@ -43,9 +45,10 @@ func newChannelMsgQueue(prefix string) *channelMsgQueue {
 func (m *channelMsgQueue) truncateTo(index uint64) {
 	num := int(index + 1 - m.offset)
 	m.messages = m.messages[num:]
+
 	m.offset = index + 1
 	m.offsetInProgress = max(m.offsetInProgress, m.offset)
-	m.shrinkMessagesArray()
+	// m.shrinkMessagesArray()
 }
 
 func (m *channelMsgQueue) appendMessage(message ReactorChannelMessage) {
@@ -61,12 +64,6 @@ func (m *channelMsgQueue) shrinkMessagesArray() {
 		newMessages := make([]ReactorChannelMessage, len(m.messages))
 		copy(newMessages, m.messages)
 		m.messages = newMessages
-	}
-}
-
-func (m *channelMsgQueue) acceptInProgress() {
-	if len(m.messages) > 0 {
-		m.offsetInProgress = m.messages[len(m.messages)-1].Index + 1
 	}
 }
 

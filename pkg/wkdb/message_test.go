@@ -202,7 +202,8 @@ func TestSearchMessages(t *testing.T) {
 	assert.NoError(t, err)
 
 	resultMessages, err := d.SearchMessages(wkdb.MessageSearchReq{
-		Limit: 10,
+		Limit:       10,
+		CurrentPage: 1,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 10, len(resultMessages))

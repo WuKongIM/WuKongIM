@@ -85,6 +85,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 
 	for i, msg := range req.messages {
 		if !msg.IsEncrypt || msg.FromConnId == 0 { // 没有加密，直接跳过,没有连接id解密不了，也直接跳过
+			// r.Warn("msg is not encrypt or fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
 			continue
 		}
 		var err error
@@ -381,9 +382,9 @@ func (r *channelReactor) processStorageLoop() {
 				select {
 				case req := <-r.processStorageC:
 					exist := false
-					for _, r := range reqs {
-						if r.ch.channelId == req.ch.channelId && r.ch.channelType == req.ch.channelType {
-							r.messages = append(r.messages, req.messages...)
+					for _, rq := range reqs {
+						if rq.ch.channelId == req.ch.channelId && rq.ch.channelType == req.ch.channelType {
+							rq.messages = append(rq.messages, req.messages...)
 							exist = true
 							break
 						}
@@ -442,10 +443,11 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 		}
 		if len(results) > 0 {
 			for _, result := range results {
-				for _, msg := range req.messages {
+				for i, msg := range req.messages {
 					if msg.MessageId == int64(result.LogId()) {
 						msg.MessageId = int64(result.LogId())
 						msg.MessageSeq = uint32(result.LogIndex())
+						req.messages[i] = msg
 						break
 					}
 				}
@@ -461,7 +463,8 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 			reasonCode = wkproto.ReasonSuccess
 		}
 		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Messages: req.messages, Reason: reason, ReasonCode: reasonCode})
+		lastIndex := req.messages[len(req.messages)-1].Index
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Index: lastIndex, Reason: reason, ReasonCode: reasonCode})
 
 	}
 	r.Info("processStorage done...")
@@ -537,8 +540,9 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 				nodeFowardSendackPacketMap[msg.FromNodeId] = packets
 			}
 		}
-		// sub := r.reactorSub(req.ch.key)
-		// sub.step(req.ch, &ChannelAction{ActionType: ChannelActionSendackResp, Messages: req.messages})
+		lastMsg := req.messages[len(req.messages)-1]
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionSendackResp, Index: lastMsg.Index, Reason: ReasonSuccess})
 	}
 
 	for nodeId, forwardSendackPackets := range nodeFowardSendackPacketMap {
@@ -602,9 +606,9 @@ func (r *channelReactor) processDeliverLoop() {
 				select {
 				case req := <-r.processDeliverC:
 					exist := false
-					for _, r := range reqs {
-						if r.channelId == req.channelId && r.channelType == req.channelType {
-							r.messages = append(r.messages, req.messages...)
+					for _, rq := range reqs {
+						if rq.channelId == req.channelId && rq.channelType == req.channelType {
+							rq.messages = append(rq.messages, req.messages...)
 							exist = true
 							break
 						}
@@ -630,7 +634,7 @@ func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 
 	for _, req := range reqs {
 		r.handleDeliver(req)
-		sub := r.reactorSub(req.channelKey)
+		sub := r.reactorSub(req.ch.key)
 		reason := ReasonSuccess
 		lastIndex := req.messages[len(req.messages)-1].Index
 		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionDeliverResp, Index: lastIndex, Reason: reason})
