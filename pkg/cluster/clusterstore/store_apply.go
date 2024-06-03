@@ -1,6 +1,8 @@
 package clusterstore
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"go.uber.org/zap"
@@ -251,6 +253,7 @@ func (s *Store) handleAddOrUpdateSession(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("session--->", session.Id, session.ChannelId, session.ChannelType)
 	_, err = s.wdb.AddOrUpdateSession(session)
 	return err
 }

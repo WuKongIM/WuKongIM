@@ -102,7 +102,48 @@ func (wk *wukongDB) AddOrUpdateUser(u User) error {
 	if err != nil {
 		return err
 	}
+	if isCreate {
+		err = wk.IncUserCount(1)
+		if err != nil {
+			return err
+		}
+	}
 	return batch.Commit(wk.sync)
+}
+
+func (wk *wukongDB) incUserDeviceCount(uid string, count int, db *pebble.DB) error {
+
+	wk.dblock.userLock.Lock(uid)
+	defer wk.dblock.userLock.unlock(uid)
+
+	id, err := wk.getUserId(uid)
+	if err != nil {
+		return err
+	}
+	if id == 0 {
+		return nil
+	}
+
+	deviceCountBytes, closer, err := db.Get(key.NewUserColumnKey(id, key.TableUser.Column.DeviceCount))
+	if err != nil && err != pebble.ErrNotFound {
+		return err
+	}
+	if closer != nil {
+		defer closer.Close()
+	}
+	var deviceCount uint32
+	if len(deviceCountBytes) > 0 {
+		deviceCount = wk.endian.Uint32(deviceCountBytes)
+	} else {
+		deviceCountBytes = make([]byte, 4)
+	}
+
+	deviceCount += uint32(count)
+
+	wk.endian.PutUint32(deviceCountBytes, deviceCount)
+
+	return db.Set(key.NewUserColumnKey(id, key.TableUser.Column.DeviceCount), deviceCountBytes, wk.sync)
+
 }
 
 func (wk *wukongDB) getUserId(uid string) (uint64, error) {
@@ -184,6 +225,20 @@ func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, iterFnc func(u User) boo
 		switch columnName {
 		case key.TableUser.Column.Uid:
 			preUser.Uid = string(iter.Value())
+		case key.TableUser.Column.DeviceCount:
+			preUser.DeviceCount = wk.endian.Uint32(iter.Value())
+		case key.TableUser.Column.OnlineDeviceCount:
+			preUser.OnlineDeviceCount = wk.endian.Uint32(iter.Value())
+		case key.TableUser.Column.ConnCount:
+			preUser.ConnCount = wk.endian.Uint32(iter.Value())
+		case key.TableUser.Column.SendMsgCount:
+			preUser.SendMsgCount = wk.endian.Uint64(iter.Value())
+		case key.TableUser.Column.RecvMsgCount:
+			preUser.RecvMsgCount = wk.endian.Uint64(iter.Value())
+		case key.TableUser.Column.SendMsgBytes:
+			preUser.SendMsgBytes = wk.endian.Uint64(iter.Value())
+		case key.TableUser.Column.RecvMsgBytes:
+			preUser.RecvMsgBytes = wk.endian.Uint64(iter.Value())
 		case key.TableUser.Column.CreatedAt:
 			preUser.CreatedAt = time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
 		case key.TableUser.Column.UpdatedAt:

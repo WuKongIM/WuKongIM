@@ -671,6 +671,16 @@ func NewConversationPrimaryKey(uid string, primaryKey uint64) []byte {
 	return key
 }
 
+func NewConversationUidHashKey(uidHash uint64) []byte {
+	key := make([]byte, 12)
+	key[0] = TableConversation.Id[0]
+	key[1] = TableConversation.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], uidHash)
+	return key
+}
+
 // NewConversationIndexChannelKey 创建一个channel唯一索引的 key
 func NewConversationIndexSessionIdKey(uid string, sessionId uint64) []byte {
 	key := make([]byte, TableConversation.IndexSize)
@@ -814,6 +824,17 @@ func NewSessionColumnKey(uid string, primaryKey uint64, columnName [2]byte) []by
 	return key
 }
 
+func NewSessionUidHashKey(uidHash uint64) []byte {
+	key := make([]byte, 12)
+	key[0] = TableSession.Id[0]
+	key[1] = TableSession.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], uidHash)
+	return key
+
+}
+
 func NewSessionPrimaryKey(uid string, primaryKey uint64) []byte {
 	key := make([]byte, 20)
 	key[0] = TableSession.Id[0]
@@ -879,4 +900,18 @@ func ParseSessionColumnKey(key []byte) (primaryKey uint64, columnName [2]byte, e
 	columnName[0] = key[20]
 	columnName[1] = key[21]
 	return
+}
+
+// ---------------------- total ----------------------
+
+func NewTotalColumnKey(columnName [2]byte) []byte {
+	key := make([]byte, TableTotal.Size)
+	key[0] = TableTotal.Id[0]
+	key[1] = TableTotal.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], 0)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
 }

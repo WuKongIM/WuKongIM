@@ -141,7 +141,9 @@ func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) error {
 		return err
 	}
 
+	var isCreate bool
 	if primaryKey == 0 {
+		isCreate = true
 		primaryKey = uint64(wk.prmaryKeyGen.Generate().Int64())
 	}
 
@@ -149,6 +151,14 @@ func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) error {
 	defer w.Close()
 	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
 		return err
+	}
+
+	if isCreate {
+		err = wk.IncChannelCount(1)
+		if err != nil {
+			wk.Error("IncChannelCount failed", zap.Error(err))
+			return err
+		}
 	}
 
 	return w.Commit(wk.sync)
@@ -406,6 +416,11 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 	}
 
 	err = batch.DeleteRange(key.NewChannelInfoSecondIndexKey(key.MinColumnKey, 0, id), key.NewChannelInfoSecondIndexKey(key.MaxColumnKey, math.MaxUint64, id), wk.sync)
+	if err != nil {
+		return err
+	}
+
+	err = wk.IncChannelCount(-1)
 	if err != nil {
 		return err
 	}

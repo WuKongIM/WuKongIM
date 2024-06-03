@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -394,6 +395,7 @@ func (s *Server) handleNodePing(fromNodeId uint64, msg *proto.Message) {
 				conn.close()
 			}
 		}
+		fmt.Println("conns-------->", len(conns), conns)
 		sub.step(ping.uid, UserAction{
 			ActionType: UserActionNodePing,
 			Uid:        ping.uid,
@@ -427,6 +429,7 @@ func (s *Server) handleNodePong(fromNodeId uint64, msg *proto.Message) {
 			continue
 		}
 		exist := false
+		fmt.Println("userConns.connIds---->", userConns.connIds)
 		for _, connId := range userConns.connIds {
 			if currentConn.realNodeId == fromNodeId && currentConn.proxyConnId == connId {
 				exist = true

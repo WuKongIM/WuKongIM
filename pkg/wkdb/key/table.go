@@ -108,9 +108,16 @@ var TableUser = struct {
 	Size      int
 	IndexSize int
 	Column    struct {
-		Uid       [2]byte // 用户uid
-		CreatedAt [2]byte // 创建时间
-		UpdatedAt [2]byte // 更新时间
+		Uid               [2]byte // 用户uid
+		DeviceCount       [2]byte // 设备数量
+		OnlineDeviceCount [2]byte // 在线设备数量
+		ConnCount         [2]byte // 连接数量
+		SendMsgCount      [2]byte // 发送消息数量
+		RecvMsgCount      [2]byte // 接受消息数量
+		SendMsgBytes      [2]byte // 发送消息字节数量
+		RecvMsgBytes      [2]byte // 接受消息字节数量
+		CreatedAt         [2]byte // 创建时间
+		UpdatedAt         [2]byte // 更新时间
 	}
 	Index struct {
 		Uid [2]byte
@@ -120,13 +127,27 @@ var TableUser = struct {
 	Size:      2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
 	IndexSize: 2 + 2 + 2 + 8, // tableId + dataType + indexName + columnHash
 	Column: struct {
-		Uid       [2]byte
-		CreatedAt [2]byte
-		UpdatedAt [2]byte
+		Uid               [2]byte
+		DeviceCount       [2]byte // 设备数量
+		OnlineDeviceCount [2]byte // 在线设备数量
+		ConnCount         [2]byte // 连接数量
+		SendMsgCount      [2]byte // 发送消息数量
+		RecvMsgCount      [2]byte // 接受消息数量
+		SendMsgBytes      [2]byte // 发送消息字节数量
+		RecvMsgBytes      [2]byte // 接受消息字节数量
+		CreatedAt         [2]byte
+		UpdatedAt         [2]byte
 	}{
-		Uid:       [2]byte{0x02, 0x01},
-		CreatedAt: [2]byte{0x02, 0x05},
-		UpdatedAt: [2]byte{0x02, 0x06},
+		Uid:               [2]byte{0x02, 0x01},
+		DeviceCount:       [2]byte{0x02, 0x02},
+		OnlineDeviceCount: [2]byte{0x02, 0x03},
+		ConnCount:         [2]byte{0x02, 0x04},
+		SendMsgCount:      [2]byte{0x02, 0x05},
+		RecvMsgCount:      [2]byte{0x02, 0x06},
+		SendMsgBytes:      [2]byte{0x02, 0x07},
+		RecvMsgBytes:      [2]byte{0x02, 0x08},
+		CreatedAt:         [2]byte{0x02, 0x09},
+		UpdatedAt:         [2]byte{0x02, 0x0A},
 	},
 	Index: struct {
 		Uid [2]byte
@@ -565,5 +586,38 @@ var TableSession = struct {
 	}{
 		CreatedAt: [2]byte{0x0E, 0x04},
 		UpdatedAt: [2]byte{0x0E, 0x05},
+	},
+}
+
+// ======================== total统计表 ========================
+
+var TableTotal = struct {
+	Id     [2]byte
+	Size   int
+	Column struct {
+		User         [2]byte
+		Device       [2]byte
+		Session      [2]byte
+		Conversation [2]byte
+		Message      [2]byte
+		Channel      [2]byte
+	}
+}{
+	Id:   [2]byte{0x0F, 0x01},
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	Column: struct {
+		User         [2]byte
+		Device       [2]byte
+		Session      [2]byte
+		Conversation [2]byte
+		Message      [2]byte
+		Channel      [2]byte
+	}{
+		User:         [2]byte{0x0F, 0x01},
+		Device:       [2]byte{0x0F, 0x02},
+		Session:      [2]byte{0x0F, 0x03},
+		Conversation: [2]byte{0x0F, 0x04},
+		Message:      [2]byte{0x0F, 0x05},
+		Channel:      [2]byte{0x0F, 0x06},
 	},
 }

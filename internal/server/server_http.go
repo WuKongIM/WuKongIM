@@ -27,14 +27,6 @@ func NewAPIServer(s *Server) *APIServer {
 	r.Use(wkhttp.CORSMiddleware())
 	pprof.Register(r.GetGinRoute()) // 注册pprof
 
-	r.Use(func(c *wkhttp.Context) { // ip黑名单判断
-		clientIP := c.Request.Header.Get("X-Forwarded-For")
-		if strings.TrimSpace(clientIP) == "" {
-			clientIP = c.ClientIP()
-		}
-		c.Next()
-	})
-
 	hs := &APIServer{
 		r:    r,
 		addr: s.opts.HTTPAddr,
