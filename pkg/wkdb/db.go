@@ -19,6 +19,8 @@ type DB interface {
 	LeaderTermSequenceDB
 	// 会话
 	SessionDB
+	// 数据统计
+	TotalDB
 }
 
 type MessageDB interface {
@@ -50,7 +52,7 @@ type MessageDB interface {
 	// LoadLastMsgs 加载最后的消息
 	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
 	// GetChannelLastMessageSeq 获取最后一条消息的seq
-	GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, uint64, error)
+	GetChannelLastMessageSeq(channelId string, channelType uint8) (seq uint64, lastTime uint64, err error)
 
 	// SetChannelLastMessageSeq 设置最后一条消息的seq
 	SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error
@@ -95,6 +97,9 @@ type UserDB interface {
 
 	// SearchUser 搜索用户
 	SearchUser(req UserSearchReq) ([]User, error)
+
+	// SearchDevice 搜索设备
+	SearchDevice(req DeviceSearchReq) ([]Device, error)
 
 	// AddOrUpdateUser 添加或更新用户
 	AddOrUpdateUser(u User) error
@@ -183,6 +188,9 @@ type ConversationDB interface {
 	GetConversation(uid string, sessionId uint64) (Conversation, error)
 
 	GetConversationBySessionIds(uid string, sessionIds []uint64) ([]Conversation, error)
+
+	// SearchConversation 搜索最近会话
+	SearchConversation(req ConversationSearchReq) ([]Conversation, error)
 }
 
 type ChannelClusterConfigDB interface {
@@ -222,6 +230,8 @@ type SessionDB interface {
 	AddOrUpdateSession(session Session) (Session, error)
 	// GetSession 获取session
 	GetSession(uid string, id uint64) (Session, error)
+	// SearchSession 搜索session
+	SearchSession(req SessionSearchReq) ([]Session, error)
 	// DeleteSession 删除session
 	DeleteSession(uid string, id uint64) error
 	DeleteSessionByChannel(uid string, channelId string, channelType uint8) error
@@ -241,6 +251,45 @@ type SessionDB interface {
 	// 获取大于指定更新时间的session(不包含updatedAt)
 	// limit 为0表示不做限制
 	GetSessionsGreaterThanUpdatedAtByUid(uid string, updatedAt int64, limit int) ([]Session, error)
+}
+
+// 数据统计表
+type TotalDB interface {
+	// IncMessageCount 递增消息数量
+	IncMessageCount(v int) error
+
+	// IncUserCount 递增用户数量
+	IncUserCount(v int) error
+
+	// IncDeviceCount 递增设备数量
+	IncDeviceCount(v int) error
+
+	// IncChannelCount 递增频道数量
+	IncChannelCount(v int) error
+
+	// IncSessionCount 递增会话数量
+	IncSessionCount(v int) error
+
+	// IncConversationCount 递增最近会话数量
+	IncConversationCount(v int) error
+
+	// GetTotalMessageCount 获取总个消息数量
+	GetTotalMessageCount() (int, error)
+
+	// GetTotalUserCount 获取总个用户数量
+	GetTotalUserCount() (int, error)
+
+	// GetTotalDeviceCount 获取总个设备数量
+	GetTotalDeviceCount() (int, error)
+
+	// GetTotalSessionCount 获取总个会话数量
+	GetTotalSessionCount() (int, error)
+
+	// GetTotalChannelCount 获取总个频道数量
+	GetTotalChannelCount() (int, error)
+
+	// GetTotalConversationCount 获取总个最近会话数量
+	GetTotalConversationCount() (int, error)
 }
 
 type MessageSearchReq struct {
@@ -270,6 +319,26 @@ type ChannelSearchReq struct {
 }
 
 type UserSearchReq struct {
+	Uid         string // 用户id
+	Limit       int    // 限制查询数量
+	CurrentPage int    // 当前页码
+}
+
+type DeviceSearchReq struct {
+	Uid         string // 用户id
+	DeviceFlag  uint64 // 设备标识
+	Limit       int    // 限制查询数量
+	CurrentPage int    // 当前页码
+}
+
+type ConversationSearchReq struct {
+	Uid         string // 用户id
+	Limit       int    // 限制查询数量
+	CurrentPage int    // 当前页码
+
+}
+
+type SessionSearchReq struct {
 	Uid         string // 用户id
 	Limit       int    // 限制查询数量
 	CurrentPage int    // 当前页码

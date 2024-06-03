@@ -39,8 +39,9 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/subscribers"), s.subscribersGet)     // 获取频道的订阅者列表
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/denylist"), s.denylistGet)           // 获取黑名单列表
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/allowlist"), s.allowlistGet)         // 获取白名单列表
-	route.GET(s.formatPath("/conversations"), s.conversationSearch)                                  // 搜索最近会话
 	route.GET(s.formatPath("/users"), s.userSearch)                                                  // 用户搜索
+	route.GET(s.formatPath("/devices"), s.deviceSearch)                                              // 设备搜索
+	route.GET(s.formatPath("/conversations"), s.conversationSearch)                                  // 搜索最近会话消息
 	// route.GET(s.formatPath("/nodes/:id/messages"), s.nodeMessageSearch)                              // 搜索节点消息
 }
 
@@ -605,8 +606,15 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	if len(messages) > limit {
 		messages = messages[:limit]
 	}
+	count, err := s.opts.DB.GetTotalMessageCount()
+	if err != nil {
+		s.Error("GetTotalMessageCount error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
 	c.JSON(http.StatusOK, messageRespTotal{
-		Data: messages,
+		Data:  messages,
+		Total: count,
 	})
 }
 
@@ -838,8 +846,17 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 	if len(channelInfoResps) > limit {
 		channelInfoResps = channelInfoResps[:limit]
 	}
+
+	count, err := s.opts.DB.GetTotalChannelCount()
+	if err != nil {
+		s.Error("GetTotalChannelCount error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
 	c.JSON(http.StatusOK, channelInfoRespTotal{
-		Data: channelInfoResps,
+		Data:  channelInfoResps,
+		Total: count,
 	})
 
 }
@@ -941,10 +958,6 @@ func (s *Server) allowlistGet(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, allowlist)
 }
 
-func (s *Server) conversationSearch(c *wkhttp.Context) {
-
-}
-
 func (s *Server) userSearch(c *wkhttp.Context) {
 	// 搜索条件
 	limit := wkutil.ParseInt(c.Query("limit"))
@@ -975,7 +988,118 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 		userResps = append(userResps, newUserResp(user))
 	}
 
+	count, err := s.opts.DB.GetTotalUserCount()
+	if err != nil {
+		s.Error("GetTotalUserCount error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
 	c.JSON(http.StatusOK, userRespTotal{
-		Data: userResps,
+		Data:  userResps,
+		Total: count,
 	})
+}
+
+func (s *Server) deviceSearch(c *wkhttp.Context) {
+	// 搜索条件
+	limit := wkutil.ParseInt(c.Query("limit"))
+	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
+	uid := strings.TrimSpace(c.Query("uid"))
+	deviceFlag := wkutil.ParseUint64(strings.TrimSpace(c.Query("device_flag")))
+
+	if currentPage <= 0 {
+		currentPage = 1
+	}
+	if limit <= 0 {
+		limit = s.opts.PageSize
+	}
+
+	devices, err := s.opts.DB.SearchDevice(wkdb.DeviceSearchReq{
+		Uid:         uid,
+		DeviceFlag:  deviceFlag,
+		Limit:       limit,
+		CurrentPage: currentPage,
+	})
+	if err != nil {
+		s.Error("search device failed", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	deviceResps := make([]*deviceResp, 0, len(devices))
+	for _, device := range devices {
+		deviceResps = append(deviceResps, newDeviceResp(device))
+	}
+
+	count, err := s.opts.DB.GetTotalDeviceCount()
+	if err != nil {
+		s.Error("GetTotalDeviceCount error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, deviceRespTotal{
+		Data:  deviceResps,
+		Total: count,
+	})
+
+}
+
+func (s *Server) conversationSearch(c *wkhttp.Context) {
+	// 搜索条件
+	limit := wkutil.ParseInt(c.Query("limit"))
+	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
+	uid := strings.TrimSpace(c.Query("uid"))
+
+	if currentPage <= 0 {
+		currentPage = 1
+	}
+	if limit <= 0 {
+		limit = s.opts.PageSize
+	}
+
+	sessions, err := s.opts.DB.SearchSession(wkdb.SessionSearchReq{
+		Uid:         uid,
+		Limit:       limit,
+		CurrentPage: currentPage,
+	})
+	if err != nil {
+		s.Error("search conversation failed", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	conversationResps := make([]*conversationResp, 0, len(sessions))
+
+	for _, session := range sessions {
+		conversation, err := s.opts.DB.GetConversation(session.Uid, session.Id)
+		if err != nil && err != wkdb.ErrConversationNotExist {
+			s.Error("GetConversation error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		lastMsgSeq, _, err := s.opts.DB.GetChannelLastMessageSeq(session.ChannelId, session.ChannelType)
+		if err != nil {
+			s.Error("GetChannelLastMessageSeq error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		resp := newConversationResp(conversation, session)
+		resp.LastMsgSeq = lastMsgSeq
+		conversationResps = append(conversationResps, resp)
+	}
+
+	count, err := s.opts.DB.GetTotalConversationCount()
+	if err != nil {
+		s.Error("GetTotalConversationCount error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, conversationRespTotal{
+		Data:  conversationResps,
+		Total: count,
+	})
+
 }

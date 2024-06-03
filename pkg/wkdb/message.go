@@ -41,6 +41,12 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 		}
 	}
 
+	// 消息总数量+1
+	err := wk.IncMessageCount(1)
+	if err != nil {
+		return err
+	}
+
 	return batch.Commit(wk.sync)
 }
 
@@ -74,34 +80,49 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 		}()
 	}
 
+	var msgTotalCount int
 	for _, req := range reqs {
 		shardId := wk.channelDbIndex(req.ChannelId, req.ChannelType)
 		dbMap[shardId] = append(dbMap[shardId], req)
+		msgTotalCount += len(req.Messages)
 	}
 
 	if len(dbMap) == 1 { // 如果只有一条消息 则不需要开启协程
 		for shardId, reqs := range dbMap {
 			db := wk.shardDBById(shardId)
-			return wk.writeMessagesBatch(db, reqs)
-		}
-		return nil
-	}
-
-	timeoutCtx, cancel := context.WithTimeout(wk.cancelCtx, time.Second*5)
-	defer cancel()
-
-	requestGroup, _ := errgroup.WithContext(timeoutCtx)
-
-	for shardId, reqs := range dbMap {
-		requestGroup.Go(func(sid uint32, rqs []AppendMessagesReq) func() error {
-			return func() error {
-				db := wk.shardDBById(sid)
-				return wk.writeMessagesBatch(db, rqs)
+			err := wk.writeMessagesBatch(db, reqs)
+			if err != nil {
+				return err
 			}
-		}(shardId, reqs))
+		}
+	} else {
+		timeoutCtx, cancel := context.WithTimeout(wk.cancelCtx, time.Second*5)
+		defer cancel()
 
+		requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
+		for shardId, reqs := range dbMap {
+			requestGroup.Go(func(sid uint32, rqs []AppendMessagesReq) func() error {
+				return func() error {
+					db := wk.shardDBById(sid)
+					return wk.writeMessagesBatch(db, rqs)
+				}
+			}(shardId, reqs))
+
+		}
+		err := requestGroup.Wait()
+		if err != nil {
+			return err
+		}
 	}
-	return requestGroup.Wait()
+
+	// 消息总数量增加
+	err := wk.IncMessageCount(msgTotalCount)
+	if err != nil {
+		return err
+	}
+
+	return nil
 
 }
 
@@ -565,10 +586,7 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 		}
 		return true
 	}
-
 	for _, db := range wk.dbs {
-
-		currentSize = 0
 
 		// 通过索引查询
 		has, err := wk.searchMessageByIndex(req, db, iterFnc)

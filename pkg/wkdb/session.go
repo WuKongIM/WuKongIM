@@ -29,27 +29,72 @@ func (wk *wukongDB) AddOrUpdateSession(session Session) (Session, error) {
 	}
 	session.Id = id
 
+	err = wk.IncSessionCount(1)
+	if err != nil {
+		return EmptySession, err
+	}
+
 	return session, nil
 }
 
 func (wk *wukongDB) GetSession(uid string, id uint64) (Session, error) {
 
 	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
-		LowerBound: key.NewSessionColumnKey(uid, id, [2]byte{0x00, 0x00}),
-		UpperBound: key.NewSessionColumnKey(uid, id, [2]byte{0xff, 0xff}),
+		LowerBound: key.NewSessionColumnKey(uid, id, key.MinColumnKey),
+		UpperBound: key.NewSessionColumnKey(uid, id, key.MaxColumnKey),
 	})
 
 	defer iter.Close()
 
-	sessions, err := wk.parseSessions(iter, 1)
+	var session Session
+
+	err := wk.iteratorSession(iter, func(s Session) bool {
+		session = s
+		return false
+	})
 	if err != nil {
 		return EmptySession, err
 	}
+	return session, nil
+}
 
-	if len(sessions) == 0 {
-		return EmptySession, nil
+func (wk *wukongDB) SearchSession(req SessionSearchReq) ([]Session, error) {
+
+	if req.Uid != "" {
+		sessions, err := wk.GetSessions(req.Uid)
+		if err != nil {
+			return nil, err
+		}
+		return sessions, nil
 	}
-	return sessions[0], nil
+
+	var sessions []Session
+	currentSize := 0
+	var err error
+	for _, db := range wk.dbs {
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewSessionUidHashKey(0),
+			UpperBound: key.NewSessionUidHashKey(math.MaxUint64),
+		})
+		defer iter.Close()
+
+		err = wk.iteratorSession(iter, func(s Session) bool {
+			if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
+				return false
+			}
+			currentSize++
+			if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
+				sessions = append(sessions, s)
+				return true
+			}
+			return true
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return sessions, nil
+
 }
 
 func (wk *wukongDB) DeleteSession(uid string, id uint64) error {
@@ -84,6 +129,12 @@ func (wk *wukongDB) deleteSession(uid string, id uint64, w pebble.Writer) error 
 	}
 
 	if err = w.Delete(key.NewSessionSecondIndexKey(uid, key.TableSession.Column.UpdatedAt, uint64(session.UpdatedAt.UnixNano()), id), wk.noSync); err != nil {
+		return err
+	}
+
+	// 会话数量减少
+	err = wk.IncSessionCount(-1)
+	if err != nil {
 		return err
 	}
 
@@ -131,11 +182,21 @@ func (wk *wukongDB) DeleteSessionAndConversationByChannel(uid string, channelId 
 func (wk *wukongDB) GetSessions(uid string) ([]Session, error) {
 
 	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
-		LowerBound: key.NewSessionColumnKey(uid, 0, [2]byte{0x00, 0x00}),
-		UpperBound: key.NewSessionColumnKey(uid, math.MaxUint64, [2]byte{0xff, 0xff}),
+		LowerBound: key.NewSessionColumnKey(uid, 0, key.MinColumnKey),
+		UpperBound: key.NewSessionColumnKey(uid, math.MaxUint64, key.MaxColumnKey),
 	})
 	defer iter.Close()
-	return wk.parseSessions(iter, 0)
+
+	var sessions []Session
+	err := wk.iteratorSession(iter, func(s Session) bool {
+		sessions = append(sessions, s)
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sessions, nil
+
 }
 
 func (wk *wukongDB) DeleteSessionByUid(uid string) error {
@@ -206,6 +267,8 @@ func (wk *wukongDB) updateSessionUpdatedAt(uids map[string]uint64, channelId str
 	nw := time.Now()
 	updatedAtBytes := make([]byte, 8)
 	wk.endian.PutUint64(updatedAtBytes, uint64(nw.UnixNano()))
+
+	var sessionCreateCount int // 新增会话数量
 	for uid, messageSeq := range uids {
 
 		sessionId, err := wk.getSessionIdByChannel(uid, channelId, channelType)
@@ -214,6 +277,7 @@ func (wk *wukongDB) updateSessionUpdatedAt(uids map[string]uint64, channelId str
 		}
 
 		if sessionId == 0 {
+			sessionCreateCount++
 			sessionId = uint64(wk.prmaryKeyGen.Generate().Int64())
 			if err = wk.writeSession(sessionId, Session{
 				Id:          sessionId,
@@ -237,6 +301,12 @@ func (wk *wukongDB) updateSessionUpdatedAt(uids map[string]uint64, channelId str
 				return err
 			}
 		}
+	}
+
+	// 会话数量增加
+	err := wk.IncSessionCount(sessionCreateCount)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -328,26 +398,21 @@ func (wk *wukongDB) getSessionIdByChannel(uid string, channelId string, channelT
 	return 0, nil
 }
 
-func (wk *wukongDB) parseSessions(iter *pebble.Iterator, limit int) ([]Session, error) {
+func (wk *wukongDB) iteratorSession(iter *pebble.Iterator, iterFnc func(s Session) bool) error {
 
 	var (
-		sessions       = make([]Session, 0, limit)
-		preId          uint64
-		preSession     Session
-		lastNeedAppend bool = true
-		hasData        bool = false
+		preId      uint64
+		preSession Session
 	)
 
 	for iter.First(); iter.Valid(); iter.Next() {
 		id, coulmnName, err := key.ParseConversationColumnKey(iter.Key())
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if preId != id {
 			if preId != 0 {
-				sessions = append(sessions, preSession)
-				if limit > 0 && len(sessions) >= limit {
-					lastNeedAppend = false
+				if !iterFnc(preSession) {
 					break
 				}
 			}
@@ -372,13 +437,13 @@ func (wk *wukongDB) parseSessions(iter *pebble.Iterator, limit int) ([]Session, 
 			preSession.UpdatedAt = time.Unix(t/1e9, t%1e9)
 
 		}
-		hasData = true
 	}
-	if lastNeedAppend && hasData {
-		sessions = append(sessions, preSession)
+	if preId != 0 {
+		if !iterFnc(preSession) {
+			return nil
+		}
 	}
-
-	return sessions, nil
+	return nil
 }
 
 func (wk *wukongDB) writeSession(id uint64, session Session, w pebble.Writer) error {

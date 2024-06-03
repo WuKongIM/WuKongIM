@@ -45,13 +45,16 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 	defer iter.Close()
 
 	var device = EmptyDevice
-	wk.iterDevice(iter, func(d Device) bool {
+	err = wk.iterDevice(iter, func(d Device) bool {
 		if d.Id == id {
 			device = d
 			return false
 		}
 		return true
 	})
+	if err != nil {
+		return EmptyDevice, err
+	}
 
 	if device == EmptyDevice {
 		return EmptyDevice, ErrDeviceNotExist
@@ -121,7 +124,134 @@ func (wk *wukongDB) AddOrUpdateDevice(d Device) error {
 	if err != nil {
 		return err
 	}
-	return batch.Commit(wk.sync)
+	err = batch.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+	if isCreate {
+		err = wk.IncDeviceCount(1)
+		if err != nil {
+			return err
+		}
+		return wk.incUserDeviceCount(d.Uid, 1, db)
+	}
+	return nil
+}
+
+func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
+	var devices []Device
+	currentSize := 0
+
+	iterFnc := func(d Device) bool {
+		if currentSize > req.Limit*req.CurrentPage {
+			return false
+		}
+		currentSize++
+		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
+			devices = append(devices, d)
+			return true
+		}
+		return true
+	}
+
+	for _, db := range wk.dbs {
+		currentSize = 0
+
+		has, err := wk.searchDeviceByIndex(req, db, iterFnc)
+		if err != nil {
+			return nil, err
+		}
+		if has { // 如果有触发索引，则无需全局查询
+			continue
+		}
+
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewDeviceColumnKey(0, key.MinColumnKey),
+			UpperBound: key.NewDeviceColumnKey(math.MaxUint64, key.MaxColumnKey),
+		})
+		defer iter.Close()
+		if err = wk.iterDevice(iter, iterFnc); err != nil {
+			return nil, err
+		}
+	}
+	return devices, nil
+}
+
+func (wk *wukongDB) searchDeviceByIndex(req DeviceSearchReq, db *pebble.DB, iterFnc func(d Device) bool) (bool, error) {
+
+	var exist bool
+	var ids []uint64
+	if req.Uid != "" && req.DeviceFlag != 0 {
+		exist = true
+		idBytes, closer, err := db.Get(key.NewDeviceIndexUidAndDeviceFlagKey(req.Uid, req.DeviceFlag))
+		if err != nil {
+			if err == pebble.ErrNotFound {
+				return true, nil
+			}
+			return false, err
+		}
+		defer closer.Close()
+
+		if len(idBytes) == 0 {
+			return true, nil
+		}
+		id := wk.endian.Uint64(idBytes)
+		ids = append(ids, id)
+
+	}
+
+	if !exist && req.Uid != "" {
+		exist = true
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewDeviceIndexUidAndDeviceFlagKey(req.Uid, 0),
+			UpperBound: key.NewDeviceIndexUidAndDeviceFlagKey(req.Uid, math.MaxUint64),
+		})
+		defer iter.Close()
+
+		for iter.First(); iter.Valid(); iter.Next() {
+			ids = append(ids, wk.endian.Uint64(iter.Value()))
+		}
+	}
+
+	if !exist {
+		return false, nil
+	}
+
+	for _, id := range ids {
+		device, err := wk.getDeviceById(id, db)
+		if err != nil {
+			return false, err
+		}
+		if !iterFnc(device) {
+			return true, nil
+		}
+	}
+	return true, nil
+}
+
+func (wk *wukongDB) getDeviceById(id uint64, db *pebble.DB) (Device, error) {
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
+		UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
+	})
+	defer iter.Close()
+
+	var device = EmptyDevice
+	err := wk.iterDevice(iter, func(d Device) bool {
+		if d.Id == id {
+			device = d
+			return false
+		}
+		return true
+	})
+	if err != nil {
+		return EmptyDevice, err
+	}
+
+	if device == EmptyDevice {
+		return EmptyDevice, ErrDeviceNotExist
+	}
+	return device, nil
 }
 
 func (wk *wukongDB) writeDevice(d Device, isCreate bool, w pebble.Writer) error {
@@ -171,6 +301,12 @@ func (wk *wukongDB) writeDevice(d Device, isCreate bool, w pebble.Writer) error 
 	if err = w.Set(key.NewDeviceIndexUidAndDeviceFlagKey(d.Uid, d.DeviceFlag), idBytes, wk.sync); err != nil {
 		return err
 	}
+
+	// user device count
+	if isCreate {
+
+	}
+
 	return nil
 }
 

@@ -12,8 +12,10 @@ type dblock struct {
 	subscriberCountLock  *subscriberCountLock
 	allowlistCountLock   *allowlistCountLock
 	denylistCountLock    *denylistCountLock
+	totalLock            *totalLock
 
 	updateSessionUpdatedAtLock sync.Mutex
+	userLock                   *userLock
 }
 
 func newDBLock() *dblock {
@@ -22,6 +24,8 @@ func newDBLock() *dblock {
 		subscriberCountLock:  newSubscriberCountLock(),
 		allowlistCountLock:   newAllowlistCountLock(),
 		denylistCountLock:    newDenylistCountLock(),
+		userLock:             newUserLock(),
+		totalLock:            newTotalLock(),
 	}
 
 }
@@ -31,6 +35,7 @@ func (d *dblock) start() {
 	d.subscriberCountLock.StartCleanLoop()
 	d.allowlistCountLock.StartCleanLoop()
 	d.denylistCountLock.StartCleanLoop()
+	d.userLock.StartCleanLoop()
 }
 
 func (d *dblock) stop() {
@@ -38,6 +43,7 @@ func (d *dblock) stop() {
 	d.subscriberCountLock.StopCleanLoop()
 	d.allowlistCountLock.StopCleanLoop()
 	d.denylistCountLock.StopCleanLoop()
+	d.userLock.StopCleanLoop()
 }
 
 type channelClusterConfigLock struct {
@@ -112,4 +118,81 @@ func (c *denylistCountLock) lock(id uint64) {
 
 func (c *denylistCountLock) unlock(id uint64) {
 	c.Unlock(strconv.FormatUint(id, 10))
+}
+
+type userLock struct {
+	*keylock.KeyLock
+}
+
+func newUserLock() *userLock {
+
+	return &userLock{
+		keylock.NewKeyLock(),
+	}
+}
+
+func (u *userLock) lock(uid string) {
+	u.Lock(uid)
+}
+
+func (u *userLock) unlock(uid string) {
+	u.Unlock(uid)
+}
+
+type totalLock struct {
+	*keylock.KeyLock
+}
+
+func newTotalLock() *totalLock {
+	return &totalLock{
+		keylock.NewKeyLock(),
+	}
+}
+
+func (t *totalLock) lockMessageCount() {
+	t.Lock("__message_count")
+}
+
+func (t *totalLock) unlockMessageCount() {
+	t.Unlock("__message_count")
+}
+
+func (t *totalLock) lockSessionCount() {
+	t.Lock("__session_count")
+}
+
+func (t *totalLock) unlockSessionCount() {
+	t.Unlock("__session_count")
+}
+
+func (t *totalLock) lockUserCount() {
+	t.Lock("__user_count")
+}
+
+func (t *totalLock) unlockUserCount() {
+	t.Unlock("__user_count")
+}
+
+func (t *totalLock) lockDeviceCount() {
+	t.Lock("__device_count")
+}
+
+func (t *totalLock) unlockDeviceCount() {
+	t.Unlock("__device_count")
+}
+
+func (t *totalLock) lockConversationCount() {
+	t.Lock("__conversation_count")
+}
+
+func (t *totalLock) unlockConversationCount() {
+	t.Unlock("__conversation_count")
+}
+
+func (t *totalLock) lockChannelCount() {
+	t.Lock("__channel_count")
+}
+
+func (t *totalLock) unlockChannelCount() {
+	t.Unlock("__channel_count")
 }

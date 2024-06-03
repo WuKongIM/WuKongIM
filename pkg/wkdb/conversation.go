@@ -10,6 +10,8 @@ import (
 func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Conversation) error {
 	batch := wk.shardDB(uid).NewBatch()
 	defer batch.Close()
+
+	var createCount int
 	for _, cn := range conversations {
 
 		id, err := wk.getConversationIdBySession(uid, cn.SessionId)
@@ -17,11 +19,17 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 			return err
 		}
 		if id == 0 {
+			createCount++
 			id = uint64(wk.prmaryKeyGen.Generate().Int64())
 		}
 		if err := wk.writeConversation(uint64(id), uid, cn, batch); err != nil {
 			return err
 		}
+	}
+
+	err := wk.IncConversationCount(createCount)
+	if err != nil {
+		return err
 	}
 
 	return batch.Commit(wk.sync)
@@ -36,7 +44,12 @@ func (wk *wukongDB) GetConversations(uid string) ([]Conversation, error) {
 		UpperBound: key.NewConversationPrimaryKey(uid, math.MaxUint64),
 	})
 	defer iter.Close()
-	conversations, err := wk.parseConversations(iter, 0)
+
+	var conversations []Conversation
+	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+		conversations = append(conversations, conversation)
+		return true
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +66,41 @@ func (wk *wukongDB) DeleteConversation(uid string, sessionId uint64) error {
 	if err != nil {
 		return err
 	}
+
 	return batch.Commit(wk.sync)
 
+}
+
+func (wk *wukongDB) SearchConversation(req ConversationSearchReq) ([]Conversation, error) {
+	if req.Uid != "" {
+		return wk.GetConversations(req.Uid)
+	}
+
+	var conversations []Conversation
+	currentSize := 0
+	for _, db := range wk.dbs {
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewConversationUidHashKey(0),
+			UpperBound: key.NewConversationUidHashKey(math.MaxUint64),
+		})
+		defer iter.Close()
+
+		err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+			if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
+				return false
+			}
+			currentSize++
+			if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
+				conversations = append(conversations, conversation)
+				return true
+			}
+			return true
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return conversations, nil
 }
 
 func (wk *wukongDB) deleteConversation(uid string, sessionId uint64, w pebble.Writer) error {
@@ -76,6 +122,11 @@ func (wk *wukongDB) deleteConversation(uid string, sessionId uint64, w pebble.Wr
 	if err != nil {
 		return err
 	}
+	// 会话数减一
+	err = wk.IncConversationCount(-1)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -88,7 +139,7 @@ func (wk *wukongDB) GetConversation(uid string, sessionId uint64) (Conversation,
 	}
 
 	if id == 0 {
-		return EmptyConversation, nil
+		return EmptyConversation, ErrConversationNotExist
 	}
 
 	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
@@ -97,16 +148,20 @@ func (wk *wukongDB) GetConversation(uid string, sessionId uint64) (Conversation,
 	})
 	defer iter.Close()
 
-	conversations, err := wk.parseConversations(iter, 1)
+	var conversation = EmptyConversation
+	err = wk.iterateConversation(iter, func(cn Conversation) bool {
+		conversation = cn
+		return false
+	})
 	if err != nil {
 		return EmptyConversation, err
 	}
 
-	if len(conversations) == 0 {
-		return EmptyConversation, nil
+	if conversation == EmptyConversation {
+		return EmptyConversation, ErrConversationNotExist
 	}
 
-	return conversations[0], nil
+	return conversation, nil
 }
 
 func (wk *wukongDB) GetConversationBySessionIds(uid string, sessionIds []uint64) ([]Conversation, error) {
@@ -133,13 +188,14 @@ func (wk *wukongDB) GetConversationBySessionIds(uid string, sessionIds []uint64)
 		})
 		defer iter.Close()
 
-		cns, err := wk.parseConversations(iter, 1)
+		err = wk.iterateConversation(iter, func(conversation Conversation) bool {
+			conversations = append(conversations, conversation)
+			return false
+		})
 		if err != nil {
 			return nil, err
 		}
-		if len(cns) > 0 {
-			conversations = append(conversations, cns[0])
-		}
+
 	}
 
 	return conversations, nil
@@ -239,9 +295,8 @@ func (wk *wukongDB) writeConversation(id uint64, uid string, conversation Conver
 	return nil
 }
 
-func (wk *wukongDB) parseConversations(iter *pebble.Iterator, limit int) ([]Conversation, error) {
+func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conversation Conversation) bool) error {
 	var (
-		conversations   = make([]Conversation, 0)
 		preId           uint64
 		preConversation Conversation
 		lastNeedAppend  bool = true
@@ -252,12 +307,11 @@ func (wk *wukongDB) parseConversations(iter *pebble.Iterator, limit int) ([]Conv
 
 		id, coulmnName, err := key.ParseConversationColumnKey(iter.Key())
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if preId != id {
 			if preId != 0 {
-				conversations = append(conversations, preConversation)
-				if limit > 0 && len(conversations) >= limit {
+				if !iterFnc(preConversation) {
 					lastNeedAppend = false
 					break
 				}
@@ -282,8 +336,57 @@ func (wk *wukongDB) parseConversations(iter *pebble.Iterator, limit int) ([]Conv
 		hasData = true
 	}
 	if lastNeedAppend && hasData {
-		conversations = append(conversations, preConversation)
+		_ = iterFnc(preConversation)
 	}
 
-	return conversations, nil
+	return nil
 }
+
+// func (wk *wukongDB) parseConversations(iter *pebble.Iterator, limit int) ([]Conversation, error) {
+// 	var (
+// 		conversations   = make([]Conversation, 0)
+// 		preId           uint64
+// 		preConversation Conversation
+// 		lastNeedAppend  bool = true
+// 		hasData         bool = false
+// 	)
+
+// 	for iter.First(); iter.Valid(); iter.Next() {
+
+// 		id, coulmnName, err := key.ParseConversationColumnKey(iter.Key())
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		if preId != id {
+// 			if preId != 0 {
+// 				conversations = append(conversations, preConversation)
+// 				if limit > 0 && len(conversations) >= limit {
+// 					lastNeedAppend = false
+// 					break
+// 				}
+// 			}
+
+// 			preId = id
+// 			preConversation = Conversation{
+// 				Id: id,
+// 			}
+// 		}
+// 		switch coulmnName {
+// 		case key.TableConversation.Column.Uid:
+// 			preConversation.Uid = string(iter.Value())
+// 		case key.TableConversation.Column.SessionId:
+// 			preConversation.SessionId = wk.endian.Uint64(iter.Value())
+// 		case key.TableConversation.Column.UnreadCount:
+// 			preConversation.UnreadCount = wk.endian.Uint32(iter.Value())
+// 		case key.TableConversation.Column.ReadedToMsgSeq:
+// 			preConversation.ReadedToMsgSeq = wk.endian.Uint64(iter.Value())
+
+// 		}
+// 		hasData = true
+// 	}
+// 	if lastNeedAppend && hasData {
+// 		conversations = append(conversations, preConversation)
+// 	}
+
+// 	return conversations, nil
+// }

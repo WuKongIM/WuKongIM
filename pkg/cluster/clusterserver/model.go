@@ -868,11 +868,9 @@ type ChannelClusterConfigResp struct {
 	StatusFormat      string                    `json:"status_format"`       // 状态格式化
 }
 
-func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg wkdb.ChannelClusterConfig) *ChannelClusterConfigResp {
-
+func formatChannelType(channelType uint8) string {
 	channelTypeFormat := ""
-
-	switch cfg.ChannelType {
+	switch channelType {
 	case wkproto.ChannelTypeGroup:
 		channelTypeFormat = "群组"
 	case wkproto.ChannelTypePerson:
@@ -886,8 +884,14 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 	case wkproto.ChannelTypeData:
 		channelTypeFormat = "数据"
 	default:
-		channelTypeFormat = fmt.Sprintf("未知(%d)", cfg.ChannelType)
+		channelTypeFormat = fmt.Sprintf("未知(%d)", channelType)
 	}
+	return channelTypeFormat
+}
+
+func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg wkdb.ChannelClusterConfig) *ChannelClusterConfigResp {
+
+	channelTypeFormat := formatChannelType(cfg.ChannelType)
 
 	statusFormat := "未知"
 	if cfg.Status == wkdb.ChannelClusterStatusNormal {
@@ -1149,26 +1153,143 @@ type channelInfoRespTotal struct {
 
 type userResp struct {
 	Uid               string `json:"uid"`                 // 用户ID
+	DeviceCount       uint32 `json:"device_count"`        // 设备数量
+	OnlineDeviceCount uint32 `json:"online_device_count"` // 在线设备数量
+	ConnCount         uint32 `json:"conn_count"`          // 连接数量
+	SendMsgCount      uint64 `json:"send_msg_count"`      // 发送消息数量
+	RecvMsgCount      uint64 `json:"recv_msg_count"`      // 接收消息数量
+	SendMsgBytes      uint64 `json:"send_msg_bytes"`      // 发送消息字节数
+	RecvMsgBytes      uint64 `json:"recv_msg_bytes"`      // 接收消息字节数
 	CreatedAt         int64  `json:"created_at"`          // 创建时间
 	UpdatedAt         int64  `json:"updated_at"`          // 更新时间
 	CreatedAtFormat   string `json:"created_at_format"`   // 创建时间格式化
 	UpdatedAtFormat   string `json:"updated_at_format"`   // 更新时间格式化
-	DeviceTotalCount  int    `json:"device_total_count"`  // 总设备数量
-	DeviceOnlineCount int    `json:"device_online_count"` // 在线设备数量
 }
 
 func newUserResp(u wkdb.User) *userResp {
 
 	return &userResp{
-		Uid:             u.Uid,
-		CreatedAt:       u.CreatedAt.Unix(),
-		UpdatedAt:       u.UpdatedAt.Unix(),
-		CreatedAtFormat: wkutil.ToyyyyMMddHHmm(u.CreatedAt),
-		UpdatedAtFormat: wkutil.ToyyyyMMddHHmm(u.UpdatedAt),
+		Uid:               u.Uid,
+		DeviceCount:       u.DeviceCount,
+		OnlineDeviceCount: u.OnlineDeviceCount,
+		ConnCount:         u.ConnCount,
+		SendMsgCount:      u.SendMsgCount,
+		RecvMsgCount:      u.RecvMsgCount,
+		SendMsgBytes:      u.SendMsgBytes,
+		RecvMsgBytes:      u.RecvMsgBytes,
+		CreatedAt:         u.CreatedAt.Unix(),
+		UpdatedAt:         u.UpdatedAt.Unix(),
+		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(u.CreatedAt),
+		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(u.UpdatedAt),
 	}
 }
 
 type userRespTotal struct {
 	Total int         `json:"total"` // 总数
 	Data  []*userResp `json:"data"`
+}
+
+type deviceResp struct {
+	Id                uint64 `json:"id"`                  // 主键
+	Uid               string `json:"uid"`                 // 用户唯一uid
+	Token             string `json:"token"`               // 设备token
+	DeviceFlag        uint64 `json:"device_flag"`         // 设备标记 (TODO: 这里deviceFlag弄成uint64是为了以后扩展)
+	DeviceFlagFormat  string `json:"device_flag_format"`  // 设备标记格式化
+	DeviceLevel       uint8  `json:"device_level"`        // 设备等级
+	DeviceLevelFormat string `json:"device_level_format"` // 设备等级格式化
+	ConnCount         uint32 `json:"conn_count"`          // 连接数量
+	SendMsgCount      uint64 `json:"send_msg_count"`      // 发送消息数量
+	RecvMsgCount      uint64 `json:"recv_msg_count"`      // 接收消息数量
+	SendMsgBytes      uint64 `json:"send_msg_bytes"`      // 发送消息字节数
+	RecvMsgBytes      uint64 `json:"recv_msg_bytes"`      // 接收消息字节数
+	CreatedAt         int64  `json:"created_at"`          // 创建时间
+	UpdatedAt         int64  `json:"updated_at"`          // 更新时间
+	CreatedAtFormat   string `json:"created_at_format"`   // 创建时间格式化
+	UpdatedAtFormat   string `json:"updated_at_format"`   // 更新时间格式化
+}
+
+func newDeviceResp(d wkdb.Device) *deviceResp {
+
+	deviceFlagFormat := ""
+	switch d.DeviceFlag {
+	case uint64(wkproto.WEB):
+		deviceFlagFormat = "WEB"
+	case uint64(wkproto.APP):
+		deviceFlagFormat = "APP"
+	case uint64(wkproto.PC):
+		deviceFlagFormat = "PC"
+	default:
+		deviceFlagFormat = fmt.Sprintf("未知(%d)", d.DeviceFlag)
+	}
+
+	deviceLevelFormat := ""
+	switch d.DeviceLevel {
+	case uint8(wkproto.DeviceLevelMaster):
+		deviceLevelFormat = "主设备"
+	case uint8(wkproto.DeviceLevelSlave):
+		deviceLevelFormat = "从设备"
+	default:
+		deviceLevelFormat = fmt.Sprintf("未知(%d)", d.DeviceLevel)
+	}
+
+	return &deviceResp{
+		Id:                d.Id,
+		Uid:               d.Uid,
+		Token:             d.Token,
+		DeviceFlag:        d.DeviceFlag,
+		DeviceFlagFormat:  deviceFlagFormat,
+		DeviceLevel:       d.DeviceLevel,
+		DeviceLevelFormat: deviceLevelFormat,
+		ConnCount:         d.ConnCount,
+		SendMsgCount:      d.SendMsgCount,
+		RecvMsgCount:      d.RecvMsgCount,
+		SendMsgBytes:      d.SendMsgBytes,
+		RecvMsgBytes:      d.RecvMsgBytes,
+		CreatedAt:         d.CreatedAt.Unix(),
+		UpdatedAt:         d.UpdatedAt.Unix(),
+		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(d.CreatedAt),
+		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(d.UpdatedAt),
+	}
+}
+
+type deviceRespTotal struct {
+	Total int           `json:"total"` // 总数
+	Data  []*deviceResp `json:"data"`
+}
+
+type conversationResp struct {
+	Id                uint64 `json:"id"`                  // 主键
+	Uid               string `json:"uid"`                 // 用户唯一uid
+	ChannelId         string `json:"channel_id"`          // 频道ID
+	ChannelType       uint8  `json:"channel_type"`        // 频道类型
+	ChannelTypeFormat string `json:"channel_type_format"` // 频道类型格式化
+	UnreadCount       uint32 `json:"unread_count"`        // 未读消息数量（这个可以用户自己设置）
+	LastMsgSeq        uint64 `json:"last_msg_seq"`        // 最新消息序号
+	ReadedToMsgSeq    uint64 `json:"readed_to_msg_seq"`   // 已经读至的消息序号
+	CreatedAt         int64  `json:"created_at"`          // 创建时间
+	UpdatedAt         int64  `json:"updated_at"`          // 更新时间
+	CreatedAtFormat   string `json:"created_at_format"`   // 创建时间格式化
+	UpdatedAtFormat   string `json:"updated_at_format"`   // 更新时间格式化
+}
+
+func newConversationResp(c wkdb.Conversation, session wkdb.Session) *conversationResp {
+
+	return &conversationResp{
+		Id:                c.Id,
+		Uid:               session.Uid,
+		ChannelId:         session.ChannelId,
+		ChannelType:       session.ChannelType,
+		ChannelTypeFormat: formatChannelType(session.ChannelType),
+		UnreadCount:       c.UnreadCount,
+		ReadedToMsgSeq:    c.ReadedToMsgSeq,
+		CreatedAt:         session.CreatedAt.Unix(),
+		UpdatedAt:         session.UpdatedAt.Unix(),
+		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(session.CreatedAt),
+		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(session.UpdatedAt),
+	}
+}
+
+type conversationRespTotal struct {
+	Total int                 `json:"total"` // 总数
+	Data  []*conversationResp `json:"data"`  // 会话信息
 }

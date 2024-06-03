@@ -50,8 +50,9 @@ type Server struct {
 	webhook        *webhook        // webhook
 	trace          *trace.Trace    // 监控
 
-	demoServer *DemoServer // demo server
-	apiServer  *APIServer  // api服务
+	demoServer    *DemoServer    // demo server
+	apiServer     *APIServer     // api服务
+	monitorServer *MonitorServer // 监控服务
 
 	systemUIDManager *SystemUIDManager // 系统账号管理
 
@@ -119,6 +120,7 @@ func New(opts *Options) *Server {
 	s.demoServer = NewDemoServer(s)
 	s.systemUIDManager = NewSystemUIDManager(s)
 	s.apiServer = NewAPIServer(s)
+	s.monitorServer = NewMonitorServer(s)
 	s.retryManager = newRetryManager(s)
 	s.conversationManager = NewConversationManager(s)
 
@@ -246,6 +248,8 @@ func (s *Server) Start() error {
 
 	s.apiServer.Start()
 
+	s.monitorServer.Start()
+
 	err = s.channelReactor.start()
 	if err != nil {
 		return err
@@ -300,6 +304,9 @@ func (s *Server) Stop() error {
 	s.cluster.Stop()
 	fmt.Println("cluster stopped")
 	s.apiServer.Stop()
+
+	s.monitorServer.Stop()
+
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
 	}
@@ -414,14 +421,28 @@ func (s *Server) onData(conn wknet.Conn) error {
 
 func (s *Server) onConnect(conn wknet.Conn) error {
 	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
+	s.trace.Metrics.App().ConnCountAdd(1)
 	return nil
 }
 
 func (s *Server) onClose(conn wknet.Conn) {
-	connCtx := conn.Context()
-	if connCtx != nil {
-		fmt.Println("conn close----------->", connCtx.(*connContext).uid, connCtx.(*connContext).connId)
-		s.userReactor.removeConnContextById(connCtx.(*connContext).uid, connCtx.(*connContext).connId)
+	s.trace.Metrics.App().ConnCountAdd(-1)
+	connCtxObj := conn.Context()
+	if connCtxObj != nil {
+		connCtx := connCtxObj.(*connContext)
+		s.userReactor.removeConnContextById(connCtx.uid, connCtx.connId)
+
+		if connCtx.isAuth.Load() {
+			deviceOnlineCount := s.userReactor.getConnContextCountByDeviceFlag(connCtx.uid, connCtx.deviceFlag)
+			totalOnlineCount := s.userReactor.getConnContextCount(connCtx.uid)
+			s.webhook.Offline(conn.UID(), wkproto.DeviceFlag(connCtx.deviceFlag), connCtx.connId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
+
+			if totalOnlineCount == 0 {
+				s.trace.Metrics.App().OnlineUserCountAdd(-1)
+			}
+			s.trace.Metrics.App().OnlineDeviceCountAdd(-1)
+		}
+
 	}
 }
 
