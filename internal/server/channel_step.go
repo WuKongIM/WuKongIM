@@ -25,19 +25,20 @@ func (c *channel) step(a *ChannelAction) error {
 			return nil
 		}
 		lastMsg := a.Messages[len(a.Messages)-1]
-		if lastMsg.Index > c.msgQueue.payloadDecryptedIndex {
-			c.msgQueue.payloadDecryptedIndex = lastMsg.Index
+		if lastMsg.Index > c.msgQueue.payloadDecryptingIndex {
+			c.msgQueue.payloadDecryptingIndex = lastMsg.Index
 		}
+
 		for _, decryptMsg := range a.Messages {
-			for _, msg := range c.msgQueue.messages {
+			for i, msg := range c.msgQueue.messages {
 				if msg.MessageId == decryptMsg.MessageId {
 					msg.SendPacket.Payload = decryptMsg.SendPacket.Payload
 					msg.IsEncrypt = decryptMsg.IsEncrypt
+					c.msgQueue.messages[i] = msg
 					break
 				}
 			}
 		}
-		// c.Info("channel payload decrypt resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	default:
 		if c.stepFnc != nil {
 			return c.stepFnc(a)
@@ -51,30 +52,33 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionPermissionCheckResp: // 权限校验返回
 		c.permissionChecking = false
-		if a.Index > c.msgQueue.permissionCheckedIndex {
-			c.msgQueue.permissionCheckedIndex = a.Index
+		if a.Index > c.msgQueue.permissionCheckingIndex {
+			c.msgQueue.permissionCheckingIndex = a.Index
 		}
 		// c.Info("channel permission check resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 	case ChannelActionStorageResp: // 存储完成
 		c.storaging = false
-		if len(a.Messages) == 0 {
-			return nil
+		if a.Index > c.msgQueue.storagingIndex {
+			c.msgQueue.storagingIndex = a.Index
 		}
-		lastMsg := a.Messages[len(a.Messages)-1]
-		if lastMsg.Index > c.msgQueue.storagedIndex {
-			c.msgQueue.storagedIndex = lastMsg.Index
-		}
-		// 消息存储完毕后，需要通知发送者
-		c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
+	// 消息存储完毕后，需要通知发送者
+	// c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
 
-		// c.Info("channel storage resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+	// c.Info("channel storage resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+
+	case ChannelActionSendackResp: // 发送ack返回
+		c.sendacking = false
+		if a.Index > c.msgQueue.sendackingIndex {
+			c.msgQueue.sendackingIndex = a.Index
+		}
 
 	case ChannelActionDeliverResp: // 消息投递返回
 		c.delivering = false
-		if a.Index > c.msgQueue.deliveredIndex {
-			c.msgQueue.deliveredIndex = a.Index
+		if a.Index > c.msgQueue.deliveringIndex {
+			c.msgQueue.deliveringIndex = a.Index
 			c.msgQueue.truncateTo(a.Index)
+
 		}
 		// c.Info("channel deliver resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	}
@@ -91,8 +95,8 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 			return nil
 		}
 		lastMsg := a.Messages[len(a.Messages)-1]
-		if lastMsg.Index > c.msgQueue.forwardedIndex {
-			c.msgQueue.forwardedIndex = lastMsg.Index
+		if lastMsg.Index > c.msgQueue.forwardingIndex {
+			c.msgQueue.forwardingIndex = lastMsg.Index
 			c.msgQueue.truncateTo(lastMsg.Index)
 		}
 	case ChannelActionLeaderChange: // leader变更

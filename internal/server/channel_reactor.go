@@ -91,6 +91,9 @@ func (r *channelReactor) stop() {
 }
 
 func (r *channelReactor) reactorSub(key string) *channelReactorSub {
+	if key == "" {
+		r.Panic("reactorSub key is empty")
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	h := fnv.New32a()

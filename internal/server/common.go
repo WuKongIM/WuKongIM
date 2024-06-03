@@ -63,6 +63,7 @@ const (
 	ChannelActionForwardResp
 	ChannelActionLeaderChange // 领导变更
 	ChannelActionSendack      // 发送ack
+	ChannelActionSendackResp  // 发送ack返回
 	ChannelActionJoin         // 加入频道
 	ChannelActionLeave        // 离开频道
 

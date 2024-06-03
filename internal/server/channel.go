@@ -51,6 +51,7 @@ type channel struct {
 	payloadDecrypting  bool // 是否正在解密
 	permissionChecking bool // 是否正在检查权限
 	storaging          bool // 是否正在存储
+	sendacking         bool // 是否正在发送回执
 	delivering         bool // 是否正在投递
 	forwarding         bool // 是否正在转发
 }
@@ -115,8 +116,6 @@ func (c *channel) ready() ready {
 			c.payloadDecrypting = true
 			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 0)
 			if len(msgs) > 0 {
-				lastMsg := msgs[len(msgs)-1]
-				c.msgQueue.payloadDecryptingIndex = lastMsg.Index
 				c.exec(&ChannelAction{ActionType: ChannelActionPayloadDecrypt, Messages: msgs})
 			}
 		}
@@ -126,10 +125,8 @@ func (c *channel) ready() ready {
 			// 如果没有权限检查的则去检查权限
 			if c.hasPermissionUnCheck() {
 				c.permissionChecking = true
-				msgs := c.msgQueue.sliceWithSize(c.msgQueue.permissionCheckingIndex+1, c.msgQueue.payloadDecryptedIndex+1, 0)
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.permissionCheckingIndex+1, c.msgQueue.payloadDecryptingIndex+1, 0)
 				if len(msgs) > 0 {
-					lastMsg := msgs[len(msgs)-1]
-					c.msgQueue.permissionCheckingIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
 				}
 				// c.Info("permissionChecking...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
@@ -138,23 +135,28 @@ func (c *channel) ready() ready {
 			// 如果有未存储的消息，则继续存储
 			if c.hasUnstorage() {
 				c.storaging = true
-				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckedIndex+1, c.stroageMaxSize)
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckingIndex+1, c.stroageMaxSize)
 				if len(msgs) > 0 {
-					lastMsg := msgs[len(msgs)-1]
-					c.msgQueue.storagingIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
 				}
 				// c.Info("storaging...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 			}
 
+			// 如果有未发送回执的消息
+			if c.hasSendack() {
+				c.sendacking = true
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.sendackingIndex+1, c.msgQueue.storagingIndex+1, 0)
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: msgs})
+				}
+			}
+
 			// 投递消息
 			if c.hasUnDeliver() {
 				c.delivering = true
-				msgs := c.msgQueue.sliceWithSize(c.msgQueue.deliveringIndex+1, c.msgQueue.storagedIndex+1, c.deliverMaxSize)
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.deliveringIndex+1, c.msgQueue.storagingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
-					lastMsg := msgs[len(msgs)-1]
-					c.msgQueue.deliveringIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionDeliver, Messages: msgs})
 				}
 				// c.Info("delivering...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
@@ -164,10 +166,8 @@ func (c *channel) ready() ready {
 			// 转发消息
 			if c.hasUnforward() {
 				c.forwarding = true
-				msgs := c.msgQueue.sliceWithSize(c.msgQueue.forwardingIndex+1, c.msgQueue.payloadDecryptedIndex+1, c.deliverMaxSize)
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.forwardingIndex+1, c.msgQueue.payloadDecryptingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
-					lastMsg := msgs[len(msgs)-1]
-					c.msgQueue.forwardingIndex = lastMsg.Index
 					c.exec(&ChannelAction{ActionType: ChannelActionForward, LeaderId: c.leaderId, Messages: msgs})
 				}
 				// c.Info("forwarding...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
@@ -195,7 +195,7 @@ func (c *channel) hasPermissionUnCheck() bool {
 	if c.permissionChecking {
 		return false
 	}
-	return c.msgQueue.permissionCheckingIndex < c.msgQueue.payloadDecryptedIndex
+	return c.msgQueue.permissionCheckingIndex < c.msgQueue.payloadDecryptingIndex
 }
 
 // 有未存储的消息
@@ -203,7 +203,15 @@ func (c *channel) hasUnstorage() bool {
 	if c.storaging {
 		return false
 	}
-	return c.msgQueue.storagingIndex < c.msgQueue.permissionCheckedIndex
+	return c.msgQueue.storagingIndex < c.msgQueue.permissionCheckingIndex
+}
+
+// 有未发送回执的消息
+func (c *channel) hasSendack() bool {
+	if c.sendacking {
+		return false
+	}
+	return c.msgQueue.sendackingIndex < c.msgQueue.storagingIndex
 }
 
 // 有未投递的消息
@@ -211,7 +219,7 @@ func (c *channel) hasUnDeliver() bool {
 	if c.delivering {
 		return false
 	}
-	return c.msgQueue.deliveringIndex < c.msgQueue.storagedIndex
+	return c.msgQueue.deliveringIndex < c.msgQueue.storagingIndex
 }
 
 // 有未转发的消息
@@ -219,7 +227,7 @@ func (c *channel) hasUnforward() bool {
 	if c.forwarding { // 在转发中
 		return false
 	}
-	return c.msgQueue.forwardingIndex < c.msgQueue.payloadDecryptedIndex
+	return c.msgQueue.forwardingIndex < c.msgQueue.payloadDecryptingIndex
 }
 
 // 是否已初始化
@@ -274,12 +282,8 @@ func (c *channel) becomeProxy(leaderId uint64) {
 
 func (c *channel) resetIndex() {
 	c.msgQueue.forwardingIndex = 0
-	c.msgQueue.forwardedIndex = 0
-	c.msgQueue.deliveredIndex = 0
 	c.msgQueue.deliveringIndex = 0
-	c.msgQueue.storagedIndex = 0
 	c.msgQueue.storagingIndex = 0
-	c.msgQueue.permissionCheckedIndex = 0
 	c.msgQueue.permissionCheckingIndex = 0
 
 	c.permissionChecking = false
