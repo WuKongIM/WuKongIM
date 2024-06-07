@@ -273,7 +273,7 @@ func (s *MessageShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint3
 	for queryIndex > 0 {
 		lastMsg, err = s.db.LoadMsg(channelId, channelType, queryIndex)
 		if err != nil {
-			if err == wkdb.ErrMessageNotFound {
+			if err == wkdb.ErrNotFound {
 				queryIndex--
 				s.Warn("load last msg not found", zap.String("shardNo", shardNo), zap.Uint64("queryIndex", queryIndex))
 				continue

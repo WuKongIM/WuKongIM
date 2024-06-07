@@ -153,9 +153,8 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 			})
 		case ChannelActionSendack: // 发送回执
 			r.r.addSendackReq(&sendackReq{
-				ch:         ch,
-				reasonCode: action.ReasonCode,
-				messages:   action.Messages,
+				ch:       ch,
+				messages: action.Messages,
 			})
 		case ChannelActionForward: // 转发消息
 			r.r.addForwardReq(&forwardReq{

@@ -59,23 +59,15 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 	case CMDAddOrUpdateConversations: // 添加或更新会话
 		return s.handleAddOrUpdateConversations(cmd)
 	case CMDDeleteConversation: // 删除会话
-		// return s.handleDeleteConversation(cmd)
+		return s.handleDeleteConversation(cmd)
+	case CMDDeleteConversations: // 批量删除某个用户的最近会话
+		return s.handleDeleteConversations(cmd)
 	case CMDChannelClusterConfigSave: // 保存频道分布式配置
 		return s.handleChannelClusterConfigSave(cmd)
 	case CMDAppendMessagesOfUser: // 向用户队列里增加消息
 		return s.handleAppendMessagesOfUser(cmd)
-	case CMDAddOrUpdateSession: // 添加或更新session
-		return s.handleAddOrUpdateSession(cmd)
-	case CMDDeleteSessionByUid:
-		return s.wdb.DeleteSessionByUid(string(cmd.Data))
-	case CMDDeleteSession:
-		return s.handleDeleteSession(cmd)
-	case CMDDeleteSessionByChannel:
-		return s.handleDeleteSessionByChannel(cmd)
-	case CMDDeleteSessionAndConversationByChannel:
-		return s.handleDeleteSessionAndConversationByChannel(cmd)
-	case CMDUpdateSessionUpdatedAt:
-		return s.handleUpdateSessionUpdatedAt(cmd)
+	case CMDBatchUpdateConversation:
+		return s.handleBatchUpdateConversation(cmd)
 		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置
 		// return s.handleChannelClusterConfigDelete(cmd)
 
@@ -204,13 +196,21 @@ func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
 	return s.wdb.AddOrUpdateConversations(uid, conversations)
 }
 
-// func (s *Store) handleDeleteConversation(cmd *CMD) error {
-// 	uid, deleteChannelID, deleteChannelType, err := cmd.DecodeCMDDeleteConversation()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return s.wdb.DeleteConversation(uid, deleteChannelID, deleteChannelType)
-// }
+func (s *Store) handleDeleteConversation(cmd *CMD) error {
+	uid, deleteChannelID, deleteChannelType, err := cmd.DecodeCMDDeleteConversation()
+	if err != nil {
+		return err
+	}
+	return s.wdb.DeleteConversation(uid, deleteChannelID, deleteChannelType)
+}
+
+func (s *Store) handleDeleteConversations(cmd *CMD) error {
+	uid, channels, err := cmd.DecodeCMDDeleteConversations()
+	if err != nil {
+		return err
+	}
+	return s.wdb.DeleteConversations(uid, channels)
+}
 
 func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 	_, _, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
@@ -246,46 +246,31 @@ func (s *Store) handleAppendMessagesOfUser(cmd *CMD) error {
 	return s.wdb.AppendMessagesOfUserQueue(uid, messages)
 }
 
-func (s *Store) handleAddOrUpdateSession(cmd *CMD) error {
-
-	var session wkdb.Session
-	err := session.Unmarshal(cmd.Data)
+func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
+	models, err := cmd.DecodeCMDBatchUpdateConversation()
 	if err != nil {
 		return err
 	}
-	fmt.Println("session--->", session.Id, session.ChannelId, session.ChannelType)
-	_, err = s.wdb.AddOrUpdateSession(session)
-	return err
-}
+	for _, model := range models {
+		var conversationType = wkdb.ConversationTypeChat
+		if s.opts.IsCmdChannel(model.ChannelId) {
+			conversationType = wkdb.ConversationTypeCMD
+		}
+		for uid, seq := range model.Uids {
+			conversation := wkdb.Conversation{
+				Uid:            uid,
+				Type:           conversationType,
+				ChannelId:      model.ChannelId,
+				ChannelType:    model.ChannelType,
+				ReadedToMsgSeq: seq,
+			}
+			fmt.Println("model.ChannelType----->", model.ChannelType)
+			err = s.wdb.AddOrUpdateConversations(uid, []wkdb.Conversation{conversation})
+			if err != nil {
+				return err
+			}
+		}
 
-func (s *Store) handleDeleteSession(cmd *CMD) error {
-	uid, sessionId, err := cmd.DecodeCMDDeleteSession()
-	if err != nil {
-		return err
 	}
-	return s.wdb.DeleteSession(uid, sessionId)
-}
-
-func (s *Store) handleDeleteSessionByChannel(cmd *CMD) error {
-	uid, channelId, channelType, err := cmd.DecodeCMDDeleteSessionByChannel()
-	if err != nil {
-		return err
-	}
-	return s.wdb.DeleteSessionByChannel(uid, channelId, channelType)
-}
-
-func (s *Store) handleDeleteSessionAndConversationByChannel(cmd *CMD) error {
-	uid, channelId, channelType, err := cmd.DecodeCMDDeleteSessionByChannel()
-	if err != nil {
-		return err
-	}
-	return s.wdb.DeleteSessionAndConversationByChannel(uid, channelId, channelType)
-}
-
-func (s *Store) handleUpdateSessionUpdatedAt(cmd *CMD) error {
-	models, err := cmd.DecodeCMDUpdateSessionUpdatedAt()
-	if err != nil {
-		return err
-	}
-	return s.wdb.UpdateSessionUpdatedAt(models)
+	return nil
 }

@@ -237,7 +237,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 					continue
 				}
 
-				// d.Info("deliver message to user", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Int64("connId", conn.connId), zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId))
+				d.Info("deliver message to user", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Int64("connId", conn.connId), zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId))
 
 				sendPacket := message.SendPacket
 

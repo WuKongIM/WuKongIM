@@ -172,7 +172,7 @@ func (c *ChannelInfo) Unmarshal(data []byte) error {
 var EmptyConversation = Conversation{}
 
 func IsEmptyConversation(c Conversation) bool {
-	return c.SessionId == 0
+	return c.ChannelId == ""
 }
 
 var EmptySession = Session{}
@@ -181,8 +181,20 @@ func IsEmptySession(s Session) bool {
 	return s.ChannelId == ""
 }
 
+// 会话类型
+type SessionType uint8
+
+const (
+	// SessionTypeChat 聊天
+	SessionTypeChat SessionType = iota
+
+	// SessionTypeCMD 指令
+	SessionTypeCMD
+)
+
 type Session struct {
 	Id          uint64
+	SessionType SessionType
 	Uid         string
 	ChannelId   string
 	ChannelType uint8
@@ -194,6 +206,7 @@ func (s *Session) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint64(s.Id)
+	enc.WriteUint8(uint8(s.SessionType))
 	enc.WriteString(s.Uid)
 	enc.WriteString(s.ChannelId)
 	enc.WriteUint8(s.ChannelType)
@@ -208,6 +221,13 @@ func (s *Session) Unmarshal(data []byte) error {
 	if s.Id, err = dec.Uint64(); err != nil {
 		return err
 	}
+
+	var sessionType uint8
+	if sessionType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	s.SessionType = SessionType(sessionType)
+
 	if s.Uid, err = dec.String(); err != nil {
 		return err
 	}
@@ -231,13 +251,28 @@ func (s *Session) Unmarshal(data []byte) error {
 
 }
 
+type ConversationType uint8
+
+const (
+	// ConversationTypeChat 聊天
+	ConversationTypeChat ConversationType = iota
+
+	// ConversationTypeCMD 指令
+	ConversationTypeCMD
+)
+
 // Conversation Conversation
 type Conversation struct {
 	Id             uint64
-	Uid            string // 用户uid
-	SessionId      uint64 // session id
-	UnreadCount    uint32 // 未读消息数量（这个可以用户自己设置）
-	ReadedToMsgSeq uint64 // 已经读至的消息序号
+	Uid            string           // 用户uid
+	Type           ConversationType // 会话类型
+	ChannelId      string           // 频道id
+	ChannelType    uint8            // 频道类型
+	UnreadCount    uint32           // 未读消息数量（这个可以用户自己设置）
+	ReadedToMsgSeq uint64           // 已经读至的消息序号
+
+	CreatedAt time.Time // 创建时间
+	UpdatedAt time.Time // 更新时间
 }
 
 func (c *Conversation) Marshal() ([]byte, error) {
@@ -245,9 +280,12 @@ func (c *Conversation) Marshal() ([]byte, error) {
 	defer enc.End()
 	enc.WriteUint64(c.Id)
 	enc.WriteString(c.Uid)
-	enc.WriteUint64(c.SessionId)
+	enc.WriteUint8(uint8(c.Type))
+	enc.WriteString(c.ChannelId)
+	enc.WriteUint8(c.ChannelType)
 	enc.WriteUint32(c.UnreadCount)
 	enc.WriteUint64(c.ReadedToMsgSeq)
+
 	return enc.Bytes(), nil
 }
 
@@ -262,15 +300,27 @@ func (c *Conversation) Unmarshal(data []byte) error {
 		return err
 	}
 
-	if c.SessionId, err = dec.Uint64(); err != nil {
+	var t uint8
+	if t, err = dec.Uint8(); err != nil {
 		return err
 	}
+	c.Type = ConversationType(t)
+
+	if c.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+
+	if c.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+
 	if c.UnreadCount, err = dec.Uint32(); err != nil {
 		return err
 	}
 	if c.ReadedToMsgSeq, err = dec.Uint64(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -452,13 +502,14 @@ func (c *ChannelClusterConfig) String() string {
 		c.ChannelId, c.ChannelType, c.ReplicaMaxCount, c.Replicas, c.LeaderId, c.Term)
 }
 
-type UpdateSessionUpdatedAtModel struct {
+// 批量更新会话
+type BatchUpdateConversationModel struct {
 	Uids        map[string]uint64 // 用户uid和对应的已读消息的messageSeq
 	ChannelId   string
 	ChannelType uint8
 }
 
-func (u *UpdateSessionUpdatedAtModel) Marshal() ([]byte, error) {
+func (u *BatchUpdateConversationModel) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint16(uint16(len(u.Uids)))
@@ -471,7 +522,7 @@ func (u *UpdateSessionUpdatedAtModel) Marshal() ([]byte, error) {
 	return enc.Bytes(), nil
 }
 
-func (u *UpdateSessionUpdatedAtModel) Unmarshal(data []byte) error {
+func (u *BatchUpdateConversationModel) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
 	var size uint16
@@ -498,7 +549,7 @@ func (u *UpdateSessionUpdatedAtModel) Unmarshal(data []byte) error {
 	return nil
 }
 
-func (u *UpdateSessionUpdatedAtModel) Size() int {
+func (u *BatchUpdateConversationModel) Size() int {
 	size := 2 // uid len
 	for uid, _ := range u.Uids {
 		size = size + 2 + len(uid) + 8 // string len + uid + messageSeq
@@ -536,4 +587,9 @@ func channelFromKey(key string) (channelId string, channelType uint8) {
 	channelTypeI64, _ := strconv.ParseUint(key[idx+1:], 10, 8)
 	channelType = uint8(channelTypeI64)
 	return
+}
+
+type Channel struct {
+	ChannelId   string
+	ChannelType uint8
 }

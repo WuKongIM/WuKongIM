@@ -283,8 +283,8 @@ type ChannelAction struct {
 type MessageResp struct {
 	Header       MessageHeader      `json:"header"`                // 消息头
 	Setting      uint8              `json:"setting"`               // 设置
-	MessageID    int64              `json:"message_id"`            // 服务端的消息ID(全局唯一)
-	MessageIDStr string             `json:"message_idstr"`         // 服务端的消息ID(全局唯一)
+	MessageId    int64              `json:"message_id"`            // 服务端的消息ID(全局唯一)
+	MessageIdStr string             `json:"message_idstr"`         // 服务端的消息ID(全局唯一)
 	ClientMsgNo  string             `json:"client_msg_no"`         // 客户端消息唯一编号
 	StreamNo     string             `json:"stream_no,omitempty"`   // 流编号
 	StreamSeq    uint32             `json:"stream_seq,omitempty"`  // 流序号
@@ -305,8 +305,8 @@ func (m *MessageResp) from(messageD wkdb.Message) {
 	m.Header.RedDot = wkutil.BoolToInt(messageD.RedDot)
 	m.Header.SyncOnce = wkutil.BoolToInt(messageD.SyncOnce)
 	m.Setting = messageD.Setting.Uint8()
-	m.MessageID = messageD.MessageID
-	m.MessageIDStr = strconv.FormatInt(messageD.MessageID, 10)
+	m.MessageId = messageD.MessageID
+	m.MessageIdStr = strconv.FormatInt(messageD.MessageID, 10)
 	m.ClientMsgNo = messageD.ClientMsgNo
 	m.StreamNo = messageD.StreamNo
 	m.StreamSeq = messageD.StreamSeq
@@ -548,11 +548,11 @@ type syncUserConversationResp struct {
 	Recents         []*MessageResp `json:"recents"`            // 最近N条消息
 }
 
-func newSyncUserConversationResp(conversation wkdb.Conversation, session wkdb.Session) *syncUserConversationResp {
-	realChannelId := session.ChannelId
-	if session.ChannelType == wkproto.ChannelTypePerson {
-		from, to := GetFromUIDAndToUIDWith(session.ChannelId)
-		if from == session.Uid {
+func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConversationResp {
+	realChannelId := conversation.ChannelId
+	if conversation.ChannelType == wkproto.ChannelTypePerson {
+		from, to := GetFromUIDAndToUIDWith(conversation.ChannelId)
+		if from == conversation.Uid {
 			realChannelId = to
 		} else {
 			realChannelId = from
@@ -560,21 +560,21 @@ func newSyncUserConversationResp(conversation wkdb.Conversation, session wkdb.Se
 	}
 	return &syncUserConversationResp{
 		ChannelID:      realChannelId,
-		ChannelType:    session.ChannelType,
+		ChannelType:    conversation.ChannelType,
 		Unread:         int(conversation.UnreadCount),
-		Version:        session.UpdatedAt.UnixNano(),
+		Version:        conversation.UpdatedAt.UnixMilli(),
 		ReadedToMsgSeq: uint32(conversation.ReadedToMsgSeq),
 	}
 }
 
 type channelRecentMessageReq struct {
-	ChannelID   string `json:"channel_id"`
+	ChannelId   string `json:"channel_id"`
 	ChannelType uint8  `json:"channel_type"`
 	LastMsgSeq  uint64 `json:"last_msg_seq"`
 }
 
 type channelRecentMessage struct {
-	ChannelID   string         `json:"channel_id"`
+	ChannelId   string         `json:"channel_id"`
 	ChannelType uint8          `json:"channel_type"`
 	Messages    []*MessageResp `json:"messages"`
 }
@@ -755,4 +755,25 @@ func (c ChannelInfoReq) ToChannelInfo() wkdb.ChannelInfo {
 		Ban:         c.Ban == 1,
 		Disband:     c.Disband == 1,
 	}
+}
+
+// MessageSendReq 消息发送请求
+type MessageSendReq struct {
+	Header      MessageHeader `json:"header"`        // 消息头
+	ClientMsgNo string        `json:"client_msg_no"` // 客户端消息编号（相同编号，客户端只会显示一条）
+	StreamNo    string        `json:"stream_no"`     // 消息流编号
+	FromUID     string        `json:"from_uid"`      // 发送者UID
+	ChannelID   string        `json:"channel_id"`    // 频道ID
+	ChannelType uint8         `json:"channel_type"`  // 频道类型
+	Expire      uint32        `json:"expire"`        // 消息过期时间
+	Subscribers []string      `json:"subscribers"`   // 订阅者 如果此字段有值，表示消息只发给指定的订阅者
+	Payload     []byte        `json:"payload"`       // 消息内容
+}
+
+// Check 检查输入
+func (m MessageSendReq) Check() error {
+	if m.Payload == nil || len(m.Payload) <= 0 {
+		return errors.New("payload不能为空！")
+	}
+	return nil
 }

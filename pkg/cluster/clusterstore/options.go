@@ -11,6 +11,8 @@ type Options struct {
 	SlotCount uint32           // 槽数量
 
 	GetSlotId func(uid string) uint32
+
+	IsCmdChannel func(string) bool // 是否是cmd频道
 }
 
 func NewOptions(nodeID uint64, opts ...Option) *Options {
@@ -45,5 +47,11 @@ func WithDataDir(dir string) Option {
 func WithSlotCount(count uint32) Option {
 	return func(o *Options) {
 		o.SlotCount = count
+	}
+}
+
+func WithIsCmdChannel(f func(string) bool) Option {
+	return func(o *Options) {
+		o.IsCmdChannel = f
 	}
 }

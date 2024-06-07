@@ -83,10 +83,10 @@ type Options struct {
 		APIUrl      string // 对外访问的API基地址 格式: http://ip:port
 	}
 	Channel struct { // 频道配置
-		CacheCount                int  // 频道缓存数量
-		CreateIfNoExist           bool // 如果频道不存在是否创建
-		SubscriberCompressOfCount int  // 订订阅者数组多大开始压缩（离线推送的时候订阅者数组太大 可以设置此参数进行压缩 默认为0 表示不压缩 ）
-
+		CacheCount                int    // 频道缓存数量
+		CreateIfNoExist           bool   // 如果频道不存在是否创建
+		SubscriberCompressOfCount int    // 订订阅者数组多大开始压缩（离线推送的时候订阅者数组太大 可以设置此参数进行压缩 默认为0 表示不压缩 ）
+		CmdSuffix                 string // cmd频道后缀
 	}
 	TmpChannel struct { // 临时频道配置
 		Suffix     string // 临时频道的后缀
@@ -115,6 +115,7 @@ type Options struct {
 	}
 	ManagerToken   string // 管理者的token
 	ManagerUID     string // 管理者的uid
+	SystemUID      string // 系统账号的uid，主要用来发消息
 	ManagerTokenOn bool   // 管理者的token是否开启
 
 	Proto wkproto.Protocol // 悟空IM protocol
@@ -208,6 +209,7 @@ func NewOptions() *Options {
 		GinMode:              gin.ReleaseMode,
 		RootDir:              path.Join(homeDir, "wukongim"),
 		ManagerUID:           "____manager",
+		SystemUID:            "____system",
 		WhitelistOffOfPerson: true,
 		DeadlockCheck:        false,
 		Logger: struct {
@@ -236,10 +238,12 @@ func NewOptions() *Options {
 			CacheCount                int
 			CreateIfNoExist           bool
 			SubscriberCompressOfCount int
+			CmdSuffix                 string
 		}{
 			CacheCount:                1000,
 			CreateIfNoExist:           true,
 			SubscriberCompressOfCount: 0,
+			CmdSuffix:                 "____cmd",
 		},
 		Datasource: struct {
 			Addr          string
@@ -730,8 +734,30 @@ func (o *Options) GetCustomerServiceVisitorUID(channelID string) (string, bool) 
 }
 
 // IsFakeChannel 是fake频道
-func (o *Options) IsFakeChannel(channelID string) bool {
-	return strings.Contains(channelID, "@")
+func (o *Options) IsFakeChannel(channelId string) bool {
+	return strings.Contains(channelId, "@")
+}
+
+// IsCmdChannel 是否是命令频道
+func (o *Options) IsCmdChannel(channelId string) bool {
+	return strings.HasSuffix(channelId, o.Channel.CmdSuffix)
+}
+
+// OrginalConvertCmdChannel 将原频道转换为cmd频道
+func (o *Options) OrginalConvertCmdChannel(channelId string) string {
+	if strings.HasSuffix(channelId, o.Channel.CmdSuffix) {
+		return channelId
+	}
+	return channelId + o.Channel.CmdSuffix
+}
+
+// CmdChannelConvertOrginalChannel 将cmd频道转换为原频道
+func (o *Options) CmdChannelConvertOrginalChannel(channelId string) string {
+	if strings.HasSuffix(channelId, o.Channel.CmdSuffix) {
+		return channelId[:len(channelId)-len(o.Channel.CmdSuffix)]
+	}
+	return channelId
+
 }
 
 // 获取内网地址

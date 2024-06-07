@@ -129,6 +129,9 @@ func (wk *wukongDB) shardDB(v string) *pebble.DB {
 }
 
 func (wk *wukongDB) shardId(v string) uint32 {
+	if v == "" {
+		wk.Panic("shardId key is empty")
+	}
 	if wk.opts.ShardNum == 1 {
 		return 0
 	}

@@ -1258,34 +1258,41 @@ type deviceRespTotal struct {
 }
 
 type conversationResp struct {
-	Id                uint64 `json:"id"`                  // 主键
-	Uid               string `json:"uid"`                 // 用户唯一uid
-	ChannelId         string `json:"channel_id"`          // 频道ID
-	ChannelType       uint8  `json:"channel_type"`        // 频道类型
-	ChannelTypeFormat string `json:"channel_type_format"` // 频道类型格式化
-	UnreadCount       uint32 `json:"unread_count"`        // 未读消息数量（这个可以用户自己设置）
-	LastMsgSeq        uint64 `json:"last_msg_seq"`        // 最新消息序号
-	ReadedToMsgSeq    uint64 `json:"readed_to_msg_seq"`   // 已经读至的消息序号
-	CreatedAt         int64  `json:"created_at"`          // 创建时间
-	UpdatedAt         int64  `json:"updated_at"`          // 更新时间
-	CreatedAtFormat   string `json:"created_at_format"`   // 创建时间格式化
-	UpdatedAtFormat   string `json:"updated_at_format"`   // 更新时间格式化
+	Id                uint64                `json:"id"`                  // 主键
+	Uid               string                `json:"uid"`                 // 用户唯一uid
+	Type              wkdb.ConversationType `json:"type"`                // 会话类型
+	TypeFormat        string                `json:"type_format"`         // 会话类型格式化
+	ChannelId         string                `json:"channel_id"`          // 频道ID
+	ChannelType       uint8                 `json:"channel_type"`        // 频道类型
+	ChannelTypeFormat string                `json:"channel_type_format"` // 频道类型格式化
+	UnreadCount       uint32                `json:"unread_count"`        // 未读消息数量（这个可以用户自己设置）
+	LastMsgSeq        uint64                `json:"last_msg_seq"`        // 最新消息序号
+	ReadedToMsgSeq    uint64                `json:"readed_to_msg_seq"`   // 已经读至的消息序号
+	CreatedAt         int64                 `json:"created_at"`          // 创建时间
+	UpdatedAt         int64                 `json:"updated_at"`          // 更新时间
+	CreatedAtFormat   string                `json:"created_at_format"`   // 创建时间格式化
+	UpdatedAtFormat   string                `json:"updated_at_format"`   // 更新时间格式化
 }
 
-func newConversationResp(c wkdb.Conversation, session wkdb.Session) *conversationResp {
-
+func newConversationResp(c wkdb.Conversation) *conversationResp {
+	typeFormat := "聊天"
+	if c.Type == wkdb.ConversationTypeCMD {
+		typeFormat = "命令"
+	}
 	return &conversationResp{
 		Id:                c.Id,
-		Uid:               session.Uid,
-		ChannelId:         session.ChannelId,
-		ChannelType:       session.ChannelType,
-		ChannelTypeFormat: formatChannelType(session.ChannelType),
+		Uid:               c.Uid,
+		ChannelId:         c.ChannelId,
+		ChannelType:       c.ChannelType,
+		Type:              c.Type,
+		TypeFormat:        typeFormat,
+		ChannelTypeFormat: formatChannelType(c.ChannelType),
 		UnreadCount:       c.UnreadCount,
 		ReadedToMsgSeq:    c.ReadedToMsgSeq,
-		CreatedAt:         session.CreatedAt.Unix(),
-		UpdatedAt:         session.UpdatedAt.Unix(),
-		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(session.CreatedAt),
-		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(session.UpdatedAt),
+		CreatedAt:         c.CreatedAt.Unix(),
+		UpdatedAt:         c.UpdatedAt.Unix(),
+		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(c.CreatedAt),
+		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(c.UpdatedAt),
 	}
 }
 
