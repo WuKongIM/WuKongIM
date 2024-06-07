@@ -34,7 +34,7 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 	}
 
 	if id == 0 {
-		return EmptyDevice, ErrDeviceNotExist
+		return EmptyDevice, ErrNotFound
 	}
 
 	db := wk.shardDB(uid)
@@ -57,7 +57,7 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 	}
 
 	if device == EmptyDevice {
-		return EmptyDevice, ErrDeviceNotExist
+		return EmptyDevice, ErrNotFound
 	}
 	return device, nil
 }
@@ -249,7 +249,7 @@ func (wk *wukongDB) getDeviceById(id uint64, db *pebble.DB) (Device, error) {
 	}
 
 	if device == EmptyDevice {
-		return EmptyDevice, ErrDeviceNotExist
+		return EmptyDevice, ErrNotFound
 	}
 	return device, nil
 }

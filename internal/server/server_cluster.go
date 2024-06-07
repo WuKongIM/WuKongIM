@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -429,7 +428,6 @@ func (s *Server) handleNodePong(fromNodeId uint64, msg *proto.Message) {
 			continue
 		}
 		exist := false
-		fmt.Println("userConns.connIds---->", userConns.connIds)
 		for _, connId := range userConns.connIds {
 			if currentConn.realNodeId == fromNodeId && currentConn.proxyConnId == connId {
 				exist = true

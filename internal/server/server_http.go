@@ -91,8 +91,8 @@ func (s *APIServer) setRoutes() {
 	conversation.Route(s.r)
 
 	// // 消息相关API
-	// message := NewMessageAPI(s.s)
-	// message.Route(s.r)
+	message := NewMessageAPI(s.s)
+	message.Route(s.r)
 
 	// 路由api
 	routeapi := NewRouteAPI(s.s)

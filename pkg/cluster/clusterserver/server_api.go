@@ -1059,7 +1059,7 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 		limit = s.opts.PageSize
 	}
 
-	sessions, err := s.opts.DB.SearchSession(wkdb.SessionSearchReq{
+	conversations, err := s.opts.DB.SearchConversation(wkdb.ConversationSearchReq{
 		Uid:         uid,
 		Limit:       limit,
 		CurrentPage: currentPage,
@@ -1070,27 +1070,21 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 		return
 	}
 
-	conversationResps := make([]*conversationResp, 0, len(sessions))
+	conversationResps := make([]*conversationResp, 0, len(conversations))
 
-	for _, session := range sessions {
-		conversation, err := s.opts.DB.GetConversation(session.Uid, session.Id)
-		if err != nil && err != wkdb.ErrConversationNotExist {
-			s.Error("GetConversation error", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-		lastMsgSeq, _, err := s.opts.DB.GetChannelLastMessageSeq(session.ChannelId, session.ChannelType)
+	for _, conversation := range conversations {
+		lastMsgSeq, _, err := s.opts.DB.GetChannelLastMessageSeq(conversation.ChannelId, conversation.ChannelType)
 		if err != nil {
 			s.Error("GetChannelLastMessageSeq error", zap.Error(err))
 			c.ResponseError(err)
 			return
 		}
-		resp := newConversationResp(conversation, session)
+		resp := newConversationResp(conversation)
 		resp.LastMsgSeq = lastMsgSeq
 		conversationResps = append(conversationResps, resp)
 	}
 
-	count, err := s.opts.DB.GetTotalConversationCount()
+	count, err := s.opts.DB.GetTotalSessionCount()
 	if err != nil {
 		s.Error("GetTotalConversationCount error", zap.Error(err))
 		c.ResponseError(err)

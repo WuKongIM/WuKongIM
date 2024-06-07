@@ -99,6 +99,7 @@ func New(opts *Options) *Server {
 	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
 	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
 	storeOpts.GetSlotId = s.getSlotId
+	storeOpts.IsCmdChannel = opts.IsCmdChannel
 	s.store = clusterstore.NewStore(storeOpts)
 	s.tagManager = newTagManager(s)
 

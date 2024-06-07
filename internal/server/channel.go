@@ -240,7 +240,7 @@ func (c *channel) tick() {
 
 }
 
-func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) error {
+func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
 
 	messageId := c.r.messageIDGen.Generate().Int64() // 生成唯一消息ID
 	message := ReactorChannelMessage{
@@ -258,9 +258,9 @@ func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId in
 		Messages:   []ReactorChannelMessage{message},
 	})
 	if err != nil {
-		return err
+		return messageId, err
 	}
-	return nil
+	return messageId, nil
 }
 
 func (c *channel) becomeLeader() {
@@ -320,7 +320,20 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 	var err error
 	if c.channelType == wkproto.ChannelTypePerson {
 		if c.r.s.opts.IsFakeChannel(c.channelId) { // fake个人频道
-			subscribers = strings.Split(c.channelId, "@")
+
+			if c.r.s.opts.IsCmdChannel(c.channelId) {
+				orginChannelId := c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
+				personSubscribers := strings.Split(orginChannelId, "@")
+				for _, personSubscriber := range personSubscribers {
+					if personSubscriber == c.r.opts.SystemUID { // 系统账号忽略
+						continue
+					}
+					subscribers = append(subscribers, personSubscriber)
+				}
+			} else {
+				subscribers = strings.Split(c.channelId, "@")
+			}
+
 		}
 	} else {
 		subscribers, err = c.r.s.store.GetSubscribers(c.channelId, c.channelType)

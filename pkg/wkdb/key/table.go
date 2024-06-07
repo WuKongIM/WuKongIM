@@ -11,7 +11,7 @@ var (
 	dataTypeTable       byte = 0x01 // 表
 	dataTypeIndex       byte = 0x02 // 唯一索引 key结构一般是：  (tableId + dataType + indexName + columnHash) 值一般为primaryKey
 	dataTypeSecondIndex byte = 0x03 // 非唯一二级索引 key结构一般是： (tableId + dataType + uid hash + secondIndexName + columnValue + primaryKey) 值一般为空
-	dataTypeOther       byte = 0x03 // 其他
+	dataTypeOther       byte = 0x04 // 其他
 )
 
 // ======================== Message ========================
@@ -406,12 +406,21 @@ var TableConversation = struct {
 	SecondIndexSize int
 	Column          struct {
 		Uid            [2]byte
-		SessionId      [2]byte
+		ChannelId      [2]byte
+		ChannelType    [2]byte
+		Type           [2]byte
 		UnreadCount    [2]byte
 		ReadedToMsgSeq [2]byte
+		CreatedAt      [2]byte
+		UpdatedAt      [2]byte
 	}
 	Index struct {
-		SessionId [2]byte
+		Channel [2]byte
+	}
+	SecondIndex struct {
+		Type      [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}
 }{
 	Id:              [2]byte{0x09, 0x01},
@@ -420,19 +429,36 @@ var TableConversation = struct {
 	SecondIndexSize: 2 + 2 + 8 + 2 + 8 + 8, // tableId + dataType + uid hash  + secondIndexName + columnValue + primaryKey
 	Column: struct {
 		Uid            [2]byte
-		SessionId      [2]byte
+		ChannelId      [2]byte
+		ChannelType    [2]byte
+		Type           [2]byte
 		UnreadCount    [2]byte
 		ReadedToMsgSeq [2]byte
+		CreatedAt      [2]byte
+		UpdatedAt      [2]byte
 	}{
 		Uid:            [2]byte{0x09, 0x01},
-		SessionId:      [2]byte{0x09, 0x02},
-		UnreadCount:    [2]byte{0x09, 0x03},
-		ReadedToMsgSeq: [2]byte{0x09, 0x04},
+		ChannelId:      [2]byte{0x09, 0x02},
+		ChannelType:    [2]byte{0x09, 0x03},
+		Type:           [2]byte{0x09, 0x04},
+		UnreadCount:    [2]byte{0x09, 0x05},
+		ReadedToMsgSeq: [2]byte{0x09, 0x06},
+		CreatedAt:      [2]byte{0x09, 0x07},
+		UpdatedAt:      [2]byte{0x09, 0x08},
 	},
 	Index: struct {
-		SessionId [2]byte
+		Channel [2]byte
 	}{
-		SessionId: [2]byte{0x09, 0x01},
+		Channel: [2]byte{0x09, 0x01},
+	},
+	SecondIndex: struct {
+		Type      [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		Type:      [2]byte{0x09, 0x01},
+		CreatedAt: [2]byte{0x09, 0x02},
+		UpdatedAt: [2]byte{0x09, 0x03},
 	},
 }
 
@@ -544,6 +570,7 @@ var TableSession = struct {
 	IndexSize       int
 	SecondIndexSize int
 	Column          struct {
+		SessionType [2]byte
 		Uid         [2]byte
 		ChannelId   [2]byte
 		ChannelType [2]byte
@@ -554,8 +581,9 @@ var TableSession = struct {
 		Channel [2]byte
 	}
 	SecondIndex struct {
-		CreatedAt [2]byte
-		UpdatedAt [2]byte
+		SessionType [2]byte
+		CreatedAt   [2]byte
+		UpdatedAt   [2]byte
 	}
 }{
 	Id:              [2]byte{0x0E, 0x01},
@@ -563,17 +591,19 @@ var TableSession = struct {
 	IndexSize:       2 + 2 + 8 + 2 + 8,     // tableId + dataType + uid hash + indexName + columnHash
 	SecondIndexSize: 2 + 2 + 8 + 2 + 8 + 8, // tableId + dataType + uid hash + secondIndexName + columnValue + primaryKey
 	Column: struct {
+		SessionType [2]byte
 		Uid         [2]byte
 		ChannelId   [2]byte
 		ChannelType [2]byte
 		CreatedAt   [2]byte
 		UpdatedAt   [2]byte
 	}{
-		Uid:         [2]byte{0x0E, 0x01},
-		ChannelId:   [2]byte{0x0E, 0x02},
-		ChannelType: [2]byte{0x0E, 0x03},
-		CreatedAt:   [2]byte{0x0E, 0x04},
-		UpdatedAt:   [2]byte{0x0E, 0x05},
+		SessionType: [2]byte{0x0E, 0x01},
+		Uid:         [2]byte{0x0E, 0x02},
+		ChannelId:   [2]byte{0x0E, 0x03},
+		ChannelType: [2]byte{0x0E, 0x04},
+		CreatedAt:   [2]byte{0x0E, 0x05},
+		UpdatedAt:   [2]byte{0x0E, 0x06},
 	},
 	Index: struct {
 		Channel [2]byte
@@ -581,11 +611,13 @@ var TableSession = struct {
 		Channel: [2]byte{0x0E, 0x01},
 	},
 	SecondIndex: struct {
-		CreatedAt [2]byte
-		UpdatedAt [2]byte
+		SessionType [2]byte
+		CreatedAt   [2]byte
+		UpdatedAt   [2]byte
 	}{
-		CreatedAt: [2]byte{0x0E, 0x04},
-		UpdatedAt: [2]byte{0x0E, 0x05},
+		SessionType: [2]byte{0x0E, 0x01},
+		CreatedAt:   [2]byte{0x0E, 0x02},
+		UpdatedAt:   [2]byte{0x0E, 0x03},
 	},
 }
 

@@ -181,11 +181,11 @@ func (wk *wukongDB) GetMessage(messageId uint64) (Message, error) {
 			return EmptyMessage, err
 		}
 		if IsEmptyMessage(msg) {
-			return EmptyMessage, ErrMessageNotFound
+			return EmptyMessage, ErrNotFound
 		}
 		return msg, nil
 	}
-	return EmptyMessage, ErrMessageNotFound
+	return EmptyMessage, ErrNotFound
 }
 
 // 情况1: startMessageSeq=100, endMessageSeq=0, limit=10 返回的消息seq为91-100的消息 (limit生效)
@@ -308,7 +308,7 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 		return EmptyMessage, err
 	}
 	if IsEmptyMessage(msg) {
-		return EmptyMessage, ErrMessageNotFound
+		return EmptyMessage, ErrNotFound
 	}
 	return msg, nil
 
@@ -543,7 +543,7 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 	if req.MessageId > 0 { // 如果指定了messageId，则直接查询messageId，这种情况要么没有要么只有一条
 		msg, err := wk.GetMessage(uint64(req.MessageId))
 		if err != nil {
-			if err == ErrMessageNotFound {
+			if err == ErrNotFound {
 				return nil, nil
 			}
 			return nil, err

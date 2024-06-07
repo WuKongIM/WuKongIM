@@ -16,7 +16,7 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 	}
 
 	if id == 0 {
-		return EmptyUser, ErrUserNotExist
+		return EmptyUser, ErrNotFound
 	}
 
 	db := wk.shardDB(uid)
@@ -39,7 +39,7 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 		return EmptyUser, err
 	}
 	if usr == EmptyUser {
-		return EmptyUser, ErrUserNotExist
+		return EmptyUser, ErrNotFound
 	}
 	return usr, nil
 }

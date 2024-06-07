@@ -168,7 +168,7 @@ func (c *ConversationManager) proposeSave() {
 	keys := c.cache.Keys()
 	// var err error
 
-	slotSessionMap := make(map[uint32][]*wkdb.UpdateSessionUpdatedAtModel)
+	slotSessionMap := make(map[uint32][]*wkdb.BatchUpdateConversationModel) // 按照slotId来分组
 	var byteSize uint64
 	for _, key := range keys {
 		if c.s.opts.Conversation.BytesPerSave > 0 && byteSize > c.s.opts.Conversation.BytesPerSave { // 超过保存的字节数，就退出
@@ -192,7 +192,7 @@ func (c *ConversationManager) proposeSave() {
 
 		slotSubscribersMap := c.subscribersSplitBySlotId(subscribers) // 按照slotId来分组subscribers
 		for slotId, slotSubscribers := range slotSubscribersMap {
-			model := &wkdb.UpdateSessionUpdatedAtModel{
+			model := &wkdb.BatchUpdateConversationModel{
 				Uids:        slotSubscribers,
 				ChannelId:   channelId,
 				ChannelType: channelType,
@@ -213,9 +213,9 @@ func (c *ConversationManager) proposeSave() {
 		if running > c.s.opts.Conversation.SavePoolSize+10 {
 			c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
 		}
-		err = c.savePool.Submit(func(stid uint32, ms []*wkdb.UpdateSessionUpdatedAtModel) func() {
+		err = c.savePool.Submit(func(stid uint32, ms []*wkdb.BatchUpdateConversationModel) func() {
 			return func() {
-				err := c.s.store.UpdateSessionUpdatedAt(stid, ms)
+				err := c.s.store.BatchUpdateConversation(stid, ms)
 				if err != nil {
 					c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
 					// 如果失败 则重新加入队列里
@@ -233,26 +233,40 @@ func (c *ConversationManager) proposeSave() {
 }
 
 // 从换成中获取用户的会话channel
-func (c *ConversationManager) GetUserConversationFromCache(uid string) []conversationCacheInfo {
+func (c *ConversationManager) GetUserConversationFromCache(uid string, conversationType wkdb.ConversationType) []wkdb.Conversation {
 	keys := c.cache.Keys()
 
-	var conversations []conversationCacheInfo
+	var conversations []wkdb.Conversation
 	for _, key := range keys {
 		channelId, channelType := c.channelFromKey(key)
+		if c.s.opts.IsCmdChannel(channelId) && conversationType == wkdb.ConversationTypeChat {
+			continue
+		}
 		subscribers, _ := c.cache.Get(key)
 		if subscribers != nil {
 			seq, exist := subscribers.exist(uid)
 			if exist {
-				channel := conversationCacheInfo{
-					channelId:    channelId,
-					channelType:  channelType,
-					readedMsgSeq: seq,
+				conversation := wkdb.Conversation{
+					Uid:            uid,
+					ChannelId:      channelId,
+					ChannelType:    channelType,
+					ReadedToMsgSeq: seq,
+					Type:           conversationType,
 				}
-				conversations = append(conversations, channel)
+				conversations = append(conversations, conversation)
 			}
 		}
 	}
 	return conversations
+}
+
+func (c *ConversationManager) DeleteUserConversationFromCache(uid string, channelId string, channelType uint8) {
+	channelKey := c.getChannelKey(channelId, channelType)
+	subs, ok := c.cache.Get(channelKey)
+	if !ok {
+		return
+	}
+	subs.remove(uid)
 }
 
 // 按slotId来分组subscribers

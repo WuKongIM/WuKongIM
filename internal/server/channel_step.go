@@ -11,7 +11,6 @@ func (c *channel) step(a *ChannelAction) error {
 			} else {
 				c.becomeProxy(a.LeaderId)
 			}
-
 		} else {
 			c.status = channelStatusUninitialized
 		}
@@ -59,7 +58,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 
 	case ChannelActionStorageResp: // 存储完成
 		c.storaging = false
-		if a.Index > c.msgQueue.storagingIndex {
+		if a.Index > c.msgQueue.storagingIndex && a.Reason == ReasonSuccess {
 			c.msgQueue.storagingIndex = a.Index
 		}
 	// 消息存储完毕后，需要通知发送者

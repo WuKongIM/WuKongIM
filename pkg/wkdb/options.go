@@ -6,8 +6,9 @@ type Options struct {
 	ConversationLimit int // 最近会话查询数量限制
 	SlotCount         int // 槽位数量
 	// 耗时配置开启
-	EnableCost bool
-	ShardNum   int // 数据库分区数量，一但设置就不能修改
+	EnableCost   bool
+	ShardNum     int               // 数据库分区数量，一但设置就不能修改
+	IsCmdChannel func(string) bool // 是否是cmd频道
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -59,5 +60,11 @@ func WithEnableCost() Option {
 func WithShardNum(shardNum int) Option {
 	return func(o *Options) {
 		o.ShardNum = shardNum
+	}
+}
+
+func WithIsCmdChannel(f func(string) bool) Option {
+	return func(o *Options) {
+		o.IsCmdChannel = f
 	}
 }

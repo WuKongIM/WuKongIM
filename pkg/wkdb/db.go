@@ -18,7 +18,7 @@ type DB interface {
 	// 领导任期开始的第一条日志索引
 	LeaderTermSequenceDB
 	// 会话
-	SessionDB
+	// SessionDB
 	// 数据统计
 	TotalDB
 }
@@ -179,15 +179,24 @@ type ConversationDB interface {
 	AddOrUpdateConversations(uid string, conversations []Conversation) error
 
 	// DeleteConversation 删除最近会话
-	DeleteConversation(uid string, sessionId uint64) error
+	DeleteConversation(uid string, channelId string, channelType uint8) error
+
+	// DeleteConversations 批量删除最近会话
+	DeleteConversations(uid string, channels []Channel) error
 
 	// GetConversations 获取指定用户的最近会话
 	GetConversations(uid string) ([]Conversation, error)
 
-	// GetConversation 获取指定用户的指定会话
-	GetConversation(uid string, sessionId uint64) (Conversation, error)
+	// GetConversationsByType 获取指定用户的指定类型的最近会话
+	GetConversationsByType(uid string, tp ConversationType) ([]Conversation, error)
 
-	GetConversationBySessionIds(uid string, sessionIds []uint64) ([]Conversation, error)
+	// GetLastConversations 获取指定用户的最近会话
+	GetLastConversations(uid string, tp ConversationType, updatedAt uint64, limit int) ([]Conversation, error)
+
+	// GetConversation 获取指定用户的指定会话
+	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)
+
+	// GetConversationBySessionIds(uid string, sessionIds []uint64) ([]Conversation, error)
 
 	// SearchConversation 搜索最近会话
 	SearchConversation(req ConversationSearchReq) ([]Conversation, error)
@@ -225,33 +234,37 @@ type LeaderTermSequenceDB interface {
 	DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
 }
 
-type SessionDB interface {
-	// AddOrUpdateSession 添加或更新session
-	AddOrUpdateSession(session Session) (Session, error)
-	// GetSession 获取session
-	GetSession(uid string, id uint64) (Session, error)
-	// SearchSession 搜索session
-	SearchSession(req SessionSearchReq) ([]Session, error)
-	// DeleteSession 删除session
-	DeleteSession(uid string, id uint64) error
-	DeleteSessionByChannel(uid string, channelId string, channelType uint8) error
-	// DeleteSessionAndConversationByChannel 删除session和最近会话
-	DeleteSessionAndConversationByChannel(uid string, channelId string, channelType uint8) error
-	// GetSessions 获取用户的session
-	GetSessions(uid string) ([]Session, error)
-	// DeleteSessionByUid 删除用户的session
-	DeleteSessionByUid(uid string) error
-	// GetSessionByChannel 获取用户某个频道的session
-	GetSessionByChannel(uid string, channelId string, channelType uint8) (Session, error)
-	//	 UpdateSessionUpdatedAt 更新session的更新时间
-	UpdateSessionUpdatedAt(models []*UpdateSessionUpdatedAtModel) error
-	//	 GetLastSessionsByUid 获取用户最近的session
-	// limit 为0表示不做限制
-	GetLastSessionsByUid(uid string, limit int) ([]Session, error)
-	// 获取大于指定更新时间的session(不包含updatedAt)
-	// limit 为0表示不做限制
-	GetSessionsGreaterThanUpdatedAtByUid(uid string, updatedAt int64, limit int) ([]Session, error)
-}
+// type SessionDB interface {
+// 	// AddOrUpdateSession 添加或更新session
+// 	AddOrUpdateSession(session Session) (Session, error)
+// 	// GetSession 获取session
+// 	GetSession(uid string, id uint64) (Session, error)
+// 	// SearchSession 搜索session
+// 	SearchSession(req SessionSearchReq) ([]Session, error)
+// 	// DeleteSession 删除session
+// 	DeleteSession(uid string, id uint64) error
+// 	DeleteSessionByChannel(uid string, channelId string, channelType uint8) error
+// 	// DeleteSessionAndConversationByChannel 删除session和最近会话
+// 	DeleteSessionAndConversationByChannel(uid string, channelId string, channelType uint8) error
+// 	// GetSessions 获取用户的session
+// 	GetSessions(uid string) ([]Session, error)
+
+// 	// GetSessionsByType 获取某个用户某个类型的会话
+// 	GetSessionsByType(uid string, sessionType SessionType) ([]Session, error)
+
+// 	// DeleteSessionByUid 删除用户的session
+// 	DeleteSessionByUid(uid string) error
+// 	// GetSessionByChannel 获取用户某个频道的session
+// 	GetSessionByChannel(uid string, channelId string, channelType uint8) (Session, error)
+// 	//	 UpdateSessionUpdatedAt 更新session的更新时间
+// 	UpdateSessionUpdatedAt(models []*BatchUpdateConversationModel) error
+// 	//	 GetLastSessionsByUid 获取用户最近的session
+// 	// limit 为0表示不做限制
+// 	GetLastSessionsByUid(uid string, sessionType SessionType, limit int) ([]Session, error)
+// 	// 获取大于指定更新时间的session(不包含updatedAt)
+// 	// limit 为0表示不做限制
+// 	GetSessionsGreaterThanUpdatedAtByUid(uid string, sessionType SessionType, updatedAt int64, limit int) ([]Session, error)
+// }
 
 // 数据统计表
 type TotalDB interface {

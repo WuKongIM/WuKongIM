@@ -454,17 +454,14 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 			}
 		}
 		var reason Reason
-		var reasonCode wkproto.ReasonCode
 		if err != nil {
 			reason = ReasonError
-			reasonCode = wkproto.ReasonSystemError
 		} else {
 			reason = ReasonSuccess
-			reasonCode = wkproto.ReasonSuccess
 		}
 		sub := r.reactorSub(req.ch.key)
 		lastIndex := req.messages[len(req.messages)-1].Index
-		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Index: lastIndex, Reason: reason, ReasonCode: reasonCode})
+		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Index: lastIndex, Reason: reason})
 
 	}
 	r.Info("processStorage done...")
@@ -517,13 +514,18 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 	nodeFowardSendackPacketMap := map[uint64][]*ForwardSendackPacket{}
 	for _, req := range reqs {
 		for _, msg := range req.messages {
+
+			if msg.FromUid == r.opts.SystemUID { // 如果是系统消息，不需要发送ack
+				continue
+			}
+
 			sendack := &wkproto.SendackPacket{
 				Framer:      msg.SendPacket.Framer,
 				MessageID:   msg.MessageId,
 				MessageSeq:  msg.MessageSeq,
 				ClientSeq:   msg.SendPacket.ClientSeq,
 				ClientMsgNo: msg.SendPacket.ClientMsgNo,
-				ReasonCode:  req.reasonCode,
+				ReasonCode:  wkproto.ReasonSuccess,
 			}
 			if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
 				err = r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
@@ -579,9 +581,8 @@ func (r *channelReactor) requestForwardSendack(nodeId uint64, packets []*Forward
 }
 
 type sendackReq struct {
-	ch         *channel
-	reasonCode wkproto.ReasonCode
-	messages   []ReactorChannelMessage
+	ch       *channel
+	messages []ReactorChannelMessage
 }
 
 // =================================== 消息投递 ===================================
