@@ -4,28 +4,11 @@ import (
 	"encoding/binary"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 )
 
 type Message struct {
 	HandlerKey string
 	replica.Message
-}
-
-func NewMessage(handlerKey string, msg replica.Message, msgType proto.MsgType) (*proto.Message, error) {
-	m := Message{
-		HandlerKey: handlerKey,
-		Message:    msg,
-	}
-	data, err := m.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	return &proto.Message{
-		MsgType: uint32(msgType),
-		Content: data,
-	}, nil
-
 }
 
 func (m Message) Marshal() ([]byte, error) {

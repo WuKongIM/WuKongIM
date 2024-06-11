@@ -223,6 +223,8 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 		return err
 	}
 
+	fmt.Println("channelClusterConfig--->", channelClusterConfig.ChannelId, channelClusterConfig.Status)
+
 	err = s.wdb.SaveChannelClusterConfig(channelClusterConfig)
 	if err != nil {
 		return err
@@ -264,7 +266,6 @@ func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
 				ChannelType:    model.ChannelType,
 				ReadedToMsgSeq: seq,
 			}
-			fmt.Println("model.ChannelType----->", model.ChannelType)
 			err = s.wdb.AddOrUpdateConversations(uid, []wkdb.Conversation{conversation})
 			if err != nil {
 				return err

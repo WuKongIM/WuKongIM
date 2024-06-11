@@ -41,7 +41,9 @@ type Replica struct {
 	votes                     map[uint64]bool // 投票记录
 
 	// -------------------- 其他 --------------------
-	messageWait *messageWait
+
+	supervisorConfigCheckElapsed int // 上级领导配置检查计时器
+	messageWait                  *messageWait
 	wklog.Log
 	replicaLog      *replicaLog
 	uncommittedSize logEncodingSize
@@ -134,8 +136,8 @@ func (r *Replica) BecomeCandidate() {
 	r.becomeCandidate()
 }
 
-func (R *Replica) BecomeCandidateWithTerm(term uint32) {
-	R.becomeCandidateWithTerm(term)
+func (r *Replica) BecomeCandidateWithTerm(term uint32) {
+	r.becomeCandidateWithTerm(term)
 }
 
 // 降速
@@ -398,7 +400,7 @@ func (r *Replica) isLeader() bool {
 }
 
 func (r *Replica) hardStateChange() bool {
-	return r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.replicaLog.term
+	return r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.replicaLog.term || r.preHardState.ConfVersion != r.opts.Config.Version
 }
 
 func (r *Replica) readyWithoutAccept() Ready {
@@ -409,12 +411,14 @@ func (r *Replica) readyWithoutAccept() Ready {
 	}
 	if r.hardStateChange() {
 		rd.HardState = HardState{
-			LeaderId: r.leader,
-			Term:     r.replicaLog.term,
+			LeaderId:    r.leader,
+			Term:        r.replicaLog.term,
+			ConfVersion: r.opts.Config.Version,
 		}
 		r.preHardState = HardState{
-			LeaderId: r.leader,
-			Term:     r.replicaLog.term,
+			LeaderId:    r.leader,
+			Term:        r.replicaLog.term,
+			ConfVersion: r.opts.Config.Version,
 		}
 	}
 	return rd
@@ -558,23 +562,22 @@ func (r *Replica) tickHeartbeat() {
 		return
 	}
 
-	if !r.opts.ElectionOn {
-		return
-	}
+	if r.opts.ElectionOn { // 是否开启自动选举
+		r.heartbeatElapsed++
+		r.electionElapsed++
 
-	r.heartbeatElapsed++
-	r.electionElapsed++
+		if r.electionElapsed >= r.opts.ElectionTimeoutTick {
+			r.electionElapsed = 0
+		}
 
-	if r.electionElapsed >= r.opts.ElectionTimeoutTick {
-		r.electionElapsed = 0
-	}
-
-	if r.heartbeatElapsed >= r.opts.HeartbeatTimeoutTick {
-		r.heartbeatElapsed = 0
-		if err := r.Step(Message{From: r.opts.NodeId, MsgType: MsgBeat}); err != nil {
-			r.Debug("error occurred during checking sending heartbeat", zap.Error(err))
+		if r.heartbeatElapsed >= r.opts.HeartbeatTimeoutTick {
+			r.heartbeatElapsed = 0
+			if err := r.Step(Message{From: r.opts.NodeId, MsgType: MsgBeat}); err != nil {
+				r.Debug("error occurred during checking sending heartbeat", zap.Error(err))
+			}
 		}
 	}
+
 }
 
 func (r *Replica) pastElectionTimeout() bool {
@@ -851,6 +854,38 @@ func (r *Replica) newMsgConfigResp(to uint64) Message {
 				Data: data,
 			},
 		},
+	}
+}
+
+func (r *Replica) newMsgConfigChange(confData []byte) Message {
+	return Message{
+		MsgType: MsgConfigChange,
+		From:    r.nodeId,
+		To:      r.nodeId,
+		Term:    r.replicaLog.term,
+		Logs: []Log{
+			{
+				Data: confData,
+			},
+		},
+	}
+}
+
+func (r *Replica) newMsgLearnerToFollower(learnerId uint64) Message {
+	return Message{
+		MsgType:   MsgLearnerToFollower,
+		From:      r.nodeId,
+		To:        r.nodeId,
+		LearnerId: learnerId,
+	}
+}
+
+func (r *Replica) newMsgLearnerToLeader(learnerId uint64) Message {
+	return Message{
+		MsgType:   MsgLearnerToLeader,
+		From:      r.nodeId,
+		To:        r.nodeId,
+		LearnerId: learnerId,
 	}
 }
 

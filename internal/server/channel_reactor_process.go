@@ -205,6 +205,7 @@ func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
 			r.Error("LeaderOfChannel error", zap.Error(err))
 			return 0, err
 		}
+		r.Info("leader change", zap.Uint64("newLeaderId", node.Id), zap.Uint64("oldLeaderId", req.leaderId))
 		return node.Id, errors.New("leader change")
 	}
 

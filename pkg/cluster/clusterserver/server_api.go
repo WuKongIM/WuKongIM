@@ -28,21 +28,25 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/simpleNodes"), s.simpleNodesGet)         // 获取简单节点信息
 	route.GET(s.formatPath("/nodes/:id/channels"), s.nodeChannelsGet) // 获取节点的所有频道信息
 
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/config"), s.channelClusterConfigGet) // 获取频道分布式配置
-	route.GET(s.formatPath("/slots"), s.slotsGet)                                                    // 获取指定的槽信息
-	route.GET(s.formatPath("/allslot"), s.allSlotsGet)                                               // 获取所有槽信息
-	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet)                             // 槽分布式配置
-	route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)                                // 获取某个槽的所有频道信息
-	route.GET(s.formatPath("/info"), s.clusterInfoGet)                                               // 获取集群信息
-	route.GET(s.formatPath("/messages"), s.messageSearch)                                            // 搜索消息
-	route.GET(s.formatPath("/channels"), s.channelSearch)                                            // 频道搜索
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/subscribers"), s.subscribersGet)     // 获取频道的订阅者列表
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/denylist"), s.denylistGet)           // 获取黑名单列表
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/allowlist"), s.allowlistGet)         // 获取白名单列表
-	route.GET(s.formatPath("/users"), s.userSearch)                                                  // 用户搜索
-	route.GET(s.formatPath("/devices"), s.deviceSearch)                                              // 设备搜索
-	route.GET(s.formatPath("/conversations"), s.conversationSearch)                                  // 搜索最近会话消息
-	// route.GET(s.formatPath("/nodes/:id/messages"), s.nodeMessageSearch)                              // 搜索节点消息
+	// route.GET(s.formatPath("/channels/:channel_id/:channel_type/config"), s.channelClusterConfigGet) // 获取频道分布式配置
+	route.GET(s.formatPath("/slots"), s.slotsGet)                                                 // 获取指定的槽信息
+	route.GET(s.formatPath("/allslot"), s.allSlotsGet)                                            // 获取所有槽信息
+	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet)                          // 槽分布式配置
+	route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)                             // 获取某个槽的所有频道信息
+	route.GET(s.formatPath("/info"), s.clusterInfoGet)                                            // 获取集群信息
+	route.GET(s.formatPath("/messages"), s.messageSearch)                                         // 搜索消息
+	route.GET(s.formatPath("/channels"), s.channelSearch)                                         // 频道搜索
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/subscribers"), s.subscribersGet)  // 获取频道的订阅者列表
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/denylist"), s.denylistGet)        // 获取黑名单列表
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/allowlist"), s.allowlistGet)      // 获取白名单列表
+	route.GET(s.formatPath("/users"), s.userSearch)                                               // 用户搜索
+	route.GET(s.formatPath("/devices"), s.deviceSearch)                                           // 设备搜索
+	route.GET(s.formatPath("/conversations"), s.conversationSearch)                               // 搜索最近会话消息
+	route.POST(s.formatPath("/channels/:channel_id/:channel_type/migrate"), s.channelMigrate)     // 迁移频道
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/config"), s.channelClusterConfig) // 获取频道的分布式配置
+	route.POST(s.formatPath("/channels/:channel_id/:channel_type/start"), s.channelStart)         // 开始频道
+	route.POST(s.formatPath("/channels/:channel_id/:channel_type/stop"), s.channelStop)           // 停止频道
+
 }
 
 func (s *Server) nodesGet(c *wkhttp.Context) {
@@ -172,6 +176,14 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 			return
 		}
 
+		handler := s.channelManager.get(cfg.ChannelId, cfg.ChannelType)
+
+		var activeChannel *channel
+		if handler != nil {
+			activeChannel = handler.(*channel)
+			cfg = activeChannel.cfg
+		}
+
 		resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slot.Id, cfg)
 		resp.MaxMessageSeq = lastMsgSeq
 		if lastAppendTime > 0 {
@@ -179,14 +191,14 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		}
 		channelClusterConfigResps = append(channelClusterConfigResps, resp)
 
-		exist := s.channelManager.exist(cfg.ChannelId, cfg.ChannelType)
-		if exist {
+		if activeChannel != nil {
 			resp.Active = 1
-			resp.ActiveFormat = "已激活"
+			resp.ActiveFormat = "运行中"
 		} else {
-			resp.ActiveFormat = "未激活"
+			resp.ActiveFormat = "未运行"
 			resp.Active = 0
 		}
+
 	}
 
 	c.JSON(http.StatusOK, ChannelClusterConfigRespTotal{
@@ -1096,4 +1108,179 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 		Total: count,
 	})
 
+}
+
+func (s *Server) channelMigrate(c *wkhttp.Context) {
+
+	var req struct {
+		MigrateFrom uint64 `json:"migrate_from"` // 迁移的原节点
+		MigrateTo   uint64 `json:"migrate_to"`   // 迁移的目标节点
+	}
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		s.Error("BindJSON error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	// 获取频道所属槽领导的id
+	nodeId, err := s.SlotLeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		s.Error("channelMigrate: LeaderIdOfChannel error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if nodeId != s.opts.NodeId {
+		c.ForwardWithBody(fmt.Sprintf("%s%s", s.clusterEventServer.Node(nodeId).ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	// 获取频道的分布式配置
+	clusterConfig, err := s.getChannelClusterConfig(channelId, channelType)
+	if err != nil {
+		s.Error("channelMigrate: getChannelClusterConfig error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if !wkutil.ArrayContainsUint64(clusterConfig.Replicas, req.MigrateFrom) {
+		c.ResponseError(errors.New("source node not in replicas"))
+		return
+	}
+	if wkutil.ArrayContainsUint64(clusterConfig.Replicas, req.MigrateTo) {
+		c.ResponseError(errors.New("target node already in replicas"))
+		return
+	}
+	newClusterConfig := clusterConfig.Clone()
+	if newClusterConfig.MigrateFrom != 0 || newClusterConfig.MigrateTo != 0 {
+		c.ResponseError(errors.New("migrate is in progress"))
+		return
+	}
+
+	// 保存配置
+	newClusterConfig.MigrateFrom = req.MigrateFrom
+	newClusterConfig.MigrateTo = req.MigrateTo
+	newClusterConfig.ConfVersion = uint64(time.Now().UnixNano())
+	// 将要目标节点加入学习者中
+	newClusterConfig.Learners = append(newClusterConfig.Learners, req.MigrateTo)
+
+	// 如果迁移的是领导者,则将频道设置为选举状态，这样就不会再有新的消息日志写入，等待学习者学到与频道领导一样的日志。
+	if req.MigrateFrom == clusterConfig.LeaderId {
+		newClusterConfig.Status = wkdb.ChannelClusterStatusCandidate
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	defer cancel()
+
+	// 提案保存配置
+	err = s.opts.ChannelClusterStorage.Propose(timeoutCtx, newClusterConfig)
+	if err != nil {
+		s.Error("channelMigrate: Save error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	// 如果频道领导不是当前节点，则发送最新配置给频道领导 （这里就算发送失败也没问题，因为频道领导会间隔比对自己与槽领导的配置）
+	if newClusterConfig.LeaderId != s.opts.NodeId {
+		err = s.sendChannelClusterConfigUpdate(channelId, channelType, newClusterConfig.LeaderId)
+		if err != nil {
+			s.Error("channelMigrate: sendChannelClusterConfigUpdate error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	} else {
+		s.updateChannelClusterConfig(newClusterConfig)
+	}
+
+	// 如果目标节点不是当前节点，则发送最新配置给目标节点
+	if req.MigrateTo != s.opts.NodeId {
+		err = s.sendChannelClusterConfigUpdate(channelId, channelType, req.MigrateTo)
+		if err != nil {
+			s.Error("channelMigrate: sendChannelClusterConfigUpdate error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	}
+	c.ResponseOK()
+
+}
+
+func (s *Server) channelClusterConfig(c *wkhttp.Context) {
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
+
+	if nodeId > 0 && nodeId != s.opts.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", s.clusterEventServer.Node(nodeId).ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	clusterConfig, err := s.getChannelClusterConfig(channelId, channelType)
+	if err != nil {
+		s.Error("getChannelClusterConfig error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	c.JSON(http.StatusOK, clusterConfig)
+}
+
+func (s *Server) channelStart(c *wkhttp.Context) {
+
+	var req struct {
+		NodeId uint64 `json:"node_id"`
+	}
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		s.Error("BindJSON error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	if req.NodeId > 0 && req.NodeId != s.opts.NodeId {
+		c.ForwardWithBody(fmt.Sprintf("%s%s", s.clusterEventServer.Node(req.NodeId).ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	defer cancel()
+	_, err = s.loadOrCreateChannel(timeoutCtx, channelId, channelType)
+	if err != nil {
+		s.Error("loadOrCreateChannel error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	c.ResponseOK()
+}
+
+func (s *Server) channelStop(c *wkhttp.Context) {
+
+	var req struct {
+		NodeId uint64 `json:"node_id"`
+	}
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		s.Error("BindJSON error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	if req.NodeId > 0 && req.NodeId != s.opts.NodeId {
+		c.ForwardWithBody(fmt.Sprintf("%s%s", s.clusterEventServer.Node(req.NodeId).ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	handler := s.channelManager.get(channelId, channelType)
+	if handler != nil {
+		s.channelManager.remove(handler.(*channel))
+	}
+	c.ResponseOK()
 }

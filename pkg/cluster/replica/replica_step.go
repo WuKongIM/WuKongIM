@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -83,10 +84,8 @@ func (r *Replica) Step(m Message) error {
 				r.Error("unmarshal config failed", zap.Error(err))
 				return err
 			}
-			r.switchConfig(cfg)
-			if r.opts.OnConfigChange != nil {
-				r.opts.OnConfigChange(cfg)
-			}
+			// 发送配置改变消息
+			r.send(r.newMsgConfigChange(confData))
 		}
 
 	default:
@@ -170,14 +169,19 @@ func (r *Replica) stepLeader(m Message) error {
 		}
 
 		if r.opts.AutoLearnerToFollower && r.isLearner(m.From) {
-			if m.Index+r.opts.LearnerToFollowerMinLogGap >= r.replicaLog.lastLogIndex {
-				// 移除learner
-				r.removeLearner(m.From)
-				// 添加到replicas
-				r.addReplica(m.From)
-				r.opts.Config.Version++
-				if r.opts.OnConfigChange != nil {
-					r.opts.OnConfigChange(r.opts.Config)
+
+			// 如果迁移的源节点是领导者，那么学习者必须完全追上领导者的日志
+			if r.opts.Config.MigrateFrom != 0 && r.opts.Config.MigrateFrom == r.leader {
+				fmt.Println("migrate from leader--->", m.Index)
+				if m.Index >= r.replicaLog.lastLogIndex+1 {
+					r.send(r.newMsgLearnerToLeader(m.From))
+				}
+			} else {
+				fmt.Println("migrate from follower--->", m.Index)
+				// 如果learner的日志已经追上了follower的日志，那么将learner转为follower
+				if m.Index+r.opts.LearnerToFollowerMinLogGap > r.replicaLog.lastLogIndex {
+					// 发送配置改变消息
+					r.send(r.newMsgLearnerToFollower(m.From))
 				}
 			}
 
@@ -634,7 +638,6 @@ func (r *Replica) sendPing() {
 		r.send(r.newPing(replicaId))
 	}
 	if len(r.opts.Config.Learners) > 0 {
-		r.Debug("learners------------->zzz->", zap.Any("learners", r.opts.Config.Learners))
 		for _, replicaId := range r.opts.Config.Learners {
 			if replicaId == r.opts.NodeId {
 				continue

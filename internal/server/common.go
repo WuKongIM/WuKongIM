@@ -99,9 +99,17 @@ func (c ChannelActionType) String() string {
 		return "ChannelActionForwardResp"
 	case ChannelActionLeaderChange:
 		return "ChannelActionLeaderChange"
+	case ChannelActionPayloadDecrypt:
+		return "ChannelActionPayloadDecrypt"
+	case ChannelActionPayloadDecryptResp:
+		return "ChannelActionPayloadDecryptResp"
+	case ChannelActionSendackResp:
+		return "ChannelActionSendackResp"
+	case ChannelActionInitResp:
+		return "ChannelActionInitResp"
 
 	}
-	return "unknow"
+	return fmt.Sprintf("Unknow(%d)", c)
 }
 
 type UserActionType uint8

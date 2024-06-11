@@ -16,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -433,6 +434,13 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindChannel, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindChannel, msgSize)
 		s.AddChannelMessage(msg)
+
+	case MsgTypeChannelClusterConfigPingReq: // 频道配置检测请求
+		fromNodeId := s.uidToServerId(c.UID())
+		s.handleChannelClusterConfigReq(fromNodeId, m)
+
+	case MsgTypeChannelClusterConfigUpdate: // 频道配置更新
+		s.handleChannelClusterConfigUpdate(m)
 	default:
 		fromNodeId := s.uidToServerId(c.UID())
 
@@ -508,4 +516,92 @@ func seedNode(seed string) (uint64, string, error) {
 		return 0, "", err
 	}
 	return seedNodeID, seedAddr, nil
+}
+
+func (s *Server) handleChannelClusterConfigReq(fromNodeId uint64, m *proto.Message) {
+
+	req := &channelClusterConfigPingReq{}
+	err := req.Unmarshal(m.Content)
+	if err != nil {
+		s.Error("handleChannelConfigReq: Unmarshal failed", zap.Error(err))
+		return
+	}
+	lastVersion, err := s.opts.ChannelClusterStorage.GetVersion(req.ChannelId, req.ChannelType)
+	if err != nil {
+		s.Error("handleChannelConfigReq: GetVersion failed", zap.Error(err))
+		return
+	}
+
+	// 请求的版本号大于等于当前版本号，不需要更新
+	if req.CfgVersion >= lastVersion {
+		return
+	}
+
+	// 发送z最新的频道配置给频道领导
+	err = s.sendChannelClusterConfigUpdate(req.ChannelId, req.ChannelType, fromNodeId)
+	if err != nil {
+		s.Error("handleChannelConfigReq: sendChannelConfigUpdate failed", zap.Error(err))
+		return
+	}
+
+}
+
+func (s *Server) sendChannelClusterConfigUpdate(channelId string, channelType uint8, toNodeId uint64) error {
+
+	cfg, err := s.opts.ChannelClusterStorage.Get(channelId, channelType)
+	if err != nil {
+		s.Error("handleChannelConfigReq: Get failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return err
+	}
+	cfgData, err := cfg.Marshal()
+	if err != nil {
+		s.Error("handleChannelConfigReq: Marshal failed", zap.Error(err))
+		return err
+	}
+
+	msg := &proto.Message{
+		MsgType: MsgTypeChannelClusterConfigUpdate,
+		Content: cfgData,
+	}
+
+	node := s.nodeManager.node(toNodeId)
+	if node == nil {
+		return fmt.Errorf("node not exist")
+	}
+
+	return node.send(msg)
+}
+
+func (s *Server) handleChannelClusterConfigUpdate(m *proto.Message) {
+
+	cfg := wkdb.ChannelClusterConfig{}
+	err := cfg.Unmarshal(m.Content)
+	if err != nil {
+		s.Error("handleChannelConfigUpdate: Unmarshal failed", zap.Error(err))
+		return
+	}
+
+	fmt.Println("handleChannelClusterConfigUpdate---->", cfg.LeaderId)
+
+	s.updateChannelClusterConfig(cfg)
+
+}
+
+func (s *Server) updateChannelClusterConfig(cfg wkdb.ChannelClusterConfig) {
+	channel, err := s.loadOrCreateChannel(s.cancelCtx, cfg.ChannelId, cfg.ChannelType)
+	if err != nil {
+		s.Error("handleChannelConfigUpdate: loadOrCreateChannel failed", zap.Error(err))
+		return
+
+	}
+	err = channel.switchConfig(cfg) // 切换配置
+	if err != nil {
+		s.Error("handleChannelConfigUpdate: switchConfig failed", zap.Error(err))
+		return
+	}
+	err = s.opts.ChannelClusterStorage.Save(cfg)
+	if err != nil {
+		s.Error("handleChannelConfigUpdate: Save failed", zap.Error(err))
+		return
+	}
 }

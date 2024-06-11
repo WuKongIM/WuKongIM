@@ -43,6 +43,14 @@ type IHandler interface {
 	LeaderId() uint64
 	// PausePropopose 是否暂停提案
 	PausePropopose() bool
+
+	// 学习者转追随者
+	LearnerToFollower(learnerId uint64) error
+	// 学习者转领导者
+	LearnerToLeader(learnerId uint64) error
+
+	// 保存分布式配置
+	SaveConfig(cfg replica.Config) error
 }
 
 type handler struct {
@@ -278,6 +286,18 @@ func (h *handler) leaderId() uint64 {
 func (h *handler) pausePropopose() bool {
 	return h.handler.PausePropopose()
 
+}
+
+func (h *handler) learnerToFollower(learnerId uint64) error {
+	return h.handler.LearnerToFollower(learnerId)
+}
+
+func (h *handler) learnerToLeader(learnerId uint64) error {
+	return h.handler.LearnerToLeader(learnerId)
+}
+
+func (h *handler) saveConfig(cfg replica.Config) error {
+	return h.handler.SaveConfig(cfg)
 }
 
 func (h *handler) getAndResetMsgSyncResp() (replica.Message, bool) {

@@ -221,6 +221,9 @@ type ChannelClusterConfigDB interface {
 
 	// GetChannelClusterConfigWithSlotId 获取某个槽的频道的分布式配置
 	GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelClusterConfig, error)
+
+	// GetChannelClusterConfigVersion 获取频道的分布式配置版本
+	GetChannelClusterConfigVersion(channelId string, channelType uint8) (uint64, error)
 }
 
 type LeaderTermSequenceDB interface {

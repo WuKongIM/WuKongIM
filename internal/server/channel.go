@@ -281,13 +281,17 @@ func (c *channel) becomeProxy(leaderId uint64) {
 }
 
 func (c *channel) resetIndex() {
-	c.msgQueue.forwardingIndex = 0
-	c.msgQueue.deliveringIndex = 0
-	c.msgQueue.storagingIndex = 0
+	c.msgQueue.payloadDecryptingIndex = 0
 	c.msgQueue.permissionCheckingIndex = 0
+	c.msgQueue.storagingIndex = 0
+	c.msgQueue.sendackingIndex = 0
+	c.msgQueue.deliveringIndex = 0
+	c.msgQueue.forwardingIndex = 0
 
+	c.payloadDecrypting = false
 	c.permissionChecking = false
 	c.storaging = false
+	c.sendacking = false
 	c.delivering = false
 	c.forwarding = false
 

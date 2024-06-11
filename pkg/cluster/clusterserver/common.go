@@ -3,6 +3,7 @@ package cluster
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/sendgrid/rest"
 	"go.uber.org/zap"
@@ -60,10 +62,12 @@ const (
 )
 
 const (
-	MsgTypeUnknown uint32 = iota
-	MsgTypeSlot
-	MsgTypeChannel
-	MsgTypeConfig
+	MsgTypeUnknown                     uint32 = iota
+	MsgTypeSlot                               // slot
+	MsgTypeChannel                            // channel
+	MsgTypeConfig                             // 配置
+	MsgTypeChannelClusterConfigPingReq        // 请求channel配置 (向槽领导请求)
+	MsgTypeChannelClusterConfigUpdate         // 通知更新channel的配置
 )
 
 func myUptime(d time.Duration) string {
@@ -213,4 +217,15 @@ func (s *Server) getNodeSlotLeaderCount(nodeId uint64, cfg *pb.Config) int {
 		}
 	}
 	return count
+}
+
+func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := wkutil.ReadJSONByByte(bodyBytes, obj); err != nil {
+		return nil, err
+	}
+	return bodyBytes, nil
 }

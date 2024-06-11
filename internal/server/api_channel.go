@@ -208,7 +208,6 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		return
 	}
 	if !exist { // 如果没有频道则创建
-		fmt.Println("create channel---->", req.ChannelID)
 		channelInfo := wkdb.NewChannelInfo(req.ChannelID, req.ChannelType)
 		err = ch.s.store.AddOrUpdateChannel(channelInfo)
 		if err != nil {

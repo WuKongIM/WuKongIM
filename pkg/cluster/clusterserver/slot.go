@@ -258,6 +258,18 @@ func (s *slot) PausePropopose() bool {
 	return s.pausePropopose.Load()
 }
 
+func (s *slot) LearnerToFollower(learnerId uint64) error {
+	return nil
+}
+
+func (s *slot) LearnerToLeader(learnerId uint64) error {
+	return nil
+}
+
+func (s *slot) SaveConfig(cfg replica.Config) error {
+	return nil
+}
+
 func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 	shardNo := s.key
 	logs, err := s.opts.SlotLogStorage.Logs(shardNo, startLogIndex, endLogIndex, limitSize)

@@ -345,12 +345,9 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		return
 	}
 
-	fmt.Println("conversations--->", len(conversations), conversations)
-
 	// 获取用户缓存的最近会话
 	cacheConversations := s.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeChat)
 
-	fmt.Println("cacheConversations---->", len(cacheConversations), cacheConversations)
 	cacheConversationMap := map[string]uint64{}
 	for _, cacheConversation := range cacheConversations {
 		if cacheConversation.ReadedToMsgSeq > 0 {

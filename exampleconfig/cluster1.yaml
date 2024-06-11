@@ -1,4 +1,4 @@
-mode: "release" 
+mode: "debug" 
 addr: "tcp://0.0.0.0:5110" # tcp监听地址
 httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
@@ -14,8 +14,8 @@ cluster:
   nodeId: 1001
   addr: "tcp://127.0.0.1:10001"
   slotCount: 128
-  slotReplicaCount: 5
-  channelReplicaCount: 3
+  slotReplicaCount: 3
+  channelReplicaCount: 2
   nodes: 
     - "1001@127.0.0.1:10001"
     - "1002@127.0.0.1:10002"

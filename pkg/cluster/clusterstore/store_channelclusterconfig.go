@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
@@ -29,6 +30,10 @@ func (c *ChannelClusterConfigStore) Get(channelId string, channelType uint8) (wk
 	return c.store.wdb.GetChannelClusterConfig(channelId, channelType)
 }
 
+func (c *ChannelClusterConfigStore) GetVersion(channelId string, channelType uint8) (uint64, error) {
+	return c.store.wdb.GetChannelClusterConfigVersion(channelId, channelType)
+}
+
 func (c *ChannelClusterConfigStore) GetCountWithSlotId(slotId uint32) (int, error) {
 	return c.store.wdb.GetChannelClusterConfigCountWithSlotId(slotId)
 }
@@ -48,6 +53,7 @@ func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.Channe
 		return err
 	}
 
+	fmt.Println("cfg-------->", cfg.Status)
 	data, err := EncodeCMDChannelClusterConfigSave(cfg.ChannelId, cfg.ChannelType, cfgData)
 	if err != nil {
 		return err

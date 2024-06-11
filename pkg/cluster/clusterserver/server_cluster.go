@@ -32,7 +32,7 @@ func (s *Server) LeaderOfChannel(ctx context.Context, channelId string, channelT
 	}
 	leaderId := ch.leaderId()
 	if leaderId == 0 {
-		s.Error("LeaderOfChannel: leader not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		s.Error("LeaderOfChannel: leader not found", zap.Uint64("leaderId", leaderId), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return nil, ErrNotLeader
 	}
 	node := s.clusterEventServer.Node(leaderId)
@@ -233,7 +233,7 @@ func (s *Server) GetSlotId(v string) uint32 {
 
 func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (*channel, error) {
 
-	// s.Info("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	s.Debug("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 	start := time.Now()
 
@@ -256,18 +256,31 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 	var ch *channel
 	channelHandler := s.channelManager.get(channelId, channelType)
 	if channelHandler == nil {
-		ch = newChannel(channelId, channelType, s.opts, s.onReplicaConfigChange)
+		ch = newChannel(channelId, channelType, s.opts, s, s.sendConfigReqToSlotLeader)
 	} else {
 		ch = channelHandler.(*channel)
 	}
 	allowVoteAndJoinedNodeCount := s.clusterEventServer.AllowVoteAndJoinedNodeCount()
 
 	needChange := func() bool {
+
+		// 领导不在线
 		if !s.clusterEventServer.NodeOnline(ch.leaderId()) {
 			return true
 		}
 
+		// 如果当前节点是频道的领导者，但是副本数量小于设置的最大副本数量，则需要变更
 		if len(ch.cfg.Replicas) < s.opts.ChannelMaxReplicaCount && allowVoteAndJoinedNodeCount > len(ch.cfg.Replicas) {
+			return true
+		}
+
+		// 有迁移配置
+		if ch.cfg.MigrateFrom != 0 && ch.cfg.MigrateTo != 0 {
+			return true
+		}
+
+		// 有领导迁移配置
+		if ch.cfg.LeaderTransferTo != 0 {
 			return true
 		}
 
@@ -295,28 +308,15 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 			}
 			needProposeCfg = true
 		} else {
-			// 如果副本没有达到设置的要求，则尝试将新节点加入到副本列表
-			if len(clusterCfg.Learners) == 0 && len(clusterCfg.Replicas) < int(clusterCfg.ReplicaMaxCount) { // 如果当前副本数量小于最大副本数量，则看是否有节点可以加入副本
-
-				if len(clusterCfg.Replicas) < allowVoteAndJoinedNodeCount { // 如果有更多节点可以加入副本，则执行副本加入逻辑
-					nodes := s.clusterEventServer.AllowVoteAndJoinedNodes()
-					newReplicaIds := make([]uint64, 0, allowVoteAndJoinedNodeCount-len(clusterCfg.Replicas))
-					for _, node := range nodes {
-						if !wkutil.ArrayContainsUint64(clusterCfg.Replicas, node.Id) {
-							newReplicaIds = append(newReplicaIds, node.Id)
-						}
-					}
-					rand.Shuffle(len(newReplicaIds), func(i, j int) {
-						newReplicaIds[i], newReplicaIds[j] = newReplicaIds[j], newReplicaIds[i]
-					})
-					for _, newReplicaId := range newReplicaIds {
-						clusterCfg.Learners = append(clusterCfg.Learners, newReplicaId)
-						if len(clusterCfg.Learners)+len(clusterCfg.Replicas) >= int(clusterCfg.ReplicaMaxCount) {
-							break
-						}
-					}
-					needProposeCfg = true
-				}
+			newCfg, updated, err := s.updateClusterConfigIfNeed(clusterCfg)
+			if err != nil {
+				s.Error("updateClusterConfigIfNeed failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+				return nil, err
+			}
+			if updated {
+				fmt.Println("updateClusterConfigIfNeed0------>", newCfg.ConfVersion, newCfg.ChannelId)
+				clusterCfg = newCfg
+				needProposeCfg = true
 			}
 
 		}
@@ -334,20 +334,15 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 			needProposeCfg = true
 		}
 	} else {
-		// 如果没有配置向频道槽领导请求频道的分布式配置
-		// if wkdb.IsEmptyChannelClusterConfig(clusterCfg) || !s.clusterEventServer.NodeOnline(clusterCfg.LeaderId) {
-		// 	s.Debug("requestChannelClusterConfigFromSlotLeader.....")
-		// 	clusterCfg, err = s.requestChannelClusterConfigFromSlotLeader(channelId, channelType)
-		// 	if err != nil {
-		// 		s.Error("requestChannelClusterConfigFromSlotLeader failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
-		// 		return nil, err
-		// 	}
-		// 	// TODO: 这里是否需要将请求到的clusterCfg保存到本地，如果保存，后续clusterCfg更新，此节点将不会跟着更新了，不保存的话，每次都需要请求
-		// }
+		// 如果当前节点非此频道的槽领导，则直接去槽领导请求频道的分布式配置，槽领导的分布式配置一定是最新的
 		clusterCfg, err = s.requestChannelClusterConfigFromSlotLeader(channelId, channelType)
 		if err != nil {
 			s.Error("requestChannelClusterConfigFromSlotLeader failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
 			return nil, err
+		}
+		if clusterCfg.LeaderId == 0 {
+			s.Error("loadOrCreateChannel: leaderId is 0", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("clusterCfg", clusterCfg.String()))
+			return nil, ErrNotLeader
 		}
 	}
 
@@ -359,7 +354,11 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 			return nil, err
 		}
 	}
-	if wkutil.ArrayContainsUint64(clusterCfg.Replicas, s.opts.NodeId) || wkutil.ArrayContainsUint64(clusterCfg.Learners, s.opts.NodeId) { // 只有当前节点在副本列表中才启动频道的分布式
+
+	isReplica := wkutil.ArrayContainsUint64(clusterCfg.Replicas, s.opts.NodeId) // 当前节点是否是频道的副本
+	isLearner := wkutil.ArrayContainsUint64(clusterCfg.Learners, s.opts.NodeId) // 当前节点是否是频道的学习者
+
+	if isReplica || isLearner { // 只有当前节点在副本列表中才启动频道的分布式
 
 		if ch.IsPrepared() {
 			err = ch.switchConfig(clusterCfg)
@@ -379,12 +378,14 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 			ch.Debug("bootstrap  success", zap.Duration("cost", time.Since(start)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 		}
-	} else {
-		s.Debug("channel not in replicas", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	} else { // 如果当前节点不在副本列表中，则在此节点不启动频道的副本，返回分布式配置
+		ch.cfg = clusterCfg
+		s.Info("channel not in replicas", zap.String("clusterCfg", clusterCfg.String()), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 	}
 	return ch, nil
 }
 
+// 创建一个频道的分布式配置
 func (s *Server) createChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 	allowVoteNodes := s.clusterEventServer.AllowVoteAndJoinedNodes() // 获取允许投票的节点
 	if len(allowVoteNodes) == 0 {
@@ -419,6 +420,48 @@ func (s *Server) createChannelClusterConfig(channelId string, channelType uint8)
 	}
 	clusterConfig.Replicas = replicaIds
 	return clusterConfig, nil
+}
+
+func (s *Server) updateClusterConfigIfNeed(clusterCfg wkdb.ChannelClusterConfig) (wkdb.ChannelClusterConfig, bool, error) {
+
+	// 允许投票节点数量
+	allowVoteAndJoinedNodeCount := s.clusterEventServer.AllowVoteAndJoinedNodeCount()
+
+	// 是否已更新
+	updated := false
+
+	// 如果副本没有达到设置的要求，则尝试将新节点加入到副本列表
+	if len(clusterCfg.Learners) == 0 && len(clusterCfg.Replicas) < int(clusterCfg.ReplicaMaxCount) { // 如果当前副本数量小于最大副本数量，则看是否有节点可以加入副本
+
+		if len(clusterCfg.Replicas) < allowVoteAndJoinedNodeCount { // 如果有更多节点可以加入副本，则执行副本加入逻辑
+			nodes := s.clusterEventServer.AllowVoteAndJoinedNodes()
+			newReplicaIds := make([]uint64, 0, allowVoteAndJoinedNodeCount-len(clusterCfg.Replicas))
+			for _, node := range nodes {
+				if !wkutil.ArrayContainsUint64(clusterCfg.Replicas, node.Id) {
+					newReplicaIds = append(newReplicaIds, node.Id)
+				}
+			}
+			// 打乱顺序，防止每次都是相同的节点加入
+			rand.Shuffle(len(newReplicaIds), func(i, j int) {
+				newReplicaIds[i], newReplicaIds[j] = newReplicaIds[j], newReplicaIds[i]
+			})
+
+			// 将新节点加入到学习者列表
+			for _, newReplicaId := range newReplicaIds {
+				clusterCfg.Learners = append(clusterCfg.Learners, newReplicaId)
+				if len(clusterCfg.Learners)+len(clusterCfg.Replicas) >= int(clusterCfg.ReplicaMaxCount) {
+					break
+				}
+			}
+			updated = true
+		}
+	}
+
+	if updated {
+		clusterCfg.ConfVersion = uint64(time.Now().UnixNano())
+	}
+
+	return clusterCfg, updated, nil
 }
 
 func (s *Server) getChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
@@ -557,42 +600,37 @@ func (s *Server) requestChannelProposeMessage(to uint64, channelId string, chann
 	return resp, nil
 }
 
-// 频道的配置发生改变
-func (s *Server) onReplicaConfigChange(ch *channel, cfg *replica.Config) {
+func (s *Server) sendConfigReqToSlotLeader(ch *channel, cfgVersion uint64) error {
 
-	s.Debug("channel replica config change", zap.String("channelId", ch.channelId), zap.Uint8("channelType", ch.channelType), zap.Any("config", cfg))
+	slotId := s.getSlotId(ch.channelId)
+	slot := s.clusterEventServer.Slot(slotId)
+	if slot == nil {
+		return ErrSlotNotExist
+	}
 
-	channelClusterCfg, err := s.opts.ChannelClusterStorage.Get(ch.channelId, ch.channelType)
+	// 如果槽领导就是自己则不需要发送
+	if slot.Leader == s.opts.NodeId {
+		return nil
+	}
+	node := s.nodeManager.node(slot.Leader)
+	if node == nil {
+		return ErrNodeNotExist
+	}
+
+	req := &channelClusterConfigPingReq{
+		ChannelId:   ch.channelId,
+		ChannelType: ch.channelType,
+		CfgVersion:  cfgVersion,
+	}
+
+	data, err := req.Marshal()
 	if err != nil {
-		s.Error("onReplicaConfigChange failed", zap.Error(err), zap.String("channelId", ch.channelId), zap.Uint8("channelType", ch.channelType))
-		return
+		return err
 	}
-	if wkdb.IsEmptyChannelClusterConfig(channelClusterCfg) {
-		err = s.opts.ChannelClusterStorage.Save(wkdb.ChannelClusterConfig{
-			ChannelId:       ch.channelId,
-			ChannelType:     ch.channelType,
-			ReplicaMaxCount: uint16(s.opts.ChannelMaxReplicaCount),
-			Replicas:        cfg.Replicas,
-			Learners:        cfg.Learners,
-			LeaderId:        ch.leaderId(),
-			Term:            ch.term(),
-			ConfVersion:     cfg.Version,
-		})
-		if err != nil {
-			s.Error("save channel cluster config failed", zap.Error(err), zap.String("channelId", ch.channelId), zap.Uint8("channelType", ch.channelType))
-			return
-		}
-		return
-	}
+	err = node.send(&proto.Message{
+		MsgType: MsgTypeChannelClusterConfigPingReq,
+		Content: data,
+	})
+	return err
 
-	channelClusterCfg.Replicas = cfg.Replicas
-	channelClusterCfg.Learners = cfg.Learners
-	channelClusterCfg.LeaderId = ch.leaderId()
-	channelClusterCfg.Term = ch.term()
-	channelClusterCfg.ConfVersion = cfg.Version
-	err = s.opts.ChannelClusterStorage.Save(channelClusterCfg)
-	if err != nil {
-		s.Error("update channel cluster config failed", zap.Error(err), zap.String("channelId", ch.channelId), zap.Uint8("channelType", ch.channelType))
-		return
-	}
 }
