@@ -29,7 +29,6 @@ type Options struct {
 	HeartbeatTimeoutTick  int           // 心跳超时tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
 	Config                *Config
 	// LastSyncInfoMap       map[uint64]*SyncInfo
-	OnConfigChange             func(cfg *Config)
 	AutoLearnerToFollower      bool   // 自动将学习者转换为跟随者
 	LearnerToFollowerMinLogGap uint64 // 学习者转换为跟随者的最小日志差距，需要AutoLearnerToFollower开启 (当学习者的日志与领导者的日志差距小于这个配置时，学习者会转换为跟随者)
 }
@@ -123,12 +122,6 @@ func WithLogPrefix(prefix string) Option {
 func WithConfig(config *Config) Option {
 	return func(o *Options) {
 		o.Config = config
-	}
-}
-
-func WithOnConfigChange(fn func(cfg *Config)) Option {
-	return func(o *Options) {
-		o.OnConfigChange = fn
 	}
 }
 

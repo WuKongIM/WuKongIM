@@ -118,8 +118,19 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 			c.WriteErr(ErrChannelNotFound)
 			return
 		}
+		if channel.cfg.LeaderId == 0 {
+			s.Error("channel leaderId is 0", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+			c.WriteErr(ErrNoLeader)
+			return
+		}
 		clusterConfig = channel.cfg
 
+	} else {
+		if clusterConfig.LeaderId == 0 {
+			s.Error("clusterConfig leaderId is 0", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+			c.WriteErr(ErrNoLeader)
+			return
+		}
 	}
 
 	data, err := clusterConfig.Marshal()

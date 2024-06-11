@@ -244,6 +244,19 @@ func (h *handler) PausePropopose() bool {
 	return false
 }
 
+func (h *handler) LearnerToFollower(learnerId uint64) error {
+	return nil
+}
+
+func (h *handler) LearnerToLeader(learnerId uint64) error {
+	return nil
+}
+
+func (h *handler) SaveConfig(cfg replica.Config) error {
+
+	return nil
+}
+
 func extend(dst, vals []replica.Log) []replica.Log {
 	need := len(dst) + len(vals)
 	if need <= cap(dst) {

@@ -371,9 +371,9 @@ func IsEmptyChannelClusterConfig(cfg ChannelClusterConfig) bool {
 type ChannelClusterStatus uint8
 
 const (
-	ChannelClusterStatusNormal         ChannelClusterStatus = iota // 正常
-	ChannelClusterStatusCandidate                                  // 候选者
-	ChannelClusterStatusLeaderTransfer                             // 领导者转移
+	ChannelClusterStatusNormal    ChannelClusterStatus = iota // 正常
+	ChannelClusterStatusCandidate                             // 选举中
+	// ChannelClusterStatusLeaderTransfer                             // 领导者转移
 )
 
 // 频道分布式配置
@@ -393,6 +393,25 @@ type ChannelClusterConfig struct {
 	ConfVersion      uint64               // 配置文件版本号
 
 	version uint16 // 数据协议版本
+}
+
+func (c *ChannelClusterConfig) Clone() ChannelClusterConfig {
+	return ChannelClusterConfig{
+		Id:               c.Id,
+		ChannelId:        c.ChannelId,
+		ChannelType:      c.ChannelType,
+		ReplicaMaxCount:  c.ReplicaMaxCount,
+		Replicas:         c.Replicas,
+		Learners:         c.Learners,
+		LeaderId:         c.LeaderId,
+		Term:             c.Term,
+		MigrateFrom:      c.MigrateFrom,
+		MigrateTo:        c.MigrateTo,
+		LeaderTransferTo: c.LeaderTransferTo,
+		Status:           c.Status,
+		ConfVersion:      c.ConfVersion,
+		version:          c.version,
+	}
 }
 
 func (c *ChannelClusterConfig) Marshal() ([]byte, error) {
@@ -485,21 +504,22 @@ func (c *ChannelClusterConfig) Unmarshal(data []byte) error {
 		return err
 	}
 
-	if c.ConfVersion, err = dec.Uint64(); err != nil {
-		return err
-	}
-
 	var status uint8
 	if status, err = dec.Uint8(); err != nil {
 		return err
 	}
 	c.Status = ChannelClusterStatus(status)
+
+	if c.ConfVersion, err = dec.Uint64(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (c *ChannelClusterConfig) String() string {
-	return fmt.Sprintf("ChannelId: %s, ChannelType: %d, ReplicaMaxCount: %d, Replicas: %v, LeaderId: %d, Term: %d",
-		c.ChannelId, c.ChannelType, c.ReplicaMaxCount, c.Replicas, c.LeaderId, c.Term)
+	return fmt.Sprintf("ChannelId: %s, ChannelType: %d, ReplicaMaxCount: %d, Replicas: %v, Learners: %v LeaderId: %d, Term: %d",
+		c.ChannelId, c.ChannelType, c.ReplicaMaxCount, c.Replicas, c.Learners, c.LeaderId, c.Term)
 }
 
 // 批量更新会话

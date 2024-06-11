@@ -1016,7 +1016,6 @@ func (r *userReactor) processNodePong(req *nodePongReq) {
 		connIds = append(connIds, conn.connId)
 	}
 
-	fmt.Println("send pong--->", connIds, req.uid)
 	userConnsReq := userConns{
 		uid:     req.uid,
 		connIds: connIds,

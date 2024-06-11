@@ -85,7 +85,7 @@ func (c *channelElectionManager) loop() {
 
 // 添加选举请求
 func (c *channelElectionManager) addElectionReq(req electionReq) error {
-	c.Panic("addElectionReq....", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+	c.Info("addElectionReq....", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	select {
 	case c.electionC <- req:
 	case <-c.stopper.ShouldStop():
@@ -149,6 +149,7 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 		cfg := req.cfg
 		cfg.Term++
 		cfg.LeaderId = newLeaderId
+		cfg.ConfVersion = uint64(time.Now().UnixNano())
 		select {
 		case req.resultC <- electionResp{
 			cfg: cfg,

@@ -24,6 +24,7 @@ type ReactorSub struct {
 	tmpHandlers []*handler
 
 	avdanceC chan struct{}
+	stepC    chan stepReq
 	mr       *Reactor
 	stopped  atomic.Bool
 
@@ -39,6 +40,7 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 10000),
 		avdanceC:    make(chan struct{}, 1),
+		stepC:       make(chan stepReq, 1024),
 
 		storeAppendRespC: make(chan *handler, 1000),
 	}
@@ -66,6 +68,16 @@ func (r *ReactorSub) run() {
 		select {
 		case <-tick.C:
 			r.tick()
+		case req := <-r.stepC:
+			handler := r.handlers.get(req.handlerKey)
+			if handler == nil {
+				r.Info("ReactorSub: handler not exist", zap.String("handlerKey", req.handlerKey))
+				continue
+			}
+			err := handler.step(req.msg)
+			if err != nil {
+				r.Error("step message failed", zap.Error(err))
+			}
 		case handler := <-r.storeAppendRespC:
 			err := handler.step(replica.NewMsgStoreAppendResp(r.opts.NodeId, handler.lastIndex.Load()))
 			if err != nil {
@@ -234,7 +246,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 	}
 
 	for _, m := range rd.Messages {
-		if m.To == r.opts.NodeId {
+		if m.To == r.opts.NodeId { // 处理本地节点消息
 			r.handleLocalMsg(handler, m)
 			continue
 		}
@@ -243,6 +255,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			continue
 		}
 
+		// 日志同步请求
 		if m.MsgType == replica.MsgSyncReq {
 			switch handler.sync.syncStatus {
 			case syncStatusNone:
@@ -264,22 +277,15 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			}
 		}
 
-		// if r.opts.ReactorType == ReactorTypeConfig {
-		// 	if m.MsgType == replica.MsgSyncReq {
-		// 		lastIdex, _ := handler.lastLogIndexAndTerm()
-		// 		r.Info("sync...", zap.Uint64("index", m.Index), zap.Uint64("from", m.From), zap.Uint64("lastIndex", lastIdex))
-		// 	} else if m.MsgType == replica.MsgSyncResp {
-		// 		lastIdex, _ := handler.lastLogIndexAndTerm()
-		// 		r.Info("syncResp...", zap.Uint64("index", m.Index), zap.Uint64("from", m.From), zap.Uint64("lastIndex", lastIdex))
-		// 	}
-		// }
-
+		// 同步速度处理
 		if r.opts.AutoSlowDownOn {
+			// 如果收到了同步日志的消息，速度重置（提速）
 			if m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0 { // 还有副本同步到日志，不降速
 				handler.resetSlowDown()
 			}
 		}
 
+		// 发送消息
 		r.opts.Send(Message{
 			HandlerKey: handler.key,
 			Message:    m,
@@ -601,17 +607,23 @@ func (r *ReactorSub) tick() {
 
 func (r *ReactorSub) handleLocalMsg(handler *handler, msg replica.Message) {
 	switch msg.MsgType {
-	case replica.MsgSyncGet:
+	case replica.MsgSyncGet: // 获取日志
 		r.handleSyncGet(handler, msg)
-	case replica.MsgStoreAppend:
+	case replica.MsgStoreAppend: // 追加日志
 		r.handleStoreAppend(handler, msg)
-	case replica.MsgApplyLogs:
+	case replica.MsgApplyLogs: // 应用日志
 		r.handleApplyLogsReq(handler, msg)
+	case replica.MsgLearnerToFollower: // 学习者转追随者
+		r.handleLearnerToFollower(handler, msg)
+	case replica.MsgLearnerToLeader: // 学习者转领导者
+		r.handleLearnerToLeader(handler, msg)
 	case replica.MsgVoteResp:
 		err := handler.step(msg)
 		if err != nil {
 			r.Error("step vote resp message failed", zap.Error(err))
 		}
+	case replica.MsgConfigChange:
+		r.handleConfigChange(handler, msg)
 	}
 }
 
@@ -734,6 +746,39 @@ func (r *ReactorSub) handleApplyLogsReq(handler *handler, msg replica.Message) {
 	handler.addApplyLogStoreTask(tk)
 }
 
+// 处理配置改变 （这里需要开协程，因为saveConfig是耗时操作，要不然会影响整个reactor的效率）
+func (r *ReactorSub) handleLearnerToFollower(handler *handler, msg replica.Message) {
+	err := handler.learnerToFollower(msg.LearnerId)
+	if err != nil {
+		r.Error("learnerToFollower failed", zap.Error(err))
+		return
+	}
+}
+
+func (r *ReactorSub) handleLearnerToLeader(handler *handler, msg replica.Message) {
+	err := handler.learnerToLeader(msg.LearnerId)
+	if err != nil {
+		r.Error("learnerToLeader failed", zap.Error(err))
+		return
+	}
+}
+
+func (r *ReactorSub) handleConfigChange(handler *handler, msg replica.Message) {
+	cfgData := msg.Logs[0].Data
+
+	cfg := replica.Config{}
+	err := cfg.Unmarshal(cfgData)
+	if err != nil {
+		r.Error("handleConfigChange: unmarshal config failed", zap.Error(err))
+		return
+	}
+	err = handler.saveConfig(cfg)
+	if err != nil {
+		r.Error("handleConfigChange: save config failed", zap.Error(err))
+		return
+	}
+}
+
 func (r *ReactorSub) addHandler(handler *handler) {
 	r.handlers.add(handler)
 
@@ -760,6 +805,7 @@ func (r *ReactorSub) handlerLen() int {
 	return r.handlers.len()
 }
 
+// 收到消息
 func (r *ReactorSub) addMessage(m Message) {
 
 	// if r.opts.ReactorType == ReactorTypeChannel {
@@ -777,4 +823,9 @@ func (r *ReactorSub) addMessage(m Message) {
 	handler.addMessage(m)
 	r.advance() // 推进
 
+}
+
+type stepReq struct {
+	handlerKey string
+	msg        replica.Message
 }

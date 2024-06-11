@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -825,6 +826,9 @@ type ChannelClusterStorage interface {
 	Delete(channelId string, channelType uint8) error
 	// 获取分布式配置
 	Get(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error)
+
+	// 获取频道分布式配置版本
+	GetVersion(channelId string, channelType uint8) (uint64, error)
 	// // 获取某个槽位的频道分布式数量
 	GetCountWithSlotId(slotId uint32) (int, error)
 	// // 获取某个槽位的频道分布式配置
@@ -866,6 +870,8 @@ type ChannelClusterConfigResp struct {
 	ActiveFormat      string                    `json:"active_format"`       // 状态格式化
 	Status            wkdb.ChannelClusterStatus `json:"status"`              // 状态
 	StatusFormat      string                    `json:"status_format"`       // 状态格式化
+	MigrateFrom       uint64                    `json:"migrate_from"`        // 迁移来源
+	MigrateTo         uint64                    `json:"migrate_to"`          // 迁移目标
 }
 
 func formatChannelType(channelType uint8) string {
@@ -893,13 +899,13 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 
 	channelTypeFormat := formatChannelType(cfg.ChannelType)
 
-	statusFormat := "未知"
+	statusFormat := ""
 	if cfg.Status == wkdb.ChannelClusterStatusNormal {
 		statusFormat = "正常"
 	} else if cfg.Status == wkdb.ChannelClusterStatusCandidate {
-		statusFormat = "候选中"
-	} else if cfg.Status == wkdb.ChannelClusterStatusLeaderTransfer {
-		statusFormat = "领导者转移中"
+		statusFormat = "选举中"
+	} else {
+		statusFormat = fmt.Sprintf("未知(%d)", cfg.Status)
 	}
 	return &ChannelClusterConfigResp{
 		ChannelID:         cfg.ChannelId,
@@ -913,6 +919,8 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 		SlotLeaderId:      slotLeaderId,
 		Status:            cfg.Status,
 		StatusFormat:      statusFormat,
+		MigrateTo:         cfg.MigrateTo,
+		MigrateFrom:       cfg.MigrateFrom,
 	}
 }
 
@@ -1299,4 +1307,34 @@ func newConversationResp(c wkdb.Conversation) *conversationResp {
 type conversationRespTotal struct {
 	Total int                 `json:"total"` // 总数
 	Data  []*conversationResp `json:"data"`  // 会话信息
+}
+
+type channelClusterConfigPingReq struct {
+	ChannelId   string
+	ChannelType uint8
+	CfgVersion  uint64
+}
+
+func (c channelClusterConfigPingReq) Marshal() ([]byte, error) {
+
+	data := make([]byte, 0, 50)
+
+	cfgVersionData := make([]byte, 8)
+	binary.BigEndian.PutUint64(cfgVersionData, c.CfgVersion)
+	data = append(data, cfgVersionData...)
+	data = append(data, c.ChannelType)
+	data = append(data, c.ChannelId...)
+
+	return data, nil
+}
+
+func (c *channelClusterConfigPingReq) Unmarshal(data []byte) error {
+
+	if len(data) < 9 {
+		return fmt.Errorf("data is too short")
+	}
+	c.CfgVersion = binary.BigEndian.Uint64(data[:8])
+	c.ChannelType = data[8]
+	c.ChannelId = string(data[9:])
+	return nil
 }

@@ -92,8 +92,11 @@ const (
 	MsgBeat                     // 触发ping
 	MsgPing                     // ping
 	MsgPong                     // pong
-	MsgConfigReq                // 配置请求
-	MsgConfigResp               // 配置响应
+	MsgConfigReq                // 从节点请求领导的集群配置
+	MsgConfigResp               //从领导返回集群配置
+	MsgConfigChange             // 配置变更
+	MsgLearnerToFollower        // 学习者转成追随者
+	MsgLearnerToLeader          // 学习者转成领导者
 	MsgMaxValue
 )
 
@@ -139,6 +142,10 @@ func (m MsgType) String() string {
 		return "MsgConfigReq"
 	case MsgConfigResp:
 		return "MsgConfigResp"
+	case MsgLearnerToFollower:
+		return "MsgLearnerToFollower"
+	case MsgLearnerToLeader:
+		return "MsgLearnerToLeader"
 	default:
 		return fmt.Sprintf("MsgUnkown[%d]", m)
 	}
@@ -154,13 +161,15 @@ type Message struct {
 	Index          uint64
 	CommittedIndex uint64 // 已提交日志下标
 
-	ApplyingIndex uint64 // 应用中的下表
-	AppliedIndex  uint64
-
 	SpeedLevel  SpeedLevel // 只有msgSync和ping才编码
 	Reject      bool       // 拒绝
 	ConfVersion uint64     // 配置版本
 	Logs        []Log
+
+	// 不参与编码
+	LearnerId     uint64
+	ApplyingIndex uint64 // 应用中的下表
+	AppliedIndex  uint64
 }
 
 func (m Message) Marshal() ([]byte, error) {
@@ -303,8 +312,9 @@ func (m Message) Size() int {
 }
 
 type HardState struct {
-	LeaderId uint64 // 领导ID
-	Term     uint32 // 领导任期
+	LeaderId    uint64 // 领导ID
+	Term        uint32 // 领导任期
+	ConfVersion uint64
 }
 
 var EmptyHardState = HardState{}
@@ -422,9 +432,11 @@ const (
 )
 
 type Config struct {
-	Replicas []uint64 // 副本集合（包含当前节点自己）
-	Learners []uint64 // 学习节点集合
-	Version  uint64   // 配置版本
+	MigrateFrom uint64   // 迁移源节点
+	MigrateTo   uint64   // 迁移目标节点
+	Replicas    []uint64 // 副本集合（包含当前节点自己）
+	Learners    []uint64 // 学习节点集合
+	Version     uint64   // 配置版本
 }
 
 func NewConfig() *Config {
@@ -435,6 +447,10 @@ func (c *Config) Marshal() ([]byte, error) {
 
 	enc := wkproto.NewEncoder()
 	defer enc.End()
+
+	enc.WriteUint64(c.MigrateFrom)
+	enc.WriteUint64(c.MigrateTo)
+
 	enc.WriteUint32(uint32(len(c.Replicas)))
 	for _, id := range c.Replicas {
 		enc.WriteUint64(id)
@@ -451,6 +467,15 @@ func (c *Config) Unmarshal(data []byte) error {
 
 	dec := wkproto.NewDecoder(data)
 	var err error
+
+	if c.MigrateFrom, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	if c.MigrateTo, err = dec.Uint64(); err != nil {
+		return err
+	}
+
 	var size uint32
 	if size, err = dec.Uint32(); err != nil {
 		return err

@@ -1,7 +1,6 @@
 package wkdb
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -16,7 +15,6 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 	var createCount int
 
 	for _, cn := range conversations {
-		fmt.Println("cn-------->", cn.ChannelId, cn.ChannelType)
 		var isCreate bool
 		id, err := wk.getConversationByChannel(uid, cn.ChannelId, cn.ChannelType)
 		if err != nil {
@@ -429,8 +427,6 @@ func (wk *wukongDB) writeConversationIndex(conversation Conversation, isCreate b
 }
 
 func (wk *wukongDB) writeConversationUpdatedAtIndex(uid string, id uint64, updatedAt time.Time, w pebble.Writer) error {
-
-	fmt.Println("conversation.UpdatedAt.---->", updatedAt.UnixMilli())
 
 	if err := w.Set(key.NewConversationSecondIndexKey(uid, key.TableConversation.SecondIndex.UpdatedAt, uint64(updatedAt.UnixMilli()), id), nil, wk.noSync); err != nil {
 		return err

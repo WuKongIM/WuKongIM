@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 	"time"
 
@@ -62,6 +63,25 @@ func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8)
 		return EmptyChannelClusterConfig, nil
 	}
 	return clusterConfigs[0], nil
+}
+
+func (wk *wukongDB) GetChannelClusterConfigVersion(channelId string, channelType uint8) (uint64, error) {
+	primaryKey, err := wk.getChannelClusterConfigPrimaryKey(channelId, channelType)
+	if err != nil {
+		return 0, err
+	}
+	if primaryKey == 0 {
+		return 0, nil
+	}
+	result, closer, err := wk.defaultShardDB().Get(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ConfVersion))
+	if err != nil {
+		return 0, err
+	}
+	defer closer.Close()
+	if len(result) == 0 {
+		return 0, nil
+	}
+	return binary.BigEndian.Uint64(result), nil
 }
 
 func (wk *wukongDB) DeleteChannelClusterConfig(channelId string, channelType uint8) error {
@@ -211,6 +231,7 @@ func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterC
 	// config version
 	configVersionBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(configVersionBytes, channelClusterConfig.ConfVersion)
+	fmt.Println("channelClusterConfig.ConfVersion---->", channelClusterConfig.ConfVersion)
 	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ConfVersion), configVersionBytes, wk.noSync); err != nil {
 		return err
 	}
@@ -305,6 +326,8 @@ func (wk *wukongDB) parseChannelClusterConfig(iter *pebble.Iterator, limit int, 
 			preChannelClusterConfig.LeaderTransferTo = wk.endian.Uint64(iter.Value())
 		case key.TableChannelClusterConfig.Column.Status:
 			preChannelClusterConfig.Status = ChannelClusterStatus(iter.Value()[0])
+		case key.TableChannelClusterConfig.Column.ConfVersion:
+			preChannelClusterConfig.ConfVersion = wk.endian.Uint64(iter.Value())
 		case key.TableChannelClusterConfig.Column.Version:
 			preChannelClusterConfig.version = wk.endian.Uint16(iter.Value())
 		}

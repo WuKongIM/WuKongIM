@@ -21,7 +21,7 @@ func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscrib
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("AddSubscribers: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	w := db.NewBatch()
@@ -57,7 +57,7 @@ func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subsc
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("RemoveSubscribers: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	idMap, err := wk.getSubscriberIdsByUids(channelId, channelType, subscribers)
@@ -105,7 +105,7 @@ func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) err
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("RemoveAllSubscriber: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	db := wk.channelDb(channelId, channelType)
@@ -460,7 +460,7 @@ func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, uids []stri
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("AddDenylist: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	w := db.NewBatch()
@@ -512,7 +512,7 @@ func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []s
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("RemoveDenylist: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	idMap, err := wk.getDenylistIdsByUids(channelId, channelType, uids)
@@ -546,7 +546,7 @@ func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("RemoveAllDenylist: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	db := wk.channelDb(channelId, channelType)
@@ -586,7 +586,7 @@ func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, uids []str
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("AddAllowlist: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	w := db.NewBatch()
@@ -659,7 +659,7 @@ func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("RemoveAllowlist: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	idMap, err := wk.getAllowlistIdsByUids(channelId, channelType, uids)
@@ -695,7 +695,7 @@ func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) erro
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("channelId: %s channelType: %d not found", channelId, channelType)
+		return fmt.Errorf("RemoveAllAllowlist: channelId: %s channelType: %d not found", channelId, channelType)
 	}
 
 	batch := db.NewBatch()

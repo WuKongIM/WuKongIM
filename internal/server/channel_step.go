@@ -1,7 +1,10 @@
 package server
 
+import "fmt"
+
 func (c *channel) step(a *ChannelAction) error {
 
+	fmt.Println("step------>", a.ActionType.String())
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
@@ -24,6 +27,8 @@ func (c *channel) step(a *ChannelAction) error {
 			return nil
 		}
 		lastMsg := a.Messages[len(a.Messages)-1]
+		fmt.Println("ChannelActionPayloadDecryptResp: ", lastMsg.Index, c.msgQueue.payloadDecryptingIndex)
+
 		if lastMsg.Index > c.msgQueue.payloadDecryptingIndex {
 			c.msgQueue.payloadDecryptingIndex = lastMsg.Index
 		}
@@ -93,13 +98,15 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 		if len(a.Messages) == 0 {
 			return nil
 		}
-		lastMsg := a.Messages[len(a.Messages)-1]
-		if lastMsg.Index > c.msgQueue.forwardingIndex {
-			c.msgQueue.forwardingIndex = lastMsg.Index
-			c.msgQueue.truncateTo(lastMsg.Index)
+		if a.Reason == ReasonSuccess {
+			lastMsg := a.Messages[len(a.Messages)-1]
+			if lastMsg.Index > c.msgQueue.forwardingIndex {
+				c.msgQueue.forwardingIndex = lastMsg.Index
+				c.msgQueue.truncateTo(lastMsg.Index)
+			}
 		}
 	case ChannelActionLeaderChange: // leader变更
-		a.LeaderId = c.leaderId
+		c.leaderId = a.LeaderId
 		if c.role == channelRoleLeader { // 当前节点是leader
 			if a.LeaderId != c.r.opts.Cluster.NodeId {
 				c.becomeProxy(a.LeaderId)
