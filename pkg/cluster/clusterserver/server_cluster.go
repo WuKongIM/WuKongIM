@@ -279,11 +279,6 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 			return true
 		}
 
-		// 有领导迁移配置
-		if ch.cfg.LeaderTransferTo != 0 {
-			return true
-		}
-
 		return false
 	}
 
@@ -314,7 +309,6 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 				return nil, err
 			}
 			if updated {
-				fmt.Println("updateClusterConfigIfNeed0------>", newCfg.ConfVersion, newCfg.ChannelId)
 				clusterCfg = newCfg
 				needProposeCfg = true
 			}
@@ -366,7 +360,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 				s.Error("switchConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 				return nil, err
 			}
-			ch.Debug("switchConfig success", zap.Duration("cost", time.Since(start)), zap.Any("learners", clusterCfg.Learners), zap.Any("replicas", clusterCfg.Replicas), zap.Uint64("leaderTransferTo", clusterCfg.LeaderTransferTo), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			ch.Debug("switchConfig success", zap.Duration("cost", time.Since(start)), zap.Any("learners", clusterCfg.Learners), zap.Any("replicas", clusterCfg.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		} else {
 			// 启动频道的分布式
 			err = ch.bootstrap(clusterCfg)

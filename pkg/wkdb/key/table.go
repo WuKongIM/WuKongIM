@@ -482,19 +482,18 @@ var TableChannelClusterConfig = struct {
 		Channel [2]byte
 	}
 	Column struct {
-		ChannelId        [2]byte
-		ChannelType      [2]byte
-		ReplicaMaxCount  [2]byte
-		Replicas         [2]byte
-		Learners         [2]byte
-		LeaderId         [2]byte
-		Term             [2]byte
-		MigrateFrom      [2]byte
-		MigrateTo        [2]byte
-		LeaderTransferTo [2]byte
-		Status           [2]byte
-		ConfVersion      [2]byte
-		Version          [2]byte
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		ReplicaMaxCount [2]byte
+		Replicas        [2]byte
+		Learners        [2]byte
+		LeaderId        [2]byte
+		Term            [2]byte
+		MigrateFrom     [2]byte
+		MigrateTo       [2]byte
+		Status          [2]byte
+		ConfVersion     [2]byte
+		Version         [2]byte
 	}
 }{
 	Id:        [2]byte{0x0B, 0x01},
@@ -504,33 +503,31 @@ var TableChannelClusterConfig = struct {
 		Channel [2]byte
 	}{},
 	Column: struct {
-		ChannelId        [2]byte
-		ChannelType      [2]byte
-		ReplicaMaxCount  [2]byte
-		Replicas         [2]byte
-		Learners         [2]byte
-		LeaderId         [2]byte
-		Term             [2]byte
-		MigrateFrom      [2]byte
-		MigrateTo        [2]byte
-		LeaderTransferTo [2]byte
-		Status           [2]byte
-		ConfVersion      [2]byte
-		Version          [2]byte
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		ReplicaMaxCount [2]byte
+		Replicas        [2]byte
+		Learners        [2]byte
+		LeaderId        [2]byte
+		Term            [2]byte
+		MigrateFrom     [2]byte
+		MigrateTo       [2]byte
+		Status          [2]byte
+		ConfVersion     [2]byte
+		Version         [2]byte
 	}{
-		ChannelId:        [2]byte{0x0B, 0x01},
-		ChannelType:      [2]byte{0x0B, 0x02},
-		ReplicaMaxCount:  [2]byte{0x0B, 0x03},
-		Replicas:         [2]byte{0x0B, 0x04},
-		Learners:         [2]byte{0x0B, 0x05},
-		LeaderId:         [2]byte{0x0B, 0x06},
-		Term:             [2]byte{0x0B, 0x07},
-		MigrateFrom:      [2]byte{0x0B, 0x08},
-		MigrateTo:        [2]byte{0x0B, 0x09},
-		LeaderTransferTo: [2]byte{0x0B, 0x0A},
-		Status:           [2]byte{0x0B, 0x0B},
-		ConfVersion:      [2]byte{0x0B, 0x0C},
-		Version:          [2]byte{0x0B, 0x0D},
+		ChannelId:       [2]byte{0x0B, 0x01},
+		ChannelType:     [2]byte{0x0B, 0x02},
+		ReplicaMaxCount: [2]byte{0x0B, 0x03},
+		Replicas:        [2]byte{0x0B, 0x04},
+		Learners:        [2]byte{0x0B, 0x05},
+		LeaderId:        [2]byte{0x0B, 0x06},
+		Term:            [2]byte{0x0B, 0x07},
+		MigrateFrom:     [2]byte{0x0B, 0x08},
+		MigrateTo:       [2]byte{0x0B, 0x09},
+		Status:          [2]byte{0x0B, 0x0A},
+		ConfVersion:     [2]byte{0x0B, 0x0B},
+		Version:         [2]byte{0x0B, 0x0C},
 	},
 }
 
@@ -627,29 +624,32 @@ var TableTotal = struct {
 	Id     [2]byte
 	Size   int
 	Column struct {
-		User         [2]byte
-		Device       [2]byte
-		Session      [2]byte
-		Conversation [2]byte
-		Message      [2]byte
-		Channel      [2]byte
+		User                 [2]byte
+		Device               [2]byte
+		Session              [2]byte
+		Conversation         [2]byte
+		Message              [2]byte
+		Channel              [2]byte
+		ChannelClusterConfig [2]byte
 	}
 }{
 	Id:   [2]byte{0x0F, 0x01},
 	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
 	Column: struct {
-		User         [2]byte
-		Device       [2]byte
-		Session      [2]byte
-		Conversation [2]byte
-		Message      [2]byte
-		Channel      [2]byte
+		User                 [2]byte
+		Device               [2]byte
+		Session              [2]byte
+		Conversation         [2]byte
+		Message              [2]byte
+		Channel              [2]byte
+		ChannelClusterConfig [2]byte
 	}{
-		User:         [2]byte{0x0F, 0x01},
-		Device:       [2]byte{0x0F, 0x02},
-		Session:      [2]byte{0x0F, 0x03},
-		Conversation: [2]byte{0x0F, 0x04},
-		Message:      [2]byte{0x0F, 0x05},
-		Channel:      [2]byte{0x0F, 0x06},
+		User:                 [2]byte{0x0F, 0x01},
+		Device:               [2]byte{0x0F, 0x02},
+		Session:              [2]byte{0x0F, 0x03},
+		Conversation:         [2]byte{0x0F, 0x04},
+		Message:              [2]byte{0x0F, 0x05},
+		Channel:              [2]byte{0x0F, 0x06},
+		ChannelClusterConfig: [2]byte{0x0F, 0x07},
 	},
 }

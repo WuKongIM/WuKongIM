@@ -224,6 +224,9 @@ type ChannelClusterConfigDB interface {
 
 	// GetChannelClusterConfigVersion 获取频道的分布式配置版本
 	GetChannelClusterConfigVersion(channelId string, channelType uint8) (uint64, error)
+
+	// SearchChannelClusterConfig 搜索频道的分布式配置
+	SearchChannelClusterConfig(req ChannelClusterConfigSearchReq) ([]ChannelClusterConfig, error)
 }
 
 type LeaderTermSequenceDB interface {
@@ -306,6 +309,9 @@ type TotalDB interface {
 
 	// GetTotalConversationCount 获取总个最近会话数量
 	GetTotalConversationCount() (int, error)
+
+	// GetTotalChannelClusterConfigCount 获取总个频道分布式配置数量
+	GetTotalChannelClusterConfigCount() (int, error)
 }
 
 type MessageSearchReq struct {
@@ -356,6 +362,13 @@ type ConversationSearchReq struct {
 
 type SessionSearchReq struct {
 	Uid         string // 用户id
+	Limit       int    // 限制查询数量
+	CurrentPage int    // 当前页码
+}
+
+type ChannelClusterConfigSearchReq struct {
+	ChannelId   string // 频道id
+	ChannelType uint8  // 频道类型
 	Limit       int    // 限制查询数量
 	CurrentPage int    // 当前页码
 }

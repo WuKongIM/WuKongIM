@@ -305,7 +305,9 @@ func (c *channel) SaveConfig(cfg replica.Config) error {
 	c.cfg.Learners = cfg.Learners
 	c.cfg.ConfVersion = cfg.Version
 
-	fmt.Println("SaveConfig-------->", cfg.Version, c.channelId)
+	if c.cfg.MigrateFrom == 0 && c.cfg.MigrateTo == 0 {
+		c.cfg.Status = wkdb.ChannelClusterStatusNormal
+	}
 
 	err := c.opts.ChannelClusterStorage.Save(c.cfg)
 	if err != nil {

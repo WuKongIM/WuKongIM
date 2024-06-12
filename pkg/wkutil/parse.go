@@ -21,3 +21,8 @@ func ParseUint64(str string) uint64 {
 	v, _ := strconv.ParseUint(str, 10, 64)
 	return v
 }
+
+func ParseBool(str string) bool {
+	v, _ := strconv.ParseBool(str)
+	return v
+}

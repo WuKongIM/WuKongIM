@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -131,6 +132,22 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	limit := wkutil.ParseInt(c.Query("limit"))
+	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
+	channelId := strings.TrimSpace(c.Query("channel_id"))
+	channelType := wkutil.ParseUint8(c.Query("channel_type"))
+
+	running := wkutil.ParseBool(c.Query("running")) // 是否只查询运行中的频道
+
+	if limit <= 0 {
+		limit = s.opts.PageSize
+	}
+
+	if currentPage <= 0 {
+		currentPage = 1
+	}
+
 	node := s.clusterEventServer.Node(id)
 	if node == nil {
 		s.Error("node not found", zap.Uint64("nodeId", id))
@@ -148,11 +165,25 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		return
 	}
 
-	channelClusterConfigs, err := s.opts.ChannelClusterStorage.GetAll(0, 10000)
-	if err != nil {
-		s.Error("GetWithAllSlot error", zap.Error(err))
-		c.ResponseError(err)
-		return
+	var channelClusterConfigs []wkdb.ChannelClusterConfig
+	if running {
+		s.channelManager.iterator(func(h reactor.IHandler) bool {
+			channel := h.(*channel)
+			channelClusterConfigs = append(channelClusterConfigs, channel.cfg)
+			return true
+		})
+	} else {
+		channelClusterConfigs, err = s.opts.DB.SearchChannelClusterConfig(wkdb.ChannelClusterConfigSearchReq{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+			CurrentPage: currentPage,
+			Limit:       limit,
+		})
+		if err != nil {
+			s.Error("GetWithAllSlot error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
 	}
 
 	channelClusterConfigResps := make([]*ChannelClusterConfigResp, 0, len(channelClusterConfigs))
@@ -201,9 +232,18 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 
 	}
 
+	total, err := s.opts.DB.GetTotalChannelClusterConfigCount()
+	if err != nil {
+		s.Error("GetTotalChannelClusterConfigCount error", zap.Error(err))
+		c.ResponseError(err)
+		return
+
+	}
+
 	c.JSON(http.StatusOK, ChannelClusterConfigRespTotal{
-		Total: len(channelClusterConfigResps),
-		Data:  channelClusterConfigResps,
+		Total:   total,
+		Running: s.channelManager.channelCount(),
+		Data:    channelClusterConfigResps,
 	})
 }
 
@@ -975,6 +1015,7 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 	limit := wkutil.ParseInt(c.Query("limit"))
 	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
 	uid := strings.TrimSpace(c.Query("uid"))
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 
 	if currentPage <= 0 {
 		currentPage = 1
@@ -984,33 +1025,117 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 		limit = s.opts.PageSize
 	}
 
-	users, err := s.opts.DB.SearchUser(wkdb.UserSearchReq{
-		Uid:         uid,
-		Limit:       limit,
-		CurrentPage: currentPage,
-	})
-	if err != nil {
-		s.Error("search user failed", zap.Error(err))
-		c.ResponseError(err)
+	var searchLocalUsers = func() (userRespTotal, error) {
+		users, err := s.opts.DB.SearchUser(wkdb.UserSearchReq{
+			Uid:         uid,
+			Limit:       limit,
+			CurrentPage: currentPage,
+		})
+		if err != nil {
+			s.Error("search user failed", zap.Error(err))
+			return userRespTotal{}, err
+		}
+
+		userResps := make([]*userResp, 0, len(users))
+		for _, user := range users {
+			userResps = append(userResps, newUserResp(user))
+		}
+
+		count, err := s.opts.DB.GetTotalUserCount()
+		if err != nil {
+			s.Error("GetTotalUserCount error", zap.Error(err))
+			return userRespTotal{}, err
+		}
+		return userRespTotal{
+			Data:  userResps,
+			Total: count,
+		}, nil
+	}
+
+	if nodeId == s.opts.NodeId {
+		result, err := searchLocalUsers()
+		if err != nil {
+			s.Error("search local users  failed", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		c.JSON(http.StatusOK, result)
 		return
 	}
 
-	userResps := make([]*userResp, 0, len(users))
-	for _, user := range users {
-		userResps = append(userResps, newUserResp(user))
+	nodes := s.clusterEventServer.Nodes()
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	defer cancel()
+
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
+	userResps := make([]*userResp, 0)
+	for _, node := range nodes {
+		if node.Id == s.opts.NodeId {
+			result, err := searchLocalUsers()
+			if err != nil {
+				s.Error("search local users  failed", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			userResps = append(userResps, result.Data...)
+			continue
+		}
+		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
+			return func() error {
+				queryMap := map[string]string{}
+				for key, values := range queryValues {
+					if len(values) > 0 {
+						queryMap[key] = values[0]
+					}
+				}
+				result, err := s.requestUserSearch(c.Request.URL.Path, nId, queryMap)
+				if err != nil {
+					return err
+				}
+				userResps = append(userResps, result.Data...)
+				return nil
+			}
+		}(node.Id, c.Request.URL.Query()))
+
 	}
 
-	count, err := s.opts.DB.GetTotalUserCount()
+	err := requestGroup.Wait()
 	if err != nil {
-		s.Error("GetTotalUserCount error", zap.Error(err))
+		s.Error("search user request failed", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
 	c.JSON(http.StatusOK, userRespTotal{
 		Data:  userResps,
-		Total: count,
+		Total: 0,
 	})
+}
+
+func (s *Server) requestUserSearch(path string, nodeId uint64, queryMap map[string]string) (*userRespTotal, error) {
+	node := s.clusterEventServer.Node(nodeId)
+	if node == nil {
+		s.Error("requestUserSearch failed, node not found", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("node not found")
+	}
+	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
+	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
+	resp, err := network.Get(fullUrl, queryMap, nil)
+	if err != nil {
+		return nil, err
+	}
+	err = handlerIMError(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var userRespTotal *userRespTotal
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &userRespTotal)
+	if err != nil {
+		return nil, err
+	}
+	return userRespTotal, nil
 }
 
 func (s *Server) deviceSearch(c *wkhttp.Context) {
@@ -1019,6 +1144,7 @@ func (s *Server) deviceSearch(c *wkhttp.Context) {
 	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
 	uid := strings.TrimSpace(c.Query("uid"))
 	deviceFlag := wkutil.ParseUint64(strings.TrimSpace(c.Query("device_flag")))
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 
 	if currentPage <= 0 {
 		currentPage = 1
@@ -1027,35 +1153,119 @@ func (s *Server) deviceSearch(c *wkhttp.Context) {
 		limit = s.opts.PageSize
 	}
 
-	devices, err := s.opts.DB.SearchDevice(wkdb.DeviceSearchReq{
-		Uid:         uid,
-		DeviceFlag:  deviceFlag,
-		Limit:       limit,
-		CurrentPage: currentPage,
-	})
-	if err != nil {
-		s.Error("search device failed", zap.Error(err))
-		c.ResponseError(err)
+	var searchLocalDevice = func() (*deviceRespTotal, error) {
+		devices, err := s.opts.DB.SearchDevice(wkdb.DeviceSearchReq{
+			Uid:         uid,
+			DeviceFlag:  deviceFlag,
+			Limit:       limit,
+			CurrentPage: currentPage,
+		})
+		if err != nil {
+			s.Error("search device failed", zap.Error(err))
+			return nil, err
+		}
+		deviceResps := make([]*deviceResp, 0, len(devices))
+		for _, device := range devices {
+			deviceResps = append(deviceResps, newDeviceResp(device))
+		}
+		count, err := s.opts.DB.GetTotalDeviceCount()
+		if err != nil {
+			s.Error("GetTotalDeviceCount error", zap.Error(err))
+			return nil, err
+		}
+
+		return &deviceRespTotal{
+			Total: count,
+			Data:  deviceResps,
+		}, nil
+
+	}
+
+	if nodeId == s.opts.NodeId {
+		result, err := searchLocalDevice()
+		if err != nil {
+			s.Error("search local device  failed", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		c.JSON(http.StatusOK, result)
 		return
 	}
 
-	deviceResps := make([]*deviceResp, 0, len(devices))
-	for _, device := range devices {
-		deviceResps = append(deviceResps, newDeviceResp(device))
+	nodes := s.clusterEventServer.Nodes()
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	defer cancel()
+
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
+	deviceResps := make([]*deviceResp, 0)
+	for _, node := range nodes {
+		if node.Id == s.opts.NodeId {
+			result, err := searchLocalDevice()
+			if err != nil {
+				s.Error("search local users  failed", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			deviceResps = append(deviceResps, result.Data...)
+			continue
+		}
+		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
+			return func() error {
+				queryMap := map[string]string{}
+				for key, values := range queryValues {
+					if len(values) > 0 {
+						queryMap[key] = values[0]
+					}
+				}
+				result, err := s.requestDeviceSearch(c.Request.URL.Path, nId, queryMap)
+				if err != nil {
+					return err
+				}
+				deviceResps = append(deviceResps, result.Data...)
+				return nil
+			}
+		}(node.Id, c.Request.URL.Query()))
+
 	}
 
-	count, err := s.opts.DB.GetTotalDeviceCount()
+	err := requestGroup.Wait()
 	if err != nil {
-		s.Error("GetTotalDeviceCount error", zap.Error(err))
+		s.Error("search device request failed", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
 	c.JSON(http.StatusOK, deviceRespTotal{
 		Data:  deviceResps,
-		Total: count,
+		Total: 0,
 	})
 
+}
+
+func (s *Server) requestDeviceSearch(path string, nodeId uint64, queryMap map[string]string) (*deviceRespTotal, error) {
+	node := s.clusterEventServer.Node(nodeId)
+	if node == nil {
+		s.Error("requestDeviceSearch failed, node not found", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("node not found")
+	}
+	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
+	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
+	resp, err := network.Get(fullUrl, queryMap, nil)
+	if err != nil {
+		return nil, err
+	}
+	err = handlerIMError(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var deviceRespTotal *deviceRespTotal
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &deviceRespTotal)
+	if err != nil {
+		return nil, err
+	}
+	return deviceRespTotal, nil
 }
 
 func (s *Server) conversationSearch(c *wkhttp.Context) {
@@ -1063,6 +1273,7 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 	limit := wkutil.ParseInt(c.Query("limit"))
 	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
 	uid := strings.TrimSpace(c.Query("uid"))
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 
 	if currentPage <= 0 {
 		currentPage = 1
@@ -1071,43 +1282,125 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 		limit = s.opts.PageSize
 	}
 
-	conversations, err := s.opts.DB.SearchConversation(wkdb.ConversationSearchReq{
-		Uid:         uid,
-		Limit:       limit,
-		CurrentPage: currentPage,
-	})
-	if err != nil {
-		s.Error("search conversation failed", zap.Error(err))
-		c.ResponseError(err)
-		return
+	var searchLocalConversations = func() (*conversationRespTotal, error) {
+		conversations, err := s.opts.DB.SearchConversation(wkdb.ConversationSearchReq{
+			Uid:         uid,
+			Limit:       limit,
+			CurrentPage: currentPage,
+		})
+		if err != nil {
+			s.Error("search conversation failed", zap.Error(err))
+			return nil, err
+		}
+
+		conversationResps := make([]*conversationResp, 0, len(conversations))
+
+		for _, conversation := range conversations {
+			lastMsgSeq, _, err := s.opts.DB.GetChannelLastMessageSeq(conversation.ChannelId, conversation.ChannelType)
+			if err != nil {
+				s.Error("GetChannelLastMessageSeq error", zap.Error(err))
+				return nil, err
+			}
+			resp := newConversationResp(conversation)
+			resp.LastMsgSeq = lastMsgSeq
+			conversationResps = append(conversationResps, resp)
+		}
+		count, err := s.opts.DB.GetTotalSessionCount()
+		if err != nil {
+			s.Error("GetTotalConversationCount error", zap.Error(err))
+			return nil, err
+		}
+		return &conversationRespTotal{
+			Data:  conversationResps,
+			Total: count,
+		}, nil
 	}
 
-	conversationResps := make([]*conversationResp, 0, len(conversations))
-
-	for _, conversation := range conversations {
-		lastMsgSeq, _, err := s.opts.DB.GetChannelLastMessageSeq(conversation.ChannelId, conversation.ChannelType)
+	if nodeId == s.opts.NodeId {
+		result, err := searchLocalConversations()
 		if err != nil {
-			s.Error("GetChannelLastMessageSeq error", zap.Error(err))
+			s.Error("search local conversation  failed", zap.Error(err))
 			c.ResponseError(err)
 			return
 		}
-		resp := newConversationResp(conversation)
-		resp.LastMsgSeq = lastMsgSeq
-		conversationResps = append(conversationResps, resp)
+		c.JSON(http.StatusOK, result)
+		return
 	}
 
-	count, err := s.opts.DB.GetTotalSessionCount()
+	nodes := s.clusterEventServer.Nodes()
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	defer cancel()
+
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
+	conversationResps := make([]*conversationResp, 0)
+	for _, node := range nodes {
+		if node.Id == s.opts.NodeId {
+			result, err := searchLocalConversations()
+			if err != nil {
+				s.Error("search local conversation  failed", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			conversationResps = append(conversationResps, result.Data...)
+			continue
+		}
+		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
+			return func() error {
+				queryMap := map[string]string{}
+				for key, values := range queryValues {
+					if len(values) > 0 {
+						queryMap[key] = values[0]
+					}
+				}
+				result, err := s.requestConversationSearch(c.Request.URL.Path, nId, queryMap)
+				if err != nil {
+					return err
+				}
+				conversationResps = append(conversationResps, result.Data...)
+				return nil
+			}
+		}(node.Id, c.Request.URL.Query()))
+
+	}
+
+	err := requestGroup.Wait()
 	if err != nil {
-		s.Error("GetTotalConversationCount error", zap.Error(err))
+		s.Error("search conversation request failed", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
 	c.JSON(http.StatusOK, conversationRespTotal{
 		Data:  conversationResps,
-		Total: count,
+		Total: 0,
 	})
 
+}
+
+func (s *Server) requestConversationSearch(path string, nodeId uint64, queryMap map[string]string) (*conversationRespTotal, error) {
+	node := s.clusterEventServer.Node(nodeId)
+	if node == nil {
+		s.Error("requestConversationSearch failed, node not found", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("node not found")
+	}
+	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
+	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
+	resp, err := network.Get(fullUrl, queryMap, nil)
+	if err != nil {
+		return nil, err
+	}
+	err = handlerIMError(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var conversationRespTotal *conversationRespTotal
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &conversationRespTotal)
+	if err != nil {
+		return nil, err
+	}
+	return conversationRespTotal, nil
 }
 
 func (s *Server) channelMigrate(c *wkhttp.Context) {

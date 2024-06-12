@@ -850,8 +850,9 @@ const (
 )
 
 type ChannelClusterConfigRespTotal struct {
-	Total int                         `json:"total"` // 总数
-	Data  []*ChannelClusterConfigResp `json:"data"`
+	Total   int                         `json:"total"`   // 总数
+	Running int                         `json:"running"` // 运行中数量
+	Data    []*ChannelClusterConfigResp `json:"data"`
 }
 
 type ChannelClusterConfigResp struct {

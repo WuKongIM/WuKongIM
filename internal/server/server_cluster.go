@@ -56,39 +56,34 @@ func (s *Server) setClusterRoutes() {
 }
 
 func (s *Server) handleChannelForward(c *wkserver.Context) {
-	var reactorChannelMessageSet = ReactorChannelMessageSet{}
-	err := reactorChannelMessageSet.Unmarshal(c.Body())
+	var req = &ChannelFowardReq{}
+	err := req.Unmarshal(c.Body())
 	if err != nil {
 		s.Error("handleChannelForward Unmarshal err", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
 
-	if len(reactorChannelMessageSet) == 0 {
+	if len(req.Messages) == 0 {
 		c.WriteOk()
 		return
 	}
 
-	firstMsg := reactorChannelMessageSet[0]
-	fakeChannelId := firstMsg.SendPacket.ChannelID
-	if firstMsg.SendPacket.ChannelType == wkproto.ChannelTypePerson {
-		fakeChannelId = GetFakeChannelIDWith(firstMsg.FromUid, reactorChannelMessageSet[0].SendPacket.ChannelID)
-	}
 	timeoutCtx, cancel := context.WithTimeout(s.ctx, time.Second*5)
 	defer cancel()
-	isLeader, err := s.cluster.IsLeaderOfChannel(timeoutCtx, fakeChannelId, firstMsg.SendPacket.ChannelType)
+	isLeader, err := s.cluster.IsLeaderOfChannel(timeoutCtx, req.ChannelId, req.ChannelType)
 	if err != nil {
-		s.Error("get is channel leader failed", zap.String("channelId", fakeChannelId), zap.Uint8("channelType", firstMsg.SendPacket.ChannelType))
+		s.Error("get is channel leader failed", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(err)
 		return
 	}
 
 	if !isLeader {
-		s.Error("not is leader", zap.String("channelId", fakeChannelId), zap.Uint8("channelType", firstMsg.SendPacket.ChannelType))
+		s.Error("not is leader", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErrorAndStatus(errors.New("not is leader"), proto.Status(errCodeNotIsChannelLeader))
 		return
 	}
-	for _, reactorChannelMessage := range reactorChannelMessageSet {
+	for _, reactorChannelMessage := range req.Messages {
 		sendPacket := reactorChannelMessage.SendPacket
 		// 提案频道消息
 		err = s.channelReactor.proposeSend(reactorChannelMessage.FromUid, reactorChannelMessage.FromDeviceId, reactorChannelMessage.FromConnId, reactorChannelMessage.FromNodeId, false, sendPacket)

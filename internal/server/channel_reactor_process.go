@@ -166,7 +166,7 @@ func (r *channelReactor) processForward(reqs []*forwardReq) {
 		var reason Reason
 		if err != nil {
 			reason = ReasonError
-			r.Error("handleForward error", zap.Error(err))
+			r.Warn("handleForward error", zap.Error(err))
 		} else {
 			reason = ReasonSuccess
 		}
@@ -191,7 +191,11 @@ func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
 		return 0, errors.New("leaderId is 0")
 	}
 
-	needChangeLeader, err := r.requestChannelFoward(req.leaderId, req.messages)
+	needChangeLeader, err := r.requestChannelFoward(req.leaderId, ChannelFowardReq{
+		ChannelId:   req.ch.channelId,
+		ChannelType: req.ch.channelType,
+		Messages:    req.messages,
+	})
 	if err != nil {
 		r.Error("requestChannelFoward error", zap.Error(err))
 		return 0, err
@@ -205,19 +209,18 @@ func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
 			r.Error("LeaderOfChannel error", zap.Error(err))
 			return 0, err
 		}
-		r.Info("leader change", zap.Uint64("newLeaderId", node.Id), zap.Uint64("oldLeaderId", req.leaderId))
+		r.Info("leader change", zap.Uint64("newLeaderId", node.Id), zap.Uint64("oldLeaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 		return node.Id, errors.New("leader change")
 	}
 
 	return 0, nil
 }
 
-func (r *channelReactor) requestChannelFoward(nodeId uint64, messages []ReactorChannelMessage) (bool, error) {
+func (r *channelReactor) requestChannelFoward(nodeId uint64, req ChannelFowardReq) (bool, error) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
 
-	messageSet := ReactorChannelMessageSet(messages)
-	data, err := messageSet.Marshal()
+	data, err := req.Marshal()
 	if err != nil {
 		return false, err
 	}
