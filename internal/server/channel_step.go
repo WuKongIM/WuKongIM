@@ -1,10 +1,7 @@
 package server
 
-import "fmt"
-
 func (c *channel) step(a *ChannelAction) error {
 
-	fmt.Println("step------>", a.ActionType.String())
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
@@ -21,13 +18,12 @@ func (c *channel) step(a *ChannelAction) error {
 	case ChannelActionSend: // 发送
 		c.appendMessage(a.Messages...) // 消息是按照发送者分组的，所以取第一个即可
 		// c.Info("channel send", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-	case ChannelActionPayloadDecryptResp: // paylaod解密
+	case ChannelActionPayloadDecryptResp: // payload解密
 		c.payloadDecrypting = false
 		if len(a.Messages) == 0 {
 			return nil
 		}
 		lastMsg := a.Messages[len(a.Messages)-1]
-		fmt.Println("ChannelActionPayloadDecryptResp: ", lastMsg.Index, c.msgQueue.payloadDecryptingIndex)
 
 		if lastMsg.Index > c.msgQueue.payloadDecryptingIndex {
 			c.msgQueue.payloadDecryptingIndex = lastMsg.Index

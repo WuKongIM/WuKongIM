@@ -805,6 +805,10 @@ func (r *ReactorSub) handlerLen() int {
 	return r.handlers.len()
 }
 
+func (r *ReactorSub) iterator(f func(h *handler) bool) {
+	r.handlers.iterator(f)
+}
+
 // 收到消息
 func (r *ReactorSub) addMessage(m Message) {
 

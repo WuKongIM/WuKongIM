@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/lni/goutils/syncutil"
@@ -122,7 +121,6 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 	rd := ch.ready()
 
 	for _, action := range rd.actions {
-		fmt.Println("channel-action", action.ActionType, ch.channelId, ch.channelType)
 		switch action.ActionType {
 		case ChannelActionInit: // 初始化
 			r.r.addInitReq(&initReq{

@@ -53,8 +53,17 @@ func (c *channelManager) get(channelId string, channelType uint8) reactor.IHandl
 	return c.channelReactor.Handler(ChannelToKey(channelId, channelType))
 }
 
+func (c *channelManager) iterator(f func(h reactor.IHandler) bool) {
+	c.channelReactor.IteratorHandler(f)
+}
+
 func (c *channelManager) exist(channelId string, channelType uint8) bool {
 	return c.channelReactor.ExistHandler(ChannelToKey(channelId, channelType))
+}
+
+// 频道数量
+func (c *channelManager) channelCount() int {
+	return c.channelReactor.HandlerLen()
 }
 
 func (c *channelManager) getWithHandleKey(handleKey string) reactor.IHandler {

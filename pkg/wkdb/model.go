@@ -378,39 +378,37 @@ const (
 
 // 频道分布式配置
 type ChannelClusterConfig struct {
-	Id               uint64               // ID
-	ChannelId        string               // 频道ID
-	ChannelType      uint8                // 频道类型
-	ReplicaMaxCount  uint16               // 副本最大数量
-	Replicas         []uint64             // 副本节点ID集合
-	Learners         []uint64             // 学习者节点ID集合
-	LeaderId         uint64               // 领导者ID
-	Term             uint32               // 任期
-	MigrateFrom      uint64               // 迁移源
-	MigrateTo        uint64               // 迁移目标
-	LeaderTransferTo uint64               // 领导者转移目标
-	Status           ChannelClusterStatus // 状态
-	ConfVersion      uint64               // 配置文件版本号
+	Id              uint64               // ID
+	ChannelId       string               // 频道ID
+	ChannelType     uint8                // 频道类型
+	ReplicaMaxCount uint16               // 副本最大数量
+	Replicas        []uint64             // 副本节点ID集合
+	Learners        []uint64             // 学习者节点ID集合
+	LeaderId        uint64               // 领导者ID
+	Term            uint32               // 任期
+	MigrateFrom     uint64               // 迁移源
+	MigrateTo       uint64               // 迁移目标
+	Status          ChannelClusterStatus // 状态
+	ConfVersion     uint64               // 配置文件版本号
 
 	version uint16 // 数据协议版本
 }
 
 func (c *ChannelClusterConfig) Clone() ChannelClusterConfig {
 	return ChannelClusterConfig{
-		Id:               c.Id,
-		ChannelId:        c.ChannelId,
-		ChannelType:      c.ChannelType,
-		ReplicaMaxCount:  c.ReplicaMaxCount,
-		Replicas:         c.Replicas,
-		Learners:         c.Learners,
-		LeaderId:         c.LeaderId,
-		Term:             c.Term,
-		MigrateFrom:      c.MigrateFrom,
-		MigrateTo:        c.MigrateTo,
-		LeaderTransferTo: c.LeaderTransferTo,
-		Status:           c.Status,
-		ConfVersion:      c.ConfVersion,
-		version:          c.version,
+		Id:              c.Id,
+		ChannelId:       c.ChannelId,
+		ChannelType:     c.ChannelType,
+		ReplicaMaxCount: c.ReplicaMaxCount,
+		Replicas:        c.Replicas,
+		Learners:        c.Learners,
+		LeaderId:        c.LeaderId,
+		Term:            c.Term,
+		MigrateFrom:     c.MigrateFrom,
+		MigrateTo:       c.MigrateTo,
+		Status:          c.Status,
+		ConfVersion:     c.ConfVersion,
+		version:         c.version,
 	}
 }
 
@@ -438,7 +436,6 @@ func (c *ChannelClusterConfig) Marshal() ([]byte, error) {
 	enc.WriteUint32(c.Term)
 	enc.WriteUint64(c.MigrateFrom)
 	enc.WriteUint64(c.MigrateTo)
-	enc.WriteUint64(c.LeaderTransferTo)
 	enc.WriteUint8(uint8(c.Status))
 	enc.WriteUint64(c.ConfVersion)
 	return enc.Bytes(), nil
@@ -497,10 +494,6 @@ func (c *ChannelClusterConfig) Unmarshal(data []byte) error {
 	}
 
 	if c.MigrateTo, err = dec.Uint64(); err != nil {
-		return err
-	}
-
-	if c.LeaderTransferTo, err = dec.Uint64(); err != nil {
 		return err
 	}
 

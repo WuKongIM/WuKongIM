@@ -126,6 +126,14 @@ func (r *Reactor) HandlerLen() int {
 	return len
 }
 
+func (r *Reactor) IteratorHandler(f func(h IHandler) bool) {
+	for _, sub := range r.subReactors {
+		sub.iterator(func(h *handler) bool {
+			return f(h.handler)
+		})
+	}
+}
+
 func (r *Reactor) newReactorSub(i int) *ReactorSub {
 	return NewReactorSub(i, r)
 }

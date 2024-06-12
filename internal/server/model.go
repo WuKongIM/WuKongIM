@@ -106,6 +106,86 @@ func (m *ReactorChannelMessage) Size() uint64 {
 	return size
 }
 
+type ChannelFowardReq struct {
+	ChannelId   string // 频道ID
+	ChannelType uint8  // 频道类型
+	Messages    []ReactorChannelMessage
+}
+
+func (r ChannelFowardReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(r.ChannelId)
+	enc.WriteUint8(r.ChannelType)
+	enc.WriteUint32(uint32(len(r.Messages)))
+	for _, m := range r.Messages {
+		enc.WriteInt64(m.FromConnId)
+		enc.WriteString(m.FromUid)
+		enc.WriteString(m.FromDeviceId)
+		enc.WriteUint64(m.FromNodeId)
+		enc.WriteInt64(m.MessageId)
+
+		var packetData []byte
+		var err error
+		if m.SendPacket != nil {
+			packetData, err = defaultWkproto.EncodeFrame(m.SendPacket, defaultProtoVersion)
+			if err != nil {
+				return nil, err
+			}
+		}
+		enc.WriteBinary(packetData)
+	}
+	return enc.Bytes(), nil
+}
+
+func (r *ChannelFowardReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if r.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if r.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+	for i := 0; i < int(count); i++ {
+		m := ReactorChannelMessage{}
+		if m.FromConnId, err = dec.Int64(); err != nil {
+			return err
+		}
+		if m.FromUid, err = dec.String(); err != nil {
+			return err
+		}
+		if m.FromDeviceId, err = dec.String(); err != nil {
+			return err
+		}
+		if m.FromNodeId, err = dec.Uint64(); err != nil {
+			return err
+		}
+		if m.MessageId, err = dec.Int64(); err != nil {
+			return err
+		}
+		packetData, err := dec.Binary()
+		if err != nil {
+			return err
+		}
+		packet, _, err := defaultWkproto.DecodeFrame(packetData, defaultProtoVersion)
+		if err != nil {
+			return err
+		}
+		m.SendPacket = packet.(*wkproto.SendPacket)
+		r.Messages = append(r.Messages, m)
+	}
+	return nil
+
+}
+
 type ReactorChannelMessageSet []ReactorChannelMessage
 
 func (rs ReactorChannelMessageSet) Marshal() ([]byte, error) {

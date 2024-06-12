@@ -196,3 +196,11 @@ func (t *totalLock) lockChannelCount() {
 func (t *totalLock) unlockChannelCount() {
 	t.Unlock("__channel_count")
 }
+
+func (t *totalLock) lockChannelClusterConfigCount() {
+	t.Lock("__channel_cluster_config_count")
+}
+
+func (t *totalLock) unlockChannelClusterConfigCount() {
+	t.Unlock("__channel_cluster_config_count")
+}

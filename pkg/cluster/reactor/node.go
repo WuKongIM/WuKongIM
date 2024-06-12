@@ -104,6 +104,19 @@ func (h *handlerList) readHandlers(handlers *[]*handler) {
 	}
 }
 
+func (h *handlerList) iterator(f func(h *handler) bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	node := h.head
+	for node != nil {
+		if !f(node.handler) {
+			break
+		}
+		node = node.next
+	}
+
+}
+
 func (h *handlerList) len() int {
 	return h.count
 }

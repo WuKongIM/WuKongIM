@@ -2,7 +2,6 @@ package clusterstore
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
@@ -53,7 +52,6 @@ func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.Channe
 		return err
 	}
 
-	fmt.Println("cfg-------->", cfg.Status)
 	data, err := EncodeCMDChannelClusterConfigSave(cfg.ChannelId, cfg.ChannelType, cfgData)
 	if err != nil {
 		return err

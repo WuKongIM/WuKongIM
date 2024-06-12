@@ -306,3 +306,53 @@ func (wk *wukongDB) GetTotalConversationCount() (int, error) {
 
 	return count, nil
 }
+
+func (wk *wukongDB) IncChannelClusterConfigCount(v int) error {
+	wk.dblock.totalLock.lockChannelClusterConfigCount()
+	defer wk.dblock.totalLock.unlockChannelClusterConfigCount()
+
+	db := wk.defaultShardDB()
+
+	keyBytes := key.NewTotalColumnKey(key.TableTotal.Column.ChannelClusterConfig)
+	result, closer, err := db.Get(keyBytes)
+	if err != nil && err != pebble.ErrNotFound {
+		return err
+	}
+	if closer != nil {
+		defer closer.Close()
+	}
+
+	var count int
+	if len(result) > 0 {
+		count = int(wk.endian.Uint64(result))
+	} else {
+		result = make([]byte, 8)
+	}
+	count += v
+	wk.endian.PutUint64(result, uint64(count))
+
+	return db.Set(keyBytes, result, wk.sync)
+}
+
+func (wk *wukongDB) GetTotalChannelClusterConfigCount() (int, error) {
+	wk.dblock.totalLock.lockChannelClusterConfigCount()
+	defer wk.dblock.totalLock.unlockChannelClusterConfigCount()
+
+	db := wk.defaultShardDB()
+
+	keyBytes := key.NewTotalColumnKey(key.TableTotal.Column.ChannelClusterConfig)
+	result, closer, err := db.Get(keyBytes)
+	if err != nil && err != pebble.ErrNotFound {
+		return 0, err
+	}
+	if closer != nil {
+		defer closer.Close()
+	}
+
+	var count int
+	if len(result) > 0 {
+		count = int(wk.endian.Uint64(result))
+	}
+
+	return count, nil
+}
