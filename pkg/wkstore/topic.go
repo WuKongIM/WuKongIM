@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -87,7 +88,8 @@ func (t *topic) appendMessages(msgs []Message) ([]uint32, int, error) {
 
 	//	if  roll new segment
 	if lastSegment.index.IsFull() || int64(lastSegment.position) > t.cfg.SegmentMaxBytes {
-		t.roll(msgs[len(msgs)-1]) // roll new segment
+		t.roll(msgs[len(msgs)-1])          // roll new segment
+		lastSegment = t.getActiveSegment() // 重新获取最新的segment
 	}
 
 	// append message to segment
@@ -325,10 +327,14 @@ func (t *topic) getSegmentCacheKey(baseMessageSeq uint32) string {
 
 // get all segment base messageSeq
 func (t *topic) getAllSegmentBaseMessageSeq() []uint32 {
-	files, err := os.ReadDir(t.topicDir)
-	if err != nil {
-		t.Error("read dir fail!", zap.String("topicDir", t.topicDir))
+	logsDir := path.Join(t.topicDir, "logs")
+	files, err := os.ReadDir(logsDir)
+	if err != nil && !os.IsNotExist(err) {
+		t.Error("read dir fail!", zap.String("logsDir", logsDir))
 		panic(err)
+	}
+	if os.IsNotExist(err) {
+		return []uint32{}
 	}
 	segments := make([]uint32, 0)
 	for _, f := range files {

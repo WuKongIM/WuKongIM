@@ -11,7 +11,7 @@ import (
 
 func newTestTopic() *topic {
 	cfg := newTestStoreConfig()
-	cfg.SegmentMaxBytes = 1024 * 1024
+	cfg.SegmentMaxBytes = 1024 * 1024 * 100
 	cfg.DecodeMessageFnc = func(msg []byte) (Message, error) {
 		tm := &testMessage{}
 		err := tm.Decode(msg)
@@ -38,6 +38,7 @@ func TestTopicAppend(t *testing.T) {
 		assert.NoError(t, err)
 		totalBytes += int64(n)
 	}
+	fmt.Println("tc.lastMsgSeq--->", tc.lastMsgSeq.Load())
 
 	expectFileNum := totalBytes / tc.cfg.SegmentMaxBytes
 	if totalBytes%tc.cfg.SegmentMaxBytes != 0 {
