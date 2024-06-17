@@ -1,6 +1,6 @@
 package reactor
 
-import replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+import "github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 
 // 追加日志请求
 type AppendLogReq struct {

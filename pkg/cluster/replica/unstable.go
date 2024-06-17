@@ -33,10 +33,10 @@ func (u *unstable) maybeLastIndex() (uint64, bool) {
 	return 0, false
 }
 
-// stableTo 标记index之前的日志已经持久化
+// appliedTo 标记index之前的日志已经处理完成，可以删除
 // [1 2 3 4 5 6 7 8 9]
-// stableTo(5) => [6 7 8 9]
-func (u *unstable) stableTo(index uint64) {
+// appliedTo(5) => [6 7 8 9]
+func (u *unstable) appliedTo(index uint64) {
 	num := int(index + 1 - u.offset)
 	u.logs = u.logs[num:]
 	u.offset = index + 1
@@ -78,6 +78,7 @@ func (u *unstable) shrinkLogsArray() {
 
 func (u *unstable) truncateAndAppend(logs []Log) {
 	fromIndex := logs[0].Index
+	fmt.Println("fromIndex----->", fromIndex)
 	switch {
 	case fromIndex == u.offset+uint64(len(u.logs)):
 		// fromIndex is the next index in the u.logs, so append directly.
@@ -100,9 +101,10 @@ func (u *unstable) truncateAndAppend(logs []Log) {
 	}
 }
 
+// truncateLogTo 裁剪日志至index， index和index之后的日志全部删除（注意裁剪的内容包含index，也就是保留的值不包含index）
 func (u *unstable) truncateLogTo(index uint64) {
 	if index < u.offset {
-		u.Debug(fmt.Sprintf("truncateLogTo %d is out of bound %d", index, u.offset))
+		u.Info(fmt.Sprintf("truncateLogTo %d is out of bound %d", index, u.offset))
 		return
 	}
 	// 从offset开始截取
@@ -112,6 +114,7 @@ func (u *unstable) truncateLogTo(index uint64) {
 	u.offsetInProgress = min(u.offsetInProgress, up)
 }
 
+// slice [lo, hi)
 func (u *unstable) slice(lo uint64, hi uint64) []Log {
 	u.mustCheckOutOfBounds(lo, hi)
 

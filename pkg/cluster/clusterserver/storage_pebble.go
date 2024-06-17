@@ -9,7 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver/key"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"

@@ -1,73 +1,77 @@
 package replica
 
-import "time"
-
-type AckMode int
-
-const (
-	// AckModeNone AckModeNone
-	AckModeNone AckMode = iota
-	// AckModeMajority AckModeMajority
-	AckModeMajority
-	// AckModeAll AckModeAll
-	AckModeAll
-)
-
 type Options struct {
-	NodeId                uint64 // 当前节点ID
-	Storage               IStorage
-	LogPrefix             string // 日志前缀
-	MaxUncommittedLogSize uint64
-	AppliedIndex          uint64        // 已应用的日志下标
-	SyncLimitSize         uint64        // 每次同步日志数据的最大大小（过小影响吞吐量，过大导致消息阻塞，默认为4M）
-	MessageSendInterval   time.Duration // 消息发送间隔
-	ActiveReplicaMaxTick  int           // 最大空闲时间
-	AckMode               AckMode       // AckMode
-	ReplicaMaxCount       int           // 副本最大数量
-	ElectionOn            bool          // 是否开启选举
-	ElectionTimeoutTick   int           // 选举超时tick次数，超过次tick数则发起选举
-	HeartbeatTimeoutTick  int           // 心跳超时tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
-	Config                *Config
-	// LastSyncInfoMap       map[uint64]*SyncInfo
-	AutoLearnerToFollower      bool   // 自动将学习者转换为跟随者
-	LearnerToFollowerMinLogGap uint64 // 学习者转换为跟随者的最小日志差距，需要AutoLearnerToFollower开启 (当学习者的日志与领导者的日志差距小于这个配置时，学习者会转换为跟随者)
+	NodeId    uint64 // 当前节点ID
+	Storage   IStorage
+	LogPrefix string // 日志前缀
+
+	AppliedIndex uint64 // 已应用的日志下标
+
+	LastIndex uint64 // 最新日志下标
+	LastTerm  uint32 // 最新任期
+
+	ElectionOn           bool // 是否开启选举
+	ElectionIntervalTick int  // 选举间隔tick次数，超过此tick数则发起选举
+	HeartbeatIntervalick int  // 心跳间隔tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
+	SyncIntervalTick     int  // 同步间隔tick次数, 超过此tick数则发起同步
+
+	MaxUncommittedLogSize      uint64  // 最大未提交的日志大小
+	SyncLimitSize              uint64  // 每次同步日志数据的最大大小（过小影响吞吐量，过大导致消息阻塞，默认为10M）
+	AckMode                    AckMode // AckMode
+	AutoRoleSwith              bool    // 运行自动角色切换
+	LearnerToFollowerMinLogGap uint64  // 学习者转换为跟随者的最小日志差距，需要AutoRoleSwith开启 (当学习者的日志与领导者的日志差距小于这个配置时，学习者会转换为跟随者)
 }
 
 func NewOptions() *Options {
 	return &Options{
-		MaxUncommittedLogSize: 1024 * 1024 * 1024,
-		SyncLimitSize:         1024 * 1024 * 20, // 20M
-		// LastSyncInfoMap:       map[uint64]*SyncInfo{},
-		MessageSendInterval:        time.Millisecond * 150,
-		ActiveReplicaMaxTick:       10,
-		AckMode:                    AckModeMajority,
-		ReplicaMaxCount:            3,
 		ElectionOn:                 false,
-		ElectionTimeoutTick:        10,
-		HeartbeatTimeoutTick:       2,
-		LogPrefix:                  "default",
+		ElectionIntervalTick:       10,
+		SyncLimitSize:              1024 * 1024 * 10, // 10M
+		HeartbeatIntervalick:       2,
+		SyncIntervalTick:           2,
+		MaxUncommittedLogSize:      1024 * 1024 * 1024,
+		AckMode:                    AckModeMajority,
+		AutoRoleSwith:              false,
 		LearnerToFollowerMinLogGap: 100,
-		AutoLearnerToFollower:      false,
 	}
 }
+
+// AckMode AckMode 许多指定节点确认，后才算提交
+type AckMode int
+
+const (
+	// AckModeNone 不需要其他节点确认，只需要本节点确认
+	AckModeNone AckMode = iota
+	// AckModeMajority 大多数节点确认
+	AckModeMajority
+	// AckModeAll 所有节点确认
+	AckModeAll
+)
 
 type Option func(o *Options)
 
-func WithStorage(storage IStorage) Option {
+func WithSyncIntervalTick(tick int) Option {
 	return func(o *Options) {
-		o.Storage = storage
+		o.SyncIntervalTick = tick
 	}
 }
 
-func WithMaxUncommittedLogSize(size uint64) Option {
+func WithElectionOn(v bool) Option {
+
 	return func(o *Options) {
-		o.MaxUncommittedLogSize = size
+		o.ElectionOn = v
 	}
 }
 
-func WithAppliedIndex(index uint64) Option {
+func WithElectionIntervalTick(tick int) Option {
 	return func(o *Options) {
-		o.AppliedIndex = index
+		o.ElectionIntervalTick = tick
+	}
+}
+
+func WithHeartbeatIntervalick(tick int) Option {
+	return func(o *Options) {
+		o.HeartbeatIntervalick = tick
 	}
 }
 
@@ -77,39 +81,33 @@ func WithSyncLimitSize(size uint64) Option {
 	}
 }
 
-func WithMessageSendInterval(interval time.Duration) Option {
+func WithMaxUncommittedLogSize(size uint64) Option {
 	return func(o *Options) {
-		o.MessageSendInterval = interval
+		o.MaxUncommittedLogSize = size
 	}
 }
 
-func WithAckMode(ackMode AckMode) Option {
+func WithAckMode(mode AckMode) Option {
 	return func(o *Options) {
-		o.AckMode = ackMode
+		o.AckMode = mode
 	}
 }
 
-func WithReplicaMaxCount(count int) Option {
+func WithAutoRoleSwith(v bool) Option {
 	return func(o *Options) {
-		o.ReplicaMaxCount = count
+		o.AutoRoleSwith = v
 	}
 }
 
-func WithElectionOn(electionOn bool) Option {
+func WithLearnerToFollowerMinLogGap(gap uint64) Option {
 	return func(o *Options) {
-		o.ElectionOn = electionOn
+		o.LearnerToFollowerMinLogGap = gap
 	}
 }
 
-func WithElectionTimeoutTick(tick int) Option {
+func WithNodeId(nodeId uint64) Option {
 	return func(o *Options) {
-		o.ElectionTimeoutTick = tick
-	}
-}
-
-func WithHeartbeatTimeoutTick(tick int) Option {
-	return func(o *Options) {
-		o.HeartbeatTimeoutTick = tick
+		o.NodeId = nodeId
 	}
 }
 
@@ -119,20 +117,26 @@ func WithLogPrefix(prefix string) Option {
 	}
 }
 
-func WithConfig(config *Config) Option {
+func WithAppliedIndex(index uint64) Option {
 	return func(o *Options) {
-		o.Config = config
+		o.AppliedIndex = index
 	}
 }
 
-func WithAutoLearnerToFollower(auto bool) Option {
+func WithLastIndex(index uint64) Option {
 	return func(o *Options) {
-		o.AutoLearnerToFollower = auto
+		o.LastIndex = index
 	}
 }
 
-func WithLearnerToFollowerMinLogGap(gap uint64) Option {
+func WithLastTerm(term uint32) Option {
 	return func(o *Options) {
-		o.LearnerToFollowerMinLogGap = gap
+		o.LastTerm = term
+	}
+}
+
+func WithStorage(storage IStorage) Option {
+	return func(o *Options) {
+		o.Storage = storage
 	}
 }

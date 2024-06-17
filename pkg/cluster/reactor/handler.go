@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
 )
@@ -82,9 +82,6 @@ type handler struct {
 
 	proposeWait *proposeWait // 提案等待
 
-	applyLogStoreQueue *taskQueue // 应用日志任务队列
-	getLogsTaskQueue   *taskQueue // 获取日志任务队列
-
 	proposeIntervalTick int // 提案间隔tick数量
 
 	hardState replica.HardState
@@ -114,8 +111,6 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.msgQueue = r.newMessageQueue()
 	h.lastIndex.Store(0)
 
-	h.applyLogStoreQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
-	h.getLogsTaskQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
 	h.proposeWait = newProposeWait(key)
 	h.sync.syncTimeout = 5 * time.Second
 
@@ -127,8 +122,6 @@ func (h *handler) reset() {
 	h.key = ""
 	h.msgQueue = nil
 	h.msgQueue = nil
-	h.applyLogStoreQueue = nil
-	h.getLogsTaskQueue = nil
 	h.proposeWait = nil
 	h.proposeIntervalTick = 0
 	h.resetSync()

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
 )
