@@ -236,6 +236,8 @@ type LeaderTermSequenceDB interface {
 	LeaderLastTerm(shardNo string) (uint32, error)
 	// LeaderTermStartIndex 获取领导任期开始的第一条日志索引
 	LeaderTermStartIndex(shardNo string, term uint32) (uint64, error)
+	// LeaderLastTermGreaterThan 获取大于或等于传入的term的最新的本地保存的领导任期
+	LeaderLastTermGreaterThan(shardNo string, term uint32) (uint32, error)
 	// DeleteLeaderTermStartIndexGreaterThanTerm 删除比传入的term大的的LeaderTermStartIndex记录
 	DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
 }

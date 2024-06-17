@@ -17,7 +17,6 @@ func NewChannelClusterConfigStore(store *Store) *ChannelClusterConfigStore {
 }
 
 func (c *ChannelClusterConfigStore) Save(clusterCfg wkdb.ChannelClusterConfig) error {
-
 	return c.store.wdb.SaveChannelClusterConfig(clusterCfg)
 }
 

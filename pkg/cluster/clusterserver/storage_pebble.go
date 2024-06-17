@@ -9,7 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver/key"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
@@ -79,6 +79,33 @@ func (p *PebbleShardLogStorage) Open() error {
 
 func (p *PebbleShardLogStorage) Close() error {
 	err := p.db.Close()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) error {
+	batch := p.db.NewBatch()
+	defer batch.Close()
+
+	for _, lg := range logs {
+		logData, err := lg.Marshal()
+		if err != nil {
+			return err
+		}
+		keyData := key.NewLogKey(shardNo, lg.Index)
+		err = batch.Set(keyData, logData, p.noSync)
+		if err != nil {
+			return err
+		}
+	}
+	lastLog := logs[len(logs)-1]
+	err := p.saveMaxIndexWrite(shardNo, lastLog.Index, batch, p.noSync)
+	if err != nil {
+		return err
+	}
+	err = batch.Commit(p.wo)
 	if err != nil {
 		return err
 	}
@@ -308,6 +335,23 @@ func (p *PebbleShardLogStorage) LeaderTermStartIndex(shardNo string, term uint32
 		return 0, nil
 	}
 	return binary.BigEndian.Uint64(leaderTermStartIndexData), nil
+}
+
+func (p *PebbleShardLogStorage) LeaderLastTermGreaterThan(shardNo string, term uint32) (uint32, error) {
+	iter := p.db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term+1),
+		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
+	})
+	defer iter.Close()
+	var maxTerm uint32 = term
+	for iter.First(); iter.Valid(); iter.Next() {
+		term := key.GetTermFromLeaderTermStartIndexKey(iter.Key())
+		if term >= maxTerm {
+			maxTerm = term
+			break
+		}
+	}
+	return maxTerm, nil
 }
 
 func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {

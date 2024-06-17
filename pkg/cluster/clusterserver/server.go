@@ -64,13 +64,14 @@ func New(opts *Options) *Server {
 	s := &Server{
 		opts:           opts,
 		nodeManager:    newNodeManager(opts),
-		slotManager:    newSlotManager(opts),
-		channelManager: newChannelManager(opts),
 		Log:            wklog.NewWKLog(fmt.Sprintf("cluster[%d]", opts.NodeId)),
 		channelKeyLock: keylock.NewKeyLock(),
 		channelLoadMap: make(map[string]struct{}),
 		stopper:        syncutil.NewStopper(),
 	}
+
+	s.slotManager = newSlotManager(s)
+	s.channelManager = newChannelManager(s)
 
 	if opts.SlotLogStorage == nil {
 		s.slotStorage = NewPebbleShardLogStorage(path.Join(opts.DataDir, "logdb"))
@@ -108,6 +109,7 @@ func New(opts *Options) *Server {
 		clusterevent.WithSend(s.onSend),
 		clusterevent.WithConfigDir(cfgDir),
 		clusterevent.WithApiServerAddr(opts.ApiServerAddr),
+		clusterevent.WithCluster(s),
 	))
 
 	channelElectionPool, err := ants.NewPool(s.opts.ChannelElectionPoolSize, ants.WithNonblocking(false), ants.WithDisablePurge(true), ants.WithPanicHandler(func(err interface{}) {
@@ -297,7 +299,7 @@ func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
 
 func (s *Server) newSlot(st *pb.Slot) *slot {
 
-	slot := newSlot(st, s.opts)
+	slot := newSlot(st, s)
 	return slot
 
 }

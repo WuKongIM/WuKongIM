@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
@@ -50,17 +50,18 @@ func New(opts *Options) *Server {
 		reactor.WithSend(s.send),
 		reactor.WithSubReactorNum(1),
 		reactor.WithTaskPoolSize(10),
-		reactor.WithOnAppendLogs(func(reqs []reactor.AppendLogReq) error {
-			if len(reqs) == 1 {
-				return s.storage.AppendLog(reqs[0].Logs)
-			}
-			var logs []replica.Log
-			for _, req := range reqs {
-				logs = append(logs, req.Logs...)
-			}
+		reactor.WithRequest(NewRequest(s)),
+		// reactor.WithOnAppendLogs(func(reqs []reactor.AppendLogReq) error {
+		// 	if len(reqs) == 1 {
+		// 		return s.storage.AppendLog(reqs[0].Logs)
+		// 	}
+		// 	var logs []replica.Log
+		// 	for _, req := range reqs {
+		// 		logs = append(logs, req.Logs...)
+		// 	}
 
-			return s.storage.AppendLog(logs)
-		}),
+		// 	return s.storage.AppendLog(logs)
+		// }),
 	)
 	s.configReactor = reactor.New(reactorOptions)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
@@ -75,6 +76,8 @@ func New(opts *Options) *Server {
 
 func (s *Server) Start() error {
 
+	s.setRoutes() // 设置路由
+
 	err := s.storage.Open()
 	if err != nil {
 		return err
@@ -86,7 +89,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	s.handler = newHandler(s.cfg, s.storage, s.opts)
+	s.handler = newHandler(s.cfg, s.storage, s)
 	s.configReactor.AddHandler("config", s.handler)
 	return nil
 }

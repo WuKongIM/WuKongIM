@@ -414,6 +414,7 @@ func (r *Replica) handleLeaderTermStartIndexResp(index uint64, term uint32) erro
 			}
 		}
 		r.Info("truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", term), zap.Uint64("index", index))
+
 		err = r.opts.Storage.TruncateLogTo(index)
 		if err != nil {
 			r.Error("truncate log failed", zap.Error(err))

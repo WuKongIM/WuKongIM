@@ -3,7 +3,7 @@ package clusterstore
 import (
 	"fmt"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"go.uber.org/zap"
 )

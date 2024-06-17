@@ -14,6 +14,9 @@ func ArrayContains(items []string, target string) bool {
 }
 
 func ArrayContainsUint64(items []uint64, target uint64) bool {
+	if len(items) == 0 {
+		return false
+	}
 	for _, element := range items {
 		if target == element {
 			return true

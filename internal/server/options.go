@@ -597,6 +597,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Reactor.UserNodePongTimeoutTick = o.getInt("reactor.userNodePongTimeoutTick", o.Reactor.UserNodePongTimeoutTick)
 
 	deadlock.Opts.Disable = !o.DeadlockCheck
+	// deadlock.Opts.Disable = false
 
 }
 

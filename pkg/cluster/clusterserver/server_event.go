@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -145,6 +145,7 @@ func (s *Server) proposeApiServerAddrUpdate() error {
 	leaderId := s.clusterEventServer.LeaderId()
 	leader := s.nodeManager.node(leaderId)
 	if leader == nil {
+		s.Error("leader not exist", zap.Uint64("leaderId", leaderId))
 		return fmt.Errorf("leader not exist")
 	}
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.ReqTimeout)

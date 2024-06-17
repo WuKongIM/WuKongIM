@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
-	"go.uber.org/zap"
 )
 
 type IHandler interface {
@@ -19,12 +17,10 @@ type IHandler interface {
 	HasReady() bool
 	// Ready 获取ready事件
 	Ready() replica.Ready
-	// GetAndMergeLogs 获取并合并日志
-	GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error)
 	// ApplyLog 应用日志 [startLogIndex,endLogIndex) 之间的日志
-	ApplyLog(startLogIndex, endLogIndex uint64) error
+
 	// SlowDown 降速
-	SlowDown()
+	// SlowDown()
 	// SetSpeedLevel 设置同步速度等级
 	SetSpeedLevel(level replica.SpeedLevel)
 	// SpeedLevel 获取当前同步速度等级
@@ -36,9 +32,10 @@ type IHandler interface {
 	// Step 步进消息
 	Step(m replica.Message) error
 	// SetAppliedIndex 设置已应用的索引
-	SetAppliedIndex(index uint64) error
+	// SetAppliedIndex(index uint64) error
 	// IsPrepared 是否准备好
-	IsPrepared() bool
+	// AppliedIndex 获取已应用的索引
+	AppliedIndex() (uint64, error)
 	// 领导者Id
 	LeaderId() uint64
 	// PausePropopose 是否暂停提案
@@ -51,6 +48,29 @@ type IHandler interface {
 
 	// 保存分布式配置
 	SaveConfig(cfg replica.Config) error
+	// ApplyLogs 应用日志
+	ApplyLogs(startIndex, endIndex uint64) (uint64, error)
+	// GetLogs 获取日志
+	GetLogs(startLogIndex, endLogIndex uint64) ([]replica.Log, error)
+
+	// AppendLogs 追加日志
+	AppendLogs(logs []replica.Log) error
+
+	// SetLeaderTermStartIndex 设置领导任期和开始索引
+	SetLeaderTermStartIndex(term uint32, index uint64) error
+
+	// LeaderTermStartIndex 获取任期对应的开始索引
+	LeaderTermStartIndex(term uint32) (uint64, error)
+
+	// LeaderLastTerm 获取最后一条领导日志的任期
+	LeaderLastTerm() (uint32, error)
+
+	// DeleteLeaderTermStartIndexGreaterThanTerm 删除大于term的领导任期和开始索引
+	DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error
+
+	// TruncateLog 截断日志, 从index开始截断,index不能等于0 （保留下来的内容不包含index）
+	// [1,2,3,4,5,6] truncate to 4 = [1,2,3]
+	TruncateLogTo(index uint64) error
 }
 
 type handler struct {
@@ -58,19 +78,18 @@ type handler struct {
 	handler  IHandler
 	msgQueue *MessageQueue
 
-	lastIndex     atomic.Uint64 // 当前频道最后一条日志索引
-	lastIndexLock sync.Mutex
+	lastIndex atomic.Uint64 // 当前频道最后一条日志索引
 
-	appliedIndex     atomic.Uint64 // 已应用的索引
-	appliedIndexLock sync.Mutex
-
-	proposeQueue *proposeQueue // 提案队列
-	proposeWait  *proposeWait  // 提案等待
+	proposeWait *proposeWait // 提案等待
 
 	applyLogStoreQueue *taskQueue // 应用日志任务队列
 	getLogsTaskQueue   *taskQueue // 获取日志任务队列
 
 	proposeIntervalTick int // 提案间隔tick数量
+
+	hardState replica.HardState
+
+	lastLeaderTerm atomic.Uint32 // 最新领导的任期
 
 	sync struct {
 		syncingLogIndex uint64        // 正在同步的日志索引
@@ -97,7 +116,6 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 
 	h.applyLogStoreQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
 	h.getLogsTaskQueue = newTaskQueue(r, r.opts.InitialTaskQueueCap)
-	h.proposeQueue = newProposeQueue()
 	h.proposeWait = newProposeWait(key)
 	h.sync.syncTimeout = 5 * time.Second
 
@@ -111,10 +129,10 @@ func (h *handler) reset() {
 	h.msgQueue = nil
 	h.applyLogStoreQueue = nil
 	h.getLogsTaskQueue = nil
-	h.proposeQueue = nil
 	h.proposeWait = nil
 	h.proposeIntervalTick = 0
 	h.resetSync()
+	h.hardState = replica.HardState{}
 }
 
 func (h *handler) resetSync() {
@@ -134,39 +152,8 @@ func (h *handler) hasReady() bool {
 }
 
 func (h *handler) setHardState(hd replica.HardState) {
+	h.hardState = hd
 	h.handler.SetHardState(hd)
-}
-
-func (h *handler) addMessage(m Message) {
-	h.msgQueue.Add(m)
-}
-
-func (h *handler) getMessages() []Message {
-	return h.msgQueue.Get()
-}
-
-func (h *handler) addApplyLogStoreTask(task task) {
-	h.applyLogStoreQueue.add(task)
-}
-
-func (h *handler) addGetLogsTask(task task) {
-	h.getLogsTaskQueue.add(task)
-}
-
-func (h *handler) getAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
-	return h.handler.GetAndMergeLogs(lastIndex, msg)
-}
-
-func (h *handler) applyLogs(startLogIndex, endLogIndex uint64) error {
-	return h.handler.ApplyLog(startLogIndex, endLogIndex)
-}
-
-func (h *handler) addPropose(req proposeReq) {
-	h.proposeQueue.push(req)
-}
-
-func (h *handler) popPropose() (proposeReq, bool) {
-	return h.proposeQueue.pop()
 }
 
 func (h *handler) didPropose(key string, logId uint64, logIndex uint64) {
@@ -189,32 +176,6 @@ func (h *handler) lastLogIndexAndTerm() (uint64, uint32) {
 	return h.handler.LastLogIndexAndTerm()
 }
 
-func (h *handler) allGetLogsTask() []task {
-	return h.getLogsTaskQueue.getAll()
-}
-
-func (h *handler) removeGetLogsTask(key string) {
-	h.getLogsTaskQueue.remove(key)
-}
-
-func (h *handler) firstApplyLogStoreTask() task {
-	return h.applyLogStoreQueue.first()
-}
-
-func (h *handler) removeFirstApplyLogStoreTask() {
-	h.applyLogStoreQueue.removeFirst()
-}
-
-func (h *handler) setAppliedIndex() error {
-	h.appliedIndexLock.Lock()
-	defer h.appliedIndexLock.Unlock()
-	return h.handler.SetAppliedIndex(h.appliedIndex.Load())
-}
-
-func (h *handler) isPrepared() bool {
-	return h.handler.IsPrepared()
-}
-
 func (h *handler) tick() {
 	h.handler.Tick()
 	h.proposeIntervalTick++
@@ -226,11 +187,37 @@ func (h *handler) resetProposeIntervalTick() {
 }
 
 func (h *handler) slowDown() {
-	h.handler.SlowDown()
+
+	if !h.isLeader() {
+		return
+	}
+
+	speedLevel := h.speedLevel()
+
+	newSpeedLevel := speedLevel
+
+	switch speedLevel {
+	case replica.LevelFast:
+		newSpeedLevel = replica.LevelNormal
+	case replica.LevelNormal:
+		newSpeedLevel = replica.LevelMiddle
+	case replica.LevelMiddle:
+		newSpeedLevel = replica.LevelSlow
+	case replica.LevelSlow:
+		newSpeedLevel = replica.LevelSlowest
+	case replica.LevelSlowest:
+		newSpeedLevel = replica.LevelStop
+	}
+	h.setSpeedLevel(newSpeedLevel)
+
 }
 
 func (h *handler) speedLevel() replica.SpeedLevel {
 	return h.handler.SpeedLevel()
+}
+
+func (h *handler) setSpeedLevel(level replica.SpeedLevel) {
+	h.handler.SetSpeedLevel(level)
 }
 
 func (h *handler) resetSlowDown() {
@@ -239,7 +226,10 @@ func (h *handler) resetSlowDown() {
 
 // 是否需要降速
 func (h *handler) shouldSlowDown() bool {
-	switch h.speedLevel() {
+
+	speedLevel := h.speedLevel()
+
+	switch speedLevel {
 	case replica.LevelFast:
 		if h.proposeIntervalTick > LevelFastTick {
 			return true
@@ -296,41 +286,10 @@ func (h *handler) learnerToLeader(learnerId uint64) error {
 	return h.handler.LearnerToLeader(learnerId)
 }
 
-func (h *handler) saveConfig(cfg replica.Config) error {
-	return h.handler.SaveConfig(cfg)
+func (h *handler) setLastLeaderTerm(term uint32) {
+	h.lastLeaderTerm.Store(term)
 }
 
-func (h *handler) getAndResetMsgSyncResp() (replica.Message, bool) {
-
-	switch h.sync.syncStatus {
-	case syncStatusSynced:
-		h.sync.syncStatus = syncStatusNone
-		return h.sync.resp, true
-	default:
-		return replica.EmptyMessage, false
-
-	}
-}
-
-func (h *handler) setMsgSyncResp(msg replica.Message) {
-	if h.sync.syncStatus != syncStatusSyncing {
-		h.Warn("setMsgSyncResp: syncStatus != syncStatusSyncing", zap.Uint8("syncStatus", uint8(h.sync.syncStatus)), zap.Uint64("msgIndex", msg.Index), zap.Uint64("syncingLogIndex", h.sync.syncingLogIndex), zap.Uint64("resp.index", h.sync.resp.Index))
-		return
-	}
-
-	if msg.MsgType != replica.MsgSyncResp {
-		h.Warn("setMsgSyncResp: msgType != MsgSyncResp", zap.String("msgType", msg.MsgType.String()))
-		return
-	}
-
-	if msg.Index != h.sync.syncingLogIndex {
-		h.Warn("setMsgSyncResp: msg.Index != c.sync.syncingLogIndex", zap.Uint64("msgIndex", msg.Index), zap.Uint64("syncingLogIndex", h.sync.syncingLogIndex))
-		return
-	}
-	h.sync.resp = msg
-	h.sync.syncStatus = syncStatusSynced
-}
-
-func (h *handler) step(m replica.Message) error {
-	return h.handler.Step(m)
+func (h *handler) getLastLeaderTerm() uint32 {
+	return h.lastLeaderTerm.Load()
 }

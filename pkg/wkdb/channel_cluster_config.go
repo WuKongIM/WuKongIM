@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 )
 
 func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelClusterConfig) error {
-
+	fmt.Println("SaveChannelClusterConfig------->", channelClusterConfig.String())
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
@@ -56,7 +57,7 @@ func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8)
 		return EmptyChannelClusterConfig, err
 	}
 	if primaryKey == 0 {
-		return EmptyChannelClusterConfig, nil
+		return EmptyChannelClusterConfig, ErrNotFound
 	}
 
 	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{

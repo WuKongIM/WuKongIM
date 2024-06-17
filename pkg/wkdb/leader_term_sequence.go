@@ -43,6 +43,24 @@ func (wk *wukongDB) LeaderTermStartIndex(shardNo string, term uint32) (uint64, e
 	return wk.endian.Uint64(indexBytes), nil
 }
 
+func (wk *wukongDB) LeaderLastTermGreaterThan(shardNo string, term uint32) (uint32, error) {
+
+	iter := wk.shardDB(shardNo).NewIter(&pebble.IterOptions{
+		LowerBound: key.NewLeaderTermSequenceTermKey(shardNo, term),
+		UpperBound: key.NewLeaderTermSequenceTermKey(shardNo, math.MaxUint32),
+	})
+	defer iter.Close()
+
+	if iter.First() && iter.Valid() && iter.Next() {
+		term, err := key.ParseLeaderTermSequenceTermKey(iter.Key())
+		if err != nil {
+			return 0, err
+		}
+		return term, nil
+	}
+	return term, nil
+}
+
 func (wk *wukongDB) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
 
 	return wk.shardDB(shardNo).DeleteRange(key.NewLeaderTermSequenceTermKey(shardNo, term+1), key.NewLeaderTermSequenceTermKey(shardNo, math.MaxUint32), wk.sync)

@@ -10,7 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
@@ -70,6 +70,7 @@ func New(opts *Options) *Server {
 		clusterconfig.WithConfigPath(remoteCfgPath),
 		clusterconfig.WithSend(opts.Send),
 		clusterconfig.WithOnAppliedConfig(s.advance),
+		clusterconfig.WithCluster(opts.Cluster),
 	))
 	err = s.loadLocalConfig()
 	if err != nil {

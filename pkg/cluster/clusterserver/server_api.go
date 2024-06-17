@@ -165,6 +165,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		return
 	}
 
+	fmt.Println("start---------->1-->")
 	var channelClusterConfigs []wkdb.ChannelClusterConfig
 	if running {
 		s.channelManager.iterator(func(h reactor.IHandler) bool {
@@ -185,6 +186,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 			return
 		}
 	}
+	fmt.Println("start---------->2-->", len(channelClusterConfigs))
 
 	channelClusterConfigResps := make([]*ChannelClusterConfigResp, 0, len(channelClusterConfigs))
 
@@ -232,6 +234,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 
 	}
 
+	fmt.Println("start---------->3-->", len(channelClusterConfigs))
 	total, err := s.opts.DB.GetTotalChannelClusterConfigCount()
 	if err != nil {
 		s.Error("GetTotalChannelClusterConfigCount error", zap.Error(err))
@@ -239,6 +242,8 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		return
 
 	}
+
+	fmt.Println("start---------->4-->", len(channelClusterConfigs))
 
 	c.JSON(http.StatusOK, ChannelClusterConfigRespTotal{
 		Total:   total,
@@ -475,7 +480,7 @@ func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
 		return
 	}
 	channelType := uint8(channelTypeI64)
-	cfg, err := s.loadChannelClusterConfig(channelId, channelType)
+	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
 	if err != nil {
 		s.Error("loadChannelClusterConfig error", zap.Error(err))
 		c.ResponseError(err)

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -49,87 +49,64 @@ func newChannel(channelId string, channelType uint8, opts *Options, s *Server, s
 		Log:                       wklog.NewWKLog(fmt.Sprintf("cluster.channel[%s]", key)),
 		s:                         s,
 	}
-	return c
-}
 
-func (c *channel) bootstrap(cfg wkdb.ChannelClusterConfig) error {
 	appliedIdx, err := c.opts.MessageLogStorage.AppliedIndex(c.key)
 	if err != nil {
-		c.Error("get applied index error", zap.Error(err))
-		return err
+		c.Panic("get applied index error", zap.Error(err))
 
+	}
+	lastIndex, lastTerm, err := c.opts.MessageLogStorage.LastIndexAndTerm(c.key)
+	if err != nil {
+		c.Panic("get last index and term error", zap.Error(err))
 	}
 	rc := replica.New(
 		c.opts.NodeId,
 		replica.WithLogPrefix(fmt.Sprintf("channel-%s", c.key)),
 		replica.WithAppliedIndex(appliedIdx),
 		replica.WithElectionOn(false),
-		replica.WithConfig(&replica.Config{
-			MigrateFrom: cfg.MigrateFrom,
-			MigrateTo:   cfg.MigrateTo,
-			Replicas:    cfg.Replicas,
-			Learners:    cfg.Learners,
-			Version:     cfg.ConfVersion,
-		}),
-		replica.WithStorage(newProxyReplicaStorage(c.key, c.opts.MessageLogStorage)),
-		replica.WithAutoLearnerToFollower(true),
+		replica.WithAutoRoleSwith(true),
+		replica.WithLastIndex(lastIndex),
+		replica.WithLastTerm(lastTerm),
 	)
 	c.rc = rc
-
-	err = c.switchConfig(cfg)
-	if err != nil {
-		return err
-	}
-	c.isPrepared = true
-	return nil
+	return c
 }
 
 func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.cfg = cfg
+	c.mu.Unlock()
 
 	c.Info("switch config", zap.String("cfg", cfg.String()))
 
-	isLearner := false
-	if len(cfg.Learners) > 0 {
-		for _, l := range cfg.Learners {
-			if l == c.opts.NodeId {
-				isLearner = true
-				break
-			}
-		}
+	if cfg.Status == wkdb.ChannelClusterStatusCandidate {
+		c.pausePropopose.Store(true)
+	} else if cfg.Status == wkdb.ChannelClusterStatusNormal {
+		c.pausePropopose.Store(false)
 	}
 
-	replicaCfg := &replica.Config{
+	role := replica.RoleFollower
+
+	if cfg.LeaderId == c.opts.NodeId {
+		role = replica.RoleLeader
+	}
+
+	replicaCfg := replica.Config{
 		MigrateFrom: cfg.MigrateFrom,
 		MigrateTo:   cfg.MigrateTo,
 		Replicas:    cfg.Replicas,
 		Learners:    cfg.Learners,
 		Version:     cfg.ConfVersion,
+		Leader:      cfg.LeaderId,
+		Role:        role,
+		Term:        cfg.Term,
 	}
-	c.rc.SwitchConfig(replicaCfg)
 
-	if isLearner {
-		c.rc.BecomeLearner(cfg.Term, cfg.LeaderId)
-	} else {
-		if cfg.Status == wkdb.ChannelClusterStatusCandidate { // 选举状态
-			c.pausePropopose.Store(true) // 选举状态需要暂停提案
+	c.s.channelManager.channelReactor.Step(c.key, replica.Message{
+		MsgType: replica.MsgConfigResp,
+		Config:  replicaCfg,
+	})
 
-		} else if cfg.Status == wkdb.ChannelClusterStatusNormal { // 正常状态
-			c.pausePropopose.Store(false)
-		}
-
-		if cfg.LeaderId == c.opts.NodeId {
-			if c.rc.Term() != cfg.Term || !c.rc.IsLeader() {
-				c.rc.BecomeLeader(cfg.Term)
-			}
-		} else {
-			if c.rc.Term() != cfg.Term || c.rc.LeaderId() != cfg.LeaderId || !c.rc.IsFollower() {
-				c.rc.BecomeFollower(cfg.Term, cfg.LeaderId)
-			}
-		}
-	}
-	c.cfg = cfg
 	return nil
 }
 
@@ -172,66 +149,23 @@ func (c *channel) Ready() replica.Ready {
 	return c.rc.Ready()
 }
 
-func (c *channel) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
-	unstableLogs := msg.Logs
-	startIndex := msg.Index
-	if len(unstableLogs) > 0 {
-		startIndex = unstableLogs[len(unstableLogs)-1].Index + 1
-	}
-	var err error
-	if lastIndex == 0 {
-		lastIndex, err = c.opts.MessageLogStorage.LastIndex(c.key)
-		if err != nil {
-			c.Error("GetAndMergeLogs: get last index error", zap.Error(err))
-			return nil, err
-		}
-	}
-	var resultLogs []replica.Log
-	if startIndex <= lastIndex {
-		logs, err := c.getLogs(startIndex, lastIndex+1, uint64(c.opts.LogSyncLimitSizeOfEach))
-		if err != nil {
-			c.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
-			return nil, err
-		}
-		startLogLen := len(logs)
-		// 检查logs的连续性，只保留连续的日志
-		for i, log := range logs {
-			if log.Index != startIndex+uint64(i) {
-				logs = logs[:i]
-				break
-			}
-		}
-		if len(logs) != startLogLen {
-			c.Warn("the log is not continuous and has been truncated ", zap.Uint64("lastIndex", lastIndex), zap.Uint64("msgIndex", msg.Index), zap.Int("startLogLen", startLogLen), zap.Int("endLogLen", len(logs)))
-		}
-
-		resultLogs = extend(unstableLogs, logs)
-	} else {
-		resultLogs = unstableLogs
-
-	}
-
-	return resultLogs, nil
+func (c *channel) GetLogs(startIndex uint64, endIndex uint64) ([]replica.Log, error) {
+	return c.getLogs(startIndex, endIndex, uint64(c.opts.LogSyncLimitSizeOfEach))
 }
 
-func (c *channel) ApplyLog(startLogIndex, endLogIndex uint64) error {
-	return nil
+func (c *channel) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
+	return 0, nil
 }
 
-func (c *channel) SlowDown() {
-	c.rc.SlowDown()
-}
-
-func (c *channel) SetSpeedLevel(level replica.SpeedLevel) {
-	c.rc.SetSpeedLevel(level)
-}
-
-func (c *channel) SpeedLevel() replica.SpeedLevel {
-	return c.rc.SpeedLevel()
+func (c *channel) AppliedIndex() (uint64, error) {
+	return c.opts.MessageLogStorage.AppliedIndex(c.key)
 }
 
 func (c *channel) SetHardState(hd replica.HardState) {
 
+	if hd.LeaderId == 0 {
+		return
+	}
 	c.cfg.LeaderId = hd.LeaderId
 	c.cfg.Term = hd.Term
 	c.cfg.ConfVersion = hd.ConfVersion
@@ -263,24 +197,6 @@ func (c *channel) Step(m replica.Message) error {
 	return c.rc.Step(m)
 }
 
-func (c *channel) SetAppliedIndex(index uint64) error {
-	return c.setAppliedIndex(index)
-}
-
-func (c *channel) setAppliedIndex(index uint64) error {
-	err := c.opts.MessageLogStorage.SetAppliedIndex(c.key, index)
-	if err != nil {
-		c.Error("set applied index error", zap.Error(err))
-	}
-	return err
-}
-
-func (c *channel) IsPrepared() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.isPrepared
-}
-
 func (c *channel) replicaCount() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -289,6 +205,14 @@ func (c *channel) replicaCount() int {
 
 func (c *channel) LeaderId() uint64 {
 	return c.leaderId()
+}
+
+func (c *channel) SetSpeedLevel(level replica.SpeedLevel) {
+	c.rc.SetSpeedLevel(level)
+}
+
+func (c *channel) SpeedLevel() replica.SpeedLevel {
+	return c.rc.SpeedLevel()
 }
 
 func (c *channel) PausePropopose() bool {
@@ -316,6 +240,31 @@ func (c *channel) SaveConfig(cfg replica.Config) error {
 	}
 
 	return nil
+}
+
+func (c *channel) AppendLogs(logs []replica.Log) error {
+	return c.opts.MessageLogStorage.AppendLogs(c.key, logs)
+}
+
+func (c *channel) SetLeaderTermStartIndex(term uint32, index uint64) error {
+
+	return c.opts.MessageLogStorage.SetLeaderTermStartIndex(c.key, term, index)
+}
+
+func (c *channel) LeaderTermStartIndex(term uint32) (uint64, error) {
+	return c.opts.MessageLogStorage.LeaderTermStartIndex(c.key, term)
+}
+
+func (c *channel) LeaderLastTerm() (uint32, error) {
+	return c.opts.MessageLogStorage.LeaderLastTerm(c.key)
+}
+
+func (c *channel) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
+	return c.opts.MessageLogStorage.DeleteLeaderTermStartIndexGreaterThanTerm(c.key, term)
+}
+
+func (c *channel) TruncateLogTo(index uint64) error {
+	return c.opts.MessageLogStorage.TruncateLogTo(c.key, index)
 }
 
 func (c *channel) LearnerToFollower(learnerId uint64) error {
