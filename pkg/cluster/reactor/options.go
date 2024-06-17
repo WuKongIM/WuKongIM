@@ -64,35 +64,39 @@ type Options struct {
 	// LeaderTimeoutMaxTick 领导者最大超时tick数，超过这个tick数认为领导者已经丢失
 	LeaderTimeoutMaxTick int
 
+	// SlowdownCheckIntervalTick 检查是否需要降速的间隔tick数
+	SlowdownCheckIntervalTick int
+
 	// AppendLogWorkerNum 处理追加日志的协程数量 (如果太大会导致大量协程去写db，导致db性能下降，如果太小阻塞追加日志的速度，默认是10)
 	AppendLogWorkerNum int
 
 	Event struct {
 		// OnHandlerRemove handler被移除事件
 		OnHandlerRemove func(h IHandler)
-		// OnAppendLogs 批量追加日志事件
-		OnAppendLogs func(reqs []AppendLogReq) error
 	}
 
 	// ProposeTimeout 提案超时
 	ProposeTimeout time.Duration
+
+	Request IRequest
 }
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SubReactorNum:           128,
-		TickInterval:            time.Millisecond * 150,
-		ReceiveQueueLength:      1024,
-		LazyFreeCycle:           1,
-		InitialTaskQueueCap:     100,
-		TaskPoolSize:            100000,
-		MaxProposeLogCount:      1000,
-		EnableLazyCatchUp:       true,
-		IsCommittedAfterApplied: false,
-		AutoSlowDownOn:          false,
-		LeaderTimeoutMaxTick:    25,
-		AppendLogWorkerNum:      1,
-		ProposeTimeout:          time.Second * 30,
+		SubReactorNum:             128,
+		TickInterval:              time.Millisecond * 150,
+		ReceiveQueueLength:        1024,
+		LazyFreeCycle:             1,
+		InitialTaskQueueCap:       100,
+		TaskPoolSize:              100000,
+		MaxProposeLogCount:        1000,
+		EnableLazyCatchUp:         true,
+		IsCommittedAfterApplied:   false,
+		AutoSlowDownOn:            false,
+		LeaderTimeoutMaxTick:      25,
+		AppendLogWorkerNum:        1,
+		ProposeTimeout:            time.Second * 30,
+		SlowdownCheckIntervalTick: 10,
 	}
 
 	for _, o := range opt {
@@ -200,8 +204,8 @@ func WithOnHandlerRemove(f func(h IHandler)) Option {
 	}
 }
 
-func WithOnAppendLogs(f func(reqs []AppendLogReq) error) Option {
+func WithRequest(req IRequest) Option {
 	return func(o *Options) {
-		o.Event.OnAppendLogs = f
+		o.Request = req
 	}
 }

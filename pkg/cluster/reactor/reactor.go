@@ -6,7 +6,7 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
@@ -20,16 +20,33 @@ type Reactor struct {
 	taskPool    *ants.Pool
 	wklog.Log
 
-	appendLogC chan AppendLogReq // 追加日志请求的通道
-	stopper    *syncutil.Stopper
+	processInitC              chan *initReq          // 处理频道初始化
+	processConflictCheckC     chan *conflictCheckReq // 冲突检查请求
+	processGetLogC            chan *getLogReq        // 获取日志请求
+	processStoreAppendC       chan *storeAppendReq   // 存储追加日志请求
+	processApplyLogC          chan *applyLogReq      // 应用日志请求
+	processLearnerToFollowerC chan *learnerToFollowerReq
+	processLearnerToLeaderC   chan *learnerToLeaderReq
+
+	stopper *syncutil.Stopper
+
+	request IRequest
 }
 
 func New(opts *Options) *Reactor {
 	r := &Reactor{
-		opts:       opts,
-		Log:        wklog.NewWKLog(fmt.Sprintf("Reactor[%s]", opts.ReactorType.String())),
-		appendLogC: make(chan AppendLogReq, 10000),
-		stopper:    syncutil.NewStopper(),
+		opts:    opts,
+		Log:     wklog.NewWKLog(fmt.Sprintf("Reactor[%s]", opts.ReactorType.String())),
+		stopper: syncutil.NewStopper(),
+
+		processInitC:              make(chan *initReq, 1024),
+		processConflictCheckC:     make(chan *conflictCheckReq, 1024),
+		processGetLogC:            make(chan *getLogReq, 1024),
+		processStoreAppendC:       make(chan *storeAppendReq, 1024),
+		processApplyLogC:          make(chan *applyLogReq, 1024),
+		processLearnerToFollowerC: make(chan *learnerToFollowerReq, 1024),
+		processLearnerToLeaderC:   make(chan *learnerToLeaderReq, 1024),
+		request:                   opts.Request,
 	}
 	taskPool, err := ants.NewPool(opts.TaskPoolSize, ants.WithPanicHandler(func(err interface{}) {
 		stack := debug.Stack()
@@ -49,9 +66,20 @@ func New(opts *Options) *Reactor {
 }
 
 func (r *Reactor) Start() error {
-	for i := 0; i < r.opts.AppendLogWorkerNum; i++ {
-		r.stopper.RunWorker(r.appendLogLoop)
+
+	for i := 0; i < 10; i++ {
+		r.stopper.RunWorker(r.processInitLoop)
+		r.stopper.RunWorker(r.processConflictCheckLoop)
+		r.stopper.RunWorker(r.processGetLogLoop)
+		r.stopper.RunWorker(r.processStoreAppendLoop)
+		r.stopper.RunWorker(r.processApplyLogLoop)
+		r.stopper.RunWorker(r.processLearnerToFollowerLoop)
+		r.stopper.RunWorker(r.processLearnerToLeaderLoop)
 	}
+
+	// for i := 0; i < r.opts.AppendLogWorkerNum; i++ {
+	// 	r.stopper.RunWorker(r.appendLogLoop)
+	// }
 	for _, sub := range r.subReactors {
 		err := sub.Start()
 		if err != nil {
@@ -108,6 +136,11 @@ func (r *Reactor) handler(key string) *handler {
 	return h
 }
 
+func (r *Reactor) Step(key string, msg replica.Message) {
+	sub := r.reactorSub(key)
+	sub.step(key, msg)
+}
+
 func (r *Reactor) ExistHandler(key string) bool {
 	sub := r.reactorSub(key)
 	return sub.existHandler(key)
@@ -161,67 +194,55 @@ func (r *Reactor) submitTask(f func()) error {
 	return r.taskPool.Submit(f)
 }
 
-func (r *Reactor) appendLogs(handleKey string, logs []replica.Log) {
+// func (r *Reactor) appendLogLoop() {
 
-	select {
-	case r.appendLogC <- AppendLogReq{
-		HandleKey: handleKey,
-		Logs:      logs,
-	}:
-	case <-r.stopper.ShouldStop():
-		return
-	}
-}
+// 	done := false
+// 	var err error
+// 	reqs := make([]AppendLogReq, 0, 100)
+// 	for {
+// 		select {
+// 		case req := <-r.appendLogC:
+// 			reqs = append(reqs, req)
+// 			// 取出所有的请求
+// 			for !done {
+// 				select {
+// 				case req := <-r.appendLogC:
+// 					reqs = append(reqs, req)
+// 				default:
+// 					done = true
+// 				}
+// 			}
+// 			err = r.opts.Event.OnAppendLogs(reqs)
+// 			if err != nil {
+// 				r.Error("on append logs failed", zap.Error(err))
+// 			} else {
+// 				// 回执
+// 				for _, req := range reqs {
+// 					handler := r.handler(req.HandleKey)
+// 					if handler == nil {
+// 						continue
+// 					}
+// 					lastLog := req.Logs[len(req.Logs)-1]
+// 					if handler.lastIndex.Load() > lastLog.Index {
+// 						continue
+// 					}
+// 					handler.lastIndex.Store(lastLog.Index)
+// 					sub := r.reactorSub(req.HandleKey)
 
-func (r *Reactor) appendLogLoop() {
+// 					select {
+// 					case sub.storeAppendRespC <- handler:
+// 					case <-r.stopper.ShouldStop():
+// 						return
+// 					}
+// 				}
 
-	done := false
-	var err error
-	reqs := make([]AppendLogReq, 0, 100)
-	for {
-		select {
-		case req := <-r.appendLogC:
-			reqs = append(reqs, req)
-			// 取出所有的请求
-			for !done {
-				select {
-				case req := <-r.appendLogC:
-					reqs = append(reqs, req)
-				default:
-					done = true
-				}
-			}
-			err = r.opts.Event.OnAppendLogs(reqs)
-			if err != nil {
-				r.Error("on append logs failed", zap.Error(err))
-			} else {
-				// 回执
-				for _, req := range reqs {
-					handler := r.handler(req.HandleKey)
-					if handler == nil {
-						continue
-					}
-					lastLog := req.Logs[len(req.Logs)-1]
-					if handler.lastIndex.Load() > lastLog.Index {
-						continue
-					}
-					handler.lastIndex.Store(lastLog.Index)
-					sub := r.reactorSub(req.HandleKey)
+// 			}
+// 			// 清空
+// 			done = false
+// 			reqs = reqs[:0]
 
-					select {
-					case sub.storeAppendRespC <- handler:
-					case <-r.stopper.ShouldStop():
-						return
-					}
-				}
-
-			}
-			// 清空
-			done = false
-			reqs = reqs[:0]
-
-		case <-r.stopper.ShouldStop():
-			return
-		}
-	}
-}
+// 		case <-r.stopper.ShouldStop():
+// 			return
+// 		}
+// 	}
+// }

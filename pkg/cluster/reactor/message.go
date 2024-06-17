@@ -3,7 +3,7 @@ package reactor
 import (
 	"encoding/binary"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 )
 
 type Message struct {

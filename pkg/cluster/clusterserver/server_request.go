@@ -2,11 +2,13 @@ package cluster
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"strconv"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"go.uber.org/zap"
@@ -31,6 +33,11 @@ func (s *Server) setRoutes() {
 
 	// 节点加入集群
 	s.netServer.Route("/cluster/join", s.handleClusterJoin)
+
+	// 获取槽的leader term start index
+	s.netServer.Route("/slot/leaderTermStartIndex", s.handleSlotLeaderTermStartIndex)
+	// 获取频道的leader term start index
+	s.netServer.Route("/channel/leaderTermStartIndex", s.handleChannelLeaderTermStartIndex)
 }
 
 func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
@@ -98,7 +105,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 	}
 
 	clusterConfig, err := s.opts.ChannelClusterStorage.Get(req.ChannelId, req.ChannelType)
-	if err != nil {
+	if err != nil && err != wkdb.ErrNotFound {
 		s.Error("get clusterConfig failed", zap.Error(err))
 		c.WriteErr(err)
 		return
@@ -107,23 +114,14 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		// s.Error("clusterConfig not found", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		// c.WriteErr(ErrChannelClusterConfigNotFound)
 		// return
-		channel, err := s.loadOrCreateChannel(s.cancelCtx, req.ChannelId, req.ChannelType)
+		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)
+		defer cancel()
+		clusterConfig, _, err = s.loadOrCreateChannelClusterConfig(timeoutCtx, req.ChannelId, req.ChannelType)
 		if err != nil {
 			s.Error("fetchChannel failed", zap.Error(err))
 			c.WriteErr(err)
 			return
 		}
-		if channel == nil {
-			s.Error("create channel failed", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			c.WriteErr(ErrChannelNotFound)
-			return
-		}
-		if channel.cfg.LeaderId == 0 {
-			s.Error("channel leaderId is 0", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			c.WriteErr(ErrNoLeader)
-			return
-		}
-		clusterConfig = channel.cfg
 
 	} else {
 		if clusterConfig.LeaderId == 0 {
@@ -249,7 +247,7 @@ func (s *Server) handleUpdateApiServerAddr(c *wkserver.Context) {
 	}
 
 	if !s.clusterEventServer.IsLeader() {
-		s.Error("not leader,handleUpdateApiServerAddr failed")
+		s.Error("not is leader,handleUpdateApiServerAddr failed", zap.Uint64("leaderId", s.clusterEventServer.LeaderId()))
 		c.WriteErr(ErrNotIsLeader)
 		return
 	}
@@ -375,4 +373,76 @@ func (s *Server) handleClusterJoin(c *wkserver.Context) {
 		return
 	}
 	c.Write(result)
+}
+
+func (s *Server) handleSlotLeaderTermStartIndex(c *wkserver.Context) {
+	req := &reactor.LeaderTermStartIndexReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("unmarshal request error", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	resultBytes := make([]byte, 8)
+
+	handler := s.slotManager.slotReactor.Handler(req.HandlerKey)
+
+	lastIndex, term := handler.LastLogIndexAndTerm()
+
+	if term == req.Term {
+		binary.BigEndian.PutUint64(resultBytes, lastIndex+1)
+	} else {
+		syncTerm := req.Term + 1
+		syncTerm, err = s.slotStorage.LeaderLastTermGreaterThan(req.HandlerKey, syncTerm)
+		if err != nil {
+			s.Error("get leader last term error", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		lastIndex, err = s.slotStorage.LeaderTermStartIndex(req.HandlerKey, syncTerm)
+		if err != nil {
+			s.Error("get leader term start index error", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		binary.BigEndian.PutUint64(resultBytes, lastIndex)
+	}
+	c.Write(resultBytes)
+}
+
+func (s *Server) handleChannelLeaderTermStartIndex(c *wkserver.Context) {
+	req := &reactor.LeaderTermStartIndexReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("unmarshal request error", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	resultBytes := make([]byte, 8)
+
+	handler := s.channelManager.channelReactor.Handler(req.HandlerKey)
+
+	lastIndex, term := handler.LastLogIndexAndTerm()
+
+	if term == req.Term {
+		binary.BigEndian.PutUint64(resultBytes, lastIndex+1)
+	} else {
+		syncTerm := req.Term + 1
+		syncTerm, err = s.opts.MessageLogStorage.LeaderLastTermGreaterThan(req.HandlerKey, syncTerm)
+		if err != nil {
+			s.Error("get leader last term error", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		lastIndex, err = s.opts.MessageLogStorage.LeaderTermStartIndex(req.HandlerKey, syncTerm)
+		if err != nil {
+			s.Error("get leader term start index error", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		binary.BigEndian.PutUint64(resultBytes, lastIndex)
+	}
+	c.Write(resultBytes)
 }

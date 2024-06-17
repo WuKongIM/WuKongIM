@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -23,49 +23,51 @@ type slot struct {
 	wklog.Log
 	opts *Options
 
-	mu sync.Mutex
+	leaderId atomic.Uint64
 
+	mu             sync.Mutex
+	s              *Server
 	pausePropopose atomic.Bool // 是否暂停提案
 }
 
-func newSlot(st *pb.Slot, opts *Options) *slot {
+func newSlot(st *pb.Slot, sr *Server) *slot {
 	s := &slot{
 		key:        SlotIdToKey(st.Id),
 		st:         st,
-		opts:       opts,
+		opts:       sr.opts,
+		s:          sr,
 		Log:        wklog.NewWKLog(fmt.Sprintf("slot[%d]", st.Id)),
 		isPrepared: true,
 	}
-	appliedIdx, err := opts.SlotLogStorage.AppliedIndex(s.key)
+	appliedIdx, err := sr.opts.SlotLogStorage.AppliedIndex(s.key)
 	if err != nil {
 		s.Panic("get applied index error", zap.Error(err))
 
 	}
-	s.rc = replica.New(opts.NodeId, replica.WithLogPrefix(fmt.Sprintf("slot-%d", st.Id)), replica.WithAppliedIndex(appliedIdx), replica.WithElectionOn(false), replica.WithConfig(&replica.Config{
-		Replicas: st.Replicas,
-	}), replica.WithStorage(newProxyReplicaStorage(s.key, s.opts.SlotLogStorage)))
+
+	lastIndex, lastTerm, err := sr.opts.SlotLogStorage.LastIndexAndTerm(s.key)
+	if err != nil {
+		s.Panic("get last index and term error", zap.Error(err))
+	}
+
+	s.rc = replica.New(
+		sr.opts.NodeId,
+		replica.WithLogPrefix(fmt.Sprintf("slot-%d", st.Id)),
+		replica.WithAppliedIndex(appliedIdx),
+		replica.WithLastIndex(lastIndex),
+		replica.WithLastTerm(lastTerm),
+		replica.WithElectionOn(false),
+		replica.WithStorage(newProxyReplicaStorage(s.key, s.opts.SlotLogStorage)))
 	return s
 }
 
-func (s *slot) becomeFollower(term uint32, leader uint64) {
-	s.rc.BecomeFollower(term, leader)
-}
-
-func (s *slot) becomeLeader(term uint32) {
-	s.rc.BecomeLeader(term)
-}
-
 func (s *slot) changeRole(role replica.Role) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	switch role {
-	case replica.RoleLeader:
-		s.rc.BecomeLeader(s.rc.Term())
-	case replica.RoleCandidate:
-		s.rc.BecomeCandidateWithTerm(s.rc.Term())
-	case replica.RoleFollower:
-		s.rc.BecomeFollower(s.rc.Term(), s.rc.LeaderId())
-	}
+
+	s.s.slotManager.slotReactor.Step(s.key, replica.Message{
+		MsgType: replica.MsgChangeRole,
+		Role:    role,
+	})
+
 }
 
 func (s *slot) update(st *pb.Slot) {
@@ -84,46 +86,36 @@ func (s *slot) update(st *pb.Slot) {
 		}
 	}
 
-	cfg := &replica.Config{
-		Replicas: st.Replicas,
-		Learners: learnerIds,
+	var role replica.Role
+
+	if st.Leader == s.opts.NodeId {
+		role = replica.RoleLeader
+	} else {
+		if isLearner {
+			role = replica.RoleLearner
+		} else {
+			role = replica.RoleFollower
+		}
 	}
 
-	s.rc.SetConfig(cfg)
+	cfg := replica.Config{
+		MigrateFrom: st.MigrateFrom,
+		MigrateTo:   st.MigrateTo,
+		Replicas:    st.Replicas,
+		Learners:    learnerIds,
+		Role:        role,
+		Term:        st.Term,
+	}
 
-	if isLearner {
-		s.rc.BecomeLearner(st.Term, st.Leader)
-	} else {
-		if st.Status == pb.SlotStatus_SlotStatusLeaderTransfer { // 槽进入领导者转移状态
-			if st.Leader == s.opts.NodeId && st.LeaderTransferTo != st.Leader { // 如果当前槽领导将要被转移，则先暂停提案，等需要转移的节点的日志追上来
-				s.pausePropopose.Store(true)
-			}
-		} else if st.Status == pb.SlotStatus_SlotStatusNormal { // 槽进入正常状态
+	s.s.slotManager.slotReactor.Step(s.key, replica.Message{
+		MsgType: replica.MsgConfigResp,
+		Config:  cfg,
+	})
 
-			if st.Leader == s.opts.NodeId {
-				s.pausePropopose.Store(false)
-			}
-		}
-
-		if st.Status == pb.SlotStatus_SlotStatusCandidate { // 槽进入候选者状态
-			if s.rc.IsLeader() { // 领导节点不能直接转candidate，replica里会panic，领导转换成follower是一样的
-				s.rc.BecomeFollower(st.Term, 0)
-			} else {
-				s.rc.BecomeCandidateWithTerm(st.Term)
-			}
-
-		} else {
-			if st.Leader == s.opts.NodeId {
-				if s.rc.Term() != st.Term || !s.rc.IsLeader() {
-					s.rc.BecomeLeader(st.Term)
-				}
-
-			} else {
-				if s.rc.Term() != st.Term || s.rc.LeaderId() != st.Leader || !s.rc.IsFollower() {
-					s.rc.BecomeFollower(st.Term, st.Leader)
-				}
-			}
-		}
+	if st.Status == pb.SlotStatus_SlotStatusCandidate {
+		s.pausePropopose.Store(true)
+	} else if st.Status == pb.SlotStatus_SlotStatusNormal {
+		s.pausePropopose.Store(false)
 	}
 
 }
@@ -144,87 +136,49 @@ func (s *slot) Ready() replica.Ready {
 	return s.rc.Ready()
 }
 
-func (s *slot) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
+func (s *slot) GetLogs(startLogIndex, endLogIndex uint64) ([]replica.Log, error) {
 
-	unstableLogs := msg.Logs
-	startIndex := msg.Index
-	if len(unstableLogs) > 0 {
-		startIndex = unstableLogs[len(unstableLogs)-1].Index + 1
-	}
-	shardNo := s.key
-	var err error
-	if lastIndex == 0 {
-		lastIndex, err = s.opts.SlotLogStorage.LastIndex(shardNo)
-		if err != nil {
-			s.Error("GetAndMergeLogs: get last index error", zap.Error(err))
-			return nil, err
-		}
-	}
-
-	var resultLogs []replica.Log
-	if startIndex <= lastIndex {
-		logs, err := s.getLogs(startIndex, lastIndex+1, uint64(s.opts.LogSyncLimitSizeOfEach))
-		if err != nil {
-			s.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
-			return nil, err
-		}
-		startLogLen := len(logs)
-		// 检查logs的连续性，只保留连续的日志
-		for i, log := range logs {
-			if log.Index != startIndex+uint64(i) {
-				logs = logs[:i]
-				break
-			}
-		}
-		if len(logs) != startLogLen {
-			s.Warn("the log is not continuous and has been truncated ", zap.Uint64("lastIndex", lastIndex), zap.Uint64("msgIndex", msg.Index), zap.Int("startLogLen", startLogLen), zap.Int("endLogLen", len(logs)))
-		}
-
-		resultLogs = extend(unstableLogs, logs)
-	} else {
-		resultLogs = unstableLogs
-	}
-	return resultLogs, nil
-
+	return s.getLogs(startLogIndex, endLogIndex, 0)
 }
 
-func (s *slot) ApplyLog(startLogIndex, endLogIndex uint64) error {
+func (s *slot) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
 
 	if s.opts.OnSlotApply != nil {
 		start := time.Now()
 		defer func() {
-			s.Debug("apply log", zap.Duration("cost", time.Since(start)), zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex))
+			s.Debug("apply log", zap.Duration("cost", time.Since(start)))
 
 		}()
-		logs, err := s.getLogs(startLogIndex, endLogIndex, 0)
+		logs, err := s.getLogs(startIndex, endIndex, 0)
 		if err != nil {
-			s.Panic("get logs error", zap.Error(err))
+			s.Error("get logs error", zap.Error(err))
+			return 0, err
 		}
-		if len(logs) == 0 {
-			s.Panic("logs is empty", zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex))
+		appliedSize := uint64(0)
+		for _, log := range logs {
+			appliedSize += uint64(log.LogSize())
 		}
+
 		err = s.opts.OnSlotApply(s.st.Id, logs)
 		if err != nil {
 			s.Panic("on slot apply error", zap.Error(err))
 		}
+		err = s.opts.SlotLogStorage.SetAppliedIndex(s.key, logs[len(logs)-1].Index)
+		if err != nil {
+			s.Error("set applied index error", zap.Error(err))
+			return 0, err
+		}
+		return appliedSize, nil
 	}
-	return nil
+	return 0, nil
 }
 
-func (s *slot) SlowDown() {
-	s.rc.SlowDown()
-}
-
-func (s *slot) SpeedLevel() replica.SpeedLevel {
-	return s.rc.SpeedLevel()
-}
-
-func (s *slot) SetSpeedLevel(level replica.SpeedLevel) {
-	s.rc.SetSpeedLevel(level)
+func (s *slot) AppliedIndex() (uint64, error) {
+	return s.opts.SlotLogStorage.AppliedIndex(s.key)
 }
 
 func (s *slot) SetHardState(hd replica.HardState) {
-
+	s.leaderId.Store(hd.LeaderId)
 }
 
 func (s *slot) Tick() {
@@ -250,7 +204,7 @@ func (s *slot) IsPrepared() bool {
 }
 
 func (s *slot) LeaderId() uint64 {
-	return s.rc.LeaderId()
+	return s.st.Leader
 }
 
 func (s *slot) PausePropopose() bool {
@@ -270,6 +224,32 @@ func (s *slot) SaveConfig(cfg replica.Config) error {
 	return nil
 }
 
+func (s *slot) SetSpeedLevel(level replica.SpeedLevel) {
+	s.rc.SetSpeedLevel(level)
+}
+
+func (s *slot) SpeedLevel() replica.SpeedLevel {
+	return s.rc.SpeedLevel()
+}
+
+func (s *slot) AppendLogs(logs []replica.Log) error {
+
+	return s.s.slotStorage.AppendLogs(s.key, logs)
+}
+
+func (s *slot) SetLeaderTermStartIndex(term uint32, index uint64) error {
+
+	return s.opts.SlotLogStorage.SetLeaderTermStartIndex(s.key, term, index)
+}
+
+func (s *slot) LeaderTermStartIndex(term uint32) (uint64, error) {
+	return s.opts.SlotLogStorage.LeaderTermStartIndex(s.key, term)
+}
+
+func (s *slot) LeaderLastTerm() (uint32, error) {
+	return s.opts.SlotLogStorage.LeaderLastTerm(s.key)
+}
+
 func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 	shardNo := s.key
 	logs, err := s.opts.SlotLogStorage.Logs(shardNo, startLogIndex, endLogIndex, limitSize)
@@ -280,13 +260,10 @@ func (s *slot) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint6
 	return logs, nil
 }
 
-func extend(dst, vals []replica.Log) []replica.Log {
-	need := len(dst) + len(vals)
-	if need <= cap(dst) {
-		return append(dst, vals...) // does not allocate
-	}
-	buf := make([]replica.Log, need) // allocates precisely what's needed
-	copy(buf, dst)
-	copy(buf[len(dst):], vals)
-	return buf
+func (s *slot) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
+	return s.opts.SlotLogStorage.DeleteLeaderTermStartIndexGreaterThanTerm(s.key, term)
+}
+
+func (s *slot) TruncateLogTo(index uint64) error {
+	return s.opts.SlotLogStorage.TruncateLogTo(s.key, index)
 }

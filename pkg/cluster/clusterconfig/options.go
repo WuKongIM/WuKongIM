@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 )
 
@@ -14,6 +15,7 @@ type Options struct {
 	HeartbeatTimeoutTick   int                     // 心跳超时tick次数
 	InitNodes              map[uint64]string       // 初始化节点列表 key为节点id，value为分布式通讯的地址
 	ProposeTimeout         time.Duration           // 提议超时时间
+	ReqTimeout             time.Duration           // 请求超时时间
 	SlotCount              uint32                  // 槽位数量
 	SlotMaxReplicaCount    uint32                  // 每个槽位最大副本数量
 	ChannelMaxReplicaCount uint32                  // 每个频道最大副本数量
@@ -21,6 +23,8 @@ type Options struct {
 	MessageSendInterval    time.Duration           // 消息发送间隔
 	MaxIdleInterval        time.Duration           // 最大空闲间隔
 	Send                   func(m reactor.Message) // 发送消息
+
+	Cluster icluster.Cluster // 分布式接口
 
 	Event struct {
 		OnAppliedConfig func()
@@ -34,6 +38,8 @@ func NewOptions(opt ...Option) *Options {
 		ElectionTimeoutTick:    10,
 		HeartbeatTimeoutTick:   1,
 		MaxIdleInterval:        time.Second * 1,
+		ProposeTimeout:         time.Second * 5,
+		ReqTimeout:             time.Second * 5,
 		SlotMaxReplicaCount:    3,
 		ChannelMaxReplicaCount: 3,
 		Event: struct {
@@ -134,5 +140,11 @@ func WithChannelMaxReplicaCount(channelMaxReplicaCount uint32) Option {
 func WithOnAppliedConfig(f func()) Option {
 	return func(o *Options) {
 		o.Event.OnAppliedConfig = f
+	}
+}
+
+func WithCluster(cluster icluster.Cluster) Option {
+	return func(o *Options) {
+		o.Cluster = cluster
 	}
 }

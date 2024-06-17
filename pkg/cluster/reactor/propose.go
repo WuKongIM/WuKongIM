@@ -4,19 +4,21 @@ import (
 	"container/list"
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type proposeReq struct {
-	logs []replica.Log
-	key  string
+	logs       []replica.Log
+	handlerKey string
+	waitKey    string
 }
 
-func newProposeReq(key string, logs []replica.Log) proposeReq {
+func newProposeReq(handlerKey string, waitKey string, logs []replica.Log) proposeReq {
 	return proposeReq{
-		logs: logs,
-		key:  key,
+		logs:       logs,
+		handlerKey: handlerKey,
+		waitKey:    waitKey,
 	}
 }
 

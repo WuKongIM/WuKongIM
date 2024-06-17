@@ -1,10 +1,11 @@
 package clusterconfig
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -21,44 +22,36 @@ type handler struct {
 	storage    *PebbleShardLogStorage
 	mu         sync.Mutex
 	isPrepared atomic.Bool
+	s          *Server
 }
 
-func newHandler(cfg *Config, storage *PebbleShardLogStorage, opts *Options) *handler {
+func newHandler(cfg *Config, storage *PebbleShardLogStorage, s *Server) *handler {
 
 	h := &handler{
 		cfg:     cfg,
-		opts:    opts,
+		opts:    s.opts,
 		Log:     wklog.NewWKLog("clusterconfig.handler"),
 		storage: storage,
+		s:       s,
 	}
-	replicas := make([]uint64, 0, len(opts.InitNodes))
-	for replicaId := range opts.InitNodes {
-		replicas = append(replicas, replicaId)
-	}
+	// replicas := make([]uint64, 0, len(s.opts.InitNodes))
+	// for replicaId := range s.opts.InitNodes {
+	// 	replicas = append(replicas, replicaId)
+	// }
 	h.isPrepared.Store(true)
 
-	// data, err := cfg.data()
-	// if err != nil {
-	// 	h.Panic("get config data error", zap.Error(err))
-	// }
+	lastIndex, lastTerm, err := storage.LastIndexAndTerm()
+	if err != nil {
+		h.Panic("get last index and term error", zap.Error(err))
+	}
 
-	// if cfg.version() > 0 {
-	// 	err = h.memoryStorage.SetLeaderTermStartIndex(cfg.term(), cfg.version())
-	// 	if err != nil {
-	// 		h.Panic("set leader term start index error", zap.Error(err))
-	// 	}
-	// 	_ = h.memoryStorage.AppendLog([]replica.Log{
-	// 		{
-	// 			Index: cfg.version(),
-	// 			Term:  cfg.term(),
-	// 			Data:  data,
-	// 		},
-	// 	})
-	// }
-
-	h.rc = replica.New(opts.NodeId, replica.WithLogPrefix("config"), replica.WithConfig(&replica.Config{
-		Replicas: replicas,
-	}), replica.WithElectionOn(true), replica.WithStorage(h.storage), replica.WithAppliedIndex(cfg.version()))
+	h.rc = replica.New(s.opts.NodeId,
+		replica.WithLogPrefix("config"),
+		replica.WithElectionOn(true),
+		replica.WithStorage(h.storage),
+		replica.WithLastIndex(lastIndex),
+		replica.WithLastTerm(lastTerm),
+		replica.WithAppliedIndex(cfg.version()))
 	return h
 }
 
@@ -68,8 +61,26 @@ func (h *handler) updateConfig() {
 	for _, node := range nodes {
 		replicas = append(replicas, node.Id)
 	}
-	h.rc.SetConfig(&replica.Config{
-		Replicas: replicas,
+
+	for replicaId := range h.opts.InitNodes {
+		exist := false
+		for _, replica := range replicas {
+			if replicaId == replica {
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			replicas = append(replicas, replicaId)
+		}
+
+	}
+
+	h.s.configReactor.Step("config", replica.Message{
+		MsgType: replica.MsgConfigResp,
+		Config: replica.Config{
+			Replicas: replicas,
+		},
 	})
 
 }
@@ -95,49 +106,51 @@ func (h *handler) Ready() replica.Ready {
 	return h.rc.Ready()
 }
 
-// GetAndMergeLogs 获取并合并日志
-func (h *handler) GetAndMergeLogs(lastIndex uint64, msg replica.Message) ([]replica.Log, error) {
+func (h *handler) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
 
-	unstableLogs := msg.Logs
-	startIndex := msg.Index
-	if len(unstableLogs) > 0 {
-		startIndex = unstableLogs[len(unstableLogs)-1].Index + 1
+	logs, err := h.getLogs(startIndex, endIndex)
+	if err != nil {
+		h.Error("get logs error", zap.Error(err))
+		return 0, err
+	}
+	if len(logs) == 0 {
+		h.Error("no logs to apply", zap.Uint64("startIndex", startIndex), zap.Uint64("endIndex", endIndex))
+		return 0, fmt.Errorf("no logs to apply")
+	}
+	lastLog := logs[len(logs)-1]
+
+	h.Debug("apply config log", zap.Uint64("lastLogIndex", lastLog.Index), zap.Uint32("lastLogTerm", lastLog.Term))
+
+	err = h.cfg.apply(lastLog.Data, lastLog.Index, lastLog.Term)
+	if err != nil {
+		h.Error("apply config error", zap.Error(err))
+		return 0, err
+	}
+	err = h.storage.setAppliedIndex(lastLog.Index)
+	if err != nil {
+		h.Error("set applied index error", zap.Error(err))
+		return 0, err
 	}
 
-	var err error
-	if lastIndex == 0 {
-		lastIndex, err = h.storage.LastIndex()
-		if err != nil {
-			h.Error("getAndMergeLogs: get last index error", zap.Error(err))
-			return nil, err
-		}
-	}
-	var resultLogs []replica.Log
-	if startIndex <= lastIndex {
-		logs, err := h.getLogs(startIndex, lastIndex+1)
-		if err != nil {
-			h.Error("get logs error", zap.Error(err), zap.Uint64("startIndex", startIndex), zap.Uint64("lastIndex", lastIndex))
-			return nil, err
-		}
+	h.updateConfig() // 更新配置 (TODO：这里应该判断下，只有节点改变才更新)
 
-		startLogLen := len(logs)
-		// 检查logs的连续性，只保留连续的日志
-		for i, log := range logs {
-			if log.Index != startIndex+uint64(i) {
-				logs = logs[:i]
-				break
-			}
-		}
-		if len(logs) != startLogLen {
-			h.Warn("the log is not continuous and has been truncated ", zap.Uint64("lastIndex", lastIndex), zap.Uint64("msgIndex", msg.Index), zap.Int("startLogLen", startLogLen), zap.Int("endLogLen", len(logs)))
-		}
+	// 触发配置已应用事件
+	h.opts.Event.OnAppliedConfig()
 
-		resultLogs = extend(unstableLogs, logs)
-	} else {
-		resultLogs = unstableLogs
+	appliedSize := uint64(0)
+	for _, log := range logs {
+		appliedSize += uint64(log.LogSize())
 	}
 
-	return resultLogs, nil
+	return appliedSize, err
+}
+
+func (h *handler) AppliedIndex() (uint64, error) {
+	return h.storage.AppliedIndex()
+}
+
+func (h *handler) GetLogs(startLogIndex, endLogIndex uint64) ([]replica.Log, error) {
+	return h.getLogs(startLogIndex, endLogIndex)
 }
 
 func (h *handler) getLogs(startLogIndex uint64, endLogIndex uint64) ([]replica.Log, error) {
@@ -149,48 +162,12 @@ func (h *handler) getLogs(startLogIndex uint64, endLogIndex uint64) ([]replica.L
 	return logs, nil
 }
 
-// ApplyLog 应用日志
-func (h *handler) ApplyLog(startLogIndex, endLogIndex uint64) error {
-	if endLogIndex == 0 {
-		return nil
-	}
-	lastLog, err := h.storage.getLog(endLogIndex - 1)
-	if err != nil {
-		h.Error("get last log error", zap.Error(err))
-		return err
-
-	}
-
-	h.Debug("apply config log", zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex), zap.Uint64("lastLogIndex", lastLog.Index), zap.Uint32("lastLogTerm", lastLog.Term))
-
-	err = h.cfg.apply(lastLog.Data, lastLog.Index, lastLog.Term)
-
-	h.updateConfig() // 更新配置
-
-	// 触发配置已应用事件
-	h.opts.Event.OnAppliedConfig()
-
-	return err
-}
-
-// SlowDown 降速
-func (h *handler) SlowDown() {
-	h.rc.SlowDown()
-}
-
-func (h *handler) SpeedLevel() replica.SpeedLevel {
-	return h.rc.SpeedLevel()
-}
-
-func (h *handler) SetSpeedLevel(level replica.SpeedLevel) {
-	h.rc.SetSpeedLevel(level)
-}
-
 // SetHardState 设置HardState
 func (h *handler) SetHardState(hd replica.HardState) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.leaderId = hd.LeaderId
+
 }
 
 // Tick tick
@@ -204,15 +181,15 @@ func (h *handler) Step(m replica.Message) error {
 	return h.rc.Step(m)
 }
 
-// SetLastIndex 设置最后一条日志的索引
-func (h *handler) SetLastIndex(index uint64) error {
-	return h.storage.SetLastIndex(index)
-}
+// // SetLastIndex 设置最后一条日志的索引
+// func (h *handler) SetLastIndex(index uint64) error {
+// 	return h.storage.SetLastIndex(index)
+// }
 
-// SetAppliedIndex 设置已应用的索引
-func (h *handler) SetAppliedIndex(index uint64) error {
-	return h.storage.SetAppliedIndex(index)
-}
+// // SetAppliedIndex 设置已应用的索引
+// func (h *handler) SetAppliedIndex(index uint64) error {
+// 	return h.storage.SetAppliedIndex(index)
+// }
 
 // IsPrepared 是否准备好
 func (h *handler) IsPrepared() bool {
@@ -225,6 +202,14 @@ func (h *handler) SetIsPrepared(prepared bool) {
 
 func (h *handler) IsLeader() bool {
 	return h.isLeader()
+}
+
+func (h *handler) SetSpeedLevel(level replica.SpeedLevel) {
+	h.rc.SetSpeedLevel(level)
+}
+
+func (h *handler) SpeedLevel() replica.SpeedLevel {
+	return h.rc.SpeedLevel()
 }
 
 func (h *handler) isLeader() bool {
@@ -257,13 +242,26 @@ func (h *handler) SaveConfig(cfg replica.Config) error {
 	return nil
 }
 
-func extend(dst, vals []replica.Log) []replica.Log {
-	need := len(dst) + len(vals)
-	if need <= cap(dst) {
-		return append(dst, vals...) // does not allocate
-	}
-	buf := make([]replica.Log, need) // allocates precisely what's needed
-	copy(buf, dst)
-	copy(buf[len(dst):], vals)
-	return buf
+func (h *handler) AppendLogs(logs []replica.Log) error {
+	return h.storage.AppendLog(logs)
+}
+
+func (h *handler) SetLeaderTermStartIndex(term uint32, index uint64) error {
+	return h.storage.SetLeaderTermStartIndex(term, index)
+}
+
+func (h *handler) LeaderTermStartIndex(term uint32) (uint64, error) {
+	return h.storage.LeaderTermStartIndex(term)
+}
+
+func (h *handler) LeaderLastTerm() (uint32, error) {
+	return h.storage.LeaderLastTerm()
+}
+
+func (h *handler) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
+	return h.storage.DeleteLeaderTermStartIndexGreaterThanTerm(term)
+}
+
+func (h *handler) TruncateLogTo(index uint64) error {
+	return h.storage.TruncateLogTo(index)
 }

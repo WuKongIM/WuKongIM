@@ -3,6 +3,7 @@ package clusterevent
 import (
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 )
 
@@ -20,6 +21,8 @@ type Options struct {
 	PongMaxTick int
 	// 学习者检查间隔（每隔这个间隔时间检查下学习者的日志）
 	LearnerCheckInterval time.Duration
+
+	Cluster icluster.Cluster // 分布式接口
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -91,5 +94,11 @@ func WithConfigDir(configDir string) Option {
 func WithApiServerAddr(apiServerAddr string) Option {
 	return func(o *Options) {
 		o.ApiServerAddr = apiServerAddr
+	}
+}
+
+func WithCluster(cluster icluster.Cluster) Option {
+	return func(o *Options) {
+		o.Cluster = cluster
 	}
 }

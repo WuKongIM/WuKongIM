@@ -3,11 +3,12 @@ package clusterconfig
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/key"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
@@ -79,6 +80,7 @@ func (p *PebbleShardLogStorage) AppendLog(logs []replica.Log) error {
 
 // TruncateLogTo 截断日志
 func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
+	fmt.Println("TruncateLogTo----->", index)
 	if index == 0 {
 		return errors.New("index must be greater than 0")
 	}
@@ -170,6 +172,7 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm() (uint64, uint32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
+	fmt.Println("LastIndexAndTerm----->1-->", lastIndex)
 	if lastIndex == 0 {
 		return 0, 0, nil
 	}
@@ -177,6 +180,7 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm() (uint64, uint32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
+	fmt.Println("LastIndexAndTerm----->2--->", lastIndex, log.Term)
 	return lastIndex, log.Term, nil
 }
 
@@ -210,11 +214,11 @@ func (p *PebbleShardLogStorage) getLog(index uint64) (replica.Log, error) {
 
 }
 
-func (p *PebbleShardLogStorage) SetLastIndex(index uint64) error {
+func (p *PebbleShardLogStorage) setLastIndex(index uint64) error {
 	return p.saveMaxIndex(index)
 }
 
-func (p *PebbleShardLogStorage) SetAppliedIndex(index uint64) error {
+func (p *PebbleShardLogStorage) setAppliedIndex(index uint64) error {
 	maxIndexKeyData := key.NewAppliedIndexKey()
 	maxIndexdata := make([]byte, 8)
 	binary.BigEndian.PutUint64(maxIndexdata, index)
@@ -286,6 +290,25 @@ func (p *PebbleShardLogStorage) LeaderTermStartIndex(term uint32) (uint64, error
 		return 0, nil
 	}
 	return binary.BigEndian.Uint64(leaderTermStartIndexData), nil
+}
+
+// 获取大于或等于term的lastTerm
+func (p *PebbleShardLogStorage) LeaderLastTermGreaterThan(term uint32) (uint32, error) {
+	iter := p.db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewLeaderTermStartIndexKey(term),
+		UpperBound: key.NewLeaderTermStartIndexKey(math.MaxUint32),
+	})
+	defer iter.Close()
+	var maxTerm uint32 = term
+	for iter.First(); iter.Valid(); iter.Next() {
+		term := key.GetTermFromLeaderTermStartIndexKey(iter.Key())
+		if term >= maxTerm {
+			maxTerm = term
+			break
+		}
+	}
+	return maxTerm, nil
+
 }
 
 func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {

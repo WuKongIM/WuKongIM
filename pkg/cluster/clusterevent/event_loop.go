@@ -1,6 +1,7 @@
 package clusterevent
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -57,6 +58,7 @@ func (s *Server) tick() {
 	}
 
 	if s.IsLeader() {
+
 		// 检查节点在线状态
 		hasEvent := s.checkNodeOnlineStatus()
 		if hasEvent {
@@ -138,6 +140,8 @@ func (s *Server) checkConifgChange() {
 	s.checkNodes()
 	// 检查槽的变化
 	_ = s.checkSlots()
+
+	fmt.Println("s.localCfg.Version---->", s.localCfg.Version, s.preRemoteCfg.Version)
 
 	if s.localCfg.Version < s.preRemoteCfg.Version {
 		err := s.saveLocalConfig(s.preRemoteCfg)
