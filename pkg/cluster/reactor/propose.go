@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"sync"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 

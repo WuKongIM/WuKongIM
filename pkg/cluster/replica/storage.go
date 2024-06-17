@@ -9,22 +9,22 @@ type IStorage interface {
 	// AppendLog(logs []Log) error
 	// TruncateLog 截断日志, 从index开始截断,index不能等于0 （保留下来的内容不包含index）
 	// [1,2,3,4,5,6] truncate to 4 = [1,2,3]
-	TruncateLogTo(logIndex uint64) error
+	// TruncateLogTo(logIndex uint64) error
 	// GetLogs 获取日志 [startLogIndex,endLogIndex)
 	// startLogIndex 开始日志索引(结果包含startLogIndex)
 	// endLogIndex 结束日志索引(结果不包含endLogIndex) endLogIndex=0表示不限制
 	// FirstIndex 第一条日志的索引
 	FirstIndex() (uint64, error)
 	// LastIndex 最后一条日志的索引和任期
-	LastIndexAndTerm() (uint64, uint32, error)
+	// LastIndexAndTerm() (uint64, uint32, error)
 	// SetLeaderTermStartIndex 设置领导任期开始的第一条日志索引
-	SetLeaderTermStartIndex(term uint32, index uint64) error
-	// LeaderLastTerm 获取最新的本地保存的领导任期
-	LeaderLastTerm() (uint32, error)
-	// LeaderTermStartIndex 获取领导任期开始的第一条日志索引
-	LeaderTermStartIndex(term uint32) (uint64, error)
-	// 删除比传入的term大的的LeaderTermStartIndex记录
-	DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error
+	// SetLeaderTermStartIndex(term uint32, index uint64) error
+	// // LeaderLastTerm 获取最新的本地保存的领导任期
+	// LeaderLastTerm() (uint32, error)
+	// // LeaderTermStartIndex 获取领导任期开始的第一条日志索引
+	// LeaderTermStartIndex(term uint32) (uint64, error)
+	// // 删除比传入的term大的的LeaderTermStartIndex记录
+	// DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error
 }
 
 type MemoryStorage struct {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"

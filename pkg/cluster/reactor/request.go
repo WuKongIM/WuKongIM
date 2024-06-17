@@ -1,7 +1,7 @@
 package reactor
 
 import (
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 

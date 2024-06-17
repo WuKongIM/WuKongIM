@@ -3,7 +3,7 @@ package reactor
 import (
 	"fmt"
 
-	replica "github.com/WuKongIM/WuKongIM/pkg/cluster/replica2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"go.uber.org/zap"
 )
 
