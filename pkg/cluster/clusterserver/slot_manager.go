@@ -121,6 +121,11 @@ func (s *slotManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartIndexRe
 	return 0, nil
 }
 
+func (s *slotManager) AppendLogBatch(reqs []reactor.AppendLogReq) error {
+
+	return s.opts.SlotLogStorage.AppendLogBatch(reqs)
+}
+
 func (s *slotManager) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.ReqTimeout)
 	defer cancel()

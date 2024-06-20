@@ -8,6 +8,7 @@ import (
 	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
 	"github.com/sasha-s/go-deadlock"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +31,8 @@ type channelReactor struct {
 
 	mu          deadlock.RWMutex
 	loadChannMu deadlock.RWMutex
+
+	stopped atomic.Bool
 }
 
 func newChannelReactor(s *Server, opts *Options) *channelReactor {
@@ -82,6 +85,8 @@ func (r *channelReactor) start() error {
 func (r *channelReactor) stop() {
 
 	r.Info("ChannelReactor stop")
+
+	r.stopped.Store(true)
 
 	r.stopper.Stop()
 

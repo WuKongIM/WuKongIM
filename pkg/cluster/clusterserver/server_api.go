@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -30,23 +30,26 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/nodes/:id/channels"), s.nodeChannelsGet) // 获取节点的所有频道信息
 
 	// route.GET(s.formatPath("/channels/:channel_id/:channel_type/config"), s.channelClusterConfigGet) // 获取频道分布式配置
-	route.GET(s.formatPath("/slots"), s.slotsGet)                                                 // 获取指定的槽信息
-	route.GET(s.formatPath("/allslot"), s.allSlotsGet)                                            // 获取所有槽信息
-	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet)                          // 槽分布式配置
-	route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)                             // 获取某个槽的所有频道信息
-	route.GET(s.formatPath("/info"), s.clusterInfoGet)                                            // 获取集群信息
-	route.GET(s.formatPath("/messages"), s.messageSearch)                                         // 搜索消息
-	route.GET(s.formatPath("/channels"), s.channelSearch)                                         // 频道搜索
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/subscribers"), s.subscribersGet)  // 获取频道的订阅者列表
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/denylist"), s.denylistGet)        // 获取黑名单列表
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/allowlist"), s.allowlistGet)      // 获取白名单列表
-	route.GET(s.formatPath("/users"), s.userSearch)                                               // 用户搜索
-	route.GET(s.formatPath("/devices"), s.deviceSearch)                                           // 设备搜索
-	route.GET(s.formatPath("/conversations"), s.conversationSearch)                               // 搜索最近会话消息
-	route.POST(s.formatPath("/channels/:channel_id/:channel_type/migrate"), s.channelMigrate)     // 迁移频道
-	route.GET(s.formatPath("/channels/:channel_id/:channel_type/config"), s.channelClusterConfig) // 获取频道的分布式配置
-	route.POST(s.formatPath("/channels/:channel_id/:channel_type/start"), s.channelStart)         // 开始频道
-	route.POST(s.formatPath("/channels/:channel_id/:channel_type/stop"), s.channelStop)           // 停止频道
+	route.GET(s.formatPath("/slots"), s.slotsGet)                                                      // 获取指定的槽信息
+	route.GET(s.formatPath("/allslot"), s.allSlotsGet)                                                 // 获取所有槽信息
+	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet)                               // 槽分布式配置
+	route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)                                  // 获取某个槽的所有频道信息
+	route.GET(s.formatPath("/info"), s.clusterInfoGet)                                                 // 获取集群信息
+	route.GET(s.formatPath("/messages"), s.messageSearch)                                              // 搜索消息
+	route.GET(s.formatPath("/channels"), s.channelSearch)                                              // 频道搜索
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/subscribers"), s.subscribersGet)       // 获取频道的订阅者列表
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/denylist"), s.denylistGet)             // 获取黑名单列表
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/allowlist"), s.allowlistGet)           // 获取白名单列表
+	route.GET(s.formatPath("/users"), s.userSearch)                                                    // 用户搜索
+	route.GET(s.formatPath("/devices"), s.deviceSearch)                                                // 设备搜索
+	route.GET(s.formatPath("/conversations"), s.conversationSearch)                                    // 搜索最近会话消息
+	route.POST(s.formatPath("/channels/:channel_id/:channel_type/migrate"), s.channelMigrate)          // 迁移频道
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/config"), s.channelClusterConfig)      // 获取频道的分布式配置
+	route.POST(s.formatPath("/channels/:channel_id/:channel_type/start"), s.channelStart)              // 开始频道
+	route.POST(s.formatPath("/channels/:channel_id/:channel_type/stop"), s.channelStop)                // 停止频道
+	route.POST(s.formatPath("/channel/status"), s.channelStatus)                                       // 获取频道状态
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/replicas"), s.channelReplicas)         // 获取频道副本信息
+	route.GET(s.formatPath("/channels/:channel_id/:channel_type/localReplica"), s.channelLocalReplica) // 获取频道在本节点的副本信息
 
 }
 
@@ -138,7 +141,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 	channelId := strings.TrimSpace(c.Query("channel_id"))
 	channelType := wkutil.ParseUint8(c.Query("channel_type"))
 
-	running := wkutil.ParseBool(c.Query("running")) // 是否只查询运行中的频道
+	// running := wkutil.ParseBool(c.Query("running")) // 是否只查询运行中的频道
 
 	if limit <= 0 {
 		limit = s.opts.PageSize
@@ -165,30 +168,22 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		return
 	}
 
-	fmt.Println("start---------->1-->")
-	var channelClusterConfigs []wkdb.ChannelClusterConfig
-	if running {
-		s.channelManager.iterator(func(h reactor.IHandler) bool {
-			channel := h.(*channel)
-			channelClusterConfigs = append(channelClusterConfigs, channel.cfg)
-			return true
-		})
-	} else {
-		channelClusterConfigs, err = s.opts.DB.SearchChannelClusterConfig(wkdb.ChannelClusterConfigSearchReq{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-			CurrentPage: currentPage,
-			Limit:       limit,
-		})
-		if err != nil {
-			s.Error("GetWithAllSlot error", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
+	channelClusterConfigs, err := s.opts.DB.SearchChannelClusterConfig(wkdb.ChannelClusterConfigSearchReq{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		CurrentPage: currentPage,
+		Limit:       limit,
+		LeaderId:    id,
+	})
+	if err != nil {
+		s.Error("GetWithAllSlot error", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
-	fmt.Println("start---------->2-->", len(channelClusterConfigs))
 
 	channelClusterConfigResps := make([]*ChannelClusterConfigResp, 0, len(channelClusterConfigs))
+
+	leaderCfgMap := make(map[uint64][]*channelBase)
 
 	for _, cfg := range channelClusterConfigs {
 		slotId := s.getSlotId(cfg.ChannelId)
@@ -209,47 +204,127 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 			return
 		}
 
-		handler := s.channelManager.get(cfg.ChannelId, cfg.ChannelType)
-
-		var activeChannel *channel
-		if handler != nil {
-			activeChannel = handler.(*channel)
-			cfg = activeChannel.cfg
-		}
-
 		resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slot.Id, cfg)
 		resp.MaxMessageSeq = lastMsgSeq
 		if lastAppendTime > 0 {
 			resp.LastAppendTime = myUptime(time.Since(time.Unix(int64(lastAppendTime/1e9), 0)))
 		}
+
+		if slot.Leader == s.opts.NodeId {
+			if s.channelManager.exist(cfg.ChannelId, cfg.ChannelType) {
+				resp.Active = 1
+				resp.ActiveFormat = "运行中"
+			} else {
+				resp.Active = 0
+				resp.ActiveFormat = "未运行"
+			}
+		} else {
+			leaderCfgMap[cfg.LeaderId] = append(leaderCfgMap[cfg.LeaderId], &channelBase{
+				ChannelId:   cfg.ChannelId,
+				ChannelType: cfg.ChannelType,
+			})
+		}
 		channelClusterConfigResps = append(channelClusterConfigResps, resp)
 
-		if activeChannel != nil {
-			resp.Active = 1
-			resp.ActiveFormat = "运行中"
-		} else {
-			resp.ActiveFormat = "未运行"
-			resp.Active = 0
+	}
+
+	statusResps := make([]*channelStatusResp, 0, len(leaderCfgMap))
+
+	if len(leaderCfgMap) > 0 {
+		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+		defer cancel()
+		requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
+		statusRespLock := sync.Mutex{}
+
+		for nodeId, channels := range leaderCfgMap {
+			if !s.NodeIsOnline(nodeId) {
+				continue
+			}
+			requestGroup.Go(func(nId uint64, chs []*channelBase) func() error {
+
+				return func() error {
+
+					results, err := s.requestChannelStatus(nId, chs)
+					if err != nil {
+						return err
+					}
+					statusRespLock.Lock()
+					statusResps = append(statusResps, results...)
+					statusRespLock.Unlock()
+
+					return nil
+				}
+			}(nodeId, channels))
+		}
+
+		err = requestGroup.Wait()
+		if err != nil {
+			s.Error("requestChannelStatus error", zap.Error(err))
+			c.ResponseError(err)
+			return
 		}
 
 	}
 
-	fmt.Println("start---------->3-->", len(channelClusterConfigs))
-	total, err := s.opts.DB.GetTotalChannelClusterConfigCount()
-	if err != nil {
-		s.Error("GetTotalChannelClusterConfigCount error", zap.Error(err))
-		c.ResponseError(err)
-		return
+	fmt.Println("statusResps--->", len(statusResps))
 
+	for _, channelClusterConfigResp := range channelClusterConfigResps {
+		for _, statusResp := range statusResps {
+			if channelClusterConfigResp.ChannelId == statusResp.ChannelId && channelClusterConfigResp.ChannelType == statusResp.ChannelType {
+				channelClusterConfigResp.Active = statusResp.Running
+
+				if statusResp.Running == 1 {
+					channelClusterConfigResp.ActiveFormat = "运行中"
+				} else {
+					channelClusterConfigResp.ActiveFormat = "未运行"
+				}
+				break
+			}
+		}
 	}
+
+	// fmt.Println("start---------->3-->", len(channelClusterConfigs))
+	// total, err := s.opts.DB.GetTotalChannelClusterConfigCount()
+	// if err != nil {
+	// 	s.Error("GetTotalChannelClusterConfigCount error", zap.Error(err))
+	// 	c.ResponseError(err)
+	// 	return
+
+	// }
 
 	fmt.Println("start---------->4-->", len(channelClusterConfigs))
 
 	c.JSON(http.StatusOK, ChannelClusterConfigRespTotal{
-		Total:   total,
 		Running: s.channelManager.channelCount(),
 		Data:    channelClusterConfigResps,
 	})
+}
+
+func (s *Server) requestChannelStatus(nodeId uint64, channels []*channelBase) ([]*channelStatusResp, error) {
+	node := s.clusterEventServer.Node(nodeId)
+	if node == nil {
+		return nil, fmt.Errorf("node not found, nodeId:%d", nodeId)
+	}
+	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath("/channel/status"))
+	resp, err := network.Post(fullUrl, []byte(wkutil.ToJSON(map[string]interface{}{
+		"channels": channels,
+	})), nil)
+	if err != nil {
+		s.Error("requestChannelStatus error", zap.Error(err))
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		s.Error("requestChannelStatus failed", zap.Int("statusCode", resp.StatusCode))
+		return nil, errors.New("requestChannelStatus failed")
+	}
+
+	var statusResp []*channelStatusResp
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &statusResp)
+	if err != nil {
+		return nil, err
+	}
+	return statusResp, nil
 }
 
 func (s *Server) slotsGet(c *wkhttp.Context) {
@@ -1581,4 +1656,207 @@ func (s *Server) channelStop(c *wkhttp.Context) {
 		s.channelManager.remove(handler.(*channel))
 	}
 	c.ResponseOK()
+}
+
+func (s *Server) channelStatus(c *wkhttp.Context) {
+	var req struct {
+		Channels []channelBase `json:"channels"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		s.Error("BindJSON error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	resps := make([]*channelStatusResp, 0, len(req.Channels))
+	for _, ch := range req.Channels {
+		handler := s.channelManager.get(ch.ChannelId, ch.ChannelType)
+		if handler != nil {
+			resps = append(resps, &channelStatusResp{
+				channelBase: ch,
+				Running:     1,
+			})
+		} else {
+			resps = append(resps, &channelStatusResp{
+				channelBase: ch,
+				Running:     0,
+			})
+
+		}
+	}
+
+	c.JSON(http.StatusOK, resps)
+
+}
+
+func (s *Server) channelReplicas(c *wkhttp.Context) {
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	slotId := s.getSlotId(channelId)
+
+	st := s.clusterEventServer.Slot(slotId)
+	if st == nil {
+		s.Error("slot not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("slot not found"))
+		return
+	}
+
+	if st.Leader == 0 {
+		s.Error("slot leader is 0", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("slot leader is 0"))
+		return
+	}
+
+	slotLeaderNode := s.clusterEventServer.Node(st.Leader)
+	if slotLeaderNode == nil {
+		s.Error("slot leader node not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId), zap.Uint64("slotLeader", st.Leader))
+		c.ResponseError(errors.New("slot leader node not found"))
+		return
+
+	}
+
+	if st.Leader != s.opts.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", slotLeaderNode.ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
+	channelClusterConfig, err := s.getChannelClusterConfig(channelId, channelType)
+	if err != nil {
+		s.Error("getChannelClusterConfig error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	defer cancel()
+
+	replicas := make([]*channelReplicaDetailResp, 0, len(channelClusterConfig.Replicas))
+
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+	for _, replicaId := range channelClusterConfig.Replicas {
+		replicaId := replicaId
+		requestGroup.Go(func() error {
+			replicaResp, err := s.requestChannelLocalReplica(replicaId, channelId, channelType)
+			if err != nil {
+				return err
+			}
+
+			lastMsgTimeFormat := ""
+			if replicaResp.LastMsgTime != 0 {
+				lastMsgTimeFormat = wkutil.ToyyyyMMddHHmm(time.Unix(int64(replicaResp.LastMsgTime/1e9), 0))
+			}
+
+			replicas = append(replicas, &channelReplicaDetailResp{
+				channelReplicaResp: *replicaResp,
+				Role:               s.getReplicaRole(channelClusterConfig, replicaId),
+				RoleFormat:         s.getReplicaRoleFormat(channelClusterConfig, replicaId),
+				LastMsgTimeFormat:  lastMsgTimeFormat,
+			})
+			return nil
+		})
+
+	}
+
+	err = requestGroup.Wait()
+	if err != nil {
+		s.Error("channelReplicas requestGroup error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, replicas)
+
+}
+
+func (s *Server) getReplicaRoleFormat(clusterConfig wkdb.ChannelClusterConfig, replicaId uint64) string {
+	if replicaId == clusterConfig.LeaderId {
+		return "leader"
+	}
+	if wkutil.ArrayContainsUint64(clusterConfig.Learners, replicaId) {
+		return "learner"
+	}
+	return "follower"
+}
+
+func (s *Server) getReplicaRole(clusterConfig wkdb.ChannelClusterConfig, replicaId uint64) int {
+	if replicaId == clusterConfig.LeaderId {
+		return int(replica.RoleLeader)
+	}
+	if wkutil.ArrayContainsUint64(clusterConfig.Learners, replicaId) {
+		return int(replica.RoleLearner)
+	}
+	return int(replica.RoleFollower)
+
+}
+
+func (s *Server) requestChannelLocalReplica(nodeId uint64, channelId string, channelType uint8) (*channelReplicaResp, error) {
+	node := s.clusterEventServer.Node(nodeId)
+	if node == nil {
+		s.Error("requestChannelLocalReplica failed, node not found", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("node not found")
+	}
+	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath(fmt.Sprintf("/channels/%s/%d/localReplica", channelId, channelType)))
+	resp, err := network.Get(fullUrl, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("requestChannelLocalReplica failed, status code: %d", resp.StatusCode)
+	}
+
+	var replicaResp *channelReplicaResp
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &replicaResp)
+	if err != nil {
+		return nil, err
+	}
+	return replicaResp, nil
+}
+
+func (s *Server) channelLocalReplica(c *wkhttp.Context) {
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	running := s.channelManager.exist(channelId, channelType)
+
+	lastMsgSeq, lastTime, err := s.opts.DB.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		s.Error("GetChannelLastMessageSeq error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	resp := &channelReplicaResp{
+		ReplicaId:   s.opts.NodeId,
+		Running:     wkutil.BoolToInt(running),
+		LastMsgSeq:  lastMsgSeq,
+		LastMsgTime: lastTime,
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+type channelBase struct {
+	ChannelId   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+}
+
+type channelStatusResp struct {
+	channelBase
+	Running int `json:"running"` // 是否运行中
+}
+
+type channelReplicaResp struct {
+	ReplicaId   uint64 `json:"replica_id"`    // 副本节点id
+	Running     int    `json:"running"`       // 是否运行中
+	LastMsgSeq  uint64 `json:"last_msg_seq"`  // 最新消息序号
+	LastMsgTime uint64 `json:"last_msg_time"` // 最新消息时间
+}
+
+type channelReplicaDetailResp struct {
+	channelReplicaResp
+	Role              int    `json:"role"`                 // 角色
+	RoleFormat        string `json:"role_format"`          // 角色格式化
+	LastMsgTimeFormat string `json:"last_msg_time_format"` // 最新消息时间格式化
 }

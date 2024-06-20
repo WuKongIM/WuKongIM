@@ -10,6 +10,7 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +23,7 @@ type RetryQueue struct {
 	fakeMessageID    int64
 	wklog.Log
 
+	stopped    atomic.Bool
 	retryTimer *timingwheel.Timer
 }
 
@@ -105,7 +107,7 @@ func (r *RetryQueue) removeFromInFlightPQ(msg *retryMessage) {
 }
 
 func (r *RetryQueue) processInFlightQueue(t int64) {
-	for {
+	for !r.stopped.Load() {
 		r.inFlightMutex.Lock()
 		msg, _ := r.inFlightPQ.PeekAndShift(t)
 		r.inFlightMutex.Unlock()
@@ -130,6 +132,7 @@ func (r *RetryQueue) Start() {
 }
 
 func (r *RetryQueue) Stop() {
+	r.stopped.Store(true)
 	if r.retryTimer != nil {
 		fmt.Println("RetryQueue stop.....1")
 		r.retryTimer.Stop()

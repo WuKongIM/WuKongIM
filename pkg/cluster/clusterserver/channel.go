@@ -102,12 +102,11 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 		Term:        cfg.Term,
 	}
 
-	c.s.channelManager.channelReactor.Step(c.key, replica.Message{
+	err := c.s.channelManager.channelReactor.StepWait(c.key, replica.Message{
 		MsgType: replica.MsgConfigResp,
 		Config:  replicaCfg,
 	})
-
-	return nil
+	return err
 }
 
 func (c *channel) leaderId() uint64 {
@@ -163,33 +162,33 @@ func (c *channel) AppliedIndex() (uint64, error) {
 
 func (c *channel) SetHardState(hd replica.HardState) {
 
-	if hd.LeaderId == 0 {
-		return
-	}
+	// if hd.LeaderId == 0 {
+	// 	return
+	// }
 	c.cfg.LeaderId = hd.LeaderId
 	c.cfg.Term = hd.Term
 	c.cfg.ConfVersion = hd.ConfVersion
 
-	err := c.opts.ChannelClusterStorage.Save(c.cfg)
-	if err != nil {
-		c.Warn("save channel cluster config error", zap.Error(err))
-	}
+	// err := c.opts.ChannelClusterStorage.Save(c.cfg)
+	// if err != nil {
+	// 	c.Warn("save channel cluster config error", zap.Error(err))
+	// }
 }
 
 func (c *channel) Tick() {
 	c.rc.Tick()
 
-	if c.isLeader() {
-		c.sendConfigTick++
-		if c.sendConfigTick >= c.sendConfigTimeoutTick {
-			if c.isLeader() {
-				err := c.sendConfigReqToSlotLeader(c, c.cfg.ConfVersion)
-				if err != nil {
-					c.Error("send config req to slot leader error", zap.Error(err))
-				}
-			}
-		}
-	}
+	// if c.isLeader() {
+	// 	c.sendConfigTick++
+	// 	if c.sendConfigTick >= c.sendConfigTimeoutTick {
+	// 		if c.isLeader() {
+	// 			err := c.sendConfigReqToSlotLeader(c, c.cfg.ConfVersion)
+	// 			if err != nil {
+	// 				c.Error("send config req to slot leader error", zap.Error(err))
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 }
 

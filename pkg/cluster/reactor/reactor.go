@@ -23,7 +23,7 @@ type Reactor struct {
 	processInitC              chan *initReq          // 处理频道初始化
 	processConflictCheckC     chan *conflictCheckReq // 冲突检查请求
 	processGetLogC            chan *getLogReq        // 获取日志请求
-	processStoreAppendC       chan *storeAppendReq   // 存储追加日志请求
+	processStoreAppendC       chan AppendLogReq      // 存储追加日志请求
 	processApplyLogC          chan *applyLogReq      // 应用日志请求
 	processLearnerToFollowerC chan *learnerToFollowerReq
 	processLearnerToLeaderC   chan *learnerToLeaderReq
@@ -42,7 +42,7 @@ func New(opts *Options) *Reactor {
 		processInitC:              make(chan *initReq, 1024),
 		processConflictCheckC:     make(chan *conflictCheckReq, 1024),
 		processGetLogC:            make(chan *getLogReq, 1024),
-		processStoreAppendC:       make(chan *storeAppendReq, 1024),
+		processStoreAppendC:       make(chan AppendLogReq, 1024),
 		processApplyLogC:          make(chan *applyLogReq, 1024),
 		processLearnerToFollowerC: make(chan *learnerToFollowerReq, 1024),
 		processLearnerToLeaderC:   make(chan *learnerToLeaderReq, 1024),
@@ -71,15 +71,18 @@ func (r *Reactor) Start() error {
 		r.stopper.RunWorker(r.processInitLoop)
 		r.stopper.RunWorker(r.processConflictCheckLoop)
 		r.stopper.RunWorker(r.processGetLogLoop)
-		r.stopper.RunWorker(r.processStoreAppendLoop)
-		r.stopper.RunWorker(r.processApplyLogLoop)
+
 		r.stopper.RunWorker(r.processLearnerToFollowerLoop)
 		r.stopper.RunWorker(r.processLearnerToLeaderLoop)
 	}
 
-	// for i := 0; i < r.opts.AppendLogWorkerNum; i++ {
-	// 	r.stopper.RunWorker(r.appendLogLoop)
-	// }
+	for i := 0; i < 100; i++ {
+		r.stopper.RunWorker(r.processApplyLogLoop)
+	}
+
+	for i := 0; i < r.opts.AppendLogWorkerNum; i++ {
+		r.stopper.RunWorker(r.processStoreAppendLoop) // 追加日志的协程不需要太多，因为追加日志会进行日志合并，如果协程太多反而频繁操作db导致性能下降
+	}
 	for _, sub := range r.subReactors {
 		err := sub.Start()
 		if err != nil {
@@ -139,6 +142,11 @@ func (r *Reactor) handler(key string) *handler {
 func (r *Reactor) Step(key string, msg replica.Message) {
 	sub := r.reactorSub(key)
 	sub.step(key, msg)
+}
+
+func (r *Reactor) StepWait(key string, msg replica.Message) error {
+	sub := r.reactorSub(key)
+	return sub.stepWait(key, msg)
 }
 
 func (r *Reactor) ExistHandler(key string) bool {

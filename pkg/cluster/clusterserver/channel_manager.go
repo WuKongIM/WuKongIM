@@ -113,6 +113,11 @@ func (c *channelManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartInde
 	return 0, nil
 }
 
+func (c *channelManager) AppendLogBatch(reqs []reactor.AppendLogReq) error {
+
+	return c.opts.MessageLogStorage.AppendLogBatch(reqs)
+}
+
 func (c *channelManager) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ReqTimeout)
 	defer cancel()

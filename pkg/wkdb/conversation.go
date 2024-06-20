@@ -6,9 +6,21 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Conversation) error {
+
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			end := time.Since(start)
+			if end > time.Millisecond*10 {
+				wk.Info("AddOrUpdateConversations", zap.Duration("cost", end), zap.String("uid", uid))
+			}
+		}()
+	}
+
 	batch := wk.shardDB(uid).NewBatch()
 	defer batch.Close()
 

@@ -12,6 +12,9 @@ type IRequest interface {
 	// GetLeaderTermStartIndex 从领导者获取指定任期开始的第一条日志索引
 	GetLeaderTermStartIndex(req LeaderTermStartIndexReq) (uint64, error)
 
+	// AppendLogBatch 批量追加日志
+	AppendLogBatch(reqs []AppendLogReq) error
+
 	// // GetLeaderTermStartIndex 获取领导任期开始的第一条日志索引
 	// GetLeaderTermStartIndex(handleKey []string) ([]LeaderTermStartIndexResp, error)
 

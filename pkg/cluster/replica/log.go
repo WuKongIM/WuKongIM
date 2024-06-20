@@ -68,7 +68,6 @@ func (r *replicaLog) appendLog(logs ...Log) {
 	lastLog := logs[len(logs)-1]
 	r.unstable.truncateAndAppend(logs)
 	r.lastLogIndex = lastLog.Index
-	fmt.Println("appendLog--------->", r.lastLogIndex)
 }
 
 func (r *replicaLog) storagingTo(index uint64) {

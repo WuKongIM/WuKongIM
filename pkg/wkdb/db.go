@@ -373,4 +373,5 @@ type ChannelClusterConfigSearchReq struct {
 	ChannelType uint8  // 频道类型
 	Limit       int    // 限制查询数量
 	CurrentPage int    // 当前页码
+	LeaderId    uint64 // 领导者id
 }

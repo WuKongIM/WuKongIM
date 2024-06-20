@@ -1,8 +1,6 @@
 package reactor
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"go.uber.org/zap"
 )
@@ -117,12 +115,13 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 		})
 		return
 	}
+	r.Debug("get leader term start index", zap.Uint32("leaderLastTerm", req.leaderLastTerm), zap.Uint64("index", index), zap.String("handlerKey", req.h.key))
 
 	if index == 0 {
 		r.Debug("leader index is 0,no conflict", zap.String("handlerKey", req.h.key))
 		index = replica.NoConflict
 	} else {
-		err = r.handleLeaderTermStartIndexResp(req.h, index, req.leaderLastTerm)
+		index, err = r.handleLeaderTermStartIndexResp(req.h, index, req.leaderLastTerm)
 		if err != nil {
 			r.Error("handle leader term start index failed", zap.Error(err))
 			r.Step(req.h.key, replica.Message{
@@ -167,33 +166,33 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 // 是否有term对应的StartOffset大于领导返回的LastOffset，
 // 如果有则将当前term的startOffset设置为LastOffset，
 // 并且当前term为最新的term（也就是删除比当前term大的LeaderTermSequence的记录）
-func (r *Reactor) handleLeaderTermStartIndexResp(handler *handler, index uint64, term uint32) error {
+func (r *Reactor) handleLeaderTermStartIndexResp(handler *handler, index uint64, term uint32) (uint64, error) {
 	if index == 0 {
-		return nil
+		return 0, nil
 	}
 	termStartIndex, err := handler.handler.LeaderTermStartIndex(term)
 	if err != nil {
 		r.Error("leader term start index not found", zap.Uint32("term", term))
-		return err
+		return 0, err
 	}
 	if termStartIndex == 0 {
 		err := handler.handler.SetLeaderTermStartIndex(term, index)
 		if err != nil {
 			r.Error("set leader term start index failed", zap.Error(err))
-			return err
+			return 0, err
 		}
 	} else if termStartIndex > index {
 		err := handler.handler.SetLeaderTermStartIndex(term, index)
 		if err != nil {
 			r.Error("set leader term start index failed", zap.Error(err))
-			return err
+			return 0, err
 		}
 		handler.setLastLeaderTerm(term)
 
 		err = handler.handler.DeleteLeaderTermStartIndexGreaterThanTerm(term)
 		if err != nil {
 			r.Error("delete leader term start index failed", zap.Error(err))
-			return err
+			return 0, err
 		}
 	}
 
@@ -202,7 +201,7 @@ func (r *Reactor) handleLeaderTermStartIndexResp(handler *handler, index uint64,
 	appliedIndex, err := handler.handler.AppliedIndex()
 	if err != nil {
 		r.Error("get applied index failed", zap.Error(err))
-		return err
+		return 0, err
 	}
 
 	if truncateIndex >= appliedIndex {
@@ -212,9 +211,9 @@ func (r *Reactor) handleLeaderTermStartIndexResp(handler *handler, index uint64,
 	err = handler.handler.TruncateLogTo(truncateIndex)
 	if err != nil {
 		r.Error("truncate log failed", zap.Error(err), zap.String("handlerKey", handler.key), zap.Uint64("index", index))
-		return err
+		return 0, err
 	}
-	return nil
+	return truncateIndex, nil
 }
 
 type conflictCheckReq struct {
@@ -225,7 +224,8 @@ type conflictCheckReq struct {
 
 // =================================== 追加日志 ===================================
 
-func (r *Reactor) addStoreAppendReq(req *storeAppendReq) {
+func (r *Reactor) addStoreAppendReq(req AppendLogReq) {
+
 	select {
 	case r.processStoreAppendC <- req:
 	case <-r.stopper.ShouldStop():
@@ -234,45 +234,66 @@ func (r *Reactor) addStoreAppendReq(req *storeAppendReq) {
 }
 
 func (r *Reactor) processStoreAppendLoop() {
+	reqs := make([]AppendLogReq, 0)
+	done := false
 	for {
 		select {
 		case req := <-r.processStoreAppendC:
-			r.processStoreAppend(req)
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req := <-r.processStoreAppendC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+
+			r.processStoreAppend(reqs)
+			reqs = reqs[:0]
+			done = false
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
 }
 
-func (r *Reactor) processStoreAppend(req *storeAppendReq) {
+func (r *Reactor) processStoreAppend(reqs []AppendLogReq) {
 
-	fmt.Println("processStoreAppend--------->", len(req.logs))
-	err := req.h.handler.AppendLogs(req.logs)
+	err := r.request.AppendLogBatch(reqs)
 	if err != nil {
 		r.Error("append logs failed", zap.Error(err))
-		r.Step(req.h.key, replica.Message{
-			MsgType: replica.MsgStoreAppendResp,
-			Reject:  true,
-		})
+		for _, req := range reqs {
+			r.Step(req.HandleKey, replica.Message{
+				MsgType: replica.MsgStoreAppendResp,
+				Reject:  true,
+			})
+		}
 		return
 	}
 
-	for _, log := range req.logs {
-		if log.Term > req.h.getLastLeaderTerm() {
-			req.h.setLastLeaderTerm(log.Term)
-			fmt.Println("SetLeaderTermStartIndex---->", log.Term, log.Index)
-			err = req.h.handler.SetLeaderTermStartIndex(log.Term, log.Index)
-			if err != nil {
-				r.Error("set leader term start index failed", zap.Error(err), zap.String("handlerKey", req.h.key), zap.Uint32("term", log.Term), zap.Uint64("index", log.Index))
+	for _, req := range reqs {
+		for _, log := range req.Logs {
+			handler := r.handler(req.HandleKey)
+			if log.Term > handler.getLastLeaderTerm() {
+				handler.setLastLeaderTerm(log.Term)
+				err = handler.handler.SetLeaderTermStartIndex(log.Term, log.Index)
+				if err != nil {
+					r.Error("set leader term start index failed", zap.Error(err), zap.String("handlerKey", req.HandleKey), zap.Uint32("term", log.Term), zap.Uint64("index", log.Index))
+				}
 			}
 		}
 	}
 
-	lastLog := req.logs[len(req.logs)-1]
-	r.Step(req.h.key, replica.Message{
-		MsgType: replica.MsgStoreAppendResp,
-		Index:   lastLog.Index,
-	})
+	for _, req := range reqs {
+
+		lastLog := req.Logs[len(req.Logs)-1]
+		r.Step(req.HandleKey, replica.Message{
+			MsgType: replica.MsgStoreAppendResp,
+			Index:   lastLog.Index,
+		})
+	}
+
 }
 
 type storeAppendReq struct {
@@ -312,8 +333,6 @@ func (r *Reactor) processGetLog(req *getLogReq) {
 		})
 		return
 	}
-
-	fmt.Println("processGetLog------>", len(logs), req.startIndex, req.lastIndex)
 
 	r.Step(req.h.key, replica.Message{
 		MsgType: replica.MsgSyncGetResp,
@@ -400,7 +419,6 @@ func (r *Reactor) processApplyLogLoop() {
 }
 
 func (r *Reactor) processApplyLog(req *applyLogReq) {
-	fmt.Println("processApplyLog------->", req.appyingIndex, req.committedIndex)
 
 	if !r.opts.IsCommittedAfterApplied {
 		// 提交日志
@@ -434,7 +452,6 @@ type applyLogReq struct {
 	h              *handler
 	appyingIndex   uint64
 	committedIndex uint64
-	logs           []replica.Log
 }
 
 // =================================== 学习者转追随者 ===================================

@@ -403,6 +403,24 @@ const (
 
 )
 
+func (r Role) String() string {
+	switch r {
+	case RoleUnknown:
+		return "RoleUnknown"
+	case RoleFollower:
+		return "RoleFollower"
+	case RoleCandidate:
+		return "RoleCandidate"
+	case RoleLeader:
+		return "RoleLeader"
+	case RoleLearner:
+		return "RoleLearner"
+	default:
+		return fmt.Sprintf("RoleUnkown[%d]", r)
+	}
+
+}
+
 func IsEmptyConfig(c Config) bool {
 	return c.MigrateFrom == 0 && c.MigrateTo == 0 && c.Role == RoleUnknown && c.Term == 0 && c.Leader == 0 && c.Version == 0 && len(c.Replicas) == 0 && len(c.Learners) == 0
 }

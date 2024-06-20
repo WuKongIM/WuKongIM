@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -26,7 +27,14 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		s.Error("unmarshal cmd err", zap.Error(err), zap.Uint32("slotId", slotId), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
 		return err
 	}
-	s.Info("收到元数据请求", zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
+
+	start := time.Now()
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*10 {
+			s.Info("收到元数据请求", zap.Duration("cost", end), zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
+		}
+	}()
 	switch cmd.CmdType {
 	case CMDAddSubscribers: // 添加订阅者
 		return s.handleAddSubscribers(cmd)

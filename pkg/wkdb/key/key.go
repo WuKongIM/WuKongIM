@@ -779,6 +779,21 @@ func NewChannelClusterConfigIndexKey(channelId string, channelType uint8) []byte
 	return key
 }
 
+func NewChannelClusterConfigSecondIndexKey(indexName [2]byte, columnValue uint64, primaryKey uint64) []byte {
+	key := make([]byte, TableChannelClusterConfig.SecondIndexSize)
+	key[0] = TableChannelClusterConfig.Id[0]
+	key[1] = TableChannelClusterConfig.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = indexName[0]
+	key[5] = indexName[1]
+	binary.BigEndian.PutUint64(key[6:], columnValue)
+	binary.BigEndian.PutUint64(key[14:], primaryKey)
+
+	return key
+
+}
+
 func ParseChannelClusterConfigColumnKey(key []byte) (primaryKey uint64, columnName [2]byte, err error) {
 	if len(key) != TableChannelClusterConfig.Size {
 		err = fmt.Errorf("channelClusterConfig: invalid key length, keyLen: %d", len(key))
@@ -788,6 +803,17 @@ func ParseChannelClusterConfigColumnKey(key []byte) (primaryKey uint64, columnNa
 	columnName[0] = key[12]
 	columnName[1] = key[13]
 	return
+}
+
+func ParseChannelClusterConfigSecondIndexKey(key []byte) (columnValue uint64, id uint64, err error) {
+	if len(key) != TableChannelClusterConfig.SecondIndexSize {
+		err = fmt.Errorf("channelClusterConfig: second index invalid key length, keyLen: %d", len(key))
+		return
+	}
+	columnValue = binary.BigEndian.Uint64(key[6:])
+	id = binary.BigEndian.Uint64(key[14:])
+	return
+
 }
 
 // ---------------------- LeaderTermSequence ----------------------
