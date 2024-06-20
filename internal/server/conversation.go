@@ -207,27 +207,36 @@ func (c *ConversationManager) proposeSave() {
 		return
 	}
 
-	var err error
+	// var err error
 	for slotId, models := range slotSessionMap {
-		running := c.savePool.Running()
-		if running > c.s.opts.Conversation.SavePoolSize+10 {
-			c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
-		}
-		err = c.savePool.Submit(func(stid uint32, ms []*wkdb.BatchUpdateConversationModel) func() {
-			return func() {
-				err := c.s.store.BatchUpdateConversation(stid, ms)
-				if err != nil {
-					c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
-					// 如果失败 则重新加入队列里
-					for _, model := range ms {
-						c.push(model.ChannelId, model.ChannelType, model.Uids)
-					}
-				}
-			}
-		}(slotId, models))
+		// running := c.savePool.Running()
+		// if running > c.s.opts.Conversation.SavePoolSize+10 {
+		// 	c.Warn("The save pool is busy", zap.Int("running", running), zap.Int("poolSize", c.s.opts.Conversation.SavePoolSize))
+		// }
+
+		err := c.s.store.BatchUpdateConversation(slotId, models)
 		if err != nil {
-			c.Error("Failed to submit save pool", zap.Error(err))
+			c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", slotId), zap.Int("models", len(models)))
+			// 如果失败 则重新加入队列里
+			for _, model := range models {
+				c.push(model.ChannelId, model.ChannelType, model.Uids)
+			}
 		}
+		// err = c.savePool.Submit(func(stid uint32, ms []*wkdb.BatchUpdateConversationModel) func() {
+		// 	return func() {
+		// 		err := c.s.store.BatchUpdateConversation(stid, ms)
+		// 		if err != nil {
+		// 			c.Error("Failed to update session", zap.Error(err), zap.Uint32("slotId", stid), zap.Int("models", len(ms)))
+		// 			// 如果失败 则重新加入队列里
+		// 			for _, model := range ms {
+		// 				c.push(model.ChannelId, model.ChannelType, model.Uids)
+		// 			}
+		// 		}
+		// 	}
+		// }(slotId, models))
+		// if err != nil {
+		// 	c.Error("Failed to submit save pool", zap.Error(err))
+		// }
 	}
 
 }

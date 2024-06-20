@@ -231,16 +231,21 @@ func (s *Server) GetSlotId(v string) uint32 {
 	return s.getSlotId(v)
 }
 
-// 加载或创建频道分布式配置
 func (s *Server) loadOrCreateChannelClusterConfig(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, bool, error) {
+	s.channelKeyLock.Lock(channelId)
+	defer s.channelKeyLock.Unlock(channelId)
+
+	return s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType)
+}
+
+// 加载或创建频道分布式配置
+func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, bool, error) {
 
 	var (
 		clusterCfg     wkdb.ChannelClusterConfig
 		err            error
 		needProposeCfg = false
 	)
-	s.channelKeyLock.Lock(channelId)
-	defer s.channelKeyLock.Unlock(channelId)
 
 	// ================== 从管理者中获取频道的配置 ==================
 	channelHandler := s.channelManager.get(channelId, channelType)
@@ -290,8 +295,6 @@ func (s *Server) loadOrCreateChannelClusterConfig(ctx context.Context, channelId
 			s.Error("getChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			return wkdb.EmptyChannelClusterConfig, false, err
 		}
-		fmt.Println("clusterCfg-------->:", clusterCfg.String(), err)
-
 		// 如果频道的分布式配置不存在，则创建一个新的分布式配置
 		if err == wkdb.ErrNotFound {
 			s.Debug("create channel cluster config", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
@@ -377,6 +380,9 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 
 	s.Debug("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
+	s.channelKeyLock.Lock(channelId)
+	defer s.channelKeyLock.Unlock(channelId)
+
 	start := time.Now()
 
 	defer func() {
@@ -386,7 +392,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 		}
 	}()
 
-	clusterCfg, changed, err := s.loadOrCreateChannelClusterConfig(ctx, channelId, channelType)
+	clusterCfg, changed, err := s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType)
 	if err != nil {
 		s.Error("loadOrCreateChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return nil, err
@@ -416,7 +422,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 				s.Error("switchConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 				return nil, err
 			}
-			ch.Debug("switchConfig success", zap.Duration("cost", time.Since(start)), zap.Any("learners", clusterCfg.Learners), zap.Any("replicas", clusterCfg.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			ch.Info("switchConfig success", zap.Duration("cost", time.Since(start)), zap.Any("learners", clusterCfg.Learners), zap.Any("replicas", clusterCfg.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		}
 	}
 	ch.cfg = clusterCfg
@@ -596,7 +602,7 @@ func (s *Server) loadOnlyChannelClusterConfig(channelId string, channelType uint
 	}
 
 	clusterConfig, err := s.opts.ChannelClusterStorage.Get(channelId, channelType)
-	if err != nil {
+	if err != nil && err != wkdb.ErrNotFound {
 		return wkdb.EmptyChannelClusterConfig, err
 	}
 

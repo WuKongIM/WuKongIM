@@ -78,7 +78,6 @@ func (u *unstable) shrinkLogsArray() {
 
 func (u *unstable) truncateAndAppend(logs []Log) {
 	fromIndex := logs[0].Index
-	fmt.Println("fromIndex----->", fromIndex)
 	switch {
 	case fromIndex == u.offset+uint64(len(u.logs)):
 		// fromIndex is the next index in the u.logs, so append directly.

@@ -514,7 +514,7 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 
 	for _, msg := range req.messages {
 		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
-		r.Info("remove retry", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
+		r.Debug("remove retry", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
 		err := r.s.retryManager.removeRetry(msg.ConnId, recvackPacket.MessageID)
 		if err != nil {
 			r.Warn("removeRetry error", zap.Error(err), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))

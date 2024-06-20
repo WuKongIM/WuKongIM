@@ -146,7 +146,10 @@ func (s *slot) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
 	if s.opts.OnSlotApply != nil {
 		start := time.Now()
 		defer func() {
-			s.Debug("apply log", zap.Duration("cost", time.Since(start)))
+			end := time.Since(start)
+			if end > time.Millisecond*10 {
+				s.Info("slot apply log", zap.Duration("cost", end))
+			}
 
 		}()
 		logs, err := s.getLogs(startIndex, endIndex, 0)

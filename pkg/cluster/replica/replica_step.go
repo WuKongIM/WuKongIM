@@ -94,6 +94,9 @@ func (r *Replica) Step(m Message) error {
 		}
 
 	default:
+		if r.stepFunc == nil {
+			r.Panic("stepFunc is nil", zap.String("role", r.role.String()), zap.Uint64("leader", r.leader), zap.String("msgType", m.MsgType.String()))
+		}
 		err := r.stepFunc(m)
 		if err != nil {
 			return err
@@ -379,7 +382,7 @@ func (r *Replica) updateFollowCommittedIndex(leaderCommittedIndex uint64) {
 	newCommittedIndex := r.committedIndexForFollow(leaderCommittedIndex)
 	if newCommittedIndex > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommittedIndex
-		r.Info("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Debug("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 }
 
@@ -399,7 +402,7 @@ func (r *Replica) updateLeaderCommittedIndex() bool {
 	if newCommitted > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommitted
 		updated = true
-		r.Info("update leader committed index", zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Debug("update leader committed index", zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 	return updated
 }

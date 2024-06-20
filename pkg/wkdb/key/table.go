@@ -298,7 +298,7 @@ var TableChannelInfo = struct {
 }{
 	Id:              [2]byte{0x06, 0x01},
 	Size:            2 + 2 + 8 + 2,     // tableId + dataType  + primaryKey + columnKey
-	IndexSize:       2 + 2 + 2 + 8,     // tableId + dataType + indexName + columnHash
+	IndexSize:       2 + 2 + 2 + 8,     // tableId + dataType + indexName + columnValue
 	SecondIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + columnValue + primaryKey
 	Column: struct {
 		Id              [2]byte
@@ -475,11 +475,19 @@ var TableMessageNotifyQueue = struct {
 // ======================== ChannelClusterConfig ========================
 
 var TableChannelClusterConfig = struct {
-	Id        [2]byte
-	Size      int
-	IndexSize int
-	Index     struct {
+	Id              [2]byte
+	Size            int
+	IndexSize       int
+	SecondIndexSize int
+	OtherIndexSize  int
+	Index           struct {
 		Channel [2]byte
+	}
+	SecondIndex struct {
+		LeaderId [2]byte
+	}
+	OtherIndex struct {
+		LeaderId [2]byte
 	}
 	Column struct {
 		ChannelId       [2]byte
@@ -496,12 +504,25 @@ var TableChannelClusterConfig = struct {
 		Version         [2]byte
 	}
 }{
-	Id:        [2]byte{0x0B, 0x01},
-	Size:      2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
-	IndexSize: 2 + 2 + 2 + 8, // tableId + dataType + indexName + columnHash
+	Id:              [2]byte{0x0B, 0x01},
+	Size:            2 + 2 + 8 + 2,     // tableId + dataType  + primaryKey + columnKey
+	IndexSize:       2 + 2 + 2 + 8,     // tableId + dataType + indexName + columnHash
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + columnValue + primaryKey
 	Index: struct {
 		Channel [2]byte
 	}{},
+	SecondIndex: struct {
+		LeaderId [2]byte
+	}{
+		LeaderId: [2]byte{0x0B, 0x01},
+	},
+	OtherIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + primaryKey + columnValue
+	OtherIndex: struct {
+		LeaderId [2]byte
+	}{
+		LeaderId: [2]byte{0x0B, 0x01},
+	},
+
 	Column: struct {
 		ChannelId       [2]byte
 		ChannelType     [2]byte

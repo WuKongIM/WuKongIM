@@ -856,7 +856,7 @@ type ChannelClusterConfigRespTotal struct {
 }
 
 type ChannelClusterConfigResp struct {
-	ChannelID         string                    `json:"channel_id"`          // 频道ID
+	ChannelId         string                    `json:"channel_id"`          // 频道ID
 	ChannelType       uint8                     `json:"channel_type"`        // 频道类型
 	ChannelTypeFormat string                    `json:"channel_type_format"` // 频道类型格式化
 	ReplicaCount      uint16                    `json:"replica_count"`       // 副本数量
@@ -909,7 +909,7 @@ func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId ui
 		statusFormat = fmt.Sprintf("未知(%d)", cfg.Status)
 	}
 	return &ChannelClusterConfigResp{
-		ChannelID:         cfg.ChannelId,
+		ChannelId:         cfg.ChannelId,
 		ChannelType:       cfg.ChannelType,
 		ChannelTypeFormat: channelTypeFormat,
 		ReplicaCount:      cfg.ReplicaMaxCount,

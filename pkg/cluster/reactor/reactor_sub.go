@@ -77,6 +77,13 @@ func (r *ReactorSub) run() {
 			err := handler.handler.Step(req.msg)
 			if err != nil {
 				r.Error("step message failed", zap.Error(err))
+				if req.resultC != nil {
+					req.resultC <- err
+				}
+			} else {
+				if req.resultC != nil {
+					req.resultC <- nil
+				}
 			}
 		case req := <-r.proposeC:
 			handler := r.handlers.get(req.handlerKey)
@@ -125,7 +132,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
 		}
 		if r.opts.EnableLazyCatchUp {
-			if end > 0 {
+			if end > time.Millisecond*250 {
 				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.Int("logs", len(logs)))
 			}
 		}
@@ -211,6 +218,24 @@ func (r *ReactorSub) step(handlerKey string, msg replica.Message) {
 	r.stepC <- stepReq{
 		handlerKey: handlerKey,
 		msg:        msg,
+	}
+}
+
+func (r *ReactorSub) stepWait(handlerKey string, msg replica.Message) error {
+	resultC := make(chan error, 1)
+	r.stepC <- stepReq{
+		handlerKey: handlerKey,
+		msg:        msg,
+		resultC:    resultC,
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), r.opts.ProposeTimeout)
+	defer cancel()
+	select {
+	case err := <-resultC:
+		return err
+	case <-timeoutCtx.Done():
+		return timeoutCtx.Err()
 	}
 }
 
@@ -329,9 +354,9 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 				leaderId:       handler.leaderId(),
 			})
 		case replica.MsgStoreAppend: // 追加日志
-			r.mr.addStoreAppendReq(&storeAppendReq{
-				h:    handler,
-				logs: m.Logs,
+			r.mr.addStoreAppendReq(AppendLogReq{
+				HandleKey: handler.key,
+				Logs:      m.Logs,
 			})
 		case replica.MsgSyncGet: // 获取日志
 			lastIndex, _ := handler.handler.LastLogIndexAndTerm()
@@ -345,7 +370,6 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 		case replica.MsgApplyLogs: // 应用日志
 			r.mr.addApplyLogReq(&applyLogReq{
 				h:              handler,
-				logs:           m.Logs,
 				appyingIndex:   m.ApplyingIndex,
 				committedIndex: m.CommittedIndex,
 			})
@@ -360,10 +384,11 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 				learnerId: m.LearnerId,
 			})
 		case replica.MsgSpeedLevelChange:
-			fmt.Println("MsgSpeedLevelChange---------------->", handler.key, m.SpeedLevel.String())
+			// fmt.Println("MsgSpeedLevelChange---------------->", handler.key, m.SpeedLevel.String())
 
 		case replica.MsgSyncTimeout:
 			fmt.Println("MsgSyncTimeout---------------->", handler.key)
+			r.Info("sync timeout", zap.String("handler", handler.key))
 
 		default:
 			if m.To != 0 && m.To != r.opts.NodeId {
@@ -994,4 +1019,5 @@ func (r *ReactorSub) addMessage(m Message) {
 type stepReq struct {
 	handlerKey string
 	msg        replica.Message
+	resultC    chan error
 }

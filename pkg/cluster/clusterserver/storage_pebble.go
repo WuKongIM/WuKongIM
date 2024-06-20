@@ -113,6 +113,16 @@ func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) e
 }
 
 func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
+
+	start := time.Now()
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*250 {
+			p.Info("Slot appendLogBatch done", zap.Duration("cost", end))
+		}
+
+	}()
+
 	batch := p.db.NewBatch()
 	defer batch.Close()
 	for _, req := range reqs {

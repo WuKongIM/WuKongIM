@@ -76,6 +76,15 @@ func (r *Request) GetLeaderTermStartIndex(req reactor.LeaderTermStartIndexReq) (
 	return 0, nil
 }
 
+func (r *Request) AppendLogBatch(reqs []reactor.AppendLogReq) error {
+	for _, req := range reqs {
+		if err := r.s.storage.AppendLog(req.Logs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Request) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), r.s.opts.ReqTimeout)
 	defer cancel()

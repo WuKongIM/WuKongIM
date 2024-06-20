@@ -376,13 +376,13 @@ func (r *channelReactor) processStorageLoop() {
 
 	reqs := make([]*storageReq, 0, 1024)
 	done := false
-	for {
+	for !r.stopped.Load() {
 		select {
 		case req := <-r.processStorageC:
 			reqs = append(reqs, req)
 
 			// 取出所有req
-			for !done {
+			for !done && !r.stopped.Load() {
 				select {
 				case req := <-r.processStorageC:
 					exist := false
@@ -412,7 +412,6 @@ func (r *channelReactor) processStorageLoop() {
 }
 
 func (r *channelReactor) processStorage(reqs []*storageReq) {
-	r.Info("processStorage start...")
 	for _, req := range reqs {
 		sotreMessages := make([]wkdb.Message, 0, 1024)
 		for _, msg := range req.messages {
@@ -468,7 +467,6 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 		sub.step(req.ch, &ChannelAction{ActionType: ChannelActionStorageResp, Index: lastIndex, Reason: reason})
 
 	}
-	r.Info("processStorage done...")
 
 }
 
