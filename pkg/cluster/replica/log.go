@@ -62,6 +62,11 @@ func (r *replicaLog) updateLastIndex(lastIndex uint64) {
 	r.storagingIndex = lastIndex
 	r.unstable.offset = lastIndex + 1
 	r.unstable.offsetInProgress = lastIndex + 1
+
+	if r.committedIndex > lastIndex {
+		r.committedIndex = lastIndex
+	}
+
 }
 
 func (r *replicaLog) appendLog(logs ...Log) {

@@ -227,6 +227,14 @@ func (s *Server) ProposeDataToSlot(ctx context.Context, slotId uint32, data []by
 	return results[0], nil
 }
 
+func (s *Server) MustWaitClusterReady() {
+	s.MustWaitAllSlotsReady()
+}
+
+func (s *Server) LeaderId() uint64 {
+	return s.clusterEventServer.LeaderId()
+}
+
 func (s *Server) GetSlotId(v string) uint32 {
 	return s.getSlotId(v)
 }
@@ -601,17 +609,20 @@ func (s *Server) loadOnlyChannelClusterConfig(channelId string, channelType uint
 		return wkdb.EmptyChannelClusterConfig, ErrSlotNotExist
 	}
 
-	clusterConfig, err := s.opts.ChannelClusterStorage.Get(channelId, channelType)
-	if err != nil && err != wkdb.ErrNotFound {
-		return wkdb.EmptyChannelClusterConfig, err
-	}
-
+	var (
+		clusterConfig wkdb.ChannelClusterConfig
+		err           error
+	)
 	if slot.Leader == s.opts.NodeId {
+		clusterConfig, err = s.opts.ChannelClusterStorage.Get(channelId, channelType)
+		if err != nil && err != wkdb.ErrNotFound {
+			return wkdb.EmptyChannelClusterConfig, err
+		}
 		if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
 			s.Error("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			return wkdb.EmptyChannelClusterConfig, ErrChannelClusterConfigNotFound
 		}
-	} else if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
+	} else {
 		// 向频道所在槽的领导请求频道的分布式配置（这种情况不需要保存clusterConfig，因为说明此节点不是槽领导也不是频道副本，如果保存clusterConfig，后续clusterConfig更新，则此节点将不会跟着更新了）
 		clusterConfig, err = s.requestChannelClusterConfigFromSlotLeader(channelId, channelType)
 		if err != nil {

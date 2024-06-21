@@ -155,12 +155,12 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 				uid:      uh.uid,
 				messages: action.Messages,
 			})
-		case UserActionPing: // 用户发送ping
-			u.r.addPingReq(&pingReq{
-				uniqueNo: action.UniqueNo,
-				uid:      uh.uid,
-				messages: action.Messages,
-			})
+		// case UserActionPing: // 用户发送ping
+		// 	u.r.addPingReq(&pingReq{
+		// 		uniqueNo: action.UniqueNo,
+		// 		uid:      uh.uid,
+		// 		messages: action.Messages,
+		// 	})
 		case UserActionRecvack: // 用户发送recvack
 			u.r.addRecvackReq(&recvackReq{
 				uniqueNo: action.UniqueNo,

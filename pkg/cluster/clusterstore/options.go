@@ -13,6 +13,10 @@ type Options struct {
 	GetSlotId func(uid string) uint32
 
 	IsCmdChannel func(string) bool // 是否是cmd频道
+
+	Db struct {
+		ShardNum int // 分片数量
+	}
 }
 
 func NewOptions(nodeID uint64, opts ...Option) *Options {
@@ -27,6 +31,11 @@ func NewOptions(nodeID uint64, opts ...Option) *Options {
 func newOptions() *Options {
 	return &Options{
 		SlotCount: 128,
+		Db: struct {
+			ShardNum int
+		}{
+			ShardNum: 16,
+		},
 	}
 }
 
@@ -53,5 +62,17 @@ func WithSlotCount(count uint32) Option {
 func WithIsCmdChannel(f func(string) bool) Option {
 	return func(o *Options) {
 		o.IsCmdChannel = f
+	}
+}
+
+func WithGetSlotId(f func(uid string) uint32) Option {
+	return func(o *Options) {
+		o.GetSlotId = f
+	}
+}
+
+func WithDbShardNum(num int) Option {
+	return func(o *Options) {
+		o.Db.ShardNum = num
 	}
 }

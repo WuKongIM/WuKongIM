@@ -153,7 +153,6 @@ func (r *Replica) stepLeader(m Message) error {
 
 			// 如果结果超过限制大小或者结果已经查询到最后，则直接发送同步返回
 			if exceed || (len(unstableLogs) > 0 && unstableLogs[len(unstableLogs)-1].Index >= lastIndex) {
-				fmt.Println("unstableLogs------->", m.Index, len(unstableLogs))
 				r.send(r.newMsgSyncResp(m.From, unstableLogs))
 			} else {
 				// 如果未满足条件，则发起日志获取请求，让上层去查询剩余日志

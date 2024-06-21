@@ -1,7 +1,6 @@
 package clusterevent
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -140,8 +139,6 @@ func (s *Server) checkConifgChange() {
 	s.checkNodes()
 	// 检查槽的变化
 	_ = s.checkSlots()
-
-	fmt.Println("s.localCfg.Version---->", s.localCfg.Version, s.preRemoteCfg.Version)
 
 	if s.localCfg.Version < s.preRemoteCfg.Version {
 		err := s.saveLocalConfig(s.preRemoteCfg)

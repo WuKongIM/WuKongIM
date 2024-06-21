@@ -54,10 +54,18 @@ type channel struct {
 	sendacking         bool // 是否正在发送回执
 	delivering         bool // 是否正在投递
 	forwarding         bool // 是否正在转发
+
+	// 计时tick
+	storageTick int // 发起存储的tick计时
+	initTick    int // 发起初始化的tick计时
+
+	opts *Options
 }
 
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
 	key := ChannelToKey(channelId, channelType)
+
+	channelProcessIntervalTick := sub.r.opts.Reactor.ChannelProcessIntervalTick
 	return &channel{
 		key:              key,
 		channelId:        channelId,
@@ -70,12 +78,20 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 		Log:              wklog.NewWKLog(fmt.Sprintf("channelHandler[%s]", key)),
 		r:                sub.r,
 		sub:              sub,
+		opts:             sub.r.opts,
+		storageTick:      channelProcessIntervalTick,
+		initTick:         channelProcessIntervalTick,
 	}
 
 }
 
 func (c *channel) hasReady() bool {
 	if !c.isInitialized() { // 是否初始化
+
+		if c.initTick < c.opts.Reactor.ChannelProcessIntervalTick {
+			return false
+		}
+
 		return c.status != channelStatusInitializing
 	}
 
@@ -109,6 +125,7 @@ func (c *channel) ready() ready {
 			return ready{}
 		}
 		c.status = channelStatusInitializing
+		c.initTick = 0
 		c.exec(&ChannelAction{ActionType: ChannelActionInit})
 	} else {
 
@@ -129,12 +146,13 @@ func (c *channel) ready() ready {
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
 				}
-				// c.Info("permissionChecking...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+				c.Info("permissionChecking...", zap.Uint64("permissionCheckingIndex", c.msgQueue.permissionCheckingIndex), zap.Uint64("payloadDecryptingIndex", c.msgQueue.payloadDecryptingIndex), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 			}
 
 			// 如果有未存储的消息，则继续存储
 			if c.hasUnstorage() {
 				c.storaging = true
+				c.storageTick = 0
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckingIndex+1, c.stroageMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
@@ -203,6 +221,9 @@ func (c *channel) hasUnstorage() bool {
 	if c.storaging {
 		return false
 	}
+	if c.storageTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
 	return c.msgQueue.storagingIndex < c.msgQueue.permissionCheckingIndex
 }
 
@@ -237,7 +258,7 @@ func (c *channel) isInitialized() bool {
 }
 
 func (c *channel) tick() {
-
+	c.storageTick++
 }
 
 func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {

@@ -232,6 +232,58 @@ func (s *Server) Stop() {
 
 }
 
+// 提案频道分布式配置
+func (s *Server) ProposeChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
+	return s.opts.ChannelClusterStorage.Propose(ctx, cfg)
+}
+
+// 提案分布式配置
+func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
+
+	return s.clusterEventServer.ProposeConfig(ctx, cfg)
+}
+
+// 获取分布式配置
+func (s *Server) GetConfig() *pb.Config {
+	return s.clusterEventServer.Config()
+}
+
+// 迁移槽
+func (s *Server) MigrateSlot(slotId uint32, fromNodeId, toNodeId uint64) error {
+
+	s.Info("MigrateSlot", zap.Uint32("slotId", slotId), zap.Uint64("fromNodeId", fromNodeId), zap.Uint64("toNodeId", toNodeId))
+	cfg := s.clusterEventServer.Config().Clone()
+
+	var existSlot *pb.Slot
+	for _, slot := range cfg.Slots {
+		if slot.Id == slotId {
+			existSlot = slot.Clone()
+			break
+		}
+	}
+
+	if existSlot == nil {
+		s.Error("MigrateSlot failed, slot not exist", zap.Uint32("slotId", slotId))
+		return fmt.Errorf("slot not exist")
+	}
+
+	existSlot.MigrateFrom = fromNodeId
+	existSlot.MigrateTo = toNodeId
+	existSlot.Learners = append(existSlot.Learners, &pb.Learner{LearnerId: toNodeId})
+
+	for i, slot := range cfg.Slots {
+		if slot.Id == slotId {
+			cfg.Slots[i] = existSlot
+			break
+		}
+	}
+	cfg.Version++
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
+	defer cancel()
+
+	return s.ProposeConfig(timeoutCtx, cfg)
+}
+
 func (s *Server) AddSlotMessage(m reactor.Message) {
 
 	// 统计引入的消息
@@ -550,7 +602,7 @@ func (s *Server) handleChannelClusterConfigReq(fromNodeId uint64, m *proto.Messa
 
 func (s *Server) sendChannelClusterConfigUpdate(channelId string, channelType uint8, toNodeId uint64) error {
 
-	cfg, err := s.opts.ChannelClusterStorage.Get(channelId, channelType)
+	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
 	if err != nil {
 		s.Error("handleChannelConfigReq: Get failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return err
@@ -601,9 +653,9 @@ func (s *Server) updateChannelClusterConfig(cfg wkdb.ChannelClusterConfig) {
 		s.Error("handleChannelConfigUpdate: switchConfig failed", zap.Error(err))
 		return
 	}
-	err = s.opts.ChannelClusterStorage.Save(cfg)
-	if err != nil {
-		s.Error("handleChannelConfigUpdate: Save failed", zap.Error(err))
-		return
-	}
+	// err = s.opts.ChannelClusterStorage.Save(cfg)
+	// if err != nil {
+	// 	s.Error("handleChannelConfigUpdate: Save failed", zap.Error(err))
+	// 	return
+	// }
 }

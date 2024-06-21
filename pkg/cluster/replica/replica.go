@@ -258,6 +258,12 @@ func (r *Replica) switchConfig(cfg Config) {
 				SyncTick:      0,
 			}
 		}
+		for _, learner := range cfg.Learners {
+			r.lastSyncInfoMap[learner] = &SyncInfo{
+				LastSyncIndex: 0,
+				SyncTick:      0,
+			}
+		}
 	}
 
 	if r.opts.ElectionOn {

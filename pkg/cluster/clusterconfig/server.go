@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
@@ -28,6 +29,8 @@ type Server struct {
 
 	storage   *PebbleShardLogStorage
 	initNodes map[uint64]string // 初始化节点
+
+	proposeLock sync.Mutex
 
 	wklog.Log
 }
@@ -188,6 +191,10 @@ func (s *Server) NodeConfigVersion(nodeId uint64) uint64 {
 }
 
 func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string) error {
+
+	s.proposeLock.Lock()
+	defer s.proposeLock.Unlock()
+
 	node := s.Node(nodeId)
 	if node == nil {
 		s.Error("proposeUpdateApiServerAddr failed, node not found", zap.Uint64("nodeId", nodeId))
@@ -223,6 +230,9 @@ func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string)
 }
 
 func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
+
+	s.proposeLock.Lock()
+	defer s.proposeLock.Unlock()
 
 	data, err := cfg.Marshal()
 	if err != nil {
