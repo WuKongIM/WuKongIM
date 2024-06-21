@@ -41,7 +41,7 @@ func (r *userReactor) processInit(req *userInitReq) {
 	var reason = ReasonSuccess
 	if err != nil {
 		reason = ReasonError
-		r.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		r.Error("processInit: 获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 	}
 
 	r.reactorSub(req.uid).step(req.uid, UserAction{

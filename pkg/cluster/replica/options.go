@@ -28,7 +28,7 @@ func NewOptions() *Options {
 		ElectionIntervalTick:       10,
 		SyncLimitSize:              1024 * 1024 * 10, // 10M
 		HeartbeatIntervalick:       2,
-		SyncIntervalTick:           2,
+		SyncIntervalTick:           1,
 		MaxUncommittedLogSize:      1024 * 1024 * 1024,
 		AckMode:                    AckModeMajority,
 		AutoRoleSwith:              false,

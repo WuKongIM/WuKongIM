@@ -12,8 +12,19 @@ func (s *Server) MustWaitAllSlotsReady() {
 	for {
 		select {
 		case <-tk.C:
-			if s.slotManager.slotLen() == int(s.opts.SlotCount) {
-				return
+			if s.slotManager.slotLen() > 0 {
+				slots := s.GetConfig().Slots
+				notReady := false
+				for _, st := range slots {
+					if st.Leader == 0 {
+						notReady = true
+						break
+					}
+				}
+				if !notReady {
+					return
+				}
+
 			}
 		case <-timeoutCtx.Done():
 			s.Panic("wait all slots ready timeout")

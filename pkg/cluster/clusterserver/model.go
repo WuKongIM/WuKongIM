@@ -865,7 +865,7 @@ type ChannelClusterConfigResp struct {
 	Term              uint32                    `json:"term"`                // 任期
 	SlotId            uint32                    `json:"slot_id"`             // 槽位ID
 	SlotLeaderId      uint64                    `json:"slot_leader_id"`      // 槽位领导者ID
-	MaxMessageSeq     uint64                    `json:"max_message_seq"`     // 最大消息序号
+	LastMessageSeq    uint64                    `json:"last_message_seq"`    // 最大消息序号
 	LastAppendTime    string                    `json:"last_append_time"`    // 最后一次追加时间
 	Active            int                       `json:"active"`              // 是否激活
 	ActiveFormat      string                    `json:"active_format"`       // 状态格式化

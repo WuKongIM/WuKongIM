@@ -18,6 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -33,17 +34,18 @@ import (
 )
 
 type Server struct {
-	opts        *Options          // 配置
-	wklog.Log                     // 日志
-	cluster     icluster.Cluster  // 分布式
-	reqIDGen    *idutil.Generator // 请求ID生成器
-	ctx         context.Context
-	cancel      context.CancelFunc
-	timingWheel *timingwheel.TimingWheel // Time wheel delay task
-	start       time.Time                // 服务开始时间
-	store       *clusterstore.Store      // 存储相关接口
-	engine      *wknet.Engine            // 长连接引擎
-	authPool    *ants.Pool               // 认证的协程池
+	opts          *Options         // 配置
+	wklog.Log                      // 日志
+	cluster       icluster.Cluster // 分布式
+	clusterServer *cluster.Server
+	reqIDGen      *idutil.Generator // 请求ID生成器
+	ctx           context.Context
+	cancel        context.CancelFunc
+	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
+	start         time.Time                // 服务开始时间
+	store         *clusterstore.Store      // 存储相关接口
+	engine        *wknet.Engine            // 长连接引擎
+	authPool      *ants.Pool               // 认证的协程池
 
 	userReactor    *userReactor    // 用户的reactor
 	channelReactor *channelReactor // 频道的reactor
@@ -100,6 +102,7 @@ func New(opts *Options) *Server {
 	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
 	storeOpts.GetSlotId = s.getSlotId
 	storeOpts.IsCmdChannel = opts.IsCmdChannel
+	storeOpts.Db.ShardNum = s.opts.Db.ShardNum
 	s.store = clusterstore.NewStore(storeOpts)
 	s.tagManager = newTagManager(s)
 
@@ -167,6 +170,7 @@ func New(opts *Options) *Server {
 		// }),
 	)
 	s.cluster = clusterServer
+	s.clusterServer = clusterServer
 	storeOpts.Cluster = clusterServer
 
 	clusterServer.OnMessage(func(fromNodeId uint64, msg *proto.Message) {
@@ -289,6 +293,13 @@ func (s *Server) Start() error {
 	return nil
 }
 
+func (s *Server) StopNoErr() {
+	err := s.Stop()
+	if err != nil {
+		s.Error("Server stop error", zap.Error(err))
+	}
+}
+
 func (s *Server) Stop() error {
 
 	s.Info("Server stoping...")
@@ -331,6 +342,32 @@ func (s *Server) Stop() error {
 	s.Info("Server is stopped")
 
 	return nil
+}
+
+// 等待分布式就绪
+func (s *Server) MustWaitClusterReady() {
+	s.cluster.MustWaitClusterReady()
+}
+
+// 提案频道分布式
+func (s *Server) ProposeChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
+	return s.clusterServer.ProposeChannelClusterConfig(ctx, cfg)
+}
+
+// 提案分布式配置
+func (s *Server) ProposeClusterConfig(ctx context.Context, cfg *pb.Config) error {
+	return s.clusterServer.ProposeConfig(ctx, cfg)
+}
+
+// 获取分布式配置
+func (s *Server) GetClusterConfig() *pb.Config {
+	return s.clusterServer.GetConfig()
+}
+
+// 迁移槽
+func (s *Server) MigrateSlot(slotId uint32, fromNodeId, toNodeId uint64) error {
+
+	return s.clusterServer.MigrateSlot(slotId, fromNodeId, toNodeId)
 }
 
 func (s *Server) getSlotId(v string) uint32 {

@@ -173,7 +173,6 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		ChannelType: channelType,
 		CurrentPage: currentPage,
 		Limit:       limit,
-		LeaderId:    id,
 	})
 	if err != nil {
 		s.Error("GetWithAllSlot error", zap.Error(err))
@@ -193,30 +192,27 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 			c.ResponseError(err)
 			return
 		}
-		if !wkutil.ArrayContainsUint64(cfg.Replicas, s.opts.NodeId) {
-			continue
-		}
-		shardNo := ChannelToKey(cfg.ChannelId, cfg.ChannelType)
-		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
-		if err != nil {
-			s.Error("LastIndexAndAppendTime error", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
 
 		resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slot.Id, cfg)
-		resp.MaxMessageSeq = lastMsgSeq
-		if lastAppendTime > 0 {
-			resp.LastAppendTime = myUptime(time.Since(time.Unix(int64(lastAppendTime/1e9), 0)))
-		}
 
-		if slot.Leader == s.opts.NodeId {
+		if cfg.LeaderId == s.opts.NodeId {
 			if s.channelManager.exist(cfg.ChannelId, cfg.ChannelType) {
 				resp.Active = 1
 				resp.ActiveFormat = "运行中"
 			} else {
 				resp.Active = 0
 				resp.ActiveFormat = "未运行"
+			}
+			shardNo := ChannelToKey(cfg.ChannelId, cfg.ChannelType)
+			lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
+			if err != nil {
+				s.Error("LastIndexAndAppendTime error", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			resp.LastMessageSeq = lastMsgSeq
+			if lastAppendTime > 0 {
+				resp.LastAppendTime = myUptime(time.Since(time.Unix(int64(lastAppendTime/1e9), 0)))
 			}
 		} else {
 			leaderCfgMap[cfg.LeaderId] = append(leaderCfgMap[cfg.LeaderId], &channelBase{
@@ -267,8 +263,6 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 
 	}
 
-	fmt.Println("statusResps--->", len(statusResps))
-
 	for _, channelClusterConfigResp := range channelClusterConfigResps {
 		for _, statusResp := range statusResps {
 			if channelClusterConfigResp.ChannelId == statusResp.ChannelId && channelClusterConfigResp.ChannelType == statusResp.ChannelType {
@@ -279,6 +273,8 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 				} else {
 					channelClusterConfigResp.ActiveFormat = "未运行"
 				}
+				channelClusterConfigResp.LastMessageSeq = statusResp.LastMsgSeq
+				channelClusterConfigResp.LastAppendTime = myUptime(time.Since(time.Unix(int64(statusResp.LastMsgTime/1e9), 0)))
 				break
 			}
 		}
@@ -434,7 +430,7 @@ func (s *Server) slotChannelsGet(c *wkhttp.Context) {
 		}
 
 		resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slot.Id, cfg)
-		resp.MaxMessageSeq = lastMsgSeq
+		resp.LastMessageSeq = lastMsgSeq
 		if lastAppendTime > 0 {
 			resp.LastAppendTime = wkutil.ToyyyyMMddHHmm(time.Unix(int64(lastAppendTime/1e9), 0))
 		}
@@ -579,7 +575,7 @@ func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
 		return
 
 	}
-	resp.MaxMessageSeq = lastMsgSeq
+	resp.LastMessageSeq = lastMsgSeq
 	if lastAppendTime > 0 {
 		resp.LastAppendTime = wkutil.ToyyyyMMddHHmm(time.Unix(int64(lastAppendTime/1e9), 0))
 	}
@@ -1670,16 +1666,26 @@ func (s *Server) channelStatus(c *wkhttp.Context) {
 
 	resps := make([]*channelStatusResp, 0, len(req.Channels))
 	for _, ch := range req.Channels {
+		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(ChannelToKey(ch.ChannelId, ch.ChannelType))
+		if err != nil {
+			s.Error("LastIndexAndAppendTime error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
 		handler := s.channelManager.get(ch.ChannelId, ch.ChannelType)
 		if handler != nil {
 			resps = append(resps, &channelStatusResp{
 				channelBase: ch,
 				Running:     1,
+				LastMsgSeq:  lastMsgSeq,
+				LastMsgTime: lastAppendTime,
 			})
 		} else {
 			resps = append(resps, &channelStatusResp{
 				channelBase: ch,
 				Running:     0,
+				LastMsgSeq:  lastMsgSeq,
+				LastMsgTime: lastAppendTime,
 			})
 
 		}
@@ -1733,8 +1739,12 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 
 	replicas := make([]*channelReplicaDetailResp, 0, len(channelClusterConfig.Replicas))
 
+	replicaIds := make([]uint64, 0, len(channelClusterConfig.Replicas)+len(channelClusterConfig.Learners))
+	replicaIds = append(replicaIds, channelClusterConfig.Replicas...)
+	replicaIds = append(replicaIds, channelClusterConfig.Learners...)
+
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
-	for _, replicaId := range channelClusterConfig.Replicas {
+	for _, replicaId := range replicaIds {
 		replicaId := replicaId
 		requestGroup.Go(func() error {
 			replicaResp, err := s.requestChannelLocalReplica(replicaId, channelId, channelType)
@@ -1744,7 +1754,7 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 
 			lastMsgTimeFormat := ""
 			if replicaResp.LastMsgTime != 0 {
-				lastMsgTimeFormat = wkutil.ToyyyyMMddHHmm(time.Unix(int64(replicaResp.LastMsgTime/1e9), 0))
+				lastMsgTimeFormat = myUptime(time.Since(time.Unix(int64(replicaResp.LastMsgTime/1e9), 0)))
 			}
 
 			replicas = append(replicas, &channelReplicaDetailResp{
@@ -1844,7 +1854,9 @@ type channelBase struct {
 
 type channelStatusResp struct {
 	channelBase
-	Running int `json:"running"` // 是否运行中
+	Running     int    `json:"running"`       // 是否运行中
+	LastMsgSeq  uint64 `json:"last_msg_seq"`  // 最新消息序号
+	LastMsgTime uint64 `json:"last_msg_time"` // 最新消息时间
 }
 
 type channelReplicaResp struct {

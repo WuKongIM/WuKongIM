@@ -134,9 +134,9 @@ func (r *RetryQueue) Start() {
 func (r *RetryQueue) Stop() {
 	r.stopped.Store(true)
 	if r.retryTimer != nil {
-		fmt.Println("RetryQueue stop.....1")
+		// fmt.Println("RetryQueue stop.....1")
 		r.retryTimer.Stop()
-		fmt.Println("RetryQueue stop.....2")
+		// fmt.Println("RetryQueue stop.....2")
 		r.retryTimer = nil
 	}
 }

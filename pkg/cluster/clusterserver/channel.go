@@ -85,10 +85,20 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 		c.pausePropopose.Store(false)
 	}
 
-	role := replica.RoleFollower
+	var role = replica.RoleUnknown
 
 	if cfg.LeaderId == c.opts.NodeId {
 		role = replica.RoleLeader
+	} else if wkutil.ArrayContainsUint64(cfg.Learners, c.opts.NodeId) {
+		role = replica.RoleLearner
+	} else if wkutil.ArrayContainsUint64(cfg.Replicas, c.opts.NodeId) {
+		role = replica.RoleFollower
+	}
+
+	if role == replica.RoleUnknown {
+		c.Info("switch config, role is unknown, remove channel", zap.String("cfg", cfg.String()))
+		c.s.channelManager.remove(c)
+		return nil
 	}
 
 	replicaCfg := replica.Config{
@@ -278,8 +288,7 @@ func (c *channel) LearnerToLeader(learnerId uint64) error {
 }
 
 func (c *channel) learnerTo(learnerId uint64) error {
-
-	channelClusterCfg, err := c.opts.ChannelClusterStorage.Get(c.channelId, c.channelType)
+	channelClusterCfg, err := c.s.loadOnlyChannelClusterConfig(c.channelId, c.channelType)
 	if err != nil {
 		c.Error("onReplicaConfigChange failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return err
@@ -299,7 +308,10 @@ func (c *channel) learnerTo(learnerId uint64) error {
 
 	channelClusterCfg.Learners = wkutil.RemoveUint64(channelClusterCfg.Learners, learnerId)
 	channelClusterCfg.Replicas = wkutil.RemoveUint64(channelClusterCfg.Replicas, channelClusterCfg.MigrateFrom)
-	channelClusterCfg.Replicas = append(channelClusterCfg.Replicas, learnerId)
+
+	if !wkutil.ArrayContainsUint64(channelClusterCfg.Replicas, learnerId) {
+		channelClusterCfg.Replicas = append(channelClusterCfg.Replicas, learnerId)
+	}
 
 	var learnerIsLeader = false // 学习者是新的领导者
 	// 如果迁移的是领导节点，则将学习者设置为领导者
@@ -314,21 +326,13 @@ func (c *channel) learnerTo(learnerId uint64) error {
 	channelClusterCfg.MigrateTo = 0
 	channelClusterCfg.ConfVersion = uint64(time.Now().UnixNano())
 
-	// 如果是频道领导，则向槽领导提案最新的分布式配置
-	if c.isLeader() {
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ProposeTimeout)
-		defer cancel()
-		err = c.opts.ChannelClusterStorage.Propose(timeoutCtx, channelClusterCfg)
-		if err != nil {
-			c.Error("propose channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-			return err
-		}
-	} else {
-		err = c.opts.ChannelClusterStorage.Save(channelClusterCfg)
-		if err != nil {
-			c.Error("update channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-			return err
-		}
+	// 保存配置
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ProposeTimeout)
+	defer cancel()
+	err = c.opts.ChannelClusterStorage.Propose(timeoutCtx, channelClusterCfg)
+	if err != nil {
+		c.Error("propose channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		return err
 	}
 
 	// 生效配置

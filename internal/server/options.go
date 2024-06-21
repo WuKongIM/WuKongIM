@@ -173,10 +173,12 @@ type Options struct {
 	}
 
 	Reactor struct {
-		ChannelSubCount         int // channel reactor sub 的数量
-		UserSubCount            int // user reactor sub 的数量
-		UserNodePingTick        int // 用户节点tick间隔
-		UserNodePongTimeoutTick int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
+		ChannelSubCount            int // channel reactor sub 的数量
+		ChannelProcessIntervalTick int // 处理频道逻辑的间隔tick
+		UserProcessIntervalTick    int // 处理用户逻辑的间隔tick
+		UserSubCount               int // user reactor sub 的数量
+		UserNodePingTick           int // 用户节点tick间隔
+		UserNodePongTimeoutTick    int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
 	}
 	DeadlockCheck bool // 死锁检查
 
@@ -190,9 +192,13 @@ type Options struct {
 		MaxDeliverSizePerNode uint64 // 节点每次最大投递大小
 		// DeliverWorkerCountPerNode int    // 每个节点投递协程数量
 	}
+
+	Db struct {
+		ShardNum int // 分片数量
+	}
 }
 
-func NewOptions() *Options {
+func NewOptions(op ...Option) *Options {
 
 	// http.ServeTLS(l net.Listener, handler Handler, certFile string, keyFile string)
 
@@ -200,7 +206,7 @@ func NewOptions() *Options {
 	if err != nil {
 		panic(err)
 	}
-	return &Options{
+	opts := &Options{
 		Proto:                wkproto.New(),
 		HandlePoolSize:       2048,
 		Version:              version.Version,
@@ -347,15 +353,19 @@ func NewOptions() *Options {
 			PrometheusApiUrl: "http://127.0.0.1:9090",
 		},
 		Reactor: struct {
-			ChannelSubCount         int
-			UserSubCount            int
-			UserNodePingTick        int
-			UserNodePongTimeoutTick int
+			ChannelSubCount            int
+			ChannelProcessIntervalTick int
+			UserProcessIntervalTick    int
+			UserSubCount               int
+			UserNodePingTick           int
+			UserNodePongTimeoutTick    int
 		}{
-			ChannelSubCount:         128,
-			UserSubCount:            128,
-			UserNodePingTick:        10,
-			UserNodePongTimeoutTick: 10 * 2,
+			ChannelSubCount:            128,
+			ChannelProcessIntervalTick: 1,
+			UserProcessIntervalTick:    1,
+			UserSubCount:               128,
+			UserNodePingTick:           10,
+			UserNodePongTimeoutTick:    10 * 2,
 		},
 		Process: struct {
 			AuthPoolSize int
@@ -373,7 +383,17 @@ func NewOptions() *Options {
 			MaxDeliverSizePerNode: 1024 * 1024 * 5,
 			// DeliverWorkerCountPerNode: 10,
 		},
+		Db: struct {
+			ShardNum int
+		}{
+			ShardNum: 16,
+		},
 	}
+
+	for _, o := range op {
+		o(opts)
+	}
+	return opts
 }
 
 func GetHomeDir() (string, error) {
@@ -413,6 +433,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	if strings.TrimSpace(o.ManagerToken) != "" {
 		o.ManagerTokenOn = true
 	}
+
+	deadlock.Opts.Disable = !o.DeadlockCheck
 
 	o.External.IP = o.getString("external.ip", o.External.IP)
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
@@ -592,12 +614,14 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	// =================== reactor ===================
 	o.Reactor.ChannelSubCount = o.getInt("reactor.channelSubCount", o.Reactor.ChannelSubCount)
+	o.Reactor.ChannelProcessIntervalTick = o.getInt("reactor.channelProcessIntervalTick", o.Reactor.ChannelProcessIntervalTick)
+	o.Reactor.UserProcessIntervalTick = o.getInt("reactor.userProcessIntervalTick", o.Reactor.UserProcessIntervalTick)
 	o.Reactor.UserSubCount = o.getInt("reactor.userSubCount", o.Reactor.UserSubCount)
 	o.Reactor.UserNodePingTick = o.getInt("reactor.userNodePingTick", o.Reactor.UserNodePingTick)
 	o.Reactor.UserNodePongTimeoutTick = o.getInt("reactor.userNodePongTimeoutTick", o.Reactor.UserNodePongTimeoutTick)
 
-	deadlock.Opts.Disable = !o.DeadlockCheck
-	// deadlock.Opts.Disable = false
+	// =================== db ===================
+	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)
 
 }
 
@@ -647,6 +671,9 @@ func (o *Options) IsTmpChannel(channelID string) bool {
 }
 
 func (o *Options) ConfigFileUsed() string {
+	if o.vp == nil {
+		return ""
+	}
 	return o.vp.ConfigFileUsed()
 }
 
@@ -776,4 +803,493 @@ func getIntranetIP() string {
 type Node struct {
 	Id         uint64
 	ServerAddr string
+}
+
+type Option func(opts *Options)
+
+func WithMode(mode Mode) Option {
+	return func(opts *Options) {
+		opts.Mode = mode
+	}
+}
+
+func WithHTTPAddr(httpAddr string) Option {
+	return func(opts *Options) {
+		opts.HTTPAddr = httpAddr
+	}
+}
+
+func WithAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.Addr = addr
+	}
+}
+
+func WithRootDir(rootDir string) Option {
+	return func(opts *Options) {
+		opts.RootDir = rootDir
+	}
+}
+
+func WithDataDir(dataDir string) Option {
+	return func(opts *Options) {
+		opts.DataDir = dataDir
+	}
+}
+
+func WithGinMode(ginMode string) Option {
+	return func(opts *Options) {
+		opts.GinMode = ginMode
+	}
+}
+
+func WithWSAddr(wsAddr string) Option {
+	return func(opts *Options) {
+		opts.WSAddr = wsAddr
+	}
+}
+
+func WithWSSAddr(wssAddr string) Option {
+	return func(opts *Options) {
+		opts.WSSAddr = wssAddr
+	}
+}
+
+func WithWSSConfig(certFile, keyFile string) Option {
+	return func(opts *Options) {
+		opts.WSSConfig.CertFile = certFile
+		opts.WSSConfig.KeyFile = keyFile
+	}
+}
+
+func WithLoggerDir(dir string) Option {
+	return func(opts *Options) {
+		opts.Logger.Dir = dir
+	}
+}
+
+func WithLoggerLevel(level zapcore.Level) Option {
+	return func(opts *Options) {
+		opts.Logger.Level = level
+	}
+}
+
+func WithLoggerLineNum(lineNum bool) Option {
+	return func(opts *Options) {
+		opts.Logger.LineNum = lineNum
+	}
+}
+
+func WithMonitorOn(on bool) Option {
+	return func(opts *Options) {
+		opts.Monitor.On = on
+	}
+}
+
+func WithMonitorAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.Monitor.Addr = addr
+	}
+}
+
+func WithDemoOn(on bool) Option {
+	return func(opts *Options) {
+		opts.Demo.On = on
+	}
+}
+
+func WithDemoAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.Demo.Addr = addr
+	}
+}
+
+func WithExternalIP(ip string) Option {
+	return func(opts *Options) {
+		opts.External.IP = ip
+	}
+}
+
+func WithExternalTCPAddr(tcpAddr string) Option {
+	return func(opts *Options) {
+		opts.External.TCPAddr = tcpAddr
+	}
+}
+
+func WithExternalWSAddr(wsAddr string) Option {
+	return func(opts *Options) {
+		opts.External.WSAddr = wsAddr
+	}
+}
+
+func WithExternalWSSAddr(wssAddr string) Option {
+	return func(opts *Options) {
+		opts.External.WSSAddr = wssAddr
+	}
+}
+
+func WithExternalMonitorAddr(monitorAddr string) Option {
+	return func(opts *Options) {
+		opts.External.MonitorAddr = monitorAddr
+	}
+}
+
+func WithExternalAPIUrl(apiUrl string) Option {
+	return func(opts *Options) {
+		opts.External.APIUrl = apiUrl
+	}
+}
+
+func WithChannelCacheCount(cacheCount int) Option {
+	return func(opts *Options) {
+		opts.Channel.CacheCount = cacheCount
+	}
+}
+
+func WithChannelCreateIfNoExist(createIfNoExist bool) Option {
+	return func(opts *Options) {
+		opts.Channel.CreateIfNoExist = createIfNoExist
+	}
+}
+
+func WithChannelSubscriberCompressOfCount(subscriberCompressOfCount int) Option {
+	return func(opts *Options) {
+		opts.Channel.SubscriberCompressOfCount = subscriberCompressOfCount
+	}
+}
+
+func WithChannelCmdSuffix(cmdSuffix string) Option {
+	return func(opts *Options) {
+		opts.Channel.CmdSuffix = cmdSuffix
+	}
+}
+
+func WithConnIdleTime(connIdleTime time.Duration) Option {
+	return func(opts *Options) {
+		opts.ConnIdleTime = connIdleTime
+	}
+}
+
+func WithTimingWheelTick(timingWheelTick time.Duration) Option {
+	return func(opts *Options) {
+		opts.TimingWheelTick = timingWheelTick
+	}
+}
+
+func WithTimingWheelSize(timingWheelSize int64) Option {
+	return func(opts *Options) {
+		opts.TimingWheelSize = timingWheelSize
+	}
+}
+
+func WithUserMsgQueueMaxSize(userMsgQueueMaxSize int) Option {
+	return func(opts *Options) {
+		opts.UserMsgQueueMaxSize = userMsgQueueMaxSize
+	}
+}
+
+func WithTmpChannelSuffix(suffix string) Option {
+	return func(opts *Options) {
+		opts.TmpChannel.Suffix = suffix
+	}
+}
+
+func WithTmpChannelCacheCount(cacheCount int) Option {
+	return func(opts *Options) {
+		opts.TmpChannel.CacheCount = cacheCount
+	}
+}
+
+func WithDatasourceAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.Datasource.Addr = addr
+	}
+}
+
+func WithDatasourceChannelInfoOn(channelInfoOn bool) Option {
+	return func(opts *Options) {
+		opts.Datasource.ChannelInfoOn = channelInfoOn
+	}
+}
+
+func WithWhitelistOffOfPerson(whitelistOffOfPerson bool) Option {
+	return func(opts *Options) {
+		opts.WhitelistOffOfPerson = whitelistOffOfPerson
+	}
+}
+
+func WithTokenAuthOn(tokenAuthOn bool) Option {
+	return func(opts *Options) {
+		opts.TokenAuthOn = tokenAuthOn
+	}
+}
+
+func WithEventPoolSize(eventPoolSize int) Option {
+	return func(opts *Options) {
+		opts.EventPoolSize = eventPoolSize
+	}
+}
+
+func WithDeliveryMsgPoolSize(deliveryMsgPoolSize int) Option {
+	return func(opts *Options) {
+		opts.DeliveryMsgPoolSize = deliveryMsgPoolSize
+	}
+}
+
+func WithHandlePoolSize(handlePoolSize int) Option {
+	return func(opts *Options) {
+		opts.HandlePoolSize = handlePoolSize
+	}
+}
+
+func WithConversationOn(on bool) Option {
+	return func(opts *Options) {
+		opts.Conversation.On = on
+	}
+}
+
+func WithConversationCacheExpire(cacheExpire time.Duration) Option {
+	return func(opts *Options) {
+		opts.Conversation.CacheExpire = cacheExpire
+	}
+}
+
+func WithConversationSyncInterval(syncInterval time.Duration) Option {
+	return func(opts *Options) {
+		opts.Conversation.SyncInterval = syncInterval
+	}
+}
+
+func WithConversationSyncOnce(syncOnce int) Option {
+	return func(opts *Options) {
+		opts.Conversation.SyncOnce = syncOnce
+	}
+}
+
+func WithConversationUserMaxCount(userMaxCount int) Option {
+	return func(opts *Options) {
+		opts.Conversation.UserMaxCount = userMaxCount
+	}
+}
+
+func WithConversationBytesPerSave(bytesPerSave uint64) Option {
+	return func(opts *Options) {
+		opts.Conversation.BytesPerSave = bytesPerSave
+	}
+}
+
+func WithConversationSavePoolSize(savePoolSize int) Option {
+	return func(opts *Options) {
+		opts.Conversation.SavePoolSize = savePoolSize
+	}
+}
+
+func WithMessageRetryInterval(interval time.Duration) Option {
+	return func(opts *Options) {
+		opts.MessageRetry.Interval = interval
+	}
+}
+
+func WithMessageRetryMaxCount(maxCount int) Option {
+	return func(opts *Options) {
+		opts.MessageRetry.MaxCount = maxCount
+	}
+}
+
+func WithMessageRetryScanInterval(scanInterval time.Duration) Option {
+	return func(opts *Options) {
+		opts.MessageRetry.ScanInterval = scanInterval
+	}
+}
+
+func WithMessageRetryWorkerCount(workerCount int) Option {
+	return func(opts *Options) {
+		opts.MessageRetry.WorkerCount = workerCount
+	}
+}
+
+func WithWebhookHTTPAddr(httpAddr string) Option {
+	return func(opts *Options) {
+		opts.Webhook.HTTPAddr = httpAddr
+	}
+}
+
+func WithWebhookGRPCAddr(grpcAddr string) Option {
+	return func(opts *Options) {
+		opts.Webhook.GRPCAddr = grpcAddr
+	}
+}
+
+func WithWebhookMsgNotifyEventPushInterval(pushInterval time.Duration) Option {
+	return func(opts *Options) {
+		opts.Webhook.MsgNotifyEventPushInterval = pushInterval
+	}
+}
+
+func WithWebhookMsgNotifyEventCountPerPush(countPerPush int) Option {
+	return func(opts *Options) {
+		opts.Webhook.MsgNotifyEventCountPerPush = countPerPush
+	}
+}
+
+func WithWebhookMsgNotifyEventRetryMaxCount(retryMaxCount int) Option {
+	return func(opts *Options) {
+		opts.Webhook.MsgNotifyEventRetryMaxCount = retryMaxCount
+	}
+}
+
+func WithClusterNodeId(nodeId uint64) Option {
+	return func(opts *Options) {
+		opts.Cluster.NodeId = nodeId
+	}
+}
+
+func WithClusterAddr(addr string) Option {
+	return func(opts *Options) {
+		opts.Cluster.Addr = addr
+	}
+}
+
+func WithClusterGRPCAddr(grpcAddr string) Option {
+	return func(opts *Options) {
+		opts.Cluster.GRPCAddr = grpcAddr
+	}
+}
+
+func WithClusterServerAddr(serverAddr string) Option {
+	return func(opts *Options) {
+		opts.Cluster.ServerAddr = serverAddr
+	}
+}
+
+func WithClusterReqTimeout(reqTimeout time.Duration) Option {
+	return func(opts *Options) {
+		opts.Cluster.ReqTimeout = reqTimeout
+	}
+}
+
+func WithClusterRole(role Role) Option {
+	return func(opts *Options) {
+		opts.Cluster.Role = role
+	}
+}
+
+func WithClusterSeed(seed string) Option {
+	return func(opts *Options) {
+		opts.Cluster.Seed = seed
+	}
+}
+
+func WithClusterSlotReplicaCount(slotReplicaCount int) Option {
+	return func(opts *Options) {
+		opts.Cluster.SlotReplicaCount = slotReplicaCount
+	}
+}
+
+func WithClusterChannelReplicaCount(channelReplicaCount int) Option {
+	return func(opts *Options) {
+		opts.Cluster.ChannelReplicaCount = channelReplicaCount
+	}
+}
+
+func WithClusterSlotCount(slotCount int) Option {
+	return func(opts *Options) {
+		opts.Cluster.SlotCount = slotCount
+	}
+}
+
+func WithClusterNodes(nodes []*Node) Option {
+	return func(opts *Options) {
+		opts.Cluster.Nodes = nodes
+	}
+}
+
+func WithClusterPeerRPCMsgTimeout(peerRPCMsgTimeout time.Duration) Option {
+	return func(opts *Options) {
+		opts.Cluster.PeerRPCMsgTimeout = peerRPCMsgTimeout
+	}
+}
+
+func WithClusterPeerRPCTimeoutScanInterval(peerRPCTimeoutScanInterval time.Duration) Option {
+	return func(opts *Options) {
+		opts.Cluster.PeerRPCTimeoutScanInterval = peerRPCTimeoutScanInterval
+	}
+}
+
+func WithTraceEndpoint(endpoint string) Option {
+	return func(opts *Options) {
+		opts.Trace.Endpoint = endpoint
+	}
+}
+
+func WithTraceServiceName(serviceName string) Option {
+	return func(opts *Options) {
+		opts.Trace.ServiceName = serviceName
+	}
+}
+
+func WithTraceServiceHostName(serviceHostName string) Option {
+	return func(opts *Options) {
+		opts.Trace.ServiceHostName = serviceHostName
+	}
+}
+
+func WithTracePrometheusApiUrl(prometheusApiUrl string) Option {
+	return func(opts *Options) {
+		opts.Trace.PrometheusApiUrl = prometheusApiUrl
+	}
+}
+
+func WithReactorChannelSubCount(channelSubCount int) Option {
+	return func(opts *Options) {
+		opts.Reactor.ChannelSubCount = channelSubCount
+	}
+}
+
+func WithReactorUserSubCount(userSubCount int) Option {
+	return func(opts *Options) {
+		opts.Reactor.UserSubCount = userSubCount
+	}
+}
+
+func WithReactorUserNodePingTick(userNodePingTick int) Option {
+	return func(opts *Options) {
+		opts.Reactor.UserNodePingTick = userNodePingTick
+	}
+}
+
+func WithReactorUserNodePongTimeoutTick(userNodePongTimeoutTick int) Option {
+	return func(opts *Options) {
+		opts.Reactor.UserNodePongTimeoutTick = userNodePongTimeoutTick
+	}
+}
+
+func WithProcessAuthPoolSize(authPoolSize int) Option {
+	return func(opts *Options) {
+		opts.Process.AuthPoolSize = authPoolSize
+	}
+}
+
+func WithDeliverDeliverrCount(deliverrCount int) Option {
+	return func(opts *Options) {
+		opts.Deliver.DeliverrCount = deliverrCount
+	}
+}
+
+func WithDeliverMaxRetry(maxRetry int) Option {
+	return func(opts *Options) {
+		opts.Deliver.MaxRetry = maxRetry
+	}
+}
+
+func WithDeliverMaxDeliverSizePerNode(maxDeliverSizePerNode uint64) Option {
+	return func(opts *Options) {
+		opts.Deliver.MaxDeliverSizePerNode = maxDeliverSizePerNode
+	}
+}
+
+func WithDbShardNum(shardNum int) Option {
+	return func(opts *Options) {
+		opts.Db.ShardNum = shardNum
+	}
 }

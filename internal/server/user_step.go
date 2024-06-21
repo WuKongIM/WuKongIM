@@ -17,6 +17,7 @@ func (u *userHandler) step(a UserAction) error {
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
+			u.initTick = u.opts.Reactor.UserProcessIntervalTick // 立即处理下个逻辑
 			u.status = userStatusInitialized
 			u.leaderId = a.LeaderId
 			if a.LeaderId == u.sub.r.s.opts.Cluster.NodeId {
@@ -49,6 +50,10 @@ func (u *userHandler) step(a UserAction) error {
 
 	case UserActionRecvResp: // 收消息返回
 		u.recvMsging = false
+		if a.Reason == ReasonSuccess {
+			u.recvMsgTick = u.opts.Reactor.UserProcessIntervalTick
+		}
+
 		if a.Index == 0 {
 			panic("0")
 		}
@@ -75,6 +80,9 @@ func (u *userHandler) stepLeader(a UserAction) error {
 
 	case UserActionAuthResp:
 		u.authing = false
+		if a.Reason == ReasonSuccess {
+			u.authTick = u.opts.Reactor.UserProcessIntervalTick
+		}
 		if a.Reason == ReasonSuccess && u.authQueue.processingIndex < a.Index {
 			u.authQueue.processingIndex = a.Index
 			u.Info("auth resp...", zap.Uint64("index", a.Index))
@@ -97,15 +105,19 @@ func (u *userHandler) stepLeader(a UserAction) error {
 			// u.Info("leader: sending...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 		}
 
-	case UserActionPingResp: // ping处理返回
-		u.sendPing = false
-		if a.Reason == ReasonSuccess && u.pingQueue.processingIndex < a.Index {
-			u.pingQueue.processingIndex = a.Index
-			u.pingQueue.truncateTo(a.Index)
-		}
-		// u.Info("ping resp...")
+	// case UserActionPingResp: // ping处理返回
+	// 	u.sendPing = false
+	// 	if a.Reason == ReasonSuccess && u.pingQueue.processingIndex < a.Index {
+	// 		u.pingQueue.processingIndex = a.Index
+	// 		u.pingQueue.truncateTo(a.Index)
+	// 	}
+	// u.Info("ping resp...")
 	case UserActionRecvackResp: // recvack处理返回
 		u.sendRecvacking = false
+		if a.Reason == ReasonSuccess {
+			u.sendRecvackTick = u.opts.Reactor.UserProcessIntervalTick
+		}
+
 		if a.Reason == ReasonSuccess && u.recvackQueue.processingIndex < a.Index {
 			u.recvackQueue.processingIndex = a.Index
 			u.recvackQueue.truncateTo(a.Index)
@@ -114,7 +126,7 @@ func (u *userHandler) stepLeader(a UserAction) error {
 
 	case UserActionNodePong: // 追随者pong
 		for _, msg := range a.Messages {
-			u.pongTimeoutTick[msg.FromNodeId] = 0
+			u.nodePongTimeoutTick[msg.FromNodeId] = 0
 		}
 
 	}
@@ -150,6 +162,7 @@ func (u *userHandler) stepProxy(a UserAction) error {
 		if a.Forward.ActionType == UserActionSend {
 			u.sendRecvacking = false
 			if a.Reason == ReasonSuccess {
+				u.sendRecvackTick = u.opts.Reactor.UserProcessIntervalTick
 				if u.recvackQueue.processingIndex < a.Index {
 					u.recvackQueue.processingIndex = a.Index
 					u.recvackQueue.truncateTo(a.Forward.Index)
@@ -158,6 +171,7 @@ func (u *userHandler) stepProxy(a UserAction) error {
 		} else if a.Forward.ActionType == UserActionConnect {
 			u.authing = false
 			if a.Reason == ReasonSuccess {
+				u.authTick = u.opts.Reactor.UserProcessIntervalTick
 				if u.authQueue.processingIndex < a.Index {
 					u.authQueue.processingIndex = a.Index
 					u.authQueue.truncateTo(a.Index)

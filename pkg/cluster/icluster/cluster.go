@@ -10,6 +10,8 @@ import (
 )
 
 type Cluster interface {
+	Propose
+
 	Start() error
 	Stop()
 	// LeaderIdOfChannel 获取channel的leader节点ID
@@ -40,6 +42,12 @@ type Cluster interface {
 	NodeIsOnline(nodeId uint64) bool
 	//  GetSlotId 获取槽ID
 	GetSlotId(v string) uint32
+
+	// 领导者Id
+	LeaderId() uint64
+
+	// 等待集群准备好
+	MustWaitClusterReady()
 	// Monitor 获取监控信息
 	// Monitor() IMonitor
 }

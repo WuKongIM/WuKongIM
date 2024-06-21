@@ -70,7 +70,7 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 		start := time.Now()
 		defer func() {
 			cost := time.Since(start)
-			if cost > time.Millisecond*500 {
+			if cost > time.Millisecond*250 {
 				msgCount := 0
 				for _, req := range reqs {
 					msgCount += len(req.Messages)

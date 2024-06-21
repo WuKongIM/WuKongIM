@@ -22,6 +22,7 @@ func newSlotManager(s *Server) *slotManager {
 
 	sm := &slotManager{
 		opts: s.opts,
+		s:    s,
 	}
 
 	sm.slotReactor = reactor.New(reactor.NewOptions(

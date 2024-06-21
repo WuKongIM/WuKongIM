@@ -511,8 +511,8 @@ func (c *ChannelClusterConfig) Unmarshal(data []byte) error {
 }
 
 func (c *ChannelClusterConfig) String() string {
-	return fmt.Sprintf("ChannelId: %s, ChannelType: %d, ReplicaMaxCount: %d, Replicas: %v, Learners: %v LeaderId: %d, Term: %d",
-		c.ChannelId, c.ChannelType, c.ReplicaMaxCount, c.Replicas, c.Learners, c.LeaderId, c.Term)
+	return fmt.Sprintf("ChannelId: %s, ChannelType: %d, ReplicaMaxCount: %d, Replicas: %v, Learners: %v MigrateFrom: %d MigrateTo: %d LeaderId: %d, Term: %d",
+		c.ChannelId, c.ChannelType, c.ReplicaMaxCount, c.Replicas, c.Learners, c.MigrateFrom, c.MigrateTo, c.LeaderId, c.Term)
 }
 
 // 批量更新会话

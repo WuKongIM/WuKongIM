@@ -172,7 +172,6 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm() (uint64, uint32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	fmt.Println("LastIndexAndTerm----->1-->", lastIndex)
 	if lastIndex == 0 {
 		return 0, 0, nil
 	}
@@ -180,7 +179,6 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm() (uint64, uint32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	fmt.Println("LastIndexAndTerm----->2--->", lastIndex, log.Term)
 	return lastIndex, log.Term, nil
 }
 
