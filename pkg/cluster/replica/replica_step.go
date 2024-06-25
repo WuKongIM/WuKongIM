@@ -7,6 +7,7 @@ import (
 )
 
 func (r *Replica) Step(m Message) error {
+
 	switch {
 	case m.Term == 0: // 本地消息
 	case m.Term > r.term: // 高于当前任期
@@ -78,7 +79,17 @@ func (r *Replica) Step(m Message) error {
 
 	case MsgConfigResp:
 		if !m.Reject {
-			r.switchConfig(m.Config)
+			cfg := Config{}
+			if len(m.Logs) > 0 {
+				confLog := m.Logs[0]
+				if err := cfg.Unmarshal(confLog.Data); err != nil {
+					r.Error("unmarshal config failed", zap.Error(err))
+					return err
+				}
+			} else {
+				cfg = m.Config
+			}
+			r.switchConfig(cfg)
 		}
 	case MsgSpeedLevelSet: // 控制速度
 		r.setSpeedLevel(m.SpeedLevel)
@@ -94,12 +105,14 @@ func (r *Replica) Step(m Message) error {
 		}
 
 	default:
-		if r.stepFunc == nil {
-			r.Panic("stepFunc is nil", zap.String("role", r.role.String()), zap.Uint64("leader", r.leader), zap.String("msgType", m.MsgType.String()))
-		}
-		err := r.stepFunc(m)
-		if err != nil {
-			return err
+		// if r.stepFunc == nil {
+		// 	r.Panic("stepFunc is nil", zap.String("role", r.role.String()), zap.Uint64("leader", r.leader), zap.String("msgType", m.MsgType.String()))
+		// }
+		if r.stepFunc != nil {
+			err := r.stepFunc(m)
+			if err != nil {
+				return err
+			}
 		}
 
 	}
@@ -133,13 +146,13 @@ func (r *Replica) stepLeader(m Message) error {
 			r.Warn("receive pong, but msg term is not self term", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To))
 			return nil
 		}
-		if r.lastSyncInfoMap[m.From] == nil {
-			r.lastSyncInfoMap[m.From] = &SyncInfo{}
-		}
+		// if r.lastSyncInfoMap[m.From] == nil {
+		// 	r.lastSyncInfoMap[m.From] = &SyncInfo{}
+		// }
 
 	case MsgSyncGetResp:
 		if !m.Reject {
-			r.send(r.newMsgSyncResp(m.To, m.Logs))
+			r.send(r.newMsgSyncResp(m.To, m.Index, m.Logs))
 		}
 
 	case MsgSyncReq:
@@ -153,13 +166,16 @@ func (r *Replica) stepLeader(m Message) error {
 
 			// 如果结果超过限制大小或者结果已经查询到最后，则直接发送同步返回
 			if exceed || (len(unstableLogs) > 0 && unstableLogs[len(unstableLogs)-1].Index >= lastIndex) {
-				r.send(r.newMsgSyncResp(m.From, unstableLogs))
+				if unstableLogs[0].Index != m.Index {
+					r.Panic("get logs from unstable failed", zap.Uint64("nodeId", r.nodeId), zap.Uint64("from", m.From), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", lastIndex), zap.Uint64("firstIndex", unstableLogs[0].Index))
+				}
+				r.send(r.newMsgSyncResp(m.From, m.Index, unstableLogs))
 			} else {
 				// 如果未满足条件，则发起日志获取请求，让上层去查询剩余日志
 				r.send(r.newMsgSyncGet(m.From, m.Index, unstableLogs))
 			}
 		} else {
-			r.send(r.newMsgSyncResp(m.From, nil))
+			r.send(r.newMsgSyncResp(m.From, m.Index, nil))
 		}
 
 		if !r.isLearner(m.From) {
@@ -170,12 +186,10 @@ func (r *Replica) stepLeader(m Message) error {
 		if r.opts.AutoRoleSwith && r.isLearner(m.From) {
 			// 如果迁移的源节点是领导者，那么学习者必须完全追上领导者的日志
 			if r.cfg.MigrateFrom != 0 && r.cfg.MigrateFrom == r.leader {
-				fmt.Println("migrate from leader--->", m.Index)
 				if m.Index >= r.replicaLog.lastLogIndex+1 {
 					r.send(r.newMsgLearnerToLeader(m.From))
 				}
 			} else {
-				fmt.Println("migrate from follower--->", m.Index)
 				// 如果learner的日志已经追上了follower的日志，那么将learner转为follower
 				if m.Index+r.opts.LearnerToFollowerMinLogGap > r.replicaLog.lastLogIndex {
 					// 发送配置改变消息
@@ -198,6 +212,7 @@ func (r *Replica) stepFollower(m Message) error {
 			r.becomeFollower(m.Term, m.From)
 
 		}
+
 		if m.ConfVersion > r.cfg.Version { // 如果本地配置版本小于领导的配置版本，那么请求领导的配置
 			r.send(r.newMsgConfigReq(m.From))
 		}
@@ -210,7 +225,7 @@ func (r *Replica) stepFollower(m Message) error {
 		if m.Reject {
 			r.status = StatusLogCoflictCheck
 		} else {
-			r.Info("truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", r.term), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex))
+			r.Info("follower: truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", r.term), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex))
 			r.status = StatusReady
 
 			if m.Index != NoConflict && m.Index > 0 {
@@ -232,14 +247,15 @@ func (r *Replica) stepFollower(m Message) error {
 		r.setSpeedLevel(m.SpeedLevel)
 		// 如果有同步到日志，则追加到本地，并立马进行下次同步
 		if len(m.Logs) > 0 {
+			r.syncTick = r.syncIntervalTick // 表示无需等待立马进行下次同步
 			if m.Logs[len(m.Logs)-1].Index <= r.replicaLog.lastLogIndex {
-				r.Panic("append log reject", zap.Uint64("leader", r.leader), zap.Uint64("maxLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint64("localLastLogIndex", r.replicaLog.lastLogIndex))
+				r.Warn("log exist, no append", zap.Uint64("syncIndex", m.Index), zap.Uint64("leader", r.leader), zap.Uint64("maxLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint64("localLastLogIndex", r.replicaLog.lastLogIndex))
 				return nil
 			}
 			if !r.appendLog(m.Logs...) {
 				return ErrProposalDropped
 			}
-			r.syncTick = r.syncIntervalTick // 表示无需等待立马进行下次同步
+
 		} else {
 			r.syncTick = 0
 		}
@@ -257,6 +273,7 @@ func (r *Replica) stepLearner(m Message) error {
 			r.becomeLearner(m.Term, m.From)
 
 		}
+
 		if m.ConfVersion > r.cfg.Version { // 如果本地配置版本小于领导的配置版本，那么请求领导的配置
 			r.send(r.newMsgConfigReq(m.From))
 		}
@@ -264,10 +281,19 @@ func (r *Replica) stepLearner(m Message) error {
 		r.setSpeedLevel(m.SpeedLevel) // 设置同步速度
 		r.send(r.newPong(m.From))
 	case MsgLogConflictCheckResp: // 日志冲突检查返回
-		r.status = StatusReady
-		if m.Index != NoConflict && m.Index > 0 {
-			r.replicaLog.unstable.truncateLogTo(m.Index)
-			r.replicaLog.lastLogIndex = m.Index - 1
+		if m.Reject {
+			r.status = StatusLogCoflictCheck
+		} else {
+			r.Info("learner: truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", r.term), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex))
+			r.status = StatusReady
+
+			if m.Index != NoConflict && m.Index > 0 {
+				r.replicaLog.updateLastIndex(m.Index - 1)
+
+				if m.Index >= r.replicaLog.unstable.offset {
+					r.replicaLog.unstable.truncateLogTo(m.Index)
+				}
+			}
 		}
 	case MsgSyncResp: // 同步日志返回
 		r.syncing = false
@@ -276,14 +302,14 @@ func (r *Replica) stepLearner(m Message) error {
 		r.setSpeedLevel(m.SpeedLevel)
 		// 如果有同步到日志，则追加到本地，并立马进行下次同步
 		if len(m.Logs) > 0 {
+			r.syncTick = r.syncIntervalTick // 表示无需等待立马进行下次同步
 			if m.Logs[len(m.Logs)-1].Index <= r.replicaLog.lastLogIndex {
-				r.Panic("append log reject", zap.Uint64("leader", r.leader), zap.Uint64("maxLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint64("localLastLogIndex", r.replicaLog.lastLogIndex))
+				r.Warn("learner: log exist, no append", zap.Uint64("syncIndex", m.Index), zap.Uint64("leader", r.leader), zap.Uint64("maxLogIndex", m.Logs[len(m.Logs)-1].Index), zap.Uint64("localLastLogIndex", r.replicaLog.lastLogIndex))
 				return nil
 			}
 			if !r.appendLog(m.Logs...) {
 				return ErrProposalDropped
 			}
-			r.syncTick = r.syncIntervalTick // 表示无需等待立马进行下次同步
 		} else {
 			r.syncTick = 0
 		}
@@ -381,7 +407,7 @@ func (r *Replica) updateFollowCommittedIndex(leaderCommittedIndex uint64) {
 	newCommittedIndex := r.committedIndexForFollow(leaderCommittedIndex)
 	if newCommittedIndex > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommittedIndex
-		r.Debug("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Info("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 }
 
@@ -401,7 +427,7 @@ func (r *Replica) updateLeaderCommittedIndex() bool {
 	if newCommitted > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommitted
 		updated = true
-		r.Debug("update leader committed index", zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Info("update leader committed index", zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 	return updated
 }
@@ -467,8 +493,8 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 	from := m.From
 	syncInfo := r.lastSyncInfoMap[from]
 	if syncInfo == nil {
-		syncInfo = &SyncInfo{}
-		r.lastSyncInfoMap[from] = syncInfo
+		fmt.Println("syncInfo is nil", from, r.opts.LogPrefix)
+		return
 	}
 	if m.Index > syncInfo.LastSyncIndex {
 		syncInfo.LastSyncIndex = m.Index

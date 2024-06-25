@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -12,12 +13,13 @@ import (
 )
 
 type Config struct {
-	cfg        *pb.Config // 未应用的配置
-	appliedCfg *pb.Config // 已应用的配置（已经存盘了）
-	cfgFile    *os.File
-	opts       *Options
+	cfg     *pb.Config // 配置文件
+	cfgFile *os.File
+	opts    *Options
 	wklog.Log
 	mu sync.RWMutex
+	// 是否已初始化
+	inited bool
 }
 
 func NewConfig(opts *Options) *Config {
@@ -35,7 +37,6 @@ func NewConfig(opts *Options) *Config {
 	if err != nil {
 		cfg.Panic("Load cluster config from file failed!", zap.Error(err))
 	}
-	cfg.appliedCfg = cfg.cfg.Clone()
 
 	return cfg
 }
@@ -53,11 +54,19 @@ func (c *Config) loadConfigFromFile() error {
 		c.Panic("Read cluster config file failed!", zap.Error(err))
 	}
 	if len(data) > 0 {
+		c.inited = true
 		if err := wkutil.ReadJSONByByte(data, c.cfg); err != nil {
 			c.Panic("Unmarshal cluster config failed!", zap.Error(err))
 		}
 	}
 	return nil
+}
+
+// 是否已初始化
+func (c *Config) isInitialized() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.inited
 }
 
 func (c *Config) id() uint64 {
@@ -95,36 +104,10 @@ func (c *Config) data() ([]byte, error) {
 	return c.cfg.Marshal()
 }
 
-func (c *Config) apply(data []byte, logIndex uint64, term uint32) error {
+func (c *Config) update(cfg *pb.Config) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	newCfg := &pb.Config{}
-	err := newCfg.Unmarshal(data)
-	if err != nil {
-		return err
-	}
-	newCfg.Term = term
-	newCfg.Version = logIndex
-
-	if newCfg.Version <= c.appliedCfg.Version {
-		c.Warn("apply config version <= applied config version", zap.Uint64("version", newCfg.Version), zap.Uint64("appliedVersion", c.appliedCfg.Version))
-		return nil
-	}
-
-	err = c.cfgFile.Truncate(0)
-	if err != nil {
-		return err
-	}
-
-	if _, err := c.cfgFile.WriteAt([]byte(wkutil.ToJSON(newCfg)), 0); err != nil {
-		return err
-	}
-	c.appliedCfg = newCfg.Clone()
-	if newCfg.Version > c.cfg.Version {
-		c.cfg = newCfg.Clone()
-	}
-	return nil
+	c.cfg = cfg
 }
 
 func (c *Config) nodes() []*pb.Node {
@@ -158,6 +141,18 @@ func (c *Config) hasNode(id uint64) bool {
 	return false
 }
 
+func (c *Config) addOrUpdateNode(node *pb.Node) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, n := range c.cfg.Nodes {
+		if n.Id == node.Id {
+			c.cfg.Nodes[i] = node
+			return
+		}
+	}
+	c.cfg.Nodes = append(c.cfg.Nodes, node)
+}
+
 // 添加节点
 func (c *Config) addNode(node *pb.Node) {
 	c.mu.Lock()
@@ -187,11 +182,95 @@ func (c *Config) updateApiServerAddr(nodeId uint64, addr string) {
 	}
 }
 
-// 获取已经应用的配置
-func (c *Config) appliedConfig() *pb.Config {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.appliedCfg
+func (c *Config) updateNodeOnlineStatus(nodeId uint64, online bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, node := range c.cfg.Nodes {
+		if node.Id == nodeId {
+			node.Online = online
+			if !online {
+				node.OfflineCount++
+				node.LastOffline = time.Now().Unix()
+			}
+			return
+		}
+	}
+}
+
+func (c *Config) updateNodeJoining(nodeId uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, node := range c.cfg.Nodes {
+		if node.Id == nodeId {
+			node.Status = pb.NodeStatus_NodeStatusJoining
+			break
+		}
+	}
+	c.cfg.Learners = wkutil.RemoveUint64(c.cfg.Learners, nodeId)
+}
+
+func (c *Config) updateNodeJoined(nodeId uint64, slots []*pb.Slot) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, node := range c.cfg.Nodes {
+		if node.Id == nodeId {
+			node.Status = pb.NodeStatus_NodeStatusJoined
+			break
+		}
+	}
+
+	for _, slot := range slots {
+		exist := false
+		for i, s := range c.cfg.Slots {
+			if s.Id == slot.Id {
+				c.cfg.Slots[i] = slot
+				exist = true
+				break
+			}
+		}
+		if !exist {
+			c.cfg.Slots = append(c.cfg.Slots, slot)
+		}
+	}
+}
+
+func (c *Config) updateSlotMigrate(slotId uint32, fromNodeId, toNodeId uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, slot := range c.cfg.Slots {
+		if slot.Id == slotId && slot.MigrateFrom == 0 && slot.MigrateTo == 0 {
+			slot.MigrateFrom = fromNodeId
+			slot.MigrateTo = toNodeId
+			slot.Learners = append(slot.Learners, toNodeId)
+			break
+		}
+	}
+}
+
+func (c *Config) updateSlots(slots []*pb.Slot) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, slot := range slots {
+		for i, s := range c.cfg.Slots {
+			if s.Id == slot.Id {
+				c.cfg.Slots[i] = slot
+				break
+			}
+		}
+	}
+}
+
+func (c *Config) updateNodeStatus(nodeId uint64, status pb.NodeStatus) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, node := range c.cfg.Nodes {
+		if node.Id == nodeId {
+			node.Status = status
+			return
+		}
+	}
 }
 
 func (c *Config) config() *pb.Config {
@@ -321,4 +400,25 @@ func (c *Config) hasWillJoinNode() bool {
 		}
 	}
 	return false
+}
+
+func (c *Config) saveConfig() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.inited = true
+
+	_, err := c.cfgFile.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+	err = c.cfgFile.Truncate(0)
+	if err != nil {
+		return err
+	}
+	_, err = c.cfgFile.Write([]byte(wkutil.ToJSON(c.cfg)))
+	if err != nil {
+		return err
+	}
+	return nil
 }

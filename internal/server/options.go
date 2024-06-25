@@ -163,6 +163,11 @@ type Options struct {
 		Nodes                      []*Node       // 集群节点地址
 		PeerRPCMsgTimeout          time.Duration // 节点之间rpc消息超时时间
 		PeerRPCTimeoutScanInterval time.Duration // 节点之间rpc消息超时时间扫描间隔
+
+		TickInterval time.Duration // 分布式tick间隔
+
+		HeartbeatIntervalTick int // 心跳间隔tick
+		ElectionIntervalTick  int // 选举间隔tick
 	}
 
 	Trace struct {
@@ -328,6 +333,9 @@ func NewOptions(op ...Option) *Options {
 			Nodes                      []*Node
 			PeerRPCMsgTimeout          time.Duration
 			PeerRPCTimeoutScanInterval time.Duration
+			TickInterval               time.Duration
+			HeartbeatIntervalTick      int
+			ElectionIntervalTick       int
 		}{
 			NodeId:                     1,
 			Addr:                       "tcp://0.0.0.0:11110",
@@ -340,6 +348,9 @@ func NewOptions(op ...Option) *Options {
 			ChannelReplicaCount:        3,
 			PeerRPCMsgTimeout:          time.Second * 20,
 			PeerRPCTimeoutScanInterval: time.Second * 1,
+			TickInterval:               time.Millisecond * 150,
+			HeartbeatIntervalTick:      1,
+			ElectionIntervalTick:       10,
 		},
 		Trace: struct {
 			Endpoint         string
@@ -600,6 +611,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 			})
 		}
 	}
+	o.Cluster.TickInterval = o.getDuration("cluster.tickInterval", o.Cluster.TickInterval)
+	o.Cluster.ElectionIntervalTick = o.getInt("cluster.electionIntervalTick", o.Cluster.ElectionIntervalTick)
+	o.Cluster.HeartbeatIntervalTick = o.getInt("cluster.heartbeatIntervalTick", o.Cluster.HeartbeatIntervalTick)
 
 	// =================== trace ===================
 	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
@@ -1214,6 +1228,25 @@ func WithClusterPeerRPCTimeoutScanInterval(peerRPCTimeoutScanInterval time.Durat
 	return func(opts *Options) {
 		opts.Cluster.PeerRPCTimeoutScanInterval = peerRPCTimeoutScanInterval
 	}
+}
+
+func WithClusterHeartbeatIntervalTick(heartbeatIntervalTick int) Option {
+	return func(opts *Options) {
+		opts.Cluster.HeartbeatIntervalTick = heartbeatIntervalTick
+	}
+}
+
+func WithClusterElectionIntervalTick(electionIntervalTick int) Option {
+	return func(opts *Options) {
+		opts.Cluster.ElectionIntervalTick = electionIntervalTick
+	}
+}
+
+func WithClusterTickInterval(tickInterval time.Duration) Option {
+	return func(opts *Options) {
+		opts.Cluster.TickInterval = tickInterval
+	}
+
 }
 
 func WithTraceEndpoint(endpoint string) Option {

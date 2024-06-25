@@ -73,6 +73,11 @@ func (r *replicaLog) appendLog(logs ...Log) {
 	lastLog := logs[len(logs)-1]
 	r.unstable.truncateAndAppend(logs)
 	r.lastLogIndex = lastLog.Index
+
+	for _, log := range logs {
+		r.Info("append log.......", zap.Uint64("index", log.Index), zap.Uint32("term", log.Term))
+	}
+
 }
 
 func (r *replicaLog) storagingTo(index uint64) {

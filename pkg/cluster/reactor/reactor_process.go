@@ -115,7 +115,6 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 		})
 		return
 	}
-	r.Debug("get leader term start index", zap.Uint32("leaderLastTerm", req.leaderLastTerm), zap.Uint64("index", index), zap.String("handlerKey", req.h.key))
 
 	if index == 0 {
 		r.Debug("leader index is 0,no conflict", zap.String("handlerKey", req.h.key))
@@ -131,6 +130,8 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 			return
 		}
 	}
+
+	r.Debug("get leader term start index", zap.Uint32("leaderLastTerm", req.leaderLastTerm), zap.Uint64("index", index), zap.String("handlerKey", req.h.key))
 
 	r.Step(req.h.key, replica.Message{
 		MsgType: replica.MsgLogConflictCheckResp,
@@ -334,10 +335,15 @@ func (r *Reactor) processGetLog(req *getLogReq) {
 		return
 	}
 
+	if len(logs) > 0 && logs[0].Index != req.startIndex {
+		r.Panic("get logs failed", zap.Uint64("startIndex", req.startIndex), zap.Uint64("lastIndex", req.lastIndex), zap.Uint64("msgIndex", logs[0].Index))
+	}
+
 	r.Step(req.h.key, replica.Message{
 		MsgType: replica.MsgSyncGetResp,
 		Logs:    logs,
 		To:      req.to,
+		Index:   req.startIndex,
 	})
 }
 
@@ -425,6 +431,7 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
 	}
 
+	r.Info("processApplyLog...start..", zap.Uint64("startIndex", req.appyingIndex+1), zap.Uint64("endIndex", req.committedIndex+1))
 	appliedSize, err := req.h.handler.ApplyLogs(req.appyingIndex+1, req.committedIndex+1)
 	if err != nil {
 		r.Panic("apply logs failed", zap.Error(err))
@@ -435,8 +442,10 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 		return
 	}
 
+	r.Info("processApplyLog...end..", zap.Uint64("startIndex", req.appyingIndex+1), zap.Uint64("endIndex", req.committedIndex+1))
 	if r.opts.IsCommittedAfterApplied {
 		// 提交日志
+		r.Info("didCommit.......", zap.Uint64("startIndex", req.appyingIndex+1), zap.Uint64("endIndex", req.committedIndex+1))
 		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
 	}
 
@@ -478,7 +487,7 @@ func (r *Reactor) processLearnerToFollowerLoop() {
 func (r *Reactor) processLearnerToFollower(req *learnerToFollowerReq) {
 	err := req.h.learnerToFollower(req.learnerId)
 	if err != nil {
-		r.Panic("learner to follower failed", zap.Error(err))
+		r.Error("learner to follower failed", zap.Error(err))
 	}
 }
 
@@ -511,7 +520,7 @@ func (r *Reactor) processLearnerToLeaderLoop() {
 func (r *Reactor) processLearnerToLeader(req *learnerToLeaderReq) {
 	err := req.h.learnerToLeader(req.learnerId)
 	if err != nil {
-		r.Panic("learner to leader failed", zap.Error(err))
+		r.Error("learner to leader failed", zap.Error(err))
 	}
 }
 

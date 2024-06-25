@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -71,7 +72,7 @@ func (r *ReactorSub) run() {
 		case req := <-r.stepC:
 			handler := r.handlers.get(req.handlerKey)
 			if handler == nil {
-				r.Info("ReactorSub: step handler not exist", zap.String("handlerKey", req.handlerKey))
+				r.Info("ReactorSub: step handler not exist", zap.String("handlerKey", req.handlerKey), zap.String("msgType", req.msg.MsgType.String()), zap.Uint64("from", req.msg.From))
 				continue
 			}
 			err := handler.handler.Step(req.msg)
@@ -121,6 +122,9 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	if r.stopped.Load() {
 		return nil, ErrReactorSubStopped
 	}
+	if len(logs) == 0 {
+		return nil, errors.New("proposeAndWait: logs is empty")
+	}
 	// -------------------- 延迟统计 --------------------
 	startTime := time.Now()
 	defer func() {
@@ -132,8 +136,8 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
 		}
 		if r.opts.EnableLazyCatchUp {
-			if end > time.Millisecond*250 {
-				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.Int("logs", len(logs)))
+			if end > time.Millisecond*0 {
+				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.Int("logs", len(logs)), zap.Uint64("lastIndex", logs[len(logs)-1].Index))
 			}
 		}
 	}()
@@ -386,8 +390,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			// fmt.Println("MsgSpeedLevelChange---------------->", handler.key, m.SpeedLevel.String())
 
 		case replica.MsgSyncTimeout:
-			fmt.Println("MsgSyncTimeout---------------->", handler.key)
-			r.Info("sync timeout", zap.String("handler", handler.key))
+			r.Info("sync timeout", zap.String("handler", handler.key), zap.Uint64("leader", handler.leaderId()), zap.Uint64("index", m.Index))
 
 		default:
 			if m.To != 0 && m.To != r.opts.NodeId {

@@ -53,12 +53,26 @@ func (s *slotManager) add(st *slot) {
 	s.slotReactor.AddHandler(st.key, st)
 }
 
-func (s *slotManager) get(slotId uint32) reactor.IHandler {
-	return s.slotReactor.Handler(SlotIdToKey(slotId))
+func (s *slotManager) get(slotId uint32) *slot {
+	handler := s.slotReactor.Handler(SlotIdToKey(slotId))
+	if handler != nil {
+		return handler.(*slot)
+	}
+	return nil
+}
+
+func (s *slotManager) remove(slotId uint32) {
+	s.slotReactor.RemoveHandler(SlotIdToKey(slotId))
 }
 
 func (s *slotManager) addMessage(m reactor.Message) {
 	s.slotReactor.AddMessage(m)
+}
+
+func (s *slotManager) iterate(f func(*slot) bool) {
+	s.slotReactor.IteratorHandler(func(h reactor.IHandler) bool {
+		return f(h.(*slot))
+	})
 }
 
 func (s *slotManager) slotLen() int {
@@ -80,10 +94,6 @@ func (s *slotManager) GetConfig(req reactor.ConfigReq) (reactor.ConfigResp, erro
 		slot := handler.(*slot)
 		cfg := slot.st
 
-		learners := make([]uint64, 0, len(cfg.Learners))
-		for _, learner := range cfg.Learners {
-			learners = append(learners, learner.LearnerId)
-		}
 		var role = replica.RoleFollower
 		if cfg.Leader == s.opts.NodeId {
 			role = replica.RoleLeader
@@ -94,7 +104,7 @@ func (s *slotManager) GetConfig(req reactor.ConfigReq) (reactor.ConfigResp, erro
 				MigrateFrom: cfg.MigrateFrom,
 				MigrateTo:   cfg.MigrateTo,
 				Replicas:    cfg.Replicas,
-				Learners:    learners,
+				Learners:    cfg.Learners,
 				Role:        role,
 				Leader:      cfg.Leader,
 				Term:        cfg.Term,

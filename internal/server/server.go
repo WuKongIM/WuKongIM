@@ -163,6 +163,9 @@ func New(opts *Options) *Server {
 				return s.store.OnMetaApply(slotId, logs)
 			}),
 			cluster.WithChannelClusterStorage(clusterstore.NewChannelClusterConfigStore(s.store)),
+			cluster.WithElectionIntervalTick(s.opts.Cluster.ElectionIntervalTick),
+			cluster.WithHeartbeatIntervalTick(s.opts.Cluster.HeartbeatIntervalTick),
+			cluster.WithTickInterval(s.opts.Cluster.TickInterval),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
@@ -352,11 +355,6 @@ func (s *Server) MustWaitClusterReady() {
 // 提案频道分布式
 func (s *Server) ProposeChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
 	return s.clusterServer.ProposeChannelClusterConfig(ctx, cfg)
-}
-
-// 提案分布式配置
-func (s *Server) ProposeClusterConfig(ctx context.Context, cfg *pb.Config) error {
-	return s.clusterServer.ProposeConfig(ctx, cfg)
 }
 
 // 获取分布式配置

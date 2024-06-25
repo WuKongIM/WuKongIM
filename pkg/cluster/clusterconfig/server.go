@@ -2,17 +2,19 @@ package clusterconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
-	"sync"
-	"time"
+	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
-	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
@@ -22,15 +24,12 @@ type Server struct {
 	opts          *Options
 	handlerKey    string
 	handler       *handler
-	stopper       *syncutil.Stopper
 	cancelCtx     context.Context
 	cancelFnc     context.CancelFunc
 	cfgGenId      *snowflake.Node
 
 	storage   *PebbleShardLogStorage
 	initNodes map[uint64]string // 初始化节点
-
-	proposeLock sync.Mutex
 
 	wklog.Log
 }
@@ -42,8 +41,7 @@ func New(opts *Options) *Server {
 		opts:       opts,
 		handlerKey: "config",
 		cfg:        NewConfig(opts),
-		stopper:    syncutil.NewStopper(),
-		Log:        wklog.NewWKLog("clusterconfig.server"),
+		Log:        wklog.NewWKLog(fmt.Sprintf("clusterconfig.server[%d]", opts.NodeId)),
 		storage:    NewPebbleShardLogStorage(path.Join(dataDir, "cfglogdb")),
 		initNodes:  opts.InitNodes,
 	}
@@ -54,6 +52,8 @@ func New(opts *Options) *Server {
 		reactor.WithSubReactorNum(1),
 		reactor.WithTaskPoolSize(10),
 		reactor.WithRequest(NewRequest(s)),
+		reactor.WithIsCommittedAfterApplied(true),
+		reactor.WithTickInterval(opts.TickInterval),
 		// reactor.WithOnAppendLogs(func(reqs []reactor.AppendLogReq) error {
 		// 	if len(reqs) == 1 {
 		// 		return s.storage.AppendLog(reqs[0].Logs)
@@ -77,6 +77,32 @@ func New(opts *Options) *Server {
 	return s
 }
 
+func (s *Server) SwitchConfig(cfg *pb.Config) error {
+
+	replicas := make([]uint64, 0, len(cfg.Nodes))
+	for _, node := range cfg.Nodes {
+		if len(cfg.Learners) > 0 && wkutil.ArrayContainsUint64(cfg.Learners, node.Id) {
+			continue
+		}
+		replicas = append(replicas, node.Id)
+	}
+
+	replicaCfg := replica.Config{
+		MigrateFrom: cfg.MigrateFrom,
+		MigrateTo:   cfg.MigrateTo,
+		Learners:    cfg.Learners,
+		Replicas:    replicas,
+		Term:        cfg.Term,
+		Version:     cfg.Version,
+	}
+
+	err := s.configReactor.StepWait(s.handlerKey, replica.Message{
+		MsgType: replica.MsgConfigResp,
+		Config:  replicaCfg,
+	})
+	return err
+}
+
 func (s *Server) Start() error {
 
 	s.setRoutes() // 设置路由
@@ -86,20 +112,46 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	s.stopper.RunWorker(s.run)
-
 	err = s.configReactor.Start()
 	if err != nil {
 		return err
 	}
 	s.handler = newHandler(s.cfg, s.storage, s)
-	s.configReactor.AddHandler("config", s.handler)
+	s.configReactor.AddHandler(s.handlerKey, s.handler)
+
+	if !s.cfg.isInitialized() { // 没有初始化
+		replicas := make([]uint64, 0, len(s.opts.InitNodes))
+		for replicaId := range s.opts.InitNodes {
+			replicas = append(replicas, replicaId)
+		}
+		// var role = replica.RoleUnknown
+		var learners []uint64
+		if strings.TrimSpace(s.opts.Seed) != "" {
+			learners = []uint64{s.opts.NodeId}
+		}
+		fmt.Println("replicas--------->:", s.opts.NodeId, replicas, learners)
+
+		s.configReactor.Step(s.handlerKey, replica.Message{
+			MsgType: replica.MsgConfigResp,
+			Config: replica.Config{
+				Replicas: replicas,
+				Learners: learners,
+			},
+		})
+
+	} else {
+		// 切换配置
+		err = s.SwitchConfig(s.cfg.config())
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (s *Server) Stop() {
 	s.cancelFnc()
-	s.stopper.Stop()
 	s.configReactor.Stop()
 	err := s.storage.Close()
 	if err != nil {
@@ -110,11 +162,6 @@ func (s *Server) Stop() {
 // AddMessage 添加消息
 func (s *Server) AddMessage(m reactor.Message) {
 	s.configReactor.AddMessage(m)
-}
-
-// AppliedConfig 获取应用配置
-func (s *Server) AppliedConfig() *pb.Config {
-	return s.cfg.appliedConfig()
 }
 
 // Config 当前配置
@@ -177,6 +224,11 @@ func (s *Server) IsLeader() bool {
 	return s.handler.isLeader()
 }
 
+// ConfigIsInitialized 配置是否初始化
+func (s *Server) ConfigIsInitialized() bool {
+	return s.cfg.isInitialized()
+}
+
 func (s *Server) LeaderId() uint64 {
 	return s.handler.LeaderId()
 }
@@ -190,113 +242,140 @@ func (s *Server) NodeConfigVersion(nodeId uint64) uint64 {
 	return s.handler.configVersion(nodeId)
 }
 
-func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string) error {
+// func (s *Server) ProposeUpdateApiServerAddr(nodeId uint64, apiServerAddr string) error {
 
-	s.proposeLock.Lock()
-	defer s.proposeLock.Unlock()
+// 	s.proposeLock.Lock()
+// 	defer s.proposeLock.Unlock()
 
-	node := s.Node(nodeId)
-	if node == nil {
-		s.Error("proposeUpdateApiServerAddr failed, node not found", zap.Uint64("nodeId", nodeId))
-		return fmt.Errorf("node not found")
-	}
-	newCfg := s.cfg.cfg.Clone()
-	for i, node := range newCfg.Nodes {
-		if node.Id == nodeId {
-			newCfg.Nodes[i].ApiServerAddr = apiServerAddr
-			break
-		}
-	}
-	data, err := newCfg.Marshal()
-	if err != nil {
-		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
-		return err
-	}
+// 	node := s.Node(nodeId)
+// 	if node == nil {
+// 		s.Error("proposeUpdateApiServerAddr failed, node not found", zap.Uint64("nodeId", nodeId))
+// 		return fmt.Errorf("node not found")
+// 	}
+// 	newCfg := s.cfg.cfg.Clone()
+// 	for i, node := range newCfg.Nodes {
+// 		if node.Id == nodeId {
+// 			newCfg.Nodes[i].ApiServerAddr = apiServerAddr
+// 			break
+// 		}
+// 	}
+// 	data, err := newCfg.Marshal()
+// 	if err != nil {
+// 		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
+// 		return err
+// 	}
 
-	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
+// 	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
+// 	defer cancel()
+
+// 	err = s.proposeAndWait(timeoutCtx, []replica.Log{
+// 		{
+// 			Id:   uint64(s.cfgGenId.Generate().Int64()),
+// 			Data: data,
+// 		},
+// 	})
+// 	if err != nil {
+// 		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
+// 		return err
+// 	}
+// 	return nil
+// }
+
+// func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
+
+// 	s.proposeLock.Lock()
+// 	defer s.proposeLock.Unlock()
+
+// 	data, err := cfg.Marshal()
+// 	if err != nil {
+// 		s.Error("ProposeConfig failed", zap.Error(err))
+// 		return err
+// 	}
+
+// 	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
+// 	defer cancel()
+// 	err = s.proposeAndWait(timeoutCtx, []replica.Log{
+// 		{
+// 			Id:   uint64(s.cfgGenId.Generate().Int64()),
+// 			Data: data,
+// 		},
+// 	})
+// 	if err != nil {
+// 		s.Error("ProposeConfig failed", zap.Error(err))
+// 		return err
+// 	}
+// 	return nil
+// }
+
+// func (s *Server) ProposeJoin(ctx context.Context, node *pb.Node) error {
+
+// 	if s.cfg.hasWillJoinNode() || s.cfg.hasJoiningNode() {
+// 		s.Error("ProposeJoin failed, there is a joining node")
+// 		return fmt.Errorf("there is a joining node")
+
+// 	}
+
+// 	newCfg := s.cfg.cfg.Clone()
+
+// 	exist := false
+// 	for _, n := range newCfg.Nodes {
+// 		if n.Id == node.Id {
+// 			exist = true
+// 			break
+// 		}
+// 	}
+// 	if !exist {
+// 		newCfg.Nodes = append(newCfg.Nodes, node)
+// 	}
+
+// 	data, err := newCfg.Marshal()
+// 	if err != nil {
+// 		s.Error("ProposeJoin failed", zap.Error(err))
+// 		return err
+// 	}
+
+// 	err = s.proposeAndWait(ctx, []replica.Log{
+// 		{
+// 			Id:   uint64(s.cfgGenId.Generate().Int64()),
+// 			Data: data,
+// 		},
+// 	})
+// 	if err != nil {
+// 		s.Error("ProposeJoin failed", zap.Error(err))
+// 		return err
+// 	}
+// 	return nil
+// }
+
+func (s *Server) proposeAndWait(logs []replica.Log) error {
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)
 	defer cancel()
 
-	err = s.proposeAndWait(timeoutCtx, []replica.Log{
-		{
-			Id:   uint64(s.cfgGenId.Generate().Int64()),
-			Data: data,
-		},
-	})
-	if err != nil {
-		s.Error("proposeUpdateApiServerAddr failed", zap.Error(err))
-		return err
+	if !s.IsLeader() { // 如果不是领导，则向领导请求提按
+		return s.requestPropose(timeoutCtx, s.LeaderId(), logs)
 	}
-	return nil
+
+	_, err := s.configReactor.ProposeAndWait(timeoutCtx, s.handlerKey, logs)
+	return err
 }
 
-func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
+func (s *Server) requestPropose(ctx context.Context, nodeId uint64, logs []replica.Log) error {
 
-	s.proposeLock.Lock()
-	defer s.proposeLock.Unlock()
-
-	data, err := cfg.Marshal()
+	logset := replica.LogSet(logs)
+	data, err := logset.Marshal()
 	if err != nil {
-		s.Error("ProposeConfig failed", zap.Error(err))
+		return err
+	}
+	resp, err := s.opts.Cluster.RequestWithContext(ctx, nodeId, "/clusterconfig/propose", data)
+	if err != nil {
+		s.Error("request propose error", zap.Error(err))
 		return err
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
-	defer cancel()
-	err = s.proposeAndWait(timeoutCtx, []replica.Log{
-		{
-			Id:   uint64(s.cfgGenId.Generate().Int64()),
-			Data: data,
-		},
-	})
-	if err != nil {
-		s.Error("ProposeConfig failed", zap.Error(err))
-		return err
-	}
-	return nil
-}
-
-func (s *Server) ProposeJoin(ctx context.Context, node *pb.Node) error {
-
-	if s.cfg.hasWillJoinNode() || s.cfg.hasJoiningNode() {
-		s.Error("ProposeJoin failed, there is a joining node")
-		return fmt.Errorf("there is a joining node")
-
+	if resp.Status != proto.Status_OK {
+		return fmt.Errorf("propose failed, status: %d", resp.Status)
 	}
 
-	newCfg := s.cfg.cfg.Clone()
-
-	exist := false
-	for _, n := range newCfg.Nodes {
-		if n.Id == node.Id {
-			exist = true
-			break
-		}
-	}
-	if !exist {
-		newCfg.Nodes = append(newCfg.Nodes, node)
-	}
-
-	data, err := newCfg.Marshal()
-	if err != nil {
-		s.Error("ProposeJoin failed", zap.Error(err))
-		return err
-	}
-
-	err = s.proposeAndWait(ctx, []replica.Log{
-		{
-			Id:   uint64(s.cfgGenId.Generate().Int64()),
-			Data: data,
-		},
-	})
-	if err != nil {
-		s.Error("ProposeJoin failed", zap.Error(err))
-		return err
-	}
-	return nil
-}
-
-func (s *Server) proposeAndWait(ctx context.Context, logs []replica.Log) error {
-	_, err := s.configReactor.ProposeAndWait(ctx, s.handlerKey, logs)
 	return err
 }
 
@@ -304,89 +383,101 @@ func (s *Server) send(m reactor.Message) {
 	s.opts.Send(m)
 }
 
-func (s *Server) run() {
-	tk := time.NewTicker(time.Millisecond * 250)
-	for {
-		select {
-		case <-tk.C:
-			s.checkClusterConfig()
-		case <-s.stopper.ShouldStop():
-			return
-		}
+// func (s *Server) checkClusterConfig() {
+// 	if !s.handler.isLeader() {
+// 		return
+// 	}
+// 	hasUpdate := false
+// 	if len(s.cfg.nodes()) < len(s.initNodes) {
+// 		for replicaId, addr := range s.initNodes {
+// 			if !s.cfg.hasNode(replicaId) {
+// 				s.cfg.addNode(&pb.Node{
+// 					Id:          replicaId,
+// 					AllowVote:   true,
+// 					ClusterAddr: addr,
+// 					Online:      true,
+// 					CreatedAt:   time.Now().Unix(),
+// 					Status:      pb.NodeStatus_NodeStatusJoined,
+// 				})
+// 				hasUpdate = true
+// 			}
+// 		}
+// 	}
+
+// 	if len(s.cfg.slots()) == 0 {
+
+// 		replicas := make([]uint64, 0, len(s.cfg.nodes())) // 有效副本集合
+// 		for _, node := range s.cfg.nodes() {
+// 			if !node.AllowVote || node.Status != pb.NodeStatus_NodeStatusJoined {
+// 				continue
+// 			}
+// 			replicas = append(replicas, node.Id)
+// 		}
+// 		if len(replicas) > 0 {
+// 			offset := 0
+// 			replicaCount := s.opts.SlotMaxReplicaCount
+// 			for i := uint32(0); i < s.opts.SlotCount; i++ {
+// 				slot := &pb.Slot{
+// 					Id: i,
+// 				}
+// 				if len(replicas) <= int(replicaCount) {
+// 					slot.Replicas = replicas
+// 				} else {
+// 					slot.Replicas = make([]uint64, 0, replicaCount)
+// 					for i := uint32(0); i < replicaCount; i++ {
+// 						idx := (offset + int(i)) % len(replicas)
+// 						slot.Replicas = append(slot.Replicas, replicas[idx])
+// 					}
+// 				}
+// 				offset++
+// 				// 随机选举一个领导者
+// 				randomIndex := globalRand.Intn(len(slot.Replicas))
+// 				slot.Term = 1
+// 				slot.Leader = slot.Replicas[randomIndex]
+// 				s.cfg.addSlot(slot)
+// 				hasUpdate = true
+// 			}
+// 		}
+// 	}
+
+// 	if hasUpdate {
+// 		data, err := s.cfg.data()
+// 		if err != nil {
+// 			s.Error("get data error", zap.Error(err))
+// 			return
+// 		}
+// 		err = s.proposeAndWait(s.cancelCtx, []replica.Log{
+// 			{
+// 				Id:   uint64(s.cfgGenId.Generate().Int64()),
+// 				Data: data,
+// 			},
+// 		})
+// 		if err != nil {
+// 			s.Error("propose error", zap.Error(err))
+// 		}
+// 	}
+// }
+
+// 是否需要加入集群
+func (s *Server) needJoin() bool {
+	if strings.TrimSpace(s.opts.Seed) == "" {
+		return false
 	}
+	seedNodeId, _, _ := seedNode(s.opts.Seed) // New里已经验证过seed了  所以这里不必再处理error了
+	seedNode := s.Node(seedNodeId)
+	return seedNode == nil
 }
 
-func (s *Server) checkClusterConfig() {
-	if !s.handler.isLeader() {
-		return
+func seedNode(seed string) (uint64, string, error) {
+	seedArray := strings.Split(seed, "@")
+	if len(seedArray) < 2 {
+		return 0, "", errors.New("seed format error")
 	}
-	hasUpdate := false
-	if len(s.cfg.nodes()) < len(s.initNodes) {
-		for replicaId, addr := range s.initNodes {
-			if !s.cfg.hasNode(replicaId) {
-				s.cfg.addNode(&pb.Node{
-					Id:          replicaId,
-					AllowVote:   true,
-					ClusterAddr: addr,
-					Online:      true,
-					CreatedAt:   time.Now().Unix(),
-					Status:      pb.NodeStatus_NodeStatusJoined,
-				})
-				hasUpdate = true
-			}
-		}
+	seedNodeIDStr := seedArray[0]
+	seedAddr := seedArray[1]
+	seedNodeID, err := strconv.ParseUint(seedNodeIDStr, 10, 64)
+	if err != nil {
+		return 0, "", err
 	}
-
-	if len(s.cfg.slots()) == 0 {
-
-		replicas := make([]uint64, 0, len(s.cfg.nodes())) // 有效副本集合
-		for _, node := range s.cfg.nodes() {
-			if !node.AllowVote || node.Status != pb.NodeStatus_NodeStatusJoined {
-				continue
-			}
-			replicas = append(replicas, node.Id)
-		}
-		if len(replicas) > 0 {
-			offset := 0
-			replicaCount := s.opts.SlotMaxReplicaCount
-			for i := uint32(0); i < s.opts.SlotCount; i++ {
-				slot := &pb.Slot{
-					Id: i,
-				}
-				if len(replicas) <= int(replicaCount) {
-					slot.Replicas = replicas
-				} else {
-					slot.Replicas = make([]uint64, 0, replicaCount)
-					for i := uint32(0); i < replicaCount; i++ {
-						idx := (offset + int(i)) % len(replicas)
-						slot.Replicas = append(slot.Replicas, replicas[idx])
-					}
-				}
-				offset++
-				// 随机选举一个领导者
-				randomIndex := globalRand.Intn(len(slot.Replicas))
-				slot.Term = 1
-				slot.Leader = slot.Replicas[randomIndex]
-				s.cfg.addSlot(slot)
-				hasUpdate = true
-			}
-		}
-	}
-
-	if hasUpdate {
-		data, err := s.cfg.data()
-		if err != nil {
-			s.Error("get data error", zap.Error(err))
-			return
-		}
-		err = s.proposeAndWait(s.cancelCtx, []replica.Log{
-			{
-				Id:   uint64(s.cfgGenId.Generate().Int64()),
-				Data: data,
-			},
-		})
-		if err != nil {
-			s.Error("propose error", zap.Error(err))
-		}
-	}
+	return seedNodeID, seedAddr, nil
 }

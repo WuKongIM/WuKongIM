@@ -217,22 +217,6 @@ func (n *node) requestChannelProposeMessage(ctx context.Context, req *ChannelPro
 	return proposeMessageResp, nil
 }
 
-// 请求更新节点api地址
-func (n *node) requestUpdateNodeApiServerAddr(ctx context.Context, req *UpdateApiServerAddrReq) error {
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	resp, err := n.client.RequestWithContext(ctx, "/config/proposeUpdateApiServerAddr", data)
-	if err != nil {
-		return err
-	}
-	if resp.Status != proto.Status_OK {
-		return fmt.Errorf("requestUpdateNodeApiServerAddr is failed, status:%d", resp.Status)
-	}
-	return nil
-}
-
 func (n *node) requestSlotLogInfo(ctx context.Context, req *SlotLogInfoReq) (*SlotLogInfoResp, error) {
 	data, err := req.Marshal()
 	if err != nil {

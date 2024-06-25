@@ -36,7 +36,7 @@ type Reactor struct {
 func New(opts *Options) *Reactor {
 	r := &Reactor{
 		opts:    opts,
-		Log:     wklog.NewWKLog(fmt.Sprintf("Reactor[%s]", opts.ReactorType.String())),
+		Log:     wklog.NewWKLog(fmt.Sprintf("Reactor[%d][%s]", opts.NodeId, opts.ReactorType.String())),
 		stopper: syncutil.NewStopper(),
 
 		processInitC:              make(chan *initReq, 1024),

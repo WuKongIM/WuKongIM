@@ -9,7 +9,7 @@ func (s *Server) MustWaitConfigVersion(version uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {
-		if s.AppliedConfig().Version >= version {
+		if s.Config().Version >= version {
 			return
 		}
 		select {

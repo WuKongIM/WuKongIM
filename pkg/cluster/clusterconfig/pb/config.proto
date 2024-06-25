@@ -41,8 +41,11 @@ message Config {
     uint32 slotReplicaCount = 3; // 槽最大副本数量  (这个数量包含领导，比如副本为3，则是1个领导2个副本节点)
     uint32 channelReplicaCount = 4; // 频道最大副本数量
     uint32 term = 5; // 领导任期
-    repeated Node nodes = 6; // 集群中的节点
-    repeated Slot slots = 7; // 集群中的槽位
+    uint64 migrateFrom = 6; // 迁移的源节点
+    uint64 migrateTo = 7; // 迁移的目标节点
+    repeated uint64 learners = 8; // 学习者列表
+    repeated Node nodes = 9; // 分布式中的节点
+    repeated Slot slots = 10; // 分布式中的槽位
  }
 
 
@@ -69,8 +72,7 @@ message Slot {
     uint64 leader = 2; // 槽位的领导节点
     uint32 term = 3; // 槽位的领导任期
     repeated uint64 replicas = 4; // 副本节点(包含领导节点)
-    uint64 leaderTransferTo = 5; // 需要将领导角色转移的节点
-    repeated Learner learners = 6; // 学习者列表
+    repeated uint64 learners = 6; // 学习者列表
     uint64 migrateFrom = 7; // 迁移的源节点
     uint64 migrateTo = 8; // 迁移的目标节点
     SlotStatus status = 9; // 槽位状态

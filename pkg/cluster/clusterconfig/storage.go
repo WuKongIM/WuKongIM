@@ -3,7 +3,6 @@ package clusterconfig
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math"
 	"time"
 
@@ -80,7 +79,6 @@ func (p *PebbleShardLogStorage) AppendLog(logs []replica.Log) error {
 
 // TruncateLogTo 截断日志
 func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
-	fmt.Println("TruncateLogTo----->", index)
 	if index == 0 {
 		return errors.New("index must be greater than 0")
 	}
