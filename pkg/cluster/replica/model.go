@@ -339,7 +339,7 @@ func (l LogSet) Marshal() ([]byte, error) {
 
 }
 
-func (l LogSet) Unmarshal(data []byte) error {
+func (l *LogSet) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
 	var size uint32
@@ -349,7 +349,7 @@ func (l LogSet) Unmarshal(data []byte) error {
 	if size == 0 {
 		return nil
 	}
-	l = make([]Log, size)
+	*l = make([]Log, size)
 
 	logDatas, err := dec.BinaryAll()
 	if err != nil {
@@ -363,7 +363,7 @@ func (l LogSet) Unmarshal(data []byte) error {
 		if err := log.Unmarshal(logDatas[offset:]); err != nil {
 			return err
 		}
-		l[i] = log
+		(*l)[i] = log
 		offset += log.LogSize()
 	}
 
@@ -500,6 +500,11 @@ func (c *Config) Unmarshal(data []byte) error {
 		return err
 	}
 	return nil
+
+}
+
+func (c *Config) String() string {
+	return fmt.Sprintf("Config{MigrateFrom:%d,MigrateTo:%d,Replicas:%v,Learners:%v,Role:%s,Term:%d,Version:%d,Leader:%d}", c.MigrateFrom, c.MigrateTo, c.Replicas, c.Learners, c.Role, c.Term, c.Version, c.Leader)
 
 }
 

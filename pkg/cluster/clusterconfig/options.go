@@ -14,6 +14,7 @@ type Options struct {
 	ElectionTimeoutTick    int                     // 选举超时tick次数
 	HeartbeatTimeoutTick   int                     // 心跳超时tick次数
 	InitNodes              map[uint64]string       // 初始化节点列表 key为节点id，value为分布式通讯的地址
+	Seed                   string                  // 种子节点
 	ProposeTimeout         time.Duration           // 提议超时时间
 	ReqTimeout             time.Duration           // 请求超时时间
 	SlotCount              uint32                  // 槽位数量
@@ -26,6 +27,10 @@ type Options struct {
 
 	Cluster icluster.Cluster // 分布式接口
 
+	TickInterval          time.Duration // 分布式tick间隔
+	HeartbeatIntervalTick int           // 心跳间隔tick
+	ElectionIntervalTick  int           // 选举间隔tick
+
 	Event struct {
 		OnAppliedConfig func()
 	}
@@ -35,6 +40,7 @@ func NewOptions(opt ...Option) *Options {
 	opts := &Options{
 		ConfigPath:             "clusterconfig.json",
 		SlotCount:              128,
+		TickInterval:           time.Millisecond * 150,
 		ElectionTimeoutTick:    10,
 		HeartbeatTimeoutTick:   1,
 		MaxIdleInterval:        time.Second * 1,
@@ -146,5 +152,29 @@ func WithOnAppliedConfig(f func()) Option {
 func WithCluster(cluster icluster.Cluster) Option {
 	return func(o *Options) {
 		o.Cluster = cluster
+	}
+}
+
+func WithHeartbeatIntervalTick(interval int) Option {
+	return func(o *Options) {
+		o.HeartbeatIntervalTick = interval
+	}
+}
+
+func WithElectionIntervalTick(interval int) Option {
+	return func(o *Options) {
+		o.ElectionIntervalTick = interval
+	}
+}
+
+func WithTickInterval(interval time.Duration) Option {
+	return func(o *Options) {
+		o.TickInterval = interval
+	}
+}
+
+func WithSeed(seed string) Option {
+	return func(o *Options) {
+		o.Seed = seed
 	}
 }

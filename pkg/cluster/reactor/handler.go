@@ -111,7 +111,7 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.msgQueue = r.newMessageQueue()
 	h.lastIndex.Store(0)
 
-	h.proposeWait = newProposeWait(key)
+	h.proposeWait = newProposeWait(fmt.Sprintf("[%d]%s", r.opts.NodeId, key))
 	h.sync.syncTimeout = 5 * time.Second
 
 }
@@ -272,10 +272,16 @@ func (h *handler) pausePropopose() bool {
 }
 
 func (h *handler) learnerToFollower(learnerId uint64) error {
+	if h.handler == nil {
+		return nil
+	}
 	return h.handler.LearnerToFollower(learnerId)
 }
 
 func (h *handler) learnerToLeader(learnerId uint64) error {
+	if h.handler == nil {
+		return nil
+	}
 	return h.handler.LearnerToLeader(learnerId)
 }
 

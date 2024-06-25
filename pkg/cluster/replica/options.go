@@ -10,10 +10,10 @@ type Options struct {
 	LastIndex uint64 // 最新日志下标
 	LastTerm  uint32 // 最新任期
 
-	ElectionOn           bool // 是否开启选举
-	ElectionIntervalTick int  // 选举间隔tick次数，超过此tick数则发起选举
-	HeartbeatIntervalick int  // 心跳间隔tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
-	SyncIntervalTick     int  // 同步间隔tick次数, 超过此tick数则发起同步
+	ElectionOn            bool // 是否开启选举
+	ElectionIntervalTick  int  // 选举间隔tick次数，超过此tick数则发起选举
+	HeartbeatIntervalTick int  // 心跳间隔tick次数, 就是tick触发几次算一次心跳，一般为1 一次tick算一次心跳
+	SyncIntervalTick      int  // 同步间隔tick次数, 超过此tick数则发起同步
 
 	MaxUncommittedLogSize      uint64  // 最大未提交的日志大小
 	SyncLimitSize              uint64  // 每次同步日志数据的最大大小（过小影响吞吐量，过大导致消息阻塞，默认为10M）
@@ -27,7 +27,7 @@ func NewOptions() *Options {
 		ElectionOn:                 false,
 		ElectionIntervalTick:       10,
 		SyncLimitSize:              1024 * 1024 * 10, // 10M
-		HeartbeatIntervalick:       2,
+		HeartbeatIntervalTick:      1,
 		SyncIntervalTick:           1,
 		MaxUncommittedLogSize:      1024 * 1024 * 1024,
 		AckMode:                    AckModeMajority,
@@ -69,9 +69,9 @@ func WithElectionIntervalTick(tick int) Option {
 	}
 }
 
-func WithHeartbeatIntervalick(tick int) Option {
+func WithHeartbeatIntervalTick(tick int) Option {
 	return func(o *Options) {
-		o.HeartbeatIntervalick = tick
+		o.HeartbeatIntervalTick = tick
 	}
 }
 

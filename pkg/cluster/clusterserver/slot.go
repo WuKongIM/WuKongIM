@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -28,12 +29,15 @@ type slot struct {
 	mu             sync.Mutex
 	s              *Server
 	pausePropopose atomic.Bool // 是否暂停提案
+
+	// 学习者转换中
+	learnerTrans atomic.Bool
 }
 
 func newSlot(st *pb.Slot, sr *Server) *slot {
 	s := &slot{
 		key:        SlotIdToKey(st.Id),
-		st:         st,
+		st:         st.Clone(),
 		opts:       sr.opts,
 		s:          sr,
 		Log:        wklog.NewWKLog(fmt.Sprintf("slot[%d]", st.Id)),
@@ -57,7 +61,9 @@ func newSlot(st *pb.Slot, sr *Server) *slot {
 		replica.WithLastIndex(lastIndex),
 		replica.WithLastTerm(lastTerm),
 		replica.WithElectionOn(false),
-		replica.WithStorage(newProxyReplicaStorage(s.key, s.opts.SlotLogStorage)))
+		replica.WithStorage(newProxyReplicaStorage(s.key, s.opts.SlotLogStorage)),
+		replica.WithAutoRoleSwith(true),
+	)
 	return s
 }
 
@@ -70,19 +76,26 @@ func (s *slot) changeRole(role replica.Role) {
 
 }
 
-func (s *slot) update(st *pb.Slot) {
+func (s *slot) switchConfig(st *pb.Slot) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.st = st
+	s.st = st.Clone()
+	s.mu.Unlock()
+
+	s.Info("switch config", zap.String("config", st.String()))
+
+	if !wkutil.ArrayContainsUint64(st.Replicas, s.opts.NodeId) && !wkutil.ArrayContainsUint64(st.Learners, s.opts.NodeId) {
+		panic("test........")
+
+	}
 
 	isLearner := false
 	var learnerIds []uint64
 	if len(st.Learners) > 0 {
-		for _, learner := range st.Learners {
-			if learner.LearnerId == s.opts.NodeId {
+		for _, learnerId := range st.Learners {
+			if learnerId == s.opts.NodeId {
 				isLearner = true
 			}
-			learnerIds = append(learnerIds, learner.LearnerId)
+			learnerIds = append(learnerIds, learnerId)
 		}
 	}
 
@@ -105,6 +118,7 @@ func (s *slot) update(st *pb.Slot) {
 		Learners:    learnerIds,
 		Role:        role,
 		Term:        st.Term,
+		Leader:      st.Leader,
 	}
 
 	s.s.slotManager.slotReactor.Step(s.key, replica.Message{
@@ -216,11 +230,61 @@ func (s *slot) PausePropopose() bool {
 }
 
 func (s *slot) LearnerToFollower(learnerId uint64) error {
-	return nil
+	return s.learnerTo(learnerId)
 }
 
 func (s *slot) LearnerToLeader(learnerId uint64) error {
+	return s.learnerTo(learnerId)
+}
+
+func (s *slot) learnerTo(learnerId uint64) error {
+
+	if s.learnerTrans.Load() {
+		return nil
+	}
+	s.learnerTrans.Store(true)
+
+	defer func() {
+		s.learnerTrans.Store(false)
+	}()
+
+	existSlot := s.s.clusterEventServer.Slot(s.st.Id)
+	if existSlot == nil {
+		s.Error("learnerTo: slot not found")
+		return fmt.Errorf("slot not found")
+	}
+	if existSlot.MigrateFrom == 0 || existSlot.MigrateTo == 0 {
+		return nil
+	}
+	slot := existSlot.Clone()
+
+	if existSlot.Leader == existSlot.MigrateFrom {
+		slot.Leader = slot.MigrateTo
+	}
+
+	for _, learner := range slot.Learners {
+		slot.Learners = wkutil.RemoveUint64(slot.Learners, learner)
+	}
+	if !wkutil.ArrayContainsUint64(slot.Replicas, slot.MigrateTo) {
+		slot.Replicas = append(slot.Replicas, slot.MigrateTo)
+	}
+	slot.Replicas = wkutil.RemoveUint64(slot.Replicas, slot.MigrateFrom)
+
+	if slot.Leader == slot.MigrateFrom {
+		slot.Leader = learnerId
+	}
+
+	slot.MigrateFrom = 0
+	slot.MigrateTo = 0
+
+	err := s.s.clusterEventServer.ProposeSlots([]*pb.Slot{slot})
+	if err != nil {
+		s.Error("learnerTo: propose slot error", zap.Error(err))
+		return err
+	}
+
 	return nil
+
 }
 
 func (s *slot) SaveConfig(cfg replica.Config) error {

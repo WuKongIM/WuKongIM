@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent"
+	clusterevent "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent2"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
@@ -102,14 +102,18 @@ func New(opts *Options) *Server {
 	s.clusterEventServer = clusterevent.New(clusterevent.NewOptions(
 		clusterevent.WithNodeId(opts.NodeId),
 		clusterevent.WithInitNodes(initNodes),
+		clusterevent.WithSeed(s.opts.Seed),
 		clusterevent.WithSlotCount(opts.SlotCount),
 		clusterevent.WithSlotMaxReplicaCount(opts.SlotMaxReplicaCount),
 		clusterevent.WithChannelMaxReplicaCount(uint32(opts.ChannelMaxReplicaCount)),
-		clusterevent.WithReady(s.onEvent),
+		clusterevent.WithOnClusterConfigChange(s.onClusterConfigChange),
 		clusterevent.WithSend(s.onSend),
 		clusterevent.WithConfigDir(cfgDir),
 		clusterevent.WithApiServerAddr(opts.ApiServerAddr),
 		clusterevent.WithCluster(s),
+		clusterevent.WithElectionIntervalTick(opts.ElectionIntervalTick),
+		clusterevent.WithHeartbeatIntervalTick(opts.HeartbeatIntervalTick),
+		clusterevent.WithTickInterval(opts.TickInterval),
 	))
 
 	channelElectionPool, err := ants.NewPool(s.opts.ChannelElectionPoolSize, ants.WithNonblocking(false), ants.WithDisablePurge(true), ants.WithPanicHandler(func(err interface{}) {
@@ -210,7 +214,7 @@ func (s *Server) Start() error {
 
 	// 如果有新加入的节点 则执行加入逻辑
 	if s.needJoin() { // 需要加入集群
-		s.clusterEventServer.SetIsPrepared(false) // 先将节点集群准备状态设置为false，等待加入集群后再设置为true
+		// s.clusterEventServer.SetIsPrepared(false) // 先将节点集群准备状态设置为false，等待加入集群后再设置为true
 		s.stopper.RunWorker(s.joinLoop)
 	}
 
@@ -237,12 +241,6 @@ func (s *Server) ProposeChannelClusterConfig(ctx context.Context, cfg wkdb.Chann
 	return s.opts.ChannelClusterStorage.Propose(ctx, cfg)
 }
 
-// 提案分布式配置
-func (s *Server) ProposeConfig(ctx context.Context, cfg *pb.Config) error {
-
-	return s.clusterEventServer.ProposeConfig(ctx, cfg)
-}
-
 // 获取分布式配置
 func (s *Server) GetConfig() *pb.Config {
 	return s.clusterEventServer.Config()
@@ -251,37 +249,7 @@ func (s *Server) GetConfig() *pb.Config {
 // 迁移槽
 func (s *Server) MigrateSlot(slotId uint32, fromNodeId, toNodeId uint64) error {
 
-	s.Info("MigrateSlot", zap.Uint32("slotId", slotId), zap.Uint64("fromNodeId", fromNodeId), zap.Uint64("toNodeId", toNodeId))
-	cfg := s.clusterEventServer.Config().Clone()
-
-	var existSlot *pb.Slot
-	for _, slot := range cfg.Slots {
-		if slot.Id == slotId {
-			existSlot = slot.Clone()
-			break
-		}
-	}
-
-	if existSlot == nil {
-		s.Error("MigrateSlot failed, slot not exist", zap.Uint32("slotId", slotId))
-		return fmt.Errorf("slot not exist")
-	}
-
-	existSlot.MigrateFrom = fromNodeId
-	existSlot.MigrateTo = toNodeId
-	existSlot.Learners = append(existSlot.Learners, &pb.Learner{LearnerId: toNodeId})
-
-	for i, slot := range cfg.Slots {
-		if slot.Id == slotId {
-			cfg.Slots[i] = existSlot
-			break
-		}
-	}
-	cfg.Version++
-	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
-	defer cancel()
-
-	return s.ProposeConfig(timeoutCtx, cfg)
+	return s.clusterEventServer.ProposeMigrateSlot(slotId, fromNodeId, toNodeId)
 }
 
 func (s *Server) AddSlotMessage(m reactor.Message) {
@@ -359,16 +327,16 @@ func (s *Server) newSlot(st *pb.Slot) *slot {
 func (s *Server) addSlot(slot *pb.Slot) {
 	st := s.newSlot(slot)
 	s.slotManager.add(st)
-	st.update(slot)
+	st.switchConfig(slot)
 }
 
 func (s *Server) addOrUpdateSlot(st *pb.Slot) {
-	handler := s.slotManager.get(st.Id)
-	if handler == nil {
+	slot := s.slotManager.get(st.Id)
+	if slot == nil {
 		s.addSlot(st)
 		return
 	}
-	handler.(*slot).update(st)
+	slot.switchConfig(st)
 
 }
 
@@ -394,7 +362,7 @@ func (s *Server) send(shardType ShardType, m reactor.Message) {
 
 	node := s.nodeManager.node(m.To)
 	if node == nil {
-		s.Warn("send failed, node not exist", zap.Uint64("to", m.To))
+		s.Warn("send failed, node not exist", zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
 		return
 	}
 	data, err := m.Marshal()
@@ -550,7 +518,6 @@ func (s *Server) joinLoop() {
 					s.addOrUpdateNode(n.NodeId, n.ServerAddr)
 				}
 			}
-			s.clusterEventServer.SetIsPrepared(true)
 			return
 		case <-s.stopper.ShouldStop():
 			return
@@ -658,4 +625,17 @@ func (s *Server) updateChannelClusterConfig(cfg wkdb.ChannelClusterConfig) {
 	// 	s.Error("handleChannelConfigUpdate: Save failed", zap.Error(err))
 	// 	return
 	// }
+}
+
+func (s *Server) addOrUpdateNode(id uint64, addr string) {
+	if !s.nodeManager.exist(id) && strings.TrimSpace(addr) != "" {
+		s.nodeManager.addNode(s.newNodeByNodeInfo(id, addr))
+		return
+	}
+	n := s.nodeManager.node(id)
+	if n != nil && n.addr != addr {
+		s.nodeManager.removeNode(n.id)
+		n.stop()
+		s.nodeManager.addNode(s.newNodeByNodeInfo(id, addr))
+	}
 }

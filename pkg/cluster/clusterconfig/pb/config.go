@@ -1,6 +1,7 @@
 package pb
 
 import (
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -15,12 +16,28 @@ func (c *Config) Clone() *Config {
 	return proto.Clone(c).(*Config)
 }
 
+func (n *Node) Marshal() ([]byte, error) {
+	return proto.Marshal(n)
+}
+
+func (n *Node) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, n)
+}
+
 func (n *Node) Clone() *Node {
 	return proto.Clone(n).(*Node)
 }
 
 func (s *Slot) Clone() *Slot {
 	return proto.Clone(s).(*Slot)
+}
+
+func (s *Slot) Marshal() ([]byte, error) {
+	return proto.Marshal(s)
+}
+
+func (s *Slot) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, s)
 }
 
 // func (s *SlotMigrate) Equal(v *SlotMigrate) bool {
@@ -61,10 +78,6 @@ func (s *Slot) Equal(v *Slot) bool {
 	}
 
 	if s.Leader != v.Leader {
-		return false
-	}
-
-	if s.LeaderTransferTo != v.LeaderTransferTo {
 		return false
 	}
 
@@ -129,4 +142,36 @@ func (n *Node) Equal(v *Node) bool {
 		return false
 	}
 	return true
+}
+
+type SlotSet []*Slot
+
+func (s SlotSet) Marshal() ([]byte, error) {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	for _, slot := range s {
+		slotData, err := slot.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		encoder.WriteBinary(slotData)
+	}
+
+	return encoder.Bytes(), nil
+}
+
+func (s *SlotSet) Unmarshal(data []byte) error {
+	decoder := wkproto.NewDecoder(data)
+	for decoder.Len() > 0 {
+		slotData, err := decoder.Binary()
+		if err != nil {
+			return err
+		}
+		slot := &Slot{}
+		if err := slot.Unmarshal(slotData); err != nil {
+			return err
+		}
+		*s = append(*s, slot)
+	}
+	return nil
 }

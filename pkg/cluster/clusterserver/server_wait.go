@@ -12,8 +12,8 @@ func (s *Server) MustWaitAllSlotsReady() {
 	for {
 		select {
 		case <-tk.C:
-			if s.slotManager.slotLen() > 0 {
-				slots := s.GetConfig().Slots
+			slots := s.GetConfig().Slots
+			if len(slots) > 0 {
 				notReady := false
 				for _, st := range slots {
 					if st.Leader == 0 {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
 )
@@ -127,8 +128,6 @@ func TestClusterSlotMigrate(t *testing.T) {
 	}
 	assert.NotNil(t, migrateSlot)
 
-	fmt.Println("migrateSlot---->", migrateSlot.Id)
-
 	// 迁移slot
 	err = leaderServer.MigrateSlot(migrateSlot.Id, s1.opts.Cluster.NodeId, s2.opts.Cluster.NodeId)
 	assert.Nil(t, err)
@@ -147,6 +146,65 @@ func TestClusterSlotMigrate(t *testing.T) {
 						return
 					}
 				}
+			}
+
+		case <-timeoutCtx.Done():
+			assert.Nil(t, timeoutCtx.Err())
+			return
+		}
+	}
+
+}
+
+func TestClusterNodeJoin(t *testing.T) {
+	s1, s2 := NewTestClusterServerTwoNode(t)
+	err := s1.Start()
+	assert.Nil(t, err)
+
+	err = s2.Start()
+	assert.Nil(t, err)
+
+	defer s1.StopNoErr()
+	defer s2.StopNoErr()
+
+	MustWaitClusterReady(s1, s2)
+
+	leaderServer := GetLeaderServer(s1, s2)
+	assert.NotNil(t, leaderServer)
+
+	cfg := s1.GetClusterConfig()
+	assert.Equal(t, 2, len(cfg.Nodes))
+
+	// new server
+	s3 := NewTestServer(t, WithDemoOn(false), WithClusterSeed("1001@127.0.0.1:11110"), WithClusterServerAddr("0.0.0.0:11115"), WithWSAddr("ws://0.0.0.0:5250"), WithMonitorAddr("0.0.0.0:5350"), WithAddr("tcp://0.0.0.0:5150"), WithHTTPAddr("0.0.0.0:5005"), WithClusterAddr("tcp://0.0.0.0:11115"), WithClusterNodeId(1005))
+	err = s3.Start()
+	assert.Nil(t, err)
+	defer s3.StopNoErr()
+
+	tk := time.NewTicker(time.Millisecond * 10)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	for {
+		select {
+		case <-tk.C:
+			cfg = s3.GetClusterConfig()
+			existLearner := false
+			existReplica := false
+			for _, slot := range cfg.Slots {
+				if wkutil.ArrayContainsUint64(slot.Learners, s3.opts.Cluster.NodeId) {
+					existLearner = true
+					break
+				}
+				if wkutil.ArrayContainsUint64(slot.Replicas, s3.opts.Cluster.NodeId) {
+					existReplica = true
+					break
+				}
+			}
+			if !existLearner && existReplica {
+				cfg = s1.GetClusterConfig()
+				fmt.Println("cfg--------->", cfg)
+				time.Sleep(time.Second * 1)
+				return
 			}
 
 		case <-timeoutCtx.Done():

@@ -947,9 +947,6 @@ func NewSlotResp(st *pb.Slot, channelCount int) *SlotResp {
 		statusFormat = "领导者转移中"
 
 	}
-	if st.LeaderTransferTo != 0 {
-		statusFormat = fmt.Sprintf("领导者转移中(%d)", st.LeaderTransferTo)
-	}
 	return &SlotResp{
 		Id:           st.Id,
 		LeaderId:     st.Leader,

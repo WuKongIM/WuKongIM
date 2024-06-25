@@ -2,6 +2,7 @@ package server
 
 import (
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -18,6 +19,9 @@ func NewTestServer(t *testing.T, opt ...Option) *Server {
 		WithClusterSlotCount(5),
 		WithClusterSlotReplicaCount(1),
 		WithClusterChannelReplicaCount(1),
+		WithClusterElectionIntervalTick(10),
+		WithClusterHeartbeatIntervalTick(1),
+		WithClusterTickInterval(time.Millisecond*10),
 	)
 	optList = append(optList, opt...)
 

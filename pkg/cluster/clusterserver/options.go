@@ -80,6 +80,10 @@ type Options struct {
 	DB wkdb.DB
 
 	PageSize int
+
+	TickInterval          time.Duration // 分布式tick间隔
+	HeartbeatIntervalTick int           // 心跳间隔tick
+	ElectionIntervalTick  int           // 选举间隔tick
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -103,6 +107,10 @@ func NewOptions(opt ...Option) *Options {
 		LeaderTransferMinLogGap:    20,
 		LearnerMinLogGap:           100,
 		PageSize:                   20,
+
+		TickInterval:          150 * time.Millisecond,
+		HeartbeatIntervalTick: 1,
+		ElectionIntervalTick:  10,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -304,5 +312,23 @@ func WithPageSize(pageSize int) Option {
 
 	return func(o *Options) {
 		o.PageSize = pageSize
+	}
+}
+
+func WithHeartbeatIntervalTick(interval int) Option {
+	return func(o *Options) {
+		o.HeartbeatIntervalTick = interval
+	}
+}
+
+func WithElectionIntervalTick(interval int) Option {
+	return func(o *Options) {
+		o.ElectionIntervalTick = interval
+	}
+}
+
+func WithTickInterval(interval time.Duration) Option {
+	return func(o *Options) {
+		o.TickInterval = interval
 	}
 }

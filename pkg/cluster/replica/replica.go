@@ -11,6 +11,7 @@ import (
 type Replica struct {
 	msgs   []Message
 	nodeId uint64
+	no     string // 唯一编号
 	wklog.Log
 	stepFunc   func(m Message) error
 	cfg        Config      // 当前副本配置
@@ -60,6 +61,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 		opts:            opts,
 		nodeId:          nodeId,
 		lastSyncInfoMap: make(map[uint64]*SyncInfo),
+		no:              wkutil.GenUUID(),
 	}
 	rc.syncIntervalTick = opts.SyncIntervalTick
 	rc.term = opts.LastTerm
@@ -210,6 +212,13 @@ func (r *Replica) Term() uint32 {
 }
 
 func (r *Replica) switchConfig(cfg Config) {
+
+	if r.cfg.Version > cfg.Version {
+		return
+	}
+
+	r.Info("switch config", zap.String("cfg", cfg.String()))
+
 	r.cfg = cfg
 	term := r.term
 	if term == 0 {
@@ -220,7 +229,7 @@ func (r *Replica) switchConfig(cfg Config) {
 	}
 
 	if wkutil.ArrayContainsUint64(cfg.Learners, r.nodeId) { // 节点是学习者
-		if r.role != RoleLearner || term > r.term {
+		if r.role != RoleLearner || term > r.term || (cfg.Leader != 0 && r.leader != cfg.Leader) {
 			r.becomeLearner(term, cfg.Leader)
 		}
 	} else {
@@ -230,7 +239,7 @@ func (r *Replica) switchConfig(cfg Config) {
 				r.becomeLeader(term)
 			}
 		case RoleFollower:
-			if r.role != RoleFollower || term > r.term {
+			if r.role != RoleFollower || term > r.term || (cfg.Leader != 0 && r.leader != cfg.Leader) {
 				r.becomeFollower(term, cfg.Leader)
 			}
 
@@ -238,33 +247,18 @@ func (r *Replica) switchConfig(cfg Config) {
 			if r.role != RoleCandidate || term > r.term {
 				r.becomeCandidateWithTerm(term)
 			}
-		}
-	}
-
-	r.lastSyncInfoMap = make(map[uint64]*SyncInfo)
-	r.replicas = nil
-
-	for _, replica := range cfg.Replicas {
-		if replica == r.nodeId {
-			continue
-		}
-		r.replicas = append(r.replicas, replica)
-	}
-
-	if r.isLeader() {
-		for _, replica := range r.replicas {
-			r.lastSyncInfoMap[replica] = &SyncInfo{
-				LastSyncIndex: 0,
-				SyncTick:      0,
-			}
-		}
-		for _, learner := range cfg.Learners {
-			r.lastSyncInfoMap[learner] = &SyncInfo{
-				LastSyncIndex: 0,
-				SyncTick:      0,
+		case RoleUnknown:
+			if r.role == RoleLearner {
+				leader := cfg.Leader
+				if leader == 0 {
+					leader = r.leader
+				}
+				r.becomeFollower(term, leader)
 			}
 		}
 	}
+
+	r.initLeaderInfo()
 
 	if r.opts.ElectionOn {
 		if r.isSingleNode() { // 如果是单节点，直接成为领导
@@ -280,6 +274,40 @@ func (r *Replica) switchConfig(cfg Config) {
 	// r.send(r.newMsgConfigChange(cfg))
 }
 
+func (r *Replica) initLeaderInfo() {
+
+	r.lastSyncInfoMap = make(map[uint64]*SyncInfo)
+	r.replicas = nil
+
+	for _, replica := range r.cfg.Replicas {
+		if replica == r.nodeId {
+			continue
+		}
+		r.replicas = append(r.replicas, replica)
+	}
+
+	if r.isLeader() {
+		for _, replica := range r.replicas {
+			if replica == r.nodeId {
+				continue
+			}
+			r.lastSyncInfoMap[replica] = &SyncInfo{
+				LastSyncIndex: 0,
+				SyncTick:      0,
+			}
+		}
+		for _, learner := range r.cfg.Learners {
+			if learner == r.nodeId {
+				continue
+			}
+			r.lastSyncInfoMap[learner] = &SyncInfo{
+				LastSyncIndex: 0,
+				SyncTick:      0,
+			}
+		}
+	}
+}
+
 func (r *Replica) becomeLeader(term uint32) {
 
 	r.stepFunc = r.stepLeader
@@ -288,6 +316,8 @@ func (r *Replica) becomeLeader(term uint32) {
 	r.term = term
 	r.leader = r.nodeId
 	r.role = RoleLeader
+
+	r.initLeaderInfo()
 
 	r.Info("become leader", zap.Uint32("term", r.term))
 
@@ -305,7 +335,7 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
-		r.Info("log conflict check", zap.Uint64("leader", r.leader))
+		r.Info("log conflict check", zap.Uint64("leader", r.leader), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex))
 		r.status = StatusLogCoflictCheck
 	}
 
@@ -421,7 +451,7 @@ func (r *Replica) tickHeartbeat() {
 			r.electionElapsed = 0
 		}
 
-		if r.heartbeatElapsed >= r.opts.HeartbeatIntervalick {
+		if r.heartbeatElapsed >= r.opts.HeartbeatIntervalTick {
 			r.heartbeatElapsed = 0
 			if err := r.Step(Message{From: r.opts.NodeId, To: All, MsgType: MsgBeat}); err != nil {
 				r.Debug("error occurred during checking sending heartbeat", zap.Error(err))
@@ -585,6 +615,7 @@ func (r *Replica) newSyncTimeoutMsg() Message {
 		MsgType: MsgSyncTimeout,
 		From:    r.nodeId,
 		To:      r.nodeId,
+		Index:   r.replicaLog.lastLogIndex + 1,
 	}
 }
 
@@ -598,13 +629,14 @@ func (r *Replica) newMsgSyncGet(from uint64, index uint64, unstableLogs []Log) M
 	}
 }
 
-func (r *Replica) newMsgSyncResp(to uint64, logs []Log) Message {
+func (r *Replica) newMsgSyncResp(to uint64, index uint64, logs []Log) Message {
 	return Message{
 		MsgType:        MsgSyncResp,
 		From:           r.nodeId,
 		To:             to,
 		Term:           r.term,
 		Logs:           logs,
+		Index:          index,
 		CommittedIndex: r.replicaLog.committedIndex,
 		SpeedLevel:     r.speedLevel,
 	}
@@ -631,13 +663,23 @@ func (r *Replica) newMsgConfigReq(to uint64) Message {
 }
 
 func (r *Replica) newMsgConfigResp(to uint64) Message {
+
+	confgData, err := r.cfg.Marshal()
+	if err != nil {
+		r.Panic("config marshal error", zap.Error(err))
+	}
 	return Message{
 		MsgType:     MsgConfigResp,
 		Term:        r.term,
 		From:        r.nodeId,
 		To:          to,
 		ConfVersion: r.cfg.Version,
-		Config:      r.cfg,
+		Logs: []Log{
+			{
+				Index: r.replicaLog.lastLogIndex,
+				Data:  confgData,
+			},
+		},
 	}
 }
 

@@ -11,7 +11,7 @@ demo:
 conversation:
   on: true    
 cluster:
-  nodeId: 5
+  nodeId: 1005
   addr: "tcp://127.0.0.1:10005" # 分布式监听地址
   serverAddr: "127.0.0.1:10005" # 节点通讯地址
-  seed: "1@127.0.0.1:10001"  # 其他任意集群内的节点
+  seed: "1001@127.0.0.1:10001"  # 其他任意集群内的节点

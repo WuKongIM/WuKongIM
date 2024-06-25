@@ -3,6 +3,7 @@ package clusterevent
 import (
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 )
@@ -10,12 +11,13 @@ import (
 type Options struct {
 	NodeId                 uint64
 	InitNodes              map[uint64]string
+	Seed                   string // 种子节点
 	SlotCount              uint32 // 槽位数量
 	SlotMaxReplicaCount    uint32 // 每个槽位最大副本数量
 	ChannelMaxReplicaCount uint32 // 每个频道最大副本数量
 	ConfigDir              string
 	ApiServerAddr          string // api服务地址
-	Ready                  func(msgs []Message)
+	OnClusterConfigChange  func(cfg *pb.Config)
 	Send                   func(m reactor.Message) // 发送消息
 	// PongMaxTick 节点超过多少tick没有回应心跳就认为是掉线
 	PongMaxTick int
@@ -23,6 +25,11 @@ type Options struct {
 	LearnerCheckInterval time.Duration
 
 	Cluster icluster.Cluster // 分布式接口
+
+	TickInterval          time.Duration // 分布式tick间隔
+	HeartbeatIntervalTick int           // 心跳间隔tick
+	ElectionIntervalTick  int           // 选举间隔tick
+
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -72,10 +79,10 @@ func WithChannelMaxReplicaCount(channelMaxReplicaCount uint32) Option {
 
 }
 
-func WithReady(f func(msgs []Message)) Option {
+func WithOnClusterConfigChange(f func(cfg *pb.Config)) Option {
 
 	return func(o *Options) {
-		o.Ready = f
+		o.OnClusterConfigChange = f
 	}
 }
 
@@ -100,5 +107,41 @@ func WithApiServerAddr(apiServerAddr string) Option {
 func WithCluster(cluster icluster.Cluster) Option {
 	return func(o *Options) {
 		o.Cluster = cluster
+	}
+}
+
+func WithPongMaxTick(pongMaxTick int) Option {
+	return func(o *Options) {
+		o.PongMaxTick = pongMaxTick
+	}
+}
+
+func WithLearnerCheckInterval(learnerCheckInterval time.Duration) Option {
+	return func(o *Options) {
+		o.LearnerCheckInterval = learnerCheckInterval
+	}
+}
+
+func WithHeartbeatIntervalTick(heartbeatIntervalTick int) Option {
+	return func(o *Options) {
+		o.HeartbeatIntervalTick = heartbeatIntervalTick
+	}
+}
+
+func WithElectionIntervalTick(electionIntervalTick int) Option {
+	return func(o *Options) {
+		o.ElectionIntervalTick = electionIntervalTick
+	}
+}
+
+func WithTickInterval(tickInterval time.Duration) Option {
+	return func(o *Options) {
+		o.TickInterval = tickInterval
+	}
+}
+
+func WithSeed(seed string) Option {
+	return func(o *Options) {
+		o.Seed = seed
 	}
 }

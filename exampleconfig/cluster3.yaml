@@ -14,7 +14,7 @@ cluster:
   nodeId: 1003
   addr: "tcp://127.0.0.1:10003" # 分布式监听地址
   slotCount: 128
-  slotReplicaCount: 1
+  slotReplicaCount: 3
   channelReplicaCount: 2
   nodes: 
     - "1001@127.0.0.1:10001"
