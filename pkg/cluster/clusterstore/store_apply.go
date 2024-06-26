@@ -72,8 +72,8 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		return s.handleDeleteConversations(cmd)
 	case CMDChannelClusterConfigSave: // 保存频道分布式配置
 		return s.handleChannelClusterConfigSave(cmd)
-	case CMDAppendMessagesOfUser: // 向用户队列里增加消息
-		return s.handleAppendMessagesOfUser(cmd)
+	// case CMDAppendMessagesOfUser: // 向用户队列里增加消息
+	// 	return s.handleAppendMessagesOfUser(cmd)
 	case CMDBatchUpdateConversation:
 		return s.handleBatchUpdateConversation(cmd)
 		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置

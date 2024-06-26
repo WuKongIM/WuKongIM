@@ -2,9 +2,9 @@ package clusterstore
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -112,30 +112,32 @@ func (s *Store) GetMessageOfUserCursor(uid string) (uint64, error) {
 }
 
 func (s *Store) AppendMessagesOfUser(subscriber string, messages []wkdb.Message) ([]icluster.ProposeResult, error) {
-	if len(messages) == 0 {
-		return nil, nil
-	}
+	// if len(messages) == 0 {
+	// 	return nil, nil
+	// }
 
-	logs := make([]replica.Log, 0, len(messages))
-	for _, message := range messages {
-		data, err := EncodeCMDAppendMessagesOfUser(subscriber, []wkdb.Message{message})
-		if err != nil {
-			return nil, err
-		}
-		cmd := NewCMD(CMDAppendMessagesOfUser, data)
-		cmdData, err := cmd.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		logs = append(logs, replica.Log{
-			Id:   uint64(message.MessageID),
-			Data: cmdData,
-		})
+	// logs := make([]replica.Log, 0, len(messages))
+	// for _, message := range messages {
+	// 	data, err := EncodeCMDAppendMessagesOfUser(subscriber, []wkdb.Message{message})
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	cmd := NewCMD(CMDAppendMessagesOfUser, data)
+	// 	cmdData, err := cmd.Marshal()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	logs = append(logs, replica.Log{
+	// 		Id:   uint64(message.MessageID),
+	// 		Data: cmdData,
+	// 	})
 
-	}
+	// }
 
-	slotId := s.getChannelSlotId(subscriber)
-	return s.opts.Cluster.ProposeToSlot(s.ctx, slotId, logs)
+	// slotId := s.getChannelSlotId(subscriber)
+	// return s.opts.Cluster.ProposeToSlot(s.ctx, slotId, logs)
+
+	return nil, nil
 }
 
 func (s *Store) SyncMessageOfUser(uid string, messageSeq uint64, limit uint32) ([]wkdb.Message, error) {
@@ -173,7 +175,7 @@ func (m *MessageShardLogStorage) Close() error {
 }
 
 func (m *MessageShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) error {
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+	channelId, channelType := ChannelFromlKey(shardNo)
 	msgs := make([]wkdb.Message, len(logs))
 	for idx, log := range logs {
 		msg := wkdb.Message{}
@@ -191,7 +193,9 @@ func (m *MessageShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) 
 func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
 	dbReqs := make([]wkdb.AppendMessagesReq, 0, len(reqs))
 	for _, req := range reqs {
-		channelId, channelType := cluster.ChannelFromlKey(req.HandleKey)
+		channelId, channelType := ChannelFromlKey(req.HandleKey)
+
+		fmt.Println("req.HandleKey------>", req.HandleKey, channelId, channelType)
 		msgs := make([]wkdb.Message, len(req.Logs))
 		for idx, log := range req.Logs {
 			msg := wkdb.Message{}
@@ -218,7 +222,7 @@ func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) err
 // 获取日志
 func (m *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 
-	channelID, channelType := cluster.ChannelFromlKey(shardNo)
+	channelID, channelType := ChannelFromlKey(shardNo)
 	var (
 		messages []wkdb.Message
 		err      error
@@ -258,13 +262,13 @@ func (m *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex
 }
 
 func (m *MessageShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+	channelId, channelType := ChannelFromlKey(shardNo)
 	return m.db.TruncateLogTo(channelId, channelType, index)
 }
 
 // 最后一条日志的索引
 func (m *MessageShardLogStorage) LastIndex(shardNo string) (uint64, error) {
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+	channelId, channelType := ChannelFromlKey(shardNo)
 
 	lastMsgSeq, _, err := m.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
@@ -282,7 +286,7 @@ func (m *MessageShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint3
 	if lastIndex == 0 {
 		return 0, 0, nil
 	}
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+	channelId, channelType := ChannelFromlKey(shardNo)
 
 	queryIndex := lastIndex
 	var lastMsg wkdb.Message
@@ -316,12 +320,12 @@ func (m *MessageShardLogStorage) FirstIndex(shardNo string) (uint64, error) {
 
 // 设置成功被状态机应用的日志索引
 func (m *MessageShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+	channelId, channelType := ChannelFromlKey(shardNo)
 	return m.db.UpdateChannelAppliedIndex(channelId, channelType, index)
 }
 
 func (m *MessageShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+	channelId, channelType := ChannelFromlKey(shardNo)
 	return m.db.GetChannelAppliedIndex(channelId, channelType)
 }
 
@@ -346,7 +350,7 @@ func (m *MessageShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shard
 }
 
 func (m *MessageShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
-	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+	channelId, channelType := ChannelFromlKey(shardNo)
 	lastMsgSeq, appendTime, err := m.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return 0, 0, err

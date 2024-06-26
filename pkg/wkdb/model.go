@@ -71,50 +71,50 @@ func (m *Message) Marshal() ([]byte, error) {
 var EmptyDevice = Device{}
 
 type Device struct {
-	Id           uint64
-	Uid          string    // 用户唯一uid
-	Token        string    // 设备token
-	DeviceFlag   uint64    // 设备标记 (TODO: 这里deviceFlag弄成uint64是为了以后扩展)
-	DeviceLevel  uint8     // 设备等级
-	ConnCount    uint32    // 连接数量
-	SendMsgCount uint64    // 发送消息数量
-	RecvMsgCount uint64    // 接收消息数量
-	SendMsgBytes uint64    // 发送消息字节数
-	RecvMsgBytes uint64    // 接收消息字节数
-	CreatedAt    time.Time // 创建时间
-	UpdatedAt    time.Time // 更新时间
+	Id           uint64    `json:"id,omitempty"`
+	Uid          string    `json:"uid,omitempty"`            // 用户唯一uid
+	Token        string    `json:"token,omitempty"`          // 设备token
+	DeviceFlag   uint64    `json:"device_flag,omitempty"`    // 设备标记 (TODO: 这里deviceFlag弄成uint64是为了以后扩展)
+	DeviceLevel  uint8     `json:"device_level,omitempty"`   // 设备等级
+	ConnCount    uint32    `json:"conn_count,omitempty"`     // 连接数量
+	SendMsgCount uint64    `json:"send_msg_count,omitempty"` // 发送消息数量
+	RecvMsgCount uint64    `json:"recv_msg_count,omitempty"` // 接收消息数量
+	SendMsgBytes uint64    `json:"send_msg_bytes,omitempty"` // 发送消息字节数
+	RecvMsgBytes uint64    `json:"recv_msg_bytes,omitempty"` // 接收消息字节数
+	CreatedAt    time.Time `json:"created_at,omitempty"`     // 创建时间
+	UpdatedAt    time.Time `json:"updated_at,omitempty"`     // 更新时间
 }
 
 var EmptyUser = User{}
 
 type User struct {
-	Id                uint64
-	Uid               string    // 用户uid
-	DeviceCount       uint32    // 设备数量
-	OnlineDeviceCount uint32    // 在线设备数量
-	ConnCount         uint32    // 连接数量
-	SendMsgCount      uint64    // 发送消息数量
-	RecvMsgCount      uint64    // 接收消息数量
-	SendMsgBytes      uint64    // 发送消息字节数
-	RecvMsgBytes      uint64    // 接收消息字节数
-	CreatedAt         time.Time // 创建时间
-	UpdatedAt         time.Time // 更新时间
+	Id                uint64    `json:"id,omitempty"`
+	Uid               string    `json:"uid,omitempty"`                 // 用户uid
+	DeviceCount       uint32    `json:"device_count,omitempty"`        // 设备数量
+	OnlineDeviceCount uint32    `json:"online_device_count,omitempty"` // 在线设备数量
+	ConnCount         uint32    `json:"conn_count,omitempty"`          // 连接数量
+	SendMsgCount      uint64    `json:"send_msg_count,omitempty"`      // 发送消息数量
+	RecvMsgCount      uint64    `json:"recv_msg_count,omitempty"`      // 接收消息数量
+	SendMsgBytes      uint64    `json:"send_msg_bytes,omitempty"`      // 发送消息字节数
+	RecvMsgBytes      uint64    `json:"recv_msg_bytes,omitempty"`      // 接收消息字节数
+	CreatedAt         time.Time `json:"created_at,omitempty"`          // 创建时间
+	UpdatedAt         time.Time `json:"updated_at,omitempty"`          // 更新时间
 }
 
 var EmptyChannelInfo = ChannelInfo{}
 
 type ChannelInfo struct {
-	Id              uint64 // ID
-	ChannelId       string // 频道ID
-	ChannelType     uint8  // 频道类型
-	Ban             bool   // 是否被封
-	Large           bool   // 是否是超大群
-	Disband         bool   // 是否解散
-	SubscriberCount int    // 订阅者数量
-	DenylistCount   int    // 黑名单数量
-	AllowlistCount  int    // 白名单数量
-	LastMsgSeq      uint64 // 最新消息序号
-	LastMsgTime     uint64 // 最后一次消息时间
+	Id              uint64 `json:"id,omitempty"`               // ID
+	ChannelId       string `json:"channel_id,omitempty"`       // 频道ID
+	ChannelType     uint8  `json:"channel_type,omitempty"`     // 频道类型
+	Ban             bool   `json:"ban,omitempty"`              // 是否被封
+	Large           bool   `json:"large,omitempty"`            // 是否是超大群
+	Disband         bool   `json:"disband,omitempty"`          // 是否解散
+	SubscriberCount int    `json:"subscriber_count,omitempty"` // 订阅者数量
+	DenylistCount   int    `json:"denylist_count,omitempty"`   // 黑名单数量
+	AllowlistCount  int    `json:"allowlist_count,omitempty"`  // 白名单数量
+	LastMsgSeq      uint64 `json:"last_msg_seq,omitempty"`     // 最新消息序号
+	LastMsgTime     uint64 `json:"last_msg_time,omitempty"`    // 最后一次消息时间
 }
 
 func NewChannelInfo(channelId string, channelType uint8) ChannelInfo {
@@ -263,16 +263,16 @@ const (
 
 // Conversation Conversation
 type Conversation struct {
-	Id             uint64
-	Uid            string           // 用户uid
-	Type           ConversationType // 会话类型
-	ChannelId      string           // 频道id
-	ChannelType    uint8            // 频道类型
-	UnreadCount    uint32           // 未读消息数量（这个可以用户自己设置）
-	ReadedToMsgSeq uint64           // 已经读至的消息序号
+	Id             uint64           `json:"id,omitempty"`
+	Uid            string           `json:"uid,omitempty"`               // 用户uid
+	Type           ConversationType `json:"type,omitempty"`              // 会话类型
+	ChannelId      string           `json:"channel_id,omitempty"`        // 频道id
+	ChannelType    uint8            `json:"channel_type,omitempty"`      // 频道类型
+	UnreadCount    uint32           `json:"unread_count,omitempty"`      // 未读消息数量（这个可以用户自己设置）
+	ReadedToMsgSeq uint64           `json:"readed_to_msg_seq,omitempty"` // 已经读至的消息序号
 
-	CreatedAt time.Time // 创建时间
-	UpdatedAt time.Time // 更新时间
+	CreatedAt time.Time `json:"created_at,omitempty"` // 创建时间
+	UpdatedAt time.Time `json:"updated_at,omitempty"` // 更新时间
 }
 
 func (c *Conversation) Marshal() ([]byte, error) {
@@ -378,18 +378,18 @@ const (
 
 // 频道分布式配置
 type ChannelClusterConfig struct {
-	Id              uint64               // ID
-	ChannelId       string               // 频道ID
-	ChannelType     uint8                // 频道类型
-	ReplicaMaxCount uint16               // 副本最大数量
-	Replicas        []uint64             // 副本节点ID集合
-	Learners        []uint64             // 学习者节点ID集合
-	LeaderId        uint64               // 领导者ID
-	Term            uint32               // 任期
-	MigrateFrom     uint64               // 迁移源
-	MigrateTo       uint64               // 迁移目标
-	Status          ChannelClusterStatus // 状态
-	ConfVersion     uint64               // 配置文件版本号
+	Id              uint64               `json:"id,omitempty"`                // ID
+	ChannelId       string               `json:"channel_id,omitempty"`        // 频道ID
+	ChannelType     uint8                `json:"channel_type,omitempty"`      // 频道类型
+	ReplicaMaxCount uint16               `json:"replica_max_count,omitempty"` // 副本最大数量
+	Replicas        []uint64             `json:"replicas,omitempty"`          // 副本节点ID集合
+	Learners        []uint64             `json:"learners,omitempty"`          // 学习者节点ID集合
+	LeaderId        uint64               `json:"learder_id,omitempty"`        // 领导者ID
+	Term            uint32               `json:"term,omitempty"`              // 任期
+	MigrateFrom     uint64               `json:"migrate_from,omitempty"`      // 迁移源
+	MigrateTo       uint64               `json:"migrate_to,omitempty"`        // 迁移目标
+	Status          ChannelClusterStatus `json:"status,omitempty"`            // 状态
+	ConfVersion     uint64               `json:"conf_version,omitempty"`      // 配置文件版本号
 
 	version uint16 // 数据协议版本
 }
@@ -517,9 +517,9 @@ func (c *ChannelClusterConfig) String() string {
 
 // 批量更新会话
 type BatchUpdateConversationModel struct {
-	Uids        map[string]uint64 // 用户uid和对应的已读消息的messageSeq
-	ChannelId   string
-	ChannelType uint8
+	Uids        map[string]uint64 `json:"uids,omitempty"` // 用户uid和对应的已读消息的messageSeq
+	ChannelId   string            `json:"channel_id,omitempty"`
+	ChannelType uint8             `json:"channel_type,omitempty"`
 }
 
 func (u *BatchUpdateConversationModel) Marshal() ([]byte, error) {
@@ -572,15 +572,15 @@ func (u *BatchUpdateConversationModel) Size() int {
 }
 
 type SetChannelLastMessageSeqReq struct {
-	ChannelId   string
-	ChannelType uint8
-	Seq         uint64
+	ChannelId   string `json:"channel_id,omitempty"`
+	ChannelType uint8  `json:"channel_type,omitempty"`
+	Seq         uint64 `json:"seq,omitempty"`
 }
 
 type AppendMessagesReq struct {
-	ChannelId   string
-	ChannelType uint8
-	Messages    []Message
+	ChannelId   string    `json:"channel_id,omitempty"`
+	ChannelType uint8     `json:"channel_type,omitempty"`
+	Messages    []Message `json:"messages,omitempty"`
 }
 
 func ChannelToKey(channelId string, channelType uint8) string {
@@ -603,6 +603,6 @@ func channelFromKey(key string) (channelId string, channelType uint8) {
 }
 
 type Channel struct {
-	ChannelId   string
-	ChannelType uint8
+	ChannelId   string `json:"channel_id,omitempty"`
+	ChannelType uint8  `json:"channel_type,omitempty"`
 }

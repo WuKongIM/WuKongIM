@@ -26,6 +26,9 @@ type Replica struct {
 
 	uncommittedSize logEncodingSize // 未提交的日志大小
 
+	isLearnerTo          bool // 是否学习者转换中
+	learnerToTimeoutTick int  // 学习者转换超时计时器
+
 	replicas []uint64 // 副本节点ID集合（不包含本节点）
 	// -------------------- 节点状态 --------------------
 	leader uint64 // 领导者id
@@ -441,6 +444,14 @@ func (r *Replica) tickHeartbeat() {
 	if !r.isLeader() {
 		r.Warn("not leader, but call tickHeartbeat")
 		return
+	}
+
+	if r.isLearnerTo {
+		r.learnerToTimeoutTick++
+
+		if r.learnerToTimeoutTick >= r.opts.LearnerToTimeoutTick {
+			r.isLearnerTo = false
+		}
 	}
 
 	if r.opts.ElectionOn { // 是否开启自动选举

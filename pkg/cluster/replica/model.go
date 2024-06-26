@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/big"
 	"sync"
+	"time"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -290,6 +291,9 @@ type Log struct {
 	Index uint64 // 日志下标
 	Term  uint32 // 领导任期
 	Data  []byte // 日志数据
+
+	// 不参与编码
+	Time time.Time // 日志时间
 }
 
 func (l *Log) Marshal() ([]byte, error) {
@@ -313,7 +317,7 @@ func (l *Log) Unmarshal(data []byte) error {
 }
 
 func (l *Log) LogSize() int {
-	return 8 + 8 + 4 + len(l.Data) // messageId + index + term  + data
+	return 8 + 8 + 4 + len(l.Data) // id + index + term  + data
 }
 
 var EmptyLog = Log{}

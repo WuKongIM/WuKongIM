@@ -331,6 +331,9 @@ func (wk *wukongDB) LoadLastMsgsWithEnd(channelID string, channelType uint8, end
 	if err != nil {
 		return nil, err
 	}
+	if lastSeq == 0 {
+		return nil, nil
+	}
 	return wk.LoadPrevRangeMsgs(channelID, channelType, lastSeq, endMessageSeq, limit)
 }
 
@@ -406,6 +409,7 @@ func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8
 	result, closer, err := db.Get(key.NewChannelLastMessageSeqKey(channelId, channelType))
 	if err != nil {
 		if err == pebble.ErrNotFound {
+			fmt.Println("GetChannelLastMessageSeq--not found---->", channelId, channelType)
 			return 0, 0, nil
 		}
 		return 0, 0, err
@@ -414,6 +418,8 @@ func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8
 
 	seq := wk.endian.Uint64(result)
 	setTime := wk.endian.Uint64(result[8:])
+
+	fmt.Println("GetChannelLastMessageSeq----->", channelId, channelType, seq, setTime)
 	return seq, setTime, nil
 }
 
@@ -622,6 +628,8 @@ func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8
 	wk.endian.PutUint64(data, seq)
 	setTime := time.Now().UnixNano()
 	wk.endian.PutUint64(data[8:], uint64(setTime))
+
+	fmt.Println("setChannelLastMessageSeq---->", channelId, channelType, seq)
 
 	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data, o)
 }

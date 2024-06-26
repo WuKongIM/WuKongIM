@@ -55,15 +55,25 @@ func (p *PebbleShardLogStorage) AppendLog(logs []replica.Log) error {
 	batch := p.db.NewBatch()
 	defer batch.Close()
 	for _, lg := range logs {
+
+		// 日志数据
 		logData, err := lg.Marshal()
 		if err != nil {
 			return err
 		}
+
+		timeData := make([]byte, 8)
+		binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
+
+		logData = append(logData, timeData...)
+
 		keyData := key.NewLogKey(lg.Index)
 		err = batch.Set(keyData, logData, p.noSync)
 		if err != nil {
 			return err
 		}
+
+		// 日志最大index
 		err = p.saveMaxIndexWithWriter(lg.Index, batch, p.noSync)
 		if err != nil {
 			return err
@@ -97,6 +107,7 @@ func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
 	if err != nil {
 		return err
 	}
+
 	return p.saveMaxIndex(index - 1)
 }
 
@@ -141,11 +152,20 @@ func (p *PebbleShardLogStorage) Logs(startLogIndex uint64, endLogIndex uint64, l
 
 	var size uint64
 	for iter.First(); iter.Valid(); iter.Next() {
+
+		// 这里需要复制一份出来，要不然log.Data会重用data切片，导致数据错误
+		data := make([]byte, len(iter.Value()))
+		copy(data, iter.Value())
+
+		timeData := data[len(data)-8:]
+		tm := binary.BigEndian.Uint64(timeData)
+
 		var log replica.Log
-		err := log.Unmarshal(iter.Value())
+		err := log.Unmarshal(data[:len(data)-8])
 		if err != nil {
 			return nil, err
 		}
+		log.Time = time.Unix(0, int64(tm))
 		logs = append(logs, log)
 		size += uint64(log.LogSize())
 		if limitSize != 0 && size >= limitSize {
@@ -155,6 +175,45 @@ func (p *PebbleShardLogStorage) Logs(startLogIndex uint64, endLogIndex uint64, l
 	return logs, nil
 }
 
+// GetLogsInReverseOrder retrieves a list of logs in reverse order within the specified range and limit.
+func (p *PebbleShardLogStorage) GetLogsInReverseOrder(startLogIndex uint64, endLogIndex uint64, limit int) ([]replica.Log, error) {
+	lowKey := key.NewLogKey(startLogIndex)
+	if endLogIndex == 0 {
+		endLogIndex = math.MaxUint64
+	}
+	highKey := key.NewLogKey(endLogIndex)
+	iter := p.db.NewIter(&pebble.IterOptions{
+		LowerBound: lowKey,
+		UpperBound: highKey,
+	})
+	defer iter.Close()
+	var logs []replica.Log
+
+	var size int
+	for iter.Last(); iter.Valid(); iter.Prev() {
+
+		data := make([]byte, len(iter.Value()))
+		copy(data, iter.Value())
+
+		timeData := data[len(data)-8:]
+		tm := binary.BigEndian.Uint64(timeData)
+
+		var log replica.Log
+		err := log.Unmarshal(data[:len(data)-8])
+		if err != nil {
+			return nil, err
+		}
+
+		log.Time = time.Unix(0, int64(tm))
+
+		logs = append(logs, log)
+		size++
+		if limit != 0 && size >= limit {
+			break
+		}
+	}
+	return logs, nil
+}
 func (p *PebbleShardLogStorage) FirstIndex() (uint64, error) {
 
 	return 0, nil
@@ -201,11 +260,17 @@ func (p *PebbleShardLogStorage) getLog(index uint64) (replica.Log, error) {
 		return replica.Log{}, err
 	}
 	defer closer.Close()
+
+	timeData := logData[len(logData)-8:]
+	tm := binary.BigEndian.Uint64(timeData)
+
 	var log replica.Log
-	err = log.Unmarshal(logData)
+	err = log.Unmarshal(logData[:len(logData)-8])
 	if err != nil {
-		return replica.Log{}, err
+		return replica.EmptyLog, err
 	}
+	log.Time = time.Unix(0, int64(tm))
+
 	return log, nil
 
 }

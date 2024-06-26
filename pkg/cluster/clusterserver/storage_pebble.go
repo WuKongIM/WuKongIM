@@ -94,6 +94,12 @@ func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) e
 		if err != nil {
 			return err
 		}
+
+		timeData := make([]byte, 8)
+		binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
+
+		logData = append(logData, timeData...)
+
 		keyData := key.NewLogKey(shardNo, lg.Index)
 		err = batch.Set(keyData, logData, p.noSync)
 		if err != nil {
@@ -131,6 +137,12 @@ func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) erro
 			if err != nil {
 				return err
 			}
+
+			timeData := make([]byte, 8)
+			binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
+
+			logData = append(logData, timeData...)
+
 			keyData := key.NewLogKey(req.HandleKey, lg.Index)
 			err = batch.Set(keyData, logData, p.noSync)
 			if err != nil {
@@ -214,14 +226,75 @@ func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLo
 
 	var size uint64
 	for iter.First(); iter.Valid(); iter.Next() {
+
+		data := make([]byte, len(iter.Value()))
+		copy(data, iter.Value())
+
+		logData := data[:len(data)-8]
+
+		timeData := data[len(data)-8:]
+
+		tm := binary.BigEndian.Uint64(timeData)
+
 		var log replica.Log
-		err := log.Unmarshal(iter.Value())
+		err := log.Unmarshal(logData)
 		if err != nil {
 			return nil, err
 		}
+		log.Time = time.Unix(0, int64(tm))
 		logs = append(logs, log)
 		size += uint64(log.LogSize())
 		if limitSize != 0 && size >= limitSize {
+			break
+		}
+	}
+	return logs, nil
+}
+
+func (p *PebbleShardLogStorage) GetLogsInReverseOrder(shardNo string, startLogIndex uint64, endLogIndex uint64, limit int) ([]replica.Log, error) {
+
+	// lastIndex, err := p.LastIndex(shardNo)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	lowKey := key.NewLogKey(shardNo, startLogIndex)
+	if endLogIndex == 0 {
+		endLogIndex = math.MaxUint64
+	}
+	// if endLogIndex > lastIndex {
+	// 	endLogIndex = lastIndex + 1
+	// }
+	highKey := key.NewLogKey(shardNo, endLogIndex)
+	iter := p.db.NewIter(&pebble.IterOptions{
+		LowerBound: lowKey,
+		UpperBound: highKey,
+	})
+	defer iter.Close()
+	var logs []replica.Log
+
+	var size int
+	for iter.Last(); iter.Valid(); iter.Prev() {
+
+		data := make([]byte, len(iter.Value()))
+		copy(data, iter.Value())
+
+		logData := data[:len(data)-8]
+
+		timeData := data[len(data)-8:]
+
+		tm := binary.BigEndian.Uint64(timeData)
+
+		var log replica.Log
+		err := log.Unmarshal(logData)
+		if err != nil {
+			return nil, err
+		}
+		log.Time = time.Unix(0, int64(tm))
+
+		logs = append(logs, log)
+		size += 1
+		if limit != 0 && size >= limit {
 			break
 		}
 	}
@@ -250,7 +323,7 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint32
 
 func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (replica.Log, error) {
 	keyData := key.NewLogKey(shardNo, index)
-	logData, closer, err := p.db.Get(keyData)
+	resultData, closer, err := p.db.Get(keyData)
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return replica.Log{}, nil
@@ -258,11 +331,22 @@ func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (replica.Lo
 		return replica.Log{}, err
 	}
 	defer closer.Close()
+
+	data := make([]byte, len(resultData))
+	copy(data, resultData)
+
+	logData := data[:len(data)-8]
+
+	timeData := data[len(data)-8:]
+
+	tm := binary.BigEndian.Uint64(timeData)
+
 	var log replica.Log
 	err = log.Unmarshal(logData)
 	if err != nil {
 		return replica.Log{}, err
 	}
+	log.Time = time.Unix(0, int64(tm))
 	return log, nil
 
 }

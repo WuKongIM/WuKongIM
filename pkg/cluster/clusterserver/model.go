@@ -12,12 +12,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -1051,6 +1054,7 @@ type NodeConfig struct {
 	LastOffline     string         `json:"last_offline,omitempty"`      // 最后一次下线时间
 	AllowVote       int            `json:"allow_vote"`                  // 是否允许投票
 	SlotCount       int            `json:"slot_count,omitempty"`        // 槽位数量
+	Term            uint32         `json:"term,omitempty"`              // 任期
 	SlotLeaderCount int            `json:"slot_leader_count,omitempty"` // 槽位领导者数量
 	ExportCount     int            `json:"export_count,omitempty"`      // 迁出槽位数量
 	Exports         []*SlotMigrate `json:"exports,omitempty"`           // 迁移槽位
@@ -1335,4 +1339,74 @@ func (c *channelClusterConfigPingReq) Unmarshal(data []byte) error {
 	c.ChannelType = data[8]
 	c.ChannelId = string(data[9:])
 	return nil
+}
+
+type LogType int
+
+const (
+	LogTypeUnknown LogType = iota
+	LogTypeConfig          // 节点配置日志
+	LogTypeSlot            // 槽日志
+	LogTypeChannel         // 频道日志
+)
+
+type LogResp struct {
+	Id         uint64 `json:"id"`          // 日志ID
+	Index      uint64 `json:"index"`       // 日志下标
+	Term       uint32 `json:"term"`        // 数据任期
+	Cmd        string `json:"cmd"`         // 命令
+	Content    string `json:"data"`        // 命令数据
+	TimeFormat string `json:"time_format"` // 时间格式化
+}
+
+func NewLogRespFromLog(log replica.Log, logType LogType) (*LogResp, error) {
+
+	cmdStr := ""
+	cmdContent := ""
+	if logType == LogTypeConfig {
+		cmd := &clusterconfig.CMD{}
+		err := cmd.Unmarshal(log.Data)
+		if err != nil {
+			wklog.Error("config: cmd unmarshal error", zap.Error(err), zap.Uint64("index", log.Index), zap.Uint32("term", log.Term), zap.Binary("data", log.Data))
+			return nil, err
+		}
+		cmdStr = cmd.CmdType.String()
+		cmdContent, err = cmd.CMDContent()
+		if err != nil {
+			wklog.Error("config: cmd content error", zap.Error(err), zap.String("cmd", cmdStr), zap.Uint64("index", log.Index), zap.Uint32("term", log.Term), zap.Binary("data", cmd.Data))
+			return nil, err
+		}
+	} else if logType == LogTypeSlot {
+		cmd := &clusterstore.CMD{}
+		err := cmd.Unmarshal(log.Data)
+		if err != nil {
+			wklog.Error("slot: cmd unmarshal error", zap.Error(err), zap.Uint64("index", log.Index), zap.Uint32("term", log.Term), zap.Binary("data", log.Data))
+			return nil, err
+		}
+		cmdStr = cmd.CmdType.String()
+		cmdContent, err = cmd.CMDContent()
+		if err != nil {
+			wklog.Error("slot: cmd content error", zap.Error(err), zap.String("cmd", cmdStr), zap.Uint64("index", log.Index), zap.Uint32("term", log.Term), zap.Binary("data", cmd.Data))
+			return nil, err
+		}
+	}
+	timeFormat := wkutil.ToyyyyMMddHHmmss(log.Time)
+
+	return &LogResp{
+		Id:         log.Id,
+		Index:      log.Index,
+		Term:       log.Term,
+		Cmd:        cmdStr,
+		Content:    cmdContent,
+		TimeFormat: timeFormat,
+	}, nil
+}
+
+type LogRespTotal struct {
+	Next    uint64     `json:"next"`    // 下一个查询日志ID
+	Pre     uint64     `json:"pre"`     // 上一个查询日志ID
+	Applied uint64     `json:"applied"` // 已应用日志下标
+	Last    uint64     `json:"last"`    // 最后一个日志下标
+	More    int        `json:"more"`    // 是否有更多
+	Logs    []*LogResp `json:"logs"`    // 日志信息
 }

@@ -108,7 +108,7 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 		Term:       req.leaderLastTerm,
 	})
 	if err != nil {
-		r.Error("get leader term start index failed", zap.Error(err), zap.Uint64("leaderId", req.leaderId), zap.Uint32("leaderLastTerm", req.leaderLastTerm))
+		r.Error("get leader term start index failed", zap.Error(err), zap.String("key", req.h.key), zap.Uint64("leaderId", req.leaderId), zap.Uint32("leaderLastTerm", req.leaderLastTerm))
 		r.Step(req.h.key, replica.Message{
 			MsgType: replica.MsgLogConflictCheckResp,
 			Reject:  true,
@@ -431,7 +431,6 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
 	}
 
-	r.Info("processApplyLog...start..", zap.Uint64("startIndex", req.appyingIndex+1), zap.Uint64("endIndex", req.committedIndex+1))
 	appliedSize, err := req.h.handler.ApplyLogs(req.appyingIndex+1, req.committedIndex+1)
 	if err != nil {
 		r.Panic("apply logs failed", zap.Error(err))
@@ -442,10 +441,8 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 		return
 	}
 
-	r.Info("processApplyLog...end..", zap.Uint64("startIndex", req.appyingIndex+1), zap.Uint64("endIndex", req.committedIndex+1))
 	if r.opts.IsCommittedAfterApplied {
 		// 提交日志
-		r.Info("didCommit.......", zap.Uint64("startIndex", req.appyingIndex+1), zap.Uint64("endIndex", req.committedIndex+1))
 		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
 	}
 

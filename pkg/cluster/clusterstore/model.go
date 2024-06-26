@@ -2,8 +2,11 @@ package clusterstore
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -41,9 +44,9 @@ const (
 	// 移除所有白名单
 	CMDRemoveAllAllowlist
 	// 追加消息
-	CMDAppendMessages
+	// CMDAppendMessages
 	// 追加用户消息
-	CMDAppendMessagesOfUser
+	// CMDAppendMessagesOfUser
 	// 追加通知队列消息
 	CMDAppendMessagesOfNotifyQueue
 	// 移除通知队列消息
@@ -109,10 +112,10 @@ func (c CMDType) String() string {
 		return "CMDRemoveAllowlist"
 	case CMDRemoveAllAllowlist:
 		return "CMDRemoveAllAllowlist"
-	case CMDAppendMessages:
-		return "CMDAppendMessages"
-	case CMDAppendMessagesOfUser:
-		return "CMDAppendMessagesOfUser"
+	// case CMDAppendMessages:
+	// return "CMDAppendMessages"
+	// case CMDAppendMessagesOfUser:
+	// return "CMDAppendMessagesOfUser"
 	case CMDAppendMessagesOfNotifyQueue:
 		return "CMDAppendMessagesOfNotifyQueue"
 	case CMDRemoveMessagesOfNotifyQueue:
@@ -186,6 +189,211 @@ func (c *CMD) Unmarshal(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (c *CMD) CMDContent() (string, error) {
+	switch c.CmdType {
+	case CMDAddOrUpdateDevice:
+		device, err := c.DecodeCMDDevice()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(device), nil
+	case CMDAddOrUpdateUser:
+		user, err := c.DecodeCMDUser()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(user), nil
+	case CMDUpdateMessageOfUserCursorIfNeed:
+		uid, messageSeq, err := c.DecodeCMDUpdateMessageOfUserCursorIfNeed()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"uid":        uid,
+			"messageSeq": messageSeq,
+		}), nil
+	case CMDAddOrUpdateChannel:
+		channel, err := c.DecodeAddOrUpdateChannel()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(channel), nil
+	case CMDAddSubscribers:
+		channelId, channelType, uids, err := c.DecodeSubscribers()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+			"uids":        uids,
+		}), nil
+	case CMDRemoveSubscribers:
+		channelId, channelType, uids, err := c.DecodeSubscribers()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+			"uids":        uids,
+		}), nil
+	case CMDRemoveAllSubscriber:
+		channelId, channelType, err := c.DecodeChannel()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+		}), nil
+
+	case CMDDeleteChannel:
+		channelId, channelType, err := c.DecodeChannel()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+		}), nil
+	case CMDAddDenylist:
+		channelId, channelType, uids, err := c.DecodeSubscribers()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+			"uids":        uids,
+		}), nil
+
+	case CMDRemoveDenylist:
+		channelId, channelType, uids, err := c.DecodeSubscribers()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+			"uids":        uids,
+		}), nil
+
+	case CMDRemoveAllDenylist:
+		channelId, channelType, err := c.DecodeChannel()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+		}), nil
+
+	case CMDAddAllowlist:
+		channelId, channelType, uids, err := c.DecodeSubscribers()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+			"uids":        uids,
+		}), nil
+
+	case CMDRemoveAllowlist:
+		channelId, channelType, uids, err := c.DecodeSubscribers()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+			"uids":        uids,
+		}), nil
+
+	case CMDRemoveAllAllowlist:
+		channelId, channelType, err := c.DecodeChannel()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+		}), nil
+
+	case CMDAppendMessagesOfNotifyQueue:
+
+	case CMDRemoveMessagesOfNotifyQueue:
+
+	case CMDDeleteChannelAndClearMessages:
+		channelId, channelType, err := c.DecodeChannel()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":   channelId,
+			"channelType": channelType,
+		}), nil
+
+	case CMDAddOrUpdateConversations:
+		uid, conversations, err := c.DecodeCMDAddOrUpdateConversations()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"uid":           uid,
+			"conversations": conversations,
+		}), nil
+
+	case CMDDeleteConversation:
+		uid, channelId, channelType, err := c.DecodeCMDDeleteConversation()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"uid":         uid,
+			"channelId":   channelId,
+			"channelType": channelType,
+		}), nil
+
+	case CMDDeleteConversations:
+		uid, channels, err := c.DecodeCMDDeleteConversations()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"uid":      uid,
+			"channels": channels,
+		}), nil
+
+	case CMDSystemUIDsAdd:
+
+	case CMDSystemUIDsRemove:
+
+	case CMDBatchUpdateConversation:
+		models, err := c.DecodeCMDBatchUpdateConversation()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(models), nil
+
+	case CMDChannelClusterConfigSave:
+		_, _, data, err := c.DecodeCMDChannelClusterConfigSave()
+		if err != nil {
+			return "", err
+		}
+		channelClusterConfig := wkdb.ChannelClusterConfig{}
+		err = channelClusterConfig.Unmarshal(data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(channelClusterConfig), nil
+
+	}
+
+	return "", nil
 }
 
 func EncodeSubscribers(channelId string, channelType uint8, uids []string) []byte {
@@ -681,4 +889,26 @@ func (c *CMD) DecodeCMDBatchUpdateConversation() (models []*wkdb.BatchUpdateConv
 	}
 
 	return
+}
+
+func ChannelToKey(channelId string, channelType uint8) string {
+	var builder strings.Builder
+	builder.WriteString(strconv.Itoa(int(channelType)))
+	builder.WriteString("#")
+	builder.WriteString(channelId)
+	return builder.String()
+
+}
+
+func ChannelFromlKey(channelKey string) (string, uint8) {
+	channels := strings.Split(channelKey, "#")
+	if len(channels) == 2 {
+		channelTypeI, _ := strconv.Atoi(channels[0])
+		return channels[1], uint8(channelTypeI)
+	} else if len(channels) > 2 {
+		channelTypeI, _ := strconv.Atoi(channels[0])
+		return strings.Join(channels[1:], ""), uint8(channelTypeI)
+
+	}
+	return "", 0
 }

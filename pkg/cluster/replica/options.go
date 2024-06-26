@@ -20,6 +20,7 @@ type Options struct {
 	AckMode                    AckMode // AckMode
 	AutoRoleSwith              bool    // 运行自动角色切换
 	LearnerToFollowerMinLogGap uint64  // 学习者转换为跟随者的最小日志差距，需要AutoRoleSwith开启 (当学习者的日志与领导者的日志差距小于这个配置时，学习者会转换为跟随者)
+	LearnerToTimeoutTick       int     // 学习者转换为跟随者的超时tick次数，当超过这个次数将重新发起转换请求
 }
 
 func NewOptions() *Options {
@@ -33,6 +34,7 @@ func NewOptions() *Options {
 		AckMode:                    AckModeMajority,
 		AutoRoleSwith:              false,
 		LearnerToFollowerMinLogGap: 100,
+		LearnerToTimeoutTick:       10,
 	}
 }
 

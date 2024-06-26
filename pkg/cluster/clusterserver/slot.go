@@ -27,6 +27,7 @@ type slot struct {
 	leaderId atomic.Uint64
 
 	mu             sync.Mutex
+	learnerToLock  sync.Mutex
 	s              *Server
 	pausePropopose atomic.Bool // 是否暂停提案
 
@@ -239,21 +240,15 @@ func (s *slot) LearnerToLeader(learnerId uint64) error {
 
 func (s *slot) learnerTo(learnerId uint64) error {
 
-	if s.learnerTrans.Load() {
-		return nil
-	}
-	s.learnerTrans.Store(true)
-
-	defer func() {
-		s.learnerTrans.Store(false)
-	}()
+	s.learnerToLock.Lock()
+	defer s.learnerToLock.Unlock()
 
 	existSlot := s.s.clusterEventServer.Slot(s.st.Id)
 	if existSlot == nil {
 		s.Error("learnerTo: slot not found")
 		return fmt.Errorf("slot not found")
 	}
-	if existSlot.MigrateFrom == 0 || existSlot.MigrateTo == 0 {
+	if len(existSlot.Learners) == 0 {
 		return nil
 	}
 	slot := existSlot.Clone()
