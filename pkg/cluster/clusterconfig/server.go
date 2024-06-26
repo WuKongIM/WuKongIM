@@ -481,3 +481,15 @@ func seedNode(seed string) (uint64, string, error) {
 	}
 	return seedNodeID, seedAddr, nil
 }
+
+func (s *Server) GetLogsInReverseOrder(startLogIndex uint64, endLogIndex uint64, limit int) ([]replica.Log, error) {
+	return s.storage.GetLogsInReverseOrder(startLogIndex, endLogIndex, limit)
+}
+
+func (s *Server) AppliedLogIndex() (uint64, error) {
+	return s.storage.AppliedIndex()
+}
+
+func (s *Server) LastLogIndex() (uint64, error) {
+	return s.storage.LastIndex()
+}

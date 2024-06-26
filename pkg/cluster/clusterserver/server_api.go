@@ -51,6 +51,8 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/replicas"), s.channelReplicas)         // 获取频道副本信息
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/localReplica"), s.channelLocalReplica) // 获取频道在本节点的副本信息
 
+	route.GET(s.formatPath("/logs"), s.clusterLogs) // 获取节点日志
+
 }
 
 func (s *Server) nodesGet(c *wkhttp.Context) {
@@ -74,6 +76,7 @@ func (s *Server) nodesGet(c *wkhttp.Context) {
 		if !node.Online {
 			nodeCfg := NewNodeConfigFromNode(node)
 			nodeCfg.IsLeader = wkutil.BoolToInt(leaderId == node.Id)
+			nodeCfg.Term = cfg.Term
 			nodeCfg.SlotCount = s.getNodeSlotCount(node.Id, cfg)
 			nodeCfg.SlotLeaderCount = s.getNodeSlotLeaderCount(node.Id, cfg)
 			nodeCfgs = append(nodeCfgs, nodeCfg)
@@ -1871,4 +1874,127 @@ type channelReplicaDetailResp struct {
 	Role              int    `json:"role"`                 // 角色
 	RoleFormat        string `json:"role_format"`          // 角色格式化
 	LastMsgTimeFormat string `json:"last_msg_time_format"` // 最新消息时间格式化
+}
+
+func (s *Server) clusterLogs(c *wkhttp.Context) {
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
+	if nodeId != s.opts.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", s.clusterEventServer.Node(nodeId).ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
+	slotId := wkutil.ParseUint32(c.Query("slot")) // slot id
+
+	// 日志类型
+	logType := LogType(wkutil.ParseInt(c.Query("log_type")))
+	if logType == LogTypeUnknown {
+		logType = LogTypeConfig
+	}
+
+	pre := wkutil.ParseUint64(c.Query("pre"))
+	next := wkutil.ParseUint64(c.Query("next"))
+	limit := wkutil.ParseInt(c.Query("limit"))
+
+	if limit <= 0 {
+		limit = s.opts.PageSize
+	}
+
+	var (
+		start        uint64
+		end          uint64
+		logs         []replica.Log
+		err          error
+		appliedIndex uint64
+		lastLogIndex uint64
+	)
+
+	if next > 0 {
+		end = next
+		if next > uint64(limit) {
+			start = next - uint64(limit) - 1
+		} else {
+			start = 0
+		}
+	} else if pre > 0 {
+		start = pre + 1
+		end = pre + uint64(limit) + 1
+	}
+
+	if logType == LogTypeConfig {
+		logs, err = s.clusterEventServer.GetLogsInReverseOrder(start, end, limit)
+		if err != nil {
+			s.Error("config: GetLogsInReverseOrder error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		appliedIndex, err = s.clusterEventServer.AppliedLogIndex()
+		if err != nil {
+			s.Error("AppliedLogIndex error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+
+		lastLogIndex, err = s.clusterEventServer.LastLogIndex()
+		if err != nil {
+			s.Error("LastLogIndex error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+
+	} else if logType == LogTypeSlot {
+		shardNo := SlotIdToKey(slotId)
+		logs, err = s.slotStorage.GetLogsInReverseOrder(shardNo, start, end, limit)
+		if err != nil {
+			s.Error("slot: GetLogsInReverseOrder error", zap.Error(err))
+			c.ResponseError(err)
+			return
+
+		}
+		appliedIndex, err = s.slotStorage.AppliedIndex(shardNo)
+		if err != nil {
+			s.Error("slot: AppliedLogIndex error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		lastLogIndex, err = s.slotStorage.LastIndex(shardNo)
+		if err != nil {
+			s.Error("slot: LastLogIndex error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	}
+
+	resps := make([]*LogResp, 0, len(logs))
+
+	for _, log := range logs {
+		resp, err := NewLogRespFromLog(log, logType)
+		if err != nil {
+			s.Error("NewLogRespFromLog error", zap.Error(err), zap.Uint64("index", log.Index), zap.Uint32("term", log.Term))
+			c.ResponseError(err)
+			return
+		}
+		resps = append(resps, resp)
+	}
+
+	var (
+		newNext uint64
+		newPre  uint64
+		more    int = 1
+	)
+	if len(logs) > 0 {
+		newNext = logs[len(logs)-1].Index
+		newPre = logs[0].Index
+	}
+	if newPre == 1 {
+		more = 0
+	}
+
+	c.JSON(http.StatusOK, LogRespTotal{
+		Next:    newNext,
+		Pre:     newPre,
+		More:    more,
+		Applied: appliedIndex,
+		Last:    lastLogIndex,
+		Logs:    resps,
+	})
 }

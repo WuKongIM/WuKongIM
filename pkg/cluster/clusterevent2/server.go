@@ -210,6 +210,12 @@ func (s *Server) ProposeJoined(nodeId uint64, slots []*pb.Slot) error {
 
 }
 
+// GetLogsInReverseOrder 获取日志
+func (s *Server) GetLogsInReverseOrder(startLogIndex uint64, endLogIndex uint64, limit int) ([]replica.Log, error) {
+
+	return s.cfgServer.GetLogsInReverseOrder(startLogIndex, endLogIndex, limit)
+}
+
 func (s *Server) saveLocalConfig(cfg *pb.Config) error {
 
 	err := s.localCfgFile.Truncate(0)
@@ -220,4 +226,14 @@ func (s *Server) saveLocalConfig(cfg *pb.Config) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Server) AppliedLogIndex() (uint64, error) {
+
+	return s.cfgServer.AppliedLogIndex()
+}
+
+func (s *Server) LastLogIndex() (uint64, error) {
+
+	return s.cfgServer.LastLogIndex()
 }

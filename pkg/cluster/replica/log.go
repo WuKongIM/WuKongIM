@@ -45,8 +45,6 @@ func newReplicaLog(opts *Options) *replicaLog {
 		rg.Panic("last index is less than applied index", zap.Uint64("lastIndex", opts.LastIndex), zap.Uint64("appliedIndex", opts.AppliedIndex))
 	}
 
-	rg.Debug("new replica log", zap.Uint64("lastIndex", lastIndex), zap.Uint64("appliedIndex", opts.AppliedIndex))
-
 	rg.committedIndex = opts.AppliedIndex
 	rg.appliedIndex = opts.AppliedIndex
 	rg.applyingIndex = opts.AppliedIndex
@@ -74,9 +72,9 @@ func (r *replicaLog) appendLog(logs ...Log) {
 	r.unstable.truncateAndAppend(logs)
 	r.lastLogIndex = lastLog.Index
 
-	for _, log := range logs {
-		r.Info("append log.......", zap.Uint64("index", log.Index), zap.Uint32("term", log.Term))
-	}
+	// for _, log := range logs {
+	// 	r.Info("append log.......", zap.Uint64("index", log.Index), zap.Uint32("term", log.Term))
+	// }
 
 }
 

@@ -1,6 +1,8 @@
 package clusterconfig
 
 import (
+	"encoding/binary"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -90,6 +92,86 @@ func (c *CMD) Unmarshal(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (c *CMD) CMDContent() (string, error) {
+	switch c.CmdType {
+	case CMDTypeConfigInit:
+		cfg := &pb.Config{}
+		if err := cfg.Unmarshal(c.Data); err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(cfg), nil
+	case CMDTypeConfigApiServerAddrChange:
+		nodeId, apiServerAddr, err := DecodeApiServerAddrChange(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"nodeId":        nodeId,
+			"apiServerAddr": apiServerAddr,
+		}), nil
+
+	case CMDTypeNodeJoin:
+		node := &pb.Node{}
+		err := node.Unmarshal(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(node), nil
+	case CMDTypeNodeJoining:
+		nodeId := binary.BigEndian.Uint64(c.Data)
+		return wkutil.ToJSON(map[string]interface{}{
+			"nodeId": nodeId,
+		}), nil
+	case CMDTypeNodeJoined:
+		nodeId, slots, err := DecodeNodeJoined(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"nodeId": nodeId,
+			"slots":  slots,
+		}), nil
+
+	case CMDTypeNodeOnlineStatusChange:
+		nodeId, online, err := DecodeNodeOnlineStatusChange(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"nodeId": nodeId,
+			"online": online,
+		}), nil
+	case CMDTypeSlotMigrate:
+		slotId, fromNodeId, toNodeId, err := DecodeMigrateSlot(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"slotId":     slotId,
+			"fromNodeId": fromNodeId,
+			"toNodeId":   toNodeId,
+		}), nil
+	case CMDTypeSlotUpdate:
+		slotset := pb.SlotSet{}
+		err := slotset.Unmarshal(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(slotset), nil
+	case CMDTypeNodeStatusChange:
+		nodeId, status, err := DecodeNodeStatusChange(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"nodeId": nodeId,
+			"status": status,
+		}), nil
+	}
+
+	return "", nil
 }
 
 func EncodeApiServerAddrChange(nodeId uint64, apiServerAddr string) ([]byte, error) {

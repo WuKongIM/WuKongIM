@@ -131,8 +131,6 @@ func (h *handler) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
 	}
 	lastLog := logs[len(logs)-1]
 
-	h.Info("apply config log", zap.Uint64("lastLogIndex", lastLog.Index), zap.Uint32("lastLogTerm", lastLog.Term))
-
 	err = h.s.apply(logs)
 	if err != nil {
 		h.Error("apply config error", zap.Error(err))
@@ -146,11 +144,9 @@ func (h *handler) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
 
 	// h.updateConfig() // 更新配置 (TODO：这里应该判断下，只有节点改变才更新)
 
-	h.Info("apply config log2222", zap.Uint64("lastLogIndex", lastLog.Index), zap.Uint32("lastLogTerm", lastLog.Term))
 	// 触发配置已应用事件
 	h.opts.Event.OnAppliedConfig()
 
-	h.Info("apply config log3333", zap.Uint64("lastLogIndex", lastLog.Index), zap.Uint32("lastLogTerm", lastLog.Term))
 	appliedSize := uint64(0)
 	for _, log := range logs {
 		appliedSize += uint64(log.LogSize())

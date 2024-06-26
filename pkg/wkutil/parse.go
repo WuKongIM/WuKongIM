@@ -22,6 +22,11 @@ func ParseUint64(str string) uint64 {
 	return v
 }
 
+func ParseUint32(str string) uint32 {
+	v, _ := strconv.ParseUint(str, 10, 32)
+	return uint32(v)
+}
+
 func ParseBool(str string) bool {
 	v, _ := strconv.ParseBool(str)
 	return v

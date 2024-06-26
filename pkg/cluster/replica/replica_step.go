@@ -183,15 +183,19 @@ func (r *Replica) stepLeader(m Message) error {
 			r.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
 
-		if r.opts.AutoRoleSwith && r.isLearner(m.From) {
+		if r.opts.AutoRoleSwith && r.isLearner(m.From) && !r.isLearnerTo {
 			// 如果迁移的源节点是领导者，那么学习者必须完全追上领导者的日志
 			if r.cfg.MigrateFrom != 0 && r.cfg.MigrateFrom == r.leader {
 				if m.Index >= r.replicaLog.lastLogIndex+1 {
+					r.isLearnerTo = true
+					r.learnerToTimeoutTick = 0
 					r.send(r.newMsgLearnerToLeader(m.From))
 				}
 			} else {
 				// 如果learner的日志已经追上了follower的日志，那么将learner转为follower
 				if m.Index+r.opts.LearnerToFollowerMinLogGap > r.replicaLog.lastLogIndex {
+					r.isLearnerTo = true
+					r.learnerToTimeoutTick = 0
 					// 发送配置改变消息
 					r.send(r.newMsgLearnerToFollower(m.From))
 				}

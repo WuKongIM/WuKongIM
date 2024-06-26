@@ -193,6 +193,7 @@ func (s *Server) getLocalNodeInfo() *NodeConfig {
 	nodeCfg.IsLeader = wkutil.BoolToInt(leaderId == node.Id)
 	nodeCfg.SlotCount = s.getNodeSlotCount(node.Id, cfg)
 	nodeCfg.SlotLeaderCount = s.getNodeSlotLeaderCount(node.Id, cfg)
+	nodeCfg.Term = cfg.Term
 	nodeCfg.Uptime = myUptime(time.Since(s.uptime))
 	nodeCfg.AppVersion = s.opts.AppVersion
 	nodeCfg.ConfigVersion = cfg.Version

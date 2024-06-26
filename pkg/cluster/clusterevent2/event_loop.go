@@ -1,7 +1,6 @@
 package clusterevent
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -70,15 +69,19 @@ func (s *Server) tick() {
 			tk++
 			s.pongTickMap[node.Id] = tk
 
-			if tk >= s.opts.PongMaxTick { // 超过最大pong tick数，认为节点离线
-				// 提案在线状态
-				err = s.cfgServer.ProposeNodeOnlineStatus(node.Id, !node.Online)
+			if tk >= s.opts.PongMaxTick && node.Online { // 超过最大pong tick数，认为节点离线
+				// 提案节点离线
+				err = s.cfgServer.ProposeNodeOnlineStatus(node.Id, false)
 				if err != nil {
 					s.Error("propose node offline", zap.Error(err))
 					break
 				}
-				if !node.Online { // 如果节点本来是离线的
-					s.pongTickMap[node.Id] = 0
+			} else if tk < s.opts.PongMaxTick && !node.Online {
+				// 提案节点在线
+				err = s.cfgServer.ProposeNodeOnlineStatus(node.Id, true)
+				if err != nil {
+					s.Error("propose node offline", zap.Error(err))
+					break
 				}
 			}
 
@@ -321,17 +324,17 @@ func (s *Server) handleNodeJoining() error {
 		return nil
 	}
 
-	fmt.Println("handleNodeJoining----------->")
 	firstSlot := slots[0]
 
-	var newSlots []*pb.Slot
+	var migrateSlots []*pb.Slot // 迁移的槽列表
+
 	voteNodes := s.cfgServer.AllowVoteNodes()
 
 	if uint32(len(firstSlot.Replicas)) < s.cfgServer.SlotReplicaCount() { // 如果当前槽的副本数量小于配置的副本数量，则可以将新节点直接加入到学习节点中
 		for _, slot := range slots {
 			newSlot := slot.Clone()
 			newSlot.Learners = append(slot.Learners, joiningNode.Id)
-			newSlots = append(newSlots, newSlot)
+			migrateSlots = append(migrateSlots, newSlot)
 		}
 	} else {
 		voteNodeCount := uint32(len(voteNodes))                                                // 投票节点数量
@@ -340,16 +343,27 @@ func (s *Server) handleNodeJoining() error {
 		if remainSlotCount > 0 {
 			avgSlotCount += 1
 		}
-		nodeSlotCountMap := make(map[uint64]uint32) // 每个节点目前的槽数量
-		nodeSlotCountMap[joiningNode.Id] = 0        // 新节点槽数量肯定为0
+
+		avgSlotLeaderCount := uint32(len(slots)) / voteNodeCount    // 平均每个节点的槽领导数量
+		remainSlotLeaderCount := uint32(len(slots)) % voteNodeCount // 剩余的槽领导数量
+		if remainSlotLeaderCount > 0 {
+			avgSlotLeaderCount += 1
+		}
+
+		nodeSlotLeaderCountMap := make(map[uint64]uint32) // 每个节点的槽领导数量
+		nodeSlotCountMap := make(map[uint64]uint32)       // 每个节点目前的槽数量
+		nodeSlotCountMap[joiningNode.Id] = 0              // 新节点槽数量肯定为0
 		for _, slot := range slots {
+			nodeSlotLeaderCountMap[slot.Leader]++
 			for _, replicaId := range slot.Replicas {
 				nodeSlotCountMap[replicaId]++
 			}
 		}
+
 		// 计算每个节点应该迁入/迁出的槽数量
-		migrateToCountMap := make(map[uint64]uint32)   // 每个节点应该迁入的槽数量
-		migrateFromCountMap := make(map[uint64]uint32) // 每个节点应该迁出的槽数量
+		migrateToCountMap := make(map[uint64]uint32)             // 每个节点应该迁入的槽数量
+		migrateFromCountMap := make(map[uint64]uint32)           // 每个节点应该迁出的槽数量
+		migrateSlotLeaderFromCountMap := make(map[uint64]uint32) // 每个节点应该迁出的槽领导数量
 		for nodeId, slotCount := range nodeSlotCountMap {
 			if slotCount < avgSlotCount {
 				migrateToCountMap[nodeId] = avgSlotCount - slotCount
@@ -358,51 +372,73 @@ func (s *Server) handleNodeJoining() error {
 			}
 		}
 
-		var migrateToNodeId uint64
-		var migrateToCount uint32
-		var migrateFromNodeId uint64
-		var migrateFromCount uint32
-		for _, slot := range slots {
-
-			for migrateToNodeId, migrateToCount = range migrateToCountMap {
-				if migrateToCount == 0 {
-					continue
-				}
-				if wkutil.ArrayContainsUint64(slot.Replicas, migrateToNodeId) { // 如果副本集合里包含了迁出目标的节点，则不需要迁移
-					continue
-				}
-				break
+		for nodeId, slotLeaderCount := range nodeSlotLeaderCountMap {
+			if slotLeaderCount > avgSlotLeaderCount {
+				migrateSlotLeaderFromCountMap[nodeId] = slotLeaderCount - avgSlotLeaderCount
 			}
-			for migrateFromNodeId, migrateFromCount = range migrateFromCountMap {
-				if migrateFromCount == 0 {
-					continue
-				}
-				if !wkutil.ArrayContainsUint64(slot.Replicas, migrateFromNodeId) { // 如果副本集合中不包含迁出源节点，则不需要迁移
-					continue
-				}
-				break
-			}
-
-			if migrateToNodeId == 0 || migrateFromNodeId == 0 {
-				continue
-			}
-
-			if migrateToCount == 0 || migrateFromCount == 0 {
-				continue
-			}
-
-			newSlot := slot.Clone()
-			newSlot.MigrateFrom = migrateFromNodeId
-			newSlot.MigrateTo = migrateToNodeId
-			newSlot.Learners = append(newSlot.Learners, migrateToNodeId)
-			newSlots = append(newSlots, newSlot)
-			migrateFromCountMap[migrateFromNodeId] = migrateFromCount - 1
-			migrateToCountMap[migrateToNodeId] = migrateToCount - 1
 		}
+
+		for _, node := range voteNodes {
+			fromSlotCount := migrateFromCountMap[node.Id]
+			fromSlotLeaderCount := migrateSlotLeaderFromCountMap[node.Id]
+
+			if fromSlotCount == 0 { // 已分配完毕
+				continue
+			}
+
+			for _, slot := range slots {
+				exist := false // 是否存在迁移，如果存在则忽略
+
+				for _, migrateSlot := range migrateSlots {
+					if slot.Id == migrateSlot.Id {
+						exist = true
+						break
+					}
+				}
+
+				if exist { // 存在迁移则忽略
+					continue
+				}
+
+				// ------------------- 分配槽领导 -------------------
+				allocSlotLeader := false // 是否已经分配完槽领导
+				if fromSlotCount > 0 && fromSlotLeaderCount > 0 && slot.Leader == node.Id {
+
+					allocSlotLeader = true
+					newSlot := slot.Clone()
+					newSlot.MigrateFrom = slot.Leader
+					newSlot.MigrateTo = joiningNode.Id
+					newSlot.Learners = append(newSlot.Learners, joiningNode.Id)
+					migrateSlots = append(migrateSlots, newSlot)
+					fromSlotLeaderCount--
+					nodeSlotLeaderCountMap[node.Id] = fromSlotLeaderCount
+
+					fromSlotCount--
+					migrateFromCountMap[node.Id] = fromSlotCount
+
+				}
+
+				// ------------------- 分配槽副本 -------------------
+				if fromSlotCount > 0 && !allocSlotLeader {
+					if wkutil.ArrayContainsUint64(slot.Replicas, node.Id) {
+						newSlot := slot.Clone()
+						newSlot.MigrateFrom = node.Id
+						newSlot.MigrateTo = joiningNode.Id
+						newSlot.Learners = append(newSlot.Learners, joiningNode.Id)
+						migrateSlots = append(migrateSlots, newSlot)
+						fromSlotCount--
+						migrateFromCountMap[node.Id] = fromSlotCount
+					}
+				}
+
+			}
+
+		}
+
 	}
 
-	if len(newSlots) > 0 {
-		err := s.ProposeJoined(joiningNode.Id, newSlots)
+	if len(migrateSlots) > 0 {
+		err := s.ProposeJoined(joiningNode.Id, migrateSlots)
 		if err != nil {
 			return err
 		}
