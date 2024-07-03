@@ -111,6 +111,7 @@ type Options struct {
 		UserMaxCount int           // 每个用户最大最近会话数量 默认为500
 		BytesPerSave uint64        // 每次保存的最近会话数据大小 如果为0 则表示不限制
 		SavePoolSize int           // 保存最近会话协程池大小
+		WorkerCount  int           // 处理最近会话工作者数量
 
 	}
 	ManagerToken   string // 管理者的token
@@ -168,6 +169,9 @@ type Options struct {
 
 		HeartbeatIntervalTick int // 心跳间隔tick
 		ElectionIntervalTick  int // 选举间隔tick
+
+		ChannelReactorSubCount int // 频道reactor sub的数量
+		SlotReactorSubCount    int // 槽reactor sub的数量
 	}
 
 	Trace struct {
@@ -272,6 +276,7 @@ func NewOptions(op ...Option) *Options {
 			UserMaxCount int
 			BytesPerSave uint64
 			SavePoolSize int
+			WorkerCount  int
 		}{
 			On:           true,
 			CacheExpire:  time.Hour * 24 * 1, // 1天过期
@@ -280,6 +285,7 @@ func NewOptions(op ...Option) *Options {
 			SyncOnce:     100,
 			BytesPerSave: 1024 * 1024 * 5,
 			SavePoolSize: 100,
+			WorkerCount:  10,
 		},
 		DeliveryMsgPoolSize: 10240,
 		EventPoolSize:       1024,
@@ -336,6 +342,8 @@ func NewOptions(op ...Option) *Options {
 			TickInterval               time.Duration
 			HeartbeatIntervalTick      int
 			ElectionIntervalTick       int
+			ChannelReactorSubCount     int
+			SlotReactorSubCount        int
 		}{
 			NodeId:                     1,
 			Addr:                       "tcp://0.0.0.0:11110",
@@ -351,6 +359,8 @@ func NewOptions(op ...Option) *Options {
 			TickInterval:               time.Millisecond * 150,
 			HeartbeatIntervalTick:      1,
 			ElectionIntervalTick:       10,
+			ChannelReactorSubCount:     128,
+			SlotReactorSubCount:        128,
 		},
 		Trace: struct {
 			Endpoint         string
@@ -510,6 +520,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Conversation.SyncOnce = o.getInt("conversation.syncOnce", o.Conversation.SyncOnce)
 	o.Conversation.UserMaxCount = o.getInt("conversation.userMaxCount", o.Conversation.UserMaxCount)
 	o.Conversation.BytesPerSave = o.getUint64("conversation.bytesPerSave", o.Conversation.BytesPerSave)
+	o.Conversation.SavePoolSize = o.getInt("conversation.savePoolSize", o.Conversation.SavePoolSize)
+	o.Conversation.WorkerCount = o.getInt("conversation.workerNum", o.Conversation.WorkerCount)
 
 	if o.WSSConfig.CertFile != "" && o.WSSConfig.KeyFile != "" {
 		certificate, err := tls.LoadX509KeyPair(o.WSSConfig.CertFile, o.WSSConfig.KeyFile)
@@ -614,6 +626,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.TickInterval = o.getDuration("cluster.tickInterval", o.Cluster.TickInterval)
 	o.Cluster.ElectionIntervalTick = o.getInt("cluster.electionIntervalTick", o.Cluster.ElectionIntervalTick)
 	o.Cluster.HeartbeatIntervalTick = o.getInt("cluster.heartbeatIntervalTick", o.Cluster.HeartbeatIntervalTick)
+	o.Cluster.ChannelReactorSubCount = o.getInt("cluster.channelReactorSubCount", o.Cluster.ChannelReactorSubCount)
+	o.Cluster.SlotReactorSubCount = o.getInt("cluster.slotReactorSubCount", o.Cluster.SlotReactorSubCount)
 
 	// =================== trace ===================
 	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
@@ -1249,6 +1263,18 @@ func WithClusterTickInterval(tickInterval time.Duration) Option {
 
 }
 
+func WithClusterChannelReactorSubCount(channelReactorSubCount int) Option {
+	return func(opts *Options) {
+		opts.Cluster.ChannelReactorSubCount = channelReactorSubCount
+	}
+}
+
+func WithClusterSlotReactorSubCount(slotReactorSubCount int) Option {
+	return func(opts *Options) {
+		opts.Cluster.SlotReactorSubCount = slotReactorSubCount
+	}
+}
+
 func WithTraceEndpoint(endpoint string) Option {
 	return func(opts *Options) {
 		opts.Trace.Endpoint = endpoint
@@ -1324,5 +1350,13 @@ func WithDeliverMaxDeliverSizePerNode(maxDeliverSizePerNode uint64) Option {
 func WithDbShardNum(shardNum int) Option {
 	return func(opts *Options) {
 		opts.Db.ShardNum = shardNum
+	}
+}
+
+func WithOpts(opt ...Option) Option {
+	return func(opts *Options) {
+		for _, o := range opt {
+			o(opts)
+		}
 	}
 }

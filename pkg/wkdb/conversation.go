@@ -264,6 +264,22 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 	return conversation, nil
 }
 
+func (wk *wukongDB) ExistConversation(uid string, channelId string, channelType uint8) (bool, error) {
+	idBytes, closer, err := wk.shardDB(uid).Get(key.NewConversationIndexChannelKey(uid, channelId, channelType))
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	defer closer.Close()
+
+	if len(idBytes) == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (wk *wukongDB) getConversation(uid string, id uint64) (Conversation, error) {
 	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationColumnKey(uid, id, key.MinColumnKey),
@@ -525,10 +541,12 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 			preConversation.ReadedToMsgSeq = wk.endian.Uint64(iter.Value())
 		case key.TableConversation.Column.CreatedAt:
 			t := int64(wk.endian.Uint64(iter.Value()))
-			preConversation.CreatedAt = time.Unix(t/1e3, (t%1e3)*1e6)
+			tm := time.Unix(t/1e3, (t%1e3)*1e6)
+			preConversation.CreatedAt = &tm
 		case key.TableSession.Column.UpdatedAt:
 			t := int64(wk.endian.Uint64(iter.Value()))
-			preConversation.UpdatedAt = time.Unix(t/1e3, (t%1e3)*1e6)
+			tm := time.Unix(t/1e3, (t%1e3)*1e6)
+			preConversation.UpdatedAt = &tm
 
 		}
 		hasData = true

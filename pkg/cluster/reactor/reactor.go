@@ -20,13 +20,14 @@ type Reactor struct {
 	taskPool    *ants.Pool
 	wklog.Log
 
-	processInitC              chan *initReq          // 处理频道初始化
-	processConflictCheckC     chan *conflictCheckReq // 冲突检查请求
-	processGetLogC            chan *getLogReq        // 获取日志请求
-	processStoreAppendC       chan AppendLogReq      // 存储追加日志请求
-	processApplyLogC          chan *applyLogReq      // 应用日志请求
-	processLearnerToFollowerC chan *learnerToFollowerReq
-	processLearnerToLeaderC   chan *learnerToLeaderReq
+	processInitC              chan *initReq              // 处理频道初始化
+	processConflictCheckC     chan *conflictCheckReq     // 冲突检查请求
+	processGetLogC            chan *getLogReq            // 获取日志请求
+	processStoreAppendC       chan AppendLogReq          // 存储追加日志请求
+	processApplyLogC          chan *applyLogReq          // 应用日志请求
+	processLearnerToFollowerC chan *learnerToFollowerReq // 从learner转为follower
+	processLearnerToLeaderC   chan *learnerToLeaderReq   // 从learner转为leader
+	processFollowerToLeaderC  chan *followerToLeaderReq  // 从follower转为leader
 
 	stopper *syncutil.Stopper
 
@@ -46,6 +47,7 @@ func New(opts *Options) *Reactor {
 		processApplyLogC:          make(chan *applyLogReq, 1024),
 		processLearnerToFollowerC: make(chan *learnerToFollowerReq, 1024),
 		processLearnerToLeaderC:   make(chan *learnerToLeaderReq, 1024),
+		processFollowerToLeaderC:  make(chan *followerToLeaderReq, 1024),
 		request:                   opts.Request,
 	}
 	taskPool, err := ants.NewPool(opts.TaskPoolSize, ants.WithPanicHandler(func(err interface{}) {
@@ -74,6 +76,7 @@ func (r *Reactor) Start() error {
 
 		r.stopper.RunWorker(r.processLearnerToFollowerLoop)
 		r.stopper.RunWorker(r.processLearnerToLeaderLoop)
+		r.stopper.RunWorker(r.processFollowerToLeaderLoop)
 	}
 
 	for i := 0; i < 100; i++ {
@@ -183,7 +186,7 @@ func (r *Reactor) reactorSub(key string) *ReactorSub {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	idx := hashWthString(key)
-	return r.subReactors[idx%r.opts.SubReactorNum]
+	return r.subReactors[idx%uint32(r.opts.SubReactorNum)]
 }
 
 func (r *Reactor) newMessageQueue() *MessageQueue {

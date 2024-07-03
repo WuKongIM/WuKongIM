@@ -20,7 +20,12 @@ type Options struct {
 	AckMode                    AckMode // AckMode
 	AutoRoleSwith              bool    // 运行自动角色切换
 	LearnerToFollowerMinLogGap uint64  // 学习者转换为跟随者的最小日志差距，需要AutoRoleSwith开启 (当学习者的日志与领导者的日志差距小于这个配置时，学习者会转换为跟随者)
+	LearnerToLeaderMinLogGap   uint64  // 学习者转换为领导者的最小日志差距，需要AutoRoleSwith开启 (当学习者的日志与领导者的日志差距小于这个配置时，领导将停止接受任何提案，直到学习者完全追上领导者，然后再发起转换请求)
 	LearnerToTimeoutTick       int     // 学习者转换为跟随者的超时tick次数，当超过这个次数将重新发起转换请求
+
+	FollowerToLeaderMinLogGap uint64 // 跟随者转换为领导者的最小日志差距，需要AutoRoleSwith开启 (当跟随者的日志与领导者的日志差距小于这个配置时，跟随者会转换为领导者)
+
+	RequestTimeoutTick int // 请求超时tick数
 }
 
 func NewOptions() *Options {
@@ -34,7 +39,10 @@ func NewOptions() *Options {
 		AckMode:                    AckModeMajority,
 		AutoRoleSwith:              false,
 		LearnerToFollowerMinLogGap: 100,
+		LearnerToLeaderMinLogGap:   100,
+		FollowerToLeaderMinLogGap:  100,
 		LearnerToTimeoutTick:       10,
+		RequestTimeoutTick:         10,
 	}
 }
 
@@ -140,5 +148,23 @@ func WithLastTerm(term uint32) Option {
 func WithStorage(storage IStorage) Option {
 	return func(o *Options) {
 		o.Storage = storage
+	}
+}
+
+func WithLearnerToLeaderMinLogGap(gap uint64) Option {
+	return func(o *Options) {
+		o.LearnerToLeaderMinLogGap = gap
+	}
+}
+
+func WithLearnerToTimeoutTick(tick int) Option {
+	return func(o *Options) {
+		o.LearnerToTimeoutTick = tick
+	}
+}
+
+func WithFollowerToLeaderMinLogGap(gap uint64) Option {
+	return func(o *Options) {
+		o.FollowerToLeaderMinLogGap = gap
 	}
 }

@@ -1,7 +1,6 @@
 package clusterstore
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -230,8 +229,6 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("channelClusterConfig--->", channelClusterConfig.ChannelId, channelClusterConfig.Status)
 
 	err = s.wdb.SaveChannelClusterConfig(channelClusterConfig)
 	if err != nil {

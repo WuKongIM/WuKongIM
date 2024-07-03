@@ -146,7 +146,7 @@ func (c *channel) ready() ready {
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
 				}
-				c.Info("permissionChecking...", zap.Uint64("permissionCheckingIndex", c.msgQueue.permissionCheckingIndex), zap.Uint64("payloadDecryptingIndex", c.msgQueue.payloadDecryptingIndex), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+				// c.Info("permissionChecking...", zap.Uint64("permissionCheckingIndex", c.msgQueue.permissionCheckingIndex), zap.Uint64("payloadDecryptingIndex", c.msgQueue.payloadDecryptingIndex), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 			}
 
 			// 如果有未存储的消息，则继续存储
@@ -259,6 +259,7 @@ func (c *channel) isInitialized() bool {
 
 func (c *channel) tick() {
 	c.storageTick++
+	c.initTick++
 }
 
 func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {

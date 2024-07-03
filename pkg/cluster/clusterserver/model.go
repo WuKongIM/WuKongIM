@@ -1178,6 +1178,14 @@ type userResp struct {
 
 func newUserResp(u wkdb.User) *userResp {
 
+	var createdAtFormat string
+	var updatedAtFormat string
+	if u.CreatedAt != nil {
+		createdAtFormat = wkutil.ToyyyyMMddHHmm(*u.CreatedAt)
+	}
+	if u.UpdatedAt != nil {
+		updatedAtFormat = wkutil.ToyyyyMMddHHmm(*u.UpdatedAt)
+	}
 	return &userResp{
 		Uid:               u.Uid,
 		DeviceCount:       u.DeviceCount,
@@ -1189,8 +1197,8 @@ func newUserResp(u wkdb.User) *userResp {
 		RecvMsgBytes:      u.RecvMsgBytes,
 		CreatedAt:         u.CreatedAt.Unix(),
 		UpdatedAt:         u.UpdatedAt.Unix(),
-		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(u.CreatedAt),
-		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(u.UpdatedAt),
+		CreatedAtFormat:   createdAtFormat,
+		UpdatedAtFormat:   updatedAtFormat,
 	}
 }
 
@@ -1242,6 +1250,15 @@ func newDeviceResp(d wkdb.Device) *deviceResp {
 		deviceLevelFormat = fmt.Sprintf("未知(%d)", d.DeviceLevel)
 	}
 
+	var createdAtFormat string
+	var updatedAtFormat string
+	if d.CreatedAt != nil {
+		createdAtFormat = wkutil.ToyyyyMMddHHmm(*d.CreatedAt)
+	}
+	if d.UpdatedAt != nil {
+		updatedAtFormat = wkutil.ToyyyyMMddHHmm(*d.UpdatedAt)
+	}
+
 	return &deviceResp{
 		Id:                d.Id,
 		Uid:               d.Uid,
@@ -1257,8 +1274,8 @@ func newDeviceResp(d wkdb.Device) *deviceResp {
 		RecvMsgBytes:      d.RecvMsgBytes,
 		CreatedAt:         d.CreatedAt.Unix(),
 		UpdatedAt:         d.UpdatedAt.Unix(),
-		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(d.CreatedAt),
-		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(d.UpdatedAt),
+		CreatedAtFormat:   createdAtFormat,
+		UpdatedAtFormat:   updatedAtFormat,
 	}
 }
 
@@ -1289,6 +1306,14 @@ func newConversationResp(c wkdb.Conversation) *conversationResp {
 	if c.Type == wkdb.ConversationTypeCMD {
 		typeFormat = "命令"
 	}
+	var createdAtFormat string
+	var updatedAtFormat string
+	if c.CreatedAt != nil {
+		createdAtFormat = wkutil.ToyyyyMMddHHmm(*c.CreatedAt)
+	}
+	if c.UpdatedAt != nil {
+		updatedAtFormat = wkutil.ToyyyyMMddHHmm(*c.UpdatedAt)
+	}
 	return &conversationResp{
 		Id:                c.Id,
 		Uid:               c.Uid,
@@ -1301,8 +1326,8 @@ func newConversationResp(c wkdb.Conversation) *conversationResp {
 		ReadedToMsgSeq:    c.ReadedToMsgSeq,
 		CreatedAt:         c.CreatedAt.Unix(),
 		UpdatedAt:         c.UpdatedAt.Unix(),
-		CreatedAtFormat:   wkutil.ToyyyyMMddHHmm(c.CreatedAt),
-		UpdatedAtFormat:   wkutil.ToyyyyMMddHHmm(c.UpdatedAt),
+		CreatedAtFormat:   createdAtFormat,
+		UpdatedAtFormat:   updatedAtFormat,
 	}
 }
 

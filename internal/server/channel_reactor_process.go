@@ -85,7 +85,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 
 	for i, msg := range req.messages {
 		if !msg.IsEncrypt || msg.FromConnId == 0 { // 没有加密，直接跳过,没有连接id解密不了，也直接跳过
-			r.Warn("msg is not encrypt or fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
+			r.Debug("msg is not encrypt or fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
 			continue
 		}
 		var err error
@@ -440,7 +440,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 			})
 		}
 		// 存储消息
-		fmt.Println("存储消息--->", len(sotreMessages))
+		fmt.Println("AppendMessages---->", req.ch.channelId)
 		results, err := r.s.store.AppendMessages(r.s.ctx, req.ch.channelId, req.ch.channelType, sotreMessages)
 		if err != nil {
 			r.Error("AppendMessages error", zap.Error(err))

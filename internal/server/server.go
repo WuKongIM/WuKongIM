@@ -166,6 +166,8 @@ func New(opts *Options) *Server {
 			cluster.WithElectionIntervalTick(s.opts.Cluster.ElectionIntervalTick),
 			cluster.WithHeartbeatIntervalTick(s.opts.Cluster.HeartbeatIntervalTick),
 			cluster.WithTickInterval(s.opts.Cluster.TickInterval),
+			cluster.WithChannelReactorSubCount(s.opts.Cluster.ChannelReactorSubCount),
+			cluster.WithSlotReactorSubCount(s.opts.Cluster.SlotReactorSubCount),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
@@ -305,19 +307,13 @@ func (s *Server) StopNoErr() {
 
 func (s *Server) Stop() error {
 
-	s.Info("Server stoping...")
-
 	s.cancel()
 
 	s.deliverManager.stop()
-	fmt.Println("deliverManager stopped")
 
 	s.retryManager.stop()
-	fmt.Println("retryManager stopped")
 	s.conversationManager.Stop()
-	fmt.Println("conversationManager stopped")
 	s.cluster.Stop()
-	fmt.Println("cluster stopped")
 	s.apiServer.Stop()
 
 	s.monitorServer.Stop()

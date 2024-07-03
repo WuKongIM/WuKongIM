@@ -68,26 +68,12 @@ func newSlot(st *pb.Slot, sr *Server) *slot {
 	return s
 }
 
-func (s *slot) changeRole(role replica.Role) {
-
-	s.s.slotManager.slotReactor.Step(s.key, replica.Message{
-		MsgType: replica.MsgChangeRole,
-		Role:    role,
-	})
-
-}
-
 func (s *slot) switchConfig(st *pb.Slot) {
 	s.mu.Lock()
 	s.st = st.Clone()
 	s.mu.Unlock()
 
 	s.Info("switch config", zap.String("config", st.String()))
-
-	if !wkutil.ArrayContainsUint64(st.Replicas, s.opts.NodeId) && !wkutil.ArrayContainsUint64(st.Learners, s.opts.NodeId) {
-		panic("test........")
-
-	}
 
 	isLearner := false
 	var learnerIds []uint64
@@ -238,6 +224,44 @@ func (s *slot) LearnerToLeader(learnerId uint64) error {
 	return s.learnerTo(learnerId)
 }
 
+func (s *slot) FollowerToLeader(followerId uint64) error {
+
+	s.learnerToLock.Lock()
+	defer s.learnerToLock.Unlock()
+
+	fmt.Println("FollowerToLeader--------->", followerId)
+
+	existSlot := s.s.clusterEventServer.Slot(s.st.Id)
+	if existSlot == nil {
+		s.Error("FollowerToLeader: slot not found", zap.Uint32("slotId", s.st.Id))
+		return fmt.Errorf("slot not found")
+	}
+
+	if !wkutil.ArrayContainsUint64(existSlot.Replicas, followerId) {
+		s.Error("FollowerToLeader: follower not in replicas", zap.Uint64("followerId", followerId))
+		return fmt.Errorf("follower not in replicas")
+	}
+
+	if existSlot.MigrateFrom == 0 || existSlot.MigrateTo == 0 { // 没有迁移信息，不进行转换
+		s.Info("FollowerToLeader: no migrate", zap.Uint64("followerId", followerId))
+		return nil
+	}
+
+	slot := existSlot.Clone()
+
+	slot.Leader = followerId
+	slot.Term = slot.Term + 1
+	slot.MigrateFrom = 0
+	slot.MigrateTo = 0
+
+	err := s.s.clusterEventServer.ProposeSlots([]*pb.Slot{slot})
+	if err != nil {
+		s.Error("FollowerToLeader: propose slot error", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
 func (s *slot) learnerTo(learnerId uint64) error {
 
 	s.learnerToLock.Lock()
@@ -255,6 +279,7 @@ func (s *slot) learnerTo(learnerId uint64) error {
 
 	if existSlot.Leader == existSlot.MigrateFrom {
 		slot.Leader = slot.MigrateTo
+		slot.Term = slot.Term + 1
 	}
 
 	for _, learner := range slot.Learners {

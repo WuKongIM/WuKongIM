@@ -249,6 +249,10 @@ func (h *handler) LearnerToLeader(learnerId uint64) error {
 	return h.learnerTo(learnerId)
 }
 
+func (h *handler) FollowerToLeader(followerId uint64) error {
+	return nil
+}
+
 func (h *handler) learnerTo(learnerId uint64) error {
 
 	if h.learnerTrans.Load() {

@@ -142,6 +142,8 @@ func (s *Server) ProposeChannelMessages(ctx context.Context, channelId string, c
 	if s.stopped.Load() {
 		return nil, ErrStopped
 	}
+
+	fmt.Println("ProposeChannelMessages-------->", channelId)
 	// 加载或创建频道
 	ch, err := s.loadOrCreateChannel(ctx, channelId, channelType)
 	if err != nil {
@@ -350,6 +352,8 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 
 		// 将新节点加入到学习者列表
 		for _, newReplicaId := range newReplicaIds {
+			clusterCfg.MigrateFrom = newReplicaId
+			clusterCfg.MigrateTo = newReplicaId
 			clusterCfg.Learners = append(clusterCfg.Learners, newReplicaId)
 			if len(clusterCfg.Learners)+len(clusterCfg.Replicas) >= int(clusterCfg.ReplicaMaxCount) {
 				break
@@ -386,7 +390,7 @@ func (s *Server) needElection(cfg wkdb.ChannelClusterConfig) bool {
 
 func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (*channel, error) {
 
-	s.Debug("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	// s.Debug("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 	s.channelKeyLock.Lock(channelId)
 	defer s.channelKeyLock.Unlock(channelId)
@@ -466,10 +470,11 @@ func (s *Server) createChannelClusterConfig(channelId string, channelType uint8)
 		if allowVoteNode.Id == s.opts.NodeId {
 			continue
 		}
-		replicaIds = append(replicaIds, allowVoteNode.Id)
 		if len(replicaIds) >= int(s.opts.ChannelMaxReplicaCount) {
 			break
 		}
+		replicaIds = append(replicaIds, allowVoteNode.Id)
+
 	}
 	clusterConfig.Replicas = replicaIds
 	return clusterConfig, nil

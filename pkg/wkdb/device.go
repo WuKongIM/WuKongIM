@@ -347,9 +347,11 @@ func (wk *wukongDB) iterDevice(iter *pebble.Iterator, iterFnc func(d Device) boo
 		case key.TableDevice.Column.DeviceLevel:
 			preDevice.DeviceLevel = iter.Value()[0]
 		case key.TableDevice.Column.UpdatedAt:
-			preDevice.UpdatedAt = time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			up := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			preDevice.UpdatedAt = &up
 		case key.TableDevice.Column.CreatedAt:
-			preDevice.CreatedAt = time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			ct := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			preDevice.CreatedAt = &ct
 
 		}
 		lastNeedAppend = true

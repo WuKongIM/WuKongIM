@@ -105,12 +105,12 @@ func (u *userHandler) stepLeader(a UserAction) error {
 			// u.Info("leader: sending...", zap.String("frameType", msg.InPacket.GetFrameType().String()))
 		}
 
-	// case UserActionPingResp: // ping处理返回
-	// 	u.sendPing = false
-	// 	if a.Reason == ReasonSuccess && u.pingQueue.processingIndex < a.Index {
-	// 		u.pingQueue.processingIndex = a.Index
-	// 		u.pingQueue.truncateTo(a.Index)
-	// 	}
+	case UserActionPingResp: // ping处理返回
+		u.sendPing = false
+		if a.Reason == ReasonSuccess && u.pingQueue.processingIndex < a.Index {
+			u.pingQueue.processingIndex = a.Index
+			u.pingQueue.truncateTo(a.Index)
+		}
 	// u.Info("ping resp...")
 	case UserActionRecvackResp: // recvack处理返回
 		u.sendRecvacking = false

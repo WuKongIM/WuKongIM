@@ -96,11 +96,11 @@ func (u *userHandler) hasReady() bool {
 	if u.hasRecvMsg() {
 		return true
 	}
-	// if u.role == userRoleLeader {
-	// 	if u.hasPing() {
-	// 		return true
-	// 	}
-	// }
+	if u.role == userRoleLeader {
+		if u.hasPing() {
+			return true
+		}
+	}
 
 	return len(u.actions) > 0
 }
@@ -124,12 +124,12 @@ func (u *userHandler) ready() userReady {
 				u.Info("send auth...")
 			}
 			// 发送ping
-			// if u.hasPing() {
-			// 	u.sendPing = true
-			// 	msgs := u.pingQueue.sliceWithSize(u.pingQueue.processingIndex+1, u.pingQueue.lastIndex+1, 0)
-			// 	u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionPing, Messages: msgs})
-			// 	// u.Info("send ping...")
-			// }
+			if u.hasPing() {
+				u.sendPing = true
+				msgs := u.pingQueue.sliceWithSize(u.pingQueue.processingIndex+1, u.pingQueue.lastIndex+1, 0)
+				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionPing, Messages: msgs})
+				// u.Info("send ping...")
+			}
 
 			// 发送recvack
 			if u.hasRecvack() {
@@ -218,12 +218,12 @@ func (u *userHandler) hasAuth() bool {
 	return u.authQueue.processingIndex < u.authQueue.lastIndex
 }
 
-// func (u *userHandler) hasPing() bool {
-// 	if u.sendPing {
-// 		return false
-// 	}
-// 	return u.pingQueue.processingIndex < u.pingQueue.lastIndex
-// }
+func (u *userHandler) hasPing() bool {
+	if u.sendPing {
+		return false
+	}
+	return u.pingQueue.processingIndex < u.pingQueue.lastIndex
+}
 
 func (u *userHandler) hasRecvMsg() bool {
 	if u.recvMsging {
