@@ -27,7 +27,7 @@ func (r ReactorType) String() string {
 }
 
 type Options struct {
-	SubReactorNum uint32
+	SubReactorNum int
 	TickInterval  time.Duration // 每次tick间隔
 	NodeId        uint64
 	Send          func(m Message) // 发送消息
@@ -108,7 +108,7 @@ func NewOptions(opt ...Option) *Options {
 
 type Option func(*Options)
 
-func WithSubReactorNum(num uint32) Option {
+func WithSubReactorNum(num int) Option {
 	return func(o *Options) {
 		o.SubReactorNum = num
 	}

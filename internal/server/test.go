@@ -22,6 +22,8 @@ func NewTestServer(t *testing.T, opt ...Option) *Server {
 		WithClusterElectionIntervalTick(10),
 		WithClusterHeartbeatIntervalTick(1),
 		WithClusterTickInterval(time.Millisecond*10),
+		WithClusterChannelReactorSubCount(2),
+		WithClusterSlotReactorSubCount(2),
 	)
 	optList = append(optList, opt...)
 
@@ -35,7 +37,7 @@ func NewTestServer(t *testing.T, opt ...Option) *Server {
 }
 
 // 创建一个二个节点的分布式服务
-func NewTestClusterServerTwoNode(t *testing.T) (*Server, *Server) {
+func NewTestClusterServerTwoNode(t *testing.T, opt ...Option) (*Server, *Server) {
 
 	nodes := make([]*Node, 0)
 
@@ -49,8 +51,8 @@ func NewTestClusterServerTwoNode(t *testing.T) (*Server, *Server) {
 		ServerAddr: "0.0.0.0:11111",
 	})
 
-	s1 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5210"), WithMonitorAddr("0.0.0.0:5310"), WithAddr("tcp://0.0.0.0:5110"), WithHTTPAddr("0.0.0.0:5001"), WithClusterAddr("tcp://0.0.0.0:11110"), WithClusterNodeId(1001), WithClusterNodes(nodes))
-	s2 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5220"), WithMonitorAddr("0.0.0.0:5320"), WithAddr("tcp://0.0.0.0:5120"), WithHTTPAddr("0.0.0.0:5002"), WithClusterAddr("tcp://0.0.0.0:11111"), WithClusterNodeId(1002), WithClusterNodes(nodes))
+	s1 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5210"), WithMonitorAddr("0.0.0.0:5310"), WithAddr("tcp://0.0.0.0:5110"), WithHTTPAddr("0.0.0.0:5001"), WithClusterAddr("tcp://0.0.0.0:11110"), WithClusterNodeId(1001), WithClusterNodes(nodes), WithOpts(opt...))
+	s2 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5220"), WithMonitorAddr("0.0.0.0:5320"), WithAddr("tcp://0.0.0.0:5120"), WithHTTPAddr("0.0.0.0:5002"), WithClusterAddr("tcp://0.0.0.0:11111"), WithClusterNodeId(1002), WithClusterNodes(nodes), WithOpts(opt...))
 
 	return s1, s2
 }

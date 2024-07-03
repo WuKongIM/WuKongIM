@@ -1,8 +1,6 @@
 package replica
 
 import (
-	"fmt"
-
 	"go.uber.org/zap"
 )
 
@@ -124,6 +122,10 @@ func (r *Replica) stepLeader(m Message) error {
 
 	switch m.MsgType {
 	case MsgPropose: // 收到提案消息
+
+		if r.stopPropose { // 停止提案
+			return ErrProposalDropped
+		}
 		if len(m.Logs) == 0 {
 			r.Panic("MsgPropose logs is empty", zap.Uint64("nodeId", r.nodeId))
 		}
@@ -178,28 +180,47 @@ func (r *Replica) stepLeader(m Message) error {
 			r.send(r.newMsgSyncResp(m.From, m.Index, nil))
 		}
 
-		if !r.isLearner(m.From) {
+		isLearner := r.isLearner(m.From) // 当前同步节点是否是学习者
+
+		if !isLearner {
 			r.updateReplicSyncInfo(m)      // 更新副本同步信息
 			r.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
 
-		if r.opts.AutoRoleSwith && r.isLearner(m.From) && !r.isLearnerTo {
-			// 如果迁移的源节点是领导者，那么学习者必须完全追上领导者的日志
-			if r.cfg.MigrateFrom != 0 && r.cfg.MigrateFrom == r.leader {
-				if m.Index >= r.replicaLog.lastLogIndex+1 {
-					r.isLearnerTo = true
-					r.learnerToTimeoutTick = 0
-					r.send(r.newMsgLearnerToLeader(m.From))
+		if r.opts.AutoRoleSwith && r.cfg.MigrateTo != 0 && r.cfg.MigrateFrom != 0 { // 开启了自动切换角色
+
+			if isLearner && !r.isRoleTransitioning {
+				// 如果迁移的源节点是领导者，那么学习者必须完全追上领导者的日志
+				if r.cfg.MigrateFrom == r.leader { // 学习者转领导者
+					if m.Index >= r.replicaLog.lastLogIndex+1 {
+						r.isRoleTransitioning = true // 学习者转让中
+						r.roleTransitioningTimeoutTick = 0
+						// 发送学习者转为领导者
+						r.send(r.newMsgLearnerToLeader(m.From))
+					} else if m.Index+r.opts.LearnerToLeaderMinLogGap > r.replicaLog.lastLogIndex { // 如果日志差距达到预期，则当前领导停止接受任何提案，等待学习者日志完全追赶上
+						r.stopPropose = true // 停止提案
+					}
+
+				} else { // 学习者转追随者
+					// 如果learner的日志已经追上了follower的日志，那么将learner转为follower
+					if m.Index+r.opts.LearnerToFollowerMinLogGap > r.replicaLog.lastLogIndex {
+						r.isRoleTransitioning = true
+						r.roleTransitioningTimeoutTick = 0
+						// 发送学习者转为追随者
+						r.send(r.newMsgLearnerToFollower(m.From))
+					}
 				}
-			} else {
-				// 如果learner的日志已经追上了follower的日志，那么将learner转为follower
-				if m.Index+r.opts.LearnerToFollowerMinLogGap > r.replicaLog.lastLogIndex {
-					r.isLearnerTo = true
-					r.learnerToTimeoutTick = 0
-					// 发送配置改变消息
-					r.send(r.newMsgLearnerToFollower(m.From))
+			} else if !isLearner && r.cfg.MigrateFrom == r.leader && r.cfg.MigrateTo == m.From { // 追随者转为领导者
+				if m.Index >= r.replicaLog.lastLogIndex+1 {
+					r.isRoleTransitioning = true // 追随者转让中
+					r.roleTransitioningTimeoutTick = 0
+					// 发送追随者转为领导者
+					r.send(r.newFollowerToLeader(m.From))
+				} else if m.Index+r.opts.FollowerToLeaderMinLogGap > r.replicaLog.lastLogIndex { // 如果日志差距达到预期，则当前领导停止接受任何提案，等待学习者日志完全追赶上
+					r.stopPropose = true // 停止提案
 				}
 			}
+
 		}
 	case MsgConfigReq: // 收到配置请求
 		r.send(r.newMsgConfigResp(m.From))
@@ -226,11 +247,10 @@ func (r *Replica) stepFollower(m Message) error {
 		// r.Debug("recv ping", zap.Uint64("nodeID", r.nodeID), zap.Uint32("term", m.Term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("leaderCommittedIndex", m.CommittedIndex), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 	case MsgLogConflictCheckResp: // 日志冲突检查返回
-		if m.Reject {
-			r.status = StatusLogCoflictCheck
-		} else {
+		if !m.Reject {
 			r.Info("follower: truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", r.term), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex))
 			r.status = StatusReady
+			r.logConflictCheckTick = r.opts.RequestTimeoutTick // 可以进行下次请求
 
 			if m.Index != NoConflict && m.Index > 0 {
 				r.replicaLog.updateLastIndex(m.Index - 1)
@@ -411,7 +431,7 @@ func (r *Replica) updateFollowCommittedIndex(leaderCommittedIndex uint64) {
 	newCommittedIndex := r.committedIndexForFollow(leaderCommittedIndex)
 	if newCommittedIndex > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommittedIndex
-		r.Info("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Debug("update follow committed index", zap.Uint64("nodeId", r.nodeId), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 }
 
@@ -431,7 +451,7 @@ func (r *Replica) updateLeaderCommittedIndex() bool {
 	if newCommitted > r.replicaLog.committedIndex {
 		r.replicaLog.committedIndex = newCommitted
 		updated = true
-		r.Info("update leader committed index", zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
+		r.Debug("update leader committed index", zap.Uint64("lastIndex", r.replicaLog.lastLogIndex), zap.Uint32("term", r.term), zap.Uint64("committedIndex", r.replicaLog.committedIndex))
 	}
 	return updated
 }
@@ -497,7 +517,7 @@ func (r *Replica) updateReplicSyncInfo(m Message) {
 	from := m.From
 	syncInfo := r.lastSyncInfoMap[from]
 	if syncInfo == nil {
-		fmt.Println("syncInfo is nil", from, r.opts.LogPrefix)
+		r.Info("syncInfo is nil", zap.Uint64("from", from))
 		return
 	}
 	if m.Index > syncInfo.LastSyncIndex {

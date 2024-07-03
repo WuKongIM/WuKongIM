@@ -71,34 +71,34 @@ func (m *Message) Marshal() ([]byte, error) {
 var EmptyDevice = Device{}
 
 type Device struct {
-	Id           uint64    `json:"id,omitempty"`
-	Uid          string    `json:"uid,omitempty"`            // 用户唯一uid
-	Token        string    `json:"token,omitempty"`          // 设备token
-	DeviceFlag   uint64    `json:"device_flag,omitempty"`    // 设备标记 (TODO: 这里deviceFlag弄成uint64是为了以后扩展)
-	DeviceLevel  uint8     `json:"device_level,omitempty"`   // 设备等级
-	ConnCount    uint32    `json:"conn_count,omitempty"`     // 连接数量
-	SendMsgCount uint64    `json:"send_msg_count,omitempty"` // 发送消息数量
-	RecvMsgCount uint64    `json:"recv_msg_count,omitempty"` // 接收消息数量
-	SendMsgBytes uint64    `json:"send_msg_bytes,omitempty"` // 发送消息字节数
-	RecvMsgBytes uint64    `json:"recv_msg_bytes,omitempty"` // 接收消息字节数
-	CreatedAt    time.Time `json:"created_at,omitempty"`     // 创建时间
-	UpdatedAt    time.Time `json:"updated_at,omitempty"`     // 更新时间
+	Id           uint64     `json:"id,omitempty"`
+	Uid          string     `json:"uid,omitempty"`            // 用户唯一uid
+	Token        string     `json:"token,omitempty"`          // 设备token
+	DeviceFlag   uint64     `json:"device_flag,omitempty"`    // 设备标记 (TODO: 这里deviceFlag弄成uint64是为了以后扩展)
+	DeviceLevel  uint8      `json:"device_level,omitempty"`   // 设备等级
+	ConnCount    uint32     `json:"conn_count,omitempty"`     // 连接数量
+	SendMsgCount uint64     `json:"send_msg_count,omitempty"` // 发送消息数量
+	RecvMsgCount uint64     `json:"recv_msg_count,omitempty"` // 接收消息数量
+	SendMsgBytes uint64     `json:"send_msg_bytes,omitempty"` // 发送消息字节数
+	RecvMsgBytes uint64     `json:"recv_msg_bytes,omitempty"` // 接收消息字节数
+	CreatedAt    *time.Time `json:"created_at,omitempty"`     // 创建时间
+	UpdatedAt    *time.Time `json:"updated_at,omitempty"`     // 更新时间
 }
 
 var EmptyUser = User{}
 
 type User struct {
-	Id                uint64    `json:"id,omitempty"`
-	Uid               string    `json:"uid,omitempty"`                 // 用户uid
-	DeviceCount       uint32    `json:"device_count,omitempty"`        // 设备数量
-	OnlineDeviceCount uint32    `json:"online_device_count,omitempty"` // 在线设备数量
-	ConnCount         uint32    `json:"conn_count,omitempty"`          // 连接数量
-	SendMsgCount      uint64    `json:"send_msg_count,omitempty"`      // 发送消息数量
-	RecvMsgCount      uint64    `json:"recv_msg_count,omitempty"`      // 接收消息数量
-	SendMsgBytes      uint64    `json:"send_msg_bytes,omitempty"`      // 发送消息字节数
-	RecvMsgBytes      uint64    `json:"recv_msg_bytes,omitempty"`      // 接收消息字节数
-	CreatedAt         time.Time `json:"created_at,omitempty"`          // 创建时间
-	UpdatedAt         time.Time `json:"updated_at,omitempty"`          // 更新时间
+	Id                uint64     `json:"id,omitempty"`
+	Uid               string     `json:"uid,omitempty"`                 // 用户uid
+	DeviceCount       uint32     `json:"device_count,omitempty"`        // 设备数量
+	OnlineDeviceCount uint32     `json:"online_device_count,omitempty"` // 在线设备数量
+	ConnCount         uint32     `json:"conn_count,omitempty"`          // 连接数量
+	SendMsgCount      uint64     `json:"send_msg_count,omitempty"`      // 发送消息数量
+	RecvMsgCount      uint64     `json:"recv_msg_count,omitempty"`      // 接收消息数量
+	SendMsgBytes      uint64     `json:"send_msg_bytes,omitempty"`      // 发送消息字节数
+	RecvMsgBytes      uint64     `json:"recv_msg_bytes,omitempty"`      // 接收消息字节数
+	CreatedAt         *time.Time `json:"created_at,omitempty"`          // 创建时间
+	UpdatedAt         *time.Time `json:"updated_at,omitempty"`          // 更新时间
 }
 
 var EmptyChannelInfo = ChannelInfo{}
@@ -271,8 +271,8 @@ type Conversation struct {
 	UnreadCount    uint32           `json:"unread_count,omitempty"`      // 未读消息数量（这个可以用户自己设置）
 	ReadedToMsgSeq uint64           `json:"readed_to_msg_seq,omitempty"` // 已经读至的消息序号
 
-	CreatedAt time.Time `json:"created_at,omitempty"` // 创建时间
-	UpdatedAt time.Time `json:"updated_at,omitempty"` // 更新时间
+	CreatedAt *time.Time `json:"created_at,omitempty"` // 创建时间
+	UpdatedAt *time.Time `json:"updated_at,omitempty"` // 更新时间
 }
 
 func (c *Conversation) Marshal() ([]byte, error) {

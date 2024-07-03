@@ -34,6 +34,8 @@ type channel struct {
 
 	sendConfigReqToSlotLeader func(c *channel, cfgVersion uint64) error // 向槽领导发送配置请求
 
+	learnerToLock sync.Mutex
+
 	s *Server
 }
 
@@ -78,12 +80,6 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 	c.mu.Unlock()
 
 	c.Info("switch config", zap.String("cfg", cfg.String()))
-
-	if cfg.Status == wkdb.ChannelClusterStatusCandidate {
-		c.pausePropopose.Store(true)
-	} else if cfg.Status == wkdb.ChannelClusterStatusNormal {
-		c.pausePropopose.Store(false)
-	}
 
 	var role = replica.RoleUnknown
 
@@ -229,24 +225,20 @@ func (c *channel) PausePropopose() bool {
 }
 
 func (c *channel) SaveConfig(cfg replica.Config) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// c.mu.Lock()
+	// defer c.mu.Unlock()
 
-	c.cfg.MigrateFrom = cfg.MigrateFrom
-	c.cfg.MigrateTo = cfg.MigrateTo
-	c.cfg.Replicas = cfg.Replicas
-	c.cfg.Learners = cfg.Learners
-	c.cfg.ConfVersion = cfg.Version
+	// c.cfg.MigrateFrom = cfg.MigrateFrom
+	// c.cfg.MigrateTo = cfg.MigrateTo
+	// c.cfg.Replicas = cfg.Replicas
+	// c.cfg.Learners = cfg.Learners
+	// c.cfg.ConfVersion = cfg.Version
 
-	if c.cfg.MigrateFrom == 0 && c.cfg.MigrateTo == 0 {
-		c.cfg.Status = wkdb.ChannelClusterStatusNormal
-	}
-
-	err := c.opts.ChannelClusterStorage.Save(c.cfg)
-	if err != nil {
-		c.Error("save channel cluster config error", zap.Error(err))
-		return err
-	}
+	// err := c.opts.ChannelClusterStorage.Save(c.cfg)
+	// if err != nil {
+	// 	c.Error("save channel cluster config error", zap.Error(err))
+	// 	return err
+	// }
 
 	return nil
 }
@@ -287,7 +279,68 @@ func (c *channel) LearnerToLeader(learnerId uint64) error {
 	return c.learnerTo(learnerId)
 }
 
+func (c *channel) FollowerToLeader(followerId uint64) error {
+
+	c.learnerToLock.Lock()
+	defer c.learnerToLock.Unlock()
+
+	c.Info("follower to leader", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType), zap.Uint64("followerId", followerId))
+
+	channelClusterCfg, err := c.s.loadOnlyChannelClusterConfig(c.channelId, c.channelType)
+	if err != nil {
+		c.Error("onReplicaConfigChange failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		return err
+	}
+	if wkdb.IsEmptyChannelClusterConfig(channelClusterCfg) {
+		return fmt.Errorf("FollowerToLeader: channel cluster config is empty")
+	}
+	if channelClusterCfg.MigrateFrom == 0 || channelClusterCfg.MigrateTo == 0 {
+		return fmt.Errorf("FollowerToLeader: there is no migration")
+	}
+
+	if !wkutil.ArrayContainsUint64(channelClusterCfg.Replicas, followerId) {
+		c.Error("FollowerToLeader: follower not in replicas", zap.Uint64("followerId", followerId))
+		return fmt.Errorf("follower not in replicas")
+	}
+
+	newChannelClusterCfg := channelClusterCfg.Clone()
+	newChannelClusterCfg.Term = newChannelClusterCfg.Term + 1
+	newChannelClusterCfg.LeaderId = followerId
+	newChannelClusterCfg.MigrateFrom = 0
+	newChannelClusterCfg.MigrateTo = 0
+	newChannelClusterCfg.ConfVersion = uint64(time.Now().UnixNano())
+
+	// 保存配置
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ProposeTimeout)
+	defer cancel()
+	err = c.opts.ChannelClusterStorage.Propose(timeoutCtx, newChannelClusterCfg)
+	if err != nil {
+		c.Error("FollowerToLeader: propose channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		return err
+	}
+
+	// 生效配置
+	err = c.switchConfig(newChannelClusterCfg)
+	if err != nil {
+		c.Error("FollowerToLeader: switch config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		return err
+	}
+
+	// 发送配置给新领导
+	err = c.s.SendChannelClusterConfigUpdate(newChannelClusterCfg.ChannelId, newChannelClusterCfg.ChannelType, newChannelClusterCfg.LeaderId)
+	if err != nil {
+		c.Error("FollowerToLeader: sendChannelClusterConfigUpdate failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		return err
+	}
+
+	return nil
+}
+
 func (c *channel) learnerTo(learnerId uint64) error {
+
+	c.learnerToLock.Lock()
+	defer c.learnerToLock.Unlock()
+
 	channelClusterCfg, err := c.s.loadOnlyChannelClusterConfig(c.channelId, c.channelType)
 	if err != nil {
 		c.Error("onReplicaConfigChange failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
@@ -344,7 +397,7 @@ func (c *channel) learnerTo(learnerId uint64) error {
 
 	// 如果是学习者是新的领导，则通知新领导更新配置
 	if learnerIsLeader {
-		err = c.s.sendChannelClusterConfigUpdate(channelClusterCfg.ChannelId, channelClusterCfg.ChannelType, channelClusterCfg.LeaderId)
+		err = c.s.SendChannelClusterConfigUpdate(channelClusterCfg.ChannelId, channelClusterCfg.ChannelType, channelClusterCfg.LeaderId)
 		if err != nil {
 			c.Error("LearnerToFollower: sendChannelClusterConfigUpdate failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 			return err

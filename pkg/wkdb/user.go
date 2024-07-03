@@ -240,9 +240,11 @@ func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, iterFnc func(u User) boo
 		case key.TableUser.Column.RecvMsgBytes:
 			preUser.RecvMsgBytes = wk.endian.Uint64(iter.Value())
 		case key.TableUser.Column.CreatedAt:
-			preUser.CreatedAt = time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			ct := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			preUser.CreatedAt = &ct
 		case key.TableUser.Column.UpdatedAt:
-			preUser.UpdatedAt = time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			up := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
+			preUser.UpdatedAt = &up
 
 		}
 		lastNeedAppend = true

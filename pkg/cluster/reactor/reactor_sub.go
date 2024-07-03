@@ -54,8 +54,10 @@ func (r *ReactorSub) Start() error {
 }
 
 func (r *ReactorSub) Stop() {
+
 	r.stopped.Store(true)
 	r.stopper.Stop()
+
 }
 
 func (r *ReactorSub) run() {
@@ -64,8 +66,9 @@ func (r *ReactorSub) run() {
 		tick = time.NewTicker(r.opts.TickInterval)
 	)
 
-	for {
+	for !r.stopped.Load() {
 		r.readyEvents()
+
 		select {
 		case <-tick.C:
 			r.tick()
@@ -113,9 +116,11 @@ func (r *ReactorSub) run() {
 
 		case <-r.avdanceC:
 		case <-r.stopper.ShouldStop():
+			r.Info("stop reactor sub")
 			return
 		}
 	}
+
 }
 
 func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs []replica.Log) ([]ProposeResult, error) {
@@ -137,7 +142,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 		}
 		if r.opts.EnableLazyCatchUp {
 			if end > time.Millisecond*0 {
-				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.Int("logs", len(logs)), zap.Uint64("lastIndex", logs[len(logs)-1].Index))
+				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.String("handleKey", handleKey), zap.Int("logs", len(logs)), zap.Uint64("lastIndex", logs[len(logs)-1].Index))
 			}
 		}
 	}()
@@ -386,6 +391,12 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 				h:         handler,
 				learnerId: m.LearnerId,
 			})
+		case replica.MsgFollowerToLeader: // 追随者转领导者
+			r.mr.addFollowerToLeaderReq(&followerToLeaderReq{
+				h:          handler,
+				followerId: m.FollowerId,
+			})
+
 		case replica.MsgSpeedLevelChange:
 			// fmt.Println("MsgSpeedLevelChange---------------->", handler.key, m.SpeedLevel.String())
 

@@ -196,6 +196,9 @@ type ConversationDB interface {
 	// GetConversation 获取指定用户的指定会话
 	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)
 
+	// ExistConversation 是否存在会话
+	ExistConversation(uid string, channelId string, channelType uint8) (bool, error)
+
 	// GetConversationBySessionIds(uid string, sessionIds []uint64) ([]Conversation, error)
 
 	// SearchConversation 搜索最近会话
@@ -226,7 +229,7 @@ type ChannelClusterConfigDB interface {
 	GetChannelClusterConfigVersion(channelId string, channelType uint8) (uint64, error)
 
 	// SearchChannelClusterConfig 搜索频道的分布式配置
-	SearchChannelClusterConfig(req ChannelClusterConfigSearchReq) ([]ChannelClusterConfig, error)
+	SearchChannelClusterConfig(req ChannelClusterConfigSearchReq, filter ...func(cfg ChannelClusterConfig) bool) ([]ChannelClusterConfig, error)
 }
 
 type LeaderTermSequenceDB interface {
@@ -369,9 +372,11 @@ type SessionSearchReq struct {
 }
 
 type ChannelClusterConfigSearchReq struct {
-	ChannelId   string // 频道id
-	ChannelType uint8  // 频道类型
-	Limit       int    // 限制查询数量
-	CurrentPage int    // 当前页码
-	LeaderId    uint64 // 领导者id
+	ChannelId    string // 频道id
+	ChannelType  uint8  // 频道类型
+	Limit        int    // 限制查询数量
+	CurrentPage  int    // 当前页码
+	LeaderId     uint64 // 领导者id
+	SlotLeaderId uint64 // 槽领导者id
+
 }

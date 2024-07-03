@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
-	clusterevent "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent2"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
@@ -222,6 +222,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
+
 	s.stopped.Store(true)
 	s.cancelFnc()
 	s.stopper.Stop()
@@ -559,7 +560,7 @@ func (s *Server) handleChannelClusterConfigReq(fromNodeId uint64, m *proto.Messa
 	}
 
 	// 发送z最新的频道配置给频道领导
-	err = s.sendChannelClusterConfigUpdate(req.ChannelId, req.ChannelType, fromNodeId)
+	err = s.SendChannelClusterConfigUpdate(req.ChannelId, req.ChannelType, fromNodeId)
 	if err != nil {
 		s.Error("handleChannelConfigReq: sendChannelConfigUpdate failed", zap.Error(err))
 		return
@@ -567,7 +568,7 @@ func (s *Server) handleChannelClusterConfigReq(fromNodeId uint64, m *proto.Messa
 
 }
 
-func (s *Server) sendChannelClusterConfigUpdate(channelId string, channelType uint8, toNodeId uint64) error {
+func (s *Server) SendChannelClusterConfigUpdate(channelId string, channelType uint8, toNodeId uint64) error {
 
 	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
 	if err != nil {
@@ -604,11 +605,11 @@ func (s *Server) handleChannelClusterConfigUpdate(m *proto.Message) {
 
 	fmt.Println("handleChannelClusterConfigUpdate---->", cfg.LeaderId)
 
-	s.updateChannelClusterConfig(cfg)
+	s.UpdateChannelClusterConfig(cfg)
 
 }
 
-func (s *Server) updateChannelClusterConfig(cfg wkdb.ChannelClusterConfig) {
+func (s *Server) UpdateChannelClusterConfig(cfg wkdb.ChannelClusterConfig) {
 	channel, err := s.loadOrCreateChannel(s.cancelCtx, cfg.ChannelId, cfg.ChannelType)
 	if err != nil {
 		s.Error("handleChannelConfigUpdate: loadOrCreateChannel failed", zap.Error(err))

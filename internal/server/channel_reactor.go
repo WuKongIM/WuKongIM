@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"hash/fnv"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -137,6 +138,8 @@ func (r *channelReactor) loadOrCreateChannel(fakeChannelId string, channelType u
 	if ch != nil {
 		return ch
 	}
+
+	fmt.Println("loadOrCreateChannel---->", fakeChannelId)
 	ch = newChannel(sub, fakeChannelId, channelType)
 	sub.addChannel(ch)
 	return ch

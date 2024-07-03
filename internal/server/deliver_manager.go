@@ -48,15 +48,11 @@ func (d *deliverManager) start() error {
 }
 
 func (d *deliverManager) stop() {
-	fmt.Println("deliverManager--------stop1")
 	for _, deliverr := range d.deliverrs {
 		deliverr.stop()
 	}
-	fmt.Println("deliverManager--------stop2")
 
 	d.nodeManager.stop()
-
-	fmt.Println("deliverManager--------stop3")
 }
 
 func (d *deliverManager) deliver(req *deliverReq) {
@@ -199,8 +195,8 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 	for _, nodeUser := range tg.users {
 		if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId { // 只投递本节点的
 			// 更新最近会话
-			lastMsg := req.messages[len(req.messages)-1]
-			d.dm.s.conversationManager.Push(req.channelId, req.channelType, nodeUser.uids, lastMsg.FromUid, uint64(lastMsg.MessageSeq))
+			d.dm.s.conversationManager.Push(req.channelId, req.channelType, nodeUser.uids, req.messages)
+
 			// 投递消息
 			d.deliver(req, nodeUser.uids)
 

@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *Store) AppendMessages(ctx context.Context, channelID string, channelType uint8, msgs []wkdb.Message) ([]icluster.ProposeResult, error) {
+func (s *Store) AppendMessages(ctx context.Context, channelId string, channelType uint8, msgs []wkdb.Message) ([]icluster.ProposeResult, error) {
 
 	if len(msgs) == 0 {
 		return nil, nil
@@ -32,7 +32,9 @@ func (s *Store) AppendMessages(ctx context.Context, channelID string, channelTyp
 		}
 	}
 
-	results, err := s.opts.Cluster.ProposeChannelMessages(ctx, channelID, channelType, logs)
+	fmt.Println("AppendMessages-------->", channelId)
+
+	results, err := s.opts.Cluster.ProposeChannelMessages(ctx, channelId, channelType, logs)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +197,6 @@ func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) err
 	for _, req := range reqs {
 		channelId, channelType := ChannelFromlKey(req.HandleKey)
 
-		fmt.Println("req.HandleKey------>", req.HandleKey, channelId, channelType)
 		msgs := make([]wkdb.Message, len(req.Logs))
 		for idx, log := range req.Logs {
 			msg := wkdb.Message{}

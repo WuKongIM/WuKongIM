@@ -276,10 +276,9 @@ func TestApplyLogs(t *testing.T) {
 	// 存储日志
 	for _, msg := range rd.Messages {
 		if msg.MsgType == MsgApplyLogs {
-			lastIndex := msg.Logs[len(msg.Logs)-1].Index
 			err := r.Step(Message{
 				MsgType: MsgApplyLogsResp,
-				Index:   lastIndex,
+				Index:   msg.CommittedIndex,
 			})
 			assert.NoError(t, err)
 		}
@@ -335,4 +334,132 @@ func TestElection(t *testing.T) {
 		}
 	}()
 	electionWait.Wait()
+}
+
+// 测试学习者转好成追随者
+func TestLearnerToFollower(t *testing.T) {
+	r := New(1, WithAutoRoleSwith(true), WithLearnerToFollowerMinLogGap(1))
+
+	r.appendLog(Log{Index: 1, Term: 1, Data: []byte("hello")})
+	r.appendLog(Log{Index: 2, Term: 1, Data: []byte("world")})
+
+	has := r.HasReady()
+	assert.True(t, has)
+
+	rd := r.Ready()
+	assert.True(t, hasMsg(rd.Messages, MsgInit))
+
+	err := r.Step(Message{
+		MsgType: MsgInitResp,
+		Config: Config{
+			Role:        RoleLeader,
+			Term:        1,
+			Replicas:    []uint64{2, 3},
+			Learners:    []uint64{4},
+			MigrateFrom: 2,
+			MigrateTo:   4,
+		},
+	})
+	assert.NoError(t, err)
+
+	err = r.Step(Message{
+		MsgType: MsgSyncReq,
+		Index:   2,
+		From:    4,
+	})
+	assert.NoError(t, err)
+
+	rd = r.Ready()
+	assert.True(t, hasMsg(rd.Messages, MsgSyncResp))
+	assert.True(t, hasMsg(rd.Messages, MsgLearnerToFollower))
+}
+
+// 学习者转领导者者
+func TestLearnerToLeader(t *testing.T) {
+	r := New(1, WithAutoRoleSwith(true))
+
+	r.appendLog(Log{Index: 1, Term: 1, Data: []byte("hello")})
+	r.appendLog(Log{Index: 2, Term: 1, Data: []byte("world")})
+
+	has := r.HasReady()
+	assert.True(t, has)
+
+	rd := r.Ready()
+	assert.True(t, hasMsg(rd.Messages, MsgInit))
+
+	err := r.Step(Message{
+		MsgType: MsgInitResp,
+		Config: Config{
+			Role:        RoleLeader,
+			Term:        1,
+			Replicas:    []uint64{1, 2, 3},
+			Learners:    []uint64{4},
+			MigrateFrom: 1,
+			MigrateTo:   4,
+		},
+	})
+	assert.NoError(t, err)
+
+	err = r.Step(Message{
+		MsgType: MsgSyncReq,
+		Index:   3,
+		From:    4,
+	})
+	assert.NoError(t, err)
+
+	rd = r.Ready()
+	assert.True(t, hasMsg(rd.Messages, MsgSyncResp))
+	assert.True(t, hasMsg(rd.Messages, MsgLearnerToLeader))
+
+	// 领导者转好过程中，不能提按
+	err = r.Propose([]byte("hi"))
+	assert.Equal(t, ErrProposalDropped, err)
+
+	err = r.Step(Message{
+		MsgType: MsgConfigResp,
+		Config: Config{
+			Term:     2,
+			Leader:   4,
+			Role:     RoleFollower,
+			Replicas: []uint64{1, 2, 3, 4},
+		},
+	})
+	assert.NoError(t, err)
+}
+
+// 追随者转领导者
+func TestFollowerToLeader(t *testing.T) {
+	r := New(1, WithAutoRoleSwith(true))
+
+	r.appendLog(Log{Index: 1, Term: 1, Data: []byte("hello")})
+	r.appendLog(Log{Index: 2, Term: 1, Data: []byte("world")})
+
+	has := r.HasReady()
+	assert.True(t, has)
+
+	rd := r.Ready()
+	assert.True(t, hasMsg(rd.Messages, MsgInit))
+
+	err := r.Step(Message{
+		MsgType: MsgInitResp,
+		Config: Config{
+			Role:        RoleLeader,
+			Term:        1,
+			Replicas:    []uint64{1, 2, 3},
+			MigrateFrom: 1,
+			MigrateTo:   3,
+		},
+	})
+	assert.NoError(t, err)
+
+	err = r.Step(Message{
+		MsgType: MsgSyncReq,
+		Index:   3,
+		From:    3,
+	})
+	assert.NoError(t, err)
+
+	rd = r.Ready()
+	assert.True(t, hasMsg(rd.Messages, MsgSyncResp))
+	assert.True(t, hasMsg(rd.Messages, MsgFollowerToLeader))
 }

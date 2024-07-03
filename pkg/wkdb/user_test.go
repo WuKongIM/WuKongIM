@@ -18,10 +18,11 @@ func TestUserAddOrUpdate(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
+	tn := time.Now()
 	u := wkdb.User{
 		Uid:       "test",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: &tn,
+		UpdatedAt: &tn,
 	}
 
 	err = d.AddOrUpdateUser(u)
@@ -38,10 +39,11 @@ func TestGetUser(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
+	tn := time.Now()
 	u := wkdb.User{
 		Uid:       "test",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: &tn,
+		UpdatedAt: &tn,
 	}
 
 	err = d.AddOrUpdateUser(u)

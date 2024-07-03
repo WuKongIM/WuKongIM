@@ -1,12 +1,8 @@
 package server
 
-import (
-	"go.uber.org/zap"
-)
-
 func (c *channel) step(a *ChannelAction) error {
 
-	c.Debug("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType))
+	// c.Debug("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType))
 
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回

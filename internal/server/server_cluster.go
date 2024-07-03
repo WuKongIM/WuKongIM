@@ -86,7 +86,8 @@ func (s *Server) handleChannelForward(c *wkserver.Context) {
 	for _, reactorChannelMessage := range req.Messages {
 		sendPacket := reactorChannelMessage.SendPacket
 		// 提案频道消息
-		err = s.channelReactor.proposeSend(reactorChannelMessage.FromUid, reactorChannelMessage.FromDeviceId, reactorChannelMessage.FromConnId, reactorChannelMessage.FromNodeId, false, sendPacket)
+		ch := s.channelReactor.loadOrCreateChannel(req.ChannelId, req.ChannelType)
+		_, err = ch.proposeSend(reactorChannelMessage.FromUid, reactorChannelMessage.FromDeviceId, reactorChannelMessage.FromConnId, reactorChannelMessage.FromNodeId, false, sendPacket)
 		if err != nil {
 			s.Error("handleChannelForward: proposeSend failed")
 			c.WriteErr(err)

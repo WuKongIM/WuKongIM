@@ -41,10 +41,13 @@ type IHandler interface {
 	// PausePropopose 是否暂停提案
 	PausePropopose() bool
 
-	// 学习者转追随者
+	// LearnerToFollower 学习者转追随者
 	LearnerToFollower(learnerId uint64) error
-	// 学习者转领导者
+	// LearnerToLeader 学习者转领导者
 	LearnerToLeader(learnerId uint64) error
+
+	// FollowerToLeader 追随者转领导者
+	FollowerToLeader(followerId uint64) error
 
 	// 保存分布式配置
 	SaveConfig(cfg replica.Config) error
@@ -283,6 +286,13 @@ func (h *handler) learnerToLeader(learnerId uint64) error {
 		return nil
 	}
 	return h.handler.LearnerToLeader(learnerId)
+}
+
+func (h *handler) followerToLeader(followerId uint64) error {
+	if h.handler == nil {
+		return nil
+	}
+	return h.handler.FollowerToLeader(followerId)
 }
 
 func (h *handler) setLastLeaderTerm(term uint32) {

@@ -46,6 +46,7 @@ const (
 	MsgConfigChange             // 配置变更
 	MsgLearnerToFollower        // 学习者转成追随者
 	MsgLearnerToLeader          // 学习者转成领导者
+	MsgFollowerToLeader         // 追随者转成领导者
 	MsgSpeedLevelSet            // 设置速度
 	MsgSpeedLevelChange         // 速度变更
 	MsgChangeRole               // 变更角色
@@ -116,6 +117,8 @@ func (m MsgType) String() string {
 		return "MsgSyncTimeout"
 	case MsgChangeRole:
 		return "MsgChangeRole"
+	case MsgFollowerToLeader:
+		return "MsgFollowerToLeader"
 	default:
 		return fmt.Sprintf("MsgUnkown[%d]", m)
 	}
@@ -176,6 +179,7 @@ type Message struct {
 
 	// 不参与编码
 	LearnerId     uint64
+	FollowerId    uint64
 	ApplyingIndex uint64 // 应用中的下表
 	AppliedIndex  uint64
 	Role          Role // 节点角色
@@ -515,11 +519,10 @@ func (c *Config) String() string {
 type Status int
 
 const (
-	StatusUninitialized      Status = iota // 未初始化
-	StatusIniting                          // 初始化中
-	StatusLogCoflictCheck                  // 日志冲突检查
-	StatusLogCoflictChecking               // 日志冲突检查中
-	StatusReady                            // 准备就绪
+	StatusUninitialized   Status = iota // 未初始化
+	StatusIniting                       // 初始化中
+	StatusLogCoflictCheck               // 日志冲突检查
+	StatusReady                         // 准备就绪
 
 )
 

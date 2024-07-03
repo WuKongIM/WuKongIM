@@ -242,7 +242,10 @@ func (c *Config) updateSlotMigrate(slotId uint32, fromNodeId, toNodeId uint64) {
 		if slot.Id == slotId && slot.MigrateFrom == 0 && slot.MigrateTo == 0 {
 			slot.MigrateFrom = fromNodeId
 			slot.MigrateTo = toNodeId
-			slot.Learners = append(slot.Learners, toNodeId)
+			if !wkutil.ArrayContainsUint64(slot.Replicas, toNodeId) { // 如果目标节点不在副本列表里，则要加入学习者列表
+				slot.Learners = append(slot.Learners, toNodeId)
+			}
+
 			break
 		}
 	}

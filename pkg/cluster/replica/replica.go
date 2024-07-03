@@ -26,8 +26,9 @@ type Replica struct {
 
 	uncommittedSize logEncodingSize // 未提交的日志大小
 
-	isLearnerTo          bool // 是否学习者转换中
-	learnerToTimeoutTick int  // 学习者转换超时计时器
+	stopPropose                  bool // 是否停止提案
+	isRoleTransitioning          bool // 是否角色转换中
+	roleTransitioningTimeoutTick int  // 角色转换超时计时器
 
 	replicas []uint64 // 副本节点ID集合（不包含本节点）
 	// -------------------- 节点状态 --------------------
@@ -37,6 +38,8 @@ type Replica struct {
 	term   uint32 // 当前任期
 
 	syncing bool // 日志同步中
+
+	logConflictCheckTick int // 日志冲突检查技术
 
 	// -------------------- election --------------------
 	electionElapsed           int // 选举计时器
@@ -67,6 +70,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 		no:              wkutil.GenUUID(),
 	}
 	rc.syncIntervalTick = opts.SyncIntervalTick
+	rc.logConflictCheckTick = opts.RequestTimeoutTick
 	rc.term = opts.LastTerm
 	return rc
 }
@@ -90,7 +94,7 @@ func (r *Replica) HasReady() bool {
 
 	}
 
-	if isFollower && r.leader != 0 {
+	if isFollower && r.leader != 0 && r.logConflictCheckTick >= r.opts.RequestTimeoutTick {
 		if r.syncTick >= r.syncIntervalTick && !r.syncing {
 			return true
 		}
@@ -143,9 +147,9 @@ func (r *Replica) Ready() Ready {
 		}
 	}
 	// ==================== 日志冲突检查 ====================
-	if r.status == StatusLogCoflictCheck && isFollower {
+	if r.status == StatusLogCoflictCheck && isFollower && r.logConflictCheckTick >= r.opts.RequestTimeoutTick {
 		if r.leader != 0 {
-			r.status = StatusLogCoflictChecking
+			r.logConflictCheckTick = 0
 			r.msgs = append(r.msgs, r.newMsgLogConflictCheck())
 			rd.Messages = r.msgs
 			r.msgs = r.msgs[:0]
@@ -199,6 +203,10 @@ func (r *Replica) Tick() {
 			r.syncTick = 0
 		}
 
+		// 日志冲突检查超时，重新发起
+		if r.status == StatusLogCoflictCheck {
+			r.logConflictCheckTick++
+		}
 	}
 
 	if r.tickFnc != nil {
@@ -278,6 +286,10 @@ func (r *Replica) switchConfig(cfg Config) {
 }
 
 func (r *Replica) initLeaderInfo() {
+
+	r.isRoleTransitioning = false
+	r.roleTransitioningTimeoutTick = 0
+	r.stopPropose = false
 
 	r.lastSyncInfoMap = make(map[uint64]*SyncInfo)
 	r.replicas = nil
@@ -386,6 +398,9 @@ func (r *Replica) reset(term uint32) {
 	r.voteFor = None
 	r.votes = make(map[uint64]bool)
 	r.msgs = nil
+	r.stopPropose = false
+	r.isRoleTransitioning = false
+	r.roleTransitioningTimeoutTick = 0
 	r.leader = None
 	r.electionElapsed = 0
 	r.heartbeatElapsed = 0
@@ -446,11 +461,11 @@ func (r *Replica) tickHeartbeat() {
 		return
 	}
 
-	if r.isLearnerTo {
-		r.learnerToTimeoutTick++
+	if r.isRoleTransitioning {
+		r.roleTransitioningTimeoutTick++
 
-		if r.learnerToTimeoutTick >= r.opts.LearnerToTimeoutTick {
-			r.isLearnerTo = false
+		if r.roleTransitioningTimeoutTick >= r.opts.LearnerToTimeoutTick {
+			r.isRoleTransitioning = false
 		}
 	}
 
@@ -535,6 +550,18 @@ func (r *Replica) isLearner(nodeId uint64) bool {
 	}
 	for _, learner := range r.cfg.Learners {
 		if learner == nodeId {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Replica) isReplica(nodeId uint64) bool {
+	if len(r.replicas) == 0 {
+		return false
+	}
+	for _, replica := range r.replicas {
+		if replica == nodeId {
 			return true
 		}
 	}
@@ -718,6 +745,15 @@ func (r *Replica) newMsgLearnerToLeader(learnerId uint64) Message {
 		From:      r.nodeId,
 		To:        r.nodeId,
 		LearnerId: learnerId,
+	}
+}
+
+func (r *Replica) newFollowerToLeader(followerNodeId uint64) Message {
+	return Message{
+		MsgType:    MsgFollowerToLeader,
+		From:       r.nodeId,
+		To:         r.nodeId,
+		FollowerId: followerNodeId,
 	}
 }
 

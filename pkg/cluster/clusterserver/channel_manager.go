@@ -36,6 +36,7 @@ func newChannelManager(s *Server) *channelManager {
 			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
 		}),
 		reactor.WithRequest(cm),
+		reactor.WithSubReactorNum(s.opts.ChannelReactorSubCount),
 	))
 	return cm
 }

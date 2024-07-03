@@ -292,7 +292,6 @@ func (s *Server) autoBalanceSlotLeaders(cfg *pb.Config) []*pb.Slot {
 					newSlot := slot.Clone()
 					newSlot.MigrateFrom = exportNodeId
 					newSlot.MigrateTo = importNodeId
-					newSlot.Learners = append(newSlot.Learners, importNodeId)
 					newSlots = append(newSlots, newSlot)
 					exportLeaderCount--
 					importLeaderCount--

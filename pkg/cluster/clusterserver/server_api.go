@@ -34,6 +34,7 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/allslot"), s.allSlotsGet)                                                 // 获取所有槽信息
 	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet)                               // 槽分布式配置
 	route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)                                  // 获取某个槽的所有频道信息
+	route.POST(s.formatPath("/slots/:id/migrate"), s.slotMigrate)                                      // 迁移槽
 	route.GET(s.formatPath("/info"), s.clusterInfoGet)                                                 // 获取集群信息
 	route.GET(s.formatPath("/messages"), s.messageSearch)                                              // 搜索消息
 	route.GET(s.formatPath("/channels"), s.channelSearch)                                              // 频道搜索
@@ -176,6 +177,17 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		ChannelType: channelType,
 		CurrentPage: currentPage,
 		Limit:       limit,
+	}, func(cfg wkdb.ChannelClusterConfig) bool {
+		slotId := s.getSlotId(cfg.ChannelId)
+		slot := s.clusterEventServer.Slot(slotId)
+		if slot == nil {
+			return false
+		}
+
+		if slot.Leader != node.Id {
+			return false
+		}
+		return true
 	})
 	if err != nil {
 		s.Error("GetWithAllSlot error", zap.Error(err))
@@ -291,8 +303,6 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 	// 	return
 
 	// }
-
-	fmt.Println("start---------->4-->", len(channelClusterConfigs))
 
 	c.JSON(http.StatusOK, ChannelClusterConfigRespTotal{
 		Running: s.channelManager.channelCount(),
@@ -444,6 +454,70 @@ func (s *Server) slotChannelsGet(c *wkhttp.Context) {
 		Total: len(channelClusterConfigResps),
 		Data:  channelClusterConfigResps,
 	})
+}
+
+func (s *Server) slotMigrate(c *wkhttp.Context) {
+	var req struct {
+		MigrateFrom uint64 `json:"migrate_from"` // 迁移的原节点
+		MigrateTo   uint64 `json:"migrate_to"`   // 迁移的目标节点
+	}
+
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		s.Error("bind json error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	idStr := c.Param("id")
+	id := wkutil.ParseUint32(idStr)
+
+	slot := s.clusterEventServer.Slot(id)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", id))
+		c.ResponseError(errors.New("slot not found"))
+		return
+	}
+
+	node := s.clusterEventServer.Node(slot.Leader)
+	if node == nil {
+		s.Error("leader not found", zap.Uint64("leaderId", slot.Leader))
+		c.ResponseError(errors.New("leader not found"))
+		return
+	}
+
+	if slot.Leader != s.opts.NodeId {
+		c.ForwardWithBody(fmt.Sprintf("%s%s", node.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	if !wkutil.ArrayContainsUint64(slot.Replicas, req.MigrateFrom) {
+		c.ResponseError(errors.New("MigrateFrom not in replicas"))
+		return
+	}
+	if wkutil.ArrayContainsUint64(slot.Replicas, req.MigrateTo) && req.MigrateFrom != slot.Leader {
+		c.ResponseError(errors.New("transition between followers is not supported"))
+		return
+	}
+
+	if req.MigrateFrom == 0 || req.MigrateTo == 0 {
+		c.ResponseError(errors.New("migrateFrom or migrateTo is 0"))
+		return
+	}
+
+	if req.MigrateFrom == req.MigrateTo {
+		c.ResponseError(errors.New("migrateFrom is equal to migrateTo"))
+		return
+	}
+
+	err = s.clusterEventServer.ProposeMigrateSlot(id, req.MigrateFrom, req.MigrateTo)
+	if err != nil {
+		s.Error("slotMigrate: ProposeMigrateSlot error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	c.ResponseOK()
+
 }
 
 func (s *Server) clusterInfoGet(c *wkhttp.Context) {
@@ -1186,6 +1260,17 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 		return
 	}
 
+	// 移除userResps中重复的数据
+	userRespMap := make(map[string]*userResp)
+	for _, userResp := range userResps {
+		userRespMap[userResp.Uid] = userResp
+	}
+
+	userResps = make([]*userResp, 0, len(userRespMap))
+	for _, userResp := range userRespMap {
+		userResps = append(userResps, userResp)
+	}
+
 	c.JSON(http.StatusOK, userRespTotal{
 		Data:  userResps,
 		Total: 0,
@@ -1313,6 +1398,17 @@ func (s *Server) deviceSearch(c *wkhttp.Context) {
 		s.Error("search device request failed", zap.Error(err))
 		c.ResponseError(err)
 		return
+	}
+
+	// 移除deviceResps中重复的数据
+	deviceRespMap := make(map[string]*deviceResp)
+	for _, deviceResp := range deviceResps {
+		deviceRespMap[fmt.Sprintf("%s-%d", deviceResp.Uid, deviceResp.DeviceFlag)] = deviceResp
+	}
+
+	deviceResps = make([]*deviceResp, 0, len(deviceRespMap))
+	for _, deviceResp := range deviceRespMap {
+		deviceResps = append(deviceResps, deviceResp)
 	}
 
 	c.JSON(http.StatusOK, deviceRespTotal{
@@ -1450,6 +1546,17 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 		return
 	}
 
+	// 移除conversationResps中重复的数据
+	conversationRespMap := make(map[string]*conversationResp)
+	for _, conversationResp := range conversationResps {
+		conversationRespMap[fmt.Sprintf("%s-%s-%d", conversationResp.Uid, conversationResp.ChannelId, conversationResp.ChannelType)] = conversationResp
+	}
+
+	conversationResps = make([]*conversationResp, 0, len(conversationRespMap))
+	for _, conversationResp := range conversationRespMap {
+		conversationResps = append(conversationResps, conversationResp)
+	}
+
 	c.JSON(http.StatusOK, conversationRespTotal{
 		Data:  conversationResps,
 		Total: 0,
@@ -1518,13 +1625,15 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 		return
 	}
 	if !wkutil.ArrayContainsUint64(clusterConfig.Replicas, req.MigrateFrom) {
-		c.ResponseError(errors.New("source node not in replicas"))
+		c.ResponseError(errors.New("MigrateFrom not in replicas"))
 		return
 	}
-	if wkutil.ArrayContainsUint64(clusterConfig.Replicas, req.MigrateTo) {
-		c.ResponseError(errors.New("target node already in replicas"))
+
+	if wkutil.ArrayContainsUint64(clusterConfig.Replicas, req.MigrateTo) && req.MigrateFrom != clusterConfig.LeaderId {
+		c.ResponseError(errors.New("transition between followers is not supported"))
 		return
 	}
+
 	newClusterConfig := clusterConfig.Clone()
 	if newClusterConfig.MigrateFrom != 0 || newClusterConfig.MigrateTo != 0 {
 		c.ResponseError(errors.New("migrate is in progress"))
@@ -1535,12 +1644,10 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 	newClusterConfig.MigrateFrom = req.MigrateFrom
 	newClusterConfig.MigrateTo = req.MigrateTo
 	newClusterConfig.ConfVersion = uint64(time.Now().UnixNano())
-	// 将要目标节点加入学习者中
-	newClusterConfig.Learners = append(newClusterConfig.Learners, req.MigrateTo)
 
-	// 如果迁移的是领导者,则将频道设置为选举状态，这样就不会再有新的消息日志写入，等待学习者学到与频道领导一样的日志。
-	if req.MigrateFrom == clusterConfig.LeaderId {
-		newClusterConfig.Status = wkdb.ChannelClusterStatusCandidate
+	if !wkutil.ArrayContainsUint64(clusterConfig.Replicas, req.MigrateTo) {
+		// 将要目标节点加入学习者中
+		newClusterConfig.Learners = append(newClusterConfig.Learners, req.MigrateTo)
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
@@ -1556,19 +1663,19 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 
 	// 如果频道领导不是当前节点，则发送最新配置给频道领导 （这里就算发送失败也没问题，因为频道领导会间隔比对自己与槽领导的配置）
 	if newClusterConfig.LeaderId != s.opts.NodeId {
-		err = s.sendChannelClusterConfigUpdate(channelId, channelType, newClusterConfig.LeaderId)
+		err = s.SendChannelClusterConfigUpdate(channelId, channelType, newClusterConfig.LeaderId)
 		if err != nil {
 			s.Error("channelMigrate: sendChannelClusterConfigUpdate error", zap.Error(err))
 			c.ResponseError(err)
 			return
 		}
 	} else {
-		s.updateChannelClusterConfig(newClusterConfig)
+		s.UpdateChannelClusterConfig(newClusterConfig)
 	}
 
 	// 如果目标节点不是当前节点，则发送最新配置给目标节点
 	if req.MigrateTo != s.opts.NodeId {
-		err = s.sendChannelClusterConfigUpdate(channelId, channelType, req.MigrateTo)
+		err = s.SendChannelClusterConfigUpdate(channelId, channelType, req.MigrateTo)
 		if err != nil {
 			s.Error("channelMigrate: sendChannelClusterConfigUpdate error", zap.Error(err))
 			c.ResponseError(err)
@@ -1601,23 +1708,26 @@ func (s *Server) channelClusterConfig(c *wkhttp.Context) {
 
 func (s *Server) channelStart(c *wkhttp.Context) {
 
-	var req struct {
-		NodeId uint64 `json:"node_id"`
-	}
-	bodyBytes, err := BindJSON(&req, c)
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
 	if err != nil {
-		s.Error("BindJSON error", zap.Error(err))
+		s.Error("loadOnlyChannelClusterConfig error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
-	if req.NodeId > 0 && req.NodeId != s.opts.NodeId {
-		c.ForwardWithBody(fmt.Sprintf("%s%s", s.clusterEventServer.Node(req.NodeId).ApiServerAddr, c.Request.URL.Path), bodyBytes)
+	if cfg.LeaderId == 0 {
+		s.Error("leader not found", zap.String("cfg", cfg.String()))
+		c.ResponseError(errors.New("leader not found"))
 		return
 	}
 
-	channelId := c.Param("channel_id")
-	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+	if cfg.LeaderId != s.opts.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", s.clusterEventServer.Node(cfg.LeaderId).ApiServerAddr, c.Request.URL.Path))
+		return
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
 	defer cancel()
@@ -1632,23 +1742,26 @@ func (s *Server) channelStart(c *wkhttp.Context) {
 
 func (s *Server) channelStop(c *wkhttp.Context) {
 
-	var req struct {
-		NodeId uint64 `json:"node_id"`
-	}
-	bodyBytes, err := BindJSON(&req, c)
+	channelId := c.Param("channel_id")
+	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+
+	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
 	if err != nil {
-		s.Error("BindJSON error", zap.Error(err))
+		s.Error("loadOnlyChannelClusterConfig error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
-	if req.NodeId > 0 && req.NodeId != s.opts.NodeId {
-		c.ForwardWithBody(fmt.Sprintf("%s%s", s.clusterEventServer.Node(req.NodeId).ApiServerAddr, c.Request.URL.Path), bodyBytes)
+	if cfg.LeaderId == 0 {
+		s.Error("leader not found", zap.String("cfg", cfg.String()))
+		c.ResponseError(errors.New("leader not found"))
 		return
 	}
 
-	channelId := c.Param("channel_id")
-	channelType := wkutil.ParseUint8(c.Param("channel_type"))
+	if cfg.LeaderId != s.opts.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", s.clusterEventServer.Node(cfg.LeaderId).ApiServerAddr, c.Request.URL.Path))
+		return
+	}
 
 	handler := s.channelManager.get(channelId, channelType)
 	if handler != nil {

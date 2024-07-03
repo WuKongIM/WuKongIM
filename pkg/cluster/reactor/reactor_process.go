@@ -525,3 +525,36 @@ type learnerToLeaderReq struct {
 	h         *handler
 	learnerId uint64
 }
+
+// =================================== 追随者转领导者 ===================================
+
+func (r *Reactor) addFollowerToLeaderReq(req *followerToLeaderReq) {
+	select {
+	case r.processFollowerToLeaderC <- req:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *Reactor) processFollowerToLeaderLoop() {
+	for {
+		select {
+		case req := <-r.processFollowerToLeaderC:
+			r.processFollowerToLeader(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *Reactor) processFollowerToLeader(req *followerToLeaderReq) {
+	err := req.h.followerToLeader(req.followerId)
+	if err != nil {
+		r.Error("follower to leader failed", zap.Error(err))
+	}
+}
+
+type followerToLeaderReq struct {
+	h          *handler
+	followerId uint64
+}

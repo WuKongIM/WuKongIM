@@ -31,6 +31,7 @@ func newSlotManager(s *Server) *slotManager {
 		reactor.WithIsCommittedAfterApplied(true),
 		reactor.WithReactorType(reactor.ReactorTypeSlot),
 		reactor.WithRequest(sm),
+		reactor.WithSubReactorNum(s.opts.SlotReactorSubCount),
 	))
 
 	return sm

@@ -181,11 +181,19 @@ func (wk *wukongDB) searchChannelClusterConfigByLeaderId(leaderId uint64, iterFn
 
 }
 
-func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq) ([]ChannelClusterConfig, error) {
+func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq, filter ...func(cfg ChannelClusterConfig) bool) ([]ChannelClusterConfig, error) {
 	if req.ChannelId != "" {
 		cfg, err := wk.GetChannelClusterConfig(req.ChannelId, req.ChannelType)
 		if err != nil {
 			return nil, err
+		}
+		if len(filter) > 0 {
+			for _, fnc := range filter {
+				v := fnc(cfg)
+				if !v {
+					return nil, nil
+				}
+			}
 		}
 		return []ChannelClusterConfig{cfg}, nil
 	}
@@ -200,6 +208,15 @@ func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq
 
 		currentSize++
 		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
+
+			if len(filter) > 0 {
+				for _, fnc := range filter {
+					v := fnc(cfg)
+					if !v {
+						return true
+					}
+				}
+			}
 			results = append(results, cfg)
 			return true
 		}

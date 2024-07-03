@@ -84,6 +84,9 @@ type Options struct {
 	TickInterval          time.Duration // 分布式tick间隔
 	HeartbeatIntervalTick int           // 心跳间隔tick
 	ElectionIntervalTick  int           // 选举间隔tick
+
+	ChannelReactorSubCount int // 频道reactor sub的数量
+	SlotReactorSubCount    int // 槽reactor sub的数量
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -111,6 +114,9 @@ func NewOptions(opt ...Option) *Options {
 		TickInterval:          150 * time.Millisecond,
 		HeartbeatIntervalTick: 1,
 		ElectionIntervalTick:  10,
+
+		ChannelReactorSubCount: 128,
+		SlotReactorSubCount:    128,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -330,5 +336,17 @@ func WithElectionIntervalTick(interval int) Option {
 func WithTickInterval(interval time.Duration) Option {
 	return func(o *Options) {
 		o.TickInterval = interval
+	}
+}
+
+func WithChannelReactorSubCount(count int) Option {
+	return func(o *Options) {
+		o.ChannelReactorSubCount = count
+	}
+}
+
+func WithSlotReactorSubCount(count int) Option {
+	return func(o *Options) {
+		o.SlotReactorSubCount = count
 	}
 }
