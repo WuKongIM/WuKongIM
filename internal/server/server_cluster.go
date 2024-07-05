@@ -285,8 +285,6 @@ func (s *Server) handleDeliver(c *wkserver.Context) {
 	}
 	for _, channelMsg := range channelMsgSet {
 
-		s.Info("recv deliver", zap.String("channelId", channelMsg.ChannelId), zap.Uint8("channelType", channelMsg.ChannelType), zap.String("tagKey", channelMsg.TagKey), zap.Int("msgCount", len(channelMsg.Messages)))
-
 		s.deliverManager.deliver(&deliverReq{
 			channelId:   channelMsg.ChannelId,
 			channelType: channelMsg.ChannelType,

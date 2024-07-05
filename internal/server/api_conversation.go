@@ -310,20 +310,18 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		return
 	}
 
-	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
-		if err != nil {
-			s.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-			c.ResponseError(errors.New("获取频道所在节点失败！"))
-			return
-		}
-		leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.NodeId
+	leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	if err != nil {
+		s.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == s.s.opts.Cluster.NodeId
 
-		if !leaderIsSelf {
-			s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-			return
-		}
+	if !leaderIsSelf {
+		s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
 	}
 
 	var (
@@ -334,7 +332,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	// 获取用户最近会话基础数据
 
 	var (
-		resps []*syncUserConversationResp
+		resps = make([]*syncUserConversationResp, 0)
 	)
 
 	// ==================== 获取用户活跃的最近会话 ====================
@@ -348,6 +346,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	// 获取用户缓存的最近会话
 	cacheConversations := s.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeChat)
 
+	// 合并缓存的最近会话
 	cacheConversationMap := map[string]uint64{}
 	for _, cacheConversation := range cacheConversations {
 		if cacheConversation.ReadedToMsgSeq > 0 {
@@ -356,9 +355,11 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	}
 	for _, cacheConversation := range cacheConversations {
 		exist := false
-		for _, conversation := range conversations {
+		for i, conversation := range conversations {
 			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				conversation.ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
+				if cacheConversation.ReadedToMsgSeq > conversation.ReadedToMsgSeq {
+					conversations[i].ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
+				}
 				exist = true
 				break
 			}
@@ -368,6 +369,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		}
 	}
 
+	// 设置最近会话已读至的消息序列号
 	for _, conversation := range conversations {
 		realChannelId := conversation.ChannelId
 		if conversation.ChannelType == wkproto.ChannelTypePerson {
@@ -393,34 +395,35 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			LastMsgSeq:  msgSeq,
 		})
 		conversation.ReadedToMsgSeq = msgSeq
-		syncUserConversationR := newSyncUserConversationResp(conversation)
-		resps = append(resps, syncUserConversationR)
+		// syncUserConversationR := newSyncUserConversationResp(conversation)
+		// resps = append(resps, syncUserConversationR)
 	}
 
 	// ==================== 获取最近会话的最近的消息列表 ====================
 	if req.MsgCount > 0 {
 		var channelRecentMessages []*channelRecentMessage
-		if s.s.opts.ClusterOn() {
-			channelRecentMessages, err = s.s.getRecentMessagesForCluster(req.UID, int(req.MsgCount), channelRecentMessageReqs, true)
-			if err != nil {
-				s.Error("获取最近消息失败！", zap.Error(err), zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取最近消息失败！"))
-				return
-			}
-		} else {
-			channelRecentMessages, err = s.s.getRecentMessages(req.UID, int(req.MsgCount), channelRecentMessageReqs, true)
-			if err != nil {
-				s.Error("获取最近消息失败！", zap.Error(err), zap.String("uid", req.UID))
-				c.ResponseError(errors.New("获取最近消息失败！"))
-				return
-			}
+
+		// 获取用户最近会话的最近消息
+		channelRecentMessages, err = s.s.getRecentMessagesForCluster(req.UID, int(req.MsgCount), channelRecentMessageReqs, true)
+		if err != nil {
+			s.Error("获取最近消息失败！", zap.Error(err), zap.String("uid", req.UID))
+			c.ResponseError(errors.New("获取最近消息失败！"))
+			return
 		}
 
 		if len(channelRecentMessages) > 0 {
-			for i := 0; i < len(resps); i++ {
-				resp := resps[i]
+			for i := 0; i < len(conversations); i++ {
+				conversation := conversations[i]
+
+				resp := newSyncUserConversationResp(conversation)
+
+				if conversation.UpdatedAt != nil {
+					resp.Timestamp = conversation.UpdatedAt.Unix()
+					resp.Version = conversation.UpdatedAt.Unix()
+				}
+
 				for _, channelRecentMessage := range channelRecentMessages {
-					if resp.ChannelID == channelRecentMessage.ChannelId && resp.ChannelType == channelRecentMessage.ChannelType {
+					if resp.ChannelId == channelRecentMessage.ChannelId && conversation.ChannelType == channelRecentMessage.ChannelType {
 						if len(channelRecentMessage.Messages) > 0 {
 							lastMsg := channelRecentMessage.Messages[len(channelRecentMessage.Messages)-1]
 							resp.LastMsgSeq = uint32(lastMsg.MessageSeq)
@@ -429,10 +432,15 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 							if lastMsg.MessageSeq > uint64(resp.ReadedToMsgSeq) {
 								resp.Unread = int(lastMsg.MessageSeq - uint64(resp.ReadedToMsgSeq))
 							}
-
+							resp.Version = int64(lastMsg.Timestamp)
 						}
 						resp.Recents = channelRecentMessage.Messages
+						break
 					}
+				}
+
+				if len(resp.Recents) > 0 || conversation.UpdatedAt != nil {
+					resps = append(resps, resp)
 				}
 			}
 		}
@@ -497,8 +505,8 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 		}
 		leaderInfo, err := s.cluster.LeaderOfChannelForRead(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
-			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
-			return nil, err
+			s.Warn("获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
+			continue
 		}
 		leaderIsSelf := leaderInfo.Id == s.opts.Cluster.NodeId
 		if leaderIsSelf {

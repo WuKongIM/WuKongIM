@@ -1,8 +1,18 @@
 package server
 
+import (
+	"errors"
+
+	"go.uber.org/zap"
+)
+
 func (c *channel) step(a *ChannelAction) error {
 
-	// c.Debug("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType))
+	if a.UniqueNo != c.uniqueNo {
+		c.Error("uniqueNo not match", zap.String("channelId", c.channelId), zap.String("expectUniqueNo", c.uniqueNo), zap.String("uniqueNo", a.UniqueNo))
+		return errors.New("uniqueNo not match")
+	}
+	// c.Info("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType))
 
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回

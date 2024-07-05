@@ -2,7 +2,6 @@ package clusterstore
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
@@ -31,8 +30,6 @@ func (s *Store) AppendMessages(ctx context.Context, channelId string, channelTyp
 			Data: data,
 		}
 	}
-
-	fmt.Println("AppendMessages-------->", channelId)
 
 	results, err := s.opts.Cluster.ProposeChannelMessages(ctx, channelId, channelType, logs)
 	if err != nil {
