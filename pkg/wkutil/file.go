@@ -28,3 +28,13 @@ func ReadFile(filename string) ([]byte, error) {
 	return os.ReadFile(filename)
 
 }
+
+func FileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil || os.IsExist(err)
+}
+
+func RemoveFile(filename string) error {
+
+	return os.Remove(filename)
+}

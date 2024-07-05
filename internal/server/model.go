@@ -357,6 +357,8 @@ type ChannelAction struct {
 	ReasonCode wkproto.ReasonCode
 	Messages   []ReactorChannelMessage
 	LeaderId   uint64 // 频道领导节点ID
+
+	UniqueNo string
 }
 
 // MessageResp 消息返回
@@ -616,7 +618,7 @@ func (req deleteChannelReq) Check() error {
 }
 
 type syncUserConversationResp struct {
-	ChannelID       string         `json:"channel_id"`         // 频道ID
+	ChannelId       string         `json:"channel_id"`         // 频道ID
 	ChannelType     uint8          `json:"channel_type"`       // 频道类型
 	Unread          int            `json:"unread"`             // 未读消息
 	Timestamp       int64          `json:"timestamp"`          // 最后一次会话时间
@@ -639,10 +641,9 @@ func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConver
 		}
 	}
 	return &syncUserConversationResp{
-		ChannelID:      realChannelId,
+		ChannelId:      realChannelId,
 		ChannelType:    conversation.ChannelType,
 		Unread:         int(conversation.UnreadCount),
-		Version:        conversation.UpdatedAt.UnixMilli(),
 		ReadedToMsgSeq: uint32(conversation.ReadedToMsgSeq),
 	}
 }

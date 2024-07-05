@@ -66,6 +66,7 @@ const (
 	ChannelActionSendackResp  // 发送ack返回
 	ChannelActionJoin         // 加入频道
 	ChannelActionLeave        // 离开频道
+	ChannelActionClose        // 关闭频道
 
 )
 
@@ -107,6 +108,8 @@ func (c ChannelActionType) String() string {
 		return "ChannelActionSendackResp"
 	case ChannelActionInitResp:
 		return "ChannelActionInitResp"
+	case ChannelActionClose:
+		return "ChannelActionClose"
 
 	}
 	return fmt.Sprintf("Unknow(%d)", c)

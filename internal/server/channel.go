@@ -14,6 +14,8 @@ import (
 )
 
 type channel struct {
+	uniqueNo string
+
 	key         string
 	channelId   string
 	channelType uint8
@@ -58,6 +60,7 @@ type channel struct {
 	// 计时tick
 	storageTick int // 发起存储的tick计时
 	initTick    int // 发起初始化的tick计时
+	proposeTick int // 发起提议的tick计时
 
 	opts *Options
 }
@@ -68,6 +71,7 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 	channelProcessIntervalTick := sub.r.opts.Reactor.ChannelProcessIntervalTick
 	return &channel{
 		key:              key,
+		uniqueNo:         wkutil.GenUUID(),
 		channelId:        channelId,
 		channelType:      channelType,
 		msgQueue:         newChannelMsgQueue(channelId),
@@ -104,6 +108,10 @@ func (c *channel) hasReady() bool {
 			return true
 		}
 		if c.hasUnstorage() { // 是否有未存储的消息
+			return true
+		}
+
+		if c.hasSendack() {
 			return true
 		}
 
@@ -260,9 +268,17 @@ func (c *channel) isInitialized() bool {
 func (c *channel) tick() {
 	c.storageTick++
 	c.initTick++
+	c.proposeTick++
+
+	if c.proposeTick >= c.opts.Reactor.ChannelDeadlineTick {
+		c.proposeTick = 0
+		c.exec(&ChannelAction{ActionType: ChannelActionClose})
+	}
 }
 
 func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
+
+	c.proposeTick = 0
 
 	messageId := c.r.messageIDGen.Generate().Int64() // 生成唯一消息ID
 	message := ReactorChannelMessage{
@@ -276,6 +292,7 @@ func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId in
 	}
 
 	err := c.sub.stepWait(c, &ChannelAction{
+		UniqueNo:   c.uniqueNo,
 		ActionType: ChannelActionSend,
 		Messages:   []ReactorChannelMessage{message},
 	})
@@ -316,6 +333,10 @@ func (c *channel) resetIndex() {
 	c.sendacking = false
 	c.delivering = false
 	c.forwarding = false
+
+	c.initTick = 0
+	c.storageTick = 0
+	c.proposeTick = 0
 
 }
 

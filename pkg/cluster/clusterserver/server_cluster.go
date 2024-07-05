@@ -143,7 +143,6 @@ func (s *Server) ProposeChannelMessages(ctx context.Context, channelId string, c
 		return nil, ErrStopped
 	}
 
-	fmt.Println("ProposeChannelMessages-------->", channelId)
 	// 加载或创建频道
 	ch, err := s.loadOrCreateChannel(ctx, channelId, channelType)
 	if err != nil {

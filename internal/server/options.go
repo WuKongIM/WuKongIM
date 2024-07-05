@@ -104,14 +104,15 @@ type Options struct {
 		ChannelInfoOn bool   // 是否开启频道信息获取
 	}
 	Conversation struct {
-		On           bool          // 是否开启最近会话
-		CacheExpire  time.Duration // 最近会话缓存过期时间 (这个是热数据缓存时间，并非最近会话数据的缓存时间)
-		SyncInterval time.Duration // 最近会话同步间隔
-		SyncOnce     int           //  当多少最近会话数量发送变化就保存一次
-		UserMaxCount int           // 每个用户最大最近会话数量 默认为500
-		BytesPerSave uint64        // 每次保存的最近会话数据大小 如果为0 则表示不限制
-		SavePoolSize int           // 保存最近会话协程池大小
-		WorkerCount  int           // 处理最近会话工作者数量
+		On                 bool          // 是否开启最近会话
+		CacheExpire        time.Duration // 最近会话缓存过期时间 (这个是热数据缓存时间，并非最近会话数据的缓存时间)
+		SyncInterval       time.Duration // 最近会话同步间隔
+		SyncOnce           int           //  当多少最近会话数量发送变化就保存一次
+		UserMaxCount       int           // 每个用户最大最近会话数量 默认为500
+		BytesPerSave       uint64        // 每次保存的最近会话数据大小 如果为0 则表示不限制
+		SavePoolSize       int           // 保存最近会话协程池大小
+		WorkerCount        int           // 处理最近会话工作者数量
+		WorkerScanInterval time.Duration // 处理最近会话扫描间隔
 
 	}
 	ManagerToken   string // 管理者的token
@@ -188,6 +189,7 @@ type Options struct {
 		UserSubCount               int // user reactor sub 的数量
 		UserNodePingTick           int // 用户节点tick间隔
 		UserNodePongTimeoutTick    int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
+		ChannelDeadlineTick        int // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
 	}
 	DeadlockCheck bool // 死锁检查
 
@@ -269,23 +271,25 @@ func NewOptions(op ...Option) *Options {
 		},
 		TokenAuthOn: false,
 		Conversation: struct {
-			On           bool
-			CacheExpire  time.Duration
-			SyncInterval time.Duration
-			SyncOnce     int
-			UserMaxCount int
-			BytesPerSave uint64
-			SavePoolSize int
-			WorkerCount  int
+			On                 bool
+			CacheExpire        time.Duration
+			SyncInterval       time.Duration
+			SyncOnce           int
+			UserMaxCount       int
+			BytesPerSave       uint64
+			SavePoolSize       int
+			WorkerCount        int
+			WorkerScanInterval time.Duration
 		}{
-			On:           true,
-			CacheExpire:  time.Hour * 24 * 1, // 1天过期
-			UserMaxCount: 1000,
-			SyncInterval: time.Minute * 5,
-			SyncOnce:     100,
-			BytesPerSave: 1024 * 1024 * 5,
-			SavePoolSize: 100,
-			WorkerCount:  10,
+			On:                 true,
+			CacheExpire:        time.Hour * 24 * 1, // 1天过期
+			UserMaxCount:       1000,
+			SyncInterval:       time.Minute * 5,
+			SyncOnce:           100,
+			BytesPerSave:       1024 * 1024 * 5,
+			SavePoolSize:       100,
+			WorkerCount:        10,
+			WorkerScanInterval: time.Minute * 5,
 		},
 		DeliveryMsgPoolSize: 10240,
 		EventPoolSize:       1024,
@@ -380,6 +384,7 @@ func NewOptions(op ...Option) *Options {
 			UserSubCount               int
 			UserNodePingTick           int
 			UserNodePongTimeoutTick    int
+			ChannelDeadlineTick        int
 		}{
 			ChannelSubCount:            128,
 			ChannelProcessIntervalTick: 1,
@@ -387,6 +392,7 @@ func NewOptions(op ...Option) *Options {
 			UserSubCount:               128,
 			UserNodePingTick:           10,
 			UserNodePongTimeoutTick:    10 * 2,
+			ChannelDeadlineTick:        600,
 		},
 		Process: struct {
 			AuthPoolSize int
@@ -456,6 +462,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	}
 
 	deadlock.Opts.Disable = !o.DeadlockCheck
+	// deadlock.Opts.Disable = false
 
 	o.External.IP = o.getString("external.ip", o.External.IP)
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
@@ -522,6 +529,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Conversation.BytesPerSave = o.getUint64("conversation.bytesPerSave", o.Conversation.BytesPerSave)
 	o.Conversation.SavePoolSize = o.getInt("conversation.savePoolSize", o.Conversation.SavePoolSize)
 	o.Conversation.WorkerCount = o.getInt("conversation.workerNum", o.Conversation.WorkerCount)
+	o.Conversation.WorkerScanInterval = o.getDuration("conversation.workerScanInterval", o.Conversation.WorkerScanInterval)
 
 	if o.WSSConfig.CertFile != "" && o.WSSConfig.KeyFile != "" {
 		certificate, err := tls.LoadX509KeyPair(o.WSSConfig.CertFile, o.WSSConfig.KeyFile)
@@ -647,6 +655,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Reactor.UserSubCount = o.getInt("reactor.userSubCount", o.Reactor.UserSubCount)
 	o.Reactor.UserNodePingTick = o.getInt("reactor.userNodePingTick", o.Reactor.UserNodePingTick)
 	o.Reactor.UserNodePongTimeoutTick = o.getInt("reactor.userNodePongTimeoutTick", o.Reactor.UserNodePongTimeoutTick)
+	o.Reactor.ChannelDeadlineTick = o.getInt("reactor.channelDeadlineTick", o.Reactor.ChannelDeadlineTick)
 
 	// =================== db ===================
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)

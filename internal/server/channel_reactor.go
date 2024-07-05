@@ -22,6 +22,7 @@ type channelReactor struct {
 	processDeliverC        chan *deliverReq        // 投递请求
 	processSendackC        chan *sendackReq        // 发送回执请求
 	processForwardC        chan *forwardReq        // 转发请求
+	processCloseC          chan *closeReq          // 关闭请求
 
 	stopper *syncutil.Stopper
 	opts    *Options
@@ -48,6 +49,7 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		processDeliverC:        make(chan *deliverReq, 2048),
 		processSendackC:        make(chan *sendackReq, 2048),
 		processForwardC:        make(chan *forwardReq, 2048),
+		processCloseC:          make(chan *closeReq, 2048),
 		stopper:                syncutil.NewStopper(),
 		opts:                   opts,
 		Log:                    wklog.NewWKLog("Reactor"),
@@ -72,6 +74,7 @@ func (r *channelReactor) start() error {
 		r.stopper.RunWorker(r.processDeliverLoop)
 		r.stopper.RunWorker(r.processSendackLoop)
 		r.stopper.RunWorker(r.processForwardLoop)
+		r.stopper.RunWorker(r.processCloseLoop)
 	}
 
 	for _, sub := range r.subs {

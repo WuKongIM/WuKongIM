@@ -162,6 +162,10 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 				messages: action.Messages,
 				leaderId: action.LeaderId,
 			})
+		case ChannelActionClose:
+			r.r.addCloseReq(&closeReq{
+				ch: ch,
+			})
 		}
 	}
 
@@ -173,6 +177,10 @@ func (r *channelReactorSub) channel(key string) *channel {
 
 func (r *channelReactorSub) addChannel(ch *channel) {
 	r.channelQueue.add(ch)
+}
+
+func (r *channelReactorSub) removeChannel(key string) {
+	r.channelQueue.remove(key)
 }
 
 func (r *channelReactorSub) advance() {
