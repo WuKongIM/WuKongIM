@@ -12,7 +12,7 @@ func (c *channel) step(a *ChannelAction) error {
 		c.Error("uniqueNo not match", zap.String("channelId", c.channelId), zap.String("expectUniqueNo", c.uniqueNo), zap.String("uniqueNo", a.UniqueNo))
 		return errors.New("uniqueNo not match")
 	}
-	// c.Info("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType))
+	c.Info("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType), zap.String("queue", c.msgQueue.String()))
 
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回

@@ -571,6 +571,18 @@ func (s *Server) allSlotsGet(c *wkhttp.Context) {
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 
 	for nodeId, slotIds := range nodeSlotsMap {
+
+		if !s.clusterEventServer.NodeOnline(nodeId) {
+			slotResps, err := s.getSlotInfoForLeaderOffline(nodeId, slotIds)
+			if err != nil {
+				s.Error("getSlotInfoForLeaderOffline error", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			resps = append(resps, slotResps...)
+			continue
+		}
+
 		requestGroup.Go(func(nId uint64, sIds []uint32) func() error {
 			return func() error {
 				slotResps, err := s.requestSlotInfo(nId, sIds)

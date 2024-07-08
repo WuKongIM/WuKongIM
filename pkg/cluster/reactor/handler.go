@@ -91,6 +91,8 @@ type handler struct {
 
 	lastLeaderTerm atomic.Uint32 // 最新领导的任期
 
+	syncTimeoutTick int // 同步超时tick次数
+
 	sync struct {
 		syncingLogIndex uint64        // 正在同步的日志索引
 		syncStatus      syncStatus    // 是否正在同步
@@ -175,6 +177,11 @@ func (h *handler) lastLogIndexAndTerm() (uint64, uint32) {
 func (h *handler) tick() {
 	h.handler.Tick()
 	h.proposeIntervalTick++
+
+	if h.syncTimeoutTick >= h.r.opts.SyncTimeoutMaxTick { // 同步超时超过指定次数，则停止同步
+		h.setSpeedLevel(replica.LevelStop)
+	}
+
 }
 
 func (h *handler) resetProposeIntervalTick() {

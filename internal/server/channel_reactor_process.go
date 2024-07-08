@@ -179,16 +179,34 @@ func (r *channelReactor) processForwardLoop() {
 }
 
 func (r *channelReactor) processForward(reqs []*forwardReq) {
+	var err error
 	for _, req := range reqs {
-		newLeaderId, err := r.handleForward(req)
+
+		var newLeaderId uint64
+		if !r.s.clusterServer.NodeIsOnline(req.leaderId) { // 如果领导不在线
+			timeoutCtx, cancel := context.WithTimeout(r.s.ctx, r.opts.Cluster.ReqTimeout)
+			defer cancel()
+			newLeaderId, err = r.s.cluster.LeaderIdOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+			if err != nil {
+				r.Warn("processForward: LeaderIdOfChannel error", zap.Error(err))
+			} else {
+				err = errors.New("leader change")
+			}
+		} else {
+			newLeaderId, err = r.handleForward(req)
+			if err != nil {
+				r.Warn("handleForward error", zap.Error(err))
+			}
+		}
+
 		var reason Reason
 		if err != nil {
 			reason = ReasonError
-			r.Warn("handleForward error", zap.Error(err))
 		} else {
 			reason = ReasonSuccess
 		}
 		if newLeaderId > 0 {
+			r.Info("leader change", zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			sub := r.reactorSub(req.ch.key)
 			sub.step(req.ch, &ChannelAction{
 				UniqueNo:   req.ch.uniqueNo,
@@ -236,7 +254,6 @@ func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
 			r.Error("LeaderOfChannel error", zap.Error(err))
 			return 0, err
 		}
-		r.Info("leader change", zap.Uint64("newLeaderId", node.Id), zap.Uint64("oldLeaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 		return node.Id, errors.New("leader change")
 	}
 

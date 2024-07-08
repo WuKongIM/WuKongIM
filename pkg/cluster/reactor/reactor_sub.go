@@ -347,7 +347,13 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			if m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0 { // 还有副本同步到日志，不降速
 				handler.resetSlowDown()
 				r.Debug("sync resp...", zap.String("handler", handler.key), zap.Uint64("index", m.Index), zap.Int("logs", len(m.Logs)), zap.Uint64("to", m.To))
+
 			}
+
+		}
+
+		if m.MsgType == replica.MsgSyncResp { // 如果有领导返回同步数据，则同步超时tick设置为0
+			handler.syncTimeoutTick = 0
 		}
 
 		switch m.MsgType {
@@ -401,6 +407,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			// fmt.Println("MsgSpeedLevelChange---------------->", handler.key, m.SpeedLevel.String())
 
 		case replica.MsgSyncTimeout:
+			handler.syncTimeoutTick++
 			r.Info("sync timeout", zap.String("handler", handler.key), zap.Uint64("leader", handler.leaderId()), zap.Uint64("index", m.Index))
 
 		default:

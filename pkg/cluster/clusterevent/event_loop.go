@@ -1,6 +1,7 @@
 package clusterevent
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -52,6 +53,15 @@ func (s *Server) checkClusterConfig() error {
 			return err
 		}
 
+	}
+
+	// ================== 处理槽领导选举 ==================
+	if s.IsLeader() {
+		err = s.handleSlotLeaderElection()
+		if err != nil {
+			s.Error("handleSlotLeaderElection failed", zap.Error(err))
+			return err
+		}
 	}
 
 	return nil
@@ -182,6 +192,15 @@ func (s *Server) handleCompareLocalClusterConfig() error {
 				s.Error("ProposeApiServerAddr failed", zap.Error(err))
 				return err
 			}
+		}
+	}
+
+	if s.IsLeader() {
+		// 节点在线状态改变
+		err := s.handleNodeOnlineStatusChange()
+		if err != nil {
+			s.Error("handleNodeOnlineStatusChange failed", zap.Error(err))
+			return err
 		}
 	}
 
@@ -444,5 +463,162 @@ func (s *Server) handleNodeJoining() error {
 	}
 
 	return nil
+
+}
+
+func (s *Server) handleNodeOnlineStatusChange() error {
+	fmt.Println("handleNodeOnlineStatusChange--------->")
+	// 判断节点在线状态是否改变
+	for _, node := range s.remoteCfg.Nodes {
+		for _, localNode := range s.localCfg.Nodes {
+			if node.Id == localNode.Id && node.Online != localNode.Online {
+				err := s.handleNodeOnlineChange(node.Id, node.Online)
+				if err != nil {
+					s.Error("handleNodeOnlineChange failed", zap.Error(err))
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) handleNodeOnlineChange(nodeId uint64, online bool) error {
+	var newSlots []*pb.Slot
+	if online { // 节点上线
+
+		s.Info("节点上线", zap.Uint64("nodeId", nodeId))
+		slots := s.cfgServer.Slots()
+
+		onlineNodeCount := s.cfgServer.AllowVoteAndJoinedOnlineNodeCount()
+
+		avgSlotLeaderCount := s.cfgServer.Config().SlotCount / uint32(onlineNodeCount) // 平均每个节点的槽领导数量
+
+		// 每个节点当前的槽领导数量
+		nodeSlotLeaderCountMap := make(map[uint64]uint32)
+		for _, slot := range slots {
+			nodeSlotLeaderCountMap[slot.Leader]++
+		}
+
+		currentNodeSlotLeaderCount := nodeSlotLeaderCountMap[nodeId] // 当前节点的槽领导数量
+
+		if currentNodeSlotLeaderCount >= avgSlotLeaderCount { // 当前节点的槽领导数量已经达到平均值，不需要迁入
+			return nil
+		}
+
+		// 计算需要迁入的槽领导数量
+		needSlotLeaderCount := avgSlotLeaderCount - currentNodeSlotLeaderCount
+
+		for nId, slotLeaderCount := range nodeSlotLeaderCountMap {
+			if slotLeaderCount <= avgSlotLeaderCount { // 槽领导数量小于平均值的节点不参与计算
+				continue
+			}
+
+			if needSlotLeaderCount <= 0 {
+				break
+			}
+
+			if nId == nodeId {
+				continue
+			}
+
+			exportSlotLeaderCount := slotLeaderCount - avgSlotLeaderCount // 需要迁出的槽领导数量
+
+			for _, slot := range slots {
+				if slot.Leader == nId &&
+					exportSlotLeaderCount > 0 &&
+					needSlotLeaderCount > 0 &&
+					slot.MigrateFrom == 0 &&
+					slot.MigrateTo == 0 &&
+					wkutil.ArrayContainsUint64(slot.Replicas, nodeId) {
+
+					newSlot := slot.Clone()
+					newSlot.MigrateFrom = nId
+					newSlot.MigrateTo = nodeId
+					newSlots = append(newSlots, newSlot)
+					exportSlotLeaderCount--
+					needSlotLeaderCount--
+				}
+			}
+
+		}
+
+	} else { // 节点下线
+		s.Info("节点下线", zap.Uint64("nodeId", nodeId))
+		slots := s.cfgServer.Slots()
+		onlineNodeCount := s.cfgServer.AllowVoteAndJoinedOnlineNodeCount()
+		avgSlotLeaderCount := s.cfgServer.Config().SlotCount / uint32(onlineNodeCount) // 平均每个节点的槽领导数量
+
+		// 每个节点当前的槽领导数量
+		nodeSlotLeaderCountMap := make(map[uint64]uint32)
+		for _, slot := range slots {
+			nodeSlotLeaderCountMap[slot.Leader]++
+		}
+
+		currentNodeSlotLeaderCount := nodeSlotLeaderCountMap[nodeId] // 当前节点的槽领导数量
+
+		fmt.Println("currentNodeSlotLeaderCount---->", currentNodeSlotLeaderCount)
+
+		for _, slot := range slots {
+			if slot.Leader != nodeId {
+				continue
+			}
+
+			for nId, slotLeaderCount := range nodeSlotLeaderCountMap {
+				if nId == nodeId {
+					continue
+				}
+
+				if currentNodeSlotLeaderCount <= 0 {
+					break
+				}
+
+				if slotLeaderCount >= avgSlotLeaderCount { // 槽领导数量大于等于平均值的节点不参与计算
+					continue
+				}
+
+				if slot.MigrateFrom == 0 && slot.MigrateTo == 0 && slot.Status != pb.SlotStatus_SlotStatusCandidate {
+					newSlot := slot.Clone()
+					newSlot.Status = pb.SlotStatus_SlotStatusCandidate
+					newSlot.ExpectLeader = nId
+					newSlots = append(newSlots, newSlot)
+					nodeSlotLeaderCountMap[nId]++
+					currentNodeSlotLeaderCount--
+					break
+				}
+			}
+		}
+
+	}
+	if len(newSlots) > 0 {
+		fmt.Println("handleNodeOnlineChange---->")
+		err := s.ProposeSlots(newSlots)
+		if err != nil {
+			s.Error("handleNodeOnlineChange failed,ProposeSlots failed", zap.Error(err))
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) handleSlotLeaderElection() error {
+	slots := s.cfgServer.Slots()
+	if len(slots) == 0 {
+		return nil
+	}
+
+	electionSlots := make([]*pb.Slot, 0) // 需要选举的槽
+	for _, slot := range slots {
+		if slot.Status == pb.SlotStatus_SlotStatusCandidate {
+			electionSlots = append(electionSlots, slot)
+		}
+	}
+	if len(electionSlots) == 0 { // 不存在候选的槽
+		return nil
+	}
+
+	// 触发选举
+	return s.opts.OnSlotElection(electionSlots)
 
 }

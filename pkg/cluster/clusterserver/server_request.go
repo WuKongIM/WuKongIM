@@ -9,7 +9,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"go.uber.org/zap"
 )
@@ -31,6 +30,9 @@ func (s *Server) setRoutes() {
 	s.netServer.Route("/slot/leaderTermStartIndex", s.handleSlotLeaderTermStartIndex)
 	// 获取频道的leader term start index
 	s.netServer.Route("/channel/leaderTermStartIndex", s.handleChannelLeaderTermStartIndex)
+
+	// 获取槽日志信息
+	s.netServer.Route("/slot/logInfo", s.handleSlotLogInfo)
 }
 
 func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
@@ -97,31 +99,19 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 
-	clusterConfig, err := s.opts.ChannelClusterStorage.Get(req.ChannelId, req.ChannelType)
-	if err != nil && err != wkdb.ErrNotFound {
-		s.Error("get clusterConfig failed", zap.Error(err))
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)
+	defer cancel()
+	clusterConfig, _, err := s.loadOrCreateChannelClusterConfig(timeoutCtx, req.ChannelId, req.ChannelType)
+	if err != nil {
+		s.Error("fetchChannel failed", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}
-	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
-		// s.Error("clusterConfig not found", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		// c.WriteErr(ErrChannelClusterConfigNotFound)
-		// return
-		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)
-		defer cancel()
-		clusterConfig, _, err = s.loadOrCreateChannelClusterConfig(timeoutCtx, req.ChannelId, req.ChannelType)
-		if err != nil {
-			s.Error("fetchChannel failed", zap.Error(err))
-			c.WriteErr(err)
-			return
-		}
 
-	} else {
-		if clusterConfig.LeaderId == 0 {
-			s.Error("clusterConfig leaderId is 0", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			c.WriteErr(ErrNoLeader)
-			return
-		}
+	if clusterConfig.LeaderId == 0 {
+		s.Error("clusterConfig leaderId is 0", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.WriteErr(ErrNoLeader)
+		return
 	}
 
 	data, err := clusterConfig.Marshal()
@@ -367,4 +357,30 @@ func (s *Server) handleChannelLeaderTermStartIndex(c *wkserver.Context) {
 		binary.BigEndian.PutUint64(resultBytes, lastIndex)
 	}
 	c.Write(resultBytes)
+}
+
+func (s *Server) handleSlotLogInfo(c *wkserver.Context) {
+	req := &SlotLogInfoReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		s.Error("unmarshal SlotLogInfoReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	slotInfos, err := s.slotInfos(req.SlotIds)
+	if err != nil {
+		s.Error("get slotInfos failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	resp := &SlotLogInfoResp{
+		NodeId: s.opts.NodeId,
+		Slots:  slotInfos,
+	}
+	data, err := resp.Marshal()
+	if err != nil {
+		s.Error("marshal SlotLogInfoResp failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
 }
