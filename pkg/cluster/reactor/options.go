@@ -79,6 +79,9 @@ type Options struct {
 	ProposeTimeout time.Duration
 
 	Request IRequest
+
+	// SyncTimeoutMaxTick 同步超时最大tick次数
+	SyncTimeoutMaxTick int
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -97,6 +100,7 @@ func NewOptions(opt ...Option) *Options {
 		AppendLogWorkerNum:        1,
 		ProposeTimeout:            time.Second * 30,
 		SlowdownCheckIntervalTick: 10,
+		SyncTimeoutMaxTick:        10,
 	}
 
 	for _, o := range opt {
@@ -207,5 +211,29 @@ func WithOnHandlerRemove(f func(h IHandler)) Option {
 func WithRequest(req IRequest) Option {
 	return func(o *Options) {
 		o.Request = req
+	}
+}
+
+func WithProposeTimeout(d time.Duration) Option {
+	return func(o *Options) {
+		o.ProposeTimeout = d
+	}
+}
+
+func WithAppendLogWorkerNum(num int) Option {
+	return func(o *Options) {
+		o.AppendLogWorkerNum = num
+	}
+}
+
+func WithSlowdownCheckIntervalTick(tick int) Option {
+	return func(o *Options) {
+		o.SlowdownCheckIntervalTick = tick
+	}
+}
+
+func WithSyncTimeoutMaxTick(tick int) Option {
+	return func(o *Options) {
+		o.SyncTimeoutMaxTick = tick
 	}
 }

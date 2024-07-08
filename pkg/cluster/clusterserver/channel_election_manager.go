@@ -85,7 +85,7 @@ func (c *channelElectionManager) loop() {
 
 // 添加选举请求
 func (c *channelElectionManager) addElectionReq(req electionReq) error {
-	c.Info("addElectionReq....", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+	c.Info("addElectionReq....", zap.String("channelId", req.cfg.ChannelId), zap.Uint8("channelType", req.cfg.ChannelType))
 	select {
 	case c.electionC <- req:
 	case <-c.stopper.ShouldStop():
@@ -116,7 +116,7 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 		lastInfoResps := make([]*replicaChannelLastLogInfoResponse, 0, len(req.cfg.Replicas))
 		for replicaId, resps := range channelLastLogInfoMap {
 			for _, resp := range resps {
-				if req.ch.channelId == resp.ChannelId && req.ch.channelType == resp.ChannelType {
+				if req.cfg.ChannelId == resp.ChannelId && req.cfg.ChannelType == resp.ChannelType {
 					lastInfoResps = append(lastInfoResps, &replicaChannelLastLogInfoResponse{
 						replicaId:                  replicaId,
 						ChannelLastLogInfoResponse: resp,
@@ -206,14 +206,15 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 		}
 		if replicaId == c.opts.NodeId { // 如果是自己，则直接返回
 			for _, req := range reqs {
-				lastIndex, lastTerm, err := c.s.opts.MessageLogStorage.LastIndexAndTerm(req.ch.key)
+				channelKey := ChannelToKey(req.cfg.ChannelId, req.cfg.ChannelType)
+				lastIndex, lastTerm, err := c.s.opts.MessageLogStorage.LastIndexAndTerm(channelKey)
 				if err != nil {
 					return nil, err
 				}
 				channelLogInfoMapLock.Lock()
 				channelLastLogInfosMap[replicaId] = append(channelLastLogInfosMap[replicaId], &ChannelLastLogInfoResponse{
-					ChannelId:   req.ch.channelId,
-					ChannelType: req.ch.channelType,
+					ChannelId:   req.cfg.ChannelId,
+					ChannelType: req.cfg.ChannelType,
 					LogIndex:    lastIndex,
 					Term:        lastTerm,
 				})
@@ -224,8 +225,8 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 		channelLastLogInfoReqs := make([]*ChannelLastLogInfoReq, 0, len(reqs))
 		for _, req := range reqs {
 			channelLastLogInfoReqs = append(channelLastLogInfoReqs, &ChannelLastLogInfoReq{
-				ChannelId:   req.ch.channelId,
-				ChannelType: req.ch.channelType,
+				ChannelId:   req.cfg.ChannelId,
+				ChannelType: req.cfg.ChannelType,
 			})
 		}
 		requestGroup.Go(func(rcId uint64, logReqs []*ChannelLastLogInfoReq) func() error {
@@ -252,7 +253,6 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 }
 
 type electionReq struct {
-	ch      *channel
 	cfg     wkdb.ChannelClusterConfig
 	resultC chan electionResp
 }

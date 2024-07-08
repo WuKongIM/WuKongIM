@@ -16,9 +16,10 @@ type Options struct {
 	SlotMaxReplicaCount    uint32 // 每个槽位最大副本数量
 	ChannelMaxReplicaCount uint32 // 每个频道最大副本数量
 	ConfigDir              string
-	ApiServerAddr          string // api服务地址
-	OnClusterConfigChange  func(cfg *pb.Config)
-	Send                   func(m reactor.Message) // 发送消息
+	ApiServerAddr          string                       // api服务地址
+	OnClusterConfigChange  func(cfg *pb.Config)         // 分布式配置改变
+	OnSlotElection         func(slots []*pb.Slot) error // 槽位选举
+	Send                   func(m reactor.Message)      // 发送消息
 	// PongMaxTick 节点超过多少tick没有回应心跳就认为是掉线
 	PongMaxTick int
 	// 学习者检查间隔（每隔这个间隔时间检查下学习者的日志）
@@ -143,5 +144,11 @@ func WithTickInterval(tickInterval time.Duration) Option {
 func WithSeed(seed string) Option {
 	return func(o *Options) {
 		o.Seed = seed
+	}
+}
+
+func WithOnSlotElection(f func(slots []*pb.Slot) error) Option {
+	return func(o *Options) {
+		o.OnSlotElection = f
 	}
 }

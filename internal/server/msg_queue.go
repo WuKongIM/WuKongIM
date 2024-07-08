@@ -86,11 +86,26 @@ func (m *channelMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []
 	return nil
 }
 
+func (m *channelMsgQueue) resetIndex() {
+	newIndex := m.offset - 1
+	m.payloadDecryptingIndex = newIndex
+	m.permissionCheckingIndex = newIndex
+	m.storagingIndex = newIndex
+	m.sendackingIndex = newIndex
+	m.deliveringIndex = newIndex
+	m.forwardingIndex = newIndex
+}
+
 func (m *channelMsgQueue) first() ReactorChannelMessage {
 	if len(m.messages) == 0 {
 		return EmptyReactorChannelMessage
 	}
 	return m.messages[0]
+}
+
+func (m *channelMsgQueue) String() string {
+	return fmt.Sprintf("channelMsgQueue{offset=%d, lastIndex=%d payloadDecryptingIndex=%d, permissionCheckingIndex=%d, storagingIndex=%d, sendackingIndex=%d, deliveringIndex=%d,  forwardingIndex=%d len(messages)=%d}",
+		m.offset, m.lastIndex, m.payloadDecryptingIndex, m.permissionCheckingIndex, m.storagingIndex, m.sendackingIndex, m.deliveringIndex, m.forwardingIndex, len(m.messages))
 }
 
 func limitSize(messages []ReactorChannelMessage, maxSize uint64) []ReactorChannelMessage {

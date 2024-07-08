@@ -98,7 +98,7 @@ func (c *Client) keepActivity() {
 }
 
 func (c *Client) run(connectChan chan struct{}) {
-	errSleepDuri := time.Second * 1
+	errSleepDuri := time.Second * 2
 	if c.running.Load() {
 		return
 	}

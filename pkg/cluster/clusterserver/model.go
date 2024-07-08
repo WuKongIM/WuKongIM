@@ -983,6 +983,21 @@ func (s *Server) requestSlotInfo(nodeId uint64, slotIds []uint32) ([]*SlotResp, 
 	return slotResps, err
 }
 
+// 获取槽领导离线的槽位信息
+func (s *Server) getSlotInfoForLeaderOffline(nodeId uint64, slotIds []uint32) ([]*SlotResp, error) {
+	slotResps := make([]*SlotResp, 0)
+	for _, slotId := range slotIds {
+		slot := s.clusterEventServer.Slot(slotId)
+		if slot == nil {
+			s.Error("slot not found", zap.Uint32("slotId", slotId))
+			continue
+		}
+		slotResp := NewSlotResp(slot, 0)
+		slotResps = append(slotResps, slotResp)
+	}
+	return slotResps, nil
+}
+
 type SlotClusterConfigResp struct {
 	Id                uint32   `json:"id"`                   // 槽位ID
 	LeaderId          uint64   `json:"leader_id"`            // 领导者ID

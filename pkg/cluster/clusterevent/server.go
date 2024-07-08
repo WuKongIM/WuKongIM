@@ -189,6 +189,11 @@ func (s *Server) AllowVoteAndJoinedNodes() []*pb.Node {
 	return s.cfgServer.AllowVoteAndJoinedNodes()
 }
 
+func (s *Server) AllowVoteAndJoinedOnlineNodes() []*pb.Node {
+
+	return s.cfgServer.AllowVoteAndJoinedOnlineNodes()
+}
+
 func (s *Server) ProposeJoin(node *pb.Node) error {
 
 	return s.cfgServer.ProposeJoin(node)
@@ -236,4 +241,8 @@ func (s *Server) AppliedLogIndex() (uint64, error) {
 func (s *Server) LastLogIndex() (uint64, error) {
 
 	return s.cfgServer.LastLogIndex()
+}
+
+func (s *Server) NodeConfigVersion(nodeId uint64) uint64 {
+	return s.cfgServer.NodeConfigVersion(nodeId)
 }

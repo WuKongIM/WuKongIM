@@ -75,7 +75,8 @@ message Slot {
     repeated uint64 learners = 6; // 学习者列表
     uint64 migrateFrom = 7; // 迁移的源节点
     uint64 migrateTo = 8; // 迁移的目标节点
-    SlotStatus status = 9; // 槽位状态
+    uint64 expectLeader = 9; // 期望选举到的领导节点
+    SlotStatus status = 10; // 槽位状态
 }
 
 

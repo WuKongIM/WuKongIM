@@ -215,6 +215,17 @@ func (s *Server) AllowVoteAndJoinedNodeCount() int {
 	return s.cfg.allowVoteAndJoinedNodeCount()
 }
 
+// 获取允许投票的并且已经加入了的在线节点数量
+func (s *Server) AllowVoteAndJoinedOnlineNodeCount() int {
+	return s.cfg.allowVoteAndJoinedOnlineNodeCount()
+}
+
+// 获取允许投票的并且已经加入了的在线节点
+func (s *Server) AllowVoteAndJoinedOnlineNodes() []*pb.Node {
+
+	return s.cfg.allowVoteAndJoinedOnlineNodes()
+}
+
 // OnlineNodes 获取在线节点
 func (s *Server) OnlineNodes() []*pb.Node {
 	return s.cfg.onlineNodes()

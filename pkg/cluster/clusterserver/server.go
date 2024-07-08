@@ -107,6 +107,7 @@ func New(opts *Options) *Server {
 		clusterevent.WithSlotMaxReplicaCount(opts.SlotMaxReplicaCount),
 		clusterevent.WithChannelMaxReplicaCount(uint32(opts.ChannelMaxReplicaCount)),
 		clusterevent.WithOnClusterConfigChange(s.onClusterConfigChange),
+		clusterevent.WithOnSlotElection(s.onSlotElection),
 		clusterevent.WithSend(s.onSend),
 		clusterevent.WithConfigDir(cfgDir),
 		clusterevent.WithApiServerAddr(opts.ApiServerAddr),
