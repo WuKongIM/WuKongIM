@@ -505,8 +505,15 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 		}
 		leaderInfo, err := s.cluster.LeaderOfChannelForRead(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
-			s.Warn("获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
+			s.Warn("getRecentMessagesForCluster: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			continue
+		}
+		if !s.cluster.NodeIsOnline(leaderInfo.Id) { // 如果领导节点不在线，则使用能触发选举的方法
+			leaderInfo, err = s.cluster.SlotLeaderOfChannel(channelRecentMsgReq.ChannelId, channelRecentMsgReq.ChannelType)
+			if err != nil {
+				s.Error("getRecentMessagesForCluster: SlotLeaderOfChannel获取频道所在节点失败！", zap.Error(err), zap.String("channelId", channelRecentMsgReq.ChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
+				return nil, err
+			}
 		}
 		leaderIsSelf := leaderInfo.Id == s.opts.Cluster.NodeId
 		if leaderIsSelf {

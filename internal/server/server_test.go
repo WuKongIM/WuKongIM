@@ -332,3 +332,138 @@ func TestClusterChannelMigrate(t *testing.T) {
 	time.Sleep(time.Second * 1)
 
 }
+
+func TestClusterChannelElection(t *testing.T) {
+	s1, s2, s3 := NewTestClusterServerTreeNode(t)
+
+	err := s1.Start()
+	assert.Nil(t, err)
+
+	err = s2.Start()
+	assert.Nil(t, err)
+
+	err = s3.Start()
+	assert.Nil(t, err)
+
+	MustWaitClusterReady(s1, s2, s3)
+
+	// new client 1
+	cli1 := client.New(s1.opts.External.TCPAddr, client.WithUID("test1"))
+	err = cli1.Connect()
+	assert.Nil(t, err)
+
+	// new client 2
+	cli2 := client.New(s2.opts.External.TCPAddr, client.WithUID("test2"))
+	err = cli2.Connect()
+	assert.Nil(t, err)
+
+	// send message to test2
+	err = cli1.SendMessage(client.NewChannel("test2", 1), []byte("hello"))
+	assert.Nil(t, err)
+
+	var wait sync.WaitGroup
+	wait.Add(1)
+
+	// cli2 recv
+	cli2.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+		assert.Equal(t, "hello", string(recv.Payload))
+		wait.Done()
+		return nil
+	})
+
+	wait.Wait()
+
+	fakeChannelId := "test1@test2"
+
+	slotLeaderId, err := s1.clusterServer.SlotLeaderIdOfChannel(fakeChannelId, 1)
+	assert.Nil(t, err)
+
+	// 获得槽领导的server
+	var slotLeaderServer *Server
+	switch slotLeaderId {
+	case s1.opts.Cluster.NodeId:
+		slotLeaderServer = s1
+	case s2.opts.Cluster.NodeId:
+		slotLeaderServer = s2
+	case s3.opts.Cluster.NodeId:
+		slotLeaderServer = s3
+	}
+	assert.NotNil(t, slotLeaderServer)
+
+	node, err := slotLeaderServer.clusterServer.LeaderOfChannelForRead(fakeChannelId, 1)
+	assert.Nil(t, err)
+
+	// 获得channel领导的server
+	var channelServer *Server
+	switch node.Id {
+	case s1.opts.Cluster.NodeId:
+		channelServer = s1
+	case s2.opts.Cluster.NodeId:
+		channelServer = s2
+	case s3.opts.Cluster.NodeId:
+		channelServer = s3
+	}
+	assert.NotNil(t, channelServer)
+
+	// 关闭频道领导
+	channelServer.StopNoErr()
+
+	// 不是channelServer的server
+	var notChannelServer *Server
+	if s1.opts.Cluster.NodeId != channelServer.opts.Cluster.NodeId {
+		notChannelServer = s1
+	} else if s2.opts.Cluster.NodeId != channelServer.opts.Cluster.NodeId {
+		notChannelServer = s2
+	} else if s3.opts.Cluster.NodeId != channelServer.opts.Cluster.NodeId {
+		notChannelServer = s3
+	}
+	// 等待离线
+	notChannelServer.MustWaitNodeOffline(channelServer.opts.Cluster.NodeId)
+
+	time.Sleep(time.Second * 1)
+
+	// 重新连接非channelServer，然后发生消息
+	cli1.Close()
+	cli2.Close()
+
+	wait = sync.WaitGroup{}
+	wait.Add(1)
+
+	cli1 = client.New(notChannelServer.opts.External.TCPAddr, client.WithUID("test1"))
+	err = cli1.Connect()
+	// assert.Nil(t, err)
+	if err != nil {
+		panic(err)
+	}
+
+	// new client 2
+	cli2 = client.New(notChannelServer.opts.External.TCPAddr, client.WithUID("test2"))
+	err = cli2.Connect()
+	if err != nil {
+		panic(err)
+	}
+	assert.Nil(t, err)
+
+	err = cli1.SendMessage(client.NewChannel("test2", 1), []byte("hello"))
+	assert.Nil(t, err)
+
+	// cli2 recv
+	cli2.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+		assert.Equal(t, "hello", string(recv.Payload))
+		wait.Done()
+		return nil
+	})
+
+	wait.Wait()
+
+	if s1.opts.Cluster.NodeId != channelServer.opts.Cluster.NodeId {
+		s1.StopNoErr()
+	}
+	if s2.opts.Cluster.NodeId != channelServer.opts.Cluster.NodeId {
+		s2.StopNoErr()
+	}
+	if s3.opts.Cluster.NodeId != channelServer.opts.Cluster.NodeId {
+		s3.StopNoErr()
+	}
+
+}

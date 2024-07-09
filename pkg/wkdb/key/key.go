@@ -136,14 +136,12 @@ func channelIdToNum(channelId string, channelType uint8) uint64 {
 }
 
 func ChannelIdToNum(channelId string, channelType uint8) uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(ChannelKey(channelId, channelType)))
-	return h.Sum64()
+	return channelIdToNum(channelId, channelType)
 }
 
-func ChannelKey(channelID string, channelType uint8) string {
+func ChannelKey(channelId string, channelType uint8) string {
 	var b strings.Builder
-	b.WriteString(channelID)
+	b.WriteString(channelId)
 	b.WriteByte('-')
 	b.WriteString(strconv.FormatInt(int64(channelType), 10))
 	return b.String()

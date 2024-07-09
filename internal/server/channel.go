@@ -58,33 +58,43 @@ type channel struct {
 	forwarding         bool // 是否正在转发
 
 	// 计时tick
-	storageTick int // 发起存储的tick计时
-	initTick    int // 发起初始化的tick计时
-	proposeTick int // 发起提议的tick计时
+	storageTick            int // 发起存储的tick计时
+	initTick               int // 发起初始化的tick计时
+	proposeTick            int // 发起提议的tick计时
+	forwardTick            int // 发起转发的tick计时
+	deliveringTick         int // 发起投递的tick计时
+	permissionCheckingTick int // 发起权限检查的tick计时
+	payloadDecryptingTick  int // 发起解密的tick计时
+	sendackingTick         int // 发起发送回执的tick计时
 
 	opts *Options
 }
 
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
-	key := ChannelToKey(channelId, channelType)
+	key := wkutil.ChannelToKey(channelId, channelType)
 
 	channelProcessIntervalTick := sub.r.opts.Reactor.ChannelProcessIntervalTick
 	return &channel{
-		key:              key,
-		uniqueNo:         wkutil.GenUUID(),
-		channelId:        channelId,
-		channelType:      channelType,
-		msgQueue:         newChannelMsgQueue(channelId),
-		cacheSubscribers: make(map[string]struct{}),
-		stroageMaxSize:   1024 * 1024 * 2,
-		deliverMaxSize:   1024 * 1024 * 2,
-		forwardMaxSize:   1024 * 1024 * 2,
-		Log:              wklog.NewWKLog(fmt.Sprintf("channelHandler[%s]", key)),
-		r:                sub.r,
-		sub:              sub,
-		opts:             sub.r.opts,
-		storageTick:      channelProcessIntervalTick,
-		initTick:         channelProcessIntervalTick,
+		key:                    key,
+		uniqueNo:               wkutil.GenUUID(),
+		channelId:              channelId,
+		channelType:            channelType,
+		msgQueue:               newChannelMsgQueue(channelId),
+		cacheSubscribers:       make(map[string]struct{}),
+		stroageMaxSize:         1024 * 1024 * 2,
+		deliverMaxSize:         1024 * 1024 * 2,
+		forwardMaxSize:         1024 * 1024 * 2,
+		Log:                    wklog.NewWKLog(fmt.Sprintf("channelHandler[%d][%s]", sub.r.opts.Cluster.NodeId, key)),
+		r:                      sub.r,
+		sub:                    sub,
+		opts:                   sub.r.opts,
+		storageTick:            channelProcessIntervalTick,
+		initTick:               channelProcessIntervalTick,
+		forwardTick:            channelProcessIntervalTick,
+		deliveringTick:         channelProcessIntervalTick,
+		permissionCheckingTick: channelProcessIntervalTick,
+		payloadDecryptingTick:  channelProcessIntervalTick,
+		sendackingTick:         channelProcessIntervalTick,
 	}
 
 }
@@ -139,6 +149,7 @@ func (c *channel) ready() ready {
 
 		if c.hasPayloadUnDecrypt() {
 			c.payloadDecrypting = true
+			c.payloadDecryptingTick = 0
 			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 0)
 			if len(msgs) > 0 {
 				c.exec(&ChannelAction{ActionType: ChannelActionPayloadDecrypt, Messages: msgs})
@@ -150,6 +161,7 @@ func (c *channel) ready() ready {
 			// 如果没有权限检查的则去检查权限
 			if c.hasPermissionUnCheck() {
 				c.permissionChecking = true
+				c.permissionCheckingTick = 0
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.permissionCheckingIndex+1, c.msgQueue.payloadDecryptingIndex+1, 0)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
@@ -172,6 +184,7 @@ func (c *channel) ready() ready {
 			// 如果有未发送回执的消息
 			if c.hasSendack() {
 				c.sendacking = true
+				c.sendackingTick = 0
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.sendackingIndex+1, c.msgQueue.storagingIndex+1, 0)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: msgs})
@@ -181,6 +194,7 @@ func (c *channel) ready() ready {
 			// 投递消息
 			if c.hasUnDeliver() {
 				c.delivering = true
+				c.deliveringTick = 0
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.deliveringIndex+1, c.msgQueue.storagingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionDeliver, Messages: msgs})
@@ -192,6 +206,7 @@ func (c *channel) ready() ready {
 			// 转发消息
 			if c.hasUnforward() {
 				c.forwarding = true
+				c.forwardTick = 0
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.forwardingIndex+1, c.msgQueue.payloadDecryptingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionForward, LeaderId: c.leaderId, Messages: msgs})
@@ -213,6 +228,11 @@ func (c *channel) hasPayloadUnDecrypt() bool {
 	if c.payloadDecrypting {
 		return false
 	}
+
+	if c.payloadDecryptingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+
 	return c.msgQueue.payloadDecryptingIndex < c.msgQueue.lastIndex
 }
 
@@ -221,6 +241,11 @@ func (c *channel) hasPermissionUnCheck() bool {
 	if c.permissionChecking {
 		return false
 	}
+
+	if c.permissionCheckingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+
 	return c.msgQueue.permissionCheckingIndex < c.msgQueue.payloadDecryptingIndex
 }
 
@@ -240,6 +265,11 @@ func (c *channel) hasSendack() bool {
 	if c.sendacking {
 		return false
 	}
+
+	if c.sendackingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+
 	return c.msgQueue.sendackingIndex < c.msgQueue.storagingIndex
 }
 
@@ -248,12 +278,18 @@ func (c *channel) hasUnDeliver() bool {
 	if c.delivering {
 		return false
 	}
+	if c.deliveringTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
 	return c.msgQueue.deliveringIndex < c.msgQueue.storagingIndex
 }
 
 // 有未转发的消息
 func (c *channel) hasUnforward() bool {
 	if c.forwarding { // 在转发中
+		return false
+	}
+	if c.forwardTick < c.opts.Reactor.ChannelProcessIntervalTick {
 		return false
 	}
 	return c.msgQueue.forwardingIndex < c.msgQueue.payloadDecryptingIndex
@@ -268,6 +304,11 @@ func (c *channel) isInitialized() bool {
 func (c *channel) tick() {
 	c.storageTick++
 	c.initTick++
+	c.forwardTick++
+	c.deliveringTick++
+	c.permissionCheckingTick++
+	c.payloadDecryptingTick++
+	c.sendackingTick++
 	c.proposeTick++
 
 	if c.proposeTick >= c.opts.Reactor.ChannelDeadlineTick {
@@ -322,6 +363,12 @@ func (c *channel) becomeProxy(leaderId uint64) {
 func (c *channel) resetIndex() {
 	c.msgQueue.resetIndex()
 
+	// 释放掉之前的tag
+	if c.receiverTagKey.Load() != "" {
+		c.r.s.tagManager.releaseReceiverTag(c.receiverTagKey.Load())
+		c.receiverTagKey.Store("")
+	}
+
 	c.payloadDecrypting = false
 	c.permissionChecking = false
 	c.storaging = false
@@ -329,9 +376,14 @@ func (c *channel) resetIndex() {
 	c.delivering = false
 	c.forwarding = false
 
-	c.initTick = 0
-	c.storageTick = 0
-	c.proposeTick = 0
+	c.initTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.storageTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.proposeTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.forwardTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.deliveringTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.payloadDecryptingTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.sendackingTick = c.opts.Reactor.ChannelProcessIntervalTick
 
 }
 
@@ -357,6 +409,8 @@ type ready struct {
 func (c *channel) makeReceiverTag() (*tag, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	c.Debug("makeReceiverTag", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 	var subscribers []string
 	var err error

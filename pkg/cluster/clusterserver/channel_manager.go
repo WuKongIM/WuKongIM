@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 var _ reactor.IRequest = &channelManager{}
@@ -59,7 +60,7 @@ func (c *channelManager) remove(ch *channel) {
 }
 
 func (c *channelManager) get(channelId string, channelType uint8) reactor.IHandler {
-	return c.channelReactor.Handler(ChannelToKey(channelId, channelType))
+	return c.channelReactor.Handler(wkutil.ChannelToKey(channelId, channelType))
 }
 
 func (c *channelManager) iterator(f func(h reactor.IHandler) bool) {
@@ -67,7 +68,7 @@ func (c *channelManager) iterator(f func(h reactor.IHandler) bool) {
 }
 
 func (c *channelManager) exist(channelId string, channelType uint8) bool {
-	return c.channelReactor.ExistHandler(ChannelToKey(channelId, channelType))
+	return c.channelReactor.ExistHandler(wkutil.ChannelToKey(channelId, channelType))
 }
 
 // 频道数量
@@ -80,7 +81,7 @@ func (c *channelManager) getWithHandleKey(handleKey string) reactor.IHandler {
 }
 
 func (c *channelManager) proposeAndWait(ctx context.Context, channelId string, channelType uint8, logs []replica.Log) ([]reactor.ProposeResult, error) {
-	return c.channelReactor.ProposeAndWait(ctx, ChannelToKey(channelId, channelType), logs)
+	return c.channelReactor.ProposeAndWait(ctx, wkutil.ChannelToKey(channelId, channelType), logs)
 }
 
 func (c *channelManager) addMessage(m reactor.Message) {

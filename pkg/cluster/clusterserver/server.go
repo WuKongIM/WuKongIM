@@ -115,6 +115,7 @@ func New(opts *Options) *Server {
 		clusterevent.WithElectionIntervalTick(opts.ElectionIntervalTick),
 		clusterevent.WithHeartbeatIntervalTick(opts.HeartbeatIntervalTick),
 		clusterevent.WithTickInterval(opts.TickInterval),
+		clusterevent.WithPongMaxTick(opts.PongMaxTick),
 	))
 
 	channelElectionPool, err := ants.NewPool(s.opts.ChannelElectionPoolSize, ants.WithNonblocking(false), ants.WithDisablePurge(true), ants.WithPanicHandler(func(err interface{}) {
@@ -294,7 +295,7 @@ func (s *Server) AddChannelMessage(m reactor.Message) {
 		s.Warn("channelLoadPool is busy", zap.Int("running", running), zap.Int("size", s.opts.ChannelLoadPoolSize))
 	}
 	err := s.channelLoadPool.Submit(func() {
-		channelId, channelType := ChannelFromlKey(m.HandlerKey)
+		channelId, channelType := wkutil.ChannelFromlKey(m.HandlerKey)
 		if channelId == "" {
 			s.Panic("channelId is empty", zap.String("handlerKey", m.HandlerKey))
 		}

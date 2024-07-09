@@ -387,7 +387,11 @@ func (r *Replica) appendLog(logs ...Log) (accepted bool) {
 		return false
 	}
 	if logs[0].Index != r.replicaLog.lastLogIndex+1 { // 连续性判断
-		r.Panic("log index is not continuous", zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("startLogIndex", logs[0].Index), zap.Uint64("endLogIndex", logs[len(logs)-1].Index))
+		if r.role == RoleLeader {
+			r.Panic("log index is not continuous", zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("startLogIndex", logs[0].Index), zap.Uint64("endLogIndex", logs[len(logs)-1].Index))
+		} else {
+			r.Warn("log index is not continuous", zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex), zap.Uint64("startLogIndex", logs[0].Index), zap.Uint64("endLogIndex", logs[len(logs)-1].Index))
+		}
 		return false
 	}
 

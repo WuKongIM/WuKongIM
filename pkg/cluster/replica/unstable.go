@@ -37,6 +37,10 @@ func (u *unstable) maybeLastIndex() (uint64, bool) {
 // [1 2 3 4 5 6 7 8 9]
 // appliedTo(5) => [6 7 8 9]
 func (u *unstable) appliedTo(index uint64) {
+	if index < u.offset-1 { // index小于offset-1，说明index已经被存储了，不在unstable中
+		u.Info(fmt.Sprintf("appliedTo %d is out of bound %d", index, u.offset-1))
+		return
+	}
 	num := int(index + 1 - u.offset)
 	u.logs = u.logs[num:]
 	u.offset = index + 1

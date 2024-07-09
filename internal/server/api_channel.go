@@ -113,7 +113,7 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 		}
 	}
 
-	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
 	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
 	if cacheChannel != nil {
 		cacheChannel.info = channelInfo
@@ -154,7 +154,7 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 		c.ResponseError(errors.New("添加或更新频道信息失败！"))
 		return
 	}
-	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
 	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
 	if cacheChannel != nil {
 		cacheChannel.info = channelInfo
@@ -258,7 +258,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 			return err
 		}
 	}
-	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
 	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
 	if channel != nil {
 		// 重新生成接收者标签
@@ -308,7 +308,7 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		return
 	}
 
-	channelKey := ChannelToKey(req.ChannelID, req.ChannelType)
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
 	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
 	if channel != nil {
 		// 重新生成接收者标签

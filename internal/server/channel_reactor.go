@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
@@ -52,7 +53,7 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		processCloseC:          make(chan *closeReq, 2048),
 		stopper:                syncutil.NewStopper(),
 		opts:                   opts,
-		Log:                    wklog.NewWKLog("Reactor"),
+		Log:                    wklog.NewWKLog(fmt.Sprintf("ChannelReactor[%d]", opts.Cluster.NodeId)),
 		s:                      s,
 	}
 	r.subs = make([]*channelReactorSub, r.opts.Reactor.ChannelSubCount)
@@ -135,14 +136,13 @@ func (r *channelReactor) proposeSend(fromUid string, fromDeviceId string, fromCo
 func (r *channelReactor) loadOrCreateChannel(fakeChannelId string, channelType uint8) *channel {
 	r.loadChannMu.Lock()
 	defer r.loadChannMu.Unlock()
-	channelKey := ChannelToKey(fakeChannelId, channelType)
+	channelKey := wkutil.ChannelToKey(fakeChannelId, channelType)
 	sub := r.reactorSub(channelKey)
 	ch := sub.channel(channelKey)
 	if ch != nil {
 		return ch
 	}
 
-	fmt.Println("loadOrCreateChannel---->", fakeChannelId)
 	ch = newChannel(sub, fakeChannelId, channelType)
 	sub.addChannel(ch)
 	return ch

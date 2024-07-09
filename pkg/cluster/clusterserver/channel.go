@@ -40,7 +40,7 @@ type channel struct {
 }
 
 func newChannel(channelId string, channelType uint8, opts *Options, s *Server, sendConfigReqToSlotLeader func(c *channel, cfgVersion uint64) error) *channel {
-	key := ChannelToKey(channelId, channelType)
+	key := wkutil.ChannelToKey(channelId, channelType)
 	c := &channel{
 		key:                       key,
 		channelId:                 channelId,
@@ -79,7 +79,7 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 	c.cfg = cfg
 	c.mu.Unlock()
 
-	c.Info("switch config", zap.String("cfg", cfg.String()))
+	c.Info("switch config", zap.Uint32("slotId", c.s.getSlotId(c.channelId)), zap.String("cfg", cfg.String()))
 
 	var role = replica.RoleUnknown
 

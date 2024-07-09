@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
@@ -51,7 +52,7 @@ func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
 
 	resps := make([]*ChannelLastLogInfoResponse, 0, len(reqs))
 	for _, req := range reqs {
-		shardNo := ChannelToKey(req.ChannelId, req.ChannelType)
+		shardNo := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
 		lastIndex, term, err := s.opts.MessageLogStorage.LastIndexAndTerm(shardNo)
 		if err != nil {
 			c.Error("Get last log info failed", zap.Error(err))

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -57,9 +58,99 @@ func NewTestClusterServerTwoNode(t *testing.T, opt ...Option) (*Server, *Server)
 	return s1, s2
 }
 
+func NewTestClusterServerTreeNode(t *testing.T, opt ...Option) (*Server, *Server, *Server) {
+
+	nodes := make([]*Node, 0)
+
+	nodes = append(nodes, &Node{
+		Id:         1001,
+		ServerAddr: "0.0.0.0:11110",
+	}, &Node{
+		Id:         1002,
+		ServerAddr: "0.0.0.0:11111",
+	}, &Node{
+		Id:         1003,
+		ServerAddr: "0.0.0.0:11112",
+	})
+
+	s1 := NewTestServer(t,
+		WithDemoOn(false),
+		WithClusterPongMaxTick(10),
+		WithClusterSlotReplicaCount(3),
+		WithClusterChannelReplicaCount(3),
+		WithWSAddr("ws://0.0.0.0:5210"),
+		WithMonitorAddr("0.0.0.0:5310"),
+		WithAddr("tcp://0.0.0.0:5110"),
+		WithHTTPAddr("0.0.0.0:5001"),
+		WithClusterAddr("tcp://0.0.0.0:11110"),
+		WithClusterNodeId(1001),
+		WithClusterNodes(nodes),
+		WithClusterTickInterval(time.Millisecond*50),
+		WithOpts(opt...),
+	)
+
+	s2 := NewTestServer(t,
+		WithDemoOn(false),
+		WithClusterPongMaxTick(10),
+		WithClusterSlotReplicaCount(3),
+		WithClusterChannelReplicaCount(3),
+		WithWSAddr("ws://0.0.0.0:5220"),
+		WithMonitorAddr("0.0.0.0:5320"),
+		WithAddr("tcp://0.0.0.0:5120"),
+		WithHTTPAddr("0.0.0.0:5002"),
+		WithClusterAddr("tcp://0.0.0.0:11111"),
+		WithClusterNodeId(1002),
+		WithClusterNodes(nodes),
+		WithClusterTickInterval(time.Millisecond*50),
+		WithOpts(opt...),
+	)
+
+	s3 := NewTestServer(t,
+		WithDemoOn(false),
+		WithClusterPongMaxTick(10),
+		WithClusterSlotReplicaCount(3),
+		WithClusterChannelReplicaCount(3),
+		WithWSAddr("ws://0.0.0.0:5230"),
+		WithMonitorAddr("0.0.0.0:5330"),
+		WithAddr("tcp://0.0.0.0:5130"),
+		WithHTTPAddr("0.0.0.0:5003"),
+		WithClusterAddr("tcp://0.0.0.0:11112"),
+		WithClusterNodeId(1003),
+		WithClusterNodes(nodes),
+		WithClusterTickInterval(time.Millisecond*50),
+		WithOpts(opt...),
+	)
+
+	return s1, s2, s3
+
+}
+
 func MustWaitClusterReady(ss ...*Server) {
 	for _, s := range ss {
 		s.MustWaitClusterReady()
+	}
+}
+
+// MustWaitNodeOffline 必须等待某个节点离线
+func (s *Server) MustWaitNodeOffline(nodeId uint64) {
+	tk := time.NewTicker(time.Millisecond * 10)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	for {
+		select {
+		case <-tk.C:
+			nodes := s.clusterServer.GetConfig().Nodes
+			if len(nodes) > 0 {
+				for _, node := range nodes {
+					if node.Id == nodeId && !node.Online {
+						return
+					}
+				}
+			}
+		case <-timeoutCtx.Done():
+			s.Panic("MustWaitNodeOffline timeout")
+			return
+		}
 	}
 }
 

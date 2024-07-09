@@ -169,26 +169,32 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 			d.Error("getLeaderOfChannel failed", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Error(err))
 			return
 		}
-		if leader.Id == d.dm.s.opts.Cluster.NodeId {
-			d.Error("getReceiverTag failed", zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-			return
+		if leader.Id == d.dm.s.opts.Cluster.NodeId { // 如果本节点是leader并且tag不存在，则创建tag
+			tg, err = req.ch.makeReceiverTag()
+			if err != nil {
+				d.Error("handleDeliverReq:makeReceiverTag failed", zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+				return
+			}
+		} else {
+			fmt.Println("requestNodeChannelTag......", req.channelId, req.channelType, req.tagKey)
+			tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
+				channelId:   req.channelId,
+				channelType: req.channelType,
+				tagKey:      req.tagKey,
+				nodeId:      d.dm.s.opts.Cluster.NodeId,
+			})
+			if err != nil {
+				d.Error("requestNodeTag failed", zap.Error(err), zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+				return
+			}
+			tg = d.dm.s.tagManager.addOrUpdateReceiverTag(tagResp.tagKey, []*nodeUsers{
+				{
+					uids:   tagResp.uids,
+					nodeId: d.dm.s.opts.Cluster.NodeId,
+				},
+			})
 		}
-		tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
-			channelId:   req.channelId,
-			channelType: req.channelType,
-			tagKey:      req.tagKey,
-			nodeId:      d.dm.s.opts.Cluster.NodeId,
-		})
-		if err != nil {
-			d.Error("requestNodeTag failed", zap.Error(err), zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-			return
-		}
-		tg = d.dm.s.tagManager.addOrUpdateReceiverTag(tagResp.tagKey, []*nodeUsers{
-			{
-				uids:   tagResp.uids,
-				nodeId: d.dm.s.opts.Cluster.NodeId,
-			},
-		})
+
 	}
 
 	// ================== 投递消息 ==================
@@ -201,6 +207,7 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 			d.deliver(req, nodeUser.uids)
 
 		} else { // 非本节点的转发给对应节点去投递
+			d.Debug("forward deliverReq to node", zap.Uint64("nodeId", nodeUser.nodeId), zap.String("tagKey", req.tagKey), zap.Strings("uids", nodeUser.uids), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
 			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
 		}
 	}
@@ -210,10 +217,12 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	if len(uids) == 0 {
 		return
 	}
+	d.Info("start deliver message", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Strings("uids", uids))
 	offlineUids := make([]string, 0, len(uids)) // 离线用户
 	for _, toUid := range uids {
 		userHandler := d.dm.s.userReactor.getUser(toUid)
 		if userHandler == nil { // 用户不在线
+			fmt.Println("用户不在线", toUid)
 			offlineUids = append(offlineUids, toUid)
 			continue
 		}
@@ -226,6 +235,8 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		// 获取当前用户的所有连接
 		conns := userHandler.getConns()
 
+		fmt.Println("conns----->", conns)
+
 		for _, conn := range conns {
 			for _, message := range req.messages {
 
@@ -233,7 +244,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 					continue
 				}
 
-				d.Debug("deliver message to user", zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId), zap.Int64("connId", conn.connId), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+				d.Debug("deliver message to user", zap.Int64("messageId", message.MessageId), zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId), zap.Int64("connId", conn.connId), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
 
 				sendPacket := message.SendPacket
 

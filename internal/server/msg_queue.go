@@ -140,6 +140,13 @@ func newUserMsgQueue(prefix string) *userMsgQueue {
 	}
 }
 
+func (m *userMsgQueue) resetIndex() {
+	if m.offset <= 0 {
+		return
+	}
+	m.processingIndex = m.offset - 1
+}
+
 // truncateTo 裁剪index之前的消息
 func (m *userMsgQueue) truncateTo(index uint64) {
 	num := int(index + 1 - m.offset)

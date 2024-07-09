@@ -1,6 +1,7 @@
 package clusterevent
 
 import (
+	"fmt"
 	"io"
 	"os"
 
@@ -52,7 +53,7 @@ func New(opts *Options) *Server {
 		localCfgPath:  localCfgPath,
 		localCfg:      &pb.Config{},
 		opts:          opts,
-		Log:           wklog.NewWKLog("clusterevent"),
+		Log:           wklog.NewWKLog(fmt.Sprintf("clusterevent[%d]", opts.NodeId)),
 		stopper:       syncutil.NewStopper(),
 		pongTickMap:   make(map[uint64]int),
 		pongC:         make(chan uint64, 100),
@@ -108,6 +109,7 @@ func (s *Server) onAppliedConfig() {
 	s.remoteCfg = cfg.Clone()
 
 	if s.opts.OnClusterConfigChange != nil {
+		// s.Info("Cluster config changed", zap.String("config", cfg.String()))
 		s.opts.OnClusterConfigChange(cfg)
 	}
 }

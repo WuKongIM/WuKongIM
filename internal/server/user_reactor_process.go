@@ -602,6 +602,7 @@ func (r *userReactor) processWriteLoop() {
 }
 
 func (r *userReactor) processWrite(reqs []*writeReq) {
+	fmt.Println("processWrite---->", len(reqs))
 	var reason Reason
 	for _, req := range reqs {
 		reason = ReasonSuccess
@@ -633,6 +634,7 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 
 func (r *userReactor) handleWrite(req *writeReq) error {
 
+	fmt.Println("handleWrite------->", len(req.messages))
 	sub := r.reactorSub(req.uid)
 
 	var connDataMap = map[string][]byte{}
@@ -649,9 +651,12 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 		connDataMap[msg.DeviceId] = data
 	}
 
+	fmt.Println("connDataMap------->", connDataMap)
+
 	for deviceId, data := range connDataMap {
 		conn := sub.getConnContext(req.uid, deviceId)
 		if conn == nil {
+			fmt.Println("handleWrite: conn not found", len(data), req.uid, deviceId)
 			r.Debug("handleWrite: conn not found", zap.Int("dataLen", len(data)), zap.String("uid", req.uid), zap.String("deviceId", deviceId))
 			continue
 		}
@@ -659,6 +664,7 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 		recvFrameCount := recvFrameCountMap[deviceId]
 
 		if conn.isRealConn { // 是真实节点直接返回数据
+			fmt.Println("handleWrite: real conn", deviceId, conn.connId, conn.proxyConnId, conn.realNodeId, conn.isRealConn)
 			connId := deviceIdConnIdMap[deviceId]
 			if connId == conn.connId {
 				_ = conn.writeDirectly(data, recvFrameCount)
@@ -667,7 +673,7 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 			}
 
 		} else { // 是代理连接，转发数据到真实连接
-
+			fmt.Println("handleWrite: proxy conn", deviceId, conn.connId, conn.proxyConnId, conn.realNodeId, conn.isRealConn)
 			status, err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
 				Uid:            req.uid,
 				DeviceId:       deviceId,
@@ -680,7 +686,9 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 				return err
 			}
 			if status == proto.Status(errCodeConnNotFound) { // 连接不存在了，所以这里也移除
-				r.removeConnContextById(conn.uid, conn.connId)
+				_ = r.removeConnContextById(conn.uid, conn.connId)
+				conn.close()
+
 			}
 		}
 	}
@@ -689,7 +697,8 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 
 // 转发写请求
 func (r *userReactor) fowardWriteReq(nodeId uint64, req *FowardWriteReq) (proto.Status, error) {
-	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	fmt.Println("fowardWriteReq----->", nodeId)
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*2)
 	defer cancel()
 	data, err := req.Marshal()
 	if err != nil {
@@ -699,6 +708,7 @@ func (r *userReactor) fowardWriteReq(nodeId uint64, req *FowardWriteReq) (proto.
 	if err != nil {
 		return 0, err
 	}
+	fmt.Println("fowardWriteReq resp----->", resp.Status)
 	if resp.Status == proto.Status_OK {
 		return proto.Status_OK, nil
 	}
@@ -757,18 +767,32 @@ func (r *userReactor) processForwardUserAction(actions []UserAction) {
 		userLeaderMap[action.Uid] = action.LeaderId
 	}
 
-	var reason Reason
 	for uid, fowardActions := range userForwardActionMap {
 		leaderId := userLeaderMap[uid]
 
-		reason = ReasonSuccess
-		newLeaderId, err := r.handleForwardUserAction(uid, leaderId, fowardActions)
-		if err != nil {
-			r.Error("handleForwardUserAction error", zap.Error(err))
+		var (
+			err         error
+			reason      = ReasonSuccess
+			newLeaderId uint64
+		)
+		if !r.s.cluster.NodeIsOnline(leaderId) {
+			// 重新获取频道领导
+			newLeaderId, err = r.s.cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
+			if err != nil {
+				r.Error("processForwardUserAction: SlotLeaderIdOfChannel error", zap.Error(err))
+			}
 			reason = ReasonError
+		} else {
+			newLeaderId, err = r.handleForwardUserAction(uid, leaderId, fowardActions)
+			if err != nil {
+				r.Error("handleForwardUserAction error", zap.Error(err))
+				reason = ReasonError
+			}
 		}
+
 		sub := r.reactorSub(uid)
 		if newLeaderId > 0 {
+			r.Info("leader change", zap.String("uid", uid), zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", leaderId))
 			sub.step(uid, UserAction{
 				ActionType: UserActionLeaderChange,
 				LeaderId:   newLeaderId,
@@ -808,7 +832,7 @@ func (r *userReactor) handleForwardUserAction(uid string, leaderId uint64, actio
 }
 
 func (r *userReactor) forwardUserAction(nodeId uint64, actions []UserAction) (bool, error) {
-	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*2)
 	defer cancel()
 
 	actionSet := UserActionSet(actions)
@@ -1131,6 +1155,7 @@ func (r *userReactor) processCloseLoop() {
 }
 
 func (r *userReactor) processClose(req *userCloseReq) {
+
 	r.removeUserByUniqueNo(req.uid, req.uniqueNo)
 }
 

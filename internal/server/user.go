@@ -37,6 +37,7 @@ type userHandler struct {
 	role   userRole   // 用户角色
 
 	stepFnc func(UserAction) error
+	tickFnc func()
 
 	sub *userReactorSub
 
@@ -64,7 +65,7 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 		pingQueue:           newUserMsgQueue(fmt.Sprintf("user:ping:%s", uid)),
 		recvackQueue:        newUserMsgQueue(fmt.Sprintf("user:recvack:%s", uid)),
 		recvMsgQueue:        newUserMsgQueue(fmt.Sprintf("user:recv:%s", uid)),
-		Log:                 wklog.NewWKLog(fmt.Sprintf("userHandler[%s]", uid)),
+		Log:                 wklog.NewWKLog(fmt.Sprintf("userHandler[%d][%s]", sub.r.s.opts.Cluster.NodeId, uid)),
 		sub:                 sub,
 		nodePongTimeoutTick: make(map[uint64]int),
 		uniqueNo:            wkutil.GenUUID(),
@@ -249,6 +250,7 @@ func (u *userHandler) becomeLeader() {
 	u.leaderId = 0
 	u.role = userRoleLeader
 	u.stepFnc = u.stepLeader
+	u.tickFnc = u.tickLeader
 	u.Info("become logic leader")
 }
 
@@ -257,32 +259,35 @@ func (u *userHandler) becomeProxy(leaderId uint64) {
 	u.leaderId = leaderId
 	u.role = userRoleProxy
 	u.stepFnc = u.stepProxy
+	u.tickFnc = u.tickProxy
 
 	u.Info("become logic proxy", zap.Uint64("leaderId", u.leaderId))
 }
 
 func (u *userHandler) reset() {
 
-	u.pingQueue.processingIndex = 0
-	u.recvackQueue.processingIndex = 0
-	u.recvMsgQueue.processingIndex = 0
-	u.authQueue.processingIndex = 0
+	// 将ping和recvack队列里的数据清空掉，因为这些数据已无意义
+	// 但是recvMsgQueue里的数据还是有意义的，因为这些数据是需要投递给用户的
+	// if u.pingQueue.hasNextMessages() {
+	// 	u.pingQueue.truncateTo(u.pingQueue.lastIndex)
+	// }
+
+	// if u.recvackQueue.hasNextMessages() {
+	// 	u.recvackQueue.truncateTo(u.recvackQueue.lastIndex)
+	// }
+
+	u.pingQueue.resetIndex()
+	u.recvackQueue.resetIndex()
+	u.recvMsgQueue.resetIndex()
+	u.authQueue.resetIndex()
 
 	u.sendPing = false
 	u.sendRecvacking = false
 	u.recvMsging = false
 	u.authing = false
 
-	// 将ping和recvack队列里的数据清空掉，因为这些数据已无意义
-	// 但是recvMsgQueue里的数据还是有意义的，因为这些数据是需要投递给用户的
-	if u.pingQueue.hasNextMessages() {
-		u.pingQueue.truncateTo(u.pingQueue.lastIndex)
-	}
-
-	if u.recvackQueue.hasNextMessages() {
-		u.recvackQueue.truncateTo(u.recvackQueue.lastIndex)
-	}
-
+	u.initTick = 0
+	u.authTick = 0
 }
 
 func (u *userHandler) tick() {
@@ -292,15 +297,23 @@ func (u *userHandler) tick() {
 	u.recvMsgTick++
 	u.sendRecvackTick++
 
-	if u.role != userRoleLeader { // 非领导不能发ping
-		return
+}
+
+func (u *userHandler) tickProxy() {
+	u.nodePingTick++
+
+	if u.nodePingTick >= u.sub.r.s.opts.Reactor.UserNodePingTick+(u.sub.r.s.opts.Reactor.UserNodePingTick/2) { // 与领导失去联系，主动断开连接
+		u.nodePingTick = 0
+		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 	}
+}
+
+func (u *userHandler) tickLeader() {
 	u.nodePingTick++
 
 	for _, proxyNodeId := range u.connNodeIds {
 		u.nodePongTimeoutTick[proxyNodeId]++
 	}
-	// u.pongTimeoutTick++
 
 	if u.nodePingTick >= u.sub.r.s.opts.Reactor.UserNodePingTick {
 		u.nodePingTick = 0
@@ -335,7 +348,6 @@ func (u *userHandler) tick() {
 			}})
 		}
 	}
-
 }
 
 func (u *userHandler) addConnIfNotExist(conn *connContext) {
@@ -413,33 +425,40 @@ func (u *userHandler) getConnCount() int {
 // 	u.resetConnNodeIds()
 // }
 
-func (u *userHandler) removeConnById(id int64) {
+func (u *userHandler) removeConnById(id int64) *connContext {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	var existConn *connContext
 	for i, c := range u.conns {
 		if c.connId == id {
+			existConn = c
 			u.conns = append(u.conns[:i], u.conns[i+1:]...)
 			break
 		}
 	}
 	u.resetConnNodeIds()
 
+	return existConn
+
 }
 
 // 移除指定节点id的所有连接
-func (u *userHandler) removeConnsByNodeId(nodeId uint64) {
+func (u *userHandler) removeConnsByNodeId(nodeId uint64) []*connContext {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	newConns := make([]*connContext, 0, len(u.conns))
+	removeConns := make([]*connContext, 0, len(u.conns))
 	for i := 0; i < len(u.conns); i++ {
 		if u.conns[i].realNodeId != nodeId {
 			newConns = append(newConns, u.conns[i])
+		} else {
+			removeConns = append(removeConns, u.conns[i])
 		}
 	}
 	u.conns = newConns
 	u.resetConnNodeIds()
-
+	return removeConns
 }
 
 func (u *userHandler) resetConnNodeIds() {

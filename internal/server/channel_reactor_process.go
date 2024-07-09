@@ -119,6 +119,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 	}
 	sub := r.reactorSub(req.ch.key)
 	sub.step(req.ch, &ChannelAction{
+		Reason:     ReasonSuccess,
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionPayloadDecryptResp,
 		Messages:   req.messages,
@@ -184,7 +185,7 @@ func (r *channelReactor) processForward(reqs []*forwardReq) {
 
 		var newLeaderId uint64
 		if !r.s.clusterServer.NodeIsOnline(req.leaderId) { // 如果领导不在线
-			timeoutCtx, cancel := context.WithTimeout(r.s.ctx, r.opts.Cluster.ReqTimeout)
+			timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*1) // 需要快速返回，这样会进行下次重试，如果超时时间太长，会阻塞导致下次重试间隔太长
 			defer cancel()
 			newLeaderId, err = r.s.cluster.LeaderIdOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
 			if err != nil {

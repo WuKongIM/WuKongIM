@@ -35,6 +35,7 @@ func (n *nodeManager) stop() {
 func (n *nodeManager) deliver(nodeId uint64, req *deliverReq) {
 	n.Lock()
 	defer n.Unlock()
+
 	node := n.nodes[nodeId]
 	if node == nil {
 		node = newNode(nodeId, n.s)
