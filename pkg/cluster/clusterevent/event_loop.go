@@ -1,7 +1,6 @@
 package clusterevent
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -467,7 +466,6 @@ func (s *Server) handleNodeJoining() error {
 }
 
 func (s *Server) handleNodeOnlineStatusChange() error {
-	fmt.Println("handleNodeOnlineStatusChange--------->")
 	// 判断节点在线状态是否改变
 	for _, node := range s.remoteCfg.Nodes {
 		for _, localNode := range s.localCfg.Nodes {
@@ -511,7 +509,7 @@ func (s *Server) handleNodeOnlineChange(nodeId uint64, online bool) error {
 		needSlotLeaderCount := avgSlotLeaderCount - currentNodeSlotLeaderCount
 
 		for nId, slotLeaderCount := range nodeSlotLeaderCountMap {
-			if slotLeaderCount <= avgSlotLeaderCount { // 槽领导数量小于平均值的节点不参与计算
+			if slotLeaderCount < avgSlotLeaderCount { // 槽领导数量小于平均值的节点不参与计算
 				continue
 			}
 
@@ -558,7 +556,7 @@ func (s *Server) handleNodeOnlineChange(nodeId uint64, online bool) error {
 
 		currentNodeSlotLeaderCount := nodeSlotLeaderCountMap[nodeId] // 当前节点的槽领导数量
 
-		fmt.Println("currentNodeSlotLeaderCount---->", currentNodeSlotLeaderCount)
+		// fmt.Println("currentNodeSlotLeaderCount---->", currentNodeSlotLeaderCount)
 
 		for _, slot := range slots {
 			if slot.Leader != nodeId {
@@ -574,7 +572,7 @@ func (s *Server) handleNodeOnlineChange(nodeId uint64, online bool) error {
 					break
 				}
 
-				if slotLeaderCount >= avgSlotLeaderCount { // 槽领导数量大于等于平均值的节点不参与计算
+				if slotLeaderCount > avgSlotLeaderCount { // 槽领导数量大于等于平均值的节点不参与计算
 					continue
 				}
 
@@ -592,7 +590,6 @@ func (s *Server) handleNodeOnlineChange(nodeId uint64, online bool) error {
 
 	}
 	if len(newSlots) > 0 {
-		fmt.Println("handleNodeOnlineChange---->")
 		err := s.ProposeSlots(newSlots)
 		if err != nil {
 			s.Error("handleNodeOnlineChange failed,ProposeSlots failed", zap.Error(err))

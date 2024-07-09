@@ -46,7 +46,7 @@ func newUserReactor(s *Server) *userReactor {
 		processProxyNodeTimeoutC:  make(chan *proxyNodeTimeoutReq, 1024),
 		processCloseC:             make(chan *userCloseReq, 1024),
 		stopper:                   syncutil.NewStopper(),
-		Log:                       wklog.NewWKLog("userReactor"),
+		Log:                       wklog.NewWKLog(fmt.Sprintf("userReactor[%d]", s.opts.Cluster.NodeId)),
 		s:                         s,
 	}
 
@@ -152,13 +152,13 @@ func (u *userReactor) getConnContextCount(uid string) int {
 // 	u.reactorSub(uid).removeConnContext(uid, deviceId)
 // }
 
-func (u *userReactor) removeConnContextById(uid string, id int64) {
-	u.reactorSub(uid).removeConnContextById(uid, id)
+func (u *userReactor) removeConnContextById(uid string, id int64) *connContext {
+	return u.reactorSub(uid).removeConnContextById(uid, id)
 }
 
 // 移除指定节点的所有连接
-func (u *userReactor) removeConnsByNodeId(uid string, nodeId uint64) {
-	u.reactorSub(uid).removeConnsByNodeId(uid, nodeId)
+func (u *userReactor) removeConnsByNodeId(uid string, nodeId uint64) []*connContext {
+	return u.reactorSub(uid).removeConnsByNodeId(uid, nodeId)
 }
 
 func (u *userReactor) reactorSub(uid string) *userReactorSub {

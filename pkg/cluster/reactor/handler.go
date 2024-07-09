@@ -178,8 +178,10 @@ func (h *handler) tick() {
 	h.handler.Tick()
 	h.proposeIntervalTick++
 
-	if h.syncTimeoutTick >= h.r.opts.SyncTimeoutMaxTick { // 同步超时超过指定次数，则停止同步
-		h.setSpeedLevel(replica.LevelStop)
+	if h.r.opts.AutoSlowDownOn {
+		if h.syncTimeoutTick >= h.r.opts.SyncTimeoutMaxTick { // 同步超时超过指定次数，则停止同步
+			h.setSpeedLevel(replica.LevelStop)
+		}
 	}
 
 }

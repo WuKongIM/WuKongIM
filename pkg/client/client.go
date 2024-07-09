@@ -467,7 +467,7 @@ func (c *Client) readLoop() {
 	var remainingData []byte
 	var packetData []byte
 	tmpBuff := make([]byte, 0)
-	for {
+	for !c.isClosed() {
 		buf, err := br.Read()
 		if err == nil {
 			// With websocket, it is possible that there is no error but
@@ -490,6 +490,7 @@ func (c *Client) readLoop() {
 
 		}
 		if err != nil {
+			// fmt.Println("readLoop--err--->", err)
 			c.processOpErr(err)
 			break
 		}
@@ -689,6 +690,7 @@ func (c *Client) sendConnect() error {
 	}
 	f, err := c.proto.DecodePacketWithConn(c.conn, c.opts.ProtoVersion)
 	if err != nil {
+		c.Info("解析返回包失败！", zap.Error(err))
 		return err
 	}
 	connack, ok := f.(*wkproto.ConnackPacket)

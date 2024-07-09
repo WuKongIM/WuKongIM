@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -284,11 +285,12 @@ func (s *Server) handleDeliver(c *wkserver.Context) {
 		return
 	}
 	for _, channelMsg := range channelMsgSet {
-
+		ch := s.channelReactor.loadOrCreateChannel(channelMsg.ChannelId, channelMsg.ChannelType)
 		s.deliverManager.deliver(&deliverReq{
 			channelId:   channelMsg.ChannelId,
 			channelType: channelMsg.ChannelType,
-			channelKey:  ChannelToKey(channelMsg.ChannelId, channelMsg.ChannelType),
+			ch:          ch,
+			channelKey:  wkutil.ChannelToKey(channelMsg.ChannelId, channelMsg.ChannelType),
 			messages:    channelMsg.Messages,
 			tagKey:      channelMsg.TagKey,
 		})

@@ -174,7 +174,7 @@ func (m *MessageShardLogStorage) Close() error {
 }
 
 func (m *MessageShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) error {
-	channelId, channelType := ChannelFromlKey(shardNo)
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 	msgs := make([]wkdb.Message, len(logs))
 	for idx, log := range logs {
 		msg := wkdb.Message{}
@@ -192,7 +192,7 @@ func (m *MessageShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) 
 func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
 	dbReqs := make([]wkdb.AppendMessagesReq, 0, len(reqs))
 	for _, req := range reqs {
-		channelId, channelType := ChannelFromlKey(req.HandleKey)
+		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
 
 		msgs := make([]wkdb.Message, len(req.Logs))
 		for idx, log := range req.Logs {
@@ -220,7 +220,7 @@ func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) err
 // 获取日志
 func (m *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {
 
-	channelID, channelType := ChannelFromlKey(shardNo)
+	channelID, channelType := wkutil.ChannelFromlKey(shardNo)
 	var (
 		messages []wkdb.Message
 		err      error
@@ -260,13 +260,13 @@ func (m *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex
 }
 
 func (m *MessageShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
-	channelId, channelType := ChannelFromlKey(shardNo)
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 	return m.db.TruncateLogTo(channelId, channelType, index)
 }
 
 // 最后一条日志的索引
 func (m *MessageShardLogStorage) LastIndex(shardNo string) (uint64, error) {
-	channelId, channelType := ChannelFromlKey(shardNo)
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 
 	lastMsgSeq, _, err := m.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
@@ -284,7 +284,7 @@ func (m *MessageShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint3
 	if lastIndex == 0 {
 		return 0, 0, nil
 	}
-	channelId, channelType := ChannelFromlKey(shardNo)
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 
 	queryIndex := lastIndex
 	var lastMsg wkdb.Message
@@ -307,7 +307,7 @@ func (m *MessageShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint3
 }
 
 // func (s *MessageShardLogStorage) SetLastIndex(shardNo string, index uint64) error {
-// 	channelId, channelType := cluster.ChannelFromlKey(shardNo)
+// 	channelId, channelType := cluster.wkutil.ChannelFromlKey(shardNo)
 // 	return s.db.SetChannelLastMessageSeq(channelId, channelType, index)
 // }
 
@@ -318,12 +318,12 @@ func (m *MessageShardLogStorage) FirstIndex(shardNo string) (uint64, error) {
 
 // 设置成功被状态机应用的日志索引
 func (m *MessageShardLogStorage) SetAppliedIndex(shardNo string, index uint64) error {
-	channelId, channelType := ChannelFromlKey(shardNo)
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 	return m.db.UpdateChannelAppliedIndex(channelId, channelType, index)
 }
 
 func (m *MessageShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
-	channelId, channelType := ChannelFromlKey(shardNo)
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 	return m.db.GetChannelAppliedIndex(channelId, channelType)
 }
 
@@ -348,7 +348,7 @@ func (m *MessageShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shard
 }
 
 func (m *MessageShardLogStorage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
-	channelId, channelType := ChannelFromlKey(shardNo)
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 	lastMsgSeq, appendTime, err := m.db.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return 0, 0, err

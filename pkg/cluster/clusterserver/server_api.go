@@ -218,7 +218,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 				resp.Active = 0
 				resp.ActiveFormat = "未运行"
 			}
-			shardNo := ChannelToKey(cfg.ChannelId, cfg.ChannelType)
+			shardNo := wkutil.ChannelToKey(cfg.ChannelId, cfg.ChannelType)
 			lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
 			if err != nil {
 				s.Error("LastIndexAndAppendTime error", zap.Error(err))
@@ -434,7 +434,7 @@ func (s *Server) slotChannelsGet(c *wkhttp.Context) {
 			c.ResponseError(err)
 			return
 		}
-		shardNo := ChannelToKey(cfg.ChannelId, cfg.ChannelType)
+		shardNo := wkutil.ChannelToKey(cfg.ChannelId, cfg.ChannelType)
 		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
 		if err != nil {
 			s.Error("LastIndexAndAppendTime error", zap.Error(err))
@@ -656,7 +656,7 @@ func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
 
 	}
 	resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slotId, cfg)
-	shardNo := ChannelToKey(channelId, channelType)
+	shardNo := wkutil.ChannelToKey(channelId, channelType)
 	lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
 	if err != nil {
 		s.Error("LastIndexAndAppendTime error", zap.Error(err))
@@ -1794,7 +1794,7 @@ func (s *Server) channelStatus(c *wkhttp.Context) {
 
 	resps := make([]*channelStatusResp, 0, len(req.Channels))
 	for _, ch := range req.Channels {
-		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(ChannelToKey(ch.ChannelId, ch.ChannelType))
+		lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(wkutil.ChannelToKey(ch.ChannelId, ch.ChannelType))
 		if err != nil {
 			s.Error("LastIndexAndAppendTime error", zap.Error(err))
 			c.ResponseError(err)

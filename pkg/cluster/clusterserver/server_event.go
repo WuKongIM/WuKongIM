@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 
 // 分布式配置改变
 func (s *Server) onClusterConfigChange(cfg *pb.Config) {
-	s.Info("onClusterConfigChange----->")
 	if s.stopped.Load() {
 		s.Info("server stopped")
 		return
@@ -27,7 +25,7 @@ func (s *Server) onClusterConfigChange(cfg *pb.Config) {
 
 // 处理槽选举
 func (s *Server) onSlotElection(slots []*pb.Slot) error {
-	s.Info("onSlotElection----->")
+	// fmt.Println("onSlotElection----->", slots)
 	if s.stopped.Load() {
 		s.Info("server stopped")
 		return nil
@@ -202,7 +200,6 @@ func (s *Server) handleSlotElection(slots []*pb.Slot) error {
 		return nil
 	}
 
-	fmt.Println("requestSlotInfos......>", electionSlotLeaderMap)
 	// 获取槽在各个副本上的日志信息
 	slotInfoResps, err := s.requestSlotInfos(electionSlotLeaderMap)
 	if err != nil {

@@ -412,6 +412,56 @@ func (c *ChannelClusterConfig) Clone() ChannelClusterConfig {
 	}
 }
 
+func (c *ChannelClusterConfig) Equal(cfg ChannelClusterConfig) bool {
+	if c.Id != cfg.Id {
+		return false
+	}
+	if c.ChannelId != cfg.ChannelId {
+		return false
+	}
+	if c.ChannelType != cfg.ChannelType {
+		return false
+	}
+	if c.ReplicaMaxCount != cfg.ReplicaMaxCount {
+		return false
+	}
+	if len(c.Replicas) != len(cfg.Replicas) {
+		return false
+	}
+	for i, replica := range c.Replicas {
+		if replica != cfg.Replicas[i] {
+			return false
+		}
+	}
+	if len(c.Learners) != len(cfg.Learners) {
+		return false
+	}
+	for i, learner := range c.Learners {
+		if learner != cfg.Learners[i] {
+			return false
+		}
+	}
+	if c.LeaderId != cfg.LeaderId {
+		return false
+	}
+	if c.Term != cfg.Term {
+		return false
+	}
+	if c.MigrateFrom != cfg.MigrateFrom {
+		return false
+	}
+	if c.MigrateTo != cfg.MigrateTo {
+		return false
+	}
+	if c.Status != cfg.Status {
+		return false
+	}
+	if c.ConfVersion != cfg.ConfVersion {
+		return false
+	}
+	return true
+}
+
 func (c *ChannelClusterConfig) Marshal() ([]byte, error) {
 	c.version = 1
 	enc := wkproto.NewEncoder()

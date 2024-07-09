@@ -76,7 +76,22 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 	resultConns := co.s.GetConnInfos(uid, sortOpt, offset, limit)
 	connInfos = make([]*ConnInfo, 0, len(resultConns))
 	for _, resultConn := range resultConns {
-		connInfos = append(connInfos, newConnInfo(resultConn))
+
+		connInfo := newConnInfo(resultConn)
+
+		proxyType := "未知"
+		userHandler := co.s.userReactor.getUser(resultConn.uid)
+		if userHandler != nil {
+			if userHandler.role == userRoleProxy {
+				proxyType = "代理连接"
+			} else if userHandler.role == userRoleLeader {
+				proxyType = "主连接"
+			}
+			connInfo.LeaderId = userHandler.leaderId
+		}
+		connInfo.ProxyTypeFormat = proxyType
+
+		connInfos = append(connInfos, connInfo)
 	}
 
 	c.JSON(http.StatusOK, Connz{
@@ -186,25 +201,27 @@ type Connz struct {
 }
 
 type ConnInfo struct {
-	ID             int64     `json:"id"`               // 连接ID
-	UID            string    `json:"uid"`              // 用户uid
-	IP             string    `json:"ip"`               // 客户端IP
-	Port           int       `json:"port"`             // 客户端端口
-	LastActivity   time.Time `json:"last_activity"`    // 最后一次活动时间
-	Uptime         string    `json:"uptime"`           // 启动时间
-	Idle           string    `json:"idle"`             // 客户端闲置时间
-	PendingBytes   int       `json:"pending_bytes"`    // 等待发送的字节数
-	InMsgs         int64     `json:"in_msgs"`          // 流入的消息数
-	OutMsgs        int64     `json:"out_msgs"`         // 流出的消息数量
-	InMsgBytes     int64     `json:"in_msg_bytes"`     // 流入的消息字节数量
-	OutMsgBytes    int64     `json:"out_msg_bytes"`    // 流出的消息字节数量
-	InPackets      int64     `json:"in_packets"`       // 流入的包数量
-	OutPackets     int64     `json:"out_packets"`      // 流出的包数量
-	InPacketBytes  int64     `json:"in_packet_bytes"`  // 流入的包字节数量
-	OutPacketBytes int64     `json:"out_packet_bytes"` // 流出的包字节数量
-	Device         string    `json:"device"`           // 设备
-	DeviceID       string    `json:"device_id"`        // 设备ID
-	Version        uint8     `json:"version"`          // 客户端协议版本
+	ID              int64     `json:"id"`                // 连接ID
+	UID             string    `json:"uid"`               // 用户uid
+	IP              string    `json:"ip"`                // 客户端IP
+	Port            int       `json:"port"`              // 客户端端口
+	LastActivity    time.Time `json:"last_activity"`     // 最后一次活动时间
+	Uptime          string    `json:"uptime"`            // 启动时间
+	Idle            string    `json:"idle"`              // 客户端闲置时间
+	PendingBytes    int       `json:"pending_bytes"`     // 等待发送的字节数
+	InMsgs          int64     `json:"in_msgs"`           // 流入的消息数
+	OutMsgs         int64     `json:"out_msgs"`          // 流出的消息数量
+	InMsgBytes      int64     `json:"in_msg_bytes"`      // 流入的消息字节数量
+	OutMsgBytes     int64     `json:"out_msg_bytes"`     // 流出的消息字节数量
+	InPackets       int64     `json:"in_packets"`        // 流入的包数量
+	OutPackets      int64     `json:"out_packets"`       // 流出的包数量
+	InPacketBytes   int64     `json:"in_packet_bytes"`   // 流入的包字节数量
+	OutPacketBytes  int64     `json:"out_packet_bytes"`  // 流出的包字节数量
+	Device          string    `json:"device"`            // 设备
+	DeviceID        string    `json:"device_id"`         // 设备ID
+	Version         uint8     `json:"version"`           // 客户端协议版本
+	ProxyTypeFormat string    `json:"proxy_type_format"` // 代理类型
+	LeaderId        uint64    `json:"leader_id"`         // 领导节点id
 }
 
 func newConnInfo(connCtx *connContext) *ConnInfo {

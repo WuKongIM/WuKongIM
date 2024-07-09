@@ -2,11 +2,13 @@ package cluster
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -26,7 +28,7 @@ func newChannelElectionManager(s *Server) *channelElectionManager {
 		stopper:   syncutil.NewStopper(),
 		opts:      s.opts,
 		s:         s,
-		Log:       wklog.NewWKLog("channelElectionManager"),
+		Log:       wklog.NewWKLog(fmt.Sprintf("channelElectionManager[%d]", s.opts.NodeId)),
 	}
 }
 
@@ -206,7 +208,7 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 		}
 		if replicaId == c.opts.NodeId { // 如果是自己，则直接返回
 			for _, req := range reqs {
-				channelKey := ChannelToKey(req.cfg.ChannelId, req.cfg.ChannelType)
+				channelKey := wkutil.ChannelToKey(req.cfg.ChannelId, req.cfg.ChannelType)
 				lastIndex, lastTerm, err := c.s.opts.MessageLogStorage.LastIndexAndTerm(channelKey)
 				if err != nil {
 					return nil, err

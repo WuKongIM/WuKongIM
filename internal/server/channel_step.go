@@ -12,7 +12,7 @@ func (c *channel) step(a *ChannelAction) error {
 		c.Error("uniqueNo not match", zap.String("channelId", c.channelId), zap.String("expectUniqueNo", c.uniqueNo), zap.String("uniqueNo", a.UniqueNo))
 		return errors.New("uniqueNo not match")
 	}
-	c.Info("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType), zap.String("queue", c.msgQueue.String()))
+	// c.Info("channel step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", c.leaderId), zap.Uint8("channelType", c.channelType), zap.String("queue", c.msgQueue.String()))
 
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回
@@ -28,6 +28,19 @@ func (c *channel) step(a *ChannelAction) error {
 			c.status = channelStatusUninitialized
 		}
 		// c.Info("channel init resp", zap.Int("status", int(c.status)), zap.Uint64("leaderId", c.leaderId))
+
+	case ChannelActionLeaderChange: // leader变更
+		c.leaderId = a.LeaderId
+		if c.role == channelRoleLeader { // 当前节点是leader
+			if a.LeaderId != c.r.opts.Cluster.NodeId {
+				c.becomeProxy(a.LeaderId)
+			}
+		} else if c.role == channelRoleProxy {
+			if a.LeaderId == c.r.opts.Cluster.NodeId {
+				c.becomeLeader()
+			}
+		}
+
 	case ChannelActionSend: // 发送
 		c.appendMessage(a.Messages...) // 消息是按照发送者分组的，所以取第一个即可
 		// c.Debug("channel send", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
@@ -36,6 +49,10 @@ func (c *channel) step(a *ChannelAction) error {
 		if len(a.Messages) == 0 {
 			return nil
 		}
+		if a.Reason == ReasonSuccess {
+			c.payloadDecryptingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+		}
+
 		lastMsg := a.Messages[len(a.Messages)-1]
 
 		if lastMsg.Index > c.msgQueue.payloadDecryptingIndex {
@@ -65,6 +82,11 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionPermissionCheckResp: // 权限校验返回
 		c.permissionChecking = false
+
+		if a.Reason == ReasonSuccess {
+			c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+		}
+
 		if a.Index > c.msgQueue.permissionCheckingIndex {
 			c.msgQueue.permissionCheckingIndex = a.Index
 		}
@@ -86,12 +108,18 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 
 	case ChannelActionSendackResp: // 发送ack返回
 		c.sendacking = false
+		if a.Reason == ReasonSuccess {
+			c.sendackingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+		}
 		if a.Index > c.msgQueue.sendackingIndex {
 			c.msgQueue.sendackingIndex = a.Index
 		}
 
 	case ChannelActionDeliverResp: // 消息投递返回
 		c.delivering = false
+		if a.Reason == ReasonSuccess {
+			c.deliveringTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+		}
 		if a.Index > c.msgQueue.deliveringIndex {
 			c.msgQueue.deliveringIndex = a.Index
 			c.msgQueue.truncateTo(a.Index)
@@ -112,23 +140,14 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 			return nil
 		}
 		if a.Reason == ReasonSuccess {
+			c.forwardTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 			lastMsg := a.Messages[len(a.Messages)-1]
 			if lastMsg.Index > c.msgQueue.forwardingIndex {
 				c.msgQueue.forwardingIndex = lastMsg.Index
 				c.msgQueue.truncateTo(lastMsg.Index)
 			}
 		}
-	case ChannelActionLeaderChange: // leader变更
-		c.leaderId = a.LeaderId
-		if c.role == channelRoleLeader { // 当前节点是leader
-			if a.LeaderId != c.r.opts.Cluster.NodeId {
-				c.becomeProxy(a.LeaderId)
-			}
-		} else if c.role == channelRoleProxy {
-			if a.LeaderId == c.r.opts.Cluster.NodeId {
-				c.becomeLeader()
-			}
-		}
+
 	}
 	return nil
 }

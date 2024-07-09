@@ -14,6 +14,8 @@ func (u *userHandler) step(a UserAction) error {
 		return errors.New("uniqueNo not equal")
 	}
 
+	u.Info("user step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", u.leaderId))
+
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
@@ -29,6 +31,17 @@ func (u *userHandler) step(a UserAction) error {
 			u.status = userStatusUninitialized
 		}
 		u.Info("init finished")
+	case UserActionLeaderChange:
+		u.leaderId = a.LeaderId
+		if u.role == userRoleLeader { // 当前节点是leader
+			if a.LeaderId != u.opts.Cluster.NodeId {
+				u.becomeProxy(a.LeaderId)
+			}
+		} else if u.role == userRoleProxy {
+			if a.LeaderId == u.opts.Cluster.NodeId {
+				u.becomeLeader()
+			}
+		}
 	case UserActionConnect: // 连接
 		for _, msg := range a.Messages {
 			msg.Index = u.authQueue.lastIndex + 1
@@ -54,9 +67,6 @@ func (u *userHandler) step(a UserAction) error {
 			u.recvMsgTick = u.opts.Reactor.UserProcessIntervalTick
 		}
 
-		if a.Index == 0 {
-			panic("0")
-		}
 		if a.Reason == ReasonSuccess && u.recvMsgQueue.processingIndex < a.Index {
 			u.recvMsgQueue.processingIndex = a.Index
 			u.recvMsgQueue.truncateTo(a.Index)
@@ -182,6 +192,7 @@ func (u *userHandler) stepProxy(a UserAction) error {
 		u.Info("forward resp...")
 
 	case UserActionNodePing: // 用户节点ping, 用户的领导发送给追随者的ping
+		u.nodePingTick = 0
 		u.actions = append(u.actions, UserAction{
 			ActionType: UserActionNodePong,
 			Uid:        u.uid,

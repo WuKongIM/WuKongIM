@@ -87,6 +87,8 @@ type Options struct {
 
 	ChannelReactorSubCount int // 频道reactor sub的数量
 	SlotReactorSubCount    int // 槽reactor sub的数量
+
+	PongMaxTick int // 节点超过多少tick没有回应心跳就认为是掉线
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -117,6 +119,7 @@ func NewOptions(opt ...Option) *Options {
 
 		ChannelReactorSubCount: 128,
 		SlotReactorSubCount:    128,
+		PongMaxTick:            30,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -348,5 +351,29 @@ func WithChannelReactorSubCount(count int) Option {
 func WithSlotReactorSubCount(count int) Option {
 	return func(o *Options) {
 		o.SlotReactorSubCount = count
+	}
+}
+
+func WithChannelLoadPoolSize(size int) Option {
+	return func(o *Options) {
+		o.ChannelLoadPoolSize = size
+	}
+}
+
+func WithLeaderTransferMinLogGap(gap uint64) Option {
+	return func(o *Options) {
+		o.LeaderTransferMinLogGap = gap
+	}
+}
+
+func WithLearnerMinLogGap(gap uint64) Option {
+	return func(o *Options) {
+		o.LearnerMinLogGap = gap
+	}
+}
+
+func WithPongMaxTick(tick int) Option {
+	return func(o *Options) {
+		o.PongMaxTick = tick
 	}
 }

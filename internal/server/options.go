@@ -173,6 +173,8 @@ type Options struct {
 
 		ChannelReactorSubCount int // 频道reactor sub的数量
 		SlotReactorSubCount    int // 槽reactor sub的数量
+
+		PongMaxTick int // 节点超过多少tick没有回应心跳就认为是掉线
 	}
 
 	Trace struct {
@@ -348,6 +350,7 @@ func NewOptions(op ...Option) *Options {
 			ElectionIntervalTick       int
 			ChannelReactorSubCount     int
 			SlotReactorSubCount        int
+			PongMaxTick                int
 		}{
 			NodeId:                     1,
 			Addr:                       "tcp://0.0.0.0:11110",
@@ -365,6 +368,7 @@ func NewOptions(op ...Option) *Options {
 			ElectionIntervalTick:       10,
 			ChannelReactorSubCount:     128,
 			SlotReactorSubCount:        128,
+			PongMaxTick:                30,
 		},
 		Trace: struct {
 			Endpoint         string
@@ -603,6 +607,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.ChannelReplicaCount = o.getInt("cluster.channelReplicaCount", o.Cluster.ChannelReplicaCount)
 	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)
 	o.Cluster.ServerAddr = o.getString("cluster.serverAddr", o.Cluster.ServerAddr)
+	o.Cluster.PeerRPCTimeoutScanInterval = o.getDuration("cluster.peerRPCTimeoutScanInterval", o.Cluster.PeerRPCTimeoutScanInterval)
+	o.Cluster.PongMaxTick = o.getInt("cluster.pongMaxTick", o.Cluster.PongMaxTick)
 
 	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)
 	o.Cluster.Seed = o.getString("cluster.seed", o.Cluster.Seed)
@@ -1281,6 +1287,12 @@ func WithClusterChannelReactorSubCount(channelReactorSubCount int) Option {
 func WithClusterSlotReactorSubCount(slotReactorSubCount int) Option {
 	return func(opts *Options) {
 		opts.Cluster.SlotReactorSubCount = slotReactorSubCount
+	}
+}
+
+func WithClusterPongMaxTick(pongMaxTick int) Option {
+	return func(opts *Options) {
+		opts.Cluster.PongMaxTick = pongMaxTick
 	}
 }
 

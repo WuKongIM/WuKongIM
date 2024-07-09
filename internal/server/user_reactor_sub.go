@@ -30,7 +30,7 @@ func newUserReactorSub(index int, r *userReactor) *userReactorSub {
 		stopper:   syncutil.NewStopper(),
 		users:     newUserList(),
 		r:         r,
-		Log:       wklog.NewWKLog(fmt.Sprintf("userReactorSub[%d]", index)),
+		Log:       wklog.NewWKLog(fmt.Sprintf("userReactorSub[%d][%d]", r.s.opts.Cluster.NodeId, index)),
 		index:     index,
 		advanceC:  make(chan struct{}, 1),
 		stepUserC: make(chan stepUser, 1024),
@@ -66,6 +66,9 @@ func (u *userReactorSub) loop() {
 				}
 			} else {
 				u.Warn("loop: user not found", zap.String("uid", req.uid), zap.String("action", req.action.ActionType.String()))
+				if req.waitC != nil {
+					req.waitC <- errors.New("user not found")
+				}
 			}
 		case <-u.stopper.ShouldStop():
 			return
@@ -226,6 +229,7 @@ func (u *userReactorSub) addUserIfNotExist(h *userHandler) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.getUser(h.uid) == nil {
+		u.Info("add user", zap.String("uid", h.uid))
 		u.users.add(h)
 	}
 }
@@ -327,35 +331,36 @@ func (u *userReactorSub) getConnContextByDeviceFlag(uid string, deviceFlag wkpro
 // 	}
 // }
 
-func (u *userReactorSub) removeConnContextById(uid string, id int64) {
+func (u *userReactorSub) removeConnContextById(uid string, id int64) *connContext {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	uh := u.getUser(uid)
 	if uh == nil {
-		return
+		return nil
 	}
-	uh.removeConnById(id)
+	conn := uh.removeConnById(id)
 
 	if uh.getConnCount() <= 0 {
 		u.Info("remove user", zap.String("uid", uh.uid))
 		u.users.remove(uh.uid)
 	}
+	return conn
 }
 
-func (u *userReactorSub) removeConnsByNodeId(uid string, nodeId uint64) {
+func (u *userReactorSub) removeConnsByNodeId(uid string, nodeId uint64) []*connContext {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	uh := u.getUser(uid)
 	if uh == nil {
-		return
+		return nil
 	}
-	uh.removeConnsByNodeId(nodeId)
+	conns := uh.removeConnsByNodeId(nodeId)
 	if uh.getConnCount() <= 0 {
 		u.users.remove(uh.uid)
 		u.Info("remove user", zap.String("uid", uh.uid))
 	}
-
+	return conns
 }
 
 func (u *userReactorSub) addConnContext(conn *connContext) {
