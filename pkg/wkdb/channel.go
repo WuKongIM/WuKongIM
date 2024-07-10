@@ -12,8 +12,6 @@ import (
 
 func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscribers []string) error {
 
-	fmt.Println("AddSubscribers......", channelId, channelType)
-
 	db := wk.channelDb(channelId, channelType)
 
 	channelPrimaryId, err := wk.getChannelPrimaryKey(channelId, channelType)

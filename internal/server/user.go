@@ -51,6 +51,8 @@ type userHandler struct {
 	sendRecvackTick int // 发送recvack计时
 	recvMsgTick     int // 接收消息计时
 
+	checkLeaderTick int // 定时检查正确的领导节点
+
 	wklog.Log
 
 	opts *Options
@@ -297,6 +299,17 @@ func (u *userHandler) tick() {
 	u.recvMsgTick++
 	u.sendRecvackTick++
 
+	u.checkLeaderTick++
+	// 定时校验领导的正确性
+	if u.checkLeaderTick >= u.sub.r.s.opts.Reactor.CheckUserLeaderIntervalTick {
+		u.checkLeaderTick = 0
+		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionCheckLeader, Uid: u.uid})
+	}
+
+	if u.tickFnc != nil {
+		u.tickFnc()
+	}
+
 }
 
 func (u *userHandler) tickProxy() {
@@ -306,6 +319,7 @@ func (u *userHandler) tickProxy() {
 		u.nodePingTick = 0
 		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 	}
+
 }
 
 func (u *userHandler) tickLeader() {

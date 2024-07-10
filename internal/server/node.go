@@ -57,20 +57,23 @@ type node struct {
 
 	stepC chan []ReactorChannelMessage
 
-	deliverRespC chan *deliverResp
+	deliverRespC              chan *deliverResp
+	requestDeliverErrCount    int // 请求投递失败连续错误次数
+	requestDeliverErrMaxCount int // 请求投递失败最大连续错误次数
 	wklog.Log
 }
 
 func newNode(nodeId uint64, s *Server) *node {
 	return &node{
-		deliverReq:   make(chan []ReactorChannelMessage, 1024),
-		deliverRespC: make(chan *deliverResp),
-		stepC:        make(chan []ReactorChannelMessage, 1024),
-		stopper:      syncutil.NewStopper(),
-		nodeId:       nodeId,
-		Log:          wklog.NewWKLog(fmt.Sprintf("deliver.node[%d]", nodeId)),
-		deliverQueue: newDeliverMsgQueue(fmt.Sprintf("deliver.queue.node[%d]", nodeId)),
-		s:            s,
+		deliverReq:                make(chan []ReactorChannelMessage, 1024),
+		deliverRespC:              make(chan *deliverResp),
+		stepC:                     make(chan []ReactorChannelMessage, 1024),
+		stopper:                   syncutil.NewStopper(),
+		nodeId:                    nodeId,
+		Log:                       wklog.NewWKLog(fmt.Sprintf("deliver.node[%d]", nodeId)),
+		deliverQueue:              newDeliverMsgQueue(fmt.Sprintf("deliver.queue.node[%d]", nodeId)),
+		s:                         s,
+		requestDeliverErrMaxCount: 10,
 	}
 }
 
@@ -116,7 +119,7 @@ func (n *node) loop() {
 			}
 		case resp := <-n.deliverRespC:
 			n.delivering = false
-			if resp.success {
+			if resp.success || resp.timeout {
 				if resp.index > n.deliverQueue.deliveringIndex {
 					n.deliverQueue.deliveringIndex = resp.index
 					n.deliverQueue.truncateTo(resp.index)
@@ -159,12 +162,22 @@ func (n *node) ready() []ReactorChannelMessage {
 func (n *node) handleDeliverMsgs(msgs []ReactorChannelMessage) {
 	err := n.requestDeliver(msgs)
 	var success = true
+	var timeout = false
 	if err != nil {
+		n.requestDeliverErrCount++
 		n.Error("request deliver failed", zap.Error(err))
 		success = false
+	} else {
+		n.requestDeliverErrCount = 0
 	}
+
+	if n.requestDeliverErrCount > n.requestDeliverErrMaxCount {
+		n.Error("request deliver failed too many times", zap.Int("requestDeliverErrCount", n.requestDeliverErrCount))
+		timeout = true
+	}
+
 	select {
-	case n.deliverRespC <- &deliverResp{index: msgs[len(msgs)-1].Index, success: success}:
+	case n.deliverRespC <- &deliverResp{index: msgs[len(msgs)-1].Index, success: success, timeout: timeout}:
 	case <-n.stopper.ShouldStop():
 		return
 	}
@@ -212,7 +225,7 @@ func (n *node) requestDeliver(msgs []ReactorChannelMessage) error {
 		}
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(n.s.ctx, time.Second*5)
+	timeoutCtx, cancel := context.WithTimeout(n.s.ctx, time.Second*2)
 	defer cancel()
 
 	msgSet := ChannelMessagesSet(channelMessages)
@@ -291,4 +304,5 @@ func (c *ChannelMessagesSet) Unmarshal(data []byte) error {
 type deliverResp struct {
 	index   uint64
 	success bool
+	timeout bool // 是否超时
 }

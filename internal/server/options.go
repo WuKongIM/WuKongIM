@@ -185,13 +185,15 @@ type Options struct {
 	}
 
 	Reactor struct {
-		ChannelSubCount            int // channel reactor sub 的数量
-		ChannelProcessIntervalTick int // 处理频道逻辑的间隔tick
-		UserProcessIntervalTick    int // 处理用户逻辑的间隔tick
-		UserSubCount               int // user reactor sub 的数量
-		UserNodePingTick           int // 用户节点tick间隔
-		UserNodePongTimeoutTick    int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
-		ChannelDeadlineTick        int // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
+		ChannelSubCount             int // channel reactor sub 的数量
+		ChannelProcessIntervalTick  int // 处理频道逻辑的间隔tick
+		UserProcessIntervalTick     int // 处理用户逻辑的间隔tick
+		UserSubCount                int // user reactor sub 的数量
+		UserNodePingTick            int // 用户节点tick间隔
+		UserNodePongTimeoutTick     int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
+		ChannelDeadlineTick         int // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
+		TagCheckIntervalTick        int // tag检查间隔tick
+		CheckUserLeaderIntervalTick int // 校验用户leader间隔tick，（隔多久验证一下当前领导是否是正确的领导）
 	}
 	DeadlockCheck bool // 死锁检查
 
@@ -358,7 +360,7 @@ func NewOptions(op ...Option) *Options {
 			ServerAddr:                 "",
 			ReqTimeout:                 time.Second * 10,
 			Role:                       RoleReplica,
-			SlotCount:                  128,
+			SlotCount:                  64,
 			SlotReplicaCount:           3,
 			ChannelReplicaCount:        3,
 			PeerRPCMsgTimeout:          time.Second * 20,
@@ -366,8 +368,8 @@ func NewOptions(op ...Option) *Options {
 			TickInterval:               time.Millisecond * 150,
 			HeartbeatIntervalTick:      1,
 			ElectionIntervalTick:       10,
-			ChannelReactorSubCount:     128,
-			SlotReactorSubCount:        128,
+			ChannelReactorSubCount:     64,
+			SlotReactorSubCount:        64,
 			PongMaxTick:                30,
 		},
 		Trace: struct {
@@ -382,21 +384,25 @@ func NewOptions(op ...Option) *Options {
 			PrometheusApiUrl: "http://127.0.0.1:9090",
 		},
 		Reactor: struct {
-			ChannelSubCount            int
-			ChannelProcessIntervalTick int
-			UserProcessIntervalTick    int
-			UserSubCount               int
-			UserNodePingTick           int
-			UserNodePongTimeoutTick    int
-			ChannelDeadlineTick        int
+			ChannelSubCount             int
+			ChannelProcessIntervalTick  int
+			UserProcessIntervalTick     int
+			UserSubCount                int
+			UserNodePingTick            int
+			UserNodePongTimeoutTick     int
+			ChannelDeadlineTick         int
+			TagCheckIntervalTick        int
+			CheckUserLeaderIntervalTick int
 		}{
-			ChannelSubCount:            128,
-			ChannelProcessIntervalTick: 1,
-			UserProcessIntervalTick:    1,
-			UserSubCount:               128,
-			UserNodePingTick:           10,
-			UserNodePongTimeoutTick:    10 * 2,
-			ChannelDeadlineTick:        600,
+			ChannelSubCount:             64,
+			ChannelProcessIntervalTick:  1,
+			UserProcessIntervalTick:     1,
+			UserSubCount:                64,
+			UserNodePingTick:            10,
+			UserNodePongTimeoutTick:     10 * 2,
+			ChannelDeadlineTick:         600,
+			TagCheckIntervalTick:        10,
+			CheckUserLeaderIntervalTick: 10,
 		},
 		Process: struct {
 			AuthPoolSize int
@@ -662,6 +668,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Reactor.UserNodePingTick = o.getInt("reactor.userNodePingTick", o.Reactor.UserNodePingTick)
 	o.Reactor.UserNodePongTimeoutTick = o.getInt("reactor.userNodePongTimeoutTick", o.Reactor.UserNodePongTimeoutTick)
 	o.Reactor.ChannelDeadlineTick = o.getInt("reactor.channelDeadlineTick", o.Reactor.ChannelDeadlineTick)
+	o.Reactor.TagCheckIntervalTick = o.getInt("reactor.tagCheckIntervalTick", o.Reactor.TagCheckIntervalTick)
+	o.Reactor.CheckUserLeaderIntervalTick = o.getInt("reactor.checkUserLeaderIntervalTick", o.Reactor.CheckUserLeaderIntervalTick)
 
 	// =================== db ===================
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)

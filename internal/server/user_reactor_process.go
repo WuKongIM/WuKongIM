@@ -602,7 +602,6 @@ func (r *userReactor) processWriteLoop() {
 }
 
 func (r *userReactor) processWrite(reqs []*writeReq) {
-	fmt.Println("processWrite---->", len(reqs))
 	var reason Reason
 	for _, req := range reqs {
 		reason = ReasonSuccess
@@ -651,8 +650,6 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 		connDataMap[msg.DeviceId] = data
 	}
 
-	fmt.Println("connDataMap------->", connDataMap)
-
 	for deviceId, data := range connDataMap {
 		conn := sub.getConnContext(req.uid, deviceId)
 		if conn == nil {
@@ -674,6 +671,13 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 
 		} else { // 是代理连接，转发数据到真实连接
 			fmt.Println("handleWrite: proxy conn", deviceId, conn.connId, conn.proxyConnId, conn.realNodeId, conn.isRealConn)
+
+			if !r.s.cluster.NodeIsOnline(conn.realNodeId) { // 节点没在线了，这里直接移除连接
+				_ = r.removeConnContextById(conn.uid, conn.connId)
+				r.Warn("node not online", zap.Uint64("nodeId", conn.realNodeId), zap.String("uid", req.uid), zap.String("deviceId", deviceId))
+				return errors.New("node not online")
+			}
+
 			status, err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
 				Uid:            req.uid,
 				DeviceId:       deviceId,
@@ -682,12 +686,12 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 				Data:           data,
 			})
 			if err != nil {
-				r.Error("fowardWriteReq error", zap.Error(err))
+				r.Error("fowardWriteReq error", zap.Error(err), zap.String("uid", req.uid), zap.String("deviceId", deviceId))
+				_ = r.removeConnContextById(conn.uid, conn.connId) // 转发失败了，这里直接移除连接
 				return err
 			}
 			if status == proto.Status(errCodeConnNotFound) { // 连接不存在了，所以这里也移除
 				_ = r.removeConnContextById(conn.uid, conn.connId)
-				conn.close()
 
 			}
 		}
@@ -697,7 +701,6 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 
 // 转发写请求
 func (r *userReactor) fowardWriteReq(nodeId uint64, req *FowardWriteReq) (proto.Status, error) {
-	fmt.Println("fowardWriteReq----->", nodeId)
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*2)
 	defer cancel()
 	data, err := req.Marshal()
@@ -708,7 +711,6 @@ func (r *userReactor) fowardWriteReq(nodeId uint64, req *FowardWriteReq) (proto.
 	if err != nil {
 		return 0, err
 	}
-	fmt.Println("fowardWriteReq resp----->", resp.Status)
 	if resp.Status == proto.Status_OK {
 		return proto.Status_OK, nil
 	}
@@ -794,6 +796,7 @@ func (r *userReactor) processForwardUserAction(actions []UserAction) {
 		if newLeaderId > 0 {
 			r.Info("leader change", zap.String("uid", uid), zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", leaderId))
 			sub.step(uid, UserAction{
+				UniqueNo:   fowardActions[0].UniqueNo,
 				ActionType: UserActionLeaderChange,
 				LeaderId:   newLeaderId,
 			})
@@ -801,6 +804,7 @@ func (r *userReactor) processForwardUserAction(actions []UserAction) {
 		for _, forwardAction := range fowardActions {
 			lastMsg := forwardAction.Messages[len(forwardAction.Messages)-1]
 			sub.step(uid, UserAction{
+				UniqueNo:   forwardAction.UniqueNo,
 				ActionType: UserActionForwardResp,
 				Uid:        uid,
 				Reason:     reason,
@@ -1156,10 +1160,65 @@ func (r *userReactor) processCloseLoop() {
 
 func (r *userReactor) processClose(req *userCloseReq) {
 
-	r.removeUserByUniqueNo(req.uid, req.uniqueNo)
+	conns := r.getConnsByUniqueNo(req.uid, req.uniqueNo)
+	for _, conn := range conns {
+		if conn.isRealConn {
+			r.Debug("close real conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
+			r.removeConnContextById(req.uid, conn.connId)
+			conn.close()
+		} else {
+			r.Debug("close proxy conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
+			r.removeConnContextById(req.uid, conn.connId)
+		}
+
+	}
 }
 
 type userCloseReq struct {
 	uniqueNo string
 	uid      string
+}
+
+// =================================== 检查领导的正确性 ===================================
+
+func (r *userReactor) addCheckLeaderReq(req *checkLeaderReq) {
+	select {
+	case r.processCheckLeaderC <- req:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *userReactor) processCheckLeaderLoop() {
+	for !r.stopped.Load() {
+		select {
+		case req := <-r.processCheckLeaderC:
+			r.processCheckLeader(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *userReactor) processCheckLeader(req *checkLeaderReq) {
+
+	leaderId, err := r.s.cluster.SlotLeaderIdOfChannel(req.uid, wkproto.ChannelTypePerson)
+	if err != nil {
+		r.Error("SlotLeaderIdOfChannel error", zap.Error(err))
+		return
+	}
+	if leaderId != req.leaderId {
+		r.Info("leader change", zap.String("uid", req.uid), zap.Uint64("newLeaderId", leaderId), zap.Uint64("oldLeaderId", req.leaderId))
+		r.reactorSub(req.uid).step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
+			ActionType: UserActionLeaderChange,
+			LeaderId:   leaderId,
+		})
+	}
+}
+
+type checkLeaderReq struct {
+	uniqueNo string
+	uid      string
+	leaderId uint64
 }

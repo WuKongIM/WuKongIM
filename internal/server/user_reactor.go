@@ -23,6 +23,7 @@ type userReactor struct {
 	processNodePongC          chan *nodePongReq         // 节点pong请求
 	processProxyNodeTimeoutC  chan *proxyNodeTimeoutReq // 代理节点超时
 	processCloseC             chan *userCloseReq        // 关闭请求
+	processCheckLeaderC       chan *checkLeaderReq      // 检查leader请求
 
 	stopper *syncutil.Stopper
 	wklog.Log
@@ -45,6 +46,7 @@ func newUserReactor(s *Server) *userReactor {
 		processNodePongC:          make(chan *nodePongReq, 1024),
 		processProxyNodeTimeoutC:  make(chan *proxyNodeTimeoutReq, 1024),
 		processCloseC:             make(chan *userCloseReq, 1024),
+		processCheckLeaderC:       make(chan *checkLeaderReq, 1024),
 		stopper:                   syncutil.NewStopper(),
 		Log:                       wklog.NewWKLog(fmt.Sprintf("userReactor[%d]", s.opts.Cluster.NodeId)),
 		s:                         s,
@@ -61,7 +63,7 @@ func newUserReactor(s *Server) *userReactor {
 
 func (u *userReactor) start() error {
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 50; i++ {
 		u.stopper.RunWorker(u.processInitLoop)
 		u.stopper.RunWorker(u.processAuthLoop)
 		u.stopper.RunWorker(u.processPingLoop)
@@ -72,6 +74,7 @@ func (u *userReactor) start() error {
 		u.stopper.RunWorker(u.processNodePongLoop)
 		u.stopper.RunWorker(u.processProxyNodeTimeoutLoop)
 		u.stopper.RunWorker(u.processCloseLoop)
+		u.stopper.RunWorker(u.processCheckLeaderLoop)
 	}
 
 	for _, sub := range u.subs {
@@ -111,6 +114,10 @@ func (u *userReactor) existUser(uid string) bool {
 
 func (u *userReactor) removeUserByUniqueNo(uid string, uniqueNo string) {
 	u.reactorSub(uid).removeUserByUniqueNo(uid, uniqueNo)
+}
+
+func (u *userReactor) getConnsByUniqueNo(uid string, uniqueNo string) []*connContext {
+	return u.reactorSub(uid).getConnsByUniqueNo(uid, uniqueNo)
 }
 
 func (u *userReactor) removeUser(uid string) {

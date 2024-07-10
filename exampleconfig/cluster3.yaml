@@ -13,7 +13,7 @@ conversation:
 cluster:
   nodeId: 1003
   addr: "tcp://127.0.0.1:10003" # 分布式监听地址
-  slotCount: 128
+  slotCount: 64
   slotReplicaCount: 3
   channelReplicaCount: 3
   nodes: 

@@ -201,6 +201,16 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 			})
+		case UserActionCheckLeader: // 检查领导的正确性
+			leaderId := uh.leaderId
+			if uh.role == userRoleLeader {
+				leaderId = u.r.s.opts.Cluster.NodeId
+			}
+			u.r.addCheckLeaderReq(&checkLeaderReq{
+				uid:      uh.uid,
+				uniqueNo: action.UniqueNo,
+				leaderId: leaderId,
+			})
 
 		default:
 			u.Error("unknown action type", zap.String("actionType", action.ActionType.String()))
@@ -257,6 +267,20 @@ func (u *userReactorSub) removeUserByUniqueNo(uid string, uniqueNo string) {
 			u.users.remove(uid)
 		}
 	}
+}
+
+func (u *userReactorSub) getConnsByUniqueNo(uid string, uniqueNo string) []*connContext {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	user := u.users.get(uid)
+	if user != nil {
+		if user.uniqueNo == uniqueNo {
+			newConns := make([]*connContext, len(user.conns))
+			copy(newConns, user.conns)
+			return newConns
+		}
+	}
+	return nil
 }
 
 func (u *userReactorSub) getConnContext(uid string, deviceId string) *connContext {

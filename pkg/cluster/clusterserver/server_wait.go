@@ -32,3 +32,32 @@ func (s *Server) MustWaitAllSlotsReady() {
 		}
 	}
 }
+
+// 等待所有节点提交apiServerAddr
+func (s *Server) MustWaitAllApiServerAddrReady() {
+	tk := time.NewTicker(time.Millisecond * 10)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	for {
+		select {
+		case <-tk.C:
+			nodes := s.GetConfig().Nodes
+			if len(nodes) == 0 {
+				continue
+			}
+			exist := false
+			for _, node := range nodes {
+				if node.ApiServerAddr == "" {
+					exist = true
+					break
+				}
+			}
+			if !exist {
+				return
+			}
+		case <-timeoutCtx.Done():
+			s.Panic("wait all api server addr ready timeout")
+			return
+		}
+	}
+}

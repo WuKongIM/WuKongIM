@@ -31,7 +31,9 @@ func (s *Server) applyLog(log replica.Log) error {
 	start := time.Now()
 	defer func() {
 		end := time.Since(start)
-		s.Info("apply log", zap.Duration("cost", end), zap.Uint64("nodeId", s.opts.NodeId), zap.String("cmd", cmd.CmdType.String()), zap.Uint64("index", log.Index))
+		if end > time.Millisecond*100 {
+			s.Info("apply log", zap.Duration("cost", end), zap.Uint64("nodeId", s.opts.NodeId), zap.String("cmd", cmd.CmdType.String()), zap.Uint64("index", log.Index))
+		}
 
 	}()
 

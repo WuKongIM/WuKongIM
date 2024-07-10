@@ -39,7 +39,7 @@ type Options struct {
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
 		ConfigPath:             "clusterconfig.json",
-		SlotCount:              128,
+		SlotCount:              64,
 		TickInterval:           time.Millisecond * 150,
 		ElectionTimeoutTick:    10,
 		HeartbeatTimeoutTick:   1,
