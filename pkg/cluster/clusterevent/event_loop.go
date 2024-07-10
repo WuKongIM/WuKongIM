@@ -109,9 +109,9 @@ func (s *Server) handleClusterConfigInit() error {
 
 	nodes := make([]*pb.Node, 0, len(s.opts.InitNodes))
 
-	apiAddr := ""
 	var replicas []uint64
 	for nodeId, addr := range s.opts.InitNodes {
+		apiAddr := ""
 		if nodeId == s.opts.NodeId {
 			apiAddr = s.opts.ApiServerAddr
 		}

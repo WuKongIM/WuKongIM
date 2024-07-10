@@ -67,6 +67,7 @@ const (
 	ChannelActionJoin         // 加入频道
 	ChannelActionLeave        // 离开频道
 	ChannelActionClose        // 关闭频道
+	ChannelActionCheckTag     // 定时检查tag的有效性
 
 )
 
@@ -110,6 +111,8 @@ func (c ChannelActionType) String() string {
 		return "ChannelActionInitResp"
 	case ChannelActionClose:
 		return "ChannelActionClose"
+	case ChannelActionCheckTag:
+		return "ChannelActionCheckTag"
 
 	}
 	return fmt.Sprintf("Unknow(%d)", c)
@@ -145,6 +148,8 @@ const (
 	UserActionProxyNodeTimeout // 代理节点超时
 
 	UserActionClose // 关闭
+
+	UserActionCheckLeader // 检查领导
 )
 
 func (u UserActionType) String() string {
@@ -189,6 +194,8 @@ func (u UserActionType) String() string {
 		return "UserActionProxyNodeTimeout"
 	case UserActionClose:
 		return "UserActionClose"
+	case UserActionCheckLeader:
+		return "UserActionCheckLeader"
 
 	}
 	return "unknow"

@@ -64,7 +64,6 @@ func (s *Server) SlotLeaderIdOfChannel(channelId string, channelType uint8) (nod
 	if slot == nil {
 		return 0, ErrSlotNotFound
 	}
-	fmt.Println("slotId--------->", slotId, slot.Leader, channelId)
 	return slot.Leader, nil
 }
 
@@ -231,6 +230,7 @@ func (s *Server) ProposeDataToSlot(ctx context.Context, slotId uint32, data []by
 
 func (s *Server) MustWaitClusterReady() {
 	s.MustWaitAllSlotsReady()
+	s.MustWaitAllApiServerAddrReady()
 }
 
 func (s *Server) LeaderId() uint64 {

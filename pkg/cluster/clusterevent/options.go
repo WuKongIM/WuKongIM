@@ -35,7 +35,7 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SlotCount:              128,
+		SlotCount:              64,
 		SlotMaxReplicaCount:    3,
 		ChannelMaxReplicaCount: 3,
 		ConfigDir:              "clusterconfig",

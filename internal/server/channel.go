@@ -49,6 +49,7 @@ type channel struct {
 	wklog.Log
 
 	stepFnc func(*ChannelAction) error
+	tickFnc func()
 
 	payloadDecrypting  bool // 是否正在解密
 	permissionChecking bool // 是否正在检查权限
@@ -60,12 +61,14 @@ type channel struct {
 	// 计时tick
 	storageTick            int // 发起存储的tick计时
 	initTick               int // 发起初始化的tick计时
-	proposeTick            int // 发起提议的tick计时
+	sendTick               int // 发送消息的tick计时
 	forwardTick            int // 发起转发的tick计时
 	deliveringTick         int // 发起投递的tick计时
 	permissionCheckingTick int // 发起权限检查的tick计时
 	payloadDecryptingTick  int // 发起解密的tick计时
 	sendackingTick         int // 发起发送回执的tick计时
+
+	tagCheckTick int // tag检查的tick计时
 
 	opts *Options
 }
@@ -309,17 +312,36 @@ func (c *channel) tick() {
 	c.permissionCheckingTick++
 	c.payloadDecryptingTick++
 	c.sendackingTick++
-	c.proposeTick++
 
-	if c.proposeTick >= c.opts.Reactor.ChannelDeadlineTick {
-		c.proposeTick = 0
+	c.sendTick++
+	if c.sendTick >= c.opts.Reactor.ChannelDeadlineTick {
+		c.sendTick = 0
 		c.exec(&ChannelAction{ActionType: ChannelActionClose})
 	}
+
+	if c.tickFnc != nil {
+		c.tickFnc()
+	}
+
+}
+
+func (c *channel) tickLeader() {
+	c.tagCheckTick++
+	if c.tagCheckTick >= c.opts.Reactor.TagCheckIntervalTick {
+		c.tagCheckTick = 0
+		if c.receiverTagKey.Load() != "" {
+			c.exec(&ChannelAction{ActionType: ChannelActionCheckTag})
+		}
+	}
+}
+
+func (c *channel) tickProxy() {
+
 }
 
 func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
 
-	c.proposeTick = 0
+	c.sendTick = 0
 
 	messageId := c.r.messageIDGen.Generate().Int64() // 生成唯一消息ID
 	message := ReactorChannelMessage{
@@ -348,6 +370,7 @@ func (c *channel) becomeLeader() {
 	c.leaderId = 0
 	c.role = channelRoleLeader
 	c.stepFnc = c.stepLeader
+	c.tickFnc = c.tickLeader
 	c.Info("become logic leader")
 
 }
@@ -357,6 +380,7 @@ func (c *channel) becomeProxy(leaderId uint64) {
 	c.role = channelRoleProxy
 	c.leaderId = leaderId
 	c.stepFnc = c.stepProxy
+	c.tickFnc = c.tickProxy
 	c.Info("become logic proxy", zap.Uint64("leaderId", c.leaderId))
 }
 
@@ -376,9 +400,10 @@ func (c *channel) resetIndex() {
 	c.delivering = false
 	c.forwarding = false
 
+	c.sendTick = 0
+
 	c.initTick = c.opts.Reactor.ChannelProcessIntervalTick
 	c.storageTick = c.opts.Reactor.ChannelProcessIntervalTick
-	c.proposeTick = c.opts.Reactor.ChannelProcessIntervalTick
 	c.forwardTick = c.opts.Reactor.ChannelProcessIntervalTick
 	c.deliveringTick = c.opts.Reactor.ChannelProcessIntervalTick
 	c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick

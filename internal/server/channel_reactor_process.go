@@ -598,9 +598,9 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 			} else { // 连接在其他节点，需要将消息转发出去
 				packets := nodeFowardSendackPacketMap[msg.FromNodeId]
 				packets = append(packets, &ForwardSendackPacket{
-					Uid:     msg.FromUid,
-					ConnId:  msg.FromConnId,
-					Sendack: sendack,
+					Uid:      msg.FromUid,
+					DeviceId: msg.FromDeviceId,
+					Sendack:  sendack,
 				})
 				nodeFowardSendackPacketMap[msg.FromNodeId] = packets
 			}
@@ -758,5 +758,78 @@ func (r *channelReactor) processClose(req *closeReq) {
 }
 
 type closeReq struct {
+	ch *channel
+}
+
+// =================================== 检查tag的有效性 ===================================
+
+func (r *channelReactor) addCheckTagReq(req *checkTagReq) {
+	select {
+	case r.processCheckTagC <- req:
+	case <-r.stopper.ShouldStop():
+		return
+	}
+}
+
+func (r *channelReactor) processCheckTagLoop() {
+	for {
+		select {
+		case req := <-r.processCheckTagC:
+			r.processCheckTag(req)
+		case <-r.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (r *channelReactor) processCheckTag(req *checkTagReq) {
+
+	fmt.Println("processCheckTag------>")
+
+	receiverTagKey := req.ch.receiverTagKey.Load()
+	if receiverTagKey == "" { // 如果不存在tag则重新生成
+		_, err := req.ch.makeReceiverTag()
+		if err != nil {
+			r.Error("makeReceiverTag failed", zap.Error(err))
+		}
+		return
+	}
+
+	// 检查tag是否有效
+	tag := r.s.tagManager.getReceiverTag(receiverTagKey)
+	if tag == nil {
+		r.Info("tag is invalid", zap.String("receiverTagKey", receiverTagKey))
+		_, err := req.ch.makeReceiverTag()
+		if err != nil {
+			r.Error("makeReceiverTag failed", zap.Error(err))
+		}
+		return
+	}
+
+	needMakeTag := false // 是否需要重新make tag
+	for _, nodeUser := range tag.users {
+		for _, uid := range nodeUser.uids {
+			leaderId, err := r.s.cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
+			if err != nil {
+				r.Error("processCheckTag: SlotLeaderIdOfChannel error", zap.Error(err))
+				return
+			}
+			if leaderId != nodeUser.nodeId { // 如果当前用户不属于当前节点，则说明分布式配置有变化，需要重新生成tag
+				needMakeTag = true
+				break
+			}
+		}
+	}
+	if needMakeTag {
+		_, err := req.ch.makeReceiverTag()
+		if err != nil {
+			r.Error("makeReceiverTag failed", zap.Error(err))
+		} else {
+			r.Info("makeReceiverTag success", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		}
+	}
+}
+
+type checkTagReq struct {
 	ch *channel
 }

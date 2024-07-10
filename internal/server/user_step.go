@@ -14,7 +14,7 @@ func (u *userHandler) step(a UserAction) error {
 		return errors.New("uniqueNo not equal")
 	}
 
-	u.Info("user step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", u.leaderId))
+	// u.Info("user step", zap.String("actionType", a.ActionType.String()), zap.Uint64("leaderId", u.leaderId))
 
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回

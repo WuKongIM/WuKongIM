@@ -30,7 +30,7 @@ func NewOptions(nodeID uint64, opts ...Option) *Options {
 
 func newOptions() *Options {
 	return &Options{
-		SlotCount: 128,
+		SlotCount: 64,
 		Db: struct {
 			ShardNum int
 		}{

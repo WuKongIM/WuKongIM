@@ -467,3 +467,79 @@ func TestClusterChannelElection(t *testing.T) {
 	}
 
 }
+
+// 测试故障转移
+func TestClusterFailover(t *testing.T) {
+
+	// 启动服务
+	s1, s2, s3 := NewTestClusterServerTreeNode(t)
+	err := s1.Start()
+	assert.Nil(t, err)
+	err = s2.Start()
+	assert.Nil(t, err)
+	err = s3.Start()
+	assert.Nil(t, err)
+	MustWaitClusterReady(s1, s2, s3)
+
+	// 创建群频道
+	channelId := "g1"
+	channelType := wkproto.ChannelTypeGroup
+
+	TestAddSubscriber(t, s2, channelId, channelType, "u1", "u2", "u3")
+
+	cli1 := TestCreateClient(t, s1, "u1")
+	cli2 := TestCreateClient(t, s2, "u2")
+	cli3 := TestCreateClient(t, s3, "u3")
+
+	// 发送消息
+	err = cli1.SendMessage(client.NewChannel(channelId, channelType), []byte("hello"))
+	assert.Nil(t, err)
+
+	// 收消息
+	var wait sync.WaitGroup
+	wait.Add(2)
+
+	cli2.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+		assert.Equal(t, "hello", string(recv.Payload))
+		wait.Done()
+		return nil
+	})
+
+	cli3.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+		assert.Equal(t, "hello", string(recv.Payload))
+		wait.Done()
+		return nil
+	})
+
+	wait.Wait()
+
+	// 关闭服务器s3
+	s3.StopNoErr()
+
+	// 客户端cli3重连到服务器s2
+	cli3.Close()
+	cli3 = TestCreateClient(t, s2, "u3")
+
+	// 重新监听消息
+	wait.Add(2)
+	cli2.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+		assert.Equal(t, "hello2", string(recv.Payload))
+		wait.Done()
+		return nil
+	})
+
+	cli3.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+		assert.Equal(t, "hello2", string(recv.Payload))
+		wait.Done()
+		return nil
+	})
+
+	fmt.Println("==================================send message ==========================")
+
+	// 发送消息
+	err = cli1.SendMessage(client.NewChannel(channelId, channelType), []byte("hello2"))
+	assert.Nil(t, err)
+
+	wait.Wait()
+
+}

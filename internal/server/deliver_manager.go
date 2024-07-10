@@ -235,8 +235,6 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		// 获取当前用户的所有连接
 		conns := userHandler.getConns()
 
-		fmt.Println("conns----->", conns)
-
 		for _, conn := range conns {
 			for _, message := range req.messages {
 

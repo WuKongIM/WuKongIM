@@ -166,6 +166,10 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 			r.r.addCloseReq(&closeReq{
 				ch: ch,
 			})
+		case ChannelActionCheckTag:
+			r.r.addCheckTagReq(&checkTagReq{
+				ch: ch,
+			})
 		}
 	}
 
