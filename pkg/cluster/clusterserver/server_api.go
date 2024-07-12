@@ -783,6 +783,11 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 			}
 			continue
 		}
+
+		if !node.Online {
+			continue
+		}
+
 		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
 			return func() error {
 				queryMap := map[string]string{}
@@ -1023,6 +1028,9 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 			}
 			continue
 		}
+		if !node.Online {
+			continue
+		}
 		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
 			return func() error {
 				queryMap := map[string]string{}
@@ -1236,6 +1244,7 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 
 	userResps := make([]*userResp, 0)
 	for _, node := range nodes {
+
 		if node.Id == s.opts.NodeId {
 			result, err := searchLocalUsers()
 			if err != nil {
@@ -1244,6 +1253,10 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 				return
 			}
 			userResps = append(userResps, result.Data...)
+			continue
+		}
+
+		if !s.NodeIsOnline(node.Id) {
 			continue
 		}
 		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
@@ -1386,6 +1399,11 @@ func (s *Server) deviceSearch(c *wkhttp.Context) {
 			deviceResps = append(deviceResps, result.Data...)
 			continue
 		}
+
+		if !s.NodeIsOnline(node.Id) {
+			continue
+		}
+
 		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
 			return func() error {
 				queryMap := map[string]string{}
@@ -1532,6 +1550,11 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 			conversationResps = append(conversationResps, result.Data...)
 			continue
 		}
+
+		if !s.NodeIsOnline(node.Id) {
+			continue
+		}
+
 		requestGroup.Go(func(nId uint64, queryValues url.Values) func() error {
 			return func() error {
 				queryMap := map[string]string{}
@@ -1672,6 +1695,7 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	s.clusterCfgCache.Add(wkutil.ChannelToKey(channelId, channelType), newClusterConfig)
 
 	// 如果频道领导不是当前节点，则发送最新配置给频道领导 （这里就算发送失败也没问题，因为频道领导会间隔比对自己与槽领导的配置）
 	if newClusterConfig.LeaderId != s.opts.NodeId {
@@ -1699,6 +1723,15 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 }
 
 func (s *Server) channelClusterConfig(c *wkhttp.Context) {
+
+	start := time.Now()
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*200 {
+			s.Warn("channelClusterConfig slow", zap.Duration("cost", end))
+		}
+	}()
+
 	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 
 	if nodeId > 0 && nodeId != s.opts.NodeId {
@@ -1709,12 +1742,27 @@ func (s *Server) channelClusterConfig(c *wkhttp.Context) {
 	channelId := c.Param("channel_id")
 	channelType := wkutil.ParseUint8(c.Param("channel_type"))
 
+	slotId := s.getSlotId(channelId)
+	st := s.clusterEventServer.Slot(slotId)
+	if st == nil {
+		s.Error("slot not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("slot not found"))
+		return
+	}
+
+	if st.Leader != s.opts.NodeId {
+		s.Error("slot leader is not current node", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId), zap.Uint64("slotLeader", st.Leader))
+		c.ResponseError(errors.New("slot leader is not current node"))
+		return
+	}
+
 	clusterConfig, err := s.getChannelClusterConfig(channelId, channelType)
 	if err != nil {
 		s.Error("getChannelClusterConfig error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
+
 	c.JSON(http.StatusOK, clusterConfig)
 }
 
@@ -1874,6 +1922,11 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 	for _, replicaId := range replicaIds {
 		replicaId := replicaId
+
+		if !s.NodeIsOnline(replicaId) {
+			continue
+		}
+
 		requestGroup.Go(func() error {
 			replicaResp, err := s.requestChannelLocalReplica(replicaId, channelId, channelType)
 			if err != nil {

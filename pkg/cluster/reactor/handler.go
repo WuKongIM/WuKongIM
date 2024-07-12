@@ -167,6 +167,9 @@ func (h *handler) addWait(ctx context.Context, key string, ids []uint64) chan []
 }
 
 func (h *handler) removeWait(key string) {
+	if h.proposeWait == nil {
+		return
+	}
 	h.proposeWait.remove(key)
 }
 

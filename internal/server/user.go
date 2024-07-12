@@ -290,6 +290,9 @@ func (u *userHandler) reset() {
 
 	u.initTick = 0
 	u.authTick = 0
+
+	u.nodePingTick = 0
+	u.nodePongTimeoutTick = make(map[uint64]int)
 }
 
 func (u *userHandler) tick() {
@@ -314,12 +317,10 @@ func (u *userHandler) tick() {
 
 func (u *userHandler) tickProxy() {
 	u.nodePingTick++
-
 	if u.nodePingTick >= u.sub.r.s.opts.Reactor.UserNodePingTick+(u.sub.r.s.opts.Reactor.UserNodePingTick/2) { // 与领导失去联系，主动断开连接
 		u.nodePingTick = 0
 		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 	}
-
 }
 
 func (u *userHandler) tickLeader() {
@@ -344,6 +345,7 @@ func (u *userHandler) tickLeader() {
 				})
 			}
 			if len(messages) > 0 {
+				fmt.Println("send node ping....", u.uid)
 				u.actions = append(u.actions, UserAction{ActionType: UserActionNodePing, Uid: u.uid, Messages: messages})
 			}
 

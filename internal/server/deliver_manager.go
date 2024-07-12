@@ -217,7 +217,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	if len(uids) == 0 {
 		return
 	}
-	d.Info("start deliver message", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Strings("uids", uids))
+	// d.Info("start deliver message", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Strings("uids", uids))
 	offlineUids := make([]string, 0, len(uids)) // 离线用户
 	for _, toUid := range uids {
 		userHandler := d.dm.s.userReactor.getUser(toUid)

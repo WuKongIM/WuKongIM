@@ -22,7 +22,7 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 		start := time.Now()
 		defer func() {
 			cost := time.Since(start)
-			if cost.Milliseconds() > 0 {
+			if cost.Milliseconds() > 200 {
 				wk.Info("appendMessages done", zap.Duration("cost", cost), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 			}
 		}()
@@ -70,7 +70,7 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 		start := time.Now()
 		defer func() {
 			cost := time.Since(start)
-			if cost > time.Millisecond*0 {
+			if cost > time.Millisecond*1000 {
 				msgCount := 0
 				for _, req := range reqs {
 					msgCount += len(req.Messages)

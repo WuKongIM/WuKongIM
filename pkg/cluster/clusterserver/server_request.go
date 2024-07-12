@@ -78,6 +78,9 @@ func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
 }
 
 func (s *Server) handleClusterconfig(c *wkserver.Context) {
+
+	start := time.Now()
+
 	req := &ChannelClusterConfigReq{}
 	err := req.Unmarshal(c.Body())
 	if err != nil {
@@ -85,6 +88,13 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*200 {
+			s.Warn("handleClusterconfig cost too long", zap.Duration("cost", end), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		}
+	}()
 
 	slotId := s.getSlotId(req.ChannelId)
 	slot := s.clusterEventServer.Slot(slotId)
@@ -100,11 +110,11 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ProposeTimeout)
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
 	defer cancel()
 	clusterConfig, _, err := s.loadOrCreateChannelClusterConfig(timeoutCtx, req.ChannelId, req.ChannelType)
 	if err != nil {
-		s.Error("fetchChannel failed", zap.Error(err))
+		s.Error("handleClusterconfig: loadOrCreateChannelClusterConfig failed", zap.Error(err))
 		c.WriteErr(err)
 		return
 	}

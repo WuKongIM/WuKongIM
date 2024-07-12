@@ -140,6 +140,14 @@ func (u *userHandler) stepLeader(a UserAction) error {
 		}
 
 	}
+
+	// 重置代理节点的pong超时
+	for _, msg := range a.Messages {
+		if msg.FromNodeId != 0 && msg.FromNodeId != u.opts.Cluster.NodeId {
+			u.nodePongTimeoutTick[msg.FromNodeId] = 0
+		}
+	}
+
 	return nil
 }
 
@@ -189,8 +197,6 @@ func (u *userHandler) stepProxy(a UserAction) error {
 			}
 		}
 
-		u.Info("forward resp...")
-
 	case UserActionNodePing: // 用户节点ping, 用户的领导发送给追随者的ping
 		u.nodePingTick = 0
 		u.actions = append(u.actions, UserAction{
@@ -198,6 +204,7 @@ func (u *userHandler) stepProxy(a UserAction) error {
 			Uid:        u.uid,
 			LeaderId:   u.leaderId,
 		})
+
 	}
 	return nil
 }

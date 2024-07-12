@@ -168,7 +168,7 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 	ctx.req = req
 	ctx.proto = s.proto
 	h(ctx)
-	s.Info("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
+	s.Debug("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
 
 }
 

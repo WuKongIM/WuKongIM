@@ -249,8 +249,8 @@ func (d *metrics) systemMetrics(c *wkhttp.Context) {
 
 	d.requestAndFillSystemMetrics("go_gc_duration_seconds_count", rg, false, &resps) // gc次数
 
-	d.requestAndFillSystemMetrics("system_cpu_percent", rg, false, &resps)    // cpu使用率
-	d.requestAndFillSystemMetrics("node_filefd_allocated", rg, false, &resps) // 文件描述符数量
+	d.requestAndFillSystemMetrics("system_cpu_percent_total", rg, false, &resps) // cpu使用率
+	d.requestAndFillSystemMetrics("node_filefd_allocated", rg, false, &resps)    // 文件描述符数量
 
 	sort.Slice(resps, func(i, j int) bool {
 		return resps[i].Timestamp < resps[j].Timestamp
@@ -513,7 +513,7 @@ func (d *metrics) fillSystemMetricsRespBySamplePair(resp *systemMetricsResp, lab
 		resp.Goroutines = append(resp.Goroutines, &labelValue{Label: nodeId, Value: float64(pair.Value)})
 	case "go_gc_duration_seconds_count":
 		resp.GCDurationSecondsCount = append(resp.GCDurationSecondsCount, &labelValue{Label: nodeId, Value: float64(pair.Value)})
-	case "system_cpu_percent":
+	case "system_cpu_percent_total":
 		resp.CpuPercent = append(resp.CpuPercent, &labelValue{Label: nodeId, Value: float64(pair.Value)})
 	case "node_filefd_allocated":
 		resp.FilefdAllocated = int64(pair.Value)

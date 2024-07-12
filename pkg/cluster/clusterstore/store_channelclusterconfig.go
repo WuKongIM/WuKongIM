@@ -64,3 +64,23 @@ func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.Channe
 	_, err = c.store.opts.Cluster.ProposeDataToSlot(ctx, slotId, cmdData)
 	return err
 }
+
+func (s *Store) SaveChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
+	cfgData, err := cfg.Marshal()
+	if err != nil {
+		return err
+	}
+
+	data, err := EncodeCMDChannelClusterConfigSave(cfg.ChannelId, cfg.ChannelType, cfgData)
+	if err != nil {
+		return err
+	}
+	cmd := NewCMD(CMDChannelClusterConfigSave, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	slotId := s.opts.GetSlotId(cfg.ChannelId)
+	_, err = s.opts.Cluster.ProposeDataToSlot(ctx, slotId, cmdData)
+	return err
+}

@@ -6,6 +6,8 @@ var (
 	ErrConnNotFound     = fmt.Errorf("conn not found")
 	ErrReactorStopped   = fmt.Errorf("reactor stopped")
 	ErrChannelIdIsEmpty = fmt.Errorf("channel id is empty")
+
+	ErrAuthFailed = fmt.Errorf("auth failed") // 认证失败
 )
 
 type errCode int32

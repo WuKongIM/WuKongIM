@@ -32,24 +32,21 @@ type channel struct {
 	sendConfigTick        int // 发送配置计数器
 	sendConfigTimeoutTick int // 发送配置超时（达到这个tick表示，需要发送配置请求了）
 
-	sendConfigReqToSlotLeader func(c *channel, cfgVersion uint64) error // 向槽领导发送配置请求
-
 	learnerToLock sync.Mutex
 
 	s *Server
 }
 
-func newChannel(channelId string, channelType uint8, opts *Options, s *Server, sendConfigReqToSlotLeader func(c *channel, cfgVersion uint64) error) *channel {
+func newChannel(channelId string, channelType uint8, s *Server) *channel {
 	key := wkutil.ChannelToKey(channelId, channelType)
 	c := &channel{
-		key:                       key,
-		channelId:                 channelId,
-		channelType:               channelType,
-		sendConfigReqToSlotLeader: sendConfigReqToSlotLeader,
-		sendConfigTimeoutTick:     10,
-		opts:                      opts,
-		Log:                       wklog.NewWKLog(fmt.Sprintf("cluster.channel[%s]", key)),
-		s:                         s,
+		key:                   key,
+		channelId:             channelId,
+		channelType:           channelType,
+		sendConfigTimeoutTick: 10,
+		opts:                  s.opts,
+		Log:                   wklog.NewWKLog(fmt.Sprintf("cluster.channel[%s]", key)),
+		s:                     s,
 	}
 
 	appliedIdx, err := c.opts.MessageLogStorage.AppliedIndex(c.key)
@@ -79,7 +76,7 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 	c.cfg = cfg
 	c.mu.Unlock()
 
-	c.Info("switch config", zap.Uint32("slotId", c.s.getSlotId(c.channelId)), zap.String("cfg", cfg.String()))
+	// c.Info("switch config", zap.Uint32("slotId", c.s.getSlotId(c.channelId)), zap.String("cfg", cfg.String()))
 
 	var role = replica.RoleUnknown
 
@@ -108,11 +105,11 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 		Term:        cfg.Term,
 	}
 
-	err := c.s.channelManager.channelReactor.StepWait(c.key, replica.Message{
+	c.s.channelManager.channelReactor.Step(c.key, replica.Message{
 		MsgType: replica.MsgConfigResp,
 		Config:  replicaCfg,
 	})
-	return err
+	return nil
 }
 
 func (c *channel) leaderId() uint64 {
@@ -310,19 +307,9 @@ func (c *channel) FollowerToLeader(followerId uint64) error {
 	newChannelClusterCfg.MigrateTo = 0
 	newChannelClusterCfg.ConfVersion = uint64(time.Now().UnixNano())
 
-	// 保存配置
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ProposeTimeout)
-	defer cancel()
-	err = c.opts.ChannelClusterStorage.Propose(timeoutCtx, newChannelClusterCfg)
+	err = c.proposeAndUpdateChannelClusterConfig(newChannelClusterCfg)
 	if err != nil {
-		c.Error("FollowerToLeader: propose channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-		return err
-	}
-
-	// 生效配置
-	err = c.switchConfig(newChannelClusterCfg)
-	if err != nil {
-		c.Error("FollowerToLeader: switch config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		c.Error("FollowerToLeader: proposeAndUpdateChannelClusterConfig failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return err
 	}
 
@@ -379,19 +366,9 @@ func (c *channel) learnerTo(learnerId uint64) error {
 	channelClusterCfg.MigrateTo = 0
 	channelClusterCfg.ConfVersion = uint64(time.Now().UnixNano())
 
-	// 保存配置
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ProposeTimeout)
-	defer cancel()
-	err = c.opts.ChannelClusterStorage.Propose(timeoutCtx, channelClusterCfg)
+	err = c.proposeAndUpdateChannelClusterConfig(channelClusterCfg)
 	if err != nil {
-		c.Error("propose channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-		return err
-	}
-
-	// 生效配置
-	err = c.switchConfig(channelClusterCfg)
-	if err != nil {
-		c.Error("LearnerToFollower: switch config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		c.Error("LearnerToFollower: proposeAndUpdateChannelClusterConfig failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return err
 	}
 
@@ -405,6 +382,29 @@ func (c *channel) learnerTo(learnerId uint64) error {
 	}
 
 	return nil
+}
+
+func (c *channel) proposeAndUpdateChannelClusterConfig(cfg wkdb.ChannelClusterConfig) error {
+	// 保存配置
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ProposeTimeout)
+	defer cancel()
+	err := c.opts.ChannelClusterStorage.Propose(timeoutCtx, cfg)
+	if err != nil {
+		c.Error("propose channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		return err
+	}
+
+	// 生效配置
+	err = c.switchConfig(cfg)
+	if err != nil {
+		c.Error("proposeAndUpdateChannelClusterConfig: switch config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+		return err
+	}
+
+	c.s.clusterCfgCache.Add(c.key, cfg) // 刷新缓存
+
+	return nil
+
 }
 
 func (c *channel) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

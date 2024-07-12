@@ -888,3 +888,5 @@ func (c *CMD) DecodeCMDBatchUpdateConversation() (models []*wkdb.BatchUpdateConv
 
 	return
 }
+
+var ErrStoreStopped = fmt.Errorf("store stopped")

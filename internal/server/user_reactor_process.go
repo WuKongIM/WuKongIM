@@ -633,7 +633,6 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 
 func (r *userReactor) handleWrite(req *writeReq) error {
 
-	fmt.Println("handleWrite------->", len(req.messages))
 	sub := r.reactorSub(req.uid)
 
 	var connDataMap = map[string][]byte{}
@@ -653,7 +652,6 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 	for deviceId, data := range connDataMap {
 		conn := sub.getConnContext(req.uid, deviceId)
 		if conn == nil {
-			fmt.Println("handleWrite: conn not found", len(data), req.uid, deviceId)
 			r.Debug("handleWrite: conn not found", zap.Int("dataLen", len(data)), zap.String("uid", req.uid), zap.String("deviceId", deviceId))
 			continue
 		}
@@ -661,7 +659,6 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 		recvFrameCount := recvFrameCountMap[deviceId]
 
 		if conn.isRealConn { // 是真实节点直接返回数据
-			fmt.Println("handleWrite: real conn", deviceId, conn.connId, conn.proxyConnId, conn.realNodeId, conn.isRealConn)
 			connId := deviceIdConnIdMap[deviceId]
 			if connId == conn.connId {
 				_ = conn.writeDirectly(data, recvFrameCount)
@@ -670,7 +667,6 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 			}
 
 		} else { // 是代理连接，转发数据到真实连接
-			fmt.Println("handleWrite: proxy conn", deviceId, conn.connId, conn.proxyConnId, conn.realNodeId, conn.isRealConn)
 
 			if !r.s.cluster.NodeIsOnline(conn.realNodeId) { // 节点没在线了，这里直接移除连接
 				_ = r.removeConnContextById(conn.uid, conn.connId)
@@ -897,6 +893,8 @@ func (r *userReactor) processNodePingLoop() {
 				}
 			}
 			r.processNodePing(reqs)
+			done = false
+			reqs = reqs[:0]
 		case <-r.stopper.ShouldStop():
 			return
 		}
@@ -1125,7 +1123,7 @@ func (r *userReactor) processProxyNodeTimeoutLoop() {
 
 func (r *userReactor) processProxyNodeTimeout(req *proxyNodeTimeoutReq) {
 	for _, msg := range req.messages {
-		r.Debug("proxy node timeout", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Uint64("fromNodeId", msg.FromNodeId))
+		r.Info("proxy node timeout", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Uint64("fromNodeId", msg.FromNodeId))
 		r.s.userReactor.removeConnsByNodeId(req.uid, msg.FromNodeId)
 	}
 }
@@ -1163,11 +1161,11 @@ func (r *userReactor) processClose(req *userCloseReq) {
 	conns := r.getConnsByUniqueNo(req.uid, req.uniqueNo)
 	for _, conn := range conns {
 		if conn.isRealConn {
-			r.Debug("close real conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
+			r.Info("close real conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
 			r.removeConnContextById(req.uid, conn.connId)
 			conn.close()
 		} else {
-			r.Debug("close proxy conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
+			r.Info("close proxy conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
 			r.removeConnContextById(req.uid, conn.connId)
 		}
 

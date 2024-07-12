@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 )
 
@@ -98,6 +99,10 @@ func (s *APIServer) setRoutes() {
 	routeapi := NewRouteAPI(s.s)
 	routeapi.Route(s.r)
 
+	// 管理者api
+	manager := NewManagerAPI(s.s)
+	manager.Route(s.r)
+
 	// // 系统api
 	// system := NewSystemAPI(s.s)
 	// system.Route(s.r)
@@ -131,6 +136,54 @@ func bandwidthMiddleware() wkhttp.HandlerFunc {
 		c.Next()
 		trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(blw.size))
 
+	}
+}
+
+func (s *APIServer) jwtAndTokenAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		// 超级token认证
+		// token := c.GetHeader("token")
+		// if strings.TrimSpace(token) != "" && token == s.s.opts.SuperToken {
+
+		// }
+
+		authorization := c.GetHeader("Authorization")
+		if authorization == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			c.Abort()
+			return
+		}
+		authorization = strings.TrimPrefix(authorization, "Bearer ")
+		if authorization == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		jwtToken, err := jwt.ParseWithClaims(authorization, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+			return []byte(s.s.opts.Jwt.Secret), nil
+		})
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.Abort()
+			return
+		}
+
+		if !jwtToken.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid jwt token"})
+			c.Abort()
+			return
+		}
+		mapCaims := jwtToken.Claims.(jwt.MapClaims)
+		if mapCaims["username"] == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid jwt token, username is empty"})
+			c.Abort()
+			return
+		}
+
+		c.Set("username", mapCaims["username"])
+		c.Next()
 	}
 }
 

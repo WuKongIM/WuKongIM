@@ -42,7 +42,10 @@ func (c *channel) step(a *ChannelAction) error {
 		}
 
 	case ChannelActionSend: // 发送
-		c.appendMessage(a.Messages...) // 消息是按照发送者分组的，所以取第一个即可
+		for _, message := range a.Messages {
+			message.Index = c.msgQueue.lastIndex + 1
+			c.msgQueue.appendMessage(message)
+		}
 		// c.Debug("channel send", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	case ChannelActionPayloadDecryptResp: // payload解密
 		c.payloadDecrypting = false
@@ -55,12 +58,23 @@ func (c *channel) step(a *ChannelAction) error {
 
 		lastMsg := a.Messages[len(a.Messages)-1]
 
+		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.payloadDecryptingIndex)
+
 		if lastMsg.Index > c.msgQueue.payloadDecryptingIndex {
 			c.msgQueue.payloadDecryptingIndex = lastMsg.Index
 		}
 
-		for _, decryptMsg := range a.Messages {
-			for i, msg := range c.msgQueue.messages {
+		endIndex := c.msgQueue.getArrayIndex(c.msgQueue.payloadDecryptingIndex)
+
+		if startIndex >= endIndex {
+			return nil
+		}
+
+		msgLen := len(a.Messages)
+		for i := startIndex; i < endIndex; i++ {
+			msg := c.msgQueue.messages[i]
+			for j := 0; j < msgLen; j++ {
+				decryptMsg := a.Messages[j]
 				if msg.MessageId == decryptMsg.MessageId {
 					msg.SendPacket.Payload = decryptMsg.SendPacket.Payload
 					msg.IsEncrypt = decryptMsg.IsEncrypt
@@ -69,6 +83,7 @@ func (c *channel) step(a *ChannelAction) error {
 				}
 			}
 		}
+
 	default:
 		if c.stepFnc != nil {
 			return c.stepFnc(a)
@@ -154,13 +169,4 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 
 func (c *channel) exec(a *ChannelAction) {
 	c.actions = append(c.actions, a)
-}
-
-func (c *channel) appendMessage(messages ...ReactorChannelMessage) {
-
-	for _, message := range messages {
-		message.Index = c.msgQueue.lastIndex + 1
-		c.msgQueue.appendMessage(message)
-	}
-
 }

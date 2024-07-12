@@ -371,6 +371,7 @@ func (s *Server) handleNodePing(fromNodeId uint64, msg *proto.Message) {
 
 	// 踢掉不存在的连接
 	for _, ping := range req.pings {
+
 		sub := s.userReactor.reactorSub(ping.uid)
 		conns := sub.getConnContexts(ping.uid)
 		for _, conn := range conns {

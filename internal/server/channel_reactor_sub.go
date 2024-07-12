@@ -6,6 +6,7 @@ import (
 
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 type channelReactorSub struct {
@@ -25,7 +26,7 @@ func newChannelReactorSub(index int, r *channelReactor) *channelReactorSub {
 		stopper:      syncutil.NewStopper(),
 		channelQueue: newChannelList(),
 		advanceC:     make(chan struct{}, 1),
-		stepChannelC: make(chan stepChannel, 1024),
+		stepChannelC: make(chan stepChannel, 1024*10),
 		r:            r,
 		index:        index,
 	}
@@ -44,7 +45,7 @@ func (r *channelReactorSub) stop() {
 
 func (r *channelReactorSub) loop() {
 
-	tk := time.NewTicker(1000 * time.Millisecond)
+	tk := time.NewTicker(400 * time.Millisecond)
 
 	for !r.stopped.Load() {
 		r.readys()
@@ -76,6 +77,15 @@ func (r *channelReactorSub) step(ch *channel, action *ChannelAction) {
 
 func (r *channelReactorSub) stepWait(ch *channel, action *ChannelAction) error {
 
+	start := time.Now()
+
+	defer func() {
+		end := time.Since(start)
+		if end > 200*time.Millisecond {
+			r.r.Warn("stepWait cost too long", zap.Duration("cost", end))
+		}
+	}()
+
 	waitC := make(chan error, 1)
 	select {
 	case r.stepChannelC <- stepChannel{ch: ch, action: action, waitC: waitC}:
@@ -83,7 +93,7 @@ func (r *channelReactorSub) stepWait(ch *channel, action *ChannelAction) error {
 		return ErrReactorStopped
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(r.r.s.ctx, 5*time.Second)
 	defer cancel()
 
 	select {

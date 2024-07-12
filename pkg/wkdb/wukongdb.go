@@ -103,7 +103,6 @@ func (wk *wukongDB) Open() error {
 		if err != nil {
 			return err
 		}
-		db.Metrics()
 		wk.dbs = append(wk.dbs, db)
 	}
 

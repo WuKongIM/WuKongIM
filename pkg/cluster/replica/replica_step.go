@@ -248,7 +248,7 @@ func (r *Replica) stepFollower(m Message) error {
 		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 	case MsgLogConflictCheckResp: // 日志冲突检查返回
 		if !m.Reject {
-			r.Info("follower: truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", r.term), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex))
+			// r.Info("follower: truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", r.term), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex))
 			r.status = StatusReady
 			r.logConflictCheckTick = r.opts.RequestTimeoutTick // 可以进行下次请求
 

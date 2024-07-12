@@ -40,12 +40,11 @@ const (
 )
 
 const (
-	MsgTypeUnknown                     uint32 = iota
-	MsgTypeSlot                               // slot
-	MsgTypeChannel                            // channel
-	MsgTypeConfig                             // 配置
-	MsgTypeChannelClusterConfigPingReq        // 请求channel配置 (向槽领导请求)
-	MsgTypeChannelClusterConfigUpdate         // 通知更新channel的配置
+	MsgTypeUnknown                    uint32 = iota
+	MsgTypeSlot                              // slot
+	MsgTypeChannel                           // channel
+	MsgTypeConfig                            // 配置
+	MsgTypeChannelClusterConfigUpdate        // 通知更新channel的配置
 )
 
 func myUptime(d time.Duration) string {

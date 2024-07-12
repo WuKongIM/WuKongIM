@@ -23,6 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
@@ -57,6 +58,8 @@ type Server struct {
 	stopped atomic.Bool
 
 	stopper *syncutil.Stopper
+
+	clusterCfgCache *lru.Cache[string, wkdb.ChannelClusterConfig]
 }
 
 func New(opts *Options) *Server {
@@ -69,12 +72,17 @@ func New(opts *Options) *Server {
 		channelLoadMap: make(map[string]struct{}),
 		stopper:        syncutil.NewStopper(),
 	}
+	var err error
+	s.clusterCfgCache, err = lru.New[string, wkdb.ChannelClusterConfig](1000)
+	if err != nil {
+		s.Panic("new clusterCfgCache failed", zap.Error(err))
+	}
 
 	s.slotManager = newSlotManager(s)
 	s.channelManager = newChannelManager(s)
 
 	if opts.SlotLogStorage == nil {
-		s.slotStorage = NewPebbleShardLogStorage(path.Join(opts.DataDir, "logdb"))
+		s.slotStorage = NewPebbleShardLogStorage(path.Join(opts.DataDir, "logdb"), uint32(opts.SlotDbShardNum))
 		opts.SlotLogStorage = s.slotStorage
 	}
 
@@ -268,50 +276,60 @@ func (s *Server) AddConfigMessage(m reactor.Message) {
 	s.clusterEventServer.AddMessage(m)
 }
 
+func (s *Server) getOrCreateChannelHandler(handlerKey string) reactor.IHandler {
+	s.channelLoadMapLock.Lock()
+	defer s.channelLoadMapLock.Unlock()
+	handler := s.channelManager.getWithHandleKey(handlerKey)
+	if handler == nil {
+		channelId, channelType := wkutil.ChannelFromlKey(handlerKey)
+		s.channelManager.add(newChannel(channelId, channelType, s))
+	}
+	return handler
+}
+
 func (s *Server) AddChannelMessage(m reactor.Message) {
 
 	// 统计引入的消息
 	traceIncomingMessage(trace.ClusterKindChannel, m.MsgType, int64(m.Size()))
 
-	ch := s.channelManager.getWithHandleKey(m.HandlerKey)
-	if ch != nil {
-		s.channelManager.addMessage(m)
-		return
-	}
+	// 获取或创建频道处理者
+	_ = s.getOrCreateChannelHandler(m.HandlerKey)
 
-	s.channelLoadMapLock.RLock()
-	if _, ok := s.channelLoadMap[m.HandlerKey]; ok {
-		s.channelLoadMapLock.RUnlock()
-		return
-	}
-	s.channelLoadMapLock.RUnlock()
+	s.channelManager.addMessage(m)
 
-	s.channelLoadMapLock.Lock()
-	s.channelLoadMap[m.HandlerKey] = struct{}{}
-	s.channelLoadMapLock.Unlock()
+	// s.channelLoadMapLock.RLock()
+	// if _, ok := s.channelLoadMap[m.HandlerKey]; ok {
+	// 	s.channelLoadMapLock.RUnlock()
+	// 	return
+	// }
+	// s.channelLoadMapLock.RUnlock()
 
-	running := s.channelLoadPool.Running()
-	if running > s.opts.ChannelLoadPoolSize-10 {
-		s.Warn("channelLoadPool is busy", zap.Int("running", running), zap.Int("size", s.opts.ChannelLoadPoolSize))
-	}
-	err := s.channelLoadPool.Submit(func() {
-		channelId, channelType := wkutil.ChannelFromlKey(m.HandlerKey)
-		if channelId == "" {
-			s.Panic("channelId is empty", zap.String("handlerKey", m.HandlerKey))
-		}
-		_, err := s.loadOrCreateChannel(s.cancelCtx, channelId, channelType)
-		if err != nil {
-			s.Error("loadOrCreateChannel failed", zap.Error(err), zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.MsgType.String()))
-		}
-		s.channelLoadMapLock.Lock()
-		delete(s.channelLoadMap, m.HandlerKey)
-		s.channelLoadMapLock.Unlock()
+	// s.channelLoadMapLock.Lock()
+	// s.channelLoadMap[m.HandlerKey] = struct{}{}
+	// s.channelLoadMapLock.Unlock()
 
-		s.Debug("active channel", zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.MsgType.String()))
-	})
-	if err != nil {
-		s.Error("channelLoadPool.Submit failed", zap.Error(err))
-	}
+	// running := s.channelLoadPool.Running()
+	// if running > s.opts.ChannelLoadPoolSize-10 {
+	// 	s.Warn("channelLoadPool is busy", zap.Int("running", running), zap.Int("size", s.opts.ChannelLoadPoolSize))
+	// }
+	// err := s.channelLoadPool.Submit(func() {
+	// 	channelId, channelType := wkutil.ChannelFromlKey(m.HandlerKey)
+	// 	if channelId == "" {
+	// 		s.Panic("channelId is empty", zap.String("handlerKey", m.HandlerKey))
+	// 	}
+	// 	_, err := s.loadOrCreateChannel(s.cancelCtx, channelId, channelType)
+	// 	if err != nil {
+	// 		s.Error("loadOrCreateChannel failed", zap.Error(err), zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.MsgType.String()))
+	// 	}
+	// 	s.channelLoadMapLock.Lock()
+	// 	delete(s.channelLoadMap, m.HandlerKey)
+	// 	s.channelLoadMapLock.Unlock()
+
+	// 	s.Debug("active channel", zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.MsgType.String()))
+	// })
+	// if err != nil {
+	// 	s.Error("channelLoadPool.Submit failed", zap.Error(err))
+	// }
 }
 
 func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
@@ -423,8 +441,8 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 
 	defer func() {
 		cost := time.Since(start)
-		if cost > time.Millisecond*200 {
-			s.Info("handle cluster message too cost...", zap.Duration("cost", cost))
+		if cost > time.Millisecond*50 {
+			s.Warn("handle cluster message too cost...", zap.Duration("cost", cost), zap.Uint32("msgType", m.MsgType))
 		}
 	}()
 
@@ -460,12 +478,8 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindChannel, msgSize)
 		s.AddChannelMessage(msg)
 
-	case MsgTypeChannelClusterConfigPingReq: // 频道配置检测请求
-		fromNodeId := s.uidToServerId(c.UID())
-		s.handleChannelClusterConfigReq(fromNodeId, m)
-
 	case MsgTypeChannelClusterConfigUpdate: // 频道配置更新
-		s.handleChannelClusterConfigUpdate(m)
+		go s.handleChannelClusterConfigUpdate(m)
 	default:
 		fromNodeId := s.uidToServerId(c.UID())
 

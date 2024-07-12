@@ -79,6 +79,8 @@ type Options struct {
 
 	DB wkdb.DB
 
+	SlotDbShardNum int // 槽位数据库分片数量
+
 	PageSize int
 
 	TickInterval          time.Duration // 分布式tick间隔
@@ -98,7 +100,7 @@ func NewOptions(opt ...Option) *Options {
 		DataDir:                    "clusterdata",
 		ReqTimeout:                 10 * time.Second,
 		ProposeTimeout:             10 * time.Second,
-		SendQueueLength:            1024 * 10,
+		SendQueueLength:            1024 * 1024,
 		MaxMessageBatchSize:        64 * 1024 * 1024, // 64M
 		ReceiveQueueLength:         1024,
 		LazyFreeCycle:              1,
@@ -120,6 +122,7 @@ func NewOptions(opt ...Option) *Options {
 		ChannelReactorSubCount: 128,
 		SlotReactorSubCount:    128,
 		PongMaxTick:            30,
+		SlotDbShardNum:         16,
 	}
 	for _, o := range opt {
 		o(opts)
@@ -375,5 +378,11 @@ func WithLearnerMinLogGap(gap uint64) Option {
 func WithPongMaxTick(tick int) Option {
 	return func(o *Options) {
 		o.PongMaxTick = tick
+	}
+}
+
+func WithSlotDbShardNum(num int) Option {
+	return func(o *Options) {
+		o.SlotDbShardNum = num
 	}
 }
