@@ -231,6 +231,7 @@ func (s *Server) ProposeDataToSlot(ctx context.Context, slotId uint32, data []by
 func (s *Server) MustWaitClusterReady() {
 	s.MustWaitAllSlotsReady()
 	s.MustWaitAllApiServerAddrReady()
+	s.MustWaitAllNodeOnline()
 }
 
 func (s *Server) LeaderId() uint64 {
@@ -251,16 +252,9 @@ func (s *Server) loadOrCreateChannelClusterConfig(ctx context.Context, channelId
 // 加载或创建频道分布式配置
 func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, bool, error) {
 
-	s.Info("======================loadOrCreateChannelClusterConfigNoLock start======================", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	// s.Info("======================loadOrCreateChannelClusterConfigNoLock start======================", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
 	start := time.Now()
-
-	defer func() {
-		end := time.Since(start)
-		if end > time.Millisecond*0 {
-			s.Warn("======================loadOrCreateChannelClusterConfigNoLock end cost too long======================", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		}
-	}()
 
 	var (
 		clusterCfg     wkdb.ChannelClusterConfig
@@ -302,8 +296,34 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 		return clusterCfg, false, nil
 	}
 
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*200 {
+			s.Warn("======================loadOrCreateChannelClusterConfigNoLock end cost too long======================", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		}
+	}()
+
 	// ================== 从存储中获取频道的配置 ==================
 	// 获取频道的分布式配置
+	// channelKey := wkutil.ChannelToKey(channelId, channelType)
+	// clusterCfg, ok := s.clusterCfgCache.Get(channelKey)
+	// if !ok {
+	// 	clusterCfg, err = s.getChannelClusterConfig(channelId, channelType)
+	// 	if err != nil && err != wkdb.ErrNotFound {
+	// 		s.Error("getChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	// 		return wkdb.EmptyChannelClusterConfig, false, err
+	// 	}
+	// 	// 如果频道的分布式配置不存在，则创建一个新的分布式配置
+	// 	if err == wkdb.ErrNotFound {
+	// 		s.Debug("create channel cluster config", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	// 		clusterCfg, err = s.createChannelClusterConfig(channelId, channelType)
+	// 		if err != nil {
+	// 			s.Error("createChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	// 			return wkdb.EmptyChannelClusterConfig, false, err
+	// 		}
+	// 		needProposeCfg = true
+	// 	}
+	// }
 	clusterCfg, err = s.getChannelClusterConfig(channelId, channelType)
 	if err != nil && err != wkdb.ErrNotFound {
 		s.Error("getChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
@@ -374,7 +394,7 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 
 	if needProposeCfg {
 		// 提案配置到频道所在槽的分布式存储来保存
-		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*5)
 		defer cancel()
 		err = s.opts.ChannelClusterStorage.Propose(timeoutCtx, clusterCfg)
 		if err != nil {
@@ -382,6 +402,8 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 			return wkdb.EmptyChannelClusterConfig, needProposeCfg, err
 		}
 	}
+	// s.clusterCfgCache.Add(channelKey, clusterCfg)
+
 	return clusterCfg, needProposeCfg, nil
 }
 
@@ -392,7 +414,6 @@ func (s *Server) needElection(cfg wkdb.ChannelClusterConfig) bool {
 		s.Info("leaderId is 0 , need election...")
 		return true
 	}
-	fmt.Println("needElection---->", cfg.LeaderId)
 	// 如果频道领导不在线，说明需要选举领导
 	if !s.clusterEventServer.NodeOnline(cfg.LeaderId) {
 		s.Info("leaderId is offline, need election...", zap.Uint64("leaderId", cfg.LeaderId), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
@@ -412,7 +433,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 
 	defer func() {
 		end := time.Since(start)
-		if end > time.Millisecond*0 {
+		if end > time.Millisecond*200 {
 			s.Warn("loadOrCreateChannel cost too long", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		}
 	}()
@@ -428,7 +449,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 	var ch *channel
 	channelHandler := s.channelManager.get(channelId, channelType)
 	if channelHandler == nil {
-		ch = newChannel(channelId, channelType, s.opts, s, s.sendConfigReqToSlotLeader)
+		ch = newChannel(channelId, channelType, s)
 		s.channelManager.add(ch)
 		switchCfg = true
 	} else {
@@ -449,7 +470,6 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 				s.Error("switchConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 				return nil, err
 			}
-			ch.Info("switchConfig success", zap.Duration("cost", time.Since(start)), zap.Any("learners", clusterCfg.Learners), zap.Any("replicas", clusterCfg.Replicas), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		}
 	}
 	ch.cfg = clusterCfg
@@ -538,7 +558,6 @@ func (s *Server) createChannelClusterConfig(channelId string, channelType uint8)
 // }
 
 func (s *Server) getChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
-
 	return s.opts.ChannelClusterStorage.Get(channelId, channelType)
 }
 
@@ -681,39 +700,4 @@ func (s *Server) requestChannelProposeMessage(to uint64, channelId string, chann
 		return nil, err
 	}
 	return resp, nil
-}
-
-func (s *Server) sendConfigReqToSlotLeader(ch *channel, cfgVersion uint64) error {
-
-	slotId := s.getSlotId(ch.channelId)
-	slot := s.clusterEventServer.Slot(slotId)
-	if slot == nil {
-		return ErrSlotNotExist
-	}
-
-	// 如果槽领导就是自己则不需要发送
-	if slot.Leader == s.opts.NodeId {
-		return nil
-	}
-	node := s.nodeManager.node(slot.Leader)
-	if node == nil {
-		return ErrNodeNotExist
-	}
-
-	req := &channelClusterConfigPingReq{
-		ChannelId:   ch.channelId,
-		ChannelType: ch.channelType,
-		CfgVersion:  cfgVersion,
-	}
-
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	err = node.send(&proto.Message{
-		MsgType: MsgTypeChannelClusterConfigPingReq,
-		Content: data,
-	})
-	return err
-
 }

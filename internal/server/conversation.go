@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
 	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
@@ -54,6 +55,13 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids
 
 		if message.FromUid == c.s.opts.SystemUID {
 			continue
+		}
+
+		if channelType == wkproto.ChannelTypePerson {
+			from, to := GetFromUIDAndToUIDWith(fakeChannelId)
+			if from == c.s.opts.SystemUID || to == c.s.opts.SystemUID { // 与系统账号的会话都忽略
+				continue
+			}
 		}
 
 		worker := c.worker(message.FromUid)
@@ -282,6 +290,7 @@ func (c *conversationWorker) propose() {
 		for _, conversation := range cc.conversations {
 			if conversation.NeedUpdate {
 				conversation.NeedUpdate = false // 提前设置为false，防止在更新的时候再次更新
+
 				var conversationType wkdb.ConversationType
 				if c.s.opts.IsCmdChannel(conversation.ChannelId) {
 					conversationType = wkdb.ConversationTypeCMD

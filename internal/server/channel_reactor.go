@@ -73,12 +73,16 @@ func (r *channelReactor) start() error {
 		r.stopper.RunWorker(r.processInitLoop)
 		r.stopper.RunWorker(r.processPayloadDecryptLoop)
 		r.stopper.RunWorker(r.processPermissionLoop)
-		r.stopper.RunWorker(r.processStorageLoop)
+
 		r.stopper.RunWorker(r.processDeliverLoop)
 		r.stopper.RunWorker(r.processSendackLoop)
 		r.stopper.RunWorker(r.processForwardLoop)
 		r.stopper.RunWorker(r.processCloseLoop)
 		r.stopper.RunWorker(r.processCheckTagLoop)
+	}
+
+	for i := 0; i < 2; i++ {
+		r.stopper.RunWorker(r.processStorageLoop)
 	}
 
 	for _, sub := range r.subs {

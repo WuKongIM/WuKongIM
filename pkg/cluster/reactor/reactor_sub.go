@@ -42,7 +42,7 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 10000),
 		avdanceC:    make(chan struct{}, 1),
-		stepC:       make(chan stepReq, 1024),
+		stepC:       make(chan stepReq, 1024*10),
 		proposeC:    make(chan proposeReq, 1024),
 	}
 }
@@ -90,20 +90,16 @@ func (r *ReactorSub) run() {
 				}
 			}
 		case req := <-r.proposeC:
-			handler := r.handlers.get(req.handlerKey)
-			if handler == nil {
-				r.Info("ReactorSub: propose handler not exist", zap.String("handlerKey", req.handlerKey))
-				continue
-			}
-			lastLogIndex, term := handler.lastLogIndexAndTerm()
+
+			lastLogIndex, term := req.handler.lastLogIndexAndTerm()
 			for i := 0; i < len(req.logs); i++ {
 				lg := req.logs[i]
 				lg.Index = lastLogIndex + 1 + uint64(i)
 				lg.Term = term
 				req.logs[i] = lg
-				handler.didPropose(req.waitKey, lg.Id, lg.Index)
+				req.handler.didPropose(req.waitKey, lg.Id, lg.Index)
 			}
-			err := handler.handler.Step(replica.NewProposeMessageWithLogs(r.opts.NodeId, term, req.logs))
+			err := req.handler.handler.Step(replica.NewProposeMessageWithLogs(r.opts.NodeId, term, req.logs))
 			if err != nil {
 				r.Error("step propose message failed", zap.Error(err))
 			}
@@ -141,8 +137,8 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
 		}
 		if r.opts.EnableLazyCatchUp {
-			if end > time.Millisecond*0 {
-				r.Info("proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.String("handleKey", handleKey), zap.Int("logs", len(logs)), zap.Uint64("lastIndex", logs[len(logs)-1].Index))
+			if end > time.Millisecond*1000 {
+				r.Info("ReactorSub: proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.String("handleKey", handleKey), zap.Int("logs", len(logs)), zap.Uint64("lastIndex", logs[len(logs)-1].Index))
 			}
 		}
 	}()
@@ -175,10 +171,13 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	waitC := handler.addWait(ctx, waitKey, ids)
 
 	// -------------------- 添加提案请求 --------------------
-	req := newProposeReq(handleKey, waitKey, logs)
+	req := newProposeReq(handler, waitKey, logs)
 	select {
 	case r.proposeC <- req:
 	case <-timeoutCtx.Done():
+		if !handler.proposeWait.exist(waitKey) {
+			r.Panic("proposeAndWait: propose wait not exist", zap.String("waitKey", waitKey), zap.String("handler", handler.key))
+		}
 		handler.removeWait(waitKey)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, timeoutCtx.Err()
@@ -224,13 +223,27 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 // }
 
 func (r *ReactorSub) step(handlerKey string, msg replica.Message) {
-	r.stepC <- stepReq{
+
+	select {
+	case r.stepC <- stepReq{
 		handlerKey: handlerKey,
 		msg:        msg,
+	}:
+	default:
+		r.Panic("stepC is full", zap.String("handlerKey", handlerKey), zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From))
 	}
 }
 
 func (r *ReactorSub) stepWait(handlerKey string, msg replica.Message) error {
+
+	start := time.Now()
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*100 {
+			r.Info("stepWait cost too long", zap.Duration("cost", end), zap.String("handlerKey", handlerKey), zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From))
+		}
+	}()
+
 	resultC := make(chan error, 1)
 	r.stepC <- stepReq{
 		handlerKey: handlerKey,
@@ -261,13 +274,17 @@ func (r *ReactorSub) readyEvents() {
 	for hasEvent && !r.stopped.Load() {
 		hasEvent = false
 
-		r.handlers.iterator(func(h *handler) bool {
-			has := r.handleReady(h)
+		r.handlers.readHandlers(&r.tmpHandlers)
+
+		for _, handler := range r.tmpHandlers {
+
+			has := r.handleReady(handler)
 			if has {
 				hasEvent = true
 			}
-			return true
-		})
+		}
+
+		r.tmpHandlers = r.tmpHandlers[:0]
 	}
 }
 
@@ -780,7 +797,9 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 
 func (r *ReactorSub) tick() {
 
-	r.handlers.iterator(func(handler *handler) bool {
+	r.handlers.readHandlers(&r.tmpHandlers)
+
+	for _, handler := range r.tmpHandlers {
 		handler.tick()
 
 		if r.opts.AutoSlowDownOn {
@@ -793,15 +812,16 @@ func (r *ReactorSub) tick() {
 				r.needRemoveKeys = append(r.needRemoveKeys, handler.key)
 			}
 		}
+	}
 
-		return true
-	})
 	if len(r.needRemoveKeys) > 0 {
 		for _, key := range r.needRemoveKeys {
 			r.handlers.remove(key)
 		}
 		r.needRemoveKeys = r.needRemoveKeys[:0]
 	}
+
+	r.tmpHandlers = r.tmpHandlers[:0]
 }
 
 // func (r *ReactorSub) handleLocalMsg(handler *handler, msg replica.Message) {

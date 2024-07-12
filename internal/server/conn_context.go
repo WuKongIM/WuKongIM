@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -89,8 +90,14 @@ func (c *connContext) addOtherPacket(packet wkproto.Frame) {
 	c.keepActivity()
 
 	// 数据统计
+	frameSize := packet.GetFrameSize()
 	c.inPacketCount.Add(1)
-	c.inPacketByteCount.Add(packet.GetFrameSize())
+	c.inPacketByteCount.Add(frameSize)
+
+	if packet.GetFrameType() == wkproto.PING {
+		trace.GlobalTrace.Metrics.App().PingCountAdd(1)
+		trace.GlobalTrace.Metrics.App().PingBytesAdd(frameSize)
+	}
 
 	// fmt.Println("addOtherPacket....", zap.String("frameType", packet.GetFrameType().String()))
 	c.subReactor.step(c.uid, UserAction{
@@ -112,7 +119,12 @@ func (c *connContext) addConnectPacket(packet *wkproto.ConnectPacket) {
 
 	// 数据统计
 	c.inPacketCount.Add(1)
-	c.inPacketByteCount.Add(packet.GetFrameSize())
+
+	frameSize := packet.GetFrameSize()
+	c.inPacketByteCount.Add(frameSize)
+
+	trace.GlobalTrace.Metrics.App().ConnCountAdd(1)
+	trace.GlobalTrace.Metrics.App().ConnPacketBytesAdd(frameSize)
 
 	err := c.subReactor.stepNoWait(c.uid, UserAction{
 		ActionType: UserActionConnect,
@@ -136,11 +148,15 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 	c.keepActivity()
 
 	// 数据统计
+	frameSize := packet.GetFrameSize()
 	c.inPacketCount.Add(1)
-	c.inPacketByteCount.Add(packet.GetFrameSize())
+	c.inPacketByteCount.Add(frameSize)
 
 	c.inMsgCount.Add(1)
-	c.inMsgByteCount.Add(packet.GetFrameSize())
+	c.inMsgByteCount.Add(frameSize)
+
+	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
+	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(frameSize)
 
 	// 提案发送至频道
 	_ = c.subReactor.proposeSend(c, packet)
@@ -189,13 +205,17 @@ func (c *connContext) writeDirectlyPacket(packet wkproto.Frame) error {
 // 直接写入连接
 func (c *connContext) writeDirectly(data []byte, recvFrameCount uint32) error {
 
+	dataSize := int64(len(data))
 	if recvFrameCount > 0 {
 		c.outMsgCount.Add(int64(recvFrameCount))
-		c.outMsgByteCount.Add(int64(len(data))) // TODO: 这里其实有点不准确，因为data不一定都是recv包, 但是大体上recv包占大多数
+		c.outMsgByteCount.Add(dataSize) // TODO: 这里其实有点不准确，因为data不一定都是recv包, 但是大体上recv包占大多数
+
+		trace.GlobalTrace.Metrics.App().RecvPacketCountAdd(int64(recvFrameCount))
+		trace.GlobalTrace.Metrics.App().RecvPacketBytesAdd(dataSize)
 	}
 
 	c.outPacketCount.Add(1)
-	c.outPacketByteCount.Add(int64(len(data)))
+	c.outPacketByteCount.Add(dataSize)
 
 	if c.conn == nil {
 		c.Error("writeDirectly failed, conn is nil", zap.String("conn", c.String()))

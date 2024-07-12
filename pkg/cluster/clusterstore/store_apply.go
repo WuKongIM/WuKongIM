@@ -230,11 +230,23 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 		return err
 	}
 
-	err = s.wdb.SaveChannelClusterConfig(channelClusterConfig)
-	if err != nil {
-		return err
+	waitC := make(chan error, 1)
+
+	select {
+	case s.saveChannelClusterConfigReq <- &saveChannelClusterConfigReq{
+		cfg:     channelClusterConfig,
+		resultC: waitC,
+	}:
+	case <-s.stopper.ShouldStop():
+		return ErrStoreStopped
 	}
-	return nil
+
+	select {
+	case err := <-waitC:
+		return err
+	case <-s.stopper.ShouldStop():
+		return ErrStoreStopped
+	}
 }
 
 // func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {

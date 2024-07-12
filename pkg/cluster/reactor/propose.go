@@ -9,16 +9,16 @@ import (
 )
 
 type proposeReq struct {
-	logs       []replica.Log
-	handlerKey string
-	waitKey    string
+	logs    []replica.Log
+	handler *handler
+	waitKey string
 }
 
-func newProposeReq(handlerKey string, waitKey string, logs []replica.Log) proposeReq {
+func newProposeReq(handler *handler, waitKey string, logs []replica.Log) proposeReq {
 	return proposeReq{
-		logs:       logs,
-		handlerKey: handlerKey,
-		waitKey:    waitKey,
+		logs:    logs,
+		handler: handler,
+		waitKey: waitKey,
 	}
 }
 

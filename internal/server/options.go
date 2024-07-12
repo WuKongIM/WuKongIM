@@ -6,6 +6,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -209,7 +211,16 @@ type Options struct {
 	}
 
 	Db struct {
-		ShardNum int // 分片数量
+		ShardNum     int // 频道db分片数量
+		SlotShardNum int // 槽db分片数量
+	}
+
+	Auth AuthConfig // 认证配置
+
+	Jwt struct {
+		Secret string        // jwt secret
+		Expire time.Duration // jwt expire
+		Issuer string        // jwt 发行者名字
 	}
 }
 
@@ -398,8 +409,8 @@ func NewOptions(op ...Option) *Options {
 			ChannelProcessIntervalTick:  1,
 			UserProcessIntervalTick:     1,
 			UserSubCount:                64,
-			UserNodePingTick:            10,
-			UserNodePongTimeoutTick:     10 * 2,
+			UserNodePingTick:            100,
+			UserNodePongTimeoutTick:     100 * 5,
 			ChannelDeadlineTick:         600,
 			TagCheckIntervalTick:        10,
 			CheckUserLeaderIntervalTick: 10,
@@ -421,9 +432,21 @@ func NewOptions(op ...Option) *Options {
 			// DeliverWorkerCountPerNode: 10,
 		},
 		Db: struct {
-			ShardNum int
+			ShardNum     int
+			SlotShardNum int
 		}{
-			ShardNum: 16,
+			ShardNum:     16,
+			SlotShardNum: 16,
+		},
+
+		Jwt: struct {
+			Secret string
+			Expire time.Duration
+			Issuer string
+		}{
+			Secret: "",
+			Expire: time.Hour * 24 * 30,
+			Issuer: "wukongim",
 		},
 	}
 
@@ -673,6 +696,76 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	// =================== db ===================
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)
+	o.Db.SlotShardNum = o.getInt("db.slotShardNum", o.Db.SlotShardNum)
+
+	// =================== jwt ===================
+	o.Jwt.Secret = o.getString("jwt.secret", o.Jwt.Secret)
+	o.Jwt.Expire = o.getDuration("jwt.expire", o.Jwt.Expire)
+	o.Jwt.Issuer = o.getString("jwt.issuer", o.Jwt.Issuer)
+
+	// =================== auth ===================
+	o.Auth.On = o.getBool("auth.on", o.Auth.On)
+	o.Auth.SuperToken = o.getString("auth.superToken", o.Auth.SuperToken)
+	o.Auth.Kind = Kind(o.getString("auth.kind", string(o.Auth.Kind)))
+	authUsers := o.getStringSlice("auth.users")
+
+	usersCfgs := make([]UserConfig, 0)
+	for _, authUserStr := range authUsers {
+
+		userCfg := UserConfig{}
+		re := regexp.MustCompile(`\[(.*?)\]`)
+		if strings.Contains(authUserStr, "[") && strings.Contains(authUserStr, "]") {
+			match := re.FindAllString(authUserStr, -1)
+			if len(match) > 0 {
+				authUserStr = strings.Replace(authUserStr, match[0], "", -1)
+				permissionStr := match[0]
+				userStrs := strings.Split(authUserStr, ":")
+				if len(userStrs) < 2 {
+					wklog.Panic("auth user format error", zap.String("authUserStr", authUserStr))
+				}
+				username := userStrs[0]
+				password := userStrs[1]
+				userCfg.Username = username
+				userCfg.Password = password
+
+				permissionStr = strings.Replace(permissionStr, "[", "", -1)
+				permissionStr = strings.Replace(permissionStr, "]", "", -1)
+				permissionArrays := strings.Split(permissionStr, ",")
+				if len(permissionArrays) > 0 {
+					permissionCfgs := make([]PermissionConfig, 0)
+					for _, permission := range permissionArrays {
+						permission = strings.TrimSpace(permission)
+						if permission == "" {
+							continue
+						}
+						permissionSplits := strings.Split(permission, ":")
+						permissionCfg := PermissionConfig{}
+						if len(permissionSplits) >= 2 {
+							resource := permissionSplits[0]
+							actions := permissionSplits[1]
+
+							actionConfigs := make([]Action, 0)
+							for _, r := range actions {
+								action := string(r)
+								actionConfigs = append(actionConfigs, Action(action))
+							}
+							permissionCfg.Resource = resource
+							permissionCfg.Actions = actionConfigs
+
+							permissionCfgs = append(permissionCfgs, permissionCfg)
+						}
+					}
+					userCfg.Permissions = permissionCfgs
+				}
+
+			} else {
+				wklog.Panic("auth user format error", zap.String("authUserStr", authUserStr))
+			}
+		}
+		usersCfgs = append(usersCfgs, userCfg)
+	}
+	o.Auth.Users = usersCfgs
+	fmt.Println(usersCfgs)
 
 }
 
@@ -1382,10 +1475,87 @@ func WithDbShardNum(shardNum int) Option {
 	}
 }
 
+func WithDbSlotShardNum(slotShardNum int) Option {
+	return func(opts *Options) {
+		opts.Db.SlotShardNum = slotShardNum
+	}
+}
+
 func WithOpts(opt ...Option) Option {
 	return func(opts *Options) {
 		for _, o := range opt {
 			o(opts)
 		}
 	}
+}
+
+type Kind string
+
+const (
+	KindNone Kind = ""
+	KindJWT  Kind = "jwt"
+)
+
+type Action string
+
+const (
+	ActionNone  Action = ""
+	ActionAll   Action = "*"
+	ActionRead  Action = "r"
+	ActionWrite Action = "w"
+)
+
+var ResourceAll = "*"
+
+type AuthConfig struct {
+	On         bool   // 是否开启鉴权
+	SuperToken string // 超级token
+	Kind       Kind   // 鉴权类型
+	Users      []UserConfig
+}
+
+func (a AuthConfig) Auth(username string, password string) error {
+	if len(a.Users) == 0 {
+		return ErrAuthFailed
+	}
+
+	for _, user := range a.Users {
+		if user.Username == username && user.Password == password {
+			return nil
+		}
+
+	}
+	return ErrAuthFailed
+}
+
+// HasPermission 是否有权限
+func (a AuthConfig) HasPermission(username string, resource string, action Action) bool {
+	if len(a.Users) == 0 {
+		return false
+	}
+	for _, user := range a.Users {
+		if user.Username == username {
+			for _, permission := range user.Permissions {
+				if permission.Resource == resource || permission.Resource == ResourceAll {
+					for _, a := range permission.Actions {
+						if a == ActionAll || a == action {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+type UserConfig struct {
+	Username    string
+	Password    string
+	Permissions []PermissionConfig
+}
+
+type PermissionConfig struct {
+	Resource string   // 资源名称
+	Actions  []Action // 资源操作
 }

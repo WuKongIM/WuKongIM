@@ -276,7 +276,7 @@ func (r *Reactor) processStoreAppend(reqs []AppendLogReq) {
 	for _, req := range reqs {
 		for _, log := range req.Logs {
 			handler := r.handler(req.HandleKey)
-			if log.Term > handler.getLastLeaderTerm() {
+			if handler != nil && log.Term > handler.getLastLeaderTerm() {
 				handler.setLastLeaderTerm(log.Term)
 				err = handler.handler.SetLeaderTermStartIndex(log.Term, log.Index)
 				if err != nil {

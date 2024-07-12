@@ -172,6 +172,14 @@ func (m *proposeWait) remove(key string) {
 	delete(m.proposeWaitMap, key)
 }
 
+func (m *proposeWait) exist(key string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, ok := m.proposeResultMap[key]
+	return ok
+
+}
+
 func max(a, b uint64) uint64 {
 	if a > b {
 		return a

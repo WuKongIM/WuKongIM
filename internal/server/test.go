@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func NewTestServer(t *testing.T, opt ...Option) *Server {
+func NewTestServer(t testing.TB, opt ...Option) *Server {
 
 	optList := make([]Option, 0)
 	optList = append(
@@ -22,6 +23,7 @@ func NewTestServer(t *testing.T, opt ...Option) *Server {
 		WithRootDir(t.TempDir()),
 		WithLoggerDir(t.TempDir()),
 		WithDbShardNum(2),
+		WithDbSlotShardNum(2),
 		WithClusterNodeId(1001),
 		WithClusterSlotCount(5),
 		WithClusterSlotReplicaCount(1),
@@ -64,7 +66,7 @@ func NewTestClusterServerTwoNode(t *testing.T, opt ...Option) (*Server, *Server)
 	return s1, s2
 }
 
-func NewTestClusterServerTreeNode(t *testing.T, opt ...Option) (*Server, *Server, *Server) {
+func NewTestClusterServerTreeNode(t testing.TB, opt ...Option) (*Server, *Server, *Server) {
 
 	nodes := make([]*Node, 0)
 
@@ -135,6 +137,21 @@ func MustWaitClusterReady(ss ...*Server) {
 	for _, s := range ss {
 		s.MustWaitClusterReady()
 	}
+}
+
+func TestStartServer(t testing.TB, ss ...*Server) {
+
+	var wait sync.WaitGroup
+	for _, s := range ss {
+		wait.Add(1)
+		go func(sr *Server) {
+			err := sr.Start()
+			assert.Nil(t, err)
+			wait.Done()
+
+		}(s)
+	}
+	wait.Wait()
 }
 
 // MustWaitNodeOffline 必须等待某个节点离线

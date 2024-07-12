@@ -61,3 +61,31 @@ func (s *Server) MustWaitAllApiServerAddrReady() {
 		}
 	}
 }
+
+func (s *Server) MustWaitAllNodeOnline() {
+	tk := time.NewTicker(time.Millisecond * 10)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	for {
+		select {
+		case <-tk.C:
+			nodes := s.GetConfig().Nodes
+			if len(nodes) > 0 {
+				notOnline := false
+				for _, node := range nodes {
+					if !node.Online {
+						notOnline = true
+						break
+					}
+				}
+				if !notOnline {
+					return
+				}
+
+			}
+		case <-timeoutCtx.Done():
+			s.Panic("wait all node online timeout")
+			return
+		}
+	}
+}

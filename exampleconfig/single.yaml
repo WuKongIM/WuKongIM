@@ -17,3 +17,16 @@ cluster:
   replicaCount: 2
   slotReplicaCount: 2
   channelReplicaCount: 2
+  
+# 认证配置 用户名:密码:资源:权限 *表示通配符   资源格式也可以是[资源ID:权限]  
+ # 例如:  - "admin:pwd:[clusterchannel:rw]" 表示admin用户密码为pwd对clusterchannel资源有读写权限, 
+ # - "admin:pwd:*" 表示admin用户密码为pwd对所有资源有读写权限    
+auth: 
+  superToken: "xxxxxx" # 超级管理员token, 如果配置了超级管理员token, 携带超级管理员的token则可以跳过认证（适合第三方业务服务端使用此方式）
+  kind: 'jwt' # 认证方式 jwt: jwt认证 none: 无需认证
+  users:
+    - "admin:pwd:*" 
+    - "guest:guest:[*:r]" # guest用户密码为guest对所有资源有读权限
+# jwt:
+  # secret: "xxxxx"
+  # expire: 30d

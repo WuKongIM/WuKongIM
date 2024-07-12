@@ -30,7 +30,7 @@ type channel struct {
 	cacheSubscribers map[string]struct{}
 
 	// options
-	stroageMaxSize uint64 // 每次存储的最大字节数量
+	storageMaxSize uint64 // 每次存储的最大字节数量
 	deliverMaxSize uint64 // 每次投递的最大字节数量
 
 	forwardMaxSize uint64 // 每次转发消息的最大自己数量
@@ -84,7 +84,7 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 		channelType:            channelType,
 		msgQueue:               newChannelMsgQueue(channelId),
 		cacheSubscribers:       make(map[string]struct{}),
-		stroageMaxSize:         1024 * 1024 * 2,
+		storageMaxSize:         1024 * 1024 * 2,
 		deliverMaxSize:         1024 * 1024 * 2,
 		forwardMaxSize:         1024 * 1024 * 2,
 		Log:                    wklog.NewWKLog(fmt.Sprintf("channelHandler[%d][%s]", sub.r.opts.Cluster.NodeId, key)),
@@ -153,7 +153,7 @@ func (c *channel) ready() ready {
 		if c.hasPayloadUnDecrypt() {
 			c.payloadDecrypting = true
 			c.payloadDecryptingTick = 0
-			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 0)
+			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 1024*1024*2)
 			if len(msgs) > 0 {
 				c.exec(&ChannelAction{ActionType: ChannelActionPayloadDecrypt, Messages: msgs})
 			}
@@ -176,7 +176,7 @@ func (c *channel) ready() ready {
 			if c.hasUnstorage() {
 				c.storaging = true
 				c.storageTick = 0
-				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckingIndex+1, c.stroageMaxSize)
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckingIndex+1, c.storageMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
 				}
@@ -354,14 +354,12 @@ func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId in
 		IsEncrypt:    isEncrypt,
 	}
 
-	err := c.sub.stepWait(c, &ChannelAction{
+	c.sub.step(c, &ChannelAction{
 		UniqueNo:   c.uniqueNo,
 		ActionType: ChannelActionSend,
 		Messages:   []ReactorChannelMessage{message},
 	})
-	if err != nil {
-		return messageId, err
-	}
+
 	return messageId, nil
 }
 

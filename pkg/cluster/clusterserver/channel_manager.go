@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
@@ -11,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"go.uber.org/zap"
 )
 
 var _ reactor.IRequest = &channelManager{}
@@ -63,10 +65,6 @@ func (c *channelManager) get(channelId string, channelType uint8) reactor.IHandl
 	return c.channelReactor.Handler(wkutil.ChannelToKey(channelId, channelType))
 }
 
-func (c *channelManager) iterator(f func(h reactor.IHandler) bool) {
-	c.channelReactor.IteratorHandler(f)
-}
-
 func (c *channelManager) exist(channelId string, channelType uint8) bool {
 	return c.channelReactor.ExistHandler(wkutil.ChannelToKey(channelId, channelType))
 }
@@ -94,7 +92,45 @@ func (c *channelManager) onSend(m reactor.Message) {
 
 func (c *channelManager) GetConfig(req reactor.ConfigReq) (reactor.ConfigResp, error) {
 
-	return reactor.EmptyConfigResp, nil
+	channelId, channelType := wkutil.ChannelFromlKey(req.HandlerKey)
+
+	timeoutctx, cancel := context.WithTimeout(c.s.cancelCtx, c.opts.ReqTimeout)
+	defer cancel()
+
+	clusterCfg, _, err := c.s.loadOrCreateChannelClusterConfig(timeoutctx, channelId, channelType)
+	if err != nil {
+		c.Error("get config failed", zap.Error(err))
+		return reactor.EmptyConfigResp, err
+	}
+
+	var role = replica.RoleUnknown
+
+	if clusterCfg.LeaderId == c.opts.NodeId {
+		role = replica.RoleLeader
+	} else if wkutil.ArrayContainsUint64(clusterCfg.Learners, c.opts.NodeId) {
+		role = replica.RoleLearner
+	} else if wkutil.ArrayContainsUint64(clusterCfg.Replicas, c.opts.NodeId) {
+		role = replica.RoleFollower
+	}
+	if role == replica.RoleUnknown {
+		c.Error("get config failed, role is unknown", zap.String("cfg", clusterCfg.String()))
+		return reactor.EmptyConfigResp, errors.New("role is unknown")
+	}
+
+	return reactor.ConfigResp{
+		HandlerKey: req.HandlerKey,
+		Config: replica.Config{
+			MigrateFrom: clusterCfg.MigrateFrom,
+			MigrateTo:   clusterCfg.MigrateTo,
+			Replicas:    clusterCfg.Replicas,
+			Learners:    clusterCfg.Learners,
+			Leader:      clusterCfg.LeaderId,
+			Term:        clusterCfg.Term,
+			Role:        role,
+			Version:     clusterCfg.ConfVersion,
+		},
+	}, nil
+
 }
 
 func (c *channelManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartIndexReq) (uint64, error) {
@@ -117,6 +153,15 @@ func (c *channelManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartInde
 
 func (c *channelManager) AppendLogBatch(reqs []reactor.AppendLogReq) error {
 
+	// for _, req := range reqs {
+	// 	if req.Logs == nil || len(req.Logs) == 0 {
+	// 		continue
+	// 	}
+	// 	if err := c.opts.MessageLogStorage.AppendLogs(req.HandleKey, req.Logs); err != nil {
+	// 		return err
+	// 	}
+
+	// }
 	return c.opts.MessageLogStorage.AppendLogBatch(reqs)
 }
 

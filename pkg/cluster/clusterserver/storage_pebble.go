@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"time"
 
@@ -16,16 +17,18 @@ import (
 )
 
 type PebbleShardLogStorage struct {
-	db     *pebble.DB
-	path   string
-	wo     *pebble.WriteOptions
-	noSync *pebble.WriteOptions
+	dbs      []*pebble.DB
+	shardNum uint32 // 分片数量
+	path     string
+	wo       *pebble.WriteOptions
+	noSync   *pebble.WriteOptions
 	wklog.Log
 }
 
-func NewPebbleShardLogStorage(path string) *PebbleShardLogStorage {
+func NewPebbleShardLogStorage(path string, shardNum uint32) *PebbleShardLogStorage {
 	return &PebbleShardLogStorage{
-		path: path,
+		shardNum: shardNum,
+		path:     path,
 		wo: &pebble.WriteOptions{
 			Sync: true,
 		},
@@ -69,24 +72,46 @@ func (p *PebbleShardLogStorage) defaultPebbleOptions() *pebble.Options {
 }
 
 func (p *PebbleShardLogStorage) Open() error {
-	var err error
-	p.db, err = pebble.Open(p.path, p.defaultPebbleOptions())
-	if err != nil {
-		return err
+	opts := p.defaultPebbleOptions()
+	for i := 0; i < int(p.shardNum); i++ {
+		db, err := pebble.Open(fmt.Sprintf("%s/shard%03d", p.path, i), opts)
+		if err != nil {
+			return err
+		}
+		p.dbs = append(p.dbs, db)
 	}
 	return nil
 }
 
 func (p *PebbleShardLogStorage) Close() error {
-	err := p.db.Close()
-	if err != nil {
-		return err
+	for _, db := range p.dbs {
+		if err := db.Close(); err != nil {
+			p.Error("close db error", zap.Error(err))
+		}
 	}
 	return nil
 }
 
+func (p *PebbleShardLogStorage) shardDB(v string) *pebble.DB {
+	shardId := p.shardId(v)
+	return p.dbs[shardId]
+}
+
+func (p *PebbleShardLogStorage) shardId(v string) uint32 {
+	if v == "" {
+		p.Panic("shardId key is empty")
+	}
+	if p.shardNum == 1 {
+		return 0
+	}
+	h := fnv.New32()
+	h.Write([]byte(v))
+
+	return h.Sum32() % p.shardNum
+}
+
 func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) error {
-	batch := p.db.NewBatch()
+	batch := p.shardDB(shardNo).NewBatch()
 	defer batch.Close()
 
 	for _, lg := range logs {
@@ -129,9 +154,9 @@ func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) erro
 
 	}()
 
-	batch := p.db.NewBatch()
-	defer batch.Close()
 	for _, req := range reqs {
+		batch := p.shardDB(req.HandleKey).NewBatch()
+		defer batch.Close()
 		for _, lg := range req.Logs {
 			logData, err := lg.Marshal()
 			if err != nil {
@@ -154,11 +179,12 @@ func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) erro
 		if err != nil {
 			return err
 		}
+		err = batch.Commit(p.wo)
+		if err != nil {
+			return err
+		}
 	}
-	err := batch.Commit(p.wo)
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 
@@ -178,7 +204,7 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 	}
 	keyData := key.NewLogKey(shardNo, index)
 	maxKeyData := key.NewLogKey(shardNo, math.MaxUint64)
-	err = p.db.DeleteRange(keyData, maxKeyData, p.wo)
+	err = p.shardDB(shardNo).DeleteRange(keyData, maxKeyData, p.wo)
 	if err != nil {
 		return err
 	}
@@ -217,7 +243,7 @@ func (p *PebbleShardLogStorage) Logs(shardNo string, startLogIndex uint64, endLo
 	// 	endLogIndex = lastIndex + 1
 	// }
 	highKey := key.NewLogKey(shardNo, endLogIndex)
-	iter := p.db.NewIter(&pebble.IterOptions{
+	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
@@ -266,7 +292,7 @@ func (p *PebbleShardLogStorage) GetLogsInReverseOrder(shardNo string, startLogIn
 	// 	endLogIndex = lastIndex + 1
 	// }
 	highKey := key.NewLogKey(shardNo, endLogIndex)
-	iter := p.db.NewIter(&pebble.IterOptions{
+	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
@@ -323,7 +349,7 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint32
 
 func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (replica.Log, error) {
 	keyData := key.NewLogKey(shardNo, index)
-	resultData, closer, err := p.db.Get(keyData)
+	resultData, closer, err := p.shardDB(shardNo).Get(keyData)
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return replica.Log{}, nil
@@ -363,14 +389,14 @@ func (p *PebbleShardLogStorage) SetAppliedIndex(shardNo string, index uint64) er
 	lastTimeData := make([]byte, 8)
 	binary.BigEndian.PutUint64(lastTimeData, uint64(lastTime))
 
-	err := p.db.Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...), p.wo)
+	err := p.shardDB(shardNo).Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...), p.wo)
 	return err
 
 }
 
 func (p *PebbleShardLogStorage) AppliedIndex(shardNo string) (uint64, error) {
 	maxIndexKeyData := key.NewAppliedIndexKey(shardNo)
-	maxIndexdata, closer, err := p.db.Get(maxIndexKeyData)
+	maxIndexdata, closer, err := p.shardDB(shardNo).Get(maxIndexKeyData)
 	if closer != nil {
 		defer closer.Close()
 	}
@@ -395,12 +421,12 @@ func (p *PebbleShardLogStorage) SetLeaderTermStartIndex(shardNo string, term uin
 
 	var indexData = make([]byte, 8)
 	binary.BigEndian.PutUint64(indexData, index)
-	err := p.db.Set(leaderTermStartIndexKeyData, indexData, p.wo)
+	err := p.shardDB(shardNo).Set(leaderTermStartIndexKeyData, indexData, p.wo)
 	return err
 }
 
 func (p *PebbleShardLogStorage) LeaderLastTerm(shardNo string) (uint32, error) {
-	iter := p.db.NewIter(&pebble.IterOptions{
+	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, 0),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
@@ -417,7 +443,7 @@ func (p *PebbleShardLogStorage) LeaderLastTerm(shardNo string) (uint32, error) {
 
 func (p *PebbleShardLogStorage) LeaderTermStartIndex(shardNo string, term uint32) (uint64, error) {
 	leaderTermStartIndexKeyData := key.NewLeaderTermStartIndexKey(shardNo, term)
-	leaderTermStartIndexData, closer, err := p.db.Get(leaderTermStartIndexKeyData)
+	leaderTermStartIndexData, closer, err := p.shardDB(shardNo).Get(leaderTermStartIndexKeyData)
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return 0, nil
@@ -432,7 +458,7 @@ func (p *PebbleShardLogStorage) LeaderTermStartIndex(shardNo string, term uint32
 }
 
 func (p *PebbleShardLogStorage) LeaderLastTermGreaterThan(shardNo string, term uint32) (uint32, error) {
-	iter := p.db.NewIter(&pebble.IterOptions{
+	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term+1),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
@@ -449,12 +475,12 @@ func (p *PebbleShardLogStorage) LeaderLastTermGreaterThan(shardNo string, term u
 }
 
 func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
-	iter := p.db.NewIter(&pebble.IterOptions{
+	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term+1),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
 	defer iter.Close()
-	batch := p.db.NewBatch()
+	batch := p.shardDB(shardNo).NewBatch()
 	defer batch.Close()
 	var err error
 	for iter.First(); iter.Valid(); iter.Next() {
@@ -468,7 +494,7 @@ func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardN
 
 func (p *PebbleShardLogStorage) saveMaxIndex(shardNo string, index uint64) error {
 
-	return p.saveMaxIndexWrite(shardNo, index, p.db, p.wo)
+	return p.saveMaxIndexWrite(shardNo, index, p.shardDB(shardNo), p.wo)
 }
 
 func (p *PebbleShardLogStorage) saveMaxIndexWrite(shardNo string, index uint64, w pebble.Writer, o *pebble.WriteOptions) error {
@@ -486,7 +512,7 @@ func (p *PebbleShardLogStorage) saveMaxIndexWrite(shardNo string, index uint64, 
 // GetMaxIndex 获取最大的index 和最后一次写入的时间
 func (p *PebbleShardLogStorage) getMaxIndex(shardNo string) (uint64, uint64, error) {
 	maxIndexKeyData := key.NewMaxIndexKey(shardNo)
-	maxIndexdata, closer, err := p.db.Get(maxIndexKeyData)
+	maxIndexdata, closer, err := p.shardDB(shardNo).Get(maxIndexKeyData)
 	if closer != nil {
 		defer closer.Close()
 	}

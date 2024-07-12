@@ -209,6 +209,7 @@ type ChannelClusterConfigDB interface {
 
 	// SaveChannelClusterConfig 保存频道的分布式配置
 	SaveChannelClusterConfig(channelClusterConfig ChannelClusterConfig) error
+	SaveChannelClusterConfigs(channelClusterConfigs []ChannelClusterConfig) error
 
 	// GetChannelClusterConfig 获取频道的分布式配置
 	GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error)
@@ -376,7 +377,6 @@ type ChannelClusterConfigSearchReq struct {
 	ChannelType  uint8  // 频道类型
 	Limit        int    // 限制查询数量
 	CurrentPage  int    // 当前页码
-	LeaderId     uint64 // 领导者id
 	SlotLeaderId uint64 // 槽领导者id
 
 }

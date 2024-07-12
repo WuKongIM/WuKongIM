@@ -502,10 +502,14 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 		}
 		if len(results) > 0 {
 			for _, result := range results {
-				for i, msg := range req.messages {
-					if msg.MessageId == int64(result.LogId()) {
-						msg.MessageId = int64(result.LogId())
-						msg.MessageSeq = uint32(result.LogIndex())
+				msgLen := len(req.messages)
+				logId := int64(result.LogId())
+				logIndex := uint32(result.LogIndex())
+				for i := 0; i < msgLen; i++ {
+					msg := req.messages[i]
+					if msg.MessageId == logId {
+						msg.MessageId = logId
+						msg.MessageSeq = logIndex
 						req.messages[i] = msg
 						break
 					}
@@ -593,7 +597,7 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 			if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
 				err = r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
 				if err != nil {
-					r.Error("writePacketByConnId error", zap.Error(err))
+					r.Error("writePacketByConnId error", zap.Error(err), zap.Uint64("nodeId", msg.FromNodeId), zap.Int64("connId", msg.FromConnId))
 				}
 			} else { // 连接在其他节点，需要将消息转发出去
 				packets := nodeFowardSendackPacketMap[msg.FromNodeId]
@@ -618,7 +622,7 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 	for nodeId, forwardSendackPackets := range nodeFowardSendackPacketMap {
 		err = r.requestForwardSendack(nodeId, forwardSendackPackets)
 		if err != nil {
-			r.Error("requestForwardSendack error", zap.Error(err))
+			r.Error("requestForwardSendack error", zap.Error(err), zap.Uint64("nodeId", nodeId))
 		}
 	}
 }
@@ -783,8 +787,6 @@ func (r *channelReactor) processCheckTagLoop() {
 }
 
 func (r *channelReactor) processCheckTag(req *checkTagReq) {
-
-	fmt.Println("processCheckTag------>")
 
 	receiverTagKey := req.ch.receiverTagKey.Load()
 	if receiverTagKey == "" { // 如果不存在tag则重新生成

@@ -2,6 +2,7 @@ package trace
 
 import (
 	"context"
+	"runtime"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.opentelemetry.io/otel/metric"
@@ -30,15 +31,18 @@ func newSystemMetrics(opts *Options) *systemMetrics {
 	intranetOutgoingBytes := NewInt64ObservableCounter("system_intranet_outgoing_bytes")
 	extranetIncomingBytes := NewInt64ObservableCounter("system_extranet_incoming_bytes")
 	extranetOutgoingBytes := NewInt64ObservableCounter("system_extranet_outgoing_bytes")
+	cpuUsage := NewFloat64ObservableCounter("system_cpu_percent")
 
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(intranetIncomingBytes, s.intranetIncomingBytes.Load())
 		obs.ObserveInt64(intranetOutgoingBytes, s.intranetOutgoingBytes.Load())
 		obs.ObserveInt64(extranetIncomingBytes, s.extranetIncomingBytes.Load())
 		obs.ObserveInt64(extranetOutgoingBytes, s.extranetOutgoingBytes.Load())
+		cpuPercent := float64(runtime.NumCPU())
+		obs.ObserveFloat64(cpuUsage, cpuPercent)
 
 		return nil
-	}, intranetIncomingBytes, intranetOutgoingBytes, extranetIncomingBytes, extranetOutgoingBytes)
+	}, intranetIncomingBytes, intranetOutgoingBytes, extranetIncomingBytes, extranetOutgoingBytes, cpuUsage)
 
 	return s
 }

@@ -97,7 +97,7 @@ func NewOptions(opt ...Option) *Options {
 		IsCommittedAfterApplied:   false,
 		AutoSlowDownOn:            false,
 		LeaderTimeoutMaxTick:      25,
-		AppendLogWorkerNum:        1,
+		AppendLogWorkerNum:        2,
 		ProposeTimeout:            time.Second * 30,
 		SlowdownCheckIntervalTick: 10,
 		SyncTimeoutMaxTick:        10,

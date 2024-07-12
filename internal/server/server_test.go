@@ -9,6 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
@@ -542,4 +543,30 @@ func TestClusterFailover(t *testing.T) {
 
 	wait.Wait()
 
+	s1.StopNoErr()
+	s2.StopNoErr()
+
+}
+
+func TestClusterSaveClusterConfig(t *testing.T) {
+	// 启动服务
+	s1, s2, s3 := NewTestClusterServerTreeNode(t)
+
+	TestStartServer(t, s1, s2, s3)
+
+	MustWaitClusterReady(s1, s2, s3)
+
+	defer s1.StopNoErr()
+	defer s2.StopNoErr()
+	defer s3.StopNoErr()
+
+	err := s1.store.SaveChannelClusterConfig(context.Background(), wkdb.ChannelClusterConfig{
+		ChannelId:       "test1@test2",
+		ChannelType:     1,
+		ReplicaMaxCount: 3,
+		Replicas:        []uint64{s1.opts.Cluster.NodeId, s2.opts.Cluster.NodeId, s3.opts.Cluster.NodeId},
+		LeaderId:        1,
+		Learners:        []uint64{},
+	})
+	assert.Nil(t, err)
 }

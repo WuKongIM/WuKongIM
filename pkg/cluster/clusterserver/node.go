@@ -77,6 +77,7 @@ func (n *node) send(msg *proto.Message) error {
 		return errCircuitBreakerNotReady
 	}
 	if n.sendQueue.rateLimited() { // 发送队列限流
+		n.Error("sendQueue is rateLimited")
 		return errRateLimited
 	}
 	n.sendQueue.increase(msg)
@@ -86,6 +87,7 @@ func (n *node) send(msg *proto.Message) error {
 		return nil
 	default:
 		n.sendQueue.decrease(msg)
+		n.Error("sendQueue is full", zap.Int("length", len(n.sendQueue.ch)))
 		return errChanIsFull
 	}
 }

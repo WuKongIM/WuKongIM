@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
@@ -19,15 +20,21 @@ type Store struct {
 	ctx  context.Context
 
 	messageShardLogStorage *MessageShardLogStorage
+
+	saveChannelClusterConfigReq chan *saveChannelClusterConfigReq
+
+	stopper *syncutil.Stopper
 }
 
 func NewStore(opts *Options) *Store {
 
 	s := &Store{
-		ctx:  context.Background(),
-		opts: opts,
-		Log:  wklog.NewWKLog(fmt.Sprintf("clusterStore[%d]", opts.NodeID)),
-		lock: keylock.NewKeyLock(),
+		ctx:                         context.Background(),
+		opts:                        opts,
+		Log:                         wklog.NewWKLog(fmt.Sprintf("clusterStore[%d]", opts.NodeID)),
+		lock:                        keylock.NewKeyLock(),
+		saveChannelClusterConfigReq: make(chan *saveChannelClusterConfigReq, 1024),
+		stopper:                     syncutil.NewStopper(),
 	}
 
 	err := os.MkdirAll(opts.DataDir, os.ModePerm)
@@ -46,11 +53,17 @@ func (s *Store) Open() error {
 	if err != nil {
 		return err
 	}
+
+	s.stopper.RunWorker((s.saveChannelClusterConfigLoop))
+
 	err = s.messageShardLogStorage.Open()
 	return err
 }
 
 func (s *Store) Close() {
+
+	s.stopper.Stop()
+
 	s.Debug("close...")
 	s.messageShardLogStorage.Close()
 	s.Debug("close1...")
@@ -103,4 +116,46 @@ func (s *Store) AddIPBlacklist(ips []string) error {
 
 func (s *Store) DB() wkdb.DB {
 	return s.wdb
+}
+
+type saveChannelClusterConfigReq struct {
+	cfg     wkdb.ChannelClusterConfig
+	resultC chan error
+}
+
+func (s *Store) saveChannelClusterConfigLoop() {
+	reqs := make([]*saveChannelClusterConfigReq, 0)
+	done := false
+	for {
+		select {
+		case req := <-s.saveChannelClusterConfigReq:
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req := <-s.saveChannelClusterConfigReq:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			s.processSaveChannelClusterConfigs(reqs)
+			reqs = reqs[:0]
+			done = false
+
+		case <-s.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (s *Store) processSaveChannelClusterConfigs(reqs []*saveChannelClusterConfigReq) {
+	cfgs := make([]wkdb.ChannelClusterConfig, 0, len(reqs))
+
+	for _, req := range reqs {
+		cfgs = append(cfgs, req.cfg)
+	}
+	err := s.wdb.SaveChannelClusterConfigs(cfgs)
+	for _, req := range reqs {
+		req.resultC <- err
+	}
 }

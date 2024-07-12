@@ -48,7 +48,11 @@ func (m *channelMsgQueue) truncateTo(index uint64) {
 
 	m.offset = index + 1
 	m.offsetInProgress = max(m.offsetInProgress, m.offset)
-	// m.shrinkMessagesArray()
+	m.shrinkMessagesArray()
+}
+
+func (m *channelMsgQueue) getArrayIndex(index uint64) int {
+	return int(index + 1 - m.offset)
 }
 
 func (m *channelMsgQueue) appendMessage(message ReactorChannelMessage) {
