@@ -10,7 +10,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 )
 
@@ -42,12 +41,23 @@ func NewAPIServer(s *Server) *APIServer {
 // Start 开始
 func (s *APIServer) Start() {
 
+	s.r.Use(func(c *wkhttp.Context) { // 管理者权限判断
+		if strings.TrimSpace(s.s.opts.ManagerToken) == "" {
+			c.Next()
+			return
+		}
+		managerToken := c.GetHeader("token")
+		if managerToken != s.s.opts.ManagerToken {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	})
+
 	// 跨域
 	s.r.Use(wkhttp.CORSMiddleware())
 	// 带宽流量计算中间件
 	s.r.Use(bandwidthMiddleware())
-	// jwt和token认证中间件
-	s.r.Use(s.jwtAndTokenAuthMiddleware())
 
 	s.setRoutes()
 	go func() {
@@ -56,7 +66,7 @@ func (s *APIServer) Start() {
 			panic(err)
 		}
 	}()
-	s.Info("Server started", zap.String("addr", s.addr))
+	s.Info("ApiServer started", zap.String("addr", s.addr))
 }
 
 // Stop 停止服务
@@ -91,21 +101,15 @@ func (s *APIServer) setRoutes() {
 	routeapi := NewRouteAPI(s.s)
 	routeapi.Route(s.r)
 
-	// 管理者api
-	manager := NewManagerAPI(s.s)
-	manager.Route(s.r)
-
-	// // 系统api
-	// system := NewSystemAPI(s.s)
-	// system.Route(s.r)
-
 	// 分布式api
 	clusterServer, ok := s.s.cluster.(*cluster.Server)
 	if ok {
 		clusterServer.ServerAPI(s.r, "/cluster")
 	}
-	// 监控
-	s.s.trace.Route(s.r)
+
+	// // 系统api
+	// system := NewSystemAPI(s.s)
+	// system.Route(s.r)
 
 }
 
@@ -128,63 +132,6 @@ func bandwidthMiddleware() wkhttp.HandlerFunc {
 		c.Next()
 		trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(blw.size))
 
-	}
-}
-
-func (s *APIServer) jwtAndTokenAuthMiddleware() wkhttp.HandlerFunc {
-	return func(c *wkhttp.Context) {
-
-		fpath := c.FullPath()
-		if strings.HasPrefix(fpath, "/manager/login") { // 登录不需要认证
-			c.Next()
-			return
-		}
-
-		// 管理token认证
-		token := c.GetHeader("token")
-		if strings.TrimSpace(token) != "" && token == s.s.opts.ManagerToken {
-			c.Set("username", s.s.opts.ManagerUID)
-			c.Next()
-			return
-		}
-
-		// 认证jwt
-		authorization := c.GetHeader("Authorization")
-		if authorization == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
-			c.Abort()
-			return
-		}
-		authorization = strings.TrimPrefix(authorization, "Bearer ")
-		if authorization == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
-			return
-		}
-
-		jwtToken, err := jwt.ParseWithClaims(authorization, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte(s.s.opts.Jwt.Secret), nil
-		})
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-			c.Abort()
-			return
-		}
-
-		if !jwtToken.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid jwt token"})
-			c.Abort()
-			return
-		}
-		mapCaims := jwtToken.Claims.(jwt.MapClaims)
-		if mapCaims["username"] == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid jwt token, username is empty"})
-			c.Abort()
-			return
-		}
-
-		c.Set("username", mapCaims["username"])
-		c.Next()
 	}
 }
 
