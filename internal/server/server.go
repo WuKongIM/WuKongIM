@@ -170,6 +170,7 @@ func New(opts *Options) *Server {
 			cluster.WithChannelReactorSubCount(s.opts.Cluster.ChannelReactorSubCount),
 			cluster.WithSlotReactorSubCount(s.opts.Cluster.SlotReactorSubCount),
 			cluster.WithPongMaxTick(s.opts.Cluster.PongMaxTick),
+			cluster.WithAuth(s.opts.Auth),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {

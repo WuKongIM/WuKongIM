@@ -1,7 +1,6 @@
 package wkserver
 
 import (
-	"fmt"
 	"sync/atomic"
 )
 
@@ -49,10 +48,10 @@ func (m *metrics) sendMsgBytesSub(v uint64) {
 }
 
 func (m *metrics) printMetrics(prefix string) {
-	recvMsgCount := m.recvMsgCount.Load()
-	recvMsgBytes := m.recvMsgBytes.Load()
-	sendMsgCount := m.sendMsgCount.Load()
-	sendMsgBytes := m.sendMsgBytes.Load()
+	// recvMsgCount := m.recvMsgCount.Load()
+	// recvMsgBytes := m.recvMsgBytes.Load()
+	// sendMsgCount := m.sendMsgCount.Load()
+	// sendMsgBytes := m.sendMsgBytes.Load()
 
-	fmt.Printf("[%s] recvMsgCount: %d, recvMsgBytes: %d, sendMsgCount: %d, sendMsgBytes: %d \n", prefix, recvMsgCount, recvMsgBytes, sendMsgCount, sendMsgBytes)
+	// fmt.Printf("[%s] recvMsgCount: %d, recvMsgBytes: %d, sendMsgCount: %d, sendMsgBytes: %d \n", prefix, recvMsgCount, recvMsgBytes, sendMsgCount, sendMsgBytes)
 }

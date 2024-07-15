@@ -966,7 +966,7 @@ type SlotRespTotal struct {
 	Data  []*SlotResp `json:"data"`  // 槽位信息
 }
 
-func (s *Server) requestSlotInfo(nodeId uint64, slotIds []uint32) ([]*SlotResp, error) {
+func (s *Server) requestSlotInfo(nodeId uint64, slotIds []uint32, headers map[string]string) ([]*SlotResp, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		s.Error("node not found", zap.Uint64("nodeId", nodeId))
@@ -974,7 +974,7 @@ func (s *Server) requestSlotInfo(nodeId uint64, slotIds []uint32) ([]*SlotResp, 
 	}
 	resp, err := network.Get(fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath("/slots")), map[string]string{
 		"ids": strings.Join(wkutil.Uint32ArrayToStringArray(slotIds), ","),
-	}, nil)
+	}, headers)
 	if err != nil {
 		return nil, err
 	}

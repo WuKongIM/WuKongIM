@@ -241,6 +241,11 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
+	if req.UID == u.s.opts.SystemUID {
+		c.ResponseError(errors.New("系统账号不允许更新token！"))
+		return
+	}
+
 	if u.s.opts.ClusterOn() {
 		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {

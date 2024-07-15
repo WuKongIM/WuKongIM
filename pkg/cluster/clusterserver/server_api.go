@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/auth"
+	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -85,7 +87,7 @@ func (s *Server) nodesGet(c *wkhttp.Context) {
 		}
 		requestGroup.Go(func(nId uint64) func() error {
 			return func() error {
-				nodeCfg, err := s.requestNodeInfo(nId)
+				nodeCfg, err := s.requestNodeInfo(nId, c.CopyRequestHeader(c.Request))
 				if err != nil {
 					return err
 				}
@@ -256,7 +258,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 
 				return func() error {
 
-					results, err := s.requestChannelStatus(nId, chs)
+					results, err := s.requestChannelStatus(nId, chs, c.CopyRequestHeader(c.Request))
 					if err != nil {
 						return err
 					}
@@ -310,7 +312,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 	})
 }
 
-func (s *Server) requestChannelStatus(nodeId uint64, channels []*channelBase) ([]*channelStatusResp, error) {
+func (s *Server) requestChannelStatus(nodeId uint64, channels []*channelBase, headers map[string]string) ([]*channelStatusResp, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		return nil, fmt.Errorf("node not found, nodeId:%d", nodeId)
@@ -318,7 +320,7 @@ func (s *Server) requestChannelStatus(nodeId uint64, channels []*channelBase) ([
 	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath("/channel/status"))
 	resp, err := network.Post(fullUrl, []byte(wkutil.ToJSON(map[string]interface{}{
 		"channels": channels,
-	})), nil)
+	})), headers)
 	if err != nil {
 		s.Error("requestChannelStatus error", zap.Error(err))
 		return nil, err
@@ -462,6 +464,11 @@ func (s *Server) slotMigrate(c *wkhttp.Context) {
 		MigrateTo   uint64 `json:"migrate_to"`   // 迁移的目标节点
 	}
 
+	if !s.opts.Auth.HasPermissionWithContext(c, resource.Slot.Migrate, auth.ActionWrite) {
+		c.ResponseStatus(http.StatusUnauthorized)
+		return
+	}
+
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
 		s.Error("bind json error", zap.Error(err))
@@ -585,7 +592,7 @@ func (s *Server) allSlotsGet(c *wkhttp.Context) {
 
 		requestGroup.Go(func(nId uint64, sIds []uint32) func() error {
 			return func() error {
-				slotResps, err := s.requestSlotInfo(nId, sIds)
+				slotResps, err := s.requestSlotInfo(nId, sIds, c.CopyRequestHeader(c.Request))
 				if err != nil {
 					return err
 				}
@@ -796,7 +803,7 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 						queryMap[key] = values[0]
 					}
 				}
-				result, err := s.requestNodeMessageSearch(c.Request.URL.Path, nId, queryMap)
+				result, err := s.requestNodeMessageSearch(c.Request.URL.Path, nId, queryMap, c.CopyRequestHeader(c.Request))
 				if err != nil {
 					return err
 				}
@@ -840,7 +847,7 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	})
 }
 
-func (s *Server) requestNodeMessageSearch(path string, nodeId uint64, queryMap map[string]string) (*messageRespTotal, error) {
+func (s *Server) requestNodeMessageSearch(path string, nodeId uint64, queryMap map[string]string, headers map[string]string) (*messageRespTotal, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		s.Error("requestNodeMessageSearch failed, node not found", zap.Uint64("nodeId", nodeId))
@@ -848,7 +855,7 @@ func (s *Server) requestNodeMessageSearch(path string, nodeId uint64, queryMap m
 	}
 	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
 	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
-	resp, err := network.Get(fullUrl, queryMap, nil)
+	resp, err := network.Get(fullUrl, queryMap, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -1039,7 +1046,7 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 						queryMap[key] = values[0]
 					}
 				}
-				result, err := s.requestNodeChannelSearch(c.Request.URL.Path, nId, queryMap)
+				result, err := s.requestNodeChannelSearch(c.Request.URL.Path, nId, queryMap, c.CopyRequestHeader(c.Request))
 				if err != nil {
 					return err
 				}
@@ -1086,7 +1093,7 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 
 }
 
-func (s *Server) requestNodeChannelSearch(path string, nodeId uint64, queryMap map[string]string) (*channelInfoRespTotal, error) {
+func (s *Server) requestNodeChannelSearch(path string, nodeId uint64, queryMap map[string]string, headers map[string]string) (*channelInfoRespTotal, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		s.Error("requestNodeChannelSearch failed, node not found", zap.Uint64("nodeId", nodeId))
@@ -1094,7 +1101,7 @@ func (s *Server) requestNodeChannelSearch(path string, nodeId uint64, queryMap m
 	}
 	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
 	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
-	resp, err := network.Get(fullUrl, queryMap, nil)
+	resp, err := network.Get(fullUrl, queryMap, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -1267,7 +1274,7 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 						queryMap[key] = values[0]
 					}
 				}
-				result, err := s.requestUserSearch(c.Request.URL.Path, nId, queryMap)
+				result, err := s.requestUserSearch(c.Request.URL.Path, nId, queryMap, c.CopyRequestHeader(c.Request))
 				if err != nil {
 					return err
 				}
@@ -1302,7 +1309,7 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 	})
 }
 
-func (s *Server) requestUserSearch(path string, nodeId uint64, queryMap map[string]string) (*userRespTotal, error) {
+func (s *Server) requestUserSearch(path string, nodeId uint64, queryMap map[string]string, headers map[string]string) (*userRespTotal, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		s.Error("requestUserSearch failed, node not found", zap.Uint64("nodeId", nodeId))
@@ -1310,7 +1317,7 @@ func (s *Server) requestUserSearch(path string, nodeId uint64, queryMap map[stri
 	}
 	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
 	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
-	resp, err := network.Get(fullUrl, queryMap, nil)
+	resp, err := network.Get(fullUrl, queryMap, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -1412,7 +1419,7 @@ func (s *Server) deviceSearch(c *wkhttp.Context) {
 						queryMap[key] = values[0]
 					}
 				}
-				result, err := s.requestDeviceSearch(c.Request.URL.Path, nId, queryMap)
+				result, err := s.requestDeviceSearch(c.Request.URL.Path, nId, queryMap, c.CopyRequestHeader(c.Request))
 				if err != nil {
 					return err
 				}
@@ -1448,7 +1455,7 @@ func (s *Server) deviceSearch(c *wkhttp.Context) {
 
 }
 
-func (s *Server) requestDeviceSearch(path string, nodeId uint64, queryMap map[string]string) (*deviceRespTotal, error) {
+func (s *Server) requestDeviceSearch(path string, nodeId uint64, queryMap map[string]string, headers map[string]string) (*deviceRespTotal, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		s.Error("requestDeviceSearch failed, node not found", zap.Uint64("nodeId", nodeId))
@@ -1456,7 +1463,7 @@ func (s *Server) requestDeviceSearch(path string, nodeId uint64, queryMap map[st
 	}
 	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
 	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
-	resp, err := network.Get(fullUrl, queryMap, nil)
+	resp, err := network.Get(fullUrl, queryMap, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -1563,7 +1570,7 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 						queryMap[key] = values[0]
 					}
 				}
-				result, err := s.requestConversationSearch(c.Request.URL.Path, nId, queryMap)
+				result, err := s.requestConversationSearch(c.Request.URL.Path, nId, queryMap, c.CopyRequestHeader(c.Request))
 				if err != nil {
 					return err
 				}
@@ -1599,7 +1606,7 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 
 }
 
-func (s *Server) requestConversationSearch(path string, nodeId uint64, queryMap map[string]string) (*conversationRespTotal, error) {
+func (s *Server) requestConversationSearch(path string, nodeId uint64, queryMap map[string]string, headers map[string]string) (*conversationRespTotal, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		s.Error("requestConversationSearch failed, node not found", zap.Uint64("nodeId", nodeId))
@@ -1607,7 +1614,7 @@ func (s *Server) requestConversationSearch(path string, nodeId uint64, queryMap 
 	}
 	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, path)
 	queryMap["node_id"] = fmt.Sprintf("%d", nodeId)
-	resp, err := network.Get(fullUrl, queryMap, nil)
+	resp, err := network.Get(fullUrl, queryMap, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -1768,6 +1775,11 @@ func (s *Server) channelClusterConfig(c *wkhttp.Context) {
 
 func (s *Server) channelStart(c *wkhttp.Context) {
 
+	if !s.opts.Auth.HasPermissionWithContext(c, resource.ClusterChannel.Start, auth.ActionWrite) {
+		c.ResponseStatus(http.StatusUnauthorized)
+		return
+	}
+
 	channelId := c.Param("channel_id")
 	channelType := wkutil.ParseUint8(c.Param("channel_type"))
 
@@ -1801,6 +1813,11 @@ func (s *Server) channelStart(c *wkhttp.Context) {
 }
 
 func (s *Server) channelStop(c *wkhttp.Context) {
+
+	if !s.opts.Auth.HasPermissionWithContext(c, resource.ClusterChannel.Stop, auth.ActionWrite) {
+		c.ResponseStatus(http.StatusUnauthorized)
+		return
+	}
 
 	channelId := c.Param("channel_id")
 	channelType := wkutil.ParseUint8(c.Param("channel_type"))
@@ -1928,7 +1945,7 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 		}
 
 		requestGroup.Go(func() error {
-			replicaResp, err := s.requestChannelLocalReplica(replicaId, channelId, channelType)
+			replicaResp, err := s.requestChannelLocalReplica(replicaId, channelId, channelType, c.CopyRequestHeader(c.Request))
 			if err != nil {
 				return err
 			}
@@ -1981,14 +1998,14 @@ func (s *Server) getReplicaRole(clusterConfig wkdb.ChannelClusterConfig, replica
 
 }
 
-func (s *Server) requestChannelLocalReplica(nodeId uint64, channelId string, channelType uint8) (*channelReplicaResp, error) {
+func (s *Server) requestChannelLocalReplica(nodeId uint64, channelId string, channelType uint8, headers map[string]string) (*channelReplicaResp, error) {
 	node := s.clusterEventServer.Node(nodeId)
 	if node == nil {
 		s.Error("requestChannelLocalReplica failed, node not found", zap.Uint64("nodeId", nodeId))
 		return nil, errors.New("node not found")
 	}
 	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath(fmt.Sprintf("/channels/%s/%d/localReplica", channelId, channelType)))
-	resp, err := network.Get(fullUrl, nil, nil)
+	resp, err := network.Get(fullUrl, nil, headers)
 	if err != nil {
 		return nil, err
 	}

@@ -73,10 +73,17 @@ func (m *ManagerAPI) login(c *wkhttp.Context) {
 		return
 	}
 
+	persmissionStr := ""
+	persmissions := m.s.opts.Auth.Persmissions(req.Username)
+	if len(persmissions) > 0 {
+		persmissionStr = persmissions.Format()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"username": req.Username,
-		"token":    tokenStr,
-		"exp":      expire,
+		"username":    req.Username,
+		"token":       tokenStr,
+		"exp":         expire,
+		"permissions": persmissionStr,
 	})
 
 }

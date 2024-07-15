@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/auth"
+	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/crypto/tls"
 	"github.com/pkg/errors"
@@ -215,7 +217,7 @@ type Options struct {
 		SlotShardNum int // 槽db分片数量
 	}
 
-	Auth AuthConfig // 认证配置
+	Auth auth.AuthConfig // 认证配置
 
 	Jwt struct {
 		Secret string        // jwt secret
@@ -698,6 +700,14 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)
 	o.Db.SlotShardNum = o.getInt("db.slotShardNum", o.Db.SlotShardNum)
 
+	// =================== auth ===================
+	o.configureAuth()
+
+}
+
+// 认证配置
+func (o *Options) configureAuth() {
+
 	// =================== jwt ===================
 	o.Jwt.Secret = o.getString("jwt.secret", o.Jwt.Secret)
 	o.Jwt.Expire = o.getDuration("jwt.expire", o.Jwt.Expire)
@@ -706,13 +716,13 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	// =================== auth ===================
 	o.Auth.On = o.getBool("auth.on", o.Auth.On)
 	o.Auth.SuperToken = o.getString("auth.superToken", o.Auth.SuperToken)
-	o.Auth.Kind = Kind(o.getString("auth.kind", string(o.Auth.Kind)))
+	o.Auth.Kind = auth.Kind(o.getString("auth.kind", string(o.Auth.Kind)))
 	authUsers := o.getStringSlice("auth.users")
 
-	usersCfgs := make([]UserConfig, 0)
+	usersCfgs := make([]auth.UserConfig, 0)
 	for _, authUserStr := range authUsers {
 
-		userCfg := UserConfig{}
+		userCfg := auth.UserConfig{}
 		re := regexp.MustCompile(`\[(.*?)\]`)
 		if strings.Contains(authUserStr, "[") && strings.Contains(authUserStr, "]") {
 			match := re.FindAllString(authUserStr, -1)
@@ -724,6 +734,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 					wklog.Panic("auth user format error", zap.String("authUserStr", authUserStr))
 				}
 				username := userStrs[0]
+
+				if username == o.ManagerUID {
+					wklog.Panic("auth user username can not be manager", zap.String("username", username))
+				}
+
 				password := userStrs[1]
 				userCfg.Username = username
 				userCfg.Password = password
@@ -732,24 +747,24 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 				permissionStr = strings.Replace(permissionStr, "]", "", -1)
 				permissionArrays := strings.Split(permissionStr, ",")
 				if len(permissionArrays) > 0 {
-					permissionCfgs := make([]PermissionConfig, 0)
+					permissionCfgs := make([]auth.PermissionConfig, 0)
 					for _, permission := range permissionArrays {
 						permission = strings.TrimSpace(permission)
 						if permission == "" {
 							continue
 						}
 						permissionSplits := strings.Split(permission, ":")
-						permissionCfg := PermissionConfig{}
+						permissionCfg := auth.PermissionConfig{}
 						if len(permissionSplits) >= 2 {
-							resource := permissionSplits[0]
+							rsc := permissionSplits[0]
 							actions := permissionSplits[1]
 
-							actionConfigs := make([]Action, 0)
+							actionConfigs := make([]auth.Action, 0)
 							for _, r := range actions {
 								action := string(r)
-								actionConfigs = append(actionConfigs, Action(action))
+								actionConfigs = append(actionConfigs, auth.Action(action))
 							}
-							permissionCfg.Resource = resource
+							permissionCfg.Resource = resource.Id(rsc)
 							permissionCfg.Actions = actionConfigs
 
 							permissionCfgs = append(permissionCfgs, permissionCfg)
@@ -761,12 +776,40 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 			} else {
 				wklog.Panic("auth user format error", zap.String("authUserStr", authUserStr))
 			}
+		} else {
+			userStrs := strings.Split(authUserStr, ":")
+			if len(userStrs) != 3 {
+				wklog.Panic("auth user format error", zap.String("authUserStr", authUserStr))
+			}
+			username := userStrs[0]
+			password := userStrs[1]
+			userCfg.Username = username
+			userCfg.Password = password
+			if userStrs[2] != string(resource.All) {
+				wklog.Panic("auth user permission format error", zap.String("authUserStr", authUserStr))
+			}
+			userCfg.Permissions = []auth.PermissionConfig{
+				{
+					Resource: resource.All,
+					Actions:  []auth.Action{auth.ActionAll},
+				},
+			}
 		}
 		usersCfgs = append(usersCfgs, userCfg)
 	}
-	o.Auth.Users = usersCfgs
-	fmt.Println(usersCfgs)
 
+	// 将系统管理员的权限设置为所有
+	usersCfgs = append(usersCfgs, auth.UserConfig{
+		Username: o.ManagerUID,
+		Permissions: []auth.PermissionConfig{
+			{
+				Resource: resource.All,
+				Actions:  []auth.Action{auth.ActionAll},
+			},
+		},
+	})
+
+	o.Auth.Users = usersCfgs
 }
 
 func (o *Options) ConfigureDataDir() {
@@ -1487,75 +1530,4 @@ func WithOpts(opt ...Option) Option {
 			o(opts)
 		}
 	}
-}
-
-type Kind string
-
-const (
-	KindNone Kind = ""
-	KindJWT  Kind = "jwt"
-)
-
-type Action string
-
-const (
-	ActionNone  Action = ""
-	ActionAll   Action = "*"
-	ActionRead  Action = "r"
-	ActionWrite Action = "w"
-)
-
-var ResourceAll = "*"
-
-type AuthConfig struct {
-	On         bool   // 是否开启鉴权
-	SuperToken string // 超级token
-	Kind       Kind   // 鉴权类型
-	Users      []UserConfig
-}
-
-func (a AuthConfig) Auth(username string, password string) error {
-	if len(a.Users) == 0 {
-		return ErrAuthFailed
-	}
-
-	for _, user := range a.Users {
-		if user.Username == username && user.Password == password {
-			return nil
-		}
-
-	}
-	return ErrAuthFailed
-}
-
-// HasPermission 是否有权限
-func (a AuthConfig) HasPermission(username string, resource string, action Action) bool {
-	if len(a.Users) == 0 {
-		return false
-	}
-	for _, user := range a.Users {
-		if user.Username == username {
-			for _, permission := range user.Permissions {
-				if permission.Resource == resource || permission.Resource == ResourceAll {
-					for _, a := range permission.Actions {
-						if a == ActionAll || a == action {
-							return true
-						}
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
-type UserConfig struct {
-	Username    string
-	Password    string
-	Permissions []PermissionConfig
-}
-
-type PermissionConfig struct {
-	Resource string   // 资源名称
-	Actions  []Action // 资源操作
 }

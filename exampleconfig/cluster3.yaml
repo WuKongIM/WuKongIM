@@ -20,3 +20,11 @@ cluster:
     - "1001@127.0.0.1:10001"
     - "1002@127.0.0.1:10002"
     - "1003@127.0.0.1:10003"
+auth: 
+  kind: 'jwt' # 认证方式 jwt: jwt认证 none: 无需认证
+  users:
+    - "admin:pwd:*" 
+    - "guest:guest:[*:r]" # guest用户密码为guest对所有资源有读权限
+jwt:
+  secret: "xxxxx"
+  expire: 30d    
