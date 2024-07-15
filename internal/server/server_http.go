@@ -26,7 +26,9 @@ type APIServer struct {
 func NewAPIServer(s *Server) *APIServer {
 	r := wkhttp.New()
 
-	pprof.Register(r.GetGinRoute()) // 注册pprof
+	if s.opts.PprofOn {
+		pprof.Register(r.GetGinRoute()) // 注册pprof
+	}
 
 	hs := &APIServer{
 		r:    r,
