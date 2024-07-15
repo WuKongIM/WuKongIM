@@ -4,7 +4,7 @@
 mode: "release" # 运行模式 模式 debug 测试 release 正式 bench 压力测试
 #addr: "tcp://0.0.0.0:5100" # tcp监听地址
 #httpAddr: "0.0.0.0:5001" #  http api的监听地址  默认：0.0.0.0:5001
-rootDir: "./wukongimdata" # 数据存储目录
+# rootDir: "./wukongimdata" # 数据存储目录
 #tokenAuthOn: false # 是否开启token验证 默认为false，如果不开启任何人都可以连接到此节点，生产环境建议开启
 #managerUID: "" # 管理员UID  默认为 ____manager
 #managerToken: "" # 管理员token 如果此字段有值，则API接口需要在请求头中添加token字段，值为此字段的值
@@ -59,3 +59,5 @@ conversation: # 最近会话配置
 #  scanInterval: 5s  # 每隔多久扫描一次超时队列，看超时队列里是否有需要重试的消息
 #  maxCount: 5    # 消息最大重试次数, 服务端持有用户的连接但是给此用户发送消息后在指定的间隔内没有收到ack，将会重新发送，直到超过maxCount配置的数量后将不再发送（这种情况很少出现，如果出现这种情况此消息只能去离线接口去拉取）
 #userMsgQueueMaxSize: 0 #  用户消息队列最大大小，超过此大小此用户将被限速，0为不限制
+#deadlockCheck: false # 是否开启死锁检测 
+#pprofOn: false # 是否开启pprof

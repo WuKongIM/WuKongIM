@@ -27,6 +27,7 @@ deploy-v2:
 	docker push wukongim/wukongim:v2.0.0-beta-20240428
 deploy-latest:
 	docker build -t wukongim .
+<<<<<<< HEAD
 	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:latest
 	docker tag wukongim wukongim/wukongim:latest
 	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:latest
@@ -37,6 +38,18 @@ deploy-latest:
 # 	docker tag wukongim wukongim/wukongim:v1.2.2
 # 	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2.2
 # 	docker push wukongim/wukongim:v1.2.2
+=======
+	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
+	docker tag wukongim wukongim/wukongim:v1.2
+	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
+	docker push wukongim/wukongim:v1.2
+deploy-v1.2.x:
+	docker build -t wukongim .
+	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2.5
+	docker tag wukongim wukongim/wukongim:v1.2.5
+	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2.5
+	docker push wukongim/wukongim:v1.2.5
+>>>>>>> main
 
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2-dev

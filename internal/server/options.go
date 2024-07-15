@@ -224,6 +224,7 @@ type Options struct {
 		Expire time.Duration // jwt expire
 		Issuer string        // jwt 发行者名字
 	}
+	PprofOn bool // 是否开启pprof
 }
 
 func NewOptions(op ...Option) *Options {
@@ -496,9 +497,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		o.ManagerTokenOn = true
 	}
 
-	deadlock.Opts.Disable = !o.DeadlockCheck
-	// deadlock.Opts.Disable = false
-
 	o.External.IP = o.getString("external.ip", o.External.IP)
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
 	o.External.WSAddr = o.getString("external.wsAddr", o.External.WSAddr)
@@ -577,8 +575,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 			},
 		}
 	}
-
-	o.DeadlockCheck = o.getBool("deadlockCheck", o.DeadlockCheck)
 
 	o.ConfigureDataDir() // 数据目录
 	o.configureLog(vp)   // 日志配置
@@ -702,6 +698,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	// =================== auth ===================
 	o.configureAuth()
+	o.DeadlockCheck = o.getBool("deadlockCheck", o.DeadlockCheck)
+
+	deadlock.Opts.Disable = !o.DeadlockCheck
+
+	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
 
 }
 
