@@ -54,7 +54,7 @@ type Server struct {
 
 	demoServer    *DemoServer    // demo server
 	apiServer     *APIServer     // api服务
-	monitorServer *MonitorServer // 监控服务
+	managerServer *ManagerServer // 监控服务
 
 	systemUIDManager *SystemUIDManager // 系统账号管理
 
@@ -124,7 +124,7 @@ func New(opts *Options) *Server {
 	s.demoServer = NewDemoServer(s)
 	s.systemUIDManager = NewSystemUIDManager(s)
 	s.apiServer = NewAPIServer(s)
-	s.monitorServer = NewMonitorServer(s)
+	s.managerServer = NewManagerServer(s)
 	s.retryManager = newRetryManager(s)
 	s.conversationManager = NewConversationManager(s)
 
@@ -261,7 +261,7 @@ func (s *Server) Start() error {
 
 	s.apiServer.Start()
 
-	s.monitorServer.Start()
+	s.managerServer.Start()
 
 	err = s.channelReactor.start()
 	if err != nil {
@@ -319,7 +319,7 @@ func (s *Server) Stop() error {
 	s.cluster.Stop()
 	s.apiServer.Stop()
 
-	s.monitorServer.Stop()
+	_ = s.managerServer.Stop()
 
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
