@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/auth"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -91,6 +92,8 @@ type Options struct {
 	SlotReactorSubCount    int // 槽reactor sub的数量
 
 	PongMaxTick int // 节点超过多少tick没有回应心跳就认为是掉线
+
+	Auth auth.AuthConfig
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -384,5 +387,11 @@ func WithPongMaxTick(tick int) Option {
 func WithSlotDbShardNum(num int) Option {
 	return func(o *Options) {
 		o.SlotDbShardNum = num
+	}
+}
+
+func WithAuth(auth auth.AuthConfig) Option {
+	return func(o *Options) {
+		o.Auth = auth
 	}
 }

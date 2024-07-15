@@ -25,7 +25,7 @@ type APIServer struct {
 // NewAPIServer new一个api server
 func NewAPIServer(s *Server) *APIServer {
 	r := wkhttp.New()
-	r.Use(wkhttp.CORSMiddleware())
+
 	pprof.Register(r.GetGinRoute()) // 注册pprof
 
 	hs := &APIServer{
@@ -40,22 +40,12 @@ func NewAPIServer(s *Server) *APIServer {
 // Start 开始
 func (s *APIServer) Start() {
 
-	// 认证中间件
-	s.r.Use(func(c *wkhttp.Context) { // 管理者权限判断
-		if strings.TrimSpace(s.s.opts.ManagerToken) == "" {
-			c.Next()
-			return
-		}
-		managerToken := c.GetHeader("token")
-		if managerToken != s.s.opts.ManagerToken {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-		c.Next()
-	})
-
+	// 跨域
+	s.r.Use(wkhttp.CORSMiddleware())
 	// 带宽流量计算中间件
 	s.r.Use(bandwidthMiddleware())
+	// jwt和token认证中间件
+	s.r.Use(s.jwtAndTokenAuthMiddleware())
 
 	s.setRoutes()
 	go func() {
@@ -139,15 +129,24 @@ func bandwidthMiddleware() wkhttp.HandlerFunc {
 	}
 }
 
-func (s *APIServer) jwtAndTokenAuthMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func (s *APIServer) jwtAndTokenAuthMiddleware() wkhttp.HandlerFunc {
+	return func(c *wkhttp.Context) {
 
-		// 超级token认证
-		// token := c.GetHeader("token")
-		// if strings.TrimSpace(token) != "" && token == s.s.opts.SuperToken {
+		fpath := c.FullPath()
+		if strings.HasPrefix(fpath, "/manager/login") { // 登录不需要认证
+			c.Next()
+			return
+		}
 
-		// }
+		// 管理token认证
+		token := c.GetHeader("token")
+		if strings.TrimSpace(token) != "" && token == s.s.opts.ManagerToken {
+			c.Set("username", s.s.opts.ManagerUID)
+			c.Next()
+			return
+		}
 
+		// 认证jwt
 		authorization := c.GetHeader("Authorization")
 		if authorization == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
