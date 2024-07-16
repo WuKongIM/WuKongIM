@@ -69,7 +69,7 @@ type Options struct {
 		Level   zapcore.Level
 		LineNum bool // 是否显示代码行数
 	}
-	Monitor struct {
+	Manager struct {
 		On   bool   // 是否开启监控
 		Addr string // 监控地址 默认为 0.0.0.0:5300
 	}
@@ -83,7 +83,7 @@ type Options struct {
 		TCPAddr     string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
 		WSAddr      string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
 		WSSAddr     string // 节点的wssAddr地址 对外公开 WEB端长连接通讯 格式： wss://ip:port
-		MonitorAddr string // 对外访问的监控地址
+		ManagerAddr string // 对外访问的管理地址
 		APIUrl      string // 对外访问的API基地址 格式: http://ip:port
 	}
 	Channel struct { // 频道配置
@@ -158,8 +158,8 @@ type Options struct {
 	Cluster struct {
 		NodeId                     uint64        // 节点ID
 		Addr                       string        // 节点监听地址 例如：tcp://0.0.0.0:11110
-		GRPCAddr                   string        // 节点grpc监听地址 例如：0.0.0.0:11111
 		ServerAddr                 string        // 节点服务地址 例如 127.0.0.1:11110
+		APIUrl                     string        // 节点之间可访问的api地址
 		ReqTimeout                 time.Duration // 请求超时时间
 		Role                       Role          // 节点角色 replica, proxy
 		Seed                       string        // 种子节点
@@ -333,7 +333,7 @@ func NewOptions(op ...Option) *Options {
 			MsgNotifyEventCountPerPush:  100,
 			MsgNotifyEventRetryMaxCount: 5,
 		},
-		Monitor: struct {
+		Manager: struct {
 			On   bool
 			Addr string
 		}{
@@ -350,8 +350,8 @@ func NewOptions(op ...Option) *Options {
 		Cluster: struct {
 			NodeId                     uint64
 			Addr                       string
-			GRPCAddr                   string
 			ServerAddr                 string
+			APIUrl                     string
 			ReqTimeout                 time.Duration
 			Role                       Role
 			Seed                       string
@@ -368,9 +368,8 @@ func NewOptions(op ...Option) *Options {
 			SlotReactorSubCount        int
 			PongMaxTick                int
 		}{
-			NodeId:                     1,
+			NodeId:                     1001,
 			Addr:                       "tcp://0.0.0.0:11110",
-			GRPCAddr:                   "0.0.0.0:11111",
 			ServerAddr:                 "",
 			ReqTimeout:                 time.Second * 10,
 			Role:                       RoleReplica,
@@ -501,11 +500,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
 	o.External.WSAddr = o.getString("external.wsAddr", o.External.WSAddr)
 	o.External.WSSAddr = o.getString("external.wssAddr", o.External.WSSAddr)
-	o.External.MonitorAddr = o.getString("external.monitorAddr", o.External.MonitorAddr)
+	o.External.ManagerAddr = o.getString("external.managerAddr", o.External.ManagerAddr)
 	o.External.APIUrl = o.getString("external.apiUrl", o.External.APIUrl)
 
-	o.Monitor.On = o.getBool("monitor.on", o.Monitor.On)
-	o.Monitor.Addr = o.getString("monitor.addr", o.Monitor.Addr)
+	o.Manager.On = o.getBool("manager.on", o.Manager.On)
+	o.Manager.Addr = o.getString("manager.addr", o.Manager.Addr)
 
 	o.Demo.On = o.getBool("demo.on", o.Demo.On)
 	o.Demo.Addr = o.getString("demo.addr", o.Demo.Addr)
@@ -600,10 +599,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		o.External.WSSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], ip, portInt64)
 	}
 
-	if strings.TrimSpace(o.External.MonitorAddr) == "" {
-		addrPairs := strings.Split(o.Monitor.Addr, ":")
+	if strings.TrimSpace(o.External.ManagerAddr) == "" {
+		addrPairs := strings.Split(o.Manager.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		o.External.MonitorAddr = fmt.Sprintf("%s:%d", ip, portInt64)
+		o.External.ManagerAddr = fmt.Sprintf("%s:%d", ip, portInt64)
 	}
 
 	if strings.TrimSpace(o.External.APIUrl) == "" {
@@ -629,7 +628,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	default:
 		wklog.Panic("cluster.role must be proxy or replica, but got " + role)
 	}
-	o.Cluster.GRPCAddr = o.getString("cluster.grpcAddr", o.Cluster.GRPCAddr)
 	o.Cluster.SlotReplicaCount = o.getInt("cluster.slotReplicaCount", o.Cluster.SlotReplicaCount)
 	o.Cluster.ChannelReplicaCount = o.getInt("cluster.channelReplicaCount", o.Cluster.ChannelReplicaCount)
 	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)
@@ -669,6 +667,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.HeartbeatIntervalTick = o.getInt("cluster.heartbeatIntervalTick", o.Cluster.HeartbeatIntervalTick)
 	o.Cluster.ChannelReactorSubCount = o.getInt("cluster.channelReactorSubCount", o.Cluster.ChannelReactorSubCount)
 	o.Cluster.SlotReactorSubCount = o.getInt("cluster.slotReactorSubCount", o.Cluster.SlotReactorSubCount)
+	o.Cluster.APIUrl = o.getString("cluster.apiUrl", o.Cluster.APIUrl)
 
 	// =================== trace ===================
 	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
@@ -824,6 +823,15 @@ func (o *Options) ConfigureDataDir() {
 			panic(err)
 		}
 	}
+}
+
+// Check 检查配置是否正确
+func (o *Options) Check() error {
+	if o.Cluster.NodeId == 0 {
+		return errors.New("cluster.nodeId must be set")
+	}
+
+	return nil
 }
 
 func (o *Options) ClusterOn() bool {
@@ -1068,15 +1076,15 @@ func WithLoggerLineNum(lineNum bool) Option {
 	}
 }
 
-func WithMonitorOn(on bool) Option {
+func WithManagerOn(on bool) Option {
 	return func(opts *Options) {
-		opts.Monitor.On = on
+		opts.Manager.On = on
 	}
 }
 
-func WithMonitorAddr(addr string) Option {
+func WithManagerAddr(addr string) Option {
 	return func(opts *Options) {
-		opts.Monitor.Addr = addr
+		opts.Manager.Addr = addr
 	}
 }
 
@@ -1116,9 +1124,9 @@ func WithExternalWSSAddr(wssAddr string) Option {
 	}
 }
 
-func WithExternalMonitorAddr(monitorAddr string) Option {
+func WithExternalManagerAddr(managerAddr string) Option {
 	return func(opts *Options) {
-		opts.External.MonitorAddr = monitorAddr
+		opts.External.ManagerAddr = managerAddr
 	}
 }
 
@@ -1335,12 +1343,6 @@ func WithClusterNodeId(nodeId uint64) Option {
 func WithClusterAddr(addr string) Option {
 	return func(opts *Options) {
 		opts.Cluster.Addr = addr
-	}
-}
-
-func WithClusterGRPCAddr(grpcAddr string) Option {
-	return func(opts *Options) {
-		opts.Cluster.GRPCAddr = grpcAddr
 	}
 }
 

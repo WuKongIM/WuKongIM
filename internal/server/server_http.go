@@ -75,6 +75,11 @@ func (s *APIServer) Stop() {
 }
 
 func (s *APIServer) setRoutes() {
+
+	s.r.GET("/health", func(c *wkhttp.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	connz := NewConnzAPI(s.s)
 	connz.Route(s.r)
 

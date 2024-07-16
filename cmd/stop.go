@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -9,10 +10,13 @@ import (
 )
 
 type stopCMD struct {
+	ctx *WuKongIMContext
 }
 
 func newStopCMD(ctx *WuKongIMContext) *stopCMD {
-	return &stopCMD{}
+	return &stopCMD{
+		ctx: ctx,
+	}
 }
 
 func (s *stopCMD) CMD() *cobra.Command {
@@ -29,7 +33,14 @@ func (s *stopCMD) run(cmd *cobra.Command, args []string) error {
 	command := exec.Command("kill", string(strb))
 	err := command.Start()
 	if err != nil {
+		fmt.Println("Error: ", err)
 		return err
 	}
-	return command.Wait()
+	err = command.Wait()
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return err
+	}
+	fmt.Println("WuKongIM server stopped")
+	return nil
 }

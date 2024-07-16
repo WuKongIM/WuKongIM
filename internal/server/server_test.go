@@ -228,7 +228,7 @@ func TestClusterNodeJoin(t *testing.T) {
 	assert.Equal(t, 2, len(cfg.Nodes))
 
 	// new server
-	s3 := NewTestServer(t, WithDemoOn(false), WithClusterSeed("1001@127.0.0.1:11110"), WithClusterServerAddr("0.0.0.0:11115"), WithWSAddr("ws://0.0.0.0:5250"), WithMonitorAddr("0.0.0.0:5350"), WithAddr("tcp://0.0.0.0:5150"), WithHTTPAddr("0.0.0.0:5005"), WithClusterAddr("tcp://0.0.0.0:11115"), WithClusterNodeId(1005))
+	s3 := NewTestServer(t, WithDemoOn(false), WithClusterSeed("1001@127.0.0.1:11110"), WithClusterServerAddr("0.0.0.0:11115"), WithWSAddr("ws://0.0.0.0:5250"), WithManagerAddr("0.0.0.0:5350"), WithAddr("tcp://0.0.0.0:5150"), WithHTTPAddr("0.0.0.0:5005"), WithClusterAddr("tcp://0.0.0.0:11115"), WithClusterNodeId(1005))
 	err = s3.Start()
 	assert.Nil(t, err)
 	defer s3.StopNoErr()

@@ -1,67 +1,80 @@
-version: '3'
+version: '3.7'
+
+x-wukongim-common: &wukongim-common  # 公共配置
+    image: wukongim/wukongim:v2.0.1-beta-20240715
+    healthcheck:
+      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
+      interval: 10s
+      timeout: 10s
+      retries: 3   
 
 services:
   wukongim1:
-    image: wukongim/wukongim:v2.0.0-beta-20240428
+    <<: *wukongim-common
     container_name: wukongim1
     environment:
-    - "WK_CLUSTER_NODEID=1001"  # 节点ID，必须数字
-    - "WK_EXTERNAL_APIURL=http://node1.tgo.local:5001" # 节点对外API地址
-    - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200" # 节点对外WS地址， 这里IP视情况修改
-    - "WK_CLUSTER_NODES=1001@node1.tgo.local 1002@node2.tgo.local 1003@node3.tgo.local" # 集群节点列表
-    healthcheck:
-      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
-      interval: 10s
-      timeout: 10s
-      retries: 3
+      - "WK_CLUSTER_NODEID=1001"  # 节点ID，必须数字
+      - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"  # 节点对外WS地址， 这里IP视情况修改
+      - "WK_CLUSTER_NODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
+      - "WK_CLUSTER_APIURL=http://node1.wk.local:5001" # 节点对外API地址
     networks:
       wukongim-bridge:
         aliases:
-        - node1.tgo.local # docker内部别名
+        - node1.wk.local # docker内部别名
     volumes:
-      - $PWD/wukongim1_data:/root/wukongim
+      - $PWD/wukongim1_data:/root/wukongim # 数据挂载到物理机的目录
 
   wukongim2:
-    image: wukongim/wukongim:v2.0.0-beta-20240428
+    <<: *wukongim-common
     container_name: wukongim2
     environment:
       - "WK_CLUSTER_NODEID=1002"
-      - "WK_EXTERNAL_APIURL=http://node2.tgo.local:5001"
-      - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"
-      - "WK_CLUSTER_NODES=1001@node1.tgo.local 1002@node2.tgo.local 1003@node3.tgo.local"
-    healthcheck:
-      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
-      interval: 10s
-      timeout: 10s
-      retries: 3
+      - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"  # 节点对外WS地址， 这里IP视情况修改
+      - "WK_CLUSTER_NODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
+      - "WK_CLUSTER_APIURL=http://node2.wk.local:5001"
     networks:
       wukongim-bridge:
         aliases:
-        - node2.tgo.local
+        - node2.wk.local
     volumes:
       - $PWD/wukongim2_data:/root/wukongim    
 
   wukongim3:
-    image: wukongim/wukongim:v2.0.0-beta-20240428
+    <<: *wukongim-common
     container_name: wukongim3
     environment:
       - "WK_CLUSTER_NODEID=1003"
-      - "WK_EXTERNAL_APIURL=http://node3.tgo.local:5001"
-      - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"
-      - "WK_CLUSTER_NODES=1001@node1.tgo.local 1002@node2.tgo.local 1003@node3.tgo.local"
-    healthcheck:
-      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
-      interval: 10s
-      timeout: 10s
-      retries: 3
+      - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"  # 节点对外WS地址， 这里IP视情况修改
+      - "WK_CLUSTER_NODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
+      - "WK_CLUSTER_APIURL=http://node3.wk.local:5001"
     networks:
       wukongim-bridge:
         aliases:
-        - node3.tgo.local
+        - node3.wk.local
     volumes:
       - $PWD/wukongim3_data:/root/wukongim  
+  prometheus: 
+    image: prom/prometheus:v2.53.1
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"    
+  # node-exporter:
+  #   image: prom/node-exporter:v1.8.0
+  #   container_name: node_exporter
+  #   privileged: true
+  #   # command:
+  #     # - '--path.rootfs=/host'
+  #   pid: host
+  #   restart: unless-stopped
+  #   environment:
+  #     - TZ=Asia/Shanghai
+  #   # volumes:
+  #     # - '/:/host:ro,rslave'
+  #   ports:
+  #     - "9100:9100"     
   nginx:
-    image: nginx:1.19.2-alpine
+    image: nginx:1.27.0
     container_name: apigateway
     hostname: apigateway
     volumes:
@@ -69,7 +82,11 @@ services:
     networks:
       wukongim-bridge:
         aliases:
-        - apigateway.tgo.local  
+        - apigateway.wk.local  
+    depends_on:
+      - wukongim1
+      - wukongim2
+      - wukongim3
     ports:
       - "15001:5001"
       - "15200:5200"
