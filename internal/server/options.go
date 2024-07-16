@@ -446,7 +446,7 @@ func NewOptions(op ...Option) *Options {
 			Expire time.Duration
 			Issuer string
 		}{
-			Secret: "",
+			Secret: "secret_wukongim",
 			Expire: time.Hour * 24 * 30,
 			Issuer: "wukongim",
 		},
@@ -796,6 +796,20 @@ func (o *Options) configureAuth() {
 			}
 		}
 		usersCfgs = append(usersCfgs, userCfg)
+	}
+
+	// 如果没有配置如何用户，则默认配置一个guest
+	if len(usersCfgs) == 0 {
+		usersCfgs = append(usersCfgs, auth.UserConfig{
+			Username: "guest",
+			Password: "guest",
+			Permissions: []auth.PermissionConfig{
+				{
+					Resource: resource.All,
+					Actions:  []auth.Action{auth.ActionRead},
+				},
+			},
+		})
 	}
 
 	// 将系统管理员的权限设置为所有

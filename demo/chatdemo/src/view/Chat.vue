@@ -442,8 +442,8 @@ const onEnter = () => {
                 <div class="footer">
                     <input :placeholder="msgInputPlaceholder" v-model="text" style="height: 40px;"
                         @keydown.enter="onEnter" />
-                    <button class="message-stream" v-on:click="onMessageStream">{{ startStreamMessage ? '停止流消息' : '开启流消息'
-                    }}</button>
+                    <!-- <button class="message-stream" v-on:click="onMessageStream">{{ startStreamMessage ? '停止流消息' : '开启流消息'
+                    }}</button> -->
                     <button v-on:click="onSend">发送</button>
                 </div>
             </div>
