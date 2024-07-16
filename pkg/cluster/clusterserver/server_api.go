@@ -1944,6 +1944,34 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 			continue
 		}
 
+		if replicaId == s.opts.NodeId {
+			running := s.channelManager.exist(channelId, channelType)
+			lastMsgSeq, lastTime, err := s.opts.DB.GetChannelLastMessageSeq(channelId, channelType)
+			if err != nil {
+				s.Error("GetChannelLastMessageSeq error", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			replicaResp := &channelReplicaResp{
+				ReplicaId:   s.opts.NodeId,
+				Running:     wkutil.BoolToInt(running),
+				LastMsgSeq:  lastMsgSeq,
+				LastMsgTime: lastTime,
+			}
+			lastMsgTimeFormat := ""
+			if replicaResp.LastMsgTime != 0 {
+				lastMsgTimeFormat = myUptime(time.Since(time.Unix(int64(replicaResp.LastMsgTime/1e9), 0)))
+			}
+			replicas = append(replicas, &channelReplicaDetailResp{
+				channelReplicaResp: *replicaResp,
+				Role:               s.getReplicaRole(channelClusterConfig, replicaId),
+				RoleFormat:         s.getReplicaRoleFormat(channelClusterConfig, replicaId),
+				LastMsgTimeFormat:  lastMsgTimeFormat,
+			})
+			continue
+
+		}
+
 		requestGroup.Go(func() error {
 			replicaResp, err := s.requestChannelLocalReplica(replicaId, channelId, channelType, c.CopyRequestHeader(c.Request))
 			if err != nil {
