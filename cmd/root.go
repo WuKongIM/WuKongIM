@@ -13,7 +13,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/server"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/judwhite/go-svc"
-	"github.com/sasha-s/go-deadlock"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -25,8 +24,9 @@ var (
 	serverOpts          = server.NewOptions()
 	mode                string
 	daemon              bool
-	pidfile             string = "WukongimPID"
+	pidfile             string = "wukongimpid"
 	installDir          string
+	initialed           bool // 是否已经初始化成功
 	rootCmd             = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
@@ -41,12 +41,6 @@ var (
 )
 
 func init() {
-
-	homeDir, err := server.GetHomeDir()
-	if err != nil {
-		log.Fatal(err)
-	}
-	installDir = homeDir
 
 	cobra.OnInitialize(initConfig)
 
@@ -64,9 +58,11 @@ func initConfig() {
 	if strings.TrimSpace(cfgFile) != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err != nil {
-			wklog.Error("read config file error", zap.Error(err))
 			if !ignoreMissingConfig {
+				fmt.Println("read config file error: ", err)
 				panic(fmt.Errorf("read config file error: %s", err))
+			} else {
+				wklog.Error("read config file error", zap.Error(err))
 			}
 		}
 	}
@@ -79,16 +75,21 @@ func initConfig() {
 		serverOpts.Mode = server.Mode(mode)
 	}
 	serverOpts.ConfigureWithViper(vp)
+
+	installDir = serverOpts.RootDir
+
+	initialed = true
 }
 
 func initServer() {
+	if !initialed {
+		return
+	}
 	logOpts := wklog.NewOptions()
 	logOpts.Level = serverOpts.Logger.Level
 	logOpts.LogDir = serverOpts.Logger.Dir
 	logOpts.LineNum = serverOpts.Logger.LineNum
 	wklog.Configure(logOpts)
-
-	deadlock.Opts.Disable = true // 禁用deadlock检测
 
 	s := server.New(serverOpts)
 	if daemon {
@@ -106,11 +107,13 @@ func initServer() {
 		// cmd.Stdin = os.Stdin // 给新进程设置文件描述符，可以重定向到文件中
 		// cmd.Stdout = os.Stdout
 		// cmd.Stderr = os.Stderr
+		fmt.Println("root dir:", serverOpts.RootDir)
+		fmt.Println("config file:", cfgFile)
 		err := cmd.Start() // 开始执行新进程，不等待新进程退出
 		if err != nil {
 			log.Fatal(err)
 		}
-		err = os.WriteFile(path.Join(installDir, pidfile), []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+		err = os.WriteFile(path.Join(serverOpts.RootDir, pidfile), []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
 		if err != nil {
 			log.Fatal(err)
 		}

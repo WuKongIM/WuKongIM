@@ -126,4 +126,4 @@ require (
 )
 
 // replace github.com/WuKongIM/WuKongIMGoSDK => ../../WuKongIMGoSDK
-replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto
+// replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto

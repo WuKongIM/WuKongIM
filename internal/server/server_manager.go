@@ -27,7 +27,7 @@ func NewManagerServer(s *Server) *ManagerServer {
 	r := wkhttp.New()
 
 	return &ManagerServer{
-		addr: s.opts.Monitor.Addr,
+		addr: s.opts.Manager.Addr,
 		s:    s,
 		r:    r,
 		Log:  wklog.NewWKLog("ManagerServer"),

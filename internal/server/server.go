@@ -7,7 +7,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 	"strings"
 	"time"
 
@@ -27,17 +26,16 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
-	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.uber.org/zap"
 )
 
 type Server struct {
-	opts          *Options         // 配置
-	wklog.Log                      // 日志
-	cluster       icluster.Cluster // 分布式
-	clusterServer *cluster.Server
+	opts          *Options          // 配置
+	wklog.Log                       // 日志
+	cluster       icluster.Cluster  // 分布式接口
+	clusterServer *cluster.Server   // 分布式服务实现
 	reqIDGen      *idutil.Generator // 请求ID生成器
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -45,20 +43,19 @@ type Server struct {
 	start         time.Time                // 服务开始时间
 	store         *clusterstore.Store      // 存储相关接口
 	engine        *wknet.Engine            // 长连接引擎
-	authPool      *ants.Pool               // 认证的协程池
 
-	userReactor    *userReactor    // 用户的reactor
-	channelReactor *channelReactor // 频道的reactor
+	userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
+	channelReactor *channelReactor // 频道的reactor，用户处理频道的行为逻辑
 	webhook        *webhook        // webhook
 	trace          *trace.Trace    // 监控
 
 	demoServer    *DemoServer    // demo server
 	apiServer     *APIServer     // api服务
-	managerServer *ManagerServer // 监控服务
+	managerServer *ManagerServer // 管理者api服务
 
 	systemUIDManager *SystemUIDManager // 系统账号管理
 
-	tagManager     *tagManager     // tag管理
+	tagManager     *tagManager     // tag管理，用来管理频道订阅者的tag，用于快速查找订阅者所在节点
 	deliverManager *deliverManager // 消息投递管理
 	retryManager   *retryManager   // 消息重试管理
 
@@ -75,8 +72,15 @@ func New(opts *Options) *Server {
 		start:       now,
 	}
 
+	// 配置检查
+	err := opts.Check()
+	if err != nil {
+		s.Panic("config check error", zap.Error(err))
+	}
+
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
+	// 初始化监控追踪
 	s.trace = trace.New(
 		s.ctx,
 		trace.NewOptions(
@@ -86,17 +90,9 @@ func New(opts *Options) *Server {
 		))
 	trace.SetGlobalTrace(s.trace)
 
-	var err error
-	s.authPool, err = ants.NewPool(opts.Process.AuthPoolSize, ants.WithPanicHandler(func(i interface{}) {
-		stack := debug.Stack()
-		s.Panic("authPool panic", zap.String("stack", string(stack)))
-	}))
-	if err != nil {
-		s.Panic("create auth pool error", zap.Error(err))
-	}
-
 	gin.SetMode(opts.GinMode)
 
+	// 初始化存储
 	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
 	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
 	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
@@ -104,8 +100,11 @@ func New(opts *Options) *Server {
 	storeOpts.IsCmdChannel = opts.IsCmdChannel
 	storeOpts.Db.ShardNum = s.opts.Db.ShardNum
 	s.store = clusterstore.NewStore(storeOpts)
+
+	// 初始化tag管理
 	s.tagManager = newTagManager(s)
 
+	// 初始化长连接引擎
 	s.engine = wknet.NewEngine(
 		wknet.WithAddr(s.opts.Addr),
 		wknet.WithWSAddr(s.opts.WSAddr),
@@ -118,25 +117,24 @@ func New(opts *Options) *Server {
 			trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(n))
 		}),
 	)
-	s.webhook = newWebhook(s)
-	s.channelReactor = newChannelReactor(s, opts)
-	s.userReactor = newUserReactor(s)
-	s.demoServer = NewDemoServer(s)
-	s.systemUIDManager = NewSystemUIDManager(s)
-	s.apiServer = NewAPIServer(s)
-	s.managerServer = NewManagerServer(s)
-	s.retryManager = newRetryManager(s)
-	s.conversationManager = NewConversationManager(s)
+	s.webhook = newWebhook(s)                         // webhook
+	s.channelReactor = newChannelReactor(s, opts)     // 频道的reactor
+	s.userReactor = newUserReactor(s)                 // 用户的reactor
+	s.demoServer = NewDemoServer(s)                   // demo server
+	s.systemUIDManager = NewSystemUIDManager(s)       // 系统账号管理
+	s.apiServer = NewAPIServer(s)                     // api服务
+	s.managerServer = NewManagerServer(s)             // 管理者的api服务
+	s.retryManager = newRetryManager(s)               // 消息重试管理
+	s.conversationManager = NewConversationManager(s) // 会话管理
 
+	// 初始化分布式服务
 	initNodes := make(map[uint64]string)
-
 	if len(s.opts.Cluster.Nodes) > 0 {
 		for _, node := range s.opts.Cluster.Nodes {
 			serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
 			initNodes[node.Id] = serverAddr
 		}
 	}
-
 	role := pb.NodeRole_NodeRoleReplica
 	if s.opts.Cluster.Role == RoleProxy {
 		role = pb.NodeRole_NodeRoleProxy
@@ -152,7 +150,7 @@ func New(opts *Options) *Server {
 			cluster.WithRole(role),
 			cluster.WithServerAddr(s.opts.Cluster.ServerAddr),
 			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
-			cluster.WithApiServerAddr(s.opts.External.APIUrl),
+			cluster.WithApiServerAddr(s.opts.Cluster.APIUrl),
 			cluster.WithChannelMaxReplicaCount(s.opts.Cluster.ChannelReplicaCount),
 			cluster.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
 			cluster.WithLogLevel(s.opts.Logger.Level),
@@ -185,6 +183,7 @@ func New(opts *Options) *Server {
 		s.handleClusterMessage(fromNodeId, msg)
 	})
 
+	// 消息投递管理者
 	s.deliverManager = newDeliverManager(s)
 
 	return s
@@ -225,8 +224,8 @@ func (s *Server) Start() error {
 	}
 	s.Info(fmt.Sprintf("Listening  for Manager http api on %s", fmt.Sprintf("http://%s", s.opts.HTTPAddr)))
 
-	if s.opts.Monitor.On {
-		s.Info(fmt.Sprintf("Listening  for Monitor on %s", s.opts.Monitor.Addr))
+	if s.opts.Manager.On {
+		s.Info(fmt.Sprintf("Listening  for Manager on %s", s.opts.Manager.Addr))
 	}
 
 	defer s.Info("Server is ready")
