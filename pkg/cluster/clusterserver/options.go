@@ -109,7 +109,7 @@ func NewOptions(opt ...Option) *Options {
 		LazyFreeCycle:              1,
 		InitialTaskQueueCap:        24,
 		LogSyncLimitSizeOfEach:     1024 * 1024 * 20, // 20M
-		Addr:                       "tcp://127.0.0.1:10001",
+		Addr:                       "tcp://127.0.0.1:11110",
 		ChannelElectionPoolSize:    10,
 		MaxChannelElectionBatchLen: 100,
 		ChannelMaxReplicaCount:     3,

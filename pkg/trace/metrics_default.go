@@ -297,7 +297,7 @@ func (d *metrics) requestAndFillAppMetrics(label string, filterId string, rg v1.
 }
 
 func (d *metrics) requestAndFillClusterMetrics(label string, rg v1.Range, rate bool, resps *[]*clusterMetricsResp) {
-	query := `rate(` + label + `[10s])`
+	query := `rate(` + label + `[1m])`
 	if !rate {
 		query = label
 	}
@@ -314,12 +314,12 @@ func (d *metrics) requestAndFillClusterMetrics(label string, rg v1.Range, rate b
 }
 
 func (d *metrics) requestAndFillSystemMetrics(label string, rg v1.Range, rate bool, resps *[]*systemMetricsResp) {
-	query := `rate(` + label + `[10s])`
+	query := `rate(` + label + `[1m])`
 	if !rate {
 		query = label
 	}
 	if label == "go_gc_duration_seconds_count" {
-		query = `increase(` + label + `[10s])`
+		query = `increase(` + label + `[1m])`
 	}
 	countValue, err := d.opts.requestPrometheus(query, rg)
 	if err != nil {
@@ -530,9 +530,9 @@ func getLabelByFilterId(label string, filterId string) string {
 
 func getRateByLabelFilterId(label string, filterId string) string {
 	if filterId != "" {
-		return `rate(` + label + `{id="` + filterId + `"}[10s])`
+		return `rate(` + label + `{id="` + filterId + `"}[1m])`
 	}
-	return `sum(rate(` + label + `[10s]))`
+	return `sum(rate(` + label + `[1m]))`
 }
 
 type appMetricsResp struct {

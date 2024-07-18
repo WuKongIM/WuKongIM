@@ -41,28 +41,6 @@ func (m *ManagerServer) Start() {
 	// jwt和token认证中间件
 	m.r.Use(m.jwtAndTokenAuthMiddleware())
 
-	m.r.Use(func(c *wkhttp.Context) { // 管理者权限判断
-		if c.FullPath() == "/api/varz" {
-			c.Next()
-			return
-		}
-		if strings.TrimSpace(m.s.opts.ManagerToken) == "" {
-			c.Next()
-			return
-		}
-		if strings.HasPrefix(c.FullPath(), "/web") {
-			c.Next()
-			return
-		}
-
-		managerToken := c.GetHeader("token")
-		if managerToken != m.s.opts.ManagerToken {
-			c.AbortWithStatus(http.StatusUnauthorized)
-			return
-		}
-		c.Next()
-	})
-
 	m.r.GetGinRoute().Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/metrics"})))
 
 	st, _ := fs.Sub(version.WebFs, "web/dist")
@@ -135,6 +113,10 @@ func (m *ManagerServer) jwtAndTokenAuthMiddleware() wkhttp.HandlerFunc {
 			return
 		}
 		if strings.HasPrefix(fpath, "/web") {
+			c.Next()
+			return
+		}
+		if strings.HasPrefix(fpath, "/metrics") {
 			c.Next()
 			return
 		}

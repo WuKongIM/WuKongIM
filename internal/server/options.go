@@ -79,12 +79,13 @@ type Options struct {
 		Addr string // demo服务地址 默认为 0.0.0.0:5172
 	}
 	External struct {
-		IP          string // 外网IP
-		TCPAddr     string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
-		WSAddr      string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
-		WSSAddr     string // 节点的wssAddr地址 对外公开 WEB端长连接通讯 格式： wss://ip:port
-		ManagerAddr string // 对外访问的管理地址
-		APIUrl      string // 对外访问的API基地址 格式: http://ip:port
+		IP                string // 外网IP
+		TCPAddr           string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
+		WSAddr            string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
+		WSSAddr           string // 节点的wssAddr地址 对外公开 WEB端长连接通讯 格式： wss://ip:port
+		ManagerAddr       string // 对外访问的管理地址
+		APIUrl            string // 对外访问的API基地址 格式: http://ip:port
+		AutoGetExternalIP bool   // 是否自动获取外网IP
 	}
 	Channel struct { // 频道配置
 		CacheCount                int    // 频道缓存数量
@@ -156,19 +157,17 @@ type Options struct {
 	}
 
 	Cluster struct {
-		NodeId                     uint64        // 节点ID
-		Addr                       string        // 节点监听地址 例如：tcp://0.0.0.0:11110
-		ServerAddr                 string        // 节点服务地址 例如 127.0.0.1:11110
-		APIUrl                     string        // 节点之间可访问的api地址
-		ReqTimeout                 time.Duration // 请求超时时间
-		Role                       Role          // 节点角色 replica, proxy
-		Seed                       string        // 种子节点
-		SlotReplicaCount           int           // 每个槽的副本数量
-		ChannelReplicaCount        int           // 每个频道的副本数量
-		SlotCount                  int           // 槽数量
-		Nodes                      []*Node       // 集群节点地址
-		PeerRPCMsgTimeout          time.Duration // 节点之间rpc消息超时时间
-		PeerRPCTimeoutScanInterval time.Duration // 节点之间rpc消息超时时间扫描间隔
+		NodeId              uint64        // 节点ID
+		Addr                string        // 节点监听地址 例如：tcp://0.0.0.0:11110
+		ServerAddr          string        // 节点之间能访问到的内网通讯地址 例如 127.0.0.1:11110
+		APIUrl              string        // 节点之间可访问的api地址
+		ReqTimeout          time.Duration // 请求超时时间
+		Role                Role          // 节点角色 replica, proxy
+		Seed                string        // 种子节点
+		SlotReplicaCount    int           // 每个槽的副本数量
+		ChannelReplicaCount int           // 每个频道的副本数量
+		SlotCount           int           // 槽数量
+		InitNodes           []*Node       // 集群初始节点地址
 
 		TickInterval time.Duration // 分布式tick间隔
 
@@ -348,42 +347,38 @@ func NewOptions(op ...Option) *Options {
 			Addr: "0.0.0.0:5172",
 		},
 		Cluster: struct {
-			NodeId                     uint64
-			Addr                       string
-			ServerAddr                 string
-			APIUrl                     string
-			ReqTimeout                 time.Duration
-			Role                       Role
-			Seed                       string
-			SlotReplicaCount           int
-			ChannelReplicaCount        int
-			SlotCount                  int
-			Nodes                      []*Node
-			PeerRPCMsgTimeout          time.Duration
-			PeerRPCTimeoutScanInterval time.Duration
-			TickInterval               time.Duration
-			HeartbeatIntervalTick      int
-			ElectionIntervalTick       int
-			ChannelReactorSubCount     int
-			SlotReactorSubCount        int
-			PongMaxTick                int
+			NodeId                 uint64
+			Addr                   string
+			ServerAddr             string
+			APIUrl                 string
+			ReqTimeout             time.Duration
+			Role                   Role
+			Seed                   string
+			SlotReplicaCount       int
+			ChannelReplicaCount    int
+			SlotCount              int
+			InitNodes              []*Node
+			TickInterval           time.Duration
+			HeartbeatIntervalTick  int
+			ElectionIntervalTick   int
+			ChannelReactorSubCount int
+			SlotReactorSubCount    int
+			PongMaxTick            int
 		}{
-			NodeId:                     1001,
-			Addr:                       "tcp://0.0.0.0:11110",
-			ServerAddr:                 "",
-			ReqTimeout:                 time.Second * 10,
-			Role:                       RoleReplica,
-			SlotCount:                  64,
-			SlotReplicaCount:           3,
-			ChannelReplicaCount:        3,
-			PeerRPCMsgTimeout:          time.Second * 20,
-			PeerRPCTimeoutScanInterval: time.Second * 1,
-			TickInterval:               time.Millisecond * 150,
-			HeartbeatIntervalTick:      1,
-			ElectionIntervalTick:       10,
-			ChannelReactorSubCount:     64,
-			SlotReactorSubCount:        64,
-			PongMaxTick:                30,
+			NodeId:                 1001,
+			Addr:                   "tcp://0.0.0.0:11110",
+			ServerAddr:             "",
+			ReqTimeout:             time.Second * 10,
+			Role:                   RoleReplica,
+			SlotCount:              64,
+			SlotReplicaCount:       3,
+			ChannelReplicaCount:    3,
+			TickInterval:           time.Millisecond * 150,
+			HeartbeatIntervalTick:  1,
+			ElectionIntervalTick:   10,
+			ChannelReactorSubCount: 64,
+			SlotReactorSubCount:    64,
+			PongMaxTick:            30,
 		},
 		Trace: struct {
 			Endpoint         string
@@ -502,6 +497,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.External.WSSAddr = o.getString("external.wssAddr", o.External.WSSAddr)
 	o.External.ManagerAddr = o.getString("external.managerAddr", o.External.ManagerAddr)
 	o.External.APIUrl = o.getString("external.apiUrl", o.External.APIUrl)
+	o.External.AutoGetExternalIP = o.getBool("external.autoGetExternalIP", o.External.AutoGetExternalIP)
 
 	o.Manager.On = o.getBool("manager.on", o.Manager.On)
 	o.Manager.Addr = o.getString("manager.addr", o.Manager.Addr)
@@ -578,37 +574,46 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.ConfigureDataDir() // 数据目录
 	o.configureLog(vp)   // 日志配置
 
-	ip := o.External.IP
-	if strings.TrimSpace(ip) == "" {
-		ip = getIntranetIP()
+	externalIp := o.External.IP
+	var err error
+	if strings.TrimSpace(externalIp) == "" && o.External.AutoGetExternalIP { // 开启了自动获取外网ip并且没有配置外网ip
+		externalIp, err = GetExternalIP() // 获取外网IP
+		if err != nil {
+			wklog.Panic("get external ip failed", zap.Error(err))
+		}
 	}
+
+	if strings.TrimSpace(externalIp) == "" {
+		externalIp = getIntranetIP() // 默认自动获取内网地址 (方便源码启动)
+	}
+
 	if strings.TrimSpace(o.External.TCPAddr) == "" {
 		addrPairs := strings.Split(o.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 
-		o.External.TCPAddr = fmt.Sprintf("%s:%d", ip, portInt64)
+		o.External.TCPAddr = fmt.Sprintf("%s:%d", externalIp, portInt64)
 	}
 	if strings.TrimSpace(o.External.WSAddr) == "" {
 		addrPairs := strings.Split(o.WSAddr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		o.External.WSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], ip, portInt64)
+		o.External.WSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], externalIp, portInt64)
 	}
 	if strings.TrimSpace(o.WSSAddr) != "" && strings.TrimSpace(o.External.WSSAddr) == "" {
 		addrPairs := strings.Split(o.WSSAddr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		o.External.WSSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], ip, portInt64)
+		o.External.WSSAddr = fmt.Sprintf("%s://%s:%d", addrPairs[0], externalIp, portInt64)
 	}
 
 	if strings.TrimSpace(o.External.ManagerAddr) == "" {
 		addrPairs := strings.Split(o.Manager.Addr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		o.External.ManagerAddr = fmt.Sprintf("%s:%d", ip, portInt64)
+		o.External.ManagerAddr = fmt.Sprintf("%s:%d", externalIp, portInt64)
 	}
 
 	if strings.TrimSpace(o.External.APIUrl) == "" {
 		addrPairs := strings.Split(o.HTTPAddr, ":")
 		portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
-		o.External.APIUrl = fmt.Sprintf("http://%s:%d", ip, portInt64)
+		o.External.APIUrl = fmt.Sprintf("http://%s:%d", externalIp, portInt64)
 	}
 
 	// =================== cluster ===================
@@ -630,15 +635,13 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	}
 	o.Cluster.SlotReplicaCount = o.getInt("cluster.slotReplicaCount", o.Cluster.SlotReplicaCount)
 	o.Cluster.ChannelReplicaCount = o.getInt("cluster.channelReplicaCount", o.Cluster.ChannelReplicaCount)
-	o.Cluster.PeerRPCMsgTimeout = o.getDuration("cluster.peerRPCMsgTimeout", o.Cluster.PeerRPCMsgTimeout)
 	o.Cluster.ServerAddr = o.getString("cluster.serverAddr", o.Cluster.ServerAddr)
-	o.Cluster.PeerRPCTimeoutScanInterval = o.getDuration("cluster.peerRPCTimeoutScanInterval", o.Cluster.PeerRPCTimeoutScanInterval)
 	o.Cluster.PongMaxTick = o.getInt("cluster.pongMaxTick", o.Cluster.PongMaxTick)
 
 	o.Cluster.ReqTimeout = o.getDuration("cluster.reqTimeout", o.Cluster.ReqTimeout)
 	o.Cluster.Seed = o.getString("cluster.seed", o.Cluster.Seed)
 	o.Cluster.SlotCount = o.getInt("cluster.slotCount", o.Cluster.SlotCount)
-	nodes := o.getStringSlice("cluster.nodes") // 格式为： nodeID@addr 例如 1@localhost:11110
+	nodes := o.getStringSlice("cluster.initNodes") // 格式为： nodeID@addr 例如 1@localhost:11110
 	if len(nodes) > 0 {
 		for _, nodeStr := range nodes {
 			if !strings.Contains(nodeStr, "@") {
@@ -656,7 +659,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 				addr = fmt.Sprintf("%s:%s", addr, defaultPort)
 			}
 
-			o.Cluster.Nodes = append(o.Cluster.Nodes, &Node{
+			o.Cluster.InitNodes = append(o.Cluster.InitNodes, &Node{
 				Id:         nodeID,
 				ServerAddr: addr,
 			})
@@ -673,6 +676,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
 	o.Trace.ServiceName = o.getString("trace.serviceName", o.Trace.ServiceName)
 	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
+	o.Trace.PrometheusApiUrl = o.getString("trace.prometheusApiUrl", o.Trace.PrometheusApiUrl)
 
 	// =================== deliver ===================
 	o.Deliver.DeliverrCount = o.getInt("deliver.deliverrCount", o.Deliver.DeliverrCount)
@@ -889,7 +893,7 @@ func (o *Options) ConfigFileUsed() string {
 
 // 是否是单机模式
 func (o *Options) IsSingleNode() bool {
-	return len(o.Cluster.Nodes) == 0
+	return len(o.Cluster.InitNodes) == 0
 }
 
 func (o *Options) getString(key string, defaultValue string) string {
@@ -1008,6 +1012,31 @@ func getIntranetIP() string {
 		return intranetIPs[0]
 	}
 	return ""
+}
+
+// 获取外网地址并保存到本地文件
+func GetExternalIP() (string, error) {
+
+	externalIPBytes, err := os.ReadFile("external_ip.txt")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			wklog.Warn("read external_ip.txt error", zap.Error(err))
+		}
+	} else if len(externalIPBytes) > 0 {
+		return string(externalIPBytes), nil
+	}
+
+	externalIP, err := wkutil.GetExternalIP()
+	if err != nil {
+		return "", err
+	}
+	if externalIP != "" {
+		err := os.WriteFile("external_ip.txt", []byte(externalIP), 0755)
+		if err != nil {
+			return "", err
+		}
+	}
+	return externalIP, nil
 }
 
 type Node struct {
@@ -1402,21 +1431,9 @@ func WithClusterSlotCount(slotCount int) Option {
 	}
 }
 
-func WithClusterNodes(nodes []*Node) Option {
+func WithClusterInitNodes(nodes []*Node) Option {
 	return func(opts *Options) {
-		opts.Cluster.Nodes = nodes
-	}
-}
-
-func WithClusterPeerRPCMsgTimeout(peerRPCMsgTimeout time.Duration) Option {
-	return func(opts *Options) {
-		opts.Cluster.PeerRPCMsgTimeout = peerRPCMsgTimeout
-	}
-}
-
-func WithClusterPeerRPCTimeoutScanInterval(peerRPCTimeoutScanInterval time.Duration) Option {
-	return func(opts *Options) {
-		opts.Cluster.PeerRPCTimeoutScanInterval = peerRPCTimeoutScanInterval
+		opts.Cluster.InitNodes = nodes
 	}
 }
 

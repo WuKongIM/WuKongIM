@@ -88,13 +88,13 @@ func (r *Replica) HasReady() bool {
 			return true
 		}
 		if r.status == StatusLogCoflictCheck && isFollower {
-			return r.leader != 0
+			return r.leader != 0 && r.logConflictCheckTick >= r.opts.RequestTimeoutTick
 		}
 		return false
 
 	}
 
-	if isFollower && r.leader != 0 && r.logConflictCheckTick >= r.opts.RequestTimeoutTick {
+	if isFollower && r.leader != 0 {
 		if r.syncTick >= r.syncIntervalTick && !r.syncing {
 			return true
 		}
@@ -147,8 +147,8 @@ func (r *Replica) Ready() Ready {
 		}
 	}
 	// ==================== 日志冲突检查 ====================
-	if r.status == StatusLogCoflictCheck && isFollower && r.logConflictCheckTick >= r.opts.RequestTimeoutTick {
-		if r.leader != 0 {
+	if r.status == StatusLogCoflictCheck && isFollower {
+		if r.leader != 0 && r.logConflictCheckTick >= r.opts.RequestTimeoutTick {
 			r.logConflictCheckTick = 0
 			r.msgs = append(r.msgs, r.newMsgLogConflictCheck())
 			rd.Messages = r.msgs
@@ -194,19 +194,20 @@ func (r *Replica) hardStateChange() bool {
 func (r *Replica) Tick() {
 
 	if r.role == RoleFollower || r.role == RoleLearner {
-		r.syncTick++
-		if r.syncTick > r.syncIntervalTick*2 { // 同步超时 一直没有返回
-			r.send(r.newSyncTimeoutMsg()) // 同步超时
 
-			// 重置同步状态，从而可以重新发起同步
-			r.syncing = false
-			r.syncTick = 0
-		}
+		if r.status == StatusReady {
+			r.syncTick++
+			if r.syncTick > r.syncIntervalTick*2 && r.status == StatusReady { // 同步超时 一直没有返回
+				r.send(r.newSyncTimeoutMsg()) // 同步超时
 
-		// 日志冲突检查超时，重新发起
-		if r.status == StatusLogCoflictCheck {
+				// 重置同步状态，从而可以重新发起同步
+				r.syncing = false
+				r.syncTick = 0
+			}
+		} else if r.status == StatusLogCoflictCheck { // 日志冲突检查超时，重新发起
 			r.logConflictCheckTick++
 		}
+
 	}
 
 	if r.tickFnc != nil {

@@ -87,6 +87,7 @@ func New(opts *Options) *Server {
 			trace.WithEndpoint(s.opts.Trace.Endpoint),
 			trace.WithServiceName(s.opts.Trace.ServiceName),
 			trace.WithServiceHostName(s.opts.Trace.ServiceHostName),
+			trace.WithPrometheusApiUrl(s.opts.Trace.PrometheusApiUrl),
 		))
 	trace.SetGlobalTrace(s.trace)
 
@@ -129,8 +130,8 @@ func New(opts *Options) *Server {
 
 	// 初始化分布式服务
 	initNodes := make(map[uint64]string)
-	if len(s.opts.Cluster.Nodes) > 0 {
-		for _, node := range s.opts.Cluster.Nodes {
+	if len(s.opts.Cluster.InitNodes) > 0 {
+		for _, node := range s.opts.Cluster.InitNodes {
 			serverAddr := strings.ReplaceAll(node.ServerAddr, "tcp://", "")
 			initNodes[node.Id] = serverAddr
 		}

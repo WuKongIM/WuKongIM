@@ -47,6 +47,7 @@ func (s *Server) handleLeaderTermStartIndex(c *wkserver.Context) {
 		}
 		binary.BigEndian.PutUint64(resultBytes, lastIndex)
 	}
+
 	c.Write(resultBytes)
 
 }

@@ -129,7 +129,6 @@ func (s *Server) Start() error {
 		if strings.TrimSpace(s.opts.Seed) != "" {
 			learners = []uint64{s.opts.NodeId}
 		}
-		fmt.Println("replicas--------->:", s.opts.NodeId, replicas, learners)
 
 		s.configReactor.Step(s.handlerKey, replica.Message{
 			MsgType: replica.MsgConfigResp,
