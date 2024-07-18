@@ -264,6 +264,7 @@ func (s *slot) FollowerToLeader(followerId uint64) error {
 
 func (s *slot) learnerTo(learnerId uint64) error {
 
+	fmt.Println("learnerTo----->", learnerId)
 	s.learnerToLock.Lock()
 	defer s.learnerToLock.Unlock()
 
@@ -288,7 +289,9 @@ func (s *slot) learnerTo(learnerId uint64) error {
 	if !wkutil.ArrayContainsUint64(slot.Replicas, slot.MigrateTo) {
 		slot.Replicas = append(slot.Replicas, slot.MigrateTo)
 	}
-	slot.Replicas = wkutil.RemoveUint64(slot.Replicas, slot.MigrateFrom)
+	if slot.MigrateFrom != slot.MigrateTo {
+		slot.Replicas = wkutil.RemoveUint64(slot.Replicas, slot.MigrateFrom)
+	}
 
 	if slot.Leader == slot.MigrateFrom {
 		slot.Leader = learnerId

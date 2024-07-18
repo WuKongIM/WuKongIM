@@ -110,6 +110,9 @@ func (s *Server) handleNodeJoin(cmd *CMD) error {
 	// 将新节点加入学习者列表
 	if !wkutil.ArrayContainsUint64(s.cfg.cfg.Learners, newNode.Id) {
 		s.cfg.cfg.Learners = append(s.cfg.cfg.Learners, newNode.Id)
+		// 如果是新加入的节点，就是从自己迁移到自己
+		s.cfg.cfg.MigrateFrom = newNode.Id
+		s.cfg.cfg.MigrateTo = newNode.Id
 	}
 
 	return s.SwitchConfig(s.cfg.cfg)

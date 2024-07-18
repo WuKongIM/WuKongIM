@@ -1,4 +1,4 @@
-mode: "release" 
+mode: "debug" 
 addr: "tcp://0.0.0.0:5110" # tcp监听地址
 httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
@@ -12,15 +12,11 @@ conversation:
   on: true   
 cluster:
   nodeId: 1001
-  addr: "tcp://127.0.0.1:10001"
+  addr: "tcp://127.0.0.1:11110"
   slotCount: 64
   slotReplicaCount: 3
   channelReplicaCount: 3
   apiUrl: "http://127.0.0.1:5001"
-  initNodes: 
-    - "1001@127.0.0.1:10001"
-    - "1002@127.0.0.1:10002"
-    - "1003@127.0.0.1:10003"
 
  # 认证配置 用户名:密码:资源:权限 *表示通配符   资源格式也可以是[资源ID:权限]  
  # 例如:  - "admin:pwd:[clusterchannel:rw]" 表示admin用户密码为pwd对clusterchannel资源有读写权限, 

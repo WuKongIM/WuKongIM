@@ -253,11 +253,15 @@ func (r *Replica) stepFollower(m Message) error {
 			r.logConflictCheckTick = r.opts.RequestTimeoutTick // 可以进行下次请求
 
 			if m.Index != NoConflict && m.Index > 0 {
-				r.replicaLog.updateLastIndex(m.Index - 1)
-
-				if m.Index >= r.replicaLog.unstable.offset {
-					r.replicaLog.unstable.truncateLogTo(m.Index)
+				truncateLogIndex := m.Index
+				if truncateLogIndex > r.replicaLog.lastLogIndex+1 {
+					truncateLogIndex = r.replicaLog.lastLogIndex + 1
 				}
+
+				if truncateLogIndex >= r.replicaLog.unstable.offset {
+					r.replicaLog.unstable.truncateLogTo(truncateLogIndex)
+				}
+				r.replicaLog.updateLastIndex(truncateLogIndex - 1)
 			}
 		}
 
@@ -312,11 +316,16 @@ func (r *Replica) stepLearner(m Message) error {
 			r.status = StatusReady
 
 			if m.Index != NoConflict && m.Index > 0 {
-				r.replicaLog.updateLastIndex(m.Index - 1)
 
-				if m.Index >= r.replicaLog.unstable.offset {
-					r.replicaLog.unstable.truncateLogTo(m.Index)
+				truncateLogIndex := m.Index
+				if truncateLogIndex > r.replicaLog.lastLogIndex+1 {
+					truncateLogIndex = r.replicaLog.lastLogIndex + 1
 				}
+
+				if truncateLogIndex >= r.replicaLog.unstable.offset {
+					r.replicaLog.unstable.truncateLogTo(truncateLogIndex)
+				}
+				r.replicaLog.updateLastIndex(truncateLogIndex - 1)
 			}
 		}
 	case MsgSyncResp: // 同步日志返回
@@ -337,6 +346,7 @@ func (r *Replica) stepLearner(m Message) error {
 		} else {
 			r.syncTick = 0
 		}
+		r.updateFollowCommittedIndex(m.CommittedIndex) // 更新提交索引
 	}
 
 	return nil

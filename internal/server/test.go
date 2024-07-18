@@ -60,8 +60,8 @@ func NewTestClusterServerTwoNode(t *testing.T, opt ...Option) (*Server, *Server)
 		ServerAddr: "0.0.0.0:11111",
 	})
 
-	s1 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5210"), WithManagerAddr("0.0.0.0:5310"), WithAddr("tcp://0.0.0.0:5110"), WithHTTPAddr("0.0.0.0:5001"), WithClusterAddr("tcp://0.0.0.0:11110"), WithClusterNodeId(1001), WithClusterNodes(nodes), WithOpts(opt...))
-	s2 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5220"), WithManagerAddr("0.0.0.0:5320"), WithAddr("tcp://0.0.0.0:5120"), WithHTTPAddr("0.0.0.0:5002"), WithClusterAddr("tcp://0.0.0.0:11111"), WithClusterNodeId(1002), WithClusterNodes(nodes), WithOpts(opt...))
+	s1 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5210"), WithManagerAddr("0.0.0.0:5310"), WithAddr("tcp://0.0.0.0:5110"), WithHTTPAddr("0.0.0.0:5001"), WithClusterAddr("tcp://0.0.0.0:11110"), WithClusterNodeId(1001), WithClusterInitNodes(nodes), WithOpts(opt...))
+	s2 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5220"), WithManagerAddr("0.0.0.0:5320"), WithAddr("tcp://0.0.0.0:5120"), WithHTTPAddr("0.0.0.0:5002"), WithClusterAddr("tcp://0.0.0.0:11111"), WithClusterNodeId(1002), WithClusterInitNodes(nodes), WithOpts(opt...))
 
 	return s1, s2
 }
@@ -92,7 +92,7 @@ func NewTestClusterServerTreeNode(t testing.TB, opt ...Option) (*Server, *Server
 		WithHTTPAddr("0.0.0.0:5001"),
 		WithClusterAddr("tcp://0.0.0.0:11110"),
 		WithClusterNodeId(1001),
-		WithClusterNodes(nodes),
+		WithClusterInitNodes(nodes),
 		WithClusterTickInterval(time.Millisecond*50),
 		WithOpts(opt...),
 	)
@@ -108,7 +108,7 @@ func NewTestClusterServerTreeNode(t testing.TB, opt ...Option) (*Server, *Server
 		WithHTTPAddr("0.0.0.0:5002"),
 		WithClusterAddr("tcp://0.0.0.0:11111"),
 		WithClusterNodeId(1002),
-		WithClusterNodes(nodes),
+		WithClusterInitNodes(nodes),
 		WithClusterTickInterval(time.Millisecond*50),
 		WithOpts(opt...),
 	)
@@ -124,7 +124,7 @@ func NewTestClusterServerTreeNode(t testing.TB, opt ...Option) (*Server, *Server
 		WithHTTPAddr("0.0.0.0:5003"),
 		WithClusterAddr("tcp://0.0.0.0:11112"),
 		WithClusterNodeId(1003),
-		WithClusterNodes(nodes),
+		WithClusterInitNodes(nodes),
 		WithClusterTickInterval(time.Millisecond*50),
 		WithOpts(opt...),
 	)

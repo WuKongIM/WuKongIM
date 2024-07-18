@@ -42,6 +42,9 @@ func (u *unstable) appliedTo(index uint64) {
 		return
 	}
 	num := int(index + 1 - u.offset)
+
+	fmt.Println("appliedTo", num, u.offset, index, len(u.logs))
+
 	u.logs = u.logs[num:]
 	u.offset = index + 1
 	u.offsetInProgress = max(u.offsetInProgress, u.offset)

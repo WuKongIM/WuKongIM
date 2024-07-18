@@ -42,6 +42,13 @@ func (s *DemoServer) Start() {
 
 	st, _ := fs.Sub(version.DemoFs, "demo/chatdemo/dist")
 	s.r.GetGinRoute().NoRoute(func(c *gin.Context) {
+
+		if c.Request.URL.Path == "" || c.Request.URL.Path == "/" {
+			c.Redirect(http.StatusFound, fmt.Sprintf("/chatdemo?apiurl=%s", s.s.opts.External.APIUrl))
+			c.Abort()
+			return
+		}
+
 		if strings.HasPrefix(c.Request.URL.Path, "/chatdemo") {
 			c.FileFromFS("./index.html", http.FS(st))
 			return

@@ -52,6 +52,13 @@ func (s *Server) checkClusterConfig() error {
 			return err
 		}
 
+		// 检查和均衡槽领导
+		err = s.handleSlotLeaderAutoBalance()
+		if err != nil {
+			s.Error("handleSlotLeaderAutoBalance failed", zap.Error(err))
+			return err
+		}
+
 	}
 
 	// ================== 处理槽领导选举 ==================
@@ -350,6 +357,8 @@ func (s *Server) handleNodeJoining() error {
 	if uint32(len(firstSlot.Replicas)) < s.cfgServer.SlotReplicaCount() { // 如果当前槽的副本数量小于配置的副本数量，则可以将新节点直接加入到学习节点中
 		for _, slot := range slots {
 			newSlot := slot.Clone()
+			newSlot.MigrateFrom = joiningNode.Id
+			newSlot.MigrateTo = joiningNode.Id
 			newSlot.Learners = append(slot.Learners, joiningNode.Id)
 			migrateSlots = append(migrateSlots, newSlot)
 		}
@@ -618,4 +627,36 @@ func (s *Server) handleSlotLeaderElection() error {
 	// 触发选举
 	return s.opts.OnSlotElection(electionSlots)
 
+}
+
+func (s *Server) handleSlotLeaderAutoBalance() error {
+
+	cfg := s.cfgServer.Config()
+
+	// 有未加入的节点或者有槽正在迁移，则不进行自动均衡
+	for _, node := range cfg.Nodes {
+		if node.Status != pb.NodeStatus_NodeStatusJoined {
+			return nil
+		}
+	}
+	for _, slot := range cfg.Slots {
+		if slot.MigrateFrom != 0 || slot.MigrateTo != 0 {
+			return nil
+		}
+		if slot.Status == pb.SlotStatus_SlotStatusCandidate {
+			return nil
+		}
+	}
+
+	// 自动均衡槽领导
+	changedSlots := s.autoBalanceSlotLeaders(cfg)
+	if len(changedSlots) == 0 {
+		return nil
+	}
+	err := s.ProposeSlots(changedSlots)
+	if err != nil {
+		s.Error("handleSlotLeaderAutoBalance failed,ProposeSlots failed", zap.Error(err))
+		return err
+	}
+	return nil
 }

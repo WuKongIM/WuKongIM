@@ -103,7 +103,12 @@ func New(opts *Options) *Server {
 			}
 			initNodes[seedNodeID] = seedAddr
 		}
-		initNodes[s.opts.NodeId] = strings.ReplaceAll(s.opts.Addr, "tcp://", "")
+		if s.opts.ServerAddr != "" {
+			initNodes[s.opts.NodeId] = strings.ReplaceAll(s.opts.ServerAddr, "tcp://", "")
+		} else {
+			initNodes[s.opts.NodeId] = strings.ReplaceAll(s.opts.Addr, "tcp://", "")
+		}
+
 	}
 
 	opts.Send = s.send
@@ -527,7 +532,7 @@ func (s *Server) joinLoop() {
 		case <-time.After(time.Second * 2):
 			resp, err := s.nodeManager.requestClusterJoin(seedNodeId, req)
 			if err != nil {
-				s.Error("requestClusterJoin failed", zap.Error(err))
+				s.Error("requestClusterJoin failed", zap.Error(err), zap.Uint64("seedNodeId", seedNodeId))
 				continue
 			}
 			if len(resp.Nodes) > 0 {

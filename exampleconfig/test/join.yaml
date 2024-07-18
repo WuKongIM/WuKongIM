@@ -1,27 +1,22 @@
-mode: "release" 
+mode: "debug" 
 addr: "tcp://0.0.0.0:5120" # tcp监听地址
 httpAddr: "0.0.0.0:5002" 
 wsAddr: "ws://0.0.0.0:5220" 
 rootDir: "./wukongimdata/2"
 manager:
-  on: true
-  addr: "0.0.0.0:5302"
+  on: false
 demo:
   on: true
-  addr: "0.0.0.0:5173"  
+  addr: "0.0.0.0:5173"
 conversation:
-  on: true  
+  on: true    
 cluster:
-  nodeId: 1002
-  addr: "tcp://127.0.0.1:10002" # 分布式监听地址
-  slotCount: 64
-  slotReplicaCount: 3
-  channelReplicaCount: 3
+  nodeId: 1005
+  addr: "tcp://127.0.0.1:11111" # 分布式监听地址
+  serverAddr: "127.0.0.1:11111" # 节点通讯地址
   apiUrl: "http://127.0.0.1:5002"
-  initNodes:
-    - "1001@127.0.0.1:10001"
-    - "1002@127.0.0.1:10002"
-    - "1003@127.0.0.1:10003"
+  seed: "1001@127.0.0.1:11110"  # 其他任意集群内的节点
+
 auth: 
   kind: 'jwt' # 认证方式 jwt: jwt认证 none: 无需认证
   users:
@@ -29,4 +24,4 @@ auth:
     - "guest:guest:[*:r]" # guest用户密码为guest对所有资源有读权限
 jwt:
   secret: "xxxxx"
-  expire: 30d 
+  expire: 30d
