@@ -46,7 +46,7 @@ func (m *ManagerServer) Start() {
 	st, _ := fs.Sub(version.WebFs, "web/dist")
 	m.r.GetGinRoute().NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/web") {
-			c.FileFromFS("./index.html", http.FS(st))
+			c.FileFromFS("./", http.FS(st))
 			return
 		}
 	})
@@ -107,7 +107,7 @@ func (m *ManagerServer) setRoutes() {
 func (m *ManagerServer) jwtAndTokenAuthMiddleware() wkhttp.HandlerFunc {
 	return func(c *wkhttp.Context) {
 
-		fpath := c.FullPath()
+		fpath := c.Request.URL.Path
 		if strings.HasPrefix(fpath, "/manager/login") { // 登录不需要认证
 			c.Next()
 			return
