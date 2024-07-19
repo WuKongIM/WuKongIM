@@ -1,7 +1,7 @@
 FROM golang:1.22 as build
 
-ENV GOPROXY https://goproxy.cn,direct
-ENV GO111MODULE on
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GO111MODULE=on
 
 # 安装 Node.js 和 Yarn
 RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg |  apt-key add -

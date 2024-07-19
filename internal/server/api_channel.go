@@ -1,12 +1,15 @@
 package server
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
@@ -48,24 +51,7 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/channel/whitelist_add", ch.whitelistAdd) // 添加白名单
 	r.POST("/channel/whitelist_set", ch.whitelistSet) // 设置白明单（覆盖
 	r.POST("/channel/whitelist_remove", ch.whitelistRemove)
-	r.GET("/channel/whitelist", func(c *wkhttp.Context) {
-		channelID := c.Query("channel_id")
-		channel, err := ch.s.channelManager.GetChannel(channelID, wkproto.ChannelTypeGroup)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
-		if channel == nil {
-			c.ResponseError(errors.New("频道不存在！"))
-			return
-		}
-		whitelist := make([]string, 0)
-		channel.whitelist.Range(func(key, value interface{}) bool {
-			whitelist = append(whitelist, key.(string))
-			return true
-		})
-		c.JSON(http.StatusOK, whitelist)
-	})
+	r.GET("/channel/whitelist", ch.whitelistGet) // 获取白名单
 	//################### 频道消息 ###################
 	// 同步频道消息
 	r.POST("/channel/messagesync", ch.syncMessages)
@@ -76,7 +62,8 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 
 func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 	var req ChannelCreateReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
@@ -84,14 +71,31 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		c.ResponseError(errors.New("暂不支持个人频道！"))
 		return
 	}
+
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的槽领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	// channelInfo := wkstore.NewChannelInfo(req.ChannelID, req.ChannelType)
 	channelInfo := req.ToChannelInfo()
 
-	err := ch.s.store.AddOrUpdateChannel(channelInfo)
+	err = ch.s.store.AddOrUpdateChannel(channelInfo)
 	if err != nil {
 		c.ResponseError(err)
 		ch.Error("创建频道失败！", zap.Error(err))
@@ -111,37 +115,60 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 			return
 		}
 	}
-	ch.s.channelManager.DeleteChannelFromCache(req.ChannelID, req.ChannelType)
+
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
+	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if cacheChannel != nil {
+		cacheChannel.info = channelInfo
+	}
+
 	c.ResponseOK()
 }
 
 // 更新或添加频道信息
 func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 	var req ChannelInfoReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
 		return
 	}
+
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	channelInfo := req.ToChannelInfo()
-	err := ch.s.store.AddOrUpdateChannel(channelInfo)
+	err = ch.s.store.AddOrUpdateChannel(channelInfo)
 	if err != nil {
 		ch.Error("添加或更新频道信息失败！", zap.Error(err))
 		c.ResponseError(errors.New("添加或更新频道信息失败！"))
 		return
 	}
-	// 如果有缓存则更新缓存
-	channel := ch.s.channelManager.getChannelFromCache(req.ChannelID, req.ChannelType)
-	if channel != nil {
-		channel.ChannelInfo = channelInfo
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
+	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if cacheChannel != nil {
+		cacheChannel.info = channelInfo
 	}
 	c.ResponseOK()
 }
 
 func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 	var req subscriberAddReq
-	if err := c.BindJSON(&req); err != nil {
-		ch.Error("数据格式有误！", zap.Error(err))
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
@@ -153,49 +180,56 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		c.ResponseError(errors.New("个人频道不支持添加订阅者！"))
 		return
 	}
+
+	if req.TempSubscriber == 1 {
+		c.ResponseError(errors.New("新版本临时订阅者已不支持！"))
+		return
+	}
+
 	if req.ChannelType == 0 {
 		req.ChannelType = wkproto.ChannelTypeGroup //默认为群
 	}
-	channel, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Info("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)), zap.Uint64("leaderId ", leaderInfo.Id))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	exist, err := ch.s.store.ExistChannel(req.ChannelID, req.ChannelType)
 	if err != nil {
-		ch.Error("获取频道失败！", zap.String("channel", req.ChannelID), zap.Error(err))
-		c.ResponseError(errors.Wrap(err, "获取频道失败！"))
+		ch.Error("查询频道失败！", zap.Error(err))
+		c.ResponseError(errors.New("查询频道失败！"))
 		return
 	}
-	if channel == nil {
-		ch.Error("频道不存在！", zap.String("channel_id", req.ChannelID), zap.Uint8("channel_type", req.ChannelType))
-		c.ResponseError(errors.New("频道并不存在！"))
-		return
+	if !exist { // 如果没有频道则创建
+		channelInfo := wkdb.NewChannelInfo(req.ChannelID, req.ChannelType)
+		err = ch.s.store.AddOrUpdateChannel(channelInfo)
+		if err != nil {
+			ch.Error("创建频道失败！", zap.Error(err))
+			c.ResponseError(errors.New("创建频道失败！"))
+			return
+		}
 	}
-	if req.TempSubscriber == 1 {
-		err = ch.addTmpSubscriberWithReq(req, channel)
-		if err != nil {
-			ch.Error("添加临时频道失败！", zap.Error(err))
-			c.ResponseError(errors.New("添加临时频道失败！"))
-			return
-		}
-	} else {
-		err = ch.addSubscriberWithReq(req, channel)
-		if err != nil {
-			ch.Error("添加频道失败！", zap.Error(err))
-			c.ResponseError(errors.New("添加频道失败！"))
-			return
-		}
+
+	err = ch.addSubscriberWithReq(req)
+	if err != nil {
+		ch.Error("添加频道失败！", zap.Error(err))
+		c.ResponseError(errors.New("添加频道失败！"))
+		return
 	}
 	c.ResponseOK()
 }
 
-func (ch *ChannelAPI) addTmpSubscriberWithReq(req subscriberAddReq, channel *Channel) error {
-	if req.Reset == 1 {
-		channel.RemoveAllTmpSubscriber()
-	}
-
-	channel.AddTmpSubscribers(req.Subscribers)
-
-	return nil
-}
-
-func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq, channel *Channel) error {
+func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	var err error
 	existSubscribers := make([]string, 0)
 	if req.Reset == 1 {
@@ -204,9 +238,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq, channel *Channe
 			ch.Error("移除所有订阅者失败！", zap.Error(err))
 			return err
 		}
-		channel.RemoveAllSubscriber()
 	} else {
-
 		existSubscribers, err = ch.s.store.GetSubscribers(req.ChannelID, req.ChannelType)
 		if err != nil {
 			ch.Error("获取所有订阅者失败！", zap.Error(err))
@@ -228,15 +260,24 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq, channel *Channe
 			ch.Error("添加订阅者失败！", zap.Error(err))
 			return err
 		}
-		channel.AddSubscribers(newSubscribers)
 	}
-
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
+	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if channel != nil {
+		// 重新生成接收者标签
+		_, err = channel.makeReceiverTag()
+		if err != nil {
+			ch.Error("创建接收者标签失败！", zap.Error(err))
+			return err
+		}
+	}
 	return nil
 }
 
 func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 	var req subscriberRemoveReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
@@ -244,31 +285,39 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	channel, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		ch.Error("获取频道失败！", zap.Error(err), zap.String("channelId", req.ChannelID))
-		c.ResponseError(errors.Wrap(err, "获取频道失败！"))
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		c.ResponseError(errors.New("个人频道不支持添加订阅者！"))
 		return
 	}
-	if channel == nil {
-		ch.Error("频道不存在！", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
-		c.ResponseError(errors.New("频道不存在！"))
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	err = ch.s.store.RemoveSubscribers(req.ChannelID, req.ChannelType, req.Subscribers)
+	if err != nil {
+		ch.Error("移除订阅者失败！", zap.Error(err))
+		c.ResponseError(err)
 		return
 	}
 
-	if req.TempSubscriber == 1 {
-		channel.RemoveTmpSubscribers(req.Subscribers)
-	} else {
-		err = ch.s.store.RemoveSubscribers(req.ChannelID, req.ChannelType, req.Subscribers)
+	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
+	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if channel != nil {
+		// 重新生成接收者标签
+		_, err = channel.makeReceiverTag()
 		if err != nil {
-			ch.Error("移除订阅者失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-		channel.RemoveSubscribers(req.Subscribers)
-		err = ch.s.conversationManager.DeleteConversation(req.Subscribers, req.ChannelID, req.ChannelType)
-		if err != nil {
-			ch.Error("删除最近会话失败！", zap.Error(err))
+			ch.Error("创建接收者标签失败！", zap.Error(err))
 			c.ResponseError(err)
 			return
 		}
@@ -279,7 +328,8 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 
 func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 	var req blacklistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -292,26 +342,35 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 		c.ResponseError(errors.New("uids不能为空！"))
 		return
 	}
-	err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+	err = ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
 	if err != nil {
 		ch.Error("添加黑名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.AddDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
 
 func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 	var req blacklistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -320,7 +379,23 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 		c.ResponseError(errors.New("频道ID不能为空！"))
 		return
 	}
-	err := ch.s.store.RemoveAllDenylist(req.ChannelID, req.ChannelType)
+
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	err = ch.s.store.RemoveAllDenylist(req.ChannelID, req.ChannelType)
 	if err != nil {
 		ch.Error("移除所有黑明单失败！", zap.Error(err))
 		c.ResponseError(errors.New("移除所有黑明单失败！"))
@@ -334,20 +409,14 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 			return
 		}
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.SetDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
 
 func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 	var req blacklistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -356,19 +425,27 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	err := ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+	err = ch.s.store.RemoveDenylist(req.ChannelID, req.ChannelType, req.UIDs)
 	if err != nil {
 		ch.Error("移除黑名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	// 缓存中移除
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.RemoveDenylist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -376,43 +453,36 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 // 删除频道
 func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 	var req ChannelDeleteReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
 		return
 	}
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		c.ResponseError(errors.New("个人频道不支持添加订阅者！"))
+		return
+	}
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
 
-	// TODO： 这里要试情况是否删除消息
-	// err := ch.s.store.DeleteChannelAndClearMessages(req.ChannelID, req.ChannelType)
-	// if err != nil {
-	// 	c.ResponseError(err)
-	// 	return
-	// }
+	err = ch.s.store.DeleteChannelAndClearMessages(req.ChannelID, req.ChannelType)
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
 
-	cha, err := ch.s.store.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	if cha == nil {
-		c.ResponseOK()
-		return
-	}
-	cha.Disband = true
-	err = ch.s.store.AddOrUpdateChannel(cha)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	err = ch.s.channelManager.DeleteChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	err = ch.s.store.RemoveAllSubscriber(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
 	c.ResponseOK()
 }
 
@@ -421,7 +491,8 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 // 添加白名单
 func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 	var req whitelistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -430,26 +501,39 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	if len(req.UIDs) == 0 {
+		c.ResponseError(errors.New("uids不能为空！"))
+		return
+	}
 
-	err := ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	err = ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
 	if err != nil {
 		ch.Error("添加白名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.AddAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
 func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 	var req whitelistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -458,7 +542,23 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 		c.ResponseError(errors.New("频道ID不能为空！"))
 		return
 	}
-	err := ch.s.store.RemoveAllAllowlist(req.ChannelID, req.ChannelType)
+
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	err = ch.s.store.RemoveAllAllowlist(req.ChannelID, req.ChannelType)
 	if err != nil {
 		ch.Error("移除所有白明单失败！", zap.Error(err))
 		c.ResponseError(errors.New("移除所有白明单失败！"))
@@ -472,13 +572,6 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 			return
 		}
 	}
-	// 增加到缓存中
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
-	channelObj.SetAllowlist(req.UIDs)
 
 	c.ResponseOK()
 }
@@ -486,7 +579,8 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 // 移除白名单
 func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 	var req whitelistReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
@@ -495,20 +589,58 @@ func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	err := ch.s.store.RemoveAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	err = ch.s.store.RemoveAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
 	if err != nil {
 		ch.Error("移除白名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	// 缓存中移除
-	channelObj, err := ch.s.channelManager.GetChannel(req.ChannelID, req.ChannelType)
+
+	c.ResponseOK()
+}
+
+func (ch *ChannelAPI) whitelistGet(c *wkhttp.Context) {
+	channelId := c.Query("channel_id")
+	channelType := wkutil.ParseUint8(c.Query("channel_type"))
+
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(channelId, channelType) // 获取频道的领导节点
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), nil)
+			return
+		}
+	}
+
+	whitelist, err := ch.s.store.GetAllowlist(channelId, channelType)
 	if err != nil {
+		ch.Error("获取白名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	channelObj.RemoveAllowlist(req.UIDs)
-	c.ResponseOK()
+
+	c.JSON(http.StatusOK, whitelist)
 }
 
 type PullMode int // 拉取模式
@@ -518,28 +650,40 @@ const (
 	PullModeUp                   // 向上拉取
 )
 
+func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := wkutil.ReadJSONByByte(bodyBytes, obj); err != nil {
+		return nil, err
+	}
+	return bodyBytes, nil
+}
+
 // 同步频道内的消息
 func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
+
 	var req struct {
 		LoginUID        string   `json:"login_uid"` // 当前登录用户的uid
 		ChannelID       string   `json:"channel_id"`
 		ChannelType     uint8    `json:"channel_type"`
-		StartMessageSeq uint32   `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
-		EndMessageSeq   uint32   `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
+		StartMessageSeq uint64   `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
+		EndMessageSeq   uint64   `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
 		Limit           int      `json:"limit"`             // 每次同步数量限制
 		PullMode        PullMode `json:"pull_mode"`         // 拉取模式 0:向下拉取 1:向上拉取
 	}
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		ch.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(errors.New("数据格式有误！"))
+		c.ResponseError(err)
 		return
 	}
 
 	var (
 		limit         = req.Limit
 		fakeChannelID = req.ChannelID
-		messages      []wkstore.Message
-		err           error
+		messages      []wkdb.Message
 	)
 
 	if limit > 10000 {
@@ -549,7 +693,26 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
+	if ch.s.opts.ClusterOn() {
+		leaderInfo, err := ch.s.cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+		if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
+			ch.Info("频道集群从未初始化，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.JSON(http.StatusOK, emptySyncMessageResp)
+			return
+		}
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
 
+		if !leaderIsSelf {
+			fmt.Println("转发请求：", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
 		messages, err = ch.s.store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
 	} else if req.PullMode == PullModeUp { // 向上拉取
@@ -565,7 +728,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			messageResp := &MessageResp{}
-			messageResp.from(message.(*Message), ch.s.store)
+			messageResp.from(message)
 			messageResps = append(messageResps, messageResp)
 		}
 	}

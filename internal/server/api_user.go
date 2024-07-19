@@ -1,11 +1,16 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/network"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -42,16 +47,33 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		UID        string `json:"uid"`         // 用户uid
 		DeviceFlag int    `json:"device_flag"` // 设备flag 这里 -1 为用户所有的设备
 	}
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
+	if u.s.opts.ClusterOn() {
+		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	if req.DeviceFlag == -1 {
-		u.quitUserDevice(req.UID, wkproto.APP)
-		u.quitUserDevice(req.UID, wkproto.WEB)
-		u.quitUserDevice(req.UID, wkproto.PC)
+		_ = u.quitUserDevice(req.UID, wkproto.APP)
+		_ = u.quitUserDevice(req.UID, wkproto.WEB)
+		_ = u.quitUserDevice(req.UID, wkproto.PC)
 	} else {
-		u.quitUserDevice(req.UID, wkproto.DeviceFlag(req.DeviceFlag))
+		_ = u.quitUserDevice(req.UID, wkproto.DeviceFlag(req.DeviceFlag))
 	}
 
 	c.ResponseOK()
@@ -60,19 +82,25 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 
 // 这里清空token 让设备去重新登录 空token是不让登录的
 func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
-	err := u.s.store.UpdateUserToken(uid, deviceFlag.ToUint8(), uint8(wkproto.DeviceLevelMaster), "") // 这里的deviceLevel可以随便给 不影响逻辑 这里随便给的master
+
+	err := u.s.store.AddOrUpdateDevice(wkdb.Device{
+		Uid:         uid,
+		DeviceFlag:  uint64(deviceFlag),
+		DeviceLevel: uint8(wkproto.DeviceLevelMaster),
+		Token:       "",
+	}) // 这里的deviceLevel可以随便给 不影响逻辑 这里随便给的master
 	if err != nil {
 		u.Error("清空用户token失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
 		return err
 	}
-	oldConns := u.s.connManager.GetConnsWith(uid, deviceFlag)
+	oldConns := u.s.userReactor.getConnContextByDeviceFlag(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
-			u.s.dispatch.dataOut(oldConn, &wkproto.DisconnectPacket{
+			u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
 				ReasonCode: wkproto.ReasonConnectKick,
 			})
 			u.s.timingWheel.AfterFunc(time.Second*2, func() {
-				oldConn.Close()
+				oldConn.close()
 			})
 		}
 	}
@@ -82,28 +110,129 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 
 func (u *UserAPI) getOnlineStatus(c *wkhttp.Context) {
 	var uids []string
-	if err := c.BindJSON(&uids); err != nil {
+	err := c.BindJSON(&uids)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	conns := u.s.connManager.GetOnlineConns(uids)
-
-	onlineStatusResps := make([]*OnlinestatusResp, 0, len(conns))
-	for _, conn := range conns {
-		onlineStatusResps = append(onlineStatusResps, &OnlinestatusResp{
-			UID:        conn.UID(),
-			DeviceFlag: conn.DeviceFlag(),
-			Online:     1,
-		})
+	if len(uids) == 0 {
+		c.ResponseOK()
+		return
 	}
 
-	c.JSON(http.StatusOK, onlineStatusResps)
+	var conns []*OnlinestatusResp
+	if u.s.opts.ClusterOn() {
+		var err error
+		conns, err = u.getOnlineConnsForCluster(uids)
+		if err != nil {
+			u.Error("获取在线状态失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	} else {
+		conns = u.getOnlineConns(uids)
+	}
+
+	c.JSON(http.StatusOK, conns)
+}
+
+func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, error) {
+	uidInPeerMap := make(map[uint64][]string)
+	localUids := make([]string, 0)
+	for _, uid := range uids {
+		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return nil, errors.New("获取频道所在节点失败！")
+		}
+		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
+		if leaderIsSelf {
+			localUids = append(localUids, uid)
+			continue
+		}
+		uidList := uidInPeerMap[leaderInfo.Id]
+		if uidList == nil {
+			uidList = make([]string, 0)
+		}
+		uidList = append(uidList, uid)
+		uidInPeerMap[leaderInfo.Id] = uidList
+	}
+	var conns []*OnlinestatusResp
+	if len(localUids) > 0 {
+		conns = u.getOnlineConns(localUids)
+	}
+	if len(uidInPeerMap) > 0 {
+		var reqErr error
+		wg := &sync.WaitGroup{}
+		for nodeId, uidList := range uidInPeerMap {
+			wg.Add(1)
+			go func(pid uint64, uidArr []string) {
+				results, err := u.requestOnlineStatus(pid, uidArr)
+				if err != nil {
+					reqErr = err
+				} else {
+					conns = append(conns, results...)
+				}
+				wg.Done()
+			}(nodeId, uidList)
+		}
+		wg.Wait()
+		if reqErr != nil {
+			return nil, reqErr
+		}
+	}
+
+	return conns, nil
+}
+
+func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*OnlinestatusResp, error) {
+
+	nodeInfo, err := u.s.cluster.NodeInfoById(nodeID) // 获取频道的领导节点
+	if err != nil {
+		u.Error("获取频道所在节点失败！", zap.Error(err), zap.Uint64("nodeID", nodeID))
+		return nil, errors.New("获取频道所在节点失败！")
+	}
+	reqURL := fmt.Sprintf("%s/user/onlinestatus", nodeInfo.ApiServerAddr)
+	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(uids)), nil)
+	if err != nil {
+		u.Error("获取在线用户状态失败！", zap.Error(err), zap.String("reqURL", reqURL))
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("获取在线用户状态请求状态错误！[%d]", resp.StatusCode)
+	}
+	var onlineStatusResps []*OnlinestatusResp
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &onlineStatusResps)
+	if err != nil {
+		u.Error("解析在线用户uids失败！", zap.Error(err))
+		return nil, err
+	}
+	return onlineStatusResps, nil
+}
+
+func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
+
+	onlineStatusResps := make([]*OnlinestatusResp, 0)
+	for _, uid := range uids {
+		conns := u.s.userReactor.getConnContexts(uid)
+		for _, conn := range conns {
+			onlineStatusResps = append(onlineStatusResps, &OnlinestatusResp{
+				UID:        conn.uid,
+				DeviceFlag: uint8(conn.deviceFlag),
+				Online:     1,
+			})
+		}
+	}
+	return onlineStatusResps
 }
 
 // 更新用户的token
 func (u *UserAPI) updateToken(c *wkhttp.Context) {
 	var req UpdateTokenReq
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -111,6 +240,27 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	if req.UID == u.s.opts.SystemUID {
+		c.ResponseError(errors.New("系统账号不允许更新token！"))
+		return
+	}
+
+	if u.s.opts.ClusterOn() {
+		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		if err != nil {
+			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
 	u.Debug("req", zap.Any("req", req))
 
 	ban := false // 是否被封禁
@@ -121,7 +271,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	if channelInfo != nil {
+	if !wkdb.IsEmptyChannelInfo(channelInfo) {
 		ban = channelInfo.Ban
 	}
 	if ban {
@@ -129,7 +279,23 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
-	err = u.s.store.UpdateUserToken(req.UID, req.DeviceFlag.ToUint8(), uint8(req.DeviceLevel), req.Token)
+	// 添加或更新用户
+	err = u.s.store.AddOrUpdateUser(wkdb.User{
+		Uid: req.UID,
+	})
+	if err != nil {
+		u.Error("更新用户失败！", zap.Error(err))
+		c.ResponseError(errors.Wrap(err, "更新用户失败！"))
+		return
+	}
+
+	// 添加或更新设备
+	err = u.s.store.AddOrUpdateDevice(wkdb.Device{
+		Uid:         req.UID,
+		DeviceFlag:  uint64(req.DeviceFlag),
+		DeviceLevel: uint8(req.DeviceLevel),
+		Token:       req.Token,
+	})
 	if err != nil {
 		u.Error("更新用户token失败！", zap.Error(err))
 		c.ResponseError(errors.Wrap(err, "更新用户token失败！"))
@@ -138,29 +304,29 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 
 	if req.DeviceLevel == wkproto.DeviceLevelMaster {
 		// 如果存在旧连接，则发起踢出请求
-		oldConns := u.s.connManager.GetConnsWith(req.UID, req.DeviceFlag)
+		oldConns := u.s.userReactor.getConnContextByDeviceFlag(req.UID, req.DeviceFlag)
 		if len(oldConns) > 0 {
 			for _, oldConn := range oldConns {
-				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ID()), zap.String("deviceFlag", req.DeviceFlag.String()))
-				u.s.dispatch.dataOut(oldConn, &wkproto.DisconnectPacket{
+				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.connId), zap.String("deviceFlag", req.DeviceFlag.String()))
+				_ = u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
 					ReasonCode: wkproto.ReasonConnectKick,
 					Reason:     "账号在其他设备上登录",
 				})
+
 				u.s.timingWheel.AfterFunc(time.Second*10, func() {
-					oldConn.Close()
+					oldConn.close()
 				})
 			}
-
 		}
 	}
 
-	// 创建或更新个人频道
-	err = u.s.channelManager.CreateOrUpdatePersonChannel(req.UID)
-	if err != nil {
-		u.Error("创建个人频道失败！", zap.Error(err))
-		c.ResponseError(errors.New("创建个人频道失败！"))
-		return
-	}
+	// // 创建或更新个人频道
+	// err = u.s.channelManager.CreateOrUpdatePersonChannel(req.UID)
+	// if err != nil {
+	// 	u.Error("创建个人频道失败！", zap.Error(err))
+	// 	c.ResponseError(errors.New("创建个人频道失败！"))
+	// 	return
+	// }
 	c.ResponseOK()
 }
 
@@ -172,6 +338,10 @@ func (u *UserAPI) systemUIDsAdd(c *wkhttp.Context) {
 	if err := c.BindJSON(&req); err != nil {
 		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+	if u.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式情况下暂不支持！"))
 		return
 	}
 	if len(req.UIDs) > 0 {
@@ -194,6 +364,10 @@ func (u *UserAPI) systemUIDsRemove(c *wkhttp.Context) {
 	if err := c.BindJSON(&req); err != nil {
 		u.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+	if u.s.opts.ClusterOn() {
+		c.ResponseError(errors.New("分布式情况下暂不支持！"))
 		return
 	}
 	if len(req.UIDs) > 0 {

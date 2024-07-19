@@ -3,7 +3,7 @@
 import { nextTick, onMounted, onUnmounted, ref, toRaw, toRefs, unref } from 'vue';
 import APIClient from '../services/APIClient'
 import { useRouter } from "vue-router";
-import { WKSDK, Message, StreamItem, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode, MessageContent, MessageContentType } from "wukongimjssdk";
+import { WKSDK, Message, StreamItem, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode, MessageContent, MessageContentType, ConnectionInfo } from "wukongimjssdk";
 import { ConnectStatus, ConnectStatusListener } from 'wukongimjssdk';
 import { SendackPacket, Setting } from 'wukongimjssdk';
 import { Buffer } from 'buffer';
@@ -70,13 +70,19 @@ const connectIM = (addr: string) => {
         config.token = token
     }
     config.addr = addr
+    config.sendCountOfEach = 100000
     WKSDK.shared().config = config
 
 
     // 监听连接状态
-    connectStatusListener = (status) => {
+    connectStatusListener = (status:ConnectStatus,reasonCode?:number,connectionInfo?:ConnectionInfo) => {
         if (status == ConnectStatus.Connected) {
-            title.value = `${uid || ""}(连接成功)`
+            if(connectionInfo) {
+                title.value = `${uid || ""}(连接成功-节点:${connectionInfo.nodeId})`
+            }else{
+                title.value = `${uid || ""}(连接成功)`
+            }
+           
         } else {
             title.value = `${uid || ""}(断开)`
         }
@@ -436,8 +442,8 @@ const onEnter = () => {
                 <div class="footer">
                     <input :placeholder="msgInputPlaceholder" v-model="text" style="height: 40px;"
                         @keydown.enter="onEnter" />
-                    <button class="message-stream" v-on:click="onMessageStream">{{ startStreamMessage ? '停止流消息' : '开启流消息'
-                    }}</button>
+                    <!-- <button class="message-stream" v-on:click="onMessageStream">{{ startStreamMessage ? '停止流消息' : '开启流消息'
+                    }}</button> -->
                     <button v-on:click="onSend">发送</button>
                 </div>
             </div>

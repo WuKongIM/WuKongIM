@@ -2,6 +2,7 @@ package wkutil
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"math"
 	"math/rand"
@@ -24,6 +25,20 @@ func IntToBool(b int) bool {
 		return true
 	}
 	return false
+}
+
+// BoolToInt bool值转换为int值
+func BoolToUint8(b bool) uint8 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// IntToBool int值转换为bool
+func Uint8ToBool(b uint8) bool {
+
+	return b == 1
 }
 
 // ToJSON 将对象转换为JSON
@@ -193,4 +208,33 @@ func RemoveRepeatedElement(arr []string) (newArr []string) {
 		}
 	}
 	return
+}
+
+func RemoveRepeatedElementOfUint64(arr []uint64) (newArr []uint64) {
+	newArr = make([]uint64, 0)
+	for i := 0; i < len(arr); i++ {
+		repeat := false
+		for j := i + 1; j < len(arr); j++ {
+			if arr[i] == arr[j] {
+				repeat = true
+				break
+			}
+		}
+		if !repeat {
+			newArr = append(newArr, arr[i])
+		}
+	}
+	return
+}
+
+func Uint32ArrayToStringArray(arr []uint32) (newArr []string) {
+	newArr = make([]string, 0)
+	for _, v := range arr {
+		newArr = append(newArr, strconv.Itoa(int(v)))
+	}
+	return
+}
+
+func Base64Decode(str string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(str)
 }

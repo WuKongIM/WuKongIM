@@ -2,537 +2,494 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
-type Channel struct {
-	*wkstore.ChannelInfo
-	blacklist     sync.Map // 黑名单
-	whitelist     sync.Map // 白名单
-	subscriberMap sync.Map // 订阅者
-	s             *Server
+type channel struct {
+	uniqueNo string
+
+	key         string
+	channelId   string
+	channelType uint8
+
+	info wkdb.ChannelInfo // 频道基础信息
+
+	msgQueue *channelMsgQueue // 消息队列
+
+	actions []*ChannelAction
+
+	// 缓存的订阅者 （不是全部的频道订阅者，是比较活跃的订阅者）
+	cacheSubscribers map[string]struct{}
+
+	// options
+	storageMaxSize uint64 // 每次存储的最大字节数量
+	deliverMaxSize uint64 // 每次投递的最大字节数量
+
+	forwardMaxSize uint64 // 每次转发消息的最大自己数量
+
+	r   *channelReactor
+	sub *channelReactorSub
+
+	mu sync.Mutex
+
+	status   channelStatus // 频道状态
+	role     channelRole   // 频道角色
+	leaderId uint64        // 频道领导节点
+
+	receiverTagKey atomic.String // 当前频道的接受者的tag key
+
 	wklog.Log
-	tmpSubscriberMap sync.Map // 临时订阅者
+
+	stepFnc func(*ChannelAction) error
+	tickFnc func()
+
+	payloadDecrypting  bool // 是否正在解密
+	permissionChecking bool // 是否正在检查权限
+	storaging          bool // 是否正在存储
+	sendacking         bool // 是否正在发送回执
+	delivering         bool // 是否正在投递
+	forwarding         bool // 是否正在转发
+
+	// 计时tick
+	storageTick            int // 发起存储的tick计时
+	initTick               int // 发起初始化的tick计时
+	sendTick               int // 发送消息的tick计时
+	forwardTick            int // 发起转发的tick计时
+	deliveringTick         int // 发起投递的tick计时
+	permissionCheckingTick int // 发起权限检查的tick计时
+	payloadDecryptingTick  int // 发起解密的tick计时
+	sendackingTick         int // 发起发送回执的tick计时
+
+	tagCheckTick int // tag检查的tick计时
+
+	opts *Options
 }
 
-// NewChannel NewChannel
-func NewChannel(channelInfo *wkstore.ChannelInfo, s *Server) *Channel {
+func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
+	key := wkutil.ChannelToKey(channelId, channelType)
 
-	return &Channel{
-		ChannelInfo:      channelInfo,
-		blacklist:        sync.Map{},
-		whitelist:        sync.Map{},
-		subscriberMap:    sync.Map{},
-		tmpSubscriberMap: sync.Map{},
-		s:                s,
-		Log:              wklog.NewWKLog(fmt.Sprintf("channel[%s-%d]", channelInfo.ChannelID, channelInfo.ChannelType)),
+	channelProcessIntervalTick := sub.r.opts.Reactor.ChannelProcessIntervalTick
+	return &channel{
+		key:                    key,
+		uniqueNo:               wkutil.GenUUID(),
+		channelId:              channelId,
+		channelType:            channelType,
+		msgQueue:               newChannelMsgQueue(channelId),
+		cacheSubscribers:       make(map[string]struct{}),
+		storageMaxSize:         1024 * 1024 * 2,
+		deliverMaxSize:         1024 * 1024 * 2,
+		forwardMaxSize:         1024 * 1024 * 2,
+		Log:                    wklog.NewWKLog(fmt.Sprintf("channelHandler[%d][%s]", sub.r.opts.Cluster.NodeId, key)),
+		r:                      sub.r,
+		sub:                    sub,
+		opts:                   sub.r.opts,
+		storageTick:            channelProcessIntervalTick,
+		initTick:               channelProcessIntervalTick,
+		forwardTick:            channelProcessIntervalTick,
+		deliveringTick:         channelProcessIntervalTick,
+		permissionCheckingTick: channelProcessIntervalTick,
+		payloadDecryptingTick:  channelProcessIntervalTick,
+		sendackingTick:         channelProcessIntervalTick,
 	}
+
 }
 
-// LoadData load data
-func (c *Channel) LoadData() error {
-	if err := c.s.systemUIDManager.LoadIfNeed(); err != nil { // 加载系统账号
-		return err
-	}
-	if err := c.initChannelInfo(); err != nil {
-		return err
-	}
-	if err := c.initSubscribers(); err != nil { // 初始化订阅者
-		return err
-	}
-	if err := c.initBlacklist(); err != nil { // 初始化黑名单
-		return err
-	}
-	if err := c.initWhitelist(); err != nil { // 初始化白名单
-		return err
-	}
-	return nil
-}
+func (c *channel) hasReady() bool {
+	if !c.isInitialized() { // 是否初始化
 
-func (c *Channel) initChannelInfo() error {
-	if !c.s.opts.Datasource.ChannelInfoOn {
-		return nil
-	}
-	if !c.s.opts.HasDatasource() {
-		return nil
-	}
-	if c.ChannelType == wkproto.ChannelTypePerson {
-		return nil
-	}
-	channelInfo, err := c.s.datasource.GetChannelInfo(c.ChannelID, c.ChannelType)
-	if err != nil {
-		c.Error("从数据获取频道信息失败！", zap.Error(err))
-		return err
-	}
-	if channelInfo != nil {
-		c.ChannelInfo = channelInfo
-		return nil
-	}
-	return nil
-}
-
-// 初始化订阅者
-func (c *Channel) initSubscribers() error {
-	channelID := c.ChannelID
-	channelType := c.ChannelType
-	if c.s.opts.HasDatasource() && channelType != wkproto.ChannelTypePerson {
-		subscribers, err := c.s.datasource.GetSubscribers(channelID, channelType)
-		if err != nil {
-			c.Error("从数据源获取频道订阅者失败！", zap.Error(err))
-			return err
-		}
-		if len(subscribers) > 0 {
-			for _, subscriber := range subscribers {
-				c.AddSubscriber(subscriber)
-			}
-		}
-	} else {
-		// ---------- 订阅者  ----------
-		subscribers, err := c.s.store.GetSubscribers(channelID, channelType)
-		if err != nil {
-			c.Error("获取频道订阅者失败！", zap.Error(err))
-			return err
-		}
-		if len(subscribers) > 0 {
-			for _, subscriber := range subscribers {
-				c.AddSubscriber(subscriber)
-			}
-		}
-	}
-	if channelType == wkproto.ChannelTypeCustomerService {
-		visitorID, _ := c.s.opts.GetCustomerServiceVisitorUID(channelID)
-		if visitorID != "" {
-			c.AddSubscriber(visitorID)
-		}
-	}
-
-	return nil
-}
-
-// 初始化黑名单
-func (c *Channel) initBlacklist() error {
-	var blacklists []string
-	var err error
-	if c.s.opts.HasDatasource() {
-		blacklists, err = c.s.datasource.GetBlacklist(c.ChannelID, c.ChannelType)
-		if err != nil {
-			c.Error("从数据源获取黑名单失败！", zap.Error(err))
-			return err
-		}
-	} else {
-		blacklists, err = c.s.store.GetDenylist(c.ChannelID, c.ChannelType)
-		if err != nil {
-			c.Error("获取黑名单失败！", zap.Error(err))
-			return err
-		}
-	}
-	if len(blacklists) > 0 {
-		for _, uid := range blacklists {
-			c.blacklist.Store(uid, true)
-		}
-	}
-	return nil
-}
-
-// 初始化黑名单
-func (c *Channel) initWhitelist() error {
-	var whitelists []string
-	var err error
-	if c.s.opts.HasDatasource() {
-		whitelists, err = c.s.datasource.GetWhitelist(c.ChannelID, c.ChannelType)
-		if err != nil {
-			c.Error("从数据源获取白名单失败！", zap.Error(err))
-			return err
-		}
-	} else {
-		whitelists, err = c.s.store.GetAllowlist(c.ChannelID, c.ChannelType)
-		if err != nil {
-			c.Error("获取白名单失败！", zap.Error(err))
-			return err
-		}
-	}
-	if len(whitelists) > 0 {
-		for _, uid := range whitelists {
-			c.whitelist.Store(uid, true)
-		}
-	}
-	return nil
-}
-
-// 获取父频道
-func (c *Channel) parentChannel() (*Channel, error) {
-	var parentChannel *Channel
-	if c.ChannelType == wkproto.ChannelTypeCommunityTopic {
-		parentChannelID := GetCommunityTopicParentChannelID(c.ChannelID)
-		if parentChannelID != "" {
-			var err error
-			parentChannel, err = c.s.channelManager.GetChannel(parentChannelID, wkproto.ChannelTypeCommunity)
-			if err != nil {
-				return nil, err
-			}
-			c.Debug("获取父类频道", zap.Any("parentChannel", parentChannel))
-		} else {
-			c.Warn("不符合的社区话题频道ID", zap.String("channelID", c.ChannelID))
-		}
-	}
-	return parentChannel, nil
-}
-
-// ---------- 订阅者 ----------
-
-// IsSubscriber 是否已订阅
-func (c *Channel) IsSubscriber(uid string) bool {
-
-	parent, err := c.parentChannel()
-	if err != nil {
-		c.Error("获取父类频道失败！", zap.Error(err))
-	}
-	if parent != nil {
-		ok := parent.IsSubscriber(uid)
-		if ok {
-			return ok
-		}
-	}
-	_, ok := c.subscriberMap.Load(uid)
-	if ok {
-		return ok
-	}
-	return false
-}
-
-// IsTmpSubscriber 是否是临时订阅者
-func (c *Channel) IsTmpSubscriber(uid string) bool {
-	_, ok := c.tmpSubscriberMap.Load(uid)
-	return ok
-}
-
-// ---------- 黑名单  ----------
-
-// IsDenylist 是否在黑名单内
-func (c *Channel) IsDenylist(uid string) bool {
-	_, ok := c.blacklist.Load(uid)
-	return ok
-}
-
-// AddSubscriber Add subscribers
-func (c *Channel) AddSubscriber(uid string) {
-	c.subscriberMap.Store(uid, true)
-}
-
-func (c *Channel) AddSubscribers(uids []string) {
-	if len(uids) > 0 {
-		for _, uid := range uids {
-			c.subscriberMap.Store(uid, true)
-		}
-	}
-}
-
-func (c *Channel) AddTmpSubscriber(uid string) {
-	c.tmpSubscriberMap.Store(uid, true)
-}
-
-func (c *Channel) AddTmpSubscribers(uids []string) {
-	if len(uids) > 0 {
-		for _, uid := range uids {
-			c.tmpSubscriberMap.Store(uid, true)
-		}
-	}
-}
-
-// Allow Whether to allow sending of messages If it is in the white list or not in the black list, it is allowed to send
-func (c *Channel) Allow(uid string) (bool, wkproto.ReasonCode) {
-
-	if c.ChannelType == wkproto.ChannelTypeInfo { // 资讯频道都可以发消息
-		return true, wkproto.ReasonSuccess
-	}
-
-	systemUID := c.s.systemUIDManager.SystemUID(uid) // 系统账号允许发消息
-	if systemUID {
-		c.Debug("system account is allowed to send messages", zap.String("uid", uid))
-		return true, wkproto.ReasonSuccess
-	}
-
-	if c.Ban { // 频道被封
-		c.Debug("channel is banned", zap.String("uid", uid))
-		return false, wkproto.ReasonBan
-	}
-	if c.Disband { // 频道已解散
-		c.Debug("channel is disband", zap.String("uid", uid))
-		return false, wkproto.ReasonDisband
-	}
-
-	if c.IsDenylist(uid) { // 黑名单判断
-		c.Debug("in blacklist", zap.String("uid", uid))
-		return false, wkproto.ReasonInBlacklist
-	}
-
-	// if c.ChannelType == wkproto.ChannelTypePerson && c.s.opts.IsFakeChannel(c.ChannelID) {
-	// 	if c.IsDenylist(uid) {
-	// 		return false, wkproto.ReasonInBlacklist
-	// 	}
-	// 	return true, wkproto.ReasonSuccess
-	// }
-	if c.ChannelType != wkproto.ChannelTypePerson || !c.s.opts.WhitelistOffOfPerson {
-		whitelistLength := 0
-		c.whitelist.Range(func(_, _ interface{}) bool {
-			whitelistLength++
+		if c.initTick < c.opts.Reactor.ChannelProcessIntervalTick {
 			return false
-		})
-		if whitelistLength > 0 { // 如果白名单有内容，则只判断白名单
-			_, ok := c.whitelist.Load(uid)
-			if ok {
-				return ok, wkproto.ReasonSuccess
+		}
+
+		return c.status != channelStatusInitializing
+	}
+
+	if c.hasPayloadUnDecrypt() { // 有未解密的消息
+		return true
+	}
+
+	if c.role == channelRoleLeader { // 领导者
+		if c.hasPermissionUnCheck() { // 是否有未检查权限的消息
+			return true
+		}
+		if c.hasUnstorage() { // 是否有未存储的消息
+			return true
+		}
+
+		if c.hasSendack() {
+			return true
+		}
+
+		if c.hasUnDeliver() { // 是否有未投递的消息
+			return true
+		}
+	} else if c.role == channelRoleProxy { // 代理者
+		if c.hasUnforward() {
+			return true
+		}
+	}
+	return len(c.actions) > 0
+}
+
+func (c *channel) ready() ready {
+
+	if !c.isInitialized() {
+		if c.status == channelStatusInitializing {
+			return ready{}
+		}
+		c.status = channelStatusInitializing
+		c.initTick = 0
+		c.exec(&ChannelAction{ActionType: ChannelActionInit})
+	} else {
+
+		if c.hasPayloadUnDecrypt() {
+			c.payloadDecrypting = true
+			c.payloadDecryptingTick = 0
+			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 1024*1024*2)
+			if len(msgs) > 0 {
+				c.exec(&ChannelAction{ActionType: ChannelActionPayloadDecrypt, Messages: msgs})
 			}
-			c.Debug("not in whitelist", zap.String("uid", uid))
-			return ok, wkproto.ReasonNotInWhitelist
 		}
-		if c.ChannelType == wkproto.ChannelTypePerson { // 个人频道强制验证白名单，除非WhitelistOffOfPerson==true
-			if whitelistLength == 0 {
-				c.Debug("whitelist is empty", zap.String("uid", uid))
-				return false, wkproto.ReasonNotInWhitelist
+
+		if c.role == channelRoleLeader {
+
+			// 如果没有权限检查的则去检查权限
+			if c.hasPermissionUnCheck() {
+				c.permissionChecking = true
+				c.permissionCheckingTick = 0
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.permissionCheckingIndex+1, c.msgQueue.payloadDecryptingIndex+1, 0)
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
+				}
+				// c.Info("permissionChecking...", zap.Uint64("permissionCheckingIndex", c.msgQueue.permissionCheckingIndex), zap.Uint64("payloadDecryptingIndex", c.msgQueue.payloadDecryptingIndex), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+			}
+
+			// 如果有未存储的消息，则继续存储
+			if c.hasUnstorage() {
+				c.storaging = true
+				c.storageTick = 0
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckingIndex+1, c.storageMaxSize)
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
+				}
+				// c.Info("storaging...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+
+			}
+
+			// 如果有未发送回执的消息
+			if c.hasSendack() {
+				c.sendacking = true
+				c.sendackingTick = 0
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.sendackingIndex+1, c.msgQueue.storagingIndex+1, 0)
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: msgs})
+				}
+			}
+
+			// 投递消息
+			if c.hasUnDeliver() {
+				c.delivering = true
+				c.deliveringTick = 0
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.deliveringIndex+1, c.msgQueue.storagingIndex+1, c.deliverMaxSize)
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionDeliver, Messages: msgs})
+				}
+				// c.Info("delivering...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+
+			}
+		} else if c.role == channelRoleProxy {
+			// 转发消息
+			if c.hasUnforward() {
+				c.forwarding = true
+				c.forwardTick = 0
+				msgs := c.msgQueue.sliceWithSize(c.msgQueue.forwardingIndex+1, c.msgQueue.payloadDecryptingIndex+1, c.deliverMaxSize)
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionForward, LeaderId: c.leaderId, Messages: msgs})
+				}
+				// c.Info("forwarding...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 			}
 		}
+
 	}
 
-	return true, wkproto.ReasonSuccess
+	actions := c.actions
+	c.actions = nil
+	return ready{
+		actions: actions,
+	}
 }
 
-// real subscribers
-func (c *Channel) RealSubscribers(customSubscribers []string) ([]string, error) {
+func (c *channel) hasPayloadUnDecrypt() bool {
+	if c.payloadDecrypting {
+		return false
+	}
 
-	subscribers := make([]string, 0)                        // TODO: 此处可以用对象pool来管理
-	if c.ChannelType == wkproto.ChannelTypeCommunityTopic { // 社区话题频道
-		channelSubscribers := c.GetAllSubscribers()
-		if len(channelSubscribers) == 0 { // 如果频道无订阅者，则获取父频道的订阅者
-			parentChannel, err := c.parentChannel()
-			if err != nil {
-				c.Error("获取父类频道失败！", zap.Error(err))
-				return nil, err
+	if c.payloadDecryptingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+
+	return c.msgQueue.payloadDecryptingIndex < c.msgQueue.lastIndex
+}
+
+// 有未权限检查的消息
+func (c *channel) hasPermissionUnCheck() bool {
+	if c.permissionChecking {
+		return false
+	}
+
+	if c.permissionCheckingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+
+	return c.msgQueue.permissionCheckingIndex < c.msgQueue.payloadDecryptingIndex
+}
+
+// 有未存储的消息
+func (c *channel) hasUnstorage() bool {
+	if c.storaging {
+		return false
+	}
+	if c.storageTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+	return c.msgQueue.storagingIndex < c.msgQueue.permissionCheckingIndex
+}
+
+// 有未发送回执的消息
+func (c *channel) hasSendack() bool {
+	if c.sendacking {
+		return false
+	}
+
+	if c.sendackingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+
+	return c.msgQueue.sendackingIndex < c.msgQueue.storagingIndex
+}
+
+// 有未投递的消息
+func (c *channel) hasUnDeliver() bool {
+	if c.delivering {
+		return false
+	}
+	if c.deliveringTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+	return c.msgQueue.deliveringIndex < c.msgQueue.storagingIndex
+}
+
+// 有未转发的消息
+func (c *channel) hasUnforward() bool {
+	if c.forwarding { // 在转发中
+		return false
+	}
+	if c.forwardTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		return false
+	}
+	return c.msgQueue.forwardingIndex < c.msgQueue.payloadDecryptingIndex
+}
+
+// 是否已初始化
+func (c *channel) isInitialized() bool {
+
+	return c.status == channelStatusInitialized
+}
+
+func (c *channel) tick() {
+	c.storageTick++
+	c.initTick++
+	c.forwardTick++
+	c.deliveringTick++
+	c.permissionCheckingTick++
+	c.payloadDecryptingTick++
+	c.sendackingTick++
+
+	c.sendTick++
+	if c.sendTick >= c.opts.Reactor.ChannelDeadlineTick {
+		c.sendTick = 0
+		c.exec(&ChannelAction{ActionType: ChannelActionClose})
+	}
+
+	if c.tickFnc != nil {
+		c.tickFnc()
+	}
+
+}
+
+func (c *channel) tickLeader() {
+	c.tagCheckTick++
+	if c.tagCheckTick >= c.opts.Reactor.TagCheckIntervalTick {
+		c.tagCheckTick = 0
+		if c.receiverTagKey.Load() != "" {
+			c.exec(&ChannelAction{ActionType: ChannelActionCheckTag})
+		}
+	}
+}
+
+func (c *channel) tickProxy() {
+
+}
+
+func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
+
+	c.sendTick = 0
+
+	messageId := c.r.messageIDGen.Generate().Int64() // 生成唯一消息ID
+	message := ReactorChannelMessage{
+		FromConnId:   fromConnId,
+		FromUid:      fromUid,
+		FromDeviceId: fromDeviceId,
+		FromNodeId:   fromNodeId,
+		SendPacket:   sendPacket,
+		MessageId:    messageId,
+		IsEncrypt:    isEncrypt,
+	}
+
+	c.sub.step(c, &ChannelAction{
+		UniqueNo:   c.uniqueNo,
+		ActionType: ChannelActionSend,
+		Messages:   []ReactorChannelMessage{message},
+	})
+
+	return messageId, nil
+}
+
+func (c *channel) becomeLeader() {
+	c.resetIndex()
+	c.leaderId = 0
+	c.role = channelRoleLeader
+	c.stepFnc = c.stepLeader
+	c.tickFnc = c.tickLeader
+	c.Info("become logic leader")
+
+}
+
+func (c *channel) becomeProxy(leaderId uint64) {
+	c.resetIndex()
+	c.role = channelRoleProxy
+	c.leaderId = leaderId
+	c.stepFnc = c.stepProxy
+	c.tickFnc = c.tickProxy
+	c.Info("become logic proxy", zap.Uint64("leaderId", c.leaderId))
+}
+
+func (c *channel) resetIndex() {
+	c.msgQueue.resetIndex()
+
+	// 释放掉之前的tag
+	if c.receiverTagKey.Load() != "" {
+		c.r.s.tagManager.releaseReceiverTag(c.receiverTagKey.Load())
+		c.receiverTagKey.Store("")
+	}
+
+	c.payloadDecrypting = false
+	c.permissionChecking = false
+	c.storaging = false
+	c.sendacking = false
+	c.delivering = false
+	c.forwarding = false
+
+	c.sendTick = 0
+
+	c.initTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.storageTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.forwardTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.deliveringTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.payloadDecryptingTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.sendackingTick = c.opts.Reactor.ChannelProcessIntervalTick
+
+}
+
+func (c *channel) advance() {
+	c.sub.advance()
+}
+
+// 是否是缓存中的订阅者
+func (c *channel) isCacheSubscriber(uid string) bool {
+	_, ok := c.cacheSubscribers[uid]
+	return ok
+}
+
+// 设置为缓存订阅者
+func (c *channel) setCacheSubscriber(uid string) {
+	c.cacheSubscribers[uid] = struct{}{}
+}
+
+type ready struct {
+	actions []*ChannelAction
+}
+
+func (c *channel) makeReceiverTag() (*tag, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.Debug("makeReceiverTag", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+
+	var subscribers []string
+	var err error
+	if c.channelType == wkproto.ChannelTypePerson {
+		if c.r.s.opts.IsFakeChannel(c.channelId) { // fake个人频道
+
+			if c.r.s.opts.IsCmdChannel(c.channelId) {
+				orginChannelId := c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
+				personSubscribers := strings.Split(orginChannelId, "@")
+				for _, personSubscriber := range personSubscribers {
+					if personSubscriber == c.r.opts.SystemUID { // 系统账号忽略
+						continue
+					}
+					subscribers = append(subscribers, personSubscriber)
+				}
+			} else {
+				subscribers = strings.Split(c.channelId, "@")
 			}
-			if parentChannel == nil {
-				return nil, errors.New("父类频道不存在！")
-			}
-			return parentChannel.RealSubscribers(customSubscribers)
+
 		}
-	} else if c.ChannelType == wkproto.ChannelTypeInfo {
-		subscribers = append(subscribers, c.GetAllTmpSubscribers()...)
-	}
-	// 组合订阅者
-
-	if len(customSubscribers) > 0 { // 如果指定了订阅者则消息只发给指定的订阅者，不将发送给其他订阅者
-		subscribers = append(subscribers, customSubscribers...)
-	} else { // 默认将消息发送给频道的订阅者
-		subscribers = append(subscribers, c.GetAllSubscribers()...)
-	}
-	return wkutil.RemoveRepeatedElement(subscribers), nil
-}
-
-// GetAllSubscribers 获取所有订阅者
-func (c *Channel) GetAllSubscribers() []string {
-	subscribers := make([]string, 0)
-	c.subscriberMap.Range(func(key, value interface{}) bool {
-		subscribers = append(subscribers, key.(string))
-		return true
-	})
-	return subscribers
-}
-
-func (c *Channel) GetAllTmpSubscribers() []string {
-	subscribers := make([]string, 0)
-	c.tmpSubscriberMap.Range(func(key, value interface{}) bool {
-		subscribers = append(subscribers, key.(string))
-		return true
-	})
-	return subscribers
-}
-
-// RemoveAllSubscriber 移除所有订阅者
-func (c *Channel) RemoveAllSubscriber() {
-	c.subscriberMap.Range(func(key, value interface{}) bool {
-		c.subscriberMap.Delete(key)
-		return true
-	})
-}
-
-// RemoveAllTmpSubscriber 移除所有临时订阅者
-func (c *Channel) RemoveAllTmpSubscriber() {
-	c.tmpSubscriberMap.Range(func(key, value interface{}) bool {
-		c.tmpSubscriberMap.Delete(key)
-		return true
-	})
-}
-
-// RemoveSubscriber  移除订阅者
-func (c *Channel) RemoveSubscriber(uid string) {
-	c.subscriberMap.Delete(uid)
-}
-
-func (c *Channel) RemoveSubscribers(uids []string) {
-	if len(uids) > 0 {
-		for _, uid := range uids {
-			c.subscriberMap.Delete(uid)
-		}
-	}
-}
-func (c *Channel) RemoveTmSubscriber(uid string) {
-	c.tmpSubscriberMap.Delete(uid)
-}
-
-func (c *Channel) RemoveTmpSubscribers(uids []string) {
-	if len(uids) > 0 {
-		for _, uid := range uids {
-			c.tmpSubscriberMap.Delete(uid)
-		}
-	}
-}
-
-// AddDenylist 添加黑名单
-func (c *Channel) AddDenylist(uids []string) {
-	if len(uids) == 0 {
-		return
-	}
-	for _, uid := range uids {
-		c.blacklist.Store(uid, true)
-	}
-}
-
-// SetDenylist SetDenylist
-func (c *Channel) SetDenylist(uids []string) {
-	c.blacklist.Range(func(key interface{}, value interface{}) bool {
-		c.blacklist.Delete(key)
-		return true
-	})
-	c.AddDenylist(uids)
-}
-
-// RemoveDenylist 移除黑名单
-func (c *Channel) RemoveDenylist(uids []string) {
-	if len(uids) == 0 {
-		return
-	}
-	for _, uid := range uids {
-		c.blacklist.Delete(uid)
-	}
-}
-
-// ---------- 白名单 ----------
-
-// AddAllowlist 添加白名单
-func (c *Channel) AddAllowlist(uids []string) {
-	if len(uids) == 0 {
-		return
-	}
-	for _, uid := range uids {
-		c.whitelist.Store(uid, true)
-	}
-
-}
-
-// SetAllowlist SetAllowlist
-func (c *Channel) SetAllowlist(uids []string) {
-	c.whitelist.Range(func(key interface{}, value interface{}) bool {
-		c.whitelist.Delete(key)
-		return true
-	})
-	c.AddAllowlist(uids)
-}
-
-// RemoveAllowlist 移除白名单
-func (c *Channel) RemoveAllowlist(uids []string) {
-	if len(uids) == 0 {
-		return
-	}
-	for _, uid := range uids {
-		c.whitelist.Delete(uid)
-	}
-}
-
-func (c *Channel) Put(messages []*Message, customSubscribers []string, fromUID string, fromDeviceFlag wkproto.DeviceFlag, fromDeviceID string) error {
-	//########## get subscribers ##########
-	subscribers, err := c.RealSubscribers(customSubscribers) // get subscribers
-	if err != nil {
-		c.Error("获取频道失败！", zap.Error(err))
-		return err
-	}
-
-	//########## store messages in user queue ##########
-	var messageSeqMap map[string]uint32
-	if len(messages) > 0 {
-		messageSeqMap, err = c.storeMessageToUserQueueIfNeed(messages, subscribers)
+	} else {
+		subscribers, err = c.r.s.store.GetSubscribers(c.channelId, c.channelType)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	// ########## update conversation ##########
-	if !c.Large && c.ChannelType != wkproto.ChannelTypeInfo { // 如果是大群 则不维护最近会话 几万人的大群，更新最近会话也太耗性能
-		var lastMsg *Message
-		for i := len(messages) - 1; i >= 0; i-- {
-			m := messages[i]
-			if !m.NoPersist && !m.SyncOnce {
-				lastMsg = messages[i]
+	var nodeUserList = make([]*nodeUsers, 0, 20)
+	for _, subscriber := range subscribers {
+		leaderInfo, err := c.r.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的槽领导节点
+		if err != nil {
+			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+			return nil, err
+		}
+		exist := false
+		for _, nodeUser := range nodeUserList {
+			if nodeUser.nodeId == leaderInfo.Id {
+				nodeUser.uids = append(nodeUser.uids, subscriber)
+				exist = true
 				break
 			}
 		}
-		if lastMsg != nil {
-			c.updateConversations(lastMsg, subscribers)
+		if !exist {
+			nodeUserList = append(nodeUserList, &nodeUsers{
+				nodeId: leaderInfo.Id,
+				uids:   []string{subscriber},
+			})
 		}
 	}
-
-	//########## delivery messages ##########
-	c.s.deliveryManager.startDeliveryMessages(messages, c.Large, messageSeqMap, subscribers, fromUID, fromDeviceFlag, fromDeviceID)
-
-	return nil
-}
-
-// store message to user queue if need
-func (c *Channel) storeMessageToUserQueueIfNeed(messages []*Message, subscribers []string) (map[string]uint32, error) {
-	if len(messages) == 0 {
-		return nil, nil
+	if c.receiverTagKey.Load() != "" {
+		// 释放掉之前的tag
+		c.r.s.tagManager.releaseReceiverTag(c.receiverTagKey.Load())
 	}
-
-	messageSeqMap := make(map[string]uint32, len(messages))
-
-	for _, subscriber := range subscribers {
-		storeMessages := make([]wkstore.Message, 0, len(messages))
-		for _, m := range messages {
-
-			if m.NoPersist || !m.SyncOnce {
-				continue
-			}
-
-			cloneMsg, err := m.DeepCopy()
-			if err != nil {
-				return nil, err
-			}
-			cloneMsg.ToUID = subscriber
-			cloneMsg.large = c.Large
-			if m.ChannelType == wkproto.ChannelTypePerson && m.ChannelID == subscriber {
-				cloneMsg.ChannelID = m.FromUID
-			}
-			storeMessages = append(storeMessages, cloneMsg)
-		}
-		if len(storeMessages) > 0 {
-			_, err := c.s.store.AppendMessagesOfUser(subscriber, storeMessages) // will fill messageSeq after store messages
-			if err != nil {
-				return nil, err
-			}
-			for _, storeMessage := range storeMessages {
-				messageSeqMap[fmt.Sprintf("%s-%d", subscriber, storeMessage.GetMessageID())] = storeMessage.GetSeq()
-			}
-		}
-	}
-	return messageSeqMap, nil
-}
-
-func (c *Channel) updateConversations(m *Message, subscribers []string) {
-	c.s.conversationManager.PushMessage(m, subscribers)
-
+	receiverTagKey := wkutil.GenUUID()
+	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList)
+	newTag.ref.Inc() // tag引用计数加1
+	c.receiverTagKey.Store(receiverTagKey)
+	return newTag, nil
 }

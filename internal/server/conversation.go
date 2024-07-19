@@ -2,496 +2,509 @@ package server
 
 import (
 	"fmt"
-	"sort"
+	"hash/fnv"
+	"os"
+	"path"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkstore"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/robfig/cron/v3"
+	"github.com/lni/goutils/syncutil"
 	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/zap"
 )
 
-// ConversationManager ConversationManager
 type ConversationManager struct {
-	s *Server
+	stopper *syncutil.Stopper
 	wklog.Log
-	queue                          *Queue
-	userConversationMapBuckets     []map[string]*lru.Cache[string, *wkstore.Conversation]
-	userConversationMapBucketLocks []sync.RWMutex
-	bucketNum                      int
-	needSaveConversationMap        map[string]bool
-	mu                             deadlock.RWMutex
-	stopChan                       chan struct{} //停止信号
-	calcChan                       chan interface{}
-	needSaveChan                   chan string
-	crontab                        *cron.Cron
+	s *Server
+
+	workers []*conversationWorker
+
+	deadlock.RWMutex
 }
 
-// NewConversationManager NewConversationManager
 func NewConversationManager(s *Server) *ConversationManager {
+
 	cm := &ConversationManager{
-		s:                       s,
-		bucketNum:               10,
-		Log:                     wklog.NewWKLog("ConversationManager"),
-		needSaveConversationMap: map[string]bool{},
-		stopChan:                make(chan struct{}),
-		calcChan:                make(chan interface{}),
-		needSaveChan:            make(chan string),
-		queue:                   NewQueue(),
+		Log:     wklog.NewWKLog("ConversationManager"),
+		stopper: syncutil.NewStopper(),
+		s:       s,
 	}
-	cm.userConversationMapBuckets = make([]map[string]*lru.Cache[string, *wkstore.Conversation], cm.bucketNum)
-	cm.userConversationMapBucketLocks = make([]sync.RWMutex, cm.bucketNum)
-
-	s.Schedule(time.Minute, func() {
-		totalConversation := 0
-		for i := 0; i < cm.bucketNum; i++ {
-			cm.userConversationMapBucketLocks[i].Lock()
-			userConversationMap := cm.userConversationMapBuckets[i]
-			for _, cache := range userConversationMap {
-				totalConversation += cache.Len()
-			}
-			cm.userConversationMapBucketLocks[i].Unlock()
-		}
-		s.monitor.ConversationCacheSet(totalConversation)
-	})
-
-	cm.crontab = cron.New(cron.WithSeconds())
-
-	cm.crontab.AddFunc("0 0 2 * * ?", cm.clearExpireConversations) // 每条凌晨2点执行一次
 
 	return cm
 }
 
-// Start Start
-func (cm *ConversationManager) Start() {
-	if cm.s.opts.Conversation.On {
-		go cm.saveloop()
-		for i := 0; i < 20; i++ {
-			go cm.calcLoop()
-		}
-		cm.crontab.Start()
+func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids []string, messages []ReactorChannelMessage) {
+	if strings.TrimSpace(fakeChannelId) == "" || len(uids) == 0 || len(messages) == 0 {
+		return
 	}
 
-}
-
-// Stop Stop
-func (cm *ConversationManager) Stop() {
-	if cm.s.opts.Conversation.On {
-		cm.FlushConversations()
-		// Wait for the queue to complete
-		cm.queue.Wait()
-		cm.queue.Close()
-
-		close(cm.stopChan)
-
-		cm.crontab.Stop()
-	}
-}
-
-// 清空过期最近会话
-func (cm *ConversationManager) clearExpireConversations() {
-	for idx := range cm.userConversationMapBucketLocks {
-		cm.userConversationMapBucketLocks[idx].Lock()
-		userConversationMap := cm.userConversationMapBuckets[idx]
-		for uid, cache := range userConversationMap {
-			keys := cache.Keys()
-			for _, key := range keys {
-				conversation, _ := cache.Get(key)
-				if conversation != nil {
-					if conversation.Timestamp+int64(cm.s.opts.Conversation.CacheExpire.Seconds()) < time.Now().Unix() {
-						cache.Remove(key)
-					}
-				}
-			}
-			if cache.Len() == 0 {
-				delete(userConversationMap, uid)
-			}
-		}
-		cm.userConversationMapBucketLocks[idx].Unlock()
-	}
-}
-
-// 保存最近会话
-func (cm *ConversationManager) calcLoop() {
-
-	for {
-		messageMapObj := cm.queue.Pop()
-		if messageMapObj == nil {
+	// 处理发送者的最近会话
+	for _, message := range messages {
+		if message.FromUid == "" {
 			continue
 		}
-		messageMap := messageMapObj.(map[string]interface{})
-		message := messageMap["message"].(*Message)
-		subscribers := messageMap["subscribers"].([]string)
+		if message.SendPacket.NoPersist {
+			continue
+		}
 
-		for _, subscriber := range subscribers {
-			cm.calConversation(message, subscriber)
+		if message.FromUid == c.s.opts.SystemUID {
+			continue
+		}
+
+		if channelType == wkproto.ChannelTypePerson {
+			from, to := GetFromUIDAndToUIDWith(fakeChannelId)
+			if from == c.s.opts.SystemUID || to == c.s.opts.SystemUID { // 与系统账号的会话都忽略
+				continue
+			}
+		}
+
+		worker := c.worker(message.FromUid)
+		worker.getOrCreateUserConversation(message.FromUid).updateOrAddConversation(fakeChannelId, channelType, message.MessageSeq)
+	}
+
+	// 处理接受者的最近会话
+	for _, uid := range uids {
+
+		if uid == c.s.opts.SystemUID {
+			continue
+		}
+
+		worker := c.worker(uid)
+		userConversation := worker.getOrCreateUserConversation(uid)
+
+		// 如果用户最近会话缓存中不存在，则加入到缓存，如果存在可以直接忽略
+		if !userConversation.existConversation(fakeChannelId, channelType) {
+			// 如果数据库中存在会话，则仅仅添加到缓存，不需要更新数据库
+			existInDb, err := c.s.store.DB().ExistConversation(uid, fakeChannelId, channelType)
+			if err != nil {
+				c.Error("exist conversation err", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+				continue
+			}
+			if existInDb {
+				channelConversation := userConversation.addConversationIfNotExist(fakeChannelId, channelType, 0)
+				if channelConversation != nil { // 如果db中存在会话，则不需要更新
+					channelConversation.NeedUpdate = false
+				}
+			} else {
+				userConversation.addConversationIfNotExist(fakeChannelId, channelType, 0) // 只有缓存中不存在的时候才添加
+			}
+		}
+
+	}
+
+}
+
+func (c *ConversationManager) Start() error {
+
+	c.workers = make([]*conversationWorker, c.s.opts.Conversation.WorkerCount)
+	for i := 0; i < c.s.opts.Conversation.WorkerCount; i++ {
+		cw := newConversationWorker(i, c.s)
+		c.workers[i] = cw
+		err := cw.start()
+		if err != nil {
+			c.Error("start conversation worker err", zap.Error(err))
+			return err
+		}
+	}
+
+	c.recoverFromFile()
+
+	return nil
+}
+
+func (c *ConversationManager) Stop() {
+
+	for _, w := range c.workers {
+		w.stop()
+	}
+
+	c.saveToFile()
+}
+
+func (c *ConversationManager) saveToFile() {
+	c.Lock()
+	defer c.Unlock()
+
+	conversationDir := path.Join(c.s.opts.DataDir, "conversation")
+	err := os.MkdirAll(conversationDir, 0755)
+	if err != nil {
+		c.Error("mkdir conversation dir err", zap.Error(err))
+		return
+	}
+
+	jsonMap := make(map[string][]*channelConversation)
+	for _, w := range c.workers {
+		for _, cc := range w.userConversations {
+			jsonMap[cc.uid] = cc.conversations
+		}
+	}
+	if len(jsonMap) == 0 {
+		return
+	}
+
+	err = os.WriteFile(path.Join(conversationDir, "conversation.json"), []byte(wkutil.ToJSON(jsonMap)), 0644)
+	if err != nil {
+		c.Error("write conversation file err", zap.Error(err))
+	}
+}
+
+func (c *ConversationManager) recoverFromFile() {
+
+	conversationPath := path.Join(c.s.opts.DataDir, "conversation", "conversation.json")
+
+	if !wkutil.FileExists(conversationPath) {
+		return
+	}
+
+	data, err := wkutil.ReadFile(conversationPath)
+	if err != nil {
+		c.Panic("read conversation file err", zap.Error(err))
+		return
+	}
+
+	if len(data) == 0 {
+		return
+	}
+
+	var jsonMap map[string][]*channelConversation
+	err = wkutil.ReadJSONByByte(data, &jsonMap)
+	if err != nil {
+		c.Panic("read conversation file err", zap.Error(err))
+		return
+	}
+
+	for uid, conversations := range jsonMap {
+		cc := c.worker(uid).getOrCreateUserConversation(uid)
+		cc.conversations = conversations
+	}
+
+	err = wkutil.RemoveFile(conversationPath)
+	if err != nil {
+		c.Error("remove conversation file err", zap.Error(err))
+	}
+
+}
+
+func (c *ConversationManager) worker(uid string) *conversationWorker {
+	c.Lock()
+	defer c.Unlock()
+	h := fnv.New32a()
+	h.Write([]byte(uid))
+
+	i := h.Sum32() % uint32(len(c.workers))
+	return c.workers[i]
+}
+
+func (c *ConversationManager) GetUserConversationFromCache(uid string, conversationType wkdb.ConversationType) []wkdb.Conversation {
+
+	worker := c.worker(uid)
+
+	uconversation := worker.getUserConversation(uid)
+	if uconversation == nil {
+		return nil
+	}
+	return uconversation.getConversationsByType(conversationType)
+
+}
+
+func (c *ConversationManager) DeleteUserConversationFromCache(uid string, channelId string, channelType uint8) {
+	userconversation := c.worker(uid).getUserConversation(uid)
+	if userconversation == nil {
+		return
+	}
+	userconversation.deleteConversation(channelId, channelType)
+}
+
+func (c *ConversationManager) existConversationInCache(uid string, channelId string, channelType uint8) bool {
+	userconversation := c.worker(uid).getUserConversation(uid)
+	if userconversation == nil {
+		return false
+	}
+	return userconversation.existConversation(channelId, channelType)
+
+}
+
+type conversationWorker struct {
+	s                 *Server
+	userConversations []*userConversation
+	wklog.Log
+	index   int
+	stopper *syncutil.Stopper
+
+	sync.RWMutex
+}
+
+func newConversationWorker(i int, s *Server) *conversationWorker {
+	return &conversationWorker{
+		s:       s,
+		Log:     wklog.NewWKLog(fmt.Sprintf("conversationWorker[%d]", i)),
+		index:   i,
+		stopper: syncutil.NewStopper(),
+	}
+}
+
+func (c *conversationWorker) start() error {
+	c.stopper.RunWorker(c.loopPropose)
+	return nil
+}
+
+func (c *conversationWorker) stop() {
+	c.stopper.Stop()
+}
+
+func (c *conversationWorker) loopPropose() {
+
+	tk := time.NewTicker(time.Minute * 5)
+
+	for {
+		select {
+		case <-tk.C:
+			c.propose()
+		case <-c.stopper.ShouldStop():
+			return
+		}
+	}
+
+}
+
+func (c *conversationWorker) propose() {
+
+	c.Lock()
+	tmpUserConversations := make([]*userConversation, len(c.userConversations))
+	if len(c.userConversations) > 0 {
+		copy(tmpUserConversations, c.userConversations)
+	}
+	c.Unlock()
+
+	for _, cc := range tmpUserConversations {
+
+		var conversations []wkdb.Conversation
+
+		cc.Lock()
+		for _, conversation := range cc.conversations {
+			if conversation.NeedUpdate {
+				conversation.NeedUpdate = false // 提前设置为false，防止在更新的时候再次更新
+
+				var conversationType wkdb.ConversationType
+				if c.s.opts.IsCmdChannel(conversation.ChannelId) {
+					conversationType = wkdb.ConversationTypeCMD
+				} else {
+					conversationType = wkdb.ConversationTypeChat
+				}
+				conversations = append(conversations, wkdb.Conversation{
+					Uid:            cc.uid,
+					Type:           conversationType,
+					ChannelId:      conversation.ChannelId,
+					ChannelType:    conversation.ChannelType,
+					ReadedToMsgSeq: uint64(conversation.ReadedMsgSeq),
+				})
+			}
+		}
+		cc.Unlock()
+		if len(conversations) > 0 {
+			err := c.s.store.AddOrUpdateConversations(cc.uid, conversations)
+			if err != nil {
+				c.Error("add or update conversations err", zap.Error(err))
+
+				// 如果更新失败，则需要重新更新
+				cc.Lock()
+				for _, conversation := range cc.conversations {
+					conversation.NeedUpdate = true
+				}
+				cc.Unlock()
+			}
+
 		}
 	}
 }
 
-func (cm *ConversationManager) saveloop() {
-	ticker := time.NewTicker(cm.s.opts.Conversation.SyncInterval)
-
-	needSync := false
-	noSaveCount := 0
-	for {
-		if noSaveCount >= cm.s.opts.Conversation.SyncOnce {
-			needSync = true
+func (c *conversationWorker) getOrCreateUserConversation(uid string) *userConversation {
+	c.Lock()
+	defer c.Unlock()
+	for _, cc := range c.userConversations {
+		if cc.uid == uid {
+			return cc
 		}
-		if needSync {
-			noSaveCount = 0
-			cm.FlushConversations()
-			needSync = false
-		}
-		select {
-		case uid := <-cm.needSaveChan:
-			cm.mu.Lock()
-			if !cm.needSaveConversationMap[uid] {
-				cm.needSaveConversationMap[uid] = true
-				noSaveCount++
-			}
-			cm.mu.Unlock()
+	}
 
-		case <-ticker.C:
-			if noSaveCount > 0 {
-				needSync = true
-			}
-		case <-cm.stopChan:
+	cc := newUserConversation(uid, c.s)
+	c.userConversations = append(c.userConversations, cc)
+	return cc
+}
+
+func (c *conversationWorker) getUserConversation(uid string) *userConversation {
+
+	c.Lock()
+	defer c.Unlock()
+
+	for _, cc := range c.userConversations {
+		if cc.uid == uid {
+			return cc
+		}
+	}
+	return nil
+
+}
+
+type userConversation struct {
+	uid           string
+	conversations []*channelConversation
+	s             *Server
+	deadlock.RWMutex
+}
+
+func newUserConversation(uid string, s *Server) *userConversation {
+	return &userConversation{
+		uid: uid,
+		s:   s,
+	}
+}
+
+func (c *userConversation) existConversation(channelId string, channelType uint8) bool {
+	c.RLock()
+	defer c.RUnlock()
+	return c.existConversationNotLock(channelId, channelType)
+}
+
+func (c *userConversation) existConversationNotLock(channelId string, channelType uint8) bool {
+	for _, s := range c.conversations {
+		if s.ChannelId == channelId && s.ChannelType == channelType {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *userConversation) getConversation(channelId string, channelType uint8) *channelConversation {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, s := range c.conversations {
+		if s.ChannelId == channelId && s.ChannelType == channelType {
+			return s
+		}
+	}
+
+	return nil
+}
+
+func (c *userConversation) getConversationsByType(conversationType wkdb.ConversationType) []wkdb.Conversation {
+
+	c.RLock()
+	defer c.RUnlock()
+
+	var conversations []wkdb.Conversation
+
+	for _, s := range c.conversations {
+		if s.ConversationType == conversationType {
+			conversations = append(conversations, wkdb.Conversation{
+				Uid:            c.uid,
+				Type:           s.ConversationType,
+				ChannelId:      s.ChannelId,
+				ChannelType:    s.ChannelType,
+				ReadedToMsgSeq: uint64(s.ReadedMsgSeq),
+			})
+		}
+	}
+
+	return conversations
+}
+
+func (c *userConversation) deleteConversation(channelId string, channelType uint8) {
+	c.Lock()
+	defer c.Unlock()
+
+	for i, s := range c.conversations {
+		if s.ChannelId == channelId && s.ChannelType == channelType {
+			c.conversations = append(c.conversations[:i], c.conversations[i+1:]...)
 			return
 		}
 	}
 }
 
-// PushMessage PushMessage
-func (cm *ConversationManager) PushMessage(message *Message, subscribers []string) {
-	if !cm.s.opts.Conversation.On {
+func (c *userConversation) getConversationNotLock(channelId string, channelType uint8) *channelConversation {
+
+	for _, s := range c.conversations {
+		if s.ChannelId == channelId && s.ChannelType == channelType {
+			return s
+		}
+	}
+
+	return nil
+}
+
+func (c *userConversation) addConversationIfNotExist(channelId string, channelType uint8, readedMsgSeq uint32) *channelConversation {
+	c.Lock()
+	defer c.Unlock()
+	if !c.existConversationNotLock(channelId, channelType) {
+
+		return c.addConversationNotLock(channelId, channelType, readedMsgSeq)
+	}
+	return nil
+}
+
+func (c *userConversation) updateOrAddConversation(channelId string, channelType uint8, readedMsgSeq uint32) {
+
+	c.Lock()
+	defer c.Unlock()
+
+	conversation := c.getConversationNotLock(channelId, channelType)
+	if conversation != nil {
+		if conversation.ReadedMsgSeq < readedMsgSeq {
+			conversation.ReadedMsgSeq = readedMsgSeq
+			conversation.NeedUpdate = true
+		}
 		return
 	}
 
-	cm.queue.Push(map[string]interface{}{
-		"message":     message,
-		"subscribers": subscribers,
+	var conversationType wkdb.ConversationType
+	if c.s.opts.IsCmdChannel(channelId) {
+		conversationType = wkdb.ConversationTypeCMD
+	} else {
+		conversationType = wkdb.ConversationTypeChat
+	}
+
+	c.conversations = append(c.conversations, &channelConversation{
+		ChannelId:        channelId,
+		ChannelType:      channelType,
+		ReadedMsgSeq:     readedMsgSeq,
+		ConversationType: conversationType,
+		NeedUpdate:       true,
 	})
 }
 
-// SetConversationUnread set unread data from conversation
-func (cm *ConversationManager) SetConversationUnread(uid string, channelID string, channelType uint8, unread int, messageSeq uint32) error {
-	conversation := cm.getConversationFromCache(uid, channelID, channelType)
-	if conversation != nil {
-		conversation.UnreadCount = unread
-		if messageSeq > 0 {
-			conversation.LastMsgSeq = messageSeq
-		}
-		cm.setNeedSave(uid)
-		return nil
-	}
+func (c *userConversation) addConversationNotLock(channelId string, channelType uint8, readedMsgSeq uint32) *channelConversation {
 
-	conversation, err := cm.s.store.GetConversation(uid, channelID, channelType)
-	if err != nil {
-		return err
-	}
-	if conversation != nil {
-		conversation.UnreadCount = unread
-		if messageSeq > 0 {
-			conversation.LastMsgSeq = messageSeq
-		}
-		cm.setConversationCache(uid, conversation)
-		cm.setNeedSave(uid)
-	}
-	return nil
-}
-
-func (cm *ConversationManager) GetConversation(uid string, channelID string, channelType uint8) *wkstore.Conversation {
-
-	conversations := cm.getConversationsFromCache(uid)
-	if len(conversations) > 0 {
-		for _, conversation := range conversations {
-			if conversation.ChannelID == channelID && conversation.ChannelType == channelType {
-				return conversation
-			}
-		}
-	}
-
-	conversation, err := cm.s.store.GetConversation(uid, channelID, channelType)
-	if err != nil {
-		cm.Error("查询最近会话失败！", zap.Error(err), zap.String("uid", uid), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
-	}
-
-	return conversation
-
-}
-
-// DeleteConversation 删除最近会话
-func (cm *ConversationManager) DeleteConversation(uids []string, channelID string, channelType uint8) error {
-	if len(uids) == 0 {
-		return nil
-	}
-	for _, uid := range uids {
-
-		cm.deleteConversationCache(uid, channelID, channelType)
-
-		err := cm.s.store.DeleteConversation(uid, channelID, channelType)
-		if err != nil {
-			cm.Error("从数据库删除最近会话失败！", zap.Error(err), zap.String("uid", uid), zap.String("channelID", channelID), zap.Uint8("channelType", channelType))
-		}
-	}
-	return nil
-}
-
-func (cm *ConversationManager) getUserAllConversationMapFromStore(uid string) ([]*wkstore.Conversation, error) {
-	conversations, err := cm.s.store.GetConversations(uid)
-	if err != nil {
-		cm.Error("Failed to get the list of recent conversations", zap.String("uid", uid), zap.Error(err))
-		return nil, err
-	}
-	return conversations, nil
-}
-
-func (cm *ConversationManager) newLRUCache() *lru.Cache[string, *wkstore.Conversation] {
-	c, _ := lru.New[string, *wkstore.Conversation](cm.s.opts.Conversation.UserMaxCount)
-	return c
-}
-
-// FlushConversations 同步最近会话
-func (cm *ConversationManager) FlushConversations() {
-
-	cm.mu.RLock()
-	needSaveUIDs := make([]string, 0, len(cm.needSaveConversationMap))
-	for uid := range cm.needSaveConversationMap {
-		needSaveUIDs = append(needSaveUIDs, uid)
-	}
-	cm.mu.RUnlock()
-
-	if len(needSaveUIDs) > 0 {
-		cm.Debug("Save conversation", zap.Int("count", len(needSaveUIDs)))
-		for _, uid := range needSaveUIDs {
-			cm.flushUserConversations(uid)
-		}
-	}
-
-}
-
-func (cm *ConversationManager) flushUserConversations(uid string) {
-
-	conversations := cm.getConversationsFromCache(uid)
-	if len(conversations) == 0 {
-		return
-	}
-	err := cm.s.store.AddOrUpdateConversations(uid, conversations)
-	if err != nil {
-		cm.Warn("Failed to store conversation data", zap.Error(err))
+	var conversationType wkdb.ConversationType
+	if c.s.opts.IsCmdChannel(channelId) {
+		conversationType = wkdb.ConversationTypeCMD
 	} else {
-		cm.mu.Lock()
-		delete(cm.needSaveConversationMap, uid)
-		cm.mu.Unlock()
-
-		// 移除过期的最近会话缓存
-		for _, conversation := range conversations {
-			if conversation.Timestamp+int64(cm.s.opts.Conversation.CacheExpire.Seconds()) < time.Now().Unix() {
-				cm.deleteConversationCache(uid, conversation.ChannelID, conversation.ChannelType)
-			}
-		}
+		conversationType = wkdb.ConversationTypeChat
 	}
+
+	cn := &channelConversation{
+		ChannelId:        channelId,
+		ChannelType:      channelType,
+		ReadedMsgSeq:     readedMsgSeq,
+		NeedUpdate:       true,
+		ConversationType: conversationType,
+	}
+	c.conversations = append(c.conversations, cn)
+
+	return cn
 }
 
-func (cm *ConversationManager) getUserConversationCacheNoLock(uid string) *lru.Cache[string, *wkstore.Conversation] {
-	pos := int(wkutil.HashCrc32(uid) % uint32(cm.bucketNum))
-	userConversationMap := cm.userConversationMapBuckets[pos]
-	if userConversationMap == nil {
-		userConversationMap = make(map[string]*lru.Cache[string, *wkstore.Conversation])
-		cm.userConversationMapBuckets[pos] = userConversationMap
-	}
-	cache := userConversationMap[uid]
-	if cache == nil {
-		cache = cm.newLRUCache()
-		userConversationMap[uid] = cache
-	}
-	return cache
-}
-
-func (cm *ConversationManager) getConversationFromCache(uid string, channelID string, channelType uint8) *wkstore.Conversation {
-	pos := cm.getLockIndex(uid)
-	cm.userConversationMapBucketLocks[pos].Lock()
-	defer cm.userConversationMapBucketLocks[pos].Unlock()
-	cache := cm.getUserConversationCacheNoLock(uid)
-	channelKey := cm.getChannelKey(channelID, channelType)
-	conversation, _ := cache.Get(channelKey)
-	return conversation
-}
-
-func (cm *ConversationManager) setConversationCache(uid string, conversation *wkstore.Conversation) {
-	pos := cm.getLockIndex(uid)
-	cm.userConversationMapBucketLocks[pos].Lock()
-	defer cm.userConversationMapBucketLocks[pos].Unlock()
-	cache := cm.getUserConversationCacheNoLock(uid)
-	channelKey := cm.getChannelKey(conversation.ChannelID, conversation.ChannelType)
-	cache.Add(channelKey, conversation)
-}
-
-func (cm *ConversationManager) deleteConversationCache(uid string, channelID string, channelType uint8) {
-	pos := cm.getLockIndex(uid)
-	cm.userConversationMapBucketLocks[pos].Lock()
-	defer cm.userConversationMapBucketLocks[pos].Unlock()
-	cache := cm.getUserConversationCacheNoLock(uid)
-	channelKey := cm.getChannelKey(channelID, channelType)
-	cache.Remove(channelKey)
-}
-
-func (cm *ConversationManager) getConversationsFromCache(uid string) []*wkstore.Conversation {
-	pos := cm.getLockIndex(uid)
-	cm.userConversationMapBucketLocks[pos].Lock()
-	defer cm.userConversationMapBucketLocks[pos].Unlock()
-	cache := cm.getUserConversationCacheNoLock(uid)
-	conversations := make([]*wkstore.Conversation, 0, cache.Len())
-	for _, key := range cache.Keys() {
-		conversation, _ := cache.Get(key)
-		conversations = append(conversations, conversation)
-	}
-	return conversations
-}
-
-func (cm *ConversationManager) getLockIndex(uid string) int {
-	return int(wkutil.HashCrc32(uid) % uint32(cm.bucketNum))
-}
-
-func (cm *ConversationManager) calConversation(message *Message, subscriber string) {
-	channelID := message.ChannelID
-	if message.ChannelType == wkproto.ChannelTypePerson && message.ChannelID == subscriber { // If it is a personal channel and the channel ID is equal to the subscriber, you need to swap fromUID and channelID
-		channelID = message.FromUID
-	}
-	conversation := cm.getConversationFromCache(subscriber, channelID, message.ChannelType)
-
-	if conversation == nil {
-		var err error
-		conversation, err = cm.s.store.GetConversation(subscriber, channelID, message.ChannelType)
-		if err != nil {
-			cm.Error("获取某个最接近会话失败！", zap.String("subscriber", subscriber), zap.String("channelID", channelID), zap.Uint8("channelType", message.ChannelType), zap.Error(err))
-		}
-	}
-
-	var modify = false
-	if conversation == nil {
-		unreadCount := 0
-		if message.RedDot && message.FromUID != subscriber { //  message.FromUID != subscriber 自己发的消息不显示红点
-			unreadCount = 1
-		}
-		conversation = &wkstore.Conversation{
-			UID:             subscriber,
-			ChannelID:       channelID,
-			ChannelType:     message.ChannelType,
-			UnreadCount:     unreadCount,
-			Timestamp:       int64(message.Timestamp),
-			LastMsgSeq:      message.MessageSeq,
-			LastClientMsgNo: message.ClientMsgNo,
-			LastMsgID:       message.MessageID,
-			Version:         time.Now().UnixNano() / 1e6,
-		}
-		modify = true
-	} else {
-
-		if message.RedDot && message.FromUID != subscriber { //  message.FromUID != subscriber 自己发的消息不显示红点
-			conversation.UnreadCount++
-			modify = true
-		}
-		if conversation.LastMsgSeq < message.MessageSeq { // 只有当前会话的messageSeq小于当前消息的messageSeq才更新
-			conversation.Timestamp = int64(message.Timestamp)
-			conversation.LastClientMsgNo = message.ClientMsgNo
-			conversation.LastMsgSeq = message.MessageSeq
-			conversation.LastMsgID = message.MessageID
-			modify = true
-		}
-		if modify {
-			conversation.Version = time.Now().UnixNano() / 1e6
-		}
-	}
-	if modify {
-		cm.AddOrUpdateConversation(subscriber, conversation)
-	}
-
-}
-
-func (cm *ConversationManager) AddOrUpdateConversation(uid string, conversation *wkstore.Conversation) {
-
-	cm.setConversationCache(uid, conversation)
-
-	cm.setNeedSave(uid)
-}
-
-// GetConversations GetConversations
-func (cm *ConversationManager) GetConversations(uid string, version int64, larges []*wkproto.Channel) []*wkstore.Conversation {
-
-	newConversations := make([]*wkstore.Conversation, 0)
-
-	oldConversations, err := cm.getUserAllConversationMapFromStore(uid)
-	if err != nil {
-		cm.Warn("Failed to get the conversation from the database", zap.Error(err))
-		return nil
-	}
-	if len(oldConversations) > 0 {
-		newConversations = append(newConversations, oldConversations...)
-	}
-
-	updateConversations := cm.getConversationsFromCache(uid)
-
-	for _, updateConversation := range updateConversations {
-		existIndex := 0
-		var existConversation *wkstore.Conversation
-		for idx, conversation := range oldConversations {
-			if conversation.ChannelID == updateConversation.ChannelID && conversation.ChannelType == updateConversation.ChannelType {
-				existConversation = updateConversation
-				existIndex = idx
-				break
-			}
-		}
-		if existConversation == nil {
-			newConversations = append(newConversations, updateConversation)
-		} else {
-			newConversations[existIndex] = existConversation
-		}
-	}
-	conversationSlice := conversationSlice{}
-	for _, conversation := range newConversations {
-		if conversation != nil {
-			if version <= 0 || conversation.Version > version || cm.channelInLarges(conversation.ChannelID, conversation.ChannelType, larges) {
-				conversationSlice = append(conversationSlice, conversation)
-			}
-		}
-	}
-	sort.Sort(conversationSlice)
-	return conversationSlice
-}
-
-func (cm *ConversationManager) channelInLarges(channelID string, channelType uint8, larges []*wkproto.Channel) bool {
-	if len(larges) == 0 {
-		return false
-	}
-	for _, large := range larges {
-		if large.ChannelID == channelID && large.ChannelType == channelType {
-			return true
-		}
-	}
-	return false
-}
-
-func (cm *ConversationManager) setNeedSave(uid string) {
-	cm.needSaveChan <- uid
-}
-
-func (cm *ConversationManager) getChannelKey(channelID string, channelType uint8) string {
-	return fmt.Sprintf("%s-%d", channelID, channelType)
-}
-
-type conversationSlice []*wkstore.Conversation
-
-func (s conversationSlice) Len() int { return len(s) }
-
-func (s conversationSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-
-func (s conversationSlice) Less(i, j int) bool {
-	return s[i].Timestamp > s[j].Timestamp
+type channelConversation struct {
+	ChannelId        string                `json:"channel_id"`
+	ChannelType      uint8                 `json:"channel_type"`
+	ReadedMsgSeq     uint32                `json:"readed_msg_seq"`
+	NeedUpdate       bool                  `json:"need_update"`
+	ConversationType wkdb.ConversationType `json:"conversation_type"`
 }

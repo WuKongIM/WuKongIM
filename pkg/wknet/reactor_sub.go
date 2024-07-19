@@ -92,6 +92,12 @@ func (r *ReactorSub) ConnDec() {
 }
 
 func (r *ReactorSub) run() {
+	defer func() {
+		if err := recover(); err != nil {
+			r.Panic("reactorSub panic", zap.Any("err", err), zap.Stack("stack"))
+		}
+	}()
+
 	err := r.poller.Polling(func(fd int, event netpoll.PollEvent) (err error) {
 		conn := r.eg.GetConn(fd)
 		if conn == nil {
@@ -110,7 +116,7 @@ func (r *ReactorSub) run() {
 	})
 
 	if err != nil && !r.stopped.Load() {
-		panic(err)
+		r.Panic("poller error", zap.Error(err), zap.Int("idx", r.idx))
 	}
 }
 

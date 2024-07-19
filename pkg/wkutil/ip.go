@@ -1,6 +1,7 @@
 package wkutil
 
 import (
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -19,6 +20,15 @@ func GetExternalIP() (string, error) {
 	resultBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.New("get external ip failed")
+
+	}
+	resultStr := string(resultBytes)
+	if len(resultStr) > 15 {
+		return "", errors.New("get external ip failed")
+
 	}
 	return strings.TrimSpace(string(resultBytes)), nil
 }
