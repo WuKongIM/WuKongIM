@@ -25,7 +25,6 @@ export class ConversationWrap {
     public get channelInfo() {
         return this.conversation.channelInfo
     }
-    
     public get unread() {
         return this.conversation.unread
     }

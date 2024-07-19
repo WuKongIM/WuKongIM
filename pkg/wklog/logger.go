@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -114,7 +115,7 @@ func newEncoderConfig() zapcore.EncoderConfig {
 		EncodeCaller:  zapcore.FullCallerEncoder,     // 全路径编码器
 		EncodeName:    zapcore.FullNameEncoder,
 		EncodeTime: func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString(t.Format("2006-01-02 15:04:05"))
+			enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
 		},
 		EncodeDuration: func(d time.Duration, enc zapcore.PrimitiveArrayEncoder) {
 			enc.AppendInt64(int64(d) / 1000000)
@@ -175,6 +176,26 @@ func Warn(msg string, fields ...zap.Field) {
 	warnLogger.Warn(msg, fields...)
 }
 
+func Sync() error {
+	err := panicLogger.Sync()
+	if err != nil {
+		fmt.Println("panicLogger sync error", err)
+	}
+	err = errorLogger.Sync()
+	if err != nil {
+		fmt.Println("errorLogger sync error", err)
+	}
+	err = warnLogger.Sync()
+	if err != nil {
+		fmt.Println("warnLogger sync error", err)
+	}
+	err = logger.Sync()
+	if err != nil {
+		fmt.Println("logger sync error", err)
+	}
+	return nil
+}
+
 // Log Log
 type Log interface {
 	Info(msg string, fields ...zap.Field)
@@ -198,27 +219,57 @@ func NewWKLog(prefix string) *WKLog {
 
 // Info Info
 func (t *WKLog) Info(msg string, fields ...zap.Field) {
-	Info(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	Info(b.String(), fields...)
 }
 
 // Debug Debug
 func (t *WKLog) Debug(msg string, fields ...zap.Field) {
-	Debug(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	Debug(b.String(), fields...)
 }
 
 // Error Error
 func (t *WKLog) Error(msg string, fields ...zap.Field) {
-	Error(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	Error(b.String(), fields...)
 }
 
 // Warn Warn
 func (t *WKLog) Warn(msg string, fields ...zap.Field) {
-	Warn(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	Warn(b.String(), fields...)
 }
 
 func (t *WKLog) Fatal(msg string, fields ...zap.Field) {
-	Fatal(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	Fatal(b.String(), fields...)
 }
 func (t *WKLog) Panic(msg string, fields ...zap.Field) {
-	Panic(fmt.Sprintf("【%s】%s", t.prefix, msg), fields...)
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	Panic(b.String(), fields...)
 }

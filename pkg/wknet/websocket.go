@@ -2,7 +2,6 @@ package wknet
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 
@@ -45,6 +44,9 @@ func (w *WSConn) ReadToInboundBuffer() (int, error) {
 	n, err := w.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
+	}
+	if w.eg.options.Event.OnReadBytes != nil {
+		w.eg.options.Event.OnReadBytes(n)
 	}
 	_, err = w.tmpInboundBuffer.Write(readBuffer[:n])
 	if err != nil {
@@ -102,7 +104,7 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 		return nil, err
 	}
 	if len(buff) < ws.MinHeaderSize { // 数据不完整
-		fmt.Println(" 数据不完整---->", len(buff))
+		w.Debug("数据不完整", zap.Int("len", len(buff)))
 		return nil, nil
 	}
 	tmpReader := bytes.NewReader(buff)
@@ -111,13 +113,13 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 		if err == io.EOF || err == io.ErrUnexpectedEOF { //数据不完整
 			return nil, nil
 		}
-		fmt.Println(" 发送错误，丢弃数据---->", err)
+		w.Debug("发送错误，丢弃数据", zap.Error(err))
 		w.DiscardFromTemp(len(buff)) // 发送错误，丢弃数据
 		return nil, err
 	}
 	dataLen := header.Length
 	if dataLen > int64(tmpReader.Len()) { // 数据不完整
-		fmt.Println("数据不完整...", dataLen, int64(tmpReader.Len()))
+		w.Debug("数据不完整", zap.Int64("dataLen", dataLen), zap.Int64("tmpReader.Len()", int64(tmpReader.Len())))
 		return nil, nil
 	}
 	if header.Fin { // 当前 frame 已经是最后一个frame
@@ -135,7 +137,7 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 		w.DiscardFromTemp(remLen)
 		return messages, nil
 	} else {
-		fmt.Println("header.Fin-->false...", len(buff))
+		w.Debug("ws header not is fin", zap.Int("len", len(buff)))
 	}
 	return nil, nil
 }
@@ -188,11 +190,11 @@ func (w *WSConn) PeekFromTemp(n int) ([]byte, error) {
 }
 
 func (w *WSConn) DiscardFromTemp(n int) {
-	w.tmpInboundBuffer.Discard(n)
+	_, _ = w.tmpInboundBuffer.Discard(n)
 }
 
 func (w *WSConn) Close() error {
-	w.tmpInboundBuffer.Release()
+	_ = w.tmpInboundBuffer.Release()
 	return w.DefaultConn.Close()
 }
 
@@ -220,6 +222,9 @@ func (w *WSSConn) ReadToInboundBuffer() (int, error) {
 	n, err := w.d.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
+	}
+	if w.d.eg.options.Event.OnReadBytes != nil {
+		w.d.eg.options.Event.OnReadBytes(n)
 	}
 
 	_, err = w.tmpInboundBuffer.Write(readBuffer[:n])
@@ -270,7 +275,7 @@ func (w *WSSConn) peekFromWSTemp(n int) ([]byte, error) {
 }
 
 func (w *WSSConn) discardFromWSTemp(n int) {
-	w.wsTmpInboundBuffer.Discard(n)
+	_, _ = w.wsTmpInboundBuffer.Discard(n)
 }
 
 func (w *WSSConn) upgrade() error {
@@ -341,7 +346,7 @@ func (w *WSSConn) unpacketWSData() error {
 
 func (w *WSSConn) Close() error {
 	w.upgraded = false
-	w.wsTmpInboundBuffer.Release()
+	_ = w.wsTmpInboundBuffer.Release()
 	return w.TLSConn.Close()
 }
 
@@ -357,7 +362,7 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 		return nil, err
 	}
 	if len(buff) < ws.MinHeaderSize { // 数据不完整
-		fmt.Println("数据还没读完...", buff)
+		w.d.Debug("数据还没读完", zap.Int("len", len(buff)))
 		return nil, nil
 	}
 	tmpReader := bytes.NewReader(buff)
@@ -366,13 +371,13 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 		if err == io.EOF || err == io.ErrUnexpectedEOF { //数据不完整
 			return nil, nil
 		}
-		fmt.Println("发送错误，丢弃数据....")
+		w.d.Debug("wss: 发送错误，丢弃数据", zap.Error(err))
 		w.discardFromWSTemp(len(buff)) // 发送错误，丢弃数据
 		return nil, err
 	}
 	dataLen := header.Length
 	if dataLen > int64(tmpReader.Len()) { // 数据不完整
-		fmt.Println("数据还没读完...", dataLen, int64(tmpReader.Len()))
+		w.d.Debug("wss: 数据还没读完....", zap.Int("dataLen", int(dataLen)), zap.Int("tmpReader.Len()", int(tmpReader.Len())))
 		return nil, nil
 	}
 	if header.Fin { // 当前 frame 已经是最后一个frame
@@ -391,7 +396,7 @@ func (w *WSSConn) decode() ([]wsutil.Message, error) {
 		w.discardFromWSTemp(remLen)
 		return messages, nil
 	} else {
-		fmt.Println("header.Fin-->false...", len(buff))
+		w.d.Debug("wss: ws header not is fin", zap.Int("len", len(buff)))
 	}
 	return nil, nil
 }

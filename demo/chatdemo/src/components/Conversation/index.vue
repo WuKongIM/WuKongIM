@@ -1,7 +1,7 @@
 
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, nextTick } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { CMDContent, Channel, ChannelInfo, ChannelTypePerson, ConnectStatus, ConnectStatusListener, Conversation, ConversationAction, Message, WKSDK } from 'wukongimjssdk';
 import { ConversationWrap } from './ConversationWrap';
 import APIClient, { CMDType } from '../../services/APIClient';
@@ -35,7 +35,6 @@ const cmdListener = (msg: Message) => {
 
 // 监听最近会话列表的变化
 const conversationListener = (conversation: Conversation, action: ConversationAction) => { // 监听最近会话列表的变化
-    console.log("conversationListener", conversation, action)
     if (action === ConversationAction.add) {
         conversationWraps.value = [new ConversationWrap(conversation), ...(conversationWraps.value || [])]
     } else if (action === ConversationAction.update) {

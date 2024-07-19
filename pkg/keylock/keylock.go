@@ -25,7 +25,7 @@ type KeyLock struct {
 func NewKeyLock() *KeyLock {
 	return &KeyLock{
 		locks:         make(map[string]*innerLock),
-		cleanInterval: defaultCleanInterval,
+		cleanInterval: defaultCleanInterval, // 1小时清理下锁
 		stopChan:      make(chan struct{}),
 	}
 }

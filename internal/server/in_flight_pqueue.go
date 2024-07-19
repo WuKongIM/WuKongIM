@@ -1,6 +1,6 @@
 package server
 
-type inFlightPqueue []*Message // 队列消息量大，这里直接使用具体类型，防止大量类型转换影响性能
+type inFlightPqueue []*retryMessage // 队列消息量大，这里直接使用具体类型，防止大量类型转换影响性能
 
 func newInFlightPqueue(capacity int) inFlightPqueue {
 	return make(inFlightPqueue, 0, capacity)
@@ -12,7 +12,7 @@ func (pq inFlightPqueue) Swap(i, j int) {
 	pq[j].index = j
 }
 
-func (pq *inFlightPqueue) Push(x *Message) {
+func (pq *inFlightPqueue) Push(x *retryMessage) {
 	n := len(*pq)
 	c := cap(*pq)
 	if n+1 > c {
@@ -26,7 +26,7 @@ func (pq *inFlightPqueue) Push(x *Message) {
 	pq.up(n)
 }
 
-func (pq *inFlightPqueue) Pop() *Message {
+func (pq *inFlightPqueue) Pop() *retryMessage {
 	n := len(*pq)
 	c := cap(*pq)
 	pq.Swap(0, n-1)
@@ -42,7 +42,7 @@ func (pq *inFlightPqueue) Pop() *Message {
 	return x
 }
 
-func (pq *inFlightPqueue) Remove(i int) *Message {
+func (pq *inFlightPqueue) Remove(i int) *retryMessage {
 	n := len(*pq)
 	if n-1 != i {
 		pq.Swap(i, n-1)
@@ -55,7 +55,7 @@ func (pq *inFlightPqueue) Remove(i int) *Message {
 	return x
 }
 
-func (pq *inFlightPqueue) PeekAndShift(max int64) (*Message, int64) {
+func (pq *inFlightPqueue) PeekAndShift(max int64) (*retryMessage, int64) {
 	if len(*pq) == 0 {
 		return nil, 0
 	}

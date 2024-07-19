@@ -2,55 +2,40 @@ package server
 
 import (
 	"testing"
-	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetConversations(t *testing.T) {
-	opts := NewTestOptions()
-	opts.Conversation.SyncOnce = 0
-	l := NewTestServer(opts)
-	cm := NewConversationManager(l)
-	cm.Start()
+func TestConversationGet(t *testing.T) {
+	s := NewTestServer(t)
+	err := s.Start()
+	assert.NoError(t, err)
+	defer func() {
+		_ = s.Stop()
+	}()
 
-	defer cm.Stop()
-	m := &Message{
-		RecvPacket: &wkproto.RecvPacket{
-			Framer: wkproto.Framer{
-				RedDot: true,
-			},
-			MessageID:   123,
-			ChannelID:   "group1",
-			ChannelType: 2,
-			FromUID:     "test",
-			Timestamp:   int32(time.Now().Unix()),
-			Payload:     []byte("hello"),
+	s.conversationManager.Push("u1@u2", 1, []string{"u1", "u2"}, []ReactorChannelMessage{
+		{
+			FromUid:    "u1",
+			MessageSeq: 100,
+			SendPacket: &wkproto.SendPacket{},
 		},
-	}
-	cm.PushMessage(m, []string{"test"})
-
-	m = &Message{
-		RecvPacket: &wkproto.RecvPacket{
-			Framer: wkproto.Framer{
-				RedDot: true,
-			},
-			MessageID:   123,
-			ChannelID:   "group2",
-			ChannelType: 2,
-			FromUID:     "test",
-			Timestamp:   int32(time.Now().Unix()),
-			Payload:     []byte("hello"),
+		{
+			FromUid:    "u1",
+			MessageSeq: 102,
+			SendPacket: &wkproto.SendPacket{},
 		},
-	}
-	cm.PushMessage(m, []string{"test"})
+	})
 
-	time.Sleep(time.Millisecond * 100) // wait calc conversation
+	conversations1 := s.conversationManager.GetUserConversationFromCache("u1", wkdb.ConversationTypeChat)
+	assert.Equal(t, 1, len(conversations1))
 
-	conversations := cm.GetConversations("test", 0, nil)
-	assert.Equal(t, 2, len(conversations))
+	conversations2 := s.conversationManager.GetUserConversationFromCache("u2", wkdb.ConversationTypeChat)
+	assert.Equal(t, 1, len(conversations2))
 
-	cm.s.store.Close()
+	assert.Equal(t, uint64(102), conversations1[0].ReadedToMsgSeq)
+	assert.Equal(t, uint64(0), conversations2[0].ReadedToMsgSeq)
 
 }

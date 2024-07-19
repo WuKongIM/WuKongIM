@@ -1,18 +1,17 @@
 import axios, { type AxiosResponse } from "axios";
 
-
 export class APIClientConfig {
-    private _apiURL: string =""
-    private _token:string = ""
-    tokenCallback?:()=>string|undefined
+    private _apiURL: string = ""
+    // private _token: string = ""
+    tokenCallback?: () => string | undefined
     // private _apiURL: string = "/api/v1/" // 正式打包用此地址
-    
 
-    set apiURL(apiURL:string) {
+
+    set apiURL(apiURL: string) {
         this._apiURL = apiURL;
         axios.defaults.baseURL = apiURL;
     }
-    get apiURL():string {
+    get apiURL(): string {
         return this._apiURL
     }
 }
@@ -23,17 +22,17 @@ export default class APIClient {
     }
     public static shared = new APIClient()
     public config = new APIClientConfig()
-    public logoutCallback?:()=>void
+    public logoutCallback?: () => void
 
     initAxios() {
         const self = this
         axios.interceptors.request.use(function (config) {
-            let token:string | undefined
-            if(self.config.tokenCallback) {
+            let token: string | undefined
+            if (self.config.tokenCallback) {
                 token = self.config.tokenCallback()
             }
             if (token && token !== "") {
-                config.headers!["token"] = token;
+                config.headers!["Authorization"] = "Bearer " + token;
             }
             return config;
         });
@@ -50,9 +49,10 @@ export default class APIClient {
                     msg = "请求地址没有找到（404）"
                     break;
                 case 401:
-                    if(self.logoutCallback) {
+                    if (self.logoutCallback) {
                         self.logoutCallback()
                     }
+                    break
                 default:
                     msg = "未知错误"
                     break;
@@ -61,10 +61,10 @@ export default class APIClient {
         });
     }
 
-     get<T>(path: string, config?: RequestConfig) {
-       return this.wrapResult<T>(axios.get(path, {
-        params: config?.param
-    }), config)
+    get<T>(path: string, config?: RequestConfig) {
+        return this.wrapResult<T>(axios.get(path, {
+            params: config?.param
+        }), config)
     }
     post(path: string, data?: any, config?: RequestConfig) {
         return this.wrapResult(axios.post(path, data, {}), config)
@@ -83,15 +83,15 @@ export default class APIClient {
         }), config)
     }
 
-    private async wrapResult<T = APIResp>(result: Promise<AxiosResponse>, config?: RequestConfig): Promise<T|any> {
+    private async wrapResult<T = APIResp>(result: Promise<AxiosResponse>, config?: RequestConfig): Promise<T | any> {
         if (!result) {
             return Promise.reject()
         }
-        
-        return  result.then((value) => {
-          
+
+        return result.then((value) => {
+
             if (!config || !config.resp) {
-                
+
                 return Promise.resolve(value.data)
             }
             if (value.data) {
@@ -116,7 +116,7 @@ export default class APIClient {
 
 export class RequestConfig {
     param?: any
-    data?:any
+    data?: any
     resp?: () => APIResp
 }
 

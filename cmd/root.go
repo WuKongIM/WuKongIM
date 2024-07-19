@@ -24,8 +24,9 @@ var (
 	serverOpts          = server.NewOptions()
 	mode                string
 	daemon              bool
-	pidfile             string = "WukongimPID"
+	pidfile             string = "wukongimpid"
 	installDir          string
+	initialed           bool // 是否已经初始化成功
 	rootCmd             = &cobra.Command{
 		Use:   "wk",
 		Short: "WuKongIM, a sleek and high-performance instant messaging platform.",
@@ -41,15 +42,10 @@ var (
 
 func init() {
 
-	homeDir, err := server.GetHomeDir()
-	if err != nil {
-		log.Fatal(err)
-	}
-	installDir = homeDir
-
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file")
+
 	rootCmd.PersistentFlags().BoolVarP(&ignoreMissingConfig, "ignoreMissingConfig", "i", false, "Whether the configuration file can not exist. If the configuration file is configured but does not exist, it will be ignored")
 	rootCmd.PersistentFlags().StringVar(&mode, "mode", "debug", "mode")
 	// 后台运行
@@ -62,9 +58,11 @@ func initConfig() {
 	if strings.TrimSpace(cfgFile) != "" {
 		vp.SetConfigFile(cfgFile)
 		if err := vp.ReadInConfig(); err != nil {
-			wklog.Error("read config file error", zap.Error(err))
 			if !ignoreMissingConfig {
+				fmt.Println("read config file error: ", err)
 				panic(fmt.Errorf("read config file error: %s", err))
+			} else {
+				wklog.Error("read config file error", zap.Error(err))
 			}
 		}
 	}
@@ -73,10 +71,20 @@ func initConfig() {
 	vp.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	vp.AutomaticEnv()
 	// 初始化服务配置
+	if strings.TrimSpace(mode) != "" {
+		serverOpts.Mode = server.Mode(mode)
+	}
 	serverOpts.ConfigureWithViper(vp)
+
+	installDir = serverOpts.RootDir
+
+	initialed = true
 }
 
 func initServer() {
+	if !initialed {
+		return
+	}
 	logOpts := wklog.NewOptions()
 	logOpts.Level = serverOpts.Logger.Level
 	logOpts.LogDir = serverOpts.Logger.Dir
@@ -99,11 +107,14 @@ func initServer() {
 		// cmd.Stdin = os.Stdin // 给新进程设置文件描述符，可以重定向到文件中
 		// cmd.Stdout = os.Stdout
 		// cmd.Stderr = os.Stderr
+		fmt.Println("Root Dir:", serverOpts.RootDir)
+		fmt.Println("Config File:", cfgFile)
+		fmt.Println("WuKongIM is running in daemon mode")
 		err := cmd.Start() // 开始执行新进程，不等待新进程退出
 		if err != nil {
 			log.Fatal(err)
 		}
-		err = os.WriteFile(path.Join(installDir, pidfile), []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+		err = os.WriteFile(path.Join(serverOpts.RootDir, pidfile), []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
 		if err != nil {
 			log.Fatal(err)
 		}

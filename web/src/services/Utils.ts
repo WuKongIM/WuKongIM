@@ -13,9 +13,9 @@ export const formatMemory = (memory: number): string => {
 }
 
 
-export const formatNumber = (num: number) => {
+export const formatNumber = (num: number,fractionDigits:number = 4) => {
     if (num < 1000) {
-        return num.toString();
+        return num.toFixed(fractionDigits).toString();
     } else {
         const suffixes = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'];
         let quotient = num;
@@ -62,4 +62,38 @@ export const  formatDate2 = (date:Date) => {
 
    //返回数据格式
    return Year + '-' + Months + '-' + Day + '-' + Hours + ':' + Minutes + ':' + Seconds; 
+}
+
+
+
+
+// 将内容转换为中间省略的形式，如"1234567890" => "1234...7890"，可以指定显示的长度
+export const ellipsis = (content: string, length: number = 10): string => {
+    if (content.length <= length) {
+        return content;
+    } else {
+        const head = content.slice(0, Math.floor(length / 2));
+        const tail = content.slice(content.length - Math.ceil(length / 2));
+        return head + '...' + tail;
+    }
+}
+
+// base64解码, 支持包含中文内容的数据
+
+export const base64Decode = (data: string): string => {
+    if(!data || data.length == 0) {
+        return ""
+    }
+    return decodeURIComponent(escape(atob(data)));
+}
+
+// base64编码, 支持包含中文内容的数据
+
+export const base64Encode = (data: string): string => {
+    return btoa(unescape(encodeURIComponent(data)));
+}
+
+
+export const alertNoPermission = () => {
+    alert("没有权限")
 }

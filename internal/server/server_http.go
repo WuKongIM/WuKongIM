@@ -4,9 +4,12 @@ import (
 	"net/http"
 	"strings"
 
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -21,23 +24,10 @@ type APIServer struct {
 // NewAPIServer new一个api server
 func NewAPIServer(s *Server) *APIServer {
 	r := wkhttp.New()
-	r.Use(wkhttp.CORSMiddleware())
 
 	if s.opts.PprofOn {
 		pprof.Register(r.GetGinRoute()) // 注册pprof
 	}
-
-	r.Use(func(c *wkhttp.Context) { // ip黑名单判断
-		clientIP := c.Request.Header.Get("X-Forwarded-For")
-		if strings.TrimSpace(clientIP) == "" {
-			clientIP = c.ClientIP()
-		}
-		if !s.AllowIP(clientIP) {
-			c.AbortWithStatus(http.StatusForbidden)
-			return
-		}
-		c.Next()
-	})
 
 	hs := &APIServer{
 		r:    r,
@@ -64,6 +54,11 @@ func (s *APIServer) Start() {
 		c.Next()
 	})
 
+	// 跨域
+	s.r.Use(wkhttp.CORSMiddleware())
+	// 带宽流量计算中间件
+	s.r.Use(bandwidthMiddleware())
+
 	s.setRoutes()
 	go func() {
 		err := s.r.Run(s.addr) // listen and serve
@@ -71,19 +66,25 @@ func (s *APIServer) Start() {
 			panic(err)
 		}
 	}()
-	s.Info("Server started", zap.String("addr", s.addr))
+	s.Info("ApiServer started", zap.String("addr", s.addr))
 }
 
 // Stop 停止服务
 func (s *APIServer) Stop() {
+	s.Debug("stop...")
 }
 
 func (s *APIServer) setRoutes() {
+
+	s.r.GET("/health", func(c *wkhttp.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	connz := NewConnzAPI(s.s)
 	connz.Route(s.r)
 
-	varz := NewVarzAPI(s.s)
-	varz.Route(s.r)
+	// varz := NewVarzAPI(s.s)
+	// varz.Route(s.r)
 
 	// 用户相关API
 	u := NewUserAPI(s.s)
@@ -97,7 +98,7 @@ func (s *APIServer) setRoutes() {
 	conversation := NewConversationAPI(s.s)
 	conversation.Route(s.r)
 
-	// 消息相关API
+	// // 消息相关API
 	message := NewMessageAPI(s.s)
 	message.Route(s.r)
 
@@ -105,7 +106,65 @@ func (s *APIServer) setRoutes() {
 	routeapi := NewRouteAPI(s.s)
 	routeapi.Route(s.r)
 
-	// 系统api
-	system := NewSystemAPI(s.s)
-	system.Route(s.r)
+	// 分布式api
+	clusterServer, ok := s.s.cluster.(*cluster.Server)
+	if ok {
+		clusterServer.ServerAPI(s.r, "/cluster")
+	}
+
+	// // 系统api
+	// system := NewSystemAPI(s.s)
+	// system.Route(s.r)
+
+}
+
+func bandwidthMiddleware() wkhttp.HandlerFunc {
+
+	return func(c *wkhttp.Context) {
+
+		// fpath := c.FullPath()
+		// if strings.HasPrefix(fpath, "/metrics") { // 监控不计算外网带宽
+		// 	c.Next()
+		// 	return
+		// }
+		// 获取请求大小
+		requestSize := computeRequestSize(c.Request)
+		trace.GlobalTrace.Metrics.System().ExtranetIncomingAdd(int64(requestSize))
+
+		// 获取响应大小
+		blw := &bodyLogWriter{ResponseWriter: c.Writer}
+		c.Writer = blw
+		c.Next()
+		trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(blw.size))
+
+	}
+}
+
+type bodyLogWriter struct {
+	gin.ResponseWriter
+	size int
+}
+
+func (blw *bodyLogWriter) Write(b []byte) (int, error) {
+	blw.size += len(b)
+	return blw.ResponseWriter.Write(b)
+}
+
+func computeRequestSize(r *http.Request) int {
+	// 计算请求头部大小
+	requestSize := 0
+	if r.URL != nil {
+		requestSize += len(r.URL.String())
+	}
+	requestSize += len(r.Method)
+	requestSize += len(r.Proto)
+	for name, values := range r.Header {
+		requestSize += len(name)
+		for _, value := range values {
+			requestSize += len(value)
+		}
+	}
+	// 计算请求体大小
+	requestSize += int(r.ContentLength)
+	return requestSize
 }

@@ -1,104 +1,222 @@
 package server
 
 import (
-	"runtime"
 	"sync"
 
-	"github.com/eapache/queue"
+	"github.com/sasha-s/go-deadlock"
 )
 
-// Queue Queue
-type Queue struct {
-	sync.Mutex
-	popable *sync.Cond
-	buffer  *queue.Queue
-	closed  bool
+type channelNode struct {
+	key  string
+	ch   *channel
+	next *channelNode
+	pre  *channelNode
 }
 
-// NewQueue 创建队列
-func NewQueue() *Queue {
-	e := &Queue{
-		buffer: queue.New(),
-	}
-	e.popable = sync.NewCond(&e.Mutex)
-	return e
-}
-
-// Push Push
-func (e *Queue) Push(v interface{}) {
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-	if !e.closed {
-		e.buffer.Add(v)
-		e.popable.Signal()
+func newChannelNode(key string, ch *channel) *channelNode {
+	return &channelNode{
+		key: key,
+		ch:  ch,
 	}
 }
 
-// Close Close
-func (e *Queue) Close() {
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-	if !e.closed {
-		e.closed = true
-		e.popable.Broadcast() //广播
+type channelList struct {
+	head  *channelNode
+	tail  *channelNode
+	count int
+
+	mu deadlock.RWMutex
+}
+
+func newChannelList() *channelList {
+	return &channelList{}
+}
+
+func (c *channelList) add(ch *channel) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	node := newChannelNode(ch.key, ch)
+	if c.head == nil {
+		c.head = node
+	} else {
+		c.tail.next = node
+		node.pre = c.tail
+	}
+	c.tail = node
+	c.count++
+}
+
+func (c *channelList) remove(key string) *channel {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	node := c.head
+	for node != nil {
+		if node.key == key {
+			if node.pre == nil {
+				c.head = node.next
+			} else {
+				node.pre.next = node.next
+			}
+			if node.next == nil {
+				c.tail = node.pre
+			} else {
+				node.next.pre = node.pre
+			}
+			c.count--
+			return node.ch
+		}
+		node = node.next
+	}
+	return nil
+}
+
+func (c *channelList) get(key string) *channel {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	node := c.head
+	for node != nil {
+		if node.key == key {
+			return node.ch
+		}
+		node = node.next
+	}
+	return nil
+}
+
+func (c *channelList) exist(key string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	node := c.head
+	for node != nil {
+		if node.key == key {
+			return true
+		}
+		node = node.next
+	}
+	return false
+}
+
+func (c *channelList) iter(f func(ch *channel)) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	node := c.head
+	for node != nil {
+		f(node.ch)
+		node = node.next
 	}
 }
 
-// Pop 取出队列,（阻塞模式）
-func (e *Queue) Pop() (v interface{}) {
-	c := e.popable
-	buffer := e.buffer
-
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-
-	for buffer.Length() == 0 && !e.closed {
-		c.Wait()
-	}
-
-	if e.closed { //已关闭
-		return
-	}
-
-	if buffer.Length() > 0 {
-		v = buffer.Peek()
-		buffer.Remove()
-	}
-	return
+func (c *channelList) len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.count
 }
 
-// TryPop 试着取出队列（非阻塞模式）返回ok == false 表示空
-func (e *Queue) TryPop() (v interface{}, ok bool) {
-	buffer := e.buffer
+type userNode struct {
+	key  string
+	user *userHandler
+	next *userNode
+	pre  *userNode
+}
 
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-
-	if buffer.Length() > 0 {
-		v = buffer.Peek()
-		buffer.Remove()
-		ok = true
-	} else if e.closed {
-		ok = true
+func newUserNode(key string, user *userHandler) *userNode {
+	return &userNode{
+		key:  key,
+		user: user,
 	}
-
-	return
 }
 
-// Len 获取队列长度
-func (e *Queue) Len() int {
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-	return e.buffer.Length()
+type userList struct {
+	head  *userNode
+	tail  *userNode
+	count int
+
+	mu sync.RWMutex
 }
 
-// Wait 等待队列消费完成
-func (e *Queue) Wait() {
-	for {
-		if e.closed || e.buffer.Length() == 0 {
+func newUserList() *userList {
+	return &userList{}
+}
+
+func (c *userList) add(u *userHandler) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	node := newUserNode(u.uid, u)
+	if c.head == nil {
+		c.head = node
+	} else {
+		c.tail.next = node
+		node.pre = c.tail
+	}
+	c.tail = node
+	c.count++
+}
+
+func (c *userList) remove(key string) *userHandler {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	node := c.head
+	for node != nil {
+		if node.key == key {
+			if node.pre == nil {
+				c.head = node.next
+			} else {
+				node.pre.next = node.next
+			}
+			if node.next == nil {
+				c.tail = node.pre
+			} else {
+				node.next.pre = node.pre
+			}
+			c.count--
+			return node.user
+		}
+		node = node.next
+	}
+	return nil
+}
+
+func (c *userList) get(key string) *userHandler {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	node := c.head
+	for node != nil {
+		if node.key == key {
+			return node.user
+		}
+		node = node.next
+	}
+	return nil
+}
+
+func (c *userList) exist(key string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	node := c.head
+	for node != nil {
+		if node.key == key {
+			return true
+		}
+		node = node.next
+	}
+	return false
+}
+
+func (c *userList) iter(f func(ch *userHandler) bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	node := c.head
+	for node != nil {
+		cn := f(node.user)
+		if !cn {
 			break
 		}
-
-		runtime.Gosched() //出让时间片
+		node = node.next
 	}
+}
+
+func (c *userList) len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.count
 }

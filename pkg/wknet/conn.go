@@ -22,20 +22,19 @@ import (
 )
 
 type ConnStats struct {
-	InMsgs   *atomic.Int64 // recv msg count
-	OutMsgs  *atomic.Int64
-	InBytes  *atomic.Int64
-	OutBytes *atomic.Int64
+	InMsgs         atomic.Int64 // 收到客户端消息数量
+	OutMsgs        atomic.Int64 // 下发消息数量
+	InMsgBytes     atomic.Int64 // 收到消息字节数
+	OutMsgBytes    atomic.Int64 // 下发消息字节数
+	InPackets      atomic.Int64 // 收到包数量
+	OutPackets     atomic.Int64 // 下发包数量
+	InPacketBytes  atomic.Int64 // 收到包字节数
+	OutPacketBytes atomic.Int64 // 下发包字节数
 }
 
 func NewConnStats() *ConnStats {
 
-	return &ConnStats{
-		InMsgs:   atomic.NewInt64(0),
-		OutMsgs:  atomic.NewInt64(0),
-		InBytes:  atomic.NewInt64(0),
-		OutBytes: atomic.NewInt64(0),
-	}
+	return &ConnStats{}
 }
 
 type Conn interface {
@@ -223,6 +222,9 @@ func (d *DefaultConn) ReadToInboundBuffer() (int, error) {
 	n, err := d.fd.Read(readBuffer)
 	if err != nil || n == 0 {
 		return 0, err
+	}
+	if d.eg.options.Event.OnReadBytes != nil {
+		d.eg.options.Event.OnReadBytes(n)
 	}
 	if d.overflowForInbound(n) {
 		return 0, fmt.Errorf("inbound buffer overflow, fd: %d buffSize:%d n: %d currentSize: %d maxSize: %d", d.fd, d.inboundBuffer.BoundBufferSize(), n, d.inboundBuffer.BoundBufferSize()+n, d.eg.options.MaxReadBufferSize)
@@ -585,6 +587,9 @@ func (d *DefaultConn) flush() error {
 	head, tail := d.outboundBuffer.Peek(-1)
 	n, err = d.writeDirect(head, tail)
 	_, _ = d.outboundBuffer.Discard(n)
+	if d.eg.options.Event.OnWirteBytes != nil {
+		d.eg.options.Event.OnWirteBytes(n)
+	}
 	switch err {
 	case nil:
 	case syscall.EAGAIN:
@@ -708,6 +713,9 @@ func (t *TLSConn) ReadToInboundBuffer() (int, error) {
 	if err != nil || n == 0 {
 		return 0, err
 	}
+	if t.d.eg.options.Event.OnReadBytes != nil {
+		t.d.eg.options.Event.OnReadBytes(n)
+	}
 	_, err = t.tmpInboundBuffer.Write(readBuffer[:n]) // 将tls加密的内容写到tmpInboundBuffer内， tls会从tmpInboundBuffer读取数据（BuffReader接口）
 	if err != nil {
 		return 0, err
@@ -791,7 +799,7 @@ func (t *TLSConn) SetWriteDeadline(tim time.Time) error {
 }
 
 func (t *TLSConn) Close() error {
-	t.tmpInboundBuffer.Release()
+	_ = t.tmpInboundBuffer.Release()
 	return t.d.Close()
 }
 
@@ -957,8 +965,9 @@ func (e *eofBuff) Read(p []byte) (int, error) {
 // 		return 0, err
 // 	}
 
-//		return newFd, nil
-//	}
+// 	return newFd, nil
+// }
+
 type connMatrix struct {
 	connCount atomic.Int32
 	conns     map[int]Conn
