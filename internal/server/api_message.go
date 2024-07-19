@@ -194,9 +194,9 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		}
 	}
 	for _, cacheConversation := range cacheConversations {
-		for _, conversation := range conversations {
+		for i, conversation := range conversations {
 			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				conversation.ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
+				conversations[i].ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
 				break
 			}
 		}
