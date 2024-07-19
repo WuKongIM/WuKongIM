@@ -2,10 +2,10 @@ mode: "release"
 addr: "tcp://0.0.0.0:5110" # tcp监听地址
 httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
-rootDir: "./wukongimdata/1"
+rootDir: "./wukongimdata/1001"
 manager:
   on: true
-  addr: "0.0.0.0:5301"
+  addr: "0.0.0.0:5300"
 demo:
   on: true  
 conversation:
@@ -31,5 +31,5 @@ auth:
     - "admin:pwd:*" 
     - "guest:guest:[*:r]" # guest用户密码为guest对所有资源有读权限
 jwt:
-  secret: "xxxxx"
+  secret: "wukongim_test_secret"
   expire: 30d

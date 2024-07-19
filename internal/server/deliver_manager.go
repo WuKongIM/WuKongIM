@@ -176,7 +176,6 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 				return
 			}
 		} else {
-			fmt.Println("requestNodeChannelTag......", req.channelId, req.channelType, req.tagKey)
 			tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
 				channelId:   req.channelId,
 				channelType: req.channelType,
