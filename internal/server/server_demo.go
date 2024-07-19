@@ -50,7 +50,7 @@ func (s *DemoServer) Start() {
 		}
 
 		if strings.HasPrefix(c.Request.URL.Path, "/chatdemo") {
-			c.FileFromFS("./index.html", http.FS(st))
+			c.FileFromFS("./", http.FS(st))
 			return
 		}
 	})

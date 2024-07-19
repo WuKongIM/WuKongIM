@@ -45,7 +45,7 @@ func (wk *wukongDB) SaveChannelClusterConfigs(channelClusterConfigs []ChannelClu
 		start := time.Now()
 		defer func() {
 			end := time.Since(start)
-			if end > time.Millisecond*0 {
+			if end > time.Millisecond*200 {
 				wk.Warn("batch save channel cluster config", zap.Duration("cost", time.Since(start)), zap.Int("count", len(channelClusterConfigs)))
 			}
 		}()

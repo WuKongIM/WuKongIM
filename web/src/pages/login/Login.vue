@@ -26,7 +26,7 @@ const onLogin = () => {
         loginInfo.token = res.token
         loginInfo.setPermissionFromStr(res.permissions)
         loginInfo.save()
-        window.location.reload()
+        window.location.href = '/web'
     }).catch((err) => {
         console.log(err)
         alert(err.msg)
