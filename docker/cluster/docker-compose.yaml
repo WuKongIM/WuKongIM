@@ -19,6 +19,7 @@ services:
       - "WK_CLUSTER_SERVERADDR=node1.wk.local:11110"
       - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
       - "WK_CLUSTER_APIURL=http://node1.wk.local:5001" # 节点对外API地址
+      - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus.wk.local:9090" # 监控地址
     networks:
       wukongim-bridge:
         aliases:
@@ -36,6 +37,7 @@ services:
       - "WK_CLUSTER_SERVERADDR=node2.wk.local:11110"
       - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
       - "WK_CLUSTER_APIURL=http://node2.wk.local:5001"
+      - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus.wk.local:9090" # 监控地址
     networks:
       wukongim-bridge:
         aliases:
@@ -53,6 +55,7 @@ services:
       - "WK_CLUSTER_SERVERADDR=node3.wk.local:11110"
       - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
       - "WK_CLUSTER_APIURL=http://node3.wk.local:5001"
+      - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus.wk.local:9090" # 监控地址
     networks:
       wukongim-bridge:
         aliases:
@@ -63,6 +66,10 @@ services:
     image: prom/prometheus:v2.53.1
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    networks:
+      wukongim-bridge:
+        aliases:
+        - prometheus.wk.local  
     ports:
       - "9090:9090"    
   nginx:
