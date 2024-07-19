@@ -345,7 +345,6 @@ func (u *userHandler) tickLeader() {
 				})
 			}
 			if len(messages) > 0 {
-				fmt.Println("send node ping....", u.uid)
 				u.actions = append(u.actions, UserAction{ActionType: UserActionNodePing, Uid: u.uid, Messages: messages})
 			}
 

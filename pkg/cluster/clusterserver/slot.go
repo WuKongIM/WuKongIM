@@ -229,8 +229,6 @@ func (s *slot) FollowerToLeader(followerId uint64) error {
 	s.learnerToLock.Lock()
 	defer s.learnerToLock.Unlock()
 
-	fmt.Println("FollowerToLeader--------->", followerId)
-
 	existSlot := s.s.clusterEventServer.Slot(s.st.Id)
 	if existSlot == nil {
 		s.Error("FollowerToLeader: slot not found", zap.Uint32("slotId", s.st.Id))
