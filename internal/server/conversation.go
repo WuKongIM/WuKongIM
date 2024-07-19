@@ -71,7 +71,9 @@ func NewConversationManager(s *Server) *ConversationManager {
 func (cm *ConversationManager) Start() {
 	if cm.s.opts.Conversation.On {
 		go cm.saveloop()
-		go cm.calcLoop()
+		for i := 0; i < 20; i++ {
+			go cm.calcLoop()
+		}
 		cm.crontab.Start()
 	}
 
@@ -80,12 +82,9 @@ func (cm *ConversationManager) Start() {
 // Stop Stop
 func (cm *ConversationManager) Stop() {
 	if cm.s.opts.Conversation.On {
-		fmt.Println("ConversationManager stop....1")
 		cm.FlushConversations()
-		fmt.Println("ConversationManager stop....2")
 		// Wait for the queue to complete
 		cm.queue.Wait()
-		fmt.Println("ConversationManager stop....3")
 		cm.queue.Close()
 
 		close(cm.stopChan)
