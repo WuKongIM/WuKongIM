@@ -107,8 +107,9 @@ func initServer() {
 		// cmd.Stdin = os.Stdin // 给新进程设置文件描述符，可以重定向到文件中
 		// cmd.Stdout = os.Stdout
 		// cmd.Stderr = os.Stderr
-		fmt.Println("root dir:", serverOpts.RootDir)
-		fmt.Println("config file:", cfgFile)
+		fmt.Println("Root Dir:", serverOpts.RootDir)
+		fmt.Println("Config File:", cfgFile)
+		fmt.Println("WuKongIM is running in daemon mode")
 		err := cmd.Start() // 开始执行新进程，不等待新进程退出
 		if err != nil {
 			log.Fatal(err)
