@@ -123,7 +123,7 @@ func (c *connContext) addConnectPacket(packet *wkproto.ConnectPacket) {
 	frameSize := packet.GetFrameSize()
 	c.inPacketByteCount.Add(frameSize)
 
-	trace.GlobalTrace.Metrics.App().ConnCountAdd(1)
+	trace.GlobalTrace.Metrics.App().ConnPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().ConnPacketBytesAdd(frameSize)
 
 	err := c.subReactor.stepNoWait(c.uid, UserAction{
