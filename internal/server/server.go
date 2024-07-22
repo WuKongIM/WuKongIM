@@ -207,11 +207,8 @@ func (s *Server) Stop() error {
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
 	}
-	fmt.Println("Server is Stoping...7")
 	s.store.Close()
-	fmt.Println("Server is Stoping...8")
 	close(s.stopChan)
-	fmt.Println("Server is Stoping...9")
 
 	return nil
 }

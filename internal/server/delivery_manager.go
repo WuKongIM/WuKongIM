@@ -116,8 +116,8 @@ func (d *DeliveryManager) deliveryMessages(messages []*Message, large bool, sync
 			}
 			d.s.dispatch.dataOut(recvConn, recvPackets...)
 			cost := time.Since(startTime)
-			if cost > 100*time.Millisecond {
-				d.Warn("消息投递耗时", zap.String("subscriber", subscriber), zap.Any("recvConns", len(recvConns)), zap.Duration("cost", cost))
+			if cost > 200*time.Millisecond {
+				d.Debug("消息投递耗时", zap.String("subscriber", subscriber), zap.Any("recvConns", len(recvConns)), zap.Duration("cost", cost))
 			}
 		}
 	}

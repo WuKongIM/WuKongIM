@@ -131,6 +131,9 @@ func (p *Poller) AddWrite(fd int) error {
 	_, err := unix.Kevent(p.fd, []unix.Kevent_t{
 		{Ident: uint64(fd), Flags: unix.EV_ADD, Filter: unix.EVFILT_WRITE},
 	}, nil, nil)
+	if err != nil {
+		p.Error("AddWrite failed", zap.Int("fd", fd), zap.Error(err))
+	}
 	return os.NewSyscallError("kevent add", err)
 }
 

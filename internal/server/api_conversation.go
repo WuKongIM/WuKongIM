@@ -207,6 +207,8 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		newConversations = append(newConversations, conversations...)
 	}
 
+	fmt.Println("conversations-------------->", len(conversations), conversations)
+
 	if len(req.Larges) > 0 && req.MsgCount > 0 {
 		for _, largeChannel := range req.Larges {
 			var existConversation *wkstore.Conversation

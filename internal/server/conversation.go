@@ -41,7 +41,7 @@ func NewConversationManager(s *Server) *ConversationManager {
 		needSaveConversationMap: map[string]bool{},
 		stopChan:                make(chan struct{}),
 		calcChan:                make(chan interface{}),
-		needSaveChan:            make(chan string),
+		needSaveChan:            make(chan string, 100),
 		queue:                   NewQueue(),
 	}
 	cm.userConversationMapBuckets = make([]map[string]*lru.Cache[string, *wkstore.Conversation], cm.bucketNum)
@@ -70,8 +70,8 @@ func NewConversationManager(s *Server) *ConversationManager {
 // Start Start
 func (cm *ConversationManager) Start() {
 	if cm.s.opts.Conversation.On {
-		go cm.saveloop()
 		for i := 0; i < 20; i++ {
+			go cm.saveloop()
 			go cm.calcLoop()
 		}
 		cm.crontab.Start()
