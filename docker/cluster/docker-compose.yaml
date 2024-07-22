@@ -1,7 +1,7 @@
 version: '3.7'
 
 x-wukongim-common: &wukongim-common  # 公共配置
-    image: wukongim/wukongim:v2.0.1-beta-20240715
+    image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.1-beta-20240715
     healthcheck:
       test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
       interval: 10s
@@ -63,7 +63,7 @@ services:
     volumes:
       - ./wukongim3_data:/root/wukongim  
   prometheus: 
-    image: prom/prometheus:v2.53.1
+    image: registry.cn-shanghai.aliyuncs.com/wukongim/prometheus:v2.53.1
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     networks:
@@ -73,7 +73,7 @@ services:
     ports:
       - "9090:9090"    
   nginx:
-    image: nginx:1.27.0
+    image: registry.cn-shanghai.aliyuncs.com/wukongim/nginx:1.27.0
     container_name: apigateway
     hostname: apigateway
     volumes:
