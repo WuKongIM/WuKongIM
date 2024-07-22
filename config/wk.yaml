@@ -60,4 +60,4 @@ conversation: # 最近会话配置
 #  maxCount: 5    # 消息最大重试次数, 服务端持有用户的连接但是给此用户发送消息后在指定的间隔内没有收到ack，将会重新发送，直到超过maxCount配置的数量后将不再发送（这种情况很少出现，如果出现这种情况此消息只能去离线接口去拉取）
 #userMsgQueueMaxSize: 0 #  用户消息队列最大大小，超过此大小此用户将被限速，0为不限制
 #deadlockCheck: false # 是否开启死锁检测 
-#pprofOn: false # 是否开启pprof
+pprofOn: true # 是否开启pprof

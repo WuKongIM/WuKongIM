@@ -28,7 +28,7 @@ type ConversationManager struct {
 	mu                             deadlock.RWMutex
 	stopChan                       chan struct{} //停止信号
 	calcChan                       chan interface{}
-	needSaveChan                   chan string
+	needSaveChan                   chan struct{}
 	crontab                        *cron.Cron
 }
 
@@ -41,7 +41,7 @@ func NewConversationManager(s *Server) *ConversationManager {
 		needSaveConversationMap: map[string]bool{},
 		stopChan:                make(chan struct{}),
 		calcChan:                make(chan interface{}),
-		needSaveChan:            make(chan string, 100),
+		needSaveChan:            make(chan struct{}, 100),
 		queue:                   NewQueue(),
 	}
 	cm.userConversationMapBuckets = make([]map[string]*lru.Cache[string, *wkstore.Conversation], cm.bucketNum)
@@ -62,7 +62,7 @@ func NewConversationManager(s *Server) *ConversationManager {
 
 	cm.crontab = cron.New(cron.WithSeconds())
 
-	cm.crontab.AddFunc("0 0 2 * * ?", cm.clearExpireConversations) // 每条凌晨2点执行一次
+	_, _ = cm.crontab.AddFunc("0 0 2 * * ?", cm.clearExpireConversations) // 每条凌晨2点执行一次
 
 	return cm
 }
@@ -70,8 +70,11 @@ func NewConversationManager(s *Server) *ConversationManager {
 // Start Start
 func (cm *ConversationManager) Start() {
 	if cm.s.opts.Conversation.On {
-		for i := 0; i < 20; i++ {
+
+		for i := 0; i < 5; i++ { // 存储协程不能开过大，过大会导致数据库变慢
 			go cm.saveloop()
+		}
+		for i := 0; i < 20; i++ {
 			go cm.calcLoop()
 		}
 		cm.crontab.Start()
@@ -149,13 +152,8 @@ func (cm *ConversationManager) saveloop() {
 			needSync = false
 		}
 		select {
-		case uid := <-cm.needSaveChan:
-			cm.mu.Lock()
-			if !cm.needSaveConversationMap[uid] {
-				cm.needSaveConversationMap[uid] = true
-				noSaveCount++
-			}
-			cm.mu.Unlock()
+		case <-cm.needSaveChan:
+			noSaveCount++
 
 		case <-ticker.C:
 			if noSaveCount > 0 {
@@ -262,8 +260,10 @@ func (cm *ConversationManager) FlushConversations() {
 
 	cm.mu.RLock()
 	needSaveUIDs := make([]string, 0, len(cm.needSaveConversationMap))
-	for uid := range cm.needSaveConversationMap {
-		needSaveUIDs = append(needSaveUIDs, uid)
+	for uid, update := range cm.needSaveConversationMap {
+		if update {
+			needSaveUIDs = append(needSaveUIDs, uid)
+		}
 	}
 	cm.mu.RUnlock()
 
@@ -479,7 +479,16 @@ func (cm *ConversationManager) channelInLarges(channelID string, channelType uin
 }
 
 func (cm *ConversationManager) setNeedSave(uid string) {
-	cm.needSaveChan <- uid
+	cm.mu.Lock()
+	if !cm.needSaveConversationMap[uid] {
+		cm.needSaveConversationMap[uid] = true
+	}
+	cm.mu.Unlock()
+
+	select {
+	case cm.needSaveChan <- struct{}{}:
+	default:
+	}
 }
 
 func (cm *ConversationManager) getChannelKey(channelID string, channelType uint8) string {

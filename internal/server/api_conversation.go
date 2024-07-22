@@ -207,8 +207,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		newConversations = append(newConversations, conversations...)
 	}
 
-	fmt.Println("conversations-------------->", len(conversations), conversations)
-
 	if len(req.Larges) > 0 && req.MsgCount > 0 {
 		for _, largeChannel := range req.Larges {
 			var existConversation *wkstore.Conversation
@@ -316,7 +314,6 @@ func (s *ConversationAPI) syncRecentMessages(c *wkhttp.Context) {
 }
 
 func (s *ConversationAPI) getRecentMessages(uid string, msgCount int, channels []*channelRecentMessageReq) ([]*channelRecentMessage, error) {
-	fmt.Println("getRecentMessages-->", uid, msgCount, channels)
 	channelRecentMessages := make([]*channelRecentMessage, 0)
 	if len(channels) > 0 {
 		var (
