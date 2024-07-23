@@ -113,8 +113,26 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 			c.storageTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 		}
 
+		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.storagingIndex)
 		if a.Index > c.msgQueue.storagingIndex && a.Reason == ReasonSuccess {
 			c.msgQueue.storagingIndex = a.Index
+		}
+		endIndex := c.msgQueue.getArrayIndex(c.msgQueue.storagingIndex)
+
+		if startIndex >= endIndex {
+			return nil
+		}
+		msgLen := len(a.Messages)
+		for i := startIndex; i < endIndex; i++ {
+			msg := c.msgQueue.messages[i]
+			for j := 0; j < msgLen; j++ {
+				storedMsg := a.Messages[j]
+				if msg.MessageId == storedMsg.MessageId {
+					msg.MessageSeq = storedMsg.MessageSeq
+					c.msgQueue.messages[i] = msg
+					break
+				}
+			}
 		}
 	// 消息存储完毕后，需要通知发送者
 	// c.exec(&ChannelAction{ActionType: ChannelActionSendack, Messages: a.Messages, Reason: a.Reason, ReasonCode: a.ReasonCode})
