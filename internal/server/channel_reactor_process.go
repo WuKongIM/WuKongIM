@@ -529,6 +529,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 			ActionType: ChannelActionStorageResp,
 			Index:      lastIndex,
 			Reason:     reason,
+			Messages:   req.messages,
 		})
 
 	}

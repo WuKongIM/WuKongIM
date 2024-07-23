@@ -200,6 +200,7 @@ func (rs ReactorChannelMessageSet) Marshal() ([]byte, error) {
 		enc.WriteString(r.FromDeviceId)
 		enc.WriteUint64(r.FromNodeId)
 		enc.WriteInt64(r.MessageId)
+		enc.WriteUint32(r.MessageSeq)
 
 		var packetData []byte
 		var err error
@@ -240,6 +241,9 @@ func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
 			return err
 		}
 		if r.MessageId, err = dec.Int64(); err != nil {
+			return err
+		}
+		if r.MessageSeq, err = dec.Uint32(); err != nil {
 			return err
 		}
 		packetData, err := dec.Binary()

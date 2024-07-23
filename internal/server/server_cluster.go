@@ -285,6 +285,7 @@ func (s *Server) handleDeliver(c *wkserver.Context) {
 		return
 	}
 	for _, channelMsg := range channelMsgSet {
+
 		ch := s.channelReactor.loadOrCreateChannel(channelMsg.ChannelId, channelMsg.ChannelType)
 		s.deliverManager.deliver(&deliverReq{
 			channelId:   channelMsg.ChannelId,
