@@ -71,7 +71,7 @@ func NewConversationManager(s *Server) *ConversationManager {
 func (cm *ConversationManager) Start() {
 	if cm.s.opts.Conversation.On {
 
-		for i := 0; i < 5; i++ { // 存储协程不能开过大，过大会导致数据库变慢
+		for i := 0; i < 1; i++ { // 存储协程不能开过大，过大会导致数据库变慢
 			go cm.saveloop()
 		}
 		for i := 0; i < 20; i++ {
@@ -175,6 +175,29 @@ func (cm *ConversationManager) PushMessage(message *Message, subscribers []strin
 		"message":     message,
 		"subscribers": subscribers,
 	})
+}
+
+func (cm *ConversationManager) QueueLen() int {
+	return cm.queue.Len()
+}
+
+func (cm *ConversationManager) CacheLen() int {
+	totalConversation := 0
+	for i := 0; i < cm.bucketNum; i++ {
+		cm.userConversationMapBucketLocks[i].Lock()
+		userConversationMap := cm.userConversationMapBuckets[i]
+		for _, cache := range userConversationMap {
+			totalConversation += cache.Len()
+		}
+		cm.userConversationMapBucketLocks[i].Unlock()
+	}
+	return totalConversation
+}
+
+func (cm *ConversationManager) NeedSaveUserLen() int {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return len(cm.needSaveConversationMap)
 }
 
 // SetConversationUnread set unread data from conversation

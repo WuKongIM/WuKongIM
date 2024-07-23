@@ -98,6 +98,10 @@ func CreateVarz(s *Server) *Varz {
 		TreeState:      version.TreeState,
 		ManagerUID:     opts.ManagerUID,
 		ManagerTokenOn: wkutil.BoolToInt(opts.ManagerTokenOn),
+
+		ConversationQueueLen:        s.conversationManager.QueueLen(),
+		ConversationNeedSaveUserLen: s.conversationManager.NeedSaveUserLen(),
+		ConversationCacheLen:        s.conversationManager.CacheLen(),
 	}
 }
 
@@ -133,4 +137,7 @@ type Varz struct {
 
 	Conns []*ConnInfo `json:"conns,omitempty"` // 连接信息
 
+	ConversationQueueLen        int `json:"conversation_queue_len"`          // 会话队列长度
+	ConversationNeedSaveUserLen int `json:"conversation_need_save_user_len"` // 会话需要保存用户长度
+	ConversationCacheLen        int `json:"conversation_cache_len"`          // 会话缓存长度
 }

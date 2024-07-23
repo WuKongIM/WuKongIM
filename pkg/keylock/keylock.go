@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	defaultCleanInterval = 1 * time.Hour //默认1小时清理一次
+	defaultCleanInterval = 12 * time.Hour //默认12小时清理一次
 )
 
 // KeyLock KeyLock
