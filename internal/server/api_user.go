@@ -400,6 +400,10 @@ func (u UpdateTokenReq) Check() error {
 	if u.Token == "" {
 		return errors.New("token不能为空！")
 	}
+
+	if IsSpecialChar(u.UID) {
+		return errors.New("uid不能包含特殊字符！")
+	}
 	// if len(u.PublicKey) <= 0 {
 	// 	return errors.New("用户RSA公钥不能为空！")
 	// }

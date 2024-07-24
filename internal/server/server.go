@@ -397,12 +397,13 @@ func (s *Server) onData(conn wknet.Conn) error {
 	if !isAuth {
 		packet, _, err := s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
 		if err != nil {
-			s.Warn("Failed to decode the message", zap.Error(err))
+			s.Warn("Failed to decode the message,conn will be closed", zap.Error(err))
 			conn.Close()
 			return nil
 		}
 		if packet == nil {
-			s.Warn("message is nil", zap.ByteString("data", data))
+			s.Warn("packet is nil,conn will be closed", zap.ByteString("data", data))
+			conn.Close()
 			return nil
 		}
 		if packet.GetFrameType() != wkproto.CONNECT {
@@ -411,6 +412,18 @@ func (s *Server) onData(conn wknet.Conn) error {
 			return nil
 		}
 		connectPacket := packet.(*wkproto.ConnectPacket)
+
+		if strings.TrimSpace(connectPacket.UID) == "" {
+			s.Warn("UID is empty,conn will be closed")
+			conn.Close()
+			return nil
+		}
+		if IsSpecialChar(connectPacket.UID) {
+			s.Warn("UID is illegal,conn will be closed")
+			conn.Close()
+			return nil
+		}
+
 		sub := s.userReactor.reactorSub(connectPacket.UID)
 		connInfo := connInfo{
 			connId:       conn.ID(),
