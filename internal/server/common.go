@@ -324,3 +324,8 @@ func uidToServerId(uid string) uint64 {
 	id, _ := strconv.ParseUint(uid, 10, 64)
 	return id
 }
+
+// 判断字符串是否存在特殊字符
+func IsSpecialChar(s string) bool {
+	return strings.Contains(s, "@") || strings.Contains(s, "#") || strings.Contains(s, "&") || strings.Contains(s, "-") || strings.Contains(s, "_")
+}

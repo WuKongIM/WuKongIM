@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -157,6 +158,19 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 
 	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(frameSize)
+
+	// 非法频道id，直接返回发送失败
+	if strings.TrimSpace(packet.ChannelID) == "" || IsSpecialChar(packet.ChannelID) {
+		c.Error("addSendPacket failed, channelId is illegal", zap.String("uid", c.uid), zap.String("channelId", packet.ChannelID))
+		sendack := &wkproto.SendackPacket{
+			Framer:      packet.Framer,
+			ClientSeq:   packet.ClientSeq,
+			ClientMsgNo: packet.ClientMsgNo,
+			ReasonCode:  wkproto.ReasonChannelIDError,
+		}
+		_ = c.writeDirectlyPacket(sendack)
+		return
+	}
 
 	// 提案发送至频道
 	_ = c.subReactor.proposeSend(c, packet)

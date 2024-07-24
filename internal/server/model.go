@@ -687,6 +687,9 @@ func (r ChannelCreateReq) Check() error {
 	if r.ChannelType == 0 {
 		return errors.New("频道类型错误！")
 	}
+	if IsSpecialChar(r.ChannelID) {
+		return errors.New("频道ID不能包含特殊字符！")
+	}
 	return nil
 }
 
@@ -701,6 +704,9 @@ type subscriberAddReq struct {
 func (s subscriberAddReq) Check() error {
 	if strings.TrimSpace(s.ChannelID) == "" {
 		return errors.New("频道ID不能为空！")
+	}
+	if IsSpecialChar(s.ChannelID) {
+		return errors.New("频道ID不能包含特殊字符！")
 	}
 	if stringArrayIsEmpty(s.Subscribers) {
 		return errors.New("订阅者不能为空！")
@@ -718,6 +724,9 @@ type subscriberRemoveReq struct {
 func (s subscriberRemoveReq) Check() error {
 	if strings.TrimSpace(s.ChannelID) == "" {
 		return errors.New("频道ID不能为空！")
+	}
+	if IsSpecialChar(s.ChannelID) {
+		return errors.New("频道ID不能包含特殊字符！")
 	}
 	if stringArrayIsEmpty(s.Subscribers) {
 		return errors.New("订阅者不能为空！")
@@ -772,6 +781,9 @@ type whitelistReq struct {
 func (r whitelistReq) Check() error {
 	if r.ChannelID == "" {
 		return errors.New("channel_id不能为空！")
+	}
+	if IsSpecialChar(r.ChannelID) {
+		return errors.New("频道ID不能包含特殊字符！")
 	}
 	if r.ChannelType == 0 {
 		return errors.New("频道类型不能为0！")
