@@ -71,11 +71,34 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 	// 	// m.s.channelManager.CreateTmpChannel(channelId, channelType, req.Subscribers)
 	// }
 	m.Debug("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
-	if strings.TrimSpace(channelId) == "" { //指定了频道 正常发送
+	if strings.TrimSpace(channelId) == "" && len(req.Subscribers) == 0 { //指定了频道 才能正常发送
 		m.Error("无法处理发送消息请求！", zap.Any("req", req))
 		c.ResponseError(errors.New("无法处理发送消息请求！"))
 		return
 	}
+
+	if strings.TrimSpace(channelId) == "" && len(req.Subscribers) > 0 {
+		if req.Header.SyncOnce != 1 {
+			m.Error("subscribers有值的情况下，消息必须是syncOnce消息", zap.Any("req", req))
+			c.ResponseError(errors.New("无法处理发送消息请求！"))
+			return
+		}
+
+		for _, subscriber := range req.Subscribers {
+			clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
+			// 发送消息
+			_, err := m.sendMessageToChannel(req, subscriber, wkproto.ChannelTypePerson, clientMsgNo, wkproto.StreamFlagIng)
+			if err != nil {
+				c.ResponseError(err)
+				return
+			}
+		}
+
+		c.ResponseOK()
+
+		return
+	}
+
 	clientMsgNo := req.ClientMsgNo
 	if strings.TrimSpace(clientMsgNo) == "" {
 		clientMsgNo = fmt.Sprintf("%s0", wkutil.GenUUID())

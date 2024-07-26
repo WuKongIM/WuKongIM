@@ -25,7 +25,7 @@ func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscrib
 	w := db.NewBatch()
 	defer w.Close()
 	for _, uid := range subscribers {
-		id := uint64(wk.prmaryKeyGen.Generate().Int64())
+		id := key.HashWithString(uid)
 		if err := wk.writeSubscriber(channelId, channelType, id, uid, w); err != nil {
 			return err
 		}
@@ -470,7 +470,7 @@ func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, uids []stri
 	w := db.NewBatch()
 	defer w.Close()
 	for _, uid := range uids {
-		id := uint64(wk.prmaryKeyGen.Generate().Int64())
+		id := key.HashWithString(uid)
 		if err := wk.writeDenylist(channelId, channelType, id, uid, w); err != nil {
 			return err
 		}
@@ -614,7 +614,7 @@ func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, uids []str
 	w := db.NewBatch()
 	defer w.Close()
 	for _, uid := range uids {
-		id := uint64(wk.prmaryKeyGen.Generate().Int64())
+		id := key.HashWithString(uid)
 		if err := wk.writeAllowlist(channelId, channelType, id, uid, w); err != nil {
 			return err
 		}
@@ -1113,14 +1113,14 @@ func (wk *wukongDB) writeSubscriber(channelId string, channelType uint8, id uint
 		err error
 	)
 	// uid
-	if err = w.Set(key.NewSubscriberColumnKey(channelId, channelType, id, key.TableUser.Column.Uid), []byte(uid), wk.sync); err != nil {
+	if err = w.Set(key.NewSubscriberColumnKey(channelId, channelType, id, key.TableUser.Column.Uid), []byte(uid), wk.noSync); err != nil {
 		return err
 	}
 
 	// uid index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, id)
-	if err = w.Set(key.NewSubscriberIndexUidKey(channelId, channelType, uid), idBytes, wk.sync); err != nil {
+	if err = w.Set(key.NewSubscriberIndexUidKey(channelId, channelType, uid), idBytes, wk.noSync); err != nil {
 		return err
 	}
 

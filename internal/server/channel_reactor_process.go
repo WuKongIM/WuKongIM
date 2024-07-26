@@ -475,6 +475,9 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 				continue
 			}
+			if msg.SendPacket.NoPersist { // 不需要存储，跳过
+				continue
+			}
 			sendPacket := msg.SendPacket
 			sotreMessages = append(sotreMessages, wkdb.Message{
 				RecvPacket: wkproto.RecvPacket{
@@ -707,7 +710,6 @@ func (r *channelReactor) processDeliverLoop() {
 func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 
 	for _, req := range reqs {
-		fmt.Println("processDeliver---req.ch.key------->", req.ch.key)
 		r.handleDeliver(req)
 		sub := r.reactorSub(req.ch.key)
 		reason := ReasonSuccess

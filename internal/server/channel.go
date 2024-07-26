@@ -455,7 +455,11 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 
 		}
 	} else {
-		subscribers, err = c.r.s.store.GetSubscribers(c.channelId, c.channelType)
+		realChannelId := c.channelId
+		if c.r.s.opts.IsCmdChannel(c.channelId) {
+			realChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
+		}
+		subscribers, err = c.r.s.store.GetSubscribers(realChannelId, c.channelType)
 		if err != nil {
 			return nil, err
 		}
