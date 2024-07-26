@@ -466,20 +466,22 @@ func (s *ConversationAPI) getChannelLastMsgSeqMap(lastMsgSeqs string) map[string
 
 func (s *ConversationAPI) syncRecentMessages(c *wkhttp.Context) {
 	var req struct {
-		UID      string                     `json:"uid"`
-		Channels []*channelRecentMessageReq `json:"channels"`
-		MsgCount int                        `json:"msg_count"`
+		UID         string                     `json:"uid"`
+		Channels    []*channelRecentMessageReq `json:"channels"`
+		MsgCount    int                        `json:"msg_count"`
+		OrderByLast int                        `json:"order_by_last"`
 	}
 	if err := c.BindJSON(&req); err != nil {
 		s.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(errors.New("数据格式有误！"))
 		return
 	}
+	fmt.Println("syncRecentMessages------->", req.UID, len(req.Channels), req.MsgCount)
 	msgCount := req.MsgCount
 	if msgCount <= 0 {
 		msgCount = 15
 	}
-	channelRecentMessages, err := s.s.getRecentMessages(req.UID, msgCount, req.Channels, true)
+	channelRecentMessages, err := s.s.getRecentMessages(req.UID, msgCount, req.Channels, wkutil.IntToBool(req.OrderByLast))
 	if err != nil {
 		s.Error("获取最近消息失败！", zap.Error(err))
 		c.ResponseError(errors.New("获取最近消息失败！"))
@@ -536,7 +538,7 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 		for nodeId, peerChannelRecentMessageReqs := range peerChannelRecentMessageReqsMap {
 			wg.Add(1)
 			go func(pID uint64, reqs []*channelRecentMessageReq, uidStr string, msgCt int) {
-				results, err := s.requestSyncMessage(pID, reqs, uidStr, msgCt)
+				results, err := s.requestSyncMessage(pID, reqs, uidStr, msgCt, orderByLast)
 				if err != nil {
 					s.Error("请求同步消息失败！", zap.Error(err))
 					reqErr = err
@@ -563,7 +565,7 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 	return channelRecentMessages, nil
 }
 
-func (s *Server) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageReq, uid string, msgCount int) ([]*channelRecentMessage, error) {
+func (s *Server) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageReq, uid string, msgCount int, orderByLast bool) ([]*channelRecentMessage, error) {
 
 	nodeInfo, err := s.cluster.NodeInfoById(nodeID) // 获取频道的领导节点
 	if err != nil {
@@ -575,9 +577,10 @@ func (s *Server) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageR
 		Method:  rest.Method("POST"),
 		BaseURL: reqURL,
 		Body: []byte(wkutil.ToJSON(map[string]interface{}{
-			"uid":       uid,
-			"msg_count": msgCount,
-			"channels":  reqs,
+			"uid":           uid,
+			"msg_count":     msgCount,
+			"channels":      reqs,
+			"order_by_last": wkutil.BoolToInt(orderByLast),
 		})),
 	}
 	s.Debug("同步会话消息!", zap.String("apiURL", reqURL), zap.String("uid", uid), zap.Any("channels", reqs))
@@ -610,11 +613,14 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 				fakeChannelID = GetFakeChannelIDWith(uid, channel.ChannelId)
 			}
 			msgSeq := channel.LastMsgSeq
-			if msgSeq > 0 {
-				msgSeq = msgSeq - 1
-			}
 			messageResps := MessageRespSlice{}
 			if orderByLast {
+
+				if msgSeq > 0 {
+					msgSeq = msgSeq - 1 // 这里减1的目的是为了获取到最后一条消息
+				}
+				fmt.Println("getRecentMessages-fakeChannelID-->", fakeChannelID, msgSeq)
+
 				recentMessages, err = s.store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, msgSeq, msgCount)
 				if err != nil {
 					s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
@@ -629,7 +635,8 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 				}
 				sort.Sort(sort.Reverse(messageResps))
 			} else {
-				recentMessages, err = s.store.LoadNextRangeMsgs(uid, channel.ChannelType, msgSeq, 0, msgCount)
+				fmt.Println("getRecentMessages-fakeChannelID2-->", uid, fakeChannelID, msgSeq, msgCount)
+				recentMessages, err = s.store.LoadNextRangeMsgs(fakeChannelID, channel.ChannelType, msgSeq, 0, msgCount)
 				if err != nil {
 					s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
 					return nil, err
@@ -642,6 +649,7 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 					}
 				}
 			}
+			fmt.Println("getRecentMessages-messageResps----->", messageResps)
 
 			channelRecentMessages = append(channelRecentMessages, &channelRecentMessage{
 				ChannelId:   channel.ChannelId,

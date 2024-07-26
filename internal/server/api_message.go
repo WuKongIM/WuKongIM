@@ -27,8 +27,9 @@ type MessageAPI struct {
 // NewMessageAPI NewMessageAPI
 func NewMessageAPI(s *Server) *MessageAPI {
 	return &MessageAPI{
-		s:   s,
-		Log: wklog.NewWKLog("MessageApi"),
+		s:             s,
+		Log:           wklog.NewWKLog("MessageApi"),
+		syncRecordMap: map[string][]*syncRecord{},
 	}
 }
 
@@ -145,6 +146,9 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 
 // 消息同步
 func (m *MessageAPI) sync(c *wkhttp.Context) {
+
+	fmt.Println("sync cmd messages.........")
+
 	var req syncReq
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -161,20 +165,18 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		req.Limit = 50
 	}
 
-	if m.s.opts.ClusterOn() {
-		leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
-		if err != nil {
-			m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-			c.ResponseError(errors.New("获取频道所在节点失败！"))
-			return
-		}
-		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
+	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	if err != nil {
+		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
 
-		if !leaderIsSelf {
-			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-			return
-		}
+	if !leaderIsSelf {
+		m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
 	}
 
 	// ==================== 获取用户活跃的最近会话 ====================
@@ -184,6 +186,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		c.ResponseError(errors.New("获取conversation失败！"))
 		return
 	}
+	fmt.Println("conversations------->", len(conversations))
 
 	// 获取用户缓存的最近会话
 	cacheConversations := m.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeCMD)
@@ -194,21 +197,39 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		}
 	}
 	for _, cacheConversation := range cacheConversations {
+		exist := false
 		for i, conversation := range conversations {
 			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				conversations[i].ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
+				if cacheConversation.ReadedToMsgSeq > conversation.ReadedToMsgSeq {
+					conversations[i].ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
+				}
+				exist = true
 				break
 			}
+		}
+		if !exist {
+			conversations = append(conversations, cacheConversation)
 		}
 	}
 
 	var channelRecentMessageReqs []*channelRecentMessageReq
 	if len(conversations) > 0 {
 		for _, conversation := range conversations {
+			realChannelId := conversation.ChannelId
+			if conversation.ChannelType == wkproto.ChannelTypePerson {
+				u1, u2 := GetFromUIDAndToUIDWith(conversation.ChannelId)
+				if u1 != req.UID {
+					realChannelId = u1
+				}
+				if u2 != req.UID {
+					realChannelId = u2
+				}
+			}
+			fmt.Println("conversation2----->", conversation.ChannelId, realChannelId, conversation.ReadedToMsgSeq)
 			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
-				ChannelId:   conversation.ChannelId,
+				ChannelId:   realChannelId,
 				ChannelType: conversation.ChannelType,
-				LastMsgSeq:  conversation.ReadedToMsgSeq,
+				LastMsgSeq:  conversation.ReadedToMsgSeq + 1, // 这里加1的目的是为了不查询到ReadedToMsgSeq本身这条消息
 			})
 		}
 	}
@@ -228,7 +249,10 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取最近消息失败！"))
 			return
 		}
+		fmt.Println("channelRecentMessages----->", len(channelRecentMessages))
 		for _, channelRecentMessage := range channelRecentMessages {
+
+			fmt.Println("channelRecentMessage--Messages--->", len(channelRecentMessage.Messages))
 			if len(channelRecentMessage.Messages) == 0 {
 				continue
 			}
@@ -257,6 +281,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		}
 	}
 
+	fmt.Println("messageResps----->", len(messageResps))
 	c.JSON(http.StatusOK, messageResps)
 
 }
@@ -304,40 +329,46 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 	}
 
 	conversations := make([]wkdb.Conversation, 0)
-	deletes := make([]wkdb.Channel, 0)
 	for _, record := range m.syncRecordMap[req.UID] {
-		conversation, err := m.s.store.GetConversation(req.UID, record.channelId, record.channelType)
-		if err != nil {
-			m.Error("获取session失败！", zap.Error(err), zap.String("uid", req.UID), zap.String("channelId", record.channelId), zap.Uint8("channelType", record.channelType))
-			continue
+		needAdd := false
+
+		fakeChannelId := record.channelId
+		if record.channelType == wkproto.ChannelTypePerson {
+			fakeChannelId = GetFakeChannelIDWith(req.UID, record.channelId)
 		}
-		if err != nil && err != wkdb.ErrNotFound {
-			m.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID))
-			continue
-		}
-		if conversation.Type != wkdb.ConversationTypeCMD {
+		if !m.s.opts.IsCmdChannel(fakeChannelId) {
+			m.Warn("不是cmd频道！", zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
 			continue
 		}
 		if record.lastMsgSeq <= 0 {
 			continue
 		}
 
-		lastMsgSeq, err := m.s.store.GetChannelLastMessageSeq(record.channelId, record.channelType)
+		conversation, err := m.s.store.GetConversation(req.UID, fakeChannelId, record.channelType)
 		if err != nil {
-			m.Error("GetChannelLastMessageSeq failed", zap.Error(err))
+			if err == wkdb.ErrNotFound {
+				m.Warn("会话不存在！", zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
+				conversation = wkdb.Conversation{
+					Uid:            req.UID,
+					ChannelId:      fakeChannelId,
+					ChannelType:    record.channelType,
+					Type:           wkdb.ConversationTypeCMD,
+					ReadedToMsgSeq: record.lastMsgSeq,
+				}
+				needAdd = true
+			} else {
+				m.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
+				c.ResponseError(errors.New("获取conversation失败！"))
+				return
+			}
+		}
+		if conversation.Type != wkdb.ConversationTypeCMD {
 			continue
 		}
 
-		if record.lastMsgSeq >= lastMsgSeq {
-			deletes = append(deletes, wkdb.Channel{
-				ChannelId:   conversation.ChannelId,
-				ChannelType: conversation.ChannelType,
-			})
-		} else {
-			if record.lastMsgSeq > conversation.ReadedToMsgSeq {
-				conversation.ReadedToMsgSeq = record.lastMsgSeq
-				conversations = append(conversations, conversation)
-			}
+		if record.lastMsgSeq > conversation.ReadedToMsgSeq || needAdd {
+			conversation.ReadedToMsgSeq = record.lastMsgSeq
+			conversations = append(conversations, conversation)
 		}
 
 	}
@@ -349,14 +380,17 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 			return
 		}
 	}
-	if len(deletes) > 0 {
-		err = m.s.store.DeleteConversations(req.UID, deletes)
-		if err != nil {
-			m.Error("删除最近会话失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-	}
+	// if len(deletes) > 0 {
+	// 	err = m.s.store.DeleteConversations(req.UID, deletes)
+	// 	if err != nil {
+	// 		m.Error("删除最近会话失败！", zap.Error(err))
+	// 		c.ResponseError(err)
+	// 		return
+	// 	}
+	// 	for _, deleteConversation := range deletes {
+	// 		m.s.conversationManager.DeleteUserConversationFromCache(req.UID, deleteConversation.ChannelId, deleteConversation.ChannelType)
+	// 	}
+	// }
 
 	c.ResponseOK()
 }

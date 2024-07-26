@@ -1058,6 +1058,19 @@ func newMessageResp(m wkdb.Message) *messageResp {
 	}
 }
 
+type messageRespSlice []*messageResp
+
+func (m messageRespSlice) Len() int {
+	return len(m)
+}
+
+func (m messageRespSlice) Less(i, j int) bool {
+	return m[i].MessageId < m[j].MessageId
+}
+func (m messageRespSlice) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
+}
+
 type NodeConfig struct {
 	Id              uint64         `json:"id"`                          // 节点ID
 	IsLeader        int            `json:"is_leader,omitempty"`         // 是否是leader

@@ -192,7 +192,7 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		return true
 	})
 	if err != nil {
-		s.Error("GetWithAllSlot error", zap.Error(err))
+		s.Error("SearchChannelClusterConfig error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -686,14 +686,12 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	fromUid := strings.TrimSpace(c.Query("from_uid"))
 	channelId := strings.TrimSpace(c.Query("channel_id"))
 	channelType := wkutil.ParseUint8(c.Query("channel_type"))
-	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
-	payloadStr := strings.TrimSpace(c.Query("payload"))     // base64编码的消息内容
+	offsetMessageId := wkutil.ParseInt64(c.Query("offset_message_id")) // 页码
+	pre := wkutil.ParseInt(c.Query("pre"))                             // 是否向前搜索
+	payloadStr := strings.TrimSpace(c.Query("payload"))                // base64编码的消息内容
 	messageId := wkutil.ParseInt64(c.Query("message_id"))
 	clientMsgNo := strings.TrimSpace(c.Query("client_msg_no"))
 
-	if currentPage <= 0 {
-		currentPage = 1
-	}
 	// 解密payload
 	var payload []byte
 	var err error
@@ -701,7 +699,7 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	if strings.TrimSpace(payloadStr) != "" {
 		payload, err = wkutil.Base64Decode(payloadStr)
 		if err != nil {
-			s.Error("base64 decode error", zap.Error(err))
+			s.Error("base64 decode error", zap.Error(err), zap.String("payloadStr", payloadStr))
 			c.ResponseError(err)
 			return
 		}
@@ -726,14 +724,15 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	// 搜索本地消息
 	var searchLocalMessage = func() ([]*messageResp, error) {
 		messages, err := s.opts.DB.SearchMessages(wkdb.MessageSearchReq{
-			MessageId:   messageId,
-			FromUid:     fromUid,
-			Limit:       limit,
-			ChannelId:   channelId,
-			ChannelType: channelType,
-			CurrentPage: currentPage,
-			Payload:     payload,
-			ClientMsgNo: clientMsgNo,
+			MessageId:       messageId,
+			FromUid:         fromUid,
+			Limit:           limit,
+			ChannelId:       channelId,
+			ChannelType:     channelType,
+			OffsetMessageId: offsetMessageId,
+			Pre:             pre == 1,
+			Payload:         payload,
+			ClientMsgNo:     clientMsgNo,
 		})
 		if err != nil {
 			s.Error("查询消息失败！", zap.Error(err))
@@ -790,7 +789,6 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 			}
 			continue
 		}
-
 		if !node.Online {
 			continue
 		}
@@ -832,8 +830,18 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	sort.Slice(messages, func(i, j int) bool {
+
+		return messages[i].MessageId > messages[j].MessageId
+	})
+
 	if len(messages) > limit {
-		messages = messages[:limit]
+		if pre == 1 {
+			messages = messages[len(messages)-limit:]
+		} else {
+			messages = messages[:limit]
+		}
 	}
 	count, err := s.opts.DB.GetTotalMessageCount()
 	if err != nil {

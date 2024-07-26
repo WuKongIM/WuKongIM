@@ -192,6 +192,9 @@ func (n *node) requestDeliver(msgs []ReactorChannelMessage) error {
 		if msg.SendPacket.ChannelType == wkproto.ChannelTypePerson {
 			fakeChannelId = GetFakeChannelIDWith(msg.SendPacket.ChannelID, msg.FromUid)
 		}
+		if msg.SendPacket.Framer.SyncOnce { // 如果是cmd消息，需要转换为cmd消息的channelId
+			fakeChannelId = n.s.opts.OrginalConvertCmdChannel(fakeChannelId)
+		}
 		var exist = false
 		for _, channelMessage := range channelMessages {
 			if channelMessage.ChannelId == fakeChannelId && channelMessage.ChannelType == msg.SendPacket.ChannelType {

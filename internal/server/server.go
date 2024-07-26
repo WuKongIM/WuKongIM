@@ -485,9 +485,6 @@ func (s *Server) onClose(conn wknet.Conn) {
 			totalOnlineCount := s.userReactor.getConnContextCount(connCtx.uid)
 			s.webhook.Offline(conn.UID(), wkproto.DeviceFlag(connCtx.deviceFlag), connCtx.connId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
 
-			if totalOnlineCount == 0 {
-				s.trace.Metrics.App().OnlineUserCountAdd(-1)
-			}
 			s.trace.Metrics.App().OnlineDeviceCountAdd(-1)
 		}
 

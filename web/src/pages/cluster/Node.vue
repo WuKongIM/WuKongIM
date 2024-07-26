@@ -81,7 +81,7 @@ const onLog = (node: any) => {
                         <td>{{ node.slot_leader_count }}/{{ node.slot_count }}</td>
                         <td>{{ node.allow_vote == 1 ? '有' : '无' }}</td>
                         <td :class="node.online == 1 ? 'text-green-500' : ''">{{ node.online == 1 ? '在线' : '离线' }}</td>
-                        <td>0</td>
+                        <td>{{node.offline_count>0?`${node.offline_count}(${node.last_offline})`:`0`}}</td>
                         <td>{{ node.uptime }}</td>
                         <td>{{ node.cluster_addr }}</td>
                         <td>{{ node.app_version }}</td>

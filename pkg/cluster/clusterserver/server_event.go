@@ -151,18 +151,6 @@ func (s *Server) handleClusterConfigSlotChange(cfg *pb.Config) error {
 		}
 	}
 
-	// 处理迁移配置
-	for _, cfgSlot := range cfg.Slots {
-		if cfgSlot.MigrateFrom == 0 || cfgSlot.MigrateTo == 0 {
-			continue
-		}
-
-		if cfgSlot.MigrateTo != s.opts.NodeId {
-			continue
-		}
-		s.addOrUpdateSlot(cfgSlot)
-	}
-
 	return nil
 }
 

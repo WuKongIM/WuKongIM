@@ -707,6 +707,7 @@ func (r *channelReactor) processDeliverLoop() {
 func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 
 	for _, req := range reqs {
+		fmt.Println("processDeliver---req.ch.key------->", req.ch.key)
 		r.handleDeliver(req)
 		sub := r.reactorSub(req.ch.key)
 		reason := ReasonSuccess

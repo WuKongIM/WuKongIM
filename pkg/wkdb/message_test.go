@@ -192,6 +192,7 @@ func TestSearchMessages(t *testing.T) {
 			RecvPacket: wkproto.RecvPacket{
 				ChannelID:   channelId,
 				ChannelType: channelType,
+				MessageID:   int64(i + 1),
 				MessageSeq:  uint32(i + 1),
 				Payload:     []byte("hello"),
 			},
@@ -202,8 +203,8 @@ func TestSearchMessages(t *testing.T) {
 	assert.NoError(t, err)
 
 	resultMessages, err := d.SearchMessages(wkdb.MessageSearchReq{
-		Limit:       10,
-		CurrentPage: 1,
+		Limit:           10,
+		OffsetMessageId: 0,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 10, len(resultMessages))

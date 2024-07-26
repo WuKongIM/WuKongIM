@@ -310,6 +310,11 @@ func (s *Server) handleSlotLeaderTermStartIndex(c *wkserver.Context) {
 	resultBytes := make([]byte, 8)
 
 	handler := s.slotManager.slotReactor.Handler(req.HandlerKey)
+	if handler == nil {
+		s.Error("handler not found", zap.String("handlerKey", req.HandlerKey))
+		c.WriteErr(errors.New("handler not found"))
+		return
+	}
 
 	lastIndex, term := handler.LastLogIndexAndTerm()
 
