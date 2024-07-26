@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "axios": "^1.6.7",
+    "buffer": "^6.0.3",
     "echarts": "^5.5.0",
     "vue": "^3.2.47",
     "vue-json-pretty": "^2.3.0",

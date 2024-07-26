@@ -229,7 +229,7 @@ func (r *Replica) switchConfig(cfg Config) {
 		return
 	}
 
-	// r.Info("switch config", zap.String("cfg", cfg.String()))
+	r.Info("switch config", zap.String("cfg", cfg.String()))
 
 	r.cfg = cfg
 	term := r.term

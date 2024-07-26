@@ -200,6 +200,7 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 			u.r.addCloseReq(&userCloseReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
+				role:     uh.role,
 			})
 		case UserActionCheckLeader: // 检查领导的正确性
 			leaderId := uh.leaderId

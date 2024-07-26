@@ -36,8 +36,8 @@ type MessageDB interface {
 	// 结果包含start,不包含end
 	LoadPrevRangeMsgs(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]Message, error)
 
-	// LoadNextRangeMsgs 向下加载指定范围的消息 end=0表示不做限制 比如 start=100 end=200 limit=10 则返回的消息seq为101-111的消息，
-	// 比如start=100 end=105 limit=10 则返回的消息seq为101-104的消息
+	// LoadNextRangeMsgs 向下加载指定范围的消息 end=0表示不做限制 比如 start=100 end=200 limit=10 则返回的消息seq为100-109的消息，
+	// 比如start=100 end=105 limit=10 则返回的消息seq为100-104的消息
 	// 结果包含start,不包含end
 	LoadNextRangeMsgs(channelId string, channelType uint8, start, end uint64, limit int) ([]Message, error)
 
@@ -321,13 +321,15 @@ type TotalDB interface {
 }
 
 type MessageSearchReq struct {
-	MessageId   int64
-	FromUid     string // 发送者uid
-	ChannelId   string // 频道id
-	ChannelType uint8  // 频道类型
-	Limit       int    // 消息限制
-	Payload     []byte // payload内容
-	CurrentPage int    // 当前页码
+	MessageId       int64
+	FromUid         string // 发送者uid
+	ChannelId       string // 频道id
+	ChannelType     uint8  // 频道类型
+	Limit           int    // 消息限制
+	Payload         []byte // payload内容
+	OffsetMessageId int64  // 偏移的消息id
+	Pre             bool   // 是否向前搜索
+
 	ClientMsgNo string // 客户端消息编号
 }
 

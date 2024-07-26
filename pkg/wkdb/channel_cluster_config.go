@@ -168,6 +168,9 @@ func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq
 	if req.ChannelId != "" {
 		cfg, err := wk.GetChannelClusterConfig(req.ChannelId, req.ChannelType)
 		if err != nil {
+			if err == pebble.ErrNotFound {
+				return nil, nil
+			}
 			return nil, err
 		}
 		if len(filter) > 0 {
@@ -189,17 +192,17 @@ func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq
 			return false
 		}
 
-		currentSize++
-		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
-
-			if len(filter) > 0 {
-				for _, fnc := range filter {
-					v := fnc(cfg)
-					if !v {
-						return true
-					}
+		if len(filter) > 0 {
+			for _, fnc := range filter {
+				v := fnc(cfg)
+				if !v {
+					return true
 				}
 			}
+		}
+
+		currentSize++
+		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
 			results = append(results, cfg)
 			return true
 		}

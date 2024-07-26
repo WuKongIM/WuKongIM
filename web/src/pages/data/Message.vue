@@ -20,16 +20,19 @@ const clientMsgNo = ref<string>() // 客户端唯一编号
 const currentPage = ref<number>(1) // 当前页码
 const pageSize = ref<number>(20) // 每页数量
 
+const offsetMessageId = ref<number>() // 偏移的messageId
+const pre = ref<boolean>() // 是否向上分页
+
 
 const query = router.currentRoute.value.query; //查询参数
 
 onMounted(() => {
 
-    if(query.channelId){
+    if (query.channelId) {
         channelId.value = query.channelId as string
     }
 
-    if(query.channelType){
+    if (query.channelType) {
         channelType.value = parseInt(query.channelType as string)
     }
 
@@ -46,6 +49,8 @@ const searchMessages = () => {
     let base64EncodePayload: string = ''
     if (payload.value && payload.value.trim() != '') {
         base64EncodePayload = base64Encode(payload.value)
+        console.log(base64EncodePayload)
+        base64EncodePayload = encodeURIComponent(base64EncodePayload)
     }
     API.shared.searchMessages({
         nodeId: selectedNodeId.value,
@@ -55,7 +60,8 @@ const searchMessages = () => {
         payload: base64EncodePayload,
         messageId: messageId.value,
         limit: pageSize.value,
-        currentPage: currentPage.value,
+       offsetMessageId: offsetMessageId.value,
+        pre: pre.value,
         clientMsgNo: clientMsgNo.value
     }).then((res) => {
         messages.value = res.data
@@ -89,7 +95,7 @@ const onChannelIdSearch = (e: any) => {
 const onChannelTypeSearch = (e: any) => {
     channelType.value = e.target.value
     if (!channelId.value || channelId.value.trim() == '') {
-       return
+        return
     }
     currentPage.value = 1
     searchMessages()
@@ -121,6 +127,8 @@ const nextPage = () => {
         return
     }
     currentPage.value += 1
+    offsetMessageId.value = messages.value[messages.value.length - 1].message_id
+    pre.value = false
     searchMessages()
 }
 
@@ -130,6 +138,8 @@ const prevPage = () => {
         return
     }
     currentPage.value -= 1
+    offsetMessageId.value = messages.value[0].message_id
+    pre.value = true
     searchMessages()
 }
 
@@ -150,14 +160,15 @@ const prevPage = () => {
                 <!-- 接受频道类型 -->
                 <div class="text-sm ml-10">
                     <label>接受频道</label>
-                    <select class="select select-bordered  max-w-xs select-sm w-20 ml-2" v-on:change="onChannelTypeSearch" v-model="channelType">
-                        <option value="1" >个人</option>
-                        <option value="2" >群聊</option>
-                        <option value="3" >客服</option>
-                        <option value="4" >社区</option>
-                        <option value="5" >话题</option>
-                        <option value="6" >资讯</option>
-                        <option value="7" >数据</option>
+                    <select class="select select-bordered  max-w-xs select-sm w-20 ml-2"
+                        v-on:change="onChannelTypeSearch" v-model="channelType">
+                        <option value="1">个人</option>
+                        <option value="2">群聊</option>
+                        <option value="3">客服</option>
+                        <option value="4">社区</option>
+                        <option value="5">话题</option>
+                        <option value="6">资讯</option>
+                        <option value="7">数据</option>
                     </select>
                     <input type="text" placeholder="输入" v-model="channelId" class="input input-bordered  select-sm ml-2"
                         v-on:change="onChannelIdSearch" />

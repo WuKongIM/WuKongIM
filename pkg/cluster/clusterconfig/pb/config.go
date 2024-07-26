@@ -81,6 +81,10 @@ func (s *Slot) Equal(v *Slot) bool {
 		return false
 	}
 
+	if s.ExpectLeader != v.ExpectLeader {
+		return false
+	}
+
 	if s.Term != v.Term {
 		return false
 	}

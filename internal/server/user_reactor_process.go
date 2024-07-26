@@ -1158,6 +1158,10 @@ func (r *userReactor) processCloseLoop() {
 
 func (r *userReactor) processClose(req *userCloseReq) {
 
+	if req.role == userRoleLeader {
+		r.s.trace.Metrics.App().OnlineUserCountAdd(-1) //用户下线
+	}
+
 	conns := r.getConnsByUniqueNo(req.uid, req.uniqueNo)
 	for _, conn := range conns {
 		if conn.isRealConn {
@@ -1175,6 +1179,7 @@ func (r *userReactor) processClose(req *userCloseReq) {
 type userCloseReq struct {
 	uniqueNo string
 	uid      string
+	role     userRole
 }
 
 // =================================== 检查领导的正确性 ===================================

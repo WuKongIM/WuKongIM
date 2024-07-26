@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -555,70 +556,127 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 		return []Message{msg}, nil
 	}
 
-	currentSize := 0
-	msgs := make([]Message, 0)
-	iterFnc := func(m Message) bool {
-		if strings.TrimSpace(req.ChannelId) != "" && m.ChannelID != req.ChannelId {
+	iterFnc := func(msgs *[]Message) func(m Message) bool {
+		currSize := 0
+		return func(m Message) bool {
+			if strings.TrimSpace(req.ChannelId) != "" && m.ChannelID != req.ChannelId {
+				return true
+			}
+
+			if req.ChannelType != 0 && req.ChannelType != m.ChannelType {
+				return true
+			}
+
+			if strings.TrimSpace(req.FromUid) != "" && m.FromUID != req.FromUid {
+				return true
+			}
+
+			if len(req.Payload) > 0 && !bytes.Contains(m.Payload, req.Payload) {
+				return true
+			}
+
+			if req.MessageId > 0 && req.MessageId != m.MessageID {
+				return true
+			}
+
+			if req.Pre {
+				if req.OffsetMessageId > 0 && m.MessageID <= req.OffsetMessageId { // 当前消息小于等于req.MessageId时停止查询
+					return false
+				}
+			} else {
+				if req.OffsetMessageId > 0 && m.MessageID >= req.OffsetMessageId { // 当前消息小于等于req.MessageId时停止查询
+					return false
+				}
+			}
+
+			if currSize >= req.Limit { // 消息数量大于等于limit时停止查询
+				return false
+			}
+			currSize++
+
+			*msgs = append(*msgs, m)
+
 			return true
 		}
-
-		if req.ChannelType != 0 && req.ChannelType != m.ChannelType {
-			return true
-		}
-
-		if strings.TrimSpace(req.FromUid) != "" && m.FromUID != req.FromUid {
-			return true
-		}
-
-		if len(req.Payload) > 0 && !bytes.Contains(m.Payload, req.Payload) {
-			return true
-		}
-
-		if req.MessageId > 0 && req.MessageId != m.MessageID {
-			return true
-		}
-
-		if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
-			return false
-		}
-
-		currentSize++
-
-		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
-			msgs = append(msgs, m)
-			return true
-		}
-		return true
 	}
+	allMsgs := make([]Message, 0, req.Limit*len(wk.dbs))
 	for _, db := range wk.dbs {
-
+		msgs := make([]Message, 0)
+		fnc := iterFnc(&msgs)
 		// 通过索引查询
-		has, err := wk.searchMessageByIndex(req, db, iterFnc)
+		has, err := wk.searchMessageByIndex(req, db, fnc)
 		if err != nil {
 			return nil, err
 		}
 
-		if has { // 如果有触发索引，则无需全局查询
-			continue
+		if !has { // 如果有触发索引，则无需全局查询
+			startMessageId := uint64(req.OffsetMessageId)
+			var endMessageId uint64 = math.MaxUint64
+
+			if req.OffsetMessageId > 0 {
+				if req.Pre {
+					startMessageId = uint64(req.OffsetMessageId + 1)
+					endMessageId = math.MaxUint64
+				} else {
+					startMessageId = 0
+					endMessageId = uint64(req.OffsetMessageId)
+				}
+			}
+
+			iter := db.NewIter(&pebble.IterOptions{
+				LowerBound: key.NewMessageIndexMessageIdKey(startMessageId),
+				UpperBound: key.NewMessageIndexMessageIdKey(endMessageId),
+			})
+			defer iter.Close()
+
+			var pkey [16]byte
+			var iterStepFnc func() bool
+			if req.Pre {
+				if !iter.First() {
+					continue
+				}
+				iterStepFnc = iter.Next
+			} else {
+				if !iter.Last() {
+					continue
+				}
+				iterStepFnc = iter.Prev
+			}
+
+			for ; iter.Valid(); iterStepFnc() {
+				copy(pkey[:], iter.Value())
+				resultIter := db.NewIter(&pebble.IterOptions{
+					LowerBound: key.NewMessageColumnKeyWithPrimary(pkey, key.MinColumnKey),
+					UpperBound: key.NewMessageColumnKeyWithPrimary(pkey, key.MaxColumnKey),
+				})
+				defer resultIter.Close()
+				err = wk.iteratorChannelMessages(resultIter, 0, fnc)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 
-		iter := db.NewIter(&pebble.IterOptions{
-			LowerBound: key.NewMessageSearchLowKeWith(req.ChannelId, req.ChannelType, 0),
-			UpperBound: key.NewMessageSearchHighKeWith(req.ChannelId, req.ChannelType, math.MaxUint64),
-		})
-		defer iter.Close()
+		// 将msgs里消息时间比allMsgs里的消息时间早的消息插入到allMsgs里
+		allMsgs = append(allMsgs, msgs...)
+	}
 
-		err = wk.iteratorChannelMessagesDirection(iter, 0, true, iterFnc)
-		if err != nil {
-			return nil, err
+	// 按照messageId降序排序
+	sort.Slice(allMsgs, func(i, j int) bool {
+		return allMsgs[i].MessageID > allMsgs[j].MessageID
+	})
+
+	// 如果allMsgs的数量大于limit，则截取前limit个
+	if req.Limit > 0 && len(allMsgs) > req.Limit {
+		if req.Pre {
+			allMsgs = allMsgs[len(allMsgs)-req.Limit:]
+		} else {
+			allMsgs = allMsgs[:req.Limit]
 		}
+
 	}
 
-	if req.Limit > 0 && len(msgs) > req.Limit {
-		return msgs[:req.Limit], nil
-	}
-
-	return msgs, nil
+	return allMsgs, nil
 }
 
 func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer, o *pebble.WriteOptions) error {

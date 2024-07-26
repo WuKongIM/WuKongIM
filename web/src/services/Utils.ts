@@ -1,5 +1,5 @@
 
-
+import * as buffer from "buffer"
 // 内存数字格式化
 export const formatMemory = (memory: number): string => {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -84,13 +84,14 @@ export const base64Decode = (data: string): string => {
     if(!data || data.length == 0) {
         return ""
     }
-    return decodeURIComponent(escape(atob(data)));
+    return buffer.Buffer.from(data, 'base64').toString();
 }
 
 // base64编码, 支持包含中文内容的数据
 
 export const base64Encode = (data: string): string => {
-    return btoa(unescape(encodeURIComponent(data)));
+    console.log(data)
+   return buffer.Buffer.from(data).toString('base64');
 }
 
 
