@@ -81,7 +81,7 @@ const searchMessages = () => {
 
 const onFromUidSearch = (e: any) => {
     fromUid.value = e.target.value
-    currentPage.value = 1
+    resetFilter()
     searchMessages()
 }
 
@@ -90,7 +90,7 @@ const onChannelIdSearch = (e: any) => {
     if (!channelId.value || channelId.value.trim() == '') {
         channelType.value = 0
     }
-    currentPage.value = 1
+    resetFilter()
     searchMessages()
 }
 
@@ -99,28 +99,33 @@ const onChannelTypeSearch = (e: any) => {
     if (!channelId.value || channelId.value.trim() == '') {
         return
     }
-    currentPage.value = 1
+    resetFilter()
     searchMessages()
 }
 
 const onMessageIdSearch = (e: any) => {
     messageId.value = e.target.value
-    currentPage.value = 1
+    resetFilter()
     searchMessages()
 }
 
 const onPayloadSearch = (e: any) => {
     payload.value = e.target.value
-    currentPage.value = 1
+    resetFilter()
     searchMessages()
 }
 
 const onClientMsgNoSearch = (e: any) => {
     clientMsgNo.value = e.target.value
-    currentPage.value = 1
+    resetFilter()
     searchMessages()
 }
 
+const resetFilter = () => {
+   currentPage.value = 1
+   offsetMessageId.value = 0
+    offsetMessageSeq.value = 0
+}
 
 // 下一页
 const nextPage = () => {
