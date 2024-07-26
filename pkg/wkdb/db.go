@@ -321,14 +321,15 @@ type TotalDB interface {
 }
 
 type MessageSearchReq struct {
-	MessageId       int64
-	FromUid         string // 发送者uid
-	ChannelId       string // 频道id
-	ChannelType     uint8  // 频道类型
-	Limit           int    // 消息限制
-	Payload         []byte // payload内容
-	OffsetMessageId int64  // 偏移的消息id
-	Pre             bool   // 是否向前搜索
+	MessageId        int64
+	FromUid          string // 发送者uid
+	ChannelId        string // 频道id
+	ChannelType      uint8  // 频道类型
+	Limit            int    // 消息限制
+	Payload          []byte // payload内容
+	OffsetMessageId  int64  // 偏移的消息id
+	OffsetMessageSeq uint64 // 偏移的消息seq(如果按频道查询，则分页需要传入这个值)
+	Pre              bool   // 是否向前搜索
 
 	ClientMsgNo string // 客户端消息编号
 }

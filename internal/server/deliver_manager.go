@@ -245,8 +245,6 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 				sendPacket := message.SendPacket
 
-				fmt.Println("message.MessageSeq---->", message.MessageSeq)
-
 				recvPacket := &wkproto.RecvPacket{
 					Framer: wkproto.Framer{
 						RedDot:    sendPacket.GetRedDot(),

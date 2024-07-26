@@ -15,8 +15,8 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 		start := time.Now()
 		defer func() {
 			end := time.Since(start)
-			if end > time.Millisecond*10 {
-				wk.Info("AddOrUpdateConversations", zap.Duration("cost", end), zap.String("uid", uid))
+			if end > time.Millisecond*200 {
+				wk.Info("AddOrUpdateConversations cost too long", zap.Duration("cost", end), zap.String("uid", uid))
 			}
 		}()
 	}

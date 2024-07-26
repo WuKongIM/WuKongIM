@@ -327,5 +327,5 @@ func uidToServerId(uid string) uint64 {
 
 // 判断字符串是否存在特殊字符
 func IsSpecialChar(s string) bool {
-	return strings.Contains(s, "@") || strings.Contains(s, "#") || strings.Contains(s, "&") || strings.Contains(s, "-") || strings.Contains(s, "_")
+	return strings.Contains(s, "@") || strings.Contains(s, "#") || strings.Contains(s, "&")
 }

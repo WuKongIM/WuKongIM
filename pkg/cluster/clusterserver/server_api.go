@@ -686,9 +686,10 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	fromUid := strings.TrimSpace(c.Query("from_uid"))
 	channelId := strings.TrimSpace(c.Query("channel_id"))
 	channelType := wkutil.ParseUint8(c.Query("channel_type"))
-	offsetMessageId := wkutil.ParseInt64(c.Query("offset_message_id")) // 页码
-	pre := wkutil.ParseInt(c.Query("pre"))                             // 是否向前搜索
-	payloadStr := strings.TrimSpace(c.Query("payload"))                // base64编码的消息内容
+	offsetMessageId := wkutil.ParseInt64(c.Query("offset_message_id"))    // 偏移的messageId
+	offsetMessageSeq := wkutil.ParseUint64(c.Query("offset_message_seq")) // 偏移的messageSeq（通过频道筛选并分页的时候需要传此值）
+	pre := wkutil.ParseInt(c.Query("pre"))                                // 是否向前搜索
+	payloadStr := strings.TrimSpace(c.Query("payload"))                   // base64编码的消息内容
 	messageId := wkutil.ParseInt64(c.Query("message_id"))
 	clientMsgNo := strings.TrimSpace(c.Query("client_msg_no"))
 
@@ -724,15 +725,16 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	// 搜索本地消息
 	var searchLocalMessage = func() ([]*messageResp, error) {
 		messages, err := s.opts.DB.SearchMessages(wkdb.MessageSearchReq{
-			MessageId:       messageId,
-			FromUid:         fromUid,
-			Limit:           limit,
-			ChannelId:       channelId,
-			ChannelType:     channelType,
-			OffsetMessageId: offsetMessageId,
-			Pre:             pre == 1,
-			Payload:         payload,
-			ClientMsgNo:     clientMsgNo,
+			MessageId:        messageId,
+			FromUid:          fromUid,
+			Limit:            limit,
+			ChannelId:        channelId,
+			ChannelType:      channelType,
+			OffsetMessageId:  offsetMessageId,
+			OffsetMessageSeq: offsetMessageSeq,
+			Pre:              pre == 1,
+			Payload:          payload,
+			ClientMsgNo:      clientMsgNo,
 		})
 		if err != nil {
 			s.Error("查询消息失败！", zap.Error(err))

@@ -599,6 +599,42 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 			return true
 		}
 	}
+
+	if strings.TrimSpace(req.ChannelId) != "" && req.ChannelType != 0 {
+		db := wk.channelDb(req.ChannelId, req.ChannelType)
+		msgs := make([]Message, 0, req.Limit)
+		fnc := iterFnc(&msgs)
+
+		startSeq := req.OffsetMessageSeq
+		var endSeq uint64 = math.MaxUint64
+
+		if req.OffsetMessageSeq > 0 {
+			if req.Pre {
+				startSeq = req.OffsetMessageSeq + 1
+				endSeq = math.MaxUint64
+			} else {
+				startSeq = 0
+				endSeq = req.OffsetMessageSeq
+			}
+		}
+
+		fmt.Println("startSeq---->", startSeq, endSeq)
+
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, startSeq),
+			UpperBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, endSeq),
+		})
+		defer iter.Close()
+
+		err := wk.iteratorChannelMessagesDirection(iter, 0, !req.Pre, fnc)
+		if err != nil {
+			return nil, err
+		}
+
+		return msgs, nil
+
+	}
+
 	allMsgs := make([]Message, 0, req.Limit*len(wk.dbs))
 	for _, db := range wk.dbs {
 		msgs := make([]Message, 0)
@@ -653,6 +689,9 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 				err = wk.iteratorChannelMessages(resultIter, 0, fnc)
 				if err != nil {
 					return nil, err
+				}
+				if len(msgs) >= req.Limit {
+					break
 				}
 			}
 		}

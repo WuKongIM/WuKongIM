@@ -93,11 +93,12 @@ export default class API {
         messageId?: number,
         limit?: number,
         offsetMessageId?: number,
+        offsetMessageSeq?: number,
         pre?: boolean,
         channelType?: number,
         clientMsgNo?: string
     }): Promise<any> {
-        return APIClient.shared.get(`/cluster/messages?node_id=${req.nodeId || 0}&from_uid=${req.fromUid || ''}&channel_id=${req.channelId || ''}&channel_type=${req.channelType || 0}&payload=${req.payload || ''}&message_id=${req.messageId || 0}&limit=${req.limit || 20}&offset_message_id=${req.offsetMessageId || 0}&pre=${req.pre?1:0}&client_msg_no=${req.clientMsgNo || ''}`)
+        return APIClient.shared.get(`/cluster/messages?node_id=${req.nodeId || 0}&from_uid=${req.fromUid || ''}&channel_id=${req.channelId || ''}&channel_type=${req.channelType || 0}&payload=${req.payload || ''}&message_id=${req.messageId || 0}&limit=${req.limit || 20}&offset_message_id=${req.offsetMessageId || 0}&offset_message_seq=${req.offsetMessageSeq || 0}&pre=${req.pre?1:0}&client_msg_no=${req.clientMsgNo || ''}`)
     }
 
     // 搜索频道
