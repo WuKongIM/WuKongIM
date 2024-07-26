@@ -122,7 +122,7 @@ type ChannelDB interface {
 	GetSubscribers(channelId string, channelType uint8) ([]string, error)
 
 	// AddOrUpdateChannel  添加或更新channel
-	AddOrUpdateChannel(channelInfo ChannelInfo) error
+	AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error)
 
 	// GetChannel 获取channel
 	GetChannel(channelId string, channelType uint8) (ChannelInfo, error)

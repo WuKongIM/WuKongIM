@@ -117,7 +117,7 @@ func TestAddOrUpdateChannel(t *testing.T) {
 		Ban:         true,
 		Large:       true,
 	}
-	err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddOrUpdateChannel(channelInfo)
 	assert.NoError(t, err)
 }
 
@@ -138,7 +138,7 @@ func TestGetChannel(t *testing.T) {
 		Large:       true,
 		Disband:     true,
 	}
-	err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddOrUpdateChannel(channelInfo)
 	assert.NoError(t, err)
 
 	channelInfo2, err := d.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
@@ -168,7 +168,7 @@ func TestExistChannel(t *testing.T) {
 		Large:       true,
 		Disband:     true,
 	}
-	err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddOrUpdateChannel(channelInfo)
 	assert.NoError(t, err)
 
 	exist, err := d.ExistChannel(channelInfo.ChannelId, channelInfo.ChannelType)
@@ -192,7 +192,7 @@ func TestDeleteChannel(t *testing.T) {
 		Ban:         true,
 		Large:       true,
 	}
-	err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddOrUpdateChannel(channelInfo)
 	assert.NoError(t, err)
 
 	err = d.DeleteChannel(channelInfo.ChannelId, channelInfo.ChannelType)
