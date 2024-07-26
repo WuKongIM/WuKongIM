@@ -21,6 +21,7 @@ const currentPage = ref<number>(1) // 当前页码
 const pageSize = ref<number>(20) // 每页数量
 
 const offsetMessageId = ref<number>() // 偏移的messageId
+const offsetMessageSeq = ref<number>() // 偏移的messageSeq
 const pre = ref<boolean>() // 是否向上分页
 
 
@@ -60,7 +61,8 @@ const searchMessages = () => {
         payload: base64EncodePayload,
         messageId: messageId.value,
         limit: pageSize.value,
-       offsetMessageId: offsetMessageId.value,
+        offsetMessageId: offsetMessageId.value,
+        offsetMessageSeq: offsetMessageSeq.value,
         pre: pre.value,
         clientMsgNo: clientMsgNo.value
     }).then((res) => {
@@ -128,6 +130,7 @@ const nextPage = () => {
     }
     currentPage.value += 1
     offsetMessageId.value = messages.value[messages.value.length - 1].message_id
+    offsetMessageSeq.value = messages.value[messages.value.length - 1].message_seq
     pre.value = false
     searchMessages()
 }
@@ -139,6 +142,7 @@ const prevPage = () => {
     }
     currentPage.value -= 1
     offsetMessageId.value = messages.value[0].message_id
+    offsetMessageSeq.value = messages.value[0].message_seq
     pre.value = true
     searchMessages()
 }

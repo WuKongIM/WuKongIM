@@ -30,8 +30,8 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 	start := time.Now()
 	defer func() {
 		end := time.Since(start)
-		if end > time.Millisecond*10 {
-			s.Info("收到元数据请求", zap.Duration("cost", end), zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
+		if end > time.Millisecond*100 {
+			s.Debug("收到元数据请求", zap.Duration("cost", end), zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
 		}
 	}()
 	switch cmd.CmdType {

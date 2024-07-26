@@ -44,8 +44,6 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids
 		return
 	}
 
-	fmt.Println("conversation update------>", fakeChannelId, uids)
-
 	// 处理发送者的最近会话
 	for _, message := range messages {
 		if message.FromUid == "" {
@@ -65,8 +63,6 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids
 				continue
 			}
 		}
-
-		fmt.Println("conversation update2------>", message.FromUid, fakeChannelId, channelType, message.MessageSeq)
 
 		worker := c.worker(message.FromUid)
 		worker.getOrCreateUserConversation(message.FromUid).updateOrAddConversation(fakeChannelId, channelType, message.MessageSeq)
@@ -91,17 +87,13 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids
 				continue
 			}
 			if existInDb {
-				fmt.Println("existInDb------>", uid, fakeChannelId, channelType)
 				channelConversation := userConversation.addConversationIfNotExist(fakeChannelId, channelType, 0)
 				if channelConversation != nil { // 如果db中存在会话，则不需要更新
 					channelConversation.NeedUpdate = false
 				}
 			} else {
-				fmt.Println("not existInDb------>", uid, fakeChannelId, channelType)
 				userConversation.addConversationIfNotExist(fakeChannelId, channelType, 0) // 只有缓存中不存在的时候才添加
 			}
-		} else {
-			fmt.Println("existInCache------>", uid, fakeChannelId, channelType)
 		}
 
 	}
@@ -383,7 +375,6 @@ func (c *userConversation) existConversation(channelId string, channelType uint8
 func (c *userConversation) existConversationNotLock(channelId string, channelType uint8) bool {
 	for _, s := range c.conversations {
 		if s.ChannelId == channelId && s.ChannelType == channelType {
-			fmt.Println("existConversationNotLock--->", s.ChannelId, s.ReadedMsgSeq, s.ConversationType)
 			return true
 		}
 	}

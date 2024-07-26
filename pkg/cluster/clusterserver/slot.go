@@ -148,8 +148,8 @@ func (s *slot) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
 		start := time.Now()
 		defer func() {
 			end := time.Since(start)
-			if end > time.Millisecond*10 {
-				s.Info("slot apply log", zap.Duration("cost", end))
+			if end > time.Millisecond*100 {
+				s.Debug("slot apply log", zap.Duration("cost", end))
 			}
 
 		}()
