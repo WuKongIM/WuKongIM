@@ -147,7 +147,7 @@ func ChannelKey(channelId string, channelType uint8) string {
 	return b.String()
 }
 
-func hashWithString(s string) uint64 {
+func HashWithString(s string) uint64 {
 	h := fnv.New64a()
 	h.Write([]byte(s))
 	return h.Sum64()
@@ -174,7 +174,7 @@ func NewMessageSecondIndexFromUidKey(uid string, primaryKey [16]byte) []byte {
 	key[3] = 0
 	key[4] = TableMessage.SecondIndex.FromUid[0]
 	key[5] = TableMessage.SecondIndex.FromUid[1]
-	binary.BigEndian.PutUint64(key[6:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[6:], HashWithString(uid))
 	copy(key[14:], primaryKey[:])
 	return key
 }
@@ -187,7 +187,7 @@ func NewMessageSecondIndexClientMsgNoKey(clientMsgNo string, primaryKey [16]byte
 	key[3] = 0
 	key[4] = TableMessage.SecondIndex.ClientMsgNo[0]
 	key[5] = TableMessage.SecondIndex.ClientMsgNo[1]
-	binary.BigEndian.PutUint64(key[6:], hashWithString(clientMsgNo))
+	binary.BigEndian.PutUint64(key[6:], HashWithString(clientMsgNo))
 	copy(key[14:], primaryKey[:])
 	return key
 
@@ -238,7 +238,7 @@ func NewUserIndexUidKey(uid string) []byte {
 	key[4] = TableUser.Index.Uid[0]
 	key[5] = TableUser.Index.Uid[1]
 
-	uidHash := hashWithString(uid)
+	uidHash := HashWithString(uid)
 	binary.BigEndian.PutUint64(key[6:], uidHash)
 	return key
 }
@@ -277,7 +277,7 @@ func NewDeviceIndexUidAndDeviceFlagKey(uid string, deviceFlag uint64) []byte {
 	key[3] = 0
 	key[4] = TableDevice.Index.Device[0]
 	key[5] = TableDevice.Index.Device[1]
-	uidHash := hashWithString(uid)
+	uidHash := HashWithString(uid)
 	binary.BigEndian.PutUint64(key[6:], uidHash)
 	binary.BigEndian.PutUint64(key[14:], deviceFlag)
 
@@ -337,7 +337,7 @@ func NewSubscriberIndexUidKey(channelId string, channelType uint8, uid string) [
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[14:], HashWithString(uid))
 	return key
 }
 
@@ -505,7 +505,7 @@ func NewDenylistIndexUidKey(channelId string, channelType uint8, uid string) []b
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[14:], HashWithString(uid))
 	return key
 }
 
@@ -595,7 +595,7 @@ func NewAllowlistIndexUidKey(channelId string, channelType uint8, uid string) []
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[14:], HashWithString(uid))
 	return key
 }
 
@@ -651,7 +651,7 @@ func NewConversationColumnKey(uid string, primaryKey uint64, columnName [2]byte)
 	key[1] = TableConversation.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 	binary.BigEndian.PutUint64(key[12:], primaryKey)
 	key[20] = columnName[0]
 	key[21] = columnName[1]
@@ -664,7 +664,7 @@ func NewConversationPrimaryKey(uid string, primaryKey uint64) []byte {
 	key[1] = TableConversation.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 	binary.BigEndian.PutUint64(key[12:], primaryKey)
 	return key
 }
@@ -686,7 +686,7 @@ func NewConversationIndexChannelKey(uid string, channelId string, channelType ui
 	key[1] = TableConversation.Id[1]
 	key[2] = dataTypeIndex
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 
 	key[12] = TableConversation.Index.Channel[0]
 	key[13] = TableConversation.Index.Channel[1]
@@ -703,7 +703,7 @@ func NewConversationSecondIndexKey(uid string, indexName [2]byte, indexValue uin
 	key[1] = TableConversation.Id[1]
 	key[2] = dataTypeSecondIndex
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 	key[12] = indexName[0]
 	key[13] = indexName[1]
 	binary.BigEndian.PutUint64(key[14:], indexValue)
@@ -822,7 +822,7 @@ func NewLeaderTermSequenceTermKey(shardNo string, term uint32) []byte {
 	key[1] = TableLeaderTermSequence.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(shardNo))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(shardNo))
 	binary.BigEndian.PutUint32(key[12:], term)
 	return key
 }
@@ -859,7 +859,7 @@ func NewSessionColumnKey(uid string, primaryKey uint64, columnName [2]byte) []by
 	key[1] = TableSession.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 	binary.BigEndian.PutUint64(key[12:], primaryKey)
 	key[20] = columnName[0]
 	key[21] = columnName[1]
@@ -883,7 +883,7 @@ func NewSessionPrimaryKey(uid string, primaryKey uint64) []byte {
 	key[1] = TableSession.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 	binary.BigEndian.PutUint64(key[12:], primaryKey)
 	return key
 }
@@ -894,7 +894,7 @@ func NewSessionChannelIndexKey(uid string, channelId string, channelType uint8) 
 	key[1] = TableSession.Id[1]
 	key[2] = dataTypeIndex
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 
 	key[12] = TableSession.Index.Channel[0]
 	key[13] = TableSession.Index.Channel[1]
@@ -910,7 +910,7 @@ func NewSessionSecondIndexKey(uid string, indexName [2]byte, indexValue uint64, 
 	key[1] = TableSession.Id[1]
 	key[2] = dataTypeSecondIndex
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], hashWithString(uid))
+	binary.BigEndian.PutUint64(key[4:], HashWithString(uid))
 	key[12] = indexName[0]
 	key[13] = indexName[1]
 	binary.BigEndian.PutUint64(key[14:], indexValue)
