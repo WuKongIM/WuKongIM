@@ -132,11 +132,11 @@ func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) err
 	return batch.Commit(wk.sync)
 }
 
-func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) error {
+func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error) {
 
 	primaryKey, err := wk.getChannelPrimaryKey(channelInfo.ChannelId, channelInfo.ChannelType)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	var isCreate bool
@@ -148,18 +148,18 @@ func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) error {
 	w := wk.channelDb(channelInfo.ChannelId, channelInfo.ChannelType).NewBatch()
 	defer w.Close()
 	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
-		return err
+		return 0, err
 	}
 
 	if isCreate {
 		err = wk.IncChannelCount(1)
 		if err != nil {
 			wk.Error("IncChannelCount failed", zap.Error(err))
-			return err
+			return 0, err
 		}
 	}
 
-	return w.Commit(wk.sync)
+	return primaryKey, w.Commit(wk.sync)
 }
 
 func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo, error) {
@@ -458,7 +458,13 @@ func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, uids []stri
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("AddDenylist: channelId: %s channelType: %d not found", channelId, channelType)
+		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	w := db.NewBatch()
@@ -510,7 +516,13 @@ func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []s
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("RemoveDenylist: channelId: %s channelType: %d not found", channelId, channelType)
+		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	idMap, err := wk.getDenylistIdsByUids(channelId, channelType, uids)
@@ -544,7 +556,13 @@ func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("RemoveAllDenylist: channelId: %s channelType: %d not found", channelId, channelType)
+		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	db := wk.channelDb(channelId, channelType)
@@ -584,7 +602,13 @@ func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, uids []str
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("AddAllowlist: channelId: %s channelType: %d not found", channelId, channelType)
+		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	w := db.NewBatch()
@@ -657,7 +681,13 @@ func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("RemoveAllowlist: channelId: %s channelType: %d not found", channelId, channelType)
+		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	idMap, err := wk.getAllowlistIdsByUids(channelId, channelType, uids)
@@ -693,7 +723,13 @@ func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) erro
 		return err
 	}
 	if channelPrimaryId == 0 {
-		return fmt.Errorf("RemoveAllAllowlist: channelId: %s channelType: %d not found", channelId, channelType)
+		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	batch := db.NewBatch()

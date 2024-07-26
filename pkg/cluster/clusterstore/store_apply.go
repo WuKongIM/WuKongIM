@@ -128,7 +128,8 @@ func (s *Store) handleAddOrUpdateChannel(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	return s.wdb.AddOrUpdateChannel(channelInfo)
+	_, err = s.wdb.AddOrUpdateChannel(channelInfo)
+	return err
 }
 
 func (s *Store) handleRemoveAllSubscriber(cmd *CMD) error {
