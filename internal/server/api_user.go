@@ -246,19 +246,17 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
-	if u.s.opts.ClusterOn() {
-		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
-		if err != nil {
-			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-			c.ResponseError(errors.New("获取频道所在节点失败！"))
-			return
-		}
-		leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
-		if !leaderIsSelf {
-			u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-			return
-		}
+	leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	if err != nil {
+		u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == u.s.opts.Cluster.NodeId
+	if !leaderIsSelf {
+		u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
 	}
 
 	u.Debug("req", zap.Any("req", req))
@@ -279,23 +277,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
-	// 添加或更新用户
-	err = u.s.store.AddOrUpdateUser(wkdb.User{
-		Uid: req.UID,
-	})
-	if err != nil {
-		u.Error("更新用户失败！", zap.Error(err))
-		c.ResponseError(errors.Wrap(err, "更新用户失败！"))
-		return
-	}
-
-	// 添加或更新设备
-	err = u.s.store.AddOrUpdateDevice(wkdb.Device{
-		Uid:         req.UID,
-		DeviceFlag:  uint64(req.DeviceFlag),
-		DeviceLevel: uint8(req.DeviceLevel),
-		Token:       req.Token,
-	})
+	err = u.s.store.AddOrUpdateUserAndDevice(req.UID, req.DeviceFlag, req.DeviceLevel, req.Token)
 	if err != nil {
 		u.Error("更新用户token失败！", zap.Error(err))
 		c.ResponseError(errors.Wrap(err, "更新用户token失败！"))

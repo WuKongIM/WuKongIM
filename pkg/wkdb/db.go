@@ -95,6 +95,9 @@ type UserDB interface {
 	// GetUserToken 获取用户信息
 	GetUser(uid string) (User, error)
 
+	// ExistUser 判断用户是否存在
+	ExistUser(uid string) (bool, error)
+
 	// SearchUser 搜索用户
 	SearchUser(req UserSearchReq) ([]User, error)
 
@@ -350,9 +353,10 @@ type ChannelSearchReq struct {
 }
 
 type UserSearchReq struct {
-	Uid         string // 用户id
-	Limit       int    // 限制查询数量
-	CurrentPage int    // 当前页码
+	Uid      string // 用户id
+	Limit    int    // 限制查询数量
+	OffsetId uint64 // 偏移id
+	Pre      bool   // 是否向前搜索
 }
 
 type DeviceSearchReq struct {

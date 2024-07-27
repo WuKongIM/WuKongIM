@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -28,6 +29,21 @@ func (s *Store) AddOrUpdateDevice(d wkdb.Device) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(d.Uid)
+	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	return err
+}
+
+// AddOrUpdateUserAndDevice 添加或更新用户和设备
+func (s *Store) AddOrUpdateUserAndDevice(uid string, deviceFlag wkproto.DeviceFlag, deviceLevel wkproto.DeviceLevel, token string) error {
+
+	data := EncodeCMDUserAndDevice(uid, deviceFlag, deviceLevel, token)
+	cmd := NewCMD(CMDAddOrUpdateUserAndDevice, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		s.Error("marshal cmd failed", zap.Error(err))
+		return err
+	}
+	slotId := s.opts.GetSlotId(uid)
 	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
 	return err
 }

@@ -1190,6 +1190,7 @@ type channelInfoRespTotal struct {
 }
 
 type userResp struct {
+	Id                uint64 `json:"id"`                  // 主键
 	Uid               string `json:"uid"`                 // 用户ID
 	DeviceCount       uint32 `json:"device_count"`        // 设备数量
 	OnlineDeviceCount uint32 `json:"online_device_count"` // 在线设备数量
@@ -1215,6 +1216,7 @@ func newUserResp(u wkdb.User) *userResp {
 		updatedAtFormat = wkutil.ToyyyyMMddHHmm(*u.UpdatedAt)
 	}
 	return &userResp{
+		Id:                u.Id,
 		Uid:               u.Uid,
 		DeviceCount:       u.DeviceCount,
 		OnlineDeviceCount: u.OnlineDeviceCount,

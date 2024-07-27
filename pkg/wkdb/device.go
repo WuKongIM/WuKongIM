@@ -259,38 +259,38 @@ func (wk *wukongDB) writeDevice(d Device, isCreate bool, w pebble.Writer) error 
 		err error
 	)
 	// uid
-	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.Uid), []byte(d.Uid), wk.sync); err != nil {
+	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.Uid), []byte(d.Uid), wk.noSync); err != nil {
 		return err
 	}
 
 	// token
-	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.Token), []byte(d.Token), wk.sync); err != nil {
+	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.Token), []byte(d.Token), wk.noSync); err != nil {
 		return err
 	}
 
 	// deviceFlag
 	var deviceFlagBytes = make([]byte, 8)
 	wk.endian.PutUint64(deviceFlagBytes, d.DeviceFlag)
-	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.DeviceFlag), deviceFlagBytes, wk.sync); err != nil {
+	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.DeviceFlag), deviceFlagBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// deviceLevel
-	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.DeviceLevel), []byte{d.DeviceLevel}, wk.sync); err != nil {
+	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.DeviceLevel), []byte{d.DeviceLevel}, wk.noSync); err != nil {
 		return err
 	}
 
 	// updatedAt
 	var nowBytes = make([]byte, 8)
 	wk.endian.PutUint64(nowBytes, uint64(time.Now().Unix()))
-	err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.UpdatedAt), nowBytes, wk.sync)
+	err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.UpdatedAt), nowBytes, wk.noSync)
 	if err != nil {
 		return err
 	}
 
 	// createdAt
 	if isCreate {
-		err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.CreatedAt), nowBytes, wk.sync)
+		err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.CreatedAt), nowBytes, wk.noSync)
 		if err != nil {
 			return err
 		}
@@ -298,13 +298,8 @@ func (wk *wukongDB) writeDevice(d Device, isCreate bool, w pebble.Writer) error 
 	// uid-deviceFlag index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, d.Id)
-	if err = w.Set(key.NewDeviceIndexUidAndDeviceFlagKey(d.Uid, d.DeviceFlag), idBytes, wk.sync); err != nil {
+	if err = w.Set(key.NewDeviceIndexUidAndDeviceFlagKey(d.Uid, d.DeviceFlag), idBytes, wk.noSync); err != nil {
 		return err
-	}
-
-	// user device count
-	if isCreate {
-
 	}
 
 	return nil

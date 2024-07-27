@@ -1203,13 +1203,10 @@ func (s *Server) allowlistGet(c *wkhttp.Context) {
 func (s *Server) userSearch(c *wkhttp.Context) {
 	// 搜索条件
 	limit := wkutil.ParseInt(c.Query("limit"))
-	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
+	offsetId := wkutil.ParseUint64(c.Query("offset_id")) // 偏移的id
 	uid := strings.TrimSpace(c.Query("uid"))
 	nodeId := wkutil.ParseUint64(c.Query("node_id"))
-
-	if currentPage <= 0 {
-		currentPage = 1
-	}
+	pre := wkutil.ParseInt(c.Query("pre")) // 是否向前搜索
 
 	if limit <= 0 {
 		limit = s.opts.PageSize
@@ -1217,9 +1214,10 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 
 	var searchLocalUsers = func() (userRespTotal, error) {
 		users, err := s.opts.DB.SearchUser(wkdb.UserSearchReq{
-			Uid:         uid,
-			Limit:       limit,
-			CurrentPage: currentPage,
+			Uid:      uid,
+			Limit:    limit,
+			OffsetId: offsetId,
+			Pre:      pre == 1,
 		})
 		if err != nil {
 			s.Error("search user failed", zap.Error(err))
@@ -1311,6 +1309,18 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 	userResps = make([]*userResp, 0, len(userRespMap))
 	for _, userResp := range userRespMap {
 		userResps = append(userResps, userResp)
+	}
+
+	sort.Slice(userResps, func(i, j int) bool {
+		return userResps[i].Id > userResps[j].Id
+	})
+
+	if len(userResps) > limit {
+		if pre == 1 {
+			userResps = userResps[len(userResps)-limit:]
+		} else {
+			userResps = userResps[:limit]
+		}
 	}
 
 	c.JSON(http.StatusOK, userRespTotal{

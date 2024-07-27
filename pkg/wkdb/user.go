@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
@@ -28,7 +29,7 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 
 	var usr = EmptyUser
 
-	err = wk.iteratorUser(iter, func(u User) bool {
+	err = wk.iteratorUser(iter, false, func(u User) bool {
 		if u.Id == id {
 			usr = u
 			return false
@@ -44,6 +45,14 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 	return usr, nil
 }
 
+func (wk *wukongDB) ExistUser(uid string) (bool, error) {
+	id, err := wk.getUserId(uid)
+	if err != nil {
+		return false, err
+	}
+	return id != 0, nil
+}
+
 func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 	if req.Uid != "" {
 		us, err := wk.GetUser(req.Uid)
@@ -53,29 +62,64 @@ func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 		return []User{us}, nil
 	}
 	var users []User
-	currentSize := 0
+
+	var startId uint64 = req.OffsetId
+	var endId uint64 = math.MaxUint64
+	if req.OffsetId > 0 {
+		if req.Pre {
+			startId = uint64(req.OffsetId + 1)
+			endId = math.MaxUint64
+		} else {
+			startId = 0
+			endId = uint64(req.OffsetId)
+		}
+	}
+
 	for _, db := range wk.dbs {
+		currentSize := 0
 		iter := db.NewIter(&pebble.IterOptions{
-			LowerBound: key.NewUserColumnKey(0, key.MinColumnKey),
-			UpperBound: key.NewUserColumnKey(math.MaxUint64, key.MaxColumnKey),
+			LowerBound: key.NewUserColumnKey(startId, key.MinColumnKey),
+			UpperBound: key.NewUserColumnKey(endId, key.MaxColumnKey),
 		})
 		defer iter.Close()
 
-		err := wk.iteratorUser(iter, func(u User) bool {
-			if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
+		err := wk.iteratorUser(iter, !req.Pre, func(u User) bool {
+			if req.OffsetId > 0 {
+				if req.Pre {
+					if u.Id <= req.OffsetId {
+						return false
+					}
+				} else {
+					if u.Id >= req.OffsetId {
+						return false
+					}
+				}
+			}
+
+			currentSize++
+			if currentSize > req.Limit {
 				return false
 			}
-			currentSize++
-			if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
-				users = append(users, u)
-				return true
-			}
+			users = append(users, u)
 			return true
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].Id > users[j].Id
+	})
+	if req.Limit > 0 && len(users) > req.Limit {
+
+		if req.Pre {
+			users = users[len(users)-req.Limit:]
+		} else {
+			users = users[:req.Limit]
+		}
+	}
+
 	return users, nil
 
 }
@@ -169,20 +213,20 @@ func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
 	)
 
 	// uid
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.Uid), []byte(u.Uid), wk.sync); err != nil {
+	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.Uid), []byte(u.Uid), wk.noSync); err != nil {
 		return err
 	}
 
 	// updatedAt
 	var nowBytes = make([]byte, 8)
 	wk.endian.PutUint64(nowBytes, uint64(time.Now().Unix()))
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.UpdatedAt), nowBytes, wk.sync); err != nil {
+	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.UpdatedAt), nowBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	// createdAt
 	if isCreate {
-		err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.CreatedAt), nowBytes, wk.sync)
+		err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.CreatedAt), nowBytes, wk.noSync)
 		if err != nil {
 			return err
 		}
@@ -190,14 +234,14 @@ func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
 	// uid index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, u.Id)
-	if err = w.Set(key.NewUserIndexUidKey(u.Uid), idBytes, wk.sync); err != nil {
+	if err = w.Set(key.NewUserIndexUidKey(u.Uid), idBytes, wk.noSync); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, iterFnc func(u User) bool) error {
+func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, reverse bool, iterFnc func(u User) bool) error {
 	var (
 		preId          uint64
 		preUser        User
@@ -205,7 +249,19 @@ func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, iterFnc func(u User) boo
 		hasData        bool = false
 	)
 
-	for iter.First(); iter.Valid(); iter.Next() {
+	stepFnc := iter.Next
+	if reverse {
+		if !iter.Last() {
+			return nil
+		}
+		stepFnc = iter.Prev
+	} else {
+		if !iter.First() {
+			return nil
+		}
+	}
+
+	for ; iter.Valid(); stepFnc() {
 		primaryKey, columnName, err := key.ParseUserColumnKey(iter.Key())
 		if err != nil {
 			return err

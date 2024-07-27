@@ -75,6 +75,8 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 	// 	return s.handleAppendMessagesOfUser(cmd)
 	case CMDBatchUpdateConversation:
 		return s.handleBatchUpdateConversation(cmd)
+	case CMDAddOrUpdateUserAndDevice: // 添加或更新用户和设备
+		return s.handleAddOrUpdateUserAndDevice(cmd)
 		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置
 		// return s.handleChannelClusterConfigDelete(cmd)
 
@@ -292,4 +294,33 @@ func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
 
 	}
 	return nil
+}
+
+func (s *Store) handleAddOrUpdateUserAndDevice(cmd *CMD) error {
+
+	uid, deviceFlag, deviceLevel, token, err := cmd.DecodeCMDUserAndDevice()
+	if err != nil {
+		return err
+	}
+
+	exist, err := s.wdb.ExistUser(uid)
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		err = s.wdb.AddOrUpdateUser(wkdb.User{
+			Uid: uid,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return s.wdb.AddOrUpdateDevice(wkdb.Device{
+		Uid:         uid,
+		DeviceFlag:  deviceFlag,
+		DeviceLevel: uint8(deviceLevel),
+		Token:       token,
+	})
 }
