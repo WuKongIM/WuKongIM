@@ -74,6 +74,8 @@ const (
 
 	// 批量更新最近会话
 	CMDBatchUpdateConversation
+	// 	// 添加或更新用户和设备
+	CMDAddOrUpdateUserAndDevice
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -142,6 +144,8 @@ func (c CMDType) String() string {
 		return "CMDBatchUpdateConversation"
 	case CMDDeleteConversations:
 		return "CMDDeleteConversations"
+	case CMDAddOrUpdateUserAndDevice:
+		return "CMDAddOrUpdateUserAndDevice"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -494,6 +498,35 @@ func (c *CMD) DecodeCMDDevice() (d wkdb.Device, err error) {
 		return
 	}
 	if d.Token, err = decoder.String(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDUserAndDevice(uid string, deviceFlag wkproto.DeviceFlag, deviceLevel wkproto.DeviceLevel, token string) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteUint64(uint64(deviceFlag))
+	encoder.WriteUint8(uint8(deviceLevel))
+	encoder.WriteString(token)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDUserAndDevice() (uid string, deviceFlag uint64, deviceLevel wkproto.DeviceLevel, token string, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if deviceFlag, err = decoder.Uint64(); err != nil {
+		return
+	}
+	var deviceLevelUint8 uint8
+	if deviceLevelUint8, err = decoder.Uint8(); err != nil {
+		return
+	}
+	deviceLevel = wkproto.DeviceLevel(deviceLevelUint8)
+	if token, err = decoder.String(); err != nil {
 		return
 	}
 	return
