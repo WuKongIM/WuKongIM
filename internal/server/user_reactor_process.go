@@ -207,8 +207,8 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceID踢掉
 			for _, oldConn := range oldConns {
 				if oldConn.connId != connCtx.connId && oldConn.deviceId == connectPacket.DeviceID {
-					r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
 					r.s.timingWheel.AfterFunc(time.Second*5, func() {
+						r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
 						oldConn.close()
 					})
 					r.Info("slave: close old conn", zap.Any("oldConn", oldConn))

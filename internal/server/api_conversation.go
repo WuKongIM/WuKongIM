@@ -346,13 +346,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	// 获取用户缓存的最近会话
 	cacheConversations := s.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeChat)
 
-	// 合并缓存的最近会话
-	cacheConversationMap := map[string]uint64{}
-	for _, cacheConversation := range cacheConversations {
-		if cacheConversation.ReadedToMsgSeq > 0 {
-			cacheConversationMap[fmt.Sprintf("%s-%d", cacheConversation.ChannelId, cacheConversation.ChannelType)] = cacheConversation.ReadedToMsgSeq
-		}
-	}
 	for _, cacheConversation := range cacheConversations {
 		exist := false
 		for i, conversation := range conversations {
@@ -381,11 +374,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			}
 		}
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, conversation.ChannelType)]
-		cacheMsgSeq := cacheConversationMap[fmt.Sprintf("%s-%d", conversation.ChannelId, conversation.ChannelType)]
-		if cacheMsgSeq > msgSeq {
-			msgSeq = cacheMsgSeq
-		}
-
 		if conversation.ReadedToMsgSeq > msgSeq {
 			msgSeq = conversation.ReadedToMsgSeq
 		}
@@ -434,12 +422,15 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 							}
 							resp.Version = int64(lastMsg.Timestamp)
 						}
+						if req.Version > 0 && resp.Unread <= 0 { // 如果客户端传递了version，且unread为0，则不返回这个最近会话
+							break
+						}
 						resp.Recents = channelRecentMessage.Messages
 						break
 					}
 				}
 
-				if len(resp.Recents) > 0 || conversation.UpdatedAt != nil {
+				if len(resp.Recents) > 0 {
 					resps = append(resps, resp)
 				}
 			}
@@ -618,7 +609,6 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 				if msgSeq > 0 {
 					msgSeq = msgSeq - 1 // 这里减1的目的是为了获取到最后一条消息
 				}
-				fmt.Println("getRecentMessages-fakeChannelID-->", fakeChannelID, msgSeq)
 
 				recentMessages, err = s.store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, msgSeq, msgCount)
 				if err != nil {
