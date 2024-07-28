@@ -130,7 +130,7 @@ export default class API {
     }
 
     // 搜索用户
-    public users(req:{uid?:string,offsetId:number, limit?: number,pre?:boolean}): Promise<any> {
+    public users(req:{uid?:string,offsetId:string, limit?: number,pre?:boolean}): Promise<any> {
         return APIClient.shared.get(`/cluster/users?uid=${req.uid || ''}&offset_id=${req.offsetId}&pre=${req.pre?1:0}&limit=${req.limit || 20}`)
     }
 
