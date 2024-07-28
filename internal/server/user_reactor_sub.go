@@ -366,6 +366,7 @@ func (u *userReactorSub) removeConnContextById(uid string, id int64) *connContex
 		return nil
 	}
 	conn := uh.removeConnById(id)
+	u.Debug("remove conn", zap.String("uid", uid), zap.Int64("id", id))
 
 	if uh.getConnCount() <= 0 {
 		u.Info("remove user", zap.String("uid", uh.uid))

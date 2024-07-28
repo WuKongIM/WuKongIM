@@ -381,12 +381,13 @@ func (u *userHandler) addConnIfNotExist(conn *connContext) {
 
 	exist := false
 	for _, c := range u.conns {
-		if c.deviceId == conn.deviceId {
+		if c.deviceId == conn.deviceId && c.realNodeId == conn.realNodeId && c.connId == conn.connId {
 			exist = true
 			break
 		}
 	}
 	if !exist {
+		u.Debug("add conn", zap.Int64("connId", conn.connId), zap.String("uid", u.uid), zap.String("deviceId", conn.deviceId))
 		u.conns = append(u.conns, conn)
 	}
 
