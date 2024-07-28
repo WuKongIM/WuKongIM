@@ -31,3 +31,7 @@ func ParseBool(str string) bool {
 	v, _ := strconv.ParseBool(str)
 	return v
 }
+
+func Uint64ToString(v uint64) string {
+	return strconv.FormatUint(v, 10)
+}

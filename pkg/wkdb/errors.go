@@ -8,5 +8,7 @@ var (
 	// ErrDeviceNotExist       = errors.New("device not exist")
 	// ErrConversationNotExist = errors.New("conversation not exist")
 	// ErrSessionNotExist      = errors.New("session not exist")
-	ErrNotFound = errors.New("not found")
+	ErrNotFound        = errors.New("not found")
+	ErrInvalidUserId   = errors.New("invalid user id")
+	ErrInvalidDeviceId = errors.New("invalid device id")
 )

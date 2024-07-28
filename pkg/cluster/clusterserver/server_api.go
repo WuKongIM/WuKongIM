@@ -1323,9 +1323,25 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 		}
 	}
 
+	nextId := ""
+	preId := ""
+	if len(userResps) > 0 {
+		nextId = wkutil.Uint64ToString(userResps[len(userResps)-1].Id)
+		preId = wkutil.Uint64ToString(userResps[0].Id)
+	}
+
+	userCount, err := s.opts.DB.GetTotalUserCount()
+	if err != nil {
+		s.Error("GetTotalUserCount error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
 	c.JSON(http.StatusOK, userRespTotal{
 		Data:  userResps,
-		Total: 0,
+		Total: userCount,
+		Next:  nextId,
+		Pre:   preId,
 	})
 }
 

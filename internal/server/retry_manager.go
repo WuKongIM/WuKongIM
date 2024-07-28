@@ -58,7 +58,7 @@ func (r *retryManager) retry(msg *retryMessage) {
 	}
 	userHandler := r.s.userReactor.getUser(msg.uid)
 	if userHandler == nil {
-		r.Debug("user offline", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
+		r.Debug("user offline, retry end", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
 		return
 	}
 	conn := userHandler.getConnById(msg.connId)

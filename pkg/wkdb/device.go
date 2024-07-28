@@ -105,22 +105,18 @@ func (wk *wukongDB) AddOrUpdateDevice(d Device) error {
 
 	isCreate := false
 	if d.Id == 0 {
-		// 获取device的索引主键
-		id, err := wk.getDeviceId(d.Uid, d.DeviceFlag)
-		if err != nil {
-			return err
-		}
-		if id != 0 {
-			d.Id = id
-		} else {
-			isCreate = true
-			d.Id = uint64(wk.prmaryKeyGen.Generate().Int64())
-		}
+		return ErrInvalidDeviceId
 	}
+	exist, err := wk.existDevice(d.Uid, d.Id)
+	if err != nil {
+		return err
+	}
+	isCreate = !exist
+
 	db := wk.shardDB(d.Uid)
 	batch := db.NewBatch()
 	defer batch.Close()
-	err := wk.writeDevice(d, isCreate, batch)
+	err = wk.writeDevice(d, isCreate, batch)
 	if err != nil {
 		return err
 	}
@@ -128,14 +124,33 @@ func (wk *wukongDB) AddOrUpdateDevice(d Device) error {
 	if err != nil {
 		return err
 	}
-	if isCreate {
-		err = wk.IncDeviceCount(1)
-		if err != nil {
-			return err
-		}
-		return wk.incUserDeviceCount(d.Uid, 1, db)
-	}
+	// if isCreate {
+	// 	err = wk.IncDeviceCount(1)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	return wk.incUserDeviceCount(d.Uid, 1, db)
+	// }
 	return nil
+}
+
+func (wk *wukongDB) existDevice(uid string, id uint64) (bool, error) {
+	db := wk.shardDB(uid)
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
+		UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
+	})
+	defer iter.Close()
+
+	var exist bool
+	err := wk.iterDevice(iter, func(d Device) bool {
+		exist = true
+		return false
+	})
+	if err != nil {
+		return false, err
+	}
+	return exist, nil
 }
 
 func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {

@@ -1235,6 +1235,8 @@ func newUserResp(u wkdb.User) *userResp {
 type userRespTotal struct {
 	Total int         `json:"total"` // 总数
 	Data  []*userResp `json:"data"`
+	Next  string      `json:"next"` // 下一个偏移
+	Pre   string      `json:"pre"`  // 上一个偏移
 }
 
 type deviceResp struct {

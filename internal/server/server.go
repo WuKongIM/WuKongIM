@@ -483,7 +483,7 @@ func (s *Server) onClose(conn wknet.Conn) {
 		if connCtx.isAuth.Load() {
 			deviceOnlineCount := s.userReactor.getConnContextCountByDeviceFlag(connCtx.uid, connCtx.deviceFlag)
 			totalOnlineCount := s.userReactor.getConnContextCount(connCtx.uid)
-			s.webhook.Offline(conn.UID(), wkproto.DeviceFlag(connCtx.deviceFlag), connCtx.connId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
+			s.webhook.Offline(connCtx.uid, wkproto.DeviceFlag(connCtx.deviceFlag), connCtx.connId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
 
 			s.trace.Metrics.App().OnlineDeviceCountAdd(-1)
 		}

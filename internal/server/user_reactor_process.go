@@ -103,6 +103,10 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	var connCtx *connContext
 	if msg.FromNodeId == r.s.opts.Cluster.NodeId {
 		connCtx = r.getConnContextById(uid, msg.ConnId)
+		if connCtx == nil {
+			r.Error("connCtx is nil", zap.String("uid", uid), zap.Int64("connId", msg.ConnId))
+			return wkproto.ReasonSystemError, errors.New("connCtx is nil")
+		}
 	} else {
 		sub := r.reactorSub(uid)
 		connInfo := connInfo{
@@ -115,10 +119,6 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 		}
 		connCtx = newConnContextProxy(msg.FromNodeId, connInfo, sub)
 		sub.addConnContext(connCtx)
-	}
-	if connCtx == nil {
-		r.Error("connCtx is nil", zap.String("uid", uid), zap.Int64("connId", msg.ConnId))
-		return wkproto.ReasonSystemError, errors.New("connCtx is nil")
 	}
 	// -------------------- token verify --------------------
 	if connectPacket.UID == r.s.opts.ManagerUID {
