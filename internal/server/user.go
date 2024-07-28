@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/sasha-s/go-deadlock"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -52,6 +53,8 @@ type userHandler struct {
 	recvMsgTick     int // 接收消息计时
 
 	checkLeaderTick int // 定时检查正确的领导节点
+
+	willClose atomic.Bool // 是否将要关闭
 
 	wklog.Log
 
@@ -350,6 +353,7 @@ func (u *userHandler) tickLeader() {
 
 		} else {
 			// 没有任何连接了，可以关闭了
+			u.Debug("no conn, close user", zap.String("uid", u.uid))
 			u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 		}
 	}
@@ -362,6 +366,12 @@ func (u *userHandler) tickLeader() {
 				{FromNodeId: proxyNodeId},
 			}})
 		}
+	}
+}
+
+func (u *userHandler) keepActivity() {
+	if u.role == userRoleProxy {
+		u.nodePingTick = 0
 	}
 }
 
@@ -381,6 +391,8 @@ func (u *userHandler) addConnIfNotExist(conn *connContext) {
 	}
 
 	u.resetConnNodeIds()
+
+	u.keepActivity() // 有新连接进来了  继续保活
 }
 
 func (u *userHandler) getConn(deviceId string) *connContext {

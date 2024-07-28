@@ -889,7 +889,6 @@ func EncodeCMDBatchUpdateConversation(models []*wkdb.BatchUpdateConversationMode
 			encoder.WriteUint64(seq)
 		}
 		encoder.WriteString(model.ChannelId)
-		fmt.Println("EncodeCMDBatchUpdateConversation---->", model.ChannelType)
 		encoder.WriteUint8(model.ChannelType)
 
 	}

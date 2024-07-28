@@ -170,8 +170,6 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 // 消息同步
 func (m *MessageAPI) sync(c *wkhttp.Context) {
 
-	fmt.Println("sync cmd messages.........")
-
 	var req syncReq
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -209,7 +207,6 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		c.ResponseError(errors.New("获取conversation失败！"))
 		return
 	}
-	fmt.Println("conversations------->", len(conversations))
 
 	// 获取用户缓存的最近会话
 	cacheConversations := m.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeCMD)
@@ -248,7 +245,6 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 					realChannelId = u2
 				}
 			}
-			fmt.Println("conversation2----->", conversation.ChannelId, realChannelId, conversation.ReadedToMsgSeq)
 			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
 				ChannelId:   realChannelId,
 				ChannelType: conversation.ChannelType,
@@ -272,10 +268,8 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 			c.ResponseError(errors.New("获取最近消息失败！"))
 			return
 		}
-		fmt.Println("channelRecentMessages----->", len(channelRecentMessages))
 		for _, channelRecentMessage := range channelRecentMessages {
 
-			fmt.Println("channelRecentMessage--Messages--->", len(channelRecentMessage.Messages))
 			if len(channelRecentMessage.Messages) == 0 {
 				continue
 			}
@@ -304,7 +298,6 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		}
 	}
 
-	fmt.Println("messageResps----->", len(messageResps))
 	c.JSON(http.StatusOK, messageResps)
 
 }
@@ -328,20 +321,18 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 		return
 	}
 
-	if m.s.opts.ClusterOn() {
-		leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
-		if err != nil {
-			m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-			c.ResponseError(errors.New("获取频道所在节点失败！"))
-			return
-		}
-		leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
+	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	if err != nil {
+		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
 
-		if !leaderIsSelf {
-			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-			return
-		}
+	if !leaderIsSelf {
+		m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
 	}
 
 	m.syncRecordLock.RLock()

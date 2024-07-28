@@ -618,8 +618,6 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 			}
 		}
 
-		fmt.Println("startSeq---->", startSeq, endSeq)
-
 		iter := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, startSeq),
 			UpperBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, endSeq),

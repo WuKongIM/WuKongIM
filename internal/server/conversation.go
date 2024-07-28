@@ -403,7 +403,6 @@ func (c *userConversation) getConversationsByType(conversationType wkdb.Conversa
 	var conversations []wkdb.Conversation
 
 	for _, s := range c.conversations {
-		fmt.Println("getConversationsByType--->", s.ChannelId, s.ReadedMsgSeq, s.ConversationType)
 		if s.ConversationType == conversationType {
 			conversations = append(conversations, wkdb.Conversation{
 				Uid:            c.uid,
