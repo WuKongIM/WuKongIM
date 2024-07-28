@@ -43,10 +43,10 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 	}
 
 	// 消息总数量+1
-	err := wk.IncMessageCount(1)
-	if err != nil {
-		return err
-	}
+	// err := wk.IncMessageCount(len(msgs))
+	// if err != nil {
+	// 	return err
+	// }
 
 	return batch.Commit(wk.sync)
 }

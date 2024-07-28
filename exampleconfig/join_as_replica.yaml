@@ -11,11 +11,11 @@ demo:
 conversation:
   on: true    
 cluster:
-  nodeId: 1005
+  nodeId: 5
   addr: "tcp://127.0.0.1:10005" # 分布式监听地址
   serverAddr: "127.0.0.1:10005" # 节点通讯地址
   apiUrl: "http://127.0.0.1:5005"
-  seed: "1001@127.0.0.1:10001"  # 其他任意集群内的节点
+  seed: "1@127.0.0.1:10001"  # 其他任意集群内的节点
 
 auth: 
   kind: 'jwt' # 认证方式 jwt: jwt认证 none: 无需认证

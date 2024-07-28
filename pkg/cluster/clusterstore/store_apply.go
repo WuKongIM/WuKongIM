@@ -298,7 +298,7 @@ func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
 
 func (s *Store) handleAddOrUpdateUserAndDevice(cmd *CMD) error {
 
-	uid, deviceFlag, deviceLevel, token, err := cmd.DecodeCMDUserAndDevice()
+	id, uid, deviceFlag, deviceLevel, token, err := cmd.DecodeCMDUserAndDevice()
 	if err != nil {
 		return err
 	}
@@ -310,6 +310,7 @@ func (s *Store) handleAddOrUpdateUserAndDevice(cmd *CMD) error {
 
 	if !exist {
 		err = s.wdb.AddOrUpdateUser(wkdb.User{
+			Id:  id,
 			Uid: uid,
 		})
 		if err != nil {
@@ -318,6 +319,7 @@ func (s *Store) handleAddOrUpdateUserAndDevice(cmd *CMD) error {
 	}
 
 	return s.wdb.AddOrUpdateDevice(wkdb.Device{
+		Id:          id,
 		Uid:         uid,
 		DeviceFlag:  deviceFlag,
 		DeviceLevel: uint8(deviceLevel),

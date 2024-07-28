@@ -157,7 +157,7 @@ type Options struct {
 	}
 
 	Cluster struct {
-		NodeId              uint64        // 节点ID
+		NodeId              uint64        // 节点ID,节点Id，必须小于或等于1023 （https://github.com/bwmarrin/snowflake 雪花算法的限制）
 		Addr                string        // 节点监听地址 例如：tcp://0.0.0.0:11110
 		ServerAddr          string        // 节点之间能访问到的内网通讯地址 例如 127.0.0.1:11110
 		APIUrl              string        // 节点之间可访问的api地址

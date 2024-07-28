@@ -462,12 +462,16 @@ func EncodeChannel(channelId string, channelType uint8) []byte {
 func EncodeCMDUser(u wkdb.User) []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
+	enc.WriteUint64(u.Id)
 	enc.WriteString(u.Uid)
 	return enc.Bytes()
 }
 
 func (c *CMD) DecodeCMDUser() (u wkdb.User, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
+	if u.Id, err = decoder.Uint64(); err != nil {
+		return
+	}
 	if u.Uid, err = decoder.String(); err != nil {
 		return
 	}
@@ -478,6 +482,7 @@ func (c *CMD) DecodeCMDUser() (u wkdb.User, err error) {
 func EncodeCMDDevice(d wkdb.Device) []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
+	enc.WriteUint64(d.Id)
 	enc.WriteString(d.Uid)
 	enc.WriteUint64(d.DeviceFlag)
 	enc.WriteUint8(d.DeviceLevel)
@@ -487,6 +492,11 @@ func EncodeCMDDevice(d wkdb.Device) []byte {
 
 func (c *CMD) DecodeCMDDevice() (d wkdb.Device, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
+
+	if d.Id, err = decoder.Uint64(); err != nil {
+		return
+	}
+
 	if d.Uid, err = decoder.String(); err != nil {
 		return
 	}
@@ -503,9 +513,10 @@ func (c *CMD) DecodeCMDDevice() (d wkdb.Device, err error) {
 	return
 }
 
-func EncodeCMDUserAndDevice(uid string, deviceFlag wkproto.DeviceFlag, deviceLevel wkproto.DeviceLevel, token string) []byte {
+func EncodeCMDUserAndDevice(id uint64, uid string, deviceFlag wkproto.DeviceFlag, deviceLevel wkproto.DeviceLevel, token string) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
+	encoder.WriteUint64(id)
 	encoder.WriteString(uid)
 	encoder.WriteUint64(uint64(deviceFlag))
 	encoder.WriteUint8(uint8(deviceLevel))
@@ -513,8 +524,13 @@ func EncodeCMDUserAndDevice(uid string, deviceFlag wkproto.DeviceFlag, deviceLev
 	return encoder.Bytes()
 }
 
-func (c *CMD) DecodeCMDUserAndDevice() (uid string, deviceFlag uint64, deviceLevel wkproto.DeviceLevel, token string, err error) {
+func (c *CMD) DecodeCMDUserAndDevice() (id uint64, uid string, deviceFlag uint64, deviceLevel wkproto.DeviceLevel, token string, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
+
+	if id, err = decoder.Uint64(); err != nil {
+		return
+	}
+
 	if uid, err = decoder.String(); err != nil {
 		return
 	}

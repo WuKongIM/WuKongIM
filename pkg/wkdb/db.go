@@ -3,6 +3,8 @@ package wkdb
 type DB interface {
 	Open() error
 	Close() error
+	// 获取下一个主键
+	NextPrimaryKey() uint64
 	// 消息
 	MessageDB
 	// 用户

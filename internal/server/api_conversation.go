@@ -425,7 +425,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 				for _, channelRecentMessage := range channelRecentMessages {
 					if resp.ChannelId == channelRecentMessage.ChannelId && conversation.ChannelType == channelRecentMessage.ChannelType {
 						if len(channelRecentMessage.Messages) > 0 {
-							lastMsg := channelRecentMessage.Messages[len(channelRecentMessage.Messages)-1]
+							lastMsg := channelRecentMessage.Messages[0]
 							resp.LastMsgSeq = uint32(lastMsg.MessageSeq)
 							resp.LastClientMsgNo = lastMsg.ClientMsgNo
 							resp.Timestamp = int64(lastMsg.Timestamp)

@@ -239,3 +239,7 @@ func (wk *wukongDB) collectMetrics() {
 
 	}
 }
+
+func (wk *wukongDB) NextPrimaryKey() uint64 {
+	return uint64(wk.prmaryKeyGen.Generate().Int64())
+}

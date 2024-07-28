@@ -46,6 +46,10 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 }
 
 func (wk *wukongDB) ExistUser(uid string) (bool, error) {
+	return wk.existUser(uid)
+}
+
+func (wk *wukongDB) existUser(uid string) (bool, error) {
 	id, err := wk.getUserId(uid)
 	if err != nil {
 		return false, err
@@ -71,7 +75,7 @@ func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 			endId = math.MaxUint64
 		} else {
 			startId = 0
-			endId = uint64(req.OffsetId)
+			endId = uint64(req.OffsetId - 1) // todo: 这里为什么要减1，没搞懂，UpperBound应该是不包含的，但是这里不减1，分页结果就不对
 		}
 	}
 
@@ -127,31 +131,28 @@ func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 func (wk *wukongDB) AddOrUpdateUser(u User) error {
 	isCreate := false
 	if u.Id == 0 {
-		// 获取uid的索引主键
-		id, err := wk.getUserId(u.Uid)
-		if err != nil {
-			return err
-		}
-		if id != 0 {
-			u.Id = id
-		} else {
-			isCreate = true
-			u.Id = uint64(wk.prmaryKeyGen.Generate().Int64())
-		}
+		return ErrInvalidUserId
 	}
-	db := wk.shardDB(u.Uid)
-	batch := db.NewBatch()
-	defer batch.Close()
-	err := wk.writeUser(u, isCreate, batch)
+
+	exist, err := wk.existUser(u.Uid)
 	if err != nil {
 		return err
 	}
-	if isCreate {
-		err = wk.IncUserCount(1)
-		if err != nil {
-			return err
-		}
+	isCreate = !exist
+
+	db := wk.shardDB(u.Uid)
+	batch := db.NewBatch()
+	defer batch.Close()
+	err = wk.writeUser(u, isCreate, batch)
+	if err != nil {
+		return err
 	}
+	// if isCreate {
+	// 	err = wk.IncUserCount(1)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 	return batch.Commit(wk.sync)
 }
 
