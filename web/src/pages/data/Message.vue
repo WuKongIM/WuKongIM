@@ -287,9 +287,9 @@ const prevPage = () => {
 
         <div class="flex justify-end mt-10 mr-10">
             <div className="join">
-                <button className="join-item btn" v-on:click="prevPage">«</button>
+                <button :class="{'join-item btn':true}" v-on:click="prevPage">«</button>
                 <button className="join-item btn">{{ currentPage }}</button>
-                <button className="join-item btn" v-on:click="nextPage">»</button>
+                <button  :class="{'join-item btn':true}" v-on:click="nextPage">»</button>
             </div>
         </div>
     </div>

@@ -44,13 +44,13 @@ const onUidSearch = (e:any) => {
     <div>
         <div class="overflow-x-auto h-5/6">
             <div class="flex flex-wrap gap-4">
-                <div class="text-sm ml-10">
+                <div class="text-sm ml-4">
                     <label>用户UID</label>
                     <input type="text" placeholder="输入" class="input input-bordered  select-sm ml-2"
                         v-on:change="onUidSearch" v-model="uid"/>
                 </div>
             </div>
-            <table class="table mt-10 table-pin-rows">
+            <table class="table mt-5 table-pin-rows">
                 <thead>
                     <tr>
                         <th>
