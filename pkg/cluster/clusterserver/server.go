@@ -624,8 +624,6 @@ func (s *Server) handleChannelClusterConfigUpdate(m *proto.Message) {
 		return
 	}
 
-	fmt.Println("handleChannelClusterConfigUpdate---->", cfg.LeaderId)
-
 	s.UpdateChannelClusterConfig(cfg)
 
 }

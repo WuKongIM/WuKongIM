@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -254,7 +253,6 @@ func TestClusterNodeJoin(t *testing.T) {
 			}
 			if !existLearner && existReplica {
 				cfg = s1.GetClusterConfig()
-				fmt.Println("cfg--------->", cfg)
 				time.Sleep(time.Second * 1)
 				return
 			}
@@ -534,8 +532,6 @@ func TestClusterFailover(t *testing.T) {
 		wait.Done()
 		return nil
 	})
-
-	fmt.Println("==================================send message ==========================")
 
 	// 发送消息
 	err = cli1.SendMessage(client.NewChannel(channelId, channelType), []byte("hello2"))

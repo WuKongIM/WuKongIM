@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,8 +40,6 @@ func TestSyncUserConversation(t *testing.T) {
 	}))))
 
 	s.apiServer.r.ServeHTTP(w, req)
-
-	fmt.Println(w.Body.String())
 
 	var conversations []*syncUserConversationResp
 	err = wkutil.ReadJSONByByte(w.Body.Bytes(), &conversations)

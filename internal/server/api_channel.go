@@ -708,7 +708,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
 
 		if !leaderIsSelf {
-			fmt.Println("转发请求：", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path))
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}

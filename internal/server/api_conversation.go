@@ -476,7 +476,6 @@ func (s *ConversationAPI) syncRecentMessages(c *wkhttp.Context) {
 		c.ResponseError(errors.New("数据格式有误！"))
 		return
 	}
-	fmt.Println("syncRecentMessages------->", req.UID, len(req.Channels), req.MsgCount)
 	msgCount := req.MsgCount
 	if msgCount <= 0 {
 		msgCount = 15
@@ -649,7 +648,6 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 					}
 				}
 			}
-			fmt.Println("getRecentMessages-messageResps----->", messageResps)
 
 			channelRecentMessages = append(channelRecentMessages, &channelRecentMessage{
 				ChannelId:   channel.ChannelId,

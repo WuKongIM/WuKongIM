@@ -93,11 +93,9 @@ func (u *userReactor) stop() {
 	u.stopped.Store(true)
 	u.stopper.Stop()
 
-	fmt.Println("userReactor stop--->1")
 	for _, sub := range u.subs {
 		sub.stop()
 	}
-	fmt.Println("userReactor stop--->2")
 }
 
 func (u *userReactor) addUserIfNotExist(h *userHandler) {

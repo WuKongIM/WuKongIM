@@ -221,7 +221,6 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	for _, toUid := range uids {
 		userHandler := d.dm.s.userReactor.getUser(toUid)
 		if userHandler == nil { // 用户不在线
-			fmt.Println("用户不在线", toUid)
 			offlineUids = append(offlineUids, toUid)
 			continue
 		}

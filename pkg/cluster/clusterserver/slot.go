@@ -262,7 +262,6 @@ func (s *slot) FollowerToLeader(followerId uint64) error {
 
 func (s *slot) learnerTo(learnerId uint64) error {
 
-	fmt.Println("learnerTo----->", learnerId)
 	s.learnerToLock.Lock()
 	defer s.learnerToLock.Unlock()
 

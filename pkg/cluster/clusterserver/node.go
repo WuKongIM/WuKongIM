@@ -156,7 +156,6 @@ func (n *node) requestWithContext(ctx context.Context, path string, body []byte)
 
 // requestChannelLastLogInfo 请求channel的最后一条日志信息
 func (n *node) requestChannelLastLogInfo(ctx context.Context, req ChannelLastLogInfoReqSet) (ChannelLastLogInfoResponseSet, error) {
-	fmt.Println("requestChannelLastLogInfo....")
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, err

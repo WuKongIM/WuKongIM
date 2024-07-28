@@ -197,6 +197,7 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 				messages: action.Messages,
 			})
 		case UserActionClose: // 用户关闭
+			uh.willClose.Store(true)
 			u.r.addCloseReq(&userCloseReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
