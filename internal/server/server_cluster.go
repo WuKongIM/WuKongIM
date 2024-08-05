@@ -53,6 +53,8 @@ func (s *Server) setClusterRoutes() {
 
 	// 通过tag获取当前节点需要投递的用户集合
 	s.cluster.Route("/wk/getNodeUidsByTag", s.getNodeUidsByTag)
+	// 是否允许发送消息
+	s.cluster.Route("/wk/allowSend", s.handleAllowSend)
 
 }
 
@@ -453,4 +455,27 @@ func (s *Server) handleNodePong(fromNodeId uint64, msg *proto.Message) {
 		},
 	})
 
+}
+
+func (s *Server) handleAllowSend(c *wkserver.Context) {
+	req := &allowSendReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("handleAllowSend Unmarshal err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	reasonCode, err := s.channelReactor.allowSend(req.From, req.To)
+	if err != nil {
+		s.Error("handleAllowSend: allowSend failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if reasonCode == wkproto.ReasonSuccess {
+		c.WriteOk()
+		return
+	}
+	c.WriteErrorAndStatus(errors.New("not allow send"), proto.Status(reasonCode))
 }

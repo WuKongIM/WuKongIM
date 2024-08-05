@@ -59,7 +59,7 @@ func (r *RetryQueue) pushInFlightMessage(msg *retryMessage) {
 	key := r.getInFlightKey(msg.connId, msg.messageId)
 	_, ok := r.inFlightMessages[key]
 	if ok {
-		r.Warn("ID already in flight", zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
+		r.Warn("ID already in flight", zap.String("key", key), zap.Int64("connId", msg.connId), zap.Int64("messageId", msg.messageId))
 		return
 	}
 	r.inFlightMessages[key] = msg
@@ -72,7 +72,7 @@ func (r *RetryQueue) popInFlightMessage(connId int64, messageId int64) (*retryMe
 	key := r.getInFlightKey(connId, messageId)
 	msg, ok := r.inFlightMessages[key]
 	if !ok {
-		r.Warn("ID not in flight", zap.Int64("connId", connId), zap.Int64("messageId", messageId))
+		r.Warn("ID not in flight", zap.String("key", key), zap.Int64("connId", connId), zap.Int64("messageId", messageId))
 		return nil, errors.New("ID not in flight")
 	}
 	delete(r.inFlightMessages, key)

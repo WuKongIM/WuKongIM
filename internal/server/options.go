@@ -317,7 +317,7 @@ func NewOptions(op ...Option) *Options {
 			WorkerCount  int
 		}{
 			Interval:     time.Second * 60,
-			ScanInterval: time.Second * 5,
+			ScanInterval: time.Second * 30,
 			MaxCount:     5,
 			WorkerCount:  24,
 		},

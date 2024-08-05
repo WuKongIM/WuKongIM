@@ -18,4 +18,7 @@ var (
 
 	// 连接未找到
 	errCodeConnNotFound errCode = 1003
+
+	// 不允许发送
+	errCodeNotAllowSend errCode = 1004
 )

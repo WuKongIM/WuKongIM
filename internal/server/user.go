@@ -361,7 +361,7 @@ func (u *userHandler) tickLeader() {
 	// 检查代理节点是否超时
 	for _, proxyNodeId := range u.connNodeIds {
 		if u.nodePongTimeoutTick[proxyNodeId] >= u.sub.r.s.opts.Reactor.UserNodePongTimeoutTick {
-			u.Warn("user node pong timeout", zap.String("uid", u.uid), zap.Uint64("proxyNodeId", proxyNodeId))
+			u.Debug("user node pong timeout", zap.String("uid", u.uid), zap.Uint64("proxyNodeId", proxyNodeId))
 			u.actions = append(u.actions, UserAction{ActionType: UserActionProxyNodeTimeout, Uid: u.uid, Messages: []ReactorUserMessage{
 				{FromNodeId: proxyNodeId},
 			}})

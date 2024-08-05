@@ -624,7 +624,6 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 				}
 				sort.Sort(sort.Reverse(messageResps))
 			} else {
-				fmt.Println("getRecentMessages-fakeChannelID2-->", uid, fakeChannelID, msgSeq, msgCount)
 				recentMessages, err = s.store.LoadNextRangeMsgs(fakeChannelID, channel.ChannelType, msgSeq, 0, msgCount)
 				if err != nil {
 					s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))

@@ -1132,9 +1132,9 @@ func (s *Server) subscribersGet(c *wkhttp.Context) {
 	channelId := c.Param("channel_id")
 	channelType := wkutil.ParseUint8(c.Param("channel_type"))
 
-	leaderNode, err := s.LeaderOfChannelForRead(channelId, channelType)
+	leaderNode, err := s.SlotLeaderOfChannel(channelId, channelType)
 	if err != nil {
-		s.Error("LeaderOfChannelForRead error", zap.Error(err))
+		s.Error("SlotLeaderOfChannel error", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		c.ResponseError(err)
 		return
 	}

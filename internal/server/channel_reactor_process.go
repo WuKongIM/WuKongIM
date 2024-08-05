@@ -348,13 +348,28 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 	})
 }
 
-func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid string, ch *channel) (wkproto.ReasonCode, error) {
+func (r *channelReactor) hasPermission(channelId string, channelType uint8, fromUid string, ch *channel) (wkproto.ReasonCode, error) {
 
-	if channelType == wkproto.ChannelTypeInfo || channelType == wkproto.ChannelTypePerson {
+	if channelType == wkproto.ChannelTypeInfo { // 资讯频道是公开的，直接通过
 		return wkproto.ReasonSuccess, nil
 	}
 
-	systemAccount := r.s.systemUIDManager.SystemUID(uid)
+	if channelType == wkproto.ChannelTypePerson {
+		uid1, uid2 := GetFromUIDAndToUIDWith(channelId)
+		toUid := ""
+		if uid1 == fromUid {
+			toUid = uid2
+		} else {
+			toUid = uid1
+		}
+		reasonCode, err := r.requestAllowSend(fromUid, toUid)
+		if err != nil {
+			return wkproto.ReasonSystemError, err
+		}
+		return reasonCode, nil
+	}
+
+	systemAccount := r.s.systemUIDManager.SystemUID(fromUid)
 	if systemAccount { // 如果是系统账号，则直接通过
 		return wkproto.ReasonSuccess, nil
 	}
@@ -370,7 +385,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid 
 	}
 
 	// 判断是否是黑名单内
-	isDenylist, err := r.s.store.ExistDenylist(channelId, channelType, uid)
+	isDenylist, err := r.s.store.ExistDenylist(channelId, channelType, fromUid)
 	if err != nil {
 		r.Error("ExistDenylist error", zap.Error(err))
 		return wkproto.ReasonSystemError, err
@@ -380,7 +395,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid 
 	}
 
 	// 判断是否是订阅者
-	isSubscriber, err := r.s.store.ExistSubscriber(channelId, channelType, uid)
+	isSubscriber, err := r.s.store.ExistSubscriber(channelId, channelType, fromUid)
 	if err != nil {
 		r.Error("ExistSubscriber error", zap.Error(err))
 		return wkproto.ReasonSystemError, err
@@ -398,7 +413,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid 
 		}
 
 		if hasAllowlist { // 如果频道有白名单，则判断是否在白名单内
-			isAllowlist, err := r.s.store.ExistAllowlist(channelId, channelType, uid)
+			isAllowlist, err := r.s.store.ExistAllowlist(channelId, channelType, fromUid)
 			if err != nil {
 				r.Error("ExistAllowlist error", zap.Error(err))
 				return wkproto.ReasonSystemError, err
@@ -406,6 +421,67 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, uid 
 			if !isAllowlist {
 				return wkproto.ReasonNotInWhitelist, nil
 			}
+		}
+	}
+
+	return wkproto.ReasonSuccess, nil
+}
+
+func (r *channelReactor) requestAllowSend(from, to string) (wkproto.ReasonCode, error) {
+
+	leaderNode, err := r.s.cluster.SlotLeaderOfChannel(to, wkproto.ChannelTypePerson)
+	if err != nil {
+		return wkproto.ReasonSystemError, err
+	}
+	if leaderNode.Id == r.opts.Cluster.NodeId {
+		return r.allowSend(from, to)
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	defer cancel()
+
+	req := &allowSendReq{
+		From: from,
+		To:   to,
+	}
+	bodyBytes, err := req.Marshal()
+	if err != nil {
+		return wkproto.ReasonSystemError, err
+	}
+
+	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, r.opts.Cluster.NodeId, "/wk/allowSend", bodyBytes)
+	if err != nil {
+		return wkproto.ReasonSystemError, err
+	}
+	if resp.Status == proto.Status_OK {
+		return wkproto.ReasonSuccess, nil
+	}
+	if resp.Status == proto.Status_ERROR {
+		return wkproto.ReasonSystemError, errors.New(string(resp.Body))
+	}
+	return wkproto.ReasonCode(resp.Status), nil
+}
+
+func (r *channelReactor) allowSend(from, to string) (wkproto.ReasonCode, error) {
+	// 判断是否是黑名单内
+	isDenylist, err := r.s.store.ExistDenylist(to, wkproto.ChannelTypePerson, from)
+	if err != nil {
+		r.Error("ExistDenylist error", zap.String("from", from), zap.String("to", to), zap.Error(err))
+		return wkproto.ReasonSystemError, err
+	}
+	if isDenylist {
+		return wkproto.ReasonInBlacklist, nil
+	}
+
+	if !r.opts.WhitelistOffOfPerson {
+		// 判断是否在白名单内
+		isAllowlist, err := r.s.store.ExistAllowlist(to, wkproto.ChannelTypePerson, from)
+		if err != nil {
+			r.Error("ExistAllowlist error", zap.Error(err))
+			return wkproto.ReasonSystemError, err
+		}
+		if !isAllowlist {
+			return wkproto.ReasonNotInWhitelist, nil
 		}
 	}
 
@@ -468,36 +544,56 @@ func (r *channelReactor) processStorageLoop() {
 }
 
 func (r *channelReactor) processStorage(reqs []*storageReq) {
+
 	for _, req := range reqs {
-		sotreMessages := make([]wkdb.Message, 0, 1024)
-		for _, msg := range req.messages {
-			if msg.IsEncrypt {
-				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-				continue
-			}
-			if msg.SendPacket.NoPersist { // 不需要存储，跳过
-				continue
-			}
-			sendPacket := msg.SendPacket
-			sotreMessages = append(sotreMessages, wkdb.Message{
+		dbMsgs := make([]wkdb.Message, 0, len(req.messages))
+
+		// 将reactorChannelMessage转换为wkdb.Message
+		for _, reactorMsg := range req.messages {
+			msg := wkdb.Message{
 				RecvPacket: wkproto.RecvPacket{
 					Framer: wkproto.Framer{
-						RedDot:    sendPacket.Framer.RedDot,
-						SyncOnce:  sendPacket.Framer.SyncOnce,
-						NoPersist: sendPacket.Framer.NoPersist,
+						RedDot:    reactorMsg.SendPacket.Framer.RedDot,
+						SyncOnce:  reactorMsg.SendPacket.Framer.SyncOnce,
+						NoPersist: reactorMsg.SendPacket.Framer.NoPersist,
 					},
-					MessageID:   msg.MessageId,
-					ClientMsgNo: sendPacket.ClientMsgNo,
-					ClientSeq:   sendPacket.ClientSeq,
-					FromUID:     msg.FromUid,
+					MessageID:   reactorMsg.MessageId,
+					ClientMsgNo: reactorMsg.SendPacket.ClientMsgNo,
+					ClientSeq:   reactorMsg.SendPacket.ClientSeq,
+					FromUID:     reactorMsg.FromUid,
 					ChannelID:   req.ch.channelId,
-					ChannelType: sendPacket.ChannelType,
-					Expire:      sendPacket.Expire,
+					ChannelType: reactorMsg.SendPacket.ChannelType,
+					Expire:      reactorMsg.SendPacket.Expire,
 					Timestamp:   int32(time.Now().Unix()),
-					Payload:     sendPacket.Payload,
+					Payload:     reactorMsg.SendPacket.Payload,
 				},
-			})
+			}
+			dbMsgs = append(dbMsgs, msg)
 		}
+
+		sotreMessages := make([]wkdb.Message, 0, 1024)
+		for i, dbMsg := range dbMsgs {
+			reactorMsg := req.messages[i]
+			if reactorMsg.IsEncrypt {
+				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(dbMsg.MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+				continue
+			}
+			if dbMsg.NoPersist { // 不需要存储，跳过
+				continue
+			}
+			sotreMessages = append(sotreMessages, dbMsg)
+		}
+
+		if r.opts.WebhookOn() {
+			// 将消息存储到webhook的推送队列内
+			err := r.s.store.AppendMessageOfNotifyQueue(dbMsgs)
+			if err != nil {
+				r.Error("AppendMessageOfNotifyQueue error", zap.Error(err))
+				r.respStoreResult(req, ReasonError)
+				return
+			}
+		}
+
 		// 存储消息
 		results, err := r.s.store.AppendMessages(r.s.ctx, req.ch.channelId, req.ch.channelType, sotreMessages)
 		if err != nil {
@@ -525,18 +621,23 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 		} else {
 			reason = ReasonSuccess
 		}
-		sub := r.reactorSub(req.ch.key)
-		lastIndex := req.messages[len(req.messages)-1].Index
-		sub.step(req.ch, &ChannelAction{
-			UniqueNo:   req.ch.uniqueNo,
-			ActionType: ChannelActionStorageResp,
-			Index:      lastIndex,
-			Reason:     reason,
-			Messages:   req.messages,
-		})
+		// 返回存储结果
+		r.respStoreResult(req, reason)
 
 	}
 
+}
+
+func (r *channelReactor) respStoreResult(req *storageReq, reason Reason) {
+	sub := r.reactorSub(req.ch.key)
+	lastIndex := req.messages[len(req.messages)-1].Index
+	sub.step(req.ch, &ChannelAction{
+		UniqueNo:   req.ch.uniqueNo,
+		ActionType: ChannelActionStorageResp,
+		Index:      lastIndex,
+		Reason:     reason,
+		Messages:   req.messages,
+	})
 }
 
 type storageReq struct {

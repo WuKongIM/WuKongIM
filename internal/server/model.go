@@ -875,3 +875,28 @@ func (m MessageSendReq) Check() error {
 	}
 	return nil
 }
+
+type allowSendReq struct {
+	From string `json:"from"` // 发送者
+	To   string `json:"to"`   // 接收者
+}
+
+func (a *allowSendReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if a.From, err = dec.String(); err != nil {
+		return err
+	}
+	if a.To, err = dec.String(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *allowSendReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(a.From)
+	enc.WriteString(a.To)
+	return enc.Bytes(), nil
+}
