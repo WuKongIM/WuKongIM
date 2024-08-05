@@ -55,7 +55,7 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	//################### 频道消息 ###################
 	// 同步频道消息
 	r.POST("/channel/messagesync", ch.syncMessages)
-
+	//	获取某个频道最大的消息序号
 	r.GET("/channel/max_message_seq", ch.getChannelMaxMessageSeq)
 
 }
@@ -779,6 +779,24 @@ func (ch *ChannelAPI) getChannelMaxMessageSeq(c *wkhttp.Context) {
 		c.ResponseError(errors.New("channel_id不能为空"))
 		return
 	}
+
+	leaderInfo, err := ch.s.cluster.LeaderOfChannelForRead(channelId, channelType)
+	if err != nil && errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
+		c.JSON(http.StatusOK, gin.H{
+			"message_seq": 0,
+		})
+		return
+	}
+	if err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	if leaderInfo.Id != ch.s.opts.Cluster.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
 	msgSeq, err := ch.s.store.GetLastMsgSeq(channelId, channelType)
 	if err != nil {
 		c.ResponseError(err)
