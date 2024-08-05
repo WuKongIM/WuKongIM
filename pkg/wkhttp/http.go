@@ -125,7 +125,8 @@ func (c *Context) ForwardWithBody(url string, body []byte) {
 	}
 
 	c.Writer.WriteHeader(resp.StatusCode)
-	c.Writer.Write([]byte(resp.Body))
+	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = c.Writer.Write([]byte(resp.Body))
 }
 
 // Forward 转发请求
