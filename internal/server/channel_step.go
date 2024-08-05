@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +45,7 @@ func (c *channel) step(a *ChannelAction) error {
 	case ChannelActionSend: // 发送
 		for _, message := range a.Messages {
 			message.Index = c.msgQueue.lastIndex + 1
+			message.ReasonCode = wkproto.ReasonSuccess // 默认设置为成功
 			c.msgQueue.appendMessage(message)
 		}
 		// c.Debug("channel send", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
@@ -100,6 +102,15 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 
 		if a.Reason == ReasonSuccess {
 			c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+		} else {
+			// 权限校验失败，需要将消息的ReasonCode设置为失败
+			startIndex := c.msgQueue.getArrayIndex(c.msgQueue.permissionCheckingIndex)
+			endIndex := c.msgQueue.getArrayIndex(a.Index)
+			if startIndex < endIndex {
+				for i := startIndex; i < endIndex; i++ {
+					c.msgQueue.messages[i].ReasonCode = a.ReasonCode
+				}
+			}
 		}
 
 		if a.Index > c.msgQueue.permissionCheckingIndex {
