@@ -191,7 +191,7 @@ type Message struct {
 func (m Message) Size() int {
 	size := 2 + 8 + 8 + 4 + 8 + 8 + 1 + 1 + 8 // msgType + from + to + term   + index + committedIndex + speedLevel +reject + confVersion
 	for _, l := range m.Logs {
-		size += 2 // log len
+		size += 4 // log len
 		size += l.LogSize()
 	}
 	return size
@@ -225,8 +225,8 @@ func (m Message) Marshal() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		binary.BigEndian.PutUint16(resultBytes[offset:], uint16(len(logData)))
-		offset += 2
+		binary.BigEndian.PutUint32(resultBytes[offset:], uint32(len(logData)))
+		offset += 4
 		copy(resultBytes[offset:], logData)
 		offset += len(logData)
 	}
@@ -264,8 +264,8 @@ func UnmarshalMessage(data []byte) (Message, error) {
 
 	offset := 48
 	for offset < len(data) {
-		logLen := binary.BigEndian.Uint16(data[offset : offset+2])
-		offset += 2
+		logLen := binary.BigEndian.Uint32(data[offset : offset+4])
+		offset += 4
 		l := Log{}
 		if err := l.Unmarshal(data[offset : offset+int(logLen)]); err != nil {
 			return m, err

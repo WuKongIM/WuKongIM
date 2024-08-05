@@ -57,6 +57,11 @@ func (m *ManagerAPI) login(c *wkhttp.Context) {
 		return
 	}
 
+	if m.s.opts.Auth.Auth(req.Username, req.Password) != nil {
+		c.ResponseError(errors.New("用户名或密码错误"))
+		return
+	}
+
 	nw := time.Now()
 	expire := nw.Add(m.s.opts.Jwt.Expire).Unix()
 

@@ -5,14 +5,14 @@ import (
 )
 
 // AddSubscribers 添加订阅者
-func (s *Store) AddSubscribers(channelID string, channelType uint8, subscribers []string) error {
-	data := EncodeSubscribers(channelID, channelType, subscribers)
+func (s *Store) AddSubscribers(channelId string, channelType uint8, subscribers []string) error {
+	data := EncodeSubscribers(channelId, channelType, subscribers)
 	cmd := NewCMD(CMDAddSubscribers, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
 	}
-	slotId := s.opts.GetSlotId(channelID)
+	slotId := s.opts.GetSlotId(channelId)
 	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
 	return err
 }

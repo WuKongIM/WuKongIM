@@ -216,8 +216,8 @@ func GetFakeChannelIDWith(fromUID, toUID string) string {
 	return fmt.Sprintf("%s@%s", toUID, fromUID)
 }
 
-func GetFromUIDAndToUIDWith(channelID string) (string, string) {
-	channelIDs := strings.Split(channelID, "@")
+func GetFromUIDAndToUIDWith(channelId string) (string, string) {
+	channelIDs := strings.Split(channelId, "@")
 	if len(channelIDs) == 2 {
 		return channelIDs[0], channelIDs[1]
 	}

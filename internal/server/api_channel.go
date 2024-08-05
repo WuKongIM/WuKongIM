@@ -680,6 +680,15 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		return
 	}
 
+	if strings.TrimSpace(req.ChannelID) == "" {
+		c.ResponseError(errors.New("channel_id不能为空！"))
+		return
+	}
+	if strings.TrimSpace(req.LoginUID) == "" {
+		c.ResponseError(errors.New("login_uid不能为空！"))
+		return
+	}
+
 	var (
 		limit         = req.Limit
 		fakeChannelID = req.ChannelID
