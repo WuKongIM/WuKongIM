@@ -681,10 +681,12 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	}
 
 	if strings.TrimSpace(req.ChannelID) == "" {
+		ch.Error("channel_id不能为空！", zap.Any("req", req))
 		c.ResponseError(errors.New("channel_id不能为空！"))
 		return
 	}
 	if strings.TrimSpace(req.LoginUID) == "" {
+		ch.Error("login_uid不能为空！", zap.Any("req", req))
 		c.ResponseError(errors.New("login_uid不能为空！"))
 		return
 	}
@@ -730,6 +732,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		messages, err = ch.s.store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	}
 	if err != nil {
+		ch.Error("获取消息失败！", zap.Error(err), zap.Any("req", req))
 		c.ResponseError(err)
 		return
 	}

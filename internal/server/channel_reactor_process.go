@@ -330,6 +330,7 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 			ActionType: ChannelActionPermissionCheckResp,
 			Index:      lastMsg.Index,
 			Reason:     ReasonError,
+			ReasonCode: wkproto.ReasonSystemError,
 		})
 		return
 	}
@@ -449,7 +450,7 @@ func (r *channelReactor) requestAllowSend(from, to string) (wkproto.ReasonCode, 
 		return wkproto.ReasonSystemError, err
 	}
 
-	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, r.opts.Cluster.NodeId, "/wk/allowSend", bodyBytes)
+	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/allowSend", bodyBytes)
 	if err != nil {
 		return wkproto.ReasonSystemError, err
 	}
@@ -550,6 +551,13 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 
 		// 将reactorChannelMessage转换为wkdb.Message
 		for _, reactorMsg := range req.messages {
+
+			if reactorMsg.ReasonCode != wkproto.ReasonSuccess {
+				r.Debug("msg reasonCode is not success, no storage", zap.Uint64("messageId", uint64(reactorMsg.MessageId)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+				continue
+
+			}
+
 			msg := wkdb.Message{
 				RecvPacket: wkproto.RecvPacket{
 					Framer: wkproto.Framer{
@@ -697,7 +705,7 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 				MessageSeq:  msg.MessageSeq,
 				ClientSeq:   msg.SendPacket.ClientSeq,
 				ClientMsgNo: msg.SendPacket.ClientMsgNo,
-				ReasonCode:  wkproto.ReasonSuccess,
+				ReasonCode:  msg.ReasonCode,
 			}
 			if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
 				err = r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
