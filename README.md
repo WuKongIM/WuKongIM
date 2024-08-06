@@ -214,11 +214,13 @@ go run main.go --config  ./exampleconfig/cluster3.yaml
 后台截图
 ---------------
 
-![image](./docs/screen1.png)
-![image](./docs/screen2.png)
-![image](./docs/screen3.png)
-![image](./docs/screen4.png)
-![image](./docs/screen5.png)
+
+||||
+|:---:|:---:|:--:|
+|![](./docs/2.0-screen/screen-01.png)|![](./docs/2.0-screen/screen-02.png)|![](./docs/2.0-screen/screen-03.png)|
+|![](./docs/2.0-screen/screen-04.png)|![](./docs/2.0-screen/screen-05.png)|![](./docs/2.0-screen/screen-06.png)|
+|![](./docs/2.0-screen/screen-07.png)|![](./docs/2.0-screen/screen-08.png)|![](./docs/2.0-screen/screen-09.png)|
+|![](./docs/2.0-screen/screen-10.png)|![](./docs/2.0-screen/screen-11.png)||
 
 Star
 ---------------
