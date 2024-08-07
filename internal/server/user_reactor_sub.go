@@ -197,7 +197,6 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 				messages: action.Messages,
 			})
 		case UserActionClose: // 用户关闭
-			uh.willClose.Store(true)
 			u.r.addCloseReq(&userCloseReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
@@ -301,13 +300,13 @@ func (u *userReactorSub) getConnContextById(uid string, id int64) *connContext {
 	return uh.getConnById(id)
 }
 
-func (u *userReactorSub) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
-	uh := u.getUser(uid)
-	if uh == nil {
-		return nil
-	}
-	return uh.getConnByProxyConnId(nodeId, proxyConnId)
-}
+// func (u *userReactorSub) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return nil
+// 	}
+// 	return uh.getConnByProxyConnId(nodeId, proxyConnId)
+// }
 
 func (u *userReactorSub) getConnContexts(uid string) []*connContext {
 	uh := u.getUser(uid)
@@ -317,9 +316,9 @@ func (u *userReactorSub) getConnContexts(uid string) []*connContext {
 	return uh.getConns()
 }
 
-func (u *userReactorSub) getConnContextCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
-	return len(u.getConnContextByDeviceFlag(uid, deviceFlag))
-}
+// func (u *userReactorSub) getConnContextCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
+// 	return len(u.getConnContextByDeviceFlag(uid, deviceFlag))
+// }
 
 func (u *userReactorSub) getConnContextCount(uid string) int {
 	uh := u.getUser(uid)
@@ -370,6 +369,10 @@ func (u *userReactorSub) removeConnContextById(uid string, id int64) *connContex
 
 	if uh.getConnCount() <= 0 {
 		u.Info("remove user", zap.String("uid", uh.uid))
+		err := uh.close()
+		if err != nil {
+			u.Error("removeConnContextById: close user error", zap.String("uid", uid), zap.Int64("connId", id), zap.Error(err))
+		}
 		u.users.remove(uh.uid)
 	}
 	return conn
@@ -384,8 +387,13 @@ func (u *userReactorSub) removeConnsByNodeId(uid string, nodeId uint64) []*connC
 	}
 	conns := uh.removeConnsByNodeId(nodeId)
 	if uh.getConnCount() <= 0 {
-		u.users.remove(uh.uid)
+
 		u.Info("remove user", zap.String("uid", uh.uid))
+		err := uh.close()
+		if err != nil {
+			u.Error("removeConnsByNodeId: close user error", zap.String("uid", uid), zap.Uint64("nodeId", nodeId), zap.Error(err))
+		}
+		u.users.remove(uh.uid)
 	}
 	return conns
 }

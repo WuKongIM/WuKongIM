@@ -134,9 +134,9 @@ func (u *userReactor) getConnContextById(uid string, connId int64) *connContext 
 	return u.reactorSub(uid).getConnContextById(uid, connId)
 }
 
-func (u *userReactor) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
-	return u.reactorSub(uid).getConnContextByProxyConnId(uid, nodeId, proxyConnId)
-}
+//	func (u *userReactor) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
+//		return u.reactorSub(uid).getConnContextByProxyConnId(uid, nodeId, proxyConnId)
+//	}
 func (u *userReactor) getConnContexts(uid string) []*connContext {
 	return u.reactorSub(uid).getConnContexts(uid)
 }

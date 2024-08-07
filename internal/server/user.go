@@ -7,7 +7,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/sasha-s/go-deadlock"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -53,8 +52,6 @@ type userHandler struct {
 	recvMsgTick     int // 接收消息计时
 
 	checkLeaderTick int // 定时检查正确的领导节点
-
-	willClose atomic.Bool // 是否将要关闭
 
 	wklog.Log
 
@@ -520,6 +517,10 @@ func (u *userHandler) hasMasterDevice() bool {
 	}
 	return false
 
+}
+
+func (u *userHandler) close() error {
+	return u.sub.stepWait(u.uid, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 }
 
 type userReady struct {
