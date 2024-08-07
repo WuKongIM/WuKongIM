@@ -158,6 +158,10 @@ func (s *slot) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
 			s.Error("get logs error", zap.Error(err))
 			return 0, err
 		}
+		if len(logs) == 0 {
+			s.Warn("appy logs,but logs is empty", zap.Uint64("startIndex", startIndex), zap.Uint64("endIndex", endIndex))
+			return 0, nil
+		}
 		appliedSize := uint64(0)
 		for _, log := range logs {
 			appliedSize += uint64(log.LogSize())
