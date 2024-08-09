@@ -183,3 +183,16 @@ func (r *replicaLog) firstIndex() uint64 {
 	}
 	return i
 }
+
+func (r *replicaLog) lastIndexAndTerm() (uint64, uint32) {
+	if len(r.unstable.logs) > 0 {
+		lg := r.unstable.lastLog()
+		return lg.Index, lg.Term
+	}
+	lastIndex, lastTerm, err := r.opts.Storage.LastIndexAndTerm() // 获取当前节点最后一条日志下标和任期
+	if err != nil {
+		r.Panic("canVote: get last index failed", zap.Error(err))
+		return 0, 0
+	}
+	return lastIndex, lastTerm
+}

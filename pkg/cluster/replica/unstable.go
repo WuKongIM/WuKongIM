@@ -147,6 +147,14 @@ func (u *unstable) mustCheckOutOfBounds(lo, hi uint64) {
 	}
 }
 
+// lastLog 返回最后一个日志
+func (u *unstable) lastLog() Log {
+	if len(u.logs) == 0 {
+		return Log{}
+	}
+	return u.logs[len(u.logs)-1]
+}
+
 func max(a, b uint64) uint64 {
 	if a > b {
 		return a

@@ -15,8 +15,8 @@ type IStorage interface {
 	// endLogIndex 结束日志索引(结果不包含endLogIndex) endLogIndex=0表示不限制
 	// FirstIndex 第一条日志的索引
 	FirstIndex() (uint64, error)
-	// LastIndex 最后一条日志的索引和任期
-	// LastIndexAndTerm() (uint64, uint32, error)
+	// LastIndexAndTerm 最后一条日志的索引和任期
+	LastIndexAndTerm() (uint64, uint32, error)
 	// SetLeaderTermStartIndex 设置领导任期开始的第一条日志索引
 	// SetLeaderTermStartIndex(term uint32, index uint64) error
 	// // LeaderLastTerm 获取最新的本地保存的领导任期

@@ -183,7 +183,7 @@ func (u *userHandler) stepProxy(a UserAction) error {
 				u.sendRecvackTick = u.opts.Reactor.UserProcessIntervalTick
 				if u.recvackQueue.processingIndex < a.Index {
 					u.recvackQueue.processingIndex = a.Index
-					u.recvackQueue.truncateTo(a.Forward.Index)
+					u.recvackQueue.truncateTo(a.Index)
 				}
 			}
 		} else if a.Forward.ActionType == UserActionConnect {

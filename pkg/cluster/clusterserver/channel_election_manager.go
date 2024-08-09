@@ -127,7 +127,7 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 			}
 		}
 		if len(lastInfoResps) < c.quorum() { // 如果参与选举的节点数小于法定数量，则直接返回错误
-			c.Error("not enough replicas", zap.Int("num", len(lastInfoResps)), zap.Int("quorum", c.quorum()))
+			c.Error("not enough replicas", zap.Int("num", len(lastInfoResps)), zap.Int("lastLogInfoNum", len(channelLastLogInfoMap)), zap.Int("quorum", c.quorum()))
 			select {
 			case req.resultC <- electionResp{
 				err: ErrNotEnoughReplicas,
@@ -165,22 +165,35 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 // 通过日志高度选举频道领导
 func (c *channelElectionManager) channelLeaderIDByLogInfo(resps []*replicaChannelLastLogInfoResponse) uint64 {
 
+	fmt.Println("channelLeaderIDByLogInfo----->", len(resps))
+
 	// 选出resps中最大的日志下标和任期的节点
-	var leaderID uint64
-	var maxIndex uint64
-	var maxTerm uint32
-	for _, resp := range resps {
+
+	firstResp := resps[0]
+
+	var leaderID uint64 = firstResp.replicaId
+	var maxLogIndex uint64 = firstResp.LogIndex
+	var maxLogTerm uint32 = firstResp.LogTerm
+	var maxTerm uint32 = firstResp.Term
+	for i, resp := range resps {
+		fmt.Println("resp.Term---->", resp.ChannelId, resp.ChannelType, resp.replicaId, resp.Term, resp.LogIndex, resp.LogTerm)
+		if i == 0 {
+			continue
+		}
 		if resp.Term > maxTerm {
-			maxIndex = resp.LogIndex
+			maxLogIndex = resp.LogIndex
+			maxLogTerm = resp.LogTerm
 			maxTerm = resp.Term
 			leaderID = resp.replicaId
 		} else if resp.Term == maxTerm {
-			if resp.LogIndex > maxIndex {
-				maxIndex = resp.LogIndex
+			if resp.LogTerm > maxLogTerm || (resp.LogTerm == maxLogTerm && resp.LogIndex > maxLogIndex) {
+				maxLogIndex = resp.LogIndex
+				maxLogTerm = resp.LogTerm
 				leaderID = resp.replicaId
 			}
 		}
 	}
+	fmt.Println("leaderID---->", leaderID)
 
 	return leaderID
 }
@@ -213,12 +226,23 @@ func (c *channelElectionManager) requestChannelLastLogInfos(reqs []electionReq) 
 				if err != nil {
 					return nil, err
 				}
+
+				term := lastTerm // 当前频道的任期
+				handler := c.s.channelManager.get(req.cfg.ChannelId, req.cfg.ChannelType)
+				if handler != nil {
+					ch := handler.(*channel)
+					if ch.term() > lastTerm {
+						term = ch.term()
+					}
+				}
+
 				channelLogInfoMapLock.Lock()
 				channelLastLogInfosMap[replicaId] = append(channelLastLogInfosMap[replicaId], &ChannelLastLogInfoResponse{
 					ChannelId:   req.cfg.ChannelId,
 					ChannelType: req.cfg.ChannelType,
 					LogIndex:    lastIndex,
-					Term:        lastTerm,
+					LogTerm:     lastTerm,
+					Term:        term,
 				})
 				channelLogInfoMapLock.Unlock()
 			}
