@@ -53,16 +53,27 @@ func (s *Server) handleChannelLastLogInfo(c *wkserver.Context) {
 	resps := make([]*ChannelLastLogInfoResponse, 0, len(reqs))
 	for _, req := range reqs {
 		shardNo := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
-		lastIndex, term, err := s.opts.MessageLogStorage.LastIndexAndTerm(shardNo)
+		lastIndex, lastTerm, err := s.opts.MessageLogStorage.LastIndexAndTerm(shardNo)
 		if err != nil {
 			c.Error("Get last log info failed", zap.Error(err))
 			c.WriteErr(err)
 			return
 		}
+
+		term := lastTerm // 当前频道的任期
+		handler := s.channelManager.get(req.ChannelId, req.ChannelType)
+		if handler != nil {
+			ch := handler.(*channel)
+			if ch.term() > lastTerm {
+				term = ch.term()
+			}
+		}
+
 		resps = append(resps, &ChannelLastLogInfoResponse{
 			ChannelId:   req.ChannelId,
 			ChannelType: req.ChannelType,
 			LogIndex:    lastIndex,
+			LogTerm:     lastTerm,
 			Term:        term,
 		})
 	}

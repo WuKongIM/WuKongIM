@@ -66,6 +66,7 @@ func newChannel(channelId string, channelType uint8, s *Server) *channel {
 		replica.WithAutoRoleSwith(true),
 		replica.WithLastIndex(lastIndex),
 		replica.WithLastTerm(lastTerm),
+		replica.WithStorage(newProxyReplicaStorage(c.key, c.opts.MessageLogStorage)),
 	)
 	c.rc = rc
 	return c

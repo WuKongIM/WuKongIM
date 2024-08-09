@@ -772,12 +772,19 @@ func (r *Replica) newPing(to uint64) Message {
 }
 
 func (r *Replica) newMsgVoteReq(nodeId uint64) Message {
+	lastIndex, lastTerm := r.replicaLog.lastIndexAndTerm()
 	return Message{
 		From:    r.opts.NodeId,
 		To:      nodeId,
 		MsgType: MsgVoteReq,
 		Term:    r.term,
 		Index:   r.replicaLog.lastLogIndex,
+		Logs: []Log{
+			{
+				Index: lastIndex,
+				Term:  lastTerm,
+			},
+		},
 	}
 }
 

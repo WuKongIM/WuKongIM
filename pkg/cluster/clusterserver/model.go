@@ -209,7 +209,8 @@ func (c *ChannelLastLogInfoReqSet) Unmarshal(data []byte) error {
 
 type ChannelLastLogInfoResponse struct {
 	LogIndex    uint64 // 频道最新日志索引
-	Term        uint32 // 频道最新日志任期
+	LogTerm     uint32 // 频道最新日志任期
+	Term        uint32 // 频道最新任期
 	ChannelId   string
 	ChannelType uint8
 }
@@ -224,6 +225,7 @@ func (c ChannelLastLogInfoResponseSet) Marshal() ([]byte, error) {
 		enc.WriteString(resp.ChannelId)
 		enc.WriteUint8(resp.ChannelType)
 		enc.WriteUint64(resp.LogIndex)
+		enc.WriteUint32(resp.LogTerm)
 		enc.WriteUint32(resp.Term)
 	}
 	return enc.Bytes(), nil
@@ -247,6 +249,9 @@ func (c *ChannelLastLogInfoResponseSet) Unmarshal(data []byte) error {
 				return err
 			}
 			if resp.LogIndex, err = dec.Uint64(); err != nil {
+				return err
+			}
+			if resp.LogTerm, err = dec.Uint32(); err != nil {
 				return err
 			}
 			if resp.Term, err = dec.Uint32(); err != nil {

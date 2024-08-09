@@ -120,6 +120,9 @@ func (s *slotManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartIndexRe
 	if err != nil {
 		return 0, err
 	}
+	if req.LeaderId == s.opts.NodeId { // 如果是自己，直接返回0，0表示不需要解决冲突
+		return 0, nil
+	}
 	resp, err := s.request(req.LeaderId, "/slot/leaderTermStartIndex", reqBytes)
 	if err != nil {
 		return 0, err

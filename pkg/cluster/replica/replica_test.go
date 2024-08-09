@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -334,6 +335,63 @@ func TestElection(t *testing.T) {
 		}
 	}()
 	electionWait.Wait()
+}
+
+func TestElectionTreeNode(t *testing.T) {
+	node1 := New(1, WithSyncIntervalTick(3), WithElectionOn(true))
+	node2 := New(2, WithSyncIntervalTick(3), WithElectionOn(true))
+	node3 := New(3, WithSyncIntervalTick(3), WithElectionOn(true))
+
+	node1.appendLog(Log{Index: 1, Term: 1, Data: []byte("hello2")})
+	node2.appendLog(Log{Index: 1, Term: 1, Data: []byte("hello2")})
+
+	initReplica(node1, Config{
+		Role:     RoleFollower,
+		Term:     1,
+		Replicas: []uint64{1, 2, 3},
+	}, t)
+
+	initReplica(node2, Config{
+		Role:     RoleFollower,
+		Term:     2,
+		Replicas: []uint64{1, 2, 3},
+	}, t)
+
+	initReplica(node3, Config{
+		Role:     RoleFollower,
+		Term:     3,
+		Replicas: []uint64{1, 2, 3},
+	}, t)
+
+	go loopReady(t, context.Background(), node1, node2, node3)
+
+	time.Sleep(time.Second * 5)
+
+}
+
+func loopReady(t *testing.T, ctx context.Context, rs ...*Replica) {
+
+	tk := time.NewTicker(time.Millisecond * 10)
+	for {
+		for _, r := range rs {
+			rd := r.Ready()
+			for _, m := range rd.Messages {
+				for _, rp := range rs {
+					if m.To == rp.opts.NodeId {
+						err := rp.Step(m)
+						assert.NoError(t, err)
+					}
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-tk.C:
+				r.Tick()
+			}
+		}
+	}
+
 }
 
 // 测试学习者转好成追随者

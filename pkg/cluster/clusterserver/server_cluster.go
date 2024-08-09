@@ -599,7 +599,12 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 
 	select {
 	case resp := <-resultC:
-		s.Info("electionChannelLeader success", zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
+		if resp.err != nil {
+			s.Info("electionChannelLeader failed", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
+		} else {
+			s.Info("electionChannelLeader success", zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
+		}
+
 		return resp.cfg, resp.err
 	case <-ctx.Done():
 		return wkdb.EmptyChannelClusterConfig, ctx.Err()

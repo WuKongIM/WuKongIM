@@ -43,7 +43,7 @@ func (r *Replica) Step(m Message) error {
 		r.hup()
 	case MsgVoteReq: // 收到投票请求
 		if r.canVote(m) {
-			r.send(r.newMsgVoteResp(m.From, m.Term, false))
+			r.send(r.newMsgVoteResp(m.From, r.term, false))
 			r.electionElapsed = 0
 			r.voteFor = m.From
 			r.Info("agree vote", zap.Uint64("voteFor", m.From), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
@@ -55,7 +55,8 @@ func (r *Replica) Step(m Message) error {
 			} else if m.Term < r.term {
 				r.Info("lower term, reject vote")
 			}
-			r.send(r.newMsgVoteResp(m.From, m.Term, true))
+			r.Info("reject vote", zap.Uint64("from", m.From), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index))
+			r.send(r.newMsgVoteResp(m.From, r.term, true))
 		}
 	case MsgStoreAppendResp: // 存储返回
 		r.replicaLog.storaging = false
@@ -547,5 +548,20 @@ func (r *Replica) quorum() int {
 
 // 是否可以投票
 func (r *Replica) canVote(m Message) bool {
-	return (r.voteFor == None || (r.voteFor == m.From && r.leader == None)) && m.Index >= r.replicaLog.lastLogIndex && m.Term >= r.term
+
+	if r.term > m.Term { // 如果当前任期大于候选人任期，拒绝投票
+		return false
+	}
+
+	if r.voteFor != None && r.voteFor != m.From { // 如果已经投票给其他节点，拒绝投票
+		return false
+	}
+
+	lastIndex, lastTerm := r.replicaLog.lastIndexAndTerm()                                               // 获取当前节点最后一条日志下标和任期
+	candidateLog := m.Logs[0]                                                                            // 候选人最后一条日志信息
+	if candidateLog.Term < lastTerm || candidateLog.Term == lastTerm && candidateLog.Index < lastIndex { // 如果候选人日志小于本地日志，拒绝投票
+		return false
+	}
+
+	return true
 }

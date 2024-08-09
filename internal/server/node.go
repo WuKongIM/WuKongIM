@@ -268,7 +268,8 @@ func (c ChannelMessagesSet) Marshal() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		enc.WriteBinary(data)
+		enc.WriteUint32(uint32(len(data)))
+		enc.WriteBytes(data)
 	}
 	return enc.Bytes(), nil
 }
@@ -279,6 +280,7 @@ func (c *ChannelMessagesSet) Unmarshal(data []byte) error {
 	if err != nil {
 		return err
 	}
+	var dataLen uint32
 	for i := 0; i < int(count); i++ {
 		cm := &ChannelMessages{}
 		if cm.ChannelId, err = dec.String(); err != nil {
@@ -290,7 +292,11 @@ func (c *ChannelMessagesSet) Unmarshal(data []byte) error {
 		if cm.TagKey, err = dec.String(); err != nil {
 			return err
 		}
-		data, err := dec.Binary()
+
+		if dataLen, err = dec.Uint32(); err != nil {
+			return err
+		}
+		data, err = dec.Bytes(int(dataLen))
 		if err != nil {
 			return err
 		}
