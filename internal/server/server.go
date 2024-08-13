@@ -243,10 +243,6 @@ func (s *Server) Start() error {
 		return err
 
 	}
-	err = s.tagManager.start()
-	if err != nil {
-		return err
-	}
 
 	err = s.store.Open()
 	if err != nil {
