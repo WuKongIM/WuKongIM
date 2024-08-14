@@ -292,7 +292,12 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	s.conversationManager.Start()
+	err = s.conversationManager.Start()
+	if err != nil {
+		return err
+	}
+
+	s.webhook.Start()
 
 	return nil
 }
@@ -334,6 +339,8 @@ func (s *Server) Stop() error {
 	s.timingWheel.Stop()
 
 	s.tagManager.stop()
+
+	s.webhook.Stop()
 
 	s.Info("Server is stopped")
 
