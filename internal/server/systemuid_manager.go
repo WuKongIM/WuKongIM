@@ -1,9 +1,14 @@
 package server
 
 import (
+	"fmt"
+	"net/http"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -42,7 +47,7 @@ func (s *SystemUIDManager) LoadIfNeed() error {
 			return err
 		}
 	} else {
-		systemUIDs, err = s.s.store.GetSystemUids()
+		systemUIDs, err = s.getOrRequestSystemUIDs()
 		if err != nil {
 			return err
 		}
@@ -95,4 +100,37 @@ func (s *SystemUIDManager) RemoveSystemUIDs(uids []string) error {
 		s.systemUIDs.Delete(uid)
 	}
 	return nil
+}
+
+func (s *SystemUIDManager) getOrRequestSystemUIDs() ([]string, error) {
+
+	var slotId uint32 = 0
+	nodeInfo, err := s.s.cluster.SlotLeaderNodeInfo(slotId)
+	if err != nil {
+		return nil, err
+	}
+	if nodeInfo.Id == s.s.opts.Cluster.NodeId {
+		return s.s.store.GetSystemUids()
+	}
+
+	return s.requestSystemUids(nodeInfo)
+}
+
+func (s *SystemUIDManager) requestSystemUids(nodeInfo *pb.Node) ([]string, error) {
+
+	resp, err := network.Get(fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, "/user/systemuids"), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("requestSystemUids error: %s", resp.Body)
+	}
+
+	var systemUIDs []string
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &systemUIDs)
+	if err != nil {
+		return nil, err
+	}
+	return systemUIDs, nil
 }

@@ -79,6 +79,10 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		return s.handleAddOrUpdateUserAndDevice(cmd)
 		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置
 		// return s.handleChannelClusterConfigDelete(cmd)
+	case CMDSystemUIDsAdd: // 添加系统UID
+		return s.handleSystemUIDsAdd(cmd)
+	case CMDSystemUIDsRemove: // 移除系统UID
+		return s.handleSystemUIDsRemove(cmd)
 
 	}
 	return nil
@@ -325,4 +329,20 @@ func (s *Store) handleAddOrUpdateUserAndDevice(cmd *CMD) error {
 		DeviceLevel: uint8(deviceLevel),
 		Token:       token,
 	})
+}
+
+func (s *Store) handleSystemUIDsAdd(cmd *CMD) error {
+	uids, err := cmd.DecodeCMDSystemUIDs()
+	if err != nil {
+		return err
+	}
+	return s.wdb.AddSystemUids(uids)
+}
+
+func (s *Store) handleSystemUIDsRemove(cmd *CMD) error {
+	uids, err := cmd.DecodeCMDSystemUIDs()
+	if err != nil {
+		return err
+	}
+	return s.wdb.RemoveSystemUids(uids)
 }

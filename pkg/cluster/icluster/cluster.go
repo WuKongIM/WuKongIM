@@ -43,6 +43,9 @@ type Cluster interface {
 	//  GetSlotId 获取槽ID
 	GetSlotId(v string) uint32
 
+	// SlotLeaderNodeInfo 获取槽的节点信息
+	SlotLeaderNodeInfo(slotId uint32) (nodeInfo *pb.Node, err error)
+
 	// 领导者Id
 	LeaderId() uint64
 

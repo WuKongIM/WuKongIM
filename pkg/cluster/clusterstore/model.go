@@ -930,10 +930,35 @@ func (c *CMD) DecodeCMDBatchUpdateConversation() (models []*wkdb.BatchUpdateConv
 		if model.ChannelType, err = decoder.Uint8(); err != nil {
 			return
 		}
-		fmt.Println("DecodeCMDBatchUpdateConversation---->", model.ChannelType)
 		models = append(models, model)
 	}
 
+	return
+}
+
+func EncodeCMDSystemUIDs(uids []string) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteUint32(uint32(len(uids)))
+	for _, uid := range uids {
+		encoder.WriteString(uid)
+	}
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDSystemUIDs() (uids []string, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	var count uint32
+	if count, err = decoder.Uint32(); err != nil {
+		return
+	}
+	for i := uint32(0); i < count; i++ {
+		var uid string
+		if uid, err = decoder.String(); err != nil {
+			return
+		}
+		uids = append(uids, uid)
+	}
 	return
 }
 
