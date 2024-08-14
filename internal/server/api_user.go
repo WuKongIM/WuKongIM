@@ -38,6 +38,7 @@ func (u *UserAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/user/onlinestatus", u.getOnlineStatus)       // 获取用户在线状态
 	r.POST("/user/systemuids_add", u.systemUIDsAdd)       // 添加系统uid
 	r.POST("/user/systemuids_remove", u.systemUIDsRemove) // 移除系统uid
+	r.GET("/user/systemuids", u.getSystemUIDs)            // 获取系统uid
 
 }
 
@@ -317,15 +318,27 @@ func (u *UserAPI) systemUIDsAdd(c *wkhttp.Context) {
 	var req struct {
 		UIDs []string `json:"uids"`
 	}
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		u.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(errors.New("数据格式有误！"))
+		c.ResponseError(err)
 		return
 	}
-	if u.s.opts.ClusterOn() {
-		c.ResponseError(errors.New("分布式情况下暂不支持！"))
+
+	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
+
+	nodeInfo, err := u.s.cluster.SlotLeaderNodeInfo(slotId)
+	if err != nil {
+		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("获取slot所在节点失败！"))
 		return
 	}
+	if nodeInfo.Id != u.s.opts.Cluster.NodeId {
+		u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
 	if len(req.UIDs) > 0 {
 		err := u.s.systemUIDManager.AddSystemUIDs(req.UIDs)
 		if err != nil {
@@ -343,15 +356,26 @@ func (u *UserAPI) systemUIDsRemove(c *wkhttp.Context) {
 	var req struct {
 		UIDs []string `json:"uids"`
 	}
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		u.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(errors.New("数据格式有误！"))
+		c.ResponseError(err)
 		return
 	}
-	if u.s.opts.ClusterOn() {
-		c.ResponseError(errors.New("分布式情况下暂不支持！"))
+
+	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
+	nodeInfo, err := u.s.cluster.SlotLeaderNodeInfo(slotId)
+	if err != nil {
+		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("获取slot所在节点失败！"))
 		return
 	}
+	if nodeInfo.Id != u.s.opts.Cluster.NodeId {
+		u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
 	if len(req.UIDs) > 0 {
 		err := u.s.systemUIDManager.RemoveSystemUIDs(req.UIDs)
 		if err != nil {
@@ -361,6 +385,31 @@ func (u *UserAPI) systemUIDsRemove(c *wkhttp.Context) {
 		}
 	}
 	c.ResponseOK()
+}
+
+func (u *UserAPI) getSystemUIDs(c *wkhttp.Context) {
+
+	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
+	nodeInfo, err := u.s.cluster.SlotLeaderNodeInfo(slotId)
+	if err != nil {
+		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("获取slot所在节点失败！"))
+		return
+	}
+	if nodeInfo.Id != u.s.opts.Cluster.NodeId {
+		u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.Forward(fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
+	uids, err := u.s.store.GetSystemUids()
+	if err != nil {
+		u.Error("获取系统账号失败！", zap.Error(err))
+		c.ResponseError(errors.New("获取系统账号失败！"))
+		return
+	}
+
+	c.JSON(http.StatusOK, uids)
 }
 
 // UpdateTokenReq 更新token请求

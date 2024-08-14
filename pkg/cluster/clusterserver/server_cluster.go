@@ -242,6 +242,18 @@ func (s *Server) GetSlotId(v string) uint32 {
 	return s.getSlotId(v)
 }
 
+func (s *Server) SlotLeaderNodeInfo(slotId uint32) (nodeInfo *pb.Node, err error) {
+	slot := s.clusterEventServer.Slot(slotId)
+	if slot == nil {
+		return nil, ErrSlotNotExist
+	}
+	node := s.clusterEventServer.Node(slot.Leader)
+	if node == nil {
+		return nil, ErrNodeNotExist
+	}
+	return node, nil
+}
+
 func (s *Server) loadOrCreateChannelClusterConfig(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, bool, error) {
 	s.channelKeyLock.Lock(channelId)
 	defer s.channelKeyLock.Unlock(channelId)

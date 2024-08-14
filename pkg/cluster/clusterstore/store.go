@@ -94,11 +94,28 @@ func (s *Store) GetSystemUids() ([]string, error) {
 }
 
 func (s *Store) AddSystemUids(uids []string) error {
-	return s.wdb.AddSystemUids(uids)
+
+	data := EncodeCMDSystemUIDs(uids)
+	cmd := NewCMD(CMDSystemUIDsAdd, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
+	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	return err
 }
 
 func (s *Store) RemoveSystemUids(uids []string) error {
-	return s.wdb.RemoveSystemUids(uids)
+	data := EncodeCMDSystemUIDs(uids)
+	cmd := NewCMD(CMDSystemUIDsRemove, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
+	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	return err
 }
 
 func (s *Store) GetIPBlacklist() ([]string, error) {
