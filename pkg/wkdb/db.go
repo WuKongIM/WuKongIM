@@ -23,6 +23,8 @@ type DB interface {
 	// SessionDB
 	// 数据统计
 	TotalDB
+	//	系统账号
+	SystemUidDB
 }
 
 type MessageDB interface {
@@ -323,6 +325,15 @@ type TotalDB interface {
 
 	// GetTotalChannelClusterConfigCount 获取总个频道分布式配置数量
 	GetTotalChannelClusterConfigCount() (int, error)
+}
+
+type SystemUidDB interface {
+	// AddSystemUids  添加系统账号的uid
+	AddSystemUids(uids []string) error
+	// RemoveSystemUids 移除系统账号的uid
+	RemoveSystemUids(uids []string) error
+	// GetSystemUids 获取系统账号的uid
+	GetSystemUids() ([]string, error)
 }
 
 type MessageSearchReq struct {

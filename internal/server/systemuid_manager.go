@@ -3,7 +3,9 @@ package server
 import (
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 // SystemUIDManager System uid management
@@ -12,6 +14,7 @@ type SystemUIDManager struct {
 	s          *Server
 	systemUIDs sync.Map
 	loaded     atomic.Bool
+	wklog.Log
 }
 
 // NewSystemUIDManager NewSystemUIDManager
@@ -21,6 +24,7 @@ func NewSystemUIDManager(s *Server) *SystemUIDManager {
 		s:          s,
 		datasource: NewDatasource(s),
 		systemUIDs: sync.Map{},
+		Log:        wklog.NewWKLog("SystemUIDManager"),
 	}
 }
 
@@ -30,14 +34,18 @@ func (s *SystemUIDManager) LoadIfNeed() error {
 		return nil
 	}
 
-	if !s.s.opts.HasDatasource() {
-		return nil
-	}
-
+	var systemUIDs []string
 	var err error
-	systemUIDs, err := s.datasource.GetSystemUIDs()
-	if err != nil {
-		return err
+	if s.s.opts.HasDatasource() {
+		systemUIDs, err = s.datasource.GetSystemUIDs()
+		if err != nil {
+			return err
+		}
+	} else {
+		systemUIDs, err = s.s.store.GetSystemUids()
+		if err != nil {
+			return err
+		}
 	}
 	s.loaded.Store(true)
 	if len(systemUIDs) > 0 {
@@ -50,6 +58,11 @@ func (s *SystemUIDManager) LoadIfNeed() error {
 
 // SystemUID Is it a system account?
 func (s *SystemUIDManager) SystemUID(uid string) bool {
+	err := s.LoadIfNeed()
+	if err != nil {
+		s.Error("LoadIfNeed error", zap.Error(err))
+		return false
+	}
 	_, ok := s.systemUIDs.Load(uid)
 	return ok
 }
@@ -59,7 +72,7 @@ func (s *SystemUIDManager) AddSystemUIDs(uids []string) error {
 	if len(uids) == 0 {
 		return nil
 	}
-	err := s.s.store.AddSystemUIDs(uids)
+	err := s.s.store.AddSystemUids(uids)
 	if err != nil {
 		return err
 	}
@@ -74,7 +87,7 @@ func (s *SystemUIDManager) RemoveSystemUIDs(uids []string) error {
 	if len(uids) == 0 {
 		return nil
 	}
-	err := s.s.store.RemoveSystemUIDs(uids)
+	err := s.s.store.RemoveSystemUids(uids)
 	if err != nil {
 		return err
 	}

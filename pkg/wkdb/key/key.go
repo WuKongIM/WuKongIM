@@ -957,3 +957,17 @@ func NewTotalColumnKey(columnName [2]byte) []byte {
 	key[13] = columnName[1]
 	return key
 }
+
+// ---------------------- system uid ----------------------
+
+func NewSystemUidColumnKey(id uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableSystemUid.Size)
+	key[0] = TableSystemUid.Id[0]
+	key[1] = TableSystemUid.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], id)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}

@@ -674,3 +674,21 @@ var TableTotal = struct {
 		ChannelClusterConfig: [2]byte{0x0F, 0x07},
 	},
 }
+
+// ======================== system uid ========================
+
+var TableSystemUid = struct {
+	Id     [2]byte
+	Size   int
+	Column struct {
+		Uid [2]byte
+	}
+}{
+	Id:   [2]byte{0x10, 0x01},
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	Column: struct {
+		Uid [2]byte
+	}{
+		Uid: [2]byte{0x10, 0x01},
+	},
+}

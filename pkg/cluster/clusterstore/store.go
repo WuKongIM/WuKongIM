@@ -89,14 +89,16 @@ func (s *Store) Close() {
 // 	return nil
 // }
 
-func (s *Store) AddSystemUIDs(uids []string) error {
-	// return s.db.AddSystemUIDs(uids)
-	return nil
+func (s *Store) GetSystemUids() ([]string, error) {
+	return s.wdb.GetSystemUids()
 }
 
-func (s *Store) RemoveSystemUIDs(uids []string) error {
-	return nil
-	// return s.db.RemoveSystemUIDs(uids)
+func (s *Store) AddSystemUids(uids []string) error {
+	return s.wdb.AddSystemUids(uids)
+}
+
+func (s *Store) RemoveSystemUids(uids []string) error {
+	return s.wdb.RemoveSystemUids(uids)
 }
 
 func (s *Store) GetIPBlacklist() ([]string, error) {
