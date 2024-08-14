@@ -1360,7 +1360,7 @@ func newConversationResp(c wkdb.Conversation) *conversationResp {
 		TypeFormat:        typeFormat,
 		ChannelTypeFormat: formatChannelType(c.ChannelType),
 		UnreadCount:       c.UnreadCount,
-		ReadedToMsgSeq:    c.ReadedToMsgSeq,
+		ReadedToMsgSeq:    c.ReadToMsgSeq,
 		CreatedAt:         c.CreatedAt.Unix(),
 		UpdatedAt:         c.UpdatedAt.Unix(),
 		CreatedAtFormat:   createdAtFormat,

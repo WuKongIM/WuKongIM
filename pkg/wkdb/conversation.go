@@ -334,14 +334,14 @@ func (wk *wukongDB) getConversation(uid string, id uint64) (Conversation, error)
 // 			Uid:            uid,
 // 			SessionId:      sessionId,
 // 			UnreadCount:    0,
-// 			ReadedToMsgSeq: msgSeq,
+// 			ReadToMsgSeq: msgSeq,
 // 		}, w); err != nil {
 // 			return err
 // 		}
 // 	}
 // 	var msgSeqBytes = make([]byte, 8)
 // 	wk.endian.PutUint64(msgSeqBytes, msgSeq)
-// 	return w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.noSync)
+// 	return w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadToMsgSeq), msgSeqBytes, wk.noSync)
 // }
 
 func (wk *wukongDB) getConversationByChannel(uid string, channelId string, channelType uint8) (uint64, error) {
@@ -392,7 +392,7 @@ func (wk *wukongDB) writeConversation(conversation Conversation, isCreate bool, 
 
 	// readedToMsgSeq
 	var msgSeqBytes = make([]byte, 8)
-	wk.endian.PutUint64(msgSeqBytes, conversation.ReadedToMsgSeq)
+	wk.endian.PutUint64(msgSeqBytes, conversation.ReadToMsgSeq)
 	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.noSync); err != nil {
 		return err
 	}
@@ -509,7 +509,7 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 
 	for iter.First(); iter.Valid(); iter.Next() {
 
-		id, coulmnName, err := key.ParseConversationColumnKey(iter.Key())
+		id, columnName, err := key.ParseConversationColumnKey(iter.Key())
 		if err != nil {
 			return err
 		}
@@ -526,7 +526,7 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 				Id: id,
 			}
 		}
-		switch coulmnName {
+		switch columnName {
 		case key.TableConversation.Column.Uid:
 			preConversation.Uid = string(iter.Value())
 		case key.TableConversation.Column.Type:
@@ -538,7 +538,7 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 		case key.TableConversation.Column.UnreadCount:
 			preConversation.UnreadCount = wk.endian.Uint32(iter.Value())
 		case key.TableConversation.Column.ReadedToMsgSeq:
-			preConversation.ReadedToMsgSeq = wk.endian.Uint64(iter.Value())
+			preConversation.ReadToMsgSeq = wk.endian.Uint64(iter.Value())
 		case key.TableConversation.Column.CreatedAt:
 			t := int64(wk.endian.Uint64(iter.Value()))
 			tm := time.Unix(t/1e3, (t%1e3)*1e6)
@@ -594,8 +594,8 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 // 			preConversation.SessionId = wk.endian.Uint64(iter.Value())
 // 		case key.TableConversation.Column.UnreadCount:
 // 			preConversation.UnreadCount = wk.endian.Uint32(iter.Value())
-// 		case key.TableConversation.Column.ReadedToMsgSeq:
-// 			preConversation.ReadedToMsgSeq = wk.endian.Uint64(iter.Value())
+// 		case key.TableConversation.Column.ReadToMsgSeq:
+// 			preConversation.ReadToMsgSeq = wk.endian.Uint64(iter.Value())
 
 // 		}
 // 		hasData = true
