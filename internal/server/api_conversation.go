@@ -402,9 +402,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		if len(channelRecentMessages) > 0 {
 			for i := 0; i < len(conversations); i++ {
 				conversation := conversations[i]
-
 				resp := newSyncUserConversationResp(conversation)
-
 				if conversation.UpdatedAt != nil {
 					resp.Timestamp = conversation.UpdatedAt.Unix()
 					resp.Version = conversation.UpdatedAt.Unix()

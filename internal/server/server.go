@@ -331,8 +331,6 @@ func (s *Server) Stop() error {
 
 	s.store.Close()
 
-	s.tagManager.stop()
-
 	s.timingWheel.Stop()
 
 	s.tagManager.stop()
