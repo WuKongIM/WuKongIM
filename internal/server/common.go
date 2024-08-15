@@ -25,15 +25,15 @@ const (
 type channelRole int
 
 const (
-	channelRoleUnknow = iota
-	channelRoleLeader // 领导 （领导负责频道数据的真实处理）
-	channelRoleProxy  // 代理 （代理不处理数据，只将数据转发给领导）
+	channelRoleUnknown = iota
+	channelRoleLeader  // 领导 （领导负责频道数据的真实处理）
+	channelRoleProxy   // 代理 （代理不处理数据，只将数据转发给领导）
 )
 
 type ChannelActionType int
 
 const (
-	ChannelActionUnknow ChannelActionType = iota
+	ChannelActionUnknown ChannelActionType = iota
 	// ChannelActionInit 频道初始化
 	ChannelActionInit
 	// ChannelActionInitResp 频道初始化返回
