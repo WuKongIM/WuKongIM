@@ -649,7 +649,7 @@ func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConver
 		ChannelId:      realChannelId,
 		ChannelType:    conversation.ChannelType,
 		Unread:         int(conversation.UnreadCount),
-		ReadedToMsgSeq: uint32(conversation.ReadedToMsgSeq),
+		ReadedToMsgSeq: uint32(conversation.ReadToMsgSeq),
 	}
 }
 
