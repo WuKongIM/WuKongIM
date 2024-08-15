@@ -1,6 +1,6 @@
 FROM golang:1.22 as build
 
-ENV GOPROXY=https://goproxy.cn,direct
+# ENV GOPROXY=https://goproxy.cn,direct
 ENV GO111MODULE=on
 
 # 安装 Node.js 和 Yarn

@@ -204,7 +204,7 @@ export default class APIClient {
 
       return  APIClient.shared.post('/message/send', {
             "header": {// 消息头
-              "no_persist": 0, // 是否不存储消息 0.存储 1.不存储
+              "no_persist": 1, // 是否不存储消息 0.存储 1.不存储
               "red_dot": 1, // 是否显示红点计数，0.不显示 1.显示
               "sync_once":1 // 是否是写扩散，这里一般是0，只有cmd消息才是1
             },
