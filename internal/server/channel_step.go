@@ -102,20 +102,30 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 
 		if a.Reason == ReasonSuccess {
 			c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
-		} else {
-			// 权限校验失败，需要将消息的ReasonCode设置为失败
-			startIndex := c.msgQueue.getArrayIndex(c.msgQueue.permissionCheckingIndex)
-			endIndex := c.msgQueue.getArrayIndex(a.Index)
-			if startIndex < endIndex {
-				for i := startIndex; i < endIndex; i++ {
-					c.msgQueue.messages[i].ReasonCode = a.ReasonCode
-				}
-			}
 		}
+
+		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.permissionCheckingIndex)
 
 		if a.Index > c.msgQueue.permissionCheckingIndex {
 			c.msgQueue.permissionCheckingIndex = a.Index
 		}
+		endIndex := c.msgQueue.getArrayIndex(a.Index)
+		if startIndex >= endIndex {
+			return nil
+		}
+		msgLen := len(a.Messages)
+		for i := startIndex; i < endIndex; i++ {
+			msg := c.msgQueue.messages[i]
+			for j := 0; j < msgLen; j++ {
+				permMsg := a.Messages[j]
+				if msg.MessageId == permMsg.MessageId {
+					msg.ReasonCode = permMsg.ReasonCode
+					c.msgQueue.messages[i] = msg
+					break
+				}
+			}
+		}
+
 		// c.Info("channel permission check resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 	case ChannelActionStorageResp: // 存储完成

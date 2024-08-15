@@ -371,8 +371,18 @@ func (c *CMD) CMDContent() (string, error) {
 		}), nil
 
 	case CMDSystemUIDsAdd:
+		uids, err := c.DecodeCMDSystemUIDs()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(uids), nil
 
 	case CMDSystemUIDsRemove:
+		uids, err := c.DecodeCMDSystemUIDs()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(uids), nil
 
 	case CMDBatchUpdateConversation:
 		models, err := c.DecodeCMDBatchUpdateConversation()

@@ -318,25 +318,30 @@ func (r *channelReactor) processPermissionLoop() {
 
 func (r *channelReactor) processPermission(req *permissionReq) {
 
+	fromUidMap := map[string]wkproto.ReasonCode{}
 	// 权限判断
 	sub := r.reactorSub(req.ch.key)
-	reasonCode, err := r.hasPermission(req.ch.channelId, req.ch.channelType, req.fromUid, req.ch)
-	if err != nil {
-		r.Error("hasPermission error", zap.Error(err))
-		// 返回错误
-		lastMsg := req.messages[len(req.messages)-1]
-		sub.step(req.ch, &ChannelAction{
-			UniqueNo:   req.ch.uniqueNo,
-			ActionType: ChannelActionPermissionCheckResp,
-			Index:      lastMsg.Index,
-			Reason:     ReasonError,
-			ReasonCode: wkproto.ReasonSystemError,
-		})
-		return
-	}
-	reason := ReasonSuccess
-	if reasonCode != wkproto.ReasonSuccess {
-		reason = ReasonError
+	for i, msg := range req.messages {
+
+		if msg.IsSystem { // 如果是系统发的消息，直接通过
+			req.messages[i].ReasonCode = wkproto.ReasonSuccess
+			continue
+		}
+
+		if _, ok := fromUidMap[msg.FromUid]; ok { // 已经判断过权限
+			req.messages[i].ReasonCode = fromUidMap[msg.FromUid]
+			continue
+		}
+
+		reasonCode, err := r.hasPermission(req.ch.channelId, req.ch.channelType, msg.FromUid, req.ch)
+		if err != nil {
+			r.Error("hasPermission error", zap.Error(err))
+			req.messages[i].ReasonCode = wkproto.ReasonSystemError
+			fromUidMap[msg.FromUid] = wkproto.ReasonSystemError
+			continue
+		}
+		req.messages[i].ReasonCode = reasonCode
+		fromUidMap[msg.FromUid] = reasonCode
 	}
 	// 返回成功
 	lastMsg := req.messages[len(req.messages)-1]
@@ -344,8 +349,8 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionPermissionCheckResp,
 		Index:      lastMsg.Index,
-		Reason:     reason,
-		ReasonCode: reasonCode,
+		Messages:   req.messages,
+		Reason:     ReasonSuccess,
 	})
 }
 
@@ -490,7 +495,6 @@ func (r *channelReactor) allowSend(from, to string) (wkproto.ReasonCode, error) 
 }
 
 type permissionReq struct {
-	fromUid  string
 	ch       *channel
 	messages []ReactorChannelMessage
 }

@@ -25,6 +25,7 @@ type ReactorChannelMessage struct {
 	MessageSeq   uint32
 	SendPacket   *wkproto.SendPacket
 	IsEncrypt    bool // SendPacket的payload是否加密
+	IsSystem     bool // 是否是系统发送的消息
 	ReasonCode   wkproto.ReasonCode
 	Index        uint64
 }
@@ -37,6 +38,8 @@ func (r *ReactorChannelMessage) Marshal() ([]byte, error) {
 	enc.WriteString(r.FromDeviceId)
 	enc.WriteUint64(r.FromNodeId)
 	enc.WriteInt64(r.MessageId)
+	enc.WriteUint8(wkutil.BoolToUint8(r.IsEncrypt))
+	enc.WriteUint8(wkutil.BoolToUint8(r.IsSystem))
 
 	var packetData []byte
 	var err error
@@ -72,6 +75,19 @@ func (r *ReactorChannelMessage) Unmarshal(data []byte) error {
 	if r.MessageId, err = dec.Int64(); err != nil {
 		return err
 	}
+
+	var isEncrypt uint8
+	if isEncrypt, err = dec.Uint8(); err != nil {
+		return err
+	}
+	r.IsEncrypt = wkutil.Uint8ToBool(isEncrypt)
+
+	var isSystem uint8
+	if isSystem, err = dec.Uint8(); err != nil {
+		return err
+	}
+	r.IsSystem = wkutil.Uint8ToBool(isSystem)
+
 	var packetData []byte
 	if packetData, err = dec.Binary(); err != nil {
 		return err
