@@ -212,16 +212,16 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 	cacheConversations := m.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeCMD)
 	cacheConversationMap := map[string]uint64{}
 	for _, cacheConversation := range cacheConversations {
-		if cacheConversation.ReadedToMsgSeq > 0 {
-			cacheConversationMap[fmt.Sprintf("%s-%d", cacheConversation.ChannelId, cacheConversation.ChannelType)] = cacheConversation.ReadedToMsgSeq
+		if cacheConversation.ReadToMsgSeq > 0 {
+			cacheConversationMap[fmt.Sprintf("%s-%d", cacheConversation.ChannelId, cacheConversation.ChannelType)] = cacheConversation.ReadToMsgSeq
 		}
 	}
 	for _, cacheConversation := range cacheConversations {
 		exist := false
 		for i, conversation := range conversations {
 			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				if cacheConversation.ReadedToMsgSeq > conversation.ReadedToMsgSeq {
-					conversations[i].ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
+				if cacheConversation.ReadToMsgSeq > conversation.ReadToMsgSeq {
+					conversations[i].ReadToMsgSeq = cacheConversation.ReadToMsgSeq
 				}
 				exist = true
 				break
@@ -248,7 +248,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
 				ChannelId:   realChannelId,
 				ChannelType: conversation.ChannelType,
-				LastMsgSeq:  conversation.ReadedToMsgSeq + 1, // 这里加1的目的是为了不查询到ReadedToMsgSeq本身这条消息
+				LastMsgSeq:  conversation.ReadToMsgSeq + 1, // 这里加1的目的是为了不查询到ReadedToMsgSeq本身这条消息
 			})
 		}
 	}
@@ -363,11 +363,11 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 			if err == wkdb.ErrNotFound {
 				m.Warn("会话不存在！", zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
 				conversation = wkdb.Conversation{
-					Uid:            req.UID,
-					ChannelId:      fakeChannelId,
-					ChannelType:    record.channelType,
-					Type:           wkdb.ConversationTypeCMD,
-					ReadedToMsgSeq: record.lastMsgSeq,
+					Uid:          req.UID,
+					ChannelId:    fakeChannelId,
+					ChannelType:  record.channelType,
+					Type:         wkdb.ConversationTypeCMD,
+					ReadToMsgSeq: record.lastMsgSeq,
 				}
 				needAdd = true
 			} else {
@@ -380,8 +380,8 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 			continue
 		}
 
-		if record.lastMsgSeq > conversation.ReadedToMsgSeq || needAdd {
-			conversation.ReadedToMsgSeq = record.lastMsgSeq
+		if record.lastMsgSeq > conversation.ReadToMsgSeq || needAdd {
+			conversation.ReadToMsgSeq = record.lastMsgSeq
 			conversations = append(conversations, conversation)
 		}
 

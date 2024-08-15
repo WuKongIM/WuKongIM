@@ -35,7 +35,7 @@ func TestConversationGet(t *testing.T) {
 	conversations2 := s.conversationManager.GetUserConversationFromCache("u2", wkdb.ConversationTypeChat)
 	assert.Equal(t, 1, len(conversations2))
 
-	assert.Equal(t, uint64(102), conversations1[0].ReadedToMsgSeq)
-	assert.Equal(t, uint64(0), conversations2[0].ReadedToMsgSeq)
+	assert.Equal(t, uint64(102), conversations1[0].ReadToMsgSeq)
+	assert.Equal(t, uint64(0), conversations2[0].ReadToMsgSeq)
 
 }

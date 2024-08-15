@@ -280,11 +280,11 @@ func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
 		}
 		for uid, seq := range model.Uids {
 			conversation := wkdb.Conversation{
-				Uid:            uid,
-				Type:           conversationType,
-				ChannelId:      model.ChannelId,
-				ChannelType:    model.ChannelType,
-				ReadedToMsgSeq: seq,
+				Uid:          uid,
+				Type:         conversationType,
+				ChannelId:    model.ChannelId,
+				ChannelType:  model.ChannelType,
+				ReadToMsgSeq: seq,
 			}
 			err = s.wdb.AddOrUpdateConversations(uid, []wkdb.Conversation{conversation})
 			if err != nil {
