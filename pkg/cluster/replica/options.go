@@ -26,6 +26,8 @@ type Options struct {
 	FollowerToLeaderMinLogGap uint64 // 跟随者转换为领导者的最小日志差距，需要AutoRoleSwith开启 (当跟随者的日志与领导者的日志差距小于这个配置时，跟随者会转换为领导者)
 
 	RequestTimeoutTick int // 请求超时tick数
+
+	OnConfigChange func(oldCfg, newCfg Config) // 配置变更回调
 }
 
 func NewOptions() *Options {
@@ -166,5 +168,17 @@ func WithLearnerToTimeoutTick(tick int) Option {
 func WithFollowerToLeaderMinLogGap(gap uint64) Option {
 	return func(o *Options) {
 		o.FollowerToLeaderMinLogGap = gap
+	}
+}
+
+func WithRequestTimeoutTick(tick int) Option {
+	return func(o *Options) {
+		o.RequestTimeoutTick = tick
+	}
+}
+
+func WithOnConfigChange(f func(oldCfg, newCfg Config)) Option {
+	return func(o *Options) {
+		o.OnConfigChange = f
 	}
 }

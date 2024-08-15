@@ -15,8 +15,8 @@ services:
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
-    volumes:
-      - '/:/host:ro,rslave'
+    # volumes:
+      # - '/:/host:ro,rslave'
     ports:
       - "9100:9100"    
   prometheus:

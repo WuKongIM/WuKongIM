@@ -201,6 +201,18 @@ func (c *CMD) CMDContent() (string, error) {
 			return "", err
 		}
 		return wkutil.ToJSON(device), nil
+	case CMDAddOrUpdateUserAndDevice:
+		id, uid, deviceFlag, deviceLevel, token, err := c.DecodeCMDUserAndDevice()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"id":          id,
+			"uid":         uid,
+			"deviceFlag":  deviceFlag,
+			"deviceLevel": deviceLevel,
+			"token":       token,
+		}), nil
 	case CMDAddOrUpdateUser:
 		user, err := c.DecodeCMDUser()
 		if err != nil {
