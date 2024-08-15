@@ -146,7 +146,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 
 	// 将消息提交到频道
 	systemDeviceId := req.FromUID
-	messageId, err := channel.proposeSend(req.FromUID, systemDeviceId, 0, m.s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
+	messageId, err := channel.proposeSend(req.FromUID, systemDeviceId, 0, m.s.opts.Cluster.NodeId, false, true, &wkproto.SendPacket{
 		Framer: wkproto.Framer{
 			RedDot:    wkutil.IntToBool(req.Header.RedDot),
 			SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),

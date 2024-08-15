@@ -376,6 +376,10 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, conversation.ChannelType)]
 		if conversation.ReadToMsgSeq > msgSeq {
 			msgSeq = conversation.ReadToMsgSeq
+		} else if msgSeq != 0 {
+			// 如果客户端传递的消息序列号大于或等于服务端的消息序列号，则需要加1，因为客户端传递的是最后一条消息的序列号已经在客户端存在，
+			// 所以需要加1，查询最新的消息，如果没有则不返回这个最近会话，这样才能起到增量同步效果
+			msgSeq = msgSeq + 1
 		}
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
 			ChannelId:   realChannelId,

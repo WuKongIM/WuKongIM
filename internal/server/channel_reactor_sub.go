@@ -142,10 +142,8 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 				messages: action.Messages,
 			})
 		case ChannelActionPermissionCheck: // 权限校验
-			fromUid := action.Messages[0].FromUid
 			r.r.addPermissionReq(&permissionReq{
 				ch:       ch,
-				fromUid:  fromUid,
 				messages: action.Messages,
 			})
 		case ChannelActionStorage: // 消息存储
