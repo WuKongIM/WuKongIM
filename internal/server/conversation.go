@@ -298,11 +298,11 @@ func (c *conversationWorker) propose() {
 					conversationType = wkdb.ConversationTypeChat
 				}
 				conversations = append(conversations, wkdb.Conversation{
-					Uid:            cc.uid,
-					Type:           conversationType,
-					ChannelId:      conversation.ChannelId,
-					ChannelType:    conversation.ChannelType,
-					ReadedToMsgSeq: uint64(conversation.ReadedMsgSeq),
+					Uid:          cc.uid,
+					Type:         conversationType,
+					ChannelId:    conversation.ChannelId,
+					ChannelType:  conversation.ChannelType,
+					ReadToMsgSeq: uint64(conversation.ReadedMsgSeq),
 				})
 			}
 		}
@@ -405,11 +405,11 @@ func (c *userConversation) getConversationsByType(conversationType wkdb.Conversa
 	for _, s := range c.conversations {
 		if s.ConversationType == conversationType {
 			conversations = append(conversations, wkdb.Conversation{
-				Uid:            c.uid,
-				Type:           s.ConversationType,
-				ChannelId:      s.ChannelId,
-				ChannelType:    s.ChannelType,
-				ReadedToMsgSeq: uint64(s.ReadedMsgSeq),
+				Uid:          c.uid,
+				Type:         s.ConversationType,
+				ChannelId:    s.ChannelId,
+				ChannelType:  s.ChannelType,
+				ReadToMsgSeq: uint64(s.ReadedMsgSeq),
 			})
 		}
 	}

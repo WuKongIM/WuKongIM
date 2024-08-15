@@ -138,8 +138,8 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 		return
 	}
 
-	if conversation.ReadedToMsgSeq < msgSeq {
-		conversation.ReadedToMsgSeq = msgSeq
+	if conversation.ReadToMsgSeq < msgSeq {
+		conversation.ReadToMsgSeq = msgSeq
 
 	}
 
@@ -234,7 +234,7 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		readedMsgSeq = msgSeq - uint64(req.Unread)
 	}
 
-	conversation.ReadedToMsgSeq = readedMsgSeq
+	conversation.ReadToMsgSeq = readedMsgSeq
 	conversation.UnreadCount = unread
 
 	err = s.s.store.AddOrUpdateConversations(req.UID, []wkdb.Conversation{conversation})
@@ -350,8 +350,8 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		exist := false
 		for i, conversation := range conversations {
 			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				if cacheConversation.ReadedToMsgSeq > conversation.ReadedToMsgSeq {
-					conversations[i].ReadedToMsgSeq = cacheConversation.ReadedToMsgSeq
+				if cacheConversation.ReadToMsgSeq > conversation.ReadToMsgSeq {
+					conversations[i].ReadToMsgSeq = cacheConversation.ReadToMsgSeq
 				}
 				exist = true
 				break
@@ -374,15 +374,15 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			}
 		}
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, conversation.ChannelType)]
-		if conversation.ReadedToMsgSeq > msgSeq {
-			msgSeq = conversation.ReadedToMsgSeq
+		if conversation.ReadToMsgSeq > msgSeq {
+			msgSeq = conversation.ReadToMsgSeq
 		}
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
 			ChannelId:   realChannelId,
 			ChannelType: conversation.ChannelType,
 			LastMsgSeq:  msgSeq,
 		})
-		conversation.ReadedToMsgSeq = msgSeq
+		conversation.ReadToMsgSeq = msgSeq
 		// syncUserConversationR := newSyncUserConversationResp(conversation)
 		// resps = append(resps, syncUserConversationR)
 	}
