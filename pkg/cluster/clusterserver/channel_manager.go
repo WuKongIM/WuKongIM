@@ -35,11 +35,13 @@ func newChannelManager(s *Server) *channelManager {
 		reactor.WithSend(cm.onSend),
 		reactor.WithReactorType(reactor.ReactorTypeChannel),
 		reactor.WithAutoSlowDownOn(true),
-		reactor.WithOnHandlerRemove(func(h reactor.IHandler) {
-			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
-		}),
 		reactor.WithRequest(cm),
 		reactor.WithSubReactorNum(s.opts.ChannelReactorSubCount),
+		reactor.WithOnHandlerRemove(func(h reactor.IHandler) {
+			if h.LeaderId() == cm.opts.NodeId {
+				trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
+			}
+		}),
 	))
 	return cm
 }
@@ -53,7 +55,6 @@ func (c *channelManager) stop() {
 }
 
 func (c *channelManager) add(ch *channel) {
-	trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(1)
 	c.channelReactor.AddHandler(ch.key, ch)
 }
 

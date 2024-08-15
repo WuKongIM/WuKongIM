@@ -231,6 +231,7 @@ func (r *Replica) switchConfig(cfg Config) {
 
 	r.Info("switch config", zap.String("cfg", cfg.String()))
 
+	oldCfg := r.cfg
 	r.cfg = cfg
 	term := r.term
 	if term == 0 {
@@ -283,7 +284,9 @@ func (r *Replica) switchConfig(cfg Config) {
 	}
 
 	// 发送配置改变
-	// r.send(r.newMsgConfigChange(cfg))
+	if r.opts.OnConfigChange != nil {
+		r.opts.OnConfigChange(oldCfg, cfg)
+	}
 }
 
 func (r *Replica) initLeaderInfo() {

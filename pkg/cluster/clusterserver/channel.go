@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -67,6 +68,7 @@ func newChannel(channelId string, channelType uint8, s *Server) *channel {
 		replica.WithLastIndex(lastIndex),
 		replica.WithLastTerm(lastTerm),
 		replica.WithStorage(newProxyReplicaStorage(c.key, c.opts.MessageLogStorage)),
+		replica.WithOnConfigChange(c.onReplicaConfigChange),
 	)
 	c.rc = rc
 	return c
@@ -111,6 +113,17 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 		Config:  replicaCfg,
 	})
 	return nil
+}
+
+func (c *channel) onReplicaConfigChange(oldCfg, newCfg replica.Config) {
+	if oldCfg.Role != newCfg.Role {
+		if newCfg.Leader == c.opts.NodeId { // 从非领导变为领导
+			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(1)
+		} else if oldCfg.Leader == c.opts.NodeId && newCfg.Leader != c.opts.NodeId { // 从领导变为非领导
+			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
+		}
+
+	}
 }
 
 func (c *channel) leaderId() uint64 {

@@ -9,16 +9,16 @@ scrape_configs:
     - targets: ['192.168.3.82:9100']
   - job_name: wukongim-trace-metrics-1
     static_configs:
-    - targets: ['192.168.3.82:5301']
+    - targets: ['192.168.3.82:5300']
       labels:
-        id: "1001"
+        id: "1"
   - job_name: wukongim-trace-metrics-2
     static_configs:
     - targets: ['192.168.3.82:5302']
       labels:
-        id: "1002"
+        id: "2"
   - job_name: wukongim-trace-metrics-3
     static_configs:
     - targets: ['192.168.3.82:5303']  
       labels:
-        id: "1003"
+        id: "3"
