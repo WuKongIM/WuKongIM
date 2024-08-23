@@ -1,6 +1,7 @@
 package wkstore
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"path/filepath"
@@ -129,6 +130,39 @@ func (f *FileStore) GetUserToken(uid string, deviceFlag uint8) (string, uint8, e
 	token := resultMap["token"]
 	level, _ := strconv.Atoi(resultMap["device_level"])
 	return token, uint8(level), nil
+}
+
+func (f *FileStore) GetAllUsers() ([]User, error) {
+
+	prefix := []byte(f.userTokenPrefix)
+	var users []User
+	err := f.db.View(func(tx *bolt.Tx) error {
+		for i := 0; i < f.cfg.SlotNum; i++ {
+			bk, err := f.getSlotBucket(uint32(i), tx)
+			if err != nil {
+				return err
+			}
+			c := bk.Cursor()
+
+			for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+				uidAndFlag := string(k[len(prefix):])
+				uidAndFlagArr := strings.Split(uidAndFlag, "-")
+				var resultMap map[string]string
+				err = wkutil.ReadJSONByByte(v, &resultMap)
+				if err != nil {
+					return err
+				}
+				uid := uidAndFlagArr[0]
+				deviceFlag, _ := strconv.Atoi(uidAndFlagArr[1])
+				token := resultMap["token"]
+				level, _ := strconv.Atoi(resultMap["device_level"])
+				users = append(users, User{Uid: uid, Token: token, DeviceLevel: uint8(level), DeviceFlag: uint8(deviceFlag)})
+			}
+
+		}
+		return nil
+	})
+	return users, err
 }
 
 // UpdateUserToken UpdateUserToken
@@ -763,4 +797,11 @@ func itob(v uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, v)
 	return b
+}
+
+type User struct {
+	Uid         string
+	Token       string
+	DeviceFlag  uint8
+	DeviceLevel uint8
 }

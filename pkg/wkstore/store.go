@@ -10,6 +10,9 @@ type Store interface {
 	// UpdateMessageOfUserCursorIfNeed 更新用户消息队列的游标，用户读到的位置
 	UpdateMessageOfUserCursorIfNeed(uid string, messageSeq uint32) error
 
+	// 获取所有用户数据
+	GetAllUsers() ([]User, error)
+
 	// #################### channel ####################
 	GetChannel(channelID string, channelType uint8) (*ChannelInfo, error)
 	// AddOrUpdateChannel add or update channel
