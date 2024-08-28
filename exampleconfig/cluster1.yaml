@@ -3,6 +3,7 @@ addr: "tcp://0.0.0.0:5110" # tcp监听地址
 httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
 rootDir: "./wukongimdata/1"
+# whitelistOffOfPerson: false
 manager:
   on: true
   addr: "0.0.0.0:5300"

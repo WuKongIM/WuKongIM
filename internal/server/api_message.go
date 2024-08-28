@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -35,10 +36,10 @@ func NewMessageAPI(s *Server) *MessageAPI {
 
 // Route route
 func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
-	r.POST("/message/send", m.send) // 发送消息
-	// r.POST("/message/sendbatch", m.sendBatch) // 批量发送消息
-	r.POST("/message/sync", m.sync)       // 消息同步(写模式)
-	r.POST("/message/syncack", m.syncack) // 消息同步回执(写模式)
+	r.POST("/message/send", m.send)           // 发送消息
+	r.POST("/message/sendbatch", m.sendBatch) // 批量发送消息
+	r.POST("/message/sync", m.sync)           // 消息同步(写模式)
+	r.POST("/message/syncack", m.syncack)     // 消息同步回执(写模式)
 
 	// // r.POST("/streammessage/start", m.streamMessageStart) // 流消息开始
 	// // r.POST("/streammessage/end", m.streamMessageEnd)     // 流消息结束
@@ -65,11 +66,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 
 	channelId := req.ChannelID
 	channelType := req.ChannelType
-	// if strings.TrimSpace(channelId) == "" && len(req.Subscribers) > 0 { //如果没频道ID 但是有订阅者，则创建一个临时频道
-	// 	// channelId = fmt.Sprintf("%s%s", wkutil.GenUUID(), m.s.opts.TmpChannel.Suffix)
-	// 	// channelType = wkproto.ChannelTypeGroup
-	// 	// m.s.channelManager.CreateTmpChannel(channelId, channelType, req.Subscribers)
-	// }
+
 	m.Debug("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
 	if strings.TrimSpace(channelId) == "" && len(req.Subscribers) == 0 { //指定了频道 才能正常发送
 		m.Error("无法处理发送消息请求！", zap.Any("req", req))
@@ -165,6 +162,52 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 	}
 
 	return messageId, nil
+}
+
+func (m *MessageAPI) sendBatch(c *wkhttp.Context) {
+	var req struct {
+		Header      MessageHeader `json:"header"`      // 消息头
+		FromUID     string        `json:"from_uid"`    // 发送者UID
+		Subscribers []string      `json:"subscribers"` // 订阅者 如果此字段有值，表示消息只发给指定的订阅者
+		Payload     []byte        `json:"payload"`     // 消息内容
+	}
+	if err := c.BindJSON(&req); err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if strings.TrimSpace(req.FromUID) == "" {
+		c.ResponseError(errors.New("from_uid不能为空！"))
+		return
+	}
+	if len(req.Subscribers) == 0 {
+		c.ResponseError(errors.New("subscribers不能为空！"))
+		return
+	}
+	if len(req.Payload) == 0 {
+		c.ResponseError(errors.New("payload不能为空！"))
+		return
+	}
+	failUids := make([]string, 0)
+	reasons := make([]string, 0)
+	for _, subscriber := range req.Subscribers {
+		clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
+		_, err := m.sendMessageToChannel(MessageSendReq{
+			Header:      req.Header,
+			FromUID:     req.FromUID,
+			ChannelID:   subscriber,
+			ChannelType: wkproto.ChannelTypePerson,
+			Payload:     req.Payload,
+		}, subscriber, wkproto.ChannelTypePerson, clientMsgNo, wkproto.StreamFlagIng)
+		if err != nil {
+			failUids = append(failUids, subscriber)
+			reasons = append(reasons, err.Error())
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"fail_uids": failUids,
+		"reason":    reasons,
+	})
 }
 
 // 消息同步

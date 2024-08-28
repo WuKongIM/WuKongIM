@@ -47,7 +47,7 @@ func (s *SystemUIDManager) LoadIfNeed() error {
 			return err
 		}
 	} else {
-		systemUIDs, err = s.getOrRequestSystemUIDs()
+		systemUIDs, err = s.getOrRequestSystemUids()
 		if err != nil {
 			return err
 		}
@@ -68,12 +68,17 @@ func (s *SystemUIDManager) SystemUID(uid string) bool {
 		s.Error("LoadIfNeed error", zap.Error(err))
 		return false
 	}
+
+	if uid == s.s.opts.SystemUID { // 内置系统账号
+		return true
+	}
+
 	_, ok := s.systemUIDs.Load(uid)
 	return ok
 }
 
-// AddSystemUID AddSystemUID
-func (s *SystemUIDManager) AddSystemUIDs(uids []string) error {
+// AddSystemUids AddSystemUID
+func (s *SystemUIDManager) AddSystemUids(uids []string) error {
 	if len(uids) == 0 {
 		return nil
 	}
@@ -81,14 +86,19 @@ func (s *SystemUIDManager) AddSystemUIDs(uids []string) error {
 	if err != nil {
 		return err
 	}
-	for _, uid := range uids {
-		s.systemUIDs.Store(uid, true)
-	}
+	s.AddSystemUidsToCache(uids)
 	return nil
 }
 
+// AddSystemUidsToCache 添加系统账号到缓存中
+func (s *SystemUIDManager) AddSystemUidsToCache(uids []string) {
+	for _, uid := range uids {
+		s.systemUIDs.Store(uid, true)
+	}
+}
+
 // RemoveSystemUID RemoveSystemUID
-func (s *SystemUIDManager) RemoveSystemUIDs(uids []string) error {
+func (s *SystemUIDManager) RemoveSystemUids(uids []string) error {
 	if len(uids) == 0 {
 		return nil
 	}
@@ -102,7 +112,13 @@ func (s *SystemUIDManager) RemoveSystemUIDs(uids []string) error {
 	return nil
 }
 
-func (s *SystemUIDManager) getOrRequestSystemUIDs() ([]string, error) {
+func (s *SystemUIDManager) RemoveSystemUidsFromCache(uids []string) {
+	for _, uid := range uids {
+		s.systemUIDs.Delete(uid)
+	}
+}
+
+func (s *SystemUIDManager) getOrRequestSystemUids() ([]string, error) {
 
 	var slotId uint32 = 0
 	nodeInfo, err := s.s.cluster.SlotLeaderNodeInfo(slotId)
