@@ -352,6 +352,7 @@ func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId in
 		SendPacket:   sendPacket,
 		MessageId:    messageId,
 		IsEncrypt:    isEncrypt,
+		ReasonCode:   wkproto.ReasonSuccess, // 初始状态为成功
 	}
 
 	c.sub.step(c, &ChannelAction{
@@ -410,25 +411,28 @@ func (c *channel) resetIndex() {
 
 }
 
-func (c *channel) advance() {
-	c.sub.advance()
-}
+// func (c *channel) advance() {
+// 	c.sub.advance()
+// }
 
-// 是否是缓存中的订阅者
-func (c *channel) isCacheSubscriber(uid string) bool {
-	_, ok := c.cacheSubscribers[uid]
-	return ok
-}
+// // 是否是缓存中的订阅者
+// func (c *channel) isCacheSubscriber(uid string) bool {
+// 	_, ok := c.cacheSubscribers[uid]
+// 	return ok
+// }
 
-// 设置为缓存订阅者
-func (c *channel) setCacheSubscriber(uid string) {
-	c.cacheSubscribers[uid] = struct{}{}
-}
+// // 设置为缓存订阅者
+// func (c *channel) setCacheSubscriber(uid string) {
+// 	c.cacheSubscribers[uid] = struct{}{}
+// }
 
 type ready struct {
 	actions []*ChannelAction
 }
 
+// makeReceiverTag 创建接收者标签
+// 该方法用于为频道创建一个接收者标签，用于标识频道的订阅者及其所在的节点
+// 返回创建的标签和可能的错误
 func (c *channel) makeReceiverTag() (*tag, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -437,24 +441,27 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 
 	var subscribers []string
 	var err error
-	if c.channelType == wkproto.ChannelTypePerson {
-		if c.r.s.opts.IsFakeChannel(c.channelId) { // fake个人频道
 
+	// 根据频道类型获取订阅者列表
+	if c.channelType == wkproto.ChannelTypePerson {
+		if c.r.s.opts.IsFakeChannel(c.channelId) { // 处理假个人频道
 			if c.r.s.opts.IsCmdChannel(c.channelId) {
+				// 处理命令频道
 				orginChannelId := c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
 				personSubscribers := strings.Split(orginChannelId, "@")
 				for _, personSubscriber := range personSubscribers {
-					if personSubscriber == c.r.opts.SystemUID { // 系统账号忽略
+					if personSubscriber == c.r.opts.SystemUID { // 忽略系统账号
 						continue
 					}
 					subscribers = append(subscribers, personSubscriber)
 				}
 			} else {
+				// 处理普通假个人频道
 				subscribers = strings.Split(c.channelId, "@")
 			}
-
 		}
 	} else {
+		// 处理非个人频道
 		realChannelId := c.channelId
 		if c.r.s.opts.IsCmdChannel(c.channelId) {
 			realChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
@@ -465,9 +472,10 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 		}
 	}
 
+	// 将订阅者按所在节点分组
 	var nodeUserList = make([]*nodeUsers, 0, 20)
 	for _, subscriber := range subscribers {
-		leaderInfo, err := c.r.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson) // 获取频道的槽领导节点
+		leaderInfo, err := c.r.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson)
 		if err != nil {
 			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return nil, err
@@ -487,13 +495,17 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 			})
 		}
 	}
+
+	// 释放旧的接收者标签（如果存在）
 	if c.receiverTagKey.Load() != "" {
-		// 释放掉之前的tag
 		c.r.s.tagManager.releaseReceiverTag(c.receiverTagKey.Load())
 	}
+
+	// 创建新的接收者标签
 	receiverTagKey := wkutil.GenUUID()
 	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList)
-	newTag.ref.Inc() // tag引用计数加1
+	newTag.ref.Inc() // 增加标签引用计数
 	c.receiverTagKey.Store(receiverTagKey)
+
 	return newTag, nil
 }

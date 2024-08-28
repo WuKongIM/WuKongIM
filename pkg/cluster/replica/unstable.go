@@ -93,7 +93,7 @@ func (u *unstable) truncateAndAppend(logs []Log) {
 		u.logs = logs
 		u.offset = fromIndex
 		u.offsetInProgress = u.offset
-		u.Panic("truncateAndAppend.....1")
+		// u.Panic("truncateAndAppend.....1")
 
 	default:
 		// Truncate to the first conflicting index, then append.

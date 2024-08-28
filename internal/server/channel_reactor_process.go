@@ -102,6 +102,9 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 			r.Debug("msg is not encrypt or fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
 			continue
 		}
+
+		r.Debug("decrypt payload", zap.Int64("messageId", msg.MessageId), zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
+
 		var err error
 		var decryptPayload []byte
 		conn := r.s.userReactor.getConnContextById(msg.FromUid, msg.FromConnId)
@@ -194,6 +197,12 @@ func (r *channelReactor) processForward(reqs []*forwardReq) {
 				err = errors.New("leader change")
 			}
 		} else {
+			if len(req.messages) == 1 {
+				r.Debug("forward to leader", zap.Int64("messageId", req.messages[0].MessageId), zap.Uint64("leaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+
+			} else {
+				r.Debug("forward to leader", zap.Uint64("leaderId", req.leaderId), zap.Int("msgCount", len(req.messages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			}
 			newLeaderId, err = r.handleForward(req)
 			if err != nil {
 				r.Warn("handleForward error", zap.Error(err))
@@ -328,10 +337,17 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 			continue
 		}
 
+		if msg.ReasonCode != wkproto.ReasonSuccess {
+			r.Debug("msg reasonCode is not success, no permission check", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			continue
+		}
+
 		if _, ok := fromUidMap[msg.FromUid]; ok { // 已经判断过权限
 			req.messages[i].ReasonCode = fromUidMap[msg.FromUid]
 			continue
 		}
+
+		r.Debug("permission check", zap.Int64("messageId", msg.MessageId), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 
 		reasonCode, err := r.hasPermission(req.ch.channelId, req.ch.channelType, msg.FromUid, req.ch)
 		if err != nil {
@@ -340,6 +356,11 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 			fromUidMap[msg.FromUid] = wkproto.ReasonSystemError
 			continue
 		}
+
+		if reasonCode != wkproto.ReasonSuccess {
+			r.Debug("permission check failed", zap.Int64("messageId", msg.MessageId), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType), zap.String("reasonCode", reasonCode.String()))
+		}
+
 		req.messages[i].ReasonCode = reasonCode
 		fromUidMap[msg.FromUid] = reasonCode
 	}
@@ -360,6 +381,13 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 		return wkproto.ReasonSuccess, nil
 	}
 
+	// 如果发送者是系统账号，则直接通过
+	systemAccount := r.s.systemUIDManager.SystemUID(fromUid)
+	if systemAccount {
+		return wkproto.ReasonSuccess, nil
+	}
+
+	// 如果是个人频道，则请求接受者是否接受发送者的消息
 	if channelType == wkproto.ChannelTypePerson {
 		uid1, uid2 := GetFromUIDAndToUIDWith(channelId)
 		toUid := ""
@@ -368,16 +396,18 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 		} else {
 			toUid = uid1
 		}
+		// 如果接收者是系统账号，则直接通过
+		systemAccount = r.s.systemUIDManager.SystemUID(toUid)
+		if systemAccount {
+			return wkproto.ReasonSuccess, nil
+		}
+
+		// 请求个人频道是否允许发送
 		reasonCode, err := r.requestAllowSend(fromUid, toUid)
 		if err != nil {
 			return wkproto.ReasonSystemError, err
 		}
 		return reasonCode, nil
-	}
-
-	systemAccount := r.s.systemUIDManager.SystemUID(fromUid)
-	if systemAccount { // 如果是系统账号，则直接通过
-		return wkproto.ReasonSuccess, nil
 	}
 
 	channelInfo := ch.info
@@ -606,32 +636,39 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 			}
 		}
 
-		// 存储消息
-		results, err := r.s.store.AppendMessages(r.s.ctx, req.ch.channelId, req.ch.channelType, sotreMessages)
-		if err != nil {
-			r.Error("AppendMessages error", zap.Error(err))
-		}
-		if len(results) > 0 {
-			for _, result := range results {
-				msgLen := len(req.messages)
-				logId := int64(result.LogId())
-				logIndex := uint32(result.LogIndex())
-				for i := 0; i < msgLen; i++ {
-					msg := req.messages[i]
-					if msg.MessageId == logId {
-						msg.MessageId = logId
-						msg.MessageSeq = logIndex
-						req.messages[i] = msg
-						break
+		reason := ReasonSuccess
+		if len(sotreMessages) > 0 {
+			// 存储消息
+			if len(sotreMessages) == 1 {
+				r.Debug("store message", zap.Uint64("messageId", uint64(sotreMessages[0].MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			} else {
+				r.Debug("store messages", zap.Int("msgCount", len(sotreMessages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			}
+			results, err := r.s.store.AppendMessages(r.s.ctx, req.ch.channelId, req.ch.channelType, sotreMessages)
+			if err != nil {
+				r.Error("AppendMessages error", zap.Error(err))
+			}
+			if err != nil {
+				reason = ReasonError
+			} else {
+				reason = ReasonSuccess
+			}
+			if len(results) > 0 {
+				for _, result := range results {
+					msgLen := len(req.messages)
+					logId := int64(result.LogId())
+					logIndex := uint32(result.LogIndex())
+					for i := 0; i < msgLen; i++ {
+						msg := req.messages[i]
+						if msg.MessageId == logId {
+							msg.MessageId = logId
+							msg.MessageSeq = logIndex
+							req.messages[i] = msg
+							break
+						}
 					}
 				}
 			}
-		}
-		var reason Reason
-		if err != nil {
-			reason = ReasonError
-		} else {
-			reason = ReasonSuccess
 		}
 		// 返回存储结果
 		r.respStoreResult(req, reason)
@@ -823,10 +860,33 @@ func (r *channelReactor) processDeliverLoop() {
 func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 
 	for _, req := range reqs {
-		r.handleDeliver(req)
+
+		lastIndex := req.messages[len(req.messages)-1].Index // 最后一条消息的index
+
+		deliverMessages := make([]ReactorChannelMessage, 0, len(req.messages))
+		for _, msg := range req.messages {
+			if msg.ReasonCode != wkproto.ReasonSuccess {
+				r.Debug("msg reasonCode is not success, no deliver", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+				continue
+			}
+			deliverMessages = append(deliverMessages, msg)
+		}
+
+		req.messages = deliverMessages
+
+		if len(deliverMessages) > 0 {
+			if len(deliverMessages) == 1 {
+				r.Debug("deliver message", zap.Uint64("messageId", uint64(req.messages[0].MessageId)), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+			} else {
+				r.Debug("deliver messages", zap.Int("msgCount", len(req.messages)), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+			}
+			// 投递消息
+			r.handleDeliver(req)
+		}
+
 		sub := r.reactorSub(req.ch.key)
 		reason := ReasonSuccess
-		lastIndex := req.messages[len(req.messages)-1].Index
+
 		sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionDeliverResp,

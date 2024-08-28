@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -14,6 +16,7 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // UserAPI 用户相关API
@@ -36,9 +39,12 @@ func (u *UserAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/user/token", u.updateToken)                  // 更新用户token
 	r.POST("/user/device_quit", u.deviceQuit)             // 强制设备退出
 	r.POST("/user/onlinestatus", u.getOnlineStatus)       // 获取用户在线状态
-	r.POST("/user/systemuids_add", u.systemUIDsAdd)       // 添加系统uid
-	r.POST("/user/systemuids_remove", u.systemUIDsRemove) // 移除系统uid
-	r.GET("/user/systemuids", u.getSystemUIDs)            // 获取系统uid
+	r.POST("/user/systemuids_add", u.systemUidsAdd)       // 添加系统uid
+	r.POST("/user/systemuids_remove", u.systemUidsRemove) // 移除系统uid
+	r.GET("/user/systemuids", u.getSystemUids)            // 获取系统uid
+
+	r.POST("/user/systemuids_add_to_cache", u.systemUidsAddToCache)           // 仅仅添加系统账号至缓存
+	r.POST("/user/systemuids_remove_from_cache", u.systemUidsRemoveFromCache) // 仅仅从缓存中移除系统账号
 
 }
 
@@ -314,7 +320,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 }
 
 // 添加系统uid
-func (u *UserAPI) systemUIDsAdd(c *wkhttp.Context) {
+func (u *UserAPI) systemUidsAdd(c *wkhttp.Context) {
 	var req struct {
 		UIDs []string `json:"uids"`
 	}
@@ -339,20 +345,77 @@ func (u *UserAPI) systemUIDsAdd(c *wkhttp.Context) {
 		return
 	}
 
+	// 将系统账号存储下来
 	if len(req.UIDs) > 0 {
-		err := u.s.systemUIDManager.AddSystemUIDs(req.UIDs)
+		err := u.s.systemUIDManager.AddSystemUids(req.UIDs)
 		if err != nil {
 			u.Error("添加系统账号失败！", zap.Error(err))
 			c.ResponseError(errors.New("添加系统账号失败！"))
 			return
 		}
 	}
+
+	// 将系统账号添加到各个节点的缓存内
+	nodes := u.s.clusterServer.GetConfig().Nodes
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), u.s.opts.Cluster.ReqTimeout)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+	for _, node := range nodes {
+		if node.Id == u.s.opts.Cluster.NodeId {
+			continue
+		}
+		requestGroup.Go(func(n *pb.Node) func() error {
+			return func() error {
+				return u.requestSystemUidsAddToCache(n, req.UIDs)
+			}
+		}(node))
+	}
+
+	err = requestGroup.Wait()
+	if err != nil {
+		u.Error("添加系统账号到缓存失败！", zap.Error(err))
+		c.ResponseError(errors.New("添加系统账号到缓存失败！"))
+		return
+	}
+
 	c.ResponseOK()
 
 }
 
+func (u *UserAPI) requestSystemUidsAddToCache(nodeInfo *pb.Node, uids []string) error {
+	reqURL := fmt.Sprintf("%s/user/systemuids_add_to_cache", nodeInfo.ApiServerAddr)
+	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(map[string]interface{}{
+		"uids": uids,
+	})), nil)
+	if err != nil {
+		u.Error("添加系统账号到缓存失败！", zap.Error(err), zap.String("reqURL", reqURL))
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("添加系统账号到缓存请求状态错误！[%d]", resp.StatusCode)
+	}
+	return nil
+}
+
+func (u *UserAPI) systemUidsAddToCache(c *wkhttp.Context) {
+	var req struct {
+		UIDs []string `json:"uids"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	if len(req.UIDs) > 0 {
+		u.s.systemUIDManager.AddSystemUidsToCache(req.UIDs)
+	}
+	c.ResponseOK()
+}
+
 // 移除系统uid
-func (u *UserAPI) systemUIDsRemove(c *wkhttp.Context) {
+func (u *UserAPI) systemUidsRemove(c *wkhttp.Context) {
 	var req struct {
 		UIDs []string `json:"uids"`
 	}
@@ -377,17 +440,73 @@ func (u *UserAPI) systemUIDsRemove(c *wkhttp.Context) {
 	}
 
 	if len(req.UIDs) > 0 {
-		err := u.s.systemUIDManager.RemoveSystemUIDs(req.UIDs)
+		err := u.s.systemUIDManager.RemoveSystemUids(req.UIDs)
 		if err != nil {
 			u.Error("移除系统账号失败！", zap.Error(err))
 			c.ResponseError(errors.New("移除系统账号失败！"))
 			return
 		}
 	}
+
+	// 将系统账号从各个节点的缓存内移除
+	nodes := u.s.clusterServer.GetConfig().Nodes
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), u.s.opts.Cluster.ReqTimeout)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+	for _, node := range nodes {
+		if node.Id == u.s.opts.Cluster.NodeId {
+			continue
+		}
+		requestGroup.Go(func(n *pb.Node) func() error {
+			return func() error {
+				return u.requestSystemUidsRemoveFromCache(n, req.UIDs)
+			}
+		}(node))
+	}
+
+	err = requestGroup.Wait()
+	if err != nil {
+		u.Error("移除系统账号从缓存失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除系统账号从缓存失败！"))
+		return
+	}
+
 	c.ResponseOK()
 }
 
-func (u *UserAPI) getSystemUIDs(c *wkhttp.Context) {
+func (u *UserAPI) requestSystemUidsRemoveFromCache(nodeInfo *pb.Node, uids []string) error {
+	reqURL := fmt.Sprintf("%s/user/systemuids_remove_from_cache", nodeInfo.ApiServerAddr)
+	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(map[string]interface{}{
+		"uids": uids,
+	})), nil)
+	if err != nil {
+		u.Error("移除系统账号从缓存失败！", zap.Error(err), zap.String("reqURL", reqURL))
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("移除系统账号从缓存请求状态错误！[%d]", resp.StatusCode)
+	}
+	return nil
+}
+
+func (u *UserAPI) systemUidsRemoveFromCache(c *wkhttp.Context) {
+	var req struct {
+		UIDs []string `json:"uids"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	if len(req.UIDs) > 0 {
+		u.s.systemUIDManager.RemoveSystemUidsFromCache(req.UIDs)
+	}
+	c.ResponseOK()
+}
+
+func (u *UserAPI) getSystemUids(c *wkhttp.Context) {
 
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
 	nodeInfo, err := u.s.cluster.SlotLeaderNodeInfo(slotId)

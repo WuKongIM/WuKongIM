@@ -55,13 +55,11 @@ func (u *userReactorSub) loop() {
 			u.ticks()
 		case <-u.advanceC:
 		case req := <-u.stepUserC:
-			fmt.Println("req:", req.uid, req.action.ActionType.String())
 			userHanlder := u.getUser(req.uid)
 			if userHanlder != nil {
 				if req.action.UniqueNo == "" {
 					req.action.UniqueNo = userHanlder.uniqueNo
 				}
-				fmt.Println("step req:", req.uid, req.action.ActionType.String())
 				err := userHanlder.step(req.action)
 				if req.waitC != nil {
 					req.waitC <- err

@@ -40,6 +40,7 @@ func (r *ReactorChannelMessage) Marshal() ([]byte, error) {
 	enc.WriteInt64(r.MessageId)
 	enc.WriteUint8(wkutil.BoolToUint8(r.IsEncrypt))
 	enc.WriteUint8(wkutil.BoolToUint8(r.IsSystem))
+	enc.WriteUint8(uint8(r.ReasonCode))
 
 	var packetData []byte
 	var err error
@@ -87,6 +88,12 @@ func (r *ReactorChannelMessage) Unmarshal(data []byte) error {
 		return err
 	}
 	r.IsSystem = wkutil.Uint8ToBool(isSystem)
+
+	var reasonCode uint8
+	if reasonCode, err = dec.Uint8(); err != nil {
+		return err
+	}
+	r.ReasonCode = wkproto.ReasonCode(reasonCode)
 
 	var packetData []byte
 	if packetData, err = dec.Binary(); err != nil {
