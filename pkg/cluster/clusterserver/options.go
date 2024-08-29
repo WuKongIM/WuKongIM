@@ -103,7 +103,7 @@ func NewOptions(opt ...Option) *Options {
 		DataDir:                    "clusterdata",
 		ReqTimeout:                 10 * time.Second,
 		ProposeTimeout:             10 * time.Second,
-		SendQueueLength:            1024 * 1024,
+		SendQueueLength:            1024 * 10,
 		MaxMessageBatchSize:        64 * 1024 * 1024, // 64M
 		ReceiveQueueLength:         1024,
 		LazyFreeCycle:              1,
