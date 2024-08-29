@@ -40,9 +40,9 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		opts:        mr.opts,
 		handlers:    newHandlerList(),
 		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
-		tmpHandlers: make([]*handler, 0, 10000),
+		tmpHandlers: make([]*handler, 0, 1000),
 		avdanceC:    make(chan struct{}, 1),
-		stepC:       make(chan stepReq, 1024*10),
+		stepC:       make(chan stepReq, 1024),
 		proposeC:    make(chan proposeReq, 1024),
 	}
 }
