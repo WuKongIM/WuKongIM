@@ -9,6 +9,7 @@ type Options struct {
 	EnableCost   bool
 	ShardNum     int               // 数据库分区数量，一但设置就不能修改
 	IsCmdChannel func(string) bool // 是否是cmd频道
+	MemTableSize int
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -18,6 +19,7 @@ func NewOptions(opt ...Option) *Options {
 		SlotCount:         128,
 		EnableCost:        true,
 		ShardNum:          16,
+		MemTableSize:      16 * 1024 * 1024,
 	}
 	for _, f := range opt {
 		f(o)

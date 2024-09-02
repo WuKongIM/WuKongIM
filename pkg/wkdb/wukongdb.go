@@ -80,7 +80,7 @@ func (wk *wukongDB) defaultPebbleOptions() *pebble.Options {
 		Levels:             lopts,
 		FormatMajorVersion: pebble.FormatNewest,
 		// 控制写缓冲区的大小。较大的写缓冲区可以减少磁盘写入次数，但会占用更多内存。
-		MemTableSize: 64 * 1024 * 1024,
+		MemTableSize: wk.opts.MemTableSize,
 		// 当队列中的MemTables的大小超过 MemTableStopWritesThreshold*MemTableSize 时，将停止写入，
 		// 直到被刷到磁盘，这个值不能小于2
 		MemTableStopWritesThreshold: 4,
