@@ -42,7 +42,17 @@ func NewStore(opts *Options) *Store {
 		s.Panic("create data dir err", zap.Error(err))
 	}
 
-	s.wdb = wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithIsCmdChannel(opts.IsCmdChannel), wkdb.WithShardNum(opts.Db.ShardNum), wkdb.WithDir(opts.DataDir), wkdb.WithNodeId(opts.NodeID), wkdb.WithSlotCount(int(opts.SlotCount))))
+	s.wdb = wkdb.NewWukongDB(
+		wkdb.NewOptions(
+			wkdb.WithIsCmdChannel(opts.IsCmdChannel),
+			wkdb.WithShardNum(opts.Db.ShardNum),
+			wkdb.WithDir(opts.DataDir),
+			wkdb.WithNodeId(opts.NodeID),
+			wkdb.WithMemTableSize(opts.Db.MemTableSize),
+			wkdb.WithSlotCount(int(opts.SlotCount)),
+		),
+	)
+
 	s.messageShardLogStorage = NewMessageShardLogStorage(s.wdb)
 	return s
 }

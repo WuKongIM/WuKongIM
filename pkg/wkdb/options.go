@@ -70,3 +70,9 @@ func WithIsCmdChannel(f func(string) bool) Option {
 		o.IsCmdChannel = f
 	}
 }
+
+func WithMemTableSize(size int) Option {
+	return func(o *Options) {
+		o.MemTableSize = size
+	}
+}
