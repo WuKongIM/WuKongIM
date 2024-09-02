@@ -1,7 +1,11 @@
 package wkstore
 
 import (
+	"fmt"
+	"path/filepath"
+
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
@@ -40,6 +44,18 @@ func (s *slot) getTopic(topic string) *topic {
 	tc := newTopic(topic, s.num, s.cfg)
 	s.topicCache.Add(topic, tc)
 	return tc
+}
+
+func (s *slot) getAllTopics() ([]string, error) {
+	topicDir := filepath.Join(s.cfg.DataDir, fmt.Sprintf("%d", s.num), "topics")
+
+	// 获取topicDir目录下的所有文件
+	files, err := wkutil.ListDir(topicDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 // Close Close

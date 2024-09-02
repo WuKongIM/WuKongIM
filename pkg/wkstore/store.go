@@ -15,6 +15,14 @@ type Store interface {
 
 	// #################### channel ####################
 	GetChannel(channelID string, channelType uint8) (*ChannelInfo, error)
+
+	// 获取所有频道
+	GetAllChannels() ([]*ChannelInfo, error)
+
+	GetSubscribersAndAllowlistAndDenylist(channelId string, channelType uint8) ([]string, []string, []string, error)
+
+	GetAllTopicWithSlotId(slotId uint32) ([]string, error)
+
 	// AddOrUpdateChannel add or update channel
 	AddOrUpdateChannel(channelInfo *ChannelInfo) error
 	// ExistChannel return true if channel exist

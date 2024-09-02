@@ -108,4 +108,10 @@ func (s *APIServer) setRoutes() {
 	// 系统api
 	system := NewSystemAPI(s.s)
 	system.Route(s.r)
+
+	// 迁移api
+	if s.s.opts.MigrateApiOn {
+		migrate := NewMigrateAPI(s.s)
+		migrate.Route(s.r)
+	}
 }

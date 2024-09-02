@@ -140,6 +140,8 @@ type Options struct {
 
 	DeadlockCheck bool // 是否开启死锁检查
 	PprofOn       bool // 是否开启pprof
+
+	MigrateApiOn bool // 是否开启迁移api
 }
 
 func NewOptions() *Options {
@@ -408,6 +410,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	deadlock.Opts.Disable = !o.DeadlockCheck
 
 	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
+
+	o.MigrateApiOn = o.getBool("migrateApiOn", o.MigrateApiOn)
 
 }
 

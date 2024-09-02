@@ -185,3 +185,13 @@ func (f *FileStoreForMsg) getTopic(channelID string, channelType uint8) *topic {
 	}
 	return slot.getTopic(topic)
 }
+
+func (f *FileStoreForMsg) GetAllTopicWithSlotId(slotId uint32) ([]string, error) {
+	f.slotMapLock.RLock()
+	slot := f.slotMap[slotId]
+	f.slotMapLock.RUnlock()
+	if slot == nil {
+		return nil, fmt.Errorf("slot not found")
+	}
+	return slot.getAllTopics()
+}

@@ -113,6 +113,56 @@ func (f *FileStore) GetChannel(channelID string, channelType uint8) (*ChannelInf
 	return channelInfo, nil
 }
 
+func (f *FileStore) GetAllChannels() ([]*ChannelInfo, error) {
+	var channels []*ChannelInfo
+	err := f.db.View(func(t *bolt.Tx) error {
+		for i := 0; i < f.cfg.SlotNum; i++ {
+			bk, err := f.getSlotBucket(uint32(i), t)
+			if err != nil {
+				return err
+			}
+			c := bk.Cursor()
+			prefix := []byte(f.channelPrefix)
+			for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+				channelIDAndType := string(k[len(prefix):])
+				channelIDAndTypeArr := strings.Split(channelIDAndType, "-")
+				channelID := channelIDAndTypeArr[0]
+				channelType, _ := strconv.Atoi(channelIDAndTypeArr[1])
+
+				var data map[string]interface{}
+				err = wkutil.ReadJSONByByte(v, &data)
+				if err != nil {
+					return err
+				}
+
+				channelInfo := &ChannelInfo{}
+				channelInfo.ChannelID = channelID
+				channelInfo.ChannelType = uint8(channelType)
+				channelInfo.from(data)
+				channels = append(channels, channelInfo)
+			}
+		}
+		return nil
+	})
+	return channels, err
+}
+
+func (f *FileStore) GetSubscribersAndAllowlistAndDenylist(channelId string, channelType uint8) ([]string, []string, []string, error) {
+	subscribers, err := f.GetSubscribers(channelId, channelType)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	allowlist, err := f.GetAllowlist(channelId, channelType)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	denylist, err := f.GetDenylist(channelId, channelType)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return subscribers, allowlist, denylist, nil
+}
+
 func (f *FileStore) GetUserToken(uid string, deviceFlag uint8) (string, uint8, error) {
 	slotNum := f.slotNum(uid)
 	value, err := f.get(slotNum, []byte(f.getUserTokenKey(uid, deviceFlag)))
