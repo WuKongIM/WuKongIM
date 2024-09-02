@@ -214,6 +214,7 @@ type Options struct {
 	Db struct {
 		ShardNum     int // 频道db分片数量
 		SlotShardNum int // 槽db分片数量
+		MemTableSize int // MemTable大小
 	}
 
 	Auth auth.AuthConfig // 认证配置
@@ -431,9 +432,11 @@ func NewOptions(op ...Option) *Options {
 		Db: struct {
 			ShardNum     int
 			SlotShardNum int
+			MemTableSize int
 		}{
 			ShardNum:     16,
 			SlotShardNum: 16,
+			MemTableSize: 16 * 1024 * 1024,
 		},
 
 		Jwt: struct {
@@ -698,6 +701,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	// =================== db ===================
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)
 	o.Db.SlotShardNum = o.getInt("db.slotShardNum", o.Db.SlotShardNum)
+	o.Db.MemTableSize = o.getInt("db.memTableSize", o.Db.MemTableSize)
 
 	// =================== auth ===================
 	o.configureAuth()

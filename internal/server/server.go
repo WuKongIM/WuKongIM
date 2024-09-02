@@ -100,6 +100,7 @@ func New(opts *Options) *Server {
 	storeOpts.GetSlotId = s.getSlotId
 	storeOpts.IsCmdChannel = opts.IsCmdChannel
 	storeOpts.Db.ShardNum = s.opts.Db.ShardNum
+	storeOpts.Db.MemTableSize = s.opts.Db.MemTableSize
 	s.store = clusterstore.NewStore(storeOpts)
 
 	// 初始化tag管理
