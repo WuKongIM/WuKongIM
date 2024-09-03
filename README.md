@@ -18,7 +18,7 @@
 <!-- <li><strong>QQ群</strong>: <a href="#">750224611</a></li> -->
 <!-- <li><strong>微信</strong>: <a href="#">wukongimgo（备注进群）</a></li> -->
 <li><strong>官网</strong>: https://githubim.com</li>
-<li><strong>通讯协议</strong>: <a href="https://githubim.com/guide/proto.html">WuKongIM协议</a></li>
+<li><strong>通讯协议</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM协议</a></li>
 <li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>文档</strong>: https://githubim.com</li>
 </ul>
