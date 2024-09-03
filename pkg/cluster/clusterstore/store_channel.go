@@ -6,6 +6,11 @@ import (
 
 // AddSubscribers 添加订阅者
 func (s *Store) AddSubscribers(channelId string, channelType uint8, subscribers []string) error {
+
+	if len(subscribers) == 0 {
+		return nil
+	}
+
 	data := EncodeSubscribers(channelId, channelType, subscribers)
 	cmd := NewCMD(CMDAddSubscribers, data)
 	cmdData, err := cmd.Marshal()
@@ -23,6 +28,11 @@ func (s *Store) ExistSubscriber(channelId string, channelType uint8, uid string)
 
 // RemoveSubscribers 移除订阅者
 func (s *Store) RemoveSubscribers(channelId string, channelType uint8, subscribers []string) error {
+
+	if len(subscribers) == 0 {
+		return nil
+	}
+
 	data := EncodeSubscribers(channelId, channelType, subscribers)
 	cmd := NewCMD(CMDRemoveSubscribers, data)
 	cmdData, err := cmd.Marshal()
@@ -87,6 +97,11 @@ func (s *Store) ExistChannel(channelId string, channelType uint8) (bool, error) 
 }
 
 func (s *Store) AddDenylist(channelId string, channelType uint8, uids []string) error {
+
+	if len(uids) == 0 {
+		return nil
+	}
+
 	data := EncodeSubscribers(channelId, channelType, uids)
 	cmd := NewCMD(CMDAddDenylist, data)
 	cmdData, err := cmd.Marshal()
@@ -120,6 +135,11 @@ func (s *Store) RemoveAllDenylist(channelId string, channelType uint8) error {
 }
 
 func (s *Store) RemoveDenylist(channelId string, channelType uint8, uids []string) error {
+
+	if len(uids) == 0 {
+		return nil
+	}
+
 	data := EncodeSubscribers(channelId, channelType, uids)
 	cmd := NewCMD(CMDRemoveDenylist, data)
 	cmdData, err := cmd.Marshal()
@@ -132,6 +152,11 @@ func (s *Store) RemoveDenylist(channelId string, channelType uint8, uids []strin
 }
 
 func (s *Store) AddAllowlist(channelId string, channelType uint8, uids []string) error {
+
+	if len(uids) == 0 {
+		return nil
+	}
+
 	data := EncodeSubscribers(channelId, channelType, uids)
 	cmd := NewCMD(CMDAddAllowlist, data)
 	cmdData, err := cmd.Marshal()
@@ -164,6 +189,11 @@ func (s *Store) RemoveAllAllowlist(channelId string, channelType uint8) error {
 }
 
 func (s *Store) RemoveAllowlist(channelId string, channelType uint8, uids []string) error {
+
+	if len(uids) == 0 {
+		return nil
+	}
+
 	data := EncodeSubscribers(channelId, channelType, uids)
 	cmd := NewCMD(CMDRemoveAllowlist, data)
 	cmdData, err := cmd.Marshal()

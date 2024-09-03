@@ -15,6 +15,7 @@ import (
 	"github.com/judwhite/go-svc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	_ "go.uber.org/automaxprocs/maxprocs"
 	"go.uber.org/zap"
 )
 

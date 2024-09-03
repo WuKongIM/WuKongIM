@@ -224,7 +224,8 @@ type Options struct {
 		Expire time.Duration // jwt expire
 		Issuer string        // jwt 发行者名字
 	}
-	PprofOn bool // 是否开启pprof
+	PprofOn  bool   // 是否开启pprof
+	OldV1Api string //旧v1版本的api地址，如果不为空则开启数据迁移任务，将v1的数据迁移到v2
 }
 
 func NewOptions(op ...Option) *Options {
@@ -707,9 +708,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.configureAuth()
 	o.DeadlockCheck = o.getBool("deadlockCheck", o.DeadlockCheck)
 
+	// =================== other ===================
 	deadlock.Opts.Disable = !o.DeadlockCheck
-
 	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
+	o.OldV1Api = o.getString("oldV1Api", o.OldV1Api)
 
 }
 
