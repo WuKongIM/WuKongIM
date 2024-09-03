@@ -15,7 +15,7 @@
 <ul>
 <!-- <li><strong>QQ group</strong>: <a href="#">496193831</a></li> -->
 <li><strong>Website</strong>: https://githubim.com</li>
-<li><strong>Protocol</strong>: <a href="https://githubim.com/guide/proto.html">WuKongIM Protocol</a></li>
+<li><strong>Protocol</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM Protocol</a></li>
 <li><strong>Issues</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>Docs</strong>: https://githubim.com</li>
 </ul>
