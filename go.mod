@@ -92,6 +92,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.24.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
+	go.uber.org/automaxprocs v1.5.3 // indirect
 	golang.org/x/exp v0.0.0-20200513190911-00229845015e // indirect
 	golang.org/x/net v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect
