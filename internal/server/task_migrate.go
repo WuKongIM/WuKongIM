@@ -35,7 +35,7 @@ func NewMigrateTask(s *Server) *MigrateTask {
 		s:              s,
 		stopper:        syncutil.NewStopper(),
 		Log:            wklog.NewWKLog("MigrateTask"),
-		goroutineCount: 10,
+		goroutineCount: 40,
 	}
 }
 
@@ -98,6 +98,66 @@ func (m *MigrateTask) GetMigrateResult() MigrateResult {
 		LastErr:  m.lastErr,
 		TryCount: m.currentTryCount,
 	}
+}
+
+// 消息导入
+func (m *MigrateTask) stepMessageImport() {
+	m.Info("Start importing message data")
+
+	m.Info("Fetch topics from old version")
+	var slotNum uint32 = 128
+	for i := uint32(0); i < slotNum; i++ {
+		topics, err := m.getTopicsFromOldVersion(i)
+		if err != nil {
+			m.Error("Fetch topics from old version failed", zap.Error(err), zap.Uint32("slot", i))
+			m.lastErr = err
+			return
+		}
+
+		m.Info("Import message to new version", zap.Uint32("slot", i), zap.Int("topicCount", len(topics)))
+
+		timeoutCtx, cancel := context.WithTimeout(m.s.ctx, time.Minute*20)
+		defer cancel()
+		requestGroup, _ := errgroup.WithContext(timeoutCtx)
+		requestGroup.SetLimit(m.goroutineCount) // 同时应用的并发数
+
+		atomicCount := atomic.NewInt32(0)
+
+		for _, topic := range topics {
+			requestGroup.Go(func(tp string) func() error {
+				return func() error {
+					err = m.importMessage(tp)
+					if err != nil {
+						m.Error("Import message failed", zap.Error(err))
+						m.lastErr = err
+						return err
+					}
+					fmt.Print("#")
+					atomicCount.Add(1)
+
+					if atomicCount.Load()%100 == 0 {
+						fmt.Println("")
+						atomicCount.Store(0)
+					}
+					return nil
+
+				}
+			}(topic))
+		}
+		err = requestGroup.Wait()
+		if err != nil {
+			m.Error("Import message failed", zap.Error(err), zap.Uint32("slot", i), zap.Int("topicCount", len(topics)))
+			m.lastErr = err
+			return
+		}
+	}
+
+	m.Info("Message data import completed")
+
+	m.stepFnc = m.stepUserImport
+	m.currentStep = MigrateStepUser
+	m.currentTryCount = 0
+	m.lastErr = nil
 }
 
 // 用户导入
@@ -214,65 +274,7 @@ func (m *MigrateTask) stepChannelImport() {
 	}
 
 	m.Info("Channel data import completed")
-	m.stepFnc = m.stepMessageImport
-	m.currentStep = MigrateStepMessage
-	m.currentTryCount = 0
-	m.lastErr = nil
-}
 
-// 消息导入
-func (m *MigrateTask) stepMessageImport() {
-	m.Info("Start importing message data")
-
-	m.Info("Fetch topics from old version")
-	var slotNum uint32 = 128
-	for i := uint32(0); i < slotNum; i++ {
-		topics, err := m.getTopicsFromOldVersion(i)
-		if err != nil {
-			m.Error("Fetch topics from old version failed", zap.Error(err), zap.Uint32("slot", i))
-			m.lastErr = err
-			return
-		}
-
-		m.Info("Import message to new version", zap.Uint32("slot", i), zap.Int("topicCount", len(topics)))
-
-		timeoutCtx, cancel := context.WithTimeout(m.s.ctx, time.Minute*20)
-		defer cancel()
-		requestGroup, _ := errgroup.WithContext(timeoutCtx)
-		requestGroup.SetLimit(m.goroutineCount) // 同时应用的并发数
-
-		atomicCount := atomic.NewInt32(0)
-
-		for _, topic := range topics {
-			requestGroup.Go(func(tp string) func() error {
-				return func() error {
-					err = m.importMessage(tp)
-					if err != nil {
-						m.Error("Import message failed", zap.Error(err))
-						m.lastErr = err
-						return err
-					}
-					fmt.Print("#")
-					atomicCount.Add(1)
-
-					if atomicCount.Load()%100 == 0 {
-						fmt.Println("")
-						atomicCount.Store(0)
-					}
-					return nil
-
-				}
-			}(topic))
-		}
-		err = requestGroup.Wait()
-		if err != nil {
-			m.Error("Import message failed", zap.Error(err), zap.Uint32("slot", i), zap.Int("topicCount", len(topics)))
-			m.lastErr = err
-			return
-		}
-	}
-
-	m.Info("Message data import completed")
 	m.stop = true
 	m.currentTryCount = 0
 	m.lastErr = nil
@@ -405,6 +407,7 @@ func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 	}
 
 	// add channel basic info
+	m.Info("add channel", zap.String("channelId", channel.ChannelID), zap.Uint8("channelType", channel.ChannelType))
 	err = m.s.store.AddOrUpdateChannel(wkdb.ChannelInfo{
 		ChannelId:   channel.ChannelID,
 		ChannelType: channel.ChannelType,
@@ -445,8 +448,6 @@ func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 
 func (m *MigrateTask) importMessage(topic string) error {
 
-	m.Info("Import message", zap.String("topic", topic))
-
 	if topic == "" || !strings.Contains(topic, "-") {
 		m.Info("Invalid topic", zap.String("topic", topic))
 		return nil
@@ -456,6 +457,8 @@ func (m *MigrateTask) importMessage(topic string) error {
 		m.Info("Invalid topic", zap.String("topic", topic))
 		return nil
 	}
+
+	m.Info("Import message", zap.String("topic", topic))
 
 	channelType := wkutil.ParseUint8(topicSplits[0])
 	channelId := topicSplits[1]
@@ -477,23 +480,30 @@ func (m *MigrateTask) importMessage(topic string) error {
 		if len(resp.Messages) == 0 {
 			break
 		}
-		lastMsg := resp.Messages[len(resp.Messages)-1]
-		startMessageSeq = uint32(lastMsg.MessageSeq + 1)
 
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
 		messages := make([]wkdb.Message, 0, len(resp.Messages))
-		for _, m := range resp.Messages {
-			messages = append(messages, newDBMessage(m))
+		for _, msg := range resp.Messages {
+			if msg.FromUID == "" {
+				msg.FromUID = m.s.opts.SystemUID
+			}
+			if msg.ChannelType == wkproto.ChannelTypePerson {
+				msg.ChannelID = GetFakeChannelIDWith(msg.FromUID, msg.ChannelID)
+			}
+			messages = append(messages, newDBMessage(msg))
 		}
 
 		// m.Info("append messages", zap.Int("messageCount", len(messages)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		// append messages
 		_, err = m.s.store.AppendMessages(timeoutCtx, channelId, channelType, messages)
 		if err != nil {
-			return err
+			m.Error("Append messages failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			continue
 		}
+		lastMsg := resp.Messages[len(resp.Messages)-1]
+		startMessageSeq = uint32(lastMsg.MessageSeq + 1)
 	}
 
 	return nil

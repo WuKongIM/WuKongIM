@@ -713,7 +713,7 @@ func (s *Server) requestChannelProposeMessage(to uint64, channelId string, chann
 	})
 	defer cancel()
 	if err != nil {
-		s.Error("requestChannelProposeMessage failed", zap.Error(err))
+		s.Error("requestChannelProposeMessage failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Int("logs", len(logs)))
 		return nil, err
 	}
 	return resp, nil

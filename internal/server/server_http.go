@@ -80,6 +80,10 @@ func (s *APIServer) setRoutes() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	s.r.GET("/migrate/result", func(c *wkhttp.Context) {
+		c.JSON(http.StatusOK, s.s.migrateTask.GetMigrateResult())
+	})
+
 	connz := NewConnzAPI(s.s)
 	connz.Route(s.r)
 
