@@ -216,14 +216,14 @@ func (wk *wukongDB) writeAllowlist(channelId string, channelType uint8, id uint6
 		err error
 	)
 	// uid
-	if err = w.Set(key.NewAllowlistColumnKey(channelId, channelType, id, key.TableAllowlist.Column.Uid), []byte(uid), wk.sync); err != nil {
+	if err = w.Set(key.NewAllowlistColumnKey(channelId, channelType, id, key.TableAllowlist.Column.Uid), []byte(uid), wk.noSync); err != nil {
 		return err
 	}
 
 	// uid index
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, id)
-	if err = w.Set(key.NewAllowlistIndexUidKey(channelId, channelType, uid), idBytes, wk.sync); err != nil {
+	if err = w.Set(key.NewAllowlistIndexUidKey(channelId, channelType, uid), idBytes, wk.noSync); err != nil {
 		return err
 	}
 

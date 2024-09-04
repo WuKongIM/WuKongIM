@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -11,7 +13,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type MigrateTask struct {
@@ -19,33 +23,49 @@ type MigrateTask struct {
 	stopper *syncutil.Stopper
 	stepFnc func()
 	wklog.Log
+	stop            bool
+	goroutineCount  int
+	currentStep     MigrateStep
+	currentTryCount int
+	lastErr         error
 }
 
 func NewMigrateTask(s *Server) *MigrateTask {
 	return &MigrateTask{
-		s:       s,
-		stopper: syncutil.NewStopper(),
-		Log:     wklog.NewWKLog("MigrateTask"),
+		s:              s,
+		stopper:        syncutil.NewStopper(),
+		Log:            wklog.NewWKLog("MigrateTask"),
+		goroutineCount: 10,
 	}
 }
 
-func (m *MigrateTask) Start() error {
-	m.stepFnc = m.stepUserImport
-	m.stopper.RunWorker(m.loop)
+func (m *MigrateTask) Run() {
+	if m.IsMigrated() {
+		m.Info("Already migrated")
+		return
+	}
+	switch m.s.opts.MigrateStartStep {
+	case MigrateStepUser:
+		m.stepFnc = m.stepUserImport
+	case MigrateStepChannel:
+		m.stepFnc = m.stepChannelImport
+	case MigrateStepMessage:
+		m.stepFnc = m.stepMessageImport
+	default:
+		m.stepFnc = m.stepMessageImport
+	}
 
-	return nil
+	m.currentStep = m.s.opts.MigrateStartStep
+
+	m.run()
 }
 
-func (m *MigrateTask) Stop() {
-	m.stopper.Stop()
-}
-
-func (m *MigrateTask) loop() {
+func (m *MigrateTask) run() {
 
 	tk := time.NewTicker(5 * time.Second)
 
-	for {
-
+	for !m.stop {
+		m.currentTryCount++
 		m.stepFnc()
 
 		select {
@@ -56,29 +76,88 @@ func (m *MigrateTask) loop() {
 	}
 }
 
+// 是否已迁移
+func (m *MigrateTask) IsMigrated() bool {
+	return wkutil.FileExists(path.Join(m.s.opts.DataDir, "migrated"))
+}
+
+func (m *MigrateTask) GetMigrateResult() MigrateResult {
+
+	status := "running"
+	if m.IsMigrated() {
+		status = "migrated"
+	} else {
+		if m.stop {
+			status = "completed"
+		}
+	}
+
+	return MigrateResult{
+		Status:   status,
+		Step:     string(m.currentStep),
+		LastErr:  m.lastErr,
+		TryCount: m.currentTryCount,
+	}
+}
+
 // 用户导入
 func (m *MigrateTask) stepUserImport() {
+
 	m.Info("Start importing user data")
 
 	m.Info("Fetch user data from old version")
 	users, err := m.getUserFromOldVersion()
 	if err != nil {
 		m.Error("Fetch user data from old version failed", zap.Error(err))
+		m.lastErr = err
 		return
 	}
 
-	m.Info("Import user data to new version")
+	m.Info("Import user data to new version", zap.Int("userCount", len(users)))
+
+	timeoutCtx, cancel := context.WithTimeout(m.s.ctx, time.Minute*20)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+	requestGroup.SetLimit(m.goroutineCount) // 同时应用的并发数
+
+	atomicCount := atomic.NewInt32(0)
+
 	for _, user := range users {
-		err = m.importUser(user)
-		if err != nil {
-			m.Error("Import user data failed", zap.Error(err))
-			return
-		}
+
+		requestGroup.Go(func(u *mgUserResp) func() error {
+			return func() error {
+				err := m.importUser(u)
+				if err != nil {
+					m.Error("Import user data failed", zap.Error(err), zap.String("uid", u.Uid))
+					m.lastErr = err
+					return err
+				}
+				fmt.Print("#")
+				atomicCount.Add(1)
+
+				if atomicCount.Load()%100 == 0 {
+					fmt.Println("")
+					atomicCount.Store(0)
+				}
+				return nil
+
+			}
+		}(user))
+	}
+
+	err = requestGroup.Wait()
+	if err != nil {
+		m.Error("Import user data failed", zap.Error(err))
+		m.lastErr = err
+		return
 	}
 
 	m.Info("User data import completed")
 
 	m.stepFnc = m.stepChannelImport
+	m.currentStep = MigrateStepChannel
+	m.currentTryCount = 0
+	m.lastErr = nil
 
 }
 
@@ -91,20 +170,54 @@ func (m *MigrateTask) stepChannelImport() {
 	channels, err := m.getChannelFromOldVersion()
 	if err != nil {
 		m.Error("Fetch channel data from old version failed", zap.Error(err))
+		m.lastErr = err
 		return
 	}
 
-	m.Info("Import channel data to new version")
+	m.Info("Import channel data to new version", zap.Int("channelCount", len(channels)))
+
+	timeoutCtx, cancel := context.WithTimeout(m.s.ctx, time.Minute*20)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+	requestGroup.SetLimit(m.goroutineCount) // 同时应用的并发数
+
+	atomicCount := atomic.NewInt32(0)
 
 	for _, channel := range channels {
-		err = m.importChannel(channel)
-		if err != nil {
-			m.Error("Import channel data failed", zap.Error(err))
-			return
-		}
+
+		requestGroup.Go(func(ch *mgChannelResp) func() error {
+			return func() error {
+				err := m.importChannel(ch)
+				if err != nil {
+					m.Error("Import channel data failed", zap.Error(err), zap.String("channelId", ch.ChannelID))
+					m.lastErr = err
+					return err
+				}
+				fmt.Print("#")
+				atomicCount.Add(1)
+
+				if atomicCount.Load()%100 == 0 {
+					fmt.Println("")
+					atomicCount.Store(0)
+				}
+				return nil
+
+			}
+		}(channel))
 	}
+
+	err = requestGroup.Wait()
+	if err != nil {
+		m.Error("Import channel data failed", zap.Error(err))
+		m.lastErr = err
+		return
+	}
+
 	m.Info("Channel data import completed")
 	m.stepFnc = m.stepMessageImport
+	m.currentStep = MigrateStepMessage
+	m.currentTryCount = 0
+	m.lastErr = nil
 }
 
 // 消息导入
@@ -117,21 +230,52 @@ func (m *MigrateTask) stepMessageImport() {
 		topics, err := m.getTopicsFromOldVersion(i)
 		if err != nil {
 			m.Error("Fetch topics from old version failed", zap.Error(err), zap.Uint32("slot", i))
+			m.lastErr = err
 			return
 		}
 
-		m.Info("Import message to new version", zap.Uint32("slot", i))
+		m.Info("Import message to new version", zap.Uint32("slot", i), zap.Int("topicCount", len(topics)))
+
+		timeoutCtx, cancel := context.WithTimeout(m.s.ctx, time.Minute*20)
+		defer cancel()
+		requestGroup, _ := errgroup.WithContext(timeoutCtx)
+		requestGroup.SetLimit(m.goroutineCount) // 同时应用的并发数
+
+		atomicCount := atomic.NewInt32(0)
 
 		for _, topic := range topics {
-			err = m.importMessage(topic)
-			if err != nil {
-				m.Error("Import message failed", zap.Error(err))
-				return
-			}
+			requestGroup.Go(func(tp string) func() error {
+				return func() error {
+					err = m.importMessage(tp)
+					if err != nil {
+						m.Error("Import message failed", zap.Error(err))
+						m.lastErr = err
+						return err
+					}
+					fmt.Print("#")
+					atomicCount.Add(1)
+
+					if atomicCount.Load()%100 == 0 {
+						fmt.Println("")
+						atomicCount.Store(0)
+					}
+					return nil
+
+				}
+			}(topic))
+		}
+		err = requestGroup.Wait()
+		if err != nil {
+			m.Error("Import message failed", zap.Error(err), zap.Uint32("slot", i), zap.Int("topicCount", len(topics)))
+			m.lastErr = err
+			return
 		}
 	}
 
 	m.Info("Message data import completed")
+	m.stop = true
+	m.currentTryCount = 0
+	m.lastErr = nil
 }
 
 func (m *MigrateTask) getChannelFromOldVersion() ([]*mgChannelResp, error) {
@@ -211,6 +355,40 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 	// add user denylist
 	if len(relationData.Denylist) > 0 {
 		err = m.s.store.AddDenylist(user.Uid, wkproto.ChannelTypePerson, relationData.Denylist)
+		if err != nil {
+			return err
+		}
+	}
+
+	// import user conversations
+	conversations, err := m.getConversations(user.Uid)
+	if err != nil {
+		return err
+	}
+
+	dbConversations := make([]wkdb.Conversation, 0, len(conversations))
+	for _, conversation := range conversations {
+
+		fakeChannelId := conversation.ChannelId
+		if conversation.ChannelType == wkproto.ChannelTypePerson {
+			fakeChannelId = GetFakeChannelIDWith(user.Uid, conversation.ChannelId)
+		}
+
+		createdAt := time.Unix(conversation.Timestamp, 0)
+		dbConversations = append(dbConversations, wkdb.Conversation{
+			Uid:          user.Uid,
+			Type:         wkdb.ConversationTypeChat,
+			ChannelId:    fakeChannelId,
+			ChannelType:  conversation.ChannelType,
+			UnreadCount:  uint32(conversation.Unread),
+			ReadToMsgSeq: uint64(conversation.ReadedToMsgSeq),
+			CreatedAt:    &createdAt,
+			UpdatedAt:    &createdAt,
+		})
+	}
+
+	if len(dbConversations) > 0 {
+		err = m.s.store.AddOrUpdateConversations(user.Uid, dbConversations)
 		if err != nil {
 			return err
 		}
@@ -300,7 +478,7 @@ func (m *MigrateTask) importMessage(topic string) error {
 			break
 		}
 		lastMsg := resp.Messages[len(resp.Messages)-1]
-		startMessageSeq = uint32(lastMsg.MessageSeq)
+		startMessageSeq = uint32(lastMsg.MessageSeq + 1)
 
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -310,6 +488,7 @@ func (m *MigrateTask) importMessage(topic string) error {
 			messages = append(messages, newDBMessage(m))
 		}
 
+		// m.Info("append messages", zap.Int("messageCount", len(messages)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		// append messages
 		_, err = m.s.store.AppendMessages(timeoutCtx, channelId, channelType, messages)
 		if err != nil {
@@ -348,7 +527,7 @@ func newDBMessage(m *MessageResp) wkdb.Message {
 func (m *MigrateTask) syncMessages(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint32, limit int) (*syncMessageResp, error) {
 
 	loginUid := ""
-	realChannelId := channelId
+	realChannelId := ""
 	if channelType == wkproto.ChannelTypePerson {
 		from, to := GetFromUIDAndToUIDWith(channelId)
 		loginUid = from
@@ -399,6 +578,23 @@ func (m *MigrateTask) getChannelRelationData(channelId string, channelType uint8
 	return relation, nil
 }
 
+func (m *MigrateTask) getConversations(uid string) ([]*syncUserConversationResp, error) {
+	resp, err := network.Post(m.getFullUrl("/conversation/sync"), []byte(wkutil.ToJSON(map[string]interface{}{
+		"uid":       uid,
+		"msg_count": 1,
+	})), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var conversations []*syncUserConversationResp
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &conversations)
+	if err != nil {
+		return nil, err
+	}
+	return conversations, nil
+}
+
 type mgUserResp struct {
 	Uid         string `json:"uid"`
 	Token       string `json:"token"`
@@ -418,4 +614,11 @@ type mgChannelRelationResp struct {
 	Subscribers []string `json:"subscribers"`
 	Allowlist   []string `json:"allowlist"`
 	Denylist    []string `json:"denylist"`
+}
+
+type MigrateResult struct {
+	Status   string `json:"status"`
+	Step     string `json:"step"`
+	LastErr  error  `json:"last_err"`
+	TryCount int    `json:"try_count"`
 }

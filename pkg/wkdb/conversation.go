@@ -15,8 +15,8 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 		start := time.Now()
 		defer func() {
 			end := time.Since(start)
-			if end > time.Millisecond*200 {
-				wk.Info("AddOrUpdateConversations cost too long", zap.Duration("cost", end), zap.String("uid", uid))
+			if end > time.Millisecond*500 {
+				wk.Info("AddOrUpdateConversations cost too long", zap.Duration("cost", end), zap.String("uid", uid), zap.Int("conversations", len(conversations)))
 			}
 		}()
 	}
@@ -43,10 +43,10 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 		}
 	}
 
-	err := wk.IncConversationCount(createCount)
-	if err != nil {
-		return err
-	}
+	// err := wk.IncConversationCount(createCount)
+	// if err != nil {
+	// 	return err
+	// }
 
 	return batch.Commit(wk.sync)
 }
