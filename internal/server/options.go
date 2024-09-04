@@ -224,9 +224,18 @@ type Options struct {
 		Expire time.Duration // jwt expire
 		Issuer string        // jwt 发行者名字
 	}
-	PprofOn  bool   // 是否开启pprof
-	OldV1Api string //旧v1版本的api地址，如果不为空则开启数据迁移任务，将v1的数据迁移到v2
+	PprofOn          bool        // 是否开启pprof
+	OldV1Api         string      //旧v1版本的api地址，如果不为空则开启数据迁移任务，将v1的数据迁移到v2
+	MigrateStartStep MigrateStep // 从那步开始迁移，默认顺序是 message,user,channel
 }
+
+type MigrateStep string
+
+const (
+	MigrateStepMessage MigrateStep = "message"
+	MigrateStepUser    MigrateStep = "user"
+	MigrateStepChannel MigrateStep = "channel"
+)
 
 func NewOptions(op ...Option) *Options {
 
@@ -449,6 +458,7 @@ func NewOptions(op ...Option) *Options {
 			Expire: time.Hour * 24 * 30,
 			Issuer: "wukongim",
 		},
+		MigrateStartStep: MigrateStepMessage,
 	}
 
 	for _, o := range op {
@@ -712,6 +722,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	deadlock.Opts.Disable = !o.DeadlockCheck
 	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
 	o.OldV1Api = o.getString("oldV1Api", o.OldV1Api)
+	o.MigrateStartStep = MigrateStep(o.getString("migrateStartStep", string(o.MigrateStartStep)))
 
 }
 

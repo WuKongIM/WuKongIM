@@ -60,6 +60,8 @@ type Server struct {
 	retryManager   *retryManager   // 消息重试管理
 
 	conversationManager *ConversationManager // 会话管理
+
+	migrateTask *MigrateTask // 迁移任务
 }
 
 func New(opts *Options) *Server {
@@ -128,6 +130,7 @@ func New(opts *Options) *Server {
 	s.managerServer = NewManagerServer(s)             // 管理者的api服务
 	s.retryManager = newRetryManager(s)               // 消息重试管理
 	s.conversationManager = NewConversationManager(s) // 会话管理
+	s.migrateTask = NewMigrateTask(s)                 // 迁移任务
 
 	// 初始化分布式服务
 	initNodes := make(map[uint64]string)
@@ -299,6 +302,11 @@ func (s *Server) Start() error {
 	}
 
 	s.webhook.Start()
+
+	// 判断是否开启迁移任务
+	if strings.TrimSpace(s.opts.OldV1Api) != "" {
+		s.migrateTask.Run()
+	}
 
 	return nil
 }

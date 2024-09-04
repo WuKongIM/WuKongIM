@@ -1,22 +1,30 @@
 package clusterstore
 
 import (
+	"context"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // 频道元数据应用
 func (s *Store) OnMetaApply(slotId uint32, logs []replica.Log) error {
+
+	timeoutCtx, cancel := context.WithTimeout(s.ctx, time.Minute*2)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+	requestGroup.SetLimit(20) // 同时应用的并发数
 	for _, lg := range logs {
-		err := s.onMetaApply(slotId, lg)
-		if err != nil {
-			return err
-		}
+		requestGroup.Go(func(l replica.Log) func() error {
+			return func() error {
+				return s.onMetaApply(slotId, l)
+			}
+		}(lg))
 	}
-	return nil
+	return requestGroup.Wait()
 }
 
 func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
@@ -30,8 +38,8 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 	start := time.Now()
 	defer func() {
 		end := time.Since(start)
-		if end > time.Millisecond*100 {
-			s.Debug("收到元数据请求", zap.Duration("cost", end), zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
+		if end > time.Millisecond*500 {
+			s.Info("meta apply", zap.Duration("cost", end), zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
 		}
 	}()
 	switch cmd.CmdType {
