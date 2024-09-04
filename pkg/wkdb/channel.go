@@ -6,7 +6,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/cockroachdb/pebble"
-	"go.uber.org/zap"
 )
 
 func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error) {
@@ -16,25 +15,19 @@ func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error) 
 		return 0, err
 	}
 
-	var isCreate bool
-	if primaryKey == 0 {
-		isCreate = true
-		primaryKey = uint64(wk.prmaryKeyGen.Generate().Int64())
-	}
-
 	w := wk.channelDb(channelInfo.ChannelId, channelInfo.ChannelType).NewBatch()
 	defer w.Close()
 	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
 		return 0, err
 	}
 
-	if isCreate {
-		err = wk.IncChannelCount(1)
-		if err != nil {
-			wk.Error("IncChannelCount failed", zap.Error(err))
-			return 0, err
-		}
-	}
+	// if isCreate {
+	// 	err = wk.IncChannelCount(1)
+	// 	if err != nil {
+	// 		wk.Error("IncChannelCount failed", zap.Error(err))
+	// 		return 0, err
+	// 	}
+	// }
 
 	return primaryKey, w.Commit(wk.sync)
 }
@@ -285,12 +278,12 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 	}
 
 	// 删除数据
-	err = batch.DeleteRange(key.NewChannelInfoColumnKey(id, key.MinColumnKey), key.NewChannelInfoColumnKey(id, key.MaxColumnKey), wk.sync)
+	err = batch.DeleteRange(key.NewChannelInfoColumnKey(id, key.MinColumnKey), key.NewChannelInfoColumnKey(id, key.MaxColumnKey), wk.noSync)
 	if err != nil {
 		return err
 	}
 
-	err = batch.DeleteRange(key.NewChannelInfoSecondIndexKey(key.MinColumnKey, 0, id), key.NewChannelInfoSecondIndexKey(key.MaxColumnKey, math.MaxUint64, id), wk.sync)
+	err = batch.DeleteRange(key.NewChannelInfoSecondIndexKey(key.MinColumnKey, 0, id), key.NewChannelInfoSecondIndexKey(key.MaxColumnKey, math.MaxUint64, id), wk.noSync)
 	if err != nil {
 		return err
 	}
@@ -523,20 +516,22 @@ func (wk *wukongDB) iterChannelInfo(iter *pebble.Iterator, iterFnc func(channelI
 // }
 
 func (wk *wukongDB) getChannelPrimaryKey(channelId string, channelType uint8) (uint64, error) {
-	primaryKey := key.NewChannelInfoIndexKey(channelId, channelType)
-	indexValue, closer, err := wk.channelDb(channelId, channelType).Get(primaryKey)
-	if err != nil {
-		if err == pebble.ErrNotFound {
-			return 0, nil
-		}
-		return 0, err
-	}
-	defer closer.Close()
+	// primaryKey := key.NewChannelInfoIndexKey(channelId, channelType)
+	// indexValue, closer, err := wk.channelDb(channelId, channelType).Get(primaryKey)
+	// if err != nil {
+	// 	if err == pebble.ErrNotFound {
+	// 		return 0, nil
+	// 	}
+	// 	return 0, err
+	// }
+	// defer closer.Close()
 
-	if len(indexValue) == 0 {
-		return 0, nil
-	}
-	return wk.endian.Uint64(indexValue), nil
+	// if len(indexValue) == 0 {
+	// 	return 0, nil
+	// }
+	// return wk.endian.Uint64(indexValue), nil
+
+	return key.ChannelIdToNum(channelId, channelType), nil
 }
 
 func (wk *wukongDB) writeSubscriber(channelId string, channelType uint8, id uint64, uid string, w pebble.Writer) error {

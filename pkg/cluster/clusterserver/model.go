@@ -488,13 +488,14 @@ func (s *SlotProposeReq) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint32(s.SlotId)
-	enc.WriteUint16(uint16(len(s.Logs)))
+	enc.WriteUint32(uint32(len(s.Logs)))
 	for _, lg := range s.Logs {
 		logData, err := lg.Marshal()
 		if err != nil {
 			return nil, err
 		}
-		enc.WriteBinary(logData)
+		enc.WriteUint32(uint32(len(logData)))
+		enc.WriteBytes(logData)
 	}
 
 	return enc.Bytes(), nil
@@ -506,17 +507,22 @@ func (s *SlotProposeReq) Unmarshal(data []byte) error {
 	if s.SlotId, err = dec.Uint32(); err != nil {
 		return err
 	}
-	var dataLen uint16
-	if dataLen, err = dec.Uint16(); err != nil {
+	var dataLen uint32
+	if dataLen, err = dec.Uint32(); err != nil {
 		return err
 	}
 	if dataLen > 0 {
 		s.Logs = make([]replica.Log, dataLen)
-		for i := uint16(0); i < dataLen; i++ {
-			data, err := dec.Binary()
+		for i := uint32(0); i < dataLen; i++ {
+			logDataLen, err := dec.Uint32()
 			if err != nil {
 				return err
 			}
+			data, err := dec.Bytes(int(logDataLen))
+			if err != nil {
+				return err
+			}
+
 			log := &replica.Log{}
 			if err = log.Unmarshal(data); err != nil {
 				return err
