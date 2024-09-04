@@ -102,5 +102,3 @@ conversation: # 最近会话配置
 #   #   - "1001@192.168.1.12:11110"
 #   seed:
 #     - ""  
-oldV1Api: "http://62.234.8.38:5001"
-migrateStartStep: "message"
