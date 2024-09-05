@@ -467,7 +467,7 @@ func (m *MigrateTask) importMessage(topic string) error {
 		return nil
 	}
 
-	var startMessageSeq uint32 = 0
+	var startMessageSeq uint32 = 1
 	var endMessageSeq uint32 = 0
 	var limit = 1000
 

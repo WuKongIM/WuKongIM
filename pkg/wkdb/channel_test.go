@@ -2,6 +2,7 @@ package wkdb_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/stretchr/testify/assert"
@@ -101,7 +102,7 @@ func TestRemoveAllSubscriber(t *testing.T) {
 	assert.Equal(t, 0, len(subscribers2))
 }
 
-func TestAddOrUpdateChannel(t *testing.T) {
+func TestAddChannel(t *testing.T) {
 	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
@@ -110,33 +111,15 @@ func TestAddOrUpdateChannel(t *testing.T) {
 		err := d.Close()
 		assert.NoError(t, err)
 	}()
-
-	channelInfo := wkdb.ChannelInfo{
-		ChannelId:   "channel1",
-		ChannelType: 1,
-		Ban:         true,
-		Large:       true,
-	}
-	_, err = d.AddOrUpdateChannel(channelInfo)
-	assert.NoError(t, err)
-}
-
-func TestGetChannel(t *testing.T) {
-	d := newTestDB(t)
-	err := d.Open()
-	assert.NoError(t, err)
-
-	defer func() {
-		err := d.Close()
-		assert.NoError(t, err)
-	}()
-
+	nw := time.Now()
 	channelInfo := wkdb.ChannelInfo{
 		ChannelId:   "channel1",
 		ChannelType: 1,
 		Ban:         true,
 		Large:       true,
 		Disband:     true,
+		CreatedAt:   &nw,
+		UpdatedAt:   &nw,
 	}
 	_, err = d.AddOrUpdateChannel(channelInfo)
 	assert.NoError(t, err)
@@ -149,6 +132,51 @@ func TestGetChannel(t *testing.T) {
 	assert.Equal(t, channelInfo.Ban, channelInfo2.Ban)
 	assert.Equal(t, channelInfo.Large, channelInfo2.Large)
 	assert.Equal(t, channelInfo.Disband, channelInfo2.Disband)
+	assert.Equal(t, channelInfo.CreatedAt.Unix(), channelInfo2.CreatedAt.Unix())
+	assert.Equal(t, channelInfo.UpdatedAt.Unix(), channelInfo2.UpdatedAt.Unix())
+}
+
+func TestUpdateChannel(t *testing.T) {
+	d := newTestDB(t)
+	err := d.Open()
+	assert.NoError(t, err)
+
+	defer func() {
+		err := d.Close()
+		assert.NoError(t, err)
+	}()
+	nw := time.Now()
+	channelInfo := wkdb.ChannelInfo{
+		ChannelId:   "channel1",
+		ChannelType: 1,
+		Ban:         true,
+		Large:       true,
+		Disband:     true,
+		CreatedAt:   &nw,
+		UpdatedAt:   &nw,
+	}
+	_, err = d.AddOrUpdateChannel(channelInfo)
+	assert.NoError(t, err)
+
+	nw = nw.Add(time.Hour)
+	channelInfo.Ban = false
+	channelInfo.Large = false
+	channelInfo.Disband = false
+	channelInfo.UpdatedAt = &nw
+
+	_, err = d.AddOrUpdateChannel(channelInfo)
+	assert.NoError(t, err)
+
+	channelInfo2, err := d.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
+	assert.NoError(t, err)
+
+	assert.Equal(t, channelInfo.ChannelId, channelInfo2.ChannelId)
+	assert.Equal(t, channelInfo.ChannelType, channelInfo2.ChannelType)
+	assert.Equal(t, channelInfo.Ban, channelInfo2.Ban)
+	assert.Equal(t, channelInfo.Large, channelInfo2.Large)
+	assert.Equal(t, channelInfo.Disband, channelInfo2.Disband)
+	assert.Equal(t, channelInfo.CreatedAt.Unix(), channelInfo2.CreatedAt.Unix())
+	assert.Equal(t, channelInfo.UpdatedAt.Unix(), channelInfo2.UpdatedAt.Unix())
 }
 
 func TestExistChannel(t *testing.T) {

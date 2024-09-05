@@ -70,6 +70,10 @@ func (m *Message) Marshal() ([]byte, error) {
 
 var EmptyDevice = Device{}
 
+func IsEmptyDevice(d Device) bool {
+	return d.Uid == ""
+}
+
 type Device struct {
 	Id           uint64     `json:"id,omitempty"`
 	Uid          string     `json:"uid,omitempty"`            // 用户唯一uid
@@ -86,6 +90,10 @@ type Device struct {
 }
 
 var EmptyUser = User{}
+
+func IsEmptyUser(u User) bool {
+	return u.Uid == ""
+}
 
 type User struct {
 	Id                uint64     `json:"id,omitempty"`
@@ -104,17 +112,19 @@ type User struct {
 var EmptyChannelInfo = ChannelInfo{}
 
 type ChannelInfo struct {
-	Id              uint64 `json:"id,omitempty"`               // ID
-	ChannelId       string `json:"channel_id,omitempty"`       // 频道ID
-	ChannelType     uint8  `json:"channel_type,omitempty"`     // 频道类型
-	Ban             bool   `json:"ban,omitempty"`              // 是否被封
-	Large           bool   `json:"large,omitempty"`            // 是否是超大群
-	Disband         bool   `json:"disband,omitempty"`          // 是否解散
-	SubscriberCount int    `json:"subscriber_count,omitempty"` // 订阅者数量
-	DenylistCount   int    `json:"denylist_count,omitempty"`   // 黑名单数量
-	AllowlistCount  int    `json:"allowlist_count,omitempty"`  // 白名单数量
-	LastMsgSeq      uint64 `json:"last_msg_seq,omitempty"`     // 最新消息序号
-	LastMsgTime     uint64 `json:"last_msg_time,omitempty"`    // 最后一次消息时间
+	Id              uint64     `json:"id,omitempty"`               // ID
+	ChannelId       string     `json:"channel_id,omitempty"`       // 频道ID
+	ChannelType     uint8      `json:"channel_type,omitempty"`     // 频道类型
+	Ban             bool       `json:"ban,omitempty"`              // 是否被封
+	Large           bool       `json:"large,omitempty"`            // 是否是超大群
+	Disband         bool       `json:"disband,omitempty"`          // 是否解散
+	SubscriberCount int        `json:"subscriber_count,omitempty"` // 订阅者数量
+	DenylistCount   int        `json:"denylist_count,omitempty"`   // 黑名单数量
+	AllowlistCount  int        `json:"allowlist_count,omitempty"`  // 白名单数量
+	LastMsgSeq      uint64     `json:"last_msg_seq,omitempty"`     // 最新消息序号
+	LastMsgTime     uint64     `json:"last_msg_time,omitempty"`    // 最后一次消息时间
+	CreatedAt       *time.Time `json:"created_at,omitempty"`       // 创建时间
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`       // 更新时间
 }
 
 func NewChannelInfo(channelId string, channelType uint8) ChannelInfo {

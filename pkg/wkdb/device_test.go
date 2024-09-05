@@ -18,6 +18,7 @@ func TestDeviceUpdate(t *testing.T) {
 	}()
 
 	u := wkdb.Device{
+		Id:          1,
 		Uid:         "test",
 		Token:       "token",
 		DeviceFlag:  2,
@@ -40,6 +41,7 @@ func TestGetDevice(t *testing.T) {
 	}()
 
 	u := wkdb.Device{
+		Id:          1,
 		Uid:         "test",
 		Token:       "token",
 		DeviceFlag:  2,
@@ -52,6 +54,7 @@ func TestGetDevice(t *testing.T) {
 	u2, err := d.GetDevice("test", 2)
 	assert.NoError(t, err)
 
+	assert.Equal(t, u.Id, u2.Id)
 	assert.Equal(t, u.Uid, u2.Uid)
 	assert.Equal(t, u.Token, u2.Token)
 	assert.Equal(t, u.DeviceFlag, u2.DeviceFlag)
