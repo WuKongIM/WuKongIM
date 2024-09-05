@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"math"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -15,7 +16,20 @@ func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error) 
 		return 0, err
 	}
 
+	existChannelInfo, err := wk.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
+	if err != nil {
+		return 0, err
+	}
+
 	w := wk.channelDb(channelInfo.ChannelId, channelInfo.ChannelType).NewBatch()
+	if !IsEmptyChannelInfo(existChannelInfo) {
+		// 删除旧的索引
+		err = wk.deleteChannelInfoIndex(existChannelInfo, w)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	defer w.Close()
 	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
 		return 0, err
@@ -271,11 +285,6 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 	}
 	batch := wk.channelDb(channelId, channelType).NewBatch()
 	defer batch.Close()
-	// 删除索引
-	err = batch.Delete(key.NewChannelInfoIndexKey(channelId, channelType), wk.noSync)
-	if err != nil {
-		return err
-	}
 
 	// 删除数据
 	err = batch.DeleteRange(key.NewChannelInfoColumnKey(id, key.MinColumnKey), key.NewChannelInfoColumnKey(id, key.MaxColumnKey), wk.noSync)
@@ -395,11 +404,33 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 		return err
 	}
 
-	// channel index
-	idBytes := make([]byte, 8)
-	wk.endian.PutUint64(idBytes, primaryKey)
-	if err = w.Set(key.NewChannelInfoIndexKey(channelInfo.ChannelId, channelInfo.ChannelType), idBytes, wk.noSync); err != nil {
-		return err
+	// createdAt
+	if channelInfo.CreatedAt != nil {
+		createdAt := make([]byte, 8)
+		wk.endian.PutUint64(createdAt, uint64(channelInfo.CreatedAt.Unix()))
+		if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.CreatedAt), createdAt, wk.noSync); err != nil {
+			return err
+		}
+
+		// createdAt second index
+		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, uint64(channelInfo.CreatedAt.Unix()), primaryKey), nil, wk.noSync); err != nil {
+			return err
+		}
+
+	}
+
+	if channelInfo.UpdatedAt != nil {
+		// updatedAt
+		updatedAt := make([]byte, 8)
+		wk.endian.PutUint64(updatedAt, uint64(channelInfo.UpdatedAt.Unix()))
+		if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.UpdatedAt), updatedAt, wk.noSync); err != nil {
+			return err
+		}
+
+		// updatedAt second index
+		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.Unix()), primaryKey), nil, wk.noSync); err != nil {
+			return err
+		}
 	}
 
 	// ban index
@@ -412,6 +443,33 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 		return err
 	}
 
+	return nil
+}
+
+func (wk *wukongDB) deleteChannelInfoIndex(channelInfo ChannelInfo, w pebble.Writer) error {
+	if channelInfo.CreatedAt != nil {
+		// createdAt second index
+		if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, uint64(channelInfo.CreatedAt.Unix()), channelInfo.Id), wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	if channelInfo.UpdatedAt != nil {
+		// updatedAt second index
+		if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.Unix()), channelInfo.Id), wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	// ban index
+	if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.Ban, uint64(wkutil.BoolToInt(channelInfo.Ban)), channelInfo.Id), wk.noSync); err != nil {
+		return err
+	}
+
+	// disband index
+	if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.Disband, uint64(wkutil.BoolToInt(channelInfo.Disband)), channelInfo.Id), wk.noSync); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -457,7 +515,19 @@ func (wk *wukongDB) iterChannelInfo(iter *pebble.Iterator, iterFnc func(channelI
 			preChannelInfo.AllowlistCount = int(wk.endian.Uint32(iter.Value()))
 		case key.TableChannelInfo.Column.DenylistCount:
 			preChannelInfo.DenylistCount = int(wk.endian.Uint32(iter.Value()))
+		case key.TableChannelInfo.Column.CreatedAt:
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm, 0)
+				preChannelInfo.CreatedAt = &t
+			}
 
+		case key.TableChannelInfo.Column.UpdatedAt:
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm, 0)
+				preChannelInfo.UpdatedAt = &t
+			}
 		}
 		hasData = true
 	}

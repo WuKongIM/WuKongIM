@@ -1156,9 +1156,9 @@ func (s *Server) denylistGet(c *wkhttp.Context) {
 	channelId := c.Param("channel_id")
 	channelType := wkutil.ParseUint8(c.Param("channel_type"))
 
-	leaderNode, err := s.LeaderOfChannelForRead(channelId, channelType)
+	leaderNode, err := s.SlotLeaderOfChannel(channelId, channelType)
 	if err != nil {
-		s.Error("LeaderOfChannelForRead error", zap.Error(err))
+		s.Error("SlotLeaderOfChannel error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -1180,9 +1180,9 @@ func (s *Server) allowlistGet(c *wkhttp.Context) {
 	channelId := c.Param("channel_id")
 	channelType := wkutil.ParseUint8(c.Param("channel_type"))
 
-	leaderNode, err := s.LeaderOfChannelForRead(channelId, channelType)
+	leaderNode, err := s.SlotLeaderOfChannel(channelId, channelType)
 	if err != nil {
-		s.Error("LeaderOfChannelForRead error", zap.Error(err))
+		s.Error("SlotLeaderOfChannel error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}

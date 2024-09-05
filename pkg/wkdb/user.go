@@ -39,9 +39,6 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 	if err != nil {
 		return EmptyUser, err
 	}
-	if usr == EmptyUser {
-		return EmptyUser, ErrNotFound
-	}
 	return usr, nil
 }
 
@@ -50,11 +47,17 @@ func (wk *wukongDB) ExistUser(uid string) (bool, error) {
 }
 
 func (wk *wukongDB) existUser(uid string) (bool, error) {
-	id, err := wk.getUserId(uid)
+	user, err := wk.GetUser(uid)
 	if err != nil {
+		if err == ErrNotFound {
+			return false, nil
+		}
 		return false, err
 	}
-	return id != 0, nil
+	if IsEmptyUser(user) {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
@@ -192,20 +195,22 @@ func (wk *wukongDB) incUserDeviceCount(uid string, count int, db *pebble.DB) err
 }
 
 func (wk *wukongDB) getUserId(uid string) (uint64, error) {
-	indexKey := key.NewUserIndexUidKey(uid)
-	uidIndexValue, closer, err := wk.shardDB(uid).Get(indexKey)
-	if err != nil {
-		if err == pebble.ErrNotFound {
-			return 0, nil
-		}
-		return 0, err
-	}
-	defer closer.Close()
+	// indexKey := key.NewUserIndexUidKey(uid)
+	// uidIndexValue, closer, err := wk.shardDB(uid).Get(indexKey)
+	// if err != nil {
+	// 	if err == pebble.ErrNotFound {
+	// 		return 0, nil
+	// 	}
+	// 	return 0, err
+	// }
+	// defer closer.Close()
 
-	if len(uidIndexValue) == 0 {
-		return 0, nil
-	}
-	return wk.endian.Uint64(uidIndexValue), nil
+	// if len(uidIndexValue) == 0 {
+	// 	return 0, nil
+	// }
+	// return wk.endian.Uint64(uidIndexValue), nil
+
+	return key.HashWithString(uid), nil
 }
 
 func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
@@ -231,12 +236,6 @@ func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
 		if err != nil {
 			return err
 		}
-	}
-	// uid index
-	idBytes := make([]byte, 8)
-	wk.endian.PutUint64(idBytes, u.Id)
-	if err = w.Set(key.NewUserIndexUidKey(u.Uid), idBytes, wk.noSync); err != nil {
-		return err
 	}
 
 	return nil

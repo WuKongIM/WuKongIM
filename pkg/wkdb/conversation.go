@@ -411,7 +411,7 @@ func (wk *wukongDB) writeConversation(conversation Conversation, isCreate bool, 
 	updatedAtBytes := make([]byte, 8)
 	updatedAt := uint64(nw.UnixMilli())
 	wk.endian.PutUint64(updatedAtBytes, updatedAt)
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableSession.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
+	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
 		return err
 	}
 
@@ -543,7 +543,7 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 			t := int64(wk.endian.Uint64(iter.Value()))
 			tm := time.Unix(t/1e3, (t%1e3)*1e6)
 			preConversation.CreatedAt = &tm
-		case key.TableSession.Column.UpdatedAt:
+		case key.TableConversation.Column.UpdatedAt:
 			t := int64(wk.endian.Uint64(iter.Value()))
 			tm := time.Unix(t/1e3, (t%1e3)*1e6)
 			preConversation.UpdatedAt = &tm
