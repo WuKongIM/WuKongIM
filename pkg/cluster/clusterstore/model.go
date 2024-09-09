@@ -19,8 +19,10 @@ const (
 	// CMDUpdateMessageOfUserCursorIfNeed CMDUpdateMessageOfUserCursorIfNeed
 	// 更新用户消息游标
 	CMDUpdateMessageOfUserCursorIfNeed
-	// 添加或更新频道
-	CMDAddOrUpdateChannel
+	// 添加频道
+	CMDAddChannelInfo
+	// 更新频道
+	CMDUpdateChannelInfo
 	// 添加订阅者
 	CMDAddSubscribers
 	// 移除订阅者
@@ -90,8 +92,10 @@ func (c CMDType) String() string {
 		return "CMDAddOrUpdateUser"
 	case CMDUpdateMessageOfUserCursorIfNeed:
 		return "CMDUpdateMessageOfUserCursorIfNeed"
-	case CMDAddOrUpdateChannel:
-		return "CMDAddOrUpdateChannel"
+	case CMDAddChannelInfo:
+		return "CMDAddChannelInfo"
+	case CMDUpdateChannelInfo:
+		return "CMDUpdateChannelInfo"
 	case CMDAddSubscribers:
 		return "CMDAddSubscribers"
 	case CMDRemoveSubscribers:
@@ -228,8 +232,14 @@ func (c *CMD) CMDContent() (string, error) {
 			"uid":        uid,
 			"messageSeq": messageSeq,
 		}), nil
-	case CMDAddOrUpdateChannel:
-		channel, err := c.DecodeAddOrUpdateChannel()
+	case CMDAddChannelInfo:
+		channel, err := c.DecodeChannelInfo()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(channel), nil
+	case CMDUpdateChannelInfo:
+		channel, err := c.DecodeChannelInfo()
 		if err != nil {
 			return "", err
 		}
@@ -591,14 +601,14 @@ func (c *CMD) DecodeCMDUpdateMessageOfUserCursorIfNeed() (uid string, messageSeq
 	return
 }
 
-// EncodeAddOrUpdateChannel EncodeAddOrUpdateChannel
-func EncodeAddOrUpdateChannel(channelInfo wkdb.ChannelInfo) ([]byte, error) {
+// EncodeChannelInfo EncodeChannelInfo
+func EncodeChannelInfo(channelInfo wkdb.ChannelInfo) ([]byte, error) {
 
 	return channelInfo.Marshal()
 }
 
-// DecodeAddOrUpdateChannel DecodeAddOrUpdateChannel
-func (c *CMD) DecodeAddOrUpdateChannel() (wkdb.ChannelInfo, error) {
+// DecodeChannelInfo DecodeChannelInfo
+func (c *CMD) DecodeChannelInfo() (wkdb.ChannelInfo, error) {
 	channelInfo := &wkdb.ChannelInfo{}
 	err := channelInfo.Unmarshal(c.Data)
 	return *channelInfo, err

@@ -94,11 +94,10 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 
 	// channelInfo := wkstore.NewChannelInfo(req.ChannelID, req.ChannelType)
 	channelInfo := req.ToChannelInfo()
-
-	err = ch.s.store.AddOrUpdateChannel(channelInfo)
-	if err != nil {
-		c.ResponseError(err)
-		ch.Error("创建频道失败！", zap.Error(err))
+	err = ch.addOrUpdateChannel(channelInfo)
+	if err != nil && err != wkdb.ErrNotFound {
+		ch.Error("创建或更新频道失败", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("创建或更新频道失败"))
 		return
 	}
 	err = ch.s.store.RemoveAllSubscriber(req.ChannelID, req.ChannelType)
@@ -151,7 +150,7 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 	}
 
 	channelInfo := req.ToChannelInfo()
-	err = ch.s.store.AddOrUpdateChannel(channelInfo)
+	err = ch.addOrUpdateChannel(channelInfo)
 	if err != nil {
 		ch.Error("添加或更新频道信息失败！", zap.Error(err))
 		c.ResponseError(errors.New("添加或更新频道信息失败！"))
@@ -212,7 +211,7 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 	}
 	if !exist { // 如果没有频道则创建
 		channelInfo := wkdb.NewChannelInfo(req.ChannelID, req.ChannelType)
-		err = ch.s.store.AddOrUpdateChannel(channelInfo)
+		err = ch.s.store.AddChannelInfo(channelInfo)
 		if err != nil {
 			ch.Error("创建频道失败！", zap.Error(err))
 			c.ResponseError(errors.New("创建频道失败！"))
@@ -809,4 +808,24 @@ func (ch *ChannelAPI) getChannelMaxMessageSeq(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message_seq": msgSeq,
 	})
+}
+
+func (ch *ChannelAPI) addOrUpdateChannel(channelInfo wkdb.ChannelInfo) error {
+	existChannel, err := ch.s.store.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
+	if err != nil && err != wkdb.ErrNotFound {
+		return err
+	}
+
+	if wkdb.IsEmptyChannelInfo(existChannel) {
+		err = ch.s.store.AddChannelInfo(channelInfo)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = ch.s.store.UpdateChannelInfo(channelInfo)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

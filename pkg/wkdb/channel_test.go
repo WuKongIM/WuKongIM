@@ -121,7 +121,7 @@ func TestAddChannel(t *testing.T) {
 		CreatedAt:   &nw,
 		UpdatedAt:   &nw,
 	}
-	_, err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddChannel(channelInfo)
 	assert.NoError(t, err)
 
 	channelInfo2, err := d.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
@@ -145,26 +145,28 @@ func TestUpdateChannel(t *testing.T) {
 		err := d.Close()
 		assert.NoError(t, err)
 	}()
-	nw := time.Now()
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	channelInfo := wkdb.ChannelInfo{
 		ChannelId:   "channel1",
 		ChannelType: 1,
 		Ban:         true,
 		Large:       true,
 		Disband:     true,
-		CreatedAt:   &nw,
-		UpdatedAt:   &nw,
+		CreatedAt:   &createdAt,
+		UpdatedAt:   &updatedAt,
 	}
-	_, err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddChannel(channelInfo)
 	assert.NoError(t, err)
 
+	nw := time.Now()
 	nw = nw.Add(time.Hour)
 	channelInfo.Ban = false
 	channelInfo.Large = false
 	channelInfo.Disband = false
 	channelInfo.UpdatedAt = &nw
 
-	_, err = d.AddOrUpdateChannel(channelInfo)
+	err = d.UpdateChannel(channelInfo)
 	assert.NoError(t, err)
 
 	channelInfo2, err := d.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
@@ -196,7 +198,7 @@ func TestExistChannel(t *testing.T) {
 		Large:       true,
 		Disband:     true,
 	}
-	_, err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddChannel(channelInfo)
 	assert.NoError(t, err)
 
 	exist, err := d.ExistChannel(channelInfo.ChannelId, channelInfo.ChannelType)
@@ -220,7 +222,7 @@ func TestDeleteChannel(t *testing.T) {
 		Ban:         true,
 		Large:       true,
 	}
-	_, err = d.AddOrUpdateChannel(channelInfo)
+	_, err = d.AddChannel(channelInfo)
 	assert.NoError(t, err)
 
 	err = d.DeleteChannel(channelInfo.ChannelId, channelInfo.ChannelType)

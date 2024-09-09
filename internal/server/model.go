@@ -869,12 +869,16 @@ type ChannelInfoReq struct {
 }
 
 func (c ChannelInfoReq) ToChannelInfo() wkdb.ChannelInfo {
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	return wkdb.ChannelInfo{
 		ChannelId:   c.ChannelID,
 		ChannelType: c.ChannelType,
 		Large:       c.Large == 1,
 		Ban:         c.Ban == 1,
 		Disband:     c.Disband == 1,
+		CreatedAt:   &createdAt,
+		UpdatedAt:   &updatedAt,
 	}
 }
 

@@ -122,7 +122,7 @@ func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) err
 	}
 
 	// 订阅者数量设置为0
-	err = wk.incChannelInfoSubscriberCount(channelPrimaryId, math.MinInt, db)
+	err = wk.incChannelInfoSubscriberCount(channelPrimaryId, 0, db)
 	if err != nil {
 		wk.Error("RemoveAllSubscriber: incChannelInfoSubscriberCount failed", zap.Error(err))
 		return err
@@ -213,4 +213,23 @@ func (wk *wukongDB) parseSubscriber(iter *pebble.Iterator, limit int) ([]string,
 		subscribers = append(subscribers, preSubscriber)
 	}
 	return subscribers, nil
+}
+
+func (wk *wukongDB) writeSubscriber(channelId string, channelType uint8, id uint64, uid string, w pebble.Writer) error {
+	var (
+		err error
+	)
+	// uid
+	if err = w.Set(key.NewSubscriberColumnKey(channelId, channelType, id, key.TableUser.Column.Uid), []byte(uid), wk.noSync); err != nil {
+		return err
+	}
+
+	// uid index
+	idBytes := make([]byte, 8)
+	wk.endian.PutUint64(idBytes, id)
+	if err = w.Set(key.NewSubscriberIndexUidKey(channelId, channelType, uid), idBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	return nil
 }

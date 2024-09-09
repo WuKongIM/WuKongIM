@@ -35,3 +35,7 @@ func ParseBool(str string) bool {
 func Uint64ToString(v uint64) string {
 	return strconv.FormatUint(v, 10)
 }
+
+func Int64ToString(v int64) string {
+	return strconv.FormatInt(v, 10)
+}

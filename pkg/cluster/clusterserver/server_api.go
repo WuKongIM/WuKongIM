@@ -69,11 +69,14 @@ func (s *Server) nodesGet(c *wkhttp.Context) {
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 
 	cfg := s.clusterEventServer.Config()
+	nodeCfgLock := sync.Mutex{}
 
 	for _, node := range s.clusterEventServer.Nodes() {
 		if node.Id == s.opts.NodeId {
 			nodeCfg := s.getLocalNodeInfo()
+			nodeCfgLock.Lock()
 			nodeCfgs = append(nodeCfgs, nodeCfg)
+			nodeCfgLock.Unlock()
 			continue
 		}
 		if !node.Online {
@@ -82,7 +85,9 @@ func (s *Server) nodesGet(c *wkhttp.Context) {
 			nodeCfg.Term = cfg.Term
 			nodeCfg.SlotCount = s.getNodeSlotCount(node.Id, cfg)
 			nodeCfg.SlotLeaderCount = s.getNodeSlotLeaderCount(node.Id, cfg)
+			nodeCfgLock.Lock()
 			nodeCfgs = append(nodeCfgs, nodeCfg)
+			nodeCfgLock.Unlock()
 			continue
 		}
 		requestGroup.Go(func(nId uint64) func() error {
@@ -91,7 +96,9 @@ func (s *Server) nodesGet(c *wkhttp.Context) {
 				if err != nil {
 					return err
 				}
+				nodeCfgLock.Lock()
 				nodeCfgs = append(nodeCfgs, nodeCfg)
+				nodeCfgLock.Unlock()
 				return nil
 			}
 		}(node.Id))
@@ -101,6 +108,11 @@ func (s *Server) nodesGet(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	sort.Slice(nodeCfgs, func(i, j int) bool {
+		return nodeCfgs[i].Id < nodeCfgs[j].Id
+	})
+
 	c.JSON(http.StatusOK, NodeConfigTotal{
 		Total: len(nodeCfgs),
 		Data:  nodeCfgs,
@@ -917,7 +929,8 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 	channelId := strings.TrimSpace(c.Query("channel_id"))
 	channelType := wkutil.ParseUint8(c.Query("channel_type"))
-	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
+	offsetCreatedAt := wkutil.ParseInt64(c.Query("offset_created_at")) // 偏移的创建时间
+	pre := wkutil.ParseInt(c.Query("pre"))                             // 是否向前搜索
 
 	if limit <= 0 {
 		limit = s.opts.PageSize
@@ -971,10 +984,6 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 		*allowlistCountLte = allowlistCountLteI
 	}
 
-	if currentPage <= 0 {
-		currentPage = 1
-	}
-
 	searchLocalChannelInfos := func() ([]*channelInfoResp, error) {
 		channelInfos, err := s.opts.DB.SearchChannels(wkdb.ChannelSearchReq{
 			ChannelId:          channelId,
@@ -987,8 +996,9 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 			DenylistCountLte:   denylistCountLte,
 			AllowlistCountGte:  allowlistCountGte,
 			AllowlistCountLte:  allowlistCountLte,
-			CurrentPage:        currentPage,
-			Limit:              limit,
+			OffsetCreatedAt:    offsetCreatedAt,
+			Limit:              limit + 1, // 实际查询出来的数据比limit多1，用于判断是否有下一页
+			Pre:                pre == 1,
 		})
 		if err != nil {
 			s.Error("search channel failed", zap.Error(err))
@@ -1085,8 +1095,21 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	sort.Slice(channelInfoResps, func(i, j int) bool {
+
+		return channelInfoResps[i].createdAt > channelInfoResps[j].createdAt
+	})
+
+	hasMore := false
+
 	if len(channelInfoResps) > limit {
-		channelInfoResps = channelInfoResps[:limit]
+		hasMore = true
+		if pre == 1 {
+			channelInfoResps = channelInfoResps[len(channelInfoResps)-limit:]
+		} else {
+			channelInfoResps = channelInfoResps[:limit]
+		}
 	}
 
 	count, err := s.opts.DB.GetTotalChannelCount()
@@ -1099,6 +1122,7 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, channelInfoRespTotal{
 		Data:  channelInfoResps,
 		Total: count,
+		More:  wkutil.BoolToInt(hasMore),
 	})
 
 }

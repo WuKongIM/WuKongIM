@@ -2,7 +2,6 @@ package wkdb
 
 import (
 	"strconv"
-	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 )
@@ -14,18 +13,19 @@ type dblock struct {
 	denylistCountLock    *denylistCountLock
 	totalLock            *totalLock
 
-	updateSessionUpdatedAtLock sync.Mutex
-	userLock                   *userLock
+	userLock               *userLock
+	addOrUpdateChannelLock *addOrUpdateChannelLock
 }
 
 func newDBLock() *dblock {
 	return &dblock{
-		channelClusterConfig: newChannelClusterConfigLock(),
-		subscriberCountLock:  newSubscriberCountLock(),
-		allowlistCountLock:   newAllowlistCountLock(),
-		denylistCountLock:    newDenylistCountLock(),
-		userLock:             newUserLock(),
-		totalLock:            newTotalLock(),
+		channelClusterConfig:   newChannelClusterConfigLock(),
+		subscriberCountLock:    newSubscriberCountLock(),
+		allowlistCountLock:     newAllowlistCountLock(),
+		denylistCountLock:      newDenylistCountLock(),
+		userLock:               newUserLock(),
+		totalLock:              newTotalLock(),
+		addOrUpdateChannelLock: newAddOrUpdateChannelLock(),
 	}
 
 }
@@ -36,6 +36,7 @@ func (d *dblock) start() {
 	d.allowlistCountLock.StartCleanLoop()
 	d.denylistCountLock.StartCleanLoop()
 	d.userLock.StartCleanLoop()
+	d.addOrUpdateChannelLock.StartCleanLoop()
 }
 
 func (d *dblock) stop() {
@@ -44,6 +45,7 @@ func (d *dblock) stop() {
 	d.allowlistCountLock.StopCleanLoop()
 	d.denylistCountLock.StopCleanLoop()
 	d.userLock.StopCleanLoop()
+	d.addOrUpdateChannelLock.StopCleanLoop()
 }
 
 type channelClusterConfigLock struct {
@@ -203,4 +205,24 @@ func (t *totalLock) lockChannelClusterConfigCount() {
 
 func (t *totalLock) unlockChannelClusterConfigCount() {
 	t.Unlock("__channel_cluster_config_count")
+}
+
+type addOrUpdateChannelLock struct {
+	*keylock.KeyLock
+}
+
+func newAddOrUpdateChannelLock() *addOrUpdateChannelLock {
+	return &addOrUpdateChannelLock{
+		keylock.NewKeyLock(),
+	}
+}
+
+func (c *addOrUpdateChannelLock) lock(channelId string, channelType uint8) {
+	key := channelId + strconv.FormatInt(int64(channelType), 10)
+	c.Lock(key)
+}
+
+func (c *addOrUpdateChannelLock) unlock(channelId string, channelType uint8) {
+	key := channelId + strconv.FormatInt(int64(channelType), 10)
+	c.Unlock(key)
 }
