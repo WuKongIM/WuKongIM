@@ -16,15 +16,6 @@ func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, uids []str
 	if err != nil {
 		return err
 	}
-	if channelPrimaryId == 0 {
-		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-		})
-		if err != nil {
-			return err
-		}
-	}
 
 	w := db.NewBatch()
 	defer w.Close()
@@ -95,15 +86,6 @@ func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []
 	if err != nil {
 		return err
 	}
-	if channelPrimaryId == 0 {
-		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-		})
-		if err != nil {
-			return err
-		}
-	}
 
 	idMap, err := wk.getAllowlistIdsByUids(channelId, channelType, uids)
 	if err != nil {
@@ -137,15 +119,6 @@ func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) erro
 	if err != nil {
 		return err
 	}
-	if channelPrimaryId == 0 {
-		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-		})
-		if err != nil {
-			return err
-		}
-	}
 
 	batch := db.NewBatch()
 	defer batch.Close()
@@ -163,7 +136,7 @@ func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) erro
 	}
 
 	// 白名单数量设置为0
-	err = wk.incChannelInfoAllowlistCount(channelPrimaryId, math.MinInt, db)
+	err = wk.incChannelInfoAllowlistCount(channelPrimaryId, 0, db)
 	if err != nil {
 		wk.Error("RemoveAllAllowlist: incChannelInfoAllowlistCount failed", zap.Error(err))
 		return err

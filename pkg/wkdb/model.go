@@ -147,11 +147,23 @@ func (c *ChannelInfo) Marshal() ([]byte, error) {
 	enc.WriteUint8(wkutil.BoolToUint8(c.Ban))
 	enc.WriteUint8(wkutil.BoolToUint8(c.Large))
 	enc.WriteUint8(wkutil.BoolToUint8(c.Disband))
+	if c.CreatedAt != nil {
+		enc.WriteUint64(uint64(c.CreatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+	if c.UpdatedAt != nil {
+		enc.WriteUint64(uint64(c.UpdatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+
 	return enc.Bytes(), nil
 }
 
 func (c *ChannelInfo) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
+
 	var err error
 	if c.ChannelId, err = dec.String(); err != nil {
 		return err
@@ -174,8 +186,25 @@ func (c *ChannelInfo) Unmarshal(data []byte) error {
 
 	c.Ban = wkutil.Uint8ToBool(ban)
 	c.Large = wkutil.Uint8ToBool(large)
-
 	c.Disband = wkutil.Uint8ToBool(disband)
+
+	var createdAt uint64
+	if createdAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if createdAt > 0 {
+		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+		c.CreatedAt = &ct
+	}
+	var updatedAt uint64
+	if updatedAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if updatedAt > 0 {
+		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+		c.UpdatedAt = &ct
+	}
+
 	return nil
 }
 

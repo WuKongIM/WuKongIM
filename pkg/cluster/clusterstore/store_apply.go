@@ -53,8 +53,10 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 		return s.handleAddOrUpdateDevice(cmd)
 	case CMDUpdateMessageOfUserCursorIfNeed: // 更新用户消息队列的游标，用户读到的位置
 		return s.handleUpdateMessageOfUserCursorIfNeed(cmd)
-	case CMDAddOrUpdateChannel: // 添加或更新频道
-		return s.handleAddOrUpdateChannel(cmd)
+	case CMDAddChannelInfo: // 添加频道信息
+		return s.handleAddChannelInfo(cmd)
+	case CMDUpdateChannelInfo: // 更新频道信息
+		return s.handleUpdateChannel(cmd)
 	case CMDRemoveAllSubscriber: // 移除所有订阅者
 		return s.handleRemoveAllSubscriber(cmd)
 	case CMDDeleteChannel: // 删除频道
@@ -137,12 +139,21 @@ func (s *Store) handleUpdateMessageOfUserCursorIfNeed(cmd *CMD) error {
 	return s.wdb.UpdateMessageOfUserQueueCursorIfNeed(uid, messageSeq)
 }
 
-func (s *Store) handleAddOrUpdateChannel(cmd *CMD) error {
-	channelInfo, err := cmd.DecodeAddOrUpdateChannel()
+func (s *Store) handleAddChannelInfo(cmd *CMD) error {
+	channelInfo, err := cmd.DecodeChannelInfo()
 	if err != nil {
 		return err
 	}
-	_, err = s.wdb.AddOrUpdateChannel(channelInfo)
+	_, err = s.wdb.AddChannel(channelInfo)
+	return err
+}
+
+func (s *Store) handleUpdateChannel(cmd *CMD) error {
+	channelInfo, err := cmd.DecodeChannelInfo()
+	if err != nil {
+		return err
+	}
+	err = s.wdb.UpdateChannel(channelInfo)
 	return err
 }
 

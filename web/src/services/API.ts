@@ -86,16 +86,16 @@ export default class API {
 
     // 搜索消息
     public searchMessages(req: {
-        nodeId?: number,
-        fromUid?: string,
-        channelId?: string,
-        payload?: string,
-        messageId?: number,
-        limit?: number,
-        offsetMessageId?: number,
-        offsetMessageSeq?: number,
-        pre?: boolean,
-        channelType?: number,
+        nodeId?: number
+        fromUid?: string
+        channelId?: string
+        payload?: string
+        messageId?: number
+        limit?: number
+        offsetMessageId?: number
+        offsetMessageSeq?: number
+        pre?: boolean
+        channelType?: number
         clientMsgNo?: string
     }): Promise<any> {
         return APIClient.shared.get(`/cluster/messages?node_id=${req.nodeId || 0}&from_uid=${req.fromUid || ''}&channel_id=${req.channelId || ''}&channel_type=${req.channelType || 0}&payload=${req.payload || ''}&message_id=${req.messageId || 0}&limit=${req.limit || 20}&offset_message_id=${req.offsetMessageId || 0}&offset_message_seq=${req.offsetMessageSeq || 0}&pre=${req.pre?1:0}&client_msg_no=${req.clientMsgNo || ''}`)
@@ -103,13 +103,19 @@ export default class API {
 
     // 搜索频道
     public searchChannels(req: {
-        channelId?: string,
-        channelType?: number,
+        channelId?: string
+        channelType?: number
+        limit?: number
+        offsetCreatedAt?: string
+        pre?: boolean
     }): Promise<any> {
         return APIClient.shared.get(`/cluster/channels`, {
             param: {
                 channel_id: req.channelId,
                 channel_type: req.channelType,
+                limit: req.limit,
+                offset_created_at: req.offsetCreatedAt || 0,
+                pre: req.pre?1:0
             }
         })
     }
@@ -135,10 +141,13 @@ export default class API {
     }
 
     // 获取用户的设备列表
-    public devices(req: { uid?: string }): Promise<any> {
+    public devices(req: { uid?: string, currentPage?: number,limit?: number }): Promise<any> {
         return APIClient.shared.get(`/cluster/devices`, {
             param: {
-                uid: req.uid
+                uid: req.uid,
+                current_page: req.currentPage || 1,
+                limit: req.limit || 20
+                
             }
         })
     }

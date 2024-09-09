@@ -61,12 +61,27 @@ func (s *Store) GetSubscribers(channelID string, channelType uint8) ([]string, e
 }
 
 // AddOrUpdateChannel add or update channel
-func (s *Store) AddOrUpdateChannel(channelInfo wkdb.ChannelInfo) error {
-	data, err := EncodeAddOrUpdateChannel(channelInfo)
+func (s *Store) AddChannelInfo(channelInfo wkdb.ChannelInfo) error {
+	data, err := EncodeChannelInfo(channelInfo)
 	if err != nil {
 		return err
 	}
-	cmd := NewCMD(CMDAddOrUpdateChannel, data)
+	cmd := NewCMD(CMDAddChannelInfo, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	slotId := s.opts.GetSlotId(channelInfo.ChannelId)
+	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	return err
+}
+
+func (s *Store) UpdateChannelInfo(channelInfo wkdb.ChannelInfo) error {
+	data, err := EncodeChannelInfo(channelInfo)
+	if err != nil {
+		return err
+	}
+	cmd := NewCMD(CMDUpdateChannelInfo, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err

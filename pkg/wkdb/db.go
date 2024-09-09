@@ -129,7 +129,9 @@ type ChannelDB interface {
 	GetSubscribers(channelId string, channelType uint8) ([]string, error)
 
 	// AddOrUpdateChannel  添加或更新channel
-	AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error)
+	AddChannel(channelInfo ChannelInfo) (uint64, error)
+	// UpdateChannel 更新channel
+	UpdateChannel(channelInfo ChannelInfo) error
 
 	// GetChannel 获取channel
 	GetChannel(channelId string, channelType uint8) (ChannelInfo, error)
@@ -362,7 +364,8 @@ type ChannelSearchReq struct {
 	AllowlistCountGte  *int   // 大于等于的白名单数量
 	AllowlistCountLte  *int   // 小于等于的白名单数量
 	Limit              int    // 限制查询数量
-	CurrentPage        int    // 当前页码
+	OffsetCreatedAt    int64  // 偏移的创建时间
+	Pre                bool   // 是否向前搜索
 }
 
 type UserSearchReq struct {

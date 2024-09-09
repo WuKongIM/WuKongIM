@@ -408,7 +408,7 @@ func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 
 	// add channel basic info
 	m.Info("add channel", zap.String("channelId", channel.ChannelID), zap.Uint8("channelType", channel.ChannelType))
-	err = m.s.store.AddOrUpdateChannel(wkdb.ChannelInfo{
+	err = m.s.store.AddChannelInfo(wkdb.ChannelInfo{
 		ChannelId:   channel.ChannelID,
 		ChannelType: channel.ChannelType,
 		Ban:         channel.Ban,

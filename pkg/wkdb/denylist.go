@@ -16,15 +16,6 @@ func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, uids []stri
 	if err != nil {
 		return err
 	}
-	if channelPrimaryId == 0 {
-		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-		})
-		if err != nil {
-			return err
-		}
-	}
 
 	w := db.NewBatch()
 	defer w.Close()
@@ -74,15 +65,6 @@ func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []s
 	if err != nil {
 		return err
 	}
-	if channelPrimaryId == 0 {
-		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-		})
-		if err != nil {
-			return err
-		}
-	}
 
 	idMap, err := wk.getDenylistIdsByUids(channelId, channelType, uids)
 	if err != nil {
@@ -114,15 +96,6 @@ func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error
 	if err != nil {
 		return err
 	}
-	if channelPrimaryId == 0 {
-		channelPrimaryId, err = wk.AddOrUpdateChannel(ChannelInfo{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-		})
-		if err != nil {
-			return err
-		}
-	}
 
 	db := wk.channelDb(channelId, channelType)
 
@@ -142,7 +115,7 @@ func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error
 	}
 
 	// 黑名单数量设置为0
-	err = wk.incChannelInfoDenylistCount(channelPrimaryId, math.MinInt, db)
+	err = wk.incChannelInfoDenylistCount(channelPrimaryId, 0, db)
 	if err != nil {
 		wk.Error("RemoveAllDenylist: incChannelInfoDenylistCount failed", zap.Error(err))
 		return err

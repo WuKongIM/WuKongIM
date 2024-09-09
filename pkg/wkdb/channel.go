@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
@@ -9,28 +10,16 @@ import (
 	"github.com/cockroachdb/pebble"
 )
 
-func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error) {
+func (wk *wukongDB) AddChannel(channelInfo ChannelInfo) (uint64, error) {
 
 	primaryKey, err := wk.getChannelPrimaryKey(channelInfo.ChannelId, channelInfo.ChannelType)
 	if err != nil {
 		return 0, err
 	}
 
-	existChannelInfo, err := wk.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
-	if err != nil {
-		return 0, err
-	}
-
 	w := wk.channelDb(channelInfo.ChannelId, channelInfo.ChannelType).NewBatch()
-	if !IsEmptyChannelInfo(existChannelInfo) {
-		// 删除旧的索引
-		err = wk.deleteChannelInfoIndex(existChannelInfo, w)
-		if err != nil {
-			return 0, err
-		}
-	}
-
 	defer w.Close()
+
 	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
 		return 0, err
 	}
@@ -44,6 +33,37 @@ func (wk *wukongDB) AddOrUpdateChannel(channelInfo ChannelInfo) (uint64, error) 
 	// }
 
 	return primaryKey, w.Commit(wk.sync)
+}
+
+func (wk *wukongDB) UpdateChannel(channelInfo ChannelInfo) error {
+
+	primaryKey, err := wk.getChannelPrimaryKey(channelInfo.ChannelId, channelInfo.ChannelType)
+	if err != nil {
+		return err
+	}
+
+	w := wk.channelDb(channelInfo.ChannelId, channelInfo.ChannelType).NewBatch()
+	defer w.Close()
+
+	oldChannelInfo, err := wk.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
+	if err != nil {
+		return err
+	}
+	// 删除旧索引
+	if err := wk.deleteChannelInfoIndex(oldChannelInfo, w); err != nil {
+		return err
+	}
+
+	// 更新操作不需要更新创建时间
+	if channelInfo.CreatedAt != nil {
+		channelInfo.CreatedAt = nil
+	}
+
+	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
+		return err
+	}
+
+	return w.Commit(wk.sync)
 }
 
 func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo, error) {
@@ -89,38 +109,47 @@ func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) 
 		return channelInfos, nil
 	}
 
-	currentSize := 0
+	iterFnc := func(channelInfos *[]ChannelInfo) func(channelInfo ChannelInfo) bool {
+		currentSize := 0
+		return func(channelInfo ChannelInfo) bool {
+			if req.ChannelId != "" && req.ChannelId != channelInfo.ChannelId {
+				return true
+			}
+			if req.ChannelType != 0 && req.ChannelType != channelInfo.ChannelType {
+				return true
+			}
+			if req.Ban != nil && *req.Ban != channelInfo.Ban {
+				return true
+			}
+			if req.Disband != nil && *req.Disband != channelInfo.Disband {
+				return true
+			}
+			if req.Pre {
+				if req.OffsetCreatedAt > 0 && channelInfo.CreatedAt != nil && channelInfo.CreatedAt.UnixNano() <= req.OffsetCreatedAt {
+					return false
+				}
+			} else {
+				if req.OffsetCreatedAt > 0 && channelInfo.CreatedAt != nil && channelInfo.CreatedAt.UnixNano() >= req.OffsetCreatedAt {
+					return false
+				}
+			}
 
-	iterFnc := func(channelInfo ChannelInfo) bool {
-		if req.ChannelId != "" && req.ChannelId != channelInfo.ChannelId {
-			return true
-		}
-		if req.ChannelType != 0 && req.ChannelType != channelInfo.ChannelType {
-			return true
-		}
-		if req.Ban != nil && *req.Ban != channelInfo.Ban {
-			return true
-		}
-		if req.Disband != nil && *req.Disband != channelInfo.Disband {
-			return true
-		}
-		if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
-			return false
-		}
+			if currentSize > req.Limit {
+				return false
+			}
+			currentSize++
+			*channelInfos = append(*channelInfos, channelInfo)
 
-		currentSize++
-
-		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
-			channelInfos = append(channelInfos, channelInfo)
 			return true
 		}
-		return true
 	}
 
+	allChannelInfos := make([]ChannelInfo, 0, req.Limit*len(wk.dbs))
 	for _, db := range wk.dbs {
-
+		channelInfos := make([]ChannelInfo, 0, req.Limit)
+		fnc := iterFnc(&channelInfos)
 		// 通过索引查询
-		has, err := wk.searchChannelsByIndex(req, db, iterFnc)
+		has, err := wk.searchChannelsByIndex(req, db, fnc)
 		if err != nil {
 			return nil, err
 		}
@@ -128,33 +157,88 @@ func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) 
 			continue
 		}
 
+		start := uint64(req.OffsetCreatedAt)
+		end := uint64(math.MaxUint64)
+		if req.OffsetCreatedAt > 0 {
+			if req.Pre {
+				start = uint64(req.OffsetCreatedAt + 1)
+				end = uint64(math.MaxUint64)
+			} else {
+				start = 0
+				end = uint64(req.OffsetCreatedAt)
+			}
+		}
+
 		iter := db.NewIter(&pebble.IterOptions{
-			LowerBound: key.NewChannelInfoColumnKey(0, key.MinColumnKey),
-			UpperBound: key.NewChannelInfoColumnKey(math.MaxUint64, key.MaxColumnKey),
+			LowerBound: key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, start, 0),
+			UpperBound: key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, end, 0),
 		})
 		defer iter.Close()
-		err = wk.iterChannelInfo(iter, iterFnc)
-		if err != nil {
-			return nil, err
+
+		var iterStepFnc func() bool
+		if req.Pre {
+			if !iter.First() {
+				continue
+			}
+			iterStepFnc = iter.Next
+		} else {
+			if !iter.Last() {
+				continue
+			}
+			iterStepFnc = iter.Prev
+		}
+
+		for ; iter.Valid(); iterStepFnc() {
+			_, id, err := key.ParseChannelInfoSecondIndexKey(iter.Key())
+			if err != nil {
+				return nil, err
+			}
+
+			dataIter := db.NewIter(&pebble.IterOptions{
+				LowerBound: key.NewChannelInfoColumnKey(id, key.MinColumnKey),
+				UpperBound: key.NewChannelInfoColumnKey(id, key.MaxColumnKey),
+			})
+			defer dataIter.Close()
+
+			var ch ChannelInfo
+			err = wk.iterChannelInfo(dataIter, func(channelInfo ChannelInfo) bool {
+				ch = channelInfo
+				return false
+			})
+			if err != nil {
+				return nil, err
+			}
+			if !fnc(ch) {
+				break
+			}
+		}
+
+		allChannelInfos = append(allChannelInfos, channelInfos...)
+	}
+
+	// 降序排序
+	sort.Slice(allChannelInfos, func(i, j int) bool {
+		return allChannelInfos[i].CreatedAt.UnixNano() > allChannelInfos[j].CreatedAt.UnixNano()
+	})
+
+	if req.Limit > 0 && len(allChannelInfos) > req.Limit {
+		if req.Pre {
+			allChannelInfos = allChannelInfos[len(allChannelInfos)-req.Limit:]
+		} else {
+			allChannelInfos = allChannelInfos[:req.Limit]
 		}
 	}
 
-	var results = channelInfos
-
-	if req.Limit > 0 && len(channelInfos) > req.Limit {
-		results = channelInfos[:req.Limit]
-	}
-
-	for i, result := range results {
+	for i, result := range allChannelInfos {
 		lastMsgSeq, lastTime, err := wk.GetChannelLastMessageSeq(result.ChannelId, result.ChannelType)
 		if err != nil {
 			return nil, err
 		}
-		results[i].LastMsgSeq = lastMsgSeq
-		results[i].LastMsgTime = lastTime
+		allChannelInfos[i].LastMsgSeq = lastMsgSeq
+		allChannelInfos[i].LastMsgTime = lastTime
 	}
 
-	return results, nil
+	return allChannelInfos, nil
 }
 
 func (wk *wukongDB) searchChannelsByIndex(req ChannelSearchReq, db *pebble.DB, iterFnc func(ch ChannelInfo) bool) (bool, error) {
@@ -268,11 +352,15 @@ func (wk *wukongDB) searchChannelsByIndex(req ChannelSearchReq, db *pebble.DB, i
 }
 
 func (wk *wukongDB) ExistChannel(channelId string, channelType uint8) (bool, error) {
-	id, err := wk.getChannelPrimaryKey(channelId, channelType)
+
+	channel, err := wk.GetChannel(channelId, channelType)
 	if err != nil {
+		if err == ErrNotFound {
+			return false, nil
+		}
 		return false, err
 	}
-	return id > 0, nil
+	return !IsEmptyChannelInfo(channel), nil
 }
 
 func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
@@ -406,14 +494,15 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 
 	// createdAt
 	if channelInfo.CreatedAt != nil {
+		ct := uint64(channelInfo.CreatedAt.UnixNano())
 		createdAt := make([]byte, 8)
-		wk.endian.PutUint64(createdAt, uint64(channelInfo.CreatedAt.Unix()))
+		wk.endian.PutUint64(createdAt, ct)
 		if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.CreatedAt), createdAt, wk.noSync); err != nil {
 			return err
 		}
 
 		// createdAt second index
-		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, uint64(channelInfo.CreatedAt.Unix()), primaryKey), nil, wk.noSync); err != nil {
+		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, ct, primaryKey), nil, wk.noSync); err != nil {
 			return err
 		}
 
@@ -422,15 +511,22 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 	if channelInfo.UpdatedAt != nil {
 		// updatedAt
 		updatedAt := make([]byte, 8)
-		wk.endian.PutUint64(updatedAt, uint64(channelInfo.UpdatedAt.Unix()))
+		wk.endian.PutUint64(updatedAt, uint64(channelInfo.UpdatedAt.UnixNano()))
 		if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.UpdatedAt), updatedAt, wk.noSync); err != nil {
 			return err
 		}
 
 		// updatedAt second index
-		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.Unix()), primaryKey), nil, wk.noSync); err != nil {
+		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.UnixNano()), primaryKey), nil, wk.noSync); err != nil {
 			return err
 		}
+	}
+
+	// channel index
+	primaryKeyBytes := make([]byte, 8)
+	wk.endian.PutUint64(primaryKeyBytes, primaryKey)
+	if err = w.Set(key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelIdToNum(channelInfo.ChannelId, channelInfo.ChannelType)), primaryKeyBytes, wk.noSync); err != nil {
+		return err
 	}
 
 	// ban index
@@ -449,16 +545,22 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 func (wk *wukongDB) deleteChannelInfoIndex(channelInfo ChannelInfo, w pebble.Writer) error {
 	if channelInfo.CreatedAt != nil {
 		// createdAt second index
-		if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, uint64(channelInfo.CreatedAt.Unix()), channelInfo.Id), wk.noSync); err != nil {
+		ct := uint64(channelInfo.CreatedAt.UnixNano())
+		if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, ct, channelInfo.Id), wk.noSync); err != nil {
 			return err
 		}
 	}
 
 	if channelInfo.UpdatedAt != nil {
 		// updatedAt second index
-		if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.Unix()), channelInfo.Id), wk.noSync); err != nil {
+		if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.UnixNano()), channelInfo.Id), wk.noSync); err != nil {
 			return err
 		}
+	}
+
+	// channel index
+	if err := w.Delete(key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelIdToNum(channelInfo.ChannelId, channelInfo.ChannelType)), wk.noSync); err != nil {
+		return err
 	}
 
 	// ban index
@@ -518,14 +620,14 @@ func (wk *wukongDB) iterChannelInfo(iter *pebble.Iterator, iterFnc func(channelI
 		case key.TableChannelInfo.Column.CreatedAt:
 			tm := int64(wk.endian.Uint64(iter.Value()))
 			if tm > 0 {
-				t := time.Unix(tm, 0)
+				t := time.Unix(tm/1e9, tm%1e9)
 				preChannelInfo.CreatedAt = &t
 			}
 
 		case key.TableChannelInfo.Column.UpdatedAt:
 			tm := int64(wk.endian.Uint64(iter.Value()))
 			if tm > 0 {
-				t := time.Unix(tm, 0)
+				t := time.Unix(tm/1e9, tm%1e9)
 				preChannelInfo.UpdatedAt = &t
 			}
 		}
@@ -586,7 +688,7 @@ func (wk *wukongDB) iterChannelInfo(iter *pebble.Iterator, iterFnc func(channelI
 // }
 
 func (wk *wukongDB) getChannelPrimaryKey(channelId string, channelType uint8) (uint64, error) {
-	// primaryKey := key.NewChannelInfoIndexKey(channelId, channelType)
+	// primaryKey := key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelIdToNum(channelId, channelType))
 	// indexValue, closer, err := wk.channelDb(channelId, channelType).Get(primaryKey)
 	// if err != nil {
 	// 	if err == pebble.ErrNotFound {
@@ -602,23 +704,5 @@ func (wk *wukongDB) getChannelPrimaryKey(channelId string, channelType uint8) (u
 	// return wk.endian.Uint64(indexValue), nil
 
 	return key.ChannelIdToNum(channelId, channelType), nil
-}
 
-func (wk *wukongDB) writeSubscriber(channelId string, channelType uint8, id uint64, uid string, w pebble.Writer) error {
-	var (
-		err error
-	)
-	// uid
-	if err = w.Set(key.NewSubscriberColumnKey(channelId, channelType, id, key.TableUser.Column.Uid), []byte(uid), wk.noSync); err != nil {
-		return err
-	}
-
-	// uid index
-	idBytes := make([]byte, 8)
-	wk.endian.PutUint64(idBytes, id)
-	if err = w.Set(key.NewSubscriberIndexUidKey(channelId, channelType, uid), idBytes, wk.noSync); err != nil {
-		return err
-	}
-
-	return nil
 }

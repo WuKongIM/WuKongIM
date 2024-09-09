@@ -1161,6 +1161,11 @@ type channelInfoResp struct {
 	LastMsgTime       uint64 `json:"last_msg_time"`        // 频道最新消息时间
 	LastMsgTimeFormat string `json:"last_msg_time_format"` // 频道最新消息时间格式化
 	StatusFormat      string `json:"status_format"`        // 状态格式化
+	CreatedAt         string `json:"created_at"`           // 创建时间
+	UpdatedAt         string `json:"updated_at"`           // 更新时间
+
+	createdAt int64
+	updatedAt int64
 }
 
 func newChannelInfoResp(ch wkdb.ChannelInfo, slotId uint32) *channelInfoResp {
@@ -1178,6 +1183,15 @@ func newChannelInfoResp(ch wkdb.ChannelInfo, slotId uint32) *channelInfoResp {
 		statusFormat = "封禁"
 	}
 
+	createdAt := int64(0)
+	updatedAt := int64(0)
+	if ch.CreatedAt != nil {
+		createdAt = ch.CreatedAt.UnixNano()
+	}
+	if ch.UpdatedAt != nil {
+		updatedAt = ch.UpdatedAt.UnixNano()
+	}
+
 	return &channelInfoResp{
 		Id:                ch.Id,
 		Slot:              slotId,
@@ -1192,11 +1206,16 @@ func newChannelInfoResp(ch wkdb.ChannelInfo, slotId uint32) *channelInfoResp {
 		LastMsgTime:       ch.LastMsgTime,
 		LastMsgTimeFormat: lastMsgTimeFormat,
 		StatusFormat:      statusFormat,
+		CreatedAt:         wkutil.Int64ToString(createdAt),
+		UpdatedAt:         wkutil.Int64ToString(updatedAt),
+		createdAt:         createdAt,
+		updatedAt:         updatedAt,
 	}
 }
 
 type channelInfoRespTotal struct {
 	Total int                `json:"total"` // 总数
+	More  int                `json:"more"`  // 是否还有更多
 	Data  []*channelInfoResp `json:"data"`
 }
 
