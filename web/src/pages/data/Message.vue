@@ -23,6 +23,7 @@ const pageSize = ref<number>(20) // 每页数量
 const offsetMessageId = ref<number>() // 偏移的messageId
 const offsetMessageSeq = ref<number>() // 偏移的messageSeq
 const pre = ref<boolean>() // 是否向上分页
+const currentMessage = ref<any>() // 当前消息
 
 
 const query = router.currentRoute.value.query; //查询参数
@@ -152,6 +153,13 @@ const prevPage = () => {
     searchMessages()
 }
 
+const onShowMessageContent = (message: any) => {
+    console.log(message)
+    currentMessage.value = message
+    const dialog = document.getElementById('messageContent') as HTMLDialogElement;
+    dialog.showModal();
+}
+
 </script>
 
 <template>
@@ -268,7 +276,7 @@ const prevPage = () => {
                         <td>{{ message.from_uid }}</td>
                         <td>{{ message.channel_id }}</td>
                         <td>{{ message.channel_type }}</td>
-                        <td class="text-blue-800"><a href="#">{{ ellipsis(base64Decode(message.payload), 40) }}</a></td>
+                        <td class="text-blue-800" v-on:click="()=>onShowMessageContent(message)"><a href="#">{{ ellipsis(base64Decode(message.payload), 40) }}</a></td>
                         <td>{{ message.timestamp_format }}</td>
                         <td>{{ ellipsis(message.client_msg_no, 20) }}</td>
                     </tr>
@@ -292,5 +300,15 @@ const prevPage = () => {
                 <button  :class="{'join-item btn':true}" v-on:click="nextPage">»</button>
             </div>
         </div>
+
+        <dialog id="messageContent" class="modal">
+            <div class="modal-box flex flex-wrap gap-2">
+                <div>{{ base64Decode(currentMessage?.payload)}}</div>
+               
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
     </div>
 </template>
