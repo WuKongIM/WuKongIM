@@ -341,14 +341,24 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 	}
 
 	// add user basic info
-	err = m.s.store.AddOrUpdateUserAndDevice(user.Uid, wkproto.DeviceFlag(user.DeviceFlag), wkproto.DeviceLevel(user.DeviceLevel), user.Token)
+	err = m.addOrUpdateUserAndDevice(user)
 	if err != nil {
 		return err
 	}
 
 	// add user allowlist
 	if len(relationData.Allowlist) > 0 {
-		err = m.s.store.AddAllowlist(user.Uid, wkproto.ChannelTypePerson, relationData.Allowlist)
+		members := make([]wkdb.Member, 0, len(relationData.Allowlist))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range relationData.Allowlist {
+			members = append(members, wkdb.Member{
+				Uid:       uid,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+		err = m.s.store.AddAllowlist(user.Uid, wkproto.ChannelTypePerson, members)
 		if err != nil {
 			return err
 		}
@@ -356,7 +366,19 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 
 	// add user denylist
 	if len(relationData.Denylist) > 0 {
-		err = m.s.store.AddDenylist(user.Uid, wkproto.ChannelTypePerson, relationData.Denylist)
+
+		members := make([]wkdb.Member, 0, len(relationData.Denylist))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range relationData.Denylist {
+			members = append(members, wkdb.Member{
+				Uid:       uid,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+
+		err = m.s.store.AddDenylist(user.Uid, wkproto.ChannelTypePerson, members)
 		if err != nil {
 			return err
 		}
@@ -399,6 +421,30 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 	return nil
 }
 
+func (m *MigrateTask) addOrUpdateUserAndDevice(user *mgUserResp) error {
+	createdAt := time.Now()
+	updatedAt := time.Now()
+	err := m.s.store.AddUser(wkdb.User{
+		Uid:       user.Uid,
+		CreatedAt: &createdAt,
+		UpdatedAt: &updatedAt,
+	})
+	if err != nil {
+		return err
+	}
+	err = m.s.store.AddDevice(wkdb.Device{
+		Id:          m.s.store.NextPrimaryKey(),
+		Uid:         user.Uid,
+		DeviceFlag:  uint64(user.DeviceFlag),
+		DeviceLevel: user.DeviceLevel,
+		Token:       user.Token,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 
 	relationData, err := m.getChannelRelationData(channel.ChannelID, channel.ChannelType)
@@ -421,7 +467,17 @@ func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 
 	// add channel subscribers
 	if len(relationData.Subscribers) > 0 {
-		err = m.s.store.AddSubscribers(channel.ChannelID, channel.ChannelType, relationData.Subscribers)
+		members := make([]wkdb.Member, 0, len(relationData.Subscribers))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range relationData.Subscribers {
+			members = append(members, wkdb.Member{
+				Uid:       uid,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+		err = m.s.store.AddSubscribers(channel.ChannelID, channel.ChannelType, members)
 		if err != nil {
 			return err
 		}
@@ -429,7 +485,19 @@ func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 
 	// add channel allowlist
 	if len(relationData.Allowlist) > 0 {
-		err = m.s.store.AddAllowlist(channel.ChannelID, channel.ChannelType, relationData.Allowlist)
+
+		members := make([]wkdb.Member, 0, len(relationData.Allowlist))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range relationData.Allowlist {
+			members = append(members, wkdb.Member{
+				Uid:       uid,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+
+		err = m.s.store.AddAllowlist(channel.ChannelID, channel.ChannelType, members)
 		if err != nil {
 			return err
 		}
@@ -437,7 +505,18 @@ func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 
 	// add channel denylist
 	if len(relationData.Denylist) > 0 {
-		err = m.s.store.AddDenylist(channel.ChannelID, channel.ChannelType, relationData.Denylist)
+
+		members := make([]wkdb.Member, 0, len(relationData.Denylist))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range relationData.Denylist {
+			members = append(members, wkdb.Member{
+				Uid:       uid,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+		err = m.s.store.AddDenylist(channel.ChannelID, channel.ChannelType, members)
 		if err != nil {
 			return err
 		}

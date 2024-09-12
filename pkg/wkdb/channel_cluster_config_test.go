@@ -2,6 +2,7 @@ package wkdb_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,8 @@ func TestSaveChannelClusterConfig(t *testing.T) {
 	channelId := "channel1"
 	channelType := uint8(1)
 
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	config := wkdb.ChannelClusterConfig{
 		ChannelId:       channelId,
 		ChannelType:     channelType,
@@ -27,6 +30,8 @@ func TestSaveChannelClusterConfig(t *testing.T) {
 		Replicas:        []uint64{1, 2, 3},
 		LeaderId:        1001,
 		Term:            1,
+		CreatedAt:       &createdAt,
+		UpdatedAt:       &updatedAt,
 	}
 
 	err = d.SaveChannelClusterConfig(config)
@@ -46,7 +51,8 @@ func TestGetChannelClusterConfig(t *testing.T) {
 
 	channelId := "channel1"
 	channelType := uint8(1)
-
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	config := wkdb.ChannelClusterConfig{
 		ChannelId:       channelId,
 		ChannelType:     channelType,
@@ -54,6 +60,8 @@ func TestGetChannelClusterConfig(t *testing.T) {
 		Replicas:        []uint64{1, 2, 3},
 		LeaderId:        1001,
 		Term:            1,
+		CreatedAt:       &createdAt,
+		UpdatedAt:       &updatedAt,
 	}
 
 	err = d.SaveChannelClusterConfig(config)
@@ -68,6 +76,8 @@ func TestGetChannelClusterConfig(t *testing.T) {
 	assert.Equal(t, config.LeaderId, config2.LeaderId)
 	assert.Equal(t, config.Term, config2.Term)
 	assert.Equal(t, config.Replicas, config2.Replicas)
+	assert.Equal(t, config.CreatedAt.Unix(), config2.CreatedAt.Unix())
+	assert.Equal(t, config.UpdatedAt.Unix(), config2.UpdatedAt.Unix())
 
 }
 
@@ -93,6 +103,8 @@ func TestGetChannelClusterConfigs(t *testing.T) {
 	err = d.SaveChannelClusterConfig(config1)
 	assert.NoError(t, err)
 
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	config2 := wkdb.ChannelClusterConfig{
 		ChannelId:       "channel2",
 		ChannelType:     1,
@@ -100,6 +112,8 @@ func TestGetChannelClusterConfigs(t *testing.T) {
 		Replicas:        []uint64{4, 5, 6},
 		LeaderId:        1001,
 		Term:            1,
+		CreatedAt:       &createdAt,
+		UpdatedAt:       &updatedAt,
 	}
 
 	err = d.SaveChannelClusterConfig(config2)
@@ -127,6 +141,8 @@ func TestDeleteChannelClusterConfig(t *testing.T) {
 	channelId := "channel1"
 	channelType := uint8(1)
 
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	config := wkdb.ChannelClusterConfig{
 		ChannelId:       channelId,
 		ChannelType:     channelType,
@@ -134,6 +150,8 @@ func TestDeleteChannelClusterConfig(t *testing.T) {
 		Replicas:        []uint64{1, 2, 3},
 		LeaderId:        1001,
 		Term:            1,
+		CreatedAt:       &createdAt,
+		UpdatedAt:       &updatedAt,
 	}
 
 	err = d.SaveChannelClusterConfig(config)
@@ -142,9 +160,7 @@ func TestDeleteChannelClusterConfig(t *testing.T) {
 	err = d.DeleteChannelClusterConfig(channelId, channelType)
 	assert.NoError(t, err)
 
-	config2, err := d.GetChannelClusterConfig(channelId, channelType)
-	assert.NoError(t, err)
-	if !wkdb.IsEmptyChannelClusterConfig(config2) {
-		assert.Error(t, err)
-	}
+	_, err = d.GetChannelClusterConfig(channelId, channelType)
+	assert.ErrorIs(t, err, wkdb.ErrNotFound)
+
 }

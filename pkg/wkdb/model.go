@@ -429,6 +429,8 @@ type ChannelClusterConfig struct {
 	MigrateTo       uint64               `json:"migrate_to,omitempty"`        // 迁移目标
 	Status          ChannelClusterStatus `json:"status,omitempty"`            // 状态
 	ConfVersion     uint64               `json:"conf_version,omitempty"`      // 配置文件版本号
+	CreatedAt       *time.Time           `json:"created_at,omitempty"`        // 创建时间
+	UpdatedAt       *time.Time           `json:"updated_at,omitempty"`        // 更新时间
 
 	version uint16 // 数据协议版本
 }
@@ -448,6 +450,8 @@ func (c *ChannelClusterConfig) Clone() ChannelClusterConfig {
 		Status:          c.Status,
 		ConfVersion:     c.ConfVersion,
 		version:         c.version,
+		CreatedAt:       c.CreatedAt,
+		UpdatedAt:       c.UpdatedAt,
 	}
 }
 
@@ -527,6 +531,16 @@ func (c *ChannelClusterConfig) Marshal() ([]byte, error) {
 	enc.WriteUint64(c.MigrateTo)
 	enc.WriteUint8(uint8(c.Status))
 	enc.WriteUint64(c.ConfVersion)
+	if c.CreatedAt != nil {
+		enc.WriteUint64(uint64(c.CreatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+	if c.UpdatedAt != nil {
+		enc.WriteUint64(uint64(c.UpdatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
 	return enc.Bytes(), nil
 }
 
@@ -594,6 +608,23 @@ func (c *ChannelClusterConfig) Unmarshal(data []byte) error {
 
 	if c.ConfVersion, err = dec.Uint64(); err != nil {
 		return err
+	}
+
+	var createdAt uint64
+	if createdAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if createdAt > 0 {
+		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+		c.CreatedAt = &ct
+	}
+	var updatedAt uint64
+	if updatedAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if updatedAt > 0 {
+		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+		c.UpdatedAt = &ct
 	}
 
 	return nil
@@ -694,4 +725,67 @@ func channelFromKey(key string) (channelId string, channelType uint8) {
 type Channel struct {
 	ChannelId   string `json:"channel_id,omitempty"`
 	ChannelType uint8  `json:"channel_type,omitempty"`
+}
+
+type Member struct {
+	Id        uint64     `json:"id"`
+	Uid       string     `json:"uid"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+
+	version uint16 // 数据版本
+}
+
+func (m *Member) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteUint16(m.version) // 数据版本
+
+	enc.WriteUint64(m.Id)
+	enc.WriteString(m.Uid)
+	if m.CreatedAt != nil {
+		enc.WriteUint64(uint64(m.CreatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+	if m.UpdatedAt != nil {
+		enc.WriteUint64(uint64(m.UpdatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+	return enc.Bytes(), nil
+}
+
+func (m *Member) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+
+	if m.version, err = dec.Uint16(); err != nil {
+		return err
+	}
+
+	if m.Id, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if m.Uid, err = dec.String(); err != nil {
+		return err
+	}
+	var createdAt uint64
+	if createdAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if createdAt > 0 {
+		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+		m.CreatedAt = &ct
+	}
+	var updatedAt uint64
+	if updatedAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if updatedAt > 0 {
+		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+		m.UpdatedAt = &ct
+	}
+	return nil
 }

@@ -440,7 +440,6 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 	c.Debug("makeReceiverTag", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 	var subscribers []string
-	var err error
 
 	// 根据频道类型获取订阅者列表
 	if c.channelType == wkproto.ChannelTypePerson {
@@ -466,9 +465,12 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 		if c.r.s.opts.IsCmdChannel(c.channelId) {
 			realChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
 		}
-		subscribers, err = c.r.s.store.GetSubscribers(realChannelId, c.channelType)
+		members, err := c.r.s.store.GetSubscribers(realChannelId, c.channelType)
 		if err != nil {
 			return nil, err
+		}
+		for _, member := range members {
+			subscribers = append(subscribers, member.Uid)
 		}
 	}
 

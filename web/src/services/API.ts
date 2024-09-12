@@ -45,7 +45,7 @@ export default class API {
     }
 
     // 获取节点的频道配置列表
-    public nodeChannelConfigs(req:{
+    public nodeChannelConfigs(req: {
         nodeId: number
         channelId?: string
         channelType?: number
@@ -53,13 +53,13 @@ export default class API {
         currentPage?: number
         limit?: number
     }): Promise<any> {
-        return APIClient.shared.get(`/cluster/nodes/${req.nodeId}/channels`,{
-            param:{
-                channel_id:req.channelId,
-                channel_type:req.channelType,
-                running:req.running?1:0,
-                current_page:req.currentPage||1,
-                limit:req.limit
+        return APIClient.shared.get(`/cluster/nodes/${req.nodeId}/channels`, {
+            param: {
+                channel_id: req.channelId,
+                channel_type: req.channelType,
+                running: req.running ? 1 : 0,
+                current_page: req.currentPage || 1,
+                limit: req.limit
             }
         })
     }
@@ -98,7 +98,7 @@ export default class API {
         channelType?: number
         clientMsgNo?: string
     }): Promise<any> {
-        return APIClient.shared.get(`/cluster/messages?node_id=${req.nodeId || 0}&from_uid=${req.fromUid || ''}&channel_id=${req.channelId || ''}&channel_type=${req.channelType || 0}&payload=${req.payload || ''}&message_id=${req.messageId || 0}&limit=${req.limit || 20}&offset_message_id=${req.offsetMessageId || 0}&offset_message_seq=${req.offsetMessageSeq || 0}&pre=${req.pre?1:0}&client_msg_no=${req.clientMsgNo || ''}`)
+        return APIClient.shared.get(`/cluster/messages?node_id=${req.nodeId || 0}&from_uid=${req.fromUid || ''}&channel_id=${req.channelId || ''}&channel_type=${req.channelType || 0}&payload=${req.payload || ''}&message_id=${req.messageId || 0}&limit=${req.limit || 20}&offset_message_id=${req.offsetMessageId || 0}&offset_message_seq=${req.offsetMessageSeq || 0}&pre=${req.pre ? 1 : 0}&client_msg_no=${req.clientMsgNo || ''}`)
     }
 
     // 搜索频道
@@ -115,7 +115,7 @@ export default class API {
                 channel_type: req.channelType,
                 limit: req.limit,
                 offset_created_at: req.offsetCreatedAt || 0,
-                pre: req.pre?1:0
+                pre: req.pre ? 1 : 0
             }
         })
     }
@@ -136,18 +136,36 @@ export default class API {
     }
 
     // 搜索用户
-    public users(req:{uid?:string,offsetId:string, limit?: number,pre?:boolean}): Promise<any> {
-        return APIClient.shared.get(`/cluster/users?uid=${req.uid || ''}&offset_id=${req.offsetId}&pre=${req.pre?1:0}&limit=${req.limit || 20}`)
+    public users(req: {
+        uid?: string
+        limit?: number
+        pre?: boolean
+        offsetCreatedAt?: number
+    }): Promise<any> {
+        return APIClient.shared.get(`/cluster/users`,{
+            param: {
+                offset_created_at: req.offsetCreatedAt,
+                uid: req.uid,
+                limit: req.limit,
+                pre: req.pre ? 1 : 0
+            }
+        })
     }
 
     // 获取用户的设备列表
-    public devices(req: { uid?: string, currentPage?: number,limit?: number }): Promise<any> {
+    public devices(req: {
+        uid?: string
+        limit?: number
+        offsetCreatedAt?: number
+        pre?: boolean
+    }): Promise<any> {
         return APIClient.shared.get(`/cluster/devices`, {
             param: {
                 uid: req.uid,
-                current_page: req.currentPage || 1,
-                limit: req.limit || 20
-                
+                limit: req.limit,
+                offset_created_at: req.offsetCreatedAt || 0,
+                pre: req.pre ? 1 : 0
+
             }
         })
     }
@@ -191,7 +209,7 @@ export default class API {
     }) {
         console.log(req)
         return APIClient.shared.post(`/cluster/channels/${req.channelId}/${req.channelType}/start`, {
-            node_id: req.nodeId 
+            node_id: req.nodeId
         })
     }
 
@@ -202,7 +220,7 @@ export default class API {
         nodeId?: number
     }) {
         return APIClient.shared.post(`/cluster/channels/${req.channelId}/${req.channelType}/stop`, {
-            node_id: req.nodeId 
+            node_id: req.nodeId
         })
     }
 
@@ -232,5 +250,5 @@ export default class API {
             }
         })
     }
-    
+
 }

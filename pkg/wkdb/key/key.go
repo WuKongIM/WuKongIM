@@ -242,6 +242,29 @@ func NewUserIndexKey(indexName [2]byte, columnValue uint64) []byte {
 	return key
 }
 
+func NewUserSecondIndexKey(indexName [2]byte, columnValue uint64, id uint64) []byte {
+	key := make([]byte, TableUser.SecondIndexSize)
+	key[0] = TableUser.Id[0]
+	key[1] = TableUser.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = indexName[0]
+	key[5] = indexName[1]
+	binary.BigEndian.PutUint64(key[6:], columnValue)
+	binary.BigEndian.PutUint64(key[14:], id)
+	return key
+}
+
+func ParseUserSecondIndexKey(key []byte) (columnValue uint64, id uint64, err error) {
+	if len(key) != TableUser.SecondIndexSize {
+		err = fmt.Errorf("user: second index invalid key length, keyLen: %d", len(key))
+		return
+	}
+	columnValue = binary.BigEndian.Uint64(key[6:])
+	id = binary.BigEndian.Uint64(key[14:])
+	return
+}
+
 func ParseUserColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
 	if len(key) != TableUser.Size {
 		err = fmt.Errorf("user: invalid key length, keyLen: %d", len(key))
@@ -331,67 +354,46 @@ func NewSubscriberColumnKey(channelId string, channelType uint8, id uint64, colu
 	return key
 }
 
-func NewSubscriberPrimaryKey(channelId string, channelType uint8, id uint64) []byte {
-	key := make([]byte, 20)
-
-	key[0] = TableSubscriber.Id[0]
-	key[1] = TableSubscriber.Id[1]
-	key[2] = dataTypeTable
-	key[3] = 0
-
-	channelHash := channelIdToNum(channelId, channelType)
-	binary.BigEndian.PutUint64(key[4:], channelHash)
-	binary.BigEndian.PutUint64(key[12:], id)
-	return key
-}
-
-// NewSubscriberIndexUidKey 创建一个uid唯一索引的 key
-func NewSubscriberIndexUidKey(channelId string, channelType uint8, uid string) []byte {
+// NewSubscriberIndexKey 创建一个唯一索引的 key
+func NewSubscriberIndexKey(channelId string, channelType uint8, indexName [2]byte, primaryKey uint64) []byte {
 	key := make([]byte, TableSubscriber.IndexSize)
 	key[0] = TableSubscriber.Id[0]
 	key[1] = TableSubscriber.Id[1]
 	key[2] = dataTypeIndex
 	key[3] = 0
-	key[4] = TableSubscriber.Index.Uid[0]
-	key[5] = TableSubscriber.Index.Uid[1]
+	key[4] = indexName[0]
+	key[5] = indexName[0]
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], HashWithString(uid))
+	binary.BigEndian.PutUint64(key[14:], primaryKey)
 	return key
 }
 
-// NewSubscriberIndexUidLowKey 创建一个uid唯一索引的low key
-func NewSubscriberIndexUidLowKey(channelId string, channelType uint8) []byte {
-	key := make([]byte, TableSubscriber.IndexSize)
+func NewSubscriberSecondIndexKey(channelId string, channelType uint8, indexName [2]byte, columnValue uint64, id uint64) []byte {
+	key := make([]byte, TableSubscriber.SecondIndexSize)
 	key[0] = TableSubscriber.Id[0]
 	key[1] = TableSubscriber.Id[1]
-	key[2] = dataTypeIndex
+	key[2] = dataTypeSecondIndex
 	key[3] = 0
-	key[4] = TableSubscriber.Index.Uid[0]
-	key[5] = TableSubscriber.Index.Uid[1]
+	key[4] = indexName[0]
+	key[5] = indexName[1]
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], 0)
+	binary.BigEndian.PutUint64(key[14:], columnValue)
+	binary.BigEndian.PutUint64(key[22:], id)
 	return key
 }
 
-// NewSubscriberIndexUidHighKey 创建一个uid唯一索引的high key
-func NewSubscriberIndexUidHighKey(channelId string, channelType uint8) []byte {
-	key := make([]byte, TableSubscriber.IndexSize)
-	key[0] = TableSubscriber.Id[0]
-	key[1] = TableSubscriber.Id[1]
-	key[2] = dataTypeIndex
-	key[3] = 0
-	key[4] = TableSubscriber.Index.Uid[0]
-	key[5] = TableSubscriber.Index.Uid[1]
-
-	channelHash := channelIdToNum(channelId, channelType)
-	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], math.MaxUint64)
-	return key
-
+func ParseSubscriberSecondIndexKey(key []byte) (columnValue uint64, id uint64, err error) {
+	if len(key) != TableSubscriber.SecondIndexSize {
+		err = fmt.Errorf("subscriber: second index invalid key length, keyLen: %d", len(key))
+		return
+	}
+	columnValue = binary.BigEndian.Uint64(key[14:])
+	id = binary.BigEndian.Uint64(key[22:])
+	return
 }
 
 func ParseSubscriberColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
@@ -512,53 +514,36 @@ func NewDenylistPrimaryKey(channelId string, channelType uint8, id uint64) []byt
 	return key
 }
 
-// NewDenylistIndexUidKey 创建一个uid唯一索引的 key
-func NewDenylistIndexUidKey(channelId string, channelType uint8, uid string) []byte {
+func NewDenylistIndexKey(channelId string, channelType uint8, indexName [2]byte, primaryKey uint64) []byte {
 	key := make([]byte, TableDenylist.IndexSize)
 	key[0] = TableDenylist.Id[0]
 	key[1] = TableDenylist.Id[1]
 	key[2] = dataTypeIndex
 	key[3] = 0
-	key[4] = TableDenylist.Index.Uid[0]
-	key[5] = TableDenylist.Index.Uid[1]
+	key[4] = indexName[0]
+	key[5] = indexName[1]
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], HashWithString(uid))
+	binary.BigEndian.PutUint64(key[14:], primaryKey)
 	return key
 }
 
-// NewDenylistIndexUidLowKey 创建一个uid唯一索引的low key
-func NewDenylistIndexUidLowKey(channelId string, channelType uint8) []byte {
-	key := make([]byte, TableDenylist.IndexSize)
+func NewDenylistSecondIndexKey(channelId string, channelType uint8, indexName [2]byte, columnValue uint64, id uint64) []byte {
+	key := make([]byte, TableDenylist.SecondIndexSize)
 	key[0] = TableDenylist.Id[0]
 	key[1] = TableDenylist.Id[1]
-	key[2] = dataTypeIndex
+	key[2] = dataTypeSecondIndex
 	key[3] = 0
-	key[4] = TableDenylist.Index.Uid[0]
-	key[5] = TableDenylist.Index.Uid[1]
+	key[4] = indexName[0]
+	key[5] = indexName[1]
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], 0)
+	binary.BigEndian.PutUint64(key[14:], columnValue)
+	binary.BigEndian.PutUint64(key[22:], id)
+
 	return key
-}
-
-// NewDenylistIndexUidHighKey 创建一个uid唯一索引的high key
-func NewDenylistIndexUidHighKey(channelId string, channelType uint8) []byte {
-	key := make([]byte, TableDenylist.IndexSize)
-	key[0] = TableDenylist.Id[0]
-	key[1] = TableDenylist.Id[1]
-	key[2] = dataTypeIndex
-	key[3] = 0
-	key[4] = TableDenylist.Index.Uid[0]
-	key[5] = TableDenylist.Index.Uid[1]
-
-	channelHash := channelIdToNum(channelId, channelType)
-	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], math.MaxUint64)
-	return key
-
 }
 
 func ParseDenylistColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
@@ -602,19 +587,36 @@ func NewAllowlistPrimaryKey(channelId string, channelType uint8, id uint64) []by
 	return key
 }
 
-// NewAllowlistIndexUidKey 创建一个uid唯一索引的 key
-func NewAllowlistIndexUidKey(channelId string, channelType uint8, uid string) []byte {
+// NewAllowlistIndexKey 创建一个唯一索引的 key
+func NewAllowlistIndexKey(channelId string, channelType uint8, indexName [2]byte, primaryKey uint64) []byte {
 	key := make([]byte, TableAllowlist.IndexSize)
 	key[0] = TableAllowlist.Id[0]
 	key[1] = TableAllowlist.Id[1]
 	key[2] = dataTypeIndex
 	key[3] = 0
-	key[4] = TableAllowlist.Index.Uid[0]
-	key[5] = TableAllowlist.Index.Uid[1]
+	key[4] = indexName[0]
+	key[5] = indexName[0]
 
 	channelHash := channelIdToNum(channelId, channelType)
 	binary.BigEndian.PutUint64(key[6:], channelHash)
-	binary.BigEndian.PutUint64(key[14:], HashWithString(uid))
+	binary.BigEndian.PutUint64(key[14:], primaryKey)
+	return key
+}
+
+func NewAllowlistSecondIndexKey(channelId string, channelType uint8, indexName [2]byte, columnValue uint64, id uint64) []byte {
+	key := make([]byte, TableAllowlist.SecondIndexSize)
+	key[0] = TableAllowlist.Id[0]
+	key[1] = TableAllowlist.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = indexName[0]
+	key[5] = indexName[1]
+
+	channelHash := channelIdToNum(channelId, channelType)
+	binary.BigEndian.PutUint64(key[6:], channelHash)
+	binary.BigEndian.PutUint64(key[14:], columnValue)
+	binary.BigEndian.PutUint64(key[22:], id)
+
 	return key
 }
 

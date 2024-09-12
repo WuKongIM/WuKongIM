@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -107,7 +108,17 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 		return
 	}
 	if len(req.Subscribers) > 0 {
-		err = ch.s.store.AddSubscribers(req.ChannelID, req.ChannelType, req.Subscribers)
+		members := make([]wkdb.Member, 0, len(req.Subscribers))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, subscriber := range req.Subscribers {
+			members = append(members, wkdb.Member{
+				Uid:       subscriber,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+		err = ch.s.store.AddSubscribers(req.ChannelID, req.ChannelType, members)
 		if err != nil {
 			ch.Error("添加订阅者失败！", zap.Error(err))
 			c.ResponseError(err)
@@ -238,10 +249,13 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 			return err
 		}
 	} else {
-		existSubscribers, err = ch.s.store.GetSubscribers(req.ChannelID, req.ChannelType)
+		members, err := ch.s.store.GetSubscribers(req.ChannelID, req.ChannelType)
 		if err != nil {
 			ch.Error("获取所有订阅者失败！", zap.Error(err))
 			return err
+		}
+		for _, member := range members {
+			existSubscribers = append(existSubscribers, member.Uid)
 		}
 	}
 	newSubscribers := make([]string, 0, len(req.Subscribers))
@@ -254,7 +268,17 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 	}
 	if len(newSubscribers) > 0 {
-		err = ch.s.store.AddSubscribers(req.ChannelID, req.ChannelType, newSubscribers)
+		members := make([]wkdb.Member, 0, len(newSubscribers))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, subscriber := range newSubscribers {
+			members = append(members, wkdb.Member{
+				Uid:       subscriber,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+		err = ch.s.store.AddSubscribers(req.ChannelID, req.ChannelType, members)
 		if err != nil {
 			ch.Error("添加订阅者失败！", zap.Error(err))
 			return err
@@ -356,7 +380,19 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 			return
 		}
 	}
-	err = ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+
+	members := make([]wkdb.Member, 0, len(req.UIDs))
+	createdAt := time.Now()
+	updatedAt := time.Now()
+	for _, uid := range req.UIDs {
+		members = append(members, wkdb.Member{
+			Uid:       uid,
+			CreatedAt: &createdAt,
+			UpdatedAt: &updatedAt,
+		})
+	}
+
+	err = ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, members)
 	if err != nil {
 		ch.Error("添加黑名单失败！", zap.Error(err))
 		c.ResponseError(err)
@@ -401,7 +437,19 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 		return
 	}
 	if len(req.UIDs) > 0 {
-		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, req.UIDs)
+
+		members := make([]wkdb.Member, 0, len(req.UIDs))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range req.UIDs {
+			members = append(members, wkdb.Member{
+				Uid:       uid,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+
+		err := ch.s.store.AddDenylist(req.ChannelID, req.ChannelType, members)
 		if err != nil {
 			ch.Error("添加黑名单失败！", zap.Error(err))
 			c.ResponseError(err)
@@ -520,7 +568,18 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 		}
 	}
 
-	err = ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+	members := make([]wkdb.Member, 0, len(req.UIDs))
+	createdAt := time.Now()
+	updatedAt := time.Now()
+	for _, uid := range req.UIDs {
+		members = append(members, wkdb.Member{
+			Uid:       uid,
+			CreatedAt: &createdAt,
+			UpdatedAt: &updatedAt,
+		})
+	}
+
+	err = ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, members)
 	if err != nil {
 		ch.Error("添加白名单失败！", zap.Error(err))
 		c.ResponseError(err)
@@ -564,7 +623,17 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 		return
 	}
 	if len(req.UIDs) > 0 {
-		err := ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, req.UIDs)
+		members := make([]wkdb.Member, 0, len(req.UIDs))
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range req.UIDs {
+			members = append(members, wkdb.Member{
+				Uid:       uid,
+				CreatedAt: &createdAt,
+				UpdatedAt: &updatedAt,
+			})
+		}
+		err := ch.s.store.AddAllowlist(req.ChannelID, req.ChannelType, members)
 		if err != nil {
 			ch.Error("添加白名单失败！", zap.Error(err))
 			c.ResponseError(err)

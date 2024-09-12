@@ -161,7 +161,7 @@ func New(opts *Options) *Server {
 			cluster.WithLogLevel(s.opts.Logger.Level),
 			cluster.WithAppVersion(version.Version),
 			cluster.WithDB(s.store.DB()),
-			cluster.WithSlotDbShardNum(s.opts.Db.ShardNum),
+			cluster.WithSlotDbShardNum(s.opts.Db.SlotShardNum),
 			cluster.WithOnSlotApply(func(slotId uint32, logs []replica.Log) error {
 
 				return s.store.OnMetaApply(slotId, logs)

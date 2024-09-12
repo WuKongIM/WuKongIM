@@ -275,14 +275,14 @@ const prevPage = () => {
 
                 </tbody>
             </table>
-            <div class="flex flex-col gap-4 w-full mt-2" v-if="loading">
+            <!-- <div class="flex flex-col gap-4 w-full mt-2" v-if="loading">
                 <div class="skeleton h-6 w-full"></div>
                 <div class="skeleton h-6 w-full"></div>
                 <div class="skeleton h-6 w-full"></div>
                 <div class="skeleton h-6 w-full"></div>
                 <div class="skeleton h-6 w-full"></div>
                 <div class="skeleton h-6 w-full"></div>
-            </div>
+            </div> -->
         </div>
 
         <div class="flex justify-end mt-10 mr-10">

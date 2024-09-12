@@ -18,7 +18,7 @@ func NewOptions(opt ...Option) *Options {
 		ConversationLimit: 10000,
 		SlotCount:         128,
 		EnableCost:        true,
-		ShardNum:          16,
+		ShardNum:          8,
 		MemTableSize:      16 * 1024 * 1024,
 	}
 	for _, f := range opt {

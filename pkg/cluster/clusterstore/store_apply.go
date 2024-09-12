@@ -42,17 +42,28 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 			s.Info("meta apply", zap.Duration("cost", end), zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
 		}
 	}()
+	err = s.execCMD(cmd)
+	if err != nil {
+		s.Error("exec cmd err", zap.Error(err), zap.String("cmdType", cmd.CmdType.String()), zap.Uint32("slotId", slotId), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
+		return err
+	}
+	return nil
+}
+
+func (s *Store) execCMD(cmd *CMD) error {
 	switch cmd.CmdType {
 	case CMDAddSubscribers: // 添加订阅者
 		return s.handleAddSubscribers(cmd)
 	case CMDRemoveSubscribers: // 移除订阅者
 		return s.handleRemoveSubscribers(cmd)
-	case CMDAddOrUpdateUser: // 添加或更新用户
-		return s.handleAddOrUpdateUser(cmd)
-	case CMDAddOrUpdateDevice: // 更新设备信息
-		return s.handleAddOrUpdateDevice(cmd)
-	case CMDUpdateMessageOfUserCursorIfNeed: // 更新用户消息队列的游标，用户读到的位置
-		return s.handleUpdateMessageOfUserCursorIfNeed(cmd)
+	case CMDAddUser: // 添加用户
+		return s.handleAddUser(cmd)
+	case CMDUpdateUser: // 更新用户
+		return s.handleUpdateUser(cmd)
+	case CMDAddDevice: // 添加设备信息
+		return s.handleAddDevice(cmd)
+	case CMDUpdateDevice: // 更新设备信息
+		return s.handleUpdateDevice(cmd)
 	case CMDAddChannelInfo: // 添加频道信息
 		return s.handleAddChannelInfo(cmd)
 	case CMDUpdateChannelInfo: // 更新频道信息
@@ -85,8 +96,6 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 	// 	return s.handleAppendMessagesOfUser(cmd)
 	case CMDBatchUpdateConversation:
 		return s.handleBatchUpdateConversation(cmd)
-	case CMDAddOrUpdateUserAndDevice: // 添加或更新用户和设备
-		return s.handleAddOrUpdateUserAndDevice(cmd)
 		// case CMDChannelClusterConfigDelete: // 删除频道分布式配置
 		// return s.handleChannelClusterConfigDelete(cmd)
 	case CMDSystemUIDsAdd: // 添加系统UID
@@ -99,44 +108,52 @@ func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
 }
 
 func (s *Store) handleAddSubscribers(cmd *CMD) error {
-	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	channelId, channelType, members, err := cmd.DecodeMembers()
 	if err != nil {
 		s.Error("decode subscribers err", zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType), zap.ByteString("data", cmd.Data))
 		return err
 	}
-	return s.wdb.AddSubscribers(channelId, channelType, subscribers)
+	return s.wdb.AddSubscribers(channelId, channelType, members)
 }
 
 func (s *Store) handleRemoveSubscribers(cmd *CMD) error {
-	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	channelId, channelType, subscribers, err := cmd.DecodeChannelUids()
 	if err != nil {
 		return err
 	}
 	return s.wdb.RemoveSubscribers(channelId, channelType, subscribers)
 }
 
-func (s *Store) handleAddOrUpdateUser(cmd *CMD) error {
+func (s *Store) handleAddUser(cmd *CMD) error {
 	u, err := cmd.DecodeCMDUser()
 	if err != nil {
 		return err
 	}
-	return s.wdb.AddOrUpdateUser(u)
+	return s.wdb.AddUser(u)
 }
 
-func (s *Store) handleAddOrUpdateDevice(cmd *CMD) error {
+func (s *Store) handleUpdateUser(cmd *CMD) error {
+	u, err := cmd.DecodeCMDUser()
+	if err != nil {
+		return err
+	}
+	return s.wdb.UpdateUser(u)
+}
+
+func (s *Store) handleAddDevice(cmd *CMD) error {
 	u, err := cmd.DecodeCMDDevice()
 	if err != nil {
 		return err
 	}
-	return s.wdb.AddOrUpdateDevice(u)
+	return s.wdb.AddDevice(u)
 }
 
-func (s *Store) handleUpdateMessageOfUserCursorIfNeed(cmd *CMD) error {
-	uid, messageSeq, err := cmd.DecodeCMDUpdateMessageOfUserCursorIfNeed()
+func (s *Store) handleUpdateDevice(cmd *CMD) error {
+	u, err := cmd.DecodeCMDDevice()
 	if err != nil {
 		return err
 	}
-	return s.wdb.UpdateMessageOfUserQueueCursorIfNeed(uid, messageSeq)
+	return s.wdb.UpdateDevice(u)
 }
 
 func (s *Store) handleAddChannelInfo(cmd *CMD) error {
@@ -174,15 +191,15 @@ func (s *Store) handleDeleteChannel(cmd *CMD) error {
 }
 
 func (s *Store) handleAddDenylist(cmd *CMD) error {
-	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	channelId, channelType, members, err := cmd.DecodeMembers()
 	if err != nil {
 		return err
 	}
-	return s.wdb.AddDenylist(channelId, channelType, subscribers)
+	return s.wdb.AddDenylist(channelId, channelType, members)
 }
 
 func (s *Store) handleRemoveDenylist(cmd *CMD) error {
-	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	channelId, channelType, subscribers, err := cmd.DecodeChannelUids()
 	if err != nil {
 		return err
 	}
@@ -198,7 +215,7 @@ func (s *Store) handleRemoveAllDenylist(cmd *CMD) error {
 }
 
 func (s *Store) handleAddAllowlist(cmd *CMD) error {
-	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	channelId, channelType, subscribers, err := cmd.DecodeMembers()
 	if err != nil {
 		return err
 	}
@@ -206,7 +223,7 @@ func (s *Store) handleAddAllowlist(cmd *CMD) error {
 }
 
 func (s *Store) handleRemoveAllowlist(cmd *CMD) error {
-	channelId, channelType, subscribers, err := cmd.DecodeSubscribers()
+	channelId, channelType, subscribers, err := cmd.DecodeChannelUids()
 	if err != nil {
 		return err
 	}
@@ -256,23 +273,7 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 		return err
 	}
 
-	waitC := make(chan error, 1)
-
-	select {
-	case s.saveChannelClusterConfigReq <- &saveChannelClusterConfigReq{
-		cfg:     channelClusterConfig,
-		resultC: waitC,
-	}:
-	case <-s.stopper.ShouldStop():
-		return ErrStoreStopped
-	}
-
-	select {
-	case err := <-waitC:
-		return err
-	case <-s.stopper.ShouldStop():
-		return ErrStoreStopped
-	}
+	return s.wdb.SaveChannelClusterConfig(channelClusterConfig)
 }
 
 // func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {
@@ -282,14 +283,6 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 // 	}
 // 	return s.db.DeleteChannelClusterConfig(channelId, channelType)
 // }
-
-func (s *Store) handleAppendMessagesOfUser(cmd *CMD) error {
-	uid, messages, err := cmd.DecodeCMDAppendMessagesOfUser()
-	if err != nil {
-		return err
-	}
-	return s.wdb.AppendMessagesOfUserQueue(uid, messages)
-}
 
 func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
 	models, err := cmd.DecodeCMDBatchUpdateConversation()
@@ -317,37 +310,6 @@ func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
 
 	}
 	return nil
-}
-
-func (s *Store) handleAddOrUpdateUserAndDevice(cmd *CMD) error {
-
-	id, uid, deviceFlag, deviceLevel, token, err := cmd.DecodeCMDUserAndDevice()
-	if err != nil {
-		return err
-	}
-
-	exist, err := s.wdb.ExistUser(uid)
-	if err != nil {
-		return err
-	}
-
-	if !exist {
-		err = s.wdb.AddOrUpdateUser(wkdb.User{
-			Id:  id,
-			Uid: uid,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	return s.wdb.AddOrUpdateDevice(wkdb.Device{
-		Id:          id,
-		Uid:         uid,
-		DeviceFlag:  deviceFlag,
-		DeviceLevel: uint8(deviceLevel),
-		Token:       token,
-	})
 }
 
 func (s *Store) handleSystemUIDsAdd(cmd *CMD) error {

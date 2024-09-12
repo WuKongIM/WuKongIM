@@ -5,11 +5,13 @@ import API from '../../services/API';
 const userTotal = ref<any>({}); // 用户列表
 const currentPage = ref(1); // 当前页
 const pageSize = ref(20); // 每页显示数量
-const offsetId = ref(""); // 偏移量
+const offsetCreatedAt = ref(0); // 偏移量
 const pre = ref(false); // 上一页
-const hasNext = ref(true); // 是否有下一页
 const uid = ref<string>(''); // 用户UID
 const currentUids = ref<string[]>() // 当前用户列表
+
+const hasNext = ref<boolean>(true) // 是否有下一页
+const hasPrev = ref<boolean>(false) // 是否有上一页
 
 
 onMounted(() => {
@@ -20,21 +22,16 @@ const searchUser = () => {
 
     API.shared.users({
         uid: uid.value || "",
-        offsetId: offsetId.value || "",
+        offsetCreatedAt: offsetCreatedAt.value,
         pre: pre.value,
         limit: pageSize.value,
     }).then((res) => {
-        if (!pre.value && res.data.length < pageSize.value) {
-            hasNext.value = false
-            if (res.data.length == 0) {
-                currentPage.value -= 1
-                return
-            }
-        }else {
+        userTotal.value = res
+        hasNext.value = userTotal.value?.more === 1
+        hasPrev.value = currentPage.value > 1
+        if(pre.value) { // 如果是向上翻页，则有下页数据
             hasNext.value = true
         }
-       
-        userTotal.value = res
     }).catch((err) => {
         alert(err)
     })
@@ -85,40 +82,35 @@ const getDenylist = (uid: string) => {
 const resetFilter = () => {
     currentPage.value = 1
     pre.value = false
-    offsetId.value = ""
+    offsetCreatedAt.value = 0
 }
 
 // 上一页
 const prevPage = () => {
     if (currentPage.value <= 1) {
+        hasPrev.value = false
         return
     }
+    hasPrev.value = true
     currentPage.value -= 1
     pre.value = true
-    if (pre.value) {
-        offsetId.value = userTotal.value.pre
-    } else {
-        offsetId.value = userTotal.value.next
+    if (userTotal.value?.data?.length > 0) {
+        offsetCreatedAt.value = userTotal.value.data[0].created_at
     }
-
-   
     searchUser()
 }
 
 // 下一页
 const nextPage = () => {
-    if (!hasNext.value) {
+    if (userTotal.value?.more === 0 && !pre.value) {
         return
     }
     currentPage.value += 1
     pre.value = false
-    if (pre.value) {
-        offsetId.value = userTotal.value.pre
-    } else {
-        offsetId.value = userTotal.value.next
+    if (userTotal.value?.data?.length > 0) {
+        offsetCreatedAt.value = userTotal.value.data[userTotal.value.data.length - 1].created_at
     }
 
-   
     searchUser()
 }
 
@@ -224,7 +216,7 @@ const nextPage = () => {
         </div>
         <div class="flex justify-end mt-10 mr-10">
             <div className="join">
-                <button :class="{ 'join-item btn': true }" v-on:click="prevPage">«</button>
+                <button :class="{ 'join-item btn': true, 'btn-disabled': !hasPrev  }" v-on:click="prevPage">«</button>
                 <button className="join-item btn">{{ currentPage }}</button>
                 <button :class="{ 'join-item btn': true, 'btn-disabled': !hasNext }" v-on:click="nextPage">»</button>
             </div>

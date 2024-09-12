@@ -314,12 +314,16 @@ func (c *channel) FollowerToLeader(followerId uint64) error {
 		return fmt.Errorf("follower not in replicas")
 	}
 
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	newChannelClusterCfg := channelClusterCfg.Clone()
 	newChannelClusterCfg.Term = newChannelClusterCfg.Term + 1
 	newChannelClusterCfg.LeaderId = followerId
 	newChannelClusterCfg.MigrateFrom = 0
 	newChannelClusterCfg.MigrateTo = 0
 	newChannelClusterCfg.ConfVersion = uint64(time.Now().UnixNano())
+	newChannelClusterCfg.CreatedAt = &createdAt
+	newChannelClusterCfg.UpdatedAt = &updatedAt
 
 	err = c.proposeAndUpdateChannelClusterConfig(newChannelClusterCfg)
 	if err != nil {
@@ -376,9 +380,14 @@ func (c *channel) learnerTo(learnerId uint64) error {
 		learnerIsLeader = true
 
 	}
+
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	channelClusterCfg.MigrateFrom = 0
 	channelClusterCfg.MigrateTo = 0
 	channelClusterCfg.ConfVersion = uint64(time.Now().UnixNano())
+	channelClusterCfg.CreatedAt = &createdAt
+	channelClusterCfg.UpdatedAt = &updatedAt
 
 	err = c.proposeAndUpdateChannelClusterConfig(channelClusterCfg)
 	if err != nil {

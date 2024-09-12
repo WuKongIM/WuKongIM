@@ -26,49 +26,37 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 
 	primaryKey := key.ChannelIdToNum(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
 
+	oldChannelClusterConfig, err := wk.getChannelClusterConfigById(primaryKey)
+	if err != nil && err != ErrNotFound {
+		return err
+	}
+
 	db := wk.defaultShardDB()
+
+	existConfig := !IsEmptyChannelClusterConfig(oldChannelClusterConfig)
+
+	// 删除旧的索引
+	if existConfig {
+		oldChannelClusterConfig.CreatedAt = nil // 旧的创建时间不参与索引
+		err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, db)
+		if err != nil {
+			wk.Error("delete channel cluster config index error", zap.Error(err), zap.String("channelId", channelClusterConfig.ChannelId), zap.Uint8("channelType", channelClusterConfig.ChannelType))
+			return err
+		}
+	}
 
 	channelClusterConfig.Id = primaryKey
 
 	batch := db.NewBatch()
 	defer batch.Close()
 
+	if existConfig {
+		channelClusterConfig.CreatedAt = nil // 创建时间不参与更新
+	}
+
 	if err := wk.writeChannelClusterConfig(primaryKey, channelClusterConfig, batch); err != nil {
 		return err
 	}
-
-	return batch.Commit(wk.sync)
-}
-
-func (wk *wukongDB) SaveChannelClusterConfigs(channelClusterConfigs []ChannelClusterConfig) error {
-	if wk.opts.EnableCost {
-		start := time.Now()
-		defer func() {
-			end := time.Since(start)
-			if end > time.Millisecond*200 {
-				wk.Warn("batch save channel cluster config", zap.Duration("cost", time.Since(start)), zap.Int("count", len(channelClusterConfigs)))
-			}
-		}()
-	}
-
-	db := wk.defaultShardDB()
-
-	batch := db.NewBatch()
-	defer batch.Close()
-
-	for _, channelClusterConfig := range channelClusterConfigs {
-		primaryKey := key.ChannelIdToNum(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
-		channelClusterConfig.Id = primaryKey
-		if err := wk.writeChannelClusterConfig(primaryKey, channelClusterConfig, batch); err != nil {
-			return err
-		}
-	}
-	// if isCreate {
-	// 	err = wk.IncChannelClusterConfigCount(1)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
 
 	return batch.Commit(wk.sync)
 }
@@ -136,7 +124,11 @@ func (wk *wukongDB) DeleteChannelClusterConfig(channelId string, channelType uin
 	}
 	batch := wk.defaultShardDB().NewIndexedBatch()
 	defer batch.Close()
-	return wk.deleteChannelClusterConfig(cfg, batch)
+	err = wk.deleteChannelClusterConfig(cfg, batch)
+	if err != nil {
+		return err
+	}
+	return batch.Commit(wk.sync)
 }
 
 func (wk *wukongDB) GetChannelClusterConfigs(offsetId uint64, limit int) ([]ChannelClusterConfig, error) {
@@ -183,44 +175,101 @@ func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq
 		}
 		return []ChannelClusterConfig{cfg}, nil
 	}
-	currentSize := 0
-	results := make([]ChannelClusterConfig, 0)
-	var iter *pebble.Iterator
 
-	var iterFnc = func(cfg ChannelClusterConfig) bool {
-		if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
-			return false
-		}
-
-		if len(filter) > 0 {
-			for _, fnc := range filter {
-				v := fnc(cfg)
-				if !v {
-					return true
+	iterFnc := func(cfgs *[]ChannelClusterConfig) func(cfg ChannelClusterConfig) bool {
+		currentSize := 0
+		return func(cfg ChannelClusterConfig) bool {
+			if req.Pre {
+				if req.OffsetCreatedAt > 0 && cfg.CreatedAt != nil && cfg.CreatedAt.UnixNano() <= req.OffsetCreatedAt {
+					return false
+				}
+			} else {
+				if req.OffsetCreatedAt > 0 && cfg.CreatedAt != nil && cfg.CreatedAt.UnixNano() >= req.OffsetCreatedAt {
+					return false
 				}
 			}
-		}
 
-		currentSize++
-		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
-			results = append(results, cfg)
+			if currentSize > req.Limit {
+				return false
+			}
+
+			if len(filter) > 0 {
+				for _, fnc := range filter {
+					v := fnc(cfg)
+					if !v {
+						return true
+					}
+				}
+			}
+
+			currentSize++
+			*cfgs = append(*cfgs, cfg)
+
 			return true
 		}
-		return true
 	}
 
-	iter = wk.defaultShardDB().NewIter(&pebble.IterOptions{
-		LowerBound: key.NewChannelClusterConfigColumnKey(0, key.MinColumnKey),
-		UpperBound: key.NewChannelClusterConfigColumnKey(math.MaxUint64, key.MaxColumnKey),
+	cfgs := make([]ChannelClusterConfig, 0, req.Limit)
+	fnc := iterFnc(&cfgs)
+
+	start := uint64(req.OffsetCreatedAt)
+	end := uint64(math.MaxUint64)
+	if req.OffsetCreatedAt > 0 {
+		if req.Pre {
+			start = uint64(req.OffsetCreatedAt + 1)
+			end = uint64(math.MaxUint64)
+		} else {
+			start = 0
+			end = uint64(req.OffsetCreatedAt)
+		}
+	}
+
+	db := wk.defaultShardDB()
+
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, start, 0),
+		UpperBound: key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, end, 0),
 	})
 	defer iter.Close()
 
-	err := wk.iteratorChannelClusterConfig(iter, iterFnc)
-	if err != nil {
-		wk.Error("search channel cluster config error", zap.Error(err))
-		return nil, err
+	var iterStepFnc func() bool
+	if req.Pre {
+		if !iter.First() {
+			return nil, nil
+		}
+		iterStepFnc = iter.Next
+	} else {
+		if !iter.Last() {
+			return nil, nil
+		}
+		iterStepFnc = iter.Prev
 	}
-	return results, nil
+	for ; iter.Valid(); iterStepFnc() {
+		_, id, err := key.ParseChannelClusterConfigSecondIndexKey(iter.Key())
+		if err != nil {
+			return nil, err
+		}
+
+		dataIter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewChannelClusterConfigColumnKey(id, key.MinColumnKey),
+			UpperBound: key.NewChannelClusterConfigColumnKey(id, key.MaxColumnKey),
+		})
+		defer dataIter.Close()
+
+		var c ChannelClusterConfig
+		err = wk.iteratorChannelClusterConfig(dataIter, func(cfg ChannelClusterConfig) bool {
+			c = cfg
+			return false
+		})
+		if err != nil {
+			return nil, err
+		}
+		if !fnc(c) {
+			break
+		}
+	}
+
+	return cfgs, nil
 }
 
 func (wk *wukongDB) GetChannelClusterConfigCountWithSlotId(slotId uint32) (int, error) {
@@ -254,10 +303,16 @@ func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelC
 	return results, nil
 }
 
-func (wk *wukongDB) deleteChannelClusterConfig(channelClusterConfig ChannelClusterConfig, w *pebble.Batch) error {
+func (wk *wukongDB) deleteChannelClusterConfig(channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
 
 	// delete channel cluster config
 	err := w.DeleteRange(key.NewChannelClusterConfigColumnKey(channelClusterConfig.Id, key.MinColumnKey), key.NewChannelClusterConfigColumnKey(channelClusterConfig.Id, key.MaxColumnKey), wk.noSync)
+	if err != nil {
+		return err
+	}
+
+	// delete index
+	err = wk.deleteChannelClusterConfigIndex(channelClusterConfig.Id, channelClusterConfig, w)
 	if err != nil {
 		return err
 	}
@@ -375,15 +430,91 @@ func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterC
 		return err
 	}
 
+	if channelClusterConfig.CreatedAt != nil {
+		// createdAt
+		ct := uint64(channelClusterConfig.CreatedAt.UnixNano())
+		var createdAtBytes = make([]byte, 8)
+		binary.BigEndian.PutUint64(createdAtBytes, ct)
+		if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.CreatedAt), createdAtBytes, wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	if channelClusterConfig.UpdatedAt != nil {
+		// updatedAt
+		up := uint64(channelClusterConfig.UpdatedAt.UnixNano())
+		var updatedAtBytes = make([]byte, 8)
+		binary.BigEndian.PutUint64(updatedAtBytes, up)
+		if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	// write index
+	if err := wk.writeChannelClusterConfigIndex(primaryKey, channelClusterConfig, w); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (wk *wukongDB) writeChannelClusterConfigIndex(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
+
 	// channel index
 	primaryKeyBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(primaryKeyBytes, primaryKey)
 	if err := w.Set(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), primaryKeyBytes, wk.noSync); err != nil {
 		return err
 	}
+
 	// leader second index
 	if err := w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.LeaderId, channelClusterConfig.LeaderId, primaryKey), nil, wk.noSync); err != nil {
 		return err
+	}
+	if channelClusterConfig.CreatedAt != nil {
+		ct := uint64(channelClusterConfig.CreatedAt.UnixNano())
+		// createdAt second index
+		if err := w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, ct, primaryKey), nil, wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	if channelClusterConfig.UpdatedAt != nil {
+		up := uint64(channelClusterConfig.UpdatedAt.UnixNano())
+		// updatedAt second index
+		if err := w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.UpdatedAt, up, primaryKey), nil, wk.noSync); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (wk *wukongDB) deleteChannelClusterConfigIndex(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
+
+	// channel index
+	if err := w.Delete(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), wk.noSync); err != nil {
+		return err
+	}
+
+	// leader second index
+	if err := w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.LeaderId, channelClusterConfig.LeaderId, primaryKey), wk.noSync); err != nil {
+		return err
+	}
+
+	if channelClusterConfig.CreatedAt != nil {
+		ct := uint64(channelClusterConfig.CreatedAt.UnixNano())
+		// createdAt second index
+		if err := w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, ct, primaryKey), wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	if channelClusterConfig.UpdatedAt != nil {
+		up := uint64(channelClusterConfig.UpdatedAt.UnixNano())
+		// updatedAt second index
+		if err := w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.UpdatedAt, up, primaryKey), wk.noSync); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -451,6 +582,18 @@ func (wk *wukongDB) iteratorChannelClusterConfig(iter *pebble.Iterator, iterFnc 
 			preChannelClusterConfig.ConfVersion = wk.endian.Uint64(iter.Value())
 		case key.TableChannelClusterConfig.Column.Version:
 			preChannelClusterConfig.version = wk.endian.Uint16(iter.Value())
+		case key.TableChannelClusterConfig.Column.CreatedAt:
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm/1e9, tm%1e9)
+				preChannelClusterConfig.CreatedAt = &t
+			}
+		case key.TableChannelClusterConfig.Column.UpdatedAt:
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm/1e9, tm%1e9)
+				preChannelClusterConfig.UpdatedAt = &t
+			}
 		}
 		hasData = true
 	}

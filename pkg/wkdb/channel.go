@@ -8,9 +8,20 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 func (wk *wukongDB) AddChannel(channelInfo ChannelInfo) (uint64, error) {
+
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			cost := time.Since(start)
+			if cost.Milliseconds() > 200 {
+				wk.Info("AddChannel done", zap.Duration("cost", cost), zap.String("channelId", channelInfo.ChannelId), zap.Uint8("channelType", channelInfo.ChannelType))
+			}
+		}()
+	}
 
 	primaryKey, err := wk.getChannelPrimaryKey(channelInfo.ChannelId, channelInfo.ChannelType)
 	if err != nil {
@@ -37,6 +48,16 @@ func (wk *wukongDB) AddChannel(channelInfo ChannelInfo) (uint64, error) {
 
 func (wk *wukongDB) UpdateChannel(channelInfo ChannelInfo) error {
 
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			cost := time.Since(start)
+			if cost.Milliseconds() > 200 {
+				wk.Info("UpdateChannel done", zap.Duration("cost", cost), zap.String("channelId", channelInfo.ChannelId), zap.Uint8("channelType", channelInfo.ChannelType))
+			}
+		}()
+	}
+
 	primaryKey, err := wk.getChannelPrimaryKey(channelInfo.ChannelId, channelInfo.ChannelType)
 	if err != nil {
 		return err
@@ -46,19 +67,24 @@ func (wk *wukongDB) UpdateChannel(channelInfo ChannelInfo) error {
 	defer w.Close()
 
 	oldChannelInfo, err := wk.GetChannel(channelInfo.ChannelId, channelInfo.ChannelType)
-	if err != nil {
-		return err
-	}
-	// 删除旧索引
-	if err := wk.deleteChannelInfoIndex(oldChannelInfo, w); err != nil {
+	if err != nil && err != ErrNotFound {
 		return err
 	}
 
-	// 更新操作不需要更新创建时间
+	if !IsEmptyChannelInfo(oldChannelInfo) {
+		// 更新操作不需要更新创建时间
+		if oldChannelInfo.CreatedAt != nil {
+			oldChannelInfo.CreatedAt = nil
+		}
+		// 删除旧索引
+		if err := wk.deleteChannelInfoBaseIndex(oldChannelInfo, w); err != nil {
+			return err
+		}
+	}
+
 	if channelInfo.CreatedAt != nil {
 		channelInfo.CreatedAt = nil
 	}
-
 	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
 		return err
 	}
@@ -417,13 +443,13 @@ func (wk *wukongDB) GetChannelAppliedIndex(channelId string, channelType uint8) 
 }
 
 // 增加频道属性数量 id为频道信息的唯一主键 count为math.MinInt 表示重置为0
-func (wk *wukongDB) incChannelInfoColumnCount(id uint64, columnName, indexName [2]byte, count int, db *pebble.DB) error {
+func (wk *wukongDB) incChannelInfoColumnCount(id uint64, columnName, indexName [2]byte, count int, batch *pebble.Batch) error {
 	countKey := key.NewChannelInfoColumnKey(id, columnName)
-	if count == math.MinInt { //
-		return db.Set(countKey, []byte{0x00, 0x00, 0x00, 0x00}, wk.sync)
+	if count == 0 { //
+		return batch.Set(countKey, []byte{0x00, 0x00, 0x00, 0x00}, wk.noSync)
 	}
 
-	countBytes, closer, err := db.Get(countKey)
+	countBytes, closer, err := batch.Get(countKey)
 	if err != nil && err != pebble.ErrNotFound {
 		return err
 	}
@@ -441,13 +467,13 @@ func (wk *wukongDB) incChannelInfoColumnCount(id uint64, columnName, indexName [
 	wk.endian.PutUint32(countBytes, uint32(count))
 
 	// 设置数量
-	err = db.Set(countKey, countBytes, wk.sync)
+	err = batch.Set(countKey, countBytes, wk.noSync)
 	if err != nil {
 		return err
 	}
 	// 设置数量对应的索引
 	secondIndexKey := key.NewChannelInfoSecondIndexKey(indexName, uint64(count), id)
-	err = db.Set(secondIndexKey, nil, wk.sync)
+	err = batch.Set(secondIndexKey, nil, wk.noSync)
 	if err != nil {
 		return err
 	}
@@ -500,12 +526,6 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 		if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.CreatedAt), createdAt, wk.noSync); err != nil {
 			return err
 		}
-
-		// createdAt second index
-		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, ct, primaryKey), nil, wk.noSync); err != nil {
-			return err
-		}
-
 	}
 
 	if channelInfo.UpdatedAt != nil {
@@ -516,8 +536,32 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 			return err
 		}
 
+	}
+
+	// write index
+	if err = wk.writeChannelInfoBaseIndex(channelInfo, w); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (wk *wukongDB) writeChannelInfoBaseIndex(channelInfo ChannelInfo, w pebble.Writer) error {
+	primaryKey, err := wk.getChannelPrimaryKey(channelInfo.ChannelId, channelInfo.ChannelType)
+	if err != nil {
+		return err
+	}
+
+	if channelInfo.CreatedAt != nil {
+		// createdAt second index
+		if err := w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, uint64(channelInfo.CreatedAt.UnixNano()), primaryKey), nil, wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	if channelInfo.UpdatedAt != nil {
 		// updatedAt second index
-		if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.UnixNano()), primaryKey), nil, wk.noSync); err != nil {
+		if err := w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.UpdatedAt, uint64(channelInfo.UpdatedAt.UnixNano()), primaryKey), nil, wk.noSync); err != nil {
 			return err
 		}
 	}
@@ -542,7 +586,7 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 	return nil
 }
 
-func (wk *wukongDB) deleteChannelInfoIndex(channelInfo ChannelInfo, w pebble.Writer) error {
+func (wk *wukongDB) deleteChannelInfoBaseIndex(channelInfo ChannelInfo, w pebble.Writer) error {
 	if channelInfo.CreatedAt != nil {
 		// createdAt second index
 		ct := uint64(channelInfo.CreatedAt.UnixNano())
@@ -572,6 +616,21 @@ func (wk *wukongDB) deleteChannelInfoIndex(channelInfo ChannelInfo, w pebble.Wri
 	if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.Disband, uint64(wkutil.BoolToInt(channelInfo.Disband)), channelInfo.Id), wk.noSync); err != nil {
 		return err
 	}
+
+	// // subscriberCount index
+	// if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.SubscriberCount, uint64(channelInfo.SubscriberCount), channelInfo.Id), wk.noSync); err != nil {
+	// 	return err
+	// }
+
+	// // allowlistCount index
+	// if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.AllowlistCount, uint64(channelInfo.AllowlistCount), channelInfo.Id), wk.noSync); err != nil {
+	// 	return err
+	// }
+
+	// // denylistCount index
+	// if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.DenylistCount, uint64(channelInfo.DenylistCount), channelInfo.Id), wk.noSync); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 

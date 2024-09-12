@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
@@ -133,22 +134,14 @@ func (wk *wukongDB) GetDeviceCount(uid string) (int, error) {
 	return count, nil
 }
 
-func (wk *wukongDB) AddOrUpdateDevice(d Device) error {
-
-	isCreate := false
+func (wk *wukongDB) AddDevice(d Device) error {
 	if d.Id == 0 {
 		return ErrInvalidDeviceId
 	}
-	exist, err := wk.existDevice(d.Uid, d.Id)
-	if err != nil {
-		return err
-	}
-	isCreate = !exist
-
 	db := wk.shardDB(d.Uid)
 	batch := db.NewBatch()
 	defer batch.Close()
-	err = wk.writeDevice(d, isCreate, batch)
+	err := wk.writeDevice(d, batch)
 	if err != nil {
 		return err
 	}
@@ -156,13 +149,40 @@ func (wk *wukongDB) AddOrUpdateDevice(d Device) error {
 	if err != nil {
 		return err
 	}
-	// if isCreate {
-	// 	err = wk.IncDeviceCount(1)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	return wk.incUserDeviceCount(d.Uid, 1, db)
-	// }
+	return nil
+}
+
+func (wk *wukongDB) UpdateDevice(d Device) error {
+	if d.Id == 0 {
+		return ErrInvalidDeviceId
+	}
+	d.CreatedAt = nil // 更新时不更新创建时间
+
+	db := wk.shardDB(d.Uid)
+	// 获取旧设备信息
+	old, err := wk.getDeviceById(d.Id, db)
+	if err != nil {
+		return err
+	}
+
+	if !IsEmptyDevice(old) {
+		old.CreatedAt = nil // 不删除创建时间
+		err = wk.deleteDeviceIndex(old, db)
+		if err != nil {
+			return err
+		}
+	}
+
+	batch := db.NewBatch()
+	defer batch.Close()
+	err = wk.writeDevice(d, batch)
+	if err != nil {
+		return err
+	}
+	err = batch.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -186,25 +206,36 @@ func (wk *wukongDB) existDevice(uid string, id uint64) (bool, error) {
 }
 
 func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
-	var devices []Device
-	currentSize := 0
 
-	iterFnc := func(d Device) bool {
-		if currentSize > req.Limit*req.CurrentPage {
-			return false
-		}
-		currentSize++
-		if currentSize > (req.CurrentPage-1)*req.Limit && currentSize <= req.CurrentPage*req.Limit {
-			devices = append(devices, d)
+	iterFnc := func(devices *[]Device) func(d Device) bool {
+		currentSize := 0
+		return func(d Device) bool {
+			if req.Pre {
+				if req.OffsetCreatedAt > 0 && d.CreatedAt != nil && d.CreatedAt.UnixNano() <= req.OffsetCreatedAt {
+					return false
+				}
+			} else {
+				if req.OffsetCreatedAt > 0 && d.CreatedAt != nil && d.CreatedAt.UnixNano() >= req.OffsetCreatedAt {
+					return false
+				}
+			}
+
+			if currentSize > req.Limit {
+				return false
+			}
+			currentSize++
+			*devices = append(*devices, d)
+
 			return true
 		}
-		return true
 	}
 
+	allDevices := make([]Device, 0, req.Limit*len(wk.dbs))
 	for _, db := range wk.dbs {
-		currentSize = 0
+		devices := make([]Device, 0, req.Limit)
+		fnc := iterFnc(&devices)
 
-		has, err := wk.searchDeviceByIndex(req, iterFnc)
+		has, err := wk.searchDeviceByIndex(req, fnc)
 		if err != nil {
 			return nil, err
 		}
@@ -212,16 +243,77 @@ func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
 			continue
 		}
 
+		start := uint64(req.OffsetCreatedAt)
+		end := uint64(math.MaxUint64)
+		if req.OffsetCreatedAt > 0 {
+			if req.Pre {
+				start = uint64(req.OffsetCreatedAt + 1)
+				end = uint64(math.MaxUint64)
+			} else {
+				start = 0
+				end = uint64(req.OffsetCreatedAt)
+			}
+		}
+
 		iter := db.NewIter(&pebble.IterOptions{
-			LowerBound: key.NewDeviceColumnKey(0, key.MinColumnKey),
-			UpperBound: key.NewDeviceColumnKey(math.MaxUint64, key.MaxColumnKey),
+			LowerBound: key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.CreatedAt, start, 0),
+			UpperBound: key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.CreatedAt, end, 0),
 		})
 		defer iter.Close()
-		if err = wk.iterDevice(iter, iterFnc); err != nil {
-			return nil, err
+
+		var iterStepFnc func() bool
+		if req.Pre {
+			if !iter.First() {
+				continue
+			}
+			iterStepFnc = iter.Next
+		} else {
+			if !iter.Last() {
+				continue
+			}
+			iterStepFnc = iter.Prev
+		}
+
+		for ; iter.Valid(); iterStepFnc() {
+			_, id, err := key.ParseDeviceSecondIndexKey(iter.Key())
+			if err != nil {
+				return nil, err
+			}
+
+			dataIter := db.NewIter(&pebble.IterOptions{
+				LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
+				UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
+			})
+			defer dataIter.Close()
+
+			var d Device
+			err = wk.iterDevice(dataIter, func(device Device) bool {
+				d = device
+				return false
+			})
+			if err != nil {
+				return nil, err
+			}
+			if !fnc(d) {
+				break
+			}
+		}
+		allDevices = append(allDevices, devices...)
+	}
+	// 降序排序
+	sort.Slice(allDevices, func(i, j int) bool {
+		return allDevices[i].CreatedAt.UnixNano() > allDevices[j].CreatedAt.UnixNano()
+	})
+
+	if req.Limit > 0 && len(allDevices) > req.Limit {
+		if req.Pre {
+			allDevices = allDevices[len(allDevices)-req.Limit:]
+		} else {
+			allDevices = allDevices[:req.Limit]
 		}
 	}
-	return devices, nil
+
+	return allDevices, nil
 }
 
 func (wk *wukongDB) searchDeviceByIndex(req DeviceSearchReq, iterFnc func(d Device) bool) (bool, error) {
@@ -253,7 +345,7 @@ func (wk *wukongDB) searchDeviceByIndex(req DeviceSearchReq, iterFnc func(d Devi
 	return false, nil
 }
 
-func (wk *wukongDB) writeDevice(d Device, isCreate bool, w pebble.Writer) error {
+func (wk *wukongDB) writeDevice(d Device, w pebble.Writer) error {
 	var (
 		err error
 	)
@@ -278,22 +370,36 @@ func (wk *wukongDB) writeDevice(d Device, isCreate bool, w pebble.Writer) error 
 	if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.DeviceLevel), []byte{d.DeviceLevel}, wk.noSync); err != nil {
 		return err
 	}
+	// createdAt
+	if d.CreatedAt != nil {
+		ct := uint64(d.CreatedAt.UnixNano())
+		createdAt := make([]byte, 8)
+		wk.endian.PutUint64(createdAt, ct)
+		if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.CreatedAt), createdAt, wk.noSync); err != nil {
+			return err
+		}
 
-	// updatedAt
-	var nowBytes = make([]byte, 8)
-	wk.endian.PutUint64(nowBytes, uint64(time.Now().Unix()))
-	err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.UpdatedAt), nowBytes, wk.noSync)
-	if err != nil {
-		return err
+		// createdAt second index
+		if err = w.Set(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.CreatedAt, ct, d.Id), nil, wk.noSync); err != nil {
+			return err
+		}
+
 	}
 
-	// createdAt
-	if isCreate {
-		err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.CreatedAt), nowBytes, wk.noSync)
-		if err != nil {
+	if d.UpdatedAt != nil {
+		// updatedAt
+		updatedAt := make([]byte, 8)
+		wk.endian.PutUint64(updatedAt, uint64(d.UpdatedAt.UnixNano()))
+		if err = w.Set(key.NewDeviceColumnKey(d.Id, key.TableDevice.Column.UpdatedAt), updatedAt, wk.noSync); err != nil {
+			return err
+		}
+
+		// updatedAt second index
+		if err = w.Set(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.UpdatedAt, uint64(d.UpdatedAt.UnixNano()), d.Id), nil, wk.noSync); err != nil {
 			return err
 		}
 	}
+
 	// uid index
 	if err = w.Set(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.Uid, key.HashWithString(d.Uid), d.Id), nil, wk.noSync); err != nil {
 		return err
@@ -302,6 +408,34 @@ func (wk *wukongDB) writeDevice(d Device, isCreate bool, w pebble.Writer) error 
 	// deviceFlag index
 	if err = w.Set(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.DeviceFlag, d.DeviceFlag, d.Id), nil, wk.noSync); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (wk *wukongDB) deleteDeviceIndex(old Device, w pebble.Writer) error {
+	// uid index
+	if err := w.Delete(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.Uid, key.HashWithString(old.Uid), old.Id), wk.noSync); err != nil {
+		return err
+	}
+
+	// deviceFlag index
+	if err := w.Delete(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.DeviceFlag, old.DeviceFlag, old.Id), wk.noSync); err != nil {
+		return err
+	}
+
+	// createdAt index
+	if old.CreatedAt != nil {
+		if err := w.Delete(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.CreatedAt, uint64(old.CreatedAt.UnixNano()), old.Id), wk.noSync); err != nil {
+			return err
+		}
+	}
+
+	// updatedAt index
+	if old.UpdatedAt != nil {
+		if err := w.Delete(key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.UpdatedAt, uint64(old.UpdatedAt.UnixNano()), old.Id), wk.noSync); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -343,12 +477,19 @@ func (wk *wukongDB) iterDevice(iter *pebble.Iterator, iterFnc func(d Device) boo
 			preDevice.DeviceFlag = wk.endian.Uint64(iter.Value())
 		case key.TableDevice.Column.DeviceLevel:
 			preDevice.DeviceLevel = iter.Value()[0]
-		case key.TableDevice.Column.UpdatedAt:
-			up := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
-			preDevice.UpdatedAt = &up
 		case key.TableDevice.Column.CreatedAt:
-			ct := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
-			preDevice.CreatedAt = &ct
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm/1e9, tm%1e9)
+				preDevice.CreatedAt = &t
+			}
+
+		case key.TableDevice.Column.UpdatedAt:
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm/1e9, tm%1e9)
+				preDevice.UpdatedAt = &t
+			}
 
 		}
 		lastNeedAppend = true

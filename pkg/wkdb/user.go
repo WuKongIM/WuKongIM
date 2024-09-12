@@ -29,7 +29,7 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 
 	var usr = EmptyUser
 
-	err = wk.iteratorUser(iter, false, func(u User) bool {
+	err = wk.iteratorUser(iter, func(u User) bool {
 		if u.Id == id {
 			usr = u
 			return false
@@ -68,94 +68,157 @@ func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 		}
 		return []User{us}, nil
 	}
-	var users []User
-
-	var startId uint64 = req.OffsetId
-	var endId uint64 = math.MaxUint64
-	if req.OffsetId > 0 {
-		if req.Pre {
-			startId = uint64(req.OffsetId + 1)
-			endId = math.MaxUint64
-		} else {
-			startId = 0
-			endId = uint64(req.OffsetId - 1) // todo: 这里为什么要减1，没搞懂，UpperBound应该是不包含的，但是这里不减1，分页结果就不对
-		}
-	}
-
-	for _, db := range wk.dbs {
+	iterFnc := func(users *[]User) func(u User) bool {
 		currentSize := 0
-		iter := db.NewIter(&pebble.IterOptions{
-			LowerBound: key.NewUserColumnKey(startId, key.MinColumnKey),
-			UpperBound: key.NewUserColumnKey(endId, key.MaxColumnKey),
-		})
-		defer iter.Close()
-
-		err := wk.iteratorUser(iter, !req.Pre, func(u User) bool {
-			if req.OffsetId > 0 {
-				if req.Pre {
-					if u.Id <= req.OffsetId {
-						return false
-					}
-				} else {
-					if u.Id >= req.OffsetId {
-						return false
-					}
+		return func(u User) bool {
+			if req.Pre {
+				if req.OffsetCreatedAt > 0 && u.CreatedAt != nil && u.CreatedAt.UnixNano() <= req.OffsetCreatedAt {
+					return false
+				}
+			} else {
+				if req.OffsetCreatedAt > 0 && u.CreatedAt != nil && u.CreatedAt.UnixNano() >= req.OffsetCreatedAt {
+					return false
 				}
 			}
 
-			currentSize++
 			if currentSize > req.Limit {
 				return false
 			}
-			users = append(users, u)
+			currentSize++
+			*users = append(*users, u)
+
 			return true
+		}
+	}
+
+	allUsers := make([]User, 0, req.Limit*len(wk.dbs))
+	for _, db := range wk.dbs {
+		users := make([]User, 0, req.Limit)
+		fnc := iterFnc(&users)
+
+		start := uint64(req.OffsetCreatedAt)
+		end := uint64(math.MaxUint64)
+		if req.OffsetCreatedAt > 0 {
+			if req.Pre {
+				start = uint64(req.OffsetCreatedAt + 1)
+				end = uint64(math.MaxUint64)
+			} else {
+				start = 0
+				end = uint64(req.OffsetCreatedAt)
+			}
+		}
+
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, start, 0),
+			UpperBound: key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, end, 0),
 		})
-		if err != nil {
-			return nil, err
-		}
-	}
+		defer iter.Close()
 
-	sort.Slice(users, func(i, j int) bool {
-		return users[i].Id > users[j].Id
-	})
-	if req.Limit > 0 && len(users) > req.Limit {
-
+		var iterStepFnc func() bool
 		if req.Pre {
-			users = users[len(users)-req.Limit:]
+			if !iter.First() {
+				continue
+			}
+			iterStepFnc = iter.Next
 		} else {
-			users = users[:req.Limit]
+			if !iter.Last() {
+				continue
+			}
+			iterStepFnc = iter.Prev
+		}
+		for ; iter.Valid(); iterStepFnc() {
+			_, id, err := key.ParseUserSecondIndexKey(iter.Key())
+			if err != nil {
+				return nil, err
+			}
+
+			dataIter := db.NewIter(&pebble.IterOptions{
+				LowerBound: key.NewUserColumnKey(id, key.MinColumnKey),
+				UpperBound: key.NewUserColumnKey(id, key.MaxColumnKey),
+			})
+			defer dataIter.Close()
+
+			var u User
+			err = wk.iteratorUser(dataIter, func(user User) bool {
+				u = user
+				return false
+			})
+			if err != nil {
+				return nil, err
+			}
+			if !fnc(u) {
+				break
+			}
+		}
+		allUsers = append(allUsers, users...)
+	}
+	// 降序排序
+	sort.Slice(allUsers, func(i, j int) bool {
+		return allUsers[i].CreatedAt.UnixNano() > allUsers[j].CreatedAt.UnixNano()
+	})
+
+	if req.Limit > 0 && len(allUsers) > req.Limit {
+		if req.Pre {
+			allUsers = allUsers[len(allUsers)-req.Limit:]
+		} else {
+			allUsers = allUsers[:req.Limit]
 		}
 	}
 
-	return users, nil
+	return allUsers, nil
 
 }
 
-func (wk *wukongDB) AddOrUpdateUser(u User) error {
-	isCreate := false
-	if u.Id == 0 {
-		return ErrInvalidUserId
-	}
+func (wk *wukongDB) AddUser(u User) error {
+
+	u.Id = key.HashWithString(u.Uid)
 
 	exist, err := wk.existUser(u.Uid)
 	if err != nil {
 		return err
 	}
-	isCreate = !exist
+
+	if exist {
+		return ErrAlreadyExist
+	}
 
 	db := wk.shardDB(u.Uid)
 	batch := db.NewBatch()
 	defer batch.Close()
-	err = wk.writeUser(u, isCreate, batch)
+	err = wk.writeUser(u, batch)
 	if err != nil {
 		return err
 	}
-	// if isCreate {
-	// 	err = wk.IncUserCount(1)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
+
+	return batch.Commit(wk.sync)
+}
+
+func (wk *wukongDB) UpdateUser(u User) error {
+
+	u.Id = key.HashWithString(u.Uid)
+
+	exist, err := wk.existUser(u.Uid)
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		return ErrNotFound
+	}
+
+	db := wk.shardDB(u.Uid)
+	batch := db.NewBatch()
+	defer batch.Close()
+
+	if u.CreatedAt != nil {
+		u.CreatedAt = nil // 不允许更新创建时间
+	}
+
+	err = wk.writeUser(u, batch)
+	if err != nil {
+		return err
+	}
+
 	return batch.Commit(wk.sync)
 }
 
@@ -213,7 +276,7 @@ func (wk *wukongDB) getUserId(uid string) (uint64, error) {
 	return key.HashWithString(uid), nil
 }
 
-func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
+func (wk *wukongDB) writeUser(u User, w pebble.Writer) error {
 	var (
 		err error
 	)
@@ -223,17 +286,33 @@ func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
 		return err
 	}
 
-	// updatedAt
-	var nowBytes = make([]byte, 8)
-	wk.endian.PutUint64(nowBytes, uint64(time.Now().Unix()))
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.UpdatedAt), nowBytes, wk.noSync); err != nil {
-		return err
+	if u.CreatedAt != nil {
+		// createdAt
+		ct := uint64(u.CreatedAt.UnixNano())
+		var createdAtBytes = make([]byte, 8)
+		wk.endian.PutUint64(createdAtBytes, ct)
+		if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.CreatedAt), createdAtBytes, wk.noSync); err != nil {
+			return err
+		}
+
+		// createdAt second index
+		if err = w.Set(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, ct, u.Id), nil, wk.noSync); err != nil {
+			return err
+		}
+
 	}
 
-	// createdAt
-	if isCreate {
-		err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.CreatedAt), nowBytes, wk.noSync)
-		if err != nil {
+	if u.UpdatedAt != nil {
+		// updatedAt
+		up := uint64(u.UpdatedAt.UnixNano())
+		var updatedAtBytes = make([]byte, 8)
+		wk.endian.PutUint64(updatedAtBytes, up)
+		if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
+			return err
+		}
+
+		// updatedAt second index
+		if err = w.Set(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.UpdatedAt, up, u.Id), nil, wk.noSync); err != nil {
 			return err
 		}
 	}
@@ -241,7 +320,7 @@ func (wk *wukongDB) writeUser(u User, isCreate bool, w pebble.Writer) error {
 	return nil
 }
 
-func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, reverse bool, iterFnc func(u User) bool) error {
+func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, iterFnc func(u User) bool) error {
 	var (
 		preId          uint64
 		preUser        User
@@ -249,19 +328,7 @@ func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, reverse bool, iterFnc fu
 		hasData        bool = false
 	)
 
-	stepFnc := iter.Next
-	if reverse {
-		if !iter.Last() {
-			return nil
-		}
-		stepFnc = iter.Prev
-	} else {
-		if !iter.First() {
-			return nil
-		}
-	}
-
-	for ; iter.Valid(); stepFnc() {
+	for iter.First(); iter.Valid(); iter.Next() {
 		primaryKey, columnName, err := key.ParseUserColumnKey(iter.Key())
 		if err != nil {
 			return err
@@ -296,11 +363,18 @@ func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, reverse bool, iterFnc fu
 		case key.TableUser.Column.RecvMsgBytes:
 			preUser.RecvMsgBytes = wk.endian.Uint64(iter.Value())
 		case key.TableUser.Column.CreatedAt:
-			ct := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
-			preUser.CreatedAt = &ct
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm/1e9, tm%1e9)
+				preUser.CreatedAt = &t
+			}
+
 		case key.TableUser.Column.UpdatedAt:
-			up := time.Unix(int64(wk.endian.Uint64(iter.Value())), 0)
-			preUser.UpdatedAt = &up
+			tm := int64(wk.endian.Uint64(iter.Value()))
+			if tm > 0 {
+				t := time.Unix(tm/1e9, tm%1e9)
+				preUser.UpdatedAt = &t
+			}
 
 		}
 		lastNeedAppend = true

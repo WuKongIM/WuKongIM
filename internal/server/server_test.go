@@ -556,6 +556,9 @@ func TestClusterSaveClusterConfig(t *testing.T) {
 	defer s2.StopNoErr()
 	defer s3.StopNoErr()
 
+	createdAt := time.Now()
+	updatedAt := time.Now()
+
 	err := s1.store.SaveChannelClusterConfig(context.Background(), wkdb.ChannelClusterConfig{
 		ChannelId:       "test1@test2",
 		ChannelType:     1,
@@ -563,6 +566,8 @@ func TestClusterSaveClusterConfig(t *testing.T) {
 		Replicas:        []uint64{s1.opts.Cluster.NodeId, s2.opts.Cluster.NodeId, s3.opts.Cluster.NodeId},
 		LeaderId:        1,
 		Learners:        []uint64{},
+		CreatedAt:       &createdAt,
+		UpdatedAt:       &updatedAt,
 	})
 	assert.Nil(t, err)
 }

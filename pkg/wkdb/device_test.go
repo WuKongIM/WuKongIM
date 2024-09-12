@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDeviceUpdate(t *testing.T) {
+func TestDeviceAdd(t *testing.T) {
 	d := wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir())))
 	err := d.Open()
 	assert.NoError(t, err)
@@ -25,7 +25,7 @@ func TestDeviceUpdate(t *testing.T) {
 		DeviceLevel: 1,
 	}
 
-	err = d.AddOrUpdateDevice(u)
+	err = d.AddDevice(u)
 	assert.NoError(t, err)
 
 }
@@ -48,7 +48,7 @@ func TestGetDevice(t *testing.T) {
 		DeviceLevel: 1,
 	}
 
-	err = d.AddOrUpdateDevice(u)
+	err = d.AddDevice(u)
 	assert.NoError(t, err)
 
 	u2, err := d.GetDevice("test", 2)

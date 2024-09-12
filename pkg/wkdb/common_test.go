@@ -7,5 +7,7 @@ import (
 )
 
 func newTestDB(t testing.TB) wkdb.DB {
-	return wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(t.TempDir()), wkdb.WithShardNum(1)))
+	dr := t.TempDir()
+
+	return wkdb.NewWukongDB(wkdb.NewOptions(wkdb.WithDir(dr), wkdb.WithShardNum(1)))
 }

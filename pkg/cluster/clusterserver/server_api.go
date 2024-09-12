@@ -139,6 +139,11 @@ func (s *Server) simpleNodesGet(c *wkhttp.Context) {
 		nodeCfg.SlotLeaderCount = s.getNodeSlotLeaderCount(node.Id, cfg)
 		nodeCfgs = append(nodeCfgs, nodeCfg)
 	}
+
+	sort.Slice(nodeCfgs, func(i, j int) bool {
+		return nodeCfgs[i].Id < nodeCfgs[j].Id
+	})
+
 	c.JSON(http.StatusOK, NodeConfigTotal{
 		Total: len(nodeCfgs),
 		Data:  nodeCfgs,
@@ -155,18 +160,15 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 	}
 
 	limit := wkutil.ParseInt(c.Query("limit"))
-	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
 	channelId := strings.TrimSpace(c.Query("channel_id"))
 	channelType := wkutil.ParseUint8(c.Query("channel_type"))
+	offsetCreatedAt := wkutil.ParseInt64(c.Query("offset_created_at"))
+	pre := wkutil.ParseInt(c.Query("pre"))
 
 	// running := wkutil.ParseBool(c.Query("running")) // 是否只查询运行中的频道
 
 	if limit <= 0 {
 		limit = s.opts.PageSize
-	}
-
-	if currentPage <= 0 {
-		currentPage = 1
 	}
 
 	node := s.clusterEventServer.Node(id)
@@ -187,10 +189,11 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 	}
 
 	channelClusterConfigs, err := s.opts.DB.SearchChannelClusterConfig(wkdb.ChannelClusterConfigSearchReq{
-		ChannelId:   channelId,
-		ChannelType: channelType,
-		CurrentPage: currentPage,
-		Limit:       limit,
+		ChannelId:       channelId,
+		ChannelType:     channelType,
+		OffsetCreatedAt: offsetCreatedAt,
+		Pre:             pre == 1,
+		Limit:           limit + 1, // 多查一个，用于判断是否有下一页
 	}, func(cfg wkdb.ChannelClusterConfig) bool {
 		slotId := s.getSlotId(cfg.ChannelId)
 		slot := s.clusterEventServer.Slot(slotId)
@@ -318,8 +321,19 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 
 	// }
 
+	hasMore := false
+	if len(channelClusterConfigResps) > limit {
+		hasMore = true
+		if pre == 1 {
+			channelClusterConfigResps = channelClusterConfigResps[len(channelClusterConfigResps)-limit:]
+		} else {
+			channelClusterConfigResps = channelClusterConfigResps[:limit]
+		}
+	}
+
 	c.JSON(http.StatusOK, ChannelClusterConfigRespTotal{
 		Running: s.channelManager.channelCount(),
+		More:    wkutil.BoolToInt(hasMore),
 		Data:    channelClusterConfigResps,
 	})
 }
@@ -648,47 +662,47 @@ func (s *Server) getSlotInfo(slotId uint32) (*SlotResp, error) {
 	return resp, nil
 }
 
-func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
-	channelId := c.Param("channel_id")
-	channelTypeStr := c.Param("channel_type")
+// func (s *Server) channelClusterConfigGet(c *wkhttp.Context) {
+// 	channelId := c.Param("channel_id")
+// 	channelTypeStr := c.Param("channel_type")
 
-	channelTypeI64, err := strconv.ParseUint(channelTypeStr, 10, 8)
-	if err != nil {
-		s.Error("channelTypeStr parse error", zap.Error(err))
-		c.ResponseError(err)
-		return
-	}
-	channelType := uint8(channelTypeI64)
-	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
-	if err != nil {
-		s.Error("loadChannelClusterConfig error", zap.Error(err))
-		c.ResponseError(err)
-		return
-	}
+// 	channelTypeI64, err := strconv.ParseUint(channelTypeStr, 10, 8)
+// 	if err != nil {
+// 		s.Error("channelTypeStr parse error", zap.Error(err))
+// 		c.ResponseError(err)
+// 		return
+// 	}
+// 	channelType := uint8(channelTypeI64)
+// 	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
+// 	if err != nil {
+// 		s.Error("loadChannelClusterConfig error", zap.Error(err))
+// 		c.ResponseError(err)
+// 		return
+// 	}
 
-	slotId := s.getSlotId(channelId)
-	slot := s.clusterEventServer.Slot(slotId)
-	if slot == nil {
-		s.Error("slot not found", zap.Uint32("slotId", slotId))
-		c.ResponseError(err)
-		return
+// 	slotId := s.getSlotId(channelId)
+// 	slot := s.clusterEventServer.Slot(slotId)
+// 	if slot == nil {
+// 		s.Error("slot not found", zap.Uint32("slotId", slotId))
+// 		c.ResponseError(err)
+// 		return
 
-	}
-	resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slotId, cfg)
-	shardNo := wkutil.ChannelToKey(channelId, channelType)
-	lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
-	if err != nil {
-		s.Error("LastIndexAndAppendTime error", zap.Error(err))
-		c.ResponseError(err)
-		return
+// 	}
+// 	resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slotId, cfg)
+// 	shardNo := wkutil.ChannelToKey(channelId, channelType)
+// 	lastMsgSeq, lastAppendTime, err := s.opts.MessageLogStorage.LastIndexAndAppendTime(shardNo)
+// 	if err != nil {
+// 		s.Error("LastIndexAndAppendTime error", zap.Error(err))
+// 		c.ResponseError(err)
+// 		return
 
-	}
-	resp.LastMessageSeq = lastMsgSeq
-	if lastAppendTime > 0 {
-		resp.LastAppendTime = wkutil.ToyyyyMMddHHmm(time.Unix(int64(lastAppendTime/1e9), 0))
-	}
-	c.JSON(http.StatusOK, resp)
-}
+// 	}
+// 	resp.LastMessageSeq = lastMsgSeq
+// 	if lastAppendTime > 0 {
+// 		resp.LastAppendTime = wkutil.ToyyyyMMddHHmm(time.Unix(int64(lastAppendTime/1e9), 0))
+// 	}
+// 	c.JSON(http.StatusOK, resp)
+// }
 
 func (s *Server) messageSearch(c *wkhttp.Context) {
 
@@ -1098,7 +1112,7 @@ func (s *Server) channelSearch(c *wkhttp.Context) {
 
 	sort.Slice(channelInfoResps, func(i, j int) bool {
 
-		return channelInfoResps[i].createdAt > channelInfoResps[j].createdAt
+		return channelInfoResps[i].CreatedAt > channelInfoResps[j].CreatedAt
 	})
 
 	hasMore := false
@@ -1173,7 +1187,11 @@ func (s *Server) subscribersGet(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	c.JSON(http.StatusOK, subscribers)
+	uids := make([]string, 0, len(subscribers))
+	for _, subscriber := range subscribers {
+		uids = append(uids, subscriber.Uid)
+	}
+	c.JSON(http.StatusOK, uids)
 }
 
 func (s *Server) denylistGet(c *wkhttp.Context) {
@@ -1191,13 +1209,17 @@ func (s *Server) denylistGet(c *wkhttp.Context) {
 		c.Forward(fmt.Sprintf("%s%s", leaderNode.ApiServerAddr, c.Request.URL.Path))
 		return
 	}
-	denylist, err := s.opts.DB.GetDenylist(channelId, channelType)
+	members, err := s.opts.DB.GetDenylist(channelId, channelType)
 	if err != nil {
 		s.Error("GetDenylist error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
-	c.JSON(http.StatusOK, denylist)
+	uids := make([]string, 0, len(members))
+	for _, member := range members {
+		uids = append(uids, member.Uid)
+	}
+	c.JSON(http.StatusOK, uids)
 }
 
 func (s *Server) allowlistGet(c *wkhttp.Context) {
@@ -1221,16 +1243,20 @@ func (s *Server) allowlistGet(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	c.JSON(http.StatusOK, allowlist)
+	uids := make([]string, 0, len(allowlist))
+	for _, member := range allowlist {
+		uids = append(uids, member.Uid)
+	}
+	c.JSON(http.StatusOK, uids)
 }
 
 func (s *Server) userSearch(c *wkhttp.Context) {
 	// 搜索条件
 	limit := wkutil.ParseInt(c.Query("limit"))
-	offsetId := wkutil.ParseUint64(c.Query("offset_id")) // 偏移的id
 	uid := strings.TrimSpace(c.Query("uid"))
 	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 	pre := wkutil.ParseInt(c.Query("pre")) // 是否向前搜索
+	offsetCreatedAt := wkutil.ParseInt64(c.Query("offset_created_at"))
 
 	if limit <= 0 {
 		limit = s.opts.PageSize
@@ -1238,10 +1264,10 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 
 	var searchLocalUsers = func() (userRespTotal, error) {
 		users, err := s.opts.DB.SearchUser(wkdb.UserSearchReq{
-			Uid:      uid,
-			Limit:    limit,
-			OffsetId: offsetId,
-			Pre:      pre == 1,
+			Uid:             uid,
+			Limit:           limit + 1, // 实际查询出来的数据比limit多1，用于判断是否有下一页
+			OffsetCreatedAt: offsetCreatedAt,
+			Pre:             pre == 1,
 		})
 		if err != nil {
 			s.Error("search user failed", zap.Error(err))
@@ -1336,22 +1362,17 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 	}
 
 	sort.Slice(userResps, func(i, j int) bool {
-		return userResps[i].Id > userResps[j].Id
+		return uint64(userResps[i].CreatedAt) > uint64(userResps[j].CreatedAt)
 	})
 
+	hasMore := false
 	if len(userResps) > limit {
+		hasMore = true
 		if pre == 1 {
 			userResps = userResps[len(userResps)-limit:]
 		} else {
 			userResps = userResps[:limit]
 		}
-	}
-
-	nextId := ""
-	preId := ""
-	if len(userResps) > 0 {
-		nextId = wkutil.Uint64ToString(userResps[len(userResps)-1].Id)
-		preId = wkutil.Uint64ToString(userResps[0].Id)
 	}
 
 	userCount, err := s.opts.DB.GetTotalUserCount()
@@ -1362,10 +1383,9 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 	}
 
 	c.JSON(http.StatusOK, userRespTotal{
-		Data:  userResps,
 		Total: userCount,
-		Next:  nextId,
-		Pre:   preId,
+		More:  wkutil.BoolToInt(hasMore),
+		Data:  userResps,
 	})
 }
 
@@ -1397,24 +1417,23 @@ func (s *Server) requestUserSearch(path string, nodeId uint64, queryMap map[stri
 func (s *Server) deviceSearch(c *wkhttp.Context) {
 	// 搜索条件
 	limit := wkutil.ParseInt(c.Query("limit"))
-	currentPage := wkutil.ParseInt(c.Query("current_page")) // 页码
 	uid := strings.TrimSpace(c.Query("uid"))
 	deviceFlag := wkutil.ParseUint64(strings.TrimSpace(c.Query("device_flag")))
 	nodeId := wkutil.ParseUint64(c.Query("node_id"))
+	pre := wkutil.ParseInt(c.Query("pre"))                             // 是否向前搜索
+	offsetCreatedAt := wkutil.ParseInt64(c.Query("offset_created_at")) // 偏移的创建时间
 
-	if currentPage <= 0 {
-		currentPage = 1
-	}
 	if limit <= 0 {
 		limit = s.opts.PageSize
 	}
 
 	var searchLocalDevice = func() (*deviceRespTotal, error) {
 		devices, err := s.opts.DB.SearchDevice(wkdb.DeviceSearchReq{
-			Uid:         uid,
-			DeviceFlag:  deviceFlag,
-			Limit:       limit,
-			CurrentPage: currentPage,
+			Uid:             uid,
+			DeviceFlag:      deviceFlag,
+			Limit:           limit + 1, // 实际查询出来的数据比limit多1，用于判断是否有下一页
+			Pre:             pre == 1,
+			OffsetCreatedAt: offsetCreatedAt,
 		})
 		if err != nil {
 			s.Error("search device failed", zap.Error(err))
@@ -1508,8 +1527,25 @@ func (s *Server) deviceSearch(c *wkhttp.Context) {
 		deviceResps = append(deviceResps, deviceResp)
 	}
 
+	sort.Slice(deviceResps, func(i, j int) bool {
+
+		return deviceResps[i].CreatedAt > deviceResps[j].CreatedAt
+	})
+
+	hasMore := false
+
+	if len(deviceResps) > limit {
+		hasMore = true
+		if pre == 1 {
+			deviceResps = deviceResps[len(deviceRespMap)-limit:]
+		} else {
+			deviceResps = deviceResps[:limit]
+		}
+	}
+
 	c.JSON(http.StatusOK, deviceRespTotal{
 		Data:  deviceResps,
+		More:  wkutil.BoolToInt(hasMore),
 		Total: 0,
 	})
 
