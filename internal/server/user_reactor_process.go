@@ -134,7 +134,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 			r.authResponseConnackAuthFail(connCtx)
 			return wkproto.ReasonAuthFail, errors.New("token is empty")
 		}
-		device, err := r.s.store.GetDevice(uid, uint64(connectPacket.DeviceFlag))
+		device, err := r.s.store.GetDevice(uid, connectPacket.DeviceFlag)
 		if err != nil {
 			r.Error("get device token err", zap.Error(err))
 			r.authResponseConnackAuthFail(connCtx)

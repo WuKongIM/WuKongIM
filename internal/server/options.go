@@ -444,8 +444,8 @@ func NewOptions(op ...Option) *Options {
 			SlotShardNum int
 			MemTableSize int
 		}{
-			ShardNum:     16,
-			SlotShardNum: 16,
+			ShardNum:     8,
+			SlotShardNum: 8,
 			MemTableSize: 16 * 1024 * 1024,
 		},
 

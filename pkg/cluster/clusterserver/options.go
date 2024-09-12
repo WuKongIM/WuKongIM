@@ -125,7 +125,7 @@ func NewOptions(opt ...Option) *Options {
 		ChannelReactorSubCount: 128,
 		SlotReactorSubCount:    128,
 		PongMaxTick:            30,
-		SlotDbShardNum:         16,
+		SlotDbShardNum:         8,
 	}
 	for _, o := range opt {
 		o(opts)

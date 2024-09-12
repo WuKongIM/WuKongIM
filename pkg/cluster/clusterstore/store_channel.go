@@ -5,13 +5,13 @@ import (
 )
 
 // AddSubscribers 添加订阅者
-func (s *Store) AddSubscribers(channelId string, channelType uint8, subscribers []string) error {
+func (s *Store) AddSubscribers(channelId string, channelType uint8, subscribers []wkdb.Member) error {
 
 	if len(subscribers) == 0 {
 		return nil
 	}
 
-	data := EncodeSubscribers(channelId, channelType, subscribers)
+	data := EncodeMembers(channelId, channelType, subscribers)
 	cmd := NewCMD(CMDAddSubscribers, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
@@ -33,7 +33,7 @@ func (s *Store) RemoveSubscribers(channelId string, channelType uint8, subscribe
 		return nil
 	}
 
-	data := EncodeSubscribers(channelId, channelType, subscribers)
+	data := EncodeChannelUids(channelId, channelType, subscribers)
 	cmd := NewCMD(CMDRemoveSubscribers, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *Store) RemoveAllSubscriber(channelId string, channelType uint8) error {
 	return err
 }
 
-func (s *Store) GetSubscribers(channelID string, channelType uint8) ([]string, error) {
+func (s *Store) GetSubscribers(channelID string, channelType uint8) ([]wkdb.Member, error) {
 	return s.wdb.GetSubscribers(channelID, channelType)
 }
 
@@ -111,13 +111,13 @@ func (s *Store) ExistChannel(channelId string, channelType uint8) (bool, error) 
 	return s.wdb.ExistChannel(channelId, channelType)
 }
 
-func (s *Store) AddDenylist(channelId string, channelType uint8, uids []string) error {
+func (s *Store) AddDenylist(channelId string, channelType uint8, members []wkdb.Member) error {
 
-	if len(uids) == 0 {
+	if len(members) == 0 {
 		return nil
 	}
 
-	data := EncodeSubscribers(channelId, channelType, uids)
+	data := EncodeMembers(channelId, channelType, members)
 	cmd := NewCMD(CMDAddDenylist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
@@ -129,7 +129,7 @@ func (s *Store) AddDenylist(channelId string, channelType uint8, uids []string) 
 
 }
 
-func (s *Store) GetDenylist(channelId string, channelType uint8) ([]string, error) {
+func (s *Store) GetDenylist(channelId string, channelType uint8) ([]wkdb.Member, error) {
 	return s.wdb.GetDenylist(channelId, channelType)
 }
 
@@ -155,7 +155,7 @@ func (s *Store) RemoveDenylist(channelId string, channelType uint8, uids []strin
 		return nil
 	}
 
-	data := EncodeSubscribers(channelId, channelType, uids)
+	data := EncodeChannelUids(channelId, channelType, uids)
 	cmd := NewCMD(CMDRemoveDenylist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
@@ -166,13 +166,13 @@ func (s *Store) RemoveDenylist(channelId string, channelType uint8, uids []strin
 	return err
 }
 
-func (s *Store) AddAllowlist(channelId string, channelType uint8, uids []string) error {
+func (s *Store) AddAllowlist(channelId string, channelType uint8, members []wkdb.Member) error {
 
-	if len(uids) == 0 {
+	if len(members) == 0 {
 		return nil
 	}
 
-	data := EncodeSubscribers(channelId, channelType, uids)
+	data := EncodeMembers(channelId, channelType, members)
 	cmd := NewCMD(CMDAddAllowlist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
@@ -183,7 +183,7 @@ func (s *Store) AddAllowlist(channelId string, channelType uint8, uids []string)
 	return err
 }
 
-func (s *Store) GetAllowlist(channelID string, channelType uint8) ([]string, error) {
+func (s *Store) GetAllowlist(channelID string, channelType uint8) ([]wkdb.Member, error) {
 	return s.wdb.GetAllowlist(channelID, channelType)
 }
 
@@ -209,7 +209,7 @@ func (s *Store) RemoveAllowlist(channelId string, channelType uint8, uids []stri
 		return nil
 	}
 
-	data := EncodeSubscribers(channelId, channelType, uids)
+	data := EncodeChannelUids(channelId, channelType, uids)
 	cmd := NewCMD(CMDRemoveAllowlist, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {

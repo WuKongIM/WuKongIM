@@ -104,10 +104,11 @@ var TableMessage = struct {
 // ======================== User ========================
 
 var TableUser = struct {
-	Id        [2]byte
-	Size      int
-	IndexSize int
-	Column    struct {
+	Id              [2]byte
+	Size            int
+	IndexSize       int
+	SecondIndexSize int
+	Column          struct {
 		Uid               [2]byte // 用户uid
 		DeviceCount       [2]byte // 设备数量
 		OnlineDeviceCount [2]byte // 在线设备数量
@@ -122,10 +123,15 @@ var TableUser = struct {
 	Index struct {
 		Uid [2]byte
 	}
+	SecondIndex struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}
 }{
-	Id:        [2]byte{0x02, 0x01},
-	Size:      2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
-	IndexSize: 2 + 2 + 2 + 8, // tableId + dataType + indexName  + columnHash
+	Id:              [2]byte{0x02, 0x01},
+	Size:            2 + 2 + 8 + 2,     // tableId + dataType  + primaryKey + columnKey
+	IndexSize:       2 + 2 + 2 + 8,     // tableId + dataType + indexName  + columnHash
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + columnValue + primaryKey
 	Column: struct {
 		Uid               [2]byte
 		DeviceCount       [2]byte // 设备数量
@@ -153,6 +159,13 @@ var TableUser = struct {
 		Uid [2]byte
 	}{
 		Uid: [2]byte{0x02, 0x01},
+	},
+	SecondIndex: struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		CreatedAt: [2]byte{0x02, 0x01},
+		UpdatedAt: [2]byte{0x02, 0x02},
 	},
 }
 
@@ -216,28 +229,47 @@ var TableDevice = struct {
 // ======================== Subscriber ========================
 
 var TableSubscriber = struct {
-	Id        [2]byte
-	Size      int
-	IndexSize int
-	Column    struct {
-		Uid [2]byte
+	Id              [2]byte
+	Size            int
+	IndexSize       int
+	SecondIndexSize int
+	Column          struct {
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}
 	Index struct {
 		Uid [2]byte
 	}
+	SecondIndex struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}
 }{
-	Id:        [2]byte{0x04, 0x01},
-	Size:      2 + 2 + 8 + 8 + 2, // tableId + dataType  + channel hash + primaryKey + columnKey
-	IndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + indexName + channel hash + columnHash
+	Id:              [2]byte{0x04, 0x01},
+	Size:            2 + 2 + 8 + 8 + 2,     // tableId + dataType  + channel hash + primaryKey + columnKey
+	IndexSize:       2 + 2 + 2 + 8 + 8,     // tableId + dataType + indexName + channel hash + columnHash
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8 + 8, // tableId + dataType + secondIndexName + channel hash +  columnValue + primaryKey
 	Column: struct {
-		Uid [2]byte
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}{
-		Uid: [2]byte{0x04, 0x01},
+		Uid:       [2]byte{0x04, 0x01},
+		CreatedAt: [2]byte{0x04, 0x02},
+		UpdatedAt: [2]byte{0x04, 0x03},
 	},
 	Index: struct {
 		Uid [2]byte
 	}{
 		Uid: [2]byte{0x04, 0x01},
+	},
+	SecondIndex: struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		CreatedAt: [2]byte{0x04, 0x01},
+		UpdatedAt: [2]byte{0x04, 0x02},
 	},
 }
 
@@ -351,56 +383,94 @@ var TableChannelInfo = struct {
 // ======================== Denylist ========================
 
 var TableDenylist = struct {
-	Id        [2]byte
-	Size      int
-	IndexSize int
-	Column    struct {
-		Uid [2]byte
+	Id              [2]byte
+	Size            int
+	IndexSize       int
+	SecondIndexSize int
+	Column          struct {
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}
 	Index struct {
 		Uid [2]byte
 	}
+	SecondIndex struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}
 }{
-	Id:        [2]byte{0x07, 0x01},
-	Size:      2 + 2 + 8 + 8 + 2, // tableId + dataType  + channel hash + primaryKey + columnKey
-	IndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + indexName + channel hash + columnHash
+	Id:              [2]byte{0x07, 0x01},
+	Size:            2 + 2 + 8 + 8 + 2,     // tableId + dataType  + channel hash + primaryKey + columnKey
+	IndexSize:       2 + 2 + 2 + 8 + 8,     // tableId + dataType + indexName + channel hash + columnHash
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8 + 8, // tableId + dataType + secondIndexName + channel hash + columnValue + primaryKey
 	Column: struct {
-		Uid [2]byte
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}{
-		Uid: [2]byte{0x07, 0x01},
+		Uid:       [2]byte{0x07, 0x01},
+		CreatedAt: [2]byte{0x07, 0x02},
+		UpdatedAt: [2]byte{0x07, 0x03},
 	},
 	Index: struct {
 		Uid [2]byte
 	}{
 		Uid: [2]byte{0x07, 0x01},
+	},
+	SecondIndex: struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		CreatedAt: [2]byte{0x07, 0x01},
+		UpdatedAt: [2]byte{0x07, 0x02},
 	},
 }
 
 // ======================== Allowlist ========================
 
 var TableAllowlist = struct {
-	Id        [2]byte
-	Size      int
-	IndexSize int
-	Column    struct {
-		Uid [2]byte
+	Id              [2]byte
+	Size            int
+	IndexSize       int
+	SecondIndexSize int
+	Column          struct {
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}
 	Index struct {
 		Uid [2]byte
 	}
+	SecondIndex struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}
 }{
-	Id:        [2]byte{0x08, 0x01},
-	Size:      2 + 2 + 8 + 8 + 2, // tableId + dataType  + channel hash + primaryKey + columnKey
-	IndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + indexName + channel hash + columnHash
+	Id:              [2]byte{0x08, 0x01},
+	Size:            2 + 2 + 8 + 8 + 2,     // tableId + dataType  + channel hash + primaryKey + columnKey
+	IndexSize:       2 + 2 + 2 + 8 + 8,     // tableId + dataType + indexName + channel hash + columnHash
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8 + 8, // tableId + dataType + secondIndexName + channel hash + columnValue + primaryKey
 	Column: struct {
-		Uid [2]byte
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}{
-		Uid: [2]byte{0x08, 0x01},
+		Uid:       [2]byte{0x08, 0x01},
+		CreatedAt: [2]byte{0x08, 0x02},
+		UpdatedAt: [2]byte{0x08, 0x03},
 	},
 	Index: struct {
 		Uid [2]byte
 	}{
 		Uid: [2]byte{0x08, 0x01},
+	},
+	SecondIndex: struct {
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		CreatedAt: [2]byte{0x08, 0x01},
+		UpdatedAt: [2]byte{0x08, 0x02},
 	},
 }
 
@@ -491,7 +561,9 @@ var TableChannelClusterConfig = struct {
 		Channel [2]byte
 	}
 	SecondIndex struct {
-		LeaderId [2]byte
+		LeaderId  [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}
 	OtherIndex struct {
 		LeaderId [2]byte
@@ -509,6 +581,8 @@ var TableChannelClusterConfig = struct {
 		Status          [2]byte
 		ConfVersion     [2]byte
 		Version         [2]byte
+		CreatedAt       [2]byte
+		UpdatedAt       [2]byte
 	}
 }{
 	Id:              [2]byte{0x0B, 0x01},
@@ -519,9 +593,13 @@ var TableChannelClusterConfig = struct {
 		Channel [2]byte
 	}{},
 	SecondIndex: struct {
-		LeaderId [2]byte
+		LeaderId  [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
 	}{
-		LeaderId: [2]byte{0x0B, 0x01},
+		LeaderId:  [2]byte{0x0B, 0x01},
+		CreatedAt: [2]byte{0x0B, 0x02},
+		UpdatedAt: [2]byte{0x0B, 0x03},
 	},
 	OtherIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + primaryKey + columnValue
 	OtherIndex: struct {
@@ -543,6 +621,8 @@ var TableChannelClusterConfig = struct {
 		Status          [2]byte
 		ConfVersion     [2]byte
 		Version         [2]byte
+		CreatedAt       [2]byte
+		UpdatedAt       [2]byte
 	}{
 		ChannelId:       [2]byte{0x0B, 0x01},
 		ChannelType:     [2]byte{0x0B, 0x02},
@@ -556,6 +636,8 @@ var TableChannelClusterConfig = struct {
 		Status:          [2]byte{0x0B, 0x0A},
 		ConfVersion:     [2]byte{0x0B, 0x0B},
 		Version:         [2]byte{0x0B, 0x0C},
+		CreatedAt:       [2]byte{0x0B, 0x0D},
+		UpdatedAt:       [2]byte{0x0B, 0x0E},
 	},
 }
 

@@ -90,11 +90,25 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 // 这里清空token 让设备去重新登录 空token是不让登录的
 func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
 
-	err := u.s.store.AddOrUpdateDevice(wkdb.Device{
+	device, err := u.s.store.GetDevice(uid, deviceFlag)
+	if err != nil {
+		u.Error("获取设备信息失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
+		return err
+	}
+	if wkdb.IsEmptyDevice(device) {
+		u.Error("设备信息不存在！", zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
+		return errors.New("设备信息不存在！")
+	}
+
+	updatedAt := time.Now()
+	err = u.s.store.UpdateDevice(wkdb.Device{
+		Id:          device.Id,
 		Uid:         uid,
 		DeviceFlag:  uint64(deviceFlag),
 		DeviceLevel: uint8(wkproto.DeviceLevelMaster),
 		Token:       "",
+		CreatedAt:   device.CreatedAt,
+		UpdatedAt:   &updatedAt,
 	}) // 这里的deviceLevel可以随便给 不影响逻辑 这里随便给的master
 	if err != nil {
 		u.Error("清空用户token失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
@@ -284,11 +298,68 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
-	err = u.s.store.AddOrUpdateUserAndDevice(req.UID, req.DeviceFlag, req.DeviceLevel, req.Token)
-	if err != nil {
-		u.Error("更新用户token失败！", zap.Error(err))
-		c.ResponseError(errors.Wrap(err, "更新用户token失败！"))
+	user, err := u.s.store.GetUser(req.UID) // 确保用户存在
+	if err != nil && err != wkdb.ErrNotFound {
+		u.Error("获取用户信息失败！", zap.Error(err), zap.String("uid", req.UID))
+		c.ResponseError(err)
 		return
+	}
+
+	// 如果用户不存在，则添加用户
+	if wkdb.IsEmptyUser(user) {
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		err = u.s.store.AddUser(wkdb.User{
+			Uid:       req.UID,
+			CreatedAt: &createdAt,
+			UpdatedAt: &updatedAt,
+		})
+		if err != nil {
+			u.Error("添加用户失败！", zap.Error(err), zap.String("uid", req.UID))
+			c.ResponseError(err)
+			return
+		}
+	}
+
+	device, err := u.s.store.GetDevice(req.UID, req.DeviceFlag)
+	if err != nil && err != wkdb.ErrNotFound {
+		u.Error("获取设备信息失败！", zap.Error(err), zap.String("uid", req.UID), zap.Uint8("deviceFlag", req.DeviceFlag.ToUint8()))
+		c.ResponseError(err)
+		return
+	}
+
+	// 不存在设备则添加设备，存在则更新设备
+	if wkdb.IsEmptyDevice(device) {
+		createdAt := time.Now()
+		err = u.s.store.AddDevice(wkdb.Device{
+			Id:          u.s.store.NextPrimaryKey(),
+			Uid:         req.UID,
+			DeviceFlag:  uint64(req.DeviceFlag),
+			DeviceLevel: uint8(req.DeviceLevel),
+			Token:       req.Token,
+			CreatedAt:   &createdAt,
+			UpdatedAt:   &createdAt,
+		})
+		if err != nil {
+			u.Error("添加设备失败！", zap.Error(err), zap.String("uid", req.UID), zap.Uint8("deviceFlag", req.DeviceFlag.ToUint8()))
+			c.ResponseError(err)
+			return
+		}
+	} else {
+		updatedAt := time.Now()
+		err = u.s.store.UpdateDevice(wkdb.Device{
+			Id:          device.Id,
+			Uid:         req.UID,
+			DeviceFlag:  uint64(req.DeviceFlag),
+			DeviceLevel: uint8(req.DeviceLevel),
+			Token:       req.Token,
+			UpdatedAt:   &updatedAt,
+		})
+		if err != nil {
+			u.Error("更新设备失败！", zap.Error(err), zap.String("uid", req.UID), zap.Uint8("deviceFlag", req.DeviceFlag.ToUint8()))
+			c.ResponseError(err)
+			return
+		}
 	}
 
 	if req.DeviceLevel == wkproto.DeviceLevelMaster {
@@ -363,6 +434,9 @@ func (u *UserAPI) systemUidsAdd(c *wkhttp.Context) {
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 	for _, node := range nodes {
 		if node.Id == u.s.opts.Cluster.NodeId {
+			continue
+		}
+		if !node.Online {
 			continue
 		}
 		requestGroup.Go(func(n *pb.Node) func() error {
@@ -456,6 +530,9 @@ func (u *UserAPI) systemUidsRemove(c *wkhttp.Context) {
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 	for _, node := range nodes {
 		if node.Id == u.s.opts.Cluster.NodeId {
+			continue
+		}
+		if !node.Online {
 			continue
 		}
 		requestGroup.Go(func(n *pb.Node) func() error {

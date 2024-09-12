@@ -210,6 +210,16 @@ const nextPage = () => {
                         </th>
                         <th>
                             <div class="flex items-center">
+                                创建时间
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                更新时间
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
                                 操作
                             </div>
                         </th>
@@ -229,6 +239,8 @@ const nextPage = () => {
                         <td>{{ channel.last_msg_seq }}</td>
                         <td>{{ channel.last_msg_time_format }}</td>
                         <td>{{ channel.slot }}</td>
+                        <td>{{ channel.created_at_format }}</td>
+                        <td>{{ channel.updated_at_format }}</td>
                         <td class="flex">
                             <button class="btn btn-link btn-sm"
                                 v-on:click="() => { onShowSubscriber(channel.channel_id, channel.channel_type) }">订阅者</button>

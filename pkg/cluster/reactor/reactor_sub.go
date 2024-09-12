@@ -358,15 +358,21 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 			}
 		}
 
+		// 同步返回是否有日志数据
+		syncRespHasLog := m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0
+
+		if syncRespHasLog { // 如果有返回同步日志，则可继续同步
+			r.advance()
+		}
+
 		// 		// 同步速度处理
 		if r.opts.AutoSlowDownOn {
 			// 如果收到了同步日志的消息，速度重置（提速）
-			if m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0 { // 还有副本同步到日志，不降速
+			if syncRespHasLog { // 还有副本同步到日志，不降速
 				handler.resetSlowDown()
 				r.Debug("sync resp...", zap.String("handler", handler.key), zap.Uint64("index", m.Index), zap.Int("logs", len(m.Logs)), zap.Uint64("to", m.To))
 
 			}
-
 		}
 
 		if m.MsgType == replica.MsgSyncResp { // 如果有领导返回同步数据，则同步超时tick设置为0

@@ -2,6 +2,7 @@ package clusterstore
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -12,13 +13,14 @@ type CMDType uint16
 
 const (
 	CMDUnknown CMDType = iota
-	// 添加或更新设备
-	CMDAddOrUpdateDevice
-	// 添加或更新用户
-	CMDAddOrUpdateUser
-	// CMDUpdateMessageOfUserCursorIfNeed CMDUpdateMessageOfUserCursorIfNeed
-	// 更新用户消息游标
-	CMDUpdateMessageOfUserCursorIfNeed
+	// 添加设备
+	CMDAddDevice
+	// 更新设备
+	CMDUpdateDevice
+	// 添加用户
+	CMDAddUser
+	// 更新用户
+	CMDUpdateUser
 	// 添加频道
 	CMDAddChannelInfo
 	// 更新频道
@@ -76,8 +78,6 @@ const (
 
 	// 批量更新最近会话
 	CMDBatchUpdateConversation
-	// 	// 添加或更新用户和设备
-	CMDAddOrUpdateUserAndDevice
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -86,12 +86,14 @@ func (c CMDType) Uint16() uint16 {
 
 func (c CMDType) String() string {
 	switch c {
-	case CMDAddOrUpdateDevice:
-		return "CMDAddOrUpdateDevice"
-	case CMDAddOrUpdateUser:
-		return "CMDAddOrUpdateUser"
-	case CMDUpdateMessageOfUserCursorIfNeed:
-		return "CMDUpdateMessageOfUserCursorIfNeed"
+	case CMDAddDevice:
+		return "CMDAddDevice"
+	case CMDUpdateDevice:
+		return "CMDUpdateDevice"
+	case CMDAddUser:
+		return "CMDAddUser"
+	case CMDUpdateUser:
+		return "CMDUpdateUser"
 	case CMDAddChannelInfo:
 		return "CMDAddChannelInfo"
 	case CMDUpdateChannelInfo:
@@ -148,8 +150,6 @@ func (c CMDType) String() string {
 		return "CMDBatchUpdateConversation"
 	case CMDDeleteConversations:
 		return "CMDDeleteConversations"
-	case CMDAddOrUpdateUserAndDevice:
-		return "CMDAddOrUpdateUserAndDevice"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -199,39 +199,30 @@ func (c *CMD) Unmarshal(data []byte) error {
 
 func (c *CMD) CMDContent() (string, error) {
 	switch c.CmdType {
-	case CMDAddOrUpdateDevice:
+	case CMDAddDevice:
 		device, err := c.DecodeCMDDevice()
 		if err != nil {
 			return "", err
 		}
 		return wkutil.ToJSON(device), nil
-	case CMDAddOrUpdateUserAndDevice:
-		id, uid, deviceFlag, deviceLevel, token, err := c.DecodeCMDUserAndDevice()
+	case CMDUpdateDevice:
+		device, err := c.DecodeCMDDevice()
 		if err != nil {
 			return "", err
 		}
-		return wkutil.ToJSON(map[string]interface{}{
-			"id":          id,
-			"uid":         uid,
-			"deviceFlag":  deviceFlag,
-			"deviceLevel": deviceLevel,
-			"token":       token,
-		}), nil
-	case CMDAddOrUpdateUser:
+		return wkutil.ToJSON(device), nil
+	case CMDAddUser:
 		user, err := c.DecodeCMDUser()
 		if err != nil {
 			return "", err
 		}
 		return wkutil.ToJSON(user), nil
-	case CMDUpdateMessageOfUserCursorIfNeed:
-		uid, messageSeq, err := c.DecodeCMDUpdateMessageOfUserCursorIfNeed()
+	case CMDUpdateUser:
+		user, err := c.DecodeCMDUser()
 		if err != nil {
 			return "", err
 		}
-		return wkutil.ToJSON(map[string]interface{}{
-			"uid":        uid,
-			"messageSeq": messageSeq,
-		}), nil
+		return wkutil.ToJSON(user), nil
 	case CMDAddChannelInfo:
 		channel, err := c.DecodeChannelInfo()
 		if err != nil {
@@ -245,9 +236,13 @@ func (c *CMD) CMDContent() (string, error) {
 		}
 		return wkutil.ToJSON(channel), nil
 	case CMDAddSubscribers:
-		channelId, channelType, uids, err := c.DecodeSubscribers()
+		channelId, channelType, members, err := c.DecodeMembers()
 		if err != nil {
 			return "", err
+		}
+		uids := make([]string, 0, len(members))
+		for _, member := range members {
+			uids = append(uids, member.Uid)
 		}
 		return wkutil.ToJSON(map[string]interface{}{
 			"channelId":   channelId,
@@ -255,7 +250,7 @@ func (c *CMD) CMDContent() (string, error) {
 			"uids":        uids,
 		}), nil
 	case CMDRemoveSubscribers:
-		channelId, channelType, uids, err := c.DecodeSubscribers()
+		channelId, channelType, uids, err := c.DecodeChannelUids()
 		if err != nil {
 			return "", err
 		}
@@ -284,9 +279,13 @@ func (c *CMD) CMDContent() (string, error) {
 			"channelType": channelType,
 		}), nil
 	case CMDAddDenylist:
-		channelId, channelType, uids, err := c.DecodeSubscribers()
+		channelId, channelType, members, err := c.DecodeMembers()
 		if err != nil {
 			return "", err
+		}
+		uids := make([]string, 0, len(members))
+		for _, member := range members {
+			uids = append(uids, member.Uid)
 		}
 		return wkutil.ToJSON(map[string]interface{}{
 			"channelId":   channelId,
@@ -295,7 +294,7 @@ func (c *CMD) CMDContent() (string, error) {
 		}), nil
 
 	case CMDRemoveDenylist:
-		channelId, channelType, uids, err := c.DecodeSubscribers()
+		channelId, channelType, uids, err := c.DecodeChannelUids()
 		if err != nil {
 			return "", err
 		}
@@ -316,9 +315,13 @@ func (c *CMD) CMDContent() (string, error) {
 		}), nil
 
 	case CMDAddAllowlist:
-		channelId, channelType, uids, err := c.DecodeSubscribers()
+		channelId, channelType, members, err := c.DecodeMembers()
 		if err != nil {
 			return "", err
+		}
+		uids := make([]string, 0, len(members))
+		for _, member := range members {
+			uids = append(uids, member.Uid)
 		}
 		return wkutil.ToJSON(map[string]interface{}{
 			"channelId":   channelId,
@@ -327,7 +330,7 @@ func (c *CMD) CMDContent() (string, error) {
 		}), nil
 
 	case CMDRemoveAllowlist:
-		channelId, channelType, uids, err := c.DecodeSubscribers()
+		channelId, channelType, uids, err := c.DecodeChannelUids()
 		if err != nil {
 			return "", err
 		}
@@ -346,10 +349,6 @@ func (c *CMD) CMDContent() (string, error) {
 			"channelId":   channelId,
 			"channelType": channelType,
 		}), nil
-
-	case CMDAppendMessagesOfNotifyQueue:
-
-	case CMDRemoveMessagesOfNotifyQueue:
 
 	case CMDDeleteChannelAndClearMessages:
 		channelId, channelType, err := c.DecodeChannel()
@@ -430,22 +429,60 @@ func (c *CMD) CMDContent() (string, error) {
 	return "", nil
 }
 
-func EncodeSubscribers(channelId string, channelType uint8, uids []string) []byte {
+func EncodeMembers(channelId string, channelType uint8, members []wkdb.Member) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(channelId)
 	encoder.WriteUint8(channelType)
-	encoder.WriteUint32(uint32(len(uids)))
-	if len(uids) > 0 {
-		for _, uid := range uids {
-			encoder.WriteString(uid)
+	encoder.WriteUint32(uint32(len(members)))
+	if len(members) > 0 {
+		for _, member := range members {
+			memberData, err := member.Marshal()
+			if err != nil {
+				return nil
+			}
+			encoder.WriteBinary(memberData)
 		}
 	}
 	return encoder.Bytes()
 }
 
-// DecodeCMDAddSubscribers DecodeCMDAddSubscribers
-func (c *CMD) DecodeSubscribers() (channelId string, channelType uint8, uids []string, err error) {
+func (c *CMD) DecodeChannelUids() (channelId string, channelType uint8, uids []string, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	var count uint32
+	if count, err = decoder.Uint32(); err != nil {
+		return
+	}
+	for i := uint32(0); i < count; i++ {
+		var uid string
+		if uid, err = decoder.String(); err != nil {
+			return
+		}
+		uids = append(uids, uid)
+	}
+	return
+}
+
+func EncodeChannelUids(channelId string, channelType uint8, uids []string) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	encoder.WriteUint32(uint32(len(uids)))
+	for _, uid := range uids {
+		encoder.WriteString(uid)
+	}
+	return encoder.Bytes()
+}
+
+// DecodeMembers DecodeMembers
+func (c *CMD) DecodeMembers() (channelId string, channelType uint8, members []wkdb.Member, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
 
 	if channelId, err = decoder.String(); err != nil {
@@ -462,11 +499,16 @@ func (c *CMD) DecodeSubscribers() (channelId string, channelType uint8, uids []s
 	}
 	if count > 0 {
 		for i := uint32(0); i < count; i++ {
-			var uid string
-			if uid, err = decoder.String(); err != nil {
+			var memberBytes []byte
+			if memberBytes, err = decoder.Binary(); err != nil {
 				return
 			}
-			uids = append(uids, uid)
+			var member = &wkdb.Member{}
+			err = member.Unmarshal(memberBytes)
+			if err != nil {
+				return
+			}
+			members = append(members, *member)
 		}
 	}
 	return
@@ -496,6 +538,17 @@ func EncodeCMDUser(u wkdb.User) []byte {
 	defer enc.End()
 	enc.WriteUint64(u.Id)
 	enc.WriteString(u.Uid)
+	if u.CreatedAt != nil {
+		enc.WriteUint64(uint64(u.CreatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+
+	if u.UpdatedAt != nil {
+		enc.WriteUint64(uint64(u.UpdatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
 	return enc.Bytes()
 }
 
@@ -507,6 +560,25 @@ func (c *CMD) DecodeCMDUser() (u wkdb.User, err error) {
 	if u.Uid, err = decoder.String(); err != nil {
 		return
 	}
+
+	var createdAtUnixNano uint64
+	if createdAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if createdAtUnixNano > 0 {
+		ct := time.Unix(int64(createdAtUnixNano/1e9), int64(createdAtUnixNano%1e9))
+		u.CreatedAt = &ct
+	}
+
+	var updatedAtUnixNano uint64
+	if updatedAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if updatedAtUnixNano > 0 {
+		ct := time.Unix(int64(updatedAtUnixNano/1e9), int64(updatedAtUnixNano%1e9))
+		u.UpdatedAt = &ct
+	}
+
 	return
 }
 
@@ -519,6 +591,18 @@ func EncodeCMDDevice(d wkdb.Device) []byte {
 	enc.WriteUint64(d.DeviceFlag)
 	enc.WriteUint8(d.DeviceLevel)
 	enc.WriteString(d.Token)
+	if d.CreatedAt != nil {
+		enc.WriteUint64(uint64(d.CreatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+
+	if d.UpdatedAt != nil {
+		enc.WriteUint64(uint64(d.UpdatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+
 	return enc.Bytes()
 }
 
@@ -542,10 +626,29 @@ func (c *CMD) DecodeCMDDevice() (d wkdb.Device, err error) {
 	if d.Token, err = decoder.String(); err != nil {
 		return
 	}
+
+	var createdAtUnixNano uint64
+	if createdAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if createdAtUnixNano > 0 {
+		ct := time.Unix(int64(createdAtUnixNano/1e9), int64(createdAtUnixNano%1e9))
+		d.CreatedAt = &ct
+	}
+
+	var updatedAtUnixNano uint64
+	if updatedAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if updatedAtUnixNano > 0 {
+		ct := time.Unix(int64(updatedAtUnixNano/1e9), int64(updatedAtUnixNano%1e9))
+		d.UpdatedAt = &ct
+	}
+
 	return
 }
 
-func EncodeCMDUserAndDevice(id uint64, uid string, deviceFlag wkproto.DeviceFlag, deviceLevel wkproto.DeviceLevel, token string) []byte {
+func EncodeCMDUserAndDevice(id uint64, uid string, deviceFlag wkproto.DeviceFlag, deviceLevel wkproto.DeviceLevel, token string, createdAt *time.Time, updatedAt *time.Time) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteUint64(id)
@@ -553,10 +656,22 @@ func EncodeCMDUserAndDevice(id uint64, uid string, deviceFlag wkproto.DeviceFlag
 	encoder.WriteUint64(uint64(deviceFlag))
 	encoder.WriteUint8(uint8(deviceLevel))
 	encoder.WriteString(token)
+	if createdAt != nil {
+		encoder.WriteUint64(uint64(createdAt.UnixNano()))
+	} else {
+		encoder.WriteUint64(0)
+	}
+
+	if updatedAt != nil {
+		encoder.WriteUint64(uint64(updatedAt.UnixNano()))
+	} else {
+		encoder.WriteUint64(0)
+	}
+
 	return encoder.Bytes()
 }
 
-func (c *CMD) DecodeCMDUserAndDevice() (id uint64, uid string, deviceFlag uint64, deviceLevel wkproto.DeviceLevel, token string, err error) {
+func (c *CMD) DecodeCMDUserAndDevice() (id uint64, uid string, deviceFlag uint64, deviceLevel wkproto.DeviceLevel, token string, createdAt *time.Time, updatedAt *time.Time, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
 
 	if id, err = decoder.Uint64(); err != nil {
@@ -574,9 +689,29 @@ func (c *CMD) DecodeCMDUserAndDevice() (id uint64, uid string, deviceFlag uint64
 		return
 	}
 	deviceLevel = wkproto.DeviceLevel(deviceLevelUint8)
+
 	if token, err = decoder.String(); err != nil {
 		return
 	}
+
+	var createdAtUnixNano uint64
+	if createdAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if createdAtUnixNano > 0 {
+		ct := time.Unix(int64(createdAtUnixNano/1e9), int64(createdAtUnixNano%1e9))
+		createdAt = &ct
+	}
+
+	var updatedAtUnixNano uint64
+	if updatedAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if updatedAtUnixNano > 0 {
+		ct := time.Unix(int64(updatedAtUnixNano/1e9), int64(updatedAtUnixNano%1e9))
+		updatedAt = &ct
+	}
+
 	return
 }
 

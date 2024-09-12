@@ -496,12 +496,16 @@ func (s *Server) createChannelClusterConfig(channelId string, channelType uint8)
 		return wkdb.EmptyChannelClusterConfig, ErrNoAllowVoteNode
 	}
 
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	clusterConfig := wkdb.ChannelClusterConfig{
 		ChannelId:       channelId,
 		ChannelType:     channelType,
 		ReplicaMaxCount: uint16(s.opts.ChannelMaxReplicaCount),
 		Term:            1,
 		LeaderId:        s.opts.NodeId,
+		CreatedAt:       &createdAt,
+		UpdatedAt:       &updatedAt,
 	}
 	replicaIds := make([]uint64, 0, s.opts.ChannelMaxReplicaCount)
 	replicaIds = append(replicaIds, s.opts.NodeId) // 默认当前节点是领导，所以加入到副本列表中

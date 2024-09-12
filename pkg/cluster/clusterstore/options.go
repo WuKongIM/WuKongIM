@@ -36,7 +36,7 @@ func newOptions() *Options {
 			ShardNum     int
 			MemTableSize int
 		}{
-			ShardNum:     16,
+			ShardNum:     8,
 			MemTableSize: 16 * 1024 * 1024,
 		},
 	}

@@ -159,6 +159,7 @@ func (r *Replica) stepLeader(m Message) error {
 		}
 
 	case MsgSyncReq:
+
 		lastIndex := r.replicaLog.lastLogIndex
 		if m.Index <= lastIndex {
 			unstableLogs, exceed, err := r.replicaLog.getLogsFromUnstable(m.Index, lastIndex+1, logEncodingSize(r.opts.SyncLimitSize))

@@ -865,6 +865,7 @@ const (
 
 type ChannelClusterConfigRespTotal struct {
 	Total   int                         `json:"total"`   // 总数
+	More    int                         `json:"more"`    // 是否还有更多
 	Running int                         `json:"running"` // 运行中数量
 	Data    []*ChannelClusterConfigResp `json:"data"`
 }
@@ -1161,11 +1162,11 @@ type channelInfoResp struct {
 	LastMsgTime       uint64 `json:"last_msg_time"`        // 频道最新消息时间
 	LastMsgTimeFormat string `json:"last_msg_time_format"` // 频道最新消息时间格式化
 	StatusFormat      string `json:"status_format"`        // 状态格式化
-	CreatedAt         string `json:"created_at"`           // 创建时间
-	UpdatedAt         string `json:"updated_at"`           // 更新时间
+	CreatedAt         int64  `json:"created_at"`           // 创建时间
+	UpdatedAt         int64  `json:"updated_at"`           // 更新时间
+	CreatedAtFormat   string `json:"created_at_format"`    // 创建时间格式化
+	UpdatedAtFormat   string `json:"updated_at_format"`    // 更新时间格式化
 
-	createdAt int64
-	updatedAt int64
 }
 
 func newChannelInfoResp(ch wkdb.ChannelInfo, slotId uint32) *channelInfoResp {
@@ -1192,6 +1193,16 @@ func newChannelInfoResp(ch wkdb.ChannelInfo, slotId uint32) *channelInfoResp {
 		updatedAt = ch.UpdatedAt.UnixNano()
 	}
 
+	createdAtFormat := ""
+	if ch.CreatedAt != nil {
+		createdAtFormat = wkutil.ToyyyyMMddHHmm(*ch.CreatedAt)
+	}
+
+	updatedAtFormat := ""
+	if ch.UpdatedAt != nil {
+		updatedAtFormat = wkutil.ToyyyyMMddHHmm(*ch.UpdatedAt)
+	}
+
 	return &channelInfoResp{
 		Id:                ch.Id,
 		Slot:              slotId,
@@ -1206,10 +1217,10 @@ func newChannelInfoResp(ch wkdb.ChannelInfo, slotId uint32) *channelInfoResp {
 		LastMsgTime:       ch.LastMsgTime,
 		LastMsgTimeFormat: lastMsgTimeFormat,
 		StatusFormat:      statusFormat,
-		CreatedAt:         wkutil.Int64ToString(createdAt),
-		UpdatedAt:         wkutil.Int64ToString(updatedAt),
-		createdAt:         createdAt,
-		updatedAt:         updatedAt,
+		CreatedAt:         createdAt,
+		UpdatedAt:         updatedAt,
+		CreatedAtFormat:   createdAtFormat,
+		UpdatedAtFormat:   updatedAtFormat,
 	}
 }
 
@@ -1255,8 +1266,8 @@ func newUserResp(u wkdb.User) *userResp {
 		RecvMsgCount:      u.RecvMsgCount,
 		SendMsgBytes:      u.SendMsgBytes,
 		RecvMsgBytes:      u.RecvMsgBytes,
-		CreatedAt:         u.CreatedAt.Unix(),
-		UpdatedAt:         u.UpdatedAt.Unix(),
+		CreatedAt:         u.CreatedAt.UnixNano(),
+		UpdatedAt:         u.UpdatedAt.UnixNano(),
 		CreatedAtFormat:   createdAtFormat,
 		UpdatedAtFormat:   updatedAtFormat,
 	}
@@ -1264,9 +1275,8 @@ func newUserResp(u wkdb.User) *userResp {
 
 type userRespTotal struct {
 	Total int         `json:"total"` // 总数
+	More  int         `json:"more"`  // 是否还有更多
 	Data  []*userResp `json:"data"`
-	Next  string      `json:"next"` // 下一个偏移
-	Pre   string      `json:"pre"`  // 上一个偏移
 }
 
 type deviceResp struct {
@@ -1334,8 +1344,8 @@ func newDeviceResp(d wkdb.Device) *deviceResp {
 		RecvMsgCount:      d.RecvMsgCount,
 		SendMsgBytes:      d.SendMsgBytes,
 		RecvMsgBytes:      d.RecvMsgBytes,
-		CreatedAt:         d.CreatedAt.Unix(),
-		UpdatedAt:         d.UpdatedAt.Unix(),
+		CreatedAt:         d.CreatedAt.UnixNano(),
+		UpdatedAt:         d.UpdatedAt.UnixNano(),
 		CreatedAtFormat:   createdAtFormat,
 		UpdatedAtFormat:   updatedAtFormat,
 	}
@@ -1343,6 +1353,7 @@ func newDeviceResp(d wkdb.Device) *deviceResp {
 
 type deviceRespTotal struct {
 	Total int           `json:"total"` // 总数
+	More  int           `json:"more"`  // 是否还有更多
 	Data  []*deviceResp `json:"data"`
 }
 

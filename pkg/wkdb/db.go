@@ -72,11 +72,6 @@ type MessageDB interface {
 	// RemoveMessagesOfNotifyQueue 移除通知队列的消息
 	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
 
-	// AppendMessagesOfUserQueue 向用户队列里追加消息
-	AppendMessagesOfUserQueue(uid string, messages []Message) error
-	// UpdateMessageOfUserQueueCursorIfNeed 更新用户队列的游标
-	UpdateMessageOfUserQueueCursorIfNeed(uid string, messageSeq uint64) error
-
 	// 搜索消息
 	SearchMessages(req MessageSearchReq) ([]Message, error)
 }
@@ -91,8 +86,11 @@ type DeviceDB interface {
 	// GetDeviceCount 获取用户的设备数量
 	GetDeviceCount(uid string) (int, error)
 
-	// AddOrUpdateDevice 添加或更新设备
-	AddOrUpdateDevice(device Device) error
+	// AddDevice 添加设备
+	AddDevice(device Device) error
+
+	// UpdateDevice 更新设备
+	UpdateDevice(device Device) error
 }
 
 type UserDB interface {
@@ -108,13 +106,16 @@ type UserDB interface {
 	// SearchDevice 搜索设备
 	SearchDevice(req DeviceSearchReq) ([]Device, error)
 
-	// AddOrUpdateUser 添加或更新用户
-	AddOrUpdateUser(u User) error
+	// AddUser 添加用户
+	AddUser(u User) error
+
+	// UpdateUser 更新用户
+	UpdateUser(u User) error
 }
 
 type ChannelDB interface {
 	// AddSubscribers 添加订阅者
-	AddSubscribers(channelId string, channelType uint8, uids []string) error
+	AddSubscribers(channelId string, channelType uint8, members []Member) error
 
 	// RemoveSubscribers 移除订阅者
 	RemoveSubscribers(channelId string, channelType uint8, uids []string) error
@@ -126,7 +127,7 @@ type ChannelDB interface {
 	RemoveAllSubscriber(channelId string, channelType uint8) error
 
 	// GetSubscribers 获取订阅者
-	GetSubscribers(channelId string, channelType uint8) ([]string, error)
+	GetSubscribers(channelId string, channelType uint8) ([]Member, error)
 
 	// AddOrUpdateChannel  添加或更新channel
 	AddChannel(channelInfo ChannelInfo) (uint64, error)
@@ -143,9 +144,9 @@ type ChannelDB interface {
 	DeleteChannel(channelId string, channelType uint8) error
 
 	// AddDenylist 添加黑名单
-	AddDenylist(channelId string, channelType uint8, uids []string) error
+	AddDenylist(channelId string, channelType uint8, members []Member) error
 	// GetDenylist 获取黑名单
-	GetDenylist(channelId string, channelType uint8) ([]string, error)
+	GetDenylist(channelId string, channelType uint8) ([]Member, error)
 
 	// RemoveDenylist 移除黑名单
 	RemoveDenylist(channelId string, channelType uint8, uids []string) error
@@ -157,10 +158,10 @@ type ChannelDB interface {
 	ExistDenylist(channelId string, channelType uint8, uid string) (bool, error)
 
 	// AddAllowlist 添加白名单
-	AddAllowlist(channelId string, channelType uint8, uids []string) error
+	AddAllowlist(channelId string, channelType uint8, members []Member) error
 
 	// GetAllowlist 获取白名单
-	GetAllowlist(channelId string, channelType uint8) ([]string, error)
+	GetAllowlist(channelId string, channelType uint8) ([]Member, error)
 
 	// RemoveAllowlist 移除白名单
 	RemoveAllowlist(channelId string, channelType uint8, uids []string) error
@@ -218,7 +219,6 @@ type ChannelClusterConfigDB interface {
 
 	// SaveChannelClusterConfig 保存频道的分布式配置
 	SaveChannelClusterConfig(channelClusterConfig ChannelClusterConfig) error
-	SaveChannelClusterConfigs(channelClusterConfigs []ChannelClusterConfig) error
 
 	// GetChannelClusterConfig 获取频道的分布式配置
 	GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error)
@@ -369,17 +369,18 @@ type ChannelSearchReq struct {
 }
 
 type UserSearchReq struct {
-	Uid      string // 用户id
-	Limit    int    // 限制查询数量
-	OffsetId uint64 // 偏移id
-	Pre      bool   // 是否向前搜索
+	Uid             string // 用户id
+	Limit           int    // 限制查询数量
+	OffsetCreatedAt int64  // 偏移id
+	Pre             bool   // 是否向前搜索
 }
 
 type DeviceSearchReq struct {
-	Uid         string // 用户id
-	DeviceFlag  uint64 // 设备标识
-	Limit       int    // 限制查询数量
-	CurrentPage int    // 当前页码
+	Uid             string // 用户id
+	DeviceFlag      uint64 // 设备标识
+	Limit           int    // 限制查询数量
+	OffsetCreatedAt int64  // 偏移的创建时间
+	Pre             bool   // 是否向前搜索
 }
 
 type ConversationSearchReq struct {
@@ -396,10 +397,11 @@ type SessionSearchReq struct {
 }
 
 type ChannelClusterConfigSearchReq struct {
-	ChannelId    string // 频道id
-	ChannelType  uint8  // 频道类型
-	Limit        int    // 限制查询数量
-	CurrentPage  int    // 当前页码
-	SlotLeaderId uint64 // 槽领导者id
+	ChannelId       string // 频道id
+	ChannelType     uint8  // 频道类型
+	Limit           int    // 限制查询数量
+	SlotLeaderId    uint64 // 槽领导者id
+	OffsetCreatedAt int64  // 偏移的创建时间
+	Pre             bool   // 是否向前搜索
 
 }
