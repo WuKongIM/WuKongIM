@@ -69,9 +69,6 @@ func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subsc
 	if err != nil {
 		return err
 	}
-	if channelPrimaryId == 0 {
-		return fmt.Errorf("RemoveSubscribers: channelId: %s channelType: %d not found", channelId, channelType)
-	}
 
 	// 通过uids获取订阅者对象
 	members, err := wk.getSubscribersByUids(channelId, channelType, subscribers)
