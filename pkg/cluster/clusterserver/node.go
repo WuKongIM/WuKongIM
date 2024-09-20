@@ -92,14 +92,6 @@ func (n *node) send(msg *proto.Message) error {
 	}
 }
 
-func (n *node) outboundFlightMessageCount() int64 {
-	return n.sendQueue.count.Load()
-}
-
-func (n *node) outboundFlightMessageBytes() int64 {
-	return int64(n.sendQueue.rl.Get())
-}
-
 func (n *node) processMessages() {
 
 	size := uint64(0)
@@ -274,36 +266,6 @@ func (n *node) requestClusterJoin(ctx context.Context, req *ClusterJoinReq) (*Cl
 	clusterJoinResp := &ClusterJoinResp{}
 	err = clusterJoinResp.Unmarshal(resp.Body)
 	return clusterJoinResp, err
-}
-
-func (n *node) requestSlotMigrateFinished(ctx context.Context, req *SlotMigrateFinishReq) error {
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	resp, err := n.client.RequestWithContext(ctx, "/slot/migrate/finish", data)
-	if err != nil {
-		return err
-	}
-	if resp.Status != proto.Status_OK {
-		return fmt.Errorf("requestSlotMigrateFinished is failed, status:%d", resp.Status)
-	}
-	return nil
-}
-
-func (n *node) requestChangeSlotRole(ctx context.Context, req *ChangeSlotRoleReq) error {
-	data, err := req.Marshal()
-	if err != nil {
-		return err
-	}
-	resp, err := n.client.RequestWithContext(ctx, "/slot/changeRole", data)
-	if err != nil {
-		return err
-	}
-	if resp.Status != proto.Status_OK {
-		return fmt.Errorf("requestChangeSlotRole is failed, status:%d", resp.Status)
-	}
-	return nil
 }
 
 type sendQueue struct {

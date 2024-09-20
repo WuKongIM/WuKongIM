@@ -56,29 +56,6 @@ func (n *nodeManager) stop() {
 
 }
 
-func (n *nodeManager) outboundFlightMessageCount() int64 {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	var count int64
-	for _, node := range n.nodeMap {
-		count += node.outboundFlightMessageCount()
-	}
-	return count
-}
-
-func (n *nodeManager) outboundFlightMessageBytes() int64 {
-
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-
-	var count int64
-	for _, node := range n.nodeMap {
-		count += node.outboundFlightMessageBytes()
-	}
-	return count
-}
-
 func (n *nodeManager) exist(id uint64) bool {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -106,24 +83,4 @@ func (n *nodeManager) requestClusterJoin(to uint64, req *ClusterJoinReq) (*Clust
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
 	defer cancel()
 	return node.requestClusterJoin(timeoutCtx, req)
-}
-
-func (n *nodeManager) requestSlotMigrateFinished(to uint64, req *SlotMigrateFinishReq) error {
-	node := n.node(to)
-	if node == nil {
-		return fmt.Errorf("node[%d] not found", to)
-	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
-	defer cancel()
-	return node.requestSlotMigrateFinished(timeoutCtx, req)
-}
-
-func (n *nodeManager) requestChangeSlotRole(to uint64, req *ChangeSlotRoleReq) error {
-	node := n.node(to)
-	if node == nil {
-		return fmt.Errorf("node[%d] not found", to)
-	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), n.opts.ReqTimeout)
-	defer cancel()
-	return node.requestChangeSlotRole(timeoutCtx, req)
 }

@@ -2,14 +2,10 @@ package cluster
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig"
@@ -59,19 +55,6 @@ const (
 	MsgChannelMsg       // 频道消息
 	MsgClusterConfigMsg // 集群配置消息
 )
-
-var globalRand = &lockedRand{}
-
-type lockedRand struct {
-	mu sync.Mutex
-}
-
-func (r *lockedRand) Intn(n int) int {
-	r.mu.Lock()
-	v, _ := rand.Int(rand.Reader, big.NewInt(int64(n)))
-	r.mu.Unlock()
-	return int(v.Int64())
-}
 
 // // 频道分布式配置
 // type ChannelClusterConfig struct {
@@ -855,14 +838,6 @@ type ChannelClusterStorage interface {
 	// GetWithAllSlot() ([]*wkstore.ChannelClusterConfig, error)
 }
 
-type syncStatus int
-
-const (
-	syncStatusNone    syncStatus = iota // 无状态
-	syncStatusSyncing                   // 同步中
-	syncStatusSynced                    // 已同步
-)
-
 type ChannelClusterConfigRespTotal struct {
 	Total   int                         `json:"total"`   // 总数
 	More    int                         `json:"more"`    // 是否还有更多
@@ -996,7 +971,7 @@ func (s *Server) requestSlotInfo(nodeId uint64, slotIds []uint32, headers map[st
 }
 
 // 获取槽领导离线的槽位信息
-func (s *Server) getSlotInfoForLeaderOffline(nodeId uint64, slotIds []uint32) ([]*SlotResp, error) {
+func (s *Server) getSlotInfoForLeaderOffline(slotIds []uint32) ([]*SlotResp, error) {
 	slotResps := make([]*SlotResp, 0)
 	for _, slotId := range slotIds {
 		slot := s.clusterEventServer.Slot(slotId)
@@ -1068,19 +1043,6 @@ func newMessageResp(m wkdb.Message) *messageResp {
 		Payload:         m.Payload,
 		Expire:          m.Expire,
 	}
-}
-
-type messageRespSlice []*messageResp
-
-func (m messageRespSlice) Len() int {
-	return len(m)
-}
-
-func (m messageRespSlice) Less(i, j int) bool {
-	return m[i].MessageId < m[j].MessageId
-}
-func (m messageRespSlice) Swap(i, j int) {
-	m[i], m[j] = m[j], m[i]
 }
 
 type NodeConfig struct {
@@ -1381,11 +1343,15 @@ func newConversationResp(c wkdb.Conversation) *conversationResp {
 	}
 	var createdAtFormat string
 	var updatedAtFormat string
+	var createdAt int64
+	var updatedAt int64
 	if c.CreatedAt != nil {
 		createdAtFormat = wkutil.ToyyyyMMddHHmm(*c.CreatedAt)
+		createdAt = c.CreatedAt.Unix()
 	}
 	if c.UpdatedAt != nil {
 		updatedAtFormat = wkutil.ToyyyyMMddHHmm(*c.UpdatedAt)
+		updatedAt = c.UpdatedAt.Unix()
 	}
 	return &conversationResp{
 		Id:                c.Id,
@@ -1397,8 +1363,8 @@ func newConversationResp(c wkdb.Conversation) *conversationResp {
 		ChannelTypeFormat: formatChannelType(c.ChannelType),
 		UnreadCount:       c.UnreadCount,
 		ReadedToMsgSeq:    c.ReadToMsgSeq,
-		CreatedAt:         c.CreatedAt.Unix(),
-		UpdatedAt:         c.UpdatedAt.Unix(),
+		CreatedAt:         createdAt,
+		UpdatedAt:         updatedAt,
 		CreatedAtFormat:   createdAtFormat,
 		UpdatedAtFormat:   updatedAtFormat,
 	}
@@ -1407,36 +1373,6 @@ func newConversationResp(c wkdb.Conversation) *conversationResp {
 type conversationRespTotal struct {
 	Total int                 `json:"total"` // 总数
 	Data  []*conversationResp `json:"data"`  // 会话信息
-}
-
-type channelClusterConfigPingReq struct {
-	ChannelId   string
-	ChannelType uint8
-	CfgVersion  uint64
-}
-
-func (c channelClusterConfigPingReq) Marshal() ([]byte, error) {
-
-	data := make([]byte, 0, 50)
-
-	cfgVersionData := make([]byte, 8)
-	binary.BigEndian.PutUint64(cfgVersionData, c.CfgVersion)
-	data = append(data, cfgVersionData...)
-	data = append(data, c.ChannelType)
-	data = append(data, c.ChannelId...)
-
-	return data, nil
-}
-
-func (c *channelClusterConfigPingReq) Unmarshal(data []byte) error {
-
-	if len(data) < 9 {
-		return fmt.Errorf("data is too short")
-	}
-	c.CfgVersion = binary.BigEndian.Uint64(data[:8])
-	c.ChannelType = data[8]
-	c.ChannelId = string(data[9:])
-	return nil
 }
 
 type LogType int

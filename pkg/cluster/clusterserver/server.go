@@ -505,11 +505,6 @@ func (s *Server) getSlotId(v string) uint32 {
 	return wkutil.GetSlotNum(int(slotCount), v)
 }
 
-// 是否是单机模式
-func (s *Server) isSingleNode() bool {
-	return strings.TrimSpace(s.opts.Seed) == "" && len(s.opts.InitNodes) == 0
-}
-
 // 是否需要加入集群
 func (s *Server) needJoin() bool {
 	if strings.TrimSpace(s.opts.Seed) == "" {
@@ -559,34 +554,6 @@ func seedNode(seed string) (uint64, string, error) {
 		return 0, "", err
 	}
 	return seedNodeID, seedAddr, nil
-}
-
-func (s *Server) handleChannelClusterConfigReq(fromNodeId uint64, m *proto.Message) {
-
-	req := &channelClusterConfigPingReq{}
-	err := req.Unmarshal(m.Content)
-	if err != nil {
-		s.Error("handleChannelConfigReq: Unmarshal failed", zap.Error(err))
-		return
-	}
-	lastVersion, err := s.opts.ChannelClusterStorage.GetVersion(req.ChannelId, req.ChannelType)
-	if err != nil {
-		s.Error("handleChannelConfigReq: GetVersion failed", zap.Error(err))
-		return
-	}
-
-	// 请求的版本号大于等于当前版本号，不需要更新
-	if req.CfgVersion >= lastVersion {
-		return
-	}
-
-	// 发送z最新的频道配置给频道领导
-	err = s.SendChannelClusterConfigUpdate(req.ChannelId, req.ChannelType, fromNodeId)
-	if err != nil {
-		s.Error("handleChannelConfigReq: sendChannelConfigUpdate failed", zap.Error(err))
-		return
-	}
-
 }
 
 func (s *Server) SendChannelClusterConfigUpdate(channelId string, channelType uint8, toNodeId uint64) error {

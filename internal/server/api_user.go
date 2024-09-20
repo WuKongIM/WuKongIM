@@ -117,7 +117,7 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 	oldConns := u.s.userReactor.getConnContextByDeviceFlag(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
-			u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
+			_ = u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
 				ReasonCode: wkproto.ReasonConnectKick,
 			})
 			u.s.timingWheel.AfterFunc(time.Second*2, func() {

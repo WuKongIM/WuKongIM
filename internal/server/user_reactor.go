@@ -98,29 +98,29 @@ func (u *userReactor) stop() {
 	}
 }
 
-func (u *userReactor) addUserIfNotExist(h *userHandler) {
-	u.reactorSub(h.uid).addUserIfNotExist(h)
-}
+// func (u *userReactor) addUserIfNotExist(h *userHandler) {
+// 	u.reactorSub(h.uid).addUserIfNotExist(h)
+// }
 
 func (u *userReactor) getUser(uid string) *userHandler {
 	return u.reactorSub(uid).getUser(uid)
 }
 
-func (u *userReactor) existUser(uid string) bool {
-	return u.reactorSub(uid).existUser(uid)
-}
+// func (u *userReactor) existUser(uid string) bool {
+// 	return u.reactorSub(uid).existUser(uid)
+// }
 
-func (u *userReactor) removeUserByUniqueNo(uid string, uniqueNo string) {
-	u.reactorSub(uid).removeUserByUniqueNo(uid, uniqueNo)
-}
+// func (u *userReactor) removeUserByUniqueNo(uid string, uniqueNo string) {
+// 	u.reactorSub(uid).removeUserByUniqueNo(uid, uniqueNo)
+// }
 
 func (u *userReactor) getConnsByUniqueNo(uid string, uniqueNo string) []*connContext {
 	return u.reactorSub(uid).getConnsByUniqueNo(uid, uniqueNo)
 }
 
-func (u *userReactor) removeUser(uid string) {
-	u.reactorSub(uid).removeUser(uid)
-}
+// func (u *userReactor) removeUser(uid string) {
+// 	u.reactorSub(uid).removeUser(uid)
+// }
 
 func (u *userReactor) addConnContext(conn *connContext) {
 	u.reactorSub(conn.uid).addConnContext(conn)
@@ -134,9 +134,6 @@ func (u *userReactor) getConnContextById(uid string, connId int64) *connContext 
 	return u.reactorSub(uid).getConnContextById(uid, connId)
 }
 
-//	func (u *userReactor) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
-//		return u.reactorSub(uid).getConnContextByProxyConnId(uid, nodeId, proxyConnId)
-//	}
 func (u *userReactor) getConnContexts(uid string) []*connContext {
 	return u.reactorSub(uid).getConnContexts(uid)
 }
@@ -175,22 +172,22 @@ func (u *userReactor) reactorSub(uid string) *userReactorSub {
 	return u.subs[i]
 }
 
-func (u *userReactor) step(uid string, a UserAction) {
-	u.reactorSub(uid).step(uid, a)
-}
+// func (u *userReactor) step(uid string, a UserAction) {
+// 	u.reactorSub(uid).step(uid, a)
+// }
 
 func (u *userReactor) writePacket(conn *connContext, packet wkproto.Frame) error {
 	return u.reactorSub(conn.uid).writePacket(conn, packet)
 }
 
-func (u *userReactor) writePacketByDeviceId(uid string, deviceId string, packet wkproto.Frame) error {
-	conn := u.getConnContext(uid, deviceId)
-	if conn == nil {
-		u.Error("conn not found", zap.String("uid", uid), zap.String("deviceId", deviceId))
-		return ErrConnNotFound
-	}
-	return u.reactorSub(uid).writePacket(conn, packet)
-}
+// func (u *userReactor) writePacketByDeviceId(uid string, deviceId string, packet wkproto.Frame) error {
+// 	conn := u.getConnContext(uid, deviceId)
+// 	if conn == nil {
+// 		u.Error("conn not found", zap.String("uid", uid), zap.String("deviceId", deviceId))
+// 		return ErrConnNotFound
+// 	}
+// 	return u.reactorSub(uid).writePacket(conn, packet)
+// }
 
 func (u *userReactor) writePacketByConnId(uid string, connId int64, packet wkproto.Frame) error {
 	conn := u.getConnContextById(uid, connId)

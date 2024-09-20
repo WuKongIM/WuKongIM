@@ -132,7 +132,7 @@ func (r *channelReactor) proposeSend(fromUid string, fromDeviceId string, fromCo
 	ch := r.loadOrCreateChannel(fakeChannelId, packet.ChannelType)
 
 	// 处理消息
-	_, err := ch.proposeSend(fromUid, fromDeviceId, fromConnId, fromNodeId, isEncrypt, false, packet)
+	_, err := ch.proposeSend(fromUid, fromDeviceId, fromConnId, fromNodeId, isEncrypt, packet)
 	if err != nil {
 		r.Error("proposeSend error", zap.Error(err))
 		return err

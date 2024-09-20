@@ -290,7 +290,7 @@ func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelC
 
 	results := make([]ChannelClusterConfig, 0)
 	err := wk.iteratorChannelClusterConfig(iter, func(cfg ChannelClusterConfig) bool {
-		resultSlotId := wk.channelSlotId(cfg.ChannelId, cfg.ChannelType)
+		resultSlotId := wk.channelSlotId(cfg.ChannelId)
 		if slotId == resultSlotId {
 			results = append(results, cfg)
 		}

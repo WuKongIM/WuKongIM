@@ -186,25 +186,6 @@ func (wk *wukongDB) UpdateDevice(d Device) error {
 	return nil
 }
 
-func (wk *wukongDB) existDevice(uid string, id uint64) (bool, error) {
-	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
-		LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
-		UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
-	})
-	defer iter.Close()
-
-	var exist bool
-	err := wk.iterDevice(iter, func(d Device) bool {
-		exist = true
-		return false
-	})
-	if err != nil {
-		return false, err
-	}
-	return exist, nil
-}
-
 func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
 
 	iterFnc := func(devices *[]Device) func(d Device) bool {
@@ -240,6 +221,7 @@ func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
 			return nil, err
 		}
 		if has { // 如果有触发索引，则无需全局查询
+			allDevices = append(allDevices, devices...)
 			continue
 		}
 

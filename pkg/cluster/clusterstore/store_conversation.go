@@ -8,6 +8,11 @@ func (s *Store) AddOrUpdateConversations(uid string, conversations []wkdb.Conver
 	if len(conversations) == 0 {
 		return nil
 	}
+	for i, c := range conversations {
+		if c.Id == 0 {
+			conversations[i].Id = s.NextPrimaryKey() // 如果id为0，生成一个新的id
+		}
+	}
 	data, err := EncodeCMDAddOrUpdateConversations(uid, conversations)
 	if err != nil {
 		return err
@@ -68,12 +73,12 @@ func (s *Store) GetChannelLastMessageSeq(channelId string, channelType uint8) (u
 	return seq, err
 }
 
-func (s *Store) BatchUpdateConversation(slotId uint32, models []*wkdb.BatchUpdateConversationModel) error {
-	cmd := NewCMD(CMDBatchUpdateConversation, EncodeCMDBatchUpdateConversation(models))
-	cmdData, err := cmd.Marshal()
-	if err != nil {
-		return err
-	}
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
-	return err
-}
+// func (s *Store) BatchUpdateConversation(slotId uint32, models []*wkdb.BatchUpdateConversationModel) error {
+// 	cmd := NewCMD(CMDBatchUpdateConversation, EncodeCMDBatchUpdateConversation(models))
+// 	cmdData, err := cmd.Marshal()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+// 	return err
+// }

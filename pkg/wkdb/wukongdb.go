@@ -148,7 +148,7 @@ func (wk *wukongDB) defaultShardDB() *pebble.DB {
 	return wk.dbs[0]
 }
 
-func (wk *wukongDB) channelSlotId(channelId string, channelType uint8) uint32 {
+func (wk *wukongDB) channelSlotId(channelId string) uint32 {
 	return wkutil.GetSlotNum(int(wk.opts.SlotCount), channelId)
 }
 

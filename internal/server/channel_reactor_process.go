@@ -581,7 +581,7 @@ func (r *channelReactor) processStorageLoop() {
 func (r *channelReactor) processStorage(reqs []*storageReq) {
 
 	for _, req := range reqs {
-		dbMsgs := make([]wkdb.Message, 0, len(req.messages))
+		messages := make([]wkdb.Message, 0, len(req.messages))
 
 		// 将reactorChannelMessage转换为wkdb.Message
 		for _, reactorMsg := range req.messages {
@@ -599,6 +599,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 						SyncOnce:  reactorMsg.SendPacket.Framer.SyncOnce,
 						NoPersist: reactorMsg.SendPacket.Framer.NoPersist,
 					},
+					Setting:     reactorMsg.SendPacket.Setting,
 					MessageID:   reactorMsg.MessageId,
 					ClientMsgNo: reactorMsg.SendPacket.ClientMsgNo,
 					ClientSeq:   reactorMsg.SendPacket.ClientSeq,
@@ -607,33 +608,25 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 					ChannelType: reactorMsg.SendPacket.ChannelType,
 					Expire:      reactorMsg.SendPacket.Expire,
 					Timestamp:   int32(time.Now().Unix()),
+					Topic:       reactorMsg.SendPacket.Topic,
+					StreamNo:    reactorMsg.SendPacket.StreamNo,
 					Payload:     reactorMsg.SendPacket.Payload,
 				},
 			}
-			dbMsgs = append(dbMsgs, msg)
+			messages = append(messages, msg)
 		}
 
 		sotreMessages := make([]wkdb.Message, 0, 1024)
-		for i, dbMsg := range dbMsgs {
+		for i, msg := range messages {
 			reactorMsg := req.messages[i]
 			if reactorMsg.IsEncrypt {
-				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(dbMsg.MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(msg.MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 				continue
 			}
-			if dbMsg.NoPersist { // 不需要存储，跳过
+			if msg.NoPersist { // 不需要存储，跳过
 				continue
 			}
-			sotreMessages = append(sotreMessages, dbMsg)
-		}
-
-		if r.opts.WebhookOn() {
-			// 将消息存储到webhook的推送队列内
-			err := r.s.store.AppendMessageOfNotifyQueue(dbMsgs)
-			if err != nil {
-				r.Error("AppendMessageOfNotifyQueue error", zap.Error(err))
-				r.respStoreResult(req, ReasonError)
-				return
-			}
+			sotreMessages = append(sotreMessages, msg)
 		}
 
 		reason := ReasonSuccess
@@ -668,6 +661,25 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 						}
 					}
 				}
+			}
+		}
+
+		if r.opts.WebhookOn() {
+			for i, msg := range messages {
+				for _, cmsg := range req.messages {
+					if msg.MessageID == cmsg.MessageId {
+						msg.MessageSeq = cmsg.MessageSeq
+						messages[i] = msg
+						break
+					}
+				}
+			}
+			// 将消息存储到webhook的推送队列内
+			err := r.s.store.AppendMessageOfNotifyQueue(messages)
+			if err != nil {
+				r.Error("AppendMessageOfNotifyQueue error", zap.Error(err))
+				r.respStoreResult(req, ReasonError)
+				return
 			}
 		}
 		// 返回存储结果

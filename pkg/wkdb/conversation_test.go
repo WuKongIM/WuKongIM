@@ -2,6 +2,7 @@ package wkdb_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/stretchr/testify/assert"
@@ -18,20 +19,28 @@ func TestAddOrUpdateConversations(t *testing.T) {
 	}()
 
 	uid := "test1"
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	conversations := []wkdb.Conversation{
 		{
+			Id:           1,
 			Uid:          uid,
 			UnreadCount:  10,
 			ChannelId:    "1234",
 			ChannelType:  1,
 			ReadToMsgSeq: 1,
+			CreatedAt:    &createdAt,
+			UpdatedAt:    &updatedAt,
 		},
 		{
+			Id:           2,
 			Uid:          uid,
 			UnreadCount:  21,
 			ChannelId:    "567",
 			ChannelType:  2,
 			ReadToMsgSeq: 2,
+			CreatedAt:    &createdAt,
+			UpdatedAt:    &updatedAt,
 		},
 	}
 
@@ -51,20 +60,28 @@ func TestGetConversations(t *testing.T) {
 	}()
 
 	uid := "test1"
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	conversations := []wkdb.Conversation{
 		{
+			Id:           1,
 			Uid:          uid,
 			ChannelId:    "1234",
 			ChannelType:  1,
 			UnreadCount:  20,
 			ReadToMsgSeq: 2,
+			CreatedAt:    &createdAt,
+			UpdatedAt:    &updatedAt,
 		},
 		{
+			Id:           2,
 			Uid:          uid,
 			ChannelId:    "5678",
 			ChannelType:  1,
 			UnreadCount:  22,
 			ReadToMsgSeq: 10,
+			CreatedAt:    &createdAt,
+			UpdatedAt:    &updatedAt,
 		},
 	}
 
@@ -81,12 +98,16 @@ func TestGetConversations(t *testing.T) {
 	assert.Equal(t, conversations[0].ChannelType, conversations2[0].ChannelType)
 	assert.Equal(t, conversations[0].UnreadCount, conversations2[0].UnreadCount)
 	assert.Equal(t, conversations[0].ReadToMsgSeq, conversations2[0].ReadToMsgSeq)
+	assert.Equal(t, conversations[0].CreatedAt.Unix(), conversations2[0].CreatedAt.Unix())
+	assert.Equal(t, conversations[0].UpdatedAt.Unix(), conversations2[0].UpdatedAt.Unix())
 
 	assert.Equal(t, conversations[1].Uid, conversations2[1].Uid)
 	assert.Equal(t, conversations[1].ChannelId, conversations2[1].ChannelId)
 	assert.Equal(t, conversations[1].ChannelType, conversations2[1].ChannelType)
 	assert.Equal(t, conversations[1].UnreadCount, conversations2[1].UnreadCount)
 	assert.Equal(t, conversations[1].ReadToMsgSeq, conversations2[1].ReadToMsgSeq)
+	assert.Equal(t, conversations[1].CreatedAt.Unix(), conversations2[1].CreatedAt.Unix())
+	assert.Equal(t, conversations[1].UpdatedAt.Unix(), conversations2[1].UpdatedAt.Unix())
 
 }
 
@@ -103,6 +124,7 @@ func TestDeleteConversation(t *testing.T) {
 	uid := "test1"
 	conversations := []wkdb.Conversation{
 		{
+			Id:           1,
 			Uid:          uid,
 			ChannelId:    "1234",
 			ChannelType:  1,
@@ -110,6 +132,7 @@ func TestDeleteConversation(t *testing.T) {
 			ReadToMsgSeq: 2,
 		},
 		{
+			Id:           2,
 			Uid:          uid,
 			ChannelId:    "4567",
 			ChannelType:  1,
@@ -121,7 +144,7 @@ func TestDeleteConversation(t *testing.T) {
 	err = d.AddOrUpdateConversations(uid, conversations)
 	assert.NoError(t, err)
 
-	err = d.DeleteConversation(uid, "ch123", 1)
+	err = d.DeleteConversation(uid, "1234", 1)
 	assert.NoError(t, err)
 
 	conversations2, err := d.GetConversations(uid)

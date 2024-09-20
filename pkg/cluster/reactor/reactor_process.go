@@ -297,11 +297,6 @@ func (r *Reactor) processStoreAppend(reqs []AppendLogReq) {
 
 }
 
-type storeAppendReq struct {
-	h    *handler
-	logs []replica.Log
-}
-
 // =================================== 获取日志 ===================================
 
 func (r *Reactor) addGetLogReq(req *getLogReq) {

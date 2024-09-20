@@ -252,7 +252,6 @@ func TestClusterNodeJoin(t *testing.T) {
 				}
 			}
 			if !existLearner && existReplica {
-				cfg = s1.GetClusterConfig()
 				time.Sleep(time.Second * 1)
 				return
 			}

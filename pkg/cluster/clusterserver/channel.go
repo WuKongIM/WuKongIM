@@ -24,13 +24,11 @@ type channel struct {
 	channelType uint8
 	rc          *replica.Replica
 	opts        *Options
-	isPrepared  bool
 	wklog.Log
 	mu             sync.Mutex
 	cfg            wkdb.ChannelClusterConfig
 	pausePropopose atomic.Bool // 是否暂停提案
 
-	sendConfigTick        int // 发送配置计数器
 	sendConfigTimeoutTick int // 发送配置超时（达到这个tick表示，需要发送配置请求了）
 
 	learnerToLock sync.Mutex
@@ -144,13 +142,6 @@ func (c *channel) isLeader() bool {
 	return c.cfg.LeaderId == c.opts.NodeId
 }
 
-func (c *channel) configVersion() uint64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.cfg.ConfVersion
-
-}
-
 // --------------------------IHandler-------------------------------
 
 func (c *channel) LastLogIndexAndTerm() (uint64, uint32) {
@@ -211,12 +202,6 @@ func (c *channel) Tick() {
 
 func (c *channel) Step(m replica.Message) error {
 	return c.rc.Step(m)
-}
-
-func (c *channel) replicaCount() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.cfg.Replicas)
 }
 
 func (c *channel) LeaderId() uint64 {

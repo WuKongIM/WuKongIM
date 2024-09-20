@@ -1,7 +1,6 @@
 package reactor
 
 import (
-	"context"
 	"strconv"
 	"testing"
 
@@ -12,7 +11,7 @@ func TestMessageWait(t *testing.T) {
 	messageIds := []uint64{1, 2, 3}
 	m := newProposeWait("test")
 	key := "test"
-	waitC := m.add(context.Background(), key, messageIds)
+	waitC := m.add(key, messageIds)
 
 	select {
 	case <-waitC:
@@ -53,7 +52,7 @@ func BenchmarkMessageWait(b *testing.B) {
 	}
 	key := strconv.FormatUint(messageIds[len(messageIds)-1], 10)
 
-	_ = m.add(context.Background(), key, messageIds)
+	_ = m.add(key, messageIds)
 
 	for i := 1; i <= num; i++ {
 		m.didPropose(key, uint64(i), uint64(i))

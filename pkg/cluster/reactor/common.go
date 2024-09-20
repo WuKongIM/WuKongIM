@@ -42,37 +42,6 @@ func hashWthString(key string) uint32 {
 	return num
 }
 
-type requestHandlerAdd struct {
-	key     string
-	handler *handler
-	resultC chan struct{}
-}
-
-func newRequestHandlerAdd(key string, handler *handler, resultC chan struct{}) *requestHandlerAdd {
-	return &requestHandlerAdd{
-		key:     key,
-		handler: handler,
-		resultC: resultC,
-	}
-}
-
-type requestHandlerGet struct {
-	key     string
-	resultC chan IHandler
-}
-
-func newRequestHandlerGet(key string, resultC chan IHandler) *requestHandlerGet {
-	return &requestHandlerGet{
-		key:     key,
-		resultC: resultC,
-	}
-}
-
-type requestHandlerRemove struct {
-	key     string
-	resultC chan *handler
-}
-
 type syncStatus int
 
 const (

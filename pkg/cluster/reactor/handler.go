@@ -1,7 +1,6 @@
 package reactor
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -162,8 +161,8 @@ func (h *handler) didCommit(startLogIndex uint64, endLogIndex uint64) {
 	h.proposeWait.didCommit(startLogIndex, endLogIndex)
 }
 
-func (h *handler) addWait(ctx context.Context, key string, ids []uint64) chan []ProposeResult {
-	return h.proposeWait.add(ctx, key, ids)
+func (h *handler) addWait(key string, ids []uint64) chan []ProposeResult {
+	return h.proposeWait.add(key, ids)
 }
 
 func (h *handler) removeWait(key string) {
