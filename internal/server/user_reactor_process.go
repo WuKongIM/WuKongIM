@@ -514,10 +514,13 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 
 	for _, msg := range req.messages {
 		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
-		// r.Debug("remove retry", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
-		err := r.s.retryManager.removeRetry(msg.ConnId, recvackPacket.MessageID)
-		if err != nil {
-			r.Warn("removeRetry error", zap.Error(err), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
+		persist := !recvackPacket.NoPersist
+		if persist { // 只有需要持久化的消息才会重试
+			// r.Debug("remove retry", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
+			err := r.s.retryManager.removeRetry(msg.ConnId, recvackPacket.MessageID)
+			if err != nil {
+				r.Warn("removeRetry error", zap.Error(err), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
+			}
 		}
 	}
 	lastMsg := req.messages[len(req.messages)-1]
@@ -528,27 +531,6 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 		Reason:     ReasonSuccess,
 	})
 
-	// conn := r.getConnContext(req.fromUid, req.fromDeviceId)
-	// if conn == nil {
-	// 	return
-	// }
-	// ack := req.recvack
-	// persist := !ack.NoPersist
-	// if persist {
-	// 	// 完成消息（移除重试队列里的消息）
-	// 	r.Debug("移除重试队列里的消息！", zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", conn.uid), zap.Int64("clientID", conn.id), zap.Uint8("deviceFlag", uint8(conn.deviceFlag)), zap.Uint8("deviceLevel", uint8(conn.deviceLevel)), zap.String("deviceID", conn.deviceId), zap.Bool("syncOnce", ack.SyncOnce), zap.Bool("noPersist", ack.NoPersist), zap.Int64("messageID", ack.MessageID))
-	// 	err := r.s.retryManager.removeRetry(conn.id, ack.MessageID)
-	// 	if err != nil {
-	// 		r.Warn("移除重试队列里的消息失败！", zap.Error(err), zap.Uint32("messageSeq", ack.MessageSeq), zap.String("uid", conn.uid), zap.Int64("clientID", conn.id), zap.Uint8("deviceFlag", conn.deviceFlag.ToUint8()), zap.String("deviceID", conn.deviceId), zap.Int64("messageID", ack.MessageID))
-	// 	}
-	// }
-	// if ack.SyncOnce && persist && wkproto.DeviceLevel(conn.deviceLevel) == wkproto.DeviceLevelMaster { // 写扩散和存储并且是master等级的设备才会更新游标
-	// 	r.Debug("更新游标", zap.String("uid", conn.uid), zap.Uint32("messageSeq", ack.MessageSeq))
-	// 	err := r.s.store.UpdateMessageOfUserCursorIfNeed(conn.uid, uint64(ack.MessageSeq))
-	// 	if err != nil {
-	// 		r.Warn("更新游标失败！", zap.Error(err), zap.String("uid", conn.uid), zap.Uint32("messageSeq", ack.MessageSeq))
-	// 	}
-	// }
 }
 
 type recvackReq struct {

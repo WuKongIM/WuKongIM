@@ -81,18 +81,18 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, uids
 		// 如果用户最近会话缓存中不存在，则加入到缓存，如果存在可以直接忽略
 		if !userConversation.existConversation(fakeChannelId, channelType) {
 			// 如果数据库中存在会话，则仅仅添加到缓存，不需要更新数据库
-			existInDb, err := c.s.store.DB().ExistConversation(uid, fakeChannelId, channelType)
-			if err != nil {
+			existConversation, err := c.s.store.DB().GetConversation(uid, fakeChannelId, channelType)
+			if err != nil && err != wkdb.ErrNotFound {
 				c.Error("exist conversation err", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 				continue
 			}
-			if existInDb {
-				channelConversation := userConversation.addConversationIfNotExist(fakeChannelId, channelType, 0)
+			if !wkdb.IsEmptyConversation(existConversation) {
+				channelConversation := userConversation.addConversationIfNotExist(existConversation.Id, fakeChannelId, channelType, uint32(existConversation.ReadToMsgSeq))
 				if channelConversation != nil { // 如果db中存在会话，则不需要更新
 					channelConversation.NeedUpdate = false
 				}
 			} else {
-				userConversation.addConversationIfNotExist(fakeChannelId, channelType, 0) // 只有缓存中不存在的时候才添加
+				userConversation.addConversationIfNotExist(0, fakeChannelId, channelType, 0) // 只有缓存中不存在的时候才添加
 			}
 		}
 
@@ -221,14 +221,14 @@ func (c *ConversationManager) DeleteUserConversationFromCache(uid string, channe
 	userconversation.deleteConversation(channelId, channelType)
 }
 
-func (c *ConversationManager) existConversationInCache(uid string, channelId string, channelType uint8) bool {
-	userconversation := c.worker(uid).getUserConversation(uid)
-	if userconversation == nil {
-		return false
-	}
-	return userconversation.existConversation(channelId, channelType)
+// func (c *ConversationManager) existConversationInCache(uid string, channelId string, channelType uint8) bool {
+// 	userconversation := c.worker(uid).getUserConversation(uid)
+// 	if userconversation == nil {
+// 		return false
+// 	}
+// 	return userconversation.existConversation(channelId, channelType)
 
-}
+// }
 
 type conversationWorker struct {
 	s                 *Server
@@ -297,12 +297,17 @@ func (c *conversationWorker) propose() {
 				} else {
 					conversationType = wkdb.ConversationTypeChat
 				}
+				createdAt := time.Now()
+				updatedAt := time.Now()
 				conversations = append(conversations, wkdb.Conversation{
+					Id:           conversation.Id,
 					Uid:          cc.uid,
 					Type:         conversationType,
 					ChannelId:    conversation.ChannelId,
 					ChannelType:  conversation.ChannelType,
 					ReadToMsgSeq: uint64(conversation.ReadedMsgSeq),
+					CreatedAt:    &createdAt,
+					UpdatedAt:    &updatedAt,
 				})
 			}
 		}
@@ -382,18 +387,18 @@ func (c *userConversation) existConversationNotLock(channelId string, channelTyp
 	return false
 }
 
-func (c *userConversation) getConversation(channelId string, channelType uint8) *channelConversation {
-	c.RLock()
-	defer c.RUnlock()
+// func (c *userConversation) getConversation(channelId string, channelType uint8) *channelConversation {
+// 	c.RLock()
+// 	defer c.RUnlock()
 
-	for _, s := range c.conversations {
-		if s.ChannelId == channelId && s.ChannelType == channelType {
-			return s
-		}
-	}
+// 	for _, s := range c.conversations {
+// 		if s.ChannelId == channelId && s.ChannelType == channelType {
+// 			return s
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func (c *userConversation) getConversationsByType(conversationType wkdb.ConversationType) []wkdb.Conversation {
 
@@ -410,6 +415,8 @@ func (c *userConversation) getConversationsByType(conversationType wkdb.Conversa
 				ChannelId:    s.ChannelId,
 				ChannelType:  s.ChannelType,
 				ReadToMsgSeq: uint64(s.ReadedMsgSeq),
+				CreatedAt:    &s.CreatedAt,
+				UpdatedAt:    &s.UpdatedAt,
 			})
 		}
 	}
@@ -440,12 +447,12 @@ func (c *userConversation) getConversationNotLock(channelId string, channelType 
 	return nil
 }
 
-func (c *userConversation) addConversationIfNotExist(channelId string, channelType uint8, readedMsgSeq uint32) *channelConversation {
+func (c *userConversation) addConversationIfNotExist(conversationId uint64, channelId string, channelType uint8, readedMsgSeq uint32) *channelConversation {
 	c.Lock()
 	defer c.Unlock()
 	if !c.existConversationNotLock(channelId, channelType) {
 
-		return c.addConversationNotLock(channelId, channelType, readedMsgSeq)
+		return c.addConversationNotLock(conversationId, channelId, channelType, readedMsgSeq)
 	}
 	return nil
 }
@@ -477,10 +484,12 @@ func (c *userConversation) updateOrAddConversation(channelId string, channelType
 		ReadedMsgSeq:     readedMsgSeq,
 		ConversationType: conversationType,
 		NeedUpdate:       true,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	})
 }
 
-func (c *userConversation) addConversationNotLock(channelId string, channelType uint8, readedMsgSeq uint32) *channelConversation {
+func (c *userConversation) addConversationNotLock(conversationId uint64, channelId string, channelType uint8, readedMsgSeq uint32) *channelConversation {
 
 	var conversationType wkdb.ConversationType
 	if c.s.opts.IsCmdChannel(channelId) {
@@ -490,11 +499,14 @@ func (c *userConversation) addConversationNotLock(channelId string, channelType 
 	}
 
 	cn := &channelConversation{
+		Id:               conversationId,
 		ChannelId:        channelId,
 		ChannelType:      channelType,
 		ReadedMsgSeq:     readedMsgSeq,
 		NeedUpdate:       true,
 		ConversationType: conversationType,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 	c.conversations = append(c.conversations, cn)
 
@@ -502,9 +514,12 @@ func (c *userConversation) addConversationNotLock(channelId string, channelType 
 }
 
 type channelConversation struct {
+	Id               uint64                `json:"id"` // 会话id
 	ChannelId        string                `json:"channel_id"`
 	ChannelType      uint8                 `json:"channel_type"`
 	ReadedMsgSeq     uint32                `json:"readed_msg_seq"`
 	NeedUpdate       bool                  `json:"need_update"`
 	ConversationType wkdb.ConversationType `json:"conversation_type"`
+	CreatedAt        time.Time             `json:"created_at"`
+	UpdatedAt        time.Time             `json:"updated_at"`
 }

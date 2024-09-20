@@ -15,6 +15,7 @@ type dblock struct {
 
 	userLock               *userLock
 	addOrUpdateChannelLock *addOrUpdateChannelLock
+	conversationLock       *conversationLock
 }
 
 func newDBLock() *dblock {
@@ -26,6 +27,7 @@ func newDBLock() *dblock {
 		userLock:               newUserLock(),
 		totalLock:              newTotalLock(),
 		addOrUpdateChannelLock: newAddOrUpdateChannelLock(),
+		conversationLock:       newConversationLock(),
 	}
 
 }
@@ -37,6 +39,7 @@ func (d *dblock) start() {
 	d.denylistCountLock.StartCleanLoop()
 	d.userLock.StartCleanLoop()
 	d.addOrUpdateChannelLock.StartCleanLoop()
+	d.conversationLock.StartCleanLoop()
 }
 
 func (d *dblock) stop() {
@@ -46,6 +49,7 @@ func (d *dblock) stop() {
 	d.denylistCountLock.StopCleanLoop()
 	d.userLock.StopCleanLoop()
 	d.addOrUpdateChannelLock.StopCleanLoop()
+	d.conversationLock.StopCleanLoop()
 }
 
 type channelClusterConfigLock struct {
@@ -133,13 +137,13 @@ func newUserLock() *userLock {
 	}
 }
 
-func (u *userLock) lock(uid string) {
-	u.Lock(uid)
-}
+// func (u *userLock) lock(uid string) {
+// 	u.Lock(uid)
+// }
 
-func (u *userLock) unlock(uid string) {
-	u.Unlock(uid)
-}
+// func (u *userLock) unlock(uid string) {
+// 	u.Unlock(uid)
+// }
 
 type totalLock struct {
 	*keylock.KeyLock
@@ -217,12 +221,30 @@ func newAddOrUpdateChannelLock() *addOrUpdateChannelLock {
 	}
 }
 
-func (c *addOrUpdateChannelLock) lock(channelId string, channelType uint8) {
-	key := channelId + strconv.FormatInt(int64(channelType), 10)
-	c.Lock(key)
+// func (c *addOrUpdateChannelLock) lock(channelId string, channelType uint8) {
+// 	key := channelId + strconv.FormatInt(int64(channelType), 10)
+// 	c.Lock(key)
+// }
+
+// func (c *addOrUpdateChannelLock) unlock(channelId string, channelType uint8) {
+// 	key := channelId + strconv.FormatInt(int64(channelType), 10)
+// 	c.Unlock(key)
+// }
+
+type conversationLock struct {
+	*keylock.KeyLock
 }
 
-func (c *addOrUpdateChannelLock) unlock(channelId string, channelType uint8) {
-	key := channelId + strconv.FormatInt(int64(channelType), 10)
-	c.Unlock(key)
+func newConversationLock() *conversationLock {
+	return &conversationLock{
+		keylock.NewKeyLock(),
+	}
+}
+
+func (c *conversationLock) lock(uid string) {
+	c.Lock(uid)
+}
+
+func (c *conversationLock) unlock(uid string) {
+	c.Unlock(uid)
 }

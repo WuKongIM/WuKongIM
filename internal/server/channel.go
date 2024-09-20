@@ -339,7 +339,7 @@ func (c *channel) tickProxy() {
 
 }
 
-func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, isSystem bool, sendPacket *wkproto.SendPacket) (int64, error) {
+func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
 
 	c.sendTick = 0
 

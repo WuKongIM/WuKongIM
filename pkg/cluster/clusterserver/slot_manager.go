@@ -76,10 +76,6 @@ func (s *slotManager) iterate(f func(*slot) bool) {
 	})
 }
 
-func (s *slotManager) slotLen() int {
-	return s.slotReactor.HandlerLen()
-}
-
 func (s *slotManager) exist(slotId uint32) bool {
 	return s.slotReactor.ExistHandler(SlotIdToKey(slotId))
 }

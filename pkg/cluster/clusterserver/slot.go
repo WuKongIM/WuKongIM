@@ -31,8 +31,6 @@ type slot struct {
 	s              *Server
 	pausePropopose atomic.Bool // 是否暂停提案
 
-	// 学习者转换中
-	learnerTrans atomic.Bool
 }
 
 func newSlot(st *pb.Slot, sr *Server) *slot {

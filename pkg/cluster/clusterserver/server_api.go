@@ -606,7 +606,7 @@ func (s *Server) allSlotsGet(c *wkhttp.Context) {
 	for nodeId, slotIds := range nodeSlotsMap {
 
 		if !s.clusterEventServer.NodeOnline(nodeId) {
-			slotResps, err := s.getSlotInfoForLeaderOffline(nodeId, slotIds)
+			slotResps, err := s.getSlotInfoForLeaderOffline(slotIds)
 			if err != nil {
 				s.Error("getSlotInfoForLeaderOffline error", zap.Error(err))
 				c.ResponseError(err)

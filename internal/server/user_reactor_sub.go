@@ -228,13 +228,13 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 	}
 }
 
-func (u *userReactorSub) advance() {
-	select {
-	case u.advanceC <- struct{}{}:
-	default:
-	}
+// func (u *userReactorSub) advance() {
+// 	select {
+// 	case u.advanceC <- struct{}{}:
+// 	default:
+// 	}
 
-}
+// }
 
 func (u *userReactorSub) addUserIfNotExist(h *userHandler) {
 	u.mu.Lock()
@@ -249,26 +249,26 @@ func (u *userReactorSub) getUser(uid string) *userHandler {
 	return u.users.get(uid)
 }
 
-func (u *userReactorSub) existUser(uid string) bool {
-	return u.users.exist(uid)
-}
+// func (u *userReactorSub) existUser(uid string) bool {
+// 	return u.users.exist(uid)
+// }
 
-func (u *userReactorSub) removeUser(uid string) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	u.users.remove(uid)
-}
+// func (u *userReactorSub) removeUser(uid string) {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
+// 	u.users.remove(uid)
+// }
 
-func (u *userReactorSub) removeUserByUniqueNo(uid string, uniqueNo string) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	user := u.users.get(uid)
-	if user != nil {
-		if user.uniqueNo == uniqueNo {
-			u.users.remove(uid)
-		}
-	}
-}
+// func (u *userReactorSub) removeUserByUniqueNo(uid string, uniqueNo string) {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
+// 	user := u.users.get(uid)
+// 	if user != nil {
+// 		if user.uniqueNo == uniqueNo {
+// 			u.users.remove(uid)
+// 		}
+// 	}
+// }
 
 func (u *userReactorSub) getConnsByUniqueNo(uid string, uniqueNo string) []*connContext {
 	u.mu.Lock()

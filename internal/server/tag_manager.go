@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -127,9 +126,9 @@ func (t *tagManager) releaseReceiverTag(key string) {
 	}
 }
 
-func (t *tagManager) receiverTagKey(channelId string, channelType uint8) string {
-	return fmt.Sprintf("%s%d%s", t.receiverPrefix, channelType, channelId)
-}
+// func (t *tagManager) receiverTagKey(channelId string, channelType uint8) string {
+// 	return fmt.Sprintf("%s%d%s", t.receiverPrefix, channelType, channelId)
+// }
 
 type tagReq struct {
 	channelId   string

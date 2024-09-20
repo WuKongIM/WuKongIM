@@ -168,7 +168,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	defer cancel()
 
 	// -------------------- 获得等待提交提案的句柄 --------------------
-	waitC := handler.addWait(ctx, waitKey, ids)
+	waitC := handler.addWait(waitKey, ids)
 
 	// -------------------- 添加提案请求 --------------------
 	req := newProposeReq(handler, waitKey, logs)

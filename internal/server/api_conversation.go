@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -123,10 +124,14 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 		return
 	}
 	if wkdb.IsEmptyConversation(conversation) {
+		createdAt := time.Now()
+		updatedAt := time.Now()
 		conversation = wkdb.Conversation{
 			Uid:         req.UID,
 			ChannelId:   fakeChannelId,
 			ChannelType: req.ChannelType,
+			CreatedAt:   &createdAt,
+			UpdatedAt:   &updatedAt,
 		}
 	}
 
@@ -215,10 +220,14 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 	}
 
 	if wkdb.IsEmptyConversation(conversation) {
+		createdAt := time.Now()
+		updatedAt := time.Now()
 		conversation = wkdb.Conversation{
 			Uid:         req.UID,
 			ChannelId:   fakeChannelId,
 			ChannelType: req.ChannelType,
+			CreatedAt:   &createdAt,
+			UpdatedAt:   &updatedAt,
 		}
 
 	}
@@ -297,11 +306,10 @@ func (s *ConversationAPI) deleteConversation(c *wkhttp.Context) {
 
 func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	var req struct {
-		UID         string             `json:"uid"`
-		Version     int64              `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)
-		LastMsgSeqs string             `json:"last_msg_seqs"` // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
-		MsgCount    int64              `json:"msg_count"`     // 每个会话消息数量
-		Larges      []*wkproto.Channel `json:"larges"`        // 超大频道集合
+		UID         string `json:"uid"`
+		Version     int64  `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)
+		LastMsgSeqs string `json:"last_msg_seqs"` // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
+		MsgCount    int64  `json:"msg_count"`     // 每个会话消息数量
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -309,6 +317,8 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	fmt.Println("syncUserConversation-req----->", wkutil.ToJSON(req))
 
 	leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
@@ -336,12 +346,14 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 	)
 
 	// ==================== 获取用户活跃的最近会话 ====================
-	conversations, err := s.s.store.GetLastConversations(req.UID, wkdb.ConversationTypeChat, uint64(req.Version), s.s.opts.Conversation.UserMaxCount)
+	conversations, err := s.s.store.GetLastConversations(req.UID, wkdb.ConversationTypeChat, 0, s.s.opts.Conversation.UserMaxCount)
 	if err != nil {
 		s.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID))
 		c.ResponseError(errors.New("获取conversation失败！"))
 		return
 	}
+
+	fmt.Println("conversations-get------------>", req.UID, len(conversations), req.Version)
 
 	// 获取用户缓存的最近会话
 	cacheConversations := s.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeChat)
@@ -373,20 +385,18 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 				realChannelId = from
 			}
 		}
+
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, conversation.ChannelType)]
-		if conversation.ReadToMsgSeq > msgSeq {
-			msgSeq = conversation.ReadToMsgSeq
-		} else if msgSeq != 0 {
-			// 如果客户端传递的消息序列号大于或等于服务端的消息序列号，则需要加1，因为客户端传递的是最后一条消息的序列号已经在客户端存在，
-			// 所以需要加1，查询最新的消息，如果没有则不返回这个最近会话，这样才能起到增量同步效果
-			msgSeq = msgSeq + 1
+
+		if msgSeq != 0 {
+			msgSeq = msgSeq + 1 // 如果客户端传递了messageSeq，则需要获取这个messageSeq之后的消息
 		}
+
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
 			ChannelId:   realChannelId,
 			ChannelType: conversation.ChannelType,
 			LastMsgSeq:  msgSeq,
 		})
-		conversation.ReadToMsgSeq = msgSeq
 		// syncUserConversationR := newSyncUserConversationResp(conversation)
 		// resps = append(resps, syncUserConversationR)
 	}
@@ -403,41 +413,45 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			return
 		}
 
-		if len(channelRecentMessages) > 0 {
-			for i := 0; i < len(conversations); i++ {
-				conversation := conversations[i]
-				resp := newSyncUserConversationResp(conversation)
-				if conversation.UpdatedAt != nil {
-					resp.Timestamp = conversation.UpdatedAt.Unix()
-					resp.Version = conversation.UpdatedAt.Unix()
-				}
+		fmt.Println("conversations------------>", req.UID, len(conversations))
+		for i := 0; i < len(conversations); i++ {
+			conversation := conversations[i]
+			if conversation.ChannelType == wkproto.ChannelTypePerson && conversation.ChannelId == s.s.opts.SystemUID { // 系统消息不返回
+				continue
+			}
+			resp := newSyncUserConversationResp(conversation)
 
-				for _, channelRecentMessage := range channelRecentMessages {
-					if resp.ChannelId == channelRecentMessage.ChannelId && conversation.ChannelType == channelRecentMessage.ChannelType {
-						if len(channelRecentMessage.Messages) > 0 {
-							lastMsg := channelRecentMessage.Messages[0]
-							resp.LastMsgSeq = uint32(lastMsg.MessageSeq)
-							resp.LastClientMsgNo = lastMsg.ClientMsgNo
-							resp.Timestamp = int64(lastMsg.Timestamp)
-							if lastMsg.MessageSeq > uint64(resp.ReadedToMsgSeq) {
-								resp.Unread = int(lastMsg.MessageSeq - uint64(resp.ReadedToMsgSeq))
-							}
-							resp.Version = int64(lastMsg.Timestamp)
+			for _, channelRecentMessage := range channelRecentMessages {
+				if resp.ChannelId == channelRecentMessage.ChannelId && conversation.ChannelType == channelRecentMessage.ChannelType {
+					if len(channelRecentMessage.Messages) > 0 {
+						lastMsg := channelRecentMessage.Messages[0]
+						resp.LastMsgSeq = uint32(lastMsg.MessageSeq)
+						resp.LastClientMsgNo = lastMsg.ClientMsgNo
+						resp.Timestamp = int64(lastMsg.Timestamp)
+						if lastMsg.MessageSeq > uint64(resp.ReadedToMsgSeq) {
+							resp.Unread = int(lastMsg.MessageSeq - uint64(resp.ReadedToMsgSeq))
 						}
-						if req.Version > 0 && resp.Unread <= 0 { // 如果客户端传递了version，且unread为0，则不返回这个最近会话
-							break
-						}
-						resp.Recents = channelRecentMessage.Messages
-						break
+
+						resp.Version = time.Unix(int64(lastMsg.Timestamp), 0).UnixNano()
 					}
-				}
 
-				if len(resp.Recents) > 0 {
-					resps = append(resps, resp)
+					resp.Recents = channelRecentMessage.Messages
+					break
 				}
+			}
+
+			msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", conversation.ChannelId, conversation.ChannelType)]
+
+			if msgSeq != 0 && msgSeq >= uint64(resp.LastMsgSeq) {
+				continue
+			}
+
+			if len(resp.Recents) > 0 {
+				resps = append(resps, resp)
 			}
 		}
 	}
+
 	c.JSON(http.StatusOK, resps)
 }
 

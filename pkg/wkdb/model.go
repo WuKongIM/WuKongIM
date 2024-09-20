@@ -325,6 +325,18 @@ func (c *Conversation) Marshal() ([]byte, error) {
 	enc.WriteUint32(c.UnreadCount)
 	enc.WriteUint64(c.ReadToMsgSeq)
 
+	if c.CreatedAt != nil {
+		enc.WriteUint64(uint64(c.CreatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+
+	if c.UpdatedAt != nil {
+		enc.WriteUint64(uint64(c.UpdatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+
 	return enc.Bytes(), nil
 }
 
@@ -358,6 +370,24 @@ func (c *Conversation) Unmarshal(data []byte) error {
 	}
 	if c.ReadToMsgSeq, err = dec.Uint64(); err != nil {
 		return err
+	}
+
+	var createdAt uint64
+	if createdAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if createdAt > 0 {
+		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+		c.CreatedAt = &ct
+	}
+
+	var updatedAt uint64
+	if updatedAt, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if updatedAt > 0 {
+		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+		c.UpdatedAt = &ct
 	}
 
 	return nil
@@ -684,7 +714,7 @@ func (u *BatchUpdateConversationModel) Unmarshal(data []byte) error {
 
 func (u *BatchUpdateConversationModel) Size() int {
 	size := 2 // uid len
-	for uid, _ := range u.Uids {
+	for uid := range u.Uids {
 		size = size + 2 + len(uid) + 8 // string len + uid + messageSeq
 	}
 	size = size + 2 + len(u.ChannelId) + 1 // string len + channel id + channel type
@@ -709,17 +739,6 @@ func ChannelToKey(channelId string, channelType uint8) string {
 	b.WriteString("-")
 	b.WriteString(strconv.FormatInt(int64(channelType), 10))
 	return b.String()
-}
-
-func channelFromKey(key string) (channelId string, channelType uint8) {
-	idx := strings.Index(key, "-")
-	if idx == -1 {
-		return
-	}
-	channelId = key[:idx]
-	channelTypeI64, _ := strconv.ParseUint(key[idx+1:], 10, 8)
-	channelType = uint8(channelTypeI64)
-	return
 }
 
 type Channel struct {

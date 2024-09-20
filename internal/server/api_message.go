@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -121,7 +122,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 	// var messageID = m.s.dispatch.processor.genMessageID()
 
 	fakeChannelId := channelId
-	fakeChannelType := req.ChannelType
+	fakeChannelType := channelType
 	if channelType == wkproto.ChannelTypePerson {
 		fakeChannelId = GetFakeChannelIDWith(req.FromUID, channelId)
 	}
@@ -143,7 +144,7 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 
 	// 将消息提交到频道
 	systemDeviceId := req.FromUID
-	messageId, err := channel.proposeSend(req.FromUID, systemDeviceId, 0, m.s.opts.Cluster.NodeId, false, true, &wkproto.SendPacket{
+	messageId, err := channel.proposeSend(req.FromUID, systemDeviceId, 0, m.s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
 		Framer: wkproto.Framer{
 			RedDot:    wkutil.IntToBool(req.Header.RedDot),
 			SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
@@ -153,8 +154,8 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 		Expire:      req.Expire,
 		StreamNo:    req.StreamNo,
 		ClientMsgNo: clientMsgNo,
-		ChannelID:   req.ChannelID,
-		ChannelType: req.ChannelType,
+		ChannelID:   channelId,
+		ChannelType: channelType,
 		Payload:     req.Payload,
 	})
 	if err != nil {
@@ -405,12 +406,16 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 		if err != nil {
 			if err == wkdb.ErrNotFound {
 				m.Warn("会话不存在！", zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
+				createdAt := time.Now()
+				updatedAt := time.Now()
 				conversation = wkdb.Conversation{
 					Uid:          req.UID,
 					ChannelId:    fakeChannelId,
 					ChannelType:  record.channelType,
 					Type:         wkdb.ConversationTypeCMD,
 					ReadToMsgSeq: record.lastMsgSeq,
+					CreatedAt:    &createdAt,
+					UpdatedAt:    &updatedAt,
 				}
 				needAdd = true
 			} else {

@@ -35,7 +35,7 @@ func NewMigrateTask(s *Server) *MigrateTask {
 		s:              s,
 		stopper:        syncutil.NewStopper(),
 		Log:            wklog.NewWKLog("MigrateTask"),
-		goroutineCount: 40,
+		goroutineCount: 20,
 	}
 }
 
@@ -79,6 +79,10 @@ func (m *MigrateTask) run() {
 // 是否已迁移
 func (m *MigrateTask) IsMigrated() bool {
 	return wkutil.FileExists(path.Join(m.s.opts.DataDir, "migrated"))
+}
+
+func (m *MigrateTask) Migrated() {
+	_ = wkutil.WriteFile(path.Join(m.s.opts.DataDir, "migrated"), []byte("1"))
 }
 
 func (m *MigrateTask) GetMigrateResult() MigrateResult {
@@ -182,13 +186,20 @@ func (m *MigrateTask) stepUserImport() {
 
 	atomicCount := atomic.NewInt32(0)
 
+	uids := make([]string, 0, len(users))
 	for _, user := range users {
+		uids = append(uids, user.Uid)
+	}
 
-		requestGroup.Go(func(u *mgUserResp) func() error {
+	uids = wkutil.RemoveRepeatedElement(uids)
+
+	for _, uid := range uids {
+
+		requestGroup.Go(func(u string) func() error {
 			return func() error {
 				err := m.importUser(u)
 				if err != nil {
-					m.Error("Import user data failed", zap.Error(err), zap.String("uid", u.Uid))
+					m.Error("Import user data failed", zap.Error(err), zap.String("uid", u))
 					m.lastErr = err
 					return err
 				}
@@ -201,6 +212,15 @@ func (m *MigrateTask) stepUserImport() {
 				}
 				return nil
 
+			}
+		}(uid))
+	}
+
+	for _, user := range users {
+		requestGroup.Go(func(u *mgUserResp) func() error {
+
+			return func() error {
+				return m.addDevice(user)
 			}
 		}(user))
 	}
@@ -275,6 +295,8 @@ func (m *MigrateTask) stepChannelImport() {
 
 	m.Info("Channel data import completed")
 
+	m.Info("Migrate completed")
+	m.Migrated()
 	m.stop = true
 	m.currentTryCount = 0
 	m.lastErr = nil
@@ -333,15 +355,20 @@ func (m *MigrateTask) getFullUrl(pth string) string {
 	return m.s.opts.OldV1Api + pth
 }
 
-func (m *MigrateTask) importUser(user *mgUserResp) error {
+func (m *MigrateTask) importUser(uid string) error {
 
-	relationData, err := m.getChannelRelationData(user.Uid, wkproto.ChannelTypePerson)
+	createdAt := time.Now()
+	updatedAt := time.Now()
+	err := m.s.store.AddUser(wkdb.User{
+		Uid:       uid,
+		CreatedAt: &createdAt,
+		UpdatedAt: &updatedAt,
+	})
 	if err != nil {
 		return err
 	}
 
-	// add user basic info
-	err = m.addOrUpdateUserAndDevice(user)
+	relationData, err := m.getChannelRelationData(uid, wkproto.ChannelTypePerson)
 	if err != nil {
 		return err
 	}
@@ -358,7 +385,7 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 				UpdatedAt: &updatedAt,
 			})
 		}
-		err = m.s.store.AddAllowlist(user.Uid, wkproto.ChannelTypePerson, members)
+		err = m.s.store.AddAllowlist(uid, wkproto.ChannelTypePerson, members)
 		if err != nil {
 			return err
 		}
@@ -378,14 +405,14 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 			})
 		}
 
-		err = m.s.store.AddDenylist(user.Uid, wkproto.ChannelTypePerson, members)
+		err = m.s.store.AddDenylist(uid, wkproto.ChannelTypePerson, members)
 		if err != nil {
 			return err
 		}
 	}
 
 	// import user conversations
-	conversations, err := m.getConversations(user.Uid)
+	conversations, err := m.getConversations(uid)
 	if err != nil {
 		return err
 	}
@@ -395,12 +422,12 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 
 		fakeChannelId := conversation.ChannelId
 		if conversation.ChannelType == wkproto.ChannelTypePerson {
-			fakeChannelId = GetFakeChannelIDWith(user.Uid, conversation.ChannelId)
+			fakeChannelId = GetFakeChannelIDWith(uid, conversation.ChannelId)
 		}
 
 		createdAt := time.Unix(conversation.Timestamp, 0)
 		dbConversations = append(dbConversations, wkdb.Conversation{
-			Uid:          user.Uid,
+			Uid:          uid,
 			Type:         wkdb.ConversationTypeChat,
 			ChannelId:    fakeChannelId,
 			ChannelType:  conversation.ChannelType,
@@ -409,10 +436,11 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 			CreatedAt:    &createdAt,
 			UpdatedAt:    &createdAt,
 		})
+
 	}
 
 	if len(dbConversations) > 0 {
-		err = m.s.store.AddOrUpdateConversations(user.Uid, dbConversations)
+		err = m.s.store.AddOrUpdateConversations(uid, dbConversations)
 		if err != nil {
 			return err
 		}
@@ -421,23 +449,18 @@ func (m *MigrateTask) importUser(user *mgUserResp) error {
 	return nil
 }
 
-func (m *MigrateTask) addOrUpdateUserAndDevice(user *mgUserResp) error {
+func (m *MigrateTask) addDevice(user *mgUserResp) error {
 	createdAt := time.Now()
 	updatedAt := time.Now()
-	err := m.s.store.AddUser(wkdb.User{
-		Uid:       user.Uid,
-		CreatedAt: &createdAt,
-		UpdatedAt: &updatedAt,
-	})
-	if err != nil {
-		return err
-	}
-	err = m.s.store.AddDevice(wkdb.Device{
+
+	err := m.s.store.AddDevice(wkdb.Device{
 		Id:          m.s.store.NextPrimaryKey(),
 		Uid:         user.Uid,
 		DeviceFlag:  uint64(user.DeviceFlag),
 		DeviceLevel: user.DeviceLevel,
 		Token:       user.Token,
+		CreatedAt:   &createdAt,
+		UpdatedAt:   &updatedAt,
 	})
 	if err != nil {
 		return err
@@ -453,13 +476,17 @@ func (m *MigrateTask) importChannel(channel *mgChannelResp) error {
 	}
 
 	// add channel basic info
-	m.Info("add channel", zap.String("channelId", channel.ChannelID), zap.Uint8("channelType", channel.ChannelType))
+	// m.Info("add channel", zap.String("channelId", channel.ChannelID), zap.Uint8("channelType", channel.ChannelType))
+	createdAt := time.Now()
+	updatedAt := time.Now()
 	err = m.s.store.AddChannelInfo(wkdb.ChannelInfo{
 		ChannelId:   channel.ChannelID,
 		ChannelType: channel.ChannelType,
 		Ban:         channel.Ban,
 		Disband:     channel.Disband,
 		Large:       channel.Large,
+		CreatedAt:   &createdAt,
+		UpdatedAt:   &updatedAt,
 	})
 	if err != nil {
 		return err
@@ -548,7 +575,7 @@ func (m *MigrateTask) importMessage(topic string) error {
 
 	var startMessageSeq uint32 = 1
 	var endMessageSeq uint32 = 0
-	var limit = 1000
+	var limit = 500
 
 	for {
 		resp, err := m.syncMessages(channelId, channelType, startMessageSeq, endMessageSeq, limit)

@@ -100,12 +100,12 @@ func (m *channelMsgQueue) resetIndex() {
 	m.forwardingIndex = newIndex
 }
 
-func (m *channelMsgQueue) first() ReactorChannelMessage {
-	if len(m.messages) == 0 {
-		return EmptyReactorChannelMessage
-	}
-	return m.messages[0]
-}
+// func (m *channelMsgQueue) first() ReactorChannelMessage {
+// 	if len(m.messages) == 0 {
+// 		return EmptyReactorChannelMessage
+// 	}
+// 	return m.messages[0]
+// }
 
 func (m *channelMsgQueue) String() string {
 	return fmt.Sprintf("channelMsgQueue{offset=%d, lastIndex=%d payloadDecryptingIndex=%d, permissionCheckingIndex=%d, storagingIndex=%d, sendackingIndex=%d, deliveringIndex=%d,  forwardingIndex=%d len(messages)=%d}",
@@ -160,19 +160,19 @@ func (m *userMsgQueue) truncateTo(index uint64) {
 	m.shrinkMessagesArray()
 }
 
-// nextMessages 返回未持久化的消息
-func (m *userMsgQueue) nextMessages() []ReactorUserMessage {
-	inProgress := int(m.offsetInProgress - m.offset)
-	if len(m.messages) == inProgress {
-		return nil
-	}
-	return m.messages[inProgress:]
-}
+// // nextMessages 返回未持久化的消息
+// func (m *userMsgQueue) nextMessages() []ReactorUserMessage {
+// 	inProgress := int(m.offsetInProgress - m.offset)
+// 	if len(m.messages) == inProgress {
+// 		return nil
+// 	}
+// 	return m.messages[inProgress:]
+// }
 
-// hasNextMessages 是否有未持久化的消息
-func (m *userMsgQueue) hasNextMessages() bool {
-	return int(m.offsetInProgress-m.offset) < len(m.messages)
-}
+// // hasNextMessages 是否有未持久化的消息
+// func (m *userMsgQueue) hasNextMessages() bool {
+// 	return int(m.offsetInProgress-m.offset) < len(m.messages)
+// }
 
 func (m *userMsgQueue) appendMessage(message ReactorUserMessage) {
 	m.messages = append(m.messages, message)
@@ -217,12 +217,12 @@ func (m *userMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []Rea
 	return nil
 }
 
-func (m *userMsgQueue) first() ReactorUserMessage {
-	if len(m.messages) == 0 {
-		return EmptyReactorUserMessage
-	}
-	return m.messages[0]
-}
+// func (m *userMsgQueue) first() ReactorUserMessage {
+// 	if len(m.messages) == 0 {
+// 		return EmptyReactorUserMessage
+// 	}
+// 	return m.messages[0]
+// }
 
 func limitSizeWithUser(messages []ReactorUserMessage, maxSize uint64) []ReactorUserMessage {
 	if len(messages) == 0 {
@@ -248,7 +248,6 @@ type deliverMsgQueue struct {
 	lastIndex uint64 // 最新下标
 
 	deliveringIndex uint64 // 正在投递的下标
-	deliveredIndex  uint64 // 已投递的下标
 
 }
 
@@ -285,11 +284,11 @@ func (m *deliverMsgQueue) shrinkMessagesArray() {
 	}
 }
 
-func (m *deliverMsgQueue) acceptInProgress() {
-	if len(m.messages) > 0 {
-		m.offsetInProgress = m.messages[len(m.messages)-1].Index + 1
-	}
-}
+// func (m *deliverMsgQueue) acceptInProgress() {
+// 	if len(m.messages) > 0 {
+// 		m.offsetInProgress = m.messages[len(m.messages)-1].Index + 1
+// 	}
+// }
 
 func (m *deliverMsgQueue) slice(lo uint64, hi uint64) []ReactorChannelMessage {
 
@@ -310,10 +309,10 @@ func (m *deliverMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []
 	return nil
 }
 
-func (m *deliverMsgQueue) first() ReactorChannelMessage {
-	if len(m.messages) == 0 {
-		return EmptyReactorChannelMessage
+// func (m *deliverMsgQueue) first() ReactorChannelMessage {
+// 	if len(m.messages) == 0 {
+// 		return EmptyReactorChannelMessage
 
-	}
-	return m.messages[0]
-}
+// 	}
+// 	return m.messages[0]
+// }

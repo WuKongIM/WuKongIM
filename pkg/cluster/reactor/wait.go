@@ -1,7 +1,6 @@
 package reactor
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -9,23 +8,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
-
-var emptyMessageItem = messageItem{}
-
-type messageItem struct {
-	messageId  uint64
-	messageSeq uint64
-	committed  bool // 是否已提交
-}
-
-type messageWaitItem struct {
-	waitC chan []messageItem
-	ctx   context.Context
-
-	messageSeqAndIdMap map[uint64]uint64
-	messageIds         [][]uint64
-	waits              []chan []messageItem
-}
 
 type proposeWait struct {
 	mu sync.RWMutex
@@ -45,7 +27,7 @@ func newProposeWait(key string) *proposeWait {
 }
 
 // TODO: 此方法返回创建ProposeResult导致内存过高，需要优化
-func (m *proposeWait) add(ctx context.Context, key string, ids []uint64) chan []ProposeResult {
+func (m *proposeWait) add(key string, ids []uint64) chan []ProposeResult {
 	m.hasAdd.Store(true)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -66,42 +48,6 @@ func (m *proposeWait) add(ctx context.Context, key string, ids []uint64) chan []
 	m.proposeWaitMap[key] = waitC
 
 	return waitC
-}
-
-// waitItemsWithRange 获取[startMessageSeq, endMessageSeq)范围的等待项
-func (m *proposeWait) waitItemsWithRange(startMessageSeq, endMessageSeq uint64) []messageWaitItem {
-	// m.mu.Lock()
-	// defer m.mu.Unlock()
-	// var items []messageWaitItem
-	// for _, item := range m.items {
-	// 	for _, messageItem := range item.messageItems {
-	// 		if messageItem.messageSeq >= startMessageSeq && messageItem.messageSeq < endMessageSeq {
-	// 			items = append(items, item)
-	// 			break
-	// 		}
-	// 	}
-	// }
-	// return items
-
-	return nil
-}
-
-// 获取大于等于startMessageSeq的messageWaitItem
-func (m *proposeWait) waitItemsWithStartSeq(startMessageSeq uint64) []messageWaitItem {
-	// m.mu.Lock()
-	// defer m.mu.Unlock()
-	// var items []messageWaitItem
-	// for _, item := range m.items {
-	// 	for _, messageItem := range item.messageItems {
-	// 		if messageItem.messageSeq >= startMessageSeq {
-	// 			items = append(items, item)
-	// 			break
-	// 		}
-	// 	}
-	// }
-	// return items
-
-	return nil
 }
 
 // TODO 此方法startMessageSeq 至 endMessageSeq的跨度十万需要10来秒 很慢 需要优化
@@ -178,18 +124,4 @@ func (m *proposeWait) exist(key string) bool {
 	_, ok := m.proposeResultMap[key]
 	return ok
 
-}
-
-func max(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b uint64) uint64 {
-	if a > b {
-		return b
-	}
-	return a
 }

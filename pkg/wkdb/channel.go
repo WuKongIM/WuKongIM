@@ -180,6 +180,7 @@ func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) 
 			return nil, err
 		}
 		if has { // 如果有触发索引，则无需全局查询
+			allChannelInfos = append(allChannelInfos, channelInfos...)
 			continue
 		}
 

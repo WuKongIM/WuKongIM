@@ -316,14 +316,14 @@ func myUptime(d time.Duration) string {
 	return fmt.Sprintf("%ds", tsecs)
 }
 
-func serverUid(id uint64) string {
-	return fmt.Sprintf("%d", id)
-}
+// func serverUid(id uint64) string {
+// 	return fmt.Sprintf("%d", id)
+// }
 
-func uidToServerId(uid string) uint64 {
-	id, _ := strconv.ParseUint(uid, 10, 64)
-	return id
-}
+// func uidToServerId(uid string) uint64 {
+// 	id, _ := strconv.ParseUint(uid, 10, 64)
+// 	return id
+// }
 
 // 判断字符串是否存在特殊字符
 func IsSpecialChar(s string) bool {

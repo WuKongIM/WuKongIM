@@ -415,16 +415,16 @@ func (u *userHandler) getConnById(id int64) *connContext {
 	return nil
 }
 
-func (u *userHandler) getConnByProxyConnId(nodeId uint64, proxyConnId int64) *connContext {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-	for _, c := range u.conns {
-		if c.realNodeId == nodeId && c.proxyConnId == proxyConnId {
-			return c
-		}
-	}
-	return nil
-}
+// func (u *userHandler) getConnByProxyConnId(nodeId uint64, proxyConnId int64) *connContext {
+// 	u.mu.RLock()
+// 	defer u.mu.RUnlock()
+// 	for _, c := range u.conns {
+// 		if c.realNodeId == nodeId && c.proxyConnId == proxyConnId {
+// 			return c
+// 		}
+// 	}
+// 	return nil
+// }
 
 func (u *userHandler) getConns() []*connContext {
 	u.mu.RLock()

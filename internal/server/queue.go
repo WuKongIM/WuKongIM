@@ -83,18 +83,18 @@ func (c *channelList) get(key string) *channel {
 	return nil
 }
 
-func (c *channelList) exist(key string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	node := c.head
-	for node != nil {
-		if node.key == key {
-			return true
-		}
-		node = node.next
-	}
-	return false
-}
+// func (c *channelList) exist(key string) bool {
+// 	c.mu.RLock()
+// 	defer c.mu.RUnlock()
+// 	node := c.head
+// 	for node != nil {
+// 		if node.key == key {
+// 			return true
+// 		}
+// 		node = node.next
+// 	}
+// 	return false
+// }
 
 func (c *channelList) iter(f func(ch *channel)) {
 	c.mu.RLock()
@@ -106,11 +106,11 @@ func (c *channelList) iter(f func(ch *channel)) {
 	}
 }
 
-func (c *channelList) len() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.count
-}
+// func (c *channelList) len() int {
+// 	c.mu.RLock()
+// 	defer c.mu.RUnlock()
+// 	return c.count
+// }
 
 type userNode struct {
 	key  string
@@ -189,18 +189,18 @@ func (c *userList) get(key string) *userHandler {
 	return nil
 }
 
-func (c *userList) exist(key string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	node := c.head
-	for node != nil {
-		if node.key == key {
-			return true
-		}
-		node = node.next
-	}
-	return false
-}
+// func (c *userList) exist(key string) bool {
+// 	c.mu.RLock()
+// 	defer c.mu.RUnlock()
+// 	node := c.head
+// 	for node != nil {
+// 		if node.key == key {
+// 			return true
+// 		}
+// 		node = node.next
+// 	}
+// 	return false
+// }
 
 func (c *userList) iter(f func(ch *userHandler) bool) {
 	c.mu.RLock()
@@ -215,8 +215,8 @@ func (c *userList) iter(f func(ch *userHandler) bool) {
 	}
 }
 
-func (c *userList) len() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.count
-}
+// func (c *userList) len() int {
+// 	c.mu.RLock()
+// 	defer c.mu.RUnlock()
+// 	return c.count
+// }
