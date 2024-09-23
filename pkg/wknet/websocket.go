@@ -1,10 +1,15 @@
 package wknet
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"strings"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/crypto/tls"
 	"go.uber.org/zap"
 
@@ -122,6 +127,7 @@ func (w *WSConn) decode() ([]wsutil.Message, error) {
 		w.Debug("数据不完整", zap.Int64("dataLen", dataLen), zap.Int64("tmpReader.Len()", int64(tmpReader.Len())))
 		return nil, nil
 	}
+
 	if header.Fin { // 当前 frame 已经是最后一个frame
 		var messages []wsutil.Message
 		tmpReader.Reset(buff)
@@ -160,6 +166,30 @@ func (w *WSConn) upgrade() error {
 		w.DiscardFromTemp(len(buff)) // 发送错误，丢弃数据
 		return err
 	}
+
+	// 解析http请求
+	req, err := w.parseHttpRequest(buff)
+	if err != nil {
+		return err
+	}
+
+	realIp := w.getRealIp(req) // 获取真实ip
+	realPortStr := req.Header.Get("X-Real-Port")
+	if strings.TrimSpace(realIp) != "" {
+		realPort := 0
+		if strings.TrimSpace(realPortStr) != "" {
+			realPort = wkutil.ParseInt(realPortStr)
+		} else {
+			if w.remoteAddr != nil {
+				realPort = w.remoteAddr.(*net.TCPAddr).Port
+			}
+		}
+		w.SetRemoteAddr(&net.TCPAddr{
+			IP:   net.ParseIP(realIp),
+			Port: realPort,
+		})
+	}
+
 	_, err = w.Write(tmpWriter.Bytes())
 	if err != nil {
 		return err
@@ -168,6 +198,31 @@ func (w *WSConn) upgrade() error {
 	w.DiscardFromTemp(len(buff) - tmpReader.Len())
 	w.upgraded = true
 	return nil
+}
+
+func (w *WSConn) getRealIp(r *http.Request) string {
+	realIp := r.Header.Get("X-Forwarded-For")
+	if strings.TrimSpace(realIp) == "" {
+		realIp = r.Header.Get("X-Real-IP")
+	}
+	return realIp
+}
+
+func (w *WSConn) parseHttpRequest(data []byte) (*http.Request, error) {
+	requestStr := string(data)
+
+	// 创建一个虚拟的Request对象
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(requestStr)))
+	if err != nil {
+		fmt.Println("Error parsing request:", err)
+		w.Error("Error parsing request", zap.Error(err))
+		return nil, err
+	}
+	fmt.Println("Headers:")
+	for key, values := range req.Header {
+		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
+	}
+	return req, nil
 }
 
 func (w *WSConn) PeekFromTemp(n int) ([]byte, error) {

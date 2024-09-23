@@ -389,10 +389,23 @@ func (s *Server) onData(conn wknet.Conn) error {
 	if len(buff) == 0 {
 		return nil
 	}
+
+	// 代理协议解析,获取真实IP
+	parseProxyProto := conn.Value(ConnKeyParseProxyProto)
+	if parseProxyProto != nil && parseProxyProto.(bool) {
+		conn.SetValue(ConnKeyParseProxyProto, false)
+		err := s.handleProxyProto(conn)
+		if err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("onData--buff:", buff)
 	data, _ := gnetUnpacket(buff)
 	if len(data) == 0 {
 		return nil
 	}
+	fmt.Println("onData--buff-data:", data)
 
 	var isAuth bool
 	var connCtx *connContext
@@ -405,6 +418,8 @@ func (s *Server) onData(conn wknet.Conn) error {
 	}
 
 	if !isAuth {
+
+		// 解析连接包
 		packet, _, err := s.opts.Proto.DecodeFrame(data, wkproto.LatestVersion)
 		if err != nil {
 			s.Warn("Failed to decode the message,conn will be closed", zap.Error(err))
@@ -480,6 +495,25 @@ func (s *Server) onData(conn wknet.Conn) error {
 func (s *Server) onConnect(conn wknet.Conn) error {
 	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
 	s.trace.Metrics.App().ConnCountAdd(1)
+
+	if conn.InboundBuffer().BoundBufferSize() == 0 {
+		conn.SetValue(ConnKeyParseProxyProto, true) // 设置需要解析代理协议
+		return nil
+	}
+	// 解析代理协议，获取真实IP
+	return s.handleProxyProto(conn)
+}
+
+// 解析代理协议，获取真实IP
+func (s *Server) handleProxyProto(conn wknet.Conn) error {
+	remoteAddr, err := parseProxyProto(conn)
+	if err != nil && err != ErrNoProxyProtocol {
+		s.Warn("Failed to parse proxy proto", zap.Error(err))
+	}
+	if remoteAddr != nil {
+		conn.SetRemoteAddr(remoteAddr)
+		s.Debug("parse proxy proto success", zap.String("remoteAddr", remoteAddr.String()))
+	}
 	return nil
 }
 
@@ -511,6 +545,7 @@ func gnetUnpacket(buff []byte) ([]byte, error) {
 	for len(buff) > offset {
 		typeAndFlags := buff[offset]
 		packetType := wkproto.FrameType(typeAndFlags >> 4)
+		fmt.Println("typeAndFlags---->", typeAndFlags, packetType)
 		if packetType == wkproto.PING || packetType == wkproto.PONG {
 			offset++
 			continue

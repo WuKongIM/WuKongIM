@@ -83,6 +83,8 @@ type Conn interface {
 	CloseWithErr(err error) error
 	// RemoteAddr returns the remote network address.
 	RemoteAddr() net.Addr
+	// SetRemoteAddr sets the remote network address.
+	SetRemoteAddr(addr net.Addr)
 	// LocalAddr returns the local network address.
 	LocalAddr() net.Addr
 	// ReactorSub returns the reactor sub.
@@ -347,6 +349,10 @@ func (d *DefaultConn) CloseWithErr(err error) error {
 func (d *DefaultConn) RemoteAddr() net.Addr {
 
 	return d.remoteAddr
+}
+
+func (d *DefaultConn) SetRemoteAddr(addr net.Addr) {
+	d.remoteAddr = addr
 }
 
 func (d *DefaultConn) LocalAddr() net.Addr {
@@ -776,6 +782,10 @@ func (t *TLSConn) LocalAddr() net.Addr {
 
 func (t *TLSConn) RemoteAddr() net.Addr {
 	return t.d.RemoteAddr()
+}
+
+func (t *TLSConn) SetRemoteAddr(addr net.Addr) {
+	t.d.SetRemoteAddr(addr)
 }
 
 func (t *TLSConn) Read(b []byte) (int, error) {
