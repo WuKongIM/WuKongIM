@@ -571,6 +571,10 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 				return true
 			}
 
+			if strings.TrimSpace(req.ClientMsgNo) != "" && m.ClientMsgNo != req.ClientMsgNo {
+				return true
+			}
+
 			if len(req.Payload) > 0 && !bytes.Contains(m.Payload, req.Payload) {
 				return true
 			}

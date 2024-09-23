@@ -205,7 +205,7 @@ func (w *webhook) notifyQueueLoop() {
 				messageResps := make([]*MessageResp, 0, len(messages))
 				for _, msg := range messages {
 					resp := &MessageResp{}
-					resp.from(msg)
+					resp.from(msg, w.s)
 					messageResps = append(messageResps, resp)
 				}
 				messageData, err := json.Marshal(messageResps)

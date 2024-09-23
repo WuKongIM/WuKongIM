@@ -420,8 +420,14 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 		return wkproto.ReasonDisband, nil
 	}
 
+	realChannelId := channelId
+
+	if r.opts.IsCmdChannel(channelId) {
+		realChannelId = r.opts.CmdChannelConvertOrginalChannel(channelId)
+	}
+
 	// 判断是否是黑名单内
-	isDenylist, err := r.s.store.ExistDenylist(channelId, channelType, fromUid)
+	isDenylist, err := r.s.store.ExistDenylist(realChannelId, channelType, fromUid)
 	if err != nil {
 		r.Error("ExistDenylist error", zap.Error(err))
 		return wkproto.ReasonSystemError, err
@@ -431,7 +437,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 	}
 
 	// 判断是否是订阅者
-	isSubscriber, err := r.s.store.ExistSubscriber(channelId, channelType, fromUid)
+	isSubscriber, err := r.s.store.ExistSubscriber(realChannelId, channelType, fromUid)
 	if err != nil {
 		r.Error("ExistSubscriber error", zap.Error(err))
 		return wkproto.ReasonSystemError, err
@@ -442,14 +448,14 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 
 	// 判断是否在白名单内
 	if !r.opts.WhitelistOffOfPerson || channelType != wkproto.ChannelTypePerson { // 如果不是个人频道或者个人频道白名单开关打开，则判断是否在白名单内
-		hasAllowlist, err := r.s.store.HasAllowlist(channelId, channelType)
+		hasAllowlist, err := r.s.store.HasAllowlist(realChannelId, channelType)
 		if err != nil {
 			r.Error("HasAllowlist error", zap.Error(err))
 			return wkproto.ReasonSystemError, err
 		}
 
 		if hasAllowlist { // 如果频道有白名单，则判断是否在白名单内
-			isAllowlist, err := r.s.store.ExistAllowlist(channelId, channelType, fromUid)
+			isAllowlist, err := r.s.store.ExistAllowlist(realChannelId, channelType, fromUid)
 			if err != nil {
 				r.Error("ExistAllowlist error", zap.Error(err))
 				return wkproto.ReasonSystemError, err

@@ -409,7 +409,14 @@ type MessageResp struct {
 	// Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
-func (m *MessageResp) from(messageD wkdb.Message) {
+func (m *MessageResp) from(messageD wkdb.Message, s *Server) {
+
+	fromUid := messageD.FromUID
+
+	if fromUid == s.opts.SystemUID {
+		fromUid = ""
+	}
+
 	m.Header.NoPersist = wkutil.BoolToInt(messageD.NoPersist)
 	m.Header.RedDot = wkutil.BoolToInt(messageD.RedDot)
 	m.Header.SyncOnce = wkutil.BoolToInt(messageD.SyncOnce)
@@ -421,7 +428,7 @@ func (m *MessageResp) from(messageD wkdb.Message) {
 	m.StreamSeq = messageD.StreamSeq
 	m.StreamFlag = messageD.StreamFlag
 	m.MessageSeq = uint64(messageD.MessageSeq)
-	m.FromUID = messageD.FromUID
+	m.FromUID = fromUid
 	m.Expire = messageD.Expire
 	m.Timestamp = messageD.Timestamp
 
@@ -430,7 +437,7 @@ func (m *MessageResp) from(messageD wkdb.Message) {
 		if strings.Contains(messageD.ChannelID, "@") {
 			channelIDs := strings.Split(messageD.ChannelID, "@")
 			for _, channelID := range channelIDs {
-				if messageD.FromUID != channelID {
+				if fromUid != channelID {
 					realChannelID = channelID
 				}
 			}
@@ -440,36 +447,7 @@ func (m *MessageResp) from(messageD wkdb.Message) {
 	m.ChannelType = messageD.ChannelType
 	m.Topic = messageD.Topic
 	m.Payload = messageD.Payload
-
-	// if strings.TrimSpace(messageD.StreamNo) != "" && store != nil {
-	// 	streamItems, err := store.GetStreamItems(GetFakeChannelIDWith(messageD.FromUID, messageD.ChannelID), messageD.ChannelType, messageD.StreamNo)
-	// 	if err != nil {
-	// 		wklog.Error("获取streamItems失败！", zap.Error(err))
-	// 	}
-	// 	if len(streamItems) > 0 {
-	// 		streamItemResps := make([]*StreamItemResp, 0, len(streamItems))
-	// 		for _, streamItem := range streamItems {
-	// 			streamItemResps = append(streamItemResps, newStreamItemResp(streamItem))
-	// 		}
-	// 		m.Streams = streamItemResps
-	// 	}
-	// }
 }
-
-// type StreamItemResp struct {
-// 	StreamSeq   uint32 `json:"stream_seq"`    // 流序号
-// 	ClientMsgNo string `json:"client_msg_no"` // 客户端消息唯一编号
-// 	Blob        []byte `json:"blob"`          // 消息内容
-// }
-
-// func newStreamItemResp(m *wkstore.StreamItem) *StreamItemResp {
-
-// 	return &StreamItemResp{
-// 		StreamSeq:   m.StreamSeq,
-// 		ClientMsgNo: m.ClientMsgNo,
-// 		Blob:        m.Blob,
-// 	}
-// }
 
 type MessageOfflineNotify struct {
 	MessageResp
@@ -717,7 +695,7 @@ func (r ChannelCreateReq) Check() error {
 }
 
 type subscriberAddReq struct {
-	ChannelID      string   `json:"channel_id"`      // 频道ID
+	ChannelId      string   `json:"channel_id"`      // 频道ID
 	ChannelType    uint8    `json:"channel_type"`    // 频道类型
 	Reset          int      `json:"reset"`           // 是否重置订阅者 （0.不重置 1.重置），选择重置，将删除原来的所有成员
 	TempSubscriber int      `json:"temp_subscriber"` //  是否是临时订阅者 (1. 是 0. 否)
@@ -725,10 +703,10 @@ type subscriberAddReq struct {
 }
 
 func (s subscriberAddReq) Check() error {
-	if strings.TrimSpace(s.ChannelID) == "" {
+	if strings.TrimSpace(s.ChannelId) == "" {
 		return errors.New("频道ID不能为空！")
 	}
-	if IsSpecialChar(s.ChannelID) {
+	if IsSpecialChar(s.ChannelId) {
 		return errors.New("频道ID不能包含特殊字符！")
 	}
 	if stringArrayIsEmpty(s.Subscribers) {

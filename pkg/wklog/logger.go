@@ -15,35 +15,25 @@ import (
 var logger *zap.Logger
 var errorLogger *zap.Logger
 var warnLogger *zap.Logger
-var testLogger *zap.Logger
 var panicLogger *zap.Logger
 var atom = zap.NewAtomicLevel()
 
 func Configure(opts *Options) {
 	atom.SetLevel(opts.Level)
-	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(newEncoderConfig()),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout)),
-		atom,
-	)
-	if opts.LineNum {
-		testLogger = zap.New(core, zap.AddCaller())
-	} else {
-		testLogger = zap.New(core)
-	}
+
 	infoWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   path.Join(opts.LogDir, "info.log"),
 		MaxSize:    500, // megabytes
 		MaxBackups: 3,
 		MaxAge:     28, // days
 	})
-	core = zapcore.NewCore(
+	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(newEncoderConfig()),
 		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(infoWriter)),
 		atom,
 	)
 	if opts.LineNum {
-		logger = zap.New(core, zap.AddCaller())
+		logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
 	} else {
 		logger = zap.New(core)
 	}
@@ -60,7 +50,7 @@ func Configure(opts *Options) {
 		zap.ErrorLevel,
 	)
 	if opts.LineNum {
-		errorLogger = zap.New(core, zap.AddCaller())
+		errorLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
 	} else {
 		errorLogger = zap.New(core)
 	}
@@ -77,7 +67,7 @@ func Configure(opts *Options) {
 		zap.WarnLevel,
 	)
 	if opts.LineNum {
-		warnLogger = zap.New(core, zap.AddCaller())
+		warnLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
 	} else {
 		warnLogger = zap.New(core)
 	}
@@ -94,9 +84,9 @@ func Configure(opts *Options) {
 		zap.PanicLevel,
 	)
 	if opts.LineNum {
-		panicLogger = zap.New(core, zap.AddCaller())
+		panicLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2), zap.AddStacktrace(zapcore.PanicLevel))
 	} else {
-		panicLogger = zap.New(core)
+		panicLogger = zap.New(core, zap.AddStacktrace(zapcore.PanicLevel))
 	}
 
 }

@@ -347,13 +347,11 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 
 	// ==================== 获取用户活跃的最近会话 ====================
 	conversations, err := s.s.store.GetLastConversations(req.UID, wkdb.ConversationTypeChat, 0, s.s.opts.Conversation.UserMaxCount)
-	if err != nil {
+	if err != nil && err != wkdb.ErrNotFound {
 		s.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID))
 		c.ResponseError(errors.New("获取conversation失败！"))
 		return
 	}
-
-	fmt.Println("conversations-get------------>", req.UID, len(conversations), req.Version)
 
 	// 获取用户缓存的最近会话
 	cacheConversations := s.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeChat)
@@ -413,7 +411,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 			return
 		}
 
-		fmt.Println("conversations------------>", req.UID, len(conversations))
 		for i := 0; i < len(conversations); i++ {
 			conversation := conversations[i]
 			if conversation.ChannelType == wkproto.ChannelTypePerson && conversation.ChannelId == s.s.opts.SystemUID { // 系统消息不返回
@@ -634,7 +631,7 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 				if len(recentMessages) > 0 {
 					for _, recentMessage := range recentMessages {
 						messageResp := &MessageResp{}
-						messageResp.from(recentMessage)
+						messageResp.from(recentMessage, s)
 						messageResps = append(messageResps, messageResp)
 					}
 				}
@@ -648,7 +645,7 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 				if len(recentMessages) > 0 {
 					for _, recentMessage := range recentMessages {
 						messageResp := &MessageResp{}
-						messageResp.from(recentMessage)
+						messageResp.from(recentMessage, s)
 						messageResps = append(messageResps, messageResp)
 					}
 				}
