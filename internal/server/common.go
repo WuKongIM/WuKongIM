@@ -329,3 +329,10 @@ func myUptime(d time.Duration) string {
 func IsSpecialChar(s string) bool {
 	return strings.Contains(s, "@") || strings.Contains(s, "#") || strings.Contains(s, "&")
 }
+
+// 连接上下文的key
+type ConnKey string
+
+const (
+	ConnKeyParseProxyProto = "parseProxyProto" // 解析代理协议
+)

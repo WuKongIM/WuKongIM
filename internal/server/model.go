@@ -811,7 +811,12 @@ func (r syncReq) Check() error {
 	return nil
 }
 
-var emptySyncMessageResp = syncMessageResp{}
+var emptySyncMessageResp = syncMessageResp{
+	StartMessageSeq: 0,
+	EndMessageSeq:   0,
+	More:            0,
+	Messages:        make([]*MessageResp, 0),
+}
 
 type syncMessageResp struct {
 	StartMessageSeq uint64         `json:"start_message_seq"` // 开始序列号
