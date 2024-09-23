@@ -893,7 +893,7 @@ func (o *Options) configureLog(vp *viper.Viper) {
 	if !strings.HasPrefix(strings.TrimSpace(o.Logger.Dir), "/") {
 		o.Logger.Dir = filepath.Join(o.RootDir, o.Logger.Dir)
 	}
-	o.Logger.LineNum = vp.GetBool("logger.lineNum")
+	o.Logger.LineNum = o.getBool("logger.lineNum", o.Logger.LineNum)
 }
 
 // IsTmpChannel 是否是临时频道

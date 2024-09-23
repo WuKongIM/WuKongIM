@@ -200,9 +200,9 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		req.ChannelType = wkproto.ChannelTypeGroup //默认为群
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
-			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
@@ -214,14 +214,14 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		}
 	}
 
-	exist, err := ch.s.store.ExistChannel(req.ChannelID, req.ChannelType)
+	exist, err := ch.s.store.ExistChannel(req.ChannelId, req.ChannelType)
 	if err != nil {
 		ch.Error("查询频道失败！", zap.Error(err))
 		c.ResponseError(errors.New("查询频道失败！"))
 		return
 	}
 	if !exist { // 如果没有频道则创建
-		channelInfo := wkdb.NewChannelInfo(req.ChannelID, req.ChannelType)
+		channelInfo := wkdb.NewChannelInfo(req.ChannelId, req.ChannelType)
 		err = ch.s.store.AddChannelInfo(channelInfo)
 		if err != nil {
 			ch.Error("创建频道失败！", zap.Error(err))
@@ -243,13 +243,13 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	var err error
 	existSubscribers := make([]string, 0)
 	if req.Reset == 1 {
-		err = ch.s.store.RemoveAllSubscriber(req.ChannelID, req.ChannelType)
+		err = ch.s.store.RemoveAllSubscriber(req.ChannelId, req.ChannelType)
 		if err != nil {
 			ch.Error("移除所有订阅者失败！", zap.Error(err))
 			return err
 		}
 	} else {
-		members, err := ch.s.store.GetSubscribers(req.ChannelID, req.ChannelType)
+		members, err := ch.s.store.GetSubscribers(req.ChannelId, req.ChannelType)
 		if err != nil {
 			ch.Error("获取所有订阅者失败！", zap.Error(err))
 			return err
@@ -268,6 +268,13 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 	}
 	if len(newSubscribers) > 0 {
+		lastMsgSeq, err := ch.s.store.GetLastMsgSeq(req.ChannelId, req.ChannelType)
+		if err != nil {
+			ch.Error("获取最大消息序号失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+			return err
+		}
+
+		// 添加订阅者
 		members := make([]wkdb.Member, 0, len(newSubscribers))
 		createdAt := time.Now()
 		updatedAt := time.Now()
@@ -278,13 +285,37 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 				UpdatedAt: &updatedAt,
 			})
 		}
-		err = ch.s.store.AddSubscribers(req.ChannelID, req.ChannelType, members)
+		err = ch.s.store.AddSubscribers(req.ChannelId, req.ChannelType, members)
 		if err != nil {
 			ch.Error("添加订阅者失败！", zap.Error(err))
 			return err
 		}
+
+		// 添加或更新订阅者的最近会话最新消息序号
+		for _, subscriber := range newSubscribers {
+			createdAt := time.Now()
+			updatedAt := time.Now()
+			err = ch.s.store.AddOrUpdateConversations(subscriber, []wkdb.Conversation{
+				{
+					Id:           ch.s.store.NextPrimaryKey(),
+					Uid:          subscriber,
+					ChannelId:    req.ChannelId,
+					ChannelType:  req.ChannelType,
+					Type:         wkdb.ConversationTypeChat,
+					UnreadCount:  0,
+					ReadToMsgSeq: lastMsgSeq,
+					CreatedAt:    &createdAt,
+					UpdatedAt:    &updatedAt,
+				},
+			})
+			if err != nil {
+				ch.Error("添加或更新最近会话失败！", zap.Error(err), zap.String("uid", subscriber), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+				return err
+			}
+		}
+
 	}
-	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
+	channelKey := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
 	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
 	if channel != nil {
 		// 重新生成接收者标签
@@ -808,7 +839,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if len(messages) > 0 {
 		for _, message := range messages {
 			messageResp := &MessageResp{}
-			messageResp.from(message)
+			messageResp.from(message, ch.s)
 			messageResps = append(messageResps, messageResp)
 		}
 	}

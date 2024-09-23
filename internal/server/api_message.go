@@ -45,7 +45,9 @@ func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 	// // r.POST("/streammessage/start", m.streamMessageStart) // 流消息开始
 	// // r.POST("/streammessage/end", m.streamMessageEnd)     // 流消息结束
 
-	r.POST("/messages", m.searchMessages) // 查询消息
+	r.POST("/messages", m.searchMessages) // 批量查询消息
+
+	r.POST("/message", m.searchMessage) // 搜索单条消息
 
 }
 
@@ -459,14 +461,17 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 
 func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
 	var req struct {
-		LoginUid    string   `json:"login_uid"`
-		ChannelID   string   `json:"channel_id"`
-		ChannelType uint8    `json:"channel_type"`
-		MessageSeqs []uint32 `json:"message_seqs"`
+		LoginUid     string   `json:"login_uid"`
+		ChannelID    string   `json:"channel_id"`
+		ChannelType  uint8    `json:"channel_type"`
+		MessageSeqs  []uint32 `json:"message_seqs"`
+		MessageIds   []int64  `json:"message_ids"`
+		ClientMsgNos []string `json:"client_msg_nos"`
 	}
-	if err := c.BindJSON(&req); err != nil {
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
 		m.Error("数据格式有误！", zap.Error(err))
-		c.ResponseError(err)
+		c.ResponseError(errors.New("数据格式有误！"))
 		return
 	}
 	if strings.TrimSpace(req.ChannelID) == "" {
@@ -474,18 +479,28 @@ func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
 		return
 	}
 
-	if len(req.MessageSeqs) == 0 {
-		c.ResponseError(errors.New("message_seqs不能为空！"))
-		return
-
-	}
-	fakeChannelid := req.ChannelID
+	fakeChannelId := req.ChannelID
 	if req.ChannelType == wkproto.ChannelTypePerson {
-		fakeChannelid = GetFakeChannelIDWith(req.LoginUid, req.ChannelID)
+		fakeChannelId = GetFakeChannelIDWith(req.LoginUid, req.ChannelID)
 	}
+
+	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(fakeChannelId, req.ChannelType) // 获取频道的领导节点
+	if err != nil {
+		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", fakeChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
+
+	if !leaderIsSelf {
+		m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
 	var messages []wkdb.Message
 	for _, seq := range req.MessageSeqs {
-		msg, err := m.s.store.LoadMsg(fakeChannelid, req.ChannelType, uint64(seq))
+		msg, err := m.s.store.LoadMsg(fakeChannelId, req.ChannelType, uint64(seq))
 		if err != nil && err != wkdb.ErrNotFound {
 			m.Error("查询消息失败！", zap.Error(err))
 			c.ResponseError(err)
@@ -496,15 +511,123 @@ func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
 		}
 	}
 
+	for _, msgID := range req.MessageIds {
+		results, err := m.s.store.SearchMessages(wkdb.MessageSearchReq{
+			ChannelId:   fakeChannelId,
+			ChannelType: req.ChannelType,
+			MessageId:   msgID,
+			Limit:       1000,
+		})
+		if err != nil && err != wkdb.ErrNotFound {
+			m.Error("查询消息失败！", zap.Error(err), zap.Int64("msgID", msgID))
+			c.ResponseError(err)
+			return
+		}
+		if len(results) > 0 {
+			messages = append(messages, results[0])
+		}
+	}
+
+	for _, clientMsgNo := range req.ClientMsgNos {
+		results, err := m.s.store.SearchMessages(wkdb.MessageSearchReq{
+			ChannelId:   fakeChannelId,
+			ChannelType: req.ChannelType,
+			ClientMsgNo: clientMsgNo,
+			Limit:       1000,
+		})
+		if err != nil && err != wkdb.ErrNotFound {
+			m.Error("查询消息失败！", zap.Error(err), zap.String("clientMsgNo", clientMsgNo))
+			c.ResponseError(err)
+			return
+		}
+		if len(results) > 0 {
+			messages = append(messages, results[0])
+		}
+	}
+
 	resps := make([]*MessageResp, 0, len(messages))
 	if len(messages) > 0 {
 		for _, message := range messages {
 			resp := &MessageResp{}
-			resp.from(message)
+			resp.from(message, m.s)
 			resps = append(resps, resp)
 		}
 	}
 	c.JSON(http.StatusOK, &syncMessageResp{
 		Messages: resps,
 	})
+}
+
+func (m *MessageAPI) searchMessage(c *wkhttp.Context) {
+	var req struct {
+		LoginUid    string `json:"login_uid"`
+		ChannelId   string `json:"channel_id"`
+		ChannelType uint8  `json:"channel_type"`
+		MessageId   int64  `json:"message_id"`
+		ClientMsgNo string `json:"client_msg_no"`
+	}
+
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(errors.New("数据格式有误！"))
+		return
+	}
+
+	if strings.TrimSpace(req.ChannelId) == "" {
+		c.ResponseError(errors.New("channel_id不能为空！"))
+		return
+	}
+
+	if req.ChannelType == 0 {
+		c.ResponseError(errors.New("channel_type不能为0"))
+		return
+	}
+
+	if req.ChannelType == wkproto.ChannelTypePerson && strings.TrimSpace(req.LoginUid) == "" {
+		c.ResponseError(errors.New("login_uid不能为空！"))
+		return
+
+	}
+
+	fakeChannelId := req.ChannelId
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelId = GetFakeChannelIDWith(req.LoginUid, req.ChannelId)
+	}
+
+	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(fakeChannelId, req.ChannelType) // 获取频道的领导节点
+	if err != nil {
+		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", fakeChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == m.s.opts.Cluster.NodeId
+
+	if !leaderIsSelf {
+		m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	messages, err := m.s.store.SearchMessages(wkdb.MessageSearchReq{
+		ChannelId:   fakeChannelId,
+		ChannelType: req.ChannelType,
+		MessageId:   req.MessageId,
+		ClientMsgNo: req.ClientMsgNo,
+	})
+	if err != nil && err != wkdb.ErrNotFound {
+		m.Error("查询消息失败！", zap.Error(err), zap.String("req", wkutil.ToJSON(req)))
+		c.ResponseError(err)
+		return
+	}
+
+	if len(messages) == 0 {
+		m.Info("消息不存在！", zap.String("req", wkutil.ToJSON(req)))
+		c.ResponseStatus(http.StatusNotFound)
+		return
+	}
+
+	resp := &MessageResp{}
+	resp.from(messages[0], m.s)
+	c.JSON(http.StatusOK, resp)
 }

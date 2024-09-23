@@ -147,6 +147,11 @@ func (s *Store) DeleteChannelAndClearMessages(channelID string, channelType uint
 	return nil
 }
 
+// 搜索消息
+func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error) {
+	return s.wdb.SearchMessages(req)
+}
+
 // 获取频道的槽id
 func (s *Store) getChannelSlotId(channelId string) uint32 {
 	return wkutil.GetSlotNum(int(s.opts.SlotCount), channelId)

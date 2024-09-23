@@ -244,6 +244,12 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 				sendPacket := message.SendPacket
 
+				fromUid := message.FromUid
+				// 如果发送者是系统账号，则不显示发送者
+				if sendPacket.ChannelType == wkproto.ChannelTypePerson && fromUid == d.dm.s.opts.SystemUID {
+					fromUid = ""
+				}
+
 				recvPacket := &wkproto.RecvPacket{
 					Framer: wkproto.Framer{
 						RedDot:    sendPacket.GetRedDot(),
@@ -256,7 +262,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 					ClientMsgNo: sendPacket.ClientMsgNo,
 					StreamNo:    sendPacket.StreamNo,
 					StreamFlag:  wkproto.StreamFlagIng,
-					FromUID:     message.FromUid,
+					FromUID:     fromUid,
 					Expire:      sendPacket.Expire,
 					ChannelID:   sendPacket.ChannelID,
 					ChannelType: sendPacket.ChannelType,
