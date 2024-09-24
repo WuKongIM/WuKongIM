@@ -51,6 +51,9 @@ type Cluster interface {
 
 	// 等待集群准备好
 	MustWaitClusterReady()
+
+	// 等待所有槽准备好
+	MustWaitAllSlotsReady()
 	// Monitor 获取监控信息
 	// Monitor() IMonitor
 }
