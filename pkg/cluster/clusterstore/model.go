@@ -158,7 +158,7 @@ func (c CMDType) String() string {
 type CMD struct {
 	CmdType CMDType
 	Data    []byte
-	version uint16 // 数据协议版本
+	version CmdVersion // 数据协议版本
 
 }
 
@@ -169,11 +169,19 @@ func NewCMD(cmdType CMDType, data []byte) *CMD {
 	}
 }
 
+func NewCMDWithVersion(cmdType CMDType, data []byte, version CmdVersion) *CMD {
+	return &CMD{
+		CmdType: cmdType,
+		Data:    data,
+		version: version,
+	}
+}
+
 func (c *CMD) Marshal() ([]byte, error) {
 	c.version = 1
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint16(c.version)
+	enc.WriteUint16(c.version.Uint16())
 	enc.WriteUint16(c.CmdType.Uint16())
 	enc.WriteBytes(c.Data)
 	return enc.Bytes(), nil
@@ -183,9 +191,11 @@ func (c *CMD) Marshal() ([]byte, error) {
 func (c *CMD) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if c.version, err = dec.Uint16(); err != nil {
+	var version uint16
+	if version, err = dec.Uint16(); err != nil {
 		return err
 	}
+	c.version = CmdVersion(version)
 	var cmdType uint16
 	if cmdType, err = dec.Uint16(); err != nil {
 		return err
@@ -737,16 +747,84 @@ func (c *CMD) DecodeCMDUpdateMessageOfUserCursorIfNeed() (uid string, messageSeq
 }
 
 // EncodeChannelInfo EncodeChannelInfo
-func EncodeChannelInfo(channelInfo wkdb.ChannelInfo) ([]byte, error) {
+func EncodeChannelInfo(c wkdb.ChannelInfo, version CmdVersion) ([]byte, error) {
 
-	return channelInfo.Marshal()
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(c.ChannelId)
+	enc.WriteUint8(c.ChannelType)
+	enc.WriteUint8(wkutil.BoolToUint8(c.Ban))
+	enc.WriteUint8(wkutil.BoolToUint8(c.Large))
+	enc.WriteUint8(wkutil.BoolToUint8(c.Disband))
+	if c.CreatedAt != nil {
+		enc.WriteUint64(uint64(c.CreatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+	if c.UpdatedAt != nil {
+		enc.WriteUint64(uint64(c.UpdatedAt.UnixNano()))
+	} else {
+		enc.WriteUint64(0)
+	}
+	if version > 0 {
+		enc.WriteString(c.Webhook)
+	}
+	return enc.Bytes(), nil
 }
 
 // DecodeChannelInfo DecodeChannelInfo
 func (c *CMD) DecodeChannelInfo() (wkdb.ChannelInfo, error) {
-	channelInfo := &wkdb.ChannelInfo{}
-	err := channelInfo.Unmarshal(c.Data)
-	return *channelInfo, err
+	channelInfo := wkdb.ChannelInfo{}
+	dec := wkproto.NewDecoder(c.Data)
+
+	var err error
+	if channelInfo.ChannelId, err = dec.String(); err != nil {
+		return channelInfo, err
+	}
+	if channelInfo.ChannelType, err = dec.Uint8(); err != nil {
+		return channelInfo, err
+	}
+	var ban uint8
+	if ban, err = dec.Uint8(); err != nil {
+		return channelInfo, err
+	}
+	var large uint8
+	if large, err = dec.Uint8(); err != nil {
+		return channelInfo, err
+	}
+	var disband uint8
+	if disband, err = dec.Uint8(); err != nil {
+		return channelInfo, err
+	}
+
+	channelInfo.Ban = wkutil.Uint8ToBool(ban)
+	channelInfo.Large = wkutil.Uint8ToBool(large)
+	channelInfo.Disband = wkutil.Uint8ToBool(disband)
+
+	var createdAt uint64
+	if createdAt, err = dec.Uint64(); err != nil {
+		return channelInfo, err
+	}
+	if createdAt > 0 {
+		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+		channelInfo.CreatedAt = &ct
+	}
+	var updatedAt uint64
+	if updatedAt, err = dec.Uint64(); err != nil {
+		return channelInfo, err
+	}
+	if updatedAt > 0 {
+		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+		channelInfo.UpdatedAt = &ct
+	}
+
+	if c.version > 0 {
+		if channelInfo.Webhook, err = dec.String(); err != nil {
+			return channelInfo, err
+		}
+	}
+
+	return channelInfo, err
 }
 
 // EncodeCMDAddOrUpdateConversations EncodeCMDAddOrUpdateConversations

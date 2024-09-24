@@ -62,11 +62,11 @@ func (s *Store) GetSubscribers(channelID string, channelType uint8) ([]wkdb.Memb
 
 // AddOrUpdateChannel add or update channel
 func (s *Store) AddChannelInfo(channelInfo wkdb.ChannelInfo) error {
-	data, err := EncodeChannelInfo(channelInfo)
+	data, err := EncodeChannelInfo(channelInfo, CmdVersionChannelInfo)
 	if err != nil {
 		return err
 	}
-	cmd := NewCMD(CMDAddChannelInfo, data)
+	cmd := NewCMDWithVersion(CMDAddChannelInfo, data, CmdVersionChannelInfo)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
@@ -77,11 +77,11 @@ func (s *Store) AddChannelInfo(channelInfo wkdb.ChannelInfo) error {
 }
 
 func (s *Store) UpdateChannelInfo(channelInfo wkdb.ChannelInfo) error {
-	data, err := EncodeChannelInfo(channelInfo)
+	data, err := EncodeChannelInfo(channelInfo, CmdVersionChannelInfo)
 	if err != nil {
 		return err
 	}
-	cmd := NewCMD(CMDUpdateChannelInfo, data)
+	cmd := NewCMDWithVersion(CMDUpdateChannelInfo, data, CmdVersionChannelInfo)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err

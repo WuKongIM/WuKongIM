@@ -123,6 +123,7 @@ type ChannelInfo struct {
 	AllowlistCount  int        `json:"allowlist_count,omitempty"`  // 白名单数量
 	LastMsgSeq      uint64     `json:"last_msg_seq,omitempty"`     // 最新消息序号
 	LastMsgTime     uint64     `json:"last_msg_time,omitempty"`    // 最后一次消息时间
+	Webhook         string     `json:"webhook,omitempty"`          // webhook地址
 	CreatedAt       *time.Time `json:"created_at,omitempty"`       // 创建时间
 	UpdatedAt       *time.Time `json:"updated_at,omitempty"`       // 更新时间
 }
@@ -137,28 +138,6 @@ func NewChannelInfo(channelId string, channelType uint8) ChannelInfo {
 
 func IsEmptyChannelInfo(c ChannelInfo) bool {
 	return strings.TrimSpace(c.ChannelId) == ""
-}
-
-func (c *ChannelInfo) Marshal() ([]byte, error) {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-	enc.WriteString(c.ChannelId)
-	enc.WriteUint8(c.ChannelType)
-	enc.WriteUint8(wkutil.BoolToUint8(c.Ban))
-	enc.WriteUint8(wkutil.BoolToUint8(c.Large))
-	enc.WriteUint8(wkutil.BoolToUint8(c.Disband))
-	if c.CreatedAt != nil {
-		enc.WriteUint64(uint64(c.CreatedAt.UnixNano()))
-	} else {
-		enc.WriteUint64(0)
-	}
-	if c.UpdatedAt != nil {
-		enc.WriteUint64(uint64(c.UpdatedAt.UnixNano()))
-	} else {
-		enc.WriteUint64(0)
-	}
-
-	return enc.Bytes(), nil
 }
 
 func (c *ChannelInfo) Unmarshal(data []byte) error {
