@@ -21,12 +21,14 @@ const config = ref<any>({}); // 频道配置
 const channelId = ref<string>() // 接受频道id
 const channelType = ref<number>() // 频道类型
 
-const currentPage = ref<number>(1) // 当前页码
 const pageSize = ref<number>(20) // 每页数量
-
-const running = ref<boolean>(false) // 是否运行
+const currentPage = ref(1); // 当前页
 
 const replicas = ref<any>({}); // 副本
+const offsetCreatedAt = ref(0); // 偏移量
+const pre = ref<boolean>() // 是否向上分页
+const hasNext = ref<boolean>(true) // 是否有下一页
+const hasPrev = ref<boolean>(false) // 是否有上一页
 
 
 
@@ -44,6 +46,7 @@ onMounted(() => {
 })
 
 const onNodeChange = (e: any) => {
+    resetFilter()
     selectedNodeId.value = parseInt(e.target.value)
     loadNodeChannels()
 }
@@ -54,11 +57,16 @@ const loadNodeChannels = () => {
         channelId: channelId.value,
         channelType: channelType.value,
         nodeId: selectedNodeId.value,
-        currentPage: currentPage.value,
         limit: pageSize.value,
-        running: running.value,
+        offsetCreatedAt: offsetCreatedAt.value,
+        pre: pre.value
     }).then((res) => {
         channelTotal.value = res
+        hasNext.value = channelTotal.value?.more === 1
+        hasPrev.value = currentPage.value > 1
+        if (pre.value) { // 如果是向上翻页，则有下页数据
+            hasNext.value = true
+        }
     }).catch((err) => {
         alert(err)
     }).finally(() => {
@@ -68,10 +76,10 @@ const loadNodeChannels = () => {
 
 const onShowMigrateModal = (ch: any) => {
 
-    if(!App.shard().loginInfo.hasPermission('channelMigrate',ActionWrite)) {
+    if (!App.shard().loginInfo.hasPermission('channelMigrate', ActionWrite)) {
         alertNoPermission()
         return
-     }
+    }
 
     selectedChannel.value = ch;
     const migrateModal = document.getElementById('migrateModal') as HTMLDialogElement;
@@ -97,7 +105,11 @@ const onMigrate = () => {
 }
 
 const onChannelClusterConfig = (ch: any) => {
+
+    resetFilter()
+
     selectedChannel.value = ch;
+    
 
     API.shared.channelClusterConfig({
         channelId: selectedChannel.value.channel_id,
@@ -116,10 +128,10 @@ const onChannelClusterConfig = (ch: any) => {
 
 const onChannelStartOrStop = (ch: any) => {
 
-    if(!App.shard().loginInfo.hasPermission('channelStart',ActionWrite)) {
+    if (!App.shard().loginInfo.hasPermission('channelStart', ActionWrite)) {
         alertNoPermission()
         return
-     }
+    }
 
     const req = {
         channelId: ch.channel_id,
@@ -141,23 +153,41 @@ const onChannelStartOrStop = (ch: any) => {
     }
 }
 
-
-// 下一页
-const nextPage = () => {
-    if (channelTotal.value.data.length < pageSize.value) {
-        alert("没有更多数据了")
-        return
-    }
-    currentPage.value += 1
-    loadNodeChannels()
+const resetFilter = () => {
+    currentPage.value = 1
+    offsetCreatedAt.value = 0
+    pre.value = false
+    hasNext.value = true
+    hasPrev.value = false
 }
+
+
 
 // 上一页
 const prevPage = () => {
     if (currentPage.value <= 1) {
+        hasPrev.value = false
         return
     }
+    hasPrev.value = true
     currentPage.value -= 1
+    pre.value = true
+    if (channelTotal.value?.data?.length > 0) {
+        offsetCreatedAt.value = channelTotal.value.data[0].created_at
+    }
+    loadNodeChannels()
+}
+
+// 下一页
+const nextPage = () => {
+    if (channelTotal.value?.more === 0 && !pre.value) {
+        return
+    }
+    currentPage.value += 1
+    pre.value = false
+    if (channelTotal.value?.data?.length > 0) {
+        offsetCreatedAt.value = channelTotal.value.data[channelTotal.value.data.length - 1].created_at
+    }
     loadNodeChannels()
 }
 
@@ -259,7 +289,7 @@ const onMessage = (ch: any) => {
                         <th>所属槽</th>
                         <th>槽领导</th>
                         <th>频道领导</th>
-                       
+
                         <th>任期</th>
                         <th>副本节点</th>
                         <th>消息高度</th>
@@ -278,7 +308,10 @@ const onMessage = (ch: any) => {
                         <td>{{ channel.slot_leader_id }}</td>
                         <td>{{ channel.leader_id }}</td>
                         <td>{{ channel.term }}</td>
-                        <td>{{ channel.replicas }}&nbsp;&nbsp;<label class="text-red-500" v-if="channel.migrate_from!=0">[{{channel.migrate_from}} 迁移至 {{channel.migrate_to}} ]</label></td>
+                        <td>{{ channel.replicas }}&nbsp;&nbsp;<label class="text-red-500"
+                                v-if="channel.migrate_from != 0">[{{ channel.migrate_from }} 迁移至 {{ channel.migrate_to
+                                }}
+                                ]</label></td>
                         <td>{{ channel.last_message_seq }}</td>
                         <td>{{ channel.last_append_time }}</td>
                         <td :class="channel.active == 1 ? 'text-green-500' : 'text-red-500'">{{ channel.active_format }}
@@ -317,9 +350,11 @@ const onMessage = (ch: any) => {
 
             <div class="flex">
                 <div className="join">
-                    <button className="join-item btn" v-on:click="prevPage">«</button>
+                    <button :class="{ 'join-item btn': true, 'btn-disabled': !hasPrev }"
+                        v-on:click="prevPage">«</button>
                     <button className="join-item btn">{{ currentPage }}</button>
-                    <button className="join-item btn" v-on:click="nextPage">»</button>
+                    <button :class="{ 'join-item btn': true, 'btn-disabled': !hasNext }"
+                        v-on:click="nextPage">»</button>
                 </div>
             </div>
         </div>
@@ -367,11 +402,12 @@ const onMessage = (ch: any) => {
                         </thead>
                         <tbody>
                             <tr v-for="replica in replicas">
-                                <td>{{replica.replica_id}}</td>
-                                <td>{{replica.role_format}}</td>
-                                <td>{{replica.last_msg_seq}}</td>
-                                <td>{{replica.last_msg_time_format}}</td>
-                                <td :class="replica.running == 1 ? 'text-green-500' : 'text-red-500'">{{replica.running==1?'运行中':'未运行'}}</td>
+                                <td>{{ replica.replica_id }}</td>
+                                <td>{{ replica.role_format }}</td>
+                                <td>{{ replica.last_msg_seq }}</td>
+                                <td>{{ replica.last_msg_time_format }}</td>
+                                <td :class="replica.running == 1 ? 'text-green-500' : 'text-red-500'">
+                                    {{ replica.running == 1 ? '运行中' : '未运行' }}</td>
                             </tr>
                         </tbody>
                     </table>
