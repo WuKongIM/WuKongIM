@@ -863,6 +863,59 @@ type ChannelClusterConfigResp struct {
 	StatusFormat      string                    `json:"status_format"`       // 状态格式化
 	MigrateFrom       uint64                    `json:"migrate_from"`        // 迁移来源
 	MigrateTo         uint64                    `json:"migrate_to"`          // 迁移目标
+	CreatedAt         int64                     `json:"created_at"`          // 创建时间
+	UpdatedAt         int64                     `json:"updated_at"`          // 更新时间
+	CreatedAtFormat   string                    `json:"created_at_format"`   // 创建时间格式化
+	UpdatedAtFormat   string                    `json:"updated_at_format"`   // 更新时间格式化
+}
+
+func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg wkdb.ChannelClusterConfig) *ChannelClusterConfigResp {
+
+	channelTypeFormat := formatChannelType(cfg.ChannelType)
+
+	statusFormat := ""
+	if cfg.Status == wkdb.ChannelClusterStatusNormal {
+		statusFormat = "正常"
+	} else if cfg.Status == wkdb.ChannelClusterStatusCandidate {
+		statusFormat = "选举中"
+	} else {
+		statusFormat = fmt.Sprintf("未知(%d)", cfg.Status)
+	}
+
+	createdAt := int64(0)
+	createdAtFormat := ""
+	updatedAtFormat := ""
+
+	if cfg.CreatedAt != nil {
+		createdAt = cfg.CreatedAt.UnixNano()
+		createdAtFormat = wkutil.ToyyyyMMddHHmmss(*cfg.CreatedAt)
+	}
+
+	updatedAt := int64(0)
+	if cfg.UpdatedAt != nil {
+		updatedAt = cfg.UpdatedAt.UnixNano()
+		updatedAtFormat = wkutil.ToyyyyMMddHHmmss(*cfg.UpdatedAt)
+	}
+
+	return &ChannelClusterConfigResp{
+		ChannelId:         cfg.ChannelId,
+		ChannelType:       cfg.ChannelType,
+		ChannelTypeFormat: channelTypeFormat,
+		ReplicaCount:      cfg.ReplicaMaxCount,
+		Replicas:          cfg.Replicas,
+		LeaderId:          cfg.LeaderId,
+		Term:              cfg.Term,
+		SlotId:            slotId,
+		SlotLeaderId:      slotLeaderId,
+		Status:            cfg.Status,
+		StatusFormat:      statusFormat,
+		MigrateTo:         cfg.MigrateTo,
+		MigrateFrom:       cfg.MigrateFrom,
+		CreatedAt:         createdAt,
+		UpdatedAt:         updatedAt,
+		CreatedAtFormat:   createdAtFormat,
+		UpdatedAtFormat:   updatedAtFormat,
+	}
 }
 
 func formatChannelType(channelType uint8) string {
@@ -884,35 +937,6 @@ func formatChannelType(channelType uint8) string {
 		channelTypeFormat = fmt.Sprintf("未知(%d)", channelType)
 	}
 	return channelTypeFormat
-}
-
-func NewChannelClusterConfigRespFromClusterConfig(slotLeaderId uint64, slotId uint32, cfg wkdb.ChannelClusterConfig) *ChannelClusterConfigResp {
-
-	channelTypeFormat := formatChannelType(cfg.ChannelType)
-
-	statusFormat := ""
-	if cfg.Status == wkdb.ChannelClusterStatusNormal {
-		statusFormat = "正常"
-	} else if cfg.Status == wkdb.ChannelClusterStatusCandidate {
-		statusFormat = "选举中"
-	} else {
-		statusFormat = fmt.Sprintf("未知(%d)", cfg.Status)
-	}
-	return &ChannelClusterConfigResp{
-		ChannelId:         cfg.ChannelId,
-		ChannelType:       cfg.ChannelType,
-		ChannelTypeFormat: channelTypeFormat,
-		ReplicaCount:      cfg.ReplicaMaxCount,
-		Replicas:          cfg.Replicas,
-		LeaderId:          cfg.LeaderId,
-		Term:              cfg.Term,
-		SlotId:            slotId,
-		SlotLeaderId:      slotLeaderId,
-		Status:            cfg.Status,
-		StatusFormat:      statusFormat,
-		MigrateTo:         cfg.MigrateTo,
-		MigrateFrom:       cfg.MigrateFrom,
-	}
 }
 
 type SlotResp struct {

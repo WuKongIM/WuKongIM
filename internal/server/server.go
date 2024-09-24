@@ -400,12 +400,10 @@ func (s *Server) onData(conn wknet.Conn) error {
 		}
 	}
 
-	fmt.Println("onData--buff:", buff)
 	data, _ := gnetUnpacket(buff)
 	if len(data) == 0 {
 		return nil
 	}
-	fmt.Println("onData--buff-data:", data)
 
 	var isAuth bool
 	var connCtx *connContext
@@ -545,7 +543,6 @@ func gnetUnpacket(buff []byte) ([]byte, error) {
 	for len(buff) > offset {
 		typeAndFlags := buff[offset]
 		packetType := wkproto.FrameType(typeAndFlags >> 4)
-		fmt.Println("typeAndFlags---->", typeAndFlags, packetType)
 		if packetType == wkproto.PING || packetType == wkproto.PONG {
 			offset++
 			continue

@@ -49,17 +49,17 @@ export default class API {
         nodeId: number
         channelId?: string
         channelType?: number
-        running?: boolean
-        currentPage?: number
+        offsetCreatedAt?: number
         limit?: number
+        pre ?: boolean
     }): Promise<any> {
         return APIClient.shared.get(`/cluster/nodes/${req.nodeId}/channels`, {
             param: {
                 channel_id: req.channelId,
                 channel_type: req.channelType,
-                running: req.running ? 1 : 0,
-                current_page: req.currentPage || 1,
-                limit: req.limit
+                limit: req.limit,
+                offset_created_at: req.offsetCreatedAt || 0,
+                pre: req.pre ? 1 : 0,
             }
         })
     }

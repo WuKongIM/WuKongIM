@@ -520,7 +520,6 @@ func (u *userHandler) hasMasterDevice() bool {
 }
 
 func (u *userHandler) close() error {
-	fmt.Println("close user-->", u.uid)
 	return u.sub.stepWait(u.uid, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 }
 

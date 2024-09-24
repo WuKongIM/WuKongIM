@@ -1140,7 +1140,6 @@ func (r *userReactor) processCloseLoop() {
 
 func (r *userReactor) processClose(req *userCloseReq) {
 
-	fmt.Println("processClose----->")
 	if req.role == userRoleLeader {
 		r.s.trace.Metrics.App().OnlineUserCountAdd(-1) //用户下线
 	}
