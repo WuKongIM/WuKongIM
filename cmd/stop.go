@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/spf13/cobra"
 )
 
@@ -29,16 +29,19 @@ func (s *stopCMD) CMD() *cobra.Command {
 }
 
 func (s *stopCMD) run(cmd *cobra.Command, args []string) error {
-	strb, _ := os.ReadFile(path.Join(installDir, pidfile))
-	command := exec.Command("kill", string(strb))
-	err := command.Start()
+	strb, _ := os.ReadFile(path.Join(".", pidfile))
+
+	pid := wkutil.ParseInt(string(strb))
+	process, err := os.FindProcess(pid)
 	if err != nil {
-		fmt.Println("Error: ", err)
 		return err
 	}
-	err = command.Wait()
+	if process == nil {
+		return nil
+	}
+
+	err = process.Kill()
 	if err != nil {
-		fmt.Println("Error: ", err)
 		return err
 	}
 	fmt.Println("WuKongIM server stopped")

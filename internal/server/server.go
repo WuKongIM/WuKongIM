@@ -361,6 +361,10 @@ func (s *Server) MustWaitClusterReady() {
 	s.cluster.MustWaitClusterReady()
 }
 
+func (s *Server) MustWaitAllSlotsReady() {
+	s.cluster.MustWaitAllSlotsReady()
+}
+
 // 提案频道分布式
 func (s *Server) ProposeChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
 	return s.clusterServer.ProposeChannelClusterConfig(ctx, cfg)
