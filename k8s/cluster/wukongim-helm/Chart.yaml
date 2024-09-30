@@ -1,0 +1,22 @@
+apiVersion: v2
+name: wukongim
+version: 0.1.0
+
+# kubeVersion: ">=1.8.0"
+description: WukongIM 集群服务的 Helm Chart
+type: application
+keywords:
+  - 悟空IM（让信息传递更简单）
+  - IM（即时通讯）
+  - 集群（高可用）
+  - Helm Chart（Kubernetes）
+  - WukongIM
+home: githubim.com）
+sources:
+  - https://github.com/WuKongIM/WuKongIM
+
+maintainers:
+  - name: vera-byte
+    email: forget@mlvw.team
+    url: https://github.com/vera-byte
+appVersion: "v2.0.1-beta-20240715"
