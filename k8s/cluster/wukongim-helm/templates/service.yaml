@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    k8s.kuboard.cn/name: helm-wukongim
+  name: helm-wukongim
+  namespace: mloss
+spec:
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  # 暴露的端口
+  ports:
+    - name: ws
+      port: 5200
+      protocol: TCP
+      targetPort: 5200
+    - name: tcp
+      port: 5100
+      protocol: TCP
+      targetPort: 5100
+    - name: monitor
+      port: 5300
+      protocol: TCP
+      targetPort: 5300
+    - name: api
+      port: 5001
+      protocol: TCP
+      targetPort: 5001
+    - name: demo
+      port: 5172
+      protocol: TCP
+      targetPort: 5172
+    # - name: nc
+    #   port: 11110
+    #   targetPort: 11110
+  publishNotReadyAddresses: true
+  selector:
+    app: wukongim
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}

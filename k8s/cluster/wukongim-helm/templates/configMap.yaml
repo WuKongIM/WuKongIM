@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: mloss
+data:
+  initnodes: "" # 预留字段，初始化容器会自动填充该值
