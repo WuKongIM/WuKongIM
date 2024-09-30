@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: helm-wukongim
+  namespace: {{ .Values.namespace }}
+spec:
+  serviceName: {{ .Values.serviceName }}
+  replicas: {{ int .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: wukongim
+  template:
+    metadata:
+      labels:
+        app: wukongim
+    spec:
+      containers:
+        - name: wukoingim
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          env:
+            # 动态获取节点IP，设置WK_CLUSTER_SERVERADDR
+            - name: WK_CLUSTER_SERVERADDR_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_IP
+              value: "$(WK_CLUSTER_SERVERADDR_IP)"
+            - name: WK_CLUSTER_SERVERADDR
+              value: "$(WK_CLUSTER_SERVERADDR_IP):11110"
+            - name: WK_EXTERNAL_TCPADDR
+              value: "ws://{{ .Values.externalIP }}:5100"
+            - name: WK_EXTERNAL_WSADDR
+              value: "ws://{{ .Values.externalIP }}:5200"
+            # StatefulSet 的 Pod 名字会自动带有唯一的索引，使用该索引作为节点ID
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          command:
+              - /bin/sh
+              - -c
+              - |
+                # 提取 POD_NAME 中的最后一部分（数字）
+                echo "当前节点名称 is: ${POD_NAME}+1"
+                NODE_ID=$(echo "${POD_NAME##*-}")
+                NEW_NODE_ID=$((NODE_ID + 1))
+                export WK_CLUSTER_NODEID="${NEW_NODE_ID}"
+                echo "Node ID is: ${WK_CLUSTER_NODEID}"
+                echo "WK_CLUSTER_SERVERADDR is: ${WK_CLUSTER_SERVERADDR}"
+                export WK_CLUSTER_APIURL="http://${WK_CLUSTER_SERVERADDR_IP}:5001"
+                echo "WK_CLUSTER_APIURL is: ${WK_CLUSTER_APIURL}"
+                echo "WK_EXTERNAL_TCPADDR is: ${WK_EXTERNAL_TCPADDR}"
+                echo "WK_EXTERNAL_WSADDR is: ${WK_EXTERNAL_WSADDR}"
+                
+                if [ "$NEW_NODE_ID" -gt 1 ]; then
+                    export "WK_CLUSTER_SEED=1@helm-wukongim-0.helm-wukongim-headless.mloss.svc.cluster.local:11110"
+                    echo "当前种子节点 is: WK_CLUSTER_SEED is: ${WK_CLUSTER_SEED}"
+                else
+                    echo "WK_CLUSTER_SEED 该节点为根节点 无需设置种子节点"
+                fi
+                # 启动
+                exec /home/app --config=/root/wukongim/wk.yaml --ignoreMissingConfig=true

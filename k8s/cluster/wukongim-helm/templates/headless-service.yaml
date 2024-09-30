@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    k8s.kuboard.cn/name: helm-wukongim
+  name: helm-wukongim-headless
+  namespace: mloss
+spec:
+  ports:
+    - name: nc
+      port: 11110
+      targetPort: 11110
+  publishNotReadyAddresses: true
+  selector:
+    app: wukongim
+  clusterIP: None # 设置为无头服务

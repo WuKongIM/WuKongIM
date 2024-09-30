@@ -1,0 +1,21 @@
+# WukongIM镜像
+image:
+  repository: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim
+  tag: v2.0.4-beta-20240904
+
+# 副本数量
+replicaCount: 2
+
+# 外部IP
+externalIP: 115.29.205.135
+
+# 命名空间
+namespace: wukongim
+# 服务名称
+serviceName: helm-wukongim-headless
+# 管理后台域名
+adminDomain: admin.test.com
+# 管理后台端口
+demoDomain: demo.test.com
+# websocketDomain
+websocketDomain: ws.test.com
