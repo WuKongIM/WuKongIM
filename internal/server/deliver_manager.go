@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -242,6 +244,8 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 				d.Debug("deliver message to user", zap.Int64("messageId", message.MessageId), zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId), zap.Uint8("deviceFlag", uint8(conn.deviceFlag)), zap.Uint8("deviceLevel", uint8(conn.deviceLevel)), zap.Int64("connId", conn.connId), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
 
+				_, span := trace.GlobalTrace.StartSpan(message.ctx, "deliverMessage")
+
 				sendPacket := message.SendPacket
 
 				fromUid := message.FromUid
@@ -282,10 +286,18 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 					recvPacket.RedDot = false
 				}
 
+				span.SetString("fromUid", fromUid)
+				span.SetString("toUid", conn.uid)
+				span.SetString("toDeviceId", conn.deviceId)
+				span.SetString("toDeviceFlag", conn.deviceFlag.String())
+				span.SetString("toDeviceLevel", conn.deviceLevel.String())
+
 				// payload内容加密
 				payloadEnc, err := encryptMessagePayload(recvPacket.Payload, conn)
 				if err != nil {
 					d.Error("加密payload失败！", zap.Error(err))
+					span.RecordError(err)
+					span.End()
 					continue
 				}
 				recvPacket.Payload = payloadEnc
@@ -295,12 +307,16 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				msgKey, err := makeMsgKey(signStr, conn)
 				if err != nil {
 					d.Error("生成MsgKey失败！", zap.Error(err))
+					span.RecordError(err)
+					span.End()
 					continue
 				}
 				recvPacket.MsgKey = msgKey
 
 				recvPacketData, err := d.dm.s.opts.Proto.EncodeFrame(recvPacket, conn.protoVersion)
 				if err != nil {
+					span.RecordError(err)
+					span.End()
 					d.Error("encode recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
 					continue
 				}
@@ -318,18 +334,29 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				// d.Info("deliverr recvPacket", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
 				err = conn.write(recvPacketData, wkproto.RECV)
 				if err != nil {
+					span.RecordError(err)
 					d.Error("write recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
 					if !conn.isClosed() {
 						conn.close() // 写入不进去就关闭连接，这样客户端会获取离线的，如果不关闭，会导致丢消息的假象
 					}
 				}
+				span.End()
 			}
 		}
 
 	}
 
+	if d.dm.s.opts.TraceOn() {
+		for _, message := range req.messages {
+			span := trace.SpanFromContext(message.ctx)
+			span.SetString("offlineUsers", strings.Join(offlineUids, ","))
+			span.End()
+		}
+	}
+
 	if len(offlineUids) > 0 { // 有离线用户，发送webhook
 		for _, message := range req.messages {
+
 			d.dm.s.webhook.notifyOfflineMsg(message, offlineUids)
 		}
 	}

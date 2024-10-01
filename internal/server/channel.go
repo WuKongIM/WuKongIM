@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -339,12 +340,13 @@ func (c *channel) tickProxy() {
 
 }
 
-func (c *channel) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
+func (c *channel) proposeSend(ctx context.Context, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
 
 	c.sendTick = 0
 
 	messageId := c.r.messageIDGen.Generate().Int64() // 生成唯一消息ID
 	message := ReactorChannelMessage{
+		ctx:          ctx,
 		FromConnId:   fromConnId,
 		FromUid:      fromUid,
 		FromDeviceId: fromDeviceId,

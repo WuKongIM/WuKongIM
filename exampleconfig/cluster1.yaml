@@ -6,6 +6,8 @@ rootDir: "./wukongimdata/1"
 pprofOn: false
 tokenAuthOn: false
 # whitelistOffOfPerson: false
+trace: # 数据追踪
+  endpoint: "127.0.0.1:4318" # jaeger数据追踪地址
 manager:
   on: true
   addr: "0.0.0.0:5300"
