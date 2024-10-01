@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 )
@@ -104,50 +103,37 @@ func (ap AddressFamilyAndProtocol) toByte() byte {
 }
 
 // 解析代理协议 如果是代理协议则解析出真实的地址（如果通过反向代理并开启了代理协议，需要从代理协议里获取到连接的真实ip）
-func parseProxyProto(conn wknet.Conn) (remoteAddr net.Addr, err error) {
+func parseProxyProto(buff []byte) (remoteAddr net.Addr, size int, err error) {
 
-	dataLen := conn.InboundBuffer().BoundBufferSize()
+	dataLen := len(buff)
 
 	if dataLen <= 5 {
-		return nil, ErrNoProxyProtocol
+		fmt.Println("proxyproto: dataLen <= 5")
+		return nil, 0, ErrNoProxyProtocol
 	}
 
-	b1, err := conn.Peek(1)
-	if err != nil {
-		if err == io.EOF {
-			return nil, ErrNoProxyProtocol
-		}
-		return nil, err
-	}
+	b1 := buff[:1]
 
 	if bytes.Equal(b1[:1], SIGV1[:1]) || bytes.Equal(b1[:1], SIGV2[:1]) {
-		signature, err := conn.Peek(5)
-		if err != nil {
-			if err == io.EOF {
-				return nil, ErrNoProxyProtocol
-			}
-			return nil, err
-		}
+		signature := buff[:5]
 		if bytes.Equal(signature[:5], SIGV1) {
-			return parseProxyProtoV1(conn)
+			fmt.Println("proxyproto: proxy protocol v1")
+			return parseProxyProtoV1(buff)
 		}
 
-		signature, err = conn.Peek(12)
-		if err != nil {
-			if err == io.EOF {
-				return nil, ErrNoProxyProtocol
-			}
-			return nil, err
-		}
+		signature = buff[:12]
 		if bytes.Equal(signature[:12], SIGV2) {
-			return parseProxyProtoV2(conn)
+			fmt.Println("proxyproto: proxy protocol v2")
+			return parseProxyProtoV2(buff)
 		}
 	}
 
-	return nil, ErrNoProxyProtocol
+	fmt.Println("proxyproto: signature not present")
+
+	return nil, 0, ErrNoProxyProtocol
 }
 
-func parseProxyProtoV1(conn wknet.Conn) (remoteAddr net.Addr, err error) {
+func parseProxyProtoV1(data []byte) (remoteAddr net.Addr, size int, err error) {
 	//The header cannot be more than 107 bytes long. Per spec:
 	//
 	//   (...)
@@ -161,25 +147,17 @@ func parseProxyProtoV1(conn wknet.Conn) (remoteAddr net.Addr, err error) {
 	// It must also be CRLF terminated, as above. The header does not otherwise
 	// contain a CR or LF byte.
 
-	data, err := conn.Peek(-1)
-	if err != nil {
-		return nil, fmt.Errorf(ErrCantReadVersion1Header.Error()+": %v", err)
-	}
-	if data == nil {
-		return nil, ErrNoProxyProtocol
-	}
-
 	buffArray := bytes.Split(data, []byte{'\n'})
 	buf := buffArray[0]
 
 	if len(buf) >= 107 {
 		// No delimiter in first 107 bytes
-		return nil, ErrVersion1HeaderTooLong
+		return nil, 0, ErrVersion1HeaderTooLong
 	}
 
 	// Check for CR before LF.
 	if len(buf) < 1 || buf[len(buf)-1] != '\r' {
-		return nil, ErrLineMustEndWithCrlf
+		return nil, 0, ErrLineMustEndWithCrlf
 	}
 
 	// Check full signature.
@@ -187,7 +165,7 @@ func parseProxyProtoV1(conn wknet.Conn) (remoteAddr net.Addr, err error) {
 
 	// Expect at least 2 tokens: "PROXY" and the transport protocol.
 	if len(tokens) < 2 {
-		return nil, ErrCantReadAddressFamilyAndProtocol
+		return nil, 0, ErrCantReadAddressFamilyAndProtocol
 	}
 
 	// Read address family and protocol
@@ -200,34 +178,29 @@ func parseProxyProtoV1(conn wknet.Conn) (remoteAddr net.Addr, err error) {
 	case "UNKNOWN":
 		transportProtocol = UNSPEC // doesn't exist in v1 but fits UNKNOWN
 	default:
-		return nil, ErrCantReadAddressFamilyAndProtocol
+		return nil, 0, ErrCantReadAddressFamilyAndProtocol
 	}
 
 	// Expect 6 tokens only when UNKNOWN is not present.
 	if transportProtocol != UNSPEC && len(tokens) < 6 {
-		return nil, ErrCantReadAddressFamilyAndProtocol
+		return nil, 0, ErrCantReadAddressFamilyAndProtocol
 	}
 
 	// Otherwise, continue to read addresses and ports
 	sourceIP, err := parseV1IPAddress(transportProtocol, tokens[2])
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	sourcePort, err := parseV1PortNumber(tokens[4])
 	if err != nil {
-		return nil, err
-	}
-
-	_, err = conn.Discard(len(buf) + 1)
-	if err != nil {
-		fmt.Printf("proxyproto: failed to discard header: %v \n", err)
+		return nil, 0, err
 	}
 
 	return &net.TCPAddr{
 		IP:   sourceIP,
 		Port: sourcePort,
-	}, nil
+	}, len(buf) + 1, nil
 }
 
 func parseV1IPAddress(protocol AddressFamilyAndProtocol, addrStr string) (net.IP, error) {
@@ -258,9 +231,8 @@ func parseV1PortNumber(portStr string) (int, error) {
 	return port, nil
 }
 
-func parseProxyProtoV2(conn wknet.Conn) (remoteAddr net.Addr, err error) {
+func parseProxyProtoV2(buff []byte) (remoteAddr net.Addr, size int, err error) {
 
-	buff, _ := conn.Peek(-1)
 	decoder := wkproto.NewDecoder(buff)
 
 	// Skip first 12 bytes (signature)
@@ -272,7 +244,7 @@ func parseProxyProtoV2(conn wknet.Conn) (remoteAddr net.Addr, err error) {
 	// Read the 14th byte, address family and protocol
 	addrFamilyProto, err := decoder.Bytes(1)
 	if err != nil {
-		return nil, ErrCantReadAddressFamilyAndProtocol
+		return nil, 0, ErrCantReadAddressFamilyAndProtocol
 	}
 
 	addressFamilyAndProtocol := AddressFamilyAndProtocol(addrFamilyProto[0])
@@ -280,51 +252,51 @@ func parseProxyProtoV2(conn wknet.Conn) (remoteAddr net.Addr, err error) {
 	// Make sure there are bytes available as specified in length
 	length, err := decoder.Uint16()
 	if err != nil {
-		return nil, ErrCantReadLength
+		return nil, 0, ErrCantReadLength
 	}
 
 	if !validateProxyProtoLength(addressFamilyAndProtocol, length) {
-		return nil, ErrInvalidLength
+		return nil, 0, ErrInvalidLength
 	}
 
 	// Return early if the length is zero, which means that
 	// there's no address information and TLVs present for UNSPEC.
 	if length == 0 {
-		return nil, ErrInvalidLength
+		return nil, 0, ErrInvalidLength
 	}
 
 	payload, err := decoder.Bytes(int(length))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	payloadReader := io.LimitReader(bytes.NewReader(payload), int64(length)).(*io.LimitedReader)
 
-	_, _ = conn.Discard(12 + 1 + 1 + 2 + int(length))
+	size = 12 + 1 + 1 + 2 + int(length)
 
 	if addressFamilyAndProtocol != UNSPEC {
 		if addressFamilyAndProtocol.IsIPv4() {
 			var addr _addr4
 			if err := binary.Read(payloadReader, binary.BigEndian, &addr); err != nil {
-				return nil, ErrInvalidAddress
+				return nil, 0, ErrInvalidAddress
 			}
 			return &net.TCPAddr{
 				IP:   net.IP(addr.Src[:]),
 				Port: int(addr.SrcPort),
-			}, nil
+			}, size, nil
 		} else if addressFamilyAndProtocol.IsIPv6() {
 			var addr _addr6
 			if err := binary.Read(payloadReader, binary.BigEndian, &addr); err != nil {
-				return nil, ErrInvalidAddress
+				return nil, 0, ErrInvalidAddress
 			}
 			return &net.TCPAddr{
 				IP:   net.IP(addr.Src[:]),
 				Port: int(addr.SrcPort),
-			}, nil
+			}, size, nil
 		} else if addressFamilyAndProtocol.IsUnix() {
 			var addr _addrUnix
 			if err := binary.Read(payloadReader, binary.BigEndian, &addr); err != nil {
-				return nil, ErrInvalidAddress
+				return nil, 0, ErrInvalidAddress
 			}
 			network := "unix"
 			if addressFamilyAndProtocol.IsDatagram() {
@@ -333,11 +305,11 @@ func parseProxyProtoV2(conn wknet.Conn) (remoteAddr net.Addr, err error) {
 			return &net.UnixAddr{
 				Net:  network,
 				Name: parseUnixName(addr.Src[:]),
-			}, nil
+			}, size, nil
 		}
 	}
 
-	return nil, nil
+	return nil, size, nil
 }
 
 func validateProxyProtoLength(transportProtocol AddressFamilyAndProtocol, length uint16) bool {

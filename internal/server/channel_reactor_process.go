@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -98,10 +99,18 @@ func (r *channelReactor) processPayloadDecryptLoop() {
 func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 
 	for i, msg := range req.messages {
-		if !msg.IsEncrypt || msg.FromConnId == 0 { // 没有加密，直接跳过,没有连接id解密不了，也直接跳过
-			r.Debug("msg is not encrypt or fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
+
+		// 没有连接id解密不了（没有连接id，说明发送者的连接突然断开了，那么这条消息也没办法解密）
+		if msg.FromConnId == 0 {
+			r.Warn("msg fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
 			continue
 		}
+
+		if !msg.IsEncrypt { // 没有加密(系统api发的消息和其他节点转发过来的消息都是未加密的，所以不需要再进行解密操作了)，直接跳过解密过程
+			continue
+		}
+
+		_, span := trace.GlobalTrace.StartSpan(msg.ctx, "processPayloadDecrypt")
 
 		r.Debug("decrypt payload", zap.Int64("messageId", msg.MessageId), zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
 
@@ -111,6 +120,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 		if conn != nil {
 			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
 			if err != nil {
+				span.RecordError(err)
 				r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))
 			}
 		}
@@ -118,8 +128,11 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 			msg.SendPacket.Payload = decryptPayload
 			msg.IsEncrypt = false
 			req.messages[i] = msg
+			span.SetBool("decryptSuccess", true)
 		}
+		span.End()
 	}
+
 	sub := r.reactorSub(req.ch.key)
 	sub.step(req.ch, &ChannelAction{
 		Reason:     ReasonSuccess,
@@ -187,7 +200,7 @@ func (r *channelReactor) processForward(reqs []*forwardReq) {
 	for _, req := range reqs {
 
 		var newLeaderId uint64
-		if !r.s.clusterServer.NodeIsOnline(req.leaderId) { // 如果领导不在线
+		if !r.s.clusterServer.NodeIsOnline(req.leaderId) { // 如果领导不在线,重新获取领导
 			timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*1) // 需要快速返回，这样会进行下次重试，如果超时时间太长，会阻塞导致下次重试间隔太长
 			defer cancel()
 			newLeaderId, err = r.s.cluster.LeaderIdOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
@@ -203,9 +216,23 @@ func (r *channelReactor) processForward(reqs []*forwardReq) {
 			} else {
 				r.Debug("forward to leader", zap.Uint64("leaderId", req.leaderId), zap.Int("msgCount", len(req.messages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			}
+
+			spans := make([]trace.Span, 0, len(req.messages))
+			for _, msg := range req.messages {
+				_, span := trace.GlobalTrace.StartSpan(msg.ctx, "processForward")
+				span.SetUint64("leaderId", req.leaderId)
+				spans = append(spans, span)
+			}
+
 			newLeaderId, err = r.handleForward(req)
 			if err != nil {
 				r.Warn("handleForward error", zap.Error(err))
+			}
+			for _, span := range spans {
+				if err != nil {
+					span.RecordError(err)
+				}
+				span.End()
 			}
 		}
 
@@ -332,18 +359,22 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 	sub := r.reactorSub(req.ch.key)
 	for i, msg := range req.messages {
 
-		if msg.IsSystem { // 如果是系统发的消息，直接通过
-			req.messages[i].ReasonCode = wkproto.ReasonSuccess
-			continue
-		}
-
 		if msg.ReasonCode != wkproto.ReasonSuccess {
 			r.Debug("msg reasonCode is not success, no permission check", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			continue
 		}
 
+		_, span := trace.GlobalTrace.StartSpan(msg.ctx, "processPermission")
+
+		if msg.IsSystem { // 如果是系统发的消息，直接通过
+			req.messages[i].ReasonCode = wkproto.ReasonSuccess
+			span.End()
+			continue
+		}
+
 		if _, ok := fromUidMap[msg.FromUid]; ok { // 已经判断过权限
 			req.messages[i].ReasonCode = fromUidMap[msg.FromUid]
+			span.End()
 			continue
 		}
 
@@ -354,15 +385,19 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 			r.Error("hasPermission error", zap.Error(err))
 			req.messages[i].ReasonCode = wkproto.ReasonSystemError
 			fromUidMap[msg.FromUid] = wkproto.ReasonSystemError
+			span.RecordError(err)
+			span.End()
 			continue
 		}
 
+		span.SetString("reasonCode", reasonCode.String())
 		if reasonCode != wkproto.ReasonSuccess {
 			r.Debug("permission check failed", zap.Int64("messageId", msg.MessageId), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType), zap.String("reasonCode", reasonCode.String()))
 		}
 
 		req.messages[i].ReasonCode = reasonCode
 		fromUidMap[msg.FromUid] = reasonCode
+		span.End()
 	}
 	// 返回成功
 	lastMsg := req.messages[len(req.messages)-1]
@@ -588,7 +623,8 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 
 	for _, req := range reqs {
 		messages := make([]wkdb.Message, 0, len(req.messages))
-
+		sotreMessages := make([]wkdb.Message, 0, len(messages))
+		spans := make([]trace.Span, 0, len(messages))
 		// 将reactorChannelMessage转换为wkdb.Message
 		for _, reactorMsg := range req.messages {
 
@@ -620,11 +656,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 				},
 			}
 			messages = append(messages, msg)
-		}
 
-		sotreMessages := make([]wkdb.Message, 0, 1024)
-		for i, msg := range messages {
-			reactorMsg := req.messages[i]
 			if reactorMsg.IsEncrypt {
 				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(msg.MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 				continue
@@ -633,6 +665,9 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 				continue
 			}
 			sotreMessages = append(sotreMessages, msg)
+
+			_, span := trace.GlobalTrace.StartSpan(reactorMsg.ctx, "storeMessages")
+			spans = append(spans, span)
 		}
 
 		reason := ReasonSuccess
@@ -652,6 +687,15 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 			} else {
 				reason = ReasonSuccess
 			}
+
+			for _, span := range spans {
+				span.SetInt("msgCount", len(sotreMessages))
+				if err != nil {
+					span.RecordError(err)
+				}
+				span.End()
+			}
+
 			if len(results) > 0 {
 				for _, result := range results {
 					msgLen := len(req.messages)
@@ -671,6 +715,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 		}
 
 		if r.opts.WebhookOn() {
+			// 赋值messageeq
 			for i, msg := range messages {
 				for _, cmsg := range req.messages {
 					if msg.MessageID == cmsg.MessageId {
@@ -680,12 +725,29 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 					}
 				}
 			}
+
+			notifyQueueSpans := make([]trace.Span, 0, len(messages))
+			for _, msg := range messages {
+				for _, reactorMsg := range req.messages {
+					if msg.MessageID == reactorMsg.MessageId {
+						_, span := trace.GlobalTrace.StartSpan(reactorMsg.ctx, "storeNotify")
+						notifyQueueSpans = append(notifyQueueSpans, span)
+						break
+					}
+				}
+			}
+
 			// 将消息存储到webhook的推送队列内
 			err := r.s.store.AppendMessageOfNotifyQueue(messages)
 			if err != nil {
 				r.Error("AppendMessageOfNotifyQueue error", zap.Error(err))
-				r.respStoreResult(req, ReasonError)
-				return
+				reason = ReasonError
+			}
+			for _, span := range notifyQueueSpans {
+				if err != nil {
+					span.RecordError(err)
+				}
+				span.End()
 			}
 		}
 		// 返回存储结果
@@ -758,6 +820,8 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 				continue
 			}
 
+			_, span := trace.GlobalTrace.StartSpan(msg.ctx, "sendack")
+
 			sendack := &wkproto.SendackPacket{
 				Framer:      msg.SendPacket.Framer,
 				MessageID:   msg.MessageId,
@@ -780,6 +844,7 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 				})
 				nodeFowardSendackPacketMap[msg.FromNodeId] = packets
 			}
+			span.End()
 		}
 		lastMsg := req.messages[len(req.messages)-1]
 		sub := r.reactorSub(req.ch.key)

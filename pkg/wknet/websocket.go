@@ -218,10 +218,6 @@ func (w *WSConn) parseHttpRequest(data []byte) (*http.Request, error) {
 		w.Error("Error parsing request", zap.Error(err))
 		return nil, err
 	}
-	fmt.Println("Headers:")
-	for key, values := range req.Header {
-		fmt.Printf("%s: %s\n", key, strings.Join(values, ", "))
-	}
 	return req, nil
 }
 

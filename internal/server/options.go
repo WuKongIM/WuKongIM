@@ -181,10 +181,11 @@ type Options struct {
 	}
 
 	Trace struct {
-		Endpoint         string
+		Endpoint         string // 例如：127.0.0.1:4318
 		ServiceName      string
 		ServiceHostName  string
-		PrometheusApiUrl string // prometheus api url
+		PrometheusApiUrl string  // prometheus api url
+		SampleRate       float64 // 消息链路采样率 0 ~ 1
 	}
 
 	Reactor struct {
@@ -396,11 +397,13 @@ func NewOptions(op ...Option) *Options {
 			ServiceName      string
 			ServiceHostName  string
 			PrometheusApiUrl string
+			SampleRate       float64
 		}{
-			Endpoint:         "127.0.0.1:4318",
+			Endpoint:         "",
 			ServiceName:      "wukongim",
 			ServiceHostName:  "imnode",
 			PrometheusApiUrl: "http://127.0.0.1:9090",
+			SampleRate:       1,
 		},
 		Reactor: struct {
 			ChannelSubCount             int
@@ -691,6 +694,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Trace.ServiceName = o.getString("trace.serviceName", o.Trace.ServiceName)
 	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
 	o.Trace.PrometheusApiUrl = o.getString("trace.prometheusApiUrl", o.Trace.PrometheusApiUrl)
+	o.Trace.SampleRate = o.getFloat64("trace.sampleRate", o.Trace.SampleRate)
 
 	// =================== deliver ===================
 	o.Deliver.DeliverrCount = o.getInt("deliver.deliverrCount", o.Deliver.DeliverrCount)
@@ -860,6 +864,11 @@ func (o *Options) ConfigureDataDir() {
 	}
 }
 
+// TraceOn 是否开启了trace
+func (o *Options) TraceOn() bool {
+	return strings.TrimSpace(o.Trace.Endpoint) != ""
+}
+
 // Check 检查配置是否正确
 func (o *Options) Check() error {
 	if o.Cluster.NodeId == 0 {
@@ -920,6 +929,15 @@ func (o *Options) getString(key string, defaultValue string) string {
 	}
 	return v
 }
+
+func (o *Options) getFloat64(key string, defaultValue float64) float64 {
+	v := o.vp.GetFloat64(key)
+	if v == 0 {
+		return defaultValue
+	}
+	return v
+}
+
 func (o *Options) getStringSlice(key string) []string {
 	return o.vp.GetStringSlice(key)
 }

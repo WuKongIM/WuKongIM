@@ -3,6 +3,7 @@ package trace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -45,6 +46,7 @@ func (t *Trace) setupOTelSDK(ctx context.Context, traceOn bool) (shutdown func(c
 		var tracerProvider *trace.TracerProvider
 		tracerProvider, err = newJaegerTraceProvider(ctx, t.opts.Endpoint, t.opts.ServiceName, t.opts.ServiceHostName)
 		if err != nil {
+			fmt.Println("newJaegerTraceProvider err---->", err)
 			handleErr(err)
 			return
 		}
@@ -94,7 +96,7 @@ func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, s
 	}
 	traceProvider := trace.NewTracerProvider(
 		trace.WithResource(res),
-		trace.WithSampler(trace.TraceIDRatioBased(0.1)), // 采样率
+		trace.WithSampler(trace.TraceIDRatioBased(1.0)), // 采样率
 		trace.WithBatcher(traceExporter,
 			trace.WithBatchTimeout(time.Second*5)),
 	)

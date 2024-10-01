@@ -1,7 +1,7 @@
 version: '3.7'
 
 x-wukongim-common: &wukongim-common  # 公共配置
-    image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.4-beta-20240904-dev
+    image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.5-beta-20240925-dev
     healthcheck:
       test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
       interval: 10s
@@ -20,6 +20,7 @@ services:
       - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
       - "WK_CLUSTER_APIURL=http://node1.wk.local:5001" # 节点对外API地址
       - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus.wk.local:9090" # 监控地址
+      - "WK_TRACE_ENDPOINT=http://jaeger.wk.local:4318" # jaeger数据追踪地址
     networks:
       wukongim-bridge:
         aliases:
@@ -38,6 +39,7 @@ services:
       - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
       - "WK_CLUSTER_APIURL=http://node2.wk.local:5001"
       - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus.wk.local:9090" # 监控地址
+      - "WK_TRACE_ENDPOINT=http://jaeger.wk.local:4318" # jaeger数据追踪地址
     networks:
       wukongim-bridge:
         aliases:
@@ -56,12 +58,23 @@ services:
       - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
       - "WK_CLUSTER_APIURL=http://node3.wk.local:5001"
       - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus.wk.local:9090" # 监控地址
+      - "WK_TRACE_ENDPOINT=http://jaeger.wk.local:4318" # jaeger数据追踪地址
     networks:
       wukongim-bridge:
         aliases:
         - node3.wk.local
     volumes:
       - ./wukongim3_data:/root/wukongim  
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    networks:
+      wukongim-bridge:
+        aliases:
+        - jaeger.wk.local
+    ports:
+      - "16686:16686" # serve frontend
+      - "8889:8889"    
+      - "4318:4318" # accept OpenTelemetry Protocol (OTLP) over HTTP
   prometheus: 
     image: registry.cn-shanghai.aliyuncs.com/wukongim/prometheus:v2.53.1
     volumes:

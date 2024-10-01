@@ -170,7 +170,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 
 	// -------------------- get message encrypt key --------------------
 	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
-	aesKey, aesIV, err := r.s.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
+	aesKey, aesIV, err := r.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
 	if err != nil {
 		r.Error("get client aes key and iv err", zap.Error(err))
 		r.authResponseConnackAuthFail(connCtx)
@@ -267,6 +267,26 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	r.s.trace.Metrics.App().OnlineDeviceCountAdd(1) // 统计在线设备数
 
 	return wkproto.ReasonSuccess, nil
+}
+
+// 获取客户端的aesKey和aesIV
+// dhServerPrivKey  服务端私钥
+func (r *userReactor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]byte) (string, string, error) {
+
+	clientKeyBytes, err := base64.StdEncoding.DecodeString(clientKey)
+	if err != nil {
+		return "", "", err
+	}
+
+	var dhClientPubKeyArray [32]byte
+	copy(dhClientPubKeyArray[:], clientKeyBytes[:32])
+
+	// 获得DH的共享key
+	shareKey := wkutil.GetCurve25519Key(dhServerPrivKey, dhClientPubKeyArray) // 共享key
+
+	aesIV := wkutil.GetRandomString(16)
+	aesKey := wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
+	return aesKey, aesIV, nil
 }
 
 func (r *userReactor) authResponse(connCtx *connContext, packet *wkproto.ConnackPacket) {

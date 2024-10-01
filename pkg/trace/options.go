@@ -73,6 +73,12 @@ func WithReqTimeout(timeout time.Duration) Option {
 	}
 }
 
+func WithTraceOn(on bool) Option {
+	return func(o *Options) {
+		o.TraceOn = on
+	}
+}
+
 func (o *Options) requestPrometheus(query string, r v1.Range, opt ...v1.Option) (model.Value, error) {
 
 	if o.prometheusClient == nil {
