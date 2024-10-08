@@ -1,14 +1,13 @@
 ## WuKongIM (Make information transfer easier)
 
-9 years of accumulation, precipitated a high-performance universal communication service,message center, supporting instant messaging, message push, IoT communication, audio and video signaling, live broadcast barrage, customer service system, AI communication, instant community and other scenarios.
+9 years of accumulation, precipitated a high-performance universal communication service, supporting instant messaging, in-site/system messages, message center, IoT communication, audio and video signaling, live broadcast barrage, customer service system, AI communication, instant community and other scenarios.
+
+`This project needs to be compiled in a go1.20.0 or higher environment.`
+
+Distributed IM important features: automatic failover, decentralized design, data mutual backup between nodes, support for rapid automatic cluster expansion, proxy node mechanism.
 
 
-(Note: This project is a general underlying instant messaging service. The upper layer needs to dock with its own specific business system (which can be easily docked with its own business system through the webhook and datasource mechanism). The core of this project mainly maintains a large number of long connections of clients and delivers messages according to the message rules of third-party business systems.)
-
-`This project needs to be compiled in a go1.20.0 or higher version.`
-
-
-[中文文档](./README_CN.md)
+[中文文档](./README.md)
 
 <p align="center">
 <img align="left" height="110" src="./docs/logo.png">
@@ -26,112 +25,148 @@
 [![](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://goreportcard.com/report/github.com/WuKongIM/WuKongIM)
 <a href="https://join.slack.com/t/wukongim/shared_invite/zt-22o7we8on-2iKNUmgigB9ERdF9XUivmw"><img src="https://img.shields.io/badge/Slack-99%2B-blueviolet?logo=slack&amp;logoColor=white"></a>
 
+
+Architecture Diagram
+--------
+
+![Architecture Diagram](./docs/architecture/cluster.png)
+
 Demo
 --------
 
 **Chat Demo**
 
-![image](./docs/demo.gif)
-
-Demo Source： https://github.com/WuKongIM/WuKongIMJSSDK/tree/main/examples
-
-Web chat scene demo: http://imdemo.githubim.com
+Web chat scenario demo: http://imdemo.githubim.com
 
 Backend monitoring demo: http://monitor.githubim.com/web
-
 
 Features
 --------
 
-- 📚 Fully self-developed: WuKongIM uses a self-developed message database, binary protocol, and network library, and supports custom protocols.
-- 🚀 High performance: WuKongIM can handle millions of online users and has a throughput of 160,000 messages per second (including database operations).
-- 🔔 Zero dependencies: WuKongIM has no third-party dependencies and is easy to deploy.
-- 🔐 Security: WuKongIM encrypts both message channels and message content to prevent man-in-the-middle attacks and message tampering.
-- 🧱 Highly extensible: WuKongIM uses a channel-based design and currently supports group and point-to-point channels. It can be extended to support custom channels for use cases such as chatbots and customer service.
+🎦**Uniqueness**
+
+No limit on group members, easily supports 100,000 people group chat, messages can be stored permanently.
+
+📚**Low Resource Consumption**
+
+Self-developed binary protocol, heartbeat packet is only 1 byte, saving traffic, saving power, and faster transmission.
+
+🔐**Security**
+
+Message channels and message content are encrypted throughout, preventing man-in-the-middle attacks and message tampering, with real-time backup of server data to prevent data loss.
+
+🚀 **Performance**
+
+Based on the pebble kv database, a unique distributed database for IM services was developed, avoiding the performance loss caused by other databases' generality. Faster storage means faster messages.
+
+🔥**High Availability**
+
+Through a modified raft distributed protocol, automatic disaster recovery is achieved. If one machine fails, another machine automatically takes over without external perception.
+
+Decentralized, no single point, no central node, each node is independent and equal, all can provide services.
+
+Easy expansion, just add machines, no need to shut down, no need to migrate data, automatic data allocation according to strategy.
+
+0⃣️ **Ease of Use**
+
+Does not rely on any third-party middleware, simple deployment, can be started with one command.
+
+Adopts the design concept of channel subscription and publishing, easy to understand, easy to use.
+
+As simple as Redis, as high-performance as Kafka, as reliable as MySQL.
+
+🌲**Technical Support**
+
+Official team provides technical support, technical documentation, technical exchange group, and issue feedback.
 
 TODO
 ---------------
 
 - [x] Supports custom messages
-- [x] Supports subscription/publisher mode
+- [x] Supports publish/subscribe model
 - [x] Supports personal/group chat/customer service/community news channels
-- [x] Supports channel blacklists
-- [x] Supports channel whitelists
-- [x] Supports permanent message storage, device switching, and message retention
-- [x] Supports online status and multiple devices logged in simultaneously with the same account
-- [x] Supports real-time synchronization of messages across multiple devices
+- [x] Supports channel blacklist
+- [x] Supports channel whitelist
+- [x] Supports permanent message roaming, no message loss when switching devices
+- [x] Supports online status, multiple devices online simultaneously with the same account
+- [x] Supports real-time message synchronization across multiple devices
 - [x] Supports server-side maintenance of user's recent conversation list
 - [x] Supports command messages
 - [x] Supports offline command interface
-- [x] Supports Webhook, easy integration with your own business system
-- [x] Supports Datasource, seamless integration with your own business system data source
-- [x] Supports WebSocket connections
+- [x] Supports Webhook, easily integrate with your own business system
+- [x] Supports Datasource, seamlessly integrate with your own business system data source
+- [x] Supports Websocket connection
 - [x] Supports TLS 1.3
-- [x] Development of monitoring system
-- [x] Support for Windows system (For development use only)
-- [x] Supports streaming messages, similar to the output stream of chatgpt results.
-- [ ] Supports distributed systems
-
+- [x] Supports Prometheus monitoring
+- [x] Monitoring system development
+- [x] Supports Windows system (for development use only)
+- [x] Supports streaming messages, similar to ChatGPT's result output stream
+- [x] Supports distributed
+    - [x] Decentralized design, any node failure, cluster auto-recovery
+    - [x] Data mutual backup between cluster nodes, any node damage does not affect data integrity
+    - [x] Supports rapid automatic cluster expansion
+    - [ ] Supports long connection CDN, solving the problem of unstable long connections across countries and regions
 
 
 Quick Start
 ---------------
 
-### Docker Deployment
-
 ```shell
-docker run -d -p 5001:5001 -p 5100:5100 -p 5172:5172 -p 5200:5200 -p 5210:5210 -p 5300:5300  --name wukongim -v ./wukongim:/root/wukongim  wukongim/wukongim:v1.2
-```
-
-### Binary Deployment
-
-```shell
-wget -O wukongim https://github.com/WuKongIM/WuKongIM/releases/download/v1.2.1/wukongim-linux-amd64  # For other systems, please check https://github.com/WuKongIM/WuKongIM/releases
-```
-
-```shell
-chmod +x wukongim
-```
-
-Start
-
-```shell
-./wukongim --config config/wk.yaml
-```
-
-
-### Source code
-
-```shell
-
 git clone https://github.com/WuKongIM/WuKongIM.git
 
-cd WuKongIM
+cd WuKongIM/docker/cluster
 
-go run main.go --config config/wk.yaml
+sudo docker compose up -d
+```
+
+Backend Management System: http://127.0.0.1:15300/web
+
+Chat Demo Address: http://127.0.0.1:15172/login
+
+
+
+Source Code Development
+---------------
+
+### Single Machine
+
+```shell
+
+
+go run main.go
+
+(go run main.go --config config/wk.yaml)
 
 ```
 
-### Configuration server information (context)
+### Cluster
+    
+```yaml
 
+# Start the first node
+go run main.go --config  ./exampleconfig/cluster1.yaml
 
-View System information: http://127.0.0.1:5001/varz
+# Start the second node
+go run main.go --config  ./exampleconfig/cluster2.yaml
 
-View Monitor information: http://127.0.0.1:5300/web
-
-Demo: http://127.0.0.1:5172/chatdemo
-
-For more deployment options, see the [documentation](http://githubim.com/guide/quickstart).
-
-Port explanation:
+# Start the third node
+go run main.go --config  ./exampleconfig/cluster3.yaml
 
 ```
-5001: API port
-5100: TCP long connection port
-5172: Demo port
-5200: WebSocket long connection port
-5300: Monitoring system port
-```
+
+### Access
+
+Backend Management System: http://127.0.0.1:5300/web
+
+Chat Demo Address: http://127.0.0.1:5172/chatdemo
+
+
+Formal Deployment
+
+---------------
+
+Docs[Docs](https://githubim.com/install)
+
 
 SDK source code and demos
 ---------------
@@ -145,6 +180,8 @@ SDK source code and demos
 |   WuKongIMJSSDK   |   [Github](https://github.com/WuKongIM/WuKongIMJSSDK)         |     [Example](https://github.com/WuKongIM/WuKongIMJSSDK/tree/main/examples)   | [Documentation](https://githubim.com/sdk/javascript.html)     |    WuKongIM's JS SDK  |
 |   WuKongIMFlutterSDK   |    [Github](https://github.com/WuKongIM/WuKongIMFlutterSDK)        |    [Example](https://github.com/WuKongIM/WuKongIMFlutterSDK/tree/master/example)   |[Documentation](https://githubim.com/sdk/flutter.html)    |    WuKongIM's Flutter SDK |
 |   WuKongIMReactNativeDemo   |   [Github](https://github.com/wengqianshan/WuKongIMReactNative)         |     None  |  None  |    WuKongIM's React Native Demo (provided by contributor [wengqianshan](https://github.com/wengqianshan))  |
+
+
 
 Illustration
 ---------------

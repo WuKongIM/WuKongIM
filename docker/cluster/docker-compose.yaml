@@ -1,7 +1,7 @@
 version: '3.7'
 
 x-wukongim-common: &wukongim-common  # 公共配置
-    image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.5-beta-20240925-dev
+    image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2
     healthcheck:
       test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
       interval: 10s
