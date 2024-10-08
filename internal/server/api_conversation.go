@@ -318,8 +318,6 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		return
 	}
 
-	fmt.Println("syncUserConversation-req----->", wkutil.ToJSON(req))
-
 	leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
 		s.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))

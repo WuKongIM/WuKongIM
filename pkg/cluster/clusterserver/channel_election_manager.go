@@ -165,8 +165,6 @@ func (c *channelElectionManager) election(reqs []electionReq) {
 // 通过日志高度选举频道领导
 func (c *channelElectionManager) channelLeaderIDByLogInfo(resps []*replicaChannelLastLogInfoResponse) uint64 {
 
-	fmt.Println("channelLeaderIDByLogInfo----->", len(resps))
-
 	// 选出resps中最大的日志下标和任期的节点
 
 	firstResp := resps[0]
@@ -176,7 +174,6 @@ func (c *channelElectionManager) channelLeaderIDByLogInfo(resps []*replicaChanne
 	var maxLogTerm uint32 = firstResp.LogTerm
 	var maxTerm uint32 = firstResp.Term
 	for i, resp := range resps {
-		fmt.Println("resp.Term---->", resp.ChannelId, resp.ChannelType, resp.replicaId, resp.Term, resp.LogIndex, resp.LogTerm)
 		if i == 0 {
 			continue
 		}
@@ -193,7 +190,6 @@ func (c *channelElectionManager) channelLeaderIDByLogInfo(resps []*replicaChanne
 			}
 		}
 	}
-	fmt.Println("leaderID---->", leaderID)
 
 	return leaderID
 }

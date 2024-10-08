@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
@@ -22,7 +21,6 @@ func (s *Server) onData(conn wknet.Conn) error {
 	parseProxyProtoV := conn.Value(ConnKeyParseProxyProto)
 	if parseProxyProtoV != nil && parseProxyProtoV.(bool) {
 		conn.SetValue(ConnKeyParseProxyProto, false)
-		fmt.Println("parse proxy proto after onData...", conn.ID())
 		remoteAddr, size, err := parseProxyProto(buff)
 		if err != nil && err != ErrNoProxyProtocol {
 			s.Warn("Failed to parse proxy proto", zap.Error(err))

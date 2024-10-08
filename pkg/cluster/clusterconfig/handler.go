@@ -240,12 +240,10 @@ func (h *handler) PausePropopose() bool {
 }
 
 func (h *handler) LearnerToFollower(learnerId uint64) error {
-	fmt.Println("1LearnerToFollower------>", learnerId)
 	return h.learnerTo(learnerId)
 }
 
 func (h *handler) LearnerToLeader(learnerId uint64) error {
-	fmt.Println("1LearnerToLeader------>", learnerId)
 	return h.learnerTo(learnerId)
 }
 
