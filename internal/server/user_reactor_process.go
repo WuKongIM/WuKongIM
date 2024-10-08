@@ -99,9 +99,10 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	var (
 		connectPacket = msg.InPacket.(*wkproto.ConnectPacket)
 		devceLevel    wkproto.DeviceLevel
+		isLocalConn   = msg.FromNodeId == r.s.opts.Cluster.NodeId // 是否是本地连接
 	)
 	var connCtx *connContext
-	if msg.FromNodeId == r.s.opts.Cluster.NodeId {
+	if isLocalConn { // 本地连接
 		connCtx = r.getConnContextById(uid, msg.ConnId)
 		if connCtx == nil {
 			r.Error("connCtx is nil", zap.String("uid", uid), zap.Int64("connId", msg.ConnId))
