@@ -255,7 +255,7 @@ Wechat
 
 If necessary, add me and I will invite you to the group. My WeChat ID is wukongimgo.
 
-![image](./wechat.jpg)
+![image](./wechat.png)
 
 
 License

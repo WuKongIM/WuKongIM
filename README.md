@@ -259,7 +259,7 @@ Wechat
 
 如果有需要，加我拉你进群，微信号：wukongimgo
 
-![image](./wechat.jpg)
+![image](./wechat.png)
 
 
 
