@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -290,8 +289,6 @@ func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
 			SpanID:  trace.SpanID(spanId),
 			Remote:  true,
 		})
-		fmt.Println("traceId---->", traceId)
-		fmt.Println("spanId---->", spanId)
 		r.ctx = trace.ContextWithRemoteSpanContext(context.Background(), spanCtx)
 
 		// 读取SendPacket
