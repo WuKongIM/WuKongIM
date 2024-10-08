@@ -1,7 +1,7 @@
 version: '3.1'
 services:
   wukongim:
-    image: wukongim/wukongim:latest
+    image: wukongim/wukongim:v2
     restart: always
     volumes:
       - ~/wukongim:/root/wukongim
