@@ -89,6 +89,7 @@ func (l *KeyLock) StopCleanLoop() {
 // 清理循环
 func (l *KeyLock) cleanLoop() {
 	ticker := time.NewTicker(l.cleanInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:

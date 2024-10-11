@@ -49,6 +49,7 @@ func (u *userReactorSub) stop() {
 
 func (u *userReactorSub) loop() {
 	tk := time.NewTicker(time.Millisecond * 200)
+	defer tk.Stop()
 	for {
 		u.readys()
 		select {

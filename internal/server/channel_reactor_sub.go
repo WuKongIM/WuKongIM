@@ -44,6 +44,7 @@ func (r *channelReactorSub) stop() {
 func (r *channelReactorSub) loop() {
 
 	tk := time.NewTicker(400 * time.Millisecond)
+	defer tk.Stop()
 
 	for !r.stopped.Load() {
 		r.readys()

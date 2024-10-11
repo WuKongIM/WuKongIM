@@ -60,6 +60,7 @@ func (d *DataPipeline) Start() {
 
 func (d *DataPipeline) run() {
 	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
 	var err error
 	defer d.onStop()
 	for {
