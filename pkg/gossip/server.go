@@ -68,6 +68,7 @@ func (s *Server) WaitJoin(timeout time.Duration) error {
 	defer cancel()
 
 	tick := time.NewTicker(time.Millisecond * 200)
+	defer tick.Stop()
 
 	for {
 		select {
@@ -99,6 +100,7 @@ func (s *Server) loopJoin() {
 	}
 
 	tick := time.NewTicker(time.Second * 5)
+	defer tick.Stop()
 	for {
 		select {
 		case <-tick.C:
