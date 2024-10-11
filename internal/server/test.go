@@ -157,6 +157,7 @@ func TestStartServer(t testing.TB, ss ...*Server) {
 // MustWaitNodeOffline 必须等待某个节点离线
 func (s *Server) MustWaitNodeOffline(nodeId uint64) {
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {
