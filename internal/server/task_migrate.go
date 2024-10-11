@@ -63,6 +63,7 @@ func (m *MigrateTask) Run() {
 func (m *MigrateTask) run() {
 
 	tk := time.NewTicker(5 * time.Second)
+	defer tk.Stop()
 
 	for !m.stop {
 		m.currentTryCount++

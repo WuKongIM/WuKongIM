@@ -7,6 +7,7 @@ import (
 
 func (s *Server) MustWaitAllSlotsReady() {
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {
@@ -36,6 +37,7 @@ func (s *Server) MustWaitAllSlotsReady() {
 // 等待所有节点提交apiServerAddr
 func (s *Server) MustWaitAllApiServerAddrReady() {
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {
@@ -64,6 +66,7 @@ func (s *Server) MustWaitAllApiServerAddrReady() {
 
 func (s *Server) MustWaitAllNodeOnline() {
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {

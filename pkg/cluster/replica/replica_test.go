@@ -307,6 +307,7 @@ func TestElection(t *testing.T) {
 	electionWait.Add(1)
 	go func() {
 		tk := time.NewTicker(time.Millisecond * 10)
+		defer tk.Stop()
 		for {
 			rd := r.Ready()
 			for _, m := range rd.Messages {
@@ -372,6 +373,7 @@ func TestElectionTreeNode(t *testing.T) {
 func loopReady(t *testing.T, ctx context.Context, rs ...*Replica) {
 
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	for {
 		for _, r := range rs {
 			rd := r.Ready()

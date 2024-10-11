@@ -133,6 +133,7 @@ func TestClusterSlotMigrate(t *testing.T) {
 	assert.Nil(t, err)
 
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {
@@ -184,6 +185,7 @@ func TestClusterSlotMigrateForFollowToLeader(t *testing.T) {
 	assert.Nil(t, err)
 
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {
@@ -233,6 +235,7 @@ func TestClusterNodeJoin(t *testing.T) {
 	defer s3.StopNoErr()
 
 	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	for {

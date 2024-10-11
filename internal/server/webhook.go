@@ -192,6 +192,7 @@ func (w *webhook) notifyOfflineMsg(msg ReactorChannelMessage, subscribers []stri
 func (w *webhook) notifyQueueLoop() {
 	errorSleepTime := time.Second * 1 // 发生错误后sleep时间
 	ticker := time.NewTicker(w.s.opts.Webhook.MsgNotifyEventPushInterval)
+	defer ticker.Stop()
 	errMessageIDMap := make(map[int64]int) // 记录错误的消息ID value为错误次数
 	if w.s.opts.WebhookOn() {
 		for {
