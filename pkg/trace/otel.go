@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	prometheusExp "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/propagation"
@@ -17,7 +18,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-func (t *Trace) setupOTelSDK(ctx context.Context, traceOn bool) (shutdown func(context.Context) error, err error) {
+func (t *Trace) setupOTelSDK(ctx context.Context, traceOn bool, nodeId uint64) (shutdown func(context.Context) error, err error) {
 	var shutdownFuncs []func(context.Context) error
 	// shutdown 会调用通过 shutdownFuncs 注册的清理函数。
 	// 调用产生的错误会被合并。
@@ -44,7 +45,7 @@ func (t *Trace) setupOTelSDK(ctx context.Context, traceOn bool) (shutdown func(c
 	var meterProvider *metric.MeterProvider
 	if traceOn {
 		var tracerProvider *trace.TracerProvider
-		tracerProvider, err = newJaegerTraceProvider(ctx, t.opts.Endpoint, t.opts.ServiceName, t.opts.ServiceHostName)
+		tracerProvider, err = newJaegerTraceProvider(ctx, t.opts.Endpoint, t.opts.ServiceName, t.opts.ServiceHostName, nodeId)
 		if err != nil {
 			fmt.Println("newJaegerTraceProvider err---->", err)
 			handleErr(err)
@@ -72,7 +73,7 @@ func newPropagator() propagation.TextMapPropagator {
 	)
 }
 
-func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, serviceHostname string) (*trace.TracerProvider, error) {
+func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, serviceHostname string, nodeId uint64) (*trace.TracerProvider, error) {
 	// 创建一个使用 HTTP 协议连接本机Jaeger的 Exporter
 	traceExporter, err := otlptracehttp.New(ctx,
 		otlptracehttp.WithEndpoint(endpoint),
@@ -89,6 +90,7 @@ func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, s
 			// 在可观测链路 OpenTelemetry 版后端显示的服务名称。
 			semconv.ServiceNameKey.String(serviceName),
 			semconv.HostNameKey.String(serviceHostname),
+			attribute.Int64("node.id", int64(nodeId)),
 		),
 	)
 	if err != nil {

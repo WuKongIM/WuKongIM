@@ -23,7 +23,7 @@ import Conversation from '../pages/data/Conversation.vue'
 import MonitorApp from '../pages/monitor/App.vue'
 import MonitorCluster from '../pages/monitor/Cluster.vue'
 import MonitorSystem from '../pages/monitor/System.vue'
-import MonitorDB from '../pages/monitor/DB.vue'
+import TraceDB from '../pages/monitor/Trace.vue'
 
 
 const router = createRouter({
@@ -119,9 +119,9 @@ const router = createRouter({
       component: MonitorSystem
     },
     {
-      path: '/monitor/db',
-      name: 'monitorDB',
-      component: MonitorDB
+      path: '/monitor/trace',
+      name: 'traceDB',
+      component: TraceDB
     },
   ]
 })

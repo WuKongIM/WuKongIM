@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"hash/fnv"
 
@@ -121,7 +120,7 @@ func (r *channelReactor) reactorSub(key string) *channelReactorSub {
 	return r.subs[i]
 }
 
-func (r *channelReactor) proposeSend(ctx context.Context, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, packet *wkproto.SendPacket) error {
+func (r *channelReactor) proposeSend(fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, packet *wkproto.SendPacket) error {
 
 	fakeChannelId := packet.ChannelID
 	channelType := packet.ChannelType
@@ -133,7 +132,7 @@ func (r *channelReactor) proposeSend(ctx context.Context, fromUid string, fromDe
 	ch := r.loadOrCreateChannel(fakeChannelId, packet.ChannelType)
 
 	// 处理消息
-	_, err := ch.proposeSend(ctx, fromUid, fromDeviceId, fromConnId, fromNodeId, isEncrypt, packet)
+	_, err := ch.proposeSend(fromUid, fromDeviceId, fromConnId, fromNodeId, isEncrypt, packet)
 	if err != nil {
 		r.Error("proposeSend error", zap.Error(err))
 		return err

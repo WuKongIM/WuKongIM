@@ -112,18 +112,23 @@ func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, update
 	if len(ids) == 0 {
 		return nil, nil
 	}
+
 	conversations := make([]Conversation, 0, len(ids))
 
 	for _, id := range ids {
 		conversation, err := wk.getConversation(uid, id)
-		if err != nil {
+		if err != nil && err != ErrNotFound {
 			return nil, err
+		}
+		if err == ErrNotFound {
+			continue
 		}
 		if conversation.Type != tp {
 			continue
 		}
 		conversations = append(conversations, conversation)
 	}
+
 	return conversations, nil
 }
 

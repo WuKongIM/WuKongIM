@@ -1,14 +1,12 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -146,14 +144,9 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 		setting = setting.Set(wkproto.SettingStream)
 	}
 
-	ctx, span := trace.GlobalTrace.StartSpan(context.Background(), "recvMessageFromApi")
-	span.SetString("clientMsgNo", req.ClientMsgNo)
-
-	defer span.End()
-
 	// 将消息提交到频道
 	systemDeviceId := req.FromUID
-	messageId, err := channel.proposeSend(ctx, req.FromUID, systemDeviceId, 0, m.s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
+	messageId, err := channel.proposeSend(req.FromUID, systemDeviceId, 0, m.s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
 		Framer: wkproto.Framer{
 			RedDot:    wkutil.IntToBool(req.Header.RedDot),
 			SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),

@@ -200,7 +200,7 @@ const nextPage = () => {
                             <button class="btn btn-link btn-sm"
                                 @click="()=>onShowAllowlist(user.uid)">白名单</button>
                             <button class="btn btn-link btn-sm"
-                                @click="()=>onShowDenylist(user.uid)">黑明单</button>
+                                @click="()=>onShowDenylist(user.uid)">黑名单</button>
                             <button class="btn btn-link btn-sm"
                                 @click="$router.push(`device?uid=${user.uid}`)">设备</button>
                             <button class="btn btn-link btn-sm"

@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@antv/x6": "^2.18.1",
+    "@antv/x6-vue-shape": "^2.1.2",
     "axios": "^1.6.7",
     "buffer": "^6.0.3",
     "echarts": "^5.5.0",

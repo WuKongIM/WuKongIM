@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -55,6 +56,8 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/localReplica"), s.channelLocalReplica) // 获取频道在本节点的副本信息
 
 	route.GET(s.formatPath("/logs"), s.clusterLogs) // 获取节点日志
+
+	route.GET(s.formatPath("/message/trace"), s.messageTrace) // 获取消息轨迹
 
 }
 
@@ -2316,4 +2319,257 @@ func (s *Server) clusterLogs(c *wkhttp.Context) {
 		Last:    lastLogIndex,
 		Logs:    resps,
 	})
+}
+
+func (s *Server) messageTrace(c *wkhttp.Context) {
+	clientMsgNo := c.Query("client_msg_no")
+	messageId := wkutil.ParseInt64(c.Query("message_id"))
+	width := wkutil.ParseFloat64(c.Query("width"))
+	// height := wkutil.ParseFloat64(c.Query("height"))
+
+	data, err := s.requestTraces("processMessage", clientMsgNo, messageId)
+	if err != nil {
+		s.Error("requestTraces error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	if len(data) == 0 {
+		c.ResponseError(errors.New("trace not found"))
+		return
+	}
+
+	traceMap := data[0]
+
+	spans := traceMap["spans"].([]interface{})
+	processesMap := traceMap["processes"].(map[string]interface{})
+
+	getOperation := func(operation string) map[string]interface{} {
+		for _, span := range spans {
+			spanMap := span.(map[string]interface{})
+			if spanMap["operationName"] == operation {
+				return spanMap
+			}
+		}
+		return nil
+	}
+
+	getSpanAttr := func(operationName string, key string) interface{} {
+		for _, span := range spans {
+			spanMap := span.(map[string]interface{})
+			if spanMap["operationName"] == operationName {
+				return spanMap[key]
+			}
+		}
+		return nil
+	}
+
+	getSpanTag := func(operationName string, key string) interface{} {
+		for _, span := range spans {
+			spanMap := span.(map[string]interface{})
+			if spanMap["operationName"] == operationName {
+				tags := spanMap["tags"].([]interface{})
+				for _, tag := range tags {
+					tagMap := tag.(map[string]interface{})
+					if tagMap["key"] == key {
+						return tagMap["value"]
+					}
+				}
+			}
+		}
+		return nil
+	}
+
+	getNodeId := func(operationName string) uint64 {
+
+		processID := getSpanAttr(operationName, "processID").(string)
+		processMap := processesMap[processID].(map[string]interface{})
+		if processMap["tags"] != nil {
+			tags := processMap["tags"].([]interface{})
+			for _, tag := range tags {
+				tagMap := tag.(map[string]interface{})
+				if tagMap["key"] == "node.id" {
+					nodeId, _ := tagMap["value"].(json.Number).Int64()
+					return uint64(nodeId)
+				}
+			}
+		}
+		return 0
+	}
+
+	trace := &Trace{}
+
+	nodeWidth := float64(180)
+	nodeHeight := float64(70)
+
+	centerX := (width - float64(nodeWidth)) / 2
+
+	topSpace := float64(60)
+	leftSpace := float64(60)
+
+	preY := topSpace // 上一个节点的Y坐标
+
+	// ----------------- processMessage -----------------
+	processMessageMap := getOperation("processMessage")
+	if processMessageMap != nil {
+		node := s.getSpanNode("processMessage", "收到消息", processMessageMap)
+		node.X = centerX
+		node.Y = preY
+		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`
+		node.NodeId = getNodeId("processMessage")
+		node.genDescription()
+
+		trace.Nodes = append(trace.Nodes, node)
+
+		preY = nodeHeight + node.Y + topSpace
+	}
+
+	// ----------------- processPayloadDecrypt -----------------
+	processPayloadDecryptMap := getOperation("processPayloadDecrypt")
+	if processPayloadDecryptMap != nil {
+		node := s.getSpanNode("processPayloadDecrypt", "解密消息", processPayloadDecryptMap)
+		node.X = centerX
+		node.Y = preY
+		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`
+		node.NodeId = getNodeId("processPayloadDecrypt")
+		node.genDescription()
+		trace.Nodes = append(trace.Nodes, node)
+
+		preY = nodeHeight + node.Y + topSpace
+	}
+
+	// ----------------- sendack -----------------
+	sendackMap := getOperation("sendack")
+	if sendackMap != nil {
+		node := s.getSpanNode("sendack", "消息回执", sendackMap)
+		node.X = centerX + nodeWidth + leftSpace
+		node.Y = preY
+		node.NodeId = getNodeId("sendack")
+		node.genDescription()
+		trace.Nodes = append(trace.Nodes, node)
+	}
+
+	// ----------------- processForward -----------------
+	processForwardMap := getOperation("processForward")
+	if processForwardMap != nil {
+		node := s.getSpanNode("processForward", "转发消息", processForwardMap)
+		node.X = centerX - nodeWidth - leftSpace
+		node.Y = preY
+		node.Icon = ``
+		node.NodeId = getNodeId("processForward")
+		node.genDescription()
+		trace.Nodes = append(trace.Nodes, node)
+	}
+
+	// ----------------- processPermission -----------------
+	processPermissionMap := getOperation("processPermission")
+	if processPermissionMap != nil {
+		node := s.getSpanNode("processPermission", "权限检查", processPermissionMap)
+		node.X = centerX
+		node.Y = preY
+		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-person-standing"><circle cx="12" cy="5" r="1"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/></svg>`
+		node.NodeId = getNodeId("processPermission")
+		node.genDescription()
+		trace.Nodes = append(trace.Nodes, node)
+
+		preY = nodeHeight + node.Y + topSpace
+	}
+
+	// ----------------- storeMessages -----------------
+	storeMessagesMap := getOperation("storeMessages")
+	if storeMessagesMap != nil {
+		node := s.getSpanNode("storeMessages", "批量存储", storeMessagesMap)
+		node.X = centerX
+		node.Y = preY
+		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cylinder"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/></svg>`
+		node.NodeId = getNodeId("storeMessages")
+		node.genDescription()
+		msgCount, _ := getSpanTag("storeMessages", "msgCount").(json.Number).Int64()
+		node.Description = fmt.Sprintf("%s 消息:%d条", node.Description, msgCount)
+		trace.Nodes = append(trace.Nodes, node)
+
+		preY = nodeHeight + node.Y + topSpace
+	}
+
+	// ----------------- deliverMessage -----------------
+	deliverMessageMap := getOperation("deliverMessage")
+	if deliverMessageMap != nil {
+		node := s.getSpanNode("deliverMessage", "投递消息", deliverMessageMap)
+		node.X = centerX
+		node.Y = preY
+		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package-2"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9"/><path d="M12 3v6"/></svg>`
+		node.NodeId = getNodeId("deliverMessage")
+		node.genDescription()
+		trace.Nodes = append(trace.Nodes, node)
+	}
+
+	c.JSON(http.StatusOK, trace)
+
+}
+
+func (s *Server) getSpanNode(id string, name string, mp map[string]interface{}) *SpanNode {
+	if mp == nil {
+		return nil
+	}
+
+	startTime, _ := mp["startTime"].(json.Number).Int64()
+	t := time.Unix(startTime/1e6, startTime%1e9)
+	startTimeStr := wkutil.ToyyyyMMddHHmmss(t)
+	duration, _ := mp["duration"].(json.Number).Int64()
+
+	return &SpanNode{
+		Id:       id,
+		Shape:    "spanNode",
+		Name:     name,
+		Time:     startTimeStr,
+		Duration: int64(duration),
+	}
+}
+
+func (s *Server) requestTraces(operation, clientMsgNo string, messageId int64) ([]map[string]interface{}, error) {
+
+	paramMap := map[string]interface{}{}
+	if clientMsgNo != "" {
+		paramMap["client_msg_no"] = clientMsgNo
+	}
+	if messageId > 0 {
+		paramMap["message_id"] = messageId
+	}
+
+	queryParams := map[string]string{
+		"service":   "wukongim",
+		"tags":      wkutil.ToJSON(paramMap),
+		"operation": operation,
+	}
+
+	apiUrl := fmt.Sprintf("%s/api/traces", s.opts.JaegerApiUrl)
+	if strings.HasSuffix(s.opts.JaegerApiUrl, "/") {
+		apiUrl = fmt.Sprintf("%sapi/traces", s.opts.JaegerApiUrl)
+	}
+
+	resp, err := network.Get(apiUrl, queryParams, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("requestTraces failed, status code: %d", resp.StatusCode)
+	}
+	var dataMap map[string]interface{}
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &dataMap)
+	if dataMap["data"] != nil {
+		dataObjs, ok := dataMap["data"].([]interface{})
+		if !ok {
+			return nil, errors.New("data type error")
+		}
+		results := make([]map[string]interface{}, 0, len(dataObjs))
+		for _, dataObj := range dataObjs {
+			data, ok := dataObj.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			results = append(results, data)
+		}
+		return results, nil
+	}
+	return nil, err
 }

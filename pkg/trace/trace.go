@@ -43,7 +43,7 @@ func New(ctx context.Context, opts *Options) *Trace {
 }
 
 func (t *Trace) Start() error {
-	shutdown, err := t.setupOTelSDK(t.ctx, t.opts.TraceOn)
+	shutdown, err := t.setupOTelSDK(t.ctx, t.opts.TraceOn, t.opts.NodeId)
 	if err != nil {
 		return err
 	}

@@ -4,9 +4,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/zap"
 )
 
 const (
@@ -66,7 +63,6 @@ func (l *KeyLock) Unlock(key string) {
 
 // Clean 清理空闲锁
 func (l *KeyLock) Clean() {
-	wklog.Info("KeyLock clean...", zap.Int("locks", len(l.locks)))
 	l.mutex.Lock()
 	for k, v := range l.locks {
 		if v.count == 0 {

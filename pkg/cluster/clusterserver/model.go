@@ -1468,3 +1468,34 @@ type LogRespTotal struct {
 	More    int        `json:"more"`    // 是否有更多
 	Logs    []*LogResp `json:"logs"`    // 日志信息
 }
+
+type SpanNode struct {
+	Id          string  `json:"id"`          // ID
+	Shape       string  `json:"shape"`       // 形状
+	Name        string  `json:"name"`        // 名称
+	NodeId      uint64  `json:"nodeId"`      // 节点ID
+	Time        string  `json:"time"`        // 时间
+	Duration    int64   `json:"duration"`    // 单位纳秒
+	Icon        string  `json:"icon"`        // 图标
+	Width       float64 `json:"width"`       // 宽度
+	Height      float64 `json:"height"`      // 高度
+	X           float64 `json:"x"`           // X
+	Y           float64 `json:"y"`           // Y
+	Description string  `json:"description"` // 描述
+}
+
+func (s *SpanNode) genDescription() {
+	s.Description = fmt.Sprintf("节点:%d", s.NodeId)
+}
+
+type SpanEdge struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Shape  string `json:"shape"`
+	Label  string `json:"label"`
+}
+
+type Trace struct {
+	Nodes []*SpanNode `json:"nodes"`
+	Edges []*SpanEdge `json:"edges"`
+}

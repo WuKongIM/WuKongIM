@@ -27,6 +27,11 @@ func ParseUint32(str string) uint32 {
 	return uint32(v)
 }
 
+func ParseFloat64(str string) float64 {
+	v, _ := strconv.ParseFloat(str, 64)
+	return v
+}
+
 func ParseBool(str string) bool {
 	v, _ := strconv.ParseBool(str)
 	return v

@@ -18,6 +18,8 @@ type Options struct {
 	Addr          string      // 分布式监听地址
 	ServerAddr    string      // 分布式可访问地址
 	ApiServerAddr string      // api服务地址
+	JaegerApiUrl  string      // jaeger api地址
+	ServiceName   string      // 服务名称
 	AppVersion    string      // 当前应用版本
 	// InitNodes 集群初始节点，key为节点id，value为节点内网通信地址
 	InitNodes map[uint64]string
@@ -293,6 +295,12 @@ func WithServerAddr(addr string) Option {
 	}
 }
 
+func WithJaegerApiUrl(url string) Option {
+	return func(o *Options) {
+		o.JaegerApiUrl = url
+	}
+}
+
 func WithMessageLogStorage(storage IShardLogStorage) Option {
 	return func(o *Options) {
 		o.MessageLogStorage = storage
@@ -393,5 +401,11 @@ func WithSlotDbShardNum(num int) Option {
 func WithAuth(auth auth.AuthConfig) Option {
 	return func(o *Options) {
 		o.Auth = auth
+	}
+}
+
+func WithServiceName(serviceName string) Option {
+	return func(o *Options) {
+		o.ServiceName = serviceName
 	}
 }
