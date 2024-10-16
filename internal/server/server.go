@@ -62,6 +62,8 @@ type Server struct {
 	conversationManager *ConversationManager // 会话管理
 
 	migrateTask *MigrateTask // 迁移任务
+
+	datasource IDatasource // 数据源
 }
 
 func New(opts *Options) *Server {
@@ -95,6 +97,7 @@ func New(opts *Options) *Server {
 			trace.WithServiceName(s.opts.Trace.ServiceName),
 			trace.WithServiceHostName(s.opts.Trace.ServiceHostName),
 			trace.WithPrometheusApiUrl(s.opts.Trace.PrometheusApiUrl),
+			trace.WithNodeId(s.opts.Cluster.NodeId),
 		))
 	trace.SetGlobalTrace(s.trace)
 
@@ -110,6 +113,8 @@ func New(opts *Options) *Server {
 	storeOpts.Db.MemTableSize = s.opts.Db.MemTableSize
 	s.store = clusterstore.NewStore(storeOpts)
 
+	// 数据源
+	s.datasource = NewDatasource(s)
 	// 初始化tag管理
 	s.tagManager = newTagManager(s)
 
@@ -179,6 +184,8 @@ func New(opts *Options) *Server {
 			cluster.WithSlotReactorSubCount(s.opts.Cluster.SlotReactorSubCount),
 			cluster.WithPongMaxTick(s.opts.Cluster.PongMaxTick),
 			cluster.WithAuth(s.opts.Auth),
+			cluster.WithJaegerApiUrl(s.opts.Trace.JaegerApiUrl),
+			cluster.WithServiceName(s.opts.Trace.ServiceName),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {

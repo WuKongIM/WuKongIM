@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -160,15 +159,12 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(frameSize)
 
-	ctx, span := trace.GlobalTrace.StartSpan(context.Background(), "processMessage")
-	span.SetString("clientMsgNo", packet.ClientMsgNo)
-	span.SetBool("noPersist", packet.NoPersist)
-	span.SetBool("syncOnce", packet.SyncOnce)
+	c.MessageTrace("收到消息", packet.ClientMsgNo, "processMessage")
 
 	// 非法频道id，直接返回发送失败
 	if strings.TrimSpace(packet.ChannelID) == "" || IsSpecialChar(packet.ChannelID) {
 		c.Error("addSendPacket failed, channelId is illegal", zap.String("uid", c.uid), zap.String("channelId", packet.ChannelID))
-		span.RecordError(errors.New("addSendPacket failed, channelId is illegal"))
+		c.MessageTrace("addSendPacket failed, channelId is illegal", packet.ClientMsgNo, "processMessage", zap.Error(errors.New("channelId is illegal")))
 		sendack := &wkproto.SendackPacket{
 			Framer:      packet.Framer,
 			ClientSeq:   packet.ClientSeq,
@@ -176,14 +172,11 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 			ReasonCode:  wkproto.ReasonChannelIDError,
 		}
 		_ = c.writeDirectlyPacket(sendack)
-		span.End()
 		return
 	}
 
 	// 提案发送至频道
-	_ = c.subReactor.proposeSend(ctx, c, packet)
-
-	span.End()
+	_ = c.subReactor.proposeSend(c, packet)
 
 }
 

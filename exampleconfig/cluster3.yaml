@@ -7,6 +7,7 @@ tokenAuthOn: false
 # whitelistOffOfPerson: false
 trace: # 数据追踪
   endpoint: "127.0.0.1:4318" # jaeger数据追踪地址
+  jaegerApiUrl: "http://127.0.0.1:16686"
 manager:
   on: true
   addr: "0.0.0.0:5303"

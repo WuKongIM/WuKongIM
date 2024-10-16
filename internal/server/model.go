@@ -1,13 +1,11 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -19,7 +17,6 @@ var defaultWkproto = wkproto.New()
 var EmptyReactorChannelMessage = ReactorChannelMessage{}
 
 type ReactorChannelMessage struct {
-	ctx          context.Context
 	FromConnId   int64  // 发送者连接ID
 	FromUid      string // 发送者
 	FromDeviceId string // 发送者设备ID
@@ -44,13 +41,6 @@ func (r *ReactorChannelMessage) Marshal() ([]byte, error) {
 	enc.WriteUint8(wkutil.BoolToUint8(r.IsEncrypt))
 	enc.WriteUint8(wkutil.BoolToUint8(r.IsSystem))
 	enc.WriteUint8(uint8(r.ReasonCode))
-
-	span := trace.SpanFromContext(r.ctx)
-	spanId := span.SpanContext().SpanID()
-	traceId := span.SpanContext().TraceID()
-
-	enc.WriteBytes(spanId[:])
-	enc.WriteBytes(traceId[:])
 
 	var packetData []byte
 	var err error
@@ -104,22 +94,6 @@ func (r *ReactorChannelMessage) Unmarshal(data []byte) error {
 		return err
 	}
 	r.ReasonCode = wkproto.ReasonCode(reasonCode)
-
-	// 解析trace数据
-	var spanId []byte
-	if spanId, err = dec.Bytes(8); err != nil {
-		return err
-	}
-	var traceId []byte
-	if traceId, err = dec.Bytes(16); err != nil {
-		return err
-	}
-	spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID: trace.TraceID(traceId),
-		SpanID:  trace.SpanID(spanId),
-		Remote:  true,
-	})
-	r.ctx = trace.ContextWithRemoteSpanContext(context.Background(), spanCtx)
 
 	var packetData []byte
 	if packetData, err = dec.Binary(); err != nil {
@@ -224,12 +198,6 @@ func (rs ReactorChannelMessageSet) Marshal() ([]byte, error) {
 		enc.WriteInt64(r.MessageId)
 		enc.WriteUint32(r.MessageSeq)
 
-		span := trace.SpanFromContext(r.ctx)
-		spanId := span.SpanContext().SpanID()
-		traceId := span.SpanContext().TraceID()
-		enc.WriteBytes(spanId[:])
-		enc.WriteBytes(traceId[:])
-
 		var packetData []byte
 		var err error
 		if r.SendPacket != nil {
@@ -274,22 +242,6 @@ func (rs *ReactorChannelMessageSet) Unmarshal(data []byte) error {
 		if r.MessageSeq, err = dec.Uint32(); err != nil {
 			return err
 		}
-
-		// 解析trace数据
-		var spanId []byte
-		if spanId, err = dec.Bytes(8); err != nil {
-			return err
-		}
-		var traceId []byte
-		if traceId, err = dec.Bytes(16); err != nil {
-			return err
-		}
-		spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-			TraceID: trace.TraceID(traceId),
-			SpanID:  trace.SpanID(spanId),
-			Remote:  true,
-		})
-		r.ctx = trace.ContextWithRemoteSpanContext(context.Background(), spanCtx)
 
 		// 读取SendPacket
 		packetData, err := dec.Binary()

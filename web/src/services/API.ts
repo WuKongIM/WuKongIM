@@ -251,4 +251,15 @@ export default class API {
         })
     }
 
+    public messageTraces(req: {
+        clientMsgNo?: string,
+        messageId?: number,
+        width?: number,
+        height?: number,
+    }) {
+        return APIClient.shared.get(`/cluster/message/trace`, {
+            param: req
+        })
+    }
+
 }

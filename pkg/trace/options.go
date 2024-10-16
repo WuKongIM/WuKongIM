@@ -12,6 +12,7 @@ import (
 )
 
 type Options struct {
+	NodeId  uint64
 	TraceOn bool // 是否开启trace
 	// Endpoint is the address of the collector to which the exporter will send the spans.
 	Endpoint         string
@@ -76,6 +77,12 @@ func WithReqTimeout(timeout time.Duration) Option {
 func WithTraceOn(on bool) Option {
 	return func(o *Options) {
 		o.TraceOn = on
+	}
+}
+
+func WithNodeId(id uint64) Option {
+	return func(o *Options) {
+		o.NodeId = id
 	}
 }
 

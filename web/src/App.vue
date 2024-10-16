@@ -33,7 +33,7 @@ const onLogout = () => {
     <div class="h-[4rem] w-full flex items-center fixed justify-end">
       <div class="h-[4rem] w-full flex items-center">
         <img src="./assets/logo.png" class="w-10 h-10 ml-[2rem] mt-1">
-        <div class="font-bold text-xl ml-2">悟空IM 2.0.0 (Beta)</div>
+        <div class="font-bold text-xl ml-2">悟空IM</div>
       </div>
       <div class="mr-20 flex">
         <label class="mt-[0.4rem] mr-2 text-sm">{{App.shard().loginInfo.username}}</label>
@@ -289,7 +289,7 @@ const onLogout = () => {
                 </RouterLink>
               </li>
               <li>
-                <RouterLink to="/monitor/db">
+                <RouterLink to="/monitor/trace">
                   <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path
                       d="M44.0001 11C44.0001 11 44 36.0623 44 38C44 41.3137 35.0457 44 24 44C12.9543 44 4.00003 41.3137 4.00003 38C4.00003 36.1423 4 11 4 11"
@@ -301,7 +301,7 @@ const onLogout = () => {
                     <ellipse cx="24" cy="10" rx="20" ry="6" fill="none" stroke="#333" stroke-width="2"
                       stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
-                  <label class="ml-2">存储</label>
+                  <label class="ml-2">消息追踪</label>
                 </RouterLink>
               </li>
 

@@ -15,7 +15,6 @@ import (
 
 // SystemUIDManager System uid management
 type SystemUIDManager struct {
-	datasource IDatasource
 	s          *Server
 	systemUIDs sync.Map
 	loaded     atomic.Bool
@@ -27,7 +26,6 @@ func NewSystemUIDManager(s *Server) *SystemUIDManager {
 
 	return &SystemUIDManager{
 		s:          s,
-		datasource: NewDatasource(s),
 		systemUIDs: sync.Map{},
 		Log:        wklog.NewWKLog("SystemUIDManager"),
 	}
@@ -42,7 +40,7 @@ func (s *SystemUIDManager) LoadIfNeed() error {
 	var systemUIDs []string
 	var err error
 	if s.s.opts.HasDatasource() {
-		systemUIDs, err = s.datasource.GetSystemUIDs()
+		systemUIDs, err = s.s.datasource.GetSystemUIDs()
 		if err != nil {
 			return err
 		}

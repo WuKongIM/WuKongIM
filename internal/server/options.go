@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/crypto/tls"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sasha-s/go-deadlock"
 
@@ -67,7 +68,13 @@ type Options struct {
 	Logger struct {
 		Dir     string // 日志存储目录
 		Level   zapcore.Level
-		LineNum bool // 是否显示代码行数
+		LineNum bool     // 是否显示代码行数
+		TraceOn bool     // 是否开启trace
+		Loki    struct { // loki配置
+			Url      string // loki地址 例如： http://localhost:3100
+			Username string
+			Password string
+		}
 	}
 	Manager struct {
 		On   bool   // 是否开启监控
@@ -185,6 +192,7 @@ type Options struct {
 		ServiceName      string
 		ServiceHostName  string
 		PrometheusApiUrl string  // prometheus api url
+		JaegerApiUrl     string  // jaeger http api url 例如：http://127.0.0.1:16686
 		SampleRate       float64 // 消息链路采样率 0 ~ 1
 	}
 
@@ -262,6 +270,12 @@ func NewOptions(op ...Option) *Options {
 			Dir     string
 			Level   zapcore.Level
 			LineNum bool
+			TraceOn bool
+			Loki    struct {
+				Url      string
+				Username string
+				Password string
+			}
 		}{
 			Dir:     "",
 			Level:   zapcore.InfoLevel,
@@ -397,12 +411,14 @@ func NewOptions(op ...Option) *Options {
 			ServiceName      string
 			ServiceHostName  string
 			PrometheusApiUrl string
+			JaegerApiUrl     string
 			SampleRate       float64
 		}{
 			Endpoint:         "",
 			ServiceName:      "wukongim",
 			ServiceHostName:  "imnode",
 			PrometheusApiUrl: "http://127.0.0.1:9090",
+			JaegerApiUrl:     "",
 			SampleRate:       1,
 		},
 		Reactor: struct {
@@ -457,8 +473,8 @@ func NewOptions(op ...Option) *Options {
 			Expire time.Duration
 			Issuer string
 		}{
-			Secret: "secret_wukongim",
 			Expire: time.Hour * 24 * 30,
+			Secret: "secret_wukongim",
 			Issuer: "wukongim",
 		},
 		MigrateStartStep: MigrateStepMessage,
@@ -694,6 +710,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Trace.ServiceName = o.getString("trace.serviceName", o.Trace.ServiceName)
 	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
 	o.Trace.PrometheusApiUrl = o.getString("trace.prometheusApiUrl", o.Trace.PrometheusApiUrl)
+	o.Trace.JaegerApiUrl = o.getString("trace.jaegerApiUrl", o.Trace.JaegerApiUrl)
 	o.Trace.SampleRate = o.getFloat64("trace.sampleRate", o.Trace.SampleRate)
 
 	// =================== deliver ===================
@@ -737,6 +754,25 @@ func (o *Options) configureAuth() {
 	o.Jwt.Secret = o.getString("jwt.secret", o.Jwt.Secret)
 	o.Jwt.Expire = o.getDuration("jwt.expire", o.Jwt.Expire)
 	o.Jwt.Issuer = o.getString("jwt.issuer", o.Jwt.Issuer)
+
+	// 如果没有配置jwt secret，则读取本地文件，如果没有本地文件则生成一个secret 保存到本地文件
+	if strings.TrimSpace(o.Jwt.Secret) == "" {
+		secretFile := filepath.Join(o.RootDir, "jwt.secret")
+		if !wkutil.FileExists(secretFile) {
+			secret := uuid.New().String()
+			err := os.WriteFile(secretFile, []byte(secret), 0644)
+			if err != nil {
+				panic(err)
+			}
+			o.Jwt.Secret = secret
+		} else {
+			secret, err := os.ReadFile(secretFile)
+			if err != nil {
+				panic(err)
+			}
+			o.Jwt.Secret = string(secret)
+		}
+	}
 
 	// =================== auth ===================
 	o.Auth.On = o.getBool("auth.on", o.Auth.On)
@@ -864,11 +900,6 @@ func (o *Options) ConfigureDataDir() {
 	}
 }
 
-// TraceOn 是否开启了trace
-func (o *Options) TraceOn() bool {
-	return strings.TrimSpace(o.Trace.Endpoint) != ""
-}
-
 // Check 检查配置是否正确
 func (o *Options) Check() error {
 	if o.Cluster.NodeId == 0 {
@@ -903,6 +934,12 @@ func (o *Options) configureLog(vp *viper.Viper) {
 		o.Logger.Dir = filepath.Join(o.RootDir, o.Logger.Dir)
 	}
 	o.Logger.LineNum = o.getBool("logger.lineNum", o.Logger.LineNum)
+
+	o.Logger.TraceOn = o.getBool("logger.traceOn", o.Logger.TraceOn)
+
+	o.Logger.Loki.Url = o.getString("logger.loki.url", o.Logger.Loki.Url)
+	o.Logger.Loki.Username = o.getString("logger.loki.username", o.Logger.Loki.Username)
+	o.Logger.Loki.Password = o.getString("logger.loki.password", o.Logger.Loki.Password)
 }
 
 // IsTmpChannel 是否是临时频道

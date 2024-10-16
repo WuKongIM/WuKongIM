@@ -43,9 +43,9 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/channel/subscriber_add", ch.addSubscriber)       // 添加订阅者
 	r.POST("/channel/subscriber_remove", ch.removeSubscriber) // 移除订阅者
 
-	//################### 黑明单 ###################// 删除频道
-	r.POST("/channel/blacklist_add", ch.blacklistAdd)       // 添加黑明单
-	r.POST("/channel/blacklist_set", ch.blacklistSet)       // 设置黑明单（覆盖原来的黑名单数据）
+	//################### 黑名单 ###################// 删除频道
+	r.POST("/channel/blacklist_add", ch.blacklistAdd)       // 添加黑名单
+	r.POST("/channel/blacklist_set", ch.blacklistSet)       // 设置黑名单（覆盖原来的黑名单数据）
 	r.POST("/channel/blacklist_remove", ch.blacklistRemove) // 移除黑名单
 
 	//################### 白名单 ###################
@@ -463,8 +463,8 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 
 	err = ch.s.store.RemoveAllDenylist(req.ChannelID, req.ChannelType)
 	if err != nil {
-		ch.Error("移除所有黑明单失败！", zap.Error(err))
-		c.ResponseError(errors.New("移除所有黑明单失败！"))
+		ch.Error("移除所有黑名单失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除所有黑名单失败！"))
 		return
 	}
 	if len(req.UIDs) > 0 {

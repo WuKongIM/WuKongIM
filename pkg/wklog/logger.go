@@ -1,12 +1,14 @@
 package wklog
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
 	"strings"
 	"time"
 
+	zaploki "github.com/paul-milne/zap-loki"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -17,10 +19,41 @@ var errorLogger *zap.Logger
 var warnLogger *zap.Logger
 var panicLogger *zap.Logger
 var atom = zap.NewAtomicLevel()
+var lokiLogger *zap.Logger
+var lokiOn bool
 
-func Configure(opts *Options) {
-	atom.SetLevel(opts.Level)
+var opts *Options
 
+func Configure(op *Options) {
+	atom.SetLevel(op.Level)
+	opts = op
+
+	lokiOn = strings.TrimSpace(opts.Loki.Url) != ""
+
+	if lokiOn {
+		var err error
+		zapConfig := zap.Config{
+			Level:         zap.NewAtomicLevelAt(zap.InfoLevel),
+			Development:   false,
+			Encoding:      "json",
+			EncoderConfig: newEncoderConfig(),
+		}
+		loki := zaploki.New(context.Background(), zaploki.Config{
+			Url:          opts.Loki.Url,
+			BatchMaxSize: 1000,
+			BatchMaxWait: 10 * time.Second,
+			Labels:       map[string]string{"app": "wukongim"},
+			Username:     opts.Loki.Username,
+			Password:     opts.Loki.Password,
+		})
+		lokiLogger, err = loki.WithCreateLogger(zapConfig)
+		if err != nil {
+			panic(fmt.Sprintf("failed to create logger: %v", err))
+		}
+		return
+	}
+
+	// ====================== info ==========================
 	infoWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   path.Join(opts.LogDir, "info.log"),
 		MaxSize:    500, // megabytes
@@ -38,6 +71,7 @@ func Configure(opts *Options) {
 		logger = zap.New(core)
 	}
 
+	// ====================== error ==========================
 	errorWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   path.Join(opts.LogDir, "error.log"),
 		MaxSize:    500, // megabytes
@@ -55,6 +89,7 @@ func Configure(opts *Options) {
 		errorLogger = zap.New(core)
 	}
 
+	// ====================== warn ==========================
 	warnWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   path.Join(opts.LogDir, "warn.log"),
 		MaxSize:    500, // megabytes
@@ -72,6 +107,7 @@ func Configure(opts *Options) {
 		warnLogger = zap.New(core)
 	}
 
+	// ====================== panic ==========================
 	panicWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   path.Join(opts.LogDir, "panic.log"),
 		MaxSize:    500, // megabytes
@@ -112,12 +148,18 @@ func newEncoderConfig() zapcore.EncoderConfig {
 		},
 	}
 }
-func timeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
-}
+
+// func timeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+// 	enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
+// }
 
 // Info Info
 func Info(msg string, fields ...zap.Field) {
+
+	if lokiOn {
+		lokiLogger.Info(msg, fields...)
+		return
+	}
 
 	if logger == nil {
 		Configure(NewOptions())
@@ -129,6 +171,10 @@ func Info(msg string, fields ...zap.Field) {
 // Debug Debug
 func Debug(msg string, fields ...zap.Field) {
 
+	if lokiOn { // debug日志不输出到loki
+		return
+	}
+
 	if logger == nil {
 		Configure(NewOptions())
 	}
@@ -138,19 +184,37 @@ func Debug(msg string, fields ...zap.Field) {
 
 // Error Error
 func Error(msg string, fields ...zap.Field) {
+
+	if lokiOn {
+		lokiLogger.Error(msg, fields...)
+		return
+	}
+
 	if errorLogger == nil {
 		Configure(NewOptions())
 	}
 	errorLogger.Error(msg, fields...)
+
 }
 
 func Fatal(msg string, fields ...zap.Field) {
+
+	if lokiOn {
+		lokiLogger.Fatal(msg, fields...)
+		return
+	}
+
 	if panicLogger == nil {
 		Configure(NewOptions())
 	}
 	panicLogger.Fatal(msg, fields...)
 }
 func Panic(msg string, fields ...zap.Field) {
+	if lokiOn {
+		lokiLogger.Panic(msg, fields...)
+		return
+	}
+
 	if panicLogger == nil {
 		Configure(NewOptions())
 	}
@@ -159,6 +223,11 @@ func Panic(msg string, fields ...zap.Field) {
 
 // Warn Warn
 func Warn(msg string, fields ...zap.Field) {
+
+	if lokiOn {
+		lokiLogger.Warn(msg, fields...)
+		return
+	}
 
 	if warnLogger == nil {
 		Configure(NewOptions())
@@ -189,6 +258,7 @@ func Sync() error {
 // Log Log
 type Log interface {
 	Info(msg string, fields ...zap.Field)
+	MessageTrace(msg string, clientMsgNo string, operationName string, fields ...zap.Field)
 	Debug(msg string, fields ...zap.Field)
 	Error(msg string, fields ...zap.Field)
 	Warn(msg string, fields ...zap.Field)
@@ -215,6 +285,21 @@ func (t *WKLog) Info(msg string, fields ...zap.Field) {
 	b.WriteString("】")
 	b.WriteString(msg)
 	Info(b.String(), fields...)
+}
+
+func (t *WKLog) MessageTrace(msg string, clientMsgNo string, operationName string, fields ...zap.Field) {
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	if len(fields) == 0 {
+		Info(b.String(), zap.Int("msgTrace", 1), zap.Uint64("nodeId", opts.NodeId), zap.String("clientMsgNo", clientMsgNo), zap.String("operationName", operationName))
+	} else {
+		fields = append(fields, zap.Int("msgTrace", 1), zap.Uint64("nodeId", opts.NodeId), zap.String("clientMsgNo", clientMsgNo), zap.String("operationName", operationName))
+		Info(b.String(), fields...)
+	}
+
 }
 
 // Debug Debug
