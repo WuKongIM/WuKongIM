@@ -284,7 +284,7 @@ func (u *userReactorSub) getConnsByUniqueNo(uid string, uniqueNo string) []*conn
 	return nil
 }
 
-func (u *userReactorSub) getConnContext(uid string, deviceId string) *connContext {
+func (u *userReactorSub) getConnContext(uid string, deviceId string) []*connContext {
 	uh := u.getUser(uid)
 	if uh == nil {
 		return nil

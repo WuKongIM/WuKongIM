@@ -815,6 +815,7 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 				packets = append(packets, &ForwardSendackPacket{
 					Uid:      msg.FromUid,
 					DeviceId: msg.FromDeviceId,
+					ConnId:   msg.FromConnId,
 					Sendack:  sendack,
 				})
 				nodeFowardSendackPacketMap[msg.FromNodeId] = packets

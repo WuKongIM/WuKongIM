@@ -409,8 +409,6 @@ func (c *channel) proposeAndUpdateChannelClusterConfig(cfg wkdb.ChannelClusterCo
 		return err
 	}
 
-	c.s.clusterCfgCache.Add(c.key, cfg) // 刷新缓存
-
 	return nil
 
 }

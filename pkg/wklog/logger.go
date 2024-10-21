@@ -1,14 +1,12 @@
 package wklog
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path"
 	"strings"
 	"time"
 
-	zaploki "github.com/paul-milne/zap-loki"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -19,39 +17,12 @@ var errorLogger *zap.Logger
 var warnLogger *zap.Logger
 var panicLogger *zap.Logger
 var atom = zap.NewAtomicLevel()
-var lokiLogger *zap.Logger
-var lokiOn bool
 
 var opts *Options
 
 func Configure(op *Options) {
 	atom.SetLevel(op.Level)
 	opts = op
-
-	lokiOn = strings.TrimSpace(opts.Loki.Url) != ""
-
-	if lokiOn {
-		var err error
-		zapConfig := zap.Config{
-			Level:         zap.NewAtomicLevelAt(zap.InfoLevel),
-			Development:   false,
-			Encoding:      "json",
-			EncoderConfig: newEncoderConfig(),
-		}
-		loki := zaploki.New(context.Background(), zaploki.Config{
-			Url:          opts.Loki.Url,
-			BatchMaxSize: 1000,
-			BatchMaxWait: 10 * time.Second,
-			Labels:       map[string]string{"app": "wukongim"},
-			Username:     opts.Loki.Username,
-			Password:     opts.Loki.Password,
-		})
-		lokiLogger, err = loki.WithCreateLogger(zapConfig)
-		if err != nil {
-			panic(fmt.Sprintf("failed to create logger: %v", err))
-		}
-		return
-	}
 
 	// ====================== info ==========================
 	infoWriter := zapcore.AddSync(&lumberjack.Logger{
@@ -156,11 +127,6 @@ func newEncoderConfig() zapcore.EncoderConfig {
 // Info Info
 func Info(msg string, fields ...zap.Field) {
 
-	if lokiOn {
-		lokiLogger.Info(msg, fields...)
-		return
-	}
-
 	if logger == nil {
 		Configure(NewOptions())
 	}
@@ -170,10 +136,6 @@ func Info(msg string, fields ...zap.Field) {
 
 // Debug Debug
 func Debug(msg string, fields ...zap.Field) {
-
-	if lokiOn { // debug日志不输出到loki
-		return
-	}
 
 	if logger == nil {
 		Configure(NewOptions())
@@ -185,10 +147,6 @@ func Debug(msg string, fields ...zap.Field) {
 // Error Error
 func Error(msg string, fields ...zap.Field) {
 
-	if lokiOn {
-		lokiLogger.Error(msg, fields...)
-		return
-	}
 
 	if errorLogger == nil {
 		Configure(NewOptions())
@@ -199,21 +157,12 @@ func Error(msg string, fields ...zap.Field) {
 
 func Fatal(msg string, fields ...zap.Field) {
 
-	if lokiOn {
-		lokiLogger.Fatal(msg, fields...)
-		return
-	}
-
 	if panicLogger == nil {
 		Configure(NewOptions())
 	}
 	panicLogger.Fatal(msg, fields...)
 }
 func Panic(msg string, fields ...zap.Field) {
-	if lokiOn {
-		lokiLogger.Panic(msg, fields...)
-		return
-	}
 
 	if panicLogger == nil {
 		Configure(NewOptions())
@@ -223,11 +172,6 @@ func Panic(msg string, fields ...zap.Field) {
 
 // Warn Warn
 func Warn(msg string, fields ...zap.Field) {
-
-	if lokiOn {
-		lokiLogger.Warn(msg, fields...)
-		return
-	}
 
 	if warnLogger == nil {
 		Configure(NewOptions())
@@ -288,6 +232,11 @@ func (t *WKLog) Info(msg string, fields ...zap.Field) {
 }
 
 func (t *WKLog) MessageTrace(msg string, clientMsgNo string, operationName string, fields ...zap.Field) {
+
+	if !opts.TraceOn {
+		return
+	}
+
 	var b strings.Builder
 	b.WriteString("【")
 	b.WriteString(t.prefix)

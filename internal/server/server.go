@@ -16,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/promtail"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -64,6 +65,8 @@ type Server struct {
 	migrateTask *MigrateTask // 迁移任务
 
 	datasource IDatasource // 数据源
+
+	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
 }
 
 func New(opts *Options) *Server {
@@ -203,6 +206,17 @@ func New(opts *Options) *Server {
 	// 消息投递管理者
 	s.deliverManager = newDeliverManager(s)
 
+	// 日志收集
+	if s.opts.LokiOn() {
+		s.Info("Loki is on")
+		s.promtailServer = promtail.New(&promtail.Options{
+			NodeId:  s.opts.Cluster.NodeId,
+			Url:     s.opts.Logger.Loki.Url,
+			LogDir:  s.opts.Logger.Dir,
+			Address: s.opts.External.APIUrl,
+		})
+	}
+
 	return s
 }
 
@@ -320,6 +334,13 @@ func (s *Server) Start() error {
 		s.migrateTask.Run()
 	}
 
+	if s.opts.LokiOn() {
+		err = s.promtailServer.Start()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -362,6 +383,10 @@ func (s *Server) Stop() error {
 	s.tagManager.stop()
 
 	s.webhook.Stop()
+
+	if s.opts.LokiOn() {
+		s.promtailServer.Stop()
+	}
 
 	s.Info("Server is stopped")
 

@@ -126,7 +126,7 @@ func (u *userReactor) addConnContext(conn *connContext) {
 	u.reactorSub(conn.uid).addConnContext(conn)
 }
 
-func (u *userReactor) getConnContext(uid string, deviceId string) *connContext {
+func (u *userReactor) getConnContext(uid string, deviceId string) []*connContext {
 	return u.reactorSub(uid).getConnContext(uid, deviceId)
 }
 

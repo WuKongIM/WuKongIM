@@ -7,11 +7,7 @@ type Options struct {
 	Level   zapcore.Level
 	LogDir  string
 	LineNum bool
-	Loki    struct {
-		Url      string
-		Username string
-		Password string
-	}
+	TraceOn bool
 }
 
 func NewOptions() *Options {

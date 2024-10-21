@@ -74,4 +74,8 @@ func (e EmptySpan) SetBool(key string, value bool) {
 
 }
 
+func (e EmptySpan) AddLink(link trace.Link) {
+
+}
+
 var emptySpanContext = SpanContext{}

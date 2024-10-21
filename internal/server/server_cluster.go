@@ -117,7 +117,7 @@ func (s *Server) handleForwardSendack(c *wkserver.Context) {
 	}
 
 	for _, forwardSendackPacket := range forwardSendackPacketSet {
-		conn := s.userReactor.getConnContext(forwardSendackPacket.Uid, forwardSendackPacket.DeviceId)
+		conn := s.userReactor.getConnContextById(forwardSendackPacket.Uid, forwardSendackPacket.ConnId)
 		if conn == nil {
 			s.Error("handleForwardSendack: conn not found", zap.String("uid", forwardSendackPacket.Uid), zap.String("deviceId", forwardSendackPacket.DeviceId))
 			c.WriteErr(errors.New("conn not found"))
@@ -191,23 +191,26 @@ func (s *Server) handleUserAction(c *wkserver.Context) {
 		return
 	}
 
-	connCtxs := s.userReactor.getConnContexts(uid)
+	// connCtxs := s.userReactor.getConnContexts(uid)
 
-	// connId替换成本节点的
-	for i, action := range actions {
-		for j, msg := range action.Messages {
-			if msg.ConnId != 0 {
-				for _, connCtx := range connCtxs {
-					if connCtx.realNodeId == msg.FromNodeId && connCtx.proxyConnId == msg.ConnId {
-						msg.ConnId = connCtx.connId
-						action.Messages[j] = msg
-						actions[i] = action
-						break
-					}
-				}
-			}
-		}
-	}
+	// // connId替换成本节点的
+	// for i, action := range actions {
+	// 	for j, msg := range action.Messages {
+	// 		if msg.ConnId != 0 {
+	// 			for _, connCtx := range connCtxs {
+	// 				// 如果消息是从本节点发过来的，就替换connId
+	// 				if connCtx.realNodeId == msg.FromNodeId && connCtx.proxyConnId == msg.ConnId {
+	// 					s.Debug("auth: replace connId", zap.String("uid", uid), zap.Int64("oldConnId", msg.ConnId), zap.Int64("newConnId", connCtx.connId))
+	// 					msg.ConnId = connCtx.connId
+	// 					action.Messages[j] = msg
+	// 					actions[i] = action
+
+	// 					break
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	// 推进action
 	sub := s.userReactor.reactorSub(uid)
@@ -237,13 +240,18 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 	sub := s.userReactor.reactorSub(authResult.Uid)
 	connCtx := sub.getConnContextById(authResult.Uid, authResult.ConnId)
 	if connCtx == nil {
-		s.Error("handleUserAuthResult: conn not found", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
+		s.Error("auth: handleUserAuthResult: conn not found", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
 		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: conn not found"), proto.Status_NotFound)
 		return
 	}
 	if connCtx.deviceId != authResult.DeviceId {
-		s.Error("handleUserAuthResult: deviceId not match", zap.String("expect", connCtx.deviceId), zap.String("act", authResult.DeviceId))
+		s.Error("auth: handleUserAuthResult: deviceId not match", zap.String("expect", connCtx.deviceId), zap.String("act", authResult.DeviceId))
 		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: deviceId not match"), proto.Status_NotFound)
+		return
+	}
+	if !connCtx.isRealConn {
+		s.Error("auth: handleUserAuthResult: not real conn", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
+		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: not real conn"), proto.Status_NotFound)
 		return
 	}
 
@@ -254,9 +262,7 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 		connCtx.deviceId = authResult.DeviceId
 		connCtx.protoVersion = authResult.ProtoVersion
 		connCtx.isAuth.Store(true)
-		if connCtx.isRealConn {
-			connCtx.conn.SetMaxIdle(s.opts.ConnIdleTime)
-		}
+		connCtx.conn.SetMaxIdle(s.opts.ConnIdleTime)
 		connack := &wkproto.ConnackPacket{
 			ServerVersion: authResult.ProtoVersion,
 			ServerKey:     authResult.ServerKey,
@@ -273,6 +279,8 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 			NodeId:     s.opts.Cluster.NodeId,
 		})
 	}
+
+	s.Debug("auth: reply auth ack success", zap.String("uid", connCtx.uid), zap.Int64("connId", connCtx.connId), zap.Int("fd", connCtx.conn.Fd().Fd()))
 
 	c.WriteOk()
 

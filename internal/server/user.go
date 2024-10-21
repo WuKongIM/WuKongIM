@@ -393,15 +393,16 @@ func (u *userHandler) addConnIfNotExist(conn *connContext) {
 	u.keepActivity() // 有新连接进来了  继续保活
 }
 
-func (u *userHandler) getConn(deviceId string) *connContext {
+func (u *userHandler) getConn(deviceId string) []*connContext {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
+	conns := make([]*connContext, 0, len(u.conns))
 	for _, c := range u.conns {
 		if c.deviceId == deviceId {
-			return c
+			conns = append(conns, c)
 		}
 	}
-	return nil
+	return conns
 }
 
 func (u *userHandler) getConnById(id int64) *connContext {

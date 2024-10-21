@@ -454,9 +454,9 @@ func (c ChannelInfoResp) ToChannelInfo() *wkdb.ChannelInfo {
 }
 
 type ForwardSendackPacket struct {
-	Uid string
-	// ConnId  int64
+	Uid      string
 	DeviceId string
+	ConnId   int64
 	Sendack  *wkproto.SendackPacket
 }
 
@@ -471,6 +471,7 @@ func (rs ForwardSendackPacketSet) Marshal() ([]byte, error) {
 	for _, r := range rs {
 		enc.WriteString(r.Uid)
 		enc.WriteString(r.DeviceId)
+		enc.WriteInt64(r.ConnId)
 		sendackData, err := defaultWkproto.EncodeFrame(r.Sendack, defaultProtoVersion)
 		if err != nil {
 			return nil, err
@@ -497,6 +498,9 @@ func (rs *ForwardSendackPacketSet) Unmarshal(data []byte) error {
 			return err
 		}
 		if r.DeviceId, err = dec.String(); err != nil {
+			return err
+		}
+		if r.ConnId, err = dec.Int64(); err != nil {
 			return err
 		}
 		var sendackData []byte

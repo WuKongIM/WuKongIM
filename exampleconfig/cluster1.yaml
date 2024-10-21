@@ -6,6 +6,10 @@ rootDir: "./wukongimdata/1"
 pprofOn: false
 tokenAuthOn: false
 # whitelistOffOfPerson: false
+logger:
+  traceOn: true
+  loki:
+    url: "http://127.0.0.1:3100"
 trace: # 数据追踪
   endpoint: "127.0.0.1:4318" # jaeger数据追踪地址
   jaegerApiUrl: "http://127.0.0.1:16686"

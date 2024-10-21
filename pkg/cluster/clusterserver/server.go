@@ -23,7 +23,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
@@ -58,8 +57,6 @@ type Server struct {
 	stopped atomic.Bool
 
 	stopper *syncutil.Stopper
-
-	clusterCfgCache *lru.Cache[string, wkdb.ChannelClusterConfig]
 }
 
 func New(opts *Options) *Server {
@@ -71,11 +68,6 @@ func New(opts *Options) *Server {
 		channelKeyLock: keylock.NewKeyLock(),
 		channelLoadMap: make(map[string]struct{}),
 		stopper:        syncutil.NewStopper(),
-	}
-	var err error
-	s.clusterCfgCache, err = lru.New[string, wkdb.ChannelClusterConfig](1000)
-	if err != nil {
-		s.Panic("new clusterCfgCache failed", zap.Error(err))
 	}
 
 	s.slotManager = newSlotManager(s)

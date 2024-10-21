@@ -278,5 +278,9 @@ func (c *connContext) isClosed() bool {
 }
 
 func (c *connContext) String() string {
-	return fmt.Sprintf("uid: %s connId: %d deviceId: %s deviceFlag: %s isRealConn: %v proxyConnId: %d realNodeId: %d", c.uid, c.connId, c.deviceId, c.deviceFlag.String(), c.isRealConn, c.proxyConnId, c.realNodeId)
+	fd := 0
+	if c.conn != nil {
+		fd = c.conn.Fd().Fd()
+	}
+	return fmt.Sprintf("uid: %s connId: %d deviceId: %s deviceFlag: %s isRealConn: %v proxyConnId: %d realNodeId: %d fd: %d", c.uid, c.connId, c.deviceId, c.deviceFlag.String(), c.isRealConn, c.proxyConnId, c.realNodeId, fd)
 }
