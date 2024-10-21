@@ -909,6 +909,11 @@ func (o *Options) Check() error {
 	return nil
 }
 
+// 是否配置了loki
+func (o *Options) LokiOn() bool {
+	return strings.TrimSpace(o.Logger.Loki.Url) != ""
+}
+
 func (o *Options) ClusterOn() bool {
 	return o.Cluster.NodeId != 0
 }

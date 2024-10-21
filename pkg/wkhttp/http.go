@@ -1,7 +1,6 @@
 package wkhttp
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -127,7 +126,6 @@ func (c *Context) ForwardWithBody(url string, body []byte) {
 
 	c.Writer.WriteHeader(resp.StatusCode)
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-	fmt.Println("resp.Body---->", string(resp.Body))
 	_, _ = c.Writer.Write([]byte(resp.Body))
 }
 

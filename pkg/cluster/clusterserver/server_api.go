@@ -1801,7 +1801,6 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	s.clusterCfgCache.Add(wkutil.ChannelToKey(channelId, channelType), newClusterConfig)
 
 	// 如果频道领导不是当前节点，则发送最新配置给频道领导 （这里就算发送失败也没问题，因为频道领导会间隔比对自己与槽领导的配置）
 	if newClusterConfig.LeaderId != s.opts.NodeId {

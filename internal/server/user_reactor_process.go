@@ -120,6 +120,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 		}
 		connCtx = newConnContextProxy(msg.FromNodeId, connInfo, sub)
 		sub.addConnContext(connCtx)
+		r.Debug("auth: add conn", zap.Any("connCtx", connCtx))
 	}
 	// -------------------- token verify --------------------
 	if connectPacket.UID == r.s.opts.ManagerUID {
@@ -189,7 +190,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 				}
 				r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
 				if oldConn.deviceId != connectPacket.DeviceID {
-					r.Info("same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.deviceId))
+					r.Info("auth: same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.deviceId))
 
 					_ = oldConn.writeDirectlyPacket(&wkproto.DisconnectPacket{
 						ReasonCode: wkproto.ReasonConnectKick,
@@ -203,7 +204,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 						oldConn.close() // Close old connection
 					})
 				}
-				r.Info("master: close old conn", zap.Any("oldConn", oldConn))
+				r.Info("auth: close old conn for master", zap.Any("oldConn", oldConn))
 			}
 		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceID踢掉
 			for _, oldConn := range oldConns {
@@ -212,7 +213,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 						r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
 						oldConn.close()
 					})
-					r.Info("slave: close old conn", zap.Any("oldConn", oldConn))
+					r.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn))
 				}
 			}
 		}
@@ -246,7 +247,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 		hasServerVersion = true
 	}
 
-	r.Debug("Auth Success", zap.Any("conn", connCtx), zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
+	r.Debug("auth: auth Success", zap.Any("conn", connCtx), zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
 	connack := &wkproto.ConnackPacket{
 		Salt:          aesIV,
 		ServerKey:     dhServerPublicKeyEnc,
@@ -637,61 +638,38 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 func (r *userReactor) handleWrite(req *writeReq) error {
 
 	sub := r.reactorSub(req.uid)
-
-	var connDataMap = map[string][]byte{}
-	var deviceIdConnIdMap = map[string]int64{}  // 设备id对应的连接id
-	var recvFrameCountMap = map[string]uint32{} // 设备id对应的接收帧数
 	for _, msg := range req.messages {
-		deviceIdConnIdMap[msg.DeviceId] = msg.ConnId
-		if msg.FrameType == wkproto.RECV {
-			recvFrameCountMap[msg.DeviceId]++
-		}
-
-		data := connDataMap[msg.DeviceId]
-		data = append(data, msg.OutBytes...)
-		connDataMap[msg.DeviceId] = data
-	}
-
-	for deviceId, data := range connDataMap {
-		conn := sub.getConnContext(req.uid, deviceId)
-		if conn == nil {
-			r.Debug("handleWrite: conn not found", zap.Int("dataLen", len(data)), zap.String("uid", req.uid), zap.String("deviceId", deviceId))
+		conns := sub.getConnContext(req.uid, msg.DeviceId)
+		if len(conns) == 0 {
+			r.Debug("handleWrite: conn not found", zap.Int("dataLen", len(msg.OutBytes)), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId))
 			continue
 		}
+		for _, conn := range conns {
+			if conn.isRealConn { // 是真实节点直接返回数据
+				_ = conn.writeDirectly(msg.OutBytes, 1)
+			} else { // 是代理连接，转发数据到真实连接
+				if !r.s.cluster.NodeIsOnline(conn.realNodeId) { // 节点没在线了，这里直接移除连接
+					_ = r.removeConnContextById(conn.uid, conn.connId)
+					r.Warn("node not online", zap.Uint64("nodeId", conn.realNodeId), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId))
+					return errors.New("node not online")
+				}
 
-		recvFrameCount := recvFrameCountMap[deviceId]
+				status, err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
+					Uid:            req.uid,
+					DeviceId:       msg.DeviceId,
+					ConnId:         conn.proxyConnId,
+					RecvFrameCount: 1,
+					Data:           msg.OutBytes,
+				})
+				if err != nil {
+					r.Error("fowardWriteReq error", zap.Error(err), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId))
+					_ = r.removeConnContextById(conn.uid, conn.connId) // 转发失败了，这里直接移除连接
+					return err
+				}
+				if status == proto.Status(errCodeConnNotFound) { // 连接不存在了，所以这里也移除
+					_ = r.removeConnContextById(conn.uid, conn.connId)
 
-		if conn.isRealConn { // 是真实节点直接返回数据
-			connId := deviceIdConnIdMap[deviceId]
-			if connId == conn.connId {
-				_ = conn.writeDirectly(data, recvFrameCount)
-			} else {
-				r.Warn("connId not match", zap.String("uid", req.uid), zap.Int64("expectConnId", connId), zap.Int64("actConnId", conn.connId))
-			}
-
-		} else { // 是代理连接，转发数据到真实连接
-
-			if !r.s.cluster.NodeIsOnline(conn.realNodeId) { // 节点没在线了，这里直接移除连接
-				_ = r.removeConnContextById(conn.uid, conn.connId)
-				r.Warn("node not online", zap.Uint64("nodeId", conn.realNodeId), zap.String("uid", req.uid), zap.String("deviceId", deviceId))
-				return errors.New("node not online")
-			}
-
-			status, err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
-				Uid:            req.uid,
-				DeviceId:       deviceId,
-				ConnId:         conn.proxyConnId,
-				RecvFrameCount: recvFrameCount,
-				Data:           data,
-			})
-			if err != nil {
-				r.Error("fowardWriteReq error", zap.Error(err), zap.String("uid", req.uid), zap.String("deviceId", deviceId))
-				_ = r.removeConnContextById(conn.uid, conn.connId) // 转发失败了，这里直接移除连接
-				return err
-			}
-			if status == proto.Status(errCodeConnNotFound) { // 连接不存在了，所以这里也移除
-				_ = r.removeConnContextById(conn.uid, conn.connId)
-
+				}
 			}
 		}
 	}

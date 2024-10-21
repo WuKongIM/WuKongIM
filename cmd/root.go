@@ -96,8 +96,8 @@ func cmdRun() error {
 	logOpts.Level = serverOpts.Logger.Level
 	logOpts.LogDir = serverOpts.Logger.Dir
 	logOpts.LineNum = serverOpts.Logger.LineNum
-	logOpts.Loki = serverOpts.Logger.Loki
 	logOpts.NodeId = serverOpts.Cluster.NodeId
+	logOpts.TraceOn = serverOpts.Logger.TraceOn
 	wklog.Configure(logOpts)
 
 	s := server.New(serverOpts)

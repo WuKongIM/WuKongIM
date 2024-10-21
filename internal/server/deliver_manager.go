@@ -56,9 +56,6 @@ func (d *deliverManager) stop() {
 }
 
 func (d *deliverManager) deliver(req *deliverReq) {
-	for _, msg := range req.messages {
-		d.MessageTrace("投递消息", msg.SendPacket.ClientMsgNo, "deliverMessage", zap.Int("msgCount", len(req.messages)))
-	}
 	d.handleDeliver(req)
 }
 
@@ -235,7 +232,7 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 		} else { // 非本节点的转发给对应节点去投递
 			if d.dm.s.opts.Logger.TraceOn {
 				for _, msg := range req.messages {
-					d.MessageTrace("转发投递消息", msg.SendPacket.ClientMsgNo, "forwardDeliver", zap.Uint64("nodeId", nodeUser.nodeId))
+					d.MessageTrace("转发投递消息", msg.SendPacket.ClientMsgNo, "forwardDeliver", zap.Uint64("toNodeId", nodeUser.nodeId))
 				}
 			}
 			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
@@ -284,7 +281,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				for _, uid := range uids {
 					if uid == toUid {
 						if len(allConns) > 0 {
-							
+
 						}
 						d.MessageTrace("投递消息", msg.SendPacket.ClientMsgNo, "deliverMessage", zap.String("toUid", toUid))
 						break
