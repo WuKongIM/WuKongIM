@@ -99,6 +99,8 @@ func (n *node) loopHandleReq() {
 
 func (n *node) loop() {
 	tk := time.NewTicker(time.Millisecond * 200)
+	defer tk.Stop()
+
 	for {
 		if n.hasReady() {
 			msgs := n.ready()

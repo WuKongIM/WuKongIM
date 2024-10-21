@@ -261,6 +261,7 @@ func (c *conversationWorker) stop() {
 func (c *conversationWorker) loopPropose() {
 
 	tk := time.NewTicker(time.Minute * 5)
+	defer tk.Stop()
 
 	for {
 		select {

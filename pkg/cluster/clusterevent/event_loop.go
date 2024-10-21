@@ -11,6 +11,7 @@ import (
 
 func (s *Server) loop() {
 	tk := time.NewTicker(time.Millisecond * 250)
+	defer tk.Stop()
 
 	for !s.stopped.Load() {
 		err := s.checkClusterConfig()
