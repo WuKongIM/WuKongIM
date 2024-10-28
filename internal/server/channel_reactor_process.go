@@ -410,6 +410,11 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 		return wkproto.ReasonSuccess, nil
 	}
 
+	// 客服频道是公开的，直接通过
+	if channelType == wkproto.ChannelTypeCustomerService {
+		return wkproto.ReasonSuccess, nil
+	}
+
 	// 如果发送者是系统账号，则直接通过
 	systemAccount := r.s.systemUIDManager.SystemUID(fromUid)
 	if systemAccount {
