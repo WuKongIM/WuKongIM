@@ -23,7 +23,7 @@ const pageSize = ref<number>(20) // 每页数量
 const offsetMessageId = ref<number>() // 偏移的messageId
 const offsetMessageSeq = ref<number>() // 偏移的messageSeq
 const pre = ref<boolean>() // 是否向上分页
-const currentMessage = ref<any>() // 当前消息
+const content = ref<string>() // 当前要显示的内容
 
 
 const query = router.currentRoute.value.query; //查询参数
@@ -123,8 +123,8 @@ const onClientMsgNoSearch = (e: any) => {
 }
 
 const resetFilter = () => {
-   currentPage.value = 1
-   offsetMessageId.value = 0
+    currentPage.value = 1
+    offsetMessageId.value = 0
     offsetMessageSeq.value = 0
 }
 
@@ -153,10 +153,17 @@ const prevPage = () => {
     searchMessages()
 }
 
+// 显示消息内容
 const onShowMessageContent = (message: any) => {
-    console.log(message)
-    currentMessage.value = message
-    const dialog = document.getElementById('messageContent') as HTMLDialogElement;
+    content.value = base64Decode(message.payload)
+    const dialog = document.getElementById('content') as HTMLDialogElement;
+    dialog.showModal();
+}
+
+// 显示消息编号
+const onShowClientMsgNo = (clientMsgNo: any) => {
+    content.value = clientMsgNo
+    const dialog = document.getElementById('content') as HTMLDialogElement;
     dialog.showModal();
 }
 
@@ -266,6 +273,11 @@ const onShowMessageContent = (message: any) => {
                                 客户端唯一编号
                             </div>
                         </th>
+                        <th>
+                            <div class="flex items-center">
+                                操作
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -276,9 +288,15 @@ const onShowMessageContent = (message: any) => {
                         <td>{{ message.from_uid }}</td>
                         <td>{{ message.channel_id }}</td>
                         <td>{{ message.channel_type }}</td>
-                        <td class="text-blue-800" v-on:click="()=>onShowMessageContent(message)"><a href="#">{{ ellipsis(base64Decode(message.payload), 40) }}</a></td>
+                        <td class="text-blue-800" v-on:click="() => onShowMessageContent(message)"><a href="#">{{
+                            ellipsis(base64Decode(message.payload), 40) }}</a></td>
                         <td>{{ message.timestamp_format }}</td>
-                        <td>{{ ellipsis(message.client_msg_no, 20) }}</td>
+                        <td class="text-blue-800" v-on:click="() => onShowClientMsgNo(message.client_msg_no)"><a
+                                href="#">{{ ellipsis(message.client_msg_no, 20) }}</a></td>
+
+                        <td class="flex">
+                            <button class="btn btn-link btn-sm" @click="$router.push(`/monitor/trace?clientMsgNo=${message.client_msg_no}`)">消息轨迹</button>
+                        </td>
                     </tr>
 
                 </tbody>
@@ -295,16 +313,16 @@ const onShowMessageContent = (message: any) => {
 
         <div class="flex justify-end mt-10 mr-10">
             <div className="join">
-                <button :class="{'join-item btn':true}" v-on:click="prevPage">«</button>
+                <button :class="{ 'join-item btn': true }" v-on:click="prevPage">«</button>
                 <button className="join-item btn">{{ currentPage }}</button>
-                <button  :class="{'join-item btn':true}" v-on:click="nextPage">»</button>
+                <button :class="{ 'join-item btn': true }" v-on:click="nextPage">»</button>
             </div>
         </div>
 
-        <dialog id="messageContent" class="modal">
+        <dialog id="content" class="modal">
             <div class="modal-box flex flex-wrap gap-2">
-                <div>{{ base64Decode(currentMessage?.payload)}}</div>
-               
+                <div>{{ content }}</div>
+
             </div>
             <form method="dialog" class="modal-backdrop">
                 <button>close</button>

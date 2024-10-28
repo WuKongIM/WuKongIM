@@ -256,9 +256,16 @@ export default class API {
         messageId?: number,
         width?: number,
         height?: number,
+        since?: number,
     }) {
         return APIClient.shared.get(`/cluster/message/trace`, {
-            param: req
+            param: {
+                client_msg_no: req.clientMsgNo,
+                message_id: req.messageId,
+                width: req.width,
+                height: req.height,
+                since: req.since,
+            }
         })
     }
 

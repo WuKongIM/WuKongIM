@@ -112,7 +112,7 @@ func newEncoderConfig() zapcore.EncoderConfig {
 		EncodeCaller:  zapcore.FullCallerEncoder,     // 全路径编码器
 		EncodeName:    zapcore.FullNameEncoder,
 		EncodeTime: func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
+			enc.AppendString(t.Format("2006-01-02T15:04:05.999999999-07:00"))
 		},
 		EncodeDuration: func(d time.Duration, enc zapcore.PrimitiveArrayEncoder) {
 			enc.AppendInt64(int64(d) / 1000000)
@@ -146,7 +146,6 @@ func Debug(msg string, fields ...zap.Field) {
 
 // Error Error
 func Error(msg string, fields ...zap.Field) {
-
 
 	if errorLogger == nil {
 		Configure(NewOptions())
@@ -231,7 +230,7 @@ func (t *WKLog) Info(msg string, fields ...zap.Field) {
 	Info(b.String(), fields...)
 }
 
-func (t *WKLog) MessageTrace(msg string, clientMsgNo string, operationName string, fields ...zap.Field) {
+func (t *WKLog) MessageTrace(msg string, no string, action string, fields ...zap.Field) {
 
 	if !opts.TraceOn {
 		return
@@ -243,9 +242,9 @@ func (t *WKLog) MessageTrace(msg string, clientMsgNo string, operationName strin
 	b.WriteString("】")
 	b.WriteString(msg)
 	if len(fields) == 0 {
-		Info(b.String(), zap.Int("msgTrace", 1), zap.Uint64("nodeId", opts.NodeId), zap.String("clientMsgNo", clientMsgNo), zap.String("operationName", operationName))
+		Info(b.String(), zap.Int("trace", 1), zap.String("no", no), zap.String("action", action))
 	} else {
-		fields = append(fields, zap.Int("msgTrace", 1), zap.Uint64("nodeId", opts.NodeId), zap.String("clientMsgNo", clientMsgNo), zap.String("operationName", operationName))
+		fields = append(fields, zap.Int("trace", 1), zap.String("no", no), zap.String("action", action))
 		Info(b.String(), fields...)
 	}
 

@@ -224,17 +224,20 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 	for _, nodeUser := range tg.users {
 
 		if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId { // 只投递本节点的
+
+			// 记录轨迹
+			if d.dm.s.opts.Logger.TraceOn {
+				for _, msg := range req.messages {
+					d.MessageTrace("投递节点", msg.SendPacket.ClientMsgNo, "deliverNode", zap.Int("userCount", len(nodeUser.uids)))
+				}
+			}
 			// 更新最近会话
 			d.dm.s.conversationManager.Push(req.channelId, req.channelType, nodeUser.uids, req.messages)
 			// 投递消息
 			d.deliver(req, nodeUser.uids)
 
 		} else { // 非本节点的转发给对应节点去投递
-			if d.dm.s.opts.Logger.TraceOn {
-				for _, msg := range req.messages {
-					d.MessageTrace("转发投递消息", msg.SendPacket.ClientMsgNo, "forwardDeliver", zap.Uint64("toNodeId", nodeUser.nodeId))
-				}
-			}
+
 			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
 		}
 	}
@@ -276,17 +279,12 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 	if d.dm.s.opts.Logger.TraceOn {
 		for _, msg := range req.messages {
-			if msg.SendPacket.ChannelType == wkproto.ChannelTypePerson {
-				toUid := msg.SendPacket.ChannelID
-				for _, uid := range uids {
-					if uid == toUid {
-						if len(allConns) > 0 {
+			if onlineUserCount > 0 {
+				d.MessageTrace("投递在线消息", msg.SendPacket.ClientMsgNo, "deliverOnline", zap.Int("userCount", onlineUserCount), zap.Int("connCount", len(allConns)))
+			}
 
-						}
-						d.MessageTrace("投递消息", msg.SendPacket.ClientMsgNo, "deliverMessage", zap.String("toUid", toUid))
-						break
-					}
-				}
+			if offlineUserCount > 0 {
+				d.MessageTrace("投递离线消息", msg.SendPacket.ClientMsgNo, "deliverOffline", zap.Int("userCount", offlineUserCount))
 			}
 		}
 	}
@@ -389,6 +387,13 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 			d.dm.s.webhook.notifyOfflineMsg(message, webhookOfflineUids)
 		}
 	}
+
+	if d.dm.s.opts.Logger.TraceOn {
+		for _, msg := range req.messages {
+			d.MessageTrace("投递消息完成", msg.SendPacket.ClientMsgNo, "deliverMessageFinished")
+		}
+	}
+
 }
 
 // 加密消息

@@ -405,7 +405,8 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 
 func (r *channelReactor) hasPermission(channelId string, channelType uint8, fromUid string, ch *channel) (wkproto.ReasonCode, error) {
 
-	if channelType == wkproto.ChannelTypeInfo { // 资讯频道是公开的，直接通过
+	// 资讯频道是公开的，直接通过
+	if channelType == wkproto.ChannelTypeInfo {
 		return wkproto.ReasonSuccess, nil
 	}
 
@@ -935,7 +936,9 @@ func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 		req.messages = deliverMessages
 
 		if len(deliverMessages) > 0 {
-
+			for _, deliverMessage := range deliverMessages {
+				r.MessageTrace("投递消息", deliverMessage.SendPacket.ClientMsgNo, "processDeliver", zap.Int("batchCount", len(deliverMessages)))
+			}
 			// 投递消息
 			r.handleDeliver(req)
 		}

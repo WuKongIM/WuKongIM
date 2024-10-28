@@ -96,6 +96,8 @@ type Options struct {
 	PongMaxTick int // 节点超过多少tick没有回应心跳就认为是掉线
 
 	Auth auth.AuthConfig
+
+	LokiUrl string // loki url example: http://localhost:3100
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -407,5 +409,11 @@ func WithAuth(auth auth.AuthConfig) Option {
 func WithServiceName(serviceName string) Option {
 	return func(o *Options) {
 		o.ServiceName = serviceName
+	}
+}
+
+func WithLokiUrl(url string) Option {
+	return func(o *Options) {
+		o.LokiUrl = url
 	}
 }

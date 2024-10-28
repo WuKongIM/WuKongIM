@@ -3,7 +3,6 @@
         <div class="row-span-3 p-2" v-html="data.icon"></div>
         <div class="font-semibold flex items-center text-[0.9rem] justify-between">
             <div>{{data.name}}</div>
-            <div class="pr-1 text-sm text-blue-300">{{formatTime(data.duration)}}</div>
         </div>
         <div class="text text-sm text-gray-400 flex items-center">{{data.description}}</div>
         <div class="text text-sm text-gray-400 flex items-center">{{data.time}}</div>
@@ -19,9 +18,6 @@ onMounted(() => {
   data.value = node.data;
 });
 
-// 将纳秒格式化为毫秒
-const formatTime = (time: number) => {
-  return (time / 1000).toFixed(2) + 'ms';
-};
+
 
 </script>

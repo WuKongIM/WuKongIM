@@ -159,7 +159,7 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(frameSize)
 
-	c.MessageTrace("收到消息", packet.ClientMsgNo, "processMessage")
+	c.MessageTrace("收到消息", packet.ClientMsgNo, "processMessage", zap.String("channelId", packet.ChannelID), zap.Uint8("channelType", packet.ChannelType), zap.String("uid", c.uid), zap.String("deviceId", c.deviceId), zap.Uint8("deviceFlag", uint8(c.deviceFlag)), zap.Uint8("deviceLevel", uint8(c.deviceLevel)))
 
 	// 非法频道id，直接返回发送失败
 	if strings.TrimSpace(packet.ChannelID) == "" || IsSpecialChar(packet.ChannelID) {
