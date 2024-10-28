@@ -128,8 +128,27 @@ func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, update
 		}
 		conversations = append(conversations, conversation)
 	}
+	// conversations 根据id去重复
+	conversations = uniqueConversation(conversations)
 
 	return conversations, nil
+}
+
+func uniqueConversation(conversations []Conversation) []Conversation {
+	if len(conversations) == 0 {
+		return conversations
+	}
+
+	uniqueMap := make(map[uint64]Conversation)
+	for _, conversation := range conversations {
+		uniqueMap[conversation.Id] = conversation
+	}
+
+	var uniqueConversations = make([]Conversation, 0, len(uniqueMap))
+	for _, conversation := range uniqueMap {
+		uniqueConversations = append(uniqueConversations, conversation)
+	}
+	return uniqueConversations
 }
 
 func (wk *wukongDB) getLastConversationIds(uid string, updatedAt uint64, limit int) ([]uint64, error) {

@@ -123,6 +123,10 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 
 	// var messageID = m.s.dispatch.processor.genMessageID()
 
+	if IsSpecialChar(channelId) {
+		return 0, errors.New("频道ID不合法！")
+	}
+
 	fakeChannelId := channelId
 	fakeChannelType := channelType
 	if channelType == wkproto.ChannelTypePerson {
@@ -134,7 +138,6 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 	}
 
 	channel := m.s.channelReactor.loadOrCreateChannel(fakeChannelId, fakeChannelType)
-
 	if channel == nil {
 		return 0, errors.New("频道信息不存在！")
 	}

@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -1470,18 +1471,19 @@ type LogRespTotal struct {
 }
 
 type SpanNode struct {
-	Id          string  `json:"id"`          // ID
-	Shape       string  `json:"shape"`       // 形状
-	Name        string  `json:"name"`        // 名称
-	NodeId      uint64  `json:"nodeId"`      // 节点ID
-	Time        string  `json:"time"`        // 时间
-	Duration    int64   `json:"duration"`    // 单位纳秒
-	Icon        string  `json:"icon"`        // 图标
-	Width       float64 `json:"width"`       // 宽度
-	Height      float64 `json:"height"`      // 高度
-	X           float64 `json:"x"`           // X
-	Y           float64 `json:"y"`           // Y
-	Description string  `json:"description"` // 描述
+	Id          string                 `json:"id"`          // ID
+	Shape       string                 `json:"shape"`       // 形状
+	Name        string                 `json:"name"`        // 名称
+	NodeId      uint64                 `json:"nodeId"`      // 节点ID
+	Time        string                 `json:"time"`        // 时间
+	Duration    int64                  `json:"duration"`    // 单位纳秒
+	Icon        string                 `json:"icon"`        // 图标
+	Width       float64                `json:"width"`       // 宽度
+	Height      float64                `json:"height"`      // 高度
+	X           float64                `json:"x"`           // X
+	Y           float64                `json:"y"`           // Y
+	Description string                 `json:"description"` // 描述
+	Data        map[string]interface{} `json:"data"`        // 数据
 }
 
 func (s *SpanNode) genDescription() {
@@ -1498,4 +1500,238 @@ type SpanEdge struct {
 type Trace struct {
 	Nodes []*SpanNode `json:"nodes"`
 	Edges []*SpanEdge `json:"edges"`
+}
+
+type Stream map[string]interface{}
+
+func (s Stream) getString(key string) string {
+	if v, ok := s[key]; ok {
+		if str, ok := v.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func (s Stream) getAction() string {
+	return s.getString("action")
+}
+
+func (s Stream) getName() string {
+	action := s.getAction()
+
+	return getSpanNodeName(action)
+}
+
+func (s Stream) getNodeId() uint64 {
+	return s.getUint64("nodeId")
+}
+
+func (s Stream) getTraceTime() time.Time {
+	return s.getTime("time")
+}
+
+func (s Stream) getIcon() string {
+	action := s.getAction()
+	switch action {
+	case "processMessage":
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`
+	case "processPayloadDecrypt":
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`
+	case "processPermission":
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-person-standing"><circle cx="12" cy="5" r="1"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/></svg>`
+	case "processStorage":
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cylinder"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/></svg>`
+	case "processSendack":
+		return ``
+	case "makeReceiverTag":
+		return ``
+	case "forwardDeliver":
+		return ``
+	case "deliverMessage":
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package-2"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9"/><path d="M12 3v6"/></svg>`
+	case "requestReceiverTag":
+		return ``
+	default:
+		return ``
+	}
+}
+
+func (s Stream) getTime(key string) time.Time {
+	if v, ok := s[key]; ok {
+		tm, _ := time.Parse(time.RFC3339Nano, v.(string))
+		return tm
+	}
+	return time.Time{}
+}
+
+func (s Stream) getUint64(key string) uint64 {
+	if v, ok := s[key]; ok {
+		switch tv := v.(type) {
+
+		case json.Number:
+			num, _ := tv.Int64()
+			return uint64(num)
+		case string:
+			num, _ := strconv.ParseUint(tv, 10, 64)
+			return num
+		}
+	}
+	return 0
+}
+
+func (s Stream) getInt(key string) int {
+	if v, ok := s[key]; ok {
+		switch tv := v.(type) {
+		case json.Number:
+			num, _ := tv.Int64()
+			return int(num)
+		case string:
+			num, _ := strconv.Atoi(tv)
+			return num
+		}
+	}
+	return 0
+}
+
+func getSpanNodeName(id string) string {
+	switch id {
+	case "processMessage":
+		return "收到消息"
+	case "processPayloadDecrypt":
+		return "解密消息"
+	case "processPermission":
+		return "权限验证"
+	case "processStorage":
+		return "存储消息"
+	case "processSendack":
+		return "回应客户端"
+	case "processDeliver":
+		return "投递消息"
+	case "deliverNode":
+		return "投递节点"
+	case "deliverOnline":
+		return "在线投递"
+	case "deliverOffline":
+		return "离线投递"
+	default:
+		return id
+	}
+}
+
+type StreamGroup struct {
+	Action    string
+	Streams   []Stream
+	SubGroups []*StreamGroup
+}
+
+func (s *StreamGroup) First() Stream {
+	if len(s.Streams) > 0 {
+		return s.Streams[0]
+	}
+	return nil
+}
+
+type Template struct {
+	Nodes []*SpanNode
+	Edges []*SpanEdge
+}
+
+func newMessageTraceTemple(containerWidth float64) *Template {
+
+	nodeWidth := float64(180)
+	nodeHeight := float64(70)
+
+	centerX := (containerWidth - float64(nodeWidth)) / 2
+	topSpace := float64(60)
+	leftSpace := float64(80)
+
+	groupSpace := float64(40)
+
+	nodes := []*SpanNode{
+		{
+			Id:     "processMessage",
+			Name:   getSpanNodeName("processMessage"),
+			Shape:  "textNode",
+			Width:  nodeWidth,
+			Height: nodeHeight,
+			X:      centerX - nodeWidth - groupSpace - topSpace,
+			Y:      topSpace,
+		},
+		{
+			Id:     "processPayloadDecrypt",
+			Name:   getSpanNodeName("processPayloadDecrypt"),
+			Shape:  "textNode",
+			Width:  nodeWidth,
+			Height: nodeHeight,
+			X:      centerX,
+			Y:      topSpace,
+		},
+		{
+			Id:     "processPermission",
+			Name:   getSpanNodeName("processPermission"),
+			Shape:  "textNode",
+			Width:  nodeWidth,
+			Height: nodeHeight,
+			X:      centerX,
+			Y:      (topSpace+nodeHeight)*1 + topSpace,
+		},
+		{
+			Id:     "processStorage",
+			Name:   getSpanNodeName("processStorage"),
+			Shape:  "textNode",
+			Width:  nodeWidth,
+			Height: nodeHeight,
+			X:      centerX,
+			Y:      (topSpace+nodeHeight)*2 + topSpace,
+		},
+		{
+			Id:     "processSendack",
+			Name:   getSpanNodeName("processSendack"),
+			Shape:  "textNode",
+			Width:  nodeWidth,
+			Height: nodeHeight,
+			X:      centerX + nodeWidth + leftSpace,
+			Y:      (topSpace+nodeHeight)*2 + topSpace,
+		},
+		{
+			Id:     "processDeliver",
+			Name:   getSpanNodeName("processDeliver"),
+			Shape:  "textNode",
+			Width:  nodeWidth,
+			Height: nodeHeight,
+			X:      centerX,
+			Y:      (topSpace+nodeHeight)*3 + topSpace + groupSpace,
+		},
+	}
+
+	edges := []*SpanEdge{
+		{
+			Source: "processMessage",
+			Target: "processPayloadDecrypt",
+		},
+		{
+			Source: "processPayloadDecrypt",
+			Target: "processPermission",
+		},
+		{
+			Source: "processPermission",
+			Target: "processStorage",
+		},
+		{
+			Source: "processStorage",
+			Target: "processSendack",
+			Shape:  "dashed",
+		},
+		{
+			Source: "processStorage",
+			Target: "processDeliver",
+			Shape:  "dashed",
+		},
+	}
+
+	return &Template{
+		Nodes: nodes,
+		Edges: edges,
+	}
 }

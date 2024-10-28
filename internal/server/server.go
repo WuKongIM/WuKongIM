@@ -189,6 +189,7 @@ func New(opts *Options) *Server {
 			cluster.WithAuth(s.opts.Auth),
 			cluster.WithJaegerApiUrl(s.opts.Trace.JaegerApiUrl),
 			cluster.WithServiceName(s.opts.Trace.ServiceName),
+			cluster.WithLokiUrl(s.opts.Logger.Loki.Url),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {

@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -2324,251 +2323,283 @@ func (s *Server) messageTrace(c *wkhttp.Context) {
 	clientMsgNo := c.Query("client_msg_no")
 	messageId := wkutil.ParseInt64(c.Query("message_id"))
 	width := wkutil.ParseFloat64(c.Query("width"))
+	since := wkutil.ParseInt64(c.Query("since")) // 查询多久的轨迹，单位秒 比如 60 为查询60秒内的轨迹
 	// height := wkutil.ParseFloat64(c.Query("height"))
 
-	data, err := s.requestTraces("processMessage", clientMsgNo, messageId)
+	if clientMsgNo == "" && messageId == 0 {
+		c.ResponseError(errors.New("client_msg_no and message_id can't be empty at the same time"))
+		return
+	}
+
+	if since <= 0 {
+		since = 60 * 60 // 默认查询1小时内的轨迹
+	}
+
+	start := time.Now().Add(-(time.Second * time.Duration(since)))
+	end := time.Now()
+
+	// ==================  请求轨迹日志 ==================
+
+	streamGroups, err := s.requestTraceStreams(clientMsgNo, messageId, start, end)
 	if err != nil {
-		s.Error("requestTraces error", zap.Error(err))
+		s.Error("requestTraceStreams error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
-	if len(data) == 0 {
-		c.ResponseError(errors.New("trace not found"))
+	if len(streamGroups) == 0 {
+		s.Error("requestTraceStreams empty")
+		c.ResponseError(errors.New("没有找到轨迹日志"))
 		return
 	}
 
-	traceMap := data[0]
+	// 创建一个消息轨迹模版
+	traceTemplate := newMessageTraceTemple(width)
 
-	spans := traceMap["spans"].([]interface{})
-	processesMap := traceMap["processes"].(map[string]interface{})
+	trace := &Trace{
+		Nodes: traceTemplate.Nodes,
+		Edges: traceTemplate.Edges,
+	}
 
-	getOperation := func(operation string) map[string]interface{} {
-		for _, span := range spans {
-			spanMap := span.(map[string]interface{})
-			if spanMap["operationName"] == operation {
-				return spanMap
+	// 从trace里获取节点
+	getSpanNodeFromTrace := func(id string) *SpanNode {
+		for _, node := range trace.Nodes {
+			if node.Id == id {
+				return node
 			}
 		}
 		return nil
 	}
 
-	getSpanAttr := func(operationName string, key string) interface{} {
-		for _, span := range spans {
-			spanMap := span.(map[string]interface{})
-			if spanMap["operationName"] == operationName {
-				return spanMap[key]
+	// ==================  匹配模版里的节点并填充数据 ==================
+
+	for _, streamGroup := range streamGroups {
+
+		node := getSpanNodeFromTrace(streamGroup.Action)
+		if node == nil {
+			continue
+		}
+
+		stream := streamGroup.First()
+
+		node.Shape = "spanNode"
+		node.NodeId = stream.getNodeId()
+		node.Time = wkutil.ToyyyyMMddHHmmss(stream.getTraceTime())
+		node.Icon = stream.getIcon()
+		node.genDescription()
+
+		if stream.getAction() == "processMessage" {
+			node.Data = stream
+		}
+	}
+
+	// ==================  动态生成投递流程节点 ==================
+
+	// 获取投递节点
+	processDeliverNode := getSpanNodeFromTrace("processDeliver")
+	getStreamGroup := func(action string) *StreamGroup {
+		for _, streamGroup := range streamGroups {
+			if streamGroup.Action == action {
+				return streamGroup
 			}
 		}
 		return nil
 	}
 
-	getSpanTag := func(operationName string, key string) interface{} {
-		for _, span := range spans {
-			spanMap := span.(map[string]interface{})
-			if spanMap["operationName"] == operationName {
-				tags := spanMap["tags"].([]interface{})
-				for _, tag := range tags {
-					tagMap := tag.(map[string]interface{})
-					if tagMap["key"] == key {
-						return tagMap["value"]
-					}
-				}
-			}
+	// 获取投递节点的轨迹组
+	deliverNodeStreamGroup := getStreamGroup("deliverNode")
+	leftSpace := 40
+	getX := func(i int, count int, initX float64, width float64) float64 {
+
+		if count == 0 {
+			return 0
 		}
-		return nil
+
+		totalWidth := width*float64(count) + float64(leftSpace*(count-1))
+
+		leftX := (totalWidth/2 - width/2) + initX
+
+		return leftX - float64(i)*(width+float64(leftSpace))
+
 	}
+	if deliverNodeStreamGroup != nil {
+		nodeCount := len(deliverNodeStreamGroup.Streams)
+		sort.Slice(deliverNodeStreamGroup.Streams, func(i, j int) bool {
+			return deliverNodeStreamGroup.Streams[i].getNodeId() > deliverNodeStreamGroup.Streams[j].getNodeId()
+		})
+		for i, stream := range deliverNodeStreamGroup.Streams {
+			nodeId := stream.getNodeId()
+			node := new(SpanNode)
+			node.Id = fmt.Sprintf("%s-%d", stream.getAction(), nodeId)
+			node.Shape = "spanNode"
+			node.NodeId = nodeId
+			node.Name = fmt.Sprintf("%s%d", stream.getName(), nodeId)
+			node.Time = wkutil.ToyyyyMMddHHmmss(stream.getTraceTime())
+			node.Icon = stream.getIcon()
+			node.Width = processDeliverNode.Width
+			node.Height = processDeliverNode.Height
+			node.X = getX(i, nodeCount, processDeliverNode.X, processDeliverNode.Width)
+			node.Y = processDeliverNode.Y + processDeliverNode.Height + 60
+			node.genDescription()
+			node.Description += fmt.Sprintf(" 用户:%d", stream.getInt("userCount"))
+			trace.Nodes = append(trace.Nodes, node)
 
-	getNodeId := func(operationName string) uint64 {
-
-		processID := getSpanAttr(operationName, "processID").(string)
-		processMap := processesMap[processID].(map[string]interface{})
-		if processMap["tags"] != nil {
-			tags := processMap["tags"].([]interface{})
-			for _, tag := range tags {
-				tagMap := tag.(map[string]interface{})
-				if tagMap["key"] == "node.id" {
-					nodeId, _ := tagMap["value"].(json.Number).Int64()
-					return uint64(nodeId)
-				}
-			}
+			edge := new(SpanEdge)
+			edge.Source = processDeliverNode.Id
+			edge.Target = node.Id
+			trace.Edges = append(trace.Edges, edge)
 		}
-		return 0
 	}
 
-	trace := &Trace{}
+	deliverStreams := make([]Stream, 0)
 
-	nodeWidth := float64(180)
-	nodeHeight := float64(70)
-
-	centerX := (width - float64(nodeWidth)) / 2
-
-	topSpace := float64(60)
-	leftSpace := float64(60)
-
-	preY := topSpace // 上一个节点的Y坐标
-
-	// ----------------- processMessage -----------------
-	processMessageMap := getOperation("processMessage")
-	if processMessageMap != nil {
-		node := s.getSpanNode("processMessage", "收到消息", processMessageMap)
-		node.X = centerX
-		node.Y = preY
-		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-play"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>`
-		node.NodeId = getNodeId("processMessage")
-		node.genDescription()
-
-		trace.Nodes = append(trace.Nodes, node)
-
-		preY = nodeHeight + node.Y + topSpace
+	// 获取在线投递消息的轨迹组
+	deliverOnlineStreamGroup := getStreamGroup("deliverOnline")
+	if deliverOnlineStreamGroup != nil {
+		deliverStreams = append(deliverStreams, deliverOnlineStreamGroup.Streams...)
 	}
 
-	// ----------------- processPayloadDecrypt -----------------
-	processPayloadDecryptMap := getOperation("processPayloadDecrypt")
-	if processPayloadDecryptMap != nil {
-		node := s.getSpanNode("processPayloadDecrypt", "解密消息", processPayloadDecryptMap)
-		node.X = centerX
-		node.Y = preY
-		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>`
-		node.NodeId = getNodeId("processPayloadDecrypt")
-		node.genDescription()
-		trace.Nodes = append(trace.Nodes, node)
-
-		preY = nodeHeight + node.Y + topSpace
+	// 获取离线投递消息的轨迹组
+	deliverOfflineStreamGroup := getStreamGroup("deliverOffline")
+	if deliverOfflineStreamGroup != nil {
+		deliverStreams = append(deliverStreams, deliverOfflineStreamGroup.Streams...)
 	}
 
-	// ----------------- sendack -----------------
-	sendackMap := getOperation("sendack")
-	if sendackMap != nil {
-		node := s.getSpanNode("sendack", "消息回执", sendackMap)
-		node.X = centerX + nodeWidth + leftSpace
-		node.Y = preY
-		node.NodeId = getNodeId("sendack")
-		node.genDescription()
-		trace.Nodes = append(trace.Nodes, node)
-	}
+	if len(deliverStreams) > 0 {
+		sort.Slice(deliverStreams, func(i, j int) bool {
+			return deliverStreams[i].getNodeId() > deliverStreams[j].getNodeId()
+		})
+		for i, stream := range deliverStreams {
 
-	// ----------------- processForward -----------------
-	processForwardMap := getOperation("processForward")
-	if processForwardMap != nil {
-		node := s.getSpanNode("processForward", "转发消息", processForwardMap)
-		node.X = centerX - nodeWidth - leftSpace
-		node.Y = preY
-		node.Icon = ``
-		node.NodeId = getNodeId("processForward")
-		node.genDescription()
-		trace.Nodes = append(trace.Nodes, node)
-	}
+			nodeId := stream.getNodeId()
+			deliverNodeSpanNode := getSpanNodeFromTrace(fmt.Sprintf("deliverNode-%d", nodeId))
+			if deliverNodeSpanNode == nil { // 理论上一定有deliverNode节点
+				continue
+			}
 
-	// ----------------- processPermission -----------------
-	processPermissionMap := getOperation("processPermission")
-	if processPermissionMap != nil {
-		node := s.getSpanNode("processPermission", "权限检查", processPermissionMap)
-		node.X = centerX
-		node.Y = preY
-		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-person-standing"><circle cx="12" cy="5" r="1"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/></svg>`
-		node.NodeId = getNodeId("processPermission")
-		node.genDescription()
-		trace.Nodes = append(trace.Nodes, node)
+			node := new(SpanNode)
+			node.Id = fmt.Sprintf("%s-%d", stream.getAction(), nodeId)
+			node.Shape = "spanNode"
+			node.NodeId = nodeId
+			node.Name = stream.getName()
+			node.Time = wkutil.ToyyyyMMddHHmmss(stream.getTraceTime())
+			node.Icon = stream.getIcon()
+			node.X = getX(i, len(deliverStreams), deliverNodeSpanNode.X, deliverNodeSpanNode.Width)
+			node.Y = deliverNodeSpanNode.Y + deliverNodeSpanNode.Height + 60
+			node.genDescription()
+			node.Description += fmt.Sprintf(" 用户:%d", stream.getInt("userCount"))
+			if stream.getAction() == "deliverOnline" {
+				node.Description += fmt.Sprintf(" 连接:%d", stream.getInt("connCount"))
+			}
+			trace.Nodes = append(trace.Nodes, node)
 
-		preY = nodeHeight + node.Y + topSpace
-	}
-
-	// ----------------- storeMessages -----------------
-	storeMessagesMap := getOperation("storeMessages")
-	if storeMessagesMap != nil {
-		node := s.getSpanNode("storeMessages", "批量存储", storeMessagesMap)
-		node.X = centerX
-		node.Y = preY
-		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cylinder"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/></svg>`
-		node.NodeId = getNodeId("storeMessages")
-		node.genDescription()
-		msgCount, _ := getSpanTag("storeMessages", "msgCount").(json.Number).Int64()
-		node.Description = fmt.Sprintf("%s 消息:%d条", node.Description, msgCount)
-		trace.Nodes = append(trace.Nodes, node)
-
-		preY = nodeHeight + node.Y + topSpace
-	}
-
-	// ----------------- deliverMessage -----------------
-	deliverMessageMap := getOperation("deliverMessage")
-	if deliverMessageMap != nil {
-		node := s.getSpanNode("deliverMessage", "投递消息", deliverMessageMap)
-		node.X = centerX
-		node.Y = preY
-		node.Icon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package-2"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="m3 9 2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.8 1.1L21 9"/><path d="M12 3v6"/></svg>`
-		node.NodeId = getNodeId("deliverMessage")
-		node.genDescription()
-		trace.Nodes = append(trace.Nodes, node)
+			edge := new(SpanEdge)
+			edge.Source = deliverNodeSpanNode.Id
+			edge.Target = node.Id
+			trace.Edges = append(trace.Edges, edge)
+		}
 	}
 
 	c.JSON(http.StatusOK, trace)
 
 }
 
-func (s *Server) getSpanNode(id string, name string, mp map[string]interface{}) *SpanNode {
-	if mp == nil {
-		return nil
-	}
-
-	startTime, _ := mp["startTime"].(json.Number).Int64()
-	t := time.Unix(startTime/1e6, startTime%1e9)
-	startTimeStr := wkutil.ToyyyyMMddHHmmss(t)
-	duration, _ := mp["duration"].(json.Number).Int64()
-
-	return &SpanNode{
-		Id:       id,
-		Shape:    "spanNode",
-		Name:     name,
-		Time:     startTimeStr,
-		Duration: int64(duration),
-	}
-}
-
-func (s *Server) requestTraces(operation, clientMsgNo string, messageId int64) ([]map[string]interface{}, error) {
-
-	paramMap := map[string]interface{}{}
+func (s *Server) requestTraceStreams(clientMsgNo string, messageId int64, start, end time.Time) ([]*StreamGroup, error) {
+	queryStr := `{trace = "1"} | json`
 	if clientMsgNo != "" {
-		paramMap["client_msg_no"] = clientMsgNo
+		queryStr = fmt.Sprintf(`%s | no="%s"`, queryStr, clientMsgNo)
 	}
 	if messageId > 0 {
-		paramMap["message_id"] = messageId
+		queryStr = fmt.Sprintf(`%s | messageId="%d"`, queryStr, messageId)
 	}
-
+	fmt.Println("queryStr---->", queryStr)
 	queryParams := map[string]string{
-		"service":   "wukongim",
-		"tags":      wkutil.ToJSON(paramMap),
-		"operation": operation,
+		"query": queryStr,
+		"start": fmt.Sprintf("%d", start.UnixNano()),
+		"end":   fmt.Sprintf("%d", end.UnixNano()),
 	}
 
-	apiUrl := fmt.Sprintf("%s/api/traces", s.opts.JaegerApiUrl)
-	if strings.HasSuffix(s.opts.JaegerApiUrl, "/") {
-		apiUrl = fmt.Sprintf("%sapi/traces", s.opts.JaegerApiUrl)
-	}
+	apiUrl := fmt.Sprintf("%s/loki/api/v1/query_range", strings.TrimSuffix(s.opts.LokiUrl, "/"))
+
+	fmt.Println("apiUrl--->", apiUrl)
 
 	resp, err := network.Get(apiUrl, queryParams, nil)
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
+		s.Error("requestTraces failed", zap.Int("status", resp.StatusCode), zap.String("body", resp.Body))
 		return nil, fmt.Errorf("requestTraces failed, status code: %d", resp.StatusCode)
 	}
-	var dataMap map[string]interface{}
-	err = wkutil.ReadJSONByByte([]byte(resp.Body), &dataMap)
-	if dataMap["data"] != nil {
-		dataObjs, ok := dataMap["data"].([]interface{})
-		if !ok {
-			return nil, errors.New("data type error")
-		}
-		results := make([]map[string]interface{}, 0, len(dataObjs))
-		for _, dataObj := range dataObjs {
-			data, ok := dataObj.(map[string]interface{})
-			if !ok {
-				continue
+	var returnMap map[string]interface{}
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &returnMap)
+	if returnMap["data"] != nil {
+		dataMap := returnMap["data"].(map[string]interface{})
+		if dataMap["result"] != nil {
+			results := dataMap["result"].([]interface{})
+			streams := make([]Stream, 0, len(results))
+			for _, result := range results {
+				resultMap := result.(map[string]interface{})
+				if resultMap["stream"] == nil {
+					continue
+				}
+				steamMap := resultMap["stream"].(map[string]interface{})
+				streams = append(streams, steamMap)
 			}
-			results = append(results, data)
+			sort.Slice(streams, func(i, j int) bool {
+
+				return streams[i].getTraceTime().Before(streams[j].getTraceTime())
+			})
+
+			// 获取stream所在的group
+			getStreamGroup := func(action string, groups []*StreamGroup) *StreamGroup {
+				if action == "" || len(groups) == 0 {
+					return nil
+				}
+				for _, group := range groups {
+					for _, groupStream := range group.Streams {
+						if groupStream.getString("action") == action {
+							return group
+						}
+					}
+				}
+				return nil
+			}
+
+			// 对stream进行group
+			groups := make([]*StreamGroup, 0, len(streams))
+			for _, stream := range streams {
+
+				parentAction := stream.getString("actionP")
+
+				// 如果有父级action，则将stream放到父级的SubGroups里
+				if strings.TrimSpace(parentAction) != "" {
+					parentGroup := getStreamGroup(parentAction, groups)
+					if parentGroup == nil {
+						continue
+					}
+					if len(parentGroup.SubGroups) > 0 {
+						subGroup := getStreamGroup(stream.getString("action"), parentGroup.SubGroups)
+						if subGroup == nil {
+							parentGroup.SubGroups = append(parentGroup.SubGroups, &StreamGroup{Action: stream.getString("action"), Streams: []Stream{stream}})
+						} else {
+							subGroup.Streams = append(subGroup.Streams, stream)
+						}
+					}
+					continue
+				}
+
+				group := getStreamGroup(stream.getString("action"), groups)
+				if group == nil {
+					groups = append(groups, &StreamGroup{Action: stream.getString("action"), Streams: []Stream{stream}})
+					continue
+				}
+				group.Streams = append(group.Streams, stream)
+			}
+
+			return groups, nil
 		}
-		return results, nil
 	}
 	return nil, err
+
 }

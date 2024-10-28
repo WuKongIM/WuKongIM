@@ -191,26 +191,26 @@ func (s *Server) handleUserAction(c *wkserver.Context) {
 		return
 	}
 
-	// connCtxs := s.userReactor.getConnContexts(uid)
+	connCtxs := s.userReactor.getConnContexts(uid)
 
-	// // connId替换成本节点的
-	// for i, action := range actions {
-	// 	for j, msg := range action.Messages {
-	// 		if msg.ConnId != 0 {
-	// 			for _, connCtx := range connCtxs {
-	// 				// 如果消息是从本节点发过来的，就替换connId
-	// 				if connCtx.realNodeId == msg.FromNodeId && connCtx.proxyConnId == msg.ConnId {
-	// 					s.Debug("auth: replace connId", zap.String("uid", uid), zap.Int64("oldConnId", msg.ConnId), zap.Int64("newConnId", connCtx.connId))
-	// 					msg.ConnId = connCtx.connId
-	// 					action.Messages[j] = msg
-	// 					actions[i] = action
-
-	// 					break
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
+	// connId替换成本节点的
+	for i, action := range actions {
+		for j, msg := range action.Messages {
+			if msg.ConnId != 0 {
+				for _, connCtx := range connCtxs {
+					// 如果消息接受的节点和连接id和当前节点的一样，就替换connId
+					if connCtx.realNodeId == msg.FromNodeId && connCtx.proxyConnId == msg.ConnId {
+						s.Debug("auth: replace connId", zap.String("uid", uid), zap.Int64("oldConnId", msg.ConnId), zap.Int64("newConnId", connCtx.connId))
+						msg.FromNodeId = s.opts.Cluster.NodeId
+						msg.ConnId = connCtx.connId
+						action.Messages[j] = msg
+						actions[i] = action
+						break
+					}
+				}
+			}
+		}
+	}
 
 	// 推进action
 	sub := s.userReactor.reactorSub(uid)

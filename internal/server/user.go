@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -394,6 +395,9 @@ func (u *userHandler) addConnIfNotExist(conn *connContext) {
 }
 
 func (u *userHandler) getConn(deviceId string) []*connContext {
+	if strings.TrimSpace(deviceId) == "" {
+		return nil
+	}
 	u.mu.RLock()
 	defer u.mu.RUnlock()
 	conns := make([]*connContext, 0, len(u.conns))

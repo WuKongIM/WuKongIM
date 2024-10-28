@@ -2,8 +2,10 @@ package promtail
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/loki/v3/clients/pkg/logentry/stages"
 	ptail "github.com/grafana/loki/v3/clients/pkg/promtail"
@@ -27,7 +29,7 @@ func New(opts *Options) *Promtail {
 
 	cfg := initPromtailConfig(opts)
 
-	p, err := ptail.New(cfg, nil, clientMetrics, false)
+	p, err := ptail.New(cfg, nil, clientMetrics, false, ptail.WithLogger(log.NewLogfmtLogger(os.Stdout)))
 	if err != nil {
 		panic(fmt.Errorf("promtail: Failed to create promtail %s", err))
 	}
@@ -77,30 +79,78 @@ func initPromtailConfig(opts *Options) config.Config {
 	cfg.ClientConfig.BatchWait = opts.BatchWait
 	cfg.ClientConfig.BatchSize = opts.BatchBytes
 
-	cfg.PositionsConfig.PositionsFile = fmt.Sprintf("%s/positions.yml", opts.LogDir)
+	posDir := fmt.Sprintf("%s/loki", opts.LogDir)
+
+	if err := os.MkdirAll(posDir, os.ModePerm); err != nil {
+		panic(fmt.Errorf("promtail: Failed to create positions directory %s", err))
+	}
+
+	cfg.PositionsConfig.PositionsFile = fmt.Sprintf("%s/positions.yml", posDir)
 
 	targetGroup := targetgroup.Group{
 		Targets: []model.LabelSet{{
 			"address": model.LabelValue(opts.Address),
+			"nodeId":  model.LabelValue(fmt.Sprintf("%d", opts.NodeId)),
 		}},
 		Labels: model.LabelSet{
-			"job":      "wukongimlogs",
+			"job":      "wk",
 			"__path__": model.LabelValue(opts.LogDir + "/**/*.log"),
 		},
 		Source: "",
 	}
+
+	// 获取本地时区
+	// now := time.Now()
+	// _, offset := now.Zone()
+	// offsetHours := offset / 3600
+	// offsetMinutes := (offset % 3600) / 60
+	// fmt.Println("Time Zone Name:", name)
+
+	// 格式化偏移量
+	// offsetStr := fmt.Sprintf("%-03d:%02d", offsetHours, offsetMinutes)
+
+	// fmt.Println("offsetStr----->", offsetStr)
+
+	// skip := stages.TimestampActionOnFailureSkip
 	scrapeConfig := scrapeconfig.Config{
 		JobName: "",
 		PipelineStages: stages.PipelineStages{
 			stages.PipelineStage{
 				stages.StageTypeJSON: stages.JSONConfig{
 					Expressions: map[string]string{
-						"level":     "level",
-						"timestamp": "time",
-						"output":    "msg",
+						"level": "level",
+						"time":  "time",
+						"msg":   "msg",
+						"trace": "trace",
 					},
 				},
 			},
+			stages.PipelineStage{
+				stages.StageTypeTimestamp: stages.TimestampConfig{
+					Source: "time",
+					Format: "RFC3339Nano",
+					// ActionOnFailure: &skip,
+				},
+			},
+			// stages.PipelineStage{
+			// 	// 为了让loki不再解析json获取以下指标，这里我们推送给loki的日志就解析出来了，这样loki就不需要再解析了 提升性能
+			// 	stages.StageTypeStructuredMetadata: stages.LabelsConfig{
+			// 		"level": nil,
+			// 	},
+			// },
+			stages.PipelineStage{
+				stages.StageTypeLabel: stages.LabelsConfig{
+					"level":  nil,
+					"trace":  nil,
+					"action": nil,
+				},
+			},
+
+			// stages.PipelineStage{
+			// 	stages.StageTypeOutput: stages.OutputConfig{
+			// 		Source: "msg",
+			// 	},
+			// },
 		},
 		RelabelConfigs: nil,
 		ServiceDiscoveryConfig: scrapeconfig.ServiceDiscoveryConfig{
