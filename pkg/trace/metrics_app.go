@@ -100,8 +100,16 @@ func (a *appMetrics) OnlineUserCountAdd(v int64) {
 	a.onlineUserCount.Add(v)
 }
 
+func (a *appMetrics) OnlineUserCountSet(v int64) {
+	a.onlineUserCount.Store(v)
+}
+
 func (a *appMetrics) OnlineDeviceCountAdd(v int64) {
 	a.onlineDeviceCount.Add(v)
+}
+
+func (a *appMetrics) OnlineDeviceCountSet(v int64) {
+	a.onlineDeviceCount.Store(v)
 }
 
 func (a *appMetrics) MessageLatencyOb(v int64) {

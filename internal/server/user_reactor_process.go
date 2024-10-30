@@ -43,6 +43,11 @@ func (r *userReactor) processInit(req *userInitReq) {
 		reason = ReasonError
 		r.Error("processInit: 获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 	}
+	isLeader := leaderId == r.s.opts.Cluster.NodeId
+
+	if isLeader {
+		r.s.trace.Metrics.App().OnlineUserCountAdd(1)
+	}
 
 	r.reactorSub(req.uid).step(req.uid, UserAction{
 		UniqueNo:   req.uniqueNo,
@@ -82,7 +87,7 @@ func (r *userReactor) processAuthLoop() {
 func (r *userReactor) processAuth(req *userAuthReq) {
 
 	for _, msg := range req.messages {
-		r.Debug("processAuth", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Any("msg", msg))
+		r.Debug("processAuth", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId))
 		_, _ = r.handleAuth(req.uid, msg)
 	}
 	lastIndex := req.messages[len(req.messages)-1].Index
@@ -196,28 +201,33 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 						ReasonCode: wkproto.ReasonConnectKick,
 						Reason:     "login in other device",
 					})
-					r.s.timingWheel.AfterFunc(time.Second*5, func() {
-						oldConn.close()
-					})
+					r.s.timingWheel.AfterFunc(time.Second*5, func(cn *connContext) func() {
+						return func() {
+							cn.close()
+						}
+					}(oldConn))
 				} else {
-					r.s.timingWheel.AfterFunc(time.Second*4, func() {
-						oldConn.close() // Close old connection
-					})
+					r.s.timingWheel.AfterFunc(time.Second*4, func(cn *connContext) func() {
+						return func() {
+							cn.close() // Close old connection
+						}
+					}(oldConn))
 				}
 				r.Info("auth: close old conn for master", zap.Any("oldConn", oldConn))
 			}
 		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceID踢掉
 			for _, oldConn := range oldConns {
 				if oldConn.connId != connCtx.connId && oldConn.deviceId == connectPacket.DeviceID {
-					r.s.timingWheel.AfterFunc(time.Second*5, func() {
-						r.s.userReactor.removeConnById(oldConn.uid, oldConn.connId)
-						oldConn.close()
-					})
+					r.s.userReactor.removeConnById(oldConn.uid, oldConn.connId)
+					r.s.timingWheel.AfterFunc(time.Second*5, func(cn *connContext) func() {
+						return func() {
+							cn.close() // Close old connection
+						}
+					}(oldConn))
 					r.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn))
 				}
 			}
 		}
-
 	}
 
 	// -------------------- set conn info --------------------
@@ -263,10 +273,8 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	deviceOnlineCount := r.s.userReactor.getConnCountByDeviceFlag(uid, connectPacket.DeviceFlag)
 	totalOnlineCount := r.s.userReactor.getConnCount(uid)
 	r.s.webhook.Online(uid, connectPacket.DeviceFlag, connCtx.connId, deviceOnlineCount, totalOnlineCount)
-	if totalOnlineCount <= 1 {
-		r.s.trace.Metrics.App().OnlineUserCountAdd(1) // 统计在线用户数
-	}
-	r.s.trace.Metrics.App().OnlineDeviceCountAdd(1) // 统计在线设备数
+
+	r.s.trace.Metrics.App().OnlineDeviceCountAdd(1) // 设备在线数+1
 
 	return wkproto.ReasonSuccess, nil
 }
@@ -1158,7 +1166,7 @@ func (r *userReactor) processClose(req *userCloseReq) {
 	}
 
 	if req.handler.role == userRoleLeader {
-		r.s.trace.Metrics.App().OnlineUserCountAdd(-1) //用户下线
+		r.s.trace.Metrics.App().OnlineUserCountAdd(-1)
 	}
 
 	r.removeUserHandler(uid)

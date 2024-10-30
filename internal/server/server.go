@@ -67,6 +67,8 @@ type Server struct {
 	datasource IDatasource // 数据源
 
 	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
+
+	collectMetricsTimer *timingwheel.Timer // 收集指标定时器
 }
 
 func New(opts *Options) *Server {
@@ -475,7 +477,6 @@ func (s *Server) onClose(conn wknet.Conn) {
 			deviceOnlineCount := s.userReactor.getConnCountByDeviceFlag(connCtx.uid, connCtx.deviceFlag)
 			totalOnlineCount := s.userReactor.getConnCount(connCtx.uid)
 			s.webhook.Offline(connCtx.uid, wkproto.DeviceFlag(connCtx.deviceFlag), connCtx.connId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
-
 			s.trace.Metrics.App().OnlineDeviceCountAdd(-1)
 		}
 
