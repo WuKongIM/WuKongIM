@@ -196,6 +196,7 @@ const requestMessageRecvackTraces = ({
     return API.shared.messageRecvackTraces({
         nodeId: nodeId,
         messageId: messageId,
+        since: 60 * 60 * 24,
     })
 }
 

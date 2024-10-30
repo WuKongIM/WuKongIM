@@ -274,11 +274,13 @@ export default class API {
     public messageRecvackTraces(req: {
         nodeId: string,
         messageId: string,
+        since?: number,
     }) {
         return APIClient.shared.get(`/cluster/message/trace/recvack`,{
             param: {
                 node_id: req.nodeId,
-                message_id: req.messageId
+                message_id: req.messageId,
+                since: req.since,
             }
         })
     }
