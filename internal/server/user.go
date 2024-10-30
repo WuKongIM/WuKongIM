@@ -394,7 +394,7 @@ func (u *userHandler) addConnIfNotExist(conn *connContext) {
 	u.keepActivity() // 有新连接进来了  继续保活
 }
 
-func (u *userHandler) getConn(deviceId string) []*connContext {
+func (u *userHandler) getConnByDeviceId(deviceId string) []*connContext {
 	if strings.TrimSpace(deviceId) == "" {
 		return nil
 	}
@@ -456,8 +456,6 @@ func (u *userHandler) getConnCount() int {
 // }
 
 func (u *userHandler) removeConnById(id int64) *connContext {
-	u.mu.Lock()
-	defer u.mu.Unlock()
 	var existConn *connContext
 	for i, c := range u.conns {
 		if c.connId == id {
@@ -522,10 +520,6 @@ func (u *userHandler) hasMasterDevice() bool {
 	}
 	return false
 
-}
-
-func (u *userHandler) close() error {
-	return u.sub.stepWait(u.uid, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 }
 
 type userReady struct {

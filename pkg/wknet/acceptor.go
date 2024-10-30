@@ -11,9 +11,9 @@ import (
 	"sync"
 
 	perrors "github.com/WuKongIM/WuKongIM/pkg/errors"
-	"github.com/WuKongIM/WuKongIM/pkg/socket"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet/netpoll"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet/socket"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )

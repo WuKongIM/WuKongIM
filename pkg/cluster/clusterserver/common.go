@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/sendgrid/rest"
 	"go.uber.org/zap"
 )
@@ -206,4 +207,25 @@ func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
 		return nil, err
 	}
 	return bodyBytes, nil
+}
+
+func getChannelTypeFormat(channelType uint8) string {
+	switch channelType {
+	case wkproto.ChannelTypePerson:
+		return "单聊"
+	case wkproto.ChannelTypeGroup:
+		return "群聊"
+	case wkproto.ChannelTypeCustomerService:
+		return "客服"
+	case wkproto.ChannelTypeCommunity:
+		return "社区"
+	case wkproto.ChannelTypeCommunityTopic:
+		return "社区话题"
+	case wkproto.ChannelTypeInfo:
+		return "资讯"
+	case wkproto.ChannelTypeData:
+		return "数据"
+	default:
+		return "未知"
+	}
 }

@@ -172,43 +172,60 @@ type IAppMetrics interface {
 
 	// PingBytesAdd ping流量
 	PingBytesAdd(v int64)
+	PingBytes() int64
+
 	// PingCountAdd ping数量
 	PingCountAdd(v int64)
+	PingCount() int64
 
 	// PongBytesAdd pong流量
 	PongBytesAdd(v int64)
+	PongBytes() int64
 	// PongCountAdd pong数量
 	PongCountAdd(v int64)
+	PongCount() int64
 
 	// SendPacketBytesAdd 发送包流量
 	SendPacketBytesAdd(v int64)
+	SendPacketBytes() int64
 	// SendPacketCountAdd 发送包数量
 	SendPacketCountAdd(v int64)
+	SendPacketCount() int64
 
 	// SendackPacketBytesAdd 发送应答包流量
 	SendackPacketBytesAdd(v int64)
+	SendackPacketBytes() int64
 	// SendackPacketCountAdd 发送应答包数量
 	SendackPacketCountAdd(v int64)
+	SendackPacketCount() int64
 
 	// RecvPacketBytesAdd 接收包流量
 	RecvPacketBytesAdd(v int64)
+	RecvPacketBytes() int64
 	// RecvPacketCountAdd 接收包数量
 	RecvPacketCountAdd(v int64)
+	RecvPacketCount() int64
 
 	// RecvackPacketBytesAdd 接收应答包流量
 	RecvackPacketBytesAdd(v int64)
+	RecvackPacketBytes() int64
 	// RecvackPacketCountAdd 接收应答包数量
 	RecvackPacketCountAdd(v int64)
+	RecvackPacketCount() int64
 
 	// ConnPacketBytesAdd 连接包流量
 	ConnPacketBytesAdd(v int64)
+	ConnPacketBytes() int64
 	// ConnPacketCountAdd 连接包数量
 	ConnPacketCountAdd(v int64)
+	ConnPacketCount() int64
 
 	// ConnackPacketBytesAdd 连接应答包流量
 	ConnackPacketBytesAdd(v int64)
+	ConnackPacketBytes() int64
 	// ConnackPacketCountAdd 连接应答包数量
 	ConnackPacketCountAdd(v int64)
+	ConnackPacketCount() int64
 }
 
 // IClusterMetrics 分布式监控

@@ -90,7 +90,7 @@ func (s *Server) handleChannelForward(c *wkserver.Context) {
 		sendPacket := reactorChannelMessage.SendPacket
 		// 提案频道消息
 		ch := s.channelReactor.loadOrCreateChannel(req.ChannelId, req.ChannelType)
-		_, err = ch.proposeSend(reactorChannelMessage.FromUid, reactorChannelMessage.FromDeviceId, reactorChannelMessage.FromConnId, reactorChannelMessage.FromNodeId, false, sendPacket)
+		_, err = ch.proposeSend(reactorChannelMessage.MessageId, reactorChannelMessage.FromUid, reactorChannelMessage.FromDeviceId, reactorChannelMessage.FromConnId, reactorChannelMessage.FromNodeId, false, sendPacket)
 		if err != nil {
 			s.Error("handleChannelForward: proposeSend failed")
 			c.WriteErr(err)
@@ -117,7 +117,7 @@ func (s *Server) handleForwardSendack(c *wkserver.Context) {
 	}
 
 	for _, forwardSendackPacket := range forwardSendackPacketSet {
-		conn := s.userReactor.getConnContextById(forwardSendackPacket.Uid, forwardSendackPacket.ConnId)
+		conn := s.userReactor.getConnById(forwardSendackPacket.Uid, forwardSendackPacket.ConnId)
 		if conn == nil {
 			s.Error("handleForwardSendack: conn not found", zap.String("uid", forwardSendackPacket.Uid), zap.String("deviceId", forwardSendackPacket.DeviceId))
 			c.WriteErr(errors.New("conn not found"))
@@ -148,7 +148,7 @@ func (s *Server) handleConnWrite(c *wkserver.Context) {
 		return
 	}
 
-	conn := s.userReactor.getConnContextById(fowardWriteReq.Uid, fowardWriteReq.ConnId)
+	conn := s.userReactor.getConnById(fowardWriteReq.Uid, fowardWriteReq.ConnId)
 	if conn == nil {
 		s.Error("handleConnWrite: conn not found", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
 		c.WriteErrorAndStatus(ErrConnNotFound, proto.Status(errCodeConnNotFound))
@@ -191,18 +191,18 @@ func (s *Server) handleUserAction(c *wkserver.Context) {
 		return
 	}
 
-	connCtxs := s.userReactor.getConnContexts(uid)
+	conns := s.userReactor.getConns(uid)
 
 	// connId替换成本节点的
 	for i, action := range actions {
 		for j, msg := range action.Messages {
 			if msg.ConnId != 0 {
-				for _, connCtx := range connCtxs {
+				for _, conn := range conns {
 					// 如果消息接受的节点和连接id和当前节点的一样，就替换connId
-					if connCtx.realNodeId == msg.FromNodeId && connCtx.proxyConnId == msg.ConnId {
-						s.Debug("auth: replace connId", zap.String("uid", uid), zap.Int64("oldConnId", msg.ConnId), zap.Int64("newConnId", connCtx.connId))
+					if conn.realNodeId == msg.FromNodeId && conn.proxyConnId == msg.ConnId {
+						s.Debug("auth: replace connId", zap.String("uid", uid), zap.Int64("oldConnId", msg.ConnId), zap.Int64("newConnId", conn.connId))
 						msg.FromNodeId = s.opts.Cluster.NodeId
-						msg.ConnId = connCtx.connId
+						msg.ConnId = conn.connId
 						action.Messages[j] = msg
 						actions[i] = action
 						break
@@ -214,13 +214,12 @@ func (s *Server) handleUserAction(c *wkserver.Context) {
 
 	// 推进action
 	sub := s.userReactor.reactorSub(uid)
-
 	for _, action := range actions {
 		action.UniqueNo = ""
-		userHandler := sub.getUser(uid)
+		userHandler := s.userReactor.getUserHandler(action.Uid)
 		if userHandler == nil {
 			uh := newUserHandler(uid, sub)
-			sub.addUserIfNotExist(uh)
+			sub.addUserHandlerIfNotExist(uh)
 		}
 		sub.step(action.Uid, action)
 	}
@@ -237,8 +236,7 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 		return
 	}
 
-	sub := s.userReactor.reactorSub(authResult.Uid)
-	connCtx := sub.getConnContextById(authResult.Uid, authResult.ConnId)
+	connCtx := s.userReactor.getConnById(authResult.Uid, authResult.ConnId)
 	if connCtx == nil {
 		s.Error("auth: handleUserAuthResult: conn not found", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
 		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: conn not found"), proto.Status_NotFound)
@@ -384,7 +382,7 @@ func (s *Server) handleNodePing(fromNodeId uint64, msg *proto.Message) {
 	for _, ping := range req.pings {
 
 		sub := s.userReactor.reactorSub(ping.uid)
-		conns := sub.getConnContexts(ping.uid)
+		conns := s.userReactor.getConns(ping.uid)
 		for _, conn := range conns {
 			if fromNodeId != conn.realNodeId {
 				continue
@@ -398,7 +396,8 @@ func (s *Server) handleNodePing(fromNodeId uint64, msg *proto.Message) {
 			}
 			if !exist {
 				s.Info("handleNodePing: close conn", zap.String("uid", ping.uid), zap.Uint64("realNodeId", conn.realNodeId), zap.Int64("connId", conn.connId), zap.Int64("proxyConnId", conn.proxyConnId))
-				sub.removeConnContextById(ping.uid, conn.connId)
+				s.userReactor.removeConnById(ping.uid, conn.connId)
+
 				conn.close()
 			}
 		}
@@ -425,7 +424,7 @@ func (s *Server) handleNodePong(fromNodeId uint64, msg *proto.Message) {
 		return
 	}
 
-	userHandler := s.userReactor.getUser(userConns.uid)
+	userHandler := s.userReactor.getUserHandler(userConns.uid)
 	if userHandler == nil {
 		s.Debug("handleNodePong: userHandler not found", zap.String("uid", userConns.uid))
 		return
@@ -447,7 +446,7 @@ func (s *Server) handleNodePong(fromNodeId uint64, msg *proto.Message) {
 		if !exist {
 			s.Info("handleNodePong: close conn", zap.String("uid", userConns.uid), zap.Uint64("realNodeId", currentConn.realNodeId), zap.Int64("connId", currentConn.connId), zap.Int64("proxyConnId", currentConn.proxyConnId))
 			// userHandler.removeConnById(currentConn.connId)
-			s.userReactor.removeConnContextById(userConns.uid, currentConn.connId)
+			s.userReactor.removeConnById(userConns.uid, currentConn.connId)
 			currentConn.close()
 		}
 	}

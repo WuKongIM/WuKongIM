@@ -113,7 +113,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 
 		var err error
 		var decryptPayload []byte
-		conn := r.s.userReactor.getConnContextById(msg.FromUid, msg.FromConnId)
+		conn := r.s.userReactor.getConnById(msg.FromUid, msg.FromConnId)
 		if conn != nil {
 			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
 			if err != nil {

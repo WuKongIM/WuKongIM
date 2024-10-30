@@ -95,6 +95,7 @@ func newAppMetrics(opts *Options) *appMetrics {
 func (a *appMetrics) ConnCountAdd(v int64) {
 	a.connCount.Add(v)
 }
+
 func (a *appMetrics) OnlineUserCountAdd(v int64) {
 	a.onlineUserCount.Add(v)
 }
@@ -111,40 +112,68 @@ func (a *appMetrics) PingBytesAdd(v int64) {
 	a.pingBytes.Add(v)
 }
 
+func (a *appMetrics) PingBytes() int64 {
+	return a.pingBytes.Load()
+}
+
 func (a *appMetrics) PingCountAdd(v int64) {
 	a.pingCount.Add(v)
+}
+
+func (a *appMetrics) PingCount() int64 {
+	return a.pingCount.Load()
 }
 
 func (a *appMetrics) PongBytesAdd(v int64) {
 	a.pongBytes.Add(v)
 }
 
+func (a *appMetrics) PongBytes() int64 {
+	return a.pongBytes.Load()
+}
+
 func (a *appMetrics) PongCountAdd(v int64) {
 	a.pongCount.Add(v)
+}
+
+func (a *appMetrics) PongCount() int64 {
+	return a.pongCount.Load()
 }
 
 func (a *appMetrics) SendPacketBytesAdd(v int64) {
 	a.sendPacketBytes.Add(v)
 }
 
+func (a *appMetrics) SendPacketBytes() int64 {
+	return a.sendPacketBytes.Load()
+}
+
 func (a *appMetrics) SendPacketCountAdd(v int64) {
 	a.sendPacketCount.Add(v)
+}
+
+func (a *appMetrics) SendPacketCount() int64 {
+	return a.sendPacketCount.Load()
 }
 
 func (a *appMetrics) SendackPacketBytesAdd(v int64) {
 	a.sendackPacketBytes.Add(v)
 }
 
+func (a *appMetrics) SendackPacketBytes() int64 {
+	return a.sendackPacketBytes.Load()
+}
+
+func (a *appMetrics) SendackPacketCount() int64 {
+	return a.sendackPacketCount.Load()
+}
+
 func (a *appMetrics) SendackPacketCountAdd(v int64) {
 	a.sendackPacketCount.Add(v)
 }
 
-func (a *appMetrics) RecvPacketBytesAdd(v int64) {
-	a.recvPacketBytes.Add(v)
-}
-
-func (a *appMetrics) RecvPacketCountAdd(v int64) {
-	a.recvPacketCount.Add(v)
+func (a *appMetrics) RecvackPacketBytes() int64 {
+	return a.recvackPacketBytes.Load()
 }
 
 func (a *appMetrics) RecvackPacketBytesAdd(v int64) {
@@ -155,18 +184,53 @@ func (a *appMetrics) RecvackPacketCountAdd(v int64) {
 	a.recvackPacketCount.Add(v)
 }
 
+func (a *appMetrics) RecvackPacketCount() int64 {
+	return a.recvackPacketCount.Load()
+}
+
+func (a *appMetrics) RecvPacketBytesAdd(v int64) {
+	a.recvPacketBytes.Add(v)
+}
+
+func (a *appMetrics) RecvPacketBytes() int64 {
+	return a.recvPacketBytes.Load()
+}
+
+func (a *appMetrics) RecvPacketCount() int64 {
+	return a.recvPacketCount.Load()
+}
+
+func (a *appMetrics) RecvPacketCountAdd(v int64) {
+	a.recvPacketCount.Add(v)
+}
+
 func (a *appMetrics) ConnPacketBytesAdd(v int64) {
 	a.connPacketBytes.Add(v)
 }
 
+func (a *appMetrics) ConnPacketBytes() int64 {
+	return a.connPacketBytes.Load()
+}
+
 func (a *appMetrics) ConnPacketCountAdd(v int64) {
 	a.connPacketCount.Add(v)
+}
+func (a *appMetrics) ConnPacketCount() int64 {
+	return a.connPacketCount.Load()
 }
 
 func (a *appMetrics) ConnackPacketBytesAdd(v int64) {
 	a.connackPacketBytes.Add(v)
 }
 
+func (a *appMetrics) ConnackPacketBytes() int64 {
+	return a.connackPacketBytes.Load()
+}
+
 func (a *appMetrics) ConnackPacketCountAdd(v int64) {
 	a.connackPacketCount.Add(v)
+}
+
+func (a *appMetrics) ConnackPacketCount() int64 {
+	return a.connackPacketCount.Load()
 }

@@ -98,71 +98,6 @@ func (u *userReactor) stop() {
 	}
 }
 
-// func (u *userReactor) addUserIfNotExist(h *userHandler) {
-// 	u.reactorSub(h.uid).addUserIfNotExist(h)
-// }
-
-func (u *userReactor) getUser(uid string) *userHandler {
-	return u.reactorSub(uid).getUser(uid)
-}
-
-// func (u *userReactor) existUser(uid string) bool {
-// 	return u.reactorSub(uid).existUser(uid)
-// }
-
-// func (u *userReactor) removeUserByUniqueNo(uid string, uniqueNo string) {
-// 	u.reactorSub(uid).removeUserByUniqueNo(uid, uniqueNo)
-// }
-
-func (u *userReactor) getConnsByUniqueNo(uid string, uniqueNo string) []*connContext {
-	return u.reactorSub(uid).getConnsByUniqueNo(uid, uniqueNo)
-}
-
-// func (u *userReactor) removeUser(uid string) {
-// 	u.reactorSub(uid).removeUser(uid)
-// }
-
-func (u *userReactor) addConnContext(conn *connContext) {
-	u.reactorSub(conn.uid).addConnContext(conn)
-}
-
-// func (u *userReactor) getConnContext(uid string, deviceId string) []*connContext {
-// 	return u.reactorSub(uid).getConnContext(uid, deviceId)
-// }
-
-func (u *userReactor) getConnContextById(uid string, connId int64) *connContext {
-	return u.reactorSub(uid).getConnContextById(uid, connId)
-}
-
-func (u *userReactor) getConnContexts(uid string) []*connContext {
-	return u.reactorSub(uid).getConnContexts(uid)
-}
-
-func (u *userReactor) getConnContextByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*connContext {
-	return u.reactorSub(uid).getConnContextByDeviceFlag(uid, deviceFlag)
-}
-
-func (u *userReactor) getConnContextCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
-	return len(u.getConnContextByDeviceFlag(uid, deviceFlag))
-}
-
-func (u *userReactor) getConnContextCount(uid string) int {
-	return u.reactorSub(uid).getConnContextCount(uid)
-}
-
-// func (u *userReactor) removeConnContext(uid string, deviceId string) {
-// 	u.reactorSub(uid).removeConnContext(uid, deviceId)
-// }
-
-func (u *userReactor) removeConnContextById(uid string, id int64) *connContext {
-	return u.reactorSub(uid).removeConnContextById(uid, id)
-}
-
-// 移除指定节点的所有连接
-func (u *userReactor) removeConnsByNodeId(uid string, nodeId uint64) []*connContext {
-	return u.reactorSub(uid).removeConnsByNodeId(uid, nodeId)
-}
-
 func (u *userReactor) reactorSub(uid string) *userReactorSub {
 
 	h := fnv.New32a()
@@ -172,12 +107,87 @@ func (u *userReactor) reactorSub(uid string) *userReactorSub {
 	return u.subs[i]
 }
 
+// 获取用户处理者
+func (u *userReactor) getUserHandler(uid string) *userHandler {
+	sub := u.reactorSub(uid)
+	return sub.getUserHandler(uid)
+}
+
+// 获取指定设备标识的连接
+func (u *userReactor) getConnsByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*connContext {
+	return u.reactorSub(uid).getConnsByDeviceFlag(uid, deviceFlag)
+}
+
+func (u *userReactor) getConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
+	return u.reactorSub(uid).getConnCountByDeviceFlag(uid, deviceFlag)
+}
+
+func (u *userReactor) getConnCount(uid string) int {
+	return len(u.getConns(uid))
+}
+
+// 获取用户的所有连接
+func (u *userReactor) getConns(uid string) []*connContext {
+	userHandler := u.reactorSub(uid).getUserHandler(uid)
+	if userHandler == nil {
+		return nil
+	}
+	return userHandler.getConns()
+}
+
+// 获取指定用户的指定id的连接
+func (u *userReactor) getConnById(uid string, id int64) *connContext {
+	userHandler := u.reactorSub(uid).getUserHandler(uid)
+	if userHandler == nil {
+		return nil
+	}
+	return userHandler.getConnById(id)
+}
+
+// 添加连接如果不存在用户处理者则创建用户处理者后再添加连接
+func (u *userReactor) addConnAndCreateUserHandlerIfNotExist(conn *connContext) {
+	sub := u.reactorSub(conn.uid)
+	sub.addConnAndCreateUserHandlerIfNotExist(conn)
+}
+
+// 移除指定用户的指定id的连接
+func (u *userReactor) removeConnById(uid string, id int64) {
+	sub := u.reactorSub(uid)
+	sub.removeConnById(uid, id)
+}
+
+func (u *userReactor) removeConnsByNodeId(uid string, nodeId uint64) []*connContext {
+	sub := u.reactorSub(uid)
+	return sub.removeConnsByNodeId(uid, nodeId)
+}
+
+func (u *userReactor) removeUserHandler(uid string) {
+	sub := u.reactorSub(uid)
+	sub.removeUserHandler(uid)
+}
+
+func (u *userReactor) getHandlerCount() int {
+	count := 0
+	for _, sub := range u.subs {
+		count += sub.getHandlerCount()
+	}
+	return count
+}
+
+func (u *userReactor) getAllConnCount() int {
+	count := 0
+	for _, sub := range u.subs {
+		count += sub.getAllConnCount()
+	}
+	return count
+}
+
 // func (u *userReactor) step(uid string, a UserAction) {
 // 	u.reactorSub(uid).step(uid, a)
 // }
 
 func (u *userReactor) writePacket(conn *connContext, packet wkproto.Frame) error {
-	return u.reactorSub(conn.uid).writePacket(conn, packet)
+	return conn.writePacket(packet)
 }
 
 // func (u *userReactor) writePacketByDeviceId(uid string, deviceId string, packet wkproto.Frame) error {
@@ -190,7 +200,7 @@ func (u *userReactor) writePacket(conn *connContext, packet wkproto.Frame) error
 // }
 
 func (u *userReactor) writePacketByConnId(uid string, connId int64, packet wkproto.Frame) error {
-	conn := u.getConnContextById(uid, connId)
+	conn := u.getConnById(uid, connId)
 	if conn == nil {
 		u.Error("conn not found", zap.String("uid", uid), zap.Int64("connId", connId), zap.String("frameType", packet.GetFrameType().String()))
 		return ErrConnNotFound

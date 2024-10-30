@@ -159,7 +159,9 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(frameSize)
 
-	c.MessageTrace("收到消息", packet.ClientMsgNo, "processMessage", zap.String("channelId", packet.ChannelID), zap.Uint8("channelType", packet.ChannelType), zap.String("uid", c.uid), zap.String("deviceId", c.deviceId), zap.Uint8("deviceFlag", uint8(c.deviceFlag)), zap.Uint8("deviceLevel", uint8(c.deviceLevel)))
+	messageId := c.subReactor.r.s.channelReactor.messageIDGen.Generate().Int64()
+
+	c.MessageTrace("收到消息", packet.ClientMsgNo, "processMessage", zap.Int64("messageId", messageId), zap.String("channelId", packet.ChannelID), zap.Uint8("channelType", packet.ChannelType), zap.String("uid", c.uid), zap.String("deviceId", c.deviceId), zap.Uint8("deviceFlag", uint8(c.deviceFlag)), zap.Uint8("deviceLevel", uint8(c.deviceLevel)))
 
 	// 非法频道id，直接返回发送失败
 	if strings.TrimSpace(packet.ChannelID) == "" || IsSpecialChar(packet.ChannelID) {
@@ -167,6 +169,7 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 		c.MessageTrace("addSendPacket failed, channelId is illegal", packet.ClientMsgNo, "processMessage", zap.Error(errors.New("channelId is illegal")))
 		sendack := &wkproto.SendackPacket{
 			Framer:      packet.Framer,
+			MessageID:   messageId,
 			ClientSeq:   packet.ClientSeq,
 			ClientMsgNo: packet.ClientMsgNo,
 			ReasonCode:  wkproto.ReasonChannelIDError,
@@ -176,7 +179,7 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 	}
 
 	// 提案发送至频道
-	_ = c.subReactor.proposeSend(c, packet)
+	_ = c.subReactor.proposeSend(c, messageId, packet)
 
 }
 

@@ -126,7 +126,7 @@ func newUserNode(key string, user *userHandler) *userNode {
 	}
 }
 
-type userList struct {
+type userHandlerList struct {
 	head  *userNode
 	tail  *userNode
 	count int
@@ -134,11 +134,11 @@ type userList struct {
 	mu sync.RWMutex
 }
 
-func newUserList() *userList {
-	return &userList{}
+func newUserHandlerList() *userHandlerList {
+	return &userHandlerList{}
 }
 
-func (c *userList) add(u *userHandler) {
+func (c *userHandlerList) add(u *userHandler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	node := newUserNode(u.uid, u)
@@ -152,7 +152,7 @@ func (c *userList) add(u *userHandler) {
 	c.count++
 }
 
-func (c *userList) remove(key string) *userHandler {
+func (c *userHandlerList) remove(key string) *userHandler {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	node := c.head
@@ -176,7 +176,7 @@ func (c *userList) remove(key string) *userHandler {
 	return nil
 }
 
-func (c *userList) get(key string) *userHandler {
+func (c *userHandlerList) get(key string) *userHandler {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	node := c.head
@@ -202,7 +202,7 @@ func (c *userList) get(key string) *userHandler {
 // 	return false
 // }
 
-func (c *userList) iter(f func(ch *userHandler) bool) {
+func (c *userHandlerList) iter(f func(ch *userHandler) bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	node := c.head
@@ -215,8 +215,8 @@ func (c *userList) iter(f func(ch *userHandler) bool) {
 	}
 }
 
-// func (c *userList) len() int {
-// 	c.mu.RLock()
-// 	defer c.mu.RUnlock()
-// 	return c.count
-// }
+func (c *userHandlerList) len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.count
+}

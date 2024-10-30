@@ -73,9 +73,8 @@ func (u *userHandler) step(a UserAction) error {
 		}
 		// u.Info("recv resp...")
 
-	case UserActionClose:
+	case UserActionClose: // 用户关闭
 		u.actions = append(u.actions, a)
-
 	default:
 		if u.stepFnc == nil {
 			u.Warn("stepFnc is nil")

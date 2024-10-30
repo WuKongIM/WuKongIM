@@ -1513,6 +1513,29 @@ func (s Stream) getString(key string) string {
 	return ""
 }
 
+func (s Stream) getInt64(key string) int64 {
+	if v, ok := s[key]; ok {
+		switch tv := v.(type) {
+		case json.Number:
+			num, _ := tv.Int64()
+			return num
+		case string:
+			num, _ := strconv.ParseInt(tv, 10, 64)
+			return num
+		}
+	}
+	return 0
+}
+
+func (s Stream) getObjects(key string) []interface{} {
+	if v, ok := s[key]; ok {
+		if arr, ok := v.([]interface{}); ok {
+			return arr
+		}
+	}
+	return nil
+}
+
 func (s Stream) getAction() string {
 	return s.getString("action")
 }
@@ -1608,12 +1631,14 @@ func getSpanNodeName(id string) string {
 		return "回应客户端"
 	case "processDeliver":
 		return "投递消息"
+	case "processRecvack":
+		return "收到投递"
 	case "deliverNode":
 		return "投递节点"
 	case "deliverOnline":
-		return "在线投递"
+		return "在线通知"
 	case "deliverOffline":
-		return "离线投递"
+		return "离线通知"
 	default:
 		return id
 	}

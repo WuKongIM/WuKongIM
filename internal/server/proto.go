@@ -92,9 +92,7 @@ func (s *Server) onData(conn wknet.Conn) error {
 		}
 		connCtx = newConnContext(connInfo, conn, sub)
 		conn.SetContext(connCtx)
-
-		s.userReactor.addConnContext(connCtx)
-
+		s.userReactor.addConnAndCreateUserHandlerIfNotExist(connCtx)
 		connCtx.addConnectPacket(connectPacket)
 
 		//  process conn auth

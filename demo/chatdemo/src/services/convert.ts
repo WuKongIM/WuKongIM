@@ -1,4 +1,4 @@
-import { Conversation, Setting } from "wukongimjssdk";
+import { Conversation, MessageContentType, Setting } from "wukongimjssdk";
 import { WKSDK, Message, StreamItem, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
 import BigNumber from "bignumber.js";
 import { Buffer } from 'buffer';
@@ -34,17 +34,25 @@ export class Convert {
         message.timestamp = msgMap["timestamp"]
         message.status = MessageStatus.Normal
        
-        const decodedBuffer = Buffer.from(msgMap["payload"], 'base64')
-        const contentObj = JSON.parse(decodedBuffer.toString('utf8'))
         let contentType = 0
-        if (contentObj) {
-            contentType = contentObj.type
+        try {
+            const decodedBuffer = Buffer.from(msgMap["payload"], 'base64')
+            const contentObj = JSON.parse(decodedBuffer.toString('utf8'))
+            if (contentObj) {
+                contentType = contentObj.type
+            }
+            const messageContent = WKSDK.shared().getMessageContent(contentType)
+            if (contentObj) {
+                messageContent.decode(this.stringToUint8Array(JSON.stringify(contentObj)))
+            }
+            message.content = messageContent
+        }catch (error) {
+            console.log(error)
+             // 如果报错，直接设置为unknown  
+             const messageContent = WKSDK.shared().getMessageContent(MessageContentType.unknown)
+             message.content = messageContent
         }
-        const messageContent = WKSDK.shared().getMessageContent(contentType)
-        if (contentObj) {
-            messageContent.decode(this.stringToUint8Array(JSON.stringify(contentObj)))
-        }
-        message.content = messageContent
+       
 
         message.isDeleted = msgMap["is_deleted"] === 1
 

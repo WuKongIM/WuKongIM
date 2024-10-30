@@ -127,6 +127,16 @@ func (c *ConversationManager) Stop() {
 	c.saveToFile()
 }
 
+func (c *ConversationManager) ConversationCount() int {
+	c.RLock()
+	defer c.RUnlock()
+	count := 0
+	for _, w := range c.workers {
+		count += w.conversationCount()
+	}
+	return count
+}
+
 func (c *ConversationManager) saveToFile() {
 	c.Lock()
 	defer c.Unlock()
@@ -272,6 +282,17 @@ func (c *conversationWorker) loopPropose() {
 		}
 	}
 
+}
+
+// 最近会话数量
+func (c *conversationWorker) conversationCount() int {
+	c.RLock()
+	defer c.RUnlock()
+	count := 0
+	for _, cc := range c.userConversations {
+		count += len(cc.conversations)
+	}
+	return count
 }
 
 func (c *conversationWorker) propose() {

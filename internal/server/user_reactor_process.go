@@ -103,7 +103,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	)
 	var connCtx *connContext
 	if isLocalConn { // 本地连接
-		connCtx = r.getConnContextById(uid, msg.ConnId)
+		connCtx = r.getConnById(uid, msg.ConnId)
 		if connCtx == nil {
 			r.Error("connCtx is nil", zap.String("uid", uid), zap.Int64("connId", msg.ConnId))
 			return wkproto.ReasonSystemError, errors.New("connCtx is nil")
@@ -119,7 +119,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 			protoVersion: connectPacket.Version,
 		}
 		connCtx = newConnContextProxy(msg.FromNodeId, connInfo, sub)
-		sub.addConnContext(connCtx)
+		sub.addConnAndCreateUserHandlerIfNotExist(connCtx)
 		r.Debug("auth: add conn", zap.Any("connCtx", connCtx))
 	}
 	// -------------------- token verify --------------------
@@ -181,14 +181,14 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
 	// -------------------- same master kicks each other --------------------
-	oldConns := r.s.userReactor.getConnContextByDeviceFlag(uid, connectPacket.DeviceFlag)
+	oldConns := r.s.userReactor.getConnsByDeviceFlag(uid, connectPacket.DeviceFlag)
 	if len(oldConns) > 0 {
 		if devceLevel == wkproto.DeviceLevelMaster { // 如果设备是master级别，则把旧连接都踢掉
 			for _, oldConn := range oldConns {
 				if oldConn.connId == connCtx.connId { // 不能把自己踢了
 					continue
 				}
-				r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
+				r.s.userReactor.removeConnById(oldConn.uid, oldConn.connId)
 				if oldConn.deviceId != connectPacket.DeviceID {
 					r.Info("auth: same master kicks each other", zap.String("devceLevel", devceLevel.String()), zap.String("uid", uid), zap.String("deviceID", connectPacket.DeviceID), zap.String("oldDeviceID", oldConn.deviceId))
 
@@ -210,7 +210,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 			for _, oldConn := range oldConns {
 				if oldConn.connId != connCtx.connId && oldConn.deviceId == connectPacket.DeviceID {
 					r.s.timingWheel.AfterFunc(time.Second*5, func() {
-						r.s.userReactor.removeConnContextById(oldConn.uid, oldConn.connId)
+						r.s.userReactor.removeConnById(oldConn.uid, oldConn.connId)
 						oldConn.close()
 					})
 					r.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn))
@@ -260,8 +260,8 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	r.authResponse(connCtx, connack)
 	// -------------------- user online --------------------
 	// 在线webhook
-	deviceOnlineCount := r.s.userReactor.getConnContextCountByDeviceFlag(uid, connectPacket.DeviceFlag)
-	totalOnlineCount := r.s.userReactor.getConnContextCount(uid)
+	deviceOnlineCount := r.s.userReactor.getConnCountByDeviceFlag(uid, connectPacket.DeviceFlag)
+	totalOnlineCount := r.s.userReactor.getConnCount(uid)
 	r.s.webhook.Online(uid, connectPacket.DeviceFlag, connCtx.connId, deviceOnlineCount, totalOnlineCount)
 	if totalOnlineCount <= 1 {
 		r.s.trace.Metrics.App().OnlineUserCountAdd(1) // 统计在线用户数
@@ -311,7 +311,7 @@ func (r *userReactor) authResponse(connCtx *connContext, packet *wkproto.Connack
 		}
 		if status == proto.Status_NotFound { // 这个代号说明代理服务器不存在此连接了，所以这里也直接移除
 			r.Error("requestUserAuthResult not found", zap.String("uid", connCtx.uid), zap.String("deviceId", connCtx.deviceId))
-			r.removeConnContextById(connCtx.uid, connCtx.connId)
+			r.removeConnById(connCtx.uid, connCtx.connId)
 			connCtx.close()
 		}
 	}
@@ -486,7 +486,7 @@ func (r *userReactor) processPing(reqs []*pingReq) {
 
 func (r *userReactor) handlePing(req *pingReq) error {
 	for _, msg := range req.messages {
-		conn := r.getConnContextById(req.uid, msg.ConnId)
+		conn := r.getConnById(req.uid, msg.ConnId)
 		if conn == nil {
 			r.Debug("conn not found", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId))
 			continue
@@ -536,6 +536,7 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 
 	for _, msg := range req.messages {
 		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
+		r.Trace("消息回执", "processRecvack", zap.Int64("messageId", recvackPacket.MessageID), zap.Uint32("messageSeq", recvackPacket.MessageSeq), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId), zap.Int64("connId", msg.ConnId))
 		persist := !recvackPacket.NoPersist
 		if persist { // 只有需要持久化的消息才会重试
 			// r.Debug("remove retry", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
@@ -639,7 +640,7 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 
 	sub := r.reactorSub(req.uid)
 	for _, msg := range req.messages {
-		conns := sub.getConnContext(req.uid, msg.DeviceId)
+		conns := sub.getConnsByDeviceId(req.uid, msg.DeviceId)
 		if len(conns) == 0 {
 			r.Debug("handleWrite: conn not found", zap.Int("dataLen", len(msg.OutBytes)), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId))
 			continue
@@ -649,7 +650,7 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 				_ = conn.writeDirectly(msg.OutBytes, 1)
 			} else { // 是代理连接，转发数据到真实连接
 				if !r.s.cluster.NodeIsOnline(conn.realNodeId) { // 节点没在线了，这里直接移除连接
-					_ = r.removeConnContextById(conn.uid, conn.connId)
+					r.removeConnById(conn.uid, conn.connId)
 					r.Warn("node not online", zap.Uint64("nodeId", conn.realNodeId), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId))
 					return errors.New("node not online")
 				}
@@ -663,11 +664,11 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 				})
 				if err != nil {
 					r.Error("fowardWriteReq error", zap.Error(err), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId))
-					_ = r.removeConnContextById(conn.uid, conn.connId) // 转发失败了，这里直接移除连接
+					r.removeConnById(conn.uid, conn.connId) // 转发失败了，这里直接移除连接
 					return err
 				}
 				if status == proto.Status(errCodeConnNotFound) { // 连接不存在了，所以这里也移除
-					_ = r.removeConnContextById(conn.uid, conn.connId)
+					r.removeConnById(conn.uid, conn.connId)
 
 				}
 			}
@@ -1010,7 +1011,7 @@ func (r *userReactor) processNodePongLoop() {
 
 func (r *userReactor) processNodePong(req *nodePongReq) {
 
-	userHandler := r.s.userReactor.getUser(req.uid)
+	userHandler := r.s.userReactor.getUserHandler(req.uid)
 	if userHandler == nil {
 		r.Warn("userHandler not found, not reply pong", zap.String("uid", req.uid))
 		return
@@ -1139,28 +1140,33 @@ func (r *userReactor) processCloseLoop() {
 
 func (r *userReactor) processClose(req *userCloseReq) {
 
-	if req.role == userRoleLeader {
+	uid := req.handler.uid
+	conns := req.handler.getConns()
+	if len(conns) > 0 {
+		// 如果用户处理者下面有连接，先移除连接，再移除用户处理者
+		for _, conn := range conns {
+			// 如果是本地连接，则移除后需要关闭连接，节省资源
+			if conn.isRealConn {
+				r.Info("close real conn", zap.String("uid", uid), zap.Int64("connId", conn.connId))
+				r.removeConnById(uid, conn.connId)
+				conn.close()
+			} else {
+				r.Info("close proxy conn", zap.String("uid", uid), zap.Int64("connId", conn.connId))
+				r.removeConnById(uid, conn.connId)
+			}
+		}
+	}
+
+	if req.handler.role == userRoleLeader {
 		r.s.trace.Metrics.App().OnlineUserCountAdd(-1) //用户下线
 	}
 
-	conns := r.getConnsByUniqueNo(req.uid, req.uniqueNo)
-	for _, conn := range conns {
-		if conn.isRealConn {
-			r.Info("close real conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
-			r.removeConnContextById(req.uid, conn.connId)
-			conn.close()
-		} else {
-			r.Info("close proxy conn", zap.String("uid", req.uid), zap.Int64("connId", conn.connId))
-			r.removeConnContextById(req.uid, conn.connId)
-		}
+	r.removeUserHandler(uid)
 
-	}
 }
 
 type userCloseReq struct {
-	uniqueNo string
-	uid      string
-	role     userRole
+	handler *userHandler
 }
 
 // =================================== 检查领导的正确性 ===================================
