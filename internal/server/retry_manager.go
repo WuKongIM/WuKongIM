@@ -39,6 +39,15 @@ func (r *retryManager) stop() {
 
 }
 
+// retryMessageCount 获取重试消息数量
+func (r *retryManager) retryMessageCount() int {
+	count := 0
+	for i := 0; i < r.s.opts.MessageRetry.WorkerCount; i++ {
+		count += r.retryQueues[i].inFlightMessagesCount()
+	}
+	return count
+}
+
 func (r *retryManager) addRetry(msg *retryMessage) {
 	index := msg.messageId % int64(len(r.retryQueues))
 	r.retryQueues[index].startInFlightTimeout(msg)
@@ -56,7 +65,7 @@ func (r *retryManager) retry(msg *retryMessage) {
 		r.Debug("exceeded the maximum number of retries", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int("messageMaxRetryCount", r.s.opts.MessageRetry.MaxCount))
 		return
 	}
-	userHandler := r.s.userReactor.getUser(msg.uid)
+	userHandler := r.s.userReactor.getUserHandler(msg.uid)
 	if userHandler == nil {
 		r.Debug("user offline, retry end", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
 		return

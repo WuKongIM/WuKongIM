@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -249,15 +250,13 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	}
 	// d.Info("start deliver message", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Strings("uids", uids))
 	webhookOfflineUids := make([]string, 0, len(uids)) // 离线用户(只要主设备不在线就算离线)
-	offlineUserCount := 0                              // 离线用户数量 (所有客户端都不在线)
-	allConns := make([]*connContext, 0, len(uids)/2)   // 在线用户的连接对象
-	onlineUserCount := 0                               // 在线用户数量（只要一个客户端在线就算在线）
+	toConns := make([]*connContext, 0)                 // 在线接受用户的连接对象
+	onlineUsers := make([]string, 0)                   // 在线用户数量（只要一个客户端在线就算在线）
 
 	for _, toUid := range uids {
-		userHandler := d.dm.s.userReactor.getUser(toUid)
+		userHandler := d.dm.s.userReactor.getUserHandler(toUid)
 		if userHandler == nil { // 用户不在线
 			webhookOfflineUids = append(webhookOfflineUids, toUid)
-			offlineUserCount++
 			continue
 		}
 		// 用户没有主设备在线，还是是要推送离线给业务端，比如有的场景，web在线，手机离线，这种情况手机需要收到离线。
@@ -270,26 +269,40 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 		if len(conns) == 0 {
 			webhookOfflineUids = append(webhookOfflineUids, toUid)
-			offlineUserCount++
 		} else {
-			allConns = append(allConns, conns...)
-			onlineUserCount++
+			toConns = append(toConns, conns...)
+			onlineUsers = append(onlineUsers, toUid)
 		}
 	}
 
 	if d.dm.s.opts.Logger.TraceOn {
 		for _, msg := range req.messages {
-			if onlineUserCount > 0 {
-				d.MessageTrace("投递在线消息", msg.SendPacket.ClientMsgNo, "deliverOnline", zap.Int("userCount", onlineUserCount), zap.Int("connCount", len(allConns)))
+			if len(onlineUsers) > 0 {
+				existSendSelfDevice := false        // 存在发送者自己的连接
+				existSendSelfNotSendDevice := false // 存在发送者自己但是不是发送设备
+				for _, toConn := range toConns {
+					if toConn.uid == msg.FromUid && toConn.deviceId == msg.FromDeviceId {
+						existSendSelfDevice = true
+					}
+					if toConn.uid == msg.FromUid && toConn.deviceId != msg.FromDeviceId {
+						existSendSelfNotSendDevice = true
+					}
+				}
+
+				// 如果仅仅是发送者自己的连接，不需要发送给自己
+				if !existSendSelfDevice || existSendSelfNotSendDevice {
+					d.MessageTrace("在线通知", msg.SendPacket.ClientMsgNo, "deliverOnline", zap.Int("userCount", len(onlineUsers)), zap.String("uids", strings.Join(onlineUsers, ",")), zap.Int("connCount", len(toConns)))
+				}
+
 			}
 
-			if offlineUserCount > 0 {
-				d.MessageTrace("投递离线消息", msg.SendPacket.ClientMsgNo, "deliverOffline", zap.Int("userCount", offlineUserCount))
+			if len(webhookOfflineUids) > 0 {
+				d.MessageTrace("离线通知", msg.SendPacket.ClientMsgNo, "deliverOffline", zap.Int("userCount", len(webhookOfflineUids)), zap.String("uids", strings.Join(webhookOfflineUids, ",")))
 			}
 		}
 	}
 
-	for _, conn := range allConns {
+	for _, conn := range toConns {
 		for _, message := range req.messages {
 
 			if conn.uid == message.FromUid && conn.deviceId == message.FromDeviceId { // 自己发的不处理

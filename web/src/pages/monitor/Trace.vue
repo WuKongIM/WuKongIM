@@ -4,6 +4,7 @@ import { Graph } from '@antv/x6'
 import { register } from '@antv/x6-vue-shape'
 import SpanNode from '../../components/SpanNode.vue'
 import TextNode from '../../components/TextNode.vue'
+import RecvackTable from '../../components/RecvackTable.vue'
 import API from "../../services/API";
 import { useRouter } from "vue-router";
 
@@ -13,6 +14,7 @@ const messageId = ref(0)
 const nodeWidth = 180
 const nodeHeight = 70
 const error = ref('')
+const recvackResult = ref()
 
 const router = useRouter()
 
@@ -21,6 +23,8 @@ const query = router.currentRoute.value.query; //查询参数
 if (query.clientMsgNo) {
     clientMsgNo.value = query.clientMsgNo as string
 }
+
+const modalContent = ref('')
 
 register({
     shape: 'spanNode',
@@ -75,7 +79,8 @@ const drawFlow = async () => {
                     time: node.time,
                     icon: node.icon,
                     duration: node.duration,
-                    description: node.description
+                    description: node.description,
+                    data: node.data,
                 }
             })
         }
@@ -121,9 +126,49 @@ const drawFlow = async () => {
     graph.addNodes(nodes)
     graph.addEdges(edges)
 
-    graph.on('node:click', ({ node }) => {
-        console.log("node---->", node)
-
+    graph.on('node:click', async ({ node }) => {
+        const nodeId = node.id as string
+        if (nodeId === "processMessage") {
+            const data = node.data.data
+            modalContent.value = `
+                                发送者: ${data.uid} <br> 
+                                发送设备: ${data.deviceId} <br> 
+                                设备类型: ${data.deviceFlag} <br> 
+                                设备等级: ${data.deviceLevel} <br>
+                                接受频道: ${data.channelId} <br>
+                                频道类型: ${data.channelType} <br>
+                                `
+        }else if (nodeId.startsWith("deliverOnline") || nodeId.startsWith("deliverOffline")) {
+            const data = node.data.data
+            var uids: string[] = []
+            if( data.uids) {
+                data.uids.split(',').forEach((uid: string) => {
+                    uids.push(uid)
+                })
+            }
+            modalContent.value = '<div class="flex flex-wrap space-x-2">'
+            for (let i = 0; i < uids.length; i++) {
+                modalContent.value += `
+                <a href="#" class="inline-block"> ${uids[i]}</a>
+                `
+            }
+             modalContent.value += '</div>'
+        } else if (nodeId.startsWith('processRecvack')) {
+            const data = node.data.data
+            const nodeId = data.nodeId
+            const messageId = data.messageId
+            recvackResult.value = await requestMessageRecvackTraces({
+                nodeId: nodeId,
+                messageId: messageId,
+            })
+            if(recvackResult.value) {
+                const dialog = document.getElementById('recvackTable') as HTMLDialogElement;
+                dialog.showModal();
+            }
+            return
+        } else {
+            return
+        }
         const dialog = document.getElementById('content') as HTMLDialogElement;
         dialog.showModal();
     })
@@ -141,6 +186,16 @@ const requestMessageTrace = ({
         width: width,
         height: height,
         since: 60 * 60 * 24,
+    })
+}
+
+const requestMessageRecvackTraces = ({
+    nodeId,
+    messageId,
+}:any) => {
+    return API.shared.messageRecvackTraces({
+        nodeId: nodeId,
+        messageId: messageId,
     })
 }
 
@@ -169,7 +224,19 @@ const onSearch = (e: any) => {
 
         <dialog id="content" class="modal">
             <div class="modal-box flex flex-wrap gap-2">
-                <div>dadakdk</div>
+                <div v-html="modalContent" class="break-words"></div>
+
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <dialog id="recvackTable" class="modal">
+            <div class="modal-box">
+                <div class="min-w-[40rem]">
+                    <RecvackTable :data="recvackResult" />
+                </div>
 
             </div>
             <form method="dialog" class="modal-backdrop">

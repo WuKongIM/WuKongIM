@@ -147,9 +147,10 @@ const (
 	UserActionNodePong         // 用户节点pong, 用户的追随者返回给领导的pong
 	UserActionProxyNodeTimeout // 代理节点超时
 
-	UserActionClose // 关闭
+	UserActionClose //关闭
 
 	UserActionCheckLeader // 检查领导
+
 )
 
 func (u UserActionType) String() string {

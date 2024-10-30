@@ -1,4 +1,4 @@
-mode: "release" 
+mode: "debug" 
 addr: "tcp://0.0.0.0:5110" # tcp监听地址
 httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
@@ -18,6 +18,7 @@ manager:
   addr: "0.0.0.0:5300"
 demo:
   on: true  
+  addr: "0.0.0.0:5172"
 conversation:
   on: true   
 cluster:

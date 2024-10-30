@@ -118,10 +118,11 @@ func initPromtailConfig(opts *Options) config.Config {
 			stages.PipelineStage{
 				stages.StageTypeJSON: stages.JSONConfig{
 					Expressions: map[string]string{
-						"level": "level",
-						"time":  "time",
-						"msg":   "msg",
-						"trace": "trace",
+						"level":  "level",
+						"time":   "time",
+						"msg":    "msg",
+						"trace":  "trace",
+						"action": "action",
 					},
 				},
 			},

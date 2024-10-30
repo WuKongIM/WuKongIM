@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	perrors "github.com/WuKongIM/WuKongIM/pkg/errors"
-	"github.com/WuKongIM/WuKongIM/pkg/socket"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet/socket"
 )
 
 type listener struct {

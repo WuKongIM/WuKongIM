@@ -80,7 +80,7 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		connInfo := newConnInfo(resultConn)
 
 		proxyType := "未知"
-		userHandler := co.s.userReactor.getUser(resultConn.uid)
+		userHandler := co.s.userReactor.getUserHandler(resultConn.uid)
 		if userHandler != nil {
 			if userHandler.role == userRoleProxy {
 				proxyType = "代理连接"

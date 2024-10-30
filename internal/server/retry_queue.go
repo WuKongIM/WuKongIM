@@ -123,6 +123,13 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 	}
 }
 
+// inFlightMessagesCount 返回正在飞行的消息数量
+func (r *RetryQueue) inFlightMessagesCount() int {
+	r.inFlightMutex.Lock()
+	defer r.inFlightMutex.Unlock()
+	return max(len(r.inFlightMessages), len(r.inFlightPQ))
+}
+
 // Start 开始运行重试
 func (r *RetryQueue) Start() {
 	r.retryTimer = r.s.Schedule(r.s.opts.MessageRetry.ScanInterval, func() {

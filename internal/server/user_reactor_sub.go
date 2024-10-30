@@ -13,10 +13,10 @@ import (
 )
 
 type userReactorSub struct {
-	stopper  *syncutil.Stopper
-	r        *userReactor
-	users    *userList
-	advanceC chan struct{}
+	stopper      *syncutil.Stopper
+	r            *userReactor
+	userHandlers *userHandlerList
+	advanceC     chan struct{}
 	wklog.Log
 	index int
 
@@ -27,13 +27,13 @@ type userReactorSub struct {
 
 func newUserReactorSub(index int, r *userReactor) *userReactorSub {
 	return &userReactorSub{
-		stopper:   syncutil.NewStopper(),
-		users:     newUserList(),
-		r:         r,
-		Log:       wklog.NewWKLog(fmt.Sprintf("userReactorSub[%d][%d]", r.s.opts.Cluster.NodeId, index)),
-		index:     index,
-		advanceC:  make(chan struct{}, 1),
-		stepUserC: make(chan stepUser, 1024),
+		stopper:      syncutil.NewStopper(),
+		userHandlers: newUserHandlerList(),
+		r:            r,
+		Log:          wklog.NewWKLog(fmt.Sprintf("userReactorSub[%d][%d]", r.s.opts.Cluster.NodeId, index)),
+		index:        index,
+		advanceC:     make(chan struct{}, 1),
+		stepUserC:    make(chan stepUser, 1024),
 	}
 }
 
@@ -56,7 +56,7 @@ func (u *userReactorSub) loop() {
 			u.ticks()
 		case <-u.advanceC:
 		case req := <-u.stepUserC:
-			userHanlder := u.getUser(req.uid)
+			userHanlder := u.getUserHandler(req.uid)
 			if userHanlder != nil {
 				if req.action.UniqueNo == "" {
 					req.action.UniqueNo = userHanlder.uniqueNo
@@ -103,9 +103,9 @@ func (u *userReactorSub) stepNoWait(uid string, action UserAction) error {
 	return nil
 }
 
-func (u *userReactorSub) proposeSend(conn *connContext, sendPacket *wkproto.SendPacket) error {
+func (u *userReactorSub) proposeSend(conn *connContext, messageId int64, sendPacket *wkproto.SendPacket) error {
 
-	return u.r.s.channelReactor.proposeSend(conn.uid, conn.deviceId, conn.connId, u.r.s.opts.Cluster.NodeId, true, sendPacket)
+	return u.r.s.channelReactor.proposeSend(messageId, conn.uid, conn.deviceId, conn.connId, u.r.s.opts.Cluster.NodeId, true, sendPacket)
 }
 
 func (u *userReactorSub) stepWait(uid string, action UserAction) error {
@@ -129,7 +129,7 @@ func (u *userReactorSub) stepWait(uid string, action UserAction) error {
 }
 
 func (u *userReactorSub) readys() {
-	u.users.iter(func(uh *userHandler) bool {
+	u.userHandlers.iter(func(uh *userHandler) bool {
 		if uh.hasReady() {
 			u.handleReady(uh)
 		}
@@ -138,7 +138,7 @@ func (u *userReactorSub) readys() {
 }
 
 func (u *userReactorSub) ticks() {
-	u.users.iter(func(uh *userHandler) bool {
+	u.userHandlers.iter(func(uh *userHandler) bool {
 		uh.tick()
 		return true
 	})
@@ -199,10 +199,9 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 			})
 		case UserActionClose: // 用户关闭
 			u.r.addCloseReq(&userCloseReq{
-				uniqueNo: action.UniqueNo,
-				uid:      uh.uid,
-				role:     uh.role,
+				handler: uh,
 			})
+
 		case UserActionCheckLeader: // 检查领导的正确性
 			leaderId := uh.leaderId
 			if uh.role == userRoleLeader {
@@ -237,17 +236,104 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 
 // }
 
-func (u *userReactorSub) addUserIfNotExist(h *userHandler) {
+func (u *userReactorSub) addUserHandler(h *userHandler) {
+	u.userHandlers.add(h)
+}
+
+func (u *userReactorSub) addUserHandlerIfNotExist(h *userHandler) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	if u.getUser(h.uid) == nil {
-		u.Info("add user", zap.String("uid", h.uid))
-		u.users.add(h)
+	if u.getUserHandler(h.uid) == nil {
+		u.addUserHandler(h)
 	}
 }
 
-func (u *userReactorSub) getUser(uid string) *userHandler {
-	return u.users.get(uid)
+func (u *userReactorSub) addConnAndCreateUserHandlerIfNotExist(conn *connContext) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	uh := u.getUserHandler(conn.uid)
+	if uh == nil {
+		uh = newUserHandler(conn.uid, u)
+		u.addUserHandler(uh)
+	}
+	uh.addConnIfNotExist(conn)
+
+}
+
+func (u *userReactorSub) removeConnById(uid string, id int64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	uh := u.getUserHandler(uid)
+	if uh == nil {
+		return
+	}
+	uh.removeConnById(id)
+}
+
+func (u *userReactorSub) removeConnsByNodeId(uid string, nodeId uint64) []*connContext {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	uh := u.getUserHandler(uid)
+	if uh == nil {
+		return nil
+	}
+	return uh.removeConnsByNodeId(nodeId)
+}
+
+func (u *userReactorSub) removeUserHandler(uid string) {
+	u.userHandlers.remove(uid)
+}
+
+func (u *userReactorSub) getUserHandler(uid string) *userHandler {
+	return u.userHandlers.get(uid)
+}
+
+func (u *userReactorSub) getConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
+	return len(u.getConnsByDeviceFlag(uid, deviceFlag))
+}
+
+func (u *userReactorSub) getConnsByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*connContext {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	userHandler := u.getUserHandler(uid)
+	if userHandler == nil {
+		return nil
+	}
+	conns := userHandler.getConns()
+	if conns == nil {
+		return nil
+	}
+	var result []*connContext
+	for _, conn := range conns {
+		if conn.deviceFlag == deviceFlag {
+			result = append(result, conn)
+		}
+	}
+	return result
+}
+
+func (u *userReactorSub) getConnsByDeviceId(uid string, deviceId string) []*connContext {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	userHandler := u.getUserHandler(uid)
+	if userHandler == nil {
+		return nil
+	}
+	return userHandler.getConnByDeviceId(deviceId)
+}
+
+// 获取处理者数量
+func (u *userReactorSub) getHandlerCount() int {
+	return u.userHandlers.len()
+}
+
+func (u *userReactorSub) getAllConnCount() int {
+	count := 0
+	u.userHandlers.iter(func(uh *userHandler) bool {
+		count += uh.getConnCount()
+		return true
+	})
+	return count
 }
 
 // func (u *userReactorSub) existUser(uid string) bool {
@@ -271,35 +357,36 @@ func (u *userReactorSub) getUser(uid string) *userHandler {
 // 	}
 // }
 
-func (u *userReactorSub) getConnsByUniqueNo(uid string, uniqueNo string) []*connContext {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	user := u.users.get(uid)
-	if user != nil {
-		if user.uniqueNo == uniqueNo {
-			newConns := make([]*connContext, len(user.conns))
-			copy(newConns, user.conns)
-			return newConns
-		}
-	}
-	return nil
-}
+// // 获取用户的连接并检查uniqueNo是否一致
+// func (u *userReactorSub) getConnsCheckUniqueNo(uid string, uniqueNo string) []*connContext {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
+// 	user := u.userHandlers.get(uid)
+// 	if user != nil {
+// 		if user.uniqueNo == uniqueNo {
+// 			newConns := make([]*connContext, len(user.conns))
+// 			copy(newConns, user.conns)
+// 			return newConns
+// 		}
+// 	}
+// 	return nil
+// }
 
-func (u *userReactorSub) getConnContext(uid string, deviceId string) []*connContext {
-	uh := u.getUser(uid)
-	if uh == nil {
-		return nil
-	}
-	return uh.getConn(deviceId)
-}
+// func (u *userReactorSub) getConnContext(uid string, deviceId string) []*connContext {
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return nil
+// 	}
+// 	return uh.getConn(deviceId)
+// }
 
-func (u *userReactorSub) getConnContextById(uid string, id int64) *connContext {
-	uh := u.getUser(uid)
-	if uh == nil {
-		return nil
-	}
-	return uh.getConnById(id)
-}
+// func (u *userReactorSub) getConnContextById(uid string, id int64) *connContext {
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return nil
+// 	}
+// 	return uh.getConnById(id)
+// }
 
 // func (u *userReactorSub) getConnContextByProxyConnId(uid string, nodeId uint64, proxyConnId int64) *connContext {
 // 	uh := u.getUser(uid)
@@ -309,38 +396,38 @@ func (u *userReactorSub) getConnContextById(uid string, id int64) *connContext {
 // 	return uh.getConnByProxyConnId(nodeId, proxyConnId)
 // }
 
-func (u *userReactorSub) getConnContexts(uid string) []*connContext {
-	uh := u.getUser(uid)
-	if uh == nil {
-		return nil
-	}
-	return uh.getConns()
-}
+// func (u *userReactorSub) getConnContexts(uid string) []*connContext {
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return nil
+// 	}
+// 	return uh.getConns()
+// }
 
 // func (u *userReactorSub) getConnContextCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
 // 	return len(u.getConnContextByDeviceFlag(uid, deviceFlag))
 // }
 
-func (u *userReactorSub) getConnContextCount(uid string) int {
-	uh := u.getUser(uid)
-	if uh == nil {
-		return 0
-	}
-	return uh.getConnCount()
-}
+// func (u *userReactorSub) getConnContextCount(uid string) int {
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return 0
+// 	}
+// 	return uh.getConnCount()
+// }
 
-func (u *userReactorSub) getConnContextByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*connContext {
-	var conns []*connContext
-	u.users.iter(func(uh *userHandler) bool {
-		for _, c := range uh.conns {
-			if c.uid == uid && c.deviceFlag == deviceFlag {
-				conns = append(conns, c)
-			}
-		}
-		return true
-	})
-	return conns
-}
+// func (u *userReactorSub) getConnContextByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*connContext {
+// 	var conns []*connContext
+// 	u.users.iter(func(uh *userHandler) bool {
+// 		for _, c := range uh.conns {
+// 			if c.uid == uid && c.deviceFlag == deviceFlag {
+// 				conns = append(conns, c)
+// 			}
+// 		}
+// 		return true
+// 	})
+// 	return conns
+// }
 
 // func (u *userReactorSub) removeConnContext(uid string, deviceId string) {
 // 	u.mu.Lock()
@@ -357,57 +444,48 @@ func (u *userReactorSub) getConnContextByDeviceFlag(uid string, deviceFlag wkpro
 // 	}
 // }
 
-func (u *userReactorSub) removeConnContextById(uid string, id int64) *connContext {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+// func (u *userReactorSub) removeUserCheckUniqueNo(uid string, uniqueNo string) {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
+// 	user := u.users.get(uid)
+// 	if user == nil {
+// 		return
+// 	}
+// 	if user.uniqueNo != uniqueNo {
+// 		return
+// 	}
+// 	u.users.remove(uid)
+// }
 
-	uh := u.getUser(uid)
-	if uh == nil {
-		return nil
-	}
-	conn := uh.removeConnById(id)
-	u.Debug("remove conn", zap.String("uid", uid), zap.Int64("id", id))
+// func (u *userReactorSub) removeConnsByNodeId(uid string, nodeId uint64) []*connContext {
+// 	u.mu.Lock()
+// 	defer u.mu.Unlock()
+// 	uh := u.getUser(uid)
+// 	if uh == nil {
+// 		return nil
+// 	}
+// 	conns := uh.removeConnsByNodeId(nodeId)
+// 	if uh.getConnCount() <= 0 {
 
-	if uh.getConnCount() <= 0 {
-		u.Info("remove user", zap.String("uid", uh.uid))
-		err := uh.close()
-		if err != nil {
-			u.Error("removeConnContextById: close user error", zap.String("uid", uid), zap.Int64("connId", id), zap.Error(err))
-		}
-		u.users.remove(uh.uid)
-	}
-	return conn
-}
+// 		u.Info("remove user", zap.String("uid", uh.uid))
+// 		err := uh.close()
+// 		if err != nil {
+// 			u.Error("removeConnsByNodeId: close user error", zap.String("uid", uid), zap.Uint64("nodeId", nodeId), zap.Error(err))
+// 		}
+// 		u.users.remove(uh.uid)
+// 	}
+// 	return conns
+// }
 
-func (u *userReactorSub) removeConnsByNodeId(uid string, nodeId uint64) []*connContext {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	uh := u.getUser(uid)
-	if uh == nil {
-		return nil
-	}
-	conns := uh.removeConnsByNodeId(nodeId)
-	if uh.getConnCount() <= 0 {
+// func (u *userReactorSub) addConnContext(conn *connContext) {
 
-		u.Info("remove user", zap.String("uid", uh.uid))
-		err := uh.close()
-		if err != nil {
-			u.Error("removeConnsByNodeId: close user error", zap.String("uid", uid), zap.Uint64("nodeId", nodeId), zap.Error(err))
-		}
-		u.users.remove(uh.uid)
-	}
-	return conns
-}
-
-func (u *userReactorSub) addConnContext(conn *connContext) {
-
-	uh := u.getUser(conn.uid)
-	if uh == nil {
-		uh = newUserHandler(conn.uid, u)
-		u.addUserIfNotExist(uh)
-	}
-	uh.addConnIfNotExist(conn)
-}
+// 	uh := u.getUser(conn.uid)
+// 	if uh == nil {
+// 		uh = newUserHandler(conn.uid, u)
+// 		u.addUserIfNotExist(uh)
+// 	}
+// 	uh.addConnIfNotExist(conn)
+// }
 
 // func (u *userReactorSub) removeConn(uid string, deviceId string) {
 // 	u.mu.Lock()

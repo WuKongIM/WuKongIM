@@ -19,6 +19,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -56,7 +58,8 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 
 	route.GET(s.formatPath("/logs"), s.clusterLogs) // 获取节点日志
 
-	route.GET(s.formatPath("/message/trace"), s.messageTrace) // 获取消息轨迹
+	route.GET(s.formatPath("/message/trace"), s.messageTrace)                // 获取消息轨迹
+	route.GET(s.formatPath("/message/trace/recvack"), s.messageRecvackTrace) // 获取收到消息回执轨迹
 
 }
 
@@ -2321,13 +2324,12 @@ func (s *Server) clusterLogs(c *wkhttp.Context) {
 
 func (s *Server) messageTrace(c *wkhttp.Context) {
 	clientMsgNo := c.Query("client_msg_no")
-	messageId := wkutil.ParseInt64(c.Query("message_id"))
 	width := wkutil.ParseFloat64(c.Query("width"))
 	since := wkutil.ParseInt64(c.Query("since")) // 查询多久的轨迹，单位秒 比如 60 为查询60秒内的轨迹
 	// height := wkutil.ParseFloat64(c.Query("height"))
 
-	if clientMsgNo == "" && messageId == 0 {
-		c.ResponseError(errors.New("client_msg_no and message_id can't be empty at the same time"))
+	if clientMsgNo == "" {
+		c.ResponseError(errors.New("client_msg_no can't be empty"))
 		return
 	}
 
@@ -2340,7 +2342,11 @@ func (s *Server) messageTrace(c *wkhttp.Context) {
 
 	// ==================  请求轨迹日志 ==================
 
-	streamGroups, err := s.requestTraceStreams(clientMsgNo, messageId, start, end)
+	queryStr := `{trace = "1"} | json`
+	if clientMsgNo != "" {
+		queryStr = fmt.Sprintf(`%s | no="%s"`, queryStr, clientMsgNo)
+	}
+	streamGroups, err := s.requestTraceStreams(queryStr, start, end)
 	if err != nil {
 		s.Error("requestTraceStreams error", zap.Error(err))
 		c.ResponseError(err)
@@ -2373,6 +2379,7 @@ func (s *Server) messageTrace(c *wkhttp.Context) {
 
 	// ==================  匹配模版里的节点并填充数据 ==================
 
+	var messageId int64 // 消息id
 	for _, streamGroup := range streamGroups {
 
 		node := getSpanNodeFromTrace(streamGroup.Action)
@@ -2388,8 +2395,20 @@ func (s *Server) messageTrace(c *wkhttp.Context) {
 		node.Icon = stream.getIcon()
 		node.genDescription()
 
-		if stream.getAction() == "processMessage" {
+		action := stream.getAction()
+
+		if action == "processMessage" {
 			node.Data = stream
+
+			deivceFlag := stream.getInt("deviceFlag")
+			deviceLevel := stream.getInt("deviceLevel")
+			channelType := stream.getInt("channelType")
+
+			node.Data["channelType"] = getChannelTypeFormat(uint8(channelType))
+			node.Data["deviceLevel"] = wkproto.DeviceLevel(deviceLevel).String()
+			node.Data["deviceFlag"] = wkproto.DeviceFlag(deivceFlag).String()
+
+			messageId = stream.getInt64("messageId")
 		}
 	}
 
@@ -2484,6 +2503,8 @@ func (s *Server) messageTrace(c *wkhttp.Context) {
 			node.Name = stream.getName()
 			node.Time = wkutil.ToyyyyMMddHHmmss(stream.getTraceTime())
 			node.Icon = stream.getIcon()
+			node.Width = deliverNodeSpanNode.Width
+			node.Height = deliverNodeSpanNode.Height
 			node.X = getX(i, len(deliverStreams), deliverNodeSpanNode.X, deliverNodeSpanNode.Width)
 			node.Y = deliverNodeSpanNode.Y + deliverNodeSpanNode.Height + 60
 			node.genDescription()
@@ -2491,6 +2512,9 @@ func (s *Server) messageTrace(c *wkhttp.Context) {
 			if stream.getAction() == "deliverOnline" {
 				node.Description += fmt.Sprintf(" 连接:%d", stream.getInt("connCount"))
 			}
+			node.Data = make(map[string]interface{})
+			node.Data["uids"] = stream.getString("uids")
+
 			trace.Nodes = append(trace.Nodes, node)
 
 			edge := new(SpanEdge)
@@ -2500,28 +2524,126 @@ func (s *Server) messageTrace(c *wkhttp.Context) {
 		}
 	}
 
+	if deliverOnlineStreamGroup != nil && len(deliverOnlineStreamGroup.Streams) > 0 {
+		metris, err := s.requestTraceMetric(fmt.Sprintf(`sum by(messageId, nodeId, action) (count_over_time({trace="1"} | json | action = "processRecvack" | messageId = "%d" [1h]))`, messageId), start, end)
+		if err != nil {
+			s.Error("requestTraceMetric error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		if len(metris) > 0 {
+			sort.Slice(metris, func(i, j int) bool {
+				return metris[i].getNodeId() > metris[j].getNodeId()
+			})
+
+			for _, metri := range metris {
+				nodeId := metri.getNodeId()
+				deliverOnlineNode := getSpanNodeFromTrace(fmt.Sprintf("deliverOnline-%d", nodeId))
+				if deliverOnlineNode == nil {
+					continue
+				}
+
+				node := new(SpanNode)
+				node.Id = fmt.Sprintf("processRecvack-%d", nodeId)
+				node.Shape = "spanNode"
+				node.NodeId = nodeId
+				node.Name = metri.getName()
+				node.X = deliverOnlineNode.X
+				node.Y = deliverOnlineNode.Y + deliverOnlineNode.Height + 60
+				node.Width = deliverOnlineNode.Width
+				node.Height = deliverOnlineNode.Height
+				node.genDescription()
+				node.Data = metri
+				if node.Data == nil {
+					node.Data = make(map[string]interface{})
+				}
+
+				values := metri.getObjects("values")
+				if len(values) > 0 {
+					firstValue := values[0]
+					if vv, ok := firstValue.([]interface{}); ok {
+						if len(vv) > 1 {
+							v := vv[1]
+							countStr := v.(string)
+							node.Data["count"] = wkutil.ParseInt(countStr)
+							node.Description += fmt.Sprintf(" 连接:%s", countStr)
+						}
+					}
+				}
+
+				trace.Nodes = append(trace.Nodes, node)
+
+				edge := new(SpanEdge)
+				edge.Source = node.Id
+				edge.Target = deliverOnlineNode.Id
+				trace.Edges = append(trace.Edges, edge)
+			}
+		}
+
+	}
+
 	c.JSON(http.StatusOK, trace)
 
 }
 
-func (s *Server) requestTraceStreams(clientMsgNo string, messageId int64, start, end time.Time) ([]*StreamGroup, error) {
-	queryStr := `{trace = "1"} | json`
-	if clientMsgNo != "" {
-		queryStr = fmt.Sprintf(`%s | no="%s"`, queryStr, clientMsgNo)
+func (s *Server) messageRecvackTrace(c *wkhttp.Context) {
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
+	messageId := wkutil.ParseInt64(c.Query("message_id"))
+	since := wkutil.ParseInt64(c.Query("since")) // 查询多久的轨迹，单位秒 比如 60 为查询60秒内的轨迹
+
+	if since <= 0 {
+		since = 60 * 60 // 默认查询1小时内的轨迹
 	}
-	if messageId > 0 {
-		queryStr = fmt.Sprintf(`%s | messageId="%d"`, queryStr, messageId)
+
+	start := time.Now().Add(-(time.Second * time.Duration(since)))
+	end := time.Now()
+
+	streamGroups, err := s.requestTraceStreams(fmt.Sprintf(`{trace="1"} | json | action = "processRecvack" | messageId = "%d"`, messageId), start, end)
+	if err != nil {
+		s.Error("requestTraceStreams error", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
-	fmt.Println("queryStr---->", queryStr)
+
+	resultMaps := make([]map[string]interface{}, 0)
+	for _, streamGroup := range streamGroups {
+		if streamGroup.Action != "processRecvack" {
+			continue
+		}
+		sort.Slice(streamGroup.Streams, func(i, j int) bool {
+			return streamGroup.Streams[i].getTraceTime().Before(streamGroup.Streams[j].getTraceTime())
+		})
+		for _, stream := range streamGroup.Streams {
+			if stream.getNodeId() == nodeId {
+				resultMaps = append(resultMaps, map[string]interface{}{
+					"node_id":     stream.getNodeId(),
+					"uid":         stream.getString("uid"),
+					"device_id":   stream.getString("deviceId"),
+					"message_id":  stream.getInt64("messageId"),
+					"message_seq": stream.getInt64("messageSeq"),
+					"time":        wkutil.ToyyyyMMddHHmmss(stream.getTraceTime()),
+					"conn_id":     stream.getInt64("connId"),
+				})
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total": len(resultMaps),
+		"data":  resultMaps,
+	})
+
+}
+
+func (s *Server) requestTraceStreams(query string, start, end time.Time) ([]*StreamGroup, error) {
+
 	queryParams := map[string]string{
-		"query": queryStr,
+		"query": query,
 		"start": fmt.Sprintf("%d", start.UnixNano()),
 		"end":   fmt.Sprintf("%d", end.UnixNano()),
 	}
 
 	apiUrl := fmt.Sprintf("%s/loki/api/v1/query_range", strings.TrimSuffix(s.opts.LokiUrl, "/"))
-
-	fmt.Println("apiUrl--->", apiUrl)
 
 	resp, err := network.Get(apiUrl, queryParams, nil)
 	if err != nil {
@@ -2533,6 +2655,9 @@ func (s *Server) requestTraceStreams(clientMsgNo string, messageId int64, start,
 	}
 	var returnMap map[string]interface{}
 	err = wkutil.ReadJSONByByte([]byte(resp.Body), &returnMap)
+	if err != nil {
+		return nil, err
+	}
 	if returnMap["data"] != nil {
 		dataMap := returnMap["data"].(map[string]interface{})
 		if dataMap["result"] != nil {
@@ -2602,4 +2727,45 @@ func (s *Server) requestTraceStreams(clientMsgNo string, messageId int64, start,
 	}
 	return nil, err
 
+}
+
+func (s *Server) requestTraceMetric(query string, start, end time.Time) ([]Stream, error) {
+	queryParams := map[string]string{
+		"query": query,
+		"start": fmt.Sprintf("%d", start.UnixNano()),
+		"end":   fmt.Sprintf("%d", end.UnixNano()),
+	}
+	apiUrl := fmt.Sprintf("%s/loki/api/v1/query_range", strings.TrimSuffix(s.opts.LokiUrl, "/"))
+
+	resp, err := network.Get(apiUrl, queryParams, nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		s.Error("requestTraceMetric failed", zap.Int("status", resp.StatusCode), zap.String("body", resp.Body))
+		return nil, fmt.Errorf("requestTraceMetric failed, status code: %d", resp.StatusCode)
+	}
+
+	var returnMap map[string]interface{}
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &returnMap)
+	if err != nil {
+		return nil, err
+	}
+	streams := make([]Stream, 0)
+	if returnMap["data"] != nil {
+		dataMap := returnMap["data"].(map[string]interface{})
+		if dataMap["result"] != nil {
+			results := dataMap["result"].([]interface{})
+			for _, result := range results {
+				resultMap := result.(map[string]interface{})
+				if resultMap["metric"] == nil {
+					continue
+				}
+				metricMap := resultMap["metric"].(map[string]interface{})
+				metricMap["values"] = resultMap["values"]
+				streams = append(streams, metricMap)
+			}
+		}
+	}
+	return streams, nil
 }

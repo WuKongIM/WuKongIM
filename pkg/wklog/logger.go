@@ -12,10 +12,11 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var logger *zap.Logger
-var errorLogger *zap.Logger
-var warnLogger *zap.Logger
-var panicLogger *zap.Logger
+var logger *zap.Logger      // info日志
+var traceLogger *zap.Logger // 轨迹日志
+var errorLogger *zap.Logger // 错误日志
+var warnLogger *zap.Logger  // 警告日志
+var panicLogger *zap.Logger // panic日志
 var atom = zap.NewAtomicLevel()
 
 var opts *Options
@@ -40,6 +41,24 @@ func Configure(op *Options) {
 		logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
 	} else {
 		logger = zap.New(core)
+	}
+
+	// ====================== trace ==========================
+	traceWriter := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   path.Join(opts.LogDir, "trace.log"),
+		MaxSize:    500, // megabytes
+		MaxBackups: 3,
+		MaxAge:     28, // days
+	})
+	core = zapcore.NewCore(
+		zapcore.NewJSONEncoder(newEncoderConfig()),
+		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(traceWriter)),
+		atom,
+	)
+	if opts.LineNum {
+		traceLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
+	} else {
+		traceLogger = zap.New(core)
 	}
 
 	// ====================== error ==========================
@@ -134,6 +153,16 @@ func Info(msg string, fields ...zap.Field) {
 
 }
 
+// Trace Trace
+func Trace(msg string, fields ...zap.Field) {
+
+	if traceLogger == nil {
+		Configure(NewOptions())
+	}
+	traceLogger.Info(msg, fields...)
+
+}
+
 // Debug Debug
 func Debug(msg string, fields ...zap.Field) {
 
@@ -202,6 +231,7 @@ func Sync() error {
 type Log interface {
 	Info(msg string, fields ...zap.Field)
 	MessageTrace(msg string, clientMsgNo string, operationName string, fields ...zap.Field)
+	Trace(msg string, action string, fields ...zap.Field)
 	Debug(msg string, fields ...zap.Field)
 	Error(msg string, fields ...zap.Field)
 	Warn(msg string, fields ...zap.Field)
@@ -230,6 +260,21 @@ func (t *WKLog) Info(msg string, fields ...zap.Field) {
 	Info(b.String(), fields...)
 }
 
+// Trace Trace
+func (t *WKLog) Trace(msg string, action string, fields ...zap.Field) {
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	if len(fields) == 0 {
+		Trace(b.String(), zap.Int("trace", 1), zap.String("action", action))
+	} else {
+		fields = append(fields, zap.Int("trace", 1), zap.String("action", action))
+		Trace(b.String(), fields...)
+	}
+}
+
 func (t *WKLog) MessageTrace(msg string, no string, action string, fields ...zap.Field) {
 
 	if !opts.TraceOn {
@@ -242,10 +287,10 @@ func (t *WKLog) MessageTrace(msg string, no string, action string, fields ...zap
 	b.WriteString("】")
 	b.WriteString(msg)
 	if len(fields) == 0 {
-		Info(b.String(), zap.Int("trace", 1), zap.String("no", no), zap.String("action", action))
+		Trace(b.String(), zap.Int("trace", 1), zap.String("no", no), zap.String("action", action))
 	} else {
 		fields = append(fields, zap.Int("trace", 1), zap.String("no", no), zap.String("action", action))
-		Info(b.String(), fields...)
+		Trace(b.String(), fields...)
 	}
 
 }

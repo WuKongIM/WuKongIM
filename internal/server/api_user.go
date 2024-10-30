@@ -114,7 +114,7 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 		u.Error("清空用户token失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
 		return err
 	}
-	oldConns := u.s.userReactor.getConnContextByDeviceFlag(uid, deviceFlag)
+	oldConns := u.s.userReactor.getConnsByDeviceFlag(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
 			_ = u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
@@ -236,7 +236,7 @@ func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
 
 	onlineStatusResps := make([]*OnlinestatusResp, 0)
 	for _, uid := range uids {
-		conns := u.s.userReactor.getConnContexts(uid)
+		conns := u.s.userReactor.getConns(uid)
 		for _, conn := range conns {
 			onlineStatusResps = append(onlineStatusResps, &OnlinestatusResp{
 				UID:        conn.uid,
@@ -364,7 +364,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 
 	if req.DeviceLevel == wkproto.DeviceLevelMaster {
 		// 如果存在旧连接，则发起踢出请求
-		oldConns := u.s.userReactor.getConnContextByDeviceFlag(req.UID, req.DeviceFlag)
+		oldConns := u.s.userReactor.getConnsByDeviceFlag(req.UID, req.DeviceFlag)
 		if len(oldConns) > 0 {
 			for _, oldConn := range oldConns {
 				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.connId), zap.String("deviceFlag", req.DeviceFlag.String()))

@@ -251,10 +251,11 @@ export default class API {
         })
     }
 
+    // 请求消息轨迹日志
     public messageTraces(req: {
         clientMsgNo?: string,
         messageId?: number,
-        width?: number,
+        width?: number, 
         height?: number,
         since?: number,
     }) {
@@ -265,6 +266,19 @@ export default class API {
                 width: req.width,
                 height: req.height,
                 since: req.since,
+            }
+        })
+    }
+
+    // 请求消息回执轨迹日志
+    public messageRecvackTraces(req: {
+        nodeId: string,
+        messageId: string,
+    }) {
+        return APIClient.shared.get(`/cluster/message/trace/recvack`,{
+            param: {
+                node_id: req.nodeId,
+                message_id: req.messageId
             }
         })
     }

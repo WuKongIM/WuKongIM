@@ -87,8 +87,9 @@ func (s *APIServer) setRoutes() {
 	connz := NewConnzAPI(s.s)
 	connz.Route(s.r)
 
-	// varz := NewVarzAPI(s.s)
-	// varz.Route(s.r)
+	// 系统信息
+	varz := NewVarzAPI(s.s)
+	varz.Route(s.r)
 
 	// 用户相关API
 	u := NewUserAPI(s.s)
