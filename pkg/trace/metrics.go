@@ -164,8 +164,12 @@ type IAppMetrics interface {
 	ConnCountAdd(v int64)
 	// OnlineUserCount 在线人用户数
 	OnlineUserCountAdd(v int64)
+	// OnlineUserCountSet 在线人用户数
+	OnlineUserCountSet(v int64)
 	// OnlineDeviceCount 在线设备数
 	OnlineDeviceCountAdd(v int64)
+	// OnlineDeviceCountSet 在线设备数
+	OnlineDeviceCountSet(v int64)
 
 	// MessageLatencyOb 消息延迟
 	MessageLatencyOb(v int64)
