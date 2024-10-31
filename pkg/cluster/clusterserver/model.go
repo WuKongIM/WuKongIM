@@ -1760,3 +1760,29 @@ func newMessageTraceTemple(containerWidth float64) *Template {
 		Edges: edges,
 	}
 }
+
+type channelBase struct {
+	ChannelId   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+}
+
+type channelStatusResp struct {
+	channelBase
+	Running     int    `json:"running"`       // 是否运行中
+	LastMsgSeq  uint64 `json:"last_msg_seq"`  // 最新消息序号
+	LastMsgTime uint64 `json:"last_msg_time"` // 最新消息时间
+}
+
+type channelReplicaResp struct {
+	ReplicaId   uint64 `json:"replica_id"`    // 副本节点id
+	Running     int    `json:"running"`       // 是否运行中
+	LastMsgSeq  uint64 `json:"last_msg_seq"`  // 最新消息序号
+	LastMsgTime uint64 `json:"last_msg_time"` // 最新消息时间
+}
+
+type channelReplicaDetailResp struct {
+	channelReplicaResp
+	Role              int    `json:"role"`                 // 角色
+	RoleFormat        string `json:"role_format"`          // 角色格式化
+	LastMsgTimeFormat string `json:"last_msg_time_format"` // 最新消息时间格式化
+}
