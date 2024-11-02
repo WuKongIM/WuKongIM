@@ -7,13 +7,13 @@ import Node from '../pages/cluster/Node.vue'
 import Slot from '../pages/cluster/Slot.vue'
 import Channel from '../pages/cluster/Channel.vue'
 import Config from '../pages/cluster/Config.vue'
-import Log  from '../pages/cluster/Log.vue'
+import Log from '../pages/cluster/Log.vue'
 // import NodeDetail from '../pages/cluster/NodeDetail.vue'
 
 // ==================== data ====================
 import User from '../pages/data/User.vue'
 import Device from '../pages/data/Device.vue'
-import Connection from '../pages/data/Connection.vue' 
+import Connection from '../pages/data/Connection.vue'
 import Message from '../pages/data/Message.vue'
 import ChannelForData from '../pages/data/Channel.vue'
 import Conversation from '../pages/data/Conversation.vue'
@@ -24,6 +24,7 @@ import MonitorApp from '../pages/monitor/App.vue'
 import MonitorCluster from '../pages/monitor/Cluster.vue'
 import MonitorSystem from '../pages/monitor/System.vue'
 import TraceDB from '../pages/monitor/Trace.vue'
+import Logs from '../pages/monitor/Logs.vue'
 
 
 const router = createRouter({
@@ -67,7 +68,7 @@ const router = createRouter({
     },
     {
       path: '/cluster/log',
-      name: 'log',
+      name: 'clusterlog',
       component: Log
     },
 
@@ -102,7 +103,7 @@ const router = createRouter({
       name: 'dataConversation',
       component: Conversation
     },
-      // ==================== monitor ====================
+    // ==================== monitor ====================
     {
       path: '/monitor/app',
       name: 'monitorApp',
@@ -122,6 +123,11 @@ const router = createRouter({
       path: '/monitor/trace',
       name: 'traceDB',
       component: TraceDB
+    },
+    {
+      path: '/monitor/logs',
+      name: 'logs',
+      component: Logs
     },
   ]
 })

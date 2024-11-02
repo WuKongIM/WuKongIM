@@ -274,6 +274,10 @@ func (c *connContext) close() {
 			wklog.Error("conn close error", zap.Error(err))
 		}
 	}
+	if !c.isRealConn {
+		c.subReactor.r.s.onCloseForProxy(c)
+	}
+
 }
 
 func (c *connContext) isClosed() bool {

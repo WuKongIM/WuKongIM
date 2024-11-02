@@ -135,7 +135,7 @@ const nextPage = () => {
                                 用户UID
                             </div>
                         </th>
-                        <th>
+                        <!-- <th>
                             <div class="flex items-center">
                                 设备数
                             </div>
@@ -164,7 +164,7 @@ const nextPage = () => {
                             <div class="flex items-center">
                                 接受消息大小
                             </div>
-                        </th>
+                        </th> -->
                         <th>
                             <div class="flex items-center">
                                 创建时间
@@ -188,12 +188,12 @@ const nextPage = () => {
                         <td>
                             {{ user.uid }}
                         </td>
-                        <td>{{ user.device_count }}</td>
+                        <!-- <td>{{ user.device_count }}</td>
                         <td>{{ user.conn_count }}</td>
                         <td>{{ user.send_msg_count }}</td>
                         <td>{{ user.recv_msg_count }}</td>
                         <td>{{ user.send_msg_bytes }}</td>
-                        <td>{{ user.recv_msg_bytes }}</td>
+                        <td>{{ user.recv_msg_bytes }}</td> -->
                         <td>{{ user.created_at_format }}</td>
                         <td>{{ user.updated_at_format }}</td>
                         <td class="flex">

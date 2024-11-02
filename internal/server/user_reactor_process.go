@@ -274,8 +274,6 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 	totalOnlineCount := r.s.userReactor.getConnCount(uid)
 	r.s.webhook.Online(uid, connectPacket.DeviceFlag, connCtx.connId, deviceOnlineCount, totalOnlineCount)
 
-	r.s.trace.Metrics.App().OnlineDeviceCountAdd(1) // 设备在线数+1
-
 	return wkproto.ReasonSuccess, nil
 }
 

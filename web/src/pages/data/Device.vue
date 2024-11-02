@@ -114,7 +114,7 @@ const nextPage = () => {
                                 设备Token
                             </div>
                         </th>
-                        <th>
+                        <!-- <th>
                             <div class="flex items-center">
                                 连接数
                             </div>
@@ -138,7 +138,7 @@ const nextPage = () => {
                             <div class="flex items-center">
                                 接受消息大小
                             </div>
-                        </th>
+                        </th> -->
                         <th>
                             <div class="flex items-center">
                                 创建时间
@@ -164,11 +164,11 @@ const nextPage = () => {
                         <td>{{ device.device_flag_format }}</td>
                         <td>{{ device.device_level_format }}</td>
                         <td>{{ device.token }}</td>
-                        <td>{{ device.conn_count }}</td>
+                        <!-- <td>{{ device.conn_count }}</td>
                         <td>{{ device.send_msg_count }}</td>
                         <td>{{ device.recv_msg_count }}</td>
                         <td>{{ device.send_msg_bytes }}</td>
-                        <td>{{ device.recv_msg_bytes }}</td>
+                        <td>{{ device.recv_msg_bytes }}</td> -->
                         <td>{{ device.created_at_format }}</td>
                         <td>{{ device.updated_at_format }}</td>
                         <!-- <td class="flex">

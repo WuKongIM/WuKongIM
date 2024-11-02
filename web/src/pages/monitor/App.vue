@@ -116,10 +116,6 @@ const loadMetrics = () => {
                 name: "在线用户",
                 data: onlineUserCount,
             },
-            {
-                name: "在线设备",
-                data: onlineDeviceCount,
-            },
         ]
         sendPacketCountRateRef.value = [
             {

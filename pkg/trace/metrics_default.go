@@ -87,10 +87,15 @@ func (d *metrics) appMetrics(c *wkhttp.Context) {
 		filterId = strconv.FormatUint(nodeId, 10)
 	}
 
+	sp := latest / 30
+	if sp < 1 {
+		sp = 1
+	}
+
 	rg := v1.Range{
 		Start: latestTime,
 		End:   time.Now(),
-		Step:  time.Second * 10,
+		Step:  time.Duration(sp) * time.Second,
 	}
 
 	var resps = make([]*appMetricsResp, 0)
@@ -156,11 +161,17 @@ func (d *metrics) clusterMetrics(c *wkhttp.Context) {
 		latestTime = time.Now().Add(-time.Second * time.Duration(latest))
 	}
 
+	sp := latest / 30
+	if sp < 1 {
+		sp = 1
+	}
+
 	rg := v1.Range{
 		Start: latestTime,
 		End:   time.Now(),
-		Step:  time.Second * 10,
+		Step:  time.Duration(sp) * time.Second,
 	}
+
 	var resps = make([]*clusterMetricsResp, 0)
 	d.requestAndFillClusterMetrics("cluster_msg_incoming_count_total", rg, true, &resps)
 	d.requestAndFillClusterMetrics("cluster_msg_outgoing_count_total", rg, true, &resps)
@@ -227,10 +238,15 @@ func (d *metrics) systemMetrics(c *wkhttp.Context) {
 		latestTime = time.Now().Add(-time.Second * time.Duration(latest))
 	}
 
+	sp := latest / 30
+	if sp < 1 {
+		sp = 1
+	}
+
 	rg := v1.Range{
 		Start: latestTime,
 		End:   time.Now(),
-		Step:  time.Second * 10,
+		Step:  time.Second * time.Duration(sp),
 	}
 
 	var resps = make([]*systemMetricsResp, 0)

@@ -9,10 +9,12 @@ type Options struct {
 	BatchWait  time.Duration // 间隔多久发送一次日志
 	BatchBytes int           // 每次发送日志的大小
 	Address    string
+	Job        string
 }
 
 func NewOptions() *Options {
 	return &Options{
 		Address: "localhost",
+		Job:     "wk",
 	}
 }
