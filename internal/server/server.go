@@ -192,6 +192,7 @@ func New(opts *Options) *Server {
 			cluster.WithJaegerApiUrl(s.opts.Trace.JaegerApiUrl),
 			cluster.WithServiceName(s.opts.Trace.ServiceName),
 			cluster.WithLokiUrl(s.opts.Logger.Loki.Url),
+			cluster.WithLokiJob(s.opts.Logger.Loki.Job),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
@@ -217,6 +218,7 @@ func New(opts *Options) *Server {
 			Url:     s.opts.Logger.Loki.Url,
 			LogDir:  s.opts.Logger.Dir,
 			Address: s.opts.External.APIUrl,
+			Job:     s.opts.Logger.Loki.Job,
 		})
 	}
 
@@ -477,10 +479,14 @@ func (s *Server) onClose(conn wknet.Conn) {
 			deviceOnlineCount := s.userReactor.getConnCountByDeviceFlag(connCtx.uid, connCtx.deviceFlag)
 			totalOnlineCount := s.userReactor.getConnCount(connCtx.uid)
 			s.webhook.Offline(connCtx.uid, wkproto.DeviceFlag(connCtx.deviceFlag), connCtx.connId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
-			s.trace.Metrics.App().OnlineDeviceCountAdd(-1)
 		}
 
 	}
+}
+
+// 代理节点关闭
+func (s *Server) onCloseForProxy(conn *connContext) {
+
 }
 
 // Schedule 延迟任务

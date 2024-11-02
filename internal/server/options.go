@@ -74,6 +74,7 @@ type Options struct {
 			Url      string // loki地址 例如： http://localhost:3100
 			Username string
 			Password string
+			Job      string
 		}
 	}
 	Manager struct {
@@ -275,11 +276,21 @@ func NewOptions(op ...Option) *Options {
 				Url      string
 				Username string
 				Password string
+				Job      string
 			}
 		}{
 			Dir:     "",
 			Level:   zapcore.InfoLevel,
 			LineNum: false,
+			TraceOn: false,
+			Loki: struct {
+				Url      string
+				Username string
+				Password string
+				Job      string
+			}{
+				Job: "wk",
+			},
 		},
 		HTTPAddr:            "0.0.0.0:5001",
 		Addr:                "tcp://0.0.0.0:5100",

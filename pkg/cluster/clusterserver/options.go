@@ -98,6 +98,7 @@ type Options struct {
 	Auth auth.AuthConfig
 
 	LokiUrl string // loki url example: http://localhost:3100
+	LokiJob string
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -130,6 +131,8 @@ func NewOptions(opt ...Option) *Options {
 		SlotReactorSubCount:    128,
 		PongMaxTick:            30,
 		SlotDbShardNum:         8,
+
+		LokiJob: "wk",
 	}
 	for _, o := range opt {
 		o(opts)
@@ -415,5 +418,11 @@ func WithServiceName(serviceName string) Option {
 func WithLokiUrl(url string) Option {
 	return func(o *Options) {
 		o.LokiUrl = url
+	}
+}
+
+func WithLokiJob(job string) Option {
+	return func(o *Options) {
+		o.LokiJob = job
 	}
 }

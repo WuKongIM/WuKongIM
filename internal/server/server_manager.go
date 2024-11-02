@@ -132,6 +132,10 @@ func (m *ManagerServer) jwtAndTokenAuthMiddleware() wkhttp.HandlerFunc {
 		// 认证jwt
 		authorization := c.GetHeader("Authorization")
 		if authorization == "" {
+			authorization = c.Query("Authorization")
+		}
+
+		if authorization == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
 			c.Abort()
 			return

@@ -480,10 +480,100 @@ func (s *Server) logsTail(c *wkhttp.Context) {
 	if err != nil {
 		return
 	}
-	go s.loopLogsTailWs(ws)
+
+	t := c.Query("time")
+	if strings.TrimSpace(t) == "" {
+		t = "1h"
+	}
+	since := parseTimeStrToSeconds(t)
+
+	level := strings.TrimSpace(c.Query("level"))
+	nodeId := strings.TrimSpace(c.Query("node_id"))
+	search := strings.TrimSpace(c.Query("search"))
+	labelsStr := strings.TrimSpace(c.Query("labels"))
+
+	query := url.Values{}
+	query.Add("start", fmt.Sprintf("%d", time.Now().Add(-time.Second*time.Duration(since)).UnixNano()))
+	labelMap := map[string]string{}
+
+	if level != "" {
+
+		if level == "trace" {
+			labelMap["level"] = fmt.Sprintf(`="%s"`, "info")
+			labelMap["trace"] = fmt.Sprintf(`="%s"`, "1")
+		} else {
+			labelMap["level"] = fmt.Sprintf(`="%s"`, level)
+		}
+	}
+	if nodeId != "" {
+		labelMap["nodeId"] = fmt.Sprintf(`="%s"`, nodeId)
+	}
+
+	labelStr := fmt.Sprintf(`{ job = "%s",`, s.opts.LokiJob)
+	for key, value := range labelMap {
+		labelStr += fmt.Sprintf(`%s%s ,`, key, value)
+	}
+	labelStr = strings.TrimRight(labelStr, ",")
+	labelStr += "}"
+
+	logql := fmt.Sprintf(`%s | json |`, labelStr)
+
+	if search != "" {
+		logql = fmt.Sprintf(`%s msg =~ ".*%s.*" |`, logql, search)
+	}
+
+	if labelsStr != "" {
+		var labels []map[string]string
+		err = wkutil.ReadJSONByByte([]byte(labelsStr), &labels)
+		if err != nil {
+			s.Error("parse labels error", zap.Error(err))
+			return
+		}
+		for _, labelMap := range labels {
+			name := labelMap["name"]
+			value := labelMap["value"]
+			operate := labelMap["operator"]
+			if name == "" || value == "" || operate == "" {
+				continue
+			}
+			logql = fmt.Sprintf(`%s %s %s "%s" |`, logql, name, operate, value)
+		}
+	}
+
+	logql = strings.TrimRight(logql, "|")
+
+	query.Add("query", logql)
+
+	fmt.Println("logql--->", logql)
+
+	fmt.Println("query---->:", query.Encode())
+
+	go s.loopLogsTailWs(ws, query)
 }
 
-func (s *Server) loopLogsTailWs(ws *websocket.Conn) {
+// 将字符串时间转换成秒，例如 5m -> 5*60 5h -> 5*60*60
+func parseTimeStrToSeconds(timeStr string) int64 {
+	if len(timeStr) < 2 {
+		return 0
+	}
+	unit := timeStr[len(timeStr)-1]
+	numStr := timeStr[:len(timeStr)-1]
+	num := wkutil.ParseInt64(numStr)
+	switch unit {
+	case 's':
+		return num
+	case 'm':
+		return num * 60
+	case 'h':
+		return num * 60 * 60
+	case 'd':
+		return num * 60 * 60 * 24
+	default:
+		return 0
+	}
+}
+
+func (s *Server) loopLogsTailWs(ws *websocket.Conn, values url.Values) {
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 
@@ -495,6 +585,8 @@ func (s *Server) loopLogsTailWs(ws *websocket.Conn) {
 	}
 	u.Scheme = "ws"
 	u.Path = "/loki/api/v1/tail"
+
+	u.RawQuery = values.Encode()
 
 	fmt.Println("loki url:", u.String())
 
@@ -512,14 +604,60 @@ func (s *Server) loopLogsTailWs(ws *websocket.Conn) {
 	}()
 
 	for {
-		messageType, data, err := lokiConn.ReadMessage()
+		_ = lokiConn.SetReadDeadline(time.Now().Add(time.Minute * 2))
+		_, data, err := lokiConn.ReadMessage()
 		if err != nil {
+			fmt.Println("read message error:", err)
 			break
 		}
-		err = ws.WriteMessage(messageType, data)
+		logs, err := parseLokiStreamToLogs(data)
 		if err != nil {
+			fmt.Println("parse loki stream error:", err)
+			break
+		}
+		_ = ws.SetWriteDeadline(time.Now().Add(time.Second * 10))
+		err = ws.WriteJSON(logs)
+		if err != nil {
+			fmt.Println("write message error:", err)
 			break
 		}
 	}
 
+}
+
+func parseLokiStreamToLogs(data []byte) ([]string, error) {
+
+	var returnMap map[string]interface{}
+	err := wkutil.ReadJSONByByte(data, &returnMap)
+	if err != nil {
+		return nil, err
+	}
+
+	streamObjs := returnMap["streams"]
+	if streamObjs == nil {
+		return nil, nil
+	}
+
+	streams := streamObjs.([]interface{})
+	if len(streams) == 0 {
+		return nil, nil
+	}
+
+	logs := make([]string, 0, len(streams))
+	for _, streamObj := range streams {
+		stream := streamObj.(map[string]interface{})
+		valueObjs := stream["values"]
+		if valueObjs == nil {
+			continue
+		}
+		values := valueObjs.([]interface{})
+		for _, valueObj := range values {
+			value := valueObj.([]interface{})
+			if len(value) != 2 {
+				continue
+			}
+			logs = append(logs, value[1].(string))
+		}
+	}
+	return logs, nil
 }
