@@ -7,7 +7,10 @@ import APIClient from './services/APIClient';
 
 onMounted(() => {
 
-  App.shard().loadSystemSettingIfNeed()
+
+  if(App.shard().loginInfo.isLogin()) {
+    App.shard().loadSystemSettingIfNeed()
+  }
 
   APIClient.shared.config.tokenCallback = () => {
     return App.shard().loginInfo.token
