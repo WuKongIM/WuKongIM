@@ -3,6 +3,7 @@ import MonitorPanel from '../../components/MonitorPanel.vue'
 import { onMounted, ref } from 'vue';
 import API from '../../services/API';
 import { Series } from '../../services/Model';
+import App from '../../services/App';
 
 const connectionsRef = ref<Series[]>([]); // 连接数
 const onlineUserCountRef = ref<Series[]>([]); // 在线用户数
@@ -26,6 +27,11 @@ const latest = ref<number>(60 * 5) // 最近时间
 
 
 onMounted(() => {
+
+    if(!App.shard().systemSetting.prometheusOn) {
+        return
+    }
+
     loadMetrics()
     API.shared.simpleNodes().then((res) => {
         nodeTotal.value = res
@@ -224,7 +230,7 @@ const onRefresh = () => {
             <button class="btn btn-sm ml-10" v-on:click="onRefresh">立马刷新</button>
         </div>
         <br />
-        <div class="flex flex-wrap justify-left">
+        <div class="flex flex-wrap justify-left" v-if="App.shard().systemSetting.prometheusOn">
             <div class="pl-5">
                 <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
                     <MonitorPanel :data="connectionsRef" title="长连接数" />
@@ -275,6 +281,9 @@ const onRefresh = () => {
                     <MonitorPanel :data="pingPacketBytesRateRef" title="ping包字节(字节)" />
                 </div>
             </div>
+        </div>
+        <div class="text text-center mt-10 text-red-500" v-else>
+                监控功能未开启，请查看官网文档 https://githubim.com
         </div>
     </div>
 

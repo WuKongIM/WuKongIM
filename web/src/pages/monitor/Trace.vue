@@ -7,6 +7,7 @@ import TextNode from '../../components/TextNode.vue'
 import RecvackTable from '../../components/RecvackTable.vue'
 import API from "../../services/API";
 import { useRouter } from "vue-router";
+import App from "../../services/App";
 
 const clientMsgNo = ref('')
 const messageId = ref(0)
@@ -43,6 +44,7 @@ register({
 
 
 onMounted(async () => {
+    App.shard().loadSystemSettingIfNeed()
     if (clientMsgNo.value && clientMsgNo.value.length > 0) {
         drawFlow()
     }
@@ -201,6 +203,11 @@ const requestMessageRecvackTraces = ({
 }
 
 const onSearch = (e: any) => {
+    if (!App.shard().systemSetting.messageTraceOn) {
+        error.value = '消息追踪功能未开启,请查看官网文档 https://githubim.com'
+        return
+    }
+
     clientMsgNo.value = e.target.value
     drawFlow()
 }
