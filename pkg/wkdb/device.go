@@ -161,7 +161,7 @@ func (wk *wukongDB) UpdateDevice(d Device) error {
 	db := wk.shardDB(d.Uid)
 	// 获取旧设备信息
 	old, err := wk.getDeviceById(d.Id, db)
-	if err != nil {
+	if err != nil && err != ErrNotFound {
 		return err
 	}
 
