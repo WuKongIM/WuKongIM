@@ -220,7 +220,8 @@ go run main.go --config  ./exampleconfig/cluster3.yaml
 |![](./docs/2.0-screen/screen-01.png)|![](./docs/2.0-screen/screen-02.png)|![](./docs/2.0-screen/screen-03.png)|
 |![](./docs/2.0-screen/screen-04.png)|![](./docs/2.0-screen/screen-05.png)|![](./docs/2.0-screen/screen-06.png)|
 |![](./docs/2.0-screen/screen-07.png)|![](./docs/2.0-screen/screen-08.png)|![](./docs/2.0-screen/screen-09.png)|
-|![](./docs/2.0-screen/screen-10.png)|![](./docs/2.0-screen/screen-11.png)||
+|![](./docs/2.0-screen/screen-10.png)|![](./docs/2.0-screen/screen-11.png)| ![](./docs/2.0-screen/screen-12.png) |
+| ![](./docs/2.0-screen/screen-13.png) | ![](./docs/2.0-screen/screen-14.png) |
 
 Star
 ---------------
