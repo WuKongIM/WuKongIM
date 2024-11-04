@@ -285,4 +285,30 @@ export default class API {
         })
     }
 
+    // 获取系统设置
+    public async systemSettings(): Promise<SystemSetting> {
+        const resp = await APIClient.shared.get(`/varz/setting`)
+        return SystemSetting.fromJSON(resp)
+    }
+
 }
+
+export class SystemSetting {
+    traceOn: boolean = false // 日志是否开启trace
+    lokiOn: boolean = false // 日志是否开启loki
+    prometheusOn : boolean = false // 是否开启Prometheus
+
+    static fromJSON(json: any): SystemSetting {
+        const setting = new SystemSetting()
+        setting.traceOn = json.logger.trace_on
+        setting.lokiOn = json.logger.loki_on
+        setting.prometheusOn = json.prometheus_on
+        return setting
+    }
+
+    // 是否开启消息轨迹功能
+    get messageTraceOn() {
+        return this.traceOn && this.lokiOn
+    }
+}
+

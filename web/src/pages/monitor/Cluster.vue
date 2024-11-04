@@ -4,6 +4,7 @@ import MonitorPanel from '../../components/MonitorPanel.vue'
 import { onMounted, ref } from 'vue';
 import API from '../../services/API';
 import { Series,setSeries } from '../../services/Model';
+import App from '../../services/App';
 
 const latest = ref<number>(60 * 5) // 最近时间
 
@@ -41,6 +42,9 @@ const msgPingOutgoingBytesRateRef = ref<Series[]>([])
 
 
 onMounted(() => {
+    if(!App.shard().systemSetting.prometheusOn) {
+        return
+    }
     loadMetrics()
 })
 
@@ -145,7 +149,7 @@ const onRefresh = () => {
             <button class="btn btn-sm ml-10" v-on:click="onRefresh">立马刷新</button>
         </div>
         <br />
-        <div class="flex flex-wrap justify-left">
+        <div class="flex flex-wrap justify-left" v-if="App.shard().systemSetting.prometheusOn">
 
             <!-- propose  -->
             <div class="pl-5">
@@ -284,6 +288,9 @@ const onRefresh = () => {
                     <MonitorPanel :data="msgPingOutgoingBytesRateRef" title="流出的Ping(字节)" />
                 </div>
             </div>
+        </div>
+        <div class="text text-center mt-10 text-red-500" v-else>
+             监控功能未开启，请查看官网文档 https://githubim.com
         </div>
     </div>
 </template>

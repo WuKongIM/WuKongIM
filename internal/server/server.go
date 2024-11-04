@@ -89,20 +89,12 @@ func New(opts *Options) *Server {
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
-	// 初始化监控追踪
-	traceOn := false
-	if strings.TrimSpace(opts.Trace.Endpoint) != "" {
-		traceOn = true
-	}
 	s.trace = trace.New(
 		s.ctx,
 		trace.NewOptions(
-			trace.WithEndpoint(s.opts.Trace.Endpoint),
-			trace.WithTraceOn(traceOn),
 			trace.WithServiceName(s.opts.Trace.ServiceName),
 			trace.WithServiceHostName(s.opts.Trace.ServiceHostName),
 			trace.WithPrometheusApiUrl(s.opts.Trace.PrometheusApiUrl),
-			trace.WithNodeId(s.opts.Cluster.NodeId),
 		))
 	trace.SetGlobalTrace(s.trace)
 
@@ -189,7 +181,6 @@ func New(opts *Options) *Server {
 			cluster.WithSlotReactorSubCount(s.opts.Cluster.SlotReactorSubCount),
 			cluster.WithPongMaxTick(s.opts.Cluster.PongMaxTick),
 			cluster.WithAuth(s.opts.Auth),
-			cluster.WithJaegerApiUrl(s.opts.Trace.JaegerApiUrl),
 			cluster.WithServiceName(s.opts.Trace.ServiceName),
 			cluster.WithLokiUrl(s.opts.Logger.Loki.Url),
 			cluster.WithLokiJob(s.opts.Logger.Loki.Job),

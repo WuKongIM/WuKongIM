@@ -189,12 +189,9 @@ type Options struct {
 	}
 
 	Trace struct {
-		Endpoint         string // 例如：127.0.0.1:4318
 		ServiceName      string
 		ServiceHostName  string
-		PrometheusApiUrl string  // prometheus api url
-		JaegerApiUrl     string  // jaeger http api url 例如：http://127.0.0.1:16686
-		SampleRate       float64 // 消息链路采样率 0 ~ 1
+		PrometheusApiUrl string // prometheus api url
 	}
 
 	Reactor struct {
@@ -418,19 +415,13 @@ func NewOptions(op ...Option) *Options {
 			PongMaxTick:            30,
 		},
 		Trace: struct {
-			Endpoint         string
 			ServiceName      string
 			ServiceHostName  string
 			PrometheusApiUrl string
-			JaegerApiUrl     string
-			SampleRate       float64
 		}{
-			Endpoint:         "",
 			ServiceName:      "wukongim",
 			ServiceHostName:  "imnode",
-			PrometheusApiUrl: "http://127.0.0.1:9090",
-			JaegerApiUrl:     "",
-			SampleRate:       1,
+			PrometheusApiUrl: "",
 		},
 		Reactor: struct {
 			ChannelSubCount             int
@@ -717,12 +708,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.APIUrl = o.getString("cluster.apiUrl", o.Cluster.APIUrl)
 
 	// =================== trace ===================
-	o.Trace.Endpoint = o.getString("trace.endpoint", o.Trace.Endpoint)
 	o.Trace.ServiceName = o.getString("trace.serviceName", o.Trace.ServiceName)
 	o.Trace.ServiceHostName = o.getString("trace.serviceHostName", fmt.Sprintf("%s[%d]", o.Trace.ServiceName, o.Cluster.NodeId))
 	o.Trace.PrometheusApiUrl = o.getString("trace.prometheusApiUrl", o.Trace.PrometheusApiUrl)
-	o.Trace.JaegerApiUrl = o.getString("trace.jaegerApiUrl", o.Trace.JaegerApiUrl)
-	o.Trace.SampleRate = o.getFloat64("trace.sampleRate", o.Trace.SampleRate)
 
 	// =================== deliver ===================
 	o.Deliver.DeliverrCount = o.getInt("deliver.deliverrCount", o.Deliver.DeliverrCount)
@@ -925,8 +913,14 @@ func (o *Options) LokiOn() bool {
 	return strings.TrimSpace(o.Logger.Loki.Url) != ""
 }
 
+// 是否配置了cluster
 func (o *Options) ClusterOn() bool {
 	return o.Cluster.NodeId != 0
+}
+
+// 是否开启了 prometheus
+func (o *Options) PrometheusOn() bool {
+	return strings.TrimSpace(o.Trace.PrometheusApiUrl) != ""
 }
 
 func (o *Options) configureLog(vp *viper.Viper) {
@@ -1559,12 +1553,6 @@ func WithClusterSlotReactorSubCount(slotReactorSubCount int) Option {
 func WithClusterPongMaxTick(pongMaxTick int) Option {
 	return func(opts *Options) {
 		opts.Cluster.PongMaxTick = pongMaxTick
-	}
-}
-
-func WithTraceEndpoint(endpoint string) Option {
-	return func(opts *Options) {
-		opts.Trace.Endpoint = endpoint
 	}
 }
 

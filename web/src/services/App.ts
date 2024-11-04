@@ -1,12 +1,17 @@
 
 
 import { useCookies } from "vue3-cookies";
+import API, { SystemSetting } from "./API";
 
 const { cookies } = useCookies()
 
 export default class App {
 
     public loginInfo = new LoginInfo()
+
+    public _systemSetting = new SystemSetting(); // 系统设置
+    public systemSettingLoaded = false; // 系统设置是否已经加载 
+
     // 单例
     private static _shard: App
     private constructor() {
@@ -19,6 +24,22 @@ export default class App {
         return App._shard
     }
 
+    get systemSetting() {
+        if (!this._systemSetting) {
+            this.loadSystemSettingIfNeed()
+        }
+        return this._systemSetting || new SystemSetting()
+    }
+
+    loadSystemSettingIfNeed() {
+        if (this.systemSettingLoaded) {
+            return
+        }
+        API.shared.systemSettings().then((resp) => {
+            this._systemSetting = resp
+            this.systemSettingLoaded = true
+        })
+    }
 
 }
 
@@ -57,7 +78,7 @@ export class LoginInfo {
     }
 
     setPermissionFromStr(str: string) {
-        if(!str) {
+        if (!str) {
             return
         }
         str.split(',').forEach((item) => {
@@ -83,7 +104,7 @@ export class LoginInfo {
             }
             str += p.resource + ":" + p.action
         }
-        return str  
+        return str
     }
 
     hasPermission(resource: string, action: string) {
@@ -95,7 +116,7 @@ export class LoginInfo {
         }
         return false
     }
-    
+
 }
 
 export const All = "*"

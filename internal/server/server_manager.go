@@ -83,8 +83,8 @@ func (m *ManagerServer) setRoutes() {
 	connz := NewConnzAPI(m.s)
 	connz.Route(m.r)
 
-	// varz := NewVarzAPI(s.s)
-	// varz.Route(s.r)
+	varz := NewVarzAPI(m.s)
+	varz.Route(m.r)
 
 	// 管理者api
 	manager := NewManagerAPI(m.s)

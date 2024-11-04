@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import API from '../../services/API';
 import { ellipsis, base64Decode, base64Encode } from '../../services/Utils';
 import { useRouter } from "vue-router";
+import App from '../../services/App';
 
 const router = useRouter()
 
@@ -26,9 +27,12 @@ const pre = ref<boolean>() // 是否向上分页
 const content = ref<string>() // 当前要显示的内容
 
 
+
 const query = router.currentRoute.value.query; //查询参数
 
 onMounted(() => {
+
+    App.shard().loadSystemSettingIfNeed()
 
     if (query.channelId) {
         channelId.value = query.channelId as string
@@ -167,6 +171,15 @@ const onShowClientMsgNo = (clientMsgNo: any) => {
     dialog.showModal();
 }
 
+// 消息轨迹惦记
+const onMessageTrace = (clientMsgNo: string) => {
+    if(!App.shard().systemSetting.messageTraceOn) {
+        alert("消息追踪功能未开启,请查看官网文档: https://githubim.com")
+        return
+    }
+    router.push(`/monitor/trace?clientMsgNo=${clientMsgNo}`)
+}
+
 </script>
 
 <template>
@@ -295,7 +308,7 @@ const onShowClientMsgNo = (clientMsgNo: any) => {
                                 href="#">{{ ellipsis(message.client_msg_no, 20) }}</a></td>
 
                         <td class="flex">
-                            <button class="btn btn-link btn-sm" @click="$router.push(`/monitor/trace?clientMsgNo=${message.client_msg_no}`)">消息轨迹</button>
+                            <button class="btn btn-link btn-sm" v-on:click="()=>onMessageTrace(message.client_msg_no)">消息轨迹</button>
                         </td>
                     </tr>
 

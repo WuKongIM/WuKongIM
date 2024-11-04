@@ -15,7 +15,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
-	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -352,8 +351,6 @@ type ChannelProposeReq struct {
 	ChannelId   string        // 频道id
 	ChannelType uint8         // 频道类型
 	Logs        []replica.Log // 数据
-	TraceID     trace.TraceID
-	SpanID      trace.SpanID
 }
 
 func (c *ChannelProposeReq) Marshal() ([]byte, error) {
@@ -369,8 +366,6 @@ func (c *ChannelProposeReq) Marshal() ([]byte, error) {
 		}
 		enc.WriteBinary(logData)
 	}
-	enc.WriteBytes(c.TraceID[:])
-	enc.WriteBytes(c.SpanID[:])
 	return enc.Bytes(), nil
 }
 
@@ -401,17 +396,6 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 			c.Logs[i] = *log
 		}
 	}
-	var traceIDBytes []byte
-	if traceIDBytes, err = dec.Bytes(len(c.TraceID)); err != nil {
-		return err
-	}
-	copy(c.TraceID[:], traceIDBytes)
-
-	var spanIDBytes []byte
-	if spanIDBytes, err = dec.Bytes(len(c.SpanID)); err != nil {
-		return err
-	}
-	copy(c.SpanID[:], spanIDBytes)
 	return nil
 }
 

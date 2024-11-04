@@ -3,22 +3,15 @@ package trace
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
-	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	prometheusExp "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-func (t *Trace) setupOTelSDK(ctx context.Context, traceOn bool, nodeId uint64) (shutdown func(context.Context) error, err error) {
+func (t *Trace) setupOTelSDK(ctx context.Context) (shutdown func(context.Context) error, err error) {
 	var shutdownFuncs []func(context.Context) error
 	// shutdown 会调用通过 shutdownFuncs 注册的清理函数。
 	// 调用产生的错误会被合并。
@@ -42,21 +35,20 @@ func (t *Trace) setupOTelSDK(ctx context.Context, traceOn bool, nodeId uint64) (
 
 	// 设置 trace provider.
 	// tracerProvider, err := newTraceProvider()
-	var meterProvider *metric.MeterProvider
-	if traceOn {
-		var tracerProvider *trace.TracerProvider
-		tracerProvider, err = newJaegerTraceProvider(ctx, t.opts.Endpoint, t.opts.ServiceName, t.opts.ServiceHostName, nodeId)
-		if err != nil {
-			fmt.Println("newJaegerTraceProvider err---->", err)
-			handleErr(err)
-			return
-		}
-		shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
-		otel.SetTracerProvider(tracerProvider)
-	}
+	// if traceOn {
+	// 	var tracerProvider *trace.TracerProvider
+	// 	tracerProvider, err = newJaegerTraceProvider(ctx, t.opts.Endpoint, t.opts.ServiceName, t.opts.ServiceHostName, nodeId)
+	// 	if err != nil {
+	// 		fmt.Println("newJaegerTraceProvider err---->", err)
+	// 		handleErr(err)
+	// 		return
+	// 	}
+	// 	shutdownFuncs = append(shutdownFuncs, tracerProvider.Shutdown)
+	// 	otel.SetTracerProvider(tracerProvider)
+	// }
 
 	// 设置 meter provider.
-	meterProvider, err = newMeterProvider()
+	meterProvider, err := newMeterProvider()
 	if err != nil {
 		handleErr(err)
 		return
@@ -73,37 +65,37 @@ func newPropagator() propagation.TextMapPropagator {
 	)
 }
 
-func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, serviceHostname string, nodeId uint64) (*trace.TracerProvider, error) {
-	// 创建一个使用 HTTP 协议连接本机Jaeger的 Exporter
-	traceExporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint(endpoint),
-		otlptracehttp.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	res, err := resource.New(ctx,
-		resource.WithFromEnv(),
-		resource.WithProcess(),
-		resource.WithTelemetrySDK(),
-		resource.WithHost(),
-		resource.WithAttributes(
-			// 在可观测链路 OpenTelemetry 版后端显示的服务名称。
-			semconv.ServiceNameKey.String(serviceName),
-			semconv.HostNameKey.String(serviceHostname),
-			attribute.Int64("node.id", int64(nodeId)),
-		),
-	)
-	if err != nil {
-		return nil, err
-	}
-	traceProvider := trace.NewTracerProvider(
-		trace.WithResource(res),
-		trace.WithSampler(trace.TraceIDRatioBased(1.0)), // 采样率
-		trace.WithBatcher(traceExporter,
-			trace.WithBatchTimeout(time.Second*5)),
-	)
-	return traceProvider, nil
-}
+// func newJaegerTraceProvider(ctx context.Context, endpoint string, serviceName, serviceHostname string, nodeId uint64) (*trace.TracerProvider, error) {
+// 	// 创建一个使用 HTTP 协议连接本机Jaeger的 Exporter
+// 	traceExporter, err := otlptracehttp.New(ctx,
+// 		otlptracehttp.WithEndpoint(endpoint),
+// 		otlptracehttp.WithInsecure())
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	res, err := resource.New(ctx,
+// 		resource.WithFromEnv(),
+// 		resource.WithProcess(),
+// 		resource.WithTelemetrySDK(),
+// 		resource.WithHost(),
+// 		resource.WithAttributes(
+// 			// 在可观测链路 OpenTelemetry 版后端显示的服务名称。
+// 			semconv.ServiceNameKey.String(serviceName),
+// 			semconv.HostNameKey.String(serviceHostname),
+// 			attribute.Int64("node.id", int64(nodeId)),
+// 		),
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	traceProvider := trace.NewTracerProvider(
+// 		trace.WithResource(res),
+// 		trace.WithSampler(trace.TraceIDRatioBased(1.0)), // 采样率
+// 		trace.WithBatcher(traceExporter,
+// 			trace.WithBatchTimeout(time.Second*5)),
+// 	)
+// 	return traceProvider, nil
+// }
 
 // func newTraceProvider() (*trace.TracerProvider, error) {
 // 	traceExporter, err := stdouttrace.New(

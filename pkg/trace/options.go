@@ -12,10 +12,7 @@ import (
 )
 
 type Options struct {
-	NodeId  uint64
-	TraceOn bool // 是否开启trace
 	// Endpoint is the address of the collector to which the exporter will send the spans.
-	Endpoint         string
 	ServiceName      string
 	ServiceHostName  string
 	PrometheusApiUrl string
@@ -27,8 +24,6 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		TraceOn:          false,
-		Endpoint:         "127.0.0.1:4318",
 		ServiceName:      "wukongim",
 		ServiceHostName:  "wukongim",
 		PrometheusApiUrl: "http://127.0.0.1:9090",
@@ -43,12 +38,6 @@ func NewOptions(opt ...Option) *Options {
 }
 
 type Option func(*Options)
-
-func WithEndpoint(endpoint string) Option {
-	return func(o *Options) {
-		o.Endpoint = endpoint
-	}
-}
 
 func WithServiceName(name string) Option {
 	return func(o *Options) {
@@ -71,18 +60,6 @@ func WithPrometheusApiUrl(url string) Option {
 func WithReqTimeout(timeout time.Duration) Option {
 	return func(o *Options) {
 		o.ReqTimeout = timeout
-	}
-}
-
-func WithTraceOn(on bool) Option {
-	return func(o *Options) {
-		o.TraceOn = on
-	}
-}
-
-func WithNodeId(id uint64) Option {
-	return func(o *Options) {
-		o.NodeId = id
 	}
 }
 

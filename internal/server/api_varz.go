@@ -30,6 +30,8 @@ func NewVarzAPI(s *Server) *VarzAPI {
 
 func (v *VarzAPI) Route(r *wkhttp.WKHttp) {
 	r.GET("/varz", v.HandleVarz) // 获取系统变量
+
+	r.GET("/varz/setting", v.Settings) // 获取系统设置
 }
 
 func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
@@ -71,6 +73,16 @@ func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 	}
 
 	c.JSON(http.StatusOK, varz)
+}
+
+func (v *VarzAPI) Settings(c *wkhttp.Context) {
+
+	setting := &SystemSetting{}
+	setting.Logger.TraceOn = wkutil.BoolToInt(v.s.opts.Logger.TraceOn)
+	setting.Logger.LokiOn = wkutil.BoolToInt(v.s.opts.LokiOn())
+	setting.PrometheusOn = wkutil.BoolToInt(v.s.opts.PrometheusOn())
+
+	c.JSON(http.StatusOK, setting)
 }
 
 func CreateVarz(s *Server) *Varz {
@@ -156,4 +168,13 @@ type Varz struct {
 	ManagerTokenOn         int         `json:"manager_token_on"`         // 管理员token是否开启
 	Conns                  []*ConnInfo `json:"conns,omitempty"`          // 连接信息
 	ConversationCacheCount int         `json:"conversation_cache_count"` // 最近会话缓存数量
+}
+
+type SystemSetting struct {
+	Logger struct {
+		TraceOn int `json:"trace_on"` // 日志是否开启trace
+		LokiOn  int `json:"loki_on"`  // 日志是否开启loki
+	} `json:"logger"`
+
+	PrometheusOn int `json:"prometheus_on"` // 是否开启prometheus
 }

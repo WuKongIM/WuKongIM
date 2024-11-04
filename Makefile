@@ -18,7 +18,7 @@ deploy-arm:
 deploy-v2-dev:
 	docker build -t wukongim . 
 	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.7-20241104-dev
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.6-20241104-dev
+	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.7-20241104-dev
 deploy-v2:
 	docker build -t wukongim .
 	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.6-20241008
