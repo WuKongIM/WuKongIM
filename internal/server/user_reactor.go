@@ -52,8 +52,8 @@ func newUserReactor(s *Server) *userReactor {
 		s:                         s,
 	}
 
-	u.subs = make([]*userReactorSub, s.opts.Reactor.UserSubCount)
-	for i := 0; i < s.opts.Reactor.UserSubCount; i++ {
+	u.subs = make([]*userReactorSub, s.opts.Reactor.User.SubCount)
+	for i := 0; i < s.opts.Reactor.User.SubCount; i++ {
 		sub := newUserReactorSub(i, u)
 		u.subs[i] = sub
 	}

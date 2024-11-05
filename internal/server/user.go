@@ -73,10 +73,10 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 		nodePongTimeoutTick: make(map[uint64]int),
 		uniqueNo:            wkutil.GenUUID(),
 		opts:                opts,
-		initTick:            opts.Reactor.UserProcessIntervalTick,
-		authTick:            opts.Reactor.UserProcessIntervalTick,
-		sendRecvackTick:     opts.Reactor.UserProcessIntervalTick,
-		recvMsgTick:         opts.Reactor.UserProcessIntervalTick,
+		initTick:            opts.Reactor.User.ProcessIntervalTick,
+		authTick:            opts.Reactor.User.ProcessIntervalTick,
+		sendRecvackTick:     opts.Reactor.User.ProcessIntervalTick,
+		recvMsgTick:         opts.Reactor.User.ProcessIntervalTick,
 	}
 
 	u.Info("new user handler")
@@ -85,7 +85,7 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 
 func (u *userHandler) hasReady() bool {
 	if !u.isInitialized() {
-		if u.initTick < u.opts.Reactor.UserProcessIntervalTick {
+		if u.initTick < u.opts.Reactor.User.ProcessIntervalTick {
 			return false
 		}
 		return u.status != userStatusInitializing
@@ -205,7 +205,7 @@ func (u *userHandler) hasRecvack() bool {
 		return false
 	}
 
-	if u.sendRecvackTick < u.opts.Reactor.UserProcessIntervalTick {
+	if u.sendRecvackTick < u.opts.Reactor.User.ProcessIntervalTick {
 		return false
 	}
 
@@ -216,7 +216,7 @@ func (u *userHandler) hasAuth() bool {
 	if u.authing {
 		return false
 	}
-	if u.authTick < u.opts.Reactor.UserProcessIntervalTick {
+	if u.authTick < u.opts.Reactor.User.ProcessIntervalTick {
 		return false
 	}
 	return u.authQueue.processingIndex < u.authQueue.lastIndex
@@ -234,7 +234,7 @@ func (u *userHandler) hasRecvMsg() bool {
 		return false
 	}
 
-	if u.recvMsgTick < u.opts.Reactor.UserProcessIntervalTick {
+	if u.recvMsgTick < u.opts.Reactor.User.ProcessIntervalTick {
 		return false
 	}
 
@@ -305,7 +305,7 @@ func (u *userHandler) tick() {
 
 	u.checkLeaderTick++
 	// 定时校验领导的正确性
-	if u.checkLeaderTick >= u.sub.r.s.opts.Reactor.CheckUserLeaderIntervalTick {
+	if u.checkLeaderTick >= u.sub.r.s.opts.Reactor.User.CheckLeaderIntervalTick {
 		u.checkLeaderTick = 0
 		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionCheckLeader, Uid: u.uid})
 	}
@@ -318,7 +318,7 @@ func (u *userHandler) tick() {
 
 func (u *userHandler) tickProxy() {
 	u.nodePingTick++
-	if u.nodePingTick >= u.sub.r.s.opts.Reactor.UserNodePingTick+(u.sub.r.s.opts.Reactor.UserNodePingTick/2) { // 与领导失去联系，主动断开连接
+	if u.nodePingTick >= u.sub.r.s.opts.Reactor.User.NodePingTick+(u.sub.r.s.opts.Reactor.User.NodePingTick/2) { // 与领导失去联系，主动断开连接
 		u.nodePingTick = 0
 		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 	}
@@ -331,7 +331,7 @@ func (u *userHandler) tickLeader() {
 		u.nodePongTimeoutTick[proxyNodeId]++
 	}
 
-	if u.nodePingTick >= u.sub.r.s.opts.Reactor.UserNodePingTick {
+	if u.nodePingTick >= u.sub.r.s.opts.Reactor.User.NodePingTick {
 		u.nodePingTick = 0
 		var messages []ReactorUserMessage
 		if len(u.conns) > 0 {
@@ -358,7 +358,7 @@ func (u *userHandler) tickLeader() {
 
 	// 检查代理节点是否超时
 	for _, proxyNodeId := range u.connNodeIds {
-		if u.nodePongTimeoutTick[proxyNodeId] >= u.sub.r.s.opts.Reactor.UserNodePongTimeoutTick {
+		if u.nodePongTimeoutTick[proxyNodeId] >= u.sub.r.s.opts.Reactor.User.NodePongTimeoutTick {
 			u.Debug("user node pong timeout", zap.String("uid", u.uid), zap.Uint64("proxyNodeId", proxyNodeId))
 			u.actions = append(u.actions, UserAction{ActionType: UserActionProxyNodeTimeout, Uid: u.uid, Messages: []ReactorUserMessage{
 				{FromNodeId: proxyNodeId},

@@ -58,8 +58,8 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		Log:                    wklog.NewWKLog(fmt.Sprintf("ChannelReactor[%d]", opts.Cluster.NodeId)),
 		s:                      s,
 	}
-	r.subs = make([]*channelReactorSub, r.opts.Reactor.ChannelSubCount)
-	for i := 0; i < r.opts.Reactor.ChannelSubCount; i++ {
+	r.subs = make([]*channelReactorSub, r.opts.Reactor.Channel.SubCount)
+	for i := 0; i < r.opts.Reactor.Channel.SubCount; i++ {
 		sub := newChannelReactorSub(i, r)
 		r.subs[i] = sub
 	}
