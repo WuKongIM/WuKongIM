@@ -18,7 +18,7 @@ func (c *channel) step(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
-			c.initTick = c.opts.Reactor.ChannelProcessIntervalTick // 立即处理下个逻辑
+			c.initTick = c.opts.Reactor.Channel.ProcessIntervalTick // 立即处理下个逻辑
 			c.status = channelStatusInitialized
 			if a.LeaderId == c.r.opts.Cluster.NodeId {
 				c.becomeLeader()
@@ -55,7 +55,7 @@ func (c *channel) step(a *ChannelAction) error {
 			return nil
 		}
 		if a.Reason == ReasonSuccess {
-			c.payloadDecryptingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+			c.payloadDecryptingTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 		}
 
 		lastMsg := a.Messages[len(a.Messages)-1]
@@ -101,7 +101,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 		c.permissionChecking = false
 
 		if a.Reason == ReasonSuccess {
-			c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+			c.permissionCheckingTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 		}
 
 		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.permissionCheckingIndex)
@@ -131,7 +131,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	case ChannelActionStorageResp: // 存储完成
 		c.storaging = false
 		if a.Reason == ReasonSuccess {
-			c.storageTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+			c.storageTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 		}
 
 		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.storagingIndex)
@@ -163,7 +163,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	case ChannelActionSendackResp: // 发送ack返回
 		c.sendacking = false
 		if a.Reason == ReasonSuccess {
-			c.sendackingTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+			c.sendackingTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 		}
 		if a.Index > c.msgQueue.sendackingIndex {
 			c.msgQueue.sendackingIndex = a.Index
@@ -172,7 +172,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	case ChannelActionDeliverResp: // 消息投递返回
 		c.delivering = false
 		if a.Reason == ReasonSuccess {
-			c.deliveringTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+			c.deliveringTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 		}
 		if a.Index > c.msgQueue.deliveringIndex {
 			c.msgQueue.deliveringIndex = a.Index
@@ -194,7 +194,7 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 			return nil
 		}
 		if a.Reason == ReasonSuccess {
-			c.forwardTick = c.opts.Reactor.ChannelProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
+			c.forwardTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 			lastMsg := a.Messages[len(a.Messages)-1]
 			if lastMsg.Index > c.msgQueue.forwardingIndex {
 				c.msgQueue.forwardingIndex = lastMsg.Index

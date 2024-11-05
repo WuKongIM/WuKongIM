@@ -195,15 +195,21 @@ type Options struct {
 	}
 
 	Reactor struct {
-		ChannelSubCount             int // channel reactor sub 的数量
-		ChannelProcessIntervalTick  int // 处理频道逻辑的间隔tick
-		UserProcessIntervalTick     int // 处理用户逻辑的间隔tick
-		UserSubCount                int // user reactor sub 的数量
-		UserNodePingTick            int // 用户节点tick间隔
-		UserNodePongTimeoutTick     int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
-		ChannelDeadlineTick         int // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
-		TagCheckIntervalTick        int // tag检查间隔tick
-		CheckUserLeaderIntervalTick int // 校验用户leader间隔tick，（隔多久验证一下当前领导是否是正确的领导）
+		Channel struct {
+			SubCount             int // channel reactor sub 的数量
+			ProcessIntervalTick  int // 处理频道逻辑的间隔tick
+			DeadlineTick         int // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
+			TagCheckIntervalTick int // tag检查间隔tick
+		}
+
+		User struct {
+			SubCount                int // user reactor sub 的数量
+			ProcessIntervalTick     int // 处理用户逻辑的间隔tick
+			NodePingTick            int // 用户节点tick间隔
+			NodePongTimeoutTick     int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
+			CheckLeaderIntervalTick int // 校验用户leader间隔tick，（隔多久验证一下当前领导是否是正确的领导）
+
+		}
 	}
 	DeadlockCheck bool // 死锁检查
 
@@ -424,25 +430,45 @@ func NewOptions(op ...Option) *Options {
 			PrometheusApiUrl: "",
 		},
 		Reactor: struct {
-			ChannelSubCount             int
-			ChannelProcessIntervalTick  int
-			UserProcessIntervalTick     int
-			UserSubCount                int
-			UserNodePingTick            int
-			UserNodePongTimeoutTick     int
-			ChannelDeadlineTick         int
-			TagCheckIntervalTick        int
-			CheckUserLeaderIntervalTick int
+			Channel struct {
+				SubCount             int
+				ProcessIntervalTick  int
+				DeadlineTick         int
+				TagCheckIntervalTick int
+			}
+			User struct {
+				SubCount                int
+				ProcessIntervalTick     int
+				NodePingTick            int
+				NodePongTimeoutTick     int
+				CheckLeaderIntervalTick int
+			}
 		}{
-			ChannelSubCount:             64,
-			ChannelProcessIntervalTick:  1,
-			UserProcessIntervalTick:     1,
-			UserSubCount:                64,
-			UserNodePingTick:            100,
-			UserNodePongTimeoutTick:     100 * 5,
-			ChannelDeadlineTick:         600,
-			TagCheckIntervalTick:        10,
-			CheckUserLeaderIntervalTick: 10,
+
+			Channel: struct {
+				SubCount             int
+				ProcessIntervalTick  int
+				DeadlineTick         int
+				TagCheckIntervalTick int
+			}{
+				SubCount:             64,
+				ProcessIntervalTick:  1,
+				DeadlineTick:         600,
+				TagCheckIntervalTick: 10,
+			},
+			User: struct {
+				SubCount                int
+				ProcessIntervalTick     int
+				NodePingTick            int
+				NodePongTimeoutTick     int
+				CheckLeaderIntervalTick int
+			}{
+				SubCount:                64,
+				ProcessIntervalTick:     1,
+				NodePingTick:            100,
+				NodePongTimeoutTick:     100 * 5,
+				CheckLeaderIntervalTick: 10,
+			},
 		},
 		Process: struct {
 			AuthPoolSize int
@@ -719,15 +745,17 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Deliver.MaxDeliverSizePerNode = o.getUint64("deliver.maxDeliverSizePerNode", o.Deliver.MaxDeliverSizePerNode)
 
 	// =================== reactor ===================
-	o.Reactor.ChannelSubCount = o.getInt("reactor.channelSubCount", o.Reactor.ChannelSubCount)
-	o.Reactor.ChannelProcessIntervalTick = o.getInt("reactor.channelProcessIntervalTick", o.Reactor.ChannelProcessIntervalTick)
-	o.Reactor.UserProcessIntervalTick = o.getInt("reactor.userProcessIntervalTick", o.Reactor.UserProcessIntervalTick)
-	o.Reactor.UserSubCount = o.getInt("reactor.userSubCount", o.Reactor.UserSubCount)
-	o.Reactor.UserNodePingTick = o.getInt("reactor.userNodePingTick", o.Reactor.UserNodePingTick)
-	o.Reactor.UserNodePongTimeoutTick = o.getInt("reactor.userNodePongTimeoutTick", o.Reactor.UserNodePongTimeoutTick)
-	o.Reactor.ChannelDeadlineTick = o.getInt("reactor.channelDeadlineTick", o.Reactor.ChannelDeadlineTick)
-	o.Reactor.TagCheckIntervalTick = o.getInt("reactor.tagCheckIntervalTick", o.Reactor.TagCheckIntervalTick)
-	o.Reactor.CheckUserLeaderIntervalTick = o.getInt("reactor.checkUserLeaderIntervalTick", o.Reactor.CheckUserLeaderIntervalTick)
+	o.Reactor.Channel.SubCount = o.getInt("reactor.channel.subCount", o.Reactor.Channel.SubCount)
+	o.Reactor.Channel.DeadlineTick = o.getInt("reactor.channel.deadlineTick", o.Reactor.Channel.DeadlineTick)
+	o.Reactor.Channel.ProcessIntervalTick = o.getInt("reactor.channel.processIntervalTick", o.Reactor.Channel.ProcessIntervalTick)
+	o.Reactor.Channel.DeadlineTick = o.getInt("reactor.channel.deadlineTick", o.Reactor.Channel.DeadlineTick)
+	o.Reactor.Channel.TagCheckIntervalTick = o.getInt("reactor.channel.tagCheckIntervalTick", o.Reactor.Channel.TagCheckIntervalTick)
+
+	o.Reactor.User.SubCount = o.getInt("reactor.user.subCount", o.Reactor.User.SubCount)
+	o.Reactor.User.ProcessIntervalTick = o.getInt("reactor.user.processIntervalTick", o.Reactor.User.ProcessIntervalTick)
+	o.Reactor.User.NodePingTick = o.getInt("reactor.user.nodePingTick", o.Reactor.User.NodePingTick)
+	o.Reactor.User.NodePongTimeoutTick = o.getInt("reactor.user.nodePongTimeoutTick", o.Reactor.User.NodePongTimeoutTick)
+	o.Reactor.User.CheckLeaderIntervalTick = o.getInt("reactor.checkUserLeaderIntervalTick", o.Reactor.User.CheckLeaderIntervalTick)
 
 	// =================== db ===================
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)
@@ -1576,25 +1604,25 @@ func WithTracePrometheusApiUrl(prometheusApiUrl string) Option {
 
 func WithReactorChannelSubCount(channelSubCount int) Option {
 	return func(opts *Options) {
-		opts.Reactor.ChannelSubCount = channelSubCount
+		opts.Reactor.Channel.SubCount = channelSubCount
 	}
 }
 
 func WithReactorUserSubCount(userSubCount int) Option {
 	return func(opts *Options) {
-		opts.Reactor.UserSubCount = userSubCount
+		opts.Reactor.User.SubCount = userSubCount
 	}
 }
 
 func WithReactorUserNodePingTick(userNodePingTick int) Option {
 	return func(opts *Options) {
-		opts.Reactor.UserNodePingTick = userNodePingTick
+		opts.Reactor.User.NodePingTick = userNodePingTick
 	}
 }
 
 func WithReactorUserNodePongTimeoutTick(userNodePongTimeoutTick int) Option {
 	return func(opts *Options) {
-		opts.Reactor.UserNodePongTimeoutTick = userNodePongTimeoutTick
+		opts.Reactor.User.NodePongTimeoutTick = userNodePongTimeoutTick
 	}
 }
 

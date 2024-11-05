@@ -26,29 +26,13 @@ deploy-v2:
 	docker tag wukongim ghcr.io/wukongim/wukongim:v2.0.6-20241008
 	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.6-20241008
 	docker push wukongim/wukongim:v2.0.6-20241008
-	docker push ghcr.io/wukongim/wukongim:v2.0.6-20241008	
-deploy-latest:
-	docker build -t wukongim .
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
-	docker tag wukongim wukongim/wukongim:v1.2
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
-	docker push wukongim/wukongim:v1.2
+	docker push ghcr.io/wukongim/wukongim:v2
 deploy-latest-v2:
 	docker build -t wukongim .
 	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2
 	docker tag wukongim wukongim/wukongim:v2
 	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2
-	docker push wukongim/wukongim:v2	
-deploy-v1.2.x:
-	docker build -t wukongim .
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2.5
-	docker tag wukongim wukongim/wukongim:v1.2.5
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2.5
-	docker push wukongim/wukongim:v1.2.5
-deploy-github:
-	docker build -t wukongim .
-	docker tag wukongim ghcr.io/wukongim/wukongim:v2
-	docker push ghcr.io/wukongim/wukongim:v2	
+	docker push wukongim/wukongim:v2		
 
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2-dev

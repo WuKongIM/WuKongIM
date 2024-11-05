@@ -76,7 +76,7 @@ type channel struct {
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
 	key := wkutil.ChannelToKey(channelId, channelType)
 
-	channelProcessIntervalTick := sub.r.opts.Reactor.ChannelProcessIntervalTick
+	channelProcessIntervalTick := sub.r.opts.Reactor.Channel.ProcessIntervalTick
 	return &channel{
 		key:                    key,
 		uniqueNo:               wkutil.GenUUID(),
@@ -105,7 +105,7 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 func (c *channel) hasReady() bool {
 	if !c.isInitialized() { // 是否初始化
 
-		if c.initTick < c.opts.Reactor.ChannelProcessIntervalTick {
+		if c.initTick < c.opts.Reactor.Channel.ProcessIntervalTick {
 			return false
 		}
 
@@ -232,7 +232,7 @@ func (c *channel) hasPayloadUnDecrypt() bool {
 		return false
 	}
 
-	if c.payloadDecryptingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+	if c.payloadDecryptingTick < c.opts.Reactor.Channel.ProcessIntervalTick {
 		return false
 	}
 
@@ -245,7 +245,7 @@ func (c *channel) hasPermissionUnCheck() bool {
 		return false
 	}
 
-	if c.permissionCheckingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+	if c.permissionCheckingTick < c.opts.Reactor.Channel.ProcessIntervalTick {
 		return false
 	}
 
@@ -257,7 +257,7 @@ func (c *channel) hasUnstorage() bool {
 	if c.storaging {
 		return false
 	}
-	if c.storageTick < c.opts.Reactor.ChannelProcessIntervalTick {
+	if c.storageTick < c.opts.Reactor.Channel.ProcessIntervalTick {
 		return false
 	}
 	return c.msgQueue.storagingIndex < c.msgQueue.permissionCheckingIndex
@@ -269,7 +269,7 @@ func (c *channel) hasSendack() bool {
 		return false
 	}
 
-	if c.sendackingTick < c.opts.Reactor.ChannelProcessIntervalTick {
+	if c.sendackingTick < c.opts.Reactor.Channel.ProcessIntervalTick {
 		return false
 	}
 
@@ -281,7 +281,7 @@ func (c *channel) hasUnDeliver() bool {
 	if c.delivering {
 		return false
 	}
-	if c.deliveringTick < c.opts.Reactor.ChannelProcessIntervalTick {
+	if c.deliveringTick < c.opts.Reactor.Channel.ProcessIntervalTick {
 		return false
 	}
 	return c.msgQueue.deliveringIndex < c.msgQueue.storagingIndex
@@ -292,7 +292,7 @@ func (c *channel) hasUnforward() bool {
 	if c.forwarding { // 在转发中
 		return false
 	}
-	if c.forwardTick < c.opts.Reactor.ChannelProcessIntervalTick {
+	if c.forwardTick < c.opts.Reactor.Channel.ProcessIntervalTick {
 		return false
 	}
 	return c.msgQueue.forwardingIndex < c.msgQueue.payloadDecryptingIndex
@@ -314,7 +314,7 @@ func (c *channel) tick() {
 	c.sendackingTick++
 
 	c.sendTick++
-	if c.sendTick >= c.opts.Reactor.ChannelDeadlineTick {
+	if c.sendTick >= c.opts.Reactor.Channel.DeadlineTick {
 		c.sendTick = 0
 		c.exec(&ChannelAction{ActionType: ChannelActionClose})
 	}
@@ -327,7 +327,7 @@ func (c *channel) tick() {
 
 func (c *channel) tickLeader() {
 	c.tagCheckTick++
-	if c.tagCheckTick >= c.opts.Reactor.TagCheckIntervalTick {
+	if c.tagCheckTick >= c.opts.Reactor.Channel.TagCheckIntervalTick {
 		c.tagCheckTick = 0
 		if c.receiverTagKey.Load() != "" {
 			c.exec(&ChannelAction{ActionType: ChannelActionCheckTag})
@@ -400,13 +400,13 @@ func (c *channel) resetIndex() {
 
 	c.sendTick = 0
 
-	c.initTick = c.opts.Reactor.ChannelProcessIntervalTick
-	c.storageTick = c.opts.Reactor.ChannelProcessIntervalTick
-	c.forwardTick = c.opts.Reactor.ChannelProcessIntervalTick
-	c.deliveringTick = c.opts.Reactor.ChannelProcessIntervalTick
-	c.permissionCheckingTick = c.opts.Reactor.ChannelProcessIntervalTick
-	c.payloadDecryptingTick = c.opts.Reactor.ChannelProcessIntervalTick
-	c.sendackingTick = c.opts.Reactor.ChannelProcessIntervalTick
+	c.initTick = c.opts.Reactor.Channel.ProcessIntervalTick
+	c.storageTick = c.opts.Reactor.Channel.ProcessIntervalTick
+	c.forwardTick = c.opts.Reactor.Channel.ProcessIntervalTick
+	c.deliveringTick = c.opts.Reactor.Channel.ProcessIntervalTick
+	c.permissionCheckingTick = c.opts.Reactor.Channel.ProcessIntervalTick
+	c.payloadDecryptingTick = c.opts.Reactor.Channel.ProcessIntervalTick
+	c.sendackingTick = c.opts.Reactor.Channel.ProcessIntervalTick
 
 }
 
@@ -459,6 +459,7 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 			}
 		}
 	} else {
+
 		// 处理非个人频道
 		realChannelId := c.channelId
 		if c.r.s.opts.IsCmdChannel(c.channelId) {
@@ -470,6 +471,14 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 		}
 		for _, member := range members {
 			subscribers = append(subscribers, member.Uid)
+		}
+
+		// 如果是客服频道，获取访客的uid作为订阅者
+		if c.channelType == wkproto.ChannelTypeCustomerService {
+			visitorID, _ := c.opts.GetCustomerServiceVisitorUID(c.channelId) // 获取访客ID
+			if strings.TrimSpace(visitorID) != "" {
+				subscribers = append(subscribers, visitorID)
+			}
 		}
 	}
 

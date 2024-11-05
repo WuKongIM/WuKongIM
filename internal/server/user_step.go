@@ -19,7 +19,7 @@ func (u *userHandler) step(a UserAction) error {
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
-			u.initTick = u.opts.Reactor.UserProcessIntervalTick // 立即处理下个逻辑
+			u.initTick = u.opts.Reactor.User.ProcessIntervalTick // 立即处理下个逻辑
 			u.status = userStatusInitialized
 			u.leaderId = a.LeaderId
 			if a.LeaderId == u.sub.r.s.opts.Cluster.NodeId {
@@ -64,7 +64,7 @@ func (u *userHandler) step(a UserAction) error {
 	case UserActionRecvResp: // 收消息返回
 		u.recvMsging = false
 		if a.Reason == ReasonSuccess {
-			u.recvMsgTick = u.opts.Reactor.UserProcessIntervalTick
+			u.recvMsgTick = u.opts.Reactor.User.ProcessIntervalTick
 		}
 
 		if a.Reason == ReasonSuccess && u.recvMsgQueue.processingIndex < a.Index {
@@ -93,7 +93,7 @@ func (u *userHandler) stepLeader(a UserAction) error {
 	case UserActionAuthResp:
 		u.authing = false
 		if a.Reason == ReasonSuccess {
-			u.authTick = u.opts.Reactor.UserProcessIntervalTick
+			u.authTick = u.opts.Reactor.User.ProcessIntervalTick
 		}
 		if a.Reason == ReasonSuccess && u.authQueue.processingIndex < a.Index {
 			u.authQueue.processingIndex = a.Index
@@ -127,7 +127,7 @@ func (u *userHandler) stepLeader(a UserAction) error {
 	case UserActionRecvackResp: // recvack处理返回
 		u.sendRecvacking = false
 		if a.Reason == ReasonSuccess {
-			u.sendRecvackTick = u.opts.Reactor.UserProcessIntervalTick
+			u.sendRecvackTick = u.opts.Reactor.User.ProcessIntervalTick
 		}
 
 		if a.Reason == ReasonSuccess && u.recvackQueue.processingIndex < a.Index {
@@ -182,7 +182,7 @@ func (u *userHandler) stepProxy(a UserAction) error {
 		if a.Forward.ActionType == UserActionSend {
 			u.sendRecvacking = false
 			if a.Reason == ReasonSuccess {
-				u.sendRecvackTick = u.opts.Reactor.UserProcessIntervalTick
+				u.sendRecvackTick = u.opts.Reactor.User.ProcessIntervalTick
 				if u.recvackQueue.processingIndex < a.Index {
 					u.recvackQueue.processingIndex = a.Index
 					u.recvackQueue.truncateTo(a.Index)
@@ -191,7 +191,7 @@ func (u *userHandler) stepProxy(a UserAction) error {
 		} else if a.Forward.ActionType == UserActionConnect {
 			u.authing = false
 			if a.Reason == ReasonSuccess {
-				u.authTick = u.opts.Reactor.UserProcessIntervalTick
+				u.authTick = u.opts.Reactor.User.ProcessIntervalTick
 				if u.authQueue.processingIndex < a.Index {
 					u.authQueue.processingIndex = a.Index
 					u.authQueue.truncateTo(a.Index)
