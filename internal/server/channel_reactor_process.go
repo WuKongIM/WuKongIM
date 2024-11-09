@@ -115,24 +115,31 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 		var decryptPayload []byte
 		conn := r.s.userReactor.getConnById(msg.FromUid, msg.FromConnId)
 		if conn != nil {
-			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
-			if err != nil {
-				r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))
-				r.MessageTrace("解密消息失败", msg.SendPacket.ClientMsgNo, "processPayloadDecrypt", zap.Error(err))
+			if len(msg.SendPacket.Payload) > 0 {
+				decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
+				if err != nil {
+					r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))
+					r.MessageTrace("解密消息失败", msg.SendPacket.ClientMsgNo, "processPayloadDecrypt", zap.Error(err))
+				}
 			}
 		}
-		if len(decryptPayload) > 0 {
+		if len(decryptPayload) > 0 || len(msg.SendPacket.Payload) == 0 {
 			msg.SendPacket.Payload = decryptPayload
 			msg.IsEncrypt = false
 			req.messages[i] = msg
 		}
 	}
 
+	actionType := ChannelActionPayloadDecryptResp
+	if req.isStream {
+		actionType = ChannelActionStreamPayloadDecryptResp
+	}
+
 	sub := r.reactorSub(req.ch.key)
 	sub.step(req.ch, &ChannelAction{
 		Reason:     ReasonSuccess,
 		UniqueNo:   req.ch.uniqueNo,
-		ActionType: ChannelActionPayloadDecryptResp,
+		ActionType: actionType,
 		Messages:   req.messages,
 	})
 
@@ -141,6 +148,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 type payloadDecryptReq struct {
 	ch       *channel
 	messages []ReactorChannelMessage
+	isStream bool // 是流消息
 }
 
 // =================================== 转发 ===================================
@@ -898,7 +906,7 @@ func (r *channelReactor) processDeliverLoop() {
 				case req := <-r.processDeliverC:
 					exist := false
 					for _, rq := range reqs {
-						if rq.channelId == req.channelId && rq.channelType == req.channelType {
+						if rq.channelId == req.channelId && rq.channelType == req.channelType && rq.isStream == req.isStream {
 							rq.messages = append(rq.messages, req.messages...)
 							exist = true
 							break
@@ -951,9 +959,14 @@ func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 		sub := r.reactorSub(req.ch.key)
 		reason := ReasonSuccess
 
+		actionType := ChannelActionDeliverResp
+		if req.isStream {
+			actionType = ChannelActionStreamDeliverResp
+		}
+
 		sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
-			ActionType: ChannelActionDeliverResp,
+			ActionType: actionType,
 			Index:      lastIndex,
 			Reason:     reason,
 		})
@@ -971,6 +984,7 @@ type deliverReq struct {
 	channelKey  string
 	tagKey      string
 	messages    []ReactorChannelMessage
+	isStream    bool
 }
 
 // =================================== 关闭请求 ===================================

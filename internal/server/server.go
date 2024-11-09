@@ -489,6 +489,7 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 
 // decode payload
 func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *connContext) ([]byte, error) {
+
 	aesKey, aesIV := conn.aesKey, conn.aesIV
 	vail, err := s.sendPacketIsVail(sendPacket, conn)
 	if err != nil {

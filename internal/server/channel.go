@@ -23,6 +23,7 @@ type channel struct {
 	info wkdb.ChannelInfo // 频道基础信息
 
 	msgQueue *channelMsgQueue // 消息队列
+	streams  *streamList      // 流消息集合
 
 	actions []*ChannelAction
 
@@ -83,6 +84,7 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 		channelId:              channelId,
 		channelType:            channelType,
 		msgQueue:               newChannelMsgQueue(channelId),
+		streams:                newStreamList(),
 		cacheSubscribers:       make(map[string]struct{}),
 		storageMaxSize:         1024 * 1024 * 2,
 		deliverMaxSize:         1024 * 1024 * 2,
@@ -112,7 +114,7 @@ func (c *channel) hasReady() bool {
 		return c.status != channelStatusInitializing
 	}
 
-	if c.hasPayloadUnDecrypt() { // 有未解密的消息
+	if c.hasPayloadUnDecrypt() || c.streams.hasPayloadUnDecrypt() { // 有未解密的消息
 		return true
 	}
 
@@ -128,11 +130,11 @@ func (c *channel) hasReady() bool {
 			return true
 		}
 
-		if c.hasUnDeliver() { // 是否有未投递的消息
+		if c.hasUnDeliver() || c.streams.hasUnDeliver() { // 是否有未投递的消息
 			return true
 		}
 	} else if c.role == channelRoleProxy { // 代理者
-		if c.hasUnforward() {
+		if c.hasUnforward() || c.streams.hasUnDeliver() {
 			return true
 		}
 	}
@@ -150,12 +152,21 @@ func (c *channel) ready() ready {
 		c.exec(&ChannelAction{ActionType: ChannelActionInit})
 	} else {
 
+		// 解密消息
 		if c.hasPayloadUnDecrypt() {
 			c.payloadDecrypting = true
 			c.payloadDecryptingTick = 0
 			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 1024*1024*2)
 			if len(msgs) > 0 {
 				c.exec(&ChannelAction{ActionType: ChannelActionPayloadDecrypt, Messages: msgs})
+			}
+		}
+
+		// 流消息解密
+		if c.streams.hasPayloadUnDecrypt() {
+			msgs := c.streams.payloadUnDecryptMessages()
+			if len(msgs) > 0 {
+				c.exec(&ChannelAction{ActionType: ChannelActionStreamPayloadDecrypt, Messages: msgs})
 			}
 		}
 
@@ -203,8 +214,16 @@ func (c *channel) ready() ready {
 					c.exec(&ChannelAction{ActionType: ChannelActionDeliver, Messages: msgs})
 				}
 				// c.Info("delivering...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-
 			}
+
+			// 投递流消息
+			if c.streams.hasUnDeliver() {
+				msgs := c.streams.unDeliverMessages()
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionStreamDeliver, Messages: msgs})
+				}
+			}
+
 		} else if c.role == channelRoleProxy {
 			// 转发消息
 			if c.hasUnforward() {
@@ -215,6 +234,14 @@ func (c *channel) ready() ready {
 					c.exec(&ChannelAction{ActionType: ChannelActionForward, LeaderId: c.leaderId, Messages: msgs})
 				}
 				// c.Info("forwarding...", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+			}
+
+			// 转发流消息
+			if c.streams.hasUnforward() {
+				msgs := c.streams.unforwardMessages()
+				if len(msgs) > 0 {
+					c.exec(&ChannelAction{ActionType: ChannelActionStreamForward, LeaderId: c.leaderId, Messages: msgs})
+				}
 			}
 		}
 
@@ -323,6 +350,8 @@ func (c *channel) tick() {
 		c.tickFnc()
 	}
 
+	c.streams.tick()
+
 }
 
 func (c *channel) tickLeader() {
@@ -339,7 +368,7 @@ func (c *channel) tickProxy() {
 
 }
 
-func (c *channel) proposeSend(messageId int64, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) (int64, error) {
+func (c *channel) proposeSend(messageId int64, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) error {
 
 	c.sendTick = 0
 
@@ -360,7 +389,7 @@ func (c *channel) proposeSend(messageId int64, fromUid string, fromDeviceId stri
 		Messages:   []ReactorChannelMessage{message},
 	})
 
-	return messageId, nil
+	return nil
 }
 
 func (c *channel) becomeLeader() {

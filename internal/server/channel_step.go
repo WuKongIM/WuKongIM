@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"strings"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -44,6 +45,30 @@ func (c *channel) step(a *ChannelAction) error {
 
 	case ChannelActionSend: // 发送
 		for _, message := range a.Messages {
+
+			if message.SendPacket == nil {
+				c.Error("sendPacket is nil, cannot send stream message, skip", zap.Int64("messageId", message.MessageId))
+				continue
+			}
+
+			// 如果是流消息，则加入到流消息的队列里
+			streamNo := message.SendPacket.StreamNo
+			if strings.TrimSpace(streamNo) != "" {
+				streamNo := message.SendPacket.StreamNo
+				if strings.TrimSpace(streamNo) == "" {
+					c.Error("streamNo is nil, cannot send stream message, skip", zap.Int64("messageId", message.MessageId))
+					continue
+				}
+				sm := c.streams.get(streamNo)
+				if sm == nil {
+					sm = newStream(streamNo, c.sub.r.s)
+					c.streams.add(sm)
+				}
+				message.Index = sm.msgQueue.lastIndex + 1
+				sm.appendMsg(message)
+				continue
+			}
+
 			message.Index = c.msgQueue.lastIndex + 1
 			message.ReasonCode = wkproto.ReasonSuccess // 默认设置为成功
 			c.msgQueue.appendMessage(message)
@@ -84,6 +109,31 @@ func (c *channel) step(a *ChannelAction) error {
 					break
 				}
 			}
+		}
+	case ChannelActionStreamPayloadDecryptResp: // stream payload解密
+		if len(a.Messages) == 1 {
+			msg := a.Messages[0]
+			stream := c.streams.get(msg.SendPacket.StreamNo)
+			if stream == nil {
+				c.Error("stream not found", zap.String("streamNo", msg.SendPacket.StreamNo), zap.String("clientMsgNo", msg.SendPacket.ClientMsgNo), zap.Int64("messageId", msg.MessageId))
+				return nil
+			}
+			stream.payloadDecryptFinish(a.Messages)
+			return nil
+		} else if len(a.Messages) > 1 {
+			streamMessageMap := make(map[string][]ReactorChannelMessage)
+			for _, msg := range a.Messages {
+				streamMessageMap[msg.SendPacket.StreamNo] = append(streamMessageMap[msg.SendPacket.StreamNo], msg)
+			}
+			for streamNo, messages := range streamMessageMap {
+				stream := c.streams.get(streamNo)
+				if stream == nil {
+					c.Error("stream not found", zap.String("streamNo", streamNo), zap.Int("messages", len(messages)))
+					continue
+				}
+				stream.payloadDecryptFinish(messages)
+			}
+			return nil
 		}
 
 	default:
@@ -179,7 +229,32 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 			c.msgQueue.truncateTo(a.Index)
 
 		}
-		// c.Info("channel deliver resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+	// c.Info("channel deliver resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+	case ChannelActionStreamDeliverResp: // stream消息投递返回
+		if len(a.Messages) == 1 {
+			msg := a.Messages[0]
+			stream := c.streams.get(msg.SendPacket.StreamNo)
+			if stream == nil {
+				c.Error("deliver: stream not found", zap.String("streamNo", msg.SendPacket.StreamNo), zap.String("clientMsgNo", msg.SendPacket.ClientMsgNo), zap.Int64("messageId", msg.MessageId))
+				return nil
+			}
+			stream.deliverFinish(a.Messages)
+			return nil
+		} else if len(a.Messages) > 1 {
+			streamMessageMap := make(map[string][]ReactorChannelMessage)
+			for _, msg := range a.Messages {
+				streamMessageMap[msg.SendPacket.StreamNo] = append(streamMessageMap[msg.SendPacket.StreamNo], msg)
+			}
+			for streamNo, messages := range streamMessageMap {
+				stream := c.streams.get(streamNo)
+				if stream == nil {
+					c.Error("deliver: stream not found", zap.String("streamNo", streamNo), zap.Int("messages", len(messages)))
+					continue
+				}
+				stream.deliverFinish(messages)
+			}
+			return nil
+		}
 	}
 
 	return nil

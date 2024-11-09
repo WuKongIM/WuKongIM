@@ -111,6 +111,10 @@ func (s *APIServer) setRoutes() {
 	routeapi := NewRouteAPI(s.s)
 	routeapi.Route(s.r)
 
+	// stream api
+	stream := NewStreamAPI(s.s)
+	stream.Route(s.r)
+
 	// 分布式api
 	clusterServer, ok := s.s.cluster.(*cluster.Server)
 	if ok {

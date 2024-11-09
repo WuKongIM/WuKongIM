@@ -722,3 +722,40 @@ var TableSystemUid = struct {
 		Uid: [2]byte{0x10, 0x01},
 	},
 }
+
+// ======================== stream ========================
+
+var TableStream = struct {
+	Id        [2]byte
+	Size      int
+	IndexSize int
+	Index     struct {
+		StreamNo [2]byte
+	}
+}{
+	Id:        [2]byte{0x11, 0x01},
+	IndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + indexName + columnHash + seq
+	Index: struct {
+		StreamNo [2]byte
+	}{
+		StreamNo: [2]byte{0x11, 0x01},
+	},
+}
+
+// ======================== streamMeta ========================
+
+var TableStreamMeta = struct {
+	Id     [2]byte
+	Size   int
+	Column struct {
+		StreamNo [2]byte
+	}
+}{
+	Id:   [2]byte{0x12, 0x01},
+	Size: 2 + 2 + 8 + 8, // tableId + dataType  + primaryKey + columnKey
+	Column: struct {
+		StreamNo [2]byte
+	}{
+		StreamNo: [2]byte{0x12, 0x01},
+	},
+}

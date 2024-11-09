@@ -890,3 +890,15 @@ func (a *allowSendReq) Marshal() ([]byte, error) {
 	enc.WriteString(a.To)
 	return enc.Bytes(), nil
 }
+
+type reactorStreamMessage struct {
+}
+
+func (r *reactorStreamMessage) size() uint64 {
+	return 0
+}
+
+type streamAction struct {
+	actionType StreamActionType
+	msgs       []*reactorStreamMessage
+}

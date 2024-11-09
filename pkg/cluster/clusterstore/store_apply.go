@@ -102,6 +102,10 @@ func (s *Store) execCMD(cmd *CMD) error {
 		return s.handleSystemUIDsAdd(cmd)
 	case CMDSystemUIDsRemove: // 移除系统UID
 		return s.handleSystemUIDsRemove(cmd)
+	case CMDAddStreamMeta: // 添加流元数据
+		return s.handleAddStreamMeta(cmd)
+	case CMDAddStreams: // 添加流
+		return s.handleAddStreams(cmd)
 
 	}
 	return nil
@@ -326,4 +330,20 @@ func (s *Store) handleSystemUIDsRemove(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.RemoveSystemUids(uids)
+}
+
+func (s *Store) handleAddStreamMeta(cmd *CMD) error {
+	streamMeta, err := cmd.DecodeCMDAddStreamMeta()
+	if err != nil {
+		return err
+	}
+	return s.wdb.AddStreamMeta(streamMeta)
+}
+
+func (s *Store) handleAddStreams(cmd *CMD) error {
+	streams, err := cmd.DecodeCMDAddStreams()
+	if err != nil {
+		return err
+	}
+	return s.wdb.AddStreams(streams)
 }

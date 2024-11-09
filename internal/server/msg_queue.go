@@ -316,3 +316,90 @@ func (m *deliverMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []
 // 	}
 // 	return m.messages[0]
 // }
+
+type streamMsgQueue struct {
+	messages               []reactorStreamMessage
+	lastIndex              uint64 // 最新下标
+	offset                 uint64
+	offsetInProgress       uint64
+	payloadDecryptingIndex uint64 // 正在解密的下标
+	deliveringIndex        uint64 // 正在投递的下标
+	forwardingIndex        uint64 // 转发中的下标
+	wklog.Log
+}
+
+func newStreamMsgQueue() *streamMsgQueue {
+	return &streamMsgQueue{
+		Log: wklog.NewWKLog("stream.msgQueue"),
+	}
+}
+
+// truncateTo 裁剪index之前的消息
+func (m *streamMsgQueue) truncateTo(index uint64) {
+	num := int(index + 1 - m.offset)
+	m.messages = m.messages[num:]
+
+	m.offset = index + 1
+	m.offsetInProgress = max(m.offsetInProgress, m.offset)
+	m.shrinkMessagesArray()
+}
+
+func (m *streamMsgQueue) getArrayIndex(index uint64) int {
+	return int(index + 1 - m.offset)
+}
+
+func (m *streamMsgQueue) appendMessage(message reactorStreamMessage) {
+	m.messages = append(m.messages, message)
+	m.lastIndex++
+}
+
+func (m *streamMsgQueue) shrinkMessagesArray() {
+	const lenMultiple = 2
+	if len(m.messages) == 0 {
+		m.messages = nil
+	} else if len(m.messages)*lenMultiple < cap(m.messages) {
+		newMessages := make([]reactorStreamMessage, len(m.messages))
+		copy(newMessages, m.messages)
+		m.messages = newMessages
+	}
+}
+
+func (m *streamMsgQueue) slice(lo uint64, hi uint64) []reactorStreamMessage {
+
+	return m.messages[lo-m.offset : hi-m.offset : hi-m.offset]
+}
+
+func (m *streamMsgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []reactorStreamMessage {
+	if lo == hi {
+		return nil
+	}
+	if lo >= m.offset {
+		msgs := m.slice(lo, hi)
+		if maxSize == 0 {
+			return msgs
+		}
+		return limitSizeWithStream(msgs, maxSize)
+	}
+	return nil
+}
+
+func (m *streamMsgQueue) resetIndex() {
+	newIndex := m.offset - 1
+	m.payloadDecryptingIndex = newIndex
+	m.deliveringIndex = newIndex
+	m.forwardingIndex = newIndex
+}
+
+func limitSizeWithStream(messages []reactorStreamMessage, maxSize uint64) []reactorStreamMessage {
+	if len(messages) == 0 {
+		return messages
+	}
+	size := messages[0].size()
+	for limit := 1; limit < len(messages); limit++ {
+		size += messages[limit].size()
+		if size > maxSize {
+			return messages[:limit]
+		}
+	}
+	return messages
+}

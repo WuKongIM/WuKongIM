@@ -40,10 +40,13 @@ const (
 	ChannelActionInitResp
 	// ChannelActionSend 发送
 	ChannelActionSend
-
 	// payload解密
 	ChannelActionPayloadDecrypt
 	ChannelActionPayloadDecryptResp
+
+	// 流消息payload解密
+	ChannelActionStreamPayloadDecrypt
+	ChannelActionStreamPayloadDecryptResp
 
 	// ChannelActionPermissionCheck 权限检查
 	ChannelActionPermissionCheck
@@ -57,10 +60,20 @@ const (
 	ChannelActionDeliver
 	// ChannelActionDeliverResp 消息投递返回
 	ChannelActionDeliverResp
+
+	// 流消息投递
+	ChannelActionStreamDeliver
+	ChannelActionStreamDeliverResp
+
 	// ChannelForward 转发消息给领导
 	ChannelActionForward
 	// ChannelActionForwardResp 转发消息给领导返回
 	ChannelActionForwardResp
+
+	// 流消息转发
+	ChannelActionStreamForward
+	ChannelActionStreamForwardResp
+
 	ChannelActionLeaderChange // 领导变更
 	ChannelActionSendack      // 发送ack
 	ChannelActionSendackResp  // 发送ack返回
@@ -202,6 +215,12 @@ func (u UserActionType) String() string {
 	return "unknow"
 }
 
+type StreamActionType uint8
+
+const (
+	StreamActionTypeNone StreamActionType = iota
+)
+
 // GetFakeChannelIDWith GetFakeChannelIDWith
 func GetFakeChannelIDWith(fromUID, toUID string) string {
 	// TODO：这里可能会出现相等的情况 ，如果相等可以截取一部分再做hash直到不相等，后续完善
@@ -336,4 +355,8 @@ type ConnKey string
 
 const (
 	ConnKeyParseProxyProto = "parseProxyProto" // 解析代理协议
+)
+
+const (
+	SystemConnId = 0
 )

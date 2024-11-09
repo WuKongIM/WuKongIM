@@ -78,6 +78,10 @@ const (
 
 	// 批量更新最近会话
 	CMDBatchUpdateConversation
+	// 添加流元数据
+	CMDAddStreamMeta
+	// 添加流元数据
+	CMDAddStreams
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -150,6 +154,10 @@ func (c CMDType) String() string {
 		return "CMDBatchUpdateConversation"
 	case CMDDeleteConversations:
 		return "CMDDeleteConversations"
+	case CMDAddStreamMeta:
+		return "CMDAddStreamMeta"
+	case CMDAddStreams:
+		return "CMDAddStreams"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -1205,6 +1213,48 @@ func (c *CMD) DecodeCMDSystemUIDs() (uids []string, err error) {
 		uids = append(uids, uid)
 	}
 	return
+}
+
+func EncodeCMDAddStreamMeta(streamMeta *wkdb.StreamMeta) []byte {
+	return streamMeta.Encode()
+}
+
+func (c *CMD) DecodeCMDAddStreamMeta() (streamMeta *wkdb.StreamMeta, err error) {
+	streamMeta = &wkdb.StreamMeta{}
+	err = streamMeta.Decode(c.Data)
+	return
+}
+
+func EncodeCMDAddStreams(streams []*wkdb.Stream) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteUint32(uint32(len(streams)))
+	for _, stream := range streams {
+		encoder.WriteBinary(stream.Encode())
+	}
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDAddStreams() ([]*wkdb.Stream, error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	var count uint32
+	var err error
+	if count, err = decoder.Uint32(); err != nil {
+		return nil, err
+	}
+	streams := make([]*wkdb.Stream, 0, count)
+	for i := uint32(0); i < count; i++ {
+		data, err := decoder.Binary()
+		if err != nil {
+			return nil, err
+		}
+		stream := &wkdb.Stream{}
+		if err = stream.Decode(data); err != nil {
+			return nil, err
+		}
+		streams = append(streams, stream)
+	}
+	return streams, nil
 }
 
 var ErrStoreStopped = fmt.Errorf("store stopped")

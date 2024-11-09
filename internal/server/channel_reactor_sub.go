@@ -43,7 +43,7 @@ func (r *channelReactorSub) stop() {
 
 func (r *channelReactorSub) loop() {
 
-	tk := time.NewTicker(200 * time.Millisecond)
+	tk := time.NewTicker(r.r.s.opts.Reactor.Channel.TickInterval)
 	defer tk.Stop()
 
 	for !r.stopped.Load() {
@@ -135,10 +135,11 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 			r.r.addInitReq(&initReq{
 				ch: ch,
 			})
-		case ChannelActionPayloadDecrypt: // 消息解密
+		case ChannelActionPayloadDecrypt | ChannelActionStreamPayloadDecrypt: // 消息解密
 			r.r.addPayloadDecryptReq(&payloadDecryptReq{
 				ch:       ch,
 				messages: action.Messages,
+				isStream: action.ActionType == ChannelActionStreamPayloadDecrypt,
 			})
 		case ChannelActionPermissionCheck: // 权限校验
 			r.r.addPermissionReq(&permissionReq{
@@ -150,13 +151,14 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 				ch:       ch,
 				messages: action.Messages,
 			})
-		case ChannelActionDeliver: // 消息投递
+		case ChannelActionDeliver | ChannelActionStreamDeliver: // 消息投递
 			r.r.addDeliverReq(&deliverReq{
 				ch:          ch,
 				channelId:   ch.channelId,
 				channelType: ch.channelType,
 				tagKey:      ch.receiverTagKey.Load(),
 				messages:    action.Messages,
+				isStream:    action.ActionType == ChannelActionStreamDeliver,
 			})
 		case ChannelActionSendack: // 发送回执
 			r.r.addSendackReq(&sendackReq{

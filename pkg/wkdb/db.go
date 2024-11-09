@@ -25,6 +25,8 @@ type DB interface {
 	TotalDB
 	//	系统账号
 	SystemUidDB
+	// 流
+	StreamDB
 }
 
 type MessageDB interface {
@@ -336,6 +338,22 @@ type SystemUidDB interface {
 	RemoveSystemUids(uids []string) error
 	// GetSystemUids 获取系统账号的uid
 	GetSystemUids() ([]string, error)
+}
+
+type StreamDB interface {
+	// AddStreamMeta 添加流元数据
+	AddStreamMeta(streamMeta *StreamMeta) error
+
+	GetStreamMeta(streamNo string) (*StreamMeta, error)
+
+	// AddStream 添加流
+	AddStream(stream *Stream) error
+
+	// AddStreams 批量添加流
+	AddStreams(streams []*Stream) error
+
+	// GetStreams 获取流
+	GetStreams(streamNo string) ([]*Stream, error)
 }
 
 type MessageSearchReq struct {

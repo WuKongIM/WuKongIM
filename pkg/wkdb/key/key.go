@@ -900,3 +900,28 @@ func NewSystemUidColumnKey(id uint64, columnName [2]byte) []byte {
 	key[13] = columnName[1]
 	return key
 }
+
+// ---------------------- stream ----------------------
+
+func NewStreamIndexKey(streamNo string, seq uint64) []byte {
+	key := make([]byte, TableStream.IndexSize)
+	key[0] = TableStream.Id[0]
+	key[1] = TableStream.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = TableStream.Index.StreamNo[0]
+	key[5] = TableStream.Index.StreamNo[1]
+	binary.BigEndian.PutUint64(key[6:], HashWithString(streamNo))
+	binary.BigEndian.PutUint64(key[14:], seq)
+	return key
+}
+
+func NewStreamMetaKey(streamNo string) []byte {
+	key := make([]byte, 12)
+	key[0] = TableStreamMeta.Id[0]
+	key[1] = TableStreamMeta.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], HashWithString(streamNo))
+	return key
+}
