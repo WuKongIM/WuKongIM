@@ -370,17 +370,24 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		}
 	}
 
-	// 设置最近会话已读至的消息序列号
-	for _, conversation := range conversations {
-		realChannelId := conversation.ChannelId
-		if conversation.ChannelType == wkproto.ChannelTypePerson {
-			from, to := GetFromUIDAndToUIDWith(conversation.ChannelId)
+	// 获取真实的频道ID
+	getRealChannelId := func(fakeChannelId string, channelType uint8) string {
+		realChannelId := fakeChannelId
+		if channelType == wkproto.ChannelTypePerson {
+			from, to := GetFromUIDAndToUIDWith(fakeChannelId)
 			if req.UID == from {
 				realChannelId = to
 			} else {
 				realChannelId = from
 			}
 		}
+		return realChannelId
+	}
+
+	// 设置最近会话已读至的消息序列号
+	for _, conversation := range conversations {
+
+		realChannelId := getRealChannelId(conversation.ChannelId, conversation.ChannelType)
 
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, conversation.ChannelType)]
 
@@ -389,7 +396,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		}
 
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
-			ChannelId:   realChannelId,
+			ChannelId:   conversation.ChannelId,
 			ChannelType: conversation.ChannelType,
 			LastMsgSeq:  msgSeq,
 		})
@@ -411,13 +418,14 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 
 		for i := 0; i < len(conversations); i++ {
 			conversation := conversations[i]
-			if conversation.ChannelType == wkproto.ChannelTypePerson && conversation.ChannelId == s.s.opts.SystemUID { // 系统消息不返回
+			realChannelId := getRealChannelId(conversation.ChannelId, conversation.ChannelType)
+			if conversation.ChannelType == wkproto.ChannelTypePerson && realChannelId == s.s.opts.SystemUID { // 系统消息不返回
 				continue
 			}
 			resp := newSyncUserConversationResp(conversation)
 
 			for _, channelRecentMessage := range channelRecentMessages {
-				if resp.ChannelId == channelRecentMessage.ChannelId && conversation.ChannelType == channelRecentMessage.ChannelType {
+				if conversation.ChannelId == channelRecentMessage.ChannelId && conversation.ChannelType == channelRecentMessage.ChannelType {
 					if len(channelRecentMessage.Messages) > 0 {
 						lastMsg := channelRecentMessage.Messages[0]
 						resp.LastMsgSeq = uint32(lastMsg.MessageSeq)
@@ -499,37 +507,25 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 	var (
 		err error
 	)
-	localPeerChannelRecentMessageReqs := make([]*channelRecentMessageReq, 0)
+
+	// 按照频道所在节点进行分组
 	peerChannelRecentMessageReqsMap := make(map[uint64][]*channelRecentMessageReq)
 	for _, channelRecentMsgReq := range channels {
 		fakeChannelId := channelRecentMsgReq.ChannelId
-		if channelRecentMsgReq.ChannelType == wkproto.ChannelTypePerson {
-			fakeChannelId = GetFakeChannelIDWith(uid, channelRecentMsgReq.ChannelId)
-		}
 		leaderInfo, err := s.cluster.LeaderOfChannelForRead(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			s.Warn("getRecentMessagesForCluster: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			continue
 		}
 		if !s.cluster.NodeIsOnline(leaderInfo.Id) { // 如果领导节点不在线，则使用能触发选举的方法
-			leaderInfo, err = s.cluster.SlotLeaderOfChannel(channelRecentMsgReq.ChannelId, channelRecentMsgReq.ChannelType)
+			leaderInfo, err = s.cluster.SlotLeaderOfChannel(fakeChannelId, channelRecentMsgReq.ChannelType)
 			if err != nil {
-				s.Error("getRecentMessagesForCluster: SlotLeaderOfChannel获取频道所在节点失败！", zap.Error(err), zap.String("channelId", channelRecentMsgReq.ChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
+				s.Error("getRecentMessagesForCluster: SlotLeaderOfChannel获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 				return nil, err
 			}
 		}
-		leaderIsSelf := leaderInfo.Id == s.opts.Cluster.NodeId
-		if leaderIsSelf {
-			localPeerChannelRecentMessageReqs = append(localPeerChannelRecentMessageReqs, channelRecentMsgReq)
-		} else {
-			peerChannelRecentMessageReqs := peerChannelRecentMessageReqsMap[leaderInfo.Id]
-			if peerChannelRecentMessageReqs == nil {
-				peerChannelRecentMessageReqs = make([]*channelRecentMessageReq, 0)
-			}
-			peerChannelRecentMessageReqs = append(peerChannelRecentMessageReqs, channelRecentMsgReq)
-			peerChannelRecentMessageReqsMap[leaderInfo.Id] = peerChannelRecentMessageReqs
-		}
 
+		peerChannelRecentMessageReqsMap[leaderInfo.Id] = append(peerChannelRecentMessageReqsMap[leaderInfo.Id], channelRecentMsgReq)
 	}
 
 	// 请求远程的消息列表
@@ -537,6 +533,9 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 		var reqErr error
 		wg := &sync.WaitGroup{}
 		for nodeId, peerChannelRecentMessageReqs := range peerChannelRecentMessageReqsMap {
+			if nodeId == s.opts.Cluster.NodeId { // 本机节点忽略
+				continue
+			}
 			wg.Add(1)
 			go func(pID uint64, reqs []*channelRecentMessageReq, uidStr string, msgCt int) {
 				results, err := s.requestSyncMessage(pID, reqs, uidStr, msgCt, orderByLast)
@@ -555,7 +554,9 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 			return nil, reqErr
 		}
 	}
+
 	// 请求本地的最近消息列表
+	localPeerChannelRecentMessageReqs := peerChannelRecentMessageReqsMap[s.opts.Cluster.NodeId]
 	if len(localPeerChannelRecentMessageReqs) > 0 {
 		results, err := s.getRecentMessages(uid, msgCount, localPeerChannelRecentMessageReqs, orderByLast)
 		if err != nil {
@@ -610,9 +611,6 @@ func (s *Server) getRecentMessages(uid string, msgCount int, channels []*channel
 		)
 		for _, channel := range channels {
 			fakeChannelID := channel.ChannelId
-			if channel.ChannelType == wkproto.ChannelTypePerson {
-				fakeChannelID = GetFakeChannelIDWith(uid, channel.ChannelId)
-			}
 			msgSeq := channel.LastMsgSeq
 			messageResps := MessageRespSlice{}
 			if orderByLast {

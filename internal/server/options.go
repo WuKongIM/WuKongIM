@@ -198,7 +198,7 @@ type Options struct {
 	Reactor struct {
 		Channel struct {
 			SubCount             int           // channel reactor sub 的数量
-			ProcessIntervalTick  int           // 处理频道逻辑的间隔tick
+			ProcessIntervalTick  int           // 处理频道逻辑的间隔tick,如果大于此tick数则重置请求
 			DeadlineTick         int           // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
 			TagCheckIntervalTick int           // tag检查间隔tick
 			TickInterval         time.Duration // tick间隔
@@ -471,7 +471,7 @@ func NewOptions(op ...Option) *Options {
 				TickInterval         time.Duration
 			}{
 				SubCount:             64,
-				ProcessIntervalTick:  10,
+				ProcessIntervalTick:  50,
 				DeadlineTick:         600,
 				TagCheckIntervalTick: 10,
 				TickInterval:         time.Millisecond * 200,
@@ -485,7 +485,7 @@ func NewOptions(op ...Option) *Options {
 				TickInterval            time.Duration
 			}{
 				SubCount:                64,
-				ProcessIntervalTick:     10,
+				ProcessIntervalTick:     50,
 				NodePingTick:            100,
 				NodePongTimeoutTick:     100 * 5,
 				CheckLeaderIntervalTick: 10,
@@ -499,7 +499,7 @@ func NewOptions(op ...Option) *Options {
 			}{
 				SubCount:            64,
 				TickInterval:        time.Millisecond * 200,
-				ProcessIntervalTick: 10,
+				ProcessIntervalTick: 50,
 				IdleTimeoutTick:     10,
 			},
 		},

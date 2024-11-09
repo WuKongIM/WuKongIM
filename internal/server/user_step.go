@@ -62,9 +62,9 @@ func (u *userHandler) step(a UserAction) error {
 		}
 
 	case UserActionRecvResp: // 收消息返回
-		u.recvMsging = false
 		if a.Reason == ReasonSuccess {
-			u.recvMsgTick = u.opts.Reactor.User.ProcessIntervalTick
+			u.recvMsgTick = 0
+			u.recvMsging = false
 		}
 
 		if a.Reason == ReasonSuccess && u.recvMsgQueue.processingIndex < a.Index {
@@ -93,7 +93,8 @@ func (u *userHandler) stepLeader(a UserAction) error {
 	case UserActionAuthResp:
 		u.authing = false
 		if a.Reason == ReasonSuccess {
-			u.authTick = u.opts.Reactor.User.ProcessIntervalTick
+			u.authing = false
+			u.authTick = 0
 		}
 		if a.Reason == ReasonSuccess && u.authQueue.processingIndex < a.Index {
 			u.authQueue.processingIndex = a.Index
@@ -127,7 +128,8 @@ func (u *userHandler) stepLeader(a UserAction) error {
 	case UserActionRecvackResp: // recvack处理返回
 		u.sendRecvacking = false
 		if a.Reason == ReasonSuccess {
-			u.sendRecvackTick = u.opts.Reactor.User.ProcessIntervalTick
+			u.sendRecvackTick = 0
+			u.sendRecvacking = false
 		}
 
 		if a.Reason == ReasonSuccess && u.recvackQueue.processingIndex < a.Index {
@@ -180,18 +182,18 @@ func (u *userHandler) stepProxy(a UserAction) error {
 		}
 	case UserActionForwardResp: // 转发recvack处理返回
 		if a.Forward.ActionType == UserActionSend {
-			u.sendRecvacking = false
 			if a.Reason == ReasonSuccess {
-				u.sendRecvackTick = u.opts.Reactor.User.ProcessIntervalTick
+				u.sendRecvackTick = 0
+				u.sendRecvacking = false
 				if u.recvackQueue.processingIndex < a.Index {
 					u.recvackQueue.processingIndex = a.Index
 					u.recvackQueue.truncateTo(a.Index)
 				}
 			}
 		} else if a.Forward.ActionType == UserActionConnect {
-			u.authing = false
 			if a.Reason == ReasonSuccess {
-				u.authTick = u.opts.Reactor.User.ProcessIntervalTick
+				u.authTick = 0
+				u.authing = false
 				if u.authQueue.processingIndex < a.Index {
 					u.authQueue.processingIndex = a.Index
 					u.authQueue.truncateTo(a.Index)

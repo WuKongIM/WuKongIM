@@ -44,6 +44,7 @@ func (c *channel) step(a *ChannelAction) error {
 		}
 
 	case ChannelActionSend: // 发送
+
 		for _, message := range a.Messages {
 
 			if message.SendPacket == nil {
@@ -65,6 +66,7 @@ func (c *channel) step(a *ChannelAction) error {
 					c.streams.add(sm)
 				}
 				message.Index = sm.msgQueue.lastIndex + 1
+				message.ReasonCode = wkproto.ReasonSuccess // 默认设置为成功
 				sm.appendMsg(message)
 				continue
 			}
@@ -76,11 +78,9 @@ func (c *channel) step(a *ChannelAction) error {
 		// c.Debug("channel send", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	case ChannelActionPayloadDecryptResp: // payload解密
 		c.payloadDecrypting = false
+		c.payloadDecryptingTick = 0
 		if len(a.Messages) == 0 {
 			return nil
-		}
-		if a.Reason == ReasonSuccess {
-			c.payloadDecryptingTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 		}
 
 		lastMsg := a.Messages[len(a.Messages)-1]
@@ -105,6 +105,7 @@ func (c *channel) step(a *ChannelAction) error {
 				if msg.MessageId == decryptMsg.MessageId {
 					msg.SendPacket.Payload = decryptMsg.SendPacket.Payload
 					msg.IsEncrypt = decryptMsg.IsEncrypt
+					msg.ReasonCode = decryptMsg.ReasonCode
 					c.msgQueue.messages[i] = msg
 					break
 				}
@@ -148,12 +149,8 @@ func (c *channel) step(a *ChannelAction) error {
 func (c *channel) stepLeader(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionPermissionCheckResp: // 权限校验返回
-		c.permissionChecking = false
-
-		if a.Reason == ReasonSuccess {
-			c.permissionCheckingTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
-		}
-
+		c.permissionChecking = false // 设置为false，则不需要等待可以继续处理下一批请求
+		c.permissionCheckingTick = 0
 		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.permissionCheckingIndex)
 
 		if a.Index > c.msgQueue.permissionCheckingIndex {
@@ -179,13 +176,10 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 		// c.Info("channel permission check resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 	case ChannelActionStorageResp: // 存储完成
-		c.storaging = false
-		if a.Reason == ReasonSuccess {
-			c.storageTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
-		}
-
+		c.storaging = false // 设置为false，则不需要等待可以继续处理下一批请求
+		c.storageTick = 0
 		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.storagingIndex)
-		if a.Index > c.msgQueue.storagingIndex && a.Reason == ReasonSuccess {
+		if a.Index > c.msgQueue.storagingIndex {
 			c.msgQueue.storagingIndex = a.Index
 		}
 		endIndex := c.msgQueue.getArrayIndex(c.msgQueue.storagingIndex)
@@ -200,6 +194,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 				storedMsg := a.Messages[j]
 				if msg.MessageId == storedMsg.MessageId {
 					msg.MessageSeq = storedMsg.MessageSeq
+					msg.ReasonCode = storedMsg.ReasonCode
 					c.msgQueue.messages[i] = msg
 					break
 				}
@@ -211,19 +206,16 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	// c.Info("channel storage resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
 	case ChannelActionSendackResp: // 发送ack返回
-		c.sendacking = false
-		if a.Reason == ReasonSuccess {
-			c.sendackingTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
-		}
+
+		c.sendacking = false // 设置为false，则不需要等待可以继续处理下一批请求
+		c.sendackingTick = 0
 		if a.Index > c.msgQueue.sendackingIndex {
 			c.msgQueue.sendackingIndex = a.Index
 		}
 
 	case ChannelActionDeliverResp: // 消息投递返回
-		c.delivering = false
-		if a.Reason == ReasonSuccess {
-			c.deliveringTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
-		}
+		c.delivering = false // 设置为false，则不需要等待可以继续处理下一批请求
+		c.deliveringTick = 0
 		if a.Index > c.msgQueue.deliveringIndex {
 			c.msgQueue.deliveringIndex = a.Index
 			c.msgQueue.truncateTo(a.Index)
@@ -264,12 +256,15 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 
 	switch a.ActionType {
 	case ChannelActionForwardResp: // 转发
-		c.forwarding = false
+		if a.Reason == ReasonSuccess {
+			c.forwarding = false
+			c.forwardTick = 0
+		}
+
 		if len(a.Messages) == 0 {
 			return nil
 		}
 		if a.Reason == ReasonSuccess {
-			c.forwardTick = c.opts.Reactor.Channel.ProcessIntervalTick // 设置为间隔时间，则不需要等待可以继续处理下一批请求
 			lastMsg := a.Messages[len(a.Messages)-1]
 			if lastMsg.Index > c.msgQueue.forwardingIndex {
 				c.msgQueue.forwardingIndex = lastMsg.Index
