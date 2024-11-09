@@ -74,9 +74,6 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 		uniqueNo:            wkutil.GenUUID(),
 		opts:                opts,
 		initTick:            opts.Reactor.User.ProcessIntervalTick,
-		authTick:            opts.Reactor.User.ProcessIntervalTick,
-		sendRecvackTick:     opts.Reactor.User.ProcessIntervalTick,
-		recvMsgTick:         opts.Reactor.User.ProcessIntervalTick,
 	}
 
 	u.Info("new user handler")
@@ -122,7 +119,6 @@ func (u *userHandler) ready() userReady {
 			// 连接认证
 			if u.hasAuth() {
 				u.authing = true
-				u.authTick = 0
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionAuth, Messages: msgs})
 				u.Info("send auth...")
@@ -138,7 +134,6 @@ func (u *userHandler) ready() userReady {
 			// 发送recvack
 			if u.hasRecvack() {
 				u.sendRecvacking = true
-				u.sendRecvackTick = 0
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionRecvack, Messages: msgs})
 				// u.Info("send recvack...")
@@ -148,7 +143,6 @@ func (u *userHandler) ready() userReady {
 			// 转发用户action
 			if u.hasRecvack() {
 				u.sendRecvacking = true
-				u.sendRecvackTick = 0
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{
 					UniqueNo:   u.uniqueNo,
@@ -165,7 +159,6 @@ func (u *userHandler) ready() userReady {
 			// 转发连接认证消息
 			if u.hasAuth() {
 				u.authing = true
-				u.authTick = 0
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{
 					UniqueNo:   u.uniqueNo,
@@ -185,7 +178,6 @@ func (u *userHandler) ready() userReady {
 		// 接受消息
 		if u.hasRecvMsg() {
 			u.recvMsging = true
-			u.recvMsgTick = 0
 			msgs := u.recvMsgQueue.sliceWithSize(u.recvMsgQueue.processingIndex+1, u.recvMsgQueue.lastIndex+1, 0)
 			u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionRecv, Messages: msgs})
 			// u.Info("recv msg...", zap.Int("msgCount", len(msgs)))
@@ -205,10 +197,6 @@ func (u *userHandler) hasRecvack() bool {
 		return false
 	}
 
-	if u.sendRecvackTick < u.opts.Reactor.User.ProcessIntervalTick {
-		return false
-	}
-
 	return u.recvackQueue.processingIndex < u.recvackQueue.lastIndex
 }
 
@@ -216,9 +204,7 @@ func (u *userHandler) hasAuth() bool {
 	if u.authing {
 		return false
 	}
-	if u.authTick < u.opts.Reactor.User.ProcessIntervalTick {
-		return false
-	}
+
 	return u.authQueue.processingIndex < u.authQueue.lastIndex
 }
 
@@ -231,10 +217,6 @@ func (u *userHandler) hasPing() bool {
 
 func (u *userHandler) hasRecvMsg() bool {
 	if u.recvMsging {
-		return false
-	}
-
-	if u.recvMsgTick < u.opts.Reactor.User.ProcessIntervalTick {
 		return false
 	}
 
@@ -289,7 +271,7 @@ func (u *userHandler) reset() {
 	u.recvMsging = false
 	u.authing = false
 
-	u.initTick = 0
+	u.initTick = u.opts.Reactor.User.ProcessIntervalTick
 	u.authTick = 0
 
 	u.nodePingTick = 0
@@ -304,6 +286,20 @@ func (u *userHandler) tick() {
 	u.sendRecvackTick++
 
 	u.checkLeaderTick++
+
+	if u.authing && u.authTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
+		u.authing = false
+		u.authTick = 0
+	}
+	if u.sendRecvacking && u.sendRecvackTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
+		u.sendRecvacking = false
+		u.sendRecvackTick = 0
+	}
+	if u.recvMsging && u.recvMsgTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
+		u.recvMsging = false
+		u.recvMsgTick = 0
+	}
+
 	// 定时校验领导的正确性
 	if u.checkLeaderTick >= u.sub.r.s.opts.Reactor.User.CheckLeaderIntervalTick {
 		u.checkLeaderTick = 0

@@ -5,8 +5,8 @@ wsAddr: "ws://0.0.0.0:5230"
 rootDir: "./wukongimdata/3"
 tokenAuthOn: false
 # whitelistOffOfPerson: false
-# logger:
-#   traceOn: true
+logger:
+  traceOn: true
 #   loki:
 #     url: "http://127.0.0.1:3100"
 manager:

@@ -257,12 +257,6 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 
 	// 获取用户缓存的最近会话
 	cacheConversations := m.s.conversationManager.GetUserConversationFromCache(req.UID, wkdb.ConversationTypeCMD)
-	cacheConversationMap := map[string]uint64{}
-	for _, cacheConversation := range cacheConversations {
-		if cacheConversation.ReadToMsgSeq > 0 {
-			cacheConversationMap[fmt.Sprintf("%s-%d", cacheConversation.ChannelId, cacheConversation.ChannelType)] = cacheConversation.ReadToMsgSeq
-		}
-	}
 	for _, cacheConversation := range cacheConversations {
 		exist := false
 		for i, conversation := range conversations {
@@ -279,25 +273,28 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		}
 	}
 
+	// 获取真实的频道ID
+	// getRealChannelId := func(fakeChannelId string, channelType uint8) string {
+	// 	realChannelId := fakeChannelId
+	// 	if channelType == wkproto.ChannelTypePerson {
+	// 		from, to := GetFromUIDAndToUIDWith(fakeChannelId)
+	// 		if req.UID == from {
+	// 			realChannelId = to
+	// 		} else {
+	// 			realChannelId = from
+	// 		}
+	// 	}
+	// 	return realChannelId
+	// }
+
 	var channelRecentMessageReqs []*channelRecentMessageReq
-	if len(conversations) > 0 {
-		for _, conversation := range conversations {
-			realChannelId := conversation.ChannelId
-			if conversation.ChannelType == wkproto.ChannelTypePerson {
-				u1, u2 := GetFromUIDAndToUIDWith(conversation.ChannelId)
-				if u1 != req.UID {
-					realChannelId = u1
-				}
-				if u2 != req.UID {
-					realChannelId = u2
-				}
-			}
-			channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
-				ChannelId:   realChannelId,
-				ChannelType: conversation.ChannelType,
-				LastMsgSeq:  conversation.ReadToMsgSeq + 1, // 这里加1的目的是为了不查询到ReadedToMsgSeq本身这条消息
-			})
-		}
+	for _, conversation := range conversations {
+
+		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
+			ChannelId:   conversation.ChannelId,
+			ChannelType: conversation.ChannelType,
+			LastMsgSeq:  conversation.ReadToMsgSeq + 1, // 这里加1的目的是为了不查询到ReadedToMsgSeq本身这条消息
+		})
 	}
 
 	// 先清空旧记录
@@ -394,9 +391,6 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 		needAdd := false
 
 		fakeChannelId := record.channelId
-		if record.channelType == wkproto.ChannelTypePerson {
-			fakeChannelId = GetFakeChannelIDWith(req.UID, record.channelId)
-		}
 		if !m.s.opts.IsCmdChannel(fakeChannelId) {
 			m.Warn("不是cmd频道！", zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
 			continue

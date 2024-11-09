@@ -108,26 +108,32 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 		if !msg.IsEncrypt { // 没有加密(系统api发的消息和其他节点转发过来的消息都是未加密的，所以不需要再进行解密操作了)，直接跳过解密过程
 			continue
 		}
+		msg.IsEncrypt = false // 设置为已解密
 
 		r.MessageTrace("解密消息", msg.SendPacket.ClientMsgNo, "processPayloadDecrypt", zap.Int64("messageId", msg.MessageId), zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
 
 		var err error
 		var decryptPayload []byte
 		conn := r.s.userReactor.getConnById(msg.FromUid, msg.FromConnId)
-		if conn != nil {
-			if len(msg.SendPacket.Payload) > 0 {
-				decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
-				if err != nil {
-					r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))
-					r.MessageTrace("解密消息失败", msg.SendPacket.ClientMsgNo, "processPayloadDecrypt", zap.Error(err))
-				}
+		if conn != nil && len(msg.SendPacket.Payload) > 0 {
+			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
+			if err != nil {
+				msg.ReasonCode = wkproto.ReasonPayloadDecodeError
+				r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))
+				r.MessageTrace("解密消息失败", msg.SendPacket.ClientMsgNo, "processPayloadDecrypt", zap.Error(err))
 			}
+		} else {
+			if conn == nil {
+				msg.ReasonCode = wkproto.ReasonSenderOffline
+			} else {
+				msg.ReasonCode = wkproto.ReasonPayloadDecodeError
+			}
+
 		}
-		if len(decryptPayload) > 0 || len(msg.SendPacket.Payload) == 0 {
+		if len(decryptPayload) > 0 {
 			msg.SendPacket.Payload = decryptPayload
-			msg.IsEncrypt = false
-			req.messages[i] = msg
 		}
+		req.messages[i] = msg
 	}
 
 	actionType := ChannelActionPayloadDecryptResp
@@ -688,7 +694,9 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 				}
 			}
 
-			results, err := r.s.store.AppendMessages(r.s.ctx, req.ch.channelId, req.ch.channelType, sotreMessages)
+			timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*4)
+			results, err := r.s.store.AppendMessages(timeoutCtx, req.ch.channelId, req.ch.channelType, sotreMessages)
+			cancel()
 			if err != nil {
 				r.Error("AppendMessages error", zap.Error(err))
 				if r.opts.Logger.TraceOn {
@@ -713,6 +721,12 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 						if msg.MessageId == logId {
 							msg.MessageId = logId
 							msg.MessageSeq = logIndex
+							if reason == ReasonSuccess {
+								msg.ReasonCode = wkproto.ReasonSuccess
+							} else {
+								msg.ReasonCode = wkproto.ReasonSystemError
+							}
+
 							req.messages[i] = msg
 							break
 						}
@@ -721,7 +735,7 @@ func (r *channelReactor) processStorage(reqs []*storageReq) {
 			}
 		}
 
-		if r.opts.WebhookOn() {
+		if r.opts.WebhookOn() && reason == ReasonSuccess {
 			// 赋值messageeq
 			for i, msg := range messages {
 				for _, cmsg := range req.messages {

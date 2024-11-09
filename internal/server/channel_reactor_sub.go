@@ -130,12 +130,13 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 	rd := ch.ready()
 
 	for _, action := range rd.actions {
+
 		switch action.ActionType {
 		case ChannelActionInit: // 初始化
 			r.r.addInitReq(&initReq{
 				ch: ch,
 			})
-		case ChannelActionPayloadDecrypt | ChannelActionStreamPayloadDecrypt: // 消息解密
+		case ChannelActionPayloadDecrypt, ChannelActionStreamPayloadDecrypt: // 消息解密
 			r.r.addPayloadDecryptReq(&payloadDecryptReq{
 				ch:       ch,
 				messages: action.Messages,
@@ -151,7 +152,7 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 				ch:       ch,
 				messages: action.Messages,
 			})
-		case ChannelActionDeliver | ChannelActionStreamDeliver: // 消息投递
+		case ChannelActionDeliver, ChannelActionStreamDeliver: // 消息投递
 			r.r.addDeliverReq(&deliverReq{
 				ch:          ch,
 				channelId:   ch.channelId,
