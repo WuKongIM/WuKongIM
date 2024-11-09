@@ -42,9 +42,6 @@ func (m *MessageAPI) Route(r *wkhttp.WKHttp) {
 	r.POST("/message/sync", m.sync)           // 消息同步(写模式)
 	r.POST("/message/syncack", m.syncack)     // 消息同步回执(写模式)
 
-	// // r.POST("/streammessage/start", m.streamMessageStart) // 流消息开始
-	// // r.POST("/streammessage/end", m.streamMessageEnd)     // 流消息结束
-
 	r.POST("/messages", m.searchMessages) // 批量查询消息
 
 	r.POST("/message", m.searchMessage) // 搜索单条消息
@@ -87,7 +84,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 		for _, subscriber := range req.Subscribers {
 			clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
 			// 发送消息
-			_, err := m.sendMessageToChannel(req, subscriber, wkproto.ChannelTypePerson, clientMsgNo, wkproto.StreamFlagIng)
+			_, err := sendMessageToChannel(m.s, req, subscriber, wkproto.ChannelTypePerson, clientMsgNo, wkproto.StreamFlagIng)
 			if err != nil {
 				c.ResponseError(err)
 				return
@@ -105,7 +102,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 	}
 
 	// 发送消息
-	messageId, err := m.sendMessageToChannel(req, channelId, channelType, clientMsgNo, wkproto.StreamFlagIng)
+	messageId, err := sendMessageToChannel(m.s, req, channelId, channelType, clientMsgNo, wkproto.StreamFlagIng)
 	if err != nil {
 		c.ResponseError(err)
 		return
@@ -116,7 +113,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 	})
 }
 
-func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, channelType uint8, clientMsgNo string, streamFlag wkproto.StreamFlag) (int64, error) {
+func sendMessageToChannel(s *Server, req MessageSendReq, channelId string, channelType uint8, clientMsgNo string, streamFlag wkproto.StreamFlag) (int64, error) {
 
 	// m.s.monitor.SendPacketInc(req.Header.NoPersist != 1)
 	// m.s.monitor.SendSystemMsgInc()
@@ -134,10 +131,10 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 	}
 
 	if req.Header.SyncOnce == 1 { // 命令消息，将原频道转换为cmd频道
-		fakeChannelId = m.s.opts.OrginalConvertCmdChannel(fakeChannelId)
+		fakeChannelId = s.opts.OrginalConvertCmdChannel(fakeChannelId)
 	}
 
-	channel := m.s.channelReactor.loadOrCreateChannel(fakeChannelId, fakeChannelType)
+	channel := s.channelReactor.loadOrCreateChannel(fakeChannelId, fakeChannelType)
 	if channel == nil {
 		return 0, errors.New("频道信息不存在！")
 	}
@@ -148,9 +145,9 @@ func (m *MessageAPI) sendMessageToChannel(req MessageSendReq, channelId string, 
 	}
 
 	// 将消息提交到频道
-	messageId := m.s.channelReactor.messageIDGen.Generate().Int64()
-	systemDeviceId := req.FromUID
-	messageId, err := channel.proposeSend(messageId, req.FromUID, systemDeviceId, 0, m.s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
+	messageId := s.channelReactor.messageIDGen.Generate().Int64()
+	systemDeviceId := s.opts.SystemDeviceId
+	err := channel.proposeSend(messageId, req.FromUID, systemDeviceId, SystemConnId, s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
 		Framer: wkproto.Framer{
 			RedDot:    wkutil.IntToBool(req.Header.RedDot),
 			SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
@@ -199,7 +196,7 @@ func (m *MessageAPI) sendBatch(c *wkhttp.Context) {
 	reasons := make([]string, 0)
 	for _, subscriber := range req.Subscribers {
 		clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
-		_, err := m.sendMessageToChannel(MessageSendReq{
+		_, err := sendMessageToChannel(m.s, MessageSendReq{
 			Header:      req.Header,
 			FromUID:     req.FromUID,
 			ChannelID:   subscriber,

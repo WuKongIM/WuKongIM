@@ -98,7 +98,7 @@ func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
 		return err
 	}
 	if index <= appliedIdx {
-		p.Panic("index must be less than  applied index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx))
+		p.Error("index must be less than  applied index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx))
 		return nil
 	}
 	keyData := key.NewLogKey(index)

@@ -47,7 +47,7 @@ func (u *userReactorSub) stop() {
 }
 
 func (u *userReactorSub) loop() {
-	tk := time.NewTicker(time.Millisecond * 200)
+	tk := time.NewTicker(u.r.s.opts.Reactor.User.TickInterval)
 	defer tk.Stop()
 	for {
 		u.readys()

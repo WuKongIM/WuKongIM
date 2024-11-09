@@ -131,6 +131,7 @@ type Options struct {
 	ManagerToken   string // 管理者的token
 	ManagerUID     string // 管理者的uid
 	SystemUID      string // 系统账号的uid，主要用来发消息
+	SystemDeviceId string // 系统账号的设备id
 	ManagerTokenOn bool   // 管理者的token是否开启
 
 	Proto wkproto.Protocol // 悟空IM protocol
@@ -196,19 +197,27 @@ type Options struct {
 
 	Reactor struct {
 		Channel struct {
-			SubCount             int // channel reactor sub 的数量
-			ProcessIntervalTick  int // 处理频道逻辑的间隔tick
-			DeadlineTick         int // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
-			TagCheckIntervalTick int // tag检查间隔tick
+			SubCount             int           // channel reactor sub 的数量
+			ProcessIntervalTick  int           // 处理频道逻辑的间隔tick
+			DeadlineTick         int           // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
+			TagCheckIntervalTick int           // tag检查间隔tick
+			TickInterval         time.Duration // tick间隔
 		}
 
 		User struct {
-			SubCount                int // user reactor sub 的数量
-			ProcessIntervalTick     int // 处理用户逻辑的间隔tick
-			NodePingTick            int // 用户节点tick间隔
-			NodePongTimeoutTick     int // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
-			CheckLeaderIntervalTick int // 校验用户leader间隔tick，（隔多久验证一下当前领导是否是正确的领导）
+			SubCount                int           // user reactor sub 的数量
+			ProcessIntervalTick     int           // 处理用户逻辑的间隔tick
+			NodePingTick            int           // 用户节点tick间隔
+			NodePongTimeoutTick     int           // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
+			CheckLeaderIntervalTick int           // 校验用户leader间隔tick，（隔多久验证一下当前领导是否是正确的领导）
+			TickInterval            time.Duration // tick间隔
+		}
 
+		Stream struct {
+			SubCount            int           // stream reactor sub 的数量
+			TickInterval        time.Duration // tick间隔
+			ProcessIntervalTick int
+			IdleTimeoutTick     int // 空闲超时tick数 （reactor.channel.tickInterval配置决定了一次tick需要多少时间），如果等于或大于此tick数则结束流
 		}
 	}
 	DeadlockCheck bool // 死锁检查
@@ -268,6 +277,7 @@ func NewOptions(op ...Option) *Options {
 		RootDir:              path.Join(homeDir, "wukongim"),
 		ManagerUID:           "____manager",
 		SystemUID:            "____system",
+		SystemDeviceId:       "____device",
 		WhitelistOffOfPerson: true,
 		DeadlockCheck:        false,
 		Logger: struct {
@@ -435,6 +445,7 @@ func NewOptions(op ...Option) *Options {
 				ProcessIntervalTick  int
 				DeadlineTick         int
 				TagCheckIntervalTick int
+				TickInterval         time.Duration
 			}
 			User struct {
 				SubCount                int
@@ -442,6 +453,13 @@ func NewOptions(op ...Option) *Options {
 				NodePingTick            int
 				NodePongTimeoutTick     int
 				CheckLeaderIntervalTick int
+				TickInterval            time.Duration
+			}
+			Stream struct {
+				SubCount            int
+				TickInterval        time.Duration
+				ProcessIntervalTick int
+				IdleTimeoutTick     int
 			}
 		}{
 
@@ -450,11 +468,13 @@ func NewOptions(op ...Option) *Options {
 				ProcessIntervalTick  int
 				DeadlineTick         int
 				TagCheckIntervalTick int
+				TickInterval         time.Duration
 			}{
 				SubCount:             64,
-				ProcessIntervalTick:  1,
+				ProcessIntervalTick:  10,
 				DeadlineTick:         600,
 				TagCheckIntervalTick: 10,
+				TickInterval:         time.Millisecond * 200,
 			},
 			User: struct {
 				SubCount                int
@@ -462,12 +482,25 @@ func NewOptions(op ...Option) *Options {
 				NodePingTick            int
 				NodePongTimeoutTick     int
 				CheckLeaderIntervalTick int
+				TickInterval            time.Duration
 			}{
 				SubCount:                64,
-				ProcessIntervalTick:     1,
+				ProcessIntervalTick:     10,
 				NodePingTick:            100,
 				NodePongTimeoutTick:     100 * 5,
 				CheckLeaderIntervalTick: 10,
+				TickInterval:            time.Millisecond * 200,
+			},
+			Stream: struct {
+				SubCount            int
+				TickInterval        time.Duration
+				ProcessIntervalTick int
+				IdleTimeoutTick     int
+			}{
+				SubCount:            64,
+				TickInterval:        time.Millisecond * 200,
+				ProcessIntervalTick: 10,
+				IdleTimeoutTick:     10,
 			},
 		},
 		Process: struct {
@@ -745,17 +778,28 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Deliver.MaxDeliverSizePerNode = o.getUint64("deliver.maxDeliverSizePerNode", o.Deliver.MaxDeliverSizePerNode)
 
 	// =================== reactor ===================
+
+	// channel
 	o.Reactor.Channel.SubCount = o.getInt("reactor.channel.subCount", o.Reactor.Channel.SubCount)
 	o.Reactor.Channel.DeadlineTick = o.getInt("reactor.channel.deadlineTick", o.Reactor.Channel.DeadlineTick)
 	o.Reactor.Channel.ProcessIntervalTick = o.getInt("reactor.channel.processIntervalTick", o.Reactor.Channel.ProcessIntervalTick)
 	o.Reactor.Channel.DeadlineTick = o.getInt("reactor.channel.deadlineTick", o.Reactor.Channel.DeadlineTick)
 	o.Reactor.Channel.TagCheckIntervalTick = o.getInt("reactor.channel.tagCheckIntervalTick", o.Reactor.Channel.TagCheckIntervalTick)
+	o.Reactor.Channel.TickInterval = o.getDuration("reactor.channel.tickInterval", o.Reactor.Channel.TickInterval)
 
+	// user
 	o.Reactor.User.SubCount = o.getInt("reactor.user.subCount", o.Reactor.User.SubCount)
 	o.Reactor.User.ProcessIntervalTick = o.getInt("reactor.user.processIntervalTick", o.Reactor.User.ProcessIntervalTick)
 	o.Reactor.User.NodePingTick = o.getInt("reactor.user.nodePingTick", o.Reactor.User.NodePingTick)
 	o.Reactor.User.NodePongTimeoutTick = o.getInt("reactor.user.nodePongTimeoutTick", o.Reactor.User.NodePongTimeoutTick)
 	o.Reactor.User.CheckLeaderIntervalTick = o.getInt("reactor.checkUserLeaderIntervalTick", o.Reactor.User.CheckLeaderIntervalTick)
+	o.Reactor.User.TickInterval = o.getDuration("reactor.user.tickInterval", o.Reactor.User.TickInterval)
+
+	// stream
+	o.Reactor.Stream.SubCount = o.getInt("reactor.stream.subCount", o.Reactor.Stream.SubCount)
+	o.Reactor.Stream.TickInterval = o.getDuration("reactor.stream.tickInterval", o.Reactor.Stream.TickInterval)
+	o.Reactor.Stream.ProcessIntervalTick = o.getInt("reactor.stream.processIntervalTick", o.Reactor.Stream.ProcessIntervalTick)
+	o.Reactor.Stream.IdleTimeoutTick = o.getInt("reactor.stream.idleTimeoutTick", o.Reactor.Stream.IdleTimeoutTick)
 
 	// =================== db ===================
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)
@@ -1096,19 +1140,19 @@ func (o *Options) IsCmdChannel(channelId string) bool {
 }
 
 // OrginalConvertCmdChannel 将原频道转换为cmd频道
-func (o *Options) OrginalConvertCmdChannel(channelId string) string {
-	if strings.HasSuffix(channelId, o.Channel.CmdSuffix) {
-		return channelId
+func (o *Options) OrginalConvertCmdChannel(fakeChannelId string) string {
+	if strings.HasSuffix(fakeChannelId, o.Channel.CmdSuffix) {
+		return fakeChannelId
 	}
-	return channelId + o.Channel.CmdSuffix
+	return fakeChannelId + o.Channel.CmdSuffix
 }
 
 // CmdChannelConvertOrginalChannel 将cmd频道转换为原频道
-func (o *Options) CmdChannelConvertOrginalChannel(channelId string) string {
-	if strings.HasSuffix(channelId, o.Channel.CmdSuffix) {
-		return channelId[:len(channelId)-len(o.Channel.CmdSuffix)]
+func (o *Options) CmdChannelConvertOrginalChannel(fakeChannelId string) string {
+	if strings.HasSuffix(fakeChannelId, o.Channel.CmdSuffix) {
+		return fakeChannelId[:len(fakeChannelId)-len(o.Channel.CmdSuffix)]
 	}
-	return channelId
+	return fakeChannelId
 
 }
 

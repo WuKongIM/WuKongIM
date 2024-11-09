@@ -40,7 +40,7 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		opts:        mr.opts,
 		handlers:    newHandlerList(),
 		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
-		tmpHandlers: make([]*handler, 0, 1000),
+		tmpHandlers: make([]*handler, 0, 100),
 		avdanceC:    make(chan struct{}, 1),
 		stepC:       make(chan stepReq, 1024),
 		proposeC:    make(chan proposeReq, 1024),
@@ -271,19 +271,19 @@ func (r *ReactorSub) advance() {
 func (r *ReactorSub) readyEvents() {
 	hasEvent := true
 
+	r.handlers.readHandlers(&r.tmpHandlers)
+
 	for hasEvent && !r.stopped.Load() {
 		hasEvent = false
 
-		r.handlers.readHandlers(&r.tmpHandlers)
-
 		for _, handler := range r.tmpHandlers {
-
 			has := r.handleReady(handler)
 			if has {
 				hasEvent = true
 			}
 		}
-
+	}
+	if len(r.tmpHandlers) > 0 {
 		r.tmpHandlers = r.tmpHandlers[:0]
 	}
 }
