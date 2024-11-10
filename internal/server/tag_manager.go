@@ -6,7 +6,6 @@ import (
 
 	"github.com/RussellLuo/timingwheel"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -28,7 +27,7 @@ func newTagManager(s *Server) *tagManager {
 }
 
 func (t *tagManager) start() error {
-	t.cleanTimer = t.s.Schedule(time.Hour, func() {
+	t.cleanTimer = t.s.Schedule(time.Minute, func() {
 		t.mu.Lock()
 		defer t.mu.Unlock()
 
@@ -37,12 +36,8 @@ func (t *tagManager) start() error {
 		var needRemoveTags []*tag
 		for i := 0; i < tagLen; i++ {
 			tg := t.tags[i]
-			if tg.ref.Load() > 0 { // tag被引用，不清除
-				continue
-			}
-
-			// 30分钟没有被引用的tag，清除
-			if time.Since(tg.createdAt) > time.Minute*30 {
+			// 超过指定时间没有活跃，移除tag
+			if time.Since(tg.activeTime) > time.Minute*5 {
 				t.s.Info("tag is expired, remove it", zap.String("key", tg.key))
 				for _, tag := range t.tags {
 					if tag.key == tg.key {
@@ -94,9 +89,9 @@ func (t *tagManager) addOrUpdateReceiverTag(key string, users []*nodeUsers) *tag
 	}
 	if existTag == nil {
 		existTag = &tag{
-			key:       key,
-			users:     users,
-			createdAt: time.Now(),
+			key:        key,
+			users:      users,
+			activeTime: time.Now(),
 		}
 		t.tags = append(t.tags, existTag)
 	}
@@ -108,23 +103,36 @@ func (t *tagManager) getReceiverTag(key string) *tag {
 	defer t.mu.RUnlock()
 	for _, tag := range t.tags {
 		if tag.key == key {
+			tag.activeTime = time.Now()
 			return tag
 		}
 	}
 	return nil
 }
 
-// 释放频道接受者tag
-func (t *tagManager) releaseReceiverTag(key string) {
+// 立马释放频道接受者tag
+func (t *tagManager) releaseReceiverTagNow(key string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for _, tag := range t.tags {
+	for i, tag := range t.tags {
 		if tag.key == key {
-			tag.ref.Dec()
+			t.tags = append(t.tags[:i], t.tags[i+1:]...)
 			return
 		}
 	}
 }
+
+// 释放频道接受者tag
+// func (t *tagManager) releaseReceiverTag(key string) {
+// 	t.mu.Lock()
+// 	defer t.mu.Unlock()
+// 	for _, tag := range t.tags {
+// 		if tag.key == key {
+// 			tag.ref.Dec()
+// 			return
+// 		}
+// 	}
+// }
 
 // func (t *tagManager) receiverTagKey(channelId string, channelType uint8) string {
 // 	return fmt.Sprintf("%s%d%s", t.receiverPrefix, channelType, channelId)
@@ -209,10 +217,9 @@ func (t *tagResp) Unmarshal(data []byte) error {
 }
 
 type tag struct {
-	key       string
-	users     []*nodeUsers
-	ref       atomic.Int32 // 引用计数
-	createdAt time.Time    // 创建时间
+	key        string
+	users      []*nodeUsers
+	activeTime time.Time // 激活时间
 }
 
 func (t *tag) Marshal() []byte {

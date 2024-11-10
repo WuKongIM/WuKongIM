@@ -902,3 +902,21 @@ type streamAction struct {
 	actionType StreamActionType
 	msgs       []*reactorStreamMessage
 }
+
+type tmpSubscriberSetReq struct {
+	ChannelId string   `json:"channel_id"` // 频道ID
+	Uids      []string `json:"uids"`       // 订阅者
+}
+
+func (r tmpSubscriberSetReq) Check() error {
+	if r.ChannelId == "" {
+		return errors.New("channel_id不能为空！")
+	}
+	if IsSpecialChar(r.ChannelId) {
+		return errors.New("频道ID不能包含特殊字符！")
+	}
+	if len(r.Uids) <= 0 {
+		return errors.New("uids不能为空！")
+	}
+	return nil
+}
