@@ -27,8 +27,8 @@ type channel struct {
 
 	actions []*ChannelAction
 
-	// 缓存的订阅者 （不是全部的频道订阅者，是比较活跃的订阅者）
-	cacheSubscribers map[string]struct{}
+	tmpSubscribers     []string // 临时订阅者
+	tmpSubscribersLock sync.RWMutex
 
 	// options
 	storageMaxSize uint64 // 每次存储的最大字节数量
@@ -80,21 +80,20 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 	key := wkutil.ChannelToKey(channelId, channelType)
 
 	return &channel{
-		key:              key,
-		uniqueNo:         wkutil.GenUUID(),
-		channelId:        channelId,
-		channelType:      channelType,
-		msgQueue:         newChannelMsgQueue(channelId),
-		streams:          newStreamList(),
-		cacheSubscribers: make(map[string]struct{}),
-		storageMaxSize:   1024 * 1024 * 2,
-		deliverMaxSize:   1024 * 1024 * 2,
-		forwardMaxSize:   1024 * 1024 * 2,
-		Log:              wklog.NewWKLog(fmt.Sprintf("channelHandler[%d][%s]", sub.r.opts.Cluster.NodeId, key)),
-		r:                sub.r,
-		sub:              sub,
-		opts:             sub.r.opts,
-		initTick:         sub.r.opts.Reactor.Channel.ProcessIntervalTick,
+		key:            key,
+		uniqueNo:       wkutil.GenUUID(),
+		channelId:      channelId,
+		channelType:    channelType,
+		msgQueue:       newChannelMsgQueue(channelId),
+		streams:        newStreamList(),
+		storageMaxSize: 1024 * 1024 * 2,
+		deliverMaxSize: 1024 * 1024 * 2,
+		forwardMaxSize: 1024 * 1024 * 2,
+		Log:            wklog.NewWKLog(fmt.Sprintf("channelHandler[%d][%s]", sub.r.opts.Cluster.NodeId, key)),
+		r:              sub.r,
+		sub:            sub,
+		opts:           sub.r.opts,
+		initTick:       sub.r.opts.Reactor.Channel.ProcessIntervalTick,
 	}
 
 }
@@ -413,7 +412,7 @@ func (c *channel) resetIndex() {
 
 	// 释放掉之前的tag
 	if c.receiverTagKey.Load() != "" {
-		c.r.s.tagManager.releaseReceiverTag(c.receiverTagKey.Load())
+		c.r.s.tagManager.releaseReceiverTagNow(c.receiverTagKey.Load())
 		c.receiverTagKey.Store("")
 	}
 
@@ -484,6 +483,8 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 				subscribers = strings.Split(c.channelId, "@")
 			}
 		}
+	} else if c.channelType == wkproto.ChannelTypeTemp { // 临时频道
+		subscribers = c.getTmpSubscribers()
 	} else {
 
 		// 处理非个人频道
@@ -534,14 +535,27 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 
 	// 释放旧的接收者标签（如果存在）
 	if c.receiverTagKey.Load() != "" {
-		c.r.s.tagManager.releaseReceiverTag(c.receiverTagKey.Load())
+		c.r.s.tagManager.releaseReceiverTagNow(c.receiverTagKey.Load())
 	}
 
 	// 创建新的接收者标签
 	receiverTagKey := wkutil.GenUUID()
 	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList)
-	newTag.ref.Inc() // 增加标签引用计数
 	c.receiverTagKey.Store(receiverTagKey)
 
 	return newTag, nil
+}
+
+func (c *channel) setTmpSubscribers(subscribers []string) {
+	c.tmpSubscribersLock.Lock()
+	defer c.tmpSubscribersLock.Unlock()
+	c.tmpSubscribers = subscribers
+}
+
+func (c *channel) getTmpSubscribers() []string {
+	c.tmpSubscribersLock.RLock()
+	defer c.tmpSubscribersLock.RUnlock()
+	subs := make([]string, len(c.tmpSubscribers))
+	copy(subs, c.tmpSubscribers)
+	return subs
 }

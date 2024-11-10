@@ -68,7 +68,6 @@ type Server struct {
 
 	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
 
-	collectMetricsTimer *timingwheel.Timer // 收集指标定时器
 }
 
 func New(opts *Options) *Server {
