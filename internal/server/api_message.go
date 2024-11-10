@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -8,12 +9,14 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/sendgrid/rest"
 	"go.uber.org/zap"
 )
 
@@ -74,23 +77,39 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 		return
 	}
 
-	if strings.TrimSpace(channelId) == "" && len(req.Subscribers) > 0 {
-		if req.Header.SyncOnce != 1 {
-			m.Error("subscribers有值的情况下，消息必须是syncOnce消息", zap.Any("req", req))
-			c.ResponseError(errors.New("无法处理发送消息请求！"))
+	if len(req.Subscribers) > 0 && req.Header.SyncOnce != 1 {
+		m.Error("subscribers有值的情况下，消息必须是syncOnce消息", zap.Any("req", req))
+		c.ResponseError(errors.New("无法处理发送消息请求！"))
+		return
+	}
+
+	if strings.TrimSpace(channelId) != "" && len(req.Subscribers) > 0 {
+		m.Error("channelId和subscribers不能同时存在！", zap.Any("req", req))
+		c.ResponseError(errors.New("无法处理发送消息请求！"))
+		return
+	}
+
+	if len(req.Subscribers) > 0 {
+
+		// 生成临时频道id
+		tmpChannelId := fmt.Sprintf("%d", key.HashWithString(strings.Join(req.Subscribers, ","))) // 获取临时频道id
+		tmpChannelType := wkproto.ChannelTypeTemp
+		tmpCMDChannelId := m.s.opts.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
+
+		// 设置订阅者到临时频道
+		err := m.requestSetSubscribersForTmpChannel(tmpCMDChannelId, req.Subscribers)
+		if err != nil {
+			m.Error("请求设置临时频道的订阅者失败！", zap.Error(err), zap.String("channelId", tmpChannelId), zap.Strings("subscribers", req.Subscribers))
+			c.ResponseError(errors.New("请求设置临时频道的订阅者失败！"))
 			return
 		}
-
-		for _, subscriber := range req.Subscribers {
-			clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
-			// 发送消息
-			_, err := sendMessageToChannel(m.s, req, subscriber, wkproto.ChannelTypePerson, clientMsgNo, wkproto.StreamFlagIng)
-			if err != nil {
-				c.ResponseError(err)
-				return
-			}
+		clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
+		// 发送消息
+		_, err = sendMessageToChannel(m.s, req, tmpChannelId, tmpChannelType, clientMsgNo, wkproto.StreamFlagIng)
+		if err != nil {
+			c.ResponseError(err)
+			return
 		}
-
 		c.ResponseOK()
 
 		return
@@ -111,6 +130,40 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 		"message_id":    messageId,
 		"client_msg_no": clientMsgNo,
 	})
+}
+
+// 请求临时频道设置订阅者
+func (m *MessageAPI) requestSetSubscribersForTmpChannel(tmpChannelId string, uids []string) error {
+	timeoutCtx, cancel := context.WithTimeout(m.s.ctx, time.Second*5)
+	nodeInfo, err := m.s.cluster.LeaderOfChannel(timeoutCtx, tmpChannelId, wkproto.ChannelTypeTemp)
+	cancel()
+	if err != nil {
+		return err
+	}
+	if nodeInfo.Id == m.s.opts.Cluster.NodeId {
+		setTmpSubscriberWithReq(m.s, tmpSubscriberSetReq{
+			ChannelId: tmpChannelId,
+			Uids:      uids,
+		})
+		return nil
+	}
+	reqURL := fmt.Sprintf("%s/%s", nodeInfo.ApiServerAddr, "tmpchannel/subscriber_set")
+	request := rest.Request{
+		Method:  rest.Method("POST"),
+		BaseURL: reqURL,
+		Body: []byte(wkutil.ToJSON(map[string]interface{}{
+			"channel_id": tmpChannelId,
+			"uids":       uids,
+		})),
+	}
+	resp, err := rest.API(request)
+	if err != nil {
+		return err
+	}
+	if err := handlerIMError(resp); err != nil {
+		return err
+	}
+	return nil
 }
 
 func sendMessageToChannel(s *Server, req MessageSendReq, channelId string, channelType uint8, clientMsgNo string, streamFlag wkproto.StreamFlag) (int64, error) {
