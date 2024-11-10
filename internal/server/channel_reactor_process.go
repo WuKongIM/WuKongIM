@@ -1024,8 +1024,15 @@ func (r *channelReactor) processCloseLoop() {
 
 func (r *channelReactor) processClose(req *closeReq) {
 
-	r.Info("channel close", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+	r.Debug("channel close", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 
+	// 释放掉tagKey
+	receiverTagKey := req.ch.receiverTagKey.Load()
+	if receiverTagKey != "" {
+		r.s.tagManager.releaseReceiverTagNow(receiverTagKey)
+	}
+
+	// 移除频道
 	sub := r.reactorSub(req.ch.key)
 	sub.removeChannel(req.ch.key)
 }

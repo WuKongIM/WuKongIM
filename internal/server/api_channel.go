@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +43,8 @@ func (ch *ChannelAPI) Route(r *wkhttp.WKHttp) {
 	//################### 订阅者 ###################// 删除频道
 	r.POST("/channel/subscriber_add", ch.addSubscriber)       // 添加订阅者
 	r.POST("/channel/subscriber_remove", ch.removeSubscriber) // 移除订阅者
+
+	r.POST("/tmpchannel/subscriber_set", ch.setTmpSubscriber) // 临时频道设置订阅者
 
 	//################### 黑名单 ###################// 删除频道
 	r.POST("/channel/blacklist_add", ch.blacklistAdd)       // 添加黑名单
@@ -378,6 +381,45 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 	}
 
 	c.ResponseOK()
+}
+
+func (ch *ChannelAPI) setTmpSubscriber(c *wkhttp.Context) {
+	var req tmpSubscriberSetReq
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	if ch.s.opts.ClusterOn() {
+		timeoutCtx, cancel := context.WithTimeout(ch.s.ctx, time.Second*5)
+		leaderInfo, err := ch.s.cluster.LeaderOfChannel(timeoutCtx, req.ChannelId, wkproto.ChannelTypeTemp) // 获取频道的领导节点
+		cancel()
+		if err != nil {
+			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", wkproto.ChannelTypeTemp))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+		if !leaderIsSelf {
+			ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	setTmpSubscriberWithReq(ch.s, req)
+
+	c.ResponseOK()
+}
+
+func setTmpSubscriberWithReq(s *Server, req tmpSubscriberSetReq) {
+	channel := s.channelReactor.loadOrCreateChannel(req.ChannelId, wkproto.ChannelTypeTemp)
+	channel.setTmpSubscribers(req.Uids)
 }
 
 func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
