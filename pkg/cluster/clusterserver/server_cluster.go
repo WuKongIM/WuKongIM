@@ -266,8 +266,6 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 
 	// s.Info("======================loadOrCreateChannelClusterConfigNoLock start======================", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
-	start := time.Now()
-
 	var (
 		clusterCfg     wkdb.ChannelClusterConfig
 		err            error
@@ -307,13 +305,6 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 		}
 		return clusterCfg, false, nil
 	}
-
-	defer func() {
-		end := time.Since(start)
-		if end > time.Millisecond*200 {
-			s.Warn("======================loadOrCreateChannelClusterConfigNoLock end cost too long======================", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		}
-	}()
 
 	// ================== 从存储中获取频道的配置 ==================
 	// 获取频道的分布式配置
@@ -439,13 +430,11 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 	s.channelKeyLock.Lock(channelId)
 	defer s.channelKeyLock.Unlock(channelId)
 
-	s.Debug("loadOrCreateChannel....", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-
 	start := time.Now()
 
 	defer func() {
 		end := time.Since(start)
-		if end > time.Millisecond*200 {
+		if end > time.Millisecond*1000 {
 			s.Warn("loadOrCreateChannel cost too long", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		}
 	}()
@@ -597,7 +586,7 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 	start := time.Now()
 	defer func() {
 		end := time.Since(start)
-		if end > time.Millisecond*0 {
+		if end > time.Millisecond*200 {
 			s.Warn("electionChannelLeader cost too long", zap.Duration("cost", end), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
 		}
 	}()
@@ -633,13 +622,13 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 // 从频道所在槽获取频道的分布式信息
 func (s *Server) requestChannelClusterConfigFromSlotLeader(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 
-	start := time.Now()
-	defer func() {
-		end := time.Since(start)
-		if end > time.Millisecond*200 {
-			s.Warn("requestChannelClusterConfigFromSlotLeader cost too long", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		}
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	end := time.Since(start)
+	// 	if end > time.Millisecond*200 {
+	// 		s.Warn("requestChannelClusterConfigFromSlotLeader cost too long", zap.Duration("cost", end), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+	// 	}
+	// }()
 
 	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)

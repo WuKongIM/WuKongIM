@@ -472,7 +472,7 @@ func NewOptions(op ...Option) *Options {
 			}{
 				SubCount:             64,
 				ProcessIntervalTick:  50,
-				DeadlineTick:         600,
+				DeadlineTick:         1200,
 				TagCheckIntervalTick: 10,
 				TickInterval:         time.Millisecond * 200,
 			},

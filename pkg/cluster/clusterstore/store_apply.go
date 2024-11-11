@@ -16,7 +16,7 @@ func (s *Store) OnMetaApply(slotId uint32, logs []replica.Log) error {
 	timeoutCtx, cancel := context.WithTimeout(s.ctx, time.Minute*2)
 	defer cancel()
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
-	requestGroup.SetLimit(20) // 同时应用的并发数
+	requestGroup.SetLimit(400) // 同时应用的并发数
 	for _, lg := range logs {
 		requestGroup.Go(func(l replica.Log) func() error {
 			return func() error {

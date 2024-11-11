@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -51,8 +53,8 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		processDeliverC:        make(chan *deliverReq, 2048),
 		processSendackC:        make(chan *sendackReq, 2048),
 		processForwardC:        make(chan *forwardReq, 2048),
-		processCloseC:          make(chan *closeReq, 2048),
-		processCheckTagC:       make(chan *checkTagReq, 2048),
+		processCloseC:          make(chan *closeReq, 10),
+		processCheckTagC:       make(chan *checkTagReq, 100),
 		stopper:                syncutil.NewStopper(),
 		opts:                   opts,
 		Log:                    wklog.NewWKLog(fmt.Sprintf("ChannelReactor[%d]", opts.Cluster.NodeId)),
@@ -69,19 +71,29 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 
 func (r *channelReactor) start() error {
 
-	for i := 0; i < 50; i++ {
-		r.stopper.RunWorker(r.processInitLoop)
+	// 高并发处理，适用于分散的耗时任务
+	for i := 0; i < 100; i++ {
+
 		r.stopper.RunWorker(r.processPayloadDecryptLoop)
-		r.stopper.RunWorker(r.processPermissionLoop)
 
 		r.stopper.RunWorker(r.processDeliverLoop)
 		r.stopper.RunWorker(r.processSendackLoop)
-		r.stopper.RunWorker(r.processForwardLoop)
-		r.stopper.RunWorker(r.processCloseLoop)
-		r.stopper.RunWorker(r.processCheckTagLoop)
+
 	}
 
-	for i := 0; i < 2; i++ {
+	// 中并发处理，适合于分散但是不是很耗时的任务
+	for i := 0; i < 10; i++ {
+		r.stopper.RunWorker(r.processInitLoop)
+		r.stopper.RunWorker(r.processCloseLoop)
+
+		r.stopper.RunWorker(r.processCheckTagLoop)
+		r.stopper.RunWorker(r.processForwardLoop)
+
+	}
+
+	// 低并发处理，适合于集中的耗时任务，这样可以合并请求批量处理
+	for i := 0; i < 1; i++ {
+		r.stopper.RunWorker(r.processPermissionLoop)
 		r.stopper.RunWorker(r.processStorageLoop)
 	}
 
@@ -153,4 +165,8 @@ func (r *channelReactor) loadOrCreateChannel(fakeChannelId string, channelType u
 	ch = newChannel(sub, fakeChannelId, channelType)
 	sub.addChannel(ch)
 	return ch
+}
+
+func (r *channelReactor) WithTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(r.s.ctx, time.Second*10)
 }

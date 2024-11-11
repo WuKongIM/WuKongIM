@@ -63,7 +63,7 @@ type MessageDB interface {
 	// SetChannelLastMessageSeq 设置最后一条消息的seq
 	SetChannelLastMessageSeq(channelId string, channelType uint8, seq uint64) error
 	// SetChannellastMessageSeqBatch 批量设置最后一条消息的seq
-	SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSeqReq) error
+	// SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSeqReq) error
 
 	// AppendMessageOfNotifyQueue 添加消息到通知队列
 	AppendMessageOfNotifyQueue(messages []Message) error
@@ -226,7 +226,7 @@ type ChannelClusterConfigDB interface {
 	GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error)
 
 	// DeleteChannelClusterConfig 删除频道的分布式配置
-	DeleteChannelClusterConfig(channelId string, channelType uint8) error
+	// DeleteChannelClusterConfig(channelId string, channelType uint8) error
 
 	// GetChannelClusterConfigs 获取频道的分布式配置
 	GetChannelClusterConfigs(offsetId uint64, limit int) ([]ChannelClusterConfig, error)

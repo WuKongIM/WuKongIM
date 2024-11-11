@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver/key"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
@@ -18,6 +19,7 @@ import (
 
 type PebbleShardLogStorage struct {
 	dbs      []*pebble.DB
+	batchDbs []*wkdb.BatchDB
 	shardNum uint32 // 分片数量
 	path     string
 	wo       *pebble.WriteOptions
@@ -79,6 +81,10 @@ func (p *PebbleShardLogStorage) Open() error {
 			return err
 		}
 		p.dbs = append(p.dbs, db)
+
+		batchDb := wkdb.NewBatchDB(db)
+		batchDb.Start()
+		p.batchDbs = append(p.batchDbs, batchDb)
 	}
 	return nil
 }
@@ -89,12 +95,22 @@ func (p *PebbleShardLogStorage) Close() error {
 			p.Error("close db error", zap.Error(err))
 		}
 	}
+
+	for _, db := range p.batchDbs {
+		db.Stop()
+	}
+
 	return nil
 }
 
 func (p *PebbleShardLogStorage) shardDB(v string) *pebble.DB {
 	shardId := p.shardId(v)
 	return p.dbs[shardId]
+}
+
+func (p *PebbleShardLogStorage) shardBatchDB(v string) *wkdb.BatchDB {
+	shardId := p.shardId(v)
+	return p.batchDbs[shardId]
 }
 
 func (p *PebbleShardLogStorage) shardId(v string) uint32 {
@@ -110,9 +126,12 @@ func (p *PebbleShardLogStorage) shardId(v string) uint32 {
 	return h.Sum32() % p.shardNum
 }
 
+func (p *PebbleShardLogStorage) shardBatchDBWithIndex(index uint32) *wkdb.BatchDB {
+	return p.batchDbs[index]
+}
+
 func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) error {
-	batch := p.shardDB(shardNo).NewBatch()
-	defer batch.Close()
+	batch := p.shardBatchDB(shardNo).NewBatch()
 
 	for _, lg := range logs {
 		logData, err := lg.Marshal()
@@ -126,17 +145,14 @@ func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) e
 		logData = append(logData, timeData...)
 
 		keyData := key.NewLogKey(shardNo, lg.Index)
-		err = batch.Set(keyData, logData, p.noSync)
-		if err != nil {
-			return err
-		}
+		batch.Set(keyData, logData)
 	}
 	lastLog := logs[len(logs)-1]
-	err := p.saveMaxIndexWrite(shardNo, lastLog.Index, batch, p.noSync)
+	err := p.saveMaxIndexWrite(shardNo, lastLog.Index, batch)
 	if err != nil {
 		return err
 	}
-	err = batch.Commit(p.wo)
+	err = batch.CommitWait()
 	if err != nil {
 		return err
 	}
@@ -148,38 +164,49 @@ func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) erro
 	start := time.Now()
 	defer func() {
 		end := time.Since(start)
-		if end > time.Millisecond*250 {
-			p.Info("Slot appendLogBatch done", zap.Duration("cost", end))
+		if end > time.Millisecond*1 {
+			logCount := 0
+			for _, req := range reqs {
+				logCount += len(req.Logs)
+			}
+			p.Info("Slot appendLogBatch done", zap.Duration("cost", end), zap.Int("reqs", len(reqs)), zap.Int("logs", logCount))
 		}
 
 	}()
 
+	// 按照db分组AppendLogReq
+	reqsMap := make(map[uint32][]reactor.AppendLogReq)
 	for _, req := range reqs {
-		batch := p.shardDB(req.HandleKey).NewBatch()
-		defer batch.Close()
-		for _, lg := range req.Logs {
-			logData, err := lg.Marshal()
-			if err != nil {
-				return err
+		shardId := p.shardId(req.HandleKey)
+		reqsMap[shardId] = append(reqsMap[shardId], req)
+	}
+
+	for shardId, reqs := range reqsMap {
+		batch := p.shardBatchDBWithIndex(shardId).NewBatch()
+
+		for _, req := range reqs {
+			for _, lg := range req.Logs {
+				logData, err := lg.Marshal()
+				if err != nil {
+					return err
+				}
+
+				timeData := make([]byte, 8)
+				binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
+
+				logData = append(logData, timeData...)
+
+				keyData := key.NewLogKey(req.HandleKey, lg.Index)
+				batch.Set(keyData, logData)
 			}
-
-			timeData := make([]byte, 8)
-			binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
-
-			logData = append(logData, timeData...)
-
-			keyData := key.NewLogKey(req.HandleKey, lg.Index)
-			err = batch.Set(keyData, logData, p.noSync)
+			lastLog := req.Logs[len(req.Logs)-1]
+			err := p.saveMaxIndexWrite(req.HandleKey, lastLog.Index, batch)
 			if err != nil {
 				return err
 			}
 		}
-		lastLog := req.Logs[len(req.Logs)-1]
-		err := p.saveMaxIndexWrite(req.HandleKey, lastLog.Index, batch, p.noSync)
-		if err != nil {
-			return err
-		}
-		err = batch.Commit(p.wo)
+
+		err := batch.CommitWait()
 		if err != nil {
 			return err
 		}
@@ -494,10 +521,15 @@ func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardN
 
 func (p *PebbleShardLogStorage) saveMaxIndex(shardNo string, index uint64) error {
 
-	return p.saveMaxIndexWrite(shardNo, index, p.shardDB(shardNo), p.wo)
+	batch := p.shardBatchDB(shardNo).NewBatch()
+	err := p.saveMaxIndexWrite(shardNo, index, batch)
+	if err != nil {
+		return err
+	}
+	return batch.Commit()
 }
 
-func (p *PebbleShardLogStorage) saveMaxIndexWrite(shardNo string, index uint64, w pebble.Writer, o *pebble.WriteOptions) error {
+func (p *PebbleShardLogStorage) saveMaxIndexWrite(shardNo string, index uint64, w *wkdb.Batch) error {
 	maxIndexKeyData := key.NewMaxIndexKey(shardNo)
 	maxIndexdata := make([]byte, 8)
 	binary.BigEndian.PutUint64(maxIndexdata, index)
@@ -505,8 +537,8 @@ func (p *PebbleShardLogStorage) saveMaxIndexWrite(shardNo string, index uint64, 
 	lastTimeData := make([]byte, 8)
 	binary.BigEndian.PutUint64(lastTimeData, uint64(lastTime))
 
-	err := w.Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...), o)
-	return err
+	w.Set(maxIndexKeyData, append(maxIndexdata, lastTimeData...))
+	return nil
 }
 
 // GetMaxIndex 获取最大的index 和最后一次写入的时间

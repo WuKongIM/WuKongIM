@@ -197,7 +197,7 @@ func (r *Replica) Tick() {
 
 		if r.status == StatusReady {
 			r.syncTick++
-			if r.syncTick > r.syncIntervalTick*2 && r.status == StatusReady { // 同步超时 一直没有返回
+			if r.syncTick > r.syncIntervalTick*5 && r.status == StatusReady { // 同步超时 一直没有返回
 				r.send(r.newSyncTimeoutMsg()) // 同步超时
 
 				// 重置同步状态，从而可以重新发起同步
@@ -351,10 +351,10 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.leader = leaderID
 	r.role = RoleFollower
 
-	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
+	r.Debug("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
-		r.Info("log conflict check", zap.Uint64("leader", r.leader), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex))
+		r.Debug("log conflict check", zap.Uint64("leader", r.leader), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex))
 		r.status = StatusLogCoflictCheck
 	}
 
@@ -372,7 +372,7 @@ func (r *Replica) becomeLearner(term uint32, leaderID uint64) {
 	r.Info("become learner", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
-		r.Info("log conflict check", zap.Uint64("leader", r.leader))
+		r.Debug("log conflict check", zap.Uint64("leader", r.leader))
 		r.status = StatusLogCoflictCheck
 	}
 }

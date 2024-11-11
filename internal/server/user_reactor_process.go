@@ -12,6 +12,7 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // =================================== init ===================================
@@ -73,15 +74,43 @@ func (r *userReactor) addAuthReq(req *userAuthReq) {
 }
 
 func (r *userReactor) processAuthLoop() {
+	reqs := make([]*userAuthReq, 0, 100)
+	done := false
 	for !r.stopped.Load() {
 		select {
 		case req := <-r.processAuthC:
-			r.processAuth(req)
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case rq := <-r.processAuthC:
+					reqs = append(reqs, rq)
+				default:
+					done = true
+				}
+			}
+			r.processAuths(reqs)
+			reqs = reqs[:0]
+			done = false
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
 
+}
+
+func (r *userReactor) processAuths(reqs []*userAuthReq) {
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*10)
+	defer cancel()
+	errgroup, _ := errgroup.WithContext(timeoutCtx)
+	errgroup.SetLimit(200)
+	for _, req := range reqs {
+		req := req
+		errgroup.Go(func() error {
+			r.processAuth(req)
+			return nil
+		})
+	}
+	_ = errgroup.Wait()
 }
 
 func (r *userReactor) processAuth(req *userAuthReq) {
@@ -1015,6 +1044,7 @@ func (r *userReactor) processNodePongLoop() {
 	}
 }
 
+// TODO：可以优化成批量处理
 func (r *userReactor) processNodePong(req *nodePongReq) {
 
 	userHandler := r.s.userReactor.getUserHandler(req.uid)
@@ -1111,7 +1141,7 @@ func (r *userReactor) processProxyNodeTimeoutLoop() {
 
 func (r *userReactor) processProxyNodeTimeout(req *proxyNodeTimeoutReq) {
 	for _, msg := range req.messages {
-		r.Info("proxy node timeout", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Uint64("fromNodeId", msg.FromNodeId))
+		r.Debug("proxy node timeout", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Uint64("fromNodeId", msg.FromNodeId))
 		r.s.userReactor.removeConnsByNodeId(req.uid, msg.FromNodeId)
 	}
 }

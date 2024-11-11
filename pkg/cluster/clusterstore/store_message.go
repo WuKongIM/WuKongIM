@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -194,33 +193,33 @@ func (m *MessageShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) 
 	return m.db.AppendMessages(channelId, channelType, msgs)
 }
 
-func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
-	dbReqs := make([]wkdb.AppendMessagesReq, 0, len(reqs))
-	for _, req := range reqs {
-		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
+// func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
+// 	dbReqs := make([]wkdb.AppendMessagesReq, 0, len(reqs))
+// 	for _, req := range reqs {
+// 		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
 
-		msgs := make([]wkdb.Message, len(req.Logs))
-		for idx, log := range req.Logs {
-			msg := wkdb.Message{}
-			err := msg.Unmarshal(log.Data)
-			if err != nil {
-				return err
-			}
-			msg.MessageSeq = uint32(log.Index)
-			msg.Term = uint64(log.Term)
-			msgs[idx] = msg
-		}
-		dbReqs = append(dbReqs, wkdb.AppendMessagesReq{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-			Messages:    msgs,
-		})
-	}
-	if len(dbReqs) == 0 {
-		return nil
-	}
-	return m.db.AppendMessagesBatch(dbReqs)
-}
+// 		msgs := make([]wkdb.Message, len(req.Logs))
+// 		for idx, log := range req.Logs {
+// 			msg := wkdb.Message{}
+// 			err := msg.Unmarshal(log.Data)
+// 			if err != nil {
+// 				return err
+// 			}
+// 			msg.MessageSeq = uint32(log.Index)
+// 			msg.Term = uint64(log.Term)
+// 			msgs[idx] = msg
+// 		}
+// 		dbReqs = append(dbReqs, wkdb.AppendMessagesReq{
+// 			ChannelId:   channelId,
+// 			ChannelType: channelType,
+// 			Messages:    msgs,
+// 		})
+// 	}
+// 	if len(dbReqs) == 0 {
+// 		return nil
+// 	}
+// 	return m.db.AppendMessagesBatch(dbReqs)
+// }
 
 // 获取日志
 func (m *MessageShardLogStorage) Logs(shardNo string, startLogIndex, endLogIndex uint64, limitSize uint64) ([]replica.Log, error) {

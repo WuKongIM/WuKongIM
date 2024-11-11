@@ -1,15 +1,17 @@
-mode: "debug" 
+mode: "release" 
 addr: "tcp://0.0.0.0:5110" # tcp监听地址
 httpAddr: "0.0.0.0:5001"
 wsAddr: "ws://0.0.0.0:5210" 
 rootDir: "./wukongimdata/1"
-pprofOn: false
+pprofOn: true
 tokenAuthOn: false
 # whitelistOffOfPerson: false
 logger:
-  traceOn: true
+  traceOn: false
 #   loki:
 #     url: "http://127.0.0.1:3100"
+trace: 
+  prometheusApiUrl: "http://127.0.0.1:9090" # prometheus api地址
 manager:
   on: true
   addr: "0.0.0.0:5300"

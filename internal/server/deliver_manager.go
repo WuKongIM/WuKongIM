@@ -233,7 +233,10 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 				}
 			}
 			// 更新最近会话
-			d.dm.s.conversationManager.Push(req.channelId, req.channelType, nodeUser.uids, req.messages)
+			if d.dm.s.opts.Conversation.On {
+				d.dm.s.conversationManager.Push(req.channelId, req.channelType, nodeUser.uids, req.messages)
+			}
+
 			// 投递消息
 			d.deliver(req, nodeUser.uids)
 

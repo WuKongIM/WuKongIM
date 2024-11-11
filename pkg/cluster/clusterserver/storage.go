@@ -3,7 +3,6 @@ package cluster
 import (
 	"errors"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 )
 
@@ -12,7 +11,7 @@ type IShardLogStorage interface {
 	AppendLogs(shardNo string, logs []replica.Log) error
 
 	// AppendLogBatch 批量追加日志
-	AppendLogBatch(reqs []reactor.AppendLogReq) error
+	// AppendLogBatch(reqs []reactor.AppendLogReq) error
 	// TruncateLogTo 截断日志, 从index开始截断,index不能为0 （保留下来的内容不包含index）
 	TruncateLogTo(shardNo string, index uint64) error
 	// 获取日志 [startLogIndex, endLogIndex) 之间的日志

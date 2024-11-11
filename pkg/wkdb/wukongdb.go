@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
 	"github.com/cockroachdb/pebble"
+	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
@@ -21,6 +22,7 @@ var _ DB = (*wukongDB)(nil)
 
 type wukongDB struct {
 	dbs      []*pebble.DB
+	wkdbs    []*BatchDB
 	shardNum uint32 // 分区数量，这个一但设置就不能修改
 	opts     *Options
 	sync     *pebble.WriteOptions
@@ -104,6 +106,10 @@ func (wk *wukongDB) Open() error {
 			return err
 		}
 		wk.dbs = append(wk.dbs, db)
+
+		wkdb := NewBatchDB(db)
+		wkdb.Start()
+		wk.wkdbs = append(wk.wkdbs, wkdb)
 	}
 
 	go wk.collectMetricsLoop()
@@ -118,6 +124,10 @@ func (wk *wukongDB) Close() error {
 			wk.Error("close db error", zap.Error(err))
 		}
 	}
+
+	for _, wkd := range wk.wkdbs {
+		wkd.Stop()
+	}
 	wk.dblock.stop()
 	return nil
 }
@@ -125,6 +135,11 @@ func (wk *wukongDB) Close() error {
 func (wk *wukongDB) shardDB(v string) *pebble.DB {
 	shardId := wk.shardId(v)
 	return wk.dbs[shardId]
+}
+
+func (wk *wukongDB) sharedBatchDB(v string) *BatchDB {
+	shardId := wk.shardId(v)
+	return wk.wkdbs[shardId]
 }
 
 func (wk *wukongDB) shardId(v string) uint32 {
@@ -144,8 +159,16 @@ func (wk *wukongDB) shardDBById(id uint32) *pebble.DB {
 	return wk.dbs[id]
 }
 
+func (wk *wukongDB) shardBatchDBById(id uint32) *BatchDB {
+	return wk.wkdbs[id]
+}
+
 func (wk *wukongDB) defaultShardDB() *pebble.DB {
 	return wk.dbs[0]
+}
+
+func (wk *wukongDB) defaultShardBatchDB() *BatchDB {
+	return wk.wkdbs[0]
 }
 
 func (wk *wukongDB) channelSlotId(channelId string) uint32 {
@@ -242,4 +265,169 @@ func (wk *wukongDB) collectMetrics() {
 
 func (wk *wukongDB) NextPrimaryKey() uint64 {
 	return uint64(wk.prmaryKeyGen.Generate().Int64())
+}
+
+type BatchDB struct {
+	db *pebble.DB
+
+	batchChan chan *Batch
+
+	stopper *syncutil.Stopper
+}
+
+func NewBatchDB(db *pebble.DB) *BatchDB {
+	return &BatchDB{
+		batchChan: make(chan *Batch, 4000),
+		stopper:   syncutil.NewStopper(),
+		db:        db,
+	}
+}
+
+func (wk *BatchDB) NewBatch() *Batch {
+
+	return &Batch{
+		db: wk,
+	}
+}
+
+func (wk *BatchDB) Start() {
+	for i := 0; i < 1; i++ {
+		wk.stopper.RunWorker(wk.loop)
+	}
+}
+
+func (wk *BatchDB) Stop() {
+	wk.stopper.Stop()
+}
+
+func (wk *BatchDB) loop() {
+	done := false
+	batches := make([]*Batch, 0, 100)
+	for {
+		select {
+		case bt := <-wk.batchChan:
+
+			// 获取所有的batch
+			batches = append(batches, bt)
+			for !done {
+				select {
+				case b := <-wk.batchChan:
+					batches = append(batches, b)
+				default:
+					done = true
+				}
+			}
+			wk.executeBatch(batches) // 批量执行
+			batches = batches[:0]
+			done = false
+
+		case <-wk.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (wk *BatchDB) executeBatch(bs []*Batch) {
+
+	bt := wk.db.NewBatch()
+	defer bt.Close()
+
+	// start := time.Now()
+
+	for _, b := range bs {
+
+		// fmt.Println("batch-->:", b.String())
+
+		for _, kv := range b.delKvs {
+			if err := bt.Delete(kv.key, pebble.NoSync); err != nil {
+				b.err = err
+				break
+			}
+		}
+
+		for _, kv := range b.delRangeKvs {
+			if err := bt.DeleteRange(kv.key, kv.val, pebble.NoSync); err != nil {
+				b.err = err
+				break
+			}
+		}
+
+		for _, kv := range b.setKvs {
+			if err := bt.Set(kv.key, kv.val, pebble.NoSync); err != nil {
+				b.err = err
+				break
+			}
+		}
+
+	}
+	err := bt.Commit(pebble.Sync)
+	if err != nil {
+		for _, b := range bs {
+			b.err = err
+			if b.waitC != nil {
+				b.waitC <- err
+			}
+		}
+		return
+	}
+
+	// end := time.Since(start)
+	// fmt.Println("executeBatch耗时--->", end, len(bs))
+
+	for _, b := range bs {
+		if b.waitC != nil {
+			b.waitC <- b.err
+		}
+	}
+
+}
+
+type Batch struct {
+	db          *BatchDB
+	setKvs      []kv
+	delKvs      []kv
+	delRangeKvs []kv
+	waitC       chan error
+	err         error
+}
+
+func (b *Batch) Set(key, value []byte) {
+	b.setKvs = append(b.setKvs, kv{
+		key: key,
+		val: value,
+	})
+}
+
+func (b *Batch) Delete(key []byte) {
+	b.delKvs = append(b.delKvs, kv{
+		key: key,
+		val: nil,
+	})
+}
+
+func (b *Batch) DeleteRange(start, end []byte) {
+	b.delRangeKvs = append(b.delRangeKvs, kv{
+		key: start,
+		val: end,
+	})
+}
+
+func (b *Batch) Commit() error {
+	b.db.batchChan <- b
+	return nil
+}
+
+func (b *Batch) CommitWait() error {
+	b.waitC = make(chan error, 1)
+	b.db.batchChan <- b
+	return <-b.waitC
+}
+
+func (b *Batch) String() string {
+	return fmt.Sprintf("setKvs:%d, delKvs:%d, delRangeKvs:%d", len(b.setKvs), len(b.delKvs), len(b.delRangeKvs))
+}
+
+type kv struct {
+	key []byte
+	val []byte
 }

@@ -11,22 +11,20 @@ func TestMessageWait(t *testing.T) {
 	messageIds := []uint64{1, 2, 3}
 	m := newProposeWait("test")
 	key := "test"
-	waitC := m.add(key, messageIds)
+	progress := m.add(key, messageIds[0], messageIds[len(messageIds)-1])
 
 	select {
-	case <-waitC:
+	case <-progress.waitC:
 		t.Fatal("should not close")
 	default:
 	}
 
-	m.didPropose(key, 1, 1)
-	m.didPropose(key, 2, 2)
-	m.didPropose(key, 3, 3)
+	m.didPropose(key, 1, 3)
 
 	m.didCommit(1, 2)
 
 	select {
-	case <-waitC:
+	case <-progress.waitC:
 		t.Fatal("should not close")
 	default:
 	}
@@ -34,8 +32,9 @@ func TestMessageWait(t *testing.T) {
 	m.didCommit(2, 4)
 
 	select {
-	case items := <-waitC:
-		assert.Equal(t, 3, len(items))
+	case err := <-progress.waitC:
+		assert.Nil(t, err)
+		// assert.Equal(t, 3, len(items))
 	default:
 		t.Fatal("should close")
 	}
@@ -52,7 +51,7 @@ func BenchmarkMessageWait(b *testing.B) {
 	}
 	key := strconv.FormatUint(messageIds[len(messageIds)-1], 10)
 
-	_ = m.add(key, messageIds)
+	_ = m.add(key, messageIds[0], messageIds[len(messageIds)-1])
 
 	for i := 1; i <= num; i++ {
 		m.didPropose(key, uint64(i), uint64(i))

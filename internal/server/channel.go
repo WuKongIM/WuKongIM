@@ -325,10 +325,10 @@ func (c *channel) tick() {
 		c.permissionChecking = false
 		c.permissionCheckingTick = 0
 	}
-	if c.storaging && c.storageTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-		c.storaging = false
-		c.storageTick = 0
-	}
+	// if c.storaging && c.storageTick > c.opts.Reactor.Channel.ProcessIntervalTick {
+	// 	c.storaging = false
+	// 	c.storageTick = 0
+	// }
 	if c.sendacking && c.sendackingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
 		c.sendacking = false
 		c.sendackingTick = 0
@@ -365,8 +365,6 @@ func (c *channel) tickProxy() {
 }
 
 func (c *channel) proposeSend(messageId int64, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) error {
-
-	c.idleTick = 0
 
 	message := ReactorChannelMessage{
 		FromConnId:   fromConnId,

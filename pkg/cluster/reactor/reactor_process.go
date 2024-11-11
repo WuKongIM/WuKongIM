@@ -3,6 +3,7 @@ package reactor
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // =================================== handler初始化 ===================================
@@ -16,15 +17,44 @@ func (r *Reactor) addInitReq(req *initReq) {
 }
 
 func (r *Reactor) processInitLoop() {
+	reqs := make([]*initReq, 0)
+	done := false
 	for {
 		select {
 		case req := <-r.processInitC:
-			r.processInit(req)
+			reqs = append(reqs, req)
+
+			for !done {
+				select {
+				case req := <-r.processInitC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			r.processInits(reqs)
+			reqs = reqs[:0]
+			done = false
 
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
+}
+
+func (r *Reactor) processInits(reqs []*initReq) {
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	g, _ := errgroup.WithContext(timeoutCtx)
+
+	for _, req := range reqs {
+		req := req
+		g.Go(func() error {
+			r.processInit(req)
+			return nil
+		})
+	}
+	_ = g.Wait()
 }
 
 func (r *Reactor) processInit(req *initReq) {
@@ -80,14 +110,41 @@ func (r *Reactor) addConflictCheckReq(req *conflictCheckReq) {
 }
 
 func (r *Reactor) processConflictCheckLoop() {
+	reqs := make([]*conflictCheckReq, 0)
+	done := false
 	for {
 		select {
 		case req := <-r.processConflictCheckC:
-			r.processConflictCheck(req)
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req := <-r.processConflictCheckC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			r.processConflictChecks(reqs)
+			reqs = reqs[:0]
+			done = false
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
+}
+
+func (r *Reactor) processConflictChecks(reqs []*conflictCheckReq) {
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	errgroup, _ := errgroup.WithContext(timeoutCtx)
+	for _, req := range reqs {
+		req := req
+		errgroup.Go(func() error {
+			r.processConflictCheck(req)
+			return nil
+		})
+	}
+	_ = errgroup.Wait()
 }
 
 func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
@@ -250,7 +307,7 @@ func (r *Reactor) processStoreAppendLoop() {
 				}
 			}
 
-			r.processStoreAppend(reqs)
+			r.processStoreAppends(reqs)
 			reqs = reqs[:0]
 			done = false
 		case <-r.stopper.ShouldStop():
@@ -259,42 +316,46 @@ func (r *Reactor) processStoreAppendLoop() {
 	}
 }
 
-func (r *Reactor) processStoreAppend(reqs []AppendLogReq) {
+func (r *Reactor) processStoreAppends(reqs []AppendLogReq) {
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	errgroup, _ := errgroup.WithContext(timeoutCtx)
+	errgroup.SetLimit(1000)
+	for _, req := range reqs {
+		req := req
+		errgroup.Go(func() error {
+			r.processStoreAppend(req)
+			return nil
+		})
+	}
+	_ = errgroup.Wait()
+}
 
-	err := r.request.AppendLogBatch(reqs)
+func (r *Reactor) processStoreAppend(req AppendLogReq) {
+	err := r.request.AppendLogs(req.HandleKey, req.Logs)
 	if err != nil {
 		r.Error("append logs failed", zap.Error(err))
-		for _, req := range reqs {
-			r.Step(req.HandleKey, replica.Message{
-				MsgType: replica.MsgStoreAppendResp,
-				Reject:  true,
-			})
-		}
+		r.Step(req.HandleKey, replica.Message{
+			MsgType: replica.MsgStoreAppendResp,
+			Reject:  true,
+		})
 		return
 	}
-
-	for _, req := range reqs {
-		for _, log := range req.Logs {
-			handler := r.handler(req.HandleKey)
-			if handler != nil && log.Term > handler.getLastLeaderTerm() {
-				handler.setLastLeaderTerm(log.Term)
-				err = handler.handler.SetLeaderTermStartIndex(log.Term, log.Index)
-				if err != nil {
-					r.Error("set leader term start index failed", zap.Error(err), zap.String("handlerKey", req.HandleKey), zap.Uint32("term", log.Term), zap.Uint64("index", log.Index))
-				}
+	for _, log := range req.Logs {
+		handler := r.handler(req.HandleKey)
+		if handler != nil && log.Term > handler.getLastLeaderTerm() {
+			handler.setLastLeaderTerm(log.Term)
+			err = handler.handler.SetLeaderTermStartIndex(log.Term, log.Index)
+			if err != nil {
+				r.Error("set leader term start index failed", zap.Error(err), zap.String("handlerKey", req.HandleKey), zap.Uint32("term", log.Term), zap.Uint64("index", log.Index))
 			}
 		}
 	}
-
-	for _, req := range reqs {
-
-		lastLog := req.Logs[len(req.Logs)-1]
-		r.Step(req.HandleKey, replica.Message{
-			MsgType: replica.MsgStoreAppendResp,
-			Index:   lastLog.Index,
-		})
-	}
-
+	lastLog := req.Logs[len(req.Logs)-1]
+	r.Step(req.HandleKey, replica.Message{
+		MsgType: replica.MsgStoreAppendResp,
+		Index:   lastLog.Index,
+	})
 }
 
 // =================================== 获取日志 ===================================
@@ -409,14 +470,42 @@ func (r *Reactor) addApplyLogReq(req *applyLogReq) {
 }
 
 func (r *Reactor) processApplyLogLoop() {
+	reqs := make([]*applyLogReq, 0)
+	done := false
 	for {
 		select {
 		case req := <-r.processApplyLogC:
-			r.processApplyLog(req)
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req := <-r.processApplyLogC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			r.processApplyLogs(reqs)
+			reqs = reqs[:0]
+			done = false
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
+}
+
+func (r *Reactor) processApplyLogs(reqs []*applyLogReq) {
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	errgroup, _ := errgroup.WithContext(timeoutCtx)
+	errgroup.SetLimit(1000)
+	for _, req := range reqs {
+		req := req
+		errgroup.Go(func() error {
+			r.processApplyLog(req)
+			return nil
+		})
+	}
+	_ = errgroup.Wait()
 }
 
 func (r *Reactor) processApplyLog(req *applyLogReq) {
