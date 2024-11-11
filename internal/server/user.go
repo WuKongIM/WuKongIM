@@ -287,10 +287,10 @@ func (u *userHandler) tick() {
 
 	u.checkLeaderTick++
 
-	if u.authing && u.authTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
-		u.authing = false
-		u.authTick = 0
-	}
+	// if u.authing && u.authTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
+	// 	u.authing = false
+	// 	u.authTick = 0
+	// }
 	if u.sendRecvacking && u.sendRecvackTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
 		u.sendRecvacking = false
 		u.sendRecvackTick = 0

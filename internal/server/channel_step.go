@@ -44,7 +44,7 @@ func (c *channel) step(a *ChannelAction) error {
 		}
 
 	case ChannelActionSend: // 发送
-
+		c.idleTick = 0
 		for _, message := range a.Messages {
 
 			if message.SendPacket == nil {

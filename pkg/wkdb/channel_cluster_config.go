@@ -15,7 +15,7 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 		start := time.Now()
 		defer func() {
 			end := time.Since(start)
-			if end > time.Millisecond*250 {
+			if end > time.Millisecond*500 {
 				wk.Warn("save channel cluster config", zap.Duration("cost", time.Since(start)), zap.String("channelId", channelClusterConfig.ChannelId), zap.Uint8("channelType", channelClusterConfig.ChannelType))
 			}
 		}()
@@ -31,14 +31,16 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 		return err
 	}
 
-	db := wk.defaultShardDB()
+	db := wk.defaultShardBatchDB()
+
+	batch := db.NewBatch()
 
 	existConfig := !IsEmptyChannelClusterConfig(oldChannelClusterConfig)
 
 	// 删除旧的索引
 	if existConfig {
 		oldChannelClusterConfig.CreatedAt = nil // 旧的创建时间不参与索引
-		err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, db)
+		err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, batch)
 		if err != nil {
 			wk.Error("delete channel cluster config index error", zap.Error(err), zap.String("channelId", channelClusterConfig.ChannelId), zap.Uint8("channelType", channelClusterConfig.ChannelType))
 			return err
@@ -46,9 +48,6 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 	}
 
 	channelClusterConfig.Id = primaryKey
-
-	batch := db.NewBatch()
-	defer batch.Close()
 
 	if existConfig {
 		channelClusterConfig.CreatedAt = nil // 创建时间不参与更新
@@ -58,7 +57,7 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 		return err
 	}
 
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 }
 
 func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error) {
@@ -114,22 +113,22 @@ func (wk *wukongDB) GetChannelClusterConfigVersion(channelId string, channelType
 	return binary.BigEndian.Uint64(result), nil
 }
 
-func (wk *wukongDB) DeleteChannelClusterConfig(channelId string, channelType uint8) error {
+// func (wk *wukongDB) DeleteChannelClusterConfig(channelId string, channelType uint8) error {
 
-	primaryKey := key.ChannelIdToNum(channelId, channelType)
+// 	primaryKey := key.ChannelIdToNum(channelId, channelType)
 
-	cfg, err := wk.getChannelClusterConfigById(primaryKey)
-	if err != nil {
-		return err
-	}
-	batch := wk.defaultShardDB().NewIndexedBatch()
-	defer batch.Close()
-	err = wk.deleteChannelClusterConfig(cfg, batch)
-	if err != nil {
-		return err
-	}
-	return batch.Commit(wk.sync)
-}
+// 	cfg, err := wk.getChannelClusterConfigById(primaryKey)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	batch := wk.defaultShardDB().NewIndexedBatch()
+// 	defer batch.Close()
+// 	err = wk.deleteChannelClusterConfig(cfg, batch)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return batch.Commit(wk.sync)
+// }
 
 func (wk *wukongDB) GetChannelClusterConfigs(offsetId uint64, limit int) ([]ChannelClusterConfig, error) {
 
@@ -303,22 +302,19 @@ func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelC
 	return results, nil
 }
 
-func (wk *wukongDB) deleteChannelClusterConfig(channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
+// func (wk *wukongDB) deleteChannelClusterConfig(channelClusterConfig ChannelClusterConfig, w *Batch) error {
 
-	// delete channel cluster config
-	err := w.DeleteRange(key.NewChannelClusterConfigColumnKey(channelClusterConfig.Id, key.MinColumnKey), key.NewChannelClusterConfigColumnKey(channelClusterConfig.Id, key.MaxColumnKey), wk.noSync)
-	if err != nil {
-		return err
-	}
+// 	// delete channel cluster config
+// 	w.DeleteRange(key.NewChannelClusterConfigColumnKey(channelClusterConfig.Id, key.MinColumnKey), key.NewChannelClusterConfigColumnKey(channelClusterConfig.Id, key.MaxColumnKey))
 
-	// delete index
-	err = wk.deleteChannelClusterConfigIndex(channelClusterConfig.Id, channelClusterConfig, w)
-	if err != nil {
-		return err
-	}
+// 	// delete index
+// 	err := wk.deleteChannelClusterConfigIndex(channelClusterConfig.Id, channelClusterConfig, w)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // func (wk *wukongDB) deleteChannelClusterConfigLeaderIndex(id uint64, w *pebble.Batch) error {
 
@@ -344,100 +340,74 @@ func (wk *wukongDB) deleteChannelClusterConfig(channelClusterConfig ChannelClust
 // 	return nil
 // }
 
-func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
+func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w *Batch) error {
 
 	// channelId
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelId), []byte(channelClusterConfig.ChannelId), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelId), []byte(channelClusterConfig.ChannelId))
 
 	// channelType
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelType), []byte{channelClusterConfig.ChannelType}, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ChannelType), []byte{channelClusterConfig.ChannelType})
 
 	// replicaMaxCount
 	var replicaMaxCountBytes = make([]byte, 2)
 	binary.BigEndian.PutUint16(replicaMaxCountBytes, channelClusterConfig.ReplicaMaxCount)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ReplicaMaxCount), replicaMaxCountBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ReplicaMaxCount), replicaMaxCountBytes)
 
 	// replicas
 	var replicasBytes = make([]byte, 8*len(channelClusterConfig.Replicas))
 	for i, replica := range channelClusterConfig.Replicas {
 		binary.BigEndian.PutUint64(replicasBytes[i*8:], replica)
 	}
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Replicas), replicasBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Replicas), replicasBytes)
 
 	// learners
 	var learnersBytes = make([]byte, 8*len(channelClusterConfig.Learners))
 	for i, learner := range channelClusterConfig.Learners {
 		binary.BigEndian.PutUint64(learnersBytes[i*8:], learner)
 	}
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Learners), learnersBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Learners), learnersBytes)
 
 	// leaderId
 	leaderIdBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(leaderIdBytes, channelClusterConfig.LeaderId)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.LeaderId), leaderIdBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.LeaderId), leaderIdBytes)
 
 	// term
 	termBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(termBytes, channelClusterConfig.Term)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Term), termBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Term), termBytes)
 
 	// migrateFrom
 	migrateFromBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(migrateFromBytes, channelClusterConfig.MigrateFrom)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.MigrateFrom), migrateFromBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.MigrateFrom), migrateFromBytes)
 
 	// migrateTo
 	migrateToBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(migrateToBytes, channelClusterConfig.MigrateTo)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.MigrateTo), migrateToBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.MigrateTo), migrateToBytes)
 
 	// status
 	statusBytes := make([]byte, 1)
 	statusBytes[0] = uint8(channelClusterConfig.Status)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Status), statusBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Status), statusBytes)
 
 	// config version
 	configVersionBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(configVersionBytes, channelClusterConfig.ConfVersion)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ConfVersion), configVersionBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ConfVersion), configVersionBytes)
 
 	//version
 	versionBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(versionBytes, channelClusterConfig.version)
-	if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Version), versionBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.Version), versionBytes)
 
 	if channelClusterConfig.CreatedAt != nil {
 		// createdAt
 		ct := uint64(channelClusterConfig.CreatedAt.UnixNano())
 		var createdAtBytes = make([]byte, 8)
 		binary.BigEndian.PutUint64(createdAtBytes, ct)
-		if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.CreatedAt), createdAtBytes, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.CreatedAt), createdAtBytes)
 	}
 
 	if channelClusterConfig.UpdatedAt != nil {
@@ -445,9 +415,7 @@ func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterC
 		up := uint64(channelClusterConfig.UpdatedAt.UnixNano())
 		var updatedAtBytes = make([]byte, 8)
 		binary.BigEndian.PutUint64(updatedAtBytes, up)
-		if err := w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.UpdatedAt), updatedAtBytes)
 	}
 
 	// write index
@@ -458,63 +426,47 @@ func (wk *wukongDB) writeChannelClusterConfig(primaryKey uint64, channelClusterC
 	return nil
 }
 
-func (wk *wukongDB) writeChannelClusterConfigIndex(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
+func (wk *wukongDB) writeChannelClusterConfigIndex(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w *Batch) error {
 
 	// channel index
 	primaryKeyBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(primaryKeyBytes, primaryKey)
-	if err := w.Set(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), primaryKeyBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), primaryKeyBytes)
 
 	// leader second index
-	if err := w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.LeaderId, channelClusterConfig.LeaderId, primaryKey), nil, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.LeaderId, channelClusterConfig.LeaderId, primaryKey), nil)
 	if channelClusterConfig.CreatedAt != nil {
 		ct := uint64(channelClusterConfig.CreatedAt.UnixNano())
 		// createdAt second index
-		if err := w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, ct, primaryKey), nil, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, ct, primaryKey), nil)
 	}
 
 	if channelClusterConfig.UpdatedAt != nil {
 		up := uint64(channelClusterConfig.UpdatedAt.UnixNano())
 		// updatedAt second index
-		if err := w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.UpdatedAt, up, primaryKey), nil, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.UpdatedAt, up, primaryKey), nil)
 	}
 	return nil
 }
 
-func (wk *wukongDB) deleteChannelClusterConfigIndex(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w pebble.Writer) error {
+func (wk *wukongDB) deleteChannelClusterConfigIndex(primaryKey uint64, channelClusterConfig ChannelClusterConfig, w *Batch) error {
 
 	// channel index
-	if err := w.Delete(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType), wk.noSync); err != nil {
-		return err
-	}
+	w.Delete(key.NewChannelClusterConfigIndexKey(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType))
 
 	// leader second index
-	if err := w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.LeaderId, channelClusterConfig.LeaderId, primaryKey), wk.noSync); err != nil {
-		return err
-	}
+	w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.LeaderId, channelClusterConfig.LeaderId, primaryKey))
 
 	if channelClusterConfig.CreatedAt != nil {
 		ct := uint64(channelClusterConfig.CreatedAt.UnixNano())
 		// createdAt second index
-		if err := w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, ct, primaryKey), wk.noSync); err != nil {
-			return err
-		}
+		w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, ct, primaryKey))
 	}
 
 	if channelClusterConfig.UpdatedAt != nil {
 		up := uint64(channelClusterConfig.UpdatedAt.UnixNano())
 		// updatedAt second index
-		if err := w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.UpdatedAt, up, primaryKey), wk.noSync); err != nil {
-			return err
-		}
+		w.Delete(key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.UpdatedAt, up, primaryKey))
 	}
 
 	return nil

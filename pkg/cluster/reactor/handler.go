@@ -153,16 +153,16 @@ func (h *handler) setHardState(hd replica.HardState) {
 	h.handler.SetHardState(hd)
 }
 
-func (h *handler) didPropose(key string, logId uint64, logIndex uint64) {
-	h.proposeWait.didPropose(key, logId, logIndex)
+func (h *handler) didPropose(key string, minIndex uint64, maxIndex uint64) {
+	h.proposeWait.didPropose(key, minIndex, maxIndex)
 }
 
 func (h *handler) didCommit(startLogIndex uint64, endLogIndex uint64) {
 	h.proposeWait.didCommit(startLogIndex, endLogIndex)
 }
 
-func (h *handler) addWait(key string, ids []uint64) chan []ProposeResult {
-	return h.proposeWait.add(key, ids)
+func (h *handler) addWait(key string, minId, maxId uint64) *proposeProgress {
+	return h.proposeWait.add(key, minId, maxId)
 }
 
 func (h *handler) removeWait(key string) {

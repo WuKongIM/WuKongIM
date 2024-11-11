@@ -51,12 +51,11 @@ const (
 )
 
 const (
-	// LevelFastTick 如果tick数超过 100 将降速为normal
+	// LevelFastTick 如果指定次tick都没有收到提按则降速为normal
 	LevelFastTick int = 100
-	// LevelNormalTick 如果tick数超过 200 将降速为middle
-	LevelNormal  int = 200
-	LevelMiddle  int = 300
-	LevelSlow    int = 400
-	LevelSlowest int = 500
-	LevelDestroy int = 600
+	LevelNormal   int = 200
+	LevelMiddle   int = 300
+	LevelSlow     int = 400
+	LevelSlowest  int = 500
+	LevelDestroy  int = 1200
 )

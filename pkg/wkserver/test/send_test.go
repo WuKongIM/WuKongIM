@@ -14,7 +14,7 @@ import (
 )
 
 func TestSendAndRecv(t *testing.T) {
-	s := wkserver.New("tcp://0.0.0.0:0")
+	s := wkserver.New("tcp://0.0.0.0:0", wkserver.WithMessagePoolOn(false))
 
 	var wg sync.WaitGroup
 	s.OnMessage(func(conn wknet.Conn, m *proto.Message) {
@@ -32,15 +32,16 @@ func TestSendAndRecv(t *testing.T) {
 	msgCount := 10000
 	wg.Add(msgCount)
 
+	msgs := make([]*proto.Message, 0, msgCount)
 	for i := 0; i < msgCount; i++ {
-		err = cli.SendNoFlush(&proto.Message{
+		msgs = append(msgs, &proto.Message{
 			Id:      uint64(i),
 			MsgType: 112349,
-			Content: []byte("hello"),
+			Content: []byte("hellohellohellohellohellohellohellohellohellohellohellohellohellohellohello"),
 		})
-		assert.NoError(t, err)
 	}
-	cli.Flush()
+	err = cli.SendBatch(msgs)
+	assert.NoError(t, err)
 	wg.Wait()
 }
 

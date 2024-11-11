@@ -23,20 +23,18 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 		start := time.Now()
 		defer func() {
 			cost := time.Since(start)
-			if cost.Milliseconds() > 200 {
+			if cost.Milliseconds() > 1000 {
 				wk.Info("appendMessages done", zap.Duration("cost", cost), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Int("msgCount", len(msgs)))
 			}
 		}()
 	}
 
-	db := wk.channelDb(channelId, channelType)
-	batch := db.NewBatch()
-	defer batch.Close()
+	batch := wk.channelBatchDb(channelId, channelType).NewBatch()
 	for _, msg := range msgs {
 		if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
 			return err
 		}
-		err := wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch, wk.noSync)
+		err := wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
 		if err != nil {
 			return err
 		}
@@ -48,12 +46,17 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 	// 	return err
 	// }
 
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 }
 
 func (wk *wukongDB) channelDb(channelId string, channelType uint8) *pebble.DB {
 	dbIndex := wk.channelDbIndex(channelId, channelType)
 	return wk.shardDBById(uint32(dbIndex))
+}
+
+func (wk *wukongDB) channelBatchDb(channelId string, channelType uint8) *BatchDB {
+	dbIndex := wk.channelDbIndex(channelId, channelType)
+	return wk.shardBatchDBById(uint32(dbIndex))
 }
 
 func (wk *wukongDB) channelDbIndex(channelId string, channelType uint8) uint32 {
@@ -62,11 +65,18 @@ func (wk *wukongDB) channelDbIndex(channelId string, channelType uint8) uint32 {
 
 func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 
+	if len(reqs) == 0 {
+		return nil
+	}
+
+	if len(reqs) == 1 {
+		req := reqs[0]
+		return wk.AppendMessages(req.ChannelId, req.ChannelType, req.Messages)
+	}
+
 	// 监控
 	trace.GlobalTrace.Metrics.DB().MessageAppendBatchCountAdd(1)
 
-	// 按照db进行分组
-	dbMap := make(map[uint32][]AppendMessagesReq)
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
@@ -76,11 +86,13 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 				for _, req := range reqs {
 					msgCount += len(req.Messages)
 				}
-				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)), zap.Int("msgCount", msgCount), zap.Int("dbCount", len(dbMap)))
+				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)), zap.Int("msgCount", msgCount))
 			}
 		}()
 	}
 
+	// 按照db进行分组
+	dbMap := make(map[uint32][]AppendMessagesReq)
 	var msgTotalCount int
 	for _, req := range reqs {
 		shardId := wk.channelDbIndex(req.ChannelId, req.ChannelType)
@@ -88,48 +100,57 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 		msgTotalCount += len(req.Messages)
 	}
 
-	if len(dbMap) == 1 { // 如果只有一条消息 则不需要开启协程
-		for shardId, reqs := range dbMap {
-			db := wk.shardDBById(shardId)
-			err := wk.writeMessagesBatch(db, reqs)
-			if err != nil {
+	batchs := make([]*Batch, 0, len(dbMap))
+
+	for _, req := range reqs {
+		batch := wk.channelBatchDb(req.ChannelId, req.ChannelType).NewBatch()
+		for _, msg := range req.Messages {
+			if err := wk.writeMessage(req.ChannelId, req.ChannelType, msg, batch); err != nil {
 				return err
 			}
 		}
-	} else {
-		timeoutCtx, cancel := context.WithTimeout(wk.cancelCtx, time.Second*5)
-		defer cancel()
-
-		requestGroup, _ := errgroup.WithContext(timeoutCtx)
-
-		for shardId, reqs := range dbMap {
-			requestGroup.Go(func(sid uint32, rqs []AppendMessagesReq) func() error {
-				return func() error {
-					db := wk.shardDBById(sid)
-					return wk.writeMessagesBatch(db, rqs)
-				}
-			}(shardId, reqs))
-
-		}
-		err := requestGroup.Wait()
+		err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(req.Messages[len(req.Messages)-1].MessageSeq), batch)
 		if err != nil {
 			return err
 		}
+		batchs = append(batchs, batch)
+	}
+	// for shardId, reqs := range dbMap {
+	// 	batch := wk.shardBatchDBById(shardId).NewBatch()
+	// 	err := wk.writeMessagesBatch(batch, reqs)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	batchs = append(batchs, batch)
+	// }
+
+	timeoutCtx, cancel := context.WithTimeout(wk.cancelCtx, time.Second*5)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
+	for _, batch := range batchs {
+		bt := batch
+		requestGroup.Go(func() error {
+			return bt.CommitWait()
+		})
 	}
 
-	// 消息总数量增加
-	err := wk.IncMessageCount(msgTotalCount)
+	err := requestGroup.Wait()
 	if err != nil {
-		return err
+		wk.Error("exec appendMessagesBatch failed", zap.Error(err), zap.Int("reqs", len(reqs)))
 	}
+
+	// // 消息总数量增加
+	// err := wk.IncMessageCount(msgTotalCount)
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 
 }
 
-func (wk *wukongDB) writeMessagesBatch(db *pebble.DB, reqs []AppendMessagesReq) error {
-	batch := db.NewBatch()
-	defer batch.Close()
+func (wk *wukongDB) writeMessagesBatch(batch *Batch, reqs []AppendMessagesReq) error {
 	for _, req := range reqs {
 		lastMsg := req.Messages[len(req.Messages)-1]
 		for _, msg := range req.Messages {
@@ -137,13 +158,10 @@ func (wk *wukongDB) writeMessagesBatch(db *pebble.DB, reqs []AppendMessagesReq) 
 				return err
 			}
 		}
-		err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(lastMsg.MessageSeq), batch, wk.noSync)
+		err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(lastMsg.MessageSeq), batch)
 		if err != nil {
 			return err
 		}
-	}
-	if err := batch.Commit(wk.sync); err != nil {
-		return err
 	}
 	return nil
 }
@@ -379,24 +397,18 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 		}()
 	}
 
-	db := wk.channelDb(channelId, channelType)
-	err := db.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), wk.noSync)
-	if err != nil {
-		return err
-	}
+	db := wk.channelBatchDb(channelId, channelType)
 	batch := db.NewBatch()
-	defer batch.Close()
+	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64))
 
-	err = batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64), wk.noSync)
-	if err != nil {
-		return err
-	}
-	err = wk.setChannelLastMessageSeq(channelId, channelType, messageSeq-1, batch, wk.noSync)
+	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64))
+
+	err := wk.setChannelLastMessageSeq(channelId, channelType, messageSeq-1, batch)
 	if err != nil {
 		return err
 	}
 
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 }
 
 func min(x, y uint64) uint64 {
@@ -432,45 +444,48 @@ func (wk *wukongDB) SetChannelLastMessageSeq(channelId string, channelType uint8
 			}
 		}()
 	}
-	db := wk.channelDb(channelId, channelType)
-	return wk.setChannelLastMessageSeq(channelId, channelType, seq, db, wk.sync)
+	batch := wk.channelBatchDb(channelId, channelType).NewBatch()
+	err := wk.setChannelLastMessageSeq(channelId, channelType, seq, batch)
+	if err != nil {
+		return err
+	}
+	return batch.CommitWait()
 }
 
-func (wk *wukongDB) SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSeqReq) error {
-	if len(reqs) == 0 {
-		return nil
-	}
-	if wk.opts.EnableCost {
-		start := time.Now()
-		defer func() {
-			cost := time.Since(start)
-			if cost.Milliseconds() > 200 {
-				wk.Info("SetChannellastMessageSeqBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)))
-			}
-		}()
-	}
-	// 按照db进行分组
-	dbMap := make(map[uint32][]SetChannelLastMessageSeqReq)
-	for _, req := range reqs {
-		shardId := wk.channelDbIndex(req.ChannelId, req.ChannelType)
-		dbMap[shardId] = append(dbMap[shardId], req)
-	}
+// func (wk *wukongDB) SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSeqReq) error {
+// 	if len(reqs) == 0 {
+// 		return nil
+// 	}
+// 	if wk.opts.EnableCost {
+// 		start := time.Now()
+// 		defer func() {
+// 			cost := time.Since(start)
+// 			if cost.Milliseconds() > 200 {
+// 				wk.Info("SetChannellastMessageSeqBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)))
+// 			}
+// 		}()
+// 	}
+// 	// 按照db进行分组
+// 	dbMap := make(map[uint32][]SetChannelLastMessageSeqReq)
+// 	for _, req := range reqs {
+// 		shardId := wk.channelDbIndex(req.ChannelId, req.ChannelType)
+// 		dbMap[shardId] = append(dbMap[shardId], req)
+// 	}
 
-	for shardId, reqs := range dbMap {
-		db := wk.shardDBById(shardId)
-		batch := db.NewBatch()
-		defer batch.Close()
-		for _, req := range reqs {
-			if err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, req.Seq, batch, wk.noSync); err != nil {
-				return err
-			}
-		}
-		if err := batch.Commit(wk.sync); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+// 	for shardId, reqs := range dbMap {
+// 		db := wk.shardBatchDBById(shardId)
+// 		batch := db.NewBatch()
+// 		for _, req := range reqs {
+// 			if err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, req.Seq, batch); err != nil {
+// 				return err
+// 			}
+// 		}
+// 		if err := batch.CommitWait(); err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }
 
 var minMessagePrimaryKey = [16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 var maxMessagePrimaryKey = [16]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
@@ -720,13 +735,14 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 	return allMsgs, nil
 }
 
-func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w pebble.Writer, o *pebble.WriteOptions) error {
+func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w *Batch) error {
 	data := make([]byte, 16)
 	wk.endian.PutUint64(data, seq)
 	setTime := time.Now().UnixNano()
 	wk.endian.PutUint64(data[8:], uint64(setTime))
 
-	return w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data, o)
+	w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data)
+	return nil
 }
 
 func (wk *wukongDB) iteratorChannelMessages(iter *pebble.Iterator, limit int, iterFnc func(m Message) bool) error {
@@ -903,112 +919,77 @@ func (wk *wukongDB) parseChannelMessagesWithLimitSize(iter *pebble.Iterator, lim
 
 }
 
-func (wk *wukongDB) writeMessage(channelId string, channelType uint8, msg Message, w pebble.Writer) error {
+func (wk *wukongDB) writeMessage(channelId string, channelType uint8, msg Message, w *Batch) error {
 
 	var (
 		messageIdBytes = make([]byte, 8)
-		err            error
 	)
 
 	// header
 	header := wkproto.ToFixHeaderUint8(msg.RecvPacket.Framer)
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Header), []byte{header}, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Header), []byte{header})
 
 	// setting
 	setting := msg.RecvPacket.Setting.Uint8()
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Setting), []byte{setting}, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Setting), []byte{setting})
 
 	// expire
 	expireBytes := make([]byte, 4)
 	wk.endian.PutUint32(expireBytes, msg.RecvPacket.Expire)
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Expire), expireBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Expire), expireBytes)
 
 	// messageId
 	wk.endian.PutUint64(messageIdBytes, uint64(msg.MessageID))
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.MessageId), messageIdBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.MessageId), messageIdBytes)
 
 	// messageSeq
 	messageSeqBytes := make([]byte, 8)
 	wk.endian.PutUint64(messageSeqBytes, uint64(msg.MessageSeq))
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.MessageSeq), messageSeqBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.MessageSeq), messageSeqBytes)
 
 	// clientMsgNo
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ClientMsgNo), []byte(msg.ClientMsgNo), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ClientMsgNo), []byte(msg.ClientMsgNo))
 
 	// timestamp
 	timestampBytes := make([]byte, 4)
 	wk.endian.PutUint32(timestampBytes, uint32(msg.Timestamp))
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Timestamp), timestampBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Timestamp), timestampBytes)
 
 	// channelId
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ChannelId), []byte(msg.ChannelID), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ChannelId), []byte(msg.ChannelID))
 
 	// channelType
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ChannelType), []byte{msg.ChannelType}, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ChannelType), []byte{msg.ChannelType})
 
 	// topic
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Topic), []byte(msg.Topic), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Topic), []byte(msg.Topic))
 
 	// fromUid
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.FromUid), []byte(msg.RecvPacket.FromUID), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.FromUid), []byte(msg.RecvPacket.FromUID))
 
 	// payload
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Payload), msg.Payload, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Payload), msg.Payload)
 
 	// term
 	termBytes := make([]byte, 8)
 	wk.endian.PutUint64(termBytes, msg.Term)
-	if err = w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Term), termBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Term), termBytes)
 
 	var primaryValue = [16]byte{}
 	wk.endian.PutUint64(primaryValue[:], key.ChannelIdToNum(channelId, channelType))
 	wk.endian.PutUint64(primaryValue[8:], uint64(msg.MessageSeq))
 
 	// index fromUid
-	if err = w.Set(key.NewMessageSecondIndexFromUidKey(msg.FromUID, primaryValue), nil, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageSecondIndexFromUidKey(msg.FromUID, primaryValue), nil)
 
 	// index messageId
-	if err = w.Set(key.NewMessageIndexMessageIdKey(uint64(msg.MessageID)), primaryValue[:], wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageIndexMessageIdKey(uint64(msg.MessageID)), primaryValue[:])
 
 	// index clientMsgNo
-	if err = w.Set(key.NewMessageSecondIndexClientMsgNoKey(msg.ClientMsgNo, primaryValue), nil, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageSecondIndexClientMsgNoKey(msg.ClientMsgNo, primaryValue), nil)
 
 	// index timestamp
-	if err = w.Set(key.NewMessageIndexTimestampKey(uint64(msg.Timestamp), primaryValue), nil, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewMessageIndexTimestampKey(uint64(msg.Timestamp), primaryValue), nil)
 
 	return nil
 }

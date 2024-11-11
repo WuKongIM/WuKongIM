@@ -2,26 +2,27 @@ package clusterstore
 
 import (
 	"context"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
 )
 
 type ChannelClusterConfigStore struct {
 	store *Store
+	wklog.Log
 }
 
 func NewChannelClusterConfigStore(store *Store) *ChannelClusterConfigStore {
 	return &ChannelClusterConfigStore{
 		store: store,
+		Log:   wklog.NewWKLog("ChannelClusterConfigStore"),
 	}
 }
 
 func (c *ChannelClusterConfigStore) Save(clusterCfg wkdb.ChannelClusterConfig) error {
 	return c.store.wdb.SaveChannelClusterConfig(clusterCfg)
-}
-
-func (c *ChannelClusterConfigStore) Delete(channelId string, channelType uint8) error {
-	return c.store.wdb.DeleteChannelClusterConfig(channelId, channelType)
 }
 
 func (c *ChannelClusterConfigStore) Get(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
@@ -46,6 +47,15 @@ func (c *ChannelClusterConfigStore) GetWithSlotId(slotId uint32) ([]wkdb.Channel
 }
 
 func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
+
+	start := time.Now()
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*1000 {
+			c.Warn("propose cluster config cost to long", zap.Duration("cost", end), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
+		}
+	}()
+
 	cfgData, err := cfg.Marshal()
 	if err != nil {
 		return err

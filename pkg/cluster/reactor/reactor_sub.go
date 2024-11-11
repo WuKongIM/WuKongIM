@@ -42,8 +42,8 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 100),
 		avdanceC:    make(chan struct{}, 1),
-		stepC:       make(chan stepReq, 1024),
-		proposeC:    make(chan proposeReq, 1024),
+		stepC:       make(chan stepReq, 2024),
+		proposeC:    make(chan proposeReq, 2024),
 	}
 }
 
@@ -97,8 +97,8 @@ func (r *ReactorSub) run() {
 				lg.Index = lastLogIndex + 1 + uint64(i)
 				lg.Term = term
 				req.logs[i] = lg
-				req.handler.didPropose(req.waitKey, lg.Id, lg.Index)
 			}
+			req.handler.didPropose(req.waitKey, req.logs[0].Index, req.logs[len(req.logs)-1].Index)
 			err := req.handler.handler.Step(replica.NewProposeMessageWithLogs(r.opts.NodeId, term, req.logs))
 			if err != nil {
 				r.Error("step propose message failed", zap.Error(err))
@@ -158,17 +158,16 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 		return nil, ErrNotLeader
 	}
 
-	ids := make([]uint64, 0, len(logs))
-	for _, log := range logs {
-		ids = append(ids, log.Id)
-	}
-	waitKey := strconv.FormatUint(ids[len(ids)-1], 10)
+	minId := logs[0].Id
+	maxId := logs[len(logs)-1].Id
+
+	waitKey := strconv.FormatUint(maxId, 10)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, r.opts.ProposeTimeout)
 	defer cancel()
 
 	// -------------------- 获得等待提交提案的句柄 --------------------
-	waitC := handler.addWait(waitKey, ids)
+	progress := handler.addWait(waitKey, minId, maxId)
 
 	// -------------------- 添加提案请求 --------------------
 	req := newProposeReq(handler, waitKey, logs)
@@ -178,25 +177,43 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 		if !handler.proposeWait.exist(waitKey) {
 			r.Panic("proposeAndWait: propose wait not exist", zap.String("waitKey", waitKey), zap.String("handler", handler.key))
 		}
+		r.Error("proposeAndWait: proposeC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey))
 		handler.removeWait(waitKey)
+		close(progress.waitC)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, timeoutCtx.Err()
 	case <-r.stopper.ShouldStop():
 		handler.removeWait(waitKey)
+		close(progress.waitC)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, ErrReactorSubStopped
 	}
 
 	// -------------------- 等待提案结果 --------------------
 	select {
-	case items := <-waitC:
-		return items, nil
-	case <-timeoutCtx.Done():
+	case err := <-progress.waitC:
 		handler.removeWait(waitKey)
+		close(progress.waitC)
+		if err != nil {
+			return nil, err
+		}
+		results := make([]ProposeResult, 0)
+		for i, lg := range logs {
+			results = append(results, ProposeResult{
+				Id:    lg.Id,
+				Index: progress.minIndex + uint64(i),
+			})
+		}
+		return results, nil
+	case <-timeoutCtx.Done():
+		r.Error("proposeAndWait: waitC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey), zap.Uint64("progressIndex", progress.progressIndex), zap.Uint64("minIndex", progress.minIndex), zap.Uint64("maxIndex", progress.maxIndex))
+		handler.removeWait(waitKey)
+		close(progress.waitC)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, timeoutCtx.Err()
 	case <-r.stopper.ShouldStop():
 		handler.removeWait(waitKey)
+		close(progress.waitC)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
 		return nil, ErrReactorSubStopped
 	}

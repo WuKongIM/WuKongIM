@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // ChannelAPI ChannelAPI
@@ -276,8 +277,8 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 			ch.Error("获取最大消息序号失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
-
 		// 添加订阅者
+
 		members := make([]wkdb.Member, 0, len(newSubscribers))
 		createdAt := time.Now()
 		updatedAt := time.Now()
@@ -295,29 +296,47 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 
 		// 添加或更新订阅者的最近会话最新消息序号
+		timeoutCtx, cancel := context.WithTimeout(ch.s.ctx, time.Minute*2)
+		defer cancel()
+		requestGroup, _ := errgroup.WithContext(timeoutCtx)
+		requestGroup.SetLimit(200) // 同时应用的并发数
+
+		start := time.Now()
 		for _, subscriber := range newSubscribers {
-			createdAt := time.Now()
-			updatedAt := time.Now()
-			err = ch.s.store.AddOrUpdateConversations(subscriber, []wkdb.Conversation{
-				{
-					Id:           ch.s.store.NextPrimaryKey(),
-					Uid:          subscriber,
-					ChannelId:    req.ChannelId,
-					ChannelType:  req.ChannelType,
-					Type:         wkdb.ConversationTypeChat,
-					UnreadCount:  0,
-					ReadToMsgSeq: lastMsgSeq,
-					CreatedAt:    &createdAt,
-					UpdatedAt:    &updatedAt,
-				},
-			})
-			if err != nil {
-				ch.Error("添加或更新最近会话失败！", zap.Error(err), zap.String("uid", subscriber), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-				return err
-			}
+
+			requestGroup.Go(func(sub string) func() error {
+
+				return func() error {
+					createdAt := time.Now()
+					updatedAt := time.Now()
+					err = ch.s.store.AddOrUpdateConversations(sub, []wkdb.Conversation{
+						{
+							Id:           ch.s.store.NextPrimaryKey(),
+							Uid:          sub,
+							ChannelId:    req.ChannelId,
+							ChannelType:  req.ChannelType,
+							Type:         wkdb.ConversationTypeChat,
+							UnreadCount:  0,
+							ReadToMsgSeq: lastMsgSeq,
+							CreatedAt:    &createdAt,
+							UpdatedAt:    &updatedAt,
+						},
+					})
+					if err != nil {
+						ch.Error("添加或更新最近会话失败！", zap.Error(err), zap.String("uid", sub), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+						return nil
+					}
+					return nil
+				}
+			}(subscriber))
+
 		}
+		_ = requestGroup.Wait()
+
+		fmt.Println("update conversation 耗时------->：", time.Since(start))
 
 	}
+
 	channelKey := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
 	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
 	if channel != nil {

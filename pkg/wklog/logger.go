@@ -262,6 +262,10 @@ func (t *WKLog) Info(msg string, fields ...zap.Field) {
 
 // Trace Trace
 func (t *WKLog) Trace(msg string, action string, fields ...zap.Field) {
+	if !opts.TraceOn {
+		return
+	}
+
 	var b strings.Builder
 	b.WriteString("【")
 	b.WriteString(t.prefix)

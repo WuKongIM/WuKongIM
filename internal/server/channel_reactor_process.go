@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // =================================== 初始化 ===================================
@@ -23,14 +24,48 @@ func (r *channelReactor) addInitReq(req *initReq) {
 }
 
 func (r *channelReactor) processInitLoop() {
+	reqs := make([]*initReq, 0)
+	done := false
 	for {
 		select {
 		case req := <-r.processInitC:
-			r.processInit(req)
+			reqs = append(reqs, req)
+			// 取出所有req
+			for !done {
+				select {
+				case req := <-r.processInitC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			r.processInits(reqs)
+			reqs = reqs[:0]
+			done = false
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
+}
+
+func (r *channelReactor) processInits(reqs []*initReq) {
+
+	if len(reqs) == 1 {
+		r.processInit(reqs[0])
+		return
+	}
+
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	eg, _ := errgroup.WithContext(timeoutCtx)
+	for _, req := range reqs {
+		req := req
+		eg.Go(func() error {
+			r.processInit(req)
+			return nil
+		})
+	}
+	_ = eg.Wait()
 }
 
 func (r *channelReactor) processInit(req *initReq) {
@@ -168,7 +203,7 @@ func (r *channelReactor) addForwardReq(req *forwardReq) {
 }
 
 func (r *channelReactor) processForwardLoop() {
-	reqs := make([]*forwardReq, 0, 1024)
+	reqs := make([]*forwardReq, 0)
 	done := false
 	for {
 		select {
@@ -193,7 +228,7 @@ func (r *channelReactor) processForwardLoop() {
 					done = true
 				}
 			}
-			r.processForward(reqs)
+			r.processForwards(reqs)
 
 			reqs = reqs[:0]
 			done = false
@@ -204,78 +239,95 @@ func (r *channelReactor) processForwardLoop() {
 
 }
 
-func (r *channelReactor) processForward(reqs []*forwardReq) {
-	var err error
-	for _, req := range reqs {
+func (r *channelReactor) processForwards(reqs []*forwardReq) {
 
+	if len(reqs) == 1 {
+		req := reqs[0]
+		r.processForward(req)
+		return
+	}
+
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	eg, _ := errgroup.WithContext(timeoutCtx)
+	for _, req := range reqs {
+		req := req
+		eg.Go(func() error {
+			r.processForward(req)
+			return nil
+		})
+	}
+	_ = eg.Wait()
+
+}
+
+func (r *channelReactor) processForward(req *forwardReq) {
+	var err error
+	if r.opts.Logger.TraceOn {
+		for _, msg := range req.messages {
+			r.MessageTrace("转发消息", msg.SendPacket.ClientMsgNo, "processForward")
+		}
+	}
+
+	var newLeaderId uint64
+	if !r.s.clusterServer.NodeIsOnline(req.leaderId) { // 如果领导不在线,重新获取领导
+		timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*1) // 需要快速返回，这样会进行下次重试，如果超时时间太长，会阻塞导致下次重试间隔太长
+		defer cancel()
+		newLeaderId, err = r.s.cluster.LeaderIdOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+		if err != nil {
+			r.Warn("processForward: LeaderIdOfChannel error", zap.Error(err))
+		} else {
+			err = errors.New("leader change")
+		}
+	} else {
+		if len(req.messages) == 1 {
+			r.Debug("forward to leader", zap.Int64("messageId", req.messages[0].MessageId), zap.Uint64("leaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+
+		} else {
+			r.Debug("forward to leader", zap.Uint64("leaderId", req.leaderId), zap.Int("msgCount", len(req.messages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		}
+
+		newLeaderId, err = r.handleForward(req)
+		if err != nil {
+			r.Warn("handleForward error", zap.Error(err))
+		}
+	}
+
+	if err != nil {
 		if r.opts.Logger.TraceOn {
 			for _, msg := range req.messages {
-				r.MessageTrace("转发消息", msg.SendPacket.ClientMsgNo, "processForward")
+				r.MessageTrace("转发消息失败", msg.SendPacket.ClientMsgNo, "processForward", zap.Error(err))
 			}
 		}
+	}
 
-		var newLeaderId uint64
-		if !r.s.clusterServer.NodeIsOnline(req.leaderId) { // 如果领导不在线,重新获取领导
-			timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*1) // 需要快速返回，这样会进行下次重试，如果超时时间太长，会阻塞导致下次重试间隔太长
-			defer cancel()
-			newLeaderId, err = r.s.cluster.LeaderIdOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
-			if err != nil {
-				r.Warn("processForward: LeaderIdOfChannel error", zap.Error(err))
-			} else {
-				err = errors.New("leader change")
-			}
-		} else {
-			if len(req.messages) == 1 {
-				r.Debug("forward to leader", zap.Int64("messageId", req.messages[0].MessageId), zap.Uint64("leaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-
-			} else {
-				r.Debug("forward to leader", zap.Uint64("leaderId", req.leaderId), zap.Int("msgCount", len(req.messages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-			}
-
-			newLeaderId, err = r.handleForward(req)
-			if err != nil {
-				r.Warn("handleForward error", zap.Error(err))
+	var reason Reason
+	if err != nil {
+		reason = ReasonError
+	} else {
+		reason = ReasonSuccess
+	}
+	if newLeaderId > 0 {
+		if r.opts.Logger.TraceOn {
+			for _, msg := range req.messages {
+				r.MessageTrace("频道领导发生改变", msg.SendPacket.ClientMsgNo, "processForward", zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", req.leaderId))
 			}
 		}
-
-		if err != nil {
-			if r.opts.Logger.TraceOn {
-				for _, msg := range req.messages {
-					r.MessageTrace("转发消息失败", msg.SendPacket.ClientMsgNo, "processForward", zap.Error(err))
-				}
-			}
-		}
-
-		var reason Reason
-		if err != nil {
-			reason = ReasonError
-		} else {
-			reason = ReasonSuccess
-		}
-		if newLeaderId > 0 {
-			if r.opts.Logger.TraceOn {
-				for _, msg := range req.messages {
-					r.MessageTrace("频道领导发生改变", msg.SendPacket.ClientMsgNo, "processForward", zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", req.leaderId))
-				}
-			}
-			r.Info("leader change", zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-			sub := r.reactorSub(req.ch.key)
-			sub.step(req.ch, &ChannelAction{
-				UniqueNo:   req.ch.uniqueNo,
-				ActionType: ChannelActionLeaderChange,
-				LeaderId:   newLeaderId,
-			})
-		}
+		r.Info("leader change", zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 		sub := r.reactorSub(req.ch.key)
 		sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
-			ActionType: ChannelActionForwardResp,
-			Messages:   req.messages,
-			Reason:     reason,
+			ActionType: ChannelActionLeaderChange,
+			LeaderId:   newLeaderId,
 		})
-
 	}
-
+	sub := r.reactorSub(req.ch.key)
+	sub.step(req.ch, &ChannelAction{
+		UniqueNo:   req.ch.uniqueNo,
+		ActionType: ChannelActionForwardResp,
+		Messages:   req.messages,
+		Reason:     reason,
+	})
 }
 
 func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
@@ -357,14 +409,48 @@ func (r *channelReactor) addPermissionReq(req *permissionReq) {
 }
 
 func (r *channelReactor) processPermissionLoop() {
+	reqs := make([]*permissionReq, 0)
+	done := false
 	for {
 		select {
 		case req := <-r.processPermissionC:
-			r.processPermission(req)
+			reqs = append(reqs, req)
+			// 取出所有req
+			for !done {
+				select {
+				case req := <-r.processPermissionC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			r.processPermissions(reqs)
+			reqs = reqs[:0]
+			done = false
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
+}
+
+func (r *channelReactor) processPermissions(reqs []*permissionReq) {
+	if len(reqs) == 1 {
+		req := reqs[0]
+		r.processPermission(req)
+		return
+	}
+
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	eg, _ := errgroup.WithContext(timeoutCtx)
+	for _, req := range reqs {
+		req := req
+		eg.Go(func() error {
+			r.processPermission(req)
+			return nil
+		})
+	}
+	_ = eg.Wait()
 }
 
 func (r *channelReactor) processPermission(req *permissionReq) {
@@ -377,6 +463,9 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 		if msg.ReasonCode != wkproto.ReasonSuccess {
 			r.Debug("msg reasonCode is not success, no permission check", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			continue
+		}
+		if req.ch.channelId == "g1" {
+			fmt.Println("processPermission......")
 		}
 
 		if msg.IsSystem { // 如果是系统发的消息，直接通过
@@ -397,6 +486,9 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 			req.messages[i].ReasonCode = wkproto.ReasonSystemError
 			fromUidMap[msg.FromUid] = wkproto.ReasonSystemError
 			continue
+		}
+		if req.ch.channelId == "g1" {
+			fmt.Println("processPermission...end...")
 		}
 
 		if reasonCode != wkproto.ReasonSuccess {
@@ -586,10 +678,18 @@ type permissionReq struct {
 // =================================== 消息存储 ===================================
 
 func (r *channelReactor) addStorageReq(req *storageReq) {
+	if req.ch.channelId == "g1" {
+		fmt.Println("addStorageReq..start....")
+	}
 	select {
 	case r.processStorageC <- req:
 	case <-r.stopper.ShouldStop():
 		return
+	default:
+		r.Warn("addStorageReq channel reactor is full", zap.String("channelId", req.ch.channelId))
+	}
+	if req.ch.channelId == "g1" {
+		fmt.Println("addStorageReq..end....")
 	}
 }
 
@@ -601,7 +701,9 @@ func (r *channelReactor) processStorageLoop() {
 		select {
 		case req := <-r.processStorageC:
 			reqs = append(reqs, req)
-
+			if req.ch.channelId == "g1" {
+				fmt.Println("processStorageLoop......")
+			}
 			// 取出所有req
 			for !done && !r.stopped.Load() {
 				select {
@@ -621,7 +723,7 @@ func (r *channelReactor) processStorageLoop() {
 					done = true
 				}
 			}
-			r.processStorage(reqs)
+			r.processStorages(reqs)
 
 			reqs = reqs[:0]
 			done = false
@@ -632,133 +734,148 @@ func (r *channelReactor) processStorageLoop() {
 	}
 }
 
-func (r *channelReactor) processStorage(reqs []*storageReq) {
+func (r *channelReactor) processStorages(reqs []*storageReq) {
 
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*10)
+	defer cancel()
+	errgroup, _ := errgroup.WithContext(timeoutCtx)
+	errgroup.SetLimit(1000)
 	for _, req := range reqs {
-		messages := make([]wkdb.Message, 0, len(req.messages))
-		sotreMessages := make([]wkdb.Message, 0, len(messages))
-		// 将reactorChannelMessage转换为wkdb.Message
-		for _, reactorMsg := range req.messages {
+		req := req
+		errgroup.Go(func() error {
+			r.processStorage(req)
+			return nil
+		})
+	}
+	_ = errgroup.Wait()
 
-			if reactorMsg.ReasonCode != wkproto.ReasonSuccess {
-				r.Debug("msg reasonCode is not success, no storage", zap.Uint64("messageId", uint64(reactorMsg.MessageId)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-				continue
+}
 
-			}
+func (r *channelReactor) processStorage(req *storageReq) {
+	messages := make([]wkdb.Message, 0, len(req.messages))
+	sotreMessages := make([]wkdb.Message, 0, len(messages))
+	// 将reactorChannelMessage转换为wkdb.Message
+	for _, reactorMsg := range req.messages {
 
-			msg := wkdb.Message{
-				RecvPacket: wkproto.RecvPacket{
-					Framer: wkproto.Framer{
-						RedDot:    reactorMsg.SendPacket.Framer.RedDot,
-						SyncOnce:  reactorMsg.SendPacket.Framer.SyncOnce,
-						NoPersist: reactorMsg.SendPacket.Framer.NoPersist,
-					},
-					Setting:     reactorMsg.SendPacket.Setting,
-					MessageID:   reactorMsg.MessageId,
-					ClientMsgNo: reactorMsg.SendPacket.ClientMsgNo,
-					ClientSeq:   reactorMsg.SendPacket.ClientSeq,
-					FromUID:     reactorMsg.FromUid,
-					ChannelID:   req.ch.channelId,
-					ChannelType: reactorMsg.SendPacket.ChannelType,
-					Expire:      reactorMsg.SendPacket.Expire,
-					Timestamp:   int32(time.Now().Unix()),
-					Topic:       reactorMsg.SendPacket.Topic,
-					StreamNo:    reactorMsg.SendPacket.StreamNo,
-					Payload:     reactorMsg.SendPacket.Payload,
-				},
-			}
-			messages = append(messages, msg)
-
-			if reactorMsg.IsEncrypt {
-				r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(msg.MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-				continue
-			}
-			if msg.NoPersist { // 不需要存储，跳过
-				continue
-			}
-			sotreMessages = append(sotreMessages, msg)
+		if reactorMsg.ReasonCode != wkproto.ReasonSuccess {
+			r.Debug("msg reasonCode is not success, no storage", zap.Uint64("messageId", uint64(reactorMsg.MessageId)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			continue
 
 		}
+		if req.ch.channelId == "g1" {
+			fmt.Println("processStorage......")
+		}
 
-		reason := ReasonSuccess
-		if len(sotreMessages) > 0 {
-			// 存储消息
-			if len(sotreMessages) == 1 {
-				r.Debug("store message", zap.Uint64("messageId", uint64(sotreMessages[0].MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-			} else {
-				r.Debug("store messages", zap.Int("msgCount", len(sotreMessages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		msg := wkdb.Message{
+			RecvPacket: wkproto.RecvPacket{
+				Framer: wkproto.Framer{
+					RedDot:    reactorMsg.SendPacket.Framer.RedDot,
+					SyncOnce:  reactorMsg.SendPacket.Framer.SyncOnce,
+					NoPersist: reactorMsg.SendPacket.Framer.NoPersist,
+				},
+				Setting:     reactorMsg.SendPacket.Setting,
+				MessageID:   reactorMsg.MessageId,
+				ClientMsgNo: reactorMsg.SendPacket.ClientMsgNo,
+				ClientSeq:   reactorMsg.SendPacket.ClientSeq,
+				FromUID:     reactorMsg.FromUid,
+				ChannelID:   req.ch.channelId,
+				ChannelType: reactorMsg.SendPacket.ChannelType,
+				Expire:      reactorMsg.SendPacket.Expire,
+				Timestamp:   int32(time.Now().Unix()),
+				Topic:       reactorMsg.SendPacket.Topic,
+				StreamNo:    reactorMsg.SendPacket.StreamNo,
+				Payload:     reactorMsg.SendPacket.Payload,
+			},
+		}
+		messages = append(messages, msg)
+
+		if reactorMsg.IsEncrypt {
+			r.Warn("msg is encrypt, no storage", zap.Uint64("messageId", uint64(msg.MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			continue
+		}
+		if msg.NoPersist { // 不需要存储，跳过
+			continue
+		}
+		sotreMessages = append(sotreMessages, msg)
+
+	}
+
+	reason := ReasonSuccess
+	if len(sotreMessages) > 0 {
+		// 存储消息
+		if len(sotreMessages) == 1 {
+			r.Debug("store message", zap.Uint64("messageId", uint64(sotreMessages[0].MessageID)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		} else {
+			r.Debug("store messages", zap.Int("msgCount", len(sotreMessages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		}
+		if r.opts.Logger.TraceOn {
+			for _, sotreMessage := range sotreMessages {
+				r.MessageTrace("存储消息", sotreMessage.ClientMsgNo, "processStorage")
 			}
+		}
+
+		timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*10)
+		results, err := r.s.store.AppendMessages(timeoutCtx, req.ch.channelId, req.ch.channelType, sotreMessages)
+		cancel()
+		if err != nil {
+			r.Error("AppendMessages error", zap.Error(err), zap.Int("msgCount", len(sotreMessages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			if r.opts.Logger.TraceOn {
 				for _, sotreMessage := range sotreMessages {
-					r.MessageTrace("存储消息", sotreMessage.ClientMsgNo, "processStorage")
-				}
-			}
-
-			timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*4)
-			results, err := r.s.store.AppendMessages(timeoutCtx, req.ch.channelId, req.ch.channelType, sotreMessages)
-			cancel()
-			if err != nil {
-				r.Error("AppendMessages error", zap.Error(err))
-				if r.opts.Logger.TraceOn {
-					for _, sotreMessage := range sotreMessages {
-						r.MessageTrace("存储消息失败", sotreMessage.ClientMsgNo, "processStorage", zap.Error(err))
-					}
-				}
-			}
-			if err != nil {
-				reason = ReasonError
-			} else {
-				reason = ReasonSuccess
-			}
-
-			if len(results) > 0 {
-				for _, result := range results {
-					msgLen := len(req.messages)
-					logId := int64(result.LogId())
-					logIndex := uint32(result.LogIndex())
-					for i := 0; i < msgLen; i++ {
-						msg := req.messages[i]
-						if msg.MessageId == logId {
-							msg.MessageId = logId
-							msg.MessageSeq = logIndex
-							if reason == ReasonSuccess {
-								msg.ReasonCode = wkproto.ReasonSuccess
-							} else {
-								msg.ReasonCode = wkproto.ReasonSystemError
-							}
-
-							req.messages[i] = msg
-							break
-						}
-					}
+					r.MessageTrace("存储消息失败", sotreMessage.ClientMsgNo, "processStorage", zap.Error(err))
 				}
 			}
 		}
+		if err != nil {
+			reason = ReasonError
+		} else {
+			reason = ReasonSuccess
+		}
 
-		if r.opts.WebhookOn() && reason == ReasonSuccess {
-			// 赋值messageeq
-			for i, msg := range messages {
-				for _, cmsg := range req.messages {
-					if msg.MessageID == cmsg.MessageId {
-						msg.MessageSeq = cmsg.MessageSeq
-						messages[i] = msg
+		if len(results) > 0 {
+			for _, result := range results {
+				msgLen := len(req.messages)
+				logId := int64(result.LogId())
+				logIndex := uint32(result.LogIndex())
+				for i := 0; i < msgLen; i++ {
+					msg := req.messages[i]
+					if msg.MessageId == logId {
+						msg.MessageId = logId
+						msg.MessageSeq = logIndex
+						if reason == ReasonSuccess {
+							msg.ReasonCode = wkproto.ReasonSuccess
+						} else {
+							msg.ReasonCode = wkproto.ReasonSystemError
+						}
+
+						req.messages[i] = msg
 						break
 					}
 				}
 			}
-
-			// 将消息存储到webhook的推送队列内
-			err := r.s.store.AppendMessageOfNotifyQueue(messages)
-			if err != nil {
-				r.Error("AppendMessageOfNotifyQueue error", zap.Error(err))
-				reason = ReasonError
-			}
 		}
-		// 返回存储结果
-		r.respStoreResult(req, reason)
-
 	}
 
+	if r.opts.WebhookOn() && reason == ReasonSuccess {
+		// 赋值messageeq
+		for i, msg := range messages {
+			for _, cmsg := range req.messages {
+				if msg.MessageID == cmsg.MessageId {
+					msg.MessageSeq = cmsg.MessageSeq
+					messages[i] = msg
+					break
+				}
+			}
+		}
+
+		// 将消息存储到webhook的推送队列内
+		err := r.s.store.AppendMessageOfNotifyQueue(messages)
+		if err != nil {
+			r.Error("AppendMessageOfNotifyQueue error", zap.Error(err))
+			reason = ReasonError
+		}
+	}
+	// 返回存储结果
+	r.respStoreResult(req, reason)
 }
 
 func (r *channelReactor) respStoreResult(req *storageReq, reason Reason) {
@@ -789,7 +906,7 @@ func (r *channelReactor) addSendackReq(req *sendackReq) {
 }
 
 func (r *channelReactor) processSendackLoop() {
-	reqs := make([]*sendackReq, 0, 1024)
+	reqs := make([]*sendackReq, 0)
 	done := false
 	for {
 		select {
@@ -804,7 +921,7 @@ func (r *channelReactor) processSendackLoop() {
 					done = true
 				}
 			}
-			r.processSendack(reqs)
+			r.processSendacks(reqs)
 
 			reqs = reqs[:0]
 			done = false
@@ -814,7 +931,7 @@ func (r *channelReactor) processSendackLoop() {
 	}
 }
 
-func (r *channelReactor) processSendack(reqs []*sendackReq) {
+func (r *channelReactor) processSendacks(reqs []*sendackReq) {
 	var err error
 	nodeFowardSendackPacketMap := map[uint64][]*ForwardSendackPacket{}
 	for _, req := range reqs {
@@ -824,6 +941,9 @@ func (r *channelReactor) processSendack(reqs []*sendackReq) {
 				continue
 			}
 			r.MessageTrace("发送ack", msg.SendPacket.ClientMsgNo, "processSendack")
+			if req.ch.channelId == "g1" {
+				fmt.Println("processSendack......")
+			}
 
 			sendack := &wkproto.SendackPacket{
 				Framer:      msg.SendPacket.Framer,
@@ -961,6 +1081,10 @@ func (r *channelReactor) processDeliver(reqs []*deliverReq) {
 		}
 
 		req.messages = deliverMessages
+
+		if req.ch.channelId == "g1" {
+			fmt.Println("processDeliver......")
+		}
 
 		if len(deliverMessages) > 0 {
 			for _, deliverMessage := range deliverMessages {

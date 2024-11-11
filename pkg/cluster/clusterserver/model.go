@@ -805,7 +805,7 @@ type ChannelClusterStorage interface {
 	// 保存分布式配置
 	Save(clusterCfg wkdb.ChannelClusterConfig) error
 	// 删除频道分布式配置
-	Delete(channelId string, channelType uint8) error
+	// Delete(channelId string, channelType uint8) error
 	// 获取分布式配置
 	Get(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error)
 

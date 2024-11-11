@@ -23,8 +23,7 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 		}()
 	}
 
-	batch := wk.shardDB(uid).NewBatch()
-	defer batch.Close()
+	batch := wk.sharedBatchDB(uid).NewBatch()
 
 	for _, cn := range conversations {
 		oldConversation, err := wk.GetConversation(uid, cn.ChannelId, cn.ChannelType)
@@ -58,7 +57,7 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 	// 	return err
 	// }
 
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 }
 
 // GetConversations 获取指定用户的最近会话
@@ -179,22 +178,20 @@ func (wk *wukongDB) getLastConversationIds(uid string, updatedAt uint64, limit i
 // DeleteConversation 删除最近会话
 func (wk *wukongDB) DeleteConversation(uid string, channelId string, channelType uint8) error {
 
-	batch := wk.shardDB(uid).NewBatch()
-	defer batch.Close()
+	batch := wk.sharedBatchDB(uid).NewBatch()
 
 	err := wk.deleteConversation(uid, channelId, channelType, batch)
 	if err != nil {
 		return err
 	}
 
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 
 }
 
 // DeleteConversations 批量删除最近会话
 func (wk *wukongDB) DeleteConversations(uid string, channels []Channel) error {
-	batch := wk.shardDB(uid).NewBatch()
-	defer batch.Close()
+	batch := wk.sharedBatchDB(uid).NewBatch()
 
 	for _, channel := range channels {
 		err := wk.deleteConversation(uid, channel.ChannelId, channel.ChannelType, batch)
@@ -202,7 +199,7 @@ func (wk *wukongDB) DeleteConversations(uid string, channels []Channel) error {
 			return err
 		}
 	}
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 }
 
 func (wk *wukongDB) SearchConversation(req ConversationSearchReq) ([]Conversation, error) {
@@ -237,7 +234,7 @@ func (wk *wukongDB) SearchConversation(req ConversationSearchReq) ([]Conversatio
 	return conversations, nil
 }
 
-func (wk *wukongDB) deleteConversation(uid string, channelId string, channelType uint8, w pebble.Writer) error {
+func (wk *wukongDB) deleteConversation(uid string, channelId string, channelType uint8, w *Batch) error {
 	oldConversation, err := wk.GetConversation(uid, channelId, channelType)
 	if err != nil && err != ErrNotFound {
 		return err
@@ -250,12 +247,9 @@ func (wk *wukongDB) deleteConversation(uid string, channelId string, channelType
 	if err != nil {
 		return err
 	}
-
 	// 删除数据
-	err = w.DeleteRange(key.NewConversationColumnKey(uid, oldConversation.Id, key.MinColumnKey), key.NewConversationColumnKey(uid, oldConversation.Id, key.MaxColumnKey), wk.noSync)
-	if err != nil {
-		return err
-	}
+	w.DeleteRange(key.NewConversationColumnKey(uid, oldConversation.Id, key.MinColumnKey), key.NewConversationColumnKey(uid, oldConversation.Id, key.MaxColumnKey))
+
 	return nil
 }
 
@@ -393,7 +387,7 @@ func (wk *wukongDB) getConversationByChannel(uid string, channelId string, chann
 
 }
 
-func (wk *wukongDB) writeConversation(conversation Conversation, w pebble.Writer) error {
+func (wk *wukongDB) writeConversation(conversation Conversation, w *Batch) error {
 	var (
 		err error
 	)
@@ -401,47 +395,33 @@ func (wk *wukongDB) writeConversation(conversation Conversation, w pebble.Writer
 	id := conversation.Id
 	uid := conversation.Uid
 	// uid
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.Uid), []byte(uid), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.Uid), []byte(uid))
 
 	// channelId
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ChannelId), []byte(conversation.ChannelId), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ChannelId), []byte(conversation.ChannelId))
 
 	// channelType
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ChannelType), []byte{conversation.ChannelType}, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ChannelType), []byte{conversation.ChannelType})
 
 	// type
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.Type), []byte{byte(conversation.Type)}, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.Type), []byte{byte(conversation.Type)})
 
 	// unreadCount
 	var unreadCountBytes = make([]byte, 4)
 	wk.endian.PutUint32(unreadCountBytes, conversation.UnreadCount)
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.UnreadCount), unreadCountBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.UnreadCount), unreadCountBytes)
 
 	// readedToMsgSeq
 	var msgSeqBytes = make([]byte, 8)
 	wk.endian.PutUint64(msgSeqBytes, conversation.ReadToMsgSeq)
-	if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes)
 
 	// createdAt
 	if conversation.CreatedAt != nil {
 		createdAtBytes := make([]byte, 8)
 		createdAt := uint64(conversation.CreatedAt.UnixNano())
 		wk.endian.PutUint64(createdAtBytes, createdAt)
-		if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.CreatedAt), createdAtBytes, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.CreatedAt), createdAtBytes)
 	}
 
 	if conversation.UpdatedAt != nil {
@@ -449,9 +429,7 @@ func (wk *wukongDB) writeConversation(conversation Conversation, w pebble.Writer
 		updatedAtBytes := make([]byte, 8)
 		updatedAt := uint64(conversation.UpdatedAt.UnixNano())
 		wk.endian.PutUint64(updatedAtBytes, updatedAt)
-		if err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.UpdatedAt), updatedAtBytes)
 	}
 
 	// write index
@@ -462,61 +440,45 @@ func (wk *wukongDB) writeConversation(conversation Conversation, w pebble.Writer
 	return nil
 }
 
-func (wk *wukongDB) writeConversationIndex(conversation Conversation, w pebble.Writer) error {
+func (wk *wukongDB) writeConversationIndex(conversation Conversation, w *Batch) error {
 
 	idBytes := make([]byte, 8)
 	wk.endian.PutUint64(idBytes, conversation.Id)
 
 	// channel index
-	if err := w.Set(key.NewConversationIndexChannelKey(conversation.Uid, conversation.ChannelId, conversation.ChannelType), idBytes, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationIndexChannelKey(conversation.Uid, conversation.ChannelId, conversation.ChannelType), idBytes)
 
 	//  type second index
-	if err := w.Set(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.Type, uint64(conversation.Type), conversation.Id), nil, wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.Type, uint64(conversation.Type), conversation.Id), nil)
 
 	if conversation.CreatedAt != nil {
 		// createdAt second index
-		if err := w.Set(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.CreatedAt, uint64(conversation.CreatedAt.UnixNano()), conversation.Id), nil, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.CreatedAt, uint64(conversation.CreatedAt.UnixNano()), conversation.Id), nil)
 	}
 
 	if conversation.UpdatedAt != nil {
 		// updatedAt second index
-		if err := w.Set(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.UpdatedAt, uint64(conversation.UpdatedAt.UnixNano()), conversation.Id), nil, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.UpdatedAt, uint64(conversation.UpdatedAt.UnixNano()), conversation.Id), nil)
 	}
 
 	return nil
 }
 
-func (wk *wukongDB) deleteConversationIndex(conversation Conversation, w pebble.Writer) error {
+func (wk *wukongDB) deleteConversationIndex(conversation Conversation, w *Batch) error {
 	// channel index
-	if err := w.Delete(key.NewConversationIndexChannelKey(conversation.Uid, conversation.ChannelId, conversation.ChannelType), wk.noSync); err != nil {
-		return err
-	}
+	w.Delete(key.NewConversationIndexChannelKey(conversation.Uid, conversation.ChannelId, conversation.ChannelType))
 
 	// type second index
-	if err := w.Delete(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.Type, uint64(conversation.Type), conversation.Id), wk.noSync); err != nil {
-		return err
-	}
+	w.Delete(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.Type, uint64(conversation.Type), conversation.Id))
 
 	if conversation.CreatedAt != nil {
 		// createdAt second index
-		if err := w.Delete(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.CreatedAt, uint64(conversation.CreatedAt.UnixNano()), conversation.Id), wk.noSync); err != nil {
-			return err
-		}
+		w.Delete(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.CreatedAt, uint64(conversation.CreatedAt.UnixNano()), conversation.Id))
 	}
 
 	if conversation.UpdatedAt != nil {
 		// updatedAt second index
-		if err := w.Delete(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.UpdatedAt, uint64(conversation.UpdatedAt.UnixNano()), conversation.Id), wk.noSync); err != nil {
-			return err
-		}
+		w.Delete(key.NewConversationSecondIndexKey(conversation.Uid, key.TableConversation.SecondIndex.UpdatedAt, uint64(conversation.UpdatedAt.UnixNano()), conversation.Id))
 	}
 
 	return nil

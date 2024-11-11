@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -13,61 +12,66 @@ type proposeWait struct {
 	mu sync.RWMutex
 	wklog.Log
 
-	proposeResultMap map[string][]ProposeResult
-	proposeWaitMap   map[string]chan []ProposeResult
-	hasAdd           atomic.Bool
+	progresses []*proposeProgress
 }
 
 func newProposeWait(key string) *proposeWait {
 	return &proposeWait{
-		Log:              wklog.NewWKLog(fmt.Sprintf("proposeWait[%s]", key)),
-		proposeWaitMap:   make(map[string]chan []ProposeResult),
-		proposeResultMap: make(map[string][]ProposeResult),
+		Log:        wklog.NewWKLog(fmt.Sprintf("proposeWait[%s]", key)),
+		progresses: make([]*proposeProgress, 0),
 	}
 }
 
 // TODO: 此方法返回创建ProposeResult导致内存过高，需要优化
-func (m *proposeWait) add(key string, ids []uint64) chan []ProposeResult {
-	m.hasAdd.Store(true)
+func (m *proposeWait) add(key string, minId, maxId uint64) *proposeProgress {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if len(ids) == 0 {
-		m.Panic("addWait ids is empty")
-	}
-	waitC := make(chan []ProposeResult, 1)
-	items := make([]ProposeResult, len(ids))
-	for i, id := range ids {
-		items[i] = ProposeResult{
-			Id: id,
-		}
+	if minId == 0 || maxId == 0 {
+		m.Panic("add minId or maxId is 0", zap.Uint64("minId", minId), zap.Uint64("maxId", maxId))
 	}
 
-	// m.Debug("addWait", zap.String("key", key), zap.Int("ids", len(ids)))
+	progress := newProposeProgress(key, minId, maxId, 0, 0)
+	m.progresses = append(m.progresses, progress)
 
-	m.proposeResultMap[key] = items
-	m.proposeWaitMap[key] = waitC
+	// waitC := make(chan []ProposeResult, 1)
+	// items := make([]ProposeResult, len(ids))
+	// for i, id := range ids {
+	// 	items[i] = ProposeResult{
+	// 		Id: id,
+	// 	}
+	// }
 
-	return waitC
+	// // m.Debug("addWait", zap.String("key", key), zap.Int("ids", len(ids)))
+
+	// m.proposeResultMap[key] = items
+	// m.proposeWaitMap[key] = waitC
+
+	return progress
 }
 
 // TODO 此方法startMessageSeq 至 endMessageSeq的跨度十万需要10来秒 很慢 需要优化
-func (m *proposeWait) didPropose(key string, logId uint64, logIndex uint64) {
-	if logIndex == 0 {
-		m.Panic("didPropose logIndex is 0")
+func (m *proposeWait) didPropose(key string, minIndex uint64, maxIndex uint64) {
+	if minIndex == 0 {
+		m.Panic("didPropose minIndex is 0")
 	}
-	// m.Debug("didPropose", zap.String("key", key), zap.Uint64("logId", logId), zap.Uint64("logIndex", logIndex))
-	m.mu.RLock()
-	items := m.proposeResultMap[key]
-	m.mu.RUnlock()
-	for i, item := range items {
-		if item.Id == logId {
-			items[i].Index = logIndex
+	if minIndex > maxIndex {
+		m.Panic("didPropose minIndex > maxIndex")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	exist := false
+	for _, progress := range m.progresses {
+		if progress.key == key {
+			progress.minIndex = minIndex
+			progress.maxIndex = maxIndex
+			exist = true
 			break
 		}
 	}
-	m.mu.Lock()
-	m.proposeResultMap[key] = items
-	m.mu.Unlock()
+	if !exist {
+		m.Info("didPropose key not exist", zap.String("key", key))
+	}
 }
 
 // didCommit 提交[startLogIndex, endLogIndex)范围的消息
@@ -84,29 +88,21 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 		m.Panic("didCommit endLogIndex is 0")
 	}
 
-	keysToDelete := make([]string, 0, 500)
-	for key, items := range m.proposeResultMap {
-		shouldCommit := true
-		for i, item := range items {
-			if item.Index >= startLogIndex && item.Index < endLogIndex {
-				items[i].committed = true
-			}
-			if !items[i].committed {
-				shouldCommit = false
-			}
-		}
-		if shouldCommit {
-			m.Debug("didCommit", zap.String("key", key), zap.Uint64("startLogIndex", startLogIndex), zap.Uint64("endLogIndex", endLogIndex))
-			waitC := m.proposeWaitMap[key]
-			waitC <- items
-			close(waitC)
-			keysToDelete = append(keysToDelete, key)
-
-		}
+	if startLogIndex > endLogIndex {
+		m.Panic("didCommit startLogIndex > endLogIndex")
 	}
-	for _, key := range keysToDelete {
-		delete(m.proposeResultMap, key)
-		delete(m.proposeWaitMap, key)
+
+	for _, progress := range m.progresses {
+		if endLogIndex >= progress.maxIndex {
+			progress.progressIndex = progress.maxIndex
+			if !progress.done {
+				progress.done = true
+				progress.waitC <- nil
+			}
+
+		} else if startLogIndex >= progress.minIndex {
+			progress.progressIndex = startLogIndex
+		}
 	}
 
 }
@@ -114,14 +110,49 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 func (m *proposeWait) remove(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.proposeResultMap, key)
-	delete(m.proposeWaitMap, key)
+
+	for i, progress := range m.progresses {
+		if progress.key == key {
+			m.progresses = append(m.progresses[:i], m.progresses[i+1:]...)
+			break
+		}
+	}
 }
 
 func (m *proposeWait) exist(key string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	_, ok := m.proposeResultMap[key]
-	return ok
+	for _, progress := range m.progresses {
+		if progress.key == key {
+			return true
+		}
+	}
+	return false
 
+}
+
+type proposeProgress struct {
+	key string
+
+	minId uint64
+	maxId uint64
+
+	minIndex uint64
+	maxIndex uint64
+
+	progressIndex uint64
+
+	done  bool // 是否已经完成
+	waitC chan error
+}
+
+func newProposeProgress(key string, minId uint64, maxId uint64, minIndex uint64, maxIndex uint64) *proposeProgress {
+	return &proposeProgress{
+		key:      key,
+		minId:    minId,
+		maxId:    maxId,
+		minIndex: minIndex,
+		maxIndex: maxIndex,
+		waitC:    make(chan error, 1),
+	}
 }

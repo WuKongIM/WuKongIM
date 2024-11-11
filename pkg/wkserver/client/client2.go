@@ -445,6 +445,13 @@ func (c *Client) SendBatch(msgs []*proto.Message) error {
 	if c.connectStatus.Load() != uint32(CONNECTED) {
 		return errors.New("connect is not connected")
 	}
+	start := time.Now()
+	defer func() {
+		end := time.Since(start)
+		if end > time.Millisecond*100 {
+			c.Warn("sendBatch cost too long", zap.Duration("cost", end), zap.Int("count", len(msgs)))
+		}
+	}()
 	for _, m := range msgs {
 		msgData, err := m.Marshal()
 		if err != nil {

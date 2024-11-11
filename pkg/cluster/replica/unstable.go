@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
 )
 
 type unstable struct {
@@ -43,6 +44,10 @@ func (u *unstable) appliedTo(index uint64) {
 	}
 	num := int(index + 1 - u.offset)
 
+	if num > len(u.logs) {
+		u.Panic("appliedTo index is out of bound", zap.Uint64("index", index), zap.Uint64("offset", u.offset), zap.Int("num", num), zap.Int("len", len(u.logs)))
+		return
+	}
 	u.logs = u.logs[num:]
 	u.offset = index + 1
 	u.offsetInProgress = max(u.offsetInProgress, u.offset)
