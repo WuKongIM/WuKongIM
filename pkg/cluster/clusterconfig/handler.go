@@ -176,6 +176,10 @@ func (h *handler) getLogs(startLogIndex uint64, endLogIndex uint64) ([]replica.L
 func (h *handler) SetHardState(hd replica.HardState) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if hd.LeaderId != h.leaderId {
+		h.Info("config leader change", zap.Uint64("oldLeader", h.leaderId), zap.Uint64("newLeader", hd.LeaderId))
+	}
 	h.leaderId = hd.LeaderId
 
 }

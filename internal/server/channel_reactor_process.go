@@ -374,6 +374,7 @@ func (r *channelReactor) requestChannelFoward(nodeId uint64, req ChannelFowardRe
 	}
 	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/channelFoward", data)
 	if err != nil {
+		r.Error("requestChannelFoward unkown error", zap.Error(err), zap.Uint64("nodeId", nodeId))
 		return false, err
 	}
 	if resp.Status == proto.Status(errCodeNotIsChannelLeader) { // 转发下去的节点不是频道领导，这时候要重新获取下领导节点

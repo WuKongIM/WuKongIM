@@ -294,3 +294,20 @@ func DecodeNodeJoined(data []byte) (uint64, []*pb.Slot, error) {
 	}
 	return nodeId, slots, nil
 }
+
+func EncodeLeaderChange(leaderId uint64) ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(leaderId)
+	return enc.Bytes(), nil
+}
+
+func DecodeLeaderChange(data []byte) (uint64, error) {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var leaderId uint64
+	if leaderId, err = dec.Uint64(); err != nil {
+		return 0, err
+	}
+	return leaderId, nil
+}

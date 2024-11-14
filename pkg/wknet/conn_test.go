@@ -11,6 +11,7 @@ import (
 	"time"
 
 	stls "github.com/WuKongIM/crypto/tls"
+	"go.uber.org/atomic"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,24 +19,24 @@ import (
 func TestConn(t *testing.T) {
 	conns := make([]*DefaultConn, 0)
 	conns = append(conns, &DefaultConn{
-		id:  1,
-		uid: "1",
+		id:  *atomic.NewInt64(1),
+		uid: *atomic.NewString("1"),
 		fd:  NetFd{fd: 1},
 	}, &DefaultConn{
-		id:  2,
-		uid: "2",
+		id:  *atomic.NewInt64(2),
+		uid: *atomic.NewString("2"),
 		fd:  NetFd{fd: 2},
 	}, &DefaultConn{
-		id:  3,
-		uid: "3",
+		id:  *atomic.NewInt64(3),
+		uid: *atomic.NewString("3"),
 		fd:  NetFd{fd: 3},
 	}, &DefaultConn{
-		id:  4,
-		uid: "4",
+		id:  *atomic.NewInt64(4),
+		uid: *atomic.NewString("4"),
 		fd:  NetFd{fd: 4},
 	}, &DefaultConn{
-		id:  5,
-		uid: "5",
+		id:  *atomic.NewInt64(5),
+		uid: *atomic.NewString("5"),
 		fd:  NetFd{fd: 5},
 	},
 	)

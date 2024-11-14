@@ -45,7 +45,7 @@ func (u *userHandler) step(a UserAction) error {
 	case UserActionConnect: // 连接
 		for _, msg := range a.Messages {
 			msg.Index = u.authQueue.lastIndex + 1
-			u.Info("add auth message...", zap.Uint64("index", msg.Index))
+			u.Debug("add auth message...", zap.Uint64("index", msg.Index))
 			u.authQueue.appendMessage(msg)
 		}
 

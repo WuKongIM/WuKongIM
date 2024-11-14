@@ -184,7 +184,11 @@ func (s *slot) AppliedIndex() (uint64, error) {
 }
 
 func (s *slot) SetHardState(hd replica.HardState) {
+	if hd.LeaderId != s.leaderId.Load() {
+		s.Info("slot leader change", zap.Uint64("oldLeader", s.leaderId.Load()), zap.Uint64("newLeader", hd.LeaderId))
+	}
 	s.leaderId.Store(hd.LeaderId)
+
 }
 
 func (s *slot) Tick() {

@@ -76,7 +76,6 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 		initTick:            opts.Reactor.User.ProcessIntervalTick,
 	}
 
-	u.Info("new user handler")
 	return u
 }
 
@@ -121,7 +120,7 @@ func (u *userHandler) ready() userReady {
 				u.authing = true
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionAuth, Messages: msgs})
-				u.Info("send auth...")
+				u.Debug("send auth...")
 			}
 			// 发送ping
 			if u.hasPing() {
@@ -171,7 +170,7 @@ func (u *userHandler) ready() userReady {
 						Messages:   msgs,
 					},
 				})
-				u.Info("forward auth...")
+				u.Debug("forward auth...")
 			}
 
 		}
