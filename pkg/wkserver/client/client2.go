@@ -400,7 +400,7 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 		}
 		return x.(*proto.Response), nil
 	case <-timeoutCtx.Done():
-		timeoutCtx.Deadline()
+		c.Error("request timeout", zap.String("path", p), zap.String("id", c.opts.UID), zap.Error(timeoutCtx.Err()))
 		return nil, timeoutCtx.Err()
 	}
 }

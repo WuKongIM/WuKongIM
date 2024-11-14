@@ -64,7 +64,7 @@ func (m *channelMsgQueue) shrinkMessagesArray() {
 	const lenMultiple = 2
 	if len(m.messages) == 0 {
 		m.messages = nil
-	} else if len(m.messages)*lenMultiple < cap(m.messages) {
+	} else if cap(m.messages) >= len(m.messages)*lenMultiple {
 		newMessages := make([]ReactorChannelMessage, len(m.messages))
 		copy(newMessages, m.messages)
 		m.messages = newMessages

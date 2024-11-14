@@ -811,7 +811,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.DeadlockCheck = o.getBool("deadlockCheck", o.DeadlockCheck)
 
 	// =================== other ===================
-	deadlock.Opts.Disable = !o.DeadlockCheck
+	// deadlock.Opts.Disable = !o.DeadlockCheck
+	deadlock.Opts.Disable = false
 	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
 	o.OldV1Api = o.getString("oldV1Api", o.OldV1Api)
 	o.MigrateStartStep = MigrateStep(o.getString("migrateStartStep", string(o.MigrateStartStep)))

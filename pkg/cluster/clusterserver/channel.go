@@ -170,6 +170,10 @@ func (c *channel) AppliedIndex() (uint64, error) {
 
 func (c *channel) SetHardState(hd replica.HardState) {
 
+	if hd.LeaderId != c.cfg.LeaderId {
+		c.Info("channel leader change", zap.Uint64("oldLeader", c.cfg.LeaderId), zap.Uint64("newLeader", hd.LeaderId))
+	}
+
 	// if hd.LeaderId == 0 {
 	// 	return
 	// }

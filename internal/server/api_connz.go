@@ -73,8 +73,12 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		sortOpt = SortOpt(sortStr)
 	}
 	var connInfos []*ConnInfo
+
+	fmt.Println("getConnInfos....start.")
 	resultConns := co.s.GetConnInfos(uid, sortOpt, offset, limit)
 	connInfos = make([]*ConnInfo, 0, len(resultConns))
+
+	fmt.Println("getConnInfos....start---2.")
 	for _, resultConn := range resultConns {
 
 		connInfo := newConnInfo(resultConn)
@@ -94,6 +98,8 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		connInfos = append(connInfos, connInfo)
 	}
 
+	fmt.Println("getConnInfos....end.")
+
 	c.JSON(http.StatusOK, Connz{
 		Connections: connInfos,
 		Now:         time.Now(),
@@ -105,11 +111,15 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 
 func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []*connContext {
 	connCtxs := make([]*connContext, 0, s.engine.ConnCount())
+
+	fmt.Println("Iterator.....", s.engine.ConnCount())
+
 	s.engine.Iterator(func(c wknet.Conn) bool {
-		if c.Context() == nil { // 没有上下文的连接不处理
+		ctx := c.Context()
+		if ctx == nil { // 没有上下文的连接不处理
 			return true
 		}
-		connCtx := c.Context().(*connContext)
+		connCtx := ctx.(*connContext)
 		if strings.TrimSpace(uid) != "" {
 			if strings.Contains(connCtx.uid, uid) {
 				connCtxs = append(connCtxs, connCtx)
@@ -119,6 +129,7 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 		}
 		return true
 	})
+	fmt.Println("Iterator.222....")
 
 	switch sortOpt {
 	case ByID:
