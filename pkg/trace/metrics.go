@@ -162,6 +162,104 @@ type IDBMetrics interface {
 	DeleteAdd(v int64)      // delete操作
 	DeleteRangeAdd(v int64) // deleteRange操作
 	CommitAdd(v int64)      // commit次数
+
+	// ========== 数据操作 ==========
+	// 白名单
+	AddAllowlistAdd(v int64)       // 添加白名单
+	GetAllowlistAdd(v int64)       // 获取白名单
+	HasAllowlistAdd(v int64)       // 是否有白名单
+	ExistAllowlistAdd(v int64)     // 是否存在白名单
+	RemoveAllowlistAdd(v int64)    // 移除白名单
+	RemoveAllAllowlistAdd(v int64) // 移除所有白名单
+
+	// 分布式配置
+	SaveChannelClusterConfigAdd(v int64)               // 保存频道配置
+	GetChannelClusterConfigAdd(v int64)                // 获取频道配置
+	GetChannelClusterConfigVersionAdd(v int64)         // 获取频道配置版本
+	GetChannelClusterConfigsAdd(v int64)               // 获取频道配置列表
+	SearchChannelClusterConfigAdd(v int64)             // 搜索频道配置
+	GetChannelClusterConfigCountWithSlotIdAdd(v int64) // 获取槽位下的频道配置数量
+	GetChannelClusterConfigWithSlotIdAdd(v int64)      // 获取槽位下的频道配置
+
+	// 频道
+	AddChannelAdd(v int64)                // 添加频道
+	UpdateChannelAdd(v int64)             // 更新频道
+	GetChannelAdd(v int64)                // 获取频道
+	SearchChannelsAdd(v int64)            // 搜索频道
+	ExistChannelAdd(v int64)              // 是否存在频道
+	UpdateChannelAppliedIndexAdd(v int64) // 更新频道应用索引
+	GetChannelAppliedIndexAdd(v int64)    // 获取频道应用索引
+	DeleteChannelAdd(v int64)             // 删除频道
+
+	// 最近会话
+	AddOrUpdateConversationsAdd(v int64) // 添加或更新最近会话
+	GetConversationsAdd(v int64)         // 获取最近会话
+	GetConversationsByTypeAdd(v int64)   // 获取最近会话
+	GetLastConversationsAdd(v int64)     // 获取最近会话
+	GetConversationAdd(v int64)          // 获取最近会话
+	ExistConversationAdd(v int64)        // 是否存在最近会话
+	DeleteConversationAdd(v int64)       // 删除最近会话
+	DeleteConversationsAdd(v int64)      // 删除最近会话
+	SearchConversationAdd(v int64)       // 搜索最近会话
+	AddDenylistAdd(v int64)              // 添加黑名单
+	GetDenylistAdd(v int64)              // 获取黑名单
+	ExistDenylistAdd(v int64)            // 是否存在黑名单
+	RemoveDenylistAdd(v int64)           // 移除黑名单
+	RemoveAllDenylistAdd(v int64)        // 移除所有黑名单
+
+	// 设备
+	GetDeviceAdd(v int64)      // 获得设备
+	GetDevicesAdd(v int64)     // 获得设备
+	GetDeviceCountAdd(v int64) // 获得设备数量
+	AddDeviceAdd(v int64)      // 添加设备
+	UpdateDeviceAdd(v int64)   // 更新设备
+	SearchDeviceAdd(v int64)   // 搜索设备
+
+	// 消息队列
+	AppendMessageOfNotifyQueueAdd(v int64)  // 添加消息到通知队列
+	GetMessagesOfNotifyQueueAdd(v int64)    // 获取通知队列的消息
+	RemoveMessagesOfNotifyQueueAdd(v int64) // 移除通知队列的消息
+
+	// 消息
+	AppendMessagesAdd(v int64)           // 添加消息
+	AppendMessagesBatchAdd(v int64)      // 批量添加消息
+	GetMessageAdd(v int64)               // 获取消息
+	LoadPrevRangeMsgsAdd(v int64)        // 加载前面的消息
+	LoadNextRangeMsgsAdd(v int64)        // 加载后面的消息
+	LoadMsgAdd(v int64)                  // 加载消息
+	LoadLastMsgsAdd(v int64)             // 加载最后的消息
+	LoadLastMsgsWithEndAdd(v int64)      // 加载最后的消息
+	LoadNextRangeMsgsForSizeAdd(v int64) // 加载下一个范围的消息
+	TruncateLogToAdd(v int64)            // 截断日志
+	GetChannelLastMessageSeqAdd(v int64) // 获取频道最后的消息序号
+	SetChannelLastMessageSeqAdd(v int64) // 设置频道最后的消息序号
+	SearchMessagesAdd(v int64)           // 搜索消息
+
+	// 订阅者
+	AddSubscribersAdd(v int64)      // 添加订阅者
+	GetSubscribersAdd(v int64)      // 获取订阅者
+	RemoveSubscribersAdd(v int64)   // 移除订阅者
+	ExistSubscriberAdd(v int64)     // 是否存在订阅者
+	RemoveAllSubscriberAdd(v int64) // 移除所有订阅者
+
+	// 系统账号
+	AddSystemUidsAdd(v int64)    // 添加系统UID
+	RemoveSystemUidsAdd(v int64) // 移除系统UID
+	GetSystemUidsAdd(v int64)    // 获取系统UID
+
+	// 用户
+	GetUserAdd(v int64)    // 获取用户
+	ExistUserAdd(v int64)  // 是否存在用户
+	SearchUserAdd(v int64) // 搜索用户
+	AddUserAdd(v int64)    // 添加用户
+	UpdateUserAdd(v int64) // 更新用户
+
+	// leader_term_sequence
+	SetLeaderTermStartIndexAdd(v int64)                   // 设置领导者任期开始索引
+	LeaderLastTermAdd(v int64)                            // 领导者最后任期
+	LeaderTermStartIndexAdd(v int64)                      // 领导者任期开始索引
+	LeaderLastTermGreaterThanAdd(v int64)                 // 领导者最后任期大于
+	DeleteLeaderTermStartIndexGreaterThanTermAdd(v int64) // 删除领导者任期开始索引大于
 }
 
 // AppMetrics 应用监控

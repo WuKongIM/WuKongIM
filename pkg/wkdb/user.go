@@ -11,6 +11,8 @@ import (
 
 func (wk *wukongDB) GetUser(uid string) (User, error) {
 
+	wk.metrics.GetUserAdd(1)
+
 	id, err := wk.getUserId(uid)
 	if err != nil {
 		return EmptyUser, err
@@ -43,6 +45,9 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 }
 
 func (wk *wukongDB) ExistUser(uid string) (bool, error) {
+
+	wk.metrics.ExistUserAdd(1)
+
 	return wk.existUser(uid)
 }
 
@@ -61,6 +66,9 @@ func (wk *wukongDB) existUser(uid string) (bool, error) {
 }
 
 func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
+
+	wk.metrics.SearchUserAdd(1)
+
 	if req.Uid != "" {
 		us, err := wk.GetUser(req.Uid)
 		if err != nil {
@@ -171,6 +179,8 @@ func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 
 func (wk *wukongDB) AddUser(u User) error {
 
+	wk.metrics.AddUserAdd(1)
+
 	u.Id = key.HashWithString(u.Uid)
 
 	oldUser, err := wk.GetUser(u.Uid)
@@ -178,7 +188,7 @@ func (wk *wukongDB) AddUser(u User) error {
 		return err
 	}
 
-	db := wk.shardDB(u.Uid)
+	db := wk.sharedBatchDB(u.Uid)
 	batch := db.NewBatch()
 
 	exist := !IsEmptyUser(oldUser)
@@ -190,8 +200,6 @@ func (wk *wukongDB) AddUser(u User) error {
 			return err
 		}
 	}
-
-	defer batch.Close()
 	if exist {
 		u.CreatedAt = nil // 不允许更新创建时间
 	}
@@ -200,11 +208,13 @@ func (wk *wukongDB) AddUser(u User) error {
 		return err
 	}
 
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 }
 
 func (wk *wukongDB) UpdateUser(u User) error {
 
+	wk.metrics.UpdateUserAdd(1)
+
 	u.Id = key.HashWithString(u.Uid)
 
 	oldUser, err := wk.GetUser(u.Uid)
@@ -212,7 +222,7 @@ func (wk *wukongDB) UpdateUser(u User) error {
 		return err
 	}
 
-	db := wk.shardDB(u.Uid)
+	db := wk.sharedBatchDB(u.Uid)
 	batch := db.NewBatch()
 
 	exist := !IsEmptyUser(oldUser)
@@ -225,7 +235,6 @@ func (wk *wukongDB) UpdateUser(u User) error {
 		}
 	}
 
-	defer batch.Close()
 	if exist {
 		u.CreatedAt = nil // 不允许更新创建时间
 	}
@@ -234,7 +243,7 @@ func (wk *wukongDB) UpdateUser(u User) error {
 		return err
 	}
 
-	return batch.Commit(wk.sync)
+	return batch.CommitWait()
 }
 
 // func (wk *wukongDB) incUserDeviceCount(uid string, count int, db *pebble.DB) error {
@@ -291,24 +300,20 @@ func (wk *wukongDB) getUserId(uid string) (uint64, error) {
 	return key.HashWithString(uid), nil
 }
 
-func (wk *wukongDB) writeUser(u User, w pebble.Writer) error {
+func (wk *wukongDB) writeUser(u User, w *Batch) error {
 	var (
 		err error
 	)
 
 	// uid
-	if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.Uid), []byte(u.Uid), wk.noSync); err != nil {
-		return err
-	}
+	w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.Uid), []byte(u.Uid))
 
 	if u.CreatedAt != nil {
 		// createdAt
 		ct := uint64(u.CreatedAt.UnixNano())
 		var createdAtBytes = make([]byte, 8)
 		wk.endian.PutUint64(createdAtBytes, ct)
-		if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.CreatedAt), createdAtBytes, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.CreatedAt), createdAtBytes)
 
 	}
 
@@ -317,9 +322,7 @@ func (wk *wukongDB) writeUser(u User, w pebble.Writer) error {
 		up := uint64(u.UpdatedAt.UnixNano())
 		var updatedAtBytes = make([]byte, 8)
 		wk.endian.PutUint64(updatedAtBytes, up)
-		if err = w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.UpdatedAt), updatedAtBytes, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.UpdatedAt), updatedAtBytes)
 
 	}
 
@@ -331,38 +334,30 @@ func (wk *wukongDB) writeUser(u User, w pebble.Writer) error {
 	return nil
 }
 
-func (wk *wukongDB) writeUserIndex(u User, w pebble.Writer) error {
+func (wk *wukongDB) writeUserIndex(u User, w *Batch) error {
 	if u.CreatedAt != nil {
 		// createdAt
-		if err := w.Set(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, uint64(u.CreatedAt.UnixNano()), u.Id), nil, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, uint64(u.CreatedAt.UnixNano()), u.Id), nil)
 	}
 
 	if u.UpdatedAt != nil {
 		// updatedAt
-		if err := w.Set(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.UpdatedAt, uint64(u.UpdatedAt.UnixNano()), u.Id), nil, wk.noSync); err != nil {
-			return err
-		}
+		w.Set(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.UpdatedAt, uint64(u.UpdatedAt.UnixNano()), u.Id), nil)
 	}
 
 	return nil
 }
 
-func (wk *wukongDB) deleteUserIndex(u User, w pebble.Writer) error {
+func (wk *wukongDB) deleteUserIndex(u User, w *Batch) error {
 	if u.CreatedAt != nil {
 		// createdAt
-		if err := w.Delete(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, uint64(u.CreatedAt.UnixNano()), u.Id), wk.noSync); err != nil {
-			return err
-		}
+		w.Delete(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, uint64(u.CreatedAt.UnixNano()), u.Id))
 
 	}
 
 	if u.UpdatedAt != nil {
 		// updatedAt
-		if err := w.Delete(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.UpdatedAt, uint64(u.UpdatedAt.UnixNano()), u.Id), wk.noSync); err != nil {
-			return err
-		}
+		w.Delete(key.NewUserSecondIndexKey(key.TableUser.SecondIndex.UpdatedAt, uint64(u.UpdatedAt.UnixNano()), u.Id))
 
 	}
 	return nil

@@ -11,6 +11,9 @@ import (
 )
 
 func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelClusterConfig) error {
+
+	wk.metrics.SaveChannelClusterConfigAdd(1)
+
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
@@ -61,6 +64,8 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 }
 
 func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error) {
+
+	wk.metrics.GetChannelClusterConfigAdd(1)
 
 	start := time.Now()
 	defer func() {
@@ -132,6 +137,8 @@ func (wk *wukongDB) GetChannelClusterConfigVersion(channelId string, channelType
 
 func (wk *wukongDB) GetChannelClusterConfigs(offsetId uint64, limit int) ([]ChannelClusterConfig, error) {
 
+	wk.metrics.GetChannelClusterConfigsAdd(1)
+
 	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(offsetId+1, key.MinColumnKey),
 		UpperBound: key.NewChannelClusterConfigColumnKey(math.MaxUint64, key.MaxColumnKey),
@@ -156,6 +163,9 @@ func (wk *wukongDB) GetChannelClusterConfigs(offsetId uint64, limit int) ([]Chan
 }
 
 func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq, filter ...func(cfg ChannelClusterConfig) bool) ([]ChannelClusterConfig, error) {
+
+	wk.metrics.SearchChannelClusterConfigAdd(1)
+
 	if req.ChannelId != "" {
 		cfg, err := wk.GetChannelClusterConfig(req.ChannelId, req.ChannelType)
 		if err != nil {
@@ -273,6 +283,8 @@ func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq
 
 func (wk *wukongDB) GetChannelClusterConfigCountWithSlotId(slotId uint32) (int, error) {
 
+	wk.metrics.GetChannelClusterConfigCountWithSlotIdAdd(1)
+
 	cfgs, err := wk.GetChannelClusterConfigWithSlotId(slotId)
 	if err != nil {
 		return 0, err
@@ -281,6 +293,9 @@ func (wk *wukongDB) GetChannelClusterConfigCountWithSlotId(slotId uint32) (int, 
 }
 
 func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelClusterConfig, error) {
+
+	wk.metrics.GetChannelClusterConfigWithSlotIdAdd(1)
+
 	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(0, key.MinColumnKey),
 		UpperBound: key.NewChannelClusterConfigColumnKey(math.MaxUint64, key.MaxColumnKey),

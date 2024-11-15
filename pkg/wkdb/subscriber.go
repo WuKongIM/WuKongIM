@@ -14,6 +14,8 @@ import (
 
 func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscribers []Member) error {
 
+	wk.metrics.AddSubscribersAdd(1)
+
 	db := wk.channelDb(channelId, channelType)
 
 	channelPrimaryId, err := wk.getChannelPrimaryKey(channelId, channelType)
@@ -44,6 +46,8 @@ func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscrib
 
 func (wk *wukongDB) GetSubscribers(channelId string, channelType uint8) ([]Member, error) {
 
+	wk.metrics.GetSubscribersAdd(1)
+
 	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewSubscriberColumnKey(channelId, channelType, 0, key.MinColumnKey),
 		UpperBound: key.NewSubscriberColumnKey(channelId, channelType, math.MaxUint64, key.MaxColumnKey),
@@ -62,6 +66,8 @@ func (wk *wukongDB) GetSubscribers(channelId string, channelType uint8) ([]Membe
 }
 
 func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subscribers []string) error {
+
+	wk.metrics.RemoveSubscribersAdd(1)
 
 	subscribers = wkutil.RemoveRepeatedElement(subscribers) // 去重复
 
@@ -95,6 +101,9 @@ func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subsc
 }
 
 func (wk *wukongDB) ExistSubscriber(channelId string, channelType uint8, uid string) (bool, error) {
+
+	wk.metrics.ExistSubscriberAdd(1)
+
 	uidIndexKey := key.NewSubscriberIndexKey(channelId, channelType, key.TableSubscriber.Index.Uid, key.HashWithString(uid))
 	_, closer, err := wk.channelDb(channelId, channelType).Get(uidIndexKey)
 	if closer != nil {
@@ -110,6 +119,8 @@ func (wk *wukongDB) ExistSubscriber(channelId string, channelType uint8, uid str
 }
 
 func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) error {
+
+	wk.metrics.RemoveAllSubscriberAdd(1)
 
 	if wk.opts.EnableCost {
 		start := time.Now()

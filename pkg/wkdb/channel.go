@@ -13,6 +13,8 @@ import (
 
 func (wk *wukongDB) AddChannel(channelInfo ChannelInfo) (uint64, error) {
 
+	wk.metrics.AddChannelAdd(1)
+
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
@@ -47,6 +49,8 @@ func (wk *wukongDB) AddChannel(channelInfo ChannelInfo) (uint64, error) {
 }
 
 func (wk *wukongDB) UpdateChannel(channelInfo ChannelInfo) error {
+
+	wk.metrics.UpdateChannelAdd(1)
 
 	if wk.opts.EnableCost {
 		start := time.Now()
@@ -94,6 +98,8 @@ func (wk *wukongDB) UpdateChannel(channelInfo ChannelInfo) error {
 
 func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo, error) {
 
+	wk.metrics.GetChannelAdd(1)
+
 	id, err := wk.getChannelPrimaryKey(channelId, channelType)
 	if err != nil {
 		return EmptyChannelInfo, err
@@ -124,6 +130,8 @@ func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo
 }
 
 func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) {
+
+	wk.metrics.SearchChannelsAdd(1)
 
 	var channelInfos []ChannelInfo
 	if req.ChannelId != "" && req.ChannelType != 0 {
@@ -380,6 +388,8 @@ func (wk *wukongDB) searchChannelsByIndex(req ChannelSearchReq, db *pebble.DB, i
 
 func (wk *wukongDB) ExistChannel(channelId string, channelType uint8) (bool, error) {
 
+	wk.metrics.ExistChannelAdd(1)
+
 	channel, err := wk.GetChannel(channelId, channelType)
 	if err != nil {
 		if err == ErrNotFound {
@@ -391,6 +401,9 @@ func (wk *wukongDB) ExistChannel(channelId string, channelType uint8) (bool, err
 }
 
 func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
+
+	wk.metrics.DeleteChannelAdd(1)
+
 	id, err := wk.getChannelPrimaryKey(channelId, channelType)
 	if err != nil {
 		return err
@@ -422,12 +435,16 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 
 func (wk *wukongDB) UpdateChannelAppliedIndex(channelId string, channelType uint8, index uint64) error {
 
+	wk.metrics.UpdateChannelAppliedIndexAdd(1)
+
 	indexBytes := make([]byte, 8)
 	wk.endian.PutUint64(indexBytes, index)
 	return wk.channelDb(channelId, channelType).Set(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Column.AppliedIndex), indexBytes, wk.sync)
 }
 
 func (wk *wukongDB) GetChannelAppliedIndex(channelId string, channelType uint8) (uint64, error) {
+
+	wk.metrics.GetChannelAppliedIndexAdd(1)
 
 	data, closer, err := wk.channelDb(channelId, channelType).Get(key.NewChannelCommonColumnKey(channelId, channelType, key.TableChannelCommon.Column.AppliedIndex))
 	if closer != nil {

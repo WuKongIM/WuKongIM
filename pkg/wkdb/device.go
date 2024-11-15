@@ -58,6 +58,8 @@ func (wk *wukongDB) getDeviceById(id uint64, db *pebble.DB) (Device, error) {
 
 func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 
+	wk.metrics.GetDeviceAdd(1)
+
 	// 获取设备id
 	id, err := wk.getDeviceId(uid, deviceFlag)
 	if err != nil {
@@ -95,6 +97,8 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 
 func (wk *wukongDB) GetDevices(uid string) ([]Device, error) {
 
+	wk.metrics.GetDevicesAdd(1)
+
 	db := wk.shardDB(uid)
 	uidHash := key.HashWithString(uid)
 	iter := db.NewIter(&pebble.IterOptions{
@@ -119,6 +123,9 @@ func (wk *wukongDB) GetDevices(uid string) ([]Device, error) {
 }
 
 func (wk *wukongDB) GetDeviceCount(uid string) (int, error) {
+
+	wk.metrics.GetDeviceCountAdd(1)
+
 	db := wk.shardDB(uid)
 	uidHash := key.HashWithString(uid)
 	iter := db.NewIter(&pebble.IterOptions{
@@ -135,6 +142,9 @@ func (wk *wukongDB) GetDeviceCount(uid string) (int, error) {
 }
 
 func (wk *wukongDB) AddDevice(d Device) error {
+
+	wk.metrics.AddDeviceAdd(1)
+
 	if d.Id == 0 {
 		return ErrInvalidDeviceId
 	}
@@ -153,6 +163,9 @@ func (wk *wukongDB) AddDevice(d Device) error {
 }
 
 func (wk *wukongDB) UpdateDevice(d Device) error {
+
+	wk.metrics.UpdateDeviceAdd(1)
+
 	if d.Id == 0 {
 		return ErrInvalidDeviceId
 	}
@@ -187,6 +200,8 @@ func (wk *wukongDB) UpdateDevice(d Device) error {
 }
 
 func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
+
+	wk.metrics.SearchDeviceAdd(1)
 
 	iterFnc := func(devices *[]Device) func(d Device) bool {
 		currentSize := 0

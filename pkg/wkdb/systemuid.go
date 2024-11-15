@@ -8,6 +8,9 @@ import (
 )
 
 func (wk *wukongDB) AddSystemUids(uids []string) error {
+
+	wk.metrics.AddSystemUidsAdd(1)
+
 	w := wk.defaultShardDB().NewBatch()
 	defer w.Close()
 	for _, uid := range uids {
@@ -20,6 +23,9 @@ func (wk *wukongDB) AddSystemUids(uids []string) error {
 }
 
 func (wk *wukongDB) RemoveSystemUids(uids []string) error {
+
+	wk.metrics.RemoveSystemUidsAdd(1)
+
 	w := wk.defaultShardDB().NewBatch()
 	defer w.Close()
 	for _, uid := range uids {
@@ -32,6 +38,9 @@ func (wk *wukongDB) RemoveSystemUids(uids []string) error {
 }
 
 func (wk *wukongDB) GetSystemUids() ([]string, error) {
+
+	wk.metrics.GetSystemUidsAdd(1)
+
 	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewSystemUidColumnKey(0, key.TableSystemUid.Column.Uid),
 		UpperBound: key.NewSystemUidColumnKey(math.MaxUint64, key.TableSystemUid.Column.Uid),

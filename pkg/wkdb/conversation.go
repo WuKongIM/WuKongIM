@@ -10,7 +10,7 @@ import (
 )
 
 func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Conversation) error {
-
+	wk.metrics.AddOrUpdateConversationsAdd(1)
 	// wk.dblock.conversationLock.lock(uid)
 	// defer wk.dblock.conversationLock.unlock(uid)
 	if wk.opts.EnableCost {
@@ -63,6 +63,8 @@ func (wk *wukongDB) AddOrUpdateConversations(uid string, conversations []Convers
 // GetConversations 获取指定用户的最近会话
 func (wk *wukongDB) GetConversations(uid string) ([]Conversation, error) {
 
+	wk.metrics.GetConversationsAdd(1)
+
 	db := wk.shardDB(uid)
 	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationPrimaryKey(uid, 0),
@@ -82,6 +84,8 @@ func (wk *wukongDB) GetConversations(uid string) ([]Conversation, error) {
 }
 
 func (wk *wukongDB) GetConversationsByType(uid string, tp ConversationType) ([]Conversation, error) {
+
+	wk.metrics.GetConversationsByTypeAdd(1)
 
 	db := wk.shardDB(uid)
 	iter := db.NewIter(&pebble.IterOptions{
@@ -104,6 +108,9 @@ func (wk *wukongDB) GetConversationsByType(uid string, tp ConversationType) ([]C
 }
 
 func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, updatedAt uint64, limit int) ([]Conversation, error) {
+
+	wk.metrics.GetLastConversationsAdd(1)
+
 	ids, err := wk.getLastConversationIds(uid, updatedAt, limit)
 	if err != nil {
 		return nil, err
@@ -178,6 +185,8 @@ func (wk *wukongDB) getLastConversationIds(uid string, updatedAt uint64, limit i
 // DeleteConversation 删除最近会话
 func (wk *wukongDB) DeleteConversation(uid string, channelId string, channelType uint8) error {
 
+	wk.metrics.DeleteConversationAdd(1)
+
 	batch := wk.sharedBatchDB(uid).NewBatch()
 
 	err := wk.deleteConversation(uid, channelId, channelType, batch)
@@ -191,6 +200,9 @@ func (wk *wukongDB) DeleteConversation(uid string, channelId string, channelType
 
 // DeleteConversations 批量删除最近会话
 func (wk *wukongDB) DeleteConversations(uid string, channels []Channel) error {
+
+	wk.metrics.DeleteConversationsAdd(1)
+
 	batch := wk.sharedBatchDB(uid).NewBatch()
 
 	for _, channel := range channels {
@@ -203,6 +215,9 @@ func (wk *wukongDB) DeleteConversations(uid string, channels []Channel) error {
 }
 
 func (wk *wukongDB) SearchConversation(req ConversationSearchReq) ([]Conversation, error) {
+
+	wk.metrics.SearchConversationAdd(1)
+
 	if req.Uid != "" {
 		return wk.GetConversations(req.Uid)
 	}
@@ -256,6 +271,8 @@ func (wk *wukongDB) deleteConversation(uid string, channelId string, channelType
 // GetConversation 获取指定用户的指定会话
 func (wk *wukongDB) GetConversation(uid string, channelId string, channelType uint8) (Conversation, error) {
 
+	wk.metrics.GetConversationAdd(1)
+
 	id, err := wk.getConversationByChannel(uid, channelId, channelType)
 	if err != nil {
 		return EmptyConversation, err
@@ -288,6 +305,9 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 }
 
 func (wk *wukongDB) ExistConversation(uid string, channelId string, channelType uint8) (bool, error) {
+
+	wk.metrics.ExistConversationAdd(1)
+
 	idBytes, closer, err := wk.shardDB(uid).Get(key.NewConversationIndexChannelKey(uid, channelId, channelType))
 	if err != nil {
 		if err == pebble.ErrNotFound {
