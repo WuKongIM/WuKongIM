@@ -34,6 +34,8 @@ type wukongDB struct {
 	cancelCtx    context.Context
 	cancelFunc   context.CancelFunc
 
+	metrics trace.IDBMetrics
+
 	h hash.Hash32
 }
 
@@ -50,6 +52,7 @@ func NewWukongDB(opts *Options) DB {
 		endian:       binary.BigEndian,
 		cancelCtx:    cancelCtx,
 		cancelFunc:   cancelFunc,
+		metrics:      trace.GlobalTrace.Metrics.DB(),
 		h:            fnv.New32(),
 		sync: &pebble.WriteOptions{
 			Sync: true,

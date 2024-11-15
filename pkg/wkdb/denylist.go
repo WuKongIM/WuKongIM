@@ -11,6 +11,8 @@ import (
 
 func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, members []Member) error {
 
+	wk.metrics.AddDenylistAdd(1)
+
 	db := wk.channelDb(channelId, channelType)
 
 	channelPrimaryId, err := wk.getChannelPrimaryKey(channelId, channelType)
@@ -36,6 +38,9 @@ func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, members []M
 }
 
 func (wk *wukongDB) GetDenylist(channelId string, channelType uint8) ([]Member, error) {
+
+	wk.metrics.GetDenylistAdd(1)
+
 	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDenylistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewDenylistPrimaryKey(channelId, channelType, math.MaxUint64),
@@ -50,6 +55,9 @@ func (wk *wukongDB) GetDenylist(channelId string, channelType uint8) ([]Member, 
 }
 
 func (wk *wukongDB) ExistDenylist(channelId string, channelType uint8, uid string) (bool, error) {
+
+	wk.metrics.ExistDenylistAdd(1)
+
 	uidIndexKey := key.NewDenylistIndexKey(channelId, channelType, key.TableDenylist.Index.Uid, key.HashWithString(uid))
 	_, closer, err := wk.channelDb(channelId, channelType).Get(uidIndexKey)
 	if closer != nil {
@@ -65,6 +73,9 @@ func (wk *wukongDB) ExistDenylist(channelId string, channelType uint8, uid strin
 }
 
 func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []string) error {
+
+	wk.metrics.RemoveDenylistAdd(1)
+
 	db := wk.channelDb(channelId, channelType)
 
 	channelPrimaryId, err := wk.getChannelPrimaryKey(channelId, channelType)
@@ -97,6 +108,8 @@ func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []s
 }
 
 func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error {
+
+	wk.metrics.RemoveAllDenylistAdd(1)
 
 	channelPrimaryId, err := wk.getChannelPrimaryKey(channelId, channelType)
 	if err != nil {

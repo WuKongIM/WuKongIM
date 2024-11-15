@@ -11,6 +11,8 @@ import (
 
 func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, members []Member) error {
 
+	wk.metrics.AddAllowlistAdd(1)
+
 	db := wk.channelDb(channelId, channelType)
 
 	channelPrimaryId, err := wk.getChannelPrimaryKey(channelId, channelType)
@@ -37,6 +39,9 @@ func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, members []
 }
 
 func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]Member, error) {
+
+	wk.metrics.GetAllowlistAdd(1)
+
 	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewAllowlistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
@@ -51,6 +56,8 @@ func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]Member,
 }
 
 func (wk *wukongDB) HasAllowlist(channelId string, channelType uint8) (bool, error) {
+	wk.metrics.HasAllowlistAdd(1)
+
 	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewAllowlistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
@@ -65,6 +72,9 @@ func (wk *wukongDB) HasAllowlist(channelId string, channelType uint8) (bool, err
 }
 
 func (wk *wukongDB) ExistAllowlist(channeId string, channelType uint8, uid string) (bool, error) {
+
+	wk.metrics.ExistAllowlistAdd(1)
+
 	uidIndexKey := key.NewAllowlistIndexKey(channeId, channelType, key.TableAllowlist.Index.Uid, key.HashWithString(uid))
 	_, closer, err := wk.channelDb(channeId, channelType).Get(uidIndexKey)
 	if closer != nil {
@@ -80,6 +90,8 @@ func (wk *wukongDB) ExistAllowlist(channeId string, channelType uint8, uid strin
 }
 
 func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []string) error {
+
+	wk.metrics.RemoveAllowlistAdd(1)
 
 	db := wk.channelDb(channelId, channelType)
 
@@ -113,6 +125,8 @@ func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []
 }
 
 func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) error {
+
+	wk.metrics.RemoveAllAllowlistAdd(1)
 
 	db := wk.channelDb(channelId, channelType)
 

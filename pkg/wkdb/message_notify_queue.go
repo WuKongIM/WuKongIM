@@ -9,6 +9,9 @@ import (
 
 // AppendMessageOfNotifyQueue 添加消息到通知队列
 func (wk *wukongDB) AppendMessageOfNotifyQueue(messages []Message) error {
+
+	wk.metrics.AppendMessageOfNotifyQueueAdd(1)
+
 	batch := wk.defaultShardDB().NewBatch()
 	defer batch.Close()
 	for _, msg := range messages {
@@ -22,6 +25,8 @@ func (wk *wukongDB) AppendMessageOfNotifyQueue(messages []Message) error {
 // GetMessagesOfNotifyQueue 获取通知队列的消息
 func (wk *wukongDB) GetMessagesOfNotifyQueue(count int) ([]Message, error) {
 
+	wk.metrics.GetMessagesOfNotifyQueueAdd(1)
+
 	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessageNotifyQueueKey(0),
 		UpperBound: key.NewMessageNotifyQueueKey(math.MaxUint64),
@@ -33,6 +38,8 @@ func (wk *wukongDB) GetMessagesOfNotifyQueue(count int) ([]Message, error) {
 
 // RemoveMessagesOfNotifyQueue 移除通知队列的消息
 func (wk *wukongDB) RemoveMessagesOfNotifyQueue(messageIDs []int64) error {
+
+	wk.metrics.RemoveMessagesOfNotifyQueueAdd(1)
 
 	batch := wk.defaultShardDB().NewBatch()
 	defer batch.Close()
