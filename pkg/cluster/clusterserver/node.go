@@ -92,6 +92,19 @@ func (n *node) send(msg *proto.Message) error {
 	}
 }
 
+// 请求中的数量
+func (n *node) requesting() int64 {
+	if n.client != nil {
+		return n.client.Requesting.Load()
+	}
+	return 0
+}
+
+// 消息发送中的数量
+func (n *node) sending() int64 {
+	return n.sendQueue.count.Load()
+}
+
 func (n *node) processMessages() {
 
 	size := uint64(0)

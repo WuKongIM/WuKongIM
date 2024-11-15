@@ -128,8 +128,6 @@ func parseProxyProto(buff []byte) (remoteAddr net.Addr, size int, err error) {
 		}
 	}
 
-	fmt.Println("proxyproto: signature not present")
-
 	return nil, 0, ErrNoProxyProtocol
 }
 

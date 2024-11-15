@@ -2,6 +2,7 @@ package icluster
 
 import (
 	"context"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -50,10 +51,10 @@ type Cluster interface {
 	LeaderId() uint64
 
 	// 等待集群准备好
-	MustWaitClusterReady()
+	MustWaitClusterReady(timeout time.Duration)
 
 	// 等待所有槽准备好
-	MustWaitAllSlotsReady()
+	MustWaitAllSlotsReady(timeout time.Duration)
 	// Monitor 获取监控信息
 	// Monitor() IMonitor
 }

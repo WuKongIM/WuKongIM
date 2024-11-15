@@ -48,7 +48,7 @@ func TestSendAndRecv(t *testing.T) {
 func TestRequestResp(t *testing.T) {
 
 	wklog.Configure(&wklog.Options{
-		Level: zap.DebugLevel,
+		Level: zap.InfoLevel,
 	})
 	s := wkserver.New("tcp://0.0.0.0:0")
 	s.Route("/test", func(c *wkserver.Context) {
@@ -63,7 +63,7 @@ func TestRequestResp(t *testing.T) {
 	assert.NoError(t, err)
 	defer cli.Close()
 
-	var count = 10
+	var count = 1000
 
 	var wg sync.WaitGroup
 	wg.Add(count)

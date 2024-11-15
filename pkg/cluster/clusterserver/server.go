@@ -225,7 +225,24 @@ func (s *Server) Start() error {
 		s.stopper.RunWorker(s.joinLoop)
 	}
 
+	// 设置监控数据的observer
+	s.setObservers()
+
 	return nil
+}
+
+func (s *Server) setObservers() {
+	// 收集节点请求中的数据
+	trace.GlobalTrace.Metrics.Cluster().ObserverNodeRequesting(func() int64 {
+
+		return s.nodeManager.requesting()
+	})
+
+	// 收集消息发送中的数量
+	trace.GlobalTrace.Metrics.Cluster().ObserverNodeSending(func() int64 {
+
+		return s.nodeManager.sending()
+	})
 }
 
 func (s *Server) Stop() {

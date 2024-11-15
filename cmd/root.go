@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/server"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -113,7 +114,7 @@ func cmdRun() error {
 			return err
 		}
 		// 等待集群准备好
-		s.MustWaitAllSlotsReady()
+		s.MustWaitAllSlotsReady(time.Minute)
 
 		if pingback != "" {
 			confirmationBytes, err := io.ReadAll(os.Stdin)

@@ -31,7 +31,7 @@ func TestSingleSendMessage(t *testing.T) {
 	assert.Nil(t, err)
 	defer s.StopNoErr()
 
-	s.MustWaitClusterReady() // 等待服务准备好
+	s.MustWaitClusterReady(time.Second * 10) // 等待服务准备好
 
 	// new client 1
 	cli1 := client.New(s.opts.External.TCPAddr, client.WithUID("test1"))

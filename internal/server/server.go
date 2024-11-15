@@ -28,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"github.com/pkg/errors"
+	"github.com/valyala/bytebufferpool"
 	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.uber.org/zap"
 )
@@ -317,9 +318,11 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	err = s.conversationManager.Start()
-	if err != nil {
-		return err
+	if s.opts.Conversation.On {
+		err = s.conversationManager.Start()
+		if err != nil {
+			return err
+		}
 	}
 
 	s.webhook.Start()
@@ -353,7 +356,11 @@ func (s *Server) Stop() error {
 	s.deliverManager.stop()
 
 	s.retryManager.stop()
-	s.conversationManager.Stop()
+
+	if s.opts.Conversation.On {
+		s.conversationManager.Stop()
+	}
+
 	s.cluster.Stop()
 	s.apiServer.Stop()
 
@@ -389,12 +396,12 @@ func (s *Server) Stop() error {
 }
 
 // 等待分布式就绪
-func (s *Server) MustWaitClusterReady() {
-	s.cluster.MustWaitClusterReady()
+func (s *Server) MustWaitClusterReady(timeout time.Duration) {
+	s.cluster.MustWaitClusterReady(timeout)
 }
 
-func (s *Server) MustWaitAllSlotsReady() {
-	s.cluster.MustWaitAllSlotsReady()
+func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
+	s.cluster.MustWaitAllSlotsReady(timeout)
 }
 
 // 提案频道分布式
@@ -498,7 +505,7 @@ func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *con
 		return nil, errors.New("sendPacket is illegal！")
 	}
 	// decode payload
-	decodePayload, err := wkutil.AesDecryptPkcs7Base64(sendPacket.Payload, []byte(aesKey), []byte(aesIV))
+	decodePayload, err := wkutil.AesDecryptPkcs7Base64(sendPacket.Payload, aesKey, aesIV)
 	if err != nil {
 		s.Error("Failed to decode payload！", zap.Error(err))
 		return nil, err
@@ -511,15 +518,21 @@ func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *con
 func (s *Server) sendPacketIsVail(sendPacket *wkproto.SendPacket, conn *connContext) (bool, error) {
 	aesKey, aesIV := conn.aesKey, conn.aesIV
 	signStr := sendPacket.VerityString()
-	actMsgKey, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
+
+	signBuff := bytebufferpool.Get()
+	_, _ = signBuff.WriteString(signStr)
+
+	defer bytebufferpool.Put(signBuff)
+
+	actMsgKey, err := wkutil.AesEncryptPkcs7Base64(signBuff.Bytes(), aesKey, aesIV)
 	if err != nil {
-		s.Error("msgKey is illegal！", zap.Error(err), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", conn))
+		s.Error("msgKey is illegal！", zap.Error(err), zap.String("sign", signStr), zap.String("aesKey", string(aesKey)), zap.String("aesIV", string(aesIV)), zap.Any("conn", conn))
 		return false, err
 	}
 	actMsgKeyStr := sendPacket.MsgKey
-	exceptMsgKey := wkutil.MD5(string(actMsgKey))
+	exceptMsgKey := wkutil.MD5Bytes(actMsgKey)
 	if actMsgKeyStr != exceptMsgKey {
-		s.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr), zap.String("sign", signStr), zap.String("aesKey", aesKey), zap.String("aesIV", aesIV), zap.Any("conn", conn))
+		s.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr), zap.String("sign", signStr), zap.String("aesKey", string(aesKey)), zap.String("aesIV", string(aesIV)), zap.Any("conn", conn))
 		return false, errors.New("msgKey is illegal！")
 	}
 	return true, nil

@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
+	"github.com/valyala/bytebufferpool"
 	"go.uber.org/zap"
 )
 
@@ -386,6 +388,9 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				})
 			}
 
+			trace.GlobalTrace.Metrics.App().RecvPacketCountAdd(1)
+			trace.GlobalTrace.Metrics.App().RecvPacketBytesAdd(int64(len(recvPacketData)))
+
 			// 写入包
 			// d.Info("deliverr recvPacket", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
 			err = conn.write(recvPacketData, wkproto.RECV)
@@ -416,7 +421,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 func encryptMessagePayload(payload []byte, conn *connContext) ([]byte, error) {
 	aesKey, aesIV := conn.aesKey, conn.aesIV
 	// 加密payload
-	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, []byte(aesKey), []byte(aesIV))
+	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, aesKey, aesIV)
 	if err != nil {
 		return nil, err
 	}
@@ -425,11 +430,17 @@ func encryptMessagePayload(payload []byte, conn *connContext) ([]byte, error) {
 
 func makeMsgKey(signStr string, conn *connContext) (string, error) {
 	aesKey, aesIV := conn.aesKey, conn.aesIV
+
+	signBuff := bytebufferpool.Get()
+	_, _ = signBuff.WriteString(signStr)
+
+	defer bytebufferpool.Put(signBuff)
+
 	// 生成MsgKey
-	msgKeyBytes, err := wkutil.AesEncryptPkcs7Base64([]byte(signStr), []byte(aesKey), []byte(aesIV))
+	msgKeyBytes, err := wkutil.AesEncryptPkcs7Base64(signBuff.Bytes(), aesKey, aesIV)
 	if err != nil {
 		wklog.Error("生成MsgKey失败！", zap.Error(err))
 		return "", err
 	}
-	return wkutil.MD5(string(msgKeyBytes)), nil
+	return wkutil.MD5Bytes(msgKeyBytes), nil
 }

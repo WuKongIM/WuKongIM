@@ -526,6 +526,61 @@ func (s *everyScheduler) Next(prev time.Time) time.Time {
 	return prev.Add(s.Interval)
 }
 
+type FowardWriteReqSlice []*FowardWriteReq
+
+func (f FowardWriteReqSlice) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(uint32(len(f)))
+	for _, r := range f {
+		enc.WriteString(r.Uid)
+		enc.WriteString(r.DeviceId)
+		enc.WriteInt64(r.ConnId)
+		enc.WriteUint32(r.RecvFrameCount)
+		enc.WriteInt32(int32(len(r.Data)))
+		enc.WriteBytes(r.Data)
+	}
+	return enc.Bytes(), nil
+}
+
+func (f *FowardWriteReqSlice) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+
+	for i := 0; i < int(count); i++ {
+		r := &FowardWriteReq{}
+		if r.Uid, err = dec.String(); err != nil {
+			return err
+		}
+		if r.DeviceId, err = dec.String(); err != nil {
+			return err
+		}
+		if r.ConnId, err = dec.Int64(); err != nil {
+			return err
+		}
+		if r.RecvFrameCount, err = dec.Uint32(); err != nil {
+			return err
+		}
+		dataLen, err := dec.Int32()
+		if err != nil {
+			return err
+		}
+		r.Data, err = dec.Bytes(int(dataLen))
+		if err != nil {
+			return err
+		}
+
+		*f = append(*f, r)
+	}
+	return nil
+}
+
 // 转发写请求
 type FowardWriteReq struct {
 	Uid            string
@@ -533,6 +588,9 @@ type FowardWriteReq struct {
 	ConnId         int64
 	RecvFrameCount uint32 // recv消息数量 (统计用)
 	Data           []byte
+
+	// 以下字段内部使用不编码
+	localConnId int64 // 本地连接ID
 }
 
 func (f *FowardWriteReq) Marshal() ([]byte, error) {

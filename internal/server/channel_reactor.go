@@ -72,12 +72,9 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 func (r *channelReactor) start() error {
 
 	// 高并发处理，适用于分散的耗时任务
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 50; i++ {
 
 		r.stopper.RunWorker(r.processPayloadDecryptLoop)
-
-		r.stopper.RunWorker(r.processDeliverLoop)
-		r.stopper.RunWorker(r.processSendackLoop)
 
 	}
 
@@ -93,8 +90,10 @@ func (r *channelReactor) start() error {
 
 	// 低并发处理，适合于集中的耗时任务，这样可以合并请求批量处理
 	for i := 0; i < 1; i++ {
+		r.stopper.RunWorker(r.processSendackLoop)
 		r.stopper.RunWorker(r.processPermissionLoop)
 		r.stopper.RunWorker(r.processStorageLoop)
+		r.stopper.RunWorker(r.processDeliverLoop)
 	}
 
 	for _, sub := range r.subs {

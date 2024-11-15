@@ -119,7 +119,12 @@ func (s *Server) RequestWithContext(ctx context.Context, toNodeId uint64, path s
 		s.Error("node not found", zap.Uint64("nodeId", toNodeId))
 		return nil, ErrNodeNotFound
 	}
-	return node.requestWithContext(ctx, path, body)
+	resp, err := node.requestWithContext(ctx, path, body)
+	if err != nil {
+		s.Error("RequestWithContext failed", zap.Error(err), zap.Uint64("toNodeId", toNodeId), zap.String("path", path))
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (s *Server) Send(toNodeId uint64, msg *proto.Message) error {
@@ -228,8 +233,8 @@ func (s *Server) ProposeDataToSlot(ctx context.Context, slotId uint32, data []by
 	return results[0], nil
 }
 
-func (s *Server) MustWaitClusterReady() {
-	s.MustWaitAllSlotsReady()
+func (s *Server) MustWaitClusterReady(timeout time.Duration) {
+	s.MustWaitAllSlotsReady(timeout)
 	s.MustWaitAllApiServerAddrReady()
 	s.MustWaitAllNodeOnline()
 }

@@ -20,7 +20,7 @@ func TestSyncUserConversation(t *testing.T) {
 		_ = s.Stop()
 	}()
 
-	s.MustWaitClusterReady()
+	s.MustWaitClusterReady(time.Second * 10)
 
 	// new client 1
 	cli1 := client.New(s.opts.External.TCPAddr, client.WithUID("u1"))

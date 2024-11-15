@@ -150,16 +150,19 @@ func (s *Server) handleConnWrite(c *wkserver.Context) {
 
 	conn := s.userReactor.getConnById(fowardWriteReq.Uid, fowardWriteReq.ConnId)
 	if conn == nil {
-		s.Error("handleConnWrite: conn not found", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
+		s.Debug("handleConnWrite: conn not found", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
 		c.WriteErrorAndStatus(ErrConnNotFound, proto.Status(errCodeConnNotFound))
 		return
 	}
 	if conn.conn == nil {
-		s.Error("handleConnWrite: conn is nil", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
+		s.Debug("handleConnWrite: conn is nil", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
 		c.WriteErrorAndStatus(ErrConnNotFound, proto.Status(errCodeConnNotFound))
 		return
 	}
-	_ = conn.writeDirectly(fowardWriteReq.Data, fowardWriteReq.RecvFrameCount)
+	err = conn.writeDirectly(fowardWriteReq.Data, fowardWriteReq.RecvFrameCount)
+	if err != nil {
+		s.Warn("handleConnWrite: writeDirectly failed", zap.Error(err), zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
+	}
 	c.WriteOk()
 }
 
@@ -254,8 +257,8 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 	}
 
 	if authResult.ReasonCode == wkproto.ReasonSuccess {
-		connCtx.aesIV = authResult.AesIV
-		connCtx.aesKey = authResult.AesKey
+		connCtx.aesIV = []byte(authResult.AesIV)
+		connCtx.aesKey = []byte(authResult.AesKey)
 		connCtx.deviceLevel = authResult.DeviceLevel
 		connCtx.deviceId = authResult.DeviceId
 		connCtx.protoVersion = authResult.ProtoVersion

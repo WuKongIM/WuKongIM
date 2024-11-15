@@ -81,6 +81,12 @@ type dbMetrics struct {
 
 	// ========== message 相关 ==========
 	messageAppendBatchCount atomic.Int64
+
+	// ========== 基础 相关 ==========
+	setCount         atomic.Int64
+	deleteCount      atomic.Int64
+	deleteRangeCount atomic.Int64
+	commitCount      atomic.Int64
 }
 
 func newDBMetrics(opts *Options) *dbMetrics {
@@ -253,6 +259,19 @@ func newDBMetrics(opts *Options) *dbMetrics {
 		obs.ObserveInt64(messageAppendBatchCount, m.messageAppendBatchCount.Load())
 		return nil
 	}, messageAppendBatchCount)
+
+	// ========== 基础 相关 ==========
+	setCount := NewInt64ObservableCounter("db_set_count")
+	deleteCount := NewInt64ObservableCounter("db_delete_count")
+	deleteRangeCount := NewInt64ObservableCounter("db_deleterange_count")
+	commitCount := NewInt64ObservableCounter("db_commit_count")
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(setCount, m.setCount.Load())
+		obs.ObserveInt64(deleteCount, m.deleteCount.Load())
+		obs.ObserveInt64(deleteRangeCount, m.deleteRangeCount.Load())
+		obs.ObserveInt64(commitCount, m.commitCount.Load())
+		return nil
+	}, setCount, deleteCount, deleteRangeCount, commitCount)
 
 	return m
 }
@@ -435,4 +454,22 @@ func (m *dbMetrics) LevelTablesMovedSet(shardId uint32, v int64) {
 // ========== message 相关 ==========
 func (m *dbMetrics) MessageAppendBatchCountAdd(v int64) {
 	m.messageAppendBatchCount.Add(v)
+}
+
+// ========== 基础 相关 ==========
+
+func (m *dbMetrics) SetAdd(v int64) {
+
+	m.setCount.Add(v)
+
+}
+func (m *dbMetrics) DeleteAdd(v int64) {
+	m.deleteCount.Add(1)
+}
+func (m *dbMetrics) DeleteRangeAdd(v int64) {
+	m.deleteRangeCount.Add(v)
+}
+
+func (m *dbMetrics) CommitAdd(v int64) {
+	m.commitCount.Add(v)
 }

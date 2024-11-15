@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-func (s *Server) MustWaitAllSlotsReady() {
+func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
 	tk := time.NewTicker(time.Millisecond * 10)
 	defer tk.Stop()
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	for {
 		select {
