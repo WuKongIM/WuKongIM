@@ -112,7 +112,7 @@ func (wk *wukongDB) Open() error {
 		wk.wkdbs = append(wk.wkdbs, wkdb)
 	}
 
-	go wk.collectMetricsLoop()
+	// go wk.collectMetricsLoop()
 
 	return nil
 }
@@ -338,6 +338,10 @@ func (wk *BatchDB) executeBatch(bs []*Batch) {
 
 		// fmt.Println("batch-->:", b.String())
 
+		trace.GlobalTrace.Metrics.DB().SetAdd(int64(len(b.setKvs)))
+		trace.GlobalTrace.Metrics.DB().DeleteAdd(int64(len(b.delKvs)))
+		trace.GlobalTrace.Metrics.DB().DeleteRangeAdd(int64(len(b.delRangeKvs)))
+
 		for _, kv := range b.delKvs {
 			if err := bt.Delete(kv.key, pebble.NoSync); err != nil {
 				b.err = err
@@ -360,6 +364,7 @@ func (wk *BatchDB) executeBatch(bs []*Batch) {
 		}
 
 	}
+	trace.GlobalTrace.Metrics.DB().CommitAdd(1)
 	err := bt.Commit(pebble.Sync)
 	if err != nil {
 		for _, b := range bs {

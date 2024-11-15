@@ -2,6 +2,7 @@ package cluster_test
 
 import (
 	"testing"
+	"time"
 
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -58,8 +59,8 @@ func TestServer(t *testing.T) {
 	defer s2.Stop()
 	defer s3.Stop()
 
-	s1.MustWaitAllSlotsReady()
-	s2.MustWaitAllSlotsReady()
-	s3.MustWaitAllSlotsReady()
+	s1.MustWaitAllSlotsReady(time.Second * 10)
+	s2.MustWaitAllSlotsReady(time.Second * 10)
+	s3.MustWaitAllSlotsReady(time.Second * 10)
 
 }

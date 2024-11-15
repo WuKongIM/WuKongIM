@@ -37,6 +37,24 @@ func (n *nodeManager) node(id uint64) *node {
 	return n.nodeMap[id]
 }
 
+func (n *nodeManager) requesting() int64 {
+	nodes := n.nodes()
+	var count int64 = 0
+	for _, node := range nodes {
+		count += node.requesting()
+	}
+	return count
+}
+
+func (n *nodeManager) sending() int64 {
+	nodes := n.nodes()
+	var count int64 = 0
+	for _, node := range nodes {
+		count += node.sending()
+	}
+	return count
+}
+
 func (n *nodeManager) nodes() []*node {
 	n.mu.RLock()
 	defer n.mu.RUnlock()

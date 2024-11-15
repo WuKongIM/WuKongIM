@@ -18,8 +18,8 @@ import (
 func (r *channelReactor) addInitReq(req *initReq) {
 	select {
 	case r.processInitC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processInitC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 
@@ -108,14 +108,10 @@ type initReq struct {
 // =================================== payload解密 ===================================
 
 func (r *channelReactor) addPayloadDecryptReq(req *payloadDecryptReq) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	select {
 	case r.processPayloadDecryptC <- req:
-	case <-timeoutCtx.Done():
-		r.Error("addPayloadDecryptReq timeout", zap.String("channelId", req.ch.channelId))
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processPayloadDecryptC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 
@@ -197,8 +193,8 @@ type payloadDecryptReq struct {
 func (r *channelReactor) addForwardReq(req *forwardReq) {
 	select {
 	case r.processForwardC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processForwardC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 
@@ -404,8 +400,8 @@ type forwardReq struct {
 func (r *channelReactor) addPermissionReq(req *permissionReq) {
 	select {
 	case r.processPermissionC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processPermissionC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 
@@ -679,19 +675,13 @@ type permissionReq struct {
 // =================================== 消息存储 ===================================
 
 func (r *channelReactor) addStorageReq(req *storageReq) {
-	if req.ch.channelId == "g1" {
-		fmt.Println("addStorageReq..start....")
-	}
+
 	select {
 	case r.processStorageC <- req:
-	case <-r.stopper.ShouldStop():
-		return
 	default:
 		r.Warn("addStorageReq channel reactor is full", zap.String("channelId", req.ch.channelId))
 	}
-	if req.ch.channelId == "g1" {
-		fmt.Println("addStorageReq..end....")
-	}
+
 }
 
 func (r *channelReactor) processStorageLoop() {
@@ -901,8 +891,8 @@ type storageReq struct {
 func (r *channelReactor) addSendackReq(req *sendackReq) {
 	select {
 	case r.processSendackC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processSendackC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 
@@ -933,59 +923,73 @@ func (r *channelReactor) processSendackLoop() {
 }
 
 func (r *channelReactor) processSendacks(reqs []*sendackReq) {
-	var err error
-	nodeFowardSendackPacketMap := map[uint64][]*ForwardSendackPacket{}
+
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+
+	g, _ := errgroup.WithContext(timeoutCtx)
+
 	for _, req := range reqs {
-		for _, msg := range req.messages {
-
-			if msg.FromUid == r.opts.SystemUID { // 如果是系统消息，不需要发送ack
-				continue
-			}
-			r.MessageTrace("发送ack", msg.SendPacket.ClientMsgNo, "processSendack")
-			if req.ch.channelId == "g1" {
-				fmt.Println("processSendack......")
-			}
-
-			sendack := &wkproto.SendackPacket{
-				Framer:      msg.SendPacket.Framer,
-				MessageID:   msg.MessageId,
-				MessageSeq:  msg.MessageSeq,
-				ClientSeq:   msg.SendPacket.ClientSeq,
-				ClientMsgNo: msg.SendPacket.ClientMsgNo,
-				ReasonCode:  msg.ReasonCode,
-			}
-			if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
-				err = r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
-				if err != nil {
-					r.Error("writePacketByConnId error", zap.Error(err), zap.Uint64("nodeId", msg.FromNodeId), zap.Int64("connId", msg.FromConnId))
-				}
-			} else { // 连接在其他节点，需要将消息转发出去
-				packets := nodeFowardSendackPacketMap[msg.FromNodeId]
-				packets = append(packets, &ForwardSendackPacket{
-					Uid:      msg.FromUid,
-					DeviceId: msg.FromDeviceId,
-					ConnId:   msg.FromConnId,
-					Sendack:  sendack,
-				})
-				nodeFowardSendackPacketMap[msg.FromNodeId] = packets
-			}
-		}
-		lastMsg := req.messages[len(req.messages)-1]
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
-			UniqueNo:   req.ch.uniqueNo,
-			ActionType: ChannelActionSendackResp,
-			Index:      lastMsg.Index,
-			Reason:     ReasonSuccess,
+		req := req
+		g.Go(func() error {
+			r.processSendack(req)
+			return nil
 		})
+	}
+	_ = g.Wait()
+
+}
+
+func (r *channelReactor) processSendack(req *sendackReq) {
+	nodeFowardSendackPacketMap := map[uint64][]*ForwardSendackPacket{}
+	for _, msg := range req.messages {
+
+		if msg.FromUid == r.opts.SystemUID { // 如果是系统消息，不需要发送ack
+			continue
+		}
+		r.MessageTrace("发送ack", msg.SendPacket.ClientMsgNo, "processSendack")
+		if req.ch.channelId == "g1" {
+			fmt.Println("processSendack......")
+		}
+
+		sendack := &wkproto.SendackPacket{
+			Framer:      msg.SendPacket.Framer,
+			MessageID:   msg.MessageId,
+			MessageSeq:  msg.MessageSeq,
+			ClientSeq:   msg.SendPacket.ClientSeq,
+			ClientMsgNo: msg.SendPacket.ClientMsgNo,
+			ReasonCode:  msg.ReasonCode,
+		}
+		if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
+			err := r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
+			if err != nil {
+				r.Error("writePacketByConnId error", zap.Error(err), zap.Uint64("nodeId", msg.FromNodeId), zap.Int64("connId", msg.FromConnId))
+			}
+		} else { // 连接在其他节点，需要将消息转发出去
+			nodeFowardSendackPacketMap[msg.FromNodeId] = append(nodeFowardSendackPacketMap[msg.FromNodeId], &ForwardSendackPacket{
+				Uid:      msg.FromUid,
+				DeviceId: msg.FromDeviceId,
+				ConnId:   msg.FromConnId,
+				Sendack:  sendack,
+			})
+		}
 	}
 
 	for nodeId, forwardSendackPackets := range nodeFowardSendackPacketMap {
-		err = r.requestForwardSendack(nodeId, forwardSendackPackets)
+		err := r.requestForwardSendack(nodeId, forwardSendackPackets)
 		if err != nil {
 			r.Error("requestForwardSendack error", zap.Error(err), zap.Uint64("nodeId", nodeId))
 		}
 	}
+
+	lastMsg := req.messages[len(req.messages)-1]
+	sub := r.reactorSub(req.ch.key)
+	sub.step(req.ch, &ChannelAction{
+		UniqueNo:   req.ch.uniqueNo,
+		ActionType: ChannelActionSendackResp,
+		Index:      lastMsg.Index,
+		Reason:     ReasonSuccess,
+	})
 }
 
 func (r *channelReactor) requestForwardSendack(nodeId uint64, packets []*ForwardSendackPacket) error {
@@ -1023,13 +1027,13 @@ type sendackReq struct {
 func (r *channelReactor) addDeliverReq(req *deliverReq) {
 	select {
 	case r.processDeliverC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processDeliverC is full, ignore", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
 	}
 }
 
 func (r *channelReactor) processDeliverLoop() {
-	reqs := make([]*deliverReq, 0, 1024)
+	reqs := make([]*deliverReq, 0, 100)
 	done := false
 	for {
 		select {
@@ -1054,7 +1058,7 @@ func (r *channelReactor) processDeliverLoop() {
 					done = true
 				}
 			}
-			r.processDeliver(reqs)
+			r.processDelivers(reqs)
 
 			reqs = reqs[:0]
 			done = false
@@ -1064,52 +1068,61 @@ func (r *channelReactor) processDeliverLoop() {
 	}
 }
 
-func (r *channelReactor) processDeliver(reqs []*deliverReq) {
+func (r *channelReactor) processDelivers(reqs []*deliverReq) {
+
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+
+	g, _ := errgroup.WithContext(timeoutCtx)
 
 	for _, req := range reqs {
-
-		lastIndex := req.messages[len(req.messages)-1].Index // 最后一条消息的index
-
-		deliverMessages := make([]ReactorChannelMessage, 0, len(req.messages))
-		for _, msg := range req.messages {
-			if msg.ReasonCode != wkproto.ReasonSuccess {
-				r.Debug("msg reasonCode is not success, no deliver", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-				continue
-			}
-
-			deliverMessages = append(deliverMessages, msg)
-
-		}
-
-		req.messages = deliverMessages
-
-		if req.ch.channelId == "g1" {
-			fmt.Println("processDeliver......")
-		}
-
-		if len(deliverMessages) > 0 {
-			for _, deliverMessage := range deliverMessages {
-				r.MessageTrace("投递消息", deliverMessage.SendPacket.ClientMsgNo, "processDeliver", zap.Int("batchCount", len(deliverMessages)))
-			}
-			// 投递消息
-			r.handleDeliver(req)
-		}
-
-		sub := r.reactorSub(req.ch.key)
-		reason := ReasonSuccess
-
-		actionType := ChannelActionDeliverResp
-		if req.isStream {
-			actionType = ChannelActionStreamDeliverResp
-		}
-
-		sub.step(req.ch, &ChannelAction{
-			UniqueNo:   req.ch.uniqueNo,
-			ActionType: actionType,
-			Index:      lastIndex,
-			Reason:     reason,
+		req := req
+		g.Go(func() error {
+			r.processDeliver(req)
+			return nil
 		})
 	}
+	_ = g.Wait()
+}
+
+func (r *channelReactor) processDeliver(req *deliverReq) {
+	lastIndex := req.messages[len(req.messages)-1].Index // 最后一条消息的index
+
+	deliverMessages := make([]ReactorChannelMessage, 0, len(req.messages))
+	for _, msg := range req.messages {
+		if msg.ReasonCode != wkproto.ReasonSuccess {
+			r.Debug("msg reasonCode is not success, no deliver", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+			continue
+		}
+
+		deliverMessages = append(deliverMessages, msg)
+
+	}
+
+	req.messages = deliverMessages
+
+	if len(deliverMessages) > 0 {
+		for _, deliverMessage := range deliverMessages {
+			r.MessageTrace("投递消息", deliverMessage.SendPacket.ClientMsgNo, "processDeliver", zap.Int("batchCount", len(deliverMessages)))
+		}
+		// 投递消息
+		r.handleDeliver(req)
+	}
+
+	sub := r.reactorSub(req.ch.key)
+	reason := ReasonSuccess
+
+	actionType := ChannelActionDeliverResp
+	if req.isStream {
+		actionType = ChannelActionStreamDeliverResp
+	}
+
+	sub.step(req.ch, &ChannelAction{
+		UniqueNo:   req.ch.uniqueNo,
+		ActionType: actionType,
+		Index:      lastIndex,
+		Reason:     reason,
+	})
 }
 
 func (r *channelReactor) handleDeliver(req *deliverReq) {
@@ -1131,8 +1144,8 @@ type deliverReq struct {
 func (r *channelReactor) addCloseReq(req *closeReq) {
 	select {
 	case r.processCloseC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processCloseC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 
@@ -1171,8 +1184,8 @@ type closeReq struct {
 func (r *channelReactor) addCheckTagReq(req *checkTagReq) {
 	select {
 	case r.processCheckTagC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processCheckTagC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 

@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -64,12 +66,9 @@ func newUserReactor(s *Server) *userReactor {
 func (u *userReactor) start() error {
 
 	// 高并发处理，适用于分散的耗时任务
-	for i := 0; i < 50; i++ {
+	// for i := 0; i < 50; i++ {
 
-		u.stopper.RunWorker(u.processWriteLoop)
-		u.stopper.RunWorker(u.processRecvackLoop)
-		u.stopper.RunWorker(u.processNodePongLoop)
-	}
+	// }
 
 	// 中并发处理，适合于分散但是不是很耗时的任务
 	for i := 0; i < 10; i++ {
@@ -77,10 +76,14 @@ func (u *userReactor) start() error {
 		u.stopper.RunWorker(u.processProxyNodeTimeoutLoop)
 		u.stopper.RunWorker(u.processCloseLoop)
 		u.stopper.RunWorker(u.processCheckLeaderLoop)
+		u.stopper.RunWorker(u.processRecvackLoop)
+		u.stopper.RunWorker(u.processNodePongLoop)
+
 	}
 
 	// 低并发处理，适合于集中的耗时任务，这样可以合并请求批量处理
 	for i := 0; i < 1; i++ {
+		u.stopper.RunWorker(u.processWriteLoop)
 		u.stopper.RunWorker(u.processNodePingLoop)
 		u.stopper.RunWorker(u.processPingLoop)
 		u.stopper.RunWorker(u.processAuthLoop)
@@ -216,4 +219,8 @@ func (u *userReactor) writePacketByConnId(uid string, connId int64, packet wkpro
 		return ErrConnNotFound
 	}
 	return u.reactorSub(uid).writePacket(conn, packet)
+}
+
+func (u *userReactor) WithTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(u.s.ctx, time.Second*10)
 }

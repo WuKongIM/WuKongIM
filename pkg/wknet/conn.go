@@ -159,7 +159,7 @@ func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *
 	defaultConn.eg = eg
 	defaultConn.reactorSub = reactorSub
 	defaultConn.valueMap = sync.Map{}
-	defaultConn.context.Store(nil)
+	defaultConn.context = atomic.Value{}
 	defaultConn.lastActivity.Store(time.Now())
 	defaultConn.uptime.Store(time.Now())
 	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[[reactor-%d]%d]", reactorSub.idx, id))
@@ -291,6 +291,9 @@ func (d *DefaultConn) Fd() NetFd {
 // 调用次方法需要加锁
 func (d *DefaultConn) close(closeErr error) error {
 
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.closed.Load() {
 		return nil
 	}
@@ -354,7 +357,7 @@ func (d *DefaultConn) release() {
 
 	d.Debug("release connection")
 	d.fd = NetFd{}
-	d.maxIdle = *atomic.NewDuration(0)
+	d.maxIdle.Store(0)
 	if d.idleTimer != nil {
 		d.idleTimer.Stop()
 		d.idleTimer = nil
@@ -479,11 +482,16 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 
 func (d *DefaultConn) flush() error {
 
+	d.mu.Lock()
+	// defer  d.mu.Unlock() // 这里不能defer锁，因为d.reactorSub.CloseConn里也会调用close的锁，导致死锁
+
 	if d.closed.Load() {
+		d.mu.Unlock()
 		return net.ErrClosed
 	}
 
 	if d.outboundBuffer.IsEmpty() {
+		d.mu.Unlock()
 		_ = d.removeWriteIfExist()
 		return nil
 	}
@@ -498,12 +506,14 @@ func (d *DefaultConn) flush() error {
 	if d.eg.options.Event.OnWirteBytes != nil {
 		d.eg.options.Event.OnWirteBytes(n)
 	}
+	d.mu.Unlock()
+
 	switch err {
 	case nil:
 	case syscall.EAGAIN:
 		d.Error("write error", zap.Error(err))
 	default:
-		// d.reactorSub.CloseConn 里使用了d.mu的锁，所以这里先要解锁，调用完后再锁上
+		// d.reactorSub.CloseConn 里使用了d.mu的锁
 		err = d.reactorSub.CloseConn(d, os.NewSyscallError("write", err))
 		if err != nil {
 			d.Error("failed to close conn", zap.Error(err))
@@ -512,9 +522,12 @@ func (d *DefaultConn) flush() error {
 	}
 	// All data have been drained, it's no need to monitor the writable events,
 	// remove the writable event from poller to help the future event-loops.
+
+	d.mu.Lock()
 	if d.outboundBuffer.IsEmpty() {
 		_ = d.removeWriteIfExist()
 	}
+	d.mu.Unlock()
 	return nil
 
 }

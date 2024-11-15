@@ -156,6 +156,12 @@ type IDBMetrics interface {
 
 	// 消息批量追加次数
 	MessageAppendBatchCountAdd(v int64)
+
+	// ========== 基础操作 ==========
+	SetAdd(v int64)         // set操作
+	DeleteAdd(v int64)      // delete操作
+	DeleteRangeAdd(v int64) // deleteRange操作
+	CommitAdd(v int64)      // commit次数
 }
 
 // AppMetrics 应用监控
@@ -379,4 +385,10 @@ type IClusterMetrics interface {
 
 	// ProposeFailedCountAdd 提案失败的次数
 	ProposeFailedCountAdd(kind ClusterKind, v int64)
+
+	// ObserverNodeRequesting 节点请求中的数量
+	ObserverNodeRequesting(f func() int64)
+
+	// ObserverNodeSending 节点消息发送中的数量
+	ObserverNodeSending(f func() int64)
 }

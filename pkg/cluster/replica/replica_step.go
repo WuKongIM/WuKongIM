@@ -9,7 +9,9 @@ func (r *Replica) Step(m Message) error {
 	switch {
 	case m.Term == 0: // 本地消息
 	case m.Term > r.term: // 高于当前任期
-		r.Info("received message with higher term", zap.Uint32("term", m.Term), zap.Uint32("currentTerm", r.term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+		if r.term > 0 {
+			r.Info("received message with higher term", zap.Uint32("term", m.Term), zap.Uint32("currentTerm", r.term), zap.Uint64("from", m.From), zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
+		}
 		// 高任期消息
 		if m.MsgType == MsgPing || m.MsgType == MsgLeaderTermStartIndexResp || m.MsgType == MsgSyncResp {
 			if r.role == RoleLearner {
@@ -251,9 +253,6 @@ func (r *Replica) stepFollower(m Message) error {
 	case MsgLogConflictCheckResp: // 日志冲突检查返回
 		if !m.Reject {
 			// r.Info("follower: truncate log to", zap.Uint64("leader", r.leader), zap.Uint32("term", r.term), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", r.replicaLog.lastLogIndex))
-			r.status = StatusReady
-			r.logConflictCheckTick = r.opts.RequestTimeoutTick // 可以进行下次请求
-
 			if m.Index != NoConflict && m.Index > 0 {
 				truncateLogIndex := m.Index
 				if truncateLogIndex > r.replicaLog.lastLogIndex+1 {
@@ -265,6 +264,8 @@ func (r *Replica) stepFollower(m Message) error {
 				}
 				r.replicaLog.updateLastIndex(truncateLogIndex - 1)
 			}
+			r.status = StatusReady
+			r.logConflictCheckTick = r.opts.RequestTimeoutTick // 可以进行下次请求
 		}
 
 	case MsgSyncResp: // 同步日志返回

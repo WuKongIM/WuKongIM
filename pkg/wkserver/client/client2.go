@@ -12,7 +12,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.etcd.io/etcd/pkg/v3/wait"
 	"go.uber.org/zap"
 	gproto "google.golang.org/protobuf/proto"
@@ -20,14 +19,19 @@ import (
 
 type Handler func(c *Context)
 
+type clientStats struct {
+	Requesting atomic.Int64 // 请求中的数量
+}
+
 type Client struct {
+	clientStats
 	addr string
 	conn net.Conn
 	opts *Options
 	wklog.Log
 	proto    proto.Protocol
 	outbound *Outbound
-	reqIDGen *idutil.Generator
+	reqIDGen atomic.Uint64
 	w        wait.Wait
 
 	routeMapLock sync.RWMutex
@@ -56,7 +60,6 @@ func New(addr string, opt ...Option) *Client {
 		Log:       wklog.NewWKLog(fmt.Sprintf("Client[%s]", opts.UID)),
 		proto:     proto.New(),
 		opts:      opts,
-		reqIDGen:  idutil.NewGenerator(0, time.Now()),
 		w:         wait.New(),
 		routeMap:  make(map[string]Handler),
 		cacheBuff: make([]byte, 10240),
@@ -182,7 +185,7 @@ func (c *Client) processPingTimer() {
 
 func (c *Client) handshake() error {
 	conn := &proto.Connect{
-		Id:    c.reqIDGen.Next(),
+		Id:    c.reqIDGen.Inc(),
 		Uid:   c.opts.UID,
 		Token: c.opts.Token,
 	}
@@ -218,6 +221,7 @@ func (c *Client) handshake() error {
 		}
 		return nil
 	case <-timeoutCtx.Done():
+		c.w.Trigger(conn.Id, nil)
 		return timeoutCtx.Err()
 	}
 }
@@ -371,7 +375,7 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 	}
 
 	r := &proto.Request{
-		Id:   c.reqIDGen.Next(),
+		Id:   c.reqIDGen.Inc(),
 		Path: p,
 		Body: body,
 	}
@@ -380,6 +384,8 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 	if err != nil {
 		return nil, err
 	}
+
+	c.Requesting.Inc()
 
 	msgData, err := c.proto.Encode(data, proto.MsgTypeRequest.Uint8())
 	if err != nil {
@@ -395,12 +401,15 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 	defer cancel()
 	select {
 	case x := <-ch:
+		c.Requesting.Dec()
 		if x == nil {
 			return nil, errors.New("unknown error")
 		}
 		return x.(*proto.Response), nil
 	case <-timeoutCtx.Done():
-		c.Error("request timeout", zap.String("path", p), zap.String("id", c.opts.UID), zap.Error(timeoutCtx.Err()))
+		c.Error("request timeout", zap.String("path", p), zap.Uint64("requestId", r.Id), zap.Error(timeoutCtx.Err()))
+		c.Requesting.Dec()
+		c.w.Trigger(r.Id, nil)
 		return nil, timeoutCtx.Err()
 	}
 }

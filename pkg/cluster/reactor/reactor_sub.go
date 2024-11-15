@@ -448,7 +448,9 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 
 		case replica.MsgSyncTimeout:
 			handler.syncTimeoutTick++
-			r.Info("sync timeout", zap.String("handler", handler.key), zap.Uint64("leader", handler.leaderId()), zap.Uint64("index", m.Index))
+			if handler.syncTimeoutTick%4 == 0 { // 防止刷屏，打印频率限制
+				r.Info("sync timeout", zap.String("handler", handler.key), zap.Uint64("leader", handler.leaderId()), zap.Uint64("index", m.Index))
+			}
 
 		default:
 			if m.To != 0 && m.To != r.opts.NodeId {

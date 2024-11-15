@@ -135,7 +135,7 @@ func NewTestClusterServerTreeNode(t testing.TB, opt ...Option) (*Server, *Server
 
 func MustWaitClusterReady(ss ...*Server) {
 	for _, s := range ss {
-		s.MustWaitClusterReady()
+		s.MustWaitClusterReady(time.Second * 10)
 	}
 }
 

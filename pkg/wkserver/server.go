@@ -11,8 +11,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/panjf2000/ants/v2"
-	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.etcd.io/etcd/pkg/v3/wait"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -25,7 +25,7 @@ type Server struct {
 	wklog.Log
 	requestPool *ants.Pool
 	messagePool *ants.Pool
-	reqIDGen    *idutil.Generator
+	reqIDGen    atomic.Uint64
 	w           wait.Wait
 	connManager *ConnManager
 	metrics     *metrics
@@ -48,7 +48,6 @@ func New(addr string, ops ...Option) *Server {
 		opts:        opts,
 		routeMap:    make(map[string]Handler),
 		Log:         wklog.NewWKLog("Server"),
-		reqIDGen:    idutil.NewGenerator(0, time.Now()),
 		w:           wait.New(),
 		connManager: NewConnManager(),
 		metrics:     newMetrics(),

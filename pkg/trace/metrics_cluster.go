@@ -87,6 +87,10 @@ type clusterMetrics struct {
 	channelProposeLatencyOver500ms  atomic.Int64 // 超过500ms的频道提案
 
 	slotProposeLatency metric.Int64Histogram
+
+	// node
+	observerNodeRequesting func() int64 // 节点请求中的数量
+	observerNodeSending    func() int64 // 节点发送中的数量
 }
 
 func newClusterMetrics(opts *Options) IClusterMetrics {
@@ -243,6 +247,21 @@ func newClusterMetrics(opts *Options) IClusterMetrics {
 		obs.ObserveInt64(channelProposeLatencyUnder500ms, c.channelProposeLatencyUnder500ms.Load())
 		return nil
 	}, channelProposeCount, channelProposeFailedCount, channelProposeLatencyUnder500ms, channelProposeLatencyOver500ms)
+
+	// node
+	nodeRequestingCount := NewInt64ObservableCounter("cluster_node_requesting_count")
+	nodeSendingCount := NewInt64ObservableCounter("cluster_node_sending_count")
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		if c.observerNodeRequesting != nil {
+			obs.ObserveInt64(nodeRequestingCount, c.observerNodeRequesting())
+		}
+
+		if c.observerNodeSending != nil {
+			obs.ObserveInt64(nodeSendingCount, c.observerNodeSending())
+		}
+
+		return nil
+	}, nodeRequestingCount, nodeSendingCount)
 
 	return c
 }
@@ -529,4 +548,12 @@ func (c *clusterMetrics) ProposeFailedCountAdd(kind ClusterKind, v int64) {
 		c.channelProposeFailedCount.Add(v)
 	case ClusterKindSlot:
 	}
+}
+
+func (c *clusterMetrics) ObserverNodeRequesting(f func() int64) {
+	c.observerNodeRequesting = f
+}
+
+func (c *clusterMetrics) ObserverNodeSending(f func() int64) {
+	c.observerNodeSending = f
 }

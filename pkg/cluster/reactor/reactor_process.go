@@ -518,10 +518,13 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 	appliedSize, err := req.h.handler.ApplyLogs(req.appyingIndex+1, req.committedIndex+1)
 	if err != nil {
 		r.Panic("apply logs failed", zap.Error(err))
-		r.Step(req.h.key, replica.Message{
+		err = r.StepWait(req.h.key, replica.Message{
 			MsgType: replica.MsgApplyLogsResp,
 			Reject:  true,
 		})
+		if err != nil {
+			r.Error("apply logs failed", zap.Error(err))
+		}
 		return
 	}
 
@@ -530,11 +533,14 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
 	}
 
-	r.Step(req.h.key, replica.Message{
+	err = r.StepWait(req.h.key, replica.Message{
 		MsgType:     replica.MsgApplyLogsResp,
 		Index:       req.committedIndex,
 		AppliedSize: appliedSize,
 	})
+	if err != nil {
+		r.Error("apply logs failed", zap.Error(err))
+	}
 
 }
 

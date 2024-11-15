@@ -35,8 +35,8 @@ type connInfo struct {
 	deviceId     string
 	deviceFlag   wkproto.DeviceFlag
 	deviceLevel  wkproto.DeviceLevel
-	aesKey       string
-	aesIV        string
+	aesKey       []byte
+	aesIV        []byte
 	protoVersion uint8
 
 	closed atomic.Bool
@@ -231,8 +231,6 @@ func (c *connContext) writeDirectly(data []byte, recvFrameCount uint32) error {
 		c.outMsgCount.Add(int64(recvFrameCount))
 		c.outMsgByteCount.Add(dataSize) // TODO: 这里其实有点不准确，因为data不一定都是recv包, 但是大体上recv包占大多数
 
-		trace.GlobalTrace.Metrics.App().RecvPacketCountAdd(int64(recvFrameCount))
-		trace.GlobalTrace.Metrics.App().RecvPacketBytesAdd(dataSize)
 	}
 
 	c.outPacketCount.Add(1)

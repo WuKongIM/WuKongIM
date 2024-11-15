@@ -145,7 +145,7 @@ func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
 	if s.w.IsRegistered(resp.Id) {
 		s.w.Trigger(resp.Id, resp)
 	} else {
-		s.Panic("resp id not found", zap.Uint64("id", resp.Id))
+		s.Error("resp id not found", zap.Uint64("id", resp.Id))
 	}
 }
 
@@ -178,7 +178,7 @@ func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, er
 		return nil, errors.New("conn is nil")
 	}
 	r := &proto.Request{
-		Id:   s.reqIDGen.Next(),
+		Id:   s.reqIDGen.Inc(),
 		Path: p,
 		Body: body,
 	}
@@ -214,6 +214,7 @@ func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, er
 		}
 		return resp, nil
 	case <-timeoutCtx.Done():
+		s.w.Trigger(r.Id, nil)
 		return nil, timeoutCtx.Err()
 	}
 }
@@ -224,7 +225,7 @@ func (s *Server) RequestAsync(uid string, p string, body []byte) error {
 		return errors.New("conn is nil")
 	}
 	r := &proto.Request{
-		Id:   s.reqIDGen.Next(),
+		Id:   s.reqIDGen.Inc(),
 		Path: p,
 		Body: body,
 	}

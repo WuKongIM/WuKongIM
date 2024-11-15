@@ -288,7 +288,7 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 
 	r.Debug("auth: auth Success", zap.Any("conn", connCtx), zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
 	connack := &wkproto.ConnackPacket{
-		Salt:          aesIV,
+		Salt:          string(aesIV),
 		ServerKey:     dhServerPublicKeyEnc,
 		ReasonCode:    wkproto.ReasonSuccess,
 		TimeDiff:      timeDiff,
@@ -308,11 +308,11 @@ func (r *userReactor) handleAuth(uid string, msg ReactorUserMessage) (wkproto.Re
 
 // 获取客户端的aesKey和aesIV
 // dhServerPrivKey  服务端私钥
-func (r *userReactor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]byte) (string, string, error) {
+func (r *userReactor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]byte) ([]byte, []byte, error) {
 
 	clientKeyBytes, err := base64.StdEncoding.DecodeString(clientKey)
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 
 	var dhClientPubKeyArray [32]byte
@@ -323,7 +323,7 @@ func (r *userReactor) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32
 
 	aesIV := wkutil.GetRandomString(16)
 	aesKey := wkutil.MD5(base64.StdEncoding.EncodeToString(shareKey[:]))[:16]
-	return aesKey, aesIV, nil
+	return []byte(aesKey), []byte(aesIV), nil
 }
 
 func (r *userReactor) authResponse(connCtx *connContext, packet *wkproto.ConnackPacket) {
@@ -336,8 +336,8 @@ func (r *userReactor) authResponse(connCtx *connContext, packet *wkproto.Connack
 			DeviceId:     connCtx.deviceId,
 			ConnId:       connCtx.proxyConnId,
 			ServerKey:    packet.ServerKey,
-			AesKey:       connCtx.aesKey,
-			AesIV:        connCtx.aesIV,
+			AesKey:       string(connCtx.aesKey),
+			AesIV:        string(connCtx.aesIV),
 			DeviceLevel:  connCtx.deviceLevel,
 			ProtoVersion: connCtx.protoVersion,
 		})
@@ -549,26 +549,62 @@ type pingReq struct {
 func (r *userReactor) addRecvackReq(req *recvackReq) {
 	select {
 	case r.processRecvackC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addRecvackReq: processRecvackC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
 	}
 }
 
 func (r *userReactor) processRecvackLoop() {
+	reqs := make([]*recvackReq, 0)
+	done := false
 	for !r.stopped.Load() {
 		select {
 		case req := <-r.processRecvackC:
-			r.processRecvack(req)
+			reqs = append(reqs, req)
+
+			for !done {
+				select {
+				case req := <-r.processRecvackC:
+					exist := false
+					for _, r := range reqs {
+						if r.uid == req.uid {
+							r.messages = append(r.messages, req.messages...)
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						reqs = append(reqs, req)
+					}
+				default:
+					done = true
+				}
+			}
+			r.processRecvacks(reqs)
+			done = false
+			reqs = reqs[:0]
 		case <-r.stopper.ShouldStop():
 			return
 		}
 	}
 }
 
+func (r *userReactor) processRecvacks(reqs []*recvackReq) {
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	eg, _ := errgroup.WithContext(timeoutCtx)
+	eg.SetLimit(1000)
+	for _, req := range reqs {
+		req := req
+		eg.Go(func() error {
+			r.processRecvack(req)
+			return nil
+		})
+	}
+	_ = eg.Wait()
+}
+
 func (r *userReactor) processRecvack(req *recvackReq) {
-
-	// r.s.retryManager.removeRetry()
-
 	for _, msg := range req.messages {
 		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
 		r.Trace("消息回执", "processRecvack", zap.Int64("messageId", recvackPacket.MessageID), zap.Uint32("messageSeq", recvackPacket.MessageSeq), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId), zap.Int64("connId", msg.ConnId))
@@ -588,7 +624,6 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 		Index:      lastMsg.Index,
 		Reason:     ReasonSuccess,
 	})
-
 }
 
 type recvackReq struct {
@@ -602,8 +637,8 @@ type recvackReq struct {
 func (r *userReactor) addWriteReq(req *writeReq) {
 	select {
 	case r.processWriteC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addWriteReq: processWriteC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
 	}
 }
 
@@ -637,43 +672,53 @@ func (r *userReactor) processWriteLoop() {
 			reqs = reqs[:0]
 		case <-r.stopper.ShouldStop():
 			return
+
 		}
 	}
 }
 
 func (r *userReactor) processWrite(reqs []*writeReq) {
-	var reason Reason
+
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	eg, _ := errgroup.WithContext(timeoutCtx)
+	eg.SetLimit(1000)
+
 	for _, req := range reqs {
-		reason = ReasonSuccess
-		err := r.handleWrite(req)
-		if err != nil {
-			r.Warn("handleWrite err", zap.Error(err))
-			reason = ReasonError
-		}
-		var maxIndex uint64
-		for _, msg := range req.messages {
-			if msg.Index > maxIndex {
-				maxIndex = msg.Index
+		req := req
+		eg.Go(func() error {
+			reason := ReasonSuccess
+			err := r.handleWrite(req)
+			if err != nil {
+				r.Warn("handleWrite err", zap.Error(err))
+				reason = ReasonError
 			}
-		}
-		r.reactorSub(req.uid).step(req.uid, UserAction{
-			UniqueNo:   req.uniqueNo,
-			ActionType: UserActionRecvResp,
-			Index:      maxIndex,
-			Reason:     reason,
+			var maxIndex uint64
+			for _, msg := range req.messages {
+				if msg.Index > maxIndex {
+					maxIndex = msg.Index
+				}
+			}
+			r.reactorSub(req.uid).step(req.uid, UserAction{
+				UniqueNo:   req.uniqueNo,
+				ActionType: UserActionRecvResp,
+				Index:      maxIndex,
+				Reason:     reason,
+			})
+			return nil
 		})
-		// conn := r.getConnContext(req.toUid, req.toDeviceId)
-		// if conn == nil || len(req.data) == 0 {
-		// 	return
-		// }
-		// r.s.responseData(conn.conn, req.data)
+
 	}
+	_ = eg.Wait()
 
 }
 
 func (r *userReactor) handleWrite(req *writeReq) error {
 
 	sub := r.reactorSub(req.uid)
+
+	forwardWriteReqMap := map[uint64]FowardWriteReqSlice{} // 按照节点分组
+
 	for _, msg := range req.messages {
 		conns := sub.getConnsByDeviceId(req.uid, msg.DeviceId)
 		if len(conns) == 0 {
@@ -690,24 +735,30 @@ func (r *userReactor) handleWrite(req *writeReq) error {
 					return errors.New("node not online")
 				}
 
-				status, err := r.fowardWriteReq(conn.realNodeId, &FowardWriteReq{
+				forwardWriteReqMap[conn.realNodeId] = append(forwardWriteReqMap[conn.realNodeId], &FowardWriteReq{
 					Uid:            req.uid,
 					DeviceId:       msg.DeviceId,
 					ConnId:         conn.proxyConnId,
 					RecvFrameCount: 1,
 					Data:           msg.OutBytes,
+					localConnId:    conn.connId,
 				})
-				if err != nil {
-					r.Error("fowardWriteReq error", zap.Error(err), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId))
-					r.removeConnById(conn.uid, conn.connId) // 转发失败了，这里直接移除连接
-					return err
-				}
-				if status == proto.Status(errCodeConnNotFound) { // 连接不存在了，所以这里也移除
-					r.removeConnById(conn.uid, conn.connId)
 
-				}
 			}
 		}
+	}
+
+	for nodeId, reqs := range forwardWriteReqMap {
+		for _, req := range reqs {
+			_, err := r.fowardWriteReq(nodeId, req)
+			if err != nil {
+				r.Error("fowardWriteReq error", zap.Error(err))
+				// 如果转发失败，这里直接移除连接
+				sub.removeConnById(req.Uid, req.localConnId)
+				continue
+			}
+		}
+
 	}
 	return nil
 }
@@ -741,8 +792,8 @@ type writeReq struct {
 func (r *userReactor) addForwardUserActionReq(action UserAction) {
 	select {
 	case r.processForwardUserActionC <- action:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addForwardUserActionReq: processForwardUserActionC is full, ignore ", zap.String("uid", action.Uid), zap.String("actionType", action.ActionType.String()))
 	}
 }
 
@@ -877,8 +928,8 @@ func (r *userReactor) forwardUserAction(nodeId uint64, actions []UserAction) (bo
 func (r *userReactor) addNodePingReq(req *nodePingReq) {
 	select {
 	case r.processNodePingC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addNodePingReq: processNodePingC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
 	}
 }
 
@@ -1028,8 +1079,8 @@ func (u *userNodePingReq) Unmarshal(data []byte) error {
 func (r *userReactor) addNodePongReq(req *nodePongReq) {
 	select {
 	case r.processNodePongC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addNodePongReq: processNodePongC is full, ignore ", zap.String("uid", req.uid))
 	}
 }
 
@@ -1123,8 +1174,8 @@ func (u *userConns) Unmarshal(data []byte) error {
 func (r *userReactor) addProxyNodeTimeoutReq(req *proxyNodeTimeoutReq) {
 	select {
 	case r.processProxyNodeTimeoutC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addProxyNodeTimeoutReq: processProxyNodeTimeoutC is full, ignore ", zap.String("uid", req.uid))
 	}
 }
 
@@ -1157,8 +1208,8 @@ type proxyNodeTimeoutReq struct {
 func (r *userReactor) addCloseReq(req *userCloseReq) {
 	select {
 	case r.processCloseC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addCloseReq: processCloseC is full, ignore ", zap.String("uid", req.handler.uid))
 	}
 
 }
@@ -1210,8 +1261,8 @@ type userCloseReq struct {
 func (r *userReactor) addCheckLeaderReq(req *checkLeaderReq) {
 	select {
 	case r.processCheckLeaderC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addCheckLeaderReq: processCheckLeaderC is full, ignore ", zap.String("uid", req.uid))
 	}
 }
 
