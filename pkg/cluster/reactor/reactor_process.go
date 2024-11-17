@@ -332,7 +332,7 @@ func (r *Reactor) processStoreAppends(reqs []AppendLogReq) {
 }
 
 func (r *Reactor) processStoreAppend(req AppendLogReq) {
-	err := r.request.AppendLogs(req.HandleKey, req.Logs)
+	err := r.request.Append(req)
 	if err != nil {
 		r.Error("append logs failed", zap.Error(err))
 		r.Step(req.HandleKey, replica.Message{

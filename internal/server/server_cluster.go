@@ -55,6 +55,8 @@ func (s *Server) setClusterRoutes() {
 	s.cluster.Route("/wk/getNodeUidsByTag", s.getNodeUidsByTag)
 	// 是否允许发送消息
 	s.cluster.Route("/wk/allowSend", s.handleAllowSend)
+	// 获取订阅者
+	s.cluster.Route("/wk/getSubscribers", s.handleGetSubscribers)
 
 }
 
@@ -488,4 +490,28 @@ func (s *Server) handleAllowSend(c *wkserver.Context) {
 		return
 	}
 	c.WriteErrorAndStatus(errors.New("not allow send"), proto.Status(reasonCode))
+}
+
+func (s *Server) handleGetSubscribers(c *wkserver.Context) {
+	req := &subscriberGetReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("handleGetSubscribers Unmarshal err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	members, err := s.store.GetSubscribers(req.ChannelId, req.ChannelType)
+	if err != nil {
+		s.Error("handleGetSubscribers: GetSubscribers failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	resps := subscriberGetResp{}
+
+	for _, member := range members {
+		resps = append(resps, member.Uid)
+	}
+	c.Write(resps.Marshal())
 }

@@ -587,7 +587,7 @@ func (wk *wukongDB) writeChannelInfoBaseIndex(channelInfo ChannelInfo, w pebble.
 	// channel index
 	primaryKeyBytes := make([]byte, 8)
 	wk.endian.PutUint64(primaryKeyBytes, primaryKey)
-	if err = w.Set(key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelIdToNum(channelInfo.ChannelId, channelInfo.ChannelType)), primaryKeyBytes, wk.noSync); err != nil {
+	if err = w.Set(key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelToNum(channelInfo.ChannelId, channelInfo.ChannelType)), primaryKeyBytes, wk.noSync); err != nil {
 		return err
 	}
 
@@ -621,7 +621,7 @@ func (wk *wukongDB) deleteChannelInfoBaseIndex(channelInfo ChannelInfo, w pebble
 	}
 
 	// channel index
-	if err := w.Delete(key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelIdToNum(channelInfo.ChannelId, channelInfo.ChannelType)), wk.noSync); err != nil {
+	if err := w.Delete(key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelToNum(channelInfo.ChannelId, channelInfo.ChannelType)), wk.noSync); err != nil {
 		return err
 	}
 
@@ -765,7 +765,7 @@ func (wk *wukongDB) iterChannelInfo(iter *pebble.Iterator, iterFnc func(channelI
 // }
 
 func (wk *wukongDB) getChannelPrimaryKey(channelId string, channelType uint8) (uint64, error) {
-	// primaryKey := key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelIdToNum(channelId, channelType))
+	// primaryKey := key.NewChannelInfoIndexKey(key.TableChannelInfo.Index.Channel, key.ChannelToNum(channelId, channelType))
 	// indexValue, closer, err := wk.channelDb(channelId, channelType).Get(primaryKey)
 	// if err != nil {
 	// 	if err == pebble.ErrNotFound {
@@ -780,6 +780,6 @@ func (wk *wukongDB) getChannelPrimaryKey(channelId string, channelType uint8) (u
 	// }
 	// return wk.endian.Uint64(indexValue), nil
 
-	return key.ChannelIdToNum(channelId, channelType), nil
+	return key.ChannelToNum(channelId, channelType), nil
 
 }

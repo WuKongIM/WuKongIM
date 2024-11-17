@@ -1,5 +1,7 @@
 package wkdb
 
+import "github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+
 type DB interface {
 	Open() error
 	Close() error
@@ -36,8 +38,9 @@ type MessageDB interface {
 
 	// AppendMessages appends messages to the db.
 	AppendMessages(channelId string, channelType uint8, msgs []Message) error
-	// AppendMessagesBatch 批量添加消息
-	AppendMessagesBatch(reqs []AppendMessagesReq) error
+	// AppendMessagesByLogs 通过日志数据追加消息
+	AppendMessagesByLogs(reqs []reactor.AppendLogReq)
+
 	// LoadPrevRangeMsgs 向上加载指定范围的消息 end=0表示不做限制 比如 start=100 end=0 limit=10 则返回的消息seq为91-100的消息, 比如 start=100 end=95 limit=10 则返回的消息seq为96-100的消息
 	// 结果包含start,不包含end
 	LoadPrevRangeMsgs(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]Message, error)
@@ -187,8 +190,10 @@ type ChannelDB interface {
 }
 
 type ConversationDB interface {
-	// AddOrUpdateConversations 添加或更新最近会话
-	AddOrUpdateConversations(uid string, conversations []Conversation) error
+	AddOrUpdateConversations(conversations []Conversation) error
+
+	// AddOrUpdateConversationsWithUser 添加或更新最近会话
+	AddOrUpdateConversationsWithUser(uid string, conversations []Conversation) error
 
 	// DeleteConversation 删除最近会话
 	DeleteConversation(uid string, channelId string, channelType uint8) error
@@ -208,6 +213,9 @@ type ConversationDB interface {
 	// GetConversation 获取指定用户的指定会话
 	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)
 
+	// GetChannelConversationLocalUsers 获取频道的在本节点的最近会话的用户uid集合
+	GetChannelConversationLocalUsers(channelId string, channelType uint8) ([]string, error)
+
 	// ExistConversation 是否存在会话
 	ExistConversation(uid string, channelId string, channelType uint8) (bool, error)
 
@@ -221,6 +229,9 @@ type ChannelClusterConfigDB interface {
 
 	// SaveChannelClusterConfig 保存频道的分布式配置
 	SaveChannelClusterConfig(channelClusterConfig ChannelClusterConfig) error
+
+	// SaveChannelClusterConfigs 批量保存频道的分布式配置
+	SaveChannelClusterConfigs(channelClusterConfigs []ChannelClusterConfig) error
 
 	// GetChannelClusterConfig 获取频道的分布式配置
 	GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error)

@@ -148,7 +148,7 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 
 	}
 
-	err = s.s.store.AddOrUpdateConversations(req.UID, []wkdb.Conversation{conversation})
+	err = s.s.store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
 		s.Error("Failed to add conversation", zap.Error(err))
 		c.ResponseError(err)
@@ -246,7 +246,7 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 	conversation.ReadToMsgSeq = readedMsgSeq
 	conversation.UnreadCount = unread
 
-	err = s.s.store.AddOrUpdateConversations(req.UID, []wkdb.Conversation{conversation})
+	err = s.s.store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
 		s.Error("Failed to add conversation", zap.Error(err))
 		c.ResponseError(err)

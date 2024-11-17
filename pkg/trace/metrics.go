@@ -174,6 +174,7 @@ type IDBMetrics interface {
 
 	// 分布式配置
 	SaveChannelClusterConfigAdd(v int64)               // 保存频道配置
+	SaveChannelClusterConfigsAdd(v int64)              // 保存频道配置
 	GetChannelClusterConfigAdd(v int64)                // 获取频道配置
 	GetChannelClusterConfigVersionAdd(v int64)         // 获取频道配置版本
 	GetChannelClusterConfigsAdd(v int64)               // 获取频道配置列表
@@ -192,20 +193,21 @@ type IDBMetrics interface {
 	DeleteChannelAdd(v int64)             // 删除频道
 
 	// 最近会话
-	AddOrUpdateConversationsAdd(v int64) // 添加或更新最近会话
-	GetConversationsAdd(v int64)         // 获取最近会话
-	GetConversationsByTypeAdd(v int64)   // 获取最近会话
-	GetLastConversationsAdd(v int64)     // 获取最近会话
-	GetConversationAdd(v int64)          // 获取最近会话
-	ExistConversationAdd(v int64)        // 是否存在最近会话
-	DeleteConversationAdd(v int64)       // 删除最近会话
-	DeleteConversationsAdd(v int64)      // 删除最近会话
-	SearchConversationAdd(v int64)       // 搜索最近会话
-	AddDenylistAdd(v int64)              // 添加黑名单
-	GetDenylistAdd(v int64)              // 获取黑名单
-	ExistDenylistAdd(v int64)            // 是否存在黑名单
-	RemoveDenylistAdd(v int64)           // 移除黑名单
-	RemoveAllDenylistAdd(v int64)        // 移除所有黑名单
+	AddOrUpdateConversationsAddWithUser(v int64) // 添加或更新最近会话
+	AddOrUpdateConversationsAdd(v int64)         // 添加或更新最近会话
+	GetConversationsAdd(v int64)                 // 获取最近会话
+	GetConversationsByTypeAdd(v int64)           // 获取最近会话
+	GetLastConversationsAdd(v int64)             // 获取最近会话
+	GetConversationAdd(v int64)                  // 获取最近会话
+	ExistConversationAdd(v int64)                // 是否存在最近会话
+	DeleteConversationAdd(v int64)               // 删除最近会话
+	DeleteConversationsAdd(v int64)              // 删除最近会话
+	SearchConversationAdd(v int64)               // 搜索最近会话
+	AddDenylistAdd(v int64)                      // 添加黑名单
+	GetDenylistAdd(v int64)                      // 获取黑名单
+	ExistDenylistAdd(v int64)                    // 是否存在黑名单
+	RemoveDenylistAdd(v int64)                   // 移除黑名单
+	RemoveAllDenylistAdd(v int64)                // 移除所有黑名单
 
 	// 设备
 	GetDeviceAdd(v int64)      // 获得设备

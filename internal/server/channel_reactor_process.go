@@ -71,7 +71,7 @@ func (r *channelReactor) processInits(reqs []*initReq) {
 func (r *channelReactor) processInit(req *initReq) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
-	node, err := r.s.cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+	leaderNode, err := r.s.cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
 	sub := r.reactorSub(req.ch.key)
 	if err != nil {
 		r.Error("channel init failed", zap.Error(err))
@@ -82,21 +82,25 @@ func (r *channelReactor) processInit(req *initReq) {
 		})
 		return
 	}
-	_, err = req.ch.makeReceiverTag()
-	if err != nil {
-		r.Error("processInit: makeReceiverTag failed", zap.Error(err))
-		sub.step(req.ch, &ChannelAction{
-			UniqueNo:   req.ch.uniqueNo,
-			ActionType: ChannelActionInitResp,
-			LeaderId:   node.Id,
-			Reason:     ReasonError,
-		})
-		return
+
+	if leaderNode.Id == r.s.opts.Cluster.NodeId { // 只有领导才需要makeReceiverTag
+		_, err = req.ch.makeReceiverTag()
+		if err != nil {
+			r.Error("processInit: makeReceiverTag failed", zap.Error(err))
+			sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: ChannelActionInitResp,
+				LeaderId:   leaderNode.Id,
+				Reason:     ReasonError,
+			})
+			return
+		}
 	}
+
 	sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionInitResp,
-		LeaderId:   node.Id,
+		LeaderId:   leaderNode.Id,
 		Reason:     ReasonSuccess,
 	})
 }

@@ -99,6 +99,7 @@ type dbMetrics struct {
 
 	// 分布式配置
 	saveChannelClusterConfig        atomic.Int64
+	saveChannelClusterConfigs       atomic.Int64
 	getChannelClusterConfig         atomic.Int64
 	getChannelClusterConfigVersion  atomic.Int64
 	getChannelClusterConfigs        atomic.Int64
@@ -117,15 +118,16 @@ type dbMetrics struct {
 	deleteChannel             atomic.Int64
 
 	// 最近会话
-	addOrUpdateConversations atomic.Int64
-	getConversations         atomic.Int64
-	getConversationsByType   atomic.Int64
-	getLastConversations     atomic.Int64
-	getConversation          atomic.Int64
-	existConversation        atomic.Int64
-	deleteConversation       atomic.Int64
-	deleteConversations      atomic.Int64
-	searchConversation       atomic.Int64
+	addOrUpdateConversations            atomic.Int64
+	addOrUpdateConversationsAddWithUser atomic.Int64
+	getConversations                    atomic.Int64
+	getConversationsByType              atomic.Int64
+	getLastConversations                atomic.Int64
+	getConversation                     atomic.Int64
+	existConversation                   atomic.Int64
+	deleteConversation                  atomic.Int64
+	deleteConversations                 atomic.Int64
+	searchConversation                  atomic.Int64
 
 	// 黑名单
 	addDenylist       atomic.Int64
@@ -395,6 +397,7 @@ func newDBMetrics(opts *Options) *dbMetrics {
 
 	// 分布式
 	saveChannelClusterConfig := NewInt64ObservableCounter("db_save_channel_cluster_config_count")
+	saveChannelClusterConfigs := NewInt64ObservableCounter("db_save_channel_cluster_configs_count")
 	getChannelClusterConfig := NewInt64ObservableCounter("db_get_channel_cluster_config_count")
 	getChannelClusterConfigVersion := NewInt64ObservableCounter("db_get_channel_cluster_config_version_count")
 	getChannelClusterConfigs := NewInt64ObservableCounter("db_get_channel_cluster_configs_count")
@@ -410,8 +413,9 @@ func newDBMetrics(opts *Options) *dbMetrics {
 		obs.ObserveInt64(searchChannelClusterConfig, m.searchChannelClusterConfig.Load())
 		obs.ObserveInt64(getChannelClusterConfigCount, m.getChannelClusterConfigCount.Load())
 		obs.ObserveInt64(getChannelClusterConfigWithSlot, m.getChannelClusterConfigWithSlot.Load())
+		obs.ObserveInt64(saveChannelClusterConfigs, m.saveChannelClusterConfigs.Load())
 		return nil
-	}, saveChannelClusterConfig, getChannelClusterConfig, getChannelClusterConfigVersion, getChannelClusterConfigs, searchChannelClusterConfig, getChannelClusterConfigCount, getChannelClusterConfigWithSlot)
+	}, saveChannelClusterConfig, getChannelClusterConfig, getChannelClusterConfigVersion, getChannelClusterConfigs, searchChannelClusterConfig, getChannelClusterConfigCount, getChannelClusterConfigWithSlot, saveChannelClusterConfigs)
 
 	// 频道
 	addChannel := NewInt64ObservableCounter("db_add_channel_count")
@@ -437,6 +441,7 @@ func newDBMetrics(opts *Options) *dbMetrics {
 
 	// 最近会话
 	addOrUpdateConversations := NewInt64ObservableCounter("db_add_or_update_conversations_count")
+	addOrUpdateConversationsAddWithUser := NewInt64ObservableCounter("db_add_or_update_conversations_add_with_user_count")
 	getConversations := NewInt64ObservableCounter("db_get_conversations_count")
 	getConversationsByType := NewInt64ObservableCounter("db_get_conversations_by_type_count")
 	getLastConversations := NewInt64ObservableCounter("db_get_last_conversations_count")
@@ -456,8 +461,9 @@ func newDBMetrics(opts *Options) *dbMetrics {
 		obs.ObserveInt64(deleteConversation, m.deleteConversation.Load())
 		obs.ObserveInt64(deleteConversations, m.deleteConversations.Load())
 		obs.ObserveInt64(searchConversation, m.searchConversation.Load())
+		obs.ObserveInt64(addOrUpdateConversationsAddWithUser, m.addOrUpdateConversationsAddWithUser.Load())
 		return nil
-	}, addOrUpdateConversations, getConversations, getConversationsByType, getLastConversations, getConversation, existConversation, deleteConversation, deleteConversations, searchConversation)
+	}, addOrUpdateConversations, getConversations, getConversationsByType, getLastConversations, getConversation, existConversation, deleteConversation, deleteConversations, searchConversation, addOrUpdateConversationsAddWithUser)
 
 	// 黑名单
 	addDenylist := NewInt64ObservableCounter("db_add_denylist_count")
@@ -823,6 +829,9 @@ func (m *dbMetrics) RemoveAllAllowlistAdd(v int64) {
 func (m *dbMetrics) SaveChannelClusterConfigAdd(v int64) {
 	m.saveChannelClusterConfig.Add(v)
 }
+func (m *dbMetrics) SaveChannelClusterConfigsAdd(v int64) {
+	m.saveChannelClusterConfigs.Add(v)
+}
 func (m *dbMetrics) GetChannelClusterConfigAdd(v int64) {
 	m.getChannelClusterConfig.Add(v)
 }
@@ -873,6 +882,10 @@ func (m *dbMetrics) DeleteChannelAdd(v int64) {
 func (m *dbMetrics) AddOrUpdateConversationsAdd(v int64) {
 	m.addOrUpdateConversations.Add(v)
 }
+
+func (m *dbMetrics) AddOrUpdateConversationsAddWithUser(v int64) {
+	m.addOrUpdateConversationsAddWithUser.Add(v)
+}
 func (m *dbMetrics) GetConversationsAdd(v int64) {
 	m.getConversations.Add(v)
 }
@@ -897,6 +910,9 @@ func (m *dbMetrics) DeleteConversationsAdd(v int64) {
 func (m *dbMetrics) SearchConversationAdd(v int64) {
 	m.searchConversation.Add(v)
 }
+
+// 黑名单
+
 func (m *dbMetrics) AddDenylistAdd(v int64) {
 	m.addDenylist.Add(v)
 }

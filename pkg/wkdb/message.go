@@ -9,8 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
@@ -51,6 +53,59 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 	return batch.CommitWait()
 }
 
+func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
+	batchs := []*Batch{}
+
+	for _, req := range reqs {
+
+		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
+
+		shardId := wk.channelDbIndex(channelId, channelType)
+
+		var batch *Batch
+		for _, b := range batchs {
+			if b.DbIndex() == int(shardId) {
+				batch = b
+				break
+			}
+		}
+		if batch == nil {
+			batch = wk.shardBatchDBById(shardId).NewBatch()
+			batchs = append(batchs, batch)
+		}
+
+		for _, log := range req.Logs {
+			msg := Message{}
+			err := msg.Unmarshal(log.Data)
+			if err != nil {
+				wk.Panic("message unmarshal failed", zap.Error(err))
+				return
+			}
+			msg.MessageSeq = uint32(log.Index)
+			msg.Term = uint64(log.Term)
+
+			if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
+				wk.Panic("write message failed", zap.Error(err))
+				return
+			}
+			err = wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
+			if err != nil {
+				wk.Panic("setChannelLastMessageSeq failed", zap.Error(err))
+				return
+			}
+		}
+	}
+
+	err := Commits(batchs)
+	if err != nil {
+		wk.Error("AppendMessagesByLogs commits failed", zap.Error(err))
+	}
+
+	for _, req := range reqs {
+		req.WaitC <- err
+	}
+}
+
 func (wk *wukongDB) channelDb(channelId string, channelType uint8) *pebble.DB {
 	dbIndex := wk.channelDbIndex(channelId, channelType)
 	return wk.shardDBById(uint32(dbIndex))
@@ -62,7 +117,7 @@ func (wk *wukongDB) channelBatchDb(channelId string, channelType uint8) *BatchDB
 }
 
 func (wk *wukongDB) channelDbIndex(channelId string, channelType uint8) uint32 {
-	return uint32(key.ChannelIdToNum(channelId, channelType) % uint64(len(wk.dbs)))
+	return uint32(key.ChannelToNum(channelId, channelType) % uint64(len(wk.dbs)))
 }
 
 func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
@@ -1003,7 +1058,7 @@ func (wk *wukongDB) writeMessage(channelId string, channelType uint8, msg Messag
 	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.Term), termBytes)
 
 	var primaryValue = [16]byte{}
-	wk.endian.PutUint64(primaryValue[:], key.ChannelIdToNum(channelId, channelType))
+	wk.endian.PutUint64(primaryValue[:], key.ChannelToNum(channelId, channelType))
 	wk.endian.PutUint64(primaryValue[8:], uint64(msg.MessageSeq))
 
 	// index fromUid

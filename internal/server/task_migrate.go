@@ -441,7 +441,7 @@ func (m *MigrateTask) importUser(uid string) error {
 	}
 
 	if len(dbConversations) > 0 {
-		err = m.s.store.AddOrUpdateConversations(uid, dbConversations)
+		err = m.s.store.AddOrUpdateUserConversations(uid, dbConversations)
 		if err != nil {
 			return err
 		}

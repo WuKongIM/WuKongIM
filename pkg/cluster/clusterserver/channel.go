@@ -243,10 +243,6 @@ func (c *channel) SaveConfig(cfg replica.Config) error {
 	return nil
 }
 
-func (c *channel) AppendLogs(logs []replica.Log) error {
-	return c.opts.MessageLogStorage.AppendLogs(c.key, logs)
-}
-
 func (c *channel) SetLeaderTermStartIndex(term uint32, index uint64) error {
 
 	return c.opts.MessageLogStorage.SetLeaderTermStartIndex(c.key, term, index)

@@ -1,51 +1,116 @@
 package clusterstore
 
 import (
-	"context"
-	"time"
+	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 // 频道元数据应用
 func (s *Store) OnMetaApply(slotId uint32, logs []replica.Log) error {
 
-	timeoutCtx, cancel := context.WithTimeout(s.ctx, time.Minute*2)
-	defer cancel()
-	requestGroup, _ := errgroup.WithContext(timeoutCtx)
-	requestGroup.SetLimit(400) // 同时应用的并发数
-	for _, lg := range logs {
-		requestGroup.Go(func(l replica.Log) func() error {
-			return func() error {
-				return s.onMetaApply(slotId, l)
-			}
-		}(lg))
+	waitC := make(chan error, 1)
+	select {
+	case s.applyC <- applyReq{logs: logs, waitC: waitC}:
+	case <-s.stopper.ShouldStop():
+		return errors.New("clusterstore stopped")
 	}
-	return requestGroup.Wait()
+
+	select {
+	case err := <-waitC:
+		close(waitC)
+		return err
+	case <-s.stopper.ShouldStop():
+		return errors.New("clusterstore stopped")
+	}
+
 }
 
-func (s *Store) onMetaApply(slotId uint32, log replica.Log) error {
-	cmd := &CMD{}
-	err := cmd.Unmarshal(log.Data)
-	if err != nil {
-		s.Error("unmarshal cmd err", zap.Error(err), zap.Uint32("slotId", slotId), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
-		return err
+func (s *Store) applyLoop() {
+	reqs := make([]applyReq, 0)
+	done := false
+	for {
+		select {
+		case req := <-s.applyC:
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req := <-s.applyC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+
+			s.handleApplyReqs(reqs)
+
+			reqs = reqs[:0]
+			done = false
+		case <-s.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (s *Store) handleApplyReqs(reqs []applyReq) {
+
+	logs := make([]replica.Log, 0)
+	for _, req := range reqs {
+		logs = append(logs, req.logs...)
 	}
 
-	start := time.Now()
-	defer func() {
-		end := time.Since(start)
-		if end > time.Millisecond*500 {
-			s.Info("meta apply", zap.Duration("cost", end), zap.Uint32("slotId", slotId), zap.String("cmdType", cmd.CmdType.String()), zap.Int("dataLen", len(cmd.Data)))
+	if len(logs) > 10 {
+		fmt.Println("apply logs count--->", len(logs))
+	}
+	err := s.onMetaApply(logs)
+
+	for _, req := range reqs {
+		if req.waitC != nil {
+			req.waitC <- err
 		}
-	}()
-	err = s.execCMD(cmd)
-	if err != nil {
-		s.Error("exec cmd err", zap.Error(err), zap.String("cmdType", cmd.CmdType.String()), zap.Uint32("slotId", slotId), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
-		return err
+	}
+}
+
+func (s *Store) onMetaApply(logs []replica.Log) error {
+
+	cmdMap := make(map[CMDType][]*CMD)
+
+	for _, log := range logs {
+		cmd := &CMD{}
+		err := cmd.Unmarshal(log.Data)
+		if err != nil {
+			s.Error("unmarshal cmd err", zap.Error(err), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
+			return err
+		}
+		cmdMap[cmd.CmdType] = append(cmdMap[cmd.CmdType], cmd)
+
+	}
+
+	for cmdType, cmds := range cmdMap {
+		err := s.execCMDs(cmdType, cmds)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) execCMDs(cmdType CMDType, cmds []*CMD) error {
+	switch cmdType {
+	case CMDAddOrUpdateConversations:
+		return s.handleAddOrUpdateConversations(cmds)
+	case CMDChannelClusterConfigSave:
+		return s.handleChannelClusterConfigSaves(cmds)
+	default:
+		for _, cmd := range cmds {
+			err := s.execCMD(cmd)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -84,14 +149,12 @@ func (s *Store) execCMD(cmd *CMD) error {
 		return s.handleRemoveAllowlist(cmd)
 	case CMDRemoveAllAllowlist: // 移除所有白名单
 		return s.handleRemoveAllAllowlist(cmd)
-	case CMDAddOrUpdateConversations: // 添加或更新会话
-		return s.handleAddOrUpdateConversations(cmd)
+	case CMDAddOrUpdateUserConversations: // 添加或更新会话
+		return s.handleAddOrUpdateUserConversations(cmd)
 	case CMDDeleteConversation: // 删除会话
 		return s.handleDeleteConversation(cmd)
 	case CMDDeleteConversations: // 批量删除某个用户的最近会话
 		return s.handleDeleteConversations(cmd)
-	case CMDChannelClusterConfigSave: // 保存频道分布式配置
-		return s.handleChannelClusterConfigSave(cmd)
 	// case CMDAppendMessagesOfUser: // 向用户队列里增加消息
 	// 	return s.handleAppendMessagesOfUser(cmd)
 	case CMDBatchUpdateConversation:
@@ -242,12 +305,12 @@ func (s *Store) handleRemoveAllAllowlist(cmd *CMD) error {
 	return s.wdb.RemoveAllAllowlist(channelId, channelType)
 }
 
-func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
-	uid, conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
+func (s *Store) handleAddOrUpdateUserConversations(cmd *CMD) error {
+	uid, conversations, err := cmd.DecodeCMDAddOrUpdateUserConversations()
 	if err != nil {
 		return err
 	}
-	return s.wdb.AddOrUpdateConversations(uid, conversations)
+	return s.wdb.AddOrUpdateConversationsWithUser(uid, conversations)
 }
 
 func (s *Store) handleDeleteConversation(cmd *CMD) error {
@@ -266,18 +329,23 @@ func (s *Store) handleDeleteConversations(cmd *CMD) error {
 	return s.wdb.DeleteConversations(uid, channels)
 }
 
-func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
-	_, _, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
-	if err != nil {
-		return err
-	}
-	channelClusterConfig := wkdb.ChannelClusterConfig{}
-	err = channelClusterConfig.Unmarshal(configData)
-	if err != nil {
-		return err
+func (s *Store) handleChannelClusterConfigSaves(cmds []*CMD) error {
+
+	cfgs := make([]wkdb.ChannelClusterConfig, 0)
+	for _, cmd := range cmds {
+		_, _, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
+		if err != nil {
+			return err
+		}
+		channelClusterConfig := wkdb.ChannelClusterConfig{}
+		err = channelClusterConfig.Unmarshal(configData)
+		if err != nil {
+			return err
+		}
+		cfgs = append(cfgs, channelClusterConfig)
 	}
 
-	return s.wdb.SaveChannelClusterConfig(channelClusterConfig)
+	return s.wdb.SaveChannelClusterConfigs(cfgs)
 }
 
 // func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {
@@ -306,7 +374,7 @@ func (s *Store) handleBatchUpdateConversation(cmd *CMD) error {
 				ChannelType:  model.ChannelType,
 				ReadToMsgSeq: seq,
 			}
-			err = s.wdb.AddOrUpdateConversations(uid, []wkdb.Conversation{conversation})
+			err = s.wdb.AddOrUpdateConversationsWithUser(uid, []wkdb.Conversation{conversation})
 			if err != nil {
 				return err
 			}
@@ -346,4 +414,18 @@ func (s *Store) handleAddStreams(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.AddStreams(streams)
+}
+
+func (s *Store) handleAddOrUpdateConversations(cmds []*CMD) error {
+	allconversations := make([]wkdb.Conversation, 0)
+
+	for _, cmd := range cmds {
+		conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
+		if err != nil {
+			return err
+		}
+		allconversations = append(allconversations, conversations...)
+	}
+
+	return s.wdb.AddOrUpdateConversations(allconversations)
 }

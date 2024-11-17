@@ -1,9 +1,13 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -461,24 +465,26 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 
 	c.Debug("makeReceiverTag", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
-	var subscribers []string
+	var (
+		err         error
+		subscribers []string
+	)
 
 	// 根据频道类型获取订阅者列表
 	if c.channelType == wkproto.ChannelTypePerson {
 		if c.r.s.opts.IsFakeChannel(c.channelId) { // 处理假个人频道
+			orgFakeChannelId := c.channelId
 			if c.r.s.opts.IsCmdChannel(c.channelId) {
 				// 处理命令频道
-				orginChannelId := c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
-				personSubscribers := strings.Split(orginChannelId, "@")
-				for _, personSubscriber := range personSubscribers {
-					if personSubscriber == c.r.opts.SystemUID { // 忽略系统账号
-						continue
-					}
-					subscribers = append(subscribers, personSubscriber)
-				}
-			} else {
-				// 处理普通假个人频道
-				subscribers = strings.Split(c.channelId, "@")
+				orgFakeChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
+			}
+			// 处理普通假个人频道
+			u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
+			if u1 != c.r.opts.SystemUID {
+				subscribers = append(subscribers, u1)
+			}
+			if u2 != c.r.opts.SystemUID {
+				subscribers = append(subscribers, u2)
 			}
 		}
 	} else if c.channelType == wkproto.ChannelTypeTemp { // 临时频道
@@ -486,16 +492,15 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 	} else {
 
 		// 处理非个人频道
-		realChannelId := c.channelId
+		fakeChannelId := c.channelId
 		if c.r.s.opts.IsCmdChannel(c.channelId) {
-			realChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
+			fakeChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId) // 将cmd频道id还原成对应的频道id
 		}
-		members, err := c.r.s.store.GetSubscribers(realChannelId, c.channelType)
+
+		// 请求频道的订阅者
+		subscribers, err = c.requestSubscribers(fakeChannelId, c.channelType)
 		if err != nil {
 			return nil, err
-		}
-		for _, member := range members {
-			subscribers = append(subscribers, member.Uid)
 		}
 
 		// 如果是客服频道，获取访客的uid作为订阅者
@@ -538,10 +543,60 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 
 	// 创建新的接收者标签
 	receiverTagKey := wkutil.GenUUID()
-	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList)
+	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList, c.channelId, c.channelType)
 	c.receiverTagKey.Store(receiverTagKey)
 
 	return newTag, nil
+}
+
+// requestSubscribers 请求订阅者
+func (c *channel) requestSubscribers(channelId string, channelType uint8) ([]string, error) {
+
+	leaderNode, err := c.r.s.cluster.LeaderOfChannelForRead(channelId, channelType)
+	if err != nil {
+		return nil, err
+	}
+	if leaderNode == nil {
+		return nil, errors.New("requestSubscribers: channel leader is nil")
+	}
+
+	if leaderNode.Id == c.r.s.opts.Cluster.NodeId {
+		// 如果是本节点，则直接获取订阅者
+		members, err := c.r.s.store.GetSubscribers(channelId, channelType)
+		if err != nil {
+			return nil, err
+		}
+		var subscribers []string
+		for _, member := range members {
+			subscribers = append(subscribers, member.Uid)
+		}
+		return subscribers, nil
+
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(c.r.s.ctx, time.Second*5)
+	defer cancel()
+
+	req := &subscriberGetReq{}
+	data := req.Marshal()
+
+	resp, err := c.r.s.cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/getSubscribers", data)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Status != http.StatusOK {
+		c.Error("requestSubscribers: response status code is not 200", zap.Int("status", int(resp.Status)), zap.String("body", string(resp.Body)))
+		return nil, fmt.Errorf("requestSubscribers: response status code is %d", resp.Status)
+	}
+
+	subResp := subscriberGetResp{}
+	err = subResp.Unmarshal(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return subResp, nil
+
 }
 
 func (c *channel) setTmpSubscribers(subscribers []string) {

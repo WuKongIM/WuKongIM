@@ -388,7 +388,7 @@ func (c ConversationSet) Marshal() ([]byte, error) {
 	return enc.Bytes(), nil
 }
 
-func (c ConversationSet) Unmarshal(data []byte) error {
+func (c *ConversationSet) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
 	var size uint16
@@ -405,7 +405,7 @@ func (c ConversationSet) Unmarshal(data []byte) error {
 		if err = v.Unmarshal(data); err != nil {
 			return err
 		}
-		c = append(c, v)
+		*c = append(*c, v)
 	}
 	return nil
 }

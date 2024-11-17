@@ -27,7 +27,7 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 	wk.dblock.channelClusterConfig.lockByChannel(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
 	defer wk.dblock.channelClusterConfig.unlockByChannel(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
 
-	primaryKey := key.ChannelIdToNum(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
+	primaryKey := key.ChannelToNum(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
 
 	oldChannelClusterConfig, err := wk.getChannelClusterConfigById(primaryKey)
 	if err != nil && err != ErrNotFound {
@@ -63,6 +63,53 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 	return batch.CommitWait()
 }
 
+func (wk *wukongDB) SaveChannelClusterConfigs(channelClusterConfigs []ChannelClusterConfig) error {
+
+	wk.metrics.SaveChannelClusterConfigsAdd(1)
+
+	db := wk.defaultShardBatchDB()
+	batch := db.NewBatch()
+
+	// 先删除旧的
+
+	for i, cfg := range channelClusterConfigs {
+		primaryKey := key.ChannelToNum(cfg.ChannelId, cfg.ChannelType)
+		oldChannelClusterConfig, err := wk.getChannelClusterConfigById(primaryKey)
+		if err != nil && err != ErrNotFound {
+			return err
+		}
+		existConfig := !IsEmptyChannelClusterConfig(oldChannelClusterConfig)
+
+		// 删除旧的索引
+		if existConfig {
+			oldChannelClusterConfig.CreatedAt = nil // 旧的创建时间不参与索引
+			err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, batch)
+			if err != nil {
+				wk.Error("delete channel cluster config index error", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
+				return err
+			}
+		}
+		channelClusterConfigs[i].Id = primaryKey
+		if existConfig {
+			channelClusterConfigs[i].CreatedAt = nil // 创建时间不参与更新
+		}
+	}
+
+	if err := batch.CommitWait(); err != nil {
+		return err
+	}
+
+	// 再添加新的
+	batch = db.NewBatch()
+	for _, cfg := range channelClusterConfigs {
+		primaryKey := key.ChannelToNum(cfg.ChannelId, cfg.ChannelType)
+		if err := wk.writeChannelClusterConfig(primaryKey, cfg, batch); err != nil {
+			return err
+		}
+	}
+	return batch.CommitWait()
+}
+
 func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error) {
 
 	wk.metrics.GetChannelClusterConfigAdd(1)
@@ -75,7 +122,7 @@ func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8)
 		}
 	}()
 
-	primaryKey := key.ChannelIdToNum(channelId, channelType)
+	primaryKey := key.ChannelToNum(channelId, channelType)
 
 	return wk.getChannelClusterConfigById(primaryKey)
 }
@@ -106,7 +153,7 @@ func (wk *wukongDB) getChannelClusterConfigById(id uint64) (ChannelClusterConfig
 }
 
 func (wk *wukongDB) GetChannelClusterConfigVersion(channelId string, channelType uint8) (uint64, error) {
-	primaryKey := key.ChannelIdToNum(channelId, channelType)
+	primaryKey := key.ChannelToNum(channelId, channelType)
 	result, closer, err := wk.defaultShardDB().Get(key.NewChannelClusterConfigColumnKey(primaryKey, key.TableChannelClusterConfig.Column.ConfVersion))
 	if err != nil {
 		return 0, err
@@ -120,7 +167,7 @@ func (wk *wukongDB) GetChannelClusterConfigVersion(channelId string, channelType
 
 // func (wk *wukongDB) DeleteChannelClusterConfig(channelId string, channelType uint8) error {
 
-// 	primaryKey := key.ChannelIdToNum(channelId, channelType)
+// 	primaryKey := key.channelToNum(channelId, channelType)
 
 // 	cfg, err := wk.getChannelClusterConfigById(primaryKey)
 // 	if err != nil {

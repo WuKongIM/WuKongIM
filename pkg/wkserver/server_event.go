@@ -141,7 +141,7 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 	h(ctx)
 }
 
-func (s *Server) handleResp(conn wknet.Conn, resp *proto.Response) {
+func (s *Server) handleResp(_ wknet.Conn, resp *proto.Response) {
 	if s.w.IsRegistered(resp.Id) {
 		s.w.Trigger(resp.Id, resp)
 	} else {

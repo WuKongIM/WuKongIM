@@ -22,6 +22,8 @@ type Store struct {
 	messageShardLogStorage *MessageShardLogStorage
 
 	stopper *syncutil.Stopper
+
+	applyC chan applyReq
 }
 
 func NewStore(opts *Options) *Store {
@@ -32,6 +34,7 @@ func NewStore(opts *Options) *Store {
 		Log:     wklog.NewWKLog(fmt.Sprintf("clusterStore[%d]", opts.NodeID)),
 		lock:    keylock.NewKeyLock(),
 		stopper: syncutil.NewStopper(),
+		applyC:  make(chan applyReq, 1000),
 	}
 
 	err := os.MkdirAll(opts.DataDir, os.ModePerm)
@@ -55,6 +58,11 @@ func NewStore(opts *Options) *Store {
 }
 
 func (s *Store) Open() error {
+
+	for i := 0; i < 10; i++ {
+		s.stopper.RunWorker(s.applyLoop)
+	}
+
 	s.lock.StartCleanLoop()
 	err := s.wdb.Open()
 	if err != nil {

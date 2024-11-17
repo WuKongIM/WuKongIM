@@ -213,7 +213,7 @@ func (n *node) requestDeliver(msgs []ReactorChannelMessage) error {
 			} else {
 				tg, err = ch.makeReceiverTag()
 				if err != nil {
-					n.Error("makeReceiverTag failed", zap.Error(err))
+					n.Error("makeReceiverTag failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", msg.SendPacket.ChannelType))
 					return err
 				}
 			}

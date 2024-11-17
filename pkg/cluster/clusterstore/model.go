@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -55,8 +56,8 @@ const (
 	CMDRemoveMessagesOfNotifyQueue
 	// 删除频道并清空消息
 	CMDDeleteChannelAndClearMessages
-	// 添加或更新会话
-	CMDAddOrUpdateConversations
+	// 添加或更新指定用户的最近会话
+	CMDAddOrUpdateUserConversations
 	// 删除会话
 	CMDDeleteConversation
 	// 批量删除会话
@@ -82,6 +83,9 @@ const (
 	CMDAddStreamMeta
 	// 添加流元数据
 	CMDAddStreams
+
+	// 批量添加最近会话
+	CMDAddOrUpdateConversations
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -132,8 +136,8 @@ func (c CMDType) String() string {
 		return "CMDRemoveMessagesOfNotifyQueue"
 	case CMDDeleteChannelAndClearMessages:
 		return "CMDDeleteChannelAndClearMessages"
-	case CMDAddOrUpdateConversations:
-		return "CMDAddOrUpdateConversations"
+	case CMDAddOrUpdateUserConversations:
+		return "CMDAddOrUpdateUserConversations"
 	case CMDDeleteConversation:
 		return "CMDDeleteConversation"
 	case CMDSystemUIDsAdd:
@@ -158,6 +162,8 @@ func (c CMDType) String() string {
 		return "CMDAddStreamMeta"
 	case CMDAddStreams:
 		return "CMDAddStreams"
+	case CMDAddOrUpdateConversations:
+		return "CMDAddOrUpdateConversations"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -378,8 +384,8 @@ func (c *CMD) CMDContent() (string, error) {
 			"channelType": channelType,
 		}), nil
 
-	case CMDAddOrUpdateConversations:
-		uid, conversations, err := c.DecodeCMDAddOrUpdateConversations()
+	case CMDAddOrUpdateUserConversations:
+		uid, conversations, err := c.DecodeCMDAddOrUpdateUserConversations()
 		if err != nil {
 			return "", err
 		}
@@ -441,6 +447,12 @@ func (c *CMD) CMDContent() (string, error) {
 			return "", err
 		}
 		return wkutil.ToJSON(channelClusterConfig), nil
+	case CMDAddOrUpdateConversations:
+		conversations, err := c.DecodeCMDAddOrUpdateConversations()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(conversations), nil
 
 	}
 
@@ -835,8 +847,8 @@ func (c *CMD) DecodeChannelInfo() (wkdb.ChannelInfo, error) {
 	return channelInfo, err
 }
 
-// EncodeCMDAddOrUpdateConversations EncodeCMDAddOrUpdateConversations
-func EncodeCMDAddOrUpdateConversations(uid string, conversations []wkdb.Conversation) ([]byte, error) {
+// EncodeCMDAddOrUpdateUserConversations EncodeCMDAddOrUpdateConversations
+func EncodeCMDAddOrUpdateUserConversations(uid string, conversations []wkdb.Conversation) ([]byte, error) {
 
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
@@ -852,8 +864,8 @@ func EncodeCMDAddOrUpdateConversations(uid string, conversations []wkdb.Conversa
 	return encoder.Bytes(), nil
 }
 
-// DecodeCMDAddOrUpdateConversations DecodeCMDAddOrUpdateConversations
-func (c *CMD) DecodeCMDAddOrUpdateConversations() (uid string, conversations []wkdb.Conversation, err error) {
+// DecodeCMDAddOrUpdateUserConversations
+func (c *CMD) DecodeCMDAddOrUpdateUserConversations() (uid string, conversations []wkdb.Conversation, err error) {
 	if len(c.Data) == 0 {
 		return
 	}
@@ -1026,110 +1038,6 @@ func (c *CMD) DecodeCMDChannelClusterConfigSave() (channelID string, channelType
 	return
 }
 
-func EncodeCMDAppendMessagesOfUser(uid string, messages []wkdb.Message) ([]byte, error) {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(uid)
-	encoder.WriteUint32(uint32(len(messages)))
-	for _, message := range messages {
-		msgData, err := message.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		encoder.WriteBinary(msgData)
-	}
-	return encoder.Bytes(), nil
-}
-
-func (c *CMD) DecodeCMDAppendMessagesOfUser() (uid string, messages []wkdb.Message, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	if uid, err = decoder.String(); err != nil {
-		return
-	}
-	var count uint32
-	if count, err = decoder.Uint32(); err != nil {
-		return
-	}
-	for i := uint32(0); i < count; i++ {
-		var messageBytes []byte
-		if messageBytes, err = decoder.Binary(); err != nil {
-			return
-		}
-		var msg = &wkdb.Message{}
-		err = msg.Unmarshal(messageBytes)
-		if err != nil {
-			return
-		}
-		messages = append(messages, *msg)
-	}
-	return
-}
-
-func EncodeCMDDeleteSession(uid string, sessionId uint64) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(uid)
-	encoder.WriteUint64(sessionId)
-	return encoder.Bytes()
-}
-
-func (c *CMD) DecodeCMDDeleteSession() (uid string, sessionId uint64, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	if uid, err = decoder.String(); err != nil {
-		return
-	}
-	if sessionId, err = decoder.Uint64(); err != nil {
-		return
-	}
-	return
-}
-
-func EncodeCMDDeleteSessionByChannel(uid string, channelId string, channelType uint8) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(uid)
-	encoder.WriteString(channelId)
-	encoder.WriteUint8(channelType)
-	return encoder.Bytes()
-}
-
-func (c *CMD) DecodeCMDDeleteSessionByChannel() (uid string, channelId string, channelType uint8, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	if uid, err = decoder.String(); err != nil {
-		return
-	}
-	if channelId, err = decoder.String(); err != nil {
-		return
-	}
-	if channelType, err = decoder.Uint8(); err != nil {
-		return
-	}
-	return
-}
-
-func EncodeCMDDeleteSessionAndConversationByChannel(uid string, channelId string, channelType uint8) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(uid)
-	encoder.WriteString(channelId)
-	encoder.WriteUint8(channelType)
-	return encoder.Bytes()
-}
-
-func (c *CMD) DecodeCMDDeleteSessionAndConversationByChannel() (uid string, channelId string, channelType uint8, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	if uid, err = decoder.String(); err != nil {
-		return
-	}
-	if channelId, err = decoder.String(); err != nil {
-		return
-	}
-	if channelType, err = decoder.Uint8(); err != nil {
-		return
-	}
-	return
-}
-
 func EncodeCMDBatchUpdateConversation(models []*wkdb.BatchUpdateConversationModel) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
@@ -1257,4 +1165,78 @@ func (c *CMD) DecodeCMDAddStreams() ([]*wkdb.Stream, error) {
 	return streams, nil
 }
 
+func EncodeCMDAddOrUpdateConversationsWithChannel(channelId string, channelType uint8, subscribers []string, readToMsgSeq uint64, conversationType wkdb.ConversationType, unreadCount int, createdAt, updatedAt int64) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	encoder.WriteUint32(uint32(len(subscribers)))
+	for _, subscriber := range subscribers {
+		encoder.WriteString(subscriber)
+	}
+	encoder.WriteUint64(readToMsgSeq)
+	encoder.WriteUint8(uint8(conversationType))
+	encoder.WriteInt32(int32(unreadCount))
+	encoder.WriteInt64(createdAt)
+	encoder.WriteInt64(updatedAt)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDAddOrUpdateConversationsWithChannel() (channelId string, channelType uint8, subscribers []string, readToMsgSeq uint64, conversationType wkdb.ConversationType, unreadCount int, createdAt, updatedAt int64, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	var count uint32
+	if count, err = decoder.Uint32(); err != nil {
+		return
+	}
+	for i := uint32(0); i < count; i++ {
+		var subscriber string
+		if subscriber, err = decoder.String(); err != nil {
+			return
+		}
+		subscribers = append(subscribers, subscriber)
+	}
+	if readToMsgSeq, err = decoder.Uint64(); err != nil {
+		return
+	}
+	var conversationTypeUint8 uint8
+	if conversationTypeUint8, err = decoder.Uint8(); err != nil {
+		return
+	}
+	conversationType = wkdb.ConversationType(conversationTypeUint8)
+	var unreadCountI32 int32
+	if unreadCountI32, err = decoder.Int32(); err != nil {
+		return
+	}
+	unreadCount = int(unreadCountI32)
+	if createdAt, err = decoder.Int64(); err != nil {
+		return
+	}
+	if updatedAt, err = decoder.Int64(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDAddOrUpdateConversations(conversations wkdb.ConversationSet) ([]byte, error) {
+
+	return conversations.Marshal()
+}
+
+func (c *CMD) DecodeCMDAddOrUpdateConversations() (wkdb.ConversationSet, error) {
+	conversations := wkdb.ConversationSet{}
+	err := conversations.Unmarshal(c.Data)
+	return conversations, err
+}
+
 var ErrStoreStopped = fmt.Errorf("store stopped")
+
+type applyReq struct {
+	logs  []replica.Log
+	waitC chan error
+}
