@@ -397,8 +397,6 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 		return nil, err
 	}
 	c.Flush()
-	timeoutCtx, cancel := context.WithTimeout(ctx, c.opts.RequestTimeout)
-	defer cancel()
 	select {
 	case x := <-ch:
 		c.Requesting.Dec()
@@ -406,11 +404,11 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 			return nil, errors.New("unknown error")
 		}
 		return x.(*proto.Response), nil
-	case <-timeoutCtx.Done():
-		c.Error("request timeout", zap.String("path", p), zap.Uint64("requestId", r.Id), zap.Error(timeoutCtx.Err()))
+	case <-ctx.Done():
+		c.Error("request timeout", zap.String("path", p), zap.Uint64("requestId", r.Id), zap.String("addr", c.opts.Addr), zap.Error(ctx.Err()))
 		c.Requesting.Dec()
 		c.w.Trigger(r.Id, nil)
-		return nil, timeoutCtx.Err()
+		return nil, ctx.Err()
 	}
 }
 

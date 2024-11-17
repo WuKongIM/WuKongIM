@@ -753,18 +753,78 @@ func (s subscriberAddReq) Check() error {
 	return nil
 }
 
+type subscriberGetReq struct {
+	ChannelId   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+}
+
+func (s *subscriberGetReq) Marshal() []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteString(s.ChannelId)
+	enc.WriteUint8(s.ChannelType)
+
+	return enc.Bytes()
+}
+
+func (s *subscriberGetReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if s.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if s.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type subscriberGetResp []string
+
+func (s subscriberGetResp) Marshal() []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteUint32(uint32(len(s)))
+	for _, uid := range s {
+		enc.WriteString(uid)
+	}
+
+	return enc.Bytes()
+}
+
+func (s subscriberGetResp) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return nil
+	}
+	for i := 0; i < int(count); i++ {
+		uid, err := dec.String()
+		if err != nil {
+			return err
+		}
+		s = append(s, uid)
+	}
+	return nil
+}
+
 type subscriberRemoveReq struct {
-	ChannelID      string   `json:"channel_id"`
+	ChannelId      string   `json:"channel_id"`
 	ChannelType    uint8    `json:"channel_type"`
 	TempSubscriber int      `json:"temp_subscriber"` //  是否是临时订阅者 (1. 是 0. 否)
 	Subscribers    []string `json:"subscribers"`
 }
 
 func (s subscriberRemoveReq) Check() error {
-	if strings.TrimSpace(s.ChannelID) == "" {
+	if strings.TrimSpace(s.ChannelId) == "" {
 		return errors.New("频道ID不能为空！")
 	}
-	if IsSpecialChar(s.ChannelID) {
+	if IsSpecialChar(s.ChannelId) {
 		return errors.New("频道ID不能包含特殊字符！")
 	}
 	if stringArrayIsEmpty(s.Subscribers) {
@@ -787,13 +847,13 @@ func stringArrayIsEmpty(array []string) bool {
 }
 
 type blacklistReq struct {
-	ChannelID   string   `json:"channel_id"`   // 频道ID
+	ChannelId   string   `json:"channel_id"`   // 频道ID
 	ChannelType uint8    `json:"channel_type"` // 频道类型
 	UIDs        []string `json:"uids"`         // 订阅者
 }
 
 func (r blacklistReq) Check() error {
-	if r.ChannelID == "" {
+	if r.ChannelId == "" {
 		return errors.New("channel_id不能为空！")
 	}
 	if r.ChannelType == 0 {
@@ -807,21 +867,21 @@ func (r blacklistReq) Check() error {
 
 // ChannelDeleteReq 删除频道请求
 type ChannelDeleteReq struct {
-	ChannelID   string `json:"channel_id"`   // 频道ID
+	ChannelId   string `json:"channel_id"`   // 频道ID
 	ChannelType uint8  `json:"channel_type"` // 频道类型
 }
 
 type whitelistReq struct {
-	ChannelID   string   `json:"channel_id"`   // 频道ID
+	ChannelId   string   `json:"channel_id"`   // 频道ID
 	ChannelType uint8    `json:"channel_type"` // 频道类型
 	UIDs        []string `json:"uids"`         // 订阅者
 }
 
 func (r whitelistReq) Check() error {
-	if r.ChannelID == "" {
+	if r.ChannelId == "" {
 		return errors.New("channel_id不能为空！")
 	}
-	if IsSpecialChar(r.ChannelID) {
+	if IsSpecialChar(r.ChannelId) {
 		return errors.New("频道ID不能包含特殊字符！")
 	}
 	if r.ChannelType == 0 {

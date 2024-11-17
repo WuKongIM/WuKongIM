@@ -325,11 +325,6 @@ func (s *slot) SpeedLevel() replica.SpeedLevel {
 	return s.rc.SpeedLevel()
 }
 
-func (s *slot) AppendLogs(logs []replica.Log) error {
-
-	return s.s.slotStorage.AppendLogs(s.key, logs)
-}
-
 func (s *slot) SetLeaderTermStartIndex(term uint32, index uint64) error {
 
 	return s.opts.SlotLogStorage.SetLeaderTermStartIndex(s.key, term, index)

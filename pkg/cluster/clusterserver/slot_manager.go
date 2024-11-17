@@ -132,9 +132,9 @@ func (s *slotManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartIndexRe
 	return 0, nil
 }
 
-func (s *slotManager) AppendLogs(handlerKey string, logs []replica.Log) error {
+func (s *slotManager) Append(req reactor.AppendLogReq) error {
 
-	return s.opts.SlotLogStorage.AppendLogs(handlerKey, logs)
+	return s.opts.SlotLogStorage.Append(req)
 }
 
 func (s *slotManager) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {

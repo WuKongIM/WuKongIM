@@ -37,7 +37,7 @@ func (t *tagManager) start() error {
 		for i := 0; i < tagLen; i++ {
 			tg := t.tags[i]
 			// 超过指定时间没有活跃，移除tag
-			if time.Since(tg.activeTime) > time.Minute*5 {
+			if time.Since(tg.activeAt) > time.Minute*5 {
 				t.s.Info("tag is expired, remove it", zap.String("key", tg.key))
 				for _, tag := range t.tags {
 					if tag.key == tg.key {
@@ -74,7 +74,7 @@ func (t *tagManager) stop() {
 }
 
 // 添加频道接受者tag
-func (t *tagManager) addOrUpdateReceiverTag(key string, users []*nodeUsers) *tag {
+func (t *tagManager) addOrUpdateReceiverTag(key string, users []*nodeUsers, channelId string, channelType uint8) *tag {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -88,26 +88,76 @@ func (t *tagManager) addOrUpdateReceiverTag(key string, users []*nodeUsers) *tag
 
 	}
 	if existTag == nil {
+		nw := time.Now()
 		existTag = &tag{
-			key:        key,
-			users:      users,
-			activeTime: time.Now(),
+			key:         key,
+			users:       users,
+			channelId:   channelId,
+			channelType: channelType,
+			activeAt:    nw,
+			createdAt:   nw,
 		}
 		t.tags = append(t.tags, existTag)
 	}
 	return existTag
 }
 
+// 通过key获取频道接受者tag
 func (t *tagManager) getReceiverTag(key string) *tag {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	for _, tag := range t.tags {
 		if tag.key == key {
-			tag.activeTime = time.Now()
+			tag.activeAt = time.Now()
 			return tag
 		}
 	}
 	return nil
+}
+
+// 在指定节点内是否存在指定的用户
+func (t *tagManager) existUserInNode(key string, uid string, nodeId uint64) bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	var existTag *tag
+	for _, tag := range t.tags {
+		if tag.key == key {
+			existTag = tag
+			break
+		}
+	}
+	if existTag == nil {
+		return false
+	}
+
+	for _, nodeUser := range existTag.users {
+		if nodeUser.nodeId == nodeId {
+			for _, u := range nodeUser.uids {
+				if u == uid {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
+}
+
+// 获取指定频道最新的tag的用户列表
+func (t *tagManager) getReceiverLastTagWithChannel(channelId string, channelType uint8) *tag {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	var lastTag *tag
+	for _, tag := range t.tags {
+		if tag.channelId == channelId && tag.channelType == channelType {
+			if lastTag == nil {
+				lastTag = tag
+			} else if tag.activeAt.After(lastTag.activeAt) {
+				lastTag = tag
+			}
+		}
+	}
+	return lastTag
 }
 
 // 立马释放频道接受者tag
@@ -217,9 +267,22 @@ func (t *tagResp) Unmarshal(data []byte) error {
 }
 
 type tag struct {
-	key        string
-	users      []*nodeUsers
-	activeTime time.Time // 激活时间
+	key         string
+	channelId   string
+	channelType uint8
+	users       []*nodeUsers
+	createdAt   time.Time // 创建时间
+	activeAt    time.Time // 最后一次激活时间
+}
+
+// 获取指定节点的用户列表
+func (t *tag) getNodeUsers(nodeId uint64) *nodeUsers {
+	for _, u := range t.users {
+		if u.nodeId == nodeId {
+			return u
+		}
+	}
+	return nil
 }
 
 func (t *tag) Marshal() []byte {
@@ -274,5 +337,6 @@ func (t *tag) Unmarshal(data []byte) error {
 // 用户列表和所属的节点
 type nodeUsers struct {
 	nodeId uint64
-	uids   []string
+
+	uids []string
 }

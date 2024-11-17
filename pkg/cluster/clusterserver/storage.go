@@ -3,12 +3,13 @@ package cluster
 import (
 	"errors"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 )
 
 // 日志分区存储
 type IShardLogStorage interface {
-	AppendLogs(shardNo string, logs []replica.Log) error
+	Append(req reactor.AppendLogReq) error
 
 	// AppendLogBatch 批量追加日志
 	// AppendLogBatch(reqs []reactor.AppendLogReq) error

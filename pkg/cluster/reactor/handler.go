@@ -56,7 +56,7 @@ type IHandler interface {
 	GetLogs(startLogIndex, endLogIndex uint64) ([]replica.Log, error)
 
 	// AppendLogs 追加日志
-	AppendLogs(logs []replica.Log) error
+	// AppendLogs(logs []replica.Log) error
 
 	// SetLeaderTermStartIndex 设置领导任期和开始索引
 	SetLeaderTermStartIndex(term uint32, index uint64) error

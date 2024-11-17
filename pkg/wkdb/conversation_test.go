@@ -9,6 +9,7 @@ import (
 )
 
 func TestAddOrUpdateConversations(t *testing.T) {
+
 	d := newTestDB(t)
 	err := d.Open()
 	assert.NoError(t, err)
@@ -21,13 +22,15 @@ func TestAddOrUpdateConversations(t *testing.T) {
 	uid := "test1"
 	createdAt := time.Now()
 	updatedAt := time.Now()
+	channelId := "1234"
+	channelType := uint8(1)
 	conversations := []wkdb.Conversation{
 		{
 			Id:           1,
 			Uid:          uid,
 			UnreadCount:  10,
-			ChannelId:    "1234",
-			ChannelType:  1,
+			ChannelId:    channelId,
+			ChannelType:  channelType,
 			ReadToMsgSeq: 1,
 			CreatedAt:    &createdAt,
 			UpdatedAt:    &updatedAt,
@@ -44,8 +47,13 @@ func TestAddOrUpdateConversations(t *testing.T) {
 		},
 	}
 
-	err = d.AddOrUpdateConversations(uid, conversations)
+	err = d.AddOrUpdateConversationsWithUser(uid, conversations)
 	assert.NoError(t, err)
+
+	uids, err := d.GetChannelConversationLocalUsers(channelId, 1)
+	assert.NoError(t, err)
+	assert.Len(t, uids, 1)
+	assert.Equal(t, uid, uids[0])
 
 }
 
@@ -85,7 +93,7 @@ func TestGetConversations(t *testing.T) {
 		},
 	}
 
-	err = d.AddOrUpdateConversations(uid, conversations)
+	err = d.AddOrUpdateConversationsWithUser(uid, conversations)
 	assert.NoError(t, err)
 
 	conversations2, err := d.GetConversations(uid)
@@ -141,7 +149,7 @@ func TestDeleteConversation(t *testing.T) {
 		},
 	}
 
-	err = d.AddOrUpdateConversations(uid, conversations)
+	err = d.AddOrUpdateConversationsWithUser(uid, conversations)
 	assert.NoError(t, err)
 
 	err = d.DeleteConversation(uid, "1234", 1)

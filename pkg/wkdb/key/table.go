@@ -759,3 +759,12 @@ var TableStreamMeta = struct {
 		StreamNo: [2]byte{0x12, 0x01},
 	},
 }
+
+// ======================== TableConversationLocalUser ========================
+
+// 最近会话与本地用户关系表
+var TableConversationLocalUser = struct {
+	Id [2]byte
+}{
+	Id: [2]byte{0x13, 0x01},
+}

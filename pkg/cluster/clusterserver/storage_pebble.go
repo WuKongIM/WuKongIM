@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble"
+	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
@@ -25,6 +26,9 @@ type PebbleShardLogStorage struct {
 	wo       *pebble.WriteOptions
 	noSync   *pebble.WriteOptions
 	wklog.Log
+
+	appendC chan reactor.AppendLogReq
+	stopper syncutil.Stopper
 }
 
 func NewPebbleShardLogStorage(path string, shardNum uint32) *PebbleShardLogStorage {
@@ -37,7 +41,9 @@ func NewPebbleShardLogStorage(path string, shardNum uint32) *PebbleShardLogStora
 		noSync: &pebble.WriteOptions{
 			Sync: false,
 		},
-		Log: wklog.NewWKLog(fmt.Sprintf("PebbleShardLogStorage[%s]", path)),
+		Log:     wklog.NewWKLog(fmt.Sprintf("PebbleShardLogStorage[%s]", path)),
+		appendC: make(chan reactor.AppendLogReq, 1000),
+		stopper: *syncutil.NewStopper(),
 	}
 }
 
@@ -74,6 +80,11 @@ func (p *PebbleShardLogStorage) defaultPebbleOptions() *pebble.Options {
 }
 
 func (p *PebbleShardLogStorage) Open() error {
+
+	for i := 0; i < 2; i++ {
+		p.stopper.RunWorker(p.appendLoop)
+	}
+
 	opts := p.defaultPebbleOptions()
 	for i := 0; i < int(p.shardNum); i++ {
 		db, err := pebble.Open(fmt.Sprintf("%s/shard%03d", p.path, i), opts)
@@ -82,7 +93,7 @@ func (p *PebbleShardLogStorage) Open() error {
 		}
 		p.dbs = append(p.dbs, db)
 
-		batchDb := wkdb.NewBatchDB(db)
+		batchDb := wkdb.NewBatchDB(i, db)
 		batchDb.Start()
 		p.batchDbs = append(p.batchDbs, batchDb)
 	}
@@ -99,6 +110,8 @@ func (p *PebbleShardLogStorage) Close() error {
 	for _, db := range p.batchDbs {
 		db.Stop()
 	}
+
+	p.stopper.Stop()
 
 	return nil
 }
@@ -130,90 +143,159 @@ func (p *PebbleShardLogStorage) shardBatchDBWithIndex(index uint32) *wkdb.BatchD
 	return p.batchDbs[index]
 }
 
-func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) error {
-	batch := p.shardBatchDB(shardNo).NewBatch()
+func (p *PebbleShardLogStorage) Append(req reactor.AppendLogReq) error {
 
-	for _, lg := range logs {
-		logData, err := lg.Marshal()
-		if err != nil {
-			return err
-		}
+	waitC := make(chan error, 1)
+	req.WaitC = waitC
 
-		timeData := make([]byte, 8)
-		binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
+	select {
+	case p.appendC <- req:
+	case <-p.stopper.ShouldStop():
+		return errors.New("PebbleShardLogStorage stopped")
 
-		logData = append(logData, timeData...)
-
-		keyData := key.NewLogKey(shardNo, lg.Index)
-		batch.Set(keyData, logData)
 	}
-	lastLog := logs[len(logs)-1]
-	err := p.saveMaxIndexWrite(shardNo, lastLog.Index, batch)
-	if err != nil {
+
+	select {
+	case err := <-waitC:
 		return err
+	case <-p.stopper.ShouldStop():
+		return errors.New("PebbleShardLogStorage stopped")
 	}
-	err = batch.CommitWait()
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
-func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
-
-	start := time.Now()
-	defer func() {
-		end := time.Since(start)
-		if end > time.Millisecond*1 {
-			logCount := 0
-			for _, req := range reqs {
-				logCount += len(req.Logs)
-			}
-			p.Info("Slot appendLogBatch done", zap.Duration("cost", end), zap.Int("reqs", len(reqs)), zap.Int("logs", logCount))
-		}
-
-	}()
-
-	// 按照db分组AppendLogReq
-	reqsMap := make(map[uint32][]reactor.AppendLogReq)
-	for _, req := range reqs {
-		shardId := p.shardId(req.HandleKey)
-		reqsMap[shardId] = append(reqsMap[shardId], req)
-	}
-
-	for shardId, reqs := range reqsMap {
-		batch := p.shardBatchDBWithIndex(shardId).NewBatch()
-
-		for _, req := range reqs {
-			for _, lg := range req.Logs {
-				logData, err := lg.Marshal()
-				if err != nil {
-					return err
+func (p *PebbleShardLogStorage) appendLoop() {
+	reqs := make([]reactor.AppendLogReq, 0)
+	done := false
+	for {
+		select {
+		case req := <-p.appendC:
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req = <-p.appendC:
+					reqs = append(reqs, req)
+				default:
+					done = true
 				}
-
-				timeData := make([]byte, 8)
-				binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
-
-				logData = append(logData, timeData...)
-
-				keyData := key.NewLogKey(req.HandleKey, lg.Index)
-				batch.Set(keyData, logData)
 			}
-			lastLog := req.Logs[len(req.Logs)-1]
-			err := p.saveMaxIndexWrite(req.HandleKey, lastLog.Index, batch)
-			if err != nil {
-				return err
-			}
-		}
+			p.handleAppendReqs(reqs)
+			reqs = reqs[:0]
+			done = false
 
-		err := batch.CommitWait()
-		if err != nil {
-			return err
+		case <-p.stopper.ShouldStop():
+			return
 		}
 	}
-
-	return nil
 }
+
+func (p *PebbleShardLogStorage) handleAppendReqs(reqs []reactor.AppendLogReq) {
+
+	batchs := []*wkdb.Batch{}
+	for _, req := range reqs {
+		shardNo := req.HandleKey
+		shardId := p.shardId(shardNo)
+
+		var batch *wkdb.Batch
+		for _, b := range batchs {
+			if b.DbIndex() == int(shardId) {
+				batch = b
+				break
+			}
+		}
+		if batch == nil {
+			batch = p.shardBatchDBWithIndex(shardId).NewBatch()
+			batchs = append(batchs, batch)
+		}
+
+		for _, lg := range req.Logs {
+			logData, err := lg.Marshal()
+			if err != nil {
+				p.Panic("log marshal failed", zap.Error(err))
+				return
+			}
+
+			timeData := make([]byte, 8)
+			binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
+
+			logData = append(logData, timeData...)
+
+			keyData := key.NewLogKey(shardNo, lg.Index)
+			batch.Set(keyData, logData)
+		}
+		lastLog := req.Logs[len(req.Logs)-1]
+		err := p.saveMaxIndexWrite(shardNo, lastLog.Index, batch)
+		if err != nil {
+			p.Panic("saveMaxIndexWrite failed", zap.Error(err))
+			return
+		}
+	}
+	err := wkdb.Commits(batchs)
+	if err != nil {
+		p.Error("batch commit failed", zap.Error(err))
+	}
+
+	for _, req := range reqs {
+		if req.WaitC != nil {
+			req.WaitC <- err
+		}
+	}
+}
+
+// func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
+
+// 	start := time.Now()
+// 	defer func() {
+// 		end := time.Since(start)
+// 		if end > time.Millisecond*1 {
+// 			logCount := 0
+// 			for _, req := range reqs {
+// 				logCount += len(req.Logs)
+// 			}
+// 			p.Info("Slot appendLogBatch done", zap.Duration("cost", end), zap.Int("reqs", len(reqs)), zap.Int("logs", logCount))
+// 		}
+
+// 	}()
+
+// 	// 按照db分组AppendLogReq
+// 	reqsMap := make(map[uint32][]reactor.AppendLogReq)
+// 	for _, req := range reqs {
+// 		shardId := p.shardId(req.HandleKey)
+// 		reqsMap[shardId] = append(reqsMap[shardId], req)
+// 	}
+
+// 	for shardId, reqs := range reqsMap {
+// 		batch := p.shardBatchDBWithIndex(shardId).NewBatch()
+
+// 		for _, req := range reqs {
+// 			for _, lg := range req.Logs {
+// 				logData, err := lg.Marshal()
+// 				if err != nil {
+// 					return err
+// 				}
+
+// 				timeData := make([]byte, 8)
+// 				binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
+
+// 				logData = append(logData, timeData...)
+
+// 				keyData := key.NewLogKey(req.HandleKey, lg.Index)
+// 				batch.Set(keyData, logData)
+// 			}
+// 			lastLog := req.Logs[len(req.Logs)-1]
+// 			err := p.saveMaxIndexWrite(req.HandleKey, lastLog.Index, batch)
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
+
+// 		err := batch.CommitWait()
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	return nil
+// }
 
 // TruncateLogTo 截断日志
 func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {

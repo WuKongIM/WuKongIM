@@ -167,6 +167,7 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 	// ================== 获取tag信息 ==================
 	var tg = d.dm.s.tagManager.getReceiverTag(req.tagKey)
 	if tg == nil {
+
 		leader, err := d.dm.s.cluster.LeaderOfChannelForRead(req.channelId, req.channelType)
 		if err != nil {
 			d.Error("getLeaderOfChannel failed", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Error(err))
@@ -197,56 +198,110 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 				}
 
 			}
-			tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
-				channelId:   req.channelId,
-				channelType: req.channelType,
-				tagKey:      req.tagKey,
-				nodeId:      d.dm.s.opts.Cluster.NodeId,
-			})
-			if err != nil {
-				d.Error("requestNodeTag failed", zap.Error(err), zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-				if d.dm.s.opts.Logger.TraceOn {
-					for _, msg := range req.messages {
-						d.MessageTrace("请求接受者tag失败", msg.SendPacket.ClientMsgNo, "requestReceiverTag", zap.String("tagKey", req.tagKey), zap.Error(err))
-					}
-
+			if req.channelType == wkproto.ChannelTypePerson { // 个人频道
+				tg, err = d.getPersonTag(req.channelId)
+				if err != nil {
+					d.Error("get person tag failed", zap.Error(err), zap.String("channelId", req.channelId))
 				}
-				return
+			} else {
+				tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
+					channelId:   req.channelId,
+					channelType: req.channelType,
+					tagKey:      req.tagKey,
+					nodeId:      d.dm.s.opts.Cluster.NodeId,
+				})
+				if err != nil {
+					d.Error("requestNodeTag failed", zap.Error(err), zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+					if d.dm.s.opts.Logger.TraceOn {
+						for _, msg := range req.messages {
+							d.MessageTrace("请求接受者tag失败", msg.SendPacket.ClientMsgNo, "requestReceiverTag", zap.String("tagKey", req.tagKey), zap.Error(err))
+						}
+
+					}
+					return
+				}
+				tg = d.dm.s.tagManager.addOrUpdateReceiverTag(tagResp.tagKey, []*nodeUsers{
+					{
+						uids:   tagResp.uids,
+						nodeId: d.dm.s.opts.Cluster.NodeId,
+					},
+				}, req.channelId, req.channelType)
 			}
-			tg = d.dm.s.tagManager.addOrUpdateReceiverTag(tagResp.tagKey, []*nodeUsers{
-				{
-					uids:   tagResp.uids,
-					nodeId: d.dm.s.opts.Cluster.NodeId,
-				},
-			})
+
 		}
 
 	}
 
 	// ================== 投递消息 ==================
+
+	// 本节点投递
+	localNodeUser := tg.getNodeUsers(d.dm.s.opts.Cluster.NodeId) // 获取本节点需要投递的用户列表
+	if localNodeUser != nil && len(localNodeUser.uids) > 0 {
+		// 记录轨迹
+		if d.dm.s.opts.Logger.TraceOn {
+			for _, msg := range req.messages {
+				d.MessageTrace("投递节点", msg.SendPacket.ClientMsgNo, "deliverNode", zap.Int("userCount", len(localNodeUser.uids)))
+			}
+		}
+		// 更新最近会话
+		if d.dm.s.opts.Conversation.On {
+			d.dm.s.conversationManager.Push(&conversationReq{
+				channelId:   req.channelId,
+				channelType: req.channelType,
+				tagKey:      req.tagKey,
+				messages:    req.messages,
+			})
+		}
+
+		// 投递消息
+		d.deliver(req, localNodeUser.uids)
+	}
+
+	// 非本节点投递
 	for _, nodeUser := range tg.users {
-
-		if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId { // 只投递本节点的
-
-			// 记录轨迹
-			if d.dm.s.opts.Logger.TraceOn {
-				for _, msg := range req.messages {
-					d.MessageTrace("投递节点", msg.SendPacket.ClientMsgNo, "deliverNode", zap.Int("userCount", len(nodeUser.uids)))
-				}
-			}
-			// 更新最近会话
-			if d.dm.s.opts.Conversation.On {
-				d.dm.s.conversationManager.Push(req.channelId, req.channelType, nodeUser.uids, req.messages)
-			}
-
-			// 投递消息
-			d.deliver(req, nodeUser.uids)
-
-		} else { // 非本节点的转发给对应节点去投递
-
+		if d.dm.s.opts.Cluster.NodeId != nodeUser.nodeId {
+			// 转发给对应的节点
 			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
 		}
 	}
+}
+
+// 获取个人频道的投递tag
+func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
+	orgFakeChannelId := fakeChannelId
+	if d.dm.s.opts.IsCmdChannel(fakeChannelId) {
+		// 处理命令频道
+		orgFakeChannelId = d.dm.s.opts.CmdChannelConvertOrginalChannel(fakeChannelId)
+	}
+	// 处理普通假个人频道
+	u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
+
+	u1NodeId, err := d.dm.s.cluster.SlotLeaderIdOfChannel(u1, wkproto.ChannelTypePerson)
+	if err != nil {
+		return nil, err
+	}
+
+	u2NodeId, err := d.dm.s.cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
+	if err != nil {
+		return nil, err
+	}
+
+	tg := &tag{
+		key:         wkutil.GenUUID(),
+		channelId:   fakeChannelId,
+		channelType: wkproto.ChannelTypePerson,
+		users: []*nodeUsers{
+			{
+				nodeId: u1NodeId,
+				uids:   []string{u1},
+			},
+			{
+				nodeId: u2NodeId,
+				uids:   []string{u2},
+			},
+		},
+	}
+	return tg, nil
 }
 
 func (d *deliverr) deliver(req *deliverReq, uids []string) {

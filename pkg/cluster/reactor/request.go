@@ -14,7 +14,7 @@ type IRequest interface {
 
 	// AppendLogBatch 批量追加日志
 	// AppendLogBatch(reqs []AppendLogReq) error
-	AppendLogs(handlerKey string, logs []replica.Log) error
+	Append(req AppendLogReq) error
 
 	// // GetLeaderTermStartIndex 获取领导任期开始的第一条日志索引
 	// GetLeaderTermStartIndex(handleKey []string) ([]LeaderTermStartIndexResp, error)

@@ -152,7 +152,7 @@ func (c *channelManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartInde
 	return 0, nil
 }
 
-func (c *channelManager) AppendLogs(handlerKey string, logs []replica.Log) error {
+func (c *channelManager) Append(req reactor.AppendLogReq) error {
 
 	// for _, req := range reqs {
 	// 	if req.Logs == nil || len(req.Logs) == 0 {
@@ -163,7 +163,7 @@ func (c *channelManager) AppendLogs(handlerKey string, logs []replica.Log) error
 	// 	}
 
 	// }
-	return c.opts.MessageLogStorage.AppendLogs(handlerKey, logs)
+	return c.opts.MessageLogStorage.Append(req)
 }
 
 func (c *channelManager) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {

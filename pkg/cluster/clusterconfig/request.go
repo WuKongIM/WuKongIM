@@ -76,8 +76,8 @@ func (r *Request) GetLeaderTermStartIndex(req reactor.LeaderTermStartIndexReq) (
 	return 0, nil
 }
 
-func (r *Request) AppendLogs(handlerKey string, logs []replica.Log) error {
-	if err := r.s.storage.AppendLog(logs); err != nil {
+func (r *Request) Append(req reactor.AppendLogReq) error {
+	if err := r.s.storage.AppendLog(req.Logs); err != nil {
 		return err
 	}
 	return nil

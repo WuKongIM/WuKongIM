@@ -1,10 +1,55 @@
 package clusterstore
 
 import (
+	"context"
+	"time"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"golang.org/x/sync/errgroup"
 )
 
-func (s *Store) AddOrUpdateConversations(uid string, conversations []wkdb.Conversation) error {
+func (s *Store) AddOrUpdateConversations(conversations []wkdb.Conversation) error {
+	// 将会话按照slotId来分组
+	slotConversationsMap := make(map[uint32][]wkdb.Conversation)
+
+	for _, c := range conversations {
+		slotId := s.opts.GetSlotId(c.Uid)
+		slotConversationsMap[slotId] = append(slotConversationsMap[slotId], c)
+	}
+
+	// 提交最近会话
+	timeoutctx, cancel := context.WithTimeout(s.ctx, time.Minute*5)
+	defer cancel()
+
+	g, _ := errgroup.WithContext(timeoutctx)
+	g.SetLimit(100)
+
+	for slotId, conversations := range slotConversationsMap {
+
+		slotId, conversations := slotId, conversations
+
+		g.Go(func() error {
+			data, err := EncodeCMDAddOrUpdateConversations(conversations)
+			if err != nil {
+				return err
+			}
+			cmd := NewCMD(CMDAddOrUpdateConversations, data)
+			cmdData, err := cmd.Marshal()
+			if err != nil {
+				return err
+			}
+			_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+	}
+	err := g.Wait()
+	return err
+}
+
+func (s *Store) AddOrUpdateUserConversations(uid string, conversations []wkdb.Conversation) error {
 	if len(conversations) == 0 {
 		return nil
 	}
@@ -13,11 +58,11 @@ func (s *Store) AddOrUpdateConversations(uid string, conversations []wkdb.Conver
 			conversations[i].Id = s.NextPrimaryKey() // 如果id为0，生成一个新的id
 		}
 	}
-	data, err := EncodeCMDAddOrUpdateConversations(uid, conversations)
+	data, err := EncodeCMDAddOrUpdateUserConversations(uid, conversations)
 	if err != nil {
 		return err
 	}
-	cmd := NewCMD(CMDAddOrUpdateConversations, data)
+	cmd := NewCMD(CMDAddOrUpdateUserConversations, data)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err
@@ -26,6 +71,47 @@ func (s *Store) AddOrUpdateConversations(uid string, conversations []wkdb.Conver
 	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
 	return err
 }
+
+// func (s *Store) AddOrUpdateConversationsWithChannel(channelId string, channelType uint8, subscribers []string, readToMsgSeq uint64, conversationType wkdb.ConversationType, unreadCount int) error {
+
+// 	// 按照slotId来分组subscribers
+// 	slotSubscriberMap := make(map[uint32][]string)
+
+// 	for _, uid := range subscribers {
+// 		slotId := s.opts.GetSlotId(uid)
+// 		slotSubscriberMap[slotId] = append(slotSubscriberMap[slotId], uid)
+// 	}
+
+// 	// 提按最近会话
+// 	timeoutctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
+// 	defer cancel()
+
+// 	g, _ := errgroup.WithContext(timeoutctx)
+
+// 	nw := time.Now().UnixNano()
+
+// 	for slotId, subscribers := range slotSubscriberMap {
+
+// 		slotId, subscribers := slotId, subscribers
+
+// 		g.Go(func() error {
+// 			data := EncodeCMDAddOrUpdateConversationsWithChannel(channelId, channelType, subscribers, readToMsgSeq, conversationType, unreadCount, nw, nw)
+// 			cmd := NewCMD(CMDAddOrUpdateConversationsWithChannel, data)
+// 			cmdData, err := cmd.Marshal()
+// 			if err != nil {
+// 				return err
+// 			}
+// 			_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+// 			if err != nil {
+// 				return err
+// 			}
+// 			return nil
+// 		})
+
+// 	}
+// 	err := g.Wait()
+// 	return err
+// }
 
 func (s *Store) DeleteConversation(uid string, channelID string, channelType uint8) error {
 	data := EncodeCMDDeleteConversation(uid, channelID, channelType)
@@ -71,6 +157,11 @@ func (s *Store) GetLastConversations(uid string, tp wkdb.ConversationType, updat
 func (s *Store) GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, error) {
 	seq, _, err := s.wdb.GetChannelLastMessageSeq(channelId, channelType)
 	return seq, err
+}
+
+func (s *Store) GetChannelConversationLocalUsers(channelId string, channelType uint8) ([]string, error) {
+
+	return s.wdb.GetChannelConversationLocalUsers(channelId, channelType)
 }
 
 // func (s *Store) BatchUpdateConversation(slotId uint32, models []*wkdb.BatchUpdateConversationModel) error {

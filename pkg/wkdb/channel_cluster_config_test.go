@@ -1,6 +1,7 @@
 package wkdb_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,6 +37,47 @@ func TestSaveChannelClusterConfig(t *testing.T) {
 
 	err = d.SaveChannelClusterConfig(config)
 	assert.NoError(t, err)
+
+}
+
+func TestSaveChannelClusterConfigs(t *testing.T) {
+	d := newTestDB(t)
+	err := d.Open()
+	assert.NoError(t, err)
+
+	defer func() {
+		err := d.Close()
+		assert.NoError(t, err)
+	}()
+
+	channelId := "channel1"
+	channelType := uint8(1)
+
+	createdAt := time.Now()
+	updatedAt := time.Now()
+
+	count := 100
+	configs := make([]wkdb.ChannelClusterConfig, 0)
+	for i := 0; i < count; i++ {
+		configs = append(configs, wkdb.ChannelClusterConfig{
+			ChannelId:       fmt.Sprintf("%s%d", channelId, i),
+			ChannelType:     channelType,
+			ReplicaMaxCount: 3,
+			Replicas:        []uint64{1, 2, 3},
+			LeaderId:        1001 + uint64(i),
+			Term:            1,
+			CreatedAt:       &createdAt,
+			UpdatedAt:       &updatedAt,
+		})
+	}
+
+	err = d.SaveChannelClusterConfigs(configs)
+	assert.NoError(t, err)
+
+	results, err := d.GetChannelClusterConfigs(0, count)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(results), count)
 
 }
 

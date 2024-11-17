@@ -44,7 +44,7 @@ func NewOptions(opt ...Option) *Options {
 		ElectionTimeoutTick:    10,
 		HeartbeatTimeoutTick:   1,
 		MaxIdleInterval:        time.Second * 1,
-		ProposeTimeout:         time.Second * 5,
+		ProposeTimeout:         time.Minute * 5,
 		ReqTimeout:             time.Second * 5,
 		SlotMaxReplicaCount:    3,
 		ChannelMaxReplicaCount: 3,

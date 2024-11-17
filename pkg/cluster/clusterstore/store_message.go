@@ -2,14 +2,17 @@ package clusterstore
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
 
@@ -159,38 +162,78 @@ func (s *Store) getChannelSlotId(channelId string) uint32 {
 type MessageShardLogStorage struct {
 	db wkdb.DB
 	wklog.Log
+	appendC chan reactor.AppendLogReq
+	stopper *syncutil.Stopper
 }
 
 func NewMessageShardLogStorage(db wkdb.DB) *MessageShardLogStorage {
 	return &MessageShardLogStorage{
-		db:  db,
-		Log: wklog.NewWKLog("MessageShardLogStorage"),
+		db:      db,
+		Log:     wklog.NewWKLog("MessageShardLogStorage"),
+		appendC: make(chan reactor.AppendLogReq, 1024),
+		stopper: syncutil.NewStopper(),
 	}
 }
 
 func (m *MessageShardLogStorage) Open() error {
-
+	for i := 0; i < 10; i++ {
+		m.stopper.RunWorker(m.appendLoop)
+	}
 	return nil
 }
 
 func (m *MessageShardLogStorage) Close() error {
+	m.stopper.Stop()
 	return nil
 }
 
-func (m *MessageShardLogStorage) AppendLogs(shardNo string, logs []replica.Log) error {
-	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
-	msgs := make([]wkdb.Message, len(logs))
-	for idx, log := range logs {
-		msg := wkdb.Message{}
-		err := msg.Unmarshal(log.Data)
-		if err != nil {
-			return err
-		}
-		msg.MessageSeq = uint32(log.Index)
-		msg.Term = uint64(log.Term)
-		msgs[idx] = msg
+func (m *MessageShardLogStorage) Append(req reactor.AppendLogReq) error {
+
+	waitC := make(chan error, 1)
+	req.WaitC = waitC
+
+	select {
+	case m.appendC <- req:
+	case <-m.stopper.ShouldStop():
+		return errors.New("MessageShardLogStorage stopped")
+
 	}
-	return m.db.AppendMessages(channelId, channelType, msgs)
+
+	select {
+	case err := <-waitC:
+		return err
+	case <-m.stopper.ShouldStop():
+		return errors.New("MessageShardLogStorage stopped")
+	}
+
+}
+
+func (m *MessageShardLogStorage) appendLoop() {
+	reqs := make([]reactor.AppendLogReq, 0, 1024)
+	done := false
+	for {
+		select {
+		case req := <-m.appendC:
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req := <-m.appendC:
+					reqs = append(reqs, req)
+				default:
+					done = true
+				}
+			}
+			m.handleAppendReqs(reqs)
+			reqs = reqs[:0]
+			done = false
+		case <-m.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
+func (m *MessageShardLogStorage) handleAppendReqs(reqs []reactor.AppendLogReq) {
+	m.db.AppendMessagesByLogs(reqs)
 }
 
 // func (m *MessageShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
