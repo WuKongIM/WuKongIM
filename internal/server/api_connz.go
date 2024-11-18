@@ -74,11 +74,9 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 	}
 	var connInfos []*ConnInfo
 
-	fmt.Println("getConnInfos....start.")
 	resultConns := co.s.GetConnInfos(uid, sortOpt, offset, limit)
 	connInfos = make([]*ConnInfo, 0, len(resultConns))
 
-	fmt.Println("getConnInfos....start---2.")
 	for _, resultConn := range resultConns {
 
 		connInfo := newConnInfo(resultConn)
@@ -129,7 +127,6 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 		}
 		return true
 	})
-	fmt.Println("Iterator.222....")
 
 	switch sortOpt {
 	case ByID:

@@ -868,7 +868,6 @@ func newConnMatrix() *connMatrix {
 }
 
 func (cm *connMatrix) iterate(f func(Conn) bool) {
-	fmt.Println("cm.conns---->", len(cm.conns))
 	for _, c := range cm.conns {
 		if c != nil {
 			if !f(c) {

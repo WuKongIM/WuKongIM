@@ -306,7 +306,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 			return err
 		}
 
-		fmt.Println("update conversation 耗时------->：", time.Since(start))
+		// fmt.Println("update conversation 耗时------->：", time.Since(start))
 
 	}
 
