@@ -2,7 +2,6 @@ package clusterstore
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -62,9 +61,6 @@ func (s *Store) handleApplyReqs(reqs []applyReq) {
 		logs = append(logs, req.logs...)
 	}
 
-	if len(logs) > 10 {
-		fmt.Println("apply logs count--->", len(logs))
-	}
 	err := s.onMetaApply(logs)
 
 	for _, req := range reqs {

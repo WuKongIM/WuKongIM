@@ -276,9 +276,18 @@ func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
 	// 处理普通假个人频道
 	u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
 
+	nodeUs := make([]*nodeUsers, 0, 2)
+
 	u1NodeId, err := d.dm.s.cluster.SlotLeaderIdOfChannel(u1, wkproto.ChannelTypePerson)
 	if err != nil {
 		return nil, err
+	}
+
+	if u1NodeId == d.dm.s.opts.Cluster.NodeId {
+		nodeUs = append(nodeUs, &nodeUsers{
+			nodeId: u1NodeId,
+			uids:   []string{u1},
+		})
 	}
 
 	u2NodeId, err := d.dm.s.cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
@@ -286,20 +295,18 @@ func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
 		return nil, err
 	}
 
+	if u2NodeId == d.dm.s.opts.Cluster.NodeId {
+		nodeUs = append(nodeUs, &nodeUsers{
+			nodeId: u2NodeId,
+			uids:   []string{u2},
+		})
+	}
+
 	tg := &tag{
 		key:         wkutil.GenUUID(),
 		channelId:   fakeChannelId,
 		channelType: wkproto.ChannelTypePerson,
-		users: []*nodeUsers{
-			{
-				nodeId: u1NodeId,
-				uids:   []string{u1},
-			},
-			{
-				nodeId: u2NodeId,
-				uids:   []string{u2},
-			},
-		},
+		users:       nodeUs,
 	}
 	return tg, nil
 }

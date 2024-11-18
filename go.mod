@@ -4,7 +4,7 @@ go 1.22.1
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
-	github.com/WuKongIM/WuKongIMGoProto v1.0.4
+	github.com/WuKongIM/WuKongIMGoProto v1.0.5
 	github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble v1.0.0
@@ -241,7 +241,7 @@ require (
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/ugorji/go/codec v1.2.7 // indirect
-	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/valyala/bytebufferpool v1.0.0
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/willf/bloom v2.0.3+incompatible // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -315,4 +315,4 @@ exclude k8s.io/client-go v8.0.0+incompatible
 replace github.com/hashicorp/consul => github.com/hashicorp/consul v1.14.5
 
 // replace github.com/WuKongIM/WuKongIMGoSDK => ../../WuKongIMGoSDK
-replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto
+// replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto

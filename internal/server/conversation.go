@@ -256,8 +256,8 @@ func (c *conversationWorker) stop() {
 func (c *conversationWorker) push(req *conversationReq) {
 	select {
 	case c.reqCh <- req:
-	case <-c.stopper.ShouldStop():
-		return
+	default:
+		c.Error("conversationWorker push req failed, reqCh is full")
 	}
 }
 
