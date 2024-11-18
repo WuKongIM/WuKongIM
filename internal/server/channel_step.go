@@ -215,7 +215,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 
 	case ChannelActionDeliverResp: // 消息投递返回
 		c.delivering = false // 设置为false，则不需要等待可以继续处理下一批请求
-		c.deliveringTick = 0
+		// c.deliveringTick = 0
 		if a.Index > c.msgQueue.deliveringIndex {
 			c.msgQueue.deliveringIndex = a.Index
 			c.msgQueue.truncateTo(a.Index)

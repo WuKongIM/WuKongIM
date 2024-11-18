@@ -68,9 +68,9 @@ type channel struct {
 	payloadDecryptingTick  int // 发起解密的tick计时
 	permissionCheckingTick int // 发起权限检查的tick计时
 
-	storageTick    int // 发起存储的tick计时
-	forwardTick    int // 发起转发的tick计时
-	deliveringTick int // 发起投递的tick计时
+	storageTick int // 发起存储的tick计时
+	forwardTick int // 发起转发的tick计时
+	// deliveringTick int // 发起投递的tick计时
 	sendackingTick int // 发起发送回执的tick计时
 
 	tagCheckTick int // tag检查的tick计时
@@ -310,7 +310,7 @@ func (c *channel) tick() {
 	c.storageTick++
 	c.initTick++
 	c.forwardTick++
-	c.deliveringTick++
+	// c.deliveringTick++
 	c.permissionCheckingTick++
 	c.payloadDecryptingTick++
 	c.sendackingTick++
@@ -337,10 +337,10 @@ func (c *channel) tick() {
 		c.sendacking = false
 		c.sendackingTick = 0
 	}
-	if c.delivering && c.deliveringTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-		c.delivering = false
-		c.deliveringTick = 0
-	}
+	// if c.delivering && c.deliveringTick > c.opts.Reactor.Channel.ProcessIntervalTick {
+	// 	c.delivering = false
+	// 	c.deliveringTick = 0
+	// }
 	if c.forwarding && c.forwardTick > c.opts.Reactor.Channel.ProcessIntervalTick {
 		c.forwarding = false
 		c.forwardTick = 0
@@ -430,7 +430,7 @@ func (c *channel) resetIndex() {
 	c.initTick = 0
 	c.storageTick = 0
 	c.forwardTick = 0
-	c.deliveringTick = 0
+	// c.deliveringTick = 0
 	c.permissionCheckingTick = 0
 	c.payloadDecryptingTick = 0
 	c.sendackingTick = 0
