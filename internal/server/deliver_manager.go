@@ -234,32 +234,31 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 
 	// ================== 投递消息 ==================
 
-	// 本节点投递
-	localNodeUser := tg.getNodeUsers(d.dm.s.opts.Cluster.NodeId) // 获取本节点需要投递的用户列表
-	if localNodeUser != nil && len(localNodeUser.uids) > 0 {
-		// 记录轨迹
-		if d.dm.s.opts.Logger.TraceOn {
-			for _, msg := range req.messages {
-				d.MessageTrace("投递节点", msg.SendPacket.ClientMsgNo, "deliverNode", zap.Int("userCount", len(localNodeUser.uids)))
-			}
-		}
-		// 更新最近会话
-		if d.dm.s.opts.Conversation.On {
-			d.dm.s.conversationManager.Push(&conversationReq{
-				channelId:   req.channelId,
-				channelType: req.channelType,
-				tagKey:      req.tagKey,
-				messages:    req.messages,
-			})
-		}
-
-		// 投递消息
-		d.deliver(req, localNodeUser.uids)
-	}
-
-	// 非本节点投递
 	for _, nodeUser := range tg.users {
-		if d.dm.s.opts.Cluster.NodeId != nodeUser.nodeId {
+
+		// 本节点投递
+		if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId {
+			// 记录轨迹
+			if d.dm.s.opts.Logger.TraceOn {
+				for _, msg := range req.messages {
+					d.MessageTrace("投递节点", msg.SendPacket.ClientMsgNo, "deliverNode", zap.Int("userCount", len(nodeUser.uids)))
+				}
+			}
+			// 更新最近会话
+			if d.dm.s.opts.Conversation.On {
+				d.dm.s.conversationManager.Push(&conversationReq{
+					channelId:   req.channelId,
+					channelType: req.channelType,
+					tagKey:      req.tagKey,
+					messages:    req.messages,
+				})
+			}
+
+			// 投递消息
+			d.deliver(req, nodeUser.uids)
+
+		} else {
+			// 非本节点投递
 			// 转发给对应的节点
 			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
 		}
@@ -282,20 +281,22 @@ func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if u1NodeId == d.dm.s.opts.Cluster.NodeId {
-		nodeUs = append(nodeUs, &nodeUsers{
-			nodeId: u1NodeId,
-			uids:   []string{u1},
-		})
-	}
-
 	u2NodeId, err := d.dm.s.cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
 	if err != nil {
 		return nil, err
 	}
 
-	if u2NodeId == d.dm.s.opts.Cluster.NodeId {
+	if u1NodeId == d.dm.s.opts.Cluster.NodeId && u1NodeId == u2NodeId {
+		nodeUs = append(nodeUs, &nodeUsers{
+			nodeId: u1NodeId,
+			uids:   []string{u1, u2},
+		})
+	} else if u1NodeId == d.dm.s.opts.Cluster.NodeId {
+		nodeUs = append(nodeUs, &nodeUsers{
+			nodeId: u1NodeId,
+			uids:   []string{u1},
+		})
+	} else if u2NodeId == d.dm.s.opts.Cluster.NodeId {
 		nodeUs = append(nodeUs, &nodeUsers{
 			nodeId: u2NodeId,
 			uids:   []string{u2},
@@ -315,6 +316,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	if len(uids) == 0 {
 		return
 	}
+
 	// d.Info("start deliver message", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Strings("uids", uids))
 	webhookOfflineUids := make([]string, 0, len(uids)) // 离线用户(只要主设备不在线就算离线)
 	toConns := make([]*connContext, 0)                 // 在线接受用户的连接对象
