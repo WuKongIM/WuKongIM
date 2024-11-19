@@ -661,6 +661,32 @@ func (req deleteChannelReq) Check() error {
 	return nil
 }
 
+type channelReq struct {
+	ChannelId   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+}
+
+func (c *channelReq) Marshal() []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteString(c.ChannelId)
+	enc.WriteUint8(c.ChannelType)
+	return enc.Bytes()
+}
+
+func (c *channelReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if c.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if c.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	return nil
+}
+
 type syncUserConversationResp struct {
 	ChannelId       string         `json:"channel_id"`         // 频道ID
 	ChannelType     uint8          `json:"channel_type"`       // 频道类型

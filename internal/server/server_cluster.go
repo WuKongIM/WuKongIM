@@ -58,6 +58,9 @@ func (s *Server) setClusterRoutes() {
 	// 获取订阅者
 	s.cluster.Route("/wk/getSubscribers", s.handleGetSubscribers)
 
+	// 频道重新创建ReceiverTag
+	s.cluster.Route("/wk/makeReceiverTag", s.handleMakeReceiverTag)
+
 }
 
 func (s *Server) handleChannelForward(c *wkserver.Context) {
@@ -514,4 +517,27 @@ func (s *Server) handleGetSubscribers(c *wkserver.Context) {
 		resps = append(resps, member.Uid)
 	}
 	c.Write(resps.Marshal())
+}
+
+func (s *Server) handleMakeReceiverTag(c *wkserver.Context) {
+	req := &channelReq{}
+	err := req.Unmarshal(c.Body())
+	if err != nil {
+		s.Error("handleMakeReceiverTag Unmarshal err", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	channelKey := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
+
+	channel := s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	if channel != nil {
+		_, err = channel.makeReceiverTag()
+		if err != nil {
+			s.Error("handleMakeReceiverTag: 创建接收者标签失败！", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+	}
+	c.WriteOk()
 }

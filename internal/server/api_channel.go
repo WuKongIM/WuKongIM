@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
@@ -306,15 +307,72 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 
 	}
 
-	channelKey := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
+	err = ch.remakeReceiverTag(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("创建接收者标签失败！", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (ch *ChannelAPI) remakeReceiverTag(channelId string, channelType uint8) error {
+	channelKey := wkutil.ChannelToKey(channelId, channelType)
 	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
 	if channel != nil {
 		// 重新生成接收者标签
-		_, err = channel.makeReceiverTag()
+		_, err := channel.makeReceiverTag()
 		if err != nil {
 			ch.Error("创建接收者标签失败！", zap.Error(err))
 			return err
 		}
+	}
+	cmdChannelId := ch.s.opts.OrginalConvertCmdChannel(channelId)
+	cmdChannelKey := wkutil.ChannelToKey(cmdChannelId, channelType)
+
+	leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(cmdChannelId, channelType) // 获取频道的领导节点
+	if err != nil {
+		ch.Error("remakeReceiverTag: 获取频道所在节点失败！", zap.Error(err), zap.String("channelID", cmdChannelId), zap.Uint8("channelType", channelType))
+		return err
+	}
+
+	if ch.s.opts.IsLocalNode(leaderInfo.Id) {
+		// 重新生成接收者标签
+		cmdChannel := ch.s.channelReactor.reactorSub(cmdChannelKey).channel(cmdChannelKey)
+		if cmdChannel != nil {
+			_, err = cmdChannel.makeReceiverTag()
+			if err != nil {
+				ch.Error("创建接收者标签失败！", zap.Error(err))
+				return err
+			}
+		}
+	} else {
+		return ch.requestReceiverTag(cmdChannelId, channelType)
+	}
+
+	return nil
+
+}
+
+func (ch *ChannelAPI) requestReceiverTag(channelId string, channelType uint8) error {
+	leaderId, err := ch.s.cluster.SlotLeaderIdOfChannel(channelId, channelType) // 获取频道的领导节点
+	if err != nil {
+		ch.Error("requestReceiverTag: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return err
+	}
+	timeoutCtx, cancel := ch.s.WithRequestTimeout()
+	defer cancel()
+
+	req := channelReq{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+	}
+	resp, err := ch.s.cluster.RequestWithContext(timeoutCtx, leaderId, "/wk/makeReceiverTag", req.Marshal())
+	if err != nil {
+		return err
+	}
+
+	if resp.Status != proto.Status_OK {
+		return fmt.Errorf("requestReceiverTag: respose error status:%d", resp.Status)
 	}
 	return nil
 }
@@ -356,16 +414,11 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		return
 	}
 
-	channelKey := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
-	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
-	if channel != nil {
-		// 重新生成接收者标签
-		_, err = channel.makeReceiverTag()
-		if err != nil {
-			ch.Error("创建接收者标签失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
+	err = ch.remakeReceiverTag(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("创建接收者标签失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(err)
+		return
 	}
 
 	c.ResponseOK()

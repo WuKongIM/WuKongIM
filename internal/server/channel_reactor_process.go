@@ -134,15 +134,16 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 
 	for i, msg := range req.messages {
 
-		// 没有连接id解密不了（没有连接id，说明发送者的连接突然断开了，那么这条消息也没办法解密）
-		if msg.FromConnId == 0 {
-			r.Warn("msg fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
-			continue
-		}
-
 		if !msg.IsEncrypt { // 没有加密(系统api发的消息和其他节点转发过来的消息都是未加密的，所以不需要再进行解密操作了)，直接跳过解密过程
 			continue
 		}
+
+		// 没有连接id解密不了（没有连接id，说明发送者的连接突然断开了，那么这条消息也没办法解密）
+		if msg.FromConnId == 0 {
+			r.Debug("msg fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
+			continue
+		}
+
 		msg.IsEncrypt = false // 设置为已解密
 
 		r.MessageTrace("解密消息", msg.SendPacket.ClientMsgNo, "processPayloadDecrypt", zap.Int64("messageId", msg.MessageId), zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
