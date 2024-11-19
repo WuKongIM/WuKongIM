@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/atomic"
@@ -505,7 +505,7 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 
 		// 如果是客服频道，获取访客的uid作为订阅者
 		if c.channelType == wkproto.ChannelTypeCustomerService {
-			visitorID, _ := c.opts.GetCustomerServiceVisitorUID(c.channelId) // 获取访客ID
+			visitorID, _ := c.opts.GetCustomerServiceVisitorUID(fakeChannelId) // 获取访客ID
 			if strings.TrimSpace(visitorID) != "" {
 				subscribers = append(subscribers, visitorID)
 			}
@@ -577,7 +577,10 @@ func (c *channel) requestSubscribers(channelId string, channelType uint8) ([]str
 	timeoutCtx, cancel := context.WithTimeout(c.r.s.ctx, time.Second*5)
 	defer cancel()
 
-	req := &subscriberGetReq{}
+	req := &subscriberGetReq{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+	}
 	data := req.Marshal()
 
 	resp, err := c.r.s.cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/getSubscribers", data)
@@ -585,8 +588,8 @@ func (c *channel) requestSubscribers(channelId string, channelType uint8) ([]str
 		return nil, err
 	}
 
-	if resp.Status != http.StatusOK {
-		c.Error("requestSubscribers: response status code is not 200", zap.Int("status", int(resp.Status)), zap.String("body", string(resp.Body)))
+	if resp.Status != proto.Status_OK {
+		c.Error("requestSubscribers: response status code is not ok", zap.Int("status", int(resp.Status)), zap.String("body", string(resp.Body)))
 		return nil, fmt.Errorf("requestSubscribers: response status code is %d", resp.Status)
 	}
 

@@ -794,7 +794,7 @@ func (s subscriberGetResp) Marshal() []byte {
 	return enc.Bytes()
 }
 
-func (s subscriberGetResp) Unmarshal(data []byte) error {
+func (s *subscriberGetResp) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	count, err := dec.Uint32()
 	if err != nil {
@@ -808,7 +808,7 @@ func (s subscriberGetResp) Unmarshal(data []byte) error {
 		if err != nil {
 			return err
 		}
-		s = append(s, uid)
+		*s = append(*s, uid)
 	}
 	return nil
 }

@@ -70,8 +70,8 @@ func (r *channelReactor) processInits(reqs []*initReq) {
 
 func (r *channelReactor) processInit(req *initReq) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
-	defer cancel()
 	leaderNode, err := r.s.cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+	cancel()
 	sub := r.reactorSub(req.ch.key)
 	if err != nil {
 		r.Error("channel init failed", zap.Error(err))
@@ -465,9 +465,6 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 			r.Debug("msg reasonCode is not success, no permission check", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			continue
 		}
-		if req.ch.channelId == "g1" {
-			fmt.Println("processPermission......")
-		}
 
 		if msg.IsSystem { // 如果是系统发的消息，直接通过
 			req.messages[i].ReasonCode = wkproto.ReasonSuccess
@@ -692,9 +689,6 @@ func (r *channelReactor) processStorageLoop() {
 		select {
 		case req := <-r.processStorageC:
 			reqs = append(reqs, req)
-			if req.ch.channelId == "g1" {
-				fmt.Println("processStorageLoop......")
-			}
 			// 取出所有req
 			for !done && !r.stopped.Load() {
 				select {
@@ -752,9 +746,6 @@ func (r *channelReactor) processStorage(req *storageReq) {
 			r.Debug("msg reasonCode is not success, no storage", zap.Uint64("messageId", uint64(reactorMsg.MessageId)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			continue
 
-		}
-		if req.ch.channelId == "g1" {
-			fmt.Println("processStorage......")
 		}
 
 		msg := wkdb.Message{
@@ -948,9 +939,6 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 			continue
 		}
 		r.MessageTrace("发送ack", msg.SendPacket.ClientMsgNo, "processSendack")
-		if req.ch.channelId == "g1" {
-			fmt.Println("processSendack......")
-		}
 
 		sendack := &wkproto.SendackPacket{
 			Framer:      msg.SendPacket.Framer,
