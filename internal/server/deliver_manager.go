@@ -384,7 +384,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 			fromUid := message.FromUid
 			// 如果发送者是系统账号，则不显示发送者
-			if sendPacket.ChannelType == wkproto.ChannelTypePerson && fromUid == d.dm.s.opts.SystemUID {
+			if fromUid == d.dm.s.opts.SystemUID {
 				fromUid = ""
 			}
 
