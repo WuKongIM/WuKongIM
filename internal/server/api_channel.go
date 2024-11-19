@@ -282,8 +282,6 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 			return err
 		}
 
-		start := time.Now()
-
 		conversations := make([]wkdb.Conversation, 0, len(newSubscribers))
 		for _, subscriber := range newSubscribers {
 			createdAt := time.Now()
@@ -305,8 +303,6 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 			ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)))
 			return err
 		}
-
-		// fmt.Println("update conversation 耗时------->：", time.Since(start))
 
 	}
 
