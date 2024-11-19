@@ -1194,6 +1194,11 @@ func GetExternalIP() (string, error) {
 	return externalIP, nil
 }
 
+// 是本节点
+func (o *Options) IsLocalNode(nodeId uint64) bool {
+	return o.Cluster.NodeId == nodeId
+}
+
 type Node struct {
 	Id         uint64
 	ServerAddr string

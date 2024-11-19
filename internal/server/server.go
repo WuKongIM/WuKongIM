@@ -537,3 +537,7 @@ func (s *Server) sendPacketIsVail(sendPacket *wkproto.SendPacket, conn *connCont
 	}
 	return true, nil
 }
+
+func (s *Server) WithRequestTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(s.ctx, s.opts.Cluster.ReqTimeout)
+}
