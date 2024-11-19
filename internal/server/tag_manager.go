@@ -143,22 +143,22 @@ func (t *tagManager) existUserInNode(key string, uid string, nodeId uint64) bool
 	return false
 }
 
-// 获取指定频道最新的tag的用户列表
-func (t *tagManager) getReceiverLastTagWithChannel(channelId string, channelType uint8) *tag {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	var lastTag *tag
-	for _, tag := range t.tags {
-		if tag.channelId == channelId && tag.channelType == channelType {
-			if lastTag == nil {
-				lastTag = tag
-			} else if tag.activeAt.After(lastTag.activeAt) {
-				lastTag = tag
-			}
-		}
-	}
-	return lastTag
-}
+// // 获取指定频道最新的tag的用户列表
+// func (t *tagManager) getReceiverLastTagWithChannel(channelId string, channelType uint8) *tag {
+// 	t.mu.RLock()
+// 	defer t.mu.RUnlock()
+// 	var lastTag *tag
+// 	for _, tag := range t.tags {
+// 		if tag.channelId == channelId && tag.channelType == channelType {
+// 			if lastTag == nil {
+// 				lastTag = tag
+// 			} else if tag.activeAt.After(lastTag.activeAt) {
+// 				lastTag = tag
+// 			}
+// 		}
+// 	}
+// 	return lastTag
+// }
 
 // 立马释放频道接受者tag
 func (t *tagManager) releaseReceiverTagNow(key string) {

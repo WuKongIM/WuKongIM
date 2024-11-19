@@ -96,8 +96,6 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		connInfos = append(connInfos, connInfo)
 	}
 
-	fmt.Println("getConnInfos....end.")
-
 	c.JSON(http.StatusOK, Connz{
 		Connections: connInfos,
 		Now:         time.Now(),
@@ -109,8 +107,6 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 
 func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []*connContext {
 	connCtxs := make([]*connContext, 0, s.engine.ConnCount())
-
-	fmt.Println("Iterator.....", s.engine.ConnCount())
 
 	s.engine.Iterator(func(c wknet.Conn) bool {
 		ctx := c.Context()
