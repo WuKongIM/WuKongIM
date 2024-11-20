@@ -68,7 +68,7 @@ type channel struct {
 	payloadDecryptingTick  int // 发起解密的tick计时
 	permissionCheckingTick int // 发起权限检查的tick计时
 
-	storageTick int // 发起存储的tick计时
+	// storageTick int // 发起存储的tick计时
 	forwardTick int // 发起转发的tick计时
 	// deliveringTick int // 发起投递的tick计时
 	sendackingTick int // 发起发送回执的tick计时
@@ -307,7 +307,7 @@ func (c *channel) isInitialized() bool {
 }
 
 func (c *channel) tick() {
-	c.storageTick++
+	// c.storageTick++
 	c.initTick++
 	c.forwardTick++
 	// c.deliveringTick++
@@ -428,7 +428,7 @@ func (c *channel) resetIndex() {
 	c.idleTick = 0
 
 	c.initTick = 0
-	c.storageTick = 0
+	// c.storageTick = 0
 	c.forwardTick = 0
 	// c.deliveringTick = 0
 	c.permissionCheckingTick = 0

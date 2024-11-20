@@ -307,6 +307,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 
 	}
 
+	// 重新制止tag
 	err = ch.remakeReceiverTag(req.ChannelId, req.ChannelType)
 	if err != nil {
 		ch.Error("创建接收者标签失败！", zap.Error(err))
