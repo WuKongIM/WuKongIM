@@ -449,6 +449,8 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 					connId:         conn.connId,
 					messageId:      message.MessageId,
 					recvPacketData: recvPacketData,
+					channelId:      req.channelId,
+					channelType:    req.channelType,
 				})
 			}
 

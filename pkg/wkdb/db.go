@@ -195,6 +195,9 @@ type ConversationDB interface {
 	// AddOrUpdateConversationsWithUser 添加或更新最近会话
 	AddOrUpdateConversationsWithUser(uid string, conversations []Conversation) error
 
+	// UpdateConversationIfSeqGreaterAsync 如果readToMsgSeq大于当前最近会话的readToMsgSeq则更新当前最近会话 (异步操作)
+	UpdateConversationIfSeqGreaterAsync(uid, channelId string, channelType uint8, readToMsgSeq uint64) error
+
 	// DeleteConversation 删除最近会话
 	DeleteConversation(uid string, channelId string, channelType uint8) error
 

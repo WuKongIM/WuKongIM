@@ -177,7 +177,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 
 	case ChannelActionStorageResp: // 存储完成
 		c.storaging = false // 设置为false，则不需要等待可以继续处理下一批请求
-		c.storageTick = 0
+		// c.storageTick = 0
 		startIndex := c.msgQueue.getArrayIndex(c.msgQueue.storagingIndex)
 		if a.Index > c.msgQueue.storagingIndex {
 			c.msgQueue.storagingIndex = a.Index

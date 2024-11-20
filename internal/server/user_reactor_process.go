@@ -608,7 +608,29 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 	for _, msg := range req.messages {
 		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
 		r.Trace("消息回执", "processRecvack", zap.Int64("messageId", recvackPacket.MessageID), zap.Uint32("messageSeq", recvackPacket.MessageSeq), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId), zap.Int64("connId", msg.ConnId))
-		persist := !recvackPacket.NoPersist
+
+		persist := !recvackPacket.NoPersist                      // 是否需要持久化
+		conn := r.s.userReactor.getConnById(req.uid, msg.ConnId) // 获取当前连接
+		if conn != nil {
+			isCmd := recvackPacket.SyncOnce                           // 是命令消息
+			isMaster := conn.deviceLevel == wkproto.DeviceLevelMaster // 是master设备，只有master设备才能擦除指令消息
+			if isCmd && persist && isMaster {
+				currMsg := r.s.retryManager.retryMessage(msg.ConnId, recvackPacket.MessageID)
+				if currMsg != nil {
+					// 删除最近会话的缓存
+					r.s.conversationManager.DeleteUserConversationFromCache(req.uid, currMsg.channelId, currMsg.channelType)
+
+					// 更新最近会话的已读位置
+					err := r.s.store.DB().UpdateConversationIfSeqGreaterAsync(req.uid, currMsg.channelId, currMsg.channelType, uint64(recvackPacket.MessageSeq))
+					if err != nil {
+						r.Error("UpdateConversationIfSeqGreaterAsync failed", zap.Error(err), zap.String("channelId", currMsg.channelId), zap.Uint8("channelType", currMsg.channelType), zap.Uint64("messageSeq", uint64(recvackPacket.MessageSeq)))
+					}
+				}
+			}
+		} else {
+			r.Debug("processRecvack: conn not found", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId))
+		}
+
 		if persist { // 只有需要持久化的消息才会重试
 			// r.Debug("remove retry", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
 			err := r.s.retryManager.removeRetry(msg.ConnId, recvackPacket.MessageID)
@@ -616,6 +638,7 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 				r.Warn("removeRetry error", zap.Error(err), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId), zap.Int64("connId", msg.ConnId), zap.Int64("messageID", recvackPacket.MessageID))
 			}
 		}
+
 	}
 	lastMsg := req.messages[len(req.messages)-1]
 	r.reactorSub(req.uid).step(req.uid, UserAction{

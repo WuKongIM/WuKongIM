@@ -79,6 +79,14 @@ func (r *RetryQueue) popInFlightMessage(connId int64, messageId int64) (*retryMe
 	return msg, nil
 }
 
+func (r *RetryQueue) getInFlightMessage(connId int64, messageId int64) *retryMessage {
+	r.inFlightMutex.Lock()
+	defer r.inFlightMutex.Unlock()
+	key := r.getInFlightKey(connId, messageId)
+	msg := r.inFlightMessages[key]
+	return msg
+}
+
 func (r *RetryQueue) getInFlightKey(connId int64, messageId int64) string {
 	var b strings.Builder
 	b.WriteString(strconv.FormatInt(connId, 10))
@@ -141,9 +149,7 @@ func (r *RetryQueue) Start() {
 func (r *RetryQueue) Stop() {
 	r.stopped.Store(true)
 	if r.retryTimer != nil {
-		// fmt.Println("RetryQueue stop.....1")
 		r.retryTimer.Stop()
-		// fmt.Println("RetryQueue stop.....2")
 		r.retryTimer = nil
 	}
 }
