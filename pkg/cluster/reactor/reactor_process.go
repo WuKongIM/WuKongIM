@@ -87,6 +87,7 @@ func (r *Reactor) processInit(req *initReq) {
 		})
 		return
 	}
+
 	req.h.setLastLeaderTerm(lastTerm) // 设置领导的最新任期
 
 	r.Step(configResp.HandlerKey, replica.Message{
@@ -157,8 +158,8 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 		})
 		return
 	}
-	// 如果MsgLeaderTermStartIndexReq的term等于领导的term则领导返回当前最新日志下标，否则返回MsgLeaderTermStartIndexReq里的term+1的 任期的第一条日志下标，返回的这个值称为LastOffset
-
+	// 如果MsgLeaderTermStartIndexReq的term等于领导的term则领导返回当前最新日志下标，
+	// 否则返回MsgLeaderTermStartIndexReq里的term+1的 任期的第一条日志下标，返回的这个值称为LastOffset
 	index, err := r.request.GetLeaderTermStartIndex(LeaderTermStartIndexReq{
 		HandlerKey: req.h.key,
 		LeaderId:   req.leaderId,

@@ -241,67 +241,23 @@ func (p *PebbleShardLogStorage) handleAppendReqs(reqs []reactor.AppendLogReq) {
 	}
 }
 
-// func (p *PebbleShardLogStorage) AppendLogBatch(reqs []reactor.AppendLogReq) error {
-
-// 	start := time.Now()
-// 	defer func() {
-// 		end := time.Since(start)
-// 		if end > time.Millisecond*1 {
-// 			logCount := 0
-// 			for _, req := range reqs {
-// 				logCount += len(req.Logs)
-// 			}
-// 			p.Info("Slot appendLogBatch done", zap.Duration("cost", end), zap.Int("reqs", len(reqs)), zap.Int("logs", logCount))
-// 		}
-
-// 	}()
-
-// 	// 按照db分组AppendLogReq
-// 	reqsMap := make(map[uint32][]reactor.AppendLogReq)
-// 	for _, req := range reqs {
-// 		shardId := p.shardId(req.HandleKey)
-// 		reqsMap[shardId] = append(reqsMap[shardId], req)
-// 	}
-
-// 	for shardId, reqs := range reqsMap {
-// 		batch := p.shardBatchDBWithIndex(shardId).NewBatch()
-
-// 		for _, req := range reqs {
-// 			for _, lg := range req.Logs {
-// 				logData, err := lg.Marshal()
-// 				if err != nil {
-// 					return err
-// 				}
-
-// 				timeData := make([]byte, 8)
-// 				binary.BigEndian.PutUint64(timeData, uint64(time.Now().UnixNano()))
-
-// 				logData = append(logData, timeData...)
-
-// 				keyData := key.NewLogKey(req.HandleKey, lg.Index)
-// 				batch.Set(keyData, logData)
-// 			}
-// 			lastLog := req.Logs[len(req.Logs)-1]
-// 			err := p.saveMaxIndexWrite(req.HandleKey, lastLog.Index, batch)
-// 			if err != nil {
-// 				return err
-// 			}
-// 		}
-
-// 		err := batch.CommitWait()
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }
-
 // TruncateLogTo 截断日志
 func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
 	if index == 0 {
 		return errors.New("index must be greater than 0")
 	}
+
+	lastIndex, _, err := p.getMaxIndex(shardNo)
+	if err != nil {
+		p.Error("TruncateLogTo: getMaxIndex error", zap.Error(err))
+		return err
+	}
+
+	if index > lastIndex {
+		p.Error("truncateLogTo messageSeq > lastMsgSeq, no truncate", zap.Uint64("index", index), zap.Uint64("lastIndex", lastIndex), zap.String("shardNo", shardNo))
+		return nil
+	}
+
 	appliedIdx, err := p.AppliedIndex(shardNo)
 	if err != nil {
 		p.Error("get max index error", zap.Error(err))
@@ -311,6 +267,7 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 		p.Panic(" applied must be less than  index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx))
 		return nil
 	}
+
 	keyData := key.NewLogKey(shardNo, index)
 	maxKeyData := key.NewLogKey(shardNo, math.MaxUint64)
 	err = p.shardDB(shardNo).DeleteRange(keyData, maxKeyData, p.wo)
@@ -568,7 +525,7 @@ func (p *PebbleShardLogStorage) LeaderTermStartIndex(shardNo string, term uint32
 
 func (p *PebbleShardLogStorage) LeaderLastTermGreaterThan(shardNo string, term uint32) (uint32, error) {
 	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
-		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term+1),
+		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
 	defer iter.Close()

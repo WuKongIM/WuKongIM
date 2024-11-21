@@ -1,4 +1,4 @@
-mode: "release" 
+mode: "debug" 
 addr: "tcp://0.0.0.0:5130" # tcp监听地址
 httpAddr: "0.0.0.0:5003" 
 wsAddr: "ws://0.0.0.0:5230" 

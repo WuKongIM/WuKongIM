@@ -13,7 +13,11 @@ func (wk *wukongDB) SetLeaderTermStartIndex(shardNo string, term uint32, index u
 
 	indexBytes := make([]byte, 8)
 	wk.endian.PutUint64(indexBytes, index)
-	return wk.shardDB(shardNo).Set(key.NewLeaderTermSequenceTermKey(shardNo, term), indexBytes, wk.sync)
+	batch := wk.sharedBatchDB(shardNo).NewBatch()
+
+	batch.Set(key.NewLeaderTermSequenceTermKey(shardNo, term), indexBytes)
+
+	return batch.CommitWait()
 }
 
 func (wk *wukongDB) LeaderLastTerm(shardNo string) (uint32, error) {
@@ -26,7 +30,7 @@ func (wk *wukongDB) LeaderLastTerm(shardNo string) (uint32, error) {
 	})
 	defer iter.Close()
 
-	if iter.Last() && iter.Valid() && iter.Prev() {
+	if iter.Last() && iter.Valid() {
 		term, err := key.ParseLeaderTermSequenceTermKey(iter.Key())
 		if err != nil {
 			return 0, err
@@ -61,14 +65,18 @@ func (wk *wukongDB) LeaderLastTermGreaterThan(shardNo string, term uint32) (uint
 	})
 	defer iter.Close()
 
-	if iter.First() && iter.Valid() && iter.Next() {
-		term, err := key.ParseLeaderTermSequenceTermKey(iter.Key())
+	var maxTerm uint32 = term
+	for iter.First(); iter.Valid(); iter.Next() {
+		qterm, err := key.ParseLeaderTermSequenceTermKey(iter.Key())
 		if err != nil {
 			return 0, err
 		}
-		return term, nil
+		if qterm >= maxTerm {
+			maxTerm = qterm
+			break
+		}
 	}
-	return term, nil
+	return maxTerm, nil
 }
 
 func (wk *wukongDB) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
