@@ -347,7 +347,7 @@ func (wk *BatchDB) NewBatch() *Batch {
 }
 
 func (wk *BatchDB) Start() {
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 100; i++ {
 		wk.stopper.RunWorker(wk.loop)
 	}
 }

@@ -470,6 +470,20 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 
 	}
 
+	// 获取最新的消息seq
+	lastMsgSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		wk.Error("TruncateLogTo: getChannelLastMessageSeq", zap.Error(err))
+		return err
+	}
+
+	if messageSeq > lastMsgSeq {
+		wk.Warn("truncateLogTo messageSeq > lastMsgSeq, no truncate", zap.Uint64("messageSeq", messageSeq), zap.Uint64("lastMsgSeq", lastMsgSeq), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return nil
+	}
+
+	wk.Warn("truncateLogTo message", zap.Uint64("messageSeq", messageSeq), zap.Uint64("lastMsgSeq", lastMsgSeq), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("messageSeq", messageSeq))
+
 	if wk.opts.EnableCost {
 		start := time.Now()
 		defer func() {
@@ -483,7 +497,7 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 
 	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64))
 
-	err := wk.setChannelLastMessageSeq(channelId, channelType, messageSeq-1, batch)
+	err = wk.setChannelLastMessageSeq(channelId, channelType, messageSeq-1, batch)
 	if err != nil {
 		return err
 	}

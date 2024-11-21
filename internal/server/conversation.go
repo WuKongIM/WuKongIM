@@ -257,7 +257,7 @@ func (c *conversationWorker) push(req *conversationReq) {
 	select {
 	case c.reqCh <- req:
 	default:
-		c.Error("conversationWorker push req failed, reqCh is full")
+		c.Error("conversationWorker push req failed, reqCh is full", zap.String("flag", "chanFull"))
 	}
 }
 
@@ -382,6 +382,8 @@ func (c *conversationWorker) propose() {
 		return
 	}
 
+	fmt.Println("conversations update----------------->", len(conversations))
+
 	// 如果conversations的数据超过500则分批提交
 	if len(conversations) > 500 {
 		for i := 0; i < len(conversations); i += 500 {
@@ -432,6 +434,23 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 	updatedAt := time.Now()
 	conversations := make([]wkdb.Conversation, 0)
 
+	// 指定要更新的最近会话
+	for _, user := range update.users {
+		id := c.s.store.NextPrimaryKey()
+		conversations = append(conversations, wkdb.Conversation{
+			Id:           id,
+			Uid:          user.uid,
+			ChannelId:    update.channelId,
+			ChannelType:  update.channelType,
+			Type:         update.conversationType,
+			ReadToMsgSeq: user.messageSeq,
+			CreatedAt:    &createdAt,
+			UpdatedAt:    &updatedAt,
+		})
+	}
+
+	fmt.Println("getConversationWithUpdater---1-->", len(conversations))
+
 	var willUpdateUids []string // 将要更新最近会话的用户集合
 	if update.isUpdateAll() {
 		tag := c.s.tagManager.getReceiverTag(update.lastTagKey)
@@ -445,6 +464,8 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		}
 	}
 
+	fmt.Println("getConversationWithUpdater---2-->", len(willUpdateUids))
+
 	var needUpdateUids []string
 	// 判断实际只需要更新的用户
 	if len(willUpdateUids) > 0 {
@@ -453,6 +474,8 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		if err != nil {
 			return nil, err
 		}
+
+		fmt.Println("getConversationWithUpdater---3-->", len(updatedUids))
 
 		// 比较willUpdateUids和updatedUids获得updatedUids里不存在的uid集合
 		if len(updatedUids) > 0 {
@@ -472,20 +495,8 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 			needUpdateUids = willUpdateUids
 		}
 
-	}
+		fmt.Println("getConversationWithUpdater---4-->", len(needUpdateUids))
 
-	for _, user := range update.users {
-		id := c.s.store.NextPrimaryKey()
-		conversations = append(conversations, wkdb.Conversation{
-			Id:           id,
-			Uid:          user.uid,
-			ChannelId:    update.channelId,
-			ChannelType:  update.channelType,
-			Type:         update.conversationType,
-			ReadToMsgSeq: user.messageSeq,
-			CreatedAt:    &createdAt,
-			UpdatedAt:    &updatedAt,
-		})
 	}
 
 	sugguestSeq := update.suggestMessageSeq
@@ -495,6 +506,8 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 
 	for _, uid := range needUpdateUids {
 		id := c.s.store.NextPrimaryKey()
+
+		//  如果update.users 里面已经存在了uid则不需要再次更新
 		exist := false
 		for _, user := range update.users {
 			if user.uid == uid {
