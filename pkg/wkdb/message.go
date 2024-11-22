@@ -478,7 +478,6 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 	}
 
 	if messageSeq > lastMsgSeq {
-		wk.Warn("truncateLogTo messageSeq > lastMsgSeq, no truncate", zap.Uint64("messageSeq", messageSeq), zap.Uint64("lastMsgSeq", lastMsgSeq), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return nil
 	}
 

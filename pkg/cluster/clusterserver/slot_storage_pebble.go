@@ -254,7 +254,6 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 	}
 
 	if index > lastIndex {
-		p.Error("truncateLogTo messageSeq > lastMsgSeq, no truncate", zap.Uint64("index", index), zap.Uint64("lastIndex", lastIndex), zap.String("shardNo", shardNo))
 		return nil
 	}
 

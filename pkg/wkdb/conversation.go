@@ -51,12 +51,17 @@ func (wk *wukongDB) AddOrUpdateConversations(conversations []Conversation) error
 		}
 	}
 
+	err := wk.setConversationLocalUserRelation(conversations, false)
+	if err != nil {
+		return err
+	}
+
 	batchs := make([]*Batch, 0, len(userBatchMap))
 	for _, batch := range userBatchMap {
 		batchs = append(batchs, batch)
 	}
 
-	err := Commits(batchs)
+	err = Commits(batchs)
 	if err != nil {
 		wk.Error("commits failed", zap.Error(err))
 		return nil
@@ -115,7 +120,7 @@ func (wk *wukongDB) AddOrUpdateConversationsWithUser(uid string, conversations [
 		}
 	}
 
-	err := wk.setConversationLocalUserRelation(conversations)
+	err := wk.setConversationLocalUserRelation(conversations, false)
 	if err != nil {
 		return err
 	}
@@ -690,7 +695,7 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 }
 
 // 设置最近会话用户关系
-func (wk *wukongDB) setConversationLocalUserRelation(conversations []Conversation) error {
+func (wk *wukongDB) setConversationLocalUserRelation(conversations []Conversation, commitWait bool) error {
 
 	// 按照频道分组
 	batchs := make(map[string]*Batch)
@@ -704,10 +709,18 @@ func (wk *wukongDB) setConversationLocalUserRelation(conversations []Conversatio
 	}
 
 	for _, batch := range batchs {
-		err := batch.CommitWait()
-		if err != nil {
-			return err
+		if commitWait {
+			err := batch.CommitWait()
+			if err != nil {
+				return err
+			}
+		} else {
+			err := batch.Commit()
+			if err != nil {
+				return err
+			}
 		}
+
 	}
 	return nil
 }

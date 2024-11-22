@@ -43,7 +43,7 @@ func newUserReactor(s *Server) *userReactor {
 		processPingC:              make(chan *pingReq, 1024),
 		processRecvackC:           make(chan *recvackReq, 1024),
 		processWriteC:             make(chan *writeReq, 1024),
-		processForwardUserActionC: make(chan UserAction, 1024),
+		processForwardUserActionC: make(chan UserAction, 1024*10),
 		processNodePingC:          make(chan *nodePingReq, 1024),
 		processNodePongC:          make(chan *nodePongReq, 1024),
 		processProxyNodeTimeoutC:  make(chan *proxyNodeTimeoutReq, 1024),

@@ -257,15 +257,16 @@ func (r *Reactor) handleLeaderTermStartIndexResp(handler *handler, index uint64,
 
 	truncateIndex := index
 
-	appliedIndex, err := handler.handler.AppliedIndex()
-	if err != nil {
-		r.Error("get applied index failed", zap.Error(err))
-		return 0, err
-	}
+	// appliedIndex, err := handler.handler.AppliedIndex()
+	// if err != nil {
+	// 	r.Error("get applied index failed", zap.Error(err))
+	// 	return 0, err
+	// }
 
-	if truncateIndex >= appliedIndex {
-		truncateIndex = appliedIndex + 1
-	}
+	// TODO: 这里不能 truncateIndex = appliedIndex + 1，因为频道没有应用日志的概念，频道返回的appliedIndex是0
+	// if truncateIndex >= appliedIndex {
+	// 	truncateIndex = appliedIndex + 1
+	// }
 
 	err = handler.handler.TruncateLogTo(truncateIndex)
 	if err != nil {

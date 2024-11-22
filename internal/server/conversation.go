@@ -301,6 +301,7 @@ func (c *conversationWorker) handleReq(req *conversationReq) {
 		update = newConversationUpdate(c.s, req.channelId, req.channelType, "", uint64(firstMsg.MessageSeq))
 		c.updates = append(c.updates, update)
 	}
+	update.keepActive()
 
 	// 消息发送者的最近会话更新
 	for _, msg := range messages {
@@ -343,6 +344,7 @@ func (c *conversationWorker) handleReq(req *conversationReq) {
 
 	// 如果tag不一样了说明订阅者发生了变化，需要更新频道的最近会话
 	if update.lastTagKey != req.tagKey {
+		fmt.Println("update.lastTagKey--->", "oldTag:", update.lastTagKey, "newTag:", req.tagKey, req.channelId, req.channelType)
 		update.updateLastTagKey(req.tagKey)
 		update.shouldUpdateAll()
 	}
@@ -350,13 +352,17 @@ func (c *conversationWorker) handleReq(req *conversationReq) {
 }
 
 func (c *conversationWorker) loopPropose() {
-	tk := time.NewTicker(time.Minute * 1)
+	tk := time.NewTicker(c.s.opts.Conversation.SyncInterval)
 	defer tk.Stop()
+
+	clean := time.NewTicker(c.s.opts.Conversation.SyncInterval * 2)
 
 	for {
 		select {
 		case <-tk.C:
 			c.propose()
+		case <-clean.C:
+			c.cleanUpdate() // 清理更新缓存
 		case <-c.stopper.ShouldStop():
 			return
 		}
@@ -416,17 +422,23 @@ func (c *conversationWorker) propose() {
 		}
 	}
 
+	c.Unlock()
+
+}
+
+func (c *conversationWorker) cleanUpdate() {
+	c.Lock()
+	defer c.Unlock()
 	// 如果updateAll为false并且users为空的时候就可以移除update了
 	for i := 0; i < len(c.updates); {
-		if !c.updates[i].isUpdateAll() && len(c.updates[i].users) == 0 {
+
+		udpate := c.updates[i]
+		if !udpate.isUpdateAll() && len(udpate.users) == 0 && time.Since(udpate.activeTime) > c.s.opts.Conversation.CacheExpire {
 			c.updates = append(c.updates[:i], c.updates[i+1:]...)
 		} else {
 			i++
 		}
 	}
-
-	c.Unlock()
-
 }
 
 func (c *conversationWorker) getConversationWithUpdater(update *conversationUpdate) ([]wkdb.Conversation, error) {
@@ -449,8 +461,6 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		})
 	}
 
-	fmt.Println("getConversationWithUpdater---1-->", len(conversations))
-
 	var willUpdateUids []string // 将要更新最近会话的用户集合
 	if update.isUpdateAll() {
 		tag := c.s.tagManager.getReceiverTag(update.lastTagKey)
@@ -464,7 +474,7 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		}
 	}
 
-	fmt.Println("getConversationWithUpdater---2-->", len(willUpdateUids))
+	fmt.Println("getConversationWithUpdater---willUpdateUids-->", len(willUpdateUids), update.channelId, update.channelType)
 
 	var needUpdateUids []string
 	// 判断实际只需要更新的用户
@@ -475,7 +485,7 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 			return nil, err
 		}
 
-		fmt.Println("getConversationWithUpdater---3-->", len(updatedUids))
+		fmt.Println("getConversationWithUpdater---updatedUids-->", len(updatedUids), update.channelId, update.channelType)
 
 		// 比较willUpdateUids和updatedUids获得updatedUids里不存在的uid集合
 		if len(updatedUids) > 0 {
@@ -495,7 +505,7 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 			needUpdateUids = willUpdateUids
 		}
 
-		fmt.Println("getConversationWithUpdater---4-->", len(needUpdateUids))
+		fmt.Println("getConversationWithUpdater---start-->", len(needUpdateUids), update.channelId, update.channelType)
 
 	}
 
@@ -589,6 +599,8 @@ type conversationUpdate struct {
 	s                *Server
 	sync.RWMutex
 	suggestMessageSeq uint64 // 更新所有的时候建议使用的messageSeq
+
+	activeTime time.Time // 最后一次更新时间
 }
 
 type userUpdate struct {
@@ -723,4 +735,11 @@ func (c *conversationUpdate) updateLastTagKey(tagKey string) {
 	defer c.Unlock()
 
 	c.lastTagKey = tagKey
+}
+
+func (c *conversationUpdate) keepActive() {
+	c.Lock()
+	defer c.Unlock()
+
+	c.activeTime = time.Now()
 }

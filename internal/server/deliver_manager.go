@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -65,18 +68,19 @@ func (d *deliverManager) deliver(req *deliverReq) {
 func (d *deliverManager) handleDeliver(req *deliverReq) {
 
 	retry := 0
+	var err error
 	for {
 		if retry > d.s.opts.Deliver.MaxRetry {
 			d.Error("deliver reqC full, retry too many times", zap.Int("retry", retry))
 			return
 		}
 		deliver := d.nextDeliver()
-		select {
-		case deliver.reqC <- req:
-			return
-		default:
+		err = deliver.request(req)
+		if err != nil {
 			retry++
+			continue
 		}
+		return
 	}
 }
 
@@ -90,7 +94,9 @@ type deliverr struct {
 	reqC chan *deliverReq
 	dm   *deliverManager
 	wklog.Log
-	stopper *syncutil.Stopper
+	stopper        *syncutil.Stopper
+	recvPacketPool *sync.Pool
+	index          int
 }
 
 func newDeliverr(index int, dm *deliverManager) *deliverr {
@@ -100,6 +106,12 @@ func newDeliverr(index int, dm *deliverManager) *deliverr {
 		reqC:    make(chan *deliverReq, 1024),
 		Log:     wklog.NewWKLog(fmt.Sprintf("deliverr[%d]", index)),
 		dm:      dm,
+		index:   index,
+		recvPacketPool: &sync.Pool{
+			New: func() interface{} {
+				return &wkproto.RecvPacket{}
+			},
+		},
 	}
 }
 
@@ -112,8 +124,18 @@ func (d *deliverr) stop() {
 	d.stopper.Stop()
 }
 
+func (d *deliverr) request(req *deliverReq) error {
+	select {
+	case d.reqC <- req:
+	default:
+		return fmt.Errorf("deliverr is full, index:%d", d.index)
+	}
+	return nil
+}
+
 func (d *deliverr) loop() {
-	reqs := make([]*deliverReq, 0)
+	reqCapSize := 1024
+	reqs := make([]*deliverReq, 0, reqCapSize)
 	done := false
 	for {
 		select {
@@ -128,7 +150,12 @@ func (d *deliverr) loop() {
 				}
 			}
 			d.handleDeliverReqs(reqs)
-			reqs = reqs[:0]
+			if len(reqs) > 0 {
+				reqs = reqs[:0] // Reset the slice without reallocating
+				if cap(reqs) > reqCapSize && len(reqs) < cap(reqs)/2 {
+					reqs = make([]*deliverReq, 0, cap(reqs)/2) // Reduce capacity if too large
+				}
+			}
 			done = false
 		case <-d.stopper.ShouldStop():
 			return
@@ -312,44 +339,72 @@ func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
 	return tg, nil
 }
 
+type deliverUserSlice struct {
+	offlineUids []string       // 离线用户(只要主设备不在线就算离线)
+	toConns     []*connContext // 在线接受用户的连接对象
+	onlineUsers []string       // 在线用户数量（只要一个客户端在线就算在线）
+}
+
+func (d *deliverUserSlice) reset() {
+	d.offlineUids = d.offlineUids[:0]
+	d.toConns = d.toConns[:0]
+	d.onlineUsers = d.onlineUsers[:0]
+}
+
+var deliverSlicePool = &sync.Pool{
+	New: func() any {
+		return &deliverUserSlice{
+			offlineUids: make([]string, 0),
+			toConns:     make([]*connContext, 0),
+			onlineUsers: make([]string, 0),
+		}
+	},
+}
+
 func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	if len(uids) == 0 {
 		return
 	}
 
-	// d.Info("start deliver message", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Strings("uids", uids))
-	webhookOfflineUids := make([]string, 0, len(uids)) // 离线用户(只要主设备不在线就算离线)
-	toConns := make([]*connContext, 0)                 // 在线接受用户的连接对象
-	onlineUsers := make([]string, 0)                   // 在线用户数量（只要一个客户端在线就算在线）
+	slices := deliverSlicePool.Get().(*deliverUserSlice)
+	defer func() {
+		slices.reset()
+		deliverSlicePool.Put(slices)
+	}()
+
+	// // d.Info("start deliver message", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Strings("uids", uids))
+	// webhookOfflineUids := make([]string, 0, len(uids)) // 离线用户(只要主设备不在线就算离线)
+	// toConns := make([]*connContext, 0)                 // 在线接受用户的连接对象
+	// onlineUsers := make([]string, 0)                   // 在线用户数量（只要一个客户端在线就算在线）
 
 	for _, toUid := range uids {
 		userHandler := d.dm.s.userReactor.getUserHandler(toUid)
 		if userHandler == nil { // 用户不在线
-			webhookOfflineUids = append(webhookOfflineUids, toUid)
+			slices.offlineUids = append(slices.offlineUids, toUid)
 			continue
 		}
 		// 用户没有主设备在线，还是是要推送离线给业务端，比如有的场景，web在线，手机离线，这种情况手机需要收到离线。
 		if !userHandler.hasMasterDevice() {
-			webhookOfflineUids = append(webhookOfflineUids, toUid)
+			slices.offlineUids = append(slices.offlineUids, toUid)
 		}
 
 		// 获取当前用户的所有连接
 		conns := userHandler.getConns()
 
 		if len(conns) == 0 {
-			webhookOfflineUids = append(webhookOfflineUids, toUid)
+			slices.offlineUids = append(slices.offlineUids, toUid)
 		} else {
-			toConns = append(toConns, conns...)
-			onlineUsers = append(onlineUsers, toUid)
+			slices.toConns = append(slices.toConns, conns...)
+			slices.onlineUsers = append(slices.onlineUsers, toUid)
 		}
 	}
 
 	if d.dm.s.opts.Logger.TraceOn {
 		for _, msg := range req.messages {
-			if len(onlineUsers) > 0 {
+			if len(slices.onlineUsers) > 0 {
 				existSendSelfDevice := false        // 存在发送者自己的连接
 				existSendSelfNotSendDevice := false // 存在发送者自己但是不是发送设备
-				for _, toConn := range toConns {
+				for _, toConn := range slices.toConns {
 					if toConn.uid == msg.FromUid && toConn.deviceId == msg.FromDeviceId {
 						existSendSelfDevice = true
 					}
@@ -360,18 +415,37 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 				// 如果仅仅是发送者自己的连接，不需要发送给自己
 				if !existSendSelfDevice || existSendSelfNotSendDevice {
-					d.MessageTrace("在线通知", msg.SendPacket.ClientMsgNo, "deliverOnline", zap.Int("userCount", len(onlineUsers)), zap.String("uids", strings.Join(onlineUsers, ",")), zap.Int("connCount", len(toConns)))
+					d.MessageTrace("在线通知", msg.SendPacket.ClientMsgNo, "deliverOnline", zap.Int("userCount", len(slices.onlineUsers)), zap.String("uids", strings.Join(slices.onlineUsers, ",")), zap.Int("connCount", len(slices.toConns)))
 				}
 
 			}
 
-			if len(webhookOfflineUids) > 0 {
-				d.MessageTrace("离线通知", msg.SendPacket.ClientMsgNo, "deliverOffline", zap.Int("userCount", len(webhookOfflineUids)), zap.String("uids", strings.Join(webhookOfflineUids, ",")))
+			if len(slices.offlineUids) > 0 {
+				d.MessageTrace("离线通知", msg.SendPacket.ClientMsgNo, "deliverOffline", zap.Int("userCount", len(slices.offlineUids)), zap.String("uids", strings.Join(slices.offlineUids, ",")))
 			}
 		}
 	}
 
-	for _, conn := range toConns {
+	// payload内容pool
+	payloadBuffer := bytebufferpool.Get()
+	defer bytebufferpool.Put(payloadBuffer)
+
+	// recvPacket pool
+	recvPacket := d.recvPacketPool.Get().(*wkproto.RecvPacket)
+	defer d.releaseRecvPacket(recvPacket)
+
+	// 签名buffer
+	signBuffer := bytebufferpool.Get()
+	defer bytebufferpool.Put(signBuffer)
+
+	// aes加密buffer
+	aesResultBuffer := bytebufferpool.Get()
+	defer bytebufferpool.Put(aesResultBuffer)
+
+	// md5加密对象
+	m5 := md5.New()
+
+	for _, conn := range slices.toConns {
 		for _, message := range req.messages {
 
 			if conn.uid == message.FromUid && conn.deviceId == message.FromDeviceId { // 自己发的不处理
@@ -388,28 +462,26 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				fromUid = ""
 			}
 
-			recvPacket := &wkproto.RecvPacket{
-				Framer: wkproto.Framer{
-					RedDot:    sendPacket.GetRedDot(),
-					SyncOnce:  sendPacket.GetsyncOnce(),
-					NoPersist: sendPacket.GetNoPersist(),
-				},
-				Setting:     sendPacket.Setting,
-				MessageID:   message.MessageId,
-				MessageSeq:  message.MessageSeq,
-				ClientMsgNo: sendPacket.ClientMsgNo,
-				StreamNo:    sendPacket.StreamNo,
-				StreamFlag:  wkproto.StreamFlagIng,
-				FromUID:     fromUid,
-				Expire:      sendPacket.Expire,
-				ChannelID:   sendPacket.ChannelID,
-				ChannelType: sendPacket.ChannelType,
-				Topic:       sendPacket.Topic,
-				Timestamp:   int32(time.Now().Unix()),
-				Payload:     sendPacket.Payload,
-				// ---------- 以下不参与编码 ------------
-				ClientSeq: sendPacket.ClientSeq,
+			recvPacket.Reset()
+			recvPacket.Framer = wkproto.Framer{
+				RedDot:    sendPacket.GetRedDot(),
+				SyncOnce:  sendPacket.GetsyncOnce(),
+				NoPersist: sendPacket.GetNoPersist(),
 			}
+			recvPacket.Setting = sendPacket.Setting
+			recvPacket.MessageID = message.MessageId
+			recvPacket.MessageSeq = message.MessageSeq
+			recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
+			recvPacket.StreamNo = sendPacket.StreamNo
+			recvPacket.StreamFlag = wkproto.StreamFlagIng
+			recvPacket.FromUID = fromUid
+			recvPacket.Expire = sendPacket.Expire
+			recvPacket.ChannelID = sendPacket.ChannelID
+			recvPacket.ChannelType = sendPacket.ChannelType
+			recvPacket.Topic = sendPacket.Topic
+			recvPacket.Timestamp = int32(time.Now().Unix())
+			recvPacket.Payload = sendPacket.Payload
+			recvPacket.ClientSeq = sendPacket.ClientSeq
 
 			// 这里需要把channelID改成fromUID 比如A给B发消息，B收到的消息channelID应该是A A收到的消息channelID应该是B
 			if recvPacket.ChannelType == wkproto.ChannelTypePerson && recvPacket.ChannelID == conn.uid {
@@ -421,22 +493,32 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 			}
 
 			// payload内容加密
-			payloadEnc, err := encryptMessagePayload(recvPacket.Payload, conn)
+			payloadBuffer.Reset()
+			err := encryptMessagePayload(recvPacket.Payload, conn, payloadBuffer)
 			if err != nil {
 				d.Error("加密payload失败！", zap.Error(err))
 				continue
 			}
-			recvPacket.Payload = payloadEnc
+			recvPacket.Payload = payloadBuffer.Bytes()
 
 			// 对内容进行签名，防止中间人攻击
-			signStr := recvPacket.VerityString()
-			msgKey, err := makeMsgKey(signStr, conn)
+			signBuffer.Reset()
+			recvPacket.VerityBytes(signBuffer)
+			// 加密sign内容
+			aesResultBuffer.Reset()
+			err = writeAesEncrypt(aesResultBuffer, signBuffer, conn)
 			if err != nil {
 				d.Error("生成MsgKey失败！", zap.Error(err))
 				continue
 			}
-			recvPacket.MsgKey = msgKey
 
+			// m5加密一次
+			m5.Reset()
+			m5.Write(aesResultBuffer.Bytes())
+
+			recvPacket.MsgKey = hex.EncodeToString(m5.Sum(nil))
+
+			// 编码接受包
 			recvPacketData, err := d.dm.s.opts.Proto.EncodeFrame(recvPacket, conn.protoVersion)
 			if err != nil {
 				d.Error("encode recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
@@ -469,9 +551,9 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		}
 	}
 
-	if len(webhookOfflineUids) > 0 { // 有离线用户，发送webhook
+	if len(slices.offlineUids) > 0 { // 有离线用户，发送webhook
 		for _, message := range req.messages {
-			d.dm.s.webhook.notifyOfflineMsg(message, webhookOfflineUids)
+			d.dm.s.webhook.notifyOfflineMsg(message, slices.offlineUids)
 		}
 	}
 
@@ -483,30 +565,32 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 }
 
-// 加密消息
-func encryptMessagePayload(payload []byte, conn *connContext) ([]byte, error) {
-	aesKey, aesIV := conn.aesKey, conn.aesIV
-	// 加密payload
-	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, aesKey, aesIV)
-	if err != nil {
-		return nil, err
-	}
-	return payloadEnc, nil
+func (d *deliverr) releaseRecvPacket(recvPacket *wkproto.RecvPacket) {
+	// 重置 recvPacket 的字段，以便下次使用
+	recvPacket.Reset()
+	d.recvPacketPool.Put(recvPacket)
 }
 
-func makeMsgKey(signStr string, conn *connContext) (string, error) {
+// 加密消息
+func encryptMessagePayload(payload []byte, conn *connContext, resultBuff *bytebufferpool.ByteBuffer) error {
+	aesKey, aesIV := conn.aesKey, conn.aesIV
+	// 加密payload
+	err := wkutil.AesEncryptPkcs7Base64ForPool(payload, aesKey, aesIV, resultBuff)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeAesEncrypt(aesResultBuffer *bytebufferpool.ByteBuffer, signBuffer *bytebufferpool.ByteBuffer, conn *connContext) error {
 	aesKey, aesIV := conn.aesKey, conn.aesIV
 
-	signBuff := bytebufferpool.Get()
-	_, _ = signBuff.WriteString(signStr)
-
-	defer bytebufferpool.Put(signBuff)
-
 	// 生成MsgKey
-	msgKeyBytes, err := wkutil.AesEncryptPkcs7Base64(signBuff.Bytes(), aesKey, aesIV)
+	err := wkutil.AesEncryptPkcs7Base64ForPool(signBuffer.Bytes(), aesKey, aesIV, aesResultBuffer)
 	if err != nil {
 		wklog.Error("生成MsgKey失败！", zap.Error(err))
-		return "", err
+		return err
 	}
-	return wkutil.MD5Bytes(msgKeyBytes), nil
+	return nil
 }
