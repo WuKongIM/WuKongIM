@@ -58,7 +58,7 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 		}
 		s.handleConnack(conn, req)
 	} else if msgType == proto.MsgTypeRequest {
-		req := &proto.Request{}
+		req := s.requestObjPool.Get().(*proto.Request)
 		err := req.Unmarshal(data)
 		if err != nil {
 			s.Error("unmarshal request error", zap.Error(err))
@@ -68,7 +68,11 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			s.Warn("request pool will full", zap.Int("running", s.requestPool.Running()), zap.Int("size", s.opts.RequestPoolSize))
 		}
 		err = s.requestPool.Submit(func() {
+			// handle request
 			s.handleRequest(conn, req)
+
+			// release request
+			s.releaseRequest(req)
 		})
 		if err != nil {
 			s.Error("submit request error", zap.Error(err))
@@ -108,6 +112,11 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 	} else {
 		s.Error("unknown msg type", zap.Uint8("msgType", msgType.Uint8()))
 	}
+}
+
+func (s *Server) releaseRequest(r *proto.Request) {
+	r.Reset()
+	s.requestObjPool.Put(r)
 }
 
 func (s *Server) handleHeartbeat(conn wknet.Conn) {
@@ -157,7 +166,7 @@ func (s *Server) handleMessage(conn wknet.Conn, msg *proto.Message) {
 
 func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 	s.routeMapLock.RLock()
-	h, ok := s.routeMap[req.Path]
+	handler, ok := s.routeMap[req.Path]
 	s.routeMapLock.RUnlock()
 	if !ok {
 		s.Debug("route not found", zap.String("path", req.Path))
@@ -167,7 +176,7 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 	ctx := NewContext(conn)
 	ctx.req = req
 	ctx.proto = s.proto
-	h(ctx)
+	handler(ctx)
 	s.Debug("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
 
 }

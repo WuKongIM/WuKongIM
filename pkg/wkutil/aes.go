@@ -5,6 +5,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
+
+	"github.com/valyala/bytebufferpool"
 )
 
 // AesEncryptSimple 加密
@@ -32,6 +34,24 @@ func AesEncryptPkcs7Base64(origData []byte, key []byte, iv []byte) ([]byte, erro
 	return []byte(dataStr), nil
 }
 
+// AesEncryptPkcs7Base64
+func AesEncryptPkcs7Base64ForPool(origData []byte, key []byte, iv []byte, resultBuff *bytebufferpool.ByteBuffer) error {
+	data, err := AesEncrypt(origData, key, iv, PKCS7Padding)
+	if err != nil {
+		return err
+	}
+
+	encoder := base64.NewEncoder(base64.StdEncoding, resultBuff)
+	defer encoder.Close()
+
+	_, err = encoder.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // AesEncrypt AesEncrypt
 func AesEncrypt(origData []byte, key []byte, iv []byte, paddingFunc func([]byte, int) []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
@@ -41,8 +61,8 @@ func AesEncrypt(origData []byte, key []byte, iv []byte, paddingFunc func([]byte,
 	blockSize := block.BlockSize()
 	origData = paddingFunc(origData, blockSize)
 
+	crypted := origData // 直接在原始数据上进行加密，避免额外分配内存
 	blockMode := cipher.NewCBCEncrypter(block, iv)
-	crypted := make([]byte, len(origData))
 	blockMode.CryptBlocks(crypted, origData)
 	return crypted, nil
 }

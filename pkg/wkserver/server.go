@@ -31,6 +31,8 @@ type Server struct {
 	metrics     *metrics
 
 	timingWheel *timingwheel.TimingWheel
+
+	requestObjPool *sync.Pool
 }
 
 func New(addr string, ops ...Option) *Server {
@@ -52,6 +54,12 @@ func New(addr string, ops ...Option) *Server {
 		connManager: NewConnManager(),
 		metrics:     newMetrics(),
 		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
+		requestObjPool: &sync.Pool{
+			New: func() any {
+
+				return &proto.Request{}
+			},
+		},
 	}
 	requestPool, err := ants.NewPool(opts.RequestPoolSize, ants.WithPanicHandler(func(i interface{}) {
 		s.Panic("request pool panic", zap.Any("panic", i), zap.Stack("stack"))

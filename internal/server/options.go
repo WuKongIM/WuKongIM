@@ -349,7 +349,7 @@ func NewOptions(op ...Option) *Options {
 			WorkerScanInterval time.Duration
 		}{
 			On:                 true,
-			CacheExpire:        time.Hour * 24 * 1, // 1天过期
+			CacheExpire:        time.Hour * 2,
 			UserMaxCount:       1000,
 			SyncInterval:       time.Minute * 5,
 			SyncOnce:           100,
