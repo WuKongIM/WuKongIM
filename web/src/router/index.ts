@@ -1,135 +1,84 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/stores/modules/user';
+import { useAuthStore } from '@/stores/modules/auth';
 
-import Login from '../pages/login/Login.vue'
+import { LOGIN_URL, ROUTER_WHITE_LIST } from '@/config';
 
-// ==================== cluster ====================
-import Node from '../pages/cluster/Node.vue'
-import Slot from '../pages/cluster/Slot.vue'
-import Channel from '../pages/cluster/Channel.vue'
-import Config from '../pages/cluster/Config.vue'
-import Log from '../pages/cluster/Log.vue'
-// import NodeDetail from '../pages/cluster/NodeDetail.vue'
+import { createRouter, createWebHistory } from 'vue-router';
 
-// ==================== data ====================
-import User from '../pages/data/User.vue'
-import Device from '../pages/data/Device.vue'
-import Connection from '../pages/data/Connection.vue'
-import Message from '../pages/data/Message.vue'
-import ChannelForData from '../pages/data/Channel.vue'
-import Conversation from '../pages/data/Conversation.vue'
+import NProgress from '@/utils/nprogress';
 
-// ==================== monitor ====================
+import routes from './routers';
 
-import MonitorApp from '../pages/monitor/App.vue'
-import MonitorCluster from '../pages/monitor/Cluster.vue'
-import MonitorSystem from '../pages/monitor/System.vue'
-import TraceDB from '../pages/monitor/Trace.vue'
-import Logs from '../pages/monitor/Logs.vue'
-
-
+/**
+ * @description 📚 路由参数配置简介
+ * @param path ==> 菜单路径
+ * @param name ==> 菜单别名
+ * @param redirect ==> 重定向地址
+ * @param component ==> 视图文件路径
+ * @param meta ==> 菜单信息
+ * @param meta.icon ==> 菜单图标
+ * @param meta.title ==> 菜单标题
+ * @param meta.activeMenu ==> 当前路由为详情页时，需要高亮的菜单
+ * @param meta.isLink ==> 是否外链
+ * @param meta.isHide ==> 是否隐藏
+ * @param meta.isFull ==> 是否全屏(示例：数据大屏页面)
+ * @param meta.isAffix ==> 是否固定在 tabs nav
+ * @param meta.isKeepAlive ==> 是否缓存
+ * */
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    // ==================== cluster ====================
-    {
-      path: '/',
-      name: 'home',
-      component: Node
-    },
-    {
-      path: '/login',
-      name: 'login',
-      component: Login
-    },
-    {
-      path: '/cluster/nodes',
-      name: 'node',
-      component: Node
-    },
-    // {
-    //   path: '/cluster/node/detail',
-    //   name: 'nodeDetail',
-    //   component: NodeDetail
-    // },
-    {
-      path: '/cluster/slots',
-      name: 'slot',
-      component: Slot
-    },
-    {
-      path: '/cluster/channels',
-      name: 'channel',
-      component: Channel
-    },
-    {
-      path: '/cluster/config',
-      name: 'config',
-      component: Config
-    },
-    {
-      path: '/cluster/log',
-      name: 'clusterlog',
-      component: Log
-    },
+  history: createWebHistory('/web'),
+  routes,
+  strict: false,
+  scrollBehavior: () => ({ left: 0, top: 0 })
+});
 
-    // ==================== data ====================
-    {
-      path: '/data/connection',
-      name: 'dataConnection',
-      component: Connection
-    },
-    {
-      path: '/data/user',
-      name: 'dataUser',
-      component: User
-    },
-    {
-      path: '/data/device',
-      name: 'dataDevice',
-      component: Device
-    },
-    {
-      path: '/data/message',
-      name: 'dataMessage',
-      component: Message
-    },
-    {
-      path: '/data/channel',
-      name: 'dataChannel',
-      component: ChannelForData
-    },
-    {
-      path: '/data/conversation',
-      name: 'dataConversation',
-      component: Conversation
-    },
-    // ==================== monitor ====================
-    {
-      path: '/monitor/app',
-      name: 'monitorApp',
-      component: MonitorApp
-    },
-    {
-      path: '/monitor/cluster',
-      name: 'monitorCluster',
-      component: MonitorCluster
-    },
-    {
-      path: '/monitor/system',
-      name: 'monitorSystem',
-      component: MonitorSystem
-    },
-    {
-      path: '/monitor/trace',
-      name: 'traceDB',
-      component: TraceDB
-    },
-    {
-      path: '/monitor/logs',
-      name: 'logs',
-      component: Logs
-    },
-  ]
-})
+/**
+ * @description 路由拦截 beforeEach
+ * */
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore();
+  const userStore = useUserStore();
 
-export default router
+  // NProgress 开始
+  NProgress.start();
+
+  /** 如果已经登录并存在登录信息后不能跳转到路由白名单，而是继续保持在当前页面 */
+  function toCorrectRoute() {
+    ROUTER_WHITE_LIST.includes(to.fullPath) ? next(from.fullPath) : next();
+  }
+
+  if (userStore.token) {
+    // 正常访问页面
+    if (!authStore.authMenuListGet.length) {
+      await authStore.getAuthMenuList();
+    }
+    toCorrectRoute();
+  } else {
+    if (to.path !== LOGIN_URL) {
+      if (ROUTER_WHITE_LIST.indexOf(to.path) !== -1) {
+        next();
+      } else {
+        next({ path: LOGIN_URL, replace: true });
+      }
+    } else {
+      next();
+    }
+  }
+});
+
+/**
+ * @description 路由跳转错误
+ * */
+router.onError(error => {
+  NProgress.done();
+  console.warn('路由错误', error.message);
+});
+
+/**
+ * @description 路由跳转结束
+ * */
+router.afterEach(() => {
+  NProgress.done();
+});
+
+export default router;
