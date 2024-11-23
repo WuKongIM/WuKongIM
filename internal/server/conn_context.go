@@ -56,7 +56,7 @@ type connContext struct {
 
 	uptime atomic.Time // 启动时间
 
-	lastActivity atomic.Time // 最后活动时间
+	lastActivity atomic.Int64 // 最后活动时间
 
 	wklog.Log
 }
@@ -100,17 +100,18 @@ func (c *connContext) addOtherPacket(packet wkproto.Frame) {
 		trace.GlobalTrace.Metrics.App().PingBytesAdd(frameSize)
 	}
 
-	// fmt.Println("addOtherPacket....", zap.String("frameType", packet.GetFrameType().String()))
+	// 预先分配一个长度为1的切片，避免在创建UserAction时动态分配内存
+	messages := make([]ReactorUserMessage, 1)
+	messages[0] = ReactorUserMessage{
+		ConnId:     c.connId,
+		DeviceId:   c.deviceId,
+		InPacket:   packet,
+		FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
+	}
+
 	c.subReactor.step(c.uid, UserAction{
 		ActionType: UserActionSend,
-		Messages: []ReactorUserMessage{
-			{
-				ConnId:     c.connId,
-				DeviceId:   c.deviceId,
-				InPacket:   packet,
-				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
-			},
-		},
+		Messages:   messages,
 	})
 }
 
@@ -127,16 +128,17 @@ func (c *connContext) addConnectPacket(packet *wkproto.ConnectPacket) {
 	trace.GlobalTrace.Metrics.App().ConnPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().ConnPacketBytesAdd(frameSize)
 
+	// 预先分配一个长度为1的切片，避免在创建UserAction时动态分配内存
+	messages := make([]ReactorUserMessage, 1)
+	messages[0] = ReactorUserMessage{
+		ConnId:     c.connId,
+		DeviceId:   c.deviceId,
+		InPacket:   packet,
+		FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
+	}
 	err := c.subReactor.stepNoWait(c.uid, UserAction{
 		ActionType: UserActionConnect,
-		Messages: []ReactorUserMessage{
-			{
-				ConnId:     c.connId,
-				DeviceId:   c.deviceId,
-				InPacket:   packet,
-				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
-			},
-		},
+		Messages:   messages,
 	})
 	if err != nil {
 		wklog.Error("addConnectPacket error", zap.String("uid", c.uid), zap.Error(err))
@@ -193,17 +195,18 @@ func (c *connContext) writePacket(packet wkproto.Frame) error {
 
 func (c *connContext) write(d []byte, frameType wkproto.FrameType) error {
 
+	msgs := make([]ReactorUserMessage, 1)
+	msgs[0] = ReactorUserMessage{
+		ConnId:     c.connId,
+		DeviceId:   c.deviceId,
+		FrameType:  frameType,
+		OutBytes:   d,
+		FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
+	}
+
 	c.subReactor.step(c.uid, UserAction{
 		ActionType: UserActionRecv,
-		Messages: []ReactorUserMessage{
-			{
-				ConnId:     c.connId,
-				DeviceId:   c.deviceId,
-				FrameType:  frameType,
-				OutBytes:   d,
-				FromNodeId: c.subReactor.r.s.opts.Cluster.NodeId,
-			},
-		},
+		Messages:   msgs,
 	})
 	return nil
 }
@@ -258,7 +261,7 @@ func (c *connContext) writeDirectly(data []byte, recvFrameCount uint32) error {
 }
 
 func (c *connContext) keepActivity() {
-	c.lastActivity.Store(time.Now())
+	c.lastActivity.Store(time.Now().Unix())
 }
 
 func (c *connContext) close() {

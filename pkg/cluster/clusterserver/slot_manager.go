@@ -123,7 +123,7 @@ func (s *slotManager) GetLeaderTermStartIndex(req reactor.LeaderTermStartIndexRe
 	if err != nil {
 		return 0, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return 0, fmt.Errorf("get leader term start index failed, status: %v", resp.Status)
 	}
 	if len(resp.Body) > 0 {

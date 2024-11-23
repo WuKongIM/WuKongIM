@@ -41,13 +41,14 @@ func AesEncryptPkcs7Base64ForPool(origData []byte, key []byte, iv []byte, result
 		return err
 	}
 
-	encoder := base64.NewEncoder(base64.StdEncoding, resultBuff)
-	defer encoder.Close()
-
-	_, err = encoder.Write(data)
-	if err != nil {
-		return err
+	encodedSize := base64.StdEncoding.EncodedLen(len(data))
+	if cap(resultBuff.B) < encodedSize {
+		resultBuff.B = make([]byte, 0, encodedSize)
 	}
+
+	base64.StdEncoding.Encode(resultBuff.B[:encodedSize], data)
+
+	resultBuff.B = resultBuff.B[:encodedSize]
 
 	return nil
 }
@@ -123,13 +124,29 @@ func PKCS5UnPadding(origData []byte) []byte {
 
 // PKCS7Padding PKCS7Padding
 func PKCS7Padding(ciphertext []byte, blockSize int) []byte {
-	padding := blockSize - len(ciphertext)%blockSize // 需要填充的数目
-	// 只要少于256就能放到一个byte中，默认的blockSize=16(即采用16*8=128, AES-128长的密钥)
+	padding := blockSize - len(ciphertext)%blockSize // 计算填充字节数
+	totalLen := len(ciphertext) + padding            // 填充后的总长度
 
-	// 最少填充1个byte，如果原文刚好是blocksize的整数倍，则再填充一个blocksize
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding) // 生成填充的文本
+	// 如果容量不足，扩展容量
+	if cap(ciphertext) < totalLen {
+		newCap := cap(ciphertext) * 2
+		if newCap < totalLen {
+			newCap = totalLen
+		}
+		newSlice := make([]byte, len(ciphertext), newCap)
+		copy(newSlice, ciphertext)
+		ciphertext = newSlice
+	}
 
-	return append(ciphertext, padtext...)
+	// 扩展切片长度
+	ciphertext = ciphertext[:totalLen]
+
+	// 填充字节
+	for i := len(ciphertext) - padding; i < len(ciphertext); i++ {
+		ciphertext[i] = byte(padding)
+	}
+
+	return ciphertext
 }
 
 // PKCS7UnPadding PKCS7UnPadding

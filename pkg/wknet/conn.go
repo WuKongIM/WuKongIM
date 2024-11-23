@@ -391,10 +391,12 @@ func (d *DefaultConn) Peek(n int) ([]byte, error) {
 	d.reactorSub.cache.Write(tail)
 
 	data := d.reactorSub.cache.Bytes()
-	resultData := make([]byte, len(data)) // TODO: 这里考虑用sync.Pool
-	copy(resultData, data)                // TODO: 这里需要复制一份，否则多线程下解析数据包会有问题 本人测试 15个连接15个消息 在协程下打印sendPacket的payload会有数据错误问题
 
-	return resultData, nil
+	// resultData := make([]byte, len(data))
+	// TODO：这一步放到上层处理了
+	// copy(resultData, data) // TODO: 这里需要复制一份，否则多线程下解析数据包会有问题 本人测试 15个连接15个消息 在协程下打印sendPacket的payload会有数据错误问题
+
+	return data, nil
 }
 
 func (d *DefaultConn) Discard(n int) (int, error) {

@@ -216,7 +216,7 @@ func (c *Client) handshake() error {
 			return errors.New("unknown error")
 		}
 		ack := x.(*proto.Connack)
-		if ack.Status != proto.Status_OK {
+		if ack.Status != proto.StatusOK {
 			return errors.New("connect error")
 		}
 		return nil
@@ -456,7 +456,7 @@ func (c *Client) SendBatch(msgs []*proto.Message) error {
 	defer func() {
 		end := time.Since(start)
 		if end > time.Millisecond*100 {
-			c.Warn("sendBatch cost too long", zap.Duration("cost", end), zap.Int("count", len(msgs)))
+			c.Warn("sendBatch cost too long", zap.Duration("cost", end), zap.Int("count", len(msgs)), zap.String("server", c.opts.Addr))
 		}
 	}()
 	for _, m := range msgs {

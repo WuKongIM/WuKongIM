@@ -241,6 +241,14 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 
 func (r *ReactorSub) step(handlerKey string, msg replica.Message) {
 
+	start := time.Now()
+	defer func() {
+		cost := time.Since(start)
+		if cost > time.Millisecond*50 {
+			r.Warn("step too cost...", zap.Duration("cost", cost), zap.String("handlerKey", handlerKey), zap.Uint16("msgType", uint16(msg.MsgType)))
+		}
+	}()
+
 	select {
 	case r.stepC <- stepReq{
 		handlerKey: handlerKey,

@@ -56,28 +56,36 @@ type channel struct {
 	stepFnc func(*ChannelAction) error
 	tickFnc func()
 
-	payloadDecrypting  bool // 是否正在解密
-	permissionChecking bool // 是否正在检查权限
-	storaging          bool // 是否正在存储
-	sendacking         bool // 是否正在发送回执
-	delivering         bool // 是否正在投递
-	forwarding         bool // 是否正在转发
+	// 解密
+	payloadDecryptState readyState
+	// 检查权限
+	permissionCheckState readyState
+	// 存储
+	storageState readyState
+	// 发送回执
+	sendackState readyState
+	// 投递
+	deliveryState readyState
+	// 转发
+	forwardState readyState
 
 	// 计时tick
-	initTick               int // 发起初始化的tick计时
-	payloadDecryptingTick  int // 发起解密的tick计时
-	permissionCheckingTick int // 发起权限检查的tick计时
+	initTick int // 发起初始化的tick计时
+	// payloadDecryptingTick  int // 发起解密的tick计时
+	// permissionCheckingTick int // 发起权限检查的tick计时
 
 	// storageTick int // 发起存储的tick计时
 	forwardTick int // 发起转发的tick计时
 	// deliveringTick int // 发起投递的tick计时
-	sendackingTick int // 发起发送回执的tick计时
+	// sendackingTick int // 发起发送回执的tick计时
 
 	tagCheckTick int // tag检查的tick计时
 
 	idleTick int // 频道闲置tick数
 
 	opts *Options
+
+	retryTickCount int // 多少次tick后重试
 }
 
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
@@ -98,6 +106,7 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 		sub:            sub,
 		opts:           sub.r.opts,
 		initTick:       sub.r.opts.Reactor.Channel.ProcessIntervalTick,
+		retryTickCount: 20,
 	}
 
 }
@@ -152,7 +161,7 @@ func (c *channel) ready() ready {
 
 		// 解密消息
 		if c.hasPayloadUnDecrypt() {
-			c.payloadDecrypting = true
+			c.payloadDecryptState.processing = true
 			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 1024*1024*2)
 			if len(msgs) > 0 {
 				c.exec(&ChannelAction{ActionType: ChannelActionPayloadDecrypt, Messages: msgs})
@@ -171,7 +180,7 @@ func (c *channel) ready() ready {
 
 			// 如果没有权限检查的则去检查权限
 			if c.hasPermissionUnCheck() {
-				c.permissionChecking = true
+				c.permissionCheckState.processing = true
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.permissionCheckingIndex+1, c.msgQueue.payloadDecryptingIndex+1, 0)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
@@ -181,7 +190,7 @@ func (c *channel) ready() ready {
 
 			// 如果有未存储的消息，则继续存储
 			if c.hasUnstorage() {
-				c.storaging = true
+				c.storageState.processing = true
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckingIndex+1, c.storageMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
@@ -192,7 +201,7 @@ func (c *channel) ready() ready {
 
 			// 如果有未发送回执的消息
 			if c.hasSendack() {
-				c.sendacking = true
+				c.sendackState.processing = true
 				// TODO: 这里有个问题，如果投递消息完成后，消息已经被删除了，可能会导致ack发送失败，因为没了消息，虽然概率低，但是还是有可能的
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.sendackingIndex+1, c.msgQueue.storagingIndex+1, 0)
 				if len(msgs) > 0 {
@@ -202,7 +211,7 @@ func (c *channel) ready() ready {
 
 			// 投递消息
 			if c.hasUnDeliver() {
-				c.delivering = true
+				c.deliveryState.processing = true
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.deliveringIndex+1, c.msgQueue.storagingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionDeliver, Messages: msgs})
@@ -221,7 +230,7 @@ func (c *channel) ready() ready {
 		} else if c.role == channelRoleProxy {
 			// 转发消息
 			if c.hasUnforward() {
-				c.forwarding = true
+				c.forwardState.processing = true
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.forwardingIndex+1, c.msgQueue.payloadDecryptingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionForward, LeaderId: c.leaderId, Messages: msgs})
@@ -248,7 +257,7 @@ func (c *channel) ready() ready {
 }
 
 func (c *channel) hasPayloadUnDecrypt() bool {
-	if c.payloadDecrypting {
+	if c.payloadDecryptState.processing {
 		return false
 	}
 
@@ -257,7 +266,7 @@ func (c *channel) hasPayloadUnDecrypt() bool {
 
 // 有未权限检查的消息
 func (c *channel) hasPermissionUnCheck() bool {
-	if c.permissionChecking {
+	if c.permissionCheckState.processing {
 		return false
 	}
 
@@ -266,7 +275,7 @@ func (c *channel) hasPermissionUnCheck() bool {
 
 // 有未存储的消息
 func (c *channel) hasUnstorage() bool {
-	if c.storaging {
+	if c.storageState.processing {
 		return false
 	}
 
@@ -275,7 +284,7 @@ func (c *channel) hasUnstorage() bool {
 
 // 有未发送回执的消息
 func (c *channel) hasSendack() bool {
-	if c.sendacking {
+	if c.sendackState.processing {
 		return false
 	}
 
@@ -284,7 +293,7 @@ func (c *channel) hasSendack() bool {
 
 // 有未投递的消息
 func (c *channel) hasUnDeliver() bool {
-	if c.delivering {
+	if c.deliveryState.processing {
 		return false
 	}
 
@@ -293,7 +302,7 @@ func (c *channel) hasUnDeliver() bool {
 
 // 有未转发的消息
 func (c *channel) hasUnforward() bool {
-	if c.forwarding { // 在转发中
+	if c.forwardState.processing { // 在转发中
 		return false
 	}
 
@@ -311,9 +320,9 @@ func (c *channel) tick() {
 	c.initTick++
 	c.forwardTick++
 	// c.deliveringTick++
-	c.permissionCheckingTick++
-	c.payloadDecryptingTick++
-	c.sendackingTick++
+	// c.permissionCheckingTick++
+	// c.payloadDecryptingTick++
+	// c.sendackingTick++
 
 	c.idleTick++
 	if c.idleTick >= c.opts.Reactor.Channel.DeadlineTick {
@@ -321,30 +330,78 @@ func (c *channel) tick() {
 		c.exec(&ChannelAction{ActionType: ChannelActionClose})
 	}
 
-	if c.payloadDecrypting && c.payloadDecryptingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-		c.payloadDecrypting = false
-		c.payloadDecryptingTick = 0
+	if c.payloadDecryptState.willRetry {
+		c.payloadDecryptState.retryTick++
+		if c.payloadDecryptState.retryTick >= c.retryTickCount {
+			c.payloadDecryptState.willRetry = false
+			c.payloadDecryptState.retryTick = 0
+		}
 	}
-	if c.permissionChecking && c.permissionCheckingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-		c.permissionChecking = false
-		c.permissionCheckingTick = 0
+
+	if c.permissionCheckState.willRetry {
+		c.permissionCheckState.retryTick++
+		if c.permissionCheckState.retryTick >= c.retryTickCount {
+			c.permissionCheckState.willRetry = false
+			c.permissionCheckState.retryTick = 0
+		}
 	}
+
+	if c.storageState.willRetry {
+		c.storageState.retryTick++
+		if c.storageState.retryTick >= c.retryTickCount {
+			c.storageState.willRetry = false
+			c.storageState.retryTick = 0
+		}
+	}
+
+	if c.sendackState.willRetry {
+		c.sendackState.retryTick++
+		if c.sendackState.retryTick >= c.retryTickCount {
+			c.sendackState.willRetry = false
+			c.sendackState.retryTick = 0
+		}
+	}
+
+	if c.deliveryState.willRetry {
+		c.deliveryState.retryTick++
+		if c.deliveryState.retryTick >= c.retryTickCount {
+			c.deliveryState.willRetry = false
+			c.deliveryState.retryTick = 0
+		}
+	}
+
+	if c.forwardState.willRetry {
+		c.forwardState.retryTick++
+		if c.forwardState.retryTick >= c.retryTickCount {
+			c.forwardState.willRetry = false
+			c.forwardState.retryTick = 0
+		}
+	}
+
+	// if c.payloadDecrypting && c.payloadDecryptingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
+	// 	c.payloadDecrypting = false
+	// 	c.payloadDecryptingTick = 0
+	// }
+	// if c.permissionChecking && c.permissionCheckingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
+	// 	c.permissionChecking = false
+	// 	c.permissionCheckingTick = 0
+	// }
 	// if c.storaging && c.storageTick > c.opts.Reactor.Channel.ProcessIntervalTick {
 	// 	c.storaging = false
 	// 	c.storageTick = 0
 	// }
-	if c.sendacking && c.sendackingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-		c.sendacking = false
-		c.sendackingTick = 0
-	}
+	// if c.sendacking && c.sendackingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
+	// 	c.sendacking = false
+	// 	c.sendackingTick = 0
+	// }
 	// if c.delivering && c.deliveringTick > c.opts.Reactor.Channel.ProcessIntervalTick {
 	// 	c.delivering = false
 	// 	c.deliveringTick = 0
 	// }
-	if c.forwarding && c.forwardTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-		c.forwarding = false
-		c.forwardTick = 0
-	}
+	// if c.forwarding && c.forwardTick > c.opts.Reactor.Channel.ProcessIntervalTick {
+	// 	c.forwarding = false
+	// 	c.forwardTick = 0
+	// }
 
 	if c.tickFnc != nil {
 		c.tickFnc()
@@ -418,22 +475,22 @@ func (c *channel) resetIndex() {
 		c.receiverTagKey.Store("")
 	}
 
-	c.payloadDecrypting = false
-	c.permissionChecking = false
-	c.storaging = false
-	c.sendacking = false
-	c.delivering = false
-	c.forwarding = false
+	c.payloadDecryptState = readyState{}
+	c.permissionCheckState = readyState{}
+	c.storageState = readyState{}
+	c.sendackState = readyState{}
+	c.deliveryState = readyState{}
+	c.forwardState = readyState{}
 
 	c.idleTick = 0
 
 	c.initTick = 0
 	// c.storageTick = 0
-	c.forwardTick = 0
+	// c.forwardTick = 0
 	// c.deliveringTick = 0
-	c.permissionCheckingTick = 0
-	c.payloadDecryptingTick = 0
-	c.sendackingTick = 0
+	// c.permissionCheckingTick = 0
+	// c.payloadDecryptingTick = 0
+	// c.sendackingTick = 0
 
 }
 
@@ -588,7 +645,7 @@ func (c *channel) requestSubscribers(channelId string, channelType uint8) ([]str
 		return nil, err
 	}
 
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		c.Error("requestSubscribers: response status code is not ok", zap.Int("status", int(resp.Status)), zap.String("body", string(resp.Body)))
 		return nil, fmt.Errorf("requestSubscribers: response status code is %d", resp.Status)
 	}

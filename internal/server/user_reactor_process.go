@@ -344,7 +344,7 @@ func (r *userReactor) authResponse(connCtx *connContext, packet *wkproto.Connack
 		if err != nil {
 			r.Error("requestUserAuthResult error", zap.String("uid", connCtx.uid), zap.String("deviceId", connCtx.deviceId), zap.Error(err))
 		}
-		if status == proto.Status_NotFound { // 这个代号说明代理服务器不存在此连接了，所以这里也直接移除
+		if status == proto.StatusNotFound { // 这个代号说明代理服务器不存在此连接了，所以这里也直接移除
 			r.Error("requestUserAuthResult not found", zap.String("uid", connCtx.uid), zap.String("deviceId", connCtx.deviceId))
 			r.removeConnById(connCtx.uid, connCtx.connId)
 			connCtx.close()
@@ -366,13 +366,13 @@ func (r *userReactor) authResponseConnackAuthFail(connCtx *connContext) {
 func (r *userReactor) requestUserAuthResult(nodeId uint64, result *UserAuthResult) (proto.Status, error) {
 	data, err := result.Marshal()
 	if err != nil {
-		return proto.Status_ERROR, err
+		return proto.StatusError, err
 	}
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
 	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/userAuthResult", data)
 	if err != nil {
-		return proto.Status_ERROR, err
+		return proto.StatusError, err
 	}
 
 	return resp.Status, nil
@@ -551,11 +551,17 @@ func (r *userReactor) addRecvackReq(req *recvackReq) {
 	case r.processRecvackC <- req:
 	default:
 		r.Warn("addRecvackReq: processRecvackC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
+		r.reactorSub(req.uid).step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
+			ActionType: UserActionRecvackResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
 func (r *userReactor) processRecvackLoop() {
-	reqs := make([]*recvackReq, 0)
+	const batchSize = 4096
+	reqs := make([]*recvackReq, 0, batchSize)
 	done := false
 	for !r.stopped.Load() {
 		select {
@@ -576,6 +582,9 @@ func (r *userReactor) processRecvackLoop() {
 					if !exist {
 						reqs = append(reqs, req)
 					}
+					if len(reqs) >= batchSize {
+						done = true
+					}
 				default:
 					done = true
 				}
@@ -594,12 +603,14 @@ func (r *userReactor) processRecvacks(reqs []*recvackReq) {
 	defer cancel()
 	eg, _ := errgroup.WithContext(timeoutCtx)
 	eg.SetLimit(1000)
+
 	for _, req := range reqs {
 		req := req
 		eg.Go(func() error {
 			r.processRecvack(req)
 			return nil
 		})
+
 	}
 	_ = eg.Wait()
 }
@@ -607,7 +618,9 @@ func (r *userReactor) processRecvacks(reqs []*recvackReq) {
 func (r *userReactor) processRecvack(req *recvackReq) {
 	for _, msg := range req.messages {
 		recvackPacket := msg.InPacket.(*wkproto.RecvackPacket)
-		r.Trace("消息回执", "processRecvack", zap.Int64("messageId", recvackPacket.MessageID), zap.Uint32("messageSeq", recvackPacket.MessageSeq), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId), zap.Int64("connId", msg.ConnId))
+		if r.s.opts.Logger.TraceOn {
+			r.Trace("消息回执", "processRecvack", zap.Int64("messageId", recvackPacket.MessageID), zap.Uint32("messageSeq", recvackPacket.MessageSeq), zap.String("uid", req.uid), zap.String("deviceId", msg.DeviceId), zap.Int64("connId", msg.ConnId))
+		}
 
 		persist := !recvackPacket.NoPersist                      // 是否需要持久化
 		conn := r.s.userReactor.getConnById(req.uid, msg.ConnId) // 获取当前连接
@@ -662,11 +675,17 @@ func (r *userReactor) addWriteReq(req *writeReq) {
 	case r.processWriteC <- req:
 	default:
 		r.Warn("addWriteReq: processWriteC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
+		r.reactorSub(req.uid).step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
+			ActionType: UserActionRecvResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
 func (r *userReactor) processWriteLoop() {
-	reqs := make([]*writeReq, 0, 100)
+	const batchSize = 1024
+	reqs := make([]*writeReq, 0, batchSize)
 	done := false
 	for !r.stopped.Load() {
 		select {
@@ -685,6 +704,9 @@ func (r *userReactor) processWriteLoop() {
 					}
 					if !exist {
 						reqs = append(reqs, req)
+					}
+					if len(reqs) >= batchSize {
+						done = true
 					}
 				default:
 					done = true
@@ -798,8 +820,8 @@ func (r *userReactor) fowardWriteReq(nodeId uint64, req *FowardWriteReq) (proto.
 	if err != nil {
 		return 0, err
 	}
-	if resp.Status == proto.Status_OK {
-		return proto.Status_OK, nil
+	if resp.Status == proto.StatusOK {
+		return proto.StatusOK, nil
 	}
 	return resp.Status, nil
 }
@@ -817,11 +839,19 @@ func (r *userReactor) addForwardUserActionReq(action UserAction) {
 	case r.processForwardUserActionC <- action:
 	default:
 		r.Warn("addForwardUserActionReq: processForwardUserActionC is full, ignore ", zap.String("uid", action.Uid), zap.String("actionType", action.ActionType.String()))
+		sub := r.reactorSub(action.Uid)
+		sub.step(action.Uid, UserAction{
+			UniqueNo:   action.UniqueNo,
+			ActionType: UserActionForwardResp,
+			Uid:        action.Uid,
+			Reason:     ReasonError,
+		})
 	}
 }
 
 func (r *userReactor) processForwardUserActionLoop() {
-	actions := make([]UserAction, 0, 100)
+	const batchSize = 1024
+	actions := make([]UserAction, 0, batchSize)
 	done := false
 	for !r.stopped.Load() {
 		select {
@@ -831,6 +861,11 @@ func (r *userReactor) processForwardUserActionLoop() {
 				select {
 				case req := <-r.processForwardUserActionC:
 					actions = append(actions, req)
+
+					if len(actions) >= batchSize {
+						done = true
+					}
+
 				default:
 					done = true
 				}
@@ -940,7 +975,7 @@ func (r *userReactor) forwardUserAction(nodeId uint64, actions []UserAction) (bo
 	if resp.Status == proto.Status(errCodeNotIsUserLeader) {
 		return true, nil
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return false, fmt.Errorf("forwardUserAction failed, status=%d", resp.Status)
 	}
 	return false, nil

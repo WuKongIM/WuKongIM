@@ -84,7 +84,7 @@ func New(addr string, ops ...Option) *Server {
 		}
 		ctx.WriteConnack(&proto.Connack{
 			Id:     req.Id,
-			Status: proto.Status_OK,
+			Status: proto.StatusOK,
 		})
 
 	}

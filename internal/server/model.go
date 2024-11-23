@@ -282,6 +282,7 @@ func (m *ReactorUserMessage) Size() uint64 {
 	} else {
 		size += (1 + uint64(len(m.OutBytes))) + 2
 	}
+	size += 8 // index
 
 	return size
 }
@@ -1063,4 +1064,10 @@ func (r tmpSubscriberSetReq) Check() error {
 		return errors.New("uids不能为空！")
 	}
 	return nil
+}
+
+type readyState struct {
+	processing bool // 处理中
+	willRetry  bool // 将要重试
+	retryTick  int  // 重试计时，超过一定tick数后，将会重试
 }

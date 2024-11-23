@@ -20,6 +20,12 @@ func (r *channelReactor) addInitReq(req *initReq) {
 	case r.processInitC <- req:
 	default:
 		r.Warn("processInitC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: ChannelActionInitResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
@@ -116,6 +122,17 @@ func (r *channelReactor) addPayloadDecryptReq(req *payloadDecryptReq) {
 	case r.processPayloadDecryptC <- req:
 	default:
 		r.Warn("processPayloadDecryptC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		actionType := ChannelActionPayloadDecryptResp
+		if req.isStream {
+			actionType = ChannelActionStreamPayloadDecryptResp
+		}
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{
+			Reason:     ReasonError,
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: actionType,
+		})
+
 	}
 }
 
@@ -200,6 +217,12 @@ func (r *channelReactor) addForwardReq(req *forwardReq) {
 	case r.processForwardC <- req:
 	default:
 		r.Warn("processForwardC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: ChannelActionForwardResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
@@ -382,7 +405,7 @@ func (r *channelReactor) requestChannelFoward(nodeId uint64, req ChannelFowardRe
 		return true, nil
 	}
 
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		var err error
 		if len(resp.Body) > 0 {
 			err = errors.New(string(resp.Body))
@@ -407,6 +430,12 @@ func (r *channelReactor) addPermissionReq(req *permissionReq) {
 	case r.processPermissionC <- req:
 	default:
 		r.Warn("processPermissionC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: ChannelActionPermissionCheckResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
@@ -630,10 +659,10 @@ func (r *channelReactor) requestAllowSend(from, to string) (wkproto.ReasonCode, 
 	if err != nil {
 		return wkproto.ReasonSystemError, err
 	}
-	if resp.Status == proto.Status_OK {
+	if resp.Status == proto.StatusOK {
 		return wkproto.ReasonSuccess, nil
 	}
-	if resp.Status == proto.Status_ERROR {
+	if resp.Status == proto.StatusError {
 		return wkproto.ReasonSystemError, errors.New(string(resp.Body))
 	}
 	return wkproto.ReasonCode(resp.Status), nil
@@ -678,6 +707,12 @@ func (r *channelReactor) addStorageReq(req *storageReq) {
 	case r.processStorageC <- req:
 	default:
 		r.Warn("addStorageReq channel reactor is full", zap.String("channelId", req.ch.channelId))
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: ChannelActionStorageResp,
+			Reason:     ReasonError,
+		})
 	}
 
 }
@@ -885,6 +920,12 @@ func (r *channelReactor) addSendackReq(req *sendackReq) {
 	case r.processSendackC <- req:
 	default:
 		r.Warn("processSendackC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: ChannelActionSendackResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
@@ -994,7 +1035,7 @@ func (r *channelReactor) requestForwardSendack(nodeId uint64, packets []*Forward
 	if err != nil {
 		return err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		var err error
 		if len(resp.Body) > 0 {
 			err = errors.New(string(resp.Body))
@@ -1018,6 +1059,16 @@ func (r *channelReactor) addDeliverReq(req *deliverReq) {
 	case r.processDeliverC <- req:
 	default:
 		r.Warn("processDeliverC is full, ignore", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+		actionType := ChannelActionDeliverResp
+		if req.isStream {
+			actionType = ChannelActionStreamDeliverResp
+		}
+		sub := r.reactorSub(req.ch.key)
+		sub.step(req.ch, &ChannelAction{
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: actionType,
+			Reason:     ReasonError,
+		})
 	}
 }
 

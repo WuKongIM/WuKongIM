@@ -179,7 +179,7 @@ func (d *deliverr) requestNodeChannelTag(nodeId uint64, req *tagReq) (*tagResp, 
 	if err != nil {
 		return nil, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return nil, fmt.Errorf("requestNodeChannelTag failed, status: %d err:%s", resp.Status, string(resp.Body))
 	}
 	var tagResp = &tagResp{}
@@ -442,8 +442,14 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	aesResultBuffer := bytebufferpool.Get()
 	defer bytebufferpool.Put(aesResultBuffer)
 
+	// 接受包
+	recvPacketBuffer := bytebufferpool.Get()
+	defer bytebufferpool.Put(recvPacketBuffer)
+
 	// md5加密对象
 	m5 := md5.New()
+
+	var err error
 
 	for _, conn := range slices.toConns {
 		for _, message := range req.messages {
@@ -494,7 +500,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 			// payload内容加密
 			payloadBuffer.Reset()
-			err := encryptMessagePayload(recvPacket.Payload, conn, payloadBuffer)
+			err = encryptMessagePayload(recvPacket.Payload, conn, payloadBuffer)
 			if err != nil {
 				d.Error("加密payload失败！", zap.Error(err))
 				continue
@@ -519,11 +525,16 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 			recvPacket.MsgKey = hex.EncodeToString(m5.Sum(nil))
 
 			// 编码接受包
-			recvPacketData, err := d.dm.s.opts.Proto.EncodeFrame(recvPacket, conn.protoVersion)
+			recvPacketBuffer.Reset()
+			err = d.dm.s.opts.Proto.WriteFrame(recvPacketBuffer, recvPacket, conn.protoVersion)
 			if err != nil {
 				d.Error("encode recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
 				continue
 			}
+
+			// 复制一份新的，避免多线程竞争
+			recvPacketData := make([]byte, len(recvPacketBuffer.B))
+			copy(recvPacketData, recvPacketBuffer.Bytes())
 
 			if !recvPacket.NoPersist { // 只有存储的消息才重试
 				d.dm.s.retryManager.addRetry(&retryMessage{

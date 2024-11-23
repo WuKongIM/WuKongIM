@@ -382,7 +382,7 @@ func (s *Server) requestPropose(ctx context.Context, nodeId uint64, logs []repli
 		return err
 	}
 
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return fmt.Errorf("propose failed, status: %d", resp.Status)
 	}
 

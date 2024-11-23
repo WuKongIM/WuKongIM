@@ -243,7 +243,7 @@ func (n *node) requestDeliver(msgs []ReactorChannelMessage) error {
 	if err != nil {
 		return err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return fmt.Errorf("deliver failed status:%d", resp.Status)
 	}
 	return nil
