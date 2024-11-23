@@ -242,14 +242,16 @@ func newConnInfo(connCtx *connContext) *ConnInfo {
 	}
 	connStats := connCtx.connStats
 
+	lastActivity := time.Unix(connCtx.lastActivity.Load(), 0)
+
 	return &ConnInfo{
 		ID:           connCtx.connId,
 		UID:          connCtx.uid,
 		IP:           host,
 		Port:         port,
-		LastActivity: connCtx.lastActivity.Load(),
+		LastActivity: lastActivity,
 		Uptime:       myUptime(now.Sub(connCtx.uptime.Load())),
-		Idle:         myUptime(now.Sub(connCtx.lastActivity.Load())),
+		Idle:         myUptime(now.Sub(lastActivity)),
 		// PendingBytes:   c.OutboundBuffer().BoundBufferSize(),
 		InMsgs:         connStats.inMsgCount.Load(),
 		OutMsgs:        connStats.outMsgCount.Load(),
@@ -539,7 +541,7 @@ func (l byUptimeDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Co
 type byIdle struct{ Conns []*connContext }
 
 func (l byIdle) Less(i, j int) bool {
-	return l.Conns[i].lastActivity.Load().Before(l.Conns[j].lastActivity.Load())
+	return l.Conns[i].lastActivity.Load() < l.Conns[j].lastActivity.Load()
 }
 func (l byIdle) Len() int      { return len(l.Conns) }
 func (l byIdle) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
@@ -548,7 +550,7 @@ func (l byIdle) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i]
 type byIdleDesc struct{ Conns []*connContext }
 
 func (l byIdleDesc) Less(i, j int) bool {
-	return l.Conns[i].lastActivity.Load().After(l.Conns[j].lastActivity.Load())
+	return l.Conns[i].lastActivity.Load() < l.Conns[j].lastActivity.Load()
 }
 func (l byIdleDesc) Len() int      { return len(l.Conns) }
 func (l byIdleDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }

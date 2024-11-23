@@ -45,7 +45,7 @@ func (c *Context) Write(data []byte) {
 	}
 	resp := &proto.Response{
 		Id:        id,
-		Status:    proto.Status_OK,
+		Status:    proto.StatusOK,
 		Body:      data,
 		Timestamp: time.Now().UnixMilli(),
 	}
@@ -77,7 +77,7 @@ func (c *Context) WriteOk() {
 	}
 	resp := &proto.Response{
 		Id:     id,
-		Status: proto.Status_OK,
+		Status: proto.StatusOK,
 	}
 	respData, err := resp.Marshal()
 	if err != nil {
@@ -102,7 +102,7 @@ func (c *Context) WriteOk() {
 }
 
 func (c *Context) WriteErr(err error) {
-	c.WriteErrorAndStatus(err, proto.Status_ERROR)
+	c.WriteErrorAndStatus(err, proto.StatusError)
 }
 
 func (c *Context) WriteErrorAndStatus(err error, status proto.Status) {

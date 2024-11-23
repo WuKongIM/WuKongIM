@@ -315,4 +315,4 @@ exclude k8s.io/client-go v8.0.0+incompatible
 replace github.com/hashicorp/consul => github.com/hashicorp/consul v1.14.5
 
 // replace github.com/WuKongIM/WuKongIMGoSDK => ../../WuKongIMGoSDK
-// replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto
+replace github.com/WuKongIM/WuKongIMGoProto => ../../WuKongIMGoProto

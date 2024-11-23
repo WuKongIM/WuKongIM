@@ -92,12 +92,13 @@ func (s *Server) onData(conn wknet.Conn) error {
 		}
 		connCtx = newConnContext(connInfo, conn, sub)
 		conn.SetContext(connCtx)
+
+		// 添加用户的连接，如果用户不存在则创建
 		s.userReactor.addConnAndCreateUserHandlerIfNotExist(connCtx)
+
 		connCtx.addConnectPacket(connectPacket)
 
-		//  process conn auth
 		_, _ = conn.Discard(len(data))
-		// s.processAuth(conn, packet.(*wkproto.ConnectPacket))
 	} else {
 		offset := 0
 		for len(data) > offset {
@@ -112,7 +113,15 @@ func (s *Server) onData(conn wknet.Conn) error {
 			}
 			offset += size
 			if frame.GetFrameType() == wkproto.SEND {
-				connCtx.addSendPacket(frame.(*wkproto.SendPacket))
+				sendPacket := frame.(*wkproto.SendPacket)
+
+				// 这里需要复制一份新的payload的byte，因为conn.Peek(-1)返回的data是被复用了的，在多线程下会出现数据错乱
+				if len(sendPacket.Payload) > 0 {
+					newPayload := make([]byte, len(sendPacket.Payload))
+					copy(newPayload, sendPacket.Payload)
+					sendPacket.Payload = newPayload
+				}
+				connCtx.addSendPacket(sendPacket)
 			} else {
 				connCtx.addOtherPacket(frame)
 			}

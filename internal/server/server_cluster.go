@@ -17,9 +17,9 @@ func (s *Server) handleClusterMessage(fromNodeId uint64, msg *proto.Message) {
 
 	switch ClusterMsgType(msg.MsgType) {
 	case ClusterMsgTypeNodePing: // 节点ping
-		s.handleNodePing(fromNodeId, msg)
+		go s.handleNodePing(fromNodeId, msg)
 	case ClusterMsgTypeNodePong: // 节点Pong
-		s.handleNodePong(fromNodeId, msg)
+		go s.handleNodePong(fromNodeId, msg)
 
 	}
 	// switch ClusterMsgType(msg.MsgType) {
@@ -247,17 +247,17 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 	connCtx := s.userReactor.getConnById(authResult.Uid, authResult.ConnId)
 	if connCtx == nil {
 		s.Error("auth: handleUserAuthResult: conn not found", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
-		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: conn not found"), proto.Status_NotFound)
+		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: conn not found"), proto.StatusNotFound)
 		return
 	}
 	if connCtx.deviceId != authResult.DeviceId {
 		s.Error("auth: handleUserAuthResult: deviceId not match", zap.String("expect", connCtx.deviceId), zap.String("act", authResult.DeviceId))
-		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: deviceId not match"), proto.Status_NotFound)
+		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: deviceId not match"), proto.StatusNotFound)
 		return
 	}
 	if !connCtx.isRealConn {
 		s.Error("auth: handleUserAuthResult: not real conn", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
-		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: not real conn"), proto.Status_NotFound)
+		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: not real conn"), proto.StatusNotFound)
 		return
 	}
 

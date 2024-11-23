@@ -169,7 +169,7 @@ func (n *node) requestChannelLastLogInfo(ctx context.Context, req ChannelLastLog
 	if err != nil {
 		return nil, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return nil, fmt.Errorf("requestChannelLastLogInfo is failed, status:%d", resp.Status)
 	}
 	channelLastLogInfoResp := ChannelLastLogInfoResponseSet{}
@@ -189,7 +189,7 @@ func (n *node) requestChannelClusterConfig(ctx context.Context, req *ChannelClus
 	if err != nil {
 		return wkdb.EmptyChannelClusterConfig, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("requestChannelClusterConfig is failed,nodeId: %d status:%d err:%s", n.id, resp.Status, []byte(resp.Body))
 	}
 	channelClusterConfigResp := wkdb.ChannelClusterConfig{}
@@ -209,7 +209,7 @@ func (n *node) requestChannelProposeMessage(ctx context.Context, req *ChannelPro
 	if err != nil {
 		return nil, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		if len(resp.Body) > 0 {
 			return nil, errors.New(string(resp.Body))
 		}
@@ -232,7 +232,7 @@ func (n *node) requestSlotLogInfo(ctx context.Context, req *SlotLogInfoReq) (*Sl
 	if err != nil {
 		return nil, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return nil, fmt.Errorf("requestSlotLogInfo is failed, status:%d", resp.Status)
 	}
 	slotLogInfoResp := &SlotLogInfoResp{}
@@ -253,7 +253,7 @@ func (n *node) requestSlotPropose(ctx context.Context, req *SlotProposeReq) (*Sl
 	if err != nil {
 		return nil, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return nil, fmt.Errorf("requestSlotPropose is failed, status:%d", resp.Status)
 	}
 	proposeMessageResp := &SlotProposeResp{}
@@ -273,7 +273,7 @@ func (n *node) requestClusterJoin(ctx context.Context, req *ClusterJoinReq) (*Cl
 	if err != nil {
 		return nil, err
 	}
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return nil, fmt.Errorf("requestClusterJoin is failed, status:%d", resp.Status)
 	}
 	clusterJoinResp := &ClusterJoinResp{}

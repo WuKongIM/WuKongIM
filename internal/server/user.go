@@ -16,21 +16,24 @@ type userHandler struct {
 	uid      string
 	actions  []UserAction
 
-	authing   bool          // 正在认证
-	authQueue *userMsgQueue // 认证消息队列
-
 	conns []*connContext
 
 	connNodeIds []uint64 // 连接涉及到的节点id集合
 
-	sendPing  bool          // 正在发送ping
+	pingState readyState    // 正在发送ping
 	pingQueue *userMsgQueue // ping消息队列
 
-	sendRecvacking bool          // 正在发送ack
-	recvackQueue   *userMsgQueue // 接收ack的队列
+	// 认证
+	authState readyState    // 正在认证
+	authQueue *userMsgQueue // 认证消息队列
 
-	recvMsging   bool          // 正在收消息
-	recvMsgQueue *userMsgQueue // 接收消息的队列
+	// 接收ack
+	recvackState readyState    // 发送ack
+	recvackQueue *userMsgQueue // 接收ack的队列
+
+	// 收消息
+	recvMsgState readyState
+	recvMsgQueue *userMsgQueue
 
 	leaderId uint64 // 用户所在的领导节点
 
@@ -47,16 +50,18 @@ type userHandler struct {
 	nodePingTick        int            // 节点ping计时
 	nodePongTimeoutTick map[uint64]int // 节点pong超时计时
 
-	initTick        int // 初始化tick计时
-	authTick        int // auth tick 计时
-	sendRecvackTick int // 发送recvack计时
-	recvMsgTick     int // 接收消息计时
+	initTick int // 初始化tick计时
+	// authTick int // auth tick 计时
+	// sendRecvackTick int // 发送recvack计时
+	// recvMsgTick int // 接收消息计时
 
 	checkLeaderTick int // 定时检查正确的领导节点
 
 	wklog.Log
 
 	opts *Options
+
+	retryTickCount int // 多少次tick后重试
 }
 
 func newUserHandler(uid string, sub *userReactorSub) *userHandler {
@@ -74,6 +79,7 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 		uniqueNo:            wkutil.GenUUID(),
 		opts:                opts,
 		initTick:            opts.Reactor.User.ProcessIntervalTick,
+		retryTickCount:      20,
 	}
 
 	return u
@@ -117,14 +123,14 @@ func (u *userHandler) ready() userReady {
 		if u.role == userRoleLeader {
 			// 连接认证
 			if u.hasAuth() {
-				u.authing = true
+				u.authState.processing = true
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionAuth, Messages: msgs})
 				u.Debug("send auth...")
 			}
 			// 发送ping
 			if u.hasPing() {
-				u.sendPing = true
+				u.pingState.processing = true
 				msgs := u.pingQueue.sliceWithSize(u.pingQueue.processingIndex+1, u.pingQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionPing, Messages: msgs})
 				// u.Info("send ping...")
@@ -132,7 +138,7 @@ func (u *userHandler) ready() userReady {
 
 			// 发送recvack
 			if u.hasRecvack() {
-				u.sendRecvacking = true
+				u.recvackState.processing = true
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionRecvack, Messages: msgs})
 				// u.Info("send recvack...")
@@ -141,7 +147,7 @@ func (u *userHandler) ready() userReady {
 		} else {
 			// 转发用户action
 			if u.hasRecvack() {
-				u.sendRecvacking = true
+				u.recvackState.processing = true
 				msgs := u.recvackQueue.sliceWithSize(u.recvackQueue.processingIndex+1, u.recvackQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{
 					UniqueNo:   u.uniqueNo,
@@ -157,7 +163,7 @@ func (u *userHandler) ready() userReady {
 			}
 			// 转发连接认证消息
 			if u.hasAuth() {
-				u.authing = true
+				u.authState.processing = true
 				msgs := u.authQueue.sliceWithSize(u.authQueue.processingIndex+1, u.authQueue.lastIndex+1, 0)
 				u.actions = append(u.actions, UserAction{
 					UniqueNo:   u.uniqueNo,
@@ -176,7 +182,7 @@ func (u *userHandler) ready() userReady {
 		}
 		// 接受消息
 		if u.hasRecvMsg() {
-			u.recvMsging = true
+			u.recvMsgState.processing = true
 			msgs := u.recvMsgQueue.sliceWithSize(u.recvMsgQueue.processingIndex+1, u.recvMsgQueue.lastIndex+1, 0)
 			u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionRecv, Messages: msgs})
 			// u.Info("recv msg...", zap.Int("msgCount", len(msgs)))
@@ -192,7 +198,7 @@ func (u *userHandler) ready() userReady {
 }
 
 func (u *userHandler) hasRecvack() bool {
-	if u.sendRecvacking {
+	if u.recvackState.processing {
 		return false
 	}
 
@@ -200,7 +206,7 @@ func (u *userHandler) hasRecvack() bool {
 }
 
 func (u *userHandler) hasAuth() bool {
-	if u.authing {
+	if u.authState.processing {
 		return false
 	}
 
@@ -208,14 +214,14 @@ func (u *userHandler) hasAuth() bool {
 }
 
 func (u *userHandler) hasPing() bool {
-	if u.sendPing {
+	if u.pingState.processing {
 		return false
 	}
 	return u.pingQueue.processingIndex < u.pingQueue.lastIndex
 }
 
 func (u *userHandler) hasRecvMsg() bool {
-	if u.recvMsging {
+	if u.recvMsgState.processing {
 		return false
 	}
 
@@ -265,13 +271,13 @@ func (u *userHandler) reset() {
 	u.recvMsgQueue.resetIndex()
 	u.authQueue.resetIndex()
 
-	u.sendPing = false
-	u.sendRecvacking = false
-	u.recvMsging = false
-	u.authing = false
+	u.pingState = readyState{}
+	u.recvackState = readyState{}
+	u.recvMsgState = readyState{}
+	u.authState = readyState{}
 
 	u.initTick = u.opts.Reactor.User.ProcessIntervalTick
-	u.authTick = 0
+	// u.authTick = 0
 
 	u.nodePingTick = 0
 	u.nodePongTimeoutTick = make(map[uint64]int)
@@ -280,24 +286,56 @@ func (u *userHandler) reset() {
 func (u *userHandler) tick() {
 
 	u.initTick++
-	u.authTick++
-	u.recvMsgTick++
-	u.sendRecvackTick++
+	// u.authTick++
+	// u.recvMsgTick++
+	// u.sendRecvackTick++
 
 	u.checkLeaderTick++
+
+	if u.authState.willRetry {
+		u.authState.retryTick++
+		if u.authState.retryTick >= u.retryTickCount {
+			u.authState.willRetry = false
+			u.authState.retryTick = 0
+		}
+	}
+
+	if u.pingState.willRetry {
+		u.pingState.retryTick++
+		if u.pingState.retryTick >= u.retryTickCount {
+			u.pingState.willRetry = false
+			u.pingState.retryTick = 0
+		}
+	}
+
+	if u.recvackState.willRetry {
+		u.recvackState.retryTick++
+		if u.recvackState.retryTick >= u.retryTickCount {
+			u.recvackState.willRetry = false
+			u.recvackState.retryTick = 0
+		}
+	}
+
+	if u.recvMsgState.willRetry {
+		u.recvMsgState.retryTick++
+		if u.recvMsgState.retryTick >= u.retryTickCount {
+			u.recvMsgState.willRetry = false
+			u.recvMsgState.retryTick = 0
+		}
+	}
 
 	// if u.authing && u.authTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
 	// 	u.authing = false
 	// 	u.authTick = 0
 	// }
-	if u.sendRecvacking && u.sendRecvackTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
-		u.sendRecvacking = false
-		u.sendRecvackTick = 0
-	}
-	if u.recvMsging && u.recvMsgTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
-		u.recvMsging = false
-		u.recvMsgTick = 0
-	}
+	// if u.sendRecvacking && u.sendRecvackTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
+	// 	u.sendRecvacking = false
+	// 	u.sendRecvackTick = 0
+	// }
+	// if u.recvMsging && u.recvMsgTick > u.sub.r.s.opts.Reactor.User.ProcessIntervalTick {
+	// 	u.recvMsging = false
+	// 	u.recvMsgTick = 0
+	// }
 
 	// 定时校验领导的正确性
 	if u.checkLeaderTick >= u.sub.r.s.opts.Reactor.User.CheckLeaderIntervalTick {

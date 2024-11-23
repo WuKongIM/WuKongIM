@@ -117,6 +117,11 @@ func Configure(op *Options) {
 
 }
 
+func Level() zapcore.Level {
+
+	return opts.Level
+}
+
 func newEncoderConfig() zapcore.EncoderConfig {
 	return zapcore.EncoderConfig{
 		// Keys can be anything except the empty string.

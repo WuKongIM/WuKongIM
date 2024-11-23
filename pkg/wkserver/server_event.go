@@ -5,9 +5,12 @@ import (
 	"errors"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/pool/byteslice"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func (s *Server) onData(conn wknet.Conn) error {
@@ -64,6 +67,14 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			s.Error("unmarshal request error", zap.Error(err))
 			return
 		}
+
+		// 这需要复制一份新的body的byte，因为handleMsg传过来的data是被复用了的
+		if len(req.Body) > 0 {
+			newBody := make([]byte, len(req.Body)) // 这里内存有优化空间
+			copy(newBody, req.Body)
+			req.Body = newBody
+		}
+
 		if s.requestPool.Running() > s.opts.RequestPoolSize-10 {
 			s.Warn("request pool will full", zap.Int("running", s.requestPool.Running()), zap.Int("size", s.opts.RequestPoolSize))
 		}
@@ -84,6 +95,13 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			s.Error("unmarshal resp error", zap.Error(err))
 			return
 		}
+		// 这需要复制一份新的body的byte，因为handleMsg传过来的data是被复用了的
+		if len(resp.Body) > 0 {
+			newBody := make([]byte, len(resp.Body))
+			copy(newBody, resp.Body)
+			resp.Body = newBody
+		}
+
 		s.handleResp(conn, resp)
 	} else if msgType == proto.MsgTypeMessage {
 		msg := &proto.Message{}
@@ -91,6 +109,12 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 		if err != nil {
 			s.Error("unmarshal message error", zap.Error(err))
 			return
+		}
+		// 这需要复制一份新的content的byte，因为handleMsg传过来的data是被复用了的
+		if len(msg.Content) > 0 {
+			newContent := make([]byte, len(msg.Content))
+			copy(newContent, msg.Content)
+			msg.Content = newContent
 		}
 		if s.opts.MessagePoolOn {
 			if s.messagePool.Running() > s.opts.MessagePoolSize-10 {
@@ -117,6 +141,8 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 func (s *Server) releaseRequest(r *proto.Request) {
 	r.Reset()
 	s.requestObjPool.Put(r)
+	//释放body
+	byteslice.Put(r.Body)
 }
 
 func (s *Server) handleHeartbeat(conn wknet.Conn) {
@@ -177,7 +203,11 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 	ctx.req = req
 	ctx.proto = s.proto
 	handler(ctx)
-	s.Debug("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
+
+	// 这里判断日志等级才调用debug，避免 time.Since(start)这些无谓的消耗
+	if wklog.Level() == zapcore.DebugLevel {
+		s.Debug("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
+	}
 
 }
 

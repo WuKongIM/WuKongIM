@@ -372,7 +372,7 @@ func (ch *ChannelAPI) requestReceiverTag(channelId string, channelType uint8) er
 		return err
 	}
 
-	if resp.Status != proto.Status_OK {
+	if resp.Status != proto.StatusOK {
 		return fmt.Errorf("requestReceiverTag: respose error status:%d", resp.Status)
 	}
 	return nil
@@ -890,7 +890,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 	if ch.s.opts.ClusterOn() {
 		leaderInfo, err := ch.s.cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
 		if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
-			ch.Info("频道集群从未初始化，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			ch.Info("空频道，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.JSON(http.StatusOK, emptySyncMessageResp)
 			return
 		}
