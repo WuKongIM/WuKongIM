@@ -1,109 +1,136 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import API from '../../services/API';
-import { useRouter } from "vue-router";
+// API 接口
+import { dataApi } from '@/api/modules/data-api';
 
-const conversationTotal = ref<any>({}); // 会话列表
-const uid = ref<string>(); // 用户UID
+import { VxeFormListeners, VxeFormProps } from 'vxe-pc-ui';
 
-const router = useRouter()
+import type { VxeGridInstance, VxeGridProps } from 'vxe-table';
 
-const query = router.currentRoute.value.query; //查询参数
+import { useRoute } from 'vue-router';
 
-if(query.uid){
-    uid.value = query.uid as string
-}
+const route = useRoute();
+
+/**
+ * 查询条件
+ * */
+const formOptions = reactive<VxeFormProps<any>>({
+  data: {
+    uid: ''
+  },
+  items: [
+    {
+      field: 'uid',
+      title: '用户UID',
+      itemRender: { name: 'ElInput', props: { placeholder: '请输入用户UID' } }
+    },
+    {
+      align: 'center',
+      slots: { default: 'action' }
+    }
+  ]
+});
+/** 搜索事件 **/
+const formEvents: VxeFormListeners<any> = {
+  /** 查询 **/
+  submit() {
+    tableRef.value?.commitProxy('query');
+  },
+  /** 重置 **/
+  reset() {
+    tableRef.value?.commitProxy('query');
+  }
+};
+
+/**
+ * 表格
+ **/
+const tableRef = ref<VxeGridInstance<any>>();
+
+const loadList = async (query: any) => {
+  const res = await dataApi.conversations({ ...query });
+  if (res.data) {
+    return res.data;
+  }
+  return [];
+};
+
+const gridOptions = reactive<VxeGridProps<any>>({
+  showOverflow: true,
+  height: 'auto',
+  border: true,
+  stripe: true,
+  rowConfig: {
+    isCurrent: true,
+    isHover: true
+  },
+  scrollY: {
+    enabled: true,
+    gt: 0
+  },
+  toolbarConfig: {
+    refresh: {
+      icon: 'vxe-icon-refresh',
+      iconLoading: 'vxe-icon-refresh roll'
+    },
+    zoom: {
+      iconIn: 'vxe-icon-fullscreen',
+      iconOut: 'vxe-icon-minimize'
+    },
+    custom: true
+  },
+  proxyConfig: {
+    ajax: {
+      query: () => {
+        return loadList(formOptions.data);
+      }
+    }
+  },
+  columns: [
+    { type: 'seq', title: '序号', width: 54 },
+    { field: 'uid', title: '用户UID', minWidth: 220 },
+    { field: 'type_format', title: '会话类型', minWidth: 120 },
+    { field: 'channel_id', title: '频道ID', minWidth: 220 },
+    { field: 'channel_type_format', title: '频道类型', minWidth: 120 },
+    { field: 'last_msg_seq', title: '最新消息序号', minWidth: 120 },
+    { field: 'readed_to_msg_seq', title: '已读消息序号', minWidth: 120 },
+    { field: 'unread_count', title: '未读数量', minWidth: 120 },
+    { field: 'updated_at_format', title: '最后会话时间', minWidth: 140 }
+  ]
+});
 
 onMounted(() => {
-    searchConversation()
-})
-
-const searchConversation = () => {
-    API.shared.conversations({uid:uid.value}).then((res) => {
-        conversationTotal.value = res
-    }).catch((err) => {
-        alert(err)
-    })
-}
-
-const onUidSearch = (e: any) => {
-    uid.value = e.target.value
-    searchConversation()
-}
-
+  if (route.query?.uid) {
+    formOptions.data = {
+      uid: route.query.uid
+    };
+  }
+});
 </script>
 
 <template>
-   <div>
-        <div class="overflow-x-auto h-5/6">
-            <div class="flex flex-wrap gap-4">
-                <div class="text-sm ml-10">
-                    <label>用户UID</label>
-                    <input type="text" placeholder="输入" class="input input-bordered  select-sm ml-2"
-                        v-on:change="onUidSearch" v-model="uid"/>
-                </div>
-            </div>
-            <table class="table mt-10 table-pin-rows">
-                <thead>
-                    <tr>
-                        <th>
-                            <div class="flex items-center">
-                                用户UID
-                            </div>
-                        </th>
-                        <th>
-                            <div class="flex items-center">
-                                会话类型
-                            </div>
-                        </th>
-                        <th>
-                            <div class="flex items-center">
-                                频道ID
-                            </div>
-                        </th>
-                        <th>
-                            <div class="flex items-center">
-                                频道类型
-                            </div>
-                        </th>
-                        <th>
-                            <div class="flex items-center">
-                                最新消息序号
-                            </div>
-                        </th>
-                        <th>
-                            <div class="flex items-center">
-                                已读消息序号
-                            </div>
-                        </th>
-                        <th>
-                            <div class="flex items-center">
-                                未读数量
-                            </div>
-                        </th>
-                        <th>
-                            <div class="flex items-center">
-                                最后会话时间
-                            </div>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="conversation in conversationTotal.data">
-                        <td> {{ conversation.uid }}</td>
-                        <td>{{conversation.type_format}}</td>
-                        <td>{{conversation.channel_id}}</td>
-                        <td>{{conversation.channel_type_format}}</td>
-                        <td>{{conversation.last_msg_seq}}</td>
-                        <td>{{conversation.readed_to_msg_seq}}</td>
-                        <td>{{conversation.unread_count}}</td>
-                        <td>{{conversation.updated_at_format}}</td>
-
-                    </tr>
-
-                </tbody>
-            </table>
-
-        </div>
+  <wk-page class="flex-col">
+    <!-- S 查询条件 -->
+    <div class="mb-12px pt-4px pb-4px card">
+      <vxe-form v-bind="formOptions" v-on="formEvents">
+        <template #action>
+          <el-button native-type="submit" type="primary">查询</el-button>
+          <el-button native-type="reset">重置</el-button>
+        </template>
+      </vxe-form>
     </div>
+    <!-- E 查询条件 -->
+
+    <!-- S 表格 -->
+    <div class="flex-1 card !pt-4px overflow-hidden">
+      <vxe-grid ref="tableRef" v-bind="gridOptions"></vxe-grid>
+    </div>
+    <!-- E 表格 -->
+  </wk-page>
 </template>
+
+<style scoped lang="scss"></style>
+
+<route lang="yaml">
+meta:
+title: 会话
+</route>
