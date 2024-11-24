@@ -1,0 +1,31 @@
+html.dark {
+  /* wangEditor */
+  --w-e-toolbar-color: #eee;
+  --w-e-toolbar-bg-color: #141414;
+  --w-e-textarea-bg-color: #141414;
+  --w-e-textarea-color: #eee;
+  --w-e-toolbar-active-bg-color: #464646;
+  --w-e-toolbar-border-color: var(--el-border-color-darker);
+
+  .w-e-bar-item button:hover,
+  .w-e-menu-tooltip-v5::before {
+    color: #eee;
+  }
+
+  /* login */
+  .login-container {
+    background-color: #191919 !important;
+
+    .login-box {
+      background-color: rgb(0 0 0 / 80%) !important;
+
+      .login-form {
+        box-shadow: rgb(255 255 255 / 12%) 0 2px 10px 2px !important;
+
+        .logo-text {
+          color: var(--el-text-color-primary) !important;
+        }
+      }
+    }
+  }
+}
