@@ -1,27 +1,31 @@
-<script lang="ts" setup>
-import { defineComponent, onMounted, ref } from 'vue';
+<script setup lang="ts">
+// API 接口
+import { clusterApi } from '@/api/modules/cluster-api';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
-import API from '../../services/API';
 
 const config = ref<any>({});
 
-defineComponent({
-  components: {
-    VueJsonPretty,
-  },
-});
+const getConfig = async () => {
+  config.value = await clusterApi.clusterConfig();
+};
 
 onMounted(() => {
-  console.log('mounted');
-  API.shared.clusterConfig().then((res) => {
-    config.value = res
-  });
+  getConfig();
 });
- 
-
 </script>
 
 <template>
-    <vue-json-pretty :data="config" class="overflow-auto"/>
+  <wk-page class="flex-col overflow-hidden">
+    <div class="flex-1 card">
+      <VueJsonPretty :data="config" />
+    </div>
+  </wk-page>
 </template>
+
+<style scoped lang="scss"></style>
+
+<route lang="yaml">
+meta:
+  title: 配置
+</route>

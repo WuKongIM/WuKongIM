@@ -1,0 +1,88 @@
+body {
+  margin: 0;
+  font-family:
+          v-sans,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif,
+          'Apple Color Emoji',
+          'Segoe UI Emoji',
+          'Segoe UI Symbol';
+  font-size: 14px;
+  line-height: 1.6;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+/* fade-transform */
+.fade-transform-leave-active,
+.fade-transform-enter-active {
+  transition: all 0.2s;
+}
+
+.fade-transform-enter-from {
+  opacity: 0;
+  transition: all 0.2s;
+  transform: translateX(-30px);
+}
+
+.fade-transform-leave-to {
+  opacity: 0;
+  transition: all 0.2s;
+  transform: translateX(30px);
+}
+
+/* 解决 h1 标签在 webkit 内核浏览器中文字大小失效问题 */
+:-webkit-any(article, aside, nav, section) h1 {
+  font-size: 2em;
+}
+
+/* nprogress */
+#nprogress .bar {
+  background: var(--el-color-primary) !important;
+}
+
+#nprogress .spinner-icon {
+  border-top-color: var(--el-color-primary) !important;
+  border-left-color: var(--el-color-primary) !important;
+}
+
+#nprogress .peg {
+  box-shadow:
+          0 0 10px var(--el-color-primary),
+          0 0 5px var(--el-color-primary) !important;
+}
+
+/**
+* vxe table
+*/
+:root {
+  --vxe-ui-font-primary-color: var(--el-color-primary) !important;
+  --vxe-ui-font-primary-lighten-color: var(--el-color-primary-light-3) !important;
+  // table
+  --vxe-ui-table-row-current-background-color: var(--el-color-primary-light-9) !important;
+  --vxe-ui-table-row-hover-current-background-color: var(--el-color-primary-light-9) !important;
+  --vxe-ui-table-row-hover-checkbox-checked-background-color: var(--el-color-primary-light-9) !important;
+}
+
+.vxe-toolbar {
+  padding: 12px 0 12px;
+}
+.vxe-grid.is--maximize {
+  padding: 0 12px 12px;
+}
+.vxe-pager.size--small {
+  height: auto;
+  padding-top: 12px;
+}
