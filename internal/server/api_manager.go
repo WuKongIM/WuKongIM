@@ -29,6 +29,7 @@ func NewManagerAPI(s *Server) *ManagerAPI {
 func (m *ManagerAPI) Route(r *wkhttp.WKHttp) {
 
 	r.POST("/manager/login", m.login) // 登录
+
 }
 
 func (m *ManagerAPI) login(c *wkhttp.Context) {

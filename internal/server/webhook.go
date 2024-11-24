@@ -199,6 +199,11 @@ func (w *webhook) notifyQueueLoop() {
 			messages, err := w.s.store.GetMessagesOfNotifyQueue(w.s.opts.Webhook.MsgNotifyEventCountPerPush)
 			if err != nil {
 				w.Error("获取通知队列内的消息失败！", zap.Error(err))
+				// 如果系统出现错误，就移除第一个
+				err = w.s.store.DB().RemoveMessagesOfNotifyQueueCount(1)
+				if err != nil {
+					w.Error("RemoveMessagesOfNotifyQueueCount: 移除通知对列消息失败！", zap.Error(err))
+				}
 				time.Sleep(errorSleepTime) // 如果报错就休息下
 				continue
 			}

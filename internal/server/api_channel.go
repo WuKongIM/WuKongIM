@@ -111,6 +111,7 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 		ChannelId:   req.ChannelID,
 		ChannelType: req.ChannelType,
 		Subscribers: req.Subscribers,
+		Reset:       req.Reset,
 	})
 	if err != nil {
 		ch.Error("添加订阅者失败！", zap.Error(err))
