@@ -77,6 +77,9 @@ type MessageDB interface {
 	// RemoveMessagesOfNotifyQueue 移除通知队列的消息
 	RemoveMessagesOfNotifyQueue(messageIDs []int64) error
 
+	// RemoveMessagesOfNotifyQueueCount 移除指定数量的通知队列的消息
+	RemoveMessagesOfNotifyQueueCount(count int) error
+
 	// 搜索消息
 	SearchMessages(req MessageSearchReq) ([]Message, error)
 }

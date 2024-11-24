@@ -451,56 +451,58 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 	var err error
 
-	for _, conn := range slices.toConns {
-		for _, message := range req.messages {
+	for _, message := range req.messages {
 
+		sendPacket := message.SendPacket
+		fromUid := message.FromUid
+		// 如果发送者是系统账号，则不显示发送者
+		if fromUid == d.dm.s.opts.SystemUID {
+			fromUid = ""
+		}
+
+		recvPacket.Framer = wkproto.Framer{
+			RedDot:    sendPacket.GetRedDot(),
+			SyncOnce:  sendPacket.GetsyncOnce(),
+			NoPersist: sendPacket.GetNoPersist(),
+		}
+		recvPacket.Setting = sendPacket.Setting
+		recvPacket.MessageID = message.MessageId
+		recvPacket.MessageSeq = message.MessageSeq
+		recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
+		recvPacket.StreamNo = sendPacket.StreamNo
+		recvPacket.StreamFlag = wkproto.StreamFlagIng
+		recvPacket.FromUID = fromUid
+		recvPacket.Expire = sendPacket.Expire
+		recvPacket.ChannelID = sendPacket.ChannelID
+		recvPacket.ChannelType = sendPacket.ChannelType
+		recvPacket.Topic = sendPacket.Topic
+		recvPacket.Timestamp = int32(time.Now().Unix())
+		recvPacket.ClientSeq = sendPacket.ClientSeq
+		if len(recvPacket.Payload) > 0 {
+			recvPacket.Payload = recvPacket.Payload[:0]
+		}
+
+		for _, conn := range slices.toConns {
 			if conn.uid == message.FromUid && conn.deviceId == message.FromDeviceId { // 自己发的不处理
 				continue
 			}
 
-			d.Debug("deliver message to user", zap.Int64("messageId", message.MessageId), zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId), zap.Uint8("deviceFlag", uint8(conn.deviceFlag)), zap.Uint8("deviceLevel", uint8(conn.deviceLevel)), zap.Int64("connId", conn.connId), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-
-			sendPacket := message.SendPacket
-
-			fromUid := message.FromUid
-			// 如果发送者是系统账号，则不显示发送者
-			if fromUid == d.dm.s.opts.SystemUID {
-				fromUid = ""
-			}
-
-			recvPacket.Reset()
-			recvPacket.Framer = wkproto.Framer{
-				RedDot:    sendPacket.GetRedDot(),
-				SyncOnce:  sendPacket.GetsyncOnce(),
-				NoPersist: sendPacket.GetNoPersist(),
-			}
-			recvPacket.Setting = sendPacket.Setting
-			recvPacket.MessageID = message.MessageId
-			recvPacket.MessageSeq = message.MessageSeq
-			recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
-			recvPacket.StreamNo = sendPacket.StreamNo
-			recvPacket.StreamFlag = wkproto.StreamFlagIng
-			recvPacket.FromUID = fromUid
-			recvPacket.Expire = sendPacket.Expire
-			recvPacket.ChannelID = sendPacket.ChannelID
-			recvPacket.ChannelType = sendPacket.ChannelType
-			recvPacket.Topic = sendPacket.Topic
-			recvPacket.Timestamp = int32(time.Now().Unix())
-			recvPacket.Payload = sendPacket.Payload
-			recvPacket.ClientSeq = sendPacket.ClientSeq
-
 			// 这里需要把channelID改成fromUID 比如A给B发消息，B收到的消息channelID应该是A A收到的消息channelID应该是B
+			recvPacket.ChannelID = sendPacket.ChannelID
 			if recvPacket.ChannelType == wkproto.ChannelTypePerson && recvPacket.ChannelID == conn.uid {
 				recvPacket.ChannelID = recvPacket.FromUID
 			}
 
+			// 红点设置
+			recvPacket.RedDot = sendPacket.RedDot
 			if conn.uid == recvPacket.FromUID { // 如果是自己则不显示红点
 				recvPacket.RedDot = false
 			}
 
 			// payload内容加密
 			payloadBuffer.Reset()
-			err = encryptMessagePayload(recvPacket.Payload, conn, payloadBuffer)
+
+			err = encryptMessagePayload(sendPacket.Payload, conn, payloadBuffer)
 			if err != nil {
 				d.Error("加密payload失败！", zap.Error(err))
 				continue
@@ -517,7 +519,6 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				d.Error("生成MsgKey失败！", zap.Error(err))
 				continue
 			}
-
 			// m5加密一次
 			m5.Reset()
 			m5.Write(aesResultBuffer.Bytes())
@@ -592,6 +593,17 @@ func encryptMessagePayload(payload []byte, conn *connContext, resultBuff *bytebu
 	}
 
 	return nil
+}
+
+// 加密消息
+func encryptMessagePayload2(payload []byte, conn *connContext) ([]byte, error) {
+	aesKey, aesIV := conn.aesKey, conn.aesIV
+	// 加密payload
+	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, aesKey, aesIV)
+	if err != nil {
+		return nil, err
+	}
+	return payloadEnc, nil
 }
 
 func writeAesEncrypt(aesResultBuffer *bytebufferpool.ByteBuffer, signBuffer *bytebufferpool.ByteBuffer, conn *connContext) error {

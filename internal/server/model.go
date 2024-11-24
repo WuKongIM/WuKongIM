@@ -742,6 +742,7 @@ func (m MessageRespSlice) Less(i, j int) bool { return m[i].MessageSeq < m[j].Me
 // ChannelCreateReq 频道创建请求
 type ChannelCreateReq struct {
 	ChannelInfoReq
+	Reset       int      `json:"reset"`       // 是否重置订阅者 （0.不重置 1.重置），选择重置，将删除原来的所有成员
 	Subscribers []string `json:"subscribers"` // 订阅者
 }
 

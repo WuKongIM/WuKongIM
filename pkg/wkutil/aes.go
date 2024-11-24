@@ -36,19 +36,22 @@ func AesEncryptPkcs7Base64(origData []byte, key []byte, iv []byte) ([]byte, erro
 
 // AesEncryptPkcs7Base64
 func AesEncryptPkcs7Base64ForPool(origData []byte, key []byte, iv []byte, resultBuff *bytebufferpool.ByteBuffer) error {
+	// 加密数据
 	data, err := AesEncrypt(origData, key, iv, PKCS7Padding)
 	if err != nil {
 		return err
 	}
 
+	// 确保 resultBuff.B 有足够的容量
 	encodedSize := base64.StdEncoding.EncodedLen(len(data))
 	if cap(resultBuff.B) < encodedSize {
-		resultBuff.B = make([]byte, 0, encodedSize)
+		resultBuff.B = make([]byte, encodedSize)
+	} else {
+		resultBuff.B = resultBuff.B[:encodedSize]
 	}
 
-	base64.StdEncoding.Encode(resultBuff.B[:encodedSize], data)
-
-	resultBuff.B = resultBuff.B[:encodedSize]
+	// Base64 编码到 resultBuff.B
+	base64.StdEncoding.Encode(resultBuff.B, data)
 
 	return nil
 }
@@ -62,8 +65,8 @@ func AesEncrypt(origData []byte, key []byte, iv []byte, paddingFunc func([]byte,
 	blockSize := block.BlockSize()
 	origData = paddingFunc(origData, blockSize)
 
-	crypted := origData // 直接在原始数据上进行加密，避免额外分配内存
 	blockMode := cipher.NewCBCEncrypter(block, iv)
+	crypted := make([]byte, len(origData))
 	blockMode.CryptBlocks(crypted, origData)
 	return crypted, nil
 }
