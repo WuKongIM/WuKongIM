@@ -1,247 +1,234 @@
 <script setup lang="ts">
-// API 接口
-import { dataApi } from '@/api/modules/data-api';
-// 组件
-import { VxeFormListeners, VxeFormProps } from 'vxe-pc-ui';
-import Allowlist from './channel/components/Allowlist.vue';
-import Denylist from './channel/components/Denylist.vue';
+import { onMounted, ref } from 'vue';
+import API from '../../services/API';
 
-import type { VxeGridInstance, VxeGridProps } from 'vxe-table';
-
-import { useRouter } from 'vue-router';
-
-const router = useRouter();
-
-/**
- * 查询条件
- * */
-const formOptions = reactive<VxeFormProps<any>>({
-  data: {
-    uid: '',
-    offset_created_at: null,
-    limit: 20,
-    pre: 0
-  },
-  items: [
-    {
-      field: 'uid',
-      title: '用户UID',
-      itemRender: { name: 'ElInput', props: { placeholder: '请输入用户UID' } }
-    },
-
-    {
-      align: 'center',
-      slots: { default: 'action' }
-    }
-  ]
-});
-/** 搜索事件 **/
-const formEvents: VxeFormListeners<any> = {
-  /** 查询 **/
-  submit() {
-    tableRef.value?.commitProxy('query');
-  },
-  /** 重置 **/
-  reset() {
-    tableRef.value?.commitProxy('query');
-  }
-};
-
-/**
- * 表格
- **/
-const tableRef = ref<VxeGridInstance<any>>();
+const userTotal = ref<any>({}); // 用户列表
 const currentPage = ref(1); // 当前页
-const hasPrev = ref<boolean>(false); // 是否有上一页
-const hasNext = ref<boolean>(true); // 是否有下一页
+const pageSize = ref(20); // 每页显示数量
+const offsetCreatedAt = ref(0); // 偏移量
+const pre = ref(false); // 上一页
+const uid = ref<string>(''); // 用户UID
+const currentUids = ref<string[]>() // 当前用户列表
 
-const loadList = async (query: any) => {
-  const res = await dataApi.users({ ...query });
-  if (res.data) {
-    hasNext.value = res.more !== 1;
-    hasPrev.value = currentPage.value <= 1;
-    return res.data;
-  }
-  return [];
-};
+const hasNext = ref<boolean>(true) // 是否有下一页
+const hasPrev = ref<boolean>(false) // 是否有上一页
 
-const gridOptions = reactive<VxeGridProps<any>>({
-  showOverflow: true,
-  height: 'auto',
-  border: true,
-  stripe: true,
-  rowConfig: {
-    isCurrent: true,
-    isHover: true
-  },
-  scrollY: {
-    enabled: true,
-    gt: 0
-  },
-  toolbarConfig: {
-    slots: {
-      buttons: 'tools'
-    },
-    refresh: {
-      icon: 'vxe-icon-refresh',
-      iconLoading: 'vxe-icon-refresh roll'
-    },
-    zoom: {
-      iconIn: 'vxe-icon-fullscreen',
-      iconOut: 'vxe-icon-minimize'
-    },
-    custom: true
-  },
-  proxyConfig: {
-    ajax: {
-      query: () => {
-        return loadList(formOptions.data);
-      }
-    }
-  },
-  columns: [
-    { type: 'seq', title: '序号', width: 54 },
-    { field: 'uid', title: '用户UID', minWidth: 220 },
-    { field: 'device_count', title: '设备数', minWidth: 120 },
-    { field: 'conn_count', title: '连接数', minWidth: 120 },
-    { field: 'send_msg_count', title: '发出消息数', minWidth: 120 },
-    { field: 'recv_msg_count', title: '接受消息数', minWidth: 120 },
-    { field: 'send_msg_bytes', title: '发出消息大小', minWidth: 120 },
-    { field: 'recv_msg_bytes', title: '接受消息大小', minWidth: 140 },
-    { field: 'created_at_format', title: '创建时间', minWidth: 140 },
-    { field: 'updated_at_format', title: '更新时间', minWidth: 140 },
-    { field: 'action', title: '操作', width: 240, fixed: 'right', slots: { default: 'action' } }
-  ]
+
+onMounted(() => {
+    searchUser()
 });
 
-/**
- * 分页切换
- */
-const onPage = (type: 0 | 1) => {
-  // 下一页
-  let offset_created_at = 0;
-  const tableData = tableRef.value?.getData();
-  if (type === 0) {
-    currentPage.value = currentPage.value + 1;
-    if (tableData && tableData.length > 0) {
-      offset_created_at = tableData[tableData.length - 1].created_at;
+const searchUser = () => {
+
+    API.shared.users({
+        uid: uid.value || "",
+        offsetCreatedAt: offsetCreatedAt.value,
+        pre: pre.value,
+        limit: pageSize.value,
+    }).then((res) => {
+        userTotal.value = res
+        hasNext.value = userTotal.value?.more === 1
+        hasPrev.value = currentPage.value > 1
+        if(pre.value) { // 如果是向上翻页，则有下页数据
+            hasNext.value = true
+        }
+    }).catch((err) => {
+        alert(err)
+    })
+}
+
+// 通过uid搜索
+const onUidSearch = (e: any) => {
+    resetFilter()
+    uid.value = e.target.value
+    searchUser()
+}
+
+// 显示白名单
+const onShowAllowlist = (uid:string) => {
+    getAllowlist(uid).then(() => {
+        const dialog = document.getElementById('userlist') as HTMLDialogElement;
+        dialog.showModal();
+    })
+}
+
+
+// 获取白名单列表
+const getAllowlist = (uid: string) => {
+    return API.shared.allowlist(uid, 1).then((res) => {
+        currentUids.value = res
+    }).catch((err) => {
+        alert(err)
+    })
+}
+
+// 显示黑名单
+const onShowDenylist = (uid:string) => {
+    getDenylist(uid).then(() => {
+        const dialog = document.getElementById('userlist') as HTMLDialogElement;
+        dialog.showModal();
+    })
+}
+
+const getDenylist = (uid: string) => {
+    return API.shared.denylist(uid, 1).then((res) => {
+        currentUids.value = res
+    }).catch((err) => {
+        alert(err)
+    })
+}
+
+
+const resetFilter = () => {
+    currentPage.value = 1
+    pre.value = false
+    offsetCreatedAt.value = 0
+}
+
+// 上一页
+const prevPage = () => {
+    if (currentPage.value <= 1) {
+        hasPrev.value = false
+        return
     }
-  }
-
-  // 上一页
-  if (type === 1 && currentPage.value > 1) {
-    currentPage.value = currentPage.value - 1;
-    if (tableData && tableData.length > 0) {
-      offset_created_at = tableData[0].created_at;
+    hasPrev.value = true
+    currentPage.value -= 1
+    pre.value = true
+    if (userTotal.value?.data?.length > 0) {
+        offsetCreatedAt.value = userTotal.value.data[0].created_at
     }
-  }
+    searchUser()
+}
 
-  formOptions.data = {
-    ...formOptions.data,
-    offset_created_at,
-    pre: type
-  };
-
-  tableRef.value?.commitProxy('query');
-};
-
-/**
- * 白名单
- */
-const modelAllowlist = ref(false);
-const channelIdAllowlist = ref('');
-const channelTypeAllowlist = ref(0);
-
-const onAllowlist = (row: any) => {
-  channelIdAllowlist.value = row.uid;
-  channelTypeAllowlist.value = 1;
-  modelAllowlist.value = true;
-};
-
-/**
- * 黑名单
- */
-const modelDenylist = ref(false);
-const channelIdDenylist = ref('');
-const channelTypeDenylist = ref(0);
-
-const onDenylist = (row: any) => {
-  channelIdDenylist.value = row.uid;
-  channelTypeDenylist.value = 1;
-  modelDenylist.value = true;
-};
-
-/**
- * 设备
- * @param row
- */
-const onDevice = (row: any) => {
-  router.push({
-    path: '/data/device',
-    query: {
-      uid: row.uid
+// 下一页
+const nextPage = () => {
+    if (userTotal.value?.more === 0 && !pre.value) {
+        return
     }
-  });
-};
-
-/**
- * 最近会话
- * @param row
- */
-const onRecentSession = (row: any) => {
-  router.push({
-    path: '/data/conversation',
-    query: {
-      uid: row.uid
+    currentPage.value += 1
+    pre.value = false
+    if (userTotal.value?.data?.length > 0) {
+        offsetCreatedAt.value = userTotal.value.data[userTotal.value.data.length - 1].created_at
     }
-  });
-};
+
+    searchUser()
+}
+
+
 </script>
 
 <template>
-  <wk-page class="flex-col">
-    <!-- S 查询条件 -->
-    <div class="mb-12px pt-4px pb-4px card">
-      <vxe-form v-bind="formOptions" v-on="formEvents">
-        <template #action>
-          <el-button native-type="submit" type="primary">查询</el-button>
-          <el-button native-type="reset">重置</el-button>
-        </template>
-      </vxe-form>
-    </div>
-    <!-- E 查询条件 -->
+    <div>
+        <div class="overflow-x-auto h-5/6">
+            <div class="flex flex-wrap gap-4">
+                <div class="text-sm ml-4">
+                    <label>用户UID</label>
+                    <input type="text" placeholder="输入" class="input input-bordered  select-sm ml-2"
+                        v-on:change="onUidSearch" v-model="uid" />
+                </div>
+            </div>
+            <table class="table mt-5 table-pin-rows">
+                <thead>
+                    <tr>
+                        <th>
+                            <div class="flex items-center">
+                                用户UID
+                            </div>
+                        </th>
+                        <!-- <th>
+                            <div class="flex items-center">
+                                设备数
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                连接数
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                发出消息数
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                接受消息数
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                发出消息大小
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                接受消息大小
+                            </div>
+                        </th> -->
+                        <th>
+                            <div class="flex items-center">
+                                创建时间
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                更新时间
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
+                                操作
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- row 1 -->
+                    <tr v-for="user in userTotal.data">
+                        <td>
+                            {{ user.uid }}
+                        </td>
+                        <!-- <td>{{ user.device_count }}</td>
+                        <td>{{ user.conn_count }}</td>
+                        <td>{{ user.send_msg_count }}</td>
+                        <td>{{ user.recv_msg_count }}</td>
+                        <td>{{ user.send_msg_bytes }}</td>
+                        <td>{{ user.recv_msg_bytes }}</td> -->
+                        <td>{{ user.created_at_format }}</td>
+                        <td>{{ user.updated_at_format }}</td>
+                        <td class="flex">
+                            <button class="btn btn-link btn-sm"
+                                @click="()=>onShowAllowlist(user.uid)">白名单</button>
+                            <button class="btn btn-link btn-sm"
+                                @click="()=>onShowDenylist(user.uid)">黑名单</button>
+                            <button class="btn btn-link btn-sm"
+                                @click="$router.push(`device?uid=${user.uid}`)">设备</button>
+                            <button class="btn btn-link btn-sm"
+                                @click="$router.push(`conversation?uid=${user.uid}`)">最近会话</button>
+                        </td>
 
-    <!-- S 表格 -->
-    <div class="flex-1 card !pt-4px overflow-hidden">
-      <vxe-grid ref="tableRef" v-bind="gridOptions">
-        <template #tools>
-          <el-space>
-            <el-button type="primary" :disabled="hasPrev" @click="onPage(1)">上一页</el-button>
-            <el-button type="primary" :disabled="hasNext" @click="onPage(0)">下一页</el-button>
-          </el-space>
-        </template>
 
-        <template #action="{ row }">
-          <el-space>
-            <el-button type="primary" link @click="onAllowlist(row)">白名单</el-button>
-            <el-button type="primary" link @click="onDenylist(row)">黑名单</el-button>
-            <el-button type="primary" link @click="onDevice(row)">设备</el-button>
-            <el-button type="primary" link @click="onRecentSession(row)">最近会话</el-button>
-          </el-space>
-        </template>
-      </vxe-grid>
+                    </tr>
+
+                </tbody>
+            </table>
+
+        </div>
+        <div class="flex justify-end mt-10 mr-10">
+            <div className="join">
+                <button :class="{ 'join-item btn': true, 'btn-disabled': !hasPrev  }" v-on:click="prevPage">«</button>
+                <button className="join-item btn">{{ currentPage }}</button>
+                <button :class="{ 'join-item btn': true, 'btn-disabled': !hasNext }" v-on:click="nextPage">»</button>
+            </div>
+        </div>
+        <dialog id="userlist" class="modal">
+            <div class="modal-box flex flex-wrap gap-2">
+                <div v-if="currentUids?.length == 0">无数据</div>
+                <a class="link" v-for="uid in currentUids">{{ uid }}</a>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
     </div>
-    <!-- E 表格 -->
-    <!-- 白名单 -->
-    <Allowlist v-model="modelAllowlist" :channel-id="channelIdAllowlist" :channel-type="channelTypeAllowlist" />
-    <!-- 黑名单 -->
-    <Denylist v-model="modelDenylist" :channel-id="channelIdDenylist" :channel-type="channelTypeDenylist" />
-  </wk-page>
 </template>
-
-<style scoped lang="scss"></style>
-
-<route lang="yaml">
-meta:
-  title: 用户
-</route>

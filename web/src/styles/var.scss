@@ -1,9 +1,0 @@
-/* 只需要重写你需要的即可 */
-@forward 'element-plus/theme-chalk/src/common/var.scss' with (
-  $card: (
-    'padding': 12px
-  )
-);
-
-$primary-color: var(--el-color-primary);
-

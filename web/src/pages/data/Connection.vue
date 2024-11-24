@@ -1,197 +1,312 @@
 <script setup lang="ts">
-// API 接口
-import { clusterApi } from '@/api/modules/cluster-api';
-import { dataApi } from '@/api/modules/data-api';
+import { onMounted, onBeforeUnmount, ref } from 'vue';
+const loading = ref<boolean>(false);
+import API from '../../services/API';
+import { formatMemory } from '../../services/Utils';
 
-import { VxeFormListeners, VxeFormProps } from 'vxe-pc-ui';
+const nodeTotal = ref<any>({}); // 节点列表
+const selectedNodeId = ref<number>(1) // 选中的节点ID
+const connectionTotal = ref<any>({}); // 连接列表
+const sortField = ref<string>('id') // 排序字段
 
-import type { VxeGridInstance, VxeGridProps } from 'vxe-table';
+const uidSearch = ref<string>('') // 用户UID搜索
 
-/**
- * 查询条件
- * */
-const nodeList = ref<any[]>([]);
-const formOptions = reactive<VxeFormProps<any>>({
-  data: {
-    uid: '',
-    node_id: null,
-    sort: 'id',
-    limit: 100
-  },
-  items: [
-    {
-      field: 'node_id',
-      title: '节点',
-      itemRender: {
-        name: 'ElSelect',
-        props: {
-          placeholder: '请选择',
-          style: {
-            width: '180px'
-          }
-        },
-        options: nodeList
-      }
-    },
-    {
-      field: 'uid',
-      title: '用户UID',
-      itemRender: { name: 'ElInput', props: { placeholder: '请输入用户UID' } }
-    },
-
-    {
-      align: 'center',
-      slots: { default: 'action' }
-    }
-  ]
-});
-/** 搜索事件 **/
-const formEvents: VxeFormListeners<any> = {
-  /** 查询 **/
-  submit() {
-    tableRef.value?.commitProxy('query');
-  },
-  /** 重置 **/
-  reset() {
-    tableRef.value?.commitProxy('query');
-  }
-};
-
-const getNodes = async () => {
-  const nodes: any[] = [];
-  const res = await clusterApi.simpleNodes();
-  if (res.data.length > 0) {
-    res.data.map((item: any) => {
-      nodes.push({
-        value: item.id,
-        label: item.id
-      });
-    });
-  }
-  nodeList.value = nodes;
-  if (nodes.length > 0) {
-    formOptions.data = {
-      ...formOptions.data,
-      node_id: nodes[0].value
-    };
-    tableRef.value?.commitProxy('query');
-  }
-};
-
-/**
- * 表格
- **/
-const tableRef = ref<VxeGridInstance<any>>();
-const toolNum = ref(0);
-
-const loadList = async (query: any) => {
-  const res = await dataApi.connections({ ...query });
-  if (res.connections) {
-    toolNum.value = res.total;
-    return res.connections;
-  }
-  return [];
-};
-
-const gridOptions = reactive<VxeGridProps<any>>({
-  showOverflow: true,
-  height: 'auto',
-  border: true,
-  stripe: true,
-  rowConfig: {
-    isCurrent: true,
-    isHover: true
-  },
-  scrollY: {
-    enabled: true,
-    gt: 0
-  },
-  toolbarConfig: {
-    slots: {
-      buttons: 'tools'
-    },
-    refresh: {
-      icon: 'vxe-icon-refresh',
-      iconLoading: 'vxe-icon-refresh roll'
-    },
-    zoom: {
-      iconIn: 'vxe-icon-fullscreen',
-      iconOut: 'vxe-icon-minimize'
-    },
-    custom: true
-  },
-  proxyConfig: {
-    autoLoad: false,
-    ajax: {
-      query: () => {
-        return loadList(formOptions.data);
-      }
-    }
-  },
-  columns: [
-    { type: 'seq', title: '序号', width: 54 },
-    { field: 'id', title: '连接ID', minWidth: 120 },
-    { field: 'uid', title: '用户UID', minWidth: 120 },
-    { field: 'in_msgs', title: '发出消息数', minWidth: 100 },
-    { field: 'out_msgs', title: '收到消息数', minWidth: 100 },
-    { field: 'in_msg_bytes', title: '发出消息字节数', minWidth: 120, formatter: 'formatMemory' },
-    { field: 'out_msg_bytes', title: '收到消息字节数', minWidth: 120, formatter: 'formatMemory' },
-    { field: 'in_packets', title: '发出报文数', minWidth: 100 },
-    { field: 'out_packets', title: '收到报文数', minWidth: 100 },
-    { field: 'in_packet_bytes', title: '发出报文字节数', minWidth: 120, formatter: 'formatMemory' },
-    { field: 'out_packet_bytes', title: '收到报文字节数', minWidth: 120, formatter: 'formatMemory' },
-    {
-      field: 'address',
-      title: '连接地址',
-      minWidth: 180,
-      formatter({ row }) {
-        return `${row.ip}:${row.port}`;
-      }
-    },
-    { field: 'uptime', title: '存活时间', minWidth: 120 },
-    { field: 'idle', title: '空闲时间', minWidth: 120 },
-    { field: 'version', title: '协议版本', minWidth: 100 },
-    { field: 'device', title: '设备', minWidth: 100 },
-    { field: 'device_id', title: '设备编号', minWidth: 290 },
-    { field: 'proxy_type_format', title: '代理类型', minWidth: 100 },
-    { field: 'leader_id', title: '领导节点', minWidth: 100 }
-  ]
-});
+let connIntervalId: number;
 
 onMounted(() => {
-  getNodes();
-});
+
+   API.shared.simpleNodes().then((res) => {
+      nodeTotal.value = res
+      if (nodeTotal.value.data.length > 0) {
+         selectedNodeId.value = nodeTotal.value.data[0].id
+      }
+      loadConnections()
+      startRequestConns()
+   }).catch((err) => {
+      alert(err)
+   })
+})
+
+onBeforeUnmount(() => {
+   window.clearInterval(connIntervalId)
+})
+
+const onNodeChange = (e: any) => {
+   selectedNodeId.value = e.target.value
+   loadConnections(e.target.value)
+}
+
+const loadConnections = (closeLoading?: boolean) => {
+   if (!closeLoading) {
+      loading.value = true;
+
+   }
+   API.shared.connections(selectedNodeId.value, 100,sortField.value,uidSearch.value).then((res) => {
+      connectionTotal.value = res
+   }).catch((err) => {
+      alert(err)
+   }).finally(() => {
+      if (!closeLoading) {
+         loading.value = false;
+      }
+   })
+}
+
+const startRequestConns = async () => {
+   connIntervalId = window.setInterval(async () => {
+      loadConnections(true)
+   }, 1000)
+}
+
+const onSort = (s: string) => {
+   if (sortField.value == s) {
+      if (s.endsWith("Desc")) {
+         sortField.value = s.substring(0, s.length - 4)
+      } else {
+         sortField.value = s + "Desc"
+      }
+   } else {
+      sortField.value = s
+   }
+   loadConnections()
+}
+
+const onUidSearch = (e: any) => {
+   uidSearch.value = e.target.value
+   loadConnections()
+}
+
 </script>
 
+
 <template>
-  <wk-page class="flex-col">
-    <!-- S 查询条件 -->
-    <div class="mb-12px pt-4px pb-4px card">
-      <vxe-form v-bind="formOptions" v-on="formEvents">
-        <template #action>
-          <el-button native-type="submit" type="primary">查询</el-button>
-          <el-button native-type="reset">重置</el-button>
-        </template>
-      </vxe-form>
-    </div>
-    <!-- E 查询条件 -->
+   <div>
+      <div class="overflow-x-auto h-5/6">
+         <div class="flex">
+            <div class="text-sm ml-3">
+               <label>节点</label>
+               <select class="select select-bordered  max-w-xs select-sm w-40 ml-2" v-on:change="onNodeChange">
+                  <option v-for="node in nodeTotal.data" :selected="node.id == selectedNodeId">{{ node.id }}</option>
+               </select>
+            </div>
 
-    <!-- S 表格 -->
-    <div class="flex-1 card !pt-4px overflow-hidden">
-      <vxe-grid ref="tableRef" v-bind="gridOptions"
-        >total
-        <template #tools>
-          <el-text type="primary" tag="b">共计节点总数：{{ toolNum }}</el-text>
-        </template>
-      </vxe-grid>
-    </div>
-    <!-- E 表格 -->
-  </wk-page>
+            <div class="text-sm ml-10">
+               <label>用户UID</label>
+               <input type="text" placeholder="输入" class="input input-bordered  select-sm ml-2" v-on:change="onUidSearch" />
+            </div>
+         </div>
+         <table class="table mt-10 table-pin-rows">
+            <!-- head -->
+            <thead>
+               <tr>
+                  <th>
+                     <div class="flex items-center">
+                        连接ID
+                        <a href="#" v-on:click="() => onSort('id')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        用户UID
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        发出消息数
+                        <a href="#" v-on:click="() => onSort('inMsg')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        收到消息数
+                        <a href="#"  v-on:click="() => onSort('outMsg')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        发出消息字节数
+                        <a href="#" v-on:click="() => onSort('inMsgBytes')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        收到消息字节数
+                        <a href="#"  v-on:click="() => onSort('outMsgBytes')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        发出报文数
+                        <a href="#" v-on:click="() => onSort('inPacket')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        收到报文数
+                        <a href="#" v-on:click="() => onSort('outPacket')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        发出报文字节数
+                        <a href="#" v-on:click="() => onSort('inPacketBytes')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        收到报文字节数
+                        <a href="#" v-on:click="() => onSort('outPacketBytes')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        连接地址
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        存活时间
+                        <a href="#" v-on:click="() => onSort('uptime')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        空闲时间
+                        <a href="#" v-on:click="() => onSort('idle')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        协议版本
+                        <a href="#" v-on:click="() => onSort('protoVersion')">
+                           <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                              fill="currentColor" viewBox="0 0 24 24">
+                              <path
+                                 d="M8.574 11.024h6.852a2.075 2.075 0 0 0 1.847-1.086 1.9 1.9 0 0 0-.11-1.986L13.736 2.9a2.122 2.122 0 0 0-3.472 0L6.837 7.952a1.9 1.9 0 0 0-.11 1.986 2.074 2.074 0 0 0 1.847 1.086Zm6.852 1.952H8.574a2.072 2.072 0 0 0-1.847 1.087 1.9 1.9 0 0 0 .11 1.985l3.426 5.05a2.123 2.123 0 0 0 3.472 0l3.427-5.05a1.9 1.9 0 0 0 .11-1.985 2.074 2.074 0 0 0-1.846-1.087Z" />
+                           </svg>
+                        </a>
+                     </div>
+                  </th>
+                  <th>设备</th>
+                  <th>设备编号</th>
+                  <th>代理类型</th>
+                  <th>领导节点</th>
+               </tr>
+            </thead>
+            <tbody>
+               <!-- row 1 -->
+               <tr v-for="conn in connectionTotal.connections">
+                  <td class="text-blue-800">{{ conn.id }}</td>
+                  <td>{{ conn.uid }}</td>
+                  <td>{{ conn.in_msgs }}</td>
+                  <td>{{ conn.out_msgs }}</td>
+                  <td>{{ formatMemory(conn.in_msg_bytes) }}</td>
+                  <td>{{ formatMemory(conn.out_msg_bytes) }}</td>
+                  <td>{{ conn.in_packets }}</td>
+                  <td>{{ conn.out_packets }}</td>
+                  <td>{{ formatMemory(conn.in_packet_bytes) }}</td>
+                  <td>{{ formatMemory(conn.out_packet_bytes) }}</td>
+                  <td>{{ `${conn.ip}:${conn.port}` }}</td>
+                  <td>{{ conn.uptime }}</td>
+                  <td>{{ conn.idle }}</td>
+                  <td>{{ conn.version }}</td>
+                  <td>{{ conn.device }}</td>
+                  <td>{{ conn.device_id }}</td>
+                  <td>{{conn.proxy_type_format}}</td>
+                  <td>{{conn.leader_id}}</td>
+               </tr>
+
+            </tbody>
+         </table>
+         <div class="flex flex-col gap-4 w-full mt-2" v-if="loading">
+            <div class="skeleton h-6 w-full"></div>
+            <div class="skeleton h-6 w-full"></div>
+            <div class="skeleton h-6 w-full"></div>
+            <div class="skeleton h-6 w-full"></div>
+            <div class="skeleton h-6 w-full"></div>
+            <div class="skeleton h-6 w-full"></div>
+         </div>
+      </div>
+
+      <div class="flex justify-end mt-10 mr-10">
+         <div class="flex pr-4">
+            <div class="flex items-center">
+               <ul class="text-sm">
+                  <li>
+                     总数量: <span class="text-blue-800">{{ connectionTotal.total }}</span>
+                  </li>
+               </ul>
+            </div>
+         </div>
+      </div>
+   </div>
 </template>
-
-<style scoped lang="scss"></style>
-
-<route lang="yaml">
-meta:
-  title: 连接
-</route>

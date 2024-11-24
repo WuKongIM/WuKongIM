@@ -1,35 +1,15 @@
-import App from '@/App.vue';
-// router
-import router from './router';
-// pinia store
-import pinia from '@/stores';
-// vue i18n
-import I18n from '@/i18n';
+import { createApp } from 'vue'
+import './style.css'
+import App from './App.vue'
 
-import 'uno.css';
-import '@/styles/index.scss';
+import router from './router'
 
-// element icons
-import * as Icons from '@element-plus/icons-vue';
-// icon-park
-import { install } from '@icon-park/vue-next/es/all';
 
-import 'vue-global-api';
+// import APIClient from './services/APIClient'
+// APIClient.shared.config.apiURL = "http://localhost:5300" // 本地调试用，正式环境请注释掉
 
-import { setupUi } from '@/ui';
+const app = createApp(App)
 
-import { createApp } from 'vue';
+app.use(router)
 
-const app = createApp(App);
-
-install(app, 'i-wk');
-// register the element Icons component
-Object.keys(Icons).forEach(key => {
-  app.component(key, Icons[key as keyof typeof Icons]);
-});
-
-app.use(router);
-app.use(setupUi);
-app.use(I18n);
-app.use(pinia);
-app.mount('#app');
+app.mount('#app')
