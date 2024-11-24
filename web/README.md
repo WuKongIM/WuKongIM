@@ -1,18 +1,76 @@
-# Vue 3 + TypeScript + Vite
+# 悟空IM后台监控
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+<a href="https://cn.vuejs.org/" target="_blank" rel="noopener" style="display:inline-block;">
+	<img src="https://img.shields.io/badge/Vue-3.4.21-%236CB52D.svg?logo=Vue.js" alt="Vue">
+</a> &nbsp
+<a href="https://router.vuejs.org/zh/" target="_blank" rel="noopener" style="display:inline-block;">
+	<img src="https://img.shields.io/badge/Vue Router-4.2.4-%236CB52D.svg?logo=VueRouter" alt="Vue Router">
+</a> &nbsp
+<a href="https://pinia.vuejs.org/zh/" target="_blank" rel="noopener" style="display:inline-block;">
+	<img src="https://img.shields.io/badge/Pinia-2.1.6-%236CB52D.svg?logo=Pinia" alt="Pinia">
+</a> &nbsp
+<a href="https://ts.nodejs.cn/" target="_blank" rel="noopener" style="display:inline-block;">
+	<img src="https://img.shields.io/badge/TypeScript-5.0.4-%236CB52D.svg?logo=TypeScript&logoColor=FFF" alt="TypeScript">
+</a> &nbsp
+<a href="https://cn.vitejs.dev/" target="_blank" rel="noopener" style="display:inline-block;">
+	<img src="https://img.shields.io/badge/Vite-5.2.11-%236CB52D.svg?logo=Vite&logoColor=FFF" alt="Vite">
+</a> &nbsp
+<a href="https://element-plus.org/" target="_blank" rel="noopener" style="display:inline-block;">
+	<img src="https://img.shields.io/badge/Element Plus-2.7.3-%236CB52D.svg?logo=ElementPlus" alt="Element Plus">
+</a> &nbsp
+<a href="https://unocss.dev/" target="_blank" rel="noopener" style="display:inline-block;">
+	<img src="https://img.shields.io/badge/UnoCss-0.51.12-%236CB52D.svg?logo=UnoCss" alt="Unocss">
+</a> &nbsp
 
-## Recommended IDE Setup
+- NODE_ENV node环境变量
+- APP_ENV 应用环境变量
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+## 安装
 
-## Type Support For `.vue` Imports in TS
+```sh
+pnpm install
+```
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin) to make the TypeScript language service aware of `.vue` types.
+## 本地开发
 
-If the standalone TypeScript plugin doesn't feel fast enough to you, Volar has also implemented a [Take Over Mode](https://github.com/johnsoncodehk/volar/discussions/471#discussioncomment-1361669) that is more performant. You can enable it by the following steps:
+```sh
+pnpm dev
+```
 
-1. Disable the built-in TypeScript Extension
-   1. Run `Extensions: Show Built-in Extensions` from VSCode's command palette
-   2. Find `TypeScript and JavaScript Language Features`, right click and select `Disable (Workspace)`
-2. Reload the VSCode window by running `Developer: Reload Window` from the command palette.
+## 编译
+
+```sh
+pnpm build
+```
+
+## 本地预览
+
+> 先执行编译再执行该命令
+
+```sh
+pnpm serve
+```
+
+## eslint检测
+
+```sh
+pnpm lint
+```
+
+## eslint修复
+
+```sh
+pnpm lint:fix
+```
+
+## prettier检测
+
+```sh
+pnpm format
+```
+
+## Git commit
+
+```sh
+pnpm cz
+```
