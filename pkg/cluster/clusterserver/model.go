@@ -1033,6 +1033,7 @@ type messageResp struct {
 	FromUid         string `json:"from_uid"`         // 发送者UID
 	Payload         []byte `json:"payload"`          // 消息内容
 	Expire          uint32 `json:"expire"`           // 消息过期时间 0 表示永不过期
+	Term            uint64 `json:"term"`             // 消息任期
 }
 
 func newMessageResp(m wkdb.Message) *messageResp {
@@ -1051,6 +1052,7 @@ func newMessageResp(m wkdb.Message) *messageResp {
 		FromUid:         m.FromUID,
 		Payload:         m.Payload,
 		Expire:          m.Expire,
+		Term:            m.Term,
 	}
 }
 

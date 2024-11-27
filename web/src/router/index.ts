@@ -25,6 +25,7 @@ import MonitorCluster from '../pages/monitor/Cluster.vue'
 import MonitorSystem from '../pages/monitor/System.vue'
 import TraceDB from '../pages/monitor/Trace.vue'
 import Logs from '../pages/monitor/Logs.vue'
+import Tester from '../pages/monitor/Tester.vue'
 
 
 const router = createRouter({
@@ -128,6 +129,11 @@ const router = createRouter({
       path: '/monitor/logs',
       name: 'logs',
       component: Logs
+    },
+    {
+      path: '/monitor/tester',
+      name: 'tester',
+      component: Tester
     },
   ]
 })

@@ -173,7 +173,7 @@ const onShowClientMsgNo = (clientMsgNo: any) => {
 
 // 消息轨迹惦记
 const onMessageTrace = (clientMsgNo: string) => {
-    if(!App.shard().systemSetting.messageTraceOn) {
+    if (!App.shard().systemSetting.messageTraceOn) {
         alert("消息追踪功能未开启,请查看官网文档: https://githubim.com")
         return
     }
@@ -288,6 +288,11 @@ const onMessageTrace = (clientMsgNo: string) => {
                         </th>
                         <th>
                             <div class="flex items-center">
+                                任期
+                            </div>
+                        </th>
+                        <th>
+                            <div class="flex items-center">
                                 操作
                             </div>
                         </th>
@@ -306,9 +311,11 @@ const onMessageTrace = (clientMsgNo: string) => {
                         <td>{{ message.timestamp_format }}</td>
                         <td class="text-blue-800" v-on:click="() => onShowClientMsgNo(message.client_msg_no)"><a
                                 href="#">{{ ellipsis(message.client_msg_no, 20) }}</a></td>
+                        <td>{{ message.term }}</td>
 
                         <td class="flex">
-                            <button class="btn btn-link btn-sm" v-on:click="()=>onMessageTrace(message.client_msg_no)">消息轨迹</button>
+                            <button class="btn btn-link btn-sm"
+                                v-on:click="() => onMessageTrace(message.client_msg_no)">消息轨迹</button>
                         </td>
                     </tr>
 

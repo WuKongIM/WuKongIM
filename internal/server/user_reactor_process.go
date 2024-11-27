@@ -988,6 +988,7 @@ func (r *userReactor) addNodePingReq(req *nodePingReq) {
 	case r.processNodePingC <- req:
 	default:
 		r.Warn("addNodePingReq: processNodePingC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
+
 	}
 }
 

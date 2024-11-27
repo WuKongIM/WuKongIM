@@ -640,6 +640,29 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 		}
 	}
 
+	channelInfo, err := ch.s.store.GetChannel(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("查询频道信息失败！", zap.Error(err))
+		c.ResponseError(errors.New("查询频道信息失败！"))
+		return
+	}
+	if wkdb.IsEmptyChannelInfo(channelInfo) {
+		ch.Warn("频道不存在！", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseOK()
+		return
+	}
+
+	// 解散频道
+	channelInfo.Disband = true
+
+	// 更新频道资料
+	err = ch.s.store.UpdateChannelInfo(channelInfo)
+	if err != nil {
+		ch.Error("更新频道信息失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("更新频道信息失败！"))
+		return
+	}
+
 	err = ch.s.store.DeleteChannelAndClearMessages(req.ChannelId, req.ChannelType)
 	if err != nil {
 		c.ResponseError(err)

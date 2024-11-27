@@ -752,7 +752,7 @@ var TableStreamMeta = struct {
 	}
 }{
 	Id:   [2]byte{0x12, 0x01},
-	Size: 2 + 2 + 8 + 8, // tableId + dataType  + primaryKey + columnKey
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
 	Column: struct {
 		StreamNo [2]byte
 	}{
@@ -767,4 +767,31 @@ var TableConversationLocalUser = struct {
 	Id [2]byte
 }{
 	Id: [2]byte{0x13, 0x01},
+}
+
+// ======================== TableTester ========================
+
+var TableTester = struct {
+	Id     [2]byte
+	Size   int
+	Column struct {
+		No        [2]byte // 测试机器编号
+		Addr      [2]byte // 测试机器地址
+		CreatedAt [2]byte // 创建时间
+		UpdatedAt [2]byte // 更新时间
+	}
+}{
+	Id:   [2]byte{0x14, 0x01},
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	Column: struct {
+		No        [2]byte
+		Addr      [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		No:        [2]byte{0x14, 0x01},
+		Addr:      [2]byte{0x14, 0x02},
+		CreatedAt: [2]byte{0x14, 0x03},
+		UpdatedAt: [2]byte{0x14, 0x04},
+	},
 }

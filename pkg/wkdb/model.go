@@ -787,3 +787,35 @@ func (m *Member) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+
+type Tester struct {
+	Id        uint64
+	No        string
+	Addr      string
+	CreatedAt *time.Time
+	UpdatedAt *time.Time
+}
+
+func (t *Tester) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(t.Id)
+	enc.WriteString(t.No)
+	enc.WriteString(t.Addr)
+	return enc.Bytes(), nil
+}
+
+func (t *Tester) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if t.Id, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if t.No, err = dec.String(); err != nil {
+		return err
+	}
+	if t.Addr, err = dec.String(); err != nil {
+		return err
+	}
+	return nil
+}

@@ -977,3 +977,28 @@ func ParseConversationLocalUserKey(key []byte) (uid string, err error) {
 	uid = string(key[12:])
 	return uid, nil
 }
+
+// ---------------------- Tester ----------------------
+
+func NewTesterColumnKey(id uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableTester.Size)
+	key[0] = TableTester.Id[0]
+	key[1] = TableTester.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], id)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
+func ParseTesterColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
+	if len(key) != TableTester.Size {
+		err = fmt.Errorf("tester: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	id = binary.BigEndian.Uint64(key[4:])
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	return
+}
