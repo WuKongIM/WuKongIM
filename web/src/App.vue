@@ -8,7 +8,7 @@ import APIClient from './services/APIClient';
 onMounted(() => {
 
 
-  if(App.shard().loginInfo.isLogin()) {
+  if (App.shard().loginInfo.isLogin()) {
     App.shard().loadSystemSettingIfNeed()
   }
 
@@ -41,8 +41,8 @@ const onLogout = () => {
         <div class="font-bold text-xl ml-2">悟空IM</div>
       </div>
       <div class="mr-20 flex">
-        <label class="mt-[0.4rem] mr-2 text-sm">{{App.shard().loginInfo.username}}</label>
-        <button class="btn btn-sm" v-on:click="()=>onLogout()">
+        <label class="mt-[0.4rem] mr-2 text-sm">{{ App.shard().loginInfo.username }}</label>
+        <button class="btn btn-sm" v-on:click="() => onLogout()">
           <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
             <path d="M23.9917 6H6V42H24" stroke="#333" stroke-width="4" stroke-linecap="round"
               stroke-linejoin="round" />
@@ -295,39 +295,30 @@ const onLogout = () => {
               </li>
               <li>
                 <RouterLink to="/monitor/trace">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M44.0001 11C44.0001 11 44 36.0623 44 38C44 41.3137 35.0457 44 24 44C12.9543 44 4.00003 41.3137 4.00003 38C4.00003 36.1423 4 11 4 11"
-                      stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M44 29C44 32.3137 35.0457 35 24 35C12.9543 35 4 32.3137 4 29" stroke="#333"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M44 20C44 23.3137 35.0457 26 24 26C12.9543 26 4 23.3137 4 20" stroke="#333"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <ellipse cx="24" cy="10" rx="20" ry="6" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-spline h-5 w-5">
+                    <circle cx="19" cy="5" r="2" />
+                    <circle cx="5" cy="19" r="2" />
+                    <path d="M5 17A12 12 0 0 1 17 5" />
                   </svg>
                   <label class="ml-2">消息追踪</label>
                 </RouterLink>
               </li>
 
-              <!-- <li>
-                <RouterLink to="/monitor/logs">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <li>
+                <RouterLink to="/monitor/tester">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-biceps-flexed">
                     <path
-                      d="M44.0001 11C44.0001 11 44 36.0623 44 38C44 41.3137 35.0457 44 24 44C12.9543 44 4.00003 41.3137 4.00003 38C4.00003 36.1423 4 11 4 11"
-                      stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M44 29C44 32.3137 35.0457 35 24 35C12.9543 35 4 32.3137 4 29" stroke="#333"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M44 20C44 23.3137 35.0457 26 24 26C12.9543 26 4 23.3137 4 20" stroke="#333"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <ellipse cx="24" cy="10" rx="20" ry="6" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round" />
+                      d="M12.409 13.017A5 5 0 0 1 22 15c0 3.866-4 7-9 7-4.077 0-8.153-.82-10.371-2.462-.426-.316-.631-.832-.62-1.362C2.118 12.723 2.627 2 10 2a3 3 0 0 1 3 3 2 2 0 0 1-2 2c-1.105 0-1.64-.444-2-1" />
+                    <path d="M15 14a5 5 0 0 0-7.584 2" />
+                    <path d="M9.964 6.825C8.019 7.977 9.5 13 8 15" />
                   </svg>
-                  <label class="ml-2">日志</label>
+                  <label class="ml-2">压力测试</label>
                 </RouterLink>
-              </li> -->
-
-
+              </li>
             </ul>
 
           </div>

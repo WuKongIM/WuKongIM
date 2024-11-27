@@ -165,6 +165,10 @@ func (s *Store) execCMD(cmd *CMD) error {
 		return s.handleAddStreamMeta(cmd)
 	case CMDAddStreams: // 添加流
 		return s.handleAddStreams(cmd)
+	case CMDAddOrUpdateTester: // 添加或更新测试机
+		return s.handleAddOrUpdateTester(cmd)
+	case CMDRemoveTester: // 移除测试机
+		return s.handleRemoveTester(cmd)
 
 	}
 	return nil
@@ -424,4 +428,20 @@ func (s *Store) handleAddOrUpdateConversations(cmds []*CMD) error {
 	}
 
 	return s.wdb.AddOrUpdateConversations(allconversations)
+}
+
+func (s *Store) handleAddOrUpdateTester(cmd *CMD) error {
+	tester, err := cmd.DecodeCMDAddOrUpdateTester()
+	if err != nil {
+		return err
+	}
+	return s.wdb.AddOrUpdateTester(tester)
+}
+
+func (s *Store) handleRemoveTester(cmd *CMD) error {
+	no, err := cmd.DecodeCMDRemoveTester()
+	if err != nil {
+		return err
+	}
+	return s.wdb.RemoveTester(no)
 }

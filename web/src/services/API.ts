@@ -1,3 +1,4 @@
+import { Config } from "../components/Task"
 import APIClient from "./APIClient"
 
 export default class API {
@@ -289,6 +290,66 @@ export default class API {
     public async systemSettings(): Promise<SystemSetting> {
         const resp = await APIClient.shared.get(`/varz/setting`)
         return SystemSetting.fromJSON(resp)
+    }
+
+    // 添加压测机
+    public addTester(req: {
+        addr: string,
+    }) {
+        return APIClient.shared.post(`/stress/add`, req)
+    }
+
+    // 移除压测机
+    public removeTester(no:string) {
+
+        return APIClient.shared.post(`/stress/remove`,{no:no})
+    }
+
+    // 获取压测机列表
+    public testers() {
+        return APIClient.shared.get(`/stress/infoList`)
+    }
+
+    // 开始压测
+    public testerStart(no:string,cfg:Config) {
+
+        let req:any = {
+            no: no,
+            online: cfg.onlineCount,
+            channels: new Array<any>(),
+        }
+        if (cfg.channels) {
+            for(let i=0;i<cfg.channels.length;i++) {
+                const ch = cfg.channels[i]
+                req.channels.push({
+                    count: ch.count,
+                    type: 2, // 群聊
+                    subscriber: {
+                        count: ch.subscriberCount,
+                        online: ch.subscriberOnlineCount,
+                    },
+                    msg_rate: ch.msgRate,
+                })
+            }
+        }
+
+        if(cfg.p2pItem) {
+            req.p2p = {}
+            req.p2p.count = cfg.p2pItem.count
+            req.p2p.msg_rate = cfg.p2pItem.msgRate
+        }
+
+        return APIClient.shared.post(`/stress/start`,req)
+    }
+
+    // 停止压测
+    public testerStop(no:string) {
+        return APIClient.shared.post(`/stress/stop`,{no:no})
+    }
+
+    // 压测报告
+    public testerReport(no:string) {
+        return APIClient.shared.post(`/stress/report`,{no:no})
     }
 
 }

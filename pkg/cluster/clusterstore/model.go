@@ -83,9 +83,12 @@ const (
 	CMDAddStreamMeta
 	// 添加流元数据
 	CMDAddStreams
-
 	// 批量添加最近会话
 	CMDAddOrUpdateConversations
+	// 添加或更新测试机
+	CMDAddOrUpdateTester
+	// 移除测试机
+	CMDRemoveTester
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -164,6 +167,10 @@ func (c CMDType) String() string {
 		return "CMDAddStreams"
 	case CMDAddOrUpdateConversations:
 		return "CMDAddOrUpdateConversations"
+	case CMDAddOrUpdateTester:
+		return "CMDAddOrUpdateTester"
+	case CMDRemoveTester:
+		return "CMDRemoveTester"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -1232,6 +1239,54 @@ func (c *CMD) DecodeCMDAddOrUpdateConversations() (wkdb.ConversationSet, error) 
 	conversations := wkdb.ConversationSet{}
 	err := conversations.Unmarshal(c.Data)
 	return conversations, err
+}
+
+func EncodeCMDAddOrUpdateTester(tester wkdb.Tester) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(tester.No)
+	encoder.WriteString(tester.Addr)
+	encoder.WriteUint64(uint64(tester.CreatedAt.UnixNano()))
+	encoder.WriteUint64(uint64(tester.UpdatedAt.UnixNano()))
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDAddOrUpdateTester() (tester wkdb.Tester, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if tester.No, err = decoder.String(); err != nil {
+		return
+	}
+	if tester.Addr, err = decoder.String(); err != nil {
+		return
+	}
+	var createdAtUnixNano uint64
+	if createdAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	ct := time.Unix(int64(createdAtUnixNano/1e9), int64(createdAtUnixNano%1e9))
+	tester.CreatedAt = &ct
+	var updatedAtUnixNano uint64
+	if updatedAtUnixNano, err = decoder.Uint64(); err != nil {
+		return
+	}
+	ut := time.Unix(int64(updatedAtUnixNano/1e9), int64(updatedAtUnixNano%1e9))
+	tester.UpdatedAt = &ut
+	return
+}
+
+func EncodeCMDRemoveTester(no string) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(no)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDRemoveTester() (no string, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if no, err = decoder.String(); err != nil {
+		return
+	}
+	return
 }
 
 var ErrStoreStopped = fmt.Errorf("store stopped")

@@ -29,6 +29,8 @@ type DB interface {
 	SystemUidDB
 	// 流
 	StreamDB
+	// 测试机
+	TesterDB
 }
 
 type MessageDB interface {
@@ -371,6 +373,21 @@ type StreamDB interface {
 
 	// GetStreams 获取流
 	GetStreams(streamNo string) ([]*Stream, error)
+}
+
+type TesterDB interface {
+
+	// AddOrUpdateTester 添加或更新测试机
+	AddOrUpdateTester(tester Tester) error
+
+	// GetTester 获取测试机
+	GetTester(no string) (Tester, error)
+
+	// GetTesters 获取测试机列表
+	GetTesters() ([]Tester, error)
+
+	// RemoveTester 移除测试机
+	RemoveTester(no string) error
 }
 
 type MessageSearchReq struct {
