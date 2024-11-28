@@ -108,7 +108,6 @@ func parseProxyProto(buff []byte) (remoteAddr net.Addr, size int, err error) {
 	dataLen := len(buff)
 
 	if dataLen <= 5 {
-		fmt.Println("proxyproto: dataLen <= 5")
 		return nil, 0, ErrNoProxyProtocol
 	}
 

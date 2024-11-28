@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 )
@@ -19,6 +20,8 @@ type Cluster interface {
 	LeaderIdOfChannel(ctx context.Context, channelId string, channelType uint8) (nodeId uint64, err error)
 	// LeaderOfChannel 获取channel的leader节点信息
 	LeaderOfChannel(ctx context.Context, channelId string, channelType uint8) (nodeInfo *pb.Node, err error)
+	// LoadOrCreateChannel 加载或创建频道（此方法会激活频道）
+	LoadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error)
 	// SlotLeaderIdOfChannel 获取channel的leader节点信息(不激活频道)
 	LeaderOfChannelForRead(channelId string, channelType uint8) (nodeInfo *pb.Node, err error)
 	// SlotLeaderIdOfChannel 获取频道所属槽的领导

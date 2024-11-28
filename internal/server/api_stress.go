@@ -32,12 +32,13 @@ func NewStressAPI(s *Server) *StressAPI {
 
 // Route route
 func (s *StressAPI) Route(r *wkhttp.WKHttp) {
-	r.POST("/stress/add", s.add)          // 添加测试机器
-	r.POST("/stress/remove", s.remove)    //移除测试机
-	r.POST("/stress/start", s.start)      // 开始压测机
-	r.POST("/stress/stop", s.stop)        // 停止压测机
-	r.POST("/stress/report", s.report)    // 压测报告
-	r.GET("/stress/infoList", s.infoList) // 压测机信息列表
+	r.POST("/stress/add", s.add)            // 添加测试机器
+	r.POST("/stress/remove", s.remove)      //移除测试机
+	r.POST("/stress/start", s.start)        // 开始压测机
+	r.POST("/stress/stop", s.stop)          // 停止压测机
+	r.POST("/stress/report", s.report)      // 压测报告
+	r.GET("/stress/infoList", s.infoList)   // 压测机信息列表
+	r.GET("/stress/templates", s.templates) // 获取所有模板
 }
 
 func (s *StressAPI) add(c *wkhttp.Context) {
@@ -47,6 +48,11 @@ func (s *StressAPI) add(c *wkhttp.Context) {
 	if err := c.BindJSON(&req); err != nil {
 		s.Error("数据格式有误！", zap.Error(err))
 		c.ResponseError(err)
+		return
+	}
+
+	if !s.s.opts.Stress {
+		c.ResponseError(errors.New("没有开启压测配置，不支持压测"))
 		return
 	}
 
@@ -244,6 +250,95 @@ func (s *StressAPI) report(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+// 获取模块
+func (s *StressAPI) templates(c *wkhttp.Context) {
+	templates := []template{
+		{
+			Name: "正常聊天",
+			Task: &taskCfg{
+				Online: 10000,
+				Channels: []*channelCfg{
+					{
+						Count: 200,
+						Type:  2,
+						Subscriber: &subscriberCfg{
+							Count:  200,
+							Online: 50,
+						},
+						MsgRate: 30,
+					},
+					{
+						Count: 100,
+						Type:  2,
+						Subscriber: &subscriberCfg{
+							Count:  500,
+							Online: 125,
+						},
+						MsgRate: 30,
+					},
+					{
+						Count: 1,
+						Type:  2,
+						Subscriber: &subscriberCfg{
+							Count:  1000,
+							Online: 250,
+						},
+						MsgRate: 30,
+					},
+				},
+				P2p: &p2pCfg{
+					Count:   1000,
+					MsgRate: 30,
+				},
+			},
+		},
+		{
+			Name: "大群测试",
+			Task: &taskCfg{
+				Online: 3000,
+				Channels: []*channelCfg{
+					{
+						Count: 10,
+						Type:  2,
+						Subscriber: &subscriberCfg{
+							Count:  10000,
+							Online: 1000,
+						},
+						MsgRate: 60,
+					},
+				},
+				P2p: &p2pCfg{
+					Count:   0,
+					MsgRate: 0,
+				},
+			},
+		},
+		{
+			Name: "低强度",
+			Task: &taskCfg{
+				Online: 1000,
+				Channels: []*channelCfg{
+					{
+						Count: 100,
+						Type:  2,
+						Subscriber: &subscriberCfg{
+							Count:  100,
+							Online: 10,
+						},
+						MsgRate: 1,
+					},
+				},
+				P2p: &p2pCfg{
+					Count:   1000,
+					MsgRate: 1,
+				},
+			},
+		},
+	}
+
+	c.JSON(http.StatusOK, templates)
+}
+
 // 请求压测机交互数据
 func (s *StressAPI) requestExchange(addr string, server string) (string, error) {
 
@@ -426,4 +521,9 @@ type statsResp struct {
 
 	TaskDuration     int64  `json:"task_duration"`      // 任务时间
 	TaskDurationDesc string `json:"task_duration_desc"` // 任务时间描述
+}
+
+type template struct {
+	Name string   `json:"name"`
+	Task *taskCfg `json:"task"`
 }

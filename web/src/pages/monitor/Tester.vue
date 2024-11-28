@@ -18,6 +18,7 @@
                         <li>3. 添加压测机</li>
                         <li>4. 开始压测（点击压测机的开始，进行测试脚本配置）</li>
                         <li class="mt-4">可以通过查看监控来了解服务器的承压能力，可以通过查看压测机的报告，实时了解压测进度</li>
+                        <li class="mt-2">如果部署了负载均衡，一般负载均衡由于系统端口数量限制，同时连接数不能超过6万，正式环境中可以增加负载均衡的数量来增加同时在线连接数</li>
                     </ul>
                 </div>
             </div>
@@ -71,10 +72,12 @@
                         <td>{{ t.cpu_percent_desc }}</td>
                         <td :class="statusColor(t.status)">{{ statusText(t.status) }}</td>
                         <td class="flex flex-wrap gap-2">
-                            <button :class="buttonStatusClass(t.status)" v-on:click="() => onStartOrStop(t)">{{ t.status
-                                ==
-                                Status.Running?"停止":"开始"}}</button>
-                            <button class="btn btn-primary btn-sm" v-on:click="()=>onReport(t)">报告</button>
+                            <button :class="buttonStatusClass(t.status)" :disabled="stoping"
+                                v-on:click="() => onStartOrStop(t)">
+                                {{ t.status == Status.Running ? "停止" : "开始" }}
+                                <span class="loading loading-spinner" v-if="stoping"></span>
+                            </button>
+                            <button class="btn btn-primary btn-sm" v-on:click="() => onReport(t)">报告</button>
                             <button className="btn btn-warning btn-sm" v-on:click="() => onDelete(t.no)">删除</button>
                         </td>
 
@@ -84,12 +87,14 @@
 
         </div>
 
+        <!-- 开始 -->
         <dialog id="startModal" class="modal">
             <div class="modal-box flex flex-wrap gap-2 max-w-[48rem]">
-                <Task :onCancel="onCancel" :onRun="onRun" v-model="config" />
+                <Task :onCancel="onCancel" :onRun="onRun" v-model="config" :loading="runLoading" :templates="templates" />
             </div>
         </dialog>
 
+        <!-- 添加压测机 -->
         <dialog id="addTesterModal" class="modal">
             <div class="modal-box flex flex-wrap gap-2">
                 <label class="input input-bordered flex items-center gap-2 w-[20rem]">
@@ -103,9 +108,10 @@
             </form>
         </dialog>
 
+        <!-- 报告 -->
         <dialog id="reportModal" class="modal">
-            <div class="modal-box flex flex-wrap gap-2 max-w-[30rem]">
-                <Report v-model="currentReport"></Report>
+            <div class="modal-box flex flex-wrap gap-2 max-w-[34rem]">
+                <Report v-model="currentReport" :task="currentTester?.task"></Report>
             </div>
             <form method="dialog" class="modal-backdrop">
                 <button v-on:click="onReportClose">close</button>
@@ -121,9 +127,11 @@
 
 import Task from '../../components/Task.vue';
 import Report from '../../components/Report.vue';
-import { ChannelItem, Config, P2pItem } from '../../components/Task';
+import {  Config } from '../../components/Task';
 import { onMounted, onUnmounted, ref } from 'vue';
 import API from '../../services/API';
+import { taskToConfig } from '../../services/Model';
+
 
 enum Status {
     Unknown = 0,
@@ -137,18 +145,27 @@ const config = ref<Config>(new Config())
 // 压测机地址
 const testerAddr = ref<string>("")
 
-const testers = ref<any>([])
+const testers = ref<any[]>([])
 // 当前压测机
 const currentTester = ref<any>()
 
 // 当前报告
 const currentReport = ref<any>({})
 
+// 模版
+const templates = ref<any[]>([])
+
+
+// 运行是否正在加载
+const runLoading = ref(false)
+
+// 停止中
+const stoping = ref(false)
+
 let intervalObj: number
 let intervalReportObj: number
 
 onMounted(() => {
-    config.value = getDefaultConfig()
     loadTesters()
 
     // 每秒中刷新列表
@@ -169,13 +186,24 @@ const onStartOrStop = async (t: any) => {
     currentTester.value = t
 
     if (t.status == Status.Running) {
+        stoping.value = true
         await stopTester()
+        stoping.value = false
     } else {
-        config.value = getDefaultConfig()
+        if (t.task) {
+            config.value = taskToConfig(t.task)
+        }
         const dialog = document.getElementById('startModal') as HTMLDialogElement;
         dialog.showModal();
+
+        loadTemplates()
     }
 }
+
+// 加载模版
+const loadTemplates = async () => {
+    templates.value = await API.shared.testTemplates()
+}   
 
 const hideStartModal = () => {
     const dialog = document.getElementById('startModal') as HTMLDialogElement;
@@ -191,10 +219,10 @@ const stopTester = async () => {
 const onDelete = async (no: string) => {
 
     try {
-       await API.shared.testerStop(no)
+        await API.shared.testerStop(no)
     } catch (error: any) {
-       console.log(error)
-    }finally {
+        console.log(error)
+    } finally {
         await API.shared.removeTester(no)
         loadTesters()
     }
@@ -202,13 +230,15 @@ const onDelete = async (no: string) => {
 
 // 运行
 const onRun = async (cfg: Config) => {
+    runLoading.value = true
     try {
         await API.shared.testerStart(currentTester.value.no, cfg)
         loadTesters()
     } catch (error: any) {
         console.log(error)
         alert(error.msg)
-    }finally {
+    } finally {
+        runLoading.value = false
         hideStartModal()
     }
 }
@@ -261,7 +291,7 @@ const loadReport = async () => {
 }
 
 // 显示报告
-const onReport = (t:any) => {
+const onReport = (t: any) => {
     currentTester.value = t
     const dialog = document.getElementById('reportModal') as HTMLDialogElement;
     dialog.showModal();
@@ -314,55 +344,6 @@ const buttonStatusClass = (status: Status) => {
 }
 
 
-
-// 初获取默认配置
-const getDefaultConfig = () => {
-
-    const channelItems = []
-    // 200人群
-    let item = new ChannelItem()
-    item.count = 100
-    item.subscriberCount = 200
-    item.subscriberOnlineCount = 50
-    item.msgRate = 60
-    channelItems.push(item)
-
-    // 500人群
-    item = new ChannelItem()
-    item.count = 50
-    item.subscriberCount = 500
-    item.subscriberOnlineCount = 125
-    item.msgRate = 60
-    channelItems.push(item)
-
-    // 1000人群
-    item = new ChannelItem()
-    item.count = 20
-    item.subscriberCount = 1000
-    item.subscriberOnlineCount = 250
-    item.msgRate = 60
-    channelItems.push(item)
-
-    // 1000人群
-    item = new ChannelItem()
-    item.count = 1
-    item.subscriberCount = 10000
-    item.subscriberOnlineCount = 2500
-    item.msgRate = 60
-    channelItems.push(item)
-
-    const p2pItem = new P2pItem()
-    p2pItem.count = 1000
-    p2pItem.msgRate = 60
-
-    const cfg = new Config()
-    cfg.channels = channelItems
-    cfg.p2pItem = p2pItem
-    cfg.onlineCount = 10000
-
-    return cfg
-
-}
 
 
 

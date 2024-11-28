@@ -43,6 +43,15 @@ func (s *Server) LeaderOfChannel(ctx context.Context, channelId string, channelT
 	return node, nil
 }
 
+func (s *Server) LoadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
+	ch, err := s.loadOrCreateChannel(ctx, channelId, channelType)
+	if err != nil {
+		return wkdb.EmptyChannelClusterConfig, err
+	}
+
+	return ch.cfg, nil
+}
+
 func (s *Server) LeaderOfChannelForRead(channelId string, channelType uint8) (*pb.Node, error) {
 	cfg, err := s.loadOnlyChannelClusterConfig(channelId, channelType)
 	if err != nil {

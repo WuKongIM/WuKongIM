@@ -76,7 +76,7 @@ func (r *channelReactor) processInits(reqs []*initReq) {
 
 func (r *channelReactor) processInit(req *initReq) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
-	leaderNode, err := r.s.cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+	cfg, err := r.s.cluster.LoadOrCreateChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
 	cancel()
 	sub := r.reactorSub(req.ch.key)
 	if err != nil {
@@ -89,14 +89,14 @@ func (r *channelReactor) processInit(req *initReq) {
 		return
 	}
 
-	if leaderNode.Id == r.s.opts.Cluster.NodeId { // 只有领导才需要makeReceiverTag
+	if cfg.LeaderId == r.s.opts.Cluster.NodeId { // 只有领导才需要makeReceiverTag
 		_, err = req.ch.makeReceiverTag()
 		if err != nil {
 			r.Error("processInit: makeReceiverTag failed", zap.Error(err))
 			sub.step(req.ch, &ChannelAction{
 				UniqueNo:   req.ch.uniqueNo,
 				ActionType: ChannelActionInitResp,
-				LeaderId:   leaderNode.Id,
+				LeaderId:   cfg.LeaderId,
 				Reason:     ReasonError,
 			})
 			return
@@ -106,7 +106,7 @@ func (r *channelReactor) processInit(req *initReq) {
 	sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionInitResp,
-		LeaderId:   leaderNode.Id,
+		LeaderId:   cfg.LeaderId,
 		Reason:     ReasonSuccess,
 	})
 }
@@ -773,6 +773,7 @@ func (r *channelReactor) processStorages(reqs []*storageReq) {
 }
 
 func (r *channelReactor) processStorage(req *storageReq) {
+
 	messages := make([]wkdb.Message, 0, len(req.messages))
 	sotreMessages := make([]wkdb.Message, 0, len(messages))
 	// 将reactorChannelMessage转换为wkdb.Message
@@ -996,6 +997,9 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 				r.Error("writePacketByConnId error", zap.Error(err), zap.Uint64("nodeId", msg.FromNodeId), zap.Int64("connId", msg.FromConnId))
 			}
 		} else { // 连接在其他节点，需要将消息转发出去
+			if msg.FromDeviceId == r.opts.SystemDeviceId { // 系统发送的消息不需要sendack
+				continue
+			}
 			nodeFowardSendackPacketMap[msg.FromNodeId] = append(nodeFowardSendackPacketMap[msg.FromNodeId], &ForwardSendackPacket{
 				Uid:      msg.FromUid,
 				DeviceId: msg.FromDeviceId,

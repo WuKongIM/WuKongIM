@@ -42,7 +42,7 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 100),
 		avdanceC:    make(chan struct{}, 1),
-		stepC:       make(chan stepReq, 2024),
+		stepC:       make(chan stepReq, 4096),
 		proposeC:    make(chan proposeReq, 2024),
 	}
 }
@@ -254,8 +254,12 @@ func (r *ReactorSub) step(handlerKey string, msg replica.Message) {
 		handlerKey: handlerKey,
 		msg:        msg,
 	}:
-	default:
-		r.Panic("stepC is full", zap.String("handlerKey", handlerKey), zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From))
+	case <-r.stopper.ShouldStop():
+		r.Info("stop reactor sub")
+		return
+		// default:
+		// 	// 这个主要是测试用
+		// 	r.Panic("stepC is full", zap.String("handlerKey", handlerKey), zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From))
 	}
 }
 

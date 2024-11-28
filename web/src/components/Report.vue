@@ -1,10 +1,38 @@
 <template>
     <div class="w-full">
-        <table class="table mt-5 table-pin-rows">
+        <div class="mt-2 text text-sm font-semibold">测试指标：</div>
+        <table class="table table-pin-rows table-xs mt-2 text-gray-500">
+            <tbody>
+                <tr>
+                    <th>1</th>
+                    <td>{{ props.task?.online }}人同时在线</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr v-for="(channel, i) in props.task?.channels">
+                    <th>{{ i + 2 }}</th>
+                    <td>{{ channel.count }}个{{ channel.subscriber.count }}人的群</td>
+                    <td>成员在线率: 25% ({{ channel.subscriber.online }}人)</td>
+                    <td>群内一分钟发送{{ channel.msg_rate }}条消息</td>
+                </tr>
+
+                <tr v-if="props.task?.p2p">
+                    <th>{{ props.task.channels?.length + 2 }}</th>
+                    <td>{{ props.task.p2p.count }}对单聊</td>
+                    <td>全在线</td>
+                    <td>每对一分钟发送{{ props.task.p2p.msg_rate }}条消息</td>
+                </tr>
+
+            </tbody>
+        </table>
+
+        <div class="mt-4 text text-sm font-semibold">测试报告：</div>
+        <table class="table  table-pin-rows table-sm mt-2">
 
             <tbody>
                 <tr>
-                    <td>运行时长：{{ props.modelValue.task_duration_desc }}</td>
+                    <td>运行时长：<label :class="props.modelValue.task_duration > 0 ? 'text-green-500' : 'text-red-500'">{{
+                        props.modelValue.task_duration_desc }}</label></td>
                     <td></td>
                 </tr>
                 <tr>
@@ -15,7 +43,7 @@
                 </tr>
                 <tr>
                     <td>发送消息：{{ props.modelValue.send }}条</td>
-                    <td>发送速率：{{ props.modelValue.send_rate }}条/秒</td>
+                    <td>发送速率：<label class="text text-orange-500">{{ props.modelValue.send_rate }}条/秒</label></td>
                 </tr>
                 <tr>
                     <td>发送大小：{{ formatBytes(props.modelValue.send_bytes) }}</td>
@@ -27,19 +55,31 @@
                 </tr>
                 <tr>
                     <td>发送最小延迟：{{ formatMilliseconds(props.modelValue.send_min_latency) }}</td>
-                    <td>发送最大延迟：{{ formatMilliseconds(props.modelValue.send_max_latency) }}</td>
+                    <td class="flex">
+                        <div>发送最大延迟：{{ formatMilliseconds(props.modelValue.send_max_latency) }}</div>
+                        <button class="btn btn-xs btn-circle mt-[-2px] ml-2" v-on:click="onSendMaxLatencyHelp">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="lucide lucide-circle-help">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                                <path d="M12 17h.01" />
+                            </svg>
+                        </button>
+                    </td>
                 </tr>
                 <tr>
-                    <td>发送平均延迟：{{ formatMilliseconds(props.modelValue.send_avg_latency) }}</td>
+                    <td>发送平均延迟：<label class="text text-orange-500">{{
+                        formatMilliseconds(props.modelValue.send_avg_latency) }}</label></td>
                     <td></td>
                 </tr>
-                
+
                 <tr class="!border-b">
                 </tr>
 
                 <tr>
                     <td>接受消息：{{ props.modelValue.recv }}条</td>
-                    <td>接受速率：{{ props.modelValue.recv_rate }}条/秒</td>
+                    <td>接受速率：<label class="text text-orange-500">{{ props.modelValue.recv_rate }}条/秒</label></td>
                 </tr>
 
                 <tr>
@@ -49,29 +89,69 @@
 
                 <tr>
                     <td>接受最小延迟：{{ formatMilliseconds(props.modelValue.recv_min_latency) }}</td>
-                    <td>接受最大延迟：{{ formatMilliseconds(props.modelValue.recv_max_latency) }}</td>
+                    <td class="flex">
+                        <div> 接受最大延迟：{{ formatMilliseconds(props.modelValue.recv_max_latency) }}</div>
+                        <button class="btn btn-xs btn-circle mt-[-2px] ml-2" v-on:click="onRecvMaxLatencyHelp">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="lucide lucide-circle-help">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                                <path d="M12 17h.01" />
+                            </svg>
+                        </button>
+                    </td>
                 </tr>
                 <tr>
-                    <td>接受平均延迟：{{ formatMilliseconds(props.modelValue.recv_avg_latency) }}</td>
+                    <td>接受平均延迟：<label class="text text-orange-500">{{
+                        formatMilliseconds(props.modelValue.recv_avg_latency) }}</label></td>
                 </tr>
-                
-
-
             </tbody>
         </table>
+
+        <dialog id="showAlert" class="modal">
+            <div class="modal-box">
+                <p class="py-4">{{tip}}</p>
+                <div class="modal-action">
+                    <form method="dialog">
+                        <!-- if there is a button in form, it will close the modal -->
+                        <button class="btn">关闭</button>
+                    </form>
+                </div>
+            </div>
+        </dialog>
 
     </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+
+
+const tip = ref('');
 
 
 const props = defineProps({
     modelValue: {
         type: Object,
         required: true
+    },
+    task: {
+        type: Object,
     }
 })
+
+const onSendMaxLatencyHelp = () => {
+    tip.value = '第一条消息需要激活频道需要耗时，所以会出现延迟比较大，延迟数据看平均延迟比较准确';
+    const dialog = document.getElementById('showAlert') as HTMLDialogElement;
+    dialog.showModal();
+}
+
+const onRecvMaxLatencyHelp = () => {
+    tip.value = '第一条消息需要激活频道需要耗时，所以会出现延迟比较大，延迟数据看平均延迟比较准确';
+    const dialog = document.getElementById('showAlert') as HTMLDialogElement;
+    dialog.showModal();
+}
 
 const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
@@ -95,9 +175,7 @@ const formatMilliseconds = (ms: number) => {
 </script>
 
 <style scoped>
-
-.table-pin-rows tr{
+.table-pin-rows tr {
     border-bottom-width: 0px;
 }
-
 </style>

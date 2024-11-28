@@ -60,6 +60,7 @@ type Options struct {
 	WSAddr      string       // websocket 监听地址 例如：ws://0.0.0.0:5200
 	WSSAddr     string       // wss 监听地址 例如：wss://0.0.0.0:5210
 	WSTLSConfig *tls.Config
+	Stress      bool     // 是否开启压力测试
 	WSSConfig   struct { // wss的证书配置
 		CertFile string // 证书文件
 		KeyFile  string // 私钥文件
@@ -572,6 +573,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	} else {
 		o.Mode = Mode(modeStr)
 	}
+	o.Stress = o.getBool("stress", o.Stress)
 
 	o.GinMode = o.getString("ginMode", o.GinMode)
 
@@ -617,6 +619,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.UserMsgQueueMaxSize = o.getInt("userMsgQueueMaxSize", o.UserMsgQueueMaxSize)
 
 	o.TokenAuthOn = o.getBool("tokenAuthOn", o.TokenAuthOn)
+
+	if o.Stress { // 开启了压测模式不能开启认证
+		o.TokenAuthOn = false
+	}
 
 	o.UnitTest = o.vp.GetBool("unitTest")
 

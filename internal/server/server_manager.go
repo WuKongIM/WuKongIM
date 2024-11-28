@@ -91,8 +91,11 @@ func (m *ManagerServer) setRoutes() {
 	manager.Route(m.r)
 
 	// 压测api
-	stress := NewStressAPI(m.s)
-	stress.Route(m.r)
+	if m.s.opts.Stress {
+		stress := NewStressAPI(m.s)
+		stress.Route(m.r)
+	}
+
 	// // 系统api
 	// system := NewSystemAPI(s.s)
 	// system.Route(s.r)
