@@ -53,7 +53,7 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		processDeliverC:        make(chan *deliverReq, 2048),
 		processSendackC:        make(chan *sendackReq, 2048),
 		processForwardC:        make(chan *forwardReq, 2048),
-		processCloseC:          make(chan *closeReq, 10),
+		processCloseC:          make(chan *closeReq, 1024),
 		processCheckTagC:       make(chan *checkTagReq, 100),
 		stopper:                syncutil.NewStopper(),
 		opts:                   opts,
@@ -72,15 +72,15 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 func (r *channelReactor) start() error {
 
 	// 高并发处理，适用于分散的耗时任务
-	for i := 0; i < 50; i++ {
-
+	for i := 0; i < 100; i++ {
+		r.stopper.RunWorker(r.processInitLoop)
 		r.stopper.RunWorker(r.processPayloadDecryptLoop)
 
 	}
 
 	// 中并发处理，适合于分散但是不是很耗时的任务
 	for i := 0; i < 10; i++ {
-		r.stopper.RunWorker(r.processInitLoop)
+
 		r.stopper.RunWorker(r.processCloseLoop)
 
 		r.stopper.RunWorker(r.processCheckTagLoop)

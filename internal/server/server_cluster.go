@@ -122,6 +122,10 @@ func (s *Server) handleForwardSendack(c *wkserver.Context) {
 	}
 
 	for _, forwardSendackPacket := range forwardSendackPacketSet {
+		if forwardSendackPacket.DeviceId == s.opts.SystemDeviceId {
+			continue
+		}
+
 		conn := s.userReactor.getConnById(forwardSendackPacket.Uid, forwardSendackPacket.ConnId)
 		if conn == nil {
 			s.Error("handleForwardSendack: conn not found", zap.String("uid", forwardSendackPacket.Uid), zap.String("deviceId", forwardSendackPacket.DeviceId))

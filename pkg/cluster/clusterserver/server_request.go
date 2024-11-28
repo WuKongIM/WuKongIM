@@ -354,9 +354,17 @@ func (s *Server) handleChannelLeaderTermStartIndex(c *wkserver.Context) {
 
 	handler := s.channelManager.channelReactor.Handler(req.HandlerKey)
 	if handler == nil {
-		s.Error("handler not found", zap.String("handlerKey", req.HandlerKey))
-		c.WriteErr(errors.New("handler not found"))
-		return
+
+		// 如果不存在，重新激活频道
+		channelId, channelType := wkutil.ChannelFromlKey(req.HandlerKey)
+		timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*10)
+		handler, err = s.loadOrCreateChannel(timeoutCtx, channelId, channelType)
+		cancel()
+		if err != nil {
+			s.Error("handler not found", zap.String("handlerKey", req.HandlerKey))
+			c.WriteErr(errors.New("handler not found"))
+			return
+		}
 	}
 
 	lastIndex, term := handler.LastLogIndexAndTerm()

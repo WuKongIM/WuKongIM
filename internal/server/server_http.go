@@ -115,6 +115,12 @@ func (s *APIServer) setRoutes() {
 	stream := NewStreamAPI(s.s)
 	stream.Route(s.r)
 
+	// 压测api
+	if s.s.opts.Stress {
+		stress := NewStressAPI(s.s)
+		stress.Route(s.r)
+	}
+
 	// 分布式api
 	clusterServer, ok := s.s.cluster.(*cluster.Server)
 	if ok {

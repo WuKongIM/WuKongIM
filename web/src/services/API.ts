@@ -352,6 +352,11 @@ export default class API {
         return APIClient.shared.post(`/stress/report`,{no:no})
     }
 
+    // 测试模版
+    public testTemplates() {
+        return APIClient.shared.get(`/stress/templates`)
+    }
+
 }
 
 export class SystemSetting {

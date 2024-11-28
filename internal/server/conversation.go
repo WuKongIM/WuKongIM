@@ -239,7 +239,7 @@ func newConversationWorker(i int, s *Server) *conversationWorker {
 		Log:     wklog.NewWKLog(fmt.Sprintf("conversationWorker[%d]", i)),
 		index:   i,
 		stopper: syncutil.NewStopper(),
-		reqCh:   make(chan *conversationReq, 100),
+		reqCh:   make(chan *conversationReq, 1000),
 	}
 }
 
@@ -344,7 +344,6 @@ func (c *conversationWorker) handleReq(req *conversationReq) {
 
 	// 如果tag不一样了说明订阅者发生了变化，需要更新频道的最近会话
 	if update.lastTagKey != req.tagKey {
-		fmt.Println("update.lastTagKey--->", "oldTag:", update.lastTagKey, "newTag:", req.tagKey, req.channelId, req.channelType)
 		update.updateLastTagKey(req.tagKey)
 		update.shouldUpdateAll()
 	}
@@ -474,8 +473,6 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		}
 	}
 
-	fmt.Println("getConversationWithUpdater---willUpdateUids-->", len(willUpdateUids), update.channelId, update.channelType)
-
 	var needUpdateUids []string
 	// 判断实际只需要更新的用户
 	if len(willUpdateUids) > 0 {
@@ -484,8 +481,6 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		if err != nil {
 			return nil, err
 		}
-
-		fmt.Println("getConversationWithUpdater---updatedUids-->", len(updatedUids), update.channelId, update.channelType)
 
 		// 比较willUpdateUids和updatedUids获得updatedUids里不存在的uid集合
 		if len(updatedUids) > 0 {

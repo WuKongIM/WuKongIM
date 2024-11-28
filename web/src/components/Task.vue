@@ -7,15 +7,27 @@
                         <span class="label-text font-semibold">同时在线人数</span>
                     </div>
                     <div class="text-xs text-red-500">模拟系统中同时在线用户数量</div>
-                    <input type="number" class="input input-bordered w-full max-w-xs mt-2" v-model="props.modelValue.onlineCount" />
+                    <input type="number" class="input input-bordered w-full max-w-xs mt-2"
+                        v-model="props.modelValue.onlineCount" />
                 </label>
             </div>
-            <div class="flex gap-6">
-                <button class="btn btn-primary" v-on:click="onRun">运行</button>
-                <button class="btn" v-on:click="onCancel">取消</button>
+            <div class="mr-6">
+                <div class="flex gap-6">
+                    <button class="btn btn-primary" v-on:click="onRun" :disabled="props.loading">
+                        <label v-if="!props.loading">运行</label>
+                        <span class="loading loading-spinner" v-if="props.loading"></span>
+                    </button>
+                    <button class="btn" v-on:click="onCancel">取消</button>
+                </div>
+                <div class="mt-4 gap-4">
+                    <select class="select select-bordered w-full max-w-xs" v-on:change="onTemplateChange">
+                        <option disabled selected>选择一个测试模版</option>
+                        <option v-for="(tm,i) in templates" :value="i">{{tm.name}}</option>
+                    </select>
+                </div>
             </div>
         </div>
-        <div class="w-full mt-4">
+        <div class="w-full mt-6">
             <div class="form-control w-full">
                 <div class="label">
                     <span class="label-text font-semibold flex items-center">
@@ -60,7 +72,8 @@
                                 <div class="label">
                                     <span class="label-text text-xs">群数</span>
                                 </div>
-                                <input type="number" class="input input-bordered w-full max-w-xs" v-model="item.count" />
+                                <input type="number" class="input input-bordered w-full max-w-xs"
+                                    v-model="item.count" />
                             </label>
                         </div>
                         <div>
@@ -154,10 +167,16 @@
 </template>
 
 <script setup lang="ts">
-import {  PropType } from 'vue';
+import { PropType } from 'vue';
 
-import { ChannelItem,Config } from './Task';
+import { ChannelItem, Config } from './Task';
+import { taskToConfig } from '../services/Model';
 
+const emit = defineEmits(['update:modelValue']);
+
+const updateModelValue = (cfg:Config) => {
+  emit('update:modelValue', cfg);
+};
 
 const props = defineProps({
     onCancel: {
@@ -167,9 +186,17 @@ const props = defineProps({
         type: Function as PropType<(cfg: Config) => void>,
 
     },
-    modelValue: {
-      type: Config,
-      required: true
+    modelValue: { // 配置
+        type: Config,
+        default: () => new Config()
+    },
+    loading: { // 运行按钮的loading
+        type: Boolean,
+        default: false
+    },
+    templates: { // 测试模版
+        type: Array<any>,
+        default: () => []
     }
 })
 
@@ -199,10 +226,19 @@ const onCancel = () => {
 }
 
 // 运行
-const onRun =()=> {
+const onRun = () => {
     if (props.onRun) {
         props.onRun(props.modelValue)
     }
+}
+
+const onTemplateChange = (v:any) => {
+    const index = v.target.value
+   const template = props.templates[index]
+   console.log("v--->",template)
+
+   updateModelValue(taskToConfig(template.task))
+
 }
 
 </script>

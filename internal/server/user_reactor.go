@@ -81,11 +81,13 @@ func (u *userReactor) start() error {
 		u.stopper.RunWorker(u.processForwardUserActionLoop)
 		u.stopper.RunWorker(u.processRecvackLoop)
 
+		u.stopper.RunWorker(u.processWriteLoop)
+
 	}
 
 	// 低并发处理，适合于集中的耗时任务，这样可以合并请求批量处理
 	for i := 0; i < 1; i++ {
-		u.stopper.RunWorker(u.processWriteLoop)
+
 		u.stopper.RunWorker(u.processNodePingLoop)
 		u.stopper.RunWorker(u.processPingLoop)
 		u.stopper.RunWorker(u.processAuthLoop)

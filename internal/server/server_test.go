@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +33,7 @@ func TestSingleSendMessage(t *testing.T) {
 	assert.Nil(t, err)
 	defer s.StopNoErr()
 
-	s.MustWaitClusterReady(time.Second * 10) // 等待服务准备好
+	s.MustWaitAllSlotsReady(time.Second * 10) // 等待服务准备好
 
 	// new client 1
 	cli1 := client.New(s.opts.External.TCPAddr, client.WithUID("test1"))
@@ -572,4 +574,84 @@ func TestClusterSaveClusterConfig(t *testing.T) {
 		UpdatedAt:       &updatedAt,
 	})
 	assert.Nil(t, err)
+}
+
+func BenchmarkSingleSendMessage(b *testing.B) {
+	s := NewTestServer(b)
+	s.opts.Mode = TestMode
+	err := s.Start()
+	assert.Nil(b, err)
+	defer s.StopNoErr()
+
+	s.MustWaitAllSlotsReady(time.Second * 10) // 等待服务准备好
+
+	// 并发数量
+	concurrentClients := 1000
+	// 每个客户端发送的消息数量
+	messagesPerClient := 10
+
+	var clients []*client.Client
+	var sendWg sync.WaitGroup
+	var recvWg sync.WaitGroup
+
+	// 初始化客户端
+	for i := 0; i < concurrentClients; i++ {
+		cli := client.New(s.opts.External.TCPAddr, client.WithUID(fmt.Sprintf("test%d", i)))
+		err := cli.Connect()
+		assert.Nil(b, err)
+		clients = append(clients, cli)
+	}
+
+	// 收集统计数据
+	var totalMessages int64
+	var failedMessages int64
+
+	// 设置接收回调
+	for _, cli := range clients {
+		cli.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+			atomic.AddInt64(&totalMessages, 1)
+			recvWg.Done()
+			return nil
+		})
+	}
+
+	start := time.Now()
+
+	// 压力测试逻辑
+	for i := 0; i < concurrentClients; i++ {
+		sendWg.Add(1)
+		go func(cli *client.Client, index int) {
+			defer sendWg.Done()
+			for j := 0; j < messagesPerClient; j++ {
+				recvWg.Add(1)
+				targetUID := fmt.Sprintf("test%d", (index+1)%concurrentClients)
+				err := cli.SendMessage(client.NewChannel(targetUID, 1), []byte("hello"))
+				if err != nil {
+					atomic.AddInt64(&failedMessages, 1)
+				}
+			}
+		}(clients[i], i)
+	}
+	sendWg.Wait()
+
+	// flush数据
+	for _, cli := range clients {
+		cli.Flush()
+	}
+
+	recvWg.Wait()
+
+	duration := time.Since(start)
+
+	// 打印统计结果
+	b.Logf("Total messages sent: %d", concurrentClients*messagesPerClient)
+	b.Logf("Total messages received: %d", atomic.LoadInt64(&totalMessages))
+	b.Logf("Failed messages: %d", atomic.LoadInt64(&failedMessages))
+	b.Logf("Time taken: %v", duration)
+	b.Logf("Throughput: %f messages/second", float64(concurrentClients*messagesPerClient)/duration.Seconds())
+
+	// 关闭客户端
+	for _, cli := range clients {
+		cli.Close()
+	}
 }
