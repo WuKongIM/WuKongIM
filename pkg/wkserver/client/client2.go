@@ -217,7 +217,7 @@ func (c *Client) handshake() error {
 		}
 		ack := x.(*proto.Connack)
 		if ack.Status != proto.StatusOK {
-			return errors.New("connect error")
+			return fmt.Errorf("connect error：%d", ack.Status)
 		}
 		return nil
 	case <-timeoutCtx.Done():

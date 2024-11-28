@@ -296,6 +296,7 @@ func (r *Reactor) addStoreAppendReq(req AppendLogReq) {
 func (r *Reactor) processStoreAppendLoop() {
 	reqs := make([]AppendLogReq, 0)
 	done := false
+	exist := false
 	for {
 		select {
 		case req := <-r.processStoreAppendC:
@@ -303,7 +304,17 @@ func (r *Reactor) processStoreAppendLoop() {
 			for !done {
 				select {
 				case req := <-r.processStoreAppendC:
-					reqs = append(reqs, req)
+					exist = false
+					for i, r := range reqs {
+						if r.HandleKey == req.HandleKey {
+							reqs[i].Logs = append(reqs[i].Logs, req.Logs...)
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						reqs = append(reqs, req)
+					}
 				default:
 					done = true
 				}
@@ -474,6 +485,7 @@ func (r *Reactor) addApplyLogReq(req *applyLogReq) {
 func (r *Reactor) processApplyLogLoop() {
 	reqs := make([]*applyLogReq, 0)
 	done := false
+	exist := false
 	for {
 		select {
 		case req := <-r.processApplyLogC:
@@ -481,7 +493,23 @@ func (r *Reactor) processApplyLogLoop() {
 			for !done {
 				select {
 				case req := <-r.processApplyLogC:
-					reqs = append(reqs, req)
+					exist = false
+					for _, r := range reqs {
+						if r.h.key == req.h.key {
+							if r.committedIndex > req.committedIndex {
+								r.committedIndex = req.committedIndex
+							}
+
+							if r.appyingIndex < req.appyingIndex {
+								r.appyingIndex = req.appyingIndex
+							}
+							exist = true
+							break
+						}
+					}
+					if !exist {
+						reqs = append(reqs, req)
+					}
 				default:
 					done = true
 				}

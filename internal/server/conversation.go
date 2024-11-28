@@ -387,7 +387,7 @@ func (c *conversationWorker) propose() {
 		return
 	}
 
-	fmt.Println("conversations update----------------->", len(conversations))
+	c.Info("conversations update", zap.Int("count", len(conversations)))
 
 	// 如果conversations的数据超过500则分批提交
 	if len(conversations) > 500 {
@@ -499,8 +499,6 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		} else {
 			needUpdateUids = willUpdateUids
 		}
-
-		fmt.Println("getConversationWithUpdater---start-->", len(needUpdateUids), update.channelId, update.channelType)
 
 	}
 

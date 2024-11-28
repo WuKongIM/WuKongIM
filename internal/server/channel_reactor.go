@@ -54,7 +54,7 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		processSendackC:        make(chan *sendackReq, 2048),
 		processForwardC:        make(chan *forwardReq, 2048),
 		processCloseC:          make(chan *closeReq, 1024),
-		processCheckTagC:       make(chan *checkTagReq, 100),
+		processCheckTagC:       make(chan *checkTagReq, 1024),
 		stopper:                syncutil.NewStopper(),
 		opts:                   opts,
 		Log:                    wklog.NewWKLog(fmt.Sprintf("ChannelReactor[%d]", opts.Cluster.NodeId)),
@@ -75,6 +75,7 @@ func (r *channelReactor) start() error {
 	for i := 0; i < 100; i++ {
 		r.stopper.RunWorker(r.processInitLoop)
 		r.stopper.RunWorker(r.processPayloadDecryptLoop)
+		r.stopper.RunWorker(r.processCheckTagLoop)
 
 	}
 
@@ -83,7 +84,6 @@ func (r *channelReactor) start() error {
 
 		r.stopper.RunWorker(r.processCloseLoop)
 
-		r.stopper.RunWorker(r.processCheckTagLoop)
 		r.stopper.RunWorker(r.processForwardLoop)
 
 	}

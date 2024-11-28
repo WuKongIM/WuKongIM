@@ -30,7 +30,6 @@ func (u *userHandler) step(a UserAction) error {
 		} else {
 			u.status = userStatusUninitialized
 		}
-		u.Info("init finished")
 	case UserActionLeaderChange:
 		u.leaderId = a.LeaderId
 		if u.role == userRoleLeader { // 当前节点是leader
@@ -89,7 +88,6 @@ func (u *userHandler) stepLeader(a UserAction) error {
 			u.authState.processing = false
 			if u.authQueue.processingIndex < a.Index {
 				u.authQueue.processingIndex = a.Index
-				u.Info("auth resp...", zap.Uint64("index", a.Index))
 				u.authQueue.truncateTo(a.Index)
 			}
 		} else {

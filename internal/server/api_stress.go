@@ -512,6 +512,7 @@ type statsResp struct {
 	SendAvgLatency int64 `json:"send_avg_latency"` // 发送平均延迟 (毫秒)
 
 	Recv           int64 `json:"recv"`             // 接收消息数
+	ExpectRecv     int64 `json:"expect_recv"`      // 预期接收消息数
 	RecvRate       int64 `json:"recv_rate"`        // 接收消息速率 (条/秒)
 	RecvBytes      int64 `json:"recv_bytes"`       // 接收字节数
 	RecvBytesRate  int64 `json:"recv_bytes_rate"`  // 接收字节速率 (字节/秒)

@@ -241,7 +241,7 @@ func (u *userHandler) becomeLeader() {
 	u.role = userRoleLeader
 	u.stepFnc = u.stepLeader
 	u.tickFnc = u.tickLeader
-	u.Info("become logic leader")
+	u.Debug("become logic leader")
 }
 
 func (u *userHandler) becomeProxy(leaderId uint64) {
@@ -251,7 +251,7 @@ func (u *userHandler) becomeProxy(leaderId uint64) {
 	u.stepFnc = u.stepProxy
 	u.tickFnc = u.tickProxy
 
-	u.Info("become logic proxy", zap.Uint64("leaderId", u.leaderId))
+	u.Debug("become logic proxy", zap.Uint64("leaderId", u.leaderId))
 }
 
 func (u *userHandler) reset() {

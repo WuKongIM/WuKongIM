@@ -299,7 +299,7 @@ func (d *DefaultConn) close(closeErr error) error {
 	}
 	d.closed.Store(true)
 
-	if closeErr != nil && !errors.Is(closeErr, syscall.ECONNRESET) { // ECONNRESET表示fd已经关闭，不需要再次关闭
+	if closeErr == nil || !errors.Is(closeErr, syscall.ECONNRESET) { // ECONNRESET表示fd已经关闭，不需要再次关闭
 		err := d.reactorSub.DeleteFd(d) // 先删除fd
 		if err != nil {
 			d.Debug("delete fd from poller error", zap.Error(err), zap.Int("fd", d.Fd().fd), zap.String("uid", d.uid.Load()))

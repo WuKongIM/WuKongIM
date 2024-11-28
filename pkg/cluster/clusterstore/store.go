@@ -59,7 +59,7 @@ func NewStore(opts *Options) *Store {
 
 func (s *Store) Open() error {
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1; i++ { // 这里不能开启多个applyLoop，否则会导致数据不一致
 		s.stopper.RunWorker(s.applyLoop)
 	}
 

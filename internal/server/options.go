@@ -370,7 +370,7 @@ func NewOptions(op ...Option) *Options {
 			Interval:     time.Second * 60,
 			ScanInterval: time.Second * 30,
 			MaxCount:     5,
-			WorkerCount:  24,
+			WorkerCount:  128,
 		},
 		Webhook: struct {
 			HTTPAddr                    string
@@ -427,7 +427,7 @@ func NewOptions(op ...Option) *Options {
 			TickInterval:           time.Millisecond * 150,
 			HeartbeatIntervalTick:  1,
 			ElectionIntervalTick:   10,
-			ChannelReactorSubCount: 64,
+			ChannelReactorSubCount: 128,
 			SlotReactorSubCount:    64,
 			PongMaxTick:            30,
 		},
@@ -474,7 +474,7 @@ func NewOptions(op ...Option) *Options {
 				SubCount:             64,
 				ProcessIntervalTick:  50,
 				DeadlineTick:         1200,
-				TagCheckIntervalTick: 10,
+				TagCheckIntervalTick: 20,
 				TickInterval:         time.Millisecond * 200,
 			},
 			User: struct {
@@ -489,7 +489,7 @@ func NewOptions(op ...Option) *Options {
 				ProcessIntervalTick:     50,
 				NodePingTick:            100,
 				NodePongTimeoutTick:     100 * 5,
-				CheckLeaderIntervalTick: 10,
+				CheckLeaderIntervalTick: 20,
 				TickInterval:            time.Millisecond * 200,
 			},
 			Stream: struct {

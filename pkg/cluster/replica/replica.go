@@ -338,7 +338,7 @@ func (r *Replica) becomeLeader(term uint32) {
 
 	r.initLeaderInfo()
 
-	r.Info("become leader", zap.Uint32("term", r.term))
+	r.Debug("become leader", zap.Uint32("term", r.term))
 
 }
 

@@ -238,13 +238,13 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	if req.Reset == 1 {
 		err = ch.s.store.RemoveAllSubscriber(req.ChannelId, req.ChannelType)
 		if err != nil {
-			ch.Error("移除所有订阅者失败！", zap.Error(err))
+			ch.Error("移除所有订阅者失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
 	} else {
 		members, err := ch.s.store.GetSubscribers(req.ChannelId, req.ChannelType)
 		if err != nil {
-			ch.Error("获取所有订阅者失败！", zap.Error(err))
+			ch.Error("获取所有订阅者失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
 		for _, member := range members {
@@ -263,7 +263,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	if len(newSubscribers) > 0 {
 		lastMsgSeq, err := ch.s.store.GetLastMsgSeq(req.ChannelId, req.ChannelType)
 		if err != nil {
-			ch.Error("获取最大消息序号失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+			ch.Error("获取最大消息序号失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
 		// 添加订阅者
@@ -280,7 +280,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 		err = ch.s.store.AddSubscribers(req.ChannelId, req.ChannelType, members)
 		if err != nil {
-			ch.Error("添加订阅者失败！", zap.Error(err))
+			ch.Error("添加订阅者失败！", zap.Error(err), zap.Int("members", len(members)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
 
@@ -302,7 +302,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 		err = ch.s.store.AddOrUpdateConversations(conversations)
 		if err != nil {
-			ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)))
+			ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
 
