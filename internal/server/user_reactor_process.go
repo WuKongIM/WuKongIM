@@ -1326,13 +1326,37 @@ func (r *userReactor) addCheckLeaderReq(req *checkLeaderReq) {
 }
 
 func (r *userReactor) processCheckLeaderLoop() {
+	batch := 1024
+	reqs := make([]*checkLeaderReq, 0, batch)
+	done := false
 	for !r.stopped.Load() {
 		select {
 		case req := <-r.processCheckLeaderC:
-			r.processCheckLeader(req)
+			reqs = append(reqs, req)
+			for !done {
+				select {
+				case req := <-r.processCheckLeaderC:
+					reqs = append(reqs, req)
+					if len(reqs) >= batch {
+						done = true
+					}
+				default:
+					done = true
+				}
+			}
+			r.processCheckLeaders(reqs)
+			done = false
+			reqs = reqs[:0]
+
 		case <-r.stopper.ShouldStop():
 			return
 		}
+	}
+}
+
+func (r *userReactor) processCheckLeaders(reqs []*checkLeaderReq) {
+	for _, req := range reqs {
+		r.processCheckLeader(req)
 	}
 }
 

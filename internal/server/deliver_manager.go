@@ -195,7 +195,9 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 	var tg = d.dm.s.tagManager.getReceiverTag(req.tagKey)
 	if tg == nil {
 
-		leader, err := d.dm.s.cluster.LeaderOfChannelForRead(req.channelId, req.channelType)
+		timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
+		leader, err := d.dm.s.cluster.LeaderOfChannel(timeoutCtx, req.channelId, req.channelType)
+		cancel()
 		if err != nil {
 			d.Error("getLeaderOfChannel failed", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Error(err))
 			return

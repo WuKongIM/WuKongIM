@@ -24,7 +24,7 @@ type channelElectionManager struct {
 
 func newChannelElectionManager(s *Server) *channelElectionManager {
 	return &channelElectionManager{
-		electionC: make(chan electionReq, 1000),
+		electionC: make(chan electionReq, 4096),
 		stopper:   syncutil.NewStopper(),
 		opts:      s.opts,
 		s:         s,
@@ -87,7 +87,6 @@ func (c *channelElectionManager) loop() {
 
 // 添加选举请求
 func (c *channelElectionManager) addElectionReq(req electionReq) error {
-	c.Info("addElectionReq....", zap.String("channelId", req.cfg.ChannelId), zap.Uint8("channelType", req.cfg.ChannelType))
 	select {
 	case c.electionC <- req:
 	case <-c.stopper.ShouldStop():

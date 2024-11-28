@@ -12,7 +12,7 @@
                 <tr v-for="(channel, i) in props.task?.channels">
                     <th>{{ i + 2 }}</th>
                     <td>{{ channel.count }}个{{ channel.subscriber.count }}人的群</td>
-                    <td>成员在线率: 25% ({{ channel.subscriber.online }}人)</td>
+                    <td>成员在线率: {{(channel.subscriber.online/channel.subscriber.count)*100}}% ({{ channel.subscriber.online }}人)</td>
                     <td>群内一分钟发送{{ channel.msg_rate }}条消息</td>
                 </tr>
 
@@ -78,7 +78,19 @@
                 </tr>
 
                 <tr>
-                    <td>接受消息：{{ props.modelValue.recv }}条</td>
+                    <td class="flex">
+                       <div> 接受消息：{{ props.modelValue.recv }}条</div>
+                        <button class="btn btn-xs btn-circle mt-[-2px] ml-2" v-on:click="onRecvHelp">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="lucide lucide-circle-help">
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                                <path d="M12 17h.01" />
+                            </svg>
+                        </button>
+
+                    </td>
                     <td>接受速率：<label class="text text-orange-500">{{ props.modelValue.recv_rate }}条/秒</label></td>
                 </tr>
 
@@ -149,6 +161,12 @@ const onSendMaxLatencyHelp = () => {
 
 const onRecvMaxLatencyHelp = () => {
     tip.value = '第一条消息需要激活频道需要耗时，所以会出现延迟比较大，延迟数据看平均延迟比较准确';
+    const dialog = document.getElementById('showAlert') as HTMLDialogElement;
+    dialog.showModal();
+}
+
+const onRecvHelp = () => {
+    tip.value = `期望收到：${props.modelValue.expect_recv} （这个值不一定准，只是个大概）`
     const dialog = document.getElementById('showAlert') as HTMLDialogElement;
     dialog.showModal();
 }

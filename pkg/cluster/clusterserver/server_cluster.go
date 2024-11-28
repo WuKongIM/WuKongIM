@@ -620,7 +620,7 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 	select {
 	case resp := <-resultC:
 		if resp.err != nil {
-			s.Info("electionChannelLeader failed", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
+			s.Info("electionChannelLeader resp failed", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
 		} else {
 			s.Info("electionChannelLeader success", zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
 		}

@@ -73,6 +73,7 @@ func (s *Store) handleApplyReqs(reqs []applyReq) {
 func (s *Store) onMetaApply(logs []replica.Log) error {
 
 	cmdMap := make(map[CMDType][]*CMD)
+	cmdOrder := make([]CMDType, 0, len(logs))
 
 	for _, log := range logs {
 		cmd := &CMD{}
@@ -81,12 +82,16 @@ func (s *Store) onMetaApply(logs []replica.Log) error {
 			s.Error("unmarshal cmd err", zap.Error(err), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
 			return err
 		}
+
+		if _, exists := cmdMap[cmd.CmdType]; !exists {
+			cmdOrder = append(cmdOrder, cmd.CmdType)
+		}
 		cmdMap[cmd.CmdType] = append(cmdMap[cmd.CmdType], cmd)
 
 	}
 
-	for cmdType, cmds := range cmdMap {
-		err := s.execCMDs(cmdType, cmds)
+	for _, cmdType := range cmdOrder {
+		err := s.execCMDs(cmdType, cmdMap[cmdType])
 		if err != nil {
 			return err
 		}

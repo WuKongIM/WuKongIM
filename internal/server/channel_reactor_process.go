@@ -517,6 +517,7 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 		}
 
 		if reasonCode != wkproto.ReasonSuccess {
+			fmt.Println("权限验证失败", reasonCode.String(), req.ch.channelId, req.ch.channelType, msg.FromUid)
 			r.MessageTrace("权限验证失败", msg.SendPacket.ClientMsgNo, "processPermission", zap.String("reasonCode", reasonCode.String()), zap.Error(errors.New("permission check failed")))
 		}
 
@@ -978,7 +979,7 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 	nodeFowardSendackPacketMap := map[uint64][]*ForwardSendackPacket{}
 	for _, msg := range req.messages {
 
-		if msg.FromUid == r.opts.SystemUID { // 如果是系统消息，不需要发送ack
+		if msg.FromDeviceId == r.opts.SystemDeviceId { // 系统发送的消息不需要sendack
 			continue
 		}
 		r.MessageTrace("发送ack", msg.SendPacket.ClientMsgNo, "processSendack")
@@ -991,7 +992,9 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 			ClientMsgNo: msg.SendPacket.ClientMsgNo,
 			ReasonCode:  msg.ReasonCode,
 		}
+
 		if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
+
 			err := r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
 			if err != nil {
 				r.Error("writePacketByConnId error", zap.Error(err), zap.Uint64("nodeId", msg.FromNodeId), zap.Int64("connId", msg.FromConnId))

@@ -29,7 +29,7 @@ func (s *Server) setRoutes() {
 
 	// 获取槽的leader term start index
 	s.netServer.Route("/slot/leaderTermStartIndex", s.handleSlotLeaderTermStartIndex)
-	// 获取频道的leader term start index
+	// 获取频道的leader term start index，follower节点请求领导节点获取领导的term start index
 	s.netServer.Route("/channel/leaderTermStartIndex", s.handleChannelLeaderTermStartIndex)
 
 	// 获取槽日志信息

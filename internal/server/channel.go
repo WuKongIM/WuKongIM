@@ -453,7 +453,7 @@ func (c *channel) becomeLeader() {
 	c.role = channelRoleLeader
 	c.stepFnc = c.stepLeader
 	c.tickFnc = c.tickLeader
-	c.Info("become logic leader")
+	c.Debug("become logic leader")
 
 }
 
@@ -463,7 +463,7 @@ func (c *channel) becomeProxy(leaderId uint64) {
 	c.leaderId = leaderId
 	c.stepFnc = c.stepProxy
 	c.tickFnc = c.tickProxy
-	c.Info("become logic proxy", zap.Uint64("leaderId", c.leaderId))
+	c.Debug("become logic proxy", zap.Uint64("leaderId", c.leaderId))
 }
 
 func (c *channel) resetIndex() {
