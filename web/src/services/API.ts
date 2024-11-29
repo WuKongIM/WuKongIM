@@ -363,12 +363,14 @@ export class SystemSetting {
     traceOn: boolean = false // 日志是否开启trace
     lokiOn: boolean = false // 日志是否开启loki
     prometheusOn : boolean = false // 是否开启Prometheus
+    StressOn: boolean = false // 是否开启压测
 
     static fromJSON(json: any): SystemSetting {
         const setting = new SystemSetting()
         setting.traceOn = json.logger.trace_on
         setting.lokiOn = json.logger.loki_on
         setting.prometheusOn = json.prometheus_on
+        setting.StressOn = json.stress_on
         return setting
     }
 

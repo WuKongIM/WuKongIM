@@ -64,6 +64,25 @@ func (wk *wukongDB) GetSubscribers(channelId string, channelType uint8) ([]Membe
 	return members, nil
 }
 
+// 获取订阅者数量
+func (wk *wukongDB) GetSubscriberCount(channelId string, channelType uint8) (int, error) {
+	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
+		LowerBound: key.NewSubscriberColumnKey(channelId, channelType, 0, key.TableSubscriber.Column.Uid),
+		UpperBound: key.NewSubscriberColumnKey(channelId, channelType, math.MaxUint64, key.TableSubscriber.Column.Uid),
+	})
+	defer iter.Close()
+
+	var count int
+	err := wk.iterateSubscriber(iter, func(member Member) bool {
+		count++
+		return true
+	})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subscribers []string) error {
 
 	wk.metrics.RemoveSubscribersAdd(1)

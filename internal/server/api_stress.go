@@ -293,7 +293,7 @@ func (s *StressAPI) templates(c *wkhttp.Context) {
 			},
 		},
 		{
-			Name: "大群测试",
+			Name: "万人群测试",
 			Task: &taskCfg{
 				Online: 3000,
 				Channels: []*channelCfg{
@@ -314,23 +314,12 @@ func (s *StressAPI) templates(c *wkhttp.Context) {
 			},
 		},
 		{
-			Name: "低强度",
+			Name: "高强度发送（4核cpu以上）",
 			Task: &taskCfg{
 				Online: 1000,
-				Channels: []*channelCfg{
-					{
-						Count: 100,
-						Type:  2,
-						Subscriber: &subscriberCfg{
-							Count:  100,
-							Online: 10,
-						},
-						MsgRate: 1,
-					},
-				},
 				P2p: &p2pCfg{
 					Count:   1000,
-					MsgRate: 1,
+					MsgRate: 300,
 				},
 			},
 		},
@@ -456,11 +445,11 @@ type testerStatus int
 
 const (
 	// 未知状态
-	testerStatusUnknow testerStatus = 0
+	// testerStatusUnknow testerStatus = 0
 	// 正常
-	testerStatusNormal testerStatus = 1
+	// testerStatusNormal testerStatus = 1
 	// 运行中
-	testerStatusRunning testerStatus = 2
+	// testerStatusRunning testerStatus = 2
 	// 错误
 	testerStatusErr testerStatus = 3
 )

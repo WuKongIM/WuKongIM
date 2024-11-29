@@ -32,6 +32,7 @@ func NewReactorSub(eg *Engine, index int) *ReactorSub {
 
 // Start starts the sub reactor.
 func (r *ReactorSub) Start() error {
+	fmt.Println("warn：此项目在windows系统上存在许多BUG，请尽量在Linux系统运行此项目")
 	return nil
 }
 
