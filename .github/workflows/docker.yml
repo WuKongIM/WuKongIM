@@ -1,9 +1,9 @@
 name: docker 
 
 on:
-    workflow_dispatch:
-    release:
-      types: [created]
+  workflow_dispatch:
+  release:
+    types: [created]
 
 permissions: read-all
 
