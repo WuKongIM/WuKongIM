@@ -309,7 +309,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	}
 
 	// 重新制止tag
-	err = ch.makeReceiverTag(req.ChannelId, req.ChannelType)
+	err = ch.makeAndCmdReceiverTag(req.ChannelId, req.ChannelType)
 	if err != nil {
 		ch.Error("创建接收者标签失败！", zap.Error(err))
 		return err
@@ -350,6 +350,7 @@ func (ch *ChannelAPI) makeReceiverTag(channelId string, channelType uint8) error
 
 }
 
+// cmd和普通频道
 func (ch *ChannelAPI) makeAndCmdReceiverTag(channelId string, channelType uint8) error {
 
 	// 普通频道的tag
@@ -422,7 +423,7 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		return
 	}
 
-	err = ch.makeReceiverTag(req.ChannelId, req.ChannelType)
+	err = ch.makeAndCmdReceiverTag(req.ChannelId, req.ChannelType)
 	if err != nil {
 		ch.Error("创建接收者标签失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.ResponseError(err)
