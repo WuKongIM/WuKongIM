@@ -264,13 +264,26 @@ func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) 
 		}
 	}
 
+	var (
+		count int
+	)
 	for i, result := range allChannelInfos {
+
+		// 获取频道的最新消息序号
 		lastMsgSeq, lastTime, err := wk.GetChannelLastMessageSeq(result.ChannelId, result.ChannelType)
 		if err != nil {
 			return nil, err
 		}
 		allChannelInfos[i].LastMsgSeq = lastMsgSeq
 		allChannelInfos[i].LastMsgTime = lastTime
+
+		// 订阅数量
+		count, err = wk.GetSubscriberCount(result.ChannelId, result.ChannelType)
+		if err != nil {
+			return nil, err
+		}
+		allChannelInfos[i].SubscriberCount = count
+
 	}
 
 	return allChannelInfos, nil

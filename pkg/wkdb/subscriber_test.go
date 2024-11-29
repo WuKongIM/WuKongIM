@@ -44,6 +44,12 @@ func TestAddSubscribers(t *testing.T) {
 
 	err = d.AddSubscribers(channelId, channelType, subscribers)
 	assert.NoError(t, err)
+
+	count, err := d.GetSubscriberCount(channelId, channelType)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 3, count)
+
 }
 
 func TestGetSubscribers(t *testing.T) {

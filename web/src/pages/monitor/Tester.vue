@@ -9,14 +9,11 @@
                     <label class="text text-sm font-semibold">流程：</label>
 
                     <ul class="text text-sm">
-                        <li>1. 开启压力测试配置（查看文档： <a class="text-blue-800" target="_blank"
-                                href="https://githubim.com/server/config/stress.html">https://githubim.com/server/config/stress.html</a>）
-                        </li>
-                        <li>2. 部署压测机（避免网络干扰，建议压测机部署在服务器内网，查看文档：<a class="text-blue-800" target="_blank"
+                        <li>1. 服务器配置调优和部署压测机（避免网络干扰，建议压测机部署在服务器内网，查看文档：<a class="text-blue-800" target="_blank"
                                 href="https://githubim.com/server/advance/stress.html">https://githubim.com/server/advance/stress.html</a>）
                         </li>
-                        <li>3. 添加压测机</li>
-                        <li>4. 开始压测（点击压测机的开始，进行测试脚本配置）</li>
+                        <li>2. 添加压测机</li>
+                        <li>3. 开始压测（点击压测机的开始，进行测试脚本配置）</li>
                         <li class="mt-4">可以通过查看监控来了解服务器的承压能力，可以通过查看压测机的报告，实时了解压测进度</li>
                         <li class="mt-2">如果部署了负载均衡，一般负载均衡由于系统端口数量限制，同时连接数不能超过6万，正式环境中可以增加负载均衡的数量来增加同时在线连接数</li>
                     </ul>
@@ -131,6 +128,7 @@ import {  Config } from '../../components/Task';
 import { onMounted, onUnmounted, ref } from 'vue';
 import API from '../../services/API';
 import { taskToConfig } from '../../services/Model';
+import App from '../../services/App';
 
 
 enum Status {
@@ -168,6 +166,9 @@ let intervalReportObj: number
 onMounted(() => {
     loadTesters()
 
+    App.shard().loadSystemSettingIfNeed()
+
+    
     // 每秒中刷新列表
     intervalObj = window.setInterval(function () {
         loadTesters()
@@ -183,6 +184,7 @@ onUnmounted(() => {
 
 // 准备开始
 const onStartOrStop = async (t: any) => {
+    
     currentTester.value = t
 
     if (t.status == Status.Running) {
@@ -251,6 +253,11 @@ const onCancel = () => {
 
 // 显示添加压测机
 const onShowAddTester = () => {
+     if(!App.shard().systemSetting.StressOn) {
+        alert("压测功能未开启，请查看文档开启。")
+        return
+     }
+
     const dialog = document.getElementById('addTesterModal') as HTMLDialogElement;
     dialog.showModal();
 }
@@ -281,6 +288,9 @@ const onAddTester = async () => {
 
 // 加载压测机列表
 const loadTesters = async () => {
+    if(!App.shard().systemSetting.StressOn) {
+        return
+    }
     // 加载压测机列表
     testers.value = await API.shared.testers()
 }

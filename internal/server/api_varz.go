@@ -81,6 +81,7 @@ func (v *VarzAPI) Settings(c *wkhttp.Context) {
 	setting.Logger.TraceOn = wkutil.BoolToInt(v.s.opts.Logger.TraceOn)
 	setting.Logger.LokiOn = wkutil.BoolToInt(v.s.opts.LokiOn())
 	setting.PrometheusOn = wkutil.BoolToInt(v.s.opts.PrometheusOn())
+	setting.StressOn = wkutil.BoolToInt(v.s.opts.Stress)
 
 	c.JSON(http.StatusOK, setting)
 }
@@ -177,4 +178,5 @@ type SystemSetting struct {
 	} `json:"logger"`
 
 	PrometheusOn int `json:"prometheus_on"` // 是否开启prometheus
+	StressOn     int `json:"stress_on"`     // 是否开启压测
 }

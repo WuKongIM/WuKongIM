@@ -139,6 +139,9 @@ type ChannelDB interface {
 	// GetSubscribers 获取订阅者
 	GetSubscribers(channelId string, channelType uint8) ([]Member, error)
 
+	// GetSubscriberCount 获取订阅者数量
+	GetSubscriberCount(channelId string, channelType uint8) (int, error)
+
 	// AddOrUpdateChannel  添加或更新channel
 	AddChannel(channelInfo ChannelInfo) (uint64, error)
 	// UpdateChannel 更新channel
