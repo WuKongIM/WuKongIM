@@ -668,6 +668,11 @@ func (s *Server) requestChannelClusterConfigFromSlotLeader(channelId string, cha
 	return clusterConfig, nil
 }
 
+func (s *Server) LoadOnlyChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
+
+	return s.loadOnlyChannelClusterConfig(channelId, channelType)
+}
+
 func (s *Server) loadOnlyChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 	ch := s.channelManager.get(channelId, channelType)
 	if ch != nil { // 如果频道已经存在，直接返回
