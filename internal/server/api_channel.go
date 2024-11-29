@@ -309,7 +309,7 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	}
 
 	// 重新制止tag
-	err = ch.remakeReceiverTag(req.ChannelId, req.ChannelType)
+	err = ch.makeReceiverTag(req.ChannelId, req.ChannelType)
 	if err != nil {
 		ch.Error("创建接收者标签失败！", zap.Error(err))
 		return err
@@ -317,50 +317,56 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 	return nil
 }
 
-func (ch *ChannelAPI) remakeReceiverTag(channelId string, channelType uint8) error {
-	channelKey := wkutil.ChannelToKey(channelId, channelType)
-	channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
-	if channel != nil {
-		// 重新生成接收者标签
-		_, err := channel.makeReceiverTag()
-		if err != nil {
-			ch.Error("创建接收者标签失败！", zap.Error(err))
-			return err
-		}
+func (ch *ChannelAPI) makeReceiverTag(channelId string, channelType uint8) error {
+	cfg, err := ch.s.cluster.LoadOnlyChannelClusterConfig(channelId, channelType)
+	if err != nil && err != cluster.ErrChannelClusterConfigNotFound {
+		ch.Info("makeLocalReceiverTag: loadOnlyChannelClusterConfig failed")
+		return nil
 	}
-	cmdChannelId := ch.s.opts.OrginalConvertCmdChannel(channelId)
-	cmdChannelKey := wkutil.ChannelToKey(cmdChannelId, channelType)
-
-	leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(cmdChannelId, channelType) // 获取频道的领导节点
-	if err != nil {
-		ch.Error("remakeReceiverTag: 获取频道所在节点失败！", zap.Error(err), zap.String("channelID", cmdChannelId), zap.Uint8("channelType", channelType))
-		return err
+	if err != cluster.ErrChannelClusterConfigNotFound { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
+		return nil
 	}
 
-	if ch.s.opts.IsLocalNode(leaderInfo.Id) {
-		// 重新生成接收者标签
-		cmdChannel := ch.s.channelReactor.reactorSub(cmdChannelKey).channel(cmdChannelKey)
-		if cmdChannel != nil {
-			_, err = cmdChannel.makeReceiverTag()
+	if cfg.LeaderId == 0 { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
+		return nil
+	}
+
+	// 如果在本节点，则重新make tag
+	if ch.s.opts.IsLocalNode(cfg.LeaderId) {
+		channelKey := wkutil.ChannelToKey(channelId, channelType)
+		channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+		if channel != nil {
+			// 重新生成接收者标签
+			_, err := channel.makeReceiverTag()
 			if err != nil {
 				ch.Error("创建接收者标签失败！", zap.Error(err))
 				return err
 			}
 		}
-	} else {
-		return ch.requestReceiverTag(cmdChannelId, channelType)
+		return nil
 	}
 
-	return nil
+	return ch.requestReceiverTag(channelId, channelType, cfg.LeaderId)
 
 }
 
-func (ch *ChannelAPI) requestReceiverTag(channelId string, channelType uint8) error {
-	leaderId, err := ch.s.cluster.SlotLeaderIdOfChannel(channelId, channelType) // 获取频道的领导节点
+func (ch *ChannelAPI) makeAndCmdReceiverTag(channelId string, channelType uint8) error {
+
+	// 普通频道的tag
+	err := ch.makeReceiverTag(channelId, channelType)
 	if err != nil {
-		ch.Error("requestReceiverTag: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return err
 	}
+
+	// 普通频道对应的cmd频道的tag
+	cmdChannelId := ch.s.opts.OrginalConvertCmdChannel(channelId)
+
+	return ch.makeReceiverTag(cmdChannelId, channelType)
+
+}
+
+func (ch *ChannelAPI) requestReceiverTag(channelId string, channelType uint8, nodeId uint64) error {
+
 	timeoutCtx, cancel := ch.s.WithRequestTimeout()
 	defer cancel()
 
@@ -368,7 +374,7 @@ func (ch *ChannelAPI) requestReceiverTag(channelId string, channelType uint8) er
 		ChannelId:   channelId,
 		ChannelType: channelType,
 	}
-	resp, err := ch.s.cluster.RequestWithContext(timeoutCtx, leaderId, "/wk/makeReceiverTag", req.Marshal())
+	resp, err := ch.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/makeReceiverTag", req.Marshal())
 	if err != nil {
 		return err
 	}
@@ -416,7 +422,7 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		return
 	}
 
-	err = ch.remakeReceiverTag(req.ChannelId, req.ChannelType)
+	err = ch.makeReceiverTag(req.ChannelId, req.ChannelType)
 	if err != nil {
 		ch.Error("创建接收者标签失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.ResponseError(err)
