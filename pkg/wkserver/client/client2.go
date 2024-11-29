@@ -405,7 +405,7 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 		}
 		return x.(*proto.Response), nil
 	case <-ctx.Done():
-		c.Error("request timeout", zap.String("path", p), zap.Uint64("requestId", r.Id), zap.String("addr", c.opts.Addr), zap.Error(ctx.Err()))
+		c.Error("request timeout", zap.String("path", p), zap.Uint64("requestId", r.Id), zap.String("addr", c.addr), zap.Error(ctx.Err()))
 		c.Requesting.Dec()
 		c.w.Trigger(r.Id, nil)
 		return nil, ctx.Err()
@@ -456,7 +456,7 @@ func (c *Client) SendBatch(msgs []*proto.Message) error {
 	defer func() {
 		end := time.Since(start)
 		if end > time.Millisecond*100 {
-			c.Warn("sendBatch cost too long", zap.Duration("cost", end), zap.Int("count", len(msgs)), zap.String("server", c.opts.Addr))
+			c.Warn("sendBatch cost too long", zap.Duration("cost", end), zap.Int("count", len(msgs)), zap.String("server", c.addr))
 		}
 	}()
 	for _, m := range msgs {

@@ -1000,9 +1000,6 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 				r.Error("writePacketByConnId error", zap.Error(err), zap.Uint64("nodeId", msg.FromNodeId), zap.Int64("connId", msg.FromConnId))
 			}
 		} else { // 连接在其他节点，需要将消息转发出去
-			if msg.FromDeviceId == r.opts.SystemDeviceId { // 系统发送的消息不需要sendack
-				continue
-			}
 			nodeFowardSendackPacketMap[msg.FromNodeId] = append(nodeFowardSendackPacketMap[msg.FromNodeId], &ForwardSendackPacket{
 				Uid:      msg.FromUid,
 				DeviceId: msg.FromDeviceId,

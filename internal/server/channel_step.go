@@ -216,6 +216,10 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 			c.sendackState.processing = false // 设置为false，则不需要等待可以继续处理下一批请求
 			if a.Index > c.msgQueue.sendackingIndex {
 				c.msgQueue.sendackingIndex = a.Index
+				// 只有投递消息的deliveringIndex也达到这个位置时，才能删除消息
+				if c.msgQueue.deliveringIndex >= c.msgQueue.sendackingIndex {
+					c.msgQueue.truncateTo(a.Index)
+				}
 			}
 		} else {
 			c.sendackState.willRetry = true
@@ -226,8 +230,11 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 			c.deliveryState.processing = false
 			if a.Index > c.msgQueue.deliveringIndex {
 				c.msgQueue.deliveringIndex = a.Index
-				c.msgQueue.truncateTo(a.Index)
 
+				// 只有sendack也达到这个位置时，才能删除消息
+				if c.msgQueue.sendackingIndex >= c.msgQueue.deliveringIndex {
+					c.msgQueue.truncateTo(a.Index)
+				}
 			}
 		} else {
 			c.deliveryState.willRetry = true
