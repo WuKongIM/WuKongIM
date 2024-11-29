@@ -41,7 +41,8 @@ func NewConversationManager(s *Server) *ConversationManager {
 func (c *ConversationManager) Push(req *conversationReq) {
 
 	worker := c.worker(req.channelId, req.channelType)
-	worker.push(req)
+	// worker.push(req) // 这个有延迟，导致最近会话获取不到
+	worker.handleReq(req)
 
 }
 
