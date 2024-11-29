@@ -65,11 +65,8 @@ func (n *node) start() {
 }
 
 func (n *node) stop() {
-	n.Debug("close")
 	n.stopper.Stop()
-	n.Debug("close1")
 	n.client.Close()
-	n.Debug("close2")
 }
 
 func (n *node) send(msg *proto.Message) error {
@@ -87,7 +84,7 @@ func (n *node) send(msg *proto.Message) error {
 		return nil
 	default:
 		n.sendQueue.decrease(msg)
-		n.Error("sendQueue is full", zap.Int("length", len(n.sendQueue.ch)))
+		n.Error("sendQueue is full", zap.Int("length", len(n.sendQueue.ch)), zap.Uint32("msgType", msg.MsgType))
 		return errChanIsFull
 	}
 }

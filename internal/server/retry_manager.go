@@ -90,7 +90,7 @@ func (r *retryManager) retry(msg *retryMessage) {
 	// 发送消息
 	// 在需要打印日志的地方添加概率控制
 	if rand.Float64() < 0.1 { // 10%的概率
-		r.Info("retry send message", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
+		r.Info("retry send message", zap.Int("retry", msg.retry), zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
 	}
 	err := conn.write(msg.recvPacketData, wkproto.RECV)
 	if err != nil {
