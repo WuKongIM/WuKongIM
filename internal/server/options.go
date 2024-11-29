@@ -87,7 +87,7 @@ type Options struct {
 		On   bool   // 是否开启demo
 		Addr string // demo服务地址 默认为 0.0.0.0:5172
 	}
-	External struct {
+	External struct { // 外网配置
 		IP                string // 外网IP
 		TCPAddr           string // 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port
 		WSAddr            string //  节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port
@@ -95,6 +95,9 @@ type Options struct {
 		ManagerAddr       string // 对外访问的管理地址
 		APIUrl            string // 对外访问的API基地址 格式: http://ip:port
 		AutoGetExternalIP bool   // 是否自动获取外网IP
+	}
+	Intranet struct { // 内网配置
+		TCPAddr string // 内网连接的tcp长连接地址
 	}
 	Channel struct { // 频道配置
 		CacheCount                int    // 频道缓存数量
@@ -594,6 +597,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.External.ManagerAddr = o.getString("external.managerAddr", o.External.ManagerAddr)
 	o.External.APIUrl = o.getString("external.apiUrl", o.External.APIUrl)
 	o.External.AutoGetExternalIP = o.getBool("external.autoGetExternalIP", o.External.AutoGetExternalIP)
+
+	o.Intranet.TCPAddr = o.getString("intranet.tcpAddr", o.Intranet.TCPAddr)
 
 	o.Manager.On = o.getBool("manager.on", o.Manager.On)
 	o.Manager.Addr = o.getString("manager.addr", o.Manager.Addr)
