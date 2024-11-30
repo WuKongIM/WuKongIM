@@ -17,9 +17,7 @@ on:
   release:
     types: [created]
 
-permissions: 
-  contents: read
-  packages: write
+permissions: read-all
 
 jobs:
   # Generate ldflags dynamically.
