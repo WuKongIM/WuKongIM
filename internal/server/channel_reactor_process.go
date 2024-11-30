@@ -640,7 +640,7 @@ func (r *channelReactor) requestAllowSend(from, to string) (wkproto.ReasonCode, 
 	if err != nil {
 		return wkproto.ReasonSystemError, err
 	}
-	if leaderNode.Id == r.opts.Cluster.NodeId {
+	if r.opts.IsLocalNode(leaderNode.Id) {
 		return r.allowSend(from, to)
 	}
 

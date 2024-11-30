@@ -24,6 +24,7 @@ deploy-v2:
 	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.7-20241104
 	docker tag wukongim wukongim/wukongim:v2.0.7-20241104
 	docker tag wukongim ghcr.io/wukongim/wukongim:v2.0.7-20241104
+	docker tag wukongim ghcr.io/wukongim/wukongim:v2
 	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.7-20241104
 	docker push wukongim/wukongim:v2.0.7-20241104
 	docker push ghcr.io/wukongim/wukongim:v2
