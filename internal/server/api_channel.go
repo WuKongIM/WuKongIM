@@ -323,7 +323,7 @@ func (ch *ChannelAPI) makeReceiverTag(channelId string, channelType uint8) error
 		ch.Info("makeLocalReceiverTag: loadOnlyChannelClusterConfig failed")
 		return nil
 	}
-	if err != cluster.ErrChannelClusterConfigNotFound { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
+	if err == cluster.ErrChannelClusterConfigNotFound { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
 		return nil
 	}
 
