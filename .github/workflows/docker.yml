@@ -22,16 +22,13 @@ jobs:
           # list of Docker images to use as base name for tags
           images: |
             wukongim/wukongim
-            ghcr.io/wukongim/wukongim            
+            ghcr.io/wukongim/wukongim
+            registry.cn-shanghai.aliyuncs.com/wukongim/wukongim 
           # generate Docker tags based on the following events/attributes
+          # type=match,pattern=v(\d.\d),group=0,prefix=v 匹配 v2,如果要匹配为v2.0,group=1
           tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha     
+            type=semver,pattern={{raw}}
+            type=match,pattern=v(\d.\d),group=0,prefix=v
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       
