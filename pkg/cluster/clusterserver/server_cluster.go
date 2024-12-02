@@ -695,7 +695,7 @@ func (s *Server) loadOnlyChannelClusterConfig(channelId string, channelType uint
 			return wkdb.EmptyChannelClusterConfig, err
 		}
 		if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
-			s.Error("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			s.Debug("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 			return wkdb.EmptyChannelClusterConfig, ErrChannelClusterConfigNotFound
 		}
 	} else {
@@ -706,7 +706,7 @@ func (s *Server) loadOnlyChannelClusterConfig(channelId string, channelType uint
 		}
 	}
 	if wkdb.IsEmptyChannelClusterConfig(clusterConfig) {
-		s.Error("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		s.Debug("channel cluster config is not found", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return wkdb.EmptyChannelClusterConfig, ErrChannelClusterConfigNotFound
 	}
 	return clusterConfig, nil

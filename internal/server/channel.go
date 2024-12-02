@@ -56,6 +56,8 @@ type channel struct {
 	stepFnc func(*ChannelAction) error
 	tickFnc func()
 
+	// init
+	initState readyState
 	// 解密
 	payloadDecryptState readyState
 	// 检查权限
@@ -114,11 +116,7 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 func (c *channel) hasReady() bool {
 	if !c.isInitialized() { // 是否初始化
 
-		if c.initTick < c.opts.Reactor.Channel.ProcessIntervalTick {
-			return false
-		}
-
-		return c.status != channelStatusInitializing
+		return true
 	}
 
 	if c.hasPayloadUnDecrypt() || c.streams.hasPayloadUnDecrypt() { // 有未解密的消息
@@ -311,6 +309,9 @@ func (c *channel) hasUnforward() bool {
 
 // 是否已初始化
 func (c *channel) isInitialized() bool {
+	if c.initState.processing {
+		return false
+	}
 
 	return c.status == channelStatusInitialized
 }
@@ -330,10 +331,20 @@ func (c *channel) tick() {
 		c.exec(&ChannelAction{ActionType: ChannelActionClose})
 	}
 
+	if c.initState.willRetry {
+		c.initState.retryTick++
+		if c.initState.retryTick >= c.retryTickCount {
+			c.initState.willRetry = false
+			c.initState.processing = false
+			c.initState.retryTick = 0
+		}
+	}
+
 	if c.payloadDecryptState.willRetry {
 		c.payloadDecryptState.retryTick++
 		if c.payloadDecryptState.retryTick >= c.retryTickCount {
 			c.payloadDecryptState.willRetry = false
+			c.payloadDecryptState.processing = false
 			c.payloadDecryptState.retryTick = 0
 		}
 	}
@@ -342,6 +353,7 @@ func (c *channel) tick() {
 		c.permissionCheckState.retryTick++
 		if c.permissionCheckState.retryTick >= c.retryTickCount {
 			c.permissionCheckState.willRetry = false
+			c.permissionCheckState.processing = false
 			c.permissionCheckState.retryTick = 0
 		}
 	}
@@ -350,6 +362,7 @@ func (c *channel) tick() {
 		c.storageState.retryTick++
 		if c.storageState.retryTick >= c.retryTickCount {
 			c.storageState.willRetry = false
+			c.storageState.processing = false
 			c.storageState.retryTick = 0
 		}
 	}
@@ -358,6 +371,7 @@ func (c *channel) tick() {
 		c.sendackState.retryTick++
 		if c.sendackState.retryTick >= c.retryTickCount {
 			c.sendackState.willRetry = false
+			c.sendackState.processing = false
 			c.sendackState.retryTick = 0
 		}
 	}
@@ -366,6 +380,7 @@ func (c *channel) tick() {
 		c.deliveryState.retryTick++
 		if c.deliveryState.retryTick >= c.retryTickCount {
 			c.deliveryState.willRetry = false
+			c.deliveryState.processing = false
 			c.deliveryState.retryTick = 0
 		}
 	}
@@ -374,6 +389,7 @@ func (c *channel) tick() {
 		c.forwardState.retryTick++
 		if c.forwardState.retryTick >= c.retryTickCount {
 			c.forwardState.willRetry = false
+			c.forwardState.processing = false
 			c.forwardState.retryTick = 0
 		}
 	}
@@ -425,7 +441,7 @@ func (c *channel) tickProxy() {
 
 }
 
-func (c *channel) proposeSend(messageId int64, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket) error {
+func (c *channel) proposeSend(messageId int64, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, sendPacket *wkproto.SendPacket, wait bool) error {
 
 	message := ReactorChannelMessage{
 		FromConnId:   fromConnId,
@@ -438,11 +454,26 @@ func (c *channel) proposeSend(messageId int64, fromUid string, fromDeviceId stri
 		ReasonCode:   wkproto.ReasonSuccess, // 初始状态为成功
 	}
 
-	c.sub.step(c, &ChannelAction{
+	messages := make([]ReactorChannelMessage, 1)
+	messages[0] = message
+
+	action := &ChannelAction{
 		UniqueNo:   c.uniqueNo,
 		ActionType: ChannelActionSend,
-		Messages:   []ReactorChannelMessage{message},
-	})
+		Messages:   messages,
+	}
+	if wait {
+		err := c.sub.stepWait(c, action)
+		if err != nil {
+			return err
+		}
+	} else {
+		c.sub.step(c, &ChannelAction{
+			UniqueNo:   c.uniqueNo,
+			ActionType: ChannelActionSend,
+			Messages:   messages,
+		})
+	}
 
 	return nil
 }

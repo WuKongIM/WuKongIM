@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"time"
 
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 type channelReactorSub struct {
@@ -74,36 +76,36 @@ func (r *channelReactorSub) step(ch *channel, action *ChannelAction) {
 	}
 }
 
-// func (r *channelReactorSub) stepWait(ch *channel, action *ChannelAction) error {
+func (r *channelReactorSub) stepWait(ch *channel, action *ChannelAction) error {
 
-// 	start := time.Now()
+	start := time.Now()
 
-// 	defer func() {
-// 		end := time.Since(start)
-// 		if end > 200*time.Millisecond {
-// 			r.r.Warn("stepWait cost too long", zap.Duration("cost", end))
-// 		}
-// 	}()
+	defer func() {
+		end := time.Since(start)
+		if end > 200*time.Millisecond {
+			r.r.Warn("stepWait cost too long", zap.Duration("cost", end))
+		}
+	}()
 
-// 	waitC := make(chan error, 1)
-// 	select {
-// 	case r.stepChannelC <- stepChannel{ch: ch, action: action, waitC: waitC}:
-// 	case <-r.stopper.ShouldStop():
-// 		return ErrReactorStopped
-// 	}
+	waitC := make(chan error, 1)
+	select {
+	case r.stepChannelC <- stepChannel{ch: ch, action: action, waitC: waitC}:
+	case <-r.stopper.ShouldStop():
+		return ErrReactorStopped
+	}
 
-// 	timeoutCtx, cancel := context.WithTimeout(r.r.s.ctx, 5*time.Second)
-// 	defer cancel()
+	timeoutCtx, cancel := context.WithTimeout(r.r.s.ctx, 5*time.Second)
+	defer cancel()
 
-// 	select {
-// 	case err := <-waitC:
-// 		return err
-// 	case <-timeoutCtx.Done():
-// 		return timeoutCtx.Err()
-// 	case <-r.stopper.ShouldStop():
-// 		return ErrReactorStopped
-// 	}
-// }
+	select {
+	case err := <-waitC:
+		return err
+	case <-timeoutCtx.Done():
+		return timeoutCtx.Err()
+	case <-r.stopper.ShouldStop():
+		return ErrReactorStopped
+	}
+}
 
 func (r *channelReactorSub) readys() {
 

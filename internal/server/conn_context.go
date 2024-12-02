@@ -181,7 +181,7 @@ func (c *connContext) addSendPacket(packet *wkproto.SendPacket) {
 	}
 
 	// 提案发送至频道
-	_ = c.subReactor.proposeSend(c, messageId, packet)
+	_ = c.subReactor.proposeSend(c, messageId, packet, false)
 
 }
 

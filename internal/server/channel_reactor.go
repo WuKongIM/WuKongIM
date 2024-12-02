@@ -131,7 +131,7 @@ func (r *channelReactor) reactorSub(key string) *channelReactorSub {
 	return r.subs[i]
 }
 
-func (r *channelReactor) proposeSend(messageId int64, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, packet *wkproto.SendPacket) error {
+func (r *channelReactor) proposeSend(messageId int64, fromUid string, fromDeviceId string, fromConnId int64, fromNodeId uint64, isEncrypt bool, packet *wkproto.SendPacket, wait bool) error {
 
 	fakeChannelId := packet.ChannelID
 	channelType := packet.ChannelType
@@ -143,7 +143,7 @@ func (r *channelReactor) proposeSend(messageId int64, fromUid string, fromDevice
 	ch := r.loadOrCreateChannel(fakeChannelId, packet.ChannelType)
 
 	// 处理消息
-	err := ch.proposeSend(messageId, fromUid, fromDeviceId, fromConnId, fromNodeId, isEncrypt, packet)
+	err := ch.proposeSend(messageId, fromUid, fromDeviceId, fromConnId, fromNodeId, isEncrypt, packet, wait)
 	if err != nil {
 		r.Error("proposeSend error", zap.Error(err))
 		return err

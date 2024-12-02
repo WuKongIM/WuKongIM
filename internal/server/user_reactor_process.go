@@ -636,7 +636,7 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 					// 更新最近会话的已读位置
 					err := r.s.store.DB().UpdateConversationIfSeqGreaterAsync(req.uid, currMsg.channelId, currMsg.channelType, uint64(recvackPacket.MessageSeq))
 					if err != nil {
-						r.Error("UpdateConversationIfSeqGreaterAsync failed", zap.Error(err), zap.String("channelId", currMsg.channelId), zap.Uint8("channelType", currMsg.channelType), zap.Uint64("messageSeq", uint64(recvackPacket.MessageSeq)))
+						r.Error("UpdateConversationIfSeqGreaterAsync failed", zap.Error(err), zap.String("uid", req.uid), zap.String("channelId", currMsg.channelId), zap.Uint8("channelType", currMsg.channelType), zap.Uint64("messageSeq", uint64(recvackPacket.MessageSeq)))
 					}
 				}
 			}
