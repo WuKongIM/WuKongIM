@@ -103,9 +103,9 @@ func (u *userReactorSub) stepNoWait(uid string, action UserAction) error {
 	return nil
 }
 
-func (u *userReactorSub) proposeSend(conn *connContext, messageId int64, sendPacket *wkproto.SendPacket) error {
+func (u *userReactorSub) proposeSend(conn *connContext, messageId int64, sendPacket *wkproto.SendPacket, wait bool) error {
 
-	return u.r.s.channelReactor.proposeSend(messageId, conn.uid, conn.deviceId, conn.connId, u.r.s.opts.Cluster.NodeId, true, sendPacket)
+	return u.r.s.channelReactor.proposeSend(messageId, conn.uid, conn.deviceId, conn.connId, u.r.s.opts.Cluster.NodeId, true, sendPacket, wait)
 }
 
 func (u *userReactorSub) stepWait(uid string, action UserAction) error {

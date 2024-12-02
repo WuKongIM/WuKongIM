@@ -131,7 +131,7 @@ func (s *StreamAPI) start(c *wkhttp.Context) {
 		ChannelID:   channelId,
 		ChannelType: channelType,
 		Payload:     req.Payload,
-	})
+	}, true)
 	if err != nil {
 		s.Error("提按发送失败！", zap.Error(err))
 		c.ResponseError(err)

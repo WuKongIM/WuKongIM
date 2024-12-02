@@ -213,7 +213,7 @@ func sendMessageToChannel(s *Server, req MessageSendReq, channelId string, chann
 		ChannelID:   channelId,
 		ChannelType: channelType,
 		Payload:     req.Payload,
-	})
+	}, true)
 	if err != nil {
 		return messageId, err
 	}
