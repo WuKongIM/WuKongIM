@@ -50,7 +50,7 @@ type userHandler struct {
 	nodePingTick        int            // 节点ping计时
 	nodePongTimeoutTick map[uint64]int // 节点pong超时计时
 
-	initTick int // 初始化tick计时
+	initState readyState // 初始化状态
 	// authTick int // auth tick 计时
 	// sendRecvackTick int // 发送recvack计时
 	// recvMsgTick int // 接收消息计时
@@ -78,7 +78,6 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 		nodePongTimeoutTick: make(map[uint64]int),
 		uniqueNo:            wkutil.GenUUID(),
 		opts:                opts,
-		initTick:            opts.Reactor.User.ProcessIntervalTick,
 		retryTickCount:      20,
 	}
 
@@ -86,13 +85,10 @@ func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 }
 
 func (u *userHandler) hasReady() bool {
-	if !u.isInitialized() {
-		if u.initTick < u.opts.Reactor.User.ProcessIntervalTick {
-			return false
-		}
-		return u.status != userStatusInitializing
-	}
+	if u.isUninitialized() {
 
+		return true
+	}
 	if u.hasAuth() {
 		return true
 	}
@@ -112,13 +108,12 @@ func (u *userHandler) hasReady() bool {
 }
 
 func (u *userHandler) ready() userReady {
-	if !u.isInitialized() {
-		if u.status == userStatusInitializing {
-			return userReady{}
+	if u.isUninitialized() {
+		if !u.initState.processing {
+			u.initState.processing = true
+			u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionInit})
 		}
-		u.initTick = 0
-		u.status = userStatusInitializing
-		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionInit})
+
 	} else {
 		if u.role == userRoleLeader {
 			// 连接认证
@@ -229,10 +224,10 @@ func (u *userHandler) hasRecvMsg() bool {
 
 }
 
-// 是否已初始化
-func (u *userHandler) isInitialized() bool {
+// 是否未初始化
+func (u *userHandler) isUninitialized() bool {
 
-	return u.status == userStatusInitialized
+	return u.status == userStatusUninitialized
 }
 
 func (u *userHandler) becomeLeader() {
@@ -275,8 +270,8 @@ func (u *userHandler) reset() {
 	u.recvackState = readyState{}
 	u.recvMsgState = readyState{}
 	u.authState = readyState{}
+	u.initState = readyState{}
 
-	u.initTick = u.opts.Reactor.User.ProcessIntervalTick
 	// u.authTick = 0
 
 	u.nodePingTick = 0
@@ -285,18 +280,25 @@ func (u *userHandler) reset() {
 
 func (u *userHandler) tick() {
 
-	u.initTick++
 	// u.authTick++
 	// u.recvMsgTick++
 	// u.sendRecvackTick++
 
-	u.checkLeaderTick++
+	if u.initState.willRetry {
+		u.initState.retryTick++
+		if u.initState.retryTick >= u.retryTickCount {
+			u.initState.willRetry = false
+			u.initState.retryTick = 0
+			u.initState.processing = false
+		}
+	}
 
 	if u.authState.willRetry {
 		u.authState.retryTick++
 		if u.authState.retryTick >= u.retryTickCount {
 			u.authState.willRetry = false
 			u.authState.retryTick = 0
+			u.authState.processing = false
 		}
 	}
 
@@ -305,6 +307,7 @@ func (u *userHandler) tick() {
 		if u.pingState.retryTick >= u.retryTickCount {
 			u.pingState.willRetry = false
 			u.pingState.retryTick = 0
+			u.pingState.processing = false
 		}
 	}
 
@@ -313,6 +316,7 @@ func (u *userHandler) tick() {
 		if u.recvackState.retryTick >= u.retryTickCount {
 			u.recvackState.willRetry = false
 			u.recvackState.retryTick = 0
+			u.recvackState.processing = false
 		}
 	}
 
@@ -321,6 +325,7 @@ func (u *userHandler) tick() {
 		if u.recvMsgState.retryTick >= u.retryTickCount {
 			u.recvMsgState.willRetry = false
 			u.recvMsgState.retryTick = 0
+			u.recvMsgState.processing = false
 		}
 	}
 
@@ -338,6 +343,7 @@ func (u *userHandler) tick() {
 	// }
 
 	// 定时校验领导的正确性
+	u.checkLeaderTick++
 	if u.checkLeaderTick >= u.sub.r.s.opts.Reactor.User.CheckLeaderIntervalTick {
 		u.checkLeaderTick = 0
 		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionCheckLeader, Uid: u.uid})
@@ -367,9 +373,12 @@ func (u *userHandler) tickLeader() {
 	if u.nodePingTick >= u.sub.r.s.opts.Reactor.User.NodePingTick {
 		u.nodePingTick = 0
 		var messages []ReactorUserMessage
+		// TODO: u.conns可能存在竞锁问题
+		u.mu.Lock()
+		defer u.mu.Unlock()
 		if len(u.conns) > 0 {
 			for _, c := range u.conns {
-				if c.realNodeId == 0 || c.realNodeId == c.subReactor.r.s.opts.Cluster.NodeId {
+				if c.isRealConn {
 					continue
 				}
 				messages = append(messages, ReactorUserMessage{

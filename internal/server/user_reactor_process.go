@@ -12,7 +12,6 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 // =================================== init ===================================
@@ -20,8 +19,13 @@ import (
 func (r *userReactor) addInitReq(req *userInitReq) {
 	select {
 	case r.processInitC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addInitReq: processInitC is full, ignore ", zap.String("uid", req.uid))
+		req.sub.step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
+			ActionType: UserActionInitResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
@@ -50,7 +54,7 @@ func (r *userReactor) processInit(req *userInitReq) {
 		r.s.trace.Metrics.App().OnlineUserCountAdd(1)
 	}
 
-	r.reactorSub(req.uid).step(req.uid, UserAction{
+	req.sub.step(req.uid, UserAction{
 		UniqueNo:   req.uniqueNo,
 		ActionType: UserActionInitResp,
 		LeaderId:   leaderId,
@@ -61,6 +65,7 @@ func (r *userReactor) processInit(req *userInitReq) {
 type userInitReq struct {
 	uniqueNo string
 	uid      string
+	sub      *userReactorSub
 }
 
 // =================================== auth ===================================
@@ -68,8 +73,13 @@ type userInitReq struct {
 func (r *userReactor) addAuthReq(req *userAuthReq) {
 	select {
 	case r.processAuthC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addAuthReq: processAuthC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
+		req.sub.step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
+			ActionType: UserActionAuthResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
@@ -99,18 +109,22 @@ func (r *userReactor) processAuthLoop() {
 }
 
 func (r *userReactor) processAuths(reqs []*userAuthReq) {
-	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*10)
-	defer cancel()
-	errgroup, _ := errgroup.WithContext(timeoutCtx)
-	errgroup.SetLimit(200)
+
+	var err error
 	for _, req := range reqs {
 		req := req
-		errgroup.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processAuth(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processAuth failed,submit error", zap.Error(err), zap.String("uid", req.uid))
+			req.sub.step(req.uid, UserAction{
+				UniqueNo:   req.uniqueNo,
+				ActionType: UserActionAuthResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = errgroup.Wait()
 }
 
 func (r *userReactor) processAuth(req *userAuthReq) {
@@ -120,7 +134,7 @@ func (r *userReactor) processAuth(req *userAuthReq) {
 		_, _ = r.handleAuth(req.uid, msg)
 	}
 	lastIndex := req.messages[len(req.messages)-1].Index
-	r.reactorSub(req.uid).step(req.uid, UserAction{
+	req.sub.step(req.uid, UserAction{
 		UniqueNo:   req.uniqueNo,
 		ActionType: UserActionAuthResp,
 		Reason:     ReasonSuccess,
@@ -382,6 +396,7 @@ type userAuthReq struct {
 	uniqueNo string
 	uid      string
 	messages []ReactorUserMessage
+	sub      *userReactorSub
 }
 
 // 用户认证结果
@@ -457,8 +472,13 @@ func (u *UserAuthResult) Unmarshal(data []byte) error {
 func (r *userReactor) addPingReq(req *pingReq) {
 	select {
 	case r.processPingC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("addPingReq: processPingC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
+		req.sub.step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
+			ActionType: UserActionPingResp,
+			Reason:     ReasonError,
+		})
 	}
 }
 
@@ -498,50 +518,45 @@ func (r *userReactor) processPingLoop() {
 
 func (r *userReactor) processPing(reqs []*pingReq) {
 	for _, req := range reqs {
-		if len(req.messages) == 0 {
-			continue
-		}
-		var reason = ReasonSuccess
-		err := r.handlePing(req)
-		if err != nil {
-			r.Error("handlePing err", zap.Error(err))
-			reason = ReasonError
-		}
-
-		lastMsg := req.messages[len(req.messages)-1]
-		r.reactorSub(req.uid).step(req.uid, UserAction{
-			UniqueNo:   req.uniqueNo,
-			ActionType: UserActionPingResp,
-			Reason:     reason,
-			Index:      lastMsg.Index,
+		req := req
+		err := r.processGoPool.Submit(func() {
+			r.handlePing(req)
 		})
-
+		if err != nil {
+			r.Error("processPing failed,submit error", zap.Error(err), zap.String("uid", req.uid))
+			req.sub.step(req.uid, UserAction{
+				UniqueNo:   req.uniqueNo,
+				ActionType: UserActionPingResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
 }
 
-func (r *userReactor) handlePing(req *pingReq) error {
+func (r *userReactor) handlePing(req *pingReq) {
 	for _, msg := range req.messages {
 		conn := r.getConnById(req.uid, msg.ConnId)
-		if conn == nil {
-			r.Debug("conn not found", zap.String("uid", req.uid), zap.Int64("connId", msg.ConnId))
-			continue
+		if conn != nil && conn.isRealConn { // 不是真实连接可以忽略
+			err := r.s.userReactor.writePacket(conn, &wkproto.PongPacket{})
+			if err != nil {
+				r.Error("write pong packet error", zap.String("uid", req.uid), zap.Error(err))
+			}
 		}
-		if !conn.isRealConn { // 不是真实连接可以忽略
-			continue
-		}
-		err := r.s.userReactor.writePacket(conn, &wkproto.PongPacket{})
-		if err != nil {
-			r.Error("write pong packet error", zap.String("uid", req.uid), zap.Error(err))
-		}
+		lastMsg := req.messages[len(req.messages)-1]
+		req.sub.step(req.uid, UserAction{
+			UniqueNo:   req.uniqueNo,
+			ActionType: UserActionPingResp,
+			Reason:     ReasonSuccess,
+			Index:      lastMsg.Index,
+		})
 	}
-
-	return nil
 }
 
 type pingReq struct {
 	uniqueNo string
 	uid      string
 	messages []ReactorUserMessage
+	sub      *userReactorSub
 }
 
 // =================================== recvack ===================================
@@ -551,7 +566,7 @@ func (r *userReactor) addRecvackReq(req *recvackReq) {
 	case r.processRecvackC <- req:
 	default:
 		r.Warn("addRecvackReq: processRecvackC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
-		r.reactorSub(req.uid).step(req.uid, UserAction{
+		req.sub.step(req.uid, UserAction{
 			UniqueNo:   req.uniqueNo,
 			ActionType: UserActionRecvackResp,
 			Reason:     ReasonError,
@@ -599,20 +614,22 @@ func (r *userReactor) processRecvackLoop() {
 }
 
 func (r *userReactor) processRecvacks(reqs []*recvackReq) {
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	eg, _ := errgroup.WithContext(timeoutCtx)
-	eg.SetLimit(1000)
 
 	for _, req := range reqs {
 		req := req
-		eg.Go(func() error {
+		err := r.processGoPool.Submit(func() {
 			r.processRecvack(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processRecvack failed,submit error", zap.Error(err), zap.String("uid", req.uid))
+			req.sub.step(req.uid, UserAction{
+				UniqueNo:   req.uniqueNo,
+				ActionType: UserActionRecvackResp,
+				Reason:     ReasonError,
+			})
+		}
 
 	}
-	_ = eg.Wait()
 }
 
 func (r *userReactor) processRecvack(req *recvackReq) {
@@ -654,7 +671,7 @@ func (r *userReactor) processRecvack(req *recvackReq) {
 
 	}
 	lastMsg := req.messages[len(req.messages)-1]
-	r.reactorSub(req.uid).step(req.uid, UserAction{
+	req.sub.step(req.uid, UserAction{
 		UniqueNo:   req.uniqueNo,
 		ActionType: UserActionRecvackResp,
 		Index:      lastMsg.Index,
@@ -666,6 +683,7 @@ type recvackReq struct {
 	uniqueNo string
 	uid      string
 	messages []ReactorUserMessage
+	sub      *userReactorSub
 }
 
 // =================================== write ===================================
@@ -675,7 +693,7 @@ func (r *userReactor) addWriteReq(req *writeReq) {
 	case r.processWriteC <- req:
 	default:
 		r.Warn("addWriteReq: processWriteC is full, ignore ", zap.String("uid", req.uid), zap.Int("msgCount", len(req.messages)))
-		r.reactorSub(req.uid).step(req.uid, UserAction{
+		req.sub.step(req.uid, UserAction{
 			UniqueNo:   req.uniqueNo,
 			ActionType: UserActionRecvResp,
 			Reason:     ReasonError,
@@ -724,14 +742,10 @@ func (r *userReactor) processWriteLoop() {
 
 func (r *userReactor) processWrite(reqs []*writeReq) {
 
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	eg, _ := errgroup.WithContext(timeoutCtx)
-	eg.SetLimit(1000)
-
 	for _, req := range reqs {
 		req := req
-		eg.Go(func() error {
+
+		err := r.processGoPool.Submit(func() {
 			reason := ReasonSuccess
 			err := r.handleWrite(req)
 			if err != nil {
@@ -744,26 +758,30 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 					maxIndex = msg.Index
 				}
 			}
-			r.reactorSub(req.uid).step(req.uid, UserAction{
+			req.sub.step(req.uid, UserAction{
 				UniqueNo:   req.uniqueNo,
 				ActionType: UserActionRecvResp,
 				Index:      maxIndex,
 				Reason:     reason,
 			})
-			return nil
 		})
+		if err != nil {
+			r.Error("processWrite failed,submit error", zap.Error(err), zap.String("uid", req.uid))
+			req.sub.step(req.uid, UserAction{
+				UniqueNo:   req.uniqueNo,
+				ActionType: UserActionRecvResp,
+				Reason:     ReasonError,
+			})
+		}
 
 	}
-	_ = eg.Wait()
 
 }
 
 func (r *userReactor) handleWrite(req *writeReq) error {
 
-	sub := r.reactorSub(req.uid)
-
 	forwardWriteReqMap := map[uint64]FowardWriteReqSlice{} // 按照节点分组
-
+	sub := req.sub
 	for _, msg := range req.messages {
 		conns := sub.getConnsByDeviceId(req.uid, msg.DeviceId)
 		if len(conns) == 0 {
@@ -830,6 +848,7 @@ type writeReq struct {
 	uniqueNo string
 	uid      string
 	messages []ReactorUserMessage
+	sub      *userReactorSub
 }
 
 // =================================== 转发userAction ===================================
@@ -870,7 +889,6 @@ func (r *userReactor) processForwardUserActionLoop() {
 					done = true
 				}
 			}
-
 			r.processForwardUserAction(actions)
 			done = false
 			actions = actions[:0]
@@ -881,6 +899,17 @@ func (r *userReactor) processForwardUserActionLoop() {
 }
 
 func (r *userReactor) processForwardUserAction(actions []UserAction) {
+	newActions := make([]UserAction, len(actions))
+	copy(newActions, actions)
+	err := r.processGoPool.Submit(func() {
+		r.handleForwardUserAction(newActions)
+	})
+	if err != nil {
+		r.Error("processForwardUserAction failed,submit error", zap.Error(err))
+	}
+}
+
+func (r *userReactor) handleForwardUserAction(actions []UserAction) {
 	userForwardActionMap := map[string][]UserAction{} // 用户对应的action
 	userLeaderMap := map[string]uint64{}              // 用户对应的领导节点
 	// 按照用户分组
@@ -907,7 +936,7 @@ func (r *userReactor) processForwardUserAction(actions []UserAction) {
 			}
 			reason = ReasonError
 		} else {
-			newLeaderId, err = r.handleForwardUserAction(uid, leaderId, fowardActions)
+			newLeaderId, err = r.requestForwardUserAction(uid, leaderId, fowardActions)
 			if err != nil {
 				r.Error("handleForwardUserAction error", zap.Error(err))
 				reason = ReasonError
@@ -939,7 +968,7 @@ func (r *userReactor) processForwardUserAction(actions []UserAction) {
 
 }
 
-func (r *userReactor) handleForwardUserAction(uid string, leaderId uint64, actions []UserAction) (uint64, error) {
+func (r *userReactor) requestForwardUserAction(uid string, leaderId uint64, actions []UserAction) (uint64, error) {
 	needChangeLeader, err := r.forwardUserAction(leaderId, actions)
 	if err != nil {
 		return 0, err
@@ -1029,7 +1058,17 @@ func (r *userReactor) processNodePingLoop() {
 }
 
 func (r *userReactor) processNodePing(reqs []*nodePingReq) {
-	// r.s.cluster.PingNode(req.nodeId)
+	newReqs := make([]*nodePingReq, len(reqs))
+	copy(newReqs, reqs)
+	err := r.processGoPool.Submit(func() {
+		r.handleNodePing(newReqs)
+	})
+	if err != nil {
+		r.Error("processNodePing failed,submit error", zap.Error(err), zap.Int("reqCount", len(reqs)))
+	}
+}
+
+func (r *userReactor) handleNodePing(reqs []*nodePingReq) {
 
 	nodeIdMap := map[uint64][]*userConns{} // 按照节点分组
 	for _, req := range reqs {
@@ -1154,8 +1193,19 @@ func (r *userReactor) processNodePongLoop() {
 	}
 }
 
-// TODO：可以优化成批量处理
 func (r *userReactor) processNodePong(req *nodePongReq) {
+	err := r.processGoPool.Submit(func(rq *nodePongReq) func() {
+		return func() {
+			r.handleNodePong(rq)
+		}
+	}(req))
+	if err != nil {
+		r.Error("processNodePong failed,submit error", zap.Error(err), zap.String("uid", req.uid))
+	}
+}
+
+// TODO：可以优化成批量处理
+func (r *userReactor) handleNodePong(req *nodePongReq) {
 
 	userHandler := r.s.userReactor.getUserHandler(req.uid)
 	if userHandler == nil {
@@ -1369,7 +1419,7 @@ func (r *userReactor) processCheckLeader(req *checkLeaderReq) {
 	}
 	if leaderId != req.leaderId {
 		r.Info("leader change", zap.String("uid", req.uid), zap.Uint64("newLeaderId", leaderId), zap.Uint64("oldLeaderId", req.leaderId))
-		r.reactorSub(req.uid).step(req.uid, UserAction{
+		req.sub.step(req.uid, UserAction{
 			UniqueNo:   req.uniqueNo,
 			ActionType: UserActionLeaderChange,
 			LeaderId:   leaderId,
@@ -1381,4 +1431,5 @@ type checkLeaderReq struct {
 	uniqueNo string
 	uid      string
 	leaderId uint64
+	sub      *userReactorSub
 }

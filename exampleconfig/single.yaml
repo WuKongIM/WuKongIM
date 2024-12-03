@@ -4,6 +4,8 @@ httpAddr: "0.0.0.0:5001" # http api监听地址
 wsAddr: "ws://0.0.0.0:5200"  # websocket ws 监听地址
 rootDir: "./wukongimdata/1001" # 数据存储目录
 stress: false # 是否开启压力测试模式
+logger:
+  traceOn: false
 manager:  # 管理端配置
   on: true
   addr: "0.0.0.0:5300"

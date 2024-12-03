@@ -1,6 +1,7 @@
 package wkdb
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -561,7 +562,9 @@ func (wk *wukongDB) writeConversation(conversation Conversation, w *Batch) error
 	var msgSeqBytes = make([]byte, 8)
 	wk.endian.PutUint64(msgSeqBytes, conversation.ReadToMsgSeq)
 	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes)
-
+	if conversation.ChannelId == "a4593c39234a4336a799855bfa6b9455" {
+		fmt.Println("conversation.ReadToMsgSeq----------->", conversation.ReadToMsgSeq)
+	}
 	// createdAt
 	if conversation.CreatedAt != nil {
 		createdAtBytes := make([]byte, 8)
@@ -698,29 +701,30 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 func (wk *wukongDB) setConversationLocalUserRelation(conversations []Conversation, commitWait bool) error {
 
 	// 按照频道分组
-	batchs := make(map[string]*Batch)
+	batchMap := make(map[string]*Batch)
 	for _, conversation := range conversations {
-		batch := batchs[conversation.Uid]
+		batch := batchMap[conversation.Uid]
 		if batch == nil {
 			batch = wk.channelBatchDb(conversation.ChannelId, conversation.ChannelType).NewBatch()
-			batchs[conversation.Uid] = batch
+			batchMap[conversation.Uid] = batch
 		}
 		batch.Set(key.NewConversationLocalUserKey(conversation.ChannelId, conversation.ChannelType, conversation.Uid), nil)
 	}
 
-	for _, batch := range batchs {
-		if commitWait {
-			err := batch.CommitWait()
-			if err != nil {
-				return err
-			}
-		} else {
+	batchs := make([]*Batch, 0, len(batchMap))
+	for _, batch := range batchMap {
+		batchs = append(batchs, batch)
+	}
+
+	if commitWait {
+		return Commits(batchs)
+	} else {
+		for _, batch := range batchs {
 			err := batch.Commit()
 			if err != nil {
 				return err
 			}
 		}
-
 	}
 	return nil
 }

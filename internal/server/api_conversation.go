@@ -127,6 +127,7 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 		createdAt := time.Now()
 		updatedAt := time.Now()
 		conversation = wkdb.Conversation{
+			Type:        wkdb.ConversationTypeChat,
 			Uid:         req.UID,
 			ChannelId:   fakeChannelId,
 			ChannelType: req.ChannelType,
@@ -166,7 +167,6 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		ChannelID   string `json:"channel_id"`
 		ChannelType uint8  `json:"channel_type"`
 		Unread      int    `json:"unread"`
-		MessageSeq  uint32 `json:"message_seq"` // messageSeq 只有超大群才会传 因为超大群最近会话服务器不会维护，需要客户端传递messageSeq进行主动维护
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -224,6 +224,7 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 		updatedAt := time.Now()
 		conversation = wkdb.Conversation{
 			Uid:         req.UID,
+			Type:        wkdb.ConversationTypeChat,
 			ChannelId:   fakeChannelId,
 			ChannelType: req.ChannelType,
 			CreatedAt:   &createdAt,

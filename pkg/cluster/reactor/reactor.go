@@ -3,7 +3,6 @@ package reactor
 import (
 	"context"
 	"fmt"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -18,7 +17,6 @@ type Reactor struct {
 	subReactors []*ReactorSub
 	opts        *Options
 	mu          sync.RWMutex
-	taskPool    *ants.Pool
 	wklog.Log
 
 	processInitC              chan *initReq              // 处理频道初始化
@@ -29,6 +27,8 @@ type Reactor struct {
 	processLearnerToFollowerC chan *learnerToFollowerReq // 从learner转为follower
 	processLearnerToLeaderC   chan *learnerToLeaderReq   // 从learner转为leader
 	processFollowerToLeaderC  chan *followerToLeaderReq  // 从follower转为leader
+
+	processGoPool *ants.MultiPool
 
 	stopper *syncutil.Stopper
 
@@ -51,20 +51,29 @@ func New(opts *Options) *Reactor {
 		processFollowerToLeaderC:  make(chan *followerToLeaderReq, 1024),
 		request:                   opts.Request,
 	}
-	taskPool, err := ants.NewPool(opts.TaskPoolSize, ants.WithPanicHandler(func(err interface{}) {
-		stack := debug.Stack()
-		r.Panic("执行任务失败", zap.Any("error", err), zap.String("stack", string(stack)))
-
-	}))
-	if err != nil {
-		r.Panic("create task pool error", zap.Error(err))
-	}
-	r.taskPool = taskPool
 
 	for i := 0; i < int(r.opts.SubReactorNum); i++ {
 		sub := r.newReactorSub(i)
 		r.subReactors = append(r.subReactors, sub)
 	}
+
+	size := 0
+	sizePerPool := 0
+	if opts.ProcessPoolSize <= opts.SubReactorNum {
+		size = 1
+		sizePerPool = opts.ProcessPoolSize
+	} else {
+		size = opts.SubReactorNum
+		sizePerPool = opts.ProcessPoolSize / opts.SubReactorNum
+	}
+	var err error
+	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(err interface{}) {
+		r.Error("user: processGoPool panic", zap.Any("err", err), zap.Stack("stack"))
+	}))
+	if err != nil {
+		r.Panic("user: NewMultiPool panic", zap.Error(err))
+	}
+
 	return r
 }
 
@@ -78,19 +87,21 @@ func (r *Reactor) Start() error {
 	// 中并发处理，适合于分散但是不是很耗时的任务
 	for i := 0; i < 10; i++ {
 
+	}
+
+	// 低并发处理，适合于集中的耗时任务，这样可以合并请求批量处理
+	for i := 0; i < 1; i++ {
+
+		r.stopper.RunWorker(r.processInitLoop)
+		r.stopper.RunWorker(r.processApplyLogLoop)
+		r.stopper.RunWorker(r.processStoreAppendLoop) // 追加日志的协程不需要太多，因为追加日志会进行日志合并，如果协程太多反而频繁操作db导致性能下降
+		r.stopper.RunWorker(r.processConflictCheckLoop)
+
 		r.stopper.RunWorker(r.processGetLogLoop)
 
 		r.stopper.RunWorker(r.processLearnerToFollowerLoop)
 		r.stopper.RunWorker(r.processLearnerToLeaderLoop)
 		r.stopper.RunWorker(r.processFollowerToLeaderLoop)
-	}
-
-	// 低并发处理，适合于集中的耗时任务，这样可以合并请求批量处理
-	for i := 0; i < 1; i++ {
-		r.stopper.RunWorker(r.processInitLoop)
-		r.stopper.RunWorker(r.processApplyLogLoop)
-		r.stopper.RunWorker(r.processStoreAppendLoop) // 追加日志的协程不需要太多，因为追加日志会进行日志合并，如果协程太多反而频繁操作db导致性能下降
-		r.stopper.RunWorker(r.processConflictCheckLoop)
 	}
 
 	for _, sub := range r.subReactors {

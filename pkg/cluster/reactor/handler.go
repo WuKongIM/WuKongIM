@@ -130,6 +130,7 @@ func (h *handler) reset() {
 	h.proposeIntervalTick = 0
 	h.resetSync()
 	h.hardState = replica.HardState{}
+
 }
 
 func (h *handler) resetSync() {

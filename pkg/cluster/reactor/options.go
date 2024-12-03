@@ -27,11 +27,12 @@ func (r ReactorType) String() string {
 }
 
 type Options struct {
-	SubReactorNum int
-	TickInterval  time.Duration // 每次tick间隔
-	NodeId        uint64
-	Send          func(m Message) // 发送消息
-	ReactorType   ReactorType     // reactor类型
+	SubReactorNum   int
+	ProcessPoolSize int           // process的协程池大小
+	TickInterval    time.Duration // 每次tick间隔
+	NodeId          uint64
+	Send            func(m Message) // 发送消息
+	ReactorType     ReactorType     // reactor类型
 
 	// MaxReceiveQueueSize is the maximum size in bytes of each receive queue.
 	// Once the maximum size is reached, further replication messages will be
@@ -101,6 +102,7 @@ func NewOptions(opt ...Option) *Options {
 		ProposeTimeout:            time.Second * 30,
 		SlowdownCheckIntervalTick: 10,
 		SyncTimeoutMaxTick:        10,
+		ProcessPoolSize:           2048,
 	}
 
 	for _, o := range opt {

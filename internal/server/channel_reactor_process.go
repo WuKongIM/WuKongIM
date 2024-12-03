@@ -10,7 +10,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 // =================================== 初始化 ===================================
@@ -20,8 +19,7 @@ func (r *channelReactor) addInitReq(req *initReq) {
 	case r.processInitC <- req:
 	default:
 		r.Warn("processInitC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionInitResp,
 			Reason:     ReasonError,
@@ -56,32 +54,30 @@ func (r *channelReactor) processInitLoop() {
 
 func (r *channelReactor) processInits(reqs []*initReq) {
 
-	if len(reqs) == 1 {
-		r.processInit(reqs[0])
-		return
-	}
-
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	eg, _ := errgroup.WithContext(timeoutCtx)
+	var err error
 	for _, req := range reqs {
 		req := req
-		eg.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processInit(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processInit failed, submit error", zap.Error(err), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			req.sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: ChannelActionInitResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = eg.Wait()
 }
 
 func (r *channelReactor) processInit(req *initReq) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	cfg, err := r.s.cluster.LoadOrCreateChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
 	cancel()
-	sub := r.reactorSub(req.ch.key)
 	if err != nil {
 		r.Error("channel init failed", zap.Error(err))
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionInitResp,
 			Reason:     ReasonError,
@@ -89,21 +85,21 @@ func (r *channelReactor) processInit(req *initReq) {
 		return
 	}
 
-	if cfg.LeaderId == r.s.opts.Cluster.NodeId { // 只有领导才需要makeReceiverTag
-		_, err = req.ch.makeReceiverTag()
-		if err != nil {
-			r.Error("processInit: makeReceiverTag failed", zap.Error(err))
-			sub.step(req.ch, &ChannelAction{
-				UniqueNo:   req.ch.uniqueNo,
-				ActionType: ChannelActionInitResp,
-				LeaderId:   cfg.LeaderId,
-				Reason:     ReasonError,
-			})
-			return
-		}
-	}
+	// if cfg.LeaderId == r.s.opts.Cluster.NodeId { // 只有领导才需要makeReceiverTag
+	// 	_, err = req.ch.makeReceiverTag()
+	// 	if err != nil {
+	// 		r.Error("processInit: makeReceiverTag failed", zap.Error(err))
+	// 		req.sub.step(req.ch, &ChannelAction{
+	// 			UniqueNo:   req.ch.uniqueNo,
+	// 			ActionType: ChannelActionInitResp,
+	// 			LeaderId:   cfg.LeaderId,
+	// 			Reason:     ReasonError,
+	// 		})
+	// 		return
+	// 	}
+	// }
 
-	sub.step(req.ch, &ChannelAction{
+	req.sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionInitResp,
 		LeaderId:   cfg.LeaderId,
@@ -112,7 +108,8 @@ func (r *channelReactor) processInit(req *initReq) {
 }
 
 type initReq struct {
-	ch *channel
+	ch  *channel
+	sub *channelReactorSub
 }
 
 // =================================== payload解密 ===================================
@@ -126,11 +123,11 @@ func (r *channelReactor) addPayloadDecryptReq(req *payloadDecryptReq) {
 		if req.isStream {
 			actionType = ChannelActionStreamPayloadDecryptResp
 		}
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			Reason:     ReasonError,
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: actionType,
+			Messages:   req.messages,
 		})
 
 	}
@@ -148,6 +145,25 @@ func (r *channelReactor) processPayloadDecryptLoop() {
 }
 
 func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
+	err := r.processGoPool.Submit(func() {
+		r.handlePayloadDecrypt(req)
+	})
+	if err != nil {
+		r.Error("processPayloadDecrypt failed, submit error", zap.Error(err))
+		actionType := ChannelActionPayloadDecryptResp
+		if req.isStream {
+			actionType = ChannelActionStreamPayloadDecryptResp
+		}
+		req.sub.step(req.ch, &ChannelAction{
+			Reason:     ReasonError,
+			UniqueNo:   req.ch.uniqueNo,
+			ActionType: actionType,
+			Messages:   req.messages,
+		})
+	}
+}
+
+func (r *channelReactor) handlePayloadDecrypt(req *payloadDecryptReq) {
 
 	for i, msg := range req.messages {
 
@@ -194,8 +210,7 @@ func (r *channelReactor) processPayloadDecrypt(req *payloadDecryptReq) {
 		actionType = ChannelActionStreamPayloadDecryptResp
 	}
 
-	sub := r.reactorSub(req.ch.key)
-	sub.step(req.ch, &ChannelAction{
+	req.sub.step(req.ch, &ChannelAction{
 		Reason:     ReasonSuccess,
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: actionType,
@@ -208,6 +223,7 @@ type payloadDecryptReq struct {
 	ch       *channel
 	messages []ReactorChannelMessage
 	isStream bool // 是流消息
+	sub      *channelReactorSub
 }
 
 // =================================== 转发 ===================================
@@ -217,8 +233,7 @@ func (r *channelReactor) addForwardReq(req *forwardReq) {
 	case r.processForwardC <- req:
 	default:
 		r.Warn("processForwardC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionForwardResp,
 			Reason:     ReasonError,
@@ -265,23 +280,21 @@ func (r *channelReactor) processForwardLoop() {
 
 func (r *channelReactor) processForwards(reqs []*forwardReq) {
 
-	if len(reqs) == 1 {
-		req := reqs[0]
-		r.processForward(req)
-		return
-	}
-
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	eg, _ := errgroup.WithContext(timeoutCtx)
+	var err error
 	for _, req := range reqs {
 		req := req
-		eg.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processForward(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processForward failed, submit error", zap.Error(err))
+			req.sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: ChannelActionForwardResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = eg.Wait()
 
 }
 
@@ -338,15 +351,13 @@ func (r *channelReactor) processForward(req *forwardReq) {
 			}
 		}
 		r.Info("leader change", zap.Uint64("newLeaderId", newLeaderId), zap.Uint64("oldLeaderId", req.leaderId), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionLeaderChange,
 			LeaderId:   newLeaderId,
 		})
 	}
-	sub := r.reactorSub(req.ch.key)
-	sub.step(req.ch, &ChannelAction{
+	req.sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionForwardResp,
 		Messages:   req.messages,
@@ -422,6 +433,7 @@ type forwardReq struct {
 	ch       *channel
 	leaderId uint64
 	messages []ReactorChannelMessage
+	sub      *channelReactorSub
 }
 
 // =================================== 发送权限判断 ===================================
@@ -430,8 +442,7 @@ func (r *channelReactor) addPermissionReq(req *permissionReq) {
 	case r.processPermissionC <- req:
 	default:
 		r.Warn("processPermissionC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionPermissionCheckResp,
 			Reason:     ReasonError,
@@ -465,32 +476,28 @@ func (r *channelReactor) processPermissionLoop() {
 }
 
 func (r *channelReactor) processPermissions(reqs []*permissionReq) {
-	if len(reqs) == 1 {
-		req := reqs[0]
-		r.processPermission(req)
-		return
-	}
 
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	eg, _ := errgroup.WithContext(timeoutCtx)
 	for _, req := range reqs {
 		req := req
-		eg.Go(func() error {
+		err := r.processGoPool.Submit(func() {
 			r.processPermission(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processPermission failed, submit error", zap.Error(err))
+			req.sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: ChannelActionPermissionCheckResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = eg.Wait()
 }
 
 func (r *channelReactor) processPermission(req *permissionReq) {
 
 	fromUidMap := map[string]wkproto.ReasonCode{}
 	// 权限判断
-	sub := r.reactorSub(req.ch.key)
 	for i, msg := range req.messages {
-
 		if msg.ReasonCode != wkproto.ReasonSuccess {
 			r.Debug("msg reasonCode is not success, no permission check", zap.Uint64("messageId", uint64(msg.MessageId)), zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			continue
@@ -517,7 +524,6 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 		}
 
 		if reasonCode != wkproto.ReasonSuccess {
-			fmt.Println("权限验证失败", reasonCode.String(), req.ch.channelId, req.ch.channelType, msg.FromUid)
 			r.MessageTrace("权限验证失败", msg.SendPacket.ClientMsgNo, "processPermission", zap.String("reasonCode", reasonCode.String()), zap.Error(errors.New("permission check failed")))
 		}
 
@@ -526,7 +532,7 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 	}
 	// 返回成功
 	lastMsg := req.messages[len(req.messages)-1]
-	sub.step(req.ch, &ChannelAction{
+	req.sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionPermissionCheckResp,
 		Index:      lastMsg.Index,
@@ -698,6 +704,7 @@ func (r *channelReactor) allowSend(from, to string) (wkproto.ReasonCode, error) 
 type permissionReq struct {
 	ch       *channel
 	messages []ReactorChannelMessage
+	sub      *channelReactorSub
 }
 
 // =================================== 消息存储 ===================================
@@ -708,8 +715,7 @@ func (r *channelReactor) addStorageReq(req *storageReq) {
 	case r.processStorageC <- req:
 	default:
 		r.Warn("addStorageReq channel reactor is full", zap.String("channelId", req.ch.channelId))
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionStorageResp,
 			Reason:     ReasonError,
@@ -758,19 +764,20 @@ func (r *channelReactor) processStorageLoop() {
 
 func (r *channelReactor) processStorages(reqs []*storageReq) {
 
-	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*10)
-	defer cancel()
-	errgroup, _ := errgroup.WithContext(timeoutCtx)
-	errgroup.SetLimit(1000)
 	for _, req := range reqs {
 		req := req
-		errgroup.Go(func() error {
+		err := r.processGoPool.Submit(func() {
 			r.processStorage(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processStorage failed, submit error", zap.Error(err))
+			req.sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: ChannelActionStorageResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = errgroup.Wait()
-
 }
 
 func (r *channelReactor) processStorage(req *storageReq) {
@@ -899,9 +906,8 @@ func (r *channelReactor) processStorage(req *storageReq) {
 }
 
 func (r *channelReactor) respStoreResult(req *storageReq, reason Reason) {
-	sub := r.reactorSub(req.ch.key)
 	lastIndex := req.messages[len(req.messages)-1].Index
-	sub.step(req.ch, &ChannelAction{
+	req.sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionStorageResp,
 		Index:      lastIndex,
@@ -913,6 +919,7 @@ func (r *channelReactor) respStoreResult(req *storageReq, reason Reason) {
 type storageReq struct {
 	ch       *channel
 	messages []ReactorChannelMessage
+	sub      *channelReactorSub
 }
 
 // =================================== 发送回执 ===================================
@@ -922,8 +929,7 @@ func (r *channelReactor) addSendackReq(req *sendackReq) {
 	case r.processSendackC <- req:
 	default:
 		r.Warn("processSendackC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: ChannelActionSendackResp,
 			Reason:     ReasonError,
@@ -959,19 +965,20 @@ func (r *channelReactor) processSendackLoop() {
 
 func (r *channelReactor) processSendacks(reqs []*sendackReq) {
 
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-
-	g, _ := errgroup.WithContext(timeoutCtx)
-
 	for _, req := range reqs {
 		req := req
-		g.Go(func() error {
+		err := r.processGoPool.Submit(func() {
 			r.processSendack(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processSendack failed, submit error", zap.Error(err))
+			req.sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: ChannelActionSendackResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = g.Wait()
 
 }
 
@@ -1017,8 +1024,7 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 	}
 
 	lastMsg := req.messages[len(req.messages)-1]
-	sub := r.reactorSub(req.ch.key)
-	sub.step(req.ch, &ChannelAction{
+	req.sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionSendackResp,
 		Index:      lastMsg.Index,
@@ -1054,6 +1060,7 @@ func (r *channelReactor) requestForwardSendack(nodeId uint64, packets []*Forward
 type sendackReq struct {
 	ch       *channel
 	messages []ReactorChannelMessage
+	sub      *channelReactorSub
 }
 
 // =================================== 消息投递 ===================================
@@ -1067,8 +1074,7 @@ func (r *channelReactor) addDeliverReq(req *deliverReq) {
 		if req.isStream {
 			actionType = ChannelActionStreamDeliverResp
 		}
-		sub := r.reactorSub(req.ch.key)
-		sub.step(req.ch, &ChannelAction{
+		req.sub.step(req.ch, &ChannelAction{
 			UniqueNo:   req.ch.uniqueNo,
 			ActionType: actionType,
 			Reason:     ReasonError,
@@ -1114,19 +1120,24 @@ func (r *channelReactor) processDeliverLoop() {
 
 func (r *channelReactor) processDelivers(reqs []*deliverReq) {
 
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-
-	g, _ := errgroup.WithContext(timeoutCtx)
-
 	for _, req := range reqs {
 		req := req
-		g.Go(func() error {
+		err := r.processGoPool.Submit(func() {
 			r.processDeliver(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processDeliver failed, submit error", zap.Error(err))
+			actionType := ChannelActionDeliverResp
+			if req.isStream {
+				actionType = ChannelActionStreamDeliverResp
+			}
+			req.sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: actionType,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = g.Wait()
 }
 
 func (r *channelReactor) processDeliver(req *deliverReq) {
@@ -1153,7 +1164,6 @@ func (r *channelReactor) processDeliver(req *deliverReq) {
 		r.handleDeliver(req)
 	}
 
-	sub := r.reactorSub(req.ch.key)
 	reason := ReasonSuccess
 
 	actionType := ChannelActionDeliverResp
@@ -1161,7 +1171,7 @@ func (r *channelReactor) processDeliver(req *deliverReq) {
 		actionType = ChannelActionStreamDeliverResp
 	}
 
-	sub.step(req.ch, &ChannelAction{
+	req.sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: actionType,
 		Index:      lastIndex,
@@ -1181,6 +1191,7 @@ type deliverReq struct {
 	tagKey      string
 	messages    []ReactorChannelMessage
 	isStream    bool
+	sub         *channelReactorSub
 }
 
 // =================================== 关闭请求 ===================================
@@ -1229,7 +1240,7 @@ func (r *channelReactor) addCheckTagReq(req *checkTagReq) {
 	select {
 	case r.processCheckTagC <- req:
 	default:
-		r.Warn("processCheckTagC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		r.Debug("processCheckTagC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 

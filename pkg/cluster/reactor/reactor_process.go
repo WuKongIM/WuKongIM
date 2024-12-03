@@ -3,7 +3,6 @@ package reactor
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 // =================================== handler初始化 ===================================
@@ -11,13 +10,19 @@ import (
 func (r *Reactor) addInitReq(req *initReq) {
 	select {
 	case r.processInitC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processInitC is full, ignore", zap.String("key", req.h.key))
+		req.sub.step(req.h.key, replica.Message{
+			MsgType: replica.MsgInitResp,
+			Reject:  true,
+		})
+
 	}
 }
 
 func (r *Reactor) processInitLoop() {
-	reqs := make([]*initReq, 0)
+	batchSize := 1024
+	reqs := make([]*initReq, 0, batchSize)
 	done := false
 	for {
 		select {
@@ -28,6 +33,9 @@ func (r *Reactor) processInitLoop() {
 				select {
 				case req := <-r.processInitC:
 					reqs = append(reqs, req)
+					if len(reqs) >= batchSize {
+						done = true
+					}
 				default:
 					done = true
 				}
@@ -43,18 +51,21 @@ func (r *Reactor) processInitLoop() {
 }
 
 func (r *Reactor) processInits(reqs []*initReq) {
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	g, _ := errgroup.WithContext(timeoutCtx)
 
+	var err error
 	for _, req := range reqs {
 		req := req
-		g.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processInit(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processInit failed,submit error", zap.Error(err))
+			req.sub.step(req.h.key, replica.Message{
+				MsgType: replica.MsgInitResp,
+				Reject:  true,
+			})
+		}
 	}
-	_ = g.Wait()
 }
 
 func (r *Reactor) processInit(req *initReq) {
@@ -64,7 +75,7 @@ func (r *Reactor) processInit(req *initReq) {
 	})
 	if err != nil {
 		r.Error("get config failed", zap.Error(err))
-		r.Step(req.h.key, replica.Message{
+		req.sub.step(req.h.key, replica.Message{
 			MsgType: replica.MsgInitResp,
 			Reject:  true,
 		})
@@ -73,7 +84,7 @@ func (r *Reactor) processInit(req *initReq) {
 	if IsEmptyConfigResp(configResp) {
 		r.Debug("config is empty")
 		// 如果配置为空，也算初始化成功，但是不更新配置
-		r.Step(req.h.key, replica.Message{
+		req.sub.step(req.h.key, replica.Message{
 			MsgType: replica.MsgInitResp,
 		})
 		return
@@ -81,7 +92,7 @@ func (r *Reactor) processInit(req *initReq) {
 	lastTerm, err := req.h.handler.LeaderLastTerm()
 	if err != nil {
 		r.Error("get leader last term failed", zap.Error(err))
-		r.Step(req.h.key, replica.Message{
+		req.sub.step(req.h.key, replica.Message{
 			MsgType: replica.MsgInitResp,
 			Reject:  true,
 		})
@@ -90,14 +101,15 @@ func (r *Reactor) processInit(req *initReq) {
 
 	req.h.setLastLeaderTerm(lastTerm) // 设置领导的最新任期
 
-	r.Step(configResp.HandlerKey, replica.Message{
+	req.sub.step(configResp.HandlerKey, replica.Message{
 		MsgType: replica.MsgInitResp,
 		Config:  configResp.Config,
 	})
 }
 
 type initReq struct {
-	h *handler
+	h   *handler
+	sub *ReactorSub
 }
 
 // =================================== 日志冲突检查 ===================================
@@ -105,13 +117,19 @@ type initReq struct {
 func (r *Reactor) addConflictCheckReq(req *conflictCheckReq) {
 	select {
 	case r.processConflictCheckC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processConflictCheckC is full, ignore", zap.String("key", req.h.key))
+		req.sub.step(req.h.key, replica.Message{
+			MsgType: replica.MsgLogConflictCheckResp,
+			Reject:  true,
+		})
+
 	}
 }
 
 func (r *Reactor) processConflictCheckLoop() {
-	reqs := make([]*conflictCheckReq, 0)
+	batchSize := 1024
+	reqs := make([]*conflictCheckReq, 0, batchSize)
 	done := false
 	for {
 		select {
@@ -121,6 +139,9 @@ func (r *Reactor) processConflictCheckLoop() {
 				select {
 				case req := <-r.processConflictCheckC:
 					reqs = append(reqs, req)
+					if len(reqs) >= batchSize {
+						done = true
+					}
 				default:
 					done = true
 				}
@@ -135,24 +156,28 @@ func (r *Reactor) processConflictCheckLoop() {
 }
 
 func (r *Reactor) processConflictChecks(reqs []*conflictCheckReq) {
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	errgroup, _ := errgroup.WithContext(timeoutCtx)
+
+	var err error
 	for _, req := range reqs {
 		req := req
-		errgroup.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processConflictCheck(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processConflictChecks failed, submit error", zap.Error(err))
+			req.sub.step(req.h.key, replica.Message{
+				MsgType: replica.MsgLogConflictCheckResp,
+				Reject:  true,
+			})
+		}
 	}
-	_ = errgroup.Wait()
 }
 
 func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 
 	if req.leaderLastTerm == 0 { // 本地没有任期，说明本地还没有日志
 		r.Debug("local has no log,no conflict", zap.String("handlerKey", req.h.key))
-		r.Step(req.h.key, replica.Message{
+		req.sub.step(req.h.key, replica.Message{
 			MsgType: replica.MsgLogConflictCheckResp,
 			Index:   replica.NoConflict,
 		})
@@ -167,7 +192,7 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 	})
 	if err != nil {
 		r.Error("get leader term start index failed", zap.Error(err), zap.String("key", req.h.key), zap.Uint64("leaderId", req.leaderId), zap.Uint32("leaderLastTerm", req.leaderLastTerm))
-		r.Step(req.h.key, replica.Message{
+		req.sub.step(req.h.key, replica.Message{
 			MsgType: replica.MsgLogConflictCheckResp,
 			Reject:  true,
 		})
@@ -181,7 +206,7 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 		index, err = r.handleLeaderTermStartIndexResp(req.h, index, req.leaderLastTerm)
 		if err != nil {
 			r.Error("handle leader term start index failed", zap.Error(err))
-			r.Step(req.h.key, replica.Message{
+			req.sub.step(req.h.key, replica.Message{
 				MsgType: replica.MsgLogConflictCheckResp,
 				Reject:  true,
 			})
@@ -191,34 +216,10 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 
 	r.Debug("get leader term start index", zap.Uint32("leaderLastTerm", req.leaderLastTerm), zap.Uint64("index", index), zap.String("handlerKey", req.h.key))
 
-	r.Step(req.h.key, replica.Message{
+	req.sub.step(req.h.key, replica.Message{
 		MsgType: replica.MsgLogConflictCheckResp,
 		Index:   index,
 	})
-
-	// handlerKeys := make([]string, 0)
-	// for _, req := range reqs {
-	// 	handlerKeys = append(handlerKeys, req.h.key)
-	// }
-	// resps, err := r.request.GetLeaderTermStartIndex(handlerKeys)
-	// if err != nil {
-	// 	r.Error("get leader term start index failed", zap.Error(err))
-	// 	for _, handlerKey := range handlerKeys {
-	// 		r.Step(handlerKey, replica.Message{
-	// 			MsgType: replica.MsgLogConflictCheckResp,
-	// 			Reject:  true,
-	// 		})
-	// 	}
-	// 	return
-	// }
-
-	// for _, resp := range resps {
-	// 	r.Step(resp.HandlerKey, replica.Message{
-	// 		MsgType: replica.MsgLogConflictCheckResp,
-	// 		Index:   resp.Index,
-	// 	})
-
-	// }
 }
 
 // Follower检查本地的LeaderTermSequence
@@ -280,6 +281,7 @@ type conflictCheckReq struct {
 	h              *handler
 	leaderId       uint64
 	leaderLastTerm uint32
+	sub            *ReactorSub
 }
 
 // =================================== 追加日志 ===================================
@@ -288,8 +290,12 @@ func (r *Reactor) addStoreAppendReq(req AppendLogReq) {
 
 	select {
 	case r.processStoreAppendC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processStoreAppendC is full, ingore", zap.String("key", req.HandleKey))
+		req.sub.step(req.HandleKey, replica.Message{
+			MsgType: replica.MsgStoreAppendResp,
+			Reject:  true,
+		})
 	}
 }
 
@@ -330,25 +336,28 @@ func (r *Reactor) processStoreAppendLoop() {
 }
 
 func (r *Reactor) processStoreAppends(reqs []AppendLogReq) {
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	errgroup, _ := errgroup.WithContext(timeoutCtx)
-	errgroup.SetLimit(1000)
+
+	var err error
 	for _, req := range reqs {
 		req := req
-		errgroup.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processStoreAppend(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processStoreAppend failed, submit error")
+			req.sub.step(req.HandleKey, replica.Message{
+				MsgType: replica.MsgStoreAppendResp,
+				Reject:  true,
+			})
+		}
 	}
-	_ = errgroup.Wait()
 }
 
 func (r *Reactor) processStoreAppend(req AppendLogReq) {
 	err := r.request.Append(req)
 	if err != nil {
 		r.Error("append logs failed", zap.Error(err))
-		r.Step(req.HandleKey, replica.Message{
+		req.sub.step(req.HandleKey, replica.Message{
 			MsgType: replica.MsgStoreAppendResp,
 			Reject:  true,
 		})
@@ -365,7 +374,7 @@ func (r *Reactor) processStoreAppend(req AppendLogReq) {
 		}
 	}
 	lastLog := req.Logs[len(req.Logs)-1]
-	r.Step(req.HandleKey, replica.Message{
+	req.sub.step(req.HandleKey, replica.Message{
 		MsgType: replica.MsgStoreAppendResp,
 		Index:   lastLog.Index,
 	})
@@ -376,8 +385,12 @@ func (r *Reactor) processStoreAppend(req AppendLogReq) {
 func (r *Reactor) addGetLogReq(req *getLogReq) {
 	select {
 	case r.processGetLogC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processGetLogC is full, ignore", zap.String("key", req.h.key))
+		req.sub.step(req.h.key, replica.Message{
+			MsgType: replica.MsgSyncGetResp,
+			Reject:  true,
+		})
 	}
 }
 
@@ -393,6 +406,19 @@ func (r *Reactor) processGetLogLoop() {
 }
 
 func (r *Reactor) processGetLog(req *getLogReq) {
+	err := r.processGoPool.Submit(func() {
+		r.handleGetLog(req)
+	})
+	if err != nil {
+		r.Error("processGetLog failed,submit error", zap.Error(err))
+		req.sub.step(req.h.key, replica.Message{
+			MsgType: replica.MsgSyncGetResp,
+			Reject:  true,
+		})
+	}
+}
+
+func (r *Reactor) handleGetLog(req *getLogReq) {
 
 	logs, err := r.getAndMergeLogs(req)
 	if err != nil {
@@ -408,7 +434,7 @@ func (r *Reactor) processGetLog(req *getLogReq) {
 		r.Panic("get logs failed", zap.Uint64("startIndex", req.startIndex), zap.Uint64("lastIndex", req.lastIndex), zap.Uint64("msgIndex", logs[0].Index))
 	}
 
-	r.Step(req.h.key, replica.Message{
+	req.sub.step(req.h.key, replica.Message{
 		MsgType: replica.MsgSyncGetResp,
 		Logs:    logs,
 		To:      req.to,
@@ -459,6 +485,7 @@ type getLogReq struct {
 	lastIndex  uint64
 	logs       []replica.Log
 	to         uint64
+	sub        *ReactorSub
 }
 
 func extend(dst, vals []replica.Log) []replica.Log {
@@ -477,8 +504,13 @@ func extend(dst, vals []replica.Log) []replica.Log {
 func (r *Reactor) addApplyLogReq(req *applyLogReq) {
 	select {
 	case r.processApplyLogC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processApplyLogC is full,ignore")
+		req.sub.step(req.h.key, replica.Message{
+			MsgType: replica.MsgApplyLogsResp,
+			Reject:  true,
+		})
+
 	}
 }
 
@@ -524,18 +556,22 @@ func (r *Reactor) processApplyLogLoop() {
 }
 
 func (r *Reactor) processApplyLogs(reqs []*applyLogReq) {
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	errgroup, _ := errgroup.WithContext(timeoutCtx)
-	errgroup.SetLimit(1000)
+
+	var err error
 	for _, req := range reqs {
 		req := req
-		errgroup.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processApplyLog(req)
-			return nil
 		})
+		if err != nil {
+			r.Error("processApplyLogs failed, submit error", zap.Error(err))
+			req.sub.step(req.h.key, replica.Message{
+				MsgType: replica.MsgApplyLogsResp,
+				Reject:  true,
+			})
+		}
 	}
-	_ = errgroup.Wait()
+
 }
 
 func (r *Reactor) processApplyLog(req *applyLogReq) {
@@ -548,13 +584,10 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 	appliedSize, err := req.h.handler.ApplyLogs(req.appyingIndex+1, req.committedIndex+1)
 	if err != nil {
 		r.Panic("apply logs failed", zap.Error(err))
-		err = r.StepWait(req.h.key, replica.Message{
+		req.sub.step(req.h.key, replica.Message{
 			MsgType: replica.MsgApplyLogsResp,
 			Reject:  true,
 		})
-		if err != nil {
-			r.Error("apply logs failed", zap.Error(err))
-		}
 		return
 	}
 
@@ -563,21 +596,18 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
 	}
 
-	err = r.StepWait(req.h.key, replica.Message{
+	req.sub.step(req.h.key, replica.Message{
 		MsgType:     replica.MsgApplyLogsResp,
 		Index:       req.committedIndex,
 		AppliedSize: appliedSize,
 	})
-	if err != nil {
-		r.Error("apply logs failed", zap.Error(err))
-	}
-
 }
 
 type applyLogReq struct {
 	h              *handler
 	appyingIndex   uint64
 	committedIndex uint64
+	sub            *ReactorSub
 }
 
 // =================================== 学习者转追随者 ===================================
@@ -585,8 +615,8 @@ type applyLogReq struct {
 func (r *Reactor) addLearnerToFollowerReq(req *learnerToFollowerReq) {
 	select {
 	case r.processLearnerToFollowerC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processLearnerToFollowerC is full, ignore")
 	}
 }
 
@@ -602,6 +632,15 @@ func (r *Reactor) processLearnerToFollowerLoop() {
 }
 
 func (r *Reactor) processLearnerToFollower(req *learnerToFollowerReq) {
+	err := r.processGoPool.Submit(func() {
+		r.handleLearnerToFollower(req)
+	})
+	if err != nil {
+		r.Error("processLearnerToFollower failed", zap.Error(err), zap.String("key", req.h.key))
+	}
+}
+
+func (r *Reactor) handleLearnerToFollower(req *learnerToFollowerReq) {
 	err := req.h.learnerToFollower(req.learnerId)
 	if err != nil {
 		r.Error("learner to follower failed", zap.Error(err))
@@ -618,8 +657,8 @@ type learnerToFollowerReq struct {
 func (r *Reactor) addLearnerToLeaderReq(req *learnerToLeaderReq) {
 	select {
 	case r.processLearnerToLeaderC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processLearnerToLeaderC is full, ignore")
 	}
 }
 
@@ -635,6 +674,15 @@ func (r *Reactor) processLearnerToLeaderLoop() {
 }
 
 func (r *Reactor) processLearnerToLeader(req *learnerToLeaderReq) {
+	err := r.processGoPool.Submit(func() {
+		r.handleLearnerToLeader(req)
+	})
+	if err != nil {
+		r.Error("processLearnerToLeader failed, submit error")
+	}
+}
+
+func (r *Reactor) handleLearnerToLeader(req *learnerToLeaderReq) {
 	err := req.h.learnerToLeader(req.learnerId)
 	if err != nil {
 		r.Error("learner to leader failed", zap.Error(err))
@@ -651,8 +699,8 @@ type learnerToLeaderReq struct {
 func (r *Reactor) addFollowerToLeaderReq(req *followerToLeaderReq) {
 	select {
 	case r.processFollowerToLeaderC <- req:
-	case <-r.stopper.ShouldStop():
-		return
+	default:
+		r.Warn("processFollowerToLeaderC is full, ignore")
 	}
 }
 
@@ -668,6 +716,15 @@ func (r *Reactor) processFollowerToLeaderLoop() {
 }
 
 func (r *Reactor) processFollowerToLeader(req *followerToLeaderReq) {
+	err := r.processGoPool.Submit(func() {
+		r.handleFollowerToLeader(req)
+	})
+	if err != nil {
+		r.Error("processFollowerToLeader failed", zap.Error(err), zap.String("key", req.h.key))
+	}
+}
+
+func (r *Reactor) handleFollowerToLeader(req *followerToLeaderReq) {
 	err := req.h.followerToLeader(req.followerId)
 	if err != nil {
 		r.Error("follower to leader failed", zap.Error(err))

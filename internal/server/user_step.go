@@ -19,7 +19,7 @@ func (u *userHandler) step(a UserAction) error {
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
-			u.initTick = u.opts.Reactor.User.ProcessIntervalTick // 立即处理下个逻辑
+			u.initState.processing = false
 			u.status = userStatusInitialized
 			u.leaderId = a.LeaderId
 			if a.LeaderId == u.sub.r.s.opts.Cluster.NodeId {
@@ -28,7 +28,7 @@ func (u *userHandler) step(a UserAction) error {
 				u.becomeProxy(a.LeaderId)
 			}
 		} else {
-			u.status = userStatusUninitialized
+			u.initState.willRetry = true
 		}
 	case UserActionLeaderChange:
 		u.leaderId = a.LeaderId

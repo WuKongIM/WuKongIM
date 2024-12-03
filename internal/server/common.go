@@ -276,7 +276,6 @@ type channelStatus int
 
 const (
 	channelStatusUninitialized channelStatus = iota // 未初始化
-	channelStatusInitializing                       // 初始化中
 	channelStatusInitialized                        // 初始化完成
 )
 
@@ -285,7 +284,6 @@ type userStatus int
 
 const (
 	userStatusUninitialized userStatus = iota // 未初始化
-	userStatusInitializing                    // 初始化中
 	userStatusInitialized                     // 初始化完成
 )
 

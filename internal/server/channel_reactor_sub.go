@@ -136,23 +136,27 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 		switch action.ActionType {
 		case ChannelActionInit: // 初始化
 			r.r.addInitReq(&initReq{
-				ch: ch,
+				ch:  ch,
+				sub: r,
 			})
 		case ChannelActionPayloadDecrypt, ChannelActionStreamPayloadDecrypt: // 消息解密
 			r.r.addPayloadDecryptReq(&payloadDecryptReq{
 				ch:       ch,
 				messages: action.Messages,
 				isStream: action.ActionType == ChannelActionStreamPayloadDecrypt,
+				sub:      r,
 			})
 		case ChannelActionPermissionCheck: // 权限校验
 			r.r.addPermissionReq(&permissionReq{
 				ch:       ch,
 				messages: action.Messages,
+				sub:      r,
 			})
 		case ChannelActionStorage: // 消息存储
 			r.r.addStorageReq(&storageReq{
 				ch:       ch,
 				messages: action.Messages,
+				sub:      r,
 			})
 		case ChannelActionDeliver, ChannelActionStreamDeliver: // 消息投递
 			r.r.addDeliverReq(&deliverReq{
@@ -162,17 +166,20 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 				tagKey:      ch.receiverTagKey.Load(),
 				messages:    action.Messages,
 				isStream:    action.ActionType == ChannelActionStreamDeliver,
+				sub:         r,
 			})
 		case ChannelActionSendack: // 发送回执
 			r.r.addSendackReq(&sendackReq{
 				ch:       ch,
 				messages: action.Messages,
+				sub:      r,
 			})
 		case ChannelActionForward: // 转发消息
 			r.r.addForwardReq(&forwardReq{
 				ch:       ch,
 				messages: action.Messages,
 				leaderId: action.LeaderId,
+				sub:      r,
 			})
 		case ChannelActionClose:
 			r.r.addCloseReq(&closeReq{

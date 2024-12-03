@@ -519,8 +519,7 @@ func (c *Config) String() string {
 type Status int
 
 const (
-	StatusUninitialized   Status = iota // 未初始化
-	StatusIniting                       // 初始化中
+	StatusUnready         Status = iota // 未准备
 	StatusLogCoflictCheck               // 日志冲突检查
 	StatusReady                         // 准备就绪
 
@@ -585,4 +584,10 @@ var (
 type SyncInfo struct {
 	LastSyncIndex uint64 //最后一次来同步日志的下标（最新日志 + 1）
 	SyncTick      int    // 同步计时器
+}
+
+type readyState struct {
+	processing bool // 处理中
+	willRetry  bool // 将要重试
+	retryTick  int  // 重试计时，超过一定tick数后，将会重试
 }

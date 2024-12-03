@@ -228,11 +228,7 @@ func (s *Server) handleUserAction(c *wkserver.Context) {
 	sub := s.userReactor.reactorSub(uid)
 	for _, action := range actions {
 		action.UniqueNo = ""
-		userHandler := s.userReactor.getUserHandler(action.Uid)
-		if userHandler == nil {
-			uh := newUserHandler(uid, sub)
-			sub.addUserHandlerIfNotExist(uh)
-		}
+		sub.addOrCreateUserHandlerIfNotExist(uid)
 		sub.step(action.Uid, action)
 	}
 	c.WriteOk()
@@ -389,6 +385,11 @@ func (s *Server) handleNodePing(fromNodeId uint64, msg *proto.Message) {
 		s.Error("handleNodePing Unmarshal err", zap.Error(err))
 		return
 	}
+
+	// fmt.Println("handleNodePing---->", req.leaderId)
+	// for _, ping := range req.pings {
+	// 	fmt.Println("ping------->", ping.uid, ping.connIds)
+	// }
 
 	// 踢掉不存在的连接
 	for _, ping := range req.pings {

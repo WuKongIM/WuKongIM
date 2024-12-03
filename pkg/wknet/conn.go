@@ -139,7 +139,8 @@ type DefaultConn struct {
 
 	uptime       atomic.Time
 	lastActivity atomic.Time
-	maxIdle      atomic.Duration
+	maxIdle      time.Duration
+	maxIdleLock  sync.RWMutex
 
 	idleTimer *timingwheel.Timer
 
@@ -161,6 +162,7 @@ func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *
 	defaultConn.valueMap = sync.Map{}
 	defaultConn.context = atomic.Value{}
 	defaultConn.lastActivity.Store(time.Now())
+	defaultConn.maxIdle = 0
 	defaultConn.uptime.Store(time.Now())
 	defaultConn.Log = wklog.NewWKLog(fmt.Sprintf("Conn[[reactor-%d]%d]", reactorSub.idx, id))
 
@@ -299,7 +301,7 @@ func (d *DefaultConn) close(closeErr error) error {
 	}
 	d.closed.Store(true)
 
-	if closeErr == nil || !errors.Is(closeErr, syscall.ECONNRESET) { // ECONNRESET表示fd已经关闭，不需要再次关闭
+	if closeErr != nil && !errors.Is(closeErr, syscall.ECONNRESET) { // closeErr有值，说明来自系统底层的错误，如果closeErr=nil目前了解的是不需要DeleteFd，ECONNRESET表示fd已经关闭，不需要再次关闭
 		err := d.reactorSub.DeleteFd(d) // 先删除fd
 		if err != nil {
 			d.Debug("delete fd from poller error", zap.Error(err), zap.Int("fd", d.Fd().fd), zap.String("uid", d.uid.Load()))
@@ -357,7 +359,7 @@ func (d *DefaultConn) release() {
 
 	d.Debug("release connection")
 	d.fd = NetFd{}
-	d.maxIdle.Store(0)
+	d.maxIdle = 0
 	if d.idleTimer != nil {
 		d.idleTimer.Stop()
 		d.idleTimer = nil
@@ -454,25 +456,34 @@ func (d *DefaultConn) Uptime() time.Time {
 }
 
 func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
+
+	d.maxIdleLock.Lock()
+	defer d.maxIdleLock.Unlock()
+
 	if d.closed.Load() {
 		d.Debug("connection is closed, setMaxIdle failed")
 		return
 	}
 
-	d.maxIdle.Store(maxIdle)
+	d.maxIdle = maxIdle
 
 	if d.idleTimer != nil {
 		d.idleTimer.Stop()
+		d.idleTimer = nil
 	}
 
 	if maxIdle > 0 {
 		d.idleTimer = d.eg.Schedule(maxIdle/2, func() {
+			d.maxIdleLock.Lock()
+			defer d.maxIdleLock.Unlock()
+
 			if d.lastActivity.Load().Add(maxIdle).After(time.Now()) {
 				return
 			}
 			d.Debug("max idle time exceeded, close the connection", zap.Duration("maxIdle", maxIdle), zap.Duration("lastActivity", time.Since(d.lastActivity.Load())), zap.String("conn", d.String()))
 			if d.idleTimer != nil {
 				d.idleTimer.Stop()
+				d.idleTimer = nil
 			}
 			if d.closed.Load() {
 				return

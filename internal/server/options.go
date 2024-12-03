@@ -158,10 +158,6 @@ type Options struct {
 	WhitelistOffOfPerson bool // 是否关闭个人白名单验证
 	DeliveryMsgPoolSize  int  // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
 
-	Process struct {
-		AuthPoolSize int // 鉴权协程池大小
-	}
-
 	MessageRetry struct {
 		Interval     time.Duration // 消息重试间隔，如果消息发送后在此间隔内没有收到ack，将会在此间隔后重新发送
 		MaxCount     int           // 消息最大重试次数
@@ -203,6 +199,7 @@ type Options struct {
 		Channel struct {
 			SubCount             int           // channel reactor sub 的数量
 			ProcessIntervalTick  int           // 处理频道逻辑的间隔tick,如果大于此tick数则重置请求
+			ProcessPoolSize      int           // 处理频道逻辑的协程池大小
 			DeadlineTick         int           // 死亡的tick次数，超过此次数如果没有收到发送消息的请求，则会将此频道移除活跃状态
 			TagCheckIntervalTick int           // tag检查间隔tick
 			TickInterval         time.Duration // tick间隔
@@ -211,8 +208,9 @@ type Options struct {
 		User struct {
 			SubCount                int           // user reactor sub 的数量
 			ProcessIntervalTick     int           // 处理用户逻辑的间隔tick
+			ProcessPoolSize         int           // 处理用户逻辑的协程池大小
 			NodePingTick            int           // 用户节点tick间隔
-			NodePongTimeoutTick     int           // 用户节点pong超时tick,这个值必须要比UserNodePingTick大，一般建议是UserNodePingTick的2倍
+			NodePongTimeoutTick     int           // 用户节点pong超时tick,这个值必须要比User.NodePingTick大，一般建议是User.NodePingTick的2倍
 			CheckLeaderIntervalTick int           // 校验用户leader间隔tick，（隔多久验证一下当前领导是否是正确的领导）
 			TickInterval            time.Duration // tick间隔
 		}
@@ -447,6 +445,7 @@ func NewOptions(op ...Option) *Options {
 			Channel struct {
 				SubCount             int
 				ProcessIntervalTick  int
+				ProcessPoolSize      int
 				DeadlineTick         int
 				TagCheckIntervalTick int
 				TickInterval         time.Duration
@@ -454,6 +453,7 @@ func NewOptions(op ...Option) *Options {
 			User struct {
 				SubCount                int
 				ProcessIntervalTick     int
+				ProcessPoolSize         int
 				NodePingTick            int
 				NodePongTimeoutTick     int
 				CheckLeaderIntervalTick int
@@ -470,12 +470,14 @@ func NewOptions(op ...Option) *Options {
 			Channel: struct {
 				SubCount             int
 				ProcessIntervalTick  int
+				ProcessPoolSize      int
 				DeadlineTick         int
 				TagCheckIntervalTick int
 				TickInterval         time.Duration
 			}{
 				SubCount:             64,
 				ProcessIntervalTick:  50,
+				ProcessPoolSize:      4096,
 				DeadlineTick:         1200,
 				TagCheckIntervalTick: 20,
 				TickInterval:         time.Millisecond * 200,
@@ -483,6 +485,7 @@ func NewOptions(op ...Option) *Options {
 			User: struct {
 				SubCount                int
 				ProcessIntervalTick     int
+				ProcessPoolSize         int
 				NodePingTick            int
 				NodePongTimeoutTick     int
 				CheckLeaderIntervalTick int
@@ -490,6 +493,7 @@ func NewOptions(op ...Option) *Options {
 			}{
 				SubCount:                64,
 				ProcessIntervalTick:     50,
+				ProcessPoolSize:         4096,
 				NodePingTick:            100,
 				NodePongTimeoutTick:     100 * 5,
 				CheckLeaderIntervalTick: 20,
@@ -506,11 +510,6 @@ func NewOptions(op ...Option) *Options {
 				ProcessIntervalTick: 50,
 				IdleTimeoutTick:     10,
 			},
-		},
-		Process: struct {
-			AuthPoolSize int
-		}{
-			AuthPoolSize: 100,
 		},
 		Deliver: struct {
 			DeliverrCount         int
@@ -794,6 +793,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Reactor.Channel.SubCount = o.getInt("reactor.channel.subCount", o.Reactor.Channel.SubCount)
 	o.Reactor.Channel.DeadlineTick = o.getInt("reactor.channel.deadlineTick", o.Reactor.Channel.DeadlineTick)
 	o.Reactor.Channel.ProcessIntervalTick = o.getInt("reactor.channel.processIntervalTick", o.Reactor.Channel.ProcessIntervalTick)
+	o.Reactor.Channel.ProcessPoolSize = o.getInt("reactor.channel.processPoolSize", o.Reactor.Channel.ProcessPoolSize)
 	o.Reactor.Channel.DeadlineTick = o.getInt("reactor.channel.deadlineTick", o.Reactor.Channel.DeadlineTick)
 	o.Reactor.Channel.TagCheckIntervalTick = o.getInt("reactor.channel.tagCheckIntervalTick", o.Reactor.Channel.TagCheckIntervalTick)
 	o.Reactor.Channel.TickInterval = o.getDuration("reactor.channel.tickInterval", o.Reactor.Channel.TickInterval)
@@ -801,6 +801,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	// user
 	o.Reactor.User.SubCount = o.getInt("reactor.user.subCount", o.Reactor.User.SubCount)
 	o.Reactor.User.ProcessIntervalTick = o.getInt("reactor.user.processIntervalTick", o.Reactor.User.ProcessIntervalTick)
+	o.Reactor.User.ProcessPoolSize = o.getInt("reactor.user.processPoolSize", o.Reactor.User.ProcessPoolSize)
 	o.Reactor.User.NodePingTick = o.getInt("reactor.user.nodePingTick", o.Reactor.User.NodePingTick)
 	o.Reactor.User.NodePongTimeoutTick = o.getInt("reactor.user.nodePongTimeoutTick", o.Reactor.User.NodePongTimeoutTick)
 	o.Reactor.User.CheckLeaderIntervalTick = o.getInt("reactor.checkUserLeaderIntervalTick", o.Reactor.User.CheckLeaderIntervalTick)
@@ -1684,12 +1685,6 @@ func WithReactorUserNodePingTick(userNodePingTick int) Option {
 func WithReactorUserNodePongTimeoutTick(userNodePongTimeoutTick int) Option {
 	return func(opts *Options) {
 		opts.Reactor.User.NodePongTimeoutTick = userNodePongTimeoutTick
-	}
-}
-
-func WithProcessAuthPoolSize(authPoolSize int) Option {
-	return func(opts *Options) {
-		opts.Process.AuthPoolSize = authPoolSize
 	}
 }
 
