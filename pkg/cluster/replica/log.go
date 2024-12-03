@@ -23,8 +23,6 @@ type replicaLog struct {
 
 	appliedIndex uint64 // 已应用的日志下标
 
-	storaging bool // 是否正在追加日志
-	applying  bool // 是否正在应用日志
 }
 
 func newReplicaLog(opts *Options) *replicaLog {
@@ -78,23 +76,9 @@ func (r *replicaLog) appendLog(logs ...Log) {
 
 }
 
-func (r *replicaLog) storagingTo(index uint64) {
-	r.storagingIndex = index
-	r.storaging = true
-}
-
 func (r *replicaLog) storagedTo(index uint64) {
 	r.storagedIndex = index
 	r.storagingIndex = index
-	r.storaging = false
-}
-
-// 是否有需要存储的日志
-func (r *replicaLog) hasStorage() bool {
-	if r.storaging {
-		return false
-	}
-	return r.storagingIndex < r.lastLogIndex
 }
 
 // 需要存储的日志
@@ -106,34 +90,9 @@ func (r *replicaLog) nextStorageLogs() []Log {
 	return r.unstable.slice(r.storagingIndex+1, r.lastLogIndex+1)
 }
 
-// 是否有需要应用的日志
-func (r *replicaLog) hasApply() bool {
-	if r.applying {
-		return false
-	}
-	i := min(r.storagedIndex, r.committedIndex)
-	return r.applyingIndex < i
-}
-
-func (r *replicaLog) committedTo(index uint64) {
-	if index < r.committedIndex {
-		r.Panic("commit index less than committed index", zap.Uint64("commitIndex", index), zap.Uint64("committedIndex", r.committedIndex))
-	}
-	r.committedIndex = index
-}
-
-func (r *replicaLog) applyingTo(index uint64) {
-	if index < r.applyingIndex {
-		r.Panic("apply index less than applying index", zap.Uint64("applyIndex", index), zap.Uint64("applyingIndex", r.applyingIndex))
-	}
-	r.applyingIndex = index
-	r.applying = true
-}
-
 func (r *replicaLog) appliedTo(i uint64) {
 	r.appliedIndex = i
 	r.applyingIndex = i
-	r.applying = false
 	r.unstable.appliedTo(i)
 }
 

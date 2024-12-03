@@ -10,6 +10,8 @@ type Options struct {
 	ShardNum     int               // 数据库分区数量，一但设置就不能修改
 	IsCmdChannel func(string) bool // 是否是cmd频道
 	MemTableSize int
+
+	BatchPerSize int // 每个batch里key的大小
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -20,6 +22,7 @@ func NewOptions(opt ...Option) *Options {
 		EnableCost:        true,
 		ShardNum:          8,
 		MemTableSize:      16 * 1024 * 1024,
+		BatchPerSize:      10240,
 	}
 	for _, f := range opt {
 		f(o)

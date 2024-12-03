@@ -19,10 +19,8 @@ type Replica struct {
 	speedLevel SpeedLevel  // 当前速度等级
 	opts       *Options
 
-	lastSyncInfoMap  map[uint64]*SyncInfo // 副本最后一次同步信息
-	preHardState     HardState            // 上一个硬状态
-	syncTick         int                  // 同步计时器
-	syncIntervalTick int                  // 同步间隔tick
+	lastSyncInfoMap map[uint64]*SyncInfo // 副本最后一次同步信息
+	preHardState    HardState            // 上一个硬状态
 
 	uncommittedSize logEncodingSize // 未提交的日志大小
 
@@ -37,10 +35,6 @@ type Replica struct {
 	status Status // 副本状态
 	term   uint32 // 当前任期
 
-	syncing bool // 日志同步中
-
-	logConflictCheckTick int // 日志冲突检查技术
-
 	// -------------------- election --------------------
 	electionElapsed           int // 选举计时器
 	heartbeatElapsed          int
@@ -49,6 +43,15 @@ type Replica struct {
 	voteFor                   uint64          // 投票给谁
 	votes                     map[uint64]bool // 投票记录
 
+	// -------------------- state --------------------
+	initState         readyState // 初始化
+	coflictCheckState readyState // 日志冲突检查
+	syncState         readyState // 同步
+	storageState      readyState // 存储
+	applyState        readyState // 应用
+	syncIdleTick      int        // 同步空闲时间
+	syncIntervalTick  int        // 同步间隔tick数
+	syncTick          int        // 同步间隔tick数计时器
 }
 
 func New(nodeId uint64, optList ...Option) *Replica {
@@ -62,7 +65,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 	}
 	rc := &Replica{
 		replicaLog:      newReplicaLog(opts),
-		status:          StatusUninitialized,
+		status:          StatusUnready,
 		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeId, opts.LogPrefix)),
 		opts:            opts,
 		nodeId:          nodeId,
@@ -70,7 +73,7 @@ func New(nodeId uint64, optList ...Option) *Replica {
 		no:              wkutil.GenUUID(),
 	}
 	rc.syncIntervalTick = opts.SyncIntervalTick
-	rc.logConflictCheckTick = opts.RequestTimeoutTick
+	rc.syncTick = opts.SyncIntervalTick
 	rc.term = opts.LastTerm
 	return rc
 }
@@ -83,35 +86,42 @@ func (r *Replica) Propose(data []byte) error {
 func (r *Replica) HasReady() bool {
 
 	isFollower := r.role == RoleFollower || r.role == RoleLearner
-	if r.status != StatusReady {
-		if r.status == StatusUninitialized {
-			return true
-		}
-		if r.status == StatusLogCoflictCheck && isFollower {
-			return r.leader != 0 && r.logConflictCheckTick >= r.opts.RequestTimeoutTick
-		}
-		return false
 
+	// 是否未准备
+	if r.isUnready() {
+
+		return !r.initState.processing
 	}
 
-	if isFollower && r.leader != 0 {
-		if r.syncTick >= r.syncIntervalTick && !r.syncing {
-			return true
+	// 是否需要检查日志冲突
+	if r.isLogConflictCheck() {
+		if r.coflictCheckState.processing {
+			return false
 		}
+		return r.leader != 0 && isFollower
 	}
 
-	if r.replicaLog.hasStorage() {
+	// 是否需要同步
+	if isFollower && r.hasSync() {
 		return true
 	}
 
-	if r.replicaLog.hasApply() {
+	// 是否有存储
+	if r.hasStorage() {
 		return true
 	}
 
-	if len(r.msgs) > 0 {
+	// 是否有应用
+	if r.hasApply() {
 		return true
 	}
 
+	// 是否有消息
+	if r.hasMsg() {
+		return true
+	}
+
+	// 是否有硬状态改变
 	if r.hardStateChange() {
 		return true
 	}
@@ -119,20 +129,63 @@ func (r *Replica) HasReady() bool {
 	return false
 }
 
+// 服务是否未准备
+func (r *Replica) isUnready() bool {
+	return r.status == StatusUnready
+}
+
+// 是否需要检查日志冲突
+func (r *Replica) isLogConflictCheck() bool {
+	return r.status == StatusLogCoflictCheck
+}
+
+// 是否有同步
+func (r *Replica) hasSync() bool {
+	if r.syncState.processing {
+		return false
+	}
+	return r.leader != 0 && r.syncTick >= r.syncIntervalTick
+}
+
+// 是否有消息
+func (r *Replica) hasMsg() bool {
+	return len(r.msgs) > 0
+}
+
+// 有存储消息
+func (r *Replica) hasStorage() bool {
+	if r.storageState.processing {
+		return false
+	}
+	return r.replicaLog.storagingIndex < r.replicaLog.lastLogIndex
+}
+
+// 有应用
+func (r *Replica) hasApply() bool {
+	if r.applyState.processing {
+		return false
+	}
+	i := min(r.replicaLog.storagedIndex, r.replicaLog.committedIndex)
+	return r.replicaLog.applyingIndex < i
+}
+
 func (r *Replica) Ready() Ready {
 
 	rd := Ready{}
 
+	isFollower := r.role == RoleFollower || r.role == RoleLearner
+
 	// ==================== 初始化 ====================
-	if r.status == StatusUninitialized {
-		r.status = StatusIniting
+	if r.isUnready() {
+		if r.initState.processing {
+			return rd
+		}
+		r.initState.processing = true
 		r.msgs = append(r.msgs, r.newMsgInit())
 		rd.Messages = r.msgs
 		r.msgs = r.msgs[:0]
 		return rd
 	}
-
-	isFollower := r.role == RoleFollower || r.role == RoleLearner
 
 	if r.hardStateChange() {
 		rd.HardState = HardState{
@@ -146,41 +199,42 @@ func (r *Replica) Ready() Ready {
 			ConfVersion: r.cfg.Version,
 		}
 	}
+
 	// ==================== 日志冲突检查 ====================
-	if r.status == StatusLogCoflictCheck && isFollower {
-		if r.leader != 0 && r.logConflictCheckTick >= r.opts.RequestTimeoutTick {
-			r.logConflictCheckTick = 0
+	if r.isLogConflictCheck() {
+		if r.coflictCheckState.processing {
+			return rd
+		}
+		if r.leader != 0 && isFollower {
+			r.coflictCheckState.processing = true
 			r.msgs = append(r.msgs, r.newMsgLogConflictCheck())
 			rd.Messages = r.msgs
 			r.msgs = r.msgs[:0]
-			return rd
 		}
 		return rd
 	}
 
 	// ==================== 发起同步 ====================
-	if isFollower && r.leader != 0 {
-		if r.syncTick >= r.syncIntervalTick && !r.syncing {
-			r.syncTick = 0
-			r.msgs = append(r.msgs, r.newSyncMsg())
-			r.syncing = true
-		}
+	if isFollower && r.hasSync() {
+		r.syncState.processing = true
+		r.syncIdleTick = 0
+		r.msgs = append(r.msgs, r.newSyncMsg())
 	}
 
 	// ==================== 存储日志 ====================
-	if r.replicaLog.hasStorage() {
+	if r.hasStorage() {
 		logs := r.replicaLog.nextStorageLogs()
 		if len(logs) > 0 {
+			r.storageState.processing = true
 			r.msgs = append(r.msgs, r.newMsgStoreAppend(logs))
-			r.replicaLog.storaging = true
 		}
 	}
 
 	// ==================== 应用日志 ====================
-	if r.replicaLog.hasApply() {
+	if r.hasApply() {
 		newCommittedIndex := min(r.replicaLog.storagedIndex, r.replicaLog.committedIndex)
+		r.applyState.processing = true
 		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.applyingIndex, r.replicaLog.appliedIndex, newCommittedIndex))
-		r.replicaLog.applying = true
 	}
 
 	rd.Messages = r.msgs
@@ -193,21 +247,82 @@ func (r *Replica) hardStateChange() bool {
 }
 func (r *Replica) Tick() {
 
-	if r.role == RoleFollower || r.role == RoleLearner {
+	// if r.role == RoleFollower || r.role == RoleLearner {
 
+	// 	if r.status == StatusReady {
+	// 		r.syncTick++
+	// 		if r.syncTick > r.syncIntervalTick*5 && r.status == StatusReady { // 同步超时 一直没有返回
+	// 			r.send(r.newSyncTimeoutMsg()) // 同步超时
+
+	// 			// 重置同步状态，从而可以重新发起同步
+	// 			r.syncing = false
+	// 			r.syncTick = 0
+	// 		}
+	// 	} else if r.status == StatusLogCoflictCheck { // 日志冲突检查超时，重新发起
+	// 		r.logConflictCheckTick++
+	// 	}
+
+	// }
+
+	if r.initState.willRetry {
+		r.initState.retryTick++
+		if r.initState.retryTick >= r.opts.RetryTick {
+			r.initState.retryTick = 0
+			r.initState.willRetry = false
+			r.initState.processing = false
+		}
+	}
+
+	if r.coflictCheckState.willRetry {
+		r.coflictCheckState.retryTick++
+		if r.coflictCheckState.retryTick >= r.opts.RetryTick {
+			r.coflictCheckState.retryTick = 0
+			r.coflictCheckState.willRetry = false
+			r.coflictCheckState.processing = false
+		}
+	}
+
+	if r.syncState.willRetry {
+		r.syncState.retryTick++
+		if r.syncState.retryTick >= r.opts.RetryTick {
+			r.syncState.retryTick = 0
+			r.syncState.willRetry = false
+			r.syncState.processing = false
+		}
+	}
+
+	if r.role == RoleFollower || r.role == RoleLearner {
 		if r.status == StatusReady {
 			r.syncTick++
-			if r.syncTick > r.syncIntervalTick*5 && r.status == StatusReady { // 同步超时 一直没有返回
-				r.send(r.newSyncTimeoutMsg()) // 同步超时
-
-				// 重置同步状态，从而可以重新发起同步
-				r.syncing = false
-				r.syncTick = 0
+			if r.syncState.processing {
+				r.syncIdleTick++                             // sync空闲tick数
+				if r.syncIdleTick > r.opts.SyncTimeoutTick { // 同步超时 一直没有返回
+					r.send(r.newSyncTimeoutMsg()) // 同步超时
+					r.syncIdleTick = 0
+					r.syncState.processing = false
+				}
 			}
-		} else if r.status == StatusLogCoflictCheck { // 日志冲突检查超时，重新发起
-			r.logConflictCheckTick++
+
 		}
 
+	}
+
+	if r.storageState.willRetry {
+		r.storageState.retryTick++
+		if r.storageState.retryTick >= r.opts.RetryTick {
+			r.storageState.retryTick = 0
+			r.storageState.willRetry = false
+			r.storageState.processing = false
+		}
+	}
+
+	if r.applyState.willRetry {
+		r.applyState.retryTick++
+		if r.applyState.retryTick >= r.opts.RetryTick {
+			r.applyState.retryTick = 0
+			r.applyState.willRetry = false
+			r.applyState.processing = false
+		}
 	}
 
 	if r.tickFnc != nil {
@@ -336,6 +451,8 @@ func (r *Replica) becomeLeader(term uint32) {
 	r.leader = r.nodeId
 	r.role = RoleLeader
 
+	r.status = StatusReady
+
 	r.initLeaderInfo()
 
 	r.Debug("become leader", zap.Uint32("term", r.term))
@@ -411,8 +528,14 @@ func (r *Replica) reset(term uint32) {
 	r.setSpeedLevel(LevelFast)
 	r.resetRandomizedElectionTimeout()
 
-	r.replicaLog.storaging = false
-	r.replicaLog.applying = false
+	r.initState = readyState{}
+	r.coflictCheckState = readyState{}
+	r.syncState = readyState{}
+	r.storageState = readyState{}
+	r.applyState = readyState{}
+
+	r.syncIdleTick = 0
+	r.syncIntervalTick = 0
 }
 
 // 开始选举

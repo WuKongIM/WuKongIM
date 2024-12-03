@@ -317,44 +317,6 @@ func (r *ReactorSub) readyEvents() {
 	}
 }
 
-// func (r *ReactorSub) readyEvents() {
-
-// 	r.handlers.readHandlers(&r.tmpHandlers)
-
-// 	hasEvent := true
-// 	var err error
-
-// 	for hasEvent {
-// 		if r.stopped.Load() {
-// 			return
-// 		}
-// 		hasEvent = false
-// 		startTime := time.Now()
-// 		for _, handler := range r.tmpHandlers {
-// 			if !handler.isPrepared() {
-// 				continue
-// 			}
-// 			has := r.handleReady(handler)
-// 			if has {
-// 				hasEvent = true
-// 			}
-// 			has, err = r.handleEvent(handler)
-// 			if err != nil {
-// 				r.Error("handle event failed", zap.Error(err))
-// 			}
-// 			if has {
-// 				hasEvent = true
-// 			}
-// 		}
-// 		end := time.Since(startTime)
-// 		if end > time.Second*1 {
-// 			r.Info("handle event", zap.Duration("cost", end), zap.Int("handlers", len(r.tmpHandlers)))
-// 		}
-// 	}
-
-// 	r.tmpHandlers = r.tmpHandlers[:0]
-// }
-
 func (r *ReactorSub) handleReady(handler *handler) bool {
 	if !handler.hasReady() {
 		return false
@@ -367,17 +329,6 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 	if !replica.IsEmptyHardState(rd.HardState) {
 		handler.setHardState(rd.HardState)
 	}
-
-	// if !replica.IsEmptyHardState(rd.HardState) {
-	// 	handler.resetSync() // 领导发生改变 重置同步状态
-	// 	err := r.mr.submitTask(func() {
-	// 		handler.setHardState(rd.HardState)
-	// 	})
-	// 	if err != nil {
-	// 		r.Error("submit set hard state task failed", zap.Error(err))
-	// 	}
-
-	// }
 
 	for _, m := range rd.Messages {
 
@@ -411,18 +362,21 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 		switch m.MsgType {
 		case replica.MsgInit: // 初始化
 			r.mr.addInitReq(&initReq{
-				h: handler,
+				h:   handler,
+				sub: r,
 			})
 		case replica.MsgLogConflictCheck: // 日志冲突检查
 			r.mr.addConflictCheckReq(&conflictCheckReq{
 				h:              handler,
 				leaderLastTerm: handler.getLastLeaderTerm(),
 				leaderId:       handler.leaderId(),
+				sub:            r,
 			})
 		case replica.MsgStoreAppend: // 追加日志
 			r.mr.addStoreAppendReq(AppendLogReq{
 				HandleKey: handler.key,
 				Logs:      m.Logs,
+				sub:       r,
 			})
 		case replica.MsgSyncGet: // 获取日志
 			lastIndex, _ := handler.handler.LastLogIndexAndTerm()
@@ -432,12 +386,14 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 				lastIndex:  lastIndex,
 				logs:       m.Logs,
 				to:         m.From,
+				sub:        r,
 			})
 		case replica.MsgApplyLogs: // 应用日志
 			r.mr.addApplyLogReq(&applyLogReq{
 				h:              handler,
 				appyingIndex:   m.ApplyingIndex,
 				committedIndex: m.CommittedIndex,
+				sub:            r,
 			})
 		case replica.MsgLearnerToFollower: // 学习者转追随者
 			r.mr.addLearnerToFollowerReq(&learnerToFollowerReq{

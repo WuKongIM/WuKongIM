@@ -72,7 +72,6 @@ type channel struct {
 	forwardState readyState
 
 	// 计时tick
-	initTick int // 发起初始化的tick计时
 	// payloadDecryptingTick  int // 发起解密的tick计时
 	// permissionCheckingTick int // 发起权限检查的tick计时
 
@@ -107,15 +106,13 @@ func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *ch
 		r:              sub.r,
 		sub:            sub,
 		opts:           sub.r.opts,
-		initTick:       sub.r.opts.Reactor.Channel.ProcessIntervalTick,
 		retryTickCount: 20,
 	}
 
 }
 
 func (c *channel) hasReady() bool {
-	if !c.isInitialized() { // 是否初始化
-
+	if c.isUninitialized() { // 是否初始化
 		return true
 	}
 
@@ -148,13 +145,12 @@ func (c *channel) hasReady() bool {
 
 func (c *channel) ready() ready {
 
-	if !c.isInitialized() {
-		if c.status == channelStatusInitializing {
-			return ready{}
+	if c.isUninitialized() {
+		if !c.initState.processing {
+			c.initState.processing = true
+			c.exec(&ChannelAction{ActionType: ChannelActionInit})
 		}
-		c.status = channelStatusInitializing
-		c.initTick = 0
-		c.exec(&ChannelAction{ActionType: ChannelActionInit})
+
 	} else {
 
 		// 解密消息
@@ -167,12 +163,12 @@ func (c *channel) ready() ready {
 		}
 
 		// 流消息解密
-		if c.streams.hasPayloadUnDecrypt() {
-			msgs := c.streams.payloadUnDecryptMessages()
-			if len(msgs) > 0 {
-				c.exec(&ChannelAction{ActionType: ChannelActionStreamPayloadDecrypt, Messages: msgs})
-			}
-		}
+		// if c.streams.hasPayloadUnDecrypt() {
+		// 	msgs := c.streams.payloadUnDecryptMessages()
+		// 	if len(msgs) > 0 {
+		// 		c.exec(&ChannelAction{ActionType: ChannelActionStreamPayloadDecrypt, Messages: msgs})
+		// 	}
+		// }
 
 		if c.role == channelRoleLeader {
 
@@ -307,18 +303,14 @@ func (c *channel) hasUnforward() bool {
 	return c.msgQueue.forwardingIndex < c.msgQueue.payloadDecryptingIndex
 }
 
-// 是否已初始化
-func (c *channel) isInitialized() bool {
-	if c.initState.processing {
-		return false
-	}
+// 是否未初始化
+func (c *channel) isUninitialized() bool {
 
-	return c.status == channelStatusInitialized
+	return c.status == channelStatusUninitialized
 }
 
 func (c *channel) tick() {
 	// c.storageTick++
-	c.initTick++
 	c.forwardTick++
 	// c.deliveringTick++
 	// c.permissionCheckingTick++
@@ -506,6 +498,7 @@ func (c *channel) resetIndex() {
 		c.receiverTagKey.Store("")
 	}
 
+	c.initState = readyState{}
 	c.payloadDecryptState = readyState{}
 	c.permissionCheckState = readyState{}
 	c.storageState = readyState{}
@@ -515,7 +508,6 @@ func (c *channel) resetIndex() {
 
 	c.idleTick = 0
 
-	c.initTick = 0
 	// c.storageTick = 0
 	// c.forwardTick = 0
 	// c.deliveringTick = 0

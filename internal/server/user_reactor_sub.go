@@ -152,30 +152,35 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 			u.r.addInitReq(&userInitReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
+				sub:      u,
 			})
 		case UserActionAuth: // 用户连接认证请求
 			u.r.addAuthReq(&userAuthReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
+				sub:      u,
 			})
 		case UserActionPing: // 用户发送ping
 			u.r.addPingReq(&pingReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
+				sub:      u,
 			})
 		case UserActionRecvack: // 用户发送recvack
 			u.r.addRecvackReq(&recvackReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
+				sub:      u,
 			})
 		case UserActionRecv: // 用户接受消息
 			u.r.addWriteReq(&writeReq{
 				uniqueNo: action.UniqueNo,
 				uid:      uh.uid,
 				messages: action.Messages,
+				sub:      u,
 			})
 		case UserActionForward: // 转发action
 			u.r.addForwardUserActionReq(action)
@@ -211,6 +216,7 @@ func (u *userReactorSub) handleReady(uh *userHandler) {
 				uid:      uh.uid,
 				uniqueNo: action.UniqueNo,
 				leaderId: leaderId,
+				sub:      u,
 			})
 
 		default:
@@ -246,6 +252,17 @@ func (u *userReactorSub) addUserHandlerIfNotExist(h *userHandler) {
 	if u.getUserHandler(h.uid) == nil {
 		u.addUserHandler(h)
 	}
+}
+
+func (u *userReactorSub) addOrCreateUserHandlerIfNotExist(uid string) *userHandler {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	handler := u.getUserHandler(uid)
+	if handler == nil {
+		handler = newUserHandler(uid, u)
+		u.addUserHandler(handler)
+	}
+	return handler
 }
 
 func (u *userReactorSub) addConnAndCreateUserHandlerIfNotExist(conn *connContext) {

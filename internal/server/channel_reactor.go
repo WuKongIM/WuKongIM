@@ -11,6 +11,7 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
+	"github.com/panjf2000/ants/v2"
 	"github.com/sasha-s/go-deadlock"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -39,6 +40,9 @@ type channelReactor struct {
 	loadChannMu deadlock.RWMutex
 
 	stopped atomic.Bool
+
+	// 处理者用的携程池
+	processGoPool *ants.MultiPool
 }
 
 func newChannelReactor(s *Server, opts *Options) *channelReactor {
@@ -66,6 +70,23 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		r.subs[i] = sub
 	}
 
+	size := 0
+	sizePerPool := 0
+	if r.opts.Reactor.Channel.ProcessPoolSize <= r.opts.Reactor.Channel.SubCount {
+		size = 1
+		sizePerPool = r.opts.Reactor.Channel.ProcessPoolSize
+	} else {
+		size = r.opts.Reactor.Channel.SubCount
+		sizePerPool = r.opts.Reactor.Channel.ProcessPoolSize / r.opts.Reactor.Channel.SubCount
+	}
+	var err error
+	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(err interface{}) {
+		r.Error("processGoPool panic", zap.Any("err", err), zap.Stack("stack"))
+	}))
+	if err != nil {
+		r.Panic("NewMultiPool panic", zap.Error(err))
+	}
+
 	return r
 }
 
@@ -73,27 +94,25 @@ func (r *channelReactor) start() error {
 
 	// 高并发处理，适用于分散的耗时任务
 	for i := 0; i < 100; i++ {
-		r.stopper.RunWorker(r.processInitLoop)
-		r.stopper.RunWorker(r.processPayloadDecryptLoop)
-		r.stopper.RunWorker(r.processCheckTagLoop)
 
 	}
 
 	// 中并发处理，适合于分散但是不是很耗时的任务
 	for i := 0; i < 10; i++ {
 
-		r.stopper.RunWorker(r.processCloseLoop)
-
-		r.stopper.RunWorker(r.processForwardLoop)
-
 	}
 
 	// 低并发处理，适合于集中的耗时任务，这样可以合并请求批量处理
 	for i := 0; i < 1; i++ {
+		r.stopper.RunWorker(r.processInitLoop)
+		r.stopper.RunWorker(r.processPayloadDecryptLoop)
+		r.stopper.RunWorker(r.processForwardLoop)
 		r.stopper.RunWorker(r.processSendackLoop)
 		r.stopper.RunWorker(r.processPermissionLoop)
 		r.stopper.RunWorker(r.processStorageLoop)
 		r.stopper.RunWorker(r.processDeliverLoop)
+		r.stopper.RunWorker(r.processCheckTagLoop)
+		r.stopper.RunWorker(r.processCloseLoop)
 	}
 
 	for _, sub := range r.subs {

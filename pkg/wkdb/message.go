@@ -54,7 +54,8 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 }
 
 func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
-	batchs := []*Batch{}
+	batchMap := make(map[uint32]*Batch)
+	newBatchs := make([]*Batch, 0, len(reqs))
 
 	for _, req := range reqs {
 
@@ -62,16 +63,11 @@ func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
 
 		shardId := wk.channelDbIndex(channelId, channelType)
 
-		var batch *Batch
-		for _, b := range batchs {
-			if b.DbIndex() == int(shardId) {
-				batch = b
-				break
-			}
-		}
+		batch := batchMap[shardId]
 		if batch == nil {
 			batch = wk.shardBatchDBById(shardId).NewBatch()
-			batchs = append(batchs, batch)
+			batchMap[shardId] = batch
+			newBatchs = append(newBatchs, batch)
 		}
 
 		for _, log := range req.Logs {
@@ -93,10 +89,16 @@ func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
 				wk.Panic("setChannelLastMessageSeq failed", zap.Error(err))
 				return
 			}
+
+			if len(batch.setKvs) > wk.opts.BatchPerSize {
+				batch = wk.shardBatchDBById(shardId).NewBatch()
+				batchMap[shardId] = batch
+				newBatchs = append(newBatchs, batch)
+			}
 		}
 	}
 
-	err := Commits(batchs)
+	err := Commits(newBatchs)
 	if err != nil {
 		wk.Error("AppendMessagesByLogs commits failed", zap.Error(err))
 	}

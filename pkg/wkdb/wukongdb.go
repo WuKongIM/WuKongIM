@@ -273,13 +273,10 @@ func (wk *wukongDB) NextPrimaryKey() uint64 {
 
 // 批量提交
 func Commits(bs []*Batch) error {
-
 	if len(bs) == 0 {
 		return nil
 	}
-
 	newBatchs := groupBatch(bs)
-
 	if len(newBatchs) == 1 {
 		return newBatchs[0].CommitWait()
 	}
@@ -287,7 +284,7 @@ func Commits(bs []*Batch) error {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	g, _ := errgroup.WithContext(timeoutCtx)
-
+	g.SetLimit(200)
 	for _, b := range newBatchs {
 		b1 := b
 		g.Go(func() error {
@@ -298,12 +295,10 @@ func Commits(bs []*Batch) error {
 }
 
 // 将batch集合操作按照db进行聚合到一起
+
 func groupBatch(bs []*Batch) []*Batch {
-
 	newBatchs := make([]*Batch, 0, len(bs))
-
 	for _, b := range bs {
-
 		exist := false
 		for _, nb := range newBatchs {
 			if nb.db == b.db {
@@ -347,7 +342,7 @@ func (wk *BatchDB) NewBatch() *Batch {
 }
 
 func (wk *BatchDB) Start() {
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1; i++ {
 		wk.stopper.RunWorker(wk.loop)
 	}
 }
@@ -357,18 +352,21 @@ func (wk *BatchDB) Stop() {
 }
 
 func (wk *BatchDB) loop() {
+	batchSize := 100
 	done := false
-	batches := make([]*Batch, 0, 100)
+	batches := make([]*Batch, 0, batchSize)
 	for {
 		select {
 		case bt := <-wk.batchChan:
-
 			// 获取所有的batch
 			batches = append(batches, bt)
 			for !done {
 				select {
 				case b := <-wk.batchChan:
 					batches = append(batches, b)
+					if len(batches) >= batchSize {
+						done = true
+					}
 				default:
 					done = true
 				}

@@ -58,7 +58,6 @@ func (s *Server) LeaderOfChannelForRead(channelId string, channelType uint8) (*p
 		return nil, err
 	}
 	if cfg.LeaderId == 0 {
-		s.Warn("loadOnlyChannelClusterConfig leader is 0", zap.Any("cfg", cfg))
 		return nil, ErrNotLeader
 	}
 	node := s.clusterEventServer.Node(cfg.LeaderId)

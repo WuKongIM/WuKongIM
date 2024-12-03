@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -19,7 +20,7 @@ func (c *channel) step(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
-			c.initTick = c.opts.Reactor.Channel.ProcessIntervalTick // 立即处理下个逻辑
+			c.initState.processing = false
 			c.status = channelStatusInitialized
 			if a.LeaderId == c.r.opts.Cluster.NodeId {
 				c.becomeLeader()
@@ -27,7 +28,7 @@ func (c *channel) step(a *ChannelAction) error {
 				c.becomeProxy(a.LeaderId)
 			}
 		} else {
-			c.status = channelStatusUninitialized
+			c.initState.willRetry = true
 		}
 		// c.Info("channel init resp", zap.Int("status", int(c.status)), zap.Uint64("leaderId", c.leaderId))
 
@@ -94,6 +95,7 @@ func (c *channel) step(a *ChannelAction) error {
 			endIndex := c.msgQueue.getArrayIndex(c.msgQueue.payloadDecryptingIndex)
 
 			if startIndex >= endIndex {
+				fmt.Println("startIndex >= endIndex", startIndex, endIndex)
 				return nil
 			}
 
