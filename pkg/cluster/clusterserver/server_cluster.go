@@ -684,7 +684,11 @@ func (s *Server) LoadOnlyChannelClusterConfig(channelId string, channelType uint
 func (s *Server) loadOnlyChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 	ch := s.channelManager.get(channelId, channelType)
 	if ch != nil { // 如果频道已经存在，直接返回
-		return ch.(*channel).cfg, nil
+		if ch.LeaderId() != 0 {
+			return ch.(*channel).cfg, nil
+		} else {
+			s.Warn("the channel exists in the manager,but leader is 0")
+		}
 	}
 	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -22,6 +23,8 @@ type channelManager struct {
 	opts           *Options
 	s              *Server
 	wklog.Log
+
+	sync.RWMutex
 }
 
 func newChannelManager(s *Server) *channelManager {
@@ -55,27 +58,71 @@ func (c *channelManager) stop() {
 }
 
 func (c *channelManager) add(ch *channel) {
+	c.Lock()
+	defer c.Unlock()
 	c.channelReactor.AddHandler(ch.key, ch)
 }
 
 func (c *channelManager) remove(ch *channel) {
+	c.Lock()
+	defer c.Unlock()
 	c.channelReactor.RemoveHandler(ch.key)
 }
 
 func (c *channelManager) get(channelId string, channelType uint8) reactor.IHandler {
+	c.RLock()
+	defer c.RUnlock()
 	return c.channelReactor.Handler(wkutil.ChannelToKey(channelId, channelType))
 }
 
+func (c *channelManager) getOrCreateIfNotExist(channelId string, channelType uint8) reactor.IHandler {
+	c.Lock()
+	defer c.Unlock()
+
+	handleKey := wkutil.ChannelToKey(channelId, channelType)
+
+	handler := c.channelReactor.Handler(handleKey)
+	if handler != nil {
+		return handler
+	}
+	handler = newChannel(channelId, channelType, c.s)
+	c.channelReactor.AddHandler(handleKey, handler)
+	return handler
+
+}
+
+func (c *channelManager) getOrCreateIfNotExistWithHandleKey(handleKey string) reactor.IHandler {
+	c.Lock()
+	defer c.Unlock()
+
+	channelId, channelType := wkutil.ChannelFromlKey(handleKey)
+
+	handler := c.channelReactor.Handler(handleKey)
+	if handler != nil {
+		return handler
+	}
+	handler = newChannel(channelId, channelType, c.s)
+	c.channelReactor.AddHandler(handleKey, handler)
+	return handler
+
+}
+
 func (c *channelManager) exist(channelId string, channelType uint8) bool {
+	c.RLock()
+	defer c.RUnlock()
 	return c.channelReactor.ExistHandler(wkutil.ChannelToKey(channelId, channelType))
 }
 
 // 频道数量
 func (c *channelManager) channelCount() int {
+	c.RLock()
+	defer c.RUnlock()
 	return c.channelReactor.HandlerLen()
 }
 
 func (c *channelManager) getWithHandleKey(handleKey string) reactor.IHandler {
+	c.RLock()
+	defer c.RUnlock()
 	return c.channelReactor.Handler(handleKey)
 }
 
