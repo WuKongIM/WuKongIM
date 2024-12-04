@@ -269,8 +269,12 @@ func (s *Server) SlotLeaderNodeInfo(slotId uint32) (nodeInfo *pb.Node, err error
 }
 
 func (s *Server) loadOrCreateChannelClusterConfig(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, bool, error) {
-	s.channelKeyLock.Lock(channelId)
-	defer s.channelKeyLock.Unlock(channelId)
+	s.channelKeyLock.LockKey(channelId)
+	defer func() {
+		if err := s.channelKeyLock.UnlockKey(channelId); err != nil {
+			s.Error("UnlockKey failed", zap.Error(err), zap.String("channelId", channelId))
+		}
+	}()
 
 	return s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType)
 }
@@ -295,6 +299,22 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 	// 	}
 	// }
 
+	channelKey := wkutil.ChannelToKey(channelId, channelType)
+
+	gloabVersion := s.clusterEventServer.Config().Version
+
+	//当全局分布式配置的版本大于缓存版本时，说明分布式发生的变动，清空缓存的频道配置数据
+	if gloabVersion > s.channelClusterCacheVersion {
+		s.channelClusterCacheVersion = gloabVersion
+		s.channelClusterCache.Clear()
+	}
+	// 如果有缓存则直接缓存中获取（缓存会在分布式发生变化时被清除）
+	clusterCfgObj, _ := s.channelClusterCache.Get(channelKey)
+	if clusterCfgObj != nil {
+		clusterCfg = clusterCfgObj.(wkdb.ChannelClusterConfig)
+		return clusterCfg, false, nil
+	}
+
 	// 获取频道所在槽的信息
 	slotId := s.getSlotId(channelId)
 	slot := s.clusterEventServer.Slot(slotId)
@@ -313,34 +333,18 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 			s.Error("requestChannelClusterConfigFromSlotLeader failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
 			return wkdb.EmptyChannelClusterConfig, false, err
 		}
+
 		if clusterCfg.LeaderId == 0 {
 			s.Error("loadOrCreateChannelClusterConfig: leaderId is 0", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("clusterCfg", clusterCfg.String()))
 			return wkdb.EmptyChannelClusterConfig, false, ErrNotLeader
 		}
+
+		// 缓存频道的分布式配置
+		s.channelClusterCache.Add(channelKey, clusterCfg)
+
 		return clusterCfg, false, nil
 	}
 
-	// ================== 从存储中获取频道的配置 ==================
-	// 获取频道的分布式配置
-	// channelKey := wkutil.ChannelToKey(channelId, channelType)
-	// clusterCfg, ok := s.clusterCfgCache.Get(channelKey)
-	// if !ok {
-	// 	clusterCfg, err = s.getChannelClusterConfig(channelId, channelType)
-	// 	if err != nil && err != wkdb.ErrNotFound {
-	// 		s.Error("getChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-	// 		return wkdb.EmptyChannelClusterConfig, false, err
-	// 	}
-	// 	// 如果频道的分布式配置不存在，则创建一个新的分布式配置
-	// 	if err == wkdb.ErrNotFound {
-	// 		s.Debug("create channel cluster config", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-	// 		clusterCfg, err = s.createChannelClusterConfig(channelId, channelType)
-	// 		if err != nil {
-	// 			s.Error("createChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-	// 			return wkdb.EmptyChannelClusterConfig, false, err
-	// 		}
-	// 		needProposeCfg = true
-	// 	}
-	// }
 	clusterCfg, err = s.getChannelClusterConfig(channelId, channelType)
 	if err != nil && err != wkdb.ErrNotFound {
 		s.Error("getChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
@@ -419,7 +423,8 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 			return wkdb.EmptyChannelClusterConfig, needProposeCfg, err
 		}
 	}
-	// s.clusterCfgCache.Add(channelKey, clusterCfg)
+
+	s.channelClusterCache.Add(channelKey, clusterCfg)
 
 	return clusterCfg, needProposeCfg, nil
 }
@@ -441,8 +446,12 @@ func (s *Server) needElection(cfg wkdb.ChannelClusterConfig) bool {
 
 func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, channelType uint8) (*channel, error) {
 
-	s.channelKeyLock.Lock(channelId)
-	defer s.channelKeyLock.Unlock(channelId)
+	s.channelKeyLock.LockKey(channelId)
+	defer func() {
+		if err := s.channelKeyLock.UnlockKey(channelId); err != nil {
+			s.Error("UnlockKey failed", zap.Error(err), zap.String("channelId", channelId))
+		}
+	}()
 
 	start := time.Now()
 

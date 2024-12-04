@@ -14,7 +14,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -27,6 +26,8 @@ import (
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"k8s.io/utils/keymutex"
+	"k8s.io/utils/lru"
 )
 
 var _ icluster.Cluster = (*Server)(nil)
@@ -38,7 +39,7 @@ type Server struct {
 	slotManager        *slotManager         // 槽管理者
 	channelManager     *channelManager      // 频道管理者
 
-	channelKeyLock         *keylock.KeyLock        // 频道锁
+	channelKeyLock         keymutex.KeyMutex       // 频道锁
 	netServer              *wkserver.Server        // 节点之间通讯的网络服务
 	channelElectionPool    *ants.Pool              // 频道选举的协程池
 	channelElectionManager *channelElectionManager // 频道选举管理者
@@ -49,25 +50,28 @@ type Server struct {
 	cancelFnc              context.CancelFunc
 	onMessageFnc           func(fromNodeId uint64, msg *proto.Message) // 上层处理消息的函数
 	logIdGen               *snowflake.Node                             // 日志id生成
-	slotStorage            *PebbleShardLogStorage
-	apiPrefix              string    // api前缀
-	uptime                 time.Time // 服务器启动时间
+	slotStorage            *PebbleShardLogStorage                      // slot存储
+	apiPrefix              string                                      // api前缀
+	uptime                 time.Time                                   // 服务器启动时间
 	wklog.Log
-
 	stopped atomic.Bool
-
 	stopper *syncutil.Stopper
+
+	channelClusterCache *lru.Cache // 缓存最热的ChannelClusterConfig
+	// 缓存的数据版本，这个版本是全局分布式配置版本，当全局分布式配置的版本大于当前时，应当清除缓存
+	channelClusterCacheVersion uint64
 }
 
 func New(opts *Options) *Server {
 
 	s := &Server{
-		opts:           opts,
-		nodeManager:    newNodeManager(opts),
-		Log:            wklog.NewWKLog(fmt.Sprintf("cluster[%d]", opts.NodeId)),
-		channelKeyLock: keylock.NewKeyLock(),
-		channelLoadMap: make(map[string]struct{}),
-		stopper:        syncutil.NewStopper(),
+		opts:                opts,
+		nodeManager:         newNodeManager(opts),
+		Log:                 wklog.NewWKLog(fmt.Sprintf("cluster[%d]", opts.NodeId)),
+		channelKeyLock:      keymutex.NewHashed(4096), // 创建指定大小的锁环
+		channelLoadMap:      make(map[string]struct{}),
+		stopper:             syncutil.NewStopper(),
+		channelClusterCache: lru.New(1024),
 	}
 
 	s.slotManager = newSlotManager(s)
@@ -160,8 +164,6 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-
-	s.channelKeyLock.StartCleanLoop()
 
 	nodes := s.clusterEventServer.Nodes()
 	if len(nodes) > 0 {
@@ -256,7 +258,6 @@ func (s *Server) Stop() {
 	s.clusterEventServer.Stop()
 	s.slotManager.stop()
 	s.channelManager.stop()
-	s.channelKeyLock.StopCleanLoop()
 	s.slotStorage.Close()
 
 }

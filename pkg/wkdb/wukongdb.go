@@ -451,6 +451,10 @@ type Batch struct {
 }
 
 func (b *Batch) Set(key, value []byte) {
+	// 预分配切片容量
+	if cap(b.setKvs) == 0 {
+		b.setKvs = make([]kv, 0, 100) // 假设预估大小为100
+	}
 	b.setKvs = append(b.setKvs, kv{
 		key: key,
 		val: value,
