@@ -206,7 +206,7 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 
 	// 这里判断日志等级才调用debug，避免 time.Since(start)这些无谓的消耗
 	if wklog.Level() == zapcore.DebugLevel {
-		s.Debug("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
+		s.Info("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
 	}
 
 }

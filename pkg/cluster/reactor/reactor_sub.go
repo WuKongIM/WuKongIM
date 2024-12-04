@@ -455,7 +455,7 @@ func (r *ReactorSub) tick() {
 
 	if len(r.needRemoveKeys) > 0 {
 		for _, key := range r.needRemoveKeys {
-			r.removeHandler(key)
+			r.mr.RemoveHandler(key)
 		}
 		r.needRemoveKeys = r.needRemoveKeys[:0]
 	}

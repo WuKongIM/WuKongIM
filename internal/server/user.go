@@ -374,8 +374,6 @@ func (u *userHandler) tickLeader() {
 		u.nodePingTick = 0
 		var messages []ReactorUserMessage
 		// TODO: u.conns可能存在竞锁问题
-		u.mu.Lock()
-		defer u.mu.Unlock()
 		if len(u.conns) > 0 {
 			for _, c := range u.conns {
 				if c.isRealConn {
