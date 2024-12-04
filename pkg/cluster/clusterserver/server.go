@@ -291,24 +291,13 @@ func (s *Server) AddConfigMessage(m reactor.Message) {
 	s.clusterEventServer.AddMessage(m)
 }
 
-func (s *Server) getOrCreateChannelHandler(handlerKey string) reactor.IHandler {
-	s.channelLoadMapLock.Lock()
-	defer s.channelLoadMapLock.Unlock()
-	handler := s.channelManager.getWithHandleKey(handlerKey)
-	if handler == nil {
-		channelId, channelType := wkutil.ChannelFromlKey(handlerKey)
-		s.channelManager.add(newChannel(channelId, channelType, s))
-	}
-	return handler
-}
-
 func (s *Server) AddChannelMessage(m reactor.Message) {
 
 	// 统计引入的消息
 	traceIncomingMessage(trace.ClusterKindChannel, m.MsgType, int64(m.Size()))
 
 	// 获取或创建频道处理者
-	_ = s.getOrCreateChannelHandler(m.HandlerKey)
+	_ = s.channelManager.getOrCreateIfNotExistWithHandleKey(m.HandlerKey)
 
 	s.channelManager.addMessage(m)
 
