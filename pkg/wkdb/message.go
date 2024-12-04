@@ -496,8 +496,6 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 	batch := db.NewBatch()
 	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64))
 
-	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64))
-
 	err = wk.setChannelLastMessageSeq(channelId, channelType, messageSeq-1, batch)
 	if err != nil {
 		return err
