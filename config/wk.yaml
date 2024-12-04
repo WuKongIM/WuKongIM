@@ -45,6 +45,10 @@ demo:
 #  msgNotifyEventPushInterval: 500ms # 消息通知事件推送间隔，默认500毫秒发起一次推送
 #  msgNotifyEventRetryMaxCount: 5 # 消息通知事件消息推送失败最大重试次数 默认为5次，超过将丢弃
 #  msgNotifyEventCountPerPush: 100 # 每次webhook消息通知事件推送消息数量限制 默认一次请求最多推送100条
+#  focusEvents: # 关注的事件类型, 如果没有配置则推送所有事件类型
+#   - "msg.offline"
+#   - "msg.notify"
+#   - "user.onlinestatus"
 #datasource: #  数据源配置，不填写则使用自身数据存储逻辑，如果填写则使用第三方数据源，数据格式请查看文档
 #  addr: "" #  数据源地址
 #  channelInfoOn: false #  是否开启频道信息数据源的获取
