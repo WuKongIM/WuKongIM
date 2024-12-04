@@ -174,6 +174,7 @@ func (r *channelReactor) handlePayloadDecrypt(req *payloadDecryptReq) {
 		// 没有连接id解密不了（没有连接id，说明发送者的连接突然断开了，那么这条消息也没办法解密）
 		if msg.FromConnId == 0 {
 			r.Debug("msg fromConnId is 0", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId))
+			req.messages[i].ReasonCode = wkproto.ReasonSenderOffline
 			continue
 		}
 
@@ -503,7 +504,7 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 			continue
 		}
 
-		if msg.IsSystem { // 如果是系统发的消息，直接通过
+		if r.opts.IsSystemDevice(msg.FromDeviceId) { // 如果是系统发的消息，直接通过
 			req.messages[i].ReasonCode = wkproto.ReasonSuccess
 			continue
 		}
@@ -524,6 +525,7 @@ func (r *channelReactor) processPermission(req *permissionReq) {
 		}
 
 		if reasonCode != wkproto.ReasonSuccess {
+			r.Info("permission check failed", zap.String("fromUid", msg.FromUid), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType), zap.String("reasonCode", reasonCode.String()))
 			r.MessageTrace("权限验证失败", msg.SendPacket.ClientMsgNo, "processPermission", zap.String("reasonCode", reasonCode.String()), zap.Error(errors.New("permission check failed")))
 		}
 
@@ -897,12 +899,11 @@ func (r *channelReactor) processStorage(req *storageReq) {
 		// 将消息存储到webhook的推送队列内
 		err := r.s.store.AppendMessageOfNotifyQueue(messages)
 		if err != nil {
-			r.Error("AppendMessageOfNotifyQueue error", zap.Error(err))
-			reason = ReasonError
+			r.Error("AppendMessageOfNotifyQueue error", zap.Error(err), zap.Int("msgCount", len(messages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 		}
 	}
-	// 返回存储结果
-	r.respStoreResult(req, reason)
+	// 返回存储结果 TODO: 这里一直返回ReasonSuccess，如果存储失败，应该返回ReasonError，会导致死循环
+	r.respStoreResult(req, ReasonSuccess)
 }
 
 func (r *channelReactor) respStoreResult(req *storageReq, reason Reason) {
@@ -986,7 +987,7 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 	nodeFowardSendackPacketMap := map[uint64][]*ForwardSendackPacket{}
 	for _, msg := range req.messages {
 
-		if msg.FromDeviceId == r.opts.SystemDeviceId { // 系统发送的消息不需要sendack
+		if r.opts.IsSystemDevice(msg.FromDeviceId) { // 系统发送的消息不需要sendack
 			continue
 		}
 		r.MessageTrace("发送ack", msg.SendPacket.ClientMsgNo, "processSendack")

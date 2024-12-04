@@ -25,7 +25,6 @@ type ReactorChannelMessage struct {
 	MessageSeq   uint32
 	SendPacket   *wkproto.SendPacket
 	IsEncrypt    bool // SendPacket的payload是否加密
-	IsSystem     bool // 是否是系统发送的消息
 	ReasonCode   wkproto.ReasonCode
 	Index        uint64
 }
@@ -39,7 +38,6 @@ func (r *ReactorChannelMessage) Marshal() ([]byte, error) {
 	enc.WriteUint64(r.FromNodeId)
 	enc.WriteInt64(r.MessageId)
 	enc.WriteUint8(wkutil.BoolToUint8(r.IsEncrypt))
-	enc.WriteUint8(wkutil.BoolToUint8(r.IsSystem))
 	enc.WriteUint8(uint8(r.ReasonCode))
 
 	var packetData []byte
@@ -83,12 +81,6 @@ func (r *ReactorChannelMessage) Unmarshal(data []byte) error {
 	}
 	r.IsEncrypt = wkutil.Uint8ToBool(isEncrypt)
 
-	var isSystem uint8
-	if isSystem, err = dec.Uint8(); err != nil {
-		return err
-	}
-	r.IsSystem = wkutil.Uint8ToBool(isSystem)
-
 	var reasonCode uint8
 	if reasonCode, err = dec.Uint8(); err != nil {
 		return err
@@ -113,18 +105,16 @@ func (r *ReactorChannelMessage) Unmarshal(data []byte) error {
 
 func (m *ReactorChannelMessage) Size() uint64 {
 	size := uint64(0)
-
-	size += 1
 	size += 8 // FromConnId
-	size += uint64(len(m.FromUid)) + 2
-	size += uint64(len(m.FromDeviceId)) + 2
+	size += (uint64(len(m.FromUid)) + 2)
+	size += (uint64(len(m.FromDeviceId)) + 2)
 	size += 8 // FromNodeId
-	size += 8 // messageId
-	size += 4 // messageSeq
+	size += 8 // MessageId
+	size += 1 // IsEncrypt
+	size += 1 // IsSystem
+	size += 1 // ReasonCode
 	if m.SendPacket != nil {
-		size += uint64(m.SendPacket.RemainingLength) + 2
-	} else {
-		size += 2
+		size += (1 + uint64(m.SendPacket.GetRemainingLength()) + 2)
 	}
 	return size
 }
