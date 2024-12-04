@@ -1042,6 +1042,16 @@ func (o *Options) IsTmpChannel(channelID string) bool {
 	return strings.HasSuffix(channelID, o.TmpChannel.Suffix)
 }
 
+// IsSystemChannel 是否是系统设备
+func (o *Options) IsSystemDevice(deviceId string) bool {
+	return deviceId == o.SystemDeviceId
+}
+
+// IsSystemUid 是否是系统uid
+func (o *Options) IsSystemUid(uid string) bool {
+	return uid == o.SystemUID
+}
+
 func (o *Options) ConfigFileUsed() string {
 	if o.vp == nil {
 		return ""
