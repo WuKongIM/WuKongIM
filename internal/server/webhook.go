@@ -34,6 +34,7 @@ type webhook struct {
 	stoped           chan struct{}
 	onlinestatusLock sync.RWMutex
 	onlinestatusList []string
+	focusEvents      map[string]struct{} // 用户关注的事件类型,如果为空则推送所有类型
 }
 
 func newWebhook(s *Server) *webhook {
@@ -58,6 +59,20 @@ func newWebhook(s *Server) *webhook {
 		}
 
 	}
+
+	// 检查用户配置了关注的事件
+	var focusEvents = make(map[string]struct{})
+	if len(s.opts.Webhook.FocusEvents) > 0 {
+		for _, focusEvent := range s.opts.Webhook.FocusEvents {
+			if focusEvent == "" {
+				continue
+			}
+			if _, ok := eventWebHook[focusEvent]; ok {
+				focusEvents[focusEvent] = struct{}{}
+			}
+		}
+	}
+
 	return &webhook{
 		s:                s,
 		Log:              wklog.NewWKLog("Webhook"),
@@ -80,6 +95,7 @@ func newWebhook(s *Server) *webhook {
 				ExpectContinueTimeout: 1 * time.Second,
 			},
 		},
+		focusEvents: focusEvents,
 	}
 }
 
@@ -336,6 +352,10 @@ func (w *webhook) sendWebhookForHttp(event string, data []byte) error {
 	eventURL := fmt.Sprintf("%s?event=%s", w.s.opts.Webhook.HTTPAddr, event)
 	startTime := time.Now().UnixNano() / 1000 / 1000
 	w.Debug("webhook开始请求", zap.String("eventURL", eventURL))
+	if !w.isEventFocused(EventMsgNotify) { // 如果不关注事件就不走后边的推送逻辑
+		w.Debug("webhook http非关注事件, 不推送", zap.String("event", event))
+		return nil
+	}
 	resp, err := w.httpClient.Post(eventURL, "application/json", bytes.NewBuffer(data))
 	w.Debug("webhook请求结束 耗时", zap.Int64("mill", time.Now().UnixNano()/1000/1000-startTime))
 	if err != nil {
@@ -356,6 +376,10 @@ func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
 	startNow := time.Now()
 	startTime := startNow.UnixNano() / 1000 / 1000
 	w.Debug("webhook grpc 开始请求", zap.String("event", event))
+	if !w.isEventFocused(event) { // 如果不关注事件就不走后边的推送逻辑
+		w.Debug("webHook grpc 非关注事件，不推送", zap.String("event", event))
+		return nil
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
@@ -387,6 +411,14 @@ func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
 	return nil
 }
 
+func (w *webhook) isEventFocused(event string) bool {
+	if w.focusEvents == nil || len(w.focusEvents) == 0 {
+		return true
+	}
+	_, exists := w.focusEvents[event]
+	return exists
+}
+
 const (
 	// EventMsgOffline 离线消息
 	EventMsgOffline = "msg.offline"
@@ -394,6 +426,15 @@ const (
 	EventMsgNotify = "msg.notify"
 	// EventOnlineStatus 用户在线状态
 	EventOnlineStatus = "user.onlinestatus"
+)
+
+var (
+	// eventWebHook 用于快速校验用用户配置的关注事件
+	eventWebHook = map[string]map[string]struct{}{
+		EventMsgOffline:   {},
+		EventMsgNotify:    {},
+		EventOnlineStatus: {},
+	}
 )
 
 // Event Event
