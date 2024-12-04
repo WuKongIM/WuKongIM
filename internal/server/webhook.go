@@ -377,7 +377,7 @@ func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
 	startTime := startNow.UnixNano() / 1000 / 1000
 	w.Debug("webhook grpc 开始请求", zap.String("event", event))
 	if !w.isEventFocused(event) { // 如果不关注事件就不走后边的推送逻辑
-		w.Debug("webHook grpc 非关注事件，不推送", zap.String("event", event))
+		w.Debug("webhook grpc 非关注事件，不推送", zap.String("event", event))
 		return nil
 	}
 
@@ -412,7 +412,7 @@ func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
 }
 
 func (w *webhook) isEventFocused(event string) bool {
-	if w.focusEvents == nil || len(w.focusEvents) == 0 {
+	if len(w.focusEvents) == 0 {
 		return true
 	}
 	_, exists := w.focusEvents[event]
