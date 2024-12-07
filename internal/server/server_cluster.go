@@ -262,6 +262,12 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 	}
 
 	if authResult.ReasonCode == wkproto.ReasonSuccess {
+		if authResult.AesKey == "" || authResult.AesIV == "" {
+			s.Error("auth: handleUserAuthResult: aesKey or aesIV is empty", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
+			c.WriteErrorAndStatus(errors.New("handleUserAuthResult: aesKey or aesIV is empty"), proto.StatusNotFound)
+			return
+		}
+
 		connCtx.aesIV = []byte(authResult.AesIV)
 		connCtx.aesKey = []byte(authResult.AesKey)
 		connCtx.deviceLevel = authResult.DeviceLevel

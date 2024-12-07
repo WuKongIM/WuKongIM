@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -26,7 +27,6 @@ import (
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"k8s.io/utils/keymutex"
 	"k8s.io/utils/lru"
 )
 
@@ -39,7 +39,7 @@ type Server struct {
 	slotManager        *slotManager         // 槽管理者
 	channelManager     *channelManager      // 频道管理者
 
-	channelKeyLock         keymutex.KeyMutex       // 频道锁
+	channelKeyLock         *keylock.KeyLock        // 频道锁
 	netServer              *wkserver.Server        // 节点之间通讯的网络服务
 	channelElectionPool    *ants.Pool              // 频道选举的协程池
 	channelElectionManager *channelElectionManager // 频道选举管理者
@@ -68,7 +68,7 @@ func New(opts *Options) *Server {
 		opts:                opts,
 		nodeManager:         newNodeManager(opts),
 		Log:                 wklog.NewWKLog(fmt.Sprintf("cluster[%d]", opts.NodeId)),
-		channelKeyLock:      keymutex.NewHashed(4096), // 创建指定大小的锁环
+		channelKeyLock:      keylock.NewKeyLock(), // 创建指定大小的锁环
 		channelLoadMap:      make(map[string]struct{}),
 		stopper:             syncutil.NewStopper(),
 		channelClusterCache: lru.New(1024),
@@ -159,6 +159,8 @@ func New(opts *Options) *Server {
 func (s *Server) Start() error {
 
 	s.uptime = time.Now()
+
+	s.channelKeyLock.StartCleanLoop()
 
 	err := s.slotStorage.Open()
 	if err != nil {
@@ -260,11 +262,13 @@ func (s *Server) Stop() {
 	s.channelManager.stop()
 	s.slotStorage.Close()
 
+	s.channelKeyLock.StopCleanLoop()
+
 }
 
 // 提案频道分布式配置
-func (s *Server) ProposeChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
-	return s.opts.ChannelClusterStorage.Propose(ctx, cfg)
+func (s *Server) ProposeChannelClusterConfig(cfg wkdb.ChannelClusterConfig) error {
+	return s.opts.ChannelClusterStorage.Propose(cfg)
 }
 
 // 获取分布式配置

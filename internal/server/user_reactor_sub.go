@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
+	"github.com/valyala/fastrand"
 	"go.uber.org/zap"
 )
 
@@ -47,7 +48,10 @@ func (u *userReactorSub) stop() {
 }
 
 func (u *userReactorSub) loop() {
-	tk := time.NewTicker(u.r.s.opts.Reactor.User.TickInterval)
+	p := float64(fastrand.Uint32()) / (1 << 32)
+	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。
+	jitter := time.Duration(p * float64(u.r.s.opts.Reactor.User.TickInterval/2))
+	tk := time.NewTicker(u.r.s.opts.Reactor.User.TickInterval + jitter)
 	defer tk.Stop()
 	for {
 		u.readys()

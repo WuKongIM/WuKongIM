@@ -16,7 +16,8 @@ func (s *Store) AddUser(u wkdb.User) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(u.Uid)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -33,7 +34,7 @@ func (s *Store) UpdateUser(u wkdb.User) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(u.Uid)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -45,8 +46,9 @@ func (s *Store) UpdateDevice(d wkdb.Device) error {
 		s.Error("marshal cmd failed", zap.Error(err))
 		return err
 	}
+
 	slotId := s.opts.GetSlotId(d.Uid)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -58,8 +60,9 @@ func (s *Store) AddDevice(d wkdb.Device) error {
 		s.Error("marshal cmd failed", zap.Error(err))
 		return err
 	}
+
 	slotId := s.opts.GetSlotId(d.Uid)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 

@@ -73,9 +73,7 @@ func newUserReactor(s *Server) *userReactor {
 		sizePerPool = s.opts.Reactor.User.ProcessPoolSize / s.opts.Reactor.User.SubCount
 	}
 	var err error
-	u.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(err interface{}) {
-		u.Error("user: processGoPool panic", zap.Any("err", err), zap.Stack("stack"))
-	}))
+	u.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks)
 	if err != nil {
 		u.Panic("user: NewMultiPool panic", zap.Error(err))
 	}

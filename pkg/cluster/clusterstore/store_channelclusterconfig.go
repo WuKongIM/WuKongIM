@@ -46,7 +46,7 @@ func (c *ChannelClusterConfigStore) GetWithSlotId(slotId uint32) ([]wkdb.Channel
 	return c.store.wdb.GetChannelClusterConfigWithSlotId(slotId)
 }
 
-func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
+func (c *ChannelClusterConfigStore) Propose(cfg wkdb.ChannelClusterConfig) error {
 
 	start := time.Now()
 	defer func() {
@@ -71,7 +71,7 @@ func (c *ChannelClusterConfigStore) Propose(ctx context.Context, cfg wkdb.Channe
 		return err
 	}
 	slotId := c.store.opts.GetSlotId(cfg.ChannelId)
-	_, err = c.store.opts.Cluster.ProposeDataToSlot(ctx, slotId, cmdData)
+	_, err = c.store.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -91,6 +91,6 @@ func (s *Store) SaveChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelCl
 		return err
 	}
 	slotId := s.opts.GetSlotId(cfg.ChannelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }

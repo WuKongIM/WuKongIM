@@ -523,3 +523,134 @@ func TestFollowerToLeader(t *testing.T) {
 	assert.True(t, hasMsg(rd.Messages, MsgSyncResp))
 	assert.True(t, hasMsg(rd.Messages, MsgFollowerToLeader))
 }
+
+func TestReplica(t *testing.T) {
+
+	interval := 2
+	leader := New(1, WithSyncIntervalTick(interval))
+
+	err := leader.Step(Message{
+		MsgType: MsgInitResp,
+		Config: Config{
+			Role:     RoleLeader,
+			Term:     1,
+			Replicas: []uint64{1, 2, 3},
+		},
+	})
+	assert.NoError(t, err)
+
+	follower := New(2, WithSyncIntervalTick(interval))
+	err = follower.Step(Message{
+		MsgType: MsgInitResp,
+		Config: Config{
+			Role:     RoleFollower,
+			Term:     1,
+			Leader:   1,
+			Replicas: []uint64{1, 2, 3},
+		},
+	})
+	assert.NoError(t, err)
+
+	err = follower.Step(Message{
+		MsgType: MsgLogConflictCheckResp,
+	})
+	assert.NoError(t, err)
+
+	t.Run("sync", func(t *testing.T) {
+
+		readyMsgZero(t, follower, interval)
+
+		rd := follower.Ready()
+		assert.Equal(t, 1, len(rd.Messages))
+
+	})
+
+	t.Run("syncFailed", func(t *testing.T) {
+		err = follower.Step(Message{
+			MsgType: MsgSyncResp,
+			Reject:  true,
+		})
+		assert.NoError(t, err)
+
+		readyMsgZero(t, follower, interval*3)
+	})
+
+	t.Run("syncDelay", func(t *testing.T) {
+		err = follower.Step(Message{
+			MsgType: MsgSyncResp,
+			Reject:  false,
+		})
+		assert.NoError(t, err)
+
+		readyMsgZero(t, follower, interval*3)
+	})
+
+	t.Run("syncImmediately", func(t *testing.T) {
+		err = follower.Step(Message{
+			MsgType: MsgSyncResp,
+			Reject:  false,
+			Logs: []Log{
+				{
+					Id:    123,
+					Index: 1,
+					Term:  1,
+				},
+			},
+		})
+		assert.NoError(t, err)
+
+		rd := follower.Ready()
+		hasMsg(rd.Messages, MsgSyncReq)
+
+	})
+
+}
+
+func readyMsgZero(t *testing.T, r *Replica, count int) {
+	for i := 0; i < count; i++ {
+		rd := r.Ready()
+		assert.Equal(t, 0, len(rd.Messages))
+		r.Tick()
+	}
+}
+
+func TestLogAppendResp(t *testing.T) {
+	leader := New(1, WithSyncIntervalTick(1))
+	err := leader.Step(Message{
+		MsgType: MsgInitResp,
+		Config: Config{
+			Role:     RoleLeader,
+			Term:     1,
+			Leader:   1,
+			Replicas: []uint64{1, 2, 3},
+		},
+	})
+	assert.NoError(t, err)
+
+	err = leader.Propose([]byte("hello"))
+	assert.NoError(t, err)
+
+	t.Run("appendRespFail", func(t *testing.T) {
+
+		rd := leader.Ready()
+		assert.Equal(t, true, hasMsg(rd.Messages, MsgStoreAppend))
+
+		err = leader.Step(Message{
+			MsgType: MsgStoreAppendResp,
+			Reject:  true,
+		})
+		assert.NoError(t, err)
+
+		for i := 0; i < leader.opts.RetryTick-1; i++ {
+			leader.Tick()
+		}
+		rd = leader.Ready()
+		assert.Equal(t, false, hasMsg(rd.Messages, MsgStoreAppend))
+
+		leader.Tick()
+
+		rd = leader.Ready()
+		assert.Equal(t, true, hasMsg(rd.Messages, MsgStoreAppend))
+
+	})
+}

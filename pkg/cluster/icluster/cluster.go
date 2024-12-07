@@ -71,7 +71,7 @@ type Propose interface {
 	// ProposeToSlots 提案日志到指定的槽
 	ProposeToSlot(ctx context.Context, slotId uint32, logs []replica.Log) ([]ProposeResult, error)
 	// ProposeDataToSlot 提案数据到指定的槽
-	ProposeDataToSlot(ctx context.Context, slotId uint32, data []byte) (ProposeResult, error)
+	ProposeDataToSlot(slotId uint32, data []byte) (ProposeResult, error)
 }
 
 type ProposeResult interface {

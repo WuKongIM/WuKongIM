@@ -61,18 +61,15 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 		}
 		s.handleConnack(conn, req)
 	} else if msgType == proto.MsgTypeRequest {
+
+		newData := make([]byte, len(data))
+		copy(newData, data)
+
 		req := s.requestObjPool.Get().(*proto.Request)
-		err := req.Unmarshal(data)
+		err := req.Unmarshal(newData)
 		if err != nil {
 			s.Error("unmarshal request error", zap.Error(err))
 			return
-		}
-
-		// 这需要复制一份新的body的byte，因为handleMsg传过来的data是被复用了的
-		if len(req.Body) > 0 {
-			newBody := make([]byte, len(req.Body)) // 这里内存有优化空间
-			copy(newBody, req.Body)
-			req.Body = newBody
 		}
 
 		if s.requestPool.Running() > s.opts.RequestPoolSize-10 {
@@ -89,32 +86,34 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			s.Error("submit request error", zap.Error(err))
 		}
 	} else if msgType == proto.MsgTypeResp {
+
+		newData := make([]byte, len(data))
+		copy(newData, data)
+
 		resp := &proto.Response{}
-		err := resp.Unmarshal(data)
+		err := resp.Unmarshal(newData)
 		if err != nil {
 			s.Error("unmarshal resp error", zap.Error(err))
 			return
 		}
-		// 这需要复制一份新的body的byte，因为handleMsg传过来的data是被复用了的
-		if len(resp.Body) > 0 {
-			newBody := make([]byte, len(resp.Body))
-			copy(newBody, resp.Body)
-			resp.Body = newBody
-		}
+		// // 这需要复制一份新的body的byte，因为handleMsg传过来的data是被复用了的
+		// if len(resp.Body) > 0 {
+		// 	newBody := make([]byte, len(resp.Body))
+		// 	copy(newBody, resp.Body)
+		// 	resp.Body = newBody
+		// }
 
 		s.handleResp(conn, resp)
 	} else if msgType == proto.MsgTypeMessage {
+		// 这需要复制一份新的data的byte，因为handleMsg传过来的data是被复用了的
+		newData := make([]byte, len(data))
+		copy(newData, data)
+
 		msg := &proto.Message{}
-		err := msg.Unmarshal(data)
+		err := msg.Unmarshal(newData)
 		if err != nil {
 			s.Error("unmarshal message error", zap.Error(err))
 			return
-		}
-		// 这需要复制一份新的content的byte，因为handleMsg传过来的data是被复用了的
-		if len(msg.Content) > 0 {
-			newContent := make([]byte, len(msg.Content))
-			copy(newContent, msg.Content)
-			msg.Content = newContent
 		}
 		if s.opts.MessagePoolOn {
 			if s.messagePool.Running() > s.opts.MessagePoolSize-10 {
@@ -206,7 +205,8 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 
 	// 这里判断日志等级才调用debug，避免 time.Since(start)这些无谓的消耗
 	if wklog.Level() == zapcore.DebugLevel {
-		s.Info("request path", zap.String("path", req.Path), zap.Duration("cost", time.Since(start)), zap.String("from", conn.UID()))
+		cost := time.Since(start)
+		s.Debug("request path", zap.Uint64("id", req.Id), zap.String("path", req.Path), zap.Duration("cost", cost), zap.String("from", conn.UID()))
 	}
 
 }

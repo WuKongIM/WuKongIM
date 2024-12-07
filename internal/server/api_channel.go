@@ -169,6 +169,9 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 }
 
 func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
+
+	fmt.Println("addSubscriber---->start...")
+
 	var req subscriberAddReq
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -192,19 +195,17 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 	if req.ChannelType == 0 {
 		req.ChannelType = wkproto.ChannelTypeGroup //默认为群
 	}
-	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
-		if err != nil {
-			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			c.ResponseError(errors.New("获取频道所在节点失败！"))
-			return
-		}
-		leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
-		if !leaderIsSelf {
-			ch.Info("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)), zap.Uint64("leaderId ", leaderInfo.Id))
-			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-			return
-		}
+	leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+	if err != nil {
+		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == ch.s.opts.Cluster.NodeId
+	if !leaderIsSelf {
+		ch.Info("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)), zap.Uint64("leaderId ", leaderInfo.Id))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
 	}
 
 	exist, err := ch.s.store.ExistChannel(req.ChannelId, req.ChannelType)
@@ -214,6 +215,9 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 		return
 	}
 	if !exist { // 如果没有频道则创建
+
+		fmt.Println("AddChannelInfo....")
+
 		channelInfo := wkdb.NewChannelInfo(req.ChannelId, req.ChannelType)
 		err = ch.s.store.AddChannelInfo(channelInfo)
 		if err != nil {
@@ -221,6 +225,7 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 			c.ResponseError(errors.New("创建频道失败！"))
 			return
 		}
+		fmt.Println("AddChannelInfo..end..")
 	}
 
 	err = ch.addSubscriberWithReq(req)

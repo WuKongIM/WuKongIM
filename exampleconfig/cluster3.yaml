@@ -35,5 +35,5 @@ auth:
     - "admin:pwd:*" 
     - "guest:guest:[*:r]" # guest用户密码为guest对所有资源有读权限
 jwt:
-  secret: "xxxxx"
+  secret: "wukongim_test_secret"
   expire: 30d    

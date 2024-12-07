@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -98,6 +99,10 @@ func (r *channelReactor) processInit(req *initReq) {
 	// 		return
 	// 	}
 	// }
+
+	if r.opts.IsLocalNode(cfg.LeaderId) {
+		trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(1)
+	}
 
 	req.sub.step(req.ch, &ChannelAction{
 		UniqueNo:   req.ch.uniqueNo,
@@ -738,17 +743,7 @@ func (r *channelReactor) processStorageLoop() {
 			for !done && !r.stopped.Load() {
 				select {
 				case req := <-r.processStorageC:
-					exist := false
-					for _, rq := range reqs {
-						if rq.ch.channelId == req.ch.channelId && rq.ch.channelType == req.ch.channelType {
-							rq.messages = append(rq.messages, req.messages...)
-							exist = true
-							break
-						}
-					}
-					if !exist {
-						reqs = append(reqs, req)
-					}
+					reqs = append(reqs, req)
 				default:
 					done = true
 				}
@@ -767,10 +762,11 @@ func (r *channelReactor) processStorageLoop() {
 func (r *channelReactor) processStorages(reqs []*storageReq) {
 
 	for _, req := range reqs {
-		req := req
-		err := r.processGoPool.Submit(func() {
-			r.processStorage(req)
-		})
+		err := r.processGoPool.Submit(func(rq *storageReq) func() {
+			return func() {
+				r.processStorage(rq)
+			}
+		}(req))
 		if err != nil {
 			r.Error("processStorage failed, submit error", zap.Error(err))
 			req.sub.step(req.ch, &ChannelAction{
@@ -847,7 +843,8 @@ func (r *channelReactor) processStorage(req *storageReq) {
 		results, err := r.s.store.AppendMessages(timeoutCtx, req.ch.channelId, req.ch.channelType, sotreMessages)
 		cancel()
 		if err != nil {
-			r.Error("AppendMessages error", zap.Error(err), zap.Int("msgCount", len(sotreMessages)), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+			lastMsg := sotreMessages[len(sotreMessages)-1]
+			r.Error("AppendMessages error", zap.Error(err), zap.Int("msgCount", len(sotreMessages)), zap.Uint32("lastMsgSeq", lastMsg.MessageSeq), zap.Int64("lastMessageId", lastMsg.MessageID), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 			if r.opts.Logger.TraceOn {
 				for _, sotreMessage := range sotreMessages {
 					r.MessageTrace("存储消息失败", sotreMessage.ClientMsgNo, "processStorage", zap.Error(err))
@@ -1220,6 +1217,9 @@ func (r *channelReactor) processClose(req *closeReq) {
 
 	r.Debug("channel close", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 
+	if r.opts.IsLocalNode(req.leaderId) {
+		trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
+	}
 	// 释放掉tagKey
 	receiverTagKey := req.ch.receiverTagKey.Load()
 	if receiverTagKey != "" {
@@ -1232,7 +1232,8 @@ func (r *channelReactor) processClose(req *closeReq) {
 }
 
 type closeReq struct {
-	ch *channel
+	ch       *channel
+	leaderId uint64
 }
 
 // =================================== 检查tag的有效性 ===================================

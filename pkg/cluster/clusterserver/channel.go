@@ -1,14 +1,12 @@
 package cluster
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -106,22 +104,14 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 		Term:        cfg.Term,
 	}
 
-	c.s.channelManager.channelReactor.Step(c.key, replica.Message{
+	return c.s.channelManager.channelReactor.StepWait(c.key, replica.Message{
 		MsgType: replica.MsgConfigResp,
 		Config:  replicaCfg,
 	})
-	return nil
 }
 
 func (c *channel) onReplicaConfigChange(oldCfg, newCfg replica.Config) {
-	if oldCfg.Role != newCfg.Role {
-		if newCfg.Leader == c.opts.NodeId { // 从非领导变为领导
-			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(1)
-		} else if oldCfg.Leader == c.opts.NodeId && newCfg.Leader != c.opts.NodeId { // 从领导变为非领导
-			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
-		}
 
-	}
 }
 
 func (c *channel) leaderId() uint64 {
@@ -161,6 +151,26 @@ func (c *channel) GetLogs(startIndex uint64, endIndex uint64) ([]replica.Log, er
 }
 
 func (c *channel) ApplyLogs(startIndex, endIndex uint64) (uint64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if endIndex == 0 {
+		return 0, nil
+	}
+
+	lastAppliedIndex, err := c.opts.MessageLogStorage.AppliedIndex(c.key)
+	if err != nil {
+		return 0, nil
+	}
+	if endIndex-1 <= lastAppliedIndex {
+		c.Error("not apply logs, applied < lastApplied", zap.Uint64("applied", endIndex-1), zap.Uint64("lastApplied", lastAppliedIndex))
+		return 0, nil
+	}
+
+	err = c.opts.MessageLogStorage.SetAppliedIndex(c.key, endIndex-1)
+	if err != nil {
+		return 0, err
+	}
 	return 0, nil
 }
 
@@ -394,9 +404,7 @@ func (c *channel) learnerTo(learnerId uint64) error {
 
 func (c *channel) proposeAndUpdateChannelClusterConfig(cfg wkdb.ChannelClusterConfig) error {
 	// 保存配置
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), c.opts.ProposeTimeout)
-	defer cancel()
-	err := c.opts.ChannelClusterStorage.Propose(timeoutCtx, cfg)
+	err := c.opts.ChannelClusterStorage.Propose(cfg)
 	if err != nil {
 		c.Error("propose channel cluster config failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return err
@@ -420,4 +428,8 @@ func (c *channel) getLogs(startLogIndex uint64, endLogIndex uint64, limitSize ui
 		return nil, err
 	}
 	return logs, nil
+}
+
+func (c *channel) DetailLogOn(on bool) {
+	c.rc.DetailLogOn(on)
 }

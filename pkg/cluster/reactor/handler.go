@@ -154,8 +154,8 @@ func (h *handler) setHardState(hd replica.HardState) {
 	h.handler.SetHardState(hd)
 }
 
-func (h *handler) didPropose(key string, minIndex uint64, maxIndex uint64) {
-	h.proposeWait.didPropose(key, minIndex, maxIndex)
+func (h *handler) didPropose(key string, minIndex uint64, maxIndex uint64, term uint32) {
+	h.proposeWait.didPropose(key, minIndex, maxIndex, term)
 }
 
 func (h *handler) didCommit(startLogIndex uint64, endLogIndex uint64) {

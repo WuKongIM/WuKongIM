@@ -79,11 +79,8 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 		newClusterConfig.Learners = append(newClusterConfig.Learners, req.MigrateTo)
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
-	defer cancel()
-
 	// 提案保存配置
-	err = s.opts.ChannelClusterStorage.Propose(timeoutCtx, newClusterConfig)
+	err = s.opts.ChannelClusterStorage.Propose(newClusterConfig)
 	if err != nil {
 		s.Error("channelMigrate: Save error", zap.Error(err))
 		c.ResponseError(err)

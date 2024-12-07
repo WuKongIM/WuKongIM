@@ -10,7 +10,7 @@ func (s *Store) AddStreamMeta(streamMeta *wkdb.StreamMeta) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(streamMeta.ChannelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -27,7 +27,7 @@ func (s *Store) AddStreams(channelId string, channelType uint8, streams []*wkdb.
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 

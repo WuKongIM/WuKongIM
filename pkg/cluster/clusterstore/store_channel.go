@@ -18,7 +18,7 @@ func (s *Store) AddSubscribers(channelId string, channelType uint8, subscribers 
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -40,7 +40,7 @@ func (s *Store) RemoveSubscribers(channelId string, channelType uint8, subscribe
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -52,7 +52,7 @@ func (s *Store) RemoveAllSubscriber(channelId string, channelType uint8) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -72,7 +72,7 @@ func (s *Store) AddChannelInfo(channelInfo wkdb.ChannelInfo) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelInfo.ChannelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -87,7 +87,7 @@ func (s *Store) UpdateChannelInfo(channelInfo wkdb.ChannelInfo) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelInfo.ChannelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -99,7 +99,7 @@ func (s *Store) DeleteChannel(channelId string, channelType uint8) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -124,7 +124,7 @@ func (s *Store) AddDenylist(channelId string, channelType uint8, members []wkdb.
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 
 }
@@ -145,7 +145,7 @@ func (s *Store) RemoveAllDenylist(channelId string, channelType uint8) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -162,7 +162,7 @@ func (s *Store) RemoveDenylist(channelId string, channelType uint8, uids []strin
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -179,7 +179,7 @@ func (s *Store) AddAllowlist(channelId string, channelType uint8, members []wkdb
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -199,7 +199,7 @@ func (s *Store) RemoveAllAllowlist(channelId string, channelType uint8) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -216,7 +216,7 @@ func (s *Store) RemoveAllowlist(channelId string, channelType uint8, uids []stri
 		return err
 	}
 	slotId := s.opts.GetSlotId(channelId)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 

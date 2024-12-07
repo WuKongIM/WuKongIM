@@ -26,6 +26,7 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/sendgrid/rest v2.6.9+incompatible
 	github.com/stretchr/testify v1.9.0
+	github.com/valyala/fastrand v1.1.0
 	go.etcd.io/etcd/pkg/v3 v3.5.9
 	go.etcd.io/raft/v3 v3.0.0-20230805183326-89c97ed7f982
 	go.opentelemetry.io/otel v1.28.0
@@ -259,7 +260,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	go4.org/netipx v0.0.0-20230125063823-8449b0a6169f // indirect
-	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
+	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
 	golang.org/x/mod v0.19.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
@@ -278,7 +279,7 @@ require (
 	k8s.io/client-go v0.29.3 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
+	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect

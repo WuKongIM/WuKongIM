@@ -20,7 +20,7 @@ func (c *channel) step(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
-			c.initState.processing = false
+			c.initState.ProcessSuccess()
 			c.status = channelStatusInitialized
 			if a.LeaderId == c.r.opts.Cluster.NodeId {
 				c.becomeLeader()
@@ -28,7 +28,7 @@ func (c *channel) step(a *ChannelAction) error {
 				c.becomeProxy(a.LeaderId)
 			}
 		} else {
-			c.initState.willRetry = true
+			c.initState.ProcessFail()
 		}
 		// c.Info("channel init resp", zap.Int("status", int(c.status)), zap.Uint64("leaderId", c.leaderId))
 
@@ -79,7 +79,7 @@ func (c *channel) step(a *ChannelAction) error {
 		// c.Debug("channel send", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	case ChannelActionPayloadDecryptResp: // payload解密
 		if a.Reason == ReasonSuccess {
-			c.payloadDecryptState.processing = false
+			c.payloadDecryptState.ProcessSuccess()
 			if len(a.Messages) == 0 {
 				return nil
 			}
@@ -114,7 +114,7 @@ func (c *channel) step(a *ChannelAction) error {
 				}
 			}
 		} else {
-			c.payloadDecryptState.willRetry = true
+			c.payloadDecryptState.ProcessFail()
 		}
 	case ChannelActionStreamPayloadDecryptResp: // stream payload解密
 		if len(a.Messages) == 1 {
@@ -155,7 +155,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionPermissionCheckResp: // 权限校验返回
 		if a.Reason == ReasonSuccess {
-			c.permissionCheckState.processing = false
+			c.permissionCheckState.ProcessSuccess()
 			startIndex := c.msgQueue.getArrayIndex(c.msgQueue.permissionCheckingIndex)
 			if a.Index > c.msgQueue.permissionCheckingIndex {
 				c.msgQueue.permissionCheckingIndex = a.Index
@@ -177,11 +177,11 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 				}
 			}
 		} else {
-			c.permissionCheckState.willRetry = true
+			c.permissionCheckState.ProcessFail()
 		}
 	case ChannelActionStorageResp: // 存储完成
 		if a.Reason == ReasonSuccess {
-			c.storageState.processing = false
+			c.storageState.ProcessSuccess()
 			startIndex := c.msgQueue.getArrayIndex(c.msgQueue.storagingIndex)
 			if a.Index > c.msgQueue.storagingIndex {
 				c.msgQueue.storagingIndex = a.Index
@@ -205,7 +205,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 				}
 			}
 		} else {
-			c.storageState.willRetry = true
+			c.storageState.ProcessFail()
 		}
 
 	// 消息存储完毕后，需要通知发送者
@@ -215,7 +215,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 
 	case ChannelActionSendackResp: // 发送ack返回
 		if a.Reason == ReasonSuccess {
-			c.sendackState.processing = false // 设置为false，则不需要等待可以继续处理下一批请求
+			c.sendackState.ProcessSuccess() // 设置为false，则不需要等待可以继续处理下一批请求
 			if a.Index > c.msgQueue.sendackingIndex {
 				c.msgQueue.sendackingIndex = a.Index
 				// 只有投递消息的deliveringIndex也达到这个位置时，才能删除消息
@@ -224,12 +224,12 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 				}
 			}
 		} else {
-			c.sendackState.willRetry = true
+			c.sendackState.ProcessFail()
 		}
 
 	case ChannelActionDeliverResp: // 消息投递返回
 		if a.Reason == ReasonSuccess {
-			c.deliveryState.processing = false
+			c.deliveryState.ProcessSuccess()
 			if a.Index > c.msgQueue.deliveringIndex {
 				c.msgQueue.deliveringIndex = a.Index
 
@@ -239,7 +239,7 @@ func (c *channel) stepLeader(a *ChannelAction) error {
 				}
 			}
 		} else {
-			c.deliveryState.willRetry = true
+			c.deliveryState.ProcessFail()
 		}
 	// c.Info("channel deliver resp", zap.Int("messageCount", len(a.Messages)), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 	case ChannelActionStreamDeliverResp: // stream消息投递返回
@@ -277,7 +277,7 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 	switch a.ActionType {
 	case ChannelActionForwardResp: // 转发
 		if a.Reason == ReasonSuccess {
-			c.forwardState.processing = false
+			c.forwardState.ProcessSuccess()
 			if len(a.Messages) == 0 {
 				return nil
 			}
@@ -289,7 +289,7 @@ func (c *channel) stepProxy(a *ChannelAction) error {
 				}
 			}
 		} else {
-			c.forwardState.willRetry = true
+			c.forwardState.ProcessFail()
 		}
 
 	}
