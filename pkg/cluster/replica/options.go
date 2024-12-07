@@ -187,3 +187,15 @@ func WithOnConfigChange(f func(oldCfg, newCfg Config)) Option {
 		o.OnConfigChange = f
 	}
 }
+
+func WithRetryTick(tick int) Option {
+	return func(o *Options) {
+		o.RetryTick = tick
+	}
+}
+
+func WithSyncTimeoutTick(tick int) Option {
+	return func(o *Options) {
+		o.SyncTimeoutTick = tick
+	}
+}

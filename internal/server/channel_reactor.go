@@ -80,9 +80,7 @@ func newChannelReactor(s *Server, opts *Options) *channelReactor {
 		sizePerPool = r.opts.Reactor.Channel.ProcessPoolSize / r.opts.Reactor.Channel.SubCount
 	}
 	var err error
-	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(err interface{}) {
-		r.Error("processGoPool panic", zap.Any("err", err), zap.Stack("stack"))
-	}))
+	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks)
 	if err != nil {
 		r.Panic("NewMultiPool panic", zap.Error(err))
 	}

@@ -1,7 +1,10 @@
 package cluster
 
 import (
+	"errors"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
@@ -56,4 +59,36 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/message/trace/recvack"), s.messageRecvackTrace) // 获取收到消息回执轨迹
 	route.GET(s.formatPath("/logs/tail"), s.logsTail)                        // tail日志 websocket接口
 
+	// ================== debug ==================
+	route.POST(s.formatPath("/debug/log/:type/:key/detail"), s.detailLog) // 开启某个handle的详细日志
+
+}
+
+func (s *Server) detailLog(c *wkhttp.Context) {
+	tp := c.Param("type")
+	key := c.Param("key")
+	off := wkutil.ParseBool(c.Query("off"))
+
+	if tp == "slot" {
+		slotId := wkutil.ParseUint32(key)
+		slot := s.slotManager.get(slotId)
+		if slot == nil {
+			c.ResponseError(errors.New("slot not exist"))
+			return
+		}
+		slot.DetailLogOn(!off)
+	} else if tp == "channel" {
+		handler := s.channelManager.get(wkutil.ChannelFromlKey(key))
+		if handler == nil {
+			c.ResponseError(errors.New("channel not exist"))
+			return
+		}
+		ch := handler.(*channel)
+		ch.DetailLogOn(!off)
+	} else {
+		c.ResponseError(errors.New("type error"))
+		return
+	}
+
+	c.ResponseOK()
 }

@@ -3,6 +3,7 @@ package reactor
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -50,7 +51,7 @@ func (m *proposeWait) add(key string, minId, maxId uint64) *proposeProgress {
 }
 
 // TODO 此方法startMessageSeq 至 endMessageSeq的跨度十万需要10来秒 很慢 需要优化
-func (m *proposeWait) didPropose(key string, minIndex uint64, maxIndex uint64) {
+func (m *proposeWait) didPropose(key string, minIndex uint64, maxIndex uint64, term uint32) {
 	if minIndex == 0 {
 		m.Panic("didPropose minIndex is 0")
 	}
@@ -59,18 +60,34 @@ func (m *proposeWait) didPropose(key string, minIndex uint64, maxIndex uint64) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	exist := false
 	for _, progress := range m.progresses {
 		if progress.key == key {
 			progress.minIndex = minIndex
 			progress.maxIndex = maxIndex
+			progress.didPropose = true
+			progress.term = term
 			exist = true
 			break
 		}
 	}
 	if !exist {
-		m.Info("didPropose key not exist", zap.String("key", key))
+		m.Info("didPropose key not exist", zap.String("key", key), zap.Uint64("minIndex", minIndex), zap.Uint64("maxIndex", maxIndex))
+	}
+}
+
+// didAppend 追加[startLogIndex, endLogIndex)范围的消息
+func (m *proposeWait) didAppend(_ uint64, endLogIndex uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, progress := range m.progresses {
+		if progress.minIndex == 0 || progress.maxIndex == 0 { // 还没有didPropose
+			continue
+		}
+		if endLogIndex > progress.maxIndex {
+			progress.didAppend = true
+		}
 	}
 }
 
@@ -93,15 +110,21 @@ func (m *proposeWait) didCommit(startLogIndex uint64, endLogIndex uint64) {
 	}
 
 	for _, progress := range m.progresses {
-		if endLogIndex >= progress.maxIndex {
+		if progress.minIndex == 0 || progress.maxIndex == 0 { // 还没有didPropose
+			continue
+		}
+
+		if endLogIndex > progress.maxIndex {
+
 			progress.progressIndex = progress.maxIndex
 			if !progress.done {
+				progress.didCommit = true
 				progress.done = true
 				progress.waitC <- nil
 			}
 
 		} else if startLogIndex >= progress.minIndex {
-			progress.progressIndex = startLogIndex
+			progress.progressIndex = endLogIndex - 1
 		}
 	}
 
@@ -139,8 +162,15 @@ type proposeProgress struct {
 
 	minIndex uint64
 	maxIndex uint64
+	term     uint32
 
 	progressIndex uint64
+
+	startMilli int64 // 开始时间
+
+	didPropose bool // 是否已经didPropose
+	didAppend  bool // 是否已经didAppend
+	didCommit  bool // 是否已经didCommit
 
 	done  bool // 是否已经完成
 	waitC chan error
@@ -148,11 +178,16 @@ type proposeProgress struct {
 
 func newProposeProgress(key string, minId uint64, maxId uint64, minIndex uint64, maxIndex uint64) *proposeProgress {
 	return &proposeProgress{
-		key:      key,
-		minId:    minId,
-		maxId:    maxId,
-		minIndex: minIndex,
-		maxIndex: maxIndex,
-		waitC:    make(chan error, 1),
+		key:        key,
+		minId:      minId,
+		maxId:      maxId,
+		minIndex:   minIndex,
+		maxIndex:   maxIndex,
+		waitC:      make(chan error, 1),
+		startMilli: time.Now().UnixMilli(),
 	}
+}
+
+func (p *proposeProgress) String() string {
+	return fmt.Sprintf("key:%s startMilli:%d term:%d minId:%d maxId:%d minIndex:%d maxIndex:%d progressIndex:%d didPropose:%t didAppend:%t didCommit:%t done:%t", p.key, p.startMilli, p.term, p.minId, p.maxId, p.minIndex, p.maxIndex, p.progressIndex, p.didPropose, p.didAppend, p.didCommit, p.done)
 }

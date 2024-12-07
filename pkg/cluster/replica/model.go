@@ -11,6 +11,7 @@ import (
 	"time"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/valyala/fastrand"
 )
 
 type MsgType uint16
@@ -178,11 +179,10 @@ type Message struct {
 	Logs        []Log
 
 	// 不参与编码
-	LearnerId     uint64
-	FollowerId    uint64
-	ApplyingIndex uint64 // 应用中的下表
-	AppliedIndex  uint64
-	Role          Role // 节点角色
+	LearnerId    uint64
+	FollowerId   uint64
+	AppliedIndex uint64
+	Role         Role // 节点角色
 
 	Config      Config // 配置
 	AppliedSize uint64
@@ -581,13 +581,208 @@ var (
 	ErrCompacted                    = errors.New("log compacted")
 )
 
+// tickExponentialBackoff 函数，根据重试次数返回延迟时间
+// retries 重试次数
+// baseDelay 基础延迟时间
+// maxDelay 最大延迟时间，返回的延迟时间不会超过这个值
+func tickExponentialBackoff(retries int, baseDelay, maxDelay int) int {
+
+	// 重试次数小于3，返回基础延迟时间
+	if retries < 3 {
+		return baseDelay
+	}
+
+	// 超过三次后按照指数级延迟 计算指数退避延迟时间
+	exp := retries - 3 + 1
+	delay := baseDelay * (1 << exp) // 2^exp * baseDelay
+
+	// 可能添加一个随机因子，防止所有请求同时重试
+	p := float64(fastrand.Uint32()) / (1 << 32)
+	jitter := int(p * float64(delay)) // 抖动范围，抖动范围为0~delay
+	delay = delay + jitter
+
+	// 限制最大延迟时间
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+
+	return delay
+}
+
 type SyncInfo struct {
 	LastSyncIndex uint64 //最后一次来同步日志的下标（最新日志 + 1）
 	SyncTick      int    // 同步计时器
 }
 
-type readyState struct {
+type ReadyState struct {
 	processing bool // 处理中
 	willRetry  bool // 将要重试
 	retryTick  int  // 重试计时，超过一定tick数后，将会重试
+	retryCount int  // 连续重试次数
+
+	retryIntervalTick int // 默认配置的重试间隔
+
+	currentIntervalTick int // 重试间隔tick数，retryTick达到这个值后才重试
+}
+
+// NewReadyState retryIntervalTick为默认重试间隔
+func NewReadyState(retryIntervalTick int) *ReadyState {
+
+	return &ReadyState{
+		retryIntervalTick:   retryIntervalTick,
+		currentIntervalTick: retryIntervalTick,
+	}
+}
+
+// 开始处理
+func (r *ReadyState) StartProcessing() {
+	r.processing = true
+}
+
+// 处理成功
+func (r *ReadyState) ProcessSuccess() {
+	r.processing = false
+	r.willRetry = false
+	r.retryCount = 0
+}
+
+// 处理失败
+func (r *ReadyState) ProcessFail() {
+	r.willRetry = true
+	r.retryTick = 0
+	r.retryCount++
+
+	// 重试间隔指数退避
+	r.currentIntervalTick = tickExponentialBackoff(r.retryCount, r.retryIntervalTick, r.retryIntervalTick*10)
+}
+
+// 是处理中
+func (r *ReadyState) IsProcessing() bool {
+
+	return r.processing
+}
+
+// 是否在重试
+func (r *ReadyState) IsRetry() bool {
+	return r.willRetry
+}
+
+// tick
+func (r *ReadyState) Tick() {
+	if r.willRetry {
+		r.retryTick++
+		if r.retryTick >= r.currentIntervalTick {
+			r.willRetry = false
+			r.retryTick = 0
+			r.processing = false
+		}
+	}
+}
+
+func (r *ReadyState) Reset() {
+	r.processing = false
+	r.willRetry = false
+	r.retryTick = 0
+	r.retryCount = 0
+	r.currentIntervalTick = r.retryIntervalTick
+}
+
+type ReadyTimeoutState struct {
+	processing              bool // 处理中
+	idleTick                int  // 空闲tick数量,当发起请求后，空闲指定tick数后没有收到回应则重新发起
+	timeoutIntervalTick     int  // 超时tick数,当idleTick达到这个数后重新发起
+	nextTimeoutIntervalTick int  // 下次超时间隔
+	timeoutCount            int  // 超时次数
+	timeoutTickCount        int  // 超时tick计数
+
+	timeoutCallback func() // 超时回调
+
+	intervalTick int // 请求间隔tick数
+
+}
+
+func NewReadyTimeoutState(timeoutIntervalTick int, intervalTick int, timeoutCallback func()) *ReadyTimeoutState {
+
+	rt := &ReadyTimeoutState{
+		timeoutIntervalTick:     timeoutIntervalTick,
+		nextTimeoutIntervalTick: timeoutIntervalTick,
+		timeoutCallback:         timeoutCallback,
+		intervalTick:            intervalTick,
+	}
+
+	return rt
+}
+
+// 开始处理
+func (r *ReadyTimeoutState) StartProcessing() {
+	r.processing = true
+	r.idleTick = 0
+	r.timeoutTickCount = 0
+}
+
+// 处理成功
+func (r *ReadyTimeoutState) ProcessSuccess() {
+	r.processing = false
+	r.idleTick = 0
+	r.timeoutCount = 0
+	r.timeoutTickCount = 0
+}
+
+// 处理失败
+func (r *ReadyTimeoutState) ProcessFail() {
+	r.processing = false
+	r.idleTick = 0
+	r.timeoutTickCount = 0
+	r.Delay()
+}
+
+// 立马重试
+func (r *ReadyTimeoutState) Immediately() {
+	r.idleTick = r.intervalTick
+}
+
+// 延迟
+func (r *ReadyTimeoutState) Delay() {
+	r.idleTick = 0
+}
+
+// 是处理中
+func (r *ReadyTimeoutState) IsProcessing() bool {
+
+	return r.processing
+}
+
+func (r *ReadyTimeoutState) Allow() bool {
+	return r.idleTick >= r.intervalTick
+}
+
+func (r *ReadyTimeoutState) Tick() {
+
+	r.idleTick++
+
+	// 超时逻辑
+	if r.processing {
+		r.timeoutTickCount++
+		if r.timeoutTickCount > r.nextTimeoutIntervalTick {
+			r.timeoutTickCount = 0
+			r.processing = false
+			r.timeoutCount++
+			r.nextTimeoutIntervalTick = tickExponentialBackoff(r.timeoutCount, r.timeoutIntervalTick, r.timeoutIntervalTick*10)
+			if r.timeoutCallback != nil {
+				r.timeoutCallback()
+			}
+		}
+	}
+}
+
+func (r *ReadyTimeoutState) Reset() {
+	r.idleTick = 0
+	r.nextTimeoutIntervalTick = r.timeoutIntervalTick
+	r.timeoutCount = 0
+	r.timeoutTickCount = 0
+	r.processing = false
+}
+
+func (r *ReadyTimeoutState) SetIntervalTick(intervalTick int) {
+	r.intervalTick = intervalTick
 }

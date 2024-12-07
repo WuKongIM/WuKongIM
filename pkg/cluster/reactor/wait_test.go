@@ -19,7 +19,7 @@ func TestMessageWait(t *testing.T) {
 	default:
 	}
 
-	m.didPropose(key, 1, 3)
+	m.didPropose(key, 1, 3, 1)
 
 	m.didCommit(1, 2)
 
@@ -54,7 +54,7 @@ func BenchmarkMessageWait(b *testing.B) {
 	_ = m.add(key, messageIds[0], messageIds[len(messageIds)-1])
 
 	for i := 1; i <= num; i++ {
-		m.didPropose(key, uint64(i), uint64(i))
+		m.didPropose(key, uint64(i), uint64(i), 1)
 	}
 
 	m.didCommit(1, uint64(num)+1)
@@ -66,3 +66,25 @@ func BenchmarkMessageWait(b *testing.B) {
 	// }
 
 }
+
+// func TestAnts(t *testing.T) {
+// 	antsPool, err := ants.NewMultiPool(10, 10, ants.LeastTasks)
+// 	assert.Nil(t, err)
+
+// 	reqs := make([]*testReq, 0)
+
+// 	for i := 0; i < 1000; i++ {
+// 		reqs = append(reqs, &testReq{no: strconv.Itoa(i)})
+// 	}
+
+// 	for _, req := range reqs {
+// 		err := antsPool.Submit(func() {
+// 			t.Log(req.no)
+// 		})
+// 		assert.Nil(t, err)
+// 	}
+// }
+
+// type testReq struct {
+// 	no string
+// }

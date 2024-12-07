@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/lni/goutils/syncutil"
+	"github.com/valyala/fastrand"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -45,7 +46,11 @@ func (r *channelReactorSub) stop() {
 
 func (r *channelReactorSub) loop() {
 
-	tk := time.NewTicker(r.r.s.opts.Reactor.Channel.TickInterval)
+	p := float64(fastrand.Uint32()) / (1 << 32)
+
+	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。
+	jitter := time.Duration(p * float64(r.r.s.opts.Reactor.Channel.TickInterval/2))
+	tk := time.NewTicker(r.r.s.opts.Reactor.Channel.TickInterval + jitter)
 	defer tk.Stop()
 
 	for !r.stopped.Load() {
@@ -183,7 +188,8 @@ func (r *channelReactorSub) handleReady(ch *channel) {
 			})
 		case ChannelActionClose:
 			r.r.addCloseReq(&closeReq{
-				ch: ch,
+				ch:       ch,
+				leaderId: ch.leaderId,
 			})
 		case ChannelActionCheckTag:
 			r.r.addCheckTagReq(&checkTagReq{

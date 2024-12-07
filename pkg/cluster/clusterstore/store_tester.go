@@ -14,7 +14,7 @@ func (s *Store) AddOrUpdateTester(u wkdb.Tester) error {
 		return err
 	}
 	var slotId uint32 = 0 // 默认数据在0槽位上
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -35,6 +35,6 @@ func (s *Store) RemoveTester(no string) error {
 		return err
 	}
 	var slotId uint32 = 0 // 默认数据在0槽位上
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }

@@ -200,15 +200,6 @@ func (s *slot) Step(m replica.Message) error {
 	return s.rc.Step(m)
 }
 
-func (s *slot) SetAppliedIndex(index uint64) error {
-	shardNo := s.key
-	err := s.opts.SlotLogStorage.SetAppliedIndex(shardNo, index)
-	if err != nil {
-		s.Error("set applied index error", zap.Error(err))
-	}
-	return nil
-}
-
 func (s *slot) IsPrepared() bool {
 	return s.isPrepared
 }
@@ -354,4 +345,8 @@ func (s *slot) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
 
 func (s *slot) TruncateLogTo(index uint64) error {
 	return s.opts.SlotLogStorage.TruncateLogTo(s.key, index)
+}
+
+func (s *slot) DetailLogOn(on bool) {
+	s.rc.DetailLogOn(on)
 }

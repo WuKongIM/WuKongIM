@@ -1057,12 +1057,6 @@ func (r tmpSubscriberSetReq) Check() error {
 	return nil
 }
 
-type readyState struct {
-	processing bool // 处理中
-	willRetry  bool // 将要重试
-	retryTick  int  // 重试计时，超过一定tick数后，将会重试
-}
-
 const (
 	defaultSlotId uint32 = 0 // 默认slotId
 )

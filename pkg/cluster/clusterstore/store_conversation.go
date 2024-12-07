@@ -38,7 +38,7 @@ func (s *Store) AddOrUpdateConversations(conversations []wkdb.Conversation) erro
 			if err != nil {
 				return err
 			}
-			_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+			_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 			if err != nil {
 				return err
 			}
@@ -68,7 +68,7 @@ func (s *Store) AddOrUpdateUserConversations(uid string, conversations []wkdb.Co
 		return err
 	}
 	slotId := s.opts.GetSlotId(uid)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -121,7 +121,7 @@ func (s *Store) DeleteConversation(uid string, channelID string, channelType uin
 		return err
 	}
 	slotId := s.opts.GetSlotId(uid)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -133,7 +133,7 @@ func (s *Store) DeleteConversations(uid string, channels []wkdb.Channel) error {
 		return err
 	}
 	slotId := s.opts.GetSlotId(uid)
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 

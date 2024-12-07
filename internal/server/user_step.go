@@ -19,7 +19,7 @@ func (u *userHandler) step(a UserAction) error {
 	switch a.ActionType {
 	case UserActionInitResp: // 初始化返回
 		if a.Reason == ReasonSuccess {
-			u.initState.processing = false
+			u.initState.ProcessSuccess()
 			u.status = userStatusInitialized
 			u.leaderId = a.LeaderId
 			if a.LeaderId == u.sub.r.s.opts.Cluster.NodeId {
@@ -28,7 +28,7 @@ func (u *userHandler) step(a UserAction) error {
 				u.becomeProxy(a.LeaderId)
 			}
 		} else {
-			u.initState.willRetry = true
+			u.initState.ProcessFail()
 		}
 	case UserActionLeaderChange:
 		u.leaderId = a.LeaderId
@@ -57,13 +57,13 @@ func (u *userHandler) step(a UserAction) error {
 
 	case UserActionRecvResp: // 收消息返回
 		if a.Reason == ReasonSuccess {
-			u.recvMsgState.processing = false
+			u.recvMsgState.ProcessSuccess()
 			if u.recvMsgQueue.processingIndex < a.Index {
 				u.recvMsgQueue.processingIndex = a.Index
 				u.recvMsgQueue.truncateTo(a.Index)
 			}
 		} else {
-			u.recvMsgState.willRetry = true
+			u.recvMsgState.ProcessFail()
 		}
 		// u.Info("recv resp...")
 
@@ -85,13 +85,13 @@ func (u *userHandler) stepLeader(a UserAction) error {
 	switch a.ActionType {
 	case UserActionAuthResp:
 		if a.Reason == ReasonSuccess {
-			u.authState.processing = false
+			u.authState.ProcessSuccess()
 			if u.authQueue.processingIndex < a.Index {
 				u.authQueue.processingIndex = a.Index
 				u.authQueue.truncateTo(a.Index)
 			}
 		} else {
-			u.authState.willRetry = true
+			u.authState.ProcessFail()
 		}
 		// u.Info("auth resp...")
 	case UserActionSend: // 发送消息
@@ -112,23 +112,23 @@ func (u *userHandler) stepLeader(a UserAction) error {
 
 	case UserActionPingResp: // ping处理返回
 		if a.Reason == ReasonSuccess {
-			u.pingState.processing = false
+			u.pingState.ProcessSuccess()
 			if u.pingQueue.processingIndex < a.Index {
 				u.pingQueue.processingIndex = a.Index
 				u.pingQueue.truncateTo(a.Index)
 			}
 		} else {
-			u.pingState.willRetry = true
+			u.pingState.ProcessFail()
 		}
 	case UserActionRecvackResp: // recvack处理返回
 		if a.Reason == ReasonSuccess {
-			u.recvackState.processing = false
+			u.recvackState.ProcessSuccess()
 			if u.recvackQueue.processingIndex < a.Index {
 				u.recvackQueue.processingIndex = a.Index
 				u.recvackQueue.truncateTo(a.Index)
 			}
 		} else {
-			u.recvackState.willRetry = true
+			u.recvackState.ProcessFail()
 		}
 
 	case UserActionNodePong: // 追随者pong
@@ -176,23 +176,23 @@ func (u *userHandler) stepProxy(a UserAction) error {
 	case UserActionForwardResp: // 转发recvack处理返回
 		if a.Forward.ActionType == UserActionSend {
 			if a.Reason == ReasonSuccess {
-				u.recvackState.processing = false
+				u.recvackState.ProcessSuccess()
 				if u.recvackQueue.processingIndex < a.Index {
 					u.recvackQueue.processingIndex = a.Index
 					u.recvackQueue.truncateTo(a.Index)
 				}
 			} else {
-				u.recvackState.willRetry = true // 重试
+				u.recvackState.ProcessFail()
 			}
 		} else if a.Forward.ActionType == UserActionConnect {
 			if a.Reason == ReasonSuccess {
-				u.authState.processing = false
+				u.authState.ProcessSuccess()
 				if u.authQueue.processingIndex < a.Index {
 					u.authQueue.processingIndex = a.Index
 					u.authQueue.truncateTo(a.Index)
 				}
 			} else {
-				u.authState.willRetry = true // 重试
+				u.authState.ProcessFail()
 			}
 		}
 

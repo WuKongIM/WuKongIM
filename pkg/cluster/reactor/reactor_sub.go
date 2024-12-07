@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
+	"github.com/valyala/fastrand"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -26,7 +28,6 @@ type ReactorSub struct {
 
 	tmpHandlers []*handler
 
-	avdanceC chan struct{}
 	stepC    chan stepReq
 	proposeC chan proposeReq
 	mr       *Reactor
@@ -41,7 +42,6 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		handlers:    newHandlerList(),
 		Log:         wklog.NewWKLog(fmt.Sprintf("ReactorSub[%s:%d:%d]", mr.opts.ReactorType.String(), mr.opts.NodeId, index)),
 		tmpHandlers: make([]*handler, 0, 100),
-		avdanceC:    make(chan struct{}, 1),
 		stepC:       make(chan stepReq, 4096),
 		proposeC:    make(chan proposeReq, 2024),
 	}
@@ -62,9 +62,10 @@ func (r *ReactorSub) Stop() {
 
 func (r *ReactorSub) run() {
 
-	var (
-		tick = time.NewTicker(r.opts.TickInterval)
-	)
+	p := float64(fastrand.Uint32()) / (1 << 32)
+	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。
+	jitter := time.Duration(p * float64(r.opts.TickInterval/2))
+	tick := time.NewTicker(r.opts.TickInterval + jitter)
 
 	for !r.stopped.Load() {
 		r.readyEvents()
@@ -80,7 +81,7 @@ func (r *ReactorSub) run() {
 			}
 			err := handler.handler.Step(req.msg)
 			if err != nil {
-				r.Error("step message failed", zap.Error(err))
+				r.Error("step message failed", zap.Error(err), zap.String("key", handler.key), zap.String("msgType", req.msg.MsgType.String()), zap.Uint64("from", req.msg.From))
 				if req.resultC != nil {
 					req.resultC <- err
 				}
@@ -90,7 +91,10 @@ func (r *ReactorSub) run() {
 				}
 			}
 		case req := <-r.proposeC:
-
+			if !req.handler.isLeader() {
+				r.Error("ReactorSub: propose not leader", zap.String("handler", req.handler.key))
+				continue
+			}
 			lastLogIndex, term := req.handler.lastLogIndexAndTerm()
 			for i := 0; i < len(req.logs); i++ {
 				lg := req.logs[i]
@@ -98,7 +102,7 @@ func (r *ReactorSub) run() {
 				lg.Term = term
 				req.logs[i] = lg
 			}
-			req.handler.didPropose(req.waitKey, req.logs[0].Index, req.logs[len(req.logs)-1].Index)
+			req.handler.didPropose(req.waitKey, req.logs[0].Index, req.logs[len(req.logs)-1].Index, term)
 			err := req.handler.handler.Step(replica.NewProposeMessageWithLogs(r.opts.NodeId, term, req.logs))
 			if err != nil {
 				r.Error("step propose message failed", zap.Error(err))
@@ -110,7 +114,6 @@ func (r *ReactorSub) run() {
 		// 		r.Error("step local store message failed", zap.Error(err))
 		// 	}
 
-		case <-r.avdanceC:
 		case <-r.stopper.ShouldStop():
 			r.Info("stop reactor sub")
 			return
@@ -126,6 +129,11 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	if len(logs) == 0 {
 		return nil, errors.New("proposeAndWait: logs is empty")
 	}
+
+	if strings.Contains(handleKey, "g1") {
+		r.Info("proposeAndWait......")
+	}
+
 	// -------------------- 延迟统计 --------------------
 	startTime := time.Now()
 	defer func() {
@@ -154,7 +162,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	}
 
 	if !handler.isLeader() {
-		r.Error("not leader", zap.String("handler", handler.key), zap.Uint64("leader", handler.leaderId()))
+		r.Error("proposeAndWait: not leader", zap.String("handler", handler.key), zap.Uint64("leader", handler.leaderId()))
 		return nil, ErrNotLeader
 	}
 
@@ -163,9 +171,6 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 
 	waitKey := strconv.FormatUint(maxId, 10)
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, r.opts.ProposeTimeout)
-	defer cancel()
-
 	// -------------------- 获得等待提交提案的句柄 --------------------
 	progress := handler.addWait(waitKey, minId, maxId)
 
@@ -173,15 +178,16 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	req := newProposeReq(handler, waitKey, logs)
 	select {
 	case r.proposeC <- req:
-	case <-timeoutCtx.Done():
+	case <-ctx.Done():
+
 		if !handler.proposeWait.exist(waitKey) {
 			r.Panic("proposeAndWait: propose wait not exist", zap.String("waitKey", waitKey), zap.String("handler", handler.key))
 		}
-		r.Error("proposeAndWait: proposeC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey))
+		r.Error("proposeAndWait: proposeC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey), zap.String("progress", progress.String()))
 		handler.removeWait(waitKey)
 		close(progress.waitC)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
-		return nil, timeoutCtx.Err()
+		return nil, ctx.Err()
 	case <-r.stopper.ShouldStop():
 		handler.removeWait(waitKey)
 		close(progress.waitC)
@@ -192,8 +198,8 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	// -------------------- 等待提案结果 --------------------
 	select {
 	case err := <-progress.waitC:
-		handler.removeWait(waitKey)
 		close(progress.waitC)
+		handler.removeWait(waitKey)
 		if err != nil {
 			return nil, err
 		}
@@ -205,12 +211,12 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			})
 		}
 		return results, nil
-	case <-timeoutCtx.Done():
-		r.Error("proposeAndWait: waitC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey), zap.Uint64("progressIndex", progress.progressIndex), zap.Uint64("minIndex", progress.minIndex), zap.Uint64("maxIndex", progress.maxIndex))
+	case <-ctx.Done():
+		r.Error("proposeAndWait: waitC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey), zap.Uint64("progressIndex", progress.progressIndex), zap.Uint64("minIndex", progress.minIndex), zap.Uint64("maxIndex", progress.maxIndex), zap.String("progress", progress.String()))
 		handler.removeWait(waitKey)
 		close(progress.waitC)
 		trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
-		return nil, timeoutCtx.Err()
+		return nil, ctx.Err()
 	case <-r.stopper.ShouldStop():
 		handler.removeWait(waitKey)
 		close(progress.waitC)
@@ -290,13 +296,6 @@ func (r *ReactorSub) stepWait(handlerKey string, msg replica.Message) error {
 	}
 }
 
-func (r *ReactorSub) advance() {
-	select {
-	case r.avdanceC <- struct{}{}:
-	default:
-	}
-}
-
 func (r *ReactorSub) readyEvents() {
 	hasEvent := true
 
@@ -341,10 +340,6 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 		// 同步返回是否有日志数据
 		syncRespHasLog := m.MsgType == replica.MsgSyncResp && len(m.Logs) > 0
 
-		if syncRespHasLog { // 如果有返回同步日志，则可继续同步
-			r.advance()
-		}
-
 		// 		// 同步速度处理
 		if r.opts.AutoSlowDownOn {
 			// 如果收到了同步日志的消息，速度重置（提速）
@@ -375,6 +370,7 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 		case replica.MsgStoreAppend: // 追加日志
 			r.mr.addStoreAppendReq(AppendLogReq{
 				HandleKey: handler.key,
+				handler:   handler,
 				Logs:      m.Logs,
 				sub:       r,
 			})
@@ -391,9 +387,10 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 		case replica.MsgApplyLogs: // 应用日志
 			r.mr.addApplyLogReq(&applyLogReq{
 				h:              handler,
-				appyingIndex:   m.ApplyingIndex,
+				appliedIndex:   m.AppliedIndex,
 				committedIndex: m.CommittedIndex,
 				sub:            r,
+				leaderId:       handler.leaderId(),
 			})
 		case replica.MsgLearnerToFollower: // 学习者转追随者
 			r.mr.addLearnerToFollowerReq(&learnerToFollowerReq{

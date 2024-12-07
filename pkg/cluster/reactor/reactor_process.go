@@ -1,6 +1,8 @@
 package reactor
 
 import (
+	"strings"
+
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"go.uber.org/zap"
 )
@@ -54,10 +56,11 @@ func (r *Reactor) processInits(reqs []*initReq) {
 
 	var err error
 	for _, req := range reqs {
-		req := req
-		err = r.processGoPool.Submit(func() {
-			r.processInit(req)
-		})
+		err = r.processGoPool.Submit(func(rq *initReq) func() {
+			return func() {
+				r.processInit(rq)
+			}
+		}(req))
 		if err != nil {
 			r.Error("processInit failed,submit error", zap.Error(err))
 			req.sub.step(req.h.key, replica.Message{
@@ -74,7 +77,7 @@ func (r *Reactor) processInit(req *initReq) {
 		HandlerKey: req.h.key,
 	})
 	if err != nil {
-		r.Error("get config failed", zap.Error(err))
+		r.Error("get config failed", zap.Error(err), zap.String("key", req.h.key))
 		req.sub.step(req.h.key, replica.Message{
 			MsgType: replica.MsgInitResp,
 			Reject:  true,
@@ -100,6 +103,10 @@ func (r *Reactor) processInit(req *initReq) {
 	}
 
 	req.h.setLastLeaderTerm(lastTerm) // 设置领导的最新任期
+
+	if strings.Contains(req.h.key, "g1") {
+		r.Info("init......")
+	}
 
 	req.sub.step(configResp.HandlerKey, replica.Message{
 		MsgType: replica.MsgInitResp,
@@ -174,6 +181,10 @@ func (r *Reactor) processConflictChecks(reqs []*conflictCheckReq) {
 }
 
 func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
+
+	if strings.Contains(req.h.key, "g1") {
+		r.Info("processConflictCheck......")
+	}
 
 	if req.leaderLastTerm == 0 { // 本地没有任期，说明本地还没有日志
 		r.Debug("local has no log,no conflict", zap.String("handlerKey", req.h.key))
@@ -302,7 +313,6 @@ func (r *Reactor) addStoreAppendReq(req AppendLogReq) {
 func (r *Reactor) processStoreAppendLoop() {
 	reqs := make([]AppendLogReq, 0)
 	done := false
-	exist := false
 	for {
 		select {
 		case req := <-r.processStoreAppendC:
@@ -310,22 +320,11 @@ func (r *Reactor) processStoreAppendLoop() {
 			for !done {
 				select {
 				case req := <-r.processStoreAppendC:
-					exist = false
-					for i, r := range reqs {
-						if r.HandleKey == req.HandleKey {
-							reqs[i].Logs = append(reqs[i].Logs, req.Logs...)
-							exist = true
-							break
-						}
-					}
-					if !exist {
-						reqs = append(reqs, req)
-					}
+					reqs = append(reqs, req)
 				default:
 					done = true
 				}
 			}
-
 			r.processStoreAppends(reqs)
 			reqs = reqs[:0]
 			done = false
@@ -340,9 +339,11 @@ func (r *Reactor) processStoreAppends(reqs []AppendLogReq) {
 	var err error
 	for _, req := range reqs {
 		req := req
-		err = r.processGoPool.Submit(func() {
-			r.processStoreAppend(req)
-		})
+		err = r.processGoPool.Submit(func(rq AppendLogReq) func() {
+			return func() {
+				r.processStoreAppend(rq)
+			}
+		}(req))
 		if err != nil {
 			r.Error("processStoreAppend failed, submit error")
 			req.sub.step(req.HandleKey, replica.Message{
@@ -354,6 +355,11 @@ func (r *Reactor) processStoreAppends(reqs []AppendLogReq) {
 }
 
 func (r *Reactor) processStoreAppend(req AppendLogReq) {
+
+	if strings.Contains(req.handler.key, "g1") {
+		r.Info("processStoreAppend......")
+	}
+
 	err := r.request.Append(req)
 	if err != nil {
 		r.Error("append logs failed", zap.Error(err))
@@ -363,11 +369,16 @@ func (r *Reactor) processStoreAppend(req AppendLogReq) {
 		})
 		return
 	}
+
+	startLogIndex := req.Logs[0].Index
+	endLogIndex := req.Logs[len(req.Logs)-1].Index
+
+	req.handler.proposeWait.didAppend(startLogIndex, endLogIndex+1)
+
 	for _, log := range req.Logs {
-		handler := r.handler(req.HandleKey)
-		if handler != nil && log.Term > handler.getLastLeaderTerm() {
-			handler.setLastLeaderTerm(log.Term)
-			err = handler.handler.SetLeaderTermStartIndex(log.Term, log.Index)
+		if log.Term > req.handler.getLastLeaderTerm() {
+			req.handler.setLastLeaderTerm(log.Term)
+			err = req.handler.handler.SetLeaderTermStartIndex(log.Term, log.Index)
 			if err != nil {
 				r.Error("set leader term start index failed", zap.Error(err), zap.String("handlerKey", req.HandleKey), zap.Uint32("term", log.Term), zap.Uint64("index", log.Index))
 			}
@@ -517,7 +528,6 @@ func (r *Reactor) addApplyLogReq(req *applyLogReq) {
 func (r *Reactor) processApplyLogLoop() {
 	reqs := make([]*applyLogReq, 0)
 	done := false
-	exist := false
 	for {
 		select {
 		case req := <-r.processApplyLogC:
@@ -525,23 +535,7 @@ func (r *Reactor) processApplyLogLoop() {
 			for !done {
 				select {
 				case req := <-r.processApplyLogC:
-					exist = false
-					for _, r := range reqs {
-						if r.h.key == req.h.key {
-							if r.committedIndex > req.committedIndex {
-								r.committedIndex = req.committedIndex
-							}
-
-							if r.appyingIndex < req.appyingIndex {
-								r.appyingIndex = req.appyingIndex
-							}
-							exist = true
-							break
-						}
-					}
-					if !exist {
-						reqs = append(reqs, req)
-					}
+					reqs = append(reqs, req)
 				default:
 					done = true
 				}
@@ -559,10 +553,11 @@ func (r *Reactor) processApplyLogs(reqs []*applyLogReq) {
 
 	var err error
 	for _, req := range reqs {
-		req := req
-		err = r.processGoPool.Submit(func() {
-			r.processApplyLog(req)
-		})
+		err = r.processGoPool.Submit(func(rq *applyLogReq) func() {
+			return func() {
+				r.processApplyLog(rq)
+			}
+		}(req))
 		if err != nil {
 			r.Error("processApplyLogs failed, submit error", zap.Error(err))
 			req.sub.step(req.h.key, replica.Message{
@@ -576,12 +571,19 @@ func (r *Reactor) processApplyLogs(reqs []*applyLogReq) {
 
 func (r *Reactor) processApplyLog(req *applyLogReq) {
 
-	if !r.opts.IsCommittedAfterApplied {
-		// 提交日志
-		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
+	if strings.Contains(req.h.key, "g1") {
+		r.Info("processApplyLog......", zap.Uint64("appliedIndex", req.appliedIndex), zap.Uint64("committedIndex", req.committedIndex))
 	}
 
-	appliedSize, err := req.h.handler.ApplyLogs(req.appyingIndex+1, req.committedIndex+1)
+	if !r.opts.IsCommittedAfterApplied {
+		// 提交日志
+		if req.leaderId == r.opts.NodeId {
+			req.h.didCommit(req.appliedIndex+1, req.committedIndex+1)
+		}
+
+	}
+
+	appliedSize, err := req.h.handler.ApplyLogs(req.appliedIndex+1, req.committedIndex+1)
 	if err != nil {
 		r.Panic("apply logs failed", zap.Error(err))
 		req.sub.step(req.h.key, replica.Message{
@@ -593,7 +595,9 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 
 	if r.opts.IsCommittedAfterApplied {
 		// 提交日志
-		req.h.didCommit(req.appyingIndex+1, req.committedIndex+1)
+		if req.leaderId == r.opts.NodeId {
+			req.h.didCommit(req.appliedIndex+1, req.committedIndex+1)
+		}
 	}
 
 	req.sub.step(req.h.key, replica.Message{
@@ -605,9 +609,10 @@ func (r *Reactor) processApplyLog(req *applyLogReq) {
 
 type applyLogReq struct {
 	h              *handler
-	appyingIndex   uint64
+	appliedIndex   uint64
 	committedIndex uint64
 	sub            *ReactorSub
+	leaderId       uint64
 }
 
 // =================================== 学习者转追随者 ===================================

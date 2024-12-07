@@ -324,9 +324,7 @@ func TestClusterChannelMigrate(t *testing.T) {
 	cfg.MigrateTo = migrateTo
 	cfg.Learners = append(cfg.Learners, migrateTo)
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	err = s1.clusterServer.ProposeChannelClusterConfig(timeoutCtx, cfg)
+	err = s1.clusterServer.ProposeChannelClusterConfig(cfg)
 	assert.Nil(t, err)
 
 	s1.clusterServer.UpdateChannelClusterConfig(cfg)

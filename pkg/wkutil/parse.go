@@ -33,6 +33,9 @@ func ParseFloat64(str string) float64 {
 }
 
 func ParseBool(str string) bool {
+	if str == "" {
+		return false
+	}
 	v, _ := strconv.ParseBool(str)
 	return v
 }

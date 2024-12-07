@@ -18,7 +18,7 @@ type unstable struct {
 func newUnstable(prefix string) *unstable {
 	return &unstable{
 		Log:    wklog.NewWKLog(fmt.Sprintf("replica.unstable[%s]", prefix)),
-		offset: 1, // 日志下标是从1开始的 所以offset初始化值为1
+		offset: 0,
 	}
 }
 
@@ -27,31 +27,30 @@ func (u *unstable) maybeFirstIndex() (uint64, bool) {
 	return 0, false
 }
 
-func (u *unstable) maybeLastIndex() (uint64, bool) {
-	if l := len(u.logs); l != 0 {
-		return u.offset + uint64(l) - 1, true
-	}
-	return 0, false
-}
-
 // appliedTo 标记index之前的日志已经处理完成，可以删除
 // [1 2 3 4 5 6 7 8 9]
 // appliedTo(5) => [6 7 8 9]
 func (u *unstable) appliedTo(index uint64) {
-	if index < u.offset-1 { // index小于offset-1，说明index已经被存储了，不在unstable中
-		u.Info(fmt.Sprintf("appliedTo %d is out of bound %d", index, u.offset-1))
+	offsetIndex := u.offsetIndex(index + 1)
+	if offsetIndex < u.offset { // offsetIndex小于offset，说明index已经被存储了，不在unstable中
+		u.Info(fmt.Sprintf("appliedTo %d is out of bound %d.", offsetIndex, u.offset))
 		return
 	}
-	num := int(index + 1 - u.offset)
+	num := int(offsetIndex - u.offset)
 
 	if num > len(u.logs) {
-		u.Panic("appliedTo index is out of bound", zap.Uint64("index", index), zap.Uint64("offset", u.offset), zap.Int("num", num), zap.Int("len", len(u.logs)))
+		u.Panic("appliedTo index is out of bound", zap.Uint64("index", offsetIndex), zap.Uint64("offset", u.offset), zap.Int("num", num), zap.Int("len", len(u.logs)))
 		return
 	}
 	u.logs = u.logs[num:]
-	u.offset = index + 1
+	u.offset = offsetIndex
 	u.offsetInProgress = max(u.offsetInProgress, u.offset)
 	u.shrinkLogsArray()
+
+}
+
+func (u *unstable) offsetIndex(logIndex uint64) uint64 {
+	return logIndex - 1
 }
 
 // nextLogs 返回未持久化的日志
@@ -87,24 +86,25 @@ func (u *unstable) shrinkLogsArray() {
 }
 
 func (u *unstable) truncateAndAppend(logs []Log) {
-	fromIndex := logs[0].Index
+	fromOffsetIndex := u.offsetIndex(logs[0].Index)
 	switch {
-	case fromIndex == u.offset+uint64(len(u.logs)):
+	case fromOffsetIndex == u.offset+uint64(len(u.logs)):
 		// fromIndex is the next index in the u.logs, so append directly.
 		u.logs = append(u.logs, logs...)
-	case fromIndex <= u.offset:
+	case fromOffsetIndex <= u.offset:
 		// The log is being truncated to before our current offset
 		// portion, so set the offset and replace the logs.
 		u.logs = logs
-		u.offset = fromIndex
+		u.offset = fromOffsetIndex
 		u.offsetInProgress = u.offset
-		// u.Panic("truncateAndAppend.....1")
+		// u.Panic("truncateAndAppend.....1", zap.Uint64("fromOffsetIndex", fromOffsetIndex), zap.Uint64("offset", u.offset), zap.Uint64("offsetInProgress", u.offsetInProgress))
 
 	default:
 		// Truncate to the first conflicting index, then append.
-		keep := u.slice(u.offset, fromIndex)
+		u.Info(fmt.Sprintf("truncateAndAppend------> %d %d %d", u.offset, fromOffsetIndex, len(u.logs)))
+		keep := u.slice(u.offset, fromOffsetIndex)
 		u.logs = append(keep, logs...)
-		u.offsetInProgress = min(u.offsetInProgress, fromIndex)
+		u.offsetInProgress = min(u.offsetInProgress, fromOffsetIndex)
 		u.Panic("truncateAndAppend.....2")
 
 	}
@@ -112,15 +112,20 @@ func (u *unstable) truncateAndAppend(logs []Log) {
 
 // truncateLogTo 裁剪日志至index， index和index之后的日志全部删除（注意裁剪的内容包含index，也就是保留的值不包含index）
 func (u *unstable) truncateLogTo(index uint64) {
-	if index < u.offset {
-		u.Info(fmt.Sprintf("truncateLogTo %d is out of bound %d", index, u.offset))
+
+	offsetIndex := u.offsetIndex(index)
+	if offsetIndex < u.offset {
+		u.Info(fmt.Sprintf("truncateLogTo %d is out of bound %d", offsetIndex, u.offset))
 		return
 	}
+
 	// 从offset开始截取
-	up := min(index, u.offset+uint64(len(u.logs)))
+	up := max(0, min(offsetIndex, u.offset+uint64(len(u.logs))))
 	u.logs = u.slice(u.offset, up)
 	u.offset = up
 	u.offsetInProgress = min(u.offsetInProgress, up)
+
+	u.shrinkLogsArray()
 }
 
 // slice [lo, hi)
@@ -146,7 +151,7 @@ func (u *unstable) mustCheckOutOfBounds(lo, hi uint64) {
 	if lo > hi {
 		u.Panic(fmt.Sprintf("invalid unstable.slice %d > %d", lo, hi))
 	}
-	upper := u.offset + uint64(len(u.logs))
+	upper := u.offset + uint64(len(u.logs)) + 1
 	if lo < u.offset || hi > upper {
 		u.Panic(fmt.Sprintf("unstable.slice[%d,%d) out of bound [%d,%d]", lo, hi, u.offset, upper))
 	}

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,7 +19,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/promtail"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -32,6 +32,10 @@ import (
 	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.uber.org/zap"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 type Server struct {
 	opts          *Options          // 配置
@@ -402,11 +406,6 @@ func (s *Server) MustWaitClusterReady(timeout time.Duration) {
 
 func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
 	s.cluster.MustWaitAllSlotsReady(timeout)
-}
-
-// 提案频道分布式
-func (s *Server) ProposeChannelClusterConfig(ctx context.Context, cfg wkdb.ChannelClusterConfig) error {
-	return s.clusterServer.ProposeChannelClusterConfig(ctx, cfg)
 }
 
 // 获取分布式配置

@@ -8,5 +8,6 @@ type AppendLogReq struct {
 	Logs      []replica.Log
 	WaitC     chan error
 
-	sub *ReactorSub
+	sub     *ReactorSub
+	handler *handler
 }

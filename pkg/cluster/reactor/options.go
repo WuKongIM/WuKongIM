@@ -102,7 +102,7 @@ func NewOptions(opt ...Option) *Options {
 		ProposeTimeout:            time.Second * 30,
 		SlowdownCheckIntervalTick: 10,
 		SyncTimeoutMaxTick:        10,
-		ProcessPoolSize:           2048,
+		ProcessPoolSize:           1048,
 	}
 
 	for _, o := range opt {

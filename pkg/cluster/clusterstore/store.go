@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -115,7 +116,7 @@ func (s *Store) AddSystemUids(uids []string) error {
 		return err
 	}
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -127,7 +128,7 @@ func (s *Store) RemoveSystemUids(uids []string) error {
 		return err
 	}
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
-	_, err = s.opts.Cluster.ProposeDataToSlot(s.ctx, slotId, cmdData)
+	_, err = s.opts.Cluster.ProposeDataToSlot(slotId, cmdData)
 	return err
 }
 
@@ -148,4 +149,8 @@ func (s *Store) AddIPBlacklist(ips []string) error {
 
 func (s *Store) DB() wkdb.DB {
 	return s.wdb
+}
+
+func (s *Store) WithTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(s.ctx, time.Second*10)
 }

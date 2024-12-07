@@ -67,9 +67,7 @@ func New(opts *Options) *Reactor {
 		sizePerPool = opts.ProcessPoolSize / opts.SubReactorNum
 	}
 	var err error
-	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(err interface{}) {
-		r.Error("user: processGoPool panic", zap.Any("err", err), zap.Stack("stack"))
-	}))
+	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks)
 	if err != nil {
 		r.Panic("user: NewMultiPool panic", zap.Error(err))
 	}
@@ -127,23 +125,39 @@ func (r *Reactor) ProposeAndWait(ctx context.Context, handleKey string, logs []r
 	return sub.proposeAndWait(ctx, handleKey, logs)
 }
 
-func (r *Reactor) AddHandler(key string, handler IHandler) {
-	h := getHandlerFromPool()
-	h.init(key, handler, r)
+func (r *Reactor) AddHandler(key string, ih IHandler) {
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// h := getHandlerFromPool()
+	// h.init(key, handler, r)
+	h := &handler{
+		key:         key,
+		handler:     ih,
+		r:           r,
+		proposeWait: newProposeWait(fmt.Sprintf("[%d]%s", r.opts.NodeId, key)),
+	}
 	sub := r.reactorSub(key)
 	sub.addHandler(h)
 }
 
 func (r *Reactor) RemoveHandler(key string) {
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	sub := r.reactorSub(key)
-	h := sub.removeHandler(key)
-	if h != nil {
-		putHandlerToPool(h)
-	}
+	_ = sub.removeHandler(key)
+	// if h != nil {
+	// 	putHandlerToPool(h)
+	// }
 }
 
 func (r *Reactor) Handler(key string) IHandler {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	h := r.handler(key)
 	if h == nil {
 		return nil
@@ -152,6 +166,9 @@ func (r *Reactor) Handler(key string) IHandler {
 }
 
 func (r *Reactor) handler(key string) *handler {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	sub := r.reactorSub(key)
 	h := sub.handler(key)
 	if h == nil {
@@ -171,6 +188,8 @@ func (r *Reactor) StepWait(key string, msg replica.Message) error {
 }
 
 func (r *Reactor) ExistHandler(key string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	sub := r.reactorSub(key)
 	return sub.existHandler(key)
 }
@@ -201,8 +220,6 @@ func (r *Reactor) newReactorSub(i int) *ReactorSub {
 }
 
 func (r *Reactor) reactorSub(key string) *ReactorSub {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
 	idx := hashWthString(key)
 	return r.subReactors[idx%uint32(r.opts.SubReactorNum)]
 }

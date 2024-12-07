@@ -396,7 +396,13 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		if len(conns) == 0 {
 			slices.offlineUids = append(slices.offlineUids, toUid)
 		} else {
-			slices.toConns = append(slices.toConns, conns...)
+			for _, conn := range conns {
+				if !conn.isAuth.Load() {
+					continue
+				}
+				slices.toConns = append(slices.toConns, conn)
+			}
+
 			slices.onlineUsers = append(slices.onlineUsers, toUid)
 		}
 	}
@@ -419,7 +425,6 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				if !existSendSelfDevice || existSendSelfNotSendDevice {
 					d.MessageTrace("在线通知", msg.SendPacket.ClientMsgNo, "deliverOnline", zap.Int("userCount", len(slices.onlineUsers)), zap.String("uids", strings.Join(slices.onlineUsers, ",")), zap.Int("connCount", len(slices.toConns)))
 				}
-
 			}
 
 			if len(slices.offlineUids) > 0 {
@@ -504,9 +509,14 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 			// payload内容加密
 			payloadBuffer.Reset()
 
+			if len(conn.aesIV) == 0 || len(conn.aesKey) == 0 {
+				d.Error("aesIV or aesKey is empty", zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
+				continue
+			}
+
 			err = encryptMessagePayload(sendPacket.Payload, conn, payloadBuffer)
 			if err != nil {
-				d.Error("加密payload失败！", zap.Error(err))
+				d.Error("加密payload失败！", zap.Error(err), zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
 				continue
 			}
 			recvPacket.Payload = payloadBuffer.Bytes()

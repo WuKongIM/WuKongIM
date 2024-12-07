@@ -19,6 +19,8 @@ type Replica struct {
 	speedLevel SpeedLevel  // 当前速度等级
 	opts       *Options
 
+	detailLogOn bool // 开启详细日志
+
 	lastSyncInfoMap map[uint64]*SyncInfo // 副本最后一次同步信息
 	preHardState    HardState            // 上一个硬状态
 
@@ -44,14 +46,11 @@ type Replica struct {
 	votes                     map[uint64]bool // 投票记录
 
 	// -------------------- state --------------------
-	initState         readyState // 初始化
-	coflictCheckState readyState // 日志冲突检查
-	syncState         readyState // 同步
-	storageState      readyState // 存储
-	applyState        readyState // 应用
-	syncIdleTick      int        // 同步空闲时间
-	syncIntervalTick  int        // 同步间隔tick数
-	syncTick          int        // 同步间隔tick数计时器
+	initState         *ReadyState        // 初始化
+	coflictCheckState *ReadyState        // 日志冲突检查
+	syncState         *ReadyTimeoutState // 同步
+	storageState      *ReadyState        // 存储
+	applyState        *ReadyState        // 应用
 }
 
 func New(nodeId uint64, optList ...Option) *Replica {
@@ -72,9 +71,14 @@ func New(nodeId uint64, optList ...Option) *Replica {
 		lastSyncInfoMap: make(map[uint64]*SyncInfo),
 		no:              wkutil.GenUUID(),
 	}
-	rc.syncIntervalTick = opts.SyncIntervalTick
-	rc.syncTick = opts.SyncIntervalTick
 	rc.term = opts.LastTerm
+
+	rc.initState = NewReadyState(opts.RetryTick)
+	rc.coflictCheckState = NewReadyState(opts.RetryTick)
+	rc.syncState = NewReadyTimeoutState(opts.SyncTimeoutTick, opts.SyncIntervalTick, rc.syncTimeout)
+	rc.storageState = NewReadyState(opts.RetryTick)
+	rc.applyState = NewReadyState(opts.RetryTick)
+
 	return rc
 }
 
@@ -90,12 +94,12 @@ func (r *Replica) HasReady() bool {
 	// 是否未准备
 	if r.isUnready() {
 
-		return !r.initState.processing
+		return !r.initState.IsProcessing()
 	}
 
 	// 是否需要检查日志冲突
 	if r.isLogConflictCheck() {
-		if r.coflictCheckState.processing {
+		if r.coflictCheckState.IsProcessing() {
 			return false
 		}
 		return r.leader != 0 && isFollower
@@ -141,10 +145,14 @@ func (r *Replica) isLogConflictCheck() bool {
 
 // 是否有同步
 func (r *Replica) hasSync() bool {
-	if r.syncState.processing {
+	if r.syncState.IsProcessing() {
 		return false
 	}
-	return r.leader != 0 && r.syncTick >= r.syncIntervalTick
+	if r.leader == 0 {
+		return false
+	}
+
+	return r.syncState.Allow()
 }
 
 // 是否有消息
@@ -154,19 +162,19 @@ func (r *Replica) hasMsg() bool {
 
 // 有存储消息
 func (r *Replica) hasStorage() bool {
-	if r.storageState.processing {
+	if r.storageState.IsProcessing() {
 		return false
 	}
-	return r.replicaLog.storagingIndex < r.replicaLog.lastLogIndex
+	return r.replicaLog.storagedIndex < r.replicaLog.lastLogIndex
 }
 
 // 有应用
 func (r *Replica) hasApply() bool {
-	if r.applyState.processing {
+	if r.applyState.IsProcessing() {
 		return false
 	}
 	i := min(r.replicaLog.storagedIndex, r.replicaLog.committedIndex)
-	return r.replicaLog.applyingIndex < i
+	return r.replicaLog.appliedIndex < i
 }
 
 func (r *Replica) Ready() Ready {
@@ -177,10 +185,10 @@ func (r *Replica) Ready() Ready {
 
 	// ==================== 初始化 ====================
 	if r.isUnready() {
-		if r.initState.processing {
+		if r.initState.IsProcessing() {
 			return rd
 		}
-		r.initState.processing = true
+		r.initState.StartProcessing()
 		r.msgs = append(r.msgs, r.newMsgInit())
 		rd.Messages = r.msgs
 		r.msgs = r.msgs[:0]
@@ -202,11 +210,11 @@ func (r *Replica) Ready() Ready {
 
 	// ==================== 日志冲突检查 ====================
 	if r.isLogConflictCheck() {
-		if r.coflictCheckState.processing {
+		if r.coflictCheckState.IsProcessing() {
 			return rd
 		}
 		if r.leader != 0 && isFollower {
-			r.coflictCheckState.processing = true
+			r.coflictCheckState.StartProcessing()
 			r.msgs = append(r.msgs, r.newMsgLogConflictCheck())
 			rd.Messages = r.msgs
 			r.msgs = r.msgs[:0]
@@ -215,10 +223,17 @@ func (r *Replica) Ready() Ready {
 	}
 
 	// ==================== 发起同步 ====================
+	if r.detailLogOn {
+		r.Info("read sync", zap.Bool("isFollower", isFollower), zap.Bool("isProcessing", r.syncState.IsProcessing()), zap.Uint64("leader", r.leader), zap.Int("status", int(r.status)), zap.Int("idleTick", r.syncState.idleTick), zap.Int("intervalTick", r.syncState.intervalTick))
+	}
+
 	if isFollower && r.hasSync() {
-		r.syncState.processing = true
-		r.syncIdleTick = 0
+		r.syncState.StartProcessing()
 		r.msgs = append(r.msgs, r.newSyncMsg())
+		// if strings.Contains(r.opts.LogPrefix, "config") {
+		// 	r.Info("sync config --------->", zap.Uint64("index", r.replicaLog.lastLogIndex+1))
+		// }
+
 	}
 
 	// ==================== 存储日志 ====================
@@ -234,7 +249,7 @@ func (r *Replica) Ready() Ready {
 	if r.hasApply() {
 		newCommittedIndex := min(r.replicaLog.storagedIndex, r.replicaLog.committedIndex)
 		r.applyState.processing = true
-		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.applyingIndex, r.replicaLog.appliedIndex, newCommittedIndex))
+		r.msgs = append(r.msgs, r.newApplyLogReqMsg(r.replicaLog.appliedIndex, newCommittedIndex))
 	}
 
 	rd.Messages = r.msgs
@@ -245,7 +260,16 @@ func (r *Replica) Ready() Ready {
 func (r *Replica) hardStateChange() bool {
 	return r.preHardState.LeaderId != r.leader || r.preHardState.Term != r.term || r.preHardState.ConfVersion != r.cfg.Version
 }
+
+// 同步超时
+func (r *Replica) syncTimeout() {
+	r.send(r.newSyncTimeoutMsg()) // 同步超时
+}
+
 func (r *Replica) Tick() {
+
+	// 非领导
+	notLeader := r.role == RoleFollower || r.role == RoleLearner
 
 	// if r.role == RoleFollower || r.role == RoleLearner {
 
@@ -264,66 +288,16 @@ func (r *Replica) Tick() {
 
 	// }
 
-	if r.initState.willRetry {
-		r.initState.retryTick++
-		if r.initState.retryTick >= r.opts.RetryTick {
-			r.initState.retryTick = 0
-			r.initState.willRetry = false
-			r.initState.processing = false
-		}
+	r.initState.Tick()
+
+	r.coflictCheckState.Tick()
+
+	if r.status == StatusReady && notLeader {
+		r.syncState.Tick()
 	}
 
-	if r.coflictCheckState.willRetry {
-		r.coflictCheckState.retryTick++
-		if r.coflictCheckState.retryTick >= r.opts.RetryTick {
-			r.coflictCheckState.retryTick = 0
-			r.coflictCheckState.willRetry = false
-			r.coflictCheckState.processing = false
-		}
-	}
-
-	if r.syncState.willRetry {
-		r.syncState.retryTick++
-		if r.syncState.retryTick >= r.opts.RetryTick {
-			r.syncState.retryTick = 0
-			r.syncState.willRetry = false
-			r.syncState.processing = false
-		}
-	}
-
-	if r.role == RoleFollower || r.role == RoleLearner {
-		if r.status == StatusReady {
-			r.syncTick++
-			if r.syncState.processing {
-				r.syncIdleTick++                             // sync空闲tick数
-				if r.syncIdleTick > r.opts.SyncTimeoutTick { // 同步超时 一直没有返回
-					r.send(r.newSyncTimeoutMsg()) // 同步超时
-					r.syncIdleTick = 0
-					r.syncState.processing = false
-				}
-			}
-
-		}
-
-	}
-
-	if r.storageState.willRetry {
-		r.storageState.retryTick++
-		if r.storageState.retryTick >= r.opts.RetryTick {
-			r.storageState.retryTick = 0
-			r.storageState.willRetry = false
-			r.storageState.processing = false
-		}
-	}
-
-	if r.applyState.willRetry {
-		r.applyState.retryTick++
-		if r.applyState.retryTick >= r.opts.RetryTick {
-			r.applyState.retryTick = 0
-			r.applyState.willRetry = false
-			r.applyState.processing = false
-		}
-	}
+	r.storageState.Tick()
+	r.applyState.Tick()
 
 	if r.tickFnc != nil {
 		r.tickFnc()
@@ -455,7 +429,7 @@ func (r *Replica) becomeLeader(term uint32) {
 
 	r.initLeaderInfo()
 
-	r.Debug("become leader", zap.Uint32("term", r.term))
+	r.Info("become leader", zap.Uint32("term", r.term))
 
 }
 
@@ -468,11 +442,13 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.leader = leaderID
 	r.role = RoleFollower
 
-	r.Debug("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
+	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
 		r.Debug("log conflict check", zap.Uint64("leader", r.leader), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex))
 		r.status = StatusLogCoflictCheck
+	} else if r.replicaLog.lastLogIndex <= 0 && r.leader != None {
+		r.status = StatusReady
 	}
 
 }
@@ -491,6 +467,8 @@ func (r *Replica) becomeLearner(term uint32, leaderID uint64) {
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
 		r.Debug("log conflict check", zap.Uint64("leader", r.leader))
 		r.status = StatusLogCoflictCheck
+	} else if r.replicaLog.lastLogIndex <= 0 && r.leader != None {
+		r.status = StatusReady
 	}
 }
 
@@ -528,14 +506,12 @@ func (r *Replica) reset(term uint32) {
 	r.setSpeedLevel(LevelFast)
 	r.resetRandomizedElectionTimeout()
 
-	r.initState = readyState{}
-	r.coflictCheckState = readyState{}
-	r.syncState = readyState{}
-	r.storageState = readyState{}
-	r.applyState = readyState{}
+	r.initState.Reset()
+	r.coflictCheckState.Reset()
+	r.syncState.Reset()
+	r.storageState.Reset()
+	r.applyState.Reset()
 
-	r.syncIdleTick = 0
-	r.syncIntervalTick = 0
 }
 
 // 开始选举
@@ -611,10 +587,10 @@ func (r *Replica) tickHeartbeat() {
 			}
 		}
 	} else {
-		// 如果某个副本在一段时间内没有发起同步请求，那么主动发起心跳
+		// 如果某个副本在一段时间内没有发起同步请求，那么主动发起心跳,目的是唤醒副本
 		for nodeId, syncInfo := range r.lastSyncInfoMap {
 			syncInfo.SyncTick++
-			if syncInfo.SyncTick >= r.syncIntervalTick {
+			if syncInfo.SyncTick > r.syncState.intervalTick*2 {
 				syncInfo.SyncTick = 0
 				if err := r.Step(Message{From: r.opts.NodeId, To: nodeId, MsgType: MsgBeat}); err != nil {
 					r.Debug("error occurred during checking sending heartbeat", zap.Error(err))
@@ -622,7 +598,6 @@ func (r *Replica) tickHeartbeat() {
 			}
 		}
 	}
-
 }
 
 func (r *Replica) pastElectionTimeout() bool {
@@ -648,17 +623,16 @@ func (r *Replica) setSpeedLevel(level SpeedLevel) {
 
 	switch level {
 	case LevelFast:
-		r.syncIntervalTick = r.opts.SyncIntervalTick
+		r.syncState.SetIntervalTick(r.opts.SyncIntervalTick)
 	case LevelMiddle:
-		r.syncIntervalTick = r.opts.SyncIntervalTick * 2
+		r.syncState.SetIntervalTick(r.opts.SyncIntervalTick * 2)
 	case LevelSlow:
-		r.syncIntervalTick = r.opts.SyncIntervalTick * 4
+		r.syncState.SetIntervalTick(r.opts.SyncIntervalTick * 4)
 	case LevelSlowest:
-		r.syncIntervalTick = r.opts.SyncIntervalTick * 8
+		r.syncState.SetIntervalTick(r.opts.SyncIntervalTick * 8)
 	case LevelStop: // 这种情况基本是停止状态，要么等待重新激活，要么等待被销毁
-		r.syncIntervalTick = r.opts.SyncIntervalTick * 100000
+		r.syncState.SetIntervalTick(r.opts.SyncIntervalTick * 100000)
 	}
-
 	if level != r.speedLevel {
 		r.send(Message{MsgType: MsgSpeedLevelChange, SpeedLevel: level})
 	}
@@ -700,6 +674,10 @@ func (r *Replica) isSingleNode() bool {
 	return len(r.replicas) == 0
 }
 
+func (r *Replica) DetailLogOn(on bool) {
+	r.detailLogOn = on
+}
+
 // 获取某个副本的最新日志下标（领导节点才有这个信息）
 func (r *Replica) GetReplicaLastLog(replicaId uint64) uint64 {
 	if replicaId == r.opts.NodeId {
@@ -737,13 +715,12 @@ func (r *Replica) newMsgStoreAppend(logs []Log) Message {
 
 }
 
-func (r *Replica) newApplyLogReqMsg(applyingIndex, appliedIndex, committedIndex uint64) Message {
+func (r *Replica) newApplyLogReqMsg(appliedIndex, committedIndex uint64) Message {
 
 	return Message{
 		MsgType:        MsgApplyLogs,
 		From:           r.nodeId,
 		To:             r.nodeId,
-		ApplyingIndex:  applyingIndex,
 		AppliedIndex:   appliedIndex,
 		CommittedIndex: committedIndex,
 	}

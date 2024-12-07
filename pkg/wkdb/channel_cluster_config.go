@@ -65,6 +65,16 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 
 func (wk *wukongDB) SaveChannelClusterConfigs(channelClusterConfigs []ChannelClusterConfig) error {
 
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			end := time.Since(start)
+			if end > time.Millisecond*500 {
+				wk.Warn("SaveChannelClusterConfigs too cost", zap.Duration("cost", time.Since(start)), zap.Int("count", len(channelClusterConfigs)))
+			}
+		}()
+	}
+
 	wk.metrics.SaveChannelClusterConfigsAdd(1)
 
 	db := wk.defaultShardBatchDB()

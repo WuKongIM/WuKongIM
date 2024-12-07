@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -57,19 +58,19 @@ type channel struct {
 	tickFnc func()
 
 	// init
-	initState readyState
+	initState *replica.ReadyState
 	// 解密
-	payloadDecryptState readyState
+	payloadDecryptState *replica.ReadyState
 	// 检查权限
-	permissionCheckState readyState
+	permissionCheckState *replica.ReadyState
 	// 存储
-	storageState readyState
+	storageState *replica.ReadyState
 	// 发送回执
-	sendackState readyState
+	sendackState *replica.ReadyState
 	// 投递
-	deliveryState readyState
+	deliveryState *replica.ReadyState
 	// 转发
-	forwardState readyState
+	forwardState *replica.ReadyState
 
 	// 计时tick
 	// payloadDecryptingTick  int // 发起解密的tick计时
@@ -85,28 +86,33 @@ type channel struct {
 	idleTick int // 频道闲置tick数
 
 	opts *Options
-
-	retryTickCount int // 多少次tick后重试
 }
 
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
 	key := wkutil.ChannelToKey(channelId, channelType)
 
+	retryTickCount := 20
 	return &channel{
-		key:            key,
-		uniqueNo:       wkutil.GenUUID(),
-		channelId:      channelId,
-		channelType:    channelType,
-		msgQueue:       newChannelMsgQueue(channelId),
-		streams:        newStreamList(),
-		storageMaxSize: 1024 * 1024 * 2,
-		deliverMaxSize: 1024 * 1024 * 2,
-		forwardMaxSize: 1024 * 1024 * 2,
-		Log:            wklog.NewWKLog(fmt.Sprintf("channelHandler[%d][%s]", sub.r.opts.Cluster.NodeId, key)),
-		r:              sub.r,
-		sub:            sub,
-		opts:           sub.r.opts,
-		retryTickCount: 20,
+		key:                  key,
+		uniqueNo:             wkutil.GenUUID(),
+		channelId:            channelId,
+		channelType:          channelType,
+		msgQueue:             newChannelMsgQueue(channelId),
+		streams:              newStreamList(),
+		storageMaxSize:       1024 * 1024 * 2,
+		deliverMaxSize:       1024 * 1024 * 2,
+		forwardMaxSize:       1024 * 1024 * 2,
+		Log:                  wklog.NewWKLog(fmt.Sprintf("channelHandler[%d][%s]", sub.r.opts.Cluster.NodeId, key)),
+		r:                    sub.r,
+		sub:                  sub,
+		opts:                 sub.r.opts,
+		initState:            replica.NewReadyState(retryTickCount),
+		payloadDecryptState:  replica.NewReadyState(retryTickCount),
+		permissionCheckState: replica.NewReadyState(retryTickCount),
+		storageState:         replica.NewReadyState(retryTickCount),
+		sendackState:         replica.NewReadyState(retryTickCount),
+		deliveryState:        replica.NewReadyState(retryTickCount),
+		forwardState:         replica.NewReadyState(retryTickCount),
 	}
 
 }
@@ -146,16 +152,15 @@ func (c *channel) hasReady() bool {
 func (c *channel) ready() ready {
 
 	if c.isUninitialized() {
-		if !c.initState.processing {
-			c.initState.processing = true
+		if !c.initState.IsProcessing() {
+			c.initState.StartProcessing()
 			c.exec(&ChannelAction{ActionType: ChannelActionInit})
 		}
-
 	} else {
 
 		// 解密消息
 		if c.hasPayloadUnDecrypt() {
-			c.payloadDecryptState.processing = true
+			c.payloadDecryptState.StartProcessing()
 			msgs := c.msgQueue.sliceWithSize(c.msgQueue.payloadDecryptingIndex+1, c.msgQueue.lastIndex+1, 1024*1024*2)
 			if len(msgs) > 0 {
 				c.exec(&ChannelAction{ActionType: ChannelActionPayloadDecrypt, Messages: msgs})
@@ -174,7 +179,7 @@ func (c *channel) ready() ready {
 
 			// 如果没有权限检查的则去检查权限
 			if c.hasPermissionUnCheck() {
-				c.permissionCheckState.processing = true
+				c.permissionCheckState.StartProcessing()
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.permissionCheckingIndex+1, c.msgQueue.payloadDecryptingIndex+1, 0)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionPermissionCheck, Messages: msgs})
@@ -184,7 +189,7 @@ func (c *channel) ready() ready {
 
 			// 如果有未存储的消息，则继续存储
 			if c.hasUnstorage() {
-				c.storageState.processing = true
+				c.storageState.StartProcessing()
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.storagingIndex+1, c.msgQueue.permissionCheckingIndex+1, c.storageMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionStorage, Messages: msgs})
@@ -195,7 +200,7 @@ func (c *channel) ready() ready {
 
 			// 如果有未发送回执的消息
 			if c.hasSendack() {
-				c.sendackState.processing = true
+				c.sendackState.StartProcessing()
 				// TODO: 这里有个问题，如果投递消息完成后，消息已经被删除了，可能会导致ack发送失败，因为没了消息，虽然概率低，但是还是有可能的
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.sendackingIndex+1, c.msgQueue.storagingIndex+1, 0)
 				if len(msgs) > 0 {
@@ -205,7 +210,7 @@ func (c *channel) ready() ready {
 
 			// 投递消息
 			if c.hasUnDeliver() {
-				c.deliveryState.processing = true
+				c.deliveryState.StartProcessing()
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.deliveringIndex+1, c.msgQueue.storagingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionDeliver, Messages: msgs})
@@ -224,7 +229,7 @@ func (c *channel) ready() ready {
 		} else if c.role == channelRoleProxy {
 			// 转发消息
 			if c.hasUnforward() {
-				c.forwardState.processing = true
+				c.forwardState.StartProcessing()
 				msgs := c.msgQueue.sliceWithSize(c.msgQueue.forwardingIndex+1, c.msgQueue.payloadDecryptingIndex+1, c.deliverMaxSize)
 				if len(msgs) > 0 {
 					c.exec(&ChannelAction{ActionType: ChannelActionForward, LeaderId: c.leaderId, Messages: msgs})
@@ -251,7 +256,7 @@ func (c *channel) ready() ready {
 }
 
 func (c *channel) hasPayloadUnDecrypt() bool {
-	if c.payloadDecryptState.processing {
+	if c.payloadDecryptState.IsProcessing() {
 		return false
 	}
 
@@ -260,7 +265,7 @@ func (c *channel) hasPayloadUnDecrypt() bool {
 
 // 有未权限检查的消息
 func (c *channel) hasPermissionUnCheck() bool {
-	if c.permissionCheckState.processing {
+	if c.permissionCheckState.IsProcessing() {
 		return false
 	}
 
@@ -269,7 +274,7 @@ func (c *channel) hasPermissionUnCheck() bool {
 
 // 有未存储的消息
 func (c *channel) hasUnstorage() bool {
-	if c.storageState.processing {
+	if c.storageState.IsProcessing() {
 		return false
 	}
 
@@ -278,7 +283,7 @@ func (c *channel) hasUnstorage() bool {
 
 // 有未发送回执的消息
 func (c *channel) hasSendack() bool {
-	if c.sendackState.processing {
+	if c.sendackState.IsProcessing() {
 		return false
 	}
 
@@ -287,7 +292,7 @@ func (c *channel) hasSendack() bool {
 
 // 有未投递的消息
 func (c *channel) hasUnDeliver() bool {
-	if c.deliveryState.processing {
+	if c.deliveryState.IsProcessing() {
 		return false
 	}
 
@@ -296,7 +301,7 @@ func (c *channel) hasUnDeliver() bool {
 
 // 有未转发的消息
 func (c *channel) hasUnforward() bool {
-	if c.forwardState.processing { // 在转发中
+	if c.forwardState.IsProcessing() { // 在转发中
 		return false
 	}
 
@@ -323,93 +328,13 @@ func (c *channel) tick() {
 		c.exec(&ChannelAction{ActionType: ChannelActionClose})
 	}
 
-	if c.initState.willRetry {
-		c.initState.retryTick++
-		if c.initState.retryTick >= c.retryTickCount {
-			c.initState.willRetry = false
-			c.initState.processing = false
-			c.initState.retryTick = 0
-		}
-	}
-
-	if c.payloadDecryptState.willRetry {
-		c.payloadDecryptState.retryTick++
-		if c.payloadDecryptState.retryTick >= c.retryTickCount {
-			c.payloadDecryptState.willRetry = false
-			c.payloadDecryptState.processing = false
-			c.payloadDecryptState.retryTick = 0
-		}
-	}
-
-	if c.permissionCheckState.willRetry {
-		c.permissionCheckState.retryTick++
-		if c.permissionCheckState.retryTick >= c.retryTickCount {
-			c.permissionCheckState.willRetry = false
-			c.permissionCheckState.processing = false
-			c.permissionCheckState.retryTick = 0
-		}
-	}
-
-	if c.storageState.willRetry {
-		c.storageState.retryTick++
-		if c.storageState.retryTick >= c.retryTickCount {
-			c.storageState.willRetry = false
-			c.storageState.processing = false
-			c.storageState.retryTick = 0
-		}
-	}
-
-	if c.sendackState.willRetry {
-		c.sendackState.retryTick++
-		if c.sendackState.retryTick >= c.retryTickCount {
-			c.sendackState.willRetry = false
-			c.sendackState.processing = false
-			c.sendackState.retryTick = 0
-		}
-	}
-
-	if c.deliveryState.willRetry {
-		c.deliveryState.retryTick++
-		if c.deliveryState.retryTick >= c.retryTickCount {
-			c.deliveryState.willRetry = false
-			c.deliveryState.processing = false
-			c.deliveryState.retryTick = 0
-		}
-	}
-
-	if c.forwardState.willRetry {
-		c.forwardState.retryTick++
-		if c.forwardState.retryTick >= c.retryTickCount {
-			c.forwardState.willRetry = false
-			c.forwardState.processing = false
-			c.forwardState.retryTick = 0
-		}
-	}
-
-	// if c.payloadDecrypting && c.payloadDecryptingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-	// 	c.payloadDecrypting = false
-	// 	c.payloadDecryptingTick = 0
-	// }
-	// if c.permissionChecking && c.permissionCheckingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-	// 	c.permissionChecking = false
-	// 	c.permissionCheckingTick = 0
-	// }
-	// if c.storaging && c.storageTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-	// 	c.storaging = false
-	// 	c.storageTick = 0
-	// }
-	// if c.sendacking && c.sendackingTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-	// 	c.sendacking = false
-	// 	c.sendackingTick = 0
-	// }
-	// if c.delivering && c.deliveringTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-	// 	c.delivering = false
-	// 	c.deliveringTick = 0
-	// }
-	// if c.forwarding && c.forwardTick > c.opts.Reactor.Channel.ProcessIntervalTick {
-	// 	c.forwarding = false
-	// 	c.forwardTick = 0
-	// }
+	c.initState.Tick()
+	c.payloadDecryptState.Tick()
+	c.permissionCheckState.Tick()
+	c.storageState.Tick()
+	c.sendackState.Tick()
+	c.deliveryState.Tick()
+	c.forwardState.Tick()
 
 	if c.tickFnc != nil {
 		c.tickFnc()
@@ -498,13 +423,13 @@ func (c *channel) resetIndex() {
 		c.receiverTagKey.Store("")
 	}
 
-	c.initState = readyState{}
-	c.payloadDecryptState = readyState{}
-	c.permissionCheckState = readyState{}
-	c.storageState = readyState{}
-	c.sendackState = readyState{}
-	c.deliveryState = readyState{}
-	c.forwardState = readyState{}
+	c.initState.Reset()
+	c.payloadDecryptState.Reset()
+	c.permissionCheckState.Reset()
+	c.storageState.Reset()
+	c.sendackState.Reset()
+	c.deliveryState.Reset()
+	c.forwardState.Reset()
 
 	c.idleTick = 0
 

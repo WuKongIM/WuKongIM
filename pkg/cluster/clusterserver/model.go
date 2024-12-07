@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -818,7 +817,7 @@ type ChannelClusterStorage interface {
 
 	GetAll(offsetId uint64, limit int) ([]wkdb.ChannelClusterConfig, error)
 	// 提案配置
-	Propose(ctx context.Context, cfg wkdb.ChannelClusterConfig) error
+	Propose(cfg wkdb.ChannelClusterConfig) error
 	// // 获取所有槽位的频道分布式配置
 	// GetWithAllSlot() ([]*wkstore.ChannelClusterConfig, error)
 }

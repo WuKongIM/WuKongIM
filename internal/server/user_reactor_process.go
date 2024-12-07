@@ -747,11 +747,9 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 		req := req
 
 		err := r.processGoPool.Submit(func() {
-			reason := ReasonSuccess
 			err := r.handleWrite(req)
 			if err != nil {
 				r.Warn("handleWrite err", zap.Error(err))
-				reason = ReasonError
 			}
 			var maxIndex uint64
 			for _, msg := range req.messages {
@@ -763,7 +761,7 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 				UniqueNo:   req.uniqueNo,
 				ActionType: UserActionRecvResp,
 				Index:      maxIndex,
-				Reason:     reason,
+				Reason:     ReasonSuccess,
 			})
 		})
 		if err != nil {
@@ -881,11 +879,9 @@ func (r *userReactor) processForwardUserActionLoop() {
 				select {
 				case req := <-r.processForwardUserActionC:
 					actions = append(actions, req)
-
 					if len(actions) >= batchSize {
 						done = true
 					}
-
 				default:
 					done = true
 				}
@@ -951,6 +947,7 @@ func (r *userReactor) handleForwardUserAction(actions []UserAction) {
 				UniqueNo:   fowardActions[0].UniqueNo,
 				ActionType: UserActionLeaderChange,
 				LeaderId:   newLeaderId,
+				Reason:     ReasonSuccess,
 			})
 		}
 		for _, forwardAction := range fowardActions {

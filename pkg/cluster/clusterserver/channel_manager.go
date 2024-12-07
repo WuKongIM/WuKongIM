@@ -9,7 +9,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -40,11 +39,6 @@ func newChannelManager(s *Server) *channelManager {
 		reactor.WithAutoSlowDownOn(true),
 		reactor.WithRequest(cm),
 		reactor.WithSubReactorNum(s.opts.ChannelReactorSubCount),
-		reactor.WithOnHandlerRemove(func(h reactor.IHandler) {
-			if h.LeaderId() == cm.opts.NodeId {
-				trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
-			}
-		}),
 	))
 	return cm
 }
