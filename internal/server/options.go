@@ -115,6 +115,7 @@ type Options struct {
 		MsgNotifyEventPushInterval  time.Duration // 消息通知事件推送间隔，默认500毫秒发起一次推送
 		MsgNotifyEventCountPerPush  int           // 每次webhook消息通知事件推送消息数量限制 默认一次请求最多推送100条
 		MsgNotifyEventRetryMaxCount int           // 消息通知事件消息推送失败最大重试次数 默认为5次，超过将丢弃
+		FocusEvents                 []string      // 关注的通知事件,如果为空表示关注所有事件
 	}
 	Datasource struct { // 数据源配置，不填写则使用自身数据存储逻辑，如果填写则使用第三方数据源，数据格式请查看文档
 		Addr          string // 数据源地址
@@ -379,6 +380,7 @@ func NewOptions(op ...Option) *Options {
 			MsgNotifyEventPushInterval  time.Duration
 			MsgNotifyEventCountPerPush  int
 			MsgNotifyEventRetryMaxCount int
+			FocusEvents                 []string
 		}{
 			MsgNotifyEventPushInterval:  time.Millisecond * 500,
 			MsgNotifyEventCountPerPush:  100,
@@ -635,6 +637,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Webhook.MsgNotifyEventRetryMaxCount = o.getInt("webhook.msgNotifyEventRetryMaxCount", o.Webhook.MsgNotifyEventRetryMaxCount)
 	o.Webhook.MsgNotifyEventCountPerPush = o.getInt("webhook.msgNotifyEventCountPerPush", o.Webhook.MsgNotifyEventCountPerPush)
 	o.Webhook.MsgNotifyEventPushInterval = o.getDuration("webhook.msgNotifyEventPushInterval", o.Webhook.MsgNotifyEventPushInterval)
+	o.Webhook.FocusEvents = o.getStringSlice("webhook.focusEvents")
 
 	o.EventPoolSize = o.getInt("eventPoolSize", o.EventPoolSize)
 	o.DeliveryMsgPoolSize = o.getInt("deliveryMsgPoolSize", o.DeliveryMsgPoolSize)
