@@ -352,7 +352,7 @@ func (w *webhook) sendWebhookForHttp(event string, data []byte) error {
 	eventURL := fmt.Sprintf("%s?event=%s", w.s.opts.Webhook.HTTPAddr, event)
 	startTime := time.Now().UnixNano() / 1000 / 1000
 	w.Debug("webhook开始请求", zap.String("eventURL", eventURL))
-	if !w.isEventFocused(EventMsgNotify) { // 如果不关注事件就不走后边的推送逻辑
+	if !w.isEventFocused(event) { // 如果不关注事件就不走后边的推送逻辑
 		w.Debug("webhook http非关注事件, 不推送", zap.String("event", event))
 		return nil
 	}
