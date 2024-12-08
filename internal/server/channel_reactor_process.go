@@ -881,7 +881,7 @@ func (r *channelReactor) processStorage(req *storageReq) {
 		}
 	}
 
-	if r.opts.WebhookOn() && reason == ReasonSuccess {
+	if r.opts.WebhookOn(EventMsgNotify) && reason == ReasonSuccess {
 		// 赋值messageeq
 		for i, msg := range messages {
 			for _, cmsg := range req.messages {
