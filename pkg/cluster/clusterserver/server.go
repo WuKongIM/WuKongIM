@@ -43,9 +43,6 @@ type Server struct {
 	netServer              *wkserver.Server        // 节点之间通讯的网络服务
 	channelElectionPool    *ants.Pool              // 频道选举的协程池
 	channelElectionManager *channelElectionManager // 频道选举管理者
-	channelLoadPool        *ants.Pool              // 加载频道的协程池
-	channelLoadMap         map[string]struct{}     // 频道是否在加载中的map
-	channelLoadMapLock     sync.RWMutex            // 频道是否在加载中的map锁
 	cancelCtx              context.Context
 	cancelFnc              context.CancelFunc
 	onMessageFnc           func(fromNodeId uint64, msg *proto.Message) // 上层处理消息的函数
@@ -60,6 +57,10 @@ type Server struct {
 	channelClusterCache *lru.Cache // 缓存最热的ChannelClusterConfig
 	// 缓存的数据版本，这个版本是全局分布式配置版本，当全局分布式配置的版本大于当前时，应当清除缓存
 	channelClusterCacheVersion uint64
+
+	// 测试ping
+	testPings       map[string]*ping
+	testPingMapLock sync.RWMutex
 }
 
 func New(opts *Options) *Server {
@@ -69,9 +70,9 @@ func New(opts *Options) *Server {
 		nodeManager:         newNodeManager(opts),
 		Log:                 wklog.NewWKLog(fmt.Sprintf("cluster[%d]", opts.NodeId)),
 		channelKeyLock:      keylock.NewKeyLock(), // 创建指定大小的锁环
-		channelLoadMap:      make(map[string]struct{}),
 		stopper:             syncutil.NewStopper(),
 		channelClusterCache: lru.New(1024),
+		testPings:           make(map[string]*ping),
 	}
 
 	s.slotManager = newSlotManager(s)
@@ -134,13 +135,6 @@ func New(opts *Options) *Server {
 		s.Panic("new channelElectionPool failed", zap.Error(err))
 	}
 	s.channelElectionPool = channelElectionPool
-
-	s.channelLoadPool, err = ants.NewPool(s.opts.ChannelLoadPoolSize, ants.WithNonblocking(true), ants.WithPanicHandler(func(err interface{}) {
-		s.Panic("频道加载协程池崩溃", zap.Any("err", err), zap.Stack("stack"))
-	}))
-	if err != nil {
-		s.Panic("new channelLoadPool failed", zap.Error(err))
-	}
 
 	s.netServer = wkserver.New(
 		opts.Addr, wkserver.WithMessagePoolOn(false),
@@ -488,6 +482,22 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 
 	case MsgTypeChannelClusterConfigUpdate: // 频道配置更新
 		go s.handleChannelClusterConfigUpdate(m)
+
+	case MsgTypePing:
+		ping, err := unmarshalPing(m.Content)
+		if err != nil {
+			s.Error("unmarshalPing failed", zap.Error(err))
+			return
+		}
+		s.ping(ping)
+	case MsgTypePong:
+		pong, err := unmarshalPong(m.Content)
+		if err != nil {
+			s.Error("unmarshalPong failed", zap.Error(err))
+			return
+		}
+		s.pong(pong)
+
 	default:
 		fromNodeId := s.uidToServerId(c.UID())
 
@@ -497,6 +507,35 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 			s.onMessageFnc(fromNodeId, m) // 这里要注意，消息处理的时候不能阻塞，要不然整个分布式将变慢或卡住
 		}
 	}
+}
+
+func (s *Server) ping(p *ping) {
+
+	pong := &pong{
+		no:        p.no,
+		from:      s.opts.NodeId,
+		startMill: time.Now().UnixMilli(),
+	}
+
+	data := pong.marshal()
+
+	msg := &proto.Message{
+		MsgType: MsgTypePong,
+		Content: data,
+	}
+	err := s.Send(p.from, msg)
+	if err != nil {
+		s.Error("send pong failed", zap.Error(err))
+	}
+}
+
+func (s *Server) pong(p *pong) {
+	s.testPingMapLock.Lock()
+	ping, ok := s.testPings[p.no]
+	if ok {
+		ping.waitC <- p
+	}
+	s.testPingMapLock.Unlock()
 }
 
 // 获取频道所在的slotId

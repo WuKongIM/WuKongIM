@@ -115,6 +115,10 @@ func (s *APIServer) setRoutes() {
 	stream := NewStreamAPI(s.s)
 	stream.Route(s.r)
 
+	// system api
+	systemapi := NewSystemAPI(s.s)
+	systemapi.Route(s.r)
+
 	// 压测api
 	if s.s.opts.Stress {
 		stress := NewStressAPI(s.s)

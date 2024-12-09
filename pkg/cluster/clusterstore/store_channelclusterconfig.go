@@ -51,7 +51,7 @@ func (c *ChannelClusterConfigStore) Propose(cfg wkdb.ChannelClusterConfig) error
 	start := time.Now()
 	defer func() {
 		end := time.Since(start)
-		if end > time.Millisecond*1000 {
+		if end > time.Millisecond*5000 {
 			c.Warn("propose cluster config cost to long", zap.Duration("cost", end), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
 		}
 	}()

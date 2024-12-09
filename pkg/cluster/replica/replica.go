@@ -30,6 +30,8 @@ type Replica struct {
 	isRoleTransitioning          bool // 是否角色转换中
 	roleTransitioningTimeoutTick int  // 角色转换超时计时器
 
+	handleSyncReplicaMap map[uint64]bool // 领导正在处理同步中的副本记录，防止重复处理同步请求，导致系统变慢
+
 	replicas []uint64 // 副本节点ID集合（不包含本节点）
 	// -------------------- 节点状态 --------------------
 	leader uint64 // 领导者id
@@ -63,19 +65,20 @@ func New(nodeId uint64, optList ...Option) *Replica {
 		opts.Storage = NewMemoryStorage()
 	}
 	rc := &Replica{
-		replicaLog:      newReplicaLog(opts),
-		status:          StatusUnready,
-		Log:             wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeId, opts.LogPrefix)),
-		opts:            opts,
-		nodeId:          nodeId,
-		lastSyncInfoMap: make(map[uint64]*SyncInfo),
-		no:              wkutil.GenUUID(),
+		replicaLog:           newReplicaLog(opts),
+		status:               StatusUnready,
+		Log:                  wklog.NewWKLog(fmt.Sprintf("replica[%d:%s]", nodeId, opts.LogPrefix)),
+		opts:                 opts,
+		nodeId:               nodeId,
+		lastSyncInfoMap:      make(map[uint64]*SyncInfo),
+		no:                   wkutil.GenUUID(),
+		handleSyncReplicaMap: make(map[uint64]bool),
 	}
 	rc.term = opts.LastTerm
 
 	rc.initState = NewReadyState(opts.RetryTick)
 	rc.coflictCheckState = NewReadyState(opts.RetryTick)
-	rc.syncState = NewReadyTimeoutState(opts.SyncTimeoutTick, opts.SyncIntervalTick, rc.syncTimeout)
+	rc.syncState = NewReadyTimeoutState(rc.opts.LogPrefix, opts.SyncTimeoutTick, opts.SyncIntervalTick, rc.syncTimeout)
 	rc.storageState = NewReadyState(opts.RetryTick)
 	rc.applyState = NewReadyState(opts.RetryTick)
 
@@ -224,7 +227,7 @@ func (r *Replica) Ready() Ready {
 
 	// ==================== 发起同步 ====================
 	if r.detailLogOn {
-		r.Info("read sync", zap.Bool("isFollower", isFollower), zap.Bool("isProcessing", r.syncState.IsProcessing()), zap.Uint64("leader", r.leader), zap.Int("status", int(r.status)), zap.Int("idleTick", r.syncState.idleTick), zap.Int("intervalTick", r.syncState.intervalTick))
+		r.Info("read sync", zap.Bool("isFollower", isFollower), zap.Bool("isProcessing", r.syncState.IsProcessing()), zap.Uint64("leader", r.leader), zap.Int("status", int(r.status)), zap.Int("idleTick", r.syncState.idleTick), zap.Int("intervalTick", r.syncState.intervalTick), zap.Int("timeoutCount", r.syncState.timeoutCount))
 	}
 
 	if isFollower && r.hasSync() {
@@ -320,7 +323,6 @@ func (r *Replica) switchConfig(cfg Config) {
 
 	// r.Info("switch config", zap.String("cfg", cfg.String()))
 
-	oldCfg := r.cfg
 	r.cfg = cfg
 	term := r.term
 	if term == 0 {
@@ -372,10 +374,6 @@ func (r *Replica) switchConfig(cfg Config) {
 		}
 	}
 
-	// 发送配置改变
-	if r.opts.OnConfigChange != nil {
-		r.opts.OnConfigChange(oldCfg, cfg)
-	}
 }
 
 func (r *Replica) initLeaderInfo() {
@@ -429,7 +427,7 @@ func (r *Replica) becomeLeader(term uint32) {
 
 	r.initLeaderInfo()
 
-	r.Info("become leader", zap.Uint32("term", r.term))
+	// r.Info("become leader", zap.Uint32("term", r.term))
 
 }
 
@@ -442,7 +440,7 @@ func (r *Replica) becomeFollower(term uint32, leaderID uint64) {
 	r.leader = leaderID
 	r.role = RoleFollower
 
-	r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
+	// r.Info("become follower", zap.Uint32("term", term), zap.Uint64("leader", leaderID))
 
 	if r.replicaLog.lastLogIndex > 0 && r.leader != None {
 		r.Debug("log conflict check", zap.Uint64("leader", r.leader), zap.Uint64("lastLogIndex", r.replicaLog.lastLogIndex))

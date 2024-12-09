@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
@@ -130,10 +129,6 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 		return nil, errors.New("proposeAndWait: logs is empty")
 	}
 
-	if strings.Contains(handleKey, "g1") {
-		r.Info("proposeAndWait......")
-	}
-
 	// -------------------- 延迟统计 --------------------
 	startTime := time.Now()
 	defer func() {
@@ -145,7 +140,7 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, end.Milliseconds())
 		}
 		if r.opts.EnableLazyCatchUp {
-			if end > time.Millisecond*2000 {
+			if end > time.Millisecond*5000 {
 				r.Info("ReactorSub: proposeAndWait", zap.Int64("cost", end.Milliseconds()), zap.String("handleKey", handleKey), zap.Int("logs", len(logs)), zap.Uint64("lastIndex", logs[len(logs)-1].Index))
 			}
 		}
@@ -275,15 +270,19 @@ func (r *ReactorSub) stepWait(handlerKey string, msg replica.Message) error {
 	defer func() {
 		end := time.Since(start)
 		if end > time.Millisecond*100 {
-			r.Info("stepWait cost too long", zap.Duration("cost", end), zap.String("handlerKey", handlerKey), zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From))
+			r.Info("stepWait cost too long", zap.Duration("cost", end), zap.String("handlerKey", handlerKey), zap.Int("handlerCount", r.handlerLen()), zap.String("msgType", msg.MsgType.String()), zap.Uint64("from", msg.From))
 		}
 	}()
 
 	resultC := make(chan error, 1)
-	r.stepC <- stepReq{
+	select {
+	case r.stepC <- stepReq{
 		handlerKey: handlerKey,
 		msg:        msg,
 		resultC:    resultC,
+	}:
+	case <-r.stopper.ShouldStop():
+		return ErrReactorSubStopped
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), r.opts.ProposeTimeout)

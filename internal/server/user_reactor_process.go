@@ -12,6 +12,7 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // =================================== init ===================================
@@ -703,7 +704,7 @@ func (r *userReactor) addWriteReq(req *writeReq) {
 }
 
 func (r *userReactor) processWriteLoop() {
-	const batchSize = 1024
+	const batchSize = 2048
 	reqs := make([]*writeReq, 0, batchSize)
 	done := false
 	for !r.stopped.Load() {
@@ -743,10 +744,14 @@ func (r *userReactor) processWriteLoop() {
 
 func (r *userReactor) processWrite(reqs []*writeReq) {
 
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	defer cancel()
+	g, _ := errgroup.WithContext(timeoutCtx)
+	g.SetLimit(200)
+
 	for _, req := range reqs {
 		req := req
-
-		err := r.processGoPool.Submit(func() {
+		g.Go(func() error {
 			err := r.handleWrite(req)
 			if err != nil {
 				r.Warn("handleWrite err", zap.Error(err))
@@ -763,17 +768,11 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 				Index:      maxIndex,
 				Reason:     ReasonSuccess,
 			})
+			return nil
 		})
-		if err != nil {
-			r.Error("processWrite failed,submit error", zap.Error(err), zap.String("uid", req.uid))
-			req.sub.step(req.uid, UserAction{
-				UniqueNo:   req.uniqueNo,
-				ActionType: UserActionRecvResp,
-				Reason:     ReasonError,
-			})
-		}
-
 	}
+
+	_ = g.Wait()
 
 }
 
@@ -868,7 +867,7 @@ func (r *userReactor) addForwardUserActionReq(action UserAction) {
 }
 
 func (r *userReactor) processForwardUserActionLoop() {
-	const batchSize = 1024
+	const batchSize = 2048
 	actions := make([]UserAction, 0, batchSize)
 	done := false
 	for !r.stopped.Load() {
@@ -896,14 +895,8 @@ func (r *userReactor) processForwardUserActionLoop() {
 }
 
 func (r *userReactor) processForwardUserAction(actions []UserAction) {
-	newActions := make([]UserAction, len(actions))
-	copy(newActions, actions)
-	err := r.processGoPool.Submit(func() {
-		r.handleForwardUserAction(newActions)
-	})
-	if err != nil {
-		r.Error("processForwardUserAction failed,submit error", zap.Error(err))
-	}
+
+	r.handleForwardUserAction(actions)
 }
 
 func (r *userReactor) handleForwardUserAction(actions []UserAction) {

@@ -61,8 +61,9 @@ type Cluster interface {
 
 	// 等待所有槽准备好
 	MustWaitAllSlotsReady(timeout time.Duration)
-	// Monitor 获取监控信息
-	// Monitor() IMonitor
+
+	// 测试分布式节点网络的ping
+	TestPing() ([]PingResult, error)
 }
 
 type Propose interface {
@@ -77,4 +78,10 @@ type Propose interface {
 type ProposeResult interface {
 	LogId() uint64    // 日志Id
 	LogIndex() uint64 // 日志下标
+}
+
+type PingResult struct {
+	NodeId      uint64 // 响应的节点id
+	Err         error  // 错误信息
+	Millisecond int64  // 耗时
 }

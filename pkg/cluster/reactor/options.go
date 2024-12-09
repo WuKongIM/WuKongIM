@@ -87,7 +87,7 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SubReactorNum:             128,
+		SubReactorNum:             256,
 		TickInterval:              time.Millisecond * 150,
 		ReceiveQueueLength:        128,
 		LazyFreeCycle:             1,
@@ -102,7 +102,7 @@ func NewOptions(opt ...Option) *Options {
 		ProposeTimeout:            time.Second * 30,
 		SlowdownCheckIntervalTick: 10,
 		SyncTimeoutMaxTick:        10,
-		ProcessPoolSize:           1048,
+		ProcessPoolSize:           4096,
 	}
 
 	for _, o := range opt {

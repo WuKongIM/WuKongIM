@@ -84,11 +84,12 @@ func (u *userReactor) start() error {
 
 	// 高并发处理，适用于分散的耗时任务
 	for i := 0; i < 100; i++ {
-
+		u.stopper.RunWorker(u.processForwardUserActionLoop)
+		u.stopper.RunWorker(u.processWriteLoop)
 	}
 
 	// 中并发处理，适合于分散但是不是很耗时的任务
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 50; i++ {
 
 	}
 
@@ -99,10 +100,10 @@ func (u *userReactor) start() error {
 		u.stopper.RunWorker(u.processCloseLoop)
 
 		u.stopper.RunWorker(u.processNodePongLoop)
-		u.stopper.RunWorker(u.processForwardUserActionLoop)
+
 		u.stopper.RunWorker(u.processRecvackLoop)
 		u.stopper.RunWorker(u.processCheckLeaderLoop)
-		u.stopper.RunWorker(u.processWriteLoop)
+
 		u.stopper.RunWorker(u.processNodePingLoop)
 		u.stopper.RunWorker(u.processPingLoop)
 		u.stopper.RunWorker(u.processAuthLoop)

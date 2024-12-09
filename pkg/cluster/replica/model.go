@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/valyala/fastrand"
 )
@@ -699,15 +700,17 @@ type ReadyTimeoutState struct {
 
 	intervalTick int // 请求间隔tick数
 
+	wklog.Log
 }
 
-func NewReadyTimeoutState(timeoutIntervalTick int, intervalTick int, timeoutCallback func()) *ReadyTimeoutState {
+func NewReadyTimeoutState(logPrefix string, timeoutIntervalTick int, intervalTick int, timeoutCallback func()) *ReadyTimeoutState {
 
 	rt := &ReadyTimeoutState{
 		timeoutIntervalTick:     timeoutIntervalTick,
 		nextTimeoutIntervalTick: timeoutIntervalTick,
 		timeoutCallback:         timeoutCallback,
 		intervalTick:            intervalTick,
+		Log:                     wklog.NewWKLog(logPrefix),
 	}
 
 	return rt
@@ -718,6 +721,7 @@ func (r *ReadyTimeoutState) StartProcessing() {
 	r.processing = true
 	r.idleTick = 0
 	r.timeoutTickCount = 0
+	r.nextTimeoutIntervalTick = r.timeoutIntervalTick
 }
 
 // 处理成功
@@ -726,6 +730,7 @@ func (r *ReadyTimeoutState) ProcessSuccess() {
 	r.idleTick = 0
 	r.timeoutCount = 0
 	r.timeoutTickCount = 0
+	r.nextTimeoutIntervalTick = r.timeoutIntervalTick
 }
 
 // 处理失败
@@ -758,20 +763,21 @@ func (r *ReadyTimeoutState) Allow() bool {
 
 func (r *ReadyTimeoutState) Tick() {
 
-	r.idleTick++
-
 	// 超时逻辑
 	if r.processing {
 		r.timeoutTickCount++
 		if r.timeoutTickCount > r.nextTimeoutIntervalTick {
+
 			r.timeoutTickCount = 0
 			r.processing = false
 			r.timeoutCount++
-			r.nextTimeoutIntervalTick = tickExponentialBackoff(r.timeoutCount, r.timeoutIntervalTick, r.timeoutIntervalTick*10)
+			// r.nextTimeoutIntervalTick = tickExponentialBackoff(r.timeoutCount, r.timeoutIntervalTick, r.timeoutIntervalTick*4)
 			if r.timeoutCallback != nil {
 				r.timeoutCallback()
 			}
 		}
+	} else {
+		r.idleTick++
 	}
 }
 
