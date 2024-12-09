@@ -46,6 +46,8 @@ const (
 	MsgTypeChannel                           // channel
 	MsgTypeConfig                            // 配置
 	MsgTypeChannelClusterConfigUpdate        // 通知更新channel的配置
+	MsgTypePing                              // ping
+	MsgTypePong                              // pong
 )
 
 func myUptime(d time.Duration) string {

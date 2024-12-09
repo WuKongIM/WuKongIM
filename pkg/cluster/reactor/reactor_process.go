@@ -182,10 +182,6 @@ func (r *Reactor) processConflictChecks(reqs []*conflictCheckReq) {
 
 func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 
-	if strings.Contains(req.h.key, "g1") {
-		r.Info("processConflictCheck......")
-	}
-
 	if req.leaderLastTerm == 0 { // 本地没有任期，说明本地还没有日志
 		r.Debug("local has no log,no conflict", zap.String("handlerKey", req.h.key))
 		req.sub.step(req.h.key, replica.Message{

@@ -106,6 +106,18 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 		return
 	}
 
+	if req.From == 0 {
+		s.Error("handleClusterconfig: from is 0", zap.Uint64("from", req.From))
+		c.WriteErr(errors.New("handleClusterconfig: from is 0"))
+		return
+	}
+
+	if s.opts.NodeId == req.From {
+		s.Panic("from equal local nodeId, error", zap.Uint64("from", req.From), zap.Uint64("nodeId", s.opts.NodeId))
+		c.WriteErr(errors.New("from equal local nodeId, error"))
+		return
+	}
+
 	if slot.Leader != s.opts.NodeId {
 		s.Error("not leader,handleClusterconfig failed", zap.Uint64("leader", slot.Leader), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.WriteErr(ErrNotIsLeader)

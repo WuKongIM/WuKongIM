@@ -168,20 +168,22 @@ func (r *Replica) stepLeader(m Message) error {
 		// }
 
 	case MsgSyncGetResp:
+		r.setSyncing(m.To, false)
 		if !m.Reject {
 			r.send(r.newMsgSyncResp(m.To, m.Index, m.Logs))
 		}
 
 	case MsgSyncReq:
-
 		lastIndex := r.replicaLog.lastLogIndex
-		// if strings.Contains(r.opts.LogPrefix, "slot") {
-		// 	r.Info("sync-------->", zap.Uint64("from", m.From), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", lastIndex))
-
-		// }
 		if r.detailLogOn {
 			r.Info("sync req", zap.Uint64("from", m.From), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", lastIndex))
 		}
+
+		if r.isSyncing(m.From) {
+			r.Info("sync req, but is syncing", zap.Uint64("from", m.From), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", lastIndex))
+			return nil
+		}
+		r.setSyncing(m.From, true)
 
 		if m.Index <= lastIndex {
 			unstableLogs, exceed, err := r.replicaLog.getLogsFromUnstable(m.Index, lastIndex+1, logEncodingSize(r.opts.SyncLimitSize))
@@ -196,12 +198,14 @@ func (r *Replica) stepLeader(m Message) error {
 					r.Panic("get logs from unstable failed", zap.Uint64("nodeId", r.nodeId), zap.Uint64("from", m.From), zap.Uint64("index", m.Index), zap.Uint64("lastIndex", lastIndex), zap.Uint64("firstIndex", unstableLogs[0].Index))
 				}
 				r.send(r.newMsgSyncResp(m.From, m.Index, unstableLogs))
+				r.setSyncing(m.From, false)
 			} else {
 				// 如果未满足条件，则发起日志获取请求，让上层去查询剩余日志
 				r.send(r.newMsgSyncGet(m.From, m.Index, unstableLogs))
 			}
 		} else {
 			r.send(r.newMsgSyncResp(m.From, m.Index, nil))
+			r.setSyncing(m.From, false)
 		}
 
 		isLearner := r.isLearner(m.From) // 当前同步节点是否是学习者
@@ -252,6 +256,17 @@ func (r *Replica) stepLeader(m Message) error {
 	return nil
 }
 
+// 是否同步中
+func (r *Replica) isSyncing(from uint64) bool {
+	v := r.handleSyncReplicaMap[from]
+	return v
+}
+
+// 设置同步中
+func (r *Replica) setSyncing(from uint64, v bool) {
+	r.handleSyncReplicaMap[from] = v
+}
+
 func (r *Replica) stepFollower(m Message) error {
 
 	switch m.MsgType {
@@ -294,9 +309,6 @@ func (r *Replica) stepFollower(m Message) error {
 		r.electionElapsed = 0 // 重置选举计时器
 		// 设置同步速度
 		r.setSpeedLevel(m.SpeedLevel)
-		// if strings.Contains(r.opts.LogPrefix, "slot-30") {
-		// 	r.Info("MsgSyncResp---------->", zap.Uint64("index", m.Index))
-		// }
 		if r.detailLogOn {
 			r.Info("sync resp", zap.Uint64("from", m.From), zap.Int("logs", len(m.Logs)), zap.Uint64("syncIndex", m.Index))
 		}

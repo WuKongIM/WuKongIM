@@ -44,8 +44,8 @@ func NewOptions(opt ...Option) *Options {
 		ElectionTimeoutTick:    10,
 		HeartbeatTimeoutTick:   1,
 		MaxIdleInterval:        time.Second * 1,
-		ProposeTimeout:         time.Minute * 5,
-		ReqTimeout:             time.Second * 5,
+		ProposeTimeout:         time.Second * 10,
+		ReqTimeout:             time.Second * 10,
 		SlotMaxReplicaCount:    3,
 		ChannelMaxReplicaCount: 3,
 		Event: struct {

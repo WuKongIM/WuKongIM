@@ -52,7 +52,7 @@ func TestReadyState(t *testing.T) {
 }
 
 func TestReadyTimeoutState(t *testing.T) {
-	r := NewReadyTimeoutState(2, 2, nil)
+	r := NewReadyTimeoutState("logPrefix", 2, 2, nil)
 	r.StartProcessing()
 
 	t.Run("processTimeout", func(t *testing.T) {

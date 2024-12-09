@@ -477,7 +477,7 @@ func NewOptions(op ...Option) *Options {
 				TagCheckIntervalTick int
 				TickInterval         time.Duration
 			}{
-				SubCount:             64,
+				SubCount:             128,
 				ProcessIntervalTick:  50,
 				ProcessPoolSize:      4096,
 				DeadlineTick:         1200,

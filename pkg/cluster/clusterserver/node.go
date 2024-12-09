@@ -19,10 +19,9 @@ import (
 )
 
 type node struct {
-	id              uint64
-	addr            string
-	client          *client.Client
-	activityTimeout time.Duration // 活动超时时间，如果这个时间内没有活动，就表示节点已下线
+	id     uint64
+	addr   string
+	client *client.Client
 
 	breaker             *circuit.Breaker
 	sendQueue           sendQueue
@@ -38,7 +37,6 @@ func newNode(id uint64, uid string, addr string, opts *Options) *node {
 		id:                  id,
 		addr:                addr,
 		opts:                opts,
-		activityTimeout:     time.Minute * 2, // TODO: 这个时间也不能太短，如果太短节点可能在启动中，这时可能认为下线了，导致触发领导的转移
 		breaker:             netutil.NewBreaker(),
 		stopper:             syncutil.NewStopper(),
 		maxMessageBatchSize: opts.MaxMessageBatchSize,
@@ -71,6 +69,7 @@ func (n *node) stop() {
 
 func (n *node) send(msg *proto.Message) error {
 	if !n.breaker.Ready() { // 断路器，防止雪崩
+		n.Error("circuit breaker is not ready")
 		return errCircuitBreakerNotReady
 	}
 	if n.sendQueue.rateLimited() { // 发送队列限流

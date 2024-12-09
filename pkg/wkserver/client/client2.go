@@ -57,7 +57,7 @@ func New(addr string, opt ...Option) *Client {
 	}
 	return &Client{
 		addr:      addr,
-		Log:       wklog.NewWKLog(fmt.Sprintf("Client[%s]", opts.UID)),
+		Log:       wklog.NewWKLog(fmt.Sprintf("Client[%s]", opts.Addr)),
 		proto:     proto.New(),
 		opts:      opts,
 		w:         wait.New(),
@@ -131,7 +131,7 @@ func (c *Client) run(connectChan chan struct{}) {
 		c.outbound.Start()
 		err = c.handshake()
 		if err != nil {
-			c.Warn("handshake is error", zap.Error(err))
+			c.Warn("handshake is error", zap.Error(err), zap.String("addr", c.addr), zap.String("uid", c.opts.UID))
 			time.Sleep(errSleepDuri)
 			continue
 		}

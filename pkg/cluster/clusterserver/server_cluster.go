@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 func (s *Server) LeaderIdOfChannel(ctx context.Context, channelId string, channelType uint8) (nodeId uint64, err error) {
@@ -272,6 +274,70 @@ func (s *Server) SlotLeaderNodeInfo(slotId uint32) (nodeInfo *pb.Node, err error
 	return node, nil
 }
 
+func (s *Server) TestPing() ([]icluster.PingResult, error) {
+
+	// 清空上次记录
+	s.testPingMapLock.Lock()
+	s.testPings = make(map[string]*ping)
+	s.testPingMapLock.Unlock()
+
+	nodes := s.clusterEventServer.Nodes()
+	results := make([]icluster.PingResult, 0, len(nodes))
+
+	g, _ := errgroup.WithContext(s.cancelCtx)
+	for _, node := range nodes {
+		node := node
+		if node.Id == s.opts.NodeId {
+			continue
+		}
+		g.Go(func() error {
+			waitC := make(chan *pong, 1)
+			ping := &ping{
+				no:        wkutil.GenUUID(),
+				from:      s.opts.NodeId,
+				to:        node.Id,
+				startMill: time.Now().UnixMilli(),
+				waitC:     waitC,
+			}
+			s.testPingMapLock.Lock()
+			s.testPings[ping.no] = ping
+			s.testPingMapLock.Unlock()
+
+			err := s.Send(node.Id, &proto.Message{
+				MsgType: MsgTypePing,
+				Content: ping.marshal(),
+			})
+			if err != nil {
+				ping.err = err
+			} else {
+				timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, time.Second*2)
+				defer cancel()
+				select {
+				case <-timeoutCtx.Done():
+					ping.err = errors.New("timeout")
+				case <-waitC:
+					ping.costMill = time.Now().UnixMilli() - ping.startMill
+
+				}
+			}
+			return nil
+		})
+
+	}
+	_ = g.Wait()
+
+	s.testPingMapLock.RLock()
+	defer s.testPingMapLock.RUnlock()
+	for _, ping := range s.testPings {
+		results = append(results, icluster.PingResult{
+			NodeId:      ping.to,
+			Err:         ping.err,
+			Millisecond: ping.costMill,
+		})
+	}
+	return results, nil
+}
+
 func (s *Server) loadOrCreateChannelClusterConfig(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, bool, error) {
 	s.channelKeyLock.Lock(channelId)
 	defer func() {
@@ -485,7 +551,6 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 		isReplica := wkutil.ArrayContainsUint64(clusterCfg.Replicas, s.opts.NodeId) // 当前节点是否是频道的副本
 		isLearner := wkutil.ArrayContainsUint64(clusterCfg.Learners, s.opts.NodeId) // 当前节点是否是频道的学习者
 		if isReplica || isLearner {                                                 // 只有当前节点在副本列表中才启动频道的分布式
-
 			// 切换成新配置
 			err = ch.switchConfig(clusterCfg)
 			if err != nil {
@@ -666,6 +731,7 @@ func (s *Server) requestChannelClusterConfigFromSlotLeader(channelId string, cha
 	clusterConfig, err := node.requestChannelClusterConfig(timeoutCtx, &ChannelClusterConfigReq{
 		ChannelId:   channelId,
 		ChannelType: channelType,
+		From:        s.opts.NodeId,
 	})
 	if err != nil {
 		s.Error("requestChannelClusterConfigFromSlotLeader failed", zap.Error(err), zap.Uint64("slotLeader", slot.Leader), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint32("slotId", slotId))
