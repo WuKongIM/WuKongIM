@@ -10,6 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/panjf2000/gnet/v2"
 	es "github.com/panjf2000/gnet/v2/pkg/errors"
 
@@ -35,6 +36,8 @@ type conn struct {
 	gc          gnet.Conn
 	idleTick    int // 空闲tick数
 	timeoutTick int
+
+	no string // 唯一编号，每次重连都会变
 
 	wklog.Log
 }
@@ -70,8 +73,15 @@ func (c *conn) startDial() {
 		proto = "tcp"
 		addr = c.addr
 	}
+	c.no = wkutil.GenUUID()
+	if c.gc != nil {
+		_ = c.gc.Close()
+		c.gc = nil
+	}
 
-	c.gc, err = c.c.cli.DialContext(proto, addr, c)
+	c.gc, err = c.c.cli.DialContext(proto, addr, connCtx{
+		no: c.no,
+	})
 	if err != nil {
 		// c.Foucs("conn failed", zap.Error(err))
 		c.status.Store(disconnect)
@@ -153,6 +163,7 @@ func (c *conn) tick() {
 
 func (c *conn) reconnect() {
 	c.status.Store(disconnect)
+	_ = c.gc.Close()
 }
 
 // 发送心跳
@@ -185,8 +196,9 @@ func (c *conn) onTraffic(gc gnet.Conn) gnet.Action {
 			break
 		}
 		batchCount++
+		remoteAddr := gc.RemoteAddr().String()
 		err = c.c.pool.Submit(func() {
-			c.c.handleData(data, msgType)
+			c.c.handleData(data, msgType, remoteAddr)
 		})
 		if err != nil {
 			c.Error("submit failed", zap.Error(err))
@@ -196,7 +208,6 @@ func (c *conn) onTraffic(gc gnet.Conn) gnet.Action {
 	if batchCount == c.c.batchRead && gc.InboundBuffered() > 0 {
 		if err := gc.Wake(nil); err != nil { // 这里调用wake避免丢失剩余的数据
 			c.Error("failed to wake up the connection", zap.Error(err))
-			c.close(err)
 			return gnet.Close
 		}
 	}
@@ -219,4 +230,8 @@ func parseProtoAddr(protoAddr string) (string, string, error) {
 		return "", "", es.ErrInvalidNetworkAddress
 	}
 	return proto, addr, nil
+}
+
+type connCtx struct {
+	no string
 }

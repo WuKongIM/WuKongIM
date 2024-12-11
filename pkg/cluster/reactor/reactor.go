@@ -69,10 +69,10 @@ func New(opts *Options) *Reactor {
 	}
 	var err error
 	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(i interface{}) {
-		r.Panic("user: NewMultiPool panic", zap.Any("panic", i), zap.Stack("stack"))
+		r.Panic("reactor: processGoPool  panic", zap.Any("panic", i), zap.Stack("stack"))
 	}))
 	if err != nil {
-		r.Panic("user: NewMultiPool panic", zap.Error(err))
+		r.Panic("reactor: NewMultiPool panic", zap.Error(err))
 	}
 
 	return r
@@ -227,10 +227,6 @@ func (r *Reactor) newReactorSub(i int) *ReactorSub {
 func (r *Reactor) reactorSub(key string) *ReactorSub {
 	idx := hashWthString(key)
 	return r.subReactors[idx%uint32(r.opts.SubReactorNum)]
-}
-
-func (r *Reactor) newMessageQueue() *MessageQueue {
-	return NewMessageQueue(r.opts.ReceiveQueueLength, r.opts.MaxReceiveQueueSize)
 }
 
 func (r *Reactor) WithTimeout() (context.Context, context.CancelFunc) {

@@ -289,24 +289,20 @@ func (r *channelReactor) processForwardLoop() {
 
 func (r *channelReactor) processForwards(reqs []*forwardReq) {
 
-	if len(reqs) == 1 {
-		req := reqs[0]
-		r.processForward(req)
-		return
-	}
-
-	timeoutCtx, cancel := r.WithTimeout()
-	defer cancel()
-	eg, _ := errgroup.WithContext(timeoutCtx)
-	eg.SetLimit(1000)
+	var err error
 	for _, req := range reqs {
 		req := req
-		eg.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processForward(req)
-			return nil
 		})
+		if err != nil {
+			req.sub.step(req.ch, &ChannelAction{
+				UniqueNo:   req.ch.uniqueNo,
+				ActionType: ChannelActionForwardResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = eg.Wait()
 }
 
 func (r *channelReactor) processForward(req *forwardReq) {
@@ -1247,7 +1243,7 @@ func (r *channelReactor) addCheckTagReq(req *checkTagReq) {
 	select {
 	case r.processCheckTagC <- req:
 	default:
-		r.Debug("processCheckTagC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+		r.Warn("processCheckTagC is full, ignore", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 	}
 }
 

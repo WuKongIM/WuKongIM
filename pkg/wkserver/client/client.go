@@ -209,13 +209,13 @@ func (c *Client) handler(p string) Handler {
 	return c.routeMap[p]
 }
 
-func (c *Client) handleData(data []byte, msgType proto.MsgType) {
+func (c *Client) handleData(data []byte, msgType proto.MsgType, remoteAddr string) {
 
 	c.conn().idleTick = 0
 	c.conn().timeoutTick = 0
 
 	if c.opts.LogDetailOn {
-		c.Info("handleData....", zap.Uint8("msgType", msgType.Uint8()), zap.Int("data", len(data)))
+		c.Info("handleData....", zap.Uint8("msgType", msgType.Uint8()), zap.Int("data", len(data)), zap.String("remoteAddr", remoteAddr))
 	}
 
 	if msgType == proto.MsgTypeRequest {

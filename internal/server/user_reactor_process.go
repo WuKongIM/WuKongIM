@@ -602,19 +602,20 @@ func (r *userReactor) processRecvackLoop() {
 
 func (r *userReactor) processRecvacks(reqs []*recvackReq) {
 
-	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
-	defer cancel()
-	g, _ := errgroup.WithContext(timeoutCtx)
-	g.SetLimit(1000)
+	var err error
 	for _, req := range reqs {
 		req := req
-		g.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			r.processRecvack(req)
-			return nil
 		})
-
+		if err != nil {
+			req.sub.step(req.uid, UserAction{
+				UniqueNo:   req.uniqueNo,
+				ActionType: UserActionRecvackResp,
+				Reason:     ReasonError,
+			})
+		}
 	}
-	_ = g.Wait()
 }
 
 func (r *userReactor) processRecvack(req *recvackReq) {
@@ -728,14 +729,10 @@ func (r *userReactor) processWriteLoop() {
 
 func (r *userReactor) processWrite(reqs []*writeReq) {
 
-	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
-	defer cancel()
-	g, _ := errgroup.WithContext(timeoutCtx)
-	g.SetLimit(1000)
-
+	var err error
 	for _, req := range reqs {
 		req := req
-		g.Go(func() error {
+		err = r.processGoPool.Submit(func() {
 			err := r.handleWrite(req)
 			if err != nil {
 				r.Warn("handleWrite err", zap.Error(err))
@@ -752,11 +749,17 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 				Index:      maxIndex,
 				Reason:     ReasonSuccess,
 			})
-			return nil
 		})
-	}
+		if err != nil {
+			r.Warn("processWrite err", zap.Error(err))
+			req.sub.step(req.uid, UserAction{
+				UniqueNo:   req.uniqueNo,
+				ActionType: UserActionRecvResp,
+				Reason:     ReasonError,
+			})
+		}
 
-	_ = g.Wait()
+	}
 
 }
 

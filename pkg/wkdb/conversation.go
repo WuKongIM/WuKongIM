@@ -1,7 +1,6 @@
 package wkdb
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -562,9 +561,6 @@ func (wk *wukongDB) writeConversation(conversation Conversation, w *Batch) error
 	var msgSeqBytes = make([]byte, 8)
 	wk.endian.PutUint64(msgSeqBytes, conversation.ReadToMsgSeq)
 	w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes)
-	if conversation.ChannelId == "a4593c39234a4336a799855bfa6b9455" {
-		fmt.Println("conversation.ReadToMsgSeq----------->", conversation.ReadToMsgSeq)
-	}
 	// createdAt
 	if conversation.CreatedAt != nil {
 		createdAtBytes := make([]byte, 8)

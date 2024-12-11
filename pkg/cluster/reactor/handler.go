@@ -76,10 +76,9 @@ type IHandler interface {
 }
 
 type handler struct {
-	key      string
-	no       string // handler唯一编号
-	handler  IHandler
-	msgQueue *MessageQueue
+	key     string
+	no      string // handler唯一编号
+	handler IHandler
 
 	lastIndex atomic.Uint64 // 当前频道最后一条日志索引
 
@@ -106,7 +105,6 @@ func (h *handler) init(key string, handler IHandler, r *Reactor) {
 	h.Log = wklog.NewWKLog(fmt.Sprintf("handler[%s]", b.String()))
 	h.key = key
 	h.handler = handler
-	h.msgQueue = r.newMessageQueue()
 	h.lastIndex.Store(0)
 
 	h.proposeWait = newProposeWait(fmt.Sprintf("[%d]%s", r.opts.NodeId, key))
@@ -117,8 +115,6 @@ func (h *handler) reset() {
 	h.Log = nil
 	h.handler = nil
 	h.key = ""
-	h.msgQueue = nil
-	h.msgQueue = nil
 	h.proposeWait = nil
 	h.proposeIntervalTick = 0
 	h.hardState = replica.HardState{}

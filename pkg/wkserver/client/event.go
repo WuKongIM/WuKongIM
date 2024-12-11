@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/panjf2000/gnet/v2"
-	"go.uber.org/zap"
 )
 
 type clientEvent struct {
@@ -15,10 +14,6 @@ func (c *clientEvent) OnTick() (delay time.Duration, action gnet.Action) {
 
 	delay = 100 * time.Millisecond
 	for _, conn := range c.c.conns {
-
-		if c.c.opts.LogDetailOn {
-			c.c.Info("OnTick.....", zap.Any("status", conn.status.Load()))
-		}
 
 		if conn.status.CompareAndSwap(disconnect, connecting) {
 			go conn.startDial()
@@ -38,19 +33,22 @@ func (c *clientEvent) OnTick() (delay time.Duration, action gnet.Action) {
 func (c *clientEvent) OnClose(gc gnet.Conn, err error) (action gnet.Action) {
 	ctx := gc.Context()
 	if ctx != nil {
-		ctx.(*conn).close(err)
+		cn := ctx.(connCtx)
+		if cn.no == c.c.conn().no {
+			c.c.conn().close(err)
+		}
 	}
 
 	return
 }
 
 func (c *clientEvent) OnTraffic(gc gnet.Conn) (action gnet.Action) {
-	conn := gc.Context().(*conn)
-	conn.idleTick = 0
-	return conn.onTraffic(gc)
+	c.c.conn().idleTick = 0
+	return c.c.conn().onTraffic(gc)
 }
 
 func (c *clientEvent) OnShutdown(gnet.Engine) {
+	c.c.Foucs("gnet shutdown")
 }
 
 func (c *clientEvent) OnBoot(eng gnet.Engine) (action gnet.Action) {

@@ -11,8 +11,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/lni/goutils/netutil"
-	circuit "github.com/lni/goutils/netutil/rubyist/circuitbreaker"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -23,8 +21,8 @@ type node struct {
 	addr   string
 	client *client.Client
 
-	breaker             *circuit.Breaker
-	sendQueue           sendQueue
+	sendQueue sendQueue
+
 	stopper             *syncutil.Stopper
 	maxMessageBatchSize uint64 // 每次发送消息的最大大小（单位字节）
 	wklog.Log
@@ -37,7 +35,6 @@ func newNode(id uint64, uid string, addr string, opts *Options) *node {
 		id:                  id,
 		addr:                addr,
 		opts:                opts,
-		breaker:             netutil.NewBreaker(),
 		stopper:             syncutil.NewStopper(),
 		maxMessageBatchSize: opts.MaxMessageBatchSize,
 		Log:                 wklog.NewWKLog(fmt.Sprintf("nodeClient[%d]", id)),
@@ -66,10 +63,6 @@ func (n *node) stop() {
 }
 
 func (n *node) send(msg *proto.Message) error {
-	if !n.breaker.Ready() { // 断路器，防止雪崩
-		n.Error("circuit breaker is not ready")
-		return errCircuitBreakerNotReady
-	}
 	if n.sendQueue.rateLimited() { // 发送队列限流
 		n.Error("sendQueue is rateLimited")
 		return errRateLimited
@@ -100,7 +93,6 @@ func (n *node) sending() int64 {
 }
 
 func (n *node) processMessages() {
-
 	size := uint64(0)
 	msgs := make([]*proto.Message, 0)
 	var err error

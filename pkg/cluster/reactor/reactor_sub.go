@@ -31,6 +31,8 @@ type ReactorSub struct {
 	proposeC chan proposeReq
 	mr       *Reactor
 	stopped  atomic.Bool
+
+	mq *MessageQueue
 }
 
 func NewReactorSub(index int, mr *Reactor) *ReactorSub {
@@ -43,6 +45,7 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		tmpHandlers: make([]*handler, 0, 100),
 		stepC:       make(chan stepReq, 4096),
 		proposeC:    make(chan proposeReq, 2024),
+		mq:          NewMessageQueue(mr.opts.ReceiveQueueLength, false, 1, 0),
 	}
 }
 
@@ -83,10 +86,12 @@ func (r *ReactorSub) run() {
 				r.Error("step message failed", zap.Error(err), zap.String("key", handler.key), zap.String("msgType", req.msg.MsgType.String()), zap.Uint64("from", req.msg.From))
 				if req.resultC != nil {
 					req.resultC <- err
+					close(req.resultC)
 				}
 			} else {
 				if req.resultC != nil {
 					req.resultC <- nil
+					close(req.resultC)
 				}
 			}
 		case req := <-r.proposeC:
@@ -102,7 +107,7 @@ func (r *ReactorSub) run() {
 				req.logs[i] = lg
 			}
 			req.handler.didPropose(req.waitKey, req.logs[0].Index, req.logs[len(req.logs)-1].Index, term)
-			err := req.handler.handler.Step(replica.NewProposeMessageWithLogs(r.opts.NodeId, term, req.logs))
+			err := req.handler.step(replica.NewProposeMessageWithLogs(r.opts.NodeId, term, req.logs))
 			if err != nil {
 				r.Error("step propose message failed", zap.Error(err))
 			}
@@ -242,7 +247,7 @@ func (r *ReactorSub) step(handlerKey string, msg replica.Message) {
 	start := time.Now()
 	defer func() {
 		cost := time.Since(start)
-		if cost > time.Millisecond*50 {
+		if cost > time.Millisecond*250 {
 			r.Warn("step too cost...", zap.Duration("cost", cost), zap.String("handlerKey", handlerKey), zap.Uint16("msgType", uint16(msg.MsgType)))
 		}
 	}()
@@ -293,10 +298,18 @@ func (r *ReactorSub) stepWait(handlerKey string, msg replica.Message) error {
 }
 
 func (r *ReactorSub) readyEvents() {
+
+	// 处理收到的消息
+	r.handleReceivedMessages()
+	// 处理ready事件
+	r.handleReadys()
+
+}
+
+func (r *ReactorSub) handleReadys() {
 	hasEvent := true
 
 	r.handlers.readHandlers(&r.tmpHandlers)
-
 	for hasEvent && !r.stopped.Load() {
 		hasEvent = false
 
@@ -306,10 +319,12 @@ func (r *ReactorSub) readyEvents() {
 				hasEvent = true
 			}
 		}
+
 	}
 	if len(r.tmpHandlers) > 0 {
 		r.tmpHandlers = r.tmpHandlers[:0]
 	}
+
 }
 
 func (r *ReactorSub) handleReady(handler *handler) bool {
@@ -427,6 +442,33 @@ func (r *ReactorSub) handleReady(handler *handler) bool {
 	return true
 }
 
+// 处理收到的消息
+func (r *ReactorSub) handleReceivedMessages() bool {
+	msgs := r.mq.Get()
+	if len(msgs) == 0 {
+		return false
+	}
+	for _, msg := range msgs {
+		handler := r.handlers.get(msg.HandlerKey)
+		if handler == nil {
+			continue
+		}
+		if msg.HandlerNo != "" && handler.no != msg.HandlerNo {
+			r.Info("no expected handler", zap.String("expected", handler.no), zap.String("act", msg.HandlerNo))
+			continue
+		}
+
+		if handler != nil {
+			err := handler.step(msg.Message)
+			if err != nil {
+				r.Error("step failed", zap.Error(err), zap.String("handleKey", msg.HandlerKey))
+			}
+		}
+	}
+
+	return true
+}
+
 func (r *ReactorSub) tick() {
 
 	r.handlers.readHandlers(&r.tmpHandlers)
@@ -486,11 +528,16 @@ func (r *ReactorSub) iterator(f func(h *handler) bool) {
 	r.handlers.iterator(f)
 }
 
-// 收到消息
+// 添加消息（如果消息太多，可能会被忽略掉）
 func (r *ReactorSub) addMessage(m Message) {
+	if added := r.mq.Add(m); !added {
+		r.Warn("dropped an incoming message", zap.String("handleKey", m.HandlerKey), zap.String("msgType", m.MsgType.String()))
+	}
+}
 
-	r.step(m.HandlerKey, m.Message)
-
+// 添加消息（不管消息有多少，必须添加）
+func (r *ReactorSub) mustAddMessage(m Message) {
+	r.mq.MustAdd(m)
 }
 
 type stepReq struct {
