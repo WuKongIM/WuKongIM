@@ -431,7 +431,7 @@ func NewOptions(op ...Option) *Options {
 			HeartbeatIntervalTick:  1,
 			ElectionIntervalTick:   10,
 			ChannelReactorSubCount: 128,
-			SlotReactorSubCount:    64,
+			SlotReactorSubCount:    16,
 			PongMaxTick:            30,
 		},
 		Trace: struct {
@@ -477,7 +477,7 @@ func NewOptions(op ...Option) *Options {
 				TagCheckIntervalTick int
 				TickInterval         time.Duration
 			}{
-				SubCount:             128,
+				SubCount:             64,
 				ProcessIntervalTick:  50,
 				ProcessPoolSize:      4096,
 				DeadlineTick:         1200,
@@ -1147,7 +1147,7 @@ func (o *Options) isEventFocused(event string) bool {
 
 // WebhookOn WebhookOn
 func (o *Options) WebhookOn(event string) bool {
-    if !o.isEventFocused(event) {
+	if !o.isEventFocused(event) {
 		// webhook 非关注，不进行下面的逻辑
 		return false
 	}

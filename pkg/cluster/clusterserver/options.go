@@ -99,6 +99,8 @@ type Options struct {
 
 	LokiUrl string // loki url example: http://localhost:3100
 	LokiJob string
+
+	LogDetailOn bool // 是否开启详细日志
 }
 
 func NewOptions(opt ...Option) *Options {

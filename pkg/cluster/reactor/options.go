@@ -87,7 +87,7 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SubReactorNum:             256,
+		SubReactorNum:             128,
 		TickInterval:              time.Millisecond * 150,
 		ReceiveQueueLength:        128,
 		LazyFreeCycle:             1,

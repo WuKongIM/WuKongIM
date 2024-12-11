@@ -19,12 +19,18 @@ demo:
   addr: "0.0.0.0:5173"  
 conversation:
   on: true  
+# reactor: 
+#   channel:
+#     subCount: 1
+#   user:
+#     subCount: 1   
 cluster:
   nodeId: 2
   addr: "tcp://127.0.0.1:10002" # 分布式监听地址
   slotCount: 64
   slotReplicaCount: 3
   channelReplicaCount: 3
+  # channelReactorSubCount: 1
   apiUrl: "http://127.0.0.1:5002"
   initNodes:
     - "1@127.0.0.1:10001"

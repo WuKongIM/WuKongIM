@@ -87,6 +87,7 @@ func (s *Server) detailLog(c *wkhttp.Context) {
 		ch.DetailLogOn(!off)
 	} else if tp == "server" {
 		s.netServer.Options().LogDetailOn = !off
+		s.opts.LogDetailOn = !off
 	} else if tp == "node" {
 		nodeId := wkutil.ParseUint64(key)
 		node := s.nodeManager.node(nodeId)

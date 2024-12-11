@@ -298,40 +298,6 @@ func (s *Server) AddChannelMessage(m reactor.Message) {
 	_ = s.channelManager.getOrCreateIfNotExistWithHandleKey(m.HandlerKey)
 
 	s.channelManager.addMessage(m)
-
-	// s.channelLoadMapLock.RLock()
-	// if _, ok := s.channelLoadMap[m.HandlerKey]; ok {
-	// 	s.channelLoadMapLock.RUnlock()
-	// 	return
-	// }
-	// s.channelLoadMapLock.RUnlock()
-
-	// s.channelLoadMapLock.Lock()
-	// s.channelLoadMap[m.HandlerKey] = struct{}{}
-	// s.channelLoadMapLock.Unlock()
-
-	// running := s.channelLoadPool.Running()
-	// if running > s.opts.ChannelLoadPoolSize-10 {
-	// 	s.Warn("channelLoadPool is busy", zap.Int("running", running), zap.Int("size", s.opts.ChannelLoadPoolSize))
-	// }
-	// err := s.channelLoadPool.Submit(func() {
-	// 	channelId, channelType := wkutil.ChannelFromlKey(m.HandlerKey)
-	// 	if channelId == "" {
-	// 		s.Panic("channelId is empty", zap.String("handlerKey", m.HandlerKey))
-	// 	}
-	// 	_, err := s.loadOrCreateChannel(s.cancelCtx, channelId, channelType)
-	// 	if err != nil {
-	// 		s.Error("loadOrCreateChannel failed", zap.Error(err), zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.MsgType.String()))
-	// 	}
-	// 	s.channelLoadMapLock.Lock()
-	// 	delete(s.channelLoadMap, m.HandlerKey)
-	// 	s.channelLoadMapLock.Unlock()
-
-	// 	s.Debug("active channel", zap.String("handlerKey", m.HandlerKey), zap.Uint64("from", m.From), zap.String("msgType", m.MsgType.String()))
-	// })
-	// if err != nil {
-	// 	s.Error("channelLoadPool.Submit failed", zap.Error(err))
-	// }
 }
 
 func (s *Server) newNodeByNodeInfo(nodeID uint64, addr string) *node {
@@ -373,6 +339,9 @@ func (s *Server) uidToServerId(uid string) uint64 {
 }
 
 func (s *Server) send(shardType ShardType, m reactor.Message) {
+	if s.opts.LogDetailOn {
+		s.Info("shard send message", zap.Uint8("shardType", uint8(shardType)), zap.String("handleKey", m.HandlerKey), zap.String("msgType", m.MsgType.String()), zap.Bool("stopped", s.stopped.Load()))
+	}
 	if s.stopped.Load() {
 		return
 	}
@@ -388,6 +357,7 @@ func (s *Server) send(shardType ShardType, m reactor.Message) {
 		s.Warn("send failed, node not exist", zap.Uint64("to", m.To), zap.String("msgType", m.MsgType.String()))
 		return
 	}
+
 	data, err := m.Marshal()
 	if err != nil {
 		s.Error("Marshal failed", zap.Error(err))
@@ -431,14 +401,13 @@ func (s *Server) send(shardType ShardType, m reactor.Message) {
 
 func (s *Server) onSend(m reactor.Message) {
 
-	s.opts.Send(ShardTypeConfig, m)
+	s.send(ShardTypeConfig, m)
 }
 
 func (s *Server) onMessage(c gnet.Conn, m *proto.Message) {
 	if s.stopped.Load() {
 		return
 	}
-
 	start := time.Now()
 
 	defer func() {

@@ -118,7 +118,11 @@ func (s *Server) AddMessage(m reactor.Message) {
 	s.cfgServer.AddMessage(m)
 
 	if s.IsLeader() && m.MsgType == replica.MsgPong {
-		s.pongC <- m.From
+		select {
+		case s.pongC <- m.From:
+		default:
+			s.Warn("Pong channel is full")
+		}
 	}
 }
 

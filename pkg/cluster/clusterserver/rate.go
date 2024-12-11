@@ -57,7 +57,7 @@ func (r *RateLimiter) RateLimited() bool {
 	}
 	v := r.Get()
 	if v > r.maxSize {
-		r.Info("ate limited", zap.Uint64("v", v), zap.Uint64("maxSize", r.maxSize))
+		r.Info("rate limited", zap.Uint64("v", v), zap.Uint64("maxSize", r.maxSize))
 		return true
 	}
 	return false

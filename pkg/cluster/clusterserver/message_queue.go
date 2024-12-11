@@ -12,41 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package reactor
+package cluster
 
 import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
 )
 
-type MessageQueue struct {
+type messageQueue struct {
 	ch            chan struct{}
 	rl            *RateLimiter // 限制字节流量速度
 	lazyFreeCycle uint64       // 懒惰释放周期，n表示n次释放一次
 	size          uint64
-	left          []Message // 左边队列
-	right         []Message // 右边队列, 左右的目的是为了重复利用内存
-	nodrop        []Message // 不能drop的消息
+	left          []*proto.Message // 左边队列
+	right         []*proto.Message // 右边队列, 左右的目的是为了重复利用内存
+	nodrop        []*proto.Message // 不能drop的消息
 	mu            sync.Mutex
 	leftInWrite   bool   // 写入时是否使用左边队列
 	idx           uint64 // 当前写入的位置下标
 	oldIdx        uint64
+	stopped       bool // 是否停止
 	cycle         uint64
 	wklog.Log
 }
 
-func NewMessageQueue(size uint64, ch bool,
-	lazyFreeCycle uint64, maxMemorySize uint64) *MessageQueue {
+func newMessageQueue(size uint64, ch bool,
+	lazyFreeCycle uint64, maxMemorySize uint64) *messageQueue {
 
-	q := &MessageQueue{
+	q := &messageQueue{
 		rl:            NewRateLimiter(maxMemorySize),
 		size:          size,
 		lazyFreeCycle: lazyFreeCycle,
-		left:          make([]Message, size),
-		right:         make([]Message, size),
-		nodrop:        make([]Message, 0),
+		left:          make([]*proto.Message, size),
+		right:         make([]*proto.Message, size),
+		nodrop:        make([]*proto.Message, 0),
 		Log:           wklog.NewWKLog("messageQueue"),
 	}
 	if ch {
@@ -55,33 +57,38 @@ func NewMessageQueue(size uint64, ch bool,
 	return q
 }
 
-func (q *MessageQueue) Add(msg Message) bool {
+func (q *messageQueue) add(msg *proto.Message) (bool, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.idx >= q.size {
-		return false
+		return false, q.stopped
 	}
-
+	if q.stopped {
+		return false, true
+	}
 	if !q.tryAdd(msg) {
-		return false
+		return false, false
 	}
 
 	w := q.targetQueue()
 	w[q.idx] = msg
 	q.idx++
-	return true
+	return true, false
 
 }
 
 // 必须要添加的消息不接受drop
-func (q *MessageQueue) MustAdd(msg Message) {
+func (q *messageQueue) mustAdd(msg *proto.Message) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-
+	if q.stopped {
+		return false
+	}
 	q.nodrop = append(q.nodrop, msg)
+	return true
 }
 
-func (q *MessageQueue) Get() []Message {
+func (q *messageQueue) get() []*proto.Message {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.cycle++
@@ -98,17 +105,17 @@ func (q *MessageQueue) Get() []Message {
 		return t[:sz]
 	}
 
-	var result []Message
+	var result []*proto.Message
 	if len(q.nodrop) > 0 {
 		ssm := q.nodrop
-		q.nodrop = make([]Message, 0)
+		q.nodrop = make([]*proto.Message, 0)
 		result = append(result, ssm...)
 	}
 	return append(result, t[:sz]...)
 }
 
-func (q *MessageQueue) targetQueue() []Message {
-	var t []Message
+func (q *messageQueue) targetQueue() []*proto.Message {
+	var t []*proto.Message
 	if q.leftInWrite {
 		t = q.left
 	} else {
@@ -117,34 +124,34 @@ func (q *MessageQueue) targetQueue() []Message {
 	return t
 }
 
-func (q *MessageQueue) tryAdd(msg Message) bool {
+func (q *messageQueue) tryAdd(msg *proto.Message) bool {
 	if !q.rl.Enabled() {
 		return true
 	}
 	if q.rl.RateLimited() {
-		q.Warn("rate limited dropped", zap.String("msgType", msg.MsgType.String()))
+		q.Warn("rate limited dropped", zap.Uint32("msgType", msg.MsgType))
 		return false
 	}
 	q.rl.Increase(uint64(msg.Size()))
 	return true
 }
 
-func (q *MessageQueue) gc() {
+func (q *messageQueue) gc() {
 	if q.lazyFreeCycle > 0 {
 		oldq := q.targetQueue()
 		if q.lazyFreeCycle == 1 {
 			for i := uint64(0); i < q.oldIdx; i++ {
-				oldq[i].Logs = nil
+				oldq[i].Content = nil
 			}
 		} else if q.cycle%q.lazyFreeCycle == 0 {
 			for i := uint64(0); i < q.size; i++ {
-				oldq[i].Logs = nil
+				oldq[i].Content = nil
 			}
 		}
 	}
 }
 
-func (q *MessageQueue) notify() {
+func (q *messageQueue) notify() {
 	if q.ch != nil {
 		select {
 		case q.ch <- struct{}{}:
@@ -154,6 +161,6 @@ func (q *MessageQueue) notify() {
 }
 
 // Ch returns the notification channel.
-func (q *MessageQueue) notifyCh() <-chan struct{} {
+func (q *messageQueue) notifyCh() <-chan struct{} {
 	return q.ch
 }

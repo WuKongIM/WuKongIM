@@ -567,6 +567,16 @@ type UserAction struct {
 	Forward *UserAction
 }
 
+func (u UserAction) Size() uint64 {
+	size := uint64(1 + len(u.Uid) + 2 + 4) // actionType + uid + uidLen + messageSize
+	for _, m := range u.Messages {
+		size += m.Size()
+	}
+
+	return size
+
+}
+
 func (u *UserAction) MarshalWithEncoder(enc *wkproto.Encoder) error {
 	enc.WriteUint8(uint8(u.ActionType))
 	enc.WriteString(u.Uid)

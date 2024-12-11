@@ -321,12 +321,6 @@ func (s *Server) handleSlotLeaderTermStartIndex(c *wkserver.Context) {
 		return
 	}
 
-	start := time.Now()
-	defer func() {
-		cost := time.Since(start)
-		s.Info("handleSlotLeaderTermStartIndex too cost", zap.Duration("cost", cost))
-	}()
-
 	resultBytes := make([]byte, 8)
 
 	handler := s.slotManager.slotReactor.Handler(req.HandlerKey)
