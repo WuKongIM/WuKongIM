@@ -85,6 +85,16 @@ func (s *Server) detailLog(c *wkhttp.Context) {
 		}
 		ch := handler.(*channel)
 		ch.DetailLogOn(!off)
+	} else if tp == "server" {
+		s.netServer.Options().LogDetailOn = !off
+	} else if tp == "node" {
+		nodeId := wkutil.ParseUint64(key)
+		node := s.nodeManager.node(nodeId)
+		if node == nil {
+			c.ResponseError(errors.New("node not exist"))
+			return
+		}
+		node.client.Options().LogDetailOn = !off
 	} else {
 		c.ResponseError(errors.New("type error"))
 		return

@@ -38,6 +38,8 @@ func (s *Server) setClusterRoutes() {
 	// s.cluster.Route("/wk/connPing", s.handleOnConnPingReq)
 	// 转发消息到频道的领导节点
 	s.cluster.Route("/wk/channelFoward", s.handleChannelForward)
+	// 批量转发
+	// s.cluster.Route("/wk/channelFowards", s.handleChannelForward)
 	// 转发sendack回执信息到源节点
 	s.cluster.Route("/wk/forwardSendack", s.handleForwardSendack)
 	// 转发连接写数据

@@ -445,12 +445,23 @@ func (s *Server) channelLocalReplica(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	var term uint32
+	if lastMsgSeq > 0 {
+		msg, err := s.opts.DB.LoadMsg(channelId, channelType, lastMsgSeq)
+		if err != nil {
+			s.Error("LoadMsg error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		term = uint32(msg.Term)
+	}
 
 	resp := &channelReplicaResp{
 		ReplicaId:   s.opts.NodeId,
 		Running:     wkutil.BoolToInt(running),
 		LastMsgSeq:  lastMsgSeq,
 		LastMsgTime: lastTime,
+		Term:        term,
 	}
 
 	c.JSON(http.StatusOK, resp)

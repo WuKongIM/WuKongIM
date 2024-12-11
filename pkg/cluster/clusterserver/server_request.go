@@ -203,7 +203,7 @@ func (s *Server) handleProposeMessage(c *wkserver.Context) {
 }
 
 func (s *Server) getFrom(c *wkserver.Context) (uint64, error) {
-	return strconv.ParseUint(c.Conn().UID(), 10, 64)
+	return strconv.ParseUint(wkserver.GetUidFromContext(c.Conn()), 10, 64)
 }
 
 func (s *Server) handleSlotPropose(c *wkserver.Context) {
@@ -320,6 +320,12 @@ func (s *Server) handleSlotLeaderTermStartIndex(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+
+	start := time.Now()
+	defer func() {
+		cost := time.Since(start)
+		s.Info("handleSlotLeaderTermStartIndex too cost", zap.Duration("cost", cost))
+	}()
 
 	resultBytes := make([]byte, 8)
 

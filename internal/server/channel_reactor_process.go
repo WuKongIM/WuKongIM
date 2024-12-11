@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // =================================== 初始化 ===================================
@@ -55,21 +56,23 @@ func (r *channelReactor) processInitLoop() {
 
 func (r *channelReactor) processInits(reqs []*initReq) {
 
-	var err error
+	if len(reqs) == 1 {
+		r.processInit(reqs[0])
+		return
+	}
+
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	eg, _ := errgroup.WithContext(timeoutCtx)
+	eg.SetLimit(100)
 	for _, req := range reqs {
 		req := req
-		err = r.processGoPool.Submit(func() {
+		eg.Go(func() error {
 			r.processInit(req)
+			return nil
 		})
-		if err != nil {
-			r.Error("processInit failed, submit error", zap.Error(err), zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-			req.sub.step(req.ch, &ChannelAction{
-				UniqueNo:   req.ch.uniqueNo,
-				ActionType: ChannelActionInitResp,
-				Reason:     ReasonError,
-			})
-		}
 	}
+	_ = eg.Wait()
 }
 
 func (r *channelReactor) processInit(req *initReq) {
@@ -286,22 +289,24 @@ func (r *channelReactor) processForwardLoop() {
 
 func (r *channelReactor) processForwards(reqs []*forwardReq) {
 
-	var err error
-	for _, req := range reqs {
-		req := req
-		err = r.processGoPool.Submit(func() {
-			r.processForward(req)
-		})
-		if err != nil {
-			r.Error("processForward failed, submit error", zap.Error(err))
-			req.sub.step(req.ch, &ChannelAction{
-				UniqueNo:   req.ch.uniqueNo,
-				ActionType: ChannelActionForwardResp,
-				Reason:     ReasonError,
-			})
-		}
+	if len(reqs) == 1 {
+		req := reqs[0]
+		r.processForward(req)
+		return
 	}
 
+	timeoutCtx, cancel := r.WithTimeout()
+	defer cancel()
+	eg, _ := errgroup.WithContext(timeoutCtx)
+	eg.SetLimit(1000)
+	for _, req := range reqs {
+		req := req
+		eg.Go(func() error {
+			r.processForward(req)
+			return nil
+		})
+	}
+	_ = eg.Wait()
 }
 
 func (r *channelReactor) processForward(req *forwardReq) {
@@ -344,12 +349,12 @@ func (r *channelReactor) processForward(req *forwardReq) {
 		}
 	}
 
-	var reason Reason
-	if err != nil {
-		reason = ReasonError
-	} else {
-		reason = ReasonSuccess
-	}
+	// var reason Reason
+	// if err != nil {
+	// 	reason = ReasonError
+	// } else {
+	// 	reason = ReasonSuccess
+	// }
 	if newLeaderId > 0 {
 		if r.opts.Logger.TraceOn {
 			for _, msg := range req.messages {
@@ -367,7 +372,7 @@ func (r *channelReactor) processForward(req *forwardReq) {
 		UniqueNo:   req.ch.uniqueNo,
 		ActionType: ChannelActionForwardResp,
 		Messages:   req.messages,
-		Reason:     reason,
+		Reason:     ReasonSuccess, // 直接返回成功防止不断重复转发，TODO：最好的办法是指定重试次数后再移除
 	})
 }
 

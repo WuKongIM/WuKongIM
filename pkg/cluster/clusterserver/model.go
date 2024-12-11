@@ -1761,6 +1761,7 @@ type channelReplicaResp struct {
 	Running     int    `json:"running"`       // 是否运行中
 	LastMsgSeq  uint64 `json:"last_msg_seq"`  // 最新消息序号
 	LastMsgTime uint64 `json:"last_msg_time"` // 最新消息时间
+	Term        uint32 `json:"term"`          // 任期
 }
 
 type channelReplicaDetailResp struct {
@@ -1768,6 +1769,7 @@ type channelReplicaDetailResp struct {
 	Role              int    `json:"role"`                 // 角色
 	RoleFormat        string `json:"role_format"`          // 角色格式化
 	LastMsgTimeFormat string `json:"last_msg_time_format"` // 最新消息时间格式化
+
 }
 
 type ping struct {

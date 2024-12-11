@@ -3,7 +3,7 @@ package wknet
 import "github.com/WuKongIM/WuKongIM/pkg/wklog"
 
 type ReactorMain struct {
-	acceptor *Acceptor
+	acceptor *acceptor
 	eg       *Engine
 	wklog.Log
 }
@@ -11,7 +11,7 @@ type ReactorMain struct {
 func NewReactorMain(eg *Engine) *ReactorMain {
 
 	return &ReactorMain{
-		acceptor: NewAcceptor(eg),
+		acceptor: newAcceptor(eg),
 		eg:       eg,
 		Log:      wklog.NewWKLog("ReactorMain"),
 	}

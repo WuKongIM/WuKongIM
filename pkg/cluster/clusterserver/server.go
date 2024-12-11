@@ -18,13 +18,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
+	"github.com/panjf2000/gnet/v2"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"k8s.io/utils/lru"
@@ -138,10 +138,10 @@ func New(opts *Options) *Server {
 
 	s.netServer = wkserver.New(
 		opts.Addr, wkserver.WithMessagePoolOn(false),
-		wkserver.WithOnRequest(func(conn wknet.Conn, req *proto.Request) {
+		wkserver.WithOnRequest(func(conn gnet.Conn, req *proto.Request) {
 			trace.GlobalTrace.Metrics.System().IntranetIncomingAdd(int64(len(req.Body)))
 		}),
-		wkserver.WithOnResponse(func(conn wknet.Conn, resp *proto.Response) {
+		wkserver.WithOnResponse(func(conn gnet.Conn, resp *proto.Response) {
 			trace.GlobalTrace.Metrics.System().IntranetOutgoingAdd(int64(len(resp.Body)))
 		}),
 	)
@@ -434,7 +434,7 @@ func (s *Server) onSend(m reactor.Message) {
 	s.opts.Send(ShardTypeConfig, m)
 }
 
-func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
+func (s *Server) onMessage(c gnet.Conn, m *proto.Message) {
 	if s.stopped.Load() {
 		return
 	}
@@ -462,11 +462,13 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindConfig, msgSize)
 		s.AddConfigMessage(msg)
 	case MsgTypeSlot:
+
 		msg, err := reactor.UnmarshalMessage(m.Content)
 		if err != nil {
 			s.Error("UnmarshalMessage failed", zap.Error(err))
 			return
 		}
+
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindSlot, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindSlot, msgSize)
 		s.AddSlotMessage(msg)
@@ -499,7 +501,7 @@ func (s *Server) onMessage(c wknet.Conn, m *proto.Message) {
 		s.pong(pong)
 
 	default:
-		fromNodeId := s.uidToServerId(c.UID())
+		fromNodeId := s.uidToServerId(wkserver.GetUidFromContext(c))
 
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindUnknown, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindUnknown, msgSize)

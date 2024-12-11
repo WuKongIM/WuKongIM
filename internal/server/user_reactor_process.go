@@ -111,21 +111,18 @@ func (r *userReactor) processAuthLoop() {
 
 func (r *userReactor) processAuths(reqs []*userAuthReq) {
 
-	var err error
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*10)
+	defer cancel()
+	errgroup, _ := errgroup.WithContext(timeoutCtx)
+	errgroup.SetLimit(200)
 	for _, req := range reqs {
 		req := req
-		err = r.processGoPool.Submit(func() {
+		errgroup.Go(func() error {
 			r.processAuth(req)
+			return nil
 		})
-		if err != nil {
-			r.Error("processAuth failed,submit error", zap.Error(err), zap.String("uid", req.uid))
-			req.sub.step(req.uid, UserAction{
-				UniqueNo:   req.uniqueNo,
-				ActionType: UserActionAuthResp,
-				Reason:     ReasonError,
-			})
-		}
 	}
+	_ = errgroup.Wait()
 }
 
 func (r *userReactor) processAuth(req *userAuthReq) {
@@ -519,18 +516,7 @@ func (r *userReactor) processPingLoop() {
 
 func (r *userReactor) processPing(reqs []*pingReq) {
 	for _, req := range reqs {
-		req := req
-		err := r.processGoPool.Submit(func() {
-			r.handlePing(req)
-		})
-		if err != nil {
-			r.Error("processPing failed,submit error", zap.Error(err), zap.String("uid", req.uid))
-			req.sub.step(req.uid, UserAction{
-				UniqueNo:   req.uniqueNo,
-				ActionType: UserActionPingResp,
-				Reason:     ReasonError,
-			})
-		}
+		r.handlePing(req)
 	}
 }
 
@@ -616,21 +602,19 @@ func (r *userReactor) processRecvackLoop() {
 
 func (r *userReactor) processRecvacks(reqs []*recvackReq) {
 
+	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
+	defer cancel()
+	g, _ := errgroup.WithContext(timeoutCtx)
+	g.SetLimit(1000)
 	for _, req := range reqs {
 		req := req
-		err := r.processGoPool.Submit(func() {
+		g.Go(func() error {
 			r.processRecvack(req)
+			return nil
 		})
-		if err != nil {
-			r.Error("processRecvack failed,submit error", zap.Error(err), zap.String("uid", req.uid))
-			req.sub.step(req.uid, UserAction{
-				UniqueNo:   req.uniqueNo,
-				ActionType: UserActionRecvackResp,
-				Reason:     ReasonError,
-			})
-		}
 
 	}
+	_ = g.Wait()
 }
 
 func (r *userReactor) processRecvack(req *recvackReq) {
@@ -747,7 +731,7 @@ func (r *userReactor) processWrite(reqs []*writeReq) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 	defer cancel()
 	g, _ := errgroup.WithContext(timeoutCtx)
-	g.SetLimit(200)
+	g.SetLimit(1000)
 
 	for _, req := range reqs {
 		req := req
@@ -1049,14 +1033,7 @@ func (r *userReactor) processNodePingLoop() {
 }
 
 func (r *userReactor) processNodePing(reqs []*nodePingReq) {
-	newReqs := make([]*nodePingReq, len(reqs))
-	copy(newReqs, reqs)
-	err := r.processGoPool.Submit(func() {
-		r.handleNodePing(newReqs)
-	})
-	if err != nil {
-		r.Error("processNodePing failed,submit error", zap.Error(err), zap.Int("reqCount", len(reqs)))
-	}
+	r.handleNodePing(reqs)
 }
 
 func (r *userReactor) handleNodePing(reqs []*nodePingReq) {
@@ -1185,14 +1162,7 @@ func (r *userReactor) processNodePongLoop() {
 }
 
 func (r *userReactor) processNodePong(req *nodePongReq) {
-	err := r.processGoPool.Submit(func(rq *nodePongReq) func() {
-		return func() {
-			r.handleNodePong(rq)
-		}
-	}(req))
-	if err != nil {
-		r.Error("processNodePong failed,submit error", zap.Error(err), zap.String("uid", req.uid))
-	}
+	r.handleNodePong(req)
 }
 
 // TODO：可以优化成批量处理
@@ -1334,7 +1304,7 @@ func (r *userReactor) processClose(req *userCloseReq) {
 		for _, conn := range conns {
 			// 如果是本地连接，则移除后需要关闭连接，节省资源
 			if conn.isRealConn {
-				r.Info("close real conn", zap.String("uid", uid), zap.Int64("connId", conn.connId))
+				r.Info("close real conn", zap.String("uid", uid), zap.Int64("connId", conn.connId), zap.String("role", req.handler.role.String()))
 				r.removeConnById(uid, conn.connId)
 				conn.close()
 			} else {

@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/panjf2000/gnet/v2"
 	"go.uber.org/zap"
 	gproto "google.golang.org/protobuf/proto"
 )
@@ -13,14 +13,14 @@ import (
 type Handler func(c *Context)
 
 type Context struct {
-	conn    wknet.Conn
+	conn    gnet.Conn
 	req     *proto.Request
 	connReq *proto.Connect
 	proto   proto.Protocol
 	wklog.Log
 }
 
-func NewContext(conn wknet.Conn) *Context {
+func NewContext(conn gnet.Conn) *Context {
 
 	return &Context{
 		conn:  conn,
@@ -59,14 +59,10 @@ func (c *Context) Write(data []byte) {
 		c.Debug("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	err = c.conn.AsyncWrite(msgData, nil)
 	if err != nil {
 		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
 		return
-	}
-	err = c.conn.WakeWrite()
-	if err != nil {
-		c.Debug("WakeWrite is error", zap.Error(err))
 	}
 }
 
@@ -89,14 +85,9 @@ func (c *Context) WriteOk() {
 		c.Debug("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	err = c.conn.AsyncWrite(msgData, nil)
 	if err != nil {
 		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
-		return
-	}
-	err = c.conn.WakeWrite()
-	if err != nil {
-		c.Debug("WakeWrite is error", zap.Error(err))
 		return
 	}
 }
@@ -125,14 +116,10 @@ func (c *Context) WriteErrorAndStatus(err error, status proto.Status) {
 		c.Debug("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	err = c.conn.AsyncWrite(msgData, nil)
 	if err != nil {
 		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
 		return
-	}
-	err = c.conn.WakeWrite()
-	if err != nil {
-		c.Debug("WakeWrite is error")
 	}
 }
 
@@ -155,14 +142,10 @@ func (c *Context) WriteStatus(status proto.Status) {
 		c.Debug("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	err = c.conn.AsyncWrite(msgData, nil)
 	if err != nil {
 		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
 		return
-	}
-	err = c.conn.WakeWrite()
-	if err != nil {
-		c.Debug("WakeWrite is error")
 	}
 }
 
@@ -177,27 +160,22 @@ func (c *Context) ConnReq() *proto.Connect {
 func (c *Context) WriteConnack(connack *proto.Connack) {
 	data, err := connack.Marshal()
 	if err != nil {
-		c.Debug("marshal is error", zap.Error(err))
+		c.Info("marshal is error", zap.Error(err))
 		return
 	}
 	msgData, err := c.proto.Encode(data, proto.MsgTypeConnack.Uint8())
 	if err != nil {
-		c.Debug("encode is error", zap.Error(err))
+		c.Info("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.WriteToOutboundBuffer(msgData)
+	err = c.conn.AsyncWrite(msgData, nil)
 	if err != nil {
-		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
-		return
-	}
-	err = c.conn.WakeWrite()
-	if err != nil {
-		c.Debug("WakeWrite is error", zap.Error(err))
+		c.Info("asyncWrite is error", zap.Error(err))
 		return
 	}
 }
 
-func (c *Context) Conn() wknet.Conn {
+func (c *Context) Conn() gnet.Conn {
 
 	return c.conn
 }

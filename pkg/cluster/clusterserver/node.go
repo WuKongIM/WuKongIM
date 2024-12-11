@@ -46,25 +46,23 @@ func newNode(id uint64, uid string, addr string, opts *Options) *node {
 			rl: NewRateLimiter(opts.MaxSendQueueSize),
 		},
 	}
-	n.client = client.New(addr, client.WithUID(uid), client.WithOnConnectStatus(n.connectStatusChange), client.WithRequestTimeout(opts.ReqTimeout))
+	n.client = client.New(addr, client.WithUid(uid))
 	return n
-}
-
-func (n *node) connectStatusChange(status client.ConnectStatus) {
-	// n.Debug("节点连接状态改变", zap.String("status", status.String()))
 }
 
 func (n *node) start() {
 	n.stopper.RunWorker(n.processMessages)
 
-	n.client.SetActivity(time.Now())
-	n.client.Start()
+	err := n.client.Start()
+	if err != nil {
+		n.Panic("client start failed", zap.Error(err))
+	}
 
 }
 
 func (n *node) stop() {
 	n.stopper.Stop()
-	n.client.Close()
+	n.client.Stop()
 }
 
 func (n *node) send(msg *proto.Message) error {
@@ -110,8 +108,12 @@ func (n *node) processMessages() {
 		select {
 		case msg := <-n.sendQueue.ch:
 
-			if n.client.ConnectStatus() != client.CONNECTED {
+			if !n.client.IsAuthed() {
 				continue
+			}
+
+			if n.client.Options().LogDetailOn {
+				n.Info("send message", zap.Uint32("msgType", msg.MsgType))
 			}
 
 			n.sendQueue.decrease(msg)
@@ -134,7 +136,7 @@ func (n *node) processMessages() {
 			trace.GlobalTrace.Metrics.System().IntranetOutgoingAdd(int64(size))
 
 			if err = n.sendBatch(msgs); err != nil {
-				if n.client.ConnectStatus() == client.CONNECTED { // 只有连接状态下才打印错误日志
+				if n.client.IsAuthed() { // 只有连接状态下才打印错误日志
 					n.Error("sendBatch is failed", zap.Error(err))
 				}
 			}
@@ -148,7 +150,12 @@ func (n *node) processMessages() {
 }
 
 func (n *node) sendBatch(msgs []*proto.Message) error {
-	return n.client.SendBatch(msgs)
+	for _, msg := range msgs {
+		if err := n.client.Send(msg); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (n *node) requestWithContext(ctx context.Context, path string, body []byte) (*proto.Response, error) {

@@ -73,7 +73,9 @@ func newUserReactor(s *Server) *userReactor {
 		sizePerPool = s.opts.Reactor.User.ProcessPoolSize / s.opts.Reactor.User.SubCount
 	}
 	var err error
-	u.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks)
+	u.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(i interface{}) {
+		u.Panic("user: processGoPool panic", zap.Any("panic", i), zap.Stack("stack"))
+	}))
 	if err != nil {
 		u.Panic("user: NewMultiPool panic", zap.Error(err))
 	}
@@ -84,12 +86,13 @@ func (u *userReactor) start() error {
 
 	// 高并发处理，适用于分散的耗时任务
 	for i := 0; i < 100; i++ {
-		u.stopper.RunWorker(u.processForwardUserActionLoop)
-		u.stopper.RunWorker(u.processWriteLoop)
+
 	}
 
 	// 中并发处理，适合于分散但是不是很耗时的任务
 	for i := 0; i < 50; i++ {
+		u.stopper.RunWorker(u.processWriteLoop)
+		u.stopper.RunWorker(u.processForwardUserActionLoop)
 
 	}
 

@@ -7,6 +7,8 @@ import (
 	"github.com/WuKongIM/crypto/tls"
 )
 
+type Mode int // 引擎模式
+
 type Options struct {
 	// Addr is the listen addr  example: tcp://127.0.0.1:5100
 	Addr string

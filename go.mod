@@ -18,8 +18,8 @@ require (
 	github.com/grafana/dskit v0.0.0-20240905221822-931a021fb06b
 	github.com/grafana/loki/v3 v3.2.1
 	github.com/lni/goutils v1.3.1-0.20220604063047-388d67b4dbc4
-	github.com/panjf2000/ants/v2 v2.9.0
-	github.com/panjf2000/gnet/v2 v2.4.2
+	github.com/panjf2000/ants/v2 v2.10.0
+	github.com/panjf2000/gnet/v2 v2.6.3
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/common v0.55.0
@@ -260,7 +260,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	go4.org/netipx v0.0.0-20230125063823-8449b0a6169f // indirect
-	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
+	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
 	golang.org/x/mod v0.19.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
@@ -304,7 +304,7 @@ require (
 	github.com/subosito/gotenv v1.4.2 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.24.0
+	golang.org/x/sys v0.25.0
 	golang.org/x/text v0.17.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
