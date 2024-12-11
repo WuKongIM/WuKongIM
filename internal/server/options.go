@@ -1131,8 +1131,27 @@ func (o *Options) getDuration(key string, defaultValue time.Duration) time.Durat
 	return v
 }
 
+// 判断Webhook事件是否关注
+func (o *Options) isEventFocused(event string) bool {
+	if len(o.Webhook.FocusEvents) == 0 {
+		return true
+	}
+
+	for _, v := range o.Webhook.FocusEvents {
+		if v == event {
+			return true
+		}
+	}
+	return false
+}
+
 // WebhookOn WebhookOn
-func (o *Options) WebhookOn() bool {
+func (o *Options) WebhookOn(event string) bool {
+    if !o.isEventFocused(event) {
+		// webhook 非关注，不进行下面的逻辑
+		return false
+	}
+
 	return strings.TrimSpace(o.Webhook.HTTPAddr) != "" || o.WebhookGRPCOn()
 }
 

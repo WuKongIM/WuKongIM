@@ -130,7 +130,7 @@ func (w *webhook) Offline(uid string, deviceFlag wkproto.DeviceFlag, connId int6
 
 // TriggerEvent 触发事件
 func (w *webhook) TriggerEvent(event *Event) {
-	if !w.s.opts.WebhookOn() { // 没设置webhook直接忽略
+	if !w.s.opts.WebhookOn(event.Event) { // 没设置webhook直接忽略
 		return
 	}
 	err := w.eventPool.Submit(func() {
@@ -210,7 +210,7 @@ func (w *webhook) notifyQueueLoop() {
 	ticker := time.NewTicker(w.s.opts.Webhook.MsgNotifyEventPushInterval)
 	defer ticker.Stop()
 	errMessageIDMap := make(map[int64]int) // 记录错误的消息ID value为错误次数
-	if w.s.opts.WebhookOn() {
+	if w.s.opts.WebhookOn(EventMsgNotify) {
 		for {
 			messages, err := w.s.store.GetMessagesOfNotifyQueue(w.s.opts.Webhook.MsgNotifyEventCountPerPush)
 			if err != nil {
@@ -292,7 +292,7 @@ func (w *webhook) notifyQueueLoop() {
 }
 
 func (w *webhook) loopOnlineStatus() {
-	if !w.s.opts.WebhookOn() {
+	if !w.s.opts.WebhookOn(EventOnlineStatus) {
 		return
 	}
 	opLen := 0    // 最后一次操作在线状态数组的长度
@@ -352,10 +352,6 @@ func (w *webhook) sendWebhookForHttp(event string, data []byte) error {
 	eventURL := fmt.Sprintf("%s?event=%s", w.s.opts.Webhook.HTTPAddr, event)
 	startTime := time.Now().UnixNano() / 1000 / 1000
 	w.Debug("webhook开始请求", zap.String("eventURL", eventURL))
-	if !w.isEventFocused(EventMsgNotify) { // 如果不关注事件就不走后边的推送逻辑
-		w.Debug("webhook http非关注事件, 不推送", zap.String("event", event))
-		return nil
-	}
 	resp, err := w.httpClient.Post(eventURL, "application/json", bytes.NewBuffer(data))
 	w.Debug("webhook请求结束 耗时", zap.Int64("mill", time.Now().UnixNano()/1000/1000-startTime))
 	if err != nil {
@@ -376,10 +372,6 @@ func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
 	startNow := time.Now()
 	startTime := startNow.UnixNano() / 1000 / 1000
 	w.Debug("webhook grpc 开始请求", zap.String("event", event))
-	if !w.isEventFocused(event) { // 如果不关注事件就不走后边的推送逻辑
-		w.Debug("webhook grpc 非关注事件，不推送", zap.String("event", event))
-		return nil
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
@@ -411,13 +403,6 @@ func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
 	return nil
 }
 
-func (w *webhook) isEventFocused(event string) bool {
-	if len(w.focusEvents) == 0 {
-		return true
-	}
-	_, exists := w.focusEvents[event]
-	return exists
-}
 
 const (
 	// EventMsgOffline 离线消息
