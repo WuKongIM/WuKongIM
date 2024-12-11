@@ -17,6 +17,7 @@ var traceLogger *zap.Logger // 轨迹日志
 var errorLogger *zap.Logger // 错误日志
 var warnLogger *zap.Logger  // 警告日志
 var panicLogger *zap.Logger // panic日志
+var focusLogger *zap.Logger // focus日志
 var atom = zap.NewAtomicLevel()
 
 var opts *Options
@@ -113,6 +114,24 @@ func Configure(op *Options) {
 		panicLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2), zap.AddStacktrace(zapcore.PanicLevel))
 	} else {
 		panicLogger = zap.New(core, zap.AddStacktrace(zapcore.PanicLevel))
+	}
+
+	// ====================== focus ==========================
+	focusWriter := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   path.Join(opts.LogDir, "focus.log"),
+		MaxSize:    500, // megabytes
+		MaxBackups: 3,
+		MaxAge:     28, // days
+	})
+	core = zapcore.NewCore(
+		zapcore.NewJSONEncoder(newEncoderConfig()),
+		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(focusWriter)),
+		zap.InfoLevel,
+	)
+	if opts.LineNum {
+		focusLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
+	} else {
+		focusLogger = zap.New(core)
 	}
 
 }
@@ -212,6 +231,14 @@ func Warn(msg string, fields ...zap.Field) {
 	warnLogger.Warn(msg, fields...)
 }
 
+func Foucs(msg string, fields ...zap.Field) {
+
+	if focusLogger == nil {
+		Configure(NewOptions())
+	}
+	focusLogger.Info(msg, fields...)
+}
+
 func Sync() error {
 	err := panicLogger.Sync()
 	if err != nil {
@@ -242,6 +269,7 @@ type Log interface {
 	Warn(msg string, fields ...zap.Field)
 	Fatal(msg string, fields ...zap.Field)
 	Panic(msg string, fields ...zap.Field)
+	Foucs(msg string, fields ...zap.Field)
 }
 
 // WKLog TLog
@@ -349,4 +377,13 @@ func (t *WKLog) Panic(msg string, fields ...zap.Field) {
 	b.WriteString("】")
 	b.WriteString(msg)
 	Panic(b.String(), fields...)
+}
+
+func (t *WKLog) Foucs(msg string, fields ...zap.Field) {
+	var b strings.Builder
+	b.WriteString("【")
+	b.WriteString(t.prefix)
+	b.WriteString("】")
+	b.WriteString(msg)
+	Foucs(b.String(), fields...)
 }

@@ -3,49 +3,59 @@ package wkserver
 import (
 	"context"
 	"errors"
+	"io"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/pool/byteslice"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/panjf2000/gnet/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-func (s *Server) onData(conn wknet.Conn) error {
-	buff, err := conn.Peek(-1)
-	if err != nil {
-		return err
-	}
-	if len(buff) == 0 {
-		return nil
-	}
+func (s *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 
-	newBuff := buff
-	for len(newBuff) > 0 {
-		data, msgType, size, err := s.proto.Decode(newBuff)
-		if err != nil {
-			return err
-		}
-		if len(data) == 0 {
+	if s.opts.LogDetailOn {
+		s.Info("OnTraffic...", zap.String("addr", c.RemoteAddr().String()))
+	}
+	if c.InboundBuffered() == 0 {
+		return
+	}
+	batchCount := 0
+	for i := 0; i < s.batchRead; i++ {
+		data, msgType, _, err := s.proto.Decode(c)
+		if err == io.ErrShortBuffer { // 表示数据不够了
+			if s.opts.LogDetailOn {
+				s.Info("err short buffer", zap.Error(err))
+			}
 			break
 		}
-		newBuff = newBuff[size:]
-
-		s.handleMsg(conn, msgType, data)
-	}
-	if len(newBuff) != len(buff) {
-		_, err = conn.Discard(len(buff) - len(newBuff))
 		if err != nil {
-			s.Error("discard error", zap.Error(err))
+			s.Foucs("decode error,gnet close", zap.Error(err))
+			return gnet.Close
 		}
+
+		if s.opts.LogDetailOn {
+			s.Info("OnTraffic.decode..", zap.Uint8("msgType", uint8(msgType)), zap.Int("data", len(data)))
+		}
+
+		batchCount++
+		s.handleMsg(c, msgType, data)
 	}
 
-	return nil
+	// TODO: 这里不需要Wake，因为服务端消息延绵不断
+	// if batchCount == s.batchRead && c.InboundBuffered() > 0 {
+	// 	s.Foucs("wake up the connection")
+	// 	if err := c.Wake(nil); err != nil { // 这里调用wake避免丢失剩余的数据
+	// 		s.Foucs("failed to wake up the connection, gnet close", zap.Error(err))
+	// 		return gnet.Close
+	// 	}
+	// }
+
+	return
 }
 
-func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) {
+func (s *Server) handleMsg(conn gnet.Conn, msgType proto.MsgType, data []byte) {
 
 	s.metrics.recvMsgBytesAdd(uint64(len(data)))
 	s.metrics.recvMsgCountAdd(1)
@@ -62,11 +72,8 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 		s.handleConnack(conn, req)
 	} else if msgType == proto.MsgTypeRequest {
 
-		newData := make([]byte, len(data))
-		copy(newData, data)
-
 		req := s.requestObjPool.Get().(*proto.Request)
-		err := req.Unmarshal(newData)
+		err := req.Unmarshal(data)
 		if err != nil {
 			s.Error("unmarshal request error", zap.Error(err))
 			return
@@ -87,30 +94,18 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 		}
 	} else if msgType == proto.MsgTypeResp {
 
-		newData := make([]byte, len(data))
-		copy(newData, data)
-
 		resp := &proto.Response{}
-		err := resp.Unmarshal(newData)
+		err := resp.Unmarshal(data)
 		if err != nil {
 			s.Error("unmarshal resp error", zap.Error(err))
 			return
 		}
-		// // 这需要复制一份新的body的byte，因为handleMsg传过来的data是被复用了的
-		// if len(resp.Body) > 0 {
-		// 	newBody := make([]byte, len(resp.Body))
-		// 	copy(newBody, resp.Body)
-		// 	resp.Body = newBody
-		// }
-
-		s.handleResp(conn, resp)
+		go s.handleResp(conn, resp)
 	} else if msgType == proto.MsgTypeMessage {
 		// 这需要复制一份新的data的byte，因为handleMsg传过来的data是被复用了的
-		newData := make([]byte, len(data))
-		copy(newData, data)
 
 		msg := &proto.Message{}
-		err := msg.Unmarshal(newData)
+		err := msg.Unmarshal(data)
 		if err != nil {
 			s.Error("unmarshal message error", zap.Error(err))
 			return
@@ -119,7 +114,7 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 			if s.messagePool.Running() > s.opts.MessagePoolSize-10 {
 				s.Warn("message pool will full", zap.Int("running", s.messagePool.Running()), zap.Int("size", s.opts.MessagePoolSize))
 			}
-			err = s.messagePool.Submit(func(cn wknet.Conn, m *proto.Message) func() {
+			err = s.messagePool.Submit(func(cn gnet.Conn, m *proto.Message) func() {
 				return func() {
 					s.handleMessage(cn, m)
 				}
@@ -140,26 +135,19 @@ func (s *Server) handleMsg(conn wknet.Conn, msgType proto.MsgType, data []byte) 
 func (s *Server) releaseRequest(r *proto.Request) {
 	r.Reset()
 	s.requestObjPool.Put(r)
-	//释放body
-	byteslice.Put(r.Body)
 }
 
-func (s *Server) handleHeartbeat(conn wknet.Conn) {
-	_, err := conn.WriteToOutboundBuffer([]byte{proto.MsgTypeHeartbeat.Uint8()})
+func (s *Server) handleHeartbeat(conn gnet.Conn) {
+	_, err := conn.Write([]byte{proto.MsgTypeHeartbeat.Uint8()})
 	if err != nil {
 		s.Debug("write heartbeat error", zap.Error(err))
 	}
-	err = conn.WakeWrite()
-	if err != nil {
-		s.Debug("wakeWrite error", zap.Error(err))
-	}
 }
 
-func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
+func (s *Server) handleConnack(conn gnet.Conn, req *proto.Connect) {
 
 	s.Debug("连接成功", zap.String("from", req.Uid))
-	conn.SetUID(req.Uid)
-	conn.SetMaxIdle(s.opts.MaxIdle)
+	conn.SetContext(newConnContext(req.Uid))
 	s.connManager.AddConn(req.Uid, conn)
 
 	s.routeMapLock.RLock()
@@ -175,7 +163,7 @@ func (s *Server) handleConnack(conn wknet.Conn, req *proto.Connect) {
 	h(ctx)
 }
 
-func (s *Server) handleResp(_ wknet.Conn, resp *proto.Response) {
+func (s *Server) handleResp(_ gnet.Conn, resp *proto.Response) {
 	if s.w.IsRegistered(resp.Id) {
 		s.w.Trigger(resp.Id, resp)
 	} else {
@@ -183,13 +171,13 @@ func (s *Server) handleResp(_ wknet.Conn, resp *proto.Response) {
 	}
 }
 
-func (s *Server) handleMessage(conn wknet.Conn, msg *proto.Message) {
+func (s *Server) handleMessage(conn gnet.Conn, msg *proto.Message) {
 	if s.opts.OnMessage != nil {
 		s.opts.OnMessage(conn, msg)
 	}
 }
 
-func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
+func (s *Server) handleRequest(conn gnet.Conn, req *proto.Request) {
 	s.routeMapLock.RLock()
 	handler, ok := s.routeMap[req.Path]
 	s.routeMapLock.RUnlock()
@@ -206,7 +194,7 @@ func (s *Server) handleRequest(conn wknet.Conn, req *proto.Request) {
 	// 这里判断日志等级才调用debug，避免 time.Since(start)这些无谓的消耗
 	if wklog.Level() == zapcore.DebugLevel {
 		cost := time.Since(start)
-		s.Debug("request path", zap.Uint64("id", req.Id), zap.String("path", req.Path), zap.Duration("cost", cost), zap.String("from", conn.UID()))
+		s.Debug("request path", zap.Uint64("id", req.Id), zap.String("path", req.Path), zap.Duration("cost", cost))
 	}
 
 }
@@ -235,11 +223,10 @@ func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, er
 		return nil, err
 	}
 	ch := s.w.Register(r.Id)
-	_, err = conn.WriteToOutboundBuffer(msgData)
+	err = conn.AsyncWrite(msgData, nil)
 	if err != nil {
 		return nil, err
 	}
-	_ = conn.WakeWrite()
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.RequestTimeout)
 	defer cancel()
 	select {
@@ -276,11 +263,11 @@ func (s *Server) RequestAsync(uid string, p string, body []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.WriteToOutboundBuffer(msgData)
+	err = conn.AsyncWrite(msgData, nil)
 	if err != nil {
 		return err
 	}
-	return conn.WakeWrite()
+	return nil
 }
 
 func (s *Server) Send(uid string, msg *proto.Message) error {
@@ -296,20 +283,27 @@ func (s *Server) Send(uid string, msg *proto.Message) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.WriteToOutboundBuffer(msgData)
+	err = conn.AsyncWrite(msgData, nil)
 	if err != nil {
 		return err
 	}
-	return conn.WakeWrite()
-}
-
-func (s *Server) onConnect(conn wknet.Conn) error {
-
 	return nil
 }
 
-func (s *Server) onClose(conn wknet.Conn) {
-	s.connManager.RemoveConn(conn.UID())
+func (s *Server) OnBoot(eng gnet.Engine) (action gnet.Action) {
+	s.engine = eng
+	return
+}
+
+func (s *Server) OnClose(conn gnet.Conn, err error) (action gnet.Action) {
+
+	ctx := conn.Context()
+	if ctx == nil {
+		return
+	}
+	connCtx := ctx.(*connContext)
+
+	s.connManager.RemoveConn(connCtx.uid.Load())
 	s.routeMapLock.RLock()
 	h, ok := s.routeMap[s.opts.ClosePath]
 	s.routeMapLock.RUnlock()
@@ -318,8 +312,15 @@ func (s *Server) onClose(conn wknet.Conn) {
 		return
 	}
 
-	ctx := NewContext(conn)
-	ctx.proto = s.proto
+	ct := NewContext(conn)
+	ct.proto = s.proto
 
-	h(ctx)
+	h(ct)
+
+	return
+}
+
+func (s *Server) OnTick() (delay time.Duration, action gnet.Action) {
+	delay = time.Millisecond * 100
+	return
 }

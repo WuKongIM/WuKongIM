@@ -508,12 +508,12 @@ func (s *Server) needElection(cfg wkdb.ChannelClusterConfig) bool {
 
 	// 如果频道的领导者为空，说明需要选举领导
 	if cfg.LeaderId == 0 {
-		s.Info("leaderId is 0 , need election...")
+		s.Foucs("leaderId is 0 , need election...")
 		return true
 	}
 	// 如果频道领导不在线，说明需要选举领导
 	if !s.clusterEventServer.NodeOnline(cfg.LeaderId) {
-		s.Info("leaderId is offline, need election...", zap.Uint64("leaderId", cfg.LeaderId), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
+		s.Foucs("leaderId is offline, need election...", zap.Uint64("leaderId", cfg.LeaderId), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
 		return true
 	}
 	return false
@@ -542,7 +542,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 		switchCfg = true
 	} else {
 		ch = channelHandler.(*channel)
-		if !ch.cfg.Equal(clusterCfg) {
+		if !ch.cfg.Equal(clusterCfg) || ch.Role() == replica.RoleUnknown {
 			switchCfg = true
 		}
 	}
@@ -673,7 +673,7 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 	defer func() {
 		end := time.Since(start)
 		if end > time.Millisecond*200 {
-			s.Warn("electionChannelLeader cost too long", zap.Duration("cost", end), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
+			s.Foucs("electionChannelLeader cost too long", zap.Duration("cost", end), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
 		}
 	}()
 
@@ -691,9 +691,9 @@ func (s *Server) electionChannelLeader(ctx context.Context, cfg wkdb.ChannelClus
 	select {
 	case resp := <-resultC:
 		if resp.err != nil {
-			s.Info("electionChannelLeader resp failed", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
+			s.Foucs("electionChannelLeader resp failed", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
 		} else {
-			s.Info("electionChannelLeader success", zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
+			s.Foucs("electionChannelLeader success", zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType), zap.Uint64("leaderId", resp.cfg.LeaderId), zap.Uint32("term", resp.cfg.Term))
 		}
 
 		return resp.cfg, resp.err

@@ -6,6 +6,10 @@ import (
 
 func (r *Replica) Step(m Message) error {
 
+	if r.detailLogOn {
+		r.Info("step...", zap.String("msgType", m.MsgType.String()), zap.Uint32("term", m.Term), zap.Uint64("index", m.Index), zap.Int("logs", len(m.Logs)), zap.Int("status", int(r.status)), zap.String("role", r.role.String()))
+	}
+
 	switch {
 	case m.Term == 0: // 本地消息
 	case m.Term > r.term: // 高于当前任期

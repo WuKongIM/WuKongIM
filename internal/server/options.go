@@ -496,7 +496,7 @@ func NewOptions(op ...Option) *Options {
 				SubCount:                64,
 				ProcessIntervalTick:     50,
 				ProcessPoolSize:         4096,
-				NodePingTick:            100,
+				NodePingTick:            1000,
 				NodePongTimeoutTick:     100 * 5,
 				CheckLeaderIntervalTick: 20,
 				TickInterval:            time.Millisecond * 200,
@@ -1656,6 +1656,12 @@ func WithClusterSlotReactorSubCount(slotReactorSubCount int) Option {
 func WithClusterPongMaxTick(pongMaxTick int) Option {
 	return func(opts *Options) {
 		opts.Cluster.PongMaxTick = pongMaxTick
+	}
+}
+
+func WithClusterAPIURL(apiUrl string) Option {
+	return func(opts *Options) {
+		opts.Cluster.APIUrl = apiUrl
 	}
 }
 

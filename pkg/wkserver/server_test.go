@@ -2,29 +2,33 @@ package wkserver_test
 
 import (
 	"testing"
+	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/panjf2000/gnet/v2"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
 func TestServerRoute(t *testing.T) {
-	s := wkserver.New("tcp://0.0.0.0:0")
+
+	addr := "tcp://127.0.0.1:10000"
+	s := wkserver.New(addr)
 	s.Route("/test", func(c *wkserver.Context) {
 		c.Write([]byte("test2"))
 	})
-
 	err := s.Start()
 	assert.NoError(t, err)
 	defer s.Stop()
 
-	cli := client.New(s.Addr().String(), client.WithUID("uid"))
-	err = cli.Connect()
+	cli := client.New(addr, client.WithUid("uid"))
+	err = cli.Start()
 	assert.NoError(t, err)
-	defer cli.Close()
+	defer cli.Stop()
+
+	time.Sleep(time.Millisecond * 200)
 
 	resp, err := cli.Request("/test", []byte("test"))
 	assert.NoError(t, err)
@@ -40,20 +44,23 @@ func TestServerRoute(t *testing.T) {
 }
 
 func TestServerOnMessage(t *testing.T) {
-	s := wkserver.New("tcp://0.0.0.0:0")
+	addr := "tcp://:10001"
+	s := wkserver.New(addr)
 
 	recvMsg := make(chan *proto.Message, 1)
-	s.OnMessage(func(conn wknet.Conn, m *proto.Message) {
+	s.OnMessage(func(conn gnet.Conn, m *proto.Message) {
 		recvMsg <- m
 	})
 	err := s.Start()
 	assert.NoError(t, err)
 	defer s.Stop()
 
-	cli := client.New(s.Addr().String(), client.WithUID("uid"))
-	err = cli.Connect()
+	cli := client.New(addr, client.WithUid("uid"))
+	err = cli.Start()
 	assert.NoError(t, err)
-	defer cli.Close()
+	defer cli.Stop()
+
+	time.Sleep(time.Millisecond * 200)
 
 	rm := raftpb.Message{
 		To:   1,
@@ -84,4 +91,29 @@ func TestServerOnMessage(t *testing.T) {
 	assert.Equal(t, rm.Type, resultRM.Type)
 	assert.Equal(t, rm.Entries[0].Type, resultRM.Entries[0].Type)
 	assert.Equal(t, rm.Entries[0].Data, resultRM.Entries[0].Data)
+}
+
+func TestReconnect(t *testing.T) {
+	addr := "tcp://127.0.0.1:10000"
+	s := wkserver.New(addr)
+	err := s.Start()
+	assert.NoError(t, err)
+	defer s.Stop()
+
+	cli := client.New(addr, client.WithUid("uid"))
+	err = cli.Start()
+	assert.NoError(t, err)
+	defer cli.Stop()
+
+	time.Sleep(time.Millisecond * 200)
+
+	assert.Equal(t, true, cli.IsAuthed())
+
+	cli.CloseConn()
+
+	assert.Equal(t, false, cli.IsAuthed())
+
+	time.Sleep(time.Millisecond * 200)
+
+	assert.Equal(t, true, cli.IsAuthed())
 }

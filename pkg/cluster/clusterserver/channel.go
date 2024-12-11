@@ -69,6 +69,23 @@ func newChannel(channelId string, channelType uint8, s *Server) *channel {
 	return c
 }
 
+func (c *channel) Role() replica.Role {
+	return c.rc.Role()
+}
+
+func (c *channel) calcRole() replica.Role {
+	var role = replica.RoleUnknown
+
+	if c.cfg.LeaderId == c.opts.NodeId {
+		role = replica.RoleLeader
+	} else if wkutil.ArrayContainsUint64(c.cfg.Learners, c.opts.NodeId) {
+		role = replica.RoleLearner
+	} else if wkutil.ArrayContainsUint64(c.cfg.Replicas, c.opts.NodeId) {
+		role = replica.RoleFollower
+	}
+	return role
+}
+
 func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 	c.mu.Lock()
 	c.cfg = cfg
@@ -76,15 +93,7 @@ func (c *channel) switchConfig(cfg wkdb.ChannelClusterConfig) error {
 
 	// c.Info("switch config", zap.Uint32("slotId", c.s.getSlotId(c.channelId)), zap.String("cfg", cfg.String()))
 
-	var role = replica.RoleUnknown
-
-	if cfg.LeaderId == c.opts.NodeId {
-		role = replica.RoleLeader
-	} else if wkutil.ArrayContainsUint64(cfg.Learners, c.opts.NodeId) {
-		role = replica.RoleLearner
-	} else if wkutil.ArrayContainsUint64(cfg.Replicas, c.opts.NodeId) {
-		role = replica.RoleFollower
-	}
+	var role = c.calcRole()
 
 	if role == replica.RoleUnknown {
 		c.Info("switch config, role is unknown, remove channel", zap.String("cfg", cfg.String()))

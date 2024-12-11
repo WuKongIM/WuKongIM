@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/sasha-s/go-deadlock"
+	"github.com/valyala/fastrand"
 	"go.uber.org/zap"
 )
 
@@ -56,7 +57,10 @@ type userHandler struct {
 	// sendRecvackTick int // 发送recvack计时
 	// recvMsgTick int // 接收消息计时
 
-	checkLeaderTick int // 定时检查正确的领导节点
+	checkLeaderTick            int // 定时检查正确的领导节点
+	maxCheckLeaderIntervalTick int
+	maxNodePingTick            int
+	maxNodePongTimeoutTick     int
 
 	wklog.Log
 
@@ -66,23 +70,42 @@ type userHandler struct {
 func newUserHandler(uid string, sub *userReactorSub) *userHandler {
 
 	opts := sub.r.s.opts
+
+	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。
+	p := float64(fastrand.Uint32()) / (1 << 32)
+	checkLeaderJitter := p * float64(opts.Reactor.User.CheckLeaderIntervalTick)
+	maxCheckLeaderIntervalTick := opts.Reactor.User.CheckLeaderIntervalTick + int(checkLeaderJitter)
+
+	p = float64(fastrand.Uint32()) / (1 << 32)
+	nodePingTickJitter := p * float64(opts.Reactor.User.NodePingTick)
+
+	maxNodePingTick := opts.Reactor.User.NodePingTick + int(nodePingTickJitter)
+
+	p = float64(fastrand.Uint32()) / (1 << 32)
+	nodePongTimeoutJitter := p * float64(opts.Reactor.User.NodePongTimeoutTick)
+
+	maxNodePongTimeoutTick := opts.Reactor.User.NodePongTimeoutTick + int(nodePongTimeoutJitter)
+
 	retryTickCount := 20
 	u := &userHandler{
-		uid:                 uid,
-		authQueue:           newUserMsgQueue(fmt.Sprintf("user:auth:%s", uid)),
-		pingQueue:           newUserMsgQueue(fmt.Sprintf("user:ping:%s", uid)),
-		recvackQueue:        newUserMsgQueue(fmt.Sprintf("user:recvack:%s", uid)),
-		recvMsgQueue:        newUserMsgQueue(fmt.Sprintf("user:recv:%s", uid)),
-		Log:                 wklog.NewWKLog(fmt.Sprintf("userHandler[%d][%s]", sub.r.s.opts.Cluster.NodeId, uid)),
-		sub:                 sub,
-		nodePongTimeoutTick: make(map[uint64]int),
-		uniqueNo:            wkutil.GenUUID(),
-		opts:                opts,
-		initState:           replica.NewReadyState(retryTickCount),
-		pingState:           replica.NewReadyState(retryTickCount),
-		authState:           replica.NewReadyState(retryTickCount),
-		recvackState:        replica.NewReadyState(retryTickCount),
-		recvMsgState:        replica.NewReadyState(retryTickCount),
+		uid:                        uid,
+		authQueue:                  newUserMsgQueue(fmt.Sprintf("user:auth:%s", uid)),
+		pingQueue:                  newUserMsgQueue(fmt.Sprintf("user:ping:%s", uid)),
+		recvackQueue:               newUserMsgQueue(fmt.Sprintf("user:recvack:%s", uid)),
+		recvMsgQueue:               newUserMsgQueue(fmt.Sprintf("user:recv:%s", uid)),
+		Log:                        wklog.NewWKLog(fmt.Sprintf("userHandler[%d][%s]", sub.r.s.opts.Cluster.NodeId, uid)),
+		sub:                        sub,
+		nodePongTimeoutTick:        make(map[uint64]int),
+		uniqueNo:                   wkutil.GenUUID(),
+		opts:                       opts,
+		initState:                  replica.NewReadyState(retryTickCount),
+		pingState:                  replica.NewReadyState(retryTickCount),
+		authState:                  replica.NewReadyState(retryTickCount),
+		recvackState:               replica.NewReadyState(retryTickCount),
+		recvMsgState:               replica.NewReadyState(retryTickCount),
+		maxCheckLeaderIntervalTick: maxCheckLeaderIntervalTick,
+		maxNodePingTick:            maxNodePingTick,
+		maxNodePongTimeoutTick:     maxNodePongTimeoutTick,
 	}
 
 	return u
@@ -309,7 +332,7 @@ func (u *userHandler) tick() {
 
 	// 定时校验领导的正确性
 	u.checkLeaderTick++
-	if u.checkLeaderTick >= u.sub.r.s.opts.Reactor.User.CheckLeaderIntervalTick {
+	if u.checkLeaderTick >= u.maxCheckLeaderIntervalTick {
 		u.checkLeaderTick = 0
 		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionCheckLeader, Uid: u.uid})
 	}
@@ -322,7 +345,8 @@ func (u *userHandler) tick() {
 
 func (u *userHandler) tickProxy() {
 	u.nodePingTick++
-	if u.nodePingTick >= u.sub.r.s.opts.Reactor.User.NodePingTick+(u.sub.r.s.opts.Reactor.User.NodePingTick/2) { // 与领导失去联系，主动断开连接
+	if u.nodePingTick >= u.maxNodePingTick { // 与领导失去联系，主动断开连接
+		u.Debug("nodePingTick timeout", zap.String("uid", u.uid), zap.Int("nodePingTick", u.nodePingTick))
 		u.nodePingTick = 0
 		u.actions = append(u.actions, UserAction{UniqueNo: u.uniqueNo, ActionType: UserActionClose, Uid: u.uid})
 	}
@@ -335,7 +359,7 @@ func (u *userHandler) tickLeader() {
 		u.nodePongTimeoutTick[proxyNodeId]++
 	}
 
-	if u.nodePingTick >= u.sub.r.s.opts.Reactor.User.NodePingTick {
+	if u.nodePingTick >= u.maxNodePingTick/3 { // 领导发送ping
 		u.nodePingTick = 0
 		var messages []ReactorUserMessage
 		// TODO: u.conns可能存在竞锁问题
@@ -363,8 +387,8 @@ func (u *userHandler) tickLeader() {
 
 	// 检查代理节点是否超时
 	for _, proxyNodeId := range u.connNodeIds {
-		if u.nodePongTimeoutTick[proxyNodeId] >= u.sub.r.s.opts.Reactor.User.NodePongTimeoutTick {
-			u.Debug("user node pong timeout", zap.String("uid", u.uid), zap.Uint64("proxyNodeId", proxyNodeId))
+		if u.nodePongTimeoutTick[proxyNodeId] >= u.maxNodePingTick {
+			u.Info("user node pong timeout", zap.String("uid", u.uid), zap.Uint64("proxyNodeId", proxyNodeId))
 			u.actions = append(u.actions, UserAction{ActionType: UserActionProxyNodeTimeout, Uid: u.uid, Messages: []ReactorUserMessage{
 				{FromNodeId: proxyNodeId},
 			}})

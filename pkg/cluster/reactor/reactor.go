@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/zap"
@@ -67,7 +68,9 @@ func New(opts *Options) *Reactor {
 		sizePerPool = opts.ProcessPoolSize / opts.SubReactorNum
 	}
 	var err error
-	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks)
+	r.processGoPool, err = ants.NewMultiPool(size, sizePerPool, ants.LeastTasks, ants.WithPanicHandler(func(i interface{}) {
+		r.Panic("user: NewMultiPool panic", zap.Any("panic", i), zap.Stack("stack"))
+	}))
 	if err != nil {
 		r.Panic("user: NewMultiPool panic", zap.Error(err))
 	}
@@ -133,10 +136,12 @@ func (r *Reactor) AddHandler(key string, ih IHandler) {
 	// h := getHandlerFromPool()
 	// h.init(key, handler, r)
 	h := &handler{
+		no:          wkutil.GenUUID(),
 		key:         key,
 		handler:     ih,
 		r:           r,
 		proposeWait: newProposeWait(fmt.Sprintf("[%d]%s", r.opts.NodeId, key)),
+		Log:         wklog.NewWKLog(key),
 	}
 	sub := r.reactorSub(key)
 	sub.addHandler(h)

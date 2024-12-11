@@ -315,6 +315,10 @@ func (r *Replica) Term() uint32 {
 	return r.term
 }
 
+func (r *Replica) Role() Role {
+	return r.role
+}
+
 func (r *Replica) switchConfig(cfg Config) {
 
 	if r.cfg.Version > cfg.Version {

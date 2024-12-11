@@ -1,23 +1,23 @@
 package client
 
 import (
-	"net"
-
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
 )
 
+type Handler func(c *Context)
+
 type Context struct {
-	conn  net.Conn
+	cli   *Client
 	proto proto.Protocol
 	wklog.Log
 	req *proto.Request
 }
 
-func NewContext(conn net.Conn) *Context {
+func NewContext(cli *Client) *Context {
 	return &Context{
-		conn:  conn,
+		cli:   cli,
 		proto: proto.New(),
 		Log:   wklog.NewWKLog("Context"),
 	}
@@ -43,7 +43,7 @@ func (c *Context) Write(data []byte) {
 		c.Debug("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.Write(msgData)
+	err = c.cli.Write(msgData)
 	if err != nil {
 		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
 		return
@@ -73,7 +73,7 @@ func (c *Context) WriteOk() {
 		c.Debug("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.Write(msgData)
+	err = c.cli.Write(msgData)
 	if err != nil {
 		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
 		return
@@ -104,7 +104,7 @@ func (c *Context) WriteErrorAndStatus(err error, status proto.Status) {
 		c.Debug("encode is error", zap.Error(err))
 		return
 	}
-	_, err = c.conn.Write(msgData)
+	err = c.cli.Write(msgData)
 	if err != nil {
 		c.Debug("WriteToOutboundBuffer is error", zap.Error(err))
 		return

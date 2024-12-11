@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type Acceptor struct {
+type acceptor struct {
 	reactorSubs       []*ReactorSub
 	eg                *Engine
 	listenPoller      *netpoll.Poller
@@ -33,12 +33,12 @@ type Acceptor struct {
 	wklog.Log
 }
 
-func NewAcceptor(eg *Engine) *Acceptor {
+func newAcceptor(eg *Engine) *acceptor {
 	reactorSubs := make([]*ReactorSub, eg.options.SubReactorNum)
 	for i := 0; i < eg.options.SubReactorNum; i++ {
 		reactorSubs[i] = NewReactorSub(eg, i)
 	}
-	a := &Acceptor{
+	a := &acceptor{
 		eg:              eg,
 		reactorSubs:     reactorSubs,
 		listenPoller:    netpoll.NewPoller(0, "listenerPoller"),
@@ -50,15 +50,18 @@ func NewAcceptor(eg *Engine) *Acceptor {
 	return a
 }
 
-func (a *Acceptor) Start() error {
+func (a *acceptor) Start() error {
 
 	return a.start()
 }
 
-func (a *Acceptor) start() error {
+func (a *acceptor) start() error {
 
 	for _, reactorSub := range a.reactorSubs {
-		reactorSub.Start()
+		err := reactorSub.Start()
+		if err != nil {
+			return err
+		}
 	}
 
 	var wg = &sync.WaitGroup{}
@@ -94,7 +97,7 @@ func (a *Acceptor) start() error {
 	return nil
 }
 
-func (a *Acceptor) Stop() error {
+func (a *acceptor) Stop() error {
 
 	// -----------------listen-----------------
 	err := a.listenPoller.Close()
@@ -144,7 +147,7 @@ func (a *Acceptor) Stop() error {
 	return nil
 }
 
-func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
+func (a *acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	// tcp
 	a.listen = newListener(a.eg.options.Addr, a.eg.options)
 	err := a.listen.init()
@@ -164,7 +167,7 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 
 }
 
-func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
+func (a *acceptor) initWSListener(wg *sync.WaitGroup) error {
 	// tcp
 	a.listenWS = newListener(a.eg.options.WsAddr, a.eg.options)
 	err := a.listenWS.init()
@@ -181,7 +184,7 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 	})
 }
 
-func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
+func (a *acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	// tcp
 	a.listenWSS = newListener(a.eg.options.WssAddr, a.eg.options)
 	err := a.listenWSS.init()
@@ -198,7 +201,7 @@ func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	})
 }
 
-func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
+func (a *acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
 	var (
 		conn Conn
 		err  error
@@ -248,19 +251,19 @@ func (a *Acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
 	return nil
 }
 
-func (a *Acceptor) reactorSubByConnFd(connfd int) *ReactorSub {
+func (a *acceptor) reactorSubByConnFd(connfd int) *ReactorSub {
 
 	return a.reactorSubs[connfd%len(a.reactorSubs)]
 }
 
-func (a *Acceptor) tcpRealAddr() net.Addr {
+func (a *acceptor) tcpRealAddr() net.Addr {
 	return a.listen.realAddr
 }
 
-func (a *Acceptor) wsRealAddr() net.Addr {
+func (a *acceptor) wsRealAddr() net.Addr {
 	return a.listenWS.realAddr
 }
 
-func (a *Acceptor) wssRealAddr() net.Addr {
+func (a *acceptor) wssRealAddr() net.Addr {
 	return a.listenWSS.realAddr
 }

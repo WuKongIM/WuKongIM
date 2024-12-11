@@ -3,54 +3,59 @@ package test
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/panjf2000/gnet/v2"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
 func TestSendAndRecv(t *testing.T) {
-	s := wkserver.New("tcp://0.0.0.0:0", wkserver.WithMessagePoolOn(false))
+
+	addr := "tcp://:10001"
+
+	s := wkserver.New(addr, wkserver.WithMessagePoolOn(false))
 
 	var wg sync.WaitGroup
-	s.OnMessage(func(conn wknet.Conn, m *proto.Message) {
+	s.OnMessage(func(conn gnet.Conn, m *proto.Message) {
 		wg.Done()
 	})
 	err := s.Start()
 	assert.NoError(t, err)
 	defer s.Stop()
 
-	cli := client.New(s.Addr().String(), client.WithUID("uid"))
-	err = cli.Connect()
+	cli := client.New(addr, client.WithUid("uid"))
+	err = cli.Start()
 	assert.NoError(t, err)
-	defer cli.Close()
+	defer cli.Stop()
 
-	msgCount := 10000
+	time.Sleep(time.Millisecond * 200)
+
+	msgCount := 100000
 	wg.Add(msgCount)
 
-	msgs := make([]*proto.Message, 0, msgCount)
 	for i := 0; i < msgCount; i++ {
-		msgs = append(msgs, &proto.Message{
+		err = cli.Send(&proto.Message{
 			Id:      uint64(i),
 			MsgType: 112349,
 			Content: []byte("hellohellohellohellohellohellohellohellohellohellohellohellohellohellohello"),
 		})
+		assert.NoError(t, err)
 	}
-	err = cli.SendBatch(msgs)
-	assert.NoError(t, err)
+
 	wg.Wait()
 }
 
 func TestRequestResp(t *testing.T) {
-
+	addr := "tcp://127.0.0.1:10001"
 	wklog.Configure(&wklog.Options{
 		Level: zap.InfoLevel,
 	})
-	s := wkserver.New("tcp://0.0.0.0:0")
+	s := wkserver.New(addr)
 	s.Route("/test", func(c *wkserver.Context) {
 		c.Write([]byte("hello"))
 	})
@@ -58,12 +63,16 @@ func TestRequestResp(t *testing.T) {
 	assert.NoError(t, err)
 	defer s.Stop()
 
-	cli := client.New(s.Addr().String(), client.WithUID("uid"))
-	err = cli.Connect()
-	assert.NoError(t, err)
-	defer cli.Close()
+	time.Sleep(time.Millisecond * 200)
 
-	var count = 1000
+	cli := client.New(addr, client.WithUid("uid"))
+	err = cli.Start()
+	assert.NoError(t, err)
+	defer cli.Stop()
+
+	time.Sleep(time.Millisecond * 200)
+
+	var count = 10000
 
 	var wg sync.WaitGroup
 	wg.Add(count)

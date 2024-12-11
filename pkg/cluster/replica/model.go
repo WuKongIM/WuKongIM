@@ -180,6 +180,7 @@ type Message struct {
 	Logs        []Log
 
 	// 不参与编码
+	HandlerNo    string // handler唯一编号
 	LearnerId    uint64
 	FollowerId   uint64
 	AppliedIndex uint64

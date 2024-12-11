@@ -3,8 +3,8 @@ package wkserver
 import (
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/panjf2000/gnet/v2"
 )
 
 type Options struct {
@@ -15,13 +15,15 @@ type Options struct {
 	ConnPath        string
 	ClosePath       string
 	RequestTimeout  time.Duration
-	OnMessage       func(conn wknet.Conn, msg *proto.Message)
+	OnMessage       func(conn gnet.Conn, msg *proto.Message)
 	MaxIdle         time.Duration
 
 	TimingWheelTick time.Duration // The time-round training interval must be 1ms or more
 	TimingWheelSize int64         // Time wheel size
-	OnRequest       func(conn wknet.Conn, req *proto.Request)
-	OnResponse      func(conn wknet.Conn, resp *proto.Response)
+	OnRequest       func(conn gnet.Conn, req *proto.Request)
+	OnResponse      func(conn gnet.Conn, resp *proto.Response)
+	LogDetailOn     bool // 是否开启详细日志
+
 }
 
 func NewOptions() *Options {
@@ -33,7 +35,7 @@ func NewOptions() *Options {
 		MessagePoolOn:   true,
 		ConnPath:        "/conn",
 		ClosePath:       "/close",
-		RequestTimeout:  1 * time.Minute,
+		RequestTimeout:  10 * time.Second,
 		MaxIdle:         120 * time.Second,
 		TimingWheelTick: time.Millisecond * 10,
 		TimingWheelSize: 100,
@@ -102,20 +104,25 @@ func WithTimingWheelSize(size int64) Option {
 	}
 }
 
-func WithOnMessage(onMessage func(conn wknet.Conn, msg *proto.Message)) Option {
+func WithOnMessage(onMessage func(conn gnet.Conn, msg *proto.Message)) Option {
 	return func(o *Options) {
 		o.OnMessage = onMessage
 	}
 }
 
-func WithOnRequest(onRequest func(conn wknet.Conn, req *proto.Request)) Option {
+func WithOnRequest(onRequest func(conn gnet.Conn, req *proto.Request)) Option {
 	return func(o *Options) {
 		o.OnRequest = onRequest
 	}
 }
 
-func WithOnResponse(onResponse func(conn wknet.Conn, resp *proto.Response)) Option {
+func WithOnResponse(onResponse func(conn gnet.Conn, resp *proto.Response)) Option {
 	return func(o *Options) {
 		o.OnResponse = onResponse
+	}
+}
+func WithLogDetailOn(on bool) Option {
+	return func(opts *Options) {
+		opts.LogDetailOn = on
 	}
 }

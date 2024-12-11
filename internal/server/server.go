@@ -427,27 +427,26 @@ func (s *Server) onConnect(conn wknet.Conn) error {
 	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
 	s.trace.Metrics.App().ConnCountAdd(1)
 
-	if conn.InboundBuffer().BoundBufferSize() == 0 {
-		conn.SetValue(ConnKeyParseProxyProto, true) // 设置需要解析代理协议
-		return nil
-	}
-	fmt.Println("parse proxy proto after onConnect...", conn.ID())
-	// 解析代理协议，获取真实IP
-	buff, err := conn.Peek(-1)
-	if err != nil {
-		return err
-	}
-	remoteAddr, size, err := parseProxyProto(buff)
-	if err != nil && err != ErrNoProxyProtocol {
-		s.Warn("Failed to parse proxy proto", zap.Error(err))
-	}
-	if remoteAddr != nil {
-		conn.SetRemoteAddr(remoteAddr)
-		s.Debug("parse proxy proto success", zap.String("remoteAddr", remoteAddr.String()))
-	}
-	if size > 0 {
-		_, _ = conn.Discard(size)
-	}
+	// if conn.InboundBuffer().BoundBufferSize() == 0 {
+	// 	conn.SetValue(ConnKeyParseProxyProto, true) // 设置需要解析代理协议
+	// 	return nil
+	// }
+	// // 解析代理协议，获取真实IP
+	// buff, err := conn.Peek(-1)
+	// if err != nil {
+	// 	return err
+	// }
+	// remoteAddr, size, err := parseProxyProto(buff)
+	// if err != nil && err != ErrNoProxyProtocol {
+	// 	s.Warn("Failed to parse proxy proto", zap.Error(err))
+	// }
+	// if remoteAddr != nil {
+	// 	conn.SetRemoteAddr(remoteAddr)
+	// 	s.Debug("parse proxy proto success", zap.String("remoteAddr", remoteAddr.String()))
+	// }
+	// if size > 0 {
+	// 	_, _ = conn.Discard(size)
+	// }
 	return nil
 }
 

@@ -78,7 +78,7 @@ func (r *ReactorSub) run() {
 				r.Info("ReactorSub: step handler not exist", zap.String("handlerKey", req.handlerKey), zap.String("msgType", req.msg.MsgType.String()), zap.Uint64("from", req.msg.From))
 				continue
 			}
-			err := handler.handler.Step(req.msg)
+			err := handler.step(req.msg)
 			if err != nil {
 				r.Error("step message failed", zap.Error(err), zap.String("key", handler.key), zap.String("msgType", req.msg.MsgType.String()), zap.Uint64("from", req.msg.From))
 				if req.resultC != nil {
@@ -175,9 +175,6 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	case r.proposeC <- req:
 	case <-ctx.Done():
 
-		if !handler.proposeWait.exist(waitKey) {
-			r.Panic("proposeAndWait: propose wait not exist", zap.String("waitKey", waitKey), zap.String("handler", handler.key))
-		}
 		r.Error("proposeAndWait: proposeC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey), zap.String("progress", progress.String()))
 		handler.removeWait(waitKey)
 		close(progress.waitC)

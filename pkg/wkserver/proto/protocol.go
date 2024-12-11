@@ -1,10 +1,24 @@
 package proto
 
 import (
+	"encoding/binary"
 	"fmt"
 
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/panjf2000/gnet/v2"
 )
+
+// Protocol format:
+//
+// * 0             1                     5
+// * +-------------+---------------------+
+// * |   msg type  |        data len     |
+// * +-----------+-----------+-----------+
+// * |                                   |
+// * +                                   +
+// * |           data bytes              |
+// * +                                   +
+// * |            ... ...                |
+// * +-----------------------------------+
 
 type MsgType uint8 // 消息类型
 const (
@@ -46,7 +60,7 @@ func (m MsgType) String() string {
 }
 
 type Protocol interface {
-	Decode(data []byte) ([]byte, MsgType, int, error)
+	Decode(c gnet.Conn) ([]byte, MsgType, int, error)
 	Encode(data []byte, msgType uint8) ([]byte, error)
 }
 
@@ -58,40 +72,52 @@ func New() *DefaultProto {
 	return &DefaultProto{}
 }
 
-func (d *DefaultProto) Decode(data []byte) ([]byte, MsgType, int, error) {
-	if len(data) == 0 {
-		return nil, 0, 0, nil
-	}
-	decoder := wkproto.NewDecoder(data)
-	msgType, err := decoder.Uint8()
+func (d *DefaultProto) Decode(c gnet.Conn) ([]byte, MsgType, int, error) {
+
+	msgByteBuff, err := c.Peek(1)
 	if err != nil {
 		return nil, 0, 0, err
 	}
+
+	msgType := uint8(msgByteBuff[0])
 	if msgType == MsgTypeHeartbeat.Uint8() {
-		return data[:1], MsgTypeHeartbeat, MsgTypeLength, nil
+		_, _ = c.Discard(1)
+		return []byte{MsgTypeHeartbeat.Uint8()}, MsgTypeHeartbeat, MsgTypeLength, nil
 	}
-	if len(data) < MsgTypeLength+MsgContentLength {
-		return nil, 0, 0, nil
-	}
-	contentLen, err := decoder.Uint32()
+
+	minSize := MsgTypeLength + MsgContentLength
+
+	contentLenBytes, err := c.Peek(MsgTypeLength + MsgContentLength)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	if contentLen > uint32(len(data)-MsgTypeLength-MsgContentLength) {
-		return nil, 0, 0, nil
-	}
-	contentBytes, err := decoder.Bytes(int(contentLen))
+
+	contentLen := binary.BigEndian.Uint32(contentLenBytes[MsgTypeLength:])
+
+	buf, err := c.Peek(int(contentLen) + minSize)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return contentBytes, MsgType(msgType), len(contentBytes) + MsgTypeLength + MsgContentLength, nil
+
+	contentBytes := make([]byte, contentLen)
+	copy(contentBytes, buf[minSize:])
+
+	msgLen := minSize + int(contentLen)
+
+	_, _ = c.Discard(msgLen)
+
+	return contentBytes, MsgType(msgType), msgLen, nil
 }
 
 func (d *DefaultProto) Encode(data []byte, msgType uint8) ([]byte, error) {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteUint8(msgType)
-	encoder.WriteUint32(uint32(len(data)))
-	encoder.WriteBytes(data)
-	return encoder.Bytes(), nil
+
+	msgOffset := MsgTypeLength + MsgContentLength
+	msgLen := msgOffset + len(data)
+
+	msgData := make([]byte, msgLen)
+	copy(msgData, []byte{msgType})
+	binary.BigEndian.PutUint32(msgData[MsgTypeLength:msgOffset], uint32(len(data)))
+	copy(msgData[msgOffset:msgLen], data)
+
+	return msgData, nil
 }

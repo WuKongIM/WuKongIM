@@ -39,7 +39,7 @@ type webhook struct {
 
 func newWebhook(s *Server) *webhook {
 	eventPool, err := ants.NewPool(s.opts.EventPoolSize, ants.WithPanicHandler(func(err interface{}) {
-		s.Error("webhook panic", zap.Any("err", err), zap.Stack("stack"))
+		s.Panic("webhook panic", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {
 		panic(err)
