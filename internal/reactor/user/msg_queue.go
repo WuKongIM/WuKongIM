@@ -3,53 +3,70 @@ package reactor
 import (
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type msgQueue struct {
-	messages []Message
-	offset   uint64
+	messages       []reactor.UserMessage
+	offsetMsgIndex uint64
 	wklog.Log
 	lastIndex uint64 // 最新下标
 }
 
 func newMsgQueue(prefix string) *msgQueue {
 	return &msgQueue{
-		Log: wklog.NewWKLog(fmt.Sprintf("user.msgQueue[%s]", prefix)),
+		Log:            wklog.NewWKLog(fmt.Sprintf("user.msgQueue[%s]", prefix)),
+		offsetMsgIndex: 1, // 消息下标是从1开始的 所以offset初始化值为1
 	}
 }
 
-func (m *msgQueue) append(message Message) {
+func (m *msgQueue) append(message reactor.UserMessage) {
 	m.messages = append(m.messages, message)
 	m.lastIndex++
 }
 
-// [lo,hi)
-func (m *msgQueue) slice(lo uint64, hi uint64) []Message {
-
-	return m.messages[lo-m.offset : hi-m.offset : hi-m.offset]
+func (m *msgQueue) len() int {
+	return len(m.messages)
 }
 
-func (m *msgQueue) sliceWithSize(lo uint64, hi uint64, maxSize uint64) []Message {
-	if lo == hi {
+// [lo,hi)
+func (m *msgQueue) slice(startMsgIndex uint64, endMsgIndex uint64) []reactor.UserMessage {
+
+	return m.messages[startMsgIndex-m.offsetMsgIndex : endMsgIndex-m.offsetMsgIndex : endMsgIndex-m.offsetMsgIndex]
+}
+
+func (m *msgQueue) sliceWithSize(startMsgIndex uint64, endMsgIndex uint64, maxSize uint64) []reactor.UserMessage {
+	if startMsgIndex == endMsgIndex {
 		return nil
 	}
 	if maxSize == 0 {
-		return m.slice(lo, hi)
+		return m.slice(startMsgIndex, endMsgIndex)
 	}
-	if lo >= m.offset {
-		logs := m.slice(lo, hi)
+	if startMsgIndex >= m.offsetMsgIndex {
+		logs := m.slice(startMsgIndex, endMsgIndex)
 		return limitSize(logs, maxSize)
 	}
 	return nil
 }
 
 // truncateTo 裁剪index之前的消息,不包含index
-func (m *msgQueue) truncateTo(index uint64) {
-	num := int(index - m.offset)
+func (m *msgQueue) truncateTo(msgIndex uint64) {
+	num := m.getArrayIndex(msgIndex)
 	m.messages = m.messages[num:]
-	m.offset = index
+	m.offsetMsgIndex = msgIndex
 	m.shrinkMessagesArray()
+}
+
+func (m *msgQueue) getArrayIndex(msgIndex uint64) int {
+
+	return int(msgIndex - m.offsetMsgIndex)
+}
+
+func (m *msgQueue) reset() {
+	m.messages = m.messages[:0]
+	m.offsetMsgIndex = 1
+	m.lastIndex = 0
 }
 
 func (m *msgQueue) shrinkMessagesArray() {
@@ -57,13 +74,13 @@ func (m *msgQueue) shrinkMessagesArray() {
 	if len(m.messages) == 0 {
 		m.messages = nil
 	} else if len(m.messages)*lenMultiple < cap(m.messages) {
-		newMessages := make([]Message, len(m.messages))
+		newMessages := make([]reactor.UserMessage, len(m.messages))
 		copy(newMessages, m.messages)
 		m.messages = newMessages
 	}
 }
 
-func limitSize(messages []Message, maxSize uint64) []Message {
+func limitSize(messages []reactor.UserMessage, maxSize uint64) []reactor.UserMessage {
 	if len(messages) == 0 {
 		return messages
 	}

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -114,14 +115,14 @@ func (u *UserAPI) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) erro
 		u.Error("清空用户token失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
 		return err
 	}
-	oldConns := u.s.userReactor.getConnsByDeviceFlag(uid, deviceFlag)
+	oldConns := reactor.User.ConnsByDeviceFlag(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
-			_ = u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
+			reactor.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
 				ReasonCode: wkproto.ReasonConnectKick,
 			})
 			u.s.timingWheel.AfterFunc(time.Second*2, func() {
-				oldConn.close()
+				reactor.User.CloseConn(oldConn)
 			})
 		}
 	}
@@ -236,11 +237,11 @@ func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
 
 	onlineStatusResps := make([]*OnlinestatusResp, 0)
 	for _, uid := range uids {
-		conns := u.s.userReactor.getConns(uid)
+		conns := reactor.User.ConnsByUid(uid)
 		for _, conn := range conns {
 			onlineStatusResps = append(onlineStatusResps, &OnlinestatusResp{
-				UID:        conn.uid,
-				DeviceFlag: uint8(conn.deviceFlag),
+				UID:        conn.Uid(),
+				DeviceFlag: conn.DeviceFlag().ToUint8(),
 				Online:     1,
 			})
 		}
@@ -364,17 +365,14 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 
 	if req.DeviceLevel == wkproto.DeviceLevelMaster {
 		// 如果存在旧连接，则发起踢出请求
-		oldConns := u.s.userReactor.getConnsByDeviceFlag(req.UID, req.DeviceFlag)
+		oldConns := reactor.User.ConnsByDeviceFlag(req.UID, req.DeviceFlag)
 		if len(oldConns) > 0 {
 			for _, oldConn := range oldConns {
-				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.connId), zap.String("deviceFlag", req.DeviceFlag.String()))
-				_ = u.s.userReactor.writePacket(oldConn, &wkproto.DisconnectPacket{
-					ReasonCode: wkproto.ReasonConnectKick,
-					Reason:     "账号在其他设备上登录",
-				})
-
+				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ConnId()), zap.String("deviceFlag", req.DeviceFlag.String()))
+				// 踢旧连接
+				reactor.User.Kick(oldConn, wkproto.ReasonConnectKick, "账号在其他设备上登录")
 				u.s.timingWheel.AfterFunc(time.Second*10, func() {
-					oldConn.close()
+					reactor.User.CloseConn(oldConn)
 				})
 			}
 		}

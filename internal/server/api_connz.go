@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
@@ -82,14 +83,14 @@ func (co *ConnzAPI) HandleConnz(c *wkhttp.Context) {
 		connInfo := newConnInfo(resultConn)
 
 		proxyType := "未知"
-		userHandler := co.s.userReactor.getUserHandler(resultConn.uid)
-		if userHandler != nil {
-			if userHandler.role == userRoleProxy {
-				proxyType = "代理连接"
-			} else if userHandler.role == userRoleLeader {
+		leaderId := reactor.User.LeaderId(resultConn.uid)
+		if leaderId != 0 {
+			if co.s.opts.IsLocalNode(leaderId) {
 				proxyType = "主连接"
+			} else {
+				proxyType = "代理连接"
 			}
-			connInfo.LeaderId = userHandler.leaderId
+			connInfo.LeaderId = leaderId
 		}
 		connInfo.ProxyTypeFormat = proxyType
 

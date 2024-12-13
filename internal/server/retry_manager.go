@@ -3,8 +3,8 @@ package server
 import (
 	"math/rand/v2"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -74,12 +74,7 @@ func (r *retryManager) retry(msg *retryMessage) {
 		r.Debug("exceeded the maximum number of retries", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int("messageMaxRetryCount", r.s.opts.MessageRetry.MaxCount))
 		return
 	}
-	userHandler := r.s.userReactor.getUserHandler(msg.uid)
-	if userHandler == nil {
-		r.Debug("user offline, retry end", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
-		return
-	}
-	conn := userHandler.getConnById(msg.connId)
+	conn := reactor.User.ConnById(msg.uid, msg.fromNode, msg.connId)
 	if conn == nil {
 		r.Debug("conn offline", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
 		return
@@ -92,12 +87,8 @@ func (r *retryManager) retry(msg *retryMessage) {
 	if rand.Float64() < 0.1 { // 10%的概率
 		r.Info("retry send message", zap.Int("retry", msg.retry), zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId))
 	}
-	err := conn.write(msg.recvPacketData, wkproto.RECV)
-	if err != nil {
-		r.Warn("write message failed", zap.String("uid", msg.uid), zap.Int64("messageId", msg.messageId), zap.Int64("connId", msg.connId), zap.Error(err))
-		conn.close()
-		return
-	}
+
+	reactor.User.ConnWriteBytes(conn, msg.recvPacketData)
 
 }
 
@@ -106,6 +97,7 @@ type retryMessage struct {
 	channelId      string // 频道id
 	channelType    uint8  // 频道类型
 	uid            string // 用户id
+	fromNode       uint64 // 来源节点
 	connId         int64  // 需要接受的连接id
 	messageId      int64  // 消息id
 	retry          int    // 重试次数

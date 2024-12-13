@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -192,9 +193,9 @@ func (r *channelReactor) handlePayloadDecrypt(req *payloadDecryptReq) {
 
 		var err error
 		var decryptPayload []byte
-		conn := r.s.userReactor.getConnById(msg.FromUid, msg.FromConnId)
+		conn := reactor.User.LocalConnById(msg.FromUid, msg.FromConnId)
 		if conn != nil && len(msg.SendPacket.Payload) > 0 {
-			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
+			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn.(*connContext))
 			if err != nil {
 				msg.ReasonCode = wkproto.ReasonPayloadDecodeError
 				r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))
@@ -1000,10 +1001,9 @@ func (r *channelReactor) processSendack(req *sendackReq) {
 		}
 
 		if msg.FromNodeId == r.opts.Cluster.NodeId { // 连接在本节点
-
-			err := r.s.userReactor.writePacketByConnId(msg.FromUid, msg.FromConnId, sendack)
-			if err != nil {
-				r.Error("writePacketByConnId error", zap.Error(err), zap.Uint64("nodeId", msg.FromNodeId), zap.Int64("connId", msg.FromConnId))
+			conn := reactor.User.LocalConnById(msg.FromUid, msg.FromConnId)
+			if conn != nil {
+				reactor.User.ConnWrite(conn, sendack)
 			}
 		} else { // 连接在其他节点，需要将消息转发出去
 			nodeFowardSendackPacketMap[msg.FromNodeId] = append(nodeFowardSendackPacketMap[msg.FromNodeId], &ForwardSendackPacket{

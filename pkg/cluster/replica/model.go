@@ -646,6 +646,7 @@ func (r *ReadyState) ProcessSuccess() {
 	r.processing = false
 	r.willRetry = false
 	r.retryCount = 0
+	r.currentIntervalTick = r.retryIntervalTick
 }
 
 // 处理失败

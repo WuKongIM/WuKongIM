@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -128,19 +129,13 @@ func (s *Server) handleForwardSendack(c *wkserver.Context) {
 			continue
 		}
 
-		conn := s.userReactor.getConnById(forwardSendackPacket.Uid, forwardSendackPacket.ConnId)
+		conn := reactor.User.LocalConnById(forwardSendackPacket.Uid, forwardSendackPacket.ConnId)
 		if conn == nil {
 			s.Error("handleForwardSendack: conn not found", zap.String("uid", forwardSendackPacket.Uid), zap.String("deviceId", forwardSendackPacket.DeviceId))
 			c.WriteErr(errors.New("conn not found"))
 			return
 		}
-
-		err = s.userReactor.writePacketByConnId(forwardSendackPacket.Uid, conn.connId, forwardSendackPacket.Sendack)
-		if err != nil {
-			s.Error("handleForwardSendack: writePacketByConnId failed", zap.Error(err))
-			c.WriteErr(err)
-			return
-		}
+		reactor.User.ConnWrite(conn, forwardSendackPacket.Sendack)
 	}
 	c.WriteOk()
 }
@@ -159,142 +154,135 @@ func (s *Server) handleConnWrite(c *wkserver.Context) {
 		return
 	}
 
-	conn := s.userReactor.getConnById(fowardWriteReq.Uid, fowardWriteReq.ConnId)
+	conn := reactor.User.LocalConnById(fowardWriteReq.Uid, fowardWriteReq.ConnId)
 	if conn == nil {
 		s.Debug("handleConnWrite: conn not found", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
 		c.WriteErrorAndStatus(ErrConnNotFound, proto.Status(errCodeConnNotFound))
 		return
 	}
-	if conn.conn == nil {
-		s.Debug("handleConnWrite: conn is nil", zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
-		c.WriteErrorAndStatus(ErrConnNotFound, proto.Status(errCodeConnNotFound))
-		return
-	}
-	err = conn.writeDirectly(fowardWriteReq.Data, fowardWriteReq.RecvFrameCount)
-	if err != nil {
-		s.Warn("handleConnWrite: writeDirectly failed", zap.Error(err), zap.String("uid", fowardWriteReq.Uid), zap.Int64("connId", fowardWriteReq.ConnId))
-	}
+	reactor.User.ConnWriteBytes(conn, fowardWriteReq.Data)
+
 	c.WriteOk()
 }
 
 func (s *Server) handleUserAction(c *wkserver.Context) {
-	actions := UserActionSet{}
-	err := actions.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("handleUserAction Unmarshal err", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
+	// actions := UserActionSet{}
+	// err := actions.Unmarshal(c.Body())
+	// if err != nil {
+	// 	s.Error("handleUserAction Unmarshal err", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	if len(actions) == 0 {
-		c.WriteOk()
-		return
-	}
-	// actions 是同一批uid的操作，所以这里取第一个action的uid判断即可
-	firstAction := actions[0]
-	uid := firstAction.Uid
-	leaderId, err := s.cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
-	if err != nil {
-		s.Error("get leaderId failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-	if leaderId != s.opts.Cluster.NodeId { // 当前节点不是leader
-		s.Error("not is leader", zap.Uint64("leaderId", leaderId), zap.Uint64("currentNodeId", s.opts.Cluster.NodeId))
-		c.WriteErrorAndStatus(errors.New("not is leader"), proto.Status(errCodeNotIsUserLeader))
-		return
-	}
+	// if len(actions) == 0 {
+	// 	c.WriteOk()
+	// 	return
+	// }
+	// // actions 是同一批uid的操作，所以这里取第一个action的uid判断即可
+	// firstAction := actions[0]
+	// uid := firstAction.Uid
+	// leaderId, err := s.cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
+	// if err != nil {
+	// 	s.Error("get leaderId failed", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
+	// if leaderId != s.opts.Cluster.NodeId { // 当前节点不是leader
+	// 	s.Error("not is leader", zap.Uint64("leaderId", leaderId), zap.Uint64("currentNodeId", s.opts.Cluster.NodeId))
+	// 	c.WriteErrorAndStatus(errors.New("not is leader"), proto.Status(errCodeNotIsUserLeader))
+	// 	return
+	// }
 
-	conns := s.userReactor.getConns(uid)
+	// conns := s.userReactor.getConns(uid)
 
-	// connId替换成本节点的
-	for i, action := range actions {
-		for j, msg := range action.Messages {
-			if msg.ConnId != 0 {
-				for _, conn := range conns {
-					// 如果消息接受的节点和连接id和当前节点的一样，就替换connId
-					if conn.realNodeId == msg.FromNodeId && conn.proxyConnId == msg.ConnId {
-						s.Debug("auth: replace connId", zap.String("uid", uid), zap.Int64("oldConnId", msg.ConnId), zap.Int64("newConnId", conn.connId))
-						msg.FromNodeId = s.opts.Cluster.NodeId
-						msg.ConnId = conn.connId
-						action.Messages[j] = msg
-						actions[i] = action
-						break
-					}
-				}
-			}
-		}
-	}
+	// // connId替换成本节点的
+	// for i, action := range actions {
+	// 	for j, msg := range action.Messages {
+	// 		if msg.ConnId != 0 {
+	// 			for _, conn := range conns {
+	// 				// 如果消息接受的节点和连接id和当前节点的一样，就替换connId
+	// 				if conn.realNodeId == msg.FromNodeId && conn.proxyConnId == msg.ConnId {
+	// 					s.Debug("auth: replace connId", zap.String("uid", uid), zap.Int64("oldConnId", msg.ConnId), zap.Int64("newConnId", conn.connId))
+	// 					msg.FromNodeId = s.opts.Cluster.NodeId
+	// 					msg.ConnId = conn.connId
+	// 					action.Messages[j] = msg
+	// 					actions[i] = action
+	// 					break
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 
-	// 推进action
-	sub := s.userReactor.reactorSub(uid)
-	for _, action := range actions {
-		action.UniqueNo = ""
-		sub.addOrCreateUserHandlerIfNotExist(uid)
-		sub.step(action.Uid, action)
-	}
+	// // 推进action
+	// sub := s.userReactor.reactorSub(uid)
+	// for _, action := range actions {
+	// 	action.UniqueNo = ""
+	// 	sub.addOrCreateUserHandlerIfNotExist(uid)
+	// 	sub.step(action.Uid, action)
+	// }
 	c.WriteOk()
 
 }
 
 func (s *Server) handleUserAuthResult(c *wkserver.Context) {
-	authResult := &UserAuthResult{}
-	err := authResult.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("handleUserAuthResult Unmarshal err", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
+	// authResult := &UserAuthResult{}
+	// err := authResult.Unmarshal(c.Body())
+	// if err != nil {
+	// 	s.Error("handleUserAuthResult Unmarshal err", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	connCtx := s.userReactor.getConnById(authResult.Uid, authResult.ConnId)
-	if connCtx == nil {
-		s.Error("auth: handleUserAuthResult: conn not found", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
-		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: conn not found"), proto.StatusNotFound)
-		return
-	}
-	if connCtx.deviceId != authResult.DeviceId {
-		s.Error("auth: handleUserAuthResult: deviceId not match", zap.String("expect", connCtx.deviceId), zap.String("act", authResult.DeviceId))
-		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: deviceId not match"), proto.StatusNotFound)
-		return
-	}
-	if !connCtx.isRealConn {
-		s.Error("auth: handleUserAuthResult: not real conn", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
-		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: not real conn"), proto.StatusNotFound)
-		return
-	}
+	// connCtx := s.userReactor.getConnById(authResult.Uid, authResult.ConnId)
+	// if connCtx == nil {
+	// 	s.Error("auth: handleUserAuthResult: conn not found", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
+	// 	c.WriteErrorAndStatus(errors.New("handleUserAuthResult: conn not found"), proto.StatusNotFound)
+	// 	return
+	// }
+	// if connCtx.deviceId != authResult.DeviceId {
+	// 	s.Error("auth: handleUserAuthResult: deviceId not match", zap.String("expect", connCtx.deviceId), zap.String("act", authResult.DeviceId))
+	// 	c.WriteErrorAndStatus(errors.New("handleUserAuthResult: deviceId not match"), proto.StatusNotFound)
+	// 	return
+	// }
+	// if !connCtx.isRealConn {
+	// 	s.Error("auth: handleUserAuthResult: not real conn", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
+	// 	c.WriteErrorAndStatus(errors.New("handleUserAuthResult: not real conn"), proto.StatusNotFound)
+	// 	return
+	// }
 
-	if authResult.ReasonCode == wkproto.ReasonSuccess {
-		if authResult.AesKey == "" || authResult.AesIV == "" {
-			s.Error("auth: handleUserAuthResult: aesKey or aesIV is empty", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
-			c.WriteErrorAndStatus(errors.New("handleUserAuthResult: aesKey or aesIV is empty"), proto.StatusNotFound)
-			return
-		}
+	// if authResult.ReasonCode == wkproto.ReasonSuccess {
+	// 	if authResult.AesKey == "" || authResult.AesIV == "" {
+	// 		s.Error("auth: handleUserAuthResult: aesKey or aesIV is empty", zap.String("uid", authResult.Uid), zap.Int64("connId", authResult.ConnId))
+	// 		c.WriteErrorAndStatus(errors.New("handleUserAuthResult: aesKey or aesIV is empty"), proto.StatusNotFound)
+	// 		return
+	// 	}
 
-		connCtx.aesIV = []byte(authResult.AesIV)
-		connCtx.aesKey = []byte(authResult.AesKey)
-		connCtx.deviceLevel = authResult.DeviceLevel
-		connCtx.deviceId = authResult.DeviceId
-		connCtx.protoVersion = authResult.ProtoVersion
-		connCtx.isAuth.Store(true)
-		connCtx.conn.SetMaxIdle(s.opts.ConnIdleTime)
-		connack := &wkproto.ConnackPacket{
-			ServerVersion: authResult.ProtoVersion,
-			ServerKey:     authResult.ServerKey,
-			Salt:          authResult.AesIV,
-			ReasonCode:    authResult.ReasonCode,
-			NodeId:        s.opts.Cluster.NodeId,
-		}
-		connack.HasServerVersion = authResult.ProtoVersion > 3 // 如果协议版本大于3，就返回serverVersion
-		_ = connCtx.writePacket(connack)
-	} else {
-		connCtx.isAuth.Store(false)
-		_ = connCtx.writePacket(&wkproto.ConnackPacket{
-			ReasonCode: authResult.ReasonCode,
-			NodeId:     s.opts.Cluster.NodeId,
-		})
-	}
+	// 	connCtx.aesIV = []byte(authResult.AesIV)
+	// 	connCtx.aesKey = []byte(authResult.AesKey)
+	// 	connCtx.deviceLevel = authResult.DeviceLevel
+	// 	connCtx.deviceId = authResult.DeviceId
+	// 	connCtx.protoVersion = authResult.ProtoVersion
+	// 	connCtx.isAuth.Store(true)
+	// 	connCtx.conn.SetMaxIdle(s.opts.ConnIdleTime)
+	// 	connack := &wkproto.ConnackPacket{
+	// 		ServerVersion: authResult.ProtoVersion,
+	// 		ServerKey:     authResult.ServerKey,
+	// 		Salt:          authResult.AesIV,
+	// 		ReasonCode:    authResult.ReasonCode,
+	// 		NodeId:        s.opts.Cluster.NodeId,
+	// 	}
+	// 	connack.HasServerVersion = authResult.ProtoVersion > 3 // 如果协议版本大于3，就返回serverVersion
+	// 	_ = connCtx.writePacket(connack)
+	// } else {
+	// 	connCtx.isAuth.Store(false)
+	// 	_ = connCtx.writePacket(&wkproto.ConnackPacket{
+	// 		ReasonCode: authResult.ReasonCode,
+	// 		NodeId:     s.opts.Cluster.NodeId,
+	// 	})
+	// }
 
-	s.Debug("auth: reply auth ack success", zap.String("uid", connCtx.uid), zap.Int64("connId", connCtx.connId), zap.Int("fd", connCtx.conn.Fd().Fd()))
+	// s.Debug("auth: reply auth ack success", zap.String("uid", connCtx.uid), zap.Int64("connId", connCtx.connId), zap.Int("fd", connCtx.conn.Fd().Fd()))
 
 	c.WriteOk()
 
@@ -387,101 +375,101 @@ func (s *Server) getNodeUidsByTag(c *wkserver.Context) {
 
 // 领导发过来ping
 func (s *Server) handleNodePing(fromNodeId uint64, msg *proto.Message) {
-	var req = &userNodePingReq{}
-	err := req.Unmarshal(msg.Content)
-	if err != nil {
-		s.Error("handleNodePing Unmarshal err", zap.Error(err))
-		return
-	}
+	// var req = &userNodePingReq{}
+	// err := req.Unmarshal(msg.Content)
+	// if err != nil {
+	// 	s.Error("handleNodePing Unmarshal err", zap.Error(err))
+	// 	return
+	// }
 
 	// fmt.Println("handleNodePing---->", req.leaderId)
 	// for _, ping := range req.pings {
 	// 	fmt.Println("ping------->", ping.uid, ping.connIds)
 	// }
 
-	// 踢掉不存在的连接
-	for _, ping := range req.pings {
+	// // 踢掉不存在的连接
+	// for _, ping := range req.pings {
 
-		sub := s.userReactor.reactorSub(ping.uid)
-		conns := s.userReactor.getConns(ping.uid)
-		for _, conn := range conns {
-			if fromNodeId != conn.realNodeId {
-				continue
-			}
-			exist := false
-			for _, connId := range ping.connIds {
-				if conn.connId == connId && fromNodeId == conn.realNodeId {
-					exist = true
-					break
-				}
-			}
-			if !exist {
-				s.Info("handleNodePing: close conn", zap.String("uid", ping.uid), zap.Uint64("realNodeId", conn.realNodeId), zap.Int64("connId", conn.connId), zap.Int64("proxyConnId", conn.proxyConnId))
-				s.userReactor.removeConnById(ping.uid, conn.connId)
+	// 	sub := s.userReactor.reactorSub(ping.uid)
+	// 	conns := s.userReactor.getConns(ping.uid)
+	// 	for _, conn := range conns {
+	// 		if fromNodeId != conn.realNodeId {
+	// 			continue
+	// 		}
+	// 		exist := false
+	// 		for _, connId := range ping.connIds {
+	// 			if conn.connId == connId && fromNodeId == conn.realNodeId {
+	// 				exist = true
+	// 				break
+	// 			}
+	// 		}
+	// 		if !exist {
+	// 			s.Info("handleNodePing: close conn", zap.String("uid", ping.uid), zap.Uint64("realNodeId", conn.realNodeId), zap.Int64("connId", conn.connId), zap.Int64("proxyConnId", conn.proxyConnId))
+	// 			s.userReactor.removeConnById(ping.uid, conn.connId)
 
-				conn.close()
-			}
-		}
-		if len(conns) > 0 {
-			sub.step(ping.uid, UserAction{
-				ActionType: UserActionNodePing,
-				Uid:        ping.uid,
-			})
-		}
+	// 			conn.close()
+	// 		}
+	// 	}
+	// 	if len(conns) > 0 {
+	// 		sub.step(ping.uid, UserAction{
+	// 			ActionType: UserActionNodePing,
+	// 			Uid:        ping.uid,
+	// 		})
+	// 	}
 
-	}
+	// }
 }
 
 func (s *Server) handleNodePong(fromNodeId uint64, msg *proto.Message) {
 
-	userConns := &userConns{}
-	err := userConns.Unmarshal(msg.Content)
-	if err != nil {
-		s.Error("handleNodePong Unmarshal", zap.Error(err))
-		return
-	}
-	if userConns.uid == "" {
-		s.Info("handleNodePong: uid is empty")
-		return
-	}
+	// userConns := &userConns{}
+	// err := userConns.Unmarshal(msg.Content)
+	// if err != nil {
+	// 	s.Error("handleNodePong Unmarshal", zap.Error(err))
+	// 	return
+	// }
+	// if userConns.uid == "" {
+	// 	s.Info("handleNodePong: uid is empty")
+	// 	return
+	// }
 
-	userHandler := s.userReactor.getUserHandler(userConns.uid)
-	if userHandler == nil {
-		s.Debug("handleNodePong: userHandler not found", zap.String("uid", userConns.uid))
-		return
-	}
+	// userHandler := s.userReactor.getUserHandler(userConns.uid)
+	// if userHandler == nil {
+	// 	s.Debug("handleNodePong: userHandler not found", zap.String("uid", userConns.uid))
+	// 	return
+	// }
 
-	// 移除不在userConns.connIds里的连接
-	currentConns := userHandler.getConns()
-	for _, currentConn := range currentConns {
-		if currentConn.realNodeId != fromNodeId {
-			continue
-		}
-		exist := false
-		for _, connId := range userConns.connIds {
-			if currentConn.realNodeId == fromNodeId && currentConn.proxyConnId == connId {
-				exist = true
-				break
-			}
-		}
-		if !exist {
-			s.Info("handleNodePong: close conn", zap.String("uid", userConns.uid), zap.Uint64("realNodeId", currentConn.realNodeId), zap.Int64("connId", currentConn.connId), zap.Int64("proxyConnId", currentConn.proxyConnId))
-			// userHandler.removeConnById(currentConn.connId)
-			s.userReactor.removeConnById(userConns.uid, currentConn.connId)
-			currentConn.close()
-		}
-	}
+	// // 移除不在userConns.connIds里的连接
+	// currentConns := userHandler.getConns()
+	// for _, currentConn := range currentConns {
+	// 	if currentConn.realNodeId != fromNodeId {
+	// 		continue
+	// 	}
+	// 	exist := false
+	// 	for _, connId := range userConns.connIds {
+	// 		if currentConn.realNodeId == fromNodeId && currentConn.proxyConnId == connId {
+	// 			exist = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if !exist {
+	// 		s.Info("handleNodePong: close conn", zap.String("uid", userConns.uid), zap.Uint64("realNodeId", currentConn.realNodeId), zap.Int64("connId", currentConn.connId), zap.Int64("proxyConnId", currentConn.proxyConnId))
+	// 		// userHandler.removeConnById(currentConn.connId)
+	// 		s.userReactor.removeConnById(userConns.uid, currentConn.connId)
+	// 		currentConn.close()
+	// 	}
+	// }
 
-	// 通知用户节点pong
-	sub := s.userReactor.reactorSub(userConns.uid)
-	sub.step(userConns.uid, UserAction{
-		ActionType: UserActionNodePong,
-		Messages: []ReactorUserMessage{
-			{
-				FromNodeId: fromNodeId,
-			},
-		},
-	})
+	// // 通知用户节点pong
+	// sub := s.userReactor.reactorSub(userConns.uid)
+	// sub.step(userConns.uid, UserAction{
+	// 	ActionType: UserActionNodePong,
+	// 	Messages: []ReactorUserMessage{
+	// 		{
+	// 			FromNodeId: fromNodeId,
+	// 		},
+	// 	},
+	// })
 
 }
 
