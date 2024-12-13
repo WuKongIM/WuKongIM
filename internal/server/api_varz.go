@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/pse"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -107,8 +108,8 @@ func CreateVarz(s *Server) *Varz {
 		ServerName:           "WuKongIM",
 		Version:              version.Version,
 		Connections:          connCount,
-		UserHandlerCount:     s.userReactor.getHandlerCount(),
-		UserHandlerConnCount: s.userReactor.getAllConnCount(),
+		UserHandlerCount:     reactor.User.AllUserCount(),
+		UserHandlerConnCount: reactor.User.AllConnCount(),
 		Uptime:               myUptime(time.Since(s.start)),
 		CPU:                  pcpu,
 		Goroutine:            runtime.NumGoroutine(),

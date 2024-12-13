@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -380,24 +381,32 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 	// onlineUsers := make([]string, 0)                   // 在线用户数量（只要一个客户端在线就算在线）
 
 	for _, toUid := range uids {
-		userHandler := d.dm.s.userReactor.getUserHandler(toUid)
-		if userHandler == nil { // 用户不在线
+		if !reactor.User.Exist(toUid) { // 用户不在线
 			slices.offlineUids = append(slices.offlineUids, toUid)
 			continue
 		}
-		// 用户没有主设备在线，还是是要推送离线给业务端，比如有的场景，web在线，手机离线，这种情况手机需要收到离线。
-		if !userHandler.hasMasterDevice() {
-			slices.offlineUids = append(slices.offlineUids, toUid)
+		// 获取当前用户的所有连接
+		conns := reactor.User.ConnsByUid(toUid)
+		connCtxs := make([]*connContext, 0, len(conns))
+		hasMasterDevice := false
+		for _, conn := range conns {
+			connCtx := conn.(*connContext)
+			connCtxs = append(connCtxs, connCtx)
+			if connCtx.deviceLevel == wkproto.DeviceLevelMaster {
+				hasMasterDevice = true
+			}
 		}
 
-		// 获取当前用户的所有连接
-		conns := userHandler.getConns()
+		// 用户没有主设备在线，还是是要推送离线给业务端，比如有的场景，web在线，手机离线，这种情况手机需要收到离线。
+		if !hasMasterDevice {
+			slices.offlineUids = append(slices.offlineUids, toUid)
+		}
 
 		if len(conns) == 0 {
 			slices.offlineUids = append(slices.offlineUids, toUid)
 		} else {
-			for _, conn := range conns {
-				if !conn.isAuth.Load() {
+			for _, conn := range connCtxs {
+				if !conn.IsAuth() {
 					continue
 				}
 				slices.toConns = append(slices.toConns, conn)
@@ -552,6 +561,7 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 			if !recvPacket.NoPersist { // 只有存储的消息才重试
 				d.dm.s.retryManager.addRetry(&retryMessage{
 					uid:            conn.uid,
+					fromNode:       conn.FromNode(),
 					connId:         conn.connId,
 					messageId:      message.MessageId,
 					recvPacketData: recvPacketData,
@@ -563,15 +573,8 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 			trace.GlobalTrace.Metrics.App().RecvPacketCountAdd(1)
 			trace.GlobalTrace.Metrics.App().RecvPacketBytesAdd(int64(len(recvPacketData)))
 
-			// 写入包
-			// d.Info("deliverr recvPacket", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
-			err = conn.write(recvPacketData, wkproto.RECV)
-			if err != nil {
-				d.Error("write recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
-				if !conn.isClosed() {
-					conn.close() // 写入不进去就关闭连接，这样客户端会获取离线的，如果不关闭，会导致丢消息的假象
-				}
-			}
+			reactor.User.ConnWriteBytes(conn, recvPacketData)
+
 		}
 	}
 

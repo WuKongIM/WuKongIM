@@ -3,24 +3,24 @@ package reactor
 import (
 	"sync"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	clusterReactor "github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
 
 type actionQueue struct {
 	ch            chan struct{}
-	rl            *reactor.RateLimiter // 限制字节流量速度
-	lazyFreeCycle uint64               // 懒惰释放周期，n表示n次释放一次
+	rl            *clusterReactor.RateLimiter // 限制字节流量速度
+	lazyFreeCycle uint64                      // 懒惰释放周期，n表示n次释放一次
 	size          uint64
-	left          []Action // 左边队列
-	right         []Action // 右边队列, 左右的目的是为了重复利用内存
-	nodrop        []Action // 不能drop的消息
+	left          []reactor.UserAction // 左边队列
+	right         []reactor.UserAction // 右边队列, 左右的目的是为了重复利用内存
+	nodrop        []reactor.UserAction // 不能drop的消息
 	mu            sync.Mutex
 	leftInWrite   bool   // 写入时是否使用左边队列
 	idx           uint64 // 当前写入的位置下标
 	oldIdx        uint64
-	stopped       bool // 是否停止
 	cycle         uint64
 	wklog.Log
 }
@@ -29,12 +29,12 @@ func newActionQueue(size uint64, ch bool,
 	lazyFreeCycle uint64, maxMemorySize uint64) *actionQueue {
 
 	q := &actionQueue{
-		rl:            reactor.NewRateLimiter(maxMemorySize),
+		rl:            clusterReactor.NewRateLimiter(maxMemorySize),
 		size:          size,
 		lazyFreeCycle: lazyFreeCycle,
-		left:          make([]Action, size),
-		right:         make([]Action, size),
-		nodrop:        make([]Action, 0),
+		left:          make([]reactor.UserAction, size),
+		right:         make([]reactor.UserAction, size),
+		nodrop:        make([]reactor.UserAction, 0),
 		Log:           wklog.NewWKLog("user.actionQueue"),
 	}
 	if ch {
@@ -43,38 +43,31 @@ func newActionQueue(size uint64, ch bool,
 	return q
 }
 
-func (q *actionQueue) add(msg Action) (bool, bool) {
+func (q *actionQueue) add(msg reactor.UserAction) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.idx >= q.size {
-		return false, q.stopped
-	}
-	if q.stopped {
-		return false, true
+		return false
 	}
 	if !q.tryAdd(msg) {
-		return false, false
+		return false
 	}
 
 	w := q.targetQueue()
 	w[q.idx] = msg
 	q.idx++
-	return true, false
+	return true
 
 }
 
 // 必须要添加的消息不接受drop
-func (q *actionQueue) mustAdd(msg Action) bool {
+func (q *actionQueue) mustAdd(msg reactor.UserAction) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	if q.stopped {
-		return false
-	}
 	q.nodrop = append(q.nodrop, msg)
-	return true
 }
 
-func (q *actionQueue) get() []Action {
+func (q *actionQueue) get() []reactor.UserAction {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.cycle++
@@ -91,17 +84,17 @@ func (q *actionQueue) get() []Action {
 		return t[:sz]
 	}
 
-	var result []Action
+	var result []reactor.UserAction
 	if len(q.nodrop) > 0 {
 		ssm := q.nodrop
-		q.nodrop = make([]Action, 0)
+		q.nodrop = make([]reactor.UserAction, 0)
 		result = append(result, ssm...)
 	}
 	return append(result, t[:sz]...)
 }
 
-func (q *actionQueue) targetQueue() []Action {
-	var t []Action
+func (q *actionQueue) targetQueue() []reactor.UserAction {
+	var t []reactor.UserAction
 	if q.leftInWrite {
 		t = q.left
 	} else {
@@ -110,7 +103,7 @@ func (q *actionQueue) targetQueue() []Action {
 	return t
 }
 
-func (q *actionQueue) tryAdd(msg Action) bool {
+func (q *actionQueue) tryAdd(msg reactor.UserAction) bool {
 	if !q.rl.Enabled() {
 		return true
 	}

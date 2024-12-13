@@ -3,6 +3,7 @@ package server
 import (
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -82,7 +83,6 @@ func (s *Server) onData(conn wknet.Conn) error {
 			return nil
 		}
 
-		sub := s.userReactor.reactorSub(connectPacket.UID)
 		connInfo := connInfo{
 			connId:       conn.ID(),
 			uid:          connectPacket.UID,
@@ -90,17 +90,18 @@ func (s *Server) onData(conn wknet.Conn) error {
 			deviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
 			protoVersion: connectPacket.Version,
 		}
-		connCtx = newConnContext(connInfo, conn, sub)
+		connCtx = newConnContext(connInfo, conn)
 		conn.SetContext(connCtx)
 
-		// 添加用户的连接，如果用户不存在则创建
-		s.userReactor.addConnAndCreateUserHandlerIfNotExist(connCtx)
+		// 如果用户不存在则唤醒用户
+		reactor.User.WakeIfNeed(connectPacket.UID)
 
-		connCtx.addConnectPacket(connectPacket)
-
+		// 添加认证
+		reactor.User.AddAuth(connCtx, connectPacket)
 		_, _ = conn.Discard(len(data))
 	} else {
 		offset := 0
+		var messages []reactor.UserMessage
 		for len(data) > offset {
 			frame, size, err := s.opts.Proto.DecodeFrame(data[offset:], connCtx.protoVersion)
 			if err != nil { //
@@ -111,15 +112,19 @@ func (s *Server) onData(conn wknet.Conn) error {
 			if frame == nil {
 				break
 			}
-			offset += size
-			if frame.GetFrameType() == wkproto.SEND {
-				sendPacket := frame.(*wkproto.SendPacket)
-
-				connCtx.addSendPacket(sendPacket)
-			} else {
-				connCtx.addOtherPacket(frame)
+			if messages == nil {
+				messages = make([]reactor.UserMessage, 0, 10)
 			}
+			messages = append(messages, &reactorUserMessage{
+				frame: frame,
+			})
+			offset += size
 		}
+		if len(messages) > 0 {
+			// 添加消息
+			reactor.User.AddMessages(connCtx.uid, messages)
+		}
+
 		_, _ = conn.Discard(offset)
 	}
 

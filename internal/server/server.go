@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	userreactor "github.com/WuKongIM/WuKongIM/internal/reactor/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
@@ -50,7 +52,7 @@ type Server struct {
 	store         *clusterstore.Store      // 存储相关接口
 	engine        *wknet.Engine            // 长连接引擎
 
-	userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
+	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
 	channelReactor *channelReactor // 频道的reactor，用户处理频道的行为逻辑
 	webhook        *webhook        // webhook
 	trace          *trace.Trace    // 监控
@@ -73,6 +75,8 @@ type Server struct {
 
 	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
 
+	userReactor reactor.IUser
+	processUser *processUser
 }
 
 func New(opts *Options) *Server {
@@ -132,9 +136,16 @@ func New(opts *Options) *Server {
 			trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(n))
 		}),
 	)
-	s.webhook = newWebhook(s)                         // webhook
-	s.channelReactor = newChannelReactor(s, opts)     // 频道的reactor
-	s.userReactor = newUserReactor(s)                 // 用户的reactor
+	s.webhook = newWebhook(s)                     // webhook
+	s.channelReactor = newChannelReactor(s, opts) // 频道的reactor
+	s.processUser = newProcessUser(s)
+	// 用户的reactor
+	s.userReactor = userreactor.NewReactor(
+		userreactor.WithNodeId(opts.Cluster.NodeId),
+		userreactor.WithSend(s.processUser.send),
+	)
+	// 注册user reactor
+	reactor.RegisterUser(s.userReactor)
 	s.demoServer = NewDemoServer(s)                   // demo server
 	s.systemUIDManager = NewSystemUIDManager(s)       // 系统账号管理
 	s.apiServer = NewAPIServer(s)                     // api服务
@@ -294,7 +305,7 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	err = s.userReactor.start()
+	err = s.userReactor.Start()
 	if err != nil {
 		return err
 	}
@@ -374,7 +385,7 @@ func (s *Server) Stop() error {
 		s.demoServer.Stop()
 	}
 	s.channelReactor.stop()
-	s.userReactor.stop()
+	s.userReactor.Stop()
 
 	err := s.engine.Stop()
 	if err != nil {
@@ -468,13 +479,7 @@ func (s *Server) onClose(conn wknet.Conn) {
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
 		connCtx := connCtxObj.(*connContext)
-		s.userReactor.removeConnById(connCtx.uid, connCtx.connId)
-
-		if connCtx.isAuth.Load() {
-			deviceOnlineCount := s.userReactor.getConnCountByDeviceFlag(connCtx.uid, connCtx.deviceFlag)
-			totalOnlineCount := s.userReactor.getConnCount(connCtx.uid)
-			s.webhook.Offline(connCtx.uid, wkproto.DeviceFlag(connCtx.deviceFlag), connCtx.connId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
-		}
+		reactor.User.CloseConn(connCtx)
 
 	}
 }

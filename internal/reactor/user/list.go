@@ -79,7 +79,7 @@ func (l *list) get(key string) *User {
 	return nil
 }
 
-func (l *list) readHandlers(users *[]*User) {
+func (l *list) read(users *[]*User) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	node := l.head
