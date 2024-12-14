@@ -129,8 +129,71 @@ func (rb *Buffer) Peek(n int) (head []byte, tail []byte) {
 	return
 }
 
+// PeekFromPos returns the next n bytes from the specified start position without advancing the read pointer,
+// it returns all bytes when n <= 0.
+func (rb *Buffer) PeekFromPos(start, n int) (head []byte, tail []byte) {
+	// 检查起始位置是否有效
+	if start < 0 || start >= rb.size {
+		return nil, nil
+	}
+
+	if rb.isEmpty {
+		return nil, nil
+	}
+
+	// 如果 n <= 0，返回所有数据
+	if n <= 0 {
+		return rb.peekAll()
+	}
+
+	// 计算读取的数据的实际长度
+	var m int
+	if start < rb.r {
+		// 如果起始位置小于读取位置 r，说明数据是跨越了缓冲区的尾部
+		m = rb.size - start + rb.w
+	} else {
+		// 如果起始位置大于等于读取位置 r，则在缓冲区内部连续读取
+		m = rb.w - start
+	}
+
+	if m > n {
+		m = n
+	}
+
+	// 从 start 开始读取数据，检查是否跨越环形缓冲区的边界
+	if start+m <= rb.size {
+		head = rb.buf[start : start+m]
+	} else {
+		c1 := rb.size - start
+		head = rb.buf[start:]
+		c2 := m - c1
+		tail = rb.buf[:c2]
+	}
+
+	return
+}
+
 // peekAll returns all bytes without advancing the read pointer.
 func (rb *Buffer) peekAll() (head []byte, tail []byte) {
+	if rb.isEmpty {
+		return
+	}
+
+	if rb.w > rb.r {
+		head = rb.buf[rb.r:rb.w]
+		return
+	}
+
+	head = rb.buf[rb.r:]
+	if rb.w != 0 {
+		tail = rb.buf[:rb.w]
+	}
+
+	return
+}
+
+// peekAll returns all bytes without advancing the read pointer.
+func (rb *Buffer) peekAllFrom(start int) (head []byte, tail []byte) {
 	if rb.isEmpty {
 		return
 	}

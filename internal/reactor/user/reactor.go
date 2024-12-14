@@ -6,12 +6,13 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type Reactor struct {
-	subs []*reactorSub
-
-	mu sync.Mutex
+	subs  []*reactorSub
+	proto wkproto.Protocol
+	mu    sync.Mutex
 }
 
 func NewReactor(opt ...Option) *Reactor {
@@ -56,27 +57,28 @@ func (r *Reactor) WakeIfNeed(uid string) {
 	sub.addUser(user)
 }
 
-// func (r *Reactor) AddConn(c reactor.Conn) {
-// 	r.mu.Lock()
-// 	defer r.mu.Unlock()
+func (r *Reactor) CloseConn(c *reactor.Conn) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-// 	sub := r.getSub(c.Uid())
-// 	user := sub.user(c.Uid())
-// 	if user == nil {
-// 		user = NewUser(wkutil.GenUUID(), c.Uid())
-// 		sub.addUser(user)
-// 	}
-
-// 	sub.addAction(reactor.UserAction{
-// 		No:    user.no,
-// 		Uid:   c.Uid(),
-// 		Type:  reactor.UserActionConnectAdd,
-// 		Conns: []reactor.Conn{c},
-// 	})
-// }
+	sub := r.getSub(c.Uid)
+	user := sub.user(c.Uid)
+	if user == nil {
+		return
+	}
+	user.conns.remove(c)
+}
 
 func (r *Reactor) AddAction(a reactor.UserAction) bool {
 	return r.getSub(a.Uid).addAction(a)
+}
+
+func (r *Reactor) SetProto(proto wkproto.Protocol) {
+	r.proto = proto
+}
+
+func (r *Reactor) GetProto() wkproto.Protocol {
+	return r.proto
 }
 
 func (r *Reactor) getSub(uid string) *reactorSub {

@@ -12,7 +12,6 @@ type User struct {
 	no            string // 唯一编号
 	uid           string
 	conns         *conns
-	authReady     *ready //认证
 	role          reactor.Role
 	stepFnc       func(a reactor.UserAction)
 	tickFnc       func()
@@ -22,32 +21,40 @@ type User struct {
 	cfg           reactor.UserConfig
 	joined        bool // 是否已成功加入集群
 	wklog.Log
-	inbound  *ready         // 收件箱
-	outbound *outboundReady // 发送箱
+	// 节点收件箱
+	// 来接收其他节点投递到当前节点的消息，此收件箱的数据会进入process
+	inbound *ready
+	// 节点发送箱
+	// (节点直接投递数据用，如果当前节点是领导，转发给追随者，如果是追随者，转发给领导)
+	outbound *outboundReady
+	// 客户端发送箱
+	// 将数据投递给自己直连的客户端
+	clientOutbound *ready
 }
 
 func NewUser(no, uid string) *User {
 
 	prefix := fmt.Sprintf("user[%s]", uid)
 	return &User{
-		no:        no,
-		uid:       uid,
-		authReady: newReady(prefix),
-		conns:     &conns{},
-		Log:       wklog.NewWKLog(prefix),
-		inbound:   newReady(prefix),
-		outbound:  newOutboundReady(prefix),
+		no:             no,
+		uid:            uid,
+		conns:          &conns{},
+		Log:            wklog.NewWKLog(prefix),
+		inbound:        newReady(prefix),
+		outbound:       newOutboundReady(prefix),
+		clientOutbound: newReady(prefix),
 	}
 }
 
 // ==================================== ready ====================================
 
 func (u *User) hasReady() bool {
-	if u.needElection() {
+
+	if len(u.actions) > 0 {
 		return true
 	}
 
-	if u.authReady.has() {
+	if u.needElection() {
 		return true
 	}
 
@@ -59,7 +66,7 @@ func (u *User) hasReady() bool {
 		return true
 	}
 
-	if len(u.actions) > 0 {
+	if u.clientOutbound.has() {
 		return true
 	}
 
@@ -67,28 +74,18 @@ func (u *User) hasReady() bool {
 }
 
 func (u *User) ready() []reactor.UserAction {
-	if u.electioned() {
-		// ---------- auth ----------
-		if u.authReady.has() {
-			msgs := u.authReady.sliceAndTruncate()
-			u.actions = append(u.actions, reactor.UserAction{
-				No:       u.no,
-				From:     options.NodeId,
-				To:       reactor.LocalNode,
-				Type:     reactor.UserActionAuth,
-				Messages: msgs,
-			})
-		}
-
+	if u.allowReady() {
 		// ---------- inbound ----------
 		if u.inbound.has() {
 			msgs := u.inbound.sliceAndTruncate()
 			u.actions = append(u.actions, reactor.UserAction{
 				No:       u.no,
+				Uid:      u.uid,
 				From:     options.NodeId,
 				To:       reactor.LocalNode,
 				Type:     reactor.UserActionInbound,
 				Messages: msgs,
+				Role:     u.role,
 			})
 		}
 
@@ -99,38 +96,59 @@ func (u *User) ready() []reactor.UserAction {
 				u.actions = append(u.actions, actions...)
 			}
 		}
+
+		// ---------- clientOutbound ----------
+		if u.clientOutbound.has() {
+			msgs := u.clientOutbound.sliceAndTruncate()
+			u.actions = append(u.actions, reactor.UserAction{
+				No:       u.no,
+				Uid:      u.uid,
+				From:     options.NodeId,
+				To:       reactor.LocalNode,
+				Type:     reactor.UserActionWrite,
+				Messages: msgs,
+			})
+		}
 	}
 	actions := u.actions
 	u.actions = u.actions[:0]
 	return actions
 }
 
+func (u *User) allowReady() bool {
+
+	if u.electioned() {
+		if u.role == reactor.RoleLeader {
+			return true
+		}
+		if u.role == reactor.RoleFollower && u.joined {
+			return true
+		}
+	}
+	return false
+}
+
 // ==================================== step ====================================
 
 func (u *User) step(action reactor.UserAction) {
+	fmt.Println("step----->", action.Uid, action.Type.String())
 	u.idleTick = 0
 	switch action.Type {
 	case reactor.UserActionConfigUpdate:
-		fmt.Println("UserActionConfigUpdate....")
 		u.handleConfigUpdate(action.Cfg)
 	case reactor.UserActionAuthAdd:
 		for _, msg := range action.Messages {
-			if msg.Conn() == nil {
+			if msg.Conn == nil {
 				u.Warn("add auth failed, msg conn not exist", zap.String("uid", action.Uid))
 				return
 			}
-			conn := u.conns.connByConnId(msg.Conn().FromNode(), msg.Conn().ConnId())
+			conn := u.conns.connByConnId(msg.Conn.FromNode, msg.Conn.ConnId)
 			if conn != nil {
 				u.Warn("add auth failed, conn exist", zap.String("uid", action.Uid))
 				return
 			}
-			u.conns.add(msg.Conn())
-			u.authReady.append(msg)
-		}
-	case reactor.UserActionAuthResp: // 认证处理返回
-		for _, conn := range action.Conns {
-			conn.SetAuth(action.Success)
-			u.conns.updateConn(conn.ConnId(), conn.FromNode(), conn)
+			u.conns.add(msg.Conn)
+			u.inbound.append(msg)
 		}
 	case reactor.UserActionInboundAdd: // 收件箱
 		for _, msg := range action.Messages {
@@ -141,7 +159,17 @@ func (u *User) step(action reactor.UserAction) {
 			u.outbound.append(msg)
 		}
 	case reactor.UserActionOutboundForwardResp: // 转发返回
-		u.outbound.updateFollowerIndex(action.From, action.Index)
+		u.outbound.updateReplicaIndex(action.From, action.Index)
+	case reactor.UserActionConnClose: // 关闭连接
+		for _, conn := range u.conns.conns {
+			u.conns.remove(conn)
+		}
+		u.sendConnClose(action.Conns)
+	case reactor.UserActionWrite: // 写数据
+		for _, msg := range action.Messages {
+			u.clientOutbound.append(msg)
+		}
+
 	default:
 		if u.stepFnc != nil {
 			u.stepFnc(action)
@@ -155,21 +183,21 @@ func (u *User) stepFollower(action reactor.UserAction) {
 	case reactor.UserActionNodeHeartbeatReq:
 		u.heartbeatTick = 0
 		localConns := u.conns.connsByNodeId(options.NodeId)
-		var closeConns []reactor.Conn
+		var closeConns []*reactor.Conn
 		for _, localConn := range localConns {
-			if !localConn.IsAuth() {
+			if !localConn.Auth {
 				continue
 			}
 			exist := false
 			for _, conn := range action.Conns {
-				if localConn.ConnId() == conn.ConnId() {
+				if localConn.ConnId == conn.ConnId {
 					exist = true
 					break
 				}
 			}
 			if !exist {
 				if closeConns == nil {
-					closeConns = make([]reactor.Conn, 0, len(localConns))
+					closeConns = make([]*reactor.Conn, 0, len(localConns))
 				}
 				closeConns = append(closeConns, localConn)
 			}
@@ -188,10 +216,10 @@ func (u *User) stepLeader(action reactor.UserAction) {
 	switch action.Type {
 	// 副本收到心跳回应
 	case reactor.UserActionNodeHeartbeatResp:
-		u.outbound.updateFollowerHeartbeat(action.From)
+		u.outbound.updateReplicaHeartbeat(action.From)
 	// 副本请求加入
 	case reactor.UserActionJoin:
-		u.outbound.addNewFollower(action.From)
+		u.outbound.addNewReplica(action.From)
 		u.sendJoinResp(action.From)
 	}
 }
@@ -200,7 +228,6 @@ func (u *User) stepLeader(action reactor.UserAction) {
 
 func (u *User) tick() {
 
-	u.authReady.tick()
 	u.inbound.tick()
 	u.outbound.tick()
 
@@ -217,7 +244,7 @@ func (u *User) tickLeader() {
 	u.heartbeatTick++
 	u.idleTick++
 
-	if len(u.outbound.followers) == 0 && u.idleTick >= options.LeaderIdleTimeoutTick {
+	if u.conns.len() == 0 && len(u.outbound.replicas) == 0 && u.idleTick >= options.LeaderIdleTimeoutTick {
 		u.idleTick = 0
 		u.sendUserClose()
 		return
@@ -243,12 +270,12 @@ func (u *User) tickFollower() {
 // ==================================== send ====================================
 
 func (u *User) sendHeartbeatReq() {
-	for _, follower := range u.outbound.followers {
-		conns := u.conns.connsByNodeId(follower.nodeId)
+	for _, replica := range u.outbound.replicas {
+		conns := u.conns.connsByNodeId(replica.nodeId)
 		u.actions = append(u.actions, reactor.UserAction{
 			No:          u.no,
 			From:        options.NodeId,
-			To:          follower.nodeId,
+			To:          replica.nodeId,
 			Uid:         u.uid,
 			Type:        reactor.UserActionNodeHeartbeatReq,
 			Conns:       conns,
@@ -269,7 +296,7 @@ func (u *User) sendHeartbeatResp(to uint64) {
 	})
 }
 
-func (u *User) sendConnClose(conns []reactor.Conn) {
+func (u *User) sendConnClose(conns []*reactor.Conn) {
 	u.actions = append(u.actions, reactor.UserAction{
 		No:    u.no,
 		From:  options.NodeId,
@@ -331,6 +358,9 @@ func (u *User) becomeFollower() {
 	u.stepFnc = u.stepFollower
 	u.tickFnc = u.tickFollower
 
+	// 如果是追随者，需要添加领导到副本列表
+	u.outbound.addNewReplica(u.cfg.LeaderId)
+
 	u.Info("become follower")
 }
 
@@ -371,7 +401,7 @@ func (u *User) reset() {
 	u.cfg = reactor.UserConfig{}
 	u.inbound.reset()
 	u.outbound.reset()
-	u.authReady.reset()
+	u.clientOutbound.reset()
 	u.conns.reset()
 }
 

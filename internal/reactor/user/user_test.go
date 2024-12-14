@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,6 +17,15 @@ func hasAction(t testing.TB, actionType reactor.UserActionType, actions []reacto
 		}
 	}
 	assert.True(t, exist)
+}
+
+func getAction(t testing.TB, actionType reactor.UserActionType, actions []reactor.UserAction) reactor.UserAction {
+	for _, action := range actions {
+		if action.Type == actionType {
+			return action
+		}
+	}
+	return reactor.UserAction{}
 }
 
 func TestUser(t *testing.T) {
@@ -49,6 +59,7 @@ func TestUser(t *testing.T) {
 	}
 
 	t.Run("testElection", func(t *testing.T) {
+		u.tick()
 		actions := u.ready()
 		hasAction(t, reactor.UserActionElection, actions)
 	})
@@ -71,30 +82,27 @@ func TestUser(t *testing.T) {
 		becomeLeader()
 		u.step(reactor.UserAction{
 			Type: reactor.UserActionAuthAdd,
-			Messages: []reactor.UserMessage{
-				&testMessage{
-					conn: &testConn{
-						from:   1,
-						connId: 1,
+			Messages: []*reactor.UserMessage{
+				&reactor.UserMessage{
+					Conn: &reactor.Conn{
+						FromNode: 1,
+						ConnId:   1,
 					},
+					Frame: wkproto.ConnectPacket{},
 				},
 			},
 		})
 		actions := u.ready()
-		hasAction(t, reactor.UserActionAuth, actions)
+		hasAction(t, reactor.UserActionInbound, actions)
 
-		u.step(reactor.UserAction{
-			Type: reactor.UserActionAuthResp,
-			Conns: []reactor.Conn{
-				&testConn{
-					from:   1,
-					connId: 1,
-				},
-			},
-			Success: true,
-		})
+		action := getAction(t, reactor.UserActionInbound, actions)
+
+		assert.Equal(t, 1, len(action.Messages))
+
+		u.conns.updateConnAuth(1, 1, true)
+
 		conn := u.conns.connByConnId(1, 1)
-		assert.Equal(t, true, conn.IsAuth())
+		assert.Equal(t, true, conn.Auth)
 
 		// only test
 		u.conns.conns = nil
@@ -105,8 +113,8 @@ func TestUser(t *testing.T) {
 
 		u.step(reactor.UserAction{
 			Type: reactor.UserActionInboundAdd,
-			Messages: []reactor.UserMessage{
-				&testMessage{},
+			Messages: []*reactor.UserMessage{
+				&reactor.UserMessage{},
 			},
 		})
 		actions := u.ready()
@@ -126,9 +134,9 @@ func TestUser(t *testing.T) {
 
 		u.step(reactor.UserAction{
 			Type: reactor.UserActionOutboundAdd,
-			Messages: []reactor.UserMessage{
-				&testMessage{},
-				&testMessage{},
+			Messages: []*reactor.UserMessage{
+				&reactor.UserMessage{},
+				&reactor.UserMessage{},
 			},
 		})
 
@@ -160,11 +168,11 @@ func TestUser(t *testing.T) {
 		becomeReplica()
 		u.step(reactor.UserAction{
 			Type: reactor.UserActionAuthAdd,
-			Messages: []reactor.UserMessage{
-				&testMessage{
-					conn: &testConn{
-						connId: 1,
-						from:   1,
+			Messages: []*reactor.UserMessage{
+				&reactor.UserMessage{
+					Conn: &reactor.Conn{
+						ConnId:   1,
+						FromNode: 1,
 					},
 				},
 			},
@@ -177,16 +185,7 @@ func TestUser(t *testing.T) {
 		})
 		assert.Equal(t, 1, u.conns.len())
 
-		u.step(reactor.UserAction{
-			Type:    reactor.UserActionAuthResp,
-			Success: true,
-			Conns: []reactor.Conn{
-				&testConn{
-					from:   1,
-					connId: 1,
-				},
-			},
-		})
+		u.conns.updateConnAuth(1, 1, true)
 
 		u.step(reactor.UserAction{
 			Type: reactor.UserActionNodeHeartbeatReq,
@@ -224,25 +223,17 @@ func TestUserRoleChange(t *testing.T) {
 		return 1
 	}
 	u := NewUser("no", "uid")
-	u.step(reactor.UserAction{
-		Type: reactor.UserActionAuth,
-		Messages: []reactor.UserMessage{
-			&testMessage{
-				conn: &testConn{},
-			},
-		},
-	})
 
 	u.step(reactor.UserAction{
 		Type: reactor.UserActionInboundAdd,
-		Messages: []reactor.UserMessage{
-			&testMessage{},
+		Messages: []*reactor.UserMessage{
+			&reactor.UserMessage{},
 		},
 	})
 	u.step(reactor.UserAction{
 		Type: reactor.UserActionOutboundAdd,
-		Messages: []reactor.UserMessage{
-			&testMessage{},
+		Messages: []*reactor.UserMessage{
+			&reactor.UserMessage{},
 		},
 	})
 
@@ -266,13 +257,11 @@ func TestUserRoleChange(t *testing.T) {
 
 	becomeFollower()
 
-	assert.Equal(t, 1, u.authReady.queue.len())
 	assert.Equal(t, 1, u.inbound.queue.len())
 	assert.Equal(t, 1, u.outbound.queue.len())
 
 	becomeLeader()
 
-	assert.Equal(t, 0, u.authReady.queue.len())
 	assert.Equal(t, 0, u.inbound.queue.len())
 	assert.Equal(t, 0, u.outbound.queue.len())
 

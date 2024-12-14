@@ -343,9 +343,9 @@ func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
 }
 
 type deliverUserSlice struct {
-	offlineUids []string       // 离线用户(只要主设备不在线就算离线)
-	toConns     []*connContext // 在线接受用户的连接对象
-	onlineUsers []string       // 在线用户数量（只要一个客户端在线就算在线）
+	offlineUids []string        // 离线用户(只要主设备不在线就算离线)
+	toConns     []*reactor.Conn // 在线接受用户的连接对象
+	onlineUsers []string        // 在线用户数量（只要一个客户端在线就算在线）
 }
 
 func (d *deliverUserSlice) reset() {
@@ -358,7 +358,7 @@ var deliverSlicePool = &sync.Pool{
 	New: func() any {
 		return &deliverUserSlice{
 			offlineUids: make([]string, 0),
-			toConns:     make([]*connContext, 0),
+			toConns:     make([]*reactor.Conn, 0),
 			onlineUsers: make([]string, 0),
 		}
 	},
@@ -387,12 +387,9 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		}
 		// 获取当前用户的所有连接
 		conns := reactor.User.ConnsByUid(toUid)
-		connCtxs := make([]*connContext, 0, len(conns))
 		hasMasterDevice := false
 		for _, conn := range conns {
-			connCtx := conn.(*connContext)
-			connCtxs = append(connCtxs, connCtx)
-			if connCtx.deviceLevel == wkproto.DeviceLevelMaster {
+			if conn.DeviceLevel == wkproto.DeviceLevelMaster {
 				hasMasterDevice = true
 			}
 		}
@@ -405,8 +402,8 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		if len(conns) == 0 {
 			slices.offlineUids = append(slices.offlineUids, toUid)
 		} else {
-			for _, conn := range connCtxs {
-				if !conn.IsAuth() {
+			for _, conn := range conns {
+				if !conn.Auth {
 					continue
 				}
 				slices.toConns = append(slices.toConns, conn)
@@ -422,10 +419,10 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 				existSendSelfDevice := false        // 存在发送者自己的连接
 				existSendSelfNotSendDevice := false // 存在发送者自己但是不是发送设备
 				for _, toConn := range slices.toConns {
-					if toConn.uid == msg.FromUid && toConn.deviceId == msg.FromDeviceId {
+					if toConn.Uid == msg.FromUid && toConn.DeviceId == msg.FromDeviceId {
 						existSendSelfDevice = true
 					}
-					if toConn.uid == msg.FromUid && toConn.deviceId != msg.FromDeviceId {
+					if toConn.Uid == msg.FromUid && toConn.DeviceId != msg.FromDeviceId {
 						existSendSelfNotSendDevice = true
 					}
 				}
@@ -499,33 +496,44 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		}
 
 		for _, conn := range slices.toConns {
-			if conn.uid == message.FromUid && conn.deviceId == message.FromDeviceId { // 自己发的不处理
+			if conn.Uid == message.FromUid && conn.DeviceId == message.FromDeviceId { // 自己发的不处理
 				continue
 			}
 
 			// 这里需要把channelID改成fromUID 比如A给B发消息，B收到的消息channelID应该是A A收到的消息channelID应该是B
 			recvPacket.ChannelID = sendPacket.ChannelID
-			if recvPacket.ChannelType == wkproto.ChannelTypePerson && recvPacket.ChannelID == conn.uid {
+			if recvPacket.ChannelType == wkproto.ChannelTypePerson &&
+				recvPacket.ChannelID == conn.Uid {
 				recvPacket.ChannelID = recvPacket.FromUID
 			}
 
 			// 红点设置
 			recvPacket.RedDot = sendPacket.RedDot
-			if conn.uid == recvPacket.FromUID { // 如果是自己则不显示红点
+			if conn.Uid == recvPacket.FromUID { // 如果是自己则不显示红点
 				recvPacket.RedDot = false
 			}
 
 			// payload内容加密
 			payloadBuffer.Reset()
 
-			if len(conn.aesIV) == 0 || len(conn.aesKey) == 0 {
-				d.Error("aesIV or aesKey is empty", zap.String("uid", conn.uid), zap.String("deviceId", conn.deviceId), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
+			if len(conn.AesIV) == 0 || len(conn.AesKey) == 0 {
+				d.Error("aesIV or aesKey is empty",
+					zap.String("uid", conn.Uid),
+					zap.String("deviceId", conn.DeviceId),
+					zap.String("channelId", recvPacket.ChannelID),
+					zap.Uint8("channelType", recvPacket.ChannelType),
+				)
 				continue
 			}
 
 			err = encryptMessagePayload(sendPacket.Payload, conn, payloadBuffer)
 			if err != nil {
-				d.Error("加密payload失败！", zap.Error(err), zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType))
+				d.Error("加密payload失败！",
+					zap.Error(err),
+					zap.String("uid", conn.Uid),
+					zap.String("channelId", recvPacket.ChannelID),
+					zap.Uint8("channelType", recvPacket.ChannelType),
+				)
 				continue
 			}
 			recvPacket.Payload = payloadBuffer.Bytes()
@@ -548,9 +556,9 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 			// 编码接受包
 			recvPacketBuffer.Reset()
-			err = d.dm.s.opts.Proto.WriteFrame(recvPacketBuffer, recvPacket, conn.protoVersion)
+			err = d.dm.s.opts.Proto.WriteFrame(recvPacketBuffer, recvPacket, conn.ProtoVersion)
 			if err != nil {
-				d.Error("encode recvPacket failed", zap.String("uid", conn.uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
+				d.Error("encode recvPacket failed", zap.String("uid", conn.Uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
 				continue
 			}
 
@@ -560,9 +568,9 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 
 			if !recvPacket.NoPersist { // 只有存储的消息才重试
 				d.dm.s.retryManager.addRetry(&retryMessage{
-					uid:            conn.uid,
-					fromNode:       conn.FromNode(),
-					connId:         conn.connId,
+					uid:            conn.Uid,
+					fromNode:       conn.FromNode,
+					connId:         conn.ConnId,
 					messageId:      message.MessageId,
 					recvPacketData: recvPacketData,
 					channelId:      req.channelId,
@@ -599,8 +607,8 @@ func (d *deliverr) releaseRecvPacket(recvPacket *wkproto.RecvPacket) {
 }
 
 // 加密消息
-func encryptMessagePayload(payload []byte, conn *connContext, resultBuff *bytebufferpool.ByteBuffer) error {
-	aesKey, aesIV := conn.aesKey, conn.aesIV
+func encryptMessagePayload(payload []byte, conn *reactor.Conn, resultBuff *bytebufferpool.ByteBuffer) error {
+	aesKey, aesIV := conn.AesKey, conn.AesIV
 	// 加密payload
 	err := wkutil.AesEncryptPkcs7Base64ForPool(payload, aesKey, aesIV, resultBuff)
 	if err != nil {
@@ -611,8 +619,8 @@ func encryptMessagePayload(payload []byte, conn *connContext, resultBuff *bytebu
 }
 
 // 加密消息
-func encryptMessagePayload2(payload []byte, conn *connContext) ([]byte, error) {
-	aesKey, aesIV := conn.aesKey, conn.aesIV
+func encryptMessagePayload2(payload []byte, conn *reactor.Conn) ([]byte, error) {
+	aesKey, aesIV := conn.AesKey, conn.AesIV
 	// 加密payload
 	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, aesKey, aesIV)
 	if err != nil {
@@ -621,8 +629,8 @@ func encryptMessagePayload2(payload []byte, conn *connContext) ([]byte, error) {
 	return payloadEnc, nil
 }
 
-func writeAesEncrypt(aesResultBuffer *bytebufferpool.ByteBuffer, signBuffer *bytebufferpool.ByteBuffer, conn *connContext) error {
-	aesKey, aesIV := conn.aesKey, conn.aesIV
+func writeAesEncrypt(aesResultBuffer *bytebufferpool.ByteBuffer, signBuffer *bytebufferpool.ByteBuffer, conn *reactor.Conn) error {
+	aesKey, aesIV := conn.AesKey, conn.AesIV
 
 	// 生成MsgKey
 	err := wkutil.AesEncryptPkcs7Base64ForPool(signBuffer.Bytes(), aesKey, aesIV, aesResultBuffer)

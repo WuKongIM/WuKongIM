@@ -14,8 +14,6 @@ const (
 	UserActionJoinResp
 	// 认证
 	UserActionAuthAdd
-	UserActionAuth
-	UserActionAuthResp
 	// 收件箱
 	UserActionInboundAdd
 	UserActionInbound
@@ -27,6 +25,8 @@ const (
 	UserActionNodeHeartbeatReq
 	// 节点心跳返回 replica --> leader
 	UserActionNodeHeartbeatResp
+	// write
+	UserActionWrite
 	// 关闭连接
 	UserActionConnClose
 	// 用户关闭
@@ -47,8 +47,6 @@ func (a UserActionType) String() string {
 		return "UserActionConfigUpdate"
 	case UserActionAuthAdd:
 		return "UserActionAuthAdd"
-	case UserActionAuth:
-		return "UserActionAuth"
 	case UserActionInboundAdd:
 		return "UserActionInboundAdd"
 	case UserActionInbound:
@@ -65,25 +63,31 @@ func (a UserActionType) String() string {
 		return "UserActionConnClose"
 	case UserActionUserClose:
 		return "UserActionUserClose"
+	case UserActionWrite:
+		return "UserActionWrite"
+	case UserActionOutboundAdd:
+		return "UserActionOutboundAdd"
 	default:
 		return "UserUnknown"
 	}
 }
 
 type UserAction struct {
+	No          string // 唯一编号
 	From        uint64 // 发送节点
 	To          uint64 // 接收节点
-	No          string // 唯一编号
 	Uid         string
 	Type        UserActionType
-	Messages    []UserMessage
+	Messages    UserMessageBatch
 	Index       uint64
 	LeaderId    uint64
 	Cfg         UserConfig
-	Conns       []Conn
+	Conns       []*Conn
 	Term        uint32 // 任期
 	NodeVersion uint64 // 节点的数据版本
 	Success     bool
+	Role        Role
+	Data        []byte
 }
 
 func (a UserAction) Size() uint64 {

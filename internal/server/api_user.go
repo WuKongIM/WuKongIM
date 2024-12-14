@@ -240,8 +240,8 @@ func (u *UserAPI) getOnlineConns(uids []string) []*OnlinestatusResp {
 		conns := reactor.User.ConnsByUid(uid)
 		for _, conn := range conns {
 			onlineStatusResps = append(onlineStatusResps, &OnlinestatusResp{
-				UID:        conn.Uid(),
-				DeviceFlag: conn.DeviceFlag().ToUint8(),
+				UID:        conn.Uid,
+				DeviceFlag: conn.DeviceFlag.ToUint8(),
 				Online:     1,
 			})
 		}
@@ -368,7 +368,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		oldConns := reactor.User.ConnsByDeviceFlag(req.UID, req.DeviceFlag)
 		if len(oldConns) > 0 {
 			for _, oldConn := range oldConns {
-				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ConnId()), zap.String("deviceFlag", req.DeviceFlag.String()))
+				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ConnId), zap.String("deviceFlag", req.DeviceFlag.String()))
 				// 踢旧连接
 				reactor.User.Kick(oldConn, wkproto.ReasonConnectKick, "账号在其他设备上登录")
 				u.s.timingWheel.AfterFunc(time.Second*10, func() {
