@@ -3,13 +3,14 @@ package reactor
 import (
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMsgQueue(t *testing.T) {
 	q := newMsgQueue("queue")
 	for i := 0; i < 100; i++ {
-		q.append(&testMessage{})
+		q.append(&reactor.UserMessage{})
 	}
 
 	msgs := q.slice(1, 51)

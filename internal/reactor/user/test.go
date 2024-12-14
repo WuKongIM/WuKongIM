@@ -1,6 +1,8 @@
 package reactor
 
 import (
+	"sync"
+
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -11,6 +13,12 @@ type testConn struct {
 	from       uint64
 	auth       bool
 	deviceFlag wkproto.DeviceFlag
+	deviceId   string
+	valueLock  sync.RWMutex
+	valueMap   map[string]string
+
+	protoVersion uint8
+	deviceLevel  wkproto.DeviceLevel
 }
 
 func (t *testConn) ConnId() int64 {
@@ -35,25 +43,50 @@ func (t *testConn) DeviceFlag() wkproto.DeviceFlag {
 	return t.deviceFlag
 }
 
-type testMessage struct {
-	index uint64
-	conn  *testConn
+func (t *testConn) DeviceId() string {
+	return t.deviceId
 }
 
-func (t *testMessage) Conn() reactor.Conn {
-	return t.conn
+func (t *testConn) Equal(conn *reactor.Conn) bool {
+	return t.connId == conn.ConnId && t.uid == conn.Uid && t.from == conn.FromNode
 }
-func (t *testMessage) Frame() wkproto.Frame {
+
+func (t *testConn) SetString(key string, value string) {
+	t.valueLock.Lock()
+	defer t.valueLock.Unlock()
+	if t.valueMap == nil {
+		t.valueMap = make(map[string]string)
+	}
+	t.valueMap[key] = value
+}
+
+func (t *testConn) GetString(key string) string {
+	t.valueLock.RLock()
+	defer t.valueLock.RUnlock()
+	return t.valueMap[key]
+}
+
+func (t *testConn) SetProtoVersion(version uint8) {
+	t.protoVersion = version
+}
+
+func (t *testConn) GetProtoVersion() uint8 {
+	return t.protoVersion
+}
+
+func (t *testConn) DeviceLevel() wkproto.DeviceLevel {
+	return t.deviceLevel
+}
+
+func (t *testConn) SetDeviceLevel(level wkproto.DeviceLevel) {
+	t.deviceLevel = level
+}
+
+func (t *testConn) Encode() ([]byte, error) {
+
+	return nil, nil
+}
+
+func (t *testConn) Decode(data []byte) error {
 	return nil
-}
-func (t *testMessage) Size() uint64 {
-	return 10
-}
-
-func (t *testMessage) SetIndex(index uint64) {
-	t.index = index
-}
-
-func (t *testMessage) Index() uint64 {
-	return t.index
 }

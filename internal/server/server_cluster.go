@@ -21,6 +21,10 @@ func (s *Server) handleClusterMessage(fromNodeId uint64, msg *proto.Message) {
 		go s.handleNodePing(fromNodeId, msg)
 	case ClusterMsgTypeNodePong: // 节点Pong
 		go s.handleNodePong(fromNodeId, msg)
+	default:
+		if msg.MsgType >= 2000 && msg.MsgType < 3000 {
+			s.processUser.onMessage(msg)
+		}
 
 	}
 	// switch ClusterMsgType(msg.MsgType) {

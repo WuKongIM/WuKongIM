@@ -195,7 +195,7 @@ func (r *channelReactor) handlePayloadDecrypt(req *payloadDecryptReq) {
 		var decryptPayload []byte
 		conn := reactor.User.LocalConnById(msg.FromUid, msg.FromConnId)
 		if conn != nil && len(msg.SendPacket.Payload) > 0 {
-			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn.(*connContext))
+			decryptPayload, err = r.s.checkAndDecodePayload(msg.SendPacket, conn)
 			if err != nil {
 				msg.ReasonCode = wkproto.ReasonPayloadDecodeError
 				r.Warn("decrypt payload error", zap.String("uid", msg.FromUid), zap.String("deviceId", msg.FromDeviceId), zap.Int64("connId", msg.FromConnId), zap.Error(err))

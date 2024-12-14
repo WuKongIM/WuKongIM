@@ -19,11 +19,11 @@ func (s *Server) onData(conn wknet.Conn) error {
 	}
 
 	var isAuth bool
-	var connCtx *connContext
+	var connCtx *reactor.Conn
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
-		connCtx = connCtxObj.(*connContext)
-		isAuth = connCtx.isAuth.Load()
+		connCtx = connCtxObj.(*reactor.Conn)
+		isAuth = connCtx.Auth
 	} else {
 		isAuth = false
 	}
@@ -83,14 +83,14 @@ func (s *Server) onData(conn wknet.Conn) error {
 			return nil
 		}
 
-		connInfo := connInfo{
-			connId:       conn.ID(),
-			uid:          connectPacket.UID,
-			deviceId:     connectPacket.DeviceID,
-			deviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
-			protoVersion: connectPacket.Version,
+		connCtx = &reactor.Conn{
+			FromNode:     s.opts.Cluster.NodeId,
+			ConnId:       conn.ID(),
+			Uid:          connectPacket.UID,
+			DeviceId:     connectPacket.DeviceID,
+			DeviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
+			ProtoVersion: connectPacket.Version,
 		}
-		connCtx = newConnContext(connInfo, conn)
 		conn.SetContext(connCtx)
 
 		// 如果用户不存在则唤醒用户
@@ -101,9 +101,9 @@ func (s *Server) onData(conn wknet.Conn) error {
 		_, _ = conn.Discard(len(data))
 	} else {
 		offset := 0
-		var messages []reactor.UserMessage
+		var messages []*reactor.UserMessage
 		for len(data) > offset {
-			frame, size, err := s.opts.Proto.DecodeFrame(data[offset:], connCtx.protoVersion)
+			frame, size, err := s.opts.Proto.DecodeFrame(data[offset:], connCtx.ProtoVersion)
 			if err != nil { //
 				s.Warn("Failed to decode the message", zap.Error(err))
 				conn.Close()
@@ -113,16 +113,17 @@ func (s *Server) onData(conn wknet.Conn) error {
 				break
 			}
 			if messages == nil {
-				messages = make([]reactor.UserMessage, 0, 10)
+				messages = make([]*reactor.UserMessage, 0, 10)
 			}
-			messages = append(messages, &reactorUserMessage{
-				frame: frame,
+			messages = append(messages, &reactor.UserMessage{
+				Frame: frame,
+				Conn:  connCtx,
 			})
 			offset += size
 		}
 		if len(messages) > 0 {
 			// 添加消息
-			reactor.User.AddMessages(connCtx.uid, messages)
+			reactor.User.AddMessages(connCtx.Uid, messages)
 		}
 
 		_, _ = conn.Discard(offset)

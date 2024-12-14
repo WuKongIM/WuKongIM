@@ -127,6 +127,13 @@ func (r *reactorSub) handleEvent(u *User) bool {
 		return false
 	}
 
+	for _, action := range actions {
+		switch action.Type {
+		case reactor.UserActionUserClose:
+			r.users.remove(u.uid)
+		}
+	}
+
 	r.r.send(actions)
 
 	return true
@@ -138,7 +145,6 @@ func (r *reactorSub) handleReceivedActions() bool {
 	if len(actions) == 0 {
 		return false
 	}
-	fmt.Println("a.Uid--->", actions)
 	for _, a := range actions {
 		user := r.users.get(a.Uid)
 		if user == nil {

@@ -159,6 +159,14 @@ type Options struct {
 	WhitelistOffOfPerson bool // 是否关闭个人白名单验证
 	DeliveryMsgPoolSize  int  // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
 
+	// go协程池
+	GoPool struct {
+		// UserProcess 用户逻辑处理协程池
+		UserProcess int
+		// ChannelProcess 频道逻辑处理协程池
+		ChannelProcess int
+	}
+
 	MessageRetry struct {
 		Interval     time.Duration // 消息重试间隔，如果消息发送后在此间隔内没有收到ack，将会在此间隔后重新发送
 		MaxCount     int           // 消息最大重试次数
@@ -363,6 +371,13 @@ func NewOptions(op ...Option) *Options {
 		},
 		DeliveryMsgPoolSize: 10240,
 		EventPoolSize:       1024,
+		GoPool: struct {
+			UserProcess    int
+			ChannelProcess int
+		}{
+			UserProcess:    4096,
+			ChannelProcess: 4096,
+		},
 		MessageRetry: struct {
 			Interval     time.Duration
 			MaxCount     int
@@ -650,6 +665,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Datasource.ChannelInfoOn = o.getBool("datasource.channelInfoOn", o.Datasource.ChannelInfoOn)
 
 	o.WhitelistOffOfPerson = o.getBool("whitelistOffOfPerson", o.WhitelistOffOfPerson)
+
+	o.GoPool.UserProcess = o.getInt("goPool.userProcess", o.GoPool.UserProcess)
+	o.GoPool.ChannelProcess = o.getInt("goPool.channelProcess", o.GoPool.ChannelProcess)
 
 	o.MessageRetry.Interval = o.getDuration("messageRetry.interval", o.MessageRetry.Interval)
 	o.MessageRetry.ScanInterval = o.getDuration("messageRetry.scanInterval", o.MessageRetry.ScanInterval)

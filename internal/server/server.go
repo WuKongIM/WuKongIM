@@ -29,6 +29,7 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
+	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"github.com/valyala/bytebufferpool"
 	"go.etcd.io/etcd/pkg/v3/idutil"
@@ -75,8 +76,11 @@ type Server struct {
 
 	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
 
-	userReactor reactor.IUser
-	processUser *processUser
+	connManager     *connManager  // 连接管理
+	userReactor     reactor.IUser // 用户控制中心
+	processUser     *processUser  // 用户逻辑处理
+	userProcessPool *ants.Pool    // 用户逻辑处理协程池
+
 }
 
 func New(opts *Options) *Server {
@@ -88,9 +92,16 @@ func New(opts *Options) *Server {
 		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
 		start:       now,
 	}
-
+	s.connManager = newConnManager(18)
+	var err error
+	s.userProcessPool, err = ants.NewPool(opts.GoPool.UserProcess, ants.WithPanicHandler(func(i interface{}) {
+		s.Panic("user process pool is panic", zap.Any("err", err), zap.Stack("stack"))
+	}))
+	if err != nil {
+		s.Panic("new user process pool failed", zap.Error(err))
+	}
 	// 配置检查
-	err := opts.Check()
+	err = opts.Check()
 	if err != nil {
 		s.Panic("config check error", zap.Error(err))
 	}
@@ -144,6 +155,7 @@ func New(opts *Options) *Server {
 		userreactor.WithNodeId(opts.Cluster.NodeId),
 		userreactor.WithSend(s.processUser.send),
 	)
+	reactor.Proto = s.opts.Proto
 	// 注册user reactor
 	reactor.RegisterUser(s.userReactor)
 	s.demoServer = NewDemoServer(s)                   // demo server
@@ -438,6 +450,8 @@ func (s *Server) onConnect(conn wknet.Conn) error {
 	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
 	s.trace.Metrics.App().ConnCountAdd(1)
 
+	s.connManager.addConn(conn)
+
 	// if conn.InboundBuffer().BoundBufferSize() == 0 {
 	// 	conn.SetValue(ConnKeyParseProxyProto, true) // 设置需要解析代理协议
 	// 	return nil
@@ -478,15 +492,10 @@ func (s *Server) onClose(conn wknet.Conn) {
 	s.trace.Metrics.App().ConnCountAdd(-1)
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
-		connCtx := connCtxObj.(*connContext)
+		connCtx := connCtxObj.(*reactor.Conn)
 		reactor.User.CloseConn(connCtx)
-
 	}
-}
-
-// 代理节点关闭
-func (s *Server) onCloseForProxy(conn *connContext) {
-
+	s.connManager.removeConn(conn)
 }
 
 // Schedule 延迟任务
@@ -497,9 +506,9 @@ func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
 }
 
 // decode payload
-func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *connContext) ([]byte, error) {
+func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *reactor.Conn) ([]byte, error) {
 
-	aesKey, aesIV := conn.aesKey, conn.aesIV
+	aesKey, aesIV := conn.AesKey, conn.AesIV
 	vail, err := s.sendPacketIsVail(sendPacket, conn)
 	if err != nil {
 		return nil, err
@@ -518,8 +527,8 @@ func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *con
 }
 
 // send packet is vail
-func (s *Server) sendPacketIsVail(sendPacket *wkproto.SendPacket, conn *connContext) (bool, error) {
-	aesKey, aesIV := conn.aesKey, conn.aesIV
+func (s *Server) sendPacketIsVail(sendPacket *wkproto.SendPacket, conn *reactor.Conn) (bool, error) {
+	aesKey, aesIV := conn.AesKey, conn.AesIV
 	signStr := sendPacket.VerityString()
 
 	signBuff := bytebufferpool.Get()

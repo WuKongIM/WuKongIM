@@ -37,7 +37,7 @@ func (v *VarzAPI) Route(r *wkhttp.WKHttp) {
 
 func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 
-	show := c.Query("show")
+	// show := c.Query("show")
 	connLimit, _ := strconv.Atoi(c.Query("conn_limit"))
 	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 
@@ -61,17 +61,17 @@ func (v *VarzAPI) HandleVarz(c *wkhttp.Context) {
 	}
 	varz := CreateVarz(v.s)
 
-	if show == "conn" {
-		resultConns := v.s.GetConnInfos("", ByInMsgDesc, 0, connLimit)
-		connInfos := make([]*ConnInfo, 0, len(resultConns))
-		for _, resultConn := range resultConns {
-			if resultConn == nil || !resultConn.isAuth.Load() {
-				continue
-			}
-			connInfos = append(connInfos, newConnInfo(resultConn))
-		}
-		varz.Conns = connInfos
-	}
+	// if show == "conn" {
+	// 	resultConns := v.s.GetConnInfos("", ByInMsgDesc, 0, connLimit)
+	// 	connInfos := make([]*ConnInfo, 0, len(resultConns))
+	// 	for _, resultConn := range resultConns {
+	// 		if resultConn == nil || !resultConn.isAuth.Load() {
+	// 			continue
+	// 		}
+	// 		connInfos = append(connInfos, newConnInfo(resultConn))
+	// 	}
+	// 	varz.Conns = connInfos
+	// }
 
 	c.JSON(http.StatusOK, varz)
 }
@@ -166,10 +166,10 @@ type Varz struct {
 	TreeState   string `json:"tree_state"`   // git tree state
 	APIURL      string `json:"api_url"`      // api地址
 
-	ManagerUID             string      `json:"manager_uid"`              // 管理员uid
-	ManagerTokenOn         int         `json:"manager_token_on"`         // 管理员token是否开启
-	Conns                  []*ConnInfo `json:"conns,omitempty"`          // 连接信息
-	ConversationCacheCount int         `json:"conversation_cache_count"` // 最近会话缓存数量
+	ManagerUID     string `json:"manager_uid"`      // 管理员uid
+	ManagerTokenOn int    `json:"manager_token_on"` // 管理员token是否开启
+	// Conns                  []*ConnInfo `json:"conns,omitempty"`          // 连接信息
+	ConversationCacheCount int `json:"conversation_cache_count"` // 最近会话缓存数量
 }
 
 type SystemSetting struct {

@@ -22,16 +22,16 @@ func newReady(logPrefix string) *ready {
 	}
 }
 
-func (r *ready) slice() []reactor.UserMessage {
+func (r *ready) slice() []*reactor.UserMessage {
 	r.endIndex = 0
 	msgs := r.queue.sliceWithSize(r.offsetIndex+1, r.queue.lastIndex+1, 0)
 	if len(msgs) > 0 {
-		r.endIndex = msgs[len(msgs)-1].Index()
+		r.endIndex = msgs[len(msgs)-1].Index
 	}
 	return msgs
 }
 
-func (r *ready) sliceWith(startIndex, endIndex uint64) []reactor.UserMessage {
+func (r *ready) sliceWith(startIndex, endIndex uint64) []*reactor.UserMessage {
 	if endIndex == 0 {
 		endIndex = r.queue.lastIndex + 1
 	}
@@ -40,10 +40,10 @@ func (r *ready) sliceWith(startIndex, endIndex uint64) []reactor.UserMessage {
 
 }
 
-func (r *ready) sliceAndTruncate() []reactor.UserMessage {
+func (r *ready) sliceAndTruncate() []*reactor.UserMessage {
 	msgs := r.queue.sliceWithSize(r.offsetIndex+1, r.queue.lastIndex+1, 0)
 	if len(msgs) > 0 {
-		r.endIndex = msgs[len(msgs)-1].Index()
+		r.endIndex = msgs[len(msgs)-1].Index
 	}
 	r.truncate()
 	return msgs
@@ -55,14 +55,6 @@ func (r *ready) truncate() {
 	}
 	r.queue.truncateTo(r.endIndex + 1)
 	r.offsetIndex = r.endIndex
-}
-
-func (r *ready) truncateTo(index uint64) {
-	r.queue.truncateTo(index)
-}
-
-func (r *ready) resetState() {
-	r.state.Reset()
 }
 
 func (r *ready) reset() {
@@ -84,57 +76,41 @@ func (r *ready) tick() {
 	r.state.Tick()
 }
 
-func (r *ready) startProcessing() {
-	r.state.StartProcessing()
-}
-
-func (r *ready) processSuccess() {
-	r.state.ProcessSuccess()
-}
-
-func (r *ready) processFail() {
-	r.state.ProcessFail()
-}
-
-func (r *ready) isMaxRetry() bool {
-	return r.state.IsMaxRetry()
-}
-
-func (r *ready) append(m reactor.UserMessage) {
-	m.SetIndex(r.queue.lastIndex + 1)
+func (r *ready) append(m *reactor.UserMessage) {
+	m.Index = r.queue.lastIndex + 1
 	r.queue.append(m)
 }
 
 type outboundReady struct {
-	queue       *msgQueue                 // 消息队列
-	followers   map[uint64]*followerState // 副本数据状态
-	offsetIndex uint64                    // 当前偏移的下标
-	commitIndex uint64                    // 已提交的下标
+	queue       *msgQueue                // 消息队列
+	replicas    map[uint64]*replicaState // 副本数据状态
+	offsetIndex uint64                   // 当前偏移的下标
+	commitIndex uint64                   // 已提交的下标
 	wklog.Log
 }
 
 func newOutboundReady(logPrefix string) *outboundReady {
 
 	return &outboundReady{
-		queue:     newMsgQueue(logPrefix),
-		followers: map[uint64]*followerState{},
-		Log:       wklog.NewWKLog(logPrefix),
+		queue:    newMsgQueue(logPrefix),
+		replicas: map[uint64]*replicaState{},
+		Log:      wklog.NewWKLog(logPrefix),
 	}
 }
 
-func (o *outboundReady) append(m reactor.UserMessage) {
-	m.SetIndex(o.queue.lastIndex + 1)
+func (o *outboundReady) append(m *reactor.UserMessage) {
+	m.Index = o.queue.lastIndex + 1
 	o.queue.append(m)
 }
 
 func (o *outboundReady) has() bool {
-	for _, follower := range o.followers {
+	for _, replica := range o.replicas {
 		// 需要等会再发起转发，别太快
-		if follower.forwardIdleTick < options.OutboundForwardIntervalTick {
+		if replica.forwardIdleTick < options.OutboundForwardIntervalTick {
 			return false
 		}
 		// 是否符合转发条件
-		if follower.outboundForwardedIndex >= o.commitIndex && follower.outboundForwardedIndex < o.queue.lastIndex {
+		if replica.outboundForwardedIndex >= o.commitIndex && replica.outboundForwardedIndex < o.queue.lastIndex {
 			return true
 		}
 	}
@@ -144,65 +120,83 @@ func (o *outboundReady) has() bool {
 func (o *outboundReady) ready() []reactor.UserAction {
 	var actions []reactor.UserAction
 	var endIndex = o.queue.lastIndex
-	for nodeId, follower := range o.followers {
+	msgs := o.queue.sliceWithSize(o.offsetIndex+1, endIndex+1, 0)
+	if len(msgs) == 0 {
+		return nil
+	}
+	lastIndex := msgs[len(msgs)-1].Index
+	o.queue.truncateTo(lastIndex + 1)
 
-		if follower.forwardIdleTick < options.OutboundForwardIntervalTick {
+	hasToNode := false
+	for _, msg := range msgs {
+		// 如果ToNode有值，说明指定了接收的节点，这种情况需要判断是不是当前节点
+		if msg.ToNode != 0 {
+			actions = append(actions, reactor.UserAction{
+				Type: reactor.UserActionOutboundForward,
+				From: options.NodeId,
+				To:   msg.ToNode,
+				Messages: []*reactor.UserMessage{
+					msg,
+				},
+			})
+			hasToNode = true
 			continue
 		}
-		if follower.outboundForwardedIndex >= o.commitIndex && follower.outboundForwardedIndex < o.queue.lastIndex {
-			if actions == nil {
-				actions = make([]reactor.UserAction, 0, len(o.followers))
+	}
+
+	var newMsgs []*reactor.UserMessage
+	if hasToNode {
+		for _, msg := range msgs {
+			if msg.ToNode == 0 {
+				newMsgs = append(newMsgs, msg)
 			}
-			// 不能超过指定数量
-			if o.queue.lastIndex-follower.outboundForwardedIndex > options.OutboundForwardMaxMessageCount {
-				endIndex = o.queue.lastIndex - follower.outboundForwardedIndex + options.OutboundForwardMaxMessageCount
-			}
-			msgs := o.queue.sliceWithSize(follower.outboundForwardedIndex+1, endIndex+1, 0)
-			if len(msgs) == 0 {
-				continue
-			}
-			actions = append(actions, reactor.UserAction{
-				Type:     reactor.UserActionOutboundForward,
-				From:     options.NodeId,
-				To:       nodeId,
-				Messages: msgs,
-			})
 		}
+	} else {
+		newMsgs = msgs
+	}
+
+	for nodeId := range o.replicas {
+		actions = append(actions, reactor.UserAction{
+			Type:     reactor.UserActionOutboundForward,
+			From:     options.NodeId,
+			To:       nodeId,
+			Messages: newMsgs,
+		})
 	}
 	return actions
 }
 
-func (o *outboundReady) updateFollowerIndex(nodeId uint64, index uint64) {
-	follower := o.followers[nodeId]
-	if follower == nil {
-		o.Info("follower not exist", zap.Uint64("nodeId", nodeId))
+func (o *outboundReady) updateReplicaIndex(nodeId uint64, index uint64) {
+	replica := o.replicas[nodeId]
+	if replica == nil {
+		o.Info("replica not exist", zap.Uint64("nodeId", nodeId))
 		return
 	}
-	if index > follower.outboundForwardedIndex {
-		follower.outboundForwardedIndex = index
+	if index > replica.outboundForwardedIndex {
+		replica.outboundForwardedIndex = index
 		o.checkCommit()
 	}
-	follower.forwardIdleTick = 0
+	replica.forwardIdleTick = 0
 }
 
-func (o *outboundReady) updateFollowerHeartbeat(nodeId uint64) {
-	follower := o.followers[nodeId]
-	if follower == nil {
-		o.Info("follower not exist", zap.Uint64("nodeId", nodeId))
+func (o *outboundReady) updateReplicaHeartbeat(nodeId uint64) {
+	replica := o.replicas[nodeId]
+	if replica == nil {
+		o.Info("replica not exist", zap.Uint64("nodeId", nodeId))
 		return
 	}
-	follower.heartbeatIdleTick = 0
+	replica.heartbeatIdleTick = 0
 }
 
-func (o *outboundReady) addNewFollower(nodeId uint64) {
-	o.followers[nodeId] = newFollowerState(nodeId, o.commitIndex)
+func (o *outboundReady) addNewReplica(nodeId uint64) {
+	o.replicas[nodeId] = newReplicaState(nodeId, o.commitIndex)
 }
 
 func (o *outboundReady) checkCommit() {
 	var minIndex = o.commitIndex
-	for _, follower := range o.followers {
-		if follower.outboundForwardedIndex > minIndex {
-			minIndex = follower.outboundForwardedIndex
+	for _, replica := range o.replicas {
+		if replica.outboundForwardedIndex > minIndex {
+			minIndex = replica.outboundForwardedIndex
 		}
 	}
 	if minIndex > o.commitIndex {
@@ -216,13 +210,13 @@ func (o *outboundReady) commit(index uint64) {
 }
 
 func (o *outboundReady) tick() {
-	for _, follower := range o.followers {
-		follower.heartbeatIdleTick++
-		follower.forwardIdleTick++
+	for _, replica := range o.replicas {
+		replica.heartbeatIdleTick++
+		replica.forwardIdleTick++
 
-		if follower.heartbeatIdleTick >= options.NodeHeartbeatTimeoutTick {
-			o.Info("follower heartbeat timeout", zap.Uint64("nodeId", follower.nodeId))
-			delete(o.followers, follower.nodeId)
+		if replica.heartbeatIdleTick >= options.NodeHeartbeatTimeoutTick {
+			o.Info("replica heartbeat timeout", zap.Uint64("nodeId", replica.nodeId))
+			delete(o.replicas, replica.nodeId)
 			continue
 		}
 	}
@@ -232,20 +226,20 @@ func (o *outboundReady) reset() {
 	o.queue.reset()
 	o.commitIndex = 0
 	o.offsetIndex = 0
-	o.followers = map[uint64]*followerState{}
+	o.replicas = map[uint64]*replicaState{}
 
 }
 
-type followerState struct {
+type replicaState struct {
 	nodeId                 uint64 // 节点id
 	outboundForwardedIndex uint64 // 发件箱已转发索引
 	forwardIdleTick        int    // 转发空闲tick
 	heartbeatIdleTick      int    // 心跳空闲tick
 }
 
-func newFollowerState(nodeId uint64, outboundForwardedIndex uint64) *followerState {
+func newReplicaState(nodeId uint64, outboundForwardedIndex uint64) *replicaState {
 
-	return &followerState{
+	return &replicaState{
 		nodeId:                 nodeId,
 		outboundForwardedIndex: outboundForwardedIndex,
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 type msgQueue struct {
-	messages       []reactor.UserMessage
+	messages       []*reactor.UserMessage
 	offsetMsgIndex uint64
 	wklog.Log
 	lastIndex uint64 // 最新下标
@@ -21,7 +21,7 @@ func newMsgQueue(prefix string) *msgQueue {
 	}
 }
 
-func (m *msgQueue) append(message reactor.UserMessage) {
+func (m *msgQueue) append(message *reactor.UserMessage) {
 	m.messages = append(m.messages, message)
 	m.lastIndex++
 }
@@ -31,12 +31,12 @@ func (m *msgQueue) len() int {
 }
 
 // [lo,hi)
-func (m *msgQueue) slice(startMsgIndex uint64, endMsgIndex uint64) []reactor.UserMessage {
+func (m *msgQueue) slice(startMsgIndex uint64, endMsgIndex uint64) []*reactor.UserMessage {
 
 	return m.messages[startMsgIndex-m.offsetMsgIndex : endMsgIndex-m.offsetMsgIndex : endMsgIndex-m.offsetMsgIndex]
 }
 
-func (m *msgQueue) sliceWithSize(startMsgIndex uint64, endMsgIndex uint64, maxSize uint64) []reactor.UserMessage {
+func (m *msgQueue) sliceWithSize(startMsgIndex uint64, endMsgIndex uint64, maxSize uint64) []*reactor.UserMessage {
 	if startMsgIndex == endMsgIndex {
 		return nil
 	}
@@ -74,13 +74,13 @@ func (m *msgQueue) shrinkMessagesArray() {
 	if len(m.messages) == 0 {
 		m.messages = nil
 	} else if len(m.messages)*lenMultiple < cap(m.messages) {
-		newMessages := make([]reactor.UserMessage, len(m.messages))
+		newMessages := make([]*reactor.UserMessage, len(m.messages))
 		copy(newMessages, m.messages)
 		m.messages = newMessages
 	}
 }
 
-func limitSize(messages []reactor.UserMessage, maxSize uint64) []reactor.UserMessage {
+func limitSize(messages []*reactor.UserMessage, maxSize uint64) []*reactor.UserMessage {
 	if len(messages) == 0 {
 		return messages
 	}
