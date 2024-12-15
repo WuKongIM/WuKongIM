@@ -118,11 +118,9 @@ func (p *processUser) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCod
 	conn.DeviceLevel = devceLevel
 
 	realConn := p.s.connManager.getConn(conn.ConnId)
-	if realConn == nil {
-		p.Error("auth: conn not exist", zap.Int64("connId", conn.ConnId))
-		return wkproto.ReasonAuthFail, nil, errors.New("conn not exist")
+	if realConn != nil {
+		realConn.SetMaxIdle(p.s.opts.ConnIdleTime)
 	}
-	realConn.SetMaxIdle(p.s.opts.ConnIdleTime)
 
 	// -------------------- response connack --------------------
 

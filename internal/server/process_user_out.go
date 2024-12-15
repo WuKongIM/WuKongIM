@@ -39,20 +39,27 @@ func (p *processUser) send(actions []reactor.UserAction) {
 }
 
 func (p *processUser) processAction(a reactor.UserAction) {
-	fmt.Println("send-->", a.Type.String())
 	switch a.Type {
 	case reactor.UserActionElection: // 选举
 		p.processElection(a)
 	case reactor.UserActionJoin: // 加入
 		p.processJoin(a)
+	case reactor.UserActionJoinResp: // 加入返回
+		p.processJoinResp(a)
 	case reactor.UserActionOutboundForward: // 发件
 		p.processOutbound(a)
 	case reactor.UserActionInbound: // 收件
 		p.processInbound(a)
 	case reactor.UserActionWrite: // 连接写
 		p.processWrite(a)
+	case reactor.UserActionNodeHeartbeatReq: // 领导发起心跳
+		p.processNodeHeartbeatReq(a)
+	case reactor.UserActionNodeHeartbeatResp: // 节点心跳回执
+		p.processNodeHeartbeatResp(a)
 	case reactor.UserActionConnClose: // 连接关闭
 		p.processConnClose(a)
+	case reactor.UserActionUserClose:
+		fmt.Println("UserActionUserClose....", a.Uid)
 	default:
 	}
 }
@@ -85,12 +92,29 @@ func (p *processUser) processJoin(a reactor.UserAction) {
 		uid:  a.Uid,
 	}
 
-	err := p.s.cluster.Send(a.To, &proto.Message{
+	err := p.sendToNode(a.To, &proto.Message{
 		MsgType: uint32(msgUserJoinReq),
 		Content: req.encode(),
 	})
 	if err != nil {
 		p.Error("send join req failed", zap.Error(err))
+		return
+	}
+}
+
+func (p *processUser) processJoinResp(a reactor.UserAction) {
+
+	resp := &userJoinResp{
+		uid:  a.Uid,
+		from: p.s.opts.Cluster.NodeId,
+	}
+
+	err := p.sendToNode(a.To, &proto.Message{
+		MsgType: uint32(msgUserJoinResp),
+		Content: resp.encode(),
+	})
+	if err != nil {
+		p.Error("send join resp failed", zap.Error(err))
 		return
 	}
 }
@@ -118,9 +142,8 @@ func (p *processUser) processConnClose(a reactor.UserAction) {
 }
 
 func (p *processUser) processOutbound(a reactor.UserAction) {
-	fmt.Println("processOutbound....")
 	if len(a.Messages) == 0 {
-		p.Warn("processOutbound: messages is empty")
+		p.Warn("processOutbound: messages is empty", zap.String("actionType", a.Type.String()))
 		return
 	}
 	req := &outboundReq{
@@ -134,7 +157,7 @@ func (p *processUser) processOutbound(a reactor.UserAction) {
 		return
 	}
 
-	err = p.s.cluster.Send(a.To, &proto.Message{
+	err = p.sendToNode(a.To, &proto.Message{
 		MsgType: uint32(msgOutboundReq),
 		Content: data,
 	})
@@ -153,7 +176,6 @@ func (p *processUser) processInbound(a reactor.UserAction) {
 		if m.Frame == nil {
 			continue
 		}
-		fmt.Println("processInbound-->", m.Frame.GetFrameType().String())
 		switch m.Frame.GetFrameType() {
 		case wkproto.CONNECT: // 连接包
 			if a.Role == reactor.RoleLeader {
@@ -187,7 +209,7 @@ func (p *processUser) processWrite(a reactor.UserAction) {
 		}
 		conn := p.s.connManager.getConn(m.Conn.ConnId)
 		if conn == nil {
-			p.Warn("conn not exist", zap.String("uid", a.Uid), zap.Int64("connId", m.Conn.ConnId))
+			p.Warn("processWrite: conn not exist", zap.String("uid", a.Uid), zap.Uint64("fromNode", m.Conn.FromNode), zap.Int64("connId", m.Conn.ConnId))
 			continue
 		}
 		wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
@@ -205,6 +227,52 @@ func (p *processUser) processWrite(a reactor.UserAction) {
 		_ = conn.WakeWrite()
 	}
 
+}
+
+func (p *processUser) processNodeHeartbeatReq(a reactor.UserAction) {
+
+	connIds := make([]int64, 0)
+	for _, c := range a.Conns {
+		connIds = append(connIds, c.ConnId)
+	}
+	req := &nodeHeartbeatReq{
+		uid:      a.Uid,
+		fromNode: p.s.opts.Cluster.NodeId,
+		connIds:  connIds,
+	}
+	err := p.sendToNode(a.To, &proto.Message{
+		MsgType: uint32(msgNodeHeartbeatReq),
+		Content: req.encode(),
+	})
+	if err != nil {
+		p.Error("send node heartbeat req failed", zap.Error(err))
+	}
+}
+
+func (p *processUser) processNodeHeartbeatResp(a reactor.UserAction) {
+	conns := reactor.User.ConnsByUid(a.Uid)
+	connIds := make([]int64, 0, len(conns))
+	for _, conn := range conns {
+		connIds = append(connIds, conn.ConnId)
+	}
+	resp := &nodeHeartbeatResp{
+		uid:      a.Uid,
+		fromNode: p.s.opts.Cluster.NodeId,
+		connIds:  connIds,
+	}
+	err := p.sendToNode(a.To, &proto.Message{
+		MsgType: uint32(msgNodeHeartbeatResp),
+		Content: resp.encode(),
+	})
+	if err != nil {
+		p.Error("send node heartbeat resp failed", zap.Error(err))
+	}
+}
+
+func (p *processUser) sendToNode(toNodeId uint64, msg *proto.Message) error {
+
+	err := p.s.cluster.Send(toNodeId, msg)
+	return err
 }
 
 func (p *processUser) processConnect(uid string, msg *reactor.UserMessage) {
@@ -229,11 +297,26 @@ func (p *processUser) processConnect(uid string, msg *reactor.UserMessage) {
 func (p *processUser) processConnack(uid string, msg *reactor.UserMessage) {
 	conn := msg.Conn
 	if conn.FromNode == 0 {
-		p.Error("from node is 0", zap.String("uid", uid))
+		p.Error("processConnack: from node is 0", zap.String("uid", uid))
+		return
+	}
+	if msg.Frame == nil {
+		p.Error("processConnack: frame is nil", zap.String("uid", uid))
 		return
 	}
 	if p.s.opts.IsLocalNode(conn.FromNode) {
-		reactor.User.ConnWrite(conn, msg.Frame)
+		connack := msg.Frame.(*wkproto.ConnackPacket)
+		if connack.ReasonCode == wkproto.ReasonSuccess {
+			realConn := p.s.connManager.getConn(conn.ConnId)
+			if realConn != nil {
+				realConn.SetMaxIdle(p.s.opts.ConnIdleTime)
+				realConn.SetContext(conn)
+			}
+			connack.NodeId = p.s.opts.Cluster.NodeId
+			// 更新连接
+			reactor.User.UpdateConn(conn)
+		}
+		reactor.User.ConnWrite(conn, connack)
 	} else {
 		reactor.User.AddMessageToOutbound(uid, msg)
 	}

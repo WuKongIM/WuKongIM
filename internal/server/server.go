@@ -154,6 +154,9 @@ func New(opts *Options) *Server {
 	s.userReactor = userreactor.NewReactor(
 		userreactor.WithNodeId(opts.Cluster.NodeId),
 		userreactor.WithSend(s.processUser.send),
+		userreactor.WithNodeVersion(func() uint64 {
+			return s.cluster.NodeVersion()
+		}),
 	)
 	reactor.Proto = s.opts.Proto
 	// 注册user reactor
@@ -489,10 +492,13 @@ func (s *Server) onConnect(conn wknet.Conn) error {
 // }
 
 func (s *Server) onClose(conn wknet.Conn) {
+
 	s.trace.Metrics.App().ConnCountAdd(-1)
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
 		connCtx := connCtxObj.(*reactor.Conn)
+		fmt.Println("gnet close--->", connCtx.Uid)
+
 		reactor.User.CloseConn(connCtx)
 	}
 	s.connManager.removeConn(conn)

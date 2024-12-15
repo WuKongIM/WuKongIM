@@ -35,15 +35,16 @@ type User struct {
 func NewUser(no, uid string) *User {
 
 	prefix := fmt.Sprintf("user[%s]", uid)
-	return &User{
+	u := &User{
 		no:             no,
 		uid:            uid,
 		conns:          &conns{},
 		Log:            wklog.NewWKLog(prefix),
 		inbound:        newReady(prefix),
-		outbound:       newOutboundReady(prefix),
 		clientOutbound: newReady(prefix),
 	}
+	u.outbound = newOutboundReady(prefix, u)
+	return u
 }
 
 // ==================================== ready ====================================
@@ -131,7 +132,9 @@ func (u *User) allowReady() bool {
 // ==================================== step ====================================
 
 func (u *User) step(action reactor.UserAction) {
-	fmt.Println("step----->", action.Uid, action.Type.String())
+
+	// fmt.Println("step---->", action.Type.String(), action.Uid)
+
 	u.idleTick = 0
 	switch action.Type {
 	case reactor.UserActionConfigUpdate:
@@ -158,8 +161,6 @@ func (u *User) step(action reactor.UserAction) {
 		for _, msg := range action.Messages {
 			u.outbound.append(msg)
 		}
-	case reactor.UserActionOutboundForwardResp: // 转发返回
-		u.outbound.updateReplicaIndex(action.From, action.Index)
 	case reactor.UserActionConnClose: // 关闭连接
 		for _, conn := range u.conns.conns {
 			u.conns.remove(conn)
@@ -181,6 +182,7 @@ func (u *User) stepFollower(action reactor.UserAction) {
 	switch action.Type {
 	// 收到来自领导的心跳
 	case reactor.UserActionNodeHeartbeatReq:
+		u.outbound.updateReplicaHeartbeat(action.From)
 		u.heartbeatTick = 0
 		localConns := u.conns.connsByNodeId(options.NodeId)
 		var closeConns []*reactor.Conn
@@ -202,7 +204,13 @@ func (u *User) stepFollower(action reactor.UserAction) {
 				closeConns = append(closeConns, localConn)
 			}
 		}
-		u.sendHeartbeatResp(action.From)
+		// 只有当前有连接的时候才回应领导的心跳
+		// 这样领导没收到follower的心跳回应
+		// 领导就会将follower踢出，follower就可以安全退出
+		if len(localConns) > 0 {
+			u.sendHeartbeatResp(action.From)
+		}
+
 		if len(closeConns) > 0 {
 			u.sendConnClose(closeConns)
 		}
@@ -216,6 +224,20 @@ func (u *User) stepLeader(action reactor.UserAction) {
 	switch action.Type {
 	// 副本收到心跳回应
 	case reactor.UserActionNodeHeartbeatResp:
+		nodeConns := u.conns.connsByNodeId(action.From)
+
+		for _, nodeConn := range nodeConns {
+			exist := false
+			for _, conn := range action.Conns {
+				if nodeConn.ConnId == conn.ConnId {
+					exist = true
+					break
+				}
+			}
+			if !exist {
+				u.conns.remove(nodeConn)
+			}
+		}
 		u.outbound.updateReplicaHeartbeat(action.From)
 	// 副本请求加入
 	case reactor.UserActionJoin:
@@ -230,6 +252,7 @@ func (u *User) tick() {
 
 	u.inbound.tick()
 	u.outbound.tick()
+	u.clientOutbound.tick()
 
 	if u.needElection() {
 		u.sendElection()
@@ -250,7 +273,7 @@ func (u *User) tickLeader() {
 		return
 	}
 
-	if u.heartbeatTick >= options.NodeHeartbeatTick {
+	if u.conns.len() > 0 && u.heartbeatTick >= options.NodeHeartbeatTick {
 		u.heartbeatTick = 0
 		u.sendHeartbeatReq()
 	}
@@ -258,6 +281,7 @@ func (u *User) tickLeader() {
 
 func (u *User) tickFollower() {
 	u.heartbeatTick++
+
 	if u.heartbeatTick >= options.NodeHeartbeatTimeoutTick {
 		u.heartbeatTick = 0
 		u.sendUserClose()
@@ -272,6 +296,9 @@ func (u *User) tickFollower() {
 func (u *User) sendHeartbeatReq() {
 	for _, replica := range u.outbound.replicas {
 		conns := u.conns.connsByNodeId(replica.nodeId)
+		if len(conns) == 0 { // 如果没有连接，不发送心跳
+			continue
+		}
 		u.actions = append(u.actions, reactor.UserAction{
 			No:          u.no,
 			From:        options.NodeId,
@@ -292,6 +319,7 @@ func (u *User) sendHeartbeatResp(to uint64) {
 		To:          to,
 		Uid:         u.uid,
 		Type:        reactor.UserActionNodeHeartbeatResp,
+		Conns:       u.conns.allConns(),
 		NodeVersion: options.NodeVersion(),
 	})
 }

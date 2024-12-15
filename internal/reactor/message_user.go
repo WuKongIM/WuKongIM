@@ -1,6 +1,10 @@
 package reactor
 
-import wkproto "github.com/WuKongIM/WuKongIMGoProto"
+import (
+	"time"
+
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+)
 
 // type UserMessage interface {
 // 	GetConn() *Conn
@@ -63,7 +67,16 @@ type UserMessage struct {
 // }
 
 func (m *UserMessage) Size() uint64 {
-	return 0
+	size := uint64(0)
+	if m.Conn != nil {
+		size += m.Conn.Size()
+	}
+	if m.Frame != nil {
+		size += uint64(m.Frame.GetFrameSize())
+	}
+	size += uint64(len(m.WriteData))
+	size += 8 + 8
+	return size
 }
 
 func (m *UserMessage) Encode() ([]byte, error) {
@@ -121,7 +134,9 @@ func (m *UserMessage) Decode(data []byte) error {
 		if err != nil {
 			return err
 		}
-		conn := &Conn{}
+		conn := &Conn{
+			CreatedAt: time.Now(),
+		}
 		err = conn.Decode(connBytes)
 		if err != nil {
 			return err
@@ -216,14 +231,14 @@ func (u *UserMessageBatch) Decode(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 
 	// 解码 UserMessage 的数量
-	numMessages, err := dec.Uint32()
+	numMessages, err := dec.Uint16()
 	if err != nil {
 		return err
 	}
 
 	// 解码每个 UserMessage
 	*u = make(UserMessageBatch, numMessages)
-	for i := uint32(0); i < numMessages; i++ {
+	for i := uint16(0); i < numMessages; i++ {
 		// 解码每个 UserMessage 的字节数据
 		dataLen, err := dec.Uint32()
 		if err != nil {

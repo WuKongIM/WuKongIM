@@ -144,24 +144,8 @@ func TestUser(t *testing.T) {
 
 		actions := u.ready()
 		hasAction(t, reactor.UserActionOutboundForward, actions)
-		assert.Equal(t, 2, u.outbound.queue.len())
-
-		u.step(reactor.UserAction{
-			Type:    reactor.UserActionOutboundForwardResp,
-			From:    2,
-			Success: true,
-			Index:   1,
-		})
-		assert.Equal(t, 1, u.outbound.queue.len())
-
-		u.step(reactor.UserAction{
-			Type:    reactor.UserActionOutboundForwardResp,
-			From:    2,
-			Success: true,
-			Index:   2,
-		})
-
 		assert.Equal(t, 0, u.outbound.queue.len())
+
 	})
 
 	t.Run("testConnClose", func(t *testing.T) {

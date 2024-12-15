@@ -20,7 +20,6 @@ const (
 	// 发件箱
 	UserActionOutboundAdd
 	UserActionOutboundForward
-	UserActionOutboundForwardResp
 	// 节点心跳请求 leader --> replica
 	UserActionNodeHeartbeatReq
 	// 节点心跳返回 replica --> leader
@@ -53,8 +52,6 @@ func (a UserActionType) String() string {
 		return "UserActionInbound"
 	case UserActionOutboundForward:
 		return "UserActionOutboundForward"
-	case UserActionOutboundForwardResp:
-		return "UserActionOutboundForwardResp"
 	case UserActionNodeHeartbeatReq:
 		return "UserActionNodeHeartbeatReq"
 	case UserActionNodeHeartbeatResp:

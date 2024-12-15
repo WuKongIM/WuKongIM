@@ -64,6 +64,8 @@ type Cluster interface {
 
 	// 测试分布式节点网络的ping
 	TestPing() ([]PingResult, error)
+	// 当前节点的版本
+	NodeVersion() uint64
 }
 
 type Propose interface {
