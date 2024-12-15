@@ -3,16 +3,16 @@ package reactor
 import "sync"
 
 type node struct {
-	key  string
-	user *User
-	next *node
-	pre  *node
+	key     string
+	channel *Channel
+	next    *node
+	pre     *node
 }
 
-func newUserNode(key string, user *User) *node {
+func newChannelNode(key string, channel *Channel) *node {
 	return &node{
-		key:  key,
-		user: user,
+		key:     key,
+		channel: channel,
 	}
 }
 
@@ -28,10 +28,10 @@ func newList() *list {
 	return &list{}
 }
 
-func (l *list) add(u *User) {
+func (l *list) add(ch *Channel) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	node := newUserNode(u.uid, u)
+	node := newChannelNode(ch.key, ch)
 	if l.head == nil {
 		l.head = node
 	} else {
@@ -42,7 +42,7 @@ func (l *list) add(u *User) {
 	l.count++
 }
 
-func (l *list) remove(key string) *User {
+func (l *list) remove(key string) *Channel {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	node := l.head
@@ -59,20 +59,20 @@ func (l *list) remove(key string) *User {
 				node.next.pre = node.pre
 			}
 			l.count--
-			return node.user
+			return node.channel
 		}
 		node = node.next
 	}
 	return nil
 }
 
-func (l *list) get(key string) *User {
+func (l *list) get(key string) *Channel {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	node := l.head
 	for node != nil {
 		if node.key == key {
-			return node.user
+			return node.channel
 		}
 		node = node.next
 	}
@@ -92,12 +92,12 @@ func (l *list) exist(key string) bool {
 	return false
 }
 
-func (l *list) read(users *[]*User) {
+func (l *list) read(channels *[]*Channel) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	node := l.head
 	for node != nil {
-		*users = append(*users, node.user)
+		*channels = append(*channels, node.channel)
 		node = node.next
 	}
 }

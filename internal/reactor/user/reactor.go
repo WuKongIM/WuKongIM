@@ -10,9 +10,8 @@ import (
 )
 
 type Reactor struct {
-	subs  []*reactorSub
-	proto wkproto.Protocol
-	mu    sync.Mutex
+	subs []*reactorSub
+	mu   sync.Mutex
 }
 
 func NewReactor(opt ...Option) *Reactor {
@@ -49,12 +48,17 @@ func (r *Reactor) WakeIfNeed(uid string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	sub := r.getSub(uid)
-	user := sub.user(uid)
-	if user != nil {
+	if sub.exist(uid) {
 		return
 	}
-	user = NewUser(wkutil.GenUUID(), uid)
+	user := NewUser(wkutil.GenUUID(), uid)
 	sub.addUser(user)
+}
+
+// Advance 推进，让用户立即执行下一个动作
+func (r *Reactor) Advance(uid string) {
+	sub := r.getSub(uid)
+	sub.advance()
 }
 
 func (r *Reactor) CloseConn(c *reactor.Conn) {
@@ -70,15 +74,40 @@ func (r *Reactor) CloseConn(c *reactor.Conn) {
 }
 
 func (r *Reactor) AddAction(a reactor.UserAction) bool {
-	return r.getSub(a.Uid).addAction(a)
+	sub := r.getSub(a.Uid)
+	if a.Type == reactor.UserActionJoin {
+		if !sub.exist(a.Uid) {
+			r.WakeIfNeed(a.Uid)
+		}
+	}
+	return sub.addAction(a)
 }
 
-func (r *Reactor) SetProto(proto wkproto.Protocol) {
-	r.proto = proto
+func (r *Reactor) Exist(uid string) bool {
+	return r.getSub(uid).exist(uid)
 }
 
-func (r *Reactor) GetProto() wkproto.Protocol {
-	return r.proto
+func (r *Reactor) ConnsByUid(uid string) []*reactor.Conn {
+	return r.getSub(uid).connsByUid(uid)
+}
+func (r *Reactor) ConnCountByUid(uid string) int {
+	return r.getSub(uid).connCountByUid(uid)
+}
+func (r *Reactor) ConnsByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*reactor.Conn {
+	return r.getSub(uid).connsByDeviceFlag(uid, deviceFlag)
+}
+func (r *Reactor) ConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
+	return r.getSub(uid).connCountByDeviceFlag(uid, deviceFlag)
+}
+func (r *Reactor) ConnById(uid string, fromNode uint64, id int64) *reactor.Conn {
+	return r.getSub(uid).connById(uid, fromNode, id)
+}
+func (r *Reactor) LocalConnById(uid string, id int64) *reactor.Conn {
+	return r.getSub(uid).localConnById(uid, id)
+}
+
+func (r *Reactor) UpdateConn(c *reactor.Conn) {
+	r.getSub(c.Uid).updateConn(c.Uid, c.ConnId, c.FromNode, c)
 }
 
 func (r *Reactor) getSub(uid string) *reactorSub {

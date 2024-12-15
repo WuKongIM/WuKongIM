@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
 	"github.com/valyala/fastrand"
 	"go.uber.org/atomic"
@@ -71,7 +72,7 @@ func (r *reactorSub) loop() {
 		}
 
 		select {
-		// case <-r.advanceC:
+		case <-r.advanceC:
 		case <-tick.C:
 			r.continReadEventCount = 0
 			r.tick()
@@ -178,8 +179,13 @@ func (r *reactorSub) tick() {
 }
 
 func (r *reactorSub) addAction(a reactor.UserAction) bool {
-	r.Info("addAction==", zap.String("uid", a.Uid), zap.String("type", a.Type.String()))
-	return r.actionQueue.add(a)
+	// r.Info("addAction==", zap.String("uid", a.Uid), zap.String("type", a.Type.String()))
+	added := r.actionQueue.add(a)
+	if !added {
+		r.Warn("drop action,queue is full", zap.String("uid", a.Uid), zap.String("type", a.Type.String()))
+
+	}
+	return added
 }
 
 func (r *reactorSub) mustAddAction(a reactor.UserAction) {
@@ -191,7 +197,33 @@ func (r *reactorSub) user(uid string) *User {
 	return r.users.get(uid)
 
 }
+func (r *reactorSub) exist(uid string) bool {
+	return r.users.exist(uid)
+}
 
 func (r *reactorSub) addUser(u *User) {
 	r.users.add(u)
+}
+
+func (r *reactorSub) connsByUid(uid string) []*reactor.Conn {
+	return r.user(uid).conns.allConns()
+}
+func (r *reactorSub) connCountByUid(uid string) int {
+	return r.user(uid).conns.count()
+}
+func (r *reactorSub) connsByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*reactor.Conn {
+	return r.user(uid).conns.connsByDeviceFlag(deviceFlag)
+}
+func (r *reactorSub) connCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
+	return r.user(uid).conns.countByDeviceFlag(deviceFlag)
+}
+func (r *reactorSub) connById(uid string, fromNode uint64, id int64) *reactor.Conn {
+	return r.user(uid).conns.connById(fromNode, id)
+}
+func (r *reactorSub) localConnById(uid string, id int64) *reactor.Conn {
+	return r.user(uid).conns.connByConnId(options.NodeId, id)
+}
+
+func (r *reactorSub) updateConn(uid string, connId int64, nodeId uint64, newConn *reactor.Conn) {
+	r.user(uid).conns.updateConn(connId, nodeId, newConn)
 }

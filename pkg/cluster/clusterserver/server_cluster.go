@@ -274,6 +274,10 @@ func (s *Server) SlotLeaderNodeInfo(slotId uint32) (nodeInfo *pb.Node, err error
 	return node, nil
 }
 
+func (s *Server) NodeVersion() uint64 {
+	return s.clusterEventServer.Config().Version
+}
+
 func (s *Server) TestPing() ([]icluster.PingResult, error) {
 
 	// 清空上次记录

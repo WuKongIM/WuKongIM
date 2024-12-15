@@ -86,3 +86,63 @@ func WithSend(f func([]reactor.UserAction)) Option {
 		opts.Send = f
 	}
 }
+
+func WithNodeVersion(f func() uint64) Option {
+	return func(opts *Options) {
+		opts.NodeVersion = f
+	}
+}
+
+func WithReceiveQueueLength(length uint64) Option {
+	return func(opts *Options) {
+		opts.ReceiveQueueLength = length
+	}
+}
+
+func WithMaxReceiveQueueSize(size uint64) Option {
+	return func(opts *Options) {
+		opts.MaxReceiveQueueSize = size
+	}
+}
+
+func WithOutboundForwardIntervalTick(tick int) Option {
+	return func(opts *Options) {
+		opts.OutboundForwardIntervalTick = tick
+	}
+}
+
+func WithOutboundForwardMaxMessageCount(count uint64) Option {
+	return func(opts *Options) {
+		opts.OutboundForwardMaxMessageCount = count
+	}
+}
+
+func WithLeaderIdleTimeoutTick(tick int) Option {
+	return func(opts *Options) {
+		opts.LeaderIdleTimeoutTick = tick
+	}
+}
+
+func WithNodeHeartbeatTick(tick int) Option {
+	return func(opts *Options) {
+		opts.NodeHeartbeatTick = tick
+	}
+}
+
+func WithNodeHeartbeatTimeoutTick(tick int) Option {
+	return func(opts *Options) {
+		opts.NodeHeartbeatTimeoutTick = tick
+	}
+}
+
+func WithTickInterval(interval time.Duration) Option {
+	return func(opts *Options) {
+		opts.TickInterval = interval
+	}
+}
+
+func WithRetryIntervalTick(tick int) Option {
+	return func(opts *Options) {
+		opts.RetryIntervalTick = tick
+	}
+}

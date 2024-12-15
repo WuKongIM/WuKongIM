@@ -1,3 +1,3 @@
-package channel
+package reactor
 
 type Action struct{}

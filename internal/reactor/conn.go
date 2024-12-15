@@ -1,6 +1,9 @@
 package reactor
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -53,6 +56,7 @@ type Conn struct {
 	AesIV        []byte
 	AesKey       []byte
 	ProtoVersion uint8
+	CreatedAt    time.Time
 }
 
 func (c *Conn) Encode() ([]byte, error) {
@@ -116,7 +120,16 @@ func (c *Conn) Decode(data []byte) error {
 	return nil
 }
 
+func (c *Conn) Size() uint64 {
+	return uint64(8 + len(c.Uid) + len(c.DeviceId) + 1 + 1 + 8 + 1 + len(c.AesIV) + len(c.AesKey) + 1)
+}
+
 func (c *Conn) Equal(cn *Conn) bool {
 
 	return c.Uid == cn.Uid && c.ConnId == cn.ConnId && c.FromNode == cn.FromNode
+}
+
+func (c *Conn) String() string {
+
+	return fmt.Sprintf("ConnId:%d, Uid:%s, DeviceId:%s, DeviceFlag:%d, DeviceLevel:%d, FromNode:%d, Auth:%v, ProtoVersion:%d, AesIV:%s, AesKey:%s CreatedAt:%s", c.ConnId, c.Uid, c.DeviceId, c.DeviceFlag, c.DeviceLevel, c.FromNode, c.Auth, c.ProtoVersion, c.AesIV, c.AesKey, c.CreatedAt)
 }

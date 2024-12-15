@@ -2,6 +2,7 @@ package server
 
 import (
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
@@ -90,8 +91,11 @@ func (s *Server) onData(conn wknet.Conn) error {
 			DeviceId:     connectPacket.DeviceID,
 			DeviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
 			ProtoVersion: connectPacket.Version,
+			CreatedAt:    time.Now(),
 		}
 		conn.SetContext(connCtx)
+
+		conn.SetMaxIdle(time.Second * 4) // 给4秒的时间去认证
 
 		// 如果用户不存在则唤醒用户
 		reactor.User.WakeIfNeed(connectPacket.UID)

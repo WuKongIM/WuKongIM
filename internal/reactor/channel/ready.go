@@ -8,7 +8,7 @@ import (
 
 type ready struct {
 	queue       *msgQueue   // 消息队列
-	state       *ReadyState // ready state
+	state       *readyState // ready state
 	offsetIndex uint64      // 当前偏移的下标
 	endIndex    uint64      // 当前同步结束的index
 }
@@ -17,7 +17,7 @@ func newReady(logPrefix string) *ready {
 
 	return &ready{
 		queue: newMsgQueue(logPrefix),
-		state: NewReadyState(options.RetryIntervalTick),
+		state: newReadyState(options.RetryIntervalTick),
 	}
 }
 
@@ -39,7 +39,7 @@ func newReady(logPrefix string) *ready {
 
 // }
 
-func (r *ready) sliceAndTruncate() []*reactor.UserMessage {
+func (r *ready) sliceAndTruncate() []*reactor.ChannelMessage {
 	msgs := r.queue.sliceWithSize(r.offsetIndex+1, r.queue.lastIndex+1, 0)
 	if len(msgs) > 0 {
 		r.endIndex = msgs[len(msgs)-1].Index
@@ -75,7 +75,7 @@ func (r *ready) tick() {
 	r.state.Tick()
 }
 
-func (r *ready) append(m *reactor.UserMessage) {
+func (r *ready) append(m *reactor.ChannelMessage) {
 	m.Index = r.queue.lastIndex + 1
 	r.queue.append(m)
 }
@@ -84,21 +84,21 @@ type outboundReady struct {
 	queue       *msgQueue                // 消息队列
 	replicas    map[uint64]*replicaState // 副本数据状态
 	offsetIndex uint64                   // 当前偏移的下标
-	user        *User
+	channel     *Channel
 	wklog.Log
 }
 
-func newOutboundReady(logPrefix string, user *User) *outboundReady {
+func newOutboundReady(logPrefix string, channel *Channel) *outboundReady {
 
 	return &outboundReady{
 		queue:    newMsgQueue(logPrefix),
 		replicas: map[uint64]*replicaState{},
 		Log:      wklog.NewWKLog(logPrefix),
-		user:     user,
+		channel:  channel,
 	}
 }
 
-func (o *outboundReady) append(m *reactor.UserMessage) {
+func (o *outboundReady) append(m *reactor.ChannelMessage) {
 	m.Index = o.queue.lastIndex + 1
 	o.queue.append(m)
 }
@@ -107,8 +107,8 @@ func (o *outboundReady) has() bool {
 	return o.offsetIndex < o.queue.lastIndex
 }
 
-func (o *outboundReady) ready() []reactor.UserAction {
-	var actions []reactor.UserAction
+func (o *outboundReady) ready() []reactor.ChannelAction {
+	var actions []reactor.ChannelAction
 	var endIndex = o.queue.lastIndex
 	msgs := o.queue.sliceWithSize(o.offsetIndex+1, endIndex+1, 0)
 	if len(msgs) == 0 {
@@ -123,12 +123,13 @@ func (o *outboundReady) ready() []reactor.UserAction {
 	for _, msg := range msgs {
 		// 如果ToNode有值，说明指定了接收的节点，这种情况需要判断是不是当前节点
 		if msg.ToNode != 0 {
-			actions = append(actions, reactor.UserAction{
-				Uid:  o.user.uid,
-				Type: reactor.UserActionOutboundForward,
-				From: options.NodeId,
-				To:   msg.ToNode,
-				Messages: []*reactor.UserMessage{
+			actions = append(actions, reactor.ChannelAction{
+				ChannelId:   o.channel.channelId,
+				ChannelType: o.channel.channelType,
+				Type:        reactor.ChannelActionOutboundForward,
+				From:        options.NodeId,
+				To:          msg.ToNode,
+				Messages: []*reactor.ChannelMessage{
 					msg,
 				},
 			})
@@ -137,7 +138,7 @@ func (o *outboundReady) ready() []reactor.UserAction {
 		}
 	}
 
-	var newMsgs []*reactor.UserMessage
+	var newMsgs []*reactor.ChannelMessage
 	if hasToNode {
 		for _, msg := range msgs {
 			if msg.ToNode == 0 {
@@ -149,12 +150,13 @@ func (o *outboundReady) ready() []reactor.UserAction {
 	}
 	if len(newMsgs) > 0 {
 		for nodeId := range o.replicas {
-			actions = append(actions, reactor.UserAction{
-				Uid:      o.user.uid,
-				Type:     reactor.UserActionOutboundForward,
-				From:     options.NodeId,
-				To:       nodeId,
-				Messages: newMsgs,
+			actions = append(actions, reactor.ChannelAction{
+				ChannelId:   o.channel.channelId,
+				ChannelType: o.channel.channelType,
+				Type:        reactor.ChannelActionOutboundForward,
+				From:        options.NodeId,
+				To:          nodeId,
+				Messages:    newMsgs,
 			})
 		}
 	}
@@ -211,7 +213,6 @@ func (o *outboundReady) tick() {
 		if replica.heartbeatIdleTick >= options.NodeHeartbeatTimeoutTick {
 			o.Info("replica heartbeat timeout", zap.Uint64("nodeId", replica.nodeId))
 			delete(o.replicas, replica.nodeId)
-			o.user.conns.removeConnByNodeId(replica.nodeId)
 			continue
 		}
 	}
