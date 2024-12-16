@@ -35,6 +35,7 @@ func newReactorSub(index int, r *Reactor) *reactorSub {
 		Log:          wklog.NewWKLog(fmt.Sprintf("reactorSub[%d]", index)),
 		advanceC:     make(chan struct{}, 1),
 		r:            r,
+		actionQueue:  newActionQueue(options.ReceiveQueueLength, false, 0, options.MaxReceiveQueueSize),
 	}
 }
 
@@ -140,7 +141,7 @@ func (r *reactorSub) handleReceivedActions() bool {
 		return false
 	}
 	for _, a := range actions {
-		user := r.channels.get(wkutil.ChannelToKey(a.ChannelId, a.ChannelType))
+		user := r.channels.get(wkutil.ChannelToKey(a.FakeChannelId, a.ChannelType))
 		if user == nil {
 			continue
 		}
@@ -170,15 +171,23 @@ func (r *reactorSub) tick() {
 }
 
 func (r *reactorSub) addAction(a reactor.ChannelAction) bool {
-	// r.Info("addAction==", zap.String("uid", a.Uid), zap.String("type", a.Type.String()))
+	r.Info("addAction==", zap.String("channel", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType), zap.String("type", a.Type.String()))
 	added := r.actionQueue.add(a)
 	if !added {
-		r.Warn("drop action,queue is full",
-			zap.String("channelId", a.ChannelId),
+		r.Warn("drop channel action,queue is full",
+			zap.String("channelId", a.FakeChannelId),
 			zap.Uint8("channelType", a.ChannelType),
 			zap.String("type", a.Type.String()),
 		)
 
 	}
 	return added
+}
+
+func (r *reactorSub) exist(channelKey string) bool {
+	return r.channels.exist(channelKey)
+}
+
+func (r *reactorSub) addChannel(ch *Channel) {
+	r.channels.add(ch)
 }

@@ -1,10 +1,12 @@
-package server
+package process
 
 import (
 	"encoding/base64"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -12,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *processUser) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCode, *wkproto.ConnackPacket, error) {
+func (p *User) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCode, *wkproto.ConnackPacket, error) {
 	var (
 		conn          = msg.Conn
 		connectPacket = msg.Frame.(*wkproto.ConnectPacket)
@@ -20,18 +22,18 @@ func (p *processUser) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCod
 		uid           = connectPacket.UID
 	)
 	// -------------------- token verify --------------------
-	if connectPacket.UID == p.s.opts.ManagerUID {
-		if p.s.opts.ManagerTokenOn && connectPacket.Token != p.s.opts.ManagerToken {
+	if connectPacket.UID == options.G.ManagerUID {
+		if options.G.ManagerTokenOn && connectPacket.Token != options.G.ManagerToken {
 			p.Error("manager token verify fail", zap.String("uid", uid), zap.String("token", connectPacket.Token))
 			return wkproto.ReasonAuthFail, nil, nil
 		}
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
-	} else if p.s.opts.TokenAuthOn {
+	} else if options.G.TokenAuthOn {
 		if connectPacket.Token == "" {
 			p.Error("token is empty")
 			return wkproto.ReasonAuthFail, nil, errors.New("token is empty")
 		}
-		device, err := p.s.store.GetDevice(uid, connectPacket.DeviceFlag)
+		device, err := service.Store.GetDevice(uid, connectPacket.DeviceFlag)
 		if err != nil {
 			p.Error("get device token err", zap.Error(err))
 			return wkproto.ReasonAuthFail, nil, err
@@ -46,7 +48,7 @@ func (p *processUser) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCod
 	}
 
 	// -------------------- ban  --------------------
-	userChannelInfo, err := p.s.store.GetChannel(uid, wkproto.ChannelTypePerson)
+	userChannelInfo, err := service.Store.GetChannel(uid, wkproto.ChannelTypePerson)
 	if err != nil {
 		p.Error("get device channel info err", zap.Error(err))
 		return wkproto.ReasonAuthFail, nil, err
@@ -117,9 +119,9 @@ func (p *processUser) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCod
 	conn.ProtoVersion = lastVersion
 	conn.DeviceLevel = devceLevel
 
-	realConn := p.s.connManager.getConn(conn.ConnId)
+	realConn := service.ConnManager.GetConn(conn.ConnId)
 	if realConn != nil {
-		realConn.SetMaxIdle(p.s.opts.ConnIdleTime)
+		realConn.SetMaxIdle(options.G.ConnIdleTime)
 	}
 
 	// -------------------- response connack --------------------
@@ -135,21 +137,21 @@ func (p *processUser) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCod
 		ReasonCode:    wkproto.ReasonSuccess,
 		TimeDiff:      timeDiff,
 		ServerVersion: lastVersion,
-		NodeId:        p.s.opts.Cluster.NodeId,
+		NodeId:        options.G.Cluster.NodeId,
 	}
 	connack.HasServerVersion = hasServerVersion
 	// -------------------- user online --------------------
 	// 在线webhook
 	deviceOnlineCount := reactor.User.ConnCountByDeviceFlag(uid, connectPacket.DeviceFlag)
 	totalOnlineCount := reactor.User.ConnCountByUid(uid)
-	p.s.webhook.Online(uid, connectPacket.DeviceFlag, conn.ConnId, deviceOnlineCount, totalOnlineCount)
+	service.Webhook.Online(uid, connectPacket.DeviceFlag, conn.ConnId, deviceOnlineCount, totalOnlineCount)
 
 	return wkproto.ReasonSuccess, connack, nil
 }
 
 // 获取客户端的aesKey和aesIV
 // dhServerPrivKey  服务端私钥
-func (p *processUser) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]byte) ([]byte, []byte, error) {
+func (p *User) getClientAesKeyAndIV(clientKey string, dhServerPrivKey [32]byte) ([]byte, []byte, error) {
 
 	clientKeyBytes, err := base64.StdEncoding.DecodeString(clientKey)
 	if err != nil {

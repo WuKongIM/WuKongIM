@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -83,7 +85,7 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的槽领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的槽领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -119,11 +121,8 @@ func (ch *ChannelAPI) channelCreateOrUpdate(c *wkhttp.Context) {
 		return
 	}
 
-	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
-	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
-	if cacheChannel != nil {
-		cacheChannel.info = channelInfo
-	}
+	// 更新频道缓存信息
+	reactor.Channel.UpdateChannelInfo(channelInfo)
 
 	c.ResponseOK()
 }
@@ -139,7 +138,7 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -160,11 +159,7 @@ func (ch *ChannelAPI) updateOrAddChannelInfo(c *wkhttp.Context) {
 		c.ResponseError(errors.New("添加或更新频道信息失败！"))
 		return
 	}
-	channelKey := wkutil.ChannelToKey(req.ChannelID, req.ChannelType)
-	cacheChannel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
-	if cacheChannel != nil {
-		cacheChannel.info = channelInfo
-	}
+	reactor.Channel.UpdateChannelInfo(channelInfo)
 	c.ResponseOK()
 }
 
@@ -195,7 +190,7 @@ func (ch *ChannelAPI) addSubscriber(c *wkhttp.Context) {
 	if req.ChannelType == 0 {
 		req.ChannelType = wkproto.ChannelTypeGroup //默认为群
 	}
-	leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 	if err != nil {
 		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -313,63 +308,64 @@ func (ch *ChannelAPI) addSubscriberWithReq(req subscriberAddReq) error {
 
 	}
 
-	// 重新制止tag
-	err = ch.makeAndCmdReceiverTag(req.ChannelId, req.ChannelType)
-	if err != nil {
-		ch.Error("创建接收者标签失败！", zap.Error(err))
-		return err
-	}
+	// 普通频道对应的cmd频道的tag
+	cmdChannelId := ch.s.opts.OrginalConvertCmdChannel(req.ChannelId)
+	// 添加订阅者
+	reactor.Channel.AddSubscribers(req.ChannelId, req.ChannelType, newSubscribers)
+	// TODO: 这里有bug，应该在cmd频道的节点上操作此步骤
+	reactor.Channel.AddSubscribers(cmdChannelId, req.ChannelType, newSubscribers)
+
 	return nil
 }
 
-func (ch *ChannelAPI) makeReceiverTag(channelId string, channelType uint8) error {
-	cfg, err := ch.s.cluster.LoadOnlyChannelClusterConfig(channelId, channelType)
-	if err != nil && err != cluster.ErrChannelClusterConfigNotFound {
-		ch.Info("makeLocalReceiverTag: loadOnlyChannelClusterConfig failed")
-		return nil
-	}
-	if err == cluster.ErrChannelClusterConfigNotFound { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
-		return nil
-	}
+// func (ch *ChannelAPI) makeReceiverTag(channelId string, channelType uint8) error {
+// 	cfg, err := service.Cluster.LoadOnlyChannelClusterConfig(channelId, channelType)
+// 	if err != nil && err != cluster.ErrChannelClusterConfigNotFound {
+// 		ch.Info("makeLocalReceiverTag: loadOnlyChannelClusterConfig failed")
+// 		return nil
+// 	}
+// 	if err == cluster.ErrChannelClusterConfigNotFound { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
+// 		return nil
+// 	}
 
-	if cfg.LeaderId == 0 { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
-		return nil
-	}
+// 	if cfg.LeaderId == 0 { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
+// 		return nil
+// 	}
 
-	// 如果在本节点，则重新make tag
-	if ch.s.opts.IsLocalNode(cfg.LeaderId) {
-		channelKey := wkutil.ChannelToKey(channelId, channelType)
-		channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
-		if channel != nil {
-			// 重新生成接收者标签
-			_, err := channel.makeReceiverTag()
-			if err != nil {
-				ch.Error("创建接收者标签失败！", zap.Error(err))
-				return err
-			}
-		}
-		return nil
-	}
+// 	// 如果在本节点，则重新make tag
+// 	if ch.s.opts.IsLocalNode(cfg.LeaderId) {
+// 		channelKey := wkutil.ChannelToKey(channelId, channelType)
+// 		channel := ch.s.channelReactor.reactorSub(channelKey).channel(channelKey)
+// 		if channel != nil {
+// 			// 重新生成接收者标签
+// 			_, err := channel.makeReceiverTag()
+// 			if err != nil {
+// 				ch.Error("创建接收者标签失败！", zap.Error(err))
+// 				return err
+// 			}
+// 		}
+// 		return nil
+// 	}
 
-	return ch.requestReceiverTag(channelId, channelType, cfg.LeaderId)
+// 	return ch.requestReceiverTag(channelId, channelType, cfg.LeaderId)
 
-}
+// }
 
-// cmd和普通频道
-func (ch *ChannelAPI) makeAndCmdReceiverTag(channelId string, channelType uint8) error {
+// // cmd和普通频道
+// func (ch *ChannelAPI) makeAndCmdReceiverTag(channelId string, channelType uint8) error {
 
-	// 普通频道的tag
-	err := ch.makeReceiverTag(channelId, channelType)
-	if err != nil {
-		return err
-	}
+// 	// 普通频道的tag
+// 	err := ch.makeReceiverTag(channelId, channelType)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// 普通频道对应的cmd频道的tag
-	cmdChannelId := ch.s.opts.OrginalConvertCmdChannel(channelId)
+// 	// 普通频道对应的cmd频道的tag
+// 	cmdChannelId := ch.s.opts.OrginalConvertCmdChannel(channelId)
 
-	return ch.makeReceiverTag(cmdChannelId, channelType)
+// 	return ch.makeReceiverTag(cmdChannelId, channelType)
 
-}
+// }
 
 func (ch *ChannelAPI) requestReceiverTag(channelId string, channelType uint8, nodeId uint64) error {
 
@@ -380,7 +376,7 @@ func (ch *ChannelAPI) requestReceiverTag(channelId string, channelType uint8, no
 		ChannelId:   channelId,
 		ChannelType: channelType,
 	}
-	resp, err := ch.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/makeReceiverTag", req.Marshal())
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/makeReceiverTag", req.Marshal())
 	if err != nil {
 		return err
 	}
@@ -407,7 +403,7 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		return
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -428,12 +424,11 @@ func (ch *ChannelAPI) removeSubscriber(c *wkhttp.Context) {
 		return
 	}
 
-	err = ch.makeAndCmdReceiverTag(req.ChannelId, req.ChannelType)
-	if err != nil {
-		ch.Error("创建接收者标签失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.ResponseError(err)
-		return
-	}
+	reactor.Channel.RemoveSubscribers(req.ChannelId, req.ChannelType, req.Subscribers)
+
+	cmdChannelId := ch.s.opts.OrginalConvertCmdChannel(req.ChannelId)
+	// TODO: 此步骤应该在cmdChannelId的领导节点操作
+	reactor.Channel.RemoveSubscribers(cmdChannelId, req.ChannelType, req.Subscribers)
 
 	c.ResponseOK()
 }
@@ -452,7 +447,7 @@ func (ch *ChannelAPI) setTmpSubscriber(c *wkhttp.Context) {
 
 	if ch.s.opts.ClusterOn() {
 		timeoutCtx, cancel := context.WithTimeout(ch.s.ctx, time.Second*5)
-		leaderInfo, err := ch.s.cluster.LeaderOfChannel(timeoutCtx, req.ChannelId, wkproto.ChannelTypeTemp) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.LeaderOfChannel(timeoutCtx, req.ChannelId, wkproto.ChannelTypeTemp) // 获取频道的领导节点
 		cancel()
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", wkproto.ChannelTypeTemp))
@@ -473,8 +468,7 @@ func (ch *ChannelAPI) setTmpSubscriber(c *wkhttp.Context) {
 }
 
 func setTmpSubscriberWithReq(s *Server, req tmpSubscriberSetReq) {
-	channel := s.channelReactor.loadOrCreateChannel(req.ChannelId, wkproto.ChannelTypeTemp)
-	channel.setTmpSubscribers(req.Uids)
+	reactor.Channel.AddTempSubscribers(req.ChannelId, wkproto.ChannelTypeTemp, req.Uids)
 }
 
 func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
@@ -495,7 +489,7 @@ func (ch *ChannelAPI) blacklistAdd(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -544,7 +538,7 @@ func (ch *ChannelAPI) blacklistSet(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -601,7 +595,7 @@ func (ch *ChannelAPI) blacklistRemove(c *wkhttp.Context) {
 		return
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -638,7 +632,7 @@ func (ch *ChannelAPI) channelDelete(c *wkhttp.Context) {
 		return
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -705,7 +699,7 @@ func (ch *ChannelAPI) whitelistAdd(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -753,7 +747,7 @@ func (ch *ChannelAPI) whitelistSet(c *wkhttp.Context) {
 	}
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -809,7 +803,7 @@ func (ch *ChannelAPI) whitelistRemove(c *wkhttp.Context) {
 		return
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -838,7 +832,7 @@ func (ch *ChannelAPI) whitelistGet(c *wkhttp.Context) {
 	channelType := wkutil.ParseUint8(c.Query("channel_type"))
 
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.SlotLeaderOfChannel(channelId, channelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(channelId, channelType) // 获取频道的领导节点
 		if err != nil {
 			ch.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -924,7 +918,7 @@ func (ch *ChannelAPI) syncMessages(c *wkhttp.Context) {
 		fakeChannelID = GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
 	if ch.s.opts.ClusterOn() {
-		leaderInfo, err := ch.s.cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
 		if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
 			ch.Info("空频道，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 			c.JSON(http.StatusOK, emptySyncMessageResp)
@@ -1002,7 +996,7 @@ func (ch *ChannelAPI) getChannelMaxMessageSeq(c *wkhttp.Context) {
 		return
 	}
 
-	leaderInfo, err := ch.s.cluster.LeaderOfChannelForRead(channelId, channelType)
+	leaderInfo, err := service.Cluster.LeaderOfChannelForRead(channelId, channelType)
 	if err != nil && errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
 		c.JSON(http.StatusOK, gin.H{
 			"message_seq": 0,

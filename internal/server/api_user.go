@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -62,7 +63,7 @@ func (u *UserAPI) deviceQuit(c *wkhttp.Context) {
 		return
 	}
 	if u.s.opts.ClusterOn() {
-		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -163,7 +164,7 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 	uidInPeerMap := make(map[uint64][]string)
 	localUids := make([]string, 0)
 	for _, uid := range uids {
-		leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(uid, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", uid), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return nil, errors.New("获取频道所在节点失败！")
@@ -210,7 +211,7 @@ func (u *UserAPI) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, 
 
 func (u *UserAPI) requestOnlineStatus(nodeID uint64, uids []string) ([]*OnlinestatusResp, error) {
 
-	nodeInfo, err := u.s.cluster.NodeInfoById(nodeID) // 获取频道的领导节点
+	nodeInfo, err := service.Cluster.NodeInfoById(nodeID) // 获取频道的领导节点
 	if err != nil {
 		u.Error("获取频道所在节点失败！", zap.Error(err), zap.Uint64("nodeID", nodeID))
 		return nil, errors.New("获取频道所在节点失败！")
@@ -268,7 +269,7 @@ func (u *UserAPI) updateToken(c *wkhttp.Context) {
 		return
 	}
 
-	leaderInfo, err := u.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
 		u.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -402,7 +403,7 @@ func (u *UserAPI) systemUidsAdd(c *wkhttp.Context) {
 
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
 
-	nodeInfo, err := u.s.cluster.SlotLeaderNodeInfo(slotId)
+	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
 	if err != nil {
 		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
 		c.ResponseError(errors.New("获取slot所在节点失败！"))
@@ -416,7 +417,7 @@ func (u *UserAPI) systemUidsAdd(c *wkhttp.Context) {
 
 	// 将系统账号存储下来
 	if len(req.UIDs) > 0 {
-		err := u.s.systemUIDManager.AddSystemUids(req.UIDs)
+		err := service.SystemAccountManager.AddSystemUids(req.UIDs)
 		if err != nil {
 			u.Error("添加系统账号失败！", zap.Error(err))
 			c.ResponseError(errors.New("添加系统账号失败！"))
@@ -481,7 +482,7 @@ func (u *UserAPI) systemUidsAddToCache(c *wkhttp.Context) {
 	}
 
 	if len(req.UIDs) > 0 {
-		u.s.systemUIDManager.AddSystemUidsToCache(req.UIDs)
+		service.SystemAccountManager.AddSystemUidsToCache(req.UIDs)
 	}
 	c.ResponseOK()
 }
@@ -499,7 +500,7 @@ func (u *UserAPI) systemUidsRemove(c *wkhttp.Context) {
 	}
 
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
-	nodeInfo, err := u.s.cluster.SlotLeaderNodeInfo(slotId)
+	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
 	if err != nil {
 		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
 		c.ResponseError(errors.New("获取slot所在节点失败！"))
@@ -512,7 +513,7 @@ func (u *UserAPI) systemUidsRemove(c *wkhttp.Context) {
 	}
 
 	if len(req.UIDs) > 0 {
-		err := u.s.systemUIDManager.RemoveSystemUids(req.UIDs)
+		err := service.SystemAccountManager.RemoveSystemUids(req.UIDs)
 		if err != nil {
 			u.Error("移除系统账号失败！", zap.Error(err))
 			c.ResponseError(errors.New("移除系统账号失败！"))
@@ -576,7 +577,7 @@ func (u *UserAPI) systemUidsRemoveFromCache(c *wkhttp.Context) {
 	}
 
 	if len(req.UIDs) > 0 {
-		u.s.systemUIDManager.RemoveSystemUidsFromCache(req.UIDs)
+		service.SystemAccountManager.RemoveSystemUidsFromCache(req.UIDs)
 	}
 	c.ResponseOK()
 }
@@ -584,7 +585,7 @@ func (u *UserAPI) systemUidsRemoveFromCache(c *wkhttp.Context) {
 func (u *UserAPI) getSystemUids(c *wkhttp.Context) {
 
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
-	nodeInfo, err := u.s.cluster.SlotLeaderNodeInfo(slotId)
+	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
 	if err != nil {
 		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
 		c.ResponseError(errors.New("获取slot所在节点失败！"))

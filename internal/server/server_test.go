@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -18,7 +19,7 @@ import (
 
 func TestServerStart(t *testing.T) {
 	s := NewTestServer(t)
-	s.opts.Mode = TestMode
+	s.opts.Mode = options.TestMode
 	err := s.Start()
 	assert.Nil(t, err)
 	err = s.Stop()
@@ -28,7 +29,7 @@ func TestServerStart(t *testing.T) {
 // 测试单节点发送消息
 func TestSingleSendMessage(t *testing.T) {
 	s := NewTestServer(t)
-	s.opts.Mode = TestMode
+	s.opts.Mode = options.TestMode
 	err := s.Start()
 	assert.Nil(t, err)
 	defer s.StopNoErr()
@@ -161,7 +162,7 @@ func TestClusterSlotMigrate(t *testing.T) {
 
 // 槽迁移，从追随者迁移到leader
 func TestClusterSlotMigrateForFollowToLeader(t *testing.T) {
-	s1, s2 := NewTestClusterServerTwoNode(t, WithClusterSlotReplicaCount(2), WithClusterChannelReactorSubCount(1), WithClusterSlotReactorSubCount(1))
+	s1, s2 := NewTestClusterServerTwoNode(t, options.WithClusterSlotReplicaCount(2), options.WithClusterChannelReactorSubCount(1), options.WithClusterSlotReactorSubCount(1))
 	err := s1.Start()
 	assert.Nil(t, err)
 
@@ -231,7 +232,7 @@ func TestClusterNodeJoin(t *testing.T) {
 	assert.Equal(t, 2, len(cfg.Nodes))
 
 	// new server
-	s3 := NewTestServer(t, WithDemoOn(false), WithClusterSeed("1001@127.0.0.1:11110"), WithClusterServerAddr("0.0.0.0:11115"), WithWSAddr("ws://0.0.0.0:5250"), WithManagerAddr("0.0.0.0:5350"), WithAddr("tcp://0.0.0.0:5150"), WithHTTPAddr("0.0.0.0:5005"), WithClusterAddr("tcp://0.0.0.0:11115"), WithClusterNodeId(1005))
+	s3 := NewTestServer(t, options.WithDemoOn(false), options.WithClusterSeed("1001@127.0.0.1:11110"), options.WithClusterServerAddr("0.0.0.0:11115"), options.WithWSAddr("ws://0.0.0.0:5250"), options.WithManagerAddr("0.0.0.0:5350"), options.WithAddr("tcp://0.0.0.0:5150"), options.WithHTTPAddr("0.0.0.0:5005"), options.WithClusterAddr("tcp://0.0.0.0:11115"), options.WithClusterNodeId(1005))
 	err = s3.Start()
 	assert.Nil(t, err)
 	defer s3.StopNoErr()
@@ -270,7 +271,7 @@ func TestClusterNodeJoin(t *testing.T) {
 }
 
 func TestClusterChannelMigrate(t *testing.T) {
-	s1, s2 := NewTestClusterServerTwoNode(t, WithClusterChannelReplicaCount(1), WithClusterSlotReplicaCount(2))
+	s1, s2 := NewTestClusterServerTwoNode(t, options.WithClusterChannelReplicaCount(1), options.WithClusterSlotReplicaCount(2))
 	err := s1.Start()
 	assert.Nil(t, err)
 
@@ -576,7 +577,7 @@ func TestClusterSaveClusterConfig(t *testing.T) {
 
 func BenchmarkSingleSendMessage(b *testing.B) {
 	s := NewTestServer(b)
-	s.opts.Mode = TestMode
+	s.opts.Mode = options.TestMode
 	err := s.Start()
 	assert.Nil(b, err)
 	defer s.StopNoErr()

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -103,7 +104,7 @@ func (s *StressAPI) remove(c *wkhttp.Context) {
 
 func (s *StressAPI) infoList(c *wkhttp.Context) {
 
-	leaderInfo, err := s.s.cluster.SlotLeaderNodeInfo(defaultSlotId) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderNodeInfo(defaultSlotId) // 获取频道的领导节点
 	if err != nil {
 		s.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))

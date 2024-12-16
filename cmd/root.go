@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/server"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/spf13/cobra"
@@ -27,7 +28,7 @@ import (
 var (
 	cfgFile             string
 	ignoreMissingConfig bool // 配置文件是否可以不存在，如果配置了配置文件，但是不存在，则忽略
-	serverOpts          = server.NewOptions()
+	serverOpts          = options.New()
 	mode                string
 	daemon              bool
 	pidfile             string = "wukongim.pid"
@@ -80,7 +81,7 @@ func initConfig() {
 	vp.AutomaticEnv()
 	// 初始化服务配置
 	if strings.TrimSpace(mode) != "" {
-		serverOpts.Mode = server.Mode(mode)
+		serverOpts.Mode = options.Mode(mode)
 	}
 	serverOpts.ConfigureWithViper(vp)
 

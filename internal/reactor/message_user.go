@@ -1,8 +1,6 @@
 package reactor
 
 import (
-	"time"
-
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -26,9 +24,10 @@ type UserMessage struct {
 	Conn      *Conn
 	Frame     wkproto.Frame
 	WriteData []byte
+	Index     uint64
+	ToNode    uint64
+	MessageId int64 // 消息id
 
-	Index  uint64
-	ToNode uint64
 }
 
 // func (m *DefaultUserMessage) GetConn() Conn {
@@ -114,6 +113,7 @@ func (m *UserMessage) Encode() ([]byte, error) {
 
 	enc.WriteUint64(m.Index)
 	enc.WriteUint64(m.ToNode)
+	enc.WriteInt64(m.MessageId)
 
 	return enc.Bytes(), nil
 }
@@ -134,9 +134,7 @@ func (m *UserMessage) Decode(data []byte) error {
 		if err != nil {
 			return err
 		}
-		conn := &Conn{
-			CreatedAt: time.Now(),
-		}
+		conn := &Conn{}
 		err = conn.Decode(connBytes)
 		if err != nil {
 			return err
@@ -177,6 +175,11 @@ func (m *UserMessage) Decode(data []byte) error {
 	if m.ToNode, err = dec.Uint64(); err != nil {
 		return err
 	}
+
+	if m.MessageId, err = dec.Int64(); err != nil {
+		return err
+	}
+
 	return nil
 
 }

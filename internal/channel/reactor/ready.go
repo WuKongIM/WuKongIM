@@ -124,11 +124,11 @@ func (o *outboundReady) ready() []reactor.ChannelAction {
 		// 如果ToNode有值，说明指定了接收的节点，这种情况需要判断是不是当前节点
 		if msg.ToNode != 0 {
 			actions = append(actions, reactor.ChannelAction{
-				ChannelId:   o.channel.channelId,
-				ChannelType: o.channel.channelType,
-				Type:        reactor.ChannelActionOutboundForward,
-				From:        options.NodeId,
-				To:          msg.ToNode,
+				FakeChannelId: o.channel.channelId,
+				ChannelType:   o.channel.channelType,
+				Type:          reactor.ChannelActionOutboundForward,
+				From:          options.NodeId,
+				To:            msg.ToNode,
 				Messages: []*reactor.ChannelMessage{
 					msg,
 				},
@@ -151,12 +151,12 @@ func (o *outboundReady) ready() []reactor.ChannelAction {
 	if len(newMsgs) > 0 {
 		for nodeId := range o.replicas {
 			actions = append(actions, reactor.ChannelAction{
-				ChannelId:   o.channel.channelId,
-				ChannelType: o.channel.channelType,
-				Type:        reactor.ChannelActionOutboundForward,
-				From:        options.NodeId,
-				To:          nodeId,
-				Messages:    newMsgs,
+				FakeChannelId: o.channel.channelId,
+				ChannelType:   o.channel.channelType,
+				Type:          reactor.ChannelActionOutboundForward,
+				From:          options.NodeId,
+				To:            nodeId,
+				Messages:      newMsgs,
 			})
 		}
 	}

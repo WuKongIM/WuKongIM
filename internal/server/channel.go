@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -85,7 +87,7 @@ type channel struct {
 
 	idleTick int // 频道闲置tick数
 
-	opts *Options
+	opts *options.Options
 }
 
 func newChannel(sub *channelReactorSub, channelId string, channelType uint8) *channel {
@@ -520,7 +522,7 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 	// 将订阅者按所在节点分组
 	var nodeUserList = make([]*nodeUsers, 0, 20)
 	for _, subscriber := range subscribers {
-		leaderInfo, err := c.r.s.cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson)
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson)
 		if err != nil {
 			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			return nil, err
@@ -557,7 +559,7 @@ func (c *channel) makeReceiverTag() (*tag, error) {
 // requestSubscribers 请求订阅者
 func (c *channel) requestSubscribers(channelId string, channelType uint8) ([]string, error) {
 
-	leaderNode, err := c.r.s.cluster.LeaderOfChannelForRead(channelId, channelType)
+	leaderNode, err := service.Cluster.LeaderOfChannelForRead(channelId, channelType)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +590,7 @@ func (c *channel) requestSubscribers(channelId string, channelType uint8) ([]str
 	}
 	data := req.Marshal()
 
-	resp, err := c.r.s.cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/getSubscribers", data)
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/getSubscribers", data)
 	if err != nil {
 		return nil, err
 	}

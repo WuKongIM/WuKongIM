@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -26,7 +27,7 @@ func (s *SystemAPI) Route(r *wkhttp.WKHttp) {
 }
 
 func (s *SystemAPI) ping(c *wkhttp.Context) {
-	pongs, err := s.s.cluster.TestPing()
+	pongs, err := service.Cluster.TestPing()
 	if err != nil {
 		c.ResponseError(err)
 		return

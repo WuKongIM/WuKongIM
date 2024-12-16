@@ -197,6 +197,7 @@ func (r *reactorSub) user(uid string) *User {
 	return r.users.get(uid)
 
 }
+
 func (r *reactorSub) exist(uid string) bool {
 	return r.users.exist(uid)
 }

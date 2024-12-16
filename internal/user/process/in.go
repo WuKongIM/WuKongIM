@@ -1,15 +1,16 @@
-package server
+package process
 
 import (
-	reactor "github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
 // 收到消息
-func (p *processUser) onMessage(m *proto.Message) {
-	err := p.s.userProcessPool.Submit(func() {
+func (p *User) OnMessage(m *proto.Message) {
+	err := p.processPool.Submit(func() {
 		p.handleMessage(m)
 	})
 	if err != nil {
@@ -17,7 +18,7 @@ func (p *processUser) onMessage(m *proto.Message) {
 	}
 }
 
-func (p *processUser) handleMessage(m *proto.Message) {
+func (p *User) handleMessage(m *proto.Message) {
 	// fmt.Println("recv------>", msgType(m.MsgType).String())
 	switch msgType(m.MsgType) {
 	// 节点加入
@@ -39,7 +40,7 @@ func (p *processUser) handleMessage(m *proto.Message) {
 }
 
 // 收到加入请求
-func (p *processUser) handleJoin(m *proto.Message) {
+func (p *User) handleJoin(m *proto.Message) {
 	req := &userJoinReq{}
 	err := req.decode(m.Content)
 	if err != nil {
@@ -49,7 +50,7 @@ func (p *processUser) handleJoin(m *proto.Message) {
 	reactor.User.Join(req.uid, req.from)
 }
 
-func (p *processUser) handleJoinResp(m *proto.Message) {
+func (p *User) handleJoinResp(m *proto.Message) {
 	resp := &userJoinResp{}
 	err := resp.decode(m.Content)
 	if err != nil {
@@ -59,14 +60,14 @@ func (p *processUser) handleJoinResp(m *proto.Message) {
 	reactor.User.JoinResp(resp.uid)
 }
 
-func (p *processUser) handleOutboundReq(m *proto.Message) {
+func (p *User) handleOutboundReq(m *proto.Message) {
 	req := &outboundReq{}
 	err := req.decode(m.Content)
 	if err != nil {
 		p.Error("decode outbound failed", zap.Error(err), zap.Int("data", len(m.Content)))
 		return
 	}
-	if req.fromNode == p.s.opts.Cluster.NodeId {
+	if req.fromNode == options.G.Cluster.NodeId {
 		p.Warn("outbound request from self", zap.Uint64("fromNode", req.fromNode))
 		return
 	}
@@ -86,7 +87,7 @@ func (p *processUser) handleOutboundReq(m *proto.Message) {
 
 }
 
-func (p *processUser) handleNodeHeartbeatReq(m *proto.Message) {
+func (p *User) handleNodeHeartbeatReq(m *proto.Message) {
 	req := &nodeHeartbeatReq{}
 	err := req.decode(m.Content)
 	if err != nil {
@@ -96,7 +97,7 @@ func (p *processUser) handleNodeHeartbeatReq(m *proto.Message) {
 	reactor.User.HeartbeatReq(req.uid, req.fromNode, req.connIds)
 }
 
-func (p *processUser) handleNodeHeartbeatResp(m *proto.Message) {
+func (p *User) handleNodeHeartbeatResp(m *proto.Message) {
 	resp := &nodeHeartbeatResp{}
 	err := resp.decode(m.Content)
 	if err != nil {

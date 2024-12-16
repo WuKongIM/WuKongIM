@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -176,7 +177,7 @@ func (d *deliverr) requestNodeChannelTag(nodeId uint64, req *tagReq) (*tagResp, 
 	timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
 	defer cancel()
 	data := req.Marshal()
-	resp, err := d.dm.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/getNodeUidsByTag", data)
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/getNodeUidsByTag", data)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +198,7 @@ func (d *deliverr) handleDeliverReq(req *deliverReq) {
 	if tg == nil {
 
 		timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
-		leader, err := d.dm.s.cluster.LeaderOfChannel(timeoutCtx, req.channelId, req.channelType)
+		leader, err := service.Cluster.LeaderOfChannel(timeoutCtx, req.channelId, req.channelType)
 		cancel()
 		if err != nil {
 			d.Error("getLeaderOfChannel failed", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Error(err))
@@ -307,11 +308,11 @@ func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
 
 	nodeUs := make([]*nodeUsers, 0, 2)
 
-	u1NodeId, err := d.dm.s.cluster.SlotLeaderIdOfChannel(u1, wkproto.ChannelTypePerson)
+	u1NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u1, wkproto.ChannelTypePerson)
 	if err != nil {
 		return nil, err
 	}
-	u2NodeId, err := d.dm.s.cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
+	u2NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
 	if err != nil {
 		return nil, err
 	}
@@ -586,11 +587,11 @@ func (d *deliverr) deliver(req *deliverReq, uids []string) {
 		}
 	}
 
-	if len(slices.offlineUids) > 0 { // 有离线用户，发送webhook
-		for _, message := range req.messages {
-			d.dm.s.webhook.notifyOfflineMsg(message, slices.offlineUids)
-		}
-	}
+	// if len(slices.offlineUids) > 0 { // 有离线用户，发送webhook
+	// 	for _, message := range req.messages {
+	// 		d.dm.s.webhook.notifyOfflineMsg(message, slices.offlineUids)
+	// 	}
+	// }
 
 	if d.dm.s.opts.Logger.TraceOn {
 		for _, msg := range req.messages {

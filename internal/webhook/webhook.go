@@ -1,4 +1,4 @@
-package server
+package webhook
 
 import (
 	"bytes"
@@ -12,6 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/grpcpool"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhook"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -26,7 +30,6 @@ import (
 )
 
 type webhook struct {
-	s *Server
 	wklog.Log
 	eventPool        *ants.Pool
 	httpClient       *http.Client
@@ -37,9 +40,9 @@ type webhook struct {
 	focusEvents      map[string]struct{} // 用户关注的事件类型,如果为空则推送所有类型
 }
 
-func newWebhook(s *Server) *webhook {
-	eventPool, err := ants.NewPool(s.opts.EventPoolSize, ants.WithPanicHandler(func(err interface{}) {
-		s.Panic("webhook panic", zap.Any("err", err), zap.Stack("stack"))
+func New() *webhook {
+	eventPool, err := ants.NewPool(options.G.EventPoolSize, ants.WithPanicHandler(func(err interface{}) {
+		wklog.Panic("webhook panic", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {
 		panic(err)
@@ -47,9 +50,9 @@ func newWebhook(s *Server) *webhook {
 	var (
 		webhookGRPCPool *grpcpool.Pool
 	)
-	if s.opts.WebhookGRPCOn() {
+	if options.G.WebhookGRPCOn() {
 		webhookGRPCPool, err = grpcpool.New(func() (*grpc.ClientConn, error) {
-			return grpc.Dial(s.opts.Webhook.GRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			return grpc.Dial(options.G.Webhook.GRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithKeepaliveParams(keepalive.ClientParameters{
 				Time:    5 * time.Minute, // send pings every 5 minute if there is no activity
 				Timeout: 2 * time.Second, // wait 1 second for ping ack before considering the connection dead
 			}))
@@ -62,8 +65,8 @@ func newWebhook(s *Server) *webhook {
 
 	// 检查用户配置了关注的事件
 	var focusEvents = make(map[string]struct{})
-	if len(s.opts.Webhook.FocusEvents) > 0 {
-		for _, focusEvent := range s.opts.Webhook.FocusEvents {
+	if len(options.G.Webhook.FocusEvents) > 0 {
+		for _, focusEvent := range options.G.Webhook.FocusEvents {
 			if focusEvent == "" {
 				continue
 			}
@@ -74,7 +77,6 @@ func newWebhook(s *Server) *webhook {
 	}
 
 	return &webhook{
-		s:                s,
 		Log:              wklog.NewWKLog("Webhook"),
 		eventPool:        eventPool,
 		webhookGRPCPool:  webhookGRPCPool,
@@ -99,9 +101,11 @@ func newWebhook(s *Server) *webhook {
 	}
 }
 
-func (w *webhook) Start() {
+func (w *webhook) Start() error {
 	go w.notifyQueueLoop()
 	go w.loopOnlineStatus()
+
+	return nil
 }
 
 func (w *webhook) Stop() {
@@ -129,8 +133,8 @@ func (w *webhook) Offline(uid string, deviceFlag wkproto.DeviceFlag, connId int6
 }
 
 // TriggerEvent 触发事件
-func (w *webhook) TriggerEvent(event *Event) {
-	if !w.s.opts.WebhookOn(event.Event) { // 没设置webhook直接忽略
+func (w *webhook) TriggerEvent(event *types.Event) {
+	if !options.G.WebhookOn(event.Event) { // 没设置webhook直接忽略
 		return
 	}
 	err := w.eventPool.Submit(func() {
@@ -140,7 +144,7 @@ func (w *webhook) TriggerEvent(event *Event) {
 			return
 		}
 
-		if w.s.opts.WebhookGRPCOn() {
+		if options.G.WebhookGRPCOn() {
 			err = w.sendWebhookForGRPC(event.Event, jsonData)
 		} else {
 			err = w.sendWebhookForHttp(event.Event, jsonData)
@@ -156,11 +160,11 @@ func (w *webhook) TriggerEvent(event *Event) {
 	}
 }
 
-func (w *webhook) notifyOfflineMsg(msg ReactorChannelMessage, subscribers []string) {
+func (w *webhook) NotifyOfflineMsg(msg reactor.ChannelMessage, subscribers []string) {
 	compress := ""
 	toUIDs := subscribers
 	var compresssToUIDs []byte
-	if w.s.opts.Channel.SubscriberCompressOfCount > 0 && len(subscribers) > w.s.opts.Channel.SubscriberCompressOfCount {
+	if options.G.Channel.SubscriberCompressOfCount > 0 && len(subscribers) > options.G.Channel.SubscriberCompressOfCount {
 		buff := new(bytes.Buffer)
 		gWriter := gzip.NewWriter(buff)
 		defer gWriter.Close()
@@ -174,11 +178,11 @@ func (w *webhook) notifyOfflineMsg(msg ReactorChannelMessage, subscribers []stri
 		}
 	}
 	// 推送离线到上层应用
-	w.TriggerEvent(&Event{
-		Event: EventMsgOffline,
-		Data: MessageOfflineNotify{
-			MessageResp: MessageResp{
-				Header: MessageHeader{
+	w.TriggerEvent(&types.Event{
+		Event: types.EventMsgOffline,
+		Data: types.MessageOfflineNotify{
+			MessageResp: types.MessageResp{
+				Header: types.MessageHeader{
 					RedDot:    wkutil.BoolToInt(msg.SendPacket.RedDot),
 					SyncOnce:  wkutil.BoolToInt(msg.SendPacket.SyncOnce),
 					NoPersist: wkutil.BoolToInt(msg.SendPacket.NoPersist),
@@ -187,8 +191,8 @@ func (w *webhook) notifyOfflineMsg(msg ReactorChannelMessage, subscribers []stri
 				ClientMsgNo:  msg.SendPacket.ClientMsgNo,
 				MessageId:    msg.MessageId,
 				MessageIdStr: strconv.FormatInt(msg.MessageId, 10),
-				MessageSeq:   uint64(msg.MessageSeq),
-				FromUID:      msg.FromUid,
+				MessageSeq:   msg.MessageSeq,
+				FromUID:      msg.Conn.Uid,
 				ChannelID:    msg.SendPacket.ChannelID,
 				ChannelType:  msg.SendPacket.ChannelType,
 				Topic:        msg.SendPacket.Topic,
@@ -196,10 +200,10 @@ func (w *webhook) notifyOfflineMsg(msg ReactorChannelMessage, subscribers []stri
 				Timestamp:    int32(time.Now().Unix()),
 				Payload:      msg.SendPacket.Payload,
 			},
-			ToUIDs:          toUIDs,
+			ToUids:          toUIDs,
 			Compress:        compress,
-			CompresssToUIDs: compresssToUIDs,
-			SourceID:        int64(w.s.opts.Cluster.NodeId),
+			CompresssToUids: compresssToUIDs,
+			SourceId:        int64(options.G.Cluster.NodeId),
 		},
 	})
 }
@@ -207,16 +211,16 @@ func (w *webhook) notifyOfflineMsg(msg ReactorChannelMessage, subscribers []stri
 // 通知上层应用 TODO: 此初报错可以做一个邮件报警处理类的东西，
 func (w *webhook) notifyQueueLoop() {
 	errorSleepTime := time.Second * 1 // 发生错误后sleep时间
-	ticker := time.NewTicker(w.s.opts.Webhook.MsgNotifyEventPushInterval)
+	ticker := time.NewTicker(options.G.Webhook.MsgNotifyEventPushInterval)
 	defer ticker.Stop()
 	errMessageIDMap := make(map[int64]int) // 记录错误的消息ID value为错误次数
-	if w.s.opts.WebhookOn(EventMsgNotify) {
+	if options.G.WebhookOn(types.EventMsgNotify) {
 		for {
-			messages, err := w.s.store.GetMessagesOfNotifyQueue(w.s.opts.Webhook.MsgNotifyEventCountPerPush)
+			messages, err := service.Store.GetMessagesOfNotifyQueue(options.G.Webhook.MsgNotifyEventCountPerPush)
 			if err != nil {
 				w.Error("获取通知队列内的消息失败！", zap.Error(err))
 				// 如果系统出现错误，就移除第一个
-				err = w.s.store.DB().RemoveMessagesOfNotifyQueueCount(1)
+				err = service.Store.DB().RemoveMessagesOfNotifyQueueCount(1)
 				if err != nil {
 					w.Error("RemoveMessagesOfNotifyQueueCount: 移除通知对列消息失败！", zap.Error(err))
 				}
@@ -224,10 +228,10 @@ func (w *webhook) notifyQueueLoop() {
 				continue
 			}
 			if len(messages) > 0 {
-				messageResps := make([]*MessageResp, 0, len(messages))
+				messageResps := make([]*types.MessageResp, 0, len(messages))
 				for _, msg := range messages {
-					resp := &MessageResp{}
-					resp.from(msg, w.s)
+					resp := &types.MessageResp{}
+					resp.From(msg, options.G.SystemUID)
 					messageResps = append(messageResps, resp)
 				}
 				messageData, err := json.Marshal(messageResps)
@@ -237,10 +241,10 @@ func (w *webhook) notifyQueueLoop() {
 					continue
 				}
 
-				if w.s.opts.WebhookGRPCOn() {
-					err = w.sendWebhookForGRPC(EventMsgNotify, messageData)
+				if options.G.WebhookGRPCOn() {
+					err = w.sendWebhookForGRPC(types.EventMsgNotify, messageData)
 				} else {
-					err = w.sendWebhookForHttp(EventMsgNotify, messageData)
+					err = w.sendWebhookForHttp(types.EventMsgNotify, messageData)
 				}
 				if err != nil {
 					w.Error("请求所有消息通知webhook失败！", zap.Error(err))
@@ -249,13 +253,13 @@ func (w *webhook) notifyQueueLoop() {
 						errCount := errMessageIDMap[message.MessageID]
 						errCount++
 						errMessageIDMap[message.MessageID] = errCount
-						if errCount >= w.s.opts.Webhook.MsgNotifyEventRetryMaxCount {
+						if errCount >= options.G.Webhook.MsgNotifyEventRetryMaxCount {
 							errMessageIDs = append(errMessageIDs, message.MessageID)
 						}
 					}
 					if len(errMessageIDs) > 0 {
 						w.Error("消息通知失败超过最大次数！", zap.Int64s("messageIDs", errMessageIDs))
-						err = w.s.store.RemoveMessagesOfNotifyQueue(errMessageIDs)
+						err = service.Store.RemoveMessagesOfNotifyQueue(errMessageIDs)
 						if err != nil {
 							w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", errMessageIDs))
 						}
@@ -274,9 +278,9 @@ func (w *webhook) notifyQueueLoop() {
 
 					delete(errMessageIDMap, messageID)
 				}
-				err = w.s.store.RemoveMessagesOfNotifyQueue(messageIDs)
+				err = service.Store.RemoveMessagesOfNotifyQueue(messageIDs)
 				if err != nil {
-					w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", messageIDs), zap.String("Webhook", w.s.opts.Webhook.HTTPAddr))
+					w.Warn("从通知队列里移除消息失败！", zap.Error(err), zap.Int64s("messageIDs", messageIDs), zap.String("Webhook", options.G.Webhook.HTTPAddr))
 					time.Sleep(errorSleepTime) // 如果报错就休息下
 					continue
 				}
@@ -292,7 +296,7 @@ func (w *webhook) notifyQueueLoop() {
 }
 
 func (w *webhook) loopOnlineStatus() {
-	if !w.s.opts.WebhookOn(EventOnlineStatus) {
+	if !options.G.WebhookOn(types.EventOnlineStatus) {
 		return
 	}
 	opLen := 0    // 最后一次操作在线状态数组的长度
@@ -317,16 +321,16 @@ func (w *webhook) loopOnlineStatus() {
 			continue
 		}
 
-		if w.s.opts.WebhookGRPCOn() {
-			err = w.sendWebhookForGRPC(EventOnlineStatus, jsonData)
+		if options.G.WebhookGRPCOn() {
+			err = w.sendWebhookForGRPC(types.EventOnlineStatus, jsonData)
 		} else {
-			err = w.sendWebhookForHttp(EventOnlineStatus, jsonData)
+			err = w.sendWebhookForHttp(types.EventOnlineStatus, jsonData)
 		}
 		if err != nil {
 			errCount++
 			w.Error("请求在线状态webhook失败！", zap.Error(err))
-			if errCount >= w.s.opts.Webhook.MsgNotifyEventRetryMaxCount {
-				w.Error("请求在线状态webhook失败通知超过最大次数！", zap.Int("MsgNotifyEventRetryMaxCount", w.s.opts.Webhook.MsgNotifyEventRetryMaxCount))
+			if errCount >= options.G.Webhook.MsgNotifyEventRetryMaxCount {
+				w.Error("请求在线状态webhook失败通知超过最大次数！", zap.Int("MsgNotifyEventRetryMaxCount", options.G.Webhook.MsgNotifyEventRetryMaxCount))
 
 				w.onlinestatusLock.Lock()
 				w.onlinestatusList = w.onlinestatusList[opLen:]
@@ -349,19 +353,19 @@ func (w *webhook) loopOnlineStatus() {
 }
 
 func (w *webhook) sendWebhookForHttp(event string, data []byte) error {
-	eventURL := fmt.Sprintf("%s?event=%s", w.s.opts.Webhook.HTTPAddr, event)
+	eventURL := fmt.Sprintf("%s?event=%s", options.G.Webhook.HTTPAddr, event)
 	startTime := time.Now().UnixNano() / 1000 / 1000
 	w.Debug("webhook开始请求", zap.String("eventURL", eventURL))
 	resp, err := w.httpClient.Post(eventURL, "application/json", bytes.NewBuffer(data))
 	w.Debug("webhook请求结束 耗时", zap.Int64("mill", time.Now().UnixNano()/1000/1000-startTime))
 	if err != nil {
-		w.Warn("调用第三方消息通知失败！", zap.String("Webhook", w.s.opts.Webhook.HTTPAddr), zap.Error(err))
+		w.Warn("调用第三方消息通知失败！", zap.String("Webhook", options.G.Webhook.HTTPAddr), zap.Error(err))
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		w.Warn("第三方消息通知接口返回状态错误！", zap.Int("status", resp.StatusCode), zap.String("Webhook", w.s.opts.Webhook.HTTPAddr))
+		w.Warn("第三方消息通知接口返回状态错误！", zap.Int("status", resp.StatusCode), zap.String("Webhook", options.G.Webhook.HTTPAddr))
 		return errors.New("第三方消息通知接口返回状态错误！")
 	}
 	return nil
@@ -403,31 +407,11 @@ func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
 	return nil
 }
 
-
-const (
-	// EventMsgOffline 离线消息
-	EventMsgOffline = "msg.offline"
-	// EventMsgNotify 消息通知（将所有消息通知到第三方程序）
-	EventMsgNotify = "msg.notify"
-	// EventOnlineStatus 用户在线状态
-	EventOnlineStatus = "user.onlinestatus"
-)
-
 var (
 	// eventWebHook 用于快速校验用用户配置的关注事件
 	eventWebHook = map[string]map[string]struct{}{
-		EventMsgOffline:   {},
-		EventMsgNotify:    {},
-		EventOnlineStatus: {},
+		types.EventMsgOffline:   {},
+		types.EventMsgNotify:    {},
+		types.EventOnlineStatus: {},
 	}
 )
-
-// Event Event
-type Event struct {
-	Event string      `json:"event"` // 事件标示
-	Data  interface{} `json:"data"`  // 事件数据
-}
-
-func (e *Event) String() string {
-	return fmt.Sprintf("Event:%s Data:%v", e.Event, e.Data)
-}

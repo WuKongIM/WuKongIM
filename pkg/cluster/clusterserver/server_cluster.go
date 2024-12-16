@@ -98,6 +98,19 @@ func (s *Server) SlotLeaderOfChannel(channelId string, channelType uint8) (*pb.N
 	return node, nil
 }
 
+func (s *Server) SlotLeaderId(slotId uint32) (uint64, error) {
+	slot := s.clusterEventServer.Slot(slotId)
+	if slot == nil {
+		s.Error("SlotLeaderOfChannel failed, slot not exist", zap.Uint32("slotId", slotId))
+		return 0, ErrSlotNotFound
+	}
+	if slot.Leader == 0 {
+		s.Error("SlotLeaderOfChannel failed, slot leader not found", zap.Uint32("slotId", slotId))
+		return 0, ErrSlotLeaderNotFound
+	}
+	return slot.Leader, nil
+}
+
 func (s *Server) IsSlotLeaderOfChannel(channelID string, channelType uint8) (bool, error) {
 	slotId := s.getSlotId(channelID)
 	slot := s.clusterEventServer.Slot(slotId)
