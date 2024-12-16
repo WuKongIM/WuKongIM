@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
@@ -27,6 +28,8 @@ type Channel struct {
 	outbound *outboundReady
 	joined   bool                  // 是否已成功加入集群
 	cfg      reactor.ChannelConfig // 频道配置
+	// ChannelInfo 频道基础信息
+	channelInfo wkdb.ChannelInfo
 	wklog.Log
 }
 
@@ -74,13 +77,15 @@ func (c *Channel) ready() []reactor.ChannelAction {
 		if c.inbound.has() {
 			msgs := c.inbound.sliceAndTruncate()
 			c.actions = append(c.actions, reactor.ChannelAction{
-				No:          c.no,
-				ChannelId:   c.channelId,
-				ChannelType: c.channelType,
-				From:        options.NodeId,
-				To:          reactor.LocalNode,
-				Type:        reactor.ChannelActionInbound,
-				Messages:    msgs,
+				No:            c.no,
+				FakeChannelId: c.channelId,
+				ChannelType:   c.channelType,
+				From:          options.NodeId,
+				To:            reactor.LocalNode,
+				Type:          reactor.ChannelActionInbound,
+				Messages:      msgs,
+				Role:          c.role,
+				ChannelInfo:   c.channelInfo,
 			})
 		}
 		// ---------- outbound ----------
@@ -198,54 +203,54 @@ func (c *Channel) tickFollower() {
 
 func (c *Channel) sendElection() {
 	c.actions = append(c.actions, reactor.ChannelAction{
-		Type:        reactor.ChannelActionElection,
-		ChannelId:   c.channelId,
-		ChannelType: c.channelType,
+		Type:          reactor.ChannelActionElection,
+		FakeChannelId: c.channelId,
+		ChannelType:   c.channelType,
 	})
 }
 
 func (c *Channel) sendJoin() {
 	c.actions = append(c.actions, reactor.ChannelAction{
-		No:          c.no,
-		Type:        reactor.ChannelActionJoin,
-		ChannelId:   c.channelId,
-		ChannelType: c.channelType,
-		From:        options.NodeId,
-		To:          c.cfg.LeaderId,
+		No:            c.no,
+		Type:          reactor.ChannelActionJoin,
+		FakeChannelId: c.channelId,
+		ChannelType:   c.channelType,
+		From:          options.NodeId,
+		To:            c.cfg.LeaderId,
 	})
 }
 
 func (c *Channel) sendJoinResp(to uint64) {
 	c.actions = append(c.actions, reactor.ChannelAction{
-		No:          c.no,
-		Type:        reactor.ChannelActionJoinResp,
-		ChannelId:   c.channelId,
-		ChannelType: c.channelType,
-		From:        options.NodeId,
-		To:          to,
+		No:            c.no,
+		Type:          reactor.ChannelActionJoinResp,
+		FakeChannelId: c.channelId,
+		ChannelType:   c.channelType,
+		From:          options.NodeId,
+		To:            to,
 	})
 }
 
 func (c *Channel) sendChannelClose() {
 	c.actions = append(c.actions, reactor.ChannelAction{
-		No:          c.no,
-		Type:        reactor.ChannelActionClose,
-		ChannelId:   c.channelId,
-		ChannelType: c.channelType,
-		From:        options.NodeId,
-		To:          c.cfg.LeaderId,
+		No:            c.no,
+		Type:          reactor.ChannelActionClose,
+		FakeChannelId: c.channelId,
+		ChannelType:   c.channelType,
+		From:          options.NodeId,
+		To:            c.cfg.LeaderId,
 	})
 }
 
 func (c *Channel) sendHeartbeatReq() {
 	for _, replica := range c.outbound.replicas {
 		c.actions = append(c.actions, reactor.ChannelAction{
-			No:          c.no,
-			From:        options.NodeId,
-			To:          replica.nodeId,
-			Type:        reactor.ChannelActionHeartbeatReq,
-			ChannelId:   c.channelId,
-			ChannelType: c.channelType,
+			No:            c.no,
+			From:          options.NodeId,
+			To:            replica.nodeId,
+			Type:          reactor.ChannelActionHeartbeatReq,
+			FakeChannelId: c.channelId,
+			ChannelType:   c.channelType,
 		})
 	}
 
@@ -253,12 +258,12 @@ func (c *Channel) sendHeartbeatReq() {
 
 func (c *Channel) sendHeartbeatResp(to uint64) {
 	c.actions = append(c.actions, reactor.ChannelAction{
-		No:          c.no,
-		From:        options.NodeId,
-		To:          to,
-		ChannelId:   c.channelId,
-		ChannelType: c.channelType,
-		Type:        reactor.ChannelActionHeartbeatResp,
+		No:            c.no,
+		From:          options.NodeId,
+		To:            to,
+		FakeChannelId: c.channelId,
+		ChannelType:   c.channelType,
+		Type:          reactor.ChannelActionHeartbeatResp,
 	})
 }
 
@@ -325,6 +330,10 @@ func (c *Channel) reset() {
 }
 
 func (c *Channel) handleConfigUpdate(cfg reactor.ChannelConfig) {
+
+	if !wkdb.IsEmptyChannelInfo(cfg.ChannelInfo) {
+		c.channelInfo = cfg.ChannelInfo
+	}
 
 	if c.cfg.LeaderId == cfg.LeaderId {
 		return

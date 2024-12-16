@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -97,7 +98,7 @@ func (s *ConversationAPI) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -185,7 +186,7 @@ func (s *ConversationAPI) setConversationUnread(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -273,7 +274,7 @@ func (s *ConversationAPI) deleteConversation(c *wkhttp.Context) {
 	}
 
 	if s.s.opts.ClusterOn() {
-		leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 		if err != nil {
 			s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -319,7 +320,7 @@ func (s *ConversationAPI) syncUserConversation(c *wkhttp.Context) {
 		return
 	}
 
-	leaderInfo, err := s.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
 		s.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -532,13 +533,13 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 	peerChannelRecentMessageReqsMap := make(map[uint64][]*channelRecentMessageReq)
 	for _, channelRecentMsgReq := range channels {
 		fakeChannelId := channelRecentMsgReq.ChannelId
-		leaderInfo, err := s.cluster.LeaderOfChannelForRead(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			s.Warn("getRecentMessagesForCluster: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			continue
 		}
-		if !s.cluster.NodeIsOnline(leaderInfo.Id) { // 如果领导节点不在线，则使用能触发选举的方法
-			leaderInfo, err = s.cluster.SlotLeaderOfChannel(fakeChannelId, channelRecentMsgReq.ChannelType)
+		if !service.Cluster.NodeIsOnline(leaderInfo.Id) { // 如果领导节点不在线，则使用能触发选举的方法
+			leaderInfo, err = service.Cluster.SlotLeaderOfChannel(fakeChannelId, channelRecentMsgReq.ChannelType)
 			if err != nil {
 				s.Error("getRecentMessagesForCluster: SlotLeaderOfChannel获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 				return nil, err
@@ -589,7 +590,7 @@ func (s *Server) getRecentMessagesForCluster(uid string, msgCount int, channels 
 
 func (s *Server) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageReq, uid string, msgCount int, orderByLast bool) ([]*channelRecentMessage, error) {
 
-	nodeInfo, err := s.cluster.NodeInfoById(nodeID) // 获取频道的领导节点
+	nodeInfo, err := service.Cluster.NodeInfoById(nodeID) // 获取频道的领导节点
 	if err != nil {
 		s.Error("通过节点ID获取节点失败！", zap.Uint64("nodeID", nodeID))
 		return nil, err

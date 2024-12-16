@@ -12,12 +12,17 @@ import (
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
+	chprocess "github.com/WuKongIM/WuKongIM/internal/channel/process"
+	channelreactor "github.com/WuKongIM/WuKongIM/internal/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
-	userreactor "github.com/WuKongIM/WuKongIM/internal/reactor/user"
+	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/user/process"
+	userreactor "github.com/WuKongIM/WuKongIM/internal/user/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/webhook"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
 	"github.com/WuKongIM/WuKongIM/pkg/promtail"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -27,9 +32,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"github.com/bwmarrin/snowflake"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
-	"github.com/panjf2000/ants/v2"
 	"github.com/pkg/errors"
 	"github.com/valyala/bytebufferpool"
 	"go.etcd.io/etcd/pkg/v3/idutil"
@@ -41,11 +46,11 @@ func init() {
 }
 
 type Server struct {
-	opts          *Options          // 配置
+	opts          *options.Options  // 配置
 	wklog.Log                       // 日志
-	cluster       icluster.Cluster  // 分布式接口
 	clusterServer *cluster.Server   // 分布式服务实现
 	reqIDGen      *idutil.Generator // 请求ID生成器
+	messageIdGen  *snowflake.Node   // 消息ID生成器
 	ctx           context.Context
 	cancel        context.CancelFunc
 	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
@@ -54,15 +59,11 @@ type Server struct {
 	engine        *wknet.Engine            // 长连接引擎
 
 	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
-	channelReactor *channelReactor // 频道的reactor，用户处理频道的行为逻辑
-	webhook        *webhook        // webhook
-	trace          *trace.Trace    // 监控
+	trace *trace.Trace // 监控
 
 	demoServer    *DemoServer    // demo server
 	apiServer     *APIServer     // api服务
 	managerServer *ManagerServer // 管理者api服务
-
-	systemUIDManager *SystemUIDManager // 系统账号管理
 
 	tagManager     *tagManager     // tag管理，用来管理频道订阅者的tag，用于快速查找订阅者所在节点
 	deliverManager *deliverManager // 消息投递管理
@@ -76,15 +77,18 @@ type Server struct {
 
 	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
 
-	connManager     *connManager  // 连接管理
-	userReactor     reactor.IUser // 用户控制中心
-	processUser     *processUser  // 用户逻辑处理
-	userProcessPool *ants.Pool    // 用户逻辑处理协程池
+	processUser *process.User        // 用户逻辑处理
+	userReactor *userreactor.Reactor // 用户的reactor
 
+	processChannel *chprocess.Channel      // 频道逻辑处理
+	channelReactor *channelreactor.Reactor // 频道的reactor
 }
 
-func New(opts *Options) *Server {
+func New(opts *options.Options) *Server {
 	now := time.Now().UTC()
+
+	options.G = opts
+
 	s := &Server{
 		opts:        opts,
 		Log:         wklog.NewWKLog("Server"),
@@ -92,19 +96,19 @@ func New(opts *Options) *Server {
 		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
 		start:       now,
 	}
-	s.connManager = newConnManager(18)
-	var err error
-	s.userProcessPool, err = ants.NewPool(opts.GoPool.UserProcess, ants.WithPanicHandler(func(i interface{}) {
-		s.Panic("user process pool is panic", zap.Any("err", err), zap.Stack("stack"))
-	}))
-	if err != nil {
-		s.Panic("new user process pool failed", zap.Error(err))
-	}
 	// 配置检查
-	err = opts.Check()
+	err := opts.Check()
 	if err != nil {
 		s.Panic("config check error", zap.Error(err))
 	}
+
+	node, err := snowflake.NewNode(int64(opts.Cluster.NodeId))
+	if err != nil {
+		s.Panic("create snowflake node failed", zap.Error(err))
+	}
+	s.messageIdGen = node
+
+	service.ConnManager = service.NewConnManager(18)
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -129,6 +133,8 @@ func New(opts *Options) *Server {
 	storeOpts.Db.MemTableSize = s.opts.Db.MemTableSize
 	s.store = clusterstore.NewStore(storeOpts)
 
+	service.Store = s.store
+
 	// 数据源
 	s.datasource = NewDatasource(s)
 	// 初始化tag管理
@@ -147,22 +153,11 @@ func New(opts *Options) *Server {
 			trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(n))
 		}),
 	)
-	s.webhook = newWebhook(s)                     // webhook
-	s.channelReactor = newChannelReactor(s, opts) // 频道的reactor
-	s.processUser = newProcessUser(s)
-	// 用户的reactor
-	s.userReactor = userreactor.NewReactor(
-		userreactor.WithNodeId(opts.Cluster.NodeId),
-		userreactor.WithSend(s.processUser.send),
-		userreactor.WithNodeVersion(func() uint64 {
-			return s.cluster.NodeVersion()
-		}),
-	)
+	service.Webhook = webhook.New()
+
 	reactor.Proto = s.opts.Proto
-	// 注册user reactor
-	reactor.RegisterUser(s.userReactor)
-	s.demoServer = NewDemoServer(s)                   // demo server
-	s.systemUIDManager = NewSystemUIDManager(s)       // 系统账号管理
+	s.demoServer = NewDemoServer(s) // demo server
+	service.SystemAccountManager = service.NewSystemAccountMgr()
 	s.apiServer = NewAPIServer(s)                     // api服务
 	s.managerServer = NewManagerServer(s)             // 管理者的api服务
 	s.retryManager = newRetryManager(s)               // 消息重试管理
@@ -178,7 +173,7 @@ func New(opts *Options) *Server {
 		}
 	}
 	role := pb.NodeRole_NodeRoleReplica
-	if s.opts.Cluster.Role == RoleProxy {
+	if s.opts.Cluster.Role == options.RoleProxy {
 		role = pb.NodeRole_NodeRoleProxy
 	}
 	clusterServer := cluster.New(
@@ -220,7 +215,7 @@ func New(opts *Options) *Server {
 		// 	return s.store.OnMetaApply(channelID, channelType, logs)
 		// }),
 	)
-	s.cluster = clusterServer
+	service.Cluster = clusterServer
 	s.clusterServer = clusterServer
 	storeOpts.Cluster = clusterServer
 
@@ -242,6 +237,25 @@ func New(opts *Options) *Server {
 			Job:     s.opts.Logger.Loki.Job,
 		})
 	}
+
+	// 频道的reactor
+	s.processChannel = chprocess.New()
+	s.channelReactor = channelreactor.New(
+		channelreactor.WithNodeId(opts.Cluster.NodeId),
+		channelreactor.WithSend(s.processChannel.Send),
+	)
+	reactor.RegisterChannel(s.channelReactor)
+
+	// 用户的reactor
+	s.processUser = process.New()
+	s.userReactor = userreactor.NewReactor(
+		userreactor.WithNodeId(opts.Cluster.NodeId),
+		userreactor.WithSend(s.processUser.Send),
+		userreactor.WithNodeVersion(func() uint64 {
+			return service.Cluster.NodeVersion()
+		}),
+	)
+	reactor.RegisterUser(s.userReactor)
 
 	return s
 }
@@ -306,7 +320,7 @@ func (s *Server) Start() error {
 	}
 
 	s.setClusterRoutes()
-	err = s.cluster.Start()
+	err = service.Cluster.Start()
 	if err != nil {
 		return err
 	}
@@ -315,7 +329,7 @@ func (s *Server) Start() error {
 
 	s.managerServer.Start()
 
-	err = s.channelReactor.start()
+	err = s.channelReactor.Start()
 	if err != nil {
 		return err
 	}
@@ -355,7 +369,10 @@ func (s *Server) Start() error {
 		}
 	}
 
-	s.webhook.Start()
+	err = service.Webhook.Start()
+	if err != nil {
+		s.Panic("webhook start error", zap.Error(err))
+	}
 
 	// 判断是否开启迁移任务
 	if strings.TrimSpace(s.opts.OldV1Api) != "" {
@@ -391,7 +408,7 @@ func (s *Server) Stop() error {
 		s.conversationManager.Stop()
 	}
 
-	s.cluster.Stop()
+	service.Cluster.Stop()
 	s.apiServer.Stop()
 
 	_ = s.managerServer.Stop()
@@ -399,7 +416,7 @@ func (s *Server) Stop() error {
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
 	}
-	s.channelReactor.stop()
+	s.channelReactor.Stop()
 	s.userReactor.Stop()
 
 	err := s.engine.Stop()
@@ -414,7 +431,7 @@ func (s *Server) Stop() error {
 
 	s.tagManager.stop()
 
-	s.webhook.Stop()
+	service.Webhook.Stop()
 
 	if s.opts.LokiOn() {
 		s.promtailServer.Stop()
@@ -427,11 +444,11 @@ func (s *Server) Stop() error {
 
 // 等待分布式就绪
 func (s *Server) MustWaitClusterReady(timeout time.Duration) {
-	s.cluster.MustWaitClusterReady(timeout)
+	service.Cluster.MustWaitClusterReady(timeout)
 }
 
 func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
-	s.cluster.MustWaitAllSlotsReady(timeout)
+	service.Cluster.MustWaitAllSlotsReady(timeout)
 }
 
 // 获取分布式配置
@@ -446,14 +463,14 @@ func (s *Server) MigrateSlot(slotId uint32, fromNodeId, toNodeId uint64) error {
 }
 
 func (s *Server) getSlotId(v string) uint32 {
-	return s.cluster.GetSlotId(v)
+	return service.Cluster.GetSlotId(v)
 }
 
 func (s *Server) onConnect(conn wknet.Conn) error {
 	conn.SetMaxIdle(time.Second * 2) // 在认证之前，连接最多空闲2秒
 	s.trace.Metrics.App().ConnCountAdd(1)
 
-	s.connManager.addConn(conn)
+	service.ConnManager.AddConn(conn)
 
 	// if conn.InboundBuffer().BoundBufferSize() == 0 {
 	// 	conn.SetValue(ConnKeyParseProxyProto, true) // 设置需要解析代理协议
@@ -501,7 +518,7 @@ func (s *Server) onClose(conn wknet.Conn) {
 
 		reactor.User.CloseConn(connCtx)
 	}
-	s.connManager.removeConn(conn)
+	service.ConnManager.RemoveConn(conn)
 }
 
 // Schedule 延迟任务

@@ -1,13 +1,11 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
@@ -187,65 +185,65 @@ func (n *node) handleDeliverMsgs(msgs []ReactorChannelMessage) {
 
 func (n *node) requestDeliver(msgs []ReactorChannelMessage) error {
 
-	channelMessages := make([]*ChannelMessages, 0)
-	var err error
-	for _, msg := range msgs {
-		fakeChannelId := msg.SendPacket.ChannelID
-		if msg.SendPacket.ChannelType == wkproto.ChannelTypePerson {
-			fakeChannelId = GetFakeChannelIDWith(msg.SendPacket.ChannelID, msg.FromUid)
-		}
-		if msg.SendPacket.Framer.SyncOnce { // 如果是cmd消息，需要转换为cmd消息的channelId
-			fakeChannelId = n.s.opts.OrginalConvertCmdChannel(fakeChannelId)
-		}
-		var exist = false
-		for _, channelMessage := range channelMessages {
-			if channelMessage.ChannelId == fakeChannelId && channelMessage.ChannelType == msg.SendPacket.ChannelType {
-				channelMessage.Messages = append(channelMessage.Messages, msg)
-				exist = true
-				break
-			}
-		}
-		if !exist {
-			ch := n.s.channelReactor.loadOrCreateChannel(fakeChannelId, msg.SendPacket.ChannelType)
-			var tg *tag
-			if ch.receiverTagKey.Load() != "" {
-				tg = n.s.tagManager.getReceiverTag(ch.receiverTagKey.Load())
-			} else {
-				tg, err = ch.makeReceiverTag()
-				if err != nil {
-					n.Error("makeReceiverTag failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", msg.SendPacket.ChannelType))
-					return err
-				}
-			}
-			if tg == nil {
-				n.Error("tag is nil", zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", msg.SendPacket.ChannelType))
-				return fmt.Errorf("tag is nil")
-			}
-			channelMessages = append(channelMessages, &ChannelMessages{
-				ChannelId:   fakeChannelId,
-				ChannelType: msg.SendPacket.ChannelType,
-				TagKey:      tg.key,
-				Messages:    ReactorChannelMessageSet{msg},
-			})
-		}
-	}
+	// channelMessages := make([]*ChannelMessages, 0)
+	// var err error
+	// for _, msg := range msgs {
+	// 	fakeChannelId := msg.SendPacket.ChannelID
+	// 	if msg.SendPacket.ChannelType == wkproto.ChannelTypePerson {
+	// 		fakeChannelId = GetFakeChannelIDWith(msg.SendPacket.ChannelID, msg.FromUid)
+	// 	}
+	// 	if msg.SendPacket.Framer.SyncOnce { // 如果是cmd消息，需要转换为cmd消息的channelId
+	// 		fakeChannelId = n.s.opts.OrginalConvertCmdChannel(fakeChannelId)
+	// 	}
+	// 	var exist = false
+	// 	for _, channelMessage := range channelMessages {
+	// 		if channelMessage.ChannelId == fakeChannelId && channelMessage.ChannelType == msg.SendPacket.ChannelType {
+	// 			channelMessage.Messages = append(channelMessage.Messages, msg)
+	// 			exist = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if !exist {
+	// 		ch := n.s.channelReactor.loadOrCreateChannel(fakeChannelId, msg.SendPacket.ChannelType)
+	// 		var tg *tag
+	// 		if ch.receiverTagKey.Load() != "" {
+	// 			tg = n.s.tagManager.getReceiverTag(ch.receiverTagKey.Load())
+	// 		} else {
+	// 			tg, err = ch.makeReceiverTag()
+	// 			if err != nil {
+	// 				n.Error("makeReceiverTag failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", msg.SendPacket.ChannelType))
+	// 				return err
+	// 			}
+	// 		}
+	// 		if tg == nil {
+	// 			n.Error("tag is nil", zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", msg.SendPacket.ChannelType))
+	// 			return fmt.Errorf("tag is nil")
+	// 		}
+	// 		channelMessages = append(channelMessages, &ChannelMessages{
+	// 			ChannelId:   fakeChannelId,
+	// 			ChannelType: msg.SendPacket.ChannelType,
+	// 			TagKey:      tg.key,
+	// 			Messages:    ReactorChannelMessageSet{msg},
+	// 		})
+	// 	}
+	// }
 
-	timeoutCtx, cancel := context.WithTimeout(n.s.ctx, time.Second*2)
-	defer cancel()
+	// timeoutCtx, cancel := context.WithTimeout(n.s.ctx, time.Second*2)
+	// defer cancel()
 
-	msgSet := ChannelMessagesSet(channelMessages)
-	data, err := msgSet.Marshal()
-	if err != nil {
-		return err
-	}
+	// msgSet := ChannelMessagesSet(channelMessages)
+	// data, err := msgSet.Marshal()
+	// if err != nil {
+	// 	return err
+	// }
 
-	resp, err := n.s.cluster.RequestWithContext(timeoutCtx, n.nodeId, "/wk/deliver", data)
-	if err != nil {
-		return err
-	}
-	if resp.Status != proto.StatusOK {
-		return fmt.Errorf("deliver failed status:%d", resp.Status)
-	}
+	// resp, err := service.Cluster.RequestWithContext(timeoutCtx, n.nodeId, "/wk/deliver", data)
+	// if err != nil {
+	// 	return err
+	// }
+	// if resp.Status != proto.StatusOK {
+	// 	return fmt.Errorf("deliver failed status:%d", resp.Status)
+	// }
 	return nil
 }
 

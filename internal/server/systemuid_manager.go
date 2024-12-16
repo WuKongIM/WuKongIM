@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -119,7 +120,7 @@ func (s *SystemUIDManager) RemoveSystemUidsFromCache(uids []string) {
 func (s *SystemUIDManager) getOrRequestSystemUids() ([]string, error) {
 
 	var slotId uint32 = 0
-	nodeInfo, err := s.s.cluster.SlotLeaderNodeInfo(slotId)
+	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
 	if err != nil {
 		return nil, err
 	}

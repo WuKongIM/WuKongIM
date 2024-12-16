@@ -9,34 +9,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
-func NewTestServer(t testing.TB, opt ...Option) *Server {
+func NewTestServer(t testing.TB, opt ...options.Option) *Server {
 
-	optList := make([]Option, 0)
+	optList := make([]options.Option, 0)
 	optList = append(
 		optList,
-		WithRootDir(t.TempDir()),
-		WithLoggerDir(t.TempDir()),
-		WithDbShardNum(2),
-		WithDbSlotShardNum(2),
-		WithClusterNodeId(1001),
-		WithClusterSlotCount(5),
-		WithClusterSlotReplicaCount(1),
-		WithClusterChannelReplicaCount(1),
-		WithClusterElectionIntervalTick(10),
-		WithClusterHeartbeatIntervalTick(1),
-		WithClusterTickInterval(time.Millisecond*10),
-		WithClusterChannelReactorSubCount(2),
-		WithClusterSlotReactorSubCount(2),
+		options.WithRootDir(t.TempDir()),
+		options.WithLoggerDir(t.TempDir()),
+		options.WithDbShardNum(2),
+		options.WithDbSlotShardNum(2),
+		options.WithClusterNodeId(1001),
+		options.WithClusterSlotCount(5),
+		options.WithClusterSlotReplicaCount(1),
+		options.WithClusterChannelReplicaCount(1),
+		options.WithClusterElectionIntervalTick(10),
+		options.WithClusterHeartbeatIntervalTick(1),
+		options.WithClusterTickInterval(time.Millisecond*10),
+		options.WithClusterChannelReactorSubCount(2),
+		options.WithClusterSlotReactorSubCount(2),
 	)
 	optList = append(optList, opt...)
 
-	opts := NewOptions(optList...)
+	opts := options.New(optList...)
 
 	vp := viper.New()
 	opts.ConfigureWithViper(vp)
@@ -46,90 +48,90 @@ func NewTestServer(t testing.TB, opt ...Option) *Server {
 }
 
 // 创建一个二个节点的分布式服务
-func NewTestClusterServerTwoNode(t *testing.T, opt ...Option) (*Server, *Server) {
+func NewTestClusterServerTwoNode(t *testing.T, opt ...options.Option) (*Server, *Server) {
 
-	nodes := make([]*Node, 0)
+	nodes := make([]*options.Node, 0)
 
-	nodes = append(nodes, &Node{
+	nodes = append(nodes, &options.Node{
 		Id:         1001,
 		ServerAddr: "0.0.0.0:11110",
 	})
 
-	nodes = append(nodes, &Node{
+	nodes = append(nodes, &options.Node{
 		Id:         1002,
 		ServerAddr: "0.0.0.0:11111",
 	})
 
-	s1 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5210"), WithManagerAddr("0.0.0.0:5310"), WithAddr("tcp://0.0.0.0:5110"), WithHTTPAddr("0.0.0.0:5001"), WithClusterAPIURL("http://127.0.0.1:5001"), WithClusterAddr("tcp://0.0.0.0:11110"), WithClusterNodeId(1001), WithClusterInitNodes(nodes), WithOpts(opt...))
-	s2 := NewTestServer(t, WithDemoOn(false), WithWSAddr("ws://0.0.0.0:5220"), WithManagerAddr("0.0.0.0:5320"), WithAddr("tcp://0.0.0.0:5120"), WithHTTPAddr("0.0.0.0:5002"), WithClusterAPIURL("http://127.0.0.1:5002"), WithClusterAddr("tcp://0.0.0.0:11111"), WithClusterNodeId(1002), WithClusterInitNodes(nodes), WithOpts(opt...))
+	s1 := NewTestServer(t, options.WithDemoOn(false), options.WithWSAddr("ws://0.0.0.0:5210"), options.WithManagerAddr("0.0.0.0:5310"), options.WithAddr("tcp://0.0.0.0:5110"), options.WithHTTPAddr("0.0.0.0:5001"), options.WithClusterAPIURL("http://127.0.0.1:5001"), options.WithClusterAddr("tcp://0.0.0.0:11110"), options.WithClusterNodeId(1001), options.WithClusterInitNodes(nodes), options.WithOpts(opt...))
+	s2 := NewTestServer(t, options.WithDemoOn(false), options.WithWSAddr("ws://0.0.0.0:5220"), options.WithManagerAddr("0.0.0.0:5320"), options.WithAddr("tcp://0.0.0.0:5120"), options.WithHTTPAddr("0.0.0.0:5002"), options.WithClusterAPIURL("http://127.0.0.1:5002"), options.WithClusterAddr("tcp://0.0.0.0:11111"), options.WithClusterNodeId(1002), options.WithClusterInitNodes(nodes), options.WithOpts(opt...))
 
 	return s1, s2
 }
 
-func NewTestClusterServerTreeNode(t testing.TB, opt ...Option) (*Server, *Server, *Server) {
+func NewTestClusterServerTreeNode(t testing.TB, opt ...options.Option) (*Server, *Server, *Server) {
 
-	nodes := make([]*Node, 0)
+	nodes := make([]*options.Node, 0)
 
-	nodes = append(nodes, &Node{
+	nodes = append(nodes, &options.Node{
 		Id:         1001,
 		ServerAddr: "0.0.0.0:11110",
-	}, &Node{
+	}, &options.Node{
 		Id:         1002,
 		ServerAddr: "0.0.0.0:11111",
-	}, &Node{
+	}, &options.Node{
 		Id:         1003,
 		ServerAddr: "0.0.0.0:11112",
 	})
 
 	s1 := NewTestServer(t,
-		WithDemoOn(false),
-		WithClusterPongMaxTick(10),
-		WithClusterSlotReplicaCount(3),
-		WithClusterChannelReplicaCount(3),
-		WithWSAddr("ws://0.0.0.0:5210"),
-		WithManagerAddr("0.0.0.0:5310"),
-		WithAddr("tcp://0.0.0.0:5110"),
-		WithHTTPAddr("0.0.0.0:5001"),
-		WithClusterAPIURL("http://127.0.0.1:5001"),
-		WithClusterAddr("tcp://0.0.0.0:11110"),
-		WithClusterNodeId(1001),
-		WithClusterInitNodes(nodes),
-		WithClusterTickInterval(time.Millisecond*50),
-		WithOpts(opt...),
+		options.WithDemoOn(false),
+		options.WithClusterPongMaxTick(10),
+		options.WithClusterSlotReplicaCount(3),
+		options.WithClusterChannelReplicaCount(3),
+		options.WithWSAddr("ws://0.0.0.0:5210"),
+		options.WithManagerAddr("0.0.0.0:5310"),
+		options.WithAddr("tcp://0.0.0.0:5110"),
+		options.WithHTTPAddr("0.0.0.0:5001"),
+		options.WithClusterAPIURL("http://127.0.0.1:5001"),
+		options.WithClusterAddr("tcp://0.0.0.0:11110"),
+		options.WithClusterNodeId(1001),
+		options.WithClusterInitNodes(nodes),
+		options.WithClusterTickInterval(time.Millisecond*50),
+		options.WithOpts(opt...),
 	)
 
 	s2 := NewTestServer(t,
-		WithDemoOn(false),
-		WithClusterPongMaxTick(10),
-		WithClusterSlotReplicaCount(3),
-		WithClusterChannelReplicaCount(3),
-		WithWSAddr("ws://0.0.0.0:5220"),
-		WithManagerAddr("0.0.0.0:5320"),
-		WithAddr("tcp://0.0.0.0:5120"),
-		WithHTTPAddr("0.0.0.0:5002"),
-		WithClusterAPIURL("http://127.0.0.1:5002"),
-		WithClusterAddr("tcp://0.0.0.0:11111"),
-		WithClusterNodeId(1002),
-		WithClusterInitNodes(nodes),
-		WithClusterTickInterval(time.Millisecond*50),
-		WithOpts(opt...),
+		options.WithDemoOn(false),
+		options.WithClusterPongMaxTick(10),
+		options.WithClusterSlotReplicaCount(3),
+		options.WithClusterChannelReplicaCount(3),
+		options.WithWSAddr("ws://0.0.0.0:5220"),
+		options.WithManagerAddr("0.0.0.0:5320"),
+		options.WithAddr("tcp://0.0.0.0:5120"),
+		options.WithHTTPAddr("0.0.0.0:5002"),
+		options.WithClusterAPIURL("http://127.0.0.1:5002"),
+		options.WithClusterAddr("tcp://0.0.0.0:11111"),
+		options.WithClusterNodeId(1002),
+		options.WithClusterInitNodes(nodes),
+		options.WithClusterTickInterval(time.Millisecond*50),
+		options.WithOpts(opt...),
 	)
 
 	s3 := NewTestServer(t,
-		WithDemoOn(false),
-		WithClusterPongMaxTick(10),
-		WithClusterSlotReplicaCount(3),
-		WithClusterChannelReplicaCount(3),
-		WithWSAddr("ws://0.0.0.0:5230"),
-		WithManagerAddr("0.0.0.0:5330"),
-		WithAddr("tcp://0.0.0.0:5130"),
-		WithHTTPAddr("0.0.0.0:5003"),
-		WithClusterAPIURL("http://127.0.0.1:5003"),
-		WithClusterAddr("tcp://0.0.0.0:11112"),
-		WithClusterNodeId(1003),
-		WithClusterInitNodes(nodes),
-		WithClusterTickInterval(time.Millisecond*50),
-		WithOpts(opt...),
+		options.WithDemoOn(false),
+		options.WithClusterPongMaxTick(10),
+		options.WithClusterSlotReplicaCount(3),
+		options.WithClusterChannelReplicaCount(3),
+		options.WithWSAddr("ws://0.0.0.0:5230"),
+		options.WithManagerAddr("0.0.0.0:5330"),
+		options.WithAddr("tcp://0.0.0.0:5130"),
+		options.WithHTTPAddr("0.0.0.0:5003"),
+		options.WithClusterAPIURL("http://127.0.0.1:5003"),
+		options.WithClusterAddr("tcp://0.0.0.0:11112"),
+		options.WithClusterNodeId(1003),
+		options.WithClusterInitNodes(nodes),
+		options.WithClusterTickInterval(time.Millisecond*50),
+		options.WithOpts(opt...),
 	)
 
 	return s1, s2, s3
@@ -184,7 +186,7 @@ func (s *Server) MustWaitNodeOffline(nodeId uint64) {
 // 获取领导者节点服务
 func GetLeaderServer(ss ...*Server) *Server {
 	for _, s := range ss {
-		if s.cluster.LeaderId() == s.opts.Cluster.NodeId {
+		if service.Cluster.LeaderId() == s.opts.Cluster.NodeId {
 			return s
 		}
 	}

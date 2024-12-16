@@ -1,6 +1,10 @@
 package reactor
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+)
 
 type ChannelActionType uint8
 
@@ -62,15 +66,19 @@ func (c ChannelActionType) String() string {
 }
 
 type ChannelAction struct {
-	No          string
-	Type        ChannelActionType
-	Key         string
-	ChannelId   string
-	ChannelType uint8
-	From        uint64
-	To          uint64
-	Messages    []*ChannelMessage
-	Cfg         ChannelConfig
+	No            string
+	Type          ChannelActionType
+	Key           string
+	FakeChannelId string
+	ChannelType   uint8
+	From          uint64
+	To            uint64
+	Messages      []*ChannelMessage
+	// 频道配置
+	Cfg  ChannelConfig
+	Role Role
+	// 频道信息
+	ChannelInfo wkdb.ChannelInfo
 }
 
 func (c ChannelAction) Size() uint64 {

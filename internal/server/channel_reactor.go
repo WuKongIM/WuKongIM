@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -30,7 +31,7 @@ type channelReactor struct {
 	processCheckTagC       chan *checkTagReq       // 检查tag请求
 
 	stopper *syncutil.Stopper
-	opts    *Options
+	opts    *options.Options
 	s       *Server
 	subs    []*channelReactorSub // reactorSub
 
@@ -45,7 +46,7 @@ type channelReactor struct {
 	processGoPool *ants.MultiPool
 }
 
-func newChannelReactor(s *Server, opts *Options) *channelReactor {
+func newChannelReactor(s *Server, opts *options.Options) *channelReactor {
 	node, _ := snowflake.NewNode(int64(opts.Cluster.NodeId))
 
 	r := &channelReactor{

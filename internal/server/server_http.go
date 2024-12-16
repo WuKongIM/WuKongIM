@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -126,7 +127,7 @@ func (s *APIServer) setRoutes() {
 	}
 
 	// 分布式api
-	clusterServer, ok := s.s.cluster.(*cluster.Server)
+	clusterServer, ok := service.Cluster.(*cluster.Server)
 	if ok {
 		clusterServer.ServerAPI(s.r, "/cluster")
 	}

@@ -103,8 +103,8 @@ func (u *UserPlus) Exist(uid string) bool {
 }
 
 // Kick 踢掉连接
-func (u *UserPlus) Kick(conn *Conn, reasonCode wkproto.ReasonCode, reason string) {
-	u.user.AddAction(UserAction{
+func (u *UserPlus) Kick(conn *Conn, reasonCode wkproto.ReasonCode, reason string) bool {
+	return u.user.AddAction(UserAction{
 		Type: UserActionOutboundAdd,
 		Uid:  conn.Uid,
 		Messages: []*UserMessage{
@@ -124,7 +124,7 @@ func (u *UserPlus) AllUserCount() int {
 }
 
 // HeartbeatReq 心跳请求，follower节点执行 领导节点发送给follower节点
-func (u *UserPlus) HeartbeatReq(uid string, fromNode uint64, connIds []int64) {
+func (u *UserPlus) HeartbeatReq(uid string, fromNode uint64, connIds []int64) bool {
 	conns := make([]*Conn, 0, len(connIds))
 	for _, connId := range connIds {
 		conn := u.LocalConnById(uid, connId)
@@ -132,7 +132,7 @@ func (u *UserPlus) HeartbeatReq(uid string, fromNode uint64, connIds []int64) {
 			conns = append(conns, conn)
 		}
 	}
-	u.user.AddAction(UserAction{
+	return u.user.AddAction(UserAction{
 		Uid:   uid,
 		Type:  UserActionNodeHeartbeatReq,
 		From:  fromNode,
@@ -141,7 +141,7 @@ func (u *UserPlus) HeartbeatReq(uid string, fromNode uint64, connIds []int64) {
 }
 
 // HeartbeatResp 心跳响应,leader节点执行 副本节点响应领导节点的心跳
-func (u *UserPlus) HeartbeatResp(uid string, fromNode uint64, connIds []int64) {
+func (u *UserPlus) HeartbeatResp(uid string, fromNode uint64, connIds []int64) bool {
 	conns := make([]*Conn, 0, len(connIds))
 	for _, connId := range connIds {
 		conn := u.ConnById(uid, fromNode, connId)
@@ -149,7 +149,7 @@ func (u *UserPlus) HeartbeatResp(uid string, fromNode uint64, connIds []int64) {
 			conns = append(conns, conn)
 		}
 	}
-	u.user.AddAction(UserAction{
+	return u.user.AddAction(UserAction{
 		Uid:   uid,
 		Type:  UserActionNodeHeartbeatResp,
 		From:  fromNode,
@@ -160,18 +160,19 @@ func (u *UserPlus) HeartbeatResp(uid string, fromNode uint64, connIds []int64) {
 // ========================================== message ==========================================
 
 // AddMessages 添加消息到收件箱
-func (u *UserPlus) AddMessages(uid string, msgs []*UserMessage) {
-	u.user.AddAction(UserAction{
+func (u *UserPlus) AddMessages(uid string, msgs []*UserMessage) bool {
+	added := u.user.AddAction(UserAction{
 		Type:     UserActionInboundAdd,
 		Uid:      uid,
 		Messages: msgs,
 	})
 	u.user.Advance(uid)
+	return added
 }
 
 // AddMessage 添加消息到收件箱
-func (u *UserPlus) AddMessage(uid string, msg *UserMessage) {
-	u.user.AddAction(UserAction{
+func (u *UserPlus) AddMessage(uid string, msg *UserMessage) bool {
+	added := u.user.AddAction(UserAction{
 		Type: UserActionInboundAdd,
 		Uid:  uid,
 		Messages: []*UserMessage{
@@ -179,16 +180,18 @@ func (u *UserPlus) AddMessage(uid string, msg *UserMessage) {
 		},
 	})
 	u.user.Advance(uid)
+	return added
 }
 
 // AddMessageToOutbound 添加消息到发件箱
-func (u *UserPlus) AddMessageToOutbound(uid string, msg *UserMessage) {
-	u.user.AddAction(UserAction{
+func (u *UserPlus) AddMessageToOutbound(uid string, msg *UserMessage) bool {
+	added := u.user.AddAction(UserAction{
 		Type:     UserActionOutboundAdd,
 		Uid:      uid,
 		Messages: []*UserMessage{msg},
 	})
 	u.user.Advance(uid)
+	return added
 }
 
 // ========================================== conn ==========================================
@@ -222,14 +225,15 @@ func (u *UserPlus) ConnById(uid string, fromNode uint64, id int64) *Conn {
 }
 
 // CloseConn 关闭连接
-func (u *UserPlus) CloseConn(conn *Conn) {
+func (u *UserPlus) CloseConn(conn *Conn) bool {
 
 	fmt.Println("CloseConn---->", conn.Uid)
-	u.user.AddAction(UserAction{
+	added := u.user.AddAction(UserAction{
 		Type:  UserActionConnClose,
 		Uid:   conn.Uid,
 		Conns: []*Conn{conn},
 	})
+	return added
 }
 
 // UpdateConn 更新连接
@@ -238,18 +242,36 @@ func (u *UserPlus) UpdateConn(conn *Conn) {
 }
 
 // ConnWrite 连接写包
-func (u *UserPlus) ConnWrite(conn *Conn, frame wkproto.Frame) {
+func (u *UserPlus) ConnWrite(conn *Conn, frame wkproto.Frame) bool {
 
 	data, err := Proto.EncodeFrame(frame, conn.ProtoVersion)
 	if err != nil {
 		u.Error("encode failed", zap.Error(err))
-		return
+		return false
 	}
-	u.ConnWriteBytes(conn, data)
+	return u.ConnWriteBytes(conn, data)
+}
+func (u *UserPlus) ConnWriteNoAdvance(conn *Conn, frame wkproto.Frame) bool {
+	if conn.ProtoVersion == 0 {
+		u.Warn("conn.ProtoVersion is 0", zap.String("uid", conn.Uid), zap.String("deviceId", conn.DeviceId))
+		conn.ProtoVersion = wkproto.LatestVersion
+	}
+	data, err := Proto.EncodeFrame(frame, conn.ProtoVersion)
+	if err != nil {
+		u.Error("encode failed", zap.Error(err))
+		return false
+	}
+	return u.ConnWriteBytesNoAdvance(conn, data)
 }
 
-func (u *UserPlus) ConnWriteBytes(conn *Conn, bytes []byte) {
-	u.user.AddAction(UserAction{
+func (u *UserPlus) ConnWriteBytes(conn *Conn, bytes []byte) bool {
+	added := u.ConnWriteBytesNoAdvance(conn, bytes)
+	u.user.Advance(conn.Uid)
+	return added
+}
+
+func (u *UserPlus) ConnWriteBytesNoAdvance(conn *Conn, bytes []byte) bool {
+	added := u.user.AddAction(UserAction{
 		Type: UserActionWrite,
 		Uid:  conn.Uid,
 		Messages: []*UserMessage{
@@ -259,7 +281,7 @@ func (u *UserPlus) ConnWriteBytes(conn *Conn, bytes []byte) {
 			},
 		},
 	})
-	u.user.Advance(conn.Uid)
+	return added
 }
 
 // AllConnCount 所有连接数量

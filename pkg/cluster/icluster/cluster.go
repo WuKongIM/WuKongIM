@@ -49,7 +49,8 @@ type Cluster interface {
 
 	// SlotLeaderNodeInfo 获取槽的节点信息
 	SlotLeaderNodeInfo(slotId uint32) (nodeInfo *pb.Node, err error)
-
+	// SlotLeaderId 获取槽的领导id
+	SlotLeaderId(slotId uint32) (nodeId uint64, err error)
 	// LoadOnlyChannelClusterConfig 加载频道配置，仅仅只加载配置，
 	LoadOnlyChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error)
 

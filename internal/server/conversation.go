@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -309,7 +310,7 @@ func (c *conversationWorker) handleReq(req *conversationReq) {
 		if msg.FromUid == c.s.opts.SystemUID { // 忽略系统账号
 			continue
 		}
-		leaderId, err := c.s.cluster.SlotLeaderIdOfChannel(msg.FromUid, wkproto.ChannelTypePerson)
+		leaderId, err := service.Cluster.SlotLeaderIdOfChannel(msg.FromUid, wkproto.ChannelTypePerson)
 		if err != nil {
 			c.Error("handleReq failed, SlotLeaderIdOfChannel is err", zap.Error(err), zap.String("uid", msg.FromUid))
 			continue
@@ -544,12 +545,12 @@ func (c *conversationWorker) updateConversationPerson(fakeChannelId string, upda
 	}
 	u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
 
-	u1LeaderInfo, err := c.s.cluster.SlotLeaderOfChannel(u1, wkproto.ChannelTypePerson)
+	u1LeaderInfo, err := service.Cluster.SlotLeaderOfChannel(u1, wkproto.ChannelTypePerson)
 	if err != nil {
 		c.Error("updateConversationPerson failed, SlotLeaderOfChannel is err", zap.Error(err), zap.String("uid", u1))
 		return err
 	}
-	u2LeaderInfo, err := c.s.cluster.SlotLeaderOfChannel(u2, wkproto.ChannelTypePerson)
+	u2LeaderInfo, err := service.Cluster.SlotLeaderOfChannel(u2, wkproto.ChannelTypePerson)
 	if err != nil {
 		c.Error("updateConversationPerson failed, SlotLeaderOfChannel is err", zap.Error(err), zap.String("uid", u2))
 		return err

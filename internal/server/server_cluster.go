@@ -1,15 +1,13 @@
 package server
 
 import (
-	"context"
 	"errors"
-	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -22,8 +20,10 @@ func (s *Server) handleClusterMessage(fromNodeId uint64, msg *proto.Message) {
 	case ClusterMsgTypeNodePong: // 节点Pong
 		go s.handleNodePong(fromNodeId, msg)
 	default:
-		if msg.MsgType >= 2000 && msg.MsgType < 3000 {
-			s.processUser.onMessage(msg)
+		if msg.MsgType >= options.ReactorUserMsgTypeMin.Uint32() && msg.MsgType < options.ReactorChannelMsgTypeMax.Uint32() {
+			s.processUser.OnMessage(msg)
+		} else if msg.MsgType >= options.ReactorChannelMsgTypeMin.Uint32() && msg.MsgType < options.ReactorChannelMsgTypeMax.Uint32() {
+			s.processChannel.OnMessage(msg)
 		}
 
 	}
@@ -42,75 +42,75 @@ func (s *Server) setClusterRoutes() {
 	// 转发ping
 	// s.cluster.Route("/wk/connPing", s.handleOnConnPingReq)
 	// 转发消息到频道的领导节点
-	s.cluster.Route("/wk/channelFoward", s.handleChannelForward)
+	service.Cluster.Route("/wk/channelFoward", s.handleChannelForward)
 	// 批量转发
 	// s.cluster.Route("/wk/channelFowards", s.handleChannelForward)
 	// 转发sendack回执信息到源节点
-	s.cluster.Route("/wk/forwardSendack", s.handleForwardSendack)
+	service.Cluster.Route("/wk/forwardSendack", s.handleForwardSendack)
 	// 转发连接写数据
-	s.cluster.Route("/wk/connWrite", s.handleConnWrite)
+	service.Cluster.Route("/wk/connWrite", s.handleConnWrite)
 	// 转发userAction
-	s.cluster.Route("/wk/userAction", s.handleUserAction)
+	service.Cluster.Route("/wk/userAction", s.handleUserAction)
 
 	// 用户认证结果（这个是领导节点认证通过后，通知代理节点的结果）
-	s.cluster.Route("/wk/userAuthResult", s.handleUserAuthResult)
+	service.Cluster.Route("/wk/userAuthResult", s.handleUserAuthResult)
 
 	// 投递消息（将需要投递的消息转发给对应用户的逻辑节点）
-	s.cluster.Route("/wk/deliver", s.handleDeliver)
+	service.Cluster.Route("/wk/deliver", s.handleDeliver)
 
 	// 通过tag获取当前节点需要投递的用户集合
-	s.cluster.Route("/wk/getNodeUidsByTag", s.getNodeUidsByTag)
+	service.Cluster.Route("/wk/getNodeUidsByTag", s.getNodeUidsByTag)
 	// 是否允许发送消息
-	s.cluster.Route("/wk/allowSend", s.handleAllowSend)
+	// service.Cluster.Route("/wk/allowSend", s.handleAllowSend)
 	// 获取订阅者
-	s.cluster.Route("/wk/getSubscribers", s.handleGetSubscribers)
+	service.Cluster.Route("/wk/getSubscribers", s.handleGetSubscribers)
 
 	// 频道重新创建ReceiverTag
-	s.cluster.Route("/wk/makeReceiverTag", s.handleMakeReceiverTag)
+	service.Cluster.Route("/wk/makeReceiverTag", s.handleMakeReceiverTag)
 
 }
 
 func (s *Server) handleChannelForward(c *wkserver.Context) {
-	var req = &ChannelFowardReq{}
-	err := req.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("handleChannelForward Unmarshal err", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
+	// var req = &ChannelFowardReq{}
+	// err := req.Unmarshal(c.Body())
+	// if err != nil {
+	// 	s.Error("handleChannelForward Unmarshal err", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	if len(req.Messages) == 0 {
-		c.WriteOk()
-		return
-	}
+	// if len(req.Messages) == 0 {
+	// 	c.WriteOk()
+	// 	return
+	// }
 
-	timeoutCtx, cancel := context.WithTimeout(s.ctx, time.Second*5)
-	defer cancel()
-	isLeader, err := s.cluster.IsLeaderOfChannel(timeoutCtx, req.ChannelId, req.ChannelType)
-	if err != nil {
-		s.Error("get is channel leader failed", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErr(err)
-		return
-	}
+	// timeoutCtx, cancel := context.WithTimeout(s.ctx, time.Second*5)
+	// defer cancel()
+	// isLeader, err := service.Cluster.IsLeaderOfChannel(timeoutCtx, req.ChannelId, req.ChannelType)
+	// if err != nil {
+	// 	s.Error("get is channel leader failed", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	if !isLeader {
-		s.Error("not is leader", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-		c.WriteErrorAndStatus(errors.New("not is leader"), proto.Status(errCodeNotIsChannelLeader))
-		return
-	}
-	for _, reactorChannelMessage := range req.Messages {
-		sendPacket := reactorChannelMessage.SendPacket
-		// 提案频道消息
-		ch := s.channelReactor.loadOrCreateChannel(req.ChannelId, req.ChannelType)
-		err = ch.proposeSend(reactorChannelMessage.MessageId, reactorChannelMessage.FromUid, reactorChannelMessage.FromDeviceId, reactorChannelMessage.FromConnId, reactorChannelMessage.FromNodeId, false, sendPacket, false)
-		if err != nil {
-			s.Error("handleChannelForward: proposeSend failed")
-			c.WriteErr(err)
-			return
-		}
-	}
+	// if !isLeader {
+	// 	s.Error("not is leader", zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+	// 	c.WriteErrorAndStatus(errors.New("not is leader"), proto.Status(errCodeNotIsChannelLeader))
+	// 	return
+	// }
+	// for _, reactorChannelMessage := range req.Messages {
+	// 	sendPacket := reactorChannelMessage.SendPacket
+	// 	// 提案频道消息
+	// 	ch := s.channelReactor.loadOrCreateChannel(req.ChannelId, req.ChannelType)
+	// 	err = ch.proposeSend(reactorChannelMessage.MessageId, reactorChannelMessage.FromUid, reactorChannelMessage.FromDeviceId, reactorChannelMessage.FromConnId, reactorChannelMessage.FromNodeId, false, sendPacket, false)
+	// 	if err != nil {
+	// 		s.Error("handleChannelForward: proposeSend failed")
+	// 		c.WriteErr(err)
+	// 		return
+	// 	}
+	// }
 
-	c.WriteOk()
+	// c.WriteOk()
 
 }
 
@@ -293,87 +293,87 @@ func (s *Server) handleUserAuthResult(c *wkserver.Context) {
 }
 
 func (s *Server) handleDeliver(c *wkserver.Context) {
-	var channelMsgSet ChannelMessagesSet
-	err := channelMsgSet.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("handleDeliver Unmarshal err", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-	for _, channelMsg := range channelMsgSet {
+	// var channelMsgSet ChannelMessagesSet
+	// err := channelMsgSet.Unmarshal(c.Body())
+	// if err != nil {
+	// 	s.Error("handleDeliver Unmarshal err", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
+	// for _, channelMsg := range channelMsgSet {
 
-		ch := s.channelReactor.loadOrCreateChannel(channelMsg.ChannelId, channelMsg.ChannelType)
-		s.deliverManager.deliver(&deliverReq{
-			channelId:   channelMsg.ChannelId,
-			channelType: channelMsg.ChannelType,
-			ch:          ch,
-			channelKey:  wkutil.ChannelToKey(channelMsg.ChannelId, channelMsg.ChannelType),
-			messages:    channelMsg.Messages,
-			tagKey:      channelMsg.TagKey,
-		})
-	}
+	// 	ch := s.channelReactor.loadOrCreateChannel(channelMsg.ChannelId, channelMsg.ChannelType)
+	// 	s.deliverManager.deliver(&deliverReq{
+	// 		channelId:   channelMsg.ChannelId,
+	// 		channelType: channelMsg.ChannelType,
+	// 		ch:          ch,
+	// 		channelKey:  wkutil.ChannelToKey(channelMsg.ChannelId, channelMsg.ChannelType),
+	// 		messages:    channelMsg.Messages,
+	// 		tagKey:      channelMsg.TagKey,
+	// 	})
+	// }
 	c.WriteOk()
 }
 
 func (s *Server) getNodeUidsByTag(c *wkserver.Context) {
-	req := &tagReq{}
-	err := req.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("getNodeUidsByTag Unmarshal err", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
+	// req := &tagReq{}
+	// err := req.Unmarshal(c.Body())
+	// if err != nil {
+	// 	s.Error("getNodeUidsByTag Unmarshal err", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	if req.channelId == "" {
-		c.WriteErr(ErrChannelIdIsEmpty)
-		return
-	}
+	// if req.channelId == "" {
+	// 	c.WriteErr(ErrChannelIdIsEmpty)
+	// 	return
+	// }
 
-	if req.nodeId == 0 {
-		c.WriteErr(errors.New("node is 0"))
-		return
-	}
+	// if req.nodeId == 0 {
+	// 	c.WriteErr(errors.New("node is 0"))
+	// 	return
+	// }
 
-	if req.tagKey == "" {
-		c.WriteErr(errors.New("tagKey is nil"))
-		return
-	}
+	// if req.tagKey == "" {
+	// 	c.WriteErr(errors.New("tagKey is nil"))
+	// 	return
+	// }
 
-	isLeader, err := s.cluster.IsLeaderOfChannel(s.ctx, req.channelId, req.channelType)
-	if err != nil {
-		s.Error("getNodeUidsByTag: IsLeaderOfChannel failed", zap.Error(err), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-		c.WriteErr(err)
-		return
-	}
-	if !isLeader {
-		s.Error("getNodeUidsByTag: not is leader", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-		c.WriteErrorAndStatus(errors.New("getNodeUidsByTag: not is leader"), proto.Status(errCodeNotIsChannelLeader))
-		return
-	}
+	// isLeader, err := service.Cluster.IsLeaderOfChannel(s.ctx, req.channelId, req.channelType)
+	// if err != nil {
+	// 	s.Error("getNodeUidsByTag: IsLeaderOfChannel failed", zap.Error(err), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
+	// if !isLeader {
+	// 	s.Error("getNodeUidsByTag: not is leader", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+	// 	c.WriteErrorAndStatus(errors.New("getNodeUidsByTag: not is leader"), proto.Status(errCodeNotIsChannelLeader))
+	// 	return
+	// }
 
-	tag := s.tagManager.getReceiverTag(req.tagKey)
-	if tag == nil {
-		ch := s.channelReactor.loadOrCreateChannel(req.channelId, req.channelType)
-		tag, err = ch.makeReceiverTag()
-		if err != nil {
-			s.Error("getNodeUidsByTag: makeReceiverTag failed", zap.Error(err), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-			c.WriteErr(err)
-			return
-		}
-	}
+	// tag := s.tagManager.getReceiverTag(req.tagKey)
+	// if tag == nil {
+	// 	ch := s.channelReactor.loadOrCreateChannel(req.channelId, req.channelType)
+	// 	tag, err = ch.makeReceiverTag()
+	// 	if err != nil {
+	// 		s.Error("getNodeUidsByTag: makeReceiverTag failed", zap.Error(err), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+	// 		c.WriteErr(err)
+	// 		return
+	// 	}
+	// }
 
-	var uids []string
-	for _, nodeUser := range tag.users {
-		if nodeUser.nodeId == req.nodeId {
-			uids = nodeUser.uids
-			break
-		}
-	}
-	var resp = &tagResp{
-		tagKey: tag.key,
-		uids:   uids,
-	}
-	c.Write(resp.Marshal())
+	// var uids []string
+	// for _, nodeUser := range tag.users {
+	// 	if nodeUser.nodeId == req.nodeId {
+	// 		uids = nodeUser.uids
+	// 		break
+	// 	}
+	// }
+	// var resp = &tagResp{
+	// 	tagKey: tag.key,
+	// 	uids:   uids,
+	// }
+	// c.Write(resp.Marshal())
 
 }
 
@@ -478,26 +478,26 @@ func (s *Server) handleNodePong(fromNodeId uint64, msg *proto.Message) {
 }
 
 func (s *Server) handleAllowSend(c *wkserver.Context) {
-	req := &allowSendReq{}
-	err := req.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("handleAllowSend Unmarshal err", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
+	// req := &allowSendReq{}
+	// err := req.Unmarshal(c.Body())
+	// if err != nil {
+	// 	s.Error("handleAllowSend Unmarshal err", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	reasonCode, err := s.channelReactor.allowSend(req.From, req.To)
-	if err != nil {
-		s.Error("handleAllowSend: allowSend failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
+	// reasonCode, err := s.channelReactor.allowSend(req.From, req.To)
+	// if err != nil {
+	// 	s.Error("handleAllowSend: allowSend failed", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	if reasonCode == wkproto.ReasonSuccess {
-		c.WriteOk()
-		return
-	}
-	c.WriteErrorAndStatus(errors.New("not allow send"), proto.Status(reasonCode))
+	// if reasonCode == wkproto.ReasonSuccess {
+	// 	c.WriteOk()
+	// 	return
+	// }
+	// c.WriteErrorAndStatus(errors.New("not allow send"), proto.Status(reasonCode))
 }
 
 func (s *Server) handleGetSubscribers(c *wkserver.Context) {
@@ -525,24 +525,24 @@ func (s *Server) handleGetSubscribers(c *wkserver.Context) {
 }
 
 func (s *Server) handleMakeReceiverTag(c *wkserver.Context) {
-	req := &channelReq{}
-	err := req.Unmarshal(c.Body())
-	if err != nil {
-		s.Error("handleMakeReceiverTag Unmarshal err", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
+	// req := &channelReq{}
+	// err := req.Unmarshal(c.Body())
+	// if err != nil {
+	// 	s.Error("handleMakeReceiverTag Unmarshal err", zap.Error(err))
+	// 	c.WriteErr(err)
+	// 	return
+	// }
 
-	channelKey := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
+	// channelKey := wkutil.ChannelToKey(req.ChannelId, req.ChannelType)
 
-	channel := s.channelReactor.reactorSub(channelKey).channel(channelKey)
-	if channel != nil {
-		_, err = channel.makeReceiverTag()
-		if err != nil {
-			s.Error("handleMakeReceiverTag: 创建接收者标签失败！", zap.Error(err))
-			c.WriteErr(err)
-			return
-		}
-	}
+	// channel := s.channelReactor.reactorSub(channelKey).channel(channelKey)
+	// if channel != nil {
+	// 	_, err = channel.makeReceiverTag()
+	// 	if err != nil {
+	// 		s.Error("handleMakeReceiverTag: 创建接收者标签失败！", zap.Error(err))
+	// 		c.WriteErr(err)
+	// 		return
+	// 	}
+	// }
 	c.WriteOk()
 }

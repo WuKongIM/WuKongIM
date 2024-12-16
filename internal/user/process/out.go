@@ -1,34 +1,22 @@
-package server
+package process
 
 import (
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
-type processUser struct {
-	s *Server
-	wklog.Log
-}
-
-func newProcessUser(s *Server) *processUser {
-
-	return &processUser{
-		s:   s,
-		Log: wklog.NewWKLog("processUser"),
-	}
-}
-
-func (p *processUser) send(actions []reactor.UserAction) {
+func (p *User) Send(actions []reactor.UserAction) {
 
 	var err error
 	for _, a := range actions {
-		err = p.s.userProcessPool.Submit(func() {
+		err = p.processPool.Submit(func() {
 			p.processAction(a)
 		})
 		if err != nil {
@@ -38,17 +26,18 @@ func (p *processUser) send(actions []reactor.UserAction) {
 	}
 }
 
-func (p *processUser) processAction(a reactor.UserAction) {
+// 用户行为逻辑处理
+func (p *User) processAction(a reactor.UserAction) {
 	switch a.Type {
 	case reactor.UserActionElection: // 选举
 		p.processElection(a)
-	case reactor.UserActionJoin: // 加入
+	case reactor.UserActionJoin: // 处理加入
 		p.processJoin(a)
 	case reactor.UserActionJoinResp: // 加入返回
 		p.processJoinResp(a)
-	case reactor.UserActionOutboundForward: // 发件
+	case reactor.UserActionOutboundForward: // 处理发件箱
 		p.processOutbound(a)
-	case reactor.UserActionInbound: // 收件
+	case reactor.UserActionInbound: // 处理收件箱
 		p.processInbound(a)
 	case reactor.UserActionWrite: // 连接写
 		p.processWrite(a)
@@ -64,10 +53,41 @@ func (p *processUser) processAction(a reactor.UserAction) {
 	}
 }
 
+func (p *User) processInbound(a reactor.UserAction) {
+	if len(a.Messages) == 0 {
+		return
+	}
+	// 从收件箱中取出消息
+	for _, m := range a.Messages {
+		if m.Frame == nil {
+			continue
+		}
+		switch m.Frame.GetFrameType() {
+		// 客户端请求连接
+		case wkproto.CONNECT:
+			if a.Role == reactor.RoleLeader {
+				p.processConnect(a.Uid, m)
+			} else {
+				// 如果不是领导节点，则专投递给发件箱这样就会被领导节点处理
+				reactor.User.AddMessageToOutbound(a.Uid, m)
+			}
+			// 服务器回应连接
+		case wkproto.CONNACK:
+			p.processConnack(a.Uid, m)
+			// 客户端请求心跳
+		case wkproto.PING:
+			p.processPing(m)
+			// 客户端发送消息
+		case wkproto.SEND:
+			p.processSend(m)
+		}
+	}
+}
+
 // 处理选举
-func (p *processUser) processElection(a reactor.UserAction) {
-	slotId := p.s.cluster.GetSlotId(a.Uid)
-	leaderInfo, err := p.s.cluster.SlotLeaderNodeInfo(slotId)
+func (p *User) processElection(a reactor.UserAction) {
+	slotId := service.Cluster.GetSlotId(a.Uid)
+	leaderInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
 	if err != nil {
 		p.Error("get slot leader info failed", zap.Error(err), zap.Uint32("slotId", slotId))
 		return
@@ -86,9 +106,9 @@ func (p *processUser) processElection(a reactor.UserAction) {
 	})
 }
 
-func (p *processUser) processJoin(a reactor.UserAction) {
+func (p *User) processJoin(a reactor.UserAction) {
 	req := &userJoinReq{
-		from: p.s.opts.Cluster.NodeId,
+		from: options.G.Cluster.NodeId,
 		uid:  a.Uid,
 	}
 
@@ -102,11 +122,11 @@ func (p *processUser) processJoin(a reactor.UserAction) {
 	}
 }
 
-func (p *processUser) processJoinResp(a reactor.UserAction) {
+func (p *User) processJoinResp(a reactor.UserAction) {
 
 	resp := &userJoinResp{
 		uid:  a.Uid,
-		from: p.s.opts.Cluster.NodeId,
+		from: options.G.Cluster.NodeId,
 	}
 
 	err := p.sendToNode(a.To, &proto.Message{
@@ -119,17 +139,17 @@ func (p *processUser) processJoinResp(a reactor.UserAction) {
 	}
 }
 
-func (p *processUser) processConnClose(a reactor.UserAction) {
+func (p *User) processConnClose(a reactor.UserAction) {
 	if len(a.Conns) == 0 {
 		p.Warn("processConnClose: conns is empty", zap.String("uid", a.Uid))
 		return
 	}
 	for _, c := range a.Conns {
-		if !p.s.opts.IsLocalNode(c.FromNode) {
+		if !options.G.IsLocalNode(c.FromNode) {
 			p.Info("processConnClose: conn not local node", zap.String("uid", a.Uid), zap.Uint64("fromNode", c.FromNode))
 			continue
 		}
-		conn := p.s.connManager.getConn(c.ConnId)
+		conn := service.ConnManager.GetConn(c.ConnId)
 		if conn == nil {
 			p.Warn("processConnClose: conn not exist", zap.String("uid", a.Uid), zap.Int64("connId", c.ConnId))
 			continue
@@ -141,13 +161,13 @@ func (p *processUser) processConnClose(a reactor.UserAction) {
 	}
 }
 
-func (p *processUser) processOutbound(a reactor.UserAction) {
+func (p *User) processOutbound(a reactor.UserAction) {
 	if len(a.Messages) == 0 {
 		p.Warn("processOutbound: messages is empty", zap.String("actionType", a.Type.String()))
 		return
 	}
 	req := &outboundReq{
-		fromNode: p.s.opts.Cluster.NodeId,
+		fromNode: options.G.Cluster.NodeId,
 		uid:      a.Uid,
 		messages: a.Messages,
 	}
@@ -167,34 +187,7 @@ func (p *processUser) processOutbound(a reactor.UserAction) {
 
 }
 
-func (p *processUser) processInbound(a reactor.UserAction) {
-	if len(a.Messages) == 0 {
-		return
-	}
-	// 从收件箱中取出消息
-	for _, m := range a.Messages {
-		if m.Frame == nil {
-			continue
-		}
-		switch m.Frame.GetFrameType() {
-		case wkproto.CONNECT: // 连接包
-			if a.Role == reactor.RoleLeader {
-				p.processConnect(a.Uid, m)
-			} else {
-				// 如果不是领导节点，则专投递给发件箱这样就会被领导节点处理
-				reactor.User.AddMessageToOutbound(a.Uid, m)
-			}
-		case wkproto.CONNACK: // 连接回执包
-			p.processConnack(a.Uid, m)
-		case wkproto.PING: // 心跳包
-			p.processPing(m)
-		case wkproto.SEND: // 发送消息
-			p.processSend(m)
-		}
-	}
-}
-
-func (p *processUser) processWrite(a reactor.UserAction) {
+func (p *User) processWrite(a reactor.UserAction) {
 
 	if len(a.Messages) == 0 {
 		return
@@ -203,11 +196,11 @@ func (p *processUser) processWrite(a reactor.UserAction) {
 		if m.Conn == nil {
 			continue
 		}
-		if !p.s.opts.IsLocalNode(m.Conn.FromNode) {
+		if !options.G.IsLocalNode(m.Conn.FromNode) {
 			reactor.User.AddMessageToOutbound(a.Uid, m)
 			continue
 		}
-		conn := p.s.connManager.getConn(m.Conn.ConnId)
+		conn := service.ConnManager.GetConn(m.Conn.ConnId)
 		if conn == nil {
 			p.Warn("processWrite: conn not exist", zap.String("uid", a.Uid), zap.Uint64("fromNode", m.Conn.FromNode), zap.Int64("connId", m.Conn.ConnId))
 			continue
@@ -229,7 +222,7 @@ func (p *processUser) processWrite(a reactor.UserAction) {
 
 }
 
-func (p *processUser) processNodeHeartbeatReq(a reactor.UserAction) {
+func (p *User) processNodeHeartbeatReq(a reactor.UserAction) {
 
 	connIds := make([]int64, 0)
 	for _, c := range a.Conns {
@@ -237,7 +230,7 @@ func (p *processUser) processNodeHeartbeatReq(a reactor.UserAction) {
 	}
 	req := &nodeHeartbeatReq{
 		uid:      a.Uid,
-		fromNode: p.s.opts.Cluster.NodeId,
+		fromNode: options.G.Cluster.NodeId,
 		connIds:  connIds,
 	}
 	err := p.sendToNode(a.To, &proto.Message{
@@ -249,7 +242,7 @@ func (p *processUser) processNodeHeartbeatReq(a reactor.UserAction) {
 	}
 }
 
-func (p *processUser) processNodeHeartbeatResp(a reactor.UserAction) {
+func (p *User) processNodeHeartbeatResp(a reactor.UserAction) {
 	conns := reactor.User.ConnsByUid(a.Uid)
 	connIds := make([]int64, 0, len(conns))
 	for _, conn := range conns {
@@ -257,7 +250,7 @@ func (p *processUser) processNodeHeartbeatResp(a reactor.UserAction) {
 	}
 	resp := &nodeHeartbeatResp{
 		uid:      a.Uid,
-		fromNode: p.s.opts.Cluster.NodeId,
+		fromNode: options.G.Cluster.NodeId,
 		connIds:  connIds,
 	}
 	err := p.sendToNode(a.To, &proto.Message{
@@ -269,13 +262,13 @@ func (p *processUser) processNodeHeartbeatResp(a reactor.UserAction) {
 	}
 }
 
-func (p *processUser) sendToNode(toNodeId uint64, msg *proto.Message) error {
+func (p *User) sendToNode(toNodeId uint64, msg *proto.Message) error {
 
-	err := p.s.cluster.Send(toNodeId, msg)
+	err := service.Cluster.Send(toNodeId, msg)
 	return err
 }
 
-func (p *processUser) processConnect(uid string, msg *reactor.UserMessage) {
+func (p *User) processConnect(uid string, msg *reactor.UserMessage) {
 	reasonCode, packet, err := p.handleConnect(msg)
 	if err != nil {
 		p.Error("handle connect failed", zap.Error(err), zap.String("uid", uid))
@@ -294,7 +287,7 @@ func (p *processUser) processConnect(uid string, msg *reactor.UserMessage) {
 	})
 }
 
-func (p *processUser) processConnack(uid string, msg *reactor.UserMessage) {
+func (p *User) processConnack(uid string, msg *reactor.UserMessage) {
 	conn := msg.Conn
 	if conn.FromNode == 0 {
 		p.Error("processConnack: from node is 0", zap.String("uid", uid))
@@ -304,15 +297,15 @@ func (p *processUser) processConnack(uid string, msg *reactor.UserMessage) {
 		p.Error("processConnack: frame is nil", zap.String("uid", uid))
 		return
 	}
-	if p.s.opts.IsLocalNode(conn.FromNode) {
+	if options.G.IsLocalNode(conn.FromNode) {
 		connack := msg.Frame.(*wkproto.ConnackPacket)
 		if connack.ReasonCode == wkproto.ReasonSuccess {
-			realConn := p.s.connManager.getConn(conn.ConnId)
+			realConn := service.ConnManager.GetConn(conn.ConnId)
 			if realConn != nil {
-				realConn.SetMaxIdle(p.s.opts.ConnIdleTime)
+				realConn.SetMaxIdle(options.G.ConnIdleTime)
 				realConn.SetContext(conn)
 			}
-			connack.NodeId = p.s.opts.Cluster.NodeId
+			connack.NodeId = options.G.Cluster.NodeId
 			// 更新连接
 			reactor.User.UpdateConn(conn)
 		}
@@ -322,10 +315,10 @@ func (p *processUser) processConnack(uid string, msg *reactor.UserMessage) {
 	}
 }
 
-func (p *processUser) processPing(msg *reactor.UserMessage) {
+func (p *User) processPing(msg *reactor.UserMessage) {
 	p.handlePing(msg)
 }
 
-func (p *processUser) processSend(msg *reactor.UserMessage) {
+func (p *User) processSend(msg *reactor.UserMessage) {
 	p.handleSend(msg)
 }

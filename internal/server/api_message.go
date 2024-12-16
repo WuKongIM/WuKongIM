@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -135,7 +137,7 @@ func (m *MessageAPI) send(c *wkhttp.Context) {
 // 请求临时频道设置订阅者
 func (m *MessageAPI) requestSetSubscribersForTmpChannel(tmpChannelId string, uids []string) error {
 	timeoutCtx, cancel := context.WithTimeout(m.s.ctx, time.Second*5)
-	nodeInfo, err := m.s.cluster.LeaderOfChannel(timeoutCtx, tmpChannelId, wkproto.ChannelTypeTemp)
+	nodeInfo, err := service.Cluster.LeaderOfChannel(timeoutCtx, tmpChannelId, wkproto.ChannelTypeTemp)
 	cancel()
 	if err != nil {
 		return err
@@ -178,7 +180,6 @@ func sendMessageToChannel(s *Server, req MessageSendReq, channelId string, chann
 	}
 
 	fakeChannelId := channelId
-	fakeChannelType := channelType
 	if channelType == wkproto.ChannelTypePerson {
 		fakeChannelId = GetFakeChannelIDWith(req.FromUID, channelId)
 	}
@@ -187,20 +188,12 @@ func sendMessageToChannel(s *Server, req MessageSendReq, channelId string, chann
 		fakeChannelId = s.opts.OrginalConvertCmdChannel(fakeChannelId)
 	}
 
-	channel := s.channelReactor.loadOrCreateChannel(fakeChannelId, fakeChannelType)
-	if channel == nil {
-		return 0, errors.New("频道信息不存在！")
-	}
-
 	var setting wkproto.Setting
 	if len(strings.TrimSpace(req.StreamNo)) > 0 {
 		setting = setting.Set(wkproto.SettingStream)
 	}
 
-	// 将消息提交到频道
-	messageId := s.channelReactor.messageIDGen.Generate().Int64()
-	systemDeviceId := s.opts.SystemDeviceId
-	err := channel.proposeSend(messageId, req.FromUID, systemDeviceId, SystemConnId, s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
+	sendPacket := &wkproto.SendPacket{
 		Framer: wkproto.Framer{
 			RedDot:    wkutil.IntToBool(req.Header.RedDot),
 			SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
@@ -213,10 +206,21 @@ func sendMessageToChannel(s *Server, req MessageSendReq, channelId string, chann
 		ChannelID:   channelId,
 		ChannelType: channelType,
 		Payload:     req.Payload,
-	}, true)
-	if err != nil {
-		return messageId, err
 	}
+	messageId := s.messageIdGen.Generate().Int64()
+
+	reactor.Channel.WakeIfNeed(fakeChannelId, channelType)
+	reactor.Channel.SendMessage(&reactor.ChannelMessage{
+		FakeChannelId: fakeChannelId,
+		ChannelType:   channelType,
+		Conn: &reactor.Conn{
+			Uid:      req.FromUID,
+			DeviceId: s.opts.SystemDeviceId,
+		},
+		MsgType:    reactor.ChannelMsgSend,
+		SendPacket: sendPacket,
+		MessageId:  messageId,
+	})
 
 	return messageId, nil
 }
@@ -286,7 +290,7 @@ func (m *MessageAPI) sync(c *wkhttp.Context) {
 		req.Limit = 50
 	}
 
-	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
 		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -418,7 +422,7 @@ func (m *MessageAPI) syncack(c *wkhttp.Context) {
 		return
 	}
 
-	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
 	if err != nil {
 		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -532,7 +536,7 @@ func (m *MessageAPI) searchMessages(c *wkhttp.Context) {
 		fakeChannelId = GetFakeChannelIDWith(req.LoginUid, req.ChannelID)
 	}
 
-	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(fakeChannelId, req.ChannelType) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(fakeChannelId, req.ChannelType) // 获取频道的领导节点
 	if err != nil {
 		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", fakeChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -643,7 +647,7 @@ func (m *MessageAPI) searchMessage(c *wkhttp.Context) {
 		fakeChannelId = GetFakeChannelIDWith(req.LoginUid, req.ChannelId)
 	}
 
-	leaderInfo, err := m.s.cluster.SlotLeaderOfChannel(fakeChannelId, req.ChannelType) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(fakeChannelId, req.ChannelType) // 获取频道的领导节点
 	if err != nil {
 		m.Error("获取频道所在节点失败！!", zap.Error(err), zap.String("channelID", fakeChannelId), zap.Uint8("channelType", req.ChannelType))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))

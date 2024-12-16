@@ -91,7 +91,6 @@ func (s *Server) onData(conn wknet.Conn) error {
 			DeviceId:     connectPacket.DeviceID,
 			DeviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
 			ProtoVersion: connectPacket.Version,
-			CreatedAt:    time.Now(),
 		}
 		conn.SetContext(connCtx)
 
@@ -119,10 +118,15 @@ func (s *Server) onData(conn wknet.Conn) error {
 			if messages == nil {
 				messages = make([]*reactor.UserMessage, 0, 10)
 			}
-			messages = append(messages, &reactor.UserMessage{
+			msg := &reactor.UserMessage{
 				Frame: frame,
 				Conn:  connCtx,
-			})
+			}
+			if frame.GetFrameType() == wkproto.SEND {
+				msg.MessageId = s.messageIdGen.Generate().Int64()
+			}
+
+			messages = append(messages, msg)
 			offset += size
 		}
 		if len(messages) > 0 {

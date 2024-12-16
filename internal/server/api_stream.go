@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -64,7 +65,7 @@ func (s *StreamAPI) start(c *wkhttp.Context) {
 	}
 	streamNo := wkutil.GenUUID()
 
-	messageId := s.s.channelReactor.messageIDGen.Generate().Int64()
+	messageId := s.s.messageIdGen.Generate().Int64()
 
 	msg := wkdb.Message{
 		RecvPacket: wkproto.RecvPacket{
@@ -119,8 +120,7 @@ func (s *StreamAPI) start(c *wkhttp.Context) {
 		return
 	}
 
-	// 提按消息发送
-	err = s.s.channelReactor.proposeSend(messageId, req.FromUid, s.s.opts.SystemDeviceId, SystemConnId, s.s.opts.Cluster.NodeId, false, &wkproto.SendPacket{
+	sendPacket := &wkproto.SendPacket{
 		Framer: wkproto.Framer{
 			RedDot:    wkutil.IntToBool(req.Header.RedDot),
 			SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
@@ -131,12 +131,21 @@ func (s *StreamAPI) start(c *wkhttp.Context) {
 		ChannelID:   channelId,
 		ChannelType: channelType,
 		Payload:     req.Payload,
-	}, true)
-	if err != nil {
-		s.Error("提按发送失败！", zap.Error(err))
-		c.ResponseError(err)
-		return
 	}
+
+	reactor.Channel.WakeIfNeed(fakeChannelId, channelType)
+	reactor.Channel.SendMessage(&reactor.ChannelMessage{
+		FakeChannelId: fakeChannelId,
+		ChannelType:   channelType,
+		Conn: &reactor.Conn{
+			Uid:      req.FromUid,
+			DeviceId: s.s.opts.SystemDeviceId,
+		},
+		MsgType:    reactor.ChannelMsgSend,
+		SendPacket: sendPacket,
+		MessageId:  messageId,
+	})
+
 	c.JSON(http.StatusOK, gin.H{
 		"stream_no": streamNo,
 	})

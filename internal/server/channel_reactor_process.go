@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -78,7 +80,7 @@ func (r *channelReactor) processInits(reqs []*initReq) {
 
 func (r *channelReactor) processInit(req *initReq) {
 	timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
-	cfg, err := r.s.cluster.LoadOrCreateChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+	cfg, err := service.Cluster.LoadOrCreateChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
 	cancel()
 	if err != nil {
 		r.Error("channel init failed", zap.Error(err))
@@ -318,7 +320,7 @@ func (r *channelReactor) processForward(req *forwardReq) {
 	if !r.s.clusterServer.NodeIsOnline(req.leaderId) { // 如果领导不在线,重新获取领导
 		timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*1) // 需要快速返回，这样会进行下次重试，如果超时时间太长，会阻塞导致下次重试间隔太长
 		defer cancel()
-		newLeaderId, err = r.s.cluster.LeaderIdOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+		newLeaderId, err = service.Cluster.LeaderIdOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
 		if err != nil {
 			r.Warn("processForward: LeaderIdOfChannel error", zap.Error(err))
 		} else {
@@ -396,7 +398,7 @@ func (r *channelReactor) handleForward(req *forwardReq) (uint64, error) {
 		// 重新获取频道领导
 		timeoutCtx, cancel := context.WithTimeout(r.s.ctx, time.Second*5)
 		defer cancel()
-		node, err := r.s.cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
+		node, err := service.Cluster.LeaderOfChannel(timeoutCtx, req.ch.channelId, req.ch.channelType)
 		if err != nil {
 			r.Error("LeaderOfChannel error", zap.Error(err))
 			return 0, err
@@ -415,7 +417,7 @@ func (r *channelReactor) requestChannelFoward(nodeId uint64, req ChannelFowardRe
 	if err != nil {
 		return false, err
 	}
-	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/channelFoward", data)
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/channelFoward", data)
 	if err != nil {
 		r.Error("requestChannelFoward unkown error", zap.Error(err), zap.Uint64("nodeId", nodeId))
 		return false, err
@@ -568,7 +570,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 	}
 
 	// 如果发送者是系统账号，则直接通过
-	systemAccount := r.s.systemUIDManager.SystemUID(fromUid)
+	systemAccount := service.SystemAccountManager.IsSystemAccount(fromUid)
 	if systemAccount {
 		return wkproto.ReasonSuccess, nil
 	}
@@ -583,7 +585,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 			toUid = uid1
 		}
 		// 如果接收者是系统账号，则直接通过
-		systemAccount = r.s.systemUIDManager.SystemUID(toUid)
+		systemAccount = service.SystemAccountManager.IsSystemAccount(toUid)
 		if systemAccount {
 			return wkproto.ReasonSuccess, nil
 		}
@@ -651,7 +653,7 @@ func (r *channelReactor) hasPermission(channelId string, channelType uint8, from
 
 func (r *channelReactor) requestAllowSend(from, to string) (wkproto.ReasonCode, error) {
 
-	leaderNode, err := r.s.cluster.SlotLeaderOfChannel(to, wkproto.ChannelTypePerson)
+	leaderNode, err := service.Cluster.SlotLeaderOfChannel(to, wkproto.ChannelTypePerson)
 	if err != nil {
 		return wkproto.ReasonSystemError, err
 	}
@@ -671,7 +673,7 @@ func (r *channelReactor) requestAllowSend(from, to string) (wkproto.ReasonCode, 
 		return wkproto.ReasonSystemError, err
 	}
 
-	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/allowSend", bodyBytes)
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/allowSend", bodyBytes)
 	if err != nil {
 		return wkproto.ReasonSystemError, err
 	}
@@ -883,7 +885,7 @@ func (r *channelReactor) processStorage(req *storageReq) {
 		}
 	}
 
-	if r.opts.WebhookOn(EventMsgNotify) && reason == ReasonSuccess {
+	if r.opts.WebhookOn(types.EventMsgNotify) && reason == ReasonSuccess {
 		// 赋值messageeq
 		for i, msg := range messages {
 			for _, cmsg := range req.messages {
@@ -894,7 +896,6 @@ func (r *channelReactor) processStorage(req *storageReq) {
 				}
 			}
 		}
-
 		// 将消息存储到webhook的推送队列内
 		err := r.s.store.AppendMessageOfNotifyQueue(messages)
 		if err != nil {
@@ -1040,7 +1041,7 @@ func (r *channelReactor) requestForwardSendack(nodeId uint64, packets []*Forward
 	if err != nil {
 		return err
 	}
-	resp, err := r.s.cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/forwardSendack", data)
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/forwardSendack", data)
 	if err != nil {
 		return err
 	}
@@ -1283,7 +1284,7 @@ func (r *channelReactor) processCheckTag(req *checkTagReq) {
 	needMakeTag := false // 是否需要重新make tag
 	for _, nodeUser := range tag.users {
 		for _, uid := range nodeUser.uids {
-			leaderId, err := r.s.cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
+			leaderId, err := service.Cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
 			if err != nil {
 				r.Error("processCheckTag: SlotLeaderIdOfChannel error", zap.Error(err))
 				return

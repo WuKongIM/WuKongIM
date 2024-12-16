@@ -1,4 +1,4 @@
-package server
+package service
 
 import (
 	"sync"
@@ -6,34 +6,36 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 )
 
-type connManager struct {
+var ConnManager *ConnMgr
+
+type ConnMgr struct {
 	connBlucket []map[int64]wknet.Conn
 	sync.RWMutex
 }
 
-func newConnManager(blucketCount int) *connManager {
+func NewConnManager(blucketCount int) *ConnMgr {
 	connBlucket := make([]map[int64]wknet.Conn, blucketCount)
 	for i := 0; i < blucketCount; i++ {
 		connBlucket[i] = make(map[int64]wknet.Conn)
 	}
-	return &connManager{connBlucket: connBlucket}
+	return &ConnMgr{connBlucket: connBlucket}
 }
 
-func (m *connManager) addConn(conn wknet.Conn) {
+func (m *ConnMgr) AddConn(conn wknet.Conn) {
 	m.Lock()
 	defer m.Unlock()
 	blucketIndex := conn.ID() % int64(len(m.connBlucket))
 	m.connBlucket[blucketIndex][conn.ID()] = conn
 }
 
-func (m *connManager) removeConn(conn wknet.Conn) {
+func (m *ConnMgr) RemoveConn(conn wknet.Conn) {
 	m.Lock()
 	defer m.Unlock()
 	blucketIndex := conn.ID() % int64(len(m.connBlucket))
 	delete(m.connBlucket[blucketIndex], conn.ID())
 }
 
-func (m *connManager) getConn(connID int64) wknet.Conn {
+func (m *ConnMgr) GetConn(connID int64) wknet.Conn {
 	m.RLock()
 	defer m.RUnlock()
 	blucketIndex := connID % int64(len(m.connBlucket))

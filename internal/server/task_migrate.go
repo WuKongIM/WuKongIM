@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -25,7 +26,7 @@ type MigrateTask struct {
 	wklog.Log
 	stop            bool
 	goroutineCount  int
-	currentStep     MigrateStep
+	currentStep     options.MigrateStep
 	currentTryCount int
 	lastErr         error
 }
@@ -45,11 +46,11 @@ func (m *MigrateTask) Run() {
 		return
 	}
 	switch m.s.opts.MigrateStartStep {
-	case MigrateStepUser:
+	case options.MigrateStepUser:
 		m.stepFnc = m.stepUserImport
-	case MigrateStepChannel:
+	case options.MigrateStepChannel:
 		m.stepFnc = m.stepChannelImport
-	case MigrateStepMessage:
+	case options.MigrateStepMessage:
 		m.stepFnc = m.stepMessageImport
 	default:
 		m.stepFnc = m.stepMessageImport
@@ -160,7 +161,7 @@ func (m *MigrateTask) stepMessageImport() {
 	m.Info("Message data import completed")
 
 	m.stepFnc = m.stepUserImport
-	m.currentStep = MigrateStepUser
+	m.currentStep = options.MigrateStepUser
 	m.currentTryCount = 0
 	m.lastErr = nil
 }
@@ -236,7 +237,7 @@ func (m *MigrateTask) stepUserImport() {
 	m.Info("User data import completed")
 
 	m.stepFnc = m.stepChannelImport
-	m.currentStep = MigrateStepChannel
+	m.currentStep = options.MigrateStepChannel
 	m.currentTryCount = 0
 	m.lastErr = nil
 
