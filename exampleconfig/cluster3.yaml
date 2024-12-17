@@ -4,6 +4,7 @@ httpAddr: "0.0.0.0:5003"
 wsAddr: "ws://0.0.0.0:5230" 
 rootDir: "./wukongimdata/3"
 tokenAuthOn: false
+stress: true
 # whitelistOffOfPerson: false
 logger:
   traceOn: false

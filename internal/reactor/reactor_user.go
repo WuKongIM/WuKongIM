@@ -52,6 +52,11 @@ func (u *UserPlus) WakeIfNeed(uid string) {
 	u.user.WakeIfNeed(uid)
 }
 
+// Advance 推进，让用户立即执行下一个动作
+func (u *UserPlus) Advance(uid string) {
+	u.user.Advance(uid)
+}
+
 // UpdateConfig 更新配置
 func (u *UserPlus) UpdateConfig(uid string, cfg UserConfig) {
 	u.user.AddAction(UserAction{
@@ -78,6 +83,7 @@ func (u *UserPlus) AddAuth(conn *Conn, connectPacket *wkproto.ConnectPacket) {
 
 // Join 副本加入到领导
 func (u *UserPlus) Join(uid string, nodeId uint64) {
+	u.WakeIfNeed(uid)
 	u.user.AddAction(UserAction{
 		Type:    UserActionJoin,
 		Uid:     uid,

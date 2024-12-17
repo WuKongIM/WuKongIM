@@ -464,13 +464,13 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 
 	var willUpdateUids []string // 将要更新最近会话的用户集合
 	if update.isUpdateAll() {
-		tag := c.s.tagManager.getReceiverTag(update.lastTagKey)
+		tag := service.TagMananger.Get(update.lastTagKey)
 		if tag == nil {
 			c.Warn("getConversationWithUpdater: getReceiverTag is nil", zap.String("tagKey", update.lastTagKey))
 		} else {
-			nodeUser := tag.getNodeUsers(c.s.opts.Cluster.NodeId)
-			if nodeUser != nil {
-				willUpdateUids = nodeUser.uids
+			nodeUsers := tag.GetNodeUsers(c.s.opts.Cluster.NodeId)
+			if len(nodeUsers) > 0 {
+				willUpdateUids = nodeUsers
 			}
 		}
 	}
@@ -684,8 +684,8 @@ func (c *conversationUpdate) exist(uid string) bool {
 
 	if c.updateAll {
 		if c.channelType != wkproto.ChannelTypePerson && c.lastTagKey != "" {
-
-			if c.s.tagManager.existUserInNode(c.lastTagKey, uid, c.s.opts.Cluster.NodeId) {
+			tag := service.TagMananger.Get(c.lastTagKey)
+			if tag != nil && tag.ExistUserInNode(uid, c.s.opts.Cluster.NodeId) {
 				return true
 			}
 		}

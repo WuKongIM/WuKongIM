@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"go.uber.org/zap"
 )
 
 type Channel struct {
@@ -123,6 +124,9 @@ func (c *Channel) step(a reactor.ChannelAction) {
 		c.handleConfigUpdate(a.Cfg)
 	case reactor.ChannelActionInboundAdd: // 收件箱
 		for _, msg := range a.Messages {
+			if msg.MsgType == reactor.ChannelMsgSend {
+				c.idleTick = 0
+			}
 			c.inbound.append(msg)
 		}
 	case reactor.ChannelActionOutboundAdd: // 发送箱
@@ -153,6 +157,10 @@ func (c *Channel) stepFollower(a reactor.ChannelAction) {
 		c.outbound.updateReplicaHeartbeat(a.From)
 		c.heartbeatTick = 0
 		c.sendHeartbeatResp(a.From)
+	case reactor.ChannelActionJoinResp:
+		if a.From == c.cfg.LeaderId {
+			c.joined = true
+		}
 	}
 }
 
@@ -160,7 +168,6 @@ func (c *Channel) stepFollower(a reactor.ChannelAction) {
 
 func (c *Channel) tick() {
 	c.inbound.tick()
-	c.outbound.tick()
 
 	if c.needElection() {
 		c.sendElection()
@@ -172,10 +179,13 @@ func (c *Channel) tick() {
 }
 
 func (c *Channel) tickLeader() {
+
+	c.outbound.tick()
+
 	c.heartbeatTick++
 	c.idleTick++
 
-	if len(c.outbound.replicas) == 0 && c.idleTick >= options.LeaderIdleTimeoutTick {
+	if c.idleTick >= options.LeaderIdleTimeoutTick {
 		c.idleTick = 0
 		c.sendChannelClose()
 		return
@@ -192,7 +202,12 @@ func (c *Channel) tickFollower() {
 
 	if c.heartbeatTick >= options.NodeHeartbeatTimeoutTick {
 		c.heartbeatTick = 0
-		c.sendChannelClose()
+		// 如果领导心跳超时，但是还有消息需要发送，则发送join请求来唤醒领导
+		if c.outbound.queue.len() > 0 {
+			c.sendJoin()
+		} else {
+			c.sendChannelClose()
+		}
 	}
 	if c.needJoin() {
 		c.sendJoin()
@@ -286,7 +301,7 @@ func (c *Channel) becomeFollower() {
 	// 如果是追随者，需要添加领导到副本列表
 	c.outbound.addNewReplica(c.cfg.LeaderId)
 
-	c.Info("become follower")
+	c.Info("become follower", zap.Uint64("leaderId", c.cfg.LeaderId))
 }
 
 func (c *Channel) becomeUnknown() {

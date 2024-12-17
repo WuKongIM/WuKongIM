@@ -2,7 +2,7 @@ package tag
 
 import (
 	"hash/fnv"
-	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/errors"
 	"github.com/WuKongIM/WuKongIM/internal/types"
@@ -12,25 +12,44 @@ import (
 )
 
 type TagMgr struct {
-	tagBluckets    []map[string]*types.Tag
-	tagBlucketLock []sync.RWMutex
+	bluckets []*blucket
 }
 
 func NewTagMgr(blucketCount int) *TagMgr {
 	tg := &TagMgr{}
-	tg.tagBluckets = make([]map[string]*types.Tag, blucketCount)
-	tg.tagBlucketLock = make([]sync.RWMutex, blucketCount)
+	tg.bluckets = make([]*blucket, blucketCount)
 	for i := 0; i < blucketCount; i++ {
-		tg.tagBluckets[i] = make(map[string]*types.Tag)
+		tg.bluckets[i] = newBlucket(i, time.Minute*20)
 	}
 	return tg
 }
 
-func (t *TagMgr) MakeTag(uids []string) (*types.Tag, error) {
+func (t *TagMgr) Start() error {
+	var err error
+	for _, b := range t.bluckets {
+		err = b.start()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (t *TagMgr) Stop() {
+	for _, b := range t.bluckets {
+		b.stop()
+	}
+}
 
+func (t *TagMgr) MakeTag(uids []string) (*types.Tag, error) {
 	tagKey := wkutil.GenUUID()
+	return t.MakeTagWithTagKey(tagKey, uids)
+}
+
+func (t *TagMgr) MakeTagWithTagKey(tagKey string, uids []string) (*types.Tag, error) {
+
 	tag := &types.Tag{
-		Key: tagKey,
+		Key:         tagKey,
+		LastGetTime: time.Now(),
 	}
 
 	nodes, err := t.calcUsersInNode(uids)
@@ -120,21 +139,10 @@ func (t *TagMgr) GetUsers(tagKey string) []string {
 	return uids
 }
 
-func (t *TagMgr) GetUsersByNodeId(tagKey string, nodeId uint64) []string {
-	tag := t.getTag(tagKey)
-	if tag == nil {
-		return nil
-	}
-	for _, node := range tag.Nodes {
-		if node.LeaderId == nodeId {
-			return node.Uids
-		}
-	}
-	return nil
-}
-
 func (t *TagMgr) Get(tagKey string) *types.Tag {
-	return t.getTag(tagKey)
+	tag := t.getTag(tagKey)
+	tag.LastGetTime = time.Now()
+	return tag
 }
 
 func (t *TagMgr) Exist(tagKey string) bool {
@@ -147,9 +155,34 @@ func (t *TagMgr) RenameTag(oldTagKey, newTagKey string) error {
 		return errors.TagNotExist(oldTagKey)
 	}
 	tag.Key = newTagKey
+	tag.LastGetTime = time.Now()
 	t.setTag(tag)
 	t.removeTag(oldTagKey)
 	return nil
+}
+
+func (t *TagMgr) SetChannelTag(fakeChannelId string, channelType uint8, tagKey string) {
+	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
+	blucket.setChannelTag(fakeChannelId, channelType, tagKey)
+}
+
+func (t *TagMgr) GetChannelTag(fakeChannelId string, channelType uint8) string {
+	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
+	return blucket.getChannelTag(fakeChannelId, channelType)
+}
+
+func (t *TagMgr) getBlucketByTagKey(tagKey string) *blucket {
+	h := fnv.New32a()
+	h.Write([]byte(tagKey))
+	i := h.Sum32() % uint32(len(t.bluckets))
+	return t.bluckets[i]
+}
+
+func (t *TagMgr) getBlucketByChannel(channelId string, channelType uint8) *blucket {
+	h := fnv.New32a()
+	h.Write([]byte(wkutil.ChannelToKey(channelId, channelType)))
+	i := h.Sum32() % uint32(len(t.bluckets))
+	return t.bluckets[i]
 }
 
 func (t *TagMgr) mergeNodes(tag *types.Tag, nodes []*types.Node) {
@@ -236,29 +269,16 @@ func (t *TagMgr) calcUsersInNode(uids []string) ([]*types.Node, error) {
 }
 
 func (t *TagMgr) setTag(tag *types.Tag) {
-	index := t.blucketIndex(tag.Key)
-	t.tagBlucketLock[index].Lock()
-	t.tagBluckets[index][tag.Key] = tag
-	t.tagBlucketLock[index].Unlock()
+	blucket := t.getBlucketByTagKey(tag.Key)
+	blucket.setTag(tag)
 }
 
-func (t *TagMgr) getTag(key string) *types.Tag {
-	index := t.blucketIndex(key)
-	t.tagBlucketLock[index].RLock()
-	defer t.tagBlucketLock[index].RUnlock()
-	mp := t.tagBluckets[index]
-	return mp[key]
+func (t *TagMgr) getTag(tagKey string) *types.Tag {
+	blucket := t.getBlucketByTagKey(tagKey)
+	return blucket.getTag(tagKey)
 }
 
-func (t *TagMgr) removeTag(key string) {
-	index := t.blucketIndex(key)
-	t.tagBlucketLock[index].Lock()
-	delete(t.tagBluckets[index], key)
-	t.tagBlucketLock[index].Unlock()
-}
-
-func (t *TagMgr) blucketIndex(tagKey string) int {
-	h := fnv.New32a()
-	h.Write([]byte(tagKey))
-	return int(h.Sum32() % uint32(len(t.tagBluckets)))
+func (t *TagMgr) removeTag(tagKey string) {
+	blucket := t.getBlucketByTagKey(tagKey)
+	blucket.removeTag(tagKey)
 }

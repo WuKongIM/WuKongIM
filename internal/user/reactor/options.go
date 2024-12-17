@@ -3,6 +3,7 @@ package reactor
 import (
 	"time"
 
+	goption "github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 )
 
@@ -52,17 +53,21 @@ type Options struct {
 
 func NewOptions() *Options {
 
-	return &Options{
+	opts := &Options{
 		TickInterval:                   time.Millisecond * 200,
 		RetryIntervalTick:              10,
 		NodeHeartbeatTick:              10,
 		NodeHeartbeatTimeoutTick:       30,
 		LeaderIdleTimeoutTick:          30,
-		SubCount:                       64,
+		SubCount:                       16,
 		ReceiveQueueLength:             1024,
 		OutboundForwardIntervalTick:    2,
 		OutboundForwardMaxMessageCount: 100,
 	}
+	if goption.G.Stress {
+		opts.ReceiveQueueLength = 1024 * 10
+	}
+	return opts
 }
 
 type Option func(opts *Options)

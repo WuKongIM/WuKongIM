@@ -3,6 +3,7 @@ package reactor
 import (
 	"time"
 
+	goption "github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 )
 
@@ -36,15 +37,21 @@ type Options struct {
 }
 
 func NewOptions() *Options {
-	return &Options{
+	opts := &Options{
 		TickInterval:             time.Millisecond * 200,
 		RetryIntervalTick:        10,
-		SubCount:                 64,
+		SubCount:                 16,
 		NodeHeartbeatTick:        10,
 		NodeHeartbeatTimeoutTick: 30,
 		LeaderIdleTimeoutTick:    30,
 		ReceiveQueueLength:       1024,
 	}
+
+	// 如果开启了压测模式，接收队列加大长度
+	if goption.G.Stress {
+		opts.ReceiveQueueLength = 1024 * 10
+	}
+	return opts
 }
 
 type Option func(*Options)

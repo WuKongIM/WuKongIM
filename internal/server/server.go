@@ -14,9 +14,14 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	chprocess "github.com/WuKongIM/WuKongIM/internal/channel/process"
 	channelreactor "github.com/WuKongIM/WuKongIM/internal/channel/reactor"
+	dfprocess "github.com/WuKongIM/WuKongIM/internal/diffuse/process"
+	diffusereactor "github.com/WuKongIM/WuKongIM/internal/diffuse/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	pprocess "github.com/WuKongIM/WuKongIM/internal/push/process"
+	pushreactor "github.com/WuKongIM/WuKongIM/internal/push/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	tg "github.com/WuKongIM/WuKongIM/internal/tag"
 	"github.com/WuKongIM/WuKongIM/internal/user/process"
 	userreactor "github.com/WuKongIM/WuKongIM/internal/user/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/webhook"
@@ -65,7 +70,6 @@ type Server struct {
 	apiServer     *APIServer     // api服务
 	managerServer *ManagerServer // 管理者api服务
 
-	tagManager     *tagManager     // tag管理，用来管理频道订阅者的tag，用于快速查找订阅者所在节点
 	deliverManager *deliverManager // 消息投递管理
 	retryManager   *retryManager   // 消息重试管理
 
@@ -82,6 +86,10 @@ type Server struct {
 
 	processChannel *chprocess.Channel      // 频道逻辑处理
 	channelReactor *channelreactor.Reactor // 频道的reactor
+	processDiffuse *dfprocess.Diffuse      // 消息扩散逻辑处理
+	diffuseReactor *diffusereactor.Reactor // 消息扩散的reactor
+	processPush    *pprocess.Push          // 推送逻辑处理
+	pushReactor    *pushreactor.Reactor
 }
 
 func New(opts *options.Options) *Server {
@@ -137,8 +145,6 @@ func New(opts *options.Options) *Server {
 
 	// 数据源
 	s.datasource = NewDatasource(s)
-	// 初始化tag管理
-	s.tagManager = newTagManager(s)
 
 	// 初始化长连接引擎
 	s.engine = wknet.NewEngine(
@@ -238,6 +244,9 @@ func New(opts *options.Options) *Server {
 		})
 	}
 
+	tagManager := tg.NewTagMgr(16)
+	service.TagMananger = tagManager
+
 	// 频道的reactor
 	s.processChannel = chprocess.New()
 	s.channelReactor = channelreactor.New(
@@ -256,6 +265,20 @@ func New(opts *options.Options) *Server {
 		}),
 	)
 	reactor.RegisterUser(s.userReactor)
+
+	// 消息扩散逻辑处理
+	s.processDiffuse = dfprocess.New()
+	s.diffuseReactor = diffusereactor.New(
+		diffusereactor.WithSend(s.processDiffuse.Send),
+	)
+	reactor.RegisterDiffuse(s.diffuseReactor)
+
+	// push
+	s.processPush = pprocess.New()
+	s.pushReactor = pushreactor.New(
+		pushreactor.WithSend(s.processPush.Send),
+	)
+	reactor.RegisterPush(s.pushReactor)
 
 	return s
 }
@@ -303,7 +326,7 @@ func (s *Server) Start() error {
 
 	s.timingWheel.Start()
 
-	err := s.tagManager.start()
+	err := service.TagMananger.Start()
 	if err != nil {
 		return err
 	}
@@ -335,6 +358,14 @@ func (s *Server) Start() error {
 	}
 
 	err = s.userReactor.Start()
+	if err != nil {
+		return err
+	}
+	err = s.diffuseReactor.Start()
+	if err != nil {
+		return err
+	}
+	err = s.pushReactor.Start()
 	if err != nil {
 		return err
 	}
@@ -418,6 +449,8 @@ func (s *Server) Stop() error {
 	}
 	s.channelReactor.Stop()
 	s.userReactor.Stop()
+	s.diffuseReactor.Stop()
+	s.pushReactor.Stop()
 
 	err := s.engine.Stop()
 	if err != nil {
@@ -429,7 +462,7 @@ func (s *Server) Stop() error {
 
 	s.timingWheel.Stop()
 
-	s.tagManager.stop()
+	service.TagMananger.Stop()
 
 	service.Webhook.Stop()
 

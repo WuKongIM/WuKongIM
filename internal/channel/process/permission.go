@@ -2,7 +2,6 @@ package process
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
@@ -14,7 +13,6 @@ import (
 )
 
 func (c *Channel) processPermission(channelInfo wkdb.ChannelInfo, m *reactor.ChannelMessage) {
-	fmt.Println("processPermission--->", m.MessageId, string(m.SendPacket.Payload))
 	reasonCode, err := c.hasPermission(channelInfo, m)
 	if err != nil {
 		c.Error("hasPermission error", zap.Error(err))

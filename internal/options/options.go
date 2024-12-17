@@ -168,6 +168,8 @@ type Options struct {
 		UserProcess int
 		// ChannelProcess 频道逻辑处理协程池
 		ChannelProcess int
+		// DiffuseProcess 消息扩散协程池
+		DiffuseProcess int
 	}
 
 	MessageRetry struct {
@@ -379,9 +381,11 @@ func New(op ...Option) *Options {
 		GoPool: struct {
 			UserProcess    int
 			ChannelProcess int
+			DiffuseProcess int
 		}{
 			UserProcess:    4096,
 			ChannelProcess: 4096,
+			DiffuseProcess: 4096,
 		},
 		MessageRetry: struct {
 			Interval     time.Duration

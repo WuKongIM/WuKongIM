@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	goption "github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -62,13 +63,16 @@ func (r *reactorSub) loop() {
 	defer tick.Stop()
 
 	for !r.stopped.Load() {
-
-		if r.continReadEventCount < 100 {
-			// 读取事件
-			r.readEvents()
+		if !goption.G.Stress {
+			if r.continReadEventCount < 1000 {
+				// 读取事件
+				r.readEvents()
+			} else {
+				r.Warn("user: too many consecutive ready", zap.Int("continReadEventCount", r.continReadEventCount))
+				r.continReadEventCount = 0
+			}
 		} else {
-			r.continReadEventCount = 0
-			r.Warn("too many consecutive ready", zap.Int("continReadEventCount", r.continReadEventCount))
+			r.readEvents()
 		}
 
 		select {
@@ -180,6 +184,10 @@ func (r *reactorSub) tick() {
 
 func (r *reactorSub) addAction(a reactor.UserAction) bool {
 	// r.Info("addAction==", zap.String("uid", a.Uid), zap.String("type", a.Type.String()))
+	if goption.G.Stress {
+		r.mustAddAction(a)
+		return true
+	}
 	added := r.actionQueue.add(a)
 	if !added {
 		r.Warn("drop action,queue is full", zap.String("uid", a.Uid), zap.String("type", a.Type.String()))

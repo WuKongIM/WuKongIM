@@ -457,12 +457,9 @@ func (r *ReactorSub) handleReceivedMessages() bool {
 			r.Info("no expected handler", zap.String("expected", handler.no), zap.String("act", msg.HandlerNo))
 			continue
 		}
-
-		if handler != nil {
-			err := handler.step(msg.Message)
-			if err != nil {
-				r.Error("step failed", zap.Error(err), zap.String("handleKey", msg.HandlerKey))
-			}
+		err := handler.step(msg.Message)
+		if err != nil {
+			r.Error("step failed", zap.Error(err), zap.String("handleKey", msg.HandlerKey))
 		}
 	}
 
