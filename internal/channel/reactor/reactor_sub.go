@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	goption "github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -57,12 +58,16 @@ func (r *reactorSub) loop() {
 
 	for {
 
-		if r.continReadEventCount < 100 {
-			// 读取事件
-			r.readEvents()
+		if !goption.G.Stress {
+			if r.continReadEventCount < 1000 {
+				// 读取事件
+				r.readEvents()
+			} else {
+				r.Warn("channel: too many consecutive ready", zap.Int("continReadEventCount", r.continReadEventCount))
+				r.continReadEventCount = 0
+			}
 		} else {
-			r.continReadEventCount = 0
-			r.Warn("too many consecutive ready", zap.Int("continReadEventCount", r.continReadEventCount))
+			r.readEvents()
 		}
 
 		select {
@@ -171,7 +176,11 @@ func (r *reactorSub) tick() {
 }
 
 func (r *reactorSub) addAction(a reactor.ChannelAction) bool {
-	r.Info("addAction==", zap.String("channel", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType), zap.String("type", a.Type.String()))
+	// r.Info("addAction==", zap.String("channel", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType), zap.String("type", a.Type.String()))
+	if goption.G.Stress {
+		r.mustAddAction(a)
+		return true
+	}
 	added := r.actionQueue.add(a)
 	if !added {
 		r.Warn("drop channel action,queue is full",
@@ -182,6 +191,10 @@ func (r *reactorSub) addAction(a reactor.ChannelAction) bool {
 
 	}
 	return added
+}
+
+func (r *reactorSub) mustAddAction(a reactor.ChannelAction) {
+	r.actionQueue.mustAdd(a)
 }
 
 func (r *reactorSub) exist(channelKey string) bool {

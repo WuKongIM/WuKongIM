@@ -30,41 +30,6 @@ type UserMessage struct {
 
 }
 
-// func (m *DefaultUserMessage) GetConn() Conn {
-// 	return m.Conn
-// }
-
-// func (m *DefaultUserMessage) GetFrame() wkproto.Frame {
-// 	return m.Frame
-// }
-
-// func (m *DefaultUserMessage) Size() uint64 {
-// 	return 0
-// }
-
-// func (m *DefaultUserMessage) SetIndex(index uint64) {
-// 	m.Index = index
-// }
-
-// func (m *DefaultUserMessage) GetIndex() uint64 {
-// 	return m.Index
-// }
-
-// func (m *DefaultUserMessage) GetToNode() uint64 {
-// 	return m.ToNode
-// }
-
-// func (m *DefaultUserMessage) SetToNode(to uint64) {
-// 	m.ToNode = to
-// }
-
-// func (m *DefaultUserMessage) GetWriteData() []byte {
-// 	return m.WriteData
-// }
-// func (m *DefaultUserMessage) SetWriteData(data []byte) {
-// 	m.WriteData = data
-// }
-
 func (m *UserMessage) Size() uint64 {
 	size := uint64(0)
 	if m.Conn != nil {

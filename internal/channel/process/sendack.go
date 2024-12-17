@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
+func (c *Channel) processSendack(fakeChanelId string, channelType uint8, messages []*reactor.ChannelMessage) {
 
 	sendackMap := make(map[uint64][]*sendackReq)
 	for _, m := range messages {
@@ -25,11 +25,22 @@ func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
 			ConnId:       m.Conn.ConnId,
 			protoVersion: m.Conn.ProtoVersion,
 		})
+
+		// 将成功的消息进入到扩散流程
+		if m.ReasonCode == wkproto.ReasonSuccess {
+			m.MsgType = reactor.ChannelMsgDiffuse // 消息扩散
+			reactor.Diffuse.AddMessage(m)
+		}
 	}
+	// 推进扩散流程
+	reactor.Diffuse.Advance(fakeChanelId, channelType)
 
 	for fromNode, reqs := range sendackMap {
 		if options.G.IsLocalNode(fromNode) {
 			c.sendSendack(reqs)
+			continue
+		}
+		if fromNode == 0 {
 			continue
 		}
 		batchReq := sendackBatchReq(reqs)
@@ -39,7 +50,7 @@ func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
 			continue
 		}
 		err = service.Cluster.Send(fromNode, &proto.Message{
-			MsgType: options.ReactorChannelMsgTypeSendack.Uint32(),
+			MsgType: msgSendack.uint32(),
 			Content: data,
 		})
 		if err != nil {
@@ -51,6 +62,7 @@ func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
 
 func (c *Channel) sendSendack(reqs []*sendackReq) {
 
+	var uidMap = make(map[string]struct{})
 	for _, req := range reqs {
 		if !options.G.IsLocalNode(req.FromNode) {
 			c.Warn("sendack from node not equal self", zap.Uint64("fromNode", req.FromNode), zap.Uint64("self", options.G.Cluster.NodeId))
@@ -64,6 +76,11 @@ func (c *Channel) sendSendack(reqs []*sendackReq) {
 			FromNode:     req.FromNode,
 			ProtoVersion: req.protoVersion,
 		}, packet)
+		uidMap[req.fromUid] = struct{}{}
+	}
+
+	for uid := range uidMap {
+		reactor.User.Advance(uid)
 	}
 }
 

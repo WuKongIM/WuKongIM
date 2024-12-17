@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -420,10 +419,10 @@ func (c *channel) resetIndex() {
 	c.msgQueue.resetIndex()
 
 	// 释放掉之前的tag
-	if c.receiverTagKey.Load() != "" {
-		c.r.s.tagManager.releaseReceiverTagNow(c.receiverTagKey.Load())
-		c.receiverTagKey.Store("")
-	}
+	// if c.receiverTagKey.Load() != "" {
+	// 	c.r.s.tagManager.releaseReceiverTagNow(c.receiverTagKey.Load())
+	// 	c.receiverTagKey.Store("")
+	// }
 
 	c.initState.Reset()
 	c.payloadDecryptState.Reset()
@@ -463,98 +462,98 @@ type ready struct {
 	actions []*ChannelAction
 }
 
-// makeReceiverTag 创建接收者标签
-// 该方法用于为频道创建一个接收者标签，用于标识频道的订阅者及其所在的节点
-// 返回创建的标签和可能的错误
-func (c *channel) makeReceiverTag() (*tag, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+// // makeReceiverTag 创建接收者标签
+// // 该方法用于为频道创建一个接收者标签，用于标识频道的订阅者及其所在的节点
+// // 返回创建的标签和可能的错误
+// func (c *channel) makeReceiverTag() (*tag, error) {
+// 	c.mu.Lock()
+// 	defer c.mu.Unlock()
 
-	c.Debug("makeReceiverTag", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
+// 	c.Debug("makeReceiverTag", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 
-	var (
-		err         error
-		subscribers []string
-	)
+// 	var (
+// 		err         error
+// 		subscribers []string
+// 	)
 
-	// 根据频道类型获取订阅者列表
-	if c.channelType == wkproto.ChannelTypePerson {
-		if c.r.s.opts.IsFakeChannel(c.channelId) { // 处理假个人频道
-			orgFakeChannelId := c.channelId
-			if c.r.s.opts.IsCmdChannel(c.channelId) {
-				// 处理命令频道
-				orgFakeChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
-			}
-			// 处理普通假个人频道
-			u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
-			if u1 != c.r.opts.SystemUID {
-				subscribers = append(subscribers, u1)
-			}
-			if u2 != c.r.opts.SystemUID {
-				subscribers = append(subscribers, u2)
-			}
-		}
-	} else if c.channelType == wkproto.ChannelTypeTemp { // 临时频道
-		subscribers = c.getTmpSubscribers()
-	} else {
+// 	// 根据频道类型获取订阅者列表
+// 	if c.channelType == wkproto.ChannelTypePerson {
+// 		if c.r.s.opts.IsFakeChannel(c.channelId) { // 处理假个人频道
+// 			orgFakeChannelId := c.channelId
+// 			if c.r.s.opts.IsCmdChannel(c.channelId) {
+// 				// 处理命令频道
+// 				orgFakeChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId)
+// 			}
+// 			// 处理普通假个人频道
+// 			u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
+// 			if u1 != c.r.opts.SystemUID {
+// 				subscribers = append(subscribers, u1)
+// 			}
+// 			if u2 != c.r.opts.SystemUID {
+// 				subscribers = append(subscribers, u2)
+// 			}
+// 		}
+// 	} else if c.channelType == wkproto.ChannelTypeTemp { // 临时频道
+// 		subscribers = c.getTmpSubscribers()
+// 	} else {
 
-		// 处理非个人频道
-		fakeChannelId := c.channelId
-		if c.r.s.opts.IsCmdChannel(c.channelId) {
-			fakeChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId) // 将cmd频道id还原成对应的频道id
-		}
+// 		// 处理非个人频道
+// 		fakeChannelId := c.channelId
+// 		if c.r.s.opts.IsCmdChannel(c.channelId) {
+// 			fakeChannelId = c.r.opts.CmdChannelConvertOrginalChannel(c.channelId) // 将cmd频道id还原成对应的频道id
+// 		}
 
-		// 请求频道的订阅者
-		subscribers, err = c.requestSubscribers(fakeChannelId, c.channelType)
-		if err != nil {
-			return nil, err
-		}
+// 		// 请求频道的订阅者
+// 		subscribers, err = c.requestSubscribers(fakeChannelId, c.channelType)
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		// 如果是客服频道，获取访客的uid作为订阅者
-		if c.channelType == wkproto.ChannelTypeCustomerService {
-			visitorID, _ := c.opts.GetCustomerServiceVisitorUID(fakeChannelId) // 获取访客ID
-			if strings.TrimSpace(visitorID) != "" {
-				subscribers = append(subscribers, visitorID)
-			}
-		}
-	}
+// 		// 如果是客服频道，获取访客的uid作为订阅者
+// 		if c.channelType == wkproto.ChannelTypeCustomerService {
+// 			visitorID, _ := c.opts.GetCustomerServiceVisitorUID(fakeChannelId) // 获取访客ID
+// 			if strings.TrimSpace(visitorID) != "" {
+// 				subscribers = append(subscribers, visitorID)
+// 			}
+// 		}
+// 	}
 
-	// 将订阅者按所在节点分组
-	var nodeUserList = make([]*nodeUsers, 0, 20)
-	for _, subscriber := range subscribers {
-		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson)
-		if err != nil {
-			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
-			return nil, err
-		}
-		exist := false
-		for _, nodeUser := range nodeUserList {
-			if nodeUser.nodeId == leaderInfo.Id {
-				nodeUser.uids = append(nodeUser.uids, subscriber)
-				exist = true
-				break
-			}
-		}
-		if !exist {
-			nodeUserList = append(nodeUserList, &nodeUsers{
-				nodeId: leaderInfo.Id,
-				uids:   []string{subscriber},
-			})
-		}
-	}
+// 	// 将订阅者按所在节点分组
+// 	var nodeUserList = make([]*nodeUsers, 0, 20)
+// 	for _, subscriber := range subscribers {
+// 		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(subscriber, wkproto.ChannelTypePerson)
+// 		if err != nil {
+// 			c.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", subscriber), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+// 			return nil, err
+// 		}
+// 		exist := false
+// 		for _, nodeUser := range nodeUserList {
+// 			if nodeUser.nodeId == leaderInfo.Id {
+// 				nodeUser.uids = append(nodeUser.uids, subscriber)
+// 				exist = true
+// 				break
+// 			}
+// 		}
+// 		if !exist {
+// 			nodeUserList = append(nodeUserList, &nodeUsers{
+// 				nodeId: leaderInfo.Id,
+// 				uids:   []string{subscriber},
+// 			})
+// 		}
+// 	}
 
-	// 释放旧的接收者标签（如果存在）
-	if c.receiverTagKey.Load() != "" {
-		c.r.s.tagManager.releaseReceiverTagNow(c.receiverTagKey.Load())
-	}
+// 	// 释放旧的接收者标签（如果存在）
+// 	// if c.receiverTagKey.Load() != "" {
+// 	// 	c.r.s.tagManager.releaseReceiverTagNow(c.receiverTagKey.Load())
+// 	// }
 
-	// 创建新的接收者标签
-	receiverTagKey := wkutil.GenUUID()
-	newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList, c.channelId, c.channelType)
-	c.receiverTagKey.Store(receiverTagKey)
+// 	// 创建新的接收者标签
+// 	// receiverTagKey := wkutil.GenUUID()
+// 	// newTag := c.r.s.tagManager.addOrUpdateReceiverTag(receiverTagKey, nodeUserList, c.channelId, c.channelType)
+// 	// c.receiverTagKey.Store(receiverTagKey)
 
-	return newTag, nil
-}
+// 	return nil, nil
+// }
 
 // requestSubscribers 请求订阅者
 func (c *channel) requestSubscribers(channelId string, channelType uint8) ([]string, error) {

@@ -12,8 +12,6 @@ func (r ReactorMsgType) String() string {
 		return "ReactorUserMsgTypeMax"
 	case ReactorChannelMsgTypeMin:
 		return "ReactorChannelMsgTypeMin"
-	case ReactorChannelMsgTypeSendack:
-		return "ReactorChannelMsgTypeSendack"
 	case ReactorChannelMsgTypeMax:
 		return "ReactorChannelMsgTypeMax"
 	default:
@@ -31,13 +29,14 @@ const (
 	ReactorUserMsgTypeMin ReactorMsgType = 2000
 	// reactor user的最大消息类型, 不包含max
 	ReactorUserMsgTypeMax ReactorMsgType = 3000
-
 	// reactor channel的最小消息类型
 	ReactorChannelMsgTypeMin ReactorMsgType = 3001
-
-	// ReactorChannelMsgTypeSendack 发送回执给连接的源节点
-	ReactorChannelMsgTypeSendack ReactorMsgType = 3002
-
 	// reactor channel的最大消息类型，不包含
 	ReactorChannelMsgTypeMax ReactorMsgType = 4000
+	// diffuse
+	ReactorDiffuseMsgTypeMin ReactorMsgType = 4001
+	ReactorDiffuseMsgTypeMax ReactorMsgType = 5000
+	// push
+	ReactorPushMsgTypeMin ReactorMsgType = 5001
+	ReactorPushMsgTypeMax ReactorMsgType = 6000
 )

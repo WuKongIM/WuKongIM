@@ -27,6 +27,45 @@ func (c *ChannelPlus) WakeIfNeed(channelId string, channelType uint8) {
 	c.ch.WakeIfNeed(channelId, channelType)
 }
 
+func (c *ChannelPlus) Join(channelId string, channelType uint8, from uint64) {
+	c.WakeIfNeed(channelId, channelType)
+	c.ch.AddAction(ChannelAction{
+		Type:          ChannelActionJoin,
+		FakeChannelId: channelId,
+		ChannelType:   channelType,
+		From:          from,
+	})
+	c.ch.Advance(channelId, channelType)
+}
+
+func (c *ChannelPlus) JoinResp(channelId string, channelType uint8, from uint64) {
+	c.ch.AddAction(ChannelAction{
+		Type:          ChannelActionJoinResp,
+		FakeChannelId: channelId,
+		ChannelType:   channelType,
+		From:          from,
+	})
+	c.ch.Advance(channelId, channelType)
+}
+
+func (c *ChannelPlus) HeartbeatReq(channelId string, channelType uint8, from uint64) {
+	c.ch.AddAction(ChannelAction{
+		Type:          ChannelActionHeartbeatReq,
+		FakeChannelId: channelId,
+		ChannelType:   channelType,
+		From:          from,
+	})
+}
+
+func (c *ChannelPlus) HeartbeatResp(channelId string, channelType uint8, from uint64) {
+	c.ch.AddAction(ChannelAction{
+		Type:          ChannelActionHeartbeatResp,
+		FakeChannelId: channelId,
+		ChannelType:   channelType,
+		From:          from,
+	})
+}
+
 // SendMessage 发送消息
 func (c *ChannelPlus) SendMessage(message *ChannelMessage) bool {
 	added := c.ch.AddAction(ChannelAction{
@@ -88,6 +127,7 @@ func (c *ChannelPlus) UpdateConfig(channelId string, channelType uint8, cfg Chan
 		ChannelType:   channelType,
 		Cfg:           cfg,
 	})
+	c.ch.Advance(channelId, channelType)
 }
 
 // UpdateChannelInfo 更新缓存中频道的基础信息

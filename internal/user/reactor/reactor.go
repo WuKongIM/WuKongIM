@@ -75,11 +75,6 @@ func (r *Reactor) CloseConn(c *reactor.Conn) {
 
 func (r *Reactor) AddAction(a reactor.UserAction) bool {
 	sub := r.getSub(a.Uid)
-	if a.Type == reactor.UserActionJoin {
-		if !sub.exist(a.Uid) {
-			r.WakeIfNeed(a.Uid)
-		}
-	}
 	return sub.addAction(a)
 }
 

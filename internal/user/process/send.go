@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -13,8 +11,6 @@ import (
 )
 
 func (p *User) handleSend(msg *reactor.UserMessage) {
-
-	fmt.Println("handleSend--->", msg.MessageId)
 
 	sendPacket := msg.Frame.(*wkproto.SendPacket)
 	channelId := sendPacket.ChannelID

@@ -130,12 +130,12 @@ func TestConversationUpdateForCMDChannel(t *testing.T) {
 	assert.NoError(t, err)
 
 	tagKey := "tagtest"
-	s.tagManager.addOrUpdateReceiverTag(tagKey, []*nodeUsers{
-		{
-			nodeId: s.opts.Cluster.NodeId,
-			uids:   []string{"u1", "u2"},
-		},
-	}, channelId, channelType)
+	// s.tagManager.addOrUpdateReceiverTag(tagKey, []*nodeUsers{
+	// 	{
+	// 		nodeId: s.opts.Cluster.NodeId,
+	// 		uids:   []string{"u1", "u2"},
+	// 	},
+	// }, channelId, channelType)
 
 	req := &conversationReq{
 		channelId:   cmdChannelId,
@@ -188,12 +188,12 @@ func TestConversationUpdateForPropose(t *testing.T) {
 	assert.NoError(t, err)
 
 	tagKey := "tagtest"
-	s.tagManager.addOrUpdateReceiverTag(tagKey, []*nodeUsers{
-		{
-			nodeId: s.opts.Cluster.NodeId,
-			uids:   []string{"u1", "u2"},
-		},
-	}, channelId, channelType)
+	// s.tagManager.addOrUpdateReceiverTag(tagKey, []*nodeUsers{
+	// 	{
+	// 		nodeId: s.opts.Cluster.NodeId,
+	// 		uids:   []string{"u1", "u2"},
+	// 	},
+	// }, channelId, channelType)
 
 	req := &conversationReq{
 		channelId:   channelId,

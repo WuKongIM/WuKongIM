@@ -9,16 +9,17 @@ import (
 
 type msgType uint32
 
+// 范围 options.ReactorUserMsgTypeMin ~ options.ReactorUserMsgTypeMax
 const (
 	// 用户节点加入，用户副本节点加入领导节点时发起
-	msgUserJoinReq  msgType = 2000
-	msgUserJoinResp msgType = 2001
+	msgUserJoinReq  msgType = 2001
+	msgUserJoinResp msgType = 2002
 	// 消息发件箱请求
-	msgOutboundReq msgType = 2002
+	msgOutboundReq msgType = 2003
 	// 节点心跳 领导节点发起
-	msgNodeHeartbeatReq msgType = 2003
+	msgNodeHeartbeatReq msgType = 2004
 	// 节点心跳回执 副本节点回执
-	msgNodeHeartbeatResp msgType = 2004
+	msgNodeHeartbeatResp msgType = 2005
 )
 
 func (m msgType) String() string {

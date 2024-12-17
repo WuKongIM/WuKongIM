@@ -1219,18 +1219,18 @@ func (r *channelReactor) processClose(req *closeReq) {
 
 	r.Debug("channel close", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
 
-	if r.opts.IsLocalNode(req.leaderId) {
-		trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
-	}
-	// 释放掉tagKey
-	receiverTagKey := req.ch.receiverTagKey.Load()
-	if receiverTagKey != "" {
-		r.s.tagManager.releaseReceiverTagNow(receiverTagKey)
-	}
+	// if r.opts.IsLocalNode(req.leaderId) {
+	// 	trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
+	// }
+	// // 释放掉tagKey
+	// receiverTagKey := req.ch.receiverTagKey.Load()
+	// if receiverTagKey != "" {
+	// 	r.s.tagManager.releaseReceiverTagNow(receiverTagKey)
+	// }
 
-	// 移除频道
-	sub := r.reactorSub(req.ch.key)
-	sub.removeChannel(req.ch.key)
+	// // 移除频道
+	// sub := r.reactorSub(req.ch.key)
+	// sub.removeChannel(req.ch.key)
 }
 
 type closeReq struct {
@@ -1261,48 +1261,48 @@ func (r *channelReactor) processCheckTagLoop() {
 
 func (r *channelReactor) processCheckTag(req *checkTagReq) {
 
-	receiverTagKey := req.ch.receiverTagKey.Load()
-	if receiverTagKey == "" { // 如果不存在tag则重新生成
-		_, err := req.ch.makeReceiverTag()
-		if err != nil {
-			r.Error("makeReceiverTag failed", zap.Error(err))
-		}
-		return
-	}
+	// receiverTagKey := req.ch.receiverTagKey.Load()
+	// if receiverTagKey == "" { // 如果不存在tag则重新生成
+	// 	_, err := req.ch.makeReceiverTag()
+	// 	if err != nil {
+	// 		r.Error("makeReceiverTag failed", zap.Error(err))
+	// 	}
+	// 	return
+	// }
 
-	// 检查tag是否有效
-	tag := r.s.tagManager.getReceiverTag(receiverTagKey)
-	if tag == nil {
-		r.Info("tag is invalid", zap.String("receiverTagKey", receiverTagKey))
-		_, err := req.ch.makeReceiverTag()
-		if err != nil {
-			r.Error("makeReceiverTag failed", zap.Error(err))
-		}
-		return
-	}
+	// // 检查tag是否有效
+	// tag := r.s.tagManager.getReceiverTag(receiverTagKey)
+	// if tag == nil {
+	// 	r.Info("tag is invalid", zap.String("receiverTagKey", receiverTagKey))
+	// 	_, err := req.ch.makeReceiverTag()
+	// 	if err != nil {
+	// 		r.Error("makeReceiverTag failed", zap.Error(err))
+	// 	}
+	// 	return
+	// }
 
-	needMakeTag := false // 是否需要重新make tag
-	for _, nodeUser := range tag.users {
-		for _, uid := range nodeUser.uids {
-			leaderId, err := service.Cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
-			if err != nil {
-				r.Error("processCheckTag: SlotLeaderIdOfChannel error", zap.Error(err))
-				return
-			}
-			if leaderId != nodeUser.nodeId { // 如果当前用户不属于当前节点，则说明分布式配置有变化，需要重新生成tag
-				needMakeTag = true
-				break
-			}
-		}
-	}
-	if needMakeTag {
-		_, err := req.ch.makeReceiverTag()
-		if err != nil {
-			r.Error("makeReceiverTag failed", zap.Error(err))
-		} else {
-			r.Info("makeReceiverTag success", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
-		}
-	}
+	// needMakeTag := false // 是否需要重新make tag
+	// for _, nodeUser := range tag.users {
+	// 	for _, uid := range nodeUser.uids {
+	// 		leaderId, err := service.Cluster.SlotLeaderIdOfChannel(uid, wkproto.ChannelTypePerson)
+	// 		if err != nil {
+	// 			r.Error("processCheckTag: SlotLeaderIdOfChannel error", zap.Error(err))
+	// 			return
+	// 		}
+	// 		if leaderId != nodeUser.nodeId { // 如果当前用户不属于当前节点，则说明分布式配置有变化，需要重新生成tag
+	// 			needMakeTag = true
+	// 			break
+	// 		}
+	// 	}
+	// }
+	// if needMakeTag {
+	// 	_, err := req.ch.makeReceiverTag()
+	// 	if err != nil {
+	// 		r.Error("makeReceiverTag failed", zap.Error(err))
+	// 	} else {
+	// 		r.Info("makeReceiverTag success", zap.String("channelId", req.ch.channelId), zap.Uint8("channelType", req.ch.channelType))
+	// 	}
+	// }
 }
 
 type checkTagReq struct {

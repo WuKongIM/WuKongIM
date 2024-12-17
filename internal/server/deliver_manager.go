@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -10,10 +9,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
-	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
@@ -172,176 +169,177 @@ func (d *deliverr) handleDeliverReqs(req []*deliverReq) {
 	}
 }
 
-// 请求节点对应tag的用户集合
-func (d *deliverr) requestNodeChannelTag(nodeId uint64, req *tagReq) (*tagResp, error) {
-	timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
-	defer cancel()
-	data := req.Marshal()
-	resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/getNodeUidsByTag", data)
-	if err != nil {
-		return nil, err
-	}
-	if resp.Status != proto.StatusOK {
-		return nil, fmt.Errorf("requestNodeChannelTag failed, status: %d err:%s", resp.Status, string(resp.Body))
-	}
-	var tagResp = &tagResp{}
-	err = tagResp.Unmarshal(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return tagResp, nil
-}
+// // 请求节点对应tag的用户集合
+//
+//	func (d *deliverr) requestNodeChannelTag(nodeId uint64, req *tagReq) (*tagResp, error) {
+//		timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
+//		defer cancel()
+//		data := req.Marshal()
+//		resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/getNodeUidsByTag", data)
+//		if err != nil {
+//			return nil, err
+//		}
+//		if resp.Status != proto.StatusOK {
+//			return nil, fmt.Errorf("requestNodeChannelTag failed, status: %d err:%s", resp.Status, string(resp.Body))
+//		}
+//		var tagResp = &tagResp{}
+//		err = tagResp.Unmarshal(resp.Body)
+//		if err != nil {
+//			return nil, err
+//		}
+//		return tagResp, nil
+//	}
 func (d *deliverr) handleDeliverReq(req *deliverReq) {
 
-	// ================== 获取tag信息 ==================
-	var tg = d.dm.s.tagManager.getReceiverTag(req.tagKey)
-	if tg == nil {
+	// // ================== 获取tag信息 ==================
+	// var tg = d.dm.s.tagManager.getReceiverTag(req.tagKey)
+	// if tg == nil {
 
-		timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
-		leader, err := service.Cluster.LeaderOfChannel(timeoutCtx, req.channelId, req.channelType)
-		cancel()
-		if err != nil {
-			d.Error("getLeaderOfChannel failed", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Error(err))
-			return
-		}
-		if leader.Id == d.dm.s.opts.Cluster.NodeId { // 如果本节点是leader并且tag不存在，则创建tag
-			if d.dm.s.opts.Logger.TraceOn {
-				for _, msg := range req.messages {
-					d.MessageTrace("生成接收者tag", msg.SendPacket.ClientMsgNo, "makeReceiverTag")
-				}
+	// 	timeoutCtx, cancel := context.WithTimeout(d.dm.s.ctx, time.Second*5)
+	// 	leader, err := service.Cluster.LeaderOfChannel(timeoutCtx, req.channelId, req.channelType)
+	// 	cancel()
+	// 	if err != nil {
+	// 		d.Error("getLeaderOfChannel failed", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Error(err))
+	// 		return
+	// 	}
+	// 	if leader.Id == d.dm.s.opts.Cluster.NodeId { // 如果本节点是leader并且tag不存在，则创建tag
+	// 		if d.dm.s.opts.Logger.TraceOn {
+	// 			for _, msg := range req.messages {
+	// 				d.MessageTrace("生成接收者tag", msg.SendPacket.ClientMsgNo, "makeReceiverTag")
+	// 			}
 
-			}
-			tg, err = req.ch.makeReceiverTag()
-			if err != nil {
-				d.Error("handleDeliverReq:makeReceiverTag failed", zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-				if d.dm.s.opts.Logger.TraceOn {
-					for _, msg := range req.messages {
-						d.MessageTrace("生成接收者tag失败", msg.SendPacket.ClientMsgNo, "makeReceiverTag", zap.Error(err))
-					}
+	// 		}
+	// 		tg, err = req.ch.makeReceiverTag()
+	// 		if err != nil {
+	// 			d.Error("handleDeliverReq:makeReceiverTag failed", zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+	// 			if d.dm.s.opts.Logger.TraceOn {
+	// 				for _, msg := range req.messages {
+	// 					d.MessageTrace("生成接收者tag失败", msg.SendPacket.ClientMsgNo, "makeReceiverTag", zap.Error(err))
+	// 				}
 
-				}
-				return
-			}
-		} else {
-			if d.dm.s.opts.Logger.TraceOn {
-				for _, msg := range req.messages {
-					d.MessageTrace("请求接受者tag", msg.SendPacket.ClientMsgNo, "requestReceiverTag", zap.String("tagKey", req.tagKey), zap.Uint64("leaderId", leader.Id))
-				}
+	// 			}
+	// 			return
+	// 		}
+	// 	} else {
+	// 		if d.dm.s.opts.Logger.TraceOn {
+	// 			for _, msg := range req.messages {
+	// 				d.MessageTrace("请求接受者tag", msg.SendPacket.ClientMsgNo, "requestReceiverTag", zap.String("tagKey", req.tagKey), zap.Uint64("leaderId", leader.Id))
+	// 			}
 
-			}
-			if req.channelType == wkproto.ChannelTypePerson { // 个人频道
-				tg, err = d.getPersonTag(req.channelId)
-				if err != nil {
-					d.Error("get person tag failed", zap.Error(err), zap.String("channelId", req.channelId))
-				}
-			} else {
-				tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
-					channelId:   req.channelId,
-					channelType: req.channelType,
-					tagKey:      req.tagKey,
-					nodeId:      d.dm.s.opts.Cluster.NodeId,
-				})
-				if err != nil {
-					d.Error("requestNodeTag failed", zap.Error(err), zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
-					if d.dm.s.opts.Logger.TraceOn {
-						for _, msg := range req.messages {
-							d.MessageTrace("请求接受者tag失败", msg.SendPacket.ClientMsgNo, "requestReceiverTag", zap.String("tagKey", req.tagKey), zap.Error(err))
-						}
+	// 		}
+	// 		if req.channelType == wkproto.ChannelTypePerson { // 个人频道
+	// 			tg, err = d.getPersonTag(req.channelId)
+	// 			if err != nil {
+	// 				d.Error("get person tag failed", zap.Error(err), zap.String("channelId", req.channelId))
+	// 			}
+	// 		} else {
+	// 			tagResp, err := d.requestNodeChannelTag(leader.Id, &tagReq{
+	// 				channelId:   req.channelId,
+	// 				channelType: req.channelType,
+	// 				tagKey:      req.tagKey,
+	// 				nodeId:      d.dm.s.opts.Cluster.NodeId,
+	// 			})
+	// 			if err != nil {
+	// 				d.Error("requestNodeTag failed", zap.Error(err), zap.String("tagKey", req.tagKey), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+	// 				if d.dm.s.opts.Logger.TraceOn {
+	// 					for _, msg := range req.messages {
+	// 						d.MessageTrace("请求接受者tag失败", msg.SendPacket.ClientMsgNo, "requestReceiverTag", zap.String("tagKey", req.tagKey), zap.Error(err))
+	// 					}
 
-					}
-					return
-				}
-				tg = d.dm.s.tagManager.addOrUpdateReceiverTag(tagResp.tagKey, []*nodeUsers{
-					{
-						uids:   tagResp.uids,
-						nodeId: d.dm.s.opts.Cluster.NodeId,
-					},
-				}, req.channelId, req.channelType)
-			}
+	// 				}
+	// 				return
+	// 			}
+	// 			tg = d.dm.s.tagManager.addOrUpdateReceiverTag(tagResp.tagKey, []*nodeUsers{
+	// 				{
+	// 					uids:   tagResp.uids,
+	// 					nodeId: d.dm.s.opts.Cluster.NodeId,
+	// 				},
+	// 			}, req.channelId, req.channelType)
+	// 		}
 
-		}
+	// 	}
 
-	}
+	// }
 
-	// ================== 投递消息 ==================
+	// // ================== 投递消息 ==================
 
-	for _, nodeUser := range tg.users {
+	// for _, nodeUser := range tg.users {
 
-		// 本节点投递
-		if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId {
-			// 记录轨迹
-			if d.dm.s.opts.Logger.TraceOn {
-				for _, msg := range req.messages {
-					d.MessageTrace("投递节点", msg.SendPacket.ClientMsgNo, "deliverNode", zap.Int("userCount", len(nodeUser.uids)))
-				}
-			}
-			// 更新最近会话
-			if d.dm.s.opts.Conversation.On {
-				d.dm.s.conversationManager.Push(&conversationReq{
-					channelId:   req.channelId,
-					channelType: req.channelType,
-					tagKey:      req.tagKey,
-					messages:    req.messages,
-				})
-			}
+	// 	// 本节点投递
+	// 	if d.dm.s.opts.Cluster.NodeId == nodeUser.nodeId {
+	// 		// 记录轨迹
+	// 		if d.dm.s.opts.Logger.TraceOn {
+	// 			for _, msg := range req.messages {
+	// 				d.MessageTrace("投递节点", msg.SendPacket.ClientMsgNo, "deliverNode", zap.Int("userCount", len(nodeUser.uids)))
+	// 			}
+	// 		}
+	// 		// 更新最近会话
+	// 		if d.dm.s.opts.Conversation.On {
+	// 			d.dm.s.conversationManager.Push(&conversationReq{
+	// 				channelId:   req.channelId,
+	// 				channelType: req.channelType,
+	// 				tagKey:      req.tagKey,
+	// 				messages:    req.messages,
+	// 			})
+	// 		}
 
-			// 投递消息
-			d.deliver(req, nodeUser.uids)
+	// 		// 投递消息
+	// 		d.deliver(req, nodeUser.uids)
 
-		} else {
-			// 非本节点投递
-			// 转发给对应的节点
-			d.dm.nodeManager.deliver(nodeUser.nodeId, req)
-		}
-	}
+	// 	} else {
+	// 		// 非本节点投递
+	// 		// 转发给对应的节点
+	// 		d.dm.nodeManager.deliver(nodeUser.nodeId, req)
+	// 	}
+	// }
 }
 
-// 获取个人频道的投递tag
-func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
-	orgFakeChannelId := fakeChannelId
-	if d.dm.s.opts.IsCmdChannel(fakeChannelId) {
-		// 处理命令频道
-		orgFakeChannelId = d.dm.s.opts.CmdChannelConvertOrginalChannel(fakeChannelId)
-	}
-	// 处理普通假个人频道
-	u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
+// // 获取个人频道的投递tag
+// func (d *deliverr) getPersonTag(fakeChannelId string) (*tag, error) {
+// 	orgFakeChannelId := fakeChannelId
+// 	if d.dm.s.opts.IsCmdChannel(fakeChannelId) {
+// 		// 处理命令频道
+// 		orgFakeChannelId = d.dm.s.opts.CmdChannelConvertOrginalChannel(fakeChannelId)
+// 	}
+// 	// 处理普通假个人频道
+// 	u1, u2 := GetFromUIDAndToUIDWith(orgFakeChannelId)
 
-	nodeUs := make([]*nodeUsers, 0, 2)
+// 	nodeUs := make([]*nodeUsers, 0, 2)
 
-	u1NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u1, wkproto.ChannelTypePerson)
-	if err != nil {
-		return nil, err
-	}
-	u2NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
-	if err != nil {
-		return nil, err
-	}
+// 	u1NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u1, wkproto.ChannelTypePerson)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	u2NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	if u1NodeId == d.dm.s.opts.Cluster.NodeId && u1NodeId == u2NodeId {
-		nodeUs = append(nodeUs, &nodeUsers{
-			nodeId: u1NodeId,
-			uids:   []string{u1, u2},
-		})
-	} else if u1NodeId == d.dm.s.opts.Cluster.NodeId {
-		nodeUs = append(nodeUs, &nodeUsers{
-			nodeId: u1NodeId,
-			uids:   []string{u1},
-		})
-	} else if u2NodeId == d.dm.s.opts.Cluster.NodeId {
-		nodeUs = append(nodeUs, &nodeUsers{
-			nodeId: u2NodeId,
-			uids:   []string{u2},
-		})
-	}
+// 	if u1NodeId == d.dm.s.opts.Cluster.NodeId && u1NodeId == u2NodeId {
+// 		nodeUs = append(nodeUs, &nodeUsers{
+// 			nodeId: u1NodeId,
+// 			uids:   []string{u1, u2},
+// 		})
+// 	} else if u1NodeId == d.dm.s.opts.Cluster.NodeId {
+// 		nodeUs = append(nodeUs, &nodeUsers{
+// 			nodeId: u1NodeId,
+// 			uids:   []string{u1},
+// 		})
+// 	} else if u2NodeId == d.dm.s.opts.Cluster.NodeId {
+// 		nodeUs = append(nodeUs, &nodeUsers{
+// 			nodeId: u2NodeId,
+// 			uids:   []string{u2},
+// 		})
+// 	}
 
-	tg := &tag{
-		key:         wkutil.GenUUID(),
-		channelId:   fakeChannelId,
-		channelType: wkproto.ChannelTypePerson,
-		users:       nodeUs,
-	}
-	return tg, nil
-}
+// 	tg := &tag{
+// 		key:         wkutil.GenUUID(),
+// 		channelId:   fakeChannelId,
+// 		channelType: wkproto.ChannelTypePerson,
+// 		users:       nodeUs,
+// 	}
+// 	return tg, nil
+// }
 
 type deliverUserSlice struct {
 	offlineUids []string        // 离线用户(只要主设备不在线就算离线)
