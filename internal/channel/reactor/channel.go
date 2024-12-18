@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
@@ -29,8 +28,6 @@ type Channel struct {
 	outbound *outboundReady
 	joined   bool                  // 是否已成功加入集群
 	cfg      reactor.ChannelConfig // 频道配置
-	// ChannelInfo 频道基础信息
-	channelInfo wkdb.ChannelInfo
 	wklog.Log
 }
 
@@ -86,7 +83,6 @@ func (c *Channel) ready() []reactor.ChannelAction {
 				Type:          reactor.ChannelActionInbound,
 				Messages:      msgs,
 				Role:          c.role,
-				ChannelInfo:   c.channelInfo,
 			})
 		}
 		// ---------- outbound ----------
@@ -345,10 +341,6 @@ func (c *Channel) reset() {
 }
 
 func (c *Channel) handleConfigUpdate(cfg reactor.ChannelConfig) {
-
-	if !wkdb.IsEmptyChannelInfo(cfg.ChannelInfo) {
-		c.channelInfo = cfg.ChannelInfo
-	}
 
 	if c.cfg.LeaderId == cfg.LeaderId {
 		return

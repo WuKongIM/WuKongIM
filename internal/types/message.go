@@ -76,3 +76,25 @@ type MessageHeader struct {
 	RedDot    int `json:"red_dot"`    // Whether to show red dot
 	SyncOnce  int `json:"sync_once"`  // This message is only synchronized or consumed once
 }
+
+type MessageRespSlice []*MessageResp
+
+func (m MessageRespSlice) Len() int { return len(m) }
+
+func (m MessageRespSlice) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
+
+func (m MessageRespSlice) Less(i, j int) bool { return m[i].MessageSeq < m[j].MessageSeq }
+
+// 重试消息
+type RetryMessage struct {
+	RecvPacketData []byte // 接受包数据
+	ChannelId      string // 频道id
+	ChannelType    uint8  // 频道类型
+	Uid            string // 用户id
+	FromNode       uint64 // 来源节点
+	ConnId         int64  // 需要接受的连接id
+	MessageId      int64  // 消息id
+	Retry          int    // 重试次数
+	Index          int    //在切片中的索引值
+	Pri            int64  // 优先级的时间点 值越小越优先
+}

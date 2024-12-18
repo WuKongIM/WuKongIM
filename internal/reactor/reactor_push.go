@@ -1,6 +1,11 @@
 package reactor
 
 type IPush interface {
+	// AddAction 添加action，返回是否添加成功
+	AddAction(action PushAction) bool
+	MustAddAction(a PushAction)
+	// Advance 推进，让频道立即执行下一个动作
+	Advance(workerId int)
 }
 
 type PushPlus struct {
@@ -15,9 +20,27 @@ func newPushPlus(p IPush) *PushPlus {
 
 // 推送消息
 func (p *PushPlus) PushMessage(message *ChannelMessage) {
+	p.push.MustAddAction(PushAction{
+		Type:     PushActionInboundAdd,
+		Messages: []*ChannelMessage{message},
+	})
+}
+
+func (p *PushPlus) PushMessages(messages []*ChannelMessage) {
+	p.push.MustAddAction(PushAction{
+		Type:     PushActionInboundAdd,
+		Messages: messages,
+	})
 }
 
 // 推送离线消息
 func (p *PushPlus) PushOfflineMessages(messages []*ChannelMessage) {
+	p.push.MustAddAction(PushAction{
+		Type:     PushActionInboundAdd,
+		Messages: messages,
+	})
+}
 
+func (p *PushPlus) Advance(workerId int) {
+	p.push.Advance(workerId)
 }

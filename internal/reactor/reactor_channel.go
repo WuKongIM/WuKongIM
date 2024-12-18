@@ -1,7 +1,5 @@
 package reactor
 
-import "github.com/WuKongIM/WuKongIM/pkg/wkdb"
-
 type IChannel interface {
 	// AddAction 添加action，返回是否添加成功
 	AddAction(action ChannelAction) bool
@@ -94,19 +92,25 @@ func (c *ChannelPlus) AddMessage(message *ChannelMessage) bool {
 
 }
 
-func (c *ChannelPlus) AddMessages(fakeChannelId string, channelType uint8, messages []*ChannelMessage) bool {
+func (c *ChannelPlus) AddMessages(channelId string, channelType uint8, messages []*ChannelMessage) bool {
 	added := c.ch.AddAction(ChannelAction{
-		FakeChannelId: fakeChannelId,
+		FakeChannelId: channelId,
 		ChannelType:   channelType,
 		Type:          ChannelActionInboundAdd,
 		Messages:      messages,
 	})
-	c.ch.Advance(fakeChannelId, channelType)
+	c.ch.Advance(channelId, channelType)
 	return added
 
 }
 
 func (c *ChannelPlus) AddMessageToOutbound(message *ChannelMessage) bool {
+	added := c.AddMessageToOutboundNoAdvance(message)
+	c.ch.Advance(message.FakeChannelId, message.ChannelType)
+	return added
+}
+
+func (c *ChannelPlus) AddMessageToOutboundNoAdvance(message *ChannelMessage) bool {
 	added := c.ch.AddAction(ChannelAction{
 		FakeChannelId: message.FakeChannelId,
 		ChannelType:   message.ChannelType,
@@ -115,7 +119,17 @@ func (c *ChannelPlus) AddMessageToOutbound(message *ChannelMessage) bool {
 			message,
 		},
 	})
-	c.ch.Advance(message.FakeChannelId, message.ChannelType)
+	return added
+}
+
+func (c *ChannelPlus) AddMessagesToOutbound(channelId string, channelType uint8, messages []*ChannelMessage) bool {
+	added := c.ch.AddAction(ChannelAction{
+		FakeChannelId: channelId,
+		ChannelType:   channelType,
+		Type:          ChannelActionOutboundAdd,
+		Messages:      messages,
+	})
+	c.ch.Advance(channelId, channelType)
 	return added
 }
 
@@ -128,24 +142,4 @@ func (c *ChannelPlus) UpdateConfig(channelId string, channelType uint8, cfg Chan
 		Cfg:           cfg,
 	})
 	c.ch.Advance(channelId, channelType)
-}
-
-// UpdateChannelInfo 更新缓存中频道的基础信息
-func (c *ChannelPlus) UpdateChannelInfo(channelInfo wkdb.ChannelInfo) {
-
-}
-
-// AddSubscribers 添加订阅者
-func (c *ChannelPlus) AddSubscribers(channelId string, channelType uint8, subscribers []string) {
-
-}
-
-// RemoveSubscribers 移除订阅者
-func (c *ChannelPlus) RemoveSubscribers(channelId string, channelType uint8, subscribers []string) {
-
-}
-
-// AddTempSubscribers 添加临时订阅者
-func (c *ChannelPlus) AddTempSubscribers(channelId string, channelType uint8, subscribers []string) {
-
 }

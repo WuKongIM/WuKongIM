@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -123,7 +124,7 @@ func (s *Server) onData(conn wknet.Conn) error {
 				Conn:  connCtx,
 			}
 			if frame.GetFrameType() == wkproto.SEND {
-				msg.MessageId = s.messageIdGen.Generate().Int64()
+				msg.MessageId = options.G.GenMessageId()
 			}
 
 			messages = append(messages, msg)

@@ -44,12 +44,12 @@ func (d *Datasource) GetChannelInfo(channelID string, channelType uint8) (wkdb.C
 	if err != nil {
 		return wkdb.EmptyChannelInfo, err
 	}
-	var channelInfoResp ChannelInfoResp
+	var channelInfoResp channelInfoResp
 	err = wkutil.ReadJSONByByte([]byte(result), &channelInfoResp)
 	if err != nil {
 		return wkdb.EmptyChannelInfo, err
 	}
-	channelInfo := channelInfoResp.ToChannelInfo()
+	channelInfo := channelInfoResp.toChannelInfo()
 	channelInfo.ChannelId = channelID
 	channelInfo.ChannelType = channelType
 	return wkdb.EmptyChannelInfo, nil
@@ -141,4 +141,17 @@ func (d *Datasource) requestCMD(cmd string, param map[string]interface{}) (strin
 	}
 
 	return resp.Body, nil
+}
+
+type channelInfoResp struct {
+	Large   int `json:"large"`   // 是否是超大群
+	Ban     int `json:"ban"`     // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
+	Disband int `json:"disband"` // 是否解散频道
+}
+
+func (c channelInfoResp) toChannelInfo() *wkdb.ChannelInfo {
+	return &wkdb.ChannelInfo{
+		Large: c.Large == 1,
+		Ban:   c.Ban == 1,
+	}
 }

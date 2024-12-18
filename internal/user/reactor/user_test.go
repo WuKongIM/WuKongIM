@@ -81,7 +81,7 @@ func TestUser(t *testing.T) {
 	t.Run("testAuth", func(t *testing.T) {
 		becomeLeader()
 		u.step(reactor.UserAction{
-			Type: reactor.UserActionAuthAdd,
+			Type: reactor.UserActionInboundAdd,
 			Messages: []*reactor.UserMessage{
 				&reactor.UserMessage{
 					Conn: &reactor.Conn{
@@ -151,7 +151,7 @@ func TestUser(t *testing.T) {
 	t.Run("testConnClose", func(t *testing.T) {
 		becomeReplica()
 		u.step(reactor.UserAction{
-			Type: reactor.UserActionAuthAdd,
+			Type: reactor.UserActionInboundAdd,
 			Messages: []*reactor.UserMessage{
 				&reactor.UserMessage{
 					Conn: &reactor.Conn{

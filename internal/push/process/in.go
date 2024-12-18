@@ -1,6 +1,8 @@
 package process
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -18,6 +20,7 @@ func (p *Push) OnMessage(m *proto.Message) {
 }
 
 func (p *Push) handleMessage(m *proto.Message) {
+	fmt.Println("recv------>", msgType(m.MsgType).String())
 	switch msgType(m.MsgType) {
 	case msgOutboundReq:
 		p.handleOutboundReq(m)

@@ -487,7 +487,7 @@ func TestClusterFailover(t *testing.T) {
 	channelId := "g1"
 	channelType := wkproto.ChannelTypeGroup
 
-	TestAddSubscriber(t, s2, channelId, channelType, "u1", "u2", "u3")
+	// TestAddSubscriber(t, s2, channelId, channelType, "u1", "u2", "u3")
 
 	cli1 := TestCreateClient(t, s1, "u1")
 	cli2 := TestCreateClient(t, s2, "u2")

@@ -105,6 +105,26 @@ func (r *Reactor) UpdateConn(c *reactor.Conn) {
 	r.getSub(c.Uid).updateConn(c.Uid, c.ConnId, c.FromNode, c)
 }
 
+func (r *Reactor) AllUserCount() int {
+	var count int
+	for _, sub := range r.subs {
+		count += sub.users.count
+	}
+	return count
+}
+
+func (r *Reactor) AllConnCount() int {
+	var connCount int
+	tmpUsers := make([]*User, 0)
+	for _, sub := range r.subs {
+		sub.users.read(&tmpUsers)
+		for _, u := range tmpUsers {
+			connCount += u.conns.count()
+		}
+	}
+	return connCount
+}
+
 func (r *Reactor) getSub(uid string) *reactorSub {
 	h := fnv.New32a()
 	h.Write([]byte(uid))

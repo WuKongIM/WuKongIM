@@ -1,7 +1,6 @@
 package process
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,60 +9,43 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
 func (p *Push) processPush(messages []*reactor.ChannelMessage) {
+	// 按照频道分组
 	channelMessages := p.groupByChannel(messages)
 	for channelKey, messages := range channelMessages {
 		p.processChannelPush(channelKey, messages)
 	}
 }
 
+// 以频道为单位推送消息
 func (p *Push) processChannelPush(channelKey string, messages []*reactor.ChannelMessage) {
+	fmt.Println("processChannelPush--->", channelKey)
+	firstMsg := messages[0]
+	tagKey := firstMsg.TagKey
 	fakeChannelId, channelType := wkutil.ChannelFromlKey(channelKey)
-	tag, err := p.getOrRequestTag(fakeChannelId, channelType)
+	tag, err := p.commService.GetOrRequestAndMakeTag(fakeChannelId, channelType, tagKey)
 	if err != nil {
 		p.Error("get or request tag failed", zap.Error(err), zap.String("channelKey", channelKey))
 		return
 	}
 	if tag == nil {
-		p.Error("push: processTagKeyPush: tag not found, not push", zap.String("channelKey", channelKey))
+		p.Error("push: tagKey: tag not found, not push", zap.String("channelKey", channelKey))
 		return
 	}
-	// 获取属于本节点的用户
-	toUids := tag.GetNodeUsers(options.G.Cluster.NodeId)
-	onlineConns := make([]*reactor.Conn, 0, 100)
-	offlineUids := make([]string, 0, len(toUids))
-	for _, toUid := range toUids {
-		conns := reactor.User.ConnsByUid(toUid)
-		hasMasterDevice := false // 是否有主设备在线（如果有主设备在线才不推送离线）
-		for _, conn := range conns {
-			if !conn.Auth {
-				continue
-			}
-			if conn.DeviceLevel == wkproto.DeviceLevelMaster {
-				hasMasterDevice = true
-			}
-		}
-		if !hasMasterDevice {
-			offlineUids = append(offlineUids, toUid)
-		}
-		if len(conns) > 0 {
-			for _, conn := range conns {
-				if !conn.Auth {
-					continue
-				}
-				onlineConns = append(onlineConns, conn)
-			}
-		}
-
-	}
-
 	for _, message := range messages {
+		if options.G.IsSystemUid(message.ToUid) {
+			continue
+		}
+		toConns := reactor.User.ConnsByUid(message.ToUid)
+		if len(toConns) == 0 {
+			fmt.Println("不在线--->", message.ToUid)
+			continue
+		}
 
 		sendPacket := message.SendPacket
 		fromUid := message.Conn.Uid
@@ -93,7 +75,7 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 		recvPacket.Timestamp = int32(time.Now().Unix())
 		recvPacket.ClientSeq = sendPacket.ClientSeq
 
-		for _, conn := range onlineConns {
+		for _, conn := range toConns {
 			if conn.Uid == message.Conn.Uid && conn.DeviceId == message.Conn.DeviceId { // 自己发的不处理
 				continue
 			}
@@ -143,142 +125,28 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 			}
 
 			if !recvPacket.NoPersist { // 只有存储的消息才重试
-				// d.dm.s.retryManager.addRetry(&retryMessage{
-				// 	uid:            conn.uid,
-				// 	connId:         conn.connId,
-				// 	messageId:      message.MessageId,
-				// 	recvPacketData: recvPacketData,
-				// })
+				service.RetryManager.AddRetry(&types.RetryMessage{
+					Uid:            conn.Uid,
+					ConnId:         conn.ConnId,
+					FromNode:       conn.FromNode,
+					MessageId:      message.MessageId,
+					RecvPacketData: recvPacketData,
+				})
 			}
-
-			reactor.User.ConnWriteBytesNoAdvance(conn, recvPacketData)
+			reactor.User.ConnWriteBytes(conn, recvPacketData)
 		}
 
 	}
 
-	if len(offlineUids) > 0 {
-		offlineUidsPtr := &offlineUids // 使用指针避免数组多次复制，节省内存
-		for _, message := range messages {
-			message.MsgType = reactor.ChannelMsgOffline
-			message.OfflineUsers = offlineUidsPtr
-		}
-		reactor.Push.PushOfflineMessages(messages)
-	}
+	// if len(offlineUids) > 0 {
+	// 	offlineUidsPtr := &offlineUids // 使用指针避免数组多次复制，节省内存
+	// 	for _, message := range messages {
+	// 		message.MsgType = reactor.ChannelMsgOffline
+	// 		message.OfflineUsers = offlineUidsPtr
+	// 	}
+	// 	reactor.Push.PushOfflineMessages(messages)
+	// }
 
-}
-
-// 获取或请求tag
-func (p *Push) getOrRequestTag(fakeChannelId string, channelType uint8) (*types.Tag, error) {
-	if channelType == wkproto.ChannelTypePerson {
-		return p.getPersonTag(fakeChannelId)
-	}
-
-	tagKey := service.TagMananger.GetChannelTag(fakeChannelId, channelType)
-	var tag *types.Tag
-	if tagKey != "" {
-		tag = service.TagMananger.Get(tagKey)
-	}
-	if tag != nil {
-		return tag, nil
-	}
-
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	leader, err := service.Cluster.LeaderOfChannel(timeoutCtx, fakeChannelId, channelType)
-	cancel()
-	if err != nil {
-		p.Error("getOrRequestTag: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
-		return nil, err
-	}
-
-	// tagKey在频道的领导节点是一定存在的，
-	// 如果不存在可能就是失效了，这里直接忽略,只能等下条消息触发重构tag
-	if leader.Id == options.G.Cluster.NodeId {
-		p.Warn("tag not exist in leader node", zap.String("tagKey", tagKey), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
-		return nil, nil
-	}
-
-	tagResp, err := p.requesTag(leader.Id, &tagReq{
-		tagKey: tagKey,
-		nodeId: options.G.Cluster.NodeId,
-	})
-	if err != nil {
-		p.Error("getOrRequestTag: get tag failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
-		return nil, err
-	}
-
-	tag, err = service.TagMananger.MakeTagWithTagKey(tagKey, tagResp.uids)
-	if err != nil {
-		p.Error("getOrRequestTag: make tag failed", zap.Error(err))
-		return nil, err
-	}
-	return tag, nil
-}
-
-// 请求节点对应tag的用户集合
-func (p *Push) requesTag(nodeId uint64, req *tagReq) (*tagResp, error) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	data, err := req.encode()
-	if err != nil {
-		return nil, err
-	}
-	resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/getTag", data)
-	if err != nil {
-		return nil, err
-	}
-	if resp.Status != proto.StatusOK {
-		return nil, fmt.Errorf("requestNodeChannelTag failed, status: %d err:%s", resp.Status, string(resp.Body))
-	}
-	var tagResp = &tagResp{}
-	err = tagResp.decode(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return tagResp, nil
-}
-
-// 获取个人频道的投递tag
-func (p *Push) getPersonTag(fakeChannelId string) (*types.Tag, error) {
-	orgFakeChannelId := fakeChannelId
-	if options.G.IsCmdChannel(fakeChannelId) {
-		// 处理命令频道
-		orgFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
-	}
-	// 处理普通假个人频道
-	u1, u2 := options.GetFromUIDAndToUIDWith(orgFakeChannelId)
-
-	nodeUs := make([]*types.Node, 0, 2)
-
-	u1NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u1, wkproto.ChannelTypePerson)
-	if err != nil {
-		return nil, err
-	}
-	u2NodeId, err := service.Cluster.SlotLeaderIdOfChannel(u2, wkproto.ChannelTypePerson)
-	if err != nil {
-		return nil, err
-	}
-
-	if options.G.IsLocalNode(u1NodeId) && u1NodeId == u2NodeId {
-		nodeUs = append(nodeUs, &types.Node{
-			LeaderId: u1NodeId,
-			Uids:     []string{u1, u2},
-		})
-	} else if u1NodeId == options.G.Cluster.NodeId {
-		nodeUs = append(nodeUs, &types.Node{
-			LeaderId: u1NodeId,
-			Uids:     []string{u1},
-		})
-	} else if u2NodeId == options.G.Cluster.NodeId {
-		nodeUs = append(nodeUs, &types.Node{
-			LeaderId: u2NodeId,
-			Uids:     []string{u2},
-		})
-	}
-
-	tg := &types.Tag{
-		Nodes: nodeUs,
-	}
-	return tg, nil
 }
 
 // 消息按照频道分组

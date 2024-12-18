@@ -20,6 +20,10 @@ const (
 	ChannelMsgStorageNotifyQueue
 	// ChannelMsgSendack 发送消息回执
 	ChannelMsgSendack
+	// ChannelMsgMakeTag 制作tag
+	ChannelMsgMakeTag
+	// ChannelMsgConversationUpdate 更新最近会话
+	ChannelMsgConversationUpdate
 	// ChannelMsgDiffuse 消息扩散
 	ChannelMsgDiffuse
 	// ChannelMsgPush 推送
@@ -40,6 +44,10 @@ func (c ChannelMsgType) String() string {
 		return "ChannelMsgStorageNotifyQueue"
 	case ChannelMsgSendack:
 		return "ChannelMsgSendack"
+	case ChannelMsgMakeTag:
+		return "ChannelMsgMakeTag"
+	case ChannelMsgConversationUpdate:
+		return "ChannelMsgConversationUpdate"
 	case ChannelMsgDiffuse:
 		return "ChannelMsgDiffuse"
 	case ChannelMsgPush:

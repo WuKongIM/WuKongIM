@@ -40,3 +40,8 @@ func GetCommunityTopicParentChannelID(channelID string) string {
 	}
 	return ""
 }
+
+// 判断字符串是否存在特殊字符
+func IsSpecialChar(s string) bool {
+	return strings.Contains(s, "@") || strings.Contains(s, "#") || strings.Contains(s, "&")
+}

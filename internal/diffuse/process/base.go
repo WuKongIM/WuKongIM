@@ -1,6 +1,7 @@
 package process
 
 import (
+	"github.com/WuKongIM/WuKongIM/internal/common"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/panjf2000/ants/v2"
@@ -9,12 +10,14 @@ import (
 
 type Diffuse struct {
 	wklog.Log
-	processPool *ants.Pool
+	processPool   *ants.Pool
+	commonService *common.Service
 }
 
 func New() *Diffuse {
 	d := &Diffuse{
-		Log: wklog.NewWKLog("processDiffuse"),
+		Log:           wklog.NewWKLog("processDiffuse"),
+		commonService: common.NewService(),
 	}
 	var err error
 	d.processPool, err = ants.NewPool(options.G.GoPool.ChannelProcess, ants.WithPanicHandler(func(i interface{}) {
