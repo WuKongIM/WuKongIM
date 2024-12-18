@@ -59,17 +59,32 @@ func (r *Reactor) Stop() {
 	}
 }
 
-func (r *Reactor) AddAction(a reactor.PushAction) {
+func (r *Reactor) AddAction(a reactor.PushAction) bool {
 	wokerId := a.WorkerId
 	// 如果workerId为0，随机分配一个worker
 	if wokerId == 0 {
 		wokerId = r.randWorkerId()
 		a.WorkerId = wokerId
 	}
-	r.getSub(wokerId).addAction(a)
+	return r.getSub(wokerId).addAction(a)
+}
+
+func (r *Reactor) MustAddAction(a reactor.PushAction) {
+	wokerId := a.WorkerId
+	// 如果workerId为0，随机分配一个worker
+	if wokerId == 0 {
+		wokerId = r.randWorkerId()
+		a.WorkerId = wokerId
+	}
+	r.getSub(wokerId).mustAddAction(a)
+}
+
+func (r *Reactor) Advance(workerId int) {
+	r.getSub(workerId).advance()
 }
 
 func (r *Reactor) send(actions []reactor.PushAction) {
+	r.opts.Send(actions)
 }
 
 func (r *Reactor) getSub(workerId int) *reactorSub {

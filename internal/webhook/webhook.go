@@ -29,7 +29,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-type webhook struct {
+type Webhook struct {
 	wklog.Log
 	eventPool        *ants.Pool
 	httpClient       *http.Client
@@ -40,9 +40,9 @@ type webhook struct {
 	focusEvents      map[string]struct{} // 用户关注的事件类型,如果为空则推送所有类型
 }
 
-func New() *webhook {
+func New() *Webhook {
 	eventPool, err := ants.NewPool(options.G.EventPoolSize, ants.WithPanicHandler(func(err interface{}) {
-		wklog.Panic("webhook panic", zap.Any("err", err), zap.Stack("stack"))
+		wklog.Panic("Webhook panic", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {
 		panic(err)
@@ -76,7 +76,7 @@ func New() *webhook {
 		}
 	}
 
-	return &webhook{
+	return &Webhook{
 		Log:              wklog.NewWKLog("Webhook"),
 		eventPool:        eventPool,
 		webhookGRPCPool:  webhookGRPCPool,
@@ -101,19 +101,19 @@ func New() *webhook {
 	}
 }
 
-func (w *webhook) Start() error {
+func (w *Webhook) Start() error {
 	go w.notifyQueueLoop()
 	go w.loopOnlineStatus()
 
 	return nil
 }
 
-func (w *webhook) Stop() {
+func (w *Webhook) Stop() {
 	close(w.stoped)
 }
 
 // Online 用户设备上线通知
-func (w *webhook) Online(uid string, deviceFlag wkproto.DeviceFlag, connId int64, deviceOnlineCount int, totalOnlineCount int) {
+func (w *Webhook) Online(uid string, deviceFlag wkproto.DeviceFlag, connId int64, deviceOnlineCount int, totalOnlineCount int) {
 	w.onlinestatusLock.Lock()
 	defer w.onlinestatusLock.Unlock()
 	online := 1
@@ -122,7 +122,7 @@ func (w *webhook) Online(uid string, deviceFlag wkproto.DeviceFlag, connId int64
 	w.Debug("User online", zap.String("uid", uid), zap.String("deviceFlag", deviceFlag.String()), zap.Int64("id", connId))
 }
 
-func (w *webhook) Offline(uid string, deviceFlag wkproto.DeviceFlag, connId int64, deviceOnlineCount int, totalOnlineCount int) {
+func (w *Webhook) Offline(uid string, deviceFlag wkproto.DeviceFlag, connId int64, deviceOnlineCount int, totalOnlineCount int) {
 	w.onlinestatusLock.Lock()
 	defer w.onlinestatusLock.Unlock()
 	online := 0
@@ -133,7 +133,7 @@ func (w *webhook) Offline(uid string, deviceFlag wkproto.DeviceFlag, connId int6
 }
 
 // TriggerEvent 触发事件
-func (w *webhook) TriggerEvent(event *types.Event) {
+func (w *Webhook) TriggerEvent(event *types.Event) {
 	if !options.G.WebhookOn(event.Event) { // 没设置webhook直接忽略
 		return
 	}
@@ -160,7 +160,13 @@ func (w *webhook) TriggerEvent(event *types.Event) {
 	}
 }
 
-func (w *webhook) NotifyOfflineMsg(msg reactor.ChannelMessage, subscribers []string) {
+func (w *Webhook) NotifyOfflineMsg(msgs []*reactor.ChannelMessage) {
+	for _, msg := range msgs {
+		w.notifyOfflineMsg(msg, *msg.OfflineUsers)
+	}
+}
+
+func (w *Webhook) notifyOfflineMsg(msg *reactor.ChannelMessage, subscribers []string) {
 	compress := ""
 	toUIDs := subscribers
 	var compresssToUIDs []byte
@@ -209,7 +215,7 @@ func (w *webhook) NotifyOfflineMsg(msg reactor.ChannelMessage, subscribers []str
 }
 
 // 通知上层应用 TODO: 此初报错可以做一个邮件报警处理类的东西，
-func (w *webhook) notifyQueueLoop() {
+func (w *Webhook) notifyQueueLoop() {
 	errorSleepTime := time.Second * 1 // 发生错误后sleep时间
 	ticker := time.NewTicker(options.G.Webhook.MsgNotifyEventPushInterval)
 	defer ticker.Stop()
@@ -295,7 +301,7 @@ func (w *webhook) notifyQueueLoop() {
 	}
 }
 
-func (w *webhook) loopOnlineStatus() {
+func (w *Webhook) loopOnlineStatus() {
 	if !options.G.WebhookOn(types.EventOnlineStatus) {
 		return
 	}
@@ -352,7 +358,7 @@ func (w *webhook) loopOnlineStatus() {
 	}
 }
 
-func (w *webhook) sendWebhookForHttp(event string, data []byte) error {
+func (w *Webhook) sendWebhookForHttp(event string, data []byte) error {
 	eventURL := fmt.Sprintf("%s?event=%s", options.G.Webhook.HTTPAddr, event)
 	startTime := time.Now().UnixNano() / 1000 / 1000
 	w.Debug("webhook开始请求", zap.String("eventURL", eventURL))
@@ -371,7 +377,7 @@ func (w *webhook) sendWebhookForHttp(event string, data []byte) error {
 	return nil
 }
 
-func (w *webhook) sendWebhookForGRPC(event string, data []byte) error {
+func (w *Webhook) sendWebhookForGRPC(event string, data []byte) error {
 
 	startNow := time.Now()
 	startTime := startNow.UnixNano() / 1000 / 1000

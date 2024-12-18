@@ -215,24 +215,52 @@ func (r *reactorSub) addUser(u *User) {
 }
 
 func (r *reactorSub) connsByUid(uid string) []*reactor.Conn {
-	return r.user(uid).conns.allConns()
+	user := r.user(uid)
+	if user == nil {
+		return nil
+	}
+	return user.conns.allConns()
 }
 func (r *reactorSub) connCountByUid(uid string) int {
-	return r.user(uid).conns.count()
+	user := r.user(uid)
+	if user == nil {
+		return 0
+	}
+	return user.conns.count()
 }
 func (r *reactorSub) connsByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*reactor.Conn {
-	return r.user(uid).conns.connsByDeviceFlag(deviceFlag)
+	user := r.user(uid)
+	if user == nil {
+		return nil
+	}
+	return user.conns.connsByDeviceFlag(deviceFlag)
 }
 func (r *reactorSub) connCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int {
-	return r.user(uid).conns.countByDeviceFlag(deviceFlag)
+	user := r.user(uid)
+	if user == nil {
+		return 0
+	}
+	return user.conns.countByDeviceFlag(deviceFlag)
 }
 func (r *reactorSub) connById(uid string, fromNode uint64, id int64) *reactor.Conn {
-	return r.user(uid).conns.connById(fromNode, id)
+	user := r.user(uid)
+	if user == nil {
+		return nil
+	}
+	return user.conns.connById(fromNode, id)
 }
 func (r *reactorSub) localConnById(uid string, id int64) *reactor.Conn {
-	return r.user(uid).conns.connByConnId(options.NodeId, id)
+	user := r.user(uid)
+	if user == nil {
+		return nil
+	}
+	return user.conns.connByConnId(options.NodeId, id)
 }
 
 func (r *reactorSub) updateConn(uid string, connId int64, nodeId uint64, newConn *reactor.Conn) {
-	r.user(uid).conns.updateConn(connId, nodeId, newConn)
+	user := r.user(uid)
+	if user == nil {
+		return
+	}
+	user.conns.updateConn(connId, nodeId, newConn)
 }

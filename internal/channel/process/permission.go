@@ -6,41 +6,50 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
-func (c *Channel) processPermission(channelInfo wkdb.ChannelInfo, m *reactor.ChannelMessage) {
-	reasonCode, err := c.hasPermission(channelInfo, m)
+func (c *Channel) processPermission(channelId string, channelType uint8, msgs []*reactor.ChannelMessage) {
+	reasonCode, err := c.hasPermissionForChannel(channelId, channelType)
 	if err != nil {
-		c.Error("hasPermission error", zap.Error(err))
+		c.Error("hasPermissionForChannel error", zap.Error(err))
 		reasonCode = wkproto.ReasonSystemError
 	}
-	m.ReasonCode = reasonCode
 
-	// 如果是成功并且消息是否需要存储的，则存储消息，否则是发送回执
 	if reasonCode == wkproto.ReasonSuccess {
-		if !m.SendPacket.NoPersist {
-			m.MsgType = reactor.ChannelMsgStorage
-		} else {
-			// 如果是非存储消息，则跳到通知队列存储
-			m.MsgType = reactor.ChannelMsgStorageNotifyQueue
+		for _, m := range msgs {
+			reasonCode, err = c.hasPermissionForSender(m)
+			if err != nil {
+				c.Error("hasPermissionForSender error", zap.Error(err))
+				reasonCode = wkproto.ReasonSystemError
+			}
+			m.ReasonCode = reasonCode
+
+			if reasonCode == wkproto.ReasonSuccess {
+				if !m.SendPacket.NoPersist {
+					m.MsgType = reactor.ChannelMsgStorage
+				} else {
+					// 如果是非存储消息，则跳到通知队列存储
+					m.MsgType = reactor.ChannelMsgStorageNotifyQueue
+				}
+			} else {
+				m.MsgType = reactor.ChannelMsgSendack
+			}
 		}
-	} else {
-		m.MsgType = reactor.ChannelMsgSendack
 	}
-	reactor.Channel.AddMessage(m)
+	reactor.Channel.AddMessages(channelId, channelType, msgs)
 }
 
-// 判断是否有权限
-func (c *Channel) hasPermission(channelInfo wkdb.ChannelInfo, m *reactor.ChannelMessage) (wkproto.ReasonCode, error) {
+func (c *Channel) hasPermissionForChannel(channelId string, channelType uint8) (wkproto.ReasonCode, error) {
+	// 查询频道基本信息
+	channelInfo, err := service.Store.GetChannel(channelId, channelType)
+	if err != nil {
+		c.Error("hasPermission: GetChannel error", zap.Error(err))
+		return wkproto.ReasonSystemError, err
+	}
 
-	var (
-		channelType = m.ChannelType
-		fromUid     = m.Conn.Uid
-	)
 	// 资讯频道是公开的，直接通过
 	if channelType == wkproto.ChannelTypeInfo {
 		return wkproto.ReasonSuccess, nil
@@ -57,6 +66,17 @@ func (c *Channel) hasPermission(channelInfo wkdb.ChannelInfo, m *reactor.Channel
 	if channelInfo.Disband {
 		return wkproto.ReasonDisband, nil
 	}
+	return wkproto.ReasonSuccess, nil
+}
+
+// 判断发送者是否有权限
+func (c *Channel) hasPermissionForSender(m *reactor.ChannelMessage) (wkproto.ReasonCode, error) {
+
+	var (
+		channelType = m.ChannelType
+		fromUid     = m.Conn.Uid
+	)
+
 	// 系统账号，直接通过
 	if service.SystemAccountManager.IsSystemAccount(fromUid) {
 		return wkproto.ReasonSuccess, nil
@@ -162,19 +182,7 @@ func (c *Channel) requestAllowSend(from, to string) (wkproto.ReasonCode, error) 
 		return c.allowSend(from, to)
 	}
 
-	timeoutCtx, cancel := c.WithTimeout()
-	defer cancel()
-
-	req := &allowSendReq{
-		From: from,
-		To:   to,
-	}
-	bodyBytes, err := req.encode()
-	if err != nil {
-		return wkproto.ReasonSystemError, err
-	}
-
-	resp, err := service.Cluster.RequestWithContext(timeoutCtx, leaderNode.Id, "/wk/allowSend", bodyBytes)
+	resp, err := c.client.RequestAllowSendForPerson(leaderNode.Id, from, to)
 	if err != nil {
 		return wkproto.ReasonSystemError, err
 	}

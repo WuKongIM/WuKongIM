@@ -2,8 +2,6 @@ package reactor
 
 import (
 	"fmt"
-
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
 
 type ChannelActionType uint8
@@ -77,8 +75,6 @@ type ChannelAction struct {
 	// 频道配置
 	Cfg  ChannelConfig
 	Role Role
-	// 频道信息
-	ChannelInfo wkdb.ChannelInfo
 }
 
 func (c ChannelAction) Size() uint64 {

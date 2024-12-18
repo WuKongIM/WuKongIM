@@ -1,12 +1,20 @@
 package types
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Tag struct {
 	Key   string
 	Nodes []*Node
 	// 最后一次获取时间
 	LastGetTime time.Time
+}
+
+func (t *Tag) String() string {
+
+	return fmt.Sprintf("Tag{Key:%s, Nodes:%v, LastGetTime:%v}", t.Key, t.Nodes, t.LastGetTime)
 }
 
 type Node struct {
@@ -16,6 +24,10 @@ type Node struct {
 	Uids []string
 	// 用户涉及到的slot
 	SlotIds []uint32
+}
+
+func (n *Node) String() string {
+	return fmt.Sprintf("Node{LeaderId:%d, Uids:%v, SlotIds:%v}", n.LeaderId, n.Uids, n.SlotIds)
 }
 
 func (t *Tag) GetNodeUsers(nodeId uint64) []string {

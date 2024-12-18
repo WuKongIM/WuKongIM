@@ -291,6 +291,11 @@ func (s *Server) NodeVersion() uint64 {
 	return s.clusterEventServer.Config().Version
 }
 
+func (s *Server) Nodes() []*pb.Node {
+
+	return s.clusterEventServer.Nodes()
+}
+
 func (s *Server) TestPing() ([]icluster.PingResult, error) {
 
 	// 清空上次记录

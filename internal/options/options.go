@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/crypto/tls"
+	"github.com/bwmarrin/snowflake"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sasha-s/go-deadlock"
@@ -265,6 +266,8 @@ type Options struct {
 	PprofOn          bool        // 是否开启pprof
 	OldV1Api         string      //旧v1版本的api地址，如果不为空则开启数据迁移任务，将v1的数据迁移到v2
 	MigrateStartStep MigrateStep // 从那步开始迁移，默认顺序是 message,user,channel
+
+	messageIdGen *snowflake.Node // 消息ID生成器
 }
 
 type MigrateStep string
@@ -573,6 +576,13 @@ func New(op ...Option) *Options {
 	for _, o := range op {
 		o(opts)
 	}
+
+	node, err := snowflake.NewNode(int64(opts.Cluster.NodeId))
+	if err != nil {
+		wklog.Panic("create snowflake node failed", zap.Error(err))
+	}
+	opts.messageIdGen = node
+
 	return opts
 }
 
@@ -1268,6 +1278,12 @@ func GetExternalIP() (string, error) {
 // 是本节点
 func (o *Options) IsLocalNode(nodeId uint64) bool {
 	return o.Cluster.NodeId == nodeId
+}
+
+// GenMessageId 生成messageId
+func (o *Options) GenMessageId() int64 {
+
+	return o.messageIdGen.Generate().Int64()
 }
 
 type Node struct {

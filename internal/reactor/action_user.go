@@ -12,8 +12,6 @@ const (
 	// 加入
 	UserActionJoin
 	UserActionJoinResp
-	// 认证
-	UserActionAuthAdd
 	// 收件箱
 	UserActionInboundAdd
 	UserActionInbound
@@ -44,8 +42,6 @@ func (a UserActionType) String() string {
 		return "UserActionJoinResp"
 	case UserActionConfigUpdate:
 		return "UserActionConfigUpdate"
-	case UserActionAuthAdd:
-		return "UserActionAuthAdd"
 	case UserActionInboundAdd:
 		return "UserActionInboundAdd"
 	case UserActionInbound:

@@ -12,16 +12,18 @@ import (
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
+	"github.com/WuKongIM/WuKongIM/internal/api"
 	chprocess "github.com/WuKongIM/WuKongIM/internal/channel/process"
 	channelreactor "github.com/WuKongIM/WuKongIM/internal/channel/reactor"
 	dfprocess "github.com/WuKongIM/WuKongIM/internal/diffuse/process"
 	diffusereactor "github.com/WuKongIM/WuKongIM/internal/diffuse/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/ingress"
+	"github.com/WuKongIM/WuKongIM/internal/manager"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	pprocess "github.com/WuKongIM/WuKongIM/internal/push/process"
 	pushreactor "github.com/WuKongIM/WuKongIM/internal/push/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	tg "github.com/WuKongIM/WuKongIM/internal/tag"
 	"github.com/WuKongIM/WuKongIM/internal/user/process"
 	userreactor "github.com/WuKongIM/WuKongIM/internal/user/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/webhook"
@@ -37,7 +39,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"github.com/bwmarrin/snowflake"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"github.com/pkg/errors"
@@ -55,7 +56,6 @@ type Server struct {
 	wklog.Log                       // 日志
 	clusterServer *cluster.Server   // 分布式服务实现
 	reqIDGen      *idutil.Generator // 请求ID生成器
-	messageIdGen  *snowflake.Node   // 消息ID生成器
 	ctx           context.Context
 	cancel        context.CancelFunc
 	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
@@ -66,30 +66,33 @@ type Server struct {
 	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
 	trace *trace.Trace // 监控
 
-	demoServer    *DemoServer    // demo server
-	apiServer     *APIServer     // api服务
-	managerServer *ManagerServer // 管理者api服务
-
-	deliverManager *deliverManager // 消息投递管理
-	retryManager   *retryManager   // 消息重试管理
-
-	conversationManager *ConversationManager // 会话管理
-
-	migrateTask *MigrateTask // 迁移任务
+	demoServer *DemoServer // demo server
 
 	datasource IDatasource // 数据源
 
 	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
 
+	apiServer *api.Server // api服务
+
+	ingress *ingress.Ingress
+
+	// 管理者
+	retryManager        *manager.RetryManager        // 消息重试管理
+	conversationManager *manager.ConversationManager // 会话管理
+	tagManager          *manager.TagManager          // tag管理
+	webhook             *webhook.Webhook
+	// user
 	processUser *process.User        // 用户逻辑处理
 	userReactor *userreactor.Reactor // 用户的reactor
-
+	// channel
 	processChannel *chprocess.Channel      // 频道逻辑处理
 	channelReactor *channelreactor.Reactor // 频道的reactor
+	// diffuse
 	processDiffuse *dfprocess.Diffuse      // 消息扩散逻辑处理
 	diffuseReactor *diffusereactor.Reactor // 消息扩散的reactor
-	processPush    *pprocess.Push          // 推送逻辑处理
-	pushReactor    *pushreactor.Reactor
+	// push
+	processPush *pprocess.Push       // 推送逻辑处理
+	pushReactor *pushreactor.Reactor // 推送的reactor
 }
 
 func New(opts *options.Options) *Server {
@@ -110,13 +113,7 @@ func New(opts *options.Options) *Server {
 		s.Panic("config check error", zap.Error(err))
 	}
 
-	node, err := snowflake.NewNode(int64(opts.Cluster.NodeId))
-	if err != nil {
-		s.Panic("create snowflake node failed", zap.Error(err))
-	}
-	s.messageIdGen = node
-
-	service.ConnManager = service.NewConnManager(18)
+	s.ingress = ingress.New()
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -159,16 +156,24 @@ func New(opts *options.Options) *Server {
 			trace.GlobalTrace.Metrics.System().ExtranetOutgoingAdd(int64(n))
 		}),
 	)
-	service.Webhook = webhook.New()
 
-	reactor.Proto = s.opts.Proto
 	s.demoServer = NewDemoServer(s) // demo server
-	service.SystemAccountManager = service.NewSystemAccountMgr()
-	s.apiServer = NewAPIServer(s)                     // api服务
-	s.managerServer = NewManagerServer(s)             // 管理者的api服务
-	s.retryManager = newRetryManager(s)               // 消息重试管理
-	s.conversationManager = NewConversationManager(s) // 会话管理
-	s.migrateTask = NewMigrateTask(s)                 // 迁移任务
+
+	service.Webhook = webhook.New()
+	reactor.Proto = s.opts.Proto
+
+	s.webhook = webhook.New()
+	service.Webhook = s.webhook
+	// manager
+	s.retryManager = manager.NewRetryManager()               // 消息重试管理
+	s.conversationManager = manager.NewConversationManager() // 会话管理
+	s.tagManager = manager.NewTagManager(16)
+	// register service
+	service.ConnManager = manager.NewConnManager(18) // 连接管理
+	service.ConversationManager = s.conversationManager
+	service.RetryManager = s.retryManager
+	service.TagManager = s.tagManager
+	service.SystemAccountManager = manager.NewSystemAccountManager() // 系统账号管理
 
 	// 初始化分布式服务
 	initNodes := make(map[uint64]string)
@@ -229,9 +234,6 @@ func New(opts *options.Options) *Server {
 		s.handleClusterMessage(fromNodeId, msg)
 	})
 
-	// 消息投递管理者
-	s.deliverManager = newDeliverManager(s)
-
 	// 日志收集
 	if s.opts.LokiOn() {
 		s.Info("Loki is on")
@@ -243,9 +245,6 @@ func New(opts *options.Options) *Server {
 			Job:     s.opts.Logger.Loki.Job,
 		})
 	}
-
-	tagManager := tg.NewTagMgr(16)
-	service.TagMananger = tagManager
 
 	// 频道的reactor
 	s.processChannel = chprocess.New()
@@ -280,6 +279,7 @@ func New(opts *options.Options) *Server {
 	)
 	reactor.RegisterPush(s.pushReactor)
 
+	s.apiServer = api.New()
 	return s
 }
 
@@ -325,9 +325,17 @@ func (s *Server) Start() error {
 	defer s.Info("Server is ready")
 
 	s.timingWheel.Start()
+	var err error
 
-	err := service.TagMananger.Start()
-	if err != nil {
+	s.ingress.SetRoutes()
+
+	// 重试管理
+	if err = s.retryManager.Start(); err != nil {
+		return err
+	}
+
+	// tag管理
+	if err = s.tagManager.Start(); err != nil {
 		return err
 	}
 
@@ -342,15 +350,10 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	s.setClusterRoutes()
 	err = service.Cluster.Start()
 	if err != nil {
 		return err
 	}
-
-	s.apiServer.Start()
-
-	s.managerServer.Start()
 
 	err = s.channelReactor.Start()
 	if err != nil {
@@ -383,16 +386,6 @@ func (s *Server) Start() error {
 		s.demoServer.Start()
 	}
 
-	err = s.deliverManager.start()
-	if err != nil {
-		return err
-	}
-
-	err = s.retryManager.start()
-	if err != nil {
-		return err
-	}
-
 	if s.opts.Conversation.On {
 		err = s.conversationManager.Start()
 		if err != nil {
@@ -400,14 +393,9 @@ func (s *Server) Start() error {
 		}
 	}
 
-	err = service.Webhook.Start()
+	err = s.webhook.Start()
 	if err != nil {
 		s.Panic("webhook start error", zap.Error(err))
-	}
-
-	// 判断是否开启迁移任务
-	if strings.TrimSpace(s.opts.OldV1Api) != "" {
-		s.migrateTask.Run()
 	}
 
 	if s.opts.LokiOn() {
@@ -415,6 +403,10 @@ func (s *Server) Start() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if err = s.apiServer.Start(); err != nil {
+		return err
 	}
 
 	return nil
@@ -431,18 +423,15 @@ func (s *Server) Stop() error {
 
 	s.cancel()
 
-	s.deliverManager.stop()
+	s.apiServer.Stop()
 
-	s.retryManager.stop()
+	s.retryManager.Stop()
 
 	if s.opts.Conversation.On {
 		s.conversationManager.Stop()
 	}
 
 	service.Cluster.Stop()
-	s.apiServer.Stop()
-
-	_ = s.managerServer.Stop()
 
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
@@ -462,9 +451,9 @@ func (s *Server) Stop() error {
 
 	s.timingWheel.Stop()
 
-	service.TagMananger.Stop()
+	s.tagManager.Stop()
 
-	service.Webhook.Stop()
+	s.webhook.Stop()
 
 	if s.opts.LokiOn() {
 		s.promtailServer.Stop()
@@ -552,13 +541,6 @@ func (s *Server) onClose(conn wknet.Conn) {
 		reactor.User.CloseConn(connCtx)
 	}
 	service.ConnManager.RemoveConn(conn)
-}
-
-// Schedule 延迟任务
-func (s *Server) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
-	return s.timingWheel.ScheduleFunc(&everyScheduler{
-		Interval: interval,
-	}, f)
 }
 
 // decode payload

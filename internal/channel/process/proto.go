@@ -45,32 +45,6 @@ func (m msgType) String() string {
 	}
 }
 
-type allowSendReq struct {
-	From string // 发送者
-	To   string // 接收者
-}
-
-func (a *allowSendReq) decode(data []byte) error {
-
-	dec := wkproto.NewDecoder(data)
-	var err error
-	if a.From, err = dec.String(); err != nil {
-		return err
-	}
-	if a.To, err = dec.String(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *allowSendReq) encode() ([]byte, error) {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-	enc.WriteString(a.From)
-	enc.WriteString(a.To)
-	return enc.Bytes(), nil
-}
-
 type sendackReq struct {
 	framer       uint8
 	protoVersion uint8

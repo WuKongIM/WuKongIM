@@ -8,27 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAllowSendReq_EncodeDecode(t *testing.T) {
-	original := &allowSendReq{
-		From: "user1",
-		To:   "user2",
-	}
-
-	encoded, err := original.encode()
-	assert.NoError(t, err)
-
-	decoded := &allowSendReq{}
-	err = decoded.decode(encoded)
-	assert.NoError(t, err)
-
-	assert.Equal(t, original.From, decoded.From)
-	assert.Equal(t, original.To, decoded.To)
-
-	// Test error case
-	err = decoded.decode([]byte("invalid data"))
-	assert.Error(t, err)
-}
-
 func TestSendackReq_EncodeDecode(t *testing.T) {
 	original := &sendackReq{
 		framer:       1,

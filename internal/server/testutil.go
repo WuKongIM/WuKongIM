@@ -1,10 +1,7 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -12,7 +9,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/client"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
@@ -193,18 +189,18 @@ func GetLeaderServer(ss ...*Server) *Server {
 	return nil
 }
 
-func TestAddSubscriber(t *testing.T, s *Server, channelId string, channelType uint8, subscribers ...string) {
-	// 获取u1的最近会话列表
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/channel/subscriber_add", bytes.NewReader([]byte(wkutil.ToJson(map[string]interface{}{
-		"channel_id":   channelId,
-		"channel_type": channelType,
-		"subscribers":  subscribers,
-	}))))
+// func TestAddSubscriber(t *testing.T, s *Server, channelId string, channelType uint8, subscribers ...string) {
+// 	// 获取u1的最近会话列表
+// 	w := httptest.NewRecorder()
+// 	req, _ := http.NewRequest("POST", "/channel/subscriber_add", bytes.NewReader([]byte(wkutil.ToJson(map[string]interface{}{
+// 		"channel_id":   channelId,
+// 		"channel_type": channelType,
+// 		"subscribers":  subscribers,
+// 	}))))
 
-	s.apiServer.r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code)
-}
+// 	s.apiServer.r.ServeHTTP(w, req)
+// 	assert.Equal(t, http.StatusOK, w.Code)
+// }
 
 func TestCreateClient(t *testing.T, s *Server, uid string) *client.Client {
 	cli := client.New(s.opts.External.TCPAddr, client.WithUID(uid))

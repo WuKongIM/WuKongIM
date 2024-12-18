@@ -54,6 +54,9 @@ func (p *Push) processInbound(a reactor.PushAction) {
 	if len(pushMessages) > 0 {
 		p.processPush(pushMessages)
 	}
+	if len(offlineMessages) > 0 {
+		p.processOffline(offlineMessages)
+	}
 
 }
 

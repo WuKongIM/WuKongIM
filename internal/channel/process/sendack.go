@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (c *Channel) processSendack(fakeChanelId string, channelType uint8, messages []*reactor.ChannelMessage) {
+func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
 
 	sendackMap := make(map[uint64][]*sendackReq)
 	for _, m := range messages {
@@ -26,14 +26,12 @@ func (c *Channel) processSendack(fakeChanelId string, channelType uint8, message
 			protoVersion: m.Conn.ProtoVersion,
 		})
 
-		// 将成功的消息进入到扩散流程
+		// make tag
 		if m.ReasonCode == wkproto.ReasonSuccess {
-			m.MsgType = reactor.ChannelMsgDiffuse // 消息扩散
-			reactor.Diffuse.AddMessage(m)
+			m.MsgType = reactor.ChannelMsgMakeTag
+			reactor.Channel.AddMessage(m)
 		}
 	}
-	// 推进扩散流程
-	reactor.Diffuse.Advance(fakeChanelId, channelType)
 
 	for fromNode, reqs := range sendackMap {
 		if options.G.IsLocalNode(fromNode) {

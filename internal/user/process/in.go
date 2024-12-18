@@ -4,7 +4,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -72,18 +71,22 @@ func (p *User) handleOutboundReq(m *proto.Message) {
 		return
 	}
 
-	var authMsg *reactor.UserMessage // 认证消息
+	// var authMsg *reactor.UserMessage // 认证消息
+	// for _, msg := range req.messages {
+	// 	if msg.Frame != nil && msg.Frame.GetFrameType() == wkproto.CONNECT {
+	// 		authMsg = msg
+	// 		break
+	// 	}
+	// }
 	for _, msg := range req.messages {
-		if msg.Frame != nil && msg.Frame.GetFrameType() == wkproto.CONNECT {
-			authMsg = msg
-			break
+		isWrite := msg.Conn != nil && msg.Frame == nil && len(msg.WriteData) > 0 // 是否是写消息
+		if isWrite && msg.Conn.FromNode == options.G.Cluster.NodeId {
+			reactor.User.ConnWriteBytesNoAdvance(msg.Conn, msg.WriteData)
+			continue
 		}
+		reactor.User.AddMessageNoAdvance(req.uid, msg)
 	}
-	if authMsg != nil {
-		reactor.User.AddAuth(authMsg.Conn, authMsg.Frame.(*wkproto.ConnectPacket))
-	} else {
-		reactor.User.AddMessages(req.uid, req.messages)
-	}
+	reactor.User.Advance(req.uid)
 
 }
 

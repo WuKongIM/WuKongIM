@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/internal/common"
+	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/panjf2000/ants/v2"
@@ -16,12 +18,16 @@ type Channel struct {
 	// 正在选举中的频道，防止重复选举
 	electioningMap  map[string]bool
 	electioningLock sync.RWMutex
+	client          *ingress.Client
+	commonService   *common.Service
 }
 
 func New() *Channel {
 	ch := &Channel{
 		Log:            wklog.NewWKLog("processChannel"),
 		electioningMap: make(map[string]bool),
+		client:         ingress.NewClient(),
+		commonService:  common.NewService(),
 	}
 	var err error
 	ch.processPool, err = ants.NewPool(options.G.GoPool.ChannelProcess, ants.WithPanicHandler(func(i interface{}) {
@@ -30,7 +36,6 @@ func New() *Channel {
 	if err != nil {
 		ch.Panic("new channel process pool failed", zap.Error(err))
 	}
-	ch.routes()
 	return ch
 }
 

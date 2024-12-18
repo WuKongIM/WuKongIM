@@ -158,47 +158,50 @@ func (c *Channel) processInbound(a reactor.ChannelAction) {
 	if len(a.Messages) == 0 {
 		return
 	}
-	var (
-		storageMessages            []*reactor.ChannelMessage // 存储的消息
-		storageNotifyQueueMessages []*reactor.ChannelMessage // 存储通知队列的消息
-		sendackMessages            []*reactor.ChannelMessage // 发送回执的消息
-	)
-	for _, m := range a.Messages {
-		switch m.MsgType {
+
+	// 按照消息类型分组
+	groupMessages := c.groupByMsgType(a.Messages)
+
+	for msgType, msgs := range groupMessages {
+		switch msgType {
 		// 消息发送
 		case reactor.ChannelMsgSend:
-			c.processSend(a.Role, m)
+			c.processSend(a.FakeChannelId, a.ChannelType, a.Role, msgs)
 			// 权限验证
 		case reactor.ChannelMsgPermission:
-			c.processPermission(a.ChannelInfo, m)
+			c.processPermission(a.FakeChannelId, a.ChannelType, msgs)
 			// 消息存储
 		case reactor.ChannelMsgStorage:
-			if storageMessages == nil {
-				storageMessages = make([]*reactor.ChannelMessage, 0, len(a.Messages))
-			}
-			storageMessages = append(storageMessages, m)
+			c.processStorage(a.FakeChannelId, a.ChannelType, msgs)
+			// 消息存储通知队列
 		case reactor.ChannelMsgStorageNotifyQueue:
-			if storageNotifyQueueMessages == nil {
-				storageNotifyQueueMessages = make([]*reactor.ChannelMessage, 0, len(a.Messages))
-			}
-			storageNotifyQueueMessages = append(storageNotifyQueueMessages, m)
-			// 消息发送回执
+			c.processStorageNotifyQueue(a.FakeChannelId, a.ChannelType, msgs)
+			// 发送消息回执
 		case reactor.ChannelMsgSendack:
-			if sendackMessages == nil {
-				sendackMessages = make([]*reactor.ChannelMessage, 0, len(a.Messages))
-			}
-			sendackMessages = append(sendackMessages, m)
+			c.processSendack(msgs)
+			// 消息打标签
+		case reactor.ChannelMsgMakeTag:
+			c.processMakeTag(a.FakeChannelId, a.ChannelType, msgs)
+			// 更新最近会话
+		case reactor.ChannelMsgConversationUpdate:
+			c.processConversation(a.FakeChannelId, a.ChannelType, msgs)
+			// 扩散消息
+		case reactor.ChannelMsgDiffuse:
+			c.processDiffuse(a.FakeChannelId, a.ChannelType, msgs)
 		}
 	}
-	if len(storageMessages) > 0 {
-		c.processStorage(a.FakeChannelId, a.ChannelType, storageMessages)
+
+}
+
+func (c *Channel) groupByMsgType(messages []*reactor.ChannelMessage) map[reactor.ChannelMsgType][]*reactor.ChannelMessage {
+	msgs := make(map[reactor.ChannelMsgType][]*reactor.ChannelMessage)
+	for _, m := range messages {
+		if _, ok := msgs[m.MsgType]; !ok {
+			msgs[m.MsgType] = make([]*reactor.ChannelMessage, 0, len(messages))
+		}
+		msgs[m.MsgType] = append(msgs[m.MsgType], m)
 	}
-	if len(storageNotifyQueueMessages) > 0 {
-		c.processStorageNotifyQueue(a.FakeChannelId, a.ChannelType, storageNotifyQueueMessages)
-	}
-	if len(sendackMessages) > 0 {
-		c.processSendack(a.FakeChannelId, a.ChannelType, sendackMessages)
-	}
+	return msgs
 }
 
 func (c *Channel) processOutbound(a reactor.ChannelAction) {

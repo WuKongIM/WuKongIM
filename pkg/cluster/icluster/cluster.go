@@ -67,6 +67,8 @@ type Cluster interface {
 	TestPing() ([]PingResult, error)
 	// 当前节点的版本
 	NodeVersion() uint64
+	// 获取所有节点
+	Nodes() []*pb.Node
 }
 
 type Propose interface {

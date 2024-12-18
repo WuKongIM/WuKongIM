@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -139,22 +140,16 @@ func (u *User) step(action reactor.UserAction) {
 	switch action.Type {
 	case reactor.UserActionConfigUpdate:
 		u.handleConfigUpdate(action.Cfg)
-	case reactor.UserActionAuthAdd:
-		for _, msg := range action.Messages {
-			if msg.Conn == nil {
-				u.Warn("add auth failed, msg conn not exist", zap.String("uid", action.Uid))
-				return
-			}
-			conn := u.conns.connByConnId(msg.Conn.FromNode, msg.Conn.ConnId)
-			if conn != nil {
-				u.Warn("add auth failed, conn exist", zap.String("uid", action.Uid))
-				return
-			}
-			u.conns.add(msg.Conn)
-			u.inbound.append(msg)
-		}
 	case reactor.UserActionInboundAdd: // 收件箱
 		for _, msg := range action.Messages {
+			if msg.Frame != nil && msg.Conn != nil {
+				if msg.Frame.GetFrameType() == wkproto.CONNECT {
+					conn := u.conns.connByConnId(msg.Conn.FromNode, msg.Conn.ConnId)
+					if conn == nil {
+						u.conns.add(msg.Conn)
+					}
+				}
+			}
 			u.inbound.append(msg)
 		}
 	case reactor.UserActionOutboundAdd: // 发送箱
@@ -222,6 +217,19 @@ func (u *User) stepFollower(action reactor.UserAction) {
 
 func (u *User) stepLeader(action reactor.UserAction) {
 	switch action.Type {
+	//领导收到其他领导的心跳
+	// （这种情况出现了脑裂的情况，选比较nodeVersion，大的当选，如果nodeVersion一样，则都进入选举状态，都一样的情况这种说明系统出问题了）
+	case reactor.UserActionNodeHeartbeatReq:
+		u.Warn("出现多个领导节点", zap.Uint64("currentNodeVersion", options.NodeVersion()), zap.Uint64("otherNodeVersion", action.NodeVersion))
+		if action.NodeVersion > options.NodeVersion() {
+			u.handleConfigUpdate(reactor.UserConfig{
+				LeaderId: action.From,
+			})
+		} else if action.NodeVersion == options.NodeVersion() {
+			u.handleConfigUpdate(reactor.UserConfig{
+				LeaderId: 0, // 成为未选举状态
+			})
+		}
 	// 副本收到心跳回应
 	case reactor.UserActionNodeHeartbeatResp:
 		nodeConns := u.conns.connsByNodeId(action.From)

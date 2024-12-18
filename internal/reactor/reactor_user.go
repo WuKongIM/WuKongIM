@@ -30,6 +30,10 @@ type IUser interface {
 	ConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int
 	ConnById(uid string, fromNode uint64, id int64) *Conn
 	LocalConnById(uid string, id int64) *Conn
+	// AllUserCount 所有用户数量
+	AllUserCount() int
+	// AllConnCount 所有连接数量
+	AllConnCount() int
 
 	// 更新连接
 	UpdateConn(conn *Conn)
@@ -66,10 +70,10 @@ func (u *UserPlus) UpdateConfig(uid string, cfg UserConfig) {
 	})
 }
 
-// AddAuth 添加认证
+// // AddAuth 添加认证
 func (u *UserPlus) AddAuth(conn *Conn, connectPacket *wkproto.ConnectPacket) {
 	u.user.AddAction(UserAction{
-		Type: UserActionAuthAdd,
+		Type: UserActionInboundAdd,
 		Uid:  connectPacket.UID,
 		Messages: []*UserMessage{
 			{
@@ -126,7 +130,7 @@ func (u *UserPlus) Kick(conn *Conn, reasonCode wkproto.ReasonCode, reason string
 }
 
 func (u *UserPlus) AllUserCount() int {
-	return 0
+	return u.user.AllUserCount()
 }
 
 // HeartbeatReq 心跳请求，follower节点执行 领导节点发送给follower节点
@@ -178,6 +182,12 @@ func (u *UserPlus) AddMessages(uid string, msgs []*UserMessage) bool {
 
 // AddMessage 添加消息到收件箱
 func (u *UserPlus) AddMessage(uid string, msg *UserMessage) bool {
+	added := u.AddMessageNoAdvance(uid, msg)
+	u.user.Advance(uid)
+	return added
+}
+
+func (u *UserPlus) AddMessageNoAdvance(uid string, msg *UserMessage) bool {
 	added := u.user.AddAction(UserAction{
 		Type: UserActionInboundAdd,
 		Uid:  uid,
@@ -185,7 +195,6 @@ func (u *UserPlus) AddMessage(uid string, msg *UserMessage) bool {
 			msg,
 		},
 	})
-	u.user.Advance(uid)
 	return added
 }
 
@@ -292,5 +301,5 @@ func (u *UserPlus) ConnWriteBytesNoAdvance(conn *Conn, bytes []byte) bool {
 
 // AllConnCount 所有连接数量
 func (u *UserPlus) AllConnCount() int {
-	return 0
+	return u.user.AllConnCount()
 }

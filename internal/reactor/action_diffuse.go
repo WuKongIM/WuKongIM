@@ -35,7 +35,6 @@ type DiffuseAction struct {
 	Type     DiffuseActionType
 	// 消息
 	Messages []*ChannelMessage
-	To       uint64
 }
 
 func (d DiffuseAction) Size() uint64 {

@@ -71,7 +71,7 @@ func (p *User) processInbound(a reactor.UserAction) {
 				// 如果不是领导节点，则专投递给发件箱这样就会被领导节点处理
 				reactor.User.AddMessageToOutbound(a.Uid, m)
 			}
-			// 服务器回应连接
+			// 服务器回应连接(其他节点发来的，并不是客户端发来的)
 		case wkproto.CONNACK:
 			p.processConnack(a.Uid, m)
 			// 客户端请求心跳
@@ -80,6 +80,14 @@ func (p *User) processInbound(a reactor.UserAction) {
 			// 客户端发送消息
 		case wkproto.SEND:
 			p.processSend(m)
+			// 客户端收到消息回执
+		case wkproto.RECVACK:
+			if a.Role == reactor.RoleLeader {
+				p.processRecvack(m)
+			} else {
+				reactor.User.AddMessageToOutbound(a.Uid, m)
+			}
+
 		}
 	}
 }
@@ -194,6 +202,10 @@ func (p *User) processWrite(a reactor.UserAction) {
 	}
 	for _, m := range a.Messages {
 		if m.Conn == nil {
+			continue
+		}
+		if m.Conn.FromNode == 0 {
+			fmt.Println("processWrite: from node is 0", a.Uid)
 			continue
 		}
 		if !options.G.IsLocalNode(m.Conn.FromNode) {
