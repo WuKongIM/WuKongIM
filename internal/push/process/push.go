@@ -24,7 +24,6 @@ func (p *Push) processPush(messages []*reactor.ChannelMessage) {
 
 // 以频道为单位推送消息
 func (p *Push) processChannelPush(channelKey string, messages []*reactor.ChannelMessage) {
-	fmt.Println("processChannelPush--->", channelKey)
 	firstMsg := messages[0]
 	tagKey := firstMsg.TagKey
 	fakeChannelId, channelType := wkutil.ChannelFromlKey(channelKey)
@@ -43,9 +42,10 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 		}
 		toConns := reactor.User.ConnsByUid(message.ToUid)
 		if len(toConns) == 0 {
-			fmt.Println("不在线--->", message.ToUid)
+			fmt.Println("不在线", message.ToUid)
 			continue
 		}
+		fmt.Println("在线", message.ToUid)
 
 		sendPacket := message.SendPacket
 		fromUid := message.Conn.Uid
@@ -133,8 +133,10 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 					RecvPacketData: recvPacketData,
 				})
 			}
-			reactor.User.ConnWriteBytes(conn, recvPacketData)
+			reactor.User.ConnWriteBytesNoAdvance(conn, recvPacketData)
 		}
+
+		reactor.User.Advance(message.ToUid)
 
 	}
 

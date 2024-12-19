@@ -78,6 +78,9 @@ func (p *User) handleOutboundReq(m *proto.Message) {
 	// 		break
 	// 	}
 	// }
+	// 唤醒用户
+	reactor.User.WakeIfNeed(req.uid)
+
 	for _, msg := range req.messages {
 		isWrite := msg.Conn != nil && msg.Frame == nil && len(msg.WriteData) > 0 // 是否是写消息
 		if isWrite && msg.Conn.FromNode == options.G.Cluster.NodeId {

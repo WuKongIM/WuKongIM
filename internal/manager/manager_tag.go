@@ -6,17 +6,25 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/errors"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"go.uber.org/zap"
 
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 type TagManager struct {
 	bluckets []*tagBlucket
+	// 获取当前节点版本号
+	nodeVersion func() uint64
+	wklog.Log
 }
 
-func NewTagManager(blucketCount int) *TagManager {
-	tg := &TagManager{}
+func NewTagManager(blucketCount int, nodeVersion func() uint64) *TagManager {
+	tg := &TagManager{
+		nodeVersion: nodeVersion,
+		Log:         wklog.NewWKLog("TagManager"),
+	}
 	tg.bluckets = make([]*tagBlucket, blucketCount)
 	for i := 0; i < blucketCount; i++ {
 		tg.bluckets[i] = newTagBlucket(i, time.Minute*20)
@@ -50,6 +58,7 @@ func (t *TagManager) MakeTagWithTagKey(tagKey string, uids []string) (*types.Tag
 	tag := &types.Tag{
 		Key:         tagKey,
 		LastGetTime: time.Now(),
+		NodeVersion: t.nodeVersion(),
 	}
 
 	nodes, err := t.calcUsersInNode(uids)
@@ -143,6 +152,10 @@ func (t *TagManager) GetUsers(tagKey string) []string {
 func (t *TagManager) Get(tagKey string) *types.Tag {
 	tag := t.getTag(tagKey)
 	if tag == nil {
+		return nil
+	}
+	if tag.NodeVersion < t.nodeVersion() {
+		t.Warn("tag is expired, tagNodeVersion < currentNodeVersion ", zap.String("tagKey", tagKey), zap.Uint64("tagNodeVersion", tag.NodeVersion), zap.Uint64("currentNodeVersion", t.nodeVersion()))
 		return nil
 	}
 	tag.LastGetTime = time.Now()

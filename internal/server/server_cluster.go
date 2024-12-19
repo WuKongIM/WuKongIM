@@ -11,8 +11,6 @@ func (s *Server) handleClusterMessage(fromNodeId uint64, msg *proto.Message) {
 		s.processUser.OnMessage(msg)
 	} else if msg.MsgType >= options.ReactorChannelMsgTypeMin.Uint32() && msg.MsgType < options.ReactorChannelMsgTypeMax.Uint32() {
 		s.processChannel.OnMessage(msg)
-	} else if msg.MsgType >= uint32(options.ReactorDiffuseMsgTypeMin) && msg.MsgType < uint32(options.ReactorDiffuseMsgTypeMax) {
-		s.processDiffuse.OnMessage(msg)
 	} else if msg.MsgType >= uint32(options.ReactorPushMsgTypeMin) && msg.MsgType < uint32(options.ReactorPushMsgTypeMax) {
 		s.processPush.OnMessage(msg)
 	}

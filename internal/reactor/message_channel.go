@@ -93,15 +93,22 @@ func (c *ChannelMessage) Clone() *ChannelMessage {
 }
 
 func (c *ChannelMessage) Size() uint64 {
-	size := uint64(0)
-	if c.Conn != nil {
+	size := uint64(1)
+	if c.hasConn() == 1 {
 		size += c.Conn.Size()
 	}
-	if c.SendPacket != nil {
+	if c.hasSendPacket() == 1 {
 		size += uint64(c.SendPacket.GetFrameSize())
 	}
-	size += uint64(len(c.FakeChannelId))
-	size += 1 + 8 + 1 + 8 + 8 + 1
+	size += uint64(len(c.FakeChannelId)) + 1
+	size += 1
+	size += 8
+	size += 1
+	size += 8
+	size += 8
+	size += 1
+	size += uint64(len(c.TagKey)) + 1
+	size += uint64(len(c.ToUid)) + 1
 	return size
 }
 

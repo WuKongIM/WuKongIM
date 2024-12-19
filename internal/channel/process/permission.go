@@ -6,18 +6,24 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
+// 发送者权限判断
 func (c *Channel) processPermission(channelId string, channelType uint8, msgs []*reactor.ChannelMessage) {
 	reasonCode, err := c.hasPermissionForChannel(channelId, channelType)
 	if err != nil {
 		c.Error("hasPermissionForChannel error", zap.Error(err))
 		reasonCode = wkproto.ReasonSystemError
 	}
+	if reasonCode != wkproto.ReasonSuccess {
+		c.Info("hasPermissionForChannel failed", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("reasonCode", reasonCode.String()))
+	}
 
+	var notifyQueueMsgs []*reactor.ChannelMessage
 	if reasonCode == wkproto.ReasonSuccess {
 		for _, m := range msgs {
 			reasonCode, err = c.hasPermissionForSender(m)
@@ -30,16 +36,30 @@ func (c *Channel) processPermission(channelId string, channelType uint8, msgs []
 			if reasonCode == wkproto.ReasonSuccess {
 				if !m.SendPacket.NoPersist {
 					m.MsgType = reactor.ChannelMsgStorage
-				} else {
-					// 如果是非存储消息，则跳到通知队列存储
-					m.MsgType = reactor.ChannelMsgStorageNotifyQueue
+				} else { // 非存储的消息直接通知webhook队列（存储的消息要存储成功后，再通知）
+					// 如果开启了webhook，则复制一份到通知队列
+					if options.G.WebhookOn(types.EventMsgNotify) {
+						if notifyQueueMsgs == nil {
+							notifyQueueMsgs = make([]*reactor.ChannelMessage, 0, len(msgs))
+						}
+						cloneMsg := m.Clone()
+						cloneMsg.MsgType = reactor.ChannelMsgStorageNotifyQueue
+						notifyQueueMsgs = append(notifyQueueMsgs, cloneMsg)
+					}
+
+					// 非存储消息跳过存储，直接打标签开始分发
+					m.MsgType = reactor.ChannelMsgMakeTag
 				}
+
 			} else {
 				m.MsgType = reactor.ChannelMsgSendack
 			}
 		}
 	}
 	reactor.Channel.AddMessages(channelId, channelType, msgs)
+	if len(notifyQueueMsgs) > 0 {
+		reactor.Channel.AddMessages(channelId, channelType, notifyQueueMsgs)
+	}
 }
 
 func (c *Channel) hasPermissionForChannel(channelId string, channelType uint8) (wkproto.ReasonCode, error) {
@@ -76,6 +96,15 @@ func (c *Channel) hasPermissionForSender(m *reactor.ChannelMessage) (wkproto.Rea
 		channelType = m.ChannelType
 		fromUid     = m.Conn.Uid
 	)
+
+	// 资讯频道是公开的，直接通过
+	if channelType == wkproto.ChannelTypeInfo {
+		return wkproto.ReasonSuccess, nil
+	}
+	// 客服频道，直接通过
+	if channelType == wkproto.ChannelTypeCustomerService {
+		return wkproto.ReasonSuccess, nil
+	}
 
 	// 系统账号，直接通过
 	if service.SystemAccountManager.IsSystemAccount(fromUid) {

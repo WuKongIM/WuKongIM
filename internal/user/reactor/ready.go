@@ -39,8 +39,8 @@ func newReady(logPrefix string) *ready {
 
 // }
 
-func (r *ready) sliceAndTruncate() []*reactor.UserMessage {
-	msgs := r.queue.sliceWithSize(r.offsetIndex+1, r.queue.lastIndex+1, 0)
+func (r *ready) sliceAndTruncate(size uint64) []*reactor.UserMessage {
+	msgs := r.queue.sliceWithSize(r.offsetIndex+1, r.queue.lastIndex+1, size)
 	if len(msgs) > 0 {
 		r.endIndex = msgs[len(msgs)-1].Index
 	}
@@ -110,7 +110,7 @@ func (o *outboundReady) has() bool {
 func (o *outboundReady) ready() []reactor.UserAction {
 	var actions []reactor.UserAction
 	var endIndex = o.queue.lastIndex
-	msgs := o.queue.sliceWithSize(o.offsetIndex+1, endIndex+1, 0)
+	msgs := o.queue.sliceWithSize(o.offsetIndex+1, endIndex+1, options.MaxBatchBytes)
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -174,13 +174,19 @@ func (o *outboundReady) ready() []reactor.UserAction {
 // 	}
 // }
 
-func (o *outboundReady) updateReplicaHeartbeat(nodeId uint64) {
+func (o *outboundReady) keepalive(nodeId uint64) {
 	replica := o.replicas[nodeId]
 	if replica == nil {
 		o.Info("replica not exist", zap.Uint64("nodeId", nodeId))
 		return
 	}
 	replica.heartbeatIdleTick = 0
+}
+
+func (o *outboundReady) keepaliveAll() {
+	for _, replica := range o.replicas {
+		replica.heartbeatIdleTick = 0
+	}
 }
 
 func (o *outboundReady) addNewReplica(nodeId uint64) {
@@ -209,7 +215,7 @@ func (o *outboundReady) tick() {
 		replica.heartbeatIdleTick++
 
 		if replica.heartbeatIdleTick >= options.NodeHeartbeatTimeoutTick {
-			o.Info("replica heartbeat timeout", zap.Uint64("nodeId", replica.nodeId))
+			o.Info("replica heartbeat timeout", zap.Uint64("nodeId", replica.nodeId), zap.String("role", o.user.role.String()))
 			delete(o.replicas, replica.nodeId)
 			o.user.conns.removeConnByNodeId(replica.nodeId)
 			continue

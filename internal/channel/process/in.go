@@ -49,7 +49,6 @@ func (p *Channel) handleSendack(m *proto.Message) {
 }
 
 func (p *Channel) handleOutboundReq(m *proto.Message) {
-	fmt.Println("handleOutboundReq--->")
 	req := &outboundReq{}
 	err := req.decode(m.Content)
 	if err != nil {

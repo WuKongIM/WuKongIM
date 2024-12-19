@@ -158,7 +158,6 @@ func (c *Channel) processInbound(a reactor.ChannelAction) {
 	if len(a.Messages) == 0 {
 		return
 	}
-
 	// 按照消息类型分组
 	groupMessages := c.groupByMsgType(a.Messages)
 

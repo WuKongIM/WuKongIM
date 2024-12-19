@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"go.uber.org/zap"
@@ -10,7 +8,6 @@ import (
 
 // 扩散消息
 func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
-	fmt.Println("processDiffuse--->", fakeChannelId, channelType, len(messages))
 	tagKey := messages[0].TagKey
 	tag, err := c.commonService.GetOrRequestAndMakeTag(fakeChannelId, channelType, tagKey)
 	if err != nil {
@@ -22,9 +19,24 @@ func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messag
 		return
 	}
 
-	fmt.Println("processDiffuse-2-->", tag.String())
+	// 更新最近会话
+	var conversationMessages []*reactor.ChannelMessage
+	for _, m := range messages {
+		if m.SendPacket.NoPersist {
+			continue
+		}
+		if conversationMessages == nil {
+			conversationMessages = make([]*reactor.ChannelMessage, 0, len(messages))
+		}
+		m.MsgType = reactor.ChannelMsgConversationUpdate
+		conversationMessages = append(conversationMessages, m)
+	}
 
-	// 根据用户所在节点，将消息推送到对应节点
+	if len(conversationMessages) > 0 {
+		reactor.Channel.AddMessages(fakeChannelId, channelType, conversationMessages)
+	}
+
+	// 推送属于自己节点的用户消息
 	var pubshMessages []*reactor.ChannelMessage
 	for _, node := range tag.Nodes {
 		if !options.G.IsLocalNode(node.LeaderId) {
@@ -43,7 +55,6 @@ func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messag
 			}
 		}
 	}
-	fmt.Println("processDiffuse--->", len(pubshMessages))
 	if len(pubshMessages) > 0 {
 		reactor.Push.PushMessages(pubshMessages)
 	}

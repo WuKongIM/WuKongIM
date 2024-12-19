@@ -3,15 +3,21 @@ package process
 import (
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
+// 消息批量存储
 func (c *Channel) processStorage(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
 
+	if len(messages) > 1000 {
+		c.Info("too many messages", zap.Int("msgs", len(messages)), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+	}
 	// 存储消息
 	storages := c.toStorageMessages(messages)
 
@@ -25,21 +31,47 @@ func (c *Channel) processStorage(fakeChannelId string, channelType uint8, messag
 		reasonCode = wkproto.ReasonSystemError
 	}
 
+	var notifyQueueMsgs []*reactor.ChannelMessage
+	var makeTagMsgs []*reactor.ChannelMessage
 	for _, message := range messages {
 		message.ReasonCode = reasonCode
-		if reasonCode == wkproto.ReasonSuccess {
-			message.MsgType = reactor.ChannelMsgStorageNotifyQueue
-		} else {
-			message.MsgType = reactor.ChannelMsgSendack
-		}
+		// 发送回执
+		message.MsgType = reactor.ChannelMsgSendack
 		for _, result := range results {
 			if result.LogId() == uint64(message.MessageId) {
 				message.MessageSeq = result.LogIndex()
 				break
 			}
 		}
+		if reasonCode != wkproto.ReasonSuccess {
+			continue
+		}
+		// 通知webhook队列
+		if options.G.WebhookOn(types.EventMsgNotify) {
+			if notifyQueueMsgs == nil {
+				notifyQueueMsgs = make([]*reactor.ChannelMessage, 0, len(messages))
+			}
+			cloneMsg := message.Clone()
+			cloneMsg.MsgType = reactor.ChannelMsgStorageNotifyQueue
+			notifyQueueMsgs = append(notifyQueueMsgs, cloneMsg)
+		}
+		if makeTagMsgs == nil {
+			makeTagMsgs = make([]*reactor.ChannelMessage, 0, len(messages))
+		}
+
+		// 去打标签
+		cloneMsg := message.Clone()
+		cloneMsg.MsgType = reactor.ChannelMsgMakeTag
+		makeTagMsgs = append(makeTagMsgs, cloneMsg)
+
 	}
 	reactor.Channel.AddMessages(fakeChannelId, channelType, messages)
+	if len(notifyQueueMsgs) > 0 {
+		reactor.Channel.AddMessages(fakeChannelId, channelType, notifyQueueMsgs)
+	}
+	if len(makeTagMsgs) > 0 {
+		reactor.Channel.AddMessages(fakeChannelId, channelType, makeTagMsgs)
+	}
 }
 
 // 转换成存储消息

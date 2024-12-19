@@ -47,8 +47,8 @@ func (p *User) processAction(a reactor.UserAction) {
 		p.processNodeHeartbeatResp(a)
 	case reactor.UserActionConnClose: // 连接关闭
 		p.processConnClose(a)
-	case reactor.UserActionUserClose:
-		fmt.Println("UserActionUserClose....", a.Uid)
+	case reactor.UserActionUserClose: // 用户关闭
+		p.processUserClose(a)
 	default:
 	}
 }
@@ -144,28 +144,6 @@ func (p *User) processJoinResp(a reactor.UserAction) {
 	if err != nil {
 		p.Error("send join resp failed", zap.Error(err))
 		return
-	}
-}
-
-func (p *User) processConnClose(a reactor.UserAction) {
-	if len(a.Conns) == 0 {
-		p.Warn("processConnClose: conns is empty", zap.String("uid", a.Uid))
-		return
-	}
-	for _, c := range a.Conns {
-		if !options.G.IsLocalNode(c.FromNode) {
-			p.Info("processConnClose: conn not local node", zap.String("uid", a.Uid), zap.Uint64("fromNode", c.FromNode))
-			continue
-		}
-		conn := service.ConnManager.GetConn(c.ConnId)
-		if conn == nil {
-			p.Warn("processConnClose: conn not exist", zap.String("uid", a.Uid), zap.Int64("connId", c.ConnId))
-			continue
-		}
-		err := conn.Close()
-		if err != nil {
-			p.Debug("Failed to close the conn", zap.Error(err))
-		}
 	}
 }
 

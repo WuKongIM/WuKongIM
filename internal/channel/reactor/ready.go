@@ -39,8 +39,8 @@ func newReady(logPrefix string) *ready {
 
 // }
 
-func (r *ready) sliceAndTruncate() []*reactor.ChannelMessage {
-	msgs := r.queue.sliceWithSize(r.offsetIndex+1, r.queue.lastIndex+1, 0)
+func (r *ready) sliceAndTruncate(size uint64) []*reactor.ChannelMessage {
+	msgs := r.queue.sliceWithSize(r.offsetIndex+1, r.queue.lastIndex+1, size)
 	if len(msgs) > 0 {
 		r.endIndex = msgs[len(msgs)-1].Index
 	}
@@ -110,7 +110,7 @@ func (o *outboundReady) has() bool {
 func (o *outboundReady) ready() []reactor.ChannelAction {
 	var actions []reactor.ChannelAction
 	var endIndex = o.queue.lastIndex
-	msgs := o.queue.sliceWithSize(o.offsetIndex+1, endIndex+1, 0)
+	msgs := o.queue.sliceWithSize(o.offsetIndex+1, endIndex+1, options.MaxBatchBytes)
 	if len(msgs) == 0 {
 		return nil
 	}

@@ -30,6 +30,7 @@ type IUser interface {
 	ConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int
 	ConnById(uid string, fromNode uint64, id int64) *Conn
 	LocalConnById(uid string, id int64) *Conn
+	LocalConnByUid(uid string) []*Conn
 	// AllUserCount 所有用户数量
 	AllUserCount() int
 	// AllConnCount 所有连接数量
@@ -232,6 +233,11 @@ func (u *UserPlus) ConnCountByUid(uid string) int {
 // LocalConnById 获取本地连接
 func (u *UserPlus) LocalConnById(uid string, id int64) *Conn {
 	return u.user.LocalConnById(uid, id)
+}
+
+// LocalConnByUid 获取本地连接
+func (u *UserPlus) LocalConnByUid(uid string) []*Conn {
+	return u.user.LocalConnByUid(uid)
 }
 
 // ConnById 获取连接

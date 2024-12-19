@@ -31,6 +31,7 @@ type User struct {
 	// 客户端发送箱
 	// 将数据投递给自己直连的客户端
 	clientOutbound *ready
+	nodeVersion    uint64
 }
 
 func NewUser(no, uid string) *User {
@@ -43,6 +44,7 @@ func NewUser(no, uid string) *User {
 		Log:            wklog.NewWKLog(prefix),
 		inbound:        newReady(prefix),
 		clientOutbound: newReady(prefix),
+		nodeVersion:    options.NodeVersion(),
 	}
 	u.outbound = newOutboundReady(prefix, u)
 	return u
@@ -79,7 +81,7 @@ func (u *User) ready() []reactor.UserAction {
 	if u.allowReady() {
 		// ---------- inbound ----------
 		if u.inbound.has() {
-			msgs := u.inbound.sliceAndTruncate()
+			msgs := u.inbound.sliceAndTruncate(options.MaxBatchBytes)
 			u.actions = append(u.actions, reactor.UserAction{
 				No:       u.no,
 				Uid:      u.uid,
@@ -101,7 +103,7 @@ func (u *User) ready() []reactor.UserAction {
 
 		// ---------- clientOutbound ----------
 		if u.clientOutbound.has() {
-			msgs := u.clientOutbound.sliceAndTruncate()
+			msgs := u.clientOutbound.sliceAndTruncate(options.MaxBatchBytes)
 			u.actions = append(u.actions, reactor.UserAction{
 				No:       u.no,
 				Uid:      u.uid,
@@ -135,7 +137,6 @@ func (u *User) allowReady() bool {
 func (u *User) step(action reactor.UserAction) {
 
 	// fmt.Println("step---->", action.Type.String(), action.Uid)
-
 	u.idleTick = 0
 	switch action.Type {
 	case reactor.UserActionConfigUpdate:
@@ -146,6 +147,8 @@ func (u *User) step(action reactor.UserAction) {
 				if msg.Frame.GetFrameType() == wkproto.CONNECT {
 					conn := u.conns.connByConnId(msg.Conn.FromNode, msg.Conn.ConnId)
 					if conn == nil {
+						u.outbound.keepaliveAll() // 这里包活下，防止连接进来了，但是用户没了
+						fmt.Println("add conn", msg.Conn.Uid, msg.Conn.FromNode, msg.Conn.ConnId)
 						u.conns.add(msg.Conn)
 					}
 				}
@@ -157,7 +160,7 @@ func (u *User) step(action reactor.UserAction) {
 			u.outbound.append(msg)
 		}
 	case reactor.UserActionConnClose: // 关闭连接
-		for _, conn := range u.conns.conns {
+		for _, conn := range action.Conns {
 			u.conns.remove(conn)
 		}
 		u.sendConnClose(action.Conns)
@@ -177,7 +180,7 @@ func (u *User) stepFollower(action reactor.UserAction) {
 	switch action.Type {
 	// 收到来自领导的心跳
 	case reactor.UserActionNodeHeartbeatReq:
-		u.outbound.updateReplicaHeartbeat(action.From)
+		u.outbound.keepalive(action.From)
 		u.heartbeatTick = 0
 		localConns := u.conns.connsByNodeId(options.NodeId)
 		var closeConns []*reactor.Conn
@@ -196,6 +199,7 @@ func (u *User) stepFollower(action reactor.UserAction) {
 				if closeConns == nil {
 					closeConns = make([]*reactor.Conn, 0, len(localConns))
 				}
+				u.conns.remove(localConn)
 				closeConns = append(closeConns, localConn)
 			}
 		}
@@ -243,10 +247,11 @@ func (u *User) stepLeader(action reactor.UserAction) {
 				}
 			}
 			if !exist {
+				// fmt.Println("leader: remove conn...", nodeConn.Uid, nodeConn.FromNode, nodeConn.ConnId)
 				u.conns.remove(nodeConn)
 			}
 		}
-		u.outbound.updateReplicaHeartbeat(action.From)
+		u.outbound.keepalive(action.From)
 	// 副本请求加入
 	case reactor.UserActionJoin:
 		u.outbound.addNewReplica(action.From)
@@ -284,6 +289,11 @@ func (u *User) tickLeader() {
 	if u.conns.len() > 0 && u.heartbeatTick >= options.NodeHeartbeatTick {
 		u.heartbeatTick = 0
 		u.sendHeartbeatReq()
+	}
+
+	if u.nodeVersion < options.NodeVersion() {
+		u.Info("node version update, close user", zap.Uint64("old", u.nodeVersion), zap.Uint64("new", options.NodeVersion()))
+		u.sendUserClose()
 	}
 }
 
@@ -344,10 +354,11 @@ func (u *User) sendConnClose(conns []*reactor.Conn) {
 
 func (u *User) sendUserClose() {
 	u.actions = append(u.actions, reactor.UserAction{
-		No:   u.no,
-		From: options.NodeId,
-		To:   reactor.LocalNode,
-		Type: reactor.UserActionUserClose,
+		No:    u.no,
+		From:  options.NodeId,
+		To:    reactor.LocalNode,
+		Type:  reactor.UserActionUserClose,
+		Conns: u.conns.connsByNodeId(options.NodeId),
 	})
 }
 
