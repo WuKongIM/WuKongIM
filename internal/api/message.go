@@ -107,7 +107,7 @@ func (m *message) send(c *wkhttp.Context) {
 		}
 		clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
 		// 发送消息
-		_, err = sendMessageToChannel(m.s, req, tmpChannelId, tmpChannelType, clientMsgNo, wkproto.StreamFlagIng)
+		_, err = sendMessageToChannel(req, tmpChannelId, tmpChannelType, clientMsgNo, wkproto.StreamFlagIng)
 		if err != nil {
 			c.ResponseError(err)
 			return
@@ -123,7 +123,7 @@ func (m *message) send(c *wkhttp.Context) {
 	}
 
 	// 发送消息
-	messageId, err := sendMessageToChannel(m.s, req, channelId, channelType, clientMsgNo, wkproto.StreamFlagIng)
+	messageId, err := sendMessageToChannel(req, channelId, channelType, clientMsgNo, wkproto.StreamFlagIng)
 	if err != nil {
 		c.ResponseError(err)
 		return
@@ -143,7 +143,7 @@ func (m *message) requestSetSubscribersForTmpChannel(tmpChannelId string, uids [
 		return err
 	}
 	if options.G.IsLocalNode(nodeInfo.Id) {
-		setTmpSubscriberWithReq(tmpSubscriberSetReq{
+		_ = setTmpSubscriberWithReq(tmpSubscriberSetReq{
 			ChannelId: tmpChannelId,
 			Uids:      uids,
 		})
@@ -168,7 +168,7 @@ func (m *message) requestSetSubscribersForTmpChannel(tmpChannelId string, uids [
 	return nil
 }
 
-func sendMessageToChannel(s *Server, req messageSendReq, channelId string, channelType uint8, clientMsgNo string, streamFlag wkproto.StreamFlag) (int64, error) {
+func sendMessageToChannel(req messageSendReq, channelId string, channelType uint8, clientMsgNo string, streamFlag wkproto.StreamFlag) (int64, error) {
 
 	// m.s.monitor.SendPacketInc(req.Header.NoPersist != 1)
 	// m.s.monitor.SendSystemMsgInc()
@@ -210,7 +210,7 @@ func sendMessageToChannel(s *Server, req messageSendReq, channelId string, chann
 	messageId := options.G.GenMessageId()
 
 	reactor.Channel.WakeIfNeed(fakeChannelId, channelType)
-	reactor.Channel.SendMessage(&reactor.ChannelMessage{
+	reactor.Channel.MustSendMessage(&reactor.ChannelMessage{
 		FakeChannelId: fakeChannelId,
 		ChannelType:   channelType,
 		Conn: &reactor.Conn{
@@ -253,7 +253,7 @@ func (m *message) sendBatch(c *wkhttp.Context) {
 	reasons := make([]string, 0)
 	for _, subscriber := range req.Subscribers {
 		clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
-		_, err := sendMessageToChannel(m.s, messageSendReq{
+		_, err := sendMessageToChannel(messageSendReq{
 			Header:      req.Header,
 			FromUID:     req.FromUID,
 			ChannelID:   subscriber,

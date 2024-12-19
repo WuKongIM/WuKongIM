@@ -33,14 +33,6 @@ func (p *PushPlus) PushMessages(messages []*ChannelMessage) {
 	})
 }
 
-// 推送离线消息
-func (p *PushPlus) PushOfflineMessages(messages []*ChannelMessage) {
-	p.push.MustAddAction(PushAction{
-		Type:     PushActionInboundAdd,
-		Messages: messages,
-	})
-}
-
 func (p *PushPlus) Advance(workerId int) {
 	p.push.Advance(workerId)
 }

@@ -34,13 +34,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/WuKongIM/WuKongIM/version"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
-	"github.com/pkg/errors"
-	"github.com/valyala/bytebufferpool"
 	"go.etcd.io/etcd/pkg/v3/idutil"
 	"go.uber.org/zap"
 )
@@ -60,19 +56,13 @@ type Server struct {
 	start         time.Time                // 服务开始时间
 	store         *clusterstore.Store      // 存储相关接口
 	engine        *wknet.Engine            // 长连接引擎
-
 	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
-	trace *trace.Trace // 监控
-
-	demoServer *DemoServer // demo server
-
-	datasource IDatasource // 数据源
-
+	trace          *trace.Trace       // 监控
+	demoServer     *DemoServer        // demo server
+	datasource     IDatasource        // 数据源
 	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
-
-	apiServer *api.Server // api服务
-
-	ingress *ingress.Ingress
+	apiServer      *api.Server        // api服务
+	ingress        *ingress.Ingress
 
 	// 管理者
 	retryManager        *manager.RetryManager        // 消息重试管理
@@ -480,26 +470,6 @@ func (s *Server) onConnect(conn wknet.Conn) error {
 
 	service.ConnManager.AddConn(conn)
 
-	// if conn.InboundBuffer().BoundBufferSize() == 0 {
-	// 	conn.SetValue(ConnKeyParseProxyProto, true) // 设置需要解析代理协议
-	// 	return nil
-	// }
-	// // 解析代理协议，获取真实IP
-	// buff, err := conn.Peek(-1)
-	// if err != nil {
-	// 	return err
-	// }
-	// remoteAddr, size, err := parseProxyProto(buff)
-	// if err != nil && err != ErrNoProxyProtocol {
-	// 	s.Warn("Failed to parse proxy proto", zap.Error(err))
-	// }
-	// if remoteAddr != nil {
-	// 	conn.SetRemoteAddr(remoteAddr)
-	// 	s.Debug("parse proxy proto success", zap.String("remoteAddr", remoteAddr.String()))
-	// }
-	// if size > 0 {
-	// 	_, _ = conn.Discard(size)
-	// }
 	return nil
 }
 
@@ -527,51 +497,6 @@ func (s *Server) onClose(conn wknet.Conn) {
 		reactor.User.CloseConn(connCtx)
 	}
 	service.ConnManager.RemoveConn(conn)
-}
-
-// decode payload
-func (s *Server) checkAndDecodePayload(sendPacket *wkproto.SendPacket, conn *reactor.Conn) ([]byte, error) {
-
-	aesKey, aesIV := conn.AesKey, conn.AesIV
-	vail, err := s.sendPacketIsVail(sendPacket, conn)
-	if err != nil {
-		return nil, err
-	}
-	if !vail {
-		return nil, errors.New("sendPacket is illegal！")
-	}
-	// decode payload
-	decodePayload, err := wkutil.AesDecryptPkcs7Base64(sendPacket.Payload, aesKey, aesIV)
-	if err != nil {
-		s.Error("Failed to decode payload！", zap.Error(err))
-		return nil, err
-	}
-
-	return decodePayload, nil
-}
-
-// send packet is vail
-func (s *Server) sendPacketIsVail(sendPacket *wkproto.SendPacket, conn *reactor.Conn) (bool, error) {
-	aesKey, aesIV := conn.AesKey, conn.AesIV
-	signStr := sendPacket.VerityString()
-
-	signBuff := bytebufferpool.Get()
-	_, _ = signBuff.WriteString(signStr)
-
-	defer bytebufferpool.Put(signBuff)
-
-	actMsgKey, err := wkutil.AesEncryptPkcs7Base64(signBuff.Bytes(), aesKey, aesIV)
-	if err != nil {
-		s.Error("msgKey is illegal！", zap.Error(err), zap.String("sign", signStr), zap.String("aesKey", string(aesKey)), zap.String("aesIV", string(aesIV)), zap.Any("conn", conn))
-		return false, err
-	}
-	actMsgKeyStr := sendPacket.MsgKey
-	exceptMsgKey := wkutil.MD5Bytes(actMsgKey)
-	if actMsgKeyStr != exceptMsgKey {
-		s.Error("msgKey is illegal！", zap.String("except", exceptMsgKey), zap.String("act", actMsgKeyStr), zap.String("sign", signStr), zap.String("aesKey", string(aesKey)), zap.String("aesIV", string(aesIV)), zap.Any("conn", conn))
-		return false, errors.New("msgKey is illegal！")
-	}
-	return true, nil
 }
 
 func (s *Server) WithRequestTimeout() (context.Context, context.CancelFunc) {

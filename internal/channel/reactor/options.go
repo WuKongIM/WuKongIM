@@ -52,7 +52,7 @@ func NewOptions() *Options {
 	}
 
 	// 如果开启了压测模式，接收队列加大长度
-	if goption.G.Stress {
+	if goption.G.Violent {
 		opts.ReceiveQueueLength = 1024 * 10
 	}
 	return opts

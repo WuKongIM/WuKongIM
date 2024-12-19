@@ -68,7 +68,7 @@ func NewOptions() *Options {
 		OutboundForwardMaxMessageCount: 100,
 		MaxBatchBytes:                  1024 * 1024 * 10,
 	}
-	if goption.G.Stress {
+	if goption.G.Violent {
 		opts.ReceiveQueueLength = 1024 * 10
 	}
 	return opts

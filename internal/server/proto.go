@@ -92,6 +92,7 @@ func (s *Server) onData(conn wknet.Conn) error {
 			DeviceId:     connectPacket.DeviceID,
 			DeviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
 			ProtoVersion: connectPacket.Version,
+			Uptime:       time.Now(),
 		}
 		conn.SetContext(connCtx)
 
@@ -125,12 +126,17 @@ func (s *Server) onData(conn wknet.Conn) error {
 			}
 			if frame.GetFrameType() == wkproto.SEND {
 				msg.MessageId = options.G.GenMessageId()
+				connCtx.InMsgCount.Add(1)
+				connCtx.InMsgByteCount.Add(int64(size))
+
 			}
 
 			messages = append(messages, msg)
 			offset += size
 		}
 		if len(messages) > 0 {
+			connCtx.InPacketCount.Add(int64(len(messages)))
+			connCtx.InPacketByteCount.Add(int64(len(data)))
 			// 添加消息
 			reactor.User.AddMessages(connCtx.Uid, messages)
 		}

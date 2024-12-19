@@ -64,6 +64,7 @@ type Options struct {
 	WSSAddr     string       // wss 监听地址 例如：wss://0.0.0.0:5210
 	WSTLSConfig *tls.Config
 	Stress      bool     // 是否开启压力测试
+	Violent     bool     // 狂暴模式，开启这个后将以性能为第一，稳定性第二, 压力测试模式下默认为true
 	WSSConfig   struct { // wss的证书配置
 		CertFile string // 证书文件
 		KeyFile  string // 私钥文件
@@ -612,6 +613,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		o.Mode = Mode(modeStr)
 	}
 	o.Stress = o.getBool("stress", o.Stress)
+	o.Violent = o.getBool("violent", o.Violent)
+
+	if o.Stress {
+		o.Violent = true
+	}
 
 	o.GinMode = o.getString("ginMode", o.GinMode)
 

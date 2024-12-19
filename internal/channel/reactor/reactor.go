@@ -62,6 +62,11 @@ func (r *Reactor) AddAction(action reactor.ChannelAction) bool {
 	return sub.addAction(action)
 }
 
+func (r *Reactor) MustAddAction(action reactor.ChannelAction) {
+	sub := r.getSub(action.FakeChannelId, action.ChannelType)
+	sub.mustAddAction(action)
+}
+
 func (r *Reactor) Advance(channelId string, channelType uint8) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

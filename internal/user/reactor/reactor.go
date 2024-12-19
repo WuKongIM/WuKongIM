@@ -129,6 +129,15 @@ func (r *Reactor) AllConnCount() int {
 	return connCount
 }
 
+func (r *Reactor) LeaderId(uid string) uint64 {
+	sub := r.getSub(uid)
+	user := sub.users.get(uid)
+	if user == nil {
+		return 0
+	}
+	return user.cfg.LeaderId
+}
+
 func (r *Reactor) getSub(uid string) *reactorSub {
 	h := fnv.New32a()
 	h.Write([]byte(uid))

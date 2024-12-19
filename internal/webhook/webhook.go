@@ -162,7 +162,7 @@ func (w *Webhook) TriggerEvent(event *types.Event) {
 
 func (w *Webhook) NotifyOfflineMsg(msgs []*reactor.ChannelMessage) {
 	for _, msg := range msgs {
-		w.notifyOfflineMsg(msg, *msg.OfflineUsers)
+		w.notifyOfflineMsg(msg, msg.OfflineUsers)
 	}
 }
 

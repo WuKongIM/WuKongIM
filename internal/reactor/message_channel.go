@@ -26,10 +26,10 @@ const (
 	ChannelMsgConversationUpdate
 	// ChannelMsgDiffuse 消息扩散
 	ChannelMsgDiffuse
-	// ChannelMsgPush 推送
-	ChannelMsgPush
-	// ChannelMsgOffline 推送离线消息
-	ChannelMsgOffline
+	// ChannelMsgPushOnline 推送在线消息
+	ChannelMsgPushOnline
+	// ChannelMsgPushOffline 推送离线消息
+	ChannelMsgPushOffline
 )
 
 func (c ChannelMsgType) String() string {
@@ -50,10 +50,10 @@ func (c ChannelMsgType) String() string {
 		return "ChannelMsgConversationUpdate"
 	case ChannelMsgDiffuse:
 		return "ChannelMsgDiffuse"
-	case ChannelMsgPush:
-		return "ChannelMsgPush"
-	case ChannelMsgOffline:
-		return "ChannelMsgOffline"
+	case ChannelMsgPushOnline:
+		return "ChannelMsgPushOnline"
+	case ChannelMsgPushOffline:
+		return "ChannelMsgPushOffline"
 	default:
 		return fmt.Sprintf("unknown ChannelMsgType: %d", c)
 	}
@@ -72,7 +72,7 @@ type ChannelMessage struct {
 	ReasonCode    wkproto.ReasonCode  // 错误原因码
 	TagKey        string              // 标签key
 	ToUid         string              // 接收者
-	OfflineUsers  *[]string           // 离线用户的数组（投递离线的时候需要）
+	OfflineUsers  []string            // 离线用户的数组（投递离线的时候需要）
 }
 
 func (c *ChannelMessage) Clone() *ChannelMessage {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -353,6 +354,9 @@ func (u *User) sendConnClose(conns []*reactor.Conn) {
 }
 
 func (u *User) sendUserClose() {
+	if u.role == reactor.RoleLeader {
+		trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(-1)
+	}
 	u.actions = append(u.actions, reactor.UserAction{
 		No:    u.no,
 		From:  options.NodeId,
@@ -397,6 +401,8 @@ func (u *User) becomeLeader() {
 	u.tickFnc = u.tickLeader
 
 	u.Info("become leader")
+
+	trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(1)
 
 }
 

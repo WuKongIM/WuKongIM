@@ -35,9 +35,10 @@ type IUser interface {
 	AllUserCount() int
 	// AllConnCount 所有连接数量
 	AllConnCount() int
-
 	// 更新连接
 	UpdateConn(conn *Conn)
+	// 获取领导消息
+	LeaderId(uid string) uint64
 }
 
 type UserPlus struct {
@@ -308,4 +309,8 @@ func (u *UserPlus) ConnWriteBytesNoAdvance(conn *Conn, bytes []byte) bool {
 // AllConnCount 所有连接数量
 func (u *UserPlus) AllConnCount() int {
 	return u.user.AllConnCount()
+}
+
+func (u *UserPlus) LeaderId(uid string) uint64 {
+	return u.user.LeaderId(uid)
 }

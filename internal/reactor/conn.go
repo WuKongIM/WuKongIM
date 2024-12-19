@@ -2,49 +2,30 @@ package reactor
 
 import (
 	"fmt"
+	"sync/atomic"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
-// type Conn interface {
-// 	// ConnId  用户唯一连接id
-// 	ConnId() int64
-// 	// Uid 用户uid
-// 	Uid() string
-// 	// DeviceId 设备id
-// 	DeviceId() string
-// 	// DeviceFlag 设备标记
-// 	DeviceFlag() wkproto.DeviceFlag
-// 	// FromNode 连接属于节点
-// 	FromNode() uint64
-// 	// SetAuth 设置是否认证
-// 	SetAuth(auth bool)
-// 	// IsAuth 是否认证
-// 	IsAuth() bool
-// 	// Equal 判断是否相等
-// 	Equal(conn Conn) bool
-// 	// SetString 设置扩展字段
-// 	SetString(key string, value string)
+// 连接统计
+type ConnStats struct {
+	InPacketCount  atomic.Int64 // 输入包数量
+	OutPacketCount atomic.Int64 // 输出包数量
 
-// 	SetProtoVersion(version uint8)
-// 	GetProtoVersion() uint8
+	InPacketByteCount  atomic.Int64 // 输入包字节数量
+	OutPacketByteCount atomic.Int64 // 输出包字节数量
 
-// 	DeviceLevel() wkproto.DeviceLevel
-// 	SetDeviceLevel(level wkproto.DeviceLevel)
+	InMsgCount  atomic.Int64 // 输入消息数量
+	OutMsgCount atomic.Int64 // 输出消息数量
 
-// 	// Encode 编码连接数据
-// 	Encode() ([]byte, error)
-// 	// Decode 解密连接数据
-// 	Decode(data []byte) error
-// }
-
-// const (
-// 	ConnAesIV  string = "aesIV"
-// 	ConnAesKey string = "aesKey"
-// )
+	InMsgByteCount  atomic.Int64 // 输入消息字节数量
+	OutMsgByteCount atomic.Int64 // 输出消息字节数量
+}
 
 type Conn struct {
+	ConnStats
 	ConnId       int64
 	Uid          string
 	DeviceId     string
@@ -55,6 +36,9 @@ type Conn struct {
 	AesIV        []byte
 	AesKey       []byte
 	ProtoVersion uint8
+
+	// 不编码
+	Uptime time.Time // 连接创建时间
 }
 
 func (c *Conn) Encode() ([]byte, error) {

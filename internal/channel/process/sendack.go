@@ -4,6 +4,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -61,6 +62,9 @@ func (c *Channel) sendSendack(reqs []*sendackReq) {
 			continue
 		}
 		packet := c.toSendack(req)
+
+		trace.GlobalTrace.Metrics.App().SendackPacketCountAdd(1)
+		trace.GlobalTrace.Metrics.App().SendackPacketBytesAdd(packet.GetFrameSize())
 
 		reactor.User.ConnWriteNoAdvance(&reactor.Conn{
 			Uid:          req.fromUid,

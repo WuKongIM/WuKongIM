@@ -3,6 +3,7 @@ package process
 import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -38,20 +39,35 @@ func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messag
 
 	// 推送属于自己节点的用户消息
 	var pubshMessages []*reactor.ChannelMessage
+	var offlineUids []string // 需要推离线的用户
 	for _, node := range tag.Nodes {
 		if !options.G.IsLocalNode(node.LeaderId) {
 			continue
 		}
-		for _, msg := range messages {
-			for _, uid := range node.Uids {
+
+		for _, uid := range node.Uids {
+			if options.G.IsSystemUid(uid) {
+				continue
+			}
+			if !c.isOnline(uid) {
+				continue
+			}
+			if !c.masterDeviceIsOnline(uid) {
+				if offlineUids == nil {
+					offlineUids = make([]string, 0, len(node.Uids))
+				}
+				offlineUids = append(offlineUids, uid)
+			}
+
+			for _, msg := range messages {
+
 				if pubshMessages == nil {
 					pubshMessages = make([]*reactor.ChannelMessage, 0, len(messages)*len(node.Uids))
 				}
 				cloneMsg := msg.Clone()
 				cloneMsg.ToUid = uid
-				cloneMsg.MsgType = reactor.ChannelMsgPush
+				cloneMsg.MsgType = reactor.ChannelMsgPushOnline
 				pubshMessages = append(pubshMessages, cloneMsg)
-
 			}
 		}
 	}
@@ -59,4 +75,33 @@ func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messag
 		reactor.Push.PushMessages(pubshMessages)
 	}
 
+	if len(offlineUids) > 0 {
+		offlineMessages := make([]*reactor.ChannelMessage, 0, len(messages))
+		for _, msg := range messages {
+			cloneMsg := msg.Clone()
+			cloneMsg.OfflineUsers = offlineUids
+			cloneMsg.MsgType = reactor.ChannelMsgPushOffline
+			offlineMessages = append(offlineMessages, cloneMsg)
+		}
+		reactor.Push.PushMessages(offlineMessages)
+	}
+
+}
+
+func (c *Channel) isOnline(uid string) bool {
+	toConns := reactor.User.ConnsByUid(uid)
+	return len(toConns) > 0
+}
+
+// 用户的主设备是否在线
+func (c *Channel) masterDeviceIsOnline(uid string) bool {
+	toConns := reactor.User.ConnsByUid(uid)
+	online := false
+	for _, conn := range toConns {
+		if conn.DeviceLevel == wkproto.DeviceLevelMaster {
+			online = true
+			break
+		}
+	}
+	return online
 }

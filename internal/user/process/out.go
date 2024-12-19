@@ -1,12 +1,9 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -173,45 +170,6 @@ func (p *User) processOutbound(a reactor.UserAction) {
 
 }
 
-func (p *User) processWrite(a reactor.UserAction) {
-
-	if len(a.Messages) == 0 {
-		return
-	}
-	for _, m := range a.Messages {
-		if m.Conn == nil {
-			continue
-		}
-		if m.Conn.FromNode == 0 {
-			fmt.Println("processWrite: from node is 0", a.Uid)
-			continue
-		}
-		if !options.G.IsLocalNode(m.Conn.FromNode) {
-			reactor.User.AddMessageToOutbound(a.Uid, m)
-			continue
-		}
-		conn := service.ConnManager.GetConn(m.Conn.ConnId)
-		if conn == nil {
-			p.Warn("processWrite: conn not exist", zap.String("uid", a.Uid), zap.Uint64("fromNode", m.Conn.FromNode), zap.Int64("connId", m.Conn.ConnId))
-			continue
-		}
-		wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
-		if wsok {
-			err := wsConn.WriteServerBinary(m.WriteData)
-			if err != nil {
-				p.Warn("Failed to ws write the message", zap.Error(err))
-			}
-		} else {
-			_, err := conn.WriteToOutboundBuffer(m.WriteData)
-			if err != nil {
-				p.Warn("Failed to write the message", zap.Error(err))
-			}
-		}
-		_ = conn.WakeWrite()
-	}
-
-}
-
 func (p *User) processNodeHeartbeatReq(a reactor.UserAction) {
 
 	connIds := make([]int64, 0)
@@ -256,59 +214,4 @@ func (p *User) sendToNode(toNodeId uint64, msg *proto.Message) error {
 
 	err := service.Cluster.Send(toNodeId, msg)
 	return err
-}
-
-func (p *User) processConnect(uid string, msg *reactor.UserMessage) {
-	reasonCode, packet, err := p.handleConnect(msg)
-	if err != nil {
-		p.Error("handle connect failed", zap.Error(err), zap.String("uid", uid))
-		return
-	}
-	if reasonCode != wkproto.ReasonSuccess && packet == nil {
-		packet = &wkproto.ConnackPacket{
-			ReasonCode: reasonCode,
-		}
-	}
-
-	reactor.User.AddMessage(uid, &reactor.UserMessage{
-		Conn:   msg.Conn,
-		Frame:  packet,
-		ToNode: msg.Conn.FromNode,
-	})
-}
-
-func (p *User) processConnack(uid string, msg *reactor.UserMessage) {
-	conn := msg.Conn
-	if conn.FromNode == 0 {
-		p.Error("processConnack: from node is 0", zap.String("uid", uid))
-		return
-	}
-	if msg.Frame == nil {
-		p.Error("processConnack: frame is nil", zap.String("uid", uid))
-		return
-	}
-	if options.G.IsLocalNode(conn.FromNode) {
-		connack := msg.Frame.(*wkproto.ConnackPacket)
-		if connack.ReasonCode == wkproto.ReasonSuccess {
-			realConn := service.ConnManager.GetConn(conn.ConnId)
-			if realConn != nil {
-				realConn.SetMaxIdle(options.G.ConnIdleTime)
-				realConn.SetContext(conn)
-			}
-			connack.NodeId = options.G.Cluster.NodeId
-			// 更新连接
-			reactor.User.UpdateConn(conn)
-		}
-		reactor.User.ConnWrite(conn, connack)
-	} else {
-		reactor.User.AddMessageToOutbound(uid, msg)
-	}
-}
-
-func (p *User) processPing(msg *reactor.UserMessage) {
-	p.handlePing(msg)
-}
-
-func (p *User) processSend(msg *reactor.UserMessage) {
-	p.handleSend(msg)
 }

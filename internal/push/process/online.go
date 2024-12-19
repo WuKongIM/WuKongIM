@@ -1,20 +1,20 @@
 package process
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
-func (p *Push) processPush(messages []*reactor.ChannelMessage) {
+func (p *Push) processPushOnline(messages []*reactor.ChannelMessage) {
 	// 按照频道分组
 	channelMessages := p.groupByChannel(messages)
 	for channelKey, messages := range channelMessages {
@@ -42,10 +42,8 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 		}
 		toConns := reactor.User.ConnsByUid(message.ToUid)
 		if len(toConns) == 0 {
-			fmt.Println("不在线", message.ToUid)
 			continue
 		}
-		fmt.Println("在线", message.ToUid)
 
 		sendPacket := message.SendPacket
 		fromUid := message.Conn.Uid
@@ -133,21 +131,17 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 					RecvPacketData: recvPacketData,
 				})
 			}
+
+			// 统计
+			trace.GlobalTrace.Metrics.App().RecvPacketCountAdd(1)
+			trace.GlobalTrace.Metrics.App().RecvPacketBytesAdd(int64(len(recvPacketData)))
+
 			reactor.User.ConnWriteBytesNoAdvance(conn, recvPacketData)
 		}
 
 		reactor.User.Advance(message.ToUid)
 
 	}
-
-	// if len(offlineUids) > 0 {
-	// 	offlineUidsPtr := &offlineUids // 使用指针避免数组多次复制，节省内存
-	// 	for _, message := range messages {
-	// 		message.MsgType = reactor.ChannelMsgOffline
-	// 		message.OfflineUsers = offlineUidsPtr
-	// 	}
-	// 	reactor.Push.PushOfflineMessages(messages)
-	// }
 
 }
 
