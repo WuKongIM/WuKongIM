@@ -25,12 +25,6 @@ func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
 			ConnId:       m.Conn.ConnId,
 			protoVersion: m.Conn.ProtoVersion,
 		})
-
-		// make tag
-		if m.ReasonCode == wkproto.ReasonSuccess {
-			m.MsgType = reactor.ChannelMsgMakeTag
-			reactor.Channel.AddMessage(m)
-		}
 	}
 
 	for fromNode, reqs := range sendackMap {

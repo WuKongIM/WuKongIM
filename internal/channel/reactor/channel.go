@@ -73,7 +73,7 @@ func (c *Channel) ready() []reactor.ChannelAction {
 	if c.allowReady() {
 		// ---------- inbound ----------
 		if c.inbound.has() {
-			msgs := c.inbound.sliceAndTruncate()
+			msgs := c.inbound.sliceAndTruncate(options.MaxBatchBytes)
 			c.actions = append(c.actions, reactor.ChannelAction{
 				No:            c.no,
 				FakeChannelId: c.channelId,
@@ -114,15 +114,14 @@ func (c *Channel) allowReady() bool {
 // ==================================== step ====================================
 
 func (c *Channel) step(a reactor.ChannelAction) {
-
+	if a.Type != reactor.ChannelActionHeartbeatReq && a.Type != reactor.ChannelActionHeartbeatResp {
+		c.idleTick = 0
+	}
 	switch a.Type {
 	case reactor.ChannelActionConfigUpdate:
 		c.handleConfigUpdate(a.Cfg)
 	case reactor.ChannelActionInboundAdd: // 收件箱
 		for _, msg := range a.Messages {
-			if msg.MsgType == reactor.ChannelMsgSend {
-				c.idleTick = 0
-			}
 			c.inbound.append(msg)
 		}
 	case reactor.ChannelActionOutboundAdd: // 发送箱

@@ -47,6 +47,9 @@ type Options struct {
 	// ReceiveQueueLength 接收队列的长度。
 	ReceiveQueueLength uint64
 
+	// 每次处理消息的最大字节大小
+	MaxBatchBytes uint64
+
 	// Send 发送
 	Send func(actions []reactor.UserAction)
 }
@@ -63,6 +66,7 @@ func NewOptions() *Options {
 		ReceiveQueueLength:             1024,
 		OutboundForwardIntervalTick:    2,
 		OutboundForwardMaxMessageCount: 100,
+		MaxBatchBytes:                  1024 * 1024 * 10,
 	}
 	if goption.G.Stress {
 		opts.ReceiveQueueLength = 1024 * 10

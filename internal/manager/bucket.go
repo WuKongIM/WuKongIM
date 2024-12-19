@@ -5,8 +5,11 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
+	"github.com/valyala/fastrand"
+	"go.uber.org/zap"
 )
 
 type tagBlucket struct {
@@ -21,6 +24,7 @@ type tagBlucket struct {
 		m map[string]string
 	}
 	stopper *syncutil.Stopper
+	wklog.Log
 }
 
 func newTagBlucket(index int, expire time.Duration) *tagBlucket {
@@ -29,6 +33,7 @@ func newTagBlucket(index int, expire time.Duration) *tagBlucket {
 		index:   index,
 		expire:  expire,
 		stopper: syncutil.NewStopper(),
+		Log:     wklog.NewWKLog("tagBlucket"),
 	}
 	b.channel.m = make(map[string]string)
 	b.tag.m = make(map[string]*types.Tag)
@@ -45,7 +50,13 @@ func (b *tagBlucket) stop() {
 }
 
 func (b *tagBlucket) loop() {
-	tk := time.NewTicker(b.expire / 2)
+
+	scanInterval := b.expire / 2
+
+	p := float64(fastrand.Uint32()) / (1 << 32)
+	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。
+	jitter := time.Duration(p * float64(scanInterval))
+	tk := time.NewTicker(scanInterval + jitter)
 	defer tk.Stop()
 	for {
 		select {
@@ -74,6 +85,7 @@ func (b *tagBlucket) checkExpireTags() {
 	if len(removeTags) > 0 {
 		for _, removeTagKey := range removeTags {
 			delete(b.tag.m, removeTagKey)
+			b.Info("checkExpireTags: remove tag", zap.String("tagKey", removeTagKey))
 		}
 	}
 }

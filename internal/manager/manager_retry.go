@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"time"
 
@@ -56,7 +55,6 @@ func (r *RetryManager) RetryMessageCount() int {
 }
 
 func (r *RetryManager) AddRetry(msg *types.RetryMessage) {
-	fmt.Println("AddRetry----->", "uid", msg.Uid, "connId", msg.ConnId, "fromNode", msg.FromNode, "messageId:", msg.MessageId)
 	index := msg.MessageId % int64(len(r.retryQueues))
 	r.retryQueues[index].startInFlightTimeout(msg)
 }

@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -13,36 +11,50 @@ import (
 
 // 给消息打标签
 func (c *Channel) processMakeTag(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
-	// fmt.Println("processConversation--->")
+	// 获取或创建tag
 	tag, err := c.getOrMakeTag(fakeChannelId, channelType)
 	if err != nil {
 		c.Error("processConversation: get or make tag failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return
 	}
 
-	fmt.Println("get tag------>", tag.String())
+	hasLocalNode := false // 如果有本地节点投递任务
+	for _, node := range tag.Nodes {
+		if options.G.IsLocalNode(node.LeaderId) {
+			hasLocalNode = true
+			break
+		}
+	}
 	// 给消息打标签
 	for _, m := range messages {
+		// 打上标签
 		m.TagKey = tag.Key
+		// 去分发
+		m.MsgType = reactor.ChannelMsgDiffuse
 	}
 
-	// 如果不是本地节点，则转发消息
+	// 标签包含本地节点，才需要分发
+	if hasLocalNode {
+		reactor.Channel.AddMessages(fakeChannelId, channelType, messages)
+	}
+
+	// 发送消息给对应节点去分发
+	var nodeMessages []*reactor.ChannelMessage
 	for _, node := range tag.Nodes {
 		for _, m := range messages {
-			if m.SendPacket.NoPersist {
-				m.MsgType = reactor.ChannelMsgDiffuse
-			} else {
-				m.MsgType = reactor.ChannelMsgConversationUpdate
-			}
-			// 如果非本地节点，则发送到对应节点
 			if !options.G.IsLocalNode(node.LeaderId) {
+				if nodeMessages == nil {
+					nodeMessages = make([]*reactor.ChannelMessage, 0, len(messages))
+				}
 				cloneMsg := m.Clone()
 				cloneMsg.ToNode = node.LeaderId
-				reactor.Channel.AddMessageToOutboundNoAdvance(cloneMsg)
+				nodeMessages = append(nodeMessages, cloneMsg)
 			}
 		}
 	}
-	reactor.Channel.AddMessages(fakeChannelId, channelType, messages)
+	if len(nodeMessages) > 0 {
+		reactor.Channel.AddMessagesToOutbound(fakeChannelId, channelType, nodeMessages)
+	}
 }
 
 func (c *Channel) getOrMakeTag(fakeChannelId string, channelType uint8) (*types.Tag, error) {
@@ -97,7 +109,6 @@ func (c *Channel) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 		c.Error("diffuse: makeTag failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
-	fmt.Println("MakeTag--->", tag.Key, orgFakeChannelId, channelType)
 	service.TagManager.SetChannelTag(orgFakeChannelId, channelType, tag.Key)
 	return tag, nil
 }

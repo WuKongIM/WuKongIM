@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -10,8 +8,6 @@ import (
 )
 
 func (u *User) processRecvack(msg *reactor.UserMessage) {
-	fmt.Println("processRecvack--->", msg.Conn.Uid, msg.Conn.ConnId, msg.Conn.FromNode)
-
 	recvackPacket := msg.Frame.(*wkproto.RecvackPacket)
 	persist := !recvackPacket.NoPersist // 是否需要持久化
 

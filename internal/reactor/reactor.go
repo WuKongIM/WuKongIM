@@ -8,9 +8,6 @@ var User *UserPlus
 // 频道行为
 var Channel *ChannelPlus
 
-// 消息扩散
-var Diffuse *DiffusePlus
-
 // 推送
 var Push *PushPlus
 
@@ -23,10 +20,6 @@ func RegisterUser(u IUser) {
 
 func RegisterChannel(c IChannel) {
 	Channel = newChannelPlus(c)
-}
-
-func RegisterDiffuse(d IDiffuse) {
-	Diffuse = newDiffusePlus(d)
 }
 
 func RegisterPush(p IPush) {

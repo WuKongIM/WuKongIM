@@ -11,6 +11,7 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/valyala/fastrand"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -142,7 +143,13 @@ func (r *RetryQueue) inFlightMessagesCount() int {
 
 // Start 开始运行重试
 func (r *RetryQueue) Start() {
-	r.retryTimer = r.r.schedule(time.Second*5, func() {
+
+	scanInterval := time.Second * 5
+
+	p := float64(fastrand.Uint32()) / (1 << 32)
+	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。
+	jitter := time.Duration(p * float64(scanInterval))
+	r.retryTimer = r.r.schedule(scanInterval+jitter, func() {
 		now := time.Now().UnixNano()
 		r.processInFlightQueue(now)
 	})

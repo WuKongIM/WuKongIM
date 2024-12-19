@@ -11,4 +11,15 @@ const (
 	RoleLeader
 )
 
+func (r Role) String() string {
+	switch r {
+	case RoleFollower:
+		return "RoleFollower"
+	case RoleLeader:
+		return "RoleLeader"
+	default:
+		return "RoleUnknown"
+	}
+}
+
 const LocalNode uint64 = 0

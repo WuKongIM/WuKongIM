@@ -34,6 +34,9 @@ type Options struct {
 	ReceiveQueueLength uint64
 	// Send 发送
 	Send func(actions []reactor.ChannelAction)
+
+	// 每次处理消息的最大字节大小
+	MaxBatchBytes uint64
 }
 
 func NewOptions() *Options {
@@ -45,6 +48,7 @@ func NewOptions() *Options {
 		NodeHeartbeatTimeoutTick: 30,
 		LeaderIdleTimeoutTick:    30,
 		ReceiveQueueLength:       1024,
+		MaxBatchBytes:            1024 * 1024 * 10,
 	}
 
 	// 如果开启了压测模式，接收队列加大长度

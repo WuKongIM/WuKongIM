@@ -257,6 +257,14 @@ func (r *reactorSub) localConnById(uid string, id int64) *reactor.Conn {
 	return user.conns.connByConnId(options.NodeId, id)
 }
 
+func (r *reactorSub) localConnByUid(uid string) []*reactor.Conn {
+	user := r.user(uid)
+	if user == nil {
+		return nil
+	}
+	return user.conns.connsByNodeId(options.NodeId)
+}
+
 func (r *reactorSub) updateConn(uid string, connId int64, nodeId uint64, newConn *reactor.Conn) {
 	user := r.user(uid)
 	if user == nil {

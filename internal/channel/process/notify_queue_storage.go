@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// webhook通知队列
 func (c *Channel) processStorageNotifyQueue(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
 
 	var err error
@@ -17,10 +18,4 @@ func (c *Channel) processStorageNotifyQueue(fakeChannelId string, channelType ui
 			c.Error("store notify queue message failed", zap.Error(err), zap.Int("msgs", len(messages)), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		}
 	}
-
-	// 通知队列的消息不管有没有存储成功，都可以发送回执，因为消息本身已经存储成功
-	for _, m := range messages {
-		m.MsgType = reactor.ChannelMsgSendack
-	}
-	reactor.Channel.AddMessages(fakeChannelId, channelType, messages)
 }

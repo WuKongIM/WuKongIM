@@ -101,6 +101,10 @@ func (r *Reactor) LocalConnById(uid string, id int64) *reactor.Conn {
 	return r.getSub(uid).localConnById(uid, id)
 }
 
+func (r *Reactor) LocalConnByUid(uid string) []*reactor.Conn {
+	return r.getSub(uid).localConnByUid(uid)
+}
+
 func (r *Reactor) UpdateConn(c *reactor.Conn) {
 	r.getSub(c.Uid).updateConn(c.Uid, c.ConnId, c.FromNode, c)
 }

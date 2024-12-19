@@ -10,6 +10,7 @@ type Tag struct {
 	Nodes []*Node
 	// 最后一次获取时间
 	LastGetTime time.Time
+	NodeVersion uint64 // 生成tag时的当前节点版本号，如果当前节点版本号大于生成tag时的节点版本号，则tag失效
 }
 
 func (t *Tag) String() string {

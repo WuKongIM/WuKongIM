@@ -15,8 +15,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/api"
 	chprocess "github.com/WuKongIM/WuKongIM/internal/channel/process"
 	channelreactor "github.com/WuKongIM/WuKongIM/internal/channel/reactor"
-	dfprocess "github.com/WuKongIM/WuKongIM/internal/diffuse/process"
-	diffusereactor "github.com/WuKongIM/WuKongIM/internal/diffuse/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/manager"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -87,9 +85,6 @@ type Server struct {
 	// channel
 	processChannel *chprocess.Channel      // 频道逻辑处理
 	channelReactor *channelreactor.Reactor // 频道的reactor
-	// diffuse
-	processDiffuse *dfprocess.Diffuse      // 消息扩散逻辑处理
-	diffuseReactor *diffusereactor.Reactor // 消息扩散的reactor
 	// push
 	processPush *pprocess.Push       // 推送逻辑处理
 	pushReactor *pushreactor.Reactor // 推送的reactor
@@ -167,7 +162,9 @@ func New(opts *options.Options) *Server {
 	// manager
 	s.retryManager = manager.NewRetryManager()               // 消息重试管理
 	s.conversationManager = manager.NewConversationManager() // 会话管理
-	s.tagManager = manager.NewTagManager(16)
+	s.tagManager = manager.NewTagManager(16, func() uint64 {
+		return service.Cluster.NodeVersion()
+	})
 	// register service
 	service.ConnManager = manager.NewConnManager(18) // 连接管理
 	service.ConversationManager = s.conversationManager
@@ -265,13 +262,6 @@ func New(opts *options.Options) *Server {
 	)
 	reactor.RegisterUser(s.userReactor)
 
-	// 消息扩散逻辑处理
-	s.processDiffuse = dfprocess.New()
-	s.diffuseReactor = diffusereactor.New(
-		diffusereactor.WithSend(s.processDiffuse.Send),
-	)
-	reactor.RegisterDiffuse(s.diffuseReactor)
-
 	// push
 	s.processPush = pprocess.New()
 	s.pushReactor = pushreactor.New(
@@ -364,10 +354,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	err = s.diffuseReactor.Start()
-	if err != nil {
-		return err
-	}
+
 	err = s.pushReactor.Start()
 	if err != nil {
 		return err
@@ -438,7 +425,6 @@ func (s *Server) Stop() error {
 	}
 	s.channelReactor.Stop()
 	s.userReactor.Stop()
-	s.diffuseReactor.Stop()
 	s.pushReactor.Stop()
 
 	err := s.engine.Stop()
@@ -536,7 +522,7 @@ func (s *Server) onClose(conn wknet.Conn) {
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
 		connCtx := connCtxObj.(*reactor.Conn)
-		fmt.Println("gnet close--->", connCtx.Uid)
+		fmt.Println("gnet close--->", connCtx.Uid, connCtx.FromNode, connCtx.ConnId)
 
 		reactor.User.CloseConn(connCtx)
 	}

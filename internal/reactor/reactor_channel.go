@@ -25,6 +25,10 @@ func (c *ChannelPlus) WakeIfNeed(channelId string, channelType uint8) {
 	c.ch.WakeIfNeed(channelId, channelType)
 }
 
+func (c *ChannelPlus) Advance(channelId string, channelType uint8) {
+	c.ch.Advance(channelId, channelType)
+}
+
 func (c *ChannelPlus) Join(channelId string, channelType uint8, from uint64) {
 	c.WakeIfNeed(channelId, channelType)
 	c.ch.AddAction(ChannelAction{
