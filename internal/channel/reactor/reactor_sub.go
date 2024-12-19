@@ -58,7 +58,7 @@ func (r *reactorSub) loop() {
 
 	for {
 
-		if !goption.G.Stress {
+		if !goption.G.Violent {
 			if r.continReadEventCount < 1000 {
 				// 读取事件
 				r.readEvents()
@@ -177,7 +177,7 @@ func (r *reactorSub) tick() {
 
 func (r *reactorSub) addAction(a reactor.ChannelAction) bool {
 	// r.Info("addAction==", zap.String("channel", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType), zap.String("type", a.Type.String()))
-	if goption.G.Stress {
+	if goption.G.Violent {
 		r.mustAddAction(a)
 		return true
 	}

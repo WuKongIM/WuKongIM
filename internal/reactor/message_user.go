@@ -1,6 +1,8 @@
 package reactor
 
 import (
+	"time"
+
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -99,7 +101,9 @@ func (m *UserMessage) Decode(data []byte) error {
 		if err != nil {
 			return err
 		}
-		conn := &Conn{}
+		conn := &Conn{
+			Uptime: time.Now(),
+		}
 		err = conn.Decode(connBytes)
 		if err != nil {
 			return err

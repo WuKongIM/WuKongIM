@@ -3,6 +3,8 @@ package reactor
 type IChannel interface {
 	// AddAction 添加action，返回是否添加成功
 	AddAction(action ChannelAction) bool
+	// MustAddAction 必须添加action
+	MustAddAction(action ChannelAction)
 
 	// WakeIfNeed 唤醒频道，如果频道不存在
 	WakeIfNeed(channelId string, channelType uint8)
@@ -80,6 +82,18 @@ func (c *ChannelPlus) SendMessage(message *ChannelMessage) bool {
 	})
 	c.ch.Advance(message.FakeChannelId, message.ChannelType)
 	return added
+}
+
+func (c *ChannelPlus) MustSendMessage(message *ChannelMessage) {
+	c.ch.MustAddAction(ChannelAction{
+		FakeChannelId: message.FakeChannelId,
+		ChannelType:   message.ChannelType,
+		Type:          ChannelActionInboundAdd,
+		Messages: []*ChannelMessage{
+			message,
+		},
+	})
+	c.ch.Advance(message.FakeChannelId, message.ChannelType)
 }
 
 func (c *ChannelPlus) AddMessage(message *ChannelMessage) bool {

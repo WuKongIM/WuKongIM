@@ -13,4 +13,6 @@ type IConnManager interface {
 	GetConn(connID int64) wknet.Conn
 	// ConnCount 获取连接数量
 	ConnCount() int
+
+	GetAllConn() []wknet.Conn
 }

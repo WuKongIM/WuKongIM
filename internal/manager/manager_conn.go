@@ -47,6 +47,18 @@ func (m *ConnManager) ConnCount() int {
 	return connCount
 }
 
+func (m *ConnManager) GetAllConn() []wknet.Conn {
+	var conns []wknet.Conn
+	for _, b := range m.bluckets {
+		b.RLock()
+		for _, conn := range b.connMap {
+			conns = append(conns, conn)
+		}
+		b.RUnlock()
+	}
+	return conns
+}
+
 type connBlucket struct {
 	connMap map[int64]wknet.Conn
 	sync.RWMutex

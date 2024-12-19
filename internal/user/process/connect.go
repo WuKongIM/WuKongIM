@@ -7,12 +7,37 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+func (p *User) processConnect(uid string, msg *reactor.UserMessage) {
+	trace.GlobalTrace.Metrics.App().ConnPacketCountAdd(1)
+	trace.GlobalTrace.Metrics.App().ConnPacketBytesAdd(msg.Frame.GetFrameSize())
+	reasonCode, packet, err := p.handleConnect(msg)
+	if err != nil {
+		p.Error("handle connect failed", zap.Error(err), zap.String("uid", uid))
+		return
+	}
+	if reasonCode != wkproto.ReasonSuccess && packet == nil {
+		packet = &wkproto.ConnackPacket{
+			ReasonCode: reasonCode,
+		}
+	}
+
+	trace.GlobalTrace.Metrics.App().ConnackPacketCountAdd(1)
+	trace.GlobalTrace.Metrics.App().ConnackPacketBytesAdd(packet.GetFrameSize())
+
+	reactor.User.AddMessage(uid, &reactor.UserMessage{
+		Conn:   msg.Conn,
+		Frame:  packet,
+		ToNode: msg.Conn.FromNode,
+	})
+}
 
 func (p *User) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCode, *wkproto.ConnackPacket, error) {
 	var (

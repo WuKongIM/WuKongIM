@@ -253,13 +253,13 @@ func (c *conversationWorker) stop() {
 	c.stopper.Stop()
 }
 
-func (c *conversationWorker) push(req *conversationReq) {
-	select {
-	case c.reqCh <- req:
-	default:
-		c.Error("conversationWorker push req failed, reqCh is full", zap.String("flag", "chanFull"))
-	}
-}
+// func (c *conversationWorker) push(req *conversationReq) {
+// 	select {
+// 	case c.reqCh <- req:
+// 	default:
+// 		c.Error("conversationWorker push req failed, reqCh is full", zap.String("flag", "chanFull"))
+// 	}
+// }
 
 // func (c *conversationWorker) loop() {
 // 	for {

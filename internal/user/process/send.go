@@ -3,6 +3,7 @@ package process
 import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
@@ -10,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *User) handleSend(msg *reactor.UserMessage) {
+func (p *User) processSend(msg *reactor.UserMessage) {
 
 	sendPacket := msg.Frame.(*wkproto.SendPacket)
 	channelId := sendPacket.ChannelID
@@ -39,6 +40,8 @@ func (p *User) handleSend(msg *reactor.UserMessage) {
 	// 根据需要唤醒频道
 	reactor.Channel.WakeIfNeed(fakeChannelId, channelType)
 
+	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
+	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(sendPacket.GetFrameSize())
 	// 添加消息到频道
 	reactor.Channel.SendMessage(&reactor.ChannelMessage{
 		FakeChannelId: fakeChannelId,

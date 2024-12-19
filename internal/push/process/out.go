@@ -35,27 +35,27 @@ func (p *Push) processInbound(a reactor.PushAction) {
 		return
 	}
 	// 从收件箱中取出消息
-	var pushMessages []*reactor.ChannelMessage
+	var onlineMessages []*reactor.ChannelMessage
 	var offlineMessages []*reactor.ChannelMessage
 	for _, msg := range a.Messages {
 		switch msg.MsgType {
-		case reactor.ChannelMsgPush: // 在线消息
-			if pushMessages == nil {
-				pushMessages = make([]*reactor.ChannelMessage, 0, 10)
+		case reactor.ChannelMsgPushOnline: // 在线消息
+			if onlineMessages == nil {
+				onlineMessages = make([]*reactor.ChannelMessage, 0, 10)
 			}
-			pushMessages = append(pushMessages, msg)
-		case reactor.ChannelMsgOffline: // 离线消息
+			onlineMessages = append(onlineMessages, msg)
+		case reactor.ChannelMsgPushOffline: // 离线消息
 			if offlineMessages == nil {
 				offlineMessages = make([]*reactor.ChannelMessage, 0, 50)
 			}
 			offlineMessages = append(offlineMessages, msg)
 		}
 	}
-	if len(pushMessages) > 0 {
-		p.processPush(pushMessages)
+	if len(onlineMessages) > 0 {
+		p.processPushOnline(onlineMessages)
 	}
 	if len(offlineMessages) > 0 {
-		p.processOffline(offlineMessages)
+		p.processPushOffline(offlineMessages)
 	}
 
 }

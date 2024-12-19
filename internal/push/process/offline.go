@@ -6,6 +6,6 @@ import (
 )
 
 // 处理离线消息
-func (p *Push) processOffline(messages []*reactor.ChannelMessage) {
+func (p *Push) processPushOffline(messages []*reactor.ChannelMessage) {
 	service.Webhook.NotifyOfflineMsg(messages)
 }
