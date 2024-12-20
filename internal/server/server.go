@@ -29,7 +29,6 @@ import (
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
-	"github.com/WuKongIM/WuKongIM/pkg/promtail"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
@@ -57,12 +56,11 @@ type Server struct {
 	store         *clusterstore.Store      // 存储相关接口
 	engine        *wknet.Engine            // 长连接引擎
 	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
-	trace          *trace.Trace       // 监控
-	demoServer     *DemoServer        // demo server
-	datasource     IDatasource        // 数据源
-	promtailServer *promtail.Promtail // 日志收集, 负责收集WuKongIM的日志 上报给Loki
-	apiServer      *api.Server        // api服务
-	ingress        *ingress.Ingress
+	trace      *trace.Trace // 监控
+	demoServer *DemoServer  // demo server
+	datasource IDatasource  // 数据源
+	apiServer  *api.Server  // api服务
+	ingress    *ingress.Ingress
 
 	// 管理者
 	retryManager        *manager.RetryManager        // 消息重试管理
@@ -221,18 +219,6 @@ func New(opts *options.Options) *Server {
 		s.handleClusterMessage(fromNodeId, msg)
 	})
 
-	// 日志收集
-	if s.opts.LokiOn() {
-		s.Info("Loki is on")
-		s.promtailServer = promtail.New(&promtail.Options{
-			NodeId:  s.opts.Cluster.NodeId,
-			Url:     s.opts.Logger.Loki.Url,
-			LogDir:  s.opts.Logger.Dir,
-			Address: s.opts.External.APIUrl,
-			Job:     s.opts.Logger.Loki.Job,
-		})
-	}
-
 	// 频道的reactor
 	s.processChannel = chprocess.New()
 	s.channelReactor = channelreactor.New(
@@ -375,13 +361,6 @@ func (s *Server) Start() error {
 		s.Panic("webhook start error", zap.Error(err))
 	}
 
-	if s.opts.LokiOn() {
-		err = s.promtailServer.Start()
-		if err != nil {
-			return err
-		}
-	}
-
 	if err = s.apiServer.Start(); err != nil {
 		return err
 	}
@@ -430,10 +409,6 @@ func (s *Server) Stop() error {
 	s.tagManager.Stop()
 
 	s.webhook.Stop()
-
-	if s.opts.LokiOn() {
-		s.promtailServer.Stop()
-	}
 
 	s.Info("Server is stopped")
 

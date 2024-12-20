@@ -71,11 +71,12 @@ type Options struct {
 	}
 
 	Logger struct {
-		Dir     string // 日志存储目录
-		Level   zapcore.Level
-		LineNum bool     // 是否显示代码行数
-		TraceOn bool     // 是否开启trace
-		Loki    struct { // loki配置
+		Dir              string // 日志存储目录
+		Level            zapcore.Level
+		LineNum          bool     // 是否显示代码行数
+		TraceOn          bool     // 是否开启trace
+		TraceMaxMsgCount int      // 超过此消息数量，将不打印trace日志
+		Loki             struct { // loki配置
 			Url      string // loki地址 例如： http://localhost:3100
 			Username string
 			Password string
@@ -301,21 +302,23 @@ func New(op ...Option) *Options {
 		WhitelistOffOfPerson: true,
 		DeadlockCheck:        false,
 		Logger: struct {
-			Dir     string
-			Level   zapcore.Level
-			LineNum bool
-			TraceOn bool
-			Loki    struct {
+			Dir              string
+			Level            zapcore.Level
+			LineNum          bool
+			TraceOn          bool
+			TraceMaxMsgCount int
+			Loki             struct {
 				Url      string
 				Username string
 				Password string
 				Job      string
 			}
 		}{
-			Dir:     "",
-			Level:   zapcore.InfoLevel,
-			LineNum: false,
-			TraceOn: false,
+			Dir:              "",
+			Level:            zapcore.InfoLevel,
+			LineNum:          false,
+			TraceOn:          false,
+			TraceMaxMsgCount: 10,
 			Loki: struct {
 				Url      string
 				Username string
@@ -1077,7 +1080,7 @@ func (o *Options) configureLog(vp *viper.Viper) {
 	o.Logger.LineNum = o.getBool("logger.lineNum", o.Logger.LineNum)
 
 	o.Logger.TraceOn = o.getBool("logger.traceOn", o.Logger.TraceOn)
-
+	o.Logger.TraceMaxMsgCount = o.getInt("logger.traceMaxMsgCount", o.Logger.TraceMaxMsgCount)
 	o.Logger.Loki.Url = o.getString("logger.loki.url", o.Logger.Loki.Url)
 	o.Logger.Loki.Username = o.getString("logger.loki.username", o.Logger.Loki.Username)
 	o.Logger.Loki.Password = o.getString("logger.loki.password", o.Logger.Loki.Password)

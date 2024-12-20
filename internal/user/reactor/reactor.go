@@ -51,7 +51,9 @@ func (r *Reactor) WakeIfNeed(uid string) {
 	if sub.exist(uid) {
 		return
 	}
-	user := NewUser(wkutil.GenUUID(), uid)
+	user := NewUser(wkutil.GenUUID(), uid, func() {
+		sub.advance()
+	})
 	sub.addUser(user)
 }
 

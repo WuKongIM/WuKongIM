@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -14,6 +15,12 @@ import (
 
 // 发送者权限判断
 func (c *Channel) processPermission(channelId string, channelType uint8, msgs []*reactor.ChannelMessage) {
+
+	// 记录消息轨迹
+	for _, m := range msgs {
+		m.Track.Record(track.PositionChannelPermission)
+	}
+
 	reasonCode, err := c.hasPermissionForChannel(channelId, channelType)
 	if err != nil {
 		c.Error("hasPermissionForChannel error", zap.Error(err))

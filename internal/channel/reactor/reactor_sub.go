@@ -85,11 +85,12 @@ func (r *reactorSub) readEvents() {
 
 	hasEvent := false
 
-	event := r.handleEvents()
+	event := r.handleReceivedActions()
 	if event {
 		hasEvent = true
 	}
-	event = r.handleReceivedActions()
+
+	event = r.handleEvents()
 	if event {
 		hasEvent = true
 	}

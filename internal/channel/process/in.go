@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
 )
@@ -59,6 +60,13 @@ func (p *Channel) handleOutboundReq(m *proto.Message) {
 		p.Warn("channel: outbound request from self", zap.Uint64("fromNode", req.fromNode))
 		return
 	}
+
+	for _, m := range req.messages {
+		if m.MsgType == reactor.ChannelMsgSend {
+			m.Track.Record(track.PositionNodeOnSend)
+		}
+	}
+
 	reactor.Channel.WakeIfNeed(req.channelId, req.channelType)
 	reactor.Channel.AddMessages(req.channelId, req.channelType, req.messages)
 }

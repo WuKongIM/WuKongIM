@@ -7,7 +7,7 @@ tokenAuthOn: false
 stress: true
 # whitelistOffOfPerson: false
 logger:
-  traceOn: false
+  traceOn: true
 #   loki:
 #     url: "http://127.0.0.1:3100"
 trace: 

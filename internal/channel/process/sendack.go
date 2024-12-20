@@ -4,6 +4,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -11,6 +12,25 @@ import (
 )
 
 func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
+	for _, m := range messages {
+		m.Track.Record(track.PositionChannelSendack)
+		if options.G.Logger.TraceOn {
+			c.Trace(m.Track.String(),
+				"sendack",
+				zap.Int64("messageId", m.MessageId),
+				zap.Uint64("messageSeq", m.MessageSeq),
+				zap.Uint64("clientSeq", m.SendPacket.ClientSeq),
+				zap.String("clientMsgNo", m.SendPacket.ClientMsgNo),
+				zap.String("channelId", m.FakeChannelId),
+				zap.Uint8("channelType", m.ChannelType),
+				zap.String("reasonCode", m.ReasonCode.String()),
+				zap.String("conn.uid", m.Conn.Uid),
+				zap.String("conn.deviceId", m.Conn.DeviceId),
+				zap.Uint64("conn.fromNode", m.Conn.FromNode),
+				zap.Int64("conn.connId", m.Conn.ConnId),
+			)
+		}
+	}
 
 	sendackMap := make(map[uint64][]*sendackReq)
 	for _, m := range messages {
@@ -26,6 +46,7 @@ func (c *Channel) processSendack(messages []*reactor.ChannelMessage) {
 			ConnId:       m.Conn.ConnId,
 			protoVersion: m.Conn.ProtoVersion,
 		})
+
 	}
 
 	for fromNode, reqs := range sendackMap {

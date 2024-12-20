@@ -3,6 +3,7 @@ package process
 import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -12,6 +13,9 @@ import (
 )
 
 func (p *User) processSend(msg *reactor.UserMessage) {
+
+	// 记录消息路径
+	msg.Track.Record(track.PositionUserOnSend)
 
 	sendPacket := msg.Frame.(*wkproto.SendPacket)
 	channelId := sendPacket.ChannelID
@@ -50,6 +54,7 @@ func (p *User) processSend(msg *reactor.UserMessage) {
 		SendPacket:    sendPacket,
 		MsgType:       reactor.ChannelMsgSend,
 		MessageId:     msg.MessageId,
+		Track:         msg.Track,
 	})
 }
 

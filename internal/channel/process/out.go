@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -58,7 +56,6 @@ func (c *Channel) processElection(a reactor.ChannelAction) {
 
 	timeoutCtx, cancel := c.WithTimeout()
 	defer cancel()
-	fmt.Println("LoadOrCreateChannel====>", a.FakeChannelId, a.ChannelType)
 	cfg, err := service.Cluster.LoadOrCreateChannel(timeoutCtx, a.FakeChannelId, a.ChannelType)
 	if err != nil {
 		c.Error("load or create channel failed", zap.Error(err), zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType))

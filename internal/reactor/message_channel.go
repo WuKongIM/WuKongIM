@@ -3,6 +3,7 @@ package reactor
 import (
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -73,6 +74,9 @@ type ChannelMessage struct {
 	TagKey        string              // 标签key
 	ToUid         string              // 接收者
 	OfflineUsers  []string            // 离线用户的数组（投递离线的时候需要）
+
+	// 消息记录
+	Track track.Message
 }
 
 func (c *ChannelMessage) Clone() *ChannelMessage {
@@ -89,6 +93,7 @@ func (c *ChannelMessage) Clone() *ChannelMessage {
 		ReasonCode:    c.ReasonCode,
 		TagKey:        c.TagKey,
 		ToUid:         c.ToUid,
+		Track:         c.Track.Clone(),
 	}
 }
 
@@ -109,13 +114,17 @@ func (c *ChannelMessage) Size() uint64 {
 	size += 1
 	size += uint64(len(c.TagKey)) + 1
 	size += uint64(len(c.ToUid)) + 1
+
+	if c.Track.HasData() {
+		size += c.Track.Size()
+	}
 	return size
 }
 
 func (c *ChannelMessage) Encode() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	flag := c.hasConn()<<7 | c.hasSendPacket()<<6
+	flag := c.hasConn()<<7 | c.hasSendPacket()<<6 | c.hasTrack()<<5
 	enc.WriteUint8(flag)
 	if c.hasConn() == 1 {
 		data, err := c.Conn.Encode()
@@ -143,6 +152,10 @@ func (c *ChannelMessage) Encode() ([]byte, error) {
 	enc.WriteUint8(uint8(c.ReasonCode))
 	enc.WriteString(c.TagKey)
 	enc.WriteString(c.ToUid)
+	if c.hasTrack() == 1 {
+		data := c.Track.Encode()
+		enc.WriteBytes(data)
+	}
 	return enc.Bytes(), nil
 
 }
@@ -156,6 +169,7 @@ func (c *ChannelMessage) Decode(data []byte) error {
 	}
 	hasConn := flag >> 7 & 0x01
 	hasSendPacket := flag >> 6 & 0x01
+	hasTrack := flag >> 5 & 0x01
 	if hasConn == 1 {
 		connLen, err := dec.Uint16()
 		if err != nil {
@@ -222,6 +236,18 @@ func (c *ChannelMessage) Decode(data []byte) error {
 	if c.ToUid, err = dec.String(); err != nil {
 		return err
 	}
+	if hasTrack == 1 {
+		recordBytes, err := dec.BinaryAll()
+		if err != nil {
+			return err
+		}
+		record := track.Message{}
+		err = record.Decode(recordBytes)
+		if err != nil {
+			return err
+		}
+		c.Track = record
+	}
 
 	return nil
 }
@@ -235,6 +261,12 @@ func (c *ChannelMessage) hasConn() uint8 {
 
 func (c *ChannelMessage) hasSendPacket() uint8 {
 	if c.SendPacket != nil {
+		return 1
+	}
+	return 0
+}
+func (c *ChannelMessage) hasTrack() uint8 {
+	if c.Track.HasData() {
 		return 1
 	}
 	return 0

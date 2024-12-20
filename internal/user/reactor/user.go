@@ -33,9 +33,10 @@ type User struct {
 	// 将数据投递给自己直连的客户端
 	clientOutbound *ready
 	nodeVersion    uint64
+	advance        func()
 }
 
-func NewUser(no, uid string) *User {
+func NewUser(no, uid string, advance func()) *User {
 
 	prefix := fmt.Sprintf("user[%s]", uid)
 	u := &User{
@@ -46,6 +47,7 @@ func NewUser(no, uid string) *User {
 		inbound:        newReady(prefix),
 		clientOutbound: newReady(prefix),
 		nodeVersion:    options.NodeVersion(),
+		advance:        advance,
 	}
 	u.outbound = newOutboundReady(prefix, u)
 	return u
@@ -217,6 +219,9 @@ func (u *User) stepFollower(action reactor.UserAction) {
 	// 领导返回加入结果
 	case reactor.UserActionJoinResp:
 		u.joined = action.Success
+		if u.advance != nil {
+			u.advance()
+		}
 	}
 }
 
@@ -401,7 +406,9 @@ func (u *User) becomeLeader() {
 	u.tickFnc = u.tickLeader
 
 	u.Info("become leader")
-
+	if u.advance != nil {
+		u.advance()
+	}
 	trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(1)
 
 }
@@ -415,6 +422,11 @@ func (u *User) becomeFollower() {
 	u.outbound.addNewReplica(u.cfg.LeaderId)
 
 	u.Info("become follower")
+
+	if u.advance != nil {
+		u.advance()
+	}
+
 }
 
 func (u *User) becomeUnknown() {

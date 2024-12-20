@@ -40,13 +40,18 @@ type Options struct {
 }
 
 func NewOptions() *Options {
+	tickInterval := time.Millisecond * 200
+
+	leaderIdleTimeout := time.Minute * 10 // 10分钟后无任何消息，关闭频道
+	LeaderIdleTimeoutTick := int(leaderIdleTimeout / tickInterval)
+
 	opts := &Options{
-		TickInterval:             time.Millisecond * 200,
+		TickInterval:             tickInterval,
 		RetryIntervalTick:        10,
 		SubCount:                 16,
 		NodeHeartbeatTick:        10,
 		NodeHeartbeatTimeoutTick: 30,
-		LeaderIdleTimeoutTick:    30,
+		LeaderIdleTimeoutTick:    LeaderIdleTimeoutTick,
 		ReceiveQueueLength:       1024,
 		MaxBatchBytes:            1024 * 1024 * 10,
 	}

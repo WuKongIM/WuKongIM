@@ -40,7 +40,7 @@ func TestUser(t *testing.T) {
 		return 1
 	}
 
-	u := NewUser("no", "uid")
+	u := NewUser("no", "uid", nil)
 
 	becomeLeader := func() {
 		u.step(reactor.UserAction{
@@ -206,7 +206,7 @@ func TestUserRoleChange(t *testing.T) {
 	options.NodeVersion = func() uint64 {
 		return 1
 	}
-	u := NewUser("no", "uid")
+	u := NewUser("no", "uid", nil)
 
 	u.step(reactor.UserAction{
 		Type: reactor.UserActionInboundAdd,
