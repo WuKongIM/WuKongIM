@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -22,7 +20,7 @@ func (u *User) processConnClose(a reactor.UserAction) {
 		}
 		conn := service.ConnManager.GetConn(c.ConnId)
 		if conn == nil {
-			u.Warn("processConnClose: conn not exist", zap.String("uid", a.Uid), zap.Int64("connId", c.ConnId))
+			u.Debug("processConnClose: conn not exist", zap.String("uid", a.Uid), zap.Int64("connId", c.ConnId))
 			continue
 		}
 		err := conn.Close()
@@ -34,9 +32,7 @@ func (u *User) processConnClose(a reactor.UserAction) {
 
 // 用户关闭了
 func (u *User) processUserClose(a reactor.UserAction) {
-	fmt.Println("user close--->", a.Uid)
 	for _, c := range a.Conns {
-		fmt.Println("close conn--->", c.ConnId, c.FromNode, c.Uid)
 		conn := service.ConnManager.GetConn(c.ConnId)
 		if conn == nil {
 			continue

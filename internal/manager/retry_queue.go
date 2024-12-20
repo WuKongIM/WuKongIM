@@ -60,7 +60,7 @@ func (r *RetryQueue) pushInFlightMessage(msg *types.RetryMessage) {
 	key := r.getInFlightKey(msg.FromNode, msg.ConnId, msg.MessageId)
 	_, ok := r.inFlightMessages[key]
 	if ok {
-		r.Warn("ID already in flight", zap.String("key", key), zap.String("uid", msg.Uid), zap.Int64("connId", msg.ConnId), zap.Uint64("fromNode", msg.FromNode), zap.Int64("messageId", msg.MessageId))
+		r.Warn("ID already in flight", zap.String("key", key), zap.String("uid", msg.Uid), zap.Uint64("fromNode", msg.FromNode), zap.Int64("connId", msg.ConnId), zap.Int64("messageId", msg.MessageId))
 		return
 	}
 	r.inFlightMessages[key] = msg
@@ -73,7 +73,7 @@ func (r *RetryQueue) popInFlightMessage(fromNodeId uint64, connId int64, message
 	key := r.getInFlightKey(fromNodeId, connId, messageId)
 	msg, ok := r.inFlightMessages[key]
 	if !ok {
-		r.Warn("ID not in flight", zap.String("key", key), zap.Int64("connId", connId), zap.Int64("messageId", messageId))
+		r.Warn("ID not in flight", zap.String("key", key), zap.Uint64("fromNode", fromNodeId), zap.Int64("connId", connId), zap.Int64("messageId", messageId))
 		return nil, errors.New("ID not in flight")
 	}
 	delete(r.inFlightMessages, key)
@@ -127,7 +127,7 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 		}
 		err := r.finishMessage(msg.FromNode, msg.ConnId, msg.MessageId)
 		if err != nil {
-			r.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.Int64("connId", msg.ConnId), zap.Int64("messageId", msg.MessageId))
+			r.Error("processInFlightQueue-finishMessage失败", zap.Error(err), zap.Uint64("fromNode", msg.FromNode), zap.Int64("connId", msg.ConnId), zap.Int64("messageId", msg.MessageId))
 			break
 		}
 		r.r.retry(msg) // 重试

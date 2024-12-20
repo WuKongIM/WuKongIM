@@ -76,36 +76,36 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 		recvPacket.Timestamp = int32(time.Now().Unix())
 		recvPacket.ClientSeq = sendPacket.ClientSeq
 
-		for _, conn := range toConns {
-			if conn.Uid == message.Conn.Uid && conn.DeviceId == message.Conn.DeviceId { // 自己发的不处理
+		for _, toConn := range toConns {
+			if toConn.Uid == message.Conn.Uid && toConn.DeviceId == message.Conn.DeviceId { // 自己发的不处理
 				continue
 			}
 
 			// 这里需要把channelID改成fromUID 比如A给B发消息，B收到的消息channelID应该是A A收到的消息channelID应该是B
 			recvPacket.ChannelID = sendPacket.ChannelID
 			if recvPacket.ChannelType == wkproto.ChannelTypePerson &&
-				recvPacket.ChannelID == conn.Uid {
+				recvPacket.ChannelID == toConn.Uid {
 				recvPacket.ChannelID = recvPacket.FromUID
 			}
 			// 红点设置
 			recvPacket.RedDot = sendPacket.RedDot
-			if conn.Uid == recvPacket.FromUID { // 如果是自己则不显示红点
+			if toConn.Uid == recvPacket.FromUID { // 如果是自己则不显示红点
 				recvPacket.RedDot = false
 			}
-			if len(conn.AesIV) == 0 || len(conn.AesKey) == 0 {
+			if len(toConn.AesIV) == 0 || len(toConn.AesKey) == 0 {
 				p.Error("aesIV or aesKey is empty",
-					zap.String("uid", conn.Uid),
-					zap.String("deviceId", conn.DeviceId),
+					zap.String("uid", toConn.Uid),
+					zap.String("deviceId", toConn.DeviceId),
 					zap.String("channelId", recvPacket.ChannelID),
 					zap.Uint8("channelType", recvPacket.ChannelType),
 				)
 				continue
 			}
-			encryptPayload, err := encryptMessagePayload(sendPacket.Payload, conn)
+			encryptPayload, err := encryptMessagePayload(sendPacket.Payload, toConn)
 			if err != nil {
 				p.Error("加密payload失败！",
 					zap.Error(err),
-					zap.String("uid", conn.Uid),
+					zap.String("uid", toConn.Uid),
 					zap.String("channelId", recvPacket.ChannelID),
 					zap.Uint8("channelType", recvPacket.ChannelType),
 				)
@@ -113,23 +113,23 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 			}
 			recvPacket.Payload = encryptPayload
 			signStr := recvPacket.VerityString()
-			msgKey, err := makeMsgKey(signStr, conn)
+			msgKey, err := makeMsgKey(signStr, toConn)
 			if err != nil {
 				p.Error("生成MsgKey失败！", zap.Error(err))
 				continue
 			}
 			recvPacket.MsgKey = msgKey
-			recvPacketData, err := reactor.Proto.EncodeFrame(recvPacket, conn.ProtoVersion)
+			recvPacketData, err := reactor.Proto.EncodeFrame(recvPacket, toConn.ProtoVersion)
 			if err != nil {
-				p.Error("encode recvPacket failed", zap.String("uid", conn.Uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
+				p.Error("encode recvPacket failed", zap.String("uid", toConn.Uid), zap.String("channelId", recvPacket.ChannelID), zap.Uint8("channelType", recvPacket.ChannelType), zap.Error(err))
 				continue
 			}
 
 			if !recvPacket.NoPersist { // 只有存储的消息才重试
 				service.RetryManager.AddRetry(&types.RetryMessage{
-					Uid:            conn.Uid,
-					ConnId:         conn.ConnId,
-					FromNode:       conn.FromNode,
+					Uid:            toConn.Uid,
+					ConnId:         toConn.ConnId,
+					FromNode:       toConn.FromNode,
 					MessageId:      message.MessageId,
 					RecvPacketData: recvPacketData,
 				})
@@ -139,7 +139,7 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 			trace.GlobalTrace.Metrics.App().RecvPacketCountAdd(1)
 			trace.GlobalTrace.Metrics.App().RecvPacketBytesAdd(int64(len(recvPacketData)))
 
-			reactor.User.ConnWriteBytesNoAdvance(conn, recvPacketData)
+			reactor.User.ConnWriteBytesNoAdvance(toConn, recvPacketData)
 		}
 
 		reactor.User.Advance(message.ToUid)
