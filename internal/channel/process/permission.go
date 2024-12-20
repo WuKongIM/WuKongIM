@@ -41,11 +41,13 @@ func (c *Channel) processPermission(channelId string, channelType uint8, msgs []
 			m.ReasonCode = reasonCode
 
 			if reasonCode == wkproto.ReasonSuccess {
-				if !m.SendPacket.NoPersist {
+				isPersist := !m.SendPacket.NoPersist
+				if isPersist {
 					m.MsgType = reactor.ChannelMsgStorage
 				} else { // 非存储的消息直接通知webhook队列（存储的消息要存储成功后，再通知）
 					// 如果开启了webhook，则复制一份到通知队列
-					if options.G.WebhookOn(types.EventMsgNotify) {
+					if options.G.WebhookOn(types.EventMsgNotify) && !options.G.IsSystemDevice(m.Conn.DeviceId) {
+
 						if notifyQueueMsgs == nil {
 							notifyQueueMsgs = make([]*reactor.ChannelMessage, 0, len(msgs))
 						}
@@ -70,6 +72,7 @@ func (c *Channel) processPermission(channelId string, channelType uint8, msgs []
 }
 
 func (c *Channel) hasPermissionForChannel(channelId string, channelType uint8) (wkproto.ReasonCode, error) {
+
 	// 查询频道基本信息
 	channelInfo, err := service.Store.GetChannel(channelId, channelType)
 	if err != nil {
@@ -110,6 +113,11 @@ func (c *Channel) hasPermissionForSender(m *reactor.ChannelMessage) (wkproto.Rea
 	}
 	// 客服频道，直接通过
 	if channelType == wkproto.ChannelTypeCustomerService {
+		return wkproto.ReasonSuccess, nil
+	}
+
+	// 系统发的消息直接通过
+	if options.G.IsSystemDevice(m.Conn.DeviceId) {
 		return wkproto.ReasonSuccess, nil
 	}
 
