@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -123,6 +124,9 @@ func (s *Server) onData(conn wknet.Conn) error {
 			msg := &reactor.UserMessage{
 				Frame: frame,
 				Conn:  connCtx,
+				Track: track.Message{
+					PreStart: time.Now(),
+				},
 			}
 			if frame.GetFrameType() == wkproto.SEND {
 				msg.MessageId = options.G.GenMessageId()

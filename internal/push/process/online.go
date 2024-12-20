@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -44,6 +45,8 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 		if len(toConns) == 0 {
 			continue
 		}
+		// 记录消息轨迹
+		message.Track.Record(track.PositionPushOnline)
 
 		sendPacket := message.SendPacket
 		fromUid := message.Conn.Uid
@@ -141,6 +144,27 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 
 		reactor.User.Advance(message.ToUid)
 
+	}
+
+	if options.G.Logger.TraceOn {
+		if len(messages) < options.G.Logger.TraceMaxMsgCount { // 消息数小于指定数量才打印，要不然日志太多了
+			for _, m := range messages {
+				p.Trace(m.Track.String(),
+					"pushOnline",
+					zap.Int64("messageId", m.MessageId),
+					zap.Uint64("messageSeq", m.MessageSeq),
+					zap.Uint64("clientSeq", m.SendPacket.ClientSeq),
+					zap.String("clientMsgNo", m.SendPacket.ClientMsgNo),
+					zap.String("channelId", m.FakeChannelId),
+					zap.Uint8("channelType", m.ChannelType),
+					zap.String("reasonCode", m.ReasonCode.String()),
+					zap.String("conn.uid", m.Conn.Uid),
+					zap.String("conn.deviceId", m.Conn.DeviceId),
+					zap.Uint64("conn.fromNode", m.Conn.FromNode),
+					zap.Int64("conn.connId", m.Conn.ConnId),
+				)
+			}
+		}
 	}
 
 }

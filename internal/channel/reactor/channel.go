@@ -29,9 +29,10 @@ type Channel struct {
 	joined   bool                  // 是否已成功加入集群
 	cfg      reactor.ChannelConfig // 频道配置
 	wklog.Log
+	advance func()
 }
 
-func NewChannel(channelId string, channelType uint8) *Channel {
+func NewChannel(channelId string, channelType uint8, advance func()) *Channel {
 	key := wkutil.ChannelToKey(channelId, channelType)
 	prefix := fmt.Sprintf("channel[%s]", key)
 	ch := &Channel{
@@ -41,6 +42,7 @@ func NewChannel(channelId string, channelType uint8) *Channel {
 		no:          wkutil.GenUUID(),
 		inbound:     newReady(prefix),
 		Log:         wklog.NewWKLog(prefix),
+		advance:     advance,
 	}
 	ch.outbound = newOutboundReady(prefix, ch)
 
@@ -155,6 +157,9 @@ func (c *Channel) stepFollower(a reactor.ChannelAction) {
 	case reactor.ChannelActionJoinResp:
 		if a.From == c.cfg.LeaderId {
 			c.joined = true
+			if c.advance != nil {
+				c.advance()
+			}
 		}
 	}
 }
@@ -285,6 +290,9 @@ func (c *Channel) becomeLeader() {
 	c.tickFnc = c.tickLeader
 
 	c.Info("become leader")
+	if c.advance != nil {
+		c.advance()
+	}
 
 }
 
@@ -297,6 +305,10 @@ func (c *Channel) becomeFollower() {
 	c.outbound.addNewReplica(c.cfg.LeaderId)
 
 	c.Info("become follower", zap.Uint64("leaderId", c.cfg.LeaderId))
+
+	if c.advance != nil {
+		c.advance()
+	}
 }
 
 func (c *Channel) becomeUnknown() {
@@ -305,6 +317,7 @@ func (c *Channel) becomeUnknown() {
 	c.tickFnc = nil
 
 	c.Info("become unknown")
+
 }
 
 // ==================================== other ====================================

@@ -3,6 +3,7 @@ package reactor
 import (
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -30,6 +31,8 @@ type UserMessage struct {
 	ToNode    uint64
 	MessageId int64 // 消息id
 
+	// 消息记录
+	Track track.Message
 }
 
 func (m *UserMessage) Size() uint64 {
@@ -42,6 +45,9 @@ func (m *UserMessage) Size() uint64 {
 	}
 	size += uint64(len(m.WriteData))
 	size += 8 + 8
+	if m.Track.HasData() {
+		size += m.Track.Size()
+	}
 	return size
 }
 
@@ -51,8 +57,9 @@ func (m *UserMessage) Encode() ([]byte, error) {
 	hasConn := m.hasConn()
 	hasFrame := m.hasFrame()
 	hasWriteData := m.hasWriteData()
+	hasTrack := m.hasTrack()
 
-	var flag uint8 = hasConn<<7 | hasFrame<<6 | hasWriteData<<5
+	var flag uint8 = hasConn<<7 | hasFrame<<6 | hasWriteData<<5 | hasTrack<<4
 
 	enc := wkproto.NewEncoder()
 	defer enc.End()
@@ -81,6 +88,9 @@ func (m *UserMessage) Encode() ([]byte, error) {
 	enc.WriteUint64(m.Index)
 	enc.WriteUint64(m.ToNode)
 	enc.WriteInt64(m.MessageId)
+	if hasTrack == 1 {
+		enc.WriteBytes(m.Track.Encode())
+	}
 
 	return enc.Bytes(), nil
 }
@@ -95,6 +105,7 @@ func (m *UserMessage) Decode(data []byte) error {
 	hasConn := flag >> 7 & 0x01
 	hasFrame := flag >> 6 & 0x01
 	hasWriteData := flag >> 5 & 0x01
+	hasRecord := flag >> 4 & 0x01
 
 	if hasConn == 1 {
 		connBytes, err := dec.Binary()
@@ -149,6 +160,19 @@ func (m *UserMessage) Decode(data []byte) error {
 		return err
 	}
 
+	if hasRecord == 1 {
+		recordBytes, err := dec.BinaryAll()
+		if err != nil {
+			return err
+		}
+		record := track.Message{}
+		err = record.Decode(recordBytes)
+		if err != nil {
+			return err
+		}
+		m.Track = record
+	}
+
 	return nil
 
 }
@@ -168,6 +192,13 @@ func (m *UserMessage) hasFrame() uint8 {
 
 func (m *UserMessage) hasWriteData() uint8 {
 	if len(m.WriteData) > 0 {
+		return 1
+	}
+	return 0
+}
+
+func (m *UserMessage) hasTrack() uint8 {
+	if m.Track.HasData() {
 		return 1
 	}
 	return 0

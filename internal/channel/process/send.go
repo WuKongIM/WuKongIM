@@ -3,6 +3,7 @@ package process
 import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 )
 
 func (c *Channel) processSend(channelId string, channelType uint8, role reactor.Role, msgs []*reactor.ChannelMessage) {
@@ -12,6 +13,8 @@ func (c *Channel) processSend(channelId string, channelType uint8, role reactor.
 		return
 	}
 	for _, m := range msgs {
+		// 记录轨迹
+		m.Track.Record(track.PositionChannelOnSend)
 		// 如果是系统发送的消息则不做权限判断，直接存储
 		if options.G.IsSystemDevice(m.Conn.DeviceId) {
 			m.MsgType = reactor.ChannelMsgStorage

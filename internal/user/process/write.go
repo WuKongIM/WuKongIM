@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"go.uber.org/zap"
 )
@@ -25,9 +26,13 @@ func (p *User) processWrite(a reactor.UserAction) {
 			continue
 		}
 		if !options.G.IsLocalNode(m.Conn.FromNode) {
+			m.ToNode = m.Conn.FromNode // 指定发送节点
 			reactor.User.AddMessageToOutbound(a.Uid, m)
 			continue
 		}
+		// 记录消息路径
+		m.Track.Record(track.PositionConnWrite)
+
 		// 统计发送消息数（TODO: 这里不准，暂时视包数为消息数）
 		m.Conn.OutMsgCount.Add(1)
 		m.Conn.OutMsgByteCount.Add(int64(len(m.WriteData)))

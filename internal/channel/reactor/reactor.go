@@ -53,7 +53,9 @@ func (r *Reactor) WakeIfNeed(channelId string, channelType uint8) {
 	if sub.exist(wkutil.ChannelToKey(channelId, channelType)) {
 		return
 	}
-	ch := NewChannel(channelId, channelType)
+	ch := NewChannel(channelId, channelType, func() {
+		sub.advance()
+	})
 	sub.addChannel(ch)
 }
 

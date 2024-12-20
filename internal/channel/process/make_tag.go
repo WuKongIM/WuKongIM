@@ -4,6 +4,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -11,6 +12,12 @@ import (
 
 // 给消息打标签
 func (c *Channel) processMakeTag(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
+
+	// 记录消息轨迹
+	for _, m := range messages {
+		m.Track.Record(track.PositionChannelMakeTag)
+	}
+
 	// 获取或创建tag
 	tag, err := c.getOrMakeTag(fakeChannelId, channelType)
 	if err != nil {

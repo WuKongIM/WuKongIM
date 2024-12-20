@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -14,6 +15,11 @@ import (
 
 // 消息批量存储
 func (c *Channel) processStorage(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
+
+	// 记录消息轨迹
+	for _, m := range messages {
+		m.Track.Record(track.PositionChannelStorage)
+	}
 
 	if len(messages) > 1000 {
 		c.Info("too many messages", zap.Int("msgs", len(messages)), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))

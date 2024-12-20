@@ -3,6 +3,7 @@ package process
 import (
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -11,6 +12,9 @@ import (
 func (u *User) processRecvack(msg *reactor.UserMessage) {
 	recvackPacket := msg.Frame.(*wkproto.RecvackPacket)
 	persist := !recvackPacket.NoPersist // 是否需要持久化
+
+	// 记录消息路径
+	msg.Track.Record(track.PositionUserRecvack)
 
 	trace.GlobalTrace.Metrics.App().RecvackPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().RecvackPacketBytesAdd(recvackPacket.GetFrameSize())

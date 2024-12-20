@@ -153,7 +153,7 @@ func (c *ChannelPlus) AddMessagesToOutbound(channelId string, channelType uint8,
 
 // UpdateConfig 更新配置
 func (c *ChannelPlus) UpdateConfig(channelId string, channelType uint8, cfg ChannelConfig) {
-	c.ch.AddAction(ChannelAction{
+	c.ch.MustAddAction(ChannelAction{
 		Type:          ChannelActionConfigUpdate,
 		FakeChannelId: channelId,
 		ChannelType:   channelType,
