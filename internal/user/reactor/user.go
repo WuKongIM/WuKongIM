@@ -151,7 +151,6 @@ func (u *User) step(action reactor.UserAction) {
 					conn := u.conns.connByConnId(msg.Conn.FromNode, msg.Conn.ConnId)
 					if conn == nil {
 						u.outbound.keepaliveAll() // 这里包活下，防止连接进来了，但是用户没了
-						fmt.Println("add conn", msg.Conn.Uid, msg.Conn.FromNode, msg.Conn.ConnId)
 						u.conns.add(msg.Conn)
 					}
 				}

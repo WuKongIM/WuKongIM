@@ -581,12 +581,6 @@ func New(op ...Option) *Options {
 		o(opts)
 	}
 
-	node, err := snowflake.NewNode(int64(opts.Cluster.NodeId))
-	if err != nil {
-		wklog.Panic("create snowflake node failed", zap.Error(err))
-	}
-	opts.messageIdGen = node
-
 	return opts
 }
 
@@ -1018,6 +1012,13 @@ func (o *Options) configureAuth() {
 	})
 
 	o.Auth.Users = usersCfgs
+
+	node, err := snowflake.NewNode(int64(o.Cluster.NodeId))
+	if err != nil {
+		wklog.Panic("create snowflake node failed", zap.Error(err))
+	}
+	o.messageIdGen = node
+
 }
 
 func (o *Options) ConfigureDataDir() {

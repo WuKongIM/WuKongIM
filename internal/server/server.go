@@ -467,8 +467,6 @@ func (s *Server) onClose(conn wknet.Conn) {
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
 		connCtx := connCtxObj.(*reactor.Conn)
-		fmt.Println("gnet close--->", connCtx.Uid, connCtx.FromNode, connCtx.ConnId)
-
 		reactor.User.CloseConn(connCtx)
 	}
 	service.ConnManager.RemoveConn(conn)

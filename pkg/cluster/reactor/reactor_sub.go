@@ -45,7 +45,7 @@ func NewReactorSub(index int, mr *Reactor) *ReactorSub {
 		tmpHandlers: make([]*handler, 0, 100),
 		stepC:       make(chan stepReq, 4096),
 		proposeC:    make(chan proposeReq, 2024),
-		mq:          NewMessageQueue(mr.opts.ReceiveQueueLength, false, 1, 0),
+		mq:          NewMessageQueue(mr.opts.ReceiveQueueLength, false, 0, 0),
 	}
 }
 
@@ -179,7 +179,6 @@ func (r *ReactorSub) proposeAndWait(ctx context.Context, handleKey string, logs 
 	select {
 	case r.proposeC <- req:
 	case <-ctx.Done():
-
 		r.Error("proposeAndWait: proposeC is timeout", zap.String("handler", handler.key), zap.String("waitKey", waitKey), zap.String("progress", progress.String()))
 		handler.removeWait(waitKey)
 		close(progress.waitC)

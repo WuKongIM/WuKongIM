@@ -201,8 +201,6 @@ func (ch *channel) addSubscriber(c *wkhttp.Context) {
 	}
 	if !exist { // 如果没有频道则创建
 
-		fmt.Println("AddChannelInfo....")
-
 		channelInfo := wkdb.NewChannelInfo(req.ChannelId, req.ChannelType)
 		err = service.Store.AddChannelInfo(channelInfo)
 		if err != nil {
@@ -210,7 +208,6 @@ func (ch *channel) addSubscriber(c *wkhttp.Context) {
 			c.ResponseError(errors.New("创建频道失败！"))
 			return
 		}
-		fmt.Println("AddChannelInfo..end..")
 	}
 
 	err = ch.addSubscriberWithReq(req)
@@ -334,7 +331,7 @@ func (ch *channel) updateTagBySubscribers(channelId string, channelType uint8, s
 	// 更新cmd频道的tag
 	cmdChannelId := options.G.OrginalConvertCmdChannel(channelId)
 	cfg, err := service.Cluster.LoadOnlyChannelClusterConfig(cmdChannelId, channelType)
-	if err != nil {
+	if err != nil && err != cluster.ErrChannelClusterConfigNotFound {
 		ch.Info("updateTagByAddSubscribers: loadOnlyChannelClusterConfig failed")
 		return nil
 	}

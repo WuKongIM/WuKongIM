@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/track"
@@ -78,7 +76,6 @@ func (p *Channel) handleJoin(m *proto.Message) {
 		p.Error("decode joinReq failed", zap.Error(err))
 		return
 	}
-	fmt.Println("channel join", req.channelId, req.channelType, req.from)
 	reactor.Channel.Join(req.channelId, req.channelType, req.from)
 }
 

@@ -211,7 +211,7 @@ func (o *outboundReady) tick() {
 		replica.heartbeatIdleTick++
 
 		if replica.heartbeatIdleTick >= options.NodeHeartbeatTimeoutTick {
-			o.Info("replica heartbeat timeout", zap.Uint64("nodeId", replica.nodeId))
+			o.Debug("replica heartbeat timeout", zap.Uint64("nodeId", replica.nodeId))
 			delete(o.replicas, replica.nodeId)
 			continue
 		}

@@ -1,8 +1,6 @@
 package reactor
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -249,7 +247,6 @@ func (u *UserPlus) ConnById(uid string, fromNode uint64, id int64) *Conn {
 // CloseConn 关闭连接
 func (u *UserPlus) CloseConn(conn *Conn) bool {
 
-	fmt.Println("CloseConn---->", conn.Uid)
 	added := u.user.AddAction(UserAction{
 		Type:  UserActionConnClose,
 		Uid:   conn.Uid,

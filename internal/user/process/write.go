@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -22,7 +20,6 @@ func (p *User) processWrite(a reactor.UserAction) {
 			continue
 		}
 		if m.Conn.FromNode == 0 {
-			fmt.Println("processWrite: from node is 0", a.Uid)
 			continue
 		}
 		if !options.G.IsLocalNode(m.Conn.FromNode) {
