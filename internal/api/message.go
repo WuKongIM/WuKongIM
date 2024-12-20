@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
@@ -220,6 +221,9 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 		MsgType:    reactor.ChannelMsgSend,
 		SendPacket: sendPacket,
 		MessageId:  messageId,
+		Track: track.Message{
+			PreStart: time.Now(),
+		},
 	})
 
 	return messageId, nil
