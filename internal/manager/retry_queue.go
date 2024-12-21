@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/valyala/fastrand"
@@ -42,7 +43,7 @@ func NewRetryQueue(index int, r *RetryManager) *RetryQueue {
 
 func (r *RetryQueue) startInFlightTimeout(msg *types.RetryMessage) {
 	now := time.Now()
-	msg.Pri = now.Add(time.Second * 10).UnixNano()
+	msg.Pri = now.Add(options.G.MessageRetry.Interval).UnixNano()
 	r.pushInFlightMessage(msg)
 	r.addToInFlightPQ(msg)
 
@@ -144,7 +145,7 @@ func (r *RetryQueue) inFlightMessagesCount() int {
 // Start 开始运行重试
 func (r *RetryQueue) Start() {
 
-	scanInterval := time.Second * 5
+	scanInterval := time.Second * options.G.MessageRetry.ScanInterval
 
 	p := float64(fastrand.Uint32()) / (1 << 32)
 	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。
