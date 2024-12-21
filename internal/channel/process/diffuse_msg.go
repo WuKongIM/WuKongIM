@@ -10,7 +10,7 @@ import (
 // 扩散消息
 func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
 	tagKey := messages[0].TagKey
-	tag, err := c.commonService.GetOrRequestAndMakeTag(fakeChannelId, channelType, tagKey)
+	tag, err := c.commonService.GetOrRequestAndMakeTagWithLocal(fakeChannelId, channelType, tagKey)
 	if err != nil {
 		c.Error("processDiffuse: get tag failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType), zap.String("tagKey", tagKey))
 		return

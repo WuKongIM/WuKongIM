@@ -73,7 +73,7 @@ func (m *message) send(c *wkhttp.Context) {
 	channelId := req.ChannelID
 	channelType := req.ChannelType
 
-	m.Debug("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
+	m.Info("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
 	if strings.TrimSpace(channelId) == "" && len(req.Subscribers) == 0 { //指定了频道 才能正常发送
 		m.Error("无法处理发送消息请求！", zap.Any("req", req))
 		c.ResponseError(errors.New("无法处理发送消息请求！"))
@@ -97,10 +97,10 @@ func (m *message) send(c *wkhttp.Context) {
 		// 生成临时频道id
 		tmpChannelId := fmt.Sprintf("%d", key.HashWithString(strings.Join(req.Subscribers, ","))) // 获取临时频道id
 		tmpChannelType := wkproto.ChannelTypeTemp
-		tmpCMDChannelId := options.G.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
+		// tmpCMDChannelId := options.G.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
 
 		// 设置订阅者到临时频道
-		err := m.requestSetSubscribersForTmpChannel(tmpCMDChannelId, req.Subscribers)
+		err := m.requestSetSubscribersForTmpChannel(tmpChannelId, req.Subscribers)
 		if err != nil {
 			m.Error("请求设置临时频道的订阅者失败！", zap.Error(err), zap.String("channelId", tmpChannelId), zap.Strings("subscribers", req.Subscribers))
 			c.ResponseError(errors.New("请求设置临时频道的订阅者失败！"))
