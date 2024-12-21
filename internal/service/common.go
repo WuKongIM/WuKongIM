@@ -1,11 +1,20 @@
 package service
 
 import (
+	"time"
+
+	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
+
+var CommonService ICommonService
+
+type ICommonService interface {
+	Schedule(interval time.Duration, f func()) *timingwheel.Timer
+}
 
 // 判断单聊是否允许发送消息
 func AllowSendForPerson(from, to string) (wkproto.ReasonCode, error) {

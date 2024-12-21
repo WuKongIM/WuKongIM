@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/api"
 	chprocess "github.com/WuKongIM/WuKongIM/internal/channel/process"
 	channelreactor "github.com/WuKongIM/WuKongIM/internal/channel/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/common"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/manager"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -51,10 +51,9 @@ type Server struct {
 	reqIDGen      *idutil.Generator // 请求ID生成器
 	ctx           context.Context
 	cancel        context.CancelFunc
-	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
-	start         time.Time                // 服务开始时间
-	store         *clusterstore.Store      // 存储相关接口
-	engine        *wknet.Engine            // 长连接引擎
+	start         time.Time           // 服务开始时间
+	store         *clusterstore.Store // 存储相关接口
+	engine        *wknet.Engine       // 长连接引擎
 	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
 	trace      *trace.Trace // 监控
 	demoServer *DemoServer  // demo server
@@ -62,6 +61,7 @@ type Server struct {
 	apiServer  *api.Server  // api服务
 	ingress    *ingress.Ingress
 
+	commonService *common.Service // 通用服务
 	// 管理者
 	retryManager        *manager.RetryManager        // 消息重试管理
 	conversationManager *manager.ConversationManager // 会话管理
@@ -84,11 +84,10 @@ func New(opts *options.Options) *Server {
 	options.G = opts
 
 	s := &Server{
-		opts:        opts,
-		Log:         wklog.NewWKLog("Server"),
-		timingWheel: timingwheel.NewTimingWheel(opts.TimingWheelTick, opts.TimingWheelSize),
-		reqIDGen:    idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
-		start:       now,
+		opts:     opts,
+		Log:      wklog.NewWKLog("Server"),
+		reqIDGen: idutil.NewGenerator(uint16(opts.Cluster.NodeId), time.Now()),
+		start:    now,
 	}
 	// 配置检查
 	err := opts.Check()
@@ -159,6 +158,9 @@ func New(opts *options.Options) *Server {
 	service.RetryManager = s.retryManager
 	service.TagManager = s.tagManager
 	service.SystemAccountManager = manager.NewSystemAccountManager() // 系统账号管理
+
+	s.commonService = common.NewService()
+	service.CommonService = s.commonService
 
 	// 初始化分布式服务
 	initNodes := make(map[uint64]string)
@@ -290,8 +292,12 @@ func (s *Server) Start() error {
 
 	defer s.Info("Server is ready")
 
-	s.timingWheel.Start()
 	var err error
+
+	err = s.commonService.Start()
+	if err != nil {
+		return err
+	}
 
 	s.ingress.SetRoutes()
 
@@ -383,6 +389,8 @@ func (s *Server) Stop() error {
 
 	s.retryManager.Stop()
 
+	s.commonService.Stop()
+
 	if s.opts.Conversation.On {
 		s.conversationManager.Stop()
 	}
@@ -403,8 +411,6 @@ func (s *Server) Stop() error {
 	s.trace.Stop()
 
 	s.store.Close()
-
-	s.timingWheel.Stop()
 
 	s.tagManager.Stop()
 
