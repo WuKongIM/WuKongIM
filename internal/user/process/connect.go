@@ -111,13 +111,13 @@ func (p *User) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCode, *wkp
 						zap.String("deviceID", connectPacket.DeviceID),
 						zap.String("oldDeviceId", oldConn.DeviceId),
 					)
-					service.CommonService.Schedule(time.Second*4, func(od *reactor.Conn) func() {
+					service.CommonService.AfterFunc(time.Second*2, func(od *reactor.Conn) func() {
 						return func() {
 							reactor.User.CloseConn(od)
 						}
 					}(oldConn))
 				} else {
-					service.CommonService.Schedule(time.Second*4, func(od *reactor.Conn) func() {
+					service.CommonService.AfterFunc(time.Second*2, func(od *reactor.Conn) func() {
 						return func() {
 							reactor.User.CloseConn(od)
 						}
@@ -129,7 +129,7 @@ func (p *User) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCode, *wkp
 		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceId关闭
 			for _, oldConn := range oldConns {
 				if oldConn.ConnId != conn.ConnId && oldConn.DeviceId == connectPacket.DeviceID {
-					service.CommonService.Schedule(time.Second*4, func(od *reactor.Conn) func() {
+					service.CommonService.AfterFunc(time.Second*2, func(od *reactor.Conn) func() {
 						return func() {
 							reactor.User.CloseConn(od)
 						}

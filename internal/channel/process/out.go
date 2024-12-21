@@ -1,6 +1,8 @@
 package process
 
 import (
+	"time"
+
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -54,6 +56,12 @@ func (c *Channel) processElection(a reactor.ChannelAction) {
 
 	c.setElectioning(channelKey)
 
+	start := time.Now()
+	defer func() {
+		cost := time.Since(start)
+		c.Warn("election cost too long", zap.Duration("cost", cost), zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType))
+	}()
+
 	timeoutCtx, cancel := c.WithTimeout()
 	defer cancel()
 	cfg, err := service.Cluster.LoadOrCreateChannel(timeoutCtx, a.FakeChannelId, a.ChannelType)
@@ -81,6 +89,7 @@ func (c *Channel) processJoin(a reactor.ChannelAction) {
 		c.Error("channel: processJoin: encode failed", zap.Error(err))
 		return
 	}
+	c.Info("channel: processJoin---->", zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType), zap.Uint64("to", a.To))
 	// fmt.Println("processJoin--->", a.To, req)
 	err = c.sendToNode(a.To, &proto.Message{
 		MsgType: msgChannelJoinReq.uint32(),
@@ -216,6 +225,7 @@ func (c *Channel) processOutbound(a reactor.ChannelAction) {
 		c.Error("channel: processOutbound: encode failed", zap.Error(err))
 		return
 	}
+	c.Info("channel: sendToNode", zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType), zap.Uint64("to", a.To))
 	err = c.sendToNode(a.To, &proto.Message{
 		MsgType: uint32(msgOutboundReq),
 		Content: data,

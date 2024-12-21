@@ -47,6 +47,10 @@ func (s *Service) Schedule(interval time.Duration, f func()) *timingwheel.Timer 
 	}, f)
 }
 
+func (s *Service) AfterFunc(d time.Duration, f func()) {
+	s.timingWheel.AfterFunc(d, f)
+}
+
 type everyScheduler struct {
 	Interval time.Duration
 }

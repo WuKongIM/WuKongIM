@@ -14,6 +14,7 @@ var CommonService ICommonService
 
 type ICommonService interface {
 	Schedule(interval time.Duration, f func()) *timingwheel.Timer
+	AfterFunc(d time.Duration, f func())
 }
 
 // 判断单聊是否允许发送消息

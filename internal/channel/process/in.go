@@ -59,6 +59,8 @@ func (p *Channel) handleOutboundReq(m *proto.Message) {
 		return
 	}
 
+	p.Info("channel: recv outboundReq", zap.Uint64("fromNode", req.fromNode), zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType))
+
 	for _, m := range req.messages {
 		if m.MsgType == reactor.ChannelMsgSend {
 			m.Track.Record(track.PositionNodeOnSend)
@@ -76,6 +78,7 @@ func (p *Channel) handleJoin(m *proto.Message) {
 		p.Error("decode joinReq failed", zap.Error(err))
 		return
 	}
+	p.Info("channel: handleJoin...", zap.String("channelId", req.channelId), zap.Uint8("channelType", req.channelType), zap.Uint64("from", req.from))
 	reactor.Channel.Join(req.channelId, req.channelType, req.from)
 }
 
@@ -86,6 +89,7 @@ func (p *Channel) handleJoinResp(m *proto.Message) {
 		p.Error("decode joinResp failed", zap.Error(err))
 		return
 	}
+	p.Info("channel: JoinResp...", zap.String("channelId", resp.channelId), zap.Uint8("channelType", resp.channelType), zap.Uint64("from", resp.from))
 	reactor.Channel.JoinResp(resp.channelId, resp.channelType, resp.from)
 }
 
