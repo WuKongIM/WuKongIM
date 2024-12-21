@@ -7,7 +7,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/pkg/errors"
 )
 
@@ -72,66 +71,6 @@ func (s subscriberAddReq) Check() error {
 	}
 	if stringArrayIsEmpty(s.Subscribers) {
 		return errors.New("订阅者不能为空！")
-	}
-	return nil
-}
-
-type subscriberGetReq struct {
-	ChannelId   string `json:"channel_id"`
-	ChannelType uint8  `json:"channel_type"`
-}
-
-func (s *subscriberGetReq) Marshal() []byte {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-
-	enc.WriteString(s.ChannelId)
-	enc.WriteUint8(s.ChannelType)
-
-	return enc.Bytes()
-}
-
-func (s *subscriberGetReq) Unmarshal(data []byte) error {
-	dec := wkproto.NewDecoder(data)
-	var err error
-	if s.ChannelId, err = dec.String(); err != nil {
-		return err
-	}
-	if s.ChannelType, err = dec.Uint8(); err != nil {
-		return err
-	}
-	return nil
-}
-
-type subscriberGetResp []string
-
-func (s subscriberGetResp) Marshal() []byte {
-	enc := wkproto.NewEncoder()
-	defer enc.End()
-
-	enc.WriteUint32(uint32(len(s)))
-	for _, uid := range s {
-		enc.WriteString(uid)
-	}
-
-	return enc.Bytes()
-}
-
-func (s *subscriberGetResp) Unmarshal(data []byte) error {
-	dec := wkproto.NewDecoder(data)
-	count, err := dec.Uint32()
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return nil
-	}
-	for i := 0; i < int(count); i++ {
-		uid, err := dec.String()
-		if err != nil {
-			return err
-		}
-		*s = append(*s, uid)
 	}
 	return nil
 }

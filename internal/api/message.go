@@ -159,7 +159,7 @@ func (m *message) requestSetSubscribersForTmpChannel(tmpChannelId string, uids [
 			"uids":       uids,
 		})),
 	}
-	resp, err := rest.API(request)
+	resp, err := rest.Send(request)
 	if err != nil {
 		return err
 	}
