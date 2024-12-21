@@ -4,6 +4,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +19,13 @@ func (u *User) processConnClose(a reactor.UserAction) {
 			u.Info("processConnClose: conn not local node", zap.String("uid", a.Uid), zap.Uint64("fromNode", c.FromNode))
 			continue
 		}
+
+		if c.Auth {
+			deviceOnlineCount := reactor.User.ConnCountByDeviceFlag(c.Uid, c.DeviceFlag)
+			totalOnlineCount := reactor.User.ConnCountByUid(c.Uid)
+			service.Webhook.Offline(c.Uid, wkproto.DeviceFlag(c.DeviceFlag), c.ConnId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
+		}
+
 		conn := service.ConnManager.GetConn(c.ConnId)
 		if conn == nil {
 			u.Debug("processConnClose: conn not exist", zap.String("uid", a.Uid), zap.Int64("connId", c.ConnId))
