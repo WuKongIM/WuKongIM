@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/errors"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -18,14 +19,40 @@ import (
 type Service struct {
 	client *ingress.Client
 	wklog.Log
+	timingWheel *timingwheel.TimingWheel
 }
 
 func NewService() *Service {
 
 	return &Service{
-		client: ingress.NewClient(),
-		Log:    wklog.NewWKLog("common.Service"),
+		client:      ingress.NewClient(),
+		Log:         wklog.NewWKLog("common.Service"),
+		timingWheel: timingwheel.NewTimingWheel(options.G.TimingWheelTick, options.G.TimingWheelSize),
 	}
+}
+
+func (s *Service) Start() error {
+	s.timingWheel.Start()
+	return nil
+}
+
+func (s *Service) Stop() {
+	s.timingWheel.Stop()
+}
+
+// Schedule 延迟任务
+func (s *Service) Schedule(interval time.Duration, f func()) *timingwheel.Timer {
+	return s.timingWheel.ScheduleFunc(&everyScheduler{
+		Interval: interval,
+	}, f)
+}
+
+type everyScheduler struct {
+	Interval time.Duration
+}
+
+func (s *everyScheduler) Next(prev time.Time) time.Time {
+	return prev.Add(s.Interval)
 }
 
 // 获取或请求tag

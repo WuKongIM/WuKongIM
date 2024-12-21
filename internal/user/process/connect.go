@@ -111,16 +111,30 @@ func (p *User) handleConnect(msg *reactor.UserMessage) (wkproto.ReasonCode, *wkp
 						zap.String("deviceID", connectPacket.DeviceID),
 						zap.String("oldDeviceId", oldConn.DeviceId),
 					)
-					reactor.User.Kick(oldConn, wkproto.ReasonConnectKick, "login in other device")
+					service.CommonService.Schedule(time.Second*4, func(od *reactor.Conn) func() {
+						return func() {
+							reactor.User.CloseConn(od)
+						}
+					}(oldConn))
 				} else {
-					reactor.User.CloseConn(oldConn)
+					service.CommonService.Schedule(time.Second*4, func(od *reactor.Conn) func() {
+						return func() {
+							reactor.User.CloseConn(od)
+						}
+
+					}(oldConn))
 				}
 				p.Info("auth: close old conn for master", zap.Any("oldConn", oldConn))
 			}
 		} else if devceLevel == wkproto.DeviceLevelSlave { // 如果设备是slave级别，则把相同的deviceId关闭
 			for _, oldConn := range oldConns {
 				if oldConn.ConnId != conn.ConnId && oldConn.DeviceId == connectPacket.DeviceID {
-					reactor.User.CloseConn(oldConn)
+					service.CommonService.Schedule(time.Second*4, func(od *reactor.Conn) func() {
+						return func() {
+							reactor.User.CloseConn(od)
+						}
+					}(oldConn))
+
 					p.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn))
 				}
 			}
