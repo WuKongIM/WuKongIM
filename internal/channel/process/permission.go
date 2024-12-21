@@ -38,6 +38,9 @@ func (c *Channel) processPermission(channelId string, channelType uint8, msgs []
 				c.Error("hasPermissionForSender error", zap.Error(err))
 				reasonCode = wkproto.ReasonSystemError
 			}
+			if reasonCode != wkproto.ReasonSuccess {
+				c.Info("hasPermissionForSender failed", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("reasonCode", reasonCode.String()))
+			}
 			m.ReasonCode = reasonCode
 
 			if reasonCode == wkproto.ReasonSuccess {
@@ -63,6 +66,11 @@ func (c *Channel) processPermission(channelId string, channelType uint8, msgs []
 			} else {
 				m.MsgType = reactor.ChannelMsgSendack
 			}
+		}
+	} else {
+		for _, m := range msgs {
+			m.ReasonCode = reasonCode
+			m.MsgType = reactor.ChannelMsgSendack
 		}
 	}
 	reactor.Channel.AddMessages(channelId, channelType, msgs)

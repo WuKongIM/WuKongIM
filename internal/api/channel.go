@@ -311,12 +311,21 @@ func (ch *channel) updateTagBySubscribers(channelId string, channelType uint8, s
 		if tagKey != "" {
 			if service.TagManager.Exist(tagKey) {
 				newTagKey := wkutil.GenUUID()
-				err := service.TagManager.AddUsers(tagKey, subscribers)
-				if err != nil {
-					ch.Error("updateTagByAddSubscribers: addUsers failed", zap.Error(err))
-					return
+				if remove {
+					err := service.TagManager.RemoveUsers(tagKey, subscribers)
+					if err != nil {
+						ch.Error("updateTagByAddSubscribers: removeUsers failed", zap.Error(err))
+						return
+					}
+				} else {
+					err := service.TagManager.AddUsers(tagKey, subscribers)
+					if err != nil {
+						ch.Error("updateTagByAddSubscribers: addUsers failed", zap.Error(err))
+						return
+					}
 				}
-				err = service.TagManager.RenameTag(tagKey, newTagKey)
+
+				err := service.TagManager.RenameTag(tagKey, newTagKey)
 				if err != nil {
 					ch.Error("updateTagByAddSubscribers: renameTag failed", zap.Error(err))
 					return
