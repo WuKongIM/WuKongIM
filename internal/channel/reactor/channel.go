@@ -306,6 +306,8 @@ func (c *Channel) becomeFollower() {
 
 	c.Info("become follower", zap.Uint64("leaderId", c.cfg.LeaderId))
 
+	c.sendJoin()
+
 	if c.advance != nil {
 		c.advance()
 	}

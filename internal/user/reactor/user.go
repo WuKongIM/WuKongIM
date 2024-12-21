@@ -350,6 +350,7 @@ func (u *User) sendHeartbeatResp(to uint64) {
 func (u *User) sendConnClose(conns []*reactor.Conn) {
 	u.actions = append(u.actions, reactor.UserAction{
 		No:    u.no,
+		Uid:   u.uid,
 		From:  options.NodeId,
 		To:    reactor.LocalNode,
 		Type:  reactor.UserActionConnClose,
@@ -363,6 +364,7 @@ func (u *User) sendUserClose() {
 	}
 	u.actions = append(u.actions, reactor.UserAction{
 		No:    u.no,
+		Uid:   u.uid,
 		From:  options.NodeId,
 		To:    reactor.LocalNode,
 		Type:  reactor.UserActionUserClose,
