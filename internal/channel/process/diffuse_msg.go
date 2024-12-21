@@ -89,13 +89,13 @@ func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messag
 }
 
 func (c *Channel) isOnline(uid string) bool {
-	toConns := reactor.User.ConnsByUid(uid)
+	toConns := reactor.User.AuthedConnsByUid(uid)
 	return len(toConns) > 0
 }
 
 // 用户的主设备是否在线
 func (c *Channel) masterDeviceIsOnline(uid string) bool {
-	toConns := reactor.User.ConnsByUid(uid)
+	toConns := reactor.User.AuthedConnsByUid(uid)
 	online := false
 	for _, conn := range toConns {
 		if conn.DeviceLevel == wkproto.DeviceLevelMaster {

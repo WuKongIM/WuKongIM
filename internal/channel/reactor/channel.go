@@ -327,9 +327,9 @@ func (c *Channel) needJoin() bool {
 	return !c.joined
 }
 
-func (c *Channel) isLeader() bool {
-	return c.role == reactor.RoleLeader
-}
+// func (c *Channel) isLeader() bool {
+// 	return c.role == reactor.RoleLeader
+// }
 
 func (c *Channel) needElection() bool {
 	return c.role == reactor.RoleUnknown

@@ -23,6 +23,7 @@ type IUser interface {
 	Exist(uid string) bool
 	// 查询连接信息
 	ConnsByUid(uid string) []*Conn
+	AuthedConnsByUid(uid string) []*Conn
 	ConnCountByUid(uid string) int
 	ConnsByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*Conn
 	ConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int
@@ -223,6 +224,11 @@ func (u *UserPlus) ConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFl
 // ConnsByUid 根据用户uid获取连接
 func (u *UserPlus) ConnsByUid(uid string) []*Conn {
 	return u.user.ConnsByUid(uid)
+}
+
+// AuthedConnsByUid 根据用户uid获取已认证的连接
+func (u *UserPlus) AuthedConnsByUid(uid string) []*Conn {
+	return u.user.AuthedConnsByUid(uid)
 }
 
 func (u *UserPlus) ConnCountByUid(uid string) int {
