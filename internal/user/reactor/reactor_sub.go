@@ -222,6 +222,15 @@ func (r *reactorSub) connsByUid(uid string) []*reactor.Conn {
 	}
 	return user.conns.allConns()
 }
+
+func (r *reactorSub) authedConnsByUid(uid string) []*reactor.Conn {
+	user := r.user(uid)
+	if user == nil {
+		return nil
+	}
+	return user.conns.authedConns()
+}
+
 func (r *reactorSub) connCountByUid(uid string) int {
 	user := r.user(uid)
 	if user == nil {

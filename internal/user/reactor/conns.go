@@ -87,6 +87,18 @@ func (c *conns) allConns() []*reactor.Conn {
 	return c.conns
 }
 
+func (c *conns) authedConns() []*reactor.Conn {
+	c.RLock()
+	defer c.RUnlock()
+	conns := make([]*reactor.Conn, 0, len(c.conns))
+	for _, conn := range c.conns {
+		if conn.Auth {
+			conns = append(conns, conn)
+		}
+	}
+	return conns
+}
+
 func (c *conns) count() int {
 	c.RLock()
 	defer c.RUnlock()

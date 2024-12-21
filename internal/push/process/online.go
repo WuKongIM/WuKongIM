@@ -41,7 +41,7 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 		if options.G.IsSystemUid(message.ToUid) {
 			continue
 		}
-		toConns := reactor.User.ConnsByUid(message.ToUid)
+		toConns := reactor.User.AuthedConnsByUid(message.ToUid)
 		if len(toConns) == 0 {
 			continue
 		}

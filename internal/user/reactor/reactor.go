@@ -87,6 +87,10 @@ func (r *Reactor) Exist(uid string) bool {
 func (r *Reactor) ConnsByUid(uid string) []*reactor.Conn {
 	return r.getSub(uid).connsByUid(uid)
 }
+
+func (r *Reactor) AuthedConnsByUid(uid string) []*reactor.Conn {
+	return r.getSub(uid).authedConnsByUid(uid)
+}
 func (r *Reactor) ConnCountByUid(uid string) int {
 	return r.getSub(uid).connCountByUid(uid)
 }
