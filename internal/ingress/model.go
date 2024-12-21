@@ -6,13 +6,17 @@ import (
 )
 
 type TagReq struct {
-	TagKey string
-	NodeId uint64 // 获取属于指定节点的uids
+	TagKey      string
+	ChannelId   string
+	ChannelType uint8
+	NodeId      uint64 // 获取属于指定节点的uids
 }
 
 func (t *TagReq) encode() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	enc.WriteString(t.TagKey)
+	enc.WriteString(t.ChannelId)
+	enc.WriteUint8(t.ChannelType)
 	enc.WriteUint64(t.NodeId)
 	return enc.Bytes(), nil
 }
@@ -21,6 +25,12 @@ func (t *TagReq) decode(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
 	if t.TagKey, err = dec.String(); err != nil {
+		return err
+	}
+	if t.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if t.ChannelType, err = dec.Uint8(); err != nil {
 		return err
 	}
 	if t.NodeId, err = dec.Uint64(); err != nil {

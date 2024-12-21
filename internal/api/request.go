@@ -42,7 +42,7 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 		fakeChannelId := channelRecentMsgReq.ChannelId
 		leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
-			s.Warn("getRecentMessagesForCluster: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
+			// s.Warn("getRecentMessagesForCluster: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			continue
 		}
 		if !service.Cluster.NodeIsOnline(leaderInfo.Id) { // 如果领导节点不在线，则使用能触发选举的方法

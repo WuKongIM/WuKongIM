@@ -43,14 +43,14 @@ func (i *Ingress) handleGetTag(c *wkserver.Context) {
 		return
 	}
 
-	if req.NodeId == 0 {
-		c.WriteErr(errors.New("node is 0"))
+	if req.TagKey == "" && req.ChannelId == "" {
+		i.Error("tagKey and channelId is nil", zap.Any("req", req))
+		c.WriteErr(errors.New("tagKey is nil"))
 		return
 	}
 
 	if req.TagKey == "" {
-		c.WriteErr(errors.New("tagKey is nil"))
-		return
+		req.TagKey = service.TagManager.GetChannelTag(req.ChannelId, req.ChannelType)
 	}
 
 	tag := service.TagManager.Get(req.TagKey)
@@ -59,9 +59,19 @@ func (i *Ingress) handleGetTag(c *wkserver.Context) {
 		c.WriteErr(errors.New("handleGetTag: tag not exist"))
 		return
 	}
-	var resp = &TagResp{
-		TagKey: tag.Key,
-		Uids:   tag.GetNodeUsers(req.NodeId),
+	var uids []string
+	var resp *TagResp
+	if req.NodeId != 0 {
+		resp = &TagResp{
+			TagKey: tag.Key,
+			Uids:   tag.GetNodeUsers(req.NodeId),
+		}
+	} else {
+		uids = tag.GetUsers()
+		resp = &TagResp{
+			TagKey: tag.Key,
+			Uids:   uids,
+		}
 	}
 	data, err := resp.encode()
 	if err != nil {

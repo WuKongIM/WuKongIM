@@ -52,3 +52,15 @@ func (t *Tag) ExistUserInNode(uid string, nodeId uint64) bool {
 	}
 	return false
 }
+
+func (t *Tag) GetUsers() []string {
+	userCount := 0
+	for _, node := range t.Nodes {
+		userCount += len(node.Uids)
+	}
+	users := make([]string, 0, userCount)
+	for _, node := range t.Nodes {
+		users = append(users, node.Uids...)
+	}
+	return users
+}

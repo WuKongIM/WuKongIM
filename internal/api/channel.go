@@ -47,7 +47,7 @@ func (ch *channel) route(r *wkhttp.WKHttp) {
 	r.POST("/channel/subscriber_add", ch.addSubscriber)       // 添加订阅者
 	r.POST("/channel/subscriber_remove", ch.removeSubscriber) // 移除订阅者
 
-	r.POST("/tmpchannel/subscriber_set", ch.setTmpSubscriber) // 临时频道设置订阅者
+	r.POST("/tmpchannel/subscriber_set", ch.setTmpSubscriber) // 临时频道设置订阅者(节点内部调用)
 
 	//################### 黑名单 ###################// 删除频道
 	r.POST("/channel/blacklist_add", ch.blacklistAdd)       // 添加黑名单
@@ -496,6 +496,9 @@ func setTmpSubscriberWithReq(req tmpSubscriberSetReq) error {
 	tag, err := service.TagManager.MakeTag(req.Uids)
 	if err != nil {
 		return err
+	}
+	if options.G.IsCmdChannel(req.ChannelId) {
+		req.ChannelId = options.G.CmdChannelConvertOrginalChannel(req.ChannelId)
 	}
 	service.TagManager.SetChannelTag(req.ChannelId, wkproto.ChannelTypeTemp, tag.Key)
 	return nil

@@ -1,6 +1,8 @@
 package process
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -21,7 +23,12 @@ func (c *Channel) processMakeTag(fakeChannelId string, channelType uint8, messag
 	// 获取或创建tag
 	tag, err := c.getOrMakeTag(fakeChannelId, channelType)
 	if err != nil {
-		c.Error("processConversation: get or make tag failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		c.Error("processMakeTag: get or make tag failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		return
+	}
+
+	if tag == nil {
+		c.Error("processMakeTag: get or make tag failed, tag is nil", zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return
 	}
 
@@ -77,12 +84,23 @@ func (c *Channel) getOrMakeTag(fakeChannelId string, channelType uint8) (*types.
 	if tagKey != "" {
 		tag = service.TagManager.Get(tagKey)
 	}
+	fmt.Println("getOrMakeTag--->", orgFakeChannelId, channelType, tagKey, tag)
 	if tag == nil {
-		tag, err = c.makeChannelTag(orgFakeChannelId, channelType)
-		if err != nil {
-			c.Error("diffuse: makeTag failed", zap.Error(err), zap.String("tagKey", tagKey))
-			return nil, err
+		// 如果是命令频道，不能创建tag，只能去原频道获取
+		if options.G.IsCmdChannel(fakeChannelId) {
+			tag, err = c.commonService.GetOrRequestAndMakeTag(orgFakeChannelId, channelType, tagKey, 0)
+			if err != nil {
+				c.Error("processMakeTag: getOrRequestAndMakeTag failed", zap.Error(err), zap.String("tagKey", tagKey))
+				return nil, err
+			}
+		} else {
+			tag, err = c.makeChannelTag(orgFakeChannelId, channelType)
+			if err != nil {
+				c.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("tagKey", tagKey))
+				return nil, err
+			}
 		}
+
 	}
 	return tag, nil
 }
@@ -104,7 +122,7 @@ func (c *Channel) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 	} else {
 		members, err := service.Store.GetSubscribers(orgFakeChannelId, channelType)
 		if err != nil {
-			c.Error("diffuse: getSubscribers failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
+			c.Error("processMakeTag: getSubscribers failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
 			return nil, err
 		}
 		for _, member := range members {
@@ -113,7 +131,7 @@ func (c *Channel) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 	}
 	tag, err := service.TagManager.MakeTag(subscribers)
 	if err != nil {
-		c.Error("diffuse: makeTag failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
+		c.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
 	service.TagManager.SetChannelTag(orgFakeChannelId, channelType, tag.Key)

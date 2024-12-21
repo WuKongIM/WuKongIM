@@ -28,7 +28,7 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 	firstMsg := messages[0]
 	tagKey := firstMsg.TagKey
 	fakeChannelId, channelType := wkutil.ChannelFromlKey(channelKey)
-	tag, err := p.commService.GetOrRequestAndMakeTag(fakeChannelId, channelType, tagKey)
+	tag, err := p.commService.GetOrRequestAndMakeTagWithLocal(fakeChannelId, channelType, tagKey)
 	if err != nil {
 		p.Error("get or request tag failed", zap.Error(err), zap.String("channelKey", channelKey))
 		return
@@ -149,6 +149,7 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 	if options.G.Logger.TraceOn {
 		if len(messages) < options.G.Logger.TraceMaxMsgCount { // 消息数小于指定数量才打印，要不然日志太多了
 			for _, m := range messages {
+				connCount := reactor.User.ConnCountByUid(m.ToUid)
 				p.Trace(m.Track.String(),
 					"pushOnline",
 					zap.Int64("messageId", m.MessageId),
@@ -157,7 +158,8 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 					zap.String("clientMsgNo", m.SendPacket.ClientMsgNo),
 					zap.String("channelId", m.FakeChannelId),
 					zap.Uint8("channelType", m.ChannelType),
-					zap.String("reasonCode", m.ReasonCode.String()),
+					zap.String("toUid", m.ToUid),
+					zap.Int("toConnCount", connCount),
 					zap.String("conn.uid", m.Conn.Uid),
 					zap.String("conn.deviceId", m.Conn.DeviceId),
 					zap.Uint64("conn.fromNode", m.Conn.FromNode),

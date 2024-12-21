@@ -31,7 +31,8 @@ func NewService() *Service {
 // 获取或请求tag
 // 先根据tagKey在本地取，如果没有，则去频道领导者节点取
 // 取到后设置在本地缓存中
-func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8, tagKey string) (*types.Tag, error) {
+// targetNodeId 目标节点的uids，如果为0，表示获取所有节点的uids
+func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8, tagKey string, targetNodeId uint64) (*types.Tag, error) {
 
 	realFakeChannelId := fakeChannelId
 	if options.G.IsCmdChannel(fakeChannelId) {
@@ -69,11 +70,13 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 
 	// 去领导节点请求
 	tagResp, err := s.client.RequestTag(leader.Id, &ingress.TagReq{
-		TagKey: tagKey,
-		NodeId: options.G.Cluster.NodeId,
+		TagKey:      tagKey,
+		ChannelId:   realFakeChannelId,
+		ChannelType: channelType,
+		NodeId:      targetNodeId,
 	})
 	if err != nil {
-		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.String("channelId", realFakeChannelId), zap.Uint8("channelType", channelType))
+		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.Uint64("leaderId", leader.Id), zap.String("channelId", realFakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
 
@@ -84,6 +87,10 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 	}
 	service.TagManager.SetChannelTag(realFakeChannelId, channelType, tagKey)
 	return tag, nil
+}
+
+func (s *Service) GetOrRequestAndMakeTagWithLocal(fakeChannelId string, channelType uint8, tagKey string) (*types.Tag, error) {
+	return s.GetOrRequestAndMakeTag(fakeChannelId, channelType, tagKey, options.G.Cluster.NodeId)
 }
 
 // 获取个人频道的投递tag
