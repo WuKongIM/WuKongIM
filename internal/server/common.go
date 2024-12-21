@@ -2,14 +2,11 @@ package server
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"github.com/sendgrid/rest"
 	"go.uber.org/zap"
 )
 
@@ -270,104 +267,3 @@ func parseAddr(addr string) (string, int64) {
 	portInt64, _ := strconv.ParseInt(addrPairs[len(addrPairs)-1], 10, 64)
 	return addrPairs[0], portInt64
 }
-
-// 频道状态
-type channelStatus int
-
-const (
-	channelStatusUninitialized channelStatus = iota // 未初始化
-	channelStatusInitialized                        // 初始化完成
-)
-
-// 用户状态
-type userStatus int
-
-const (
-	userStatusUninitialized userStatus = iota // 未初始化
-	userStatusInitialized                     // 初始化完成
-)
-
-type userRole int
-
-const (
-	userRoleUnknow = iota
-	userRoleLeader // 领导 （领导负责用户数据的真实处理）
-	userRoleProxy  // 代理 （代理不处理逻辑，只将数据转发给领导）
-)
-
-func (u userRole) String() string {
-	switch u {
-	case userRoleUnknow:
-		return "unknow"
-	case userRoleLeader:
-		return "leader"
-	case userRoleProxy:
-		return "proxy"
-	default:
-		return fmt.Sprintf("%d", u)
-	}
-}
-
-func handlerIMError(resp *rest.Response) error {
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusBadRequest {
-			resultMap, err := wkutil.JSONToMap(resp.Body)
-			if err != nil {
-				return err
-			}
-			if resultMap != nil && resultMap["msg"] != nil {
-				return fmt.Errorf("IM服务失败！ -> %s", resultMap["msg"])
-			}
-		}
-		return fmt.Errorf("IM服务返回状态[%d]失败！", resp.StatusCode)
-	}
-	return nil
-}
-
-func myUptime(d time.Duration) string {
-	// Just use total seconds for uptime, and display days / years
-	tsecs := d / time.Second
-	tmins := tsecs / 60
-	thrs := tmins / 60
-	tdays := thrs / 24
-	tyrs := tdays / 365
-
-	if tyrs > 0 {
-		return fmt.Sprintf("%dy%dd%dh%dm%ds", tyrs, tdays%365, thrs%24, tmins%60, tsecs%60)
-	}
-	if tdays > 0 {
-		return fmt.Sprintf("%dd%dh%dm%ds", tdays, thrs%24, tmins%60, tsecs%60)
-	}
-	if thrs > 0 {
-		return fmt.Sprintf("%dh%dm%ds", thrs, tmins%60, tsecs%60)
-	}
-	if tmins > 0 {
-		return fmt.Sprintf("%dm%ds", tmins, tsecs%60)
-	}
-	return fmt.Sprintf("%ds", tsecs)
-}
-
-// func serverUid(id uint64) string {
-// 	return fmt.Sprintf("%d", id)
-// }
-
-// func uidToServerId(uid string) uint64 {
-// 	id, _ := strconv.ParseUint(uid, 10, 64)
-// 	return id
-// }
-
-// 判断字符串是否存在特殊字符
-func IsSpecialChar(s string) bool {
-	return strings.Contains(s, "@") || strings.Contains(s, "#") || strings.Contains(s, "&")
-}
-
-// 连接上下文的key
-type ConnKey string
-
-const (
-	ConnKeyParseProxyProto = "parseProxyProto" // 解析代理协议
-)
-
-const (
-	SystemConnId = 0
-)

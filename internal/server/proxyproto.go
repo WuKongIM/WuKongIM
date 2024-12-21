@@ -84,23 +84,23 @@ func (ap AddressFamilyAndProtocol) IsUnspec() bool {
 	return (ap&0xF0 == 0x00) || (ap&0x0F == 0x00)
 }
 
-func (ap AddressFamilyAndProtocol) toByte() byte {
-	if ap.IsIPv4() && ap.IsStream() {
-		return byte(TCPv4)
-	} else if ap.IsIPv4() && ap.IsDatagram() {
-		return byte(UDPv4)
-	} else if ap.IsIPv6() && ap.IsStream() {
-		return byte(TCPv6)
-	} else if ap.IsIPv6() && ap.IsDatagram() {
-		return byte(UDPv6)
-	} else if ap.IsUnix() && ap.IsStream() {
-		return byte(UnixStream)
-	} else if ap.IsUnix() && ap.IsDatagram() {
-		return byte(UnixDatagram)
-	}
+// func (ap AddressFamilyAndProtocol) toByte() byte {
+// 	if ap.IsIPv4() && ap.IsStream() {
+// 		return byte(TCPv4)
+// 	} else if ap.IsIPv4() && ap.IsDatagram() {
+// 		return byte(UDPv4)
+// 	} else if ap.IsIPv6() && ap.IsStream() {
+// 		return byte(TCPv6)
+// 	} else if ap.IsIPv6() && ap.IsDatagram() {
+// 		return byte(UDPv6)
+// 	} else if ap.IsUnix() && ap.IsStream() {
+// 		return byte(UnixStream)
+// 	} else if ap.IsUnix() && ap.IsDatagram() {
+// 		return byte(UnixDatagram)
+// 	}
 
-	return byte(UNSPEC)
-}
+// 	return byte(UNSPEC)
+// }
 
 // 是否是代理协议
 func isProxyProto(buff []byte) bool {

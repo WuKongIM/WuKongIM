@@ -80,7 +80,7 @@ func (s *Server) onData(conn wknet.Conn) error {
 			conn.Close()
 			return nil
 		}
-		if IsSpecialChar(connectPacket.UID) {
+		if options.IsSpecialChar(connectPacket.UID) {
 			s.Warn("UID is illegal,conn will be closed", zap.String("uid", connectPacket.UID))
 			conn.Close()
 			return nil
