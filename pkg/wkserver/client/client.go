@@ -104,10 +104,6 @@ func (c *Client) Stop() {
 	}
 }
 
-func (c *Client) WaitCount() int {
-	return c.w.Count()
-}
-
 func (c *Client) Write(data []byte) error {
 	return c.conn().asyncWrite(data)
 }
