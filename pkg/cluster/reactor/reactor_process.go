@@ -84,14 +84,15 @@ func (r *Reactor) processInit(req *initReq) {
 	})
 	if err != nil {
 		r.Error("get config failed", zap.Error(err), zap.String("key", req.h.key))
-		req.sub.mustAddMessage(Message{
-			HandlerKey: req.h.key,
-			Message: replica.Message{
-				MsgType:   replica.MsgInitResp,
-				Reject:    true,
-				HandlerNo: req.h.no,
-			},
-		})
+		req.sub.removeHandler(req.h.key)
+		// req.sub.mustAddMessage(Message{
+		// 	HandlerKey: req.h.key,
+		// 	Message: replica.Message{
+		// 		MsgType:   replica.MsgInitResp,
+		// 		Reject:    true,
+		// 		HandlerNo: req.h.no,
+		// 	},
+		// })
 		return
 	}
 	if IsEmptyConfigResp(configResp) {
@@ -229,14 +230,15 @@ func (r *Reactor) processConflictCheck(req *conflictCheckReq) {
 	})
 	if err != nil {
 		r.Error("get leader term start index failed", zap.Error(err), zap.String("key", req.h.key), zap.Uint64("leaderId", req.leaderId), zap.Uint32("leaderLastTerm", req.leaderLastTerm))
-		req.sub.mustAddMessage(Message{
-			HandlerKey: req.h.key,
-			Message: replica.Message{
-				MsgType:   replica.MsgLogConflictCheckResp,
-				Reject:    true,
-				HandlerNo: req.h.no,
-			},
-		})
+		req.sub.removeHandler(req.h.key)
+		// req.sub.mustAddMessage(Message{
+		// 	HandlerKey: req.h.key,
+		// 	Message: replica.Message{
+		// 		MsgType:   replica.MsgLogConflictCheckResp,
+		// 		Reject:    true,
+		// 		HandlerNo: req.h.no,
+		// 	},
+		// })
 		return
 	}
 

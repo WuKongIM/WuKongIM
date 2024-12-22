@@ -8,6 +8,9 @@ import (
 func (c *Channel) processSend(channelId string, channelType uint8, role reactor.Role, msgs []*reactor.ChannelMessage) {
 	if role == reactor.RoleFollower {
 		// 如果是追随者则不处理发送消息,转给领导
+		for _, m := range msgs {
+			m.MsgType = reactor.ChannelMsgPermission
+		}
 		reactor.Channel.AddMessagesToOutbound(channelId, channelType, msgs)
 		return
 	}

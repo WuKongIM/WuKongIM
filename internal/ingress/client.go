@@ -77,7 +77,7 @@ func (c *Client) RequestAllowSendForPerson(toNodeId uint64, from, to string) (*p
 }
 
 func (c *Client) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	resp, err := service.Cluster.RequestWithContext(timeoutCtx, toNodeId, path, body)
 	if err != nil {

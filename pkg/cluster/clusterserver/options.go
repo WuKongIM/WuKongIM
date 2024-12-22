@@ -101,6 +101,11 @@ type Options struct {
 	LokiJob string
 
 	LogDetailOn bool // 是否开启详细日志
+
+	ChannelMessageQueueSize   uint64 // The size of the message queue, the default is 5000
+	CoreMessageQueueSize      uint64 // The size of the message queue, the default is 5000
+	MessageQueueMaxMemorySize uint64 // The maximum memory size of the message queue, the default is 0, which means no limit
+
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -124,6 +129,8 @@ func NewOptions(opt ...Option) *Options {
 		LeaderTransferMinLogGap:    20,
 		LearnerMinLogGap:           100,
 		PageSize:                   20,
+		ChannelMessageQueueSize:    2000,
+		CoreMessageQueueSize:       2000,
 
 		TickInterval:          150 * time.Millisecond,
 		HeartbeatIntervalTick: 1,

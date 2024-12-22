@@ -1,8 +1,6 @@
 package process
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -84,7 +82,6 @@ func (c *Channel) getOrMakeTag(fakeChannelId string, channelType uint8) (*types.
 	if tagKey != "" {
 		tag = service.TagManager.Get(tagKey)
 	}
-	fmt.Println("getOrMakeTag--->", orgFakeChannelId, channelType, tagKey, tag)
 	if tag == nil {
 		// 如果是命令频道，不能创建tag，只能去原频道获取
 		if options.G.IsCmdChannel(fakeChannelId) {

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
@@ -57,6 +58,8 @@ func (r *Reactor) WakeIfNeed(channelId string, channelType uint8) {
 		sub.advance()
 	})
 	sub.addChannel(ch)
+
+	trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(1)
 }
 
 func (r *Reactor) AddAction(action reactor.ChannelAction) bool {

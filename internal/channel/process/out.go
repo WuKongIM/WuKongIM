@@ -58,11 +58,13 @@ func (c *Channel) processElection(a reactor.ChannelAction) {
 	defer cancel()
 	cfg, err := service.Cluster.LoadOrCreateChannel(timeoutCtx, a.FakeChannelId, a.ChannelType)
 	if err != nil {
-		c.Error("load or create channel failed", zap.Error(err), zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType))
+		c.Error("processElection: load or create channel failed", zap.Error(err), zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType))
+		reactor.Channel.Close(a.FakeChannelId, a.ChannelType)
 		return
 	}
 	if cfg.LeaderId == 0 {
-		c.Error("election leader failed", zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType))
+		c.Error("processElection: election leader failed", zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType))
+		reactor.Channel.Close(a.FakeChannelId, a.ChannelType)
 		return
 	}
 	reactor.Channel.UpdateConfig(a.FakeChannelId, a.ChannelType, reactor.ChannelConfig{
