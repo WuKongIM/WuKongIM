@@ -68,7 +68,7 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 			go func(pID uint64, reqs []*channelRecentMessageReq, uidStr string, msgCt int) {
 				results, err := s.requestSyncMessage(pID, reqs, uidStr, msgCt, orderByLast)
 				if err != nil {
-					s.Error("请求同步消息失败！", zap.Error(err))
+					s.Error("请求同步消息失败！", zap.Error(err), zap.Uint64("nodeId", pID))
 					reqErr = err
 				} else {
 					channelRecentMessages = append(channelRecentMessages, results...)
@@ -114,7 +114,7 @@ func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessage
 		})),
 	}
 	s.Debug("同步会话消息!", zap.String("apiURL", reqURL), zap.String("uid", uid), zap.Any("channels", reqs))
-	resp, err := rest.API(request)
+	resp, err := rest.Send(request)
 	if err != nil {
 		return nil, err
 	}
