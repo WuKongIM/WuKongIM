@@ -129,7 +129,7 @@ func NewOptions(opt ...Option) *Options {
 		LeaderTransferMinLogGap:    20,
 		LearnerMinLogGap:           100,
 		PageSize:                   20,
-		ChannelMessageQueueSize:    2000,
+		ChannelMessageQueueSize:    10000,
 		CoreMessageQueueSize:       2000,
 
 		TickInterval:          150 * time.Millisecond,
