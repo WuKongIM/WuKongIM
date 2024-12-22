@@ -215,7 +215,6 @@ func (c *Channel) processOutbound(a reactor.ChannelAction) {
 		c.Error("channel: processOutbound: encode failed", zap.Error(err))
 		return
 	}
-	c.Info("channel: sendToNode", zap.String("channelId", a.FakeChannelId), zap.Uint8("channelType", a.ChannelType), zap.Uint64("to", a.To))
 	err = c.sendToNode(a.To, &proto.Message{
 		MsgType: uint32(msgOutboundReq),
 		Content: data,
