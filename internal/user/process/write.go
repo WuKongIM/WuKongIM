@@ -39,7 +39,7 @@ func (p *User) processWrite(a reactor.UserAction) {
 		// 获取真实连接
 		conn := service.ConnManager.GetConn(m.Conn.ConnId)
 		if conn == nil {
-			p.Warn("processWrite: conn not exist", zap.String("uid", a.Uid), zap.Uint64("fromNode", m.Conn.FromNode), zap.Int64("connId", m.Conn.ConnId))
+			// p.Warn("processWrite: conn not exist", zap.String("uid", a.Uid), zap.Uint64("fromNode", m.Conn.FromNode), zap.Int64("connId", m.Conn.ConnId))
 			continue
 		}
 		wsConn, wsok := conn.(wknet.IWSConn) // websocket连接
