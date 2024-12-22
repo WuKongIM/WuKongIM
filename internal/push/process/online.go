@@ -128,6 +128,8 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 			if !recvPacket.NoPersist { // 只有存储的消息才重试
 				service.RetryManager.AddRetry(&types.RetryMessage{
 					Uid:            toConn.Uid,
+					ChannelId:      fakeChannelId,
+					ChannelType:    recvPacket.ChannelType,
 					ConnId:         toConn.ConnId,
 					FromNode:       toConn.FromNode,
 					MessageId:      message.MessageId,

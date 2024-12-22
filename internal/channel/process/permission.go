@@ -35,12 +35,12 @@ func (c *Channel) processPermission(channelId string, channelType uint8, msgs []
 		for _, m := range msgs {
 			reasonCode, err = c.hasPermissionForSender(m)
 			if err != nil {
-				c.Error("hasPermissionForSender error", zap.Error(err))
+				c.Error("hasPermissionForSender error", zap.Error(err), zap.String("fromUid", m.Conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Int("msgs", len(msgs)))
 				reasonCode = wkproto.ReasonSystemError
+			} else if reasonCode != wkproto.ReasonSuccess {
+				c.Info("hasPermissionForSender failed", zap.String("fromUid", m.Conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("reasonCode", reasonCode.String()))
 			}
-			if reasonCode != wkproto.ReasonSuccess {
-				c.Info("hasPermissionForSender failed", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("reasonCode", reasonCode.String()))
-			}
+
 			m.ReasonCode = reasonCode
 
 			if reasonCode == wkproto.ReasonSuccess {

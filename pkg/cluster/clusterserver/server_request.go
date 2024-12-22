@@ -126,7 +126,7 @@ func (s *Server) handleClusterconfig(c *wkserver.Context) {
 
 	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
 	defer cancel()
-	clusterConfig, _, err := s.loadOrCreateChannelClusterConfig(timeoutCtx, req.ChannelId, req.ChannelType)
+	clusterConfig, _, err := s.loadOrCreateChannelClusterConfigWithFrom(timeoutCtx, req.ChannelId, req.ChannelType, req.From)
 	if err != nil {
 		s.Error("handleClusterconfig: loadOrCreateChannelClusterConfig failed", zap.Error(err))
 		c.WriteErr(err)

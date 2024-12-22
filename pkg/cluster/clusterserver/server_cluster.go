@@ -366,11 +366,20 @@ func (s *Server) loadOrCreateChannelClusterConfig(ctx context.Context, channelId
 		s.channelKeyLock.Unlock(channelId)
 	}()
 
-	return s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType)
+	return s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType, 0)
+}
+
+func (s *Server) loadOrCreateChannelClusterConfigWithFrom(ctx context.Context, channelId string, channelType uint8, from uint64) (wkdb.ChannelClusterConfig, bool, error) {
+	s.channelKeyLock.Lock(channelId)
+	defer func() {
+		s.channelKeyLock.Unlock(channelId)
+	}()
+
+	return s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType, from)
 }
 
 // 加载或创建频道分布式配置
-func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, bool, error) {
+func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, channelId string, channelType uint8, from uint64) (wkdb.ChannelClusterConfig, bool, error) {
 
 	// s.Info("======================loadOrCreateChannelClusterConfigNoLock start======================", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 
@@ -426,6 +435,9 @@ func (s *Server) loadOrCreateChannelClusterConfigNoLock(ctx context.Context, cha
 
 	// 如果当前节点不是此频道的槽领导，则向槽领导请求频道的分布式配置
 	if !isSlotLeader {
+		if from != 0 && from == slot.Leader {
+			s.Panic("loadOrCreateChannelClusterConfig: from is slot leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("from", from), zap.Uint32("slotId", slotId))
+		}
 		// s.Info("loadOrCreateChannelClusterConfig: not slot leader, request from slot leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("slotLeader", slot.Leader), zap.Uint32("slotId", slotId))
 		clusterCfg, err = s.requestChannelClusterConfigFromSlotLeader(channelId, channelType)
 		if err != nil {
@@ -548,7 +560,7 @@ func (s *Server) loadOrCreateChannel(ctx context.Context, channelId string, chan
 		s.channelKeyLock.Unlock(channelId)
 	}()
 
-	clusterCfg, changed, err := s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType)
+	clusterCfg, changed, err := s.loadOrCreateChannelClusterConfigNoLock(ctx, channelId, channelType, 0)
 	if err != nil {
 		s.Error("loadOrCreateChannelClusterConfig failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return nil, err

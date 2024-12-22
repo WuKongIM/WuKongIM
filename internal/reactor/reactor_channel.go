@@ -161,3 +161,12 @@ func (c *ChannelPlus) UpdateConfig(channelId string, channelType uint8, cfg Chan
 	})
 	c.ch.Advance(channelId, channelType)
 }
+
+func (c *ChannelPlus) Close(channelId string, channelType uint8) {
+	c.ch.MustAddAction(ChannelAction{
+		Type:          ChannelActionClose,
+		FakeChannelId: channelId,
+		ChannelType:   channelType,
+	})
+	c.ch.Advance(channelId, channelType)
+}

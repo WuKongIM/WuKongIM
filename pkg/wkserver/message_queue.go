@@ -1,35 +1,32 @@
-// Copyright 2017-2019 Lei Ni (nilei81@gmail.com) and other contributors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-package cluster
+package wkserver
 
 import (
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/panjf2000/gnet/v2"
 	"go.uber.org/zap"
 )
+
+type message struct {
+	msgType proto.MsgType
+	data    []byte
+	conn    gnet.Conn
+}
+
+func (m *message) size() int {
+	return len(m.data)
+}
 
 type messageQueue struct {
 	ch            chan struct{}
 	rl            *RateLimiter // 限制字节流量速度
 	lazyFreeCycle uint64       // 懒惰释放周期，n表示n次释放一次
 	size          uint64
-	left          []*proto.Message // 左边队列
-	right         []*proto.Message // 右边队列, 左右的目的是为了重复利用内存
-	nodrop        []*proto.Message // 不能drop的消息
+	left          []*message // 左边队列
+	right         []*message // 右边队列, 左右的目的是为了重复利用内存
+	nodrop        []*message // 不能drop的消息
 	mu            sync.Mutex
 	leftInWrite   bool   // 写入时是否使用左边队列
 	idx           uint64 // 当前写入的位置下标
@@ -45,9 +42,9 @@ func newMessageQueue(size uint64, ch bool,
 		rl:            NewRateLimiter(maxMemorySize),
 		size:          size,
 		lazyFreeCycle: lazyFreeCycle,
-		left:          make([]*proto.Message, size),
-		right:         make([]*proto.Message, size),
-		nodrop:        make([]*proto.Message, 0),
+		left:          make([]*message, size),
+		right:         make([]*message, size),
+		nodrop:        make([]*message, 0),
 		Log:           wklog.NewWKLog("messageQueue"),
 	}
 	if ch {
@@ -56,7 +53,7 @@ func newMessageQueue(size uint64, ch bool,
 	return q
 }
 
-func (q *messageQueue) add(msg *proto.Message) bool {
+func (q *messageQueue) add(msg *message) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.idx >= q.size {
@@ -75,14 +72,13 @@ func (q *messageQueue) add(msg *proto.Message) bool {
 }
 
 // 必须要添加的消息不接受drop
-func (q *messageQueue) mustAdd(msg *proto.Message) {
+func (q *messageQueue) mustAdd(msg *message) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-
 	q.nodrop = append(q.nodrop, msg)
 }
 
-func (q *messageQueue) get() []*proto.Message {
+func (q *messageQueue) get() []*message {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.cycle++
@@ -99,17 +95,17 @@ func (q *messageQueue) get() []*proto.Message {
 		return t[:sz]
 	}
 
-	var result []*proto.Message
+	var result []*message
 	if len(q.nodrop) > 0 {
 		ssm := q.nodrop
-		q.nodrop = make([]*proto.Message, 0)
+		q.nodrop = make([]*message, 0)
 		result = append(result, ssm...)
 	}
 	return append(result, t[:sz]...)
 }
 
-func (q *messageQueue) targetQueue() []*proto.Message {
-	var t []*proto.Message
+func (q *messageQueue) targetQueue() []*message {
+	var t []*message
 	if q.leftInWrite {
 		t = q.left
 	} else {
@@ -118,15 +114,15 @@ func (q *messageQueue) targetQueue() []*proto.Message {
 	return t
 }
 
-func (q *messageQueue) tryAdd(msg *proto.Message) bool {
+func (q *messageQueue) tryAdd(msg *message) bool {
 	if !q.rl.Enabled() {
 		return true
 	}
 	if q.rl.RateLimited() {
-		q.Warn("rate limited dropped", zap.Uint32("msgType", msg.MsgType))
+		q.Warn("rate limited dropped", zap.Uint8("msgType", msg.msgType.Uint8()))
 		return false
 	}
-	q.rl.Increase(uint64(msg.Size()))
+	q.rl.Increase(uint64(msg.size()))
 	return true
 }
 
@@ -135,11 +131,11 @@ func (q *messageQueue) gc() {
 		oldq := q.targetQueue()
 		if q.lazyFreeCycle == 1 {
 			for i := uint64(0); i < q.oldIdx; i++ {
-				oldq[i].Content = nil
+				oldq[i].data = nil
 			}
 		} else if q.cycle%q.lazyFreeCycle == 0 {
 			for i := uint64(0); i < q.size; i++ {
-				oldq[i].Content = nil
+				oldq[i].data = nil
 			}
 		}
 	}

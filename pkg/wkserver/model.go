@@ -54,7 +54,7 @@ func (c *Context) Write(data []byte) {
 		c.Debug("marshal is error", zap.Error(err))
 		return
 	}
-	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp)
 	if err != nil {
 		c.Debug("encode is error", zap.Error(err))
 		return
@@ -80,7 +80,7 @@ func (c *Context) WriteOk() {
 		c.Debug("marshal is error", zap.Error(err))
 		return
 	}
-	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp)
 	if err != nil {
 		c.Debug("encode is error", zap.Error(err))
 		return
@@ -111,7 +111,7 @@ func (c *Context) WriteErrorAndStatus(err error, status proto.Status) {
 		c.Debug("marshal is error", zap.Error(err))
 		return
 	}
-	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp)
 	if err != nil {
 		c.Debug("encode is error", zap.Error(err))
 		return
@@ -137,7 +137,7 @@ func (c *Context) WriteStatus(status proto.Status) {
 		c.Debug("marshal is error", zap.Error(err))
 		return
 	}
-	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp.Uint8())
+	msgData, err := c.proto.Encode(respData, proto.MsgTypeResp)
 	if err != nil {
 		c.Debug("encode is error", zap.Error(err))
 		return
@@ -163,7 +163,7 @@ func (c *Context) WriteConnack(connack *proto.Connack) {
 		c.Info("marshal is error", zap.Error(err))
 		return
 	}
-	msgData, err := c.proto.Encode(data, proto.MsgTypeConnack.Uint8())
+	msgData, err := c.proto.Encode(data, proto.MsgTypeConnack)
 	if err != nil {
 		c.Info("encode is error", zap.Error(err))
 		return

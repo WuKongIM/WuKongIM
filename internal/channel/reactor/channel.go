@@ -130,6 +130,8 @@ func (c *Channel) step(a reactor.ChannelAction) {
 		for _, msg := range a.Messages {
 			c.outbound.append(msg)
 		}
+	case reactor.ChannelActionClose:
+		c.sendChannelClose()
 	default:
 		if c.stepFnc != nil {
 			c.stepFnc(a)

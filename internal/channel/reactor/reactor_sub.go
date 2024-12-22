@@ -6,6 +6,7 @@ import (
 
 	goption "github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
@@ -132,6 +133,7 @@ func (r *reactorSub) handleEvent(ch *Channel) bool {
 		switch action.Type {
 		case reactor.ChannelActionClose:
 			r.channels.remove(ch.key)
+			trace.GlobalTrace.Metrics.Cluster().ChannelActiveCountAdd(-1)
 		}
 	}
 

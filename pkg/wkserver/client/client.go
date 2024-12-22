@@ -65,7 +65,7 @@ func New(addr string, opt ...Option) *Client {
 
 	c.cancelCtx, c.cancel = context.WithCancel(context.Background())
 	var err error
-	c.pool, err = ants.NewPool(1024*10, ants.WithNonblocking(true), ants.WithExpiryDuration(time.Second*10))
+	c.pool, err = ants.NewPool(1024*10, ants.WithNonblocking(true))
 	if err != nil {
 		c.Panic("new pool failed", zap.Error(err), zap.Stack("stack"))
 	}
@@ -104,6 +104,10 @@ func (c *Client) Stop() {
 	}
 }
 
+func (c *Client) WaitCount() int {
+	return c.w.Count()
+}
+
 func (c *Client) Write(data []byte) error {
 	return c.conn().asyncWrite(data)
 }
@@ -126,7 +130,7 @@ func (c *Client) Send(m *proto.Message) error {
 	if err != nil {
 		return err
 	}
-	data, err := c.proto.Encode(msgData, uint8(proto.MsgTypeMessage))
+	data, err := c.proto.Encode(msgData, proto.MsgTypeMessage)
 	if err != nil {
 		return err
 	}
@@ -171,7 +175,7 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 
 	c.Requesting.Inc()
 
-	msgData, err := c.proto.Encode(data, proto.MsgTypeRequest.Uint8())
+	msgData, err := c.proto.Encode(data, proto.MsgTypeRequest)
 	if err != nil {
 		return nil, err
 	}

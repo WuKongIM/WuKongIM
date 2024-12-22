@@ -54,7 +54,6 @@ func (n *node) start() {
 	if err != nil {
 		n.Panic("client start failed", zap.Error(err))
 	}
-
 }
 
 func (n *node) stop() {

@@ -5,9 +5,11 @@ wsAddr: "ws://0.0.0.0:5230"
 rootDir: "./wukongimdata/3"
 tokenAuthOn: false
 stress: true
+intranet:
+  tcpAddr: "127.0.0.1:15100"
 # whitelistOffOfPerson: false
 logger:
-  traceOn: true
+  traceOn: false
 #   loki:
 #     url: "http://127.0.0.1:3100"
 trace: 

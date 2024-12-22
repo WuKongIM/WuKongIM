@@ -40,9 +40,14 @@ func (s *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 		}
 
 		batchCount++
+
 		s.handleMsg(c, msgType, data)
+
 	}
 	if batchCount == s.batchRead && c.InboundBuffered() > 0 {
+		if c.InboundBuffered() > 100000 {
+			s.Foucs("server: inbound buffered is too large", zap.Int("buffered", c.InboundBuffered()))
+		}
 		if err := c.Wake(nil); err != nil { // 这里调用wake避免丢失剩余的数据
 			s.Foucs("failed to wake up the connection, gnet close", zap.Error(err))
 			return gnet.Close
@@ -97,7 +102,7 @@ func (s *Server) handleMsg(conn gnet.Conn, msgType proto.MsgType, data []byte) {
 			s.Error("unmarshal resp error", zap.Error(err))
 			return
 		}
-		go s.handleResp(conn, resp)
+		s.handleResp(conn, resp)
 	} else if msgType == proto.MsgTypeMessage {
 		// 这需要复制一份新的data的byte，因为handleMsg传过来的data是被复用了的
 
@@ -135,7 +140,12 @@ func (s *Server) releaseRequest(r *proto.Request) {
 }
 
 func (s *Server) handleHeartbeat(conn gnet.Conn) {
-	_, err := conn.Write([]byte{proto.MsgTypeHeartbeat.Uint8()})
+	data, err := s.proto.Encode([]byte{proto.MsgTypeHeartbeat.Uint8()}, proto.MsgTypeHeartbeat)
+	if err != nil {
+		s.Error("encode heartbeat error", zap.Error(err))
+		return
+	}
+	_, err = conn.Write(data)
 	if err != nil {
 		s.Debug("write heartbeat error", zap.Error(err))
 	}
@@ -143,7 +153,7 @@ func (s *Server) handleHeartbeat(conn gnet.Conn) {
 
 func (s *Server) handleConnack(conn gnet.Conn, req *proto.Connect) {
 
-	s.Debug("连接成功", zap.String("from", req.Uid))
+	s.Info("收到连接。。。", zap.String("from", req.Uid))
 	conn.SetContext(newConnContext(req.Uid))
 	s.connManager.AddConn(req.Uid, conn)
 
@@ -151,7 +161,7 @@ func (s *Server) handleConnack(conn gnet.Conn, req *proto.Connect) {
 	h, ok := s.routeMap[s.opts.ConnPath]
 	s.routeMapLock.RUnlock()
 	if !ok {
-		s.Debug("route not found", zap.String("path", s.opts.ConnPath))
+		s.Info("route not found", zap.String("path", s.opts.ConnPath))
 		return
 	}
 	ctx := NewContext(conn)
@@ -215,7 +225,7 @@ func (s *Server) Request(uid string, p string, body []byte) (*proto.Response, er
 	if err != nil {
 		return nil, err
 	}
-	msgData, err := s.proto.Encode(data, proto.MsgTypeRequest.Uint8())
+	msgData, err := s.proto.Encode(data, proto.MsgTypeRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +266,7 @@ func (s *Server) RequestAsync(uid string, p string, body []byte) error {
 	if err != nil {
 		return err
 	}
-	msgData, err := s.proto.Encode(data, proto.MsgTypeRequest.Uint8())
+	msgData, err := s.proto.Encode(data, proto.MsgTypeRequest)
 	if err != nil {
 		return err
 	}
@@ -276,7 +286,7 @@ func (s *Server) Send(uid string, msg *proto.Message) error {
 	if err != nil {
 		return err
 	}
-	msgData, err := s.proto.Encode(data, proto.MsgTypeMessage.Uint8())
+	msgData, err := s.proto.Encode(data, proto.MsgTypeMessage)
 	if err != nil {
 		return err
 	}

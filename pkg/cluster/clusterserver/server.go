@@ -58,6 +58,9 @@ type Server struct {
 	// 缓存的数据版本，这个版本是全局分布式配置版本，当全局分布式配置的版本大于当前时，应当清除缓存
 	channelClusterCacheVersion uint64
 
+	coreMQ    *messageQueue
+	channelMQ *messageQueue
+
 	// 测试ping
 	testPings       map[string]*ping
 	testPingMapLock sync.RWMutex
@@ -73,6 +76,8 @@ func New(opts *Options) *Server {
 		stopper:             syncutil.NewStopper(),
 		channelClusterCache: lru.New(1024),
 		testPings:           make(map[string]*ping),
+		channelMQ:           newMessageQueue(opts.ChannelMessageQueueSize, true, 0, opts.MessageQueueMaxMemorySize),
+		coreMQ:              newMessageQueue(opts.CoreMessageQueueSize, true, 0, opts.MessageQueueMaxMemorySize),
 	}
 
 	s.slotManager = newSlotManager(s)
@@ -147,6 +152,10 @@ func New(opts *Options) *Server {
 	)
 	s.channelElectionManager = newChannelElectionManager(s)
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
+
+	go s.loopChannelQueue()
+	go s.loopCoreQueue()
+
 	return s
 }
 
@@ -408,49 +417,94 @@ func (s *Server) onMessage(c gnet.Conn, m *proto.Message) {
 	if s.stopped.Load() {
 		return
 	}
-	start := time.Now()
-
-	defer func() {
-		cost := time.Since(start)
-		if cost > time.Millisecond*50 {
-			s.Warn("handle cluster message too cost...", zap.Duration("cost", cost), zap.Uint32("msgType", m.MsgType))
-		}
-	}()
-
 	msgSize := int64(m.Size())
-
 	trace.GlobalTrace.Metrics.System().IntranetIncomingAdd(msgSize) // 内网流量统计
+
 	switch m.MsgType {
-	case MsgTypeConfig:
-		msg, err := reactor.UnmarshalMessage(m.Content)
-		if err != nil {
-			s.Error("UnmarshalMessage failed", zap.Error(err))
+	case MsgTypeConfig, MsgTypeSlot:
+		s.coreMQ.mustAdd(m)
+		s.coreMQ.notify()
+	case MsgTypeChannel:
+		added := s.channelMQ.add(m)
+		if !added {
+			s.Warn("channel mq is full, add failed", zap.Uint32("msgType", m.MsgType), zap.Uint64("mqSize", s.channelMQ.size))
+		}
+		s.channelMQ.notify()
+	default:
+		s.handleOtherMessage(c, m)
+	}
+}
+
+func (s *Server) loopChannelQueue() {
+	for {
+		select {
+		case <-s.channelMQ.ch:
+			msgs := s.channelMQ.get()
+			if len(msgs) == 0 {
+				continue
+			}
+			start := time.Now()
+			for _, m := range msgs {
+				s.handleReactorMessage(m)
+			}
+			cost := time.Since(start)
+			if cost > time.Second*2 {
+				s.Warn("handle channel mq too cost...", zap.Duration("cost", cost), zap.Int("msgCount", len(msgs)))
+			}
+		case <-s.cancelCtx.Done():
 			return
 		}
+	}
+}
+
+func (s *Server) loopCoreQueue() {
+	for {
+		select {
+		case <-s.coreMQ.ch:
+			msgs := s.coreMQ.get()
+			if len(msgs) == 0 {
+				continue
+			}
+			start := time.Now()
+			for _, m := range msgs {
+				s.handleReactorMessage(m)
+			}
+			cost := time.Since(start)
+			if cost > time.Second {
+				s.Warn("handle core mq too cost...", zap.Duration("cost", cost), zap.Int("msgCount", len(msgs)))
+			}
+		case <-s.cancelCtx.Done():
+			return
+		}
+	}
+}
+
+func (s *Server) handleReactorMessage(m *proto.Message) {
+	msg, err := reactor.UnmarshalMessage(m.Content)
+	if err != nil {
+		s.Error("UnmarshalMessage failed", zap.Error(err))
+		return
+	}
+	msgSize := int64(m.Size())
+	switch m.MsgType {
+	case MsgTypeConfig:
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindConfig, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindConfig, msgSize)
 		s.AddConfigMessage(msg)
 	case MsgTypeSlot:
-
-		msg, err := reactor.UnmarshalMessage(m.Content)
-		if err != nil {
-			s.Error("UnmarshalMessage failed", zap.Error(err))
-			return
-		}
-
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindSlot, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindSlot, msgSize)
 		s.AddSlotMessage(msg)
 	case MsgTypeChannel:
-		msg, err := reactor.UnmarshalMessage(m.Content)
-		if err != nil {
-			s.Error("UnmarshalMessage failed", zap.Error(err))
-			return
-		}
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindChannel, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindChannel, msgSize)
 		s.AddChannelMessage(msg)
+	}
+}
 
+func (s *Server) handleOtherMessage(c gnet.Conn, m *proto.Message) {
+	msgSize := int64(m.Size())
+	switch m.MsgType {
 	case MsgTypeChannelClusterConfigUpdate: // 频道配置更新
 		go s.handleChannelClusterConfigUpdate(m)
 
@@ -468,10 +522,8 @@ func (s *Server) onMessage(c gnet.Conn, m *proto.Message) {
 			return
 		}
 		s.pong(pong)
-
 	default:
 		fromNodeId := s.uidToServerId(wkserver.GetUidFromContext(c))
-
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingCountAdd(trace.ClusterKindUnknown, 1)
 		trace.GlobalTrace.Metrics.Cluster().MessageIncomingBytesAdd(trace.ClusterKindUnknown, msgSize)
 		if s.onMessageFnc != nil {

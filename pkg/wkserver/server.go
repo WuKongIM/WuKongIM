@@ -10,6 +10,7 @@ import (
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/panjf2000/gnet/v2/pkg/errors"
@@ -36,8 +37,8 @@ type Server struct {
 	timingWheel *timingwheel.TimingWheel
 
 	requestObjPool *sync.Pool
-
-	batchRead int // 连接进来数据后，每次数据读取批数，超过此次数后下次再读
+	stopper        *syncutil.Stopper
+	batchRead      int // 连接进来数据后，每次数据读取批数，超过此次数后下次再读
 }
 
 func New(addr string, ops ...Option) *Server {
@@ -55,6 +56,7 @@ func New(addr string, ops ...Option) *Server {
 		routeMap:    make(map[string]Handler),
 		Log:         wklog.NewWKLog("Server"),
 		w:           wait.New(),
+		stopper:     syncutil.NewStopper(),
 		connManager: NewConnManager(),
 		metrics:     newMetrics(),
 		batchRead:   100,
@@ -85,14 +87,11 @@ func New(addr string, ops ...Option) *Server {
 
 	s.routeMap[opts.ConnPath] = func(ctx *Context) {
 		req := ctx.ConnReq()
-		if req == nil {
-			return
-		}
-		ctx.WriteConnack(&proto.Connack{
+		s.Info("connack--->", zap.Uint64("id", req.Id), zap.String("uid", req.Uid))
+		go ctx.WriteConnack(&proto.Connack{
 			Id:     req.Id,
 			Status: proto.StatusOK,
 		})
-
 	}
 
 	return s
@@ -117,6 +116,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
+	s.stopper.Stop()
 	s.timingWheel.Stop()
 	timeCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()

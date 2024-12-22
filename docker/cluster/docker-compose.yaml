@@ -1,7 +1,10 @@
 version: '3.7'
 
 x-wukongim-common: &wukongim-common  # 公共配置
-    image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2
+    # image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.10-20241221-dev
+    build:
+      context: ../../
+      dockerfile: Dockerfile
     healthcheck:
       test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
       interval: 10s
@@ -14,6 +17,9 @@ services:
     container_name: wukongim1
     environment:
       - "WK_CLUSTER_NODEID=1001"  # 节点ID，必须数字
+      - "WK_STRESS=true" # 是否开启压测
+      - "WK_MODE=release" # 运行模式
+      - "WK_INTRANET_TCPADDR=127.0.0.1:15100"
       - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"  # 节点对外WS地址， 这里IP视情况修改
       - "WK_EXTERNAL_TCPADDR=127.0.0.1:15100" # 节点对外TCP地址， 这里IP视情况修改
       - "WK_CLUSTER_SERVERADDR=node1.wk.local:11110"
@@ -33,6 +39,9 @@ services:
     container_name: wukongim2
     environment:
       - "WK_CLUSTER_NODEID=1002"
+      - "WK_STRESS=true" # 是否开启压测
+      - "WK_MODE=release" # 运行模式
+      - "WK_INTRANET_TCPADDR=127.0.0.1:15100"
       - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"  # 节点对外WS地址， 这里IP视情况修改
       - "WK_EXTERNAL_TCPADDR=127.0.0.1:15100" # 节点对外TCP地址， 这里IP视情况修改
       - "WK_CLUSTER_SERVERADDR=node2.wk.local:11110"
@@ -52,29 +61,20 @@ services:
     container_name: wukongim3
     environment:
       - "WK_CLUSTER_NODEID=1003"
+      - "WK_STRESS=true" # 是否开启压测
+      - "WK_MODE=release" # 运行模式
+      - "WK_INTRANET_TCPADDR=127.0.0.1:15100"
       - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"  # 节点对外WS地址， 这里IP视情况修改
       - "WK_EXTERNAL_TCPADDR=127.0.0.1:15100" # 节点对外TCP地址， 这里IP视情况修改
       - "WK_CLUSTER_SERVERADDR=node3.wk.local:11110"
       - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local" # 集群节点列表
       - "WK_CLUSTER_APIURL=http://node3.wk.local:5001"
-      - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus.wk.local:9090" # 监控地址
-      - "WK_TRACE_ENDPOINT=http://jaeger.wk.local:4318" # jaeger数据追踪地址
     networks:
       wukongim-bridge:
         aliases:
         - node3.wk.local
     volumes:
       - ./wukongim3_data:/root/wukongim  
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    networks:
-      wukongim-bridge:
-        aliases:
-        - jaeger.wk.local
-    ports:
-      - "16686:16686" # serve frontend
-      - "8889:8889"    
-      - "4318:4318" # accept OpenTelemetry Protocol (OTLP) over HTTP
   prometheus: 
     image: registry.cn-shanghai.aliyuncs.com/wukongim/prometheus:v2.53.1
     volumes:

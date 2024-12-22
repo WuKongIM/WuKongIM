@@ -113,7 +113,7 @@ func (c *conn) sendAuth() error {
 		c.Error("conn auth failed", zap.Error(err))
 		return err
 	}
-	msgData, err := c.c.proto.Encode(data, proto.MsgTypeConnect.Uint8())
+	msgData, err := c.c.proto.Encode(data, proto.MsgTypeConnect)
 	if err != nil {
 		c.Error("conn auth failed", zap.Error(err))
 		return err
@@ -168,7 +168,12 @@ func (c *conn) reconnect() {
 
 // 发送心跳
 func (c *conn) sendHeartbeat() {
-	err := c.gc.AsyncWrite([]byte{proto.MsgTypeHeartbeat.Uint8()}, nil)
+	data, err := c.c.proto.Encode([]byte{proto.MsgTypeHeartbeat.Uint8()}, proto.MsgTypeHeartbeat)
+	if err != nil {
+		c.Warn("encode heartbeat error", zap.Error(err))
+		return
+	}
+	err = c.gc.AsyncWrite(data, nil)
 	if err != nil {
 		c.Warn("send heartbeat error", zap.Error(err))
 		return
@@ -211,6 +216,9 @@ func (c *conn) onTraffic(gc gnet.Conn) gnet.Action {
 	}
 
 	if batchCount == c.c.batchRead && gc.InboundBuffered() > 0 {
+		if gc.InboundBuffered() > 100000 {
+			c.Warn("client: inbound buffered is too large", zap.Int("buffered", gc.InboundBuffered()))
+		}
 		if err := gc.Wake(nil); err != nil { // 这里调用wake避免丢失剩余的数据
 			c.Error("failed to wake up the connection", zap.Error(err))
 			return gnet.Close

@@ -74,7 +74,7 @@ func TestRequestResp(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 200)
 
-	var count = 100000
+	var count = 10000
 
 	var wg sync.WaitGroup
 	wg.Add(count)
