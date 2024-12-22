@@ -42,15 +42,12 @@ func (s *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 		batchCount++
 		s.handleMsg(c, msgType, data)
 	}
-
-	// TODO: 这里不需要Wake，因为服务端消息延绵不断
-	// if batchCount == s.batchRead && c.InboundBuffered() > 0 {
-	// 	s.Foucs("wake up the connection")
-	// 	if err := c.Wake(nil); err != nil { // 这里调用wake避免丢失剩余的数据
-	// 		s.Foucs("failed to wake up the connection, gnet close", zap.Error(err))
-	// 		return gnet.Close
-	// 	}
-	// }
+	if batchCount == s.batchRead && c.InboundBuffered() > 0 {
+		if err := c.Wake(nil); err != nil { // 这里调用wake避免丢失剩余的数据
+			s.Foucs("failed to wake up the connection, gnet close", zap.Error(err))
+			return gnet.Close
+		}
+	}
 
 	return
 }

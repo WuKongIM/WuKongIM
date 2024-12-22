@@ -77,7 +77,7 @@ func New(addr string, opt ...Option) *Client {
 	c.conns = make([]*conn, 1)
 	c.conns[0] = newConn(addr, c) // 目前只支持一个连接
 
-	gc, err := gnet.NewClient(c.event, gnet.WithTicker(true))
+	gc, err := gnet.NewClient(c.event, gnet.WithTicker(true), gnet.WithMulticore(true))
 	if err != nil {
 		c.Panic("new client failed", zap.Error(err))
 		return nil
@@ -154,7 +154,7 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 		return nil, errors.New("conn is nil")
 	}
 	if c.conn().status.Load() != authed {
-		c.Error("connect not authed", zap.String("addr", c.opts.Addr))
+		c.Error("connect not authed", zap.String("addr", c.opts.Addr), zap.String("path", p))
 		return nil, errors.New("connect not authed")
 	}
 
@@ -175,10 +175,15 @@ func (c *Client) RequestWithContext(ctx context.Context, p string, body []byte) 
 	if err != nil {
 		return nil, err
 	}
+	start := time.Now()
 	ch := c.w.Register(r.Id)
 	err = c.conn().asyncWrite(msgData)
 	if err != nil {
 		return nil, err
+	}
+	cost := time.Since(start)
+	if cost > time.Millisecond*100 {
+		c.Warn("request cost too long", zap.Duration("cost", cost), zap.String("path", p))
 	}
 	select {
 	case x := <-ch:

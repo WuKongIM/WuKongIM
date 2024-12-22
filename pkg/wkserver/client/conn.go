@@ -181,9 +181,14 @@ func (c *conn) close(err error) {
 }
 
 func (c *conn) onTraffic(gc gnet.Conn) gnet.Action {
-
+	if gc.InboundBuffered() == 0 {
+		return gnet.None
+	}
 	batchCount := 0
 	for i := 0; i < c.c.batchRead; i++ {
+		if gc.InboundBuffered() == 0 {
+			break
+		}
 		data, msgType, _, err := c.c.proto.Decode(gc)
 		if err == io.ErrShortBuffer { // 表示数据不够了
 			break

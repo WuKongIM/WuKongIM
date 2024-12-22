@@ -37,7 +37,9 @@ func newReplicaLog(opts *Options) *replicaLog {
 	lastIndex := opts.LastIndex
 
 	if opts.LastIndex < opts.AppliedIndex {
-		rg.Panic("last index is less than applied index", zap.Uint64("lastIndex", opts.LastIndex), zap.Uint64("appliedIndex", opts.AppliedIndex))
+		// rg.Panic("last index is less than applied index", zap.Uint64("lastIndex", opts.LastIndex), zap.Uint64("appliedIndex", opts.AppliedIndex))
+		// TODO: 暂时不让他崩
+		rg.Error("last index is less than applied index", zap.Uint64("lastIndex", opts.LastIndex), zap.Uint64("appliedIndex", opts.AppliedIndex))
 	}
 
 	rg.committedIndex = opts.AppliedIndex

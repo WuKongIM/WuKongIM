@@ -73,7 +73,6 @@ func New() *DefaultProto {
 }
 
 func (d *DefaultProto) Decode(c gnet.Conn) ([]byte, MsgType, int, error) {
-
 	msgByteBuff, err := c.Peek(1)
 	if err != nil {
 		return nil, 0, 0, err
@@ -93,7 +92,6 @@ func (d *DefaultProto) Decode(c gnet.Conn) ([]byte, MsgType, int, error) {
 	}
 
 	contentLen := binary.BigEndian.Uint32(contentLenBytes[MsgTypeLength:])
-
 	buf, err := c.Peek(int(contentLen) + minSize)
 	if err != nil {
 		return nil, 0, 0, err
@@ -115,8 +113,12 @@ func (d *DefaultProto) Encode(data []byte, msgType uint8) ([]byte, error) {
 	msgLen := msgOffset + len(data)
 
 	msgData := make([]byte, msgLen)
+	// msgType
 	copy(msgData, []byte{msgType})
+	// data len
 	binary.BigEndian.PutUint32(msgData[MsgTypeLength:msgOffset], uint32(len(data)))
+
+	// data
 	copy(msgData[msgOffset:msgLen], data)
 
 	return msgData, nil
