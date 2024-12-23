@@ -25,18 +25,7 @@ func (p *Push) processPushOnline(messages []*reactor.ChannelMessage) {
 
 // 以频道为单位推送消息
 func (p *Push) processChannelPush(channelKey string, messages []*reactor.ChannelMessage) {
-	firstMsg := messages[0]
-	tagKey := firstMsg.TagKey
-	fakeChannelId, channelType := wkutil.ChannelFromlKey(channelKey)
-	tag, err := p.commService.GetOrRequestAndMakeTagWithLocal(fakeChannelId, channelType, tagKey)
-	if err != nil {
-		p.Error("get or request tag failed", zap.Error(err), zap.String("channelKey", channelKey))
-		return
-	}
-	if tag == nil {
-		p.Error("push: tagKey: tag not found, not push", zap.String("channelKey", channelKey))
-		return
-	}
+	fakeChannelId, _ := wkutil.ChannelFromlKey(channelKey)
 	for _, message := range messages {
 		if options.G.IsSystemUid(message.ToUid) {
 			continue

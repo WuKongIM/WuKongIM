@@ -1,6 +1,7 @@
 package process
 
 import (
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 )
@@ -9,7 +10,12 @@ func (c *Channel) processSend(channelId string, channelType uint8, role reactor.
 	if role == reactor.RoleFollower {
 		// 如果是追随者则不处理发送消息,转给领导
 		for _, m := range msgs {
-			m.MsgType = reactor.ChannelMsgPermission
+			// 在线cmd消息进入makeTag环节
+			if options.G.IsOnlineCmdChannel(channelId) {
+				m.MsgType = reactor.ChannelMsgMakeTag
+			} else {
+				m.MsgType = reactor.ChannelMsgPermission
+			}
 		}
 		reactor.Channel.AddMessagesToOutbound(channelId, channelType, msgs)
 		return
@@ -18,9 +24,12 @@ func (c *Channel) processSend(channelId string, channelType uint8, role reactor.
 	for _, m := range msgs {
 		// 记录轨迹
 		m.Track.Record(track.PositionChannelOnSend)
-
-		// 进入权限判断
-		m.MsgType = reactor.ChannelMsgPermission
+		// 在线cmd消息进入makeTag环节
+		if options.G.IsOnlineCmdChannel(channelId) {
+			m.MsgType = reactor.ChannelMsgMakeTag
+		} else {
+			m.MsgType = reactor.ChannelMsgPermission
+		}
 
 	}
 	reactor.Channel.AddMessages(channelId, channelType, msgs)

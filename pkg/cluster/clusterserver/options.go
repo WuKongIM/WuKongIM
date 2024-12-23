@@ -102,10 +102,6 @@ type Options struct {
 
 	LogDetailOn bool // 是否开启详细日志
 
-	ChannelMessageQueueSize   uint64 // The size of the message queue, the default is 5000
-	CoreMessageQueueSize      uint64 // The size of the message queue, the default is 5000
-	MessageQueueMaxMemorySize uint64 // The maximum memory size of the message queue, the default is 0, which means no limit
-
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -114,7 +110,7 @@ func NewOptions(opt ...Option) *Options {
 		SlotMaxReplicaCount:        3,
 		DataDir:                    "clusterdata",
 		ReqTimeout:                 10 * time.Second,
-		ProposeTimeout:             5 * time.Minute,
+		ProposeTimeout:             1 * time.Minute,
 		SendQueueLength:            1024 * 10,
 		MaxMessageBatchSize:        64 * 1024 * 1024, // 64M
 		ReceiveQueueLength:         1024,
@@ -129,8 +125,6 @@ func NewOptions(opt ...Option) *Options {
 		LeaderTransferMinLogGap:    20,
 		LearnerMinLogGap:           100,
 		PageSize:                   20,
-		ChannelMessageQueueSize:    10000,
-		CoreMessageQueueSize:       2000,
 
 		TickInterval:          150 * time.Millisecond,
 		HeartbeatIntervalTick: 1,

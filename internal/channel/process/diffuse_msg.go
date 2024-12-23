@@ -1,14 +1,28 @@
 package process
 
 import (
+	"context"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
 // 扩散消息
 func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
+
+	// 在线cmd消息
+	if options.G.IsOnlineCmdChannel(fakeChannelId) {
+		c.processDiffuseForOnlineCmdChannel(fakeChannelId, channelType, messages)
+		return
+	}
+
 	tagKey := messages[0].TagKey
 	tag, err := c.commonService.GetOrRequestAndMakeTagWithLocal(fakeChannelId, channelType, tagKey)
 	if err != nil {
@@ -20,6 +34,12 @@ func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messag
 		return
 	}
 
+	// 处理tag消息
+	c.processDiffuseByTag(fakeChannelId, channelType, messages, tag)
+
+}
+
+func (c *Channel) processDiffuseByTag(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage, tag *types.Tag) {
 	// 更新最近会话
 	var conversationMessages []*reactor.ChannelMessage
 	for _, m := range messages {
@@ -85,7 +105,62 @@ func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messag
 		}
 		reactor.Push.PushMessages(offlineMessages)
 	}
+}
 
+func (c *Channel) processDiffuseForOnlineCmdChannel(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	leaderId, err := service.Cluster.LeaderIdOfChannel(timeoutCtx, fakeChannelId, channelType)
+	cancel()
+	if err != nil {
+		wklog.Error("processDiffuseForOnlineCmdChannel: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		return
+	}
+
+	// // 按照tagKey分组消息
+	tagKeyMessages := c.groupMessagesByTagKey(messages)
+	for tagKey, msgs := range tagKeyMessages {
+		if tagKey == "" {
+			c.Warn("processDiffuseForOnlineCmdChannel: tagKey is nil", zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+			continue
+		}
+		var tag *types.Tag
+
+		if options.G.IsLocalNode(leaderId) {
+			tag = service.TagManager.Get(tagKey)
+		} else {
+			tag, err = c.requestTag(leaderId, tagKey)
+			if err != nil {
+				c.Error("processDiffuseForOnlineCmdChannel: request tag failed", zap.Error(err), zap.String("tagKey", tagKey), zap.String("fakeChannelId", fakeChannelId))
+				return
+			}
+		}
+		if tag == nil {
+			c.Error("processDiffuseForOnlineCmdChannel: tag not found", zap.String("tagKey", tagKey), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
+			return
+		}
+		// 处理tag消息
+		c.processDiffuseByTag(fakeChannelId, channelType, msgs, tag)
+	}
+}
+
+// 请求tag
+func (c *Channel) requestTag(leaderId uint64, tagKey string) (*types.Tag, error) {
+	// 去领导节点请求
+	tagResp, err := c.client.RequestTag(leaderId, &ingress.TagReq{
+		TagKey: tagKey,
+		NodeId: options.G.Cluster.NodeId,
+	})
+	if err != nil {
+		c.Error("processDiffuseForOnlineCmdChannel: get tag failed", zap.Error(err), zap.Uint64("leaderId", leaderId))
+		return nil, err
+	}
+	tag, err := service.TagManager.MakeTagNotCacheWithTagKey(tagKey, tagResp.Uids)
+	if err != nil {
+		c.Error("processDiffuseForOnlineCmdChannel: MakeTagNotCacheWithTagKey failed", zap.Error(err))
+		return nil, err
+	}
+	return tag, nil
 }
 
 func (c *Channel) isOnline(uid string) bool {

@@ -55,6 +55,15 @@ func (t *TagManager) MakeTag(uids []string) (*types.Tag, error) {
 
 func (t *TagManager) MakeTagWithTagKey(tagKey string, uids []string) (*types.Tag, error) {
 
+	tag, err := t.MakeTagNotCacheWithTagKey(tagKey, uids)
+	if err != nil {
+		return nil, err
+	}
+	t.getBlucketByTagKey(tagKey).setTag(tag)
+	return tag, nil
+}
+
+func (t *TagManager) MakeTagNotCacheWithTagKey(tagKey string, uids []string) (*types.Tag, error) {
 	tag := &types.Tag{
 		Key:         tagKey,
 		LastGetTime: time.Now(),
@@ -67,7 +76,6 @@ func (t *TagManager) MakeTagWithTagKey(tagKey string, uids []string) (*types.Tag
 	}
 	tag.Nodes = nodes
 
-	t.getBlucketByTagKey(tagKey).setTag(tag)
 	return tag, nil
 }
 

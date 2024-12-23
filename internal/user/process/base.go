@@ -18,7 +18,7 @@ func New() *User {
 	}
 
 	var err error
-	p.processPool, err = ants.NewPool(options.G.GoPool.UserProcess, ants.WithPanicHandler(func(i interface{}) {
+	p.processPool, err = ants.NewPool(options.G.GoPool.UserProcess, ants.WithNonblocking(true), ants.WithPanicHandler(func(i interface{}) {
 		p.Panic("user process pool is panic", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {

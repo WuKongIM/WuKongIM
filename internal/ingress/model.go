@@ -109,6 +109,7 @@ type TagUpdateReq struct {
 	ChannelType uint8
 	Uids        []string
 	Remove      bool // 是否是移除uids
+	ChannelTag  bool // 是否是频道tag
 }
 
 func (t *TagUpdateReq) Encode() ([]byte, error) {
@@ -121,6 +122,7 @@ func (t *TagUpdateReq) Encode() ([]byte, error) {
 		enc.WriteString(uid)
 	}
 	enc.WriteUint8(wkutil.BoolToUint8(t.Remove))
+	enc.WriteUint8(wkutil.BoolToUint8(t.ChannelTag))
 	return enc.Bytes(), nil
 }
 
@@ -152,5 +154,10 @@ func (t *TagUpdateReq) Decode(data []byte) error {
 		return err
 	}
 	t.Remove = wkutil.Uint8ToBool(remove)
+	channelTag, err := dec.Uint8()
+	if err != nil {
+		return err
+	}
+	t.ChannelTag = wkutil.Uint8ToBool(channelTag)
 	return nil
 }

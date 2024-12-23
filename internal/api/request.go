@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -114,7 +116,9 @@ func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessage
 		})),
 	}
 	s.Debug("同步会话消息!", zap.String("apiURL", reqURL), zap.String("uid", uid), zap.Any("channels", reqs))
-	resp, err := rest.Send(request)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	resp, err := rest.SendWithContext(timeoutCtx, request)
 	if err != nil {
 		return nil, err
 	}

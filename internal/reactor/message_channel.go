@@ -73,10 +73,10 @@ type ChannelMessage struct {
 	ReasonCode    wkproto.ReasonCode  // 错误原因码
 	TagKey        string              // 标签key
 	ToUid         string              // 接收者
-	OfflineUsers  []string            // 离线用户的数组（投递离线的时候需要）
+	Track         track.Message       // 消息轨迹信息
+	// 不需要编码的字段
+	OfflineUsers []string // 离线用户的数组（投递离线的时候需要）
 
-	// 消息记录
-	Track track.Message
 }
 
 func (c *ChannelMessage) Clone() *ChannelMessage {

@@ -478,7 +478,7 @@ func (r *ReactorSub) tick() {
 			}
 
 			if handler.speedLevel() == replica.LevelStop && handler.shouldDestroy() { // 如果速度将为停止并可销毁
-				r.Debug("remove handler, speed stop", zap.String("handler", handler.key))
+				// r.Info("remove handler, speed stop", zap.String("handler", handler.key))
 				r.needRemoveKeys = append(r.needRemoveKeys, handler.key)
 			}
 		}

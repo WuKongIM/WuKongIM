@@ -171,8 +171,6 @@ func (r *Reactor) Handler(key string) IHandler {
 }
 
 func (r *Reactor) handler(key string) *handler {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
 
 	sub := r.reactorSub(key)
 	h := sub.handler(key)

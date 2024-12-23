@@ -759,7 +759,7 @@ func (s *Server) requestChannelClusterConfigFromSlotLeader(channelId string, cha
 	if node == nil {
 		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("not found slot leader node")
 	}
-	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), s.opts.ReqTimeout)
 	defer cancel()
 
 	clusterConfig, err := node.requestChannelClusterConfig(timeoutCtx, &ChannelClusterConfigReq{
@@ -808,8 +808,10 @@ func (s *Server) loadOnlyChannelClusterConfig(channelId string, channelType uint
 			return wkdb.EmptyChannelClusterConfig, ErrChannelClusterConfigNotFound
 		}
 	} else {
+		fmt.Println("requestChannelClusterConfigFromSlotLeader-------->", channelId)
 		// 向频道所在槽的领导请求频道的分布式配置（这种情况不需要保存clusterConfig，因为说明此节点不是槽领导也不是频道副本，如果保存clusterConfig，后续clusterConfig更新，则此节点将不会跟着更新了）
 		clusterConfig, err = s.requestChannelClusterConfigFromSlotLeader(channelId, channelType)
+		fmt.Println("requestChannelClusterConfigFromSlotLeader---2----->", channelId)
 		if err != nil {
 			return wkdb.EmptyChannelClusterConfig, err
 		}
