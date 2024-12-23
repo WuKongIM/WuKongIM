@@ -23,7 +23,7 @@ func New() *Push {
 		commService: common.NewService(),
 	}
 	var err error
-	d.processPool, err = ants.NewPool(options.G.GoPool.ChannelProcess, ants.WithPanicHandler(func(i interface{}) {
+	d.processPool, err = ants.NewPool(options.G.GoPool.ChannelProcess, ants.WithNonblocking(true), ants.WithPanicHandler(func(i interface{}) {
 		d.Panic("push process pool is panic", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {

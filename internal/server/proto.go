@@ -132,7 +132,6 @@ func (s *Server) onData(conn wknet.Conn) error {
 				msg.MessageId = options.G.GenMessageId()
 				connCtx.InMsgCount.Add(1)
 				connCtx.InMsgByteCount.Add(int64(size))
-
 			}
 
 			messages = append(messages, msg)

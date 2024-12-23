@@ -110,6 +110,7 @@ type Options struct {
 		SubscriberCompressOfCount int           // 订订阅者数组多大开始压缩（离线推送的时候订阅者数组太大 可以设置此参数进行压缩 默认为0 表示不压缩 ）
 		CmdSuffix                 string        // cmd频道后缀
 		ProcessTimeout            time.Duration // 频道逻辑处理超时时间
+		OnlineCmdChannelId        string        // 在线命令频道
 	}
 	TmpChannel struct { // 临时频道配置
 		Suffix     string // 临时频道的后缀
@@ -171,8 +172,8 @@ type Options struct {
 		UserProcess int
 		// ChannelProcess 频道逻辑处理协程池
 		ChannelProcess int
-		// DiffuseProcess 消息扩散协程池
-		DiffuseProcess int
+		// PushProcess 消息push协程池
+		PushProcess int
 	}
 
 	MessageRetry struct {
@@ -238,6 +239,11 @@ type Options struct {
 			ProcessIntervalTick int
 			IdleTimeoutTick     int // 空闲超时tick数 （reactor.channel.tickInterval配置决定了一次tick需要多少时间），如果等于或大于此tick数则结束流
 		}
+	}
+	CoreReactor struct {
+		ChannelMessageQueueSize   uint64 // The size of the message queue, the default is 5000
+		CoreMessageQueueSize      uint64 // The size of the message queue, the default is 5000
+		MessageQueueMaxMemorySize uint64 // The maximum memory size of the message queue, the default is 0, which means no limit
 	}
 	DeadlockCheck bool // 死锁检查
 
@@ -347,12 +353,14 @@ func New(op ...Option) *Options {
 			SubscriberCompressOfCount int
 			CmdSuffix                 string
 			ProcessTimeout            time.Duration
+			OnlineCmdChannelId        string
 		}{
 			CacheCount:                1000,
 			CreateIfNoExist:           true,
 			SubscriberCompressOfCount: 0,
 			CmdSuffix:                 "____cmd",
 			ProcessTimeout:            time.Second * 5,
+			OnlineCmdChannelId:        "systemcmdonline",
 		},
 		Datasource: struct {
 			Addr          string
@@ -388,11 +396,11 @@ func New(op ...Option) *Options {
 		GoPool: struct {
 			UserProcess    int
 			ChannelProcess int
-			DiffuseProcess int
+			PushProcess    int
 		}{
 			UserProcess:    4096,
 			ChannelProcess: 4096,
-			DiffuseProcess: 4096,
+			PushProcess:    4096,
 		},
 		MessageRetry: struct {
 			Interval     time.Duration
@@ -544,6 +552,15 @@ func New(op ...Option) *Options {
 				IdleTimeoutTick:     10,
 			},
 		},
+		CoreReactor: struct {
+			ChannelMessageQueueSize   uint64
+			CoreMessageQueueSize      uint64
+			MessageQueueMaxMemorySize uint64
+		}{
+			ChannelMessageQueueSize:   100000,
+			CoreMessageQueueSize:      2000,
+			MessageQueueMaxMemorySize: 0,
+		},
 		Deliver: struct {
 			DeliverrCount         int
 			MaxRetry              int
@@ -653,6 +670,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Channel.CacheCount = o.getInt("channel.cacheCount", o.Channel.CacheCount)
 	o.Channel.CreateIfNoExist = o.getBool("channel.createIfNoExist", o.Channel.CreateIfNoExist)
 	o.Channel.SubscriberCompressOfCount = o.getInt("channel.subscriberCompressOfCount", o.Channel.SubscriberCompressOfCount)
+	o.Channel.OnlineCmdChannelId = o.getString("channel.onlineCmdChannelId", o.Channel.OnlineCmdChannelId)
 
 	o.ConnIdleTime = o.getDuration("connIdleTime", o.ConnIdleTime)
 
@@ -855,6 +873,11 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Reactor.Stream.TickInterval = o.getDuration("reactor.stream.tickInterval", o.Reactor.Stream.TickInterval)
 	o.Reactor.Stream.ProcessIntervalTick = o.getInt("reactor.stream.processIntervalTick", o.Reactor.Stream.ProcessIntervalTick)
 	o.Reactor.Stream.IdleTimeoutTick = o.getInt("reactor.stream.idleTimeoutTick", o.Reactor.Stream.IdleTimeoutTick)
+
+	// =================== coreReactor ===================
+	o.CoreReactor.ChannelMessageQueueSize = o.getUint64("coreReactor.channelMessageQueueSize", o.CoreReactor.ChannelMessageQueueSize)
+	o.CoreReactor.CoreMessageQueueSize = o.getUint64("coreReactor.coreMessageQueueSize", o.CoreReactor.CoreMessageQueueSize)
+	o.CoreReactor.MessageQueueMaxMemorySize = o.getUint64("coreReactor.messageQueueMaxMemorySize", o.CoreReactor.MessageQueueMaxMemorySize)
 
 	// =================== db ===================
 	o.Db.ShardNum = o.getInt("db.shardNum", o.Db.ShardNum)
@@ -1246,6 +1269,11 @@ func (o *Options) CmdChannelConvertOrginalChannel(fakeChannelId string) string {
 	}
 	return fakeChannelId
 
+}
+
+// IsOnlineCmdChannel 是否是在线命令频道
+func (o *Options) IsOnlineCmdChannel(channelId string) bool {
+	return channelId == o.Channel.OnlineCmdChannelId
 }
 
 // 获取内网地址

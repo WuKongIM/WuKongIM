@@ -7,4 +7,5 @@ var (
 		return errors.New("tag not exist: " + tagKey)
 	}
 	TagSlotLeaderIsZero = errors.New("tag slot leader is 0")
+	TagKeyEmpty         = errors.New("tagKey is empty")
 )

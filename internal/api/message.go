@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -95,20 +96,55 @@ func (m *message) send(c *wkhttp.Context) {
 	if len(req.Subscribers) > 0 {
 
 		// 生成临时频道id
-		tmpChannelId := fmt.Sprintf("%d", key.HashWithString(strings.Join(req.Subscribers, ","))) // 获取临时频道id
+		tmpChannelId := options.G.Channel.OnlineCmdChannelId // 如果不是要存储的消息，则放系统目录的在线cmd频道就行
 		tmpChannelType := wkproto.ChannelTypeTemp
+		persist := req.Header.NoPersist == 0
+		if persist {
+			// 生成临时频道id
+			tmpChannelId = fmt.Sprintf("%d", key.HashWithString(strings.Join(req.Subscribers, ","))) // 获取临时频道id
+		}
+
 		// tmpCMDChannelId := options.G.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
 
 		// 设置订阅者到临时频道
-		err := m.requestSetSubscribersForTmpChannel(tmpChannelId, req.Subscribers)
-		if err != nil {
-			m.Error("请求设置临时频道的订阅者失败！", zap.Error(err), zap.String("channelId", tmpChannelId), zap.Strings("subscribers", req.Subscribers))
-			c.ResponseError(errors.New("请求设置临时频道的订阅者失败！"))
-			return
+		if persist {
+			err := m.requestSetSubscribersForTmpChannel(tmpChannelId, req.Subscribers)
+			if err != nil {
+				m.Error("请求设置临时频道的订阅者失败！", zap.Error(err), zap.String("channelId", tmpChannelId), zap.Strings("subscribers", req.Subscribers))
+				c.ResponseError(errors.New("请求设置临时频道的订阅者失败！"))
+				return
+			}
+		} else {
+			// 生成tag
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			nodeInfo, err := service.Cluster.LeaderOfChannel(timeoutCtx, tmpChannelId, wkproto.ChannelTypeTemp)
+			cancel()
+			if err != nil {
+				m.Error("获取在线cmd频道所在节点失败！", zap.Error(err), zap.String("channelID", tmpChannelId), zap.Uint8("channelType", wkproto.ChannelTypeTemp))
+				c.ResponseError(errors.New("获取频道所在节点失败！"))
+				return
+			}
+			newTagKey := wkutil.GenUUID()
+			req.TagKey = newTagKey // 设置tagKey
+			if options.G.IsLocalNode(nodeInfo.Id) {
+				_, _ = service.TagManager.MakeTagWithTagKey(newTagKey, req.Subscribers)
+			} else {
+				err = m.s.client.UpdateTag(nodeInfo.Id, &ingress.TagUpdateReq{
+					TagKey: newTagKey,
+					Uids:   req.Subscribers,
+				})
+				if err != nil {
+					m.Error("更新tag失败！", zap.Error(err), zap.Uint64("nodeId", nodeInfo.Id))
+					c.ResponseError(errors.New("更新tag失败！"))
+					return
+				}
+			}
+
 		}
+
 		clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
 		// 发送消息
-		_, err = sendMessageToChannel(req, tmpChannelId, tmpChannelType, clientMsgNo, wkproto.StreamFlagIng)
+		_, err := sendMessageToChannel(req, tmpChannelId, tmpChannelType, clientMsgNo, wkproto.StreamFlagIng)
 		if err != nil {
 			c.ResponseError(err)
 			return
@@ -185,7 +221,7 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 		fakeChannelId = options.GetFakeChannelIDWith(req.FromUID, channelId)
 	}
 
-	if req.Header.SyncOnce == 1 { // 命令消息，将原频道转换为cmd频道
+	if req.Header.SyncOnce == 1 && !options.G.IsOnlineCmdChannel(channelId) { // 命令消息，将原频道转换为cmd频道
 		fakeChannelId = options.G.OrginalConvertCmdChannel(fakeChannelId)
 	}
 
@@ -221,6 +257,7 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 		MsgType:    reactor.ChannelMsgSend,
 		SendPacket: sendPacket,
 		MessageId:  messageId,
+		TagKey:     req.TagKey,
 		Track: track.Message{
 			PreStart: time.Now(),
 		},

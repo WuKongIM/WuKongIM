@@ -18,6 +18,12 @@ func (c *Channel) processMakeTag(fakeChannelId string, channelType uint8, messag
 		m.Track.Record(track.PositionChannelMakeTag)
 	}
 
+	// 在线cmd消息
+	if options.G.IsOnlineCmdChannel(fakeChannelId) {
+		c.processMakeTagForOnlineCmdChannel(fakeChannelId, channelType, messages)
+		return
+	}
+
 	// 获取或创建tag
 	tag, err := c.getOrMakeTag(fakeChannelId, channelType)
 	if err != nil {
@@ -30,6 +36,11 @@ func (c *Channel) processMakeTag(fakeChannelId string, channelType uint8, messag
 		return
 	}
 
+	// 处理tag消息
+	c.processMakeTagByTag(fakeChannelId, channelType, messages, tag)
+}
+
+func (c *Channel) processMakeTagByTag(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage, tag *types.Tag) {
 	hasLocalNode := false // 如果有本地节点投递任务
 	for _, node := range tag.Nodes {
 		if options.G.IsLocalNode(node.LeaderId) {
@@ -69,6 +80,35 @@ func (c *Channel) processMakeTag(fakeChannelId string, channelType uint8, messag
 	}
 }
 
+// 处理cmd消息
+func (c *Channel) processMakeTagForOnlineCmdChannel(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
+	// // 按照tagKey分组消息
+	tagKeyMessages := c.groupMessagesByTagKey(messages)
+	for tagKey, msgs := range tagKeyMessages {
+		if tagKey == "" {
+			c.Warn("processMakeTagForOnlineCmdChannel: tagKey is nil", zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+			continue
+		}
+		// 获取tag
+		tag := service.TagManager.Get(tagKey)
+		if tag == nil {
+			c.Error("processMakeTagForOnlineCmdChannel: tag not found", zap.String("tagKey", tagKey), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+			continue
+		}
+		// 处理tag消息
+		c.processMakeTagByTag(fakeChannelId, channelType, msgs, tag)
+	}
+}
+
+// 按照tagKey分组消息
+func (c *Channel) groupMessagesByTagKey(messages []*reactor.ChannelMessage) map[string][]*reactor.ChannelMessage {
+	tagKeyMessages := make(map[string][]*reactor.ChannelMessage)
+	for _, m := range messages {
+		tagKeyMessages[m.TagKey] = append(tagKeyMessages[m.TagKey], m)
+	}
+	return tagKeyMessages
+}
+
 func (c *Channel) getOrMakeTag(fakeChannelId string, channelType uint8) (*types.Tag, error) {
 	var (
 		tag              *types.Tag
@@ -87,7 +127,7 @@ func (c *Channel) getOrMakeTag(fakeChannelId string, channelType uint8) (*types.
 		if options.G.IsCmdChannel(fakeChannelId) {
 			tag, err = c.commonService.GetOrRequestAndMakeTag(orgFakeChannelId, channelType, tagKey, 0)
 			if err != nil {
-				c.Error("processMakeTag: getOrRequestAndMakeTag failed", zap.Error(err), zap.String("tagKey", tagKey))
+				c.Error("processMakeTag: getOrRequestAndMakeTag failed", zap.Error(err), zap.String("tagKey", tagKey), zap.String("orgFakeChannelId", orgFakeChannelId))
 				return nil, err
 			}
 		} else {

@@ -14,7 +14,10 @@ type ITagManager interface {
 	RenameTag(oldTagKey, newTagKey string) error
 	// MakeTag 创建tag
 	MakeTag(uids []string) (*types.Tag, error)
+	// MakeTagWithTagKey 创建tag并指定tagKey
 	MakeTagWithTagKey(tagKey string, uids []string) (*types.Tag, error)
+	// MakeTagNotCacheWithTagKey 创建tag并指定tagKey，但是不缓存
+	MakeTagNotCacheWithTagKey(tagKey string, uids []string) (*types.Tag, error)
 	//	 GetUsers 获取tag下的所有用户
 	GetUsers(tagKey string) []string
 	// GetTag 获取tag

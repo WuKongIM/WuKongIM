@@ -30,7 +30,7 @@ func New() *Channel {
 		commonService:  common.NewService(),
 	}
 	var err error
-	ch.processPool, err = ants.NewPool(options.G.GoPool.ChannelProcess, ants.WithPanicHandler(func(i interface{}) {
+	ch.processPool, err = ants.NewPool(options.G.GoPool.ChannelProcess, ants.WithNonblocking(true), ants.WithPanicHandler(func(i interface{}) {
 		ch.Panic("channel process pool is panic", zap.Any("err", err), zap.Stack("stack"))
 	}))
 	if err != nil {

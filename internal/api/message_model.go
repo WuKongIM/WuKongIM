@@ -18,6 +18,7 @@ type messageSendReq struct {
 	Expire      uint32              `json:"expire"`        // 消息过期时间
 	Subscribers []string            `json:"subscribers"`   // 订阅者 如果此字段有值，表示消息只发给指定的订阅者
 	Payload     []byte              `json:"payload"`       // 消息内容
+	TagKey      string              `json:"tag_key"`       // tagKey
 }
 
 // Check 检查输入

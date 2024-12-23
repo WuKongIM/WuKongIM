@@ -355,6 +355,7 @@ func (ch *channel) updateTagBySubscribers(channelId string, channelType uint8, s
 			ChannelType: channelType,
 			Uids:        subscribers,
 			Remove:      remove,
+			ChannelTag:  true,
 		})
 		if err != nil {
 			ch.Error("updateTagByAddSubscribers: updateOrMakeTag failed", zap.Error(err))

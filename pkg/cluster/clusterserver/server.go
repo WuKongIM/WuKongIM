@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterevent"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
@@ -76,8 +77,8 @@ func New(opts *Options) *Server {
 		stopper:             syncutil.NewStopper(),
 		channelClusterCache: lru.New(1024),
 		testPings:           make(map[string]*ping),
-		channelMQ:           newMessageQueue(opts.ChannelMessageQueueSize, true, 0, opts.MessageQueueMaxMemorySize),
-		coreMQ:              newMessageQueue(opts.CoreMessageQueueSize, true, 0, opts.MessageQueueMaxMemorySize),
+		channelMQ:           newMessageQueue(options.G.CoreReactor.ChannelMessageQueueSize, true, 0, options.G.CoreReactor.MessageQueueMaxMemorySize),
+		coreMQ:              newMessageQueue(options.G.CoreReactor.CoreMessageQueueSize, true, 0, options.G.CoreReactor.MessageQueueMaxMemorySize),
 	}
 
 	s.slotManager = newSlotManager(s)
@@ -448,7 +449,7 @@ func (s *Server) loopChannelQueue() {
 				s.handleReactorMessage(m)
 			}
 			cost := time.Since(start)
-			if cost > time.Second*2 {
+			if cost > time.Millisecond*500 {
 				s.Warn("handle channel mq too cost...", zap.Duration("cost", cost), zap.Int("msgCount", len(msgs)))
 			}
 		case <-s.cancelCtx.Done():
