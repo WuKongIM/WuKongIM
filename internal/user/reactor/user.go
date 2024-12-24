@@ -33,7 +33,7 @@ type User struct {
 	// 将数据投递给自己直连的客户端
 	clientOutbound *ready
 	nodeVersion    uint64
-	advance        func()
+	advanceFnc     func()
 }
 
 func NewUser(no, uid string, advance func()) *User {
@@ -47,9 +47,10 @@ func NewUser(no, uid string, advance func()) *User {
 		inbound:        newReady(prefix),
 		clientOutbound: newReady(prefix),
 		nodeVersion:    options.NodeVersion(),
-		advance:        advance,
+		advanceFnc:     advance,
 	}
 	u.outbound = newOutboundReady(prefix, u)
+	u.sendElection() // 初始化时就开始选举，提早触发，这样不用等tick
 	return u
 }
 
@@ -218,9 +219,7 @@ func (u *User) stepFollower(action reactor.UserAction) {
 	// 领导返回加入结果
 	case reactor.UserActionJoinResp:
 		u.joined = action.Success
-		if u.advance != nil {
-			u.advance()
-		}
+		u.advance()
 	}
 }
 
@@ -261,6 +260,7 @@ func (u *User) stepLeader(action reactor.UserAction) {
 	case reactor.UserActionJoin:
 		u.outbound.addNewReplica(action.From)
 		u.sendJoinResp(action.From)
+		u.advance()
 	}
 }
 
@@ -407,9 +407,7 @@ func (u *User) becomeLeader() {
 	u.tickFnc = u.tickLeader
 
 	// u.Info("become leader")
-	if u.advance != nil {
-		u.advance()
-	}
+	u.advance()
 	trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(1)
 
 }
@@ -424,9 +422,9 @@ func (u *User) becomeFollower() {
 
 	// u.Info("become follower")
 
-	if u.advance != nil {
-		u.advance()
-	}
+	u.sendJoin()
+
+	u.advance()
 
 }
 
@@ -491,4 +489,10 @@ func (u *User) handleConfigUpdate(cfg reactor.UserConfig) {
 		u.becomeFollower()
 	}
 
+}
+
+func (u *User) advance() {
+	if u.advanceFnc != nil {
+		u.advanceFnc()
+	}
 }
