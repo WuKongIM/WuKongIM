@@ -140,6 +140,8 @@ func (p *Push) processChannelPush(channelKey string, messages []*reactor.Channel
 	if options.G.Logger.TraceOn {
 		if len(messages) < options.G.Logger.TraceMaxMsgCount { // 消息数小于指定数量才打印，要不然日志太多了
 			for _, m := range messages {
+				// 记录消息轨迹
+				m.Track.Record(track.PositionPushOnlineEnd)
 				connCount := reactor.User.ConnCountByUid(m.ToUid)
 				p.Trace(m.Track.String(),
 					"pushOnline",

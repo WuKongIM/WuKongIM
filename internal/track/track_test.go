@@ -15,7 +15,7 @@ func TestMessageString(t *testing.T) {
 	}
 
 	// 模拟消息经过多个位置
-	msg.Record(PositionUserOnSend)
+	msg.Record(PositionStart)
 	time.Sleep(10 * time.Millisecond) // 模拟耗时
 	msg.Record(PositionChannelOnSend)
 	time.Sleep(20 * time.Millisecond) // 模拟耗时
@@ -24,7 +24,7 @@ func TestMessageString(t *testing.T) {
 	// 获取消息的字符串表示
 	output := msg.String()
 	fmt.Println(output)
-	assert.Contains(t, output, "1100000001000000")
+	assert.Contains(t, output, "1001000010000000")
 }
 
 func TestMessageEncodeDecode(t *testing.T) {

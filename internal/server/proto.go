@@ -128,6 +128,7 @@ func (s *Server) onData(conn wknet.Conn) error {
 					PreStart: time.Now(),
 				},
 			}
+			msg.Track.Record(track.PositionStart)
 			if frame.GetFrameType() == wkproto.SEND {
 				msg.MessageId = options.G.GenMessageId()
 				connCtx.InMsgCount.Add(1)
