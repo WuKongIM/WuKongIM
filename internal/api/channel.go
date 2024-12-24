@@ -292,12 +292,12 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 			ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
-	}
 
-	err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, newSubscribers, false)
-	if err != nil {
-		ch.Error("更新tag失败！", zap.Error(err))
-		return err
+		err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, newSubscribers, false)
+		if err != nil {
+			ch.Error("更新tag失败！", zap.Error(err))
+			return err
+		}
 	}
 
 	return nil
