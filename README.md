@@ -115,7 +115,6 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 支持TLS 1.3
 - [x] 支持Prometheus监控
 - [x] 监控系统开发
-- [x] 支持Windows系统(仅开发用)
 - [x] 支持流式消息，类似chatgpt的结果输出流
 - [x] 支持分布式
     - [x] 去中心化设计，任意一个节点宕机，集群自动修复

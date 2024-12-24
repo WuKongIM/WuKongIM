@@ -354,7 +354,7 @@ CONNACK 报文由服务端所发送，作为对来自客户端的 CONNECT 报文
   <tr>
     <td>Payload</td>
     <td>... byte</td>
-    <td>消息内容</td>
+    <td>加密的消息内容</td>
   </tr>
   
 </table>
@@ -476,7 +476,7 @@ CONNACK 报文由服务端所发送，作为对来自客户端的 CONNECT 报文
   <tr>
     <td>Payload</td>
     <td>... byte</td>
-    <td>消息内容</td>
+    <td>加密的消息内容</td>
   </tr>
   
 </table>
