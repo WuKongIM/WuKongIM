@@ -27,6 +27,8 @@ const (
 	PositionChannelMakeTag
 	// 推送在线消息
 	PositionPushOnline
+	// 在线推送结束
+	PositionPushOnlineEnd
 	// 推送离线消息
 	PositionPushOffline
 	// 转发写消息
@@ -59,6 +61,8 @@ func (p Position) String() string {
 		return "ChannelMakeTag"
 	case PositionPushOnline:
 		return "PushOnline"
+	case PositionPushOnlineEnd:
+		return "PushOnlineEnd"
 	case PositionPushOffline:
 		return "PushOffline"
 	case PositionForwardConnWrite:
@@ -79,8 +83,8 @@ type Message struct {
 }
 
 func (m *Message) Record(p Position) {
-	m.Path = m.Path | uint16(1<<(16-p))
-	m.Cost[(16 - p)] = uint16(time.Since(m.PreStart).Milliseconds())
+	m.Path = m.Path | uint16(1<<(15-p))
+	m.Cost[(15 - p)] = uint16(time.Since(m.PreStart).Milliseconds())
 	m.PreStart = time.Now()
 }
 
@@ -148,27 +152,42 @@ func (m *Message) Decode(data []byte) error {
 
 	return nil
 }
-
-// String 方法，返回消息的字符串表示
 func (m *Message) String() string {
 	// 构造路径的二进制表示
 	pathStr := fmt.Sprintf("%016b", m.Path)
 
-	// 从最高位开始判断path的每一位是否为1，如果是则表示该位置有耗时
+	// 初始化变量
 	costStr := ""
 	totalCost := 0
-	rlen := 16
-	for i := 0; i < rlen; i++ {
-		pos := i + 1
-		if m.Path&(1<<uint(rlen-pos)) > 0 {
-			cost := m.Cost[rlen-pos]
-			totalCost += int(cost)
-			costStr += fmt.Sprintf("%s: %dms, ", Position(pos), cost)
+	rlen := 15
+	posList := make([]int, 0, 16)
+	costList := make([]uint16, 0, 16)
+
+	// 收集path中为1的位置以及对应的耗时
+	for i := rlen - 1; i > 0; i-- {
+		pos := rlen - i
+		if m.Path&(1<<uint(i)) > 0 {
+			posList = append(posList, pos)
+			costList = append(costList, m.Cost[i])
 		}
 	}
 
+	// 错位显示耗时
+	cost := uint16(0)
+	for i := 0; i < len(posList); i++ {
+		pos := posList[i]
+		if i == len(posList)-1 {
+			cost = 0
+		} else {
+			cost = costList[i+1] // 取错位的耗时
+		}
+
+		totalCost += int(cost)
+		costStr += fmt.Sprintf("%s: %dms, ", Position(pos), cost)
+	}
+
+	// 移除最后一个逗号和空格
 	if len(costStr) > 0 {
-		// 移除最后一个逗号和空格
 		costStr = costStr[:len(costStr)-2]
 	}
 
