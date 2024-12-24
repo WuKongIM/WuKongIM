@@ -6,7 +6,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"go.uber.org/zap"
 )
 
 type Channel struct {
@@ -306,7 +305,7 @@ func (c *Channel) becomeFollower() {
 	// 如果是追随者，需要添加领导到副本列表
 	c.outbound.addNewReplica(c.cfg.LeaderId)
 
-	c.Info("become follower", zap.Uint64("leaderId", c.cfg.LeaderId))
+	// c.Info("become follower", zap.Uint64("leaderId", c.cfg.LeaderId))
 
 	c.sendJoin()
 

@@ -17,16 +17,16 @@ deploy-arm:
 	docker push wukongim/wukongim:latest-arm64
 deploy-v2-dev:
 	docker build -t wukongim . 
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.10-20241221-dev
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.10-20241221-dev
+	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.1.0-20241224
+	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.1.0-20241224
 deploy-v2:
 	docker build -t wukongim .
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.9-20241220
-	docker tag wukongim wukongim/wukongim:v2.0.9-20241220
-	docker tag wukongim ghcr.io/wukongim/wukongim:v2.0.9-20241220
+	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.10-20241221
+	docker tag wukongim wukongim/wukongim:v2.0.10-20241221
+	docker tag wukongim ghcr.io/wukongim/wukongim:v2.0.10-20241221
 	docker tag wukongim ghcr.io/wukongim/wukongim:v2
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.9-20241220
-	docker push wukongim/wukongim:v2.0.9-20241220
+	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.0.10-20241221
+	docker push wukongim/wukongim:v2.0.10-20241221
 	docker push ghcr.io/wukongim/wukongim:v2
 deploy-latest-v2:
 	docker build -t wukongim .
