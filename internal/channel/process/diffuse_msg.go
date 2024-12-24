@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -16,6 +17,11 @@ import (
 
 // 扩散消息
 func (c *Channel) processDiffuse(fakeChannelId string, channelType uint8, messages []*reactor.ChannelMessage) {
+
+	// 记录消息轨迹
+	for _, m := range messages {
+		m.Track.Record(track.PositionMessageDiffuse)
+	}
 
 	// 在线cmd消息
 	if options.G.IsOnlineCmdChannel(fakeChannelId) {
