@@ -406,7 +406,7 @@ func (u *User) becomeLeader() {
 	u.stepFnc = u.stepLeader
 	u.tickFnc = u.tickLeader
 
-	u.Info("become leader")
+	// u.Info("become leader")
 	if u.advance != nil {
 		u.advance()
 	}
@@ -422,7 +422,7 @@ func (u *User) becomeFollower() {
 	// 如果是追随者，需要添加领导到副本列表
 	u.outbound.addNewReplica(u.cfg.LeaderId)
 
-	u.Info("become follower")
+	// u.Info("become follower")
 
 	if u.advance != nil {
 		u.advance()
