@@ -65,6 +65,7 @@ func (q *actionQueue) mustAdd(msg reactor.UserAction) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.nodrop = append(q.nodrop, msg)
+	q.shrinkNodropArray()
 }
 
 func (q *actionQueue) get() []reactor.UserAction {
@@ -84,13 +85,25 @@ func (q *actionQueue) get() []reactor.UserAction {
 		return t[:sz]
 	}
 
-	var result []reactor.UserAction
-	if len(q.nodrop) > 0 {
-		ssm := q.nodrop
-		q.nodrop = make([]reactor.UserAction, 0)
-		result = append(result, ssm...)
+	// 避免多次分配内存，预分配足够的容量
+	result := make([]reactor.UserAction, 0, len(q.nodrop)+int(sz))
+	result = append(result, q.nodrop...)
+	q.nodrop = q.nodrop[:0] // 重置 nodrop 队列
+
+	result = append(result, t[:sz]...)
+	return result
+}
+
+// 优化内存占用
+func (q *actionQueue) shrinkNodropArray() {
+	const lenMultiple = 2
+	if len(q.nodrop) == 0 {
+		q.nodrop = nil
+	} else if len(q.nodrop)*lenMultiple < cap(q.nodrop) {
+		newNodrop := make([]reactor.UserAction, len(q.nodrop))
+		copy(newNodrop, q.nodrop)
+		q.nodrop = newNodrop
 	}
-	return append(result, t[:sz]...)
 }
 
 func (q *actionQueue) targetQueue() []reactor.UserAction {
@@ -107,6 +120,7 @@ func (q *actionQueue) tryAdd(msg reactor.UserAction) bool {
 	if !q.rl.Enabled() {
 		return true
 	}
+	// todo: 这里RateLimited可以优化成类似counter%10 == 0 这样的方式这样可以减少调用次数
 	if q.rl.RateLimited() {
 		q.Warn("rate limited dropped", zap.String("actionType", msg.Type.String()))
 		return false

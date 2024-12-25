@@ -65,6 +65,7 @@ func (q *actionQueue) mustAdd(msg reactor.PushAction) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.nodrop = append(q.nodrop, msg)
+	q.shrinkNodropArray()
 }
 
 func (q *actionQueue) get() []reactor.PushAction {
@@ -84,13 +85,13 @@ func (q *actionQueue) get() []reactor.PushAction {
 		return t[:sz]
 	}
 
-	var result []reactor.PushAction
-	if len(q.nodrop) > 0 {
-		ssm := q.nodrop
-		q.nodrop = make([]reactor.PushAction, 0)
-		result = append(result, ssm...)
-	}
-	return append(result, t[:sz]...)
+	// 避免多次分配内存，预分配足够的容量
+	result := make([]reactor.PushAction, 0, len(q.nodrop)+int(sz))
+	result = append(result, q.nodrop...)
+	q.nodrop = q.nodrop[:0] // 重置 nodrop 队列
+
+	result = append(result, t[:sz]...)
+	return result
 }
 
 func (q *actionQueue) targetQueue() []reactor.PushAction {
@@ -101,6 +102,18 @@ func (q *actionQueue) targetQueue() []reactor.PushAction {
 		t = q.right
 	}
 	return t
+}
+
+// 优化内存占用
+func (q *actionQueue) shrinkNodropArray() {
+	const lenMultiple = 2
+	if len(q.nodrop) == 0 {
+		q.nodrop = nil
+	} else if len(q.nodrop)*lenMultiple < cap(q.nodrop) {
+		newNodrop := make([]reactor.PushAction, len(q.nodrop))
+		copy(newNodrop, q.nodrop)
+		q.nodrop = newNodrop
+	}
 }
 
 func (q *actionQueue) tryAdd(msg reactor.PushAction) bool {

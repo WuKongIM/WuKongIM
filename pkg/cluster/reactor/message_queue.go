@@ -79,6 +79,7 @@ func (q *MessageQueue) MustAdd(msg Message) {
 	defer q.mu.Unlock()
 
 	q.nodrop = append(q.nodrop, msg)
+	q.shrinkNodropArray()
 }
 
 func (q *MessageQueue) Get() []Message {
@@ -97,14 +98,25 @@ func (q *MessageQueue) Get() []Message {
 	if len(q.nodrop) == 0 {
 		return t[:sz]
 	}
+	// 避免多次分配内存，预分配足够的容量
+	result := make([]Message, 0, len(q.nodrop)+int(sz))
+	result = append(result, q.nodrop...)
+	q.nodrop = q.nodrop[:0] // 重置 nodrop 队列
 
-	var result []Message
-	if len(q.nodrop) > 0 {
-		ssm := q.nodrop
-		q.nodrop = make([]Message, 0)
-		result = append(result, ssm...)
+	result = append(result, t[:sz]...)
+	return result
+}
+
+// 优化内存占用
+func (q *MessageQueue) shrinkNodropArray() {
+	const lenMultiple = 2
+	if len(q.nodrop) == 0 {
+		q.nodrop = nil
+	} else if len(q.nodrop)*lenMultiple < cap(q.nodrop) {
+		newNodrop := make([]Message, len(q.nodrop))
+		copy(newNodrop, q.nodrop)
+		q.nodrop = newNodrop
 	}
-	return append(result, t[:sz]...)
 }
 
 func (q *MessageQueue) targetQueue() []Message {

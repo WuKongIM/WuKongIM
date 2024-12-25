@@ -65,6 +65,7 @@ func (q *actionQueue) mustAdd(msg reactor.ChannelAction) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.nodrop = append(q.nodrop, msg)
+	q.shrinkNodropArray()
 }
 
 func (q *actionQueue) get() []reactor.ChannelAction {
@@ -84,13 +85,25 @@ func (q *actionQueue) get() []reactor.ChannelAction {
 		return t[:sz]
 	}
 
-	var result []reactor.ChannelAction
-	if len(q.nodrop) > 0 {
-		ssm := q.nodrop
-		q.nodrop = make([]reactor.ChannelAction, 0)
-		result = append(result, ssm...)
+	// 避免多次分配内存，预分配足够的容量
+	result := make([]reactor.ChannelAction, 0, len(q.nodrop)+int(sz))
+	result = append(result, q.nodrop...)
+	q.nodrop = q.nodrop[:0] // 重置 nodrop 队列
+
+	result = append(result, t[:sz]...)
+	return result
+}
+
+// 优化内存占用
+func (q *actionQueue) shrinkNodropArray() {
+	const lenMultiple = 2
+	if len(q.nodrop) == 0 {
+		q.nodrop = nil
+	} else if len(q.nodrop)*lenMultiple < cap(q.nodrop) {
+		newNodrop := make([]reactor.ChannelAction, len(q.nodrop))
+		copy(newNodrop, q.nodrop)
+		q.nodrop = newNodrop
 	}
-	return append(result, t[:sz]...)
 }
 
 func (q *actionQueue) targetQueue() []reactor.ChannelAction {
