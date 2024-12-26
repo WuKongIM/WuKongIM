@@ -4,9 +4,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/track"
+	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -22,10 +23,10 @@ func (s *Server) onData(conn wknet.Conn) error {
 	}
 
 	var isAuth bool
-	var connCtx *reactor.Conn
+	var connCtx *eventbus.Conn
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
-		connCtx = connCtxObj.(*reactor.Conn)
+		connCtx = connCtxObj.(*eventbus.Conn)
 		isAuth = connCtx.Auth
 	} else {
 		isAuth = false
@@ -86,28 +87,27 @@ func (s *Server) onData(conn wknet.Conn) error {
 			return nil
 		}
 
-		connCtx = &reactor.Conn{
-			FromNode:     s.opts.Cluster.NodeId,
+		connCtx = &eventbus.Conn{
+			NodeId:       s.opts.Cluster.NodeId,
 			ConnId:       conn.ID(),
 			Uid:          connectPacket.UID,
 			DeviceId:     connectPacket.DeviceID,
 			DeviceFlag:   wkproto.DeviceFlag(connectPacket.DeviceFlag),
 			ProtoVersion: connectPacket.Version,
-			Uptime:       time.Now(),
+			Uptime:       fasttime.UnixTimestamp(),
 		}
 		conn.SetContext(connCtx)
 
 		conn.SetMaxIdle(time.Second * 4) // 给4秒的时间去认证
 
-		// 如果用户不存在则唤醒用户
-		reactor.User.WakeIfNeed(connectPacket.UID)
+		// 添加连接事件
+		eventbus.User.Connect(connCtx, connectPacket)
+		eventbus.User.Advance(connCtx.Uid)
 
-		// 添加认证
-		reactor.User.AddAuth(connCtx, connectPacket)
 		_, _ = conn.Discard(len(data))
 	} else {
 		offset := 0
-		var messages []*reactor.UserMessage
+		var events []*eventbus.Event
 		for len(data) > offset {
 			frame, size, err := s.opts.Proto.DecodeFrame(data[offset:], connCtx.ProtoVersion)
 			if err != nil { //
@@ -118,31 +118,33 @@ func (s *Server) onData(conn wknet.Conn) error {
 			if frame == nil {
 				break
 			}
-			if messages == nil {
-				messages = make([]*reactor.UserMessage, 0, 10)
+			if events == nil {
+				events = make([]*eventbus.Event, 0, 10)
 			}
-			msg := &reactor.UserMessage{
+			event := &eventbus.Event{
+				Type:  eventbus.EventOnSend,
 				Frame: frame,
 				Conn:  connCtx,
 				Track: track.Message{
 					PreStart: time.Now(),
 				},
 			}
-			msg.Track.Record(track.PositionStart)
+			event.Track.Record(track.PositionStart)
 			if frame.GetFrameType() == wkproto.SEND {
-				msg.MessageId = options.G.GenMessageId()
+				event.MessageId = options.G.GenMessageId()
 				connCtx.InMsgCount.Add(1)
 				connCtx.InMsgByteCount.Add(int64(size))
 			}
 
-			messages = append(messages, msg)
+			events = append(events, event)
 			offset += size
 		}
-		if len(messages) > 0 {
-			connCtx.InPacketCount.Add(int64(len(messages)))
+		if len(events) > 0 {
+			connCtx.InPacketCount.Add(int64(len(events)))
 			connCtx.InPacketByteCount.Add(int64(len(data)))
-			// 添加消息
-			reactor.User.AddMessages(connCtx.Uid, messages)
+			// 添加事件
+			eventbus.User.AddEvents(connCtx.Uid, events)
+
 		}
 
 		_, _ = conn.Discard(offset)

@@ -22,11 +22,11 @@ const (
 	// 权限检查
 	PositionChannelPermission
 	// 消息存储
-	PositionChannelStorage
+	PositionChannelPersist
 	// 发送回执
 	PositionChannelSendack
-	// 生成标签
-	PositionChannelMakeTag
+	// 分发
+	PositionChannelDistribute
 	// 消息扩散分发
 	PositionMessageDiffuse
 	// 推送在线消息
@@ -55,12 +55,12 @@ func (p Position) String() string {
 		return "ChannelOnSend"
 	case PositionChannelPermission:
 		return "ChannelPermission"
-	case PositionChannelStorage:
-		return "ChannelStorage"
+	case PositionChannelPersist:
+		return "ChannelPersist"
 	case PositionChannelSendack:
 		return "ChannelSendack"
-	case PositionChannelMakeTag:
-		return "ChannelMakeTag"
+	case PositionChannelDistribute:
+		return "ChannelDistribute"
 	case PositionMessageDiffuse:
 		return "MessageDiffuse"
 	case PositionPushOnline:
