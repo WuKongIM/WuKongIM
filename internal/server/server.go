@@ -12,18 +12,17 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/api"
-	chprocess "github.com/WuKongIM/WuKongIM/internal/channel/process"
-	channelreactor "github.com/WuKongIM/WuKongIM/internal/channel/reactor"
+	channelevent "github.com/WuKongIM/WuKongIM/internal/channel/event"
+	channelhandler "github.com/WuKongIM/WuKongIM/internal/channel/handler"
 	"github.com/WuKongIM/WuKongIM/internal/common"
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/manager"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	pprocess "github.com/WuKongIM/WuKongIM/internal/push/process"
-	pushreactor "github.com/WuKongIM/WuKongIM/internal/push/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	"github.com/WuKongIM/WuKongIM/internal/user/process"
-	userreactor "github.com/WuKongIM/WuKongIM/internal/user/reactor"
+	userevent "github.com/WuKongIM/WuKongIM/internal/user/event"
+	userhandler "github.com/WuKongIM/WuKongIM/internal/user/handler"
 	"github.com/WuKongIM/WuKongIM/internal/webhook"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
@@ -67,15 +66,14 @@ type Server struct {
 	conversationManager *manager.ConversationManager // 会话管理
 	tagManager          *manager.TagManager          // tag管理
 	webhook             *webhook.Webhook
-	// user
-	processUser *process.User        // 用户逻辑处理
-	userReactor *userreactor.Reactor // 用户的reactor
-	// channel
-	processChannel *chprocess.Channel      // 频道逻辑处理
-	channelReactor *channelreactor.Reactor // 频道的reactor
-	// push
-	processPush *pprocess.Push       // 推送逻辑处理
-	pushReactor *pushreactor.Reactor // 推送的reactor
+
+	// 用户事件池
+	userHandler   *userhandler.Handler
+	userEventPool *userevent.EventPool
+
+	// 频道事件池
+	channelHandler   *channelhandler.Handler
+	channelEventPool *channelevent.EventPool
 }
 
 func New(opts *options.Options) *Server {
@@ -96,6 +94,16 @@ func New(opts *options.Options) *Server {
 	}
 
 	s.ingress = ingress.New()
+
+	// user event pool
+	s.userHandler = userhandler.NewHandler()
+	s.userEventPool = userevent.NewEventPool(s.userHandler)
+	eventbus.RegisterUser(s.userEventPool)
+
+	// channel event pool
+	s.channelHandler = channelhandler.NewHandler()
+	s.channelEventPool = channelevent.NewEventPool(s.channelHandler)
+	eventbus.RegisterChannel(s.channelEventPool)
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -221,32 +229,6 @@ func New(opts *options.Options) *Server {
 		s.handleClusterMessage(fromNodeId, msg)
 	})
 
-	// 频道的reactor
-	s.processChannel = chprocess.New()
-	s.channelReactor = channelreactor.New(
-		channelreactor.WithNodeId(opts.Cluster.NodeId),
-		channelreactor.WithSend(s.processChannel.Send),
-	)
-	reactor.RegisterChannel(s.channelReactor)
-
-	// 用户的reactor
-	s.processUser = process.New()
-	s.userReactor = userreactor.NewReactor(
-		userreactor.WithNodeId(opts.Cluster.NodeId),
-		userreactor.WithSend(s.processUser.Send),
-		userreactor.WithNodeVersion(func() uint64 {
-			return service.Cluster.NodeVersion()
-		}),
-	)
-	reactor.RegisterUser(s.userReactor)
-
-	// push
-	s.processPush = pprocess.New()
-	s.pushReactor = pushreactor.New(
-		pushreactor.WithSend(s.processPush.Send),
-	)
-	reactor.RegisterPush(s.pushReactor)
-
 	s.apiServer = api.New()
 	return s
 }
@@ -327,21 +309,6 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	err = s.channelReactor.Start()
-	if err != nil {
-		return err
-	}
-
-	err = s.userReactor.Start()
-	if err != nil {
-		return err
-	}
-
-	err = s.pushReactor.Start()
-	if err != nil {
-		return err
-	}
-
 	s.engine.OnConnect(s.onConnect)
 	s.engine.OnData(s.onData)
 	s.engine.OnClose(s.onClose)
@@ -371,6 +338,16 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	err = s.userEventPool.Start()
+	if err != nil {
+		return err
+	}
+
+	err = s.channelEventPool.Start()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -384,6 +361,10 @@ func (s *Server) StopNoErr() {
 func (s *Server) Stop() error {
 
 	s.cancel()
+
+	s.userEventPool.Stop()
+
+	s.channelEventPool.Stop()
 
 	s.apiServer.Stop()
 
@@ -400,9 +381,6 @@ func (s *Server) Stop() error {
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
 	}
-	s.channelReactor.Stop()
-	s.userReactor.Stop()
-	s.pushReactor.Stop()
 
 	err := s.engine.Stop()
 	if err != nil {
@@ -472,8 +450,8 @@ func (s *Server) onClose(conn wknet.Conn) {
 	s.trace.Metrics.App().ConnCountAdd(-1)
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
-		connCtx := connCtxObj.(*reactor.Conn)
-		reactor.User.CloseConn(connCtx)
+		connCtx := connCtxObj.(*eventbus.Conn)
+		eventbus.User.CloseConn(connCtx)
 	}
 	service.ConnManager.RemoveConn(conn)
 }

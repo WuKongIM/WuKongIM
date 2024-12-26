@@ -166,6 +166,26 @@ type Options struct {
 	WhitelistOffOfPerson bool // 是否关闭个人白名单验证
 	DeliveryMsgPoolSize  int  // 投递消息协程池大小，此池的协程主要用来将消息投递给在线用户 默认大小为 10240
 
+	// 轮询器
+	Poller struct {
+		UserCount                int           // 每个轮询器的协程数量
+		UserGoroutine            int           // 每个轮询器的协程数量
+		UserTimeout              time.Duration // 用户超时时间，超过此时间没有收到用户的消息，则将用户移除事件队列
+		UserEventMaxSizePerBatch uint64        //每批处理的事件最大大小
+
+		ChannelCount                int           // 每个轮询器的协程数量
+		ChannelGoroutine            int           // 每个轮询器的协程数量
+		ChannelTimeout              time.Duration // 频道超时时间，超过此时间没有收到频道的消息，则将频道移除事件队列
+		ChannelEventMaxSizePerBatch uint64        //每批处理的事件最大大小
+
+		PushGoroutine            int
+		PushHandlerCount         int           // 总共pushHandler的数量
+		PushHandlerPerPoller     int           // 每个poller pushHandler数量
+		PushEventMaxSizePerBatch uint64        //每批处理的事件最大大小
+		IntervalTick             time.Duration // 轮询器tick间隔时间
+		ClearIntervalTick        int           // 清理间隔tick数量，达到此数量将清理一次
+
+	}
 	// go协程池
 	GoPool struct {
 		// UserProcess 用户逻辑处理协程池
@@ -392,7 +412,45 @@ func New(op ...Option) *Options {
 			WorkerScanInterval: time.Minute * 5,
 		},
 		DeliveryMsgPoolSize: 10240,
-		EventPoolSize:       1024,
+		Poller: struct {
+			UserCount                int
+			UserGoroutine            int
+			UserTimeout              time.Duration
+			UserEventMaxSizePerBatch uint64
+
+			ChannelCount                int
+			ChannelGoroutine            int
+			ChannelTimeout              time.Duration
+			ChannelEventMaxSizePerBatch uint64
+
+			PushGoroutine            int
+			PushHandlerCount         int
+			PushHandlerPerPoller     int
+			PushEventMaxSizePerBatch uint64
+
+			IntervalTick      time.Duration
+			ClearIntervalTick int
+		}{
+			UserCount:                32,
+			UserGoroutine:            100,
+			UserTimeout:              time.Minute * 5,
+			UserEventMaxSizePerBatch: 1024 * 1024 * 10,
+
+			ChannelCount:                32,
+			ChannelGoroutine:            100,
+			ChannelTimeout:              time.Minute * 5,
+			ChannelEventMaxSizePerBatch: 1024 * 1024 * 10,
+
+			PushHandlerCount:         100,
+			PushGoroutine:            100,
+			PushHandlerPerPoller:     10,
+			PushEventMaxSizePerBatch: 1024 * 1024 * 10,
+
+			IntervalTick: time.Millisecond * 200,
+
+			ClearIntervalTick: 5 * 60 * 2, // 2分钟清理一次
+		},
+		EventPoolSize: 1024,
 		GoPool: struct {
 			UserProcess    int
 			ChannelProcess int

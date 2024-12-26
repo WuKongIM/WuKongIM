@@ -1,23 +1,51 @@
 package eventbus
 
-type slotLeaderChangeListener func(slotId uint32, oldLeaderId uint64, newLeaderId uint64)
+import (
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+)
 
-type EventBus struct {
-	slotLeaderChangeListeners []slotLeaderChangeListener
+// RegisterUser 注册用户事件
+func RegisterUser(user IUser) {
+	User = newUserPlus(user)
 }
 
-var G = NewEventBus()
-
-func NewEventBus() *EventBus {
-	return &EventBus{}
+func RegisterChannel(channel IChannel) {
+	Channel = newChannelPlus(channel)
 }
 
-func (e *EventBus) ListenSlotLeaderChange(listener slotLeaderChangeListener) {
-	e.slotLeaderChangeListeners = append(e.slotLeaderChangeListeners, listener)
+var userEventRouteMap = make(map[EventType][]UserHandlerFunc)
+var channelEventRouteMap = make(map[EventType][]ChannelHandlerFunc)
+
+// RegisterUserHandlers 注册事件流程
+func RegisterUserHandlers(eventType EventType, handlers ...UserHandlerFunc) {
+	userEventRouteMap[eventType] = handlers
 }
 
-func (e *EventBus) NotifySlotLeaderChange(slotId uint32, oldLeaderId, newLeader uint64) {
-	for _, listener := range e.slotLeaderChangeListeners {
-		listener(slotId, oldLeaderId, newLeader)
+// RegisterChannelHandlers 注册频道事件
+func RegisterChannelHandlers(eventType EventType, handlers ...ChannelHandlerFunc) {
+	channelEventRouteMap[eventType] = handlers
+}
+
+// ExecuteUserEvent 执行用户事件
+func ExecuteUserEvent(ctx *UserContext) {
+	handlers, ok := userEventRouteMap[ctx.EventType]
+	if !ok {
+		return
+	}
+	for _, handler := range handlers {
+		handler(ctx)
 	}
 }
+
+func ExecuteChannelEvent(ctx *ChannelContext) {
+	handlers, ok := channelEventRouteMap[ctx.EventType]
+	if !ok {
+		return
+	}
+	for _, handler := range handlers {
+		handler(ctx)
+	}
+}
+
+// 通讯协议
+var Proto wkproto.Protocol = wkproto.New()
