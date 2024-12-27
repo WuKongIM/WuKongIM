@@ -246,7 +246,7 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 	}
 	messageId := options.G.GenMessageId()
 
-	eventbus.Channel.SendMessage(fakeChannelId, channelType, &eventbus.Event{
+	event := &eventbus.Event{
 		Conn: &eventbus.Conn{
 			Uid:      req.FromUID,
 			DeviceId: options.G.SystemDeviceId,
@@ -258,7 +258,10 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 		Track: track.Message{
 			PreStart: time.Now(),
 		},
-	})
+	}
+	eventbus.Channel.SendMessage(fakeChannelId, channelType, event)
+	event.Track.Record(track.PositionStart)
+	eventbus.Channel.Advance(fakeChannelId, channelType)
 
 	return messageId, nil
 }

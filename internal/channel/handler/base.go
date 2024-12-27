@@ -94,9 +94,9 @@ func (h *Handler) forwardsToNode(nodeId uint64, channelId string, channelType ui
 	}
 }
 
-func (h *Handler) forwardToNode(nodeId uint64, channelId string, channelType uint8, event *eventbus.Event) {
-	h.forwardsToNode(nodeId, channelId, channelType, []*eventbus.Event{event})
-}
+// func (h *Handler) forwardToNode(nodeId uint64, channelId string, channelType uint8, event *eventbus.Event) {
+// 	h.forwardsToNode(nodeId, channelId, channelType, []*eventbus.Event{event})
+// }
 
 func (h *Handler) sendToNode(toNodeId uint64, msg *proto.Message) error {
 	err := service.Cluster.Send(toNodeId, msg)

@@ -119,8 +119,9 @@ func (p *poller) handleEvents() {
 	var err error
 	for _, h := range p.tmpHandlers {
 		if h.hasEvent() {
+			events := h.events()
 			err = p.handlePool.Submit(func() {
-				h.advanceEvents()
+				h.advanceEvents(events)
 			})
 			if err != nil {
 				p.Error("submit user handle task failed", zap.String("error", err.Error()))

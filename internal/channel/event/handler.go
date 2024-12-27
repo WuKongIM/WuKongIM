@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +33,7 @@ type channelHandler struct {
 	// 处理中的下标位置
 	processingIndex uint64
 	// 是否正在处理
-	processing bool
+	processing atomic.Bool
 }
 
 func newChannelHandler(channelId string, channelType uint8, poller *poller) *channelHandler {
@@ -63,38 +64,34 @@ func (c *channelHandler) addEvent(event *eventbus.Event) {
 func (c *channelHandler) hasEvent() bool {
 	c.pending.RLock()
 	defer c.pending.RUnlock()
-	if c.processing {
-		return false
-	}
+	// if c.processing.Load() {
+	// 	return false
+	// }
 	return c.processingIndex < c.pending.eventQueue.LastIndex()
 }
 
-// 推进事件
-func (c *channelHandler) advanceEvents() {
-
-	c.pending.Lock()
-	c.processing = true
-	defer func() {
-		c.processing = false
-	}()
-	// 获取事件
-	events := c.pending.eventQueue.SliceWithSize(c.processingIndex+1, c.pending.eventQueue.LastIndex()+1, options.G.Poller.ChannelEventMaxSizePerBatch)
-	if len(events) == 0 && c.processingIndex < c.pending.eventQueue.LastIndex() {
-		c.pending.Unlock()
-		c.Foucs("advanceEvents: events is empty,but u.processingIndex < u.pending.eventQueue.lastIndex ", zap.Uint64("processingIndex", c.processingIndex), zap.Uint64("lastIndex", c.pending.eventQueue.LastIndex()))
-		c.processingIndex = c.pending.eventQueue.LastIndex()
-		return
-	}
+func (u *channelHandler) events() []*eventbus.Event {
+	u.pending.Lock()
+	defer u.pending.Unlock()
+	events := u.pending.eventQueue.SliceWithSize(u.processingIndex+1, u.pending.eventQueue.LastIndex()+1, options.G.Poller.ChannelEventMaxSizePerBatch)
 	if len(events) == 0 {
-		c.pending.Unlock()
-		return
+		return nil
 	}
-
 	eventLastIndex := events[len(events)-1].Index
+
 	// 截取掉之前的事件
-	c.pending.eventQueue.TruncateTo(eventLastIndex + 1)
-	c.processingIndex = eventLastIndex
-	c.pending.Unlock()
+	u.pending.eventQueue.TruncateTo(eventLastIndex + 1)
+	u.processingIndex = eventLastIndex
+	return events
+}
+
+// 推进事件
+func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
+
+	// c.processing.Store(true)
+	// defer func() {
+	// 	c.processing.Store(false)
+	// }()
 
 	// 检查和更新leaderId
 	c.checkAndUpdateLeaderIdChange()
@@ -125,6 +122,8 @@ func (c *channelHandler) advanceEvents() {
 
 // checkAndUpdateLeaderIdChange 检查并更新leaderId变化
 func (c *channelHandler) checkAndUpdateLeaderIdChange() {
+	c.pending.Lock()
+	defer c.pending.Unlock()
 	nodeVersion := service.Cluster.NodeVersion()
 	if c.nodeVersion >= nodeVersion {
 		return

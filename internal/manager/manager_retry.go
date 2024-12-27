@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"time"
 
@@ -92,7 +91,6 @@ func (r *RetryManager) retry(msg *types.RetryMessage) {
 	if rand.Float64() < 0.1 { // 10%的概率
 		r.Info("retry send message", zap.Int("retry", msg.Retry), zap.Uint64("fromNode", msg.FromNode), zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
 	}
-	fmt.Println("retry.....")
 
 	eventbus.User.ConnWrite(conn, msg.RecvPacket)
 

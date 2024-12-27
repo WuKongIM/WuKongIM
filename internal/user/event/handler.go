@@ -27,8 +27,6 @@ type userHandler struct {
 	conns *conns
 	// 处理中的下标位置
 	processingIndex uint64
-	// 是否正在处理
-	processing bool
 }
 
 func newUserHandler(uid string, poller *poller) *userHandler {
@@ -56,45 +54,32 @@ func (u *userHandler) addEvent(event *eventbus.Event) {
 func (u *userHandler) hasEvent() bool {
 	u.pending.RLock()
 	defer u.pending.RUnlock()
-	if u.processing {
-		return false
-	}
 	return u.processingIndex < u.pending.eventQueue.LastIndex()
 }
 
+func (u *userHandler) events() []*eventbus.Event {
+	u.pending.RLock()
+	defer u.pending.RUnlock()
+	events := u.pending.eventQueue.SliceWithSize(u.processingIndex+1, u.pending.eventQueue.LastIndex()+1, options.G.Poller.UserEventMaxSizePerBatch)
+	if len(events) == 0 {
+		return nil
+	}
+	eventLastIndex := events[len(events)-1].Index
+
+	// 截取掉之前的事件
+	u.pending.eventQueue.TruncateTo(eventLastIndex + 1)
+	u.processingIndex = eventLastIndex
+	return events
+}
+
 // 推进事件
-func (u *userHandler) advanceEvents() {
+func (u *userHandler) advanceEvents(events []*eventbus.Event) {
 
 	slotLeaderId := u.leaderId(u.Uid)
 	if slotLeaderId == 0 {
 		u.Error("advanceEvents: slotLeaderId is 0", zap.String("uid", u.Uid))
 		return
 	}
-
-	u.pending.Lock()
-	u.processing = true
-	defer func() {
-		u.processing = false
-	}()
-	// 获取事件
-	events := u.pending.eventQueue.SliceWithSize(u.processingIndex+1, u.pending.eventQueue.LastIndex()+1, options.G.Poller.UserEventMaxSizePerBatch)
-	if len(events) == 0 && u.processingIndex < u.pending.eventQueue.LastIndex() {
-		u.pending.Unlock()
-		u.Foucs("advanceEvents: events is empty,but u.processingIndex < u.pending.eventQueue.lastIndex ", zap.Uint64("processingIndex", u.processingIndex), zap.Uint64("lastIndex", u.pending.eventQueue.LastIndex()))
-		u.processingIndex = u.pending.eventQueue.LastIndex()
-		return
-	}
-	if len(events) == 0 {
-		u.pending.Unlock()
-		return
-	}
-	eventLastIndex := events[len(events)-1].Index
-
-	// 截取掉之前的事件
-	u.pending.eventQueue.TruncateTo(eventLastIndex + 1)
-
-	u.processingIndex = eventLastIndex
-	u.pending.Unlock()
 
 	// 按类型分组
 	group := u.groupByType(events)
