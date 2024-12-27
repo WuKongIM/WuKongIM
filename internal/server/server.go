@@ -34,6 +34,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/version"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"go.etcd.io/etcd/pkg/v3/idutil"
@@ -468,6 +469,11 @@ func (s *Server) onClose(conn wknet.Conn) {
 	if connCtxObj != nil {
 		connCtx := connCtxObj.(*eventbus.Conn)
 		eventbus.User.RemoveConn(connCtx)
+		if connCtx.Auth {
+			deviceOnlineCount := eventbus.User.ConnCountByDeviceFlag(connCtx.Uid, connCtx.DeviceFlag)
+			totalOnlineCount := eventbus.User.ConnCountByUid(connCtx.Uid)
+			service.Webhook.Offline(connCtx.Uid, wkproto.DeviceFlag(connCtx.DeviceFlag), connCtx.ConnId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
+		}
 	}
 	service.ConnManager.RemoveConn(conn)
 }

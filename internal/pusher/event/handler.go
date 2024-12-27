@@ -7,7 +7,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/zap"
 )
 
 type pushHandler struct {
@@ -49,28 +48,23 @@ func (p *pushHandler) hasEvent() bool {
 	return p.processingIndex < p.pending.eventQueue.LastIndex()
 }
 
-// 推进事件
-func (p *pushHandler) advanceEvents() {
-
+func (p *pushHandler) events() []*eventbus.Event {
 	p.pending.Lock()
-	// 获取事件
-	events := p.pending.eventQueue.SliceWithSize(p.processingIndex+1, p.pending.eventQueue.LastIndex()+1, options.G.Poller.ChannelEventMaxSizePerBatch)
-	if len(events) == 0 && p.processingIndex < p.pending.eventQueue.LastIndex() {
-		p.pending.Unlock()
-		p.Foucs("push:advanceEvents: events is empty,but u.processingIndex < u.pending.eventQueue.lastIndex ", zap.Uint64("processingIndex", p.processingIndex), zap.Uint64("lastIndex", p.pending.eventQueue.LastIndex()))
-		p.processingIndex = p.pending.eventQueue.LastIndex()
-		return
-	}
+	defer p.pending.Unlock()
+	events := p.pending.eventQueue.SliceWithSize(p.processingIndex+1, p.pending.eventQueue.LastIndex()+1, options.G.Poller.UserEventMaxSizePerBatch)
 	if len(events) == 0 {
-		p.pending.Unlock()
-		return
+		return nil
 	}
-
 	eventLastIndex := events[len(events)-1].Index
+
 	// 截取掉之前的事件
 	p.pending.eventQueue.TruncateTo(eventLastIndex + 1)
 	p.processingIndex = eventLastIndex
-	p.pending.Unlock()
+	return events
+}
+
+// 推进事件
+func (p *pushHandler) advanceEvents(events []*eventbus.Event) {
 
 	// 按类型分组
 	group := p.groupByType(events)

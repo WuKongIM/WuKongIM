@@ -54,6 +54,7 @@ func (h *Handler) distributeCommon(ctx *eventbus.ChannelContext) {
 
 // cmd消息分发
 func (h *Handler) distributeOnlineCmd(ctx *eventbus.ChannelContext) {
+
 	// // 按照tagKey分组事件
 	tagKeyEvents := h.groupEventsByTagKey(ctx.Events)
 	var err error
@@ -92,7 +93,10 @@ func (h *Handler) groupEventsByTagKey(events []*eventbus.Event) map[string][]*ev
 }
 
 func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId string, channelType uint8, events []*eventbus.Event) {
-
+	if leaderId == 0 {
+		h.Error("distributeByTag: leaderId is 0", zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
+		return
+	}
 	// 转发至对应节点
 	if options.G.IsLocalNode(leaderId) {
 		for _, node := range tag.Nodes {
@@ -165,7 +169,12 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 }
 
 func (h *Handler) distributeToNode(leaderId uint64, channelId string, channelType uint8, events []*eventbus.Event) {
-
+	for _, event := range events {
+		if event.SourceNodeId != 0 && event.SourceNodeId == leaderId {
+			h.Foucs("distributeToNode: sourceNode is forward node, not distribute", zap.Uint64("sourceNodeId", event.SourceNodeId), zap.Uint64("leaderId", leaderId), zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
+			return
+		}
+	}
 	h.forwardsToNode(leaderId, channelId, channelType, events)
 }
 

@@ -23,36 +23,35 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 
 	// 存储消息
 	persists := h.toPersistMessages(ctx.ChannelId, ctx.ChannelType, events)
-	if len(persists) == 0 {
-		return
-	}
-	timeoutCtx, cancel := h.WithTimeout()
-	defer cancel()
-	reasonCode := wkproto.ReasonSuccess
-	results, err := service.Store.AppendMessages(timeoutCtx, ctx.ChannelId, ctx.ChannelType, persists)
-	if err != nil {
-		h.Error("store message failed", zap.Error(err), zap.Int("events", len(persists)), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
-		reasonCode = wkproto.ReasonSystemError
-	}
+	if len(persists) > 0 {
+		timeoutCtx, cancel := h.WithTimeout()
+		defer cancel()
+		reasonCode := wkproto.ReasonSuccess
+		results, err := service.Store.AppendMessages(timeoutCtx, ctx.ChannelId, ctx.ChannelType, persists)
+		if err != nil {
+			h.Error("store message failed", zap.Error(err), zap.Int("events", len(persists)), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
+			reasonCode = wkproto.ReasonSystemError
+		}
 
-	// 填充messageSeq
-	if reasonCode == wkproto.ReasonSuccess {
-		for _, e := range events {
-			for _, result := range results {
-				if result.LogId() == uint64(e.MessageId) {
-					e.MessageSeq = result.LogIndex()
-					break
+		// 填充messageSeq
+		if reasonCode == wkproto.ReasonSuccess {
+			for _, e := range events {
+				for _, result := range results {
+					if result.LogId() == uint64(e.MessageId) {
+						e.MessageSeq = result.LogIndex()
+						break
+					}
 				}
 			}
 		}
-	}
 
-	// 修改原因码
-	for _, event := range events {
-		for _, msg := range persists {
-			if event.MessageId == msg.MessageID {
-				event.ReasonCode = reasonCode
-				break
+		// 修改原因码
+		for _, event := range events {
+			for _, msg := range persists {
+				if event.MessageId == msg.MessageID {
+					event.ReasonCode = reasonCode
+					break
+				}
 			}
 		}
 	}
@@ -62,7 +61,9 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		for _, e := range events {
 			sendPacket := e.Frame.(*wkproto.SendPacket)
 			if e.ReasonCode == wkproto.ReasonSuccess && !sendPacket.NoPersist {
-				eventbus.Channel.AddEvent(ctx.ChannelId, ctx.ChannelType, e)
+				cloneEvent := e.Clone()
+				cloneEvent.Type = eventbus.EventChannelWebhook
+				eventbus.Channel.AddEvent(ctx.ChannelId, ctx.ChannelType, cloneEvent)
 			}
 		}
 	}

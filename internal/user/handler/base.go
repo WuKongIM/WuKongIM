@@ -52,7 +52,8 @@ func (h *Handler) OnEvent(ctx *eventbus.UserContext) {
 		h.Error("OnEvent: get slotLeaderId is 0")
 		return
 	}
-	if options.G.IsLocalNode(slotLeaderId) || h.notForwardToLeader(ctx.EventType) {
+	if options.G.IsLocalNode(slotLeaderId) ||
+		h.notForwardToLeader(ctx.EventType) {
 		// 执行本地事件
 		eventbus.ExecuteUserEvent(ctx)
 	} else {
@@ -88,6 +89,13 @@ func (h *Handler) userLeaderNodeId(uid string) uint64 {
 func (h *Handler) forwardsToNode(nodeId uint64, uid string, events []*eventbus.Event) {
 	if len(events) == 0 {
 		return
+	}
+
+	for _, e := range events {
+		if e.SourceNodeId != 0 && e.SourceNodeId == nodeId {
+			h.Error("forwardsToNode: event source node id is equal to nodeId,end forward", zap.Uint64("sourceNodeId", e.SourceNodeId), zap.Uint64("nodeId", nodeId), zap.String("uid", uid), zap.String("eventType", e.Type.String()))
+			return
+		}
 	}
 
 	req := &forwardUserEventReq{

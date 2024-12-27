@@ -87,8 +87,7 @@ func New(addr string, ops ...Option) *Server {
 
 	s.routeMap[opts.ConnPath] = func(ctx *Context) {
 		req := ctx.ConnReq()
-		s.Info("connack--->", zap.Uint64("id", req.Id), zap.String("uid", req.Uid))
-		go ctx.WriteConnack(&proto.Connack{
+		ctx.WriteConnack(&proto.Connack{
 			Id:     req.Id,
 			Status: proto.StatusOK,
 		})

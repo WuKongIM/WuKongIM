@@ -4,7 +4,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -26,11 +25,7 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 			h.forwardToNode(conn.NodeId, conn.Uid, e)
 			return
 		}
-		if conn.Auth {
-			deviceOnlineCount := eventbus.User.ConnCountByDeviceFlag(conn.Uid, conn.DeviceFlag)
-			totalOnlineCount := eventbus.User.ConnCountByUid(conn.Uid)
-			service.Webhook.Offline(conn.Uid, wkproto.DeviceFlag(conn.DeviceFlag), conn.ConnId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
-		}
+
 		realConn := service.ConnManager.GetConn(conn.ConnId)
 		if realConn == nil {
 			h.Info("closeConn: conn not exist", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId))

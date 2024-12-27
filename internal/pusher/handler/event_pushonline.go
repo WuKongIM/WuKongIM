@@ -46,31 +46,31 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 			fromUid = ""
 		}
 
-		recvPacket := &wkproto.RecvPacket{}
-
-		recvPacket.Framer = wkproto.Framer{
-			RedDot:    sendPacket.GetRedDot(),
-			SyncOnce:  sendPacket.GetsyncOnce(),
-			NoPersist: sendPacket.GetNoPersist(),
-		}
-		recvPacket.Setting = sendPacket.Setting
-		recvPacket.MessageID = e.MessageId
-		recvPacket.MessageSeq = uint32(e.MessageSeq)
-		recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
-		recvPacket.StreamNo = sendPacket.StreamNo
-		recvPacket.StreamFlag = wkproto.StreamFlagIng
-		recvPacket.FromUID = fromUid
-		recvPacket.Expire = sendPacket.Expire
-		recvPacket.ChannelID = sendPacket.ChannelID
-		recvPacket.ChannelType = sendPacket.ChannelType
-		recvPacket.Topic = sendPacket.Topic
-		recvPacket.Timestamp = int32(time.Now().Unix())
-		recvPacket.ClientSeq = sendPacket.ClientSeq
-
 		for _, toConn := range toConns {
-			if toConn.Uid == e.Conn.Uid && toConn.DeviceId == e.Conn.DeviceId { // 自己发的不处理
+			if toConn.Uid == e.Conn.Uid && toConn.NodeId == e.Conn.NodeId && toConn.ConnId == e.Conn.ConnId { // 自己发的不处理
 				continue
 			}
+
+			recvPacket := &wkproto.RecvPacket{}
+
+			recvPacket.Framer = wkproto.Framer{
+				RedDot:    sendPacket.GetRedDot(),
+				SyncOnce:  sendPacket.GetsyncOnce(),
+				NoPersist: sendPacket.GetNoPersist(),
+			}
+			recvPacket.Setting = sendPacket.Setting
+			recvPacket.MessageID = e.MessageId
+			recvPacket.MessageSeq = uint32(e.MessageSeq)
+			recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
+			recvPacket.StreamNo = sendPacket.StreamNo
+			recvPacket.StreamFlag = wkproto.StreamFlagIng
+			recvPacket.FromUID = fromUid
+			recvPacket.Expire = sendPacket.Expire
+			recvPacket.ChannelID = sendPacket.ChannelID
+			recvPacket.ChannelType = sendPacket.ChannelType
+			recvPacket.Topic = sendPacket.Topic
+			recvPacket.Timestamp = int32(time.Now().Unix())
+			recvPacket.ClientSeq = sendPacket.ClientSeq
 
 			// 这里需要把channelID改成fromUID 比如A给B发消息，B收到的消息channelID应该是A A收到的消息channelID应该是B
 			recvPacket.ChannelID = sendPacket.ChannelID
@@ -157,6 +157,7 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 // 加密消息
 func encryptMessagePayload(payload []byte, conn *eventbus.Conn) ([]byte, error) {
 	aesKey, aesIV := conn.AesKey, conn.AesIV
+
 	// 加密payload
 	payloadEnc, err := wkutil.AesEncryptPkcs7Base64(payload, aesKey, aesIV)
 	if err != nil {

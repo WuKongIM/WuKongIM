@@ -432,16 +432,16 @@ func New(op ...Option) *Options {
 			ClearIntervalTick int
 		}{
 			UserCount:                32,
-			UserGoroutine:            100,
+			UserGoroutine:            1000,
 			UserTimeout:              time.Minute * 5,
 			UserEventMaxSizePerBatch: 1024 * 1024 * 10,
 
 			ChannelCount:                32,
-			ChannelGoroutine:            100,
+			ChannelGoroutine:            1000,
 			ChannelTimeout:              time.Minute * 5,
 			ChannelEventMaxSizePerBatch: 1024 * 1024 * 10,
 
-			PushHandlerCount:         100,
+			PushHandlerCount:         1000,
 			PushGoroutine:            100,
 			PushHandlerPerPoller:     10,
 			PushEventMaxSizePerBatch: 1024 * 1024 * 10,
