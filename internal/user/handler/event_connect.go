@@ -27,18 +27,20 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 			ctx.AddConn(conn)
 		}
 		connackEvent := &eventbus.Event{
-			Type:  eventbus.EventConnack,
-			Conn:  conn,
-			Frame: packet,
+			Type:         eventbus.EventConnack,
+			Conn:         conn,
+			Frame:        packet,
+			SourceNodeId: options.G.Cluster.NodeId,
 		}
 		if options.G.IsLocalNode(conn.NodeId) {
 			eventbus.User.AddEvent(uid, connackEvent)
 			eventbus.User.Advance(uid)
 		} else {
 			h.forwardToNode(conn.NodeId, uid, &eventbus.Event{
-				Type:  eventbus.EventConnack,
-				Conn:  conn,
-				Frame: packet,
+				Type:         eventbus.EventConnack,
+				Conn:         conn,
+				Frame:        packet,
+				SourceNodeId: options.G.Cluster.NodeId,
 			})
 		}
 

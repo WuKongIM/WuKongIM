@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
@@ -246,18 +246,15 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 	}
 	messageId := options.G.GenMessageId()
 
-	reactor.Channel.WakeIfNeed(fakeChannelId, channelType)
-	reactor.Channel.MustSendMessage(&reactor.ChannelMessage{
-		FakeChannelId: fakeChannelId,
-		ChannelType:   channelType,
-		Conn: &reactor.Conn{
+	eventbus.Channel.SendMessage(fakeChannelId, channelType, &eventbus.Event{
+		Conn: &eventbus.Conn{
 			Uid:      req.FromUID,
 			DeviceId: options.G.SystemDeviceId,
 		},
-		MsgType:    reactor.ChannelMsgSend,
-		SendPacket: sendPacket,
-		MessageId:  messageId,
-		TagKey:     req.TagKey,
+		Type:      eventbus.EventChannelOnSend,
+		Frame:     sendPacket,
+		MessageId: messageId,
+		TagKey:    req.TagKey,
 		Track: track.Message{
 			PreStart: time.Now(),
 		},

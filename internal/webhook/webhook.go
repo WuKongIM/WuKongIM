@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/grpcpool"
@@ -160,13 +160,13 @@ func (w *Webhook) TriggerEvent(event *types.Event) {
 	}
 }
 
-func (w *Webhook) NotifyOfflineMsg(msgs []*reactor.ChannelMessage) {
+func (w *Webhook) NotifyOfflineMsg(msgs []*eventbus.Event) {
 	for _, msg := range msgs {
 		w.notifyOfflineMsg(msg, msg.OfflineUsers)
 	}
 }
 
-func (w *Webhook) notifyOfflineMsg(msg *reactor.ChannelMessage, subscribers []string) {
+func (w *Webhook) notifyOfflineMsg(e *eventbus.Event, subscribers []string) {
 	compress := ""
 	toUIDs := subscribers
 	var compresssToUIDs []byte
@@ -183,28 +183,29 @@ func (w *Webhook) notifyOfflineMsg(msg *reactor.ChannelMessage, subscribers []st
 			compresssToUIDs = buff.Bytes()
 		}
 	}
+	sendPacket := e.Frame.(*wkproto.SendPacket)
 	// 推送离线到上层应用
 	w.TriggerEvent(&types.Event{
 		Event: types.EventMsgOffline,
 		Data: types.MessageOfflineNotify{
 			MessageResp: types.MessageResp{
 				Header: types.MessageHeader{
-					RedDot:    wkutil.BoolToInt(msg.SendPacket.RedDot),
-					SyncOnce:  wkutil.BoolToInt(msg.SendPacket.SyncOnce),
-					NoPersist: wkutil.BoolToInt(msg.SendPacket.NoPersist),
+					RedDot:    wkutil.BoolToInt(sendPacket.RedDot),
+					SyncOnce:  wkutil.BoolToInt(sendPacket.SyncOnce),
+					NoPersist: wkutil.BoolToInt(sendPacket.NoPersist),
 				},
-				Setting:      msg.SendPacket.Setting.Uint8(),
-				ClientMsgNo:  msg.SendPacket.ClientMsgNo,
-				MessageId:    msg.MessageId,
-				MessageIdStr: strconv.FormatInt(msg.MessageId, 10),
-				MessageSeq:   msg.MessageSeq,
-				FromUID:      msg.Conn.Uid,
-				ChannelID:    msg.SendPacket.ChannelID,
-				ChannelType:  msg.SendPacket.ChannelType,
-				Topic:        msg.SendPacket.Topic,
-				Expire:       msg.SendPacket.Expire,
+				Setting:      sendPacket.Setting.Uint8(),
+				ClientMsgNo:  sendPacket.ClientMsgNo,
+				MessageId:    e.MessageId,
+				MessageIdStr: strconv.FormatInt(e.MessageId, 10),
+				MessageSeq:   e.MessageSeq,
+				FromUID:      e.Conn.Uid,
+				ChannelID:    sendPacket.ChannelID,
+				ChannelType:  sendPacket.ChannelType,
+				Topic:        sendPacket.Topic,
+				Expire:       sendPacket.Expire,
 				Timestamp:    int32(time.Now().Unix()),
-				Payload:      msg.SendPacket.Payload,
+				Payload:      sendPacket.Payload,
 			},
 			ToUids:          toUIDs,
 			Compress:        compress,

@@ -32,6 +32,8 @@ func (h *Handler) routes() {
 	eventbus.RegisterUserHandlers(eventbus.EventConnWriteFrame, h.writeFrame)
 	// 连接关闭
 	eventbus.RegisterUserHandlers(eventbus.EventConnClose, h.closeConn)
+	// 移除连接
+	eventbus.RegisterUserHandlers(eventbus.EventConnRemove, h.removeConn)
 
 }
 
@@ -64,7 +66,8 @@ func (h *Handler) notForwardToLeader(eventType eventbus.EventType) bool {
 	switch eventType {
 	case eventbus.EventConnClose,
 		eventbus.EventConnack,
-		eventbus.EventConnWriteFrame:
+		eventbus.EventConnWriteFrame,
+		eventbus.EventConnRemove:
 		return true
 	}
 	return false

@@ -1,8 +1,14 @@
 package eventbus
 
 import (
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
+
+// RegisterUser 注册用户事件
+func RegisterUser(user IUser) {
+	User = newUserPlus(user)
+}
 
 var User *userPlus
 
@@ -20,9 +26,13 @@ type IUser interface {
 	ConnById(uid string, fromNode uint64, id int64) *Conn
 	LocalConnById(uid string, id int64) *Conn
 	LocalConnByUid(uid string) []*Conn
+	RemoveConn(conn *Conn)
 
 	// UpdateConn 更新连接
 	UpdateConn(conn *Conn)
+
+	AllUserCount() int
+	AllConnCount() int
 }
 
 type userPlus struct {
@@ -54,9 +64,10 @@ func (u *userPlus) Advance(uid string) {
 // Connect 请求连接
 func (u *userPlus) Connect(conn *Conn, connectPacket *wkproto.ConnectPacket) {
 	u.user.AddEvent(conn.Uid, &Event{
-		Type:  EventConnect,
-		Frame: connectPacket,
-		Conn:  conn,
+		Type:         EventConnect,
+		Frame:        connectPacket,
+		Conn:         conn,
+		SourceNodeId: options.G.Cluster.NodeId,
 	})
 }
 
@@ -106,16 +117,31 @@ func (u *userPlus) UpdateConn(conn *Conn) {
 // ConnWrite 连接写包
 func (u *userPlus) ConnWrite(conn *Conn, frame wkproto.Frame) {
 	u.user.AddEvent(conn.Uid, &Event{
-		Type:  EventConnWriteFrame,
-		Conn:  conn,
-		Frame: frame,
+		Type:         EventConnWriteFrame,
+		Conn:         conn,
+		Frame:        frame,
+		SourceNodeId: options.G.Cluster.NodeId,
 	})
 }
 
 // CloseConn 关闭连接
 func (u *userPlus) CloseConn(conn *Conn) {
 	u.user.AddEvent(conn.Uid, &Event{
-		Type: EventConnClose,
-		Conn: conn,
+		Type:         EventConnClose,
+		Conn:         conn,
+		SourceNodeId: options.G.Cluster.NodeId,
 	})
+}
+
+// RemoveConn 移除连接
+func (u *userPlus) RemoveConn(conn *Conn) {
+	u.user.RemoveConn(conn)
+}
+
+func (u *userPlus) AllUserCount() int {
+	return u.user.AllUserCount()
+}
+
+func (u *userPlus) AllConnCount() int {
+	return u.user.AllConnCount()
 }

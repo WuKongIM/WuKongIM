@@ -12,6 +12,6 @@ func (s *Server) handleClusterMessage(_ uint64, msg *proto.Message) {
 	} else if msg.MsgType >= uint32(eventbus.ChannelEventMsgMin) && msg.MsgType < uint32(eventbus.ChannelEventMsgMax) {
 		s.channelHandler.OnMessage(msg)
 	} else if msg.MsgType >= uint32(eventbus.PushEventMsgMin) && msg.MsgType < uint32(eventbus.PushEventMsgMax) {
-		s.processPush.OnMessage(msg)
+		s.pushHandler.OnMessage(msg)
 	}
 }

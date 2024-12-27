@@ -42,3 +42,5 @@ func (p *PushContext) Reset() {
 	p.EventType = EventUnknown
 	p.Events = nil
 }
+
+type PusherHandlerFunc func(ctx *PushContext)

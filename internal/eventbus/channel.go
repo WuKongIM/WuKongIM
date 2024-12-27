@@ -1,5 +1,9 @@
 package eventbus
 
+func RegisterChannel(channel IChannel) {
+	Channel = newChannelPlus(channel)
+}
+
 var Channel *channelPlus
 
 type IChannel interface {
@@ -19,16 +23,19 @@ func newChannelPlus(channel IChannel) *channelPlus {
 	}
 }
 
+// AddEvent 添加事件
 func (c *channelPlus) AddEvent(channelId string, channelType uint8, event *Event) {
 	c.channel.AddEvent(channelId, channelType, event)
 }
 
+// AddEvents 添加事件
 func (c *channelPlus) AddEvents(channelId string, channelType uint8, events []*Event) {
 	for _, event := range events {
 		c.channel.AddEvent(channelId, channelType, event)
 	}
 }
 
+// Advance 无等待快速推进事件
 func (c *channelPlus) Advance(channelId string, channelType uint8) {
 	c.channel.Advance(channelId, channelType)
 }

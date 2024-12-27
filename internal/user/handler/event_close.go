@@ -22,6 +22,7 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 		}
 		// 如果不是本地节点，则转发关闭请求
 		if !options.G.IsLocalNode(conn.NodeId) {
+			eventbus.User.RemoveConn(conn)
 			h.forwardToNode(conn.NodeId, conn.Uid, e)
 			return
 		}
@@ -32,12 +33,19 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 		}
 		realConn := service.ConnManager.GetConn(conn.ConnId)
 		if realConn == nil {
-			h.Debug("closeConn: conn not exist", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId))
+			h.Info("closeConn: conn not exist", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId))
 			continue
 		}
 		err := realConn.Close()
 		if err != nil {
-			h.Debug("closeConn: Failed to close the conn", zap.Error(err))
+			h.Info("closeConn: Failed to close the conn", zap.Error(err))
 		}
 	}
+}
+
+func (h *Handler) removeConn(ctx *eventbus.UserContext) {
+	for _, event := range ctx.Events {
+		eventbus.User.RemoveConn(event.Conn)
+	}
+
 }

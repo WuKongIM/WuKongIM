@@ -20,6 +20,8 @@ func (h *Handler) onSend(ctx *eventbus.UserContext) {
 		switch frameType {
 		case wkproto.SEND:
 			h.handleOnSend(event)
+		case wkproto.RECVACK:
+			h.recvack(event)
 		case wkproto.PING:
 			h.ping(event)
 		}

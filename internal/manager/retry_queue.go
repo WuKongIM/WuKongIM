@@ -123,6 +123,7 @@ func (r *RetryQueue) processInFlightQueue(t int64) {
 		r.inFlightMutex.Lock()
 		msg, _ := r.inFlightPQ.PeekAndShift(t)
 		r.inFlightMutex.Unlock()
+
 		if msg == nil {
 			break
 		}
@@ -145,7 +146,7 @@ func (r *RetryQueue) inFlightMessagesCount() int {
 // Start 开始运行重试
 func (r *RetryQueue) Start() {
 
-	scanInterval := time.Second * options.G.MessageRetry.ScanInterval
+	scanInterval := options.G.MessageRetry.ScanInterval
 
 	p := float64(fastrand.Uint32()) / (1 << 32)
 	// 以避免系统中因定时器、周期性任务或请求间隔完全一致而导致的同步问题（例如拥堵或资源竞争）。

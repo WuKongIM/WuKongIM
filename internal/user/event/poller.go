@@ -218,3 +218,28 @@ func (p *poller) updateConn(conn *eventbus.Conn) {
 	}
 	h.conns.addOrUpdateConn(conn)
 }
+
+func (p *poller) allUserCount() int {
+	return p.waitlist.count()
+}
+
+func (p *poller) allConnCount() int {
+	count := 0
+	p.waitlist.readHandlers(&p.tmpHandlers)
+	for _, h := range p.tmpHandlers {
+		count += h.conns.count()
+	}
+	p.tmpHandlers = p.tmpHandlers[:0]
+	if cap(p.tmpHandlers) > 1024 {
+		p.tmpHandlers = nil
+	}
+	return count
+}
+
+func (p *poller) removeConn(conn *eventbus.Conn) {
+	h := p.handler(conn.Uid)
+	if h == nil {
+		return
+	}
+	h.conns.remove(conn)
+}

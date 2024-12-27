@@ -122,9 +122,10 @@ func (s *Server) onData(conn wknet.Conn) error {
 				events = make([]*eventbus.Event, 0, 10)
 			}
 			event := &eventbus.Event{
-				Type:  eventbus.EventOnSend,
-				Frame: frame,
-				Conn:  connCtx,
+				Type:         eventbus.EventOnSend,
+				Frame:        frame,
+				Conn:         connCtx,
+				SourceNodeId: options.G.Cluster.NodeId,
 				Track: track.Message{
 					PreStart: time.Now(),
 				},

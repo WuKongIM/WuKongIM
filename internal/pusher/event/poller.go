@@ -18,10 +18,9 @@ type poller struct {
 	wklog.Log
 	sync.RWMutex
 
-	tmpHandlers []*pushHandler
-	stopper     *syncutil.Stopper
-	handlePool  *ants.Pool
-	index       int
+	stopper    *syncutil.Stopper
+	handlePool *ants.Pool
+	index      int
 
 	eventPool *EventPool
 
@@ -46,7 +45,7 @@ func newPoller(index int, eventPool *EventPool) *poller {
 
 	var err error
 	p.handlePool, err = ants.NewPool(options.G.Poller.ChannelGoroutine, ants.WithNonblocking(true), ants.WithPanicHandler(func(i interface{}) {
-		p.Error("channel handle panic", zap.Any("panic", i), zap.Stack("stack"))
+		p.Panic("channel handle panic", zap.Any("panic", i), zap.Stack("stack"))
 	}))
 	if err != nil {
 		p.Panic("new ants pool failed", zap.String("error", err.Error()))
@@ -79,7 +78,7 @@ func (p *poller) loopEvent() {
 
 func (p *poller) handleEvents() {
 	var err error
-	for _, h := range p.tmpHandlers {
+	for _, h := range p.handlers {
 		if h.hasEvent() {
 			err = p.handlePool.Submit(func() {
 				h.advanceEvents()
@@ -88,10 +87,6 @@ func (p *poller) handleEvents() {
 				p.Error("submit user handle task failed", zap.String("error", err.Error()))
 			}
 		}
-	}
-	p.tmpHandlers = p.tmpHandlers[:0]
-	if cap(p.tmpHandlers) > 1024 {
-		p.tmpHandlers = nil
 	}
 }
 

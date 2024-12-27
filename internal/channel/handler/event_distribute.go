@@ -4,7 +4,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
@@ -14,6 +13,7 @@ import (
 
 // 分发
 func (h *Handler) distribute(ctx *eventbus.ChannelContext) {
+
 	// 记录消息轨迹
 	events := ctx.Events
 	for _, event := range events {
@@ -56,13 +56,23 @@ func (h *Handler) distributeCommon(ctx *eventbus.ChannelContext) {
 func (h *Handler) distributeOnlineCmd(ctx *eventbus.ChannelContext) {
 	// // 按照tagKey分组事件
 	tagKeyEvents := h.groupEventsByTagKey(ctx.Events)
+	var err error
 	for tagKey, events := range tagKeyEvents {
 		if tagKey == "" {
 			h.Warn("distributeOnlineCmd: tagKey is nil", zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
 			continue
 		}
 		// 获取tag
-		tag := service.TagManager.Get(tagKey)
+		var tag *types.Tag
+		if options.G.IsLocalNode(ctx.LeaderId) {
+			tag = service.TagManager.Get(tagKey)
+		} else {
+			tag, err = h.requestTag(ctx.LeaderId, tagKey)
+			if err != nil {
+				h.Error("distributeOnlineCmd: request tag failed", zap.Error(err), zap.String("tagKey", tagKey), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
+				continue
+			}
+		}
 		if tag == nil {
 			h.Error("distributeOnlineCmd: tag not found", zap.String("tagKey", tagKey), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
 			continue
@@ -96,9 +106,13 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 	// 本地分发
 	var offlineUids []string // 需要推离线的用户
 	var pubshEvents []*eventbus.Event
+	localHasEvent := false
 	for _, node := range tag.Nodes {
 		if node.LeaderId != options.G.Cluster.NodeId {
 			continue
+		}
+		if len(node.Uids) > 0 {
+			localHasEvent = true
 		}
 		for _, uid := range node.Uids {
 			if options.G.IsSystemUid(uid) {
@@ -127,8 +141,14 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 		}
 	}
 
+	if localHasEvent {
+		// 更新最近会话
+		h.conversation(channelId, channelType, tag.Key, events)
+	}
+
 	if len(pubshEvents) > 0 {
-		eventbus.Pusher.AddEvents(pubshEvents)
+		id := eventbus.Pusher.AddEvents(pubshEvents)
+		eventbus.Pusher.Advance(id)
 	}
 	if len(offlineUids) > 0 {
 		offlineEvents := make([]*eventbus.Event, 0, len(events))
@@ -138,7 +158,8 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 			cloneEvent.Type = eventbus.EventPushOffline
 			offlineEvents = append(offlineEvents, cloneEvent)
 		}
-		eventbus.Pusher.AddEvents(offlineEvents)
+		_ = eventbus.Pusher.AddEvents(offlineEvents)
+		// eventbus.Pusher.Advance(id) // 不需要推进，因为是离线消息
 	}
 
 }
@@ -253,13 +274,13 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 }
 
 func (h *Handler) isOnline(uid string) bool {
-	toConns := reactor.User.AuthedConnsByUid(uid)
+	toConns := eventbus.User.AuthedConnsByUid(uid)
 	return len(toConns) > 0
 }
 
 // 用户的主设备是否在线
 func (h *Handler) masterDeviceIsOnline(uid string) bool {
-	toConns := reactor.User.AuthedConnsByUid(uid)
+	toConns := eventbus.User.AuthedConnsByUid(uid)
 	online := false
 	for _, conn := range toConns {
 		if conn.DeviceLevel == wkproto.DeviceLevelMaster {
