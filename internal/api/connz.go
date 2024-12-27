@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -84,7 +84,7 @@ func (co *connz) HandleConnz(c *wkhttp.Context) {
 		connInfo := newConnInfo(resultConn)
 
 		proxyType := "未知"
-		leaderId := reactor.User.LeaderId(resultConn.Uid)
+		leaderId := co.slotLeader(resultConn.Uid)
 		if leaderId != 0 {
 			if options.G.IsLocalNode(leaderId) {
 				proxyType = "主连接"
@@ -107,8 +107,18 @@ func (co *connz) HandleConnz(c *wkhttp.Context) {
 	})
 }
 
+func (co *connz) slotLeader(uid string) uint64 {
+	slotId := service.Cluster.GetSlotId(uid)
+	leaderId, err := service.Cluster.SlotLeaderId(slotId)
+	if err != nil {
+		co.Error("获取leaderId失败！", zap.Error(err))
+		return 0
+	}
+	return leaderId
+}
+
 type connzResp struct {
-	*reactor.Conn
+	*eventbus.Conn
 	lastActivity time.Time
 	remoteAddr   string
 }
@@ -121,12 +131,12 @@ func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []
 		if ctx == nil { // 没有上下文的连接不处理
 			continue
 		}
-		rconn := ctx.(*reactor.Conn)
+		rconn := ctx.(*eventbus.Conn)
 		if !rconn.Auth {
 			continue
 		}
 		connCtx := &connzResp{
-			Conn:         ctx.(*reactor.Conn),
+			Conn:         ctx.(*eventbus.Conn),
 			remoteAddr:   conn.RemoteAddr().String(),
 			lastActivity: conn.LastActivity(),
 		}
@@ -257,13 +267,15 @@ func newConnInfo(connCtx *connzResp) *ConnInfo {
 
 	lastActivity := connCtx.lastActivity
 
+	uptime := time.Unix(int64(connCtx.Uptime), 0)
+
 	return &ConnInfo{
 		ID:           connCtx.ConnId,
 		UID:          connCtx.Uid,
 		IP:           host,
 		Port:         port,
 		LastActivity: lastActivity,
-		Uptime:       myUptime(now.Sub(connCtx.Uptime)),
+		Uptime:       myUptime(now.Sub(uptime)),
 		Idle:         myUptime(now.Sub(lastActivity)),
 		// PendingBytes:   c.OutboundBuffer().BoundBufferSize(),
 		InMsgs:         connCtx.InMsgCount.Load(),
@@ -537,7 +549,7 @@ func (l byInPacketDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.
 type byUptime struct{ Conns []*connzResp }
 
 func (l byUptime) Less(i, j int) bool {
-	return l.Conns[i].Uptime.Before(l.Conns[j].Uptime)
+	return l.Conns[i].Uptime < l.Conns[j].Uptime
 }
 func (l byUptime) Len() int      { return len(l.Conns) }
 func (l byUptime) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
@@ -545,7 +557,7 @@ func (l byUptime) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[
 type byUptimeDesc struct{ Conns []*connzResp }
 
 func (l byUptimeDesc) Less(i, j int) bool {
-	return l.Conns[i].Uptime.After(l.Conns[j].Uptime)
+	return l.Conns[i].Uptime > l.Conns[j].Uptime
 }
 func (l byUptimeDesc) Len() int      { return len(l.Conns) }
 func (l byUptimeDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }

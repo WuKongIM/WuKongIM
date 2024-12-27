@@ -49,7 +49,7 @@ func newPoller(index int, eventPool *EventPool) *poller {
 
 	var err error
 	p.handlePool, err = ants.NewPool(options.G.Poller.ChannelGoroutine, ants.WithNonblocking(true), ants.WithPanicHandler(func(i interface{}) {
-		p.Error("channel handle panic", zap.Any("panic", i), zap.Stack("stack"))
+		p.Panic("channel handle panic", zap.Any("panic", i), zap.Stack("stack"))
 	}))
 	if err != nil {
 		p.Panic("new ants pool failed", zap.String("error", err.Error()))

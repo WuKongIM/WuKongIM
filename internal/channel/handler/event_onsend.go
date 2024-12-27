@@ -1,14 +1,11 @@
 package handler
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 )
 
 func (h *Handler) onSend(ctx *eventbus.ChannelContext) {
-	fmt.Println("onSend--->", ctx.ChannelId)
 	// 记录消息轨迹
 	for _, event := range ctx.Events {
 		event.Track.Record(track.PositionChannelOnSend)

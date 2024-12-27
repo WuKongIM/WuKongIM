@@ -1,12 +1,13 @@
 package manager
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
@@ -78,7 +79,7 @@ func (r *RetryManager) retry(msg *types.RetryMessage) {
 		r.Debug("exceeded the maximum number of retries", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int("messageMaxRetryCount", options.G.MessageRetry.MaxCount))
 		return
 	}
-	conn := reactor.User.ConnById(msg.Uid, msg.FromNode, msg.ConnId)
+	conn := eventbus.User.ConnById(msg.Uid, msg.FromNode, msg.ConnId)
 	if conn == nil {
 		r.Debug("conn offline", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
 		return
@@ -91,8 +92,9 @@ func (r *RetryManager) retry(msg *types.RetryMessage) {
 	if rand.Float64() < 0.1 { // 10%的概率
 		r.Info("retry send message", zap.Int("retry", msg.Retry), zap.Uint64("fromNode", msg.FromNode), zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
 	}
+	fmt.Println("retry.....")
 
-	reactor.User.ConnWriteBytes(conn, msg.RecvPacketData)
+	eventbus.User.ConnWrite(conn, msg.RecvPacket)
 
 }
 

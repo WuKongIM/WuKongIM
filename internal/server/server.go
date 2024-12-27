@@ -19,7 +19,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/manager"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	pusherevent "github.com/WuKongIM/WuKongIM/internal/pusher/event"
+	pusherhandler "github.com/WuKongIM/WuKongIM/internal/pusher/handler"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	userevent "github.com/WuKongIM/WuKongIM/internal/user/event"
 	userhandler "github.com/WuKongIM/WuKongIM/internal/user/handler"
@@ -74,6 +75,10 @@ type Server struct {
 	// 频道事件池
 	channelHandler   *channelhandler.Handler
 	channelEventPool *channelevent.EventPool
+
+	// push事件池
+	pushHandler   *pusherhandler.Handler
+	pushEventPool *pusherevent.EventPool
 }
 
 func New(opts *options.Options) *Server {
@@ -104,6 +109,11 @@ func New(opts *options.Options) *Server {
 	s.channelHandler = channelhandler.NewHandler()
 	s.channelEventPool = channelevent.NewEventPool(s.channelHandler)
 	eventbus.RegisterChannel(s.channelEventPool)
+
+	// push event pool
+	s.pushHandler = pusherhandler.NewHandler()
+	s.pushEventPool = pusherevent.NewEventPool(s.pushHandler)
+	eventbus.RegisterPusher(s.pushEventPool)
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -150,7 +160,6 @@ func New(opts *options.Options) *Server {
 	s.demoServer = NewDemoServer(s) // demo server
 
 	service.Webhook = webhook.New()
-	reactor.Proto = s.opts.Proto
 
 	s.webhook = webhook.New()
 	service.Webhook = s.webhook
@@ -348,6 +357,11 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	err = s.pushEventPool.Start()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -365,6 +379,8 @@ func (s *Server) Stop() error {
 	s.userEventPool.Stop()
 
 	s.channelEventPool.Stop()
+
+	s.pushEventPool.Stop()
 
 	s.apiServer.Stop()
 
@@ -451,7 +467,7 @@ func (s *Server) onClose(conn wknet.Conn) {
 	connCtxObj := conn.Context()
 	if connCtxObj != nil {
 		connCtx := connCtxObj.(*eventbus.Conn)
-		eventbus.User.CloseConn(connCtx)
+		eventbus.User.RemoveConn(connCtx)
 	}
 	service.ConnManager.RemoveConn(conn)
 }

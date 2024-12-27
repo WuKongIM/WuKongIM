@@ -95,3 +95,22 @@ func (e *EventPool) LocalConnByUid(uid string) []*eventbus.Conn {
 func (e *EventPool) UpdateConn(conn *eventbus.Conn) {
 	e.pollerByUid(conn.Uid).updateConn(conn)
 }
+
+func (e *EventPool) AllUserCount() int {
+	count := 0
+	for _, p := range e.pollers {
+		count += p.allUserCount()
+	}
+	return count
+}
+func (e *EventPool) AllConnCount() int {
+	count := 0
+	for _, p := range e.pollers {
+		count += p.allConnCount()
+	}
+	return count
+}
+
+func (e *EventPool) RemoveConn(conn *eventbus.Conn) {
+	e.pollerByUid(conn.Uid).removeConn(conn)
+}

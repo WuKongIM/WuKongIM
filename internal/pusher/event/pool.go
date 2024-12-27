@@ -85,5 +85,5 @@ func (e *EventPool) Advance(id int) {
 
 func (e *EventPool) handlerById(id int) *pushHandler {
 
-	return e.handlers[id]
+	return e.handlers[id-1]
 }

@@ -62,7 +62,8 @@ func (h *Handler) OnEvent(ctx *eventbus.ChannelContext) {
 // 不需要转发给领导的事件
 func (h *Handler) notForwardToLeader(eventType eventbus.EventType) bool {
 	switch eventType {
-	case eventbus.EventChannelWebhook:
+	case eventbus.EventChannelWebhook,
+		eventbus.EventChannelDistribute:
 		return true
 	}
 	return false

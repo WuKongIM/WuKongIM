@@ -23,6 +23,9 @@ const (
 	// EventConnClose 连接关闭
 	EventConnClose
 
+	// EventConnRemove 连接移除, 仅仅只是移除本节点上的逻辑连接，
+	EventConnRemove
+
 	// =================== 频道事件 ===================
 	// EventChannelOnSend 频道收到发送消息
 	EventChannelOnSend
@@ -50,6 +53,8 @@ func (e EventType) String() string {
 		return "EventConnWriteFrame"
 	case EventConnClose:
 		return "EventConnClose"
+	case EventConnRemove:
+		return "EventConnRemove"
 	case EventChannelOnSend:
 		return "EventChannelOnSend"
 	case EventChannelWebhook:
@@ -69,14 +74,15 @@ func (e EventType) Uint8() uint8 {
 }
 
 type Event struct {
-	Type       EventType
-	Conn       *Conn
-	Frame      wkproto.Frame
-	MessageId  int64
-	MessageSeq uint64
-	ReasonCode wkproto.ReasonCode
-	TagKey     string // tag的key
-	ToUid      string // 发送事件的目标用户
+	Type         EventType
+	Conn         *Conn
+	Frame        wkproto.Frame
+	MessageId    int64
+	MessageSeq   uint64
+	ReasonCode   wkproto.ReasonCode
+	TagKey       string // tag的key
+	ToUid        string // 发送事件的目标用户
+	SourceNodeId uint64 // 事件发起源节点
 	// 事件记录
 	Track track.Message
 	// 不需要编码
@@ -94,6 +100,7 @@ func (e *Event) Clone() *Event {
 		ReasonCode:   e.ReasonCode,
 		TagKey:       e.TagKey,
 		ToUid:        e.ToUid,
+		SourceNodeId: e.SourceNodeId,
 		Track:        e.Track.Clone(),
 		Index:        e.Index,
 		OfflineUsers: e.OfflineUsers,
@@ -115,6 +122,7 @@ func (e *Event) Size() uint64 {
 	size += 1                         // reason code
 	size += uint64(2 + len(e.TagKey)) // tag key
 	size += uint64(2 + len(e.ToUid))  // to uid
+	size += 8                         // source node id
 
 	if e.hasTrack() == 1 {
 		size += e.Track.Size()
@@ -148,6 +156,7 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 	enc.WriteUint8(uint8(e.ReasonCode))
 	enc.WriteString(e.TagKey)
 	enc.WriteString(e.ToUid)
+	enc.WriteUint64(e.SourceNodeId)
 
 	if e.hasTrack() == 1 {
 		enc.WriteBinary(e.Track.Encode())
@@ -219,6 +228,9 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 		return err
 	}
 	if e.ToUid, err = dec.String(); err != nil {
+		return err
+	}
+	if e.SourceNodeId, err = dec.Uint64(); err != nil {
 		return err
 	}
 

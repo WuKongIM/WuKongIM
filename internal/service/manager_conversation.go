@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
 
@@ -9,7 +9,7 @@ var ConversationManager IConversationManager
 
 type IConversationManager interface {
 	// Push 更新最近会话
-	Push(fakeChannelId string, channelType uint8, tagKey string, msgs []*reactor.ChannelMessage)
+	Push(fakeChannelId string, channelType uint8, tagKey string, events []*eventbus.Event)
 	// DeleteFromCache 删除用户指定频道的最近会话的缓存
 	DeleteFromCache(uid, fakeChannelId string, channelType uint8)
 	// GetFromCache 从缓存中获取用户的某一类型的最近会话集合

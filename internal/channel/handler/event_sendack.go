@@ -33,6 +33,11 @@ func (h *Handler) sendack(ctx *eventbus.ChannelContext) {
 
 	var uidMap = make(map[string]struct{}, len(events))
 	for _, e := range events {
+		// 系统发的不需要回执
+		if options.G.IsSystemDevice(e.Conn.DeviceId) {
+			continue
+		}
+
 		sendPacket := e.Frame.(*wkproto.SendPacket)
 		eventbus.User.ConnWrite(e.Conn, &wkproto.SendackPacket{
 			Framer:      sendPacket.Framer,

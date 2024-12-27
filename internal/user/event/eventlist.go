@@ -69,16 +69,16 @@ func (ll *linkedList) get(uid string) *userHandler {
 	return nil
 }
 
-// func (ll *linkedList) len() int {
-// 	ll.mu.Lock()
-// 	defer ll.mu.Unlock()
+func (ll *linkedList) count() int {
+	ll.mu.Lock()
+	defer ll.mu.Unlock()
 
-//		var count int
-//		for node := ll.head; node != nil; node = node.next {
-//			count++
-//		}
-//		return count
-//	}
+	var count int
+	for node := ll.head; node != nil; node = node.next {
+		count++
+	}
+	return count
+}
 func (h *linkedList) readHandlers(handlers *[]*userHandler) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

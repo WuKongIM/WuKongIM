@@ -53,7 +53,15 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 	// 获取到真实连接
 	realConn := service.ConnManager.GetConn(conn.ConnId)
 	if realConn == nil {
-		h.Error("writeFrame: conn not exist", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId))
+		h.Info("writeFrame: conn not exist", zap.String("uid", conn.Uid), zap.Uint64("nodeId", conn.NodeId), zap.Int64("connId", conn.ConnId))
+		// 如果连接不存在了，并且写入事件是其他节点发起的，说明其他节点还不知道连接已经关闭，需要通知其他节点关闭连接
+		if event.SourceNodeId != 0 && !options.G.IsLocalNode(event.SourceNodeId) {
+			h.forwardToNode(event.SourceNodeId, conn.Uid, &eventbus.Event{
+				Type:         eventbus.EventConnRemove,
+				Conn:         conn,
+				SourceNodeId: options.G.Cluster.NodeId,
+			})
+		}
 		return
 	}
 	wsConn, wsok := realConn.(wknet.IWSConn) // websocket连接

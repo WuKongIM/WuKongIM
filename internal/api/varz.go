@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/pse"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -111,8 +111,8 @@ func CreateVarz(s *Server) *Varz {
 		ServerName:           "WuKongIM",
 		Version:              version.Version,
 		Connections:          connCount,
-		UserHandlerCount:     reactor.User.AllUserCount(),
-		UserHandlerConnCount: reactor.User.AllConnCount(),
+		UserHandlerCount:     eventbus.User.AllUserCount(),
+		UserHandlerConnCount: eventbus.User.AllConnCount(),
 		Uptime:               myUptime(time.Since(s.uptime)),
 		CPU:                  pcpu,
 		Goroutine:            runtime.NumGoroutine(),

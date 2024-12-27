@@ -4,17 +4,9 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
-// RegisterUser 注册用户事件
-func RegisterUser(user IUser) {
-	User = newUserPlus(user)
-}
-
-func RegisterChannel(channel IChannel) {
-	Channel = newChannelPlus(channel)
-}
-
 var userEventRouteMap = make(map[EventType][]UserHandlerFunc)
 var channelEventRouteMap = make(map[EventType][]ChannelHandlerFunc)
+var pusherEventRouteMap = make(map[EventType][]PusherHandlerFunc)
 
 // RegisterUserHandlers 注册事件流程
 func RegisterUserHandlers(eventType EventType, handlers ...UserHandlerFunc) {
@@ -24,6 +16,11 @@ func RegisterUserHandlers(eventType EventType, handlers ...UserHandlerFunc) {
 // RegisterChannelHandlers 注册频道事件
 func RegisterChannelHandlers(eventType EventType, handlers ...ChannelHandlerFunc) {
 	channelEventRouteMap[eventType] = handlers
+}
+
+// RegisterPusherHandlers 注册推送事件
+func RegisterPusherHandlers(eventType EventType, handlers ...PusherHandlerFunc) {
+	pusherEventRouteMap[eventType] = handlers
 }
 
 // ExecuteUserEvent 执行用户事件
@@ -39,6 +36,16 @@ func ExecuteUserEvent(ctx *UserContext) {
 
 func ExecuteChannelEvent(ctx *ChannelContext) {
 	handlers, ok := channelEventRouteMap[ctx.EventType]
+	if !ok {
+		return
+	}
+	for _, handler := range handlers {
+		handler(ctx)
+	}
+}
+
+func ExecutePusherEvent(ctx *PushContext) {
+	handlers, ok := pusherEventRouteMap[ctx.EventType]
 	if !ok {
 		return
 	}

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -136,17 +136,14 @@ func (s *stream) start(c *wkhttp.Context) {
 		Payload:     req.Payload,
 	}
 
-	reactor.Channel.WakeIfNeed(fakeChannelId, channelType)
-	reactor.Channel.SendMessage(&reactor.ChannelMessage{
-		FakeChannelId: fakeChannelId,
-		ChannelType:   channelType,
-		Conn: &reactor.Conn{
+	eventbus.Channel.SendMessage(fakeChannelId, channelType, &eventbus.Event{
+		Conn: &eventbus.Conn{
 			Uid:      req.FromUid,
 			DeviceId: options.G.SystemDeviceId,
 		},
-		MsgType:    reactor.ChannelMsgSend,
-		SendPacket: sendPacket,
-		MessageId:  messageId,
+		Type:      eventbus.EventChannelOnSend,
+		Frame:     sendPacket,
+		MessageId: messageId,
 	})
 
 	c.JSON(http.StatusOK, gin.H{

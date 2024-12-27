@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/reactor"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -39,11 +39,11 @@ func NewConversationManager() *ConversationManager {
 	return cm
 }
 
-func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, tagKey string, msgs []*reactor.ChannelMessage) {
+func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, tagKey string, events []*eventbus.Event) {
 
 	worker := c.worker(fakeChannelId, channelType)
 	// worker.push(req) // 这个有延迟，导致最近会话获取不到
-	worker.handleReq(fakeChannelId, channelType, tagKey, msgs)
+	worker.handleReq(fakeChannelId, channelType, tagKey, events)
 
 }
 
@@ -231,7 +231,6 @@ type conversationWorker struct {
 
 	updates []*conversationUpdate // 需要更新的集合
 
-	reqCh chan *conversationReq
 }
 
 func newConversationWorker(i int) *conversationWorker {
@@ -239,7 +238,6 @@ func newConversationWorker(i int) *conversationWorker {
 		Log:     wklog.NewWKLog(fmt.Sprintf("conversationWorker[%d]", i)),
 		index:   i,
 		stopper: syncutil.NewStopper(),
-		reqCh:   make(chan *conversationReq, 1000),
 	}
 }
 
@@ -272,21 +270,21 @@ func (c *conversationWorker) stop() {
 // 	}
 // }
 
-func (c *conversationWorker) handleReq(fakeChannelId string, channelType uint8, tagKey string, msgs []*reactor.ChannelMessage) {
+func (c *conversationWorker) handleReq(fakeChannelId string, channelType uint8, tagKey string, events []*eventbus.Event) {
 
 	c.Lock()
 	defer c.Unlock()
 
-	if len(msgs) == 0 { // 没有消息不更新最近会话
+	if len(events) == 0 { // 没有消息不更新最近会话
 		return
 	}
 
 	// 过滤掉不需要存储的消息
-	messages := make([]*reactor.ChannelMessage, 0, len(msgs))
+	messages := make([]*eventbus.Event, 0, len(events))
 
-	for _, msg := range msgs {
-		if msg.MessageSeq > 0 {
-			messages = append(messages, msg)
+	for _, event := range events {
+		if event.MessageSeq > 0 {
+			messages = append(messages, event)
 		}
 	}
 	if len(messages) == 0 {
@@ -573,13 +571,6 @@ func (c *conversationWorker) getConversationUpdate(channelId string, channelType
 		}
 	}
 	return nil
-}
-
-type conversationReq struct {
-	channelId   string
-	channelType uint8
-	tagKey      string
-	messages    []*reactor.ChannelMessage
 }
 
 type conversationUpdate struct {
