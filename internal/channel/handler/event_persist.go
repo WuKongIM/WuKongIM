@@ -70,6 +70,9 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 
 	// 分发
 	for _, e := range events {
+		if e.ReasonCode != wkproto.ReasonSuccess {
+			continue
+		}
 		cloneEvent := e.Clone()
 		cloneEvent.Type = eventbus.EventChannelDistribute
 		eventbus.Channel.AddEvent(ctx.ChannelId, ctx.ChannelType, cloneEvent)
