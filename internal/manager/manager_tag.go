@@ -27,7 +27,7 @@ func NewTagManager(blucketCount int, nodeVersion func() uint64) *TagManager {
 	}
 	tg.bluckets = make([]*tagBlucket, blucketCount)
 	for i := 0; i < blucketCount; i++ {
-		tg.bluckets[i] = newTagBlucket(i, time.Minute*20)
+		tg.bluckets[i] = newTagBlucket(i, time.Second*2)
 	}
 	return tg
 }
