@@ -212,14 +212,14 @@ func (t *TagManager) getBlucketByChannel(channelId string, channelType uint8) *t
 
 func (t *TagManager) mergeNodes(tag *types.Tag, nodes []*types.Node) {
 	for _, node := range nodes {
-		exist := false
+		existNode := false
 		for _, tagNode := range tag.Nodes {
 			if tagNode.LeaderId == node.LeaderId {
-				exist = true
+				existNode = true
 
 				// 合并用户
-				existUser := false
 				for _, uid := range node.Uids {
+					existUser := false
 					for _, tagUid := range tagNode.Uids {
 						if tagUid == uid {
 							existUser = true
@@ -247,7 +247,7 @@ func (t *TagManager) mergeNodes(tag *types.Tag, nodes []*types.Node) {
 				break
 			}
 		}
-		if !exist {
+		if !existNode {
 			tag.Nodes = append(tag.Nodes, node)
 		}
 	}
