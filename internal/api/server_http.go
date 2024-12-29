@@ -121,6 +121,10 @@ func (s *apiServer) setRoutes() {
 	stream := newStream(s.s)
 	stream.route(s.r)
 
+	// tag
+	tag := newTag(s.s)
+	tag.route(s.r)
+
 	// 分布式api
 	clusterServer, ok := service.Cluster.(*cluster.Server)
 	if ok {

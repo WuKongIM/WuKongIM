@@ -86,7 +86,7 @@ func (b *tagBlucket) checkExpireTags() {
 		for _, removeTagKey := range removeTags {
 			delete(b.tag.m, removeTagKey)
 		}
-		b.Info("checkExpireTags: remove tags", zap.Int("count", len(removeTags)))
+		b.Info("checkExpireTags: remove tags", zap.Int("count", len(removeTags)), zap.String("removeTag", removeTags[0]))
 
 	}
 }

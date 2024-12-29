@@ -372,13 +372,29 @@ func (c *conversationWorker) propose() {
 	c.Lock()
 	conversations := make([]wkdb.Conversation, 0)
 
+	var deleteUpdates []*conversationUpdate
 	for _, update := range c.updates {
 		conversationsWithUpdater, err := c.getConversationWithUpdater(update)
 		if err != nil {
 			c.Error("getConversationWithUpdater err", zap.Error(err))
 			continue
 		}
+
+		// 如果为0，则删除update
+		if len(conversationsWithUpdater) == 0 {
+			deleteUpdates = append(deleteUpdates, update)
+		}
 		conversations = append(conversations, conversationsWithUpdater...)
+	}
+	if len(deleteUpdates) > 0 {
+		for _, update := range deleteUpdates {
+			for i, u := range c.updates {
+				if u == update {
+					c.updates = append(c.updates[:i], c.updates[i+1:]...)
+					break
+				}
+			}
+		}
 	}
 	c.Unlock()
 

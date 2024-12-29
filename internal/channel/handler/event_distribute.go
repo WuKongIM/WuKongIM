@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -180,6 +182,7 @@ func (h *Handler) distributeToNode(leaderId uint64, channelId string, channelTyp
 
 func (h *Handler) getCommonTag(ctx *eventbus.ChannelContext) (*types.Tag, error) {
 
+	// 如果当前节点是频道的领导者节点，则可以make tag
 	if options.G.IsLocalNode(ctx.LeaderId) {
 		return h.getOrMakeTag(ctx.ChannelId, ctx.ChannelType)
 	}
@@ -193,6 +196,8 @@ func (h *Handler) getCommonTag(ctx *eventbus.ChannelContext) (*types.Tag, error)
 		h.Error("processDiffuse: tag not found", zap.String("tagKey", tagKey), zap.String("channelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
 		return nil, nil
 	}
+
+	fmt.Println("get tag--->", ctx.ChannelId, tag.String())
 
 	return tag, nil
 }
@@ -278,6 +283,7 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 		h.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
+	fmt.Println("makeChannelTag--->", orgFakeChannelId, tag.Key)
 	service.TagManager.SetChannelTag(orgFakeChannelId, channelType, tag.Key)
 	return tag, nil
 }

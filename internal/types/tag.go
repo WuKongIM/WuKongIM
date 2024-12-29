@@ -6,11 +6,11 @@ import (
 )
 
 type Tag struct {
-	Key   string
-	Nodes []*Node
+	Key   string  `json:"key"`
+	Nodes []*Node `json:"nodes"`
 	// 最后一次获取时间
-	LastGetTime time.Time
-	NodeVersion uint64 // 生成tag时的当前节点版本号，如果当前节点版本号大于生成tag时的节点版本号，则tag失效
+	LastGetTime time.Time `json:"last_get_time"`
+	NodeVersion uint64    `json:"node_version"` // 生成tag时的当前节点版本号，如果当前节点版本号大于生成tag时的节点版本号，则tag失效
 }
 
 func (t *Tag) String() string {
@@ -20,11 +20,11 @@ func (t *Tag) String() string {
 
 type Node struct {
 	// 节点id
-	LeaderId uint64
+	LeaderId uint64 `json:"leader_id"`
 	// 节点id对应的用户集合
-	Uids []string
+	Uids []string `json:"uids"`
 	// 用户涉及到的slot
-	SlotIds []uint32
+	SlotIds []uint32 `json:"slot_ids"`
 }
 
 func (n *Node) String() string {
