@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -197,8 +195,6 @@ func (h *Handler) getCommonTag(ctx *eventbus.ChannelContext) (*types.Tag, error)
 		return nil, nil
 	}
 
-	fmt.Println("get tag--->", ctx.ChannelId, tag.String())
-
 	return tag, nil
 }
 
@@ -283,7 +279,6 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 		h.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
-	fmt.Println("makeChannelTag--->", orgFakeChannelId, tag.Key)
 	service.TagManager.SetChannelTag(orgFakeChannelId, channelType, tag.Key)
 	return tag, nil
 }
