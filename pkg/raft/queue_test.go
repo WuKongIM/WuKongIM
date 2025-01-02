@@ -8,7 +8,7 @@ import (
 )
 
 func TestQueueAppend(t *testing.T) {
-	q := newQueue(0, 0)
+	q := newQueue(0, 0, 0)
 
 	log1 := Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
 	log2 := Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
@@ -21,8 +21,8 @@ func TestQueueAppend(t *testing.T) {
 	assert.Equal(t, log2, q.logs[1])
 }
 
-func TestQueueStorageTo(t *testing.T) {
-	q := newQueue(0, 0)
+func TestQueueAppendTo(t *testing.T) {
+	q := newQueue(0, 0, 0)
 
 	log1 := Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
 	log2 := Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
@@ -30,15 +30,15 @@ func TestQueueStorageTo(t *testing.T) {
 
 	q.append(log1, log2, log3)
 
-	q.storageTo(2)
+	q.storeTo(2)
 
-	assert.Equal(t, uint64(2), q.storageOffset)
+	assert.Equal(t, uint64(2), q.storedIndex)
 	assert.Equal(t, 1, len(q.logs))
 	assert.Equal(t, log3, q.logs[0])
 }
 
 func TestQueueStorageToOutOfBound(t *testing.T) {
-	q := newQueue(0, 0)
+	q := newQueue(0, 0, 0)
 
 	log1 := Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
 	log2 := Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
@@ -46,6 +46,6 @@ func TestQueueStorageToOutOfBound(t *testing.T) {
 	q.append(log1, log2)
 
 	assert.Panics(t, func() {
-		q.storageTo(3)
+		q.storeTo(3)
 	})
 }
