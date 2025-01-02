@@ -1,6 +1,8 @@
 package raft
 
-import "go.uber.org/zap"
+import (
+	"go.uber.org/zap"
+)
 
 func (n *Node) Tick() {
 
@@ -9,10 +11,16 @@ func (n *Node) Tick() {
 	}
 }
 
+func (n *Node) tickLeader() {
+	n.tickHeartbeat()
+}
+
 func (n *Node) tickFollower() {
 	n.syncElapsed++
 	if n.syncElapsed >= n.opts.SyncInterval && n.leaderId != 0 {
-		n.sendSyncReq(n.leaderId)
+		if !n.hasSyncReq() {
+			n.sendSyncReq()
+		}
 		n.syncElapsed = 0
 	}
 
@@ -21,8 +29,25 @@ func (n *Node) tickFollower() {
 	}
 }
 
+func (n *Node) hasSyncReq() bool {
+	if len(n.events) == 0 {
+		return false
+	}
+	for _, e := range n.events {
+		if e.Type == SyncReq {
+			return true
+		}
+	}
+	return false
+}
+
+func (n *Node) tickLearner() {
+}
+
 func (n *Node) tickCandidate() {
-	n.tickElection()
+	if n.opts.ElectionOn {
+		n.tickElection()
+	}
 }
 
 func (n *Node) tickElection() {
@@ -31,6 +56,33 @@ func (n *Node) tickElection() {
 		n.electionElapsed = 0
 		n.campaign()
 	}
+}
+
+func (n *Node) tickHeartbeat() {
+	if n.opts.ElectionOn {
+		// 如果开启了选举，需要定时发送心跳
+		n.heartbeatElapsed++
+		if n.heartbeatElapsed >= n.opts.HeartbeatInterval {
+			n.heartbeatElapsed = 0
+			n.sendPing(All)
+		}
+		return
+	}
+
+	// 如果没有开启选举，follower一段时间没有发生sync请求，leader就发起心跳
+	for _, replicaId := range n.cfg.Replicas {
+		if replicaId == n.opts.NodeId {
+			continue
+		}
+		syncInfo := n.syncState.replicaSync[replicaId]
+		if syncInfo != nil {
+			syncInfo.SyncTick++
+		}
+		if syncInfo == nil || syncInfo.SyncTick > n.opts.SyncInterval {
+			n.sendPing(replicaId)
+		}
+	}
+
 }
 
 // 是否超过选举超时时间
@@ -45,11 +97,17 @@ func (n *Node) resetRandomizedElectionTimeout() {
 
 // 开始选举
 func (n *Node) campaign() {
-	n.becomeCandidate()
-	for _, nodeId := range n.cfg.Replicas {
-		n.Info("sent vote request", zap.Uint64("from", n.opts.NodeId), zap.Uint64("to", nodeId), zap.Uint32("term", n.cfg.Term))
-		n.sendVoteReq(nodeId)
+	if n.isLeader() {
+		// 如果当前是领导，先变成follower
+		n.BecomeFollower(n.cfg.Term, 0)
+	} else {
+		n.BecomeCandidate()
+		for _, nodeId := range n.cfg.Replicas {
+			n.Info("sent vote request", zap.Uint64("from", n.opts.NodeId), zap.Uint64("to", nodeId), zap.Uint32("term", n.cfg.Term))
+			n.sendVoteReq(nodeId)
+		}
+		// 自己给自己投一票
+		n.sendVoteReq(n.opts.NodeId)
 	}
-	// 自己给自己投一票
-	n.sendVoteReq(n.opts.NodeId)
+
 }
