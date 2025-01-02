@@ -12,3 +12,21 @@ type Config struct {
 	// 不参与编码
 	Leader uint64 // 领导ID
 }
+
+type stepReq struct {
+	event Event
+	resp  chan error
+}
+
+// 任期对应的开始日志下标
+type TermStartIndex struct {
+	Term  uint32
+	Index uint64
+}
+
+type AppendLogsReq struct {
+	// Logs 需要追加的日志集合
+	Logs []Log
+	// TermStartIndex 任期对应的开始日志下标，如果不为空，则需要保存
+	TermStartIndex *TermStartIndex
+}
