@@ -7,6 +7,8 @@ import (
 )
 
 type Options struct {
+	// Key raft的唯一标识，raftgroup中的key
+	Key string
 	// NodeId 节点ID
 	NodeId uint64
 	// TickInterval tick间隔,多久触发一次tick
@@ -117,5 +119,35 @@ func WithTransport(transport Transport) Option {
 func WithStorage(storage Storage) Option {
 	return func(opts *Options) {
 		opts.Storage = storage
+	}
+}
+
+func WithAdvance(advance func()) Option {
+	return func(opts *Options) {
+		opts.Advance = advance
+	}
+}
+
+func WithMaxLogCountPerBatch(maxLogCountPerBatch uint64) Option {
+	return func(opts *Options) {
+		opts.MaxLogCountPerBatch = maxLogCountPerBatch
+	}
+}
+
+func WithSubmit(submit func(f func()) error) Option {
+	return func(opts *Options) {
+		opts.Submit = submit
+	}
+}
+
+func WithGoPoolSize(goPoolSize int) Option {
+	return func(opts *Options) {
+		opts.GoPoolSize = goPoolSize
+	}
+}
+
+func WithKey(key string) Option {
+	return func(opts *Options) {
+		opts.Key = key
 	}
 }

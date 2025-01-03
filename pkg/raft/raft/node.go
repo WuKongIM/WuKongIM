@@ -86,6 +86,10 @@ func NewNode(opts *Options) *Node {
 	return n
 }
 
+func (n *Node) Key() string {
+	return n.opts.Key
+}
+
 func (n *Node) Ready() []types.Event {
 
 	if n.queue.hasNextStoreLogs() {
