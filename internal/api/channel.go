@@ -228,6 +228,10 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 			ch.Error("移除所有订阅者失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
+		tagKey := service.TagManager.GetChannelTag(req.ChannelId, req.ChannelType)
+		if tagKey != "" {
+			service.TagManager.RemoveTag(tagKey)
+		}
 	} else {
 		members, err := service.Store.GetSubscribers(req.ChannelId, req.ChannelType)
 		if err != nil {

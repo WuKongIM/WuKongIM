@@ -28,4 +28,6 @@ type ITagManager interface {
 	SetChannelTag(fakeChannelId string, channelType uint8, tagKey string)
 	// GetChannelTag 获取频道对应的tag
 	GetChannelTag(fakeChannelId string, channelType uint8) string
+	//	 RemoveChannelTag 移除频道对应的tag
+	RemoveChannelTag(fakeChannelId string, channelType uint8)
 }

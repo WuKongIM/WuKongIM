@@ -16,7 +16,7 @@ deploy-arm:
 	docker tag wukongimarm64 wukongim/wukongim:latest-arm64
 	docker push wukongim/wukongim:latest-arm64
 deploy-v2-dev:
-	docker build -t wukongim . 
+	docker build -t wukongim .  --platform linux/amd64
 	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.1.1-20241230-dev
 	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.1.1-20241230-dev
 deploy-v2:

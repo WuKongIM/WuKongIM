@@ -27,7 +27,7 @@ func NewTagManager(blucketCount int, nodeVersion func() uint64) *TagManager {
 	}
 	tg.bluckets = make([]*tagBlucket, blucketCount)
 	for i := 0; i < blucketCount; i++ {
-		tg.bluckets[i] = newTagBlucket(i, time.Minute*20)
+		tg.bluckets[i] = newTagBlucket(i, time.Minute*20, tg.existTag)
 	}
 	return tg
 }
@@ -196,6 +196,11 @@ func (t *TagManager) GetChannelTag(fakeChannelId string, channelType uint8) stri
 	return blucket.getChannelTag(fakeChannelId, channelType)
 }
 
+func (t *TagManager) RemoveChannelTag(fakeChannelId string, channelType uint8) {
+	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
+	blucket.removeChannelTag(fakeChannelId, channelType)
+}
+
 func (t *TagManager) getBlucketByTagKey(tagKey string) *tagBlucket {
 	h := fnv.New32a()
 	h.Write([]byte(tagKey))
@@ -306,4 +311,9 @@ func (t *TagManager) getTag(tagKey string) *types.Tag {
 func (t *TagManager) removeTag(tagKey string) {
 	blucket := t.getBlucketByTagKey(tagKey)
 	blucket.removeTag(tagKey)
+}
+
+func (t *TagManager) existTag(tagKey string) bool {
+	blucket := t.getBlucketByTagKey(tagKey)
+	return blucket.existTag(tagKey)
 }

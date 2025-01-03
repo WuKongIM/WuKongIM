@@ -161,3 +161,58 @@ func (t *TagUpdateReq) Decode(data []byte) error {
 	t.ChannelTag = wkutil.Uint8ToBool(channelTag)
 	return nil
 }
+
+type ChannelReq struct {
+	ChannelId   string
+	ChannelType uint8
+}
+
+func (c *ChannelReq) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	enc.WriteString(c.ChannelId)
+	enc.WriteUint8(c.ChannelType)
+	return enc.Bytes(), nil
+}
+
+func (c *ChannelReq) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if c.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if c.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type SubscribersResp struct {
+	Subscribers []string
+}
+
+func (s *SubscribersResp) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(uint32(len(s.Subscribers)))
+	for _, uid := range s.Subscribers {
+		enc.WriteString(uid)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *SubscribersResp) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	s.Subscribers = make([]string, 0, count)
+	for i := 0; i < int(count); i++ {
+		uid, err := dec.String()
+		if err != nil {
+			return err
+		}
+		s.Subscribers = append(s.Subscribers, uid)
+	}
+	return nil
+}

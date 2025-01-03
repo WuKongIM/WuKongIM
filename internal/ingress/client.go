@@ -76,6 +76,33 @@ func (c *Client) RequestAllowSendForPerson(toNodeId uint64, from, to string) (*p
 	return c.request(toNodeId, "/wk/ingress/allowSend", data)
 }
 
+func (c *Client) RequestSubscribers(toNodeId uint64, channelId string, channelType uint8) ([]string, error) {
+
+	req := &ChannelReq{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+	}
+
+	data, err := req.Encode()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.request(toNodeId, "/wk/ingress/getSubscribers", data)
+	if err != nil {
+		return nil, err
+	}
+	err = c.handleRespError(resp)
+	if err != nil {
+		return nil, err
+	}
+	subResp := &SubscribersResp{}
+	err = subResp.Decode(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return subResp.Subscribers, nil
+}
+
 func (c *Client) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
