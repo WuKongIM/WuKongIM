@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +35,7 @@ func (n *Node) hasSyncReq() bool {
 		return false
 	}
 	for _, e := range n.events {
-		if e.Type == SyncReq {
+		if e.Type == types.SyncReq {
 			return true
 		}
 	}

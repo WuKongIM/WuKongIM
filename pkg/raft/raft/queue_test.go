@@ -4,14 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestQueueAppend(t *testing.T) {
 	q := newQueue(0, 0, 0)
 
-	log1 := Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
-	log2 := Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
+	log1 := types.Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
+	log2 := types.Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
 
 	q.append(log1, log2)
 
@@ -24,9 +25,9 @@ func TestQueueAppend(t *testing.T) {
 func TestQueueAppendTo(t *testing.T) {
 	q := newQueue(0, 0, 0)
 
-	log1 := Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
-	log2 := Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
-	log3 := Log{Id: 3, Index: 3, Term: 1, Data: []byte("log3"), Time: time.Now()}
+	log1 := types.Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
+	log2 := types.Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
+	log3 := types.Log{Id: 3, Index: 3, Term: 1, Data: []byte("log3"), Time: time.Now()}
 
 	q.append(log1, log2, log3)
 
@@ -40,8 +41,8 @@ func TestQueueAppendTo(t *testing.T) {
 func TestQueueStorageToOutOfBound(t *testing.T) {
 	q := newQueue(0, 0, 0)
 
-	log1 := Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
-	log2 := Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
+	log1 := types.Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
+	log2 := types.Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
 
 	q.append(log1, log2)
 

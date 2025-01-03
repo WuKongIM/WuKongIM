@@ -3,12 +3,13 @@ package raft
 import (
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
 
 type queue struct {
-	logs []Log
+	logs []types.Log
 	wklog.Log
 
 	// 存储日志偏移下标，比如日志 1 2 3 4 5 6 7 8 9，存储的日志偏移是6 表示1 2 3 4 5 6已经存储
@@ -27,7 +28,7 @@ func newQueue(appliedLogIndex, lastLogIndex uint64, nodeId uint64) *queue {
 	}
 }
 
-func (r *queue) append(log ...Log) error {
+func (r *queue) append(log ...types.Log) error {
 	appendStartLogIndex := log[0].Index - 1
 
 	if appendStartLogIndex == r.storedIndex+uint64(len(r.logs)) {
@@ -47,7 +48,7 @@ func (r *queue) hasNextStoreLogs() bool {
 	return r.storedIndex < r.lastLogIndex
 }
 
-func (r *queue) nextStoreLogs(maxSize int) []Log {
+func (r *queue) nextStoreLogs(maxSize int) []types.Log {
 	if len(r.logs) == 0 {
 		return nil
 	}

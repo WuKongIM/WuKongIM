@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,26 +38,26 @@ func TestElection2(t *testing.T) {
 	s2Storage := opts2.Storage.(*testStorage)
 	s3Storage := opts3.Storage.(*testStorage)
 
-	s1Storage.logs = append(s1Storage.logs, raft.Log{
+	s1Storage.logs = append(s1Storage.logs, types.Log{
 		Index: 1,
 		Term:  1,
 		Data:  []byte("log1-1"),
 	})
-	s2Storage.logs = append(s2Storage.logs, raft.Log{
+	s2Storage.logs = append(s2Storage.logs, types.Log{
 		Index: 1,
 		Term:  1,
 		Data:  []byte("log1-1"),
-	}, raft.Log{
+	}, types.Log{
 		Index: 2,
 		Term:  1,
 		Data:  []byte("log1-2"),
 	})
 
-	s3Storage.logs = append(s3Storage.logs, raft.Log{
+	s3Storage.logs = append(s3Storage.logs, types.Log{
 		Index: 1,
 		Term:  1,
 		Data:  []byte("log1-1"),
-	}, raft.Log{
+	}, types.Log{
 		Index: 2,
 		Term:  1,
 		Data:  []byte("log1-2"),
@@ -140,36 +141,36 @@ func TestLogConflict1(t *testing.T) {
 
 	s1Storage := opts1.Storage.(*testStorage)
 	s2Storage := opts2.Storage.(*testStorage)
-	// s3Storage := s3.Options().Storage.(*testStorage)
+	s3Storage := opts3.Storage.(*testStorage)
 
-	s1Storage.logs = append(s1Storage.logs, raft.Log{
+	s1Storage.logs = append(s1Storage.logs, types.Log{
 		Index: 1,
 		Term:  1,
 		Data:  []byte("M1"),
-	}, raft.Log{
+	}, types.Log{
 		Index: 2,
 		Term:  1,
 		Data:  []byte("M2"),
 	})
-	s1Storage.saveTermStartIndex(&raft.TermStartIndex{
+	s1Storage.saveTermStartIndex(&types.TermStartIndexInfo{
 		Term:  1,
 		Index: 1,
 	})
 
-	s2Storage.logs = append(s2Storage.logs, raft.Log{
+	s2Storage.logs = append(s2Storage.logs, types.Log{
 		Index: 1,
 		Term:  1,
 		Data:  []byte("M1"),
-	}, raft.Log{
+	}, types.Log{
 		Index: 2,
 		Term:  2,
 		Data:  []byte("M3"),
 	})
-	s2Storage.saveTermStartIndex(&raft.TermStartIndex{
+	s2Storage.saveTermStartIndex(&types.TermStartIndexInfo{
 		Term:  1,
 		Index: 1,
 	})
-	s2Storage.saveTermStartIndex(&raft.TermStartIndex{
+	s2Storage.saveTermStartIndex(&types.TermStartIndexInfo{
 		Term:  2,
 		Index: 2,
 	})
@@ -207,6 +208,90 @@ func TestLogConflict1(t *testing.T) {
 		assert.Equal(t, s1Storage.logs[i].Data, s2Storage.logs[i].Data)
 		assert.Equal(t, s1Storage.logs[i].Term, s2Storage.logs[i].Term)
 		assert.Equal(t, s1Storage.logs[i].Index, s2Storage.logs[i].Index)
+
+		assert.Equal(t, s3Storage.logs[i].Data, s2Storage.logs[i].Data)
+		assert.Equal(t, s3Storage.logs[i].Term, s2Storage.logs[i].Term)
+		assert.Equal(t, s3Storage.logs[i].Index, s2Storage.logs[i].Index)
+	}
+
+}
+
+func TestLogConflict2(t *testing.T) {
+	opts1, opts2, opts3 := newThreeOptions()
+
+	s1Storage := opts1.Storage.(*testStorage)
+	s2Storage := opts2.Storage.(*testStorage)
+	s3Storage := opts3.Storage.(*testStorage)
+
+	s1Storage.logs = append(s1Storage.logs, types.Log{
+		Index: 1,
+		Term:  1,
+		Data:  []byte("M1"),
+	}, types.Log{
+		Index: 2,
+		Term:  1,
+		Data:  []byte("M2"),
+	}, types.Log{
+		Index: 3,
+		Term:  1,
+		Data:  []byte("M3"),
+	})
+	s1Storage.saveTermStartIndex(&types.TermStartIndexInfo{
+		Term:  1,
+		Index: 1,
+	})
+
+	s2Storage.logs = append(s2Storage.logs, types.Log{
+		Index: 1,
+		Term:  1,
+		Data:  []byte("M1"),
+	}, types.Log{
+		Index: 2,
+		Term:  2,
+		Data:  []byte("M3"),
+	})
+	s2Storage.saveTermStartIndex(&types.TermStartIndexInfo{
+		Term:  1,
+		Index: 1,
+	})
+	s2Storage.saveTermStartIndex(&types.TermStartIndexInfo{
+		Term:  2,
+		Index: 2,
+	})
+
+	s1 := raft.New(opts1)
+	s2 := raft.New(opts2)
+	s3 := raft.New(opts3)
+
+	// 设置传输层
+	tt := &testTransport{
+		raftMap: map[uint64]*raft.Raft{
+			1: s1,
+			2: s2,
+			3: s3,
+		},
+	}
+
+	opts1.Transport = tt
+	opts2.Transport = tt
+	opts3.Transport = tt
+
+	raftStart(t, s1, s2, s3)
+	defer raftStop(s1, s2, s3)
+
+	// s2成为领导者，观察s1的日志M3是否覆盖M2
+	s2.BecomeLeader(2)
+
+	time.Sleep(time.Millisecond * 400)
+
+	for i := 0; i < 2; i++ {
+		assert.Equal(t, s1Storage.logs[i].Data, s2Storage.logs[i].Data)
+		assert.Equal(t, s1Storage.logs[i].Term, s2Storage.logs[i].Term)
+		assert.Equal(t, s1Storage.logs[i].Index, s2Storage.logs[i].Index)
+
+		assert.Equal(t, s3Storage.logs[i].Data, s2Storage.logs[i].Data)
+		assert.Equal(t, s3Storage.logs[i].Term, s2Storage.logs[i].Term)
+		assert.Equal(t, s3Storage.logs[i].Index, s2Storage.logs[i].Index)
 	}
 
 }
@@ -223,7 +308,7 @@ type testTransport struct {
 	raftMap map[uint64]*raft.Raft
 }
 
-func (t *testTransport) Send(event raft.Event) {
+func (t *testTransport) Send(event types.Event) {
 	r, ok := t.raftMap[event.To]
 	if !ok {
 		return
@@ -233,8 +318,8 @@ func (t *testTransport) Send(event raft.Event) {
 
 type testStorage struct {
 	nodeId          uint64
-	logs            []raft.Log
-	termStartIndexs []*raft.TermStartIndex
+	logs            []types.Log
+	termStartIndexs []*types.TermStartIndexInfo
 }
 
 func newTestStorage(nodeId uint64) *testStorage {
@@ -243,7 +328,7 @@ func newTestStorage(nodeId uint64) *testStorage {
 	}
 }
 
-func (s *testStorage) AppendLogs(logs []raft.Log, termStartIndex *raft.TermStartIndex) error {
+func (s *testStorage) AppendLogs(logs []types.Log, termStartIndex *types.TermStartIndexInfo) error {
 	s.logs = append(s.logs, logs...)
 	if termStartIndex != nil {
 		s.termStartIndexs = append(s.termStartIndexs, termStartIndex)
@@ -251,11 +336,11 @@ func (s *testStorage) AppendLogs(logs []raft.Log, termStartIndex *raft.TermStart
 	return nil
 }
 
-func (s *testStorage) saveTermStartIndex(termStartIndex *raft.TermStartIndex) {
+func (s *testStorage) saveTermStartIndex(termStartIndex *types.TermStartIndexInfo) {
 	s.termStartIndexs = append(s.termStartIndexs, termStartIndex)
 }
 
-func (s *testStorage) GetLogs(start, end uint64) ([]raft.Log, error) {
+func (s *testStorage) GetLogs(start, end uint64) ([]types.Log, error) {
 	return s.logs[start-1 : end-1], nil
 }
 
@@ -282,6 +367,17 @@ func (s *testStorage) GetTermStartIndex(term uint32) (uint64, error) {
 
 func (s *testStorage) TruncateLogTo(index uint64) error {
 	s.logs = s.logs[:index]
+	return nil
+}
+
+func (s *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error {
+	newTermStartIndexs := make([]*types.TermStartIndexInfo, 0)
+	for _, tsi := range s.termStartIndexs {
+		if tsi.Term <= term {
+			newTermStartIndexs = append(newTermStartIndexs, tsi)
+		}
+	}
+	s.termStartIndexs = newTermStartIndexs
 	return nil
 }
 
@@ -361,8 +457,8 @@ func raftStart(t *testing.T, rafts ...*raft.Raft) {
 
 func raftCampaign(t *testing.T, rafts ...*raft.Raft) {
 	for _, r := range rafts {
-		r.Step(raft.Event{
-			Type: raft.Campaign,
+		r.Step(types.Event{
+			Type: types.Campaign,
 		})
 	}
 }

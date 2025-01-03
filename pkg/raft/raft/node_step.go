@@ -1,10 +1,11 @@
 package raft
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"go.uber.org/zap"
 )
 
-func (n *Node) Step(e Event) error {
+func (n *Node) Step(e types.Event) error {
 	// n.Info("step event", zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index), zap.String("type", e.Type.String()))
 	switch {
 	case e.Term == 0: // 本地消息
@@ -15,14 +16,14 @@ func (n *Node) Step(e Event) error {
 		if n.cfg.Term > 0 {
 			n.Info("received event with higher term", zap.Uint32("term", n.cfg.Term), zap.Uint32("currentTerm", e.Term), zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.String("type", e.Type.String()))
 		}
-		if e.Type == Ping || e.Type == SyncResp {
-			if n.cfg.Role == RoleLearner {
+		if e.Type == types.Ping || e.Type == types.SyncResp {
+			if n.cfg.Role == types.RoleLearner {
 				n.BecomeLearner(e.Term, e.From)
 			} else {
 				n.BecomeFollower(e.Term, e.From)
 			}
 		} else {
-			if n.cfg.Role == RoleLearner {
+			if n.cfg.Role == types.RoleLearner {
 				n.Warn("become learner but leader is none", zap.Uint64("from", e.From), zap.String("type", e.Type.String()), zap.Uint32("term", e.Term))
 				n.BecomeLearner(e.Term, None)
 			} else {
@@ -33,13 +34,13 @@ func (n *Node) Step(e Event) error {
 	}
 
 	switch e.Type {
-	case ConfChange: // 配置变更
+	case types.ConfChange: // 配置变更
 		n.switchConfig(e.Config)
-	case Campaign:
+	case types.Campaign:
 		n.campaign()
-	case VoteReq: // 投票请求
+	case types.VoteReq: // 投票请求
 		if n.canVote(e) {
-			n.sendVoteResp(e.From, ReasonOk)
+			n.sendVoteResp(e.From, types.ReasonOk)
 			n.voteFor = e.From
 			n.electionElapsed = 0
 			if e.From != n.opts.NodeId {
@@ -54,7 +55,7 @@ func (n *Node) Step(e Event) error {
 				n.Info("lower term, reject vote")
 			}
 			n.Info("reject vote", zap.Uint64("from", e.From), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
-			n.sendVoteResp(e.From, ReasonError)
+			n.sendVoteResp(e.From, types.ReasonError)
 		}
 	default:
 		if n.stepFunc != nil {
@@ -65,16 +66,16 @@ func (n *Node) Step(e Event) error {
 	return nil
 }
 
-func (n *Node) stepLeader(e Event) error {
+func (n *Node) stepLeader(e types.Event) error {
 
 	switch e.Type {
-	case Propose: // 提案
+	case types.Propose: // 提案
 		err := n.queue.append(e.Logs...)
 		if err != nil {
 			return err
 		}
 		// n.advance()
-	case SyncReq: // 同步
+	case types.SyncReq: // 同步
 		isLearner := n.isLearner(e.From) // 当前同步节点是否是学习者
 		if !isLearner {
 			n.updateSyncInfo(e)            // 更新副本同步信息
@@ -82,8 +83,8 @@ func (n *Node) stepLeader(e Event) error {
 		}
 
 		// 无数据可同步
-		if e.Reason == ReasonOnlySync && e.Index > n.queue.storedIndex {
-			n.sendSyncResp(e.From, e.Index, nil, ReasonOk)
+		if e.Reason == types.ReasonOnlySync && e.Index > n.queue.storedIndex {
+			n.sendSyncResp(e.From, e.Index, nil, types.ReasonOk)
 			return nil
 		}
 
@@ -94,9 +95,9 @@ func (n *Node) stepLeader(e Event) error {
 			n.advance()
 		}
 
-	case StoreResp: // 异步存储日志返回
+	case types.StoreResp: // 异步存储日志返回
 		n.queue.appending = false
-		if e.Reason == ReasonOk {
+		if e.Reason == types.ReasonOk {
 			if e.Index > n.queue.lastLogIndex {
 				n.Panic("invalid append response", zap.Uint64("index", e.Index), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
 			}
@@ -109,7 +110,7 @@ func (n *Node) stepLeader(e Event) error {
 			n.sendNotifySync(All)
 
 		}
-	case GetLogsResp: // 获取日志返回
+	case types.GetLogsResp: // 获取日志返回
 		syncInfo := n.replicaSync[e.To]
 		syncInfo.GetingLogs = false
 		n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason)
@@ -120,22 +121,22 @@ func (n *Node) stepLeader(e Event) error {
 	return nil
 }
 
-func (n *Node) stepFollower(e Event) error {
+func (n *Node) stepFollower(e types.Event) error {
 	switch e.Type {
-	case Ping: // 心跳
+	case types.Ping: // 心跳
 		n.electionElapsed = 0
 		if n.leaderId == None {
 			n.BecomeFollower(e.Term, e.From)
 		}
 		n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
-	case NotifySync:
+	case types.NotifySync:
 		n.sendSyncReq()
-	case SyncResp: // 同步返回
+	case types.SyncResp: // 同步返回
 		n.electionElapsed = 0
 		if !n.onlySync {
 			n.onlySync = true
 		}
-		if e.Reason == ReasonOk {
+		if e.Reason == types.ReasonOk {
 			if len(e.Logs) > 0 {
 				err := n.queue.append(e.Logs...)
 				if err != nil {
@@ -147,19 +148,25 @@ func (n *Node) stepFollower(e Event) error {
 			}
 			n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 
-		} else if e.Reason == ReasonTrunctate {
+		} else if e.Reason == types.ReasonTrunctate {
 			err := n.opts.Storage.TruncateLogTo(e.Index)
 			if err != nil {
-				n.Error("truncate log failed", zap.Error(err), zap.Uint64("index", e.Index))
+				n.Panic("truncate log failed", zap.Error(err), zap.Uint64("index", e.Index))
+				return err
+			}
+			// 删除本地的leader term start index
+			err = n.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(e.Term)
+			if err != nil {
+				n.Panic("delete leader term start index failed", zap.Error(err), zap.Uint32("term", e.Term))
 				return err
 			}
 			n.queue.truncateLogTo(e.Index)
 			n.sendSyncReq()
 			n.advance()
 		}
-	case StoreResp: // 异步存储日志返回
+	case types.StoreResp: // 异步存储日志返回
 		n.queue.appending = false
-		if e.Reason == ReasonOk {
+		if e.Reason == types.ReasonOk {
 			if e.Index > n.queue.lastLogIndex {
 				n.Panic("invalid append response", zap.Uint64("index", e.Index), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
 			}
@@ -170,9 +177,9 @@ func (n *Node) stepFollower(e Event) error {
 	return nil
 }
 
-func (n *Node) stepCandidate(e Event) error {
+func (n *Node) stepCandidate(e types.Event) error {
 	switch e.Type {
-	case VoteResp: // 投票返回
+	case types.VoteResp: // 投票返回
 		if e.From != n.opts.NodeId {
 			n.Info("received vote response", zap.Uint8("reason", e.Reason.Uint8()), zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
 		}
@@ -181,14 +188,14 @@ func (n *Node) stepCandidate(e Event) error {
 	return nil
 }
 
-func (n *Node) stepLearner(e Event) error {
+func (n *Node) stepLearner(e types.Event) error {
 
 	return nil
 }
 
 // 统计投票
-func (n *Node) poll(e Event) {
-	n.votes[e.From] = e.Reason == ReasonOk
+func (n *Node) poll(e types.Event) {
+	n.votes[e.From] = e.Reason == types.ReasonOk
 	var granted int
 	for _, v := range n.votes {
 		if v {
@@ -213,7 +220,7 @@ func (n *Node) quorum() int {
 }
 
 // 是否可以投票
-func (n *Node) canVote(e Event) bool {
+func (n *Node) canVote(e types.Event) bool {
 
 	if n.cfg.Term > e.Term { // 如果当前任期大于候选人任期，拒绝投票
 		return false
@@ -234,7 +241,7 @@ func (n *Node) canVote(e Event) bool {
 }
 
 // 更新同步信息
-func (n *Node) updateSyncInfo(e Event) {
+func (n *Node) updateSyncInfo(e types.Event) {
 	syncInfo := n.syncState.replicaSync[e.From]
 	if syncInfo == nil {
 		syncInfo = &SyncInfo{}

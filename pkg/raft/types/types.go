@@ -1,6 +1,42 @@
-package raft
+package types
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
+
+type Reason uint8
+
+const (
+	ReasonUnknown Reason = iota
+	// ReasonOk 同意
+	ReasonOk
+	// ReasonError 错误
+	ReasonError
+	// ReasonTrunctate 日志需要截断
+	ReasonTrunctate
+	// ReasonOnlySync 只是同步, 不做截断判断
+	ReasonOnlySync
+)
+
+func (r Reason) Uint8() uint8 {
+	return uint8(r)
+}
+
+func (r Reason) String() string {
+	switch r {
+	case ReasonOk:
+		return "ReasonOk"
+	case ReasonError:
+		return "ReasonError"
+	case ReasonTrunctate:
+		return "ReasonTrunctate"
+	case ReasonOnlySync:
+		return "ReasonOnlySync"
+	default:
+		return fmt.Sprintf("ReasonUnknown[%d]", r)
+	}
+}
 
 type EventType uint16
 
@@ -144,4 +180,47 @@ func (e Event) String() string {
 	str += fmt.Sprintf("Reason: %v ", e.Reason)
 
 	return str
+}
+
+type Log struct {
+	Id    uint64
+	Index uint64 // 日志下标
+	Term  uint32 // 领导任期
+	Data  []byte // 日志数据
+
+	// 不参与编码
+	Time time.Time // 日志时间
+}
+
+type Config struct {
+	MigrateFrom uint64   // 迁移源节点
+	MigrateTo   uint64   // 迁移目标节点
+	Replicas    []uint64 // 副本集合（不包含节点自己）
+	Learners    []uint64 // 学习节点集合
+	Role        Role     // 节点角色
+	Term        uint32   // 领导任期
+	Version     uint64   // 配置版本
+
+	// 不参与编码
+	Leader uint64 // 领导ID
+}
+
+type Role uint8
+
+const (
+	RoleUnknown Role = iota
+	// RoleFollower 跟随者
+	RoleFollower
+	// RoleCandidate 候选人
+	RoleCandidate
+	// RoleLeader 领导者
+	RoleLeader
+	// RoleLearner 学习者
+	RoleLearner
+)
+
+// 任期对应的开始日志下标
+type TermStartIndexInfo struct {
+	Term  uint32
+	Index uint64
 }
