@@ -3,22 +3,9 @@ package raft
 import (
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
-)
-
-type Role uint8
-
-const (
-	RoleUnknown Role = iota
-	// RoleFollower 跟随者
-	RoleFollower
-	// RoleCandidate 候选人
-	RoleCandidate
-	// RoleLeader 领导者
-	RoleLeader
-	// RoleLearner 学习者
-	RoleLearner
 )
 
 type electionState struct {
@@ -33,24 +20,24 @@ type syncState struct {
 }
 
 type Node struct {
-	events      []Event
+	events      []types.Event
 	opts        *Options
 	syncElapsed int    // 同步计数
 	leaderId    uint64 // 领导者ID
 	tickFnc     func()
-	stepFunc    func(event Event) error
+	stepFunc    func(event types.Event) error
 	queue       *queue
 	wklog.Log
 
 	heartbeatElapsed int // 心跳计时器
 
-	cfg Config // 分布式配置
+	cfg types.Config // 分布式配置
 
 	electionState // 选举状态
 	syncState     // 同步状态
 
 	// 最新的任期对应的开始日志下标
-	lastTermStartIndex TermStartIndex
+	lastTermStartIndex types.TermStartIndexInfo
 
 	onlySync bool // 是否只同步,不做截断判断
 }
@@ -94,7 +81,7 @@ func NewNode(opts *Options) *Node {
 	return n
 }
 
-func (n *Node) Ready() []Event {
+func (n *Node) Ready() []types.Event {
 
 	if n.queue.hasNextStoreLogs() {
 		logs := n.queue.nextStoreLogs(0)
@@ -107,12 +94,12 @@ func (n *Node) Ready() []Event {
 	return events
 }
 
-func (n *Node) switchConfig(cfg Config) {
+func (n *Node) switchConfig(cfg types.Config) {
 
 }
 
 func (n *Node) isLeader() bool {
-	return n.cfg.Role == RoleLeader
+	return n.cfg.Role == types.RoleLeader
 }
 
 func (n *Node) isLearner(nodeId uint64) bool {
@@ -134,10 +121,10 @@ func (n *Node) advance() {
 }
 
 // NewPropose 提案
-func (n *Node) NewPropose(data []byte) Event {
-	return Event{
-		Type: Propose,
-		Logs: []Log{
+func (n *Node) NewPropose(data []byte) types.Event {
+	return types.Event{
+		Type: types.Propose,
+		Logs: []types.Log{
 			{
 				Term:  n.cfg.Term,
 				Index: n.queue.lastLogIndex + 1,

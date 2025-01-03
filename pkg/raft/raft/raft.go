@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/atomic"
@@ -65,7 +66,7 @@ func (r *Raft) Resume() {
 	r.pauseCond.L.Unlock()
 }
 
-func (r *Raft) Step(e Event) {
+func (r *Raft) Step(e types.Event) {
 	if r.pause.Load() {
 		r.Info("raft is paused, ignore event", zap.String("event", e.String()))
 		return
@@ -77,7 +78,7 @@ func (r *Raft) Step(e Event) {
 	}
 }
 
-func (r *Raft) StepWait(e Event) error {
+func (r *Raft) StepWait(e types.Event) error {
 	resp := make(chan error, 1)
 	select {
 	case r.stepC <- stepReq{event: e, resp: resp}:
@@ -154,10 +155,10 @@ func (r *Raft) readyEvents() {
 	events := r.node.Ready()
 	for _, e := range events {
 		switch e.Type {
-		case StoreReq:
+		case types.StoreReq:
 			r.handleStoreReq(e)
 			continue
-		case GetLogsReq:
+		case types.GetLogsReq:
 			r.handleGetLogsReq(e)
 			continue
 		}
@@ -178,13 +179,13 @@ func (r *Raft) readyEvents() {
 	}
 }
 
-func (r *Raft) handleStoreReq(e Event) {
+func (r *Raft) handleStoreReq(e types.Event) {
 
 	var (
-		newTermStartIndex *TermStartIndex
+		newTermStartIndex *types.TermStartIndexInfo
 	)
 	if r.node.lastTermStartIndex.Term != e.Term {
-		newTermStartIndex = &TermStartIndex{
+		newTermStartIndex = &types.TermStartIndexInfo{
 			Term:  e.Term,
 			Index: e.Index,
 		}
@@ -197,12 +198,12 @@ func (r *Raft) handleStoreReq(e Event) {
 		if err != nil {
 			r.Error("append logs failed", zap.Error(err))
 		}
-		reason := ReasonOk
+		reason := types.ReasonOk
 		if err != nil {
-			reason = ReasonError
+			reason = types.ReasonError
 		}
-		r.stepC <- stepReq{event: Event{
-			Type:   StoreResp,
+		r.stepC <- stepReq{event: types.Event{
+			Type:   types.StoreResp,
 			Index:  e.Logs[len(e.Logs)-1].Index,
 			Reason: reason,
 		}}
@@ -210,24 +211,24 @@ func (r *Raft) handleStoreReq(e Event) {
 
 	if err != nil {
 		r.Error("submit append logs failed", zap.Error(err))
-		r.stepC <- stepReq{event: Event{
-			Type:   StoreResp,
-			Reason: ReasonError,
+		r.stepC <- stepReq{event: types.Event{
+			Type:   types.StoreResp,
+			Reason: types.ReasonError,
 		}}
 	}
 
 }
 
-func (r *Raft) handleGetLogsReq(e Event) {
-	if r.node.queue.lastLogIndex+1 < e.Index {
-		r.Error("invalid get logs request", zap.Uint64("index", e.Index), zap.Uint64("lastLogIndex", r.node.queue.lastLogIndex))
-		return
+func (r *Raft) handleGetLogsReq(e types.Event) {
+
+	count := r.opts.MaxLogCountPerBatch
+	if r.node.queue.lastLogIndex+1 >= e.Index {
+		count = r.node.queue.lastLogIndex + 1 - e.Index
+		if count > r.opts.MaxLogCountPerBatch {
+			count = r.opts.MaxLogCountPerBatch
+		}
 	}
 
-	count := r.node.queue.lastLogIndex + 1 - e.Index
-	if count > r.opts.MaxLogCountPerBatch {
-		count = r.opts.MaxLogCountPerBatch
-	}
 	var leaderLastLogTerm = r.node.lastTermStartIndex.Term
 
 	err := r.opts.Submit(func() {
@@ -235,13 +236,13 @@ func (r *Raft) handleGetLogsReq(e Event) {
 		var (
 			trunctIndex uint64
 		)
-		if e.Reason != ReasonOnlySync {
-			var treason Reason
+		if e.Reason != types.ReasonOnlySync {
+			var treason types.Reason
 			trunctIndex, treason = r.getTrunctLogIndex(e, leaderLastLogTerm)
-			if treason != ReasonOk {
-				r.stepC <- stepReq{event: Event{
+			if treason != types.ReasonOk {
+				r.stepC <- stepReq{event: types.Event{
 					To:     e.From,
-					Type:   GetLogsResp,
+					Type:   types.GetLogsResp,
 					Index:  e.Index,
 					Reason: treason,
 				}}
@@ -251,11 +252,11 @@ func (r *Raft) handleGetLogsReq(e Event) {
 
 		// 需要裁剪
 		if trunctIndex > 0 {
-			r.stepC <- stepReq{event: Event{
+			r.stepC <- stepReq{event: types.Event{
 				To:     e.From,
-				Type:   GetLogsResp,
+				Type:   types.GetLogsResp,
 				Index:  trunctIndex,
-				Reason: ReasonTrunctate,
+				Reason: types.ReasonTrunctate,
 			}}
 			return
 		}
@@ -264,20 +265,20 @@ func (r *Raft) handleGetLogsReq(e Event) {
 		logs, err := r.opts.Storage.GetLogs(e.Index, e.Index+count)
 		if err != nil {
 			r.node.Error("get logs failed", zap.Error(err))
-			r.stepC <- stepReq{event: Event{
+			r.stepC <- stepReq{event: types.Event{
 				To:     e.From,
-				Type:   GetLogsResp,
+				Type:   types.GetLogsResp,
 				Index:  e.Index,
-				Reason: ReasonError,
+				Reason: types.ReasonError,
 			}}
 			return
 		}
-		r.stepC <- stepReq{event: Event{
+		r.stepC <- stepReq{event: types.Event{
 			To:     e.From,
-			Type:   GetLogsResp,
+			Type:   types.GetLogsResp,
 			Index:  e.Index,
 			Logs:   logs,
-			Reason: ReasonOk,
+			Reason: types.ReasonOk,
 		}}
 	})
 	if err != nil {
@@ -286,20 +287,20 @@ func (r *Raft) handleGetLogsReq(e Event) {
 }
 
 // 根据副本的同步数据，来获取副本的需要裁剪的日志下标，如果不需要裁剪，则返回0
-func (r *Raft) getTrunctLogIndex(e Event, leaderLastLogTerm uint32) (uint64, Reason) {
+func (r *Raft) getTrunctLogIndex(e types.Event, leaderLastLogTerm uint32) (uint64, types.Reason) {
 
 	// 如果副本的最新日志任期大于领导的最新日志任期，则不合法，副本最新日志任期不可能大于领导最新日志任期
 	if e.LastLogTerm > r.node.lastTermStartIndex.Term {
 		r.Error("log term is greater than leader term", zap.Uint32("lastLogTerm", e.LastLogTerm), zap.Uint32("term", r.node.cfg.Term))
-		return 0, ReasonError
+		return 0, types.ReasonError
 	}
 	// 副本的最新日志任期为0，说明副本没有日志，不需要裁剪
 	if e.LastLogTerm == 0 {
-		return 0, ReasonOk
+		return 0, types.ReasonOk
 	}
 	// 如果副本的最新日志任期等于当前领导的最新日志任期，则不需要裁剪
 	if e.LastLogTerm == leaderLastLogTerm {
-		return 0, ReasonOk
+		return 0, types.ReasonOk
 	}
 
 	// 如果副本的最新日志任期小于当前领导的最新日志任期，则需要裁剪
@@ -308,14 +309,14 @@ func (r *Raft) getTrunctLogIndex(e Event, leaderLastLogTerm uint32) (uint64, Rea
 		termStartIndex, err := r.opts.Storage.GetTermStartIndex(e.LastLogTerm + 1)
 		if err != nil {
 			r.Error("get term start index failed", zap.Error(err))
-			return 0, ReasonError
+			return 0, types.ReasonError
 		}
 		if termStartIndex > 0 {
-			return termStartIndex - 1, ReasonOk
+			return termStartIndex - 1, types.ReasonOk
 		}
-		return termStartIndex, ReasonOk
+		return termStartIndex, types.ReasonOk
 	}
-	return 0, ReasonOk
+	return 0, types.ReasonOk
 }
 
 func (r *Raft) advance() {
