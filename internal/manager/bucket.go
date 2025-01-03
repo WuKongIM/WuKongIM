@@ -25,15 +25,18 @@ type tagBlucket struct {
 	}
 	stopper *syncutil.Stopper
 	wklog.Log
+
+	existTagFnc func(tagKey string) bool
 }
 
-func newTagBlucket(index int, expire time.Duration) *tagBlucket {
+func newTagBlucket(index int, expire time.Duration, existTagFnc func(tagKey string) bool) *tagBlucket {
 
 	b := &tagBlucket{
-		index:   index,
-		expire:  expire,
-		stopper: syncutil.NewStopper(),
-		Log:     wklog.NewWKLog("tagBlucket"),
+		index:       index,
+		expire:      expire,
+		stopper:     syncutil.NewStopper(),
+		Log:         wklog.NewWKLog("tagBlucket"),
+		existTagFnc: existTagFnc,
 	}
 	b.channel.m = make(map[string]string)
 	b.tag.m = make(map[string]*types.Tag)
@@ -70,8 +73,7 @@ func (b *tagBlucket) loop() {
 
 func (b *tagBlucket) checkExpireTags() {
 	b.tag.Lock()
-	defer b.tag.Unlock()
-
+	// tag过期检查
 	var removeTags []string // 需要移除的tagKey
 	for _, tag := range b.tag.m {
 		if time.Since(tag.LastGetTime) > b.expire {
@@ -89,6 +91,27 @@ func (b *tagBlucket) checkExpireTags() {
 		b.Info("checkExpireTags: remove tags", zap.Int("count", len(removeTags)), zap.String("removeTag", removeTags[0]))
 
 	}
+	b.tag.Unlock()
+
+	// channel tag过期检查
+	b.channel.Lock()
+	var removeChannels []string
+	for channelKey, tagKey := range b.channel.m {
+		if !b.existTagFnc(tagKey) {
+			if removeChannels == nil {
+				removeChannels = make([]string, 0, 20)
+			}
+			removeChannels = append(removeChannels, channelKey)
+		}
+	}
+
+	if len(removeChannels) > 0 {
+		for _, removeChannelKey := range removeChannels {
+			delete(b.channel.m, removeChannelKey)
+		}
+		b.Info("checkExpireTags: remove channels", zap.Int("count", len(removeChannels)), zap.String("removeChannel", removeChannels[0]))
+	}
+	b.channel.Unlock()
 }
 
 func (b *tagBlucket) setTag(tag *types.Tag) {
@@ -109,9 +132,22 @@ func (b *tagBlucket) removeTag(tagKey string) {
 	delete(b.tag.m, tagKey)
 }
 
+func (b *tagBlucket) existTag(tagKey string) bool {
+	b.tag.RLock()
+	defer b.tag.RUnlock()
+	_, ok := b.tag.m[tagKey]
+	return ok
+}
+
 func (b *tagBlucket) setChannelTag(channelId string, channelType uint8, tagKey string) {
 	b.channel.Lock()
 	b.channel.m[wkutil.ChannelToKey(channelId, channelType)] = tagKey
+	b.channel.Unlock()
+}
+
+func (b *tagBlucket) removeChannelTag(channelId string, channelType uint8) {
+	b.channel.Lock()
+	delete(b.channel.m, wkutil.ChannelToKey(channelId, channelType))
 	b.channel.Unlock()
 }
 
