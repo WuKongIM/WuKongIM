@@ -172,6 +172,14 @@ func (n *Node) stepFollower(e types.Event) error {
 			}
 			n.queue.storeTo(e.Index)
 		}
+
+		if n.lastTermStartIndex.Term != e.Term {
+			n.softState.termStartIndex = &types.TermStartIndexInfo{
+				Term:  e.Term,
+				Index: e.Index,
+			}
+			n.updateLastTermStartIndex(e.Term, e.Index)
+		}
 		n.sendSyncReq()
 	}
 	return nil

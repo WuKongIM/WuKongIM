@@ -341,7 +341,7 @@ func (s *testStorage) saveTermStartIndex(termStartIndex *types.TermStartIndexInf
 }
 
 func (s *testStorage) GetLogs(start, end uint64) ([]types.Log, error) {
-	return s.logs[start-1 : end-1], nil
+	return s.logs[start-1:], nil
 }
 
 func (s *testStorage) GetState() (raft.RaftState, error) {

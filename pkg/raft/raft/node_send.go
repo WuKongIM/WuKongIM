@@ -113,11 +113,12 @@ func (n *Node) sendPing(to uint64) {
 	}
 }
 
-func (n *Node) sendStoreReq(logs []types.Log) {
+func (n *Node) sendStoreReq(logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) {
 	n.events = append(n.events, types.Event{
-		Type: types.StoreReq,
-		Term: n.cfg.Term,
-		Logs: logs,
+		Type:               types.StoreReq,
+		Term:               n.cfg.Term,
+		Logs:               logs,
+		TermStartIndexInfo: termStartIndexInfo,
 	})
 }
 

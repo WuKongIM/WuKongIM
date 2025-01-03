@@ -19,6 +19,10 @@ type syncState struct {
 	replicaSync map[uint64]*SyncInfo // 同步记录
 }
 
+type softState struct {
+	termStartIndex *types.TermStartIndexInfo
+}
+
 type Node struct {
 	events      []types.Event
 	opts        *Options
@@ -39,7 +43,8 @@ type Node struct {
 	// 最新的任期对应的开始日志下标
 	lastTermStartIndex types.TermStartIndexInfo
 
-	onlySync bool // 是否只同步,不做截断判断
+	onlySync  bool      // 是否只同步,不做截断判断
+	softState softState // 软状态
 }
 
 func NewNode(opts *Options) *Node {
@@ -86,7 +91,8 @@ func (n *Node) Ready() []types.Event {
 	if n.queue.hasNextStoreLogs() {
 		logs := n.queue.nextStoreLogs(0)
 		if len(logs) > 0 {
-			n.sendStoreReq(logs)
+			n.sendStoreReq(logs, n.softState.termStartIndex)
+			n.softState.termStartIndex = nil
 		}
 	}
 	events := n.events
