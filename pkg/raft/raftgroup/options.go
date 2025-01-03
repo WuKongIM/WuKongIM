@@ -3,7 +3,6 @@ package raftgroup
 import "time"
 
 type Options struct {
-	NodeId       uint64
 	TickInterval time.Duration
 
 	// GoPoolSize 协程池大小
@@ -65,11 +64,5 @@ func WithReceiveQueueLength(length uint64) Option {
 func WithMaxLogCountPerBatch(count uint64) Option {
 	return func(o *Options) {
 		o.MaxLogCountPerBatch = count
-	}
-}
-
-func WithNodeId(nodeId uint64) Option {
-	return func(o *Options) {
-		o.NodeId = nodeId
 	}
 }

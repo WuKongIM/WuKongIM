@@ -156,16 +156,16 @@ func (q *EventQueue) gc() {
 	}
 }
 
-func (q *EventQueue) notify() {
-	if q.ch != nil {
-		select {
-		case q.ch <- struct{}{}:
-		default:
-		}
-	}
-}
+// func (q *EventQueue) notify() {
+// 	if q.ch != nil {
+// 		select {
+// 		case q.ch <- struct{}{}:
+// 		default:
+// 		}
+// 	}
+// }
 
-// Ch returns the notification channel.
-func (q *EventQueue) notifyCh() <-chan struct{} {
-	return q.ch
-}
+// // Ch returns the notification channel.
+// func (q *EventQueue) notifyCh() <-chan struct{} {
+// 	return q.ch
+// }

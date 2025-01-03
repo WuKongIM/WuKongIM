@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -232,3 +233,6 @@ type TermStartIndexInfo struct {
 	Term  uint32
 	Index uint64
 }
+
+// 本节点
+const LocalNode = math.MaxUint64

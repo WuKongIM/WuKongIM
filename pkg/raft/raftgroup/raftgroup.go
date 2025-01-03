@@ -157,7 +157,7 @@ func (rg *RaftGroup) handleReady(r IRaft) {
 			fmt.Println("none node event--->", e)
 			continue
 		}
-		if e.To == rg.opts.NodeId {
+		if e.To == types.LocalNode {
 			err := r.Step(e)
 			if err != nil {
 				rg.Error("step error", zap.Error(err))

@@ -108,7 +108,7 @@ func (n *Node) campaign() {
 			n.sendVoteReq(nodeId)
 		}
 		// 自己给自己投一票
-		n.sendVoteReq(n.opts.NodeId)
+		n.sendVoteReq(types.LocalNode)
 	}
 
 }
