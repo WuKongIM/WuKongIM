@@ -126,6 +126,7 @@ func (n *Node) sendGetLogsReq(syncEvent types.Event) {
 	n.events = append(n.events, types.Event{
 		Type:        types.GetLogsReq,
 		From:        syncEvent.From,
+		To:          types.LocalNode,
 		Term:        syncEvent.Term,
 		Index:       syncEvent.Index,
 		StoredIndex: syncEvent.StoredIndex,

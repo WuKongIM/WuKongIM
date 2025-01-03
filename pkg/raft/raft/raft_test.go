@@ -455,7 +455,7 @@ func raftStart(t *testing.T, rafts ...*raft.Raft) {
 	}
 }
 
-func raftCampaign(t *testing.T, rafts ...*raft.Raft) {
+func raftCampaign(_ *testing.T, rafts ...*raft.Raft) {
 	for _, r := range rafts {
 		r.Step(types.Event{
 			Type: types.Campaign,
