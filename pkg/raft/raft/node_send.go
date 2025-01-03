@@ -1,21 +1,23 @@
 package raft
 
+import "github.com/WuKongIM/WuKongIM/pkg/raft/types"
+
 func (n *Node) sendNotifySync(to uint64) {
 	if to == All {
 		for _, replicaId := range n.cfg.Replicas {
 			if replicaId == n.opts.NodeId {
 				continue
 			}
-			n.events = append(n.events, Event{
-				Type: NotifySync,
+			n.events = append(n.events, types.Event{
+				Type: types.NotifySync,
 				From: n.opts.NodeId,
 				To:   replicaId,
 				Term: n.cfg.Term,
 			})
 		}
 	} else {
-		n.events = append(n.events, Event{
-			Type: NotifySync,
+		n.events = append(n.events, types.Event{
+			Type: types.NotifySync,
 			From: n.opts.NodeId,
 			To:   to,
 			Term: n.cfg.Term,
@@ -26,12 +28,12 @@ func (n *Node) sendNotifySync(to uint64) {
 
 func (n *Node) sendSyncReq() {
 	n.syncElapsed = 0
-	var reason Reason
+	var reason types.Reason
 	if n.onlySync {
-		reason = ReasonOnlySync
+		reason = types.ReasonOnlySync
 	}
-	n.events = append(n.events, Event{
-		Type:        SyncReq,
+	n.events = append(n.events, types.Event{
+		Type:        types.SyncReq,
 		From:        n.opts.NodeId,
 		To:          n.leaderId,
 		Term:        n.cfg.Term,
@@ -43,12 +45,12 @@ func (n *Node) sendSyncReq() {
 }
 
 func (n *Node) sendVoteReq(to uint64) {
-	n.events = append(n.events, Event{
-		Type: VoteReq,
+	n.events = append(n.events, types.Event{
+		Type: types.VoteReq,
 		From: n.opts.NodeId,
 		To:   to,
 		Term: n.cfg.Term,
-		Logs: []Log{
+		Logs: []types.Log{
 			{
 				Term:  n.cfg.Term,
 				Index: n.queue.lastLogIndex,
@@ -57,9 +59,9 @@ func (n *Node) sendVoteReq(to uint64) {
 	})
 }
 
-func (n *Node) sendVoteResp(to uint64, reason Reason) {
-	n.events = append(n.events, Event{
-		Type:   VoteResp,
+func (n *Node) sendVoteResp(to uint64, reason types.Reason) {
+	n.events = append(n.events, types.Event{
+		Type:   types.VoteResp,
 		From:   n.opts.NodeId,
 		To:     to,
 		Term:   n.cfg.Term,
@@ -73,8 +75,8 @@ func (n *Node) sendPing(to uint64) {
 		return
 	}
 	if to != All {
-		n.events = append(n.events, Event{
-			Type:           Ping,
+		n.events = append(n.events, types.Event{
+			Type:           types.Ping,
 			From:           n.opts.NodeId,
 			To:             to,
 			Term:           n.cfg.Term,
@@ -87,8 +89,8 @@ func (n *Node) sendPing(to uint64) {
 		if replicaId == n.opts.NodeId {
 			continue
 		}
-		n.events = append(n.events, Event{
-			Type:  Ping,
+		n.events = append(n.events, types.Event{
+			Type:  types.Ping,
 			From:  n.opts.NodeId,
 			To:    replicaId,
 			Term:  n.cfg.Term,
@@ -100,8 +102,8 @@ func (n *Node) sendPing(to uint64) {
 			if replicaId == n.opts.NodeId {
 				continue
 			}
-			n.events = append(n.events, Event{
-				Type:  Ping,
+			n.events = append(n.events, types.Event{
+				Type:  types.Ping,
 				From:  n.opts.NodeId,
 				To:    replicaId,
 				Term:  n.cfg.Term,
@@ -111,17 +113,17 @@ func (n *Node) sendPing(to uint64) {
 	}
 }
 
-func (n *Node) sendStoreReq(logs []Log) {
-	n.events = append(n.events, Event{
-		Type: StoreReq,
+func (n *Node) sendStoreReq(logs []types.Log) {
+	n.events = append(n.events, types.Event{
+		Type: types.StoreReq,
 		Term: n.cfg.Term,
 		Logs: logs,
 	})
 }
 
-func (n *Node) sendGetLogsReq(syncEvent Event) {
-	n.events = append(n.events, Event{
-		Type:        GetLogsReq,
+func (n *Node) sendGetLogsReq(syncEvent types.Event) {
+	n.events = append(n.events, types.Event{
+		Type:        types.GetLogsReq,
 		From:        syncEvent.From,
 		Term:        syncEvent.Term,
 		Index:       syncEvent.Index,
@@ -131,9 +133,9 @@ func (n *Node) sendGetLogsReq(syncEvent Event) {
 	})
 }
 
-func (n *Node) sendSyncResp(to uint64, syncIndex uint64, logs []Log, reson Reason) {
-	n.events = append(n.events, Event{
-		Type:           SyncResp,
+func (n *Node) sendSyncResp(to uint64, syncIndex uint64, logs []types.Log, reson types.Reason) {
+	n.events = append(n.events, types.Event{
+		Type:           types.SyncResp,
 		From:           n.opts.NodeId,
 		To:             to,
 		Term:           n.cfg.Term,

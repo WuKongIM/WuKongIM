@@ -1,9 +1,12 @@
 package raft
 
-import "go.uber.org/zap"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"go.uber.org/zap"
+)
 
 func (n *Node) BecomeCandidate() {
-	if n.cfg.Role == RoleLeader {
+	if n.cfg.Role == types.RoleLeader {
 		n.Panic("invalid transition [leader -> candidate]")
 	}
 	n.cfg.Term++
@@ -12,7 +15,7 @@ func (n *Node) BecomeCandidate() {
 	n.tickFnc = n.tickCandidate
 	n.voteFor = n.opts.NodeId
 	n.leaderId = 0
-	n.cfg.Role = RoleCandidate
+	n.cfg.Role = types.RoleCandidate
 	n.Info("become candidate", zap.Uint32("term", n.cfg.Term), zap.Int("nextElectionTimeout", n.randomizedElectionTimeout))
 }
 
@@ -23,7 +26,7 @@ func (n *Node) BecomeFollower(term uint32, leaderId uint64) {
 	n.tickFnc = n.tickFollower
 	n.voteFor = None
 	n.leaderId = leaderId
-	n.cfg.Role = RoleFollower
+	n.cfg.Role = types.RoleFollower
 	n.Info("become follower", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
 }
 
@@ -33,7 +36,7 @@ func (n *Node) BecomeLeader(term uint32) {
 	n.reset()
 	n.tickFnc = n.tickLeader
 	n.leaderId = n.opts.NodeId
-	n.cfg.Role = RoleLeader
+	n.cfg.Role = types.RoleLeader
 	n.Info("become leader", zap.Uint32("term", n.cfg.Term))
 }
 
@@ -44,7 +47,7 @@ func (n *Node) BecomeLearner(term uint32, leaderId uint64) {
 	n.tickFnc = n.tickLearner
 	n.voteFor = None
 	n.leaderId = leaderId
-	n.cfg.Role = RoleLearner
+	n.cfg.Role = types.RoleLearner
 	n.Info("become learner", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
 }
 
