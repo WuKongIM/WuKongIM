@@ -5,8 +5,8 @@ import "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 type Storage interface {
 	// AppendLogs 追加日志, 如果termStartIndex不为nil, 则需要保存termStartIndex，最好确保原子性
 	AppendLogs(logs []types.Log, termStartIndex *types.TermStartIndexInfo) error
-	// GetLogs 获取日志 [start, end)
-	GetLogs(start, end uint64) ([]types.Log, error)
+	// GetLogs 获取日志 start日志开始下标 maxSize最大数量，结果包含start
+	GetLogs(start, maxSize uint64) ([]types.Log, error)
 	// GetState 获取状态
 	GetState() (RaftState, error)
 	// GetTermStartIndex 获取指定任期的开始日志下标

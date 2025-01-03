@@ -181,20 +181,9 @@ func (r *Raft) readyEvents() {
 
 func (r *Raft) handleStoreReq(e types.Event) {
 
-	var (
-		newTermStartIndex *types.TermStartIndexInfo
-	)
-	if r.node.lastTermStartIndex.Term != e.Term {
-		newTermStartIndex = &types.TermStartIndexInfo{
-			Term:  e.Term,
-			Index: e.Index,
-		}
-		r.node.updateLastTermStartIndex(e.Term, e.Index)
-	}
-
 	err := r.opts.Submit(func() {
 		// 追加消息
-		err := r.opts.Storage.AppendLogs(e.Logs, newTermStartIndex)
+		err := r.opts.Storage.AppendLogs(e.Logs, e.TermStartIndexInfo)
 		if err != nil {
 			r.Error("append logs failed", zap.Error(err))
 		}
@@ -220,14 +209,6 @@ func (r *Raft) handleStoreReq(e types.Event) {
 }
 
 func (r *Raft) handleGetLogsReq(e types.Event) {
-
-	count := r.opts.MaxLogCountPerBatch
-	if r.node.queue.lastLogIndex+1 >= e.Index {
-		count = r.node.queue.lastLogIndex + 1 - e.Index
-		if count > r.opts.MaxLogCountPerBatch {
-			count = r.opts.MaxLogCountPerBatch
-		}
-	}
 
 	var leaderLastLogTerm = r.node.lastTermStartIndex.Term
 
@@ -262,7 +243,7 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 		}
 
 		// 获取日志数据
-		logs, err := r.opts.Storage.GetLogs(e.Index, e.Index+count)
+		logs, err := r.opts.Storage.GetLogs(e.Index, r.opts.MaxLogCountPerBatch)
 		if err != nil {
 			r.node.Error("get logs failed", zap.Error(err))
 			r.stepC <- stepReq{event: types.Event{
