@@ -138,6 +138,9 @@ type Event struct {
 	LastLogTerm uint32
 
 	Config Config
+
+	// 不参与编码
+	TermStartIndexInfo *TermStartIndexInfo
 }
 
 func (e Event) String() string {
@@ -180,6 +183,11 @@ func (e Event) String() string {
 	str += fmt.Sprintf("Reason: %v ", e.Reason)
 
 	return str
+}
+
+func (e Event) Size() uint64 {
+
+	return 0
 }
 
 type Log struct {
