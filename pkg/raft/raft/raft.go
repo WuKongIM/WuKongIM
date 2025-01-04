@@ -26,10 +26,20 @@ type Raft struct {
 
 func New(opts *Options) *Raft {
 
+	raftState, err := opts.Storage.GetState()
+	if err != nil {
+		panic(fmt.Sprintf("get state failed, err:%v", err))
+	}
+
+	lastTermStartLogIndex, err := opts.Storage.GetTermStartIndex(raftState.LastTerm)
+	if err != nil {
+		panic(fmt.Sprintf("get term start index failed, err:%v", err))
+	}
+
 	r := &Raft{
 		stopper:   syncutil.NewStopper(),
 		opts:      opts,
-		node:      NewNode(opts),
+		node:      NewNode(lastTermStartLogIndex, raftState, opts),
 		advanceC:  make(chan struct{}, 1),
 		stepC:     make(chan stepReq, 1024),
 		Log:       wklog.NewWKLog("raft"),
@@ -94,7 +104,7 @@ func (r *Raft) Propose(data []byte) error {
 }
 
 func (r *Raft) IsLeader() bool {
-	return r.node.isLeader()
+	return r.node.IsLeader()
 }
 
 func (r *Raft) Options() *Options {

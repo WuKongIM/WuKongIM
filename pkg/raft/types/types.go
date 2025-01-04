@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/raft/track"
 )
 
 type Reason uint8
@@ -197,6 +199,8 @@ type Log struct {
 	Term  uint32 // 领导任期
 	Data  []byte // 日志数据
 
+	// 日志轨迹记录
+	Record track.Record
 	// 不参与编码
 	Time time.Time // 日志时间
 }
@@ -236,3 +240,24 @@ type TermStartIndexInfo struct {
 
 // 本节点
 const LocalNode = math.MaxUint64
+
+type RaftState struct {
+	// LastLogIndex 最后一个日志的下标
+	LastLogIndex uint64
+	// LastTerm 最后一个日志的任期
+	LastTerm uint32
+	// AppliedIndex 已应用的日志下标
+	AppliedIndex uint64
+}
+
+// ProposeResp 提案返回
+type ProposeResp struct {
+	Id    uint64
+	Index uint64
+}
+
+// ProposeReq 提案请求
+type ProposeReq struct {
+	Id   uint64
+	Data []byte
+}

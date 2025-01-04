@@ -18,7 +18,7 @@ func (n *Node) tickLeader() {
 
 func (n *Node) tickFollower() {
 	n.syncElapsed++
-	if n.syncElapsed >= n.opts.SyncInterval && n.leaderId != 0 {
+	if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
 		if !n.hasSyncReq() {
 			n.sendSyncReq()
 		}
@@ -98,7 +98,7 @@ func (n *Node) resetRandomizedElectionTimeout() {
 
 // 开始选举
 func (n *Node) campaign() {
-	if n.isLeader() {
+	if n.IsLeader() {
 		// 如果当前是领导，先变成follower
 		n.BecomeFollower(n.cfg.Term, 0)
 	} else {
