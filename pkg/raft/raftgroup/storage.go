@@ -11,4 +11,6 @@ type IStorage interface {
 	LeaderLastLogTerm(raft IRaft) (uint32, error)
 	// GetLogs 获取日志 start日志开始下标 maxSize最大数量，结果包含start
 	GetLogs(raft IRaft, start, maxSize uint64) ([]types.Log, error)
+	// GetState 获取raft状态
+	GetState(raft IRaft) (*types.RaftState, error)
 }

@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/raft/track"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"go.uber.org/zap"
 )
@@ -40,7 +41,12 @@ func (n *Node) Step(e types.Event) error {
 		n.campaign()
 	case types.VoteReq: // 投票请求
 		if n.canVote(e) {
-			n.sendVoteResp(e.From, types.ReasonOk)
+			if e.From == n.opts.NodeId {
+				n.sendVoteResp(types.LocalNode, types.ReasonOk)
+			} else {
+				n.sendVoteResp(e.From, types.ReasonOk)
+			}
+
 			n.voteFor = e.From
 			n.electionElapsed = 0
 			if e.From != n.opts.NodeId {
@@ -74,7 +80,7 @@ func (n *Node) stepLeader(e types.Event) error {
 		if err != nil {
 			return err
 		}
-		// n.advance()
+		n.advance()
 	case types.SyncReq: // 同步
 		isLearner := n.isLearner(e.From) // 当前同步节点是否是学习者
 		if !isLearner {
@@ -82,15 +88,16 @@ func (n *Node) stepLeader(e types.Event) error {
 			n.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
 
+		syncInfo := n.replicaSync[e.From]
+
 		// 无数据可同步
 		if e.Reason == types.ReasonOnlySync && e.Index > n.queue.storedIndex {
 			n.sendSyncResp(e.From, e.Index, nil, types.ReasonOk)
 			return nil
 		}
-
-		syncInfo := n.replicaSync[e.From]
 		if !syncInfo.GetingLogs {
 			syncInfo.GetingLogs = true
+
 			n.sendGetLogsReq(e)
 			n.advance()
 		}
@@ -108,9 +115,13 @@ func (n *Node) stepLeader(e types.Event) error {
 			}
 			// 通知副本过来同步日志
 			n.sendNotifySync(All)
+			n.advance()
 
 		}
 	case types.GetLogsResp: // 获取日志返回
+		for i := range e.Logs {
+			e.Logs[i].Record.Add(track.PositionSyncResp)
+		}
 		syncInfo := n.replicaSync[e.To]
 		syncInfo.GetingLogs = false
 		n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason)
@@ -125,12 +136,13 @@ func (n *Node) stepFollower(e types.Event) error {
 	switch e.Type {
 	case types.Ping: // 心跳
 		n.electionElapsed = 0
-		if n.leaderId == None {
+		if n.cfg.Leader == None {
 			n.BecomeFollower(e.Term, e.From)
 		}
 		n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 	case types.NotifySync:
 		n.sendSyncReq()
+		n.advance()
 	case types.SyncResp: // 同步返回
 		n.electionElapsed = 0
 		if !n.onlySync {
@@ -142,8 +154,7 @@ func (n *Node) stepFollower(e types.Event) error {
 				if err != nil {
 					return err
 				}
-				// 如果同步到了日志，则立马再次同步
-				n.sendSyncReq()
+				// 推进去存储
 				n.advance()
 			}
 			n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
@@ -181,6 +192,7 @@ func (n *Node) stepFollower(e types.Event) error {
 			n.updateLastTermStartIndex(e.Term, e.Index)
 		}
 		n.sendSyncReq()
+		n.advance()
 	}
 	return nil
 }

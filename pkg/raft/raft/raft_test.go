@@ -344,12 +344,12 @@ func (s *testStorage) GetLogs(start, end uint64) ([]types.Log, error) {
 	return s.logs[start-1:], nil
 }
 
-func (s *testStorage) GetState() (raft.RaftState, error) {
+func (s *testStorage) GetState() (types.RaftState, error) {
 	if len(s.logs) == 0 {
-		return raft.RaftState{}, nil
+		return types.RaftState{}, nil
 	}
 	lastLog := s.logs[len(s.logs)-1]
-	return raft.RaftState{
+	return types.RaftState{
 		LastLogIndex: lastLog.Index,
 		LastTerm:     lastLog.Term,
 		AppliedIndex: lastLog.Index,

@@ -13,4 +13,17 @@ type IRaft interface {
 	Step(event types.Event) error
 	// Tick 时钟周期
 	Tick()
+	// LeaderId 获得领导者ID
+	LeaderId() uint64
+	// IsLeader 是否是领导者
+	IsLeader() bool
+	// LastLogIndex 获取最后一个日志的索引
+	LastLogIndex() uint64
+	// LastLogTerm 获取最新的任期
+	LastTerm() uint32
+	// CommittedIndex 已提交的下标
+	CommittedIndex() uint64
+	// Lock 锁
+	Lock()
+	Unlock()
 }

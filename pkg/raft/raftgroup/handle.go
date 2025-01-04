@@ -23,6 +23,7 @@ func (rg *RaftGroup) handleStoreReq(r IRaft, e types.Event) {
 			Index:  e.Logs[len(e.Logs)-1].Index,
 			Reason: reason,
 		})
+		rg.Advance()
 	})
 	if err != nil {
 		rg.Error("submit append logs failed", zap.Error(err))
@@ -30,6 +31,7 @@ func (rg *RaftGroup) handleStoreReq(r IRaft, e types.Event) {
 			Type:   types.StoreResp,
 			Reason: types.ReasonError,
 		})
+		rg.Advance()
 	}
 }
 
@@ -80,6 +82,7 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 			Logs:   logs,
 			Reason: types.ReasonOk,
 		})
+		rg.Advance()
 	})
 	if err != nil {
 		rg.Error("submit get logs failed", zap.Error(err))

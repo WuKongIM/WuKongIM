@@ -2,10 +2,10 @@ package raft
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"go.uber.org/zap"
 )
 
 type electionState struct {
@@ -26,8 +26,7 @@ type softState struct {
 type Node struct {
 	events      []types.Event
 	opts        *Options
-	syncElapsed int    // 同步计数
-	leaderId    uint64 // 领导者ID
+	syncElapsed int // 同步计数
 	tickFnc     func()
 	stepFunc    func(event types.Event) error
 	queue       *queue
@@ -45,9 +44,10 @@ type Node struct {
 
 	onlySync  bool      // 是否只同步,不做截断判断
 	softState softState // 软状态
+	sync.Mutex
 }
 
-func NewNode(opts *Options) *Node {
+func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Options) *Node {
 	n := &Node{
 		opts: opts,
 		Log:  wklog.NewWKLog(fmt.Sprintf("raft.node[%d]", opts.NodeId)),
@@ -59,26 +59,16 @@ func NewNode(opts *Options) *Node {
 		n.cfg.Replicas = append(n.cfg.Replicas, id)
 	}
 
-	// 获取raft状态
-	state, err := opts.Storage.GetState()
-	if err != nil {
-		n.Panic("get log state failed", zap.Error(err))
-	}
-	n.cfg.Term = state.LastTerm
+	n.cfg.Term = raftState.LastTerm
 	// 初始化日志队列
-	n.queue = newQueue(state.AppliedIndex, state.LastLogIndex, opts.NodeId)
+	n.queue = newQueue(raftState.AppliedIndex, raftState.LastLogIndex, opts.NodeId)
 
 	// 初始化选举状态
 	n.votes = make(map[uint64]bool)
 	n.replicaSync = make(map[uint64]*SyncInfo)
 	n.resetRandomizedElectionTimeout()
 
-	// 获取最新任期的开始日志下标
-	startIndex, err := opts.Storage.GetTermStartIndex(n.cfg.Term)
-	if err != nil {
-		n.Panic("get term start index failed", zap.Error(err))
-	}
-	n.lastTermStartIndex.Index = startIndex
+	n.lastTermStartIndex.Index = lastTermStartLogIndex
 	n.lastTermStartIndex.Term = n.cfg.Term
 
 	n.BecomeFollower(n.cfg.Term, None)
@@ -90,6 +80,24 @@ func (n *Node) Key() string {
 	return n.opts.Key
 }
 
+// HasReady 是否有待处理的事件
+func (n *Node) HasReady() bool {
+	if n.queue.hasNextStoreLogs() {
+		return true
+	}
+	return len(n.events) > 0
+}
+
+// LastLogIndex 获取最后一条日志下标
+func (n *Node) LastLogIndex() uint64 {
+	return n.queue.lastLogIndex
+}
+
+func (n *Node) LastTerm() uint32 {
+	return n.cfg.Term
+}
+
+// Ready 获取待处理的事件
 func (n *Node) Ready() []types.Event {
 
 	if n.queue.hasNextStoreLogs() {
@@ -108,8 +116,12 @@ func (n *Node) switchConfig(cfg types.Config) {
 
 }
 
-func (n *Node) isLeader() bool {
-	return n.cfg.Role == types.RoleLeader
+func (n *Node) LeaderId() uint64 {
+	return n.cfg.Leader
+}
+
+func (n *Node) IsLeader() bool {
+	return n.cfg.Leader == n.opts.NodeId
 }
 
 func (n *Node) isLearner(nodeId uint64) bool {
@@ -122,6 +134,10 @@ func (n *Node) isLearner(nodeId uint64) bool {
 		}
 	}
 	return false
+}
+
+func (n *Node) CommittedIndex() uint64 {
+	return n.queue.committedIndex
 }
 
 func (n *Node) advance() {

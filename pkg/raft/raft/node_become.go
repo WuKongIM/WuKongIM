@@ -14,7 +14,7 @@ func (n *Node) BecomeCandidate() {
 	n.reset()
 	n.tickFnc = n.tickCandidate
 	n.voteFor = n.opts.NodeId
-	n.leaderId = 0
+	n.cfg.Leader = 0
 	n.cfg.Role = types.RoleCandidate
 	n.Info("become candidate", zap.Uint32("term", n.cfg.Term), zap.Int("nextElectionTimeout", n.randomizedElectionTimeout))
 }
@@ -25,7 +25,7 @@ func (n *Node) BecomeFollower(term uint32, leaderId uint64) {
 	n.reset()
 	n.tickFnc = n.tickFollower
 	n.voteFor = None
-	n.leaderId = leaderId
+	n.cfg.Leader = leaderId
 	n.cfg.Role = types.RoleFollower
 	n.Info("become follower", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
 }
@@ -35,7 +35,7 @@ func (n *Node) BecomeLeader(term uint32) {
 	n.stepFunc = n.stepLeader
 	n.reset()
 	n.tickFnc = n.tickLeader
-	n.leaderId = n.opts.NodeId
+	n.cfg.Leader = n.opts.NodeId
 	n.cfg.Role = types.RoleLeader
 	n.Info("become leader", zap.Uint32("term", n.cfg.Term))
 }
@@ -46,7 +46,7 @@ func (n *Node) BecomeLearner(term uint32, leaderId uint64) {
 	n.reset()
 	n.tickFnc = n.tickLearner
 	n.voteFor = None
-	n.leaderId = leaderId
+	n.cfg.Leader = leaderId
 	n.cfg.Role = types.RoleLearner
 	n.Info("become learner", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
 }
