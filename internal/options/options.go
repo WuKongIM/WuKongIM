@@ -296,6 +296,11 @@ type Options struct {
 	MigrateStartStep MigrateStep // 从那步开始迁移，默认顺序是 message,user,channel
 
 	messageIdGen *snowflake.Node // 消息ID生成器
+
+	// tag相关配置
+	Tag struct {
+		Expire time.Duration // tag过期时间
+	}
 }
 
 type MigrateStep string
@@ -650,6 +655,11 @@ func New(op ...Option) *Options {
 			Issuer: "wukongim",
 		},
 		MigrateStartStep: MigrateStepMessage,
+		Tag: struct {
+			Expire time.Duration
+		}{
+			Expire: time.Minute * 20,
+		},
 	}
 
 	for _, o := range op {
@@ -945,6 +955,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	// =================== auth ===================
 	o.configureAuth()
 	o.DeadlockCheck = o.getBool("deadlockCheck", o.DeadlockCheck)
+
+	// =================== tag ===================
+	o.Tag.Expire = o.getDuration("tag.expire", o.Tag.Expire)
 
 	// =================== other ===================
 	deadlock.Opts.Disable = !o.DeadlockCheck

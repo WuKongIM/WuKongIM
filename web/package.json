@@ -13,6 +13,7 @@
     "@antv/x6-vue-shape": "^2.1.2",
     "axios": "^1.6.7",
     "buffer": "^6.0.3",
+    "caniuse-lite": "^1.0.30001690",
     "echarts": "^5.5.0",
     "vue": "^3.2.47",
     "vue-json-pretty": "^2.3.0",

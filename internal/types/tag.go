@@ -3,14 +3,22 @@ package types
 import (
 	"fmt"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 type Tag struct {
-	Key   string  `json:"key"`
-	Nodes []*Node `json:"nodes"`
+	Key string `json:"key"`
+	// 关联的频道
+	ChannelId   string  `json:"channel_id"`
+	ChannelType uint8   `json:"channel_type"`
+	Nodes       []*Node `json:"nodes"`
+	// 创建时间
+	CreatedAt time.Time `json:"created_at"`
 	// 最后一次获取时间
-	LastGetTime time.Time `json:"last_get_time"`
-	NodeVersion uint64    `json:"node_version"` // 生成tag时的当前节点版本号，如果当前节点版本号大于生成tag时的节点版本号，则tag失效
+	LastGetTime time.Time     `json:"last_get_time"`
+	NodeVersion uint64        `json:"node_version"` // 生成tag时的当前节点版本号，如果当前节点版本号大于生成tag时的节点版本号，则tag失效
+	GetCount    atomic.Uint64 `json:"get_count"`    // 获取次数
 }
 
 func (t *Tag) String() string {

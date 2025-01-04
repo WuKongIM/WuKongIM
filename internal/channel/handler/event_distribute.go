@@ -187,6 +187,13 @@ func (h *Handler) getCommonTag(ctx *eventbus.ChannelContext) (*types.Tag, error)
 		return h.getOrMakeTagForLeader(ctx.ChannelId, ctx.ChannelType)
 	}
 	tagKey := ctx.Events[0].TagKey
+
+	// 判断当前的频道tag是否等于tagKey,如果不等于则删除旧的tag
+	oldTagKey := service.TagManager.GetChannelTag(ctx.ChannelId, ctx.ChannelType)
+	if oldTagKey != "" && oldTagKey != tagKey {
+		service.TagManager.RemoveTag(oldTagKey)
+	}
+
 	tag, err := h.commonService.GetOrRequestAndMakeTagWithLocal(ctx.ChannelId, ctx.ChannelType, tagKey)
 	if err != nil {
 		h.Error("processDiffuse: get tag failed", zap.Error(err), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType), zap.String("tagKey", tagKey))

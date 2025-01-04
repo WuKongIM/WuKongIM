@@ -156,3 +156,23 @@ func (b *tagBlucket) getChannelTag(channelId string, channelType uint8) string {
 	defer b.channel.RUnlock()
 	return b.channel.m[wkutil.ChannelToKey(channelId, channelType)]
 }
+
+func (b *tagBlucket) getAllTags() []*types.Tag {
+	b.tag.RLock()
+	defer b.tag.RUnlock()
+	tags := make([]*types.Tag, 0, len(b.tag.m))
+	for _, tag := range b.tag.m {
+		tags = append(tags, tag)
+	}
+	return tags
+}
+
+func (b *tagBlucket) getAllChannelTags() map[string]string {
+	b.channel.RLock()
+	defer b.channel.RUnlock()
+	channelTags := make(map[string]string)
+	for k, v := range b.channel.m {
+		channelTags[k] = v
+	}
+	return channelTags
+}
