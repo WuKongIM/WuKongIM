@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/errors"
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"go.uber.org/zap"
 
@@ -27,7 +28,7 @@ func NewTagManager(blucketCount int, nodeVersion func() uint64) *TagManager {
 	}
 	tg.bluckets = make([]*tagBlucket, blucketCount)
 	for i := 0; i < blucketCount; i++ {
-		tg.bluckets[i] = newTagBlucket(i, time.Minute*20, tg.existTag)
+		tg.bluckets[i] = newTagBlucket(i, options.G.Tag.Expire, tg.existTag)
 	}
 	return tg
 }
@@ -64,10 +65,12 @@ func (t *TagManager) MakeTagWithTagKey(tagKey string, uids []string) (*types.Tag
 }
 
 func (t *TagManager) MakeTagNotCacheWithTagKey(tagKey string, uids []string) (*types.Tag, error) {
+	nw := time.Now()
 	tag := &types.Tag{
 		Key:         tagKey,
-		LastGetTime: time.Now(),
+		LastGetTime: nw,
 		NodeVersion: t.nodeVersion(),
+		CreatedAt:   nw,
 	}
 
 	nodes, err := t.calcUsersInNode(uids)
@@ -164,6 +167,7 @@ func (t *TagManager) Get(tagKey string) *types.Tag {
 		return nil
 	}
 	tag.LastGetTime = time.Now()
+	tag.GetCount.Inc()
 	return tag
 }
 
@@ -186,6 +190,11 @@ func (t *TagManager) RenameTag(oldTagKey, newTagKey string) error {
 func (t *TagManager) SetChannelTag(fakeChannelId string, channelType uint8, tagKey string) {
 	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
 	blucket.setChannelTag(fakeChannelId, channelType, tagKey)
+	tag := t.getTag(tagKey)
+	if tag != nil {
+		tag.ChannelId = fakeChannelId
+		tag.ChannelType = channelType
+	}
 }
 
 func (t *TagManager) GetChannelTag(fakeChannelId string, channelType uint8) string {
@@ -196,6 +205,24 @@ func (t *TagManager) GetChannelTag(fakeChannelId string, channelType uint8) stri
 func (t *TagManager) RemoveChannelTag(fakeChannelId string, channelType uint8) {
 	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
 	blucket.removeChannelTag(fakeChannelId, channelType)
+}
+
+func (t *TagManager) GetAllTags() []*types.Tag {
+	var tags []*types.Tag
+	for _, blucket := range t.bluckets {
+		tags = append(tags, blucket.getAllTags()...)
+	}
+	return tags
+}
+
+func (t *TagManager) GetAllChannelTags() map[string]string {
+	channelTags := make(map[string]string)
+	for _, blucket := range t.bluckets {
+		for k, v := range blucket.getAllChannelTags() {
+			channelTags[k] = v
+		}
+	}
+	return channelTags
 }
 
 func (t *TagManager) getBlucketByTagKey(tagKey string) *tagBlucket {

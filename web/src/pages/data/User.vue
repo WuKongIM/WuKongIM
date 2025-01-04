@@ -135,6 +135,11 @@ const nextPage = () => {
                                 用户UID
                             </div>
                         </th>
+                        <th>
+                            <div class="flex items-center">
+                                槽
+                            </div>
+                        </th>
                         <!-- <th>
                             <div class="flex items-center">
                                 设备数
@@ -187,6 +192,9 @@ const nextPage = () => {
                     <tr v-for="user in userTotal.data">
                         <td>
                             {{ user.uid }}
+                        </td>
+                        <td>
+                            {{ user.slot }}
                         </td>
                         <!-- <td>{{ user.device_count }}</td>
                         <td>{{ user.conn_count }}</td>

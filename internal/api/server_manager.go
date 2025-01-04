@@ -99,6 +99,10 @@ func (m *managerServer) setRoutes() {
 		stress.route(m.r)
 	}
 
+	// 标签api
+	tag := newTag(m.s)
+	tag.route(m.r)
+
 	// // 系统api
 	// system := NewSystemAPI(s.s)
 	// system.Route(s.r)
