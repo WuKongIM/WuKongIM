@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import API from '../../services/API';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
@@ -45,15 +45,15 @@ const loadTags = () => {
 }
 
 // 显示标签数据
-const showData = (tag) => {
+const showData = (tag:any) => {
     currentTag.value = tag
     const dialog = document.getElementById('detail') as HTMLDialogElement;
     dialog.showModal();
 }
 
 // 删除标签
-const removeTag = (tag) => {
-    API.shared.removeTag({ nodeId: selectedNodeId.value, key: tag.key }).then((res) => {
+const removeTag = (tag:any) => {
+    API.shared.removeTag({ nodeId: selectedNodeId.value, key: tag.key }).then(() => {
         loadTags()
     }).catch((err) => {
         alert(err.msg)
