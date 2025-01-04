@@ -1,6 +1,8 @@
 package raft
 
-import "github.com/WuKongIM/WuKongIM/pkg/raft/types"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+)
 
 func (n *Node) sendNotifySync(to uint64) {
 	if to == All {
@@ -35,7 +37,7 @@ func (n *Node) sendSyncReq() {
 	n.events = append(n.events, types.Event{
 		Type:        types.SyncReq,
 		From:        n.opts.NodeId,
-		To:          n.leaderId,
+		To:          n.cfg.Leader,
 		Term:        n.cfg.Term,
 		StoredIndex: n.queue.storedIndex + 1,
 		Index:       n.queue.lastLogIndex + 1,
@@ -71,7 +73,7 @@ func (n *Node) sendVoteResp(to uint64, reason types.Reason) {
 }
 
 func (n *Node) sendPing(to uint64) {
-	if !n.isLeader() {
+	if !n.IsLeader() {
 		return
 	}
 	if to != All {
@@ -117,6 +119,7 @@ func (n *Node) sendStoreReq(logs []types.Log, termStartIndexInfo *types.TermStar
 	n.events = append(n.events, types.Event{
 		Type:               types.StoreReq,
 		Term:               n.cfg.Term,
+		To:                 types.LocalNode,
 		Logs:               logs,
 		TermStartIndexInfo: termStartIndexInfo,
 	})

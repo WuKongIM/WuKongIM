@@ -19,6 +19,8 @@ type Options struct {
 
 	// MaxLogCountPerBatch 每次同步的最大日志数量
 	MaxLogCountPerBatch uint64
+
+	ProposeTimeout time.Duration
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -27,6 +29,7 @@ func NewOptions(opt ...Option) *Options {
 		GoPoolSize:          3000,
 		ReceiveQueueLength:  1024,
 		MaxLogCountPerBatch: 1000,
+		ProposeTimeout:      5 * time.Second,
 	}
 	for _, o := range opt {
 		o(os)
@@ -64,5 +67,11 @@ func WithReceiveQueueLength(length uint64) Option {
 func WithMaxLogCountPerBatch(count uint64) Option {
 	return func(o *Options) {
 		o.MaxLogCountPerBatch = count
+	}
+}
+
+func WithTransport(transport ITransport) Option {
+	return func(o *Options) {
+		o.Transport = transport
 	}
 }
