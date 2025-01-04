@@ -51,6 +51,9 @@ func (s *Server) conversationSearch(c *wkhttp.Context) {
 			}
 			resp := newConversationResp(conversation)
 			resp.LastMsgSeq = lastMsgSeq
+			if lastMsgSeq >= conversation.ReadToMsgSeq {
+				resp.UnreadCount = uint32(lastMsgSeq - conversation.ReadToMsgSeq)
+			}
 			conversationResps = append(conversationResps, resp)
 		}
 		count, err := s.opts.DB.GetTotalSessionCount()

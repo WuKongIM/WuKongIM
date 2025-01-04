@@ -1214,6 +1214,7 @@ type userResp struct {
 	UpdatedAt         int64  `json:"updated_at"`          // 更新时间
 	CreatedAtFormat   string `json:"created_at_format"`   // 创建时间格式化
 	UpdatedAtFormat   string `json:"updated_at_format"`   // 更新时间格式化
+	Slot              uint32 `json:"slot"`                // 槽位ID
 }
 
 func newUserResp(u wkdb.User) *userResp {

@@ -357,6 +357,32 @@ export default class API {
         return APIClient.shared.get(`/stress/templates`)
     }
 
+    // 获取节点的标签
+    public tags(req:{
+        nodeId?:number,
+        channelId?:string,
+        channelType?:number,
+        tagKey?:string,
+
+    }) {
+        return APIClient.shared.get(`/tags`,{
+            param: {
+                node_id: req.nodeId,
+                channel_id: req.channelId,
+                channel_type: req.channelType,
+                tag_key: req.tagKey,
+            }
+        })
+
+    }
+    // 移除节点的标签
+    public removeTag(req:{nodeId:number,key:string}) {
+        return APIClient.shared.post(`/tag/remove`,{
+            node_id: req.nodeId,
+            tag_key: req.key
+        })
+    }
+
 }
 
 export class SystemSetting {

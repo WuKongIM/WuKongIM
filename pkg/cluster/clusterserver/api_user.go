@@ -43,7 +43,11 @@ func (s *Server) userSearch(c *wkhttp.Context) {
 
 		userResps := make([]*userResp, 0, len(users))
 		for _, user := range users {
-			userResps = append(userResps, newUserResp(user))
+			userResp := newUserResp(user)
+			slot := s.getSlotId(user.Uid)
+			userResp.Slot = slot
+			userResps = append(userResps, userResp)
+
 		}
 
 		count, err := s.opts.DB.GetTotalUserCount()
