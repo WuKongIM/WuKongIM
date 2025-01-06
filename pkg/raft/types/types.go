@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"time"
@@ -209,6 +210,36 @@ type Log struct {
 	Record track.Record
 	// 不参与编码
 	Time time.Time // 日志时间
+}
+
+func (l *Log) Marshal() ([]byte, error) {
+	resultBytes := make([]byte, l.LogSize())
+	binary.BigEndian.PutUint64(resultBytes[0:8], l.Id)
+	binary.BigEndian.PutUint64(resultBytes[8:16], l.Index)
+	binary.BigEndian.PutUint32(resultBytes[16:20], l.Term)
+	copy(resultBytes[20:], l.Data)
+	return resultBytes, nil
+}
+
+func (l *Log) Unmarshal(data []byte) error {
+	if len(data) < 20 {
+		return fmt.Errorf("log data is too short[%d]", len(data))
+	}
+	l.Id = binary.BigEndian.Uint64(data[0:8])
+	l.Index = binary.BigEndian.Uint64(data[8:16])
+	l.Term = binary.BigEndian.Uint32(data[16:20])
+	l.Data = data[20:]
+	return nil
+}
+
+func (l *Log) LogSize() int {
+	return 8 + 8 + 4 + len(l.Data) // id + index + term  + data
+}
+
+var EmptyLog = Log{}
+
+func IsEmptyLog(v Log) bool {
+	return v.Id == 0 && v.Index == 0 && v.Term == 0 && len(v.Data) == 0
 }
 
 type Config struct {

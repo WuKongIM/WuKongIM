@@ -340,7 +340,7 @@ func (s *testStorage) saveTermStartIndex(termStartIndex *types.TermStartIndexInf
 	s.termStartIndexs = append(s.termStartIndexs, termStartIndex)
 }
 
-func (s *testStorage) GetLogs(start, end uint64) ([]types.Log, error) {
+func (s *testStorage) GetLogs(start, end uint64, limitSize uint64) ([]types.Log, error) {
 	return s.logs[start-1:], nil
 }
 
@@ -381,7 +381,7 @@ func (s *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) err
 	return nil
 }
 
-func (s *testStorage) Apply(startLogIndex, endLogIndex uint64) error {
+func (s *testStorage) Apply(logs []types.Log) error {
 
 	return nil
 }
@@ -409,15 +409,15 @@ func getLeader(rr ...*raft.Raft) *raft.Raft {
 
 func newThreeRaft() (*raft.Raft, *raft.Raft, *raft.Raft) {
 	// node1
-	opts1 := newTestOptions(1, []uint64{2, 3}, raft.WithElectionOn(true))
+	opts1 := newTestOptions(1, []uint64{1, 2, 3}, raft.WithElectionOn(true))
 	raft1 := raft.New(opts1)
 
 	// node2
-	opts2 := newTestOptions(2, []uint64{1, 3}, raft.WithElectionOn(true))
+	opts2 := newTestOptions(2, []uint64{1, 2, 3}, raft.WithElectionOn(true))
 	raft2 := raft.New(opts2)
 
 	// node3
-	opts3 := newTestOptions(3, []uint64{1, 2}, raft.WithElectionOn(true))
+	opts3 := newTestOptions(3, []uint64{1, 2, 3}, raft.WithElectionOn(true))
 	raft3 := raft.New(opts3)
 
 	tt := &testTransport{
@@ -442,13 +442,13 @@ func newThreeOptions(opt ...raft.Option) (*raft.Options, *raft.Options, *raft.Op
 	defaultOpts = append(defaultOpts, opt...)
 
 	// node1
-	opts1 := newTestOptions(1, []uint64{2, 3}, defaultOpts...)
+	opts1 := newTestOptions(1, []uint64{1, 2, 3}, defaultOpts...)
 
 	// node2
-	opts2 := newTestOptions(2, []uint64{1, 3}, defaultOpts...)
+	opts2 := newTestOptions(2, []uint64{1, 2, 3}, defaultOpts...)
 
 	// node3
-	opts3 := newTestOptions(3, []uint64{1, 2}, defaultOpts...)
+	opts3 := newTestOptions(3, []uint64{1, 2, 3}, defaultOpts...)
 
 	return opts1, opts2, opts3
 }
