@@ -13,18 +13,21 @@ type queue struct {
 	wklog.Log
 
 	// 存储日志偏移下标，比如日志 1 2 3 4 5 6 7 8 9，存储的日志偏移是6 表示1 2 3 4 5 6已经存储
-	storedIndex    uint64
-	lastLogIndex   uint64 // 最后一条日志下标
-	committedIndex uint64 // 已提交的日志下标
-	appending      bool   // 是否在追加中
+	storedIndex     uint64
+	lastLogIndex    uint64 // 最后一条日志下标
+	committedIndex  uint64 // 已提交的日志下标
+	appending       bool   // 是否在追加中
+	applying        bool   // 是否在应用中
+	appliedLogIndex uint64
 }
 
 func newQueue(appliedLogIndex, lastLogIndex uint64, nodeId uint64) *queue {
 	return &queue{
-		Log:            wklog.NewWKLog(fmt.Sprintf("queue[%d]", nodeId)),
-		storedIndex:    lastLogIndex,
-		lastLogIndex:   lastLogIndex,
-		committedIndex: appliedLogIndex,
+		Log:             wklog.NewWKLog(fmt.Sprintf("queue[%d]", nodeId)),
+		storedIndex:     lastLogIndex,
+		lastLogIndex:    lastLogIndex,
+		committedIndex:  appliedLogIndex,
+		appliedLogIndex: appliedLogIndex,
 	}
 }
 
@@ -63,8 +66,28 @@ func (r *queue) nextStoreLogs(maxSize int) []types.Log {
 	return r.logs[:endIndex]
 }
 
+func (r *queue) hasNextApplyLogs() bool {
+	if r.applying {
+		return false
+	}
+	return r.appliedLogIndex < r.committedIndex
+}
+
+func (r *queue) nextApplyLogs() (uint64, uint64) {
+	if r.applying {
+		return 0, 0
+	}
+	r.applying = true
+	if r.appliedLogIndex > r.committedIndex {
+		return 0, 0
+	}
+
+	return r.appliedLogIndex + 1, r.committedIndex + 1
+}
+
 // storeTo 存储日志到指定日志下标，比如storeTo(6)，如果日志是1 2 3 4 5 6 7 8 9，截取后是7 8 9
 func (r *queue) storeTo(logIndex uint64) {
+	r.appending = false
 	if logIndex <= r.storedIndex {
 		return
 	}
@@ -73,7 +96,16 @@ func (r *queue) storeTo(logIndex uint64) {
 	}
 	r.logs = r.logs[logIndex-r.storedIndex:]
 	r.storedIndex = logIndex
-	r.appending = false
+
+}
+
+func (r *queue) appliedTo(index uint64) {
+	r.applying = false
+	if index < r.appliedLogIndex {
+		r.Warn("applied index less than appliedLogIndex", zap.Uint64("index", index), zap.Uint64("appliedLogIndex", r.appliedLogIndex))
+		return
+	}
+	r.appliedLogIndex = index
 }
 
 // truncateLogTo 截取日志到指定日志下标，比如truncateLogTo(6)，如果日志是1 2 3 4 5 6 7 8 9，截取后是1 2 3 4 5 6

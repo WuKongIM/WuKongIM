@@ -313,8 +313,15 @@ func (rg *RaftGroup) handleReady(r IRaft) bool {
 		switch e.Type {
 		case types.StoreReq: // 处理存储请求
 			rg.handleStoreReq(r, e)
+			continue
 		case types.GetLogsReq: // 处理获取日志请求
 			rg.handleGetLogsReq(r, e)
+			continue
+		case types.TruncateReq: // 处理截断请求
+			rg.handleTruncateReq(r, e)
+		case types.ApplyReq: // 处理应用请求
+			rg.handleApplyReq(r, e)
+			continue
 		}
 		if e.To == 0 {
 			rg.Error("none node event", zap.Any("event", e))

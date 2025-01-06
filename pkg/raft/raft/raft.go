@@ -171,6 +171,12 @@ func (r *Raft) readyEvents() {
 		case types.GetLogsReq:
 			r.handleGetLogsReq(e)
 			continue
+		case types.TruncateReq: // 截断请求
+			r.handleTruncateReq(e)
+			continue
+		case types.ApplyReq:
+			r.handleApplyReq(e)
+			continue
 		}
 
 		if e.To == None {
@@ -178,7 +184,7 @@ func (r *Raft) readyEvents() {
 			continue
 		}
 
-		if e.To == r.opts.NodeId {
+		if e.To == types.LocalNode {
 			err := r.node.Step(e)
 			if err != nil {
 				r.node.Error("step error", zap.Error(err))
@@ -232,7 +238,6 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 			trunctIndex, treason = r.getTrunctLogIndex(e, leaderLastLogTerm)
 			if treason != types.ReasonOk {
 				r.stepC <- stepReq{event: types.Event{
-					To:     e.From,
 					Type:   types.GetLogsResp,
 					Index:  e.Index,
 					Reason: treason,
@@ -244,10 +249,9 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 		// 需要裁剪
 		if trunctIndex > 0 {
 			r.stepC <- stepReq{event: types.Event{
-				To:     e.From,
 				Type:   types.GetLogsResp,
 				Index:  trunctIndex,
-				Reason: types.ReasonTrunctate,
+				Reason: types.ReasonTruncate,
 			}}
 			return
 		}
@@ -275,6 +279,46 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 	if err != nil {
 		r.Error("submit get logs failed", zap.Error(err))
 	}
+}
+
+func (r *Raft) handleTruncateReq(e types.Event) {
+	err := r.opts.Submit(func() {
+		err := r.opts.Storage.TruncateLogTo(e.Index)
+		if err != nil {
+			r.Error("truncate logs failed", zap.Error(err))
+			r.stepC <- stepReq{event: types.Event{
+				Type:   types.TruncateResp,
+				Reason: types.ReasonError,
+			}}
+			return
+		}
+		// 删除本地的leader term start index
+		err = r.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(e.Term)
+		if err != nil {
+			r.Error("delete leader term start index failed", zap.Error(err), zap.Uint32("term", e.Term))
+			r.stepC <- stepReq{event: types.Event{
+				Type:   types.TruncateResp,
+				Reason: types.ReasonError,
+			}}
+			return
+		}
+		r.stepC <- stepReq{event: types.Event{
+			Type:   types.TruncateResp,
+			Index:  e.Index,
+			Reason: types.ReasonOk,
+		}}
+	})
+	if err != nil {
+		r.Error("submit truncate logs failed", zap.Error(err))
+		r.stepC <- stepReq{event: types.Event{
+			Type:   types.TruncateResp,
+			Reason: types.ReasonError,
+		}}
+	}
+}
+
+func (r *Raft) handleApplyReq(e types.Event) {
+
 }
 
 // 根据副本的同步数据，来获取副本的需要裁剪的日志下标，如果不需要裁剪，则返回0

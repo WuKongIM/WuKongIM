@@ -242,6 +242,50 @@ func TestProposeBatch(t *testing.T) {
 
 }
 
+func TestApply(t *testing.T) {
+	tt := &testTransport{
+		groups: make(map[uint64]*raftgroup.RaftGroup),
+	}
+	rg1 := raftgroup.New(newTestOptions(raftgroup.WithTransport(tt), raftgroup.WithStorage(newTestStorage())))
+	rg2 := raftgroup.New(newTestOptions(raftgroup.WithTransport(tt), raftgroup.WithStorage(newTestStorage())))
+
+	tt.groups[1] = rg1
+	tt.groups[2] = rg2
+
+	err := rg1.Start()
+	assert.Nil(t, err)
+	err = rg2.Start()
+	assert.Nil(t, err)
+
+	defer rg1.Stop()
+	defer rg2.Stop()
+
+	node1 := newTestRaftNode("ch001", 1, 0, types.RaftState{}, raft.WithElectionInterval(5), raft.WithElectionOn(true), raft.WithReplicas([]uint64{2}))
+	node2 := newTestRaftNode("ch001", 2, 0, types.RaftState{}, raft.WithElectionInterval(5), raft.WithElectionOn(true), raft.WithReplicas([]uint64{1}))
+	rg1.AddRaft(node1)
+	rg2.AddRaft(node2)
+
+	waitHasLeader(node1)
+	waitHasLeader(node2)
+
+	groupLeader := getRaftLeader("ch001", rg1, rg2)
+	_, err = groupLeader.Propose("ch001", 100, []byte("hello"))
+	assert.Nil(t, err)
+
+	node1Store := rg1.Options().Storage.(*testStorage)
+	node2Store := rg2.Options().Storage.(*testStorage)
+
+	applyLogs1 := <-node1Store.applyC
+	applyLogs2 := <-node2Store.applyC
+
+	assert.Equal(t, 1, len(applyLogs1))
+	assert.Equal(t, 1, len(applyLogs2))
+
+	assert.Equal(t, applyLogs1[0].Index, applyLogs2[0].Index)
+	assert.Equal(t, applyLogs1[0].Term, applyLogs2[0].Term)
+	assert.Equal(t, applyLogs1[0].Data, applyLogs2[0].Data)
+}
+
 func newTestOptions(opt ...raftgroup.Option) *raftgroup.Options {
 	opts := raftgroup.NewOptions(opt...)
 	return opts
@@ -274,7 +318,7 @@ func (t *testTransport) Send(r raftgroup.IRaft, event types.Event) {
 type testStorage struct {
 	logs            map[string][]types.Log
 	termStartIndexs map[string]types.TermStartIndexInfo
-
+	applyC          chan []types.Log
 	sync.RWMutex
 }
 
@@ -282,6 +326,7 @@ func newTestStorage() *testStorage {
 	return &testStorage{
 		logs:            make(map[string][]types.Log),
 		termStartIndexs: make(map[string]types.TermStartIndexInfo),
+		applyC:          make(chan []types.Log, 1024),
 	}
 }
 
@@ -298,6 +343,11 @@ func (t *testStorage) AppendLogs(raft raftgroup.IRaft, logs []types.Log, termSta
 		t.termStartIndexs[key] = *termStartIndexInfo
 	}
 
+	return nil
+}
+
+func (t *testStorage) Apply(raft raftgroup.IRaft, logs []types.Log) error {
+	t.applyC <- logs
 	return nil
 }
 
@@ -357,6 +407,46 @@ func (t *testStorage) GetState(r raftgroup.IRaft) (*types.RaftState, error) {
 		LastLogIndex: lastLog.Index,
 		AppliedIndex: lastLog.Index,
 	}, nil
+}
+
+func (t *testStorage) TruncateLogTo(raft raftgroup.IRaft, index uint64) error {
+
+	t.Lock()
+	defer t.Unlock()
+
+	key := raft.Key()
+	logs, ok := t.logs[key]
+	if !ok {
+		return nil
+	}
+
+	if index >= uint64(len(logs)) {
+		return nil
+	}
+
+	t.logs[key] = logs[:index]
+
+	return nil
+}
+
+func (t *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(raft raftgroup.IRaft, term uint32) error {
+
+	t.Lock()
+	defer t.Unlock()
+
+	key := raft.Key()
+	termStartIndex, ok := t.termStartIndexs[key]
+	if !ok {
+		return nil
+	}
+
+	if termStartIndex.Term <= term {
+		return nil
+	}
+
+	delete(t.termStartIndexs, key)
+
+	return nil
 }
 
 // 等到选举出领导者

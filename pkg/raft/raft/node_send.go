@@ -29,6 +29,11 @@ func (n *Node) sendNotifySync(to uint64) {
 }
 
 func (n *Node) sendSyncReq() {
+
+	if n.truncating { // 如果在截断中，则发起同步没用
+		return
+	}
+
 	n.syncElapsed = 0
 	var reason types.Reason
 	if n.onlySync {
@@ -125,6 +130,16 @@ func (n *Node) sendStoreReq(logs []types.Log, termStartIndexInfo *types.TermStar
 	})
 }
 
+func (n *Node) sendApplyReq(start, end uint64) {
+	n.events = append(n.events, types.Event{
+		Type:       types.ApplyReq,
+		From:       n.opts.NodeId,
+		To:         types.LocalNode,
+		StartIndex: start,
+		EndIndex:   end,
+	})
+}
+
 func (n *Node) sendGetLogsReq(syncEvent types.Event) {
 	n.events = append(n.events, types.Event{
 		Type:        types.GetLogsReq,
@@ -148,5 +163,14 @@ func (n *Node) sendSyncResp(to uint64, syncIndex uint64, logs []types.Log, reson
 		Logs:           logs,
 		CommittedIndex: n.queue.committedIndex,
 		Reason:         reson,
+	})
+}
+
+func (n *Node) sendTruncateReq(index uint64) {
+	n.events = append(n.events, types.Event{
+		Type:  types.TruncateReq,
+		To:    types.LocalNode,
+		Term:  n.lastTermStartIndex.Term,
+		Index: index,
 	})
 }

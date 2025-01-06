@@ -381,6 +381,11 @@ func (s *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) err
 	return nil
 }
 
+func (s *testStorage) Apply(startLogIndex, endLogIndex uint64) error {
+
+	return nil
+}
+
 // 等到某个节点成为领导者
 func waitBecomeLeader(rr ...*raft.Raft) {
 	for {
