@@ -45,6 +45,8 @@ type Node struct {
 	onlySync  bool      // 是否只同步,不做截断判断
 	softState softState // 软状态
 	sync.Mutex
+
+	truncating bool // 截断中
 }
 
 func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Options) *Node {
@@ -80,14 +82,6 @@ func (n *Node) Key() string {
 	return n.opts.Key
 }
 
-// HasReady 是否有待处理的事件
-func (n *Node) HasReady() bool {
-	if n.queue.hasNextStoreLogs() {
-		return true
-	}
-	return len(n.events) > 0
-}
-
 // LastLogIndex 获取最后一条日志下标
 func (n *Node) LastLogIndex() uint64 {
 	return n.queue.lastLogIndex
@@ -95,6 +89,17 @@ func (n *Node) LastLogIndex() uint64 {
 
 func (n *Node) LastTerm() uint32 {
 	return n.cfg.Term
+}
+
+// HasReady 是否有待处理的事件
+func (n *Node) HasReady() bool {
+	if n.queue.hasNextStoreLogs() {
+		return true
+	}
+	if n.queue.hasNextApplyLogs() {
+		return true
+	}
+	return len(n.events) > 0
 }
 
 // Ready 获取待处理的事件
@@ -107,13 +112,17 @@ func (n *Node) Ready() []types.Event {
 			n.softState.termStartIndex = nil
 		}
 	}
+
+	if n.queue.hasNextApplyLogs() {
+		start, end := n.queue.nextApplyLogs()
+		if start > 0 {
+			n.sendApplyReq(start, end)
+		}
+	}
+
 	events := n.events
 	n.events = n.events[:0]
 	return events
-}
-
-func (n *Node) switchConfig(cfg types.Config) {
-
 }
 
 func (n *Node) LeaderId() uint64 {

@@ -16,8 +16,8 @@ const (
 	ReasonOk
 	// ReasonError 错误
 	ReasonError
-	// ReasonTrunctate 日志需要截断
-	ReasonTrunctate
+	// ReasonTruncate 日志需要截断
+	ReasonTruncate
 	// ReasonOnlySync 只是同步, 不做截断判断
 	ReasonOnlySync
 )
@@ -32,8 +32,8 @@ func (r Reason) String() string {
 		return "ReasonOk"
 	case ReasonError:
 		return "ReasonError"
-	case ReasonTrunctate:
-		return "ReasonTrunctate"
+	case ReasonTruncate:
+		return "ReasonTruncate"
 	case ReasonOnlySync:
 		return "ReasonOnlySync"
 	default:
@@ -64,6 +64,10 @@ const (
 	GetLogsResp
 	// SyncResp 同步响应， leader -> follower
 	SyncResp
+	// TruncateReq 裁剪请求
+	TruncateReq
+	// TruncateResp 裁剪返回
+	TruncateResp
 	// VoteReq 投票， candidate
 	VoteReq
 	// VoteResp 投票响应， all node -> candidate
@@ -144,6 +148,8 @@ type Event struct {
 
 	// 不参与编码
 	TermStartIndexInfo *TermStartIndexInfo
+	StartIndex         uint64
+	EndIndex           uint64
 }
 
 func (e Event) String() string {
@@ -218,6 +224,16 @@ type Config struct {
 	Leader uint64 // 领导ID
 }
 
+type ConfigEventType uint8
+
+const (
+	ConfigEventUnknown ConfigEventType = iota
+)
+
+type ConfigEvent struct {
+	Type ConfigEventType
+}
+
 type Role uint8
 
 const (
@@ -231,6 +247,21 @@ const (
 	// RoleLearner 学习者
 	RoleLearner
 )
+
+func (r Role) String() string {
+	switch r {
+	case RoleFollower:
+		return "Follower"
+	case RoleCandidate:
+		return "Candidate"
+	case RoleLeader:
+		return "Leader"
+	case RoleLearner:
+		return "Learner"
+	default:
+		return "Unknown"
+	}
+}
 
 // 任期对应的开始日志下标
 type TermStartIndexInfo struct {
