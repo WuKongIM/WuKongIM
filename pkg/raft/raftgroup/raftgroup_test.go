@@ -32,8 +32,8 @@ func TestElection(t *testing.T) {
 	defer rg1.Stop()
 	defer rg2.Stop()
 
-	node1 := newTestRaftNode("ch001", 1, 0, types.RaftState{}, raft.WithElectionOn(true), raft.WithReplicas([]uint64{2}))
-	node2 := newTestRaftNode("ch001", 2, 0, types.RaftState{}, raft.WithElectionOn(true), raft.WithReplicas([]uint64{1}))
+	node1 := newTestRaftNode("ch001", 1, 0, types.RaftState{}, raft.WithElectionOn(true), raft.WithReplicas([]uint64{1, 2}))
+	node2 := newTestRaftNode("ch001", 2, 0, types.RaftState{}, raft.WithElectionOn(true), raft.WithReplicas([]uint64{1, 2}))
 	rg1.AddRaft(node1)
 	rg2.AddRaft(node2)
 
@@ -66,7 +66,7 @@ func TestPropose(t *testing.T) {
 		types.RaftState{},
 		raft.WithElectionInterval(5),
 		raft.WithElectionOn(true),
-		raft.WithReplicas([]uint64{2}),
+		raft.WithReplicas([]uint64{1, 2}),
 		raft.WithAdvance(rg1.Advance),
 	)
 	node2 := newTestRaftNode(
@@ -76,7 +76,7 @@ func TestPropose(t *testing.T) {
 		types.RaftState{},
 		raft.WithElectionInterval(5),
 		raft.WithElectionOn(true),
-		raft.WithReplicas([]uint64{1}),
+		raft.WithReplicas([]uint64{1, 2}),
 		raft.WithAdvance(rg2.Advance),
 	)
 	rg1.AddRaft(node1)
@@ -373,7 +373,7 @@ func (t *testStorage) LeaderLastLogTerm(raft raftgroup.IRaft) (uint32, error) {
 	return lastLog.Term, nil
 }
 
-func (t *testStorage) GetLogs(raft raftgroup.IRaft, start, maxSize uint64) ([]types.Log, error) {
+func (t *testStorage) GetLogs(raft raftgroup.IRaft, start, end, maxSize uint64) ([]types.Log, error) {
 
 	t.Lock()
 	defer t.Unlock()
@@ -390,7 +390,7 @@ func (t *testStorage) GetLogs(raft raftgroup.IRaft, start, maxSize uint64) ([]ty
 	if start-1+maxSize > uint64(len(logs)) {
 		return logs[start-1:], nil
 	}
-	return logs[start-1 : start-1+maxSize], nil
+	return logs[start-1 : end-1+maxSize], nil
 }
 
 func (t *testStorage) GetState(r raftgroup.IRaft) (*types.RaftState, error) {

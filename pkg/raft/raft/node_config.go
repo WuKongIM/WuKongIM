@@ -2,6 +2,7 @@ package raft
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"go.uber.org/zap"
@@ -28,6 +29,28 @@ func (n *Node) switchConfig(newCfg types.Config) error {
 }
 
 func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
+	fmt.Println("newCfg.Replicas--->", newCfg.Replicas)
+	if oldCfg.Role == types.RoleUnknown && newCfg.Role == types.RoleUnknown && len(newCfg.Replicas) > 0 {
+		onlySelf := false
+		if len(newCfg.Replicas) == 1 {
+			if newCfg.Replicas[0] == n.opts.NodeId {
+				onlySelf = true
+			}
+		}
+		if onlySelf {
+			if newCfg.Term == 0 {
+				newCfg.Term = 1
+			}
+			n.BecomeLeader(newCfg.Term)
+		} else {
+			if len(newCfg.Replicas) > 0 {
+				fmt.Println("bbbb")
+				n.BecomeFollower(n.cfg.Term, None)
+			}
+		}
+		return
+	}
+
 	if oldCfg.Role != newCfg.Role || oldCfg.Leader != newCfg.Leader || oldCfg.Term != newCfg.Term {
 		n.Info("role change", zap.String("old", oldCfg.Role.String()), zap.String("new", newCfg.Role.String()))
 		switch newCfg.Role {

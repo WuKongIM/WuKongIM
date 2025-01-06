@@ -104,11 +104,13 @@ func (n *Node) campaign() {
 	} else {
 		n.BecomeCandidate()
 		for _, nodeId := range n.cfg.Replicas {
+			if nodeId == n.opts.NodeId {
+				// 自己给自己投一票
+				n.sendVoteReq(types.LocalNode)
+				continue
+			}
 			n.Info("sent vote request", zap.Uint64("from", n.opts.NodeId), zap.Uint64("to", nodeId), zap.Uint32("term", n.cfg.Term))
 			n.sendVoteReq(nodeId)
 		}
-		// 自己给自己投一票
-		n.sendVoteReq(types.LocalNode)
 	}
-
 }

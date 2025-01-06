@@ -238,6 +238,7 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 			trunctIndex, treason = r.getTrunctLogIndex(e, leaderLastLogTerm)
 			if treason != types.ReasonOk {
 				r.stepC <- stepReq{event: types.Event{
+					To:     e.From,
 					Type:   types.GetLogsResp,
 					Index:  e.Index,
 					Reason: treason,
@@ -249,6 +250,7 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 		// 需要裁剪
 		if trunctIndex > 0 {
 			r.stepC <- stepReq{event: types.Event{
+				To:     e.From,
 				Type:   types.GetLogsResp,
 				Index:  trunctIndex,
 				Reason: types.ReasonTruncate,
@@ -257,7 +259,7 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 		}
 
 		// 获取日志数据
-		logs, err := r.opts.Storage.GetLogs(e.Index, r.opts.MaxLogCountPerBatch)
+		logs, err := r.opts.Storage.GetLogs(e.Index, e.StoredIndex+1, r.opts.MaxLogCountPerBatch)
 		if err != nil {
 			r.node.Error("get logs failed", zap.Error(err))
 			r.stepC <- stepReq{event: types.Event{
@@ -318,7 +320,47 @@ func (r *Raft) handleTruncateReq(e types.Event) {
 }
 
 func (r *Raft) handleApplyReq(e types.Event) {
-
+	err := r.opts.Submit(func() {
+		logs, err := r.opts.Storage.GetLogs(e.StartIndex, e.EndIndex, 0)
+		if err != nil {
+			r.Error("apply logs failed", zap.Error(err))
+			r.stepC <- stepReq{event: types.Event{
+				Type:   types.ApplyResp,
+				Reason: types.ReasonError,
+			}}
+			return
+		}
+		if len(logs) == 0 {
+			r.Error("logs is empty", zap.Uint64("startIndex", e.StartIndex), zap.Uint64("endIndex", e.EndIndex))
+			r.stepC <- stepReq{event: types.Event{
+				Type:   types.ApplyResp,
+				Reason: types.ReasonError,
+			}}
+			return
+		}
+		err = r.opts.Storage.Apply(logs)
+		if err != nil {
+			r.Panic("apply logs failed", zap.Error(err))
+			r.stepC <- stepReq{event: types.Event{
+				Type:   types.ApplyResp,
+				Reason: types.ReasonError,
+			}}
+			return
+		}
+		lastLogIndex := logs[len(logs)-1].Index
+		r.stepC <- stepReq{event: types.Event{
+			Type:   types.ApplyResp,
+			Reason: types.ReasonOk,
+			Index:  lastLogIndex,
+		}}
+	})
+	if err != nil {
+		r.Error("submit apply logs failed", zap.Error(err))
+		r.stepC <- stepReq{event: types.Event{
+			Type:   types.ApplyResp,
+			Reason: types.ReasonError,
+		}}
+	}
 }
 
 // 根据副本的同步数据，来获取副本的需要裁剪的日志下标，如果不需要裁剪，则返回0

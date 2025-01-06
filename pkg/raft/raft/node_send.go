@@ -147,7 +147,7 @@ func (n *Node) sendGetLogsReq(syncEvent types.Event) {
 		To:          types.LocalNode,
 		Term:        syncEvent.Term,
 		Index:       syncEvent.Index,
-		StoredIndex: syncEvent.StoredIndex,
+		StoredIndex: n.queue.storedIndex,
 		LastLogTerm: syncEvent.LastLogTerm,
 		Reason:      syncEvent.Reason,
 	})

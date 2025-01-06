@@ -22,7 +22,7 @@ type Options struct {
 	HeartbeatInterval int
 	// ElectionInterval 选举间隔tick次数，超过此tick数则发起选举
 	ElectionInterval int
-	// Replicas 副本的节点id，不包含节点自己
+	// Replicas 副本的节点id，包括自己, 如果只有自己表示单节点启动，如果为空，则表示暂不集群化，等后续SwitchConfig
 	Replicas []uint64
 
 	// Transport 传输层

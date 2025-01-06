@@ -95,15 +95,18 @@ func (n *Node) stepLeader(e types.Event) error {
 		}
 
 		syncInfo := n.replicaSync[e.From]
+		if syncInfo == nil {
+			syncInfo = &SyncInfo{}
+			n.replicaSync[e.From] = syncInfo
+		}
 
 		// 无数据可同步
-		if e.Reason == types.ReasonOnlySync && e.Index > n.queue.storedIndex {
+		if (e.Reason == types.ReasonOnlySync && e.Index > n.queue.storedIndex) || n.queue.storedIndex == 0 {
 			n.sendSyncResp(e.From, e.Index, nil, types.ReasonOk)
 			return nil
 		}
 		if !syncInfo.GetingLogs {
 			syncInfo.GetingLogs = true
-
 			n.sendGetLogsReq(e)
 			n.advance()
 		}
@@ -125,13 +128,20 @@ func (n *Node) stepLeader(e types.Event) error {
 
 		}
 	case types.GetLogsResp: // 获取日志返回
+		syncInfo := n.replicaSync[e.To]
+		if syncInfo != nil {
+			syncInfo.GetingLogs = false
+		} else {
+			n.Error("sync info not found", zap.Uint64("nodeId", e.To))
+		}
 		for i := range e.Logs {
 			e.Logs[i].Record.Add(track.PositionSyncResp)
 		}
-		syncInfo := n.replicaSync[e.To]
-		syncInfo.GetingLogs = false
-		n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason)
-		n.advance()
+
+		if e.Reason == types.ReasonOk {
+			n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason)
+			n.advance()
+		}
 
 	}
 
@@ -243,7 +253,7 @@ func (n *Node) poll(e types.Event) {
 
 // 合法投票数
 func (n *Node) quorum() int {
-	return (len(n.cfg.Replicas)+1)/2 + 1 //  n.cfg.Replicas 不包含本节点
+	return len(n.cfg.Replicas)/2 + 1 //  n.cfg.Replicas 包含本节点
 }
 
 // 是否可以投票
