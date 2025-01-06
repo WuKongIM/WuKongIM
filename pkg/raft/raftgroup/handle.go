@@ -59,7 +59,7 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 				To:     e.From,
 				Type:   types.GetLogsResp,
 				Index:  trunctIndex,
-				Reason: types.ReasonTrunctate,
+				Reason: types.ReasonTruncate,
 			})
 			return
 		}
@@ -88,6 +88,87 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 		rg.Error("submit get logs failed", zap.Error(err))
 		rg.AddEvent(r.Key(), types.Event{
 			Type:   types.GetLogsResp,
+			Reason: types.ReasonError,
+		})
+	}
+}
+
+func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
+	err := rg.goPool.Submit(func() {
+		err := rg.opts.Storage.TruncateLogTo(r, e.Index)
+		if err != nil {
+			rg.Error("truncate logs failed", zap.Error(err))
+			rg.AddEvent(r.Key(), types.Event{
+				Type:   types.TruncateResp,
+				Reason: types.ReasonError,
+			})
+			return
+		}
+		// 删除本地的leader term start index
+		err = rg.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(r, e.Term)
+		if err != nil {
+			rg.Error("delete leader term start index failed", zap.Error(err), zap.Uint32("term", e.Term))
+			rg.AddEvent(r.Key(), types.Event{
+				Type:   types.TruncateResp,
+				Reason: types.ReasonError,
+			})
+			return
+		}
+		rg.AddEvent(r.Key(), types.Event{
+			Type:   types.TruncateResp,
+			Index:  e.Index,
+			Reason: types.ReasonOk,
+		})
+	})
+	if err != nil {
+		rg.Error("submit truncate req failed", zap.Error(err))
+		rg.AddEvent(r.Key(), types.Event{
+			Type:   types.TruncateResp,
+			Reason: types.ReasonError,
+		})
+	}
+}
+
+func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
+	err := rg.goPool.Submit(func() {
+		logs, err := rg.opts.Storage.GetLogs(r, e.StartIndex, e.EndIndex-e.StartIndex)
+		if err != nil {
+			rg.Error("get logs failed", zap.Error(err))
+			rg.AddEvent(r.Key(), types.Event{
+				Type:   types.ApplyResp,
+				Reason: types.ReasonError,
+			})
+			return
+		}
+		if len(logs) == 0 {
+			rg.Error("logs is empty", zap.String("key", r.Key()), zap.Uint64("startIndex", e.StartIndex), zap.Uint64("endIndex", e.EndIndex))
+			rg.AddEvent(r.Key(), types.Event{
+				Type:   types.ApplyResp,
+				Reason: types.ReasonError,
+			})
+			return
+		}
+		err = rg.opts.Storage.Apply(r, logs)
+		if err != nil {
+			rg.Error("apply logs failed", zap.Error(err))
+			rg.AddEvent(r.Key(), types.Event{
+				Type:   types.ApplyResp,
+				Reason: types.ReasonError,
+			})
+			return
+		}
+		lastLogIndex := logs[len(logs)-1].Index
+		rg.AddEvent(r.Key(), types.Event{
+			Type:   types.ApplyResp,
+			Reason: types.ReasonOk,
+			Index:  lastLogIndex,
+		})
+		rg.Advance()
+	})
+	if err != nil {
+		rg.Error("submit apply req failed", zap.Error(err))
+		rg.AddEvent(r.Key(), types.Event{
+			Type:   types.ApplyResp,
 			Reason: types.ReasonError,
 		})
 	}

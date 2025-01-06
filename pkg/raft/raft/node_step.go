@@ -63,6 +63,12 @@ func (n *Node) Step(e types.Event) error {
 			n.Info("reject vote", zap.Uint64("from", e.From), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
 			n.sendVoteResp(e.From, types.ReasonError)
 		}
+	case types.ApplyResp: // 应用返回
+		if e.Reason == types.ReasonOk {
+			n.queue.appliedTo(e.Index)
+		} else {
+			n.queue.applying = false
+		}
 	default:
 		if n.stepFunc != nil {
 			return n.stepFunc(e)
@@ -159,18 +165,17 @@ func (n *Node) stepFollower(e types.Event) error {
 			}
 			n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 
-		} else if e.Reason == types.ReasonTrunctate {
-			err := n.opts.Storage.TruncateLogTo(e.Index)
-			if err != nil {
-				n.Panic("truncate log failed", zap.Error(err), zap.Uint64("index", e.Index))
-				return err
+		} else if e.Reason == types.ReasonTruncate {
+			if n.truncating {
+				return nil
 			}
-			// 删除本地的leader term start index
-			err = n.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(e.Term)
-			if err != nil {
-				n.Panic("delete leader term start index failed", zap.Error(err), zap.Uint32("term", e.Term))
-				return err
-			}
+			n.truncating = true
+			n.sendTruncateReq(e.Index)
+			n.advance()
+		}
+	case types.TruncateResp: // 裁剪返回
+		n.truncating = false
+		if e.Reason == types.ReasonOk {
 			n.queue.truncateLogTo(e.Index)
 			n.sendSyncReq()
 			n.advance()
@@ -191,8 +196,10 @@ func (n *Node) stepFollower(e types.Event) error {
 			}
 			n.updateLastTermStartIndex(e.Term, e.Index)
 		}
-		n.sendSyncReq()
-		n.advance()
+		if e.Reason == types.ReasonOk {
+			n.sendSyncReq()
+			n.advance()
+		}
 	}
 	return nil
 }
