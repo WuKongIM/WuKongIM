@@ -54,12 +54,7 @@ func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Opti
 		opts: opts,
 		Log:  wklog.NewWKLog(fmt.Sprintf("raft.node[%d]", opts.NodeId)),
 	}
-	for _, id := range opts.Replicas {
-		if id == opts.NodeId {
-			continue
-		}
-		n.cfg.Replicas = append(n.cfg.Replicas, id)
-	}
+	n.cfg.Replicas = append(n.cfg.Replicas, opts.Replicas...)
 
 	n.cfg.Term = raftState.LastTerm
 	// 初始化日志队列
@@ -73,7 +68,23 @@ func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Opti
 	n.lastTermStartIndex.Index = lastTermStartLogIndex
 	n.lastTermStartIndex.Term = n.cfg.Term
 
-	n.BecomeFollower(n.cfg.Term, None)
+	onlySelf := false
+	if len(n.cfg.Replicas) == 1 {
+		if n.cfg.Replicas[0] == opts.NodeId {
+			onlySelf = true
+		}
+	}
+
+	if onlySelf {
+		if n.cfg.Term == 0 {
+			n.cfg.Term = 1
+		}
+		n.BecomeLeader(n.cfg.Term)
+	} else {
+		if len(n.cfg.Replicas) > 0 {
+			n.BecomeFollower(n.cfg.Term, None)
+		}
+	}
 
 	return n
 }

@@ -64,7 +64,7 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 			return
 		}
 		// 获取日志数据
-		logs, err := rg.opts.Storage.GetLogs(r, e.Index, rg.opts.MaxLogCountPerBatch)
+		logs, err := rg.opts.Storage.GetLogs(r, e.Index, e.StoredIndex+1, rg.opts.MaxLogCountPerBatch)
 		if err != nil {
 			rg.Error("get logs failed", zap.Error(err))
 			rg.AddEvent(r.Key(), types.Event{
@@ -74,6 +74,9 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 				Reason: types.ReasonError,
 			})
 			return
+		}
+		if len(logs) == 0 {
+			rg.Warn("logs is empty", zap.String("key", r.Key()), zap.Uint64("index", e.Index), zap.Uint64("storedIndex", e.StoredIndex))
 		}
 		rg.AddEvent(r.Key(), types.Event{
 			To:     e.From,
@@ -131,7 +134,7 @@ func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
 
 func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
 	err := rg.goPool.Submit(func() {
-		logs, err := rg.opts.Storage.GetLogs(r, e.StartIndex, e.EndIndex-e.StartIndex)
+		logs, err := rg.opts.Storage.GetLogs(r, e.StartIndex, e.EndIndex, 0)
 		if err != nil {
 			rg.Error("get logs failed", zap.Error(err))
 			rg.AddEvent(r.Key(), types.Event{
