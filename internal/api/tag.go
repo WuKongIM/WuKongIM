@@ -184,6 +184,7 @@ func newTagResp(tag *types.Tag) *tagResp {
 			LeaderId: node.LeaderId,
 			Uids:     node.Uids,
 			SlotIds:  node.SlotIds,
+			UidCount: len(node.Uids),
 		})
 	}
 	var createdAtFormat string
@@ -216,6 +217,7 @@ func newTagResp(tag *types.Tag) *tagResp {
 type nodeTagResp struct {
 	// 节点id
 	LeaderId uint64 `json:"leader_id"`
+	UidCount int    `json:"uid_count"`
 	// 节点id对应的用户集合
 	Uids []string `json:"uids"`
 	// 用户涉及到的slot
