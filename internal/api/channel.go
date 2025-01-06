@@ -499,9 +499,6 @@ func setTmpSubscriberWithReq(req tmpSubscriberSetReq) error {
 	if err != nil {
 		return err
 	}
-	if options.G.IsCmdChannel(req.ChannelId) {
-		req.ChannelId = options.G.CmdChannelConvertOrginalChannel(req.ChannelId)
-	}
 	service.TagManager.SetChannelTag(req.ChannelId, wkproto.ChannelTypeTemp, tag.Key)
 	return nil
 }

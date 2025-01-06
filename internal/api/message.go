@@ -103,10 +103,9 @@ func (m *message) send(c *wkhttp.Context) {
 			tmpChannelId = fmt.Sprintf("%d", key.HashWithString(strings.Join(req.Subscribers, ","))) // 获取临时频道id
 		}
 
-		// tmpCMDChannelId := options.G.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
-
 		// 设置订阅者到临时频道
 		if persist {
+			tmpChannelId = options.G.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
 			err := m.requestSetSubscribersForTmpChannel(tmpChannelId, req.Subscribers)
 			if err != nil {
 				m.Error("请求设置临时频道的订阅者失败！", zap.Error(err), zap.String("channelId", tmpChannelId), zap.Strings("subscribers", req.Subscribers))
@@ -121,10 +120,15 @@ func (m *message) send(c *wkhttp.Context) {
 				c.ResponseError(errors.New("获取频道所在节点失败！"))
 				return
 			}
-			newTagKey := wkutil.GenUUID()
+			newTagKey := fmt.Sprintf("%scmd", wkutil.GenUUID())
 			req.TagKey = newTagKey // 设置tagKey
 			if options.G.IsLocalNode(nodeInfo.Id) {
-				_, _ = service.TagManager.MakeTagWithTagKey(newTagKey, req.Subscribers)
+				_, err := service.TagManager.MakeTagWithTagKey(newTagKey, req.Subscribers)
+				if err != nil {
+					m.Error("生成tag失败！", zap.Error(err), zap.Uint64("nodeId", nodeInfo.Id))
+					c.ResponseError(errors.New("生成tag失败！"))
+					return
+				}
 			} else {
 				err = m.s.client.UpdateTag(nodeInfo.Id, &ingress.TagUpdateReq{
 					TagKey: newTagKey,
@@ -216,7 +220,7 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 		fakeChannelId = options.GetFakeChannelIDWith(req.FromUID, channelId)
 	}
 
-	if req.Header.SyncOnce == 1 && !options.G.IsOnlineCmdChannel(channelId) { // 命令消息，将原频道转换为cmd频道
+	if req.Header.SyncOnce == 1 && !options.G.IsOnlineCmdChannel(channelId) && channelType != wkproto.ChannelTypeTemp { // 命令消息，将原频道转换为cmd频道
 		fakeChannelId = options.G.OrginalConvertCmdChannel(fakeChannelId)
 	}
 
