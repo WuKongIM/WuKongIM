@@ -2,7 +2,6 @@ package raft
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"go.uber.org/zap"
@@ -43,7 +42,6 @@ func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
 			n.BecomeLeader(newCfg.Term)
 		} else {
 			if len(newCfg.Replicas) > 0 {
-				fmt.Println("bbbb")
 				n.BecomeFollower(n.cfg.Term, None)
 			}
 		}

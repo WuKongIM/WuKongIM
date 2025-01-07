@@ -1,4 +1,4 @@
-package node
+package clusterconfig
 
 import (
 	"io"
@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
 type Config struct {
-	cfg     *pb.Config // 配置文件
+	cfg     *types.Config // 配置文件
 	cfgFile *os.File
 	opts    *Options
 	wklog.Log
@@ -24,7 +24,7 @@ type Config struct {
 
 func NewConfig(opts *Options) *Config {
 	cfg := &Config{
-		cfg: &pb.Config{
+		cfg: &types.Config{
 			SlotCount:           opts.SlotCount,
 			SlotReplicaCount:    opts.SlotMaxReplicaCount,
 			ChannelReplicaCount: opts.ChannelMaxReplicaCount,
@@ -104,26 +104,26 @@ func (c *Config) data() ([]byte, error) {
 	return c.cfg.Marshal()
 }
 
-func (c *Config) update(cfg *pb.Config) {
+func (c *Config) update(cfg *types.Config) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.cfg = cfg
+	c.cfg = cfg.Clone()
 }
 
-func (c *Config) nodes() []*pb.Node {
+func (c *Config) nodes() []*types.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.cfg.Nodes
 }
 
-func (c *Config) slots() []*pb.Slot {
+func (c *Config) slots() []*types.Slot {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.cfg.Slots
 }
 
 // 判断是否有slot
-func (c *Config) addSlot(slot *pb.Slot) {
+func (c *Config) addSlot(slot *types.Slot) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.cfg.Slots = append(c.cfg.Slots, slot)
@@ -141,7 +141,7 @@ func (c *Config) hasNode(id uint64) bool {
 	return false
 }
 
-func (c *Config) addOrUpdateNode(node *pb.Node) {
+func (c *Config) addOrUpdateNode(node *types.Node) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for i, n := range c.cfg.Nodes {
@@ -154,13 +154,13 @@ func (c *Config) addOrUpdateNode(node *pb.Node) {
 }
 
 // 添加节点
-func (c *Config) addNode(node *pb.Node) {
+func (c *Config) addNode(node *types.Node) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.cfg.Nodes = append(c.cfg.Nodes, node)
 }
 
-func (c *Config) updateNode(n *pb.Node) {
+func (c *Config) updateNode(n *types.Node) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for i, node := range c.cfg.Nodes {
@@ -202,19 +202,19 @@ func (c *Config) updateNodeJoining(nodeId uint64) {
 	defer c.mu.Unlock()
 	for _, node := range c.cfg.Nodes {
 		if node.Id == nodeId {
-			node.Status = pb.NodeStatus_NodeStatusJoining
+			node.Status = types.NodeStatus_NodeStatusJoining
 			break
 		}
 	}
 	c.cfg.Learners = wkutil.RemoveUint64(c.cfg.Learners, nodeId)
 }
 
-func (c *Config) updateNodeJoined(nodeId uint64, slots []*pb.Slot) {
+func (c *Config) updateNodeJoined(nodeId uint64, slots []*types.Slot) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, node := range c.cfg.Nodes {
 		if node.Id == nodeId {
-			node.Status = pb.NodeStatus_NodeStatusJoined
+			node.Status = types.NodeStatus_NodeStatusJoined
 			break
 		}
 	}
@@ -251,7 +251,7 @@ func (c *Config) updateSlotMigrate(slotId uint32, fromNodeId, toNodeId uint64) {
 	}
 }
 
-func (c *Config) updateSlots(slots []*pb.Slot) {
+func (c *Config) updateSlots(slots []*types.Slot) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -265,7 +265,7 @@ func (c *Config) updateSlots(slots []*pb.Slot) {
 	}
 }
 
-func (c *Config) updateNodeStatus(nodeId uint64, status pb.NodeStatus) {
+func (c *Config) updateNodeStatus(nodeId uint64, status types.NodeStatus) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, node := range c.cfg.Nodes {
@@ -276,7 +276,7 @@ func (c *Config) updateNodeStatus(nodeId uint64, status pb.NodeStatus) {
 	}
 }
 
-func (c *Config) config() *pb.Config {
+func (c *Config) config() *types.Config {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.cfg
@@ -296,7 +296,7 @@ func (c *Config) slotReplicaCount() uint32 {
 }
 
 // 根据id获取slot信息
-func (c *Config) slot(id uint32) *pb.Slot {
+func (c *Config) slot(id uint32) *types.Slot {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, slot := range c.cfg.Slots {
@@ -320,10 +320,10 @@ func (c *Config) nodeOnline(nodeId uint64) bool {
 }
 
 // 获取允许投票的节点
-func (c *Config) allowVoteNodes() []*pb.Node {
+func (c *Config) allowVoteNodes() []*types.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	var nodes []*pb.Node
+	var nodes []*types.Node
 	for _, node := range c.cfg.Nodes {
 		if node.AllowVote {
 			nodes = append(nodes, node)
@@ -333,12 +333,12 @@ func (c *Config) allowVoteNodes() []*pb.Node {
 }
 
 // 获取允许投票的并且已经加入了的节点集合
-func (c *Config) allowVoteAndJoinedNodes() []*pb.Node {
+func (c *Config) allowVoteAndJoinedNodes() []*types.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	var nodes []*pb.Node
+	var nodes []*types.Node
 	for _, node := range c.cfg.Nodes {
-		if node.AllowVote && node.Status == pb.NodeStatus_NodeStatusJoined {
+		if node.AllowVote && node.Status == types.NodeStatus_NodeStatusJoined {
 			nodes = append(nodes, node)
 		}
 	}
@@ -351,7 +351,7 @@ func (c *Config) allowVoteAndJoinedNodeCount() int {
 	defer c.mu.RUnlock()
 	var count int
 	for _, node := range c.cfg.Nodes {
-		if node.AllowVote && node.Status == pb.NodeStatus_NodeStatusJoined {
+		if node.AllowVote && node.Status == types.NodeStatus_NodeStatusJoined {
 			count++
 		}
 	}
@@ -364,7 +364,7 @@ func (c *Config) allowVoteAndJoinedOnlineNodeCount() int {
 	defer c.mu.RUnlock()
 	var count int
 	for _, node := range c.cfg.Nodes {
-		if node.AllowVote && node.Status == pb.NodeStatus_NodeStatusJoined && node.Online {
+		if node.AllowVote && node.Status == types.NodeStatus_NodeStatusJoined && node.Online {
 			count++
 		}
 	}
@@ -372,12 +372,12 @@ func (c *Config) allowVoteAndJoinedOnlineNodeCount() int {
 }
 
 // 获取允许投票的并且已经加入了的在线节点数量
-func (c *Config) allowVoteAndJoinedOnlineNodes() []*pb.Node {
+func (c *Config) allowVoteAndJoinedOnlineNodes() []*types.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	var nodes []*pb.Node
+	var nodes []*types.Node
 	for _, node := range c.cfg.Nodes {
-		if node.AllowVote && node.Status == pb.NodeStatus_NodeStatusJoined && node.Online {
+		if node.AllowVote && node.Status == types.NodeStatus_NodeStatusJoined && node.Online {
 			nodes = append(nodes, node)
 		}
 	}
@@ -385,10 +385,10 @@ func (c *Config) allowVoteAndJoinedOnlineNodes() []*pb.Node {
 }
 
 // 获取所有在线节点
-func (c *Config) onlineNodes() []*pb.Node {
+func (c *Config) onlineNodes() []*types.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	var nodes []*pb.Node
+	var nodes []*types.Node
 	for _, node := range c.cfg.Nodes {
 		if node.Online {
 			nodes = append(nodes, node)
@@ -397,7 +397,7 @@ func (c *Config) onlineNodes() []*pb.Node {
 	return nodes
 }
 
-func (c *Config) node(id uint64) *pb.Node {
+func (c *Config) node(id uint64) *types.Node {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, n := range c.cfg.Nodes {
@@ -413,7 +413,7 @@ func (c *Config) hasJoiningNode() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, n := range c.cfg.Nodes {
-		if n.Status == pb.NodeStatus_NodeStatusJoining {
+		if n.Status == types.NodeStatus_NodeStatusJoining {
 			return true
 		}
 	}
@@ -424,7 +424,7 @@ func (c *Config) hasWillJoinNode() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, n := range c.cfg.Nodes {
-		if n.Status == pb.NodeStatus_NodeStatusWillJoin {
+		if n.Status == types.NodeStatus_NodeStatusWillJoin {
 			return true
 		}
 	}

@@ -1,4 +1,4 @@
-package pb
+package types
 
 import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"

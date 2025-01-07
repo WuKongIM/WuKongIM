@@ -1,13 +1,17 @@
-package node
+package clusterconfig
 
 import (
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/raft/raft"
 )
 
 type Options struct {
 	// NodeId 节点id
-	NodeId       uint64
-	TickInterval time.Duration // 分布式tick间隔
+	NodeId uint64
+
+	ApiServerAddr string        // 分布式api服务地址（内网地址）
+	TickInterval  time.Duration // 分布式tick间隔
 	// InitNodes 初始化节点列表 key为节点id，value为分布式通讯的地址
 	InitNodes              map[uint64]string
 	SlotCount              uint32 // 槽位数量
@@ -16,7 +20,7 @@ type Options struct {
 
 	ConfigPath string // 集群配置文件路径
 	// Transport 传输层
-	Transport Transport
+	Transport raft.Transport
 }
 
 func NewOptions(opts ...Option) *Options {
@@ -76,8 +80,14 @@ func WithConfigPath(configPath string) Option {
 		o.ConfigPath = configPath
 	}
 }
-func WithTransport(transport Transport) Option {
+func WithTransport(transport raft.Transport) Option {
 	return func(o *Options) {
 		o.Transport = transport
+	}
+}
+
+func WithApiServerAddr(apiServerAddr string) Option {
+	return func(o *Options) {
+		o.ApiServerAddr = apiServerAddr
 	}
 }

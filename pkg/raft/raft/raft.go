@@ -160,7 +160,7 @@ func (r *Raft) propose(ctx context.Context, id uint64, data []byte, stepBefore f
 }
 
 // ProposeUntilApplied 提案直到应用（提案后等待日志被应用）
-func (r *Raft) ProposeUntilApplied(ctx context.Context, id uint64, data []byte) (*types.ProposeResp, error) {
+func (r *Raft) ProposeUntilAppliedTimeout(ctx context.Context, id uint64, data []byte) (*types.ProposeResp, error) {
 
 	// 等待应用
 	var applyProcess *progress
@@ -180,6 +180,12 @@ func (r *Raft) ProposeUntilApplied(ctx context.Context, id uint64, data []byte) 
 	case <-r.stopper.ShouldStop():
 		return nil, ErrStopped
 	}
+}
+
+func (r *Raft) ProposeUntilApplied(id uint64, data []byte) (*types.ProposeResp, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), r.opts.ProposeTimeout)
+	defer cancel()
+	return r.ProposeUntilAppliedTimeout(timeoutCtx, id, data)
 }
 
 // ProposeBatchTimeout 批量提案

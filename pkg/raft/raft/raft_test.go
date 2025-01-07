@@ -2,7 +2,6 @@ package raft_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -200,10 +199,6 @@ func TestLogConflict1(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 400)
 
-	for _, log := range s1Storage.logs {
-		fmt.Println("s1--->", string(log.Data))
-	}
-
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, s1Storage.logs[i].Data, s2Storage.logs[i].Data)
 		assert.Equal(t, s1Storage.logs[i].Term, s2Storage.logs[i].Term)
@@ -314,9 +309,8 @@ func TestProposeUntilApplied(t *testing.T) {
 	waitBecomeLeader(raft1, raft2, raft3)
 
 	leader := getLeader(raft1, raft2, raft3)
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = leader.ProposeUntilApplied(timeoutCtx, 1, []byte("test"))
+
+	_, err = leader.ProposeUntilApplied(1, []byte("test"))
 	assert.Nil(t, err)
 
 	node1Logs := raft1.Options().Storage.(*testStorage).logs
