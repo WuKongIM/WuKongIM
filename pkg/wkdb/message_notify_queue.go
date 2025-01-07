@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 // AppendMessageOfNotifyQueue 添加消息到通知队列
@@ -89,7 +90,8 @@ func (wk *wukongDB) parseMessageOfNotifyQueue(iter *pebble.Iterator, limit int) 
 		// 解析消息
 		var msg Message
 		if err := msg.Unmarshal(value); err != nil {
-			return nil, err
+			wk.Warn("queue message unmarshal failed", zap.Error(err), zap.Int("len", len(value)))
+			continue
 		}
 		msgs = append(msgs, msg)
 	}
