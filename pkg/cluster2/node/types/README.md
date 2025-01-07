@@ -1,4 +1,4 @@
-protoc ./pkg/cluster2/node/pb/config.proto --go_out=./pkg/cluster2/node/pb
+protoc ./pkg/cluster2/node/types/config.proto --go_out=./pkg/cluster2/node/types
 
 
 
