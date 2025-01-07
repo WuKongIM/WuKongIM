@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/raft/track"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
@@ -22,6 +23,8 @@ type Raft struct {
 	wklog.Log
 	pause     atomic.Bool // 是否暂停
 	pauseCond *sync.Cond
+
+	wait *wait
 }
 
 func New(opts *Options) *Raft {
@@ -44,6 +47,7 @@ func New(opts *Options) *Raft {
 		stepC:     make(chan stepReq, 1024),
 		Log:       wklog.NewWKLog("raft"),
 		pauseCond: sync.NewCond(&sync.Mutex{}),
+		wait:      newWait("raft"),
 	}
 	opts.Advance = r.advance
 
@@ -88,23 +92,138 @@ func (r *Raft) Step(e types.Event) {
 	}
 }
 
-func (r *Raft) StepWait(e types.Event) error {
+func (r *Raft) StepWait(ctx context.Context, e types.Event) error {
 	resp := make(chan error, 1)
 	select {
 	case r.stepC <- stepReq{event: e, resp: resp}:
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-r.stopper.ShouldStop():
 		return ErrStopped
 	}
-	return <-resp
+
+	select {
+	case err := <-resp:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-r.stopper.ShouldStop():
+		return ErrStopped
+	}
 }
 
-func (r *Raft) Propose(data []byte) error {
-	event := r.node.NewPropose(data)
-	return r.StepWait(event)
+// Propose 提案
+func (r *Raft) Propose(id uint64, data []byte) (*types.ProposeResp, error) {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), r.opts.ProposeTimeout)
+	defer cancel()
+	return r.propose(timeoutCtx, id, data, nil)
+}
+
+// Propose 提案
+func (r *Raft) propose(ctx context.Context, id uint64, data []byte, stepBefore func(id uint64, index uint64)) (*types.ProposeResp, error) {
+	r.node.Lock()
+	defer r.node.Unlock()
+
+	lastLogIndex := r.node.queue.lastLogIndex
+	logIndex := lastLogIndex + 1
+
+	// 轨迹记录
+	record := track.Record{
+		PreStart: time.Now(),
+	}
+	record.Add(track.PositionStart)
+
+	if stepBefore != nil {
+		stepBefore(id, logIndex)
+	}
+
+	err := r.StepWait(ctx, types.Event{
+		Type: types.Propose,
+		Logs: []types.Log{
+			{
+				Id:     id,
+				Term:   r.node.cfg.Term,
+				Index:  logIndex,
+				Data:   data,
+				Record: record,
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &types.ProposeResp{
+		Id:    id,
+		Index: logIndex,
+	}, nil
+
+}
+
+// ProposeUntilApplied 提案直到应用（提案后等待日志被应用）
+func (r *Raft) ProposeUntilApplied(ctx context.Context, id uint64, data []byte) (*types.ProposeResp, error) {
+
+	// 等待应用
+	var applyProcess *progress
+
+	resp, err := r.propose(ctx, id, data, func(id uint64, index uint64) {
+		applyProcess = r.wait.waitApply(index)
+	})
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case <-applyProcess.waitC:
+		return resp, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-r.stopper.ShouldStop():
+		return nil, ErrStopped
+	}
+}
+
+// ProposeBatchTimeout 批量提案
+func (r *Raft) ProposeBatchTimeout(ctx context.Context, reqs []types.ProposeReq) ([]*types.ProposeResp, error) {
+	r.node.Lock()
+	defer r.node.Unlock()
+
+	lastLogIndex := r.node.queue.lastLogIndex
+	logs := make([]types.Log, 0, len(reqs))
+	for i, req := range reqs {
+		logIndex := lastLogIndex + 1 + uint64(i)
+		logs = append(logs, types.Log{
+			Id:    req.Id,
+			Term:  r.node.cfg.Term,
+			Index: logIndex,
+			Data:  req.Data,
+		})
+	}
+
+	err := r.StepWait(ctx, types.Event{
+		Type: types.Propose,
+		Logs: logs,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resps := make([]*types.ProposeResp, 0, len(reqs))
+	for i, req := range reqs {
+		logIndex := lastLogIndex + 1 + uint64(i)
+		resps = append(resps, &types.ProposeResp{
+			Id:    req.Id,
+			Index: logIndex,
+		})
+	}
+	return resps, nil
 }
 
 func (r *Raft) IsLeader() bool {
 	return r.node.IsLeader()
+}
+
+func (r *Raft) LeaderId() uint64 {
+	return r.node.LeaderId()
 }
 
 func (r *Raft) Options() *Options {
@@ -321,6 +440,10 @@ func (r *Raft) handleTruncateReq(e types.Event) {
 
 func (r *Raft) handleApplyReq(e types.Event) {
 	err := r.opts.Submit(func() {
+
+		// 已提交
+		r.wait.didCommit(e.EndIndex - 1)
+
 		logs, err := r.opts.Storage.GetLogs(e.StartIndex, e.EndIndex, 0)
 		if err != nil {
 			r.Error("apply logs failed", zap.Error(err))
@@ -353,6 +476,8 @@ func (r *Raft) handleApplyReq(e types.Event) {
 			Reason: types.ReasonOk,
 			Index:  lastLogIndex,
 		}}
+		// 已应用
+		r.wait.didApply(lastLogIndex)
 	})
 	if err != nil {
 		r.Error("submit apply logs failed", zap.Error(err))

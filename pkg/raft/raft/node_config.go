@@ -29,7 +29,6 @@ func (n *Node) switchConfig(newCfg types.Config) error {
 }
 
 func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
-	fmt.Println("newCfg.Replicas--->", newCfg.Replicas)
 	if oldCfg.Role == types.RoleUnknown && newCfg.Role == types.RoleUnknown && len(newCfg.Replicas) > 0 {
 		onlySelf := false
 		if len(newCfg.Replicas) == 1 {

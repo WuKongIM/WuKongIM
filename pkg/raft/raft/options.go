@@ -39,6 +39,9 @@ type Options struct {
 
 	// GoPoolSize 协程池大小, 如果设置了Submit, 那么这个参数无效
 	GoPoolSize int
+
+	// ProposeTimeout 提案超时时间
+	ProposeTimeout time.Duration
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -50,6 +53,7 @@ func NewOptions(opt ...Option) *Options {
 		TickInterval:        time.Millisecond * 100,
 		MaxLogCountPerBatch: 1000,
 		GoPoolSize:          1000,
+		ProposeTimeout:      time.Second * 5,
 	}
 
 	pool, err := ants.NewPool(opts.GoPoolSize)

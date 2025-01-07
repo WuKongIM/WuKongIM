@@ -111,7 +111,7 @@ func TestPropose(t *testing.T) {
 	waitBecomeLeader(raft1, raft2, raft3)
 
 	leader := getLeader(raft1, raft2, raft3)
-	err = leader.Propose([]byte("test"))
+	_, err = leader.Propose(1, []byte("test"))
 	assert.Nil(t, err)
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -294,6 +294,41 @@ func TestLogConflict2(t *testing.T) {
 		assert.Equal(t, s3Storage.logs[i].Index, s2Storage.logs[i].Index)
 	}
 
+}
+
+func TestProposeUntilApplied(t *testing.T) {
+	raft1, raft2, raft3 := newThreeRaft()
+	err := raft1.Start()
+	assert.Nil(t, err)
+
+	err = raft2.Start()
+	assert.Nil(t, err)
+
+	err = raft3.Start()
+	assert.Nil(t, err)
+
+	defer raft1.Stop()
+	defer raft2.Stop()
+	defer raft3.Stop()
+
+	waitBecomeLeader(raft1, raft2, raft3)
+
+	leader := getLeader(raft1, raft2, raft3)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = leader.ProposeUntilApplied(timeoutCtx, 1, []byte("test"))
+	assert.Nil(t, err)
+
+	node1Logs := raft1.Options().Storage.(*testStorage).logs
+	node2Logs := raft2.Options().Storage.(*testStorage).logs
+	node3Logs := raft3.Options().Storage.(*testStorage).logs
+
+	assert.Equal(t, 1, len(node1Logs))
+	assert.Equal(t, 1, len(node2Logs))
+	assert.Equal(t, 1, len(node3Logs))
+
+	assert.Equal(t, node1Logs[0].Index, node2Logs[0].Index, node3Logs[0].Index)
+	assert.Equal(t, node1Logs[0].Data, node2Logs[0].Data, node3Logs[0].Data)
 }
 
 func newTestOptions(nodeId uint64, replicas []uint64, opt ...raft.Option) *raft.Options {

@@ -1,7 +1,7 @@
 package node
 
 import (
-	"fmt"
+	"context"
 	"path"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raft"
@@ -29,17 +29,14 @@ func New(opts *Options) *Server {
 }
 
 func (s *Server) Start() error {
-	fmt.Println("start---->")
 	err := s.storage.Open()
 	if err != nil {
 		return err
 	}
-	fmt.Println("start---->2")
 	err = s.initRaft()
 	if err != nil {
 		return err
 	}
-	fmt.Println("start---->3")
 	return s.raft.Start()
 }
 
@@ -77,10 +74,32 @@ func (s *Server) Stop() {
 	s.storage.Close()
 }
 
+func (s *Server) Propose(id uint64, data []byte) (*types.ProposeResp, error) {
+	return s.raft.Propose(id, data)
+}
+
+func (s *Server) ProposeUntilApplied(ctx context.Context, id uint64, data []byte) (*types.ProposeResp, error) {
+
+	return s.raft.ProposeUntilApplied(ctx, id, data)
+}
+
+// 批量提案
+func (s *Server) ProposeBatchTimeout(ctx context.Context, reqs []types.ProposeReq) ([]*types.ProposeResp, error) {
+	return s.raft.ProposeBatchTimeout(ctx, reqs)
+}
+
 func (s *Server) AddEvent(e Event) {
 	if e.Type == RaftEvent {
 		s.raft.Step(e.Event)
 	}
+}
+
+func (s *Server) IsLeader() bool {
+	return s.raft.IsLeader()
+}
+
+func (s *Server) LeaderId() uint64 {
+	return s.raft.LeaderId()
 }
 
 func (s *Server) Listener(f func(e Event)) {
