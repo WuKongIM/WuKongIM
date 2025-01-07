@@ -1,4 +1,4 @@
-package node
+package clusterconfig
 
 import (
 	"encoding/binary"
@@ -6,7 +6,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/key"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/clusterconfig/key"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble"
@@ -18,15 +18,17 @@ type PebbleShardLogStorage struct {
 	path   string
 	wo     *pebble.WriteOptions
 	noSync *pebble.WriteOptions
+	s      *Server
 	wklog.Log
 }
 
-func NewPebbleShardLogStorage(path string) *PebbleShardLogStorage {
+func NewPebbleShardLogStorage(path string, s *Server) *PebbleShardLogStorage {
 	return &PebbleShardLogStorage{
 		path:   path,
 		wo:     &pebble.WriteOptions{Sync: true},
 		noSync: &pebble.WriteOptions{Sync: false},
 		Log:    wklog.NewWKLog("ConfigPebbleShardLogStorage"),
+		s:      s,
 	}
 }
 
@@ -89,7 +91,7 @@ func (p *PebbleShardLogStorage) AppendLogs(logs []types.Log, termStartIndexInfo 
 
 func (p *PebbleShardLogStorage) Apply(logs []types.Log) error {
 
-	return nil
+	return p.s.applyLogs(logs)
 }
 
 // TruncateLogTo 截断日志

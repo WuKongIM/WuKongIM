@@ -1,11 +1,12 @@
-package node_test
+package clusterconfig_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/clusterconfig"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,7 +30,7 @@ func TestServerPropose(t *testing.T) {
 	// propose
 	timeoutCtx, cancel = context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	resp, err := leader.ProposeUntilApplied(timeoutCtx, 1, []byte("test"))
+	resp, err := leader.ProposeUntilAppliedTimeout(timeoutCtx, 1, []byte("test"))
 	assert.NoError(t, err)
 
 	assert.Equal(t, uint64(1), resp.Id)
@@ -37,14 +38,14 @@ func TestServerPropose(t *testing.T) {
 
 }
 
-func newTwoNodes(t *testing.T) (*node.Server, *node.Server) {
+func newTwoNodes(t *testing.T) (*clusterconfig.Server, *clusterconfig.Server) {
 
 	tt := newTestTransport()
 
-	opts1 := newTestOptions(t, 1, map[uint64]string{1: "", 2: ""}, node.WithTransport(tt))
-	opts2 := newTestOptions(t, 2, map[uint64]string{1: "", 2: ""}, node.WithTransport(tt))
-	s1 := node.New(opts1)
-	s2 := node.New(opts2)
+	opts1 := newTestOptions(t, 1, map[uint64]string{1: "", 2: ""}, clusterconfig.WithTransport(tt))
+	opts2 := newTestOptions(t, 2, map[uint64]string{1: "", 2: ""}, clusterconfig.WithTransport(tt))
+	s1 := clusterconfig.New(opts1)
+	s2 := clusterconfig.New(opts2)
 
 	tt.serverMap[1] = s1
 	tt.serverMap[2] = s2
@@ -52,37 +53,34 @@ func newTwoNodes(t *testing.T) (*node.Server, *node.Server) {
 	return s1, s2
 }
 
-func newTestOptions(t *testing.T, nodeId uint64, initNode map[uint64]string, opt ...node.Option) *node.Options {
-	defaultOpts := make([]node.Option, 0)
-	defaultOpts = append(defaultOpts, node.WithNodeId(nodeId), node.WithInitNodes(initNode), node.WithConfigPath(t.TempDir()+"/cluster.json"))
+func newTestOptions(t *testing.T, nodeId uint64, initNode map[uint64]string, opt ...clusterconfig.Option) *clusterconfig.Options {
+	defaultOpts := make([]clusterconfig.Option, 0)
+	defaultOpts = append(defaultOpts, clusterconfig.WithNodeId(nodeId), clusterconfig.WithInitNodes(initNode), clusterconfig.WithConfigPath(t.TempDir()+"/cluster.json"))
 	defaultOpts = append(defaultOpts, opt...)
-	return node.NewOptions(defaultOpts...)
+	return clusterconfig.NewOptions(defaultOpts...)
 }
 
 type testTransport struct {
-	serverMap map[uint64]*node.Server
+	serverMap map[uint64]*clusterconfig.Server
 }
 
 func newTestTransport() *testTransport {
 
 	return &testTransport{
-		serverMap: make(map[uint64]*node.Server),
+		serverMap: make(map[uint64]*clusterconfig.Server),
 	}
 }
 
-func (t *testTransport) Send(event node.Event) {
+func (t *testTransport) Send(event types.Event) {
 	to := event.To
-	if event.Type == node.RaftEvent {
-		to = event.Event.To
-	}
 	r, ok := t.serverMap[to]
 	if !ok {
 		return
 	}
-	r.AddEvent(event)
+	r.StepRaftEvent(event)
 }
 
-func waitHasLeader(ctx context.Context, servers ...*node.Server) bool {
+func waitHasLeader(ctx context.Context, servers ...*clusterconfig.Server) bool {
 	for {
 		select {
 		case <-ctx.Done():
@@ -102,7 +100,7 @@ func waitHasLeader(ctx context.Context, servers ...*node.Server) bool {
 	}
 }
 
-func getLeader(servers ...*node.Server) *node.Server {
+func getLeader(servers ...*clusterconfig.Server) *clusterconfig.Server {
 	for _, s := range servers {
 		if s.IsLeader() {
 			return s
