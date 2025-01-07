@@ -1,6 +1,7 @@
 package node_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -18,7 +19,21 @@ func TestServerPropose(t *testing.T) {
 	defer s1.Stop()
 	defer s2.Stop()
 
-	time.Sleep(time.Second * 5)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	waitHasLeader(timeoutCtx, s1, s2)
+
+	leader := getLeader(s1, s2)
+	assert.NotNil(t, leader)
+
+	// propose
+	timeoutCtx, cancel = context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	resp, err := leader.ProposeUntilApplied(timeoutCtx, 1, []byte("test"))
+	assert.NoError(t, err)
+
+	assert.Equal(t, uint64(1), resp.Id)
+	assert.Equal(t, uint64(1), resp.Index)
 
 }
 
@@ -65,4 +80,33 @@ func (t *testTransport) Send(event node.Event) {
 		return
 	}
 	r.AddEvent(event)
+}
+
+func waitHasLeader(ctx context.Context, servers ...*node.Server) bool {
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		default:
+		}
+		count := 0
+		for _, s := range servers {
+			if s.LeaderId() != 0 {
+				count++
+			}
+		}
+		if count == len(servers) {
+			return true
+		}
+		time.Sleep(time.Millisecond * 10)
+	}
+}
+
+func getLeader(servers ...*node.Server) *node.Server {
+	for _, s := range servers {
+		if s.IsLeader() {
+			return s
+		}
+	}
+	return nil
 }
