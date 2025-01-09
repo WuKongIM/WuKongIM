@@ -2,8 +2,6 @@ package raft
 
 import (
 	"time"
-
-	"github.com/panjf2000/ants/v2"
 )
 
 type Options struct {
@@ -34,9 +32,6 @@ type Options struct {
 	// MaxLogCountPerBatch 每次同步的最大日志数量
 	MaxLogCountPerBatch uint64
 
-	// Submit 提交给协程执行
-	Submit func(f func()) error
-
 	// GoPoolSize 协程池大小, 如果设置了Submit, 那么这个参数无效
 	GoPoolSize int
 
@@ -54,14 +49,6 @@ func NewOptions(opt ...Option) *Options {
 		MaxLogCountPerBatch: 1000,
 		GoPoolSize:          1000,
 		ProposeTimeout:      time.Second * 5,
-	}
-
-	pool, err := ants.NewPool(opts.GoPoolSize)
-	if err != nil {
-		panic(err)
-	}
-	opts.Submit = func(f func()) error {
-		return pool.Submit(f)
 	}
 
 	for _, o := range opt {
@@ -138,12 +125,6 @@ func WithMaxLogCountPerBatch(maxLogCountPerBatch uint64) Option {
 	}
 }
 
-func WithSubmit(submit func(f func()) error) Option {
-	return func(opts *Options) {
-		opts.Submit = submit
-	}
-}
-
 func WithGoPoolSize(goPoolSize int) Option {
 	return func(opts *Options) {
 		opts.GoPoolSize = goPoolSize
@@ -153,5 +134,11 @@ func WithGoPoolSize(goPoolSize int) Option {
 func WithKey(key string) Option {
 	return func(opts *Options) {
 		opts.Key = key
+	}
+}
+
+func WithProposeTimeout(proposeTimeout time.Duration) Option {
+	return func(opts *Options) {
+		opts.ProposeTimeout = proposeTimeout
 	}
 }

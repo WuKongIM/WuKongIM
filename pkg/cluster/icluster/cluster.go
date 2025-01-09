@@ -34,10 +34,7 @@ type Cluster interface {
 	IsLeaderOfChannel(ctx context.Context, channelId string, channelType uint8) (isLeader bool, err error)
 	// NodeInfoById 获取节点信息
 	NodeInfoById(nodeId uint64) (nodeInfo *pb.Node, err error)
-	// Route 设置接受请求的路由
-	Route(path string, handler wkserver.Handler)
-	// RequestWithContext 发送请求给指定的节点
-	RequestWithContext(ctx context.Context, toNodeId uint64, path string, body []byte) (*proto.Response, error)
+
 	// Send 发送消息给指定的节点, MsgType 使用 1000 - 2000之间的值
 	Send(toNodeId uint64, msg *proto.Message) error
 	// OnMessage 设置接收消息的回调
@@ -69,6 +66,8 @@ type Cluster interface {
 	NodeVersion() uint64
 	// 获取所有节点
 	Nodes() []*pb.Node
+
+	Server
 }
 
 type Propose interface {
@@ -78,6 +77,13 @@ type Propose interface {
 	ProposeToSlot(ctx context.Context, slotId uint32, logs []replica.Log) ([]ProposeResult, error)
 	// ProposeDataToSlot 提案数据到指定的槽
 	ProposeDataToSlot(slotId uint32, data []byte) (ProposeResult, error)
+}
+
+type Server interface {
+	// Route 设置接受请求的路由
+	Route(path string, handler wkserver.Handler)
+	// RequestWithContext 发送请求给指定的节点
+	RequestWithContext(ctx context.Context, toNodeId uint64, path string, body []byte) (*proto.Response, error)
 }
 
 type ProposeResult interface {

@@ -9,7 +9,7 @@ import (
 func (rg *RaftGroup) handleStoreReq(r IRaft, e types.Event) {
 
 	err := rg.goPool.Submit(func() {
-		err := rg.opts.Storage.AppendLogs(r, e.Logs, e.TermStartIndexInfo)
+		err := rg.opts.Storage.AppendLogs(r.Key(), e.Logs, e.TermStartIndexInfo)
 		if err != nil {
 			rg.Error("append logs failed", zap.Error(err))
 		}
@@ -64,7 +64,7 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 			return
 		}
 		// 获取日志数据
-		logs, err := rg.opts.Storage.GetLogs(r, e.Index, e.StoredIndex+1, rg.opts.MaxLogCountPerBatch)
+		logs, err := rg.opts.Storage.GetLogs(r.Key(), e.Index, e.StoredIndex+1, rg.opts.MaxLogCountPerBatch)
 		if err != nil {
 			rg.Error("get logs failed", zap.Error(err))
 			rg.AddEvent(r.Key(), types.Event{
@@ -98,7 +98,7 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 
 func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
 	err := rg.goPool.Submit(func() {
-		err := rg.opts.Storage.TruncateLogTo(r, e.Index)
+		err := rg.opts.Storage.TruncateLogTo(r.Key(), e.Index)
 		if err != nil {
 			rg.Error("truncate logs failed", zap.Error(err))
 			rg.AddEvent(r.Key(), types.Event{
@@ -108,7 +108,7 @@ func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
 			return
 		}
 		// 删除本地的leader term start index
-		err = rg.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(r, e.Term)
+		err = rg.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(r.Key(), e.Term)
 		if err != nil {
 			rg.Error("delete leader term start index failed", zap.Error(err), zap.Uint32("term", e.Term))
 			rg.AddEvent(r.Key(), types.Event{
@@ -134,7 +134,7 @@ func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
 
 func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
 	err := rg.goPool.Submit(func() {
-		logs, err := rg.opts.Storage.GetLogs(r, e.StartIndex, e.EndIndex, 0)
+		logs, err := rg.opts.Storage.GetLogs(r.Key(), e.StartIndex, e.EndIndex, 0)
 		if err != nil {
 			rg.Error("get logs failed", zap.Error(err))
 			rg.AddEvent(r.Key(), types.Event{
@@ -151,7 +151,7 @@ func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
 			})
 			return
 		}
-		err = rg.opts.Storage.Apply(r, logs)
+		err = rg.opts.Storage.Apply(r.Key(), logs)
 		if err != nil {
 			rg.Error("apply logs failed", zap.Error(err))
 			rg.AddEvent(r.Key(), types.Event{
@@ -179,7 +179,7 @@ func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
 
 // 根据副本的同步数据，来获取副本的需要裁剪的日志下标，如果不需要裁剪，则返回0
 func (rg *RaftGroup) getTrunctLogIndex(r IRaft, e types.Event) (uint64, types.Reason) {
-	leaderLastLogTerm, err := rg.opts.Storage.LeaderLastLogTerm(r)
+	leaderLastLogTerm, err := rg.opts.Storage.LeaderLastLogTerm(r.Key())
 	if err != nil {
 		rg.Error("get leader last log term failed", zap.Error(err))
 		return 0, types.ReasonError
@@ -201,7 +201,7 @@ func (rg *RaftGroup) getTrunctLogIndex(r IRaft, e types.Event) (uint64, types.Re
 	// 如果副本的最新日志任期小于当前领导的最新日志任期，则需要裁剪
 	if e.LastLogTerm < leaderLastLogTerm {
 		// 获取副本的最新日志任期+1的开始日志下标
-		termStartIndex, err := rg.opts.Storage.GetTermStartIndex(r, e.LastLogTerm+1)
+		termStartIndex, err := rg.opts.Storage.GetTermStartIndex(r.Key(), e.LastLogTerm+1)
 		if err != nil {
 			rg.Error("get term start index failed", zap.Error(err))
 			return 0, types.ReasonError
