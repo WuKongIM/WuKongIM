@@ -114,6 +114,60 @@ func (rg *RaftGroup) ProposeTimeout(ctx context.Context, raftKey string, id uint
 	}
 }
 
+// ProposeBatchUntilAppliedTimeout 批量提案（等待应用）
+func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, key string, reqs types.ProposeReqSet) ([]*types.ProposeResp, error) {
+	// // 等待应用
+	// var (
+	// 	applyProcess *progress
+	// 	resps        []*types.ProposeResp
+	// 	err          error
+	// 	needWait     = true
+	// )
+	// if !rg.node.IsLeader() {
+	// 	// 如果不是leader，则转发给leader
+	// 	resps, err = r.fowardPropose(ctx, reqs)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	maxLogIndex := resps[len(resps)-1].Index
+	// 	// 如果最大的日志下标大于已应用的日志下标，则不需要等待
+	// 	if r.node.queue.appliedLogIndex >= maxLogIndex {
+	// 		needWait = false
+	// 	}
+	// 	if needWait {
+	// 		applyProcess = r.wait.waitApply(maxLogIndex)
+	// 	}
+	// } else {
+	// 	resps, err = r.proposeBatch(ctx, reqs, func(logs []types.Log) {
+	// 		maxLogIndex := logs[len(logs)-1].Index
+	// 		// 如果最大的日志下标大于已应用的日志下标，则不需要等待
+	// 		if r.node.queue.appliedLogIndex >= maxLogIndex {
+	// 			needWait = false
+	// 		}
+	// 		if needWait {
+	// 			applyProcess = r.wait.waitApply(maxLogIndex)
+	// 		}
+
+	// 	})
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
+
+	// if needWait {
+	// 	select {
+	// 	case <-applyProcess.waitC:
+	// 		return resps, nil
+	// 	case <-ctx.Done():
+	// 		return nil, ctx.Err()
+	// 	case <-r.stopper.ShouldStop():
+	// 		return nil, ErrGroupStopped
+	// 	}
+	// } else {
+	// 	return resps, nil
+	// }
+}
+
 // ProposeBatchTimeout 批量提案
 func (rg *RaftGroup) ProposeBatchTimeout(ctx context.Context, raftKey string, reqs []types.ProposeReq) ([]*types.ProposeResp, error) {
 	raft := rg.raftList.get(raftKey)
@@ -177,6 +231,15 @@ func (rg *RaftGroup) AddRaft(r IRaft) {
 
 func (rg *RaftGroup) RemoveRaft(r IRaft) {
 	rg.raftList.remove(r.Key())
+}
+
+func (rg *RaftGroup) GetRaft(raftKey string) IRaft {
+	return rg.raftList.get(raftKey)
+}
+
+func (rg *RaftGroup) GetRafts() []IRaft {
+
+	return rg.raftList.all()
 }
 
 func (rg *RaftGroup) IsLeader(raftKey string) bool {
@@ -334,7 +397,7 @@ func (rg *RaftGroup) handleReady(r IRaft) bool {
 			}
 			continue
 		}
-		rg.opts.Transport.Send(r, e)
+		rg.opts.Transport.Send(r.Key(), e)
 	}
 	return true
 }

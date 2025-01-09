@@ -17,10 +17,12 @@ type Options struct {
 	SlotCount              uint32 // 槽位数量
 	SlotMaxReplicaCount    uint32 // 每个槽位最大副本数量
 	ChannelMaxReplicaCount uint32 // 每个频道最大副本数量
-
-	ConfigPath string // 集群配置文件路径
+	ConfigPath             string // 集群配置文件路径
 	// Transport 传输层
 	Transport raft.Transport
+
+	PongMaxTick int // pongMaxTick 节点超过多少tick没有回应心跳就认为是掉线
+
 }
 
 func NewOptions(opts ...Option) *Options {
@@ -30,6 +32,7 @@ func NewOptions(opts ...Option) *Options {
 		SlotMaxReplicaCount:    3,
 		ChannelMaxReplicaCount: 3,
 		ConfigPath:             "clusterconfig.json",
+		PongMaxTick:            30,
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -89,5 +92,11 @@ func WithTransport(transport raft.Transport) Option {
 func WithApiServerAddr(apiServerAddr string) Option {
 	return func(o *Options) {
 		o.ApiServerAddr = apiServerAddr
+	}
+}
+
+func WithPongMaxTick(pongMaxTick int) Option {
+	return func(o *Options) {
+		o.PongMaxTick = pongMaxTick
 	}
 }

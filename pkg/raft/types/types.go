@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/track"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
 type Reason uint8
@@ -55,6 +56,9 @@ const (
 	ConfChange
 	// Propose 提案， leader
 	Propose
+	// SendPropose 发送提案， follower -> leader
+	SendPropose
+	SendProposeResp
 	// NotifySync 通知副本过来同步日志 leader -> follower
 	NotifySync
 	// SyncReq 同步 ， follower -> leader
@@ -81,6 +85,10 @@ const (
 	ApplyReq
 	// ApplyResp 应用日志响应， local event
 	ApplyResp
+	// NodeOfflineReq 节点下线请求
+	NodeOfflineReq
+	// NodeOfflineResp 节点下线响应
+	NodeOfflineResp
 )
 
 func (e EventType) String() string {
@@ -95,6 +103,10 @@ func (e EventType) String() string {
 		return "ConfChange"
 	case Propose:
 		return "Propose"
+	case SendPropose:
+		return "SendPropose"
+	case SendProposeResp:
+		return "SendProposeResp"
 	case NotifySync:
 		return "NotifySync"
 	case SyncReq:
@@ -117,6 +129,14 @@ func (e EventType) String() string {
 		return "ApplyReq"
 	case ApplyResp:
 		return "ApplyResp"
+	case TruncateReq:
+		return "TruncateReq"
+	case TruncateResp:
+		return "TruncateResp"
+	case NodeOfflineReq:
+		return "NodeOfflineReq"
+	case NodeOfflineResp:
+		return "NodeOfflineResp"
 	default:
 		return "Unknown"
 	}
@@ -318,8 +338,163 @@ type ProposeResp struct {
 	Index uint64
 }
 
+type ProposeRespSet []*ProposeResp
+
+func (p ProposeRespSet) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	enc.WriteUint32(uint32(len(p)))
+	for _, v := range p {
+		enc.WriteUint64(v.Id)
+		enc.WriteUint64(v.Index)
+	}
+	return enc.Bytes(), nil
+}
+
+func (p *ProposeRespSet) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var size uint32
+	if size, err = dec.Uint32(); err != nil {
+		return err
+	}
+	for i := 0; i < int(size); i++ {
+		var resp ProposeResp
+		id, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		resp.Id = id
+		index, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		resp.Index = index
+		*p = append(*p, &resp)
+	}
+	return nil
+}
+
 // ProposeReq 提案请求
 type ProposeReq struct {
 	Id   uint64
 	Data []byte
+}
+
+func (p *ProposeReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	enc.WriteUint64(p.Id)
+	enc.WriteBytes(p.Data)
+	return enc.Bytes(), nil
+}
+
+func (p *ProposeReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if p.Id, err = dec.Uint64(); err != nil {
+		return err
+	}
+	if p.Data, err = dec.BinaryAll(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type ProposeReqSet []ProposeReq
+
+func (p ProposeReqSet) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(uint32(len(p)))
+	for _, v := range p {
+		enc.WriteUint64(v.Id)
+		enc.WriteUint32(uint32(len(v.Data)))
+		enc.WriteBytes(v.Data)
+	}
+	return enc.Bytes(), nil
+}
+
+func (p *ProposeReqSet) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var size uint32
+	if size, err = dec.Uint32(); err != nil {
+		return err
+	}
+	for i := 0; i < int(size); i++ {
+		var req ProposeReq
+		id, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		req.Id = id
+		dataLen, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		req.Data, err = dec.Bytes(int(dataLen))
+		if err != nil {
+			return err
+		}
+		*p = append(*p, req)
+	}
+	return nil
+}
+
+type ProposeForwardReq struct {
+	Key string
+	ProposeReqSet
+}
+
+func (p ProposeForwardReq) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	enc.WriteString(p.Key)
+	data, err := p.ProposeReqSet.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	enc.WriteBytes(data)
+	return enc.Bytes(), nil
+}
+
+func (p *ProposeForwardReq) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if p.Key, err = dec.String(); err != nil {
+		return err
+	}
+	data, err = dec.BinaryAll()
+	if err != nil {
+		return err
+	}
+	return p.ProposeReqSet.Unmarshal(data)
+}
+
+type ProposeForwardResp struct {
+	Key string
+	ProposeRespSet
+}
+
+func (p ProposeForwardResp) Marshal() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(p.Key)
+	data, err := p.ProposeRespSet.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	enc.WriteBytes(data)
+	return enc.Bytes(), nil
+}
+
+func (p *ProposeForwardResp) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if p.Key, err = dec.String(); err != nil {
+		return err
+	}
+	data, err = dec.BinaryAll()
+	if err != nil {
+		return err
+	}
+	return p.ProposeRespSet.Unmarshal(data)
 }

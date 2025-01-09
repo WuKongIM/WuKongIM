@@ -52,7 +52,7 @@ type Node struct {
 func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Options) *Node {
 	n := &Node{
 		opts: opts,
-		Log:  wklog.NewWKLog(fmt.Sprintf("raft.node[%d]", opts.NodeId)),
+		Log:  wklog.NewWKLog(fmt.Sprintf("raft.node[%s]", opts.Key)),
 	}
 	n.cfg.Replicas = append(n.cfg.Replicas, opts.Replicas...)
 

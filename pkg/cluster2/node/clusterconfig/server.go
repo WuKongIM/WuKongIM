@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raft"
 	rafttypes "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -24,6 +25,8 @@ type Server struct {
 	cfgGenId *snowflake.Node
 
 	wklog.Log
+
+	listeners []IEvent
 }
 
 func New(opts *Options) *Server {
@@ -64,6 +67,7 @@ func mkDirAll(p string) error {
 }
 
 func (s *Server) Start() error {
+
 	err := s.storage.Open()
 	if err != nil {
 		return err
@@ -113,6 +117,25 @@ func (s *Server) Stop() {
 	s.storage.Close()
 }
 
+func (s *Server) AddEventListener(listener IEvent) {
+	s.listeners = append(s.listeners, listener)
+}
+
+func (s *Server) RemoveEventListener(listener IEvent) {
+	for i, l := range s.listeners {
+		if l == listener {
+			s.listeners = append(s.listeners[:i], s.listeners[i+1:]...)
+			break
+		}
+	}
+}
+
+func (s *Server) NotifyConfigChangeEvent() {
+	for _, l := range s.listeners {
+		l.OnConfigChange(s.GetClusterConfig())
+	}
+}
+
 func (s *Server) Propose(id uint64, data []byte) (*rafttypes.ProposeResp, error) {
 	return s.raft.Propose(id, data)
 }
@@ -126,9 +149,12 @@ func (s *Server) ProposeUntilApplied(id uint64, data []byte) (*rafttypes.Propose
 	return s.raft.ProposeUntilApplied(id, data)
 }
 
-// 批量提案
 func (s *Server) ProposeBatchTimeout(ctx context.Context, reqs []rafttypes.ProposeReq) ([]*rafttypes.ProposeResp, error) {
 	return s.raft.ProposeBatchTimeout(ctx, reqs)
+}
+
+func (s *Server) ProposeBatchUntilAppliedTimeout(ctx context.Context, reqs []rafttypes.ProposeReq) ([]*rafttypes.ProposeResp, error) {
+	return s.raft.ProposeBatchUntilAppliedTimeout(ctx, reqs)
 }
 
 func (s *Server) StepRaftEvent(e rafttypes.Event) {
@@ -162,6 +188,43 @@ func (s *Server) GetClusterConfig() *types.Config {
 // 是否已初始化
 func (s *Server) IsInitialized() bool {
 	return s.config.isInitialized()
+}
+
+func (s *Server) Node(id uint64) *pb.Node {
+	return s.config.node(id)
+}
+
+func (s *Server) Nodes() []*pb.Node {
+	return s.config.nodes()
+}
+func (s *Server) Slots() []*pb.Slot {
+	return s.config.slots()
+}
+
+// AllowVoteNodes 获取允许投票的节点
+func (s *Server) AllowVoteNodes() []*pb.Node {
+	return s.config.allowVoteNodes()
+}
+
+// 获取允许投票的并且已经加入了的节点集合
+func (s *Server) AllowVoteAndJoinedNodes() []*pb.Node {
+	return s.config.allowVoteAndJoinedNodes()
+}
+
+// 获取允许投票的并且已经加入了的节点数量
+func (s *Server) AllowVoteAndJoinedNodeCount() int {
+	return s.config.allowVoteAndJoinedNodeCount()
+}
+
+// 获取允许投票的并且已经加入了的在线节点数量
+func (s *Server) AllowVoteAndJoinedOnlineNodeCount() int {
+	return s.config.allowVoteAndJoinedOnlineNodeCount()
+}
+
+// 获取允许投票的并且已经加入了的在线节点
+func (s *Server) AllowVoteAndJoinedOnlineNodes() []*pb.Node {
+
+	return s.config.allowVoteAndJoinedOnlineNodes()
 }
 
 // 生成配置ID
