@@ -45,6 +45,14 @@ func NewWukongDB(opts *Options) DB {
 	if err != nil {
 		panic(err)
 	}
+
+	var metrics trace.IDBMetrics
+	if trace.GlobalTrace != nil {
+		metrics = trace.GlobalTrace.Metrics.DB()
+	} else {
+		metrics = trace.NewDBMetrics()
+	}
+
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 	return &wukongDB{
 		opts:         opts,
@@ -53,7 +61,7 @@ func NewWukongDB(opts *Options) DB {
 		endian:       binary.BigEndian,
 		cancelCtx:    cancelCtx,
 		cancelFunc:   cancelFunc,
-		metrics:      trace.GlobalTrace.Metrics.DB(),
+		metrics:      metrics,
 		h:            fnv.New32(),
 		sync: &pebble.WriteOptions{
 			Sync: true,

@@ -134,6 +134,9 @@ func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
 
 func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
 	err := rg.goPool.Submit(func() {
+		// 已提交
+		rg.wait.didCommit(r.Key(), e.EndIndex-1)
+
 		logs, err := rg.opts.Storage.GetLogs(r.Key(), e.StartIndex, e.EndIndex, 0)
 		if err != nil {
 			rg.Error("get logs failed", zap.Error(err))
@@ -166,6 +169,8 @@ func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
 			Reason: types.ReasonOk,
 			Index:  lastLogIndex,
 		})
+		// 已应用
+		rg.wait.didApply(r.Key(), lastLogIndex)
 		rg.Advance()
 	})
 	if err != nil {

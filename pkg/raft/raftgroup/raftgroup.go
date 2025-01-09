@@ -1,12 +1,11 @@
 package raftgroup
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/track"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	wt "github.com/WuKongIM/WuKongIM/pkg/wait"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
@@ -26,16 +25,22 @@ type RaftGroup struct {
 	wklog.Log
 
 	mq *EventQueue
+
+	wait *wait
+
+	fowardProposeWait wt.Wait // 转发提按给领导等待领导的回应
 }
 
 func New(opts *Options) *RaftGroup {
 	rg := &RaftGroup{
-		raftList: newLinkedList(),
-		stopper:  syncutil.NewStopper(),
-		opts:     opts,
-		advanceC: make(chan struct{}, 1),
-		Log:      wklog.NewWKLog("RaftGroup"),
-		mq:       NewEventQueue(opts.ReceiveQueueLength, false, 0, 0),
+		raftList:          newLinkedList(),
+		stopper:           syncutil.NewStopper(),
+		opts:              opts,
+		advanceC:          make(chan struct{}, 1),
+		Log:               wklog.NewWKLog("RaftGroup"),
+		mq:                NewEventQueue(opts.ReceiveQueueLength, false, 0, 0),
+		wait:              newWait(),
+		fowardProposeWait: wt.New(),
 	}
 	var err error
 	rg.goPool, err = ants.NewPool(opts.GoPoolSize)
@@ -47,182 +52,6 @@ func New(opts *Options) *RaftGroup {
 
 func (rg *RaftGroup) Options() *Options {
 	return rg.opts
-}
-
-func (rg *RaftGroup) Propose(raftKey string, id uint64, data []byte) (*types.ProposeResp, error) {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), rg.opts.ProposeTimeout)
-	defer cancel()
-	rg.Info("propose", zap.String("raftKey", raftKey), zap.Uint64("id", id), zap.ByteString("data", data))
-	return rg.ProposeTimeout(timeoutCtx, raftKey, id, data)
-}
-
-func (rg *RaftGroup) ProposeTimeout(ctx context.Context, raftKey string, id uint64, data []byte) (*types.ProposeResp, error) {
-	raft := rg.raftList.get(raftKey)
-	if raft == nil {
-		return nil, fmt.Errorf("raft not found, key:%s", raftKey)
-	}
-
-	if !raft.IsLeader() {
-		return nil, fmt.Errorf("raft not leader, key:%s", raftKey)
-	}
-
-	raft.Lock()
-	defer raft.Unlock()
-
-	lastLogIndex := raft.LastLogIndex()
-
-	logIndex := lastLogIndex + 1
-
-	waitC := make(chan error, 1)
-
-	// 轨迹记录
-	record := track.Record{
-		PreStart: time.Now(),
-	}
-	record.Add(track.PositionStart)
-
-	// 添加提案事件
-	rg.mq.MustAdd(Event{
-		RaftKey: raftKey,
-		Event: types.Event{
-			Type: types.Propose,
-			Logs: []types.Log{
-				{
-					Id:     id,
-					Term:   raft.LastTerm(),
-					Index:  logIndex,
-					Data:   data,
-					Record: record,
-				},
-			},
-		},
-		WaitC: waitC,
-	})
-	rg.Advance()
-
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("propose timeout")
-	case err := <-waitC:
-		if err != nil {
-			return nil, err
-		}
-		return &types.ProposeResp{
-			Id:    id,
-			Index: logIndex,
-		}, nil
-	}
-}
-
-// ProposeBatchUntilAppliedTimeout 批量提案（等待应用）
-func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, key string, reqs types.ProposeReqSet) ([]*types.ProposeResp, error) {
-	// // 等待应用
-	// var (
-	// 	applyProcess *progress
-	// 	resps        []*types.ProposeResp
-	// 	err          error
-	// 	needWait     = true
-	// )
-	// if !rg.node.IsLeader() {
-	// 	// 如果不是leader，则转发给leader
-	// 	resps, err = r.fowardPropose(ctx, reqs)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	maxLogIndex := resps[len(resps)-1].Index
-	// 	// 如果最大的日志下标大于已应用的日志下标，则不需要等待
-	// 	if r.node.queue.appliedLogIndex >= maxLogIndex {
-	// 		needWait = false
-	// 	}
-	// 	if needWait {
-	// 		applyProcess = r.wait.waitApply(maxLogIndex)
-	// 	}
-	// } else {
-	// 	resps, err = r.proposeBatch(ctx, reqs, func(logs []types.Log) {
-	// 		maxLogIndex := logs[len(logs)-1].Index
-	// 		// 如果最大的日志下标大于已应用的日志下标，则不需要等待
-	// 		if r.node.queue.appliedLogIndex >= maxLogIndex {
-	// 			needWait = false
-	// 		}
-	// 		if needWait {
-	// 			applyProcess = r.wait.waitApply(maxLogIndex)
-	// 		}
-
-	// 	})
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// }
-
-	// if needWait {
-	// 	select {
-	// 	case <-applyProcess.waitC:
-	// 		return resps, nil
-	// 	case <-ctx.Done():
-	// 		return nil, ctx.Err()
-	// 	case <-r.stopper.ShouldStop():
-	// 		return nil, ErrGroupStopped
-	// 	}
-	// } else {
-	// 	return resps, nil
-	// }
-}
-
-// ProposeBatchTimeout 批量提案
-func (rg *RaftGroup) ProposeBatchTimeout(ctx context.Context, raftKey string, reqs []types.ProposeReq) ([]*types.ProposeResp, error) {
-	raft := rg.raftList.get(raftKey)
-	if raft == nil {
-		return nil, fmt.Errorf("raft not found, key:%s", raftKey)
-	}
-
-	if !raft.IsLeader() {
-		return nil, fmt.Errorf("raft not leader, key:%s", raftKey)
-	}
-
-	raft.Lock()
-	defer raft.Unlock()
-
-	lastLogIndex := raft.LastLogIndex()
-	logs := make([]types.Log, 0, len(reqs))
-	for i, req := range reqs {
-		logIndex := lastLogIndex + 1 + uint64(i)
-		logs = append(logs, types.Log{
-			Id:    req.Id,
-			Term:  raft.LastTerm(),
-			Index: logIndex,
-			Data:  req.Data,
-		})
-	}
-
-	waitC := make(chan error, 1)
-	rg.mq.MustAdd(Event{
-		RaftKey: raftKey,
-		Event: types.Event{
-			Type: types.Propose,
-			Logs: logs,
-		},
-		WaitC: waitC,
-	})
-
-	rg.Advance()
-
-	select {
-	case <-ctx.Done():
-		return nil, fmt.Errorf("propose timeout")
-	case err := <-waitC:
-		if err != nil {
-			return nil, err
-		}
-		resps := make([]*types.ProposeResp, 0, len(reqs))
-		for i, req := range reqs {
-			logIndex := lastLogIndex + 1 + uint64(i)
-			resps = append(resps, &types.ProposeResp{
-				Id:    req.Id,
-				Index: logIndex,
-			})
-		}
-		return resps, nil
-	}
 }
 
 func (rg *RaftGroup) AddRaft(r IRaft) {
@@ -267,17 +96,34 @@ func (rg *RaftGroup) Advance() {
 }
 
 // AddEvent 添加事件
-func (rg *RaftGroup) AddEvent(raftKey string, event types.Event) {
+func (rg *RaftGroup) AddEvent(raftKey string, e types.Event) {
+
+	if e.Type == types.SendPropose {
+		rg.handleSendPropose(raftKey, e)
+		return
+	} else if e.Type == types.SendProposeResp {
+		rg.handleSendProposeResp(e)
+		return
+	}
+
 	rg.mq.MustAdd(Event{
 		RaftKey: raftKey,
-		Event:   event,
+		Event:   e,
 	})
 }
 
-func (rg *RaftGroup) TryAddEvent(raftKey string, event types.Event) {
+func (rg *RaftGroup) TryAddEvent(raftKey string, e types.Event) {
+	if e.Type == types.SendPropose {
+		rg.handleSendPropose(raftKey, e)
+		return
+	} else if e.Type == types.SendProposeResp {
+		rg.handleSendProposeResp(e)
+		return
+	}
+
 	rg.mq.Add(Event{
 		RaftKey: raftKey,
-		Event:   event,
+		Event:   e,
 	})
 }
 

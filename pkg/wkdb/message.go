@@ -38,10 +38,12 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 		if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
 			return err
 		}
-		err := wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
-		if err != nil {
-			return err
-		}
+
+	}
+	lastMsg := msgs[len(msgs)-1]
+	err := wk.setChannelLastMessageSeq(channelId, channelType, uint64(lastMsg.MessageSeq), batch)
+	if err != nil {
+		return err
 	}
 
 	return batch.CommitWait()
@@ -398,19 +400,31 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 
 }
 
-func (wk *wukongDB) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error) {
+func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, limit int) ([]Message, error) {
 
 	wk.metrics.LoadLastMsgsAdd(1)
 
-	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelID, channelType)
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return nil, err
 	}
 	if lastSeq == 0 {
 		return nil, nil
 	}
-	return wk.LoadPrevRangeMsgs(channelID, channelType, lastSeq, 0, limit)
+	return wk.LoadPrevRangeMsgs(channelId, channelType, lastSeq, 0, limit)
 
+}
+
+// 获取最新的一条消息
+func (wk *wukongDB) GetLastMsg(channelId string, channelType uint8) (Message, error) {
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		return EmptyMessage, err
+	}
+	if lastSeq == 0 {
+		return EmptyMessage, nil
+	}
+	return wk.LoadMsg(channelId, channelType, lastSeq)
 }
 
 func (wk *wukongDB) LoadLastMsgsWithEnd(channelID string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error) {

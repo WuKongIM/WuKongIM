@@ -79,10 +79,6 @@ func (s *Server) ProposeSlots(slots []*pb.Slot) error {
 
 	_, err = s.ProposeUntilApplied(s.genConfigId(), cmdBytes)
 	if err != nil {
-		s.Error("ProposeNodeOnlineStatus failed", zap.Error(err))
-		return err
-	}
-	if err != nil {
 		s.Error("ProposeSlots failed", zap.Error(err))
 		return err
 	}

@@ -1,6 +1,10 @@
 package slot
 
-import "github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/icluster"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+)
 
 type Options struct {
 	// 节点Id
@@ -9,9 +13,15 @@ type Options struct {
 	DataDir string
 	// 槽位数据库分片数量
 	SlotDbShardNum int
-
+	// 节点接口
+	Node icluster.Node
 	// 传输层
 	Transport raftgroup.ITransport
+	// 槽数量
+	SlotCount uint32
+
+	// OnApply 应用日志回调
+	OnApply func(logs []types.Log) error
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -49,5 +59,23 @@ func WithSlotDbShardNum(slotDbShardNum int) Option {
 func WithTransport(transport raftgroup.ITransport) Option {
 	return func(o *Options) {
 		o.Transport = transport
+	}
+}
+
+func WithNode(node icluster.Node) Option {
+	return func(o *Options) {
+		o.Node = node
+	}
+}
+
+func WithSlotCount(slotCount uint32) Option {
+	return func(o *Options) {
+		o.SlotCount = slotCount
+	}
+}
+
+func WithOnApply(onApply func(logs []types.Log) error) Option {
+	return func(o *Options) {
+		o.OnApply = onApply
 	}
 }

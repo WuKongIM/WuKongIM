@@ -160,6 +160,14 @@ func (n *Node) CommittedIndex() uint64 {
 	return n.queue.committedIndex
 }
 
+func (n *Node) AppliedIndex() uint64 {
+	return n.queue.appliedIndex
+}
+
+func (n *Node) NodeId() uint64 {
+	return n.opts.NodeId
+}
+
 func (n *Node) advance() {
 	if n.opts.Advance != nil {
 		n.opts.Advance()

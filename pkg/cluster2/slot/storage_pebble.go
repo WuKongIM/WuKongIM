@@ -30,9 +30,10 @@ type PebbleShardLogStorage struct {
 
 	appendC chan reactor.AppendLogReq
 	stopper syncutil.Stopper
+	s       *Server
 }
 
-func NewPebbleShardLogStorage(path string, shardNum uint32) *PebbleShardLogStorage {
+func NewPebbleShardLogStorage(s *Server, path string, shardNum uint32) *PebbleShardLogStorage {
 	return &PebbleShardLogStorage{
 		shardNum: shardNum,
 		path:     path,
@@ -45,6 +46,7 @@ func NewPebbleShardLogStorage(path string, shardNum uint32) *PebbleShardLogStora
 		Log:     wklog.NewWKLog(fmt.Sprintf("PebbleShardLogStorage[%s]", path)),
 		appendC: make(chan reactor.AppendLogReq, 1000),
 		stopper: *syncutil.NewStopper(),
+		s:       s,
 	}
 }
 
@@ -303,6 +305,9 @@ func (p *PebbleShardLogStorage) GetLogs(shardNo string, startLogIndex uint64, en
 }
 
 func (p *PebbleShardLogStorage) Apply(shardNo string, logs []types.Log) error {
+	if p.s.opts.OnApply != nil {
+		return p.s.opts.OnApply(logs)
+	}
 	return nil
 }
 
