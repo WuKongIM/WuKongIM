@@ -23,6 +23,11 @@ type IRaft interface {
 	LastTerm() uint32
 	// CommittedIndex 已提交的下标
 	CommittedIndex() uint64
+	// AppliedIndex 已应用的日志下标
+	AppliedIndex() uint64
+
+	// NodeId 当前节点id
+	NodeId() uint64
 	// Lock 锁
 	Lock()
 	Unlock()

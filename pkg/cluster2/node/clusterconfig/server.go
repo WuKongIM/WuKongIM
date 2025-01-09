@@ -99,6 +99,7 @@ func (s *Server) initRaft() error {
 	}
 
 	s.raft = raft.New(raft.NewOptions(
+		raft.WithKey("clusterconfig"),
 		raft.WithNodeId(s.opts.NodeId),
 		raft.WithTransport(newRaftTransport(s)),
 		raft.WithStorage(s.storage),
@@ -199,6 +200,10 @@ func (s *Server) Nodes() []*pb.Node {
 }
 func (s *Server) Slots() []*pb.Slot {
 	return s.config.slots()
+}
+
+func (s *Server) SlotCount() uint32 {
+	return s.config.slotCount()
 }
 
 // AllowVoteNodes 获取允许投票的节点
