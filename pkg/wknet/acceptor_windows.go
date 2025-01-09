@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type Acceptor struct {
+type acceptor struct {
 	reactorSubs []*ReactorSub
 	eg          *Engine
 	wklog.Log
@@ -18,12 +18,12 @@ type Acceptor struct {
 	listenWSS *listener // websocket
 }
 
-func NewAcceptor(eg *Engine) *Acceptor {
+func newAcceptor(eg *Engine) *acceptor {
 	reactorSubs := make([]*ReactorSub, eg.options.SubReactorNum)
 	for i := 0; i < eg.options.SubReactorNum; i++ {
 		reactorSubs[i] = NewReactorSub(eg, i)
 	}
-	a := &Acceptor{
+	a := &acceptor{
 		eg:          eg,
 		reactorSubs: reactorSubs,
 		Log:         wklog.NewWKLog("Acceptor"),
@@ -31,11 +31,11 @@ func NewAcceptor(eg *Engine) *Acceptor {
 	return a
 }
 
-func (a *Acceptor) Start() error {
+func (a *acceptor) Start() error {
 	return a.start()
 }
 
-func (a *Acceptor) Stop() error {
+func (a *acceptor) Stop() error {
 	err := a.listen.Close()
 	if err != nil {
 		a.Warn("listen.Close() failed", zap.Error(err))
@@ -54,20 +54,20 @@ func (a *Acceptor) Stop() error {
 	return nil
 }
 
-func (a *Acceptor) tcpRealAddr() net.Addr {
+func (a *acceptor) tcpRealAddr() net.Addr {
 
 	return a.listen.realAddr
 }
 
-func (a *Acceptor) wsRealAddr() net.Addr {
+func (a *acceptor) wsRealAddr() net.Addr {
 	return a.listenWS.realAddr
 }
 
-func (a *Acceptor) wssRealAddr() net.Addr {
+func (a *acceptor) wssRealAddr() net.Addr {
 	return a.listenWSS.realAddr
 }
 
-func (a *Acceptor) start() error {
+func (a *acceptor) start() error {
 	for _, reactorSub := range a.reactorSubs {
 		reactorSub.Start()
 	}
@@ -107,7 +107,7 @@ func (a *Acceptor) start() error {
 	return nil
 }
 
-func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
+func (a *acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	// tcp
 	a.listen = newListener(a.eg.options.Addr, a.eg.options)
 	err := a.listen.init()
@@ -121,7 +121,7 @@ func (a *Acceptor) initTCPListener(wg *sync.WaitGroup) error {
 	return nil
 }
 
-func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
+func (a *acceptor) initWSListener(wg *sync.WaitGroup) error {
 	// ws
 	a.listenWS = newListener(a.eg.options.WsAddr, a.eg.options)
 	err := a.listenWS.init()
@@ -135,7 +135,7 @@ func (a *Acceptor) initWSListener(wg *sync.WaitGroup) error {
 	return nil
 }
 
-func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
+func (a *acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	// wss
 	a.listenWSS = newListener(a.eg.options.WssAddr, a.eg.options)
 	err := a.listenWSS.init()
@@ -149,7 +149,7 @@ func (a *Acceptor) initWSSListener(wg *sync.WaitGroup) error {
 	return nil
 }
 
-func (a *Acceptor) acceptConn(connNetFd NetFd, ws bool, wss bool) error {
+func (a *acceptor) acceptConn(connNetFd NetFd, ws bool, wss bool) error {
 	var (
 		conn Conn
 		err  error
@@ -179,7 +179,7 @@ func (a *Acceptor) acceptConn(connNetFd NetFd, ws bool, wss bool) error {
 	return nil
 }
 
-func (a *Acceptor) reactorSubByConnFd(connfd int) *ReactorSub {
+func (a *acceptor) reactorSubByConnFd(connfd int) *ReactorSub {
 
 	return a.reactorSubs[connfd%len(a.reactorSubs)]
 }
