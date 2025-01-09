@@ -9,6 +9,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/bwmarrin/snowflake"
 	"go.uber.org/zap"
 )
 
@@ -17,6 +19,7 @@ type Server struct {
 	storage   *PebbleShardLogStorage
 	opts      *Options
 	wklog.Log
+	genLogId *snowflake.Node
 }
 
 func NewServer(opts *Options) *Server {
@@ -24,8 +27,13 @@ func NewServer(opts *Options) *Server {
 		opts: opts,
 		Log:  wklog.NewWKLog("slot.Server"),
 	}
+	s.storage = NewPebbleShardLogStorage(s, path.Join(opts.DataDir, "logdb"), uint32(opts.SlotDbShardNum))
 	s.raftGroup = raftgroup.New(raftgroup.NewOptions(raftgroup.WithStorage(s.storage), raftgroup.WithTransport(opts.Transport)))
-	s.storage = NewPebbleShardLogStorage(path.Join(opts.DataDir, "logdb"), uint32(opts.SlotDbShardNum))
+	var err error
+	s.genLogId, err = snowflake.NewNode(int64(opts.NodeId))
+	if err != nil {
+		s.Panic("snowflake.NewNode failed", zap.Error(err))
+	}
 	return s
 }
 
@@ -58,10 +66,6 @@ func (s *Server) AddEvent(shardNo string, event types.Event) {
 	s.raftGroup.AddEvent(shardNo, event)
 }
 
-func (s *Server) Propose(raftKey string, id uint64, data []byte) (*types.ProposeResp, error) {
-	return s.raftGroup.Propose(raftKey, id, data)
-}
-
 func SlotIdToKey(slotId uint32) string {
 	return strconv.FormatUint(uint64(slotId), 10)
 }
@@ -92,4 +96,17 @@ func (s *Server) WaitAllSlotReady(ctx context.Context, slotCount int) error {
 			return nil
 		}
 	}
+}
+
+func (s *Server) GenLogId() uint64 {
+	return uint64(s.genLogId.Generate().Int64())
+}
+
+// 获取频道所在的slotId
+func (s *Server) getSlotId(v string) uint32 {
+	var slotCount uint32 = s.opts.Node.SlotCount()
+	if slotCount == 0 {
+		slotCount = s.opts.SlotCount
+	}
+	return wkutil.GetSlotNum(int(slotCount), v)
 }

@@ -1,0 +1,90 @@
+package channel
+
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/icluster"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
+)
+
+type Options struct {
+	// 节点ID
+	NodeId uint64
+	// slot的接口
+	Slot icluster.Slot
+	// 节点接口
+	Node icluster.Node
+	// 存储
+	Store icluster.IStore
+	// 分布式接口
+	Cluster icluster.ICluster
+	// api接口
+	Api icluster.Api
+
+	// raft group 的数量
+	GroupCount int
+	// 传输层
+	Transport raftgroup.ITransport
+
+	//频道最大副本数量
+	ChannelMaxReplicaCount uint32
+}
+
+func NewOptions(opt ...Option) *Options {
+	opts := &Options{
+		GroupCount:             100,
+		ChannelMaxReplicaCount: 3,
+	}
+	for _, o := range opt {
+		o(opts)
+	}
+	return opts
+}
+
+type Option func(*Options)
+
+func WithNodeId(nodeId uint64) Option {
+	return func(o *Options) {
+		o.NodeId = nodeId
+	}
+}
+
+func WithSlot(slot icluster.Slot) Option {
+	return func(o *Options) {
+		o.Slot = slot
+	}
+}
+
+func WithGroupCount(groupCount int) Option {
+	return func(o *Options) {
+		o.GroupCount = groupCount
+	}
+}
+
+func WithTransport(transport raftgroup.ITransport) Option {
+	return func(o *Options) {
+		o.Transport = transport
+	}
+}
+
+func WithStore(store icluster.IStore) Option {
+	return func(o *Options) {
+		o.Store = store
+	}
+}
+
+func WithChannelMaxReplicaCount(count uint32) Option {
+	return func(o *Options) {
+		o.ChannelMaxReplicaCount = count
+	}
+}
+
+func WithNode(node icluster.Node) Option {
+	return func(o *Options) {
+		o.Node = node
+	}
+}
+
+func WithCluster(cluster icluster.ICluster) Option {
+	return func(o *Options) {
+		o.Cluster = cluster
+	}
+}

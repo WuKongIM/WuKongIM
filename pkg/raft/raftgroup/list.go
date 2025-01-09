@@ -1,6 +1,11 @@
 package raftgroup
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
+)
 
 // raftNode 链表节点
 type raftNode struct {
@@ -13,17 +18,26 @@ type linkedList struct {
 	head *raftNode
 	tail *raftNode
 	mu   sync.RWMutex // 保护链表的并发访问
+	wklog.Log
 }
 
 // newLinkedList 创建新的链表
 func newLinkedList() *linkedList {
-	return &linkedList{}
+	return &linkedList{
+		Log: wklog.NewWKLog("raftGroup.linkedList"),
+	}
 }
 
 // push 添加事件到链表尾部
 func (ll *linkedList) push(raft IRaft) {
 	ll.mu.Lock()
 	defer ll.mu.Unlock()
+
+	if ll.existNoLock(raft.Key()) {
+		ll.Foucs("push: raft exist", zap.String("key", raft.Key()))
+		return
+	}
+
 	node := &raftNode{key: raft.Key(), raft: raft}
 	if ll.tail != nil {
 		ll.tail.next = node
@@ -31,6 +45,15 @@ func (ll *linkedList) push(raft IRaft) {
 		ll.head = node
 	}
 	ll.tail = node
+}
+
+func (ll *linkedList) existNoLock(key string) bool {
+	for node := ll.head; node != nil; node = node.next {
+		if node.key == key {
+			return true
+		}
+	}
+	return false
 }
 
 // remove 从链表中移除事件

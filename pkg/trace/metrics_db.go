@@ -10,8 +10,7 @@ import (
 
 type dbMetrics struct {
 	wklog.Log
-	ctx  context.Context
-	opts *Options
+	ctx context.Context
 
 	// ========== compact 压缩相关 ==========
 	compactTotalCount       atomic.Int64
@@ -191,10 +190,9 @@ type dbMetrics struct {
 	deleteLeaderTermStartIndexGreaterThanTerm atomic.Int64
 }
 
-func newDBMetrics(opts *Options) *dbMetrics {
+func NewDBMetrics() *dbMetrics {
 	m := &dbMetrics{
-		Log:  wklog.NewWKLog("dbMetrics"),
-		opts: opts,
+		Log: wklog.NewWKLog("dbMetrics"),
 	}
 
 	// ========== compact 压缩相关 ==========

@@ -45,7 +45,6 @@ func NewStore(opts *Options) *Store {
 
 	s.wdb = wkdb.NewWukongDB(
 		wkdb.NewOptions(
-			wkdb.WithIsCmdChannel(opts.IsCmdChannel),
 			wkdb.WithShardNum(opts.Db.ShardNum),
 			wkdb.WithDir(opts.DataDir),
 			wkdb.WithNodeId(opts.NodeID),

@@ -84,6 +84,9 @@ type MessageDB interface {
 
 	// 搜索消息
 	SearchMessages(req MessageSearchReq) ([]Message, error)
+
+	// GetLastMsg 获取最后一条消息
+	GetLastMsg(channelId string, channelType uint8) (Message, error)
 }
 
 type DeviceDB interface {
