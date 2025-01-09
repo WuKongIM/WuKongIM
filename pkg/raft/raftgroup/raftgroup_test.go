@@ -307,10 +307,10 @@ type testTransport struct {
 	groups map[uint64]*raftgroup.RaftGroup
 }
 
-func (t *testTransport) Send(r raftgroup.IRaft, event types.Event) {
+func (t *testTransport) Send(key string, event types.Event) {
 	// fmt.Println("event--->", event)
 	g := t.groups[event.To]
-	g.AddEvent(r.Key(), event)
+	g.AddEvent(key, event)
 
 	g.Advance()
 }
@@ -330,10 +330,9 @@ func newTestStorage() *testStorage {
 	}
 }
 
-func (t *testStorage) AppendLogs(raft raftgroup.IRaft, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
+func (t *testStorage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
 	t.Lock()
 	defer t.Unlock()
-	key := raft.Key()
 	if _, ok := t.logs[key]; !ok {
 		t.logs[key] = make([]types.Log, 0)
 	}
@@ -346,14 +345,13 @@ func (t *testStorage) AppendLogs(raft raftgroup.IRaft, logs []types.Log, termSta
 	return nil
 }
 
-func (t *testStorage) Apply(raft raftgroup.IRaft, logs []types.Log) error {
+func (t *testStorage) Apply(key string, logs []types.Log) error {
 	t.applyC <- logs
 	return nil
 }
 
-func (t *testStorage) GetTermStartIndex(raft raftgroup.IRaft, term uint32) (uint64, error) {
+func (t *testStorage) GetTermStartIndex(key string, term uint32) (uint64, error) {
 
-	key := raft.Key()
 	termStartIndex, ok := t.termStartIndexs[key]
 	if !ok {
 		return 0, nil
@@ -361,9 +359,8 @@ func (t *testStorage) GetTermStartIndex(raft raftgroup.IRaft, term uint32) (uint
 	return termStartIndex.Index, nil
 }
 
-func (t *testStorage) LeaderLastLogTerm(raft raftgroup.IRaft) (uint32, error) {
+func (t *testStorage) LeaderLastLogTerm(key string) (uint32, error) {
 
-	key := raft.Key()
 	logs, ok := t.logs[key]
 	if !ok {
 		return 0, nil
@@ -373,12 +370,11 @@ func (t *testStorage) LeaderLastLogTerm(raft raftgroup.IRaft) (uint32, error) {
 	return lastLog.Term, nil
 }
 
-func (t *testStorage) GetLogs(raft raftgroup.IRaft, start, end, maxSize uint64) ([]types.Log, error) {
+func (t *testStorage) GetLogs(key string, start, end, maxSize uint64) ([]types.Log, error) {
 
 	t.Lock()
 	defer t.Unlock()
 
-	key := raft.Key()
 	logs, ok := t.logs[key]
 	if !ok {
 		return nil, nil
@@ -393,9 +389,8 @@ func (t *testStorage) GetLogs(raft raftgroup.IRaft, start, end, maxSize uint64) 
 	return logs[start-1 : end-1+maxSize], nil
 }
 
-func (t *testStorage) GetState(r raftgroup.IRaft) (*types.RaftState, error) {
+func (t *testStorage) GetState(key string) (*types.RaftState, error) {
 
-	key := r.Key()
 	logs, ok := t.logs[key]
 	if !ok {
 		return nil, nil
@@ -409,12 +404,11 @@ func (t *testStorage) GetState(r raftgroup.IRaft) (*types.RaftState, error) {
 	}, nil
 }
 
-func (t *testStorage) TruncateLogTo(raft raftgroup.IRaft, index uint64) error {
+func (t *testStorage) TruncateLogTo(key string, index uint64) error {
 
 	t.Lock()
 	defer t.Unlock()
 
-	key := raft.Key()
 	logs, ok := t.logs[key]
 	if !ok {
 		return nil
@@ -429,12 +423,11 @@ func (t *testStorage) TruncateLogTo(raft raftgroup.IRaft, index uint64) error {
 	return nil
 }
 
-func (t *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(raft raftgroup.IRaft, term uint32) error {
+func (t *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(key string, term uint32) error {
 
 	t.Lock()
 	defer t.Unlock()
 
-	key := raft.Key()
 	termStartIndex, ok := t.termStartIndexs[key]
 	if !ok {
 		return nil

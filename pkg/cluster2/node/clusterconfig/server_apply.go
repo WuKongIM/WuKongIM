@@ -32,13 +32,26 @@ func (s *Server) applyLog(log types.Log) error {
 	s.config.cfg.Term = log.Term
 	s.config.cfg.Version = log.Index
 
-	return s.config.saveConfig()
+	err = s.config.saveConfig()
+	if err != nil {
+		s.Error("save config err", zap.Error(err))
+		return err
+	}
+	// 配置发送变化
+	s.NotifyConfigChangeEvent()
+	return nil
 }
 
 func (s *Server) handleCmd(cmd *CMD) error {
 	switch cmd.CmdType {
 	case CMDTypeConfigChange: // 配置改变
 		return s.handleConfigChange(cmd)
+	case CMDTypeConfigApiServerAddrChange: // 节点api server地址改变
+		return s.handleApiServerAddrChange(cmd)
+	case CMDTypeNodeOnlineStatusChange: // 节点在线状态改变
+		return s.handleNodeOnlineStatusChange(cmd)
+	case CMDTypeSlotUpdate: // 槽更新
+		return s.handleSlotUpdate(cmd)
 	}
 	return nil
 }
@@ -51,5 +64,39 @@ func (s *Server) handleConfigChange(cmd *CMD) error {
 		return err
 	}
 	s.config.update(cfg)
+	return nil
+}
+
+func (s *Server) handleApiServerAddrChange(cmd *CMD) error {
+	nodeId, apiServerAddr, err := DecodeApiServerAddrChange(cmd.Data)
+	if err != nil {
+		s.Error("decode api server addr change err", zap.Error(err))
+		return err
+	}
+
+	s.config.updateApiServerAddr(nodeId, apiServerAddr)
+	return nil
+}
+
+func (s *Server) handleNodeOnlineStatusChange(cmd *CMD) error {
+	nodeId, online, err := DecodeNodeOnlineStatusChange(cmd.Data)
+	if err != nil {
+		s.Error("decode node online status change err", zap.Error(err))
+		return err
+	}
+
+	s.config.updateNodeOnlineStatus(nodeId, online)
+	return nil
+}
+
+func (s *Server) handleSlotUpdate(cmd *CMD) error {
+	slotset := pb.SlotSet{}
+	err := slotset.Unmarshal(cmd.Data)
+	if err != nil {
+		s.Error("unmarshal slotset err", zap.Error(err))
+		return err
+	}
+	s.config.updateSlots(slotset)
+
 	return nil
 }

@@ -88,3 +88,15 @@ func (h *linkedList) readHandlers(rafts *[]IRaft) {
 		node = node.next
 	}
 }
+
+func (h *linkedList) all() []IRaft {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	var rafts []IRaft
+	node := h.head
+	for node != nil {
+		rafts = append(rafts, node.raft)
+		node = node.next
+	}
+	return rafts
+}

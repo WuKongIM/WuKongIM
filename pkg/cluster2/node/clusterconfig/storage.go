@@ -81,6 +81,14 @@ func (p *PebbleShardLogStorage) AppendLogs(logs []types.Log, termStartIndexInfo 
 			return err
 		}
 	}
+
+	if termStartIndexInfo != nil {
+		err := p.SetLeaderTermStartIndex(termStartIndexInfo.Term, termStartIndexInfo.Index)
+		if err != nil {
+			return err
+		}
+	}
+
 	err := batch.Commit(p.wo)
 	if err != nil {
 		return err
@@ -90,8 +98,11 @@ func (p *PebbleShardLogStorage) AppendLogs(logs []types.Log, termStartIndexInfo 
 }
 
 func (p *PebbleShardLogStorage) Apply(logs []types.Log) error {
-
-	return p.s.applyLogs(logs)
+	err := p.s.applyLogs(logs)
+	if err != nil {
+		return err
+	}
+	return p.setAppliedIndex(logs[len(logs)-1].Index)
 }
 
 // TruncateLogTo 截断日志

@@ -82,5 +82,4 @@ func (h *handler) handleClusterInit() {
 	if err != nil {
 		h.Error("ProposeConfigInit failed", zap.Error(err))
 	}
-
 }

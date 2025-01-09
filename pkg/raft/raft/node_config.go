@@ -42,7 +42,11 @@ func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
 			n.BecomeLeader(newCfg.Term)
 		} else {
 			if len(newCfg.Replicas) > 0 {
-				n.BecomeFollower(n.cfg.Term, None)
+				if newCfg.Leader != 0 && newCfg.Leader == n.opts.NodeId {
+					n.BecomeLeader(newCfg.Term)
+				} else {
+					n.BecomeFollower(newCfg.Term, newCfg.Leader)
+				}
 			}
 		}
 		return
