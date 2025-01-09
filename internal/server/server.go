@@ -160,8 +160,6 @@ func New(opts *options.Options) *Server {
 
 	s.demoServer = NewDemoServer(s) // demo server
 
-	service.Webhook = webhook.New()
-
 	s.webhook = webhook.New()
 	service.Webhook = s.webhook
 	// manager
