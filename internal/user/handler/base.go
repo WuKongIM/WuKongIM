@@ -78,11 +78,7 @@ func (h *Handler) notForwardToLeader(eventType eventbus.EventType) bool {
 // 获得用户的leader节点
 func (h *Handler) userLeaderNodeId(uid string) uint64 {
 	slotId := service.Cluster.GetSlotId(uid)
-	leaderId, err := service.Cluster.SlotLeaderId(slotId)
-	if err != nil {
-		h.Error("getUserLeaderNodeId: get leaderId failed", zap.Error(err))
-		return 0
-	}
+	leaderId := service.Cluster.SlotLeaderId(slotId)
 	return leaderId
 }
 

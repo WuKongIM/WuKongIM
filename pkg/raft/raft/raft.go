@@ -98,7 +98,7 @@ func (r *Raft) Step(e types.Event) {
 		return
 	}
 	if e.Type == types.SendPropose {
-		r.handleSendPropose(e)
+		go r.handleSendPropose(e)
 		return
 	} else if e.Type == types.SendProposeResp {
 		r.handleSendProposeResp(e)

@@ -13,43 +13,26 @@ import (
 
 func newTwoServer(t *testing.T) (*Server, *Server) {
 
-	tt := newTestTransport()
+	// tt := newTestTransport()
 
-	nodeTrs := newTestNodeTransport()
+	// nodeTrs := newTestNodeTransport()
 
-	opts1 := newTestOptions(t, 1, map[uint64]string{1: "", 2: ""}, clusterconfig.WithTransport(nodeTrs), clusterconfig.WithApiServerAddr("http://test1.com"))
-	opts2 := newTestOptions(t, 2, map[uint64]string{1: "", 2: ""}, clusterconfig.WithTransport(nodeTrs), clusterconfig.WithApiServerAddr("http://test2.com"))
-	s1 := New(&testEvent{}, NewOptions(WithConfigOptions(opts1), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 1)), WithSlotTransport(tt)))
-	s2 := New(&testEvent{}, NewOptions(WithConfigOptions(opts2), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 2)), WithSlotTransport(tt)))
-
-	tt.serverMap[1] = s1
-	tt.serverMap[2] = s2
-
-	nodeTrs.serverMap[1] = s1
-	nodeTrs.serverMap[2] = s2
+	opts1 := newTestOptions(t, 1, map[uint64]string{1: "127.0.0.1:11111", 2: "127.0.0.1:11112"}, clusterconfig.WithApiServerAddr("http://test1.com"))
+	opts2 := newTestOptions(t, 2, map[uint64]string{1: "127.0.0.1:11111", 2: "127.0.0.1:11112"}, clusterconfig.WithApiServerAddr("http://test2.com"))
+	s1 := New(NewOptions(WithAddr("tcp://127.0.0.1:11111"), WithConfigOptions(opts1), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 1))))
+	s2 := New(NewOptions(WithAddr("tcp://127.0.0.1:11112"), WithConfigOptions(opts2), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 2))))
 
 	return s1, s2
 }
 
 func newThreeBootstrap(t *testing.T) (*Server, *Server, *Server) {
 
-	tt := newTestTransport()
-	nodeTrs := newTestNodeTransport()
-
-	opts1 := newTestOptions(t, 1, map[uint64]string{1: "", 2: "", 3: ""}, clusterconfig.WithTransport(nodeTrs), clusterconfig.WithPongMaxTick(5), clusterconfig.WithApiServerAddr("http://test1.com"))
-	opts2 := newTestOptions(t, 2, map[uint64]string{1: "", 2: "", 3: ""}, clusterconfig.WithTransport(nodeTrs), clusterconfig.WithPongMaxTick(5), clusterconfig.WithApiServerAddr("http://test2.com"))
-	opts3 := newTestOptions(t, 3, map[uint64]string{1: "", 2: "", 3: ""}, clusterconfig.WithTransport(nodeTrs), clusterconfig.WithPongMaxTick(5), clusterconfig.WithApiServerAddr("http://test3.com"))
-	s1 := New(&testEvent{}, NewOptions(WithConfigOptions(opts1), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 1)), WithSlotTransport(tt)))
-	s2 := New(&testEvent{}, NewOptions(WithConfigOptions(opts2), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 2)), WithSlotTransport(tt)))
-	s3 := New(&testEvent{}, NewOptions(WithConfigOptions(opts3), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 3)), WithSlotTransport(tt)))
-
-	tt.serverMap[1] = s1
-	tt.serverMap[2] = s2
-	tt.serverMap[3] = s3
-
-	nodeTrs.serverMap[1] = s1
-	nodeTrs.serverMap[2] = s2
-	nodeTrs.serverMap[3] = s3
+	opts1 := newTestOptions(t, 1, map[uint64]string{1: "127.0.0.1:11111", 2: "127.0.0.1:11112", 3: "127.0.0.1:11113"}, clusterconfig.WithPongMaxTick(5), clusterconfig.WithApiServerAddr("http://test1.com"))
+	opts2 := newTestOptions(t, 2, map[uint64]string{1: "127.0.0.1:11111", 2: "127.0.0.1:11112", 3: "127.0.0.1:11113"}, clusterconfig.WithPongMaxTick(5), clusterconfig.WithApiServerAddr("http://test2.com"))
+	opts3 := newTestOptions(t, 3, map[uint64]string{1: "127.0.0.1:11111", 2: "127.0.0.1:11112", 3: "127.0.0.1:11113"}, clusterconfig.WithPongMaxTick(5), clusterconfig.WithApiServerAddr("http://test3.com"))
+	s1 := New(NewOptions(WithAddr("127.0.0.1:11111"), WithConfigOptions(opts1), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 1))))
+	s2 := New(NewOptions(WithAddr("127.0.0.1:11112"), WithConfigOptions(opts2), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 2))))
+	s3 := New(NewOptions(WithAddr("127.0.0.1:11113"), WithConfigOptions(opts3), WithDataDir(fmt.Sprintf("%s/%d", t.TempDir(), 3))))
 
 	return s1, s2, s3
 }
@@ -57,8 +40,6 @@ func newThreeBootstrap(t *testing.T) (*Server, *Server, *Server) {
 func newTestOptions(t *testing.T, nodeId uint64, initNode map[uint64]string, opt ...clusterconfig.Option) *clusterconfig.Options {
 
 	dir := fmt.Sprintf("%s/%d", t.TempDir(), nodeId)
-
-	fmt.Println("dir:", dir)
 
 	defaultOpts := make([]clusterconfig.Option, 0)
 	defaultOpts = append(defaultOpts, clusterconfig.WithNodeId(nodeId), clusterconfig.WithInitNodes(initNode), clusterconfig.WithConfigPath(dir+"/cluster.json"))
@@ -147,8 +128,7 @@ func waitApiServerAddr(ss ...*Server) {
 	for {
 		select {
 		case <-timeoutctx.Done():
-
-			return
+			panic("timeout")
 		default:
 			count := 0
 			for _, s := range ss {

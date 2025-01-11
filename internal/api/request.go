@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -99,10 +100,10 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 
 func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageReq, uid string, msgCount int, orderByLast bool) ([]*channelRecentMessage, error) {
 
-	nodeInfo, err := service.Cluster.NodeInfoById(nodeID) // 获取频道的领导节点
-	if err != nil {
-		s.Error("通过节点ID获取节点失败！", zap.Uint64("nodeID", nodeID))
-		return nil, err
+	nodeInfo := service.Cluster.NodeInfoById(nodeID) // 获取频道的领导节点
+	if nodeInfo == nil {
+		s.Error("节点不存在！", zap.Uint64("nodeID", nodeID))
+		return nil, errors.New("节点不存在！")
 	}
 	reqURL := fmt.Sprintf("%s/%s", nodeInfo.ApiServerAddr, "conversation/syncMessages")
 	request := rest.Request{

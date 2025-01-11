@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -1292,6 +1292,6 @@ func (c *CMD) DecodeCMDRemoveTester() (no string, err error) {
 var ErrStoreStopped = fmt.Errorf("store stopped")
 
 type applyReq struct {
-	logs  []replica.Log
+	logs  []types.Log
 	waitC chan error
 }

@@ -29,7 +29,7 @@ func (h *Handler) recvack(event *eventbus.Event) {
 			// 删除最近会话的缓存
 			service.ConversationManager.DeleteFromCache(conn.Uid, currMsg.ChannelId, currMsg.ChannelType)
 			// 更新最近会话的已读位置
-			err := service.Store.DB().UpdateConversationIfSeqGreaterAsync(conn.Uid, currMsg.ChannelId, currMsg.ChannelType, uint64(recvackPacket.MessageSeq))
+			err := service.Store.UpdateConversationIfSeqGreaterAsync(conn.Uid, currMsg.ChannelId, currMsg.ChannelType, uint64(recvackPacket.MessageSeq))
 			if err != nil {
 				h.Error("UpdateConversationIfSeqGreaterAsync failed", zap.Error(err), zap.String("channelId", currMsg.ChannelId), zap.Uint8("channelType", currMsg.ChannelType), zap.Uint64("messageSeq", uint64(recvackPacket.MessageSeq)))
 			}

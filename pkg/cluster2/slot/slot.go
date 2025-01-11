@@ -40,3 +40,7 @@ func (s *Slot) needUpdate(newSlot *types.Slot) bool {
 
 	return !s.slot.Equal(newSlot)
 }
+
+func (s *Slot) LastLogIndexAndTerm() (uint64, uint32) {
+	return s.LastLogIndex(), s.LastTerm()
+}

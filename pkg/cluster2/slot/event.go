@@ -18,6 +18,14 @@ func (s *Server) OnConfigChange(cfg *types.Config) {
 
 // 根据slot的配置添加或者更新raft
 func (s *Server) addOrUpdateSlotRaft(slot *types.Slot) {
+
+	s.slotUpdateLock.Lock()
+	defer s.slotUpdateLock.Unlock()
+
+	if slot.Leader == 0 {
+		return
+	}
+
 	shardNo := SlotIdToKey(slot.Id)
 	rft := s.raftGroup.GetRaft(shardNo)
 	if rft == nil { // 添加slot的raft

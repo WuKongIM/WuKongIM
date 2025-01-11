@@ -8,9 +8,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver/key"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/slot/key"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -28,7 +26,6 @@ type PebbleShardLogStorage struct {
 	noSync   *pebble.WriteOptions
 	wklog.Log
 
-	appendC chan reactor.AppendLogReq
 	stopper syncutil.Stopper
 	s       *Server
 }
@@ -44,7 +41,6 @@ func NewPebbleShardLogStorage(s *Server, path string, shardNum uint32) *PebbleSh
 			Sync: false,
 		},
 		Log:     wklog.NewWKLog(fmt.Sprintf("PebbleShardLogStorage[%s]", path)),
-		appendC: make(chan reactor.AppendLogReq, 1000),
 		stopper: *syncutil.NewStopper(),
 		s:       s,
 	}
@@ -306,12 +302,20 @@ func (p *PebbleShardLogStorage) GetLogs(shardNo string, startLogIndex uint64, en
 
 func (p *PebbleShardLogStorage) Apply(shardNo string, logs []types.Log) error {
 	if p.s.opts.OnApply != nil {
-		return p.s.opts.OnApply(logs)
+		slotId := KeyToSlotId(shardNo)
+		err := p.s.opts.OnApply(slotId, logs)
+		if err != nil {
+			return err
+		}
+		err = p.SetAppliedIndex(shardNo, logs[len(logs)-1].Index)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (p *PebbleShardLogStorage) GetLogsInReverseOrder(shardNo string, startLogIndex uint64, endLogIndex uint64, limit int) ([]replica.Log, error) {
+func (p *PebbleShardLogStorage) GetLogsInReverseOrder(shardNo string, startLogIndex uint64, endLogIndex uint64, limit int) ([]types.Log, error) {
 
 	// lastIndex, err := p.LastIndex(shardNo)
 	// if err != nil {
@@ -331,7 +335,7 @@ func (p *PebbleShardLogStorage) GetLogsInReverseOrder(shardNo string, startLogIn
 		UpperBound: highKey,
 	})
 	defer iter.Close()
-	var logs []replica.Log
+	var logs []types.Log
 
 	var size int
 	for iter.Last(); iter.Valid(); iter.Prev() {
@@ -345,7 +349,7 @@ func (p *PebbleShardLogStorage) GetLogsInReverseOrder(shardNo string, startLogIn
 
 		tm := binary.BigEndian.Uint64(timeData)
 
-		var log replica.Log
+		var log types.Log
 		err := log.Unmarshal(logData)
 		if err != nil {
 			return nil, err
@@ -381,14 +385,14 @@ func (p *PebbleShardLogStorage) LastIndexAndTerm(shardNo string) (uint64, uint32
 	return lastIndex, log.Term, nil
 }
 
-func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (replica.Log, error) {
+func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (types.Log, error) {
 	keyData := key.NewLogKey(shardNo, index)
 	resultData, closer, err := p.shardDB(shardNo).Get(keyData)
 	if err != nil {
 		if err == pebble.ErrNotFound {
-			return replica.Log{}, nil
+			return types.Log{}, nil
 		}
-		return replica.Log{}, err
+		return types.Log{}, err
 	}
 	defer closer.Close()
 
@@ -401,10 +405,10 @@ func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (replica.Lo
 
 	tm := binary.BigEndian.Uint64(timeData)
 
-	var log replica.Log
+	var log types.Log
 	err = log.Unmarshal(logData)
 	if err != nil {
-		return replica.Log{}, err
+		return types.Log{}, err
 	}
 	log.Time = time.Unix(0, int64(tm))
 	return log, nil

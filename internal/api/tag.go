@@ -73,11 +73,7 @@ func (t *tag) remove(c *wkhttp.Context) {
 	}
 
 	if req.NodeId != 0 && !options.G.IsLocalNode(req.NodeId) {
-		nodeInfo, err := service.Cluster.NodeInfoById(req.NodeId)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
+		nodeInfo := service.Cluster.NodeInfoById(req.NodeId)
 		if nodeInfo == nil {
 			c.ResponseError(errors.New("node not found"))
 			return
@@ -105,11 +101,7 @@ func (t *tag) list(c *wkhttp.Context) {
 	tagKey := c.Query("tag_key")
 
 	if nodeId != 0 && !options.G.IsLocalNode(nodeId) {
-		nodeInfo, err := service.Cluster.NodeInfoById(nodeId)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
+		nodeInfo := service.Cluster.NodeInfoById(nodeId)
 		if nodeInfo == nil {
 			c.ResponseError(errors.New("node not found"))
 			return

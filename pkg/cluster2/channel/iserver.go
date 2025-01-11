@@ -35,6 +35,6 @@ func (s *Server) ProposeBatchUntilAppliedTimeout(ctx context.Context, channelId 
 	}
 
 	// 向频道的领导节点请求提案
-	return s.opts.Api.RequestChannelProposeBatchUntilApplied(clusterConfig.LeaderId, channelId, channelType, reqs)
+	return s.opts.RPC.RequestChannelProposeBatchUntilApplied(clusterConfig.LeaderId, channelId, channelType, reqs)
 
 }

@@ -1,5 +1,5 @@
 package service
 
-import "github.com/WuKongIM/WuKongIM/pkg/cluster/icluster"
+import "github.com/WuKongIM/WuKongIM/pkg/cluster2/icluster"
 
-var Cluster icluster.Cluster // 分布式接口
+var Cluster icluster.ICluster // 分布式接口

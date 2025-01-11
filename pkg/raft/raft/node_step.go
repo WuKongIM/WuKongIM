@@ -86,6 +86,9 @@ func (n *Node) stepLeader(e types.Event) error {
 		if err != nil {
 			return err
 		}
+		// if n.Key() == "2&ch1" {
+		// 	n.Info("leader propose", zap.Uint64("index", e.Logs[0].Index))
+		// }
 		n.advance()
 	case types.SyncReq: // 同步
 		isLearner := n.isLearner(e.From) // 当前同步节点是否是学习者
@@ -93,7 +96,9 @@ func (n *Node) stepLeader(e types.Event) error {
 			n.updateSyncInfo(e)            // 更新副本同步信息
 			n.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
-
+		// if n.Key() == "2&ch1" {
+		// 	n.Info("sync...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index))
+		// }
 		syncInfo := n.replicaSync[e.From]
 		if syncInfo == nil {
 			syncInfo = &SyncInfo{}
@@ -113,6 +118,9 @@ func (n *Node) stepLeader(e types.Event) error {
 
 	case types.StoreResp: // 异步存储日志返回
 		n.queue.appending = false
+		// if n.Key() == "2&ch1" {
+		// 	n.Info("StoreResp...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index))
+		// }
 		if e.Reason == types.ReasonOk {
 			if e.Index > n.queue.lastLogIndex {
 				n.Panic("invalid append response", zap.Uint64("index", e.Index), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
@@ -157,6 +165,9 @@ func (n *Node) stepFollower(e types.Event) error {
 		}
 		n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 	case types.NotifySync:
+		// if n.Key() == "2&ch1" {
+		// 	n.Info("NotifySync...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index))
+		// }
 		n.sendSyncReq()
 		n.advance()
 	case types.SyncResp: // 同步返回

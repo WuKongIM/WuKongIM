@@ -9,4 +9,7 @@ type Node interface {
 
 	// 槽数量
 	SlotCount() uint32
+
+	// Slots 获取所有槽位
+	Slots() []*types.Slot
 }

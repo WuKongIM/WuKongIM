@@ -9,10 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
@@ -49,60 +47,60 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 	return batch.CommitWait()
 }
 
-func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
-	batchMap := make(map[uint32]*Batch)
-	newBatchs := make([]*Batch, 0, len(reqs))
+// func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
+// 	batchMap := make(map[uint32]*Batch)
+// 	newBatchs := make([]*Batch, 0, len(reqs))
 
-	for _, req := range reqs {
+// 	for _, req := range reqs {
 
-		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
+// 		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
 
-		shardId := wk.channelDbIndex(channelId, channelType)
+// 		shardId := wk.channelDbIndex(channelId, channelType)
 
-		batch := batchMap[shardId]
-		if batch == nil {
-			batch = wk.shardBatchDBById(shardId).NewBatch()
-			batchMap[shardId] = batch
-			newBatchs = append(newBatchs, batch)
-		}
+// 		batch := batchMap[shardId]
+// 		if batch == nil {
+// 			batch = wk.shardBatchDBById(shardId).NewBatch()
+// 			batchMap[shardId] = batch
+// 			newBatchs = append(newBatchs, batch)
+// 		}
 
-		for _, log := range req.Logs {
-			msg := Message{}
-			err := msg.Unmarshal(log.Data)
-			if err != nil {
-				wk.Panic("message unmarshal failed", zap.Error(err))
-				return
-			}
-			msg.MessageSeq = uint32(log.Index)
-			msg.Term = uint64(log.Term)
+// 		for _, log := range req.Logs {
+// 			msg := Message{}
+// 			err := msg.Unmarshal(log.Data)
+// 			if err != nil {
+// 				wk.Panic("message unmarshal failed", zap.Error(err))
+// 				return
+// 			}
+// 			msg.MessageSeq = uint32(log.Index)
+// 			msg.Term = uint64(log.Term)
 
-			if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
-				wk.Panic("write message failed", zap.Error(err))
-				return
-			}
-			err = wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
-			if err != nil {
-				wk.Panic("setChannelLastMessageSeq failed", zap.Error(err))
-				return
-			}
+// 			if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
+// 				wk.Panic("write message failed", zap.Error(err))
+// 				return
+// 			}
+// 			err = wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
+// 			if err != nil {
+// 				wk.Panic("setChannelLastMessageSeq failed", zap.Error(err))
+// 				return
+// 			}
 
-			if len(batch.setKvs) > wk.opts.BatchPerSize {
-				batch = wk.shardBatchDBById(shardId).NewBatch()
-				batchMap[shardId] = batch
-				newBatchs = append(newBatchs, batch)
-			}
-		}
-	}
+// 			if len(batch.setKvs) > wk.opts.BatchPerSize {
+// 				batch = wk.shardBatchDBById(shardId).NewBatch()
+// 				batchMap[shardId] = batch
+// 				newBatchs = append(newBatchs, batch)
+// 			}
+// 		}
+// 	}
 
-	err := Commits(newBatchs)
-	if err != nil {
-		wk.Error("AppendMessagesByLogs commits failed", zap.Error(err))
-	}
+// 	err := Commits(newBatchs)
+// 	if err != nil {
+// 		wk.Error("AppendMessagesByLogs commits failed", zap.Error(err))
+// 	}
 
-	for _, req := range reqs {
-		req.WaitC <- err
-	}
-}
+// 	for _, req := range reqs {
+// 		req.WaitC <- err
+// 	}
+// }
 
 func (wk *wukongDB) channelDb(channelId string, channelType uint8) *pebble.DB {
 	dbIndex := wk.channelDbIndex(channelId, channelType)

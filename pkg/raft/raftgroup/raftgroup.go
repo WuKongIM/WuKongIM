@@ -1,6 +1,7 @@
 package raftgroup
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/track"
@@ -37,7 +38,7 @@ func New(opts *Options) *RaftGroup {
 		stopper:           syncutil.NewStopper(),
 		opts:              opts,
 		advanceC:          make(chan struct{}, 1),
-		Log:               wklog.NewWKLog("RaftGroup"),
+		Log:               wklog.NewWKLog(fmt.Sprintf("RaftGroup[%s]", opts.LogPrefix)),
 		mq:                NewEventQueue(opts.ReceiveQueueLength, false, 0, 0),
 		wait:              newWait(),
 		fowardProposeWait: wt.New(),
@@ -71,6 +72,10 @@ func (rg *RaftGroup) GetRafts() []IRaft {
 	return rg.raftList.all()
 }
 
+func (rg *RaftGroup) GetRaftCount() int {
+	return rg.raftList.count()
+}
+
 func (rg *RaftGroup) IsLeader(raftKey string) bool {
 	raft := rg.raftList.get(raftKey)
 	if raft == nil {
@@ -99,7 +104,12 @@ func (rg *RaftGroup) Advance() {
 func (rg *RaftGroup) AddEvent(raftKey string, e types.Event) {
 
 	if e.Type == types.SendPropose {
-		rg.handleSendPropose(raftKey, e)
+		err := rg.goPool.Submit(func() {
+			rg.handleSendPropose(raftKey, e)
+		})
+		if err != nil {
+			rg.Error("submit go pool failed", zap.Error(err))
+		}
 		return
 	} else if e.Type == types.SendProposeResp {
 		rg.handleSendProposeResp(e)
@@ -110,6 +120,17 @@ func (rg *RaftGroup) AddEvent(raftKey string, e types.Event) {
 		RaftKey: raftKey,
 		Event:   e,
 	})
+}
+
+func (rg *RaftGroup) AddEventWait(raftKey string, e types.Event) error {
+	waitC := make(chan error, 1)
+	rg.mq.MustAdd(Event{
+		RaftKey: raftKey,
+		Event:   e,
+		WaitC:   waitC,
+	})
+	rg.Advance()
+	return <-waitC
 }
 
 func (rg *RaftGroup) TryAddEvent(raftKey string, e types.Event) {
@@ -169,6 +190,10 @@ func (rg *RaftGroup) handleReceivedEvents() bool {
 	for _, e := range events {
 		raft := rg.raftList.get(e.RaftKey)
 		if raft == nil {
+			rg.Error("raft not found", zap.String("raftKey", e.RaftKey), zap.String("event", e.Event.String()))
+			if e.WaitC != nil {
+				e.WaitC <- ErrRaftNotExist
+			}
 			continue
 		}
 
