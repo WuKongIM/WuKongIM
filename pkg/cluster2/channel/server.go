@@ -82,7 +82,6 @@ func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error
 	if clusterConfig.LeaderId != s.opts.NodeId {
 		return nil
 	}
-
 	ch, err := createChannel(clusterConfig, s, rg)
 	if err != nil {
 		return err

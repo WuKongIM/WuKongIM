@@ -206,7 +206,6 @@ func (rg *RaftGroup) getTrunctLogIndex(r IRaft, e types.Event) (uint64, types.Re
 		rg.Error("get leader last log term failed", zap.Error(err))
 		return 0, types.ReasonError
 	}
-
 	// 副本的最新日志任期为0，说明副本没有日志，不需要裁剪
 	if e.LastLogTerm == 0 {
 		return 0, types.ReasonOk
