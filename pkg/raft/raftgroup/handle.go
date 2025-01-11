@@ -191,7 +191,7 @@ func (rg *RaftGroup) getTrunctLogIndex(r IRaft, e types.Event) (uint64, types.Re
 	}
 	// 如果副本的最新日志任期大于领导的最新日志任期，则不合法，副本最新日志任期不可能大于领导最新日志任期
 	if e.LastLogTerm > leaderLastLogTerm {
-		rg.Error("log term is greater than leader term", zap.Uint32("lastLogTerm", e.LastLogTerm), zap.Uint32("leaderLastLogTerm", leaderLastLogTerm))
+		rg.Error("log term is greater than leader term", zap.String("key", r.Key()), zap.Uint32("lastLogTerm", e.LastLogTerm), zap.Uint32("leaderLastLogTerm", leaderLastLogTerm))
 		return 0, types.ReasonError
 	}
 	// 副本的最新日志任期为0，说明副本没有日志，不需要裁剪

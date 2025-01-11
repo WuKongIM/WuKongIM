@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster2/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -341,7 +340,7 @@ func (ch *channel) updateTagBySubscribers(channelId string, channelType uint8, s
 	cmdChannelId := options.G.OrginalConvertCmdChannel(channelId)
 	cfg, err := service.Cluster.LoadOnlyChannelClusterConfig(cmdChannelId, channelType)
 	if err != nil && err != cluster.ErrChannelClusterConfigNotFound {
-		ch.Info("updateTagByAddSubscribers: loadOnlyChannelClusterConfig failed")
+		ch.Info("updateTagByAddSubscribers: loadOnlyChannelClusterConfig failed", zap.Error(err))
 		return nil
 	}
 	if cfg.LeaderId == 0 { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
@@ -469,9 +468,7 @@ func (ch *channel) setTmpSubscriber(c *wkhttp.Context) {
 		return
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	leaderInfo, err := service.Cluster.LeaderOfChannel(timeoutCtx, req.ChannelId, wkproto.ChannelTypeTemp) // 获取频道的领导节点
-	cancel()
+	leaderInfo, err := service.Cluster.LeaderOfChannel(req.ChannelId, wkproto.ChannelTypeTemp) // 获取频道的领导节点
 	if err != nil {
 		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", wkproto.ChannelTypeTemp))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))

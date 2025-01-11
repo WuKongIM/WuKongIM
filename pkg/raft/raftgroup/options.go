@@ -21,6 +21,8 @@ type Options struct {
 	MaxLogCountPerBatch uint64
 
 	ProposeTimeout time.Duration
+
+	LogPrefix string
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -73,5 +75,17 @@ func WithMaxLogCountPerBatch(count uint64) Option {
 func WithTransport(transport ITransport) Option {
 	return func(o *Options) {
 		o.Transport = transport
+	}
+}
+
+func WithProposeTimeout(timeout time.Duration) Option {
+	return func(o *Options) {
+		o.ProposeTimeout = timeout
+	}
+}
+
+func WithLogPrefix(prefix string) Option {
+	return func(o *Options) {
+		o.LogPrefix = prefix
 	}
 }

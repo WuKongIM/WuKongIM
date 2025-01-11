@@ -92,16 +92,16 @@ func (ll *linkedList) get(key string) IRaft {
 	return nil
 }
 
-// func (ll *linkedList) count() int {
-// 	ll.mu.Lock()
-// 	defer ll.mu.Unlock()
+func (ll *linkedList) count() int {
+	ll.mu.Lock()
+	defer ll.mu.Unlock()
 
-//		var count int
-//		for node := ll.head; node != nil; node = node.next {
-//			count++
-//		}
-//		return count
-//	}
+	var count int
+	for node := ll.head; node != nil; node = node.next {
+		count++
+	}
+	return count
+}
 func (h *linkedList) readHandlers(rafts *[]IRaft) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

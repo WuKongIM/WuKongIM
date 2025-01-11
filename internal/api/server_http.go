@@ -6,7 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster2/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -114,9 +114,6 @@ func (s *apiServer) setRoutes() {
 		st := newStress(s.s)
 		st.route(s.r)
 	}
-	// system
-	system := newSystem(s.s)
-	system.route(s.r)
 	// stream
 	stream := newStream(s.s)
 	stream.route(s.r)

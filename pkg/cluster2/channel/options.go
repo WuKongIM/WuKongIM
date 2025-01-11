@@ -3,6 +3,7 @@ package channel
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
 
 type Options struct {
@@ -13,11 +14,11 @@ type Options struct {
 	// 节点接口
 	Node icluster.Node
 	// 存储
-	Store icluster.IStore
+	DB wkdb.DB
 	// 分布式接口
 	Cluster icluster.ICluster
 	// api接口
-	Api icluster.Api
+	RPC icluster.RPC
 
 	// raft group 的数量
 	GroupCount int
@@ -65,9 +66,9 @@ func WithTransport(transport raftgroup.ITransport) Option {
 	}
 }
 
-func WithStore(store icluster.IStore) Option {
+func WithDB(db wkdb.DB) Option {
 	return func(o *Options) {
-		o.Store = store
+		o.DB = db
 	}
 }
 
@@ -86,5 +87,11 @@ func WithNode(node icluster.Node) Option {
 func WithCluster(cluster icluster.ICluster) Option {
 	return func(o *Options) {
 		o.Cluster = cluster
+	}
+}
+
+func WithRPC(rpc icluster.RPC) Option {
+	return func(o *Options) {
+		o.RPC = rpc
 	}
 }

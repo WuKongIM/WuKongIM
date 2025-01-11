@@ -107,11 +107,7 @@ func (u *userHandler) advanceEvents(events []*eventbus.Event) {
 
 func (u *userHandler) leaderId(uid string) uint64 {
 	slotId := service.Cluster.GetSlotId(uid)
-	leaderId, err := service.Cluster.SlotLeaderId(slotId)
-	if err != nil {
-		u.Error("get leaderId failed", zap.Error(err))
-		return 0
-	}
+	leaderId := service.Cluster.SlotLeaderId(slotId)
 	return leaderId
 }
 

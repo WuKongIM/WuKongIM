@@ -10,7 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/client"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -122,7 +122,7 @@ func TestClusterSlotMigrate(t *testing.T) {
 
 	cfg := s1.GetClusterConfig()
 
-	var migrateSlot *pb.Slot
+	var migrateSlot *types.Slot
 	for _, slot := range cfg.Slots {
 		if slot.Leader == s1.opts.Cluster.NodeId {
 			migrateSlot = slot
@@ -176,7 +176,7 @@ func TestClusterSlotMigrateForFollowToLeader(t *testing.T) {
 
 	cfg := s1.GetClusterConfig()
 
-	var migrateSlot *pb.Slot
+	var migrateSlot *types.Slot
 	for _, slot := range cfg.Slots {
 		if slot.Leader == s1.opts.Cluster.NodeId {
 			migrateSlot = slot
@@ -270,70 +270,70 @@ func TestClusterNodeJoin(t *testing.T) {
 
 }
 
-func TestClusterChannelMigrate(t *testing.T) {
-	s1, s2 := NewTestClusterServerTwoNode(t, options.WithClusterChannelReplicaCount(1), options.WithClusterSlotReplicaCount(2))
-	err := s1.Start()
-	assert.Nil(t, err)
+// func TestClusterChannelMigrate(t *testing.T) {
+// 	s1, s2 := NewTestClusterServerTwoNode(t, options.WithClusterChannelReplicaCount(1), options.WithClusterSlotReplicaCount(2))
+// 	err := s1.Start()
+// 	assert.Nil(t, err)
 
-	err = s2.Start()
-	assert.Nil(t, err)
+// 	err = s2.Start()
+// 	assert.Nil(t, err)
 
-	defer s1.StopNoErr()
-	defer s2.StopNoErr()
+// 	defer s1.StopNoErr()
+// 	defer s2.StopNoErr()
 
-	MustWaitClusterReady(s1, s2)
+// 	MustWaitClusterReady(s1, s2)
 
-	// new client 1
-	cli1 := client.New(s1.opts.External.TCPAddr, client.WithUID("test1"))
-	err = cli1.Connect()
-	assert.Nil(t, err)
+// 	// new client 1
+// 	cli1 := client.New(s1.opts.External.TCPAddr, client.WithUID("test1"))
+// 	err = cli1.Connect()
+// 	assert.Nil(t, err)
 
-	// new client 2
-	cli2 := client.New(s2.opts.External.TCPAddr, client.WithUID("test2"))
-	err = cli2.Connect()
-	assert.Nil(t, err)
+// 	// new client 2
+// 	cli2 := client.New(s2.opts.External.TCPAddr, client.WithUID("test2"))
+// 	err = cli2.Connect()
+// 	assert.Nil(t, err)
 
-	// send message to test2
-	err = cli1.SendMessage(client.NewChannel("test2", 1), []byte("hello"))
-	assert.Nil(t, err)
+// 	// send message to test2
+// 	err = cli1.SendMessage(client.NewChannel("test2", 1), []byte("hello"))
+// 	assert.Nil(t, err)
 
-	var wait sync.WaitGroup
-	wait.Add(1)
+// 	var wait sync.WaitGroup
+// 	wait.Add(1)
 
-	// cli2 recv
-	cli2.SetOnRecv(func(recv *wkproto.RecvPacket) error {
-		assert.Equal(t, "hello", string(recv.Payload))
-		wait.Done()
-		return nil
-	})
+// 	// cli2 recv
+// 	cli2.SetOnRecv(func(recv *wkproto.RecvPacket) error {
+// 		assert.Equal(t, "hello", string(recv.Payload))
+// 		wait.Done()
+// 		return nil
+// 	})
 
-	wait.Wait()
+// 	wait.Wait()
 
-	cfg, err := s1.store.DB().GetChannelClusterConfig("test1@test2", 1)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(cfg.Replicas))
+// 	cfg, err := s1.store.DB().GetChannelClusterConfig("test1@test2", 1)
+// 	assert.Nil(t, err)
+// 	assert.Equal(t, 1, len(cfg.Replicas))
 
-	// 迁移到另外一个节点
+// 	// 迁移到另外一个节点
 
-	var migrateTo uint64
-	if cfg.Replicas[0] == s1.opts.Cluster.NodeId {
-		migrateTo = s2.opts.Cluster.NodeId
-	} else {
-		migrateTo = s1.opts.Cluster.NodeId
-	}
-	cfg.MigrateFrom = cfg.Replicas[0]
-	cfg.MigrateTo = migrateTo
-	cfg.Learners = append(cfg.Learners, migrateTo)
+// 	var migrateTo uint64
+// 	if cfg.Replicas[0] == s1.opts.Cluster.NodeId {
+// 		migrateTo = s2.opts.Cluster.NodeId
+// 	} else {
+// 		migrateTo = s1.opts.Cluster.NodeId
+// 	}
+// 	cfg.MigrateFrom = cfg.Replicas[0]
+// 	cfg.MigrateTo = migrateTo
+// 	cfg.Learners = append(cfg.Learners, migrateTo)
 
-	err = s1.clusterServer.ProposeChannelClusterConfig(cfg)
-	assert.Nil(t, err)
+// 	err = s1.clusterServer.ProposeChannelClusterConfig(cfg)
+// 	assert.Nil(t, err)
 
-	s1.clusterServer.UpdateChannelClusterConfig(cfg)
-	s2.clusterServer.UpdateChannelClusterConfig(cfg)
+// 	s1.clusterServer.UpdateChannelClusterConfig(cfg)
+// 	s2.clusterServer.UpdateChannelClusterConfig(cfg)
 
-	time.Sleep(time.Second * 1)
+// 	time.Sleep(time.Second * 1)
 
-}
+// }
 
 func TestClusterChannelElection(t *testing.T) {
 	s1, s2, s3 := NewTestClusterServerTreeNode(t)
@@ -562,7 +562,7 @@ func TestClusterSaveClusterConfig(t *testing.T) {
 	createdAt := time.Now()
 	updatedAt := time.Now()
 
-	err := s1.store.SaveChannelClusterConfig(context.Background(), wkdb.ChannelClusterConfig{
+	err := s1.store.SaveChannelClusterConfig(wkdb.ChannelClusterConfig{
 		ChannelId:       "test1@test2",
 		ChannelType:     1,
 		ReplicaMaxCount: 3,

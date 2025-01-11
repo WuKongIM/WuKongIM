@@ -2,9 +2,11 @@ package channel
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
@@ -14,16 +16,19 @@ type Channel struct {
 	cfg wkdb.ChannelClusterConfig
 	s   *Server
 	wklog.Log
+	rg         *raftgroup.RaftGroup
+	channelKey string
 }
 
-func createChannel(cfg wkdb.ChannelClusterConfig, s *Server) (*Channel, error) {
+func createChannel(cfg wkdb.ChannelClusterConfig, s *Server, rg *raftgroup.RaftGroup) (*Channel, error) {
+	channelKey := wkutil.ChannelToKey(cfg.ChannelId, cfg.ChannelType)
 	ch := &Channel{
-		cfg: cfg,
-		s:   s,
-		Log: wklog.NewWKLog("channel"),
+		cfg:        cfg,
+		s:          s,
+		Log:        wklog.NewWKLog("channel"),
+		rg:         rg,
+		channelKey: channelKey,
 	}
-
-	channelKey := wkdb.ChannelToKey(cfg.ChannelId, cfg.ChannelType)
 
 	state, err := s.storage.GetState(cfg.ChannelId, cfg.ChannelType)
 	if err != nil {
@@ -39,18 +44,16 @@ func createChannel(cfg wkdb.ChannelClusterConfig, s *Server) (*Channel, error) {
 
 	ch.Node = raft.NewNode(lastLogStartIndex, state, raft.NewOptions(raft.WithKey(channelKey), raft.WithNodeId(s.opts.NodeId)))
 
-	err = ch.switchConfig(channelConfigToRaftConfig(cfg))
-	if err != nil {
-		return nil, err
-	}
 	return ch, nil
 }
 
 func (ch *Channel) switchConfig(cfg types.Config) error {
-	return ch.Step(types.Event{
+
+	return ch.rg.AddEventWait(ch.channelKey, types.Event{
 		Type:   types.ConfChange,
 		Config: cfg,
 	})
+
 }
 
 func channelConfigToRaftConfig(cfg wkdb.ChannelClusterConfig) types.Config {

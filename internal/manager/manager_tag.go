@@ -119,10 +119,7 @@ func (t *TagManager) RemoveUsers(tagKey string, uids []string) error {
 
 	for _, uid := range uids {
 		slotId := service.Cluster.GetSlotId(uid)
-		leaderId, err := service.Cluster.SlotLeaderId(slotId)
-		if err != nil {
-			return err
-		}
+		leaderId := service.Cluster.SlotLeaderId(slotId)
 		if leaderId == 0 {
 			return errors.TagSlotLeaderIsZero
 		}
@@ -258,10 +255,7 @@ func (t *TagManager) calcUsersInNode(uids []string) ([]*types.Node, error) {
 	var nodeMap = make(map[uint64]*types.Node)
 	for _, uid := range uids {
 		slotId := service.Cluster.GetSlotId(uid)
-		leaderId, err := service.Cluster.SlotLeaderId(slotId)
-		if err != nil {
-			return nil, err
-		}
+		leaderId := service.Cluster.SlotLeaderId(slotId)
 		if leaderId == 0 {
 			return nil, errors.TagSlotLeaderIsZero
 		}

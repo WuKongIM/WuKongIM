@@ -206,6 +206,10 @@ func (s *Server) SlotCount() uint32 {
 	return s.config.slotCount()
 }
 
+func (s *Server) Slot(id uint32) *pb.Slot {
+	return s.config.slot(id)
+}
+
 // AllowVoteNodes 获取允许投票的节点
 func (s *Server) AllowVoteNodes() []*pb.Node {
 	return s.config.allowVoteNodes()
@@ -230,6 +234,23 @@ func (s *Server) AllowVoteAndJoinedOnlineNodeCount() int {
 func (s *Server) AllowVoteAndJoinedOnlineNodes() []*pb.Node {
 
 	return s.config.allowVoteAndJoinedOnlineNodes()
+}
+
+// 节点是否在线
+func (s *Server) NodeIsOnline(nodeId uint64) bool {
+	return s.config.nodeOnline(nodeId)
+}
+
+func (s *Server) GetLogsInReverseOrder(startLogIndex uint64, endLogIndex uint64, limit int) ([]rafttypes.Log, error) {
+	return s.storage.GetLogsInReverseOrder(startLogIndex, endLogIndex, limit)
+}
+
+func (s *Server) AppliedLogIndex() (uint64, error) {
+	return s.storage.AppliedIndex()
+}
+
+func (s *Server) LastLogIndex() (uint64, error) {
+	return s.storage.LastIndex()
 }
 
 // 生成配置ID

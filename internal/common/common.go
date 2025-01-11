@@ -1,7 +1,6 @@
 package common
 
 import (
-	"context"
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
@@ -84,9 +83,7 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 		return s.getOrMakePersonTag(realFakeChannelId)
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	leader, err := service.Cluster.LeaderOfChannel(timeoutCtx, realFakeChannelId, channelType)
-	cancel()
+	leader, err := service.Cluster.LeaderOfChannel(realFakeChannelId, channelType)
 	if err != nil {
 		wklog.Error("GetOrRequestTag: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", realFakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
