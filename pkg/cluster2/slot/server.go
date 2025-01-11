@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
@@ -20,6 +21,8 @@ type Server struct {
 	opts      *Options
 	wklog.Log
 	genLogId *snowflake.Node
+
+	slotUpdateLock sync.Mutex
 }
 
 func NewServer(opts *Options) *Server {
@@ -28,7 +31,7 @@ func NewServer(opts *Options) *Server {
 		Log:  wklog.NewWKLog("slot.Server"),
 	}
 	s.storage = NewPebbleShardLogStorage(s, path.Join(opts.DataDir, "logdb"), uint32(opts.SlotDbShardNum))
-	s.raftGroup = raftgroup.New(raftgroup.NewOptions(raftgroup.WithStorage(s.storage), raftgroup.WithTransport(opts.Transport)))
+	s.raftGroup = raftgroup.New(raftgroup.NewOptions(raftgroup.WithLogPrefix("slot"), raftgroup.WithStorage(s.storage), raftgroup.WithTransport(opts.Transport)))
 	var err error
 	s.genLogId, err = snowflake.NewNode(int64(opts.NodeId))
 	if err != nil {
@@ -50,6 +53,12 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
+
+	slots := s.opts.Node.Slots()
+	for _, slot := range slots {
+		s.addOrUpdateSlotRaft(slot)
+	}
+
 	return nil
 }
 
@@ -64,10 +73,16 @@ func (s *Server) Stop() {
 
 func (s *Server) AddEvent(shardNo string, event types.Event) {
 	s.raftGroup.AddEvent(shardNo, event)
+	s.raftGroup.Advance()
 }
 
 func SlotIdToKey(slotId uint32) string {
 	return strconv.FormatUint(uint64(slotId), 10)
+}
+
+func KeyToSlotId(key string) uint32 {
+	slotId, _ := strconv.ParseUint(key, 10, 32)
+	return uint32(slotId)
 }
 
 func (s *Server) WaitAllSlotReady(ctx context.Context, slotCount int) error {
@@ -109,4 +124,27 @@ func (s *Server) getSlotId(v string) uint32 {
 		slotCount = s.opts.SlotCount
 	}
 	return wkutil.GetSlotNum(int(slotCount), v)
+}
+
+func (s *Server) AppliedIndex(slotId uint32) (uint64, error) {
+	shardNo := SlotIdToKey(slotId)
+	return s.storage.AppliedIndex(shardNo)
+}
+
+func (s *Server) LastIndex(slotId uint32) (uint64, error) {
+	shardNo := SlotIdToKey(slotId)
+	return s.storage.LastIndex(shardNo)
+}
+
+func (s *Server) GetSlotRaft(slotId uint32) *Slot {
+	raft := s.raftGroup.GetRaft(SlotIdToKey(slotId))
+	if raft == nil {
+		return nil
+	}
+	return raft.(*Slot)
+}
+
+func (s *Server) GetLogsInReverseOrder(slotId uint32, startLogIndex uint64, endLogIndex uint64, limit int) ([]types.Log, error) {
+	shardNo := SlotIdToKey(slotId)
+	return s.storage.GetLogsInReverseOrder(shardNo, startLogIndex, endLogIndex, limit)
 }

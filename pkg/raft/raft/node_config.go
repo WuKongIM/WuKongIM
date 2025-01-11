@@ -54,7 +54,12 @@ func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
 
 	if oldCfg.Role != newCfg.Role || oldCfg.Leader != newCfg.Leader || oldCfg.Term != newCfg.Term {
 		n.Info("role change", zap.String("old", oldCfg.Role.String()), zap.String("new", newCfg.Role.String()))
-		switch newCfg.Role {
+
+		role := newCfg.Role
+		if newCfg.Role == types.RoleUnknown {
+			role = oldCfg.Role
+		}
+		switch role {
 		case types.RoleLeader:
 			n.BecomeLeader(newCfg.Term)
 		case types.RoleFollower:

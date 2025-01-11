@@ -126,3 +126,12 @@ func (s *storage) DeleteLeaderTermStartIndexGreaterThanTerm(key string, term uin
 
 	return s.db.DeleteLeaderTermStartIndexGreaterThanTerm(key, term)
 }
+
+func (s *storage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
+	lastMsgSeq, appendTime, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		return 0, 0, err
+	}
+	return uint64(lastMsgSeq), appendTime, nil
+}

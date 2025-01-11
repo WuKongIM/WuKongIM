@@ -1,6 +1,10 @@
 package slot
 
-import "github.com/WuKongIM/WuKongIM/pkg/raft/types"
+import (
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+)
 
 func (s *Server) GetSlotId(v string) uint32 {
 
@@ -8,8 +12,11 @@ func (s *Server) GetSlotId(v string) uint32 {
 }
 
 func (s *Server) SlotLeaderId(slotId uint32) uint64 {
-
-	return s.raftGroup.GetRaft(SlotIdToKey(slotId)).LeaderId()
+	raft := s.raftGroup.GetRaft(SlotIdToKey(slotId))
+	if raft != nil {
+		return raft.LeaderId()
+	}
+	return 0
 
 }
 
@@ -23,4 +30,8 @@ func (s *Server) ProposeUntilApplied(slotId uint32, data []byte) (*types.Propose
 	shardNo := SlotIdToKey(slotId)
 	logId := s.GenLogId()
 	return s.raftGroup.ProposeUntilApplied(shardNo, logId, data)
+}
+
+func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
+
 }

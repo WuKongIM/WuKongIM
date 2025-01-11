@@ -48,12 +48,7 @@ func (co *connz) HandleConnz(c *wkhttp.Context) {
 	}
 
 	if nodeId > 0 && nodeId != options.G.Cluster.NodeId {
-		nodeInfo, err := service.Cluster.NodeInfoById(nodeId)
-		if err != nil {
-			co.Error("获取节点信息失败！", zap.Error(err), zap.Uint64("nodeId", nodeId))
-			c.ResponseError(err)
-			return
-		}
+		nodeInfo := service.Cluster.NodeInfoById(nodeId)
 		if nodeInfo == nil {
 			co.Error("节点不存在！", zap.Uint64("nodeId", nodeId))
 			c.ResponseError(fmt.Errorf("节点不存在！"))
@@ -109,11 +104,7 @@ func (co *connz) HandleConnz(c *wkhttp.Context) {
 
 func (co *connz) slotLeader(uid string) uint64 {
 	slotId := service.Cluster.GetSlotId(uid)
-	leaderId, err := service.Cluster.SlotLeaderId(slotId)
-	if err != nil {
-		co.Error("获取leaderId失败！", zap.Error(err))
-		return 0
-	}
+	leaderId := service.Cluster.SlotLeaderId(slotId)
 	return leaderId
 }
 

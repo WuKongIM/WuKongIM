@@ -83,7 +83,7 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 		return s.getOrMakePersonTag(fakeChannelId)
 	}
 
-	leader, err := service.Cluster.LeaderOfChannelForRead(fakeChannelId, channelType)
+	leader, err := service.Cluster.LeaderOfChannel(fakeChannelId, channelType)
 	if err != nil {
 		wklog.Error("GetOrRequestTag: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err

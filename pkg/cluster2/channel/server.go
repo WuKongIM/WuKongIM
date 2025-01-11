@@ -1,11 +1,8 @@
 package channel
 
 import (
-	"math/rand/v2"
 	"sync"
-	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -32,9 +29,9 @@ func NewServer(opts *Options) *Server {
 		opts: opts,
 		Log:  wklog.NewWKLog("channel.Server"),
 	}
-	s.storage = newStorage(opts.Store.WKDB())
+	s.storage = newStorage(opts.DB)
 	for i := 0; i < opts.GroupCount; i++ {
-		rg := raftgroup.New(raftgroup.NewOptions(raftgroup.WithTransport(opts.Transport), raftgroup.WithStorage(s.storage)))
+		rg := raftgroup.New(raftgroup.NewOptions(raftgroup.WithLogPrefix("channel"), raftgroup.WithTransport(opts.Transport), raftgroup.WithStorage(s.storage)))
 		s.raftGroups = append(s.raftGroups, rg)
 	}
 	s.wake.channels = make(map[string]bool)
@@ -59,20 +56,6 @@ func (s *Server) Stop() {
 	}
 }
 
-// 获取配置
-func (s *Server) getOrCreateChannelClusterConfigFromSlotLeader(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
-	channelKey := wkutil.ChannelToKey(channelId, channelType)
-	rg := s.getRaftGroup(channelKey)
-	raft := rg.GetRaft(channelKey)
-	if raft != nil {
-		ch := raft.(*Channel)
-		if ch.IsLeader() {
-			return ch.cfg, nil
-		}
-	}
-	return s.opts.Cluster.GetOrCreateChannelClusterConfigFromSlotLeader(channelId, channelType)
-}
-
 // 唤醒频道领导
 func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error {
 	channelKey := wkutil.ChannelToKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
@@ -86,11 +69,16 @@ func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error
 	if clusterConfig.LeaderId != s.opts.NodeId {
 		return nil
 	}
-	ch, err := createChannel(clusterConfig, s)
+	ch, err := createChannel(clusterConfig, s, rg)
 	if err != nil {
 		return err
 	}
 	rg.AddRaft(ch)
+
+	err = ch.switchConfig(channelConfigToRaftConfig(clusterConfig))
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -118,11 +106,22 @@ func (s *Server) WakeFollowerfNeed(channelId string, channelType uint8) error {
 	channelKey := wkutil.ChannelToKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
 	rg := s.getRaftGroup(channelKey)
 	if isReplica {
-		ch, err := createChannel(clusterConfig, s)
+		ch, err := createChannel(clusterConfig, s, rg)
 		if err != nil {
 			return err
 		}
 		rg.AddRaft(ch)
+
+		err = ch.switchConfig(channelConfigToRaftConfig(clusterConfig))
+		if err != nil {
+			return err
+		}
+
+		// 立马同步
+		ch.rg.AddEvent(channelKey, rafttype.Event{
+			Type: rafttype.NotifySync,
+		})
+		ch.rg.Advance()
 	}
 	return nil
 }
@@ -150,17 +149,20 @@ func (s *Server) wakeFollowerIfNeedAsync(channelId string, channelType uint8) {
 	}()
 }
 
-func (s *Server) AddEvent(channelId string, channelType uint8, e rafttype.Event) {
+func (s *Server) AddEvent(channelKey string, e rafttype.Event) {
 
 	// 添加事件到对应的频道
-	channelKey := wkutil.ChannelToKey(channelId, channelType)
+	channelId, channelType := wkutil.ChannelFromlKey(channelKey)
 	rg := s.getRaftGroup(channelKey)
 
+	raft := rg.GetRaft(channelKey)
+
 	// 如果领导发过来的ping消息，则需要判断是否需要唤醒副本频道
-	if rg == nil && e.Type == rafttype.Ping {
+	if raft == nil && (e.Type == rafttype.Ping || e.Type == rafttype.NotifySync) {
 		s.wakeFollowerIfNeedAsync(channelId, channelType)
 	} else {
 		rg.AddEvent(channelKey, e)
+		rg.Advance()
 	}
 
 }
@@ -183,44 +185,32 @@ func fnv32(key string) uint32 {
 	return uint32(hash)
 }
 
-// 创建一个频道的分布式配置
-func (s *Server) createChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
-	allowVoteNodes := s.opts.Node.AllowVoteAndJoinedNodes() // 获取允许投票的在线节点
-	if len(allowVoteNodes) == 0 {
-		return wkdb.EmptyChannelClusterConfig, ErrNoAllowVoteNode
+func (s *Server) ChannelCount() int {
+	var count int
+
+	for _, rg := range s.raftGroups {
+		count += rg.GetRaftCount()
+	}
+	return count
+}
+
+func (s *Server) ExistChannel(channelId string, channelType uint8) bool {
+	channelKey := wkutil.ChannelToKey(channelId, channelType)
+	rg := s.getRaftGroup(channelKey)
+	return rg.GetRaft(channelKey) != nil
+}
+
+func (s *Server) RemoveChannel(channelId string, channelType uint8) {
+	channelKey := wkutil.ChannelToKey(channelId, channelType)
+	rg := s.getRaftGroup(channelKey)
+	raft := rg.GetRaft(channelKey)
+	if raft != nil {
+		rg.RemoveRaft(raft)
 	}
 
-	createdAt := time.Now()
-	updatedAt := time.Now()
-	clusterConfig := wkdb.ChannelClusterConfig{
-		ChannelId:       channelId,
-		ChannelType:     channelType,
-		ReplicaMaxCount: uint16(s.opts.ChannelMaxReplicaCount),
-		Term:            1,
-		LeaderId:        s.opts.NodeId,
-		CreatedAt:       &createdAt,
-		UpdatedAt:       &updatedAt,
-	}
-	replicaIds := make([]uint64, 0, s.opts.ChannelMaxReplicaCount)
-	replicaIds = append(replicaIds, s.opts.NodeId) // 默认当前节点是领导，所以加入到副本列表中
+}
 
-	// 随机选择副本
-	newAllowVoteNodes := make([]*types.Node, 0, len(allowVoteNodes))
-	newAllowVoteNodes = append(newAllowVoteNodes, allowVoteNodes...)
-	rand.Shuffle(len(newAllowVoteNodes), func(i, j int) {
-		newAllowVoteNodes[i], newAllowVoteNodes[j] = newAllowVoteNodes[j], newAllowVoteNodes[i]
-	})
-
-	for _, allowVoteNode := range newAllowVoteNodes {
-		if allowVoteNode.Id == s.opts.NodeId {
-			continue
-		}
-		if len(replicaIds) >= int(s.opts.ChannelMaxReplicaCount) {
-			break
-		}
-		replicaIds = append(replicaIds, allowVoteNode.Id)
-
-	}
-	clusterConfig.Replicas = replicaIds
-	return clusterConfig, nil
+func (s *Server) LastIndexAndAppendTime(channelId string, channelType uint8) (uint64, uint64, error) {
+	channelKey := wkutil.ChannelToKey(channelId, channelType)
+	return s.storage.LastIndexAndAppendTime(channelKey)
 }

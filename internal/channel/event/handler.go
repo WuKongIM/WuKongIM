@@ -1,10 +1,8 @@
 package event
 
 import (
-	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -128,9 +126,7 @@ func (c *channelHandler) checkAndUpdateLeaderIdChange() {
 	if c.nodeVersion >= nodeVersion {
 		return
 	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer cancel()
-	leaderId, err := service.Cluster.LeaderIdOfChannel(timeoutCtx, c.channelId, c.channelType)
+	leaderId, err := service.Cluster.LeaderIdOfChannel(c.channelId, c.channelType)
 	if err != nil {
 		c.Error("checkLeaderIdChange: get leader id failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return

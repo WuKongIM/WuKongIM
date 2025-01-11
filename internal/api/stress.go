@@ -105,10 +105,10 @@ func (s *stress) remove(c *wkhttp.Context) {
 
 func (s *stress) infoList(c *wkhttp.Context) {
 
-	leaderInfo, err := service.Cluster.SlotLeaderNodeInfo(defaultSlotId) // 获取频道的领导节点
-	if err != nil {
-		s.Error("获取频道所在节点失败！", zap.Error(err), zap.Error(err))
-		c.ResponseError(errors.New("获取频道所在节点失败！"))
+	leaderInfo := service.Cluster.SlotLeaderNodeInfo(defaultSlotId) // 获取频道的领导节点
+	if leaderInfo == nil {
+		s.Error("槽领导对应的节点信息不存在！", zap.Uint32("slotId", defaultSlotId))
+		c.ResponseError(errors.New("槽领导对应的节点信息不存在！"))
 		return
 	}
 	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId

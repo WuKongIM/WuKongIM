@@ -1,11 +1,6 @@
 package api
 
 import (
-	"net/http"
-	"sort"
-
-	"github.com/WuKongIM/WuKongIM/internal/service"
-	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -21,37 +16,37 @@ func newSystem(s *Server) *system {
 	}
 }
 
-// Route route
-func (s *system) route(r *wkhttp.WKHttp) {
-	r.GET("/system/ping", s.ping)
-}
+// // Route route
+// func (s *system) route(r *wkhttp.WKHttp) {
+// 	r.GET("/system/ping", s.ping)
+// }
 
-func (s *system) ping(c *wkhttp.Context) {
-	pongs, err := service.Cluster.TestPing()
-	if err != nil {
-		c.ResponseError(err)
-		return
-	}
+// func (s *system) ping(c *wkhttp.Context) {
+// 	pongs, err := service.Cluster.TestPing()
+// 	if err != nil {
+// 		c.ResponseError(err)
+// 		return
+// 	}
 
-	results := make([]pingResult, 0, len(pongs))
-	for _, pong := range pongs {
-		errStr := ""
-		if pong.Err != nil {
-			errStr = pong.Err.Error()
-		}
-		results = append(results, pingResult{
-			NodeId:      pong.NodeId,
-			Err:         errStr,
-			Millisecond: pong.Millisecond,
-		})
-	}
+// 	results := make([]pingResult, 0, len(pongs))
+// 	for _, pong := range pongs {
+// 		errStr := ""
+// 		if pong.Err != nil {
+// 			errStr = pong.Err.Error()
+// 		}
+// 		results = append(results, pingResult{
+// 			NodeId:      pong.NodeId,
+// 			Err:         errStr,
+// 			Millisecond: pong.Millisecond,
+// 		})
+// 	}
 
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].NodeId < results[j].NodeId
-	})
+// 	sort.Slice(results, func(i, j int) bool {
+// 		return results[i].NodeId < results[j].NodeId
+// 	})
 
-	c.JSON(http.StatusOK, results)
-}
+// 	c.JSON(http.StatusOK, results)
+// }
 
 type pingResult struct {
 	NodeId      uint64 `json:"node_id"`

@@ -2,13 +2,28 @@ package cluster
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"math/rand/v2"
+	"path"
+	"strconv"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/clusterconfig"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/event"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/slot"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/store"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
+	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/panjf2000/gnet/v2"
+	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -22,36 +37,83 @@ type Server struct {
 	channelServer *channel.Server
 	// 分布式存储
 	store *store.Store
+	// 节点管理
+	nodeManager *nodeManager
+	//  节点之间通讯的网络服务
+	netServer *wkserver.Server
+	// rpc服务
+	rpcServer *rpcServer
+	rpcClient *rpcClient
+	// 数据库
+	db wkdb.DB
 	// 配置
-	opts *Options
+	opts      *Options
+	apiPrefix string // api前缀
+	wklog.Log
+	cancelCtx    context.Context
+	cancelFnc    context.CancelFunc
+	onMessageFnc func(fromNodeId uint64, msg *proto.Message)
+	uptime       time.Time // 服务启动时间
 }
 
-func New(ievent event.IEvent, opts *Options) *Server {
+func New(opts *Options) *Server {
 	s := &Server{
-		opts: opts,
+		opts:        opts,
+		nodeManager: newNodeManager(opts),
+		Log:         wklog.NewWKLog("cluster"),
+		uptime:      time.Now(),
 	}
+	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
+	// 初始化传输层
+	if opts.SlotTransport == nil {
+		opts.SlotTransport = newSlotTransport(s)
+	}
+	if opts.ChannelTransport == nil {
+		opts.ChannelTransport = newChannelTransport(s)
+	}
+	if opts.ConfigOptions.Transport == nil {
+		opts.ConfigOptions.Transport = newNodeTransport(s)
+	}
+
+	s.rpcServer = newRpcServer(s)
+	s.rpcClient = newRpcClient(s)
+
+	s.db = wkdb.NewWukongDB(
+		wkdb.NewOptions(
+			wkdb.WithShardNum(opts.DB.WKDbShardNum),
+			wkdb.WithDir(path.Join(opts.DataDir, "db")),
+			wkdb.WithNodeId(opts.ConfigOptions.NodeId),
+			wkdb.WithMemTableSize(opts.DB.WKDbMemTableSize),
+			wkdb.WithSlotCount(int(opts.ConfigOptions.SlotCount)),
+		),
+	)
+
+	// 节点之间通讯的网络服务
+	s.netServer = wkserver.New(
+		opts.Addr,
+		wkserver.WithMessagePoolOn(false),
+		wkserver.WithOnRequest(func(conn gnet.Conn, req *proto.Request) {
+			trace.GlobalTrace.Metrics.System().IntranetIncomingAdd(int64(len(req.Body)))
+		}),
+		wkserver.WithOnResponse(func(conn gnet.Conn, resp *proto.Response) {
+			trace.GlobalTrace.Metrics.System().IntranetOutgoingAdd(int64(len(resp.Body)))
+		}),
+	)
+	s.netServer.OnMessage(s.onMessage)
 
 	// 节点分布式配置服务
 	s.cfgServer = clusterconfig.New(opts.ConfigOptions)
 
 	//节点事件服务
-	s.eventServer = event.NewServer(ievent, opts.ConfigOptions, s.cfgServer)
+	s.eventServer = event.NewServer(s, opts.ConfigOptions, s.cfgServer)
 
 	// 槽分布式服务
 	s.slotServer = slot.NewServer(slot.NewOptions(
 		slot.WithNodeId(opts.ConfigOptions.NodeId),
-		slot.WithDataDir(opts.DataDir),
+		slot.WithDataDir(path.Join(opts.DataDir, "cluster")),
 		slot.WithTransport(opts.SlotTransport),
 		slot.WithNode(s.cfgServer),
 		slot.WithOnApply(s.slotApplyLogs),
-	))
-
-	// 分布式存储
-	s.store = store.New(store.NewOptions(
-		store.WithDataDir(opts.DataDir),
-		store.WithNodeId(opts.ConfigOptions.NodeId),
-		store.WithSlotCount(opts.ConfigOptions.SlotCount),
-		store.WithSlot(s.slotServer),
 	))
 
 	// 频道分布式服务
@@ -60,19 +122,37 @@ func New(ievent event.IEvent, opts *Options) *Server {
 		channel.WithTransport(opts.ChannelTransport),
 		channel.WithSlot(s.slotServer),
 		channel.WithNode(s.cfgServer),
-		channel.WithStore(s.store),
 		channel.WithCluster(s),
+		channel.WithDB(s.db),
+		channel.WithRPC(s.rpcClient),
+	))
+
+	// 分布式存储
+	s.store = store.New(store.NewOptions(
+		store.WithNodeId(opts.ConfigOptions.NodeId),
+		store.WithSlot(s.slotServer),
+		store.WithChannel(s.channelServer),
+		store.WithDB(s.db),
+		store.WithIsCmdChannel(opts.IsCmdChannel),
 	))
 
 	// 添加事件监听
 	s.cfgServer.AddEventListener(s.slotServer)
+	s.cfgServer.AddEventListener(s)
 
 	return s
 }
 
 func (s *Server) Start() error {
 
-	err := s.store.Open()
+	err := s.db.Open()
+	if err != nil {
+		return err
+	}
+
+	s.rpcServer.setRoutes()
+
+	err = s.netServer.Start()
 	if err != nil {
 		return err
 	}
@@ -97,6 +177,18 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	// 添加或更新节点
+	cfg := s.cfgServer.GetClusterConfig()
+	if len(cfg.Nodes) == 0 {
+		s.addOrUpdateNodes(s.opts.ConfigOptions.InitNodes)
+	} else {
+		nodeMap := make(map[uint64]string)
+		for _, node := range cfg.Nodes {
+			nodeMap[node.Id] = node.ClusterAddr
+		}
+		s.addOrUpdateNodes(nodeMap)
+	}
+
 	return nil
 }
 
@@ -105,7 +197,8 @@ func (s *Server) Stop() {
 	s.cfgServer.Stop()
 	s.slotServer.Stop()
 	s.channelServer.Stop()
-	s.store.Close()
+	s.netServer.Stop()
+	s.db.Close()
 }
 
 func (s *Server) NodeStep(event rafttype.Event) {
@@ -130,6 +223,143 @@ func (s *Server) ProposeToSlotUntilApplied(slotId uint32, data []byte) (*rafttyp
 	return s.slotServer.ProposeUntilApplied(slotId, data)
 }
 
-func (s *Server) slotApplyLogs(logs []rafttype.Log) error {
-	return s.store.ApplySlotLogs(logs)
+func (s *Server) GetStore() *store.Store {
+	return s.store
+}
+
+// 配置改变
+func (s *Server) OnConfigChange(cfg *types.Config) {
+
+	nodeMap := make(map[uint64]string)
+	for _, node := range cfg.Nodes {
+		nodeMap[node.Id] = node.ClusterAddr
+	}
+	s.addOrUpdateNodes(nodeMap)
+}
+
+func (s *Server) slotApplyLogs(slotId uint32, logs []rafttype.Log) error {
+	err := s.store.ApplySlotLogs(slotId, logs)
+	if err != nil {
+		s.Panic("apply slot logs failed", zap.Uint32("slotId", slotId), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (s *Server) addOrUpdateNodes(nodeMap map[uint64]string) {
+
+	if len(nodeMap) == 0 {
+		return
+	}
+	for nodeId, addr := range nodeMap {
+
+		if nodeId == s.opts.ConfigOptions.NodeId {
+			continue
+		}
+
+		existNode := s.nodeManager.node(nodeId)
+
+		if existNode != nil {
+			if existNode.addr == addr {
+				continue
+			} else {
+				existNode.stop()
+				s.nodeManager.removeNode(existNode.id)
+			}
+		}
+
+		n := newNode(nodeId, s.serverUid(s.opts.ConfigOptions.NodeId), addr, s.opts)
+		n.start()
+		s.nodeManager.addNode(n)
+	}
+}
+
+func (s *Server) serverUid(id uint64) string {
+	return fmt.Sprintf("%d", id)
+}
+
+// 获取频道所在的slotId
+func (s *Server) getSlotId(v string) uint32 {
+	var slotCount uint32 = s.cfgServer.SlotCount()
+	if slotCount == 0 {
+		slotCount = s.opts.ConfigOptions.SlotCount
+	}
+	return wkutil.GetSlotNum(int(slotCount), v)
+}
+
+func (s *Server) getOrCreateChannelClusterConfigFromLocal(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
+	// 获取频道槽领导
+	slotLeaderId, err := s.SlotLeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		return wkdb.EmptyChannelClusterConfig, err
+	}
+
+	if s.opts.ConfigOptions.NodeId != slotLeaderId {
+		s.Error("not slot leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return wkdb.EmptyChannelClusterConfig, errors.New("not slot leader")
+	}
+
+	cfg, err := s.db.GetChannelClusterConfig(channelId, channelType)
+	if err != nil && err != wkdb.ErrNotFound {
+		return wkdb.EmptyChannelClusterConfig, err
+	}
+	if wkdb.IsEmptyChannelClusterConfig(cfg) {
+		cfg, err = s.createChannelClusterConfig(channelId, channelType)
+		if err != nil {
+			return wkdb.EmptyChannelClusterConfig, err
+		}
+
+		err = s.store.SaveChannelClusterConfig(cfg)
+		if err != nil {
+			return wkdb.EmptyChannelClusterConfig, err
+		}
+		return cfg, nil
+	}
+	return cfg, nil
+}
+
+// 创建一个频道的分布式配置
+func (s *Server) createChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
+	allowVoteNodes := s.cfgServer.AllowVoteAndJoinedNodes() // 获取允许投票的在线节点
+	if len(allowVoteNodes) == 0 {
+		return wkdb.EmptyChannelClusterConfig, errors.New("no allow vote nodes")
+	}
+
+	createdAt := time.Now()
+	updatedAt := time.Now()
+	clusterConfig := wkdb.ChannelClusterConfig{
+		ChannelId:       channelId,
+		ChannelType:     channelType,
+		ReplicaMaxCount: uint16(s.opts.ConfigOptions.ChannelMaxReplicaCount),
+		Term:            1,
+		LeaderId:        s.opts.ConfigOptions.NodeId,
+		CreatedAt:       &createdAt,
+		UpdatedAt:       &updatedAt,
+	}
+	replicaIds := make([]uint64, 0, s.opts.ConfigOptions.ChannelMaxReplicaCount)
+	replicaIds = append(replicaIds, s.opts.ConfigOptions.NodeId) // 默认当前节点是领导，所以加入到副本列表中
+
+	// 随机选择副本
+	newAllowVoteNodes := make([]*types.Node, 0, len(allowVoteNodes))
+	newAllowVoteNodes = append(newAllowVoteNodes, allowVoteNodes...)
+	rand.Shuffle(len(newAllowVoteNodes), func(i, j int) {
+		newAllowVoteNodes[i], newAllowVoteNodes[j] = newAllowVoteNodes[j], newAllowVoteNodes[i]
+	})
+
+	for _, allowVoteNode := range newAllowVoteNodes {
+		if allowVoteNode.Id == s.opts.ConfigOptions.NodeId {
+			continue
+		}
+		if len(replicaIds) >= int(s.opts.ConfigOptions.ChannelMaxReplicaCount) {
+			break
+		}
+		replicaIds = append(replicaIds, allowVoteNode.Id)
+
+	}
+	clusterConfig.Replicas = replicaIds
+	return clusterConfig, nil
+}
+func (s *Server) uidToServerId(uid string) uint64 {
+	id, _ := strconv.ParseUint(uid, 10, 64)
+	return id
 }

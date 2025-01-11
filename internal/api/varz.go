@@ -45,11 +45,7 @@ func (v *varz) HandleVarz(c *wkhttp.Context) {
 	nodeId := wkutil.ParseUint64(c.Query("node_id"))
 
 	if nodeId > 0 && nodeId != options.G.Cluster.NodeId {
-		node, err := service.Cluster.NodeInfoById(nodeId)
-		if err != nil {
-			c.ResponseError(err)
-			return
-		}
+		node := service.Cluster.NodeInfoById(nodeId)
 		if node == nil {
 			v.Error("node not found", zap.Uint64("nodeId", nodeId))
 			c.ResponseError(fmt.Errorf("node not found"))

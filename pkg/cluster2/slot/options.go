@@ -21,7 +21,7 @@ type Options struct {
 	SlotCount uint32
 
 	// OnApply 应用日志回调
-	OnApply func(logs []types.Log) error
+	OnApply func(slotId uint32, logs []types.Log) error
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -74,7 +74,7 @@ func WithSlotCount(slotCount uint32) Option {
 	}
 }
 
-func WithOnApply(onApply func(logs []types.Log) error) Option {
+func WithOnApply(onApply func(slotId uint32, logs []types.Log) error) Option {
 	return func(o *Options) {
 		o.OnApply = onApply
 	}

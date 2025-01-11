@@ -1,26 +1,24 @@
 package store
 
-import "github.com/WuKongIM/WuKongIM/pkg/cluster2/icluster"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/icluster"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+)
 
 type Options struct {
-	NodeId       uint64 // 节点ID
-	ShardNum     int    // 分片数量
-	MemTableSize int    // MemTable大小
-	DataDir      string // 数据目录
-	SlotCount    uint32
+	NodeId uint64 // 节点ID
 
 	Slot icluster.Slot
 
+	DB wkdb.DB
+
 	Channel icluster.Channel
+
+	IsCmdChannel func(channel string) bool
 }
 
 func NewOptions(opt ...Option) *Options {
-	opts := &Options{
-		ShardNum:     8,
-		MemTableSize: 16 * 1024 * 1024,
-		DataDir:      "./data",
-		SlotCount:    64,
-	}
+	opts := &Options{}
 	for _, o := range opt {
 		o(opts)
 	}
@@ -35,32 +33,26 @@ func WithNodeId(nodeId uint64) Option {
 	}
 }
 
-func WithShardNum(shardNum int) Option {
-	return func(o *Options) {
-		o.ShardNum = shardNum
-	}
-}
-
-func WithMemTableSize(memTableSize int) Option {
-	return func(o *Options) {
-		o.MemTableSize = memTableSize
-	}
-}
-
-func WithDataDir(dataDir string) Option {
-	return func(o *Options) {
-		o.DataDir = dataDir
-	}
-}
-
-func WithSlotCount(slotCount uint32) Option {
-	return func(o *Options) {
-		o.SlotCount = slotCount
-	}
-}
-
 func WithSlot(slot icluster.Slot) Option {
 	return func(o *Options) {
 		o.Slot = slot
+	}
+}
+
+func WithChannel(channel icluster.Channel) Option {
+	return func(o *Options) {
+		o.Channel = channel
+	}
+}
+
+func WithDB(db wkdb.DB) Option {
+	return func(o *Options) {
+		o.DB = db
+	}
+}
+
+func WithIsCmdChannel(isCmdChannel func(channel string) bool) Option {
+	return func(o *Options) {
+		o.IsCmdChannel = isCmdChannel
 	}
 }

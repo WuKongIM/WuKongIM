@@ -155,22 +155,275 @@ type Event struct {
 	Index uint64
 	// CommittedIndex 已提交日志下标
 	CommittedIndex uint64
-	// Logs 日志
-	Logs []Log
-	// Reason 原因
-	Reason Reason
 	// StoredIndex 已存储日志下标
 	StoredIndex uint64
-
 	// 最新的日志任期（与Term不同。Term是当前服务的任期）
 	LastLogTerm uint32
+	Config      Config
+	// Logs 日志
+	Logs []Log
 
-	Config Config
+	// Reason 原因
+	Reason Reason
 
 	// 不参与编码
 	TermStartIndexInfo *TermStartIndexInfo
 	StartIndex         uint64
 	EndIndex           uint64
+}
+
+const (
+	typeFlag uint32 = 1 << iota
+	fromFlag
+	toFlag
+	termFlag
+	indexFlag
+	committedIndexFlag
+	storedIndexFlag
+	lastLogTermFlag
+	configFlag
+	logsFlag
+	reasonFlag
+)
+
+func (e Event) Marshal() ([]byte, error) {
+	flag := e.getFlag()
+
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteUint32(flag)
+
+	if flag&typeFlag != 0 {
+		enc.WriteUint16(uint16(e.Type))
+	}
+	if flag&fromFlag != 0 {
+		enc.WriteUint64(e.From)
+	}
+	if flag&toFlag != 0 {
+		enc.WriteUint64(e.To)
+	}
+	if flag&termFlag != 0 {
+		enc.WriteUint32(e.Term)
+	}
+	if flag&indexFlag != 0 {
+		enc.WriteUint64(e.Index)
+	}
+	if flag&committedIndexFlag != 0 {
+		enc.WriteUint64(e.CommittedIndex)
+	}
+	if flag&storedIndexFlag != 0 {
+		enc.WriteUint64(e.StoredIndex)
+	}
+	if flag&lastLogTermFlag != 0 {
+		enc.WriteUint32(e.LastLogTerm)
+	}
+	if flag&configFlag != 0 {
+		enc.WriteUint64(e.Config.MigrateFrom)
+		enc.WriteUint64(e.Config.MigrateTo)
+		enc.WriteUint32(uint32(len(e.Config.Replicas)))
+		for _, v := range e.Config.Replicas {
+			enc.WriteUint64(v)
+		}
+		enc.WriteUint32(uint32(len(e.Config.Learners)))
+		for _, v := range e.Config.Learners {
+			enc.WriteUint64(v)
+		}
+		enc.WriteUint8(uint8(e.Config.Role))
+		enc.WriteUint32(e.Config.Term)
+		enc.WriteUint64(e.Config.Version)
+	}
+	if flag&logsFlag != 0 {
+		enc.WriteUint32(uint32(len(e.Logs)))
+		for _, v := range e.Logs {
+			data, err := v.Marshal()
+			if err != nil {
+				return nil, err
+			}
+			enc.WriteUint32(uint32(len(data)))
+			enc.WriteBytes(data)
+		}
+	}
+	if flag&reasonFlag != 0 {
+		enc.WriteUint8(uint8(e.Reason))
+	}
+
+	return enc.Bytes(), nil
+}
+
+func (e *Event) Unmarshal(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	flag, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	if flag&typeFlag != 0 {
+		t, err := dec.Uint16()
+		if err != nil {
+			return err
+		}
+		e.Type = EventType(t)
+	}
+	if flag&fromFlag != 0 {
+		from, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		e.From = from
+	}
+	if flag&toFlag != 0 {
+		to, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		e.To = to
+	}
+	if flag&termFlag != 0 {
+		term, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		e.Term = term
+	}
+	if flag&indexFlag != 0 {
+		index, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		e.Index = index
+	}
+	if flag&committedIndexFlag != 0 {
+		committedIndex, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		e.CommittedIndex = committedIndex
+	}
+	if flag&storedIndexFlag != 0 {
+		storedIndex, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		e.StoredIndex = storedIndex
+	}
+	if flag&lastLogTermFlag != 0 {
+		lastLogTerm, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		e.LastLogTerm = lastLogTerm
+	}
+	if flag&configFlag != 0 {
+		var config Config
+		if config.MigrateFrom, err = dec.Uint64(); err != nil {
+			return err
+		}
+		if config.MigrateTo, err = dec.Uint64(); err != nil {
+			return err
+		}
+		replicasLen, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		for i := 0; i < int(replicasLen); i++ {
+			replica, err := dec.Uint64()
+			if err != nil {
+				return err
+			}
+			config.Replicas = append(config.Replicas, replica)
+		}
+		learnersLen, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		for i := 0; i < int(learnersLen); i++ {
+			learner, err := dec.Uint64()
+			if err != nil {
+				return err
+			}
+			config.Learners = append(config.Learners, learner)
+		}
+		role, err := dec.Uint8()
+		if err != nil {
+			return err
+		}
+		config.Role = Role(role)
+		if config.Term, err = dec.Uint32(); err != nil {
+			return err
+		}
+		if config.Version, err = dec.Uint64(); err != nil {
+			return err
+		}
+		e.Config = config
+	}
+	if flag&logsFlag != 0 {
+		logsLen, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		for i := 0; i < int(logsLen); i++ {
+			var log Log
+			dataLen, err := dec.Uint32()
+			if err != nil {
+				return err
+			}
+
+			data, err := dec.Bytes(int(dataLen))
+			if err != nil {
+				return err
+			}
+			if err := log.Unmarshal(data); err != nil {
+				return err
+			}
+			e.Logs = append(e.Logs, log)
+		}
+	}
+	if flag&reasonFlag != 0 {
+		reason, err := dec.Uint8()
+		if err != nil {
+			return err
+		}
+		e.Reason = Reason(reason)
+	}
+	return nil
+}
+
+func (e Event) getFlag() uint32 {
+	var flag uint32
+	if e.Type != Unknown {
+		flag |= typeFlag
+	}
+	if e.From != 0 {
+		flag |= fromFlag
+	}
+	if e.To != 0 {
+		flag |= toFlag
+	}
+	if e.Term != 0 {
+		flag |= termFlag
+	}
+	if e.Index != 0 {
+		flag |= indexFlag
+	}
+	if e.CommittedIndex != 0 {
+		flag |= committedIndexFlag
+	}
+	if e.StoredIndex != 0 {
+		flag |= storedIndexFlag
+	}
+	if e.LastLogTerm != 0 {
+		flag |= lastLogTermFlag
+	}
+	if !e.Config.IsEmpty() {
+		flag |= configFlag
+	}
+	if len(e.Logs) > 0 {
+		flag |= logsFlag
+	}
+	if e.Reason != ReasonUnknown {
+		flag |= reasonFlag
+	}
+	return flag
 }
 
 func (e Event) String() string {
@@ -273,6 +526,10 @@ type Config struct {
 
 	// 不参与编码
 	Leader uint64 // 领导ID
+}
+
+func (c Config) IsEmpty() bool {
+	return c.MigrateFrom == 0 && c.MigrateTo == 0 && len(c.Replicas) == 0 && len(c.Learners) == 0 && c.Role == RoleUnknown && c.Term == 0 && c.Version == 0
 }
 
 type ConfigEventType uint8
