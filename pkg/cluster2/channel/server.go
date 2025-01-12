@@ -22,6 +22,8 @@ type Server struct {
 		sync.RWMutex
 		channels map[string]bool
 	}
+
+	wakeLeaderLock sync.Mutex
 }
 
 func NewServer(opts *Options) *Server {
@@ -29,7 +31,7 @@ func NewServer(opts *Options) *Server {
 		opts: opts,
 		Log:  wklog.NewWKLog("channel.Server"),
 	}
-	s.storage = newStorage(opts.DB)
+	s.storage = newStorage(opts.DB, s)
 	for i := 0; i < opts.GroupCount; i++ {
 		rg := raftgroup.New(raftgroup.NewOptions(raftgroup.WithLogPrefix("channel"), raftgroup.WithTransport(opts.Transport), raftgroup.WithStorage(s.storage)))
 		s.raftGroups = append(s.raftGroups, rg)
@@ -58,6 +60,10 @@ func (s *Server) Stop() {
 
 // 唤醒频道领导
 func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error {
+
+	s.wakeLeaderLock.Lock()
+	defer s.wakeLeaderLock.Unlock()
+
 	channelKey := wkutil.ChannelToKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
 	rg := s.getRaftGroup(channelKey)
 
@@ -69,6 +75,7 @@ func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error
 	if clusterConfig.LeaderId != s.opts.NodeId {
 		return nil
 	}
+
 	ch, err := createChannel(clusterConfig, s, rg)
 	if err != nil {
 		return err

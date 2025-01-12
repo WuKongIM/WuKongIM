@@ -562,7 +562,7 @@ func TestClusterSaveClusterConfig(t *testing.T) {
 	createdAt := time.Now()
 	updatedAt := time.Now()
 
-	err := s1.store.SaveChannelClusterConfig(wkdb.ChannelClusterConfig{
+	_, err := s1.store.SaveChannelClusterConfig(wkdb.ChannelClusterConfig{
 		ChannelId:       "test1@test2",
 		ChannelType:     1,
 		ReplicaMaxCount: 3,

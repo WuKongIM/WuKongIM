@@ -31,4 +31,6 @@ type IRaft interface {
 	// Lock 锁
 	Lock()
 	Unlock()
+	// 获取raft配置
+	Config() types.Config
 }

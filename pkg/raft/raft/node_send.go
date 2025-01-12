@@ -59,7 +59,7 @@ func (n *Node) sendVoteReq(to uint64) {
 		Term: n.cfg.Term,
 		Logs: []types.Log{
 			{
-				Term:  n.cfg.Term,
+				Term:  n.lastTermStartIndex.Term,
 				Index: n.queue.lastLogIndex,
 			},
 		},
@@ -89,6 +89,7 @@ func (n *Node) sendPing(to uint64) {
 			Term:           n.cfg.Term,
 			Index:          n.queue.lastLogIndex,
 			CommittedIndex: n.queue.committedIndex,
+			ConfigVersion:  n.cfg.Version,
 		})
 		return
 	}
@@ -121,13 +122,17 @@ func (n *Node) sendPing(to uint64) {
 }
 
 func (n *Node) sendStoreReq(logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) {
-	n.events = append(n.events, types.Event{
-		Type:               types.StoreReq,
-		Term:               n.cfg.Term,
-		To:                 types.LocalNode,
-		Logs:               logs,
-		TermStartIndexInfo: termStartIndexInfo,
-	})
+	e := types.Event{
+		Type: types.StoreReq,
+		Term: n.cfg.Term,
+		To:   types.LocalNode,
+		Logs: logs,
+	}
+
+	if termStartIndexInfo != nil {
+		e.TermStartIndexInfo = termStartIndexInfo.Clone()
+	}
+	n.events = append(n.events, e)
 }
 
 func (n *Node) sendApplyReq(start, end uint64) {
@@ -172,5 +177,46 @@ func (n *Node) sendTruncateReq(index uint64) {
 		To:    types.LocalNode,
 		Term:  n.lastTermStartIndex.Term,
 		Index: index,
+	})
+}
+
+func (n *Node) sendLearnerToLeaderReq(from uint64) {
+
+	n.events = append(n.events, types.Event{
+		Type: types.LearnerToLeaderReq,
+		From: from,
+	})
+}
+
+func (n *Node) sendLearnerToFollowerReq(from uint64) {
+	n.events = append(n.events, types.Event{
+		Type: types.LearnerToFollowerReq,
+		From: from,
+	})
+}
+
+func (n *Node) sendFollowToLeaderReq(from uint64) {
+	n.events = append(n.events, types.Event{
+		Type: types.FollowerToLeaderReq,
+		From: from,
+	})
+}
+
+func (n *Node) sendConfigReq() {
+	n.events = append(n.events, types.Event{
+		Type: types.ConfigReq,
+		Term: n.cfg.Term,
+		From: n.opts.NodeId,
+		To:   n.cfg.Leader,
+	})
+}
+
+func (n *Node) sendConfigResp(to uint64, cfg types.Config) {
+	n.events = append(n.events, types.Event{
+		Type:   types.ConfigResp,
+		From:   n.opts.NodeId,
+		To:     to,
+		Term:   n.cfg.Term,
+		Config: cfg,
 	})
 }

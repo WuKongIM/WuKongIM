@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/lni/goutils/syncutil"
+	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -94,6 +95,12 @@ func (s *Server) handleEvents() {
 	s.handler.handleCompare()
 
 	if s.cfgServer.IsLeader() {
+		// 检查和均衡槽领导
+		err := s.handleSlotLeaderAutoBalance()
+		if err != nil {
+			s.Error("handleSlotLeaderAutoBalance failed", zap.Error(err))
+			return
+		}
 		// 处理槽选举
 		s.handler.handleSlotLeaderElection()
 	}

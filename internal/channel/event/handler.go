@@ -62,9 +62,9 @@ func (c *channelHandler) addEvent(event *eventbus.Event) {
 func (c *channelHandler) hasEvent() bool {
 	c.pending.RLock()
 	defer c.pending.RUnlock()
-	// if c.processing.Load() {
-	// 	return false
-	// }
+	if c.processing.Load() {
+		return false
+	}
 	return c.processingIndex < c.pending.eventQueue.LastIndex()
 }
 
@@ -86,10 +86,10 @@ func (u *channelHandler) events() []*eventbus.Event {
 // 推进事件
 func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
 
-	// c.processing.Store(true)
-	// defer func() {
-	// 	c.processing.Store(false)
-	// }()
+	c.processing.Store(true)
+	defer func() {
+		c.processing.Store(false)
+	}()
 
 	// 检查和更新leaderId
 	c.checkAndUpdateLeaderIdChange()

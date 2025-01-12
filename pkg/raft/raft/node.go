@@ -6,6 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"go.uber.org/zap"
 )
 
 type electionState struct {
@@ -19,9 +20,9 @@ type syncState struct {
 	replicaSync map[uint64]*SyncInfo // 同步记录
 }
 
-type softState struct {
-	termStartIndex *types.TermStartIndexInfo
-}
+// type softState struct {
+// 	termStartIndex *types.TermStartIndexInfo
+// }
 
 type Node struct {
 	events      []types.Event
@@ -29,24 +30,19 @@ type Node struct {
 	syncElapsed int // 同步计数
 	tickFnc     func()
 	stepFunc    func(event types.Event) error
-	queue       *queue
+	queue       *queue // 日志队列
 	wklog.Log
-
-	heartbeatElapsed int // 心跳计时器
-
-	cfg types.Config // 分布式配置
-
-	electionState // 选举状态
-	syncState     // 同步状态
-
+	heartbeatElapsed int          // 心跳计时器
+	cfg              types.Config // 分布式配置
+	electionState                 // 选举状态
+	syncState                     // 同步状态
 	// 最新的任期对应的开始日志下标
 	lastTermStartIndex types.TermStartIndexInfo
-
-	onlySync  bool      // 是否只同步,不做截断判断
-	softState softState // 软状态
+	onlySync           bool // 是否只同步,不做截断判断
+	// softState softState // 软状态
 	sync.Mutex
-
-	truncating bool // 截断中
+	truncating  bool // 截断中
+	stopPropose bool // 停止提案
 }
 
 func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Options) *Node {
@@ -54,11 +50,16 @@ func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Opti
 		opts: opts,
 		Log:  wklog.NewWKLog(fmt.Sprintf("raft.node[%s]", opts.Key)),
 	}
+
+	if raftState.AppliedIndex > raftState.LastLogIndex {
+		n.Panic("applied index > last log index", zap.Uint64("appliedIndex", raftState.AppliedIndex), zap.Uint64("lastLogIndex", raftState.LastLogIndex))
+	}
+
 	n.cfg.Replicas = append(n.cfg.Replicas, opts.Replicas...)
 
 	n.cfg.Term = raftState.LastTerm
 	// 初始化日志队列
-	n.queue = newQueue(raftState.AppliedIndex, raftState.LastLogIndex, opts.NodeId)
+	n.queue = newQueue(opts.Key, raftState.AppliedIndex, raftState.LastLogIndex, opts.NodeId)
 
 	// 初始化选举状态
 	n.votes = make(map[uint64]bool)
@@ -119,8 +120,18 @@ func (n *Node) Ready() []types.Event {
 	if n.queue.hasNextStoreLogs() {
 		logs := n.queue.nextStoreLogs(0)
 		if len(logs) > 0 {
-			n.sendStoreReq(logs, n.softState.termStartIndex)
-			n.softState.termStartIndex = nil
+			var termStartIndexInfo *types.TermStartIndexInfo
+			for _, log := range logs {
+				if n.lastTermStartIndex.Term != log.Term || log.Index == 1 {
+					termStartIndexInfo = &types.TermStartIndexInfo{
+						Term:  log.Term,
+						Index: log.Index,
+					}
+					n.updateLastTermStartIndex(log.Term, log.Index)
+					break
+				}
+			}
+			n.sendStoreReq(logs, termStartIndexInfo)
 		}
 	}
 
@@ -138,6 +149,10 @@ func (n *Node) Ready() []types.Event {
 
 func (n *Node) LeaderId() uint64 {
 	return n.cfg.Leader
+}
+
+func (n *Node) Config() types.Config {
+	return n.cfg
 }
 
 func (n *Node) IsLeader() bool {
@@ -166,6 +181,18 @@ func (n *Node) AppliedIndex() uint64 {
 
 func (n *Node) NodeId() uint64 {
 	return n.opts.NodeId
+}
+
+// 获取某个副本的最新日志下标（领导节点才有这个信息）
+func (n *Node) GetReplicaLastLogIndex(replicaId uint64) uint64 {
+	if replicaId == n.opts.NodeId {
+		return n.LastLogIndex()
+	}
+	syncInfo := n.replicaSync[replicaId]
+	if syncInfo != nil && syncInfo.LastSyncIndex > 0 {
+		return syncInfo.LastSyncIndex - 1
+	}
+	return 0
 }
 
 func (n *Node) advance() {

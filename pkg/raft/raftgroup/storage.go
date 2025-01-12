@@ -17,4 +17,6 @@ type IStorage interface {
 	TruncateLogTo(key string, index uint64) error
 	// DeleteLeaderTermStartIndexGreaterThanTerm 删除大于term的领导任期和开始索引
 	DeleteLeaderTermStartIndexGreaterThanTerm(key string, term uint32) error
+	// SaveConfig 保存配置
+	SaveConfig(key string, cfg types.Config) error
 }

@@ -119,6 +119,16 @@ func (r *rpcClient) RequestWakeLeaderIfNeed(nodeId uint64, config wkdb.ChannelCl
 	return err
 }
 
+// RequestChannelSwitchConfig 请求切换频道配置
+func (r *rpcClient) RequestChannelSwitchConfig(nodeId uint64, config wkdb.ChannelClusterConfig) error {
+	data, err := config.Marshal()
+	if err != nil {
+		return err
+	}
+	_, err = r.request(nodeId, "/rpc/channel/switchConfig", data)
+	return err
+}
+
 func (r *rpcClient) request(nodeId uint64, path string, body []byte) ([]byte, error) {
 
 	node := r.s.nodeManager.node(nodeId)
