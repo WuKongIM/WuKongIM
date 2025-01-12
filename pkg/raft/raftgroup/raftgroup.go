@@ -256,6 +256,13 @@ func (rg *RaftGroup) handleReady(r IRaft) bool {
 		case types.ApplyReq: // 处理应用请求
 			rg.handleApplyReq(r, e)
 			continue
+
+			// 角色转换
+		case types.LearnerToFollowerReq,
+			types.LearnerToLeaderReq,
+			types.FollowerToLeaderReq:
+			rg.handleRoleChangeReq(r, e)
+			continue
 		}
 		if e.To == 0 {
 			rg.Error("none node event", zap.Any("event", e))

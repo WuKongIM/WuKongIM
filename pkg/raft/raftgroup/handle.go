@@ -1,7 +1,11 @@
 package raftgroup
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
@@ -21,6 +25,7 @@ func (rg *RaftGroup) handleStoreReq(r IRaft, e types.Event) {
 		rg.AddEvent(r.Key(), types.Event{
 			Type:   types.StoreResp,
 			Index:  e.Logs[len(e.Logs)-1].Index,
+			Logs:   e.Logs,
 			Reason: reason,
 		})
 		rg.Advance()
@@ -61,10 +66,22 @@ func (rg *RaftGroup) handleGetLogsReq(r IRaft, e types.Event) {
 				Index:  trunctIndex,
 				Reason: types.ReasonTruncate,
 			})
+			rg.Advance()
+			return
+		}
+		if e.Reason != types.ReasonOnlySync && e.Index > e.StoredIndex {
+			rg.Debug("index is greater than stored index", zap.String("key", r.Key()), zap.Uint64("index", e.Index), zap.Uint64("storedIndex", e.StoredIndex))
+			rg.AddEvent(r.Key(), types.Event{
+				To:     e.From,
+				Type:   types.GetLogsResp,
+				Index:  e.Index,
+				Reason: types.ReasonOk,
+			})
+			rg.Advance()
 			return
 		}
 		// 获取日志数据
-		logs, err := rg.opts.Storage.GetLogs(r.Key(), e.Index, e.StoredIndex+1, rg.opts.MaxLogCountPerBatch)
+		logs, err := rg.opts.Storage.GetLogs(r.Key(), e.Index, e.StoredIndex+1, rg.opts.MaxLogSizePerBatch)
 		if err != nil {
 			rg.Error("get logs failed", zap.Error(err))
 			rg.AddEvent(r.Key(), types.Event{
@@ -189,11 +206,7 @@ func (rg *RaftGroup) getTrunctLogIndex(r IRaft, e types.Event) (uint64, types.Re
 		rg.Error("get leader last log term failed", zap.Error(err))
 		return 0, types.ReasonError
 	}
-	// 如果副本的最新日志任期大于领导的最新日志任期，则不合法，副本最新日志任期不可能大于领导最新日志任期
-	if e.LastLogTerm > leaderLastLogTerm {
-		rg.Error("log term is greater than leader term", zap.String("key", r.Key()), zap.Uint32("lastLogTerm", e.LastLogTerm), zap.Uint32("leaderLastLogTerm", leaderLastLogTerm))
-		return 0, types.ReasonError
-	}
+
 	// 副本的最新日志任期为0，说明副本没有日志，不需要裁剪
 	if e.LastLogTerm == 0 {
 		return 0, types.ReasonOk
@@ -215,6 +228,141 @@ func (rg *RaftGroup) getTrunctLogIndex(r IRaft, e types.Event) (uint64, types.Re
 			return termStartIndex - 1, types.ReasonOk
 		}
 		return termStartIndex, types.ReasonOk
+	} else {
+		termStartIndex, err := rg.opts.Storage.GetTermStartIndex(r.Key(), leaderLastLogTerm)
+		if err != nil {
+			rg.Error("get term start index failed", zap.Error(err))
+			return 0, types.ReasonError
+		}
+		rg.Foucs("getTrunctLogIndex: lastLogTerm > leaderLastLogTerm", zap.Uint32("e.LastLogTerm", e.LastLogTerm), zap.Uint32("leaderLastLogTerm", leaderLastLogTerm), zap.Uint64("termStartIndex", termStartIndex))
+		if termStartIndex > 0 {
+			return termStartIndex - 1, types.ReasonOk
+		}
+		return termStartIndex, types.ReasonOk
 	}
-	return 0, types.ReasonOk
+}
+
+func (rg *RaftGroup) handleRoleChangeReq(r IRaft, e types.Event) {
+
+	err := rg.goPool.Submit(func() {
+
+		var (
+			newCfg        types.Config
+			err           error
+			respEventType types.EventType
+		)
+		switch e.Type {
+		case types.LearnerToLeaderReq,
+			types.LearnerToFollowerReq:
+			newCfg, err = rg.learnTo(r, e.From)
+			if err != nil {
+				rg.Error("learn switch failed", zap.Error(err), zap.String("key", r.Key()), zap.String("type", e.Type.String()), zap.String("cfg", r.Config().String()))
+			}
+			if e.Type == types.LearnerToFollowerReq {
+				respEventType = types.LearnerToFollowerResp
+			} else if e.Type == types.LearnerToLeaderReq {
+				respEventType = types.LearnerToLeaderResp
+			}
+		case types.FollowerToLeaderReq:
+			newCfg, err = rg.followerToLeader(r, e.From)
+			if err != nil {
+				rg.Error("follower switch to leader failed", zap.Error(err), zap.String("key", r.Key()), zap.String("cfg", r.Config().String()))
+			}
+			respEventType = types.FollowerToLeaderResp
+		default:
+			err = errors.New("unknown role switch")
+		}
+
+		if err != nil {
+			rg.AddEvent(r.Key(), types.Event{
+				Type:   respEventType,
+				From:   e.From,
+				Reason: types.ReasonError,
+			})
+			return
+		}
+
+		err = rg.opts.Storage.SaveConfig(r.Key(), newCfg)
+		if err != nil {
+			rg.Error("change role failed", zap.Error(err))
+			rg.AddEvent(r.Key(), types.Event{
+				Type:   respEventType,
+				From:   e.From,
+				Reason: types.ReasonError,
+			})
+			return
+		}
+		rg.AddEvent(r.Key(), types.Event{
+			Type:   respEventType,
+			From:   e.From,
+			Reason: types.ReasonOk,
+			Config: newCfg,
+		})
+		rg.Advance()
+	})
+	if err != nil {
+		rg.Error("submit role change req failed", zap.Error(err))
+
+		var respEventType types.EventType
+
+		switch e.Type {
+		case types.LearnerToLeaderReq:
+			respEventType = types.LearnerToLeaderResp
+		case types.LearnerToFollowerReq:
+			respEventType = types.LearnerToFollowerResp
+		case types.FollowerToLeaderReq:
+			respEventType = types.FollowerToLeaderResp
+		}
+
+		rg.AddEvent(r.Key(), types.Event{
+			Type:   respEventType,
+			From:   e.From,
+			Reason: types.ReasonError,
+		})
+	}
+}
+
+// 学习者转换
+func (rg *RaftGroup) learnTo(r IRaft, learnerId uint64) (types.Config, error) {
+	cfg := r.Config().Clone()
+
+	if learnerId != cfg.MigrateTo {
+		rg.Warn("learnerId not equal migrateTo", zap.Uint64("learnerId", learnerId), zap.Uint64("migrateTo", cfg.MigrateTo))
+		return types.Config{}, errors.New("learnerId not equal migrateTo")
+	}
+
+	cfg.Learners = wkutil.RemoveUint64(cfg.Learners, learnerId)
+
+	if !wkutil.ArrayContainsUint64(cfg.Replicas, cfg.MigrateTo) {
+		cfg.Replicas = append(cfg.Replicas, cfg.MigrateTo)
+	}
+
+	if cfg.MigrateFrom != cfg.MigrateTo {
+		cfg.Replicas = wkutil.RemoveUint64(cfg.Replicas, cfg.MigrateFrom)
+	}
+
+	if cfg.MigrateFrom == r.LeaderId() { // 学习者转领导
+		cfg.Leader = cfg.MigrateTo
+	}
+	cfg.MigrateFrom = 0
+	cfg.MigrateTo = 0
+
+	return cfg, nil
+}
+
+// follower转换成leader
+func (rg *RaftGroup) followerToLeader(r IRaft, followerId uint64) (types.Config, error) {
+	cfg := r.Config().Clone()
+	if !wkutil.ArrayContainsUint64(cfg.Replicas, followerId) {
+		rg.Error("followerToLeader: follower not in replicas", zap.Uint64("followerId", followerId))
+		return types.Config{}, fmt.Errorf("follower not in replicas")
+	}
+
+	cfg.Leader = followerId
+	cfg.Term = cfg.Term + 1
+	cfg.MigrateFrom = 0
+	cfg.MigrateTo = 0
+
+	return cfg, nil
+
 }

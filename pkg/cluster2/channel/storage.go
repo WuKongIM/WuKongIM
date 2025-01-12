@@ -8,10 +8,11 @@ import (
 
 type storage struct {
 	db wkdb.DB
+	s  *Server
 }
 
-func newStorage(db wkdb.DB) *storage {
-	return &storage{db: db}
+func newStorage(db wkdb.DB, s *Server) *storage {
+	return &storage{db: db, s: s}
 }
 
 func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState, error) {
@@ -105,6 +106,16 @@ func (s *storage) Apply(key string, logs []types.Log) error {
 	return nil
 }
 
+func (s *storage) SaveConfig(key string, cfg types.Config) error {
+	if s.s.opts.OnSaveConfig != nil {
+		channelId, channelType := wkutil.ChannelFromlKey(key)
+		err := s.s.opts.OnSaveConfig(channelId, channelType, cfg)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (s *storage) TruncateLogTo(key string, index uint64) error {
 	channelId, channelType := wkutil.ChannelFromlKey(key)
 	return s.db.TruncateLogTo(channelId, channelType, index)

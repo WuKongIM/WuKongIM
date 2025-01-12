@@ -12,12 +12,12 @@ func (s *Server) OnConfigChange(cfg *types.Config) {
 		if slot.Leader == 0 {
 			continue
 		}
-		s.addOrUpdateSlotRaft(slot)
+		s.AddOrUpdateSlotRaft(slot)
 	}
 }
 
 // 根据slot的配置添加或者更新raft
-func (s *Server) addOrUpdateSlotRaft(slot *types.Slot) {
+func (s *Server) AddOrUpdateSlotRaft(slot *types.Slot) {
 
 	s.slotUpdateLock.Lock()
 	defer s.slotUpdateLock.Unlock()
@@ -48,13 +48,28 @@ func (s *Server) addOrUpdateSlotRaft(slot *types.Slot) {
 }
 
 func (s *Server) slotToConfig(st *types.Slot) rafttype.Config {
-	return rafttype.Config{
+
+	var role rafttype.Role
+	if st.Status == types.SlotStatus_SlotStatusCandidate {
+		role = rafttype.RoleCandidate
+	} else {
+		if st.Leader == s.opts.NodeId {
+			role = rafttype.RoleLeader
+		} else {
+			role = rafttype.RoleFollower
+		}
+	}
+
+	cfg := rafttype.Config{
 		MigrateFrom: st.MigrateFrom,
 		MigrateTo:   st.MigrateTo,
 		Replicas:    st.Replicas,
 		Learners:    st.Learners,
 		Term:        st.Term,
 		Leader:      st.Leader,
+		Role:        role,
 	}
+
+	return cfg
 
 }

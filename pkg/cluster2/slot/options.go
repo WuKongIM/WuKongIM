@@ -22,6 +22,9 @@ type Options struct {
 
 	// OnApply 应用日志回调
 	OnApply func(slotId uint32, logs []types.Log) error
+
+	// OnSaveConfig 保存槽配置
+	OnSaveConfig func(slotId uint32, cfg types.Config) error
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -77,5 +80,11 @@ func WithSlotCount(slotCount uint32) Option {
 func WithOnApply(onApply func(slotId uint32, logs []types.Log) error) Option {
 	return func(o *Options) {
 		o.OnApply = onApply
+	}
+}
+
+func WithOnSaveConfig(onSaveConfig func(slotId uint32, cfg types.Config) error) Option {
+	return func(o *Options) {
+		o.OnSaveConfig = onSaveConfig
 	}
 }
