@@ -85,7 +85,7 @@ func (p *poller) handleEvents() {
 				h.advanceEvents(events)
 			})
 			if err != nil {
-				p.Error("submit user handle task failed", zap.String("error", err.Error()))
+				p.Error("submit push handle task failed", zap.String("error", err.Error()))
 			}
 		}
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 func TestQueueAppend(t *testing.T) {
-	q := newQueue(0, 0, 0)
+	q := newQueue("test", 0, 0, 0)
 
 	log1 := types.Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
 	log2 := types.Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
@@ -23,7 +23,7 @@ func TestQueueAppend(t *testing.T) {
 }
 
 func TestQueueAppendTo(t *testing.T) {
-	q := newQueue(0, 0, 0)
+	q := newQueue("test", 0, 0, 0)
 
 	log1 := types.Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
 	log2 := types.Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}
@@ -39,7 +39,7 @@ func TestQueueAppendTo(t *testing.T) {
 }
 
 func TestQueueStorageToOutOfBound(t *testing.T) {
-	q := newQueue(0, 0, 0)
+	q := newQueue("test", 0, 0, 0)
 
 	log1 := types.Log{Id: 1, Index: 1, Term: 1, Data: []byte("log1"), Time: time.Now()}
 	log2 := types.Log{Id: 2, Index: 2, Term: 1, Data: []byte("log2"), Time: time.Now()}

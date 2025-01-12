@@ -114,6 +114,7 @@ func New(opts *Options) *Server {
 		slot.WithTransport(opts.SlotTransport),
 		slot.WithNode(s.cfgServer),
 		slot.WithOnApply(s.slotApplyLogs),
+		slot.WithOnSaveConfig(s.onSaveSlotConfig),
 	))
 
 	// 频道分布式服务
@@ -125,6 +126,7 @@ func New(opts *Options) *Server {
 		channel.WithCluster(s),
 		channel.WithDB(s.db),
 		channel.WithRPC(s.rpcClient),
+		channel.WithOnSaveConfig(s.onSaveChannelConfig),
 	))
 
 	// 分布式存储
@@ -309,10 +311,11 @@ func (s *Server) getOrCreateChannelClusterConfigFromLocal(channelId string, chan
 			return wkdb.EmptyChannelClusterConfig, err
 		}
 
-		err = s.store.SaveChannelClusterConfig(cfg)
+		version, err := s.store.SaveChannelClusterConfig(cfg)
 		if err != nil {
 			return wkdb.EmptyChannelClusterConfig, err
 		}
+		cfg.ConfVersion = version
 		return cfg, nil
 	}
 	return cfg, nil
@@ -362,4 +365,78 @@ func (s *Server) createChannelClusterConfig(channelId string, channelType uint8)
 func (s *Server) uidToServerId(uid string) uint64 {
 	id, _ := strconv.ParseUint(uid, 10, 64)
 	return id
+}
+
+// 保存槽分布式配置（事件）
+func (s *Server) onSaveSlotConfig(slotId uint32, cfg rafttype.Config) error {
+
+	slot := s.cfgServer.Slot(slotId)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", slotId))
+		return errors.New("slot not found")
+	}
+	cloneSlot := slot.Clone()
+	// 更新slot的配置
+	s.updateSlotByConfig(cloneSlot, cfg)
+
+	// 提案槽更新（槽更新会触发分布式配置事件，事件会触发slot更新最新的配置，所以这里只需要提案即可，不需要再进行配置切换）
+	err := s.cfgServer.ProposeSlots([]*types.Slot{cloneSlot})
+	if err != nil {
+		s.Error("onSaveSlotConfig: propose slot failed", zap.Uint32("slotId", slotId), zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+// 保存频道分布式配置（事件）
+func (s *Server) onSaveChannelConfig(channelId string, channelType uint8, cfg rafttype.Config) error {
+
+	channelCfg, err := s.GetOrCreateChannelClusterConfigFromSlotLeader(channelId, channelType)
+	if err != nil {
+		s.Error("onSaveChannelConfig: get channel cluster config failed", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Error(err))
+		return err
+	}
+
+	// 更新配置
+	s.updateChannelCfgByConfig(&channelCfg, cfg)
+
+	// 保存配置
+	version, err := s.store.SaveChannelClusterConfig(channelCfg)
+	if err != nil {
+		s.Error("onSaveChannelConfig: save channel cluster config failed", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Error(err))
+		return err
+	}
+	channelCfg.ConfVersion = version
+
+	// 切换配置
+	if channelCfg.LeaderId == s.opts.ConfigOptions.NodeId {
+		err = s.channelServer.SwitchConfig(channelCfg.ChannelId, channelCfg.ChannelType, channelCfg)
+		if err != nil {
+			s.Error("onSaveChannelConfig: switch config failed", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Error(err))
+			return err
+		}
+	} else {
+		return s.rpcClient.RequestChannelSwitchConfig(channelCfg.LeaderId, channelCfg)
+	}
+
+	return nil
+}
+
+func (s *Server) updateSlotByConfig(st *types.Slot, cfg rafttype.Config) {
+	st.Leader = cfg.Leader
+	st.Term = cfg.Term
+	st.Replicas = cfg.Replicas
+	st.Learners = cfg.Learners
+	st.MigrateFrom = cfg.MigrateFrom
+	st.MigrateTo = cfg.MigrateTo
+}
+
+func (s *Server) updateChannelCfgByConfig(cfg *wkdb.ChannelClusterConfig, c rafttype.Config) {
+	cfg.LeaderId = c.Leader
+	cfg.Term = c.Term
+	cfg.Replicas = c.Replicas
+	cfg.Learners = c.Learners
+	cfg.MigrateFrom = c.MigrateFrom
+	cfg.MigrateTo = c.MigrateTo
 }

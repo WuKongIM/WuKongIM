@@ -17,8 +17,8 @@ type Options struct {
 	// ReceiveQueueLength 处理者接收队列的长度。
 	ReceiveQueueLength uint64
 
-	// MaxLogCountPerBatch 每次同步的最大日志数量
-	MaxLogCountPerBatch uint64
+	// MaxLogSizePerBatch 每次同步的最大日志大小 单位byte
+	MaxLogSizePerBatch uint64
 
 	ProposeTimeout time.Duration
 
@@ -27,11 +27,11 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	os := &Options{
-		TickInterval:        100 * time.Millisecond,
-		GoPoolSize:          3000,
-		ReceiveQueueLength:  1024,
-		MaxLogCountPerBatch: 1000,
-		ProposeTimeout:      5 * time.Second,
+		TickInterval:       100 * time.Millisecond,
+		GoPoolSize:         3000,
+		ReceiveQueueLength: 1024,
+		MaxLogSizePerBatch: 1024 * 1024 * 10,
+		ProposeTimeout:     5 * time.Second,
 	}
 	for _, o := range opt {
 		o(os)
@@ -66,9 +66,9 @@ func WithReceiveQueueLength(length uint64) Option {
 	}
 }
 
-func WithMaxLogCountPerBatch(count uint64) Option {
+func WithMaxLogSizePerBatch(size uint64) Option {
 	return func(o *Options) {
-		o.MaxLogCountPerBatch = count
+		o.MaxLogSizePerBatch = size
 	}
 }
 

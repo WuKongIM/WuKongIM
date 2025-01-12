@@ -10,6 +10,11 @@ import (
 func (n *Node) switchConfig(newCfg types.Config) error {
 	oldCfg := n.cfg
 
+	if n.cfg.Version > newCfg.Version {
+		n.Error("config version is lower than current version", zap.Uint64("newVersion", newCfg.Version), zap.Uint64("currentVersion", oldCfg.Version))
+		return errors.New("config version is lower than current version")
+	}
+
 	if newCfg.Term < oldCfg.Term {
 		n.Error("term is lower than current term", zap.Uint32("newTerm", newCfg.Term), zap.Uint32("currentTerm", oldCfg.Term))
 		return errors.New("term is lower than current term")
@@ -54,6 +59,11 @@ func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
 
 	if oldCfg.Role != newCfg.Role || oldCfg.Leader != newCfg.Leader || oldCfg.Term != newCfg.Term {
 		n.Info("role change", zap.String("old", oldCfg.Role.String()), zap.String("new", newCfg.Role.String()))
+
+		if newCfg.Leader == n.opts.NodeId {
+			n.BecomeLeader(newCfg.Term)
+			return
+		}
 
 		role := newCfg.Role
 		if newCfg.Role == types.RoleUnknown {

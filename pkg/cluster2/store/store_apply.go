@@ -28,7 +28,7 @@ func (s *Store) applyLog(log types.Log) error {
 
 	switch cmd.CmdType {
 	case CMDChannelClusterConfigSave: // 保存频道分布式配置
-		return s.handleChannelClusterConfigSave(cmd)
+		return s.handleChannelClusterConfigSave(cmd, log.Index)
 	case CMDAddOrUpdateConversations: // 添加或更新会话
 		return s.handleAddOrUpdateConversations(cmd)
 	case CMDAddSubscribers: // 添加订阅者
@@ -92,7 +92,7 @@ func (s *Store) applyLog(log types.Log) error {
 	return nil
 }
 
-func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
+func (s *Store) handleChannelClusterConfigSave(cmd *CMD, confVersion uint64) error {
 	_, _, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
 	if err != nil {
 		return err
@@ -102,6 +102,7 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
+	channelClusterConfig.ConfVersion = confVersion
 	return s.wdb.SaveChannelClusterConfig(channelClusterConfig)
 }
 

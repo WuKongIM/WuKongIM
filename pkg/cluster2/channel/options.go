@@ -3,6 +3,7 @@ package channel
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/icluster"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
+	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
 
@@ -27,6 +28,9 @@ type Options struct {
 
 	//频道最大副本数量
 	ChannelMaxReplicaCount uint32
+
+	// OnSaveConfig 保存频道配置
+	OnSaveConfig func(channelId string, channelType uint8, cfg types.Config) error
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -93,5 +97,11 @@ func WithCluster(cluster icluster.ICluster) Option {
 func WithRPC(rpc icluster.RPC) Option {
 	return func(o *Options) {
 		o.RPC = rpc
+	}
+}
+
+func WithOnSaveConfig(fn func(channelId string, channelType uint8, cfg types.Config) error) Option {
+	return func(o *Options) {
+		o.OnSaveConfig = fn
 	}
 }

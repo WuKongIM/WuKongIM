@@ -56,7 +56,7 @@ func (s *Server) Start() error {
 
 	slots := s.opts.Node.Slots()
 	for _, slot := range slots {
-		s.addOrUpdateSlotRaft(slot)
+		s.AddOrUpdateSlotRaft(slot)
 	}
 
 	return nil

@@ -30,4 +30,5 @@ type SyncInfo struct {
 	StoredIndex   uint64 // 副本已存储的日志下标
 	SyncTick      int    // 同步计时器
 	GetingLogs    bool   // 领导是否正在查询此副本的日志中
+	roleSwitching bool   // 角色切换中
 }

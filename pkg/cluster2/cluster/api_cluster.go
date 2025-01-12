@@ -80,12 +80,13 @@ func (s *Server) channelMigrate(c *wkhttp.Context) {
 	}
 
 	// 提案保存配置
-	err = s.store.SaveChannelClusterConfig(newClusterConfig)
+	version, err := s.store.SaveChannelClusterConfig(newClusterConfig)
 	if err != nil {
 		s.Error("channelMigrate: Save error", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
+	newClusterConfig.ConfVersion = version
 
 	// 如果频道领导不是当前节点，则发送最新配置给频道领导 （这里就算发送失败也没问题，因为频道领导会间隔比对自己与槽领导的配置）
 	if newClusterConfig.LeaderId != s.opts.ConfigOptions.NodeId {

@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -80,10 +79,4 @@ func (s *Server) onChannelMessage(_ gnet.Conn, m *proto.Message) {
 		return
 	}
 	s.channelServer.AddEvent(key, event)
-}
-
-// 槽选举
-func (s *Server) OnSlotElection(slots []*types.Slot) error {
-
-	return nil
 }

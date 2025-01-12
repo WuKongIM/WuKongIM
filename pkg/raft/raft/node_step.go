@@ -82,6 +82,10 @@ func (n *Node) stepLeader(e types.Event) error {
 
 	switch e.Type {
 	case types.Propose: // 提案
+		if n.stopPropose { // 停止提案
+			n.Foucs("stop propose", zap.String("key", n.Key()))
+			return ErrProposalDropped
+		}
 		err := n.queue.append(e.Logs...)
 		if err != nil {
 			return err
@@ -92,18 +96,17 @@ func (n *Node) stepLeader(e types.Event) error {
 		n.advance()
 	case types.SyncReq: // 同步
 		isLearner := n.isLearner(e.From) // 当前同步节点是否是学习者
+		n.updateSyncInfo(e)              // 更新副本同步信息
 		if !isLearner {
-			n.updateSyncInfo(e)            // 更新副本同步信息
 			n.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
-		// if n.Key() == "2&ch1" {
-		// 	n.Info("sync...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index))
+		// if n.Key() == "clusterconfig" {
+		// 	n.Info("sync...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.String("reason", e.Reason.String()), zap.Uint64("storedIndex", e.StoredIndex), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
 		// }
 		syncInfo := n.replicaSync[e.From]
-		if syncInfo == nil {
-			syncInfo = &SyncInfo{}
-			n.replicaSync[e.From] = syncInfo
-		}
+
+		// 根据需要切换角色
+		n.roleSwitchIfNeed(e)
 
 		// 无数据可同步
 		if (e.Reason == types.ReasonOnlySync && e.Index > n.queue.storedIndex) || n.queue.storedIndex == 0 {
@@ -118,7 +121,7 @@ func (n *Node) stepLeader(e types.Event) error {
 
 	case types.StoreResp: // 异步存储日志返回
 		n.queue.appending = false
-		// if n.Key() == "2&ch1" {
+		// if n.Key() == "clusterconfig" {
 		// 	n.Info("StoreResp...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index))
 		// }
 		if e.Reason == types.ReasonOk {
@@ -146,11 +149,23 @@ func (n *Node) stepLeader(e types.Event) error {
 			e.Logs[i].Record.Add(track.PositionSyncResp)
 		}
 
-		if e.Reason == types.ReasonOk {
-			n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason)
-			n.advance()
-		}
+		n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason)
+		n.advance()
 
+		// 角色转换
+	case types.LearnerToFollowerResp,
+		types.LearnerToLeaderResp,
+		types.FollowerToLeaderResp:
+
+		syncInfo := n.replicaSync[e.From]
+		if syncInfo == nil {
+			n.Error("role switch error,syncInfo not exist", zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.String("type", e.Type.String()))
+			return nil
+		}
+		n.replicaSync[e.From].roleSwitching = false
+
+	case types.ConfigReq: // 配置请求
+		n.sendConfigResp(e.From, n.cfg.Clone())
 	}
 
 	return nil
@@ -158,12 +173,19 @@ func (n *Node) stepLeader(e types.Event) error {
 
 func (n *Node) stepFollower(e types.Event) error {
 	switch e.Type {
+	case types.Propose:
+		n.Foucs("follower not allow propose", zap.String("key", n.Key()), zap.Int("logs", len(e.Logs)))
 	case types.Ping: // 心跳
 		n.electionElapsed = 0
 		if n.cfg.Leader == None {
 			n.BecomeFollower(e.Term, e.From)
 		}
 		n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
+
+		// 如果领导的配置版本大于本地配置版本，那么请求配置
+		if e.ConfigVersion > n.cfg.Version {
+			n.sendConfigReq()
+		}
 	case types.NotifySync:
 		// if n.Key() == "2&ch1" {
 		// 	n.Info("NotifySync...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index))
@@ -176,6 +198,9 @@ func (n *Node) stepFollower(e types.Event) error {
 			n.onlySync = true
 		}
 		if e.Reason == types.ReasonOk {
+			// if n.Key() == "clusterconfig" {
+			// 	n.Info("SyncResp...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.Int("len", len(e.Logs)))
+			// }
 			if len(e.Logs) > 0 {
 				err := n.queue.append(e.Logs...)
 				if err != nil {
@@ -187,12 +212,17 @@ func (n *Node) stepFollower(e types.Event) error {
 			n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 
 		} else if e.Reason == types.ReasonTruncate {
+			// if n.Key() == "clusterconfig" {
+			// 	n.Info("truncating...", zap.Bool("truncating", n.truncating), zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.Int("len", len(e.Logs)))
+			// }
 			if n.truncating {
 				return nil
 			}
 			n.truncating = true
 			n.sendTruncateReq(e.Index)
 			n.advance()
+		} else {
+			n.Error("sync error", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.String("reason", e.Reason.String()))
 		}
 	case types.TruncateResp: // 裁剪返回
 		n.truncating = false
@@ -208,25 +238,23 @@ func (n *Node) stepFollower(e types.Event) error {
 				n.Panic("invalid append response", zap.Uint64("index", e.Index), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
 			}
 			n.queue.storeTo(e.Index)
-		}
-
-		if n.lastTermStartIndex.Term != e.Term {
-			n.softState.termStartIndex = &types.TermStartIndexInfo{
-				Term:  e.Term,
-				Index: e.Index,
-			}
-			n.updateLastTermStartIndex(e.Term, e.Index)
-		}
-		if e.Reason == types.ReasonOk {
 			n.sendSyncReq()
 			n.advance()
 		}
+
+	case types.ConfigResp: // 配置返回
+		// 切换配置
+		e.Config.Term = n.cfg.Term
+		n.switchConfig(e.Config)
+
 	}
 	return nil
 }
 
 func (n *Node) stepCandidate(e types.Event) error {
 	switch e.Type {
+	case types.Propose:
+		n.Foucs("candidate not allow propose", zap.String("key", n.Key()), zap.Int("logs", len(e.Logs)))
 	case types.VoteResp: // 投票返回
 		if e.From != n.opts.NodeId {
 			n.Info("received vote response", zap.Uint8("reason", e.Reason.Uint8()), zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
@@ -278,10 +306,13 @@ func (n *Node) canVote(e types.Event) bool {
 		return false
 	}
 
-	lastIndex := n.queue.lastLogIndex
-	lastTerm := n.cfg.Term                                                                               // 获取当前节点最后一条日志下标和任期
-	candidateLog := e.Logs[0]                                                                            // 候选人最后一条日志信息
-	if candidateLog.Term < lastTerm || candidateLog.Term == lastTerm && candidateLog.Index < lastIndex { // 如果候选人日志小于本地日志，拒绝投票
+	lastLogIndex := n.queue.lastLogIndex     // 最后一条日志下标
+	lastLogTerm := n.lastTermStartIndex.Term // 最后一条日志任期
+	candidateLog := e.Logs[0]                // 候选人最后一条日志信息
+
+	// 如果候选人最后一条日志任期小于本地最后一条日志任期，拒绝投票
+	// 如果候选人与本节点任期相同，但是候选人最后一条日志下标小于本地最后一条日志下标，拒绝投票
+	if candidateLog.Term < lastLogTerm || candidateLog.Term == lastLogTerm && candidateLog.Index < lastLogIndex {
 		return false
 	}
 
@@ -290,10 +321,10 @@ func (n *Node) canVote(e types.Event) bool {
 
 // 更新同步信息
 func (n *Node) updateSyncInfo(e types.Event) {
-	syncInfo := n.syncState.replicaSync[e.From]
+	syncInfo := n.replicaSync[e.From]
 	if syncInfo == nil {
 		syncInfo = &SyncInfo{}
-		n.syncState.replicaSync[e.From] = syncInfo
+		n.replicaSync[e.From] = syncInfo
 	}
 	syncInfo.SyncTick = 0
 	syncInfo.LastSyncIndex = e.Index
@@ -307,7 +338,7 @@ func (n *Node) updateLeaderCommittedIndex() bool {
 	if newCommitted > n.queue.committedIndex {
 		n.queue.committedIndex = newCommitted
 		updated = true
-		n.Info("update leader committed index", zap.Uint64("lastIndex", n.queue.lastLogIndex), zap.Uint32("term", n.cfg.Term), zap.Uint64("committedIndex", n.queue.committedIndex))
+		n.Debug("update leader committed index", zap.Uint64("lastIndex", n.queue.lastLogIndex), zap.Uint32("term", n.cfg.Term), zap.Uint64("committedIndex", n.queue.committedIndex))
 	}
 	return updated
 }
@@ -376,7 +407,7 @@ func (n *Node) updateFollowCommittedIndex(leaderCommittedIndex uint64) {
 	newCommittedIndex := n.committedIndexForFollow(leaderCommittedIndex)
 	if newCommittedIndex > n.queue.committedIndex {
 		n.queue.committedIndex = newCommittedIndex
-		n.Info("update follow committed index", zap.Uint64("nodeId", n.opts.NodeId), zap.Uint32("term", n.cfg.Term), zap.Uint64("committedIndex", n.queue.committedIndex))
+		n.Debug("update follow committed index", zap.Uint64("nodeId", n.opts.NodeId), zap.Uint32("term", n.cfg.Term), zap.Uint64("committedIndex", n.queue.committedIndex))
 	}
 }
 
@@ -387,4 +418,47 @@ func (n *Node) committedIndexForFollow(leaderCommittedIndex uint64) uint64 {
 
 	}
 	return n.queue.committedIndex
+}
+
+func (n *Node) roleSwitchIfNeed(e types.Event) {
+	// 没有需要切换的配置
+	if n.cfg.MigrateTo == 0 || n.cfg.MigrateFrom == 0 {
+		return
+	}
+
+	syncInfo := n.replicaSync[e.From]
+	if syncInfo.roleSwitching {
+		return
+	}
+
+	isLearner := n.isLearner(e.From) // 当前同步节点是否是学习者
+
+	if isLearner {
+		// 如果迁移的源节点是领导者，那么学习者必须完全追上领导者的日志
+		if n.cfg.MigrateFrom == n.cfg.Leader { // 学习者转领导者
+			if e.Index >= n.queue.lastLogIndex+1 {
+				syncInfo.roleSwitching = true // 学习者转让中
+				// 发送学习者转为领导者
+				n.sendLearnerToLeaderReq(e.From)
+			} else if e.Index+n.opts.LearnerToLeaderMinLogGap > n.queue.lastLogIndex { // 如果日志差距达到预期，则当前领导停止接受任何提案，等待学习者日志完全追赶上
+				n.stopPropose = true // 停止提案
+			}
+
+		} else { // 学习者转追随者
+			// 如果learner的日志已经追上了follower的日志，那么将learner转为follower
+			if e.Index+n.opts.LearnerToFollowerMinLogGap > n.queue.lastLogIndex {
+				syncInfo.roleSwitching = true
+				// 发送学习者转为追随者
+				n.sendLearnerToFollowerReq(e.From)
+			}
+		}
+	} else if n.cfg.MigrateFrom == n.cfg.Leader && n.cfg.MigrateTo == e.From { // // 追随者转为领导者
+		if e.Index >= n.queue.lastLogIndex+1 {
+			syncInfo.roleSwitching = true
+			// 发送追随者转为领导者
+			n.sendFollowToLeaderReq(e.From)
+		} else if e.Index+n.opts.FollowerToLeaderMinLogGap > n.queue.lastLogIndex { // 如果日志差距达到预期，则当前领导停止接受任何提案，等待学习者日志完全追赶上
+			n.stopPropose = true // 停止提案
+		}
+	}
 }

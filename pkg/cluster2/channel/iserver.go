@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
@@ -36,5 +37,16 @@ func (s *Server) ProposeBatchUntilAppliedTimeout(ctx context.Context, channelId 
 
 	// 向频道的领导节点请求提案
 	return s.opts.RPC.RequestChannelProposeBatchUntilApplied(clusterConfig.LeaderId, channelId, channelType, reqs)
+
+}
+
+func (s *Server) SwitchConfig(channelId string, channelType uint8, cfg wkdb.ChannelClusterConfig) error {
+	channelKey := wkutil.ChannelToKey(channelId, channelType)
+	rg := s.getRaftGroup(channelKey)
+	raft := rg.GetRaft(channelKey)
+	if raft == nil {
+		return nil
+	}
+	return raft.(*Channel).switchConfig(channelConfigToRaftConfig(cfg))
 
 }

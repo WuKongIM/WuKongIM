@@ -442,6 +442,10 @@ func (t *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(key string, term
 	return nil
 }
 
+func (t *testStorage) SaveConfig(key string, cfg types.Config) error {
+	return nil
+}
+
 // 等到选举出领导者
 func waitHasLeader(rr ...raftgroup.IRaft) {
 	for {

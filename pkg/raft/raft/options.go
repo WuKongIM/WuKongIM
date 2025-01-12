@@ -37,18 +37,30 @@ type Options struct {
 
 	// ProposeTimeout 提案超时时间
 	ProposeTimeout time.Duration
+
+	// LearnerToLeaderMinLogGap 学习者转换为领导者的最小日志差距
+	LearnerToLeaderMinLogGap uint64
+
+	// LearnerToFollowerMinLogGap 学习者转换为跟随者的最小日志差距
+	LearnerToFollowerMinLogGap uint64
+
+	// FollowerToLeaderMinLogGap 跟随者转换为领导者的最小日志差距
+	FollowerToLeaderMinLogGap uint64
 }
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SyncInterval:        2,
-		ElectionOn:          false,
-		HeartbeatInterval:   1,
-		ElectionInterval:    10,
-		TickInterval:        time.Millisecond * 100,
-		MaxLogCountPerBatch: 1000,
-		GoPoolSize:          1000,
-		ProposeTimeout:      time.Second * 5,
+		SyncInterval:               2,
+		ElectionOn:                 false,
+		HeartbeatInterval:          1,
+		ElectionInterval:           10,
+		TickInterval:               time.Millisecond * 100,
+		MaxLogCountPerBatch:        1000,
+		GoPoolSize:                 1000,
+		ProposeTimeout:             time.Second * 5,
+		LearnerToFollowerMinLogGap: 100,
+		LearnerToLeaderMinLogGap:   100,
+		FollowerToLeaderMinLogGap:  100,
 	}
 
 	for _, o := range opt {

@@ -38,6 +38,9 @@ func (r *rpcServer) setRoutes() {
 	r.s.netServer.Route("/rpc/slot/logInfo", r.handleSlotLogInfo)
 	// 请求唤醒频道领导
 	r.s.netServer.Route("/rpc/channel/wakeLeaderIfNeed", r.handleWakeLeaderIfNeed)
+
+	// 请求频道更新配置
+	r.s.netServer.Route("/rpc/channel/switchConfig", r.handleChannelSwitchConfig)
 }
 
 func (r *rpcServer) handleChannelPropose(c *wkserver.Context) {
@@ -210,5 +213,22 @@ func (r *rpcServer) handleWakeLeaderIfNeed(c *wkserver.Context) {
 		c.WriteErr(err)
 		return
 	}
+	c.WriteOk()
+}
+
+func (r *rpcServer) handleChannelSwitchConfig(c *wkserver.Context) {
+	cfg := wkdb.ChannelClusterConfig{}
+	if err := cfg.Unmarshal(c.Body()); err != nil {
+		r.Error("decode update channel config req failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	err := r.s.channelServer.SwitchConfig(cfg.ChannelId, cfg.ChannelType, cfg)
+	if err != nil {
+		r.Error("switch config failed", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
+		c.WriteErr(err)
+		return
+	}
+
 	c.WriteOk()
 }

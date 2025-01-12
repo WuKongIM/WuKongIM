@@ -56,7 +56,7 @@ func (n *Node) reset() {
 	n.electionState = electionState{
 		votes: make(map[uint64]bool),
 	}
-
+	n.stopPropose = false
 	n.syncState.replicaSync = make(map[uint64]*SyncInfo)
 	n.onlySync = false
 	// 重置选举超时时间

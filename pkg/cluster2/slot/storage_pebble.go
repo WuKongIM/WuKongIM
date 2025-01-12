@@ -163,6 +163,15 @@ func (p *PebbleShardLogStorage) GetState(shardNo string) (types.RaftState, error
 func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
 	batch := p.shardDB(shardNo).NewBatch()
 	defer batch.Close()
+
+	if termStartIndexInfo != nil {
+		err := p.SetLeaderTermStartIndex(shardNo, termStartIndexInfo.Term, termStartIndexInfo.Index)
+		if err != nil {
+			p.Panic("SetLeaderTermStartIndex failed", zap.Error(err))
+			return err
+		}
+	}
+
 	for _, lg := range logs {
 		logData, err := lg.Marshal()
 		if err != nil {
@@ -189,13 +198,6 @@ func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []types.Log, ter
 		return err
 	}
 
-	if termStartIndexInfo != nil {
-		err = p.SetLeaderTermStartIndex(shardNo, termStartIndexInfo.Term, termStartIndexInfo.Index)
-		if err != nil {
-			p.Panic("SetLeaderTermStartIndex failed", zap.Error(err))
-			return err
-		}
-	}
 	return batch.Commit(p.sync)
 }
 
@@ -211,7 +213,7 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 		return err
 	}
 
-	if index > lastIndex {
+	if index >= lastIndex {
 		return nil
 	}
 
@@ -220,18 +222,18 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 		p.Error("get max index error", zap.Error(err))
 		return err
 	}
-	if index <= appliedIdx {
-		p.Panic(" applied must be less than  index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx), zap.String("shardNo", shardNo))
+	if index < appliedIdx {
+		p.Foucs(" applied must be less than  index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx), zap.Uint64("lastIndex", lastIndex), zap.String("shardNo", shardNo))
 		return nil
 	}
 
-	keyData := key.NewLogKey(shardNo, index)
+	keyData := key.NewLogKey(shardNo, index+1)
 	maxKeyData := key.NewLogKey(shardNo, math.MaxUint64)
 	err = p.shardDB(shardNo).DeleteRange(keyData, maxKeyData, p.sync)
 	if err != nil {
 		return err
 	}
-	return p.saveMaxIndex(shardNo, index-1)
+	return p.saveMaxIndex(shardNo, index)
 }
 
 // func (p *PebbleShardLogStorage) realLastIndex(shardNo string) (uint64, error) {
@@ -308,6 +310,17 @@ func (p *PebbleShardLogStorage) Apply(shardNo string, logs []types.Log) error {
 			return err
 		}
 		err = p.SetAppliedIndex(shardNo, logs[len(logs)-1].Index)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *PebbleShardLogStorage) SaveConfig(shardNo string, cfg types.Config) error {
+	if p.s.opts.OnSaveConfig != nil {
+		slotId := KeyToSlotId(shardNo)
+		err := p.s.opts.OnSaveConfig(slotId, cfg)
 		if err != nil {
 			return err
 		}

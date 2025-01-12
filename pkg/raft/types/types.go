@@ -85,10 +85,25 @@ const (
 	ApplyReq
 	// ApplyResp 应用日志响应， local event
 	ApplyResp
-	// NodeOfflineReq 节点下线请求
-	NodeOfflineReq
-	// NodeOfflineResp 节点下线响应
-	NodeOfflineResp
+
+	// LearnerToLeaderReq 学习者转领导者 leader
+	LearnerToLeaderReq
+	// LearnerToLeaderResp 学习者转领导者响应 leader
+	LearnerToLeaderResp
+
+	// LearnerToFollowerReq 学习者转跟随者 leader
+	LearnerToFollowerReq
+	// LearnerToFollowerResp 学习者转跟随者响应 leader
+	LearnerToFollowerResp
+
+	// FollowerToLeaderReq 跟随者转领导者 leader
+	FollowerToLeaderReq
+	// FollowerToLeaderResp 跟随者转领导者响应 leader
+	FollowerToLeaderResp
+	// ConfigReq 配置请求
+	ConfigReq
+	// ConfigResp 配置响应
+	ConfigResp
 )
 
 func (e EventType) String() string {
@@ -133,10 +148,22 @@ func (e EventType) String() string {
 		return "TruncateReq"
 	case TruncateResp:
 		return "TruncateResp"
-	case NodeOfflineReq:
-		return "NodeOfflineReq"
-	case NodeOfflineResp:
-		return "NodeOfflineResp"
+	case LearnerToLeaderReq:
+		return "LearnerToLeaderReq"
+	case LearnerToLeaderResp:
+		return "LearnerToLeaderResp"
+	case LearnerToFollowerReq:
+		return "LearnerToFollowerReq"
+	case LearnerToFollowerResp:
+		return "LearnerToFollowerReq"
+	case FollowerToLeaderReq:
+		return "FollowerToLeaderReq"
+	case FollowerToLeaderResp:
+		return "FollowerToLeaderResp"
+	case ConfigReq:
+		return "ConfigReq"
+	case ConfigResp:
+		return "ConfigResp"
 	default:
 		return "Unknown"
 	}
@@ -159,7 +186,9 @@ type Event struct {
 	StoredIndex uint64
 	// 最新的日志任期（与Term不同。Term是当前服务的任期）
 	LastLogTerm uint32
-	Config      Config
+	// 配置版本
+	ConfigVersion uint64
+	Config        Config
 	// Logs 日志
 	Logs []Log
 
@@ -181,6 +210,7 @@ const (
 	committedIndexFlag
 	storedIndexFlag
 	lastLogTermFlag
+	configVersionFlag
 	configFlag
 	logsFlag
 	reasonFlag
@@ -218,6 +248,10 @@ func (e Event) Marshal() ([]byte, error) {
 	if flag&lastLogTermFlag != 0 {
 		enc.WriteUint32(e.LastLogTerm)
 	}
+
+	if flag&configVersionFlag != 0 {
+		enc.WriteUint64(e.ConfigVersion)
+	}
 	if flag&configFlag != 0 {
 		enc.WriteUint64(e.Config.MigrateFrom)
 		enc.WriteUint64(e.Config.MigrateTo)
@@ -232,6 +266,7 @@ func (e Event) Marshal() ([]byte, error) {
 		enc.WriteUint8(uint8(e.Config.Role))
 		enc.WriteUint32(e.Config.Term)
 		enc.WriteUint64(e.Config.Version)
+		enc.WriteUint64(e.Config.Leader)
 	}
 	if flag&logsFlag != 0 {
 		enc.WriteUint32(uint32(len(e.Logs)))
@@ -313,6 +348,15 @@ func (e *Event) Unmarshal(data []byte) error {
 		}
 		e.LastLogTerm = lastLogTerm
 	}
+
+	if flag&configVersionFlag != 0 {
+		configVersion, err := dec.Uint64()
+		if err != nil {
+			return err
+		}
+		e.ConfigVersion = configVersion
+	}
+
 	if flag&configFlag != 0 {
 		var config Config
 		if config.MigrateFrom, err = dec.Uint64(); err != nil {
@@ -354,6 +398,11 @@ func (e *Event) Unmarshal(data []byte) error {
 		if config.Version, err = dec.Uint64(); err != nil {
 			return err
 		}
+
+		if config.Leader, err = dec.Uint64(); err != nil {
+			return err
+		}
+
 		e.Config = config
 	}
 	if flag&logsFlag != 0 {
@@ -523,9 +572,26 @@ type Config struct {
 	Role        Role     // 节点角色
 	Term        uint32   // 领导任期
 	Version     uint64   // 配置版本
+	Leader      uint64   // 领导ID
+}
 
-	// 不参与编码
-	Leader uint64 // 领导ID
+// Clone 返回 Config 结构体的一个深拷贝
+func (c Config) Clone() Config {
+	return Config{
+		MigrateFrom: c.MigrateFrom,
+		MigrateTo:   c.MigrateTo,
+		Replicas:    append([]uint64{}, c.Replicas...), // 深拷贝切片
+		Learners:    append([]uint64{}, c.Learners...), // 深拷贝切片
+		Role:        c.Role,
+		Term:        c.Term,
+		Version:     c.Version,
+		Leader:      c.Leader,
+	}
+}
+
+func (c Config) String() string {
+
+	return ""
 }
 
 func (c Config) IsEmpty() bool {
@@ -575,6 +641,13 @@ func (r Role) String() string {
 type TermStartIndexInfo struct {
 	Term  uint32
 	Index uint64
+}
+
+func (t *TermStartIndexInfo) Clone() *TermStartIndexInfo {
+	return &TermStartIndexInfo{
+		Term:  t.Term,
+		Index: t.Index,
+	}
 }
 
 // 本节点

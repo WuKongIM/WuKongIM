@@ -152,6 +152,10 @@ func (r *Raft) LeaderId() uint64 {
 	return r.node.LeaderId()
 }
 
+func (r *Raft) GetReplicaLastLogIndex(replicaId uint64) uint64 {
+	return r.node.GetReplicaLastLogIndex(replicaId)
+}
+
 func (r *Raft) Options() *Options {
 	return r.opts
 }
@@ -255,6 +259,7 @@ func (r *Raft) handleStoreReq(e types.Event) {
 		r.stepC <- stepReq{event: types.Event{
 			Type:   types.StoreResp,
 			Index:  e.Logs[len(e.Logs)-1].Index,
+			Logs:   e.Logs,
 			Reason: reason,
 		}}
 	})
@@ -325,6 +330,12 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 	})
 	if err != nil {
 		r.Error("submit get logs failed", zap.Error(err))
+		r.stepC <- stepReq{event: types.Event{
+			To:     e.From,
+			Type:   types.GetLogsResp,
+			Index:  e.Index,
+			Reason: types.ReasonError,
+		}}
 	}
 }
 
@@ -417,11 +428,6 @@ func (r *Raft) handleApplyReq(e types.Event) {
 // 根据副本的同步数据，来获取副本的需要裁剪的日志下标，如果不需要裁剪，则返回0
 func (r *Raft) getTrunctLogIndex(e types.Event, leaderLastLogTerm uint32) (uint64, types.Reason) {
 
-	// 如果副本的最新日志任期大于领导的最新日志任期，则不合法，副本最新日志任期不可能大于领导最新日志任期
-	if e.LastLogTerm > r.node.lastTermStartIndex.Term {
-		r.Error("log term is greater than leader term", zap.Uint32("lastLogTerm", e.LastLogTerm), zap.Uint32("term", r.node.cfg.Term))
-		return 0, types.ReasonError
-	}
 	// 副本的最新日志任期为0，说明副本没有日志，不需要裁剪
 	if e.LastLogTerm == 0 {
 		return 0, types.ReasonOk
@@ -443,8 +449,18 @@ func (r *Raft) getTrunctLogIndex(e types.Event, leaderLastLogTerm uint32) (uint6
 			return termStartIndex - 1, types.ReasonOk
 		}
 		return termStartIndex, types.ReasonOk
+	} else {
+		termStartIndex, err := r.opts.Storage.GetTermStartIndex(leaderLastLogTerm)
+		if err != nil {
+			r.Error("get term start index failed", zap.Error(err))
+			return 0, types.ReasonError
+		}
+		r.Foucs("getTrunctLogIndex: lastLogTerm > leaderLastLogTerm", zap.Uint64("from", e.From), zap.Uint32("e.LastLogTerm", e.LastLogTerm), zap.Uint32("leaderLastLogTerm", leaderLastLogTerm), zap.Uint64("termStartIndex", termStartIndex))
+		if termStartIndex > 0 {
+			return termStartIndex - 1, types.ReasonOk
+		}
+		return termStartIndex, types.ReasonOk
 	}
-	return 0, types.ReasonOk
 }
 
 func (r *Raft) advance() {

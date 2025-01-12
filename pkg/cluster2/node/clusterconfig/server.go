@@ -241,6 +241,11 @@ func (s *Server) NodeIsOnline(nodeId uint64) bool {
 	return s.config.nodeOnline(nodeId)
 }
 
+// NodeConfigVersionFromLeader 获取节点的配置版本（只有主节点才有这个信息）
+func (s *Server) NodeConfigVersionFromLeader(nodeId uint64) uint64 {
+	return s.raft.GetReplicaLastLogIndex(nodeId)
+}
+
 func (s *Server) GetLogsInReverseOrder(startLogIndex uint64, endLogIndex uint64, limit int) ([]rafttypes.Log, error) {
 	return s.storage.GetLogsInReverseOrder(startLogIndex, endLogIndex, limit)
 }
