@@ -124,14 +124,14 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 			if options.G.IsSystemUid(uid) {
 				continue
 			}
-			if !h.isOnline(uid) {
-				continue
-			}
 			if !h.masterDeviceIsOnline(uid) {
 				if offlineUids == nil {
 					offlineUids = make([]string, 0, len(node.Uids))
 				}
 				offlineUids = append(offlineUids, uid)
+			}
+			if !h.isOnline(uid) {
+				continue
 			}
 
 			for _, event := range events {
