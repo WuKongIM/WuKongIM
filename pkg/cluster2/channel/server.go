@@ -69,6 +69,10 @@ func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error
 
 	raft := rg.GetRaft(channelKey)
 	if raft != nil {
+		ch := raft.(*Channel)
+		if ch.needUpdate(clusterConfig) {
+			return ch.switchConfig(channelConfigToRaftConfig(s.opts.NodeId, clusterConfig))
+		}
 		return nil
 	}
 
@@ -82,7 +86,7 @@ func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error
 	}
 	rg.AddRaft(ch)
 
-	err = ch.switchConfig(channelConfigToRaftConfig(clusterConfig))
+	err = ch.switchConfig(channelConfigToRaftConfig(s.opts.NodeId, clusterConfig))
 	if err != nil {
 		return err
 	}
@@ -119,7 +123,7 @@ func (s *Server) WakeFollowerfNeed(channelId string, channelType uint8) error {
 		}
 		rg.AddRaft(ch)
 
-		err = ch.switchConfig(channelConfigToRaftConfig(clusterConfig))
+		err = ch.switchConfig(channelConfigToRaftConfig(s.opts.NodeId, clusterConfig))
 		if err != nil {
 			return err
 		}
@@ -220,4 +224,13 @@ func (s *Server) RemoveChannel(channelId string, channelType uint8) {
 func (s *Server) LastIndexAndAppendTime(channelId string, channelType uint8) (uint64, uint64, error) {
 	channelKey := wkutil.ChannelToKey(channelId, channelType)
 	return s.storage.LastIndexAndAppendTime(channelKey)
+}
+
+func (s *Server) LastLogIndexAndTerm(channelId string, channelType uint8) (uint32, uint64, error) {
+	msg, err := s.storage.getLastMessage(channelId, channelType)
+	if err != nil && err != wkdb.ErrNotFound {
+		return 0, 0, err
+	}
+
+	return uint32(msg.Term), uint64(msg.MessageSeq), nil
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -47,16 +48,32 @@ func createChannel(cfg wkdb.ChannelClusterConfig, s *Server, rg *raftgroup.RaftG
 	return ch, nil
 }
 
-func (ch *Channel) switchConfig(cfg types.Config) error {
+func (ch *Channel) switchConfig(cfg rafttype.Config) error {
 
-	return ch.rg.AddEventWait(ch.channelKey, types.Event{
-		Type:   types.ConfChange,
+	return ch.rg.AddEventWait(ch.channelKey, rafttype.Event{
+		Type:   rafttype.ConfChange,
 		Config: cfg,
 	})
 
 }
 
-func channelConfigToRaftConfig(cfg wkdb.ChannelClusterConfig) types.Config {
+// needUpdate 判断是否需要更新
+func (ch *Channel) needUpdate(newCfg wkdb.ChannelClusterConfig) bool {
+	return !ch.cfg.Equal(newCfg)
+}
+
+func channelConfigToRaftConfig(currentNodeId uint64, cfg wkdb.ChannelClusterConfig) rafttype.Config {
+
+	var role rafttype.Role
+	if wkutil.ArrayContainsUint64(cfg.Learners, currentNodeId) {
+		role = rafttype.RoleLearner
+	} else {
+		if cfg.LeaderId == currentNodeId {
+			role = rafttype.RoleLeader
+		} else {
+			role = rafttype.RoleFollower
+		}
+	}
 
 	return types.Config{
 		MigrateFrom: cfg.MigrateFrom,
@@ -65,5 +82,6 @@ func channelConfigToRaftConfig(cfg wkdb.ChannelClusterConfig) types.Config {
 		Learners:    cfg.Learners,
 		Term:        cfg.Term,
 		Leader:      cfg.LeaderId,
+		Role:        role,
 	}
 }

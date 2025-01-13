@@ -313,7 +313,7 @@ func (s *Server) getSlotMaxLogIndex(slotId uint32) (uint64, error) {
 		return lastIdx, nil
 	}
 
-	slotLogResp, err := s.rpcClient.RequestSlotLogInfo(slot.Leader, &SlotLogInfoReq{
+	slotLogResp, err := s.rpcClient.RequestSlotLastLogInfo(slot.Leader, &SlotLogInfoReq{
 		SlotIds: []uint32{slotId},
 	})
 	if err != nil {

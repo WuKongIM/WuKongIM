@@ -42,5 +42,5 @@ func (s *Slot) needUpdate(newSlot *types.Slot) bool {
 }
 
 func (s *Slot) LastLogIndexAndTerm() (uint64, uint32) {
-	return s.LastLogIndex(), s.LastTerm()
+	return s.LastLogIndex(), s.LastLogTerm()
 }

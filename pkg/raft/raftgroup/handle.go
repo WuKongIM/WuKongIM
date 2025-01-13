@@ -125,9 +125,9 @@ func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
 			return
 		}
 		// 删除本地的leader term start index
-		err = rg.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(r.Key(), e.Term)
+		err = rg.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(r.Key(), e.LastLogTerm)
 		if err != nil {
-			rg.Error("delete leader term start index failed", zap.Error(err), zap.Uint32("term", e.Term))
+			rg.Error("delete leader term start index failed", zap.Error(err), zap.Uint32("LastLogTerm", e.LastLogTerm))
 			rg.AddEvent(r.Key(), types.Event{
 				Type:   types.TruncateResp,
 				Reason: types.ReasonError,

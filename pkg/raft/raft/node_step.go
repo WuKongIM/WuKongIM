@@ -265,7 +265,71 @@ func (n *Node) stepCandidate(e types.Event) error {
 }
 
 func (n *Node) stepLearner(e types.Event) error {
+	switch e.Type {
+	case types.Propose:
+		n.Foucs("learner not allow propose", zap.String("key", n.Key()), zap.Int("logs", len(e.Logs)))
+	case types.Ping: // 心跳
+		n.electionElapsed = 0
+		if n.cfg.Leader == None {
+			n.BecomeLearner(e.Term, e.From)
+		}
 
+		// 如果领导的配置版本大于本地配置版本，那么请求配置
+		if e.ConfigVersion > n.cfg.Version {
+			n.sendConfigReq()
+		}
+	case types.NotifySync:
+		n.sendSyncReq()
+		n.advance()
+	case types.SyncResp: // 同步返回
+		n.electionElapsed = 0
+		if !n.onlySync {
+			n.onlySync = true
+		}
+		if e.Reason == types.ReasonOk {
+			// if n.Key() == "clusterconfig" {
+			// 	n.Info("SyncResp...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.Int("len", len(e.Logs)))
+			// }
+			if len(e.Logs) > 0 {
+				err := n.queue.append(e.Logs...)
+				if err != nil {
+					return err
+				}
+			}
+
+		} else if e.Reason == types.ReasonTruncate {
+			// if n.Key() == "clusterconfig" {
+			// 	n.Info("truncating...", zap.Bool("truncating", n.truncating), zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.Int("len", len(e.Logs)))
+			// }
+			if n.truncating {
+				return nil
+			}
+			n.truncating = true
+			n.sendTruncateReq(e.Index)
+			n.advance()
+		} else {
+			n.Error("sync error", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.String("reason", e.Reason.String()))
+		}
+	case types.TruncateResp: // 裁剪返回
+		n.truncating = false
+		if e.Reason == types.ReasonOk {
+			n.queue.truncateLogTo(e.Index)
+		}
+	case types.StoreResp: // 异步存储日志返回
+		n.queue.appending = false
+		if e.Reason == types.ReasonOk {
+			if e.Index > n.queue.lastLogIndex {
+				n.Panic("invalid append response", zap.Uint64("index", e.Index), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
+			}
+			n.queue.storeTo(e.Index)
+		}
+
+	case types.ConfigResp: // 配置返回
+		// 切换配置
+		e.Config.Term = n.cfg.Term
+		n.switchConfig(e.Config)
+
+	}
 	return nil
 }
 

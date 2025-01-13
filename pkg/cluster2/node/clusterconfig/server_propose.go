@@ -77,7 +77,9 @@ func (s *Server) ProposeSlots(slots []*pb.Slot) error {
 		return err
 	}
 
-	_, err = s.ProposeUntilApplied(s.genConfigId(), cmdBytes)
+	logId := s.genConfigId()
+
+	_, err = s.ProposeUntilApplied(logId, cmdBytes)
 	if err != nil {
 		s.Error("ProposeSlots failed", zap.Error(err))
 		return err

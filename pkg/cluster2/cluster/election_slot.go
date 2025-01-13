@@ -146,7 +146,7 @@ func (s *Server) requestSlotInfos(waitElectionSlots map[uint64][]uint32) ([]*Slo
 		} else {
 			requestGroup.Go(func(nID uint64, sids []uint32) func() error {
 				return func() error {
-					resp, err := s.rpcClient.RequestSlotLogInfo(nID, &SlotLogInfoReq{
+					resp, err := s.rpcClient.RequestSlotLastLogInfo(nID, &SlotLogInfoReq{
 						SlotIds: slotIds,
 					})
 					if err != nil {
@@ -171,11 +171,12 @@ func (s *Server) slotInfos(slotIds []uint32) ([]SlotInfo, error) {
 		if st == nil {
 			continue
 		}
-		lastLogIndex, term := st.LastLogIndexAndTerm()
+		lastLogIndex, lastTerm := st.LastLogIndexAndTerm()
 		slotInfos = append(slotInfos, SlotInfo{
 			SlotId:   slotId,
 			LogIndex: lastLogIndex,
-			LogTerm:  term,
+			LogTerm:  lastTerm,
+			Term:     st.LastTerm(),
 		})
 	}
 	return slotInfos, nil
@@ -184,9 +185,24 @@ func (s *Server) slotInfos(slotIds []uint32) ([]SlotInfo, error) {
 // 收集slot的各个副本的日志高度
 func (s *Server) collectSlotLogInfo(slotInfoResps []*SlotLogInfoResp) (map[uint64]map[uint32]SlotInfo, error) {
 	slotLogInfos := make(map[uint64]map[uint32]SlotInfo, len(slotInfoResps))
+	// 合法的最小选举人数
+	quorum := int(s.opts.ConfigOptions.SlotMaxReplicaCount/2) + 1
+
+	slotQuorumMap := make(map[uint32]int)
+
+	for _, resp := range slotInfoResps {
+		for _, slotInfo := range resp.Slots {
+			slotQuorumMap[slotInfo.SlotId]++
+		}
+	}
+
 	for _, resp := range slotInfoResps {
 		slotLogInfos[resp.NodeId] = make(map[uint32]SlotInfo, len(resp.Slots))
 		for _, slotInfo := range resp.Slots {
+			if slotQuorumMap[slotInfo.SlotId] < quorum {
+				s.Foucs("slot quorum < quorum", zap.Uint32("slotId", slotInfo.SlotId), zap.Int("quorum", quorum), zap.Int("slotQuorum", slotQuorumMap[slotInfo.SlotId]))
+				continue
+			}
 			slotLogInfos[resp.NodeId][slotInfo.SlotId] = slotInfo
 		}
 	}
@@ -197,7 +213,7 @@ func (s *Server) collectSlotLogInfo(slotInfoResps []*SlotLogInfoResp) (map[uint6
 func (s *Server) calculateSlotLeader(slotLogInfos map[uint64]map[uint32]SlotInfo, slotIds []uint32) map[uint32]uint64 {
 	slotLeaderMap := make(map[uint32]uint64, len(slotIds))
 	for _, slotId := range slotIds {
-		slotLeaderMap[slotId] = s.calculateSlotLeaderBySlot(slotLogInfos, slotId)
+		slotLeaderMap[slotId] = s.electionSlotLeaderBySlot(slotLogInfos, slotId)
 	}
 	return slotLeaderMap
 }
@@ -205,10 +221,11 @@ func (s *Server) calculateSlotLeader(slotLogInfos map[uint64]map[uint32]SlotInfo
 // 计算槽的领导节点
 // slotLogInfos 槽在各个副本上的日志信息
 // slotId 计算领导节点的槽Id
-func (s *Server) calculateSlotLeaderBySlot(slotLogInfos map[uint64]map[uint32]SlotInfo, slotId uint32) uint64 {
-	var leader uint64
-	var maxLogIndex uint64
-	var maxLogTerm uint32
+func (s *Server) electionSlotLeaderBySlot(slotLogInfos map[uint64]map[uint32]SlotInfo, slotId uint32) uint64 {
+	var expectLeader uint64 // 期望领导
+	var lastLogIndex uint64 // 最新一条日志下标
+	var lastLogTerm uint32  // 最新一条日志任期
+	var leaderTerm uint32   // 领导任期
 	st := s.cfgServer.Slot(slotId)
 
 	// 如果槽正在进行领导者转移，则优先计算转移节点的日志信息
@@ -219,37 +236,55 @@ func (s *Server) calculateSlotLeaderBySlot(slotLogInfos map[uint64]map[uint32]Sl
 				continue
 			}
 			if replicaId == st.ExpectLeader {
-				leader = replicaId
-				maxLogIndex = slotInfo.LogIndex
-				maxLogTerm = slotInfo.LogTerm
+				expectLeader = replicaId
+				lastLogIndex = slotInfo.LogIndex
+				lastLogTerm = slotInfo.LogTerm
+				leaderTerm = slotInfo.Term
 				break
 			}
 		}
 	}
 
+	/**
+	候选者的任期号（Term）不小于自身的当前任期号。
+	候选者的日志至少和自己的日志一样新，即：
+	候选者的最后日志条目的任期号较大，或者
+	如果任期号相同，候选者的日志更长。
+		**/
 	for replicaId, logIndexMap := range slotLogInfos {
-		slotInfo, ok := logIndexMap[slotId]
+		candidate, ok := logIndexMap[slotId]
 		if !ok {
 			continue
 		}
-		if leader == 0 {
-			leader = replicaId
-			maxLogIndex = slotInfo.LogIndex
-			maxLogTerm = slotInfo.LogTerm
+		if expectLeader == 0 {
+			expectLeader = replicaId
+			lastLogIndex = candidate.LogIndex
+			lastLogTerm = candidate.LogTerm
+			leaderTerm = candidate.Term
 			continue
 		}
-		if slotInfo.LogTerm > maxLogTerm {
-			leader = replicaId
-			maxLogIndex = slotInfo.LogIndex
-			maxLogTerm = slotInfo.LogTerm
-		} else if slotInfo.LogTerm == maxLogTerm {
-			if slotInfo.LogIndex > maxLogIndex {
-				leader = replicaId
-				maxLogIndex = slotInfo.LogIndex
-				maxLogTerm = slotInfo.LogTerm
+
+		// 候选者的任期号（Term）不小于自身的当前任期号。
+		if candidate.Term < leaderTerm {
+			continue
+		}
+
+		// 候选者的最后日志条目的任期号较大，或者
+		// 如果任期号相同，候选者的日志更长。
+		if candidate.LogTerm > lastLogTerm {
+			expectLeader = replicaId
+			lastLogIndex = candidate.LogIndex
+			lastLogTerm = candidate.LogTerm
+			leaderTerm = candidate.Term
+		} else if candidate.LogTerm == lastLogTerm {
+			if candidate.LogIndex > lastLogIndex {
+				expectLeader = replicaId
+				lastLogIndex = candidate.LogIndex
+				lastLogTerm = candidate.LogTerm
+				leaderTerm = candidate.Term
 			}
 		}
 
 	}
-	return leader
+	return expectLeader
 }

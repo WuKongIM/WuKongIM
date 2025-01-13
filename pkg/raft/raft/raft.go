@@ -351,9 +351,9 @@ func (r *Raft) handleTruncateReq(e types.Event) {
 			return
 		}
 		// 删除本地的leader term start index
-		err = r.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(e.Term)
+		err = r.opts.Storage.DeleteLeaderTermStartIndexGreaterThanTerm(e.LastLogTerm)
 		if err != nil {
-			r.Error("delete leader term start index failed", zap.Error(err), zap.Uint32("term", e.Term))
+			r.Error("delete leader term start index failed", zap.Error(err), zap.Uint32("LastLogTerm", e.LastLogTerm))
 			r.stepC <- stepReq{event: types.Event{
 				Type:   types.TruncateResp,
 				Reason: types.ReasonError,

@@ -47,6 +47,6 @@ func (s *Server) SwitchConfig(channelId string, channelType uint8, cfg wkdb.Chan
 	if raft == nil {
 		return nil
 	}
-	return raft.(*Channel).switchConfig(channelConfigToRaftConfig(cfg))
+	return raft.(*Channel).switchConfig(channelConfigToRaftConfig(s.opts.NodeId, cfg))
 
 }

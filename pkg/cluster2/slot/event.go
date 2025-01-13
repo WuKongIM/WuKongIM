@@ -3,6 +3,7 @@ package slot
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 // 配置发送改变
@@ -52,6 +53,8 @@ func (s *Server) slotToConfig(st *types.Slot) rafttype.Config {
 	var role rafttype.Role
 	if st.Status == types.SlotStatus_SlotStatusCandidate {
 		role = rafttype.RoleCandidate
+	} else if wkutil.ArrayContainsUint64(st.Learners, s.opts.NodeId) {
+		role = rafttype.RoleLearner
 	} else {
 		if st.Leader == s.opts.NodeId {
 			role = rafttype.RoleLeader

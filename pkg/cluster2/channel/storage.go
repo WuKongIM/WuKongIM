@@ -146,3 +146,8 @@ func (s *storage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error)
 	}
 	return uint64(lastMsgSeq), appendTime, nil
 }
+
+func (s *storage) getLastMessage(channelId string, channelType uint8) (wkdb.Message, error) {
+
+	return s.db.GetLastMsg(channelId, channelType)
+}
