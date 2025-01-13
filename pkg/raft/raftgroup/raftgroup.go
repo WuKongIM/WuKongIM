@@ -256,6 +256,9 @@ func (rg *RaftGroup) handleReady(r IRaft) bool {
 		case types.ApplyReq: // 处理应用请求
 			rg.handleApplyReq(r, e)
 			continue
+		case types.Destory: // 处理销毁请求
+			rg.handleDestory(r)
+			continue
 
 			// 角色转换
 		case types.LearnerToFollowerReq,
@@ -265,7 +268,7 @@ func (rg *RaftGroup) handleReady(r IRaft) bool {
 			continue
 		}
 		if e.To == 0 {
-			rg.Error("none node event", zap.Any("event", e))
+			rg.Foucs("none node event", zap.Any("event", e))
 			continue
 		}
 		if e.To == types.LocalNode {

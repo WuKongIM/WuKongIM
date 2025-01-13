@@ -86,6 +86,7 @@ func (n *Node) stepLeader(e types.Event) error {
 			n.Foucs("stop propose", zap.String("key", n.Key()))
 			return ErrProposalDropped
 		}
+		n.idleTick = 0
 		err := n.queue.append(e.Logs...)
 		if err != nil {
 			return err
@@ -95,6 +96,7 @@ func (n *Node) stepLeader(e types.Event) error {
 		// }
 		n.advance()
 	case types.SyncReq: // 同步
+		n.idleTick = 0
 		isLearner := n.isLearner(e.From) // 当前同步节点是否是学习者
 		n.updateSyncInfo(e)              // 更新副本同步信息
 		if !isLearner {
@@ -110,9 +112,21 @@ func (n *Node) stepLeader(e types.Event) error {
 
 		// 无数据可同步
 		if (e.Reason == types.ReasonOnlySync && e.Index > n.queue.storedIndex) || n.queue.storedIndex == 0 {
-			n.sendSyncResp(e.From, e.Index, nil, types.ReasonOk)
+
+			var speed types.Speed
+			if n.opts.AutoSuspend {
+				syncInfo.emptySyncTick++
+				// 超过空同步阈值，挂起
+				if syncInfo.emptySyncTick > n.opts.SuspendAfterEmptySyncTick {
+					speed = types.SpeedSuspend
+				}
+			}
+			n.sendSyncResp(e.From, e.Index, nil, types.ReasonOk, speed)
 			return nil
 		}
+
+		syncInfo.emptySyncTick = 0
+
 		if !syncInfo.GetingLogs {
 			syncInfo.GetingLogs = true
 			n.sendGetLogsReq(e)
@@ -136,7 +150,6 @@ func (n *Node) stepLeader(e types.Event) error {
 			// 通知副本过来同步日志
 			n.sendNotifySync(All)
 			n.advance()
-
 		}
 	case types.GetLogsResp: // 获取日志返回
 		syncInfo := n.replicaSync[e.To]
@@ -149,7 +162,7 @@ func (n *Node) stepLeader(e types.Event) error {
 			e.Logs[i].Record.Add(track.PositionSyncResp)
 		}
 
-		n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason)
+		n.sendSyncResp(e.To, e.Index, e.Logs, e.Reason, types.SpeedFast)
 		n.advance()
 
 		// 角色转换
@@ -181,7 +194,7 @@ func (n *Node) stepFollower(e types.Event) error {
 			n.BecomeFollower(e.Term, e.From)
 		}
 		n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
-
+		n.idleTick = 0
 		// 如果领导的配置版本大于本地配置版本，那么请求配置
 		if e.ConfigVersion > n.cfg.Version {
 			n.sendConfigReq()
@@ -190,10 +203,13 @@ func (n *Node) stepFollower(e types.Event) error {
 		// if n.Key() == "2&ch1" {
 		// 	n.Info("NotifySync...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index))
 		// }
+		n.idleTick = 0
+		n.suspend = false // 解除挂起
 		n.sendSyncReq()
 		n.advance()
 	case types.SyncResp: // 同步返回
 		n.electionElapsed = 0
+		n.idleTick = 0
 		if !n.onlySync {
 			n.onlySync = true
 		}
@@ -208,6 +224,10 @@ func (n *Node) stepFollower(e types.Event) error {
 				}
 				// 推进去存储
 				n.advance()
+			} else {
+				if e.Speed == types.SpeedSuspend {
+					n.suspend = true
+				}
 			}
 			n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 
@@ -273,19 +293,22 @@ func (n *Node) stepLearner(e types.Event) error {
 		if n.cfg.Leader == None {
 			n.BecomeLearner(e.Term, e.From)
 		}
-
+		n.idleTick = 0
 		// 如果领导的配置版本大于本地配置版本，那么请求配置
 		if e.ConfigVersion > n.cfg.Version {
 			n.sendConfigReq()
 		}
 	case types.NotifySync:
+		n.idleTick = 0
 		n.sendSyncReq()
 		n.advance()
 	case types.SyncResp: // 同步返回
 		n.electionElapsed = 0
+		n.idleTick = 0
 		if !n.onlySync {
 			n.onlySync = true
 		}
+
 		if e.Reason == types.ReasonOk {
 			// if n.Key() == "clusterconfig" {
 			// 	n.Info("SyncResp...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.Int("len", len(e.Logs)))
@@ -294,6 +317,10 @@ func (n *Node) stepLearner(e types.Event) error {
 				err := n.queue.append(e.Logs...)
 				if err != nil {
 					return err
+				}
+			} else {
+				if e.Speed == types.SpeedSuspend {
+					n.suspend = true
 				}
 			}
 

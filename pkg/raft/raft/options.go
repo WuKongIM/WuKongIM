@@ -46,6 +46,18 @@ type Options struct {
 
 	// FollowerToLeaderMinLogGap 跟随者转换为领导者的最小日志差距
 	FollowerToLeaderMinLogGap uint64
+
+	// AutoSuspend 是否允许自动挂起
+	AutoSuspend bool
+
+	// AutoDestory 是否自动销毁
+	AutoDestory bool
+
+	// 在空同步指定次数后，进入挂起状态
+	SuspendAfterEmptySyncTick int
+
+	// 空闲多久后销毁
+	DestoryAfterIdleTick int
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -61,6 +73,10 @@ func NewOptions(opt ...Option) *Options {
 		LearnerToFollowerMinLogGap: 100,
 		LearnerToLeaderMinLogGap:   100,
 		FollowerToLeaderMinLogGap:  100,
+		SuspendAfterEmptySyncTick:  10,
+		AutoSuspend:                false,
+		AutoDestory:                false,
+		DestoryAfterIdleTick:       10 * 60 * 60, // 如果TickInterval是100ms, 那么10 * 60 * 60这个值是1小时，具体时间根据TickInterval来定
 	}
 
 	for _, o := range opt {
@@ -152,5 +168,48 @@ func WithKey(key string) Option {
 func WithProposeTimeout(proposeTimeout time.Duration) Option {
 	return func(opts *Options) {
 		opts.ProposeTimeout = proposeTimeout
+	}
+}
+
+func WithLearnerToLeaderMinLogGap(gap uint64) Option {
+	return func(opts *Options) {
+		opts.LearnerToLeaderMinLogGap = gap
+	}
+}
+
+func WithLearnerToFollowerMinLogGap(gap uint64) Option {
+	return func(opts *Options) {
+		opts.LearnerToFollowerMinLogGap = gap
+	}
+}
+
+func WithFollowerToLeaderMinLogGap(gap uint64) Option {
+	return func(opts *Options) {
+		opts.FollowerToLeaderMinLogGap = gap
+	}
+}
+
+func WithSuspendAfterEmptySyncTick(suspendAfterEmptySyncTick int) Option {
+	return func(opts *Options) {
+		opts.SuspendAfterEmptySyncTick = suspendAfterEmptySyncTick
+	}
+}
+
+func WithDestoryAfterIdleTick(destoryAfterIdleTick int) Option {
+	return func(opts *Options) {
+		opts.DestoryAfterIdleTick = destoryAfterIdleTick
+	}
+}
+
+func WithAutoSuspend(autoSuspend bool) Option {
+	return func(opts *Options) {
+		opts.AutoSuspend = autoSuspend
+	}
+}
+
+func WithAutoDestory(autoDestory bool) Option {
+
+	return func(opts *Options) {
+		opts.AutoDestory = autoDestory
 	}
 }

@@ -104,6 +104,8 @@ const (
 	ConfigReq
 	// ConfigResp 配置响应
 	ConfigResp
+	// Destory 销毁节点
+	Destory
 )
 
 func (e EventType) String() string {
@@ -164,10 +166,21 @@ func (e EventType) String() string {
 		return "ConfigReq"
 	case ConfigResp:
 		return "ConfigResp"
+	case Destory:
+		return "Destory"
 	default:
 		return "Unknown"
 	}
 }
+
+type Speed uint8
+
+const (
+	// SpeedFast 快速
+	SpeedFast Speed = iota
+	// SpeedSuspend 暂停
+	SpeedSuspend
+)
 
 type Event struct {
 	// Type 事件类型
@@ -195,6 +208,9 @@ type Event struct {
 	// Reason 原因
 	Reason Reason
 
+	// Speed 同步速度
+	Speed Speed
+
 	// 不参与编码
 	TermStartIndexInfo *TermStartIndexInfo
 	StartIndex         uint64
@@ -214,6 +230,7 @@ const (
 	configFlag
 	logsFlag
 	reasonFlag
+	speedFlag
 )
 
 func (e Event) Marshal() ([]byte, error) {
@@ -281,6 +298,9 @@ func (e Event) Marshal() ([]byte, error) {
 	}
 	if flag&reasonFlag != 0 {
 		enc.WriteUint8(uint8(e.Reason))
+	}
+	if flag&speedFlag != 0 {
+		enc.WriteUint8(uint8(e.Speed))
 	}
 
 	return enc.Bytes(), nil
@@ -434,6 +454,14 @@ func (e *Event) Unmarshal(data []byte) error {
 		}
 		e.Reason = Reason(reason)
 	}
+
+	if flag&speedFlag != 0 {
+		speed, err := dec.Uint8()
+		if err != nil {
+			return err
+		}
+		e.Speed = Speed(speed)
+	}
 	return nil
 }
 
@@ -463,6 +491,9 @@ func (e Event) getFlag() uint32 {
 	if e.LastLogTerm != 0 {
 		flag |= lastLogTermFlag
 	}
+	if e.ConfigVersion != 0 {
+		flag |= configVersionFlag
+	}
 	if !e.Config.IsEmpty() {
 		flag |= configFlag
 	}
@@ -471,6 +502,9 @@ func (e Event) getFlag() uint32 {
 	}
 	if e.Reason != ReasonUnknown {
 		flag |= reasonFlag
+	}
+	if e.Speed != SpeedFast {
+		flag |= speedFlag
 	}
 	return flag
 }

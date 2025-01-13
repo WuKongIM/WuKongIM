@@ -43,6 +43,10 @@ type Node struct {
 	sync.Mutex
 	truncating  bool // 截断中
 	stopPropose bool // 停止提案
+
+	suspend bool // 挂起
+
+	idleTick int // 服务空闲计数
 }
 
 func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Options) *Node {
@@ -120,6 +124,11 @@ func (n *Node) HasReady() bool {
 	return len(n.events) > 0
 }
 
+// Suspend 是否挂起
+func (n *Node) Suspend() bool {
+	return n.suspend
+}
+
 // Ready 获取待处理的事件
 func (n *Node) Ready() []types.Event {
 
@@ -145,6 +154,13 @@ func (n *Node) Ready() []types.Event {
 		start, end := n.queue.nextApplyLogs()
 		if start > 0 {
 			n.sendApplyReq(start, end)
+		}
+	}
+
+	if n.opts.AutoDestory {
+		if n.idleTick > n.opts.DestoryAfterIdleTick {
+			n.Info("auto destory")
+			n.sendDestory()
 		}
 	}
 

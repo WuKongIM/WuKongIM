@@ -43,7 +43,7 @@ func createChannel(cfg wkdb.ChannelClusterConfig, s *Server, rg *raftgroup.RaftG
 		return nil, err
 	}
 
-	ch.Node = raft.NewNode(lastLogStartIndex, state, raft.NewOptions(raft.WithKey(channelKey), raft.WithNodeId(s.opts.NodeId)))
+	ch.Node = raft.NewNode(lastLogStartIndex, state, raft.NewOptions(raft.WithKey(channelKey), raft.WithAutoSuspend(true), raft.WithAutoDestory(true), raft.WithNodeId(s.opts.NodeId)))
 
 	return ch, nil
 }
