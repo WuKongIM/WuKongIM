@@ -187,9 +187,13 @@ func (s *Server) nodeChannelsGet(c *wkhttp.Context) {
 		resp := NewChannelClusterConfigRespFromClusterConfig(slot.Leader, slot.Id, cfg)
 
 		if cfg.LeaderId == s.opts.ConfigOptions.NodeId {
-			if s.channelServer.ExistChannel(cfg.ChannelId, cfg.ChannelType) {
+			channel := s.channelServer.Channel(cfg.ChannelId, cfg.ChannelType)
+			if channel != nil {
 				resp.Active = 1
 				resp.ActiveFormat = "运行中"
+				if channel.Suspend() {
+					resp.ActiveFormat = "挂起"
+				}
 			} else {
 				resp.Active = 0
 				resp.ActiveFormat = "未运行"

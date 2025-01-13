@@ -6,7 +6,7 @@ import (
 )
 
 func (n *Node) Tick() {
-
+	n.idleTick++
 	if n.tickFnc != nil {
 		n.tickFnc()
 	}
@@ -17,12 +17,15 @@ func (n *Node) tickLeader() {
 }
 
 func (n *Node) tickFollower() {
-	n.syncElapsed++
-	if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
-		if !n.hasSyncReq() {
-			n.sendSyncReq()
+
+	if !n.suspend { // 非挂起状态
+		n.syncElapsed++
+		if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
+			if !n.hasSyncReq() {
+				n.sendSyncReq()
+			}
+			n.syncElapsed = 0
 		}
-		n.syncElapsed = 0
 	}
 
 	if n.opts.ElectionOn {
@@ -30,25 +33,16 @@ func (n *Node) tickFollower() {
 	}
 }
 
-func (n *Node) hasSyncReq() bool {
-	if len(n.events) == 0 {
-		return false
-	}
-	for _, e := range n.events {
-		if e.Type == types.SyncReq {
-			return true
-		}
-	}
-	return false
-}
-
 func (n *Node) tickLearner() {
-	n.syncElapsed++
-	if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
-		if !n.hasSyncReq() {
-			n.sendSyncReq()
+
+	if !n.suspend { // 非挂起状态
+		n.syncElapsed++
+		if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
+			if !n.hasSyncReq() {
+				n.sendSyncReq()
+			}
+			n.syncElapsed = 0
 		}
-		n.syncElapsed = 0
 	}
 
 }
@@ -84,14 +78,29 @@ func (n *Node) tickHeartbeat() {
 			continue
 		}
 		syncInfo := n.syncState.replicaSync[replicaId]
-		if syncInfo != nil {
-			syncInfo.SyncTick++
+		if syncInfo == nil {
+			syncInfo = &SyncInfo{}
+			n.syncState.replicaSync[replicaId] = syncInfo
 		}
-		if syncInfo == nil || syncInfo.SyncTick > n.opts.SyncInterval {
+
+		syncInfo.SyncTick++
+
+		if syncInfo.SyncTick > n.opts.SyncInterval && !syncInfo.suspend {
 			n.sendPing(replicaId)
 		}
 	}
+}
 
+func (n *Node) hasSyncReq() bool {
+	if len(n.events) == 0 {
+		return false
+	}
+	for _, e := range n.events {
+		if e.Type == types.SyncReq {
+			return true
+		}
+	}
+	return false
 }
 
 // 是否超过选举超时时间

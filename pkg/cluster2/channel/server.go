@@ -211,6 +211,16 @@ func (s *Server) ExistChannel(channelId string, channelType uint8) bool {
 	return rg.GetRaft(channelKey) != nil
 }
 
+func (s *Server) Channel(channelId string, channelType uint8) *Channel {
+	channelKey := wkutil.ChannelToKey(channelId, channelType)
+	rg := s.getRaftGroup(channelKey)
+	raft := rg.GetRaft(channelKey)
+	if raft != nil {
+		return raft.(*Channel)
+	}
+	return nil
+}
+
 func (s *Server) RemoveChannel(channelId string, channelType uint8) {
 	channelKey := wkutil.ChannelToKey(channelId, channelType)
 	rg := s.getRaftGroup(channelKey)
