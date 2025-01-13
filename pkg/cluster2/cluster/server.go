@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"path"
 	"strconv"
 	"time"
@@ -289,79 +288,6 @@ func (s *Server) getSlotId(v string) uint32 {
 	return wkutil.GetSlotNum(int(slotCount), v)
 }
 
-func (s *Server) getOrCreateChannelClusterConfigFromLocal(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
-	// 获取频道槽领导
-	slotLeaderId, err := s.SlotLeaderIdOfChannel(channelId, channelType)
-	if err != nil {
-		return wkdb.EmptyChannelClusterConfig, err
-	}
-
-	if s.opts.ConfigOptions.NodeId != slotLeaderId {
-		s.Error("not slot leader", zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		return wkdb.EmptyChannelClusterConfig, errors.New("not slot leader")
-	}
-
-	cfg, err := s.db.GetChannelClusterConfig(channelId, channelType)
-	if err != nil && err != wkdb.ErrNotFound {
-		return wkdb.EmptyChannelClusterConfig, err
-	}
-	if wkdb.IsEmptyChannelClusterConfig(cfg) {
-		cfg, err = s.createChannelClusterConfig(channelId, channelType)
-		if err != nil {
-			return wkdb.EmptyChannelClusterConfig, err
-		}
-
-		version, err := s.store.SaveChannelClusterConfig(cfg)
-		if err != nil {
-			return wkdb.EmptyChannelClusterConfig, err
-		}
-		cfg.ConfVersion = version
-		return cfg, nil
-	}
-	return cfg, nil
-}
-
-// 创建一个频道的分布式配置
-func (s *Server) createChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
-	allowVoteNodes := s.cfgServer.AllowVoteAndJoinedNodes() // 获取允许投票的在线节点
-	if len(allowVoteNodes) == 0 {
-		return wkdb.EmptyChannelClusterConfig, errors.New("no allow vote nodes")
-	}
-
-	createdAt := time.Now()
-	updatedAt := time.Now()
-	clusterConfig := wkdb.ChannelClusterConfig{
-		ChannelId:       channelId,
-		ChannelType:     channelType,
-		ReplicaMaxCount: uint16(s.opts.ConfigOptions.ChannelMaxReplicaCount),
-		Term:            1,
-		LeaderId:        s.opts.ConfigOptions.NodeId,
-		CreatedAt:       &createdAt,
-		UpdatedAt:       &updatedAt,
-	}
-	replicaIds := make([]uint64, 0, s.opts.ConfigOptions.ChannelMaxReplicaCount)
-	replicaIds = append(replicaIds, s.opts.ConfigOptions.NodeId) // 默认当前节点是领导，所以加入到副本列表中
-
-	// 随机选择副本
-	newAllowVoteNodes := make([]*types.Node, 0, len(allowVoteNodes))
-	newAllowVoteNodes = append(newAllowVoteNodes, allowVoteNodes...)
-	rand.Shuffle(len(newAllowVoteNodes), func(i, j int) {
-		newAllowVoteNodes[i], newAllowVoteNodes[j] = newAllowVoteNodes[j], newAllowVoteNodes[i]
-	})
-
-	for _, allowVoteNode := range newAllowVoteNodes {
-		if allowVoteNode.Id == s.opts.ConfigOptions.NodeId {
-			continue
-		}
-		if len(replicaIds) >= int(s.opts.ConfigOptions.ChannelMaxReplicaCount) {
-			break
-		}
-		replicaIds = append(replicaIds, allowVoteNode.Id)
-
-	}
-	clusterConfig.Replicas = replicaIds
-	return clusterConfig, nil
-}
 func (s *Server) uidToServerId(uid string) uint64 {
 	id, _ := strconv.ParseUint(uid, 10, 64)
 	return id

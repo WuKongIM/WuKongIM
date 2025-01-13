@@ -43,19 +43,11 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 	peerChannelRecentMessageReqsMap := make(map[uint64][]*channelRecentMessageReq)
 	for _, channelRecentMsgReq := range channels {
 		fakeChannelId := channelRecentMsgReq.ChannelId
-		leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.LeaderOfChannel(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
 		if err != nil {
 			// s.Warn("getRecentMessagesForCluster: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			continue
 		}
-		if !service.Cluster.NodeIsOnline(leaderInfo.Id) { // 如果领导节点不在线，则使用能触发选举的方法
-			leaderInfo, err = service.Cluster.SlotLeaderOfChannel(fakeChannelId, channelRecentMsgReq.ChannelType)
-			if err != nil {
-				s.Error("getRecentMessagesForCluster: SlotLeaderOfChannel获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
-				return nil, err
-			}
-		}
-
 		peerChannelRecentMessageReqsMap[leaderInfo.Id] = append(peerChannelRecentMessageReqsMap[leaderInfo.Id], channelRecentMsgReq)
 	}
 

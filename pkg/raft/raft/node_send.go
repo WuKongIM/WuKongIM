@@ -173,10 +173,10 @@ func (n *Node) sendSyncResp(to uint64, syncIndex uint64, logs []types.Log, reson
 
 func (n *Node) sendTruncateReq(index uint64) {
 	n.events = append(n.events, types.Event{
-		Type:  types.TruncateReq,
-		To:    types.LocalNode,
-		Term:  n.lastTermStartIndex.Term,
-		Index: index,
+		Type:        types.TruncateReq,
+		To:          types.LocalNode,
+		LastLogTerm: n.lastTermStartIndex.Term,
+		Index:       index,
 	})
 }
 

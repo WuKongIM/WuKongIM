@@ -34,13 +34,16 @@ func (r *rpcServer) setRoutes() {
 	// 获取频道配置
 	r.s.netServer.Route("/rpc/channel/getConfig", r.handleChannelConfig)
 
-	// 获取槽日志信息
-	r.s.netServer.Route("/rpc/slot/logInfo", r.handleSlotLogInfo)
+	// 获取槽最新日志信息
+	r.s.netServer.Route("/rpc/slot/lastLogInfo", r.handleSlotLastLogInfo)
 	// 请求唤醒频道领导
 	r.s.netServer.Route("/rpc/channel/wakeLeaderIfNeed", r.handleWakeLeaderIfNeed)
 
 	// 请求频道更新配置
 	r.s.netServer.Route("/rpc/channel/switchConfig", r.handleChannelSwitchConfig)
+
+	// 获取频道最新日志信息
+	r.s.netServer.Route("/rpc/channel/lastLogInfo", r.handleChannelLastLogInfo)
 }
 
 func (r *rpcServer) handleChannelPropose(c *wkserver.Context) {
@@ -114,7 +117,7 @@ func (r *rpcServer) handleChannelConfig(c *wkserver.Context) {
 	c.Write(data)
 }
 
-func (r *rpcServer) handleSlotLogInfo(c *wkserver.Context) {
+func (r *rpcServer) handleSlotLastLogInfo(c *wkserver.Context) {
 	req := &SlotLogInfoReq{}
 	if err := req.Unmarshal(c.Body()); err != nil {
 		r.Error("unmarshal SlotLogInfoReq failed", zap.Error(err))
@@ -152,6 +155,7 @@ func (r *rpcServer) slotInfos(slotIds []uint32) ([]SlotInfo, error) {
 			SlotId:   slotId,
 			LogIndex: lastLogIndex,
 			LogTerm:  term,
+			Term:     st.LastTerm(),
 		})
 	}
 	return slotInfos, nil
@@ -231,4 +235,48 @@ func (r *rpcServer) handleChannelSwitchConfig(c *wkserver.Context) {
 	}
 
 	c.WriteOk()
+}
+
+func (r *rpcServer) handleChannelLastLogInfo(c *wkserver.Context) {
+	req := &channelReq{}
+	if err := req.decode(c.Body()); err != nil {
+		r.Error("decode channel last log info req failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	resp, err := r.s.getChannelLastLogInfo(req.channelId, req.channelType)
+	if err != nil {
+		r.Error("get channel last log info failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	data, err := resp.Marshal()
+	if err != nil {
+		r.Error("marshal channel last log info failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	c.Write(data)
+}
+
+func (s *Server) getChannelLastLogInfo(channelId string, channelType uint8) (*ChannelLastLogInfoResponse, error) {
+	lastLogTerm, lastLogIndex, err := s.channelServer.LastLogIndexAndTerm(channelId, channelType)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := s.db.GetChannelClusterConfig(channelId, channelType)
+	if err != nil && err != wkdb.ErrNotFound {
+		return nil, err
+	}
+
+	resp := &ChannelLastLogInfoResponse{
+		LogTerm:  lastLogTerm,
+		LogIndex: lastLogIndex,
+		Term:     cfg.Term,
+	}
+	return resp, nil
 }

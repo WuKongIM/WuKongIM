@@ -931,7 +931,7 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = options.GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
-	leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.LeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
 	if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
 		ch.Info("空频道，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 		c.JSON(http.StatusOK, emptySyncMessageResp)

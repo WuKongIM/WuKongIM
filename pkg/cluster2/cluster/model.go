@@ -185,57 +185,31 @@ func (c *ChannelLastLogInfoReqSet) Unmarshal(data []byte) error {
 }
 
 type ChannelLastLogInfoResponse struct {
-	LogIndex    uint64 // 频道最新日志索引
-	LogTerm     uint32 // 频道最新日志任期
-	Term        uint32 // 频道最新任期
-	ChannelId   string
-	ChannelType uint8
+	LogIndex uint64 // 频道最新日志索引
+	LogTerm  uint32 // 频道最新日志任期
+	Term     uint32 // 频道领导最新任期
 }
 
-type ChannelLastLogInfoResponseSet []*ChannelLastLogInfoResponse
-
-func (c ChannelLastLogInfoResponseSet) Marshal() ([]byte, error) {
+func (c *ChannelLastLogInfoResponse) Marshal() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint16(uint16(len(c)))
-	for _, resp := range c {
-		enc.WriteString(resp.ChannelId)
-		enc.WriteUint8(resp.ChannelType)
-		enc.WriteUint64(resp.LogIndex)
-		enc.WriteUint32(resp.LogTerm)
-		enc.WriteUint32(resp.Term)
-	}
+	enc.WriteUint64(c.LogIndex)
+	enc.WriteUint32(c.LogTerm)
+	enc.WriteUint32(c.Term)
 	return enc.Bytes(), nil
 }
 
-func (c *ChannelLastLogInfoResponseSet) Unmarshal(data []byte) error {
+func (c *ChannelLastLogInfoResponse) Unmarshal(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	var respLen uint16
-	if respLen, err = dec.Uint16(); err != nil {
+	if c.LogIndex, err = dec.Uint64(); err != nil {
 		return err
 	}
-	if respLen > 0 {
-		*c = make([]*ChannelLastLogInfoResponse, respLen)
-		for i := uint16(0); i < respLen; i++ {
-			resp := &ChannelLastLogInfoResponse{}
-			if resp.ChannelId, err = dec.String(); err != nil {
-				return err
-			}
-			if resp.ChannelType, err = dec.Uint8(); err != nil {
-				return err
-			}
-			if resp.LogIndex, err = dec.Uint64(); err != nil {
-				return err
-			}
-			if resp.LogTerm, err = dec.Uint32(); err != nil {
-				return err
-			}
-			if resp.Term, err = dec.Uint32(); err != nil {
-				return err
-			}
-			(*c)[i] = resp
-		}
+	if c.LogTerm, err = dec.Uint32(); err != nil {
+		return err
+	}
+	if c.Term, err = dec.Uint32(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -580,8 +554,9 @@ func (s *SlotLogInfoReq) Unmarshal(data []byte) error {
 
 type SlotInfo struct {
 	SlotId   uint32 // 槽Id
-	LogIndex uint64 // 日志下标
-	LogTerm  uint32 // 日期任期
+	LogIndex uint64 // 最后一条日志下标
+	LogTerm  uint32 // 最后一条日志任期
+	Term     uint32 // 领导任期
 }
 
 type SlotLogInfoResp struct {
@@ -598,6 +573,7 @@ func (s *SlotLogInfoResp) Marshal() ([]byte, error) {
 		enc.WriteUint32(slot.SlotId)
 		enc.WriteUint64(slot.LogIndex)
 		enc.WriteUint32(slot.LogTerm)
+		enc.WriteUint32(slot.Term)
 	}
 	return enc.Bytes(), nil
 }
@@ -622,6 +598,9 @@ func (s *SlotLogInfoResp) Unmarshal(data []byte) error {
 				return err
 			}
 			if s.Slots[i].LogTerm, err = dec.Uint32(); err != nil {
+				return err
+			}
+			if s.Slots[i].Term, err = dec.Uint32(); err != nil {
 				return err
 			}
 		}
@@ -1396,7 +1375,7 @@ const (
 )
 
 type LogResp struct {
-	Id         uint64 `json:"id"`          // 日志ID
+	Id         string `json:"id"`          // 日志ID
 	Index      uint64 `json:"index"`       // 日志下标
 	Term       uint32 `json:"term"`        // 数据任期
 	Cmd        string `json:"cmd"`         // 命令
@@ -1438,7 +1417,7 @@ func NewLogRespFromLog(log rafttype.Log, logType LogType) (*LogResp, error) {
 	timeFormat := wkutil.ToyyyyMMddHHmmss(log.Time)
 
 	return &LogResp{
-		Id:         log.Id,
+		Id:         strconv.FormatUint(log.Id, 10),
 		Index:      log.Index,
 		Term:       log.Term,
 		Cmd:        cmdStr,

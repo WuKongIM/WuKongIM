@@ -99,6 +99,12 @@ func (n *Node) LastLogIndex() uint64 {
 	return n.queue.lastLogIndex
 }
 
+// LastLogTerm 获取最后一条日志任期
+func (n *Node) LastLogTerm() uint32 {
+	return n.lastTermStartIndex.Term
+}
+
+// LastTerm 当前领导任期
 func (n *Node) LastTerm() uint32 {
 	return n.cfg.Term
 }
