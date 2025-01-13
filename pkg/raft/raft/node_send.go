@@ -10,6 +10,12 @@ func (n *Node) sendNotifySync(to uint64) {
 			if replicaId == n.opts.NodeId {
 				continue
 			}
+			// 解除挂起
+			syncInfo := n.replicaSync[replicaId]
+			if syncInfo != nil {
+				syncInfo.emptySyncTick = 0
+				syncInfo.suspend = false
+			}
 			n.events = append(n.events, types.Event{
 				Type: types.NotifySync,
 				From: n.opts.NodeId,
@@ -18,6 +24,12 @@ func (n *Node) sendNotifySync(to uint64) {
 			})
 		}
 	} else {
+		// 解除挂起
+		syncInfo := n.replicaSync[to]
+		if syncInfo != nil {
+			syncInfo.emptySyncTick = 0
+			syncInfo.suspend = false
+		}
 		n.events = append(n.events, types.Event{
 			Type: types.NotifySync,
 			From: n.opts.NodeId,
@@ -158,7 +170,7 @@ func (n *Node) sendGetLogsReq(syncEvent types.Event) {
 	})
 }
 
-func (n *Node) sendSyncResp(to uint64, syncIndex uint64, logs []types.Log, reson types.Reason) {
+func (n *Node) sendSyncResp(to uint64, syncIndex uint64, logs []types.Log, reson types.Reason, speed types.Speed) {
 	n.events = append(n.events, types.Event{
 		Type:           types.SyncResp,
 		From:           n.opts.NodeId,
@@ -168,6 +180,7 @@ func (n *Node) sendSyncResp(to uint64, syncIndex uint64, logs []types.Log, reson
 		Logs:           logs,
 		CommittedIndex: n.queue.committedIndex,
 		Reason:         reson,
+		Speed:          speed,
 	})
 }
 
@@ -218,5 +231,12 @@ func (n *Node) sendConfigResp(to uint64, cfg types.Config) {
 		To:     to,
 		Term:   n.cfg.Term,
 		Config: cfg,
+	})
+}
+
+func (n *Node) sendDestory() {
+	n.events = append(n.events, types.Event{
+		Type: types.Destory,
+		To:   types.LocalNode,
 	})
 }

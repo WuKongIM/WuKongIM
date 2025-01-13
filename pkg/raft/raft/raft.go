@@ -229,7 +229,7 @@ func (r *Raft) readyEvents() {
 		}
 
 		if e.To == None {
-			fmt.Println("none node event--->", e)
+			r.Foucs("none node event", zap.Any("event", e))
 			continue
 		}
 

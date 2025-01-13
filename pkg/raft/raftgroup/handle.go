@@ -366,3 +366,7 @@ func (rg *RaftGroup) followerToLeader(r IRaft, followerId uint64) (types.Config,
 	return cfg, nil
 
 }
+
+func (rg *RaftGroup) handleDestory(r IRaft) {
+	rg.RemoveRaft(r)
+}
