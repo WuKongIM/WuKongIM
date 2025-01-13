@@ -43,6 +43,14 @@ func (n *Node) hasSyncReq() bool {
 }
 
 func (n *Node) tickLearner() {
+	n.syncElapsed++
+	if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
+		if !n.hasSyncReq() {
+			n.sendSyncReq()
+		}
+		n.syncElapsed = 0
+	}
+
 }
 
 func (n *Node) tickCandidate() {

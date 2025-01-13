@@ -89,13 +89,13 @@ func (r *rpcClient) RequestGetChannelClusterConfig(nodeId uint64, channelId stri
 	return config, nil
 }
 
-func (r *rpcClient) RequestSlotLogInfo(nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error) {
+func (r *rpcClient) RequestSlotLastLogInfo(nodeId uint64, req *SlotLogInfoReq) (*SlotLogInfoResp, error) {
 
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	body, err := r.request(nodeId, "/rpc/slot/logInfo", data)
+	body, err := r.request(nodeId, "/rpc/slot/lastLogInfo", data)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +127,28 @@ func (r *rpcClient) RequestChannelSwitchConfig(nodeId uint64, config wkdb.Channe
 	}
 	_, err = r.request(nodeId, "/rpc/channel/switchConfig", data)
 	return err
+}
+
+// RequestChannelLastLogInfo 请求频道最后日志信息
+func (r *rpcClient) RequestChannelLastLogInfo(nodeId uint64, channelId string, channelType uint8) (*ChannelLastLogInfoResponse, error) {
+	req := &channelReq{
+		channelId:   channelId,
+		channelType: channelType,
+	}
+	data, err := req.encode()
+	if err != nil {
+		return nil, err
+	}
+	body, err := r.request(nodeId, "/rpc/channel/lastLogInfo", data)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &ChannelLastLogInfoResponse{}
+	if err := resp.Unmarshal(body); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (r *rpcClient) request(nodeId uint64, path string, body []byte) ([]byte, error) {
