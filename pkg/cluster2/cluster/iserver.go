@@ -32,7 +32,7 @@ func (s *Server) GetOrCreateChannelClusterConfigFromSlotLeader(channelId string,
 
 func (s *Server) SlotLeaderOfChannel(channelId string, channelType uint8) (*types.Node, error) {
 	slotId := s.getSlotId(channelId)
-	slotLeaderId := s.slotServer.SlotLeaderId(slotId)
+	slotLeaderId := s.cfgServer.SlotLeaderId(slotId)
 	if slotLeaderId == 0 {
 		return nil, fmt.Errorf("slot[%d] leader not found", slotId)
 	}
@@ -45,7 +45,7 @@ func (s *Server) SlotLeaderOfChannel(channelId string, channelType uint8) (*type
 
 func (s *Server) SlotLeaderIdOfChannel(channelId string, channelType uint8) (nodeID uint64, err error) {
 	slotId := s.getSlotId(channelId)
-	slotLeaderId := s.slotServer.SlotLeaderId(slotId)
+	slotLeaderId := s.cfgServer.SlotLeaderId(slotId)
 	if slotLeaderId == 0 {
 		return 0, fmt.Errorf("slot[%d] leader not found", slotId)
 	}
@@ -54,7 +54,7 @@ func (s *Server) SlotLeaderIdOfChannel(channelId string, channelType uint8) (nod
 
 func (s *Server) LoadOnlyChannelClusterConfig(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 	slotId := s.getSlotId(channelId)
-	slotLeaderId := s.slotServer.SlotLeaderId(slotId)
+	slotLeaderId := s.cfgServer.SlotLeaderId(slotId)
 	if slotLeaderId == 0 {
 		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("slot[%d] leader not found", slotId)
 	}
@@ -106,7 +106,7 @@ func (s *Server) GetSlotId(v string) uint32 {
 }
 
 func (s *Server) SlotLeaderId(slotId uint32) uint64 {
-	return s.slotServer.SlotLeaderId(slotId)
+	return s.cfgServer.SlotLeaderId(slotId)
 }
 
 func (s *Server) NodeIsOnline(nodeId uint64) bool {

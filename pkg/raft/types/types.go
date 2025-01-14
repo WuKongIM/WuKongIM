@@ -625,7 +625,7 @@ func (c Config) Clone() Config {
 
 func (c Config) String() string {
 
-	return ""
+	return fmt.Sprintf("MigrateFrom: %d, MigrateTo: %d, Replicas: %v, Learners: %v, Role: %s, Term: %d, Version: %d, Leader: %d", c.MigrateFrom, c.MigrateTo, c.Replicas, c.Learners, c.Role, c.Term, c.Version, c.Leader)
 }
 
 func (c Config) IsEmpty() bool {

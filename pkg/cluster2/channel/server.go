@@ -3,8 +3,10 @@ package channel
 import (
 	"sync"
 
+	"github.com/WuKongIM/WuKongIM/pkg/fasthash"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raftgroup"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/ringlock"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -23,13 +25,14 @@ type Server struct {
 		channels map[string]bool
 	}
 
-	wakeLeaderLock sync.Mutex
+	wakeLeaderLock *ringlock.RingLock
 }
 
 func NewServer(opts *Options) *Server {
 	s := &Server{
-		opts: opts,
-		Log:  wklog.NewWKLog("channel.Server"),
+		opts:           opts,
+		Log:            wklog.NewWKLog("channel.Server"),
+		wakeLeaderLock: ringlock.NewRingLock(1024),
 	}
 	s.storage = newStorage(opts.DB, s)
 	for i := 0; i < opts.GroupCount; i++ {
@@ -61,8 +64,8 @@ func (s *Server) Stop() {
 // 唤醒频道领导
 func (s *Server) WakeLeaderIfNeed(clusterConfig wkdb.ChannelClusterConfig) error {
 
-	s.wakeLeaderLock.Lock()
-	defer s.wakeLeaderLock.Unlock()
+	s.wakeLeaderLock.Lock(clusterConfig.ChannelId)
+	defer s.wakeLeaderLock.Unlock(clusterConfig.ChannelId)
 
 	channelKey := wkutil.ChannelToKey(clusterConfig.ChannelId, clusterConfig.ChannelType)
 	rg := s.getRaftGroup(channelKey)
@@ -179,21 +182,8 @@ func (s *Server) AddEvent(channelKey string, e rafttype.Event) {
 }
 
 func (s *Server) getRaftGroup(channelKey string) *raftgroup.RaftGroup {
-	index := int(fnv32(channelKey) % uint32(s.opts.GroupCount))
+	index := int(fasthash.Hash(channelKey) % uint32(s.opts.GroupCount))
 	return s.raftGroups[index]
-}
-
-func fnv32(key string) uint32 {
-	const (
-		offset32 = 2166136261
-		prime32  = 16777619
-	)
-	hash := offset32
-	for i := 0; i < len(key); i++ {
-		hash ^= int(key[i])
-		hash *= prime32
-	}
-	return uint32(hash)
 }
 
 func (s *Server) ChannelCount() int {

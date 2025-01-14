@@ -29,6 +29,15 @@ func (s *Server) AddOrUpdateSlotRaft(slot *types.Slot) {
 
 	shardNo := SlotIdToKey(slot.Id)
 	rft := s.raftGroup.GetRaft(shardNo)
+
+	// 如果当前节点不是slot的replica或者learner则不处理
+	if !wkutil.ArrayContainsUint64(slot.Replicas, s.opts.NodeId) && !wkutil.ArrayContainsUint64(slot.Learners, s.opts.NodeId) {
+		if rft != nil {
+			s.raftGroup.RemoveRaft(rft)
+		}
+		return
+	}
+
 	if rft == nil { // 添加slot的raft
 		slotNode := newSlot(slot, s)
 		s.raftGroup.AddRaft(slotNode)
