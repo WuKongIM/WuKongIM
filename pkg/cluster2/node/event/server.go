@@ -95,8 +95,16 @@ func (s *Server) handleEvents() {
 	s.handler.handleCompare()
 
 	if s.cfgServer.IsLeader() {
+
+		// 处理节点加入
+		err := s.handleNodeJoining()
+		if err != nil {
+			s.Error("handleJoinNode failed", zap.Error(err))
+			return
+		}
+
 		// 检查和均衡槽领导
-		err := s.handleSlotLeaderAutoBalance()
+		err = s.handleSlotLeaderAutoBalance()
 		if err != nil {
 			s.Error("handleSlotLeaderAutoBalance failed", zap.Error(err))
 			return

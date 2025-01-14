@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/channel"
@@ -21,6 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/gnet/v2"
 	"go.uber.org/zap"
 )
@@ -53,6 +56,9 @@ type Server struct {
 	cancelFnc    context.CancelFunc
 	onMessageFnc func(fromNodeId uint64, msg *proto.Message)
 	uptime       time.Time // 服务启动时间
+	stopper      *syncutil.Stopper
+
+	sync.Mutex
 }
 
 func New(opts *Options) *Server {
@@ -61,6 +67,7 @@ func New(opts *Options) *Server {
 		nodeManager: newNodeManager(opts),
 		Log:         wklog.NewWKLog("cluster"),
 		uptime:      time.Now(),
+		stopper:     syncutil.NewStopper(),
 	}
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	// 初始化传输层
@@ -181,13 +188,33 @@ func (s *Server) Start() error {
 	// 添加或更新节点
 	cfg := s.cfgServer.GetClusterConfig()
 	if len(cfg.Nodes) == 0 {
-		s.addOrUpdateNodes(s.opts.ConfigOptions.InitNodes)
+		if len(s.opts.ConfigOptions.InitNodes) > 0 {
+			s.addOrUpdateNodes(s.opts.ConfigOptions.InitNodes)
+		} else if strings.TrimSpace(s.opts.Seed) != "" {
+			nodeMap := make(map[uint64]string)
+			seedNodeId, addr, err := seedNode(s.opts.Seed)
+			if err != nil {
+				return err
+			}
+			nodeMap[seedNodeId] = addr
+			s.addOrUpdateNodes(nodeMap)
+		}
+
 	} else {
 		nodeMap := make(map[uint64]string)
 		for _, node := range cfg.Nodes {
 			nodeMap[node.Id] = node.ClusterAddr
 		}
 		s.addOrUpdateNodes(nodeMap)
+	}
+
+	// 如果有新加入的节点 则执行加入逻辑
+	join, err := s.needJoin()
+	if err != nil {
+		return err
+	}
+	if join { // 需要加入集群
+		s.stopper.RunWorker(s.joinLoop)
 	}
 
 	return nil
@@ -248,6 +275,8 @@ func (s *Server) slotApplyLogs(slotId uint32, logs []rafttype.Log) error {
 }
 
 func (s *Server) addOrUpdateNodes(nodeMap map[uint64]string) {
+	s.Lock()
+	defer s.Unlock()
 
 	if len(nodeMap) == 0 {
 		return

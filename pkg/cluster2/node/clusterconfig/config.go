@@ -207,6 +207,10 @@ func (c *Config) updateNodeJoining(nodeId uint64) {
 		}
 	}
 	c.cfg.Learners = wkutil.RemoveUint64(c.cfg.Learners, nodeId)
+	if c.cfg.MigrateTo == nodeId {
+		c.cfg.MigrateTo = 0
+		c.cfg.MigrateFrom = 0
+	}
 }
 
 func (c *Config) updateNodeJoined(nodeId uint64, slots []*types.Slot) {
@@ -429,6 +433,18 @@ func (c *Config) hasWillJoinNode() bool {
 		}
 	}
 	return false
+}
+
+func (c *Config) willJoinNodes() []*types.Node {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var nodes []*types.Node
+	for _, n := range c.cfg.Nodes {
+		if n.Status == types.NodeStatus_NodeStatusWillJoin {
+			nodes = append(nodes, n)
+		}
+	}
+	return nodes
 }
 
 func (c *Config) saveConfig() error {

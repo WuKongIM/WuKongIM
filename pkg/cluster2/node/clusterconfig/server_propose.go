@@ -1,6 +1,8 @@
 package clusterconfig
 
 import (
+	"encoding/binary"
+
 	pb "github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	"go.uber.org/zap"
 )
@@ -82,6 +84,74 @@ func (s *Server) ProposeSlots(slots []*pb.Slot) error {
 	_, err = s.ProposeUntilApplied(logId, cmdBytes)
 	if err != nil {
 		s.Error("ProposeSlots failed", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// ProposeJoined 提案节点加入
+func (s *Server) ProposeJoined(nodeId uint64, slots []*pb.Slot) error {
+
+	data, err := EncodeNodeJoined(nodeId, slots)
+	if err != nil {
+		return err
+	}
+
+	cmd := NewCMD(CMDTypeNodeJoined, data)
+	cmdBytes, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+
+	logId := s.genConfigId()
+	_, err = s.ProposeUntilApplied(logId, cmdBytes)
+	if err != nil {
+		s.Error("ProposeJoined failed", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+func (s *Server) ProposeJoining(nodeId uint64) error {
+
+	nodeIdBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(nodeIdBytes, nodeId)
+
+	cmd := NewCMD(CMDTypeNodeJoining, nodeIdBytes)
+	cmdBytes, err := cmd.Marshal()
+	if err != nil {
+		s.Error("ProposeJoining cmd marshal failed", zap.Error(err))
+		return err
+	}
+
+	logId := s.genConfigId()
+	_, err = s.ProposeUntilApplied(logId, cmdBytes)
+	if err != nil {
+		s.Error("ProposeJoining failed", zap.Error(err))
+		return err
+	}
+	return nil
+
+}
+
+// ProposeJoin 提案节点加入
+func (s *Server) ProposeJoin(node *pb.Node) error {
+
+	data, err := node.Marshal()
+	if err != nil {
+		return err
+	}
+
+	cmd := NewCMD(CMDTypeNodeJoin, data)
+	cmdBytes, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+
+	logId := s.genConfigId()
+	_, err = s.ProposeUntilApplied(logId, cmdBytes)
+	if err != nil {
+		s.Error("ProposeJoin failed", zap.Error(err))
 		return err
 	}
 	return nil

@@ -415,6 +415,10 @@ func (s *testStorage) Apply(logs []types.Log) error {
 	return nil
 }
 
+func (s *testStorage) SaveConfig(cfg types.Config) error {
+	return nil
+}
+
 // 等到某个节点成为领导者
 func waitBecomeLeader(rr ...*raft.Raft) {
 	for {

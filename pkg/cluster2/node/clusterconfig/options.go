@@ -23,6 +23,8 @@ type Options struct {
 
 	PongMaxTick int // pongMaxTick 节点超过多少tick没有回应心跳就认为是掉线
 
+	// Seed  种子节点，可以引导新节点加入集群  格式：nodeId@ip:port （nodeId为种子节点的nodeId）
+	Seed string
 }
 
 func NewOptions(opts ...Option) *Options {
@@ -37,6 +39,7 @@ func NewOptions(opts ...Option) *Options {
 	for _, opt := range opts {
 		opt(o)
 	}
+
 	return o
 }
 
@@ -98,5 +101,11 @@ func WithApiServerAddr(apiServerAddr string) Option {
 func WithPongMaxTick(pongMaxTick int) Option {
 	return func(o *Options) {
 		o.PongMaxTick = pongMaxTick
+	}
+}
+
+func WithSeed(seed string) Option {
+	return func(o *Options) {
+		o.Seed = seed
 	}
 }

@@ -1,8 +1,11 @@
 package clusterconfig
 
 import (
+	"encoding/binary"
+
 	pb "github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
@@ -52,6 +55,12 @@ func (s *Server) handleCmd(cmd *CMD) error {
 		return s.handleNodeOnlineStatusChange(cmd)
 	case CMDTypeSlotUpdate: // 槽更新
 		return s.handleSlotUpdate(cmd)
+	case CMDTypeNodeJoin: // 节点加入
+		return s.handleNodeJoin(cmd)
+	case CMDTypeNodeJoining: // 节点加入中
+		return s.handleNodeJoining(cmd)
+	case CMDTypeNodeJoined: // 节点加入完成
+		return s.handleNodeJoined(cmd)
 	}
 	return nil
 }
@@ -98,5 +107,44 @@ func (s *Server) handleSlotUpdate(cmd *CMD) error {
 	}
 	s.config.updateSlots(slotset)
 
+	return nil
+}
+
+func (s *Server) handleNodeJoin(cmd *CMD) error {
+
+	newNode := &pb.Node{}
+	err := newNode.Unmarshal(cmd.Data)
+	if err != nil {
+		s.Error("unmarshal node err", zap.Error(err))
+		return err
+	}
+	s.config.addOrUpdateNode(newNode)
+
+	// 将新节点加入学习者列表
+	if !wkutil.ArrayContainsUint64(s.config.cfg.Learners, newNode.Id) {
+		s.config.cfg.Learners = append(s.config.cfg.Learners, newNode.Id)
+		// 如果是新加入的节点，就是从自己迁移到自己
+		s.config.cfg.MigrateFrom = newNode.Id
+		s.config.cfg.MigrateTo = newNode.Id
+	}
+	s.switchConfig(s.config)
+	return nil
+}
+
+func (s *Server) handleNodeJoining(cmd *CMD) error {
+	nodeId := binary.BigEndian.Uint64(cmd.Data)
+	s.config.updateNodeJoining(nodeId)
+	s.switchConfig(s.config)
+	return nil
+}
+
+func (s *Server) handleNodeJoined(cmd *CMD) error {
+	nodeId, slots, err := DecodeNodeJoined(cmd.Data)
+	if err != nil {
+		s.Error("decode node joined err", zap.Error(err))
+		return err
+	}
+	s.config.updateNodeJoined(nodeId, slots)
+	s.switchConfig(s.config)
 	return nil
 }
