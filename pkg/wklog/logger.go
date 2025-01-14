@@ -26,6 +26,16 @@ func Configure(op *Options) {
 	atom.SetLevel(op.Level)
 	opts = op
 
+	loggerOpts := make([]zap.Option, 0)
+	if opts.LineNum {
+		loggerOpts = append(loggerOpts, zap.AddCaller(), zap.AddCallerSkip(2))
+	}
+
+	writers := make([]zapcore.WriteSyncer, 0)
+	if !opts.NoStdout {
+		writers = append(writers, zapcore.AddSync(os.Stdout))
+	}
+
 	// ====================== info ==========================
 	infoWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   path.Join(opts.LogDir, "info.log"),
@@ -35,14 +45,10 @@ func Configure(op *Options) {
 	})
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(newEncoderConfig()),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(infoWriter)),
+		zapcore.NewMultiWriteSyncer(append(writers, zapcore.AddSync(infoWriter))...),
 		atom,
 	)
-	if opts.LineNum {
-		logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
-	} else {
-		logger = zap.New(core)
-	}
+	logger = zap.New(core, loggerOpts...)
 
 	// ====================== trace ==========================
 	traceWriter := zapcore.AddSync(&lumberjack.Logger{
@@ -53,14 +59,10 @@ func Configure(op *Options) {
 	})
 	core = zapcore.NewCore(
 		zapcore.NewJSONEncoder(newEncoderConfig()),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(traceWriter)),
+		zapcore.NewMultiWriteSyncer(append(writers, zapcore.AddSync(traceWriter))...),
 		atom,
 	)
-	if opts.LineNum {
-		traceLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
-	} else {
-		traceLogger = zap.New(core)
-	}
+	traceLogger = zap.New(core, loggerOpts...)
 
 	// ====================== error ==========================
 	errorWriter := zapcore.AddSync(&lumberjack.Logger{
@@ -71,14 +73,10 @@ func Configure(op *Options) {
 	})
 	core = zapcore.NewCore(
 		zapcore.NewJSONEncoder(newEncoderConfig()),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(errorWriter)),
+		zapcore.NewMultiWriteSyncer(append(writers, zapcore.AddSync(errorWriter))...),
 		zap.ErrorLevel,
 	)
-	if opts.LineNum {
-		errorLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
-	} else {
-		errorLogger = zap.New(core)
-	}
+	errorLogger = zap.New(core, loggerOpts...)
 
 	// ====================== warn ==========================
 	warnWriter := zapcore.AddSync(&lumberjack.Logger{
@@ -89,14 +87,10 @@ func Configure(op *Options) {
 	})
 	core = zapcore.NewCore(
 		zapcore.NewJSONEncoder(newEncoderConfig()),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(warnWriter)),
+		zapcore.NewMultiWriteSyncer(append(writers, zapcore.AddSync(warnWriter))...),
 		zap.WarnLevel,
 	)
-	if opts.LineNum {
-		warnLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
-	} else {
-		warnLogger = zap.New(core)
-	}
+	warnLogger = zap.New(core, loggerOpts...)
 
 	// ====================== panic ==========================
 	panicWriter := zapcore.AddSync(&lumberjack.Logger{
@@ -107,14 +101,10 @@ func Configure(op *Options) {
 	})
 	core = zapcore.NewCore(
 		zapcore.NewJSONEncoder(newEncoderConfig()),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(panicWriter)),
+		zapcore.NewMultiWriteSyncer(append(writers, zapcore.AddSync(panicWriter))...),
 		zap.PanicLevel,
 	)
-	if opts.LineNum {
-		panicLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2), zap.AddStacktrace(zapcore.PanicLevel))
-	} else {
-		panicLogger = zap.New(core, zap.AddStacktrace(zapcore.PanicLevel))
-	}
+	panicLogger = zap.New(core, append(loggerOpts, zap.AddStacktrace(zapcore.PanicLevel))...)
 
 	// ====================== focus ==========================
 	focusWriter := zapcore.AddSync(&lumberjack.Logger{
@@ -125,14 +115,10 @@ func Configure(op *Options) {
 	})
 	core = zapcore.NewCore(
 		zapcore.NewJSONEncoder(newEncoderConfig()),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(focusWriter)),
+		zapcore.NewMultiWriteSyncer(append(writers, zapcore.AddSync(focusWriter))...),
 		zap.InfoLevel,
 	)
-	if opts.LineNum {
-		focusLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
-	} else {
-		focusLogger = zap.New(core)
-	}
+	focusLogger = zap.New(core, loggerOpts...)
 
 }
 
