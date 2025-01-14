@@ -2,6 +2,7 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	wt "github.com/WuKongIM/WuKongIM/pkg/wait"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/lni/goutils/syncutil"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
@@ -214,17 +216,23 @@ func (r *Raft) readyEvents() {
 	events := r.node.Ready()
 	for _, e := range events {
 		switch e.Type {
-		case types.StoreReq:
+		case types.StoreReq: // 处理存储请求
 			r.handleStoreReq(e)
 			continue
-		case types.GetLogsReq:
+		case types.GetLogsReq: // 处理获取日志请求
 			r.handleGetLogsReq(e)
 			continue
 		case types.TruncateReq: // 截断请求
 			r.handleTruncateReq(e)
 			continue
-		case types.ApplyReq:
+		case types.ApplyReq: // 处理应用请求
 			r.handleApplyReq(e)
+			continue
+			// 角色转换
+		case types.LearnerToFollowerReq,
+			types.LearnerToLeaderReq,
+			types.FollowerToLeaderReq:
+			r.handleRoleChangeReq(e)
 			continue
 		}
 
@@ -468,4 +476,128 @@ func (r *Raft) advance() {
 	case r.advanceC <- struct{}{}:
 	default:
 	}
+}
+
+func (r *Raft) handleRoleChangeReq(e types.Event) {
+
+	err := r.pool.Submit(func() {
+
+		var (
+			newCfg        types.Config
+			err           error
+			respEventType types.EventType
+		)
+		switch e.Type {
+		case types.LearnerToLeaderReq,
+			types.LearnerToFollowerReq:
+			newCfg, err = r.learnTo(e.From)
+			if err != nil {
+				r.Error("learn switch failed", zap.Error(err), zap.String("type", e.Type.String()), zap.String("cfg", r.node.Config().String()))
+			}
+			if e.Type == types.LearnerToFollowerReq {
+				respEventType = types.LearnerToFollowerResp
+			} else if e.Type == types.LearnerToLeaderReq {
+				respEventType = types.LearnerToLeaderResp
+			}
+		case types.FollowerToLeaderReq:
+			newCfg, err = r.followerToLeader(e.From)
+			if err != nil {
+				r.Error("follower switch to leader failed", zap.Error(err), zap.String("cfg", r.node.Config().String()))
+			}
+			respEventType = types.FollowerToLeaderResp
+		default:
+			err = errors.New("unknown role switch")
+		}
+
+		if err != nil {
+
+			r.stepC <- stepReq{event: types.Event{
+				Type:   respEventType,
+				From:   e.From,
+				Reason: types.ReasonError,
+			}}
+			return
+		}
+
+		err = r.opts.Storage.SaveConfig(newCfg)
+		if err != nil {
+			r.Error("change role failed", zap.Error(err))
+			r.stepC <- stepReq{event: types.Event{
+				Type:   respEventType,
+				From:   e.From,
+				Reason: types.ReasonError,
+			}}
+			return
+		}
+		r.stepC <- stepReq{event: types.Event{
+			Type:   respEventType,
+			From:   e.From,
+			Reason: types.ReasonOk,
+			Config: newCfg,
+		}}
+	})
+	if err != nil {
+		r.Error("submit role change req failed", zap.Error(err))
+
+		var respEventType types.EventType
+
+		switch e.Type {
+		case types.LearnerToLeaderReq:
+			respEventType = types.LearnerToLeaderResp
+		case types.LearnerToFollowerReq:
+			respEventType = types.LearnerToFollowerResp
+		case types.FollowerToLeaderReq:
+			respEventType = types.FollowerToLeaderResp
+		}
+		r.stepC <- stepReq{event: types.Event{
+			Type:   respEventType,
+			From:   e.From,
+			Reason: types.ReasonError,
+		}}
+	}
+}
+
+// 学习者转换
+func (r *Raft) learnTo(learnerId uint64) (types.Config, error) {
+	cfg := r.node.Config().Clone()
+
+	if learnerId != cfg.MigrateTo {
+		r.Warn("learnerId not equal migrateTo", zap.Uint64("learnerId", learnerId), zap.Uint64("migrateTo", cfg.MigrateTo))
+		return types.Config{}, errors.New("learnerId not equal migrateTo")
+	}
+
+	cfg.Learners = wkutil.RemoveUint64(cfg.Learners, learnerId)
+
+	if !wkutil.ArrayContainsUint64(cfg.Replicas, cfg.MigrateTo) {
+		cfg.Replicas = append(cfg.Replicas, cfg.MigrateTo)
+	}
+
+	if cfg.MigrateFrom != cfg.MigrateTo {
+		cfg.Replicas = wkutil.RemoveUint64(cfg.Replicas, cfg.MigrateFrom)
+	}
+
+	if cfg.MigrateFrom == r.LeaderId() { // 学习者转领导
+		cfg.Leader = cfg.MigrateTo
+	}
+	cfg.MigrateFrom = 0
+	cfg.MigrateTo = 0
+
+	return cfg, nil
+}
+
+// follower转换成leader
+func (r *Raft) followerToLeader(followerId uint64) (types.Config, error) {
+	cfg := r.node.Config().Clone()
+	if !wkutil.ArrayContainsUint64(cfg.Replicas, followerId) {
+		r.Error("followerToLeader: follower not in replicas", zap.Uint64("followerId", followerId))
+		return types.Config{}, fmt.Errorf("follower not in replicas")
+	}
+
+	cfg.Leader = followerId
+	cfg.Term = cfg.Term + 1
+	cfg.MigrateFrom = 0
+	cfg.MigrateTo = 0
+
+	return cfg, nil
+
 }

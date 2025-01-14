@@ -15,18 +15,13 @@ import (
 )
 
 type Server struct {
-	opts *Options
-	raft *raft.Raft
-
-	config *Config // 分布式配置对象
-	// 配置日志存储
-	storage *PebbleShardLogStorage
-
-	cfgGenId *snowflake.Node
-
+	opts      *Options
+	raft      *raft.Raft             // raft算法
+	config    *Config                // 分布式配置对象
+	storage   *PebbleShardLogStorage // 配置日志存储
+	cfgGenId  *snowflake.Node        // 配置ID生成器
+	listeners []IEvent               // 事件监听器
 	wklog.Log
-
-	listeners []IEvent
 }
 
 func New(opts *Options) *Server {
@@ -89,8 +84,13 @@ func (s *Server) initRaft() error {
 		raftConfig = configToRaftConfig(s.config)
 	} else {
 		replicas := make([]uint64, 0, len(s.opts.InitNodes))
-		for nodeId := range s.opts.InitNodes {
-			replicas = append(replicas, nodeId)
+
+		if len(s.opts.InitNodes) > 0 {
+			for nodeId := range s.opts.InitNodes {
+				replicas = append(replicas, nodeId)
+			}
+		} else {
+			replicas = append(replicas, s.opts.NodeId)
 		}
 		raftConfig = rafttypes.Config{
 			Replicas: replicas,
@@ -165,6 +165,17 @@ func (s *Server) StepRaftEvent(e rafttypes.Event) {
 	s.raft.Step(e)
 }
 
+func (s *Server) switchConfig(cfg *Config) {
+	if s.raft == nil {
+		return
+	}
+
+	s.raft.Step(rafttypes.Event{
+		Type:   rafttypes.ConfChange,
+		Config: configToRaftConfig(cfg),
+	})
+}
+
 func (s *Server) IsLeader() bool {
 	if s.raft == nil {
 		return false
@@ -210,6 +221,14 @@ func (s *Server) Slot(id uint32) *pb.Slot {
 	return s.config.slot(id)
 }
 
+func (s *Server) SlotLeaderId(id uint32) uint64 {
+	st := s.config.slot(id)
+	if st == nil {
+		return 0
+	}
+	return st.Leader
+}
+
 // AllowVoteNodes 获取允许投票的节点
 func (s *Server) AllowVoteNodes() []*pb.Node {
 	return s.config.allowVoteNodes()
@@ -239,6 +258,11 @@ func (s *Server) AllowVoteAndJoinedOnlineNodes() []*pb.Node {
 // 节点是否在线
 func (s *Server) NodeIsOnline(nodeId uint64) bool {
 	return s.config.nodeOnline(nodeId)
+}
+
+// 获取槽的副本数量
+func (s *Server) SlotReplicaCount() uint32 {
+	return s.config.slotReplicaCount()
 }
 
 // NodeConfigVersionFromLeader 获取节点的配置版本（只有主节点才有这个信息）

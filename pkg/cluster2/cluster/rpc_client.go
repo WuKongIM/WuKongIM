@@ -151,6 +151,23 @@ func (r *rpcClient) RequestChannelLastLogInfo(nodeId uint64, channelId string, c
 	return resp, nil
 }
 
+// 节点请求加入
+func (r *rpcClient) RequestClusterJoin(nodeId uint64, req *ClusterJoinReq) (*ClusterJoinResp, error) {
+	data, err := req.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	body, err := r.request(nodeId, "/rpc/cluster/join", data)
+	if err != nil {
+		return nil, err
+	}
+	resp := &ClusterJoinResp{}
+	if err := resp.Unmarshal(body); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (r *rpcClient) request(nodeId uint64, path string, body []byte) ([]byte, error) {
 
 	node := r.s.nodeManager.node(nodeId)

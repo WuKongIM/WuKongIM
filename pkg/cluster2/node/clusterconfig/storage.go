@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/clusterconfig/key"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
 )
@@ -103,6 +104,26 @@ func (p *PebbleShardLogStorage) Apply(logs []types.Log) error {
 		return err
 	}
 	return p.setAppliedIndex(logs[len(logs)-1].Index)
+}
+
+func (p *PebbleShardLogStorage) SaveConfig(cfg types.Config) error {
+	if !p.s.config.hasWillJoinNode() {
+		p.Info("not has will join node", zap.String("cfg", cfg.String()))
+		return nil
+	}
+
+	willNodes := p.s.config.willJoinNodes()
+
+	for _, willNode := range willNodes {
+		if wkutil.ArrayContainsUint64(cfg.Replicas, willNode.Id) {
+			err := p.s.ProposeJoining(willNode.Id)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // TruncateLogTo 截断日志

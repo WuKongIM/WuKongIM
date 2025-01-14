@@ -17,4 +17,6 @@ type Storage interface {
 	DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) error
 	// Apply 应用日志
 	Apply(logs []types.Log) error
+	// SaveConfig 保存配置
+	SaveConfig(cfg types.Config) error
 }

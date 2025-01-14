@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster2/node/types"
+	rafttypes "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -44,6 +45,9 @@ func (r *rpcServer) setRoutes() {
 
 	// 获取频道最新日志信息
 	r.s.netServer.Route("/rpc/channel/lastLogInfo", r.handleChannelLastLogInfo)
+
+	// 节点加入
+	r.s.netServer.Route("/rpc/cluster/join", r.handleClusterJoin)
 }
 
 func (r *rpcServer) handleChannelPropose(c *wkserver.Context) {
@@ -164,7 +168,7 @@ func (r *rpcServer) slotInfos(slotIds []uint32) ([]SlotInfo, error) {
 type channelProposeReq struct {
 	channelId   string
 	channelType uint8
-	reqs        types.ProposeReqSet
+	reqs        rafttypes.ProposeReqSet
 }
 
 func (ch *channelProposeReq) encode() ([]byte, error) {
@@ -279,4 +283,70 @@ func (s *Server) getChannelLastLogInfo(channelId string, channelType uint8) (*Ch
 		Term:     cfg.Term,
 	}
 	return resp, nil
+}
+
+func (r *rpcServer) handleClusterJoin(c *wkserver.Context) {
+	req := &ClusterJoinReq{}
+	if err := req.Unmarshal(c.Body()); err != nil {
+		r.Error("unmarshal ClusterJoinReq failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if !r.s.cfgServer.IsLeader() {
+		resp, err := r.s.rpcClient.RequestClusterJoin(r.s.cfgServer.LeaderId(), req)
+		if err != nil {
+			r.Error("requestClusterJoin failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		data, err := resp.Marshal()
+		if err != nil {
+			r.Error("marshal ClusterJoinResp failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+		c.Write(data)
+		return
+	}
+
+	allowVote := false
+	if req.Role == types.NodeRole_NodeRoleReplica {
+		allowVote = true
+	}
+
+	resp := ClusterJoinResp{}
+
+	nodeInfos := make([]*NodeInfo, 0, len(r.s.cfgServer.Nodes()))
+	for _, node := range r.s.cfgServer.Nodes() {
+		nodeInfos = append(nodeInfos, &NodeInfo{
+			NodeId:     node.Id,
+			ServerAddr: node.ClusterAddr,
+		})
+	}
+	resp.Nodes = nodeInfos
+
+	err := r.s.cfgServer.ProposeJoin(&types.Node{
+		Id:          req.NodeId,
+		ClusterAddr: req.ServerAddr,
+		Join:        true,
+		Online:      true,
+		Role:        req.Role,
+		AllowVote:   allowVote,
+		CreatedAt:   time.Now().Unix(),
+		Status:      types.NodeStatus_NodeStatusWillJoin,
+	})
+	if err != nil {
+		r.Error("proposeJoin failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	result, err := resp.Marshal()
+	if err != nil {
+		r.Error("marshal ClusterJoinResp failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(result)
 }

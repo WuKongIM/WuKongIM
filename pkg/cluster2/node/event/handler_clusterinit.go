@@ -20,23 +20,38 @@ func (h *handler) handleClusterInit() {
 	opts := h.cfgOptions
 
 	var replicas []uint64
-	for nodeId, addr := range opts.InitNodes {
-		apiAddr := ""
-		if nodeId == opts.NodeId {
-			apiAddr = opts.ApiServerAddr
+
+	if len(opts.InitNodes) > 0 {
+		for nodeId, addr := range opts.InitNodes {
+			apiAddr := ""
+			if nodeId == opts.NodeId {
+				apiAddr = opts.ApiServerAddr
+			}
+			nodes = append(nodes, &types.Node{
+				Id:            nodeId,
+				ClusterAddr:   addr,
+				ApiServerAddr: apiAddr,
+				Online:        true,
+				AllowVote:     true,
+				Role:          types.NodeRole_NodeRoleReplica,
+				Status:        types.NodeStatus_NodeStatusJoined,
+				CreatedAt:     time.Now().Unix(),
+			})
+			replicas = append(replicas, nodeId)
 		}
+	} else { // 没有initNodes,则认为是单节点模式
 		nodes = append(nodes, &types.Node{
-			Id:            nodeId,
-			ClusterAddr:   addr,
-			ApiServerAddr: apiAddr,
+			Id:            opts.NodeId,
+			ApiServerAddr: opts.ApiServerAddr,
 			Online:        true,
 			AllowVote:     true,
 			Role:          types.NodeRole_NodeRoleReplica,
 			Status:        types.NodeStatus_NodeStatusJoined,
 			CreatedAt:     time.Now().Unix(),
 		})
-		replicas = append(replicas, nodeId)
+		replicas = append(replicas, opts.NodeId)
 	}
+
 	cfg.Nodes = nodes
 
 	if len(replicas) > 0 {
