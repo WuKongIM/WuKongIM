@@ -102,13 +102,12 @@ func cmdRun() error {
 	logOpts.TraceOn = serverOpts.Logger.TraceOn
 	wklog.Configure(logOpts)
 
-	s := server.New(serverOpts)
 	if daemon { // 后台运行
 		// 以子进程方式启动
 		fmt.Println("start as child process")
 		startAsChildProcess()
 	} else {
-
+		s := server.New(serverOpts)
 		err := s.Start()
 		if err != nil {
 			wklog.Error("start server error", zap.Error(err))
