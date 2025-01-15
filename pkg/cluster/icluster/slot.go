@@ -14,6 +14,4 @@ type Slot interface {
 	// ProposeUntilApplied 提交数据直到应用
 	ProposeUntilApplied(slotId uint32, data []byte) (*types.ProposeResp, error)
 	ProposeUntilAppliedTimeout(ctx context.Context, slotId uint32, data []byte) (*types.ProposeResp, error)
-	// Propose 提交数据
-	Propose(slotId uint32, data []byte) (*types.ProposeResp, error)
 }

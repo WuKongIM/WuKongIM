@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -43,10 +44,21 @@ func (c *channelTransport) Send(key string, event types.Event) {
 	enc.WriteString(key)
 	enc.WriteBytes(data)
 
-	err = node.send(&proto.Message{
+	msg := &proto.Message{
 		MsgType: MsgTypeChannel,
 		Content: enc.Bytes(),
-	})
+	}
+
+	if trace.GlobalTrace != nil {
+		if event.Type == types.SyncReq {
+			trace.GlobalTrace.Metrics.Cluster().MsgSyncOutgoingCountAdd(trace.ClusterKindChannel, 1)
+			trace.GlobalTrace.Metrics.Cluster().MsgSyncOutgoingBytesAdd(trace.ClusterKindChannel, int64(msg.Size()))
+		}
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(trace.ClusterKindChannel, 1)
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindChannel, int64(msg.Size()))
+	}
+
+	err = node.send(msg)
 	if err != nil {
 		c.Error("Send event failed", zap.Error(err), zap.String("key", key), zap.String("event", event.String()))
 		return

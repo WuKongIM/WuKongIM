@@ -57,10 +57,16 @@ func (rg *RaftGroup) Options() *Options {
 
 func (rg *RaftGroup) AddRaft(r IRaft) {
 	rg.raftList.push(r)
+	if rg.opts.Event != nil {
+		rg.opts.Event.OnAddRaft(r)
+	}
 }
 
 func (rg *RaftGroup) RemoveRaft(r IRaft) {
 	rg.raftList.remove(r.Key())
+	if rg.opts.Event != nil {
+		rg.opts.Event.OnRemoveRaft(r)
+	}
 }
 
 func (rg *RaftGroup) GetRaft(raftKey string) IRaft {

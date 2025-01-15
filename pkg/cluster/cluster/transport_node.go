@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
@@ -38,10 +39,20 @@ func (n *nodeTransport) Send(event types.Event) {
 		return
 	}
 
-	err = node.send(&proto.Message{
+	msg := &proto.Message{
 		MsgType: MsgTypeNode,
 		Content: data,
-	})
+	}
+	if trace.GlobalTrace != nil {
+		if event.Type == types.SyncReq {
+			trace.GlobalTrace.Metrics.Cluster().MsgSyncOutgoingCountAdd(trace.ClusterKindConfig, 1)
+			trace.GlobalTrace.Metrics.Cluster().MsgSyncOutgoingBytesAdd(trace.ClusterKindConfig, int64(msg.Size()))
+		}
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingCountAdd(trace.ClusterKindConfig, 1)
+		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindConfig, int64(msg.Size()))
+	}
+
+	err = node.send(msg)
 	if err != nil {
 		n.Error("Send event failed", zap.Error(err), zap.String("event", event.String()))
 	}

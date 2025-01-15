@@ -62,6 +62,7 @@ func (c *Conn) Encode() ([]byte, error) {
 	enc.WriteBinary(c.AesIV)
 	enc.WriteBinary(c.AesKey)
 	enc.WriteUint8(c.ProtoVersion)
+	enc.WriteUint64(c.Uptime)
 	return enc.Bytes(), nil
 }
 
@@ -106,6 +107,9 @@ func (c *Conn) Decode(data []byte) error {
 	}
 
 	if c.ProtoVersion, err = dec.Uint8(); err != nil {
+		return err
+	}
+	if c.Uptime, err = dec.Uint64(); err != nil {
 		return err
 	}
 

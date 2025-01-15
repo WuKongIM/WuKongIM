@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 )
 
 func (s *Server) GetSlotId(v string) uint32 {
@@ -21,19 +22,35 @@ func (s *Server) SlotLeaderId(slotId uint32) uint64 {
 
 }
 
-func (s *Server) Propose(slotId uint32, data []byte) (*types.ProposeResp, error) {
-	shardNo := SlotIdToKey(slotId)
-	logId := s.GenLogId()
-	return s.raftGroup.Propose(shardNo, logId, data)
-}
-
 func (s *Server) ProposeUntilApplied(slotId uint32, data []byte) (*types.ProposeResp, error) {
+
+	start := time.Now()
+	defer func() {
+		if trace.GlobalTrace != nil {
+			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindSlot, time.Since(start).Milliseconds())
+			if err := recover(); err != nil {
+				trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindSlot, 1)
+			}
+		}
+	}()
+
 	shardNo := SlotIdToKey(slotId)
 	logId := s.GenLogId()
 	return s.raftGroup.ProposeUntilApplied(shardNo, logId, data)
 }
 
 func (s *Server) ProposeUntilAppliedTimeout(ctx context.Context, slotId uint32, data []byte) (*types.ProposeResp, error) {
+
+	start := time.Now()
+	defer func() {
+		if trace.GlobalTrace != nil {
+			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindSlot, time.Since(start).Milliseconds())
+			if err := recover(); err != nil {
+				trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindSlot, 1)
+			}
+		}
+	}()
+
 	shardNo := SlotIdToKey(slotId)
 	logId := s.GenLogId()
 	resps, err := s.raftGroup.ProposeBatchUntilAppliedTimeout(ctx, shardNo, types.ProposeReqSet{

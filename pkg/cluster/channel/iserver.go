@@ -2,13 +2,25 @@ package channel
 
 import (
 	"context"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 func (s *Server) ProposeBatchUntilAppliedTimeout(ctx context.Context, channelId string, channelType uint8, reqs types.ProposeReqSet) (types.ProposeRespSet, error) {
+
+	start := time.Now()
+	defer func() {
+		if trace.GlobalTrace != nil {
+			trace.GlobalTrace.Metrics.Cluster().ProposeLatencyAdd(trace.ClusterKindChannel, time.Since(start).Milliseconds())
+			if err := recover(); err != nil {
+				trace.GlobalTrace.Metrics.Cluster().ProposeFailedCountAdd(trace.ClusterKindChannel, 1)
+			}
+		}
+	}()
 
 	channelKey := wkutil.ChannelToKey(channelId, channelType)
 	rg := s.getRaftGroup(channelKey)
