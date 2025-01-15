@@ -21,6 +21,9 @@ type Options struct {
 	LogPrefix string
 	// NotNeedApplied 是否不需要应用日志,如果为true，表示不需要应用日志，只需要存储日志，也就是不会调用storage.Apply方法
 	NotNeedApplied bool
+
+	// 事件
+	Event IEvent
 }
 
 func NewOptions(opt ...Option) *Options {
@@ -92,5 +95,11 @@ func WithLogPrefix(prefix string) Option {
 func WithNotNeedApplied(notNeedApplied bool) Option {
 	return func(o *Options) {
 		o.NotNeedApplied = notNeedApplied
+	}
+}
+
+func WithEvent(event IEvent) Option {
+	return func(o *Options) {
+		o.Event = event
 	}
 }

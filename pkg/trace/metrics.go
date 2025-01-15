@@ -13,6 +13,8 @@ const (
 	ClusterKindChannel
 	// ClusterKindConfig 配置
 	ClusterKindConfig
+	// ClusterKindOther 其他
+	ClusterKindOther
 )
 
 type IMetrics interface {

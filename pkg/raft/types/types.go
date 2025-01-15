@@ -509,6 +509,54 @@ func (e Event) getFlag() uint32 {
 	return flag
 }
 
+func (e Event) Size() uint64 {
+
+	size := uint64(4) // flag
+	if e.Type != Unknown {
+		size += 2
+	}
+	if e.From != 0 {
+		size += 8
+	}
+	if e.To != 0 {
+		size += 8
+	}
+	if e.Term != 0 {
+		size += 4
+	}
+	if e.Index != 0 {
+		size += 8
+	}
+	if e.CommittedIndex != 0 {
+		size += 8
+	}
+	if e.StoredIndex != 0 {
+		size += 8
+	}
+	if e.LastLogTerm != 0 {
+		size += 4
+	}
+	if e.ConfigVersion != 0 {
+		size += 8
+	}
+	if !e.Config.IsEmpty() {
+		size += e.Config.Size()
+	}
+	if len(e.Logs) > 0 {
+		size += 4
+		for _, v := range e.Logs {
+			size += (uint64(4) + uint64(v.LogSize()))
+		}
+	}
+	if e.Reason != ReasonUnknown {
+		size += 1
+	}
+	if e.Speed != SpeedFast {
+		size += 1
+	}
+	return size
+}
+
 func (e Event) String() string {
 	var str string
 
@@ -549,11 +597,6 @@ func (e Event) String() string {
 	str += fmt.Sprintf("Reason: %v ", e.Reason)
 
 	return str
-}
-
-func (e Event) Size() uint64 {
-
-	return 0
 }
 
 type Log struct {
@@ -621,6 +664,14 @@ func (c Config) Clone() Config {
 		Version:     c.Version,
 		Leader:      c.Leader,
 	}
+}
+
+func (c Config) Size() uint64 {
+	var size uint64
+	size += 8 + 8 + 4 + 4 + 8 + 8
+	size += 4 + uint64(len(c.Replicas))*8
+	size += 4 + uint64(len(c.Learners))*8
+	return size
 }
 
 func (c Config) String() string {

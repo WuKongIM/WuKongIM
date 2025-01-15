@@ -36,11 +36,13 @@ func NewServer(opts *Options) *Server {
 	}
 	s.storage = newStorage(opts.DB, s)
 	for i := 0; i < opts.GroupCount; i++ {
-		rg := raftgroup.New(raftgroup.NewOptions(
-			raftgroup.WithLogPrefix("channel"),
-			raftgroup.WithNotNeedApplied(true),
-			raftgroup.WithTransport(opts.Transport),
-			raftgroup.WithStorage(s.storage)),
+		rg := raftgroup.New(
+			raftgroup.NewOptions(
+				raftgroup.WithLogPrefix("channel"),
+				raftgroup.WithNotNeedApplied(true),
+				raftgroup.WithTransport(opts.Transport),
+				raftgroup.WithStorage(s.storage),
+				raftgroup.WithEvent(s)),
 		)
 		s.raftGroups = append(s.raftGroups, rg)
 	}
