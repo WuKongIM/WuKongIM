@@ -47,6 +47,9 @@ type Node struct {
 	suspend bool // 挂起
 
 	idleTick int // 服务空闲计数
+
+	syncing             bool // 正在同步
+	syncRespTimeoutTick int  // 同步响应超时计数
 }
 
 func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Options) *Node {
@@ -61,7 +64,11 @@ func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Opti
 
 	n.cfg.Replicas = append(n.cfg.Replicas, opts.Replicas...)
 
-	n.cfg.Term = raftState.LastTerm
+	if raftState.LastTerm == 0 {
+		n.cfg.Term = 1
+	} else {
+		n.cfg.Term = raftState.LastTerm
+	}
 	// 初始化日志队列
 	n.queue = newQueue(opts.Key, raftState.AppliedIndex, raftState.LastLogIndex, opts.NodeId)
 

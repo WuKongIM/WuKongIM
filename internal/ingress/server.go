@@ -158,14 +158,6 @@ func (i *Ingress) handleUpdateTag(c *wkserver.Context) {
 				}
 				service.TagManager.SetChannelTag(req.ChannelId, req.ChannelType, newTagKey)
 			}
-
-		} else {
-			_, err = service.TagManager.MakeTagWithTagKey(tagKey, req.Uids)
-			if err != nil {
-				i.Error("handleUpdateTag: make tag failed", zap.Error(err))
-				c.WriteErr(err)
-				return
-			}
 		}
 	}
 	c.WriteOk()

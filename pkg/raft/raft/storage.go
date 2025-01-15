@@ -11,6 +11,13 @@ type Storage interface {
 	GetState() (types.RaftState, error)
 	// GetTermStartIndex 获取指定任期的开始日志下标
 	GetTermStartIndex(term uint32) (uint64, error)
+
+	//  LeaderTermGreaterEqThan 获取大于或等于term的lastTerm
+	LeaderTermGreaterEqThan(term uint32) (uint32, error)
+
+	// LeaderLastTerm 获取领导者的最后一个日志任期
+	LeaderLastTerm() (uint32, error)
+
 	// TruncateLogTo 截断日志到指定下标，比如 1 2 3 4 5 6 7 8 9 10, TruncateLogTo(5) 会截断到 1 2 3 4 5
 	TruncateLogTo(index uint64) error
 	// DeleteLeaderTermStartIndexGreaterThanTerm 删除大于term的领导任期和开始索引

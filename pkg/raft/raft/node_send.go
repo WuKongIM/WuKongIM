@@ -42,10 +42,10 @@ func (n *Node) sendNotifySync(to uint64) {
 
 func (n *Node) sendSyncReq() {
 
-	if n.truncating { // 如果在截断中，则发起同步没用
+	if n.truncating || n.syncing { // 如果在截断中，则发起同步没用
 		return
 	}
-
+	n.syncing = true
 	n.syncElapsed = 0
 	var reason types.Reason
 	if n.onlySync {

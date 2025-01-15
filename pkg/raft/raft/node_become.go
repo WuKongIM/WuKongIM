@@ -27,7 +27,7 @@ func (n *Node) BecomeFollower(term uint32, leaderId uint64) {
 	n.voteFor = None
 	n.cfg.Leader = leaderId
 	n.cfg.Role = types.RoleFollower
-	n.Info("become follower", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
+	n.Debug("become follower", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
 }
 
 func (n *Node) BecomeLeader(term uint32) {

@@ -82,6 +82,7 @@ func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, raftKe
 		}
 		maxLogIndex := resps[len(resps)-1].Index
 		// 如果最大的日志下标大于已应用的日志下标，则不需要等待
+		// 如果最大的日志下标大于已应用的日志下标，则不需要等待
 		if raft.AppliedIndex() >= maxLogIndex {
 			needWait = false
 		}
@@ -91,6 +92,7 @@ func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, raftKe
 	} else {
 		resps, err = rg.proposeBatchTimeout(ctx, raft, reqs, func(logs []types.Log) {
 			maxLogIndex := logs[len(logs)-1].Index
+
 			// 如果最大的日志下标大于已应用的日志下标，则不需要等待
 			if raft.AppliedIndex() >= maxLogIndex {
 				needWait = false
@@ -110,6 +112,7 @@ func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, raftKe
 		case <-applyProcess.waitC:
 			return resps, nil
 		case <-ctx.Done():
+			rg.Error("propose batch until applied timeout", zap.String("raftKey", raftKey), zap.Any("resps", resps), zap.String("progress", applyProcess.String()))
 			return nil, ctx.Err()
 		case <-rg.stopper.ShouldStop():
 			return nil, ErrGroupStopped
@@ -203,6 +206,7 @@ func (rg *RaftGroup) fowardPropose(ctx context.Context, raft IRaft, reqs types.P
 		}
 		return result.(types.ProposeRespSet), nil
 	case <-ctx.Done():
+		rg.Error("foward propose timeout", zap.String("raftKey", raft.Key()))
 		return nil, ctx.Err()
 	case <-rg.stopper.ShouldStop():
 		return nil, ErrGroupStopped
@@ -232,7 +236,7 @@ func (rg *RaftGroup) handleSendPropose(raftKey string, e types.Event) {
 	}
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), rg.opts.ProposeTimeout)
 	defer cancel()
-	resps, err := rg.ProposeBatchUntilAppliedTimeout(timeoutCtx, raftKey, reqs)
+	resps, err := rg.proposeBatchTimeout(timeoutCtx, raft, reqs, nil)
 	if err != nil {
 		rg.Error("handleSendPropose: propose batch failed", zap.Error(err))
 		rg.sendProposeRespError(raft, reqs, e.From)
