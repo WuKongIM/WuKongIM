@@ -106,7 +106,7 @@ func (r *rpcServer) handleChannelConfig(c *wkserver.Context) {
 		return
 	}
 	cfg, err := r.s.db.GetChannelClusterConfig(req.channelId, req.channelType)
-	if err != nil {
+	if err != nil && err != wkdb.ErrNotFound {
 		r.Error("get channel config failed", zap.Error(err))
 		c.WriteErr(err)
 		return
