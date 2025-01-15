@@ -370,6 +370,20 @@ func (t *testStorage) LeaderLastLogTerm(key string) (uint32, error) {
 	return lastLog.Term, nil
 }
 
+func (t *testStorage) LeaderTermGreaterEqThan(key string, term uint32) (uint32, error) {
+
+	termStartIndex, ok := t.termStartIndexs[key]
+	if !ok {
+		return 0, nil
+	}
+
+	if termStartIndex.Term >= term {
+		return termStartIndex.Term, nil
+	}
+
+	return 0, nil
+}
+
 func (t *testStorage) GetLogs(key string, start, end, maxSize uint64) ([]types.Log, error) {
 
 	t.Lock()
@@ -444,6 +458,10 @@ func (t *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(key string, term
 
 func (t *testStorage) SaveConfig(key string, cfg types.Config) error {
 	return nil
+}
+
+func (t *testStorage) GetConfig(key string) (types.Config, error) {
+	return types.Config{}, nil
 }
 
 // 等到选举出领导者

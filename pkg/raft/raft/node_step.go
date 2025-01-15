@@ -210,6 +210,8 @@ func (n *Node) stepFollower(e types.Event) error {
 	case types.SyncResp: // 同步返回
 		n.electionElapsed = 0
 		n.idleTick = 0
+		n.syncRespTimeoutTick = 0
+		n.syncing = false
 		if !n.onlySync {
 			n.onlySync = true
 		}
@@ -247,7 +249,9 @@ func (n *Node) stepFollower(e types.Event) error {
 	case types.TruncateResp: // 裁剪返回
 		n.truncating = false
 		if e.Reason == types.ReasonOk {
-			n.queue.truncateLogTo(e.Index)
+			if e.Index < n.queue.lastLogIndex {
+				n.queue.truncateLogTo(e.Index)
+			}
 			n.sendSyncReq()
 			n.advance()
 		}
@@ -305,6 +309,8 @@ func (n *Node) stepLearner(e types.Event) error {
 	case types.SyncResp: // 同步返回
 		n.electionElapsed = 0
 		n.idleTick = 0
+		n.syncRespTimeoutTick = 0
+		n.syncing = false
 		if !n.onlySync {
 			n.onlySync = true
 		}
@@ -340,7 +346,9 @@ func (n *Node) stepLearner(e types.Event) error {
 	case types.TruncateResp: // 裁剪返回
 		n.truncating = false
 		if e.Reason == types.ReasonOk {
-			n.queue.truncateLogTo(e.Index)
+			if e.Index < n.queue.lastLogIndex {
+				n.queue.truncateLogTo(e.Index)
+			}
 		}
 	case types.StoreResp: // 异步存储日志返回
 		n.queue.appending = false
@@ -390,10 +398,12 @@ func (n *Node) quorum() int {
 func (n *Node) canVote(e types.Event) bool {
 
 	if n.cfg.Term > e.Term { // 如果当前任期大于候选人任期，拒绝投票
+		n.Info("current term is greater than candidate term", zap.Uint32("term", n.cfg.Term), zap.Uint32("candidateTerm", e.Term))
 		return false
 	}
 
 	if n.voteFor != None && n.voteFor != e.From { // 如果已经投票给其他节点，拒绝投票
+		n.Info("already vote for other", zap.Uint64("voteFor", n.voteFor))
 		return false
 	}
 
@@ -404,6 +414,7 @@ func (n *Node) canVote(e types.Event) bool {
 	// 如果候选人最后一条日志任期小于本地最后一条日志任期，拒绝投票
 	// 如果候选人与本节点任期相同，但是候选人最后一条日志下标小于本地最后一条日志下标，拒绝投票
 	if candidateLog.Term < lastLogTerm || candidateLog.Term == lastLogTerm && candidateLog.Index < lastLogIndex {
+		n.Info("candidate log is not newer", zap.Uint64("lastLogIndex", lastLogIndex), zap.Uint32("lastLogTerm", lastLogTerm), zap.Uint64("candidateIndex", candidateLog.Index), zap.Uint32("candidateTerm", candidateLog.Term))
 		return false
 	}
 

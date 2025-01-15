@@ -9,15 +9,18 @@ import (
 
 func (n *Node) switchConfig(newCfg types.Config) error {
 	oldCfg := n.cfg
-
 	if n.cfg.Version > newCfg.Version {
 		n.Error("config version is lower than current version", zap.Uint64("newVersion", newCfg.Version), zap.Uint64("currentVersion", oldCfg.Version))
 		return errors.New("config version is lower than current version")
 	}
 
-	if newCfg.Term < oldCfg.Term {
+	if newCfg.Term != 0 && newCfg.Term < oldCfg.Term {
 		n.Error("term is lower than current term", zap.Uint32("newTerm", newCfg.Term), zap.Uint32("currentTerm", oldCfg.Term))
 		return errors.New("term is lower than current term")
+	}
+
+	if newCfg.Term == 0 {
+		newCfg.Term = oldCfg.Term
 	}
 
 	n.votes = make(map[uint64]bool)
@@ -41,9 +44,7 @@ func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
 			}
 		}
 		if onlySelf {
-			if newCfg.Term == 0 {
-				newCfg.Term = 1
-			}
+
 			n.BecomeLeader(newCfg.Term)
 		} else {
 			if len(newCfg.Replicas) > 0 {
@@ -59,9 +60,9 @@ func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
 
 	if oldCfg.Role != newCfg.Role || oldCfg.Leader != newCfg.Leader || oldCfg.Term != newCfg.Term {
 		if oldCfg.Role != types.RoleUnknown {
-			n.Info("role change", zap.String("old", oldCfg.Role.String()), zap.String("new", newCfg.Role.String()))
+			n.Debug("role change", zap.String("old", oldCfg.Role.String()), zap.String("new", newCfg.Role.String()))
 		} else {
-			n.Info("role change", zap.String("new", newCfg.Role.String()))
+			n.Debug("role change", zap.String("new", newCfg.Role.String()))
 		}
 
 		if newCfg.Leader == n.opts.NodeId {

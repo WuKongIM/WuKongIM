@@ -117,18 +117,19 @@ func (m *waitBucket) didApply(key string, maxLogIndex uint64) {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	hasDone := false
+	// hasDone := false
+
 	for _, progress := range m.progresses {
 
-		if progress.done || !progress.waitApplied {
-			continue
-		}
 		if progress.key != key {
 			continue
 		}
 
+		if progress.done || !progress.waitApplied {
+			continue
+		}
 		if maxLogIndex >= progress.maxIndex {
-			hasDone = true
+			// hasDone = true
 			progress.done = true
 			progress.waitC <- struct{}{}
 			close(progress.waitC)
@@ -136,9 +137,9 @@ func (m *waitBucket) didApply(key string, maxLogIndex uint64) {
 	}
 
 	// 清理已完成的
-	if hasDone {
-		m.clean()
-	}
+	// if hasDone {
+	// 	m.clean()
+	// }
 }
 
 // 清理已完成的
@@ -183,4 +184,8 @@ func newCommitProgress(key string, maxIndex uint64) *progress {
 		waitC:          make(chan struct{}, 1),
 		waitCommittied: true,
 	}
+}
+
+func (p *progress) String() string {
+	return fmt.Sprintf("key:%s, maxIndex:%d, waitApplied:%v, waitCommittied:%v, done:%v", p.key, p.maxIndex, p.waitApplied, p.waitCommittied, p.done)
 }

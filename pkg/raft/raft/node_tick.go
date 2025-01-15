@@ -1,6 +1,8 @@
 package raft
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"go.uber.org/zap"
 )
@@ -19,13 +21,7 @@ func (n *Node) tickLeader() {
 func (n *Node) tickFollower() {
 
 	if !n.suspend { // 非挂起状态
-		n.syncElapsed++
-		if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
-			if !n.hasSyncReq() {
-				n.sendSyncReq()
-			}
-			n.syncElapsed = 0
-		}
+		n.tickSync()
 	}
 
 	if n.opts.ElectionOn {
@@ -33,16 +29,28 @@ func (n *Node) tickFollower() {
 	}
 }
 
-func (n *Node) tickLearner() {
-
-	if !n.suspend { // 非挂起状态
+func (n *Node) tickSync() {
+	if n.syncing {
+		n.syncRespTimeoutTick++
+		if n.syncRespTimeoutTick >= n.opts.SyncRespTimeoutTick {
+			n.syncing = false
+			n.syncRespTimeoutTick = 0
+		}
+	} else {
 		n.syncElapsed++
-		if n.syncElapsed >= n.opts.SyncInterval && n.cfg.Leader != 0 {
+		if n.syncElapsed >= n.opts.SyncIntervalTick && n.cfg.Leader != 0 {
 			if !n.hasSyncReq() {
 				n.sendSyncReq()
 			}
 			n.syncElapsed = 0
 		}
+	}
+}
+
+func (n *Node) tickLearner() {
+
+	if !n.suspend { // 非挂起状态
+		n.tickSync()
 	}
 
 }
@@ -85,7 +93,7 @@ func (n *Node) tickHeartbeat() {
 
 		syncInfo.SyncTick++
 
-		if syncInfo.SyncTick > n.opts.SyncInterval && !syncInfo.suspend {
+		if syncInfo.SyncTick > n.opts.SyncIntervalTick && !syncInfo.suspend {
 			n.sendPing(replicaId)
 		}
 	}
@@ -120,6 +128,7 @@ func (n *Node) campaign() {
 		n.BecomeFollower(n.cfg.Term, 0)
 	} else {
 		n.BecomeCandidate()
+		fmt.Println("n.cfg.Replicas--->", n.cfg.Replicas)
 		for _, nodeId := range n.cfg.Replicas {
 			if nodeId == n.opts.NodeId {
 				// 自己给自己投一票

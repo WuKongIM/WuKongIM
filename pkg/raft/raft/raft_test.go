@@ -410,6 +410,23 @@ func (s *testStorage) DeleteLeaderTermStartIndexGreaterThanTerm(term uint32) err
 	return nil
 }
 
+func (s *testStorage) LeaderTermGreaterEqThan(term uint32) (uint32, error) {
+
+	for _, tsi := range s.termStartIndexs {
+		if tsi.Term >= term {
+			return tsi.Term, nil
+		}
+	}
+	return 0, nil
+}
+
+func (s *testStorage) LeaderLastTerm() (uint32, error) {
+	if len(s.termStartIndexs) == 0 {
+		return 0, nil
+	}
+	return s.termStartIndexs[len(s.termStartIndexs)-1].Term, nil
+}
+
 func (s *testStorage) Apply(logs []types.Log) error {
 
 	return nil

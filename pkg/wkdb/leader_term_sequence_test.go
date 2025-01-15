@@ -45,7 +45,7 @@ func TestSetLeaderTermSequence(t *testing.T) {
 	})
 
 	t.Run("LeaderLastTermGreaterThan", func(t *testing.T) {
-		tm, err := d.LeaderLastTermGreaterThan(shardNo, term+1)
+		tm, err := d.LeaderLastTermGreaterEqThan(shardNo, term+1)
 		assert.NoError(t, err)
 		assert.Equal(t, term2, tm)
 	})

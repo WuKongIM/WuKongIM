@@ -44,7 +44,7 @@ func New(opts *Options) *RaftGroup {
 		fowardProposeWait: wt.New(),
 	}
 	var err error
-	rg.goPool, err = ants.NewPool(opts.GoPoolSize)
+	rg.goPool, err = ants.NewPool(opts.GoPoolSize, ants.WithNonblocking(true))
 	if err != nil {
 		rg.Panic("create go pool failed", zap.Error(err))
 	}
