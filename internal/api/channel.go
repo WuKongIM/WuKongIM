@@ -343,7 +343,7 @@ func (ch *channel) updateTagBySubscribers(channelId string, channelType uint8, s
 	// 更新cmd频道的tag
 	cmdChannelId := options.G.OrginalConvertCmdChannel(channelId)
 	cfg, err := service.Cluster.LoadOnlyChannelClusterConfig(cmdChannelId, channelType)
-	if err != nil && err != cluster.ErrChannelClusterConfigNotFound {
+	if err != nil {
 		ch.Info("updateTagByAddSubscribers: loadOnlyChannelClusterConfig failed", zap.Error(err))
 		return nil
 	}
