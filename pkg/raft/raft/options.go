@@ -12,7 +12,9 @@ type Options struct {
 	// TickInterval tick间隔,多久触发一次tick
 	TickInterval time.Duration
 	// SyncInterval 同步间隔, 单位: tick, 表示多少个tick发起一次同步
-	SyncInterval int
+	SyncIntervalTick int
+	// SyncRespTimeoutTick 同步响应超时tick次数,超过此tick数则重新发起同步
+	SyncRespTimeoutTick int
 	// ElectionOn 是否开启选举， 如果开启选举，那么节点之间会自己选举出一个领导者，默认为false
 	ElectionOn bool
 
@@ -62,7 +64,8 @@ type Options struct {
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
-		SyncInterval:               2,
+		SyncIntervalTick:           2,
+		SyncRespTimeoutTick:        10,
 		ElectionOn:                 false,
 		HeartbeatInterval:          1,
 		ElectionInterval:           10,
@@ -101,7 +104,7 @@ func WithTickInterval(tickInterval time.Duration) Option {
 
 func WithSyncInterval(syncInterval int) Option {
 	return func(opts *Options) {
-		opts.SyncInterval = syncInterval
+		opts.SyncIntervalTick = syncInterval
 	}
 }
 

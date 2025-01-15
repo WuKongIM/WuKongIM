@@ -9,6 +9,9 @@ type IStorage interface {
 	GetTermStartIndex(key string, term uint32) (uint64, error)
 	// LeaderLastLogTerm 获取领导的最后一个日志的任期
 	LeaderLastLogTerm(key string) (uint32, error)
+	//  LeaderTermGreaterEqThan 获取大于或等于term的lastTerm
+	LeaderTermGreaterEqThan(key string, term uint32) (uint32, error)
+
 	// GetLogs  获取日志 startLogIndex日志开始下标,endLogIndex结束日志下标 limitSize限制每次查询日志大小,0表示不限制，结果包含startLogIndex不包含 endLogIndex
 	GetLogs(key string, startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]types.Log, error)
 	// Apply 应用日志

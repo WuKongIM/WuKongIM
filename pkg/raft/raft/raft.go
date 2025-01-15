@@ -46,7 +46,7 @@ func New(opts *Options) *Raft {
 		panic(fmt.Sprintf("get term start index failed, err:%v", err))
 	}
 
-	pool, err := ants.NewPool(opts.GoPoolSize)
+	pool, err := ants.NewPool(opts.GoPoolSize, ants.WithNonblocking(true))
 	if err != nil {
 		panic(err)
 	}
@@ -447,8 +447,15 @@ func (r *Raft) getTrunctLogIndex(e types.Event, leaderLastLogTerm uint32) (uint6
 
 	// 如果副本的最新日志任期小于当前领导的最新日志任期，则需要裁剪
 	if e.LastLogTerm < leaderLastLogTerm {
+
+		term, err := r.opts.Storage.LeaderTermGreaterEqThan(e.LastLogTerm + 1)
+		if err != nil {
+			r.Error("LeaderTermGreaterEqThan: get leader last term failed", zap.Error(err))
+			return 0, types.ReasonError
+		}
+
 		// 获取副本的最新日志任期+1的开始日志下标
-		termStartIndex, err := r.opts.Storage.GetTermStartIndex(e.LastLogTerm + 1)
+		termStartIndex, err := r.opts.Storage.GetTermStartIndex(term)
 		if err != nil {
 			r.Error("get term start index failed", zap.Error(err))
 			return 0, types.ReasonError
@@ -458,7 +465,15 @@ func (r *Raft) getTrunctLogIndex(e types.Event, leaderLastLogTerm uint32) (uint6
 		}
 		return termStartIndex, types.ReasonOk
 	} else {
-		termStartIndex, err := r.opts.Storage.GetTermStartIndex(leaderLastLogTerm)
+		if e.LastLogTerm <= 1 {
+			return 0, types.ReasonOk
+		}
+		term, err := r.opts.Storage.LeaderLastTerm()
+		if err != nil {
+			r.Error("LeaderLastTerm: get leader last term failed", zap.Error(err))
+			return 0, types.ReasonError
+		}
+		termStartIndex, err := r.opts.Storage.GetTermStartIndex(term)
 		if err != nil {
 			r.Error("get term start index failed", zap.Error(err))
 			return 0, types.ReasonError

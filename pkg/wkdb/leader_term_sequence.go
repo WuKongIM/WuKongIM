@@ -55,7 +55,7 @@ func (wk *wukongDB) LeaderTermStartIndex(shardNo string, term uint32) (uint64, e
 	return wk.endian.Uint64(indexBytes), nil
 }
 
-func (wk *wukongDB) LeaderLastTermGreaterThan(shardNo string, term uint32) (uint32, error) {
+func (wk *wukongDB) LeaderLastTermGreaterEqThan(shardNo string, term uint32) (uint32, error) {
 
 	wk.metrics.LeaderLastTermGreaterThanAdd(1)
 

@@ -152,35 +152,40 @@ func (rg *RaftGroup) handleTruncateReq(r IRaft, e types.Event) {
 func (rg *RaftGroup) handleApplyReq(r IRaft, e types.Event) {
 	err := rg.goPool.Submit(func() {
 		// 已提交
-		rg.wait.didCommit(r.Key(), e.EndIndex-1)
+		// rg.wait.didCommit(r.Key(), e.EndIndex-1)
+		var lastLogIndex uint64
+		if !rg.opts.NotNeedApplied {
+			logs, err := rg.opts.Storage.GetLogs(r.Key(), e.StartIndex, e.EndIndex, 0)
+			if err != nil {
+				rg.Error("get logs failed", zap.Error(err))
+				rg.AddEvent(r.Key(), types.Event{
+					Type:   types.ApplyResp,
+					Reason: types.ReasonError,
+				})
+				return
+			}
+			if len(logs) == 0 {
+				rg.Error("logs is empty", zap.String("key", r.Key()), zap.Uint64("startIndex", e.StartIndex), zap.Uint64("endIndex", e.EndIndex))
+				rg.AddEvent(r.Key(), types.Event{
+					Type:   types.ApplyResp,
+					Reason: types.ReasonError,
+				})
+				return
+			}
+			err = rg.opts.Storage.Apply(r.Key(), logs)
+			if err != nil {
+				rg.Error("apply logs failed", zap.Error(err))
+				rg.AddEvent(r.Key(), types.Event{
+					Type:   types.ApplyResp,
+					Reason: types.ReasonError,
+				})
+				return
+			}
+			lastLogIndex = logs[len(logs)-1].Index
+		} else {
+			lastLogIndex = e.EndIndex - 1
+		}
 
-		logs, err := rg.opts.Storage.GetLogs(r.Key(), e.StartIndex, e.EndIndex, 0)
-		if err != nil {
-			rg.Error("get logs failed", zap.Error(err))
-			rg.AddEvent(r.Key(), types.Event{
-				Type:   types.ApplyResp,
-				Reason: types.ReasonError,
-			})
-			return
-		}
-		if len(logs) == 0 {
-			rg.Error("logs is empty", zap.String("key", r.Key()), zap.Uint64("startIndex", e.StartIndex), zap.Uint64("endIndex", e.EndIndex))
-			rg.AddEvent(r.Key(), types.Event{
-				Type:   types.ApplyResp,
-				Reason: types.ReasonError,
-			})
-			return
-		}
-		err = rg.opts.Storage.Apply(r.Key(), logs)
-		if err != nil {
-			rg.Error("apply logs failed", zap.Error(err))
-			rg.AddEvent(r.Key(), types.Event{
-				Type:   types.ApplyResp,
-				Reason: types.ReasonError,
-			})
-			return
-		}
-		lastLogIndex := logs[len(logs)-1].Index
 		rg.AddEvent(r.Key(), types.Event{
 			Type:   types.ApplyResp,
 			Reason: types.ReasonOk,
@@ -217,8 +222,13 @@ func (rg *RaftGroup) getTrunctLogIndex(r IRaft, e types.Event) (uint64, types.Re
 
 	// 如果副本的最新日志任期小于当前领导的最新日志任期，则需要裁剪
 	if e.LastLogTerm < leaderLastLogTerm {
+		term, err := rg.opts.Storage.LeaderTermGreaterEqThan(r.Key(), e.LastLogTerm+1)
+		if err != nil {
+			rg.Error("LeaderTermGreaterEqThan: get leader last term failed", zap.Error(err))
+			return 0, types.ReasonError
+		}
 		// 获取副本的最新日志任期+1的开始日志下标
-		termStartIndex, err := rg.opts.Storage.GetTermStartIndex(r.Key(), e.LastLogTerm+1)
+		termStartIndex, err := rg.opts.Storage.GetTermStartIndex(r.Key(), term)
 		if err != nil {
 			rg.Error("get term start index failed", zap.Error(err))
 			return 0, types.ReasonError
