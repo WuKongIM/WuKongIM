@@ -130,15 +130,9 @@ func (s *Server) tick() {
 			s.pong.Unlock()
 
 			if tk >= s.cfgOptions.PongMaxTick && node.Online { // 超过最大pong tick数，认为节点离线
-				s.pong.Lock()
-				s.pong.tickMap[node.Id] = 0
-				s.pong.Unlock()
 				// 节点离线
 				s.handler.handleOnlineStatus(node.Id, false)
 			} else if tk < s.cfgOptions.PongMaxTick && !node.Online {
-				s.pong.Lock()
-				s.pong.tickMap[node.Id] = 0
-				s.pong.Unlock()
 				// 节点在线
 				s.handler.handleOnlineStatus(node.Id, true)
 			}

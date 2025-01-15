@@ -1,8 +1,6 @@
 package raft
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"go.uber.org/zap"
 )
@@ -128,7 +126,6 @@ func (n *Node) campaign() {
 		n.BecomeFollower(n.cfg.Term, 0)
 	} else {
 		n.BecomeCandidate()
-		fmt.Println("n.cfg.Replicas--->", n.cfg.Replicas)
 		for _, nodeId := range n.cfg.Replicas {
 			if nodeId == n.opts.NodeId {
 				// 自己给自己投一票

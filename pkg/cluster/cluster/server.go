@@ -83,7 +83,7 @@ func New(opts *Options) *Server {
 		opts.ConfigOptions.Transport = newNodeTransport(s)
 	}
 
-	s.onMessagePool, _ = ants.NewPool(6000, ants.WithNonblocking(true))
+	s.onMessagePool, _ = ants.NewPool(10000, ants.WithNonblocking(true))
 
 	s.rpcServer = newRpcServer(s)
 	s.rpcClient = newRpcClient(s)
