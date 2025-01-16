@@ -21,7 +21,7 @@ type queue struct {
 	appliedIndex   uint64
 }
 
-func newQueue(key string, appliedLogIndex, lastLogIndex uint64, nodeId uint64) *queue {
+func newQueue(key string, appliedLogIndex, lastLogIndex uint64) *queue {
 
 	return &queue{
 		Log:            wklog.NewWKLog(fmt.Sprintf("queue[%s]", key)),
@@ -40,7 +40,7 @@ func (r *queue) append(log ...types.Log) error {
 		r.lastLogIndex = log[len(log)-1].Index
 		return nil
 	} else {
-		r.Warn("append log index is not continuous", zap.Uint64("appendStartLogIndex", appendStartLogIndex), zap.Uint64("lastLogIndex", r.lastLogIndex), zap.Int("logsLen", len(r.logs)))
+		r.Warn("append log index is not continuous", zap.Uint64("appendStartLogIndex", appendStartLogIndex), zap.Uint64("lastLogIndex", r.lastLogIndex), zap.Int("logsLen", len(log)))
 		return nil
 	}
 }
