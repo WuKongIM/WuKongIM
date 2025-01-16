@@ -29,32 +29,32 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 
 	primaryKey := key.ChannelToNum(channelClusterConfig.ChannelId, channelClusterConfig.ChannelType)
 
-	oldChannelClusterConfig, err := wk.getChannelClusterConfigById(primaryKey)
-	if err != nil && err != ErrNotFound {
-		return err
-	}
+	// oldChannelClusterConfig, err := wk.getChannelClusterConfigById(primaryKey)
+	// if err != nil && err != ErrNotFound {
+	// 	return err
+	// }
 
 	db := wk.defaultShardBatchDB()
 
 	batch := db.NewBatch()
 
-	existConfig := !IsEmptyChannelClusterConfig(oldChannelClusterConfig)
+	// existConfig := !IsEmptyChannelClusterConfig(oldChannelClusterConfig)
 
-	// 删除旧的索引
-	if existConfig {
-		oldChannelClusterConfig.CreatedAt = nil // 旧的创建时间不参与索引
-		err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, batch)
-		if err != nil {
-			wk.Error("delete channel cluster config index error", zap.Error(err), zap.String("channelId", channelClusterConfig.ChannelId), zap.Uint8("channelType", channelClusterConfig.ChannelType))
-			return err
-		}
-	}
+	// // 删除旧的索引
+	// if existConfig {
+	// 	oldChannelClusterConfig.CreatedAt = nil // 旧的创建时间不参与索引
+	// 	err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, batch)
+	// 	if err != nil {
+	// 		wk.Error("delete channel cluster config index error", zap.Error(err), zap.String("channelId", channelClusterConfig.ChannelId), zap.Uint8("channelType", channelClusterConfig.ChannelType))
+	// 		return err
+	// 	}
+	// }
 
 	channelClusterConfig.Id = primaryKey
 
-	if existConfig {
-		channelClusterConfig.CreatedAt = nil // 创建时间不参与更新
-	}
+	// if existConfig {
+	// 	channelClusterConfig.CreatedAt = nil // 创建时间不参与更新
+	// }
 
 	if err := wk.writeChannelClusterConfig(primaryKey, channelClusterConfig, batch); err != nil {
 		return err
@@ -78,39 +78,37 @@ func (wk *wukongDB) SaveChannelClusterConfigs(channelClusterConfigs []ChannelClu
 	wk.metrics.SaveChannelClusterConfigsAdd(1)
 
 	db := wk.defaultShardBatchDB()
-	batch := db.NewBatch()
-
+	// batch := db.NewBatch()
 	// 先删除旧的
 
-	for i, cfg := range channelClusterConfigs {
-		primaryKey := key.ChannelToNum(cfg.ChannelId, cfg.ChannelType)
-		oldChannelClusterConfig, err := wk.getChannelClusterConfigById(primaryKey)
-		if err != nil && err != ErrNotFound {
-			return err
-		}
-		existConfig := !IsEmptyChannelClusterConfig(oldChannelClusterConfig)
+	// for i, cfg := range channelClusterConfigs {
+	// 	primaryKey := key.ChannelToNum(cfg.ChannelId, cfg.ChannelType)
+	// 	oldChannelClusterConfig, err := wk.getChannelClusterConfigById(primaryKey)
+	// 	if err != nil && err != ErrNotFound {
+	// 		return err
+	// 	}
+	// 	existConfig := !IsEmptyChannelClusterConfig(oldChannelClusterConfig)
 
-		// 删除旧的索引
-		if existConfig {
-			oldChannelClusterConfig.CreatedAt = nil // 旧的创建时间不参与索引
-			err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, batch)
-			if err != nil {
-				wk.Error("delete channel cluster config index error", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
-				return err
-			}
-		}
-		channelClusterConfigs[i].Id = primaryKey
-		if existConfig {
-			channelClusterConfigs[i].CreatedAt = nil // 创建时间不参与更新
-		}
-	}
+	// 	// 删除旧的索引
+	// 	if existConfig {
+	// 		oldChannelClusterConfig.CreatedAt = nil // 旧的创建时间不参与索引
+	// 		err = wk.deleteChannelClusterConfigIndex(oldChannelClusterConfig.Id, oldChannelClusterConfig, batch)
+	// 		if err != nil {
+	// 			wk.Error("delete channel cluster config index error", zap.Error(err), zap.String("channelId", cfg.ChannelId), zap.Uint8("channelType", cfg.ChannelType))
+	// 			return err
+	// 		}
+	// 	}
+	// 	channelClusterConfigs[i].Id = primaryKey
+	// 	if existConfig {
+	// 		channelClusterConfigs[i].CreatedAt = nil // 创建时间不参与更新
+	// 	}
+	// }
 
-	if err := batch.CommitWait(); err != nil {
-		return err
-	}
-
+	// if err := batch.CommitWait(); err != nil {
+	// 	return err
+	// }
 	// 再添加新的
-	batch = db.NewBatch()
+	batch := db.NewBatch()
 	for _, cfg := range channelClusterConfigs {
 		primaryKey := key.ChannelToNum(cfg.ChannelId, cfg.ChannelType)
 		if err := wk.writeChannelClusterConfig(primaryKey, cfg, batch); err != nil {

@@ -18,7 +18,7 @@ func (s *Store) ApplySlotLogs(slotId uint32, logs []types.Log) error {
 	return nil
 }
 
-func (s *Store) applyLog(slotId uint32, log types.Log) error {
+func (s *Store) applyLog(_ uint32, log types.Log) error {
 	cmd := &CMD{}
 	err := cmd.Unmarshal(log.Data)
 	if err != nil {
@@ -92,6 +92,37 @@ func (s *Store) applyLog(slotId uint32, log types.Log) error {
 	return nil
 }
 
+func (s *Store) loopSaveChannelClusterConfig() {
+	maxSizeBatch := 1000
+	done := false
+	cfgs := make([]*channelCfgReq, 0, maxSizeBatch)
+	for {
+		select {
+		case cfg := <-s.channelCfgCh:
+			cfgs = append(cfgs, cfg)
+			for !done {
+				select {
+				case cfg = <-s.channelCfgCh:
+					cfgs = append(cfgs, cfg)
+				default:
+					done = true
+				}
+				if len(cfgs) >= maxSizeBatch {
+					break
+				}
+			}
+			err := s.handleChannelClusterConfigSaves(cfgs)
+			if err != nil {
+				s.Error("handleChannelClusterConfigSaves err", zap.Error(err))
+			}
+			cfgs = cfgs[:0]
+			done = false
+		case <-s.stopper.ShouldStop():
+			return
+		}
+	}
+}
+
 func (s *Store) handleChannelClusterConfigSave(cmd *CMD, confVersion uint64) error {
 	_, _, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
 	if err != nil {
@@ -103,7 +134,23 @@ func (s *Store) handleChannelClusterConfigSave(cmd *CMD, confVersion uint64) err
 		return err
 	}
 	channelClusterConfig.ConfVersion = confVersion
-	return s.wdb.SaveChannelClusterConfig(channelClusterConfig)
+
+	waitC := make(chan error, 1)
+	select {
+	case s.channelCfgCh <- &channelCfgReq{
+		cfg:   channelClusterConfig,
+		errCh: waitC,
+	}:
+	case <-s.stopper.ShouldStop():
+		return nil
+	}
+
+	select {
+	case err := <-waitC:
+		return err
+	case <-s.stopper.ShouldStop():
+		return nil
+	}
 }
 
 func (s *Store) handleAddSubscribers(cmd *CMD) error {
@@ -261,23 +308,20 @@ func (s *Store) handleDeleteConversations(cmd *CMD) error {
 	return s.wdb.DeleteConversations(uid, channels)
 }
 
-func (s *Store) handleChannelClusterConfigSaves(cmds []*CMD) error {
+func (s *Store) handleChannelClusterConfigSaves(reqs []*channelCfgReq) error {
 
-	cfgs := make([]wkdb.ChannelClusterConfig, 0)
-	for _, cmd := range cmds {
-		_, _, configData, err := cmd.DecodeCMDChannelClusterConfigSave()
-		if err != nil {
-			return err
-		}
-		channelClusterConfig := wkdb.ChannelClusterConfig{}
-		err = channelClusterConfig.Unmarshal(configData)
-		if err != nil {
-			return err
-		}
-		cfgs = append(cfgs, channelClusterConfig)
+	cfgs := make([]wkdb.ChannelClusterConfig, 0, len(reqs))
+	for _, req := range reqs {
+		cfgs = append(cfgs, req.cfg)
 	}
-
-	return s.wdb.SaveChannelClusterConfigs(cfgs)
+	err := s.wdb.SaveChannelClusterConfigs(cfgs)
+	if err != nil {
+		s.Error("save channel cluster config err", zap.Error(err))
+	}
+	for _, req := range reqs {
+		req.errCh <- err
+	}
+	return nil
 }
 
 // func (s *Store) handleChannelClusterConfigDelete(cmd *CMD) error {
