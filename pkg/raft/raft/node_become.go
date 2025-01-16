@@ -37,7 +37,7 @@ func (n *Node) BecomeLeader(term uint32) {
 	n.tickFnc = n.tickLeader
 	n.cfg.Leader = n.opts.NodeId
 	n.cfg.Role = types.RoleLeader
-	n.Info("become leader", zap.Uint32("term", n.cfg.Term))
+	n.Debug("become leader", zap.Uint32("term", n.cfg.Term))
 }
 
 func (n *Node) BecomeLearner(term uint32, leaderId uint64) {

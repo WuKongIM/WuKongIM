@@ -15,6 +15,9 @@ import (
 // GetOrCreateChannelClusterConfig 获取或创建频道分布式配置
 func (s *Server) GetOrCreateChannelClusterConfigFromSlotLeader(channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 
+	s.channelKeyLock.Lock(channelId)
+	defer s.channelKeyLock.Unlock(channelId)
+
 	// 获取频道槽领导
 	slotLeaderId, err := s.SlotLeaderIdOfChannel(channelId, channelType)
 	if err != nil {

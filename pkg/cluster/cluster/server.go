@@ -16,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slot"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/store"
+	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -60,16 +61,19 @@ type Server struct {
 	uptime        time.Time // 服务启动时间
 	stopper       *syncutil.Stopper
 
+	channelKeyLock *keylock.KeyLock // 频道锁
+
 	sync.Mutex
 }
 
 func New(opts *Options) *Server {
 	s := &Server{
-		opts:        opts,
-		nodeManager: newNodeManager(opts),
-		Log:         wklog.NewWKLog("cluster"),
-		uptime:      time.Now(),
-		stopper:     syncutil.NewStopper(),
+		opts:           opts,
+		nodeManager:    newNodeManager(opts),
+		Log:            wklog.NewWKLog("cluster"),
+		channelKeyLock: keylock.NewKeyLock(),
+		uptime:         time.Now(),
+		stopper:        syncutil.NewStopper(),
 	}
 	s.cancelCtx, s.cancelFnc = context.WithCancel(context.Background())
 	// 初始化传输层
@@ -157,7 +161,14 @@ func New(opts *Options) *Server {
 
 func (s *Server) Start() error {
 
+	s.channelKeyLock.StartCleanLoop()
+
 	err := s.db.Open()
+	if err != nil {
+		return err
+	}
+
+	err = s.store.Start()
 	if err != nil {
 		return err
 	}
@@ -230,7 +241,9 @@ func (s *Server) Stop() {
 	s.slotServer.Stop()
 	s.channelServer.Stop()
 	s.netServer.Stop()
+	s.store.Stop()
 	s.db.Close()
+	s.channelKeyLock.StopCleanLoop()
 }
 
 func (s *Server) NodeStep(event rafttype.Event) {

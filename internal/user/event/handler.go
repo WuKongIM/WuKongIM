@@ -3,6 +3,7 @@ package event
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -27,6 +28,9 @@ type userHandler struct {
 	conns *conns
 	// 处理中的下标位置
 	processingIndex uint64
+
+	// 是否正在处理
+	processing atomic.Bool
 }
 
 func newUserHandler(uid string, poller *poller) *userHandler {
@@ -58,6 +62,9 @@ func (u *userHandler) addEvent(event *eventbus.Event) {
 func (u *userHandler) hasEvent() bool {
 	u.pending.RLock()
 	defer u.pending.RUnlock()
+	if u.processing.Load() {
+		return false
+	}
 	return u.processingIndex < u.pending.eventQueue.LastIndex()
 }
 
@@ -78,6 +85,11 @@ func (u *userHandler) events() []*eventbus.Event {
 
 // 推进事件
 func (u *userHandler) advanceEvents(events []*eventbus.Event) {
+
+	u.processing.Store(true)
+	defer func() {
+		u.processing.Store(false)
+	}()
 
 	slotLeaderId := u.leaderId(u.Uid)
 	if slotLeaderId == 0 {
