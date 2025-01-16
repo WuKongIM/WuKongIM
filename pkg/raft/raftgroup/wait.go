@@ -138,7 +138,6 @@ func (m *waitBucket) didApply(key string, maxLogIndex uint64) {
 		if maxLogIndex >= progress.maxIndex && progress.waitC != nil {
 			progress.done = true
 			progress.waitC <- struct{}{}
-			close(progress.waitC)
 		}
 	}
 	// 清理
@@ -146,6 +145,7 @@ func (m *waitBucket) didApply(key string, maxLogIndex uint64) {
 }
 
 func (m *waitBucket) put(progress *progress) {
+	close(progress.waitC)
 	progress.reset()
 	m.progressPool.Put(progress)
 }

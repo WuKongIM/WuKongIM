@@ -37,7 +37,7 @@ func (s *Store) DB() wkdb.DB {
 }
 
 func (s *Store) Start() error {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 50; i++ {
 		go s.loopSaveChannelClusterConfig()
 	}
 	// s.stopper.RunWorker(s.loopSaveChannelClusterConfig)
