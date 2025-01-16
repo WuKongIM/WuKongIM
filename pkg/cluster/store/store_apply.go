@@ -1,6 +1,8 @@
 package store
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"go.uber.org/zap"
@@ -309,7 +311,9 @@ func (s *Store) handleDeleteConversations(cmd *CMD) error {
 }
 
 func (s *Store) handleChannelClusterConfigSaves(reqs []*channelCfgReq) error {
-
+	if len(reqs) > 10 {
+		fmt.Println("handleChannelClusterConfigSaves...", len(reqs))
+	}
 	cfgs := make([]wkdb.ChannelClusterConfig, 0, len(reqs))
 	for _, req := range reqs {
 		cfgs = append(cfgs, req.cfg)
