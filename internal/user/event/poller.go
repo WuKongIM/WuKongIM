@@ -212,6 +212,16 @@ func (p *poller) localConnByUid(uid string) []*eventbus.Conn {
 	return h.conns.connsByNodeId(options.G.Cluster.NodeId)
 }
 
+func (p *poller) allConn() []*eventbus.Conn {
+	var conns []*eventbus.Conn
+	tmpHandlers := make([]*userHandler, 0)
+	p.waitlist.readHandlers(&tmpHandlers)
+	for _, h := range tmpHandlers {
+		conns = append(conns, h.conns.conns...)
+	}
+	return conns
+}
+
 func (p *poller) updateConn(conn *eventbus.Conn) {
 	h := p.handler(conn.Uid)
 	if h == nil {

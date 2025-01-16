@@ -49,6 +49,10 @@ func (u *userHandler) addEvent(event *eventbus.Event) {
 	u.pending.eventQueue.Append(event)
 
 	u.lastActive = fasttime.UnixTimestamp()
+
+	if event.Conn != nil {
+		event.Conn.LastActive = fasttime.UnixTimestamp()
+	}
 }
 
 func (u *userHandler) hasEvent() bool {

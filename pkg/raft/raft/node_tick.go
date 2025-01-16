@@ -7,6 +7,14 @@ import (
 
 func (n *Node) Tick() {
 	n.idleTick++
+	if n.opts.AutoDestory {
+		if n.idleTick > n.opts.DestoryAfterIdleTick {
+			n.idleTick = 0
+			n.Info("auto destory")
+			n.sendDestory()
+		}
+	}
+
 	if n.tickFnc != nil {
 		n.tickFnc()
 	}

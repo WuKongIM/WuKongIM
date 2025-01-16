@@ -103,6 +103,9 @@ func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, raftKe
 
 		})
 		if err != nil {
+			if applyProcess != nil {
+				rg.wait.put(applyProcess)
+			}
 			return nil, err
 		}
 	}
@@ -110,11 +113,14 @@ func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, raftKe
 	if needWait {
 		select {
 		case <-applyProcess.waitC:
+			rg.wait.put(applyProcess)
 			return resps, nil
 		case <-ctx.Done():
 			rg.Error("propose batch until applied timeout", zap.String("raftKey", raftKey), zap.Any("resps", resps), zap.String("progress", applyProcess.String()))
+			rg.wait.put(applyProcess)
 			return nil, ctx.Err()
 		case <-rg.stopper.ShouldStop():
+			rg.wait.put(applyProcess)
 			return nil, ErrGroupStopped
 		}
 	} else {

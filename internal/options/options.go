@@ -437,7 +437,7 @@ func New(op ...Option) *Options {
 			ClearIntervalTick int
 		}{
 			UserCount:                32,
-			UserGoroutine:            4000,
+			UserGoroutine:            6000,
 			UserTimeout:              time.Minute * 5,
 			UserEventMaxSizePerBatch: 1024 * 1024 * 10,
 

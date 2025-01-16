@@ -164,13 +164,6 @@ func (n *Node) Ready() []types.Event {
 		}
 	}
 
-	if n.opts.AutoDestory {
-		if n.idleTick > n.opts.DestoryAfterIdleTick {
-			n.Info("auto destory")
-			n.sendDestory()
-		}
-	}
-
 	events := n.events
 	n.events = n.events[:0]
 	return events

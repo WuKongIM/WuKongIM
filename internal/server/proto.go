@@ -131,18 +131,15 @@ func (s *Server) onData(conn wknet.Conn) error {
 				},
 			}
 			event.Track.Record(track.PositionStart)
+			// 生成messageId
 			if frame.GetFrameType() == wkproto.SEND {
 				event.MessageId = options.G.GenMessageId()
-				connCtx.InMsgCount.Add(1)
-				connCtx.InMsgByteCount.Add(int64(size))
 			}
 
 			events = append(events, event)
 			offset += size
 		}
 		if len(events) > 0 {
-			connCtx.InPacketCount.Add(int64(len(events)))
-			connCtx.InPacketByteCount.Add(int64(len(data)))
 			// 添加事件
 			eventbus.User.AddEvents(connCtx.Uid, events)
 
