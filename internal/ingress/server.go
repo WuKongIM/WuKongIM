@@ -30,6 +30,8 @@ func (i *Ingress) SetRoutes() {
 	service.Cluster.Route("/wk/ingress/allowSend", i.handleAllowSend)
 	// 更新tag
 	service.Cluster.Route("/wk/ingress/updateTag", i.handleUpdateTag)
+	// 添加tag
+	service.Cluster.Route("/wk/ingress/addTag", i.handleAddTag)
 	// 获取订阅者
 	service.Cluster.Route("/wk/ingress/getSubscribers", i.handleGetSubscribers)
 
@@ -162,6 +164,35 @@ func (i *Ingress) handleUpdateTag(c *wkserver.Context) {
 	}
 	c.WriteOk()
 
+}
+
+func (i *Ingress) handleAddTag(c *wkserver.Context) {
+	req := &TagAddReq{}
+	err := req.Decode(c.Body())
+	if err != nil {
+		i.Error("handleAddTag: decode failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if req.TagKey == "" {
+		i.Error("tagKey is nil", zap.Any("req", req))
+		c.WriteErr(errors.New("tagKey is nil"))
+		return
+	}
+	if len(req.Uids) == 0 {
+		i.Error("uids is nil", zap.Any("req", req))
+		c.WriteErr(errors.New("uids is nil"))
+		return
+	}
+
+	_, err = service.TagManager.MakeTagWithTagKey(req.TagKey, req.Uids)
+	if err != nil {
+		i.Error("handleAddTag: add users failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteOk()
 }
 
 func (i *Ingress) handleGetSubscribers(c *wkserver.Context) {

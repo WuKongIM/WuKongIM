@@ -130,12 +130,12 @@ func (m *message) send(c *wkhttp.Context) {
 					return
 				}
 			} else {
-				err = m.s.client.UpdateTag(nodeInfo.Id, &ingress.TagUpdateReq{
+				err = m.s.client.AddTag(nodeInfo.Id, &ingress.TagAddReq{
 					TagKey: newTagKey,
 					Uids:   req.Subscribers,
 				})
 				if err != nil {
-					m.Error("更新tag失败！", zap.Error(err), zap.Uint64("nodeId", nodeInfo.Id))
+					m.Error("添加tag失败！", zap.Error(err), zap.Uint64("nodeId", nodeInfo.Id))
 					c.ResponseError(errors.New("更新tag失败！"))
 					return
 				}
@@ -401,7 +401,7 @@ func (m *message) sync(c *wkhttp.Context) {
 
 	// 获取每个session的消息
 	messageResps := make([]*types.MessageResp, 0)
-
+	deletes := make([]wkdb.Channel, 0) // 待删除的会话
 	if len(channelRecentMessageReqs) > 0 {
 		channelRecentMessages, err := m.s.requset.getRecentMessagesForCluster(req.UID, req.Limit, channelRecentMessageReqs, false)
 		if err != nil {
@@ -412,6 +412,10 @@ func (m *message) sync(c *wkhttp.Context) {
 		for _, channelRecentMessage := range channelRecentMessages {
 
 			if len(channelRecentMessage.Messages) == 0 {
+				deletes = append(deletes, wkdb.Channel{
+					ChannelId:   channelRecentMessage.ChannelId,
+					ChannelType: channelRecentMessage.ChannelType,
+				})
 				continue
 			}
 			isExceedLimit := false // 是否超过限制
@@ -436,6 +440,17 @@ func (m *message) sync(c *wkhttp.Context) {
 				lastMsgSeq:  lastMsg.MessageSeq,
 			})
 			m.syncRecordLock.Unlock()
+		}
+	}
+	if len(deletes) > 0 {
+		err = service.Store.DeleteConversations(req.UID, deletes)
+		if err != nil {
+			m.Error("删除最近会话失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		for _, delete := range deletes {
+			service.ConversationManager.DeleteFromCache(req.UID, delete.ChannelId, delete.ChannelType)
 		}
 	}
 
@@ -484,7 +499,9 @@ func (m *message) syncack(c *wkhttp.Context) {
 	}
 
 	conversations := make([]wkdb.Conversation, 0)
-	for _, record := range m.syncRecordMap[req.UID] {
+	deletes := make([]wkdb.Channel, 0)
+	records := m.syncRecordMap[req.UID]
+	for _, record := range records {
 		needAdd := false
 
 		fakeChannelId := record.channelId
@@ -527,6 +544,19 @@ func (m *message) syncack(c *wkhttp.Context) {
 			conversations = append(conversations, conversation)
 		}
 
+		lastMsgSeq, err := service.Store.GetChannelLastMessageSeq(record.channelId, record.channelType)
+		if err != nil {
+			m.Error("GetChannelLastMessageSeq failed", zap.Error(err))
+			continue
+		}
+
+		if record.lastMsgSeq >= lastMsgSeq {
+			deletes = append(deletes, wkdb.Channel{
+				ChannelId:   record.channelId,
+				ChannelType: record.channelType,
+			})
+		}
+
 	}
 	if len(conversations) > 0 {
 		err := service.Store.AddOrUpdateUserConversations(req.UID, conversations)
@@ -536,17 +566,17 @@ func (m *message) syncack(c *wkhttp.Context) {
 			return
 		}
 	}
-	// if len(deletes) > 0 {
-	// 	err = service.Store.DeleteConversations(req.UID, deletes)
-	// 	if err != nil {
-	// 		m.Error("删除最近会话失败！", zap.Error(err))
-	// 		c.ResponseError(err)
-	// 		return
-	// 	}
-	// 	for _, deleteConversation := range deletes {
-	// 		m.s.conversationManager.DeleteUserConversationFromCache(req.UID, deleteConversation.ChannelId, deleteConversation.ChannelType)
-	// 	}
-	// }
+	if len(deletes) > 0 {
+		for _, delete := range deletes {
+			service.ConversationManager.DeleteFromCache(req.UID, delete.ChannelId, delete.ChannelType)
+		}
+		err = service.Store.DeleteConversations(req.UID, deletes)
+		if err != nil {
+			m.Error("删除最近会话失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	}
 
 	c.ResponseOK()
 }

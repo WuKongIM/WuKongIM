@@ -162,6 +162,42 @@ func (t *TagUpdateReq) Decode(data []byte) error {
 	return nil
 }
 
+type TagAddReq struct {
+	TagKey string
+	Uids   []string
+}
+
+func (t *TagAddReq) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(t.TagKey)
+	enc.WriteUint32(uint32(len(t.Uids)))
+	for _, uid := range t.Uids {
+		enc.WriteString(uid)
+	}
+	return enc.Bytes(), nil
+}
+
+func (t *TagAddReq) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	if t.TagKey, err = dec.String(); err != nil {
+		return err
+	}
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	for i := 0; i < int(count); i++ {
+		uid, err := dec.String()
+		if err != nil {
+			return err
+		}
+		t.Uids = append(t.Uids, uid)
+	}
+	return nil
+}
+
 type ChannelReq struct {
 	ChannelId   string
 	ChannelType uint8
