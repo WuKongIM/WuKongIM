@@ -96,22 +96,22 @@ func (p *poller) loopEvent() {
 
 func (p *poller) tick() {
 	p.tickCount++
+
+	p.waitlist.readHandlers(&p.tmpHandlers)
+
+	for _, h := range p.tmpHandlers {
+		h.tick()
+	}
 	if p.tickCount%options.G.Poller.ClearIntervalTick == 0 {
 		p.tickCount = 0
-		p.clear()
-	}
-}
-
-func (p *poller) clear() {
-	p.Lock()
-	defer p.Unlock()
-	p.waitlist.readHandlers(&p.tmpHandlers)
-	for _, h := range p.tmpHandlers {
-		if h.isTimeout() {
-			p.waitlist.remove(h.Uid)
+		for _, h := range p.tmpHandlers {
+			if h.isTimeout() {
+				p.waitlist.remove(h.Uid)
+			}
 		}
 	}
 
+	p.tmpHandlers = p.tmpHandlers[:0]
 }
 
 func (p *poller) handleEvents() {

@@ -35,6 +35,8 @@ func (h *Handler) routes() {
 	eventbus.RegisterUserHandlers(eventbus.EventConnClose, h.closeConn)
 	// 移除连接
 	eventbus.RegisterUserHandlers(eventbus.EventConnRemove, h.removeConn)
+	// 移除leader节点上的连接
+	eventbus.RegisterUserHandlers(eventbus.EventConnLeaderRemove, h.connLeaderRemove)
 
 }
 

@@ -89,6 +89,9 @@ func (m *managerServer) setRoutes() {
 	varz := newVarz(m.s)
 	varz.route(m.r)
 
+	conn := newConnApi(m.s)
+	conn.route(m.r)
+
 	// 管理者api
 	manager := newManager(m.s)
 	manager.route(m.r)

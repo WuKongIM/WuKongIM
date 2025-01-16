@@ -383,6 +383,30 @@ export default class API {
         })
     }
 
+    // 断开
+    public disconnect(req:{
+        uid:string,
+        nodeId:number,
+        connId:number,
+        opNodeId:number,
+    }) {
+        return APIClient.shared.post(`/conn/remove`,{
+            node_id: req.nodeId,
+            uid: req.uid,
+            conn_id: req.connId,
+            op_node_id: req.opNodeId,
+        })
+    }
+
+    // 踢出
+    public kick(req:{uid:string,nodeId:number,connId:number}) {
+        return APIClient.shared.post(`/conn/kick`,{
+            node_id: req.nodeId,
+            uid: req.uid,
+            conn_id: req.connId,
+        })
+    }
+
 }
 
 export class SystemSetting {
