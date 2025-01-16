@@ -20,11 +20,13 @@ const (
 	EventOnSend
 	// EventConnWriteFrame 写入frame
 	EventConnWriteFrame
-	// EventConnClose 连接关闭
+	// EventConnClose 连接关闭(移除逻辑连接并关闭真实连接)
 	EventConnClose
 
 	// EventConnRemove 连接移除, 仅仅只是移除本节点上的逻辑连接，
 	EventConnRemove
+	//	EventConnLeaderRemove 移除leader节点上的连接
+	EventConnLeaderRemove
 
 	// =================== 频道事件 ===================
 	// EventChannelOnSend 频道收到发送消息

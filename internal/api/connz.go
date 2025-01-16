@@ -244,6 +244,7 @@ type ConnInfo struct {
 	Version         uint8     `json:"version"`           // 客户端协议版本
 	ProxyTypeFormat string    `json:"proxy_type_format"` // 代理类型
 	LeaderId        uint64    `json:"leader_id"`         // 领导节点id
+	NodeId          uint64    `json:"node_id"`           // 连接源节点
 }
 
 func newConnInfo(connCtx *connzResp) *ConnInfo {
@@ -282,6 +283,7 @@ func newConnInfo(connCtx *connzResp) *ConnInfo {
 		Device:         device(connCtx),
 		DeviceID:       connCtx.DeviceId,
 		Version:        connCtx.ProtoVersion,
+		NodeId:         connCtx.NodeId,
 	}
 }
 

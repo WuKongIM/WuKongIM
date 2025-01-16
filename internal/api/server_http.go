@@ -88,7 +88,7 @@ func (s *apiServer) setRoutes() {
 	// route
 	rt := newRoute(s.s)
 	rt.route(s.r)
-	// conn
+	// connz
 	connz := newConnz(s.s)
 	connz.route(s.r)
 	// varz
@@ -97,6 +97,9 @@ func (s *apiServer) setRoutes() {
 	// user
 	user := newUser(s.s)
 	user.route(s.r)
+	// conn
+	conn := newConnApi(s.s)
+	conn.route(s.r)
 	// channel
 	ch := newChannel(s.s)
 	ch.route(s.r)

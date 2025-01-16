@@ -31,6 +31,8 @@ type userHandler struct {
 
 	// 是否正在处理
 	processing atomic.Bool
+
+	tickCount int64 // tick次数
 }
 
 func newUserHandler(uid string, poller *poller) *userHandler {
@@ -119,6 +121,26 @@ func (u *userHandler) advanceEvents(events []*eventbus.Event) {
 		u.poller.advance()
 	}
 
+}
+
+func (u *userHandler) tick() {
+	conns := u.conns.allConns()
+	u.tickCount++
+	if u.tickCount%10 == 0 {
+		u.checkInvalidConn(conns)
+	}
+}
+
+// 检查连无效连接
+func (u *userHandler) checkInvalidConn(conns []*eventbus.Conn) {
+	for _, conn := range conns {
+		if fasttime.UnixTimestamp()-conn.LastActive > uint64(options.G.ConnIdleTime.Seconds()) {
+			u.addEvent(&eventbus.Event{
+				Type: eventbus.EventConnRemove,
+				Conn: conn,
+			})
+		}
+	}
 }
 
 func (u *userHandler) leaderId(uid string) uint64 {
