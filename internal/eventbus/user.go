@@ -19,20 +19,32 @@ type IUser interface {
 	Advance(uid string)
 	// 查询连接信息
 	ConnsByUid(uid string) []*Conn
+	// AuthedConnsByUid 查询已认证的连接
 	AuthedConnsByUid(uid string) []*Conn
+	// ConnCountByUid 查询连接数量
 	ConnCountByUid(uid string) int
+	// ConnsByDeviceFlag 根据设备标识获取连接
 	ConnsByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) []*Conn
+	// ConnCountByDeviceFlag 根据设备标识获取连接数量
 	ConnCountByDeviceFlag(uid string, deviceFlag wkproto.DeviceFlag) int
+	// ConnById 获取指定节点和连接id的连接
 	ConnById(uid string, fromNode uint64, id int64) *Conn
+	// LocalConnById 获取本地连接
 	LocalConnById(uid string, id int64) *Conn
+	// LocalConnByUid 获取本地连接
 	LocalConnByUid(uid string) []*Conn
+
+	// RemoveConn 移除连接
 	RemoveConn(conn *Conn)
 
 	// UpdateConn 更新连接
 	UpdateConn(conn *Conn)
-
+	// AllUserCount 所有用户数量
 	AllUserCount() int
+	// AllConnCount 所有连接数量
 	AllConnCount() int
+	// AllConn 获取所有连接
+	AllConn() []*Conn
 }
 
 type userPlus struct {
@@ -144,4 +156,8 @@ func (u *userPlus) AllUserCount() int {
 
 func (u *userPlus) AllConnCount() int {
 	return u.user.AllConnCount()
+}
+
+func (u *userPlus) AllConn() []*Conn {
+	return u.user.AllConn()
 }

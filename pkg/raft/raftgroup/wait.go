@@ -26,20 +26,16 @@ func (m *wait) waitApply(key string, maxIndex uint64) *progress {
 	return m.buckets[m.bucketIndex(key)].waitApply(key, maxIndex)
 }
 
-func (m *wait) waitCommit(key string, maxIndex uint64) *progress {
-	return m.buckets[m.bucketIndex(key)].waitCommit(key, maxIndex)
-}
-
-func (m *wait) didCommit(key string, maxLogIndex uint64) {
-	m.buckets[m.bucketIndex(key)].didCommit(key, maxLogIndex)
-}
-
 func (m *wait) didApply(key string, maxLogIndex uint64) {
 	m.buckets[m.bucketIndex(key)].didApply(key, maxLogIndex)
 }
 
 func (m *wait) bucketIndex(key string) int {
 	return int(fnv32(key) % uint32(len(m.buckets)))
+}
+
+func (m *wait) put(progress *progress) {
+	m.buckets[m.bucketIndex(progress.key)].put(progress)
 }
 
 func fnv32(key string) uint32 {
@@ -60,64 +56,75 @@ type waitBucket struct {
 	wklog.Log
 
 	progresses []*progress
+
+	progressPool sync.Pool
 }
 
 func newWaitBucket(i int) *waitBucket {
 	return &waitBucket{
 		Log:        wklog.NewWKLog(fmt.Sprintf("applyWait[%d]", i)),
 		progresses: make([]*progress, 0),
+		progressPool: sync.Pool{
+			New: func() interface{} {
+				return &progress{}
+			},
+		},
 	}
 }
 
 func (m *waitBucket) waitApply(key string, maxIndex uint64) *progress {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	progress := newApplyProgress(key, maxIndex)
+	progress := m.progressPool.Get().(*progress)
+	progress.key = key
+	progress.maxIndex = maxIndex
+	progress.waitApplied = true
+	progress.done = false
+	progress.waitC = make(chan struct{}, 1)
 	m.progresses = append(m.progresses, progress)
 	return progress
 
 }
 
-func (m *waitBucket) waitCommit(key string, maxIndex uint64) *progress {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	progress := newCommitProgress(key, maxIndex)
-	m.progresses = append(m.progresses, progress)
-	return progress
-}
+// func (m *waitBucket) waitCommit(key string, maxIndex uint64) *progress {
+// 	m.mu.Lock()
+// 	defer m.mu.Unlock()
+// 	progress := newCommitProgress(key, maxIndex)
+// 	m.progresses = append(m.progresses, progress)
+// 	return progress
+// }
 
-// didCommit 提交 maxLogIndex已提交的最大日志下标
-func (m *waitBucket) didCommit(key string, maxLogIndex uint64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	hasDone := false
-	for _, progress := range m.progresses {
+// // didCommit 提交 maxLogIndex已提交的最大日志下标
+// func (m *waitBucket) didCommit(key string, maxLogIndex uint64) {
+// 	m.mu.Lock()
+// 	defer m.mu.Unlock()
+// 	hasDone := false
+// 	for _, progress := range m.progresses {
 
-		if progress.done || !progress.waitCommittied {
-			continue
-		}
-		if progress.key != key {
-			continue
-		}
+// 		if progress.done || !progress.waitCommittied {
+// 			continue
+// 		}
+// 		if progress.key != key {
+// 			continue
+// 		}
 
-		if maxLogIndex >= progress.maxIndex {
-			hasDone = true
-			progress.done = true
-			progress.waitC <- struct{}{}
-			close(progress.waitC)
-		}
-	}
-	// 清理已完成的
-	if hasDone {
-		m.clean()
-	}
-}
+// 		if maxLogIndex >= progress.maxIndex {
+// 			hasDone = true
+// 			progress.done = true
+// 			progress.waitC <- struct{}{}
+// 			close(progress.waitC)
+// 		}
+// 	}
+// 	// 清理已完成的
+// 	if hasDone {
+// 		m.clean()
+// 	}
+// }
 
 func (m *waitBucket) didApply(key string, maxLogIndex uint64) {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// hasDone := false
 
 	for _, progress := range m.progresses {
 
@@ -128,18 +135,19 @@ func (m *waitBucket) didApply(key string, maxLogIndex uint64) {
 		if progress.done || !progress.waitApplied {
 			continue
 		}
-		if maxLogIndex >= progress.maxIndex {
-			// hasDone = true
+		if maxLogIndex >= progress.maxIndex && progress.waitC != nil {
 			progress.done = true
 			progress.waitC <- struct{}{}
 			close(progress.waitC)
 		}
 	}
+	// 清理
+	m.clean()
+}
 
-	// 清理已完成的
-	// if hasDone {
-	// 	m.clean()
-	// }
+func (m *waitBucket) put(progress *progress) {
+	progress.reset()
+	m.progressPool.Put(progress)
 }
 
 // 清理已完成的
@@ -160,32 +168,21 @@ type progress struct {
 
 	// 等待应用
 	waitApplied bool
-	// 等待提交
-	waitCommittied bool
 
 	done bool
 
 	key string
 }
 
-func newApplyProgress(key string, maxIndex uint64) *progress {
-	return &progress{
-		maxIndex:    maxIndex,
-		waitC:       make(chan struct{}, 1),
-		waitApplied: true,
-		key:         key,
-	}
-}
+func (p *progress) reset() {
+	p.done = false
+	p.maxIndex = 0
+	p.waitApplied = false
+	p.key = ""
+	p.waitC = nil
 
-func newCommitProgress(key string, maxIndex uint64) *progress {
-	return &progress{
-		key:            key,
-		maxIndex:       maxIndex,
-		waitC:          make(chan struct{}, 1),
-		waitCommittied: true,
-	}
 }
 
 func (p *progress) String() string {
-	return fmt.Sprintf("key:%s, maxIndex:%d, waitApplied:%v, waitCommittied:%v, done:%v", p.key, p.maxIndex, p.waitApplied, p.waitCommittied, p.done)
+	return fmt.Sprintf("key:%s, maxIndex:%d, waitApplied:%v, done:%v", p.key, p.maxIndex, p.waitApplied, p.done)
 }

@@ -92,6 +92,14 @@ func (e *EventPool) LocalConnByUid(uid string) []*eventbus.Conn {
 	return e.pollerByUid(uid).localConnByUid(uid)
 }
 
+func (e *EventPool) AllConn() []*eventbus.Conn {
+	var conns []*eventbus.Conn
+	for _, p := range e.pollers {
+		conns = append(conns, p.allConn()...)
+	}
+	return conns
+}
+
 func (e *EventPool) UpdateConn(conn *eventbus.Conn) {
 	e.pollerByUid(conn.Uid).updateConn(conn)
 }

@@ -79,7 +79,7 @@ func NewOptions(opt ...Option) *Options {
 		SuspendAfterEmptySyncTick:  10,
 		AutoSuspend:                false,
 		AutoDestory:                false,
-		DestoryAfterIdleTick:       10 * 60 * 60, // 如果TickInterval是100ms, 那么10 * 60 * 60这个值是1小时，具体时间根据TickInterval来定
+		DestoryAfterIdleTick:       10 * 60 * 30, // 如果TickInterval是100ms, 那么10 * 60 * 30这个值是30分钟，具体时间根据TickInterval来定
 	}
 
 	for _, o := range opt {

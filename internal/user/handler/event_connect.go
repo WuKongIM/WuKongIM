@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -24,6 +25,9 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 			return
 		}
 		if reasonCode == wkproto.ReasonSuccess {
+			if conn.LastActive <= 0 {
+				conn.LastActive = fasttime.UnixTimestamp()
+			}
 			ctx.AddConn(conn)
 		}
 		connackEvent := &eventbus.Event{

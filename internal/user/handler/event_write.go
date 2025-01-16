@@ -23,6 +23,8 @@ func (h *Handler) writeFrame(ctx *eventbus.UserContext) {
 		}
 		// 如果不是本地节点，则转发写请求
 		if !options.G.IsLocalNode(conn.NodeId) {
+			// 统计
+			h.totalOut(conn, frame)
 			h.forwardsToNode(conn.NodeId, conn.Uid, []*eventbus.Event{event})
 			continue
 		}
@@ -39,21 +41,15 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 	if err != nil {
 		h.Error("writeFrame: encode frame err", zap.Error(err))
 	}
-
+	// 统计
+	h.totalOut(conn, frame)
 	// 记录消息路径
 	event.Track.Record(track.PositionConnWrite)
-
-	// 统计发送消息数（TODO: 这里不准，暂时视包数为消息数）
-	conn.OutMsgCount.Add(1)
-	conn.OutMsgByteCount.Add(int64(len(data)))
-	// 统计发送包数
-	conn.OutPacketCount.Add(1)
-	conn.OutPacketByteCount.Add(int64(len(data)))
 
 	// 获取到真实连接
 	realConn := service.ConnManager.GetConn(conn.ConnId)
 	if realConn == nil {
-		h.Info("writeFrame: conn not exist", zap.String("uid", conn.Uid), zap.Uint64("nodeId", conn.NodeId), zap.Int64("connId", conn.ConnId))
+		h.Info("writeFrame: conn not exist", zap.String("uid", conn.Uid), zap.Uint64("nodeId", conn.NodeId), zap.Int64("connId", conn.ConnId), zap.Uint64("sourceNodeId", event.SourceNodeId))
 		// 如果连接不存在了，并且写入事件是其他节点发起的，说明其他节点还不知道连接已经关闭，需要通知其他节点关闭连接
 		if event.SourceNodeId != 0 && !options.G.IsLocalNode(event.SourceNodeId) {
 			h.forwardToNode(event.SourceNodeId, conn.Uid, &eventbus.Event{
@@ -61,6 +57,8 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 				Conn:         conn,
 				SourceNodeId: options.G.Cluster.NodeId,
 			})
+		} else if event.SourceNodeId == 0 || options.G.IsLocalNode(event.SourceNodeId) { // 如果是本节点事件，直接删除连接
+			eventbus.User.RemoveConn(conn)
 		}
 		return
 	}

@@ -45,9 +45,11 @@ type Conn struct {
 	AesKey []byte
 	// 连接的通讯协议版本
 	ProtoVersion uint8
-
 	// 启动时间
 	Uptime uint64
+
+	// 不参与编码
+	LastActive uint64 // 最后一次活动时间单位秒
 }
 
 func (c *Conn) Encode() ([]byte, error) {

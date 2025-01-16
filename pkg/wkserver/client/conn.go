@@ -216,7 +216,7 @@ func (c *conn) onTraffic(gc gnet.Conn) gnet.Action {
 	}
 
 	if batchCount == c.c.batchRead && gc.InboundBuffered() > 0 {
-		if gc.InboundBuffered() > 100000 {
+		if gc.InboundBuffered() > 1024*1024 {
 			c.Warn("client: inbound buffered is too large", zap.Int("buffered", gc.InboundBuffered()))
 		}
 		if err := gc.Wake(nil); err != nil { // 这里调用wake避免丢失剩余的数据
