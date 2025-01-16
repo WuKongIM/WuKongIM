@@ -70,7 +70,7 @@ func NewNode(lastTermStartLogIndex uint64, raftState types.RaftState, opts *Opti
 		n.cfg.Term = raftState.LastTerm
 	}
 	// 初始化日志队列
-	n.queue = newQueue(opts.Key, raftState.AppliedIndex, raftState.LastLogIndex, opts.NodeId)
+	n.queue = newQueue(opts.Key, raftState.AppliedIndex, raftState.LastLogIndex)
 
 	// 初始化选举状态
 	n.votes = make(map[uint64]bool)
