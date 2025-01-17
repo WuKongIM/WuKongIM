@@ -1,7 +1,6 @@
 package event
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
@@ -11,7 +10,6 @@ import (
 // 分布式初始化事件
 func (h *handler) handleClusterInit() {
 
-	fmt.Println("handleClusterInit--->")
 	cfg := &types.Config{
 		SlotCount:           h.cfgOptions.SlotCount,
 		SlotReplicaCount:    h.cfgOptions.SlotMaxReplicaCount,

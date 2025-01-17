@@ -114,11 +114,6 @@ const onMessageIdSearch = (e: any) => {
     searchMessages()
 }
 
-const onPayloadSearch = (e: any) => {
-    payload.value = e.target.value
-    resetFilter()
-    searchMessages()
-}
 
 const onClientMsgNoSearch = (e: any) => {
     clientMsgNo.value = e.target.value
@@ -229,12 +224,6 @@ const onMessageTrace = (clientMsgNo: string) => {
                         </option>
                     </select>
                 </div> -->
-                <!-- 消息内容 -->
-                <div class="text-sm ml-10">
-                    <label>消息内容</label>
-                    <input type="text" placeholder="输入" class="input input-bordered  select-sm ml-2"
-                        v-on:change="onPayloadSearch" />
-                </div>
                 <!-- 客户端唯一编号 -->
                 <div class="text-sm ml-10">
                     <label>客户端唯一编号</label>

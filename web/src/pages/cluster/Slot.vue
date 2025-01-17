@@ -129,10 +129,6 @@ const onMigrate = () => {
         <div class="overflow-x-auto h-5/6">
             <div class="flex">
                 <div class="text-sm ml-3">
-                    <button class="btn" :onclick="() => { onSort('channel_count') }">按频道数量排序</button>
-                </div>
-
-                <div class="text-sm ml-3">
                     <button class="btn" :onclick="() => { onSort('log_index') }">日志高度</button>
                 </div>
             </div>
@@ -144,7 +140,6 @@ const onMigrate = () => {
                         <th>领导节点</th>
                         <th>任期</th>
                         <th>副本节点</th>
-                        <th>频道数量</th>
                         <th>日志高度</th>
                         <th>状态</th>
                         <th>操作</th>
@@ -157,7 +152,6 @@ const onMigrate = () => {
                         <td>{{ slot.leader_id }}</td>
                         <td>{{ slot.term }}</td>
                         <td>{{ slot.replicas }}</td>
-                        <td>{{ slot.channel_count }}</td>
                         <td>{{slot.log_index}}</td>
                         <td :class="slot.status===0?'text-green-500':'text-red-500'">{{slot.status_format}}</td>
                         <td class="flex flex-wrap gap-2">
