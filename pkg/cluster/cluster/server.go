@@ -87,7 +87,9 @@ func New(opts *Options) *Server {
 		opts.ConfigOptions.Transport = newNodeTransport(s)
 	}
 
-	s.onMessagePool, _ = ants.NewPool(10000, ants.WithNonblocking(true))
+	s.onMessagePool, _ = ants.NewPool(10000, ants.WithNonblocking(true), ants.WithPanicHandler(func(err interface{}) {
+		s.Foucs("message pool panic", zap.Stack("stack"), zap.Any("err", err))
+	}))
 
 	s.rpcServer = newRpcServer(s)
 	s.rpcClient = newRpcClient(s)

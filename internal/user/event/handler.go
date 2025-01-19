@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
@@ -33,6 +34,9 @@ type userHandler struct {
 	processing atomic.Bool
 
 	tickCount int64 // tick次数
+
+	// 是否已统计
+	stat bool
 }
 
 func newUserHandler(uid string, poller *poller) *userHandler {
@@ -43,6 +47,7 @@ func newUserHandler(uid string, poller *poller) *userHandler {
 		lastActive: fasttime.UnixTimestamp(),
 		conns:      newConns(),
 		Log:        wklog.NewWKLog(fmt.Sprintf("userHandler[%s]", uid)),
+		stat:       false,
 	}
 	uh.pending.eventQueue = eventbus.NewEventQueue(fmt.Sprintf("user:%s", uid))
 	return uh
@@ -93,10 +98,17 @@ func (u *userHandler) advanceEvents(events []*eventbus.Event) {
 		u.processing.Store(false)
 	}()
 
-	slotLeaderId := u.leaderId(u.Uid)
+	slotLeaderId := u.leaderId()
 	if slotLeaderId == 0 {
 		u.Error("advanceEvents: slotLeaderId is 0", zap.String("uid", u.Uid))
 		return
+	}
+
+	// 统计在线用户数
+	if !u.stat && options.G.IsLocalNode(slotLeaderId) {
+		trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(1)
+		fmt.Println("advanceEvents-uid------>", u.Uid)
+		u.stat = true
 	}
 
 	// 按类型分组
@@ -143,8 +155,8 @@ func (u *userHandler) checkInvalidConn(conns []*eventbus.Conn) {
 	}
 }
 
-func (u *userHandler) leaderId(uid string) uint64 {
-	slotId := service.Cluster.GetSlotId(uid)
+func (u *userHandler) leaderId() uint64 {
+	slotId := service.Cluster.GetSlotId(u.Uid)
 	leaderId := service.Cluster.SlotLeaderId(slotId)
 	return leaderId
 }
