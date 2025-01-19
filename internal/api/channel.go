@@ -251,6 +251,8 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 	}
 	if len(newSubscribers) > 0 {
+
+		// TODO: 消息应该去频道的领导节点获取
 		lastMsgSeq, err := service.Store.GetLastMsgSeq(req.ChannelId, req.ChannelType)
 		if err != nil {
 			ch.Error("获取最大消息序号失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
@@ -338,10 +340,36 @@ func (ch *channel) updateTagBySubscribers(channelId string, channelType uint8, s
 		}
 	}
 
-	updateTag(channelId, channelType)
+	// 获取频道的领导节点
+	leaderId, err := service.Cluster.LeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		ch.Error("updateTagByAddSubscribers: get leader id failed", zap.Error(err))
+		return err
+	}
+	if leaderId == 0 {
+		ch.Error("updateTagByAddSubscribers: leader id is 0")
+		return nil
+	}
+
+	if options.G.IsLocalNode(leaderId) {
+		updateTag(channelId, channelType)
+	} else {
+		err = ch.s.client.UpdateTag(leaderId, &ingress.TagUpdateReq{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+			Uids:        subscribers,
+			Remove:      remove,
+			ChannelTag:  true,
+		})
+		if err != nil {
+			ch.Error("updateTagByAddSubscribers: updateOrMakeTag failed", zap.Error(err))
+			return err
+		}
+	}
 
 	// 更新cmd频道的tag
 	cmdChannelId := options.G.OrginalConvertCmdChannel(channelId)
+	// 获取或请求cmd频道的分布式配置
 	cfg, err := service.Cluster.LoadOnlyChannelClusterConfig(cmdChannelId, channelType)
 	if err != nil && err != wkdb.ErrNotFound {
 		ch.Info("updateTagByAddSubscribers: loadOnlyChannelClusterConfig failed", zap.Error(err))
