@@ -107,7 +107,6 @@ func (u *userHandler) advanceEvents(events []*eventbus.Event) {
 	// 统计在线用户数
 	if !u.stat && options.G.IsLocalNode(slotLeaderId) {
 		trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(1)
-		fmt.Println("advanceEvents-uid------>", u.Uid)
 		u.stat = true
 	}
 
