@@ -2,6 +2,7 @@ package manager
 
 import (
 	"hash/fnv"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/errors"
@@ -19,6 +20,7 @@ type TagManager struct {
 	// 获取当前节点版本号
 	nodeVersion func() uint64
 	wklog.Log
+	sync.RWMutex
 }
 
 func NewTagManager(blucketCount int, nodeVersion func() uint64) *TagManager {
@@ -83,6 +85,10 @@ func (t *TagManager) MakeTagNotCacheWithTagKey(tagKey string, uids []string) (*t
 }
 
 func (t *TagManager) AddUsers(tagKey string, uids []string) error {
+
+	t.Lock()
+	defer t.Unlock()
+
 	tag := t.getTag(tagKey)
 	if tag == nil {
 		return errors.TagNotExist(tagKey)
@@ -115,6 +121,10 @@ func (t *TagManager) removeExistUidsInTag(tag *types.Tag, uids []string) {
 }
 
 func (t *TagManager) RemoveUsers(tagKey string, uids []string) error {
+
+	t.Lock()
+	defer t.Unlock()
+
 	tag := t.getTag(tagKey)
 	if tag == nil {
 		return errors.TagNotExist(tagKey)
