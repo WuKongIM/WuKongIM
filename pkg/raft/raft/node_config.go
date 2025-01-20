@@ -16,7 +16,7 @@ func (n *Node) switchConfig(newCfg types.Config) error {
 
 	if newCfg.Term != 0 && newCfg.Term < oldCfg.Term {
 		n.Error("term is lower than current term", zap.Uint32("newTerm", newCfg.Term), zap.Uint32("currentTerm", oldCfg.Term))
-		return errors.New("term is lower than current term")
+		newCfg.Term = oldCfg.Term
 	}
 
 	if newCfg.Term == 0 {
