@@ -77,9 +77,9 @@ func (s *Server) slotToConfig(st *types.Slot) rafttype.Config {
 		MigrateTo:   st.MigrateTo,
 		Replicas:    st.Replicas,
 		Learners:    st.Learners,
-		// Term:        st.Term, // 不需要设置term，不设置表示使用当前term，types.Slot的term只是应用的最新的term，不表示是日志的term
-		Leader: st.Leader,
-		Role:   role,
+		Term:        st.Term,
+		Leader:      st.Leader,
+		Role:        role,
 	}
 
 	return cfg

@@ -80,8 +80,8 @@ func channelConfigToRaftConfig(currentNodeId uint64, cfg wkdb.ChannelClusterConf
 		MigrateTo:   cfg.MigrateTo,
 		Replicas:    cfg.Replicas,
 		Learners:    cfg.Learners,
-		// Term:        cfg.Term,
-		Leader: cfg.LeaderId,
-		Role:   role,
+		Term:        cfg.Term,
+		Leader:      cfg.LeaderId,
+		Role:        role,
 	}
 }
