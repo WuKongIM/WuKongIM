@@ -170,6 +170,7 @@ func (n *Node) stepLeader(e types.Event) error {
 		types.LearnerToLeaderResp,
 		types.FollowerToLeaderResp:
 
+		n.stopPropose = false
 		syncInfo := n.replicaSync[e.From]
 		if syncInfo == nil {
 			n.Error("role switch error,syncInfo not exist", zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.String("type", e.Type.String()))
