@@ -164,7 +164,7 @@ func (s *Server) MustWaitNodeOffline(nodeId uint64) {
 	for {
 		select {
 		case <-tk.C:
-			nodes := s.clusterServer.GetConfig().Nodes
+			nodes := s.clusterServer.Nodes()
 			if len(nodes) > 0 {
 				for _, node := range nodes {
 					if node.Id == nodeId && !node.Online {

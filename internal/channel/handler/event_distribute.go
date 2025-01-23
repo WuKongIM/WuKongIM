@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -22,7 +24,7 @@ func (h *Handler) distribute(ctx *eventbus.ChannelContext) {
 
 	// 消息分发
 	if options.G.IsOnlineCmdChannel(ctx.ChannelId) {
-		// 分发cmd消息
+		// 分发在线cmd消息
 		h.distributeOnlineCmd(ctx)
 	} else {
 		// 分发普通消息
@@ -122,14 +124,14 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 			if options.G.IsSystemUid(uid) {
 				continue
 			}
-			if !h.isOnline(uid) {
-				continue
-			}
 			if !h.masterDeviceIsOnline(uid) {
 				if offlineUids == nil {
 					offlineUids = make([]string, 0, len(node.Uids))
 				}
 				offlineUids = append(offlineUids, uid)
+			}
+			if !h.isOnline(uid) {
+				continue
 			}
 
 			for _, event := range events {
@@ -182,9 +184,15 @@ func (h *Handler) getCommonTag(ctx *eventbus.ChannelContext) (*types.Tag, error)
 
 	// 如果当前节点是频道的领导者节点，则可以make tag
 	if options.G.IsLocalNode(ctx.LeaderId) {
-		return h.getOrMakeTag(ctx.ChannelId, ctx.ChannelType)
+		return h.getOrMakeTagForLeader(ctx.ChannelId, ctx.ChannelType)
 	}
 	tagKey := ctx.Events[0].TagKey
+
+	// 判断当前的频道tag是否等于tagKey,如果不等于则删除旧的tag
+	oldTagKey := service.TagManager.GetChannelTag(ctx.ChannelId, ctx.ChannelType)
+	if oldTagKey != "" && oldTagKey != tagKey {
+		service.TagManager.RemoveTag(oldTagKey)
+	}
 	tag, err := h.commonService.GetOrRequestAndMakeTagWithLocal(ctx.ChannelId, ctx.ChannelType, tagKey)
 	if err != nil {
 		h.Error("processDiffuse: get tag failed", zap.Error(err), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType), zap.String("tagKey", tagKey))
@@ -217,33 +225,22 @@ func (h *Handler) requestTag(leaderId uint64, tagKey string) (*types.Tag, error)
 	return tag, nil
 }
 
-func (h *Handler) getOrMakeTag(fakeChannelId string, channelType uint8) (*types.Tag, error) {
+func (h *Handler) getOrMakeTagForLeader(fakeChannelId string, channelType uint8) (*types.Tag, error) {
 	var (
-		tag              *types.Tag
-		err              error
-		orgFakeChannelId string = fakeChannelId
+		tag *types.Tag
+		err error
 	)
-	if options.G.IsCmdChannel(fakeChannelId) {
-		orgFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
-	}
-	tagKey := service.TagManager.GetChannelTag(orgFakeChannelId, channelType)
+
+	tagKey := service.TagManager.GetChannelTag(fakeChannelId, channelType)
 	if tagKey != "" {
 		tag = service.TagManager.Get(tagKey)
 	}
 	if tag == nil {
-		// 如果是命令频道，不能创建tag，只能去原频道获取
-		if options.G.IsCmdChannel(fakeChannelId) {
-			tag, err = h.commonService.GetOrRequestAndMakeTag(orgFakeChannelId, channelType, tagKey, 0)
-			if err != nil {
-				h.Error("processMakeTag: getOrRequestAndMakeTag failed", zap.Error(err), zap.String("tagKey", tagKey), zap.String("orgFakeChannelId", orgFakeChannelId))
-				return nil, err
-			}
-		} else {
-			tag, err = h.makeChannelTag(orgFakeChannelId, channelType)
-			if err != nil {
-				h.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("tagKey", tagKey))
-				return nil, err
-			}
+		// 如果没有则制作tag
+		tag, err = h.makeChannelTag(fakeChannelId, channelType)
+		if err != nil {
+			h.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("tagKey", tagKey))
+			return nil, err
 		}
 
 	}
@@ -253,18 +250,66 @@ func (h *Handler) getOrMakeTag(fakeChannelId string, channelType uint8) (*types.
 func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*types.Tag, error) {
 
 	var (
-		subscribers      []string
-		orgFakeChannelId string = fakeChannelId
+		subscribers []string
 	)
 
-	if options.G.IsCmdChannel(fakeChannelId) {
-		// 处理命令频道
-		orgFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
-	}
 	if channelType == wkproto.ChannelTypePerson { // 个人频道
+		var orgFakeChannelId = fakeChannelId
+		if options.G.IsCmdChannel(fakeChannelId) {
+			// 处理命令频道
+			orgFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
+		}
 		u1, u2 := options.GetFromUIDAndToUIDWith(orgFakeChannelId)
 		subscribers = append(subscribers, u1, u2)
 	} else {
+
+		// 如果是cmd频道需要去对应的源频道获取订阅者来制作tag
+		if options.G.IsCmdChannel(fakeChannelId) {
+			var err error
+			subscribers, err = h.getCmdSubscribers(fakeChannelId, channelType)
+			if err != nil {
+				h.Error("processMakeTag: getCmdSubscribers failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+				return nil, err
+			}
+		} else {
+			members, err := service.Store.GetSubscribers(fakeChannelId, channelType)
+			if err != nil {
+				h.Error("processMakeTag: getSubscribers failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+				return nil, err
+			}
+			for _, member := range members {
+				subscribers = append(subscribers, member.Uid)
+			}
+		}
+
+	}
+	tag, err := service.TagManager.MakeTag(subscribers)
+	if err != nil {
+		h.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		return nil, err
+	}
+	service.TagManager.SetChannelTag(fakeChannelId, channelType, tag.Key)
+	return tag, nil
+}
+
+// 获取cmd频道的订阅者
+func (h *Handler) getCmdSubscribers(channelId string, channelType uint8) ([]string, error) {
+	// 原频道id
+	orgFakeChannelId := options.G.CmdChannelConvertOrginalChannel(channelId)
+	// 获取原频道的领导节点id
+	leaderNode, err := service.Cluster.LeaderOfChannelForRead(orgFakeChannelId, channelType)
+	if err != nil {
+		h.Error("processMakeTag: get leaderNode failed", zap.Error(err), zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
+		return nil, err
+	}
+	if leaderNode == nil {
+		h.Error("processMakeTag: leaderNode is nil", zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
+		return nil, errors.New("leaderNode is nil")
+	}
+	leaderId := leaderNode.Id
+	// 如果是本地节点，则直接获取订阅者
+	var subscribers []string
+	if options.G.IsLocalNode(leaderId) {
 		members, err := service.Store.GetSubscribers(orgFakeChannelId, channelType)
 		if err != nil {
 			h.Error("processMakeTag: getSubscribers failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
@@ -273,14 +318,15 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 		for _, member := range members {
 			subscribers = append(subscribers, member.Uid)
 		}
+	} else {
+		// 如果不是本地节点，则去请求领导节点获取订阅者
+		subscribers, err = h.client.RequestSubscribers(leaderId, orgFakeChannelId, channelType)
+		if err != nil {
+			h.Error("processMakeTag: requestSubscribers failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
+			return nil, err
+		}
 	}
-	tag, err := service.TagManager.MakeTag(subscribers)
-	if err != nil {
-		h.Error("processMakeTag: makeTag failed", zap.Error(err), zap.String("orgFakeChannelId", orgFakeChannelId), zap.Uint8("channelType", channelType))
-		return nil, err
-	}
-	service.TagManager.SetChannelTag(orgFakeChannelId, channelType, tag.Key)
-	return tag, nil
+	return subscribers, nil
 }
 
 func (h *Handler) isOnline(uid string) bool {

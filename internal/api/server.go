@@ -39,7 +39,11 @@ func (s *Server) Start() error {
 
 	s.timingWheel.Start()
 	s.apiServer.start()
-	s.managerServer.start()
+
+	if options.G.Manager.On {
+		s.managerServer.start()
+	}
+
 	// 判断是否开启迁移任务
 	if strings.TrimSpace(options.G.OldV1Api) != "" {
 		s.migrateTask.Run()
@@ -51,7 +55,9 @@ func (s *Server) Start() error {
 func (s *Server) Stop() {
 	s.timingWheel.Stop()
 	s.apiServer.stop()
-	s.managerServer.stop()
+	if options.G.Manager.On {
+		s.managerServer.stop()
+	}
 }
 
 // Schedule 延迟任务

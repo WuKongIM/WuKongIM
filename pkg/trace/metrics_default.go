@@ -32,7 +32,7 @@ func newMetrics(opts *Options) *metrics {
 		cluster: newClusterMetrics(opts),
 		app:     newAppMetrics(opts),
 		system:  newSystemMetrics(opts),
-		db:      newDBMetrics(opts),
+		db:      NewDBMetrics(),
 		opts:    opts,
 		Log:     wklog.NewWKLog("Metrics"),
 	}

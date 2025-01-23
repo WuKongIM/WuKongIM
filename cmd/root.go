@@ -19,6 +19,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/server"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -33,6 +34,7 @@ var (
 	daemon              bool
 	pidfile             string = "wukongim.pid"
 	pingback            string // pingback地址
+	noStdout            bool
 	installDir          string
 	initialed           bool // 是否已经初始化成功
 	rootCmd             = &cobra.Command{
@@ -59,6 +61,7 @@ func init() {
 	// 后台运行
 	rootCmd.PersistentFlags().BoolVarP(&daemon, "daemon", "d", false, "run in daemon mode")
 	rootCmd.PersistentFlags().StringVar(&pingback, "pingback", "", "pingback address")
+	rootCmd.PersistentFlags().BoolVarP(&noStdout, "noStdout", "", false, "no stdout")
 
 }
 
@@ -100,15 +103,15 @@ func cmdRun() error {
 	logOpts.LineNum = serverOpts.Logger.LineNum
 	logOpts.NodeId = serverOpts.Cluster.NodeId
 	logOpts.TraceOn = serverOpts.Logger.TraceOn
+	logOpts.NoStdout = noStdout
 	wklog.Configure(logOpts)
 
-	s := server.New(serverOpts)
 	if daemon { // 后台运行
 		// 以子进程方式启动
 		fmt.Println("start as child process")
 		startAsChildProcess()
 	} else {
-
+		s := server.New(serverOpts)
 		err := s.Start()
 		if err != nil {
 			wklog.Error("start server error", zap.Error(err))
@@ -159,6 +162,10 @@ func newRunCmd(listener net.Listener) (*exec.Cmd, error) {
 			continue
 		}
 		newArgs = append(newArgs, arg)
+	}
+
+	if !wkutil.ArrayContains(newArgs, "--noStdout") {
+		newArgs = append(newArgs, "--noStdout")
 	}
 
 	cmd := exec.Command(filePath, newArgs...)

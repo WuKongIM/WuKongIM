@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -228,6 +227,10 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 			ch.Error("移除所有订阅者失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
+		tagKey := service.TagManager.GetChannelTag(req.ChannelId, req.ChannelType)
+		if tagKey != "" {
+			service.TagManager.RemoveTag(tagKey)
+		}
 	} else {
 		members, err := service.Store.GetSubscribers(req.ChannelId, req.ChannelType)
 		if err != nil {
@@ -248,6 +251,8 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 	}
 	if len(newSubscribers) > 0 {
+
+		// TODO: 消息应该去频道的领导节点获取
 		lastMsgSeq, err := service.Store.GetLastMsgSeq(req.ChannelId, req.ChannelType)
 		if err != nil {
 			ch.Error("获取最大消息序号失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
@@ -335,13 +340,39 @@ func (ch *channel) updateTagBySubscribers(channelId string, channelType uint8, s
 		}
 	}
 
-	updateTag(channelId, channelType)
+	// 获取频道的领导节点
+	leaderId, err := service.Cluster.LeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		ch.Error("updateTagByAddSubscribers: get leader id failed", zap.Error(err))
+		return err
+	}
+	if leaderId == 0 {
+		ch.Error("updateTagByAddSubscribers: leader id is 0")
+		return nil
+	}
+
+	if options.G.IsLocalNode(leaderId) {
+		updateTag(channelId, channelType)
+	} else {
+		err = ch.s.client.UpdateTag(leaderId, &ingress.TagUpdateReq{
+			ChannelId:   channelId,
+			ChannelType: channelType,
+			Uids:        subscribers,
+			Remove:      remove,
+			ChannelTag:  true,
+		})
+		if err != nil {
+			ch.Error("updateTagByAddSubscribers: updateOrMakeTag failed", zap.Error(err))
+			return err
+		}
+	}
 
 	// 更新cmd频道的tag
 	cmdChannelId := options.G.OrginalConvertCmdChannel(channelId)
+	// 获取或请求cmd频道的分布式配置
 	cfg, err := service.Cluster.LoadOnlyChannelClusterConfig(cmdChannelId, channelType)
-	if err != nil && err != cluster.ErrChannelClusterConfigNotFound {
-		ch.Info("updateTagByAddSubscribers: loadOnlyChannelClusterConfig failed")
+	if err != nil && err != wkdb.ErrNotFound {
+		ch.Info("updateTagByAddSubscribers: loadOnlyChannelClusterConfig failed", zap.Error(err))
 		return nil
 	}
 	if cfg.LeaderId == 0 { // 说明频道还没选举过，不存在被激活，这里无需去创建tag了
@@ -469,9 +500,7 @@ func (ch *channel) setTmpSubscriber(c *wkhttp.Context) {
 		return
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	leaderInfo, err := service.Cluster.LeaderOfChannel(timeoutCtx, req.ChannelId, wkproto.ChannelTypeTemp) // 获取频道的领导节点
-	cancel()
+	leaderInfo, err := service.Cluster.LeaderOfChannel(req.ChannelId, wkproto.ChannelTypeTemp) // 获取频道的领导节点
 	if err != nil {
 		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", wkproto.ChannelTypeTemp))
 		c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -497,9 +526,6 @@ func setTmpSubscriberWithReq(req tmpSubscriberSetReq) error {
 	tag, err := service.TagManager.MakeTag(req.Uids)
 	if err != nil {
 		return err
-	}
-	if options.G.IsCmdChannel(req.ChannelId) {
-		req.ChannelId = options.G.CmdChannelConvertOrginalChannel(req.ChannelId)
 	}
 	service.TagManager.SetChannelTag(req.ChannelId, wkproto.ChannelTypeTemp, tag.Key)
 	return nil
@@ -933,7 +959,7 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelID = options.GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
 	}
-	leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelID, req.ChannelType) // 获取频道的领导节点
+	leaderInfo, err := service.Cluster.LeaderOfChannel(fakeChannelID, req.ChannelType) // 获取频道的领导节点
 	if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
 		ch.Info("空频道，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
 		c.JSON(http.StatusOK, emptySyncMessageResp)

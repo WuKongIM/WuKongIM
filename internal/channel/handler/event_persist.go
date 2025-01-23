@@ -37,8 +37,8 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		if reasonCode == wkproto.ReasonSuccess {
 			for _, e := range events {
 				for _, result := range results {
-					if result.LogId() == uint64(e.MessageId) {
-						e.MessageSeq = result.LogIndex()
+					if result.Id == uint64(e.MessageId) {
+						e.MessageSeq = result.Index
 						break
 					}
 				}

@@ -48,12 +48,7 @@ func (co *connz) HandleConnz(c *wkhttp.Context) {
 	}
 
 	if nodeId > 0 && nodeId != options.G.Cluster.NodeId {
-		nodeInfo, err := service.Cluster.NodeInfoById(nodeId)
-		if err != nil {
-			co.Error("获取节点信息失败！", zap.Error(err), zap.Uint64("nodeId", nodeId))
-			c.ResponseError(err)
-			return
-		}
+		nodeInfo := service.Cluster.NodeInfoById(nodeId)
 		if nodeInfo == nil {
 			co.Error("节点不存在！", zap.Uint64("nodeId", nodeId))
 			c.ResponseError(fmt.Errorf("节点不存在！"))
@@ -81,17 +76,28 @@ func (co *connz) HandleConnz(c *wkhttp.Context) {
 
 	for _, resultConn := range resultConns {
 
+		if options.G.IsLocalNode(resultConn.NodeId) {
+			conn := service.ConnManager.GetConn(resultConn.ConnId)
+			if conn != nil {
+				resultConn.remoteAddr = conn.RemoteAddr().String()
+			}
+		} else {
+			node := service.Cluster.NodeInfoById(resultConn.NodeId)
+			if node != nil {
+				resultConn.remoteAddr = node.ClusterAddr
+
+			}
+		}
+
 		connInfo := newConnInfo(resultConn)
 
 		proxyType := "未知"
 		leaderId := co.slotLeader(resultConn.Uid)
-		if leaderId != 0 {
-			if options.G.IsLocalNode(leaderId) {
-				proxyType = "主连接"
-			} else {
-				proxyType = "代理连接"
-			}
-			connInfo.LeaderId = leaderId
+		connInfo.LeaderId = leaderId
+		if options.G.IsLocalNode(resultConn.NodeId) {
+			proxyType = "本地连接"
+		} else {
+			proxyType = fmt.Sprintf("源节点：%d", resultConn.NodeId)
 		}
 		connInfo.ProxyTypeFormat = proxyType
 
@@ -109,36 +115,23 @@ func (co *connz) HandleConnz(c *wkhttp.Context) {
 
 func (co *connz) slotLeader(uid string) uint64 {
 	slotId := service.Cluster.GetSlotId(uid)
-	leaderId, err := service.Cluster.SlotLeaderId(slotId)
-	if err != nil {
-		co.Error("获取leaderId失败！", zap.Error(err))
-		return 0
-	}
+	leaderId := service.Cluster.SlotLeaderId(slotId)
 	return leaderId
 }
 
 type connzResp struct {
 	*eventbus.Conn
-	lastActivity time.Time
-	remoteAddr   string
+	remoteAddr string
 }
 
 func (s *Server) GetConnInfos(uid string, sortOpt SortOpt, offset, limit int) []*connzResp {
 	connCtxs := make([]*connzResp, 0, service.ConnManager.ConnCount())
-	conns := service.ConnManager.GetAllConn()
+	conns := eventbus.User.AllConn()
 	for _, conn := range conns {
-		ctx := conn.Context()
-		if ctx == nil { // 没有上下文的连接不处理
-			continue
-		}
-		rconn := ctx.(*eventbus.Conn)
-		if !rconn.Auth {
-			continue
-		}
 		connCtx := &connzResp{
-			Conn:         ctx.(*eventbus.Conn),
-			remoteAddr:   conn.RemoteAddr().String(),
-			lastActivity: conn.LastActivity(),
+			Conn: conn,
+			// remoteAddr:   conn.RemoteAddr().String(),
+			// lastActivity: conn.LastActivity(),
 		}
 		if strings.TrimSpace(uid) != "" {
 			if strings.Contains(connCtx.Uid, uid) {
@@ -251,6 +244,7 @@ type ConnInfo struct {
 	Version         uint8     `json:"version"`           // 客户端协议版本
 	ProxyTypeFormat string    `json:"proxy_type_format"` // 代理类型
 	LeaderId        uint64    `json:"leader_id"`         // 领导节点id
+	NodeId          uint64    `json:"node_id"`           // 连接源节点
 }
 
 func newConnInfo(connCtx *connzResp) *ConnInfo {
@@ -265,7 +259,7 @@ func newConnInfo(connCtx *connzResp) *ConnInfo {
 		host = hostStr
 	}
 
-	lastActivity := connCtx.lastActivity
+	lastActivity := time.Unix(int64(connCtx.LastActive), 0)
 
 	uptime := time.Unix(int64(connCtx.Uptime), 0)
 
@@ -289,6 +283,7 @@ func newConnInfo(connCtx *connzResp) *ConnInfo {
 		Device:         device(connCtx),
 		DeviceID:       connCtx.DeviceId,
 		Version:        connCtx.ProtoVersion,
+		NodeId:         connCtx.NodeId,
 	}
 }
 
@@ -566,7 +561,7 @@ func (l byUptimeDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Co
 type byIdle struct{ Conns []*connzResp }
 
 func (l byIdle) Less(i, j int) bool {
-	return l.Conns[i].lastActivity.Before(l.Conns[j].lastActivity)
+	return l.Conns[i].LastActive < l.Conns[j].LastActive
 }
 func (l byIdle) Len() int      { return len(l.Conns) }
 func (l byIdle) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }
@@ -575,7 +570,7 @@ func (l byIdle) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i]
 type byIdleDesc struct{ Conns []*connzResp }
 
 func (l byIdleDesc) Less(i, j int) bool {
-	return l.Conns[i].lastActivity.After(l.Conns[j].lastActivity)
+	return l.Conns[i].LastActive > l.Conns[j].LastActive
 }
 func (l byIdleDesc) Len() int      { return len(l.Conns) }
 func (l byIdleDesc) Swap(i, j int) { l.Conns[i], l.Conns[j] = l.Conns[j], l.Conns[i] }

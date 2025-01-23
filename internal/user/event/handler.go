@@ -3,11 +3,13 @@ package event
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
@@ -27,6 +29,14 @@ type userHandler struct {
 	conns *conns
 	// 处理中的下标位置
 	processingIndex uint64
+
+	// 是否正在处理
+	processing atomic.Bool
+
+	tickCount int64 // tick次数
+
+	// 是否已统计
+	stat bool
 }
 
 func newUserHandler(uid string, poller *poller) *userHandler {
@@ -37,6 +47,7 @@ func newUserHandler(uid string, poller *poller) *userHandler {
 		lastActive: fasttime.UnixTimestamp(),
 		conns:      newConns(),
 		Log:        wklog.NewWKLog(fmt.Sprintf("userHandler[%s]", uid)),
+		stat:       false,
 	}
 	uh.pending.eventQueue = eventbus.NewEventQueue(fmt.Sprintf("user:%s", uid))
 	return uh
@@ -49,11 +60,18 @@ func (u *userHandler) addEvent(event *eventbus.Event) {
 	u.pending.eventQueue.Append(event)
 
 	u.lastActive = fasttime.UnixTimestamp()
+
+	if event.Conn != nil {
+		event.Conn.LastActive = fasttime.UnixTimestamp()
+	}
 }
 
 func (u *userHandler) hasEvent() bool {
 	u.pending.RLock()
 	defer u.pending.RUnlock()
+	if u.processing.Load() {
+		return false
+	}
 	return u.processingIndex < u.pending.eventQueue.LastIndex()
 }
 
@@ -75,10 +93,21 @@ func (u *userHandler) events() []*eventbus.Event {
 // 推进事件
 func (u *userHandler) advanceEvents(events []*eventbus.Event) {
 
-	slotLeaderId := u.leaderId(u.Uid)
+	u.processing.Store(true)
+	defer func() {
+		u.processing.Store(false)
+	}()
+
+	slotLeaderId := u.leaderId()
 	if slotLeaderId == 0 {
 		u.Error("advanceEvents: slotLeaderId is 0", zap.String("uid", u.Uid))
 		return
+	}
+
+	// 统计在线用户数
+	if !u.stat && options.G.IsLocalNode(slotLeaderId) {
+		trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(1)
+		u.stat = true
 	}
 
 	// 按类型分组
@@ -105,13 +134,29 @@ func (u *userHandler) advanceEvents(events []*eventbus.Event) {
 
 }
 
-func (u *userHandler) leaderId(uid string) uint64 {
-	slotId := service.Cluster.GetSlotId(uid)
-	leaderId, err := service.Cluster.SlotLeaderId(slotId)
-	if err != nil {
-		u.Error("get leaderId failed", zap.Error(err))
-		return 0
+func (u *userHandler) tick() {
+	conns := u.conns.allConns()
+	u.tickCount++
+	if u.tickCount%10 == 0 {
+		u.checkInvalidConn(conns)
 	}
+}
+
+// 检查连无效连接
+func (u *userHandler) checkInvalidConn(conns []*eventbus.Conn) {
+	for _, conn := range conns {
+		if fasttime.UnixTimestamp()-conn.LastActive > uint64(options.G.ConnIdleTime.Seconds()) {
+			u.addEvent(&eventbus.Event{
+				Type: eventbus.EventConnRemove,
+				Conn: conn,
+			})
+		}
+	}
+}
+
+func (u *userHandler) leaderId() uint64 {
+	slotId := service.Cluster.GetSlotId(u.Uid)
+	leaderId := service.Cluster.SlotLeaderId(slotId)
 	return leaderId
 }
 

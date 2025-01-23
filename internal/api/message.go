@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -104,10 +103,9 @@ func (m *message) send(c *wkhttp.Context) {
 			tmpChannelId = fmt.Sprintf("%d", key.HashWithString(strings.Join(req.Subscribers, ","))) // 获取临时频道id
 		}
 
-		// tmpCMDChannelId := options.G.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
-
 		// 设置订阅者到临时频道
 		if persist {
+			tmpChannelId = options.G.OrginalConvertCmdChannel(tmpChannelId) // 转换为cmd频道
 			err := m.requestSetSubscribersForTmpChannel(tmpChannelId, req.Subscribers)
 			if err != nil {
 				m.Error("请求设置临时频道的订阅者失败！", zap.Error(err), zap.String("channelId", tmpChannelId), zap.Strings("subscribers", req.Subscribers))
@@ -116,25 +114,28 @@ func (m *message) send(c *wkhttp.Context) {
 			}
 		} else {
 			// 生成tag
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-			nodeInfo, err := service.Cluster.LeaderOfChannel(timeoutCtx, tmpChannelId, wkproto.ChannelTypeTemp)
-			cancel()
+			nodeInfo, err := service.Cluster.LeaderOfChannel(tmpChannelId, wkproto.ChannelTypeTemp)
 			if err != nil {
 				m.Error("获取在线cmd频道所在节点失败！", zap.Error(err), zap.String("channelID", tmpChannelId), zap.Uint8("channelType", wkproto.ChannelTypeTemp))
 				c.ResponseError(errors.New("获取频道所在节点失败！"))
 				return
 			}
-			newTagKey := wkutil.GenUUID()
+			newTagKey := fmt.Sprintf("%scmd", wkutil.GenUUID())
 			req.TagKey = newTagKey // 设置tagKey
 			if options.G.IsLocalNode(nodeInfo.Id) {
-				_, _ = service.TagManager.MakeTagWithTagKey(newTagKey, req.Subscribers)
+				_, err := service.TagManager.MakeTagWithTagKey(newTagKey, req.Subscribers)
+				if err != nil {
+					m.Error("生成tag失败！", zap.Error(err), zap.Uint64("nodeId", nodeInfo.Id))
+					c.ResponseError(errors.New("生成tag失败！"))
+					return
+				}
 			} else {
-				err = m.s.client.UpdateTag(nodeInfo.Id, &ingress.TagUpdateReq{
+				err = m.s.client.AddTag(nodeInfo.Id, &ingress.TagAddReq{
 					TagKey: newTagKey,
 					Uids:   req.Subscribers,
 				})
 				if err != nil {
-					m.Error("更新tag失败！", zap.Error(err), zap.Uint64("nodeId", nodeInfo.Id))
+					m.Error("添加tag失败！", zap.Error(err), zap.Uint64("nodeId", nodeInfo.Id))
 					c.ResponseError(errors.New("更新tag失败！"))
 					return
 				}
@@ -173,9 +174,7 @@ func (m *message) send(c *wkhttp.Context) {
 
 // 请求临时频道设置订阅者
 func (m *message) requestSetSubscribersForTmpChannel(tmpChannelId string, uids []string) error {
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	nodeInfo, err := service.Cluster.LeaderOfChannel(timeoutCtx, tmpChannelId, wkproto.ChannelTypeTemp)
-	cancel()
+	nodeInfo, err := service.Cluster.LeaderOfChannel(tmpChannelId, wkproto.ChannelTypeTemp)
 	if err != nil {
 		return err
 	}
@@ -221,7 +220,7 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 		fakeChannelId = options.GetFakeChannelIDWith(req.FromUID, channelId)
 	}
 
-	if req.Header.SyncOnce == 1 && !options.G.IsOnlineCmdChannel(channelId) { // 命令消息，将原频道转换为cmd频道
+	if req.Header.SyncOnce == 1 && !options.G.IsOnlineCmdChannel(channelId) && channelType != wkproto.ChannelTypeTemp { // 命令消息，将原频道转换为cmd频道
 		fakeChannelId = options.G.OrginalConvertCmdChannel(fakeChannelId)
 	}
 
@@ -402,7 +401,7 @@ func (m *message) sync(c *wkhttp.Context) {
 
 	// 获取每个session的消息
 	messageResps := make([]*types.MessageResp, 0)
-
+	deletes := make([]wkdb.Channel, 0) // 待删除的会话
 	if len(channelRecentMessageReqs) > 0 {
 		channelRecentMessages, err := m.s.requset.getRecentMessagesForCluster(req.UID, req.Limit, channelRecentMessageReqs, false)
 		if err != nil {
@@ -413,6 +412,10 @@ func (m *message) sync(c *wkhttp.Context) {
 		for _, channelRecentMessage := range channelRecentMessages {
 
 			if len(channelRecentMessage.Messages) == 0 {
+				deletes = append(deletes, wkdb.Channel{
+					ChannelId:   channelRecentMessage.ChannelId,
+					ChannelType: channelRecentMessage.ChannelType,
+				})
 				continue
 			}
 			isExceedLimit := false // 是否超过限制
@@ -437,6 +440,17 @@ func (m *message) sync(c *wkhttp.Context) {
 				lastMsgSeq:  lastMsg.MessageSeq,
 			})
 			m.syncRecordLock.Unlock()
+		}
+	}
+	if len(deletes) > 0 {
+		err = service.Store.DeleteConversations(req.UID, deletes)
+		if err != nil {
+			m.Error("删除最近会话失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		for _, delete := range deletes {
+			service.ConversationManager.DeleteFromCache(req.UID, delete.ChannelId, delete.ChannelType)
 		}
 	}
 
@@ -485,7 +499,9 @@ func (m *message) syncack(c *wkhttp.Context) {
 	}
 
 	conversations := make([]wkdb.Conversation, 0)
-	for _, record := range m.syncRecordMap[req.UID] {
+	deletes := make([]wkdb.Channel, 0)
+	records := m.syncRecordMap[req.UID]
+	for _, record := range records {
 		needAdd := false
 
 		fakeChannelId := record.channelId
@@ -528,6 +544,19 @@ func (m *message) syncack(c *wkhttp.Context) {
 			conversations = append(conversations, conversation)
 		}
 
+		lastMsgSeq, err := service.Store.GetChannelLastMessageSeq(record.channelId, record.channelType)
+		if err != nil {
+			m.Error("GetChannelLastMessageSeq failed", zap.Error(err))
+			continue
+		}
+
+		if record.lastMsgSeq >= lastMsgSeq {
+			deletes = append(deletes, wkdb.Channel{
+				ChannelId:   record.channelId,
+				ChannelType: record.channelType,
+			})
+		}
+
 	}
 	if len(conversations) > 0 {
 		err := service.Store.AddOrUpdateUserConversations(req.UID, conversations)
@@ -537,17 +566,17 @@ func (m *message) syncack(c *wkhttp.Context) {
 			return
 		}
 	}
-	// if len(deletes) > 0 {
-	// 	err = service.Store.DeleteConversations(req.UID, deletes)
-	// 	if err != nil {
-	// 		m.Error("删除最近会话失败！", zap.Error(err))
-	// 		c.ResponseError(err)
-	// 		return
-	// 	}
-	// 	for _, deleteConversation := range deletes {
-	// 		m.s.conversationManager.DeleteUserConversationFromCache(req.UID, deleteConversation.ChannelId, deleteConversation.ChannelType)
-	// 	}
-	// }
+	if len(deletes) > 0 {
+		for _, delete := range deletes {
+			service.ConversationManager.DeleteFromCache(req.UID, delete.ChannelId, delete.ChannelType)
+		}
+		err = service.Store.DeleteConversations(req.UID, deletes)
+		if err != nil {
+			m.Error("删除最近会话失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	}
 
 	c.ResponseOK()
 }

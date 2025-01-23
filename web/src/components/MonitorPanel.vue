@@ -22,7 +22,7 @@ const option = ref({
         text: props.title || '',
         textStyle: {
             fontWeight: 'normal',
-            fontSize: 12
+            fontSize: 12,
         }
     },
     tooltip: {
@@ -123,8 +123,10 @@ const refreshChart = () => {
 let chart: echarts.ECharts
 // 待组件挂载完成后初始化 ECharts
 onMounted(() => {
+    const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = isDarkMode ? 'dark' : 'light';
 
-    chart = echarts.init(chartElement.value);
+    chart = echarts.init(chartElement.value,theme);
     chart.setOption(option.value);
 
     // startRealtimeData();

@@ -291,7 +291,7 @@ func (c *conversationWorker) handleReq(fakeChannelId string, channelType uint8, 
 		return
 	}
 	firstMsg := messages[0]
-	isFirstMsg := firstMsg.MessageSeq == 1 // 是否是频道的第一条消息
+	lastMsg := messages[len(messages)-1]
 
 	// 获取频道的最近会话更新对象
 	update := c.getConversationUpdate(fakeChannelId, channelType)
@@ -321,10 +321,17 @@ func (c *conversationWorker) handleReq(fakeChannelId string, channelType uint8, 
 	if channelType == wkproto.ChannelTypePerson {
 		// 如果是个人频道并且不是第一条消息，则不需要更新最近会话
 		if firstMsg.MessageSeq > 1 {
+			if options.G.IsCmdChannel(fakeChannelId) {
+				err := c.updateConversationPerson(fakeChannelId, update, lastMsg.MessageSeq-1)
+				if err != nil {
+					c.Error("updateConversationPerson err", zap.Error(err))
+					return
+				}
+			}
 			return
 		} else {
 			// 如果是第一条消息，则需要更新最近会话
-			err := c.updateConversationPerson(fakeChannelId, update)
+			err := c.updateConversationPerson(fakeChannelId, update, 0)
 			if err != nil {
 				c.Error("updateConversationPerson err", zap.Error(err))
 				return
@@ -334,8 +341,9 @@ func (c *conversationWorker) handleReq(fakeChannelId string, channelType uint8, 
 		return
 	}
 
-	// 收到命令频道的第一条消息时 应该更新整个频道的最新会话
-	if options.G.IsCmdChannel(fakeChannelId) && isFirstMsg {
+	// 命令频道每次需要更新最近会话
+	if options.G.IsCmdChannel(fakeChannelId) {
+		update.suggestMessageSeq = lastMsg.MessageSeq
 		update.updateLastTagKey(tagKey)
 		update.shouldUpdateAll() // 整个频道的订阅者都更新最近会话
 		return
@@ -551,7 +559,7 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 }
 
 // 更新个人频道的最近会话
-func (c *conversationWorker) updateConversationPerson(fakeChannelId string, update *conversationUpdate) error {
+func (c *conversationWorker) updateConversationPerson(fakeChannelId string, update *conversationUpdate, seq uint64) error {
 	orgFakeChannelId := fakeChannelId
 	if options.G.IsCmdChannel(fakeChannelId) {
 		orgFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
@@ -570,10 +578,10 @@ func (c *conversationWorker) updateConversationPerson(fakeChannelId string, upda
 	}
 
 	if u1LeaderInfo.Id == options.G.Cluster.NodeId {
-		update.addOrUpdateUser(u1, 0)
+		update.addOrUpdateUser(u1, seq)
 	}
 	if u2LeaderInfo.Id == options.G.Cluster.NodeId {
-		update.addOrUpdateUser(u2, 0)
+		update.addOrUpdateUser(u2, seq)
 	}
 
 	return nil

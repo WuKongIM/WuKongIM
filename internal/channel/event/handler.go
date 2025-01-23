@@ -1,10 +1,8 @@
 package event
 
 import (
-	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -64,9 +62,9 @@ func (c *channelHandler) addEvent(event *eventbus.Event) {
 func (c *channelHandler) hasEvent() bool {
 	c.pending.RLock()
 	defer c.pending.RUnlock()
-	// if c.processing.Load() {
-	// 	return false
-	// }
+	if c.processing.Load() {
+		return false
+	}
 	return c.processingIndex < c.pending.eventQueue.LastIndex()
 }
 
@@ -88,10 +86,10 @@ func (u *channelHandler) events() []*eventbus.Event {
 // 推进事件
 func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
 
-	// c.processing.Store(true)
-	// defer func() {
-	// 	c.processing.Store(false)
-	// }()
+	c.processing.Store(true)
+	defer func() {
+		c.processing.Store(false)
+	}()
 
 	// 检查和更新leaderId
 	c.checkAndUpdateLeaderIdChange()
@@ -128,9 +126,7 @@ func (c *channelHandler) checkAndUpdateLeaderIdChange() {
 	if c.nodeVersion >= nodeVersion {
 		return
 	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-	defer cancel()
-	leaderId, err := service.Cluster.LeaderIdOfChannel(timeoutCtx, c.channelId, c.channelType)
+	leaderId, err := service.Cluster.LeaderIdOfChannel(c.channelId, c.channelType)
 	if err != nil {
 		c.Error("checkLeaderIdChange: get leader id failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return

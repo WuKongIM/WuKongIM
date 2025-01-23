@@ -55,7 +55,7 @@ const onLogout = () => {
     </div>
     <main class="flex pt-[4rem] w-full min-h-screen">
       <!-- left -->
-      <div class="flex-col w-80 h-full  z-50">
+      <div class="flex-col w-80 z-50 overflow-y-auto h-[calc(100vh-4rem)]">
         <!-- menus -->
 
         <!-- <div class="w-full h-full flex-col justify-start text-left pt-5">
@@ -75,7 +75,7 @@ const onLogout = () => {
         </div> -->
 
         <!-- cluster -->
-        <div class="w-full h-full flex-col justify-start text-left pt-5">
+        <div class="w-full  flex-col justify-start text-left pt-5">
           <div class="w-full flex-col">
             <div class="w-full flex   pl-6">
               <label class="text-[1.1rem] font-semibold">分布式</label>
@@ -84,19 +84,13 @@ const onLogout = () => {
             <ul className="menu  w-56 rounded-box">
               <li>
                 <RouterLink to="/cluster/nodes">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="4" y="34" width="8" height="8" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round" />
-                    <rect x="8" y="6" width="32" height="12" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M24 34V18" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M8 34V26H40V34" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <rect x="36" y="34" width="8" height="8" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round" />
-                    <rect x="20" y="34" width="8" height="8" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M14 12H16" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-server h-5 w-5">
+                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+                    <line x1="6" x2="6.01" y1="6" y2="6" />
+                    <line x1="6" x2="6.01" y1="18" y2="18" />
                   </svg>
                   <label class="ml-2">节点</label>
                 </RouterLink>
@@ -124,25 +118,13 @@ const onLogout = () => {
 
               <li>
                 <RouterLink to="/cluster/config">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M41.5 10H35.5" stroke="#333" stroke-width="4" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M27.5 6V14" stroke="#333" stroke-width="4" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M27.5 10L5.5 10" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M13.5 24H5.5" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M21.5 20V28" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M43.5 24H21.5" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M41.5 38H35.5" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M27.5 34V42" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M27.5 38H5.5" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-settings-2 h-5 w-5">
+                    <path d="M20 7h-9" />
+                    <path d="M14 17H5" />
+                    <circle cx="17" cy="17" r="3" />
+                    <circle cx="7" cy="7" r="3" />
                   </svg>
                   <label class="ml-2">配置</label>
                 </RouterLink>
@@ -153,7 +135,7 @@ const onLogout = () => {
         </div>
 
         <!-- <div class="w-full bg-gray-100 mt-0" style="height: 1px;"></div> -->
-        <div class="w-full h-full flex-col justify-start text-left pt-5">
+        <div class="w-full  flex-col justify-start text-left pt-5">
           <div class="w-full flex-col">
             <div class="w-full flex   pl-6">
               <label class="text-[1.1rem] font-bold">数据</label>
@@ -162,55 +144,45 @@ const onLogout = () => {
             <ul className="menu  w-56 rounded-box">
               <li>
                 <RouterLink to="/data/connection">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-activity h-5 w-5">
                     <path
-                      d="M37 22.0001L34 25.0001L23 14.0001L26 11.0001C27.5 9.50002 33 7.00005 37 11.0001C41 15.0001 38.5 20.5 37 22.0001Z"
-                      fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M42 6L37 11" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path
-                      d="M11 25.9999L14 22.9999L25 33.9999L22 36.9999C20.5 38.5 15 41 11 36.9999C7 32.9999 9.5 27.5 11 25.9999Z"
-                      fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M23 32L27 28" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M6 42L11 37" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M16 25L20 21" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
+                      d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
                   </svg>
                   <label class="ml-2">连接（Top100）</label>
                 </RouterLink>
               </li>
               <li>
                 <RouterLink to="/data/user">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="24" cy="12" r="8" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M42 44C42 34.0589 33.9411 26 24 26C14.0589 26 6 34.0589 6 44" stroke="#333"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user h-5 w-5">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
                   </svg>
                   <label class="ml-2">用户</label>
                 </RouterLink>
               </li>
               <li>
                 <RouterLink to="/data/device">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M23 43H43V5H14V15" stroke="#333" stroke-width="2" stroke-linejoin="round" />
-                    <path d="M5 15H23V43H5L5 15Z" fill="none" stroke="#333" stroke-width="2" stroke-linejoin="round" />
-                    <path d="M13 37H15" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M28 37H30" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-smartphone h-5 w-5">
+                    <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+                    <path d="M12 18h.01" />
                   </svg>
                   <label class="ml-2">设备</label>
                 </RouterLink>
               </li>
               <li>
                 <RouterLink to="/data/message">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M44 24C44 35.0457 35.0457 44 24 44C18.0265 44 4 44 4 44C4 44 4 29.0722 4 24C4 12.9543 12.9543 4 24 4C35.0457 4 44 12.9543 44 24Z"
-                      fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M13.9999 26L20 32L33 19" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-message-square-more h-5 w-5">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    <path d="M8 10h.01" />
+                    <path d="M12 10h.01" />
+                    <path d="M16 10h.01" />
                   </svg>
                   <label class="ml-2">消息</label>
                 </RouterLink>
@@ -228,14 +200,34 @@ const onLogout = () => {
 
               <li>
                 <RouterLink to="/data/conversation">
-                  <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M44 6H4V36H13V41L23 36H44V6Z" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M14 21H34" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-message-circle-dashed h-5 w-5">
+                    <path d="M13.5 3.1c-.5 0-1-.1-1.5-.1s-1 .1-1.5.1" />
+                    <path d="M19.3 6.8a10.45 10.45 0 0 0-2.1-2.1" />
+                    <path d="M20.9 13.5c.1-.5.1-1 .1-1.5s-.1-1-.1-1.5" />
+                    <path d="M17.2 19.3a10.45 10.45 0 0 0 2.1-2.1" />
+                    <path d="M10.5 20.9c.5.1 1 .1 1.5.1s1-.1 1.5-.1" />
+                    <path d="M3.5 17.5 2 22l4.5-1.5" />
+                    <path d="M3.1 10.5c0 .5-.1 1-.1 1.5s.1 1 .1 1.5" />
+                    <path d="M6.8 4.7a10.45 10.45 0 0 0-2.1 2.1" />
                   </svg>
                   <label class="ml-2">会话</label>
                 </RouterLink>
               </li>
+
+              <li>
+                <RouterLink to="/data/tag">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-bookmark h-5 w-5">
+                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                  </svg>
+                  <label class="ml-2">标签</label>
+                </RouterLink>
+              </li>
+
+
             </ul>
 
           </div>
@@ -250,45 +242,48 @@ const onLogout = () => {
             <ul className="menu  w-56 rounded-box">
               <li>
                 <RouterLink to="/monitor/app">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M44 5H3.99998V17H44V5Z" fill="none" stroke="#333" stroke-width="2"
-                      stroke-linejoin="round" />
-                    <path d="M3.99998 41.0301L16.1756 28.7293L22.7549 35.0301L30.7982 27L35.2786 31.368" stroke="#333"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M44 16.1719V42.1719" stroke="#333" stroke-width="2" stroke-linecap="round" />
-                    <path d="M3.99998 16.1719V30.1719" stroke="#333" stroke-width="2" stroke-linecap="round" />
-                    <path d="M13.0155 43H44" stroke="#333" stroke-width="2" stroke-linecap="round" />
-                    <path d="M17 11H38" stroke="#333" stroke-width="2" stroke-linecap="round" />
-                    <path d="M9.99998 10.9966H11" stroke="#333" stroke-width="2" stroke-linecap="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-dock h-5 w-5">
+                    <path d="M2 8h20" />
+                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                    <path d="M6 16h12" />
                   </svg>
                   <label class="ml-2">应用</label>
                 </RouterLink>
               </li>
               <li>
                 <RouterLink to="/monitor/system">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M24 44C35.0457 44 44 35.0457 44 24C44 12.9543 35.0457 4 24 4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44Z"
-                      fill="none" stroke="#333" stroke-width="2" stroke-linejoin="round" />
-                    <path d="M11 28.1321H16.6845L21.2234 13L24.8953 35L29.4483 24.6175L32.9127 28.1321H37" stroke="#333"
-                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-monitor-cog h-5 w-5">
+                    <path d="M12 17v4" />
+                    <path d="m15.2 4.9-.9-.4" />
+                    <path d="m15.2 7.1-.9.4" />
+                    <path d="m16.9 3.2-.4-.9" />
+                    <path d="m16.9 8.8-.4.9" />
+                    <path d="m19.5 2.3-.4.9" />
+                    <path d="m19.5 9.7-.4-.9" />
+                    <path d="m21.7 4.5-.9.4" />
+                    <path d="m21.7 7.5-.9-.4" />
+                    <path d="M22 13v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7" />
+                    <path d="M8 21h8" />
+                    <circle cx="18" cy="6" r="3" />
                   </svg>
                   <label class="ml-2">系统</label>
                 </RouterLink>
               </li>
               <li>
                 <RouterLink to="/monitor/cluster">
-                  <svg class="h-5 w-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M43 4H5C4.44772 4 4 4.48842 4 5.09091V14.9091C4 15.5116 4.44772 16 5 16H43C43.5523 16 44 15.5116 44 14.9091V5.09091C44 4.48842 43.5523 4 43 4Z"
-                      fill="none" stroke="#333" stroke-width="2" stroke-linejoin="round" />
-                    <path
-                      d="M43 32H5C4.44772 32 4 32.4884 4 33.0909V42.9091C4 43.5116 4.44772 44 5 44H43C43.5523 44 44 43.5116 44 42.9091V33.0909C44 32.4884 43.5523 32 43 32Z"
-                      fill="none" stroke="#333" stroke-width="2" stroke-linejoin="round" />
-                    <path d="M14 16V24.0083L34 24.0172V32" stroke="#333" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round" />
-                    <path d="M18 38H30" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M18 10H30" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-chart-network h-5 w-5">
+                    <path d="m13.11 7.664 1.78 2.672" />
+                    <path d="m14.162 12.788-3.324 1.424" />
+                    <path d="m20 4-6.06 1.515" />
+                    <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+                    <circle cx="12" cy="6" r="2" />
+                    <circle cx="16" cy="12" r="2" />
+                    <circle cx="9" cy="15" r="2" />
                   </svg>
                   <label class="ml-2">分布式</label>
                 </RouterLink>

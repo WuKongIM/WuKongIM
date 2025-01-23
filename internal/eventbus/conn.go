@@ -45,9 +45,11 @@ type Conn struct {
 	AesKey []byte
 	// 连接的通讯协议版本
 	ProtoVersion uint8
-
 	// 启动时间
 	Uptime uint64
+
+	// 不参与编码
+	LastActive uint64 // 最后一次活动时间单位秒
 }
 
 func (c *Conn) Encode() ([]byte, error) {
@@ -62,6 +64,7 @@ func (c *Conn) Encode() ([]byte, error) {
 	enc.WriteBinary(c.AesIV)
 	enc.WriteBinary(c.AesKey)
 	enc.WriteUint8(c.ProtoVersion)
+	enc.WriteUint64(c.Uptime)
 	return enc.Bytes(), nil
 }
 
@@ -106,6 +109,9 @@ func (c *Conn) Decode(data []byte) error {
 	}
 
 	if c.ProtoVersion, err = dec.Uint8(); err != nil {
+		return err
+	}
+	if c.Uptime, err = dec.Uint64(); err != nil {
 		return err
 	}
 

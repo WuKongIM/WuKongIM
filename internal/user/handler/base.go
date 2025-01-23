@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -34,6 +35,8 @@ func (h *Handler) routes() {
 	eventbus.RegisterUserHandlers(eventbus.EventConnClose, h.closeConn)
 	// 移除连接
 	eventbus.RegisterUserHandlers(eventbus.EventConnRemove, h.removeConn)
+	// 移除leader节点上的连接
+	eventbus.RegisterUserHandlers(eventbus.EventConnLeaderRemove, h.connLeaderRemove)
 
 }
 
@@ -52,6 +55,11 @@ func (h *Handler) OnEvent(ctx *eventbus.UserContext) {
 		h.Error("OnEvent: get slotLeaderId is 0")
 		return
 	}
+
+	// 统计
+	h.totalIn(ctx)
+
+	// 如果本节点的事件则执行，非本节点事件转发到leader节点
 	if options.G.IsLocalNode(slotLeaderId) ||
 		h.notForwardToLeader(ctx.EventType) {
 		// 执行本地事件
@@ -59,6 +67,35 @@ func (h *Handler) OnEvent(ctx *eventbus.UserContext) {
 	} else {
 		// 转发到leader节点
 		h.forwardsToNode(slotLeaderId, ctx.Uid, ctx.Events)
+	}
+}
+
+// 统计输入
+func (h *Handler) totalIn(ctx *eventbus.UserContext) {
+	// 统计
+	for _, event := range ctx.Events {
+		if event.Type == eventbus.EventOnSend {
+			frameType := event.Frame.GetFrameType()
+			// 统计
+			conn := event.Conn
+			conn.InPacketCount.Add(1)
+			conn.InPacketByteCount.Add(event.Frame.GetFrameSize())
+			if frameType == wkproto.SEND {
+				conn.InMsgCount.Add(1)
+				conn.InMsgByteCount.Add(event.Frame.GetFrameSize())
+			}
+		}
+	}
+}
+
+func (h *Handler) totalOut(conn *eventbus.Conn, frame wkproto.Frame) {
+	frameType := frame.GetFrameType()
+	// 统计
+	conn.OutPacketCount.Add(1)
+	conn.OutPacketByteCount.Add(frame.GetFrameSize())
+	if frameType == wkproto.RECV {
+		conn.OutMsgCount.Add(1)
+		conn.OutMsgByteCount.Add(frame.GetFrameSize())
 	}
 }
 
@@ -78,11 +115,7 @@ func (h *Handler) notForwardToLeader(eventType eventbus.EventType) bool {
 // 获得用户的leader节点
 func (h *Handler) userLeaderNodeId(uid string) uint64 {
 	slotId := service.Cluster.GetSlotId(uid)
-	leaderId, err := service.Cluster.SlotLeaderId(slotId)
-	if err != nil {
-		h.Error("getUserLeaderNodeId: get leaderId failed", zap.Error(err))
-		return 0
-	}
+	leaderId := service.Cluster.SlotLeaderId(slotId)
 	return leaderId
 }
 
@@ -150,6 +183,15 @@ func (h *Handler) onForwardUserEvent(m *proto.Message) {
 				h.Error("onForwardUserEvent: event type is not EventConnWriteFrame, but not slot leader", zap.String("uid", req.uid), zap.Uint64("slotLeaderId", slotLeaderId))
 				continue
 			}
+		}
+
+		// 替换成本地的连接
+		if e.Conn != nil {
+			conn := eventbus.User.ConnById(e.Conn.Uid, e.Conn.NodeId, e.Conn.ConnId)
+			if conn != nil {
+				e.Conn = conn
+			}
+
 		}
 		eventbus.User.AddEvent(req.uid, e)
 	}

@@ -1,0 +1,92 @@
+syntax = "proto3";
+option go_package = "./;types";
+
+package types;
+
+
+enum NodeRole {
+    NodeRoleReplica =0; // 副本服务，参与投票，可以成为领导
+    NodeRoleProxy = 1; // 代理服务，仅仅做转发加速效果，类似cdn （没有投票权）
+}
+
+enum NodeStatus {
+    NodeStatusUnkown = 0; // 未知
+    NodeStatusWillJoin = 1; // 将要加入
+    NodeStatusJoining = 2; // 加入中
+    NodeStatusJoined = 3; // 加入完成
+}
+
+enum MigrateStatus {
+    MigrateStatusUnkown = 0; // 未知
+    MigrateStatusWill = 1; // 准备迁移
+    MigrateStatusDoing = 2; // 迁移中
+    MigrateStatusDone = 3; // 迁移完成
+}
+
+enum SlotStatus {
+    SlotStatusNormal = 0; // 未知
+    SlotStatusCandidate = 1; // 进入领导候选状态
+    SlotStatusLeaderTransfer = 2; // 领导转移
+
+}
+
+enum LearnerStatus {
+    LearnerStatusLearning = 0; // 学习中
+    LearnerStatusGraduate = 1; // 已毕业
+}
+
+message Config {
+    uint64 version = 1; // 配置版本
+    uint32 slotCount = 2; // 槽位数量
+    uint32 slotReplicaCount = 3; // 槽最大副本数量  (这个数量包含领导，比如副本为3，则是1个领导2个副本节点)
+    uint32 channelReplicaCount = 4; // 频道最大副本数量
+    uint32 term = 5; // 领导任期
+    uint64 migrateFrom = 6; // 迁移的源节点
+    uint64 migrateTo = 7; // 迁移的目标节点
+    repeated uint64 learners = 8; // 学习者列表
+    repeated Node nodes = 9; // 分布式中的节点
+    repeated Slot slots = 10; // 分布式中的槽位
+ }
+
+
+message Node {
+    uint64 id = 1; // 节点id
+    string clusterAddr = 2; // 节点分布式通讯地址
+    string apiServerAddr = 3; // 节点api服务地址
+    bool join = 4; // 是否是加入集群的节点，false表示初始节点 true表示后面新加入的节点
+    // repeated SlotMigrate exports = 5; // 正在迁出的槽位
+    // repeated SlotMigrate imports = 6; // 正在迁入的槽位
+    bool online = 5; // 是否在线
+    uint32 offlineCount = 6; // 离线次数
+    int64 lastOffline = 7; // 最后一次离线时间
+    bool allowVote = 8; // 节点是否允许投票
+    NodeRole role = 9; // 节点角色
+    NodeStatus status = 10; // 节点状态
+    int64 createdAt = 11; // 创建时间
+
+}
+
+
+message Slot {
+    uint32 id = 1; // 槽位id
+    uint64 leader = 2; // 槽位的领导节点
+    uint32 term = 3; // 槽位的领导任期
+    repeated uint64 replicas = 4; // 副本节点(包含领导节点)
+    repeated uint64 learners = 6; // 学习者列表
+    uint64 migrateFrom = 7; // 迁移的源节点
+    uint64 migrateTo = 8; // 迁移的目标节点
+    uint64 expectLeader = 9; // 期望选举到的领导节点
+    SlotStatus status = 10; // 槽位状态
+}
+
+
+message SlotMigrate {
+    uint64 from = 1; // 迁移的源节点
+    uint64 to = 2; // 迁移的目标节点
+}
+
+
+message Learner {
+    uint64 learnerId = 1; // 学习者节点id
+    LearnerStatus status = 2; // 学习状态
+}

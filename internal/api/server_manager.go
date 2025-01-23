@@ -9,7 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -89,6 +89,9 @@ func (m *managerServer) setRoutes() {
 	varz := newVarz(m.s)
 	varz.route(m.r)
 
+	conn := newConnApi(m.s)
+	conn.route(m.r)
+
 	// 管理者api
 	manager := newManager(m.s)
 	manager.route(m.r)
@@ -98,6 +101,10 @@ func (m *managerServer) setRoutes() {
 		stress := newStress(m.s)
 		stress.route(m.r)
 	}
+
+	// 标签api
+	tag := newTag(m.s)
+	tag.route(m.r)
 
 	// // 系统api
 	// system := NewSystemAPI(s.s)

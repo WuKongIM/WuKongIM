@@ -60,7 +60,7 @@ func New(addr string, opt ...Option) *Client {
 		routeMap:  make(map[string]Handler),
 		proto:     proto.New(),
 		w:         wait.New(),
-		batchRead: 100,
+		batchRead: 1000,
 	}
 
 	c.cancelCtx, c.cancel = context.WithCancel(context.Background())

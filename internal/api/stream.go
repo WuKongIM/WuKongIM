@@ -114,7 +114,7 @@ func (s *stream) start(c *wkhttp.Context) {
 		FromUid:     req.FromUid,
 		ClientMsgNo: clientMsgNo,
 		MessageId:   messageId,
-		MessageSeq:  int64(result.LogIndex()),
+		MessageSeq:  int64(result.Index),
 	}
 	err = service.Store.AddStreamMeta(streamMeta)
 	if err != nil {

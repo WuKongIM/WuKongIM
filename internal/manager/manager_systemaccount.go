@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -8,7 +9,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -119,9 +120,9 @@ func (s *SystemAccountManager) RemoveSystemUidsFromCache(uids []string) {
 func (s *SystemAccountManager) getOrRequestSystemUids() ([]string, error) {
 
 	var slotId uint32 = 0
-	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
-	if err != nil {
-		return nil, err
+	nodeInfo := service.Cluster.SlotLeaderNodeInfo(slotId)
+	if nodeInfo == nil {
+		return nil, errors.New("getOrRequestSystemUids: slot leader node not found")
 	}
 	if nodeInfo.Id == options.G.Cluster.NodeId {
 		return service.Store.GetSystemUids()
@@ -130,7 +131,7 @@ func (s *SystemAccountManager) getOrRequestSystemUids() ([]string, error) {
 	return s.requestSystemUids(nodeInfo)
 }
 
-func (s *SystemAccountManager) requestSystemUids(nodeInfo *pb.Node) ([]string, error) {
+func (s *SystemAccountManager) requestSystemUids(nodeInfo *types.Node) ([]string, error) {
 
 	resp, err := network.Get(fmt.Sprintf("%s%s", nodeInfo.ApiServerAddr, "/user/systemuids"), nil, nil)
 	if err != nil {

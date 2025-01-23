@@ -6,7 +6,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -88,7 +88,7 @@ func (s *apiServer) setRoutes() {
 	// route
 	rt := newRoute(s.s)
 	rt.route(s.r)
-	// conn
+	// connz
 	connz := newConnz(s.s)
 	connz.route(s.r)
 	// varz
@@ -97,6 +97,9 @@ func (s *apiServer) setRoutes() {
 	// user
 	user := newUser(s.s)
 	user.route(s.r)
+	// conn
+	conn := newConnApi(s.s)
+	conn.route(s.r)
 	// channel
 	ch := newChannel(s.s)
 	ch.route(s.r)
@@ -114,9 +117,6 @@ func (s *apiServer) setRoutes() {
 		st := newStress(s.s)
 		st.route(s.r)
 	}
-	// system
-	system := newSystem(s.s)
-	system.route(s.r)
 	// stream
 	stream := newStream(s.s)
 	stream.route(s.r)

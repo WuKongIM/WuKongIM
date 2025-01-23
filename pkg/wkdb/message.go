@@ -9,10 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
@@ -38,75 +36,71 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 		if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
 			return err
 		}
-		err := wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
-		if err != nil {
-			return err
-		}
-	}
 
-	// 消息总数量+1
-	// err := wk.IncMessageCount(len(msgs))
-	// if err != nil {
-	// 	return err
-	// }
+	}
+	lastMsg := msgs[len(msgs)-1]
+	err := wk.setChannelLastMessageSeq(channelId, channelType, uint64(lastMsg.MessageSeq), batch)
+	if err != nil {
+		return err
+	}
 
 	return batch.CommitWait()
 }
 
-func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
-	batchMap := make(map[uint32]*Batch)
-	newBatchs := make([]*Batch, 0, len(reqs))
+// func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
+// 	batchMap := make(map[uint32]*Batch)
+// 	newBatchs := make([]*Batch, 0, len(reqs))
 
-	for _, req := range reqs {
+// 	for _, req := range reqs {
 
-		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
+// 		channelId, channelType := wkutil.ChannelFromlKey(req.HandleKey)
 
-		shardId := wk.channelDbIndex(channelId, channelType)
+// 		shardId := wk.channelDbIndex(channelId, channelType)
 
-		batch := batchMap[shardId]
-		if batch == nil {
-			batch = wk.shardBatchDBById(shardId).NewBatch()
-			batchMap[shardId] = batch
-			newBatchs = append(newBatchs, batch)
-		}
+// 		batch := batchMap[shardId]
+// 		if batch == nil {
+// 			batch = wk.shardBatchDBById(shardId).NewBatch()
+// 			batchMap[shardId] = batch
+// 			newBatchs = append(newBatchs, batch)
+// 		}
 
-		for _, log := range req.Logs {
-			msg := Message{}
-			err := msg.Unmarshal(log.Data)
-			if err != nil {
-				wk.Panic("message unmarshal failed", zap.Error(err))
-				return
-			}
-			msg.MessageSeq = uint32(log.Index)
-			msg.Term = uint64(log.Term)
+// 		for _, log := range req.Logs {
+// 			msg := Message{}
+// 			err := msg.Unmarshal(log.Data)
+// 			if err != nil {
+// 				wk.Panic("message unmarshal failed", zap.Error(err))
+// 				return
+// 			}
+// 			msg.MessageSeq = uint32(log.Index)
+// 			msg.Term = uint64(log.Term)
 
-			if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
-				wk.Panic("write message failed", zap.Error(err))
-				return
-			}
-			err = wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
-			if err != nil {
-				wk.Panic("setChannelLastMessageSeq failed", zap.Error(err))
-				return
-			}
+// 			if err := wk.writeMessage(channelId, channelType, msg, batch); err != nil {
+// 				wk.Panic("write message failed", zap.Error(err))
+// 				return
+// 			}
+// 			err = wk.setChannelLastMessageSeq(channelId, channelType, uint64(msg.MessageSeq), batch)
+// 			if err != nil {
+// 				wk.Panic("setChannelLastMessageSeq failed", zap.Error(err))
+// 				return
+// 			}
 
-			if len(batch.setKvs) > wk.opts.BatchPerSize {
-				batch = wk.shardBatchDBById(shardId).NewBatch()
-				batchMap[shardId] = batch
-				newBatchs = append(newBatchs, batch)
-			}
-		}
-	}
+// 			if len(batch.setKvs) > wk.opts.BatchPerSize {
+// 				batch = wk.shardBatchDBById(shardId).NewBatch()
+// 				batchMap[shardId] = batch
+// 				newBatchs = append(newBatchs, batch)
+// 			}
+// 		}
+// 	}
 
-	err := Commits(newBatchs)
-	if err != nil {
-		wk.Error("AppendMessagesByLogs commits failed", zap.Error(err))
-	}
+// 	err := Commits(newBatchs)
+// 	if err != nil {
+// 		wk.Error("AppendMessagesByLogs commits failed", zap.Error(err))
+// 	}
 
-	for _, req := range reqs {
-		req.WaitC <- err
-	}
-}
+// 	for _, req := range reqs {
+// 		req.WaitC <- err
+// 	}
+// }
 
 func (wk *wukongDB) channelDb(channelId string, channelType uint8) *pebble.DB {
 	dbIndex := wk.channelDbIndex(channelId, channelType)
@@ -404,19 +398,31 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 
 }
 
-func (wk *wukongDB) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error) {
+func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, limit int) ([]Message, error) {
 
 	wk.metrics.LoadLastMsgsAdd(1)
 
-	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelID, channelType)
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
 	if err != nil {
 		return nil, err
 	}
 	if lastSeq == 0 {
 		return nil, nil
 	}
-	return wk.LoadPrevRangeMsgs(channelID, channelType, lastSeq, 0, limit)
+	return wk.LoadPrevRangeMsgs(channelId, channelType, lastSeq, 0, limit)
 
+}
+
+// 获取最新的一条消息
+func (wk *wukongDB) GetLastMsg(channelId string, channelType uint8) (Message, error) {
+	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelId, channelType)
+	if err != nil {
+		return EmptyMessage, err
+	}
+	if lastSeq == 0 {
+		return EmptyMessage, nil
+	}
+	return wk.LoadMsg(channelId, channelType, lastSeq)
 }
 
 func (wk *wukongDB) LoadLastMsgsWithEnd(channelID string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error) {
@@ -479,7 +485,7 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 		return err
 	}
 
-	if messageSeq > lastMsgSeq {
+	if messageSeq >= lastMsgSeq {
 		return nil
 	}
 
@@ -494,9 +500,9 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 
 	db := wk.channelBatchDb(channelId, channelType)
 	batch := db.NewBatch()
-	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64))
+	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, messageSeq+1), key.NewMessagePrimaryKey(channelId, channelType, math.MaxUint64))
 
-	err = wk.setChannelLastMessageSeq(channelId, channelType, messageSeq-1, batch)
+	err = wk.setChannelLastMessageSeq(channelId, channelType, messageSeq, batch)
 	if err != nil {
 		return err
 	}
