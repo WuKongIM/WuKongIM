@@ -10,7 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -202,12 +202,12 @@ func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, err
 	return conns, nil
 }
 
-func (u *user) requestOnlineStatus(nodeID uint64, uids []string) ([]*OnlinestatusResp, error) {
+func (u *user) requestOnlineStatus(nodeId uint64, uids []string) ([]*OnlinestatusResp, error) {
 
-	nodeInfo, err := service.Cluster.NodeInfoById(nodeID) // 获取频道的领导节点
-	if err != nil {
-		u.Error("获取频道所在节点失败！", zap.Error(err), zap.Uint64("nodeID", nodeID))
-		return nil, errors.New("获取频道所在节点失败！")
+	nodeInfo := service.Cluster.NodeInfoById(nodeId) // 获取频道的领导节点
+	if nodeInfo == nil {
+		u.Error("节点信息不存在", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("节点信息不存在")
 	}
 	reqURL := fmt.Sprintf("%s/user/onlinestatus", nodeInfo.ApiServerAddr)
 	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(uids)), nil)
@@ -399,10 +399,10 @@ func (u *user) systemUidsAdd(c *wkhttp.Context) {
 
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
 
-	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
-	if err != nil {
-		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
-		c.ResponseError(errors.New("获取slot所在节点失败！"))
+	nodeInfo := service.Cluster.SlotLeaderNodeInfo(slotId)
+	if nodeInfo == nil {
+		u.Error("槽的领导节点不存在", zap.Error(err), zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("槽的领导节点不存在"))
 		return
 	}
 	if nodeInfo.Id != options.G.Cluster.NodeId {
@@ -434,7 +434,7 @@ func (u *user) systemUidsAdd(c *wkhttp.Context) {
 		if !node.Online {
 			continue
 		}
-		requestGroup.Go(func(n *pb.Node) func() error {
+		requestGroup.Go(func(n *types.Node) func() error {
 			return func() error {
 				return u.requestSystemUidsAddToCache(n, req.UIDs)
 			}
@@ -452,7 +452,7 @@ func (u *user) systemUidsAdd(c *wkhttp.Context) {
 
 }
 
-func (u *user) requestSystemUidsAddToCache(nodeInfo *pb.Node, uids []string) error {
+func (u *user) requestSystemUidsAddToCache(nodeInfo *types.Node, uids []string) error {
 	reqURL := fmt.Sprintf("%s/user/systemuids_add_to_cache", nodeInfo.ApiServerAddr)
 	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(map[string]interface{}{
 		"uids": uids,
@@ -496,8 +496,8 @@ func (u *user) systemUidsRemove(c *wkhttp.Context) {
 	}
 
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
-	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
-	if err != nil {
+	nodeInfo := service.Cluster.SlotLeaderNodeInfo(slotId)
+	if nodeInfo == nil {
 		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
 		c.ResponseError(errors.New("获取slot所在节点失败！"))
 		return
@@ -530,7 +530,7 @@ func (u *user) systemUidsRemove(c *wkhttp.Context) {
 		if !node.Online {
 			continue
 		}
-		requestGroup.Go(func(n *pb.Node) func() error {
+		requestGroup.Go(func(n *types.Node) func() error {
 			return func() error {
 				return u.requestSystemUidsRemoveFromCache(n, req.UIDs)
 			}
@@ -547,7 +547,7 @@ func (u *user) systemUidsRemove(c *wkhttp.Context) {
 	c.ResponseOK()
 }
 
-func (u *user) requestSystemUidsRemoveFromCache(nodeInfo *pb.Node, uids []string) error {
+func (u *user) requestSystemUidsRemoveFromCache(nodeInfo *types.Node, uids []string) error {
 	reqURL := fmt.Sprintf("%s/user/systemuids_remove_from_cache", nodeInfo.ApiServerAddr)
 	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(map[string]interface{}{
 		"uids": uids,
@@ -581,9 +581,9 @@ func (u *user) systemUidsRemoveFromCache(c *wkhttp.Context) {
 func (u *user) getSystemUids(c *wkhttp.Context) {
 
 	var slotId uint32 = 0 // 系统uid默认存储在slot 0上
-	nodeInfo, err := service.Cluster.SlotLeaderNodeInfo(slotId)
-	if err != nil {
-		u.Error("获取slot所在节点失败！", zap.Error(err), zap.Uint32("slotId", slotId))
+	nodeInfo := service.Cluster.SlotLeaderNodeInfo(slotId)
+	if nodeInfo == nil {
+		u.Error("获取slot所在节点失败！", zap.Uint32("slotId", slotId))
 		c.ResponseError(errors.New("获取slot所在节点失败！"))
 		return
 	}

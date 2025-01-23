@@ -45,6 +45,14 @@ func NewWukongDB(opts *Options) DB {
 	if err != nil {
 		panic(err)
 	}
+
+	var metrics trace.IDBMetrics
+	if trace.GlobalTrace != nil {
+		metrics = trace.GlobalTrace.Metrics.DB()
+	} else {
+		metrics = trace.NewDBMetrics()
+	}
+
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 	return &wukongDB{
 		opts:         opts,
@@ -53,7 +61,7 @@ func NewWukongDB(opts *Options) DB {
 		endian:       binary.BigEndian,
 		cancelCtx:    cancelCtx,
 		cancelFunc:   cancelFunc,
-		metrics:      trace.GlobalTrace.Metrics.DB(),
+		metrics:      metrics,
 		h:            fnv.New32(),
 		sync: &pebble.WriteOptions{
 			Sync: true,
@@ -392,9 +400,9 @@ func (wk *BatchDB) executeBatch(bs []*Batch) {
 
 		// fmt.Println("batch-->:", b.String())
 
-		trace.GlobalTrace.Metrics.DB().SetAdd(int64(len(b.setKvs)))
-		trace.GlobalTrace.Metrics.DB().DeleteAdd(int64(len(b.delKvs)))
-		trace.GlobalTrace.Metrics.DB().DeleteRangeAdd(int64(len(b.delRangeKvs)))
+		// trace.GlobalTrace.Metrics.DB().SetAdd(int64(len(b.setKvs)))
+		// trace.GlobalTrace.Metrics.DB().DeleteAdd(int64(len(b.delKvs)))
+		// trace.GlobalTrace.Metrics.DB().DeleteRangeAdd(int64(len(b.delRangeKvs)))
 
 		for _, kv := range b.delKvs {
 			if err := bt.Delete(kv.key, pebble.NoSync); err != nil {
@@ -418,7 +426,7 @@ func (wk *BatchDB) executeBatch(bs []*Batch) {
 		}
 
 	}
-	trace.GlobalTrace.Metrics.DB().CommitAdd(1)
+	// trace.GlobalTrace.Metrics.DB().CommitAdd(1)
 	err := bt.Commit(pebble.Sync)
 	if err != nil {
 		for _, b := range bs {

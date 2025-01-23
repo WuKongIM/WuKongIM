@@ -17,6 +17,7 @@ import Connection from '../pages/data/Connection.vue'
 import Message from '../pages/data/Message.vue'
 import ChannelForData from '../pages/data/Channel.vue'
 import Conversation from '../pages/data/Conversation.vue'
+import Tag from '../pages/data/Tag.vue'
 
 // ==================== monitor ====================
 
@@ -103,6 +104,11 @@ const router = createRouter({
       path: '/data/conversation',
       name: 'dataConversation',
       component: Conversation
+    },
+    {
+      path: '/data/tag',
+      name: 'dataTag',
+      component: Tag
     },
     // ==================== monitor ====================
     {

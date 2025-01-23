@@ -1,5 +1,5 @@
 package service
 
-import "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
+import "github.com/WuKongIM/WuKongIM/pkg/cluster/store"
 
-var Store *clusterstore.Store // 存储相关接口
+var Store *store.Store // 存储相关接口

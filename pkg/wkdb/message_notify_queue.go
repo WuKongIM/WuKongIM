@@ -5,6 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 // AppendMessageOfNotifyQueue 添加消息到通知队列
@@ -32,7 +33,24 @@ func (wk *wukongDB) GetMessagesOfNotifyQueue(count int) ([]Message, error) {
 	})
 	defer iter.Close()
 
-	return wk.parseMessageOfNotifyQueue(iter, count)
+	messages, errorKeys, err := wk.parseMessageOfNotifyQueue(iter, count)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(errorKeys) > 0 {
+		batch := wk.defaultShardDB().NewBatch()
+		defer batch.Close()
+		for _, key := range errorKeys {
+			if err := batch.Delete(key, wk.noSync); err != nil {
+				return nil, err
+			}
+		}
+		if err := batch.Commit(wk.sync); err != nil {
+			return nil, err
+		}
+	}
+	return messages, nil
 }
 
 // RemoveMessagesOfNotifyQueueCount 移除指定数量的通知队列的消息
@@ -81,18 +99,21 @@ func (wk *wukongDB) writeMessageOfNotifyQueue(msg Message, w *Batch) error {
 	return nil
 }
 
-func (wk *wukongDB) parseMessageOfNotifyQueue(iter *pebble.Iterator, limit int) ([]Message, error) {
+func (wk *wukongDB) parseMessageOfNotifyQueue(iter *pebble.Iterator, limit int) ([]Message, [][]byte, error) {
 
 	msgs := make([]Message, 0, limit)
+	errorKeys := make([][]byte, 0, limit)
 	for iter.First(); iter.Valid(); iter.Next() {
 		value := iter.Value()
 		// 解析消息
 		var msg Message
 		if err := msg.Unmarshal(value); err != nil {
-			return nil, err
+			wk.Warn("queue message unmarshal failed", zap.Error(err), zap.Int("len", len(value)))
+			errorKeys = append(errorKeys, iter.Key())
+			continue
 		}
 		msgs = append(msgs, msg)
 	}
 
-	return msgs, nil
+	return msgs, errorKeys, nil
 }

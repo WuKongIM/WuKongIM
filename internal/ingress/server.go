@@ -3,7 +3,6 @@ package ingress
 import (
 	"errors"
 
-	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
@@ -31,6 +30,10 @@ func (i *Ingress) SetRoutes() {
 	service.Cluster.Route("/wk/ingress/allowSend", i.handleAllowSend)
 	// 更新tag
 	service.Cluster.Route("/wk/ingress/updateTag", i.handleUpdateTag)
+	// 添加tag
+	service.Cluster.Route("/wk/ingress/addTag", i.handleAddTag)
+	// 获取订阅者
+	service.Cluster.Route("/wk/ingress/getSubscribers", i.handleGetSubscribers)
 
 }
 
@@ -125,15 +128,15 @@ func (i *Ingress) handleUpdateTag(c *wkserver.Context) {
 		return
 	}
 
-	realFakeChannelId := req.ChannelId
-	if options.G.IsCmdChannel(req.ChannelId) {
-		realFakeChannelId = options.G.CmdChannelConvertOrginalChannel(req.ChannelId)
-	}
+	// realFakeChannelId := req.ChannelId
+	// if options.G.IsCmdChannel(req.ChannelId) {
+	// 	realFakeChannelId = options.G.CmdChannelConvertOrginalChannel(req.ChannelId)
+	// }
 
 	tagKey := req.TagKey
 	if tagKey == "" {
 		if req.ChannelId != "" {
-			tagKey = service.TagManager.GetChannelTag(realFakeChannelId, req.ChannelType)
+			tagKey = service.TagManager.GetChannelTag(req.ChannelId, req.ChannelType)
 		}
 	}
 	if tagKey != "" {
@@ -155,18 +158,78 @@ func (i *Ingress) handleUpdateTag(c *wkserver.Context) {
 				if err != nil {
 					i.Warn("handleUpdateTag: rename tag failed", zap.Error(err))
 				}
-				service.TagManager.SetChannelTag(realFakeChannelId, req.ChannelType, newTagKey)
-			}
-
-		} else {
-			_, err = service.TagManager.MakeTagWithTagKey(tagKey, req.Uids)
-			if err != nil {
-				i.Error("handleUpdateTag: make tag failed", zap.Error(err))
-				c.WriteErr(err)
-				return
+				service.TagManager.SetChannelTag(req.ChannelId, req.ChannelType, newTagKey)
 			}
 		}
 	}
 	c.WriteOk()
 
+}
+
+func (i *Ingress) handleAddTag(c *wkserver.Context) {
+	req := &TagAddReq{}
+	err := req.Decode(c.Body())
+	if err != nil {
+		i.Error("handleAddTag: decode failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if req.TagKey == "" {
+		i.Error("tagKey is nil", zap.Any("req", req))
+		c.WriteErr(errors.New("tagKey is nil"))
+		return
+	}
+	if len(req.Uids) == 0 {
+		i.Error("uids is nil", zap.Any("req", req))
+		c.WriteErr(errors.New("uids is nil"))
+		return
+	}
+
+	_, err = service.TagManager.MakeTagWithTagKey(req.TagKey, req.Uids)
+	if err != nil {
+		i.Error("handleAddTag: add users failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.WriteOk()
+}
+
+func (i *Ingress) handleGetSubscribers(c *wkserver.Context) {
+	req := &ChannelReq{}
+	err := req.Decode(c.Body())
+	if err != nil {
+		i.Error("handleGetSubscribers: decode failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if req.ChannelId == "" {
+		i.Error("handleGetSubscribers: channelId is nil", zap.Any("req", req))
+		c.WriteErr(errors.New("channelId is nil"))
+		return
+	}
+
+	members, err := service.Store.GetSubscribers(req.ChannelId, req.ChannelType)
+	if err != nil {
+		i.Error("handleGetSubscribers: get subscribers failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	subscribers := make([]string, 0, len(members))
+	for _, member := range members {
+		subscribers = append(subscribers, member.Uid)
+	}
+
+	resp := &SubscribersResp{
+		Subscribers: subscribers,
+	}
+	data, err := resp.Encode()
+	if err != nil {
+		i.Error("handleGetSubscribers: encode failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
 }

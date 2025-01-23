@@ -1,7 +1,6 @@
 package common
 
 import (
-	"context"
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
@@ -65,14 +64,14 @@ func (s *everyScheduler) Next(prev time.Time) time.Time {
 // targetNodeId 目标节点的uids，如果为0，表示获取所有节点的uids
 func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8, tagKey string, targetNodeId uint64) (*types.Tag, error) {
 
-	realFakeChannelId := fakeChannelId
-	if options.G.IsCmdChannel(fakeChannelId) {
-		realFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
-	}
+	// realFakeChannelId := fakeChannelId
+	// if options.G.IsCmdChannel(fakeChannelId) {
+	// 	realFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
+	// }
 
 	var tag *types.Tag
 	if tagKey == "" {
-		tagKey = service.TagManager.GetChannelTag(realFakeChannelId, channelType)
+		tagKey = service.TagManager.GetChannelTag(fakeChannelId, channelType)
 	}
 	if tagKey != "" {
 		tag = service.TagManager.Get(tagKey)
@@ -81,33 +80,35 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 		return tag, nil
 	}
 	if channelType == wkproto.ChannelTypePerson {
-		return s.getOrMakePersonTag(realFakeChannelId)
+		return s.getOrMakePersonTag(fakeChannelId)
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	leader, err := service.Cluster.LeaderOfChannel(timeoutCtx, realFakeChannelId, channelType)
-	cancel()
+	leader, err := service.Cluster.LeaderOfChannel(fakeChannelId, channelType)
 	if err != nil {
-		wklog.Error("GetOrRequestTag: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", realFakeChannelId), zap.Uint8("channelType", channelType))
+		wklog.Error("GetOrRequestTag: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
+	}
+	if leader == nil {
+		wklog.Warn("GetOrRequestTag: leader is nil", zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		return nil, errors.ChannelNotExist(fakeChannelId)
 	}
 
 	// tagKey在频道的领导节点是一定存在的，
 	// 如果不存在可能就是失效了，这里直接忽略,只能等下条消息触发重构tag
-	if leader.Id == options.G.Cluster.NodeId {
-		wklog.Warn("tag not exist in leader node", zap.String("tagKey", tagKey), zap.String("fakeChannelId", realFakeChannelId), zap.Uint8("channelType", channelType))
+	if options.G.IsLocalNode(leader.Id) {
+		wklog.Warn("tag not exist in leader node", zap.String("tagKey", tagKey), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, errors.TagNotExist(tagKey)
 	}
 
 	// 去领导节点请求
 	tagResp, err := s.client.RequestTag(leader.Id, &ingress.TagReq{
 		TagKey:      tagKey,
-		ChannelId:   realFakeChannelId,
+		ChannelId:   fakeChannelId,
 		ChannelType: channelType,
 		NodeId:      targetNodeId,
 	})
 	if err != nil {
-		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.Uint64("leaderId", leader.Id), zap.String("channelId", realFakeChannelId), zap.Uint8("channelType", channelType))
+		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.Uint64("leaderId", leader.Id), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
 
@@ -116,7 +117,7 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 		s.Error("GetOrRequestTag: make tag failed", zap.Error(err))
 		return nil, err
 	}
-	service.TagManager.SetChannelTag(realFakeChannelId, channelType, tagKey)
+	service.TagManager.SetChannelTag(fakeChannelId, channelType, tagKey)
 	return tag, nil
 }
 
@@ -126,8 +127,13 @@ func (s *Service) GetOrRequestAndMakeTagWithLocal(fakeChannelId string, channelT
 
 // 获取个人频道的投递tag
 func (s *Service) getOrMakePersonTag(fakeChannelId string) (*types.Tag, error) {
+
+	realFakeChannelId := fakeChannelId
+	if options.G.IsCmdChannel(fakeChannelId) {
+		realFakeChannelId = options.G.CmdChannelConvertOrginalChannel(fakeChannelId)
+	}
 	// 处理普通假个人频道
-	u1, u2 := options.GetFromUIDAndToUIDWith(fakeChannelId)
+	u1, u2 := options.GetFromUIDAndToUIDWith(realFakeChannelId)
 	subscribers := []string{u1, u2}
 	tag, err := service.TagManager.MakeTag(subscribers)
 	if err != nil {

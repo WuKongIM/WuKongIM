@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
 )
@@ -66,12 +67,6 @@ func (wk *wukongDB) AddOrUpdateConversations(conversations []Conversation) error
 		wk.Error("commits failed", zap.Error(err))
 		return nil
 	}
-
-	// // 设置最近会话用户关系
-	// err = wk.setConversationLocalUserRelation(conversations)
-	// if err != nil {
-	// 	return err
-	// }
 
 	return nil
 
@@ -199,6 +194,12 @@ func (wk *wukongDB) GetConversationsByType(uid string, tp ConversationType) ([]C
 	if err != nil {
 		return nil, err
 	}
+	// 移除重复
+	oldCount := len(conversations)
+	conversations = removeDupliConversationByChannel(conversations)
+	if oldCount != len(conversations) {
+		wk.Warn("GetConversationsByType remove duplicate", zap.Int("oldCount", oldCount), zap.Int("newCount", len(conversations)))
+	}
 	return conversations, nil
 }
 
@@ -264,6 +265,23 @@ func uniqueConversation(conversations []Conversation) []Conversation {
 	uniqueMap := make(map[uint64]Conversation)
 	for _, conversation := range conversations {
 		uniqueMap[conversation.Id] = conversation
+	}
+
+	var uniqueConversations = make([]Conversation, 0, len(uniqueMap))
+	for _, conversation := range uniqueMap {
+		uniqueConversations = append(uniqueConversations, conversation)
+	}
+	return uniqueConversations
+}
+
+func removeDupliConversationByChannel(conversations []Conversation) []Conversation {
+	if len(conversations) == 0 {
+		return conversations
+	}
+
+	uniqueMap := make(map[string]Conversation)
+	for _, conversation := range conversations {
+		uniqueMap[wkutil.ChannelToKey(conversation.ChannelId, conversation.ChannelType)] = conversation
 	}
 
 	var uniqueConversations = make([]Conversation, 0, len(uniqueMap))
@@ -376,21 +394,24 @@ func (wk *wukongDB) SearchConversation(req ConversationSearchReq) ([]Conversatio
 }
 
 func (wk *wukongDB) deleteConversation(uid string, channelId string, channelType uint8, w *Batch) error {
-	oldConversation, err := wk.GetConversation(uid, channelId, channelType)
+	oldConversations, err := wk.getConversations(uid, channelId, channelType)
 	if err != nil && err != ErrNotFound {
 		return err
 	}
-	if IsEmptyConversation(oldConversation) {
+
+	if len(oldConversations) == 0 {
 		return nil
 	}
-	// 删除索引
-	err = wk.deleteConversationIndex(oldConversation, w)
-	if err != nil {
-		return err
-	}
-	// 删除数据
-	w.DeleteRange(key.NewConversationColumnKey(uid, oldConversation.Id, key.MinColumnKey), key.NewConversationColumnKey(uid, oldConversation.Id, key.MaxColumnKey))
 
+	for _, oldConversation := range oldConversations {
+		// 删除索引
+		err = wk.deleteConversationIndex(oldConversation, w)
+		if err != nil {
+			return err
+		}
+		// 删除数据
+		w.DeleteRange(key.NewConversationColumnKey(uid, oldConversation.Id, key.MinColumnKey), key.NewConversationColumnKey(uid, oldConversation.Id, key.MaxColumnKey))
+	}
 	return nil
 }
 
@@ -428,6 +449,29 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 	}
 
 	return conversation, nil
+}
+
+// getConversations 获取指定用户的指定会话(有可能一个用户一个频道存在多条数据，这个应该是bug导致的，所以这里一起返回，给上层删除)
+func (wk *wukongDB) getConversations(uid string, channelId string, channelType uint8) ([]Conversation, error) {
+
+	db := wk.shardDB(uid)
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewConversationPrimaryKey(uid, 0),
+		UpperBound: key.NewConversationPrimaryKey(uid, math.MaxUint64),
+	})
+	defer iter.Close()
+
+	var conversations []Conversation
+	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+		if conversation.ChannelId == channelId && conversation.ChannelType == channelType {
+			conversations = append(conversations, conversation)
+		}
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return conversations, nil
 }
 
 func (wk *wukongDB) ExistConversation(uid string, channelId string, channelType uint8) (bool, error) {

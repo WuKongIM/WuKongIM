@@ -245,49 +245,7 @@ const onRefresh = () => {
                 </div>
             </div>
 
-            <!-- sendpacket  -->
-            <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="sendPacketIncomingCountRateRef" title="转入的发送包(个)" />
-                </div>
-            </div>
-            <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="sendPacketIncomingBytesRateRef" title="转入的发送包(字节)" />
-                </div>
-            </div>
-            <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="sendPacketOutgoingCountRateRef" title="转出的发送包(个)" />
-                </div>
-            </div>
-            <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="sendPacketOutgoingBytesRateRef" title="转出的发送包(字节)" />
-                </div>
-            </div>
 
-             <!-- ping  -->
-             <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="msgPingIncomingCountRateRef" title="流入的Ping(个)" />
-                </div>
-            </div>
-            <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="msgPingIncomingBytesRateRef" title="流入的Ping(字节)" />
-                </div>
-            </div>
-            <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="msgPingOutgoingCountRateRef" title="流出的Ping(个)" />
-                </div>
-            </div>
-            <div class="pl-5">
-                <div class="w-[30%] h-[20rem]  min-w-[20rem] shadow-md p-5">
-                    <MonitorPanel :data="msgPingOutgoingBytesRateRef" title="流出的Ping(字节)" />
-                </div>
-            </div>
         </div>
         <div class="text text-center mt-10 text-red-500" v-else>
              监控功能未开启，请查看官网文档 https://githubim.com

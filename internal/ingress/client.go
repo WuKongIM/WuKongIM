@@ -62,6 +62,24 @@ func (c *Client) UpdateTag(nodeId uint64, req *TagUpdateReq) error {
 	return nil
 }
 
+func (c *Client) AddTag(nodeId uint64, req *TagAddReq) error {
+	data, err := req.Encode()
+	if err != nil {
+		return err
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, nodeId, "/wk/ingress/addTag", data)
+	if err != nil {
+		return err
+	}
+
+	if resp.Status != proto.StatusOK {
+		return errors.New("addTag: status error")
+	}
+	return nil
+}
+
 // 个人聊天判断接受者是否允许发送消息
 func (c *Client) RequestAllowSendForPerson(toNodeId uint64, from, to string) (*proto.Response, error) {
 
@@ -74,6 +92,33 @@ func (c *Client) RequestAllowSendForPerson(toNodeId uint64, from, to string) (*p
 		return nil, err
 	}
 	return c.request(toNodeId, "/wk/ingress/allowSend", data)
+}
+
+func (c *Client) RequestSubscribers(toNodeId uint64, channelId string, channelType uint8) ([]string, error) {
+
+	req := &ChannelReq{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+	}
+
+	data, err := req.Encode()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.request(toNodeId, "/wk/ingress/getSubscribers", data)
+	if err != nil {
+		return nil, err
+	}
+	err = c.handleRespError(resp)
+	if err != nil {
+		return nil, err
+	}
+	subResp := &SubscribersResp{}
+	err = subResp.Decode(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return subResp.Subscribers, nil
 }
 
 func (c *Client) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {

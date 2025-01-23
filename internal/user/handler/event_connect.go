@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -24,6 +25,9 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 			return
 		}
 		if reasonCode == wkproto.ReasonSuccess {
+			if conn.LastActive <= 0 {
+				conn.LastActive = fasttime.UnixTimestamp()
+			}
 			ctx.AddConn(conn)
 		}
 		connackEvent := &eventbus.Event{
@@ -112,6 +116,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 				if oldConn.Equal(conn) { // 不能把自己踢了
 					continue
 				}
+				// 在master级别下，同一个用户，不同设备Id，踢掉
 				if oldConn.DeviceId != connectPacket.DeviceID {
 					h.Info("auth: same master kicks each other",
 						zap.String("devceLevel", devceLevel.String()),
@@ -119,12 +124,17 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 						zap.String("deviceID", connectPacket.DeviceID),
 						zap.String("oldDeviceId", oldConn.DeviceId),
 					)
+					eventbus.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
+						ReasonCode: wkproto.ReasonConnectKick,
+						Reason:     "login in other device",
+					})
 					service.CommonService.AfterFunc(time.Second*2, func(od *eventbus.Conn) func() {
 						return func() {
 							eventbus.User.CloseConn(od)
 						}
 					}(oldConn))
 				} else {
+					// 相同设备Id，只关闭连接，不进行踢操作
 					service.CommonService.AfterFunc(time.Second*2, func(od *eventbus.Conn) func() {
 						return func() {
 							eventbus.User.CloseConn(od)

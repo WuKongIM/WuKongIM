@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/lni/goutils/syncutil"
@@ -96,22 +97,25 @@ func (p *poller) loopEvent() {
 
 func (p *poller) tick() {
 	p.tickCount++
+
+	p.waitlist.readHandlers(&p.tmpHandlers)
+
+	for _, h := range p.tmpHandlers {
+		h.tick()
+	}
 	if p.tickCount%options.G.Poller.ClearIntervalTick == 0 {
 		p.tickCount = 0
-		p.clear()
-	}
-}
-
-func (p *poller) clear() {
-	p.Lock()
-	defer p.Unlock()
-	p.waitlist.readHandlers(&p.tmpHandlers)
-	for _, h := range p.tmpHandlers {
-		if h.isTimeout() {
-			p.waitlist.remove(h.Uid)
+		for _, h := range p.tmpHandlers {
+			if h.isTimeout() {
+				p.waitlist.remove(h.Uid)
+				if options.G.IsLocalNode(h.leaderId()) {
+					trace.GlobalTrace.Metrics.App().OnlineUserCountAdd(-1)
+				}
+			}
 		}
 	}
 
+	p.tmpHandlers = p.tmpHandlers[:0]
 }
 
 func (p *poller) handleEvents() {
@@ -124,7 +128,7 @@ func (p *poller) handleEvents() {
 				h.advanceEvents(events)
 			})
 			if err != nil {
-				p.Error("submit user handle task failed", zap.String("error", err.Error()))
+				p.Error("submit user handle task failed", zap.String("error", err.Error()), zap.Int("events", len(events)))
 			}
 		}
 	}
@@ -210,6 +214,16 @@ func (p *poller) localConnByUid(uid string) []*eventbus.Conn {
 		return nil
 	}
 	return h.conns.connsByNodeId(options.G.Cluster.NodeId)
+}
+
+func (p *poller) allConn() []*eventbus.Conn {
+	var conns []*eventbus.Conn
+	tmpHandlers := make([]*userHandler, 0)
+	p.waitlist.readHandlers(&tmpHandlers)
+	for _, h := range tmpHandlers {
+		conns = append(conns, h.conns.conns...)
+	}
+	return conns
 }
 
 func (p *poller) updateConn(conn *eventbus.Conn) {

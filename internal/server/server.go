@@ -25,16 +25,15 @@ import (
 	userevent "github.com/WuKongIM/WuKongIM/internal/user/event"
 	userhandler "github.com/WuKongIM/WuKongIM/internal/user/handler"
 	"github.com/WuKongIM/WuKongIM/internal/webhook"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterconfig/pb"
-	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/clusterserver"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/clusterstore"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/replica"
+	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/clusterconfig"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/store"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/version"
-	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"go.etcd.io/etcd/pkg/v3/idutil"
@@ -52,9 +51,9 @@ type Server struct {
 	reqIDGen      *idutil.Generator // 请求ID生成器
 	ctx           context.Context
 	cancel        context.CancelFunc
-	start         time.Time           // 服务开始时间
-	store         *clusterstore.Store // 存储相关接口
-	engine        *wknet.Engine       // 长连接引擎
+	start         time.Time     // 服务开始时间
+	store         *store.Store  // 存储相关接口
+	engine        *wknet.Engine // 长连接引擎
 	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
 	trace      *trace.Trace // 监控
 	demoServer *DemoServer  // demo server
@@ -129,18 +128,6 @@ func New(opts *options.Options) *Server {
 
 	gin.SetMode(opts.GinMode)
 
-	// 初始化存储
-	storeOpts := clusterstore.NewOptions(s.opts.Cluster.NodeId)
-	storeOpts.DataDir = path.Join(s.opts.DataDir, "db")
-	storeOpts.SlotCount = uint32(s.opts.Cluster.SlotCount)
-	storeOpts.GetSlotId = s.getSlotId
-	storeOpts.IsCmdChannel = opts.IsCmdChannel
-	storeOpts.Db.ShardNum = s.opts.Db.ShardNum
-	storeOpts.Db.MemTableSize = s.opts.Db.MemTableSize
-	s.store = clusterstore.NewStore(storeOpts)
-
-	service.Store = s.store
-
 	// 数据源
 	s.datasource = NewDatasource(s)
 
@@ -159,8 +146,6 @@ func New(opts *options.Options) *Server {
 	)
 
 	s.demoServer = NewDemoServer(s) // demo server
-
-	service.Webhook = webhook.New()
 
 	s.webhook = webhook.New()
 	service.Webhook = s.webhook
@@ -188,43 +173,33 @@ func New(opts *options.Options) *Server {
 			initNodes[node.Id] = serverAddr
 		}
 	}
-	role := pb.NodeRole_NodeRoleReplica
+	role := types.NodeRole_NodeRoleReplica
 	if s.opts.Cluster.Role == options.RoleProxy {
-		role = pb.NodeRole_NodeRoleProxy
+		role = types.NodeRole_NodeRoleProxy
 	}
 	clusterServer := cluster.New(
 		cluster.NewOptions(
-			cluster.WithNodeId(s.opts.Cluster.NodeId),
-			cluster.WithAddr(strings.ReplaceAll(s.opts.Cluster.Addr, "tcp://", "")),
-			cluster.WithDataDir(path.Join(opts.DataDir, "cluster")),
-			cluster.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
-			cluster.WithInitNodes(initNodes),
+			cluster.WithConfigOptions(clusterconfig.NewOptions(
+				clusterconfig.WithNodeId(s.opts.Cluster.NodeId),
+				clusterconfig.WithConfigPath(path.Join(s.opts.DataDir, "cluster", "config", "remote.json")),
+				clusterconfig.WithInitNodes(initNodes),
+				clusterconfig.WithSlotCount(uint32(s.opts.Cluster.SlotCount)),
+				clusterconfig.WithApiServerAddr(s.opts.Cluster.APIUrl),
+				clusterconfig.WithChannelMaxReplicaCount(uint32(s.opts.Cluster.ChannelReplicaCount)),
+				clusterconfig.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
+				clusterconfig.WithPongMaxTick(s.opts.Cluster.PongMaxTick),
+			)),
+			cluster.WithAddr(s.opts.Cluster.Addr),
+			cluster.WithDataDir(path.Join(opts.DataDir)),
 			cluster.WithSeed(s.opts.Cluster.Seed),
 			cluster.WithRole(role),
 			cluster.WithServerAddr(s.opts.Cluster.ServerAddr),
-			cluster.WithMessageLogStorage(s.store.GetMessageShardLogStorage()),
-			cluster.WithApiServerAddr(s.opts.Cluster.APIUrl),
-			cluster.WithChannelMaxReplicaCount(s.opts.Cluster.ChannelReplicaCount),
-			cluster.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
-			cluster.WithLogLevel(s.opts.Logger.Level),
-			cluster.WithAppVersion(version.Version),
-			cluster.WithDB(s.store.DB()),
-			cluster.WithSlotDbShardNum(s.opts.Db.SlotShardNum),
-			cluster.WithOnSlotApply(func(slotId uint32, logs []replica.Log) error {
-
-				return s.store.OnMetaApply(slotId, logs)
-			}),
-			cluster.WithChannelClusterStorage(clusterstore.NewChannelClusterConfigStore(s.store)),
-			cluster.WithElectionIntervalTick(s.opts.Cluster.ElectionIntervalTick),
-			cluster.WithHeartbeatIntervalTick(s.opts.Cluster.HeartbeatIntervalTick),
-			cluster.WithTickInterval(s.opts.Cluster.TickInterval),
-			cluster.WithChannelReactorSubCount(s.opts.Cluster.ChannelReactorSubCount),
-			cluster.WithSlotReactorSubCount(s.opts.Cluster.SlotReactorSubCount),
-			cluster.WithPongMaxTick(s.opts.Cluster.PongMaxTick),
+			cluster.WithDBSlotShardNum(s.opts.Db.SlotShardNum),
+			cluster.WithDBSlotMemTableSize(s.opts.Db.MemTableSize),
+			cluster.WithDBWKDbShardNum(s.opts.Db.ShardNum),
+			cluster.WithDBWKDbMemTableSize(s.opts.Db.MemTableSize),
 			cluster.WithAuth(s.opts.Auth),
-			cluster.WithServiceName(s.opts.Trace.ServiceName),
-			cluster.WithLokiUrl(s.opts.Logger.Loki.Url),
-			cluster.WithLokiJob(s.opts.Logger.Loki.Job),
+			cluster.WithIsCmdChannel(s.opts.IsCmdChannel),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
@@ -233,7 +208,8 @@ func New(opts *options.Options) *Server {
 	)
 	service.Cluster = clusterServer
 	s.clusterServer = clusterServer
-	storeOpts.Cluster = clusterServer
+
+	service.Store = clusterServer.GetStore()
 
 	clusterServer.OnMessage(func(fromNodeId uint64, msg *proto.Message) {
 		s.handleClusterMessage(fromNodeId, msg)
@@ -309,12 +285,7 @@ func (s *Server) Start() error {
 
 	}
 
-	err = s.store.Open()
-	if err != nil {
-		return err
-	}
-
-	err = service.Cluster.Start()
+	err = s.clusterServer.Start()
 	if err != nil {
 		return err
 	}
@@ -393,7 +364,7 @@ func (s *Server) Stop() error {
 		s.conversationManager.Stop()
 	}
 
-	service.Cluster.Stop()
+	s.clusterServer.Stop()
 
 	if s.opts.Demo.On {
 		s.demoServer.Stop()
@@ -404,8 +375,6 @@ func (s *Server) Stop() error {
 		s.Error("engine stop error", zap.Error(err))
 	}
 	s.trace.Stop()
-
-	s.store.Close()
 
 	s.tagManager.Stop()
 
@@ -426,14 +395,15 @@ func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
 }
 
 // 获取分布式配置
-func (s *Server) GetClusterConfig() *pb.Config {
-	return s.clusterServer.GetConfig()
+func (s *Server) GetClusterConfig() *types.Config {
+	return s.clusterServer.GetConfigServer().GetClusterConfig()
 }
 
 // 迁移槽
 func (s *Server) MigrateSlot(slotId uint32, fromNodeId, toNodeId uint64) error {
 
-	return s.clusterServer.MigrateSlot(slotId, fromNodeId, toNodeId)
+	return nil
+	// return s.clusterServer.MigrateSlot(slotId, fromNodeId, toNodeId)
 }
 
 func (s *Server) getSlotId(v string) uint32 {
@@ -469,13 +439,20 @@ func (s *Server) onClose(conn wknet.Conn) {
 	if connCtxObj != nil {
 		connCtx := connCtxObj.(*eventbus.Conn)
 		eventbus.User.RemoveConn(connCtx)
-		if connCtx.Auth {
-			deviceOnlineCount := eventbus.User.ConnCountByDeviceFlag(connCtx.Uid, connCtx.DeviceFlag)
-			totalOnlineCount := eventbus.User.ConnCountByUid(connCtx.Uid)
-			service.Webhook.Offline(connCtx.Uid, wkproto.DeviceFlag(connCtx.DeviceFlag), connCtx.ConnId, deviceOnlineCount, totalOnlineCount) // 触发离线webhook
+
+		if !s.isLeaderNode(connCtx.Uid) {
+			// 如果当前节点不是用户的领导节点，则通知领导节点移除连接
+			eventbus.User.RemoveLeaderConn(connCtx)
 		}
 	}
 	service.ConnManager.RemoveConn(conn)
+}
+
+// 是否是用户的领导节点
+func (s *Server) isLeaderNode(uid string) bool {
+	slotId := service.Cluster.GetSlotId(uid)
+	leaderId := service.Cluster.SlotLeaderId(slotId)
+	return options.G.IsLocalNode(leaderId)
 }
 
 func (s *Server) WithRequestTimeout() (context.Context, context.CancelFunc) {

@@ -1,7 +1,5 @@
 package wkdb
 
-import "github.com/WuKongIM/WuKongIM/pkg/cluster/reactor"
-
 type DB interface {
 	Open() error
 	Close() error
@@ -40,8 +38,6 @@ type MessageDB interface {
 
 	// AppendMessages appends messages to the db.
 	AppendMessages(channelId string, channelType uint8, msgs []Message) error
-	// AppendMessagesByLogs 通过日志数据追加消息
-	AppendMessagesByLogs(reqs []reactor.AppendLogReq)
 
 	// LoadPrevRangeMsgs 向上加载指定范围的消息 end=0表示不做限制 比如 start=100 end=0 limit=10 则返回的消息seq为91-100的消息, 比如 start=100 end=95 limit=10 则返回的消息seq为96-100的消息
 	// 结果包含start,不包含end
@@ -84,6 +80,9 @@ type MessageDB interface {
 
 	// 搜索消息
 	SearchMessages(req MessageSearchReq) ([]Message, error)
+
+	// GetLastMsg 获取最后一条消息
+	GetLastMsg(channelId string, channelType uint8) (Message, error)
 }
 
 type DeviceDB interface {
@@ -273,8 +272,8 @@ type LeaderTermSequenceDB interface {
 	LeaderLastTerm(shardNo string) (uint32, error)
 	// LeaderTermStartIndex 获取领导任期开始的第一条日志索引
 	LeaderTermStartIndex(shardNo string, term uint32) (uint64, error)
-	// LeaderLastTermGreaterThan 获取大于或等于传入的term的最新的本地保存的领导任期
-	LeaderLastTermGreaterThan(shardNo string, term uint32) (uint32, error)
+	// LeaderLastTermGreaterEqThan 获取大于或等于传入的term的最新的本地保存的领导任期
+	LeaderLastTermGreaterEqThan(shardNo string, term uint32) (uint32, error)
 	// DeleteLeaderTermStartIndexGreaterThanTerm 删除比传入的term大的的LeaderTermStartIndex记录
 	DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error
 }

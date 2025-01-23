@@ -2,9 +2,11 @@ package manager
 
 import (
 	"hash/fnv"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/errors"
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"go.uber.org/zap"
 
@@ -18,6 +20,7 @@ type TagManager struct {
 	// 获取当前节点版本号
 	nodeVersion func() uint64
 	wklog.Log
+	sync.RWMutex
 }
 
 func NewTagManager(blucketCount int, nodeVersion func() uint64) *TagManager {
@@ -27,7 +30,7 @@ func NewTagManager(blucketCount int, nodeVersion func() uint64) *TagManager {
 	}
 	tg.bluckets = make([]*tagBlucket, blucketCount)
 	for i := 0; i < blucketCount; i++ {
-		tg.bluckets[i] = newTagBlucket(i, time.Minute*20)
+		tg.bluckets[i] = newTagBlucket(i, options.G.Tag.Expire, tg.existTag)
 	}
 	return tg
 }
@@ -64,10 +67,12 @@ func (t *TagManager) MakeTagWithTagKey(tagKey string, uids []string) (*types.Tag
 }
 
 func (t *TagManager) MakeTagNotCacheWithTagKey(tagKey string, uids []string) (*types.Tag, error) {
+	nw := time.Now()
 	tag := &types.Tag{
 		Key:         tagKey,
-		LastGetTime: time.Now(),
+		LastGetTime: nw,
 		NodeVersion: t.nodeVersion(),
+		CreatedAt:   nw,
 	}
 
 	nodes, err := t.calcUsersInNode(uids)
@@ -80,6 +85,10 @@ func (t *TagManager) MakeTagNotCacheWithTagKey(tagKey string, uids []string) (*t
 }
 
 func (t *TagManager) AddUsers(tagKey string, uids []string) error {
+
+	t.Lock()
+	defer t.Unlock()
+
 	tag := t.getTag(tagKey)
 	if tag == nil {
 		return errors.TagNotExist(tagKey)
@@ -112,6 +121,10 @@ func (t *TagManager) removeExistUidsInTag(tag *types.Tag, uids []string) {
 }
 
 func (t *TagManager) RemoveUsers(tagKey string, uids []string) error {
+
+	t.Lock()
+	defer t.Unlock()
+
 	tag := t.getTag(tagKey)
 	if tag == nil {
 		return errors.TagNotExist(tagKey)
@@ -119,10 +132,7 @@ func (t *TagManager) RemoveUsers(tagKey string, uids []string) error {
 
 	for _, uid := range uids {
 		slotId := service.Cluster.GetSlotId(uid)
-		leaderId, err := service.Cluster.SlotLeaderId(slotId)
-		if err != nil {
-			return err
-		}
+		leaderId := service.Cluster.SlotLeaderId(slotId)
 		if leaderId == 0 {
 			return errors.TagSlotLeaderIsZero
 		}
@@ -167,6 +177,7 @@ func (t *TagManager) Get(tagKey string) *types.Tag {
 		return nil
 	}
 	tag.LastGetTime = time.Now()
+	tag.GetCount.Inc()
 	return tag
 }
 
@@ -189,11 +200,39 @@ func (t *TagManager) RenameTag(oldTagKey, newTagKey string) error {
 func (t *TagManager) SetChannelTag(fakeChannelId string, channelType uint8, tagKey string) {
 	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
 	blucket.setChannelTag(fakeChannelId, channelType, tagKey)
+	tag := t.getTag(tagKey)
+	if tag != nil {
+		tag.ChannelId = fakeChannelId
+		tag.ChannelType = channelType
+	}
 }
 
 func (t *TagManager) GetChannelTag(fakeChannelId string, channelType uint8) string {
 	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
 	return blucket.getChannelTag(fakeChannelId, channelType)
+}
+
+func (t *TagManager) RemoveChannelTag(fakeChannelId string, channelType uint8) {
+	blucket := t.getBlucketByChannel(fakeChannelId, channelType)
+	blucket.removeChannelTag(fakeChannelId, channelType)
+}
+
+func (t *TagManager) GetAllTags() []*types.Tag {
+	var tags []*types.Tag
+	for _, blucket := range t.bluckets {
+		tags = append(tags, blucket.getAllTags()...)
+	}
+	return tags
+}
+
+func (t *TagManager) GetAllChannelTags() map[string]string {
+	channelTags := make(map[string]string)
+	for _, blucket := range t.bluckets {
+		for k, v := range blucket.getAllChannelTags() {
+			channelTags[k] = v
+		}
+	}
+	return channelTags
 }
 
 func (t *TagManager) getBlucketByTagKey(tagKey string) *tagBlucket {
@@ -258,10 +297,7 @@ func (t *TagManager) calcUsersInNode(uids []string) ([]*types.Node, error) {
 	var nodeMap = make(map[uint64]*types.Node)
 	for _, uid := range uids {
 		slotId := service.Cluster.GetSlotId(uid)
-		leaderId, err := service.Cluster.SlotLeaderId(slotId)
-		if err != nil {
-			return nil, err
-		}
+		leaderId := service.Cluster.SlotLeaderId(slotId)
 		if leaderId == 0 {
 			return nil, errors.TagSlotLeaderIsZero
 		}
@@ -306,4 +342,9 @@ func (t *TagManager) getTag(tagKey string) *types.Tag {
 func (t *TagManager) removeTag(tagKey string) {
 	blucket := t.getBlucketByTagKey(tagKey)
 	blucket.removeTag(tagKey)
+}
+
+func (t *TagManager) existTag(tagKey string) bool {
+	blucket := t.getBlucketByTagKey(tagKey)
+	return blucket.existTag(tagKey)
 }

@@ -32,7 +32,7 @@ onBeforeUnmount(() => {
 })
 
 const onNodeChange = (e: any) => {
-   selectedNodeId.value = e.target.value
+   selectedNodeId.value = parseInt(e.target.value)
    loadConnections(e.target.value)
 }
 
@@ -41,7 +41,7 @@ const loadConnections = (closeLoading?: boolean) => {
       loading.value = true;
 
    }
-   API.shared.connections(selectedNodeId.value, 100,sortField.value,uidSearch.value).then((res) => {
+   API.shared.connections(selectedNodeId.value, 100, sortField.value, uidSearch.value).then((res) => {
       connectionTotal.value = res
    }).catch((err) => {
       alert(err)
@@ -76,6 +76,24 @@ const onUidSearch = (e: any) => {
    loadConnections()
 }
 
+// 断开连接
+const onDisconnect = (conn: any) => {
+   API.shared.disconnect({ uid: conn.uid, nodeId: conn.node_id, connId: conn.id,opNodeId:selectedNodeId.value }).then(() => {
+      loadConnections()
+   }).catch((err) => {
+      alert(err)
+   })
+}
+
+// 踢掉连接
+const onKick = (conn: any) => {
+   API.shared.kick({ uid: conn.uid, nodeId: conn.node_id, connId: conn.id }).then(() => {
+      loadConnections()
+   }).catch((err) => {
+      alert(err)
+   })
+}
+
 </script>
 
 
@@ -92,7 +110,8 @@ const onUidSearch = (e: any) => {
 
             <div class="text-sm ml-10">
                <label>用户UID</label>
-               <input type="text" placeholder="输入" class="input input-bordered  select-sm ml-2" v-on:change="onUidSearch" />
+               <input type="text" placeholder="输入" class="input input-bordered  select-sm ml-2"
+                  v-on:change="onUidSearch" />
             </div>
          </div>
          <table class="table mt-10 table-pin-rows">
@@ -110,7 +129,11 @@ const onUidSearch = (e: any) => {
                            </svg>
                         </a>
                      </div>
-
+                  </th>
+                  <th>
+                     <div class="flex items-center">
+                        源节点
+                     </div>
                   </th>
                   <th>
                      <div class="flex items-center">
@@ -132,7 +155,7 @@ const onUidSearch = (e: any) => {
                   <th>
                      <div class="flex items-center">
                         收到消息数
-                        <a href="#"  v-on:click="() => onSort('outMsg')">
+                        <a href="#" v-on:click="() => onSort('outMsg')">
                            <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                               fill="currentColor" viewBox="0 0 24 24">
                               <path
@@ -156,7 +179,7 @@ const onUidSearch = (e: any) => {
                   <th>
                      <div class="flex items-center">
                         收到消息字节数
-                        <a href="#"  v-on:click="() => onSort('outMsgBytes')">
+                        <a href="#" v-on:click="() => onSort('outMsgBytes')">
                            <svg class="w-3 h-3 ms-1.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                               fill="currentColor" viewBox="0 0 24 24">
                               <path
@@ -260,12 +283,14 @@ const onUidSearch = (e: any) => {
                   <th>设备编号</th>
                   <th>代理类型</th>
                   <th>领导节点</th>
+                  <th>操作</th>
                </tr>
             </thead>
             <tbody>
                <!-- row 1 -->
                <tr v-for="conn in connectionTotal.connections">
                   <td class="text-blue-800">{{ conn.id }}</td>
+                  <td>{{ conn.node_id }}</td>
                   <td>{{ conn.uid }}</td>
                   <td>{{ conn.in_msgs }}</td>
                   <td>{{ conn.out_msgs }}</td>
@@ -281,8 +306,12 @@ const onUidSearch = (e: any) => {
                   <td>{{ conn.version }}</td>
                   <td>{{ conn.device }}</td>
                   <td>{{ conn.device_id }}</td>
-                  <td>{{conn.proxy_type_format}}</td>
-                  <td>{{conn.leader_id}}</td>
+                  <td>{{ conn.proxy_type_format }}</td>
+                  <td>{{ conn.leader_id }}</td>
+                  <td class="flex flex-wrap gap-2">
+                     <button class="btn btn-sm" v-on:click="() => onDisconnect(conn)">断开</button>
+                     <button class="btn btn-sm" v-on:click="() => onKick(conn)">踢掉</button>
+                  </td>
                </tr>
 
             </tbody>
