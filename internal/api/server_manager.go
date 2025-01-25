@@ -28,13 +28,15 @@ type managerServer struct {
 }
 
 func newManagerServer(s *Server) *managerServer {
-	r := wkhttp.New()
+	// r := wkhttp.New()
+	log := wklog.NewWKLog("managerServer")
+	r := wkhttp.NewWithLogger(wkhttp.LoggerWithWklog(log))
 
 	return &managerServer{
 		addr: options.G.Manager.Addr,
 		s:    s,
 		r:    r,
-		Log:  wklog.NewWKLog("managerServer"),
+		Log:  log,
 	}
 
 }
