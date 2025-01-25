@@ -27,6 +27,20 @@ func New() *WKHttp {
 	return l
 }
 
+func NewWithLogger(loggerHandler HandlerFunc) *WKHttp {
+	l := &WKHttp{
+		r:    gin.New(),
+		pool: sync.Pool{},
+	}
+	l.r.Use(l.LMHttpHandler(loggerHandler))
+	l.r.Use(gin.Recovery())
+	l.r.SetTrustedProxies(nil)
+	l.pool.New = func() interface{} {
+		return allocateContext()
+	}
+	return l
+}
+
 // GetGinRoute GetGinRoute
 func (l *WKHttp) GetGinRoute() *gin.Engine {
 	return l.r
