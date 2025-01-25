@@ -61,10 +61,8 @@ func (l *WKHttp) Use(handlers ...HandlerFunc) {
 
 func (l *WKHttp) handlersToGinHandleFuncs(handlers []HandlerFunc) []gin.HandlerFunc {
 	newHandlers := make([]gin.HandlerFunc, 0, len(handlers))
-	if handlers != nil {
-		for _, handler := range handlers {
-			newHandlers = append(newHandlers, l.LMHttpHandler(handler))
-		}
+	for _, handler := range handlers {
+		newHandlers = append(newHandlers, l.LMHttpHandler(handler))
 	}
 	return newHandlers
 }
@@ -119,10 +117,8 @@ func (c *Context) ResponseStatus(status int) {
 func (c *Context) ForwardWithBody(url string, body []byte) {
 	queryMap := map[string]string{}
 	values := c.Request.URL.Query()
-	if values != nil {
-		for key, value := range values {
-			queryMap[key] = value[0]
-		}
+	for key, value := range values {
+		queryMap[key] = value[0]
 	}
 	req := rest.Request{
 		Method:      rest.Method(strings.ToUpper(c.Request.Method)),
@@ -209,10 +205,8 @@ func (l *WKHttp) Group(relativePath string, handlers ...HandlerFunc) {
 
 func (l *WKHttp) handlersToGinHandleFunc(handlers []HandlerFunc) []gin.HandlerFunc {
 	newHandlers := make([]gin.HandlerFunc, 0, len(handlers))
-	if handlers != nil {
-		for _, handler := range handlers {
-			newHandlers = append(newHandlers, l.LMHttpHandler(handler))
-		}
+	for _, handler := range handlers {
+		newHandlers = append(newHandlers, l.LMHttpHandler(handler))
 	}
 	return newHandlers
 }
