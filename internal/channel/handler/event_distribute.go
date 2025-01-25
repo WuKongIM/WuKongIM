@@ -124,13 +124,14 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 			if options.G.IsSystemUid(uid) {
 				continue
 			}
-			if !h.masterDeviceIsOnline(uid) {
+			isOnline, masterIsOnline := h.deviceOnlineStatus(uid)
+			if !masterIsOnline {
 				if offlineUids == nil {
 					offlineUids = make([]string, 0, len(node.Uids))
 				}
 				offlineUids = append(offlineUids, uid)
 			}
-			if !h.isOnline(uid) {
+			if !isOnline {
 				continue
 			}
 
@@ -159,8 +160,16 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 	if len(offlineUids) > 0 {
 		offlineEvents := make([]*eventbus.Event, 0, len(events))
 		for _, event := range events {
+			// 过滤发送者
+			filteredOfflineUids := make([]string, 0, len(offlineUids))
+			for _, offlineUid := range offlineUids {
+				if offlineUid != event.Conn.Uid {
+					filteredOfflineUids = append(filteredOfflineUids, offlineUid)
+				}
+			}
+
 			cloneEvent := event.Clone()
-			cloneEvent.OfflineUsers = offlineUids
+			cloneEvent.OfflineUsers = filteredOfflineUids
 			cloneEvent.Type = eventbus.EventPushOffline
 			offlineEvents = append(offlineEvents, cloneEvent)
 		}
@@ -345,4 +354,17 @@ func (h *Handler) masterDeviceIsOnline(uid string) bool {
 		}
 	}
 	return online
+}
+
+// 用户的设备在线状态
+func (h *Handler) deviceOnlineStatus(uid string) (bool, bool) {
+	toConns := eventbus.User.AuthedConnsByUid(uid)
+	masterIsOnline := false
+	for _, conn := range toConns {
+		if conn.DeviceLevel == wkproto.DeviceLevelMaster {
+			masterIsOnline = true
+			break
+		}
+	}
+	return len(toConns) > 0, masterIsOnline
 }
