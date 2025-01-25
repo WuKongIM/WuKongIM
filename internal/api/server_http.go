@@ -24,7 +24,9 @@ type apiServer struct {
 
 // NewAPIServer new一个api server
 func newApiServer(s *Server) *apiServer {
-	r := wkhttp.New()
+	// r := wkhttp.New()
+	log := wklog.NewWKLog("apiServer")
+	r := wkhttp.NewWithLogger(wkhttp.LoggerWithWklog(log))
 
 	if options.G.PprofOn {
 		pprof.Register(r.GetGinRoute()) // 注册pprof
@@ -34,7 +36,7 @@ func newApiServer(s *Server) *apiServer {
 		r:    r,
 		addr: options.G.HTTPAddr,
 		s:    s,
-		Log:  wklog.NewWKLog("apiServer"),
+		Log:  log,
 	}
 	return hs
 }
