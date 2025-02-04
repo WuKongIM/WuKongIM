@@ -19,6 +19,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/manager"
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/plugin"
 	pusherevent "github.com/WuKongIM/WuKongIM/internal/pusher/event"
 	pusherhandler "github.com/WuKongIM/WuKongIM/internal/pusher/handler"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -79,6 +80,9 @@ type Server struct {
 	// push事件池
 	pushHandler   *pusherhandler.Handler
 	pushEventPool *pusherevent.EventPool
+
+	// plugin server
+	pluginServer *plugin.Server
 }
 
 func New(opts *options.Options) *Server {
@@ -218,6 +222,10 @@ func New(opts *options.Options) *Server {
 	})
 
 	s.apiServer = api.New()
+
+	// plugin server
+	s.pluginServer = plugin.NewServer()
+	service.PluginManager = s.pluginServer
 	return s
 }
 
@@ -336,6 +344,11 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	err = s.pluginServer.Start()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -349,6 +362,8 @@ func (s *Server) StopNoErr() {
 func (s *Server) Stop() error {
 
 	s.cancel()
+
+	s.pluginServer.Stop()
 
 	s.userEventPool.Stop()
 

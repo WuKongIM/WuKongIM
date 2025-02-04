@@ -1,11 +1,15 @@
 package handler
 
 import (
+	"context"
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
+	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -59,6 +63,9 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	}
 	sendPacket.Payload = newPayload
 
+	// 调用插件
+	h.pluginInvokeSend(sendPacket, event)
+
 	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(sendPacket.GetFrameSize())
 	// 添加消息到频道
@@ -72,6 +79,28 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	// 推进
 	eventbus.Channel.Advance(fakeChannelId, channelType)
 
+}
+
+func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventbus.Event) {
+	plugins := service.PluginManager.Plugins(types.PluginSend)
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Plugin.Timeout)
+	defer cancel()
+
+	pluginPacket := &pluginproto.SendPacket{
+		From:        event.Conn.Uid,
+		ChannelId:   sendPacket.ChannelID,
+		ChannelType: uint32(sendPacket.ChannelType),
+		Payload:     sendPacket.Payload,
+	}
+	for _, pg := range plugins {
+		result, err := pg.Send(timeoutCtx, pluginPacket)
+		if err != nil {
+			h.Error("pluginInvokeSend: Failed to invoke plugin！", zap.Error(err), zap.String("plugin", pg.GetNo()))
+			continue
+		}
+		pluginPacket = result
+	}
 }
 
 // decode payload
