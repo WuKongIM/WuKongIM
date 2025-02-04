@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package pluginproto;
+
+option go_package = "./;pluginproto";
+
+
+// 插件信息
+message PluginInfo {
+    // 插件唯一编号
+    string No = 1;
+    // 插件名称
+    string name = 2;
+    // 插件拥有的方法 二进制位掩码
+    uint64 method = 3;
+    // 插件版本
+    string version = 4;
+    // 插件优先级, 数字越大优先级越高
+    int32 priority = 5;
+    // PersistAfter方法是否同步调用
+    bool persistAfterSync = 6;
+    // Reply方法是否同步调用
+    bool replySync = 7;
+}
+
+message SendPacket {
+    // 发送者
+    string from = 1;
+    // 接收频道
+    string channelId = 2;
+    // 频道类型
+    uint32 channelType = 3;  
+    // 消息内容
+    bytes payload = 4;
+}

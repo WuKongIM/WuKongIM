@@ -301,6 +301,10 @@ type Options struct {
 	Tag struct {
 		Expire time.Duration // tag过期时间
 	}
+	// 插件配置
+	Plugin struct {
+		Timeout time.Duration // 插件超时时间
+	}
 }
 
 type MigrateStep string
@@ -660,6 +664,11 @@ func New(op ...Option) *Options {
 		}{
 			Expire: time.Minute * 20,
 		},
+		Plugin: struct {
+			Timeout time.Duration
+		}{
+			Timeout: time.Second * 1,
+		},
 	}
 
 	for _, o := range op {
@@ -958,6 +967,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	// =================== tag ===================
 	o.Tag.Expire = o.getDuration("tag.expire", o.Tag.Expire)
+
+	// =================== plugin ===================
+	o.Plugin.Timeout = o.getDuration("plugin.timeout", o.Plugin.Timeout)
 
 	// =================== other ===================
 	deadlock.Opts.Disable = !o.DeadlockCheck
