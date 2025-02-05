@@ -13,37 +13,37 @@ type Plugin interface {
 	// Send 调用插件的Send方法
 	Send(ctx context.Context, sendPacket *pluginproto.SendPacket) (*pluginproto.SendPacket, error)
 	// PersistAfter 调用插件的PersistAfter方法
-	PersistAfter(ctx context.Context, data []byte) error
+	PersistAfter(ctx context.Context, messages *pluginproto.MessageBatch) error
 	// Reply 调用插件的Reply方法
 	Reply(ctx context.Context, data []byte) error
 }
 
-type PluginMethod uint64
+type PluginMethod string
 
 const (
-	PluginNone         PluginMethod = 0      // 默认值
-	PluginSend                      = 1 << 0 // 二进制：0000 0001
-	PluginPersistAfter              = 1 << 1 // 二进制：0000 0100
-	PluginReply                     = 1 << 2 // 二进制：0000 1000
+	PluginSend         PluginMethod = "Send"
+	PluginPersistAfter PluginMethod = "PersistAfter"
+	PluginReply        PluginMethod = "Reply"
 )
 
-func (x PluginMethod) String() string {
-	switch x {
-	case PluginNone:
-		return "PluginNone"
-	case PluginSend:
-		return "PluginSend"
-	case PluginPersistAfter:
-		return "PluginPersistAfter"
-	case PluginReply:
-		return "PluginReply"
-	default:
-		return "PluginUnknown"
-	}
-}
+type PluginMethodType uint32
 
-func (x PluginMethod) Uint64() uint64 {
-	return uint64(x)
+const (
+	PluginMethodTypeSend         PluginMethodType = 1
+	PluginMethodTypePersistAfter PluginMethodType = 2
+	PluginMethodTypeReply        PluginMethodType = 3
+)
+
+func (p PluginMethod) Type() PluginMethodType {
+	switch p {
+	case PluginSend:
+		return PluginMethodTypeSend
+	case PluginPersistAfter:
+		return PluginMethodTypePersistAfter
+	case PluginReply:
+		return PluginMethodTypeReply
+	}
+	return 0
 }
 
 type PluginResponse struct {

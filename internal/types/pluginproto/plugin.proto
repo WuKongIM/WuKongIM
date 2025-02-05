@@ -11,8 +11,8 @@ message PluginInfo {
     string No = 1;
     // 插件名称
     string name = 2;
-    // 插件拥有的方法 二进制位掩码
-    uint64 method = 3;
+    // 插件拥有的方法
+    repeated string methods = 3;
     // 插件版本
     string version = 4;
     // 插件优先级, 数字越大优先级越高
@@ -32,4 +32,34 @@ message SendPacket {
     uint32 channelType = 3;  
     // 消息内容
     bytes payload = 4;
+}
+
+message Message {
+    // 消息唯一id（全局唯一）
+    int64 messageId = 1;
+    // 消息序号（频道内严格递增）
+    uint32 messageSeq = 2;
+    // 客户端消息编号
+    string clientMsgNo = 3;
+    // 流编号
+    string streamNo = 4;
+    // 流序号
+    uint32 streamSeq = 5;
+    // 消息时间戳
+    uint32 timestamp = 6;
+    // 发送者
+    string from = 7;
+     // 接收频道
+     string channelId = 8;
+     // 频道类型
+     uint32 channelType = 9;  
+     // topic
+     string topic = 10;
+    // 消息内容
+    bytes payload = 11;
+}
+
+
+message MessageBatch {
+    repeated Message messages = 1;
 }
