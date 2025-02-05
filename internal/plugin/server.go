@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path"
 
@@ -38,6 +39,7 @@ func (s *Server) Start() error {
 	if err := s.rpcServer.Start(); err != nil {
 		return err
 	}
+	s.api.routes()
 	return nil
 }
 
@@ -73,6 +75,20 @@ func getUnixSocket() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	pth := path.Join(homeDir, ".wukong", "run", "wukongim.socket")
-	return fmt.Sprintf("unix://%s", pth), nil
+	socketPath := path.Join(homeDir, ".wukong", "run", "wukongim.sock")
+
+	err = os.Remove(socketPath)
+	if err != nil && !os.IsNotExist(err) {
+		log.Printf(`removing "%s": %s`, socketPath, err)
+		panic(err)
+	}
+
+	socketDir := path.Dir(socketPath)
+
+	err = os.MkdirAll(socketDir, 0777)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("unix://%s", socketPath), nil
 }

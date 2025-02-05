@@ -101,6 +101,9 @@ func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventb
 		}
 		pluginPacket = result
 	}
+
+	// 使用插件处理后的消息
+	sendPacket.Payload = pluginPacket.Payload
 }
 
 // decode payload

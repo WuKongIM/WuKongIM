@@ -1,6 +1,8 @@
 package plugin
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
@@ -33,6 +35,9 @@ func (a *api) pluginStart(c *wkrpc.Context) {
 		return
 	}
 	a.s.pluginManager.add(newPlugin(a.s, c.Conn(), pluginInfo))
+
+	fmt.Println("plugin start", pluginInfo)
+
 	c.WriteOk()
 }
 
