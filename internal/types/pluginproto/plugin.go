@@ -17,3 +17,19 @@ func (s *SendPacket) Marshal() ([]byte, error) {
 func (s *SendPacket) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, s)
 }
+
+func (m *Message) Marshal() ([]byte, error) {
+	return proto.Marshal(m)
+}
+
+func (m *Message) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, m)
+}
+
+func (m *MessageBatch) Marshal() ([]byte, error) {
+	return proto.Marshal(m)
+}
+
+func (m *MessageBatch) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, m)
+}

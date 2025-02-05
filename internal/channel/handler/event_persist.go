@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -31,6 +32,10 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		if err != nil {
 			h.Error("store message failed", zap.Error(err), zap.Int("events", len(persists)), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
 			reasonCode = wkproto.ReasonSystemError
+		} else {
+			// 通知插件
+			h.pluginInvokePersistAfter(persists)
+
 		}
 
 		// 填充messageSeq
@@ -80,6 +85,43 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 
 	eventbus.Channel.Advance(ctx.ChannelId, ctx.ChannelType)
 
+}
+
+func (h *Handler) pluginInvokePersistAfter(msgs []wkdb.Message) {
+	plugins := service.PluginManager.Plugins(types.PluginPersistAfter)
+	if len(plugins) == 0 {
+		return
+	}
+
+	timeoutCtx, cancel := h.WithTimeout()
+	defer cancel()
+
+	pluginMessages := make([]*pluginproto.Message, 0, len(msgs))
+	for _, msg := range msgs {
+		pluginMessages = append(pluginMessages, &pluginproto.Message{
+			MessageId:   msg.MessageID,
+			MessageSeq:  msg.MessageSeq,
+			ClientMsgNo: msg.ClientMsgNo,
+			StreamNo:    msg.StreamNo,
+			StreamSeq:   msg.StreamSeq,
+			Timestamp:   uint32(msg.Timestamp),
+			From:        msg.FromUID,
+			ChannelId:   msg.ChannelID,
+			Topic:       msg.Topic,
+			ChannelType: uint32(msg.ChannelType),
+			Payload:     msg.Payload,
+		})
+	}
+
+	msgBatch := &pluginproto.MessageBatch{
+		Messages: pluginMessages,
+	}
+	for _, pg := range plugins {
+		err := pg.PersistAfter(timeoutCtx, msgBatch)
+		if err != nil {
+			h.Error("plugin persist after error", zap.Error(err))
+		}
+	}
 }
 
 // 转换成存储消息

@@ -30,19 +30,28 @@ func (p *Plugin) GetNo() string {
 	return p.info.No
 }
 
-func (p *Plugin) send(data []byte) error {
-	return p.conn.AsyncWrite(data, nil)
+func (p *Plugin) send(msgType uint32, data []byte) error {
+
+	return p.s.rpcServer.Send(p.info.No, &rproto.Message{
+		MsgType: msgType,
+		Content: data,
+	})
 }
 
 func (p *Plugin) hasMethod(method types.PluginMethod) bool {
-	return p.info.Method&method.Uint64() != 0
+	for _, m := range p.info.Methods {
+		if m == string(method) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Plugin) asyncInvoke(method types.PluginMethod, data []byte) error {
 	if !p.hasMethod(method) {
 		return nil
 	}
-	return p.send(data)
+	return p.send(uint32(method.Type()), data)
 }
 
 func (p *Plugin) invoke(ctx context.Context, method types.PluginMethod, data []byte) ([]byte, error) {
@@ -66,7 +75,6 @@ func (p *Plugin) invoke(ctx context.Context, method types.PluginMethod, data []b
 
 // 发送消息
 func (p *Plugin) Send(ctx context.Context, sendPacket *pluginproto.SendPacket) (*pluginproto.SendPacket, error) {
-
 	data, err := sendPacket.Marshal()
 	if err != nil {
 		return nil, err
@@ -86,10 +94,14 @@ func (p *Plugin) Send(ctx context.Context, sendPacket *pluginproto.SendPacket) (
 }
 
 // 存储后
-func (p *Plugin) PersistAfter(ctx context.Context, data []byte) error {
+func (p *Plugin) PersistAfter(ctx context.Context, messages *pluginproto.MessageBatch) error {
 
+	data, err := messages.Marshal()
+	if err != nil {
+		return err
+	}
 	if p.info.PersistAfterSync {
-		_, err := p.invoke(ctx, types.PluginPersistAfter, data)
+		_, err = p.invoke(ctx, types.PluginPersistAfter, data)
 		if err != nil {
 			return err
 		}
