@@ -184,6 +184,11 @@ func (l *WKHttp) DELETE(relativePath string, handlers ...HandlerFunc) {
 	l.r.DELETE(relativePath, l.handlersToGinHandleFunc(handlers)...)
 }
 
+// Any Any
+func (l *WKHttp) Any(relativePath string, handlers ...HandlerFunc) {
+	l.r.Any(relativePath, l.handlersToGinHandleFunc(handlers)...)
+}
+
 func (l *WKHttp) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	l.r.ServeHTTP(w, req)
 }

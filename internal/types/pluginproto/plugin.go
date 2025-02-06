@@ -33,3 +33,19 @@ func (m *MessageBatch) Marshal() ([]byte, error) {
 func (m *MessageBatch) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, m)
 }
+
+func (h *HttpRequest) Marshal() ([]byte, error) {
+	return proto.Marshal(h)
+}
+
+func (h *HttpRequest) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, h)
+}
+
+func (h *HttpResponse) Marshal() ([]byte, error) {
+	return proto.Marshal(h)
+}
+
+func (h *HttpResponse) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, h)
+}

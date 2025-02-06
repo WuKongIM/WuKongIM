@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -130,6 +131,10 @@ func (s *apiServer) setRoutes() {
 	if ok {
 		clusterServer.ServerAPI(s.r, "/cluster")
 	}
+
+	// plugin
+	pluginServer := service.PluginManager.(*plugin.Server)
+	pluginServer.SetRoute(s.r)
 
 	// // 系统api
 	// system := NewSystemAPI(s.s)

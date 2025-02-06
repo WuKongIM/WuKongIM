@@ -32,10 +32,6 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		if err != nil {
 			h.Error("store message failed", zap.Error(err), zap.Int("events", len(persists)), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
 			reasonCode = wkproto.ReasonSystemError
-		} else {
-			// 通知插件
-			h.pluginInvokePersistAfter(persists)
-
 		}
 
 		// 填充messageSeq
@@ -48,6 +44,18 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 					}
 				}
 			}
+
+			for i, m := range persists {
+				for _, result := range results {
+					if result.Id == uint64(m.MessageID) {
+						persists[i].MessageSeq = uint32(result.Index)
+						break
+					}
+				}
+			}
+
+			// 通知插件
+			h.pluginInvokePersistAfter(persists)
 		}
 
 		// 修改原因码

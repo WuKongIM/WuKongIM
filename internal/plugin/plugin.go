@@ -56,7 +56,7 @@ func (p *Plugin) asyncInvoke(method types.PluginMethod, data []byte) error {
 
 func (p *Plugin) invoke(ctx context.Context, method types.PluginMethod, data []byte) ([]byte, error) {
 	if !p.hasMethod(method) {
-		return nil, nil
+		return nil, errors.New("method not found")
 	}
 	ph := getPathByMethod(method)
 	if ph == "" {
@@ -122,6 +122,24 @@ func (p *Plugin) Reply(ctx context.Context, data []byte) error {
 	return p.asyncInvoke(types.PluginReply, data)
 }
 
+// 路由
+func (p *Plugin) Route(ctx context.Context, request *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error) {
+	data, err := request.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	respData, err := p.invoke(ctx, types.PluginRoute, data)
+	if err != nil {
+		return nil, err
+	}
+	resp := &pluginproto.HttpResponse{}
+	err = resp.Unmarshal(respData)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func getPathByMethod(method types.PluginMethod) string {
 	switch method {
 	case types.PluginSend:
@@ -130,6 +148,8 @@ func getPathByMethod(method types.PluginMethod) string {
 		return "/plugin/persist_after"
 	case types.PluginReply:
 		return "/plugin/reply"
+	case types.PluginRoute:
+		return "/plugin/route"
 	default:
 		return ""
 	}
