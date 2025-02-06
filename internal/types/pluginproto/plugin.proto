@@ -21,6 +21,10 @@ message PluginInfo {
     bool persistAfterSync = 6;
     // Reply方法是否同步调用
     bool replySync = 7;
+    // 注册的http post请求路径
+    repeated string postPaths = 8;
+    // 注册的http get请求路径
+    repeated string getPaths = 9;
 }
 
 message SendPacket {
@@ -62,4 +66,28 @@ message Message {
 
 message MessageBatch {
     repeated Message messages = 1;
+}
+
+// http请求
+message HttpRequest {
+    // 请求方法
+    string method = 1;
+    // 请求路径
+    string path = 2;
+    // 请求头
+    map<string, string> headers = 3;
+    // 查询参数
+    map<string, string> query = 4;
+    // 请求体
+    bytes body = 5;
+}
+
+// http响应
+message HttpResponse {
+    // 状态码
+    int32 status = 1;
+    // 响应头
+    map<string, string> headers = 2;
+    // 响应体
+    bytes body = 3;
 }
