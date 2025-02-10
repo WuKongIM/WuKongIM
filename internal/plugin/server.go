@@ -170,8 +170,6 @@ func (s *Server) handlePluginRoute(c *wkhttp.Context) {
 		return
 	}
 
-	fmt.Println("resp--->", resp.Status)
-
 	// 处理插件的响应
 	c.Status(int(resp.Status))
 	for k, v := range resp.Headers {
