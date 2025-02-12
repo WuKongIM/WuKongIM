@@ -541,7 +541,16 @@ func (p *PebbleShardLogStorage) LeaderTermGreaterEqThan(shardNo string, term uin
 	}
 	return maxTerm, nil
 }
+func (p *PebbleShardLogStorage) DeleteLogs(shardNo string, startIndex uint64, endIndex uint64) error {
 
+	keyData := key.NewLogKey(shardNo, startIndex)
+	maxKeyData := key.NewLogKey(shardNo, endIndex)
+	err := p.shardDB(shardNo).DeleteRange(keyData, maxKeyData, p.sync)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
 	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term+1),

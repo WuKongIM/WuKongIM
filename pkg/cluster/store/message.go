@@ -77,3 +77,8 @@ func (s *Store) DeleteChannelAndClearMessages(channelID string, channelType uint
 func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error) {
 	return s.wdb.SearchMessages(req)
 }
+
+// 范围删除消息
+func (s *Store) DelMessageRange(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	return s.wdb.DelMessageRange(channelID, channelType, startMessageSeq, endMessageSeq)
+}

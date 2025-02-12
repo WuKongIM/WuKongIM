@@ -916,6 +916,54 @@ func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
 	return bodyBytes, nil
 }
 
+// 根据消息列号范围删除频道内的消息
+func (ch *channel) deleteMessagesBySeqRange(c *wkhttp.Context) {
+
+	var req struct {
+		ChannelID       string `json:"channel_id"`
+		ChannelType     uint8  `json:"channel_type"`
+		StartMessageSeq uint64 `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
+		EndMessageSeq   uint64 `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
+	}
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		ch.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if strings.TrimSpace(req.ChannelID) == "" {
+		ch.Error("channel_id不能为空！", zap.Any("req", req))
+		c.ResponseError(errors.New("channel_id不能为空！"))
+		return
+	}
+
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType) // 获取频道的槽领导节点
+	if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
+		ch.Info("空频道，返回空消息.", zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.JSON(http.StatusOK, emptySyncMessageResp)
+		return
+	}
+	if err != nil {
+		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+
+	if !leaderIsSelf {
+		ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+	err = service.Store.DelMessageRange(req.ChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq)
+	if err != nil {
+		ch.Error("获取消息失败！", zap.Error(err), zap.Any("req", req))
+		c.ResponseError(err)
+		return
+	}
+	c.ResponseOK()
+}
+
 // 同步频道内的消息
 func (ch *channel) syncMessages(c *wkhttp.Context) {
 

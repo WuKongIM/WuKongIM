@@ -142,6 +142,11 @@ func (s *storage) DeleteLeaderTermStartIndexGreaterThanTerm(key string, term uin
 	return s.db.DeleteLeaderTermStartIndexGreaterThanTerm(key, term)
 }
 
+// 区间删除日志和消息
+func (s *storage) DeleteLogs(shardNo string, startIndex uint64, endIndex uint64) error {
+	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
+	return s.db.DelMessageRange(channelId, channelType, startIndex, endIndex)
+}
 func (s *storage) LastIndexAndAppendTime(shardNo string) (uint64, uint64, error) {
 	channelId, channelType := wkutil.ChannelFromlKey(shardNo)
 	lastMsgSeq, appendTime, err := s.db.GetChannelLastMessageSeq(channelId, channelType)
