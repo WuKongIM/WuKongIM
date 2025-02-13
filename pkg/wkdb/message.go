@@ -223,13 +223,18 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 
 // startMessageSeq endMessageSeq 根据范围删除
 func (wk *wukongDB) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
-	for _, db := range wk.dbs {
-		err := db.NewBatch().DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq), key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq), wk.sync)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	db := wk.channelBatchDb(channelId, channelType)
+	batch := db.NewBatch()
+	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq), key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq))
+	return batch.CommitWait()
+
+	//for _, db := range wk.dbs {
+	//	err := db.NewBatch().DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq), key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq), wk.sync)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
+	//return nil
 }
 func (wk *wukongDB) GetMessage(messageId uint64) (Message, error) {
 
