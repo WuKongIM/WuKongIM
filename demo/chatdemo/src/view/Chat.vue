@@ -473,13 +473,13 @@ const onEnter = () => {
                                 <MessageUI :message="m"></MessageUI>
                             </div>
                             <div class="avatar">
-                                <img :src="`https://api.multiavatar.com/${m.fromUID}.png`"
+                                <img :src="`https://api.dicebear.com/9.x/adventurer/svg?seed=${m.fromUID}&radius=50&backgroundType=gradientLinear&backgroundColor=ffd5dc`"
                                     style="width: 40px;height: 40px;" />
                             </div>
                         </div>
                         <div class="message" v-if="!m.send" :id="m.clientMsgNo">
                             <div class="avatar">
-                                <img :src="`https://api.multiavatar.com/${m.fromUID}.png`"
+                                <img :src="`https://api.dicebear.com/9.x/adventurer/svg?seed=${m.fromUID}&radius=50&backgroundType=gradientLinear&backgroundColor=ffd5dc`"
                                     style="width: 40px;height: 40px;" />
                             </div>
                             <div class="bubble">
