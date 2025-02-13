@@ -108,7 +108,7 @@ func (h *Handler) pluginInvokePersistAfter(msgs []wkdb.Message) {
 	for _, msg := range msgs {
 		pluginMessages = append(pluginMessages, &pluginproto.Message{
 			MessageId:   msg.MessageID,
-			MessageSeq:  msg.MessageSeq,
+			MessageSeq:  uint64(msg.MessageSeq),
 			ClientMsgNo: msg.ClientMsgNo,
 			StreamNo:    msg.StreamNo,
 			StreamSeq:   msg.StreamSeq,

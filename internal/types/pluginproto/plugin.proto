@@ -42,7 +42,7 @@ message Message {
     // 消息唯一id（全局唯一）
     int64 messageId = 1;
     // 消息序号（频道内严格递增）
-    uint32 messageSeq = 2;
+    uint64 messageSeq = 2;
     // 客户端消息编号
     string clientMsgNo = 3;
     // 流编号
@@ -90,4 +90,38 @@ message HttpResponse {
     map<string, string> headers = 2;
     // 响应体
     bytes body = 3;
+}
+
+// 频道消息请求
+message ChannelMessageReq {
+    // 频道id
+    string channelId = 1;
+    // 频道类型
+    uint32 channelType = 2;
+    // 消息开始序号
+    uint64 startMessageSeq = 3;
+    // 查询数量，默认100
+    uint32 limit = 4;
+}
+
+message ChannelMessageBatchReq {
+    repeated ChannelMessageReq channelMessageReqs = 1;
+}
+
+// 频道消息请求
+message ChannelMessageResp {
+    // 频道id
+    string channelId = 1;
+    // 频道类型
+    uint32 channelType = 2;
+    // 消息开始序号
+    uint64 startMessageSeq = 3;
+    // 查询数量，默认100
+    uint32 limit = 4;
+    // 消息列表
+    repeated Message messages = 5;
+}
+
+message ChannelMessageBatchResp {
+    repeated ChannelMessageResp channelMessageResps = 1;
 }
