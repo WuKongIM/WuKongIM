@@ -49,3 +49,35 @@ func (h *HttpResponse) Marshal() ([]byte, error) {
 func (h *HttpResponse) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, h)
 }
+
+func (c *ChannelMessageReq) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ChannelMessageReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *ChannelMessageResp) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ChannelMessageResp) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *ChannelMessageBatchReq) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ChannelMessageBatchReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *ChannelMessageBatchResp) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ChannelMessageBatchResp) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
