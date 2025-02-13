@@ -29,13 +29,8 @@ type DB interface {
 	StreamDB
 	// 测试机
 	TesterDB
-	//日志
-	StoragePebbleDB
-}
-
-type StoragePebbleDB interface {
-	//范围删除日志
-	DeleteLogsRange(shardNo string, startIndex uint64, endIndex uint64) error
+	// 消息删除记录
+	MessageDeletedDB
 }
 
 type MessageDB interface {
@@ -399,6 +394,13 @@ type TesterDB interface {
 
 	// RemoveTester 移除测试机
 	RemoveTester(no string) error
+}
+
+type MessageDeletedDB interface {
+	// AddOrUpdateMessageDeleted 新增或者修改一条渠道删除记录
+	AddOrUpdateMessageDeleted(messageDeleted MessageDeleted) error
+	// GetMessageDeletedSeq 根据channelId和channelType获取最大的删除消息序号
+	GetMessageDeletedSeq(channelId string, channelType uint8) uint64
 }
 
 type MessageSearchReq struct {

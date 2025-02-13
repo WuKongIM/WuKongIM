@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
-	wkutil "github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 // AppendMessages 追加消息
@@ -79,11 +78,20 @@ func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error
 }
 
 // 范围删除消息
-func (s *Store) DeleteMessageRange(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
-	shardNo := wkutil.ChannelToKey(channelID, channelType)
-	err := s.wdb.DeleteLogsRange(shardNo, startMessageSeq, endMessageSeq)
+func (s *Store) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	//新增或者修改频道删除记录
+	err := s.wdb.AddOrUpdateMessageDeleted(wkdb.MessageDeleted{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		MessageSeq:  endMessageSeq,
+	})
 	if err != nil {
 		return err
 	}
-	return s.wdb.DeleteMessageRange(channelID, channelType, startMessageSeq, endMessageSeq)
+	return s.wdb.DeleteMessageRange(channelId, channelType, startMessageSeq, endMessageSeq)
+}
+
+// 根据channelId和channelType获取最大的删除消息序号
+func (s *Store) GetMessageDeletedSeq(channelId string, channelType uint8) uint64 {
+	return s.wdb.GetMessageDeletedSeq(channelId, channelType)
 }

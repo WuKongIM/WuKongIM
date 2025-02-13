@@ -795,3 +795,37 @@ var TableTester = struct {
 		UpdatedAt: [2]byte{0x14, 0x04},
 	},
 }
+
+// ======================== MessageDeleted ========================
+
+var TableMessageDeleted = struct {
+	Id        [2]byte
+	Size      int
+	IndexSize int
+	Column    struct {
+		ChannelId   [2]byte
+		ChannelType [2]byte
+		MessageSeq  [2]byte
+	}
+	Index struct {
+		Channel [2]byte
+	}
+}{
+	Id:        [2]byte{0x15, 0x01},
+	Size:      2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	IndexSize: 2 + 2 + 2 + 8, // tableId + dataType + indexName  + columnHash
+	Column: struct {
+		ChannelId   [2]byte
+		ChannelType [2]byte
+		MessageSeq  [2]byte
+	}{
+		ChannelId:   [2]byte{0x15, 0x01},
+		ChannelType: [2]byte{0x15, 0x02},
+		MessageSeq:  [2]byte{0x15, 0x03},
+	},
+	Index: struct {
+		Channel [2]byte
+	}{
+		Channel: [2]byte{0x15, 0x01},
+	},
+}
