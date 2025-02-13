@@ -2,9 +2,9 @@ package store
 
 import (
 	"context"
-
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	wkutil "github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 // AppendMessages 追加消息
@@ -79,6 +79,11 @@ func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error
 }
 
 // 范围删除消息
-func (s *Store) DelMessageRange(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
-	return s.wdb.DelMessageRange(channelID, channelType, startMessageSeq, endMessageSeq)
+func (s *Store) DeleteMessageRange(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	shardNo := wkutil.ChannelToKey(channelID, channelType)
+	err := s.wdb.DeleteLogsRange(shardNo, startMessageSeq, endMessageSeq)
+	if err != nil {
+		return err
+	}
+	return s.wdb.DeleteMessageRange(channelID, channelType, startMessageSeq, endMessageSeq)
 }

@@ -29,6 +29,13 @@ type DB interface {
 	StreamDB
 	// 测试机
 	TesterDB
+	//日志
+	StoragePebbleDB
+}
+
+type StoragePebbleDB interface {
+	//范围删除日志
+	DeleteLogsRange(shardNo string, startIndex uint64, endIndex uint64) error
 }
 
 type MessageDB interface {
@@ -83,8 +90,8 @@ type MessageDB interface {
 
 	// GetLastMsg 获取最后一条消息
 	GetLastMsg(channelId string, channelType uint8) (Message, error)
-	// DelMessageRange 删除消息
-	DelMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error
+	// DeleteMessageRange 范围删除消息
+	DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error
 }
 
 type DeviceDB interface {

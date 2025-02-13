@@ -63,6 +63,8 @@ func (ch *channel) route(r *wkhttp.WKHttp) {
 	r.POST("/channel/messagesync", ch.syncMessages)
 	//	获取某个频道最大的消息序号
 	r.GET("/channel/max_message_seq", ch.getChannelMaxMessageSeq)
+	//根据消息序号范围删除频道消息
+	r.POST("/channel/messages_delete_range", ch.deleteMessagesBySeqRange)
 
 }
 
@@ -955,7 +957,7 @@ func (ch *channel) deleteMessagesBySeqRange(c *wkhttp.Context) {
 		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 		return
 	}
-	err = service.Store.DelMessageRange(req.ChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq)
+	err = service.Store.DeleteMessageRange(req.ChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq)
 	if err != nil {
 		ch.Error("获取消息失败！", zap.Error(err), zap.Any("req", req))
 		c.ResponseError(err)

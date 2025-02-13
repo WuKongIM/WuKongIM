@@ -22,6 +22,4 @@ type IStorage interface {
 	DeleteLeaderTermStartIndexGreaterThanTerm(key string, term uint32) error
 	// SaveConfig 保存配置
 	SaveConfig(key string, cfg types.Config) error
-	// 区间删除日志和消息
-	DeleteLogs(key string, startIndex uint64, endIndex uint64) error
 }
