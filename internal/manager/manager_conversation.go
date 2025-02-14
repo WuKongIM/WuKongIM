@@ -374,6 +374,7 @@ func (c *conversationWorker) loopPropose() {
 	defer tk.Stop()
 
 	clean := time.NewTicker(options.G.Conversation.SyncInterval * 2)
+	defer clean.Stop()
 
 	for {
 		select {
