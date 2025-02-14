@@ -42,6 +42,9 @@ func NewConversationManager() *ConversationManager {
 func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, tagKey string, events []*eventbus.Event) {
 
 	worker := c.worker(fakeChannelId, channelType)
+	if worker == nil {
+		return
+	}
 	// worker.push(req) // 这个有延迟，导致最近会话获取不到
 	worker.handleReq(fakeChannelId, channelType, tagKey, events)
 
@@ -133,6 +136,9 @@ func (c *ConversationManager) recoverFromFile() {
 
 	for _, update := range allUpdates {
 		cc := c.worker(update.channelId, update.channelType)
+		if cc == nil {
+			continue
+		}
 		cc.updates = append(cc.updates, update)
 	}
 
@@ -146,6 +152,9 @@ func (c *ConversationManager) recoverFromFile() {
 func (c *ConversationManager) worker(channelId string, channelType uint8) *conversationWorker {
 	c.Lock()
 	defer c.Unlock()
+	if len(c.workers) <= 0 {
+		return nil
+	}
 	h := fnv.New32a()
 	h.Write([]byte(wkutil.ChannelToKey(channelId, channelType)))
 
@@ -193,6 +202,9 @@ func (c *ConversationManager) GetFromCache(uid string, conversationType wkdb.Con
 
 func (c *ConversationManager) DeleteFromCache(uid string, channelId string, channelType uint8) {
 	worker := c.worker(channelId, channelType)
+	if worker == nil {
+		return
+	}
 
 	worker.Lock()
 	defer worker.Unlock()
