@@ -221,6 +221,21 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 // 	return nil
 // }
 
+// startMessageSeq endMessageSeq 根据范围删除
+func (wk *wukongDB) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	db := wk.channelBatchDb(channelId, channelType)
+	batch := db.NewBatch()
+	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq), key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq))
+	return batch.CommitWait()
+
+	//for _, db := range wk.dbs {
+	//	err := db.NewBatch().DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq), key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq), wk.sync)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
+	//return nil
+}
 func (wk *wukongDB) GetMessage(messageId uint64) (Message, error) {
 
 	wk.metrics.GetMessageAdd(1)
@@ -398,7 +413,7 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 
 }
 
-func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, limit int) ([]Message, error) {
+func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, end uint64, limit int) ([]Message, error) {
 
 	wk.metrics.LoadLastMsgsAdd(1)
 
@@ -409,7 +424,7 @@ func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, limit int)
 	if lastSeq == 0 {
 		return nil, nil
 	}
-	return wk.LoadPrevRangeMsgs(channelId, channelType, lastSeq, 0, limit)
+	return wk.LoadPrevRangeMsgs(channelId, channelType, lastSeq, end, limit)
 
 }
 

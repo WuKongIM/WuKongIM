@@ -1002,3 +1002,54 @@ func ParseTesterColumnKey(key []byte) (id uint64, columnName [2]byte, err error)
 	columnName[1] = key[13]
 	return
 }
+
+// ---------------------- MessageDeleted ----------------------
+
+func ParseMessageDeletedColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
+	if len(key) != TableMessageDeleted.Size {
+		err = fmt.Errorf("messageDeleted: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	id = binary.BigEndian.Uint64(key[4:])
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	return
+}
+
+// NewMessageDeletedIndexKey 创建一个channelId,channelType 的
+func NewMessageDeletedIndexKey(indexName [2]byte, columnValue uint64) []byte {
+	key := make([]byte, TableMessageDeleted.IndexSize)
+	key[0] = TableMessageDeleted.Id[0]
+	key[1] = TableMessageDeleted.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = indexName[0]
+	key[5] = indexName[1]
+	binary.BigEndian.PutUint64(key[6:], columnValue)
+	return key
+}
+
+func NewMessageDeletedColumnKey(id uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableMessageDeleted.Size)
+	key[0] = TableMessageDeleted.Id[0]
+	key[1] = TableMessageDeleted.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], id)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
+func NewMessageDeletedColumnKeyByIdAndType(channelId string, channelType uint8, columnName [2]byte) []byte {
+	key := make([]byte, TableMessageDeleted.Size)
+	channelHash := channelToNum(channelId, channelType)
+	key[0] = TableMessageDeleted.Id[0]
+	key[1] = TableMessageDeleted.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], channelHash)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
