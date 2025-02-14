@@ -46,6 +46,9 @@ type IClusterSlot interface {
 	// GetSlotId 获取字符串对应的槽ID
 	GetSlotId(v string) uint32
 
+	// Slots 获取所有槽信息
+	Slots() []*types.Slot
+
 	// SlotLeaderId 获取槽的领导节点ID
 	SlotLeaderId(slotId uint32) uint64
 

@@ -60,12 +60,15 @@ func (s *Server) SetRoute(r *wkhttp.WKHttp) {
 	r.Any("/plugins/:plugin/*path", s.handlePluginRoute)
 }
 
-// 获取插件列表
+// Plugins 获取插件列表
 func (s *Server) Plugins(methods ...types.PluginMethod) []types.Plugin {
 	if len(methods) == 0 {
 		plugins := s.pluginManager.all()
 		results := make([]types.Plugin, 0, len(plugins))
 		for _, p := range plugins {
+			if p.Status() != types.PluginStatusNormal {
+				continue
+			}
 			results = append(results, p)
 		}
 		return results
@@ -73,6 +76,9 @@ func (s *Server) Plugins(methods ...types.PluginMethod) []types.Plugin {
 	plugins := s.pluginManager.all()
 	results := make([]types.Plugin, 0, len(plugins))
 	for _, p := range plugins {
+		if p.Status() != types.PluginStatusNormal {
+			continue
+		}
 		for _, m := range methods {
 			if p.hasMethod(m) {
 				results = append(results, p)
@@ -81,6 +87,11 @@ func (s *Server) Plugins(methods ...types.PluginMethod) []types.Plugin {
 		}
 	}
 	return results
+}
+
+// Plugin 获取插件
+func (s *Server) Plugin(no string) types.Plugin {
+	return s.pluginManager.get(no)
 }
 
 func getUnixSocket() (string, error) {
@@ -116,6 +127,18 @@ func (s *Server) handlePluginRoute(c *wkhttp.Context) {
 			"status": http.StatusNotFound,
 		})
 		return
+	}
+
+	if plugin.Status() != types.PluginStatusNormal {
+		msg := fmt.Sprintf("plugin status not normal: %s", plugin.Status())
+		switch plugin.Status() {
+		case types.PluginStatusOffline:
+			msg = "plugin offline"
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"msg":    msg,
+			"status": http.StatusServiceUnavailable,
+		})
 	}
 
 	pluginPath := c.Param("path")

@@ -125,3 +125,66 @@ message ChannelMessageResp {
 message ChannelMessageBatchResp {
     repeated ChannelMessageResp channelMessageResps = 1;
 }
+
+
+// wukongim的分布式配置
+message ClusterConfig {
+    repeated Node nodes = 1; // 分布式中的节点
+    repeated Slot slots = 2; // 分布式中的槽位
+}
+
+// wk节点
+message Node {
+    uint64 id = 1; // 节点id
+    string clusterAddr = 2; // 节点分布式通讯地址
+    string apiServerAddr = 3; // 节点api服务地址
+    bool online = 4; // 是否在线
+}
+
+// wk的slot
+message Slot {
+    uint32 id = 1; // 槽位id
+    uint64 leader = 2; // 槽位的领导节点
+    uint32 term = 3; // 槽位的领导任期
+    repeated uint64 replicas = 4; // 副本节点(包含领导节点)
+}
+
+// 频道对象
+message Channel {
+    string channelId = 1; // 频道id
+    uint32 channelType = 2; // 频道类型
+}
+
+// 频道节点请求
+message ClusterChannelBelongNodeReq {
+    repeated Channel channels = 1; // 频道列表
+}
+
+// 频道节点响应
+message ClusterChannelBelongNodeResp {
+    uint64 nodeId = 1; // 频道节点Id
+    repeated Channel channels = 2; // 频道列表
+}
+
+// 频道节点批量响应
+message ClusterChannelBelongNodeBatchResp {
+    repeated ClusterChannelBelongNodeResp clusterChannelBelongNodeResps = 1;
+}
+
+//  http请求转发
+message ForwardHttpReq {
+    string pluginNo = 1; // 插件编号
+    int64 toNodeId = 2; // 目标节点id,如果为0则表示本节点,-1为所有节点
+    HttpRequest request = 3; // 请求
+}
+
+
+// 最近会话频道请求
+message ConversationChannelReq {
+    string uid = 1; // 用户uid
+}
+
+// 最近会话频道响应
+message ConversationChannelResp {
+    repeated Channel channels = 1; // 频道列表
+}
