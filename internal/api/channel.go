@@ -1027,19 +1027,8 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 		return
 	}
-	//根据channelId和channelType获取最大的删除消息序号
-	deleteMessageSeq := service.Store.GetMessageDeletedSeq(fakeChannelID, req.ChannelType)
-	if deleteMessageSeq != 0 {
-		//说明有删除，req.StartMessageSeq 不能小于seq
-		if req.StartMessageSeq < deleteMessageSeq {
-			req.StartMessageSeq = deleteMessageSeq
-		}
-		if req.EndMessageSeq < deleteMessageSeq {
-			req.EndMessageSeq = deleteMessageSeq
-		}
-	}
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
-		messages, err = service.Store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
+		messages, err = service.Store.LoadLastMsgs(fakeChannelID, req.ChannelType, req.EndMessageSeq, limit)
 	} else if req.PullMode == PullModeUp { // 向上拉取
 		messages, err = service.Store.LoadNextRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	} else {

@@ -413,7 +413,7 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 
 }
 
-func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, limit int) ([]Message, error) {
+func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, end uint64, limit int) ([]Message, error) {
 
 	wk.metrics.LoadLastMsgsAdd(1)
 
@@ -424,7 +424,7 @@ func (wk *wukongDB) LoadLastMsgs(channelId string, channelType uint8, limit int)
 	if lastSeq == 0 {
 		return nil, nil
 	}
-	return wk.LoadPrevRangeMsgs(channelId, channelType, lastSeq, 0, limit)
+	return wk.LoadPrevRangeMsgs(channelId, channelType, lastSeq, end, limit)
 
 }
 
