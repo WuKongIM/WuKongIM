@@ -81,3 +81,58 @@ func (c *ChannelMessageBatchResp) Marshal() ([]byte, error) {
 func (c *ChannelMessageBatchResp) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, c)
 }
+
+func (c *ClusterConfig) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ClusterConfig) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *ClusterChannelBelongNodeReq) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ClusterChannelBelongNodeReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *ClusterChannelBelongNodeResp) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ClusterChannelBelongNodeResp) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *ClusterChannelBelongNodeBatchResp) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ClusterChannelBelongNodeBatchResp) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+func (f *ForwardHttpReq) Marshal() ([]byte, error) {
+	return proto.Marshal(f)
+}
+
+func (f *ForwardHttpReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, f)
+}
+
+func (c *ConversationChannelReq) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ConversationChannelReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (c *ConversationChannelResp) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ConversationChannelResp) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}

@@ -7,6 +7,29 @@ import (
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
+type PluginStatus uint32
+
+const (
+	PluginStatusInit    PluginStatus = iota
+	PluginStatusNormal               = 1 // 插件正常
+	PluginStatusError                = 2 // 插件异常
+	PluginStatusOffline              = 3 // 插件离线
+)
+
+func (s PluginStatus) String() string {
+	switch s {
+	case PluginStatusInit:
+		return "init"
+	case PluginStatusNormal:
+		return "normal"
+	case PluginStatusError:
+		return "error"
+	case PluginStatusOffline:
+		return "offline"
+	}
+	return "unknown"
+}
+
 type Plugin interface {
 	// GetNo 获取插件编号
 	GetNo() string
@@ -18,6 +41,8 @@ type Plugin interface {
 	Reply(ctx context.Context, data []byte) error
 	// Route 调用插件的Route方法
 	Route(ctx context.Context, request *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
+	// Status 获取插件状态
+	Status() PluginStatus
 }
 
 type PluginMethod string
