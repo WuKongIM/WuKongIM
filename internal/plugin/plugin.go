@@ -140,6 +140,14 @@ func (p *Plugin) Route(ctx context.Context, request *pluginproto.HttpRequest) (*
 	return resp, nil
 }
 
+func (p *Plugin) Status() types.PluginStatus {
+	conn := p.s.rpcServer.ConnManager.GetConn(p.info.No)
+	if conn == nil {
+		return types.PluginStatusError
+	}
+	return types.PluginStatusNormal
+}
+
 func getPathByMethod(method types.PluginMethod) string {
 	switch method {
 	case types.PluginSend:

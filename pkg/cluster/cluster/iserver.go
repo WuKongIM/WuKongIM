@@ -165,3 +165,7 @@ func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
 func (s *Server) MustWaitClusterReady(timeout time.Duration) error {
 	return nil
 }
+
+func (s *Server) Slots() []*types.Slot {
+	return s.cfgServer.Slots()
+}

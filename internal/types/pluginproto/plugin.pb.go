@@ -778,6 +778,544 @@ func (x *ChannelMessageBatchResp) GetChannelMessageResps() []*ChannelMessageResp
 	return nil
 }
 
+// wukongim的分布式配置
+type ClusterConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Nodes         []*Node                `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"` // 分布式中的节点
+	Slots         []*Slot                `protobuf:"bytes,2,rep,name=slots,proto3" json:"slots,omitempty"` // 分布式中的槽位
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClusterConfig) Reset() {
+	*x = ClusterConfig{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClusterConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClusterConfig) ProtoMessage() {}
+
+func (x *ClusterConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClusterConfig.ProtoReflect.Descriptor instead.
+func (*ClusterConfig) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ClusterConfig) GetNodes() []*Node {
+	if x != nil {
+		return x.Nodes
+	}
+	return nil
+}
+
+func (x *ClusterConfig) GetSlots() []*Slot {
+	if x != nil {
+		return x.Slots
+	}
+	return nil
+}
+
+// wk节点
+type Node struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                      // 节点id
+	ClusterAddr   string                 `protobuf:"bytes,2,opt,name=clusterAddr,proto3" json:"clusterAddr,omitempty"`     // 节点分布式通讯地址
+	ApiServerAddr string                 `protobuf:"bytes,3,opt,name=apiServerAddr,proto3" json:"apiServerAddr,omitempty"` // 节点api服务地址
+	Online        bool                   `protobuf:"varint,4,opt,name=online,proto3" json:"online,omitempty"`              // 是否在线
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Node) Reset() {
+	*x = Node{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Node) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Node) ProtoMessage() {}
+
+func (x *Node) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Node.ProtoReflect.Descriptor instead.
+func (*Node) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *Node) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *Node) GetClusterAddr() string {
+	if x != nil {
+		return x.ClusterAddr
+	}
+	return ""
+}
+
+func (x *Node) GetApiServerAddr() string {
+	if x != nil {
+		return x.ApiServerAddr
+	}
+	return ""
+}
+
+func (x *Node) GetOnline() bool {
+	if x != nil {
+		return x.Online
+	}
+	return false
+}
+
+// wk的slot
+type Slot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                    // 槽位id
+	Leader        uint64                 `protobuf:"varint,2,opt,name=leader,proto3" json:"leader,omitempty"`            // 槽位的领导节点
+	Term          uint32                 `protobuf:"varint,3,opt,name=term,proto3" json:"term,omitempty"`                // 槽位的领导任期
+	Replicas      []uint64               `protobuf:"varint,4,rep,packed,name=replicas,proto3" json:"replicas,omitempty"` // 副本节点(包含领导节点)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Slot) Reset() {
+	*x = Slot{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Slot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Slot) ProtoMessage() {}
+
+func (x *Slot) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Slot.ProtoReflect.Descriptor instead.
+func (*Slot) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *Slot) GetId() uint32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *Slot) GetLeader() uint64 {
+	if x != nil {
+		return x.Leader
+	}
+	return 0
+}
+
+func (x *Slot) GetTerm() uint32 {
+	if x != nil {
+		return x.Term
+	}
+	return 0
+}
+
+func (x *Slot) GetReplicas() []uint64 {
+	if x != nil {
+		return x.Replicas
+	}
+	return nil
+}
+
+// 频道对象
+type Channel struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ChannelId     string                 `protobuf:"bytes,1,opt,name=channelId,proto3" json:"channelId,omitempty"`      // 频道id
+	ChannelType   uint32                 `protobuf:"varint,2,opt,name=channelType,proto3" json:"channelType,omitempty"` // 频道类型
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Channel) Reset() {
+	*x = Channel{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Channel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Channel) ProtoMessage() {}
+
+func (x *Channel) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Channel.ProtoReflect.Descriptor instead.
+func (*Channel) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *Channel) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *Channel) GetChannelType() uint32 {
+	if x != nil {
+		return x.ChannelType
+	}
+	return 0
+}
+
+// 频道节点请求
+type ClusterChannelBelongNodeReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Channels      []*Channel             `protobuf:"bytes,1,rep,name=channels,proto3" json:"channels,omitempty"` // 频道列表
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClusterChannelBelongNodeReq) Reset() {
+	*x = ClusterChannelBelongNodeReq{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClusterChannelBelongNodeReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClusterChannelBelongNodeReq) ProtoMessage() {}
+
+func (x *ClusterChannelBelongNodeReq) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClusterChannelBelongNodeReq.ProtoReflect.Descriptor instead.
+func (*ClusterChannelBelongNodeReq) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ClusterChannelBelongNodeReq) GetChannels() []*Channel {
+	if x != nil {
+		return x.Channels
+	}
+	return nil
+}
+
+// 频道节点响应
+type ClusterChannelBelongNodeResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NodeId        uint64                 `protobuf:"varint,1,opt,name=nodeId,proto3" json:"nodeId,omitempty"`    // 频道节点Id
+	Channels      []*Channel             `protobuf:"bytes,2,rep,name=channels,proto3" json:"channels,omitempty"` // 频道列表
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClusterChannelBelongNodeResp) Reset() {
+	*x = ClusterChannelBelongNodeResp{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClusterChannelBelongNodeResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClusterChannelBelongNodeResp) ProtoMessage() {}
+
+func (x *ClusterChannelBelongNodeResp) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClusterChannelBelongNodeResp.ProtoReflect.Descriptor instead.
+func (*ClusterChannelBelongNodeResp) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ClusterChannelBelongNodeResp) GetNodeId() uint64 {
+	if x != nil {
+		return x.NodeId
+	}
+	return 0
+}
+
+func (x *ClusterChannelBelongNodeResp) GetChannels() []*Channel {
+	if x != nil {
+		return x.Channels
+	}
+	return nil
+}
+
+// 频道节点批量响应
+type ClusterChannelBelongNodeBatchResp struct {
+	state                         protoimpl.MessageState          `protogen:"open.v1"`
+	ClusterChannelBelongNodeResps []*ClusterChannelBelongNodeResp `protobuf:"bytes,1,rep,name=clusterChannelBelongNodeResps,proto3" json:"clusterChannelBelongNodeResps,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
+}
+
+func (x *ClusterChannelBelongNodeBatchResp) Reset() {
+	*x = ClusterChannelBelongNodeBatchResp{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClusterChannelBelongNodeBatchResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClusterChannelBelongNodeBatchResp) ProtoMessage() {}
+
+func (x *ClusterChannelBelongNodeBatchResp) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClusterChannelBelongNodeBatchResp.ProtoReflect.Descriptor instead.
+func (*ClusterChannelBelongNodeBatchResp) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ClusterChannelBelongNodeBatchResp) GetClusterChannelBelongNodeResps() []*ClusterChannelBelongNodeResp {
+	if x != nil {
+		return x.ClusterChannelBelongNodeResps
+	}
+	return nil
+}
+
+// http请求转发
+type ForwardHttpReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PluginNo      string                 `protobuf:"bytes,1,opt,name=pluginNo,proto3" json:"pluginNo,omitempty"`  // 插件编号
+	ToNodeId      int64                  `protobuf:"varint,2,opt,name=toNodeId,proto3" json:"toNodeId,omitempty"` // 目标节点id,如果为0则表示本节点,-1为所有节点
+	Request       *HttpRequest           `protobuf:"bytes,3,opt,name=request,proto3" json:"request,omitempty"`    // 请求
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForwardHttpReq) Reset() {
+	*x = ForwardHttpReq{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForwardHttpReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForwardHttpReq) ProtoMessage() {}
+
+func (x *ForwardHttpReq) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForwardHttpReq.ProtoReflect.Descriptor instead.
+func (*ForwardHttpReq) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ForwardHttpReq) GetPluginNo() string {
+	if x != nil {
+		return x.PluginNo
+	}
+	return ""
+}
+
+func (x *ForwardHttpReq) GetToNodeId() int64 {
+	if x != nil {
+		return x.ToNodeId
+	}
+	return 0
+}
+
+func (x *ForwardHttpReq) GetRequest() *HttpRequest {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+// 最近会话频道请求
+type ConversationChannelReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uid           string                 `protobuf:"bytes,1,opt,name=uid,proto3" json:"uid,omitempty"` // 用户uid
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConversationChannelReq) Reset() {
+	*x = ConversationChannelReq{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConversationChannelReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConversationChannelReq) ProtoMessage() {}
+
+func (x *ConversationChannelReq) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConversationChannelReq.ProtoReflect.Descriptor instead.
+func (*ConversationChannelReq) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ConversationChannelReq) GetUid() string {
+	if x != nil {
+		return x.Uid
+	}
+	return ""
+}
+
+// 最近会话频道响应
+type ConversationChannelResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Channels      []*Channel             `protobuf:"bytes,1,rep,name=channels,proto3" json:"channels,omitempty"` // 频道列表
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConversationChannelResp) Reset() {
+	*x = ConversationChannelResp{}
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConversationChannelResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConversationChannelResp) ProtoMessage() {}
+
+func (x *ConversationChannelResp) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_types_pluginproto_plugin_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConversationChannelResp.ProtoReflect.Descriptor instead.
+func (*ConversationChannelResp) Descriptor() ([]byte, []int) {
+	return file_internal_types_pluginproto_plugin_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ConversationChannelResp) GetChannels() []*Channel {
+	if x != nil {
+		return x.Channels
+	}
+	return nil
+}
+
 var File_internal_types_pluginproto_plugin_proto protoreflect.FileDescriptor
 
 var file_internal_types_pluginproto_plugin_proto_rawDesc = []byte{
@@ -900,9 +1438,69 @@ var file_internal_types_pluginproto_plugin_proto_rawDesc = []byte{
 	0x0b, 0x32, 0x1f, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e,
 	0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x52, 0x65,
 	0x73, 0x70, 0x52, 0x13, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x4d, 0x65, 0x73, 0x73, 0x61,
-	0x67, 0x65, 0x52, 0x65, 0x73, 0x70, 0x73, 0x42, 0x10, 0x5a, 0x0e, 0x2e, 0x2f, 0x3b, 0x70, 0x6c,
-	0x75, 0x67, 0x69, 0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x33,
+	0x67, 0x65, 0x52, 0x65, 0x73, 0x70, 0x73, 0x22, 0x61, 0x0a, 0x0d, 0x43, 0x6c, 0x75, 0x73, 0x74,
+	0x65, 0x72, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x27, 0x0a, 0x05, 0x6e, 0x6f, 0x64, 0x65,
+	0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x05, 0x6e, 0x6f, 0x64, 0x65,
+	0x73, 0x12, 0x27, 0x0a, 0x05, 0x73, 0x6c, 0x6f, 0x74, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x11, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x53,
+	0x6c, 0x6f, 0x74, 0x52, 0x05, 0x73, 0x6c, 0x6f, 0x74, 0x73, 0x22, 0x76, 0x0a, 0x04, 0x4e, 0x6f,
+	0x64, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x02,
+	0x69, 0x64, 0x12, 0x20, 0x0a, 0x0b, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x41, 0x64, 0x64,
+	0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72,
+	0x41, 0x64, 0x64, 0x72, 0x12, 0x24, 0x0a, 0x0d, 0x61, 0x70, 0x69, 0x53, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x41, 0x64, 0x64, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x61, 0x70, 0x69,
+	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x41, 0x64, 0x64, 0x72, 0x12, 0x16, 0x0a, 0x06, 0x6f, 0x6e,
+	0x6c, 0x69, 0x6e, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x06, 0x6f, 0x6e, 0x6c, 0x69,
+	0x6e, 0x65, 0x22, 0x5e, 0x0a, 0x04, 0x53, 0x6c, 0x6f, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x02, 0x69, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x6c, 0x65,
+	0x61, 0x64, 0x65, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x06, 0x6c, 0x65, 0x61, 0x64,
+	0x65, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x65, 0x72, 0x6d, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d,
+	0x52, 0x04, 0x74, 0x65, 0x72, 0x6d, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x70, 0x6c, 0x69, 0x63,
+	0x61, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x04, 0x52, 0x08, 0x72, 0x65, 0x70, 0x6c, 0x69, 0x63,
+	0x61, 0x73, 0x22, 0x49, 0x0a, 0x07, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x1c, 0x0a,
+	0x09, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x09, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x49, 0x64, 0x12, 0x20, 0x0a, 0x0b, 0x63,
+	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d,
+	0x52, 0x0b, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x22, 0x4f, 0x0a,
+	0x1b, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x42,
+	0x65, 0x6c, 0x6f, 0x6e, 0x67, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x71, 0x12, 0x30, 0x0a, 0x08,
+	0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x14,
+	0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x68, 0x61,
+	0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x08, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x22, 0x68,
+	0x0a, 0x1c, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
+	0x42, 0x65, 0x6c, 0x6f, 0x6e, 0x67, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70, 0x12, 0x16,
+	0x0a, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x06,
+	0x6e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x12, 0x30, 0x0a, 0x08, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65,
+	0x6c, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69,
+	0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x08,
+	0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x22, 0x94, 0x01, 0x0a, 0x21, 0x43, 0x6c, 0x75,
+	0x73, 0x74, 0x65, 0x72, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x42, 0x65, 0x6c, 0x6f, 0x6e,
+	0x67, 0x4e, 0x6f, 0x64, 0x65, 0x42, 0x61, 0x74, 0x63, 0x68, 0x52, 0x65, 0x73, 0x70, 0x12, 0x6f,
+	0x0a, 0x1d, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
+	0x42, 0x65, 0x6c, 0x6f, 0x6e, 0x67, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70, 0x73, 0x18,
+	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x29, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x43, 0x68, 0x61, 0x6e, 0x6e,
+	0x65, 0x6c, 0x42, 0x65, 0x6c, 0x6f, 0x6e, 0x67, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70,
+	0x52, 0x1d, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
+	0x42, 0x65, 0x6c, 0x6f, 0x6e, 0x67, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x65, 0x73, 0x70, 0x73, 0x22,
+	0x7c, 0x0a, 0x0e, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x48, 0x74, 0x74, 0x70, 0x52, 0x65,
+	0x71, 0x12, 0x1a, 0x0a, 0x08, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x4e, 0x6f, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x08, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x4e, 0x6f, 0x12, 0x1a, 0x0a,
+	0x08, 0x74, 0x6f, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52,
+	0x08, 0x74, 0x6f, 0x4e, 0x6f, 0x64, 0x65, 0x49, 0x64, 0x12, 0x32, 0x0a, 0x07, 0x72, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e, 0x70, 0x6c, 0x75,
+	0x67, 0x69, 0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x48, 0x74, 0x74, 0x70, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x2a, 0x0a,
+	0x16, 0x43, 0x6f, 0x6e, 0x76, 0x65, 0x72, 0x73, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x43, 0x68, 0x61,
+	0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x65, 0x71, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x69, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75, 0x69, 0x64, 0x22, 0x4b, 0x0a, 0x17, 0x43, 0x6f, 0x6e,
+	0x76, 0x65, 0x72, 0x73, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
+	0x52, 0x65, 0x73, 0x70, 0x12, 0x30, 0x0a, 0x08, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73,
+	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x52, 0x08, 0x63, 0x68,
+	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x73, 0x42, 0x10, 0x5a, 0x0e, 0x2e, 0x2f, 0x3b, 0x70, 0x6c, 0x75,
+	0x67, 0x69, 0x6e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -917,35 +1515,52 @@ func file_internal_types_pluginproto_plugin_proto_rawDescGZIP() []byte {
 	return file_internal_types_pluginproto_plugin_proto_rawDescData
 }
 
-var file_internal_types_pluginproto_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_internal_types_pluginproto_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_internal_types_pluginproto_plugin_proto_goTypes = []any{
-	(*PluginInfo)(nil),              // 0: pluginproto.PluginInfo
-	(*SendPacket)(nil),              // 1: pluginproto.SendPacket
-	(*Message)(nil),                 // 2: pluginproto.Message
-	(*MessageBatch)(nil),            // 3: pluginproto.MessageBatch
-	(*HttpRequest)(nil),             // 4: pluginproto.HttpRequest
-	(*HttpResponse)(nil),            // 5: pluginproto.HttpResponse
-	(*ChannelMessageReq)(nil),       // 6: pluginproto.ChannelMessageReq
-	(*ChannelMessageBatchReq)(nil),  // 7: pluginproto.ChannelMessageBatchReq
-	(*ChannelMessageResp)(nil),      // 8: pluginproto.ChannelMessageResp
-	(*ChannelMessageBatchResp)(nil), // 9: pluginproto.ChannelMessageBatchResp
-	nil,                             // 10: pluginproto.HttpRequest.HeadersEntry
-	nil,                             // 11: pluginproto.HttpRequest.QueryEntry
-	nil,                             // 12: pluginproto.HttpResponse.HeadersEntry
+	(*PluginInfo)(nil),                        // 0: pluginproto.PluginInfo
+	(*SendPacket)(nil),                        // 1: pluginproto.SendPacket
+	(*Message)(nil),                           // 2: pluginproto.Message
+	(*MessageBatch)(nil),                      // 3: pluginproto.MessageBatch
+	(*HttpRequest)(nil),                       // 4: pluginproto.HttpRequest
+	(*HttpResponse)(nil),                      // 5: pluginproto.HttpResponse
+	(*ChannelMessageReq)(nil),                 // 6: pluginproto.ChannelMessageReq
+	(*ChannelMessageBatchReq)(nil),            // 7: pluginproto.ChannelMessageBatchReq
+	(*ChannelMessageResp)(nil),                // 8: pluginproto.ChannelMessageResp
+	(*ChannelMessageBatchResp)(nil),           // 9: pluginproto.ChannelMessageBatchResp
+	(*ClusterConfig)(nil),                     // 10: pluginproto.ClusterConfig
+	(*Node)(nil),                              // 11: pluginproto.Node
+	(*Slot)(nil),                              // 12: pluginproto.Slot
+	(*Channel)(nil),                           // 13: pluginproto.Channel
+	(*ClusterChannelBelongNodeReq)(nil),       // 14: pluginproto.ClusterChannelBelongNodeReq
+	(*ClusterChannelBelongNodeResp)(nil),      // 15: pluginproto.ClusterChannelBelongNodeResp
+	(*ClusterChannelBelongNodeBatchResp)(nil), // 16: pluginproto.ClusterChannelBelongNodeBatchResp
+	(*ForwardHttpReq)(nil),                    // 17: pluginproto.ForwardHttpReq
+	(*ConversationChannelReq)(nil),            // 18: pluginproto.ConversationChannelReq
+	(*ConversationChannelResp)(nil),           // 19: pluginproto.ConversationChannelResp
+	nil,                                       // 20: pluginproto.HttpRequest.HeadersEntry
+	nil,                                       // 21: pluginproto.HttpRequest.QueryEntry
+	nil,                                       // 22: pluginproto.HttpResponse.HeadersEntry
 }
 var file_internal_types_pluginproto_plugin_proto_depIdxs = []int32{
 	2,  // 0: pluginproto.MessageBatch.messages:type_name -> pluginproto.Message
-	10, // 1: pluginproto.HttpRequest.headers:type_name -> pluginproto.HttpRequest.HeadersEntry
-	11, // 2: pluginproto.HttpRequest.query:type_name -> pluginproto.HttpRequest.QueryEntry
-	12, // 3: pluginproto.HttpResponse.headers:type_name -> pluginproto.HttpResponse.HeadersEntry
+	20, // 1: pluginproto.HttpRequest.headers:type_name -> pluginproto.HttpRequest.HeadersEntry
+	21, // 2: pluginproto.HttpRequest.query:type_name -> pluginproto.HttpRequest.QueryEntry
+	22, // 3: pluginproto.HttpResponse.headers:type_name -> pluginproto.HttpResponse.HeadersEntry
 	6,  // 4: pluginproto.ChannelMessageBatchReq.channelMessageReqs:type_name -> pluginproto.ChannelMessageReq
 	2,  // 5: pluginproto.ChannelMessageResp.messages:type_name -> pluginproto.Message
 	8,  // 6: pluginproto.ChannelMessageBatchResp.channelMessageResps:type_name -> pluginproto.ChannelMessageResp
-	7,  // [7:7] is the sub-list for method output_type
-	7,  // [7:7] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	11, // 7: pluginproto.ClusterConfig.nodes:type_name -> pluginproto.Node
+	12, // 8: pluginproto.ClusterConfig.slots:type_name -> pluginproto.Slot
+	13, // 9: pluginproto.ClusterChannelBelongNodeReq.channels:type_name -> pluginproto.Channel
+	13, // 10: pluginproto.ClusterChannelBelongNodeResp.channels:type_name -> pluginproto.Channel
+	15, // 11: pluginproto.ClusterChannelBelongNodeBatchResp.clusterChannelBelongNodeResps:type_name -> pluginproto.ClusterChannelBelongNodeResp
+	4,  // 12: pluginproto.ForwardHttpReq.request:type_name -> pluginproto.HttpRequest
+	13, // 13: pluginproto.ConversationChannelResp.channels:type_name -> pluginproto.Channel
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_internal_types_pluginproto_plugin_proto_init() }
@@ -959,7 +1574,7 @@ func file_internal_types_pluginproto_plugin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_types_pluginproto_plugin_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
