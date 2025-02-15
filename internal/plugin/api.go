@@ -30,5 +30,5 @@ func (a *api) routes() {
 	a.s.rpcServer.Route("/cluster/channels/belongNode", a.clusterChannelBelongNode) // 获取频道所属节点
 
 	// ------------------- 最近会话 -------------------
-	a.s.rpcServer.Route("/conversations/channels", a.conversationChannels) // 获取最近会话的频道集合
+	a.s.rpcServer.Route("/conversation/channels", a.conversationChannels) // 获取最近会话的频道集合
 }
