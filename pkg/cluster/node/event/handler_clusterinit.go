@@ -9,7 +9,6 @@ import (
 
 // 分布式初始化事件
 func (h *handler) handleClusterInit() {
-
 	cfg := &types.Config{
 		SlotCount:           h.cfgOptions.SlotCount,
 		SlotReplicaCount:    h.cfgOptions.SlotMaxReplicaCount,
@@ -43,6 +42,7 @@ func (h *handler) handleClusterInit() {
 	} else { // 没有initNodes,则认为是单节点模式
 		nodes = append(nodes, &types.Node{
 			Id:            opts.NodeId,
+			ClusterAddr:   h.s.cfgOptions.ServerAddr,
 			ApiServerAddr: opts.ApiServerAddr,
 			Online:        true,
 			AllowVote:     true,

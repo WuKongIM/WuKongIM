@@ -58,6 +58,7 @@ func (s *Server) onNodeMessage(_ gnet.Conn, m *proto.Message) {
 		s.Error("onNodeMessage: unmarshal event failed", zap.Error(err))
 		return
 	}
+
 	if trace.GlobalTrace != nil && event.Type == rafttype.SyncReq {
 		trace.GlobalTrace.Metrics.Cluster().MsgSyncIncomingCountAdd(trace.ClusterKindConfig, 1)
 		trace.GlobalTrace.Metrics.Cluster().MsgSyncIncomingBytesAdd(trace.ClusterKindConfig, int64(m.Size()))

@@ -16,7 +16,7 @@ func (n *Node) BecomeCandidate() {
 	n.voteFor = n.opts.NodeId
 	n.cfg.Leader = 0
 	n.cfg.Role = types.RoleCandidate
-	n.Info("become candidate", zap.Uint32("term", n.cfg.Term), zap.Int("nextElectionTimeout", n.randomizedElectionTimeout))
+	n.Info("become candidate", zap.Uint32("term", n.cfg.Term), zap.Int("nextElectionTimeout", n.randomizedElectionTimeout), zap.Uint64s("replicas", n.cfg.Replicas))
 }
 
 func (n *Node) BecomeFollower(term uint32, leaderId uint64) {
@@ -27,7 +27,13 @@ func (n *Node) BecomeFollower(term uint32, leaderId uint64) {
 	n.voteFor = None
 	n.cfg.Leader = leaderId
 	n.cfg.Role = types.RoleFollower
-	n.Debug("become follower", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
+
+	if n.opts.Key == "clusterconfig" {
+		n.Info("become follower", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId), zap.Uint64s("replicas", n.cfg.Replicas))
+	} else {
+		n.Debug("become follower", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId), zap.Uint64s("replicas", n.cfg.Replicas))
+	}
+
 }
 
 func (n *Node) BecomeLeader(term uint32) {
@@ -37,7 +43,13 @@ func (n *Node) BecomeLeader(term uint32) {
 	n.tickFnc = n.tickLeader
 	n.cfg.Leader = n.opts.NodeId
 	n.cfg.Role = types.RoleLeader
-	n.Debug("become leader", zap.Uint32("term", n.cfg.Term))
+
+	if n.opts.Key == "clusterconfig" {
+		n.Info("become leader", zap.Uint32("term", n.cfg.Term), zap.Uint64s("replicas", n.cfg.Replicas))
+	} else {
+		n.Debug("become leader", zap.Uint32("term", n.cfg.Term), zap.Uint64s("replicas", n.cfg.Replicas))
+	}
+
 }
 
 func (n *Node) BecomeLearner(term uint32, leaderId uint64) {
@@ -48,7 +60,13 @@ func (n *Node) BecomeLearner(term uint32, leaderId uint64) {
 	n.voteFor = None
 	n.cfg.Leader = leaderId
 	n.cfg.Role = types.RoleLearner
-	n.Info("become learner", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId))
+
+	if n.opts.Key == "clusterconfig" {
+		n.Info("become learner", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId), zap.Uint64s("replicas", n.cfg.Replicas))
+	} else {
+		n.Debug("become learner", zap.Uint32("term", n.cfg.Term), zap.Uint64("leaderId", leaderId), zap.Uint64s("replicas", n.cfg.Replicas))
+	}
+
 }
 
 func (n *Node) reset() {

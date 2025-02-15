@@ -8,8 +8,8 @@ import (
 
 type Options struct {
 	// NodeId 节点id
-	NodeId uint64
-
+	NodeId        uint64
+	ServerAddr    string        // 分布式节点通讯地址
 	ApiServerAddr string        // 分布式api服务地址（内网地址）
 	TickInterval  time.Duration // 分布式tick间隔
 	// InitNodes 初始化节点列表 key为节点id，value为分布式通讯的地址
@@ -107,5 +107,11 @@ func WithPongMaxTick(pongMaxTick int) Option {
 func WithSeed(seed string) Option {
 	return func(o *Options) {
 		o.Seed = seed
+	}
+}
+
+func WithServerAddr(serverAddr string) Option {
+	return func(o *Options) {
+		o.ServerAddr = serverAddr
 	}
 }

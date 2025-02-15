@@ -52,6 +52,7 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) Step(event types.Event) {
+
 	s.cfgServer.StepRaftEvent(event)
 
 	if s.cfgServer.IsLeader() && event.Type == types.SyncReq {
@@ -93,6 +94,7 @@ func (s *Server) handleEvents() {
 		}
 	}
 	// 比较新旧配置
+
 	s.handler.handleCompare()
 
 	if s.cfgServer.IsLeader() {

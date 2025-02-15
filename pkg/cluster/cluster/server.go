@@ -207,22 +207,26 @@ func (s *Server) Start() error {
 	if len(cfg.Nodes) == 0 {
 		if len(s.opts.ConfigOptions.InitNodes) > 0 {
 			s.addOrUpdateNodes(s.opts.ConfigOptions.InitNodes)
-		} else if strings.TrimSpace(s.opts.Seed) != "" {
-			nodeMap := make(map[uint64]string)
-			seedNodeId, addr, err := seedNode(s.opts.Seed)
-			if err != nil {
-				return err
-			}
-			nodeMap[seedNodeId] = addr
-			s.addOrUpdateNodes(nodeMap)
 		}
-
 	} else {
 		nodeMap := make(map[uint64]string)
 		for _, node := range cfg.Nodes {
 			nodeMap[node.Id] = node.ClusterAddr
 		}
 		s.addOrUpdateNodes(nodeMap)
+	}
+
+	// 如果有种子节点，但节点连接不存在，则建立连接
+	if strings.TrimSpace(s.opts.Seed) != "" {
+		nodeMap := make(map[uint64]string)
+		seedNodeId, addr, err := seedNode(s.opts.Seed)
+		if err != nil {
+			return err
+		}
+		if !s.nodeManager.exist(seedNodeId) {
+			nodeMap[seedNodeId] = addr
+			s.addOrUpdateNodes(nodeMap)
+		}
 	}
 
 	// 如果有新加入的节点 则执行加入逻辑
@@ -344,6 +348,10 @@ func (s *Server) uidToServerId(uid string) uint64 {
 // 保存槽分布式配置（事件）
 func (s *Server) onSaveSlotConfig(slotId uint32, cfg rafttype.Config) error {
 
+	if s.cfgServer.LeaderId() == 0 {
+		return rafttype.ErrNotLeader
+	}
+
 	slot := s.cfgServer.Slot(slotId)
 	if slot == nil {
 		s.Error("slot not found", zap.Uint32("slotId", slotId))
@@ -356,7 +364,7 @@ func (s *Server) onSaveSlotConfig(slotId uint32, cfg rafttype.Config) error {
 	// 提案槽更新（槽更新会触发分布式配置事件，事件会触发slot更新最新的配置，所以这里只需要提案即可，不需要再进行配置切换）
 	err := s.cfgServer.ProposeSlots([]*types.Slot{cloneSlot})
 	if err != nil {
-		s.Error("onSaveSlotConfig: propose slot failed", zap.Uint32("slotId", slotId), zap.Error(err))
+		s.Error("onSaveSlotConfig: propose slot failed", zap.Any("oldSlot", slot), zap.Error(err))
 		return err
 	}
 

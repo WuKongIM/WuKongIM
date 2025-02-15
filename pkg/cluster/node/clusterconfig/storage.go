@@ -130,11 +130,12 @@ func (p *PebbleShardLogStorage) TruncateLogTo(index uint64) error {
 		p.Error("get max index error", zap.Error(err))
 		return err
 	}
-	if index <= appliedIdx {
+	if index < appliedIdx {
 		p.Error("index must be less than  applied index", zap.Uint64("index", index), zap.Uint64("appliedIdx", appliedIdx))
 		return nil
 	}
-	keyData := key.NewLogKey(index)
+
+	keyData := key.NewLogKey(index + 1)
 	maxKeyData := key.NewLogKey(math.MaxUint64)
 	err = p.db.DeleteRange(keyData, maxKeyData, p.wo)
 	if err != nil {
