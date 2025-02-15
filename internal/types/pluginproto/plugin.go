@@ -136,3 +136,11 @@ func (c *ConversationChannelResp) Marshal() ([]byte, error) {
 func (c *ConversationChannelResp) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, c)
 }
+
+func (s *StartupResp) Marshal() ([]byte, error) {
+	return proto.Marshal(s)
+}
+
+func (s *StartupResp) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, s)
+}
