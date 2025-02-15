@@ -4,10 +4,12 @@ import (
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
 )
 
 func (n *Node) switchConfig(newCfg types.Config) error {
+
 	oldCfg := n.cfg
 	if n.cfg.Version > newCfg.Version {
 		n.Error("config version is lower than current version", zap.Uint64("newVersion", newCfg.Version), zap.Uint64("currentVersion", oldCfg.Version))
@@ -51,7 +53,12 @@ func (n *Node) roleChangeIfNeed(oldCfg, newCfg types.Config) {
 				if newCfg.Leader != 0 && newCfg.Leader == n.opts.NodeId {
 					n.BecomeLeader(newCfg.Term)
 				} else {
-					n.BecomeFollower(newCfg.Term, newCfg.Leader)
+					if wkutil.ArrayContainsUint64(newCfg.Replicas, n.opts.NodeId) {
+						n.BecomeFollower(newCfg.Term, newCfg.Leader)
+					} else if wkutil.ArrayContainsUint64(newCfg.Learners, n.opts.NodeId) {
+						n.BecomeLearner(newCfg.Term, newCfg.Leader)
+					}
+
 				}
 			}
 		}

@@ -2,7 +2,7 @@ mode: "release"
 addr: "tcp://0.0.0.0:5100" # tcp监听地址
 httpAddr: "0.0.0.0:5001" # http api监听地址
 wsAddr: "ws://0.0.0.0:5200"  # websocket ws 监听地址
-rootDir: "./wukongimdata/1001" # 数据存储目录
+rootDir: "./wukongimdata/1" # 数据存储目录
 pprofOn: true
 stress: false # 是否开启压力测试模式
 logger:
@@ -15,7 +15,9 @@ demo:
 conversation:
   on: true   
 cluster:
-  nodeId: 1001 # 节点ID
+  nodeId: 1 # 节点ID
+  addr: "tcp://127.0.0.1:10001"
+  serverAddr: "127.0.0.1:10001" # 节点通讯地址
   apiUrl: "http://127.0.0.1:5001" 
   
 # 认证配置 用户名:密码:资源:权限 *表示通配符   资源格式也可以是[资源ID:权限]  
