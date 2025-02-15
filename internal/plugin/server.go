@@ -2,11 +2,13 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"time"
 
@@ -24,9 +26,11 @@ type Server struct {
 	pluginManager *pluginManager
 	api           *api
 	wklog.Log
+	opts       *Options
+	sandboxDir string // 沙箱目录
 }
 
-func NewServer() *Server {
+func NewServer(opts *Options) *Server {
 
 	addr, err := getUnixSocket()
 	if err != nil {
@@ -34,10 +38,34 @@ func NewServer() *Server {
 	}
 	rpcServer := wkrpc.New(addr)
 
+	// 如果插件目录不存在则创建
+	if _, err := os.Stat(opts.Dir); os.IsNotExist(err) {
+		err := os.MkdirAll(opts.Dir, os.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// 如果沙箱目录不存在则创建
+	sandboxDir := path.Join(opts.Dir, "plugindata")
+	if _, err := os.Stat(sandboxDir); os.IsNotExist(err) {
+		err := os.MkdirAll(sandboxDir, os.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// 插件目录权限为只读，防止插件在目录下创建文件
+	if err = os.Chmod(opts.Dir, 0555); err != nil {
+		return nil
+	}
+
 	s := &Server{
 		rpcServer:     rpcServer,
+		opts:          opts,
 		pluginManager: newPluginManager(),
 		Log:           wklog.NewWKLog("plugin.server"),
+		sandboxDir:    sandboxDir,
 	}
 	s.api = newApi(s)
 	return s
@@ -48,11 +76,19 @@ func (s *Server) Start() error {
 		return err
 	}
 	s.api.routes()
+
+	if err := s.startPlugins(); err != nil {
+		s.Error("start plugins error", zap.Error(err))
+		return err
+	}
+
 	return nil
 }
 
 func (s *Server) Stop() {
 	s.rpcServer.Stop()
+
+	s.stopPlugins()
 }
 
 func (s *Server) SetRoute(r *wkhttp.WKHttp) {
@@ -202,4 +238,86 @@ func (s *Server) handlePluginRoute(c *wkhttp.Context) {
 	if err != nil {
 		s.Error("write response error", zap.Error(err), zap.String("plugin", pluginNo), zap.String("path", pluginPath))
 	}
+}
+
+// 启动插件执行文件
+func (s *Server) startPlugins() error {
+	pluginDir := s.opts.Dir
+	// 获取插件目录下的所有文件
+	files, err := os.ReadDir(pluginDir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		// 启动插件
+		s.Info("Plugin start", zap.String("plugin", file.Name()))
+		err := s.startPluginApp(file.Name())
+		if err != nil {
+			s.Error("start plugin error", zap.Error(err))
+			continue
+		}
+	}
+	return nil
+}
+
+func (s *Server) stopPlugins() error {
+	pluginDir := s.opts.Dir
+	// 获取插件目录下的所有文件
+	files, err := os.ReadDir(pluginDir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		// 停止插件
+		err := s.stopPluginApp(file.Name())
+		if err != nil {
+			s.Error("stop plugin error", zap.Error(err))
+			continue
+		}
+	}
+	return nil
+}
+
+// 启动插件程序
+func (s *Server) startPluginApp(name string) error {
+
+	cmd := exec.Command("./" + name)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Dir = s.opts.Dir
+
+	// 允许相对路径运行
+	if errors.Is(cmd.Err, exec.ErrDot) {
+		cmd.Err = nil
+	}
+	// start the process
+	err := cmd.Start()
+	if err != nil {
+		s.Error("starting plugin process failed", zap.Error(err), zap.String("plugin", name))
+		return err
+	}
+	fmt.Println("pluginPath-222->", name)
+
+	return nil
+}
+
+// 停止插件程序
+func (s *Server) stopPluginApp(name string) error {
+	pluginPath := path.Join(s.opts.Dir, name)
+	cmd := exec.Command("pkill", "-f", pluginPath)
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	return nil
 }
