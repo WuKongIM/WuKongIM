@@ -276,8 +276,6 @@ github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f h1:erzPrCjuS7yvfpM
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f/go.mod h1:gS8ErzMrBY+zJfxwFFzUzR9S2jFo/FTyEVr4pedbfbA=
 github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05 h1:z6Zu0VFnXA/+IcNAI/G0QgvIZZlU4aF6pf/fPP780hY=
 github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05/go.mod h1:/juNjLcqcoW/NkNi4rxnhDvDAUo76w3qIZ4dgLkZvH0=
-github.com/WuKongIM/wkrpc v0.0.0-20250204085136-fb738073a53a h1:mgHtjUNdAz5YibfOxuyIXBUj3F89jrpodceuvQ2w4OU=
-github.com/WuKongIM/wkrpc v0.0.0-20250204085136-fb738073a53a/go.mod h1:V/m/6c8aNqXDvmu8NGx7HDct1Y62yQAkvJA43uEOObk=
 github.com/WuKongIM/wkrpc v0.0.0-20250213045413-645e58badfbf h1:ngIAMjSPdrstBkJ0yRvmGccI2yVBGv7DlghUvsFT5t8=
 github.com/WuKongIM/wkrpc v0.0.0-20250213045413-645e58badfbf/go.mod h1:V/m/6c8aNqXDvmu8NGx7HDct1Y62yQAkvJA43uEOObk=
 github.com/abdullin/seq v0.0.0-20160510034733-d5467c17e7af/go.mod h1:5Jv4cbFiHJMsVxt52+i0Ha45fjshj6wxYr1r19tB9bw=

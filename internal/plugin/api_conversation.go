@@ -2,7 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
-	"path"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
@@ -30,7 +30,8 @@ func (a *api) conversationChannels(c *wkrpc.Context) {
 	}
 
 	// 请求对应节点的用户最近会话频道接口
-	forwardUrl := path.Join(leaderInfo.ApiServerAddr, "conversation", "channels")
+	forwardUrl := fmt.Sprintf("%s/conversation/channels", leaderInfo.ApiServerAddr)
+
 	reqBodyMap := map[string]interface{}{
 		"uid": req.Uid,
 	}
@@ -87,7 +88,7 @@ func (a *api) conversationChannels(c *wkrpc.Context) {
 func (a *api) post(url string, body []byte) (*rest.Response, error) {
 
 	req := rest.Request{
-		Method:  rest.Method("post"),
+		Method:  rest.Post,
 		BaseURL: url,
 		Body:    body,
 	}

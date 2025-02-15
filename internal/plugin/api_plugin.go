@@ -3,7 +3,9 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,11 +31,51 @@ func (a *api) pluginStart(c *wkrpc.Context) {
 		c.WriteErr(err)
 		return
 	}
+
+	if strings.TrimSpace(pluginInfo.No) == "" {
+		a.Error("plugin start failed, plugin no is empty")
+		c.WriteErr(fmt.Errorf("plugin no is empty"))
+		return
+	}
+
 	a.s.pluginManager.add(newPlugin(a.s, c.Conn(), pluginInfo))
 
 	a.Info("plugin start", zap.Any("pluginInfo", pluginInfo))
 
-	c.WriteOk()
+	sandboxDir := path.Join(a.s.sandboxDir, pluginInfo.No)
+
+	// 沙盒如果是相对路径则转换为绝对路径
+	if !path.IsAbs(sandboxDir) {
+		sandboxDir, err = filepath.Abs(sandboxDir)
+		if err != nil {
+			a.Error("plugin start failed, get abs path failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+	}
+
+	// 如果沙盒目录不存在则创建
+	if _, err := os.Stat(sandboxDir); os.IsNotExist(err) {
+		err := os.MkdirAll(sandboxDir, os.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	startupResp := &pluginproto.StartupResp{
+		NodeId:     options.G.Cluster.NodeId,
+		Success:    true,
+		SandboxDir: sandboxDir,
+	}
+
+	data, err := startupResp.Marshal()
+	if err != nil {
+		a.Error("StartupResp marshal failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	c.Write(data)
 }
 
 // 插件停止
@@ -66,7 +108,7 @@ func (a *api) pluginHttpForward(c *wkrpc.Context) {
 			c.WriteErr(fmt.Errorf("node not found"))
 			return
 		}
-		pluginUrl := path.Join(node.ApiServerAddr, "plugins", forwardReq.PluginNo, forwardReq.Request.Path)
+		pluginUrl := fmt.Sprintf("%s/plugins/%s%s", node.ApiServerAddr, forwardReq.PluginNo, forwardReq.Request.Path)
 		resp, err := a.ForwardWithBody(pluginUrl, forwardReq.Request)
 		if err != nil {
 			a.Error("plugin http forward failed", zap.Error(err))
