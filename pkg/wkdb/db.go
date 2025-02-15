@@ -29,6 +29,8 @@ type DB interface {
 	StreamDB
 	// 测试机
 	TesterDB
+	// 消息删除记录
+	MessageDeletedDB
 }
 
 type MessageDB interface {
@@ -57,7 +59,7 @@ type MessageDB interface {
 	// LoadLastMsgsWithEnd 加载最新的消息 endMessageSeq表示加载到endMessageSeq的位置结束加载 endMessageSeq=0表示不做限制 结果不包含endMessageSeq
 	LoadLastMsgsWithEnd(channelId string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error)
 	// LoadLastMsgs 加载最后的消息
-	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
+	LoadLastMsgs(channelID string, channelType uint8, end uint64, limit int) ([]Message, error)
 	// GetChannelLastMessageSeq 获取最后一条消息的seq
 	GetChannelLastMessageSeq(channelId string, channelType uint8) (seq uint64, lastTime uint64, err error)
 
@@ -83,6 +85,8 @@ type MessageDB interface {
 
 	// GetLastMsg 获取最后一条消息
 	GetLastMsg(channelId string, channelType uint8) (Message, error)
+	// DeleteMessageRange 范围删除消息
+	DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error
 }
 
 type DeviceDB interface {
@@ -390,6 +394,13 @@ type TesterDB interface {
 
 	// RemoveTester 移除测试机
 	RemoveTester(no string) error
+}
+
+type MessageDeletedDB interface {
+	// AddOrUpdateMessageDeleted 新增或者修改一条渠道删除记录
+	AddOrUpdateMessageDeleted(messageDeleted MessageDeleted) error
+	// GetMessageDeletedSeq 根据channelId和channelType获取最大的删除消息序号
+	GetMessageDeletedSeq(channelId string, channelType uint8) uint64
 }
 
 type MessageSearchReq struct {

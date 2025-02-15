@@ -851,3 +851,20 @@ func (t *Tester) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+
+type MessageDeleted struct {
+	Id          uint64
+	ChannelId   string `json:"channel_id,omitempty"`   // 频道ID
+	ChannelType uint8  `json:"channel_type,omitempty"` // 频道类型
+	MessageSeq  uint64 `json:"message_seq,omitempty"`  // 消息序号
+}
+
+var EmptyMessageDeleted = MessageDeleted{}
+
+func NewMessageDeleted(channelId string, channelType uint8, messageSeq uint64) MessageDeleted {
+	return MessageDeleted{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		MessageSeq:  messageSeq,
+	}
+}
