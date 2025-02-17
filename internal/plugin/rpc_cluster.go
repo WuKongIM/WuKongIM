@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (a *api) clusterConfig(c *wkrpc.Context) {
+func (a *rpc) clusterConfig(c *wkrpc.Context) {
 
 	nodes := service.Cluster.Nodes()
 	slots := service.Cluster.Slots()
@@ -49,7 +49,7 @@ func (a *api) clusterConfig(c *wkrpc.Context) {
 	c.Write(data)
 }
 
-func (a *api) clusterChannelBelongNode(c *wkrpc.Context) {
+func (a *rpc) clusterChannelBelongNode(c *wkrpc.Context) {
 
 	req := &pluginproto.ClusterChannelBelongNodeReq{}
 	err := req.Unmarshal(c.Body())

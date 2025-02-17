@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (a *api) channelMessages(c *wkrpc.Context) {
+func (a *rpc) channelMessages(c *wkrpc.Context) {
 	channelMessageBatchReq := &pluginproto.ChannelMessageBatchReq{}
 	err := channelMessageBatchReq.Unmarshal(c.Body())
 	if err != nil {
