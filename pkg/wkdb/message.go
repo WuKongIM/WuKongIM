@@ -225,6 +225,19 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 func (wk *wukongDB) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
 	db := wk.channelBatchDb(channelId, channelType)
 	batch := db.NewBatch()
+	primaryKey, err := wk.getChannelPrimaryKey(channelId, channelType)
+	if err != nil {
+		return err
+	}
+	messageDeleted := MessageDeleted{
+		Id:          primaryKey,
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		MessageSeq:  endMessageSeq,
+	}
+	if err := wk.writeMessageDeleted(batch, messageDeleted); err != nil {
+		return err
+	}
 	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq), key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq))
 	return batch.CommitWait()
 
