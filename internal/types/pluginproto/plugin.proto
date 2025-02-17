@@ -8,7 +8,7 @@ option go_package = "./;pluginproto";
 // 插件信息
 message PluginInfo {
     // 插件唯一编号
-    string No = 1;
+    string no = 1;
     // 插件名称
     string name = 2;
     // 插件拥有的方法

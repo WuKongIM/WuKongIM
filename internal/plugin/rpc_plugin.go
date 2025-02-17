@@ -23,7 +23,7 @@ const (
 )
 
 // 插件启动
-func (a *api) pluginStart(c *wkrpc.Context) {
+func (a *rpc) pluginStart(c *wkrpc.Context) {
 	pluginInfo := &pluginproto.PluginInfo{}
 	err := pluginInfo.Unmarshal(c.Body())
 	if err != nil {
@@ -79,7 +79,7 @@ func (a *api) pluginStart(c *wkrpc.Context) {
 }
 
 // 插件停止
-func (a *api) pluginStop(c *wkrpc.Context) {
+func (a *rpc) pluginStop(c *wkrpc.Context) {
 	pluginInfo := &pluginproto.PluginInfo{}
 	err := pluginInfo.Unmarshal(c.Body())
 	if err != nil {
@@ -91,7 +91,7 @@ func (a *api) pluginStop(c *wkrpc.Context) {
 	c.WriteOk()
 }
 
-func (a *api) pluginHttpForward(c *wkrpc.Context) {
+func (a *rpc) pluginHttpForward(c *wkrpc.Context) {
 	forwardReq := &pluginproto.ForwardHttpReq{}
 	err := forwardReq.Unmarshal(c.Body())
 	if err != nil {
@@ -157,7 +157,7 @@ func (a *api) pluginHttpForward(c *wkrpc.Context) {
 	c.Write(data)
 }
 
-func (a *api) ForwardWithBody(url string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error) {
+func (a *rpc) ForwardWithBody(url string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error) {
 	r := rest.Request{
 		Method:      rest.Method(strings.ToUpper(req.Method)),
 		BaseURL:     url,

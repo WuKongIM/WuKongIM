@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (a *api) conversationChannels(c *wkrpc.Context) {
+func (a *rpc) conversationChannels(c *wkrpc.Context) {
 	req := &pluginproto.ConversationChannelReq{}
 	err := req.Unmarshal(c.Body())
 	if err != nil {
@@ -85,7 +85,7 @@ func (a *api) conversationChannels(c *wkrpc.Context) {
 }
 
 // ForwardWithBody 转发请求
-func (a *api) post(url string, body []byte) (*rest.Response, error) {
+func (a *rpc) post(url string, body []byte) (*rest.Response, error) {
 
 	req := rest.Request{
 		Method:  rest.Post,
