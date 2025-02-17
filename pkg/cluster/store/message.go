@@ -79,15 +79,6 @@ func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error
 
 // 范围删除消息
 func (s *Store) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
-	/*	//新增或者修改频道删除记录
-		err := s.wdb.AddOrUpdateMessageDeleted(wkdb.MessageDeleted{
-			ChannelId:   channelId,
-			ChannelType: channelType,
-			MessageSeq:  endMessageSeq,
-		})
-		if err != nil {
-			return err
-		}*/
 	return s.wdb.DeleteMessageRange(channelId, channelType, startMessageSeq, endMessageSeq)
 }
 
