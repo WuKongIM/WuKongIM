@@ -1028,7 +1028,7 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 		return
 	}
 	if req.StartMessageSeq == 0 && req.EndMessageSeq == 0 {
-		messages, err = service.Store.LoadLastMsgs(fakeChannelID, req.ChannelType, req.EndMessageSeq, limit)
+		messages, err = service.Store.LoadLastMsgs(fakeChannelID, req.ChannelType, limit)
 	} else if req.PullMode == PullModeUp { // 向上拉取
 		messages, err = service.Store.LoadNextRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	} else {

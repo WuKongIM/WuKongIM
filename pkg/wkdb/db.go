@@ -59,7 +59,7 @@ type MessageDB interface {
 	// LoadLastMsgsWithEnd 加载最新的消息 endMessageSeq表示加载到endMessageSeq的位置结束加载 endMessageSeq=0表示不做限制 结果不包含endMessageSeq
 	LoadLastMsgsWithEnd(channelId string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error)
 	// LoadLastMsgs 加载最后的消息
-	LoadLastMsgs(channelID string, channelType uint8, end uint64, limit int) ([]Message, error)
+	LoadLastMsgs(channelID string, channelType uint8, limit int) ([]Message, error)
 	// GetChannelLastMessageSeq 获取最后一条消息的seq
 	GetChannelLastMessageSeq(channelId string, channelType uint8) (seq uint64, lastTime uint64, err error)
 

@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
@@ -32,46 +31,7 @@ func (s *Store) AppendMessages(ctx context.Context, channelId string, channelTyp
 	return results, nil
 }
 
-// 处理开始序号和结束序号 向下查询不用处理 endMessageSeq = 0
-func (s *Store) handleLoadNextRangeMsgStartEndSeq(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) (uint64, uint64) {
-	deleteMessageSeq := service.Store.GetMessageDeletedSeq(channelID, channelType)
-	if deleteMessageSeq != 0 {
-		if startMessageSeq < deleteMessageSeq {
-			startMessageSeq = deleteMessageSeq
-		}
-		if endMessageSeq != 0 && endMessageSeq < deleteMessageSeq {
-			endMessageSeq = deleteMessageSeq
-		}
-	}
-	return startMessageSeq, endMessageSeq
-}
-
-// 处理开始序号和结束序号
-func (s *Store) handleLoadPrevRangeMsgStartEndSeq(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) (uint64, uint64) {
-	deleteMessageSeq := service.Store.GetMessageDeletedSeq(channelID, channelType)
-	if deleteMessageSeq != 0 {
-		if endMessageSeq < deleteMessageSeq {
-			endMessageSeq = deleteMessageSeq
-		}
-		if startMessageSeq < deleteMessageSeq {
-			startMessageSeq = deleteMessageSeq
-		}
-	}
-	return startMessageSeq, endMessageSeq
-}
-
-// 处理结束序号
-func (s *Store) handleEndSeq(channelID string, channelType uint8, endMessageSeq uint64) uint64 {
-	deleteMessageSeq := service.Store.GetMessageDeletedSeq(channelID, channelType)
-	if deleteMessageSeq != 0 {
-		if endMessageSeq < deleteMessageSeq {
-			endMessageSeq = deleteMessageSeq
-		}
-	}
-	return endMessageSeq
-}
 func (s *Store) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]wkdb.Message, error) {
-	startMessageSeq, endMessageSeq = s.handleLoadNextRangeMsgStartEndSeq(channelID, channelType, startMessageSeq, endMessageSeq)
 	return s.wdb.LoadNextRangeMsgs(channelID, channelType, startMessageSeq, endMessageSeq, limit)
 }
 
@@ -79,18 +39,15 @@ func (s *Store) LoadMsg(channelID string, channelType uint8, seq uint64) (wkdb.M
 	return s.wdb.LoadMsg(channelID, channelType, seq)
 }
 
-func (s *Store) LoadLastMsgs(channelID string, channelType uint8, end uint64, limit int) ([]wkdb.Message, error) {
-	end = s.handleEndSeq(channelID, channelType, end)
-	return s.wdb.LoadLastMsgs(channelID, channelType, end, limit)
+func (s *Store) LoadLastMsgs(channelID string, channelType uint8, limit int) ([]wkdb.Message, error) {
+	return s.wdb.LoadLastMsgs(channelID, channelType, limit)
 }
 
 func (s *Store) LoadLastMsgsWithEnd(channelID string, channelType uint8, end uint64, limit int) ([]wkdb.Message, error) {
-	end = s.handleEndSeq(channelID, channelType, end)
 	return s.wdb.LoadLastMsgsWithEnd(channelID, channelType, end, limit)
 }
 
 func (s *Store) LoadPrevRangeMsgs(channelID string, channelType uint8, start, end uint64, limit int) ([]wkdb.Message, error) {
-	start, end = s.handleLoadPrevRangeMsgStartEndSeq(channelID, channelType, start, end)
 	return s.wdb.LoadPrevRangeMsgs(channelID, channelType, start, end, limit)
 }
 
