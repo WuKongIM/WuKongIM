@@ -922,6 +922,7 @@ func BindJSON(obj any, c *wkhttp.Context) ([]byte, error) {
 func (ch *channel) deleteMessagesBySeqRange(c *wkhttp.Context) {
 
 	var req struct {
+		UID             string `json:"uid"`
 		ChannelID       string `json:"channel_id"`
 		ChannelType     uint8  `json:"channel_type"`
 		StartMessageSeq uint64 `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
@@ -957,7 +958,12 @@ func (ch *channel) deleteMessagesBySeqRange(c *wkhttp.Context) {
 		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 		return
 	}
-	err = service.Store.DeleteMessageRange(req.ChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq)
+	fakeChannelId := req.ChannelID
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelId = options.GetFakeChannelIDWith(req.UID, req.ChannelID)
+
+	}
+	err = service.Store.DeleteMessageRange(fakeChannelId, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq)
 	if err != nil {
 		ch.Error("获取消息失败！", zap.Error(err), zap.Any("req", req))
 		c.ResponseError(err)
