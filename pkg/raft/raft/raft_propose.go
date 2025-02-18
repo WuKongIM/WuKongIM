@@ -59,6 +59,11 @@ func (r *Raft) ProposeBatchUntilAppliedTimeout(ctx context.Context, reqs []types
 		err          error
 		needWait     = true
 	)
+
+	if r.node.LeaderId() == 0 {
+		return nil, types.ErrNotLeader
+	}
+
 	if !r.node.IsLeader() {
 		// 如果不是leader，则转发给leader
 		resps, err = r.fowardPropose(ctx, reqs)
@@ -97,7 +102,7 @@ func (r *Raft) ProposeBatchUntilAppliedTimeout(ctx context.Context, reqs []types
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-r.stopper.ShouldStop():
-			return nil, ErrStopped
+			return nil, types.ErrStopped
 		}
 	} else {
 		return resps, nil
@@ -261,6 +266,6 @@ func (r *Raft) fowardPropose(ctx context.Context, reqs types.ProposeReqSet) ([]*
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-r.stopper.ShouldStop():
-		return nil, ErrStopped
+		return nil, types.ErrStopped
 	}
 }

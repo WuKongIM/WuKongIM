@@ -641,10 +641,20 @@ func IsEmptyLog(v Log) bool {
 	return v.Id == 0 && v.Index == 0 && v.Term == 0 && len(v.Data) == 0
 }
 
+/**
+
+## 新节点加入
+MigrateFrom，MigrateTo的值为新节点的id，并且Learners包含新节点的id，Replicas不包含新节点的id
+
+## follower -> leader
+MigrateFrom为leader节点的id，MigrateTo的值为follower的id，Learners不需要包含follower的id
+
+**/
+
 type Config struct {
-	MigrateFrom uint64   // 迁移源节点
+	MigrateFrom uint64   // 迁移源节点，如果值为leader的ID，表示 learner -> leader ，如果值为follower的ID，表示learner -> follower
 	MigrateTo   uint64   // 迁移目标节点
-	Replicas    []uint64 // 副本集合（不包含节点自己）
+	Replicas    []uint64 // 副本集合（包含节点自己,leader + follower，不包含learner， learner在Learners字段里）
 	Learners    []uint64 // 学习节点集合
 	Role        Role     // 节点角色
 	Term        uint32   // 领导任期

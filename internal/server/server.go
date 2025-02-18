@@ -188,6 +188,8 @@ func New(opts *options.Options) *Server {
 				clusterconfig.WithChannelMaxReplicaCount(uint32(s.opts.Cluster.ChannelReplicaCount)),
 				clusterconfig.WithSlotMaxReplicaCount(uint32(s.opts.Cluster.SlotReplicaCount)),
 				clusterconfig.WithPongMaxTick(s.opts.Cluster.PongMaxTick),
+				clusterconfig.WithServerAddr(s.opts.Cluster.ServerAddr),
+				clusterconfig.WithSeed(s.opts.Cluster.Seed),
 			)),
 			cluster.WithAddr(s.opts.Cluster.Addr),
 			cluster.WithDataDir(path.Join(opts.DataDir)),

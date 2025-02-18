@@ -116,7 +116,7 @@ func (r *Raft) Step(e types.Event) {
 func (r *Raft) StepWait(ctx context.Context, e types.Event) error {
 	if r.pause.Load() {
 		r.Info("raft is paused, ignore event", zap.String("event", e.String()))
-		return ErrPaused
+		return types.ErrPaused
 	}
 	// 处理其他副本发过来的提案
 	if e.Type == types.SendPropose {
@@ -133,7 +133,7 @@ func (r *Raft) StepWait(ctx context.Context, e types.Event) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-r.stopper.ShouldStop():
-		return ErrStopped
+		return types.ErrStopped
 	}
 
 	select {
@@ -142,7 +142,7 @@ func (r *Raft) StepWait(ctx context.Context, e types.Event) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-r.stopper.ShouldStop():
-		return ErrStopped
+		return types.ErrStopped
 	}
 }
 
