@@ -31,8 +31,7 @@ func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState
 }
 
 func (s *storage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
-	//打印日志
-	s.Info("StoragePebble AppendLogs: shardNo ")
+	//打印error日志
 	channelId, channelType := wkutil.ChannelFromlKey(key)
 
 	messages := make([]wkdb.Message, 0, len(logs))
