@@ -1,7 +1,6 @@
 package channel
 
 import (
-	"fmt"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -34,7 +33,7 @@ func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState
 
 func (s *storage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
 	//打印日志
-	s.Info("StoragePebble AppendLogs: shardNo "+key, zap.Int("len", len(logs)), zap.String("termStartIndexInfo", fmt.Sprintf("%+v", termStartIndexInfo)))
+	s.Info("StoragePebble AppendLogs: shardNo "+key, zap.Int("len", len(logs)))
 	channelId, channelType := wkutil.ChannelFromlKey(key)
 
 	messages := make([]wkdb.Message, 0, len(logs))
