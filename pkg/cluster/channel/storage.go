@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"go.uber.org/zap"
 )
 
 type storage struct {
 	db wkdb.DB
 	s  *Server
+	wklog.Log
 }
 
 func newStorage(db wkdb.DB, s *Server) *storage {
@@ -31,7 +34,7 @@ func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState
 
 func (s *storage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
 	//打印日志
-	fmt.Sprintf("Storage AppendLogs key: %s, logs: %v, termStartIndexInfo: %v", key, logs, termStartIndexInfo)
+	s.Info("StoragePebble AppendLogs: shardNo "+key, zap.Int("len", len(logs)), zap.String("termStartIndexInfo", fmt.Sprintf("%+v", termStartIndexInfo)))
 	channelId, channelType := wkutil.ChannelFromlKey(key)
 
 	messages := make([]wkdb.Message, 0, len(logs))
