@@ -3,14 +3,12 @@ package channel
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 )
 
 type storage struct {
 	db wkdb.DB
 	s  *Server
-	wklog.Log
 }
 
 func newStorage(db wkdb.DB, s *Server) *storage {
@@ -31,7 +29,8 @@ func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState
 }
 
 func (s *storage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
-	//打印error日志
+	//打印日志
+	s.s.Log.Error("Storage AppendLogs key:" + key)
 	channelId, channelType := wkutil.ChannelFromlKey(key)
 
 	messages := make([]wkdb.Message, 0, len(logs))
