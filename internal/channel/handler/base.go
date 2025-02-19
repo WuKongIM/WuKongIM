@@ -38,6 +38,8 @@ func (h *Handler) routes() {
 	// 分发消息
 	eventbus.RegisterChannelHandlers(eventbus.EventChannelDistribute, h.distribute)
 
+	eventbus.RegisterChannelHandlers(eventbus.EventChannelOnStream, h.onStream)
+
 }
 
 // 收到消息

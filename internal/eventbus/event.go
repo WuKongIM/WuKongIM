@@ -31,6 +31,8 @@ const (
 	// =================== 频道事件 ===================
 	// EventChannelOnSend 频道收到发送消息
 	EventChannelOnSend
+	// EventChannelOnStream 频道收到流消息
+	EventChannelOnStream
 	// EventChannelWebhook 频道webhook
 	EventChannelWebhook
 	// EventChannelDistribute 频道消息分发
@@ -59,6 +61,8 @@ func (e EventType) String() string {
 		return "EventConnRemove"
 	case EventChannelOnSend:
 		return "EventChannelOnSend"
+	case EventChannelOnStream:
+		return "EventChannelOnStream"
 	case EventChannelWebhook:
 		return "EventChannelWebhook"
 	case EventChannelDistribute:
@@ -81,6 +85,7 @@ type Event struct {
 	Frame        wkproto.Frame
 	MessageId    int64
 	MessageSeq   uint64
+	StreamNo     string // 流号编号
 	ReasonCode   wkproto.ReasonCode
 	TagKey       string // tag的key
 	ToUid        string // 发送事件的目标用户
@@ -99,6 +104,7 @@ func (e *Event) Clone() *Event {
 		Frame:        e.Frame,
 		MessageId:    e.MessageId,
 		MessageSeq:   e.MessageSeq,
+		StreamNo:     e.StreamNo,
 		ReasonCode:   e.ReasonCode,
 		TagKey:       e.TagKey,
 		ToUid:        e.ToUid,
@@ -155,6 +161,7 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 
 	enc.WriteInt64(e.MessageId)
 	enc.WriteUint64(e.MessageSeq)
+	enc.WriteString(e.StreamNo)
 	enc.WriteUint8(uint8(e.ReasonCode))
 	enc.WriteString(e.TagKey)
 	enc.WriteString(e.ToUid)
@@ -217,6 +224,10 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 		return err
 	}
 	if e.MessageSeq, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	if e.StreamNo, err = dec.String(); err != nil {
 		return err
 	}
 

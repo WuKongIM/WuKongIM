@@ -27,7 +27,7 @@ type MessageResp struct {
 	Expire       uint32             `json:"expire"`                // 消息过期时间
 	Timestamp    int32              `json:"timestamp"`             // 服务器消息时间戳(10位，到秒)
 	Payload      []byte             `json:"payload"`               // 消息内容
-	// Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
+	Streams      []*StreamItemResp  `json:"streams,omitempty"`     // 消息流内容
 }
 
 func (m *MessageResp) From(messageD wkdb.Message, systemUid string) {
@@ -97,4 +97,19 @@ type RetryMessage struct {
 	Retry       int                 // 重试次数
 	Index       int                 //在切片中的索引值
 	Pri         int64               // 优先级的时间点 值越小越优先
+}
+
+type StreamItemResp struct {
+	StreamId uint64 `json:"stream_id"` // 流id
+	StreamNo string `json:"stream_no"` // 流编号
+	Payload  []byte `json:"payload"`   // 消息内容
+}
+
+func NewStreamItemResp(m *wkdb.Stream) *StreamItemResp {
+
+	return &StreamItemResp{
+		StreamId: m.StreamId,
+		StreamNo: m.StreamNo,
+		Payload:  m.Payload,
+	}
 }
