@@ -161,6 +161,7 @@ func (p *PebbleShardLogStorage) GetState(shardNo string) (types.RaftState, error
 }
 
 func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
+	p.Info("StoragePebble AppendLogs: shardNo "+shardNo, zap.Int("len", len(logs)), zap.String("termStartIndexInfo", fmt.Sprintf("%+v", termStartIndexInfo)))
 	batch := p.shardDB(shardNo).NewBatch()
 	defer batch.Close()
 

@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"fmt"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -29,7 +30,8 @@ func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState
 }
 
 func (s *storage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
-
+	//打印日志
+	fmt.Sprintf("Storage AppendLogs key: %s, logs: %v, termStartIndexInfo: %v", key, logs, termStartIndexInfo)
 	channelId, channelType := wkutil.ChannelFromlKey(key)
 
 	messages := make([]wkdb.Message, 0, len(logs))
