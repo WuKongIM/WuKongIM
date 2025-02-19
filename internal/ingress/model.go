@@ -252,3 +252,85 @@ func (s *SubscribersResp) Decode(data []byte) error {
 	}
 	return nil
 }
+
+type StreamReq struct {
+	StreamNos []string
+}
+
+func (s *StreamReq) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+
+	enc.WriteUint32(uint32(len(s.StreamNos)))
+	for _, streamNo := range s.StreamNos {
+		enc.WriteString(streamNo)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *StreamReq) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	s.StreamNos = make([]string, 0, count)
+	for i := 0; i < int(count); i++ {
+		streamNo, err := dec.String()
+		if err != nil {
+			return err
+		}
+		s.StreamNos = append(s.StreamNos, streamNo)
+	}
+	return nil
+}
+
+type StreamResp struct {
+	Streams []*Stream
+}
+
+type Stream struct {
+	StreamNo string
+	StreamId uint64
+	Payload  []byte
+}
+
+func (s *StreamResp) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(uint32(len(s.Streams)))
+	for _, stream := range s.Streams {
+		enc.WriteString(stream.StreamNo)
+		enc.WriteUint64(stream.StreamId)
+		enc.WriteUint32(uint32(len(stream.Payload)))
+		enc.WriteBytes(stream.Payload)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *StreamResp) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	s.Streams = make([]*Stream, 0, count)
+	for i := 0; i < int(count); i++ {
+		stream := &Stream{}
+		if stream.StreamNo, err = dec.String(); err != nil {
+			return err
+		}
+		if stream.StreamId, err = dec.Uint64(); err != nil {
+			return err
+		}
+		payloadLen, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		if stream.Payload, err = dec.Bytes(int(payloadLen)); err != nil {
+			return err
+		}
+		s.Streams = append(s.Streams, stream)
+	}
+	return nil
+}

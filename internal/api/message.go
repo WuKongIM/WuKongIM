@@ -245,14 +245,21 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 	}
 	messageId := options.G.GenMessageId()
 
+	eventType := eventbus.EventChannelOnSend
+
+	if strings.TrimSpace(req.StreamNo) != "" {
+		eventType = eventbus.EventChannelOnStream
+	}
+
 	event := &eventbus.Event{
 		Conn: &eventbus.Conn{
 			Uid:      req.FromUID,
 			DeviceId: options.G.SystemDeviceId,
 		},
-		Type:      eventbus.EventChannelOnSend,
+		Type:      eventType,
 		Frame:     sendPacket,
 		MessageId: messageId,
+		StreamNo:  req.StreamNo,
 		TagKey:    req.TagKey,
 		Track: track.Message{
 			PreStart: time.Now(),

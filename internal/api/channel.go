@@ -1019,12 +1019,109 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 			}
 		}
 	}
+
+	// 获取消息的流
+	streamNos := make([]string, 0)
+	for _, message := range messageResps {
+		if strings.TrimSpace(message.StreamNo) == "" {
+			continue
+		}
+		streamNos = append(streamNos, message.StreamNo)
+	}
+
+	if len(streamNos) > 0 {
+		streamItemsMap, err := ch.loadStreamMessages(fakeChannelID, req.ChannelType, streamNos)
+		if err != nil {
+			ch.Error("syncMessages: loadStreamMessages failed", zap.Error(err), zap.Any("req", req))
+			c.ResponseError(err)
+			return
+		}
+		for _, message := range messageResps {
+			if strings.TrimSpace(message.StreamNo) == "" {
+				continue
+			}
+			streamItems, ok := streamItemsMap[message.StreamNo]
+			if !ok {
+				continue
+			}
+			message.Streams = streamItems
+		}
+	}
+
+	// 返回消息
 	c.JSON(http.StatusOK, syncMessageResp{
 		StartMessageSeq: req.StartMessageSeq,
 		EndMessageSeq:   req.EndMessageSeq,
 		More:            wkutil.BoolToInt(more),
 		Messages:        messageResps,
 	})
+}
+
+func (ch *channel) loadStreamMessages(channelId string, channelType uint8, streamNos []string) (map[string][]*types.StreamItemResp, error) {
+	leaderId, err := service.Cluster.SlotLeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		ch.Error("loadStreamMessages: get leader id failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return nil, err
+	}
+
+	// 如果是本节点，则直接加载
+	if options.G.IsLocalNode(leaderId) {
+		return ch.loadLocalStreamMessages(streamNos)
+	}
+
+	// 请求远程节点
+	return ch.requestStreams(leaderId, streamNos)
+}
+
+func (ch *channel) requestStreams(leaderId uint64, streamNos []string) (map[string][]*types.StreamItemResp, error) {
+	resp, err := ch.s.client.RequestStreams(leaderId, streamNos)
+	if err != nil {
+		ch.Error("requestStreamMessages: requestStreams failed", zap.Error(err))
+		return nil, err
+	}
+
+	streamItemsMap := make(map[string][]*types.StreamItemResp)
+	for _, stream := range resp.Streams {
+
+		streamItemsMap[stream.StreamNo] = append(streamItemsMap[stream.StreamNo], &types.StreamItemResp{
+			StreamNo: stream.StreamNo,
+			StreamId: stream.StreamId,
+			Payload:  stream.Payload,
+		})
+	}
+	return streamItemsMap, nil
+}
+
+func (ch *channel) loadLocalStreamMessages(streamNos []string) (map[string][]*types.StreamItemResp, error) {
+
+	streamItemsMap := make(map[string][]*types.StreamItemResp)
+	for _, streamNo := range streamNos {
+		streamItems, err := ch.loadLocalStreamMessage(streamNo)
+		if err != nil {
+			return nil, err
+		}
+		streamItemsMap[streamNo] = streamItems
+	}
+	return streamItemsMap, nil
+}
+
+func (ch *channel) loadLocalStreamMessage(streamNo string) ([]*types.StreamItemResp, error) {
+	// 获取流
+	streams, err := service.Store.GetStreams(streamNo)
+	if err != nil {
+		return nil, err
+	}
+	if len(streams) == 0 {
+		return nil, nil
+	}
+
+	resps := make([]*types.StreamItemResp, 0, len(streams))
+	for _, stream := range streams {
+		resp := types.NewStreamItemResp(stream)
+		resps = append(resps, resp)
+	}
+	return resps, nil
+
 }
 
 func (ch *channel) getChannelMaxMessageSeq(c *wkhttp.Context) {
