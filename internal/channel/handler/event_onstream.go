@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -11,6 +13,9 @@ import (
 // 收到流消息
 func (h *Handler) onStream(ctx *eventbus.ChannelContext) {
 
+	for _, event := range ctx.Events {
+		event.ReasonCode = wkproto.ReasonSuccess
+	}
 	// 持久化流消息
 	h.persistStreams(ctx)
 	// 发送消息回执
@@ -23,6 +28,8 @@ func (h *Handler) persistStreams(ctx *eventbus.ChannelContext) {
 	events := ctx.Events
 	// 存储消息
 	streams := h.toPersistStreams(events)
+
+	fmt.Println("streams--->", streams, len(events))
 
 	reasonCode := wkproto.ReasonSuccess
 	if len(streams) > 0 {

@@ -39,6 +39,7 @@ var TableMessage = struct {
 		FromUid     [2]byte
 		Payload     [2]byte
 		Term        [2]byte
+		StreamNo    [2]byte
 	}
 	Index struct {
 		MessageId [2]byte
@@ -68,6 +69,7 @@ var TableMessage = struct {
 		FromUid     [2]byte
 		Payload     [2]byte
 		Term        [2]byte
+		StreamNo    [2]byte
 	}{
 		Header:      [2]byte{0x01, 0x01},
 		Setting:     [2]byte{0x01, 0x02},
@@ -82,6 +84,7 @@ var TableMessage = struct {
 		FromUid:     [2]byte{0x01, 0x0B},
 		Payload:     [2]byte{0x01, 0x0C},
 		Term:        [2]byte{0x01, 0x0D},
+		StreamNo:    [2]byte{0x01, 0x0E},
 	},
 	Index: struct {
 		MessageId [2]byte
@@ -119,6 +122,7 @@ var TableUser = struct {
 		RecvMsgBytes      [2]byte // 接受消息字节数量
 		CreatedAt         [2]byte // 创建时间
 		UpdatedAt         [2]byte // 更新时间
+		PluginNo          [2]byte // 插件编号
 	}
 	Index struct {
 		Uid [2]byte
@@ -143,6 +147,7 @@ var TableUser = struct {
 		RecvMsgBytes      [2]byte // 接受消息字节数量
 		CreatedAt         [2]byte
 		UpdatedAt         [2]byte
+		PluginNo          [2]byte
 	}{
 		Uid:               [2]byte{0x02, 0x01},
 		DeviceCount:       [2]byte{0x02, 0x02},
@@ -154,6 +159,7 @@ var TableUser = struct {
 		RecvMsgBytes:      [2]byte{0x02, 0x08},
 		CreatedAt:         [2]byte{0x02, 0x09},
 		UpdatedAt:         [2]byte{0x02, 0x0A},
+		PluginNo:          [2]byte{0x02, 0x0B},
 	},
 	Index: struct {
 		Uid [2]byte

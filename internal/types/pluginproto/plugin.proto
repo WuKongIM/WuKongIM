@@ -39,15 +39,30 @@ message StartupResp {
     string sandboxDir = 4;
 }
 
+// 发送包
 message SendPacket {
     // 发送者
-    string from = 1;
+    string fromUid = 1;
     // 接收频道
     string channelId = 2;
     // 频道类型
     uint32 channelType = 3;  
     // 消息内容
     bytes payload = 4;
+}
+
+// 接收包
+message RecvPacket {
+     // 发送者
+    string fromUid = 1;
+    // 接受者
+    string toUid = 2;
+    // 接收频道
+    string channelId = 3;
+    // 频道类型
+    uint32 channelType = 4;  
+    // 消息内容
+    bytes payload = 5;
 }
 
 message Message {
@@ -199,4 +214,52 @@ message ConversationChannelReq {
 // 最近会话频道响应
 message ConversationChannelResp {
     repeated Channel channels = 1; // 频道列表
+}
+
+message Header  {
+    bool noPersist = 1; // 是否持久化
+    bool redDot = 2; // 是否红点
+    bool syncOnce = 3; // 是否同步一次
+}
+
+// 流基本信息
+message Stream {
+    Header header = 1; // 头部
+    string clientMsgNo = 2;// 客户端消息编号（相同编号，客户端只会显示一条，可以为空）
+    string fromUid = 3; // 发送者uid
+    string channelId = 4; // 频道id
+    uint32 channelType = 5; // 频道类型
+    bytes payload = 6; // 消息内容
+}
+
+// 流开启结果
+message StreamOpenResp {
+    string streamNo = 1; // 流编号
+}
+
+// 流关闭请求
+message StreamCloseReq {
+    string streamNo = 1; // 流编号
+    string channelId = 2; // 频道id
+    uint32 channelType = 3; // 频道类型
+}
+
+// 流写入请求
+message StreamWriteReq {
+    Header header = 1; // 头部
+    string streamNo = 2; // 流编号
+    string clientMsgNo = 3;// 客户端消息编号（相同编号，客户端只会显示一条，可以为空）
+    string fromUid = 4; // 发送者uid
+    string channelId = 5; // 频道id
+    uint32 channelType = 6; // 频道类型
+    bytes payload = 7; // 消息内容
+   
+}
+
+// 流写入结果
+message StreamWriteResp {
+     // 消息唯一id（全局唯一）
+    int64 messageId = 1;
+    // 客户端消息编号
+    string clientMsgNo = 2;
 }

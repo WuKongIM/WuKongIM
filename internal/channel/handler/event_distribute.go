@@ -99,12 +99,14 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 		h.Error("distributeByTag: leaderId is 0", zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
 		return
 	}
-	// 转发至对应节点
+
+	// 如果领导节点是本地节点，则负责转发给节点
 	if options.G.IsLocalNode(leaderId) {
 		for _, node := range tag.Nodes {
 			if node.LeaderId == options.G.Cluster.NodeId {
 				continue
 			}
+			// 转发至对应节点
 			h.distributeToNode(node.LeaderId, channelId, channelType, events)
 		}
 	}

@@ -120,6 +120,15 @@ type UserDB interface {
 
 	// UpdateUser 更新用户
 	UpdateUser(u User) error
+
+	// GetUserPluginNo 获取用户的插件编号
+	GetUserPluginNo(uid string) (string, error)
+
+	// UpdateUserPluginNo 更新用户的插件编号
+	UpdateUserPluginNo(uid string, pluginNo string) error
+
+	// ExistUserPlugin 判断用户的插件编号是否存在
+	ExistUserPlugin(uid string) (bool, error)
 }
 
 type ChannelDB interface {

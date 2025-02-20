@@ -35,11 +35,11 @@ func newStream(s *Server) *stream {
 
 // Route route
 func (s *stream) route(r *wkhttp.WKHttp) {
-	r.POST("/stream/start", s.start) // 流消息开始
-	r.POST("/stream/end", s.end)     // 流消息结束
+	r.POST("/stream/open", s.open)   // 流消息开始
+	r.POST("/stream/close", s.close) // 流消息结束
 }
 
-func (s *stream) start(c *wkhttp.Context) {
+func (s *stream) open(c *wkhttp.Context) {
 	var req streamStartReq
 	if err := c.BindJSON(&req); err != nil {
 		s.Error("数据格式有误！", zap.Error(err))
@@ -70,6 +70,11 @@ func (s *stream) start(c *wkhttp.Context) {
 
 	messageId := options.G.GenMessageId()
 
+	var setting wkproto.Setting
+	if strings.TrimSpace(streamNo) != "" {
+		setting = setting.Set(wkproto.SettingStream)
+	}
+
 	msg := wkdb.Message{
 		RecvPacket: wkproto.RecvPacket{
 			Framer: wkproto.Framer{
@@ -77,16 +82,19 @@ func (s *stream) start(c *wkhttp.Context) {
 				SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
 				NoPersist: wkutil.IntToBool(req.Header.NoPersist),
 			},
+			Setting:     setting,
 			MessageID:   messageId,
 			ClientMsgNo: clientMsgNo,
 			FromUID:     req.FromUid,
-			ChannelID:   channelId,
+			ChannelID:   fakeChannelId,
 			ChannelType: channelType,
 			Timestamp:   int32(time.Now().Unix()),
 			StreamNo:    streamNo,
 			Payload:     req.Payload,
 		},
 	}
+
+	fmt.Println("stream open---->", streamNo, "fakeChannelId-->", fakeChannelId)
 
 	// 保存消息
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -129,6 +137,7 @@ func (s *stream) start(c *wkhttp.Context) {
 			SyncOnce:  wkutil.IntToBool(req.Header.SyncOnce),
 			NoPersist: wkutil.IntToBool(req.Header.NoPersist),
 		},
+		Setting:     setting,
 		StreamNo:    streamNo,
 		ClientMsgNo: clientMsgNo,
 		ChannelID:   channelId,
@@ -144,6 +153,7 @@ func (s *stream) start(c *wkhttp.Context) {
 		Type:      eventbus.EventChannelOnSend,
 		Frame:     sendPacket,
 		MessageId: messageId,
+		StreamNo:  streamNo,
 	})
 
 	c.JSON(http.StatusOK, gin.H{
@@ -152,8 +162,14 @@ func (s *stream) start(c *wkhttp.Context) {
 
 }
 
-func (s *stream) end(c *wkhttp.Context) {
-
+func (s *stream) close(c *wkhttp.Context) {
+	var req streamCloseReq
+	if err := c.BindJSON(&req); err != nil {
+		s.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	c.ResponseOK()
 }
 
 type streamStartReq struct {
@@ -165,7 +181,7 @@ type streamStartReq struct {
 	Payload     []byte              `json:"payload"`       // 消息内容
 }
 
-type streamEndReq struct {
+type streamCloseReq struct {
 	StreamNo    string `json:"stream_no"`    // 消息流编号
 	ChannelId   string `json:"channel_id"`   // 频道ID
 	ChannelType uint8  `json:"channel_type"` // 频道类型

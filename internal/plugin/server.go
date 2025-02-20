@@ -116,7 +116,11 @@ func (s *Server) Plugins(methods ...types.PluginMethod) []types.Plugin {
 
 // Plugin 获取插件
 func (s *Server) Plugin(no string) types.Plugin {
-	return s.pluginManager.get(no)
+	pg := s.pluginManager.get(no)
+	if pg == nil {
+		return nil
+	}
+	return pg
 }
 
 func getUnixSocket() (string, error) {
