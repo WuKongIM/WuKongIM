@@ -48,6 +48,8 @@ web聊天场景演示： http://imdemo.githubim.com
 
 后端监控演示： http://monitor.githubim.com/web
 
+测试报告： https://githubim.com/server/advance/stressSingleReport.html
+
 <!-- 愿景
 --------
 
