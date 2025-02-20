@@ -88,7 +88,7 @@ func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventb
 	defer cancel()
 
 	pluginPacket := &pluginproto.SendPacket{
-		From:        event.Conn.Uid,
+		FromUid:     event.Conn.Uid,
 		ChannelId:   sendPacket.ChannelID,
 		ChannelType: uint32(sendPacket.ChannelType),
 		Payload:     sendPacket.Payload,

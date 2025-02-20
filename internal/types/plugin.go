@@ -38,7 +38,7 @@ type Plugin interface {
 	// PersistAfter 调用插件的PersistAfter方法
 	PersistAfter(ctx context.Context, messages *pluginproto.MessageBatch) error
 	// Reply 调用插件的Reply方法
-	Reply(ctx context.Context, data []byte) error
+	Reply(ctx context.Context, recv *pluginproto.RecvPacket) error
 	// Route 调用插件的Route方法
 	Route(ctx context.Context, request *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
 	// Status 获取插件状态

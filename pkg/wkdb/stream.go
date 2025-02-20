@@ -62,10 +62,7 @@ func (wk *wukongDB) AddStreams(streams []*Stream) error {
 func (wk *wukongDB) GetStreams(streamNo string) ([]*Stream, error) {
 	db := wk.shardDB(streamNo)
 
-	batch := db.NewBatch()
-	defer batch.Close()
-
-	iter := batch.NewIter(&pebble.IterOptions{
+	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewStreamIndexKey(streamNo, 0),
 		UpperBound: key.NewStreamIndexKey(streamNo, math.MaxUint64),
 	})

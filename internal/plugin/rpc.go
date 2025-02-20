@@ -31,4 +31,9 @@ func (a *rpc) routes() {
 
 	// ------------------- 最近会话 -------------------
 	a.s.rpcServer.Route("/conversation/channels", a.conversationChannels) // 获取最近会话的频道集合
+
+	// ------------------- stream -------------------
+	a.s.rpcServer.Route("/stream/open", a.streamOpen)   // 流消息打开
+	a.s.rpcServer.Route("/stream/close", a.streamClose) // 流消息关闭
+	a.s.rpcServer.Route("/stream/write", a.streamWrite) // 流消息写入
 }

@@ -1029,6 +1029,8 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 		streamNos = append(streamNos, message.StreamNo)
 	}
 
+	fmt.Println("streamNos---->", streamNos)
+
 	if len(streamNos) > 0 {
 		streamItemsMap, err := ch.loadStreamMessages(fakeChannelID, req.ChannelType, streamNos)
 		if err != nil {

@@ -111,9 +111,14 @@ func (p *Plugin) PersistAfter(ctx context.Context, messages *pluginproto.Message
 }
 
 // 回复消息
-func (p *Plugin) Reply(ctx context.Context, data []byte) error {
+func (p *Plugin) Reply(ctx context.Context, recv *pluginproto.RecvPacket) error {
+
+	data, err := recv.Marshal()
+	if err != nil {
+		return err
+	}
 	if p.info.ReplySync {
-		_, err := p.invoke(ctx, types.PluginReply, data)
+		_, err = p.invoke(ctx, types.PluginReply, data)
 		if err != nil {
 			return err
 		}

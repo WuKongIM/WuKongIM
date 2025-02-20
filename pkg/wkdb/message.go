@@ -905,15 +905,17 @@ func (wk *wukongDB) iteratorChannelMessagesDirection(iter *pebble.Iterator, limi
 
 		switch coulmnName {
 		case key.TableMessage.Column.Header:
-			preMessage.Framer = wkproto.FramerFromUint8(iter.Value()[0])
+			preMessage.RecvPacket.Framer = wkproto.FramerFromUint8(iter.Value()[0])
 		case key.TableMessage.Column.Setting:
-			preMessage.Setting = wkproto.Setting(iter.Value()[0])
+			preMessage.RecvPacket.Setting = wkproto.Setting(iter.Value()[0])
 		case key.TableMessage.Column.Expire:
-			preMessage.Expire = wk.endian.Uint32(iter.Value())
+			preMessage.RecvPacket.Expire = wk.endian.Uint32(iter.Value())
 		case key.TableMessage.Column.MessageId:
 			preMessage.MessageID = int64(wk.endian.Uint64(iter.Value()))
 		case key.TableMessage.Column.ClientMsgNo:
 			preMessage.ClientMsgNo = string(iter.Value())
+		case key.TableMessage.Column.StreamNo:
+			preMessage.StreamNo = string(iter.Value())
 		case key.TableMessage.Column.Timestamp:
 			preMessage.Timestamp = int32(wk.endian.Uint32(iter.Value()))
 		case key.TableMessage.Column.ChannelId:
@@ -923,7 +925,7 @@ func (wk *wukongDB) iteratorChannelMessagesDirection(iter *pebble.Iterator, limi
 		case key.TableMessage.Column.Topic:
 			preMessage.Topic = string(iter.Value())
 		case key.TableMessage.Column.FromUid:
-			preMessage.FromUID = string(iter.Value())
+			preMessage.RecvPacket.FromUID = string(iter.Value())
 		case key.TableMessage.Column.Payload:
 			// 这里必须复制一份，否则会被pebble覆盖
 			var payload = make([]byte, len(iter.Value()))
@@ -992,6 +994,8 @@ func (wk *wukongDB) parseChannelMessagesWithLimitSize(iter *pebble.Iterator, lim
 			preMessage.MessageID = int64(wk.endian.Uint64(iter.Value()))
 		case key.TableMessage.Column.ClientMsgNo:
 			preMessage.ClientMsgNo = string(iter.Value())
+		case key.TableMessage.Column.StreamNo:
+			preMessage.StreamNo = string(iter.Value())
 		case key.TableMessage.Column.Timestamp:
 			preMessage.Timestamp = int32(wk.endian.Uint32(iter.Value()))
 		case key.TableMessage.Column.ChannelId:
@@ -1050,6 +1054,9 @@ func (wk *wukongDB) writeMessage(channelId string, channelType uint8, msg Messag
 
 	// clientMsgNo
 	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ClientMsgNo), []byte(msg.ClientMsgNo))
+
+	// streamNo
+	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.StreamNo), []byte(msg.StreamNo))
 
 	// timestamp
 	timestampBytes := make([]byte, 4)

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
@@ -25,9 +26,11 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 	// 存储消息
 	persists := h.toPersistMessages(ctx.ChannelId, ctx.ChannelType, events)
 	if len(persists) > 0 {
+
 		timeoutCtx, cancel := h.WithTimeout()
 		defer cancel()
 		reasonCode := wkproto.ReasonSuccess
+
 		results, err := service.Store.AppendMessages(timeoutCtx, ctx.ChannelId, ctx.ChannelType, persists)
 		if err != nil {
 			h.Error("store message failed", zap.Error(err), zap.Int("events", len(persists)), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
@@ -137,9 +140,10 @@ func (h *Handler) toPersistMessages(channelId string, channelType uint8, events 
 	persists := make([]wkdb.Message, 0, len(events))
 	for _, e := range events {
 		sendPacket := e.Frame.(*wkproto.SendPacket)
-		if sendPacket.NoPersist || e.ReasonCode != wkproto.ReasonSuccess {
+		if sendPacket.NoPersist || e.ReasonCode != wkproto.ReasonSuccess || strings.TrimSpace(e.StreamNo) != "" {
 			continue
 		}
+
 		msg := wkdb.Message{
 			RecvPacket: wkproto.RecvPacket{
 				Framer: wkproto.Framer{

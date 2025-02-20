@@ -89,6 +89,8 @@ func (s *Store) applyLog(_ uint32, log types.Log) error {
 		return s.handleAddOrUpdateTester(cmd)
 	case CMDRemoveTester: // 移除测试机
 		return s.handleRemoveTester(cmd)
+	case CMDUpdateUserPluginNo: // 更新用户插件编号
+		return s.handleUpdateUserPluginNo(cmd)
 
 	}
 	return nil
@@ -418,4 +420,12 @@ func (s *Store) handleRemoveTester(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.RemoveTester(no)
+}
+
+func (s *Store) handleUpdateUserPluginNo(cmd *CMD) error {
+	uid, pluginNo, err := cmd.DecodeCMDUserPluginNo()
+	if err != nil {
+		return err
+	}
+	return s.wdb.UpdateUserPluginNo(uid, pluginNo)
 }

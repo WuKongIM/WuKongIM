@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
@@ -8,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -25,6 +28,13 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 		if options.G.IsSystemUid(e.ToUid) {
 			continue
 		}
+
+		// 是否是AI
+		if h.isAI(e.ToUid) {
+			// 处理AI推送
+			h.processAIPush(e.ToUid, e)
+		}
+
 		toConns := eventbus.User.AuthedConnsByUid(e.ToUid)
 		if len(toConns) == 0 {
 			continue
@@ -152,6 +162,75 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 		}
 	}
 
+}
+
+// 处理AI推送
+func (h *Handler) processAIPush(uid string, e *eventbus.Event) {
+
+	pluginNo, err := h.getAIPluginNo(uid)
+	if err != nil {
+		h.Error("获取AI插件编号失败！", zap.Error(err), zap.String("uid", uid))
+		return
+	}
+	if len(pluginNo) == 0 {
+		h.Error("AI插件编号为空！", zap.String("uid", uid))
+		return
+	}
+	pluginObj := service.PluginManager.Plugin(pluginNo)
+	if pluginObj == nil {
+		h.Error("AI插件不存在！", zap.String("pluginNo", pluginNo), zap.String("uid", uid))
+		return
+	}
+
+	fmt.Println("plugin--->", uid, pluginNo, pluginObj)
+
+	sendPacket := e.Frame.(*wkproto.SendPacket)
+
+	err = pluginObj.Reply(context.TODO(), &pluginproto.RecvPacket{
+		FromUid:     e.Conn.Uid,
+		ToUid:       uid,
+		ChannelId:   sendPacket.ChannelID,
+		ChannelType: uint32(sendPacket.ChannelType),
+		Payload:     sendPacket.Payload,
+	})
+	if err != nil {
+		h.Error("AI插件回复失败！", zap.Error(err), zap.String("pluginNo", pluginNo), zap.String("uid", uid))
+	}
+}
+
+// 是否是AI
+func (h *Handler) isAI(uid string) bool {
+
+	_, ok := h.getPluginNoFromCache(uid)
+	if ok {
+		return ok
+	}
+
+	exist, err := service.Store.DB().ExistUserPlugin(uid)
+	if err != nil {
+		h.Error("查询用户AI插件失败！", zap.Error(err), zap.String("uid", uid))
+		return false
+	}
+	return exist
+}
+
+// 获取用户AI插件编号
+func (h *Handler) getAIPluginNo(uid string) (string, error) {
+
+	pluginNo, ok := h.getPluginNoFromCache(uid)
+	if ok {
+		return pluginNo, nil
+	}
+
+	pluginNo, err := service.Store.DB().GetUserPluginNo(uid)
+	if err != nil {
+		h.Error("获取用户AI插件编号失败！", zap.Error(err), zap.String("uid", uid))
+		return "", err
+	}
+
+	h.setPluginNoToCache(uid, pluginNo)
+
+	return pluginNo, nil
 }
 
 // 加密消息
