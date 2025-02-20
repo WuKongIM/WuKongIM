@@ -29,6 +29,8 @@ type DB interface {
 	StreamDB
 	// 测试机
 	TesterDB
+	// 消息删除记录
+	MessageDeletedDB
 }
 
 type MessageDB interface {
@@ -83,6 +85,8 @@ type MessageDB interface {
 
 	// GetLastMsg 获取最后一条消息
 	GetLastMsg(channelId string, channelType uint8) (Message, error)
+	// DeleteMessageRange 范围删除消息
+	DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error
 }
 
 type DeviceDB interface {
@@ -390,6 +394,13 @@ type TesterDB interface {
 
 	// RemoveTester 移除测试机
 	RemoveTester(no string) error
+}
+
+type MessageDeletedDB interface {
+	// AddOrUpdateMessageDeleted 新增或者修改一条渠道删除记录
+	AddOrUpdateMessageDeleted(messageDeleted MessageDeleted) error
+	// GetMessageDeletedSeq 根据channelId和channelType获取最大的删除消息序号
+	GetMessageDeletedSeq(channelId string, channelType uint8) uint64
 }
 
 type MessageSearchReq struct {

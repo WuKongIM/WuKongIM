@@ -221,6 +221,28 @@ func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 // 	return nil
 // }
 
+// startMessageSeq endMessageSeq 根据范围删除
+func (wk *wukongDB) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	//增加info 日志
+	wk.Info("step1 DeleteMessageRange", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("startMessageSeq", startMessageSeq), zap.Uint64("endMessageSeq", endMessageSeq))
+	db := wk.channelBatchDb(channelId, channelType)
+	batch := db.NewBatch()
+	primaryKey, err := wk.getChannelPrimaryKey(channelId, channelType)
+	if err != nil {
+		return err
+	}
+	messageDeleted := MessageDeleted{
+		Id:          primaryKey,
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		MessageSeq:  endMessageSeq,
+	}
+	if err := wk.writeMessageDeleted(batch, messageDeleted); err != nil {
+		return err
+	}
+	batch.DeleteRange(key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq), key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq))
+	return batch.CommitWait()
+}
 func (wk *wukongDB) GetMessage(messageId uint64) (Message, error) {
 
 	wk.metrics.GetMessageAdd(1)
@@ -265,13 +287,52 @@ func (wk *wukongDB) GetMessage(messageId uint64) (Message, error) {
 	return EmptyMessage, ErrNotFound
 }
 
+// 处理开始序号和结束序号 向下查询不用处理 endMessageSeq = 0
+func (wk *wukongDB) handleLoadNextRangeMsgStartEndSeq(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) (uint64, uint64) {
+	deleteMessageSeq := wk.GetMessageDeletedSeq(channelID, channelType)
+	if deleteMessageSeq != 0 {
+		if startMessageSeq < deleteMessageSeq {
+			startMessageSeq = deleteMessageSeq
+		}
+		if endMessageSeq != 0 && endMessageSeq < deleteMessageSeq {
+			endMessageSeq = deleteMessageSeq
+		}
+	}
+	return startMessageSeq, endMessageSeq
+}
+
+// 处理开始序号和结束序号
+func (wk *wukongDB) handleLoadPrevRangeMsgStartEndSeq(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64) (uint64, uint64) {
+	deleteMessageSeq := wk.GetMessageDeletedSeq(channelID, channelType)
+	if deleteMessageSeq != 0 {
+		if endMessageSeq < deleteMessageSeq {
+			endMessageSeq = deleteMessageSeq
+		}
+		if startMessageSeq < deleteMessageSeq {
+			startMessageSeq = deleteMessageSeq
+		}
+	}
+	return startMessageSeq, endMessageSeq
+}
+
+// 处理结束序号
+func (wk *wukongDB) handleEndSeq(channelID string, channelType uint8, endMessageSeq uint64) uint64 {
+	deleteMessageSeq := wk.GetMessageDeletedSeq(channelID, channelType)
+	if deleteMessageSeq != 0 {
+		if endMessageSeq < deleteMessageSeq {
+			endMessageSeq = deleteMessageSeq
+		}
+	}
+	return endMessageSeq
+}
+
 // 情况1: startMessageSeq=100, endMessageSeq=0, limit=10 返回的消息seq为91-100的消息 (limit生效)
 // 情况2: startMessageSeq=5, endMessageSeq=0, limit=10 返回的消息seq为1-5的消息（消息无）
 
 // 情况3: startMessageSeq=100, endMessageSeq=95, limit=10 返回的消息seq为96-100的消息（endMessageSeq生效）
 // 情况4: startMessageSeq=100, endMessageSeq=50, limit=10 返回的消息seq为91-100的消息（limit生效）
 func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]Message, error) {
-
+	startMessageSeq, endMessageSeq = wk.handleLoadPrevRangeMsgStartEndSeq(channelId, channelType, startMessageSeq, endMessageSeq)
 	wk.metrics.LoadPrevRangeMsgsAdd(1)
 
 	if startMessageSeq == 0 {
@@ -332,6 +393,7 @@ func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, start
 }
 
 func (wk *wukongDB) LoadNextRangeMsgs(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]Message, error) {
+	startMessageSeq, endMessageSeq = wk.handleLoadNextRangeMsgStartEndSeq(channelId, channelType, startMessageSeq, endMessageSeq)
 
 	wk.metrics.LoadNextRangeMsgsAdd(1)
 
@@ -426,7 +488,7 @@ func (wk *wukongDB) GetLastMsg(channelId string, channelType uint8) (Message, er
 }
 
 func (wk *wukongDB) LoadLastMsgsWithEnd(channelID string, channelType uint8, endMessageSeq uint64, limit int) ([]Message, error) {
-
+	endMessageSeq = wk.handleEndSeq(channelID, channelType, endMessageSeq)
 	wk.metrics.LoadLastMsgsWithEndAdd(1)
 
 	lastSeq, _, err := wk.GetChannelLastMessageSeq(channelID, channelType)
@@ -440,7 +502,7 @@ func (wk *wukongDB) LoadLastMsgsWithEnd(channelID string, channelType uint8, end
 }
 
 func (wk *wukongDB) LoadNextRangeMsgsForSize(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, limitSize uint64) ([]Message, error) {
-
+	startMessageSeq, endMessageSeq = wk.handleLoadNextRangeMsgStartEndSeq(channelId, channelType, startMessageSeq, endMessageSeq)
 	wk.metrics.LoadNextRangeMsgsForSizeAdd(1)
 
 	if wk.opts.EnableCost {
