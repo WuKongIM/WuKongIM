@@ -114,7 +114,7 @@ func (h *Handler) pluginInvokePersistAfter(msgs []wkdb.Message) {
 			MessageSeq:  uint64(msg.MessageSeq),
 			ClientMsgNo: msg.ClientMsgNo,
 			StreamNo:    msg.StreamNo,
-			StreamSeq:   msg.StreamSeq,
+			StreamId:    msg.StreamId,
 			Timestamp:   uint32(msg.Timestamp),
 			From:        msg.FromUID,
 			ChannelId:   msg.ChannelID,

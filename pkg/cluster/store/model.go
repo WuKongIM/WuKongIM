@@ -1148,7 +1148,9 @@ func EncodeCMDAddStreams(streams []*wkdb.Stream) []byte {
 	defer encoder.End()
 	encoder.WriteUint32(uint32(len(streams)))
 	for _, stream := range streams {
-		encoder.WriteBinary(stream.Encode())
+		data := stream.Encode()
+		encoder.WriteUint32(uint32(len(data)))
+		encoder.WriteBytes(data)
 	}
 	return encoder.Bytes()
 }
@@ -1162,10 +1164,16 @@ func (c *CMD) DecodeCMDAddStreams() ([]*wkdb.Stream, error) {
 	}
 	streams := make([]*wkdb.Stream, 0, count)
 	for i := uint32(0); i < count; i++ {
-		data, err := decoder.Binary()
+		dataLen, err := decoder.Uint32()
 		if err != nil {
 			return nil, err
 		}
+
+		data, err := decoder.Bytes(int(dataLen))
+		if err != nil {
+			return nil, err
+		}
+
 		stream := &wkdb.Stream{}
 		if err = stream.Decode(data); err != nil {
 			return nil, err

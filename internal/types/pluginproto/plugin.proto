@@ -75,7 +75,7 @@ message Message {
     // 流编号
     string streamNo = 4;
     // 流序号
-    uint32 streamSeq = 5;
+    uint64 streamId = 5;
     // 消息时间戳
     uint32 timestamp = 6;
     // 发送者
