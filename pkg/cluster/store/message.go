@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -21,7 +20,6 @@ func (s *Store) AppendMessages(ctx context.Context, channelId string, channelTyp
 			return nil, err
 		}
 
-		fmt.Println("AppendMessages---->", msg.ChannelID, msg.StreamNo, string(msg.Payload))
 		reqs = append(reqs, types.ProposeReq{
 			Id:   uint64(msg.MessageID),
 			Data: data,

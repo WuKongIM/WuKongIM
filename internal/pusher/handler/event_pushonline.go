@@ -73,7 +73,8 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 			recvPacket.MessageSeq = uint32(e.MessageSeq)
 			recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
 			recvPacket.StreamNo = sendPacket.StreamNo
-			recvPacket.StreamFlag = wkproto.StreamFlagIng
+			recvPacket.StreamId = uint64(e.MessageId)
+			recvPacket.StreamFlag = e.StreamFlag
 			recvPacket.FromUID = fromUid
 			recvPacket.Expire = sendPacket.Expire
 			recvPacket.ChannelID = sendPacket.ChannelID

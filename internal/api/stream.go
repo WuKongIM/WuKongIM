@@ -90,11 +90,10 @@ func (s *stream) open(c *wkhttp.Context) {
 			ChannelType: channelType,
 			Timestamp:   int32(time.Now().Unix()),
 			StreamNo:    streamNo,
+			StreamId:    uint64(messageId),
 			Payload:     req.Payload,
 		},
 	}
-
-	fmt.Println("stream open---->", streamNo, "fakeChannelId-->", fakeChannelId)
 
 	// 保存消息
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -150,10 +149,11 @@ func (s *stream) open(c *wkhttp.Context) {
 			Uid:      req.FromUid,
 			DeviceId: options.G.SystemDeviceId,
 		},
-		Type:      eventbus.EventChannelOnSend,
-		Frame:     sendPacket,
-		MessageId: messageId,
-		StreamNo:  streamNo,
+		Type:       eventbus.EventChannelOnSend,
+		Frame:      sendPacket,
+		MessageId:  messageId,
+		StreamNo:   streamNo,
+		StreamFlag: wkproto.StreamFlagStart,
 	})
 
 	c.JSON(http.StatusOK, gin.H{

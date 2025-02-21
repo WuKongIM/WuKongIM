@@ -272,6 +272,10 @@ github.com/Workiva/go-datastructures v1.1.5 h1:5YfhQ4ry7bZc2Mc7R0YZyYwpf5c6t1cEF
 github.com/Workiva/go-datastructures v1.1.5/go.mod h1:1yZL+zfsztete+ePzZz/Zb1/t5BnDuE2Ya2MMGhzP6A=
 github.com/WuKongIM/WuKongIMGoProto v1.0.8 h1:NX05PdQGmVjMDqOyauErmUmtysH3Yj2F+MzzThZvkOU=
 github.com/WuKongIM/WuKongIMGoProto v1.0.8/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
+github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221062547-d20cf778e500 h1:sQ+vUAx0ChrckFgje8YiAWr4rFmoULTztUl/gstG0O0=
+github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221062547-d20cf778e500/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
+github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221092005-b614dcfc4141 h1:KaL9tbpnJBQ4lkc0j8ncpmdsN+oPQDt2NYGP3+FyY3A=
+github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221092005-b614dcfc4141/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f h1:erzPrCjuS7yvfpMyUxQjaMDHhBicUKt/qxwC/8s25VQ=
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f/go.mod h1:gS8ErzMrBY+zJfxwFFzUzR9S2jFo/FTyEVr4pedbfbA=
 github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05 h1:z6Zu0VFnXA/+IcNAI/G0QgvIZZlU4aF6pf/fPP780hY=

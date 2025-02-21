@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -28,8 +26,6 @@ func (h *Handler) persistStreams(ctx *eventbus.ChannelContext) {
 	events := ctx.Events
 	// 存储消息
 	streams := h.toPersistStreams(events)
-
-	fmt.Println("streams--->", streams, len(events))
 
 	reasonCode := wkproto.ReasonSuccess
 	if len(streams) > 0 {
@@ -66,14 +62,14 @@ func (h *Handler) persistStreams(ctx *eventbus.ChannelContext) {
 func (h *Handler) toPersistStreams(events []*eventbus.Event) []*wkdb.Stream {
 
 	var streams []*wkdb.Stream
-	for i, e := range events {
+	for _, e := range events {
 		sendPacket := e.Frame.(*wkproto.SendPacket)
 		if sendPacket.NoPersist || e.ReasonCode != wkproto.ReasonSuccess {
 			continue
 		}
 		stream := &wkdb.Stream{
 			StreamNo: e.StreamNo,
-			StreamId: uint64(e.MessageId + int64(i)),
+			StreamId: uint64(e.MessageId),
 			Payload:  sendPacket.Payload,
 		}
 		streams = append(streams, stream)

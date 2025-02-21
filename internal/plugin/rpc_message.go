@@ -37,7 +37,7 @@ func (a *rpc) channelMessages(c *wkrpc.Context) {
 				Payload:     msg.Payload,
 				Topic:       msg.Topic,
 				StreamNo:    msg.StreamNo,
-				StreamSeq:   msg.StreamSeq,
+				StreamId:    msg.StreamId,
 				Timestamp:   uint32(msg.Timestamp),
 			})
 		}

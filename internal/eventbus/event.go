@@ -85,7 +85,8 @@ type Event struct {
 	Frame        wkproto.Frame
 	MessageId    int64
 	MessageSeq   uint64
-	StreamNo     string // 流号编号
+	StreamNo     string             // 流号编号
+	StreamFlag   wkproto.StreamFlag // 流消息标记
 	ReasonCode   wkproto.ReasonCode
 	TagKey       string // tag的key
 	ToUid        string // 发送事件的目标用户
@@ -105,6 +106,7 @@ func (e *Event) Clone() *Event {
 		MessageId:    e.MessageId,
 		MessageSeq:   e.MessageSeq,
 		StreamNo:     e.StreamNo,
+		StreamFlag:   e.StreamFlag,
 		ReasonCode:   e.ReasonCode,
 		TagKey:       e.TagKey,
 		ToUid:        e.ToUid,
@@ -125,12 +127,14 @@ func (e *Event) Size() uint64 {
 	if e.hasFrame() == 1 {
 		size += 4 + uint64(e.Frame.GetFrameSize())
 	}
-	size += 8                         // message id
-	size += 8                         // message seq
-	size += 1                         // reason code
-	size += uint64(2 + len(e.TagKey)) // tag key
-	size += uint64(2 + len(e.ToUid))  // to uid
-	size += 8                         // source node id
+	size += 8                           // message id
+	size += 8                           // message seq
+	size += uint64(2 + len(e.StreamNo)) // stream no
+	size += 1                           // stream flag
+	size += 1                           // reason code
+	size += uint64(2 + len(e.TagKey))   // tag key
+	size += uint64(2 + len(e.ToUid))    // to uid
+	size += 8                           // source node id
 
 	if e.hasTrack() == 1 {
 		size += e.Track.Size()
@@ -162,6 +166,7 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 	enc.WriteInt64(e.MessageId)
 	enc.WriteUint64(e.MessageSeq)
 	enc.WriteString(e.StreamNo)
+	enc.WriteUint8(uint8(e.StreamFlag))
 	enc.WriteUint8(uint8(e.ReasonCode))
 	enc.WriteString(e.TagKey)
 	enc.WriteString(e.ToUid)
@@ -230,6 +235,12 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 	if e.StreamNo, err = dec.String(); err != nil {
 		return err
 	}
+
+	var streamFlag uint8
+	if streamFlag, err = dec.Uint8(); err != nil {
+		return err
+	}
+	e.StreamFlag = wkproto.StreamFlag(streamFlag)
 
 	var reasonCode uint8
 	if reasonCode, err = dec.Uint8(); err != nil {
