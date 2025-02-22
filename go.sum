@@ -276,6 +276,8 @@ github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221062547-d20cf778e500 h1:sQ+v
 github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221062547-d20cf778e500/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
 github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221092005-b614dcfc4141 h1:KaL9tbpnJBQ4lkc0j8ncpmdsN+oPQDt2NYGP3+FyY3A=
 github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221092005-b614dcfc4141/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
+github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221114334-6a1bf05c73c0 h1:7sE0nNUzTkwwu9v35+ZKk5vrXZTGwYDKtDRgt+uiny0=
+github.com/WuKongIM/WuKongIMGoProto v1.0.9-0.20250221114334-6a1bf05c73c0/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f h1:erzPrCjuS7yvfpMyUxQjaMDHhBicUKt/qxwC/8s25VQ=
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f/go.mod h1:gS8ErzMrBY+zJfxwFFzUzR9S2jFo/FTyEVr4pedbfbA=
 github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05 h1:z6Zu0VFnXA/+IcNAI/G0QgvIZZlU4aF6pf/fPP780hY=

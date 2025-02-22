@@ -15,7 +15,7 @@ func (rg *RaftGroup) handleStoreReq(r IRaft, e types.Event) {
 	err := rg.goPool.Submit(func() {
 		err := rg.opts.Storage.AppendLogs(r.Key(), e.Logs, e.TermStartIndexInfo)
 		if err != nil {
-			rg.Error("append logs failed", zap.Error(err))
+			rg.Panic("append logs failed", zap.Error(err))
 		}
 		reason := types.ReasonOk
 		if err != nil {

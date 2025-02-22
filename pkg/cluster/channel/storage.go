@@ -3,16 +3,19 @@ package channel
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
+	"go.uber.org/zap"
 )
 
 type storage struct {
 	db wkdb.DB
 	s  *Server
+	wklog.Log
 }
 
 func newStorage(db wkdb.DB, s *Server) *storage {
-	return &storage{db: db, s: s}
+	return &storage{db: db, s: s, Log: wklog.NewWKLog("channel_storage")}
 }
 
 func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState, error) {
@@ -35,7 +38,11 @@ func (s *storage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *t
 	messages := make([]wkdb.Message, 0, len(logs))
 	for _, log := range logs {
 		var msg wkdb.Message
-		msg.Unmarshal(log.Data)
+		err := msg.Unmarshal(log.Data)
+		if err != nil {
+			s.Error("AppendLogs: unmarshal message error", zap.Error(err))
+			return err
+		}
 		msg.MessageSeq = uint32(log.Index)
 		msg.Term = uint64(log.Term)
 		messages = append(messages, msg)

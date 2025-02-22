@@ -155,6 +155,9 @@ func (s *stream) open(c *wkhttp.Context) {
 		StreamNo:   streamNo,
 		StreamFlag: wkproto.StreamFlagStart,
 	})
+	eventbus.Channel.Advance(fakeChannelId, channelType)
+
+	time.Sleep(time.Millisecond * 100) // TODO: 这里等待一下，让消息发送出去,要不然可能会出现流的开始消息还没收到，流消息先到了
 
 	c.JSON(http.StatusOK, gin.H{
 		"stream_no": streamNo,
