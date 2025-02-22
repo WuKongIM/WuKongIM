@@ -44,7 +44,9 @@ func New(opts *Options) *RaftGroup {
 		fowardProposeWait: wt.New(),
 	}
 	var err error
-	rg.goPool, err = ants.NewPool(opts.GoPoolSize, ants.WithNonblocking(true))
+	rg.goPool, err = ants.NewPool(opts.GoPoolSize, ants.WithNonblocking(true), ants.WithPanicHandler(func(i interface{}) {
+		rg.Panic("raftgroup:go pool panic", zap.Any("panic", i), zap.Stack("stack"))
+	}))
 	if err != nil {
 		rg.Panic("create go pool failed", zap.Error(err))
 	}

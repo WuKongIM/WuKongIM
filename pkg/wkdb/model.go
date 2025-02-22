@@ -72,6 +72,8 @@ func (m *Message) Unmarshal(data []byte) error {
 		return err
 	}
 	rcv := f.(*wkproto.RecvPacket)
+
+	fmt.Println("rcv------>", rcv.StreamNo)
 	m.RecvPacket = *rcv
 	if m.Term, err = dec.Uint64(); err != nil {
 		return err
