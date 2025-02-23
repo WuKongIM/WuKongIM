@@ -1,14 +1,17 @@
 package plugin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/fsnotify/fsnotify"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
@@ -168,7 +171,83 @@ func (s *Server) startPlugins() error {
 			continue
 		}
 	}
+
+	// 监听插件目录的插件变化
+	go func() {
+		err = s.watchPlugins()
+		if err != nil {
+			s.Error("watch plugins error", zap.Error(err))
+		}
+	}()
+
 	return nil
+}
+
+func (s *Server) watchPlugins() error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+	defer watcher.Close()
+
+	fmt.Println("s.opts.Dir--->", s.opts.Dir)
+	watcher.Add(s.opts.Dir) // 监听插件目录
+
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return nil
+			}
+			fmt.Println("file event--->", event)
+
+			// 判断文件是否是目录
+			fileInfo, err := os.Stat(event.Name)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					s.Error("stat file error", zap.Error(err))
+					continue
+				}
+			}
+			if fileInfo != nil && fileInfo.IsDir() {
+				continue
+			}
+
+			// 获取插件名字
+			pluginName := path.Base(event.Name)
+
+			if event.Has(fsnotify.Create) { // 新增插件
+
+				// 启动插件
+				s.Info("Plugin file created", zap.String("plugin", pluginName))
+				err = s.startPluginApp(pluginName)
+				if err != nil {
+					s.Error("start plugin error", zap.Error(err))
+				}
+
+			} else if event.Has(fsnotify.Write) { // 插件更新
+
+				// 重启插件
+				s.Info("Plugin file changed", zap.String("plugin", pluginName))
+				err = s.restartPlugin(pluginName)
+				if err != nil {
+					s.Error("restart plugin error", zap.Error(err))
+				}
+			} else if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) { // 插件删除
+				s.Info("Plugin file removed", zap.String("plugin", pluginName))
+				err = s.stopPluginApp(pluginName)
+				if err != nil {
+					s.Error("stop plugin error", zap.Error(err))
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return nil
+			}
+			s.Error("watcher error", zap.Error(err))
+		}
+	}
+
 }
 
 func (s *Server) stopPlugins() error {
@@ -212,18 +291,40 @@ func (s *Server) startPluginApp(name string) error {
 		s.Error("starting plugin process failed", zap.Error(err), zap.String("plugin", name))
 		return err
 	}
-	fmt.Println("pluginPath-222->", name)
 
+	return nil
+}
+
+func (s *Server) restartPlugin(name string) error {
+	// 停止插件
+	err := s.stopPluginApp(name)
+	if err != nil {
+		return err
+	}
+
+	// 启动插件
+	err = s.startPluginApp(name)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // 停止插件程序
 func (s *Server) stopPluginApp(name string) error {
-	pluginPath := path.Join(s.opts.Dir, name)
-	cmd := exec.Command("pkill", "-f", pluginPath)
-	err := cmd.Run()
-	if err != nil {
-		return err
+
+	// 通知插件停止
+	plugins := s.pluginManager.getByName(name)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	for _, p := range plugins {
+		_ = p.Stop(timeoutCtx)
 	}
+	// pluginPath := path.Join(s.opts.Dir, name)
+	// cmd := exec.Command("pkill", "-f", pluginPath)
+	// err := cmd.Run()
+	// if err != nil {
+	// 	return err
+	// }
 	return nil
 }

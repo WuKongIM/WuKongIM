@@ -145,6 +145,18 @@ func (p *Plugin) Route(ctx context.Context, request *pluginproto.HttpRequest) (*
 	return resp, nil
 }
 
+// Stop 通知插件停止
+func (p *Plugin) Stop(ctx context.Context) error {
+	resp, err := p.s.rpcServer.RequestWithContext(ctx, p.info.No, "/stop", nil)
+	if err != nil {
+		return err
+	}
+	if resp.Status != rproto.StatusOK {
+		return fmt.Errorf("rpc error status: %d", resp.Status)
+	}
+	return nil
+}
+
 func (p *Plugin) Status() types.PluginStatus {
 	conn := p.s.rpcServer.ConnManager.GetConn(p.info.No)
 	if conn == nil {

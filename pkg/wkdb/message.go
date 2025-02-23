@@ -1056,7 +1056,6 @@ func (wk *wukongDB) writeMessage(channelId string, channelType uint8, msg Messag
 	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.ClientMsgNo), []byte(msg.ClientMsgNo))
 
 	// streamNo
-	fmt.Println(" key.TableMessage.Column.StreamNo--->", msg.StreamNo, string(msg.Payload))
 	w.Set(key.NewMessageColumnKey(channelId, channelType, uint64(msg.MessageSeq), key.TableMessage.Column.StreamNo), []byte(msg.StreamNo))
 
 	// timestamp
