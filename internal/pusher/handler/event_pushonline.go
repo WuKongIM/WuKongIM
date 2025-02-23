@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
@@ -179,11 +178,9 @@ func (h *Handler) processAIPush(uid string, e *eventbus.Event) {
 	}
 	pluginObj := service.PluginManager.Plugin(pluginNo)
 	if pluginObj == nil {
-		h.Error("AI插件不存在！", zap.String("pluginNo", pluginNo), zap.String("uid", uid))
+		h.Debug("AI插件不存在！", zap.String("pluginNo", pluginNo), zap.String("uid", uid))
 		return
 	}
-
-	fmt.Println("plugin--->", uid, pluginNo, pluginObj)
 
 	sendPacket := e.Frame.(*wkproto.SendPacket)
 

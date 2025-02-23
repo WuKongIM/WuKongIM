@@ -57,6 +57,18 @@ func (pm *pluginManager) get(no string) *Plugin {
 	return nil
 }
 
+func (pm *pluginManager) getByName(name string) []*Plugin {
+	pm.RLock()
+	defer pm.RUnlock()
+	var plugins []*Plugin
+	for _, v := range pm.plugins {
+		if v.info.Name == name {
+			plugins = append(plugins, v)
+		}
+	}
+	return plugins
+}
+
 func (pm *pluginManager) all() []*Plugin {
 	pm.RLock()
 	defer pm.RUnlock()

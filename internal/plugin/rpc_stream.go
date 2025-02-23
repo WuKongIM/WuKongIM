@@ -3,7 +3,6 @@ package plugin
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -70,8 +69,6 @@ func (a *rpc) streamWrite(c *wkrpc.Context) {
 		c.WriteErr(err)
 		return
 	}
-
-	fmt.Println("req---->", req)
 
 	// 转换假频道为真频道
 	if req.ChannelType == uint32(wkproto.ChannelTypePerson) && options.G.IsFakeChannel(req.ChannelId) {
