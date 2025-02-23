@@ -2,7 +2,7 @@
 import { nextTick, onMounted, onUnmounted, ref, toRaw, toRefs, unref } from 'vue';
 import APIClient from '../services/APIClient'
 import { useRouter } from "vue-router";
-import { WKSDK, Message, StreamItem, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, PullMode, MessageContent, MessageContentType, ConnectionInfo } from "wukongimjssdk";
+import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, PullMode, MessageContent, MessageContentType, ConnectionInfo, Stream, StreamListener } from "wukongimjssdk";
 import { ConnectStatus, ConnectStatusListener } from 'wukongimjssdk';
 import { SendackPacket, Setting } from 'wukongimjssdk';
 import { Buffer } from 'buffer';
@@ -10,11 +10,32 @@ import { MessageListener, MessageStatusListener } from 'wukongimjssdk';
 import Conversation from '../components/Conversation/index.vue'
 import { CustomMessage, orderMessage } from '../customessage';
 import MessageUI from '../messages/Message.vue';
+import { Marked } from 'marked';
+import { markedHighlight } from "marked-highlight";
+import hljs from 'highlight.js';
+
+const marked = new Marked(markedHighlight({
+    emptyLangClass: 'hljs',
+    langPrefix: 'hljs language-',
+    highlight(code, lang, info) {
+        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+        return hljs.highlight(code, { language }).value;
+    }
+}));
+
+marked.use({
+    gfm: true,
+});
+
+
 const router = useRouter();
-const chatRef = ref<HTMLElement | null>(null) 
+const chatRef = ref<HTMLElement | null>(null)
 const showSettingPanel = ref(false)
 const title = ref("")
 const text = ref("")
+
+const isComposing = ref(false) // 是否正在输入中,防中文干扰
+const hasHandled = ref(false) // 是否已经处理过，防中文干扰
 
 let msgCount = 0
 
@@ -39,6 +60,7 @@ title.value = `${uid || ""}(未连接)`
 let connectStatusListener!: ConnectStatusListener
 let messageListener!: MessageListener
 let messageStatusListener!: MessageStatusListener
+let streamListener!: StreamListener // 流监听
 
 onMounted(() => {
 
@@ -95,35 +117,46 @@ const connectIM = (addr: string) => {
         if (!to.value.isEqual(msg.channel)) {
             return
         }
-        if (msg.streamOn) {
-            let exist = false
-            for (const message of messages.value) {
-                if (message.streamNo === msg.streamNo) {
-                    let streams = message.streams;
-                    const newStream = new StreamItem()
-                    newStream.clientMsgNo = msg.clientMsgNo
-                    newStream.streamSeq = msg.streamSeq || 0
-                    newStream.content = msg.content
-                    if (streams && streams.length > 0) {
-                        streams.push(newStream)
-                    } else {
-                        streams = [newStream]
-                    }
-                    message.streams = streams
-                    exist = true
-                    break
-                }
-            }
-            if (!exist) {
-                messages.value.push(msg)
-            }
-        } else {
-            messages.value.push(msg)
-        }
+        messages.value.push(msg)
 
         scrollBottom()
     }
     WKSDK.shared().chatManager.addMessageListener(messageListener)
+
+    // 流监听
+    streamListener = (stream: Stream) => {
+        if (!to.value.isEqual(stream.channel)) {
+            return
+        }
+        for (const message of messages.value) {
+            if (message.streamNo === stream.streamNo) {
+                let streams = message.streams;
+                if (streams && streams.length > 0) {
+                    streams.push(stream)
+                } else {
+                    streams = [stream]
+                }
+                streams.sort((a, b) => {
+
+                    if (!a.streamId || !b.streamId) {
+                        return 0
+                    }
+                    if (a.streamId > b.streamId) {
+                        return 1
+                    } else {
+                        return -1
+                    }
+                })
+                message.streams = streams
+                message.content = streamsToMessageText(streams)
+                break
+            }
+            // 刷新ui
+            messages.value = [...messages.value]
+            scrollBottom()
+        }
+    }
+    WKSDK.shared().streamManager.addStreamListener(streamListener)
 
     messageStatusListener = (ack: SendackPacket) => {
         console.log(ack)
@@ -143,6 +176,7 @@ onUnmounted(() => {
     WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
     WKSDK.shared().chatManager.removeMessageListener(messageListener)
     WKSDK.shared().chatManager.removeMessageStatusListener(messageStatusListener)
+    WKSDK.shared().streamManager.removeStreamListener(streamListener)
     WKSDK.shared().disconnect()
 })
 
@@ -179,6 +213,14 @@ const pullLast = async () => {
         limit: 15, startMessageSeq: 0, endMessageSeq: 0,
         pullMode: PullMode.Up
     })
+
+    // 渲染流消息
+    for (const m of msgs) {
+        if (m.streamOn && m.streams) {
+            m.content = streamsToMessageText(m.streams)
+        }
+    }
+
     pulldowning.value = false
     if (msgs && msgs.length > 0) {
         msgs.forEach((m) => {
@@ -202,6 +244,14 @@ const pullDown = async () => {
         limit: limit, startMessageSeq: firstMsg.messageSeq - 1, endMessageSeq: 0,
         pullMode: PullMode.Down
     })
+
+    // 渲染流消息
+    for (const m of msgs) {
+        if (m.streamOn && m.streams) {
+            m.content = streamsToMessageText(m.streams)
+        }
+    }
+
     if (msgs.length < limit) {
         pulldownFinished.value = true
     }
@@ -298,101 +348,26 @@ const onCustomMessageSend = () => {
     scrollBottom()
 }
 
-const onMessageStream = async () => {
-
-    if (!to.value || to.value.channelID === "") {
-        showSettingPanel.value = true
-        return
-    }
-
-    const start = !startStreamMessage.value
-
-    if (start) {
-        const content = JSON.stringify({
-            type: MessageContentType.text,
-            content: "我是流消息"
-        })
-        const result = await APIClient.shared.messageStreamStart({
-            header: {
-                red_dot: 1,
-            },
-            from_uid: WKSDK.shared().config.uid || "",
-            channel_id: to.value.channelID,
-            channel_type: to.value.channelType,
-            payload: Buffer.from(content).toString('base64')
-        }).catch((err) => {
-            alert(err.msg)
-        })
-
-        if (result) {
-            messageStreamStart(result.stream_no)
-        }
-
-    } else {
-        messageStreamEnd()
-    }
-    startStreamMessage.value = start
-    msgInputPlaceholder.value = start ? "现在开始你输入的消息是流式消息，多次输入试试。" : "请输入消息"
-
-}
-
-const messageStreamStart = (streamNoStr: string) => {
-    streamNo.value = streamNoStr
-
-}
-const messageStreamEnd = async () => {
-    await APIClient.shared.messageStreamEnd({
-        "stream_no": streamNo.value || "",
-        "channel_id": channelID.value,
-        "channel_type": p2p.value ? ChannelTypePerson : ChannelTypeGroup,
-    })
-    streamNo.value = undefined
-}
-
 const logout = () => {
     WKSDK.shared().connectManager.disconnect()
     router.push({ path: '/' })
 }
 
 
-const getMessageItemUI = (m: any) => {
-    const streams = m.streams
+// 流转文本消息
+const streamsToMessageText = (streams: Stream[]) => {
     let text = ""
-
-   const contentType =  m.contentType
-
-    // 文本消息
-    if (contentType == MessageContentType.text) {
-        const messageText = m.content as MessageText
-        text = messageText.text || ""
-        return text
-    }
-
-    // 自定义消息
-    if (contentType == orderMessage) {
-        const customMessage = m.content as CustomMessage
-        text = customMessage.title || ""
-        return text
-    }
-
-
-    // 流消息
-    if (streams && streams.length > 0) { // 流式消息拼接
-        for (const stream of streams) {
-            if (stream.content instanceof MessageText) {
-                const messageText = stream.content as MessageText
-                text = text + (messageText.text || "")
-            }
+    for (const stream of streams) {
+        if (stream.content instanceof MessageText) {
+            const messageText = stream.content as MessageText
+            text = text + (messageText.text || "")
         }
-        return text
     }
-   return "未知消息"
-
+    const htmlText = marked.parse(text)
+    if (htmlText) {
+        return new MessageText(htmlText as string)
+    }
 }
-
-
-
-
 
 
 const handleScroll = (e: any) => {
@@ -414,24 +389,19 @@ const handleScroll = (e: any) => {
 }
 
 const onEnter = () => {
+    // 中文输入法正在组合输入时，不触发
+    if (hasHandled.value || isComposing.value) return
     onSend()
 }
 
-
-
-// const sendInputFocus = () => {
-//     document.body.addEventListener("touchmove", stop, {
-//     passive: false,
-//   }); // passive 参数不能省略，用来兼容ios和android
-// }
-// const sendInputBlur = () => {
-//     document.body.removeEventListener("touchmove", stop);
-// }
-// const  stop = (e:any) => {
-//   e.preventDefault(); // 阻止默认的处理方式(阻止下拉滑动的效果)
-// };
-
-
+const onKeydown = (e: any) => {
+    if (!isComposing.value) {
+        hasHandled.value = false
+        return
+      }
+      // 中文输入法状态下回车确认输入
+      hasHandled.value = true
+}
 
 </script>
 <template>
@@ -490,7 +460,8 @@ const onEnter = () => {
                 </div>
                 <div class="footer">
                     <input :placeholder="msgInputPlaceholder" v-model="text" style="height: 40px;"
-                        @keydown.enter="onEnter" />
+                        @keyup.enter="onEnter" @keydown.enter="onKeydown" @compositionstart="isComposing = true"
+                        @compositionend="isComposing = false" />
                     <!-- <button class="message-stream" v-on:click="onMessageStream">{{ startStreamMessage ? '停止流消息' : '开启流消息'
                     }}</button> -->
                     <button class="message-custom" v-on:click="onCustomMessageSend">自定义消息</button>

@@ -1039,7 +1039,6 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 			return
 		}
 
-		fmt.Println("streamItemsMap--->", streamItemsMap)
 		for _, message := range messageResps {
 			if strings.TrimSpace(message.StreamNo) == "" {
 				continue
