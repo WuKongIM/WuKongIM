@@ -442,13 +442,13 @@ type taskCfg struct {
 	ChannelPrefix string        `json:"channel_prefix"` // 频道前缀
 }
 
-func (t *taskCfg) check() error {
-	if t.Online <= 0 {
-		return errors.New("online must be greater than 0")
-	}
+// func (t *taskCfg) check() error {
+// 	if t.Online <= 0 {
+// 		return errors.New("online must be greater than 0")
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 type channelCfg struct {
 	Count      int            `json:"count"`      //  创建频道数
