@@ -183,6 +183,7 @@ func (s *Server) startPlugins() error {
 	return nil
 }
 
+// 监听插件目录的插件变化
 func (s *Server) watchPlugins() error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -190,7 +191,6 @@ func (s *Server) watchPlugins() error {
 	}
 	defer watcher.Close()
 
-	fmt.Println("s.opts.Dir--->", s.opts.Dir)
 	watcher.Add(s.opts.Dir) // 监听插件目录
 
 	for {
@@ -199,8 +199,6 @@ func (s *Server) watchPlugins() error {
 			if !ok {
 				return nil
 			}
-			fmt.Println("file event--->", event)
-
 			// 判断文件是否是目录
 			fileInfo, err := os.Stat(event.Name)
 			if err != nil {
