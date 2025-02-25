@@ -20,6 +20,19 @@ func (s *Store) AddSubscribers(channelId string, channelType uint8, subscribers 
 	return err
 }
 
+// DeleteMessageRange
+func (s *Store) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	data := EncodeDeleteMessageRange(channelId, channelType, startMessageSeq, endMessageSeq)
+	cmd := NewCMD(CMDDeleteMessageRange, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	slotId := s.opts.Slot.GetSlotId(channelId)
+	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
+	return err
+}
+
 func (s *Store) ExistSubscriber(channelId string, channelType uint8, uid string) (bool, error) {
 	return s.wdb.ExistSubscriber(channelId, channelType, uid)
 }

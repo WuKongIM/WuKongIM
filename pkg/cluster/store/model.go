@@ -32,6 +32,8 @@ const (
 	CMDRemoveSubscribers
 	// 移除所有订阅者
 	CMDRemoveAllSubscriber
+	// 范围删除消息
+	CMDDeleteMessageRange
 	// 删除频道
 	CMDDeleteChannel
 	// 添加黑名单
@@ -111,6 +113,8 @@ func (c CMDType) String() string {
 		return "CMDUpdateChannelInfo"
 	case CMDAddSubscribers:
 		return "CMDAddSubscribers"
+	case CMDDeleteMessageRange:
+		return "CMDDeleteMessageRange"
 	case CMDRemoveSubscribers:
 		return "CMDRemoveSubscribers"
 	case CMDRemoveAllSubscriber:
@@ -279,6 +283,17 @@ func (c *CMD) CMDContent() (string, error) {
 			"channelId":   channelId,
 			"channelType": channelType,
 			"uids":        uids,
+		}), nil
+	case CMDDeleteMessageRange:
+		channelId, channelType, startMessageSeq, endMessageSeq, err := c.DecodeDeleteMessageRange()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"channelId":       channelId,
+			"channelType":     channelType,
+			"startMessageSeq": startMessageSeq,
+			"endMessageSeq":   endMessageSeq,
 		}), nil
 	case CMDRemoveSubscribers:
 		channelId, channelType, uids, err := c.DecodeChannelUids()
@@ -482,6 +497,31 @@ func EncodeMembers(channelId string, channelType uint8, members []wkdb.Member) [
 		}
 	}
 	return encoder.Bytes()
+}
+func EncodeDeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	encoder.WriteUint64(startMessageSeq)
+	encoder.WriteUint64(endMessageSeq)
+	return encoder.Bytes()
+}
+func (c *CMD) DecodeDeleteMessageRange() (channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if startMessageSeq, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if endMessageSeq, err = decoder.Uint64(); err != nil {
+		return
+	}
+	return
 }
 
 func (c *CMD) DecodeChannelUids() (channelId string, channelType uint8, uids []string, err error) {

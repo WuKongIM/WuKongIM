@@ -29,8 +29,6 @@ func (s *storage) GetState(channelId string, channelType uint8) (types.RaftState
 }
 
 func (s *storage) AppendLogs(key string, logs []types.Log, termStartIndexInfo *types.TermStartIndexInfo) error {
-	//打印日志
-	s.s.Log.Error("Storage AppendLogs key:" + key)
 	channelId, channelType := wkutil.ChannelFromlKey(key)
 
 	messages := make([]wkdb.Message, 0, len(logs))

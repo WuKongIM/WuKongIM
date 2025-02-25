@@ -35,6 +35,8 @@ func (s *Store) applyLog(_ uint32, log types.Log) error {
 		return s.handleAddOrUpdateConversations(cmd)
 	case CMDAddSubscribers: // 添加订阅者
 		return s.handleAddSubscribers(cmd)
+	case CMDDeleteMessageRange:
+		return s.handleDeleteMessageRange(cmd)
 	case CMDRemoveSubscribers: // 移除订阅者
 		return s.handleRemoveSubscribers(cmd)
 	case CMDAddUser: // 添加用户
@@ -162,6 +164,13 @@ func (s *Store) handleAddSubscribers(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.AddSubscribers(channelId, channelType, members)
+}
+func (s *Store) handleDeleteMessageRange(cmd *CMD) error {
+	channelId, channelType, startMessageSeq, endMessageSeq, err := cmd.DecodeDeleteMessageRange()
+	if err != nil {
+		return err
+	}
+	return s.wdb.DeleteMessageRange(channelId, channelType, startMessageSeq, endMessageSeq)
 }
 
 func (s *Store) handleRemoveSubscribers(cmd *CMD) error {

@@ -18,7 +18,6 @@ import (
 )
 
 func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []Message) error {
-	wk.Info("wk channelId" + channelId + "channelType" + string(channelType))
 	wk.metrics.AppendMessagesAdd(1)
 
 	if wk.opts.EnableCost {

@@ -77,10 +77,10 @@ func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error
 	return s.wdb.SearchMessages(req)
 }
 
-// 范围删除消息
-func (s *Store) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
-	return s.wdb.DeleteMessageRange(channelId, channelType, startMessageSeq, endMessageSeq)
-}
+//// 范围删除消息
+//func (s *Store) DeleteMessageRange(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+//	return s.wdb.DeleteMessageRange(channelId, channelType, startMessageSeq, endMessageSeq)
+//}
 
 // 根据channelId和channelType获取最大的删除消息序号
 func (s *Store) GetMessageDeletedSeq(channelId string, channelType uint8) uint64 {
