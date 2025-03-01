@@ -21,7 +21,7 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 			return
 		}
 		// 移除逻辑连接
-		eventbus.User.RemoveConn(conn)
+		eventbus.User.DirectRemoveConn(conn)
 
 		// 如果不是本地节点，则转发关闭请求
 		if !options.G.IsLocalNode(conn.NodeId) {
@@ -45,7 +45,7 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 func (h *Handler) removeConn(ctx *eventbus.UserContext) {
 
 	for _, event := range ctx.Events {
-		eventbus.User.RemoveConn(event.Conn)
+		eventbus.User.DirectRemoveConn(event.Conn)
 		if event.Conn.Auth {
 			h.notifyUserOfflineIfNeed(event.Conn)
 		}

@@ -145,9 +145,18 @@ func (u *userPlus) CloseConn(conn *Conn) {
 	})
 }
 
-// RemoveConn 移除连接 (直接移除)
-func (u *userPlus) RemoveConn(conn *Conn) {
+// DirectRemoveConn 移除连接 (直接移除)
+func (u *userPlus) DirectRemoveConn(conn *Conn) {
 	u.user.RemoveConn(conn)
+}
+
+// RemoveConn 移除连接（触发移除事件）
+func (u *userPlus) RemoveConn(conn *Conn) {
+	u.user.AddEvent(conn.Uid, &Event{
+		Type:         EventConnRemove,
+		Conn:         conn,
+		SourceNodeId: options.G.Cluster.NodeId,
+	})
 }
 
 // RemoveLeaderConn 移除leader节点中的连接
