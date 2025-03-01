@@ -58,7 +58,7 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 				SourceNodeId: options.G.Cluster.NodeId,
 			})
 		} else if event.SourceNodeId == 0 || options.G.IsLocalNode(event.SourceNodeId) { // 如果是本节点事件，直接删除连接
-			eventbus.User.RemoveConn(conn)
+			eventbus.User.DirectRemoveConn(conn)
 		}
 		return
 	}
