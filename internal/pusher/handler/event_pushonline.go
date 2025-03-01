@@ -43,11 +43,8 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 
 		sendPacket := e.Frame.(*wkproto.SendPacket)
 
-		fakeChannelId := sendPacket.ChannelID
-		channelType := sendPacket.ChannelType
-		if channelType == wkproto.ChannelTypePerson {
-			fakeChannelId = options.GetFakeChannelIDWith(e.Conn.Uid, e.ToUid)
-		}
+		fakeChannelId := e.ChannelId
+		channelType := e.ChannelType
 
 		fromUid := e.Conn.Uid
 		// 如果发送者是系统账号，则不显示发送者

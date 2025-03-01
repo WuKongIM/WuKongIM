@@ -335,7 +335,7 @@ func (m *message) sync(c *wkhttp.Context) {
 	}
 
 	if req.Limit <= 0 {
-		req.Limit = 50
+		req.Limit = 200
 	}
 
 	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点

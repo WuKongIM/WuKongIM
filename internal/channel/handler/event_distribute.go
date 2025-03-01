@@ -144,6 +144,8 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 				}
 				cloneMsg := event.Clone()
 				cloneMsg.ToUid = uid
+				cloneMsg.ChannelId = channelId
+				cloneMsg.ChannelType = channelType
 				cloneMsg.Type = eventbus.EventPushOnline
 				pubshEvents = append(pubshEvents, cloneMsg)
 			}
