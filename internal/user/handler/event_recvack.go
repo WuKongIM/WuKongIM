@@ -5,6 +5,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -25,12 +26,13 @@ func (h *Handler) recvack(event *eventbus.Event) {
 
 	if isCmd && persist && isMaster {
 		currMsg := service.RetryManager.RetryMessage(conn.NodeId, conn.ConnId, recvackPacket.MessageID)
+
 		if currMsg != nil {
 			// 删除最近会话的缓存
 			service.ConversationManager.DeleteFromCache(conn.Uid, currMsg.ChannelId, currMsg.ChannelType)
 			// 更新最近会话的已读位置
 			err := service.Store.UpdateConversationIfSeqGreaterAsync(conn.Uid, currMsg.ChannelId, currMsg.ChannelType, uint64(recvackPacket.MessageSeq))
-			if err != nil {
+			if err != nil && err != wkdb.ErrNotFound {
 				h.Error("UpdateConversationIfSeqGreaterAsync failed", zap.Error(err), zap.String("channelId", currMsg.ChannelId), zap.Uint8("channelType", currMsg.ChannelType), zap.Uint64("messageSeq", uint64(recvackPacket.MessageSeq)))
 			}
 		}

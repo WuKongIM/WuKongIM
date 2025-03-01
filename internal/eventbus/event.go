@@ -96,6 +96,8 @@ type Event struct {
 	// 不需要编码
 	Index        uint64
 	OfflineUsers []string // 离线用户集合
+	ChannelId    string   // 频道ID
+	ChannelType  uint8    // 频道类型
 }
 
 func (e *Event) Clone() *Event {
@@ -114,6 +116,8 @@ func (e *Event) Clone() *Event {
 		Track:        e.Track.Clone(),
 		Index:        e.Index,
 		OfflineUsers: e.OfflineUsers,
+		ChannelId:    e.ChannelId,
+		ChannelType:  e.ChannelType,
 	}
 }
 
@@ -139,11 +143,17 @@ func (e *Event) Size() uint64 {
 	if e.hasTrack() == 1 {
 		size += e.Track.Size()
 	}
+
+	if e.hasChannel() == 1 {
+		size += uint64(2 + len(e.ChannelId)) // channel id
+		size += 1                            // channel type
+	}
+
 	return size
 }
 
 func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
-	var flag uint8 = e.hasConn()<<7 | e.hasFrame()<<6 | e.hasTrack()<<5
+	var flag uint8 = e.hasConn()<<7 | e.hasFrame()<<6 | e.hasTrack()<<5 | e.hasChannel()<<4
 	enc.WriteUint8(flag)
 
 	enc.WriteUint8(e.Type.Uint8())
@@ -175,6 +185,12 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 	if e.hasTrack() == 1 {
 		enc.WriteBinary(e.Track.Encode())
 	}
+
+	if e.hasChannel() == 1 {
+		enc.WriteString(e.ChannelId)
+		enc.WriteUint8(e.ChannelType)
+	}
+
 	return nil
 }
 
@@ -186,6 +202,7 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 	hasConn := (flag >> 7) & 0x01
 	hasFrame := (flag >> 6) & 0x01
 	hasTrack := (flag >> 5) & 0x01
+	hasChannel := (flag >> 4) & 0x01
 
 	typeUint8, err := dec.Uint8()
 	if err != nil {
@@ -268,6 +285,16 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 			return err
 		}
 	}
+	if hasChannel == 1 {
+		if e.ChannelId, err = dec.String(); err != nil {
+			return err
+		}
+		var channelType uint8
+		if channelType, err = dec.Uint8(); err != nil {
+			return err
+		}
+		e.ChannelType = channelType
+	}
 
 	return nil
 }
@@ -287,6 +314,13 @@ func (e Event) hasFrame() uint8 {
 }
 func (e *Event) hasTrack() uint8 {
 	if e.Track.HasData() {
+		return 1
+	}
+	return 0
+}
+
+func (e *Event) hasChannel() uint8 {
+	if len(e.ChannelId) > 0 {
 		return 1
 	}
 	return 0
