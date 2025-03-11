@@ -69,6 +69,7 @@ func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConver
 		ChannelType:    conversation.ChannelType,
 		Unread:         int(conversation.UnreadCount),
 		ReadedToMsgSeq: uint32(conversation.ReadToMsgSeq),
+		Version:        conversation.UpdatedAt.UnixNano(),
 	}
 }
 

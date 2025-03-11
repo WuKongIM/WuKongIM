@@ -193,6 +193,8 @@ func (c *ConversationManager) GetFromCache(uid string, conversationType wkdb.Con
 			ChannelId:    update.channelId,
 			ChannelType:  update.channelType,
 			ReadToMsgSeq: update.getUserMessageSeq(uid),
+			CreatedAt:    &update.createdAt,
+			UpdatedAt:    &update.updatedAt,
 		})
 	}
 
@@ -313,7 +315,7 @@ func (c *conversationWorker) handleReq(fakeChannelId string, channelType uint8, 
 	}
 	update.keepActive()
 
-	// 消息发送者的最近会话更新
+	// 消息发送者的最近会话更新(只需要更新发送者的最近会话)
 	for _, msg := range messages {
 		fromUid := msg.Conn.Uid
 		if msg.Conn.Uid == options.G.SystemUID { // 忽略系统账号
@@ -468,7 +470,7 @@ func (c *conversationWorker) cleanUpdate() {
 	for i := 0; i < len(c.updates); {
 
 		udpate := c.updates[i]
-		if !udpate.isUpdateAll() && len(udpate.users) == 0 && time.Since(udpate.activeTime) > options.G.Conversation.CacheExpire {
+		if !udpate.isUpdateAll() && len(udpate.users) == 0 && time.Since(udpate.updatedAt) > options.G.Conversation.CacheExpire {
 			c.updates = append(c.updates[:i], c.updates[i+1:]...)
 		} else {
 			i++
@@ -477,8 +479,6 @@ func (c *conversationWorker) cleanUpdate() {
 }
 
 func (c *conversationWorker) getConversationWithUpdater(update *conversationUpdate) ([]wkdb.Conversation, error) {
-	createdAt := time.Now()
-	updatedAt := time.Now()
 	conversations := make([]wkdb.Conversation, 0)
 
 	// 指定要更新的最近会话
@@ -491,8 +491,8 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 			ChannelType:  update.channelType,
 			Type:         update.conversationType,
 			ReadToMsgSeq: user.messageSeq,
-			CreatedAt:    &createdAt,
-			UpdatedAt:    &updatedAt,
+			CreatedAt:    &user.createdAt,
+			UpdatedAt:    &user.updatedAt,
 		})
 	}
 
@@ -543,9 +543,8 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		sugguestSeq = sugguestSeq - 1
 	}
 
+	updatedAt := time.Now()
 	for _, uid := range needUpdateUids {
-		id := service.Store.NextPrimaryKey()
-
 		//  如果update.users 里面已经存在了uid则不需要再次更新
 		exist := false
 		for _, user := range update.users {
@@ -557,6 +556,9 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 		if exist {
 			continue
 		}
+
+		id := service.Store.NextPrimaryKey()
+
 		conversations = append(conversations, wkdb.Conversation{
 			Id:           id,
 			Uid:          uid,
@@ -564,7 +566,6 @@ func (c *conversationWorker) getConversationWithUpdater(update *conversationUpda
 			ChannelId:    update.channelId,
 			ChannelType:  update.channelType,
 			ReadToMsgSeq: sugguestSeq,
-			CreatedAt:    &createdAt,
 			UpdatedAt:    &updatedAt,
 		})
 	}
@@ -621,12 +622,15 @@ type conversationUpdate struct {
 	sync.RWMutex
 	suggestMessageSeq uint64 // 更新所有的时候建议使用的messageSeq
 
-	activeTime time.Time // 最后一次更新时间
+	createdAt time.Time // 创建时间
+	updatedAt time.Time // 更新时间
 }
 
 type userUpdate struct {
 	messageSeq uint64
 	uid        string
+	createdAt  time.Time
+	updatedAt  time.Time
 }
 
 func newConversationUpdate(channelId string, channelType uint8, lastTagKey string, suggestMessageSeq uint64) *conversationUpdate {
@@ -643,6 +647,7 @@ func newConversationUpdate(channelId string, channelType uint8, lastTagKey strin
 		conversationType:  conversationType,
 		lastTagKey:        lastTagKey,
 		suggestMessageSeq: suggestMessageSeq,
+		createdAt:         time.Now(),
 	}
 }
 
@@ -657,11 +662,12 @@ func (c *conversationUpdate) addOrUpdateUser(uid string, messageSeq uint64) {
 		if u.uid == uid {
 			if messageSeq > u.messageSeq {
 				c.users[i].messageSeq = messageSeq
+				c.users[i].updatedAt = time.Now()
 			}
 			return
 		}
 	}
-	c.users = append(c.users, userUpdate{uid: uid, messageSeq: messageSeq})
+	c.users = append(c.users, userUpdate{uid: uid, messageSeq: messageSeq, createdAt: time.Now(), updatedAt: time.Now()})
 }
 
 func (c *conversationUpdate) deleteUser(uid string) {
@@ -761,5 +767,5 @@ func (c *conversationUpdate) keepActive() {
 	c.Lock()
 	defer c.Unlock()
 
-	c.activeTime = time.Now()
+	c.updatedAt = time.Now()
 }

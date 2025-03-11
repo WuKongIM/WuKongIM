@@ -436,6 +436,9 @@ func (wk *wukongDB) LoadLastMsgsWithEnd(channelID string, channelType uint8, end
 	if lastSeq == 0 {
 		return nil, nil
 	}
+	if endMessageSeq > lastSeq {
+		return nil, nil
+	}
 	return wk.LoadPrevRangeMsgs(channelID, channelType, lastSeq, endMessageSeq, limit)
 }
 

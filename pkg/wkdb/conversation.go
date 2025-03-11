@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
@@ -232,6 +233,19 @@ func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, update
 	}
 	// conversations 根据id去重复
 	conversations = uniqueConversation(conversations)
+
+	// 按照更新时间排序
+	sort.Slice(conversations, func(i, j int) bool {
+		c1 := conversations[i]
+		c2 := conversations[j]
+		if c1.UpdatedAt == nil {
+			return false
+		}
+		if c2.UpdatedAt == nil {
+			return true
+		}
+		return c1.UpdatedAt.After(*c2.UpdatedAt)
+	})
 
 	return conversations, nil
 }
