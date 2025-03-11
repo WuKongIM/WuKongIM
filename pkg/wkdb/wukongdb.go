@@ -445,6 +445,8 @@ func (wk *BatchDB) executeBatch(bs []*Batch) {
 		if b.waitC != nil {
 			b.waitC <- b.err
 		}
+		// 释放资源
+		b.release()
 	}
 
 }
@@ -492,6 +494,14 @@ func (b *Batch) CommitWait() error {
 	b.waitC = make(chan error, 1)
 	b.db.batchChan <- b
 	return <-b.waitC
+}
+
+func (b *Batch) release() {
+	b.setKvs = nil
+	b.delKvs = nil
+	b.delRangeKvs = nil
+	b.waitC = nil
+	b.err = nil
 }
 
 func (b *Batch) String() string {
