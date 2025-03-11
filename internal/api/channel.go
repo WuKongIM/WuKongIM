@@ -982,7 +982,9 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 	} else if req.PullMode == PullModeUp { // 向上拉取
 		messages, err = service.Store.LoadNextRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	} else {
-		messages, err = service.Store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
+		if req.EndMessageSeq <= req.StartMessageSeq {
+			messages, err = service.Store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
+		}
 	}
 	if err != nil {
 		ch.Error("获取消息失败！", zap.Error(err), zap.Any("req", req))

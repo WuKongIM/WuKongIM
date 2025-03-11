@@ -306,9 +306,10 @@ func (s *conversation) deleteConversation(c *wkhttp.Context) {
 func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	var req struct {
 		UID         string `json:"uid"`
-		Version     int64  `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)
+		Version     int64  `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)（TODO: 这个参数可以废弃了,使用OnlyUnread）
 		LastMsgSeqs string `json:"last_msg_seqs"` // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
 		MsgCount    int64  `json:"msg_count"`     // 每个会话消息数量
+		OnlyUnread  uint8  `json:"only_unread"`   // 只返回未读最近会话 1.只返回未读最近会话 0.不限制
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -395,6 +396,8 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 
 		if msgSeq != 0 {
 			msgSeq = msgSeq + 1 // 如果客户端传递了messageSeq，则需要获取这个messageSeq之后的消息
+		} else if req.Version > 0 || req.OnlyUnread == 1 { // 如果客户端传递了version，则获取有新消息的会话
+			msgSeq = conversation.ReadToMsgSeq + 1
 		}
 
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
@@ -426,6 +429,7 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 			}
 			resp := newSyncUserConversationResp(conversation)
 
+			// 填充最近消息
 			for _, channelRecentMessage := range channelRecentMessages {
 				if conversation.ChannelId == channelRecentMessage.ChannelId && conversation.ChannelType == channelRecentMessage.ChannelType {
 					if len(channelRecentMessage.Messages) > 0 {
@@ -445,6 +449,7 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 				}
 			}
 
+			// 比较客户端的序号和服务端的序号，如果客户端的序号大于等于服务端的序号，则不返回
 			msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", conversation.ChannelId, conversation.ChannelType)]
 
 			if msgSeq != 0 && msgSeq >= uint64(resp.LastMsgSeq) {

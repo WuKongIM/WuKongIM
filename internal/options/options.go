@@ -133,7 +133,7 @@ type Options struct {
 		CacheExpire        time.Duration // 最近会话缓存过期时间 (这个是热数据缓存时间，并非最近会话数据的缓存时间)
 		SyncInterval       time.Duration // 最近会话同步间隔
 		SyncOnce           int           //  当多少最近会话数量发送变化就保存一次
-		UserMaxCount       int           // 每个用户最大最近会话数量 默认为500
+		UserMaxCount       int           // 每个用户最大最近会话数量 默认为1000
 		BytesPerSave       uint64        // 每次保存的最近会话数据大小 如果为0 则表示不限制
 		SavePoolSize       int           // 保存最近会话协程池大小
 		WorkerCount        int           // 处理最近会话工作者数量
