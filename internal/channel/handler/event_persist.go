@@ -23,7 +23,7 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		e.Track.Record(track.PositionChannelPersist)
 	}
 
-	// 存储消息
+	// ========== 存储消息 ==========
 	persists := h.toPersistMessages(ctx.ChannelId, ctx.ChannelType, events)
 	if len(persists) > 0 {
 
@@ -72,7 +72,7 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		}
 	}
 
-	// webhook
+	// ========== webhook ==========
 	if options.G.WebhookOn(types.EventMsgNotify) {
 		for _, e := range events {
 			sendPacket := e.Frame.(*wkproto.SendPacket)
@@ -84,7 +84,7 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		}
 	}
 
-	// 分发
+	// ========== 分发 ==========
 	for _, e := range events {
 		if e.ReasonCode != wkproto.ReasonSuccess {
 			continue
