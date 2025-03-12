@@ -13,6 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// 跳过会话更新的频道类型
+var skipConversationUpdateChannelTypes = []uint8{wkproto.ChannelTypeData, wkproto.ChannelTypeTemp, wkproto.ChannelTypeLive}
+
 // 分发
 func (h *Handler) distribute(ctx *eventbus.ChannelContext) {
 
@@ -154,7 +157,9 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 
 	if localHasEvent {
 		// 更新最近会话
-		h.conversation(channelId, channelType, tag.Key, events)
+		if !h.isSkipConversationUpdate(channelType) {
+			h.conversation(channelId, channelType, tag.Key, events)
+		}
 	}
 
 	if len(pubshEvents) > 0 {
@@ -181,6 +186,16 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 		// eventbus.Pusher.Advance(id) // 不需要推进，因为是离线消息
 	}
 
+}
+
+// 是否跳过会话更新
+func (h *Handler) isSkipConversationUpdate(channelType uint8) bool {
+	for _, t := range skipConversationUpdateChannelTypes {
+		if t == channelType {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) distributeToNode(leaderId uint64, channelId string, channelType uint8, events []*eventbus.Event) {
@@ -340,24 +355,6 @@ func (h *Handler) getCmdSubscribers(channelId string, channelType uint8) ([]stri
 		}
 	}
 	return subscribers, nil
-}
-
-func (h *Handler) isOnline(uid string) bool {
-	toConns := eventbus.User.AuthedConnsByUid(uid)
-	return len(toConns) > 0
-}
-
-// 用户的主设备是否在线
-func (h *Handler) masterDeviceIsOnline(uid string) bool {
-	toConns := eventbus.User.AuthedConnsByUid(uid)
-	online := false
-	for _, conn := range toConns {
-		if conn.DeviceLevel == wkproto.DeviceLevelMaster {
-			online = true
-			break
-		}
-	}
-	return online
 }
 
 // 用户的设备在线状态
