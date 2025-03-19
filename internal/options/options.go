@@ -1134,6 +1134,9 @@ func (o *Options) configureAuth() {
 	})
 
 	o.Auth.Users = usersCfgs
+	if len(usersCfgs) > 0 {
+		o.Auth.On = true
+	}
 
 	node, err := snowflake.NewNode(int64(o.Cluster.NodeId))
 	if err != nil {

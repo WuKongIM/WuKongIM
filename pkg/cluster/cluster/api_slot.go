@@ -144,7 +144,7 @@ func (s *Server) slotMigrate(c *wkhttp.Context) {
 	}
 
 	if !s.opts.Auth.HasPermissionWithContext(c, resource.Slot.Migrate, auth.ActionWrite) {
-		c.ResponseStatus(http.StatusUnauthorized)
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
 		return
 	}
 
