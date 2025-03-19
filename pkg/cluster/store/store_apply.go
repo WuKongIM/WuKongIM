@@ -91,6 +91,12 @@ func (s *Store) applyLog(_ uint32, log types.Log) error {
 		return s.handleRemoveTester(cmd)
 	case CMDUpdateUserPluginNo: // 更新用户插件编号
 		return s.handleUpdateUserPluginNo(cmd)
+	case CMDRemovePluginUser:
+		return s.handleRemovePluginUser(cmd)
+		// case CMDAddOrUpdatePlugin: // 添加或更新插件
+		// 	return s.handleAddOrUpdatePlugin(cmd)
+		// case CMDUpdatePluginConfig: // 更新插件配置
+		// 	return s.handleUpdatePluginConfig(cmd)
 
 	}
 	return nil
@@ -423,9 +429,35 @@ func (s *Store) handleRemoveTester(cmd *CMD) error {
 }
 
 func (s *Store) handleUpdateUserPluginNo(cmd *CMD) error {
-	uid, pluginNo, err := cmd.DecodeCMDUserPluginNo()
+	pluginUser, err := cmd.DecodeCMDUserPluginNo()
 	if err != nil {
 		return err
 	}
-	return s.wdb.UpdateUserPluginNo(uid, pluginNo)
+	return s.wdb.AddOrUpdatePluginUsers([]wkdb.PluginUser{
+		pluginUser,
+	})
 }
+
+func (s *Store) handleRemovePluginUser(cmd *CMD) error {
+	pluginNo, uid, err := cmd.DecodeCMDPluginUser()
+	if err != nil {
+		return err
+	}
+	return s.wdb.RemovePluginUser(pluginNo, uid)
+}
+
+// func (s *Store) handleAddOrUpdatePlugin(cmd *CMD) error {
+// 	plugin, err := cmd.DecodeCMDPlugin()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return s.wdb.AddOrUpdatePlugin(plugin)
+// }
+
+// func (s *Store) handleUpdatePluginConfig(cmd *CMD) error {
+// 	pluginNo, config, err := cmd.DecodeCMDPluginConfig()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return s.wdb.UpdatePluginConfig(pluginNo, config)
+// }

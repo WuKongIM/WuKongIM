@@ -73,7 +73,7 @@ func (m *message) send(c *wkhttp.Context) {
 	channelId := req.ChannelID
 	channelType := req.ChannelType
 
-	m.Info("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
+	m.Debug("发送消息内容：", zap.String("msg", wkutil.ToJSON(req)))
 	if strings.TrimSpace(channelId) == "" && len(req.Subscribers) == 0 { //指定了频道 才能正常发送
 		m.Error("无法处理发送消息请求！", zap.Any("req", req))
 		c.ResponseError(errors.New("无法处理发送消息请求！"))

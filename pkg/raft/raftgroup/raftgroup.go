@@ -198,7 +198,7 @@ func (rg *RaftGroup) handleReceivedEvents() bool {
 	for _, e := range events {
 		raft := rg.raftList.get(e.RaftKey)
 		if raft == nil {
-			rg.Error("raft not found", zap.String("raftKey", e.RaftKey), zap.String("event", e.Event.String()))
+			rg.Debug("raft not found", zap.String("raftKey", e.RaftKey), zap.String("event", e.Event.String()))
 			if e.WaitC != nil {
 				e.WaitC <- ErrRaftNotExist
 			}

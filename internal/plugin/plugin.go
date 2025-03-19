@@ -2,8 +2,11 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
@@ -12,9 +15,11 @@ import (
 )
 
 type Plugin struct {
-	conn gnet.Conn
-	info *pluginproto.PluginInfo
-	s    *Server
+	conn    gnet.Conn
+	info    *pluginproto.PluginInfo
+	s       *Server
+	cfg     map[string]interface{}
+	cfgLock sync.RWMutex
 }
 
 func newPlugin(s *Server, conn gnet.Conn, info *pluginproto.PluginInfo) *Plugin {
@@ -54,7 +59,7 @@ func (p *Plugin) asyncInvoke(method types.PluginMethod, data []byte) error {
 	return p.send(uint32(method.Type()), data)
 }
 
-func (p *Plugin) invoke(ctx context.Context, method types.PluginMethod, data []byte) ([]byte, error) {
+func (p *Plugin) invokeMethod(ctx context.Context, method types.PluginMethod, data []byte) ([]byte, error) {
 	if !p.hasMethod(method) {
 		return nil, errors.New("method not found")
 	}
@@ -63,7 +68,12 @@ func (p *Plugin) invoke(ctx context.Context, method types.PluginMethod, data []b
 		return nil, errors.New("invalid method")
 	}
 
-	resp, err := p.s.rpcServer.RequestWithContext(ctx, p.info.No, ph, data)
+	return p.invoke(ctx, ph, data)
+}
+
+func (p *Plugin) invoke(ctx context.Context, pathStr string, data []byte) ([]byte, error) {
+
+	resp, err := p.s.rpcServer.RequestWithContext(ctx, p.info.No, pathStr, data)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +90,7 @@ func (p *Plugin) Send(ctx context.Context, sendPacket *pluginproto.SendPacket) (
 		return nil, err
 	}
 
-	respData, err := p.invoke(ctx, types.PluginSend, data)
+	respData, err := p.invokeMethod(ctx, types.PluginSend, data)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +111,7 @@ func (p *Plugin) PersistAfter(ctx context.Context, messages *pluginproto.Message
 		return err
 	}
 	if p.info.PersistAfterSync {
-		_, err = p.invoke(ctx, types.PluginPersistAfter, data)
+		_, err = p.invokeMethod(ctx, types.PluginPersistAfter, data)
 		if err != nil {
 			return err
 		}
@@ -111,20 +121,20 @@ func (p *Plugin) PersistAfter(ctx context.Context, messages *pluginproto.Message
 }
 
 // 回复消息
-func (p *Plugin) Reply(ctx context.Context, recv *pluginproto.RecvPacket) error {
+func (p *Plugin) Receive(ctx context.Context, recv *pluginproto.RecvPacket) error {
 
 	data, err := recv.Marshal()
 	if err != nil {
 		return err
 	}
 	if p.info.ReplySync {
-		_, err = p.invoke(ctx, types.PluginReply, data)
+		_, err = p.invokeMethod(ctx, types.PluginReceive, data)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-	return p.asyncInvoke(types.PluginReply, data)
+	return p.asyncInvoke(types.PluginReceive, data)
 }
 
 // 路由
@@ -133,7 +143,7 @@ func (p *Plugin) Route(ctx context.Context, request *pluginproto.HttpRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	respData, err := p.invoke(ctx, types.PluginRoute, data)
+	respData, err := p.invokeMethod(ctx, types.PluginRoute, data)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +153,33 @@ func (p *Plugin) Route(ctx context.Context, request *pluginproto.HttpRequest) (*
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (p *Plugin) UpdateConfig(cfg map[string]interface{}) error {
+	p.cfgLock.Lock()
+	defer p.cfgLock.Unlock()
+	p.cfg = cfg
+	return nil
+}
+
+func (p *Plugin) NotifyConfigUpdate() error {
+	if p.cfg == nil {
+		return nil
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	data, err := json.Marshal(p.cfg)
+	if err != nil {
+		return err
+	}
+	ph := getPathByMethod(types.PluginConfigUpdate)
+	if ph == "" {
+		return errors.New("invalid method")
+	}
+	_, err = p.invoke(timeoutCtx, ph, data)
+	return err
 }
 
 // Stop 通知插件停止
@@ -160,7 +197,7 @@ func (p *Plugin) Stop(ctx context.Context) error {
 func (p *Plugin) Status() types.PluginStatus {
 	conn := p.s.rpcServer.ConnManager.GetConn(p.info.No)
 	if conn == nil {
-		return types.PluginStatusError
+		return types.PluginStatusOffline
 	}
 	return types.PluginStatusNormal
 }
@@ -171,10 +208,12 @@ func getPathByMethod(method types.PluginMethod) string {
 		return "/plugin/send"
 	case types.PluginPersistAfter:
 		return "/plugin/persist_after"
-	case types.PluginReply:
-		return "/plugin/reply"
+	case types.PluginReceive:
+		return "/plugin/receive"
 	case types.PluginRoute:
 		return "/plugin/route"
+	case types.PluginConfigUpdate:
+		return "/plugin/config_update"
 	default:
 		return ""
 	}

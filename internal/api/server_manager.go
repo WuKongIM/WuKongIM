@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -119,6 +120,10 @@ func (m *managerServer) setRoutes() {
 	}
 	// 监控
 	trace.GlobalTrace.Route(m.r)
+
+	// plugin
+	pluginServer := service.PluginManager.(*plugin.Server)
+	pluginServer.SetRoute(m.r)
 
 }
 

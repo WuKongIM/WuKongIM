@@ -98,15 +98,3 @@ func (s *Store) RemoveSystemUids(uids []string) error {
 	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
 	return err
 }
-
-func (s *Store) UpdateUserPluginNo(uid string, pluginNo string) error {
-	data := EncodeCMDUserPluginNo(uid, pluginNo)
-	cmd := NewCMD(CMDUpdateUserPluginNo, data)
-	cmdData, err := cmd.Marshal()
-	if err != nil {
-		return err
-	}
-	slotId := s.opts.Slot.GetSlotId(uid)
-	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
-	return err
-}

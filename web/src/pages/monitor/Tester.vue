@@ -16,6 +16,7 @@
                         <li>3. 开始压测（点击压测机的开始，进行测试脚本配置）</li>
                         <li class="mt-4">可以通过查看监控来了解服务器的承压能力，可以通过查看压测机的报告，实时了解压测进度</li>
                         <li class="mt-2">如果部署了负载均衡，一般负载均衡由于系统端口数量限制，同时连接数不能超过6万，正式环境中可以增加负载均衡的数量来增加同时在线连接数</li>
+                        <li class="mt-2">压力测试报告（官方）：<a class="text-blue-800" target="_blank" href="https://githubim.com/server/advance/stressSingleReport.html">链接</a></li>
                     </ul>
                 </div>
             </div>

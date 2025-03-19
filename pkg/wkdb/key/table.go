@@ -801,3 +801,89 @@ var TableTester = struct {
 		UpdatedAt: [2]byte{0x14, 0x04},
 	},
 }
+
+// ======================== TablePlugin ========================
+// 插件表
+var TablePlugin = struct {
+	Id     [2]byte
+	Size   int
+	Column struct {
+		No             [2]byte // 插件编号
+		Name           [2]byte // 插件名称
+		ConfigTemplate [2]byte // 插件配置模版
+		CreatedAt      [2]byte // 创建时间
+		UpdatedAt      [2]byte // 更新时间
+		Status         [2]byte // 插件状态 0.未设置 1.启用 2.禁用
+		Version        [2]byte // 插件版本
+		Methods        [2]byte // 插件方法
+		Priority       [2]byte // 插件优先级
+		Config         [2]byte // 插件配置
+	}
+}{
+	Id:   [2]byte{0x15, 0x01},
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	Column: struct {
+		No             [2]byte
+		Name           [2]byte
+		ConfigTemplate [2]byte
+		CreatedAt      [2]byte
+		UpdatedAt      [2]byte
+		Status         [2]byte
+		Version        [2]byte
+		Methods        [2]byte
+		Priority       [2]byte
+		Config         [2]byte
+	}{
+		No:             [2]byte{0x15, 0x01},
+		Name:           [2]byte{0x15, 0x02},
+		ConfigTemplate: [2]byte{0x15, 0x03},
+		CreatedAt:      [2]byte{0x15, 0x04},
+		UpdatedAt:      [2]byte{0x15, 0x05},
+		Status:         [2]byte{0x15, 0x06},
+		Version:        [2]byte{0x15, 0x07},
+		Methods:        [2]byte{0x15, 0x08},
+		Priority:       [2]byte{0x15, 0x09},
+		Config:         [2]byte{0x15, 0x0A},
+	},
+}
+
+// ======================== TablePluginUser ========================
+
+// 插件与用户关系表
+var TablePluginUser = struct {
+	Id              [2]byte
+	Size            int
+	SecondIndexSize int
+	Column          struct {
+		PluginNo  [2]byte // 插件编号
+		Uid       [2]byte // 用户uid
+		CreatedAt [2]byte // 创建时间
+		UpdatedAt [2]byte // 更新时间
+	}
+	SecondIndex struct {
+		Uid      [2]byte
+		PluginNo [2]byte
+	}
+}{
+	Id:              [2]byte{0x16, 0x01},
+	Size:            2 + 2 + 8 + 2,     // tableId + dataType  + primaryKey + columnKey
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + columnValue + primaryKey
+	Column: struct {
+		PluginNo  [2]byte
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		PluginNo:  [2]byte{0x16, 0x01},
+		Uid:       [2]byte{0x16, 0x02},
+		CreatedAt: [2]byte{0x16, 0x03},
+		UpdatedAt: [2]byte{0x16, 0x04},
+	},
+	SecondIndex: struct {
+		Uid      [2]byte
+		PluginNo [2]byte
+	}{
+		Uid:      [2]byte{0x16, 0x01},
+		PluginNo: [2]byte{0x16, 0x02},
+	},
+}

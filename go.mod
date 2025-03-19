@@ -6,7 +6,7 @@ require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
 	github.com/WuKongIM/WuKongIMGoProto v1.0.9
 	github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f
-	github.com/WuKongIM/wkrpc v0.0.0-20250213045413-645e58badfbf
+	github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/gin-contrib/gzip v0.0.6
@@ -18,6 +18,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/dskit v0.0.0-20240905221822-931a021fb06b
 	github.com/grafana/loki/v3 v3.2.1
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/lni/goutils v1.4.0
 	github.com/panjf2000/ants/v2 v2.11.0
 	github.com/panjf2000/gnet/v2 v2.7.1
@@ -170,7 +171,7 @@ require (
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
-	github.com/hashicorp/golang-lru v0.6.0
+	github.com/hashicorp/golang-lru v0.6.0 // indirect
 	github.com/hashicorp/memberlist v0.5.0 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/heroku/x v0.0.61 // indirect

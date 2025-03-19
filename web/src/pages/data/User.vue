@@ -9,7 +9,6 @@ const offsetCreatedAt = ref(0); // 偏移量
 const pre = ref(false); // 上一页
 const uid = ref<string>(''); // 用户UID
 const currentUids = ref<string[]>() // 当前用户列表
-
 const hasNext = ref<boolean>(true) // 是否有下一页
 const hasPrev = ref<boolean>(false) // 是否有上一页
 
@@ -77,6 +76,7 @@ const getDenylist = (uid: string) => {
         alert(err)
     })
 }
+
 
 
 const resetFilter = () => {
@@ -238,5 +238,6 @@ const nextPage = () => {
                 <button>close</button>
             </form>
         </dialog>
+
     </div>
 </template>

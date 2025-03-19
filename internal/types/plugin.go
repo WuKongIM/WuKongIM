@@ -10,10 +10,11 @@ import (
 type PluginStatus uint32
 
 const (
-	PluginStatusInit    PluginStatus = iota
-	PluginStatusNormal               = 1 // 插件正常
-	PluginStatusError                = 2 // 插件异常
-	PluginStatusOffline              = 3 // 插件离线
+	PluginStatusInit     PluginStatus = iota
+	PluginStatusNormal                = 1 // 插件正常
+	PluginStatusError                 = 2 // 插件异常
+	PluginStatusOffline               = 3 // 插件离线
+	PluginStatusDisabled              = 4 // 插件禁用
 )
 
 func (s PluginStatus) String() string {
@@ -26,6 +27,8 @@ func (s PluginStatus) String() string {
 		return "error"
 	case PluginStatusOffline:
 		return "offline"
+	case PluginStatusDisabled:
+		return "disabled"
 	}
 	return "unknown"
 }
@@ -38,7 +41,7 @@ type Plugin interface {
 	// PersistAfter 调用插件的PersistAfter方法
 	PersistAfter(ctx context.Context, messages *pluginproto.MessageBatch) error
 	// Reply 调用插件的Reply方法
-	Reply(ctx context.Context, recv *pluginproto.RecvPacket) error
+	Receive(ctx context.Context, recv *pluginproto.RecvPacket) error
 	// Route 调用插件的Route方法
 	Route(ctx context.Context, request *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
 	// Status 获取插件状态
@@ -50,17 +53,23 @@ type PluginMethod string
 const (
 	PluginSend         PluginMethod = "Send"
 	PluginPersistAfter PluginMethod = "PersistAfter"
-	PluginReply        PluginMethod = "Reply"
+	PluginReceive      PluginMethod = "Receive"
 	PluginRoute        PluginMethod = "Route"
+	PluginConfigUpdate PluginMethod = "ConfigUpdate"
 )
+
+func (p PluginMethod) String() string {
+	return string(p)
+}
 
 type PluginMethodType uint32
 
 const (
 	PluginMethodTypeSend         PluginMethodType = 1
 	PluginMethodTypePersistAfter PluginMethodType = 2
-	PluginMethodTypeReply        PluginMethodType = 3
+	PluginMethodTypeReceive      PluginMethodType = 3
 	PluginMethodTypeRoute        PluginMethodType = 4
+	PluginMethodTypeConfigUpdate PluginMethodType = 5
 )
 
 func (p PluginMethod) Type() PluginMethodType {
@@ -69,10 +78,12 @@ func (p PluginMethod) Type() PluginMethodType {
 		return PluginMethodTypeSend
 	case PluginPersistAfter:
 		return PluginMethodTypePersistAfter
-	case PluginReply:
-		return PluginMethodTypeReply
+	case PluginReceive:
+		return PluginMethodTypeReceive
 	case PluginRoute:
 		return PluginMethodTypeRoute
+	case PluginConfigUpdate:
+		return PluginMethodTypeConfigUpdate
 	}
 	return 0
 }

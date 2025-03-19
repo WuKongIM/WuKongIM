@@ -1002,3 +1002,78 @@ func ParseTesterColumnKey(key []byte) (id uint64, columnName [2]byte, err error)
 	columnName[1] = key[13]
 	return
 }
+
+// ---------------------- Plugin ----------------------
+
+func NewPluginColumnKey(id uint64, columnName [2]byte) []byte {
+	key := make([]byte, TablePlugin.Size)
+	key[0] = TablePlugin.Id[0]
+	key[1] = TablePlugin.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], id)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
+func ParsePluginColumnKey(key []byte) (id uint64, columnName [2]byte, err error) {
+	if len(key) != TablePlugin.Size {
+		err = fmt.Errorf("plugin: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	id = binary.BigEndian.Uint64(key[4:])
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	return
+}
+
+// ---------------------- PluginUser ----------------------
+
+func NewPluginUserColumnKey(pluginId uint64, columnName [2]byte) []byte {
+	key := make([]byte, TablePluginUser.Size)
+	key[0] = TablePluginUser.Id[0]
+	key[1] = TablePluginUser.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], pluginId)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
+func ParsePluginUserColumnKey(key []byte) (pluginId uint64, columnName [2]byte, err error) {
+	if len(key) != TablePluginUser.Size {
+		err = fmt.Errorf("pluginUser: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	pluginId = binary.BigEndian.Uint64(key[4:])
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	return
+}
+
+func NewPluginUserSecondIndexKey(indexName [2]byte, columnValue uint64, id uint64) []byte {
+	key := make([]byte, TablePluginUser.SecondIndexSize)
+	key[0] = TablePluginUser.Id[0]
+	key[1] = TablePluginUser.Id[1]
+	key[2] = dataTypeIndex
+	key[3] = 0
+	key[4] = indexName[0]
+	key[5] = indexName[1]
+	binary.BigEndian.PutUint64(key[6:], columnValue)
+	binary.BigEndian.PutUint64(key[14:], id)
+
+	return key
+}
+
+func ParsePluginUserSecondIndexKey(key []byte) (columnValue uint64, id uint64, err error) {
+	if len(key) != TablePluginUser.SecondIndexSize {
+		err = fmt.Errorf("PluginUser: second index invalid key length, keyLen: %d", len(key))
+		return
+	}
+	columnValue = binary.BigEndian.Uint64(key[6:])
+	id = binary.BigEndian.Uint64(key[14:])
+	return
+
+}
