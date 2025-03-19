@@ -83,6 +83,13 @@ func (c *Context) ResponseError(err error) {
 	})
 }
 
+func (c *Context) ResponseErrorWithStatus(status int, err error) {
+	c.JSON(http.StatusBadRequest, gin.H{
+		"msg":    err.Error(),
+		"status": status,
+	})
+}
+
 // ResponseOK 返回正确
 func (c *Context) ResponseOK() {
 	c.JSON(http.StatusOK, gin.H{

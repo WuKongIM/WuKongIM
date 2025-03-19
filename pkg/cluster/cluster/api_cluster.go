@@ -165,7 +165,7 @@ func (s *Server) channelClusterConfig(c *wkhttp.Context) {
 func (s *Server) channelStart(c *wkhttp.Context) {
 
 	if !s.opts.Auth.HasPermissionWithContext(c, resource.ClusterChannel.Start, auth.ActionWrite) {
-		c.ResponseStatus(http.StatusUnauthorized)
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
 		return
 	}
 
@@ -202,7 +202,7 @@ func (s *Server) channelStart(c *wkhttp.Context) {
 func (s *Server) channelStop(c *wkhttp.Context) {
 
 	if !s.opts.Auth.HasPermissionWithContext(c, resource.ClusterChannel.Stop, auth.ActionWrite) {
-		c.ResponseStatus(http.StatusUnauthorized)
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
 		return
 	}
 

@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/auth"
+	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -188,6 +191,12 @@ func (s *Server) handlePluginRoute(c *wkhttp.Context) {
 }
 
 func (s *Server) handleUpdatePluginConfig(c *wkhttp.Context) {
+
+	if !options.G.Auth.HasPermissionWithContext(c, resource.Plugin.ConfigUpdate, auth.ActionWrite) {
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
+		return
+	}
+
 	pluginNo := c.Param("plugin")
 
 	var req struct {
@@ -263,6 +272,12 @@ func (s *Server) handleUpdatePluginConfig(c *wkhttp.Context) {
 }
 
 func (s *Server) handlePluginBind(c *wkhttp.Context) {
+
+	if !options.G.Auth.HasPermissionWithContext(c, resource.PluginUser.Add, auth.ActionWrite) {
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
+		return
+	}
+
 	var req struct {
 		PluginNo string `json:"plugin_no"`
 		Uid      string `json:"uid"`
@@ -310,6 +325,12 @@ func (s *Server) handlePluginBind(c *wkhttp.Context) {
 }
 
 func (s *Server) handlePluginUnbind(c *wkhttp.Context) {
+
+	if !options.G.Auth.HasPermissionWithContext(c, resource.PluginUser.Delete, auth.ActionWrite) {
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
+		return
+	}
+
 	var req struct {
 		PluginNo string `json:"plugin_no"`
 		Uid      string `json:"uid"`
@@ -461,6 +482,11 @@ func (s *Server) searchPluginUsers(req wkdb.SearchPluginUserReq) ([]*pluginUserR
 }
 
 func (s *Server) handleUninstall(c *wkhttp.Context) {
+	if !options.G.Auth.HasPermissionWithContext(c, resource.Plugin.Uninstall, auth.ActionWrite) {
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
+		return
+	}
+
 	var req struct {
 		PluginNo string `json:"plugin_no"` // 插件编号
 		NodeId   uint64 `json:"node_id"`   // 插件所在节点
