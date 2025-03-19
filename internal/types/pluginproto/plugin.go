@@ -2,6 +2,20 @@ package pluginproto
 
 import "google.golang.org/protobuf/proto"
 
+// 字段类型
+type FieldType string
+
+const (
+	FieldTypeString FieldType = "string"
+	FieldTypeNumber FieldType = "number"
+	FieldTypeBool   FieldType = "bool"
+	FieldTypeSecret FieldType = "secret"
+)
+
+func (f FieldType) String() string {
+	return string(f)
+}
+
 func (p *PluginInfo) Marshal() ([]byte, error) {
 	return proto.Marshal(p)
 }
@@ -190,4 +204,28 @@ func (r *RecvPacket) Marshal() ([]byte, error) {
 
 func (r *RecvPacket) Unmarshal(data []byte) error {
 	return proto.Unmarshal(data, r)
+}
+
+func (c *ConfigTemplate) Marshal() ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+func (c *ConfigTemplate) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, c)
+}
+
+func (s *SendReq) Marshal() ([]byte, error) {
+	return proto.Marshal(s)
+}
+
+func (s *SendReq) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, s)
+}
+
+func (s *SendResp) Marshal() ([]byte, error) {
+	return proto.Marshal(s)
+}
+
+func (s *SendResp) Unmarshal(data []byte) error {
+	return proto.Unmarshal(data, s)
 }

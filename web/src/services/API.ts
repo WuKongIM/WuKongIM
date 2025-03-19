@@ -407,6 +407,57 @@ export default class API {
         })
     }
 
+    // 插件列表
+    public plugins(req:{nodeId?:number,type?:string}) {
+        return APIClient.shared.get(`/plugins`,{
+            param: {
+                node_id: req.nodeId,
+                type: req.type,
+            }
+        })
+    }
+
+    // 提交插件配置
+    public pluginConfig(req:{nodeId:number,pluginNo:string,config:any}) {
+        return APIClient.shared.post(`/pluginconfig/${req.pluginNo}`,{
+            node_id: req.nodeId,
+            config: req.config,
+        })
+    }
+
+    // 插件绑定列表
+    public pluginBindList(req:{uid?:string,pluginNo?:string}) {
+        return APIClient.shared.get(`/plugin/bind`,{
+            param: {
+                uid: req.uid,
+                plugin_no: req.pluginNo,
+            }
+        })
+    }
+    // 插件绑定
+    public pluginBind(req:{uid:string,pluginNo:string}) {
+        return APIClient.shared.post(`/plugin/bind`,{
+            uid: req.uid,
+            plugin_no: req.pluginNo,
+        })
+    }
+
+    // 卸载插件
+    public pluginUninstall(req:{nodeId:number,pluginNo:string}) {
+        return APIClient.shared.post(`/plugin/uninstall`,{
+            node_id: req.nodeId,
+            plugin_no: req.pluginNo,
+        })
+    }
+
+    // 接触插件绑定
+    public pluginUnbind(req:{uid:string,pluginNo:string}) {
+        return APIClient.shared.post(`/plugin/unbind`,{
+            uid: req.uid,
+            plugin_no: req.pluginNo,
+        })
+    }
+
 }
 
 export class SystemSetting {

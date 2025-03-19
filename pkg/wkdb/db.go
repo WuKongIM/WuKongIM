@@ -29,6 +29,8 @@ type DB interface {
 	StreamDB
 	// 测试机
 	TesterDB
+	// 插件
+	PluginDB
 }
 
 type MessageDB interface {
@@ -120,15 +122,6 @@ type UserDB interface {
 
 	// UpdateUser 更新用户
 	UpdateUser(u User) error
-
-	// GetUserPluginNo 获取用户的插件编号
-	GetUserPluginNo(uid string) (string, error)
-
-	// UpdateUserPluginNo 更新用户的插件编号
-	UpdateUserPluginNo(uid string, pluginNo string) error
-
-	// ExistUserPlugin 判断用户的插件编号是否存在
-	ExistUserPlugin(uid string) (bool, error)
 }
 
 type ChannelDB interface {
@@ -399,6 +392,33 @@ type TesterDB interface {
 
 	// RemoveTester 移除测试机
 	RemoveTester(no string) error
+}
+
+type PluginDB interface {
+	// AddOrUpdatePlugin 添加或更新插件
+	AddOrUpdatePlugin(plugin Plugin) error
+	// DeletePlugin 删除插件
+	DeletePlugin(no string) error
+	// GetPlugins 获取插件列表
+	GetPlugins() ([]Plugin, error)
+	// GetPlugin 获取插件
+	GetPlugin(no string) (Plugin, error)
+	// AddOrUpdatePluginUsers 添加或更新插件用户，如果用户已经存在则更新
+	AddOrUpdatePluginUsers(pluginUsers []PluginUser) error
+	// RemovePluginUser 移除插件用户
+	RemovePluginUser(pluginNo string, uid string) error
+	// GetPluginUsers 获取插件绑定的用户列表
+	GetPluginUsers(pluginNo string) ([]PluginUser, error)
+	// GetHighestPriorityPluginByUid 获取用户最高优先级的插件
+	GetHighestPriorityPluginByUid(uid string) (string, error)
+	// ExistPluginByUid 判断用户是否存在插件
+	ExistPluginByUid(uid string) (bool, error)
+	// UpdatePluginConfig 更新插件配置
+	UpdatePluginConfig(no string, config map[string]interface{}) error
+	// GetPluginConfig 获取插件配置
+	GetPluginConfig(no string) (map[string]interface{}, error)
+	// SearchPluginUsers 搜索插件用户
+	SearchPluginUsers(req SearchPluginUserReq) ([]PluginUser, error)
 }
 
 type MessageSearchReq struct {

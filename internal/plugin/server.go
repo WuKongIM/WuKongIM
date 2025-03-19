@@ -4,15 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/WuKongIM/WuKongIM/pkg/fasthash"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
 	"go.uber.org/zap"
@@ -25,11 +31,14 @@ type Server struct {
 	wklog.Log
 	opts       *Options
 	sandboxDir string // 沙箱目录
+
+	userPluginBuckets []*userPluginBucket
+	bucketSize        int // 缓存桶大小
 }
 
 func NewServer(opts *Options) *Server {
 
-	addr, err := getUnixSocket()
+	addr, err := getUnixSocket(opts.SocketPath)
 	if err != nil {
 		panic(err)
 	}
@@ -52,10 +61,10 @@ func NewServer(opts *Options) *Server {
 		}
 	}
 
-	// 插件目录权限为只读，防止插件在目录下创建文件
-	if err = os.Chmod(opts.Dir, 0555); err != nil {
-		return nil
-	}
+	// // 插件目录权限为只读，防止插件在目录下创建文件
+	// if err = os.Chmod(opts.Dir, os.ModePerm); err != nil {
+	// 	return nil
+	// }
 
 	s := &Server{
 		rpcServer:     rpcServer,
@@ -63,8 +72,14 @@ func NewServer(opts *Options) *Server {
 		pluginManager: newPluginManager(),
 		Log:           wklog.NewWKLog("plugin.server"),
 		sandboxDir:    sandboxDir,
+		bucketSize:    10,
 	}
 	s.rpc = newRpc(s)
+
+	s.userPluginBuckets = make([]*userPluginBucket, s.bucketSize)
+	for i := 0; i < s.bucketSize; i++ {
+		s.userPluginBuckets[i] = newUserPluginBucket(i)
+	}
 	return s
 }
 
@@ -78,6 +93,13 @@ func (s *Server) Start() error {
 		s.Error("start plugins error", zap.Error(err))
 		return err
 	}
+
+	go func() {
+		if err := s.installPluginsIfNeed(); err != nil {
+			s.Info("install plugins error", zap.Error(err))
+			return
+		}
+	}()
 
 	return nil
 }
@@ -126,14 +148,56 @@ func (s *Server) Plugin(no string) types.Plugin {
 	return pg
 }
 
-func getUnixSocket() (string, error) {
-	homeDir, err := os.UserHomeDir()
+func (s *Server) UserIsAI(uid string) bool {
+	_, ok := s.getPluginNoFromCache(uid)
+	if ok {
+		return ok
+	}
+	exist, err := service.Store.DB().ExistPluginByUid(uid)
 	if err != nil {
+		s.Error("查询用户AI插件失败！", zap.Error(err), zap.String("uid", uid))
+		return false
+	}
+	return exist
+}
+
+func (s *Server) GetUserPluginNo(uid string) (string, error) {
+	pluginNo, ok := s.getPluginNoFromCache(uid)
+	if ok {
+		return pluginNo, nil
+	}
+	pluginNo, err := service.Store.DB().GetHighestPriorityPluginByUid(uid)
+	if err != nil {
+		s.Error("获取用户AI插件编号失败！", zap.Error(err), zap.String("uid", uid))
 		return "", err
 	}
-	socketPath := path.Join(homeDir, ".wukong", "run", "wukongim.sock")
+	if pluginNo != "" {
+		s.setPluginNoToCache(uid, pluginNo)
+	}
+	return pluginNo, nil
+}
 
-	err = os.Remove(socketPath)
+func (s *Server) getPluginNoFromCache(uid string) (string, bool) {
+	fh := fasthash.Hash(uid)
+	index := int(fh) % s.bucketSize
+	return s.userPluginBuckets[index].get(uid)
+}
+
+func (s *Server) setPluginNoToCache(uid, pluginNo string) {
+	fh := fasthash.Hash(uid)
+	index := int(fh) % s.bucketSize
+	s.userPluginBuckets[index].add(uid, pluginNo)
+}
+
+func (s *Server) removePluginNoFromCache(uid string) {
+	fh := fasthash.Hash(uid)
+	index := int(fh) % s.bucketSize
+	s.userPluginBuckets[index].remove(uid)
+}
+
+func getUnixSocket(socketPath string) (string, error) {
+
+	err := os.Remove(socketPath)
 	if err != nil && !os.IsNotExist(err) {
 		log.Printf(`removing "%s": %s`, socketPath, err)
 		panic(err)
@@ -149,6 +213,117 @@ func getUnixSocket() (string, error) {
 	return fmt.Sprintf("unix://%s", socketPath), nil
 }
 
+// installPlugins 安装插件
+func (s *Server) installPluginsIfNeed() error {
+	for _, pluginUrl := range s.opts.Install {
+		// 安装插件
+		err := s.installPlugin(pluginUrl)
+		if err != nil {
+			s.Error("install plugin error", zap.Error(err))
+			continue
+		}
+
+	}
+	return nil
+}
+
+func (s *Server) installPlugin(pluginUrl string) error {
+
+	// 检查插件地址是否合法
+	if pluginUrl == "" {
+		return errors.New("plugin url is empty")
+	}
+
+	if !isPluginExt(path.Ext(pluginUrl)) {
+		return errors.New("plugin url is invalid")
+	}
+
+	// 替换url中${xx}的参数
+	pluginUrl = replacePluginUrl(pluginUrl)
+
+	// 判断插件是否已经安装
+	if s.isInstalledPlugin(path.Base(pluginUrl)) {
+		return nil
+	}
+
+	// 下载插件
+	s.Info("Plugin download", zap.String("plugin", pluginUrl))
+	pluginTmpPath, err := s.downloadPlugin(pluginUrl)
+	if err != nil {
+		s.Info("Plugin download error", zap.Error(err))
+		return err
+	}
+
+	// 移动插件到插件目录
+	pluginName := path.Base(pluginUrl)
+	newPluginPath := path.Join(s.opts.Dir, pluginName)
+	err = os.Rename(pluginTmpPath, newPluginPath)
+	if err != nil {
+		return err
+	}
+
+	// 设置插件权限
+	err = os.Chmod(newPluginPath, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	s.Info("Plugin install success", zap.String("plugin", pluginUrl))
+	return nil
+}
+
+func replacePluginUrl(pluginUrl string) string {
+	// 替换url中${xx}的参数
+	pluginUrl = os.Expand(pluginUrl, func(key string) string {
+		switch key {
+		case "os":
+			return runtime.GOOS
+		case "arch":
+			return runtime.GOARCH
+		}
+		return ""
+	})
+	return pluginUrl
+}
+
+func (s *Server) downloadPlugin(pluginUrl string) (string, error) {
+	// 下载插件
+	pluginTmpPath := path.Join(os.TempDir(), path.Base(pluginUrl)+"_"+time.Now().Format("20060102150405"))
+	err := s.downloadFile(pluginUrl, pluginTmpPath)
+	if err != nil {
+		return "", err
+	}
+	return pluginTmpPath, nil
+}
+
+func (s *Server) downloadFile(url, filePath string) error {
+	// 创建文件
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 下载文件
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// 判断插件是否已经安装
+func (s *Server) isInstalledPlugin(pluginName string) bool {
+	pluginPath := path.Join(s.opts.Dir, pluginName)
+	_, err := os.Stat(pluginPath)
+	return err == nil
+}
+
 // 启动插件执行文件
 func (s *Server) startPlugins() error {
 	pluginDir := s.opts.Dir
@@ -162,7 +337,10 @@ func (s *Server) startPlugins() error {
 		if file.IsDir() {
 			continue
 		}
-
+		// 判断是否是插件扩展
+		if !isPluginExt(path.Ext(file.Name())) {
+			continue
+		}
 		// 启动插件
 		s.Info("Plugin start", zap.String("plugin", file.Name()))
 		err := s.startPluginApp(file.Name())
@@ -210,9 +388,12 @@ func (s *Server) watchPlugins() error {
 			if fileInfo != nil && fileInfo.IsDir() {
 				continue
 			}
-
 			// 获取插件名字
 			pluginName := path.Base(event.Name)
+			// 判断是否是插件扩展
+			if !isPluginExt(path.Ext(pluginName)) {
+				continue
+			}
 
 			if event.Has(fsnotify.Create) { // 新增插件
 
@@ -248,6 +429,11 @@ func (s *Server) watchPlugins() error {
 
 }
 
+// 是否是插件扩展
+func isPluginExt(ext string) bool {
+	return ext == ".wkp"
+}
+
 func (s *Server) stopPlugins() error {
 	pluginDir := s.opts.Dir
 	// 获取插件目录下的所有文件
@@ -274,7 +460,20 @@ func (s *Server) stopPlugins() error {
 // 启动插件程序
 func (s *Server) startPluginApp(name string) error {
 
-	cmd := exec.Command("./" + name)
+	// 获取SocketPath的绝对路径
+	socketPath, err := filepath.Abs(s.opts.SocketPath)
+	if err != nil {
+		s.Error("get socket path error", zap.Error(err))
+		return err
+	}
+	shadboxDir, err := filepath.Abs(s.sandboxDir)
+	if err != nil {
+		s.Error("get sandbox dir error", zap.Error(err))
+		return err
+	}
+
+	// 启动插件
+	cmd := exec.Command("./"+name, "--socket", socketPath, "--sandbox", shadboxDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Dir = s.opts.Dir
@@ -284,7 +483,7 @@ func (s *Server) startPluginApp(name string) error {
 		cmd.Err = nil
 	}
 	// start the process
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		s.Error("starting plugin process failed", zap.Error(err), zap.String("plugin", name))
 		return err
@@ -324,5 +523,43 @@ func (s *Server) stopPluginApp(name string) error {
 	// if err != nil {
 	// 	return err
 	// }
+	return nil
+}
+
+func (s *Server) stopPluginAppByPluginNo(no string) error {
+	// 通知插件停止
+	p := s.pluginManager.get(no)
+	if p == nil {
+		return nil
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return p.Stop(timeoutCtx)
+}
+
+// UninstallPlugin 卸载插件
+func (s *Server) UninstallPlugin(pluginNo string, name string) error {
+	// 停止插件
+	err := s.stopPluginAppByPluginNo(pluginNo)
+	if err != nil {
+		return err
+	}
+
+	// 删除插件
+	pluginPath := path.Join(s.opts.Dir, name)
+
+	// 判断文件是否存在
+	_, err = os.Stat(pluginPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+	}
+
+	// 删除插件
+	err = os.Remove(pluginPath)
+	if err != nil {
+		return err
+	}
 	return nil
 }

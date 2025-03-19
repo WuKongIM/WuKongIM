@@ -34,3 +34,8 @@ auth:
 jwt: ## jwt认证方式
   secret: "xxxxx" # jwt密钥
   expire: 30d # jwt过期时间
+
+plugin:
+  install: # 默认安装的插件列表  安装最新版本 ${os}: 当前操作系统 ${arch}: 当前操作系统架构。github地址替换https://github.com/WuKongIM/plugins
+    #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-example-${os}-${arch}.wkp"
+    #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-volcengine-${os}-${arch}.wkp"

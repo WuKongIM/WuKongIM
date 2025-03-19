@@ -853,3 +853,44 @@ func (t *Tester) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+
+// 插件状态
+type PluginStatus uint32
+
+const (
+	// PluginStatusUnset 未设置
+	PluginStatusUnset PluginStatus = iota
+	// PluginStatusEnable 启用
+	PluginStatusEnable
+	// PluginStatusDisabled 禁用
+	PluginStatusDisabled
+)
+
+type Plugin struct {
+	No             string
+	Name           string
+	ConfigTemplate []byte
+	CreatedAt      *time.Time
+	UpdatedAt      *time.Time
+	Status         PluginStatus
+	Version        string
+	Methods        []string
+	Priority       uint32
+	Config         map[string]interface{}
+}
+
+func IsEmptyPlugin(p Plugin) bool {
+	return p.No == ""
+}
+
+type PluginUser struct {
+	Uid       string
+	PluginNo  string
+	CreatedAt *time.Time
+	UpdatedAt *time.Time
+}
+
+type SearchPluginUserReq struct {
+	PluginNo string
+	Uid      string
+}

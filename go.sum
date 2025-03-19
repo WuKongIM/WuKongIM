@@ -276,8 +276,8 @@ github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f h1:erzPrCjuS7yvfpM
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f/go.mod h1:gS8ErzMrBY+zJfxwFFzUzR9S2jFo/FTyEVr4pedbfbA=
 github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05 h1:z6Zu0VFnXA/+IcNAI/G0QgvIZZlU4aF6pf/fPP780hY=
 github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05/go.mod h1:/juNjLcqcoW/NkNi4rxnhDvDAUo76w3qIZ4dgLkZvH0=
-github.com/WuKongIM/wkrpc v0.0.0-20250213045413-645e58badfbf h1:ngIAMjSPdrstBkJ0yRvmGccI2yVBGv7DlghUvsFT5t8=
-github.com/WuKongIM/wkrpc v0.0.0-20250213045413-645e58badfbf/go.mod h1:V/m/6c8aNqXDvmu8NGx7HDct1Y62yQAkvJA43uEOObk=
+github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8 h1:oybJMy0RJ5DGYiE26hT0Ud2uKUUXP50LCEXonhwrgik=
+github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8/go.mod h1:JXp1IM0XGJxq987jDEP/63dmb8/pEyXw12es04gUjuI=
 github.com/abdullin/seq v0.0.0-20160510034733-d5467c17e7af/go.mod h1:5Jv4cbFiHJMsVxt52+i0Ha45fjshj6wxYr1r19tB9bw=
 github.com/aerospike/aerospike-client-go v1.27.0/go.mod h1:zj8LBEnWBDOVEIJt8LvaRvDG5ARAoa5dBeHaB472NRc=
 github.com/agnivade/levenshtein v1.0.1/go.mod h1:CURSv5d9Uaml+FovSIICkLbAUZ9S4RqaHDIsdSBg7lM=
@@ -1098,6 +1098,8 @@ github.com/hashicorp/golang-lru v0.5.3/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uG
 github.com/hashicorp/golang-lru v0.5.4/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
 github.com/hashicorp/golang-lru v0.6.0 h1:uL2shRDx7RTrOrTCUZEGP/wJUFiUI8QT6E7z5o8jga4=
 github.com/hashicorp/golang-lru v0.6.0/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
+github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
+github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/hashicorp/hcl v1.0.0 h1:0Anlzjpi4vEasTeNFn2mLJgTSwt0+6sfsiTG8qcWGx4=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/hashicorp/hcp-scada-provider v0.2.0/go.mod h1:Q0WpS2RyhBKOPD4X/8oW7AJe7jA2HXB09EwDzwRTao0=

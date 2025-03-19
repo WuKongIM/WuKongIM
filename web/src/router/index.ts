@@ -18,6 +18,8 @@ import Message from '../pages/data/Message.vue'
 import ChannelForData from '../pages/data/Channel.vue'
 import Conversation from '../pages/data/Conversation.vue'
 import Tag from '../pages/data/Tag.vue'
+import Plugin from '../pages/data/Plugin.vue'
+import AI from '../pages/data/AI.vue'
 
 // ==================== monitor ====================
 
@@ -109,6 +111,16 @@ const router = createRouter({
       path: '/data/tag',
       name: 'dataTag',
       component: Tag
+    },
+    {
+      path: '/data/plugin',
+      name: 'dataPlugin',
+      component: Plugin
+    },
+    {
+      path: '/data/ai',
+      name: 'dataAI',
+      component: AI
     },
     // ==================== monitor ====================
     {

@@ -13,6 +13,18 @@ func ArrayContains(items []string, target string) bool {
 
 }
 
+func ArrayEqual(items1 []string, items2 []string) bool {
+	if len(items1) != len(items2) {
+		return false
+	}
+	for i, element := range items1 {
+		if element != items2[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func ArrayContainsUint64(items []uint64, target uint64) bool {
 	if len(items) == 0 {
 		return false

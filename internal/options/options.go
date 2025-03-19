@@ -303,7 +303,9 @@ type Options struct {
 	}
 	// 插件配置
 	Plugin struct {
-		Timeout time.Duration // 插件超时时间
+		Timeout    time.Duration // 插件超时时间
+		SocketPath string        // 插件socket地址
+		Install    []string      // 默认插件安装地址
 	}
 }
 
@@ -665,7 +667,9 @@ func New(op ...Option) *Options {
 			Expire: time.Minute * 20,
 		},
 		Plugin: struct {
-			Timeout time.Duration
+			Timeout    time.Duration
+			SocketPath string
+			Install    []string
 		}{
 			Timeout: time.Second * 1,
 		},
@@ -694,6 +698,11 @@ func GetHomeDir() (string, error) {
 func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.vp = vp
 	// o.ID = o.getInt64("id", o.ID)
+
+	homeDir, err := GetHomeDir()
+	if err != nil {
+		panic(err)
+	}
 
 	o.RootDir = o.getString("rootDir", o.RootDir)
 
@@ -817,7 +826,6 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.configureLog(vp)   // 日志配置
 
 	externalIp := o.External.IP
-	var err error
 	if strings.TrimSpace(externalIp) == "" && o.External.AutoGetExternalIP { // 开启了自动获取外网ip并且没有配置外网ip
 		externalIp, err = GetExternalIP() // 获取外网IP
 		if err != nil {
@@ -970,6 +978,14 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	// =================== plugin ===================
 	o.Plugin.Timeout = o.getDuration("plugin.timeout", o.Plugin.Timeout)
+	o.Plugin.SocketPath = o.getString("plugin.socketPath", o.Plugin.SocketPath)
+	if strings.TrimSpace(o.Plugin.SocketPath) == "" {
+		o.Plugin.SocketPath = path.Join(homeDir, ".wukong", "run", "wukongim.sock")
+	}
+	installPlugins := o.getStringSlice("plugin.install")
+	if len(installPlugins) > 0 {
+		o.Plugin.Install = installPlugins
+	}
 
 	// =================== other ===================
 	deadlock.Opts.Disable = !o.DeadlockCheck

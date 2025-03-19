@@ -225,7 +225,11 @@ func New(opts *options.Options) *Server {
 
 	// plugin server
 	s.pluginServer = plugin.NewServer(
-		plugin.NewOptions(plugin.WithDir(path.Join(s.opts.RootDir, "plugins"))),
+		plugin.NewOptions(
+			plugin.WithDir(path.Join(s.opts.RootDir, "plugins")),
+			plugin.WithSocketPath(s.opts.Plugin.SocketPath),
+			plugin.WithInstall(s.opts.Plugin.Install),
+		),
 	)
 	service.PluginManager = s.pluginServer
 	return s

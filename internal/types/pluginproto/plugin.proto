@@ -21,10 +21,19 @@ message PluginInfo {
     bool persistAfterSync = 6;
     // Reply方法是否同步调用
     bool replySync = 7;
-    // 注册的http post请求路径
-    repeated string postPaths = 8;
-    // 注册的http get请求路径
-    repeated string getPaths = 9;
+    // 插件配置模版
+    ConfigTemplate configTemplate = 8;
+}
+
+
+message Field {
+    string name = 1;
+    string type = 2;
+    string label = 3;
+}
+
+message ConfigTemplate {
+    repeated Field fields = 1;
 }
 
 // 插件启动返回
@@ -37,6 +46,8 @@ message StartupResp {
     string errMsg = 3;
     // 沙盒路径
     string sandboxDir = 4;
+    // 配置
+    bytes config = 5;
 }
 
 // 发送包
@@ -262,4 +273,20 @@ message StreamWriteResp {
     int64 messageId = 1;
     // 客户端消息编号
     string clientMsgNo = 2;
+}
+
+// 发送消息请求
+message SendReq {
+    Header header = 1; // 头部
+    string clientMsgNo = 2;// 客户端消息编号（相同编号，客户端只会显示一条，可以为空）
+    string fromUid = 3; // 发送者
+    string channelId = 4; // 频道id
+    uint32 channelType = 5; // 频道类型
+    bytes payload = 6; // 消息内容
+}
+
+// 发送消息响应
+message SendResp {
+    // 消息唯一id（全局唯一）
+    int64 messageId = 1;
 }

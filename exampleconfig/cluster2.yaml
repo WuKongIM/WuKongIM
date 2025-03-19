@@ -47,3 +47,5 @@ auth:
 jwt:
   secret: "wukongim_test_secret"
   expire: 30d 
+plugin:
+  socketPath: "./wukongimdata/2/wukongim.sock" # 插件unix socket通讯地址
