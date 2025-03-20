@@ -55,10 +55,7 @@
         <img src="./docs/architecture/cluster-failover.webp" alt="故障转移">
       </td>
       <td style="text-align: center;">
-        <video controls>
-          <source src="./docs/video/stream.mp4" type="video/mp4">
-          您的浏览器不支持视频标签。
-        </video>
+         <img src="./docs/video/stream.webp" alt="AI+流消息">
       </td>
     </tr>
   </tbody>
