@@ -38,6 +38,34 @@
 ![架构图](./docs/architecture/cluster.png)
 
 
+视频演示
+--------
+
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center;">故障转移演示</th>
+      <th style="text-align: center;">AI演示</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center;">
+        <img src="./docs/architecture/cluster-failover.webp" alt="故障转移">
+      </td>
+      <td style="text-align: center;">
+        <video controls>
+          <source src="./docs/video/stream.mp4" type="video/mp4">
+          您的浏览器不支持视频标签。
+        </video>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
 
 演示
 --------
