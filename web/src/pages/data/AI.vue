@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue';
 import API from '../../services/API';
 import 'vue-json-pretty/lib/styles.css';
 
-const selectedNodeId = ref<number>(1); // 选中的节点ID
+const selectedNodeId = ref<number>(0); // 选中的节点ID
 const pluginUsers = ref<any[]>([]); // 插件用户列表
 const plugins = ref<any[]>([]); // 插件列表
 const currentSelectPluginUser = ref<any>({}); // 当前选择的插件用户

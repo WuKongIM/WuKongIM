@@ -380,6 +380,22 @@ func (s *Server) handlePluginUnbind(c *wkhttp.Context) {
 func (s *Server) handlePluginBindList(c *wkhttp.Context) {
 	uid := c.Query("uid")
 	pluginNo := c.Query("plugin_no")
+	nodeId := wkutil.ParseUint64(c.Query("node_id"))
+
+	if nodeId != 0 && options.G.IsLocalNode(nodeId) {
+		// 本地节点
+		pluginUsers, err := s.searchPluginUsers(wkdb.SearchPluginUserReq{
+			Uid:      uid,
+			PluginNo: pluginNo,
+		})
+		if err != nil {
+			s.Error("search plugin users failed", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		c.JSON(http.StatusOK, pluginUsers)
+		return
+	}
 
 	nodes := service.Cluster.Nodes()
 	if len(nodes) == 0 {
@@ -414,8 +430,14 @@ func (s *Server) handlePluginBindList(c *wkhttp.Context) {
 
 		reqUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, c.Request.URL.Path)
 
+		nodeId := node.Id
+		if nodeId == 0 {
+			s.Error("handlePluginBindList: node id is 0")
+			c.ResponseError(fmt.Errorf("node id is 0"))
+			return
+		}
 		eg.Go(func() error {
-			pluginUsers, err := s.forwardSearchPluginUsers(reqUrl)
+			pluginUsers, err := s.forwardSearchPluginUsers(reqUrl, nodeId)
 			if err != nil {
 				return err
 			}
@@ -452,8 +474,10 @@ func (s *Server) handlePluginBindList(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, uniqueResps)
 }
 
-func (s *Server) forwardSearchPluginUsers(url string) ([]*pluginUserResp, error) {
-	resp, err := network.Get(url, nil, nil)
+func (s *Server) forwardSearchPluginUsers(url string, nodeId uint64) ([]*pluginUserResp, error) {
+	resp, err := network.Get(url, map[string]string{
+		"node_id": fmt.Sprintf("%d", nodeId),
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -482,6 +506,7 @@ func (s *Server) searchPluginUsers(req wkdb.SearchPluginUserReq) ([]*pluginUserR
 }
 
 func (s *Server) handleUninstall(c *wkhttp.Context) {
+
 	if !options.G.Auth.HasPermissionWithContext(c, resource.Plugin.Uninstall, auth.ActionWrite) {
 		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
 		return
@@ -506,18 +531,6 @@ func (s *Server) handleUninstall(c *wkhttp.Context) {
 		req.NodeId = options.G.Cluster.NodeId
 	}
 
-	plugin, err := service.Store.DB().GetPlugin(req.PluginNo)
-	if err != nil {
-		s.Error("get plugin failed", zap.Error(err), zap.String("plugin_no", req.PluginNo))
-		c.ResponseError(err)
-		return
-	}
-
-	if wkdb.IsEmptyPlugin(plugin) {
-		c.ResponseError(fmt.Errorf("plugin not found"))
-		return
-	}
-
 	// 如果插件不是本地节点的插件，则转发到指定节点
 	if !options.G.IsLocalNode(req.NodeId) {
 		node := service.Cluster.NodeInfoById(req.NodeId)
@@ -528,6 +541,18 @@ func (s *Server) handleUninstall(c *wkhttp.Context) {
 		}
 		// 转发到指定节点
 		c.ForwardWithBody(fmt.Sprintf("%s%s", node.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	plugin, err := service.Store.DB().GetPlugin(req.PluginNo)
+	if err != nil {
+		s.Error("get plugin failed", zap.Error(err), zap.String("plugin_no", req.PluginNo))
+		c.ResponseError(err)
+		return
+	}
+
+	if wkdb.IsEmptyPlugin(plugin) {
+		c.ResponseError(fmt.Errorf("plugin not found"))
 		return
 	}
 
