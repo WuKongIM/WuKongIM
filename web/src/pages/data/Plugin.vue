@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue';
 import API from '../../services/API';
 import 'vue-json-pretty/lib/styles.css';
 
-const selectedNodeId = ref<number>(1); // 选中的节点ID
+const selectedNodeId = ref<number>(0); // 选中的节点ID
 const nodeTotal = ref<any>({}); // 节点列表
 const plugins = ref<any[]>([]); // 插件列表
 const currentPlugin = ref<any>({}); // 当前插件
@@ -117,6 +117,9 @@ const uninstall = () => {
                     </select>
                 </div>
             </div>
+            <ul class="text text-xs ml-4 mt-4 text-red-500">
+                <li>插件开发和使用文档：<a  class="text-blue-800" target="_blank"  href="https://githubim.com/server/plugin/use.html">文档地址</a></li>
+            </ul>
             <table class="table mt-5 table-pin-rows">
                 <thead>
                     <tr>
