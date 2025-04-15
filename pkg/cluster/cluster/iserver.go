@@ -24,6 +24,10 @@ func (s *Server) GetOrCreateChannelClusterConfigFromSlotLeader(channelId string,
 		return wkdb.EmptyChannelClusterConfig, err
 	}
 
+	if slotLeaderId == 0 {
+		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("slot[%d] leader not found", s.getSlotId(channelId))
+	}
+
 	// 如果当前节点是频道槽领导，则直接返回频道分布式配置
 	if s.opts.ConfigOptions.NodeId == slotLeaderId {
 		return s.getOrCreateChannelClusterConfigFromLocal(channelId, channelType)
