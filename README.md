@@ -35,7 +35,7 @@
 架构图
 --------
 
-![架构图](./docs/architecture.svg)
+![架构图](./docs/architecture_v2.svg)
 
 ![架构图](./docs/architecture/cluster.png)
 
