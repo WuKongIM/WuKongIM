@@ -29,6 +29,8 @@ Distributed IM important features: automatic failover, decentralized design, dat
 Architecture Diagram
 --------
 
+![Architecture Diagram](./docs/architecture.svg)
+
 ![Architecture Diagram](./docs/architecture/cluster.png)
 
 Demo
