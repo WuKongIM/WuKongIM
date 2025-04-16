@@ -154,8 +154,6 @@ func (s *conversation) clearConversationUnread(c *wkhttp.Context) {
 		return
 	}
 
-	service.ConversationManager.DeleteFromCache(req.UID, fakeChannelId, req.ChannelType)
-
 	c.ResponseOK()
 }
 
@@ -252,8 +250,6 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 		return
 	}
 
-	service.ConversationManager.DeleteFromCache(req.UID, fakeChannelId, req.ChannelType)
-
 	c.ResponseOK()
 }
 
@@ -297,8 +293,6 @@ func (s *conversation) deleteConversation(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-
-	service.ConversationManager.DeleteFromCache(req.UID, fakeChannelId, req.ChannelType)
 
 	c.ResponseOK()
 }
@@ -352,21 +346,29 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	}
 
 	// 获取用户缓存的最近会话
-	cacheConversations := service.ConversationManager.GetFromCache(req.UID, wkdb.ConversationTypeChat)
+	cacheChannels, err := service.ConversationManager.GetUserChannelsFromCache(req.UID, wkdb.ConversationTypeChat)
+	if err != nil {
+		s.Error("获取用户缓存的最近会话失败！", zap.Error(err), zap.String("uid", req.UID))
+		c.ResponseError(errors.New("获取用户缓存的最近会话失败！"))
+		return
+	}
 
-	for _, cacheConversation := range cacheConversations {
+	// 将用户缓存的新的频道添加到会话列表中
+	for _, cacheChannel := range cacheChannels {
 		exist := false
-		for i, conversation := range conversations {
-			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				if cacheConversation.ReadToMsgSeq > conversation.ReadToMsgSeq {
-					conversations[i].ReadToMsgSeq = cacheConversation.ReadToMsgSeq
-				}
+		for _, conversation := range conversations {
+			if cacheChannel.ChannelID == conversation.ChannelId && cacheChannel.ChannelType == conversation.ChannelType {
 				exist = true
 				break
 			}
 		}
 		if !exist {
-			conversations = append(conversations, cacheConversation)
+			conversations = append(conversations, wkdb.Conversation{
+				ChannelId:   cacheChannel.ChannelID,
+				ChannelType: cacheChannel.ChannelType,
+				Uid:         req.UID,
+				Type:        wkdb.ConversationTypeChat,
+			})
 		}
 	}
 
@@ -555,21 +557,28 @@ func (s *conversation) conversationChannels(c *wkhttp.Context) {
 	}
 
 	// 获取用户缓存的最近会话
-	cacheConversations := service.ConversationManager.GetFromCache(req.UID, wkdb.ConversationTypeChat)
+	cacheChannels, err := service.ConversationManager.GetUserChannelsFromCache(req.UID, wkdb.ConversationTypeChat)
+	if err != nil {
+		s.Error("获取用户缓存的最近会话失败！", zap.Error(err), zap.String("uid", req.UID))
+		c.ResponseError(errors.New("获取用户缓存的最近会话失败！"))
+		return
+	}
 
-	for _, cacheConversation := range cacheConversations {
+	for _, cacheChannel := range cacheChannels {
 		exist := false
-		for i, conversation := range conversations {
-			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				if cacheConversation.ReadToMsgSeq > conversation.ReadToMsgSeq {
-					conversations[i].ReadToMsgSeq = cacheConversation.ReadToMsgSeq
-				}
+		for _, conversation := range conversations {
+			if cacheChannel.ChannelID == conversation.ChannelId && cacheChannel.ChannelType == conversation.ChannelType {
 				exist = true
 				break
 			}
 		}
 		if !exist {
-			conversations = append(conversations, cacheConversation)
+			conversations = append(conversations, wkdb.Conversation{
+				Uid:         req.UID,
+				ChannelId:   cacheChannel.ChannelID,
+				ChannelType: cacheChannel.ChannelType,
+				Type:        wkdb.ConversationTypeChat,
+			})
 		}
 	}
 

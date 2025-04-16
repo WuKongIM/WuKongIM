@@ -45,8 +45,8 @@
       .text-label { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; text-anchor: middle; fill: #495057; }
       .text-title { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; fill: #212529; }
       .text-layer-title { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #343a40; }
-      .arrow { stroke: #adb5bd; stroke-width: 1.5; marker-end: url(#arrowhead-beautified); fill: none; }
-      .dashed-arrow { stroke: #adb5bd; stroke-width: 1.2; stroke-dasharray: 4 2; marker-end: url(#arrowhead-beautified); fill: none; }
+      .arrow { stroke: #adb5bd; stroke-width: 1.2; marker-end: url(#arrowhead-beautified); fill: none; }
+      .dashed-arrow { stroke: #adb5bd; stroke-width: 1.0; stroke-dasharray: 4 2; marker-end: url(#arrowhead-beautified); fill: none; }
     </style>
   </defs>
 
