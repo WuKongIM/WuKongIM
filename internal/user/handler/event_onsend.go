@@ -47,21 +47,26 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 		fakeChannelId = options.GetFakeChannelIDWith(channelId, conn.Uid)
 	}
 
-	// 解密消息
-	newPayload, err := h.decryptPayload(sendPacket, conn)
-	if err != nil {
-		h.Error("handleOnSend: Failed to decrypt payload！", zap.Error(err), zap.String("uid", conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		sendack := &wkproto.SendackPacket{
-			Framer:      sendPacket.Framer,
-			MessageID:   event.MessageId,
-			ClientSeq:   sendPacket.ClientSeq,
-			ClientMsgNo: sendPacket.ClientMsgNo,
-			ReasonCode:  wkproto.ReasonPayloadDecodeError,
+	// 根据配置决定是否解密消息
+	if !options.G.DisableEncryption {
+		newPayload, err := h.decryptPayload(sendPacket, conn)
+		if err != nil {
+			h.Error("handleOnSend: Failed to decrypt payload！", zap.Error(err), zap.String("uid", conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+			sendack := &wkproto.SendackPacket{
+				Framer:      sendPacket.Framer,
+				MessageID:   event.MessageId,
+				ClientSeq:   sendPacket.ClientSeq,
+				ClientMsgNo: sendPacket.ClientMsgNo,
+				ReasonCode:  wkproto.ReasonPayloadDecodeError,
+			}
+			eventbus.User.ConnWrite(conn, sendack)
+			return
 		}
-		eventbus.User.ConnWrite(conn, sendack)
-		return
+		sendPacket.Payload = newPayload // 使用解密后的 Payload
+	} else {
+		// 如果禁用了加密，则直接使用原始 Payload，不做任何操作
+		// sendPacket.Payload 保持不变
 	}
-	sendPacket.Payload = newPayload
 
 	// 调用插件
 	h.pluginInvokeSend(sendPacket, event)

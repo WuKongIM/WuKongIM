@@ -28,6 +28,9 @@ type ICluster interface {
 
 	// MustWaitClusterReady 等待集群准备完成
 	MustWaitClusterReady(timeout time.Duration) error
+
+	// CheckClusterStatus 检查集群状态
+	CheckClusterStatus() error
 }
 
 type IClusterSlot interface {

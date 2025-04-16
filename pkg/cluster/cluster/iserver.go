@@ -166,6 +166,28 @@ func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
 	s.slotServer.MustWaitAllSlotsReady(timeout)
 }
 
+// CheckClusterStatus 检查集群状态
+func (s *Server) CheckClusterStatus() error {
+	slots := s.Slots()
+	if len(slots) == 0 {
+		return errors.New("no slots")
+	}
+
+	if uint32(len(slots)) != s.opts.ConfigOptions.SlotCount {
+		return errors.New("slot count not match")
+	}
+
+	for _, slot := range slots {
+		if slot.Leader == 0 {
+			return errors.New("slot leader not found")
+		}
+		if slot.Status != types.SlotStatus_SlotStatusNormal {
+			return errors.New("slot not ready")
+		}
+	}
+	return nil
+}
+
 func (s *Server) MustWaitClusterReady(timeout time.Duration) error {
 	return nil
 }

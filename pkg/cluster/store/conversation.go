@@ -78,6 +78,12 @@ func (s *Store) AddOrUpdateUserConversations(uid string, conversations []wkdb.Co
 	return err
 }
 
+// AddConversationsIfNotExist 添加最近会话，如果存在则不添加
+func (s *Store) AddConversationsIfNotExist(conversations []wkdb.Conversation) error {
+
+	return nil
+}
+
 // func (s *Store) AddOrUpdateConversationsWithChannel(channelId string, channelType uint8, subscribers []string, readToMsgSeq uint64, conversationType wkdb.ConversationType, unreadCount int) error {
 
 // 	// 按照slotId来分组subscribers

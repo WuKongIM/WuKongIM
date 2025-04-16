@@ -99,14 +99,20 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		return wkproto.ReasonBan, nil, errors.New("device is ban")
 	}
 
-	// -------------------- get message encrypt key --------------------
-	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
-	aesKey, aesIV, err := h.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
-	if err != nil {
-		h.Error("get client aes key and iv err", zap.Error(err))
-		return wkproto.ReasonAuthFail, nil, err
+	var aesKey, aesIV []byte
+	var dhServerPublicKeyEnc string
+
+	// -------------------- get message encrypt key (if enabled) --------------------
+	if !options.G.DisableEncryption {
+		dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
+		var err error
+		aesKey, aesIV, err = h.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
+		if err != nil {
+			h.Error("get client aes key and iv err", zap.Error(err))
+			return wkproto.ReasonAuthFail, nil, err
+		}
+		dhServerPublicKeyEnc = base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 	}
-	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
 	// -------------------- same master kicks each other --------------------
 	oldConns := eventbus.User.ConnsByDeviceFlag(uid, connectPacket.DeviceFlag)
