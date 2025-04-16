@@ -2,6 +2,7 @@ package manager
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"slices"
@@ -55,6 +56,7 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, tagK
 		if event.Frame.GetNoPersist() {
 			continue
 		}
+
 		if event.MessageSeq > lastMsgSeq {
 			lastMsgSeq = event.MessageSeq
 		}
@@ -79,7 +81,7 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, tagK
 			return
 		}
 		// 如果是个人频道并且不是第一条消息，则不需要更新最近会话
-		if firstMsgSeq > 1 {
+		if firstMsgSeq == 1 {
 			index := c.getUpdaterIndex(fakeChannelId)
 			c.updaters[index].push(fakeChannelId, channelType, tagKey, lastMsgSeq)
 		}
@@ -119,6 +121,8 @@ func (c *ConversationManager) saveToFile() {
 		c.Error("save conversations to file failed", zap.Error(err))
 		return
 	}
+	fmt.Println("save conversations to file....", allUpdates)
+
 	err = os.WriteFile(path.Join(conversationDir, "conversations.json"), data, 0644)
 	if err != nil {
 		c.Error("save conversations to file failed", zap.Error(err))
@@ -149,7 +153,7 @@ func (c *ConversationManager) loadFromFile() {
 	}
 
 	for _, update := range allUpdates {
-		c.updaters[c.getUpdaterIndex(update.channelId)].setChannelUpdate(update.channelId, update.channelType, update.tagKey, update.uids, update.lastMsgSeq)
+		c.updaters[c.getUpdaterIndex(update.ChannelId)].setChannelUpdate(update.ChannelId, update.ChannelType, update.TagKey, update.Uids, update.LastMsgSeq)
 	}
 }
 
@@ -187,18 +191,15 @@ func (c *ConversationManager) storeConversations() {
 		updates := updater.getChannelUpdates()
 		for _, update := range updates {
 			conversationType := wkdb.ConversationTypeChat
-			if options.G.IsCmdChannel(update.channelId) {
+			if options.G.IsCmdChannel(update.ChannelId) {
 				conversationType = wkdb.ConversationTypeCMD
 			}
-			for _, uid := range update.uids {
+			for _, uid := range update.Uids {
 				createdAt := time.Now()
 				updatedAt := time.Now()
-				if options.G.IsCmdChannel(update.channelId) {
-					continue
-				}
 				conversations = append(conversations, wkdb.Conversation{
-					ChannelId:   update.channelId,
-					ChannelType: update.channelType,
+					ChannelId:   update.ChannelId,
+					ChannelType: update.ChannelType,
 					Uid:         uid,
 					Type:        conversationType,
 					CreatedAt:   &createdAt,
@@ -230,11 +231,11 @@ func (c *ConversationManager) getUpdaterIndex(fakeChannelId string) int {
 }
 
 type channelUpdate struct {
-	channelId   string   // 频道ID
-	channelType uint8    // 频道类型
-	uids        []string // 更新的用户
-	tagKey      string   // 标签Key
-	lastMsgSeq  uint64   // 最后一条消息的序号
+	ChannelId   string   `json:"channel_id"`   // 频道ID
+	ChannelType uint8    `json:"channel_type"` // 频道类型
+	Uids        []string `json:"uids"`         // 更新的用户
+	TagKey      string   `json:"tag_key"`      // 标签Key
+	LastMsgSeq  uint64   `json:"last_msg_seq"` // 最后一条消息的序号
 }
 
 type conversationUpdater struct {
@@ -258,7 +259,7 @@ func (c *conversationUpdater) push(fakeChannelId string, channelType uint8, tagK
 	c.RLock()
 	update := c.waitUpdates[key]
 	c.RUnlock()
-	if update != nil && (update.lastMsgSeq >= lastMsgSeq || tagKey == update.tagKey) {
+	if update != nil && (update.LastMsgSeq >= lastMsgSeq || tagKey == update.TagKey) {
 		return
 	}
 
@@ -273,14 +274,14 @@ func (c *conversationUpdater) push(fakeChannelId string, channelType uint8, tagK
 		return
 	}
 	c.Lock()
-	c.waitUpdates[key] = &channelUpdate{channelId: fakeChannelId, channelType: channelType, uids: nodeUsers, tagKey: tagKey, lastMsgSeq: lastMsgSeq}
+	c.waitUpdates[key] = &channelUpdate{ChannelId: fakeChannelId, ChannelType: channelType, Uids: nodeUsers, TagKey: tagKey, LastMsgSeq: lastMsgSeq}
 	c.Unlock()
 }
 
 func (c *conversationUpdater) setChannelUpdate(fakeChannelId string, channelType uint8, tagKey string, uids []string, lastMsgSeq uint64) {
 	key := wkutil.ChannelToKey(fakeChannelId, channelType)
 	c.Lock()
-	c.waitUpdates[key] = &channelUpdate{channelId: fakeChannelId, channelType: channelType, uids: uids, tagKey: tagKey, lastMsgSeq: lastMsgSeq}
+	c.waitUpdates[key] = &channelUpdate{ChannelId: fakeChannelId, ChannelType: channelType, Uids: uids, TagKey: tagKey, LastMsgSeq: lastMsgSeq}
 	c.Unlock()
 }
 
@@ -291,13 +292,13 @@ func (c *conversationUpdater) getUserChannels(uid string, conversationType wkdb.
 	var channels []wkproto.Channel
 	for _, channelUpdate := range c.waitUpdates {
 
-		if conversationType == wkdb.ConversationTypeCMD && !options.G.IsCmdChannel(channelUpdate.channelId) {
+		if conversationType == wkdb.ConversationTypeCMD && !options.G.IsCmdChannel(channelUpdate.ChannelId) {
 			continue
 		}
-		if slices.Contains(channelUpdate.uids, uid) {
+		if slices.Contains(channelUpdate.Uids, uid) {
 			channels = append(channels, wkproto.Channel{
-				ChannelID:   channelUpdate.channelId,
-				ChannelType: channelUpdate.channelType,
+				ChannelID:   channelUpdate.ChannelId,
+				ChannelType: channelUpdate.ChannelType,
 			})
 		}
 	}

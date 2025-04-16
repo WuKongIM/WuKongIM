@@ -64,12 +64,16 @@ func newSyncUserConversationResp(conversation wkdb.Conversation) *syncUserConver
 			realChannelId = from
 		}
 	}
+	var version int64
+	if conversation.UpdatedAt != nil {
+		version = conversation.UpdatedAt.UnixNano()
+	}
 	return &syncUserConversationResp{
 		ChannelId:      realChannelId,
 		ChannelType:    conversation.ChannelType,
 		Unread:         int(conversation.UnreadCount),
 		ReadedToMsgSeq: uint32(conversation.ReadToMsgSeq),
-		Version:        conversation.UpdatedAt.UnixNano(),
+		Version:        version,
 	}
 }
 

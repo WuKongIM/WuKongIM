@@ -90,6 +90,10 @@ func (s *Server) joinNewRepliceIfNeed(cfg *wkdb.ChannelClusterConfig) (bool, err
 		return false, errors.New("no allow vote nodes")
 	}
 
+	if len(cfg.Replicas) >= len(allowVoteNodes) { // 如果当前已集群的副本数大于等于允许投票的节点数，则不需要加入新的副本
+		return false, nil
+	}
+
 	newReplicaIds := make([]uint64, 0, len(allowVoteNodes)-len(cfg.Replicas))
 	for _, node := range allowVoteNodes {
 		if !wkutil.ArrayContainsUint64(cfg.Replicas, node.Id) {

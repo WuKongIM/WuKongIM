@@ -10,10 +10,12 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
@@ -120,32 +122,60 @@ func cmdRun() error {
 		// 等待集群准备好
 		s.MustWaitAllSlotsReady(time.Minute)
 
+		// 处理 pingback (如果提供了)
 		if pingback != "" {
-			confirmationBytes, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				wklog.Error("read confirmation error from stdin", zap.Error(err))
+			if err := handlePingback(); err != nil {
+				s.Stop() // 如果 pingback 失败，也尝试停止服务器
 				return err
 			}
-			conn, err := net.Dial("tcp", pingback)
-			if err != nil {
-				wklog.Error("dialing confirmation address", zap.Error(err))
+			if err := writePIDFile(); err != nil {
+				s.Stop() // 如果写 PID 文件失败，也尝试停止服务器
 				return err
-			}
-			defer conn.Close()
-
-			_, err = conn.Write(confirmationBytes)
-			if err != nil {
-				wklog.Error("write confirmation error", zap.Error(err))
-				return err
-			}
-			err = os.WriteFile(path.Join(".", pidfile), []byte(strconv.Itoa(os.Getpid())), 0o600)
-			if err != nil {
-				log.Fatal(err)
 			}
 		}
 
-		select {}
+		// 设置信号监听，等待退出信号
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+		wklog.Info("WuKongIM server started successfully. Press Ctrl+C to exit.")
 
+		// 阻塞直到收到退出信号
+		<-quit
+
+		s.Stop() // <-- 调用 Stop() 进行清理
+		wklog.Info("WuKongIM server stopped.")
+	}
+	return nil
+}
+
+// 将 pingback 处理逻辑提取到一个单独的函数中
+func handlePingback() error {
+	confirmationBytes, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		wklog.Error("read confirmation error from stdin", zap.Error(err))
+		return err
+	}
+	conn, err := net.Dial("tcp", pingback)
+	if err != nil {
+		wklog.Error("dialing confirmation address", zap.Error(err))
+		return err
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(confirmationBytes)
+	if err != nil {
+		wklog.Error("write confirmation error", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// 将写 PID 文件逻辑提取到一个单独的函数中
+func writePIDFile() error {
+	err := os.WriteFile(path.Join(".", pidfile), []byte(strconv.Itoa(os.Getpid())), 0o600)
+	if err != nil {
+		wklog.Error("write pid file error", zap.Error(err))
+		return err
 	}
 	return nil
 }
