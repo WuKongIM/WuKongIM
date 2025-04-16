@@ -73,6 +73,48 @@ func (wk *wukongDB) AddOrUpdateConversations(conversations []Conversation) error
 
 }
 
+func (wk *wukongDB) AddOrUpdateConversationsBatchIfNotExist(conversations []Conversation) error {
+	if len(conversations) == 0 {
+		return nil
+	}
+
+	userBatchMap := make(map[uint32]*Batch) // 用户uid分区对应的db
+
+	for _, conversation := range conversations {
+
+		shardId := wk.shardId(conversation.Uid)
+		batch := userBatchMap[shardId]
+		if batch == nil {
+			batch = wk.shardBatchDBById(shardId).NewBatch()
+			userBatchMap[shardId] = batch
+		}
+
+		exist, err := wk.ExistConversation(conversation.Uid, conversation.ChannelId, conversation.ChannelType)
+		if err != nil {
+			return err
+		}
+		if exist {
+			continue
+		}
+
+		// 如果会话不存在 则写入
+		if err := wk.writeConversation(conversation, batch); err != nil {
+			return err
+		}
+	}
+
+	if len(userBatchMap) == 0 {
+		return nil
+	}
+
+	batchs := make([]*Batch, 0, len(userBatchMap))
+	for _, batch := range userBatchMap {
+		batchs = append(batchs, batch)
+	}
+
+	return Commits(batchs)
+}
+
 func (wk *wukongDB) AddOrUpdateConversationsWithUser(uid string, conversations []Conversation) error {
 	wk.metrics.AddOrUpdateConversationsAdd(1)
 	// wk.dblock.conversationLock.lock(uid)

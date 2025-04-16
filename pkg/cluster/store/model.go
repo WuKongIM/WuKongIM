@@ -99,6 +99,8 @@ const (
 	CMDUpdatePluginConfig
 	// 移除插件用户
 	CMDRemovePluginUser
+	// 批量添加最近会话如果存在则不添加
+	CMDAddOrUpdateConversationsBatchIfNotExist
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -189,6 +191,8 @@ func (c CMDType) String() string {
 		return "CMDUpdatePluginConfig"
 	case CMDRemovePluginUser:
 		return "CMDRemovePluginUser"
+	case CMDAddOrUpdateConversationsBatchIfNotExist:
+		return "CMDAddOrUpdateConversationsBatchIfNotExist"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -493,6 +497,12 @@ func (c *CMD) CMDContent() (string, error) {
 			"pluginNo": pluginNo,
 			"config":   config,
 		}), nil
+	case CMDAddOrUpdateConversationsBatchIfNotExist:
+		conversations, err := c.DecodeCMDAddOrUpdateConversations()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(conversations), nil
 
 	}
 

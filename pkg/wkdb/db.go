@@ -199,7 +199,11 @@ type ChannelDB interface {
 }
 
 type ConversationDB interface {
+	// AddOrUpdateConversations 添加或更新最近会话
 	AddOrUpdateConversations(conversations []Conversation) error
+
+	// AddOrUpdateConversationsBatchIfNotExist 批量添加或更新最近会话，如果存在则不添加
+	AddOrUpdateConversationsBatchIfNotExist(conversations []Conversation) error
 
 	// AddOrUpdateConversationsWithUser 添加或更新最近会话
 	AddOrUpdateConversationsWithUser(uid string, conversations []Conversation) error
