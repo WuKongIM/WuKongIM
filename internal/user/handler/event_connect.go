@@ -103,7 +103,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 	var dhServerPublicKeyEnc string
 
 	// -------------------- get message encrypt key (if enabled) --------------------
-	if !options.G.DisableEncryption {
+	if !options.G.DisableEncryption && !conn.IsJsonRpc { // 如果连接是jsonrpc连接，则不进行加密
 		dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
 		var err error
 		aesKey, aesIV, err = h.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)

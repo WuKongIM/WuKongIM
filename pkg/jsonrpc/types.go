@@ -70,25 +70,26 @@ type ErrorObject struct {
 // Base request/response structure components
 
 type BaseRequest struct {
-	Jsonrpc string `json:"jsonrpc"`
+	Jsonrpc string `json:"jsonrpc,omitempty"`
 	Method  string `json:"method"`
-	ID      string `json:"id"`
+	ID      string `json:"id,omitempty"`
 }
 
 type BaseResponse struct {
-	Jsonrpc string       `json:"jsonrpc"`
-	ID      string       `json:"id"`
-	Error   *ErrorObject `json:"error,omitempty"` // Error can be absent, keep pointer
+	Jsonrpc string       `json:"jsonrpc,omitempty"`
+	ID      string       `json:"id,omitempty"`
+	Error   *ErrorObject `json:"error,omitempty"`
 }
 
 type BaseNotification struct {
-	Jsonrpc string `json:"jsonrpc"`
+	Jsonrpc string `json:"jsonrpc,omitempty"`
 	Method  string `json:"method"`
 }
 
 // --- Specific Request Payloads (Params) ---
 
 type ConnectParams struct {
+	Header          Header         `json:"header,omitempty"`
 	Version         int            `json:"version,omitempty"`
 	ClientKey       string         `json:"clientKey,omitempty"`
 	DeviceID        string         `json:"deviceId,omitempty"`
@@ -99,9 +100,10 @@ type ConnectParams struct {
 }
 
 type SendParams struct {
+	Header      Header          `json:"header,omitempty"`
+	Setting     SettingFlags    `json:"setting,omitempty"`
 	MsgKey      string          `json:"msgKey,omitempty"`
 	Expire      uint32          `json:"expire,omitempty"`
-	ClientMsgNo string          `json:"clientMsgNo"`
 	StreamNo    string          `json:"streamNo,omitempty"`
 	ChannelID   string          `json:"channelId"`
 	ChannelType int             `json:"channelType"`
@@ -110,6 +112,7 @@ type SendParams struct {
 }
 
 type RecvAckParams struct {
+	Header     Header `json:"header,omitempty"`
 	MessageID  string `json:"messageId"`
 	MessageSeq uint32 `json:"messageSeq"`
 }
@@ -202,9 +205,7 @@ type ConnectRequest struct {
 
 type SendRequest struct {
 	BaseRequest
-	Header  Header       `json:"header,omitempty"`
-	Setting SettingFlags `json:"setting,omitempty"`
-	Params  SendParams   `json:"params"`
+	Params SendParams `json:"params"`
 }
 
 type RecvAckRequest struct {
@@ -224,7 +225,8 @@ type UnsubscribeRequest struct {
 
 type PingRequest struct {
 	BaseRequest
-	Params PingParams `json:"params,omitempty"`
+	// Use pointer for Params to allow omitting the field entirely when nil
+	Params *PingParams `json:"params,omitempty"`
 }
 
 type DisconnectRequest struct {
@@ -251,10 +253,8 @@ type SubscriptionResponse struct {
 	Error  *ErrorObject        `json:"error,omitempty"`
 }
 
-type PongResponse struct {
-	BaseResponse
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  *ErrorObject    `json:"error,omitempty"`
+type PongNotification struct {
+	BaseNotification
 }
 
 type RecvAckResponse struct {
@@ -318,6 +318,7 @@ func (h Header) ToProto() *wkproto.Framer {
 // ToProto converts JSON-RPC ConnectParams to wkproto.ConnectReq
 func (p ConnectParams) ToProto() *wkproto.ConnectPacket {
 	req := &wkproto.ConnectPacket{
+		Framer:          headerToFramer(p.Header),
 		Version:         uint8(p.Version),
 		ClientKey:       p.ClientKey,
 		DeviceID:        p.DeviceID,
@@ -347,10 +348,12 @@ func FromProtoConnectAck(ack *wkproto.ConnackPacket) *ConnectResult {
 }
 
 // ToProto converts JSON-RPC SendParams to wkproto.SendReq
-func (p SendParams) ToProto() (*wkproto.SendPacket, error) {
+func (p SendParams) ToProto(id string) *wkproto.SendPacket {
 	payloadBytes := []byte(p.Payload)
 	req := &wkproto.SendPacket{
-		ClientMsgNo: p.ClientMsgNo,
+		Framer:      headerToFramer(p.Header),
+		Setting:     p.Setting.ToProto(),
+		ClientMsgNo: id,
 		ChannelID:   p.ChannelID,
 		ChannelType: uint8(p.ChannelType),
 		Payload:     payloadBytes,
@@ -359,7 +362,7 @@ func (p SendParams) ToProto() (*wkproto.SendPacket, error) {
 		StreamNo:    p.StreamNo,
 		Topic:       p.Topic,
 	}
-	return req, nil
+	return req
 }
 
 // FromProtoSendAck converts wkproto.SendAck to JSON-RPC SendResult
@@ -393,6 +396,7 @@ func (p RecvAckParams) ToProto() (*wkproto.RecvackPacket, error) {
 		msgID = int64(msgUID)
 	}
 	req := &wkproto.RecvackPacket{
+		Framer:     headerToFramer(p.Header),
 		MessageID:  msgID,
 		MessageSeq: p.MessageSeq,
 	}
@@ -444,11 +448,11 @@ func (p DisconnectParams) ToProto() *wkproto.DisconnectPacket {
 }
 
 // FromProtoDisconnectPacket converts wkproto.DisconnectPacket to JSON-RPC DisconnectNotificationParams
-func FromProtoDisconnectPacket(pkt *wkproto.DisconnectPacket) *DisconnectNotificationParams {
+func FromProtoDisconnectPacket(pkt *wkproto.DisconnectPacket) DisconnectNotificationParams {
 	if pkt == nil {
-		return nil
+		return DisconnectNotificationParams{}
 	}
-	params := &DisconnectNotificationParams{
+	params := DisconnectNotificationParams{
 		ReasonCode: ReasonCodeEnum(pkt.ReasonCode),
 		Reason:     pkt.Reason,
 	}
@@ -524,11 +528,25 @@ func NewRequest(method string, id string, params interface{}) interface{} {
 	case DisconnectParams:
 		return DisconnectRequest{BaseRequest: req, Params: p}
 	case PingParams:
+		// If PingParams (value) is passed, wrap it in a pointer for PingRequest
+		pVal := params.(PingParams)
+		return PingRequest{BaseRequest: req, Params: &pVal}
+	case *PingParams:
+		// If *PingParams (pointer) is passed, use it directly
 		return PingRequest{BaseRequest: req, Params: p}
+	case nil:
+		// If nil is passed specifically for ping, create request with nil Params
+		if method == "ping" {
+			return PingRequest{BaseRequest: req, Params: nil}
+		}
+		// Handle nil for other types if necessary, or fall through
+		fmt.Printf("Warning: NewRequest called with nil params for non-ping method %s\n", method)
 	default:
 		fmt.Printf("Warning: NewRequest called with unhandled params type: %T for method %s\n", params, method)
-		return req
+		// Returning BaseRequest is likely incorrect
 	}
+	// Fallback for default and nil cases (if not handled above)
+	return req
 }
 
 // Helper function/type for generic response decoding later
@@ -557,9 +575,9 @@ func (r ConnectRequest) ToProto() *wkproto.ConnectPacket {
 func (r SendRequest) ToProto() (*wkproto.SendPacket, error) {
 	payloadBytes := []byte(r.Params.Payload)
 	pkt := &wkproto.SendPacket{
-		Framer:      headerToFramer(r.Header),
-		Setting:     r.Setting.ToProto(),
-		ClientMsgNo: r.Params.ClientMsgNo,
+		Framer:      headerToFramer(r.Params.Header),
+		Setting:     r.Params.Setting.ToProto(),
+		ClientMsgNo: r.ID,
 		ChannelID:   r.Params.ChannelID,
 		ChannelType: uint8(r.Params.ChannelType),
 		Payload:     payloadBytes,
@@ -572,10 +590,10 @@ func (r SendRequest) ToProto() (*wkproto.SendPacket, error) {
 }
 
 // Example: FromProto... for full response
-func FromProtoConnectResponse(id string, ack *wkproto.ConnackPacket) *ConnectResponse {
+func FromProtoConnackNotification(id string, ack *wkproto.ConnackPacket) *ConnectResponse {
 	resp := &ConnectResponse{
 		BaseResponse: BaseResponse{
-			Jsonrpc: "2.0",
+			Jsonrpc: jsonRPCVersion,
 			ID:      id,
 		},
 	}
@@ -596,7 +614,7 @@ func FromProtoRecvNotification(pkt *wkproto.RecvPacket) RecvNotification {
 	return RecvNotification{
 		BaseNotification: BaseNotification{
 			Jsonrpc: "2.0",
-			Method:  "recv",
+			Method:  MethodRecv,
 		},
 		Params: FromProtoRecvPacket(pkt),
 	}

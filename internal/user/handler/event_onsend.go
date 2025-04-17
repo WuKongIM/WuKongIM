@@ -48,7 +48,7 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	}
 
 	// 根据配置决定是否解密消息
-	if !options.G.DisableEncryption {
+	if !options.G.DisableEncryption && !conn.IsJsonRpc {
 		newPayload, err := h.decryptPayload(sendPacket, conn)
 		if err != nil {
 			h.Error("handleOnSend: Failed to decrypt payload！", zap.Error(err), zap.String("uid", conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))

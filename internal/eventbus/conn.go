@@ -50,6 +50,9 @@ type Conn struct {
 
 	// 不参与编码
 	LastActive uint64 // 最后一次活动时间单位秒
+
+	IsJsonRpc bool   // 是否是jsonrpc连接
+	ReqId     string // 请求id (jsonrpc)
 }
 
 func (c *Conn) Encode() ([]byte, error) {
@@ -65,6 +68,8 @@ func (c *Conn) Encode() ([]byte, error) {
 	enc.WriteBinary(c.AesKey)
 	enc.WriteUint8(c.ProtoVersion)
 	enc.WriteUint64(c.Uptime)
+	enc.WriteUint8(wkutil.BoolToUint8(c.IsJsonRpc))
+	enc.WriteString(c.ReqId)
 	return enc.Bytes(), nil
 }
 
@@ -112,6 +117,16 @@ func (c *Conn) Decode(data []byte) error {
 		return err
 	}
 	if c.Uptime, err = dec.Uint64(); err != nil {
+		return err
+	}
+
+	var isJsonRpc uint8
+	if isJsonRpc, err = dec.Uint8(); err != nil {
+		return err
+	}
+	c.IsJsonRpc = wkutil.Uint8ToBool(isJsonRpc)
+
+	if c.ReqId, err = dec.String(); err != nil {
 		return err
 	}
 

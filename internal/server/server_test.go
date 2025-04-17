@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,11 +13,64 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
+	"github.com/WuKongIM/WuKongIM/pkg/jsonrpc"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// --- Test Helpers ---
+
+// connectRawTCP connects to the server's TCP address and returns the connection.
+func connectRawTCP(t testing.TB, addr string) net.Conn {
+	conn, err := net.DialTimeout("tcp", addr, time.Second*3)
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	return conn
+}
+
+// sendJSON sends an encoded JSON-RPC message over the connection.
+func sendJSON(t testing.TB, conn net.Conn, msg interface{}) {
+	jsonData, err := jsonrpc.Encode(msg)
+	require.NoError(t, err)
+	_, err = conn.Write(jsonData)
+	require.NoError(t, err)
+}
+
+// readJSON decodes the next JSON-RPC message from the connection using json.Decoder.
+// It handles potential timeouts.
+func readJSON(t testing.TB, conn net.Conn, timeout time.Duration) (interface{}, jsonrpc.Probe) {
+	err := conn.SetReadDeadline(time.Now().Add(timeout))
+	require.NoError(t, err)
+
+	decoder := json.NewDecoder(conn)
+	msg, probe, err := jsonrpc.Decode(decoder)
+
+	errDeadline := conn.SetReadDeadline(time.Time{})
+	require.NoError(t, errDeadline)
+
+	if err != nil {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			require.FailNow(t, "readJSON timed out waiting for message")
+		}
+		require.NoError(t, err, "Failed to decode JSON-RPC message")
+	}
+
+	require.NotNil(t, msg, "Decoded JSON-RPC message should not be nil")
+	return msg, probe
+}
+
+// Helper copied/adapted from codec_test.go
+func assertDecodedAs[T any](t *testing.T, decodedMsg interface{}) T {
+	req := require.New(t)
+	msg, ok := decodedMsg.(T)
+	req.Truef(ok, "Decoded message type is not %T, but %T", *new(T), decodedMsg)
+	return msg
+}
+
+// --- Original Test Cases ---
 
 func TestServerStart(t *testing.T) {
 	s := NewTestServer(t)
@@ -61,8 +116,124 @@ func TestSingleSendMessage(t *testing.T) {
 	})
 
 	wait.Wait()
-
 }
+
+// --- New JSON-RPC Test Cases ---
+
+// TestSingleJSONRPC_ConnectSendRecv tests basic connect, send, and recv using JSON-RPC.
+func TestSingleJSONRPC_ConnectSendRecv(t *testing.T) {
+	s := NewTestServer(t)
+	s.opts.Mode = options.TestMode
+	err := s.Start()
+	assert.Nil(t, err)
+	defer s.StopNoErr()
+
+	s.MustWaitAllSlotsReady(time.Second * 10)
+
+	var wg sync.WaitGroup
+	var recvPayload []byte
+
+	// --- Client 2 Setup (Receiver) ---
+	conn2 := connectRawTCP(t, s.opts.External.TCPAddr)
+	defer conn2.Close()
+
+	// Send Connect Request for Client 2
+	connectReq2 := jsonrpc.ConnectRequest{
+		BaseRequest: jsonrpc.BaseRequest{
+			Method: jsonrpc.MethodConnect,
+			ID:     "conn-2",
+		},
+		Params: jsonrpc.ConnectParams{
+			Version:  wkproto.LatestVersion,
+			DeviceID: "device2",
+			UID:      "test2",
+			Token:    "token2",
+		},
+	}
+	sendJSON(t, conn2, connectReq2)
+
+	// Read Connect Response for Client 2
+	respMsg2, _ := readJSON(t, conn2, time.Second*5)
+	resp2 := assertDecodedAs[jsonrpc.GenericResponse](t, respMsg2)
+	assert.Equal(t, "conn-2", resp2.ID)
+	assert.Nil(t, resp2.Error)
+	assert.NotNil(t, resp2.Result)
+
+	// Start goroutine to wait for message on Client 2 connection
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// Read Recv Notification for Client 2
+		recvMsg, _ := readJSON(t, conn2, time.Second*10)
+		recvNotif := assertDecodedAs[jsonrpc.RecvNotification](t, recvMsg)
+		assert.Equal(t, jsonrpc.MethodRecv, recvNotif.Method)
+		assert.NotNil(t, recvNotif.Params)
+
+		// Extract payload for assertion later
+		var payloadData struct {
+			Data string `json:"data"`
+		}
+		err := json.Unmarshal(recvNotif.Params.Payload, &payloadData)
+		require.NoError(t, err)
+		recvPayload = []byte(payloadData.Data)
+	}()
+
+	// --- Client 1 Setup (Sender) ---
+	conn1 := connectRawTCP(t, s.opts.External.TCPAddr)
+	defer conn1.Close()
+
+	// Send Connect Request for Client 1
+	connectReq1 := jsonrpc.ConnectRequest{
+		BaseRequest: jsonrpc.BaseRequest{
+			Method: jsonrpc.MethodConnect,
+			ID:     "conn-1",
+		},
+		Params: jsonrpc.ConnectParams{
+			Version:  wkproto.LatestVersion,
+			DeviceID: "device1",
+			UID:      "test1",
+			Token:    "token1",
+		},
+	}
+	sendJSON(t, conn1, connectReq1)
+
+	// Read Connect Response for Client 1
+	respMsg1, _ := readJSON(t, conn1, time.Second*5)
+	resp1 := assertDecodedAs[jsonrpc.GenericResponse](t, respMsg1)
+	assert.Equal(t, "conn-1", resp1.ID)
+	assert.Nil(t, resp1.Error)
+	assert.NotNil(t, resp1.Result)
+
+	// --- Send Message from Client 1 to Client 2 ---
+	time.Sleep(100 * time.Millisecond) // Small delay to ensure receiver is likely ready
+
+	sendReq := jsonrpc.SendRequest{
+		BaseRequest: jsonrpc.BaseRequest{
+			Method: jsonrpc.MethodSend,
+			ID:     "send-1",
+		},
+		Params: jsonrpc.SendParams{
+			ChannelID:   "test2",
+			ChannelType: int(wkproto.ChannelTypePerson), // Cast to int
+			Payload:     json.RawMessage(`{"data":"hello jsonrpc"}`),
+		},
+	}
+	sendJSON(t, conn1, sendReq)
+
+	// Read Send Response for Client 1
+	sendRespMsg, _ := readJSON(t, conn1, time.Second*5)
+	sendResp := assertDecodedAs[jsonrpc.GenericResponse](t, sendRespMsg)
+	assert.Equal(t, "send-1", sendResp.ID)
+	assert.Nil(t, sendResp.Error)
+	assert.NotNil(t, sendResp.Result)
+
+	// Wait for Client 2 to receive the message
+	wg.Wait()
+
+	assert.Equal(t, "hello jsonrpc", string(recvPayload))
+}
+
+// --- Rest of Existing Test Cases ---
 
 func TestClusterSendMessage(t *testing.T) {
 	s1, s2 := NewTestClusterServerTwoNode(t)
@@ -157,7 +328,6 @@ func TestClusterSlotMigrate(t *testing.T) {
 			return
 		}
 	}
-
 }
 
 // 槽迁移，从追随者迁移到leader
@@ -209,7 +379,6 @@ func TestClusterSlotMigrateForFollowToLeader(t *testing.T) {
 			return
 		}
 	}
-
 }
 
 func TestClusterNodeJoin(t *testing.T) {
@@ -267,7 +436,6 @@ func TestClusterNodeJoin(t *testing.T) {
 			return
 		}
 	}
-
 }
 
 // func TestClusterChannelMigrate(t *testing.T) {
@@ -467,7 +635,6 @@ func TestClusterChannelElection(t *testing.T) {
 	if s3.opts.Cluster.NodeId != channelServer.opts.Cluster.NodeId {
 		s3.StopNoErr()
 	}
-
 }
 
 // 测试故障转移
@@ -544,7 +711,6 @@ func TestClusterFailover(t *testing.T) {
 
 	s1.StopNoErr()
 	s2.StopNoErr()
-
 }
 
 func TestClusterSaveClusterConfig(t *testing.T) {

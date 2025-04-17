@@ -94,7 +94,7 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 			var err error
 
 			// 根据配置决定是否加密消息负载
-			if !options.G.DisableEncryption {
+			if !options.G.DisableEncryption && !toConn.IsJsonRpc {
 				if len(toConn.AesIV) == 0 || len(toConn.AesKey) == 0 {
 					h.Error("aesIV or aesKey is empty, cannot encrypt payload",
 						zap.String("uid", toConn.Uid),
@@ -122,7 +122,7 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 			recvPacket.Payload = finalPayload // 设置最终的 Payload (可能加密也可能未加密)
 
 			// ---- MsgKey 的生成逻辑也需要考虑加密是否禁用 ----
-			if !options.G.DisableEncryption {
+			if !options.G.DisableEncryption && !toConn.IsJsonRpc {
 				// 只有启用了加密才生成 MsgKey
 				signStr := recvPacket.VerityString()       // VerityString 可能依赖 Payload
 				msgKey, err := makeMsgKey(signStr, toConn) // makeMsgKey 内部会使用 AES 加密
