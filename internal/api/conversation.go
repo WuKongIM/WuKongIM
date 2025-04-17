@@ -135,17 +135,20 @@ func (s *conversation) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	// 获取此频道最新的消息
-	msgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("Failed to query last message", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
-	if conversation.ReadToMsgSeq < msgSeq {
-		conversation.ReadToMsgSeq = msgSeq
-
+	// 如果已读消息序号大于等于未读消息序号，则不更新
+	if conversation.ReadToMsgSeq >= lastMsgSeq {
+		c.ResponseOK()
+		return
 	}
+
+	conversation.ReadToMsgSeq = lastMsgSeq
 
 	err = service.Store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
@@ -201,7 +204,7 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 
 	}
 	// 获取此频道最新的消息
-	msgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("Failed to query last message", zap.Error(err))
 		c.ResponseError(err)
@@ -227,21 +230,25 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 			UpdatedAt:   &updatedAt,
 		}
 
+	} else {
+
 	}
 
-	var unread uint32 = 0
-	var readedMsgSeq uint64 = msgSeq
+	var readedMsgSeq uint64 = lastMsgSeq
 
-	if uint64(req.Unread) > msgSeq {
-		unread = 1
-		readedMsgSeq = msgSeq - 1
+	if uint64(req.Unread) > lastMsgSeq {
+		readedMsgSeq = lastMsgSeq - 1
 	} else if req.Unread > 0 {
-		unread = uint32(req.Unread)
-		readedMsgSeq = msgSeq - uint64(req.Unread)
+		readedMsgSeq = lastMsgSeq - uint64(req.Unread)
+	}
+
+	// 如果已读消息序号大于等于未读消息序号，则不更新
+	if conversation.ReadToMsgSeq >= readedMsgSeq {
+		c.ResponseOK()
+		return
 	}
 
 	conversation.ReadToMsgSeq = readedMsgSeq
-	conversation.UnreadCount = unread
 
 	err = service.Store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
