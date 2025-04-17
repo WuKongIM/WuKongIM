@@ -2,7 +2,6 @@ package manager
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path"
 	"slices"
@@ -121,7 +120,6 @@ func (c *ConversationManager) saveToFile() {
 		c.Error("save conversations to file failed", zap.Error(err))
 		return
 	}
-	fmt.Println("save conversations to file....", allUpdates)
 
 	err = os.WriteFile(path.Join(conversationDir, "conversations.json"), data, 0644)
 	if err != nil {
@@ -154,6 +152,12 @@ func (c *ConversationManager) loadFromFile() {
 
 	for _, update := range allUpdates {
 		c.updaters[c.getUpdaterIndex(update.ChannelId)].setChannelUpdate(update.ChannelId, update.ChannelType, update.TagKey, update.Uids, update.LastMsgSeq)
+	}
+
+	// 删除conversations.json
+	err = os.Remove(conversationPath)
+	if err != nil {
+		c.Error("remove conversations.json failed", zap.Error(err))
 	}
 }
 

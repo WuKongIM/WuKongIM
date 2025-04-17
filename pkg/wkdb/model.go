@@ -315,16 +315,16 @@ const (
 
 // Conversation Conversation
 type Conversation struct {
-	Id           uint64           `json:"id,omitempty"`
-	Uid          string           `json:"uid,omitempty"`               // 用户uid
-	Type         ConversationType `json:"type,omitempty"`              // 会话类型
-	ChannelId    string           `json:"channel_id,omitempty"`        // 频道id
-	ChannelType  uint8            `json:"channel_type,omitempty"`      // 频道类型
-	UnreadCount  uint32           `json:"unread_count,omitempty"`      // 未读消息数量（这个可以用户自己设置）
-	ReadToMsgSeq uint64           `json:"readed_to_msg_seq,omitempty"` // 已经读至的消息序号
-
-	CreatedAt *time.Time `json:"created_at,omitempty"` // 创建时间
-	UpdatedAt *time.Time `json:"updated_at,omitempty"` // 更新时间
+	Id              uint64           `json:"id,omitempty"`
+	Uid             string           `json:"uid,omitempty"`                // 用户uid
+	Type            ConversationType `json:"type,omitempty"`               // 会话类型
+	ChannelId       string           `json:"channel_id,omitempty"`         // 频道id
+	ChannelType     uint8            `json:"channel_type,omitempty"`       // 频道类型
+	UnreadCount     uint32           `json:"unread_count,omitempty"`       // 未读消息数量（这个可以用户自己设置）
+	ReadToMsgSeq    uint64           `json:"readed_to_msg_seq,omitempty"`  // 已经读至的消息序号
+	DeletedAtMsgSeq uint64           `json:"deleted_at_msg_seq,omitempty"` // 最近会话在记录的这个msgSeq位置被删除（删除消息包含这个msgSeq）
+	CreatedAt       *time.Time       `json:"created_at,omitempty"`         // 创建时间
+	UpdatedAt       *time.Time       `json:"updated_at,omitempty"`         // 更新时间
 }
 
 func (c *Conversation) Marshal() ([]byte, error) {

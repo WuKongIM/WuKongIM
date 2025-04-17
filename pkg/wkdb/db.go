@@ -239,6 +239,9 @@ type ConversationDB interface {
 
 	// SearchConversation 搜索最近会话
 	SearchConversation(req ConversationSearchReq) ([]Conversation, error)
+
+	// UpdateConversationDeletedAtMsgSeq 更新最近会话的已删除的消息序号位置
+	UpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) error
 }
 
 type ChannelClusterConfigDB interface {

@@ -383,7 +383,6 @@ func (s *Server) Stop() error {
 
 	s.commonService.Stop()
 
-	fmt.Println("stop conversation manager....")
 	if s.opts.Conversation.On {
 		s.conversationManager.Stop()
 	}

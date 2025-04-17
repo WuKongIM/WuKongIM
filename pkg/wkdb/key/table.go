@@ -488,14 +488,15 @@ var TableConversation = struct {
 	IndexSize       int
 	SecondIndexSize int
 	Column          struct {
-		Uid            [2]byte
-		ChannelId      [2]byte
-		ChannelType    [2]byte
-		Type           [2]byte
-		UnreadCount    [2]byte
-		ReadedToMsgSeq [2]byte
-		CreatedAt      [2]byte
-		UpdatedAt      [2]byte
+		Uid             [2]byte
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		Type            [2]byte
+		UnreadCount     [2]byte
+		ReadedToMsgSeq  [2]byte
+		CreatedAt       [2]byte
+		UpdatedAt       [2]byte
+		DeletedAtMsgSeq [2]byte
 	}
 	Index struct {
 		Channel [2]byte
@@ -511,23 +512,25 @@ var TableConversation = struct {
 	IndexSize:       2 + 2 + 2 + 8 + 8,     // tableId + dataType   + indexName + primaryKey + columnHash
 	SecondIndexSize: 2 + 2 + 8 + 2 + 8 + 8, // tableId + dataType + uid hash  + secondIndexName + columnValue + primaryKey
 	Column: struct {
-		Uid            [2]byte
-		ChannelId      [2]byte
-		ChannelType    [2]byte
-		Type           [2]byte
-		UnreadCount    [2]byte
-		ReadedToMsgSeq [2]byte
-		CreatedAt      [2]byte
-		UpdatedAt      [2]byte
+		Uid             [2]byte
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		Type            [2]byte
+		UnreadCount     [2]byte
+		ReadedToMsgSeq  [2]byte
+		CreatedAt       [2]byte
+		UpdatedAt       [2]byte
+		DeletedAtMsgSeq [2]byte
 	}{
-		Uid:            [2]byte{0x09, 0x01},
-		ChannelId:      [2]byte{0x09, 0x02},
-		ChannelType:    [2]byte{0x09, 0x03},
-		Type:           [2]byte{0x09, 0x04},
-		UnreadCount:    [2]byte{0x09, 0x05},
-		ReadedToMsgSeq: [2]byte{0x09, 0x06},
-		CreatedAt:      [2]byte{0x09, 0x07},
-		UpdatedAt:      [2]byte{0x09, 0x08},
+		Uid:             [2]byte{0x09, 0x01},
+		ChannelId:       [2]byte{0x09, 0x02},
+		ChannelType:     [2]byte{0x09, 0x03},
+		Type:            [2]byte{0x09, 0x04},
+		UnreadCount:     [2]byte{0x09, 0x05},
+		ReadedToMsgSeq:  [2]byte{0x09, 0x06},
+		CreatedAt:       [2]byte{0x09, 0x07},
+		UpdatedAt:       [2]byte{0x09, 0x08},
+		DeletedAtMsgSeq: [2]byte{0x09, 0x09},
 	},
 	Index: struct {
 		Channel [2]byte
