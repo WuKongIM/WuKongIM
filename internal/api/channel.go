@@ -276,12 +276,6 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 			return err
 		}
 
-		err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, newSubscribers, false)
-		if err != nil {
-			ch.Error("更新tag失败！", zap.Error(err))
-			return err
-		}
-
 		if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不添加会话
 			conversations := make([]wkdb.Conversation, 0, len(newSubscribers))
 			for _, subscriber := range newSubscribers {
@@ -306,6 +300,11 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 			}
 		}
 
+		err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, newSubscribers, false)
+		if err != nil {
+			ch.Error("更新tag失败！", zap.Error(err))
+			return err
+		}
 	}
 
 	return nil
