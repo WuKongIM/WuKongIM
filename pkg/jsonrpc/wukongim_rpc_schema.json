@@ -6,7 +6,8 @@
   "properties": {
     "jsonrpc": {
       "type": "string",
-      "const": "2.0"
+      "const": "2.0",
+      "default": "2.0"
     },
     "method": {
       "type": "string",
@@ -34,7 +35,7 @@
       "$ref": "#/components/schemas/ErrorObject"
     }
   },
-  "required": ["jsonrpc"],
+  "required": [],
   "oneOf": [
     { "$ref": "#/components/schemas/ConnectRequest" },
     { "$ref": "#/components/schemas/ConnectResponse" },
@@ -121,7 +122,7 @@
           },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "method", "params", "id"]
+        "required": ["jsonrpc", "method", "params"]
       },
       "ConnectResponse": {
         "type": "object",
@@ -143,11 +144,7 @@
           "error": { "$ref": "#/components/schemas/ErrorObject" },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "id"],
-         "oneOf": [
-            { "required": ["result"] },
-            { "required": ["error"] }
-         ]
+        "required": ["method"]
       },
       "SendRequest": {
         "type": "object",
@@ -172,7 +169,7 @@
           },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "method", "params", "id"]
+        "required": ["method"]
       },
       "SendResponse": {
         "type": "object",
@@ -192,11 +189,7 @@
           "error": { "$ref": "#/components/schemas/ErrorObject" },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "id"],
-         "oneOf": [
-            { "required": ["result"] },
-            { "required": ["error"] }
-         ]
+        "required": ["method"]
       },
       "RecvNotification": {
         "type": "object",
@@ -227,7 +220,7 @@
           },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "method", "params", "id"]
+        "required": ["method"]
       },
       "RecvAckRequest": {
         "type": "object",
@@ -245,7 +238,7 @@
           },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "method", "params", "id"]
+        "required": ["method"]
       },
       "SubscribeRequest": {
         "type": "object",
@@ -266,7 +259,7 @@
           },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "method", "params", "id"]
+        "required": ["method"]
       },
       "UnsubscribeRequest": {
         "type": "object",
@@ -286,7 +279,7 @@
           },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "method", "params", "id"]
+        "required": ["method"]
       },
       "SubscriptionResponse": {
         "type": "object",
@@ -307,11 +300,7 @@
           "error": { "$ref": "#/components/schemas/ErrorObject" },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "id"],
-         "oneOf": [
-            { "required": ["result"] },
-            { "required": ["error"] }
-         ]
+        "required": ["method"]
       },
       "PingRequest": {
         "type": "object",
@@ -331,7 +320,7 @@
           "error": { "$ref": "#/components/schemas/ErrorObject" },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "id"],
+        "required": [],
         "oneOf": [
            { "required": ["result"] },
            { "required": ["error"] }
@@ -353,7 +342,7 @@
           },
           "id": { "type": "string" }
         },
-        "required": ["jsonrpc", "method", "params"]
+        "required": ["method"]
       },
        "DisconnectNotification": {
         "type": "object",
@@ -370,7 +359,7 @@
             "required": ["reasonCode"]
           }
         },
-        "required": ["jsonrpc", "method", "params"]
+        "required": ["method"]
       }
     }
   }
