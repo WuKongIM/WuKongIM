@@ -407,6 +407,11 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	// 设置最近会话已读至的消息序列号
 	for _, conversation := range conversations {
 
+		// 如果是CMD频道，则不返回
+		if options.G.IsCmdChannel(conversation.ChannelId) {
+			continue
+		}
+
 		realChannelId := getRealChannelId(conversation.ChannelId, conversation.ChannelType)
 
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, conversation.ChannelType)]
