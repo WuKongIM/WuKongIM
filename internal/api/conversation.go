@@ -287,9 +287,17 @@ func (s *conversation) deleteConversation(c *wkhttp.Context) {
 
 	}
 
-	err = service.Store.DeleteConversation(req.UID, fakeChannelId, req.ChannelType)
+	// 获取频道最后一条消息序号
+	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
-		s.Error("删除会话！", zap.Error(err))
+		s.Error("获取频道最后一条消息序号失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	err = service.Store.UpdateConversationDeletedAtMsgSeq(req.UID, fakeChannelId, req.ChannelType, lastMsgSeq)
+	if err != nil {
+		s.Error("更新最近会话的已删除的消息序号位置失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
@@ -400,6 +408,11 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 			msgSeq = msgSeq + 1 // 如果客户端传递了messageSeq，则需要获取这个messageSeq之后的消息
 		} else if req.Version > 0 || req.OnlyUnread == 1 { // 如果客户端传递了version，则获取有新消息的会话
 			msgSeq = conversation.ReadToMsgSeq + 1
+		}
+
+		// 如果会话被删除，则获取被删除的消息序号
+		if conversation.DeletedAtMsgSeq > 0 && conversation.DeletedAtMsgSeq > msgSeq {
+			msgSeq = conversation.DeletedAtMsgSeq + 1
 		}
 
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{

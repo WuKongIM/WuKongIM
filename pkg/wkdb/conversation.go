@@ -171,6 +171,26 @@ func (wk *wukongDB) AddOrUpdateConversationsWithUser(uid string, conversations [
 	return batch.CommitWait()
 }
 
+// UpdateConversationDeletedAtMsgSeq 更新最近会话的已删除的消息序号位置
+func (wk *wukongDB) UpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) error {
+	id, err := wk.getConversationIdByChannel(uid, channelId, channelType)
+	if err != nil {
+		return err
+	}
+
+	if id == 0 {
+		return nil
+	}
+	w := wk.shardDB(uid).NewBatch()
+	var deletedAtMsgSeqBytes = make([]byte, 8)
+	wk.endian.PutUint64(deletedAtMsgSeqBytes, deletedAtMsgSeq)
+	err = w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.DeletedAtMsgSeq), deletedAtMsgSeqBytes, wk.noSync)
+	if err != nil {
+		return err
+	}
+	return w.Commit(wk.sync)
+}
+
 func (wk *wukongDB) UpdateConversationIfSeqGreaterAsync(uid, channelId string, channelType uint8, readToMsgSeq uint64) error {
 
 	existConversation, err := wk.GetConversation(uid, channelId, channelType)
@@ -476,7 +496,7 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 
 	wk.metrics.GetConversationAdd(1)
 
-	id, err := wk.getConversationByChannel(uid, channelId, channelType)
+	id, err := wk.getConversationIdByChannel(uid, channelId, channelType)
 	if err != nil {
 		return EmptyConversation, err
 	}
@@ -613,7 +633,7 @@ func (wk *wukongDB) getConversation(uid string, id uint64) (Conversation, error)
 // 	return w.Set(key.NewConversationColumnKey(uid, id, key.TableConversation.Column.ReadToMsgSeq), msgSeqBytes, wk.noSync)
 // }
 
-func (wk *wukongDB) getConversationByChannel(uid string, channelId string, channelType uint8) (uint64, error) {
+func (wk *wukongDB) getConversationIdByChannel(uid string, channelId string, channelType uint8) (uint64, error) {
 	idBytes, closer, err := wk.shardDB(uid).Get(key.NewConversationIndexChannelKey(uid, channelId, channelType))
 	if err != nil {
 		if err == pebble.ErrNotFound {
@@ -782,6 +802,9 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 				t := time.Unix(tm/1e9, tm%1e9)
 				preConversation.UpdatedAt = &t
 			}
+
+		case key.TableConversation.Column.DeletedAtMsgSeq:
+			preConversation.DeletedAtMsgSeq = wk.endian.Uint64(iter.Value())
 
 		}
 		hasData = true

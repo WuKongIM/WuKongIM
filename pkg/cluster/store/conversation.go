@@ -125,6 +125,22 @@ func (s *Store) AddConversationsIfNotExist(conversations []wkdb.Conversation) er
 	return nil
 }
 
+func (s *Store) UpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) error {
+	data := EncodeCMDUpdateConversationDeletedAtMsgSeq(uid, channelId, channelType, deletedAtMsgSeq)
+	cmd := NewCMD(CMDUpdateConversationDeletedAtMsgSeq, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	slotId := s.opts.Slot.GetSlotId(uid)
+	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
+	if err != nil {
+		s.Error("UpdateConversationDeletedAtMsgSeq failed", zap.Error(err), zap.String("uid", uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("deletedAtMsgSeq", deletedAtMsgSeq))
+		return err
+	}
+	return nil
+}
+
 // func (s *Store) AddOrUpdateConversationsWithChannel(channelId string, channelType uint8, subscribers []string, readToMsgSeq uint64, conversationType wkdb.ConversationType, unreadCount int) error {
 
 // 	// 按照slotId来分组subscribers

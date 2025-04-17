@@ -779,6 +779,30 @@ func (ch *channel) whitelistAdd(c *wkhttp.Context) {
 		return
 	}
 
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range req.UIDs {
+			if uid == req.ChannelId {
+				continue
+			}
+			fakeChannelId := options.GetFakeChannelIDWith(uid, req.ChannelId)
+			err = service.Store.AddConversationsIfNotExist([]wkdb.Conversation{
+				{
+					Uid:         uid,
+					Type:        wkdb.ConversationTypeChat,
+					ChannelId:   fakeChannelId,
+					ChannelType: req.ChannelType,
+					CreatedAt:   &createdAt,
+					UpdatedAt:   &updatedAt,
+				},
+			})
+			if err != nil {
+				ch.Error("添加会话失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+		}
+	}
+
 	c.ResponseOK()
 }
 func (ch *channel) whitelistSet(c *wkhttp.Context) {
