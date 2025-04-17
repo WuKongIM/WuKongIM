@@ -320,7 +320,7 @@ func (s *Server) handlePluginBind(c *wkhttp.Context) {
 	}
 
 	s.removePluginNoFromCache(req.Uid)
-
+	s.removeIsAiFromCache(req.Uid)
 	c.ResponseOK()
 }
 
@@ -373,7 +373,7 @@ func (s *Server) handlePluginUnbind(c *wkhttp.Context) {
 	}
 
 	s.removePluginNoFromCache(req.Uid)
-
+	s.removeIsAiFromCache(req.Uid)
 	c.ResponseOK()
 }
 
