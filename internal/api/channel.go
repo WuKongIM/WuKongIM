@@ -276,33 +276,36 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 			return err
 		}
 
-		conversations := make([]wkdb.Conversation, 0, len(newSubscribers))
-		for _, subscriber := range newSubscribers {
-			createdAt := time.Now()
-			updatedAt := time.Now()
-			conversations = append(conversations, wkdb.Conversation{
-				Id:           service.Store.NextPrimaryKey(),
-				Uid:          subscriber,
-				ChannelId:    req.ChannelId,
-				ChannelType:  req.ChannelType,
-				Type:         wkdb.ConversationTypeChat,
-				UnreadCount:  0,
-				ReadToMsgSeq: lastMsgSeq,
-				CreatedAt:    &createdAt,
-				UpdatedAt:    &updatedAt,
-			})
-		}
-		err = service.Store.AddOrUpdateConversations(conversations)
-		if err != nil {
-			ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			return err
-		}
-
 		err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, newSubscribers, false)
 		if err != nil {
 			ch.Error("更新tag失败！", zap.Error(err))
 			return err
 		}
+
+		if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不添加会话
+			conversations := make([]wkdb.Conversation, 0, len(newSubscribers))
+			for _, subscriber := range newSubscribers {
+				createdAt := time.Now()
+				updatedAt := time.Now()
+				conversations = append(conversations, wkdb.Conversation{
+					Id:           service.Store.NextPrimaryKey(),
+					Uid:          subscriber,
+					ChannelId:    req.ChannelId,
+					ChannelType:  req.ChannelType,
+					Type:         wkdb.ConversationTypeChat,
+					UnreadCount:  0,
+					ReadToMsgSeq: lastMsgSeq,
+					CreatedAt:    &createdAt,
+					UpdatedAt:    &updatedAt,
+				})
+			}
+			err = service.Store.AddOrUpdateConversations(conversations)
+			if err != nil {
+				ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+				return err
+			}
+		}
+
 	}
 
 	return nil

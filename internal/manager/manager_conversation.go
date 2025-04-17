@@ -49,6 +49,11 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, tagK
 	if len(events) == 0 {
 		return
 	}
+
+	if channelType == wkproto.ChannelTypeLive { // 直播频道不添加会话
+		return
+	}
+
 	var lastMsgSeq uint64 = 0
 	var firstMsgSeq uint64 = 0
 	for _, event := range events {
