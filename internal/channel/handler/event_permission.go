@@ -143,8 +143,7 @@ func (h *Handler) hasPermissionForCommChannel(channelId string, channelType uint
 		return wkproto.ReasonSubscriberNotExist, nil
 	}
 
-	// 判断是否在白名单内
-	if !options.G.WhitelistOffOfPerson {
+	if channelType != wkproto.ChannelTypePerson {
 		hasAllowlist, err := service.Store.HasAllowlist(realFakeChannelId, channelType)
 		if err != nil {
 			h.Error("HasAllowlist error", zap.Error(err))
