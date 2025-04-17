@@ -301,9 +301,15 @@ func (c *conversationUpdater) getUserChannels(uid string, conversationType wkdb.
 	var channels []wkproto.Channel
 	for _, channelUpdate := range c.waitUpdates {
 
-		if conversationType == wkdb.ConversationTypeCMD && !options.G.IsCmdChannel(channelUpdate.ChannelId) {
+		isCMDChannel := options.G.IsCmdChannel(channelUpdate.ChannelId)
+
+		if isCMDChannel && conversationType != wkdb.ConversationTypeCMD {
 			continue
 		}
+		if !isCMDChannel && conversationType != wkdb.ConversationTypeChat {
+			continue
+		}
+
 		if slices.Contains(channelUpdate.Uids, uid) {
 			channels = append(channels, wkproto.Channel{
 				ChannelID:   channelUpdate.ChannelId,
