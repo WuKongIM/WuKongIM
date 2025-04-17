@@ -149,15 +149,16 @@ func (s *Server) Plugin(no string) types.Plugin {
 }
 
 func (s *Server) UserIsAI(uid string) bool {
-	_, ok := s.getPluginNoFromCache(uid)
+	isAi, ok := s.isAiFromCache(uid)
 	if ok {
-		return ok
+		return isAi
 	}
 	exist, err := service.Store.DB().ExistPluginByUid(uid)
 	if err != nil {
 		s.Error("查询用户AI插件失败！", zap.Error(err), zap.String("uid", uid))
 		return false
 	}
+	s.setIsAiToCache(uid, exist)
 	return exist
 }
 
@@ -193,6 +194,24 @@ func (s *Server) removePluginNoFromCache(uid string) {
 	fh := fasthash.Hash(uid)
 	index := int(fh) % s.bucketSize
 	s.userPluginBuckets[index].remove(uid)
+}
+
+func (s *Server) setIsAiToCache(uid string, isAi bool) {
+	fh := fasthash.Hash(uid)
+	index := int(fh) % s.bucketSize
+	s.userPluginBuckets[index].setIsAi(uid, isAi)
+}
+
+func (s *Server) isAiFromCache(uid string) (bool, bool) {
+	fh := fasthash.Hash(uid)
+	index := int(fh) % s.bucketSize
+	return s.userPluginBuckets[index].isAi(uid)
+}
+
+func (s *Server) removeIsAiFromCache(uid string) {
+	fh := fasthash.Hash(uid)
+	index := int(fh) % s.bucketSize
+	s.userPluginBuckets[index].removeIsAi(uid)
 }
 
 func getUnixSocket(socketPath string) (string, error) {
