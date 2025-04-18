@@ -98,6 +98,7 @@ type Event struct {
 	OfflineUsers []string // 离线用户集合
 	ChannelId    string   // 频道ID
 	ChannelType  uint8    // 频道类型
+	ReqId        string   // 请求ID(非必填)(jsonrpc)
 }
 
 func (e *Event) Clone() *Event {
@@ -118,6 +119,7 @@ func (e *Event) Clone() *Event {
 		OfflineUsers: e.OfflineUsers,
 		ChannelId:    e.ChannelId,
 		ChannelType:  e.ChannelType,
+		ReqId:        e.ReqId,
 	}
 }
 
@@ -149,11 +151,15 @@ func (e *Event) Size() uint64 {
 		size += 1                            // channel type
 	}
 
+	if e.hasReqId() == 1 {
+		size += uint64(2 + len(e.ReqId)) // req id
+	}
+
 	return size
 }
 
 func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
-	var flag uint8 = e.hasConn()<<7 | e.hasFrame()<<6 | e.hasTrack()<<5 | e.hasChannel()<<4
+	var flag uint8 = e.hasConn()<<7 | e.hasFrame()<<6 | e.hasTrack()<<5 | e.hasChannel()<<4 | e.hasReqId()<<3
 	enc.WriteUint8(flag)
 
 	enc.WriteUint8(e.Type.Uint8())
@@ -191,6 +197,10 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 		enc.WriteUint8(e.ChannelType)
 	}
 
+	if e.hasReqId() == 1 {
+		enc.WriteString(e.ReqId)
+	}
+
 	return nil
 }
 
@@ -203,7 +213,7 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 	hasFrame := (flag >> 6) & 0x01
 	hasTrack := (flag >> 5) & 0x01
 	hasChannel := (flag >> 4) & 0x01
-
+	hasReqId := (flag >> 3) & 0x01
 	typeUint8, err := dec.Uint8()
 	if err != nil {
 		return err
@@ -296,6 +306,12 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 		e.ChannelType = channelType
 	}
 
+	if hasReqId == 1 {
+		if e.ReqId, err = dec.String(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -321,6 +337,13 @@ func (e *Event) hasTrack() uint8 {
 
 func (e *Event) hasChannel() uint8 {
 	if len(e.ChannelId) > 0 {
+		return 1
+	}
+	return 0
+}
+
+func (e *Event) hasReqId() uint8 {
+	if e.ReqId != "" {
 		return 1
 	}
 	return 0

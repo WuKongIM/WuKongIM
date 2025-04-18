@@ -80,7 +80,7 @@ func TestEncodeDecode_Connect(t *testing.T) {
 
 	// --- Test Response (Success) ---
 	respResult := ConnectResult{
-		Header:        Header{NoPersist: false},
+		Header:        &Header{NoPersist: false},
 		ServerVersion: 1,
 		ServerKey:     "testServerKey",
 		Salt:          "testSalt",
@@ -242,7 +242,7 @@ func TestDecode_EdgeCases(t *testing.T) { // Renamed for clarity
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		_, _, err := Decode(decoder) // Ignore msg and probe
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid 'jsonrpc' version")
+		assert.Contains(t, err.Error(), "invalid version: expected")
 	})
 
 	t.Run("RequestMissingId", func(t *testing.T) {
@@ -250,7 +250,7 @@ func TestDecode_EdgeCases(t *testing.T) { // Renamed for clarity
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		_, _, err := Decode(decoder) // Ignore msg and probe
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown notification method 'get_data'") // Updated assertion based on actual behavior
+		assert.Contains(t, err.Error(), "jsonrpc decode: unknown notification method") // Updated assertion based on actual behavior
 	})
 
 	t.Run("RequestNullId", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestDecode_EdgeCases(t *testing.T) { // Renamed for clarity
 		decoder := json.NewDecoder(bytes.NewReader(data))
 		msg, _, err := Decode(decoder) // Ignore probe
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown notification method 'get_data'")
+		assert.Contains(t, err.Error(), "invalid request format")
 		assert.Nil(t, msg)
 	})
 

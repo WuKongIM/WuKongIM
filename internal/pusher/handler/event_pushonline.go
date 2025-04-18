@@ -148,7 +148,7 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 				})
 			}
 
-			eventbus.User.ConnWrite(toConn, recvPacket)
+			eventbus.User.ConnWrite(e.ReqId, toConn, recvPacket)
 		}
 		eventbus.User.Advance(e.ToUid)
 	}

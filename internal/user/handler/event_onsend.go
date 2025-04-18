@@ -59,7 +59,7 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 				ClientMsgNo: sendPacket.ClientMsgNo,
 				ReasonCode:  wkproto.ReasonPayloadDecodeError,
 			}
-			eventbus.User.ConnWrite(conn, sendack)
+			eventbus.User.ConnWrite(event.ReqId, conn, sendack)
 			return
 		}
 		sendPacket.Payload = newPayload // 使用解密后的 Payload
@@ -80,6 +80,7 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 		Frame:     sendPacket,
 		MessageId: event.MessageId,
 		Track:     event.Track,
+		ReqId:     event.ReqId,
 	})
 	// 推进
 	eventbus.Channel.Advance(fakeChannelId, channelType)

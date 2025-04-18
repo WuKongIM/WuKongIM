@@ -50,7 +50,15 @@ func (s *Server) onData(conn wknet.Conn) error {
 		_, _ = conn.Discard(consumedBytes)
 		return nil
 	} else {
-		return s.handleAuthenticatedConn(conn, connCtx, buff, isJson)
+		err = s.handleAuthenticatedConn(conn, connCtx, buff, isJson)
+		// 如果jsonrpc请求，则不返回错误, 因为jsonrpc请求将错误返回给客户端了，这里不返回error是为了防止返回error服务将此连接关闭
+		if isJson {
+			if err != nil {
+				s.Warn("Failed to handle authenticated conn", zap.Error(err))
+				return nil
+			}
+		}
+		return err
 	}
 }
 
@@ -62,29 +70,31 @@ func (s *Server) handleAuthenticatedConn(conn wknet.Conn, connCtx *eventbus.Conn
 	var events []*eventbus.Event
 
 	frames := make([]wkproto.Frame, 0, 10)
+	reqIds := make([]string, 0, 10)
 	if isJson {
 		reader := bytes.NewReader(buff)
 		decoder := json.NewDecoder(reader)
 		for {
-			packet, _, err := jsonrpc.Decode(decoder)
+			packet, probe, err := jsonrpc.Decode(decoder)
 			if err != nil {
 				if err == io.EOF {
 					break
 				}
 				s.Warn("Failed to decode jsonrpc packet", zap.Error(err))
-				conn.Close()
+				eventbus.User.WriteLocalData(connCtx, jsonrpc.EncodeErrorResponse(jsonrpc.DecodeID(probe.ID), err))
 				return err
 			}
 			if packet == nil {
 				break
 			}
-			frame, err := jsonrpc.ToFrame(packet)
+			frame, reqId, err := jsonrpc.ToFrame(packet)
 			if err != nil {
 				s.Warn("Failed to convert jsonrpc packet to frame", zap.Error(err))
-				conn.Close()
+				eventbus.User.WriteLocalData(connCtx, jsonrpc.EncodeErrorResponse(jsonrpc.DecodeID(probe.ID), err))
 				return err
 			}
 			frames = append(frames, frame)
+			reqIds = append(reqIds, reqId)
 		}
 		offset += (len(buff) - reader.Len())
 
@@ -109,7 +119,13 @@ func (s *Server) handleAuthenticatedConn(conn wknet.Conn, connCtx *eventbus.Conn
 		return nil
 	}
 
-	for _, frame := range frames {
+	for i, frame := range frames {
+
+		var reqId string
+		if len(reqIds) > 0 && len(reqIds) == len(frames) {
+			reqId = reqIds[i]
+		}
+
 		event := &eventbus.Event{
 			Type:         eventbus.EventOnSend, // Assuming all data frames trigger an OnSend event internally
 			Frame:        frame,
@@ -118,6 +134,7 @@ func (s *Server) handleAuthenticatedConn(conn wknet.Conn, connCtx *eventbus.Conn
 			Track: track.Message{
 				PreStart: time.Now(),
 			},
+			ReqId: reqId,
 		}
 		event.Track.Record(track.PositionStart)
 
@@ -244,13 +261,12 @@ func (s *Server) handleUnauthenticatedConn(conn wknet.Conn, buff []byte, isJson 
 		ProtoVersion: connectPacket.Version,
 		Uptime:       fasttime.UnixTimestamp(),
 		IsJsonRpc:    isJson,
-		ReqId:        reqId,
 	}
 	conn.SetContext(connCtx)
 
 	conn.SetMaxIdle(time.Second * 4)
 
-	eventbus.User.Connect(connCtx, connectPacket)
+	eventbus.User.Connect(reqId, connCtx, connectPacket)
 	eventbus.User.Advance(connCtx.Uid)
 
 	return connCtx, consumedBytes, nil

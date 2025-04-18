@@ -92,7 +92,7 @@ func (r *RetryManager) retry(msg *types.RetryMessage) {
 		r.Info("retry send message", zap.Int("retry", msg.Retry), zap.Uint64("fromNode", msg.FromNode), zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
 	}
 
-	eventbus.User.ConnWrite(conn, msg.RecvPacket)
+	eventbus.User.ConnWrite("", conn, msg.RecvPacket)
 
 }
 

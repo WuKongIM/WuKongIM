@@ -7,6 +7,7 @@ import (
 	// Import the WuKongIMGoProto package
 	"strconv" // Added for MessageID parsing
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -104,6 +105,7 @@ type SendParams struct {
 	Setting     SettingFlags    `json:"setting,omitempty"`
 	MsgKey      string          `json:"msgKey,omitempty"`
 	Expire      uint32          `json:"expire,omitempty"`
+	ClientMsgNo string          `json:"clientMsgNo,omitempty"`
 	StreamNo    string          `json:"streamNo,omitempty"`
 	ChannelID   string          `json:"channelId"`
 	ChannelType int             `json:"channelType"`
@@ -142,25 +144,24 @@ type DisconnectParams struct {
 // --- Specific Result Payloads ---
 
 type ConnectResult struct {
-	Header        Header         `json:"header,omitempty"`
+	Header        *Header        `json:"header,omitempty"`
 	ServerVersion int            `json:"serverVersion,omitempty"`
-	ServerKey     string         `json:"serverKey"`
-	Salt          string         `json:"salt"`
-	TimeDiff      int64          `json:"timeDiff"`
+	ServerKey     string         `json:"serverKey,omitempty"`
+	Salt          string         `json:"salt,omitempty"`
+	TimeDiff      int64          `json:"timeDiff,omitempty"`
 	ReasonCode    ReasonCodeEnum `json:"reasonCode"`
-	NodeID        uint64         `json:"nodeId,omitempty"`
+	NodeID        uint64         `json:"nodeId"`
 }
 
 type SendResult struct {
-	Header      Header         `json:"header,omitempty"`
-	MessageID   string         `json:"messageId"`
-	MessageSeq  uint32         `json:"messageSeq"`
-	ClientMsgNo string         `json:"clientMsgNo,omitempty"`
-	ReasonCode  ReasonCodeEnum `json:"reasonCode"`
+	Header     *Header        `json:"header,omitempty"`
+	MessageID  string         `json:"messageId"`
+	MessageSeq uint32         `json:"messageSeq"`
+	ReasonCode ReasonCodeEnum `json:"reasonCode"`
 }
 
 type SubscriptionResult struct {
-	Header      Header         `json:"header,omitempty"`
+	Header      *Header        `json:"header,omitempty"`
 	SubNo       string         `json:"subNo"`
 	ChannelID   string         `json:"channelId"`
 	ChannelType int            `json:"channelType"`
@@ -173,8 +174,8 @@ type SubscriptionResult struct {
 // --- Specific Notification Payloads (Params) ---
 
 type RecvNotificationParams struct {
-	Header      Header          `json:"header,omitempty"`
-	Setting     SettingFlags    `json:"setting,omitempty"`
+	Header      *Header         `json:"header,omitempty"`
+	Setting     *SettingFlags   `json:"setting,omitempty"`
 	MsgKey      string          `json:"msgKey,omitempty"`
 	Expire      uint32          `json:"expire,omitempty"`
 	MessageID   string          `json:"messageId"`
@@ -317,9 +318,15 @@ func (h Header) ToProto() *wkproto.Framer {
 
 // ToProto converts JSON-RPC ConnectParams to wkproto.ConnectReq
 func (p ConnectParams) ToProto() *wkproto.ConnectPacket {
+
+	var version uint8 = uint8(p.Version)
+	if p.Version == 0 {
+		version = wkproto.LatestVersion
+	}
+
 	req := &wkproto.ConnectPacket{
 		Framer:          headerToFramer(p.Header),
-		Version:         uint8(p.Version),
+		Version:         version,
 		ClientKey:       p.ClientKey,
 		DeviceID:        p.DeviceID,
 		DeviceFlag:      wkproto.DeviceFlag(p.DeviceFlag),
@@ -348,12 +355,16 @@ func FromProtoConnectAck(ack *wkproto.ConnackPacket) *ConnectResult {
 }
 
 // ToProto converts JSON-RPC SendParams to wkproto.SendReq
-func (p SendParams) ToProto(id string) *wkproto.SendPacket {
+func (p SendParams) ToProto() *wkproto.SendPacket {
 	payloadBytes := []byte(p.Payload)
+	clientMsgNo := p.ClientMsgNo
+	if clientMsgNo == "" {
+		clientMsgNo = wkutil.GenUUID()
+	}
 	req := &wkproto.SendPacket{
 		Framer:      headerToFramer(p.Header),
 		Setting:     p.Setting.ToProto(),
-		ClientMsgNo: id,
+		ClientMsgNo: clientMsgNo,
 		ChannelID:   p.ChannelID,
 		ChannelType: uint8(p.ChannelType),
 		Payload:     payloadBytes,
@@ -372,11 +383,10 @@ func FromProtoSendAck(ack *wkproto.SendackPacket) *SendResult {
 	}
 	messageID := strconv.FormatInt(ack.MessageID, 10)
 	res := &SendResult{
-		Header:      fromProtoHeader(ack.Framer),
-		MessageID:   messageID,
-		MessageSeq:  ack.MessageSeq,
-		ClientMsgNo: ack.ClientMsgNo,
-		ReasonCode:  ReasonCodeEnum(ack.ReasonCode),
+		Header:     fromProtoHeader(ack.Framer),
+		MessageID:  messageID,
+		MessageSeq: ack.MessageSeq,
+		ReasonCode: ReasonCodeEnum(ack.ReasonCode),
 	}
 	return res
 }
@@ -478,8 +488,11 @@ func FromProtoPongPacket(pkt *wkproto.PongPacket) {
 // --- Reverse Helper Functions (Proto -> JSON-RPC) ---
 
 // fromProtoHeader converts wkproto.Header to JSON-RPC Header
-func fromProtoHeader(protoHeader wkproto.Framer) Header {
-	return Header{
+func fromProtoHeader(protoHeader wkproto.Framer) *Header {
+	if !protoHeader.NoPersist && !protoHeader.RedDot && !protoHeader.SyncOnce && !protoHeader.DUP {
+		return nil
+	}
+	return &Header{
 		NoPersist: protoHeader.NoPersist,
 		RedDot:    protoHeader.RedDot,
 		SyncOnce:  protoHeader.SyncOnce,
@@ -497,8 +510,13 @@ func headerToFramer(header Header) wkproto.Framer {
 }
 
 // fromProtoSetting converts wkproto.Setting to JSON-RPC SettingFlags
-func fromProtoSetting(setting wkproto.Setting) SettingFlags {
-	flags := SettingFlags{}
+func fromProtoSetting(setting wkproto.Setting) *SettingFlags {
+
+	if setting == 0 {
+		return nil
+	}
+
+	flags := &SettingFlags{}
 	flags.Receipt = (setting & wkproto.SettingReceiptEnabled) != 0
 	flags.Signal = (setting & wkproto.SettingSignal) != 0
 	flags.Stream = (setting & wkproto.SettingStream) != 0
@@ -552,7 +570,27 @@ func NewRequest(method string, id string, params interface{}) interface{} {
 // Helper function/type for generic response decoding later
 type GenericResponse struct {
 	BaseResponse
-	Result json.RawMessage
+	Result json.RawMessage `json:"result,omitempty"`
+}
+
+func NewGenericResponse(id string, result json.RawMessage) GenericResponse {
+	return GenericResponse{
+		BaseResponse: BaseResponse{
+			Jsonrpc: jsonRPCVersion,
+			ID:      id,
+		},
+		Result: result,
+	}
+}
+
+func NewGenericResponseWithErr(id string, err *ErrorObject) GenericResponse {
+	return GenericResponse{
+		BaseResponse: BaseResponse{
+			Jsonrpc: jsonRPCVersion,
+			ID:      id,
+			Error:   err,
+		},
+	}
 }
 
 // Add conversions for full Request/Response types if needed, e.g.:
@@ -577,7 +615,7 @@ func (r SendRequest) ToProto() (*wkproto.SendPacket, error) {
 	pkt := &wkproto.SendPacket{
 		Framer:      headerToFramer(r.Params.Header),
 		Setting:     r.Params.Setting.ToProto(),
-		ClientMsgNo: r.ID,
+		ClientMsgNo: r.Params.ClientMsgNo,
 		ChannelID:   r.Params.ChannelID,
 		ChannelType: uint8(r.Params.ChannelType),
 		Payload:     payloadBytes,

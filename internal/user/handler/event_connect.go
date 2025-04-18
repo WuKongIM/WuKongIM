@@ -35,6 +35,7 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 			Conn:         conn,
 			Frame:        packet,
 			SourceNodeId: options.G.Cluster.NodeId,
+			ReqId:        event.ReqId,
 		}
 		if options.G.IsLocalNode(conn.NodeId) {
 			eventbus.User.AddEvent(uid, connackEvent)
@@ -45,6 +46,7 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 				Conn:         conn,
 				Frame:        packet,
 				SourceNodeId: options.G.Cluster.NodeId,
+				ReqId:        event.ReqId,
 			})
 		}
 
@@ -130,7 +132,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 						zap.String("deviceID", connectPacket.DeviceID),
 						zap.String("oldDeviceId", oldConn.DeviceId),
 					)
-					eventbus.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
+					eventbus.User.ConnWrite(event.ReqId, oldConn, &wkproto.DisconnectPacket{
 						ReasonCode: wkproto.ReasonConnectKick,
 						Reason:     "login in other device",
 					})

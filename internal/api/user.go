@@ -119,7 +119,7 @@ func (u *user) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
 	oldConns := eventbus.User.ConnsByDeviceFlag(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
-			eventbus.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
+			eventbus.User.ConnWrite("", oldConn, &wkproto.DisconnectPacket{
 				ReasonCode: wkproto.ReasonConnectKick,
 			})
 			u.s.timingWheel.AfterFunc(time.Second*2, func() {
@@ -366,7 +366,7 @@ func (u *user) updateToken(c *wkhttp.Context) {
 			for _, oldConn := range oldConns {
 				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ConnId), zap.String("deviceFlag", req.DeviceFlag.String()))
 				// 踢旧连接
-				eventbus.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
+				eventbus.User.ConnWrite("", oldConn, &wkproto.DisconnectPacket{
 					ReasonCode: wkproto.ReasonConnectKick,
 					Reason:     "账号在其他设备上登录",
 				})

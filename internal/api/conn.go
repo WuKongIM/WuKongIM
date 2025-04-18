@@ -118,7 +118,7 @@ func (cn *connApi) kick(c *wkhttp.Context) {
 
 	conn := eventbus.User.ConnById(req.Uid, req.NodeId, req.ConnID)
 	if conn != nil {
-		eventbus.User.ConnWrite(conn, &wkproto.DisconnectPacket{
+		eventbus.User.ConnWrite("", conn, &wkproto.DisconnectPacket{
 			ReasonCode: wkproto.ReasonConnectKick,
 			Reason:     "server kick",
 		})

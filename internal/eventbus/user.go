@@ -45,6 +45,9 @@ type IUser interface {
 	AllConnCount() int
 	// AllConn 获取所有连接
 	AllConn() []*Conn
+
+	// WriteLocalData 写入本地数据(conn 是本地连接)
+	WriteLocalData(conn *Conn, data []byte) error
 }
 
 type userPlus struct {
@@ -74,12 +77,13 @@ func (u *userPlus) Advance(uid string) {
 
 // ========================================== conn ==========================================
 // Connect 请求连接
-func (u *userPlus) Connect(conn *Conn, connectPacket *wkproto.ConnectPacket) {
+func (u *userPlus) Connect(reqId string, conn *Conn, connectPacket *wkproto.ConnectPacket) {
 	u.user.AddEvent(conn.Uid, &Event{
 		Type:         EventConnect,
 		Frame:        connectPacket,
 		Conn:         conn,
 		SourceNodeId: options.G.Cluster.NodeId,
+		ReqId:        reqId,
 	})
 }
 
@@ -127,12 +131,13 @@ func (u *userPlus) UpdateConn(conn *Conn) {
 }
 
 // ConnWrite 连接写包
-func (u *userPlus) ConnWrite(conn *Conn, frame wkproto.Frame) {
+func (u *userPlus) ConnWrite(reqId string, conn *Conn, frame wkproto.Frame) {
 	u.user.AddEvent(conn.Uid, &Event{
 		Type:         EventConnWriteFrame,
 		Conn:         conn,
 		Frame:        frame,
 		SourceNodeId: options.G.Cluster.NodeId,
+		ReqId:        reqId,
 	})
 }
 
@@ -178,4 +183,8 @@ func (u *userPlus) AllConnCount() int {
 
 func (u *userPlus) AllConn() []*Conn {
 	return u.user.AllConn()
+}
+
+func (u *userPlus) WriteLocalData(conn *Conn, data []byte) error {
+	return u.user.WriteLocalData(conn, data)
 }
