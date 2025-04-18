@@ -21,7 +21,8 @@
 <!-- <li><strong>QQ群</strong>: <a href="#">750224611</a></li> -->
 <!-- <li><strong>微信</strong>: <a href="#">wukongimgo（备注进群）</a></li> -->
 <li><strong>官网</strong>: https://githubim.com</li>
-<li><strong>通讯协议</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM协议</a></li>
+<li><strong>通讯协议1</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM二进制协议</a></li>
+<li><strong>通讯协议2</strong>: <a href="https://githubim.com/server/advance/jsonrpc.html">WuKongIM JSON协议</a></li>
 <li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>文档</strong>: https://githubim.com</li>
 </ul>
@@ -154,6 +155,8 @@ web聊天场景演示： http://imdemo.githubim.com
 - [x] 支持Datasource，无缝对接自己的业务系统数据源
 - [x] 支持Websocket连接
 - [x] 支持TLS 1.3
+- [x] 支持proxyproto协议
+- [x] 支持JSON协议通讯
 - [x] 支持Prometheus监控
 - [x] 监控系统开发
 - [x] 支持流式消息，类似chatgpt的结果输出流
