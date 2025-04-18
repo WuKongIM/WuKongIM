@@ -14,5 +14,5 @@ func (h *Handler) ping(event *eventbus.Event) {
 
 	trace.GlobalTrace.Metrics.App().PongCountAdd(1)
 	trace.GlobalTrace.Metrics.App().PongBytesAdd(1)
-	eventbus.User.ConnWrite(conn, &wkproto.PongPacket{})
+	eventbus.User.ConnWrite(event.ReqId, conn, &wkproto.PongPacket{})
 }

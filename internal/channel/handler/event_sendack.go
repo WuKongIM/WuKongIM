@@ -39,7 +39,7 @@ func (h *Handler) sendack(ctx *eventbus.ChannelContext) {
 		}
 
 		sendPacket := e.Frame.(*wkproto.SendPacket)
-		eventbus.User.ConnWrite(e.Conn, &wkproto.SendackPacket{
+		eventbus.User.ConnWrite(e.ReqId, e.Conn, &wkproto.SendackPacket{
 			Framer:      sendPacket.Framer,
 			MessageID:   e.MessageId,
 			MessageSeq:  uint32(e.MessageSeq),

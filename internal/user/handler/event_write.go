@@ -46,7 +46,7 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 	)
 
 	if conn.IsJsonRpc {
-		req, err := jsonrpc.FromFrame(conn.ReqId, frame)
+		req, err := jsonrpc.FromFrame(event.ReqId, frame)
 		if err != nil {
 			h.Error("writeFrame jsonrpc: from frame err", zap.Error(err))
 			return
@@ -86,7 +86,11 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 	}
 	wsConn, wsok := realConn.(wknet.IWSConn) // websocket连接
 	if wsok {
-		err := wsConn.WriteServerBinary(data)
+		if conn.IsJsonRpc {
+			err = wsConn.WriteServerText(data)
+		} else {
+			err = wsConn.WriteServerBinary(data)
+		}
 		if err != nil {
 			h.Warn("writeFrame: Failed to ws write the message", zap.Error(err))
 		}

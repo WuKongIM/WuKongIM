@@ -181,7 +181,6 @@
               "header": { "$ref": "#/components/schemas/Header" },
               "messageId": { "type": "string", "description": "服务端消息ID" },
               "messageSeq": { "type": "integer", "format": "uint32", "description": "服务端消息序列号" },
-              "clientMsgNo": { "type": "string", "description": "客户端消息编号(原样返回，可选)" },
               "reasonCode": { "$ref": "#/components/schemas/ReasonCodeEnum" }
             },
             "required": ["messageId", "messageSeq", "reasonCode"]
@@ -189,7 +188,7 @@
           "error": { "$ref": "#/components/schemas/ErrorObject" },
           "id": { "type": "string" }
         },
-        "required": ["method"]
+        "required": ["id"]
       },
       "RecvNotification": {
         "type": "object",

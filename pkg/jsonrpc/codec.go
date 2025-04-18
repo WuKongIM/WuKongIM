@@ -2,6 +2,7 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -24,6 +25,20 @@ const (
 	MethodRecv        = "recv" // Notification method
 )
 
+// Predefined decoding errors
+var (
+	ErrInvalidVersion       = errors.New("jsonrpc: invalid version")
+	ErrInvalidStructure     = errors.New("jsonrpc: invalid message structure or field combination")
+	ErrAmbiguousMessageType = errors.New("jsonrpc: ambiguous message type")
+	ErrResponseFormat       = errors.New("jsonrpc: invalid response format (missing id, result/error mismatch)")
+	ErrRequestFormat        = errors.New("jsonrpc: invalid request format (missing id or method)")
+	ErrNotificationFormat   = errors.New("jsonrpc: invalid notification format (missing method)")
+	ErrUnknownMethod        = errors.New("jsonrpc: unknown method")
+	ErrMissingParams        = errors.New("jsonrpc: missing params field")
+	ErrUnmarshalFieldFailed = errors.New("jsonrpc: failed to unmarshal field") // Base error for wrapping
+	ErrInternal             = errors.New("jsonrpc: internal codec error")      // For unexpected logic paths
+)
+
 // Probe is a temporary structure used to determine the type of an incoming JSON-RPC message
 // by checking the presence of key fields like id, method, result, error.
 type Probe struct {
@@ -43,6 +58,8 @@ const (
 )
 
 // decodingError creates a formatted error specific to JSON-RPC decoding.
+// It's a simple wrapper around fmt.Errorf with a prefix.
+// Callers should use %w in the format string to wrap base errors when needed.
 func decodingError(format string, args ...interface{}) error {
 	return fmt.Errorf("jsonrpc decode: "+format, args...)
 }
@@ -57,6 +74,30 @@ func Encode(msg interface{}) ([]byte, error) {
 	return bytes, nil
 }
 
+func EncodeErrorResponse(id string, err error) []byte {
+	data, err := Encode(GenericResponse{
+		BaseResponse: BaseResponse{
+			Jsonrpc: jsonRPCVersion,
+			ID:      id,
+			Error: &ErrorObject{
+				Message: err.Error(),
+			},
+		},
+	})
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func DecodeID(id json.RawMessage) string {
+	var idStr string
+	if err := json.Unmarshal(id, &idStr); err != nil {
+		return ""
+	}
+	return idStr
+}
+
 // determineMessageType probes the basic structure, validates version and fields,
 // and determines if the message is a Request, Response, or Notification.
 func determineMessageType(probe *Probe) (msgType int, version string, err error) {
@@ -65,14 +106,14 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 	if probe.Jsonrpc != nil {
 		var parsedVersion string
 		if jsonErr := json.Unmarshal(probe.Jsonrpc, &parsedVersion); jsonErr != nil {
-			err = decodingError("failed to unmarshal jsonrpc field: %w", jsonErr)
+			err = fmt.Errorf("%w: jsonrpc field: %w", ErrUnmarshalFieldFailed, jsonErr) // Wrap base error
 			return
 		}
 		if parsedVersion != jsonRPCVersion {
-			err = decodingError("invalid 'jsonrpc' version '%s', must be %s or omitted", parsedVersion, jsonRPCVersion)
+			err = fmt.Errorf("%w: expected '%s', got '%s'", ErrInvalidVersion, jsonRPCVersion, parsedVersion)
 			return
 		}
-		version = parsedVersion // Use provided version if valid
+		version = parsedVersion
 	}
 
 	// Check field presence
@@ -91,13 +132,13 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 	// Validate field combinations
 	switch {
 	case prelimIsRequest && prelimIsResponse:
-		err = decodingError("message cannot have both 'method' and ('result' or 'error')")
+		err = ErrInvalidStructure // Use predefined error
 		return
 	case prelimIsResponse && !resultIsPresent && !errorIsPresent:
-		err = decodingError("response must contain either 'result' or 'error'")
+		err = ErrResponseFormat // Use predefined error
 		return
 	case prelimIsResponse && resultIsPresent && errorIsPresent:
-		err = decodingError("response cannot contain both 'result' and 'error'")
+		err = ErrResponseFormat // Use predefined error
 		return
 		// case prelimIsRequest && prelimIsNotification: // This overlap is handled by specific type assignment below
 		//	 err = decodingError("message ambiguity: matches request and notification criteria (id: %s, method: %v)", string(probe.ID), probe.Method)
@@ -143,7 +184,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 	}
 
 	if msgType == msgTypeUnknown && err == nil { // Assign error if type is unknown and no specific validation failed
-		err = decodingError("unable to determine message type (invalid field combination)")
+		err = ErrInvalidStructure // Assign general structure error if type unknown
 	}
 
 	return
@@ -157,24 +198,32 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 	// 1. Probe the message structure
 	var probe Probe
 	if err := decoder.Decode(&probe); err != nil {
-		return nil, probe, err // Return zero Probe on initial decode error
+		// If it's a json syntax error, wrap it?
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
+			return nil, probe, fmt.Errorf("%w: %w", ErrInvalidStructure, err)
+		}
+		return nil, probe, err // Includes io.EOF
 	}
 
 	// 2. Determine message type and validate basic structure
 	msgType, version, err := determineMessageType(&probe)
 	if err != nil {
-		return nil, probe, err // Return probe even if type determination fails, might be useful
+		return nil, probe, err // Return error from determination (already specific)
 	}
 
 	// 3. Construct and Populate the Specific Type based on msgType
 	switch msgType {
 	case msgTypeRequest:
 		if probe.Method == "" { // Should be caught by determineMessageType
-			return nil, probe, decodingError("internal: msgTypeRequest but method is nil")
+			return nil, probe, ErrRequestFormat
 		}
 		baseReq := BaseRequest{Jsonrpc: version, Method: probe.Method}
+		if probe.ID == nil || string(probe.ID) == "null" { // ID is mandatory and non-null for requests
+			return nil, probe, ErrRequestFormat
+		}
 		if err := json.Unmarshal(probe.ID, &baseReq.ID); err != nil {
-			return nil, probe, decodingError("failed to unmarshal request ID: %w", err)
+			return nil, probe, fmt.Errorf("%w: request ID: %w", ErrUnmarshalFieldFailed, err)
 		}
 
 		switch probe.Method {
@@ -182,50 +231,50 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 			var req ConnectRequest
 			req.BaseRequest = baseReq
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s request", MethodConnect)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodConnect)
 			}
 			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodConnect, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodConnect, err)
 			}
 			return req, probe, nil
 		case MethodSend:
 			var req SendRequest
 			req.BaseRequest = baseReq
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s request", MethodSend)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodSend)
 			}
 			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodSend, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodSend, err)
 			}
 			return req, probe, nil
 		case MethodRecvAck:
 			var req RecvAckRequest
 			req.BaseRequest = baseReq
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s request", MethodRecvAck)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodRecvAck)
 			}
 			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodRecvAck, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecvAck, err)
 			}
 			return req, probe, nil
 		case MethodSubscribe:
 			var req SubscribeRequest
 			req.BaseRequest = baseReq
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s request", MethodSubscribe)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodSubscribe)
 			}
 			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodSubscribe, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodSubscribe, err)
 			}
 			return req, probe, nil
 		case MethodUnsubscribe:
 			var req UnsubscribeRequest
 			req.BaseRequest = baseReq
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s request", MethodUnsubscribe)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodUnsubscribe)
 			}
 			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodUnsubscribe, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodUnsubscribe, err)
 			}
 			return req, probe, nil
 		case MethodPing:
@@ -235,7 +284,7 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				var p PingParams
 				if err := json.Unmarshal(probe.Params, &p); err != nil {
 					if string(probe.Params) != "{}" { // Allow empty object
-						return nil, probe, decodingError("failed to unmarshal %s params: %w", MethodPing, err)
+						return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodPing, err)
 					}
 				}
 				req.Params = &p
@@ -245,23 +294,29 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 			var req DisconnectRequest
 			req.BaseRequest = baseReq
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s request", MethodDisconnect)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodDisconnect)
 			}
 			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodDisconnect, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodDisconnect, err)
 			}
 			return req, probe, nil
 		default:
-			return nil, probe, decodingError("unknown request method '%s'", probe.Method)
+			return nil, probe, fmt.Errorf("%w: %s", ErrUnknownMethod, probe.Method)
 		}
 
 	case msgTypeResponse:
 		baseResp := BaseResponse{Jsonrpc: version}
-		if probe.ID == nil { // Should be caught by determineMessageType
-			return nil, probe, decodingError("internal: msgTypeResponse but ID is nil")
+		if probe.ID == nil || string(probe.ID) == "null" { // ID is mandatory and non-null for responses
+			return nil, probe, ErrResponseFormat
 		}
 		if err := json.Unmarshal(probe.ID, &baseResp.ID); err != nil {
-			return nil, probe, decodingError("failed to unmarshal response ID: %w", err)
+			return nil, probe, fmt.Errorf("%w: response ID: %w", ErrUnmarshalFieldFailed, err)
+		}
+		if probe.Result == nil && probe.Error == nil {
+			return nil, probe, ErrResponseFormat // Must have result or error
+		}
+		if probe.Result != nil && probe.Error != nil {
+			return nil, probe, ErrResponseFormat // Cannot have both
 		}
 
 		resp := GenericResponse{
@@ -271,7 +326,7 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 		if probe.Error != nil {
 			var errObj ErrorObject
 			if err := json.Unmarshal(probe.Error, &errObj); err != nil {
-				return nil, probe, decodingError("failed to unmarshal error object: %w", err)
+				return nil, probe, fmt.Errorf("%w: error object: %w", ErrUnmarshalFieldFailed, err)
 			}
 			resp.Error = &errObj
 		}
@@ -279,7 +334,7 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 
 	case msgTypeNotification:
 		if probe.Method == "" { // Should be caught by determineMessageType
-			return nil, probe, decodingError("internal: msgTypeNotification but method is nil")
+			return nil, probe, ErrNotificationFormat
 		}
 		baseNotif := BaseNotification{Jsonrpc: version, Method: probe.Method}
 
@@ -288,20 +343,20 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 			var notif RecvNotification
 			notif.BaseNotification = baseNotif
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s notification", MethodRecv)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodRecv)
 			}
 			if err := json.Unmarshal(probe.Params, &notif.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodRecv, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecv, err)
 			}
 			return notif, probe, nil
 		case MethodDisconnect:
 			var notif DisconnectNotification
 			notif.BaseNotification = baseNotif
 			if probe.Params == nil {
-				return nil, probe, decodingError("missing params for %s notification", MethodDisconnect)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodDisconnect)
 			}
 			if err := json.Unmarshal(probe.Params, &notif.Params); err != nil {
-				return nil, probe, decodingError("unmarshal %s params: %w", MethodDisconnect, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodDisconnect, err)
 			}
 			return notif, probe, nil
 		case MethodPong:
@@ -309,33 +364,41 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 			notif.BaseNotification = baseNotif
 			return notif, probe, nil
 		default:
-			return nil, probe, decodingError("unknown notification method '%s'", probe.Method)
+			return nil, probe, fmt.Errorf("%w: %s", ErrUnknownMethod, probe.Method)
 		}
 
 	default: // msgTypeUnknown or other unexpected case
-		// Error was already generated by determineMessageType if type was unknown
-		// If we reach here unexpectedly, return a generic internal error
+		// If determineMessageType returned an error, it's already specific.
+		// Otherwise, return the general invalid structure error.
 		if err == nil {
-			err = decodingError("internal error - unexpected message type state")
+			err = ErrInvalidStructure
 		}
 		return nil, probe, err
 	}
 }
 
-func ToFrame(packet interface{}) (wkproto.Frame, error) {
+func ToFrame(packet interface{}) (wkproto.Frame, string, error) {
 
 	switch p := packet.(type) {
 	case ConnectRequest:
-		return p.Params.ToProto(), nil
+		return p.Params.ToProto(), p.ID, nil
 	case SendRequest:
-		return p.Params.ToProto(p.ID), nil
+		return p.Params.ToProto(), p.ID, nil
 	case RecvAckRequest:
-		return p.Params.ToProto()
+		frame, err := p.Params.ToProto()
+		if err != nil {
+			return nil, "", err
+		}
+		return frame, p.ID, nil
+	case PingRequest:
+		return &wkproto.PingPacket{}, p.ID, nil
+	case DisconnectRequest:
+		return p.Params.ToProto(), p.ID, nil
 	}
-	return nil, fmt.Errorf("unknown packet type: %T", packet)
+	return nil, "", fmt.Errorf("unknown packet type: %T", packet)
 }
 
-func FromFrame(id string, frame wkproto.Frame) (interface{}, error) {
+func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
 
 	switch frame.GetFrameType() {
 	case wkproto.CONNACK:
@@ -344,7 +407,7 @@ func FromFrame(id string, frame wkproto.Frame) (interface{}, error) {
 		return ConnectResponse{
 			BaseResponse: BaseResponse{
 				Jsonrpc: jsonRPCVersion,
-				ID:      id,
+				ID:      reqId,
 			},
 			Result: params,
 		}, nil
@@ -354,7 +417,7 @@ func FromFrame(id string, frame wkproto.Frame) (interface{}, error) {
 		return SendResponse{
 			BaseResponse: BaseResponse{
 				Jsonrpc: jsonRPCVersion,
-				ID:      sendack.ClientMsgNo,
+				ID:      reqId,
 			},
 			Result: result,
 		}, nil
@@ -380,7 +443,7 @@ func FromFrame(id string, frame wkproto.Frame) (interface{}, error) {
 			},
 		}, nil
 	}
-	return nil, fmt.Errorf("unknown frame type: %d", frame.GetFrameType())
+	return nil, fmt.Errorf("jsonrpc: unknown frame type: %d", frame.GetFrameType())
 }
 
 // IsJSONObjectPrefix checks if the byte slice likely starts with a JSON object,
