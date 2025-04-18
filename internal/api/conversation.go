@@ -360,6 +360,10 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 		return
 	}
 
+	if len(conversations) > options.G.Conversation.UserMaxCount/2 {
+		s.Warn("警告：用户会话数量超过最大限制的一半！", zap.String("uid", req.UID), zap.Int("count", len(conversations)))
+	}
+
 	// 获取用户缓存的最近会话
 	cacheChannels, err := service.ConversationManager.GetUserChannelsFromCache(req.UID, wkdb.ConversationTypeChat)
 	if err != nil {
