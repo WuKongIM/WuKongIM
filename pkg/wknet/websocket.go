@@ -100,9 +100,14 @@ func (w *WSConn) unpacketWSData() error {
 				}
 				continue
 			}
-			_, err = w.inboundBuffer.Write(msg.Payload)
-			if err != nil {
-				return err
+			if msg.OpCode == ws.OpPing {
+				w.KeepLastActivity()
+			}
+			if len(msg.Payload) > 0 {
+				_, err = w.inboundBuffer.Write(msg.Payload)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -392,9 +397,14 @@ func (w *WSSConn) unpacketWSData() error {
 				}
 				continue
 			}
-			_, err = w.d.inboundBuffer.Write(msg.Payload)
-			if err != nil {
-				return err
+			if msg.OpCode == ws.OpPing {
+				w.d.KeepLastActivity()
+			}
+			if len(msg.Payload) > 0 {
+				_, err = w.d.inboundBuffer.Write(msg.Payload)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
