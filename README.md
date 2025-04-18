@@ -22,7 +22,7 @@
 <!-- <li><strong>微信</strong>: <a href="#">wukongimgo（备注进群）</a></li> -->
 <li><strong>官网</strong>: https://githubim.com</li>
 <li><strong>通讯协议1</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM二进制协议</a></li>
-<li><strong>通讯协议2</strong>: <a href="https://githubim.com/server/advance/jsonrpc.html">WuKongIM JSON协议</a></li>
+<li><strong>通讯协议2</strong>: <a href="https://githubim.com/server/advance/jsonrpc.html">WuKongIM JSON协议(仅Websocket)</a></li>
 <li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>文档</strong>: https://githubim.com</li>
 </ul>
