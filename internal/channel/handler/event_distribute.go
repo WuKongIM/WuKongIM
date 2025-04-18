@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -176,6 +177,8 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 					filteredOfflineUids = append(filteredOfflineUids, offlineUid)
 				}
 			}
+			// 移除重复的离线用户
+			filteredOfflineUids = wkutil.RemoveRepeatedElement(filteredOfflineUids)
 
 			cloneEvent := event.Clone()
 			cloneEvent.OfflineUsers = filteredOfflineUids
