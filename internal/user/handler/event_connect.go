@@ -78,7 +78,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			return wkproto.ReasonAuthFail, nil, err
 		}
 		if device.Token != connectPacket.Token {
-			h.Error("token verify fail", zap.String("expectToken", device.Token), zap.String("actToken", connectPacket.Token))
+			h.Error("token verify fail", zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId), zap.String("expectToken", device.Token), zap.String("actToken", connectPacket.Token))
 			return wkproto.ReasonAuthFail, nil, errors.New("token verify fail")
 		}
 		devceLevel = wkproto.DeviceLevel(device.DeviceLevel)
