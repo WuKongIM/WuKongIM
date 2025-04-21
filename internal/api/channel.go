@@ -481,6 +481,17 @@ func (ch *channel) removeSubscriber(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	// 删除订阅者的会话缓存
+	for _, subscriber := range req.Subscribers {
+		err = service.ConversationManager.DeleteFromCache(subscriber, req.ChannelId, req.ChannelType)
+		if err != nil {
+			ch.Error("删除订阅者的会话失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+	}
+
 	err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, req.Subscribers, true)
 	if err != nil {
 		ch.Error("removeSubscriber: update tag failed", zap.Error(err))
@@ -668,6 +679,16 @@ func (ch *channel) blacklistRemove(c *wkhttp.Context) {
 		ch.Error("移除黑名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
+	}
+
+	// 删除黑名单的会话缓存
+	for _, uid := range req.UIDs {
+		err = service.ConversationManager.DeleteFromCache(uid, req.ChannelId, req.ChannelType)
+		if err != nil {
+			ch.Error("删除订阅者的会话失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
 	}
 
 	c.ResponseOK()

@@ -107,6 +107,15 @@ func (c *ConversationManager) Stop() {
 	c.saveToFile()
 }
 
+func (c *ConversationManager) DeleteFromCache(uid string, channelId string, channelType uint8) error {
+	if channelType == wkproto.ChannelTypeLive { // 直播频道不删除会话
+		return nil
+	}
+	index := c.getUpdaterIndex(channelId)
+	c.updaters[index].removeUserChannelUpdate(channelId, channelType, uid)
+	return nil
+}
+
 func (c *ConversationManager) saveToFile() {
 
 	conversationDir := path.Join(options.G.DataDir, "conversationv2")
@@ -335,4 +344,21 @@ func (c *conversationUpdater) removeChannelUpdate(fakeChannelId string, channelT
 	c.Lock()
 	delete(c.waitUpdates, wkutil.ChannelToKey(fakeChannelId, channelType))
 	c.Unlock()
+}
+
+func (c *conversationUpdater) removeUserChannelUpdate(fakeChannelId string, channelType uint8, uid string) {
+	c.Lock()
+	defer c.Unlock()
+	for _, update := range c.waitUpdates {
+		if update.ChannelId == fakeChannelId && update.ChannelType == channelType && slices.Contains(update.Uids, uid) {
+			filteredUids := make([]string, 0, len(update.Uids))
+			for _, u := range update.Uids {
+				if u != uid {
+					filteredUids = append(filteredUids, u)
+				}
+			}
+			update.Uids = filteredUids
+			break
+		}
+	}
 }
