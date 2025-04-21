@@ -308,6 +308,7 @@ type Options struct {
 		SocketPath string        // 插件socket地址
 		Install    []string      // 默认插件安装地址
 	}
+	DisableJSONRPC bool // 是否禁用jsonrpc
 }
 
 type MigrateStep string
@@ -996,6 +997,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
 	o.OldV1Api = o.getString("oldV1Api", o.OldV1Api)
 	o.MigrateStartStep = MigrateStep(o.getString("migrateStartStep", string(o.MigrateStartStep)))
+	o.DisableJSONRPC = o.getBool("disableJSONRPC", o.DisableJSONRPC)
 
 }
 

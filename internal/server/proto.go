@@ -37,7 +37,12 @@ func (s *Server) onData(conn wknet.Conn) error {
 	} else {
 		isAuth = false
 	}
-	isJson := jsonrpc.IsJSONObjectPrefix(buff) // 是否是jsonrpc请求
+	var isJson = false             // 是否是jsonrpc请求
+	if !options.G.DisableJSONRPC { // 如果没有禁用jsonrpc，则判断是否是jsonrpc请求
+		isJson = jsonrpc.IsJSONObjectPrefix(buff)
+	} else {
+		isJson = false
+	}
 	if !isAuth {
 		var consumedBytes int
 		connCtx, consumedBytes, err = s.handleUnauthenticatedConn(conn, buff, isJson)
@@ -189,7 +194,7 @@ func (s *Server) handleUnauthenticatedConn(conn wknet.Conn, buff []byte, isJson 
 	var connectPacket *wkproto.ConnectPacket
 	var reqId string // 请求id (jsonrpc)
 	// 如果buff是jsonrpc请求，则解包
-	if isJson {
+	if isJson && !options.G.DisableJSONRPC {
 		reader := bytes.NewReader(buff)
 		decoder := json.NewDecoder(reader)
 		packet, probe, err := jsonrpc.Decode(decoder)
