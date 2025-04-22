@@ -176,6 +176,8 @@ func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, err
 		uidList = append(uidList, uid)
 		uidInPeerMap[leaderInfo.Id] = uidList
 	}
+
+	var mu sync.Mutex
 	var conns []*OnlinestatusResp
 	if len(localUids) > 0 {
 		conns = u.getOnlineConns(localUids)
@@ -190,7 +192,9 @@ func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, err
 				if err != nil {
 					reqErr = err
 				} else {
+					mu.Lock()
 					conns = append(conns, results...)
+					mu.Unlock()
 				}
 				wg.Done()
 			}(nodeId, uidList)
