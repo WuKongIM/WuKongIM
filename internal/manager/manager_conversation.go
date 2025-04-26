@@ -79,13 +79,13 @@ func (c *ConversationManager) Push(fakeChannelId string, channelType uint8, tagK
 		return
 	}
 
-	// 如果是个人频道并且开启了白名单，则不需要更新最近会话
+	// 如果是个人频道并且开启了白名单，则不需要更新最近会话,因为在添加白名单的时候就已经添加了最近会话
 	if channelType == wkproto.ChannelTypePerson && !options.G.WhitelistOffOfPerson {
 		return
 	}
 
-	// 如果是客服频道，则需要更新最近会话
-	if channelType == wkproto.ChannelTypeCustomerService {
+	// 如果是客服频道或个人频道，则需要更新最近会话
+	if channelType == wkproto.ChannelTypeCustomerService || channelType == wkproto.ChannelTypePerson {
 		if firstMsgSeq == 1 {
 			index := c.getUpdaterIndex(fakeChannelId)
 			c.updaters[index].push(fakeChannelId, channelType, tagKey, lastMsgSeq)
