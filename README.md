@@ -25,6 +25,7 @@
 <li><strong>通讯协议2</strong>: <a href="https://githubim.com/server/advance/jsonrpc.html">WuKongIM JSON协议(仅Websocket)</a></li>
 <li><strong>提问</strong>: https://github.com/WuKongIM/WuKongIM/issues</li>
 <li><strong>文档</strong>: https://githubim.com</li>
+<li><strong>架构文档</strong>: https://deepwiki.com/WuKongIM/WuKongIM</li>
 </ul>
 </p>
 
