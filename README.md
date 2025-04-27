@@ -16,7 +16,7 @@
 [English](./README_EN.md)
 
 <p align="center">
-<img align="left" height="110" src="./docs/logo.png">
+<img align="left" height="160" src="./docs/logo.png">
 <ul>
 <!-- <li><strong>QQ群</strong>: <a href="#">750224611</a></li> -->
 <!-- <li><strong>微信</strong>: <a href="#">wukongimgo（备注进群）</a></li> -->
