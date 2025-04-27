@@ -531,18 +531,7 @@ func (m *message) syncack(c *wkhttp.Context) {
 		if err != nil {
 			if err == wkdb.ErrNotFound {
 				m.Warn("会话不存在！", zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
-				createdAt := time.Now()
-				updatedAt := time.Now()
-				conversation = wkdb.Conversation{
-					Uid:          req.UID,
-					ChannelId:    fakeChannelId,
-					ChannelType:  record.channelType,
-					Type:         wkdb.ConversationTypeCMD,
-					ReadToMsgSeq: record.lastMsgSeq,
-					CreatedAt:    &createdAt,
-					UpdatedAt:    &updatedAt,
-				}
-				needAdd = true
+				continue
 			} else {
 				m.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", record.channelType))
 				c.ResponseError(errors.New("获取conversation失败！"))

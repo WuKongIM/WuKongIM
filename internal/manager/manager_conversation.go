@@ -233,7 +233,7 @@ store:
 	if len(conversations) > 0 {
 		err := service.Store.AddConversationsIfNotExist(conversations)
 		if err != nil {
-			c.Error("store conversations failed", zap.Error(err))
+			c.Error("store conversations failed", zap.Error(err), zap.Int("conversations", len(conversations)))
 			return
 		}
 		// 删除已存储的频道
