@@ -57,6 +57,11 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/replicas"), s.channelReplicas)         // 获取频道副本信息
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/localReplica"), s.channelLocalReplica) // 获取频道在本节点的副本信息
 
+	// ================== devtools ==================
+
+	// 检查日志冲突
+	route.GET(s.formatPath("/devtools/checkLogConflict"), s.checkLogConflict)
+
 }
 func (s *Server) formatPath(path string) string {
 	var prefix = s.apiPrefix

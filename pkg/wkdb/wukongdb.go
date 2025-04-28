@@ -124,7 +124,7 @@ func (wk *wukongDB) Open() error {
 		wk.wkdbs = append(wk.wkdbs, wkdb)
 	}
 
-	// go wk.collectMetricsLoop()
+	go wk.collectMetricsLoop()
 
 	return nil
 }
@@ -188,7 +188,7 @@ func (wk *wukongDB) channelSlotId(channelId string) uint32 {
 }
 
 func (wk *wukongDB) collectMetricsLoop() {
-	tk := time.NewTicker(time.Second * 5)
+	tk := time.NewTicker(time.Second * 1)
 	defer tk.Stop()
 
 	for {

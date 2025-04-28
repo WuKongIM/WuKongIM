@@ -48,6 +48,9 @@ func (r *rpcServer) setRoutes() {
 
 	// 节点加入
 	r.s.netServer.Route("/rpc/cluster/join", r.handleClusterJoin)
+
+	// 获取分布式日志
+	r.s.netServer.Route("/rpc/cluster/logs", r.handleClusterLogs)
 }
 
 func (r *rpcServer) handleChannelPropose(c *wkserver.Context) {
@@ -349,4 +352,48 @@ func (r *rpcServer) handleClusterJoin(c *wkserver.Context) {
 		return
 	}
 	c.Write(result)
+}
+
+func (r *rpcServer) handleClusterLogs(c *wkserver.Context) {
+	req := &clusterLogsReq{}
+	if err := req.decode(c.Body()); err != nil {
+		r.Error("decode cluster logs req failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	if req.LogType == LogTypeUnknown {
+		req.LogType = LogTypeConfig
+	}
+
+	if req.Limit == 0 || req.Limit > 1000 {
+		req.Limit = 1000
+	}
+
+	var logs []rafttypes.Log
+	var err error
+	if req.OrderDesc {
+		logs, err = r.s.cfgServer.GetLogsInReverseOrder(req.StartLogIndex, req.EndLogIndex, int(req.Limit))
+	} else {
+		logs, err = r.s.cfgServer.GetLogsByLimit(req.StartLogIndex, req.EndLogIndex, int(req.Limit))
+	}
+	if err != nil {
+		r.Error("get logs failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	if len(logs) == 0 {
+		c.Write([]byte{})
+		return
+	}
+
+	logSet := logSet(logs)
+
+	data, err := logSet.encode()
+	if err != nil {
+		r.Error("marshal logs failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
 }
