@@ -421,8 +421,8 @@ func (n *Node) canVote(e types.Event) bool {
 		return false
 	}
 
-	if n.cfg.Term >= e.Term { // 如果当前任期大于等于候选人任期，拒绝投票
-		n.Info("current term is greater equal than candidate term", zap.Uint32("term", n.cfg.Term), zap.Uint32("candidateTerm", e.Term))
+	if n.cfg.Term > e.Term { // 如果当前任期大于候选人任期，拒绝投票 (不能等于，因为前面becomeFollower的时候，会更新任期 TODO:这里逻辑有点问题，因为n.cfg.Term 永远等于e.Term)
+		n.Info("current term is greater than candidate term", zap.Uint32("term", n.cfg.Term), zap.Uint32("candidateTerm", e.Term))
 		return false
 	}
 
