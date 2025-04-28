@@ -17,8 +17,8 @@ demo:   # chatdemo是否开启
   on: true  
 conversation: # 是否维护最近会话数据
   on: true   
-webhook: # webhook配置 用于接收消息通知事件，详情请查看文档
-  httpAddr: "http://127.0.0.1:8000/v1/integrations/wukongim/webhook"  
+# trace: # 是否开启监控
+  # prometheusApiUrl: "http://127.0.0.1:9090"  
 cluster:
   nodeId: 1 # 节点ID
   addr: "tcp://127.0.0.1:10001"
