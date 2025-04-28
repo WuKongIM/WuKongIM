@@ -180,31 +180,22 @@ func (p *PebbleShardLogStorage) GetState() (types.RaftState, error) {
 		AppliedIndex: applied,
 	}, nil
 }
-func (p *PebbleShardLogStorage) GetLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]types.Log, error) {
 
-	// lastIndex, err := p.LastIndex()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
+// getLogsInternal 是 GetLogs 和 GetLogsByLimit 的内部实现，通过 stopCond 回调判断是否停止迭代
+func (p *PebbleShardLogStorage) getLogsInternal(startLogIndex uint64, endLogIndex uint64, stopCond func(log types.Log, currentLogs []types.Log) bool) ([]types.Log, error) {
 	lowKey := key.NewLogKey(startLogIndex)
 	if endLogIndex == 0 {
 		endLogIndex = math.MaxUint64
 	}
-	// if endLogIndex > lastIndex {
-	// 	endLogIndex = lastIndex + 1
-	// }
 	highKey := key.NewLogKey(endLogIndex)
 	iter := p.db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
 	defer iter.Close()
+
 	var logs []types.Log
-
-	var size uint64
 	for iter.First(); iter.Valid(); iter.Next() {
-
 		// 这里需要复制一份出来，要不然log.Data会重用data切片，导致数据错误
 		data := make([]byte, len(iter.Value()))
 		copy(data, iter.Value())
@@ -219,12 +210,28 @@ func (p *PebbleShardLogStorage) GetLogs(startLogIndex uint64, endLogIndex uint64
 		}
 		log.Time = time.Unix(0, int64(tm))
 		logs = append(logs, log)
-		size += uint64(log.LogSize())
-		if limitSize != 0 && size >= limitSize {
+
+		if stopCond != nil && stopCond(log, logs) {
 			break
 		}
 	}
 	return logs, nil
+}
+
+// GetLogs 通过指定数据大小来获取日志
+func (p *PebbleShardLogStorage) GetLogs(startLogIndex uint64, endLogIndex uint64, limitSize uint64) ([]types.Log, error) {
+	var currentSize uint64
+	return p.getLogsInternal(startLogIndex, endLogIndex, func(log types.Log, currentLogs []types.Log) bool {
+		currentSize += uint64(log.LogSize())
+		return limitSize != 0 && currentSize >= limitSize
+	})
+}
+
+// 通过指定数量来获取日志
+func (p *PebbleShardLogStorage) GetLogsByLimit(startLogIndex uint64, endLogIndex uint64, limit int) ([]types.Log, error) {
+	return p.getLogsInternal(startLogIndex, endLogIndex, func(log types.Log, currentLogs []types.Log) bool {
+		return limit != 0 && len(currentLogs) >= limit
+	})
 }
 
 // GetLogsInReverseOrder retrieves a list of logs in reverse order within the specified range and limit.

@@ -86,6 +86,9 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 		return true
 	})
 	if err != nil {
+		if err == pebble.ErrNotFound {
+			return EmptyDevice, ErrNotFound
+		}
 		return EmptyDevice, err
 	}
 
