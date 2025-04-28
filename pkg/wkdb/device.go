@@ -81,6 +81,9 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 		LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return EmptyDevice, err
+	}
 	defer iter.Close()
 
 	var device = EmptyDevice
