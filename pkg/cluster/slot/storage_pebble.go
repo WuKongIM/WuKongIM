@@ -1,6 +1,7 @@
 package slot
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,10 +11,12 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slot/key"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/lni/goutils/syncutil"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
@@ -95,6 +98,8 @@ func (p *PebbleShardLogStorage) Open() error {
 		p.batchDbs = append(p.batchDbs, batchDb)
 	}
 
+	p.stopper.RunWorker(p.collectMetricsLoop)
+
 	return nil
 }
 
@@ -112,6 +117,27 @@ func (p *PebbleShardLogStorage) Close() error {
 	p.stopper.Stop()
 
 	return nil
+}
+
+func (p *PebbleShardLogStorage) collectMetricsLoop() {
+	tk := time.NewTicker(time.Second * 1)
+	defer tk.Stop()
+
+	for {
+		select {
+		case <-tk.C:
+			p.collectMetrics()
+		case <-p.stopper.ShouldStop():
+			return
+		}
+	}
+}
+func (p *PebbleShardLogStorage) collectMetrics() {
+	metrics := trace.GlobalTrace.Metrics.Pebble()
+	for i := uint32(0); i < uint32(p.shardNum); i++ {
+		db := p.dbs[i]
+		metrics.Update(context.Background(), db, attribute.String("db", "slotlogdb"), attribute.String("shard", fmt.Sprintf("shard%03d", i)))
+	}
 }
 
 func (p *PebbleShardLogStorage) shardDB(v string) *pebble.DB {

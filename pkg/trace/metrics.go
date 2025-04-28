@@ -27,6 +27,9 @@ type IMetrics interface {
 	// DB 数据库监控
 	DB() IDBMetrics
 
+	// Pebble 监控
+	Pebble() *PebbleMetrics
+
 	Route(r *wkhttp.WKHttp)
 }
 

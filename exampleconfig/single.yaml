@@ -12,10 +12,12 @@ logger:
 manager:  # 管理端配置
   on: true
   addr: "0.0.0.0:5300"
-demo:
+demo:   # chatdemo是否开启
   on: true  
-conversation:
+conversation: # 是否维护最近会话数据
   on: true   
+# trace: # 是否开启监控
+  # prometheusApiUrl: "http://127.0.0.1:9090"  
 cluster:
   nodeId: 1 # 节点ID
   addr: "tcp://127.0.0.1:10001"

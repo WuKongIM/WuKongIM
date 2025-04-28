@@ -1,6 +1,7 @@
 package clusterconfig
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"math"
@@ -8,28 +9,33 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/clusterconfig/key"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/lni/goutils/syncutil"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 
 type PebbleShardLogStorage struct {
-	db     *pebble.DB
-	path   string
-	wo     *pebble.WriteOptions
-	noSync *pebble.WriteOptions
-	s      *Server
+	db      *pebble.DB
+	path    string
+	wo      *pebble.WriteOptions
+	noSync  *pebble.WriteOptions
+	s       *Server
+	stopper *syncutil.Stopper
 	wklog.Log
 }
 
 func NewPebbleShardLogStorage(path string, s *Server) *PebbleShardLogStorage {
 	return &PebbleShardLogStorage{
-		path:   path,
-		wo:     &pebble.WriteOptions{Sync: true},
-		noSync: &pebble.WriteOptions{Sync: false},
-		Log:    wklog.NewWKLog("ConfigPebbleShardLogStorage"),
-		s:      s,
+		path:    path,
+		wo:      &pebble.WriteOptions{Sync: true},
+		noSync:  &pebble.WriteOptions{Sync: false},
+		Log:     wklog.NewWKLog("ConfigPebbleShardLogStorage"),
+		stopper: syncutil.NewStopper(),
+		s:       s,
 	}
 }
 
@@ -41,6 +47,7 @@ func (p *PebbleShardLogStorage) Open() error {
 	if err != nil {
 		return err
 	}
+	p.stopper.RunWorker(p.collectMetricsLoop)
 	return nil
 }
 
@@ -49,7 +56,26 @@ func (p *PebbleShardLogStorage) Close() error {
 	if err != nil {
 		return err
 	}
+	p.stopper.Stop()
 	return nil
+}
+
+func (p *PebbleShardLogStorage) collectMetricsLoop() {
+	tk := time.NewTicker(time.Second * 1)
+	defer tk.Stop()
+
+	for {
+		select {
+		case <-tk.C:
+			p.collectMetrics()
+		case <-p.stopper.ShouldStop():
+			return
+		}
+	}
+}
+func (p *PebbleShardLogStorage) collectMetrics() {
+	metrics := trace.GlobalTrace.Metrics.Pebble()
+	metrics.Update(context.Background(), p.db, attribute.String("db", "nodeconfigdb"))
 }
 
 // AppendLog 追加日志

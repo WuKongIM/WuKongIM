@@ -15,6 +15,7 @@ import (
 	"github.com/bwmarrin/snowflake"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/lni/goutils/syncutil"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -201,76 +202,39 @@ func (wk *wukongDB) collectMetricsLoop() {
 	}
 }
 
+/*
+*
+
+ 1. 压缩健康度 (Compaction Health):
+    Compact.EstimatedDebt: 极其重要。表示待压缩的数据量。如果这个值持续增长，说明写入速度超过了压缩速度，可能导致写放大增加和性能下降。
+    Levels[0].NumFiles: L0 层的文件数量。L0 文件过多会显著增加读放大，是压缩跟不上的一个明显信号。
+    Levels[0].Score: L0 层的压缩得分。通常得分 > 1 就需要进行 L0->L1 的压缩。持续高分也表示压缩压力大。
+    (可选) Compact.NumInProgress: 当前正在进行的压缩任务数。可以辅助判断压缩是否繁忙。
+
+ 2. 写入停顿 (Write Stalls):
+    WriteStallCount, WriteStallDuration: 非常重要。记录了因等待 MemTable 刷盘或等待 Compaction 释放空间而导致写入暂停的次数和总时长。频繁或长时间的停顿直接影响写入性能。(注意：你当前的代码似乎没有采集这两个 v2 指标，强烈建议加上)
+
+ 3. 缓存性能 (Cache Performance):
+    BlockCache.Hits, BlockCache.Misses: 块缓存的命中和未命中次数。计算命中率 (Hits / (Hits + Misses)) 是衡量读取性能的关键，高命中率意味着更少的磁盘 I/O。(你当前只记录了 Size/Count，建议加上 Hits/Misses)
+    TableCache.Hits, TableCache.Misses: 表缓存（用于缓存打开的 SSTable 文件描述符）的命中和未命中。计算命中率也很重要，低命中率可能导致文件打开/关闭开销增加。(同样建议加上 Hits/Misses)
+
+ 4. 资源使用 (Resource Usage):
+
+    DiskSpaceUsage(): 数据库占用的总磁盘空间。监控其增长趋势。
+    WAL.Size: 预写日志的总大小。过大的 WAL 可能影响节点恢复时间。
+    MemTable.Size, MemTable.Count, MemTable.ZombieSize, MemTable.ZombieCount: 内存表的大小和数量（包括活跃的和等待刷盘的）。监控这些可以了解内存使用情况和刷盘压力。
+
+ 5. 效率指标 (Efficiency):
+    WriteAmp(): 非常推荐。写放大系数，表示用户写入 1 字节数据，实际物理写入多少字节。是衡量 LSM 树写入效率的核心指标。(这是一个方法调用，你当前的代码没有调用它，建议加上)
+
+*
+*/
 func (wk *wukongDB) collectMetrics() {
-
+	metrics := trace.GlobalTrace.Metrics.Pebble()
 	for i := uint32(0); i < uint32(wk.shardNum); i++ {
-		ms := wk.dbs[i].Metrics()
+		db := wk.dbs[i]
 
-		// ========== compact 压缩相关 ==========
-		trace.GlobalTrace.Metrics.DB().CompactTotalCountSet(i, ms.Compact.Count)
-		trace.GlobalTrace.Metrics.DB().CompactDefaultCountSet(i, ms.Compact.DefaultCount)
-		trace.GlobalTrace.Metrics.DB().CompactDeleteOnlyCountSet(i, ms.Compact.DeleteOnlyCount)
-		trace.GlobalTrace.Metrics.DB().CompactElisionOnlyCountSet(i, ms.Compact.ElisionOnlyCount)
-		trace.GlobalTrace.Metrics.DB().CompactEstimatedDebtSet(i, int64(ms.Compact.EstimatedDebt))
-		trace.GlobalTrace.Metrics.DB().CompactInProgressBytesSet(i, ms.Compact.InProgressBytes)
-		trace.GlobalTrace.Metrics.DB().CompactMarkedFilesSet(i, int64(ms.Compact.MarkedFiles))
-		trace.GlobalTrace.Metrics.DB().CompactMoveCountSet(i, ms.Compact.MoveCount)
-		trace.GlobalTrace.Metrics.DB().CompactMultiLevelCount(i, ms.Compact.MultiLevelCount)
-		trace.GlobalTrace.Metrics.DB().CompactNumInProgressSet(i, ms.Compact.NumInProgress)
-		trace.GlobalTrace.Metrics.DB().CompactReadCountSet(i, ms.Compact.ReadCount)
-		trace.GlobalTrace.Metrics.DB().CompactRewriteCountSet(i, ms.Compact.RewriteCount)
-
-		// ========== flush 相关 ==========
-		trace.GlobalTrace.Metrics.DB().FlushCountAdd(i, int64(ms.Flush.Count))
-		trace.GlobalTrace.Metrics.DB().FlushBytesAdd(i, ms.Flush.WriteThroughput.Bytes)
-		trace.GlobalTrace.Metrics.DB().FlushNumInProgressAdd(i, ms.Flush.NumInProgress)
-		trace.GlobalTrace.Metrics.DB().FlushAsIngestCountAdd(i, int64(ms.Flush.AsIngestCount))
-		trace.GlobalTrace.Metrics.DB().FlushAsIngestTableCountAdd(i, int64(ms.Flush.AsIngestTableCount))
-		trace.GlobalTrace.Metrics.DB().FlushAsIngestBytesAdd(i, int64(ms.Flush.AsIngestBytes))
-
-		// ========== memtable 内存表相关 ==========
-		trace.GlobalTrace.Metrics.DB().MemTableCountSet(i, int64(ms.MemTable.Count))
-		trace.GlobalTrace.Metrics.DB().MemTableSizeSet(i, int64(ms.MemTable.Size))
-		trace.GlobalTrace.Metrics.DB().MemTableZombieSizeSet(i, int64(ms.MemTable.ZombieSize))
-		trace.GlobalTrace.Metrics.DB().MemTableZombieCountSet(i, ms.MemTable.ZombieCount)
-
-		// ========== Snapshots 镜像相关 ==========
-		trace.GlobalTrace.Metrics.DB().SnapshotsCountSet(i, int64(ms.Snapshots.Count))
-
-		// ========== TableCache 相关 ==========
-		trace.GlobalTrace.Metrics.DB().TableCacheSizeSet(i, ms.TableCache.Size)
-		trace.GlobalTrace.Metrics.DB().TableCacheCountSet(i, ms.TableCache.Count)
-		trace.GlobalTrace.Metrics.DB().TableItersCountSet(i, ms.TableIters)
-
-		// ========== WAL 相关 ==========
-		trace.GlobalTrace.Metrics.DB().WALFilesCountSet(i, ms.WAL.Files)
-		trace.GlobalTrace.Metrics.DB().WALSizeSet(i, int64(ms.WAL.Size))
-		trace.GlobalTrace.Metrics.DB().WALPhysicalSizeSet(i, int64(ms.WAL.PhysicalSize))
-		trace.GlobalTrace.Metrics.DB().WALObsoleteFilesCountSet(i, ms.WAL.ObsoleteFiles)
-		trace.GlobalTrace.Metrics.DB().WALObsoletePhysicalSizeSet(i, int64(ms.WAL.ObsoletePhysicalSize))
-		trace.GlobalTrace.Metrics.DB().WALBytesInSet(i, int64(ms.WAL.BytesIn))
-		trace.GlobalTrace.Metrics.DB().WALBytesWrittenSet(i, int64(ms.WAL.BytesWritten))
-
-		// ========== Write 相关 ==========
-		trace.GlobalTrace.Metrics.DB().LogWriterBytesSet(i, ms.LogWriter.WriteThroughput.Bytes)
-
-		trace.GlobalTrace.Metrics.DB().DiskSpaceUsageSet(i, int64(ms.DiskSpaceUsage()))
-
-		// ========== level 相关 ==========
-
-		trace.GlobalTrace.Metrics.DB().LevelNumFilesSet(i, ms.Total().NumFiles)
-		trace.GlobalTrace.Metrics.DB().LevelFileSizeSet(i, int64(ms.Total().Size))
-		trace.GlobalTrace.Metrics.DB().LevelCompactScoreSet(i, int64(ms.Total().Score))
-		trace.GlobalTrace.Metrics.DB().LevelBytesInSet(i, int64(ms.Total().BytesIn))
-		trace.GlobalTrace.Metrics.DB().LevelBytesIngestedSet(i, int64(ms.Total().BytesIngested))
-		trace.GlobalTrace.Metrics.DB().LevelBytesMovedSet(i, int64(ms.Total().BytesMoved))
-		trace.GlobalTrace.Metrics.DB().LevelBytesReadSet(i, int64(ms.Total().BytesRead))
-		trace.GlobalTrace.Metrics.DB().LevelBytesCompactedSet(i, int64(ms.Total().BytesCompacted))
-		trace.GlobalTrace.Metrics.DB().LevelBytesFlushedSet(i, int64(ms.Total().BytesFlushed))
-		trace.GlobalTrace.Metrics.DB().LevelTablesCompactedSet(i, int64(ms.Total().TablesCompacted))
-		trace.GlobalTrace.Metrics.DB().LevelTablesFlushedSet(i, int64(ms.Total().TablesFlushed))
-		trace.GlobalTrace.Metrics.DB().LevelTablesIngestedSet(i, int64(ms.Total().TablesIngested))
-		trace.GlobalTrace.Metrics.DB().LevelTablesMovedSet(i, int64(ms.Total().TablesMoved))
+		metrics.Update(context.Background(), db, attribute.String("db", "wukongimdb"), attribute.String("shard", fmt.Sprintf("shard%03d", i)))
 
 	}
 }

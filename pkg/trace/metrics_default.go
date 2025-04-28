@@ -1,6 +1,7 @@
 package trace
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -19,22 +20,28 @@ var (
 )
 
 type metrics struct {
-	cluster IClusterMetrics
-	app     IAppMetrics
-	system  ISystemMetrics
-	db      IDBMetrics
-	opts    *Options
+	cluster       IClusterMetrics
+	app           IAppMetrics
+	system        ISystemMetrics
+	db            IDBMetrics
+	pebbleMetrics *PebbleMetrics
+	opts          *Options
 	wklog.Log
 }
 
 func newMetrics(opts *Options) *metrics {
+	pebbleMetrics, err := NewPebbleMetrics(meter)
+	if err != nil {
+		panic(fmt.Errorf("new pebble metrics panic %s", err))
+	}
 	return &metrics{
-		cluster: newClusterMetrics(opts),
-		app:     newAppMetrics(opts),
-		system:  newSystemMetrics(opts),
-		db:      NewDBMetrics(),
-		opts:    opts,
-		Log:     wklog.NewWKLog("Metrics"),
+		cluster:       newClusterMetrics(opts),
+		app:           newAppMetrics(opts),
+		system:        newSystemMetrics(opts),
+		db:            NewDBMetrics(),
+		pebbleMetrics: pebbleMetrics,
+		opts:          opts,
+		Log:           wklog.NewWKLog("Metrics"),
 	}
 }
 
@@ -56,6 +63,10 @@ func (d *metrics) Cluster() IClusterMetrics {
 // DB 数据库监控
 func (d *metrics) DB() IDBMetrics {
 	return d.db
+}
+
+func (d *metrics) Pebble() *PebbleMetrics {
+	return d.pebbleMetrics
 }
 
 func (d *metrics) Route(r *wkhttp.WKHttp) {
