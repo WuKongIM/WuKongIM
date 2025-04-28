@@ -4,7 +4,7 @@ import (
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) SetLeaderTermStartIndex(shardNo string, term uint32, index uint64) error {
@@ -24,10 +24,13 @@ func (wk *wukongDB) LeaderLastTerm(shardNo string) (uint32, error) {
 
 	wk.metrics.LeaderLastTermAdd(1)
 
-	iter := wk.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := wk.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermSequenceTermKey(shardNo, 0),
 		UpperBound: key.NewLeaderTermSequenceTermKey(shardNo, math.MaxUint32),
 	})
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 
 	if iter.Last() && iter.Valid() {
@@ -59,10 +62,13 @@ func (wk *wukongDB) LeaderLastTermGreaterEqThan(shardNo string, term uint32) (ui
 
 	wk.metrics.LeaderLastTermGreaterThanAdd(1)
 
-	iter := wk.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := wk.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermSequenceTermKey(shardNo, term),
 		UpperBound: key.NewLeaderTermSequenceTermKey(shardNo, math.MaxUint32),
 	})
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 
 	var maxTerm uint32 = term

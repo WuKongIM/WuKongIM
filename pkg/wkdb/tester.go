@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) AddOrUpdateTester(tester Tester) error {
@@ -27,14 +27,17 @@ func (wk *wukongDB) GetTester(no string) (Tester, error) {
 
 	id := key.HashWithString(no)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewTesterColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewTesterColumnKey(id, key.MaxColumnKey),
 	})
+	var tester Tester
+	if err != nil {
+		return tester, err
+	}
 	defer iter.Close()
 
-	var tester Tester
-	err := wk.iteratorTester(iter, func(t Tester) bool {
+	err = wk.iteratorTester(iter, func(t Tester) bool {
 		tester = t
 		return false
 	})
@@ -45,14 +48,17 @@ func (wk *wukongDB) GetTesters() ([]Tester, error) {
 
 	db := wk.defaultShardDB()
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewTesterColumnKey(0, key.TableTester.Column.No),
 		UpperBound: key.NewTesterColumnKey(math.MaxUint64, key.TableTester.Column.No),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var testers []Tester
-	err := wk.iteratorTester(iter, func(t Tester) bool {
+	err = wk.iteratorTester(iter, func(t Tester) bool {
 		testers = append(testers, t)
 		return true
 	})

@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 )
 
@@ -219,14 +219,17 @@ func (wk *wukongDB) GetConversations(uid string) ([]Conversation, error) {
 	wk.metrics.GetConversationsAdd(1)
 
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationPrimaryKey(uid, 0),
 		UpperBound: key.NewConversationPrimaryKey(uid, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var conversations []Conversation
-	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+	err = wk.iterateConversation(iter, func(conversation Conversation) bool {
 		conversations = append(conversations, conversation)
 		return true
 	})
@@ -241,14 +244,17 @@ func (wk *wukongDB) GetConversationsByType(uid string, tp ConversationType) ([]C
 	wk.metrics.GetConversationsByTypeAdd(1)
 
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationPrimaryKey(uid, 0),
 		UpperBound: key.NewConversationPrimaryKey(uid, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var conversations []Conversation
-	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+	err = wk.iterateConversation(iter, func(conversation Conversation) bool {
 		if conversation.Type == tp {
 			conversations = append(conversations, conversation)
 		}
@@ -316,10 +322,13 @@ func (wk *wukongDB) GetChannelConversationLocalUsers(channelId string, channelTy
 
 	db := wk.channelDb(channelId, channelType)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationLocalUserLowKey(channelId, channelType),
 		UpperBound: key.NewConversationLocalUserHighKey(channelId, channelType),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var users []string
@@ -369,10 +378,13 @@ func removeDupliConversationByChannel(conversations []Conversation) []Conversati
 
 func (wk *wukongDB) getLastConversationIds(uid string, updatedAt uint64, limit int) ([]uint64, error) {
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationSecondIndexKey(uid, key.TableConversation.SecondIndex.UpdatedAt, updatedAt, 0),
 		UpperBound: key.NewConversationSecondIndexKey(uid, key.TableConversation.SecondIndex.UpdatedAt, math.MaxUint64, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var (
@@ -445,13 +457,16 @@ func (wk *wukongDB) SearchConversation(req ConversationSearchReq) ([]Conversatio
 	var conversations []Conversation
 	currentSize := 0
 	for _, db := range wk.dbs {
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewConversationUidHashKey(0),
 			UpperBound: key.NewConversationUidHashKey(math.MaxUint64),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
-		err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+		err = wk.iterateConversation(iter, func(conversation Conversation) bool {
 			if currentSize > req.Limit*req.CurrentPage { // 大于当前页的消息终止遍历
 				return false
 			}
@@ -505,10 +520,13 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 		return EmptyConversation, ErrNotFound
 	}
 
-	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
+	iter, err := wk.shardDB(uid).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationColumnKey(uid, id, key.MinColumnKey),
 		UpperBound: key.NewConversationColumnKey(uid, id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return EmptyConversation, err
+	}
 	defer iter.Close()
 
 	var conversation = EmptyConversation
@@ -531,14 +549,17 @@ func (wk *wukongDB) GetConversation(uid string, channelId string, channelType ui
 func (wk *wukongDB) getConversations(uid string, channelId string, channelType uint8) ([]Conversation, error) {
 
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationPrimaryKey(uid, 0),
 		UpperBound: key.NewConversationPrimaryKey(uid, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var conversations []Conversation
-	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+	err = wk.iterateConversation(iter, func(conversation Conversation) bool {
 		if conversation.ChannelId == channelId && conversation.ChannelType == channelType {
 			conversations = append(conversations, conversation)
 		}
@@ -570,14 +591,17 @@ func (wk *wukongDB) ExistConversation(uid string, channelId string, channelType 
 }
 
 func (wk *wukongDB) getConversation(uid string, id uint64) (Conversation, error) {
-	iter := wk.shardDB(uid).NewIter(&pebble.IterOptions{
+	iter, err := wk.shardDB(uid).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationColumnKey(uid, id, key.MinColumnKey),
 		UpperBound: key.NewConversationColumnKey(uid, id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return EmptyConversation, err
+	}
 	defer iter.Close()
 
 	var conversation = EmptyConversation
-	err := wk.iterateConversation(iter, func(cn Conversation) bool {
+	err = wk.iterateConversation(iter, func(cn Conversation) bool {
 		conversation = cn
 		return false
 	})

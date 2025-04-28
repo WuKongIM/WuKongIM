@@ -4,7 +4,7 @@ import (
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 )
 
@@ -27,10 +27,13 @@ func (wk *wukongDB) GetMessagesOfNotifyQueue(count int) ([]Message, error) {
 
 	wk.metrics.GetMessagesOfNotifyQueueAdd(1)
 
-	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
+	iter, err := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessageNotifyQueueKey(0),
 		UpperBound: key.NewMessageNotifyQueueKey(math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	messages, errorKeys, err := wk.parseMessageOfNotifyQueue(iter, count)
@@ -56,10 +59,13 @@ func (wk *wukongDB) GetMessagesOfNotifyQueue(count int) ([]Message, error) {
 // RemoveMessagesOfNotifyQueueCount 移除指定数量的通知队列的消息
 func (wk *wukongDB) RemoveMessagesOfNotifyQueueCount(count int) error {
 
-	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
+	iter, err := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessageNotifyQueueKey(0),
 		UpperBound: key.NewMessageNotifyQueueKey(math.MaxUint64),
 	})
+	if err != nil {
+		return err
+	}
 	defer iter.Close()
 
 	batch := wk.defaultShardDB().NewBatch()

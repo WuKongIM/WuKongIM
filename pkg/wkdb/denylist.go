@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 )
 
@@ -41,13 +41,16 @@ func (wk *wukongDB) GetDenylist(channelId string, channelType uint8) ([]Member, 
 
 	wk.metrics.GetDenylistAdd(1)
 
-	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
+	iter, err := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDenylistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewDenylistPrimaryKey(channelId, channelType, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	members := make([]Member, 0)
-	err := wk.iterateDenylist(iter, func(m Member) bool {
+	err = wk.iterateDenylist(iter, func(m Member) bool {
 		members = append(members, m)
 		return true
 	})
@@ -165,13 +168,16 @@ func (wk *wukongDB) getDenylistByUids(channelId string, channelType uint8, uids 
 	db := wk.channelDb(channelId, channelType)
 	for _, uid := range uids {
 		id := key.HashWithString(uid)
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewDenylistColumnKey(channelId, channelType, id, key.MinColumnKey),
 			UpperBound: key.NewDenylistColumnKey(channelId, channelType, id, key.MaxColumnKey),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
-		err := wk.iterateDenylist(iter, func(member Member) bool {
+		err = wk.iterateDenylist(iter, func(member Member) bool {
 			members = append(members, member)
 			return true
 		})

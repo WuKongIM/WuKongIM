@@ -7,7 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 )
 
@@ -108,10 +108,13 @@ func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo
 		return EmptyChannelInfo, nil
 	}
 
-	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
+	iter, err := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelInfoColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewChannelInfoColumnKey(id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return EmptyChannelInfo, err
+	}
 	defer iter.Close()
 
 	var channelInfos []ChannelInfo
@@ -204,10 +207,13 @@ func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) 
 			}
 		}
 
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, start, 0),
 			UpperBound: key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.CreatedAt, end, 0),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
 		var iterStepFnc func() bool
@@ -229,10 +235,13 @@ func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) 
 				return nil, err
 			}
 
-			dataIter := db.NewIter(&pebble.IterOptions{
+			dataIter, err := db.NewIter(&pebble.IterOptions{
 				LowerBound: key.NewChannelInfoColumnKey(id, key.MinColumnKey),
 				UpperBound: key.NewChannelInfoColumnKey(id, key.MaxColumnKey),
 			})
+			if err != nil {
+				return nil, err
+			}
 			defer dataIter.Close()
 
 			var ch ChannelInfo
@@ -364,10 +373,14 @@ func (wk *wukongDB) searchChannelsByIndex(req ChannelSearchReq, db *pebble.DB, i
 		return false, nil
 	}
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
+	if err != nil {
+		return false, err
+	}
+	defer iter.Close()
 
 	for iter.Last(); iter.Valid(); iter.Prev() {
 		_, id, err := key.ParseChannelInfoSecondIndexKey(iter.Key())
@@ -375,10 +388,13 @@ func (wk *wukongDB) searchChannelsByIndex(req ChannelSearchReq, db *pebble.DB, i
 			return false, err
 		}
 
-		dataIter := db.NewIter(&pebble.IterOptions{
+		dataIter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewChannelInfoColumnKey(id, key.MinColumnKey),
 			UpperBound: key.NewChannelInfoColumnKey(id, key.MaxColumnKey),
 		})
+		if err != nil {
+			return false, err
+		}
 		defer dataIter.Close()
 
 		var ch ChannelInfo

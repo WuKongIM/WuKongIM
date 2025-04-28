@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) AddOrUpdatePlugin(plugin Plugin) error {
@@ -37,10 +37,13 @@ func (wk *wukongDB) DeletePlugin(no string) error {
 
 func (wk *wukongDB) GetPlugins() ([]Plugin, error) {
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginColumnKey(0, key.MinColumnKey),
 		UpperBound: key.NewPluginColumnKey(math.MaxUint64, key.MaxColumnKey),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	plugins := make([]Plugin, 0)
@@ -55,13 +58,16 @@ func (wk *wukongDB) GetPlugins() ([]Plugin, error) {
 
 func (wk *wukongDB) GetPlugin(no string) (Plugin, error) {
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginColumnKey(key.HashWithString(no), key.MinColumnKey),
 		UpperBound: key.NewPluginColumnKey(key.HashWithString(no), key.MaxColumnKey),
 	})
+	var plugin Plugin
+	if err != nil {
+		return plugin, err
+	}
 	defer iter.Close()
 
-	var plugin Plugin
 	if err := wk.iteratorPlugin(iter, func(u Plugin) bool {
 		plugin = u
 		return false

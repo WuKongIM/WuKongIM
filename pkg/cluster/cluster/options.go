@@ -36,10 +36,10 @@ type Options struct {
 	MaxSendQueueSize uint64
 
 	DB struct {
-		WKDbShardNum     int // wkdb 分片数量
-		WKDbMemTableSize int // wkdb MemTable大小
-		SlotShardNum     int // 分片数量
-		SlotMemTableSize int // MemTable大小
+		WKDbShardNum     int    // wkdb 分片数量
+		WKDbMemTableSize uint64 // wkdb MemTable大小
+		SlotShardNum     int    // 分片数量
+		SlotMemTableSize uint64 // MemTable大小
 	}
 
 	ServerAddr string // 服务地址
@@ -69,9 +69,9 @@ func NewOptions(opt ...Option) *Options {
 		ReqTimeout:          5 * time.Second,
 		DB: struct {
 			WKDbShardNum     int
-			WKDbMemTableSize int
+			WKDbMemTableSize uint64
 			SlotShardNum     int
-			SlotMemTableSize int
+			SlotMemTableSize uint64
 		}{
 			WKDbShardNum:     8,
 			WKDbMemTableSize: 16 * 1024 * 1024,
@@ -172,7 +172,7 @@ func WithDBSlotShardNum(shardNum int) Option {
 	}
 }
 
-func WithDBSlotMemTableSize(memTableSize int) Option {
+func WithDBSlotMemTableSize(memTableSize uint64) Option {
 	return func(o *Options) {
 		o.DB.SlotMemTableSize = memTableSize
 	}
@@ -184,7 +184,7 @@ func WithDBWKDbShardNum(shardNum int) Option {
 	}
 }
 
-func WithDBWKDbMemTableSize(memTableSize int) Option {
+func WithDBWKDbMemTableSize(memTableSize uint64) Option {
 	return func(o *Options) {
 		o.DB.WKDbMemTableSize = memTableSize
 	}

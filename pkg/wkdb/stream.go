@@ -5,7 +5,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) AddStreamMeta(streamMeta *StreamMeta) error {
@@ -62,10 +62,13 @@ func (wk *wukongDB) AddStreams(streams []*Stream) error {
 func (wk *wukongDB) GetStreams(streamNo string) ([]*Stream, error) {
 	db := wk.shardDB(streamNo)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewStreamIndexKey(streamNo, 0),
 		UpperBound: key.NewStreamIndexKey(streamNo, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var streams []*Stream

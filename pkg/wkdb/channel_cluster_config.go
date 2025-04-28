@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 )
 
@@ -136,14 +136,17 @@ func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8)
 }
 
 func (wk *wukongDB) getChannelClusterConfigById(id uint64) (ChannelClusterConfig, error) {
-	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
+	iter, err := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewChannelClusterConfigColumnKey(id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return EmptyChannelClusterConfig, err
+	}
 	defer iter.Close()
 
 	var resultCfg ChannelClusterConfig = EmptyChannelClusterConfig
-	err := wk.iteratorChannelClusterConfig(iter, func(cfg ChannelClusterConfig) bool {
+	err = wk.iteratorChannelClusterConfig(iter, func(cfg ChannelClusterConfig) bool {
 		resultCfg = cfg
 		return false
 	})
@@ -194,14 +197,17 @@ func (wk *wukongDB) GetChannelClusterConfigs(offsetId uint64, limit int) ([]Chan
 
 	wk.metrics.GetChannelClusterConfigsAdd(1)
 
-	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
+	iter, err := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(offsetId+1, key.MinColumnKey),
 		UpperBound: key.NewChannelClusterConfigColumnKey(math.MaxUint64, key.MaxColumnKey),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	results := make([]ChannelClusterConfig, 0)
-	err := wk.iteratorChannelClusterConfig(iter, func(cfg ChannelClusterConfig) bool {
+	err = wk.iteratorChannelClusterConfig(iter, func(cfg ChannelClusterConfig) bool {
 		if len(results) >= limit {
 			return false
 		}
@@ -290,10 +296,13 @@ func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq
 
 	db := wk.defaultShardDB()
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, start, 0),
 		UpperBound: key.NewChannelClusterConfigSecondIndexKey(key.TableChannelClusterConfig.SecondIndex.CreatedAt, end, 0),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var iterStepFnc func() bool
@@ -314,10 +323,13 @@ func (wk *wukongDB) SearchChannelClusterConfig(req ChannelClusterConfigSearchReq
 			return nil, err
 		}
 
-		dataIter := db.NewIter(&pebble.IterOptions{
+		dataIter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewChannelClusterConfigColumnKey(id, key.MinColumnKey),
 			UpperBound: key.NewChannelClusterConfigColumnKey(id, key.MaxColumnKey),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer dataIter.Close()
 
 		var c ChannelClusterConfig
@@ -351,14 +363,17 @@ func (wk *wukongDB) GetChannelClusterConfigWithSlotId(slotId uint32) ([]ChannelC
 
 	wk.metrics.GetChannelClusterConfigWithSlotIdAdd(1)
 
-	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
+	iter, err := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewChannelClusterConfigColumnKey(0, key.MinColumnKey),
 		UpperBound: key.NewChannelClusterConfigColumnKey(math.MaxUint64, key.MaxColumnKey),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	results := make([]ChannelClusterConfig, 0)
-	err := wk.iteratorChannelClusterConfig(iter, func(cfg ChannelClusterConfig) bool {
+	err = wk.iteratorChannelClusterConfig(iter, func(cfg ChannelClusterConfig) bool {
 		resultSlotId := wk.channelSlotId(cfg.ChannelId)
 		if slotId == resultSlotId {
 			results = append(results, cfg)

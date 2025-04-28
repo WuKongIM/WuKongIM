@@ -2,7 +2,7 @@ package wkdb
 
 import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) IncMessageCount(v int) error {

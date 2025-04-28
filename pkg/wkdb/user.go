@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) GetUser(uid string) (User, error) {
@@ -24,10 +24,13 @@ func (wk *wukongDB) GetUser(uid string) (User, error) {
 	}
 
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewUserColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewUserColumnKey(id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return EmptyUser, err
+	}
 	defer iter.Close()
 
 	var usr = EmptyUser
@@ -117,10 +120,13 @@ func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 			}
 		}
 
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, start, 0),
 			UpperBound: key.NewUserSecondIndexKey(key.TableUser.SecondIndex.CreatedAt, end, 0),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
 		var iterStepFnc func() bool
@@ -141,10 +147,13 @@ func (wk *wukongDB) SearchUser(req UserSearchReq) ([]User, error) {
 				return nil, err
 			}
 
-			dataIter := db.NewIter(&pebble.IterOptions{
+			dataIter, err := db.NewIter(&pebble.IterOptions{
 				LowerBound: key.NewUserColumnKey(id, key.MinColumnKey),
 				UpperBound: key.NewUserColumnKey(id, key.MaxColumnKey),
 			})
+			if err != nil {
+				return nil, err
+			}
 			defer dataIter.Close()
 
 			var u User

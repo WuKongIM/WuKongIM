@@ -8,7 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 )
 
@@ -44,14 +44,17 @@ func (wk *wukongDB) GetSubscribers(channelId string, channelType uint8) ([]Membe
 
 	wk.metrics.GetSubscribersAdd(1)
 
-	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
+	iter, err := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewSubscriberColumnKey(channelId, channelType, 0, key.MinColumnKey),
 		UpperBound: key.NewSubscriberColumnKey(channelId, channelType, math.MaxUint64, key.MaxColumnKey),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	members := make([]Member, 0)
-	err := wk.iterateSubscriber(iter, func(member Member) bool {
+	err = wk.iterateSubscriber(iter, func(member Member) bool {
 		members = append(members, member)
 		return true
 	})
@@ -63,14 +66,17 @@ func (wk *wukongDB) GetSubscribers(channelId string, channelType uint8) ([]Membe
 
 // 获取订阅者数量
 func (wk *wukongDB) GetSubscriberCount(channelId string, channelType uint8) (int, error) {
-	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
+	iter, err := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewSubscriberColumnKey(channelId, channelType, 0, key.TableSubscriber.Column.Uid),
 		UpperBound: key.NewSubscriberColumnKey(channelId, channelType, math.MaxUint64, key.TableSubscriber.Column.Uid),
 	})
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 
 	var count int
-	err := wk.iterateSubscriber(iter, func(member Member) bool {
+	err = wk.iterateSubscriber(iter, func(member Member) bool {
 		count++
 		return true
 	})
@@ -204,13 +210,16 @@ func (wk *wukongDB) getSubscribersByUids(channelId string, channelType uint8, ui
 	for _, uid := range uids {
 		id := key.HashWithString(uid)
 
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewSubscriberColumnKey(channelId, channelType, id, key.MinColumnKey),
 			UpperBound: key.NewSubscriberColumnKey(channelId, channelType, id, key.MaxColumnKey),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
-		err := wk.iterateSubscriber(iter, func(member Member) bool {
+		err = wk.iterateSubscriber(iter, func(member Member) bool {
 			members = append(members, member)
 			return true
 		})

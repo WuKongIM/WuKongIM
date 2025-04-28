@@ -8,7 +8,7 @@ type Options struct {
 	// 耗时配置开启
 	EnableCost   bool
 	ShardNum     int // 数据库分区数量，一但设置就不能修改
-	MemTableSize int
+	MemTableSize uint64
 
 	BatchPerSize int // 每个batch里key的大小
 }
@@ -67,7 +67,7 @@ func WithShardNum(shardNum int) Option {
 	}
 }
 
-func WithMemTableSize(size int) Option {
+func WithMemTableSize(size uint64) Option {
 	return func(o *Options) {
 		o.MemTableSize = size
 	}

@@ -6,15 +6,18 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) getDeviceId(uid string, deviceFlag uint64) (uint64, error) {
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.Uid, key.HashWithString(uid), 0),
 		UpperBound: key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.Uid, key.HashWithString(uid), math.MaxUint64),
 	})
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 
 	for iter.First(); iter.Valid(); iter.Next() {
@@ -35,14 +38,17 @@ func (wk *wukongDB) getDeviceId(uid string, deviceFlag uint64) (uint64, error) {
 }
 
 func (wk *wukongDB) getDeviceById(id uint64, db *pebble.DB) (Device, error) {
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return EmptyDevice, err
+	}
 	defer iter.Close()
 
 	var device = EmptyDevice
-	err := wk.iterDevice(iter, func(d Device) bool {
+	err = wk.iterDevice(iter, func(d Device) bool {
 		device = d
 		return false
 	})
@@ -71,7 +77,7 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 	}
 
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
 	})
@@ -104,10 +110,13 @@ func (wk *wukongDB) GetDevices(uid string) ([]Device, error) {
 
 	db := wk.shardDB(uid)
 	uidHash := key.HashWithString(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDeviceSecondIndexKey(key.TableDevice.Column.Uid, uidHash, 0),
 		UpperBound: key.NewDeviceSecondIndexKey(key.TableDevice.Column.Uid, uidHash, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var devices []Device
@@ -131,10 +140,13 @@ func (wk *wukongDB) GetDeviceCount(uid string) (int, error) {
 
 	db := wk.shardDB(uid)
 	uidHash := key.HashWithString(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewDeviceSecondIndexKey(key.TableDevice.Column.Uid, uidHash, 0),
 		UpperBound: key.NewDeviceSecondIndexKey(key.TableDevice.Column.Uid, uidHash, math.MaxUint64),
 	})
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 
 	var count int
@@ -255,10 +267,13 @@ func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
 			}
 		}
 
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.CreatedAt, start, 0),
 			UpperBound: key.NewDeviceSecondIndexKey(key.TableDevice.SecondIndex.CreatedAt, end, 0),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
 		var iterStepFnc func() bool
@@ -280,10 +295,13 @@ func (wk *wukongDB) SearchDevice(req DeviceSearchReq) ([]Device, error) {
 				return nil, err
 			}
 
-			dataIter := db.NewIter(&pebble.IterOptions{
+			dataIter, err := db.NewIter(&pebble.IterOptions{
 				LowerBound: key.NewDeviceColumnKey(id, key.MinColumnKey),
 				UpperBound: key.NewDeviceColumnKey(id, key.MaxColumnKey),
 			})
+			if err != nil {
+				return nil, err
+			}
 			defer dataIter.Close()
 
 			var d Device

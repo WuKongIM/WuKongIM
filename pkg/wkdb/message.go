@@ -12,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -242,10 +242,13 @@ func (wk *wukongDB) GetMessage(messageId uint64) (Message, error) {
 		}
 		var arr [16]byte
 		copy(arr[:], result)
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewMessageColumnKeyWithPrimary(arr, key.MinColumnKey),
 			UpperBound: key.NewMessageColumnKeyWithPrimary(arr, key.MaxColumnKey),
 		})
+		if err != nil {
+			return EmptyMessage, err
+		}
 		defer iter.Close()
 
 		var msg Message
@@ -314,10 +317,13 @@ func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, start
 
 	db := wk.channelDb(channelId, channelType)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	msgs := make([]Message, 0)
@@ -353,10 +359,13 @@ func (wk *wukongDB) LoadNextRangeMsgs(channelId string, channelType uint8, start
 
 	db := wk.channelDb(channelId, channelType)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	msgs := make([]Message, 0)
@@ -378,13 +387,16 @@ func (wk *wukongDB) LoadMsg(channelId string, channelType uint8, seq uint64) (Me
 
 	db := wk.channelDb(channelId, channelType)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, seq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, seq+1),
 	})
+	if err != nil {
+		return EmptyMessage, err
+	}
 	defer iter.Close()
 	var msg Message
-	err := wk.iteratorChannelMessages(iter, 1, func(m Message) bool {
+	err = wk.iteratorChannelMessages(iter, 1, func(m Message) bool {
 		msg = m
 		return false
 	})
@@ -464,10 +476,13 @@ func (wk *wukongDB) LoadNextRangeMsgsForSize(channelId string, channelType uint8
 	}
 	db := wk.channelDb(channelId, channelType)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewMessagePrimaryKey(channelId, channelType, minSeq),
 		UpperBound: key.NewMessagePrimaryKey(channelId, channelType, maxSeq),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	return wk.parseChannelMessagesWithLimitSize(iter, limitSize)
 }
@@ -621,10 +636,13 @@ func (wk *wukongDB) searchMessageByIndex(req MessageSearchReq, db *pebble.DB, it
 		return false, nil
 	}
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
+	if err != nil {
+		return false, err
+	}
 	defer iter.Close()
 
 	for iter.Last(); iter.Valid(); iter.Prev() {
@@ -634,10 +652,13 @@ func (wk *wukongDB) searchMessageByIndex(req MessageSearchReq, db *pebble.DB, it
 			continue
 		}
 
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewMessageColumnKeyWithPrimary(primaryBytes, key.MinColumnKey),
 			UpperBound: key.NewMessageColumnKeyWithPrimary(primaryBytes, key.MaxColumnKey),
 		})
+		if err != nil {
+			return false, err
+		}
 
 		defer iter.Close()
 
@@ -741,13 +762,16 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 			}
 		}
 
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, startSeq),
 			UpperBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, endSeq),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
-		err := wk.iteratorChannelMessagesDirection(iter, 0, !req.Pre, fnc)
+		err = wk.iteratorChannelMessagesDirection(iter, 0, !req.Pre, fnc)
 		if err != nil {
 			return nil, err
 		}
@@ -780,10 +804,13 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 				}
 			}
 
-			iter := db.NewIter(&pebble.IterOptions{
+			iter, err := db.NewIter(&pebble.IterOptions{
 				LowerBound: key.NewMessageIndexMessageIdKey(startMessageId),
 				UpperBound: key.NewMessageIndexMessageIdKey(endMessageId),
 			})
+			if err != nil {
+				return nil, err
+			}
 			defer iter.Close()
 
 			var pkey [16]byte
@@ -802,10 +829,13 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 
 			for ; iter.Valid(); iterStepFnc() {
 				copy(pkey[:], iter.Value())
-				resultIter := db.NewIter(&pebble.IterOptions{
+				resultIter, err := db.NewIter(&pebble.IterOptions{
 					LowerBound: key.NewMessageColumnKeyWithPrimary(pkey, key.MinColumnKey),
 					UpperBound: key.NewMessageColumnKeyWithPrimary(pkey, key.MaxColumnKey),
 				})
+				if err != nil {
+					return nil, err
+				}
 				defer resultIter.Close()
 				err = wk.iteratorChannelMessages(resultIter, 0, fnc)
 				if err != nil {

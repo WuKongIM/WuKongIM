@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) AddOrUpdatePluginUsers(pluginUsers []PluginUser) error {
@@ -45,10 +45,13 @@ func (wk *wukongDB) getPluginId(pluginNo, uid string) uint64 {
 
 func (wk *wukongDB) GetPluginUsers(pluginNo string) ([]PluginUser, error) {
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.PluginNo, key.HashWithString(pluginNo), 0),
 		UpperBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.PluginNo, key.HashWithString(pluginNo), math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	var pluginUsers []PluginUser
@@ -89,10 +92,13 @@ func (wk *wukongDB) SearchPluginUsers(req SearchPluginUserReq) ([]PluginUser, er
 	}
 
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginUserColumnKey(0, key.MinColumnKey),
 		UpperBound: key.NewPluginUserColumnKey(math.MaxUint64, key.MaxColumnKey),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	pluginUsers := make([]PluginUser, 0)
@@ -109,10 +115,13 @@ func (wk *wukongDB) SearchPluginUsers(req SearchPluginUserReq) ([]PluginUser, er
 
 func (wk *wukongDB) searchPluginUsersByUid(uid string) ([]PluginUser, error) {
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.Uid, key.HashWithString(uid), 0),
 		UpperBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.Uid, key.HashWithString(uid), math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
 	pluginUsers := make([]PluginUser, 0)
@@ -133,10 +142,13 @@ func (wk *wukongDB) searchPluginUsersByUid(uid string) ([]PluginUser, error) {
 
 func (wk *wukongDB) getPluginUserById(id uint64) (PluginUser, error) {
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginUserColumnKey(id, key.MinColumnKey),
 		UpperBound: key.NewPluginUserColumnKey(id, key.MaxColumnKey),
 	})
+	if err != nil {
+		return PluginUser{}, err
+	}
 	defer iter.Close()
 
 	var pluginUser PluginUser
@@ -152,10 +164,13 @@ func (wk *wukongDB) getPluginUserById(id uint64) (PluginUser, error) {
 // GetHighestPriorityPluginByUid 获取用户最高优先级的插件
 func (wk *wukongDB) GetHighestPriorityPluginByUid(uid string) (string, error) {
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.Uid, key.HashWithString(uid), 0),
 		UpperBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.Uid, key.HashWithString(uid), math.MaxUint64),
 	})
+	if err != nil {
+		return "", err
+	}
 	defer iter.Close()
 
 	var plugin Plugin
@@ -186,10 +201,13 @@ func (wk *wukongDB) GetHighestPriorityPluginByUid(uid string) (string, error) {
 
 func (wk *wukongDB) ExistPluginByUid(uid string) (bool, error) {
 	db := wk.defaultShardDB()
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.Uid, key.HashWithString(uid), 0),
 		UpperBound: key.NewPluginUserSecondIndexKey(key.TablePluginUser.SecondIndex.Uid, key.HashWithString(uid), math.MaxUint64),
 	})
+	if err != nil {
+		return false, err
+	}
 	defer iter.Close()
 
 	for iter.First(); iter.Valid(); iter.Next() {

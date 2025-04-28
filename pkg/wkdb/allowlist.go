@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"go.uber.org/zap"
 )
 
@@ -42,13 +42,16 @@ func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]Member,
 
 	wk.metrics.GetAllowlistAdd(1)
 
-	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
+	iter, err := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewAllowlistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	members := make([]Member, 0)
-	err := wk.iterateAllowlist(iter, func(m Member) bool {
+	err = wk.iterateAllowlist(iter, func(m Member) bool {
 		members = append(members, m)
 		return true
 	})
@@ -58,13 +61,17 @@ func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]Member,
 func (wk *wukongDB) HasAllowlist(channelId string, channelType uint8) (bool, error) {
 	wk.metrics.HasAllowlistAdd(1)
 
-	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
+	iter, err := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewAllowlistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
 	})
+	if err != nil {
+		return false, err
+	}
 	defer iter.Close()
+
 	var exist = false
-	err := wk.iterateAllowlist(iter, func(m Member) bool {
+	err = wk.iterateAllowlist(iter, func(m Member) bool {
 		exist = true
 		return false
 	})
@@ -182,13 +189,16 @@ func (wk *wukongDB) getAllowlistByUids(channelId string, channelType uint8, uids
 	db := wk.channelDb(channelId, channelType)
 	for _, uid := range uids {
 		id := key.HashWithString(uid)
-		iter := db.NewIter(&pebble.IterOptions{
+		iter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewAllowlistColumnKey(channelId, channelType, id, key.MinColumnKey),
 			UpperBound: key.NewAllowlistColumnKey(channelId, channelType, id, key.MaxColumnKey),
 		})
+		if err != nil {
+			return nil, err
+		}
 		defer iter.Close()
 
-		err := wk.iterateAllowlist(iter, func(member Member) bool {
+		err = wk.iterateAllowlist(iter, func(member Member) bool {
 			members = append(members, member)
 			return true
 		})

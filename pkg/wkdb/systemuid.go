@@ -4,7 +4,7 @@ import (
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 func (wk *wukongDB) AddSystemUids(uids []string) error {
@@ -41,10 +41,13 @@ func (wk *wukongDB) GetSystemUids() ([]string, error) {
 
 	wk.metrics.GetSystemUidsAdd(1)
 
-	iter := wk.defaultShardDB().NewIter(&pebble.IterOptions{
+	iter, err := wk.defaultShardDB().NewIter(&pebble.IterOptions{
 		LowerBound: key.NewSystemUidColumnKey(0, key.TableSystemUid.Column.Uid),
 		UpperBound: key.NewSystemUidColumnKey(math.MaxUint64, key.TableSystemUid.Column.Uid),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	return wk.parseSystemUid(iter)
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 )
@@ -55,7 +55,9 @@ func (p *PebbleShardLogStorage) defaultPebbleOptions() *pebble.Options {
 	var numOfLevels int64 = 7
 	for l := int64(0); l < numOfLevels; l++ {
 		opt := pebble.LevelOptions{
-			Compression:    pebble.NoCompression,
+			Compression: func() pebble.Compression {
+				return pebble.NoCompression
+			},
 			BlockSize:      blockSize,
 			TargetFileSize: 16 * 1024 * 1024,
 		}
@@ -262,10 +264,13 @@ func (p *PebbleShardLogStorage) GetLogs(shardNo string, startLogIndex uint64, en
 	// 	endLogIndex = lastIndex + 1
 	// }
 	highKey := key.NewLogKey(shardNo, endLogIndex)
-	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	var logs []types.Log
 
@@ -337,10 +342,13 @@ func (p *PebbleShardLogStorage) GetLogsInReverseOrder(shardNo string, startLogIn
 	// 	endLogIndex = lastIndex + 1
 	// }
 	highKey := key.NewLogKey(shardNo, endLogIndex)
-	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 	var logs []types.Log
 
@@ -426,10 +434,13 @@ func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (types.Log,
 }
 
 func (p *PebbleShardLogStorage) lastLog(shardNo string) (types.Log, error) {
-	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLogKey(shardNo, 0),
 		UpperBound: key.NewLogKey(shardNo, math.MaxUint64),
 	})
+	if err != nil {
+		return types.EmptyLog, err
+	}
 	defer iter.Close()
 
 	if iter.Last() && iter.Valid() {
@@ -494,10 +505,13 @@ func (p *PebbleShardLogStorage) SetLeaderTermStartIndex(shardNo string, term uin
 }
 
 func (p *PebbleShardLogStorage) LeaderLastLogTerm(shardNo string) (uint32, error) {
-	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, 0),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 	var maxTerm uint32
 	for iter.First(); iter.Valid(); iter.Next() {
@@ -526,10 +540,13 @@ func (p *PebbleShardLogStorage) GetTermStartIndex(shardNo string, term uint32) (
 }
 
 func (p *PebbleShardLogStorage) LeaderTermGreaterEqThan(shardNo string, term uint32) (uint32, error) {
-	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
+	if err != nil {
+		return 0, err
+	}
 	defer iter.Close()
 	var maxTerm uint32 = term
 	for iter.First(); iter.Valid(); iter.Next() {
@@ -543,14 +560,16 @@ func (p *PebbleShardLogStorage) LeaderTermGreaterEqThan(shardNo string, term uin
 }
 
 func (p *PebbleShardLogStorage) DeleteLeaderTermStartIndexGreaterThanTerm(shardNo string, term uint32) error {
-	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
+	iter, err := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLeaderTermStartIndexKey(shardNo, term+1),
 		UpperBound: key.NewLeaderTermStartIndexKey(shardNo, math.MaxUint32),
 	})
+	if err != nil {
+		return err
+	}
 	defer iter.Close()
 	batch := p.shardDB(shardNo).NewBatch()
 	defer batch.Close()
-	var err error
 	for iter.First(); iter.Valid(); iter.Next() {
 		err = batch.Delete(iter.Key(), p.sync)
 		if err != nil {
