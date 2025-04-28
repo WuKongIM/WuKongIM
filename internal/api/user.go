@@ -93,7 +93,7 @@ func (u *user) deviceQuit(c *wkhttp.Context) {
 func (u *user) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
 
 	device, err := service.Store.GetDevice(uid, deviceFlag)
-	if err != nil {
+	if err != nil && err != wkdb.ErrNotFound {
 		u.Error("获取设备信息失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
 		return err
 	}
