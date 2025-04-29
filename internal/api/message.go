@@ -52,7 +52,75 @@ func (m *message) route(r *wkhttp.WKHttp) {
 
 	r.POST("/messages", m.searchMessages) // 批量查询消息
 	r.POST("/message", m.searchMessage)   // 搜索单条消息
+	// 添加范围删除消息的路由
+	r.POST("/messages/deleteRange", m.deleteRangeMessages)
 
+}
+
+// 范围删除消息请求
+type deleteRangeMessagesReq struct {
+	ChannelID   string `json:"channel_id"`    // 频道ID
+	ChannelType uint8  `json:"channel_type"`  // 频道类型
+	StartMsgSeq uint64 `json:"start_msg_seq"` // 开始消息序号
+	EndMsgSeq   uint64 `json:"end_msg_seq"`   // 结束消息序号
+}
+
+func (req *deleteRangeMessagesReq) Check() error {
+	if req.ChannelID == "" {
+		return errors.New("频道ID不能为空！")
+	}
+	if req.StartMsgSeq == 0 {
+		return errors.New("开始消息序号不能为0！")
+	}
+	if req.EndMsgSeq == 0 {
+		return errors.New("结束消息序号不能为0！")
+	}
+	if req.StartMsgSeq > req.EndMsgSeq {
+		return errors.New("开始消息序号不能大于结束消息序号！")
+	}
+	return nil
+}
+
+// deleteRangeMessages 范围删除消息
+func (m *message) deleteRangeMessages(c *wkhttp.Context) {
+	var req deleteRangeMessagesReq
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		m.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	// 在集群环境中，需要确保请求发送到正确的节点
+	if options.G.ClusterOn() {
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType)
+		if err != nil {
+			m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			c.ResponseError(errors.New("获取频道所在节点失败！"))
+			return
+		}
+		leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+
+		if !leaderIsSelf {
+			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+			return
+		}
+	}
+
+	// 调用存储层删除消息
+	err = service.Store.DeleteRangeMessages(req.ChannelID, req.ChannelType, req.StartMsgSeq, req.EndMsgSeq)
+	if err != nil {
+		m.Error("范围删除消息失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	c.ResponseOK()
 }
 
 func (m *message) send(c *wkhttp.Context) {

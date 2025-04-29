@@ -164,7 +164,7 @@ type IDBMetrics interface {
 	DeleteAdd(v int64)      // delete操作
 	DeleteRangeAdd(v int64) // deleteRange操作
 	CommitAdd(v int64)      // commit次数
-
+	DeleteRangeMessagesAdd(v int64)
 	// ========== 数据操作 ==========
 	// 白名单
 	AddAllowlistAdd(v int64)       // 添加白名单

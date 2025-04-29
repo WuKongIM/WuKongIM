@@ -103,6 +103,8 @@ const (
 	CMDAddOrUpdateConversationsBatchIfNotExist
 	// 更新最近会话的已删除的消息序号位置
 	CMDUpdateConversationDeletedAtMsgSeq
+	// 删除范围消息
+	CMDDeleteRangeMessages
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -197,6 +199,8 @@ func (c CMDType) String() string {
 		return "CMDAddOrUpdateConversationsBatchIfNotExist"
 	case CMDUpdateConversationDeletedAtMsgSeq:
 		return "CMDUpdateConversationDeletedAtMsgSeq"
+	case CMDDeleteRangeMessages:
+		return "CMDDeleteRangeMessages"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -1540,27 +1544,53 @@ func (c *CMD) DecodeCMDPluginConfig() (pluginNo string, config map[string]interf
 }
 
 func EncodeCMDUpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(uid)
-	encoder.WriteString(channelId)
-	encoder.WriteUint8(channelType)
-	encoder.WriteUint64(deletedAtMsgSeq)
-	return encoder.Bytes()
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(uid)
+	enc.WriteString(channelId)
+	enc.WriteUint8(channelType)
+	enc.WriteUint64(deletedAtMsgSeq)
+	return enc.Bytes()
 }
 
 func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	if uid, err = decoder.String(); err != nil {
+	dec := wkproto.NewDecoder(c.Data)
+	uid, err = dec.String()
+	if err != nil {
 		return
 	}
-	if channelId, err = decoder.String(); err != nil {
+	channelId, err = dec.String()
+	if err != nil {
 		return
 	}
-	if channelType, err = decoder.Uint8(); err != nil {
+	channelType, err = dec.Uint8()
+	if err != nil {
 		return
 	}
-	if deletedAtMsgSeq, err = decoder.Uint64(); err != nil {
+	deletedAtMsgSeq, err = dec.Uint64()
+	if err != nil {
+		return
+	}
+	return
+}
+
+// DecodeCMDDeleteRangeMessages 解码删除范围消息命令
+func (c *CMD) DecodeCMDDeleteRangeMessages() (channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, err error) {
+	dec := wkproto.NewDecoder(c.Data)
+	channelId, err = dec.String()
+	if err != nil {
+		return
+	}
+	channelType, err = dec.Uint8()
+	if err != nil {
+		return
+	}
+	startMessageSeq, err = dec.Uint64()
+	if err != nil {
+		return
+	}
+	endMessageSeq, err = dec.Uint64()
+	if err != nil {
 		return
 	}
 	return

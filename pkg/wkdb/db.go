@@ -85,6 +85,9 @@ type MessageDB interface {
 
 	// GetLastMsg 获取最后一条消息
 	GetLastMsg(channelId string, channelType uint8) (Message, error)
+
+	// DeleteRangeMessages 范围删除消息
+	DeleteRangeMessages(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error
 }
 
 type DeviceDB interface {

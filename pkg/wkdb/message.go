@@ -17,6 +17,39 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// DeleteRangeMessages 范围删除消息
+func (wk *wukongDB) DeleteRangeMessages(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	wk.metrics.DeleteRangeMessagesAdd(1)
+
+	if startMessageSeq == 0 || endMessageSeq == 0 {
+		return fmt.Errorf("messageSeq must be greater than 0")
+	}
+
+	if startMessageSeq > endMessageSeq {
+		return fmt.Errorf("startMessageSeq[%d] must be less than or equal to endMessageSeq[%d]", startMessageSeq, endMessageSeq)
+	}
+
+	if wk.opts.EnableCost {
+		start := time.Now()
+		defer func() {
+			wk.Info("deleteRangeMessages done", zap.Duration("cost", time.Since(start)),
+				zap.String("channelId", channelId),
+				zap.Uint8("channelType", channelType),
+				zap.Uint64("startMessageSeq", startMessageSeq),
+				zap.Uint64("endMessageSeq", endMessageSeq))
+		}()
+	}
+
+	db := wk.channelBatchDb(channelId, channelType)
+	batch := db.NewBatch()
+
+	// 删除指定范围的消息
+	batch.DeleteRange(
+		key.NewMessagePrimaryKey(channelId, channelType, startMessageSeq),
+		key.NewMessagePrimaryKey(channelId, channelType, endMessageSeq+1))
+
+	return batch.CommitWait()
+}
 func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []Message) error {
 
 	wk.metrics.AppendMessagesAdd(1)

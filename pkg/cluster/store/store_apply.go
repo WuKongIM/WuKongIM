@@ -101,6 +101,8 @@ func (s *Store) applyLog(_ uint32, log types.Log) error {
 		return s.handleAddOrUpdateConversationsBatchIfNotExist(cmd)
 	case CMDUpdateConversationDeletedAtMsgSeq: // 更新最近会话的已删除的消息序号位置
 		return s.handleUpdateConversationDeletedAtMsgSeq(cmd)
+	case CMDDeleteRangeMessages:
+		return s.handleDeleteRangeMessages(cmd)
 	}
 	return nil
 }
@@ -463,6 +465,15 @@ func (s *Store) handleUpdateConversationDeletedAtMsgSeq(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.UpdateConversationDeletedAtMsgSeq(uid, channelId, channelType, deletedAtMsgSeq)
+}
+
+// HandleDeleteRangeMessages 处理范围删除消息
+func (s *Store) handleDeleteRangeMessages(cmd *CMD) error {
+	channelId, channelType, startMessageSeq, endMessageSeq, err := cmd.DecodeCMDDeleteRangeMessages()
+	if err != nil {
+		return err
+	}
+	return s.wdb.DeleteRangeMessages(channelId, channelType, startMessageSeq, endMessageSeq)
 }
 
 // func (s *Store) handleAddOrUpdatePlugin(cmd *CMD) error {
