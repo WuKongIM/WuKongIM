@@ -103,16 +103,18 @@ func newPluginUserResp(pu wkdb.PluginUser) *pluginUserResp {
 }
 
 type userPluginBucket struct {
-	cache *lru.Cache[string, string]
-	index int
+	cache     *lru.Cache[string, string]
+	index     int
+	isAiCache *lru.Cache[string, bool] // 缓存用户是否是AI
 }
 
 func newUserPluginBucket(index int) *userPluginBucket {
 	cache, _ := lru.New[string, string](1000)
-
+	isAiCache, _ := lru.New[string, bool](1000)
 	return &userPluginBucket{
-		cache: cache,
-		index: index,
+		cache:     cache,
+		index:     index,
+		isAiCache: isAiCache,
 	}
 }
 
@@ -130,4 +132,17 @@ func (u *userPluginBucket) get(key string) (string, bool) {
 
 func (u *userPluginBucket) remove(key string) {
 	u.cache.Remove(key)
+}
+
+func (u *userPluginBucket) isAi(key string) (bool, bool) {
+	v, ok := u.isAiCache.Get(key)
+	return v, ok
+}
+
+func (u *userPluginBucket) setIsAi(key string, value bool) {
+	u.isAiCache.Add(key, value)
+}
+
+func (u *userPluginBucket) removeIsAi(key string) {
+	u.isAiCache.Remove(key)
 }

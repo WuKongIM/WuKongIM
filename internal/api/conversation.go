@@ -135,17 +135,20 @@ func (s *conversation) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	// 获取此频道最新的消息
-	msgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("Failed to query last message", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
-	if conversation.ReadToMsgSeq < msgSeq {
-		conversation.ReadToMsgSeq = msgSeq
-
+	// 如果已读消息序号大于等于未读消息序号，则不更新
+	if conversation.ReadToMsgSeq >= lastMsgSeq {
+		c.ResponseOK()
+		return
 	}
+
+	conversation.ReadToMsgSeq = lastMsgSeq
 
 	err = service.Store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
@@ -153,8 +156,6 @@ func (s *conversation) clearConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-
-	service.ConversationManager.DeleteFromCache(req.UID, fakeChannelId, req.ChannelType)
 
 	c.ResponseOK()
 }
@@ -203,7 +204,7 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 
 	}
 	// 获取此频道最新的消息
-	msgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("Failed to query last message", zap.Error(err))
 		c.ResponseError(err)
@@ -229,21 +230,25 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 			UpdatedAt:   &updatedAt,
 		}
 
+	} else {
+
 	}
 
-	var unread uint32 = 0
-	var readedMsgSeq uint64 = msgSeq
+	var readedMsgSeq uint64 = lastMsgSeq
 
-	if uint64(req.Unread) > msgSeq {
-		unread = 1
-		readedMsgSeq = msgSeq - 1
+	if uint64(req.Unread) > lastMsgSeq {
+		readedMsgSeq = lastMsgSeq - 1
 	} else if req.Unread > 0 {
-		unread = uint32(req.Unread)
-		readedMsgSeq = msgSeq - uint64(req.Unread)
+		readedMsgSeq = lastMsgSeq - uint64(req.Unread)
+	}
+
+	// 如果已读消息序号大于等于未读消息序号，则不更新
+	if conversation.ReadToMsgSeq >= readedMsgSeq {
+		c.ResponseOK()
+		return
 	}
 
 	conversation.ReadToMsgSeq = readedMsgSeq
-	conversation.UnreadCount = unread
 
 	err = service.Store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
@@ -251,8 +256,6 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-
-	service.ConversationManager.DeleteFromCache(req.UID, fakeChannelId, req.ChannelType)
 
 	c.ResponseOK()
 }
@@ -291,14 +294,20 @@ func (s *conversation) deleteConversation(c *wkhttp.Context) {
 
 	}
 
-	err = service.Store.DeleteConversation(req.UID, fakeChannelId, req.ChannelType)
+	// 获取频道最后一条消息序号
+	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
-		s.Error("删除会话！", zap.Error(err))
+		s.Error("获取频道最后一条消息序号失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
 	}
 
-	service.ConversationManager.DeleteFromCache(req.UID, fakeChannelId, req.ChannelType)
+	err = service.Store.UpdateConversationDeletedAtMsgSeq(req.UID, fakeChannelId, req.ChannelType, lastMsgSeq)
+	if err != nil {
+		s.Error("更新最近会话的已删除的消息序号位置失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
 
 	c.ResponseOK()
 }
@@ -351,22 +360,34 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 		return
 	}
 
-	// 获取用户缓存的最近会话
-	cacheConversations := service.ConversationManager.GetFromCache(req.UID, wkdb.ConversationTypeChat)
+	if len(conversations) > options.G.Conversation.UserMaxCount/2 {
+		s.Warn("警告：用户会话数量超过最大限制的一半！", zap.String("uid", req.UID), zap.Int("count", len(conversations)))
+	}
 
-	for _, cacheConversation := range cacheConversations {
+	// 获取用户缓存的最近会话
+	cacheChannels, err := service.ConversationManager.GetUserChannelsFromCache(req.UID, wkdb.ConversationTypeChat)
+	if err != nil {
+		s.Error("获取用户缓存的最近会话失败！", zap.Error(err), zap.String("uid", req.UID))
+		c.ResponseError(errors.New("获取用户缓存的最近会话失败！"))
+		return
+	}
+
+	// 将用户缓存的新的频道添加到会话列表中
+	for _, cacheChannel := range cacheChannels {
 		exist := false
-		for i, conversation := range conversations {
-			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				if cacheConversation.ReadToMsgSeq > conversation.ReadToMsgSeq {
-					conversations[i].ReadToMsgSeq = cacheConversation.ReadToMsgSeq
-				}
+		for _, conversation := range conversations {
+			if cacheChannel.ChannelID == conversation.ChannelId && cacheChannel.ChannelType == conversation.ChannelType {
 				exist = true
 				break
 			}
 		}
 		if !exist {
-			conversations = append(conversations, cacheConversation)
+			conversations = append(conversations, wkdb.Conversation{
+				ChannelId:   cacheChannel.ChannelID,
+				ChannelType: cacheChannel.ChannelType,
+				Uid:         req.UID,
+				Type:        wkdb.ConversationTypeChat,
+			})
 		}
 	}
 
@@ -390,6 +411,11 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	// 设置最近会话已读至的消息序列号
 	for _, conversation := range conversations {
 
+		// 如果是CMD频道，则不返回
+		if options.G.IsCmdChannel(conversation.ChannelId) {
+			continue
+		}
+
 		realChannelId := getRealChannelId(conversation.ChannelId, conversation.ChannelType)
 
 		msgSeq := channelLastMsgMap[fmt.Sprintf("%s-%d", realChannelId, conversation.ChannelType)]
@@ -398,6 +424,11 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 			msgSeq = msgSeq + 1 // 如果客户端传递了messageSeq，则需要获取这个messageSeq之后的消息
 		} else if req.Version > 0 || req.OnlyUnread == 1 { // 如果客户端传递了version，则获取有新消息的会话
 			msgSeq = conversation.ReadToMsgSeq + 1
+		}
+
+		// 如果会话被删除，则获取被删除的消息序号
+		if conversation.DeletedAtMsgSeq > 0 && conversation.DeletedAtMsgSeq > msgSeq {
+			msgSeq = conversation.DeletedAtMsgSeq + 1
 		}
 
 		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
@@ -445,6 +476,14 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 					}
 
 					resp.Recents = channelRecentMessage.Messages
+					if len(resp.Recents) > 0 {
+						lastMsg := resp.Recents[len(resp.Recents)-1]
+						// 如果最后一条消息是自己发送的，则已读序号为最后一条消息的序号
+						if lastMsg.FromUID == req.UID {
+							resp.ReadedToMsgSeq = uint32(lastMsg.MessageSeq)
+							resp.Unread = 0
+						}
+					}
 					break
 				}
 			}
@@ -555,21 +594,28 @@ func (s *conversation) conversationChannels(c *wkhttp.Context) {
 	}
 
 	// 获取用户缓存的最近会话
-	cacheConversations := service.ConversationManager.GetFromCache(req.UID, wkdb.ConversationTypeChat)
+	cacheChannels, err := service.ConversationManager.GetUserChannelsFromCache(req.UID, wkdb.ConversationTypeChat)
+	if err != nil {
+		s.Error("获取用户缓存的最近会话失败！", zap.Error(err), zap.String("uid", req.UID))
+		c.ResponseError(errors.New("获取用户缓存的最近会话失败！"))
+		return
+	}
 
-	for _, cacheConversation := range cacheConversations {
+	for _, cacheChannel := range cacheChannels {
 		exist := false
-		for i, conversation := range conversations {
-			if cacheConversation.ChannelId == conversation.ChannelId && cacheConversation.ChannelType == conversation.ChannelType {
-				if cacheConversation.ReadToMsgSeq > conversation.ReadToMsgSeq {
-					conversations[i].ReadToMsgSeq = cacheConversation.ReadToMsgSeq
-				}
+		for _, conversation := range conversations {
+			if cacheChannel.ChannelID == conversation.ChannelId && cacheChannel.ChannelType == conversation.ChannelType {
 				exist = true
 				break
 			}
 		}
 		if !exist {
-			conversations = append(conversations, cacheConversation)
+			conversations = append(conversations, wkdb.Conversation{
+				Uid:         req.UID,
+				ChannelId:   cacheChannel.ChannelID,
+				ChannelType: cacheChannel.ChannelType,
+				Type:        wkdb.ConversationTypeChat,
+			})
 		}
 	}
 

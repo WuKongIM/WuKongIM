@@ -118,6 +118,7 @@ type Conn interface {
 
 type IWSConn interface {
 	WriteServerBinary(data []byte) error
+	WriteServerText(data []byte) error
 }
 
 type DefaultConn struct {

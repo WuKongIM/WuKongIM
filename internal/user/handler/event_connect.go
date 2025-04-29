@@ -35,6 +35,7 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 			Conn:         conn,
 			Frame:        packet,
 			SourceNodeId: options.G.Cluster.NodeId,
+			ReqId:        event.ReqId,
 		}
 		if options.G.IsLocalNode(conn.NodeId) {
 			eventbus.User.AddEvent(uid, connackEvent)
@@ -45,6 +46,7 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 				Conn:         conn,
 				Frame:        packet,
 				SourceNodeId: options.G.Cluster.NodeId,
+				ReqId:        event.ReqId,
 			})
 		}
 
@@ -76,7 +78,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			return wkproto.ReasonAuthFail, nil, err
 		}
 		if device.Token != connectPacket.Token {
-			h.Error("token verify fail", zap.String("expectToken", device.Token), zap.String("actToken", connectPacket.Token))
+			h.Error("token verify fail", zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId), zap.String("expectToken", device.Token), zap.String("actToken", connectPacket.Token))
 			return wkproto.ReasonAuthFail, nil, errors.New("token verify fail")
 		}
 		devceLevel = wkproto.DeviceLevel(device.DeviceLevel)
@@ -99,14 +101,20 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		return wkproto.ReasonBan, nil, errors.New("device is ban")
 	}
 
-	// -------------------- get message encrypt key --------------------
-	dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
-	aesKey, aesIV, err := h.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
-	if err != nil {
-		h.Error("get client aes key and iv err", zap.Error(err))
-		return wkproto.ReasonAuthFail, nil, err
+	var aesKey, aesIV []byte
+	var dhServerPublicKeyEnc string
+
+	// -------------------- get message encrypt key (if enabled) --------------------
+	if !options.G.DisableEncryption && !conn.IsJsonRpc { // 如果连接是jsonrpc连接，则不进行加密
+		dhServerPrivKey, dhServerPublicKey := wkutil.GetCurve25519KeypPair() // 生成服务器的DH密钥对
+		var err error
+		aesKey, aesIV, err = h.getClientAesKeyAndIV(connectPacket.ClientKey, dhServerPrivKey)
+		if err != nil {
+			h.Error("get client aes key and iv err", zap.Error(err))
+			return wkproto.ReasonAuthFail, nil, err
+		}
+		dhServerPublicKeyEnc = base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 	}
-	dhServerPublicKeyEnc := base64.StdEncoding.EncodeToString(dhServerPublicKey[:])
 
 	// -------------------- same master kicks each other --------------------
 	oldConns := eventbus.User.ConnsByDeviceFlag(uid, connectPacket.DeviceFlag)
@@ -124,7 +132,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 						zap.String("deviceID", connectPacket.DeviceID),
 						zap.String("oldDeviceId", oldConn.DeviceId),
 					)
-					eventbus.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
+					eventbus.User.ConnWrite(event.ReqId, oldConn, &wkproto.DisconnectPacket{
 						ReasonCode: wkproto.ReasonConnectKick,
 						Reason:     "login in other device",
 					})

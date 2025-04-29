@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/store"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	rafttypes "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -1828,4 +1829,99 @@ func unmarshalPong(data []byte) (*pong, error) {
 		from:      from,
 		startMill: startMill,
 	}, nil
+}
+
+// 分布式日志请求
+type clusterLogsReq struct {
+	StartLogIndex uint64  // 开始日志索引
+	EndLogIndex   uint64  // 结束日志索引 0 表示无限
+	Limit         uint32  // 限制数量
+	OrderDesc     bool    // 是否降序
+	LogType       LogType // 日志类型
+}
+
+func (r *clusterLogsReq) encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(r.StartLogIndex)
+	enc.WriteUint64(r.EndLogIndex)
+	enc.WriteUint32(r.Limit)
+	enc.WriteUint8(wkutil.BoolToUint8(r.OrderDesc))
+	enc.WriteUint8(uint8(r.LogType))
+	return enc.Bytes(), nil
+}
+
+func (r *clusterLogsReq) decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	StartLogIndex, err := dec.Uint64()
+	if err != nil {
+		return err
+	}
+	r.StartLogIndex = StartLogIndex
+	EndLogIndex, err := dec.Uint64()
+	if err != nil {
+		return err
+	}
+	r.EndLogIndex = EndLogIndex
+	Limit, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	r.Limit = Limit
+	OrderDesc, err := dec.Uint8()
+	if err != nil {
+		return err
+	}
+	r.OrderDesc = wkutil.Uint8ToBool(OrderDesc)
+	logType, err := dec.Uint8()
+	if err != nil {
+		return err
+	}
+	r.LogType = LogType(logType)
+	return nil
+}
+
+type logSet []rafttypes.Log
+
+func (l *logSet) encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint64(uint64(len(*l)))
+
+	for _, log := range *l {
+		enc.WriteUint64(log.Index)
+		enc.WriteUint32(log.Term)
+		enc.WriteUint32(uint32(len(log.Data)))
+		enc.WriteBytes(log.Data)
+	}
+
+	return enc.Bytes(), nil
+}
+
+func (l *logSet) decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	num, err := dec.Uint64()
+	if err != nil {
+		return err
+	}
+	*l = make([]rafttypes.Log, num)
+	for i := range *l {
+		(*l)[i].Index, err = dec.Uint64()
+		if err != nil {
+			return err
+		}
+		(*l)[i].Term, err = dec.Uint32()
+		if err != nil {
+			return err
+		}
+		dataLen, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		(*l)[i].Data, err = dec.Bytes(int(dataLen))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

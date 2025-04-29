@@ -28,8 +28,6 @@ func (h *Handler) recvack(event *eventbus.Event) {
 		currMsg := service.RetryManager.RetryMessage(conn.NodeId, conn.ConnId, recvackPacket.MessageID)
 
 		if currMsg != nil {
-			// 删除最近会话的缓存
-			service.ConversationManager.DeleteFromCache(conn.Uid, currMsg.ChannelId, currMsg.ChannelType)
 			// 更新最近会话的已读位置
 			err := service.Store.UpdateConversationIfSeqGreaterAsync(conn.Uid, currMsg.ChannelId, currMsg.ChannelType, uint64(recvackPacket.MessageSeq))
 			if err != nil && err != wkdb.ErrNotFound {

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/jsonrpc"
+
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -37,10 +39,30 @@ func (h *Handler) writeFrame(ctx *eventbus.UserContext) {
 func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 	conn := event.Conn
 	frame := event.Frame
-	data, err := eventbus.Proto.EncodeFrame(frame, conn.ProtoVersion)
-	if err != nil {
-		h.Error("writeFrame: encode frame err", zap.Error(err))
+
+	var (
+		data []byte
+		err  error
+	)
+
+	if conn.IsJsonRpc {
+		req, err := jsonrpc.FromFrame(event.ReqId, frame)
+		if err != nil {
+			h.Error("writeFrame jsonrpc: from frame err", zap.Error(err))
+			return
+		}
+		data, err = jsonrpc.Encode(req)
+		if err != nil {
+			h.Error("writeFrame jsonrpc: encode err", zap.Error(err))
+			return
+		}
+	} else {
+		data, err = eventbus.Proto.EncodeFrame(frame, conn.ProtoVersion)
+		if err != nil {
+			h.Error("writeFrame: encode frame err", zap.Error(err))
+		}
 	}
+
 	// 统计
 	h.totalOut(conn, frame)
 	// 记录消息路径
@@ -64,7 +86,11 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 	}
 	wsConn, wsok := realConn.(wknet.IWSConn) // websocket连接
 	if wsok {
-		err := wsConn.WriteServerBinary(data)
+		if conn.IsJsonRpc {
+			err = wsConn.WriteServerText(data)
+		} else {
+			err = wsConn.WriteServerBinary(data)
+		}
 		if err != nil {
 			h.Warn("writeFrame: Failed to ws write the message", zap.Error(err))
 		}

@@ -97,7 +97,10 @@ func (s *Store) applyLog(_ uint32, log types.Log) error {
 		// 	return s.handleAddOrUpdatePlugin(cmd)
 		// case CMDUpdatePluginConfig: // 更新插件配置
 		// 	return s.handleUpdatePluginConfig(cmd)
-
+	case CMDAddOrUpdateConversationsBatchIfNotExist: // 批量添加或更新最近会话，如果存在则不添加
+		return s.handleAddOrUpdateConversationsBatchIfNotExist(cmd)
+	case CMDUpdateConversationDeletedAtMsgSeq: // 更新最近会话的已删除的消息序号位置
+		return s.handleUpdateConversationDeletedAtMsgSeq(cmd)
 	}
 	return nil
 }
@@ -444,6 +447,22 @@ func (s *Store) handleRemovePluginUser(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.RemovePluginUser(pluginNo, uid)
+}
+
+func (s *Store) handleAddOrUpdateConversationsBatchIfNotExist(cmd *CMD) error {
+	conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
+	if err != nil {
+		return err
+	}
+	return s.wdb.AddOrUpdateConversationsBatchIfNotExist(conversations)
+}
+
+func (s *Store) handleUpdateConversationDeletedAtMsgSeq(cmd *CMD) error {
+	uid, channelId, channelType, deletedAtMsgSeq, err := cmd.DecodeCMDUpdateConversationDeletedAtMsgSeq()
+	if err != nil {
+		return err
+	}
+	return s.wdb.UpdateConversationDeletedAtMsgSeq(uid, channelId, channelType, deletedAtMsgSeq)
 }
 
 // func (s *Store) handleAddOrUpdatePlugin(cmd *CMD) error {

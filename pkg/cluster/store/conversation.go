@@ -78,6 +78,69 @@ func (s *Store) AddOrUpdateUserConversations(uid string, conversations []wkdb.Co
 	return err
 }
 
+// AddConversationsIfNotExist 添加最近会话，如果存在则不添加
+func (s *Store) AddConversationsIfNotExist(conversations []wkdb.Conversation) error {
+
+	// 将会话按照slotId来分组
+	slotConversationsMap := make(map[uint32][]wkdb.Conversation)
+
+	for _, c := range conversations {
+		exist, err := s.wdb.ExistConversation(c.Uid, c.ChannelId, c.ChannelType)
+		if err != nil {
+			return err
+		}
+		if exist {
+			continue
+		}
+		if c.Id == 0 {
+			c.Id = s.wdb.NextPrimaryKey()
+		}
+		slotId := s.opts.Slot.GetSlotId(c.Uid)
+		slotConversationsMap[slotId] = append(slotConversationsMap[slotId], c)
+	}
+
+	if len(slotConversationsMap) == 0 {
+		return nil
+	}
+
+	timeoutctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	for slotId, conversations := range slotConversationsMap {
+		data, err := EncodeCMDAddOrUpdateConversations(conversations)
+		if err != nil {
+			return err
+		}
+		cmd := NewCMD(CMDAddOrUpdateConversationsBatchIfNotExist, data)
+		cmdData, err := cmd.Marshal()
+		if err != nil {
+			return err
+		}
+		_, err = s.opts.Slot.ProposeUntilAppliedTimeout(timeoutctx, slotId, cmdData)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Store) UpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) error {
+	data := EncodeCMDUpdateConversationDeletedAtMsgSeq(uid, channelId, channelType, deletedAtMsgSeq)
+	cmd := NewCMD(CMDUpdateConversationDeletedAtMsgSeq, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	slotId := s.opts.Slot.GetSlotId(uid)
+	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
+	if err != nil {
+		s.Error("UpdateConversationDeletedAtMsgSeq failed", zap.Error(err), zap.String("uid", uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("deletedAtMsgSeq", deletedAtMsgSeq))
+		return err
+	}
+	return nil
+}
+
 // func (s *Store) AddOrUpdateConversationsWithChannel(channelId string, channelType uint8, subscribers []string, readToMsgSeq uint64, conversationType wkdb.ConversationType, unreadCount int) error {
 
 // 	// 按照slotId来分组subscribers

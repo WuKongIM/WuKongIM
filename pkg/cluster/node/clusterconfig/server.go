@@ -292,6 +292,12 @@ func (s *Server) NodeConfigVersionFromLeader(nodeId uint64) uint64 {
 	return s.raft.GetReplicaLastLogIndex(nodeId)
 }
 
+// GetLogsByLimit 分页获取日志（升序）
+func (s *Server) GetLogsByLimit(startLogIndex uint64, endLogIndex uint64, limit int) ([]rafttypes.Log, error) {
+	return s.storage.GetLogsByLimit(startLogIndex, endLogIndex, limit)
+}
+
+// GetLogsInReverseOrder 分页获取日志（降序）
 func (s *Server) GetLogsInReverseOrder(startLogIndex uint64, endLogIndex uint64, limit int) ([]rafttypes.Log, error) {
 	return s.storage.GetLogsInReverseOrder(startLogIndex, endLogIndex, limit)
 }

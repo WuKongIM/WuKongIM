@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
+	rafttypes "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -166,6 +167,23 @@ func (r *rpcClient) RequestClusterJoin(nodeId uint64, req *ClusterJoinReq) (*Clu
 		return nil, err
 	}
 	return resp, nil
+}
+
+// RequestClusterLogs 请求分布式日志
+func (r *rpcClient) RequestClusterLogs(nodeId uint64, req *clusterLogsReq) ([]rafttypes.Log, error) {
+	data, err := req.encode()
+	if err != nil {
+		return nil, err
+	}
+	body, err := r.request(nodeId, "/rpc/cluster/logs", data)
+	if err != nil {
+		return nil, err
+	}
+	logSet := logSet{}
+	if err := logSet.decode(body); err != nil {
+		return nil, err
+	}
+	return logSet, nil
 }
 
 func (r *rpcClient) request(nodeId uint64, path string, body []byte) ([]byte, error) {

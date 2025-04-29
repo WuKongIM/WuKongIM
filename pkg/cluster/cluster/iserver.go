@@ -24,6 +24,10 @@ func (s *Server) GetOrCreateChannelClusterConfigFromSlotLeader(channelId string,
 		return wkdb.EmptyChannelClusterConfig, err
 	}
 
+	if slotLeaderId == 0 {
+		return wkdb.EmptyChannelClusterConfig, fmt.Errorf("slot[%d] leader not found", s.getSlotId(channelId))
+	}
+
 	// 如果当前节点是频道槽领导，则直接返回频道分布式配置
 	if s.opts.ConfigOptions.NodeId == slotLeaderId {
 		return s.getOrCreateChannelClusterConfigFromLocal(channelId, channelType)
@@ -160,6 +164,28 @@ func (s *Server) OnMessage(f func(fromNodeId uint64, msg *proto.Message)) {
 
 func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
 	s.slotServer.MustWaitAllSlotsReady(timeout)
+}
+
+// CheckClusterStatus 检查集群状态
+func (s *Server) CheckClusterStatus() error {
+	slots := s.Slots()
+	if len(slots) == 0 {
+		return errors.New("no slots")
+	}
+
+	if uint32(len(slots)) != s.opts.ConfigOptions.SlotCount {
+		return errors.New("slot count not match")
+	}
+
+	for _, slot := range slots {
+		if slot.Leader == 0 {
+			return errors.New("slot leader not found")
+		}
+		if slot.Status != types.SlotStatus_SlotStatusNormal {
+			return errors.New("slot not ready")
+		}
+	}
+	return nil
 }
 
 func (s *Server) MustWaitClusterReady(timeout time.Duration) error {

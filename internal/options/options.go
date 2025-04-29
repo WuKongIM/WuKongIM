@@ -53,19 +53,20 @@ const (
 )
 
 type Options struct {
-	vp          *viper.Viper // 内部配置对象
-	Mode        Mode         // 模式 debug 测试 release 正式 bench 压力测试
-	HTTPAddr    string       // http api的监听地址 默认为 0.0.0.0:5001
-	Addr        string       // tcp监听地址 例如：tcp://0.0.0.0:5100
-	RootDir     string       // 根目录
-	DataDir     string       // 数据目录
-	GinMode     string       // gin框架的模式
-	WSAddr      string       // websocket 监听地址 例如：ws://0.0.0.0:5200
-	WSSAddr     string       // wss 监听地址 例如：wss://0.0.0.0:5210
-	WSTLSConfig *tls.Config
-	Stress      bool     // 是否开启压力测试
-	Violent     bool     // 狂暴模式，开启这个后将以性能为第一，稳定性第二, 压力测试模式下默认为true
-	WSSConfig   struct { // wss的证书配置
+	vp                *viper.Viper // 内部配置对象
+	Mode              Mode         // 模式 debug 测试 release 正式 bench 压力测试
+	HTTPAddr          string       // http api的监听地址 默认为 0.0.0.0:5001
+	Addr              string       // tcp监听地址 例如：tcp://0.0.0.0:5100
+	RootDir           string       // 根目录
+	DataDir           string       // 数据目录
+	GinMode           string       // gin框架的模式
+	WSAddr            string       // websocket 监听地址 例如：ws://0.0.0.0:5200
+	WSSAddr           string       // wss 监听地址 例如：wss://0.0.0.0:5210
+	WSTLSConfig       *tls.Config
+	Stress            bool     // 是否开启压力测试
+	Violent           bool     // 狂暴模式，开启这个后将以性能为第一，稳定性第二, 压力测试模式下默认为true
+	DisableEncryption bool     // 禁用加密
+	WSSConfig         struct { // wss的证书配置
 		CertFile string // 证书文件
 		KeyFile  string // 私钥文件
 	}
@@ -307,6 +308,7 @@ type Options struct {
 		SocketPath string        // 插件socket地址
 		Install    []string      // 默认插件安装地址
 	}
+	DisableJSONRPC bool // 是否禁用jsonrpc
 }
 
 type MigrateStep string
@@ -415,7 +417,7 @@ func New(op ...Option) *Options {
 			On:                 true,
 			CacheExpire:        time.Hour * 2,
 			UserMaxCount:       1000,
-			SyncInterval:       time.Minute * 5,
+			SyncInterval:       time.Minute,
 			SyncOnce:           100,
 			BytesPerSave:       1024 * 1024 * 5,
 			SavePoolSize:       100,
@@ -731,6 +733,8 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		o.ManagerTokenOn = true
 	}
 
+	o.DisableEncryption = o.getBool("disableEncryption", o.DisableEncryption)
+
 	o.External.IP = o.getString("external.ip", o.External.IP)
 	o.External.TCPAddr = o.getString("external.tcpAddr", o.External.TCPAddr)
 	o.External.WSAddr = o.getString("external.wsAddr", o.External.WSAddr)
@@ -993,6 +997,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.PprofOn = o.getBool("pprofOn", o.PprofOn)
 	o.OldV1Api = o.getString("oldV1Api", o.OldV1Api)
 	o.MigrateStartStep = MigrateStep(o.getString("migrateStartStep", string(o.MigrateStartStep)))
+	o.DisableJSONRPC = o.getBool("disableJSONRPC", o.DisableJSONRPC)
 
 }
 

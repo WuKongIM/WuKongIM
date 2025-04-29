@@ -83,6 +83,17 @@ func (s *apiServer) stop() {
 func (s *apiServer) setRoutes() {
 
 	s.r.GET("/health", func(c *wkhttp.Context) {
+
+		// 检查分布式集群是否正常
+		clusterServer, ok := service.Cluster.(*cluster.Server)
+		if ok {
+			err := clusterServer.CheckClusterStatus()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+				return
+			}
+		}
+
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 

@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -176,6 +177,8 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 					filteredOfflineUids = append(filteredOfflineUids, offlineUid)
 				}
 			}
+			// 移除重复的离线用户
+			filteredOfflineUids = wkutil.RemoveRepeatedElement(filteredOfflineUids)
 
 			cloneEvent := event.Clone()
 			cloneEvent.OfflineUsers = filteredOfflineUids
@@ -300,13 +303,11 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 				return nil, err
 			}
 		} else {
-			members, err := service.Store.GetSubscribers(fakeChannelId, channelType)
+			var err error
+			subscribers, err = h.getSubscribers(fakeChannelId, channelType)
 			if err != nil {
 				h.Error("processMakeTag: getSubscribers failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 				return nil, err
-			}
-			for _, member := range members {
-				subscribers = append(subscribers, member.Uid)
 			}
 		}
 
@@ -318,6 +319,28 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 	}
 	service.TagManager.SetChannelTag(fakeChannelId, channelType, tag.Key)
 	return tag, nil
+}
+
+func (h *Handler) getSubscribers(fakeChannelId string, channelType uint8) ([]string, error) {
+	members, err := service.Store.GetSubscribers(fakeChannelId, channelType)
+	if err != nil {
+		h.Error("processMakeTag: getSubscribers failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		return nil, err
+	}
+	var subscribers = make([]string, 0, len(members))
+	for _, member := range members {
+		subscribers = append(subscribers, member.Uid)
+	}
+
+	// 如果是客服频道，则从频道id中获取访客id
+	if channelType == wkproto.ChannelTypeCustomerService {
+		// 访客id
+		visitorId, _ := options.G.GetCustomerServiceVisitorUID(fakeChannelId)
+		if visitorId != "" {
+			subscribers = append(subscribers, visitorId)
+		}
+	}
+	return subscribers, nil
 }
 
 // 获取cmd频道的订阅者
