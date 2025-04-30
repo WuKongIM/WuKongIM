@@ -75,7 +75,7 @@ func (r *RetryManager) retry(msg *types.RetryMessage) {
 	r.Debug("retry msg", zap.Int("retryCount", msg.Retry), zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
 	msg.Retry++
 	if msg.Retry > options.G.MessageRetry.MaxCount {
-		r.Debug("exceeded the maximum number of retries", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int("messageMaxRetryCount", options.G.MessageRetry.MaxCount))
+		r.Warn("exceeded the maximum number of retries", zap.String("uid", msg.Uid), zap.String("channelId", msg.ChannelId), zap.Uint8("channelType", msg.ChannelType), zap.Int64("messageId", msg.MessageId), zap.Int("messageMaxRetryCount", options.G.MessageRetry.MaxCount))
 		return
 	}
 	conn := eventbus.User.ConnById(msg.Uid, msg.FromNode, msg.ConnId)
