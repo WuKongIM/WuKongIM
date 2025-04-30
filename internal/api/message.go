@@ -505,16 +505,17 @@ func (m *message) syncack(c *wkhttp.Context) {
 		return
 	}
 
-	m.syncRecordLock.RLock()
-	defer m.syncRecordLock.RUnlock()
-	if len(m.syncRecordMap[req.UID]) == 0 {
+	m.syncRecordLock.Lock()
+	records := m.syncRecordMap[req.UID]
+	m.syncRecordMap[req.UID] = nil
+	m.syncRecordLock.Unlock()
+	if len(records) == 0 {
 		c.ResponseOK()
 		return
 	}
 
 	conversations := make([]wkdb.Conversation, 0)
 	deletes := make([]wkdb.Channel, 0)
-	records := m.syncRecordMap[req.UID]
 	for _, record := range records {
 		needAdd := false
 
