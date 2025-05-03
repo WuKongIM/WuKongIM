@@ -219,14 +219,15 @@ func TestEncodeDecode_PingPong(t *testing.T) {
 	assert.Nil(t, decodedPingReq.Params)
 
 	// --- Test Pong Response ---
-	pongResp := PongNotification{
-		BaseNotification: BaseNotification{Jsonrpc: "2.0", Method: MethodPong},
+	pongResp := PongResponse{
+		BaseResponse: BaseResponse{Jsonrpc: "2.0", ID: "req-pong-1"},
+		Result:       json.RawMessage(`{}`),
 	}
 	pongRespBytes := testEncode(t, pongResp)
 	decodedPongMsg := testDecode(t, pongRespBytes)
-	pongNotif := assertDecodedAs[PongNotification](t, decodedPongMsg)
+	decodedPongResp := assertDecodedAs[GenericResponse](t, decodedPongMsg)
 
-	assert.Equal(t, "pong", pongNotif.Method)
+	assert.Equal(t, "req-pong-1", decodedPongResp.ID)
 }
 
 func TestDecode_EdgeCases(t *testing.T) { // Renamed for clarity

@@ -69,6 +69,22 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 					break
 				}
 			}
+			if options.G.Logger.TraceOn {
+
+				msgTip := "消息保存成功..."
+				if reasonCode != wkproto.ReasonSuccess {
+					msgTip = "消息保存失败..."
+				}
+				h.Trace(msgTip,
+					"persist",
+					zap.Int64("messageId", event.MessageId),
+					zap.Uint64("messageSeq", event.MessageSeq),
+					zap.String("from", event.Conn.Uid),
+					zap.String("channelId", ctx.ChannelId),
+					zap.Uint8("channelType", ctx.ChannelType),
+					zap.String("resson", reasonCode.String()),
+				)
+			}
 		}
 	}
 

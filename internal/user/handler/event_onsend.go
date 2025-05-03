@@ -47,6 +47,20 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 		fakeChannelId = options.GetFakeChannelIDWith(channelId, conn.Uid)
 	}
 
+	if options.G.Logger.TraceOn {
+		h.Trace("用户发送消息...",
+			"onSend",
+			zap.Int64("messageId", event.MessageId),
+			zap.Uint64("messageSeq", event.MessageSeq),
+			zap.String("from", event.Conn.Uid),
+			zap.String("deviceId", event.Conn.DeviceId),
+			zap.String("deviceFlag", event.Conn.DeviceFlag.String()),
+			zap.Int64("connId", event.Conn.ConnId),
+			zap.String("channelId", fakeChannelId),
+			zap.Uint8("channelType", channelType),
+		)
+	}
+
 	// 根据配置决定是否解密消息
 	if !options.G.DisableEncryption && !conn.IsJsonRpc {
 		newPayload, err := h.decryptPayload(sendPacket, conn)

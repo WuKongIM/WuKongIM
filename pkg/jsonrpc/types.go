@@ -254,8 +254,9 @@ type SubscriptionResponse struct {
 	Error  *ErrorObject        `json:"error,omitempty"`
 }
 
-type PongNotification struct {
-	BaseNotification
+type PongResponse struct {
+	BaseResponse
+	Result json.RawMessage `json:"result,omitempty"`
 }
 
 type RecvAckResponse struct {

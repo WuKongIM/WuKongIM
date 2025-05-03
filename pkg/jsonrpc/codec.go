@@ -126,7 +126,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 	// Determine type PRELIMINARILY
 	// Note: We refine this based on validation checks later
 	prelimIsNotification := methodIsPresent && (!idIsPresent || idIsNull)
-	prelimIsResponse := idIsPresent && !idIsNull && !methodIsPresent && (resultIsPresent || errorIsPresent)
+	prelimIsResponse := (idIsPresent && !idIsNull && !methodIsPresent && (resultIsPresent || errorIsPresent))
 	prelimIsRequest := methodIsPresent && idIsPresent && !idIsNull
 
 	// Validate field combinations
@@ -156,7 +156,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 		// Valid notification: method, no id or null id
 		// Check if method is a known notification type (optional, depending on strictness)
 		switch probe.Method {
-		case MethodRecv, MethodDisconnect, MethodPong:
+		case MethodRecv, MethodDisconnect:
 			msgType = msgTypeNotification
 		default:
 			// If method is present but ID is missing/null, AND method is not known,
@@ -359,10 +359,6 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodDisconnect, err)
 			}
 			return notif, probe, nil
-		case MethodPong:
-			var notif PongNotification
-			notif.BaseNotification = baseNotif
-			return notif, probe, nil
 		default:
 			return nil, probe, fmt.Errorf("%w: %s", ErrUnknownMethod, probe.Method)
 		}
@@ -436,10 +432,10 @@ func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
 			Params: params,
 		}, nil
 	case wkproto.PONG:
-		return PongNotification{
-			BaseNotification: BaseNotification{
+		return PongResponse{
+			BaseResponse: BaseResponse{
 				Jsonrpc: jsonRPCVersion,
-				Method:  MethodPong,
+				ID:      reqId,
 			},
 		}, nil
 	}
