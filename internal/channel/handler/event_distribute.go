@@ -152,6 +152,7 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 				cloneMsg.ChannelType = channelType
 				cloneMsg.Type = eventbus.EventPushOnline
 				pubshEvents = append(pubshEvents, cloneMsg)
+
 			}
 		}
 	}
