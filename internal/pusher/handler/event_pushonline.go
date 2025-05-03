@@ -56,6 +56,24 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 				continue
 			}
 
+			if options.G.Logger.TraceOn && e.ChannelType == wkproto.ChannelTypePerson { // 暂时只打印个人频道的推送，因为群的话日志会太多
+				h.Trace("推送在线消息...",
+					"pushOnline",
+					zap.Int64("messageId", e.MessageId),
+					zap.Uint64("messageSeq", e.MessageSeq),
+					zap.String("fromUid", e.Conn.Uid),
+					zap.String("fromDeviceId", e.Conn.DeviceId),
+					zap.String("fromDeviceFlag", e.Conn.DeviceFlag.String()),
+					zap.Int64("fromConnId", e.Conn.ConnId),
+					zap.String("toUid", toConn.Uid),
+					zap.String("toDeviceId", toConn.DeviceId),
+					zap.String("toDeviceFlag", toConn.DeviceFlag.String()),
+					zap.Int64("toConnId", toConn.ConnId),
+					zap.String("channelId", e.ChannelId),
+					zap.Uint8("channelType", e.ChannelType),
+				)
+			}
+
 			recvPacket := &wkproto.RecvPacket{}
 
 			recvPacket.Framer = wkproto.Framer{
@@ -153,29 +171,29 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 		eventbus.User.Advance(e.ToUid)
 	}
 
-	if options.G.Logger.TraceOn {
-		if len(events) < options.G.Logger.TraceMaxMsgCount { // 消息数小于指定数量才打印，要不然日志太多了
-			for _, e := range events {
-				sendPacket := e.Frame.(*wkproto.SendPacket)
-				// 记录消息轨迹
-				e.Track.Record(track.PositionPushOnlineEnd)
-				connCount := eventbus.User.ConnCountByUid(e.ToUid)
-				h.Trace(e.Track.String(),
-					"pushOnline",
-					zap.Int64("messageId", e.MessageId),
-					zap.Uint64("messageSeq", e.MessageSeq),
-					zap.Uint64("clientSeq", sendPacket.ClientSeq),
-					zap.String("clientMsgNo", sendPacket.ClientMsgNo),
-					zap.String("toUid", e.ToUid),
-					zap.Int("toConnCount", connCount),
-					zap.String("conn.uid", e.Conn.Uid),
-					zap.String("conn.deviceId", e.Conn.DeviceId),
-					zap.Uint64("conn.nodeId", e.Conn.NodeId),
-					zap.Int64("conn.connId", e.Conn.ConnId),
-				)
-			}
-		}
-	}
+	// if options.G.Logger.TraceOn {
+	// 	if len(events) < options.G.Logger.TraceMaxMsgCount { // 消息数小于指定数量才打印，要不然日志太多了
+	// 		for _, e := range events {
+	// 			sendPacket := e.Frame.(*wkproto.SendPacket)
+	// 			// 记录消息轨迹
+	// 			e.Track.Record(track.PositionPushOnlineEnd)
+	// 			connCount := eventbus.User.ConnCountByUid(e.ToUid)
+	// 			h.Trace(e.Track.String(),
+	// 				"pushOnline",
+	// 				zap.Int64("messageId", e.MessageId),
+	// 				zap.Uint64("messageSeq", e.MessageSeq),
+	// 				zap.Uint64("clientSeq", sendPacket.ClientSeq),
+	// 				zap.String("clientMsgNo", sendPacket.ClientMsgNo),
+	// 				zap.String("toUid", e.ToUid),
+	// 				zap.Int("toConnCount", connCount),
+	// 				zap.String("conn.uid", e.Conn.Uid),
+	// 				zap.String("conn.deviceId", e.Conn.DeviceId),
+	// 				zap.Uint64("conn.nodeId", e.Conn.NodeId),
+	// 				zap.Int64("conn.connId", e.Conn.ConnId),
+	// 			)
+	// 		}
+	// 	}
+	// }
 
 }
 
