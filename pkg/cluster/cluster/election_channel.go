@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/rand/v2"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
@@ -209,6 +210,7 @@ func (s *Server) requestChannelLastLogInfos(replices []uint64, channelId string,
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 
 	respMap := make(map[uint64]*ChannelLastLogInfoResponse)
+	respMapLock := &sync.Mutex{}
 
 	for _, nodeId := range replices {
 		nodeId := nodeId
@@ -219,7 +221,9 @@ func (s *Server) requestChannelLastLogInfos(replices []uint64, channelId string,
 				s.Error("getChannelLastLogInfo failed", zap.Uint64("nodeId", nodeId), zap.Error(err))
 				continue
 			}
+			respMapLock.Lock()
 			respMap[nodeId] = resp
+			respMapLock.Unlock()
 			continue
 		}
 
@@ -229,7 +233,9 @@ func (s *Server) requestChannelLastLogInfos(replices []uint64, channelId string,
 				s.Error("RequestChannelLastLogInfo failed", zap.Uint64("nodeId", nodeId), zap.Error(err))
 				return err
 			}
+			respMapLock.Lock()
 			respMap[nodeId] = resp
+			respMapLock.Unlock()
 			return nil
 		})
 	}
