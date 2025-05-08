@@ -71,6 +71,13 @@ type Options struct {
 		KeyFile  string // 私钥文件
 	}
 
+	// 客服相关配置
+	CustomerService struct {
+		VisitorsOn     bool   // 是否开启访客用户
+		VisitorsSuffix string // 访客用户的后缀(带有此后缀的用户将被认为是访客用户，访客用户登录免去token验证，但是只能给访客频道发送消息)
+
+	}
+
 	Logger struct {
 		Dir              string // 日志存储目录
 		Level            zapcore.Level
@@ -349,6 +356,13 @@ func New(op ...Option) *Options {
 		SystemDeviceId:       "____device",
 		WhitelistOffOfPerson: true,
 		DeadlockCheck:        false,
+		CustomerService: struct {
+			VisitorsOn     bool
+			VisitorsSuffix string
+		}{
+			VisitorsOn:     false,
+			VisitorsSuffix: "____vstr",
+		},
 		Logger: struct {
 			Dir              string
 			Level            zapcore.Level
@@ -768,6 +782,10 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.WSSConfig.CertFile = o.getString("wssConfig.certFile", o.WSSConfig.CertFile)
 	o.WSSConfig.KeyFile = o.getString("wssConfig.keyFile", o.WSSConfig.KeyFile)
 
+	// 客服
+	o.CustomerService.VisitorsOn = o.getBool("customerService.visitorsOn", o.CustomerService.VisitorsOn)
+	o.CustomerService.VisitorsSuffix = o.getString("customerService.visitorsSuffix", o.CustomerService.VisitorsSuffix)
+	// 频道
 	o.Channel.CacheCount = o.getInt("channel.cacheCount", o.Channel.CacheCount)
 	o.Channel.CreateIfNoExist = o.getBool("channel.createIfNoExist", o.Channel.CreateIfNoExist)
 	o.Channel.SubscriberCompressOfCount = o.getInt("channel.subscriberCompressOfCount", o.Channel.SubscriberCompressOfCount)
@@ -1246,6 +1264,11 @@ func (o *Options) IsSystemDevice(deviceId string) bool {
 // IsSystemUid 是否是系统uid
 func (o *Options) IsSystemUid(uid string) bool {
 	return uid == o.SystemUID
+}
+
+// IsVisitors 是否是访客
+func (o *Options) IsVisitors(uid string) bool {
+	return strings.HasSuffix(uid, o.CustomerService.VisitorsSuffix)
 }
 
 func (o *Options) ConfigFileUsed() string {

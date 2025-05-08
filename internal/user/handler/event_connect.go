@@ -74,7 +74,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			return wkproto.ReasonAuthFail, nil, nil
 		}
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
-	} else if options.G.TokenAuthOn {
+	} else if options.G.TokenAuthOn && !options.G.IsVisitors(uid) { // 如果开启了token验证，并且不是访客用户
 		if connectPacket.Token == "" {
 			h.Error("token is empty")
 			return wkproto.ReasonAuthFail, nil, errors.New("token is empty")
