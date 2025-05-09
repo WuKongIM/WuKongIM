@@ -209,8 +209,8 @@ type SendRequest struct {
 	Params SendParams `json:"params"`
 }
 
-type RecvAckRequest struct {
-	BaseRequest
+type RecvAckNotification struct {
+	BaseNotification
 	Params RecvAckParams `json:"params"`
 }
 
@@ -393,25 +393,14 @@ func FromProtoSendAck(ack *wkproto.SendackPacket) *SendResult {
 }
 
 // ToProto converts JSON-RPC RecvAckParams to wkproto.RecvAckReq
-func (p RecvAckParams) ToProto() (*wkproto.RecvackPacket, error) {
-	msgID, err := strconv.ParseInt(p.MessageID, 10, 64)
-	if err != nil {
-		// Attempt uint64 parsing as fallback, check potential overflow carefully
-		msgUID, err2 := strconv.ParseUint(p.MessageID, 10, 64)
-		if err2 != nil {
-			return nil, fmt.Errorf("failed to parse messageId string '%s' to int64/uint64: %w / %w", p.MessageID, err, err2)
-		}
-		if msgUID > 9223372036854775807 { // Max int64
-			return nil, fmt.Errorf("messageId string '%s' (uint64 %d) exceeds max int64 value", p.MessageID, msgUID)
-		}
-		msgID = int64(msgUID)
-	}
+func (p RecvAckParams) ToProto() *wkproto.RecvackPacket {
+	msgID, _ := strconv.ParseInt(p.MessageID, 10, 64)
 	req := &wkproto.RecvackPacket{
 		Framer:     headerToFramer(p.Header),
 		MessageID:  msgID,
 		MessageSeq: p.MessageSeq,
 	}
-	return req, nil
+	return req
 }
 
 // FromProtoRecvPacket converts wkproto.RecvPacket to JSON-RPC RecvNotificationParams
@@ -538,8 +527,6 @@ func NewRequest(method string, id string, params interface{}) interface{} {
 		return ConnectRequest{BaseRequest: req, Params: p}
 	case SendParams:
 		return SendRequest{BaseRequest: req, Params: p}
-	case RecvAckParams:
-		return RecvAckRequest{BaseRequest: req, Params: p}
 	case SubscribeParams:
 		return SubscribeRequest{BaseRequest: req, Params: p}
 	case UnsubscribeParams:
