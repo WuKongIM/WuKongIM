@@ -218,9 +218,9 @@ func (s *Store) GetConversation(uid string, channelId string, channelType uint8)
 	return s.wdb.GetConversation(uid, channelId, channelType)
 }
 
-func (s *Store) GetLastConversations(uid string, tp wkdb.ConversationType, updatedAt uint64, limit int) ([]wkdb.Conversation, error) {
+func (s *Store) GetLastConversations(uid string, tp wkdb.ConversationType, updatedAt uint64, excludeChannelTypes []uint8, limit int) ([]wkdb.Conversation, error) {
 
-	return s.wdb.GetLastConversations(uid, tp, updatedAt, limit)
+	return s.wdb.GetLastConversations(uid, tp, updatedAt, excludeChannelTypes, limit)
 }
 
 func (s *Store) GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, error) {
