@@ -247,16 +247,6 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodSend, err)
 			}
 			return req, probe, nil
-		case MethodRecvAck:
-			var req RecvAckRequest
-			req.BaseRequest = baseReq
-			if probe.Params == nil {
-				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodRecvAck)
-			}
-			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecvAck, err)
-			}
-			return req, probe, nil
 		case MethodSubscribe:
 			var req SubscribeRequest
 			req.BaseRequest = baseReq
@@ -349,6 +339,16 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecv, err)
 			}
 			return notif, probe, nil
+		case MethodRecvAck:
+			var notif RecvAckNotification
+			notif.BaseNotification = baseNotif
+			if probe.Params == nil {
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodRecvAck)
+			}
+			if err := json.Unmarshal(probe.Params, &notif.Params); err != nil {
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecvAck, err)
+			}
+			return notif, probe, nil
 		case MethodDisconnect:
 			var notif DisconnectNotification
 			notif.BaseNotification = baseNotif
@@ -380,16 +380,12 @@ func ToFrame(packet interface{}) (wkproto.Frame, string, error) {
 		return p.Params.ToProto(), p.ID, nil
 	case SendRequest:
 		return p.Params.ToProto(), p.ID, nil
-	case RecvAckRequest:
-		frame, err := p.Params.ToProto()
-		if err != nil {
-			return nil, "", err
-		}
-		return frame, p.ID, nil
 	case PingRequest:
 		return &wkproto.PingPacket{}, p.ID, nil
 	case DisconnectRequest:
 		return p.Params.ToProto(), p.ID, nil
+	case RecvAckNotification:
+		return p.Params.ToProto(), "", nil
 	}
 	return nil, "", fmt.Errorf("unknown packet type: %T", packet)
 }

@@ -240,7 +240,7 @@
 
 ### 4. 收到消息确认 (RecvAck)
 
-#### RecvAck Request (`recvack`)
+#### RecvAck Notification (`recvack`)
 
 客户端确认收到某条消息。
 
@@ -260,8 +260,7 @@
   "params": {
     "messageId": "serverMsgId2",
     "messageSeq": 50
-  },
-  "id": "req-ack-1"
+  }
 }
 ```
 

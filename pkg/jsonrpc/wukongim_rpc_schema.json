@@ -221,7 +221,7 @@
         },
         "required": ["method"]
       },
-      "RecvAckRequest": {
+      "RecvAckNotification": {
         "type": "object",
         "properties": {
           "jsonrpc": { "const": "2.0" },
@@ -234,8 +234,7 @@
                "messageSeq": { "type": "integer", "format": "uint32", "description": "要确认的服务端消息序列号" }
             },
             "required": ["messageId", "messageSeq"]
-          },
-          "id": { "type": "string" }
+          }
         },
         "required": ["method"]
       },
