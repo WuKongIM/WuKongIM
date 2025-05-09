@@ -224,7 +224,7 @@ type ConversationDB interface {
 	GetConversationsByType(uid string, tp ConversationType) ([]Conversation, error)
 
 	// GetLastConversations 获取指定用户的最近会话
-	GetLastConversations(uid string, tp ConversationType, updatedAt uint64, limit int) ([]Conversation, error)
+	GetLastConversations(uid string, tp ConversationType, updatedAt uint64, excludeChannelTypes []uint8, limit int) ([]Conversation, error)
 
 	// GetConversation 获取指定用户的指定会话
 	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)

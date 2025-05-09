@@ -314,11 +314,12 @@ func (s *conversation) deleteConversation(c *wkhttp.Context) {
 
 func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	var req struct {
-		UID         string `json:"uid"`
-		Version     int64  `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)（TODO: 这个参数可以废弃了,使用OnlyUnread）
-		LastMsgSeqs string `json:"last_msg_seqs"` // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
-		MsgCount    int64  `json:"msg_count"`     // 每个会话消息数量
-		OnlyUnread  uint8  `json:"only_unread"`   // 只返回未读最近会话 1.只返回未读最近会话 0.不限制
+		UID                 string  `json:"uid"`
+		Version             int64   `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)（TODO: 这个参数可以废弃了,使用OnlyUnread）
+		LastMsgSeqs         string  `json:"last_msg_seqs"` // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
+		MsgCount            int64   `json:"msg_count"`     // 每个会话消息数量
+		OnlyUnread          uint8   `json:"only_unread"`   // 只返回未读最近会话 1.只返回未读最近会话 0.不限制
+		ExcludeChannelTypes []uint8 `json:"exclude_channel_types"`
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -353,7 +354,7 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	)
 
 	// ==================== 获取用户活跃的最近会话 ====================
-	conversations, err := service.Store.GetLastConversations(req.UID, wkdb.ConversationTypeChat, 0, options.G.Conversation.UserMaxCount)
+	conversations, err := service.Store.GetLastConversations(req.UID, wkdb.ConversationTypeChat, 0, req.ExcludeChannelTypes, options.G.Conversation.UserMaxCount)
 	if err != nil && err != wkdb.ErrNotFound {
 		s.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID))
 		c.ResponseError(errors.New("获取conversation失败！"))
@@ -374,14 +375,24 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 
 	// 将用户缓存的新的频道添加到会话列表中
 	for _, cacheChannel := range cacheChannels {
-		exist := false
+		notNeedAdd := false
 		for _, conversation := range conversations {
 			if cacheChannel.ChannelID == conversation.ChannelId && cacheChannel.ChannelType == conversation.ChannelType {
-				exist = true
+				notNeedAdd = true
 				break
 			}
 		}
-		if !exist {
+
+		if len(req.ExcludeChannelTypes) > 0 {
+			for _, excludeChannelType := range req.ExcludeChannelTypes {
+				if excludeChannelType == cacheChannel.ChannelType {
+					notNeedAdd = true
+					break
+				}
+			}
+		}
+
+		if !notNeedAdd {
 			conversations = append(conversations, wkdb.Conversation{
 				ChannelId:   cacheChannel.ChannelID,
 				ChannelType: cacheChannel.ChannelType,
@@ -586,7 +597,7 @@ func (s *conversation) conversationChannels(c *wkhttp.Context) {
 	}
 
 	// ==================== 获取用户活跃的最近会话 ====================
-	conversations, err := service.Store.GetLastConversations(req.UID, wkdb.ConversationTypeChat, 0, options.G.Conversation.UserMaxCount)
+	conversations, err := service.Store.GetLastConversations(req.UID, wkdb.ConversationTypeChat, 0, nil, options.G.Conversation.UserMaxCount)
 	if err != nil && err != wkdb.ErrNotFound {
 		s.Error("获取conversation失败！", zap.Error(err), zap.String("uid", req.UID))
 		c.ResponseError(errors.New("获取conversation失败！"))
@@ -609,6 +620,7 @@ func (s *conversation) conversationChannels(c *wkhttp.Context) {
 				break
 			}
 		}
+
 		if !exist {
 			conversations = append(conversations, wkdb.Conversation{
 				Uid:         req.UID,

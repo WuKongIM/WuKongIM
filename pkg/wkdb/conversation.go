@@ -272,7 +272,7 @@ func (wk *wukongDB) GetConversationsByType(uid string, tp ConversationType) ([]C
 	return conversations, nil
 }
 
-func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, updatedAt uint64, limit int) ([]Conversation, error) {
+func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, updatedAt uint64, excludeChannelTypes []uint8, limit int) ([]Conversation, error) {
 
 	wk.metrics.GetLastConversationsAdd(1)
 
@@ -297,6 +297,15 @@ func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, update
 		if conversation.Type != tp {
 			continue
 		}
+
+		if len(excludeChannelTypes) > 0 {
+			for _, excludeChannelType := range excludeChannelTypes {
+				if conversation.ChannelType == excludeChannelType {
+					continue
+				}
+			}
+		}
+
 		conversations = append(conversations, conversation)
 	}
 	// conversations 根据id去重复
