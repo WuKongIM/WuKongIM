@@ -1,15 +1,18 @@
 package common
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
 	"github.com/WuKongIM/WuKongIM/internal/errors"
+	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/ingress"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -141,4 +144,40 @@ func (s *Service) getOrMakePersonTag(fakeChannelId string) (*types.Tag, error) {
 	}
 	service.TagManager.SetChannelTag(fakeChannelId, wkproto.ChannelTypePerson, tag.Key)
 	return tag, nil
+}
+
+// 检查连接的真实性 并获取真实连接
+func CheckConnValidAndGetRealConn(conn *eventbus.Conn) (wknet.Conn, error) {
+	// 获取到真实连接
+	realConn := service.ConnManager.GetConn(conn.ConnId)
+	if realConn == nil {
+		return nil, nil
+	}
+
+	// 验证连接的真实性, 双向验证，验证连接的fd和connId是否一致
+	// 1. 通过fd获取连接
+	connfd := realConn.Fd().Fd()
+	realConnByFd := service.ConnManager.GetConnByFd(connfd)
+	if realConnByFd == nil {
+		// connId与fd不一致，说明连接已经关闭
+		return nil, fmt.Errorf("connId not match, connId: %d, fd: %d", conn.ConnId, connfd)
+	}
+
+	ctx, ctxByFd := realConn.Context(), realConnByFd.Context()
+
+	if ctx != ctxByFd {
+		// connId与fd不一致，说明连接已经关闭
+		return nil, fmt.Errorf("context not match, connId: %d, fd: %d", conn.ConnId, connfd)
+	}
+
+	// 2. 验证连接的fd和connId是否一致
+	if ctxByFd != nil {
+		eventConn, ok := ctxByFd.(*eventbus.Conn)
+		if ok && eventConn != nil {
+			if eventConn.ConnId != conn.ConnId {
+				return nil, fmt.Errorf("connId not match, connId: %d, realConnId: %d", conn.ConnId, eventConn.ConnId)
+			}
+		}
+	}
+	return realConn, nil
 }
