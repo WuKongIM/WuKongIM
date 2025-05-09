@@ -121,9 +121,9 @@ func (s *conversation) clearConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+	updatedAt := time.Now()
 	if wkdb.IsEmptyConversation(conversation) {
 		createdAt := time.Now()
-		updatedAt := time.Now()
 		conversation = wkdb.Conversation{
 			Type:        wkdb.ConversationTypeChat,
 			Uid:         req.UID,
@@ -149,6 +149,7 @@ func (s *conversation) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	conversation.ReadToMsgSeq = lastMsgSeq
+	conversation.UpdatedAt = &updatedAt
 
 	err = service.Store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
@@ -217,10 +218,10 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-
+	updatedAt := time.Now()
 	if wkdb.IsEmptyConversation(conversation) {
 		createdAt := time.Now()
-		updatedAt := time.Now()
+
 		conversation = wkdb.Conversation{
 			Uid:         req.UID,
 			Type:        wkdb.ConversationTypeChat,
@@ -249,6 +250,7 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 	}
 
 	conversation.ReadToMsgSeq = readedMsgSeq
+	conversation.UpdatedAt = &updatedAt
 
 	err = service.Store.AddOrUpdateUserConversations(req.UID, []wkdb.Conversation{conversation})
 	if err != nil {
@@ -315,11 +317,11 @@ func (s *conversation) deleteConversation(c *wkhttp.Context) {
 func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	var req struct {
 		UID                 string  `json:"uid"`
-		Version             int64   `json:"version"`       // 当前客户端的会话最大版本号(客户端最新会话的时间戳)（TODO: 这个参数可以废弃了,使用OnlyUnread）
-		LastMsgSeqs         string  `json:"last_msg_seqs"` // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
-		MsgCount            int64   `json:"msg_count"`     // 每个会话消息数量
-		OnlyUnread          uint8   `json:"only_unread"`   // 只返回未读最近会话 1.只返回未读最近会话 0.不限制
-		ExcludeChannelTypes []uint8 `json:"exclude_channel_types"`
+		Version             int64   `json:"version"`               // 当前客户端的会话最大版本号(客户端最新会话的时间戳)（TODO: 这个参数可以废弃了,使用OnlyUnread）
+		LastMsgSeqs         string  `json:"last_msg_seqs"`         // 客户端所有会话的最后一条消息序列号 格式： channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq
+		MsgCount            int64   `json:"msg_count"`             // 每个会话消息数量
+		OnlyUnread          uint8   `json:"only_unread"`           // 只返回未读最近会话 1.只返回未读最近会话 0.不限制
+		ExcludeChannelTypes []uint8 `json:"exclude_channel_types"` // 排除的频道类型
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
