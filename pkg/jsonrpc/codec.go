@@ -156,7 +156,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 		// Valid notification: method, no id or null id
 		// Check if method is a known notification type (optional, depending on strictness)
 		switch probe.Method {
-		case MethodRecv, MethodDisconnect:
+		case MethodRecv, MethodDisconnect, MethodRecvAck:
 			msgType = msgTypeNotification
 		default:
 			// If method is present but ID is missing/null, AND method is not known,
