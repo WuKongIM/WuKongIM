@@ -223,17 +223,18 @@ func (a *acceptor) acceptConn(listenFd int, ws bool, wss bool) error {
 		a.Error("SetKeepAlivePeriod() failed", zap.Error(err))
 	}
 	subReactor := a.reactorSubByConnFd(connFd)
+	clientId := a.eg.GenClientID()
 	if wss {
-		if conn, err = a.eg.eventHandler.OnNewWSSConn(a.eg.GenClientID(), newNetFd(connFd), a.wssRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
+		if conn, err = a.eg.eventHandler.OnNewWSSConn(clientId, newNetFd(connFd), a.wssRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	} else if ws {
-		if conn, err = a.eg.eventHandler.OnNewWSConn(a.eg.GenClientID(), newNetFd(connFd), a.wsRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
+		if conn, err = a.eg.eventHandler.OnNewWSConn(clientId, newNetFd(connFd), a.wsRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	} else {
 
-		if conn, err = a.eg.eventHandler.OnNewConn(a.eg.GenClientID(), newNetFd(connFd), a.tcpRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
+		if conn, err = a.eg.eventHandler.OnNewConn(clientId, newNetFd(connFd), a.tcpRealAddr(), remoteAddr, a.eg, subReactor); err != nil {
 			return err
 		}
 	}

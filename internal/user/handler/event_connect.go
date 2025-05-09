@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -161,7 +162,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 						}
 					}(oldConn))
 
-					h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn))
+					h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn), zap.Int64("oldConnId", oldConn.ConnId), zap.Int64("newConnId", conn.ConnId))
 				}
 			}
 		}
@@ -185,8 +186,9 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 	conn.DeviceLevel = devceLevel
 
 	// 本地连接
+	var realConn wknet.Conn
 	if options.G.IsLocalNode(conn.NodeId) {
-		realConn := service.ConnManager.GetConn(conn.ConnId)
+		realConn = service.ConnManager.GetConn(conn.ConnId)
 		if realConn != nil {
 			realConn.SetMaxIdle(options.G.ConnIdleTime)
 		}
@@ -198,7 +200,11 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		hasServerVersion = true
 	}
 
-	h.Debug("auth: auth Success", zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
+	if realConn != nil {
+		h.Debug("auth: auth Success", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId), zap.Int("fd", realConn.Fd().Fd()), zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
+	} else {
+		h.Debug("auth: auth Success", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId), zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
+	}
 	connack := &wkproto.ConnackPacket{
 		Salt:          string(aesIV),
 		ServerKey:     dhServerPublicKeyEnc,
