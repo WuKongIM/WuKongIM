@@ -297,13 +297,18 @@ func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, update
 		if conversation.Type != tp {
 			continue
 		}
+		exclude := false
 
 		if len(excludeChannelTypes) > 0 {
 			for _, excludeChannelType := range excludeChannelTypes {
 				if conversation.ChannelType == excludeChannelType {
-					continue
+					exclude = true
+					break
 				}
 			}
+		}
+		if exclude {
+			continue
 		}
 
 		conversations = append(conversations, conversation)
@@ -410,7 +415,22 @@ func (wk *wukongDB) getLastConversationIds(uid string, updatedAt uint64, limit i
 			break
 		}
 	}
-	return ids, nil
+
+	// ids去重,并保留原来ids的顺序
+	uniqueIds := make(map[uint64]struct{})
+	uniqueIdsMap := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := uniqueIds[id]; !ok {
+			uniqueIds[id] = struct{}{}
+			uniqueIdsMap = append(uniqueIdsMap, id)
+		}
+	}
+
+	if len(ids) != len(uniqueIdsMap) {
+		wk.Warn("getLastConversationIds duplicate ids", zap.Int("oldCount", len(ids)), zap.Int("newCount", len(uniqueIdsMap)))
+	}
+
+	return uniqueIdsMap, nil
 }
 
 // DeleteConversation 删除最近会话
