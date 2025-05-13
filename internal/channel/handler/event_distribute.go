@@ -349,6 +349,8 @@ func (h *Handler) getSubscribers(fakeChannelId string, channelType uint8) ([]str
 		if visitorId != "" {
 			subscribers = append(subscribers, visitorId)
 		}
+	} else if channelType == wkproto.ChannelTypeVisitors { // 如果是访客频道，那么频道id就是访客的uid，所以这里需要加访客加入到订阅者里
+		subscribers = append(subscribers, fakeChannelId)
 	}
 	return subscribers, nil
 }
