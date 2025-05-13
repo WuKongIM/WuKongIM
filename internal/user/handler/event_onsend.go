@@ -85,7 +85,7 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	// 调用插件
 	reason, err := h.pluginInvokeSend(sendPacket, event)
 	if err != nil || reason != wkproto.ReasonSuccess {
-		h.Error("handleOnSend: Failed to invoke plugin！", zap.Error(err), zap.String("uid", conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		h.Info("handleOnSend: plugin return error reason", zap.Error(err), zap.Uint8("reason", uint8(reason)), zap.String("uid", conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		sendack := &wkproto.SendackPacket{
 			Framer:      sendPacket.Framer,
 			MessageID:   event.MessageId,
@@ -119,11 +119,20 @@ func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventb
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Plugin.Timeout)
 	defer cancel()
 
+	conn := &pluginproto.Conn{
+		Uid:         event.Conn.Uid,
+		ConnId:      event.Conn.ConnId,
+		DeviceId:    event.Conn.DeviceId,
+		DeviceFlag:  uint32(event.Conn.DeviceFlag),
+		DeviceLevel: uint32(event.Conn.DeviceLevel),
+	}
+
 	pluginPacket := &pluginproto.SendPacket{
 		FromUid:     event.Conn.Uid,
 		ChannelId:   sendPacket.ChannelID,
 		ChannelType: uint32(sendPacket.ChannelType),
 		Payload:     sendPacket.Payload,
+		Conn:        conn,
 	}
 	for _, pg := range plugins {
 		result, err := pg.Send(timeoutCtx, pluginPacket)
@@ -134,16 +143,15 @@ func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventb
 		if result == nil {
 			continue
 		}
-		if result.Reason != uint32(wkproto.ReasonSuccess) && result.Reason != 0 {
-			h.Error("pluginInvokeSend: Failed to invoke plugin！", zap.String("plugin", pg.GetNo()), zap.Uint32("reason", result.Reason))
-			return wkproto.ReasonCode(result.Reason), nil
+		if result.Reason == 0 {
+			result.Reason = uint32(wkproto.ReasonSuccess)
 		}
 		pluginPacket = result
 	}
 
 	// 使用插件处理后的消息
 	sendPacket.Payload = pluginPacket.Payload
-	return wkproto.ReasonSuccess, nil
+	return wkproto.ReasonCode(pluginPacket.Reason), nil
 }
 
 // decode payload
