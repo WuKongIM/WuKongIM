@@ -83,7 +83,19 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	}
 
 	// 调用插件
-	h.pluginInvokeSend(sendPacket, event)
+	reason, err := h.pluginInvokeSend(sendPacket, event)
+	if err != nil || reason != wkproto.ReasonSuccess {
+		h.Error("handleOnSend: Failed to invoke plugin！", zap.Error(err), zap.String("uid", conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		sendack := &wkproto.SendackPacket{
+			Framer:      sendPacket.Framer,
+			MessageID:   event.MessageId,
+			ClientSeq:   sendPacket.ClientSeq,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			ReasonCode:  reason,
+		}
+		eventbus.User.ConnWrite(event.ReqId, conn, sendack)
+		return
+	}
 
 	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(sendPacket.GetFrameSize())
@@ -101,7 +113,7 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 
 }
 
-func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventbus.Event) {
+func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventbus.Event) (wkproto.ReasonCode, error) {
 	plugins := service.PluginManager.Plugins(types.PluginSend)
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Plugin.Timeout)
@@ -117,13 +129,21 @@ func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventb
 		result, err := pg.Send(timeoutCtx, pluginPacket)
 		if err != nil {
 			h.Error("pluginInvokeSend: Failed to invoke plugin！", zap.Error(err), zap.String("plugin", pg.GetNo()))
+			return wkproto.ReasonSystemError, err
+		}
+		if result == nil {
 			continue
+		}
+		if result.Reason != uint32(wkproto.ReasonSuccess) && result.Reason != 0 {
+			h.Error("pluginInvokeSend: Failed to invoke plugin！", zap.String("plugin", pg.GetNo()), zap.Uint32("reason", result.Reason))
+			return wkproto.ReasonCode(result.Reason), nil
 		}
 		pluginPacket = result
 	}
 
 	// 使用插件处理后的消息
 	sendPacket.Payload = pluginPacket.Payload
+	return wkproto.ReasonSuccess, nil
 }
 
 // decode payload
