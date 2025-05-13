@@ -60,6 +60,8 @@ message SendPacket {
     uint32 channelType = 3;  
     // 消息内容
     bytes payload = 4;
+    // 错误原因（默认为成功）
+    uint32 reason = 5; 
 }
 
 // 接收包
