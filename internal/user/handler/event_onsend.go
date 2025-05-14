@@ -116,6 +116,10 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventbus.Event) (wkproto.ReasonCode, error) {
 	plugins := service.PluginManager.Plugins(types.PluginSend)
 
+	if len(plugins) == 0 {
+		return wkproto.ReasonSuccess, nil
+	}
+
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Plugin.Timeout)
 	defer cancel()
 
@@ -133,6 +137,7 @@ func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventb
 		ChannelType: uint32(sendPacket.ChannelType),
 		Payload:     sendPacket.Payload,
 		Conn:        conn,
+		Reason:      uint32(wkproto.ReasonSuccess),
 	}
 	for _, pg := range plugins {
 		result, err := pg.Send(timeoutCtx, pluginPacket)
