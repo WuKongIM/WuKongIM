@@ -191,6 +191,8 @@ func New(opts *options.Options) *Server {
 				clusterconfig.WithPongMaxTick(s.opts.Cluster.PongMaxTick),
 				clusterconfig.WithServerAddr(s.opts.Cluster.ServerAddr),
 				clusterconfig.WithSeed(s.opts.Cluster.Seed),
+				clusterconfig.WithChannelDestoryAfterIdleTick(s.opts.Cluster.ChannelDestoryAfterIdleTick),
+				clusterconfig.WithTickInterval(s.opts.Cluster.TickInterval),
 			)),
 			cluster.WithAddr(s.opts.Cluster.Addr),
 			cluster.WithDataDir(path.Join(opts.DataDir)),

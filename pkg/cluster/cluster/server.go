@@ -143,6 +143,7 @@ func New(opts *Options) *Server {
 		channel.WithDB(s.db),
 		channel.WithRPC(s.rpcClient),
 		channel.WithOnSaveConfig(s.onSaveChannelConfig),
+		channel.WithDestoryAfterIdleTick(opts.ConfigOptions.ChannelDestoryAfterIdleTick),
 	))
 
 	// 分布式存储
