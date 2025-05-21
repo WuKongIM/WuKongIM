@@ -69,7 +69,7 @@ func NewOptions(opt ...Option) *Options {
 		ElectionOn:                 false,
 		HeartbeatInterval:          1,
 		ElectionInterval:           10,
-		TickInterval:               time.Millisecond * 100,
+		TickInterval:               time.Millisecond * 150,
 		MaxLogCountPerBatch:        1000,
 		GoPoolSize:                 1000,
 		ProposeTimeout:             time.Second * 5,

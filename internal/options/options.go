@@ -222,8 +222,9 @@ type Options struct {
 		HeartbeatIntervalTick int // 心跳间隔tick
 		ElectionIntervalTick  int // 选举间隔tick
 
-		ChannelReactorSubCount int // 频道reactor sub的数量
-		SlotReactorSubCount    int // 槽reactor sub的数量
+		ChannelReactorSubCount      int // 频道reactor sub的数量
+		ChannelDestoryAfterIdleTick int // 频道空闲多久后销毁（如果TickInterval是100ms, 那么10 * 60 * 30这个值是30分钟，具体时间根据TickInterval来定）
+		SlotReactorSubCount         int // 槽reactor sub的数量
 
 		PongMaxTick int // 节点超过多少tick没有回应心跳就认为是掉线
 	}
@@ -511,38 +512,40 @@ func New(op ...Option) *Options {
 			Addr: "0.0.0.0:5172",
 		},
 		Cluster: struct {
-			NodeId                 uint64
-			Addr                   string
-			ServerAddr             string
-			APIUrl                 string
-			ReqTimeout             time.Duration
-			Role                   Role
-			Seed                   string
-			SlotReplicaCount       int
-			ChannelReplicaCount    int
-			SlotCount              int
-			InitNodes              []*Node
-			TickInterval           time.Duration
-			HeartbeatIntervalTick  int
-			ElectionIntervalTick   int
-			ChannelReactorSubCount int
-			SlotReactorSubCount    int
-			PongMaxTick            int
+			NodeId                      uint64
+			Addr                        string
+			ServerAddr                  string
+			APIUrl                      string
+			ReqTimeout                  time.Duration
+			Role                        Role
+			Seed                        string
+			SlotReplicaCount            int
+			ChannelReplicaCount         int
+			SlotCount                   int
+			InitNodes                   []*Node
+			TickInterval                time.Duration
+			HeartbeatIntervalTick       int
+			ElectionIntervalTick        int
+			ChannelReactorSubCount      int
+			ChannelDestoryAfterIdleTick int
+			SlotReactorSubCount         int
+			PongMaxTick                 int
 		}{
-			NodeId:                 1001,
-			Addr:                   "tcp://0.0.0.0:11110",
-			ServerAddr:             "",
-			ReqTimeout:             time.Second * 10,
-			Role:                   RoleReplica,
-			SlotCount:              64,
-			SlotReplicaCount:       3,
-			ChannelReplicaCount:    3,
-			TickInterval:           time.Millisecond * 150,
-			HeartbeatIntervalTick:  1,
-			ElectionIntervalTick:   10,
-			ChannelReactorSubCount: 128,
-			SlotReactorSubCount:    16,
-			PongMaxTick:            30,
+			NodeId:                      1001,
+			Addr:                        "tcp://0.0.0.0:11110",
+			ServerAddr:                  "",
+			ReqTimeout:                  time.Second * 10,
+			Role:                        RoleReplica,
+			SlotCount:                   64,
+			SlotReplicaCount:            3,
+			ChannelReplicaCount:         3,
+			TickInterval:                time.Millisecond * 150,
+			HeartbeatIntervalTick:       1,
+			ElectionIntervalTick:        10,
+			ChannelReactorSubCount:      128,
+			ChannelDestoryAfterIdleTick: (1000 / 150) * 60 * 10, // 10分钟 (150表示tick间隔时间)
+			SlotReactorSubCount:         16,
+			PongMaxTick:                 30,
 		},
 		Trace: struct {
 			ServiceName      string
@@ -923,6 +926,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Cluster.ElectionIntervalTick = o.getInt("cluster.electionIntervalTick", o.Cluster.ElectionIntervalTick)
 	o.Cluster.HeartbeatIntervalTick = o.getInt("cluster.heartbeatIntervalTick", o.Cluster.HeartbeatIntervalTick)
 	o.Cluster.ChannelReactorSubCount = o.getInt("cluster.channelReactorSubCount", o.Cluster.ChannelReactorSubCount)
+	o.Cluster.ChannelDestoryAfterIdleTick = o.getInt("cluster.channelDestoryAfterIdleTick", o.Cluster.ChannelDestoryAfterIdleTick)
 	o.Cluster.SlotReactorSubCount = o.getInt("cluster.slotReactorSubCount", o.Cluster.SlotReactorSubCount)
 	o.Cluster.APIUrl = o.getString("cluster.apiUrl", o.Cluster.APIUrl)
 
