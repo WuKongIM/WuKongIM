@@ -133,6 +133,10 @@ func (s *Server) LastIndex(slotId uint32) (uint64, error) {
 	return s.storage.LastIndex(shardNo)
 }
 
+func (s *Server) LastLog(slotId uint32) (types.Log, error) {
+	return s.storage.LastLog(SlotIdToKey(slotId))
+}
+
 func (s *Server) GetSlotRaft(slotId uint32) *Slot {
 	raft := s.raftGroup.GetRaft(SlotIdToKey(slotId))
 	if raft == nil {
