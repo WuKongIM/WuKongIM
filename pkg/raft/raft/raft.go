@@ -185,6 +185,10 @@ func (r *Raft) BecomeFollower(term uint32, leader uint64) {
 	r.node.BecomeFollower(term, leader)
 }
 
+func (r *Raft) KeepAlive() {
+	r.node.KeepAlive()
+}
+
 func (r *Raft) loop() {
 	tk := time.NewTicker(r.opts.TickInterval)
 	for {
@@ -217,15 +221,19 @@ func (r *Raft) readyEvents() {
 	for _, e := range events {
 		switch e.Type {
 		case types.StoreReq: // 处理存储请求
+			r.node.KeepAlive()
 			r.handleStoreReq(e)
 			continue
 		case types.GetLogsReq: // 处理获取日志请求
+			r.node.KeepAlive()
 			r.handleGetLogsReq(e)
 			continue
 		case types.TruncateReq: // 截断请求
+			r.node.KeepAlive()
 			r.handleTruncateReq(e)
 			continue
 		case types.ApplyReq: // 处理应用请求
+			r.node.KeepAlive()
 			r.handleApplyReq(e)
 			continue
 			// 角色转换
