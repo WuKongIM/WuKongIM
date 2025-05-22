@@ -1741,10 +1741,12 @@ type channelStatusResp struct {
 
 type channelReplicaResp struct {
 	ReplicaId   uint64 `json:"replica_id"`    // 副本节点id
+	LeaderId    uint64 `json:"leader_id"`     // 当前副本认为的领导点id
 	Running     int    `json:"running"`       // 是否运行中
 	LastMsgSeq  uint64 `json:"last_msg_seq"`  // 最新消息序号
 	LastMsgTime uint64 `json:"last_msg_time"` // 最新消息时间
 	Term        uint32 `json:"term"`          // 任期
+	ConfVersion uint64 `json:"conf_version"`  // 配置版本
 }
 
 type channelReplicaDetailResp struct {
@@ -1753,6 +1755,23 @@ type channelReplicaDetailResp struct {
 	RoleFormat        string `json:"role_format"`          // 角色格式化
 	LastMsgTimeFormat string `json:"last_msg_time_format"` // 最新消息时间格式化
 
+}
+
+type slotReplicaResp struct {
+	ReplicaId   uint64 `json:"replica_id"`    // 副本节点id
+	LeaderId    uint64 `json:"leader_id"`     // 当前副本认为的领导点id
+	Running     int    `json:"running"`       // 是否运行中
+	LastLogSeq  uint64 `json:"last_log_seq"`  // 最新消息序号
+	LastLogTime uint64 `json:"last_log_time"` // 最新消息时间
+	Term        uint32 `json:"term"`          // 任期
+	ConfVersion uint64 `json:"conf_version"`  // 配置版本
+}
+
+type slotReplicaDetailResp struct {
+	slotReplicaResp
+	Role              int    `json:"role"`                 // 角色
+	RoleFormat        string `json:"role_format"`          // 角色格式化
+	LastLogTimeFormat string `json:"last_log_time_format"` // 最新日志时间格式化
 }
 
 type ping struct {

@@ -8,10 +8,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/auth"
 	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
+	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"go.uber.org/zap"
@@ -324,4 +326,206 @@ func (s *Server) getSlotMaxLogIndex(slotId uint32) (uint64, error) {
 		return slotLogResp.Slots[0].LogIndex, nil
 	}
 	return 0, nil
+}
+
+func (s *Server) slotReplicasGet(c *wkhttp.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		s.Error("id parse error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	slotId := uint32(id)
+
+	slot := s.cfgServer.Slot(slotId)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("slot not found"))
+		return
+	}
+	if slot.Leader == 0 {
+		s.Error("slot leader not found", zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("slot leader not found"))
+		return
+	}
+	slotNodeLeader := s.cfgServer.Node(slot.Leader)
+	if slotNodeLeader == nil {
+		s.Error("slot leader node not found", zap.Uint64("nodeId", slot.Leader))
+		c.ResponseError(errors.New("slot leader node not found"))
+		return
+	}
+
+	if slotNodeLeader.Id != s.opts.ConfigOptions.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", slotNodeLeader.ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+	replicas := make([]*slotReplicaDetailResp, 0, len(slot.Replicas))
+	replicasLock := &sync.Mutex{}
+	replicaIds := make([]uint64, 0, len(slot.Replicas)+len(slot.Learners))
+	replicaIds = append(replicaIds, slot.Replicas...)
+	replicaIds = append(replicaIds, slot.Learners...)
+
+	timeoutCtx, cancel := context.WithTimeout(s.cancelCtx, s.opts.ReqTimeout)
+	defer cancel()
+	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+
+	for _, replicaId := range replicaIds {
+		replicaId := replicaId
+
+		if !s.NodeIsOnline(replicaId) {
+			continue
+		}
+		lastLog, err := s.slotServer.LastLog(slotId)
+		if err != nil {
+			s.Error("LastLog error", zap.Error(err))
+			c.ResponseError(err)
+			return
+		}
+		if replicaId == s.opts.ConfigOptions.NodeId {
+			slotRaft := s.slotServer.GetSlotRaft(slotId)
+			running := 0
+			var leaderId uint64
+			var term uint32
+			var confVersion uint64
+			if slotRaft != nil {
+				running = 1
+				leaderId = slotRaft.LeaderId()
+				term = slotRaft.Config().Term
+				confVersion = slotRaft.Config().Version
+			}
+
+			replicaResp := slotReplicaResp{
+				ReplicaId:   s.opts.ConfigOptions.NodeId,
+				LeaderId:    leaderId,
+				Term:        term,
+				ConfVersion: confVersion,
+				Running:     running,
+				LastLogSeq:  lastLog.Index,
+			}
+			if lastLog.Time.IsZero() {
+				replicaResp.LastLogTime = 0
+			} else {
+				replicaResp.LastLogTime = uint64(lastLog.Time.UnixNano())
+			}
+			lastLogTimeFormat := ""
+			if replicaResp.LastLogTime != 0 {
+				lastLogTimeFormat = myUptime(time.Since(time.Unix(int64(replicaResp.LastLogTime/1e9), 0)))
+			}
+			replicasLock.Lock()
+			replicas = append(replicas, &slotReplicaDetailResp{
+				slotReplicaResp:   replicaResp,
+				Role:              s.getReplicaRoleWithSlotClusterConfig(slot, replicaId),
+				RoleFormat:        s.getReplicaRoleFormatWithSlotClusterConfig(slot, replicaId),
+				LastLogTimeFormat: lastLogTimeFormat,
+			})
+			replicasLock.Unlock()
+			continue
+		}
+
+		requestGroup.Go(func() error {
+			replicaResp, err := s.requestSlotLocalReplica(replicaId, slotId, c.CopyRequestHeader(c.Request))
+			if err != nil {
+				return err
+			}
+
+			lastLogTimeFormat := ""
+			if replicaResp.LastLogTime != 0 {
+				lastLogTimeFormat = myUptime(time.Since(time.Unix(int64(replicaResp.LastLogTime/1e9), 0)))
+			}
+
+			replicasLock.Lock()
+			replicas = append(replicas, &slotReplicaDetailResp{
+				slotReplicaResp:   *replicaResp,
+				Role:              s.getReplicaRoleWithSlotClusterConfig(slot, replicaId),
+				RoleFormat:        s.getReplicaRoleFormatWithSlotClusterConfig(slot, replicaId),
+				LastLogTimeFormat: lastLogTimeFormat,
+			})
+			replicasLock.Unlock()
+			return nil
+		})
+	}
+	err = requestGroup.Wait()
+	if err != nil {
+		s.Error("slotReplicas requestGroup error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, replicas)
+}
+
+func (s *Server) slotLocalReplicaGet(c *wkhttp.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		s.Error("id parse error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	slotId := uint32(id)
+
+	slot := s.cfgServer.Slot(slotId)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("slot not found"))
+		return
+	}
+	lastLog, err := s.slotServer.LastLog(slotId)
+	if err != nil {
+		s.Error("LastLog error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	slotRaft := s.slotServer.GetSlotRaft(slotId)
+	running := 0
+	var leaderId uint64
+	var term uint32
+	var confVersion uint64
+	if slotRaft != nil {
+		running = 1
+		leaderId = slotRaft.LeaderId()
+		term = slotRaft.Config().Term
+		confVersion = slotRaft.Config().Version
+	}
+
+	replicaResp := slotReplicaResp{
+		ReplicaId:   s.opts.ConfigOptions.NodeId,
+		LeaderId:    leaderId,
+		Term:        term,
+		ConfVersion: confVersion,
+		Running:     running,
+		LastLogSeq:  lastLog.Index,
+	}
+	if lastLog.Time.IsZero() {
+		replicaResp.LastLogTime = 0
+	} else {
+		replicaResp.LastLogTime = uint64(lastLog.Time.UnixNano())
+	}
+
+	c.JSON(http.StatusOK, replicaResp)
+}
+
+func (s *Server) requestSlotLocalReplica(nodeId uint64, slotId uint32, headers map[string]string) (*slotReplicaResp, error) {
+	node := s.cfgServer.Node(nodeId)
+	if node == nil {
+		s.Error("requestSlotLocalReplica failed, node not found", zap.Uint64("nodeId", nodeId))
+		return nil, errors.New("node not found")
+	}
+	fullUrl := fmt.Sprintf("%s%s", node.ApiServerAddr, s.formatPath(fmt.Sprintf("/slots/%d/localReplica", slotId)))
+	resp, err := network.Get(fullUrl, nil, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("requestSlotLocalReplica failed, status code: %d", resp.StatusCode)
+	}
+
+	var replicaResp *slotReplicaResp
+	err = wkutil.ReadJSONByByte([]byte(resp.Body), &replicaResp)
+	if err != nil {
+		return nil, err
+	}
+	return replicaResp, nil
 }

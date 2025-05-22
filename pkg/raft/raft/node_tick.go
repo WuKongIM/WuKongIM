@@ -10,7 +10,7 @@ func (n *Node) Tick() {
 	if n.opts.AutoDestory {
 		if n.idleTick > n.opts.DestoryAfterIdleTick {
 			n.idleTick = 0
-			n.Info("auto destory")
+			n.Debug("auto destory")
 			n.sendDestory()
 		}
 	}
