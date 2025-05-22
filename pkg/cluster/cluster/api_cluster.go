@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/auth"
 	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
+	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	rafttype "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -314,6 +316,7 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 	defer cancel()
 
 	replicas := make([]*channelReplicaDetailResp, 0, len(channelClusterConfig.Replicas))
+	replicasLock := sync.RWMutex{}
 
 	replicaIds := make([]uint64, 0, len(channelClusterConfig.Replicas)+len(channelClusterConfig.Learners))
 	replicaIds = append(replicaIds, channelClusterConfig.Replicas...)
@@ -335,22 +338,40 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 				c.ResponseError(err)
 				return
 			}
+
+			var leaderId uint64
+			var term uint32
+			var confVersion uint64
+			if running {
+				ch := s.channelServer.Channel(channelId, channelType)
+				if ch != nil {
+					leaderId = ch.LeaderId()
+					term = ch.Config().Term
+					confVersion = ch.Config().Version
+				}
+			}
+
 			replicaResp := &channelReplicaResp{
 				ReplicaId:   s.opts.ConfigOptions.NodeId,
 				Running:     wkutil.BoolToInt(running),
 				LastMsgSeq:  lastMsgSeq,
 				LastMsgTime: lastTime,
+				LeaderId:    leaderId,
+				Term:        term,
+				ConfVersion: confVersion,
 			}
 			lastMsgTimeFormat := ""
 			if replicaResp.LastMsgTime != 0 {
 				lastMsgTimeFormat = myUptime(time.Since(time.Unix(int64(replicaResp.LastMsgTime/1e9), 0)))
 			}
+			replicasLock.Lock()
 			replicas = append(replicas, &channelReplicaDetailResp{
 				channelReplicaResp: *replicaResp,
-				Role:               s.getReplicaRole(channelClusterConfig, replicaId),
-				RoleFormat:         s.getReplicaRoleFormat(channelClusterConfig, replicaId),
+				Role:               s.getReplicaRoleWithChannelClusterConfig(channelClusterConfig, replicaId),
+				RoleFormat:         s.getReplicaRoleFormatWithChannelClusterConfig(channelClusterConfig, replicaId),
 				LastMsgTimeFormat:  lastMsgTimeFormat,
 			})
+			replicasLock.Unlock()
 			continue
 
 		}
@@ -366,12 +387,14 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 				lastMsgTimeFormat = myUptime(time.Since(time.Unix(int64(replicaResp.LastMsgTime/1e9), 0)))
 			}
 
+			replicasLock.Lock()
 			replicas = append(replicas, &channelReplicaDetailResp{
 				channelReplicaResp: *replicaResp,
-				Role:               s.getReplicaRole(channelClusterConfig, replicaId),
-				RoleFormat:         s.getReplicaRoleFormat(channelClusterConfig, replicaId),
+				Role:               s.getReplicaRoleWithChannelClusterConfig(channelClusterConfig, replicaId),
+				RoleFormat:         s.getReplicaRoleFormatWithChannelClusterConfig(channelClusterConfig, replicaId),
 				LastMsgTimeFormat:  lastMsgTimeFormat,
 			})
+			replicasLock.Unlock()
 			return nil
 		})
 
@@ -388,7 +411,7 @@ func (s *Server) channelReplicas(c *wkhttp.Context) {
 
 }
 
-func (s *Server) getReplicaRoleFormat(clusterConfig wkdb.ChannelClusterConfig, replicaId uint64) string {
+func (s *Server) getReplicaRoleFormatWithChannelClusterConfig(clusterConfig wkdb.ChannelClusterConfig, replicaId uint64) string {
 	if replicaId == clusterConfig.LeaderId {
 		return "leader"
 	}
@@ -398,7 +421,7 @@ func (s *Server) getReplicaRoleFormat(clusterConfig wkdb.ChannelClusterConfig, r
 	return "follower"
 }
 
-func (s *Server) getReplicaRole(clusterConfig wkdb.ChannelClusterConfig, replicaId uint64) int {
+func (s *Server) getReplicaRoleWithChannelClusterConfig(clusterConfig wkdb.ChannelClusterConfig, replicaId uint64) int {
 	if replicaId == clusterConfig.LeaderId {
 		return int(rafttype.RoleLeader)
 	}
@@ -407,6 +430,27 @@ func (s *Server) getReplicaRole(clusterConfig wkdb.ChannelClusterConfig, replica
 	}
 	return int(rafttype.RoleFollower)
 
+}
+
+func (s *Server) getReplicaRoleWithSlotClusterConfig(slot *pb.Slot, replicaId uint64) int {
+	if replicaId == slot.Leader {
+		return int(rafttype.RoleLeader)
+	}
+	if wkutil.ArrayContainsUint64(slot.Learners, replicaId) {
+		return int(rafttype.RoleLearner)
+	}
+	return int(rafttype.RoleFollower)
+
+}
+
+func (s *Server) getReplicaRoleFormatWithSlotClusterConfig(slot *pb.Slot, replicaId uint64) string {
+	if replicaId == slot.Leader {
+		return "leader"
+	}
+	if wkutil.ArrayContainsUint64(slot.Learners, replicaId) {
+		return "learner"
+	}
+	return "follower"
 }
 
 func (s *Server) requestChannelLocalReplica(nodeId uint64, channelId string, channelType uint8, headers map[string]string) (*channelReplicaResp, error) {
@@ -445,15 +489,17 @@ func (s *Server) channelLocalReplica(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
-	var term uint32
-	if lastMsgSeq > 0 {
-		msg, err := s.db.LoadMsg(channelId, channelType, lastMsgSeq)
-		if err != nil {
-			s.Error("LoadMsg error", zap.Error(err))
-			c.ResponseError(err)
-			return
+
+	leaderId := uint64(0)
+	cfgVersion := uint64(0)
+	term := uint32(0)
+	if running {
+		ch := s.channelServer.Channel(channelId, channelType)
+		if ch != nil {
+			leaderId = ch.LeaderId()
+			cfgVersion = ch.Config().Version
+			term = ch.Config().Term
 		}
-		term = uint32(msg.Term)
 	}
 
 	resp := &channelReplicaResp{
@@ -462,6 +508,8 @@ func (s *Server) channelLocalReplica(c *wkhttp.Context) {
 		LastMsgSeq:  lastMsgSeq,
 		LastMsgTime: lastTime,
 		Term:        term,
+		LeaderId:    leaderId,
+		ConfVersion: cfgVersion,
 	}
 
 	c.JSON(http.StatusOK, resp)

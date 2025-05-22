@@ -425,6 +425,11 @@ func (p *PebbleShardLogStorage) getLog(shardNo string, index uint64) (types.Log,
 
 }
 
+func (p *PebbleShardLogStorage) LastLog(shardNo string) (types.Log, error) {
+
+	return p.lastLog(shardNo)
+}
+
 func (p *PebbleShardLogStorage) lastLog(shardNo string) (types.Log, error) {
 	iter := p.shardDB(shardNo).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewLogKey(shardNo, 0),

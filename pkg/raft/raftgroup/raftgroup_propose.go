@@ -116,10 +116,11 @@ func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, raftKe
 			rg.wait.put(applyProcess)
 			return resps, nil
 		case <-ctx.Done():
-			rg.Error("propose batch until applied timeout", zap.String("raftKey", raftKey), zap.Any("resps", resps), zap.String("progress", applyProcess.String()))
+			rg.Error("propose batch until applied timeout", zap.String("raftKey", raftKey), zap.Uint64("leader", raft.LeaderId()), zap.Any("resps", resps), zap.String("progress", applyProcess.String()))
 			// rg.wait.put(applyProcess) // 这里不需要put，因为如果这里put了，那么在waitApply中wait会出现close of nil channel
 			return nil, ctx.Err()
 		case <-rg.stopper.ShouldStop():
+			rg.Error("propose batch until applied stopped", zap.String("raftKey", raftKey), zap.Any("resps", resps), zap.String("progress", applyProcess.String()))
 			return nil, ErrGroupStopped
 		}
 	} else {

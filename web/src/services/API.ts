@@ -233,6 +233,13 @@ export default class API {
         return APIClient.shared.get(`/cluster/channels/${req.channelId}/${req.channelType}/replicas`)
     }
 
+    // 槽副本列表
+    public slotReplicas(req: {
+        slot: number
+    }) {
+        return APIClient.shared.get(`/cluster/slots/${req.slot}/replicas`)
+    }
+
     // 分布式日志
     public clusterLogs(req: {
         nodeId?: number,

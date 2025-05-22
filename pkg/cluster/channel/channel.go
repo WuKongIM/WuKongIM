@@ -92,5 +92,6 @@ func channelConfigToRaftConfig(currentNodeId uint64, cfg wkdb.ChannelClusterConf
 		Term:        cfg.Term,
 		Leader:      cfg.LeaderId,
 		Role:        role,
+		Version:     cfg.ConfVersion,
 	}
 }

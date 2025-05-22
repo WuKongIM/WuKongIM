@@ -25,7 +25,9 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/allslot"), s.allSlotsGet)                   // 获取所有槽信息
 	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet) // 槽分布式配置
 	// route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)    // 获取某个槽的所有频道信息
-	route.POST(s.formatPath("/slots/:id/migrate"), s.slotMigrate) // 迁移槽
+	route.POST(s.formatPath("/slots/:id/migrate"), s.slotMigrate)             // 迁移槽
+	route.GET(s.formatPath("/slots/:id/replicas"), s.slotReplicasGet)         // 获取槽副本信息
+	route.GET(s.formatPath("/slots/:id/localReplica"), s.slotLocalReplicaGet) // 获取槽在本节点的副本信息
 
 	// ================== message ==================
 	route.GET(s.formatPath("/messages"), s.messageSearch) // 搜索消息

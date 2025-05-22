@@ -394,8 +394,11 @@ const onMessage = (ch: any) => {
                         <thead>
                             <tr>
                                 <th>节点ID</th>
+                                <th>领导ID</th>
+                                <th>任期</th>
                                 <th>节点角色</th>
                                 <th>消息高度</th>
+                                <th>配置版本</th>
                                 <th>最后消息时间</th>
                                 <th>是否运行</th>
                             </tr>
@@ -403,8 +406,11 @@ const onMessage = (ch: any) => {
                         <tbody>
                             <tr v-for="replica in replicas">
                                 <td>{{ replica.replica_id }}</td>
+                                <td>{{ replica.leader_id }}</td>
+                                <td>{{ replica.term }}</td>
                                 <td>{{ replica.role_format }}</td>
                                 <td>{{ replica.last_msg_seq }}</td>
+                                <td>{{ replica.conf_version }}</td>
                                 <td>{{ replica.last_msg_time_format }}</td>
                                 <td :class="replica.running == 1 ? 'text-green-500' : 'text-red-500'">
                                     {{ replica.running == 1 ? '运行中' : '未运行' }}</td>
