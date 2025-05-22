@@ -47,6 +47,7 @@ func (n *Node) sendSyncReq() {
 	}
 	n.syncing = true
 	n.syncElapsed = 0
+	n.KeepAlive()
 	var reason types.Reason
 	if n.onlySync {
 		reason = types.ReasonOnlySync

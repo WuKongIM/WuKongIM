@@ -198,7 +198,7 @@ func (rg *RaftGroup) handleReceivedEvents() bool {
 	for _, e := range events {
 		raft := rg.raftList.get(e.RaftKey)
 		if raft == nil {
-			rg.Debug("raft not found", zap.String("raftKey", e.RaftKey), zap.String("event", e.Event.String()))
+			rg.Warn("raft not found", zap.String("raftKey", e.RaftKey), zap.String("event", e.Event.Type.String()))
 			if e.WaitC != nil {
 				e.WaitC <- ErrRaftNotExist
 			}
@@ -254,14 +254,18 @@ func (rg *RaftGroup) handleReady(r IRaft) bool {
 	for _, e := range events {
 		switch e.Type {
 		case types.StoreReq: // 处理存储请求
+			r.KeepAlive()
 			rg.handleStoreReq(r, e)
 			continue
 		case types.GetLogsReq: // 处理获取日志请求
+			r.KeepAlive()
 			rg.handleGetLogsReq(r, e)
 			continue
 		case types.TruncateReq: // 处理截断请求
+			r.KeepAlive()
 			rg.handleTruncateReq(r, e)
 		case types.ApplyReq: // 处理应用请求
+			r.KeepAlive()
 			rg.handleApplyReq(r, e)
 			continue
 		case types.Destory: // 处理销毁请求
@@ -272,6 +276,7 @@ func (rg *RaftGroup) handleReady(r IRaft) bool {
 		case types.LearnerToFollowerReq,
 			types.LearnerToLeaderReq,
 			types.FollowerToLeaderReq:
+			r.KeepAlive()
 			rg.handleRoleChangeReq(r, e)
 			continue
 		}

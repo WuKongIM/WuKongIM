@@ -74,6 +74,8 @@ func (rg *RaftGroup) ProposeBatchUntilAppliedTimeout(ctx context.Context, raftKe
 		return nil, fmt.Errorf("raft not found, key:%s", raftKey)
 	}
 
+	raft.KeepAlive()
+
 	if !raft.IsLeader() {
 		// 如果不是leader，则转发给leader
 		resps, err = rg.fowardPropose(ctx, raft, reqs)
@@ -133,6 +135,8 @@ func (rg *RaftGroup) proposeBatchTimeout(ctx context.Context, raft IRaft, reqs [
 
 	raft.Lock()
 	defer raft.Unlock()
+
+	raft.KeepAlive()
 
 	lastLogIndex := raft.LastLogIndex()
 	logs := make([]types.Log, 0, len(reqs))
