@@ -220,7 +220,6 @@ func (ch *channel) addSubscriber(c *wkhttp.Context) {
 
 func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 	var err error
-	existSubscribers := make([]string, 0)
 	if req.Reset == 1 {
 		err = service.Store.RemoveAllSubscriber(req.ChannelId, req.ChannelType)
 		if err != nil {
@@ -231,25 +230,10 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 		if tagKey != "" {
 			service.TagManager.RemoveTag(tagKey)
 		}
-	} else {
-		members, err := service.Store.GetSubscribers(req.ChannelId, req.ChannelType)
-		if err != nil {
-			ch.Error("获取所有订阅者失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			return err
-		}
-		for _, member := range members {
-			existSubscribers = append(existSubscribers, member.Uid)
-		}
 	}
-	newSubscribers := make([]string, 0, len(req.Subscribers))
-	for _, subscriber := range req.Subscribers {
-		if strings.TrimSpace(subscriber) == "" {
-			continue
-		}
-		if !wkutil.ArrayContains(existSubscribers, subscriber) {
-			newSubscribers = append(newSubscribers, subscriber)
-		}
-	}
+
+	newSubscribers := req.Subscribers
+
 	if len(newSubscribers) > 0 {
 
 		// TODO: 消息应该去频道的领导节点获取
@@ -270,7 +254,7 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 				UpdatedAt: &updatedAt,
 			})
 		}
-		err = service.Store.AddSubscribers(req.ChannelId, req.ChannelType, members)
+		err = ch.addSubscribers(req.ChannelId, req.ChannelType, members)
 		if err != nil {
 			ch.Error("添加订阅者失败！", zap.Error(err), zap.Int("members", len(members)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
@@ -307,6 +291,15 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 	}
 
+	return nil
+}
+
+func (ch *channel) addSubscribers(channelId string, channelType uint8, members []wkdb.Member) error {
+	err := service.Store.AddSubscribers(channelId, channelType, members)
+	if err != nil {
+		ch.Error("添加订阅者失败！", zap.Error(err), zap.Int("members", len(members)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return err
+	}
 	return nil
 }
 
