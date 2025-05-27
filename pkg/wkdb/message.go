@@ -2,19 +2,16 @@ package wkdb
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"math"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []Message) error {
@@ -44,7 +41,14 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 		return err
 	}
 
-	return batch.CommitWait()
+	err = batch.CommitWait()
+	if err != nil {
+		return err
+	}
+
+	wk.channelSeqCache.setChannelLastSeq(channelId, channelType, uint64(lastMsg.MessageSeq))
+
+	return nil
 }
 
 // func (wk *wukongDB) AppendMessagesByLogs(reqs []reactor.AppendLogReq) {
@@ -116,94 +120,94 @@ func (wk *wukongDB) channelDbIndex(channelId string, channelType uint8) uint32 {
 	return uint32(key.ChannelToNum(channelId, channelType) % uint64(len(wk.dbs)))
 }
 
-func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
+// func (wk *wukongDB) AppendMessagesBatch(reqs []AppendMessagesReq) error {
 
-	wk.metrics.AppendMessagesBatchAdd(1)
+// 	wk.metrics.AppendMessagesBatchAdd(1)
 
-	if len(reqs) == 0 {
-		return nil
-	}
+// 	if len(reqs) == 0 {
+// 		return nil
+// 	}
 
-	if len(reqs) == 1 {
-		req := reqs[0]
-		return wk.AppendMessages(req.ChannelId, req.ChannelType, req.Messages)
-	}
+// 	if len(reqs) == 1 {
+// 		req := reqs[0]
+// 		return wk.AppendMessages(req.ChannelId, req.ChannelType, req.Messages)
+// 	}
 
-	// 监控
-	trace.GlobalTrace.Metrics.DB().MessageAppendBatchCountAdd(1)
+// 	// 监控
+// 	trace.GlobalTrace.Metrics.DB().MessageAppendBatchCountAdd(1)
 
-	if wk.opts.EnableCost {
-		start := time.Now()
-		defer func() {
-			cost := time.Since(start)
-			if cost > time.Millisecond*1000 {
-				msgCount := 0
-				for _, req := range reqs {
-					msgCount += len(req.Messages)
-				}
-				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)), zap.Int("msgCount", msgCount))
-			}
-		}()
-	}
+// 	if wk.opts.EnableCost {
+// 		start := time.Now()
+// 		defer func() {
+// 			cost := time.Since(start)
+// 			if cost > time.Millisecond*1000 {
+// 				msgCount := 0
+// 				for _, req := range reqs {
+// 					msgCount += len(req.Messages)
+// 				}
+// 				wk.Info("appendMessagesBatch done", zap.Duration("cost", cost), zap.Int("reqs", len(reqs)), zap.Int("msgCount", msgCount))
+// 			}
+// 		}()
+// 	}
 
-	// 按照db进行分组
-	dbMap := make(map[uint32][]AppendMessagesReq)
-	var msgTotalCount int
-	for _, req := range reqs {
-		shardId := wk.channelDbIndex(req.ChannelId, req.ChannelType)
-		dbMap[shardId] = append(dbMap[shardId], req)
-		msgTotalCount += len(req.Messages)
-	}
+// 	// 按照db进行分组
+// 	dbMap := make(map[uint32][]AppendMessagesReq)
+// 	var msgTotalCount int
+// 	for _, req := range reqs {
+// 		shardId := wk.channelDbIndex(req.ChannelId, req.ChannelType)
+// 		dbMap[shardId] = append(dbMap[shardId], req)
+// 		msgTotalCount += len(req.Messages)
+// 	}
 
-	batchs := make([]*Batch, 0, len(dbMap))
+// 	batchs := make([]*Batch, 0, len(dbMap))
 
-	for _, req := range reqs {
-		batch := wk.channelBatchDb(req.ChannelId, req.ChannelType).NewBatch()
-		for _, msg := range req.Messages {
-			if err := wk.writeMessage(req.ChannelId, req.ChannelType, msg, batch); err != nil {
-				return err
-			}
-		}
-		err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(req.Messages[len(req.Messages)-1].MessageSeq), batch)
-		if err != nil {
-			return err
-		}
-		batchs = append(batchs, batch)
-	}
-	// for shardId, reqs := range dbMap {
-	// 	batch := wk.shardBatchDBById(shardId).NewBatch()
-	// 	err := wk.writeMessagesBatch(batch, reqs)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	batchs = append(batchs, batch)
-	// }
+// 	for _, req := range reqs {
+// 		batch := wk.channelBatchDb(req.ChannelId, req.ChannelType).NewBatch()
+// 		for _, msg := range req.Messages {
+// 			if err := wk.writeMessage(req.ChannelId, req.ChannelType, msg, batch); err != nil {
+// 				return err
+// 			}
+// 		}
+// 		err := wk.setChannelLastMessageSeq(req.ChannelId, req.ChannelType, uint64(req.Messages[len(req.Messages)-1].MessageSeq), batch)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		batchs = append(batchs, batch)
+// 	}
+// 	// for shardId, reqs := range dbMap {
+// 	// 	batch := wk.shardBatchDBById(shardId).NewBatch()
+// 	// 	err := wk.writeMessagesBatch(batch, reqs)
+// 	// 	if err != nil {
+// 	// 		return err
+// 	// 	}
+// 	// 	batchs = append(batchs, batch)
+// 	// }
 
-	timeoutCtx, cancel := context.WithTimeout(wk.cancelCtx, time.Second*5)
-	defer cancel()
-	requestGroup, _ := errgroup.WithContext(timeoutCtx)
+// 	timeoutCtx, cancel := context.WithTimeout(wk.cancelCtx, time.Second*5)
+// 	defer cancel()
+// 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 
-	for _, batch := range batchs {
-		bt := batch
-		requestGroup.Go(func() error {
-			return bt.CommitWait()
-		})
-	}
+// 	for _, batch := range batchs {
+// 		bt := batch
+// 		requestGroup.Go(func() error {
+// 			return bt.CommitWait()
+// 		})
+// 	}
 
-	err := requestGroup.Wait()
-	if err != nil {
-		wk.Error("exec appendMessagesBatch failed", zap.Error(err), zap.Int("reqs", len(reqs)))
-	}
+// 	err := requestGroup.Wait()
+// 	if err != nil {
+// 		wk.Error("exec appendMessagesBatch failed", zap.Error(err), zap.Int("reqs", len(reqs)))
+// 	}
 
-	// // 消息总数量增加
-	// err := wk.IncMessageCount(msgTotalCount)
-	// if err != nil {
-	// 	return err
-	// }
+// 	// // 消息总数量增加
+// 	// err := wk.IncMessageCount(msgTotalCount)
+// 	// if err != nil {
+// 	// 	return err
+// 	// }
 
-	return nil
+// 	return nil
 
-}
+// }
 
 // func (wk *wukongDB) writeMessagesBatch(batch *Batch, reqs []AppendMessagesReq) error {
 // 	for _, req := range reqs {
@@ -510,12 +514,25 @@ func (wk *wukongDB) TruncateLogTo(channelId string, channelType uint8, messageSe
 		return err
 	}
 
-	return batch.CommitWait()
+	err = batch.CommitWait()
+	if err != nil {
+		return err
+	}
+
+	wk.channelSeqCache.invalidateChannelLastSeq(channelId, channelType)
+
+	return nil
+
 }
 
 func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8) (uint64, uint64, error) {
 
 	wk.metrics.GetChannelLastMessageSeqAdd(1)
+
+	seq, setTime, ok := wk.channelSeqCache.getChannelLastSeq(channelId, channelType)
+	if ok {
+		return seq, setTime, nil
+	}
 
 	db := wk.channelDb(channelId, channelType)
 	result, closer, err := db.Get(key.NewChannelLastMessageSeqKey(channelId, channelType))
@@ -527,8 +544,14 @@ func (wk *wukongDB) GetChannelLastMessageSeq(channelId string, channelType uint8
 	}
 	defer closer.Close()
 
-	seq := wk.endian.Uint64(result)
-	setTime := wk.endian.Uint64(result[8:])
+	if len(result) == 0 {
+		return 0, 0, nil
+	}
+
+	seq = wk.endian.Uint64(result[0:8])
+	setTime = wk.endian.Uint64(result[8:16])
+
+	wk.channelSeqCache.setChannelLastSeqWithBytes(channelId, channelType, result)
 
 	return seq, setTime, nil
 }
@@ -551,7 +574,12 @@ func (wk *wukongDB) SetChannelLastMessageSeq(channelId string, channelType uint8
 	if err != nil {
 		return err
 	}
-	return batch.CommitWait()
+	err = batch.CommitWait()
+	if err != nil {
+		return err
+	}
+	wk.channelSeqCache.setChannelLastSeq(channelId, channelType, seq)
+	return nil
 }
 
 // func (wk *wukongDB) SetChannellastMessageSeqBatch(reqs []SetChannelLastMessageSeqReq) error {
@@ -841,9 +869,9 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 
 func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w *Batch) error {
 	data := make([]byte, 16)
-	wk.endian.PutUint64(data, seq)
+	wk.endian.PutUint64(data[0:8], seq)
 	setTime := time.Now().UnixNano()
-	wk.endian.PutUint64(data[8:], uint64(setTime))
+	wk.endian.PutUint64(data[8:16], uint64(setTime))
 
 	w.Set(key.NewChannelLastMessageSeqKey(channelId, channelType), data)
 	return nil
