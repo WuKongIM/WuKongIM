@@ -310,6 +310,8 @@ type Options struct {
 		Install    []string      // 默认插件安装地址
 	}
 	DisableJSONRPC bool // 是否禁用jsonrpc
+
+	DisableCMDMessageSync bool // 是否禁用命令消息同步,设置为true后，将不会同步离线的cmd消息，离线cmd消息接口都会返回空的成功
 }
 
 type MigrateStep string
@@ -1002,6 +1004,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.OldV1Api = o.getString("oldV1Api", o.OldV1Api)
 	o.MigrateStartStep = MigrateStep(o.getString("migrateStartStep", string(o.MigrateStartStep)))
 	o.DisableJSONRPC = o.getBool("disableJSONRPC", o.DisableJSONRPC)
+	o.DisableCMDMessageSync = o.getBool("disableCMDMessageSync", o.DisableCMDMessageSync)
 
 }
 

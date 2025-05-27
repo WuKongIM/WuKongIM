@@ -324,6 +324,11 @@ func (m *message) sendBatch(c *wkhttp.Context) {
 // Deprecated: 将废弃
 func (m *message) sync(c *wkhttp.Context) {
 
+	if options.G.DisableCMDMessageSync {
+		c.JSON(http.StatusOK, []string{})
+		return
+	}
+
 	var req syncReq
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -479,6 +484,12 @@ type syncRecord struct {
 }
 
 func (m *message) syncack(c *wkhttp.Context) {
+
+	if options.G.DisableCMDMessageSync {
+		c.ResponseOK()
+		return
+	}
+
 	var req syncackReq
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {

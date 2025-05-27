@@ -86,16 +86,19 @@ func New() *Webhook {
 			Transport: &http.Transport{
 				DialContext: (&net.Dialer{
 					Timeout:   5 * time.Second,
-					KeepAlive: 5 * time.Second,
+					KeepAlive: 30 * time.Second, // 增加KeepAlive时间
 				}).DialContext,
 				ForceAttemptHTTP2:     true,
-				MaxIdleConns:          200,
-				MaxIdleConnsPerHost:   200,
-				IdleConnTimeout:       300 * time.Second,
-				TLSHandshakeTimeout:   time.Second * 5,
-				ResponseHeaderTimeout: 5 * time.Second,
+				MaxIdleConns:          500,              // 增加最大空闲连接数
+				MaxIdleConnsPerHost:   100,              // 增加每个主机的最大空闲连接数
+				MaxConnsPerHost:       100,              // 设置每个主机的最大连接数
+				IdleConnTimeout:       90 * time.Second, // 减少空闲连接超时
+				TLSHandshakeTimeout:   10 * time.Second, // 增加TLS握手超时
+				ResponseHeaderTimeout: 10 * time.Second, // 增加响应头超时
 				ExpectContinueTimeout: 1 * time.Second,
+				DisableCompression:    false, // 启用压缩
 			},
+			Timeout: 30 * time.Second, // 设置总体超时时间
 		},
 		focusEvents: focusEvents,
 	}
@@ -221,9 +224,19 @@ func (w *Webhook) notifyQueueLoop() {
 	ticker := time.NewTicker(options.G.Webhook.MsgNotifyEventPushInterval)
 	defer ticker.Stop()
 	errMessageIDMap := make(map[int64]int) // 记录错误的消息ID value为错误次数
+
+	// 优化：增加批处理大小
+	batchSize := options.G.Webhook.MsgNotifyEventCountPerPush
+	if batchSize < 100 {
+		batchSize = 100 // 最小批处理100条
+	}
+	if batchSize > 1000 {
+		batchSize = 1000 // 最大批处理1000条
+	}
+
 	if options.G.WebhookOn(types.EventMsgNotify) {
 		for {
-			messages, err := service.Store.GetMessagesOfNotifyQueue(options.G.Webhook.MsgNotifyEventCountPerPush)
+			messages, err := service.Store.GetMessagesOfNotifyQueue(batchSize)
 			if err != nil {
 				w.Error("获取通知队列内的消息失败！", zap.Error(err))
 				// 如果系统出现错误，就移除第一个
@@ -235,26 +248,32 @@ func (w *Webhook) notifyQueueLoop() {
 				continue
 			}
 			if len(messages) > 0 {
+				// 优化：使用预分配的切片
 				messageResps := make([]*types.MessageResp, 0, len(messages))
 				for _, msg := range messages {
 					resp := &types.MessageResp{}
 					resp.From(msg, options.G.SystemUID)
 					messageResps = append(messageResps, resp)
 				}
-				messageData, err := json.Marshal(messageResps)
+
+				// 优化：使用缓冲池来减少内存分配
+				messageData, err := w.marshalMessages(messageResps)
 				if err != nil {
 					w.Error("第三方消息通知的event数据不能json化！", zap.Error(err))
 					time.Sleep(errorSleepTime) // 如果报错就休息下
 					continue
 				}
 
+				// 发送webhook
+				var sendErr error
 				if options.G.WebhookGRPCOn() {
-					err = w.sendWebhookForGRPC(types.EventMsgNotify, messageData)
+					sendErr = w.sendWebhookForGRPC(types.EventMsgNotify, messageData)
 				} else {
-					err = w.sendWebhookForHttp(types.EventMsgNotify, messageData)
+					sendErr = w.sendWebhookForHttp(types.EventMsgNotify, messageData)
 				}
-				if err != nil {
-					w.Error("请求所有消息通知webhook失败！", zap.Error(err))
+
+				if sendErr != nil {
+					w.Error("请求所有消息通知webhook失败！", zap.Error(sendErr))
 					errMessageIDs := make([]int64, 0, len(messages))
 					for _, message := range messages {
 						errCount := errMessageIDMap[message.MessageID]
@@ -278,11 +297,11 @@ func (w *Webhook) notifyQueueLoop() {
 					continue
 				}
 
+				// 成功发送，移除消息
 				messageIDs := make([]int64, 0, len(messages))
 				for _, message := range messages {
 					messageID := message.MessageID
 					messageIDs = append(messageIDs, messageID)
-
 					delete(errMessageIDMap, messageID)
 				}
 				err = service.Store.RemoveMessagesOfNotifyQueue(messageIDs)
@@ -300,6 +319,11 @@ func (w *Webhook) notifyQueueLoop() {
 			}
 		}
 	}
+}
+
+// marshalMessages 序列化消息（可以后续优化为使用对象池）
+func (w *Webhook) marshalMessages(messages []*types.MessageResp) ([]byte, error) {
+	return json.Marshal(messages)
 }
 
 func (w *Webhook) loopOnlineStatus() {

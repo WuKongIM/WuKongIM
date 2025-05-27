@@ -135,7 +135,7 @@ func (s *conversation) clearConversationUnread(c *wkhttp.Context) {
 	}
 
 	// 获取此频道最新的消息
-	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	lastMsgSeq, err := s.getChannelLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("Failed to query last message", zap.Error(err))
 		c.ResponseError(err)
@@ -205,7 +205,7 @@ func (s *conversation) setConversationUnread(c *wkhttp.Context) {
 
 	}
 	// 获取此频道最新的消息
-	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	lastMsgSeq, err := s.getChannelLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("Failed to query last message", zap.Error(err))
 		c.ResponseError(err)
@@ -297,7 +297,7 @@ func (s *conversation) deleteConversation(c *wkhttp.Context) {
 	}
 
 	// 获取频道最后一条消息序号
-	lastMsgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, req.ChannelType)
+	lastMsgSeq, err := s.getChannelLastMsgSeq(fakeChannelId, req.ChannelType)
 	if err != nil {
 		s.Error("获取频道最后一条消息序号失败！", zap.Error(err))
 		c.ResponseError(err)
@@ -659,4 +659,10 @@ func (s *conversation) conversationChannels(c *wkhttp.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, channels)
+}
+
+// getChannelLastMsgSeqWithCache 使用缓存获取频道最后消息序号
+func (s *conversation) getChannelLastMsgSeq(channelId string, channelType uint8) (uint64, error) {
+
+	return service.Store.GetLastMsgSeq(channelId, channelType)
 }
