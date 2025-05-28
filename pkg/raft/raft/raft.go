@@ -249,7 +249,7 @@ func (r *Raft) readyEvents() {
 			continue
 		}
 
-		if e.To == types.LocalNode {
+		if e.To == types.LocalNode || e.To == r.opts.NodeId {
 			err := r.node.Step(e)
 			if err != nil {
 				r.node.Error("step error", zap.Error(err))

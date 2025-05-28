@@ -32,12 +32,6 @@ func (n *Node) Step(e types.Event) error {
 				n.BecomeFollower(e.Term, None)
 			}
 		}
-	case e.Term == n.cfg.Term:
-		if e.Type == types.VoteReq {
-			n.Info("received vote request with same term, reject vote", zap.Uint32("term", e.Term), zap.Uint64("from", e.From))
-			n.sendVoteResp(e.From, types.ReasonError)
-			return nil
-		}
 	}
 
 	switch e.Type {
