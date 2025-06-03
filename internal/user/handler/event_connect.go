@@ -30,6 +30,12 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 				conn.LastActive = fasttime.UnixTimestamp()
 			}
 			ctx.AddConn(conn)
+
+			// -------------------- user online --------------------
+			// 在线webhook
+			deviceOnlineCount := eventbus.User.ConnCountByDeviceFlag(uid, conn.DeviceFlag)
+			totalOnlineCount := eventbus.User.ConnCountByUid(uid)
+			service.Webhook.Online(uid, conn.DeviceFlag, conn.ConnId, deviceOnlineCount, totalOnlineCount)
 		}
 		connackEvent := &eventbus.Event{
 			Type:         eventbus.EventConnack,
@@ -214,11 +220,6 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		NodeId:        options.G.Cluster.NodeId,
 	}
 	connack.HasServerVersion = hasServerVersion
-	// -------------------- user online --------------------
-	// 在线webhook
-	deviceOnlineCount := eventbus.User.ConnCountByDeviceFlag(uid, connectPacket.DeviceFlag)
-	totalOnlineCount := eventbus.User.ConnCountByUid(uid)
-	service.Webhook.Online(uid, connectPacket.DeviceFlag, conn.ConnId, deviceOnlineCount, totalOnlineCount)
 
 	return wkproto.ReasonSuccess, connack, nil
 }
