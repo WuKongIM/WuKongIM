@@ -34,9 +34,10 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 	if len(channels) == 0 {
 		return nil, nil
 	}
-	channelRecentMessages := make([]*channelRecentMessage, 0)
 	var (
-		err error
+		channelRecentMessages     []*channelRecentMessage
+		err                       error
+		channelRecentMessagesLock sync.Mutex
 	)
 
 	// 按照频道所在节点进行分组
@@ -66,7 +67,9 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 					s.Error("请求同步消息失败！", zap.Error(err), zap.Uint64("nodeId", pID))
 					reqErr = err
 				} else {
+					channelRecentMessagesLock.Lock()
 					channelRecentMessages = append(channelRecentMessages, results...)
+					channelRecentMessagesLock.Unlock()
 				}
 				wg.Done()
 			}(nodeId, peerChannelRecentMessageReqs, uid, msgCount)
