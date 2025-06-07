@@ -322,7 +322,8 @@ type Options struct {
 
 	Agent struct {
 		Webhook struct {
-			HTTPAddr string // webhook的http地址 通过此地址通知数据给第三方 格式为 http://xxxxx
+			HTTPAddr     string // webhook地址
+			MaxPushCount int    // 每次最多推送多少条消息
 		}
 	}
 }
@@ -361,7 +362,7 @@ func New(op ...Option) *Options {
 			VisitorsSuffix string
 		}{
 			VisitorsOn:     false,
-			VisitorsSuffix: "____vstr",
+			VisitorsSuffix: "___vstr",
 		},
 		Logger: struct {
 			Dir              string
@@ -700,6 +701,19 @@ func New(op ...Option) *Options {
 		}{
 			Timeout: time.Second * 1,
 		},
+		Agent: struct {
+			Webhook struct {
+				HTTPAddr     string // webhook地址
+				MaxPushCount int    // 每次最多推送多少条消息
+			}
+		}{
+			Webhook: struct {
+				HTTPAddr     string // webhook地址
+				MaxPushCount int    // 每次最多推送多少条消息
+			}{
+				MaxPushCount: 50,
+			},
+		},
 	}
 
 	for _, o := range op {
@@ -1023,6 +1037,7 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 
 	// =================== agent ===================
 	o.Agent.Webhook.HTTPAddr = o.getString("agent.webhook.httpAddr", o.Agent.Webhook.HTTPAddr)
+	o.Agent.Webhook.MaxPushCount = o.getInt("agent.webhook.maxPushCount", o.Agent.Webhook.MaxPushCount)
 
 	// =================== other ===================
 	deadlock.Opts.Disable = !o.DeadlockCheck
