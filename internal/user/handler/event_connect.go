@@ -76,12 +76,12 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
 	} else if options.G.TokenAuthOn && !options.G.IsVisitors(uid) { // 如果开启了token验证，并且不是访客用户
 		if connectPacket.Token == "" {
-			h.Error("token is empty")
+			h.Error("token is empty", zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId))
 			return wkproto.ReasonAuthFail, nil, errors.New("token is empty")
 		}
 		device, err := service.Store.GetDevice(uid, connectPacket.DeviceFlag)
 		if err != nil {
-			h.Error("get device token err", zap.Error(err))
+			h.Error("get device token err", zap.Error(err), zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId))
 			return wkproto.ReasonAuthFail, nil, err
 		}
 		if device.Token != connectPacket.Token {

@@ -350,7 +350,6 @@ func (w *Webhook) notifyQueueLoop() {
 			}
 
 		case <-ticker.C:
-			w.Debug("Ticker triggered.", zap.Int("cacheSize", len(localMessageCache)))
 			if len(localMessageCache) > 0 {
 				shouldPush = true
 			}

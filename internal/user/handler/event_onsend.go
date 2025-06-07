@@ -43,9 +43,9 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	channelId := sendPacket.ChannelID
 	channelType := sendPacket.ChannelType
 	fakeChannelId := channelId
-	if channelType == wkproto.ChannelTypePerson {
+	if channelType == wkproto.ChannelTypePerson { // 个人频道
 		fakeChannelId = options.GetFakeChannelIDWith(channelId, conn.Uid)
-	} else if channelType == wkproto.ChannelTypeAgent {
+	} else if channelType == wkproto.ChannelTypeAgent { // agent 频道
 		fakeChannelId = options.GetAgentChannelIDWith(conn.Uid, channelId)
 	}
 
