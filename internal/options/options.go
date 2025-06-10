@@ -312,6 +312,12 @@ type Options struct {
 	DisableJSONRPC bool // 是否禁用jsonrpc
 
 	DisableCMDMessageSync bool // 是否禁用命令消息同步,设置为true后，将不会同步离线的cmd消息，离线cmd消息接口都会返回空的成功
+
+	Agent struct {
+		Webhook struct {
+			HTTPAddr string // webhook的http地址 通过此地址通知数据给第三方 格式为 http://xxxxx
+		}
+	}
 }
 
 type MigrateStep string
@@ -997,6 +1003,9 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 		o.Plugin.Install = installPlugins
 	}
 
+	// =================== agent ===================
+	o.Agent.Webhook.HTTPAddr = o.getString("agent.webhook.httpAddr", o.Agent.Webhook.HTTPAddr)
+
 	// =================== other ===================
 	deadlock.Opts.Disable = !o.DeadlockCheck
 	// deadlock.Opts.Disable = false
@@ -1342,6 +1351,10 @@ func (o *Options) WebhookOn(event string) bool {
 // WebhookGRPCOn 是否配置了webhook grpc地址
 func (o *Options) WebhookGRPCOn() bool {
 	return strings.TrimSpace(o.Webhook.GRPCAddr) != ""
+}
+
+func (o *Options) AgentWebhookOn() bool {
+	return strings.TrimSpace(o.Agent.Webhook.HTTPAddr) != ""
 }
 
 // HasDatasource 是否有配置数据源
@@ -1948,6 +1961,12 @@ func WithDbShardNum(shardNum int) Option {
 func WithDbSlotShardNum(slotShardNum int) Option {
 	return func(opts *Options) {
 		opts.Db.SlotShardNum = slotShardNum
+	}
+}
+
+func WithAgentWebhookHTTPAddr(httpAddr string) Option {
+	return func(opts *Options) {
+		opts.Agent.Webhook.HTTPAddr = httpAddr
 	}
 }
 

@@ -138,7 +138,7 @@ func (h *Handler) distributeByTag(slotLeaderId uint64, tag *types.Tag, channelId
 				continue
 			}
 			isOnline, masterIsOnline := h.deviceOnlineStatus(uid)
-			if !masterIsOnline {
+			if !masterIsOnline && channelType != wkproto.ChannelTypeAgent { // agent不需要触发离线的webhook
 				if offlineUids == nil {
 					offlineUids = make([]string, 0, len(node.Uids))
 				}
@@ -300,8 +300,10 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 		}
 		u1, u2 := options.GetFromUIDAndToUIDWith(orgFakeChannelId)
 		subscribers = append(subscribers, u1, u2)
+	} else if channelType == wkproto.ChannelTypeAgent { // agent频道
+		u1, agent := options.GetUidAndAgentUIDWith(fakeChannelId)
+		subscribers = append(subscribers, u1, agent)
 	} else {
-
 		// 如果是cmd频道需要去对应的源频道获取订阅者来制作tag
 		if options.G.IsCmdChannel(fakeChannelId) {
 			var err error
