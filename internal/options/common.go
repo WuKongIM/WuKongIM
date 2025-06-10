@@ -29,7 +29,7 @@ func GetAgentChannelIDWith(uid, agentUID string) string {
 }
 
 // GetUidAndAgentUIDWith 获取用户ID和AgentID
-func GetUidAndAgentUIDWith(channelId string) (string, string) {
+func GetUidAndAgentUIDWith(channelId string) (uid string, agentUID string) {
 	channelIDs := strings.Split(channelId, "@")
 	if len(channelIDs) == 2 {
 		return channelIDs[0], channelIDs[1]
