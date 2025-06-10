@@ -58,7 +58,9 @@ func (h *Handler) hasPermissionForChannel(channelId string, channelType uint8) (
 		return wkproto.ReasonSuccess, nil
 	}
 	// 客服频道，直接通过
-	if channelType == wkproto.ChannelTypeCustomerService || channelType == wkproto.ChannelTypeVisitors {
+	if channelType == wkproto.ChannelTypeCustomerService ||
+		channelType == wkproto.ChannelTypeVisitors ||
+		channelType == wkproto.ChannelTypeAgent {
 		return wkproto.ReasonSuccess, nil
 	}
 
@@ -112,6 +114,14 @@ func (h *Handler) hasPermissionForSender(channelId string, channelType uint8, e 
 		// 因为访客频道的id就是访客的uid，所以这里发送者是自己直接通过
 		// 否则需要走普通频道的流程：判断是否是订阅者，白名单，黑名单这些
 		if fromUid == channelId {
+			return wkproto.ReasonSuccess, nil
+		}
+	}
+
+	// agent频道
+	if channelType == wkproto.ChannelTypeAgent {
+		uid, agentUID := options.GetUidAndAgentUIDWith(channelId)
+		if fromUid == uid || fromUid == agentUID {
 			return wkproto.ReasonSuccess, nil
 		}
 	}
