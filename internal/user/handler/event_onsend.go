@@ -45,6 +45,8 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	fakeChannelId := channelId
 	if channelType == wkproto.ChannelTypePerson {
 		fakeChannelId = options.GetFakeChannelIDWith(channelId, conn.Uid)
+	} else if channelType == wkproto.ChannelTypeAgent {
+		fakeChannelId = options.GetAgentChannelIDWith(conn.Uid, channelId)
 	}
 
 	if options.G.Logger.TraceOn {
