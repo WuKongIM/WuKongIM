@@ -62,6 +62,11 @@ func (h *Handler) hasPermissionForChannel(channelId string, channelType uint8) (
 		return wkproto.ReasonSuccess, nil
 	}
 
+	// agent频道，直接通过
+	if channelType == wkproto.ChannelTypeAgent {
+		return wkproto.ReasonSuccess, nil
+	}
+
 	// 查询频道基本信息
 	channelInfo, err := service.Store.GetChannel(channelId, channelType)
 	if err != nil {
@@ -94,6 +99,13 @@ func (h *Handler) hasPermissionForSender(channelId string, channelType uint8, e 
 	// 客服频道，直接通过
 	if channelType == wkproto.ChannelTypeCustomerService {
 		return wkproto.ReasonSuccess, nil
+	}
+
+	if channelType == wkproto.ChannelTypeAgent {
+		uid, agentUID := options.GetUidAndAgentUIDWith(channelId)
+		if fromUid == uid || fromUid == agentUID {
+			return wkproto.ReasonSuccess, nil
+		}
 	}
 
 	// 系统发的消息直接通过

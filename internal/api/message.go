@@ -219,6 +219,8 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 	fakeChannelId := channelId
 	if channelType == wkproto.ChannelTypePerson {
 		fakeChannelId = options.GetFakeChannelIDWith(req.FromUID, channelId)
+	} else if channelType == wkproto.ChannelTypeAgent {
+		fakeChannelId = options.GetAgentChannelIDWith(req.FromUID, channelId)
 	}
 
 	if req.Header.SyncOnce == 1 && !options.G.IsOnlineCmdChannel(channelId) && channelType != wkproto.ChannelTypeTemp { // 命令消息，将原频道转换为cmd频道
