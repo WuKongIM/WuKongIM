@@ -585,6 +585,20 @@ func (wk *wukongDB) writeChannelInfo(primaryKey uint64, channelInfo ChannelInfo,
 
 	}
 
+	// sendBan
+	sendBanBytes := make([]byte, 1)
+	sendBanBytes[0] = wkutil.BoolToUint8(channelInfo.SendBan)
+	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.SendBan), sendBanBytes, wk.noSync); err != nil {
+		return err
+	}
+
+	// allowStranger
+	allowStrangerBytes := make([]byte, 1)
+	allowStrangerBytes[0] = wkutil.BoolToUint8(channelInfo.AllowStranger)
+	if err = w.Set(key.NewChannelInfoColumnKey(primaryKey, key.TableChannelInfo.Column.AllowStranger), allowStrangerBytes, wk.noSync); err != nil {
+		return err
+	}
+
 	// write index
 	if err = wk.writeChannelInfoBaseIndex(channelInfo, w); err != nil {
 		return err
@@ -630,6 +644,16 @@ func (wk *wukongDB) writeChannelInfoBaseIndex(channelInfo ChannelInfo, w pebble.
 		return err
 	}
 
+	// sendBan index
+	if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.SendBan, uint64(wkutil.BoolToInt(channelInfo.SendBan)), primaryKey), nil, wk.noSync); err != nil {
+		return err
+	}
+
+	// allowStranger index
+	if err = w.Set(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.AllowStranger, uint64(wkutil.BoolToInt(channelInfo.AllowStranger)), primaryKey), nil, wk.noSync); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -661,6 +685,16 @@ func (wk *wukongDB) deleteChannelInfoBaseIndex(channelInfo ChannelInfo, w pebble
 
 	// disband index
 	if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.Disband, uint64(wkutil.BoolToInt(channelInfo.Disband)), channelInfo.Id), wk.noSync); err != nil {
+		return err
+	}
+
+	// sendBan index
+	if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.SendBan, uint64(wkutil.BoolToInt(channelInfo.SendBan)), channelInfo.Id), wk.noSync); err != nil {
+		return err
+	}
+
+	// allowStranger index
+	if err := w.Delete(key.NewChannelInfoSecondIndexKey(key.TableChannelInfo.SecondIndex.AllowStranger, uint64(wkutil.BoolToInt(channelInfo.AllowStranger)), channelInfo.Id), wk.noSync); err != nil {
 		return err
 	}
 
@@ -736,6 +770,10 @@ func (wk *wukongDB) iterChannelInfo(iter *pebble.Iterator, iterFnc func(channelI
 				t := time.Unix(tm/1e9, tm%1e9)
 				preChannelInfo.UpdatedAt = &t
 			}
+		case key.TableChannelInfo.Column.SendBan:
+			preChannelInfo.SendBan = wkutil.Uint8ToBool(iter.Value()[0])
+		case key.TableChannelInfo.Column.AllowStranger:
+			preChannelInfo.AllowStranger = wkutil.Uint8ToBool(iter.Value()[0])
 		}
 		hasData = true
 	}
