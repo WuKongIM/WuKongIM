@@ -50,7 +50,3 @@ func (h *Handler) permission(ctx *eventbus.ChannelContext) {
 	}
 
 }
-
-// All permission checking logic has been moved to the shared service.Permission
-// The channel handler now uses service.Permission.HasPermissionForSender() directly,
-// which handles all scenarios including cross-node RPC calls internally.
