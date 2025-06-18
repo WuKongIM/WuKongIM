@@ -38,7 +38,8 @@ type wukongDB struct {
 
 	metrics trace.IDBMetrics
 
-	channelSeqCache *channelSeqCache
+	channelSeqCache   *channelSeqCache
+	conversationCache *ConversationCache
 
 	h hash.Hash32
 }
@@ -60,15 +61,16 @@ func NewWukongDB(opts *Options) DB {
 
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 	return &wukongDB{
-		opts:            opts,
-		shardNum:        uint32(opts.ShardNum),
-		prmaryKeyGen:    prmaryKeyGen,
-		endian:          endian,
-		cancelCtx:       cancelCtx,
-		cancelFunc:      cancelFunc,
-		metrics:         metrics,
-		channelSeqCache: newChannelSeqCache(10000, endian),
-		h:               fnv.New32(),
+		opts:              opts,
+		shardNum:          uint32(opts.ShardNum),
+		prmaryKeyGen:      prmaryKeyGen,
+		endian:            endian,
+		cancelCtx:         cancelCtx,
+		cancelFunc:        cancelFunc,
+		metrics:           metrics,
+		channelSeqCache:   newChannelSeqCache(10000, endian),
+		conversationCache: NewConversationCache(2000), // 缓存2000个 GetLastConversations 查询结果
+		h:                 fnv.New32(),
 		sync: &pebble.WriteOptions{
 			Sync: true,
 		},

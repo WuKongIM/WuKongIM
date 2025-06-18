@@ -20,6 +20,7 @@ require (
 	github.com/grafana/loki/v3 v3.2.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/lni/goutils v1.4.0
+	github.com/nsqio/go-diskqueue v1.1.0
 	github.com/panjf2000/ants/v2 v2.11.0
 	github.com/panjf2000/gnet/v2 v2.7.1
 	github.com/pkg/errors v0.9.1
