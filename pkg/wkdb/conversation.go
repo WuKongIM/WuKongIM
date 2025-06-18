@@ -420,6 +420,7 @@ func removeDupliConversationByChannel(conversations []Conversation) []Conversati
 }
 
 func (wk *wukongDB) getLastConversationIds(uid string, updatedAt uint64, limit int) ([]uint64, error) {
+	// 直接从数据库获取（不再单独缓存ID列表）
 	db := wk.shardDB(uid)
 	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationSecondIndexKey(uid, key.TableConversation.SecondIndex.UpdatedAt, updatedAt, 0),
@@ -680,6 +681,114 @@ func (wk *wukongDB) getConversation(uid string, id uint64) (Conversation, error)
 	}
 
 	return conversation, nil
+}
+
+// getConversationsBatch 批量获取会话，避免N+1查询问题
+func (wk *wukongDB) getConversationsBatch(uid string, ids []uint64) ([]Conversation, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	// 先尝试从缓存获取部分数据
+	conversations := make([]Conversation, 0, len(ids))
+	missingIds := make([]uint64, 0)
+
+	// 检查缓存中已有的会话
+	for _, id := range ids {
+		// 这里需要通过ID查找会话，但缓存是按 uid:channelId:channelType 索引的
+		// 所以我们还是需要从数据库查询，但可以批量缓存结果
+		missingIds = append(missingIds, id)
+	}
+
+	if len(missingIds) == 0 {
+		return conversations, nil
+	}
+
+	// 从数据库获取缺失的会话
+	var dbConversations []Conversation
+	var err error
+
+	// 如果ID数量较少，使用优化的多范围查询
+	if len(missingIds) <= 10 {
+		dbConversations, err = wk.getConversationsBatchOptimized(uid, missingIds)
+	} else {
+		// ID数量较多时，使用全表扫描+过滤的方式
+		dbConversations, err = wk.getConversationsBatchFiltered(uid, missingIds)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 不再单独缓存批量查询结果，由 GetLastConversations 统一缓存
+	// 合并结果
+	conversations = append(conversations, dbConversations...)
+
+	return conversations, nil
+}
+
+// getConversationsBatchOptimized 对少量ID使用多个精确范围查询
+func (wk *wukongDB) getConversationsBatchOptimized(uid string, ids []uint64) ([]Conversation, error) {
+	conversations := make([]Conversation, 0, len(ids))
+	db := wk.shardDB(uid)
+
+	for _, id := range ids {
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewConversationColumnKey(uid, id, key.MinColumnKey),
+			UpperBound: key.NewConversationColumnKey(uid, id, key.MaxColumnKey),
+		})
+
+		var conversation = EmptyConversation
+		err := wk.iterateConversation(iter, func(cn Conversation) bool {
+			conversation = cn
+			return false
+		})
+		iter.Close()
+
+		if err != nil {
+			return nil, err
+		}
+		if conversation != EmptyConversation {
+			conversations = append(conversations, conversation)
+		}
+	}
+
+	return conversations, nil
+}
+
+// getConversationsBatchFiltered 对大量ID使用全表扫描+过滤
+func (wk *wukongDB) getConversationsBatchFiltered(uid string, ids []uint64) ([]Conversation, error) {
+	// 创建ID集合用于快速查找
+	idSet := make(map[uint64]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+
+	// 使用单个迭代器查询所有会话数据
+	db := wk.shardDB(uid)
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewConversationPrimaryKey(uid, 0),
+		UpperBound: key.NewConversationPrimaryKey(uid, math.MaxUint64),
+	})
+	defer iter.Close()
+
+	conversations := make([]Conversation, 0, len(ids))
+	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+		// 只收集我们需要的会话ID
+		if _, exists := idSet[conversation.Id]; exists {
+			conversations = append(conversations, conversation)
+			// 如果已经找到所有需要的会话，可以提前退出
+			if len(conversations) == len(ids) {
+				return false
+			}
+		}
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return conversations, nil
 }
 
 // func (wk *wukongDB) getConversationIdsByUid(uid string) ([]uint64, error) {
