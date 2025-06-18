@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
-	github.com/WuKongIM/WuKongIMGoProto v1.0.9
+	github.com/WuKongIM/WuKongIMGoProto v1.1.2-0.20250618030603-b0f04ad80a21
 	github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f
 	github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8
 	github.com/bwmarrin/snowflake v0.3.0
