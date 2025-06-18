@@ -51,6 +51,7 @@ func (h *Handler) permission(ctx *eventbus.ChannelContext) {
 
 }
 
+// 先判断频道的权限
 func (h *Handler) hasPermissionForChannel(channelId string, channelType uint8) (wkproto.ReasonCode, error) {
 
 	// 资讯频道是公开的，直接通过
@@ -72,6 +73,10 @@ func (h *Handler) hasPermissionForChannel(channelId string, channelType uint8) (
 	// 频道被封禁
 	if channelInfo.Ban {
 		return wkproto.ReasonBan, nil
+	}
+	// 频道禁止发送消息
+	if channelInfo.SendBan {
+		return wkproto.ReasonSendBan, nil
 	}
 	// 频道已解散
 	if channelInfo.Disband {
@@ -218,6 +223,18 @@ func (h *Handler) requestAllowSend(from, to string) (wkproto.ReasonCode, error) 
 }
 
 func (h *Handler) allowSend(from, to string) (wkproto.ReasonCode, error) {
+
+	// 查询接收者的频道信息
+	toChannelInfo, err := service.Store.GetChannel(to, wkproto.ChannelTypePerson)
+	if err != nil {
+		h.Error("GetChannel error", zap.Error(err), zap.String("to", to))
+		return wkproto.ReasonSystemError, err
+	}
+	// 频道禁止发送消息，则返回禁止发送消息
+	if toChannelInfo.SendBan {
+		return wkproto.ReasonSendBan, nil
+	}
+
 	// 判断是否是黑名单内
 	isDenylist, err := service.Store.ExistDenylist(to, wkproto.ChannelTypePerson, from)
 	if err != nil {
@@ -227,9 +244,8 @@ func (h *Handler) allowSend(from, to string) (wkproto.ReasonCode, error) {
 	if isDenylist {
 		return wkproto.ReasonInBlacklist, nil
 	}
-
-	if !options.G.WhitelistOffOfPerson {
-		// 判断是否在白名单内
+	// 判断是否在白名单内
+	if !toChannelInfo.AllowStranger && !options.G.WhitelistOffOfPerson {
 		isAllowlist, err := service.Store.ExistAllowlist(to, wkproto.ChannelTypePerson, from)
 		if err != nil {
 			h.Error("ExistAllowlist error", zap.Error(err))
