@@ -291,7 +291,7 @@ func BenchmarkGetLastConversations(b *testing.B) {
 
 	// 创建大量会话数据
 	conversations := make([]wkdb.Conversation, 0, 1000)
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		updatedAt := now.Add(time.Duration(i) * time.Minute)
 		conversations = append(conversations, wkdb.Conversation{
 			Id:           uint64(i + 1),
