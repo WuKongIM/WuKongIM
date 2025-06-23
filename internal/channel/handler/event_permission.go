@@ -206,7 +206,7 @@ func (h *Handler) requestAllowSend(from, to string) (wkproto.ReasonCode, error) 
 		return wkproto.ReasonSystemError, err
 	}
 	if options.G.IsLocalNode(leaderNode.Id) {
-		return h.allowSend(from, to)
+		return service.AllowSendForPerson(from, to)
 	}
 
 	resp, err := h.client.RequestAllowSendForPerson(leaderNode.Id, from, to)
@@ -220,41 +220,4 @@ func (h *Handler) requestAllowSend(from, to string) (wkproto.ReasonCode, error) 
 		return wkproto.ReasonSystemError, errors.New(string(resp.Body))
 	}
 	return wkproto.ReasonCode(resp.Status), nil
-}
-
-func (h *Handler) allowSend(from, to string) (wkproto.ReasonCode, error) {
-
-	// 查询接收者的频道信息
-	toChannelInfo, err := service.Store.GetChannel(to, wkproto.ChannelTypePerson)
-	if err != nil {
-		h.Error("GetChannel error", zap.Error(err), zap.String("to", to))
-		return wkproto.ReasonSystemError, err
-	}
-	// 频道禁止发送消息，则返回禁止发送消息
-	if toChannelInfo.SendBan {
-		return wkproto.ReasonSendBan, nil
-	}
-
-	// 判断是否是黑名单内
-	isDenylist, err := service.Store.ExistDenylist(to, wkproto.ChannelTypePerson, from)
-	if err != nil {
-		h.Error("ExistDenylist error", zap.String("from", from), zap.String("to", to), zap.Error(err))
-		return wkproto.ReasonSystemError, err
-	}
-	if isDenylist {
-		return wkproto.ReasonInBlacklist, nil
-	}
-	// 判断是否在白名单内
-	if !toChannelInfo.AllowStranger && !options.G.WhitelistOffOfPerson {
-		isAllowlist, err := service.Store.ExistAllowlist(to, wkproto.ChannelTypePerson, from)
-		if err != nil {
-			h.Error("ExistAllowlist error", zap.Error(err))
-			return wkproto.ReasonSystemError, err
-		}
-		if !isAllowlist {
-			return wkproto.ReasonNotInWhitelist, nil
-		}
-	}
-
-	return wkproto.ReasonSuccess, nil
 }

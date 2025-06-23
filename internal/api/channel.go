@@ -78,8 +78,8 @@ func (ch *channel) channelCreateOrUpdate(c *wkhttp.Context) {
 		return
 	}
 
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		c.ResponseError(errors.New("暂不支持个人频道！"))
+	if req.ChannelType == wkproto.ChannelTypePerson && len(req.Subscribers) > 0 {
+		c.ResponseError(errors.New("不支持个人频道添加订阅者！"))
 		return
 	}
 
@@ -1270,7 +1270,6 @@ func (ch *channel) addOrUpdateChannel(channelInfo wkdb.ChannelInfo) error {
 	if err != nil && err != wkdb.ErrNotFound {
 		return err
 	}
-
 	if wkdb.IsEmptyChannelInfo(existChannel) {
 		err = service.Store.AddChannelInfo(channelInfo)
 		if err != nil {
