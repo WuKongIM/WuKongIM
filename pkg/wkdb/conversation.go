@@ -222,6 +222,12 @@ func (wk *wukongDB) UpdateConversationIfSeqGreaterAsync(uid, channelId string, c
 	var msgSeqBytes = make([]byte, 8)
 	wk.endian.PutUint64(msgSeqBytes, readToMsgSeq)
 	w.Set(key.NewConversationColumnKey(uid, existConversation.Id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes)
+
+	// updatedAt
+	updatedAtBytes := make([]byte, 8)
+	updatedAt := uint64(time.Now().UnixNano())
+	wk.endian.PutUint64(updatedAtBytes, updatedAt)
+	w.Set(key.NewConversationColumnKey(uid, existConversation.Id, key.TableConversation.Column.UpdatedAt), updatedAtBytes)
 	wk.conversationCache.InvalidateUserConversations(uid)
 	return w.Commit()
 }

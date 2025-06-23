@@ -39,6 +39,7 @@ type wukongDB struct {
 
 	channelSeqCache   *channelSeqCache
 	conversationCache *ConversationCache
+	channelInfoCache  *ChannelInfoCache
 
 	h hash.Hash32
 }
@@ -69,6 +70,7 @@ func NewWukongDB(opts *Options) DB {
 		metrics:           metrics,
 		channelSeqCache:   newChannelSeqCache(10000, endian),
 		conversationCache: NewConversationCache(2000), // 缓存2000个 GetLastConversations 查询结果
+		channelInfoCache:  NewChannelInfoCache(10000), // 缓存1万个频道信息
 		h:                 fnv.New32(),
 		sync: &pebble.WriteOptions{
 			Sync: true,

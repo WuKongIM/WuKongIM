@@ -45,7 +45,17 @@ func (wk *wukongDB) AddChannel(channelInfo ChannelInfo) (uint64, error) {
 	// 	}
 	// }
 
-	return primaryKey, w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return 0, err
+	}
+
+	// 设置频道信息的主键ID
+	channelInfo.Id = primaryKey
+	// 将新增的频道信息写入缓存
+	wk.channelInfoCache.SetChannelInfo(channelInfo)
+
+	return primaryKey, nil
 }
 
 func (wk *wukongDB) UpdateChannel(channelInfo ChannelInfo) error {
@@ -86,20 +96,37 @@ func (wk *wukongDB) UpdateChannel(channelInfo ChannelInfo) error {
 		}
 	}
 
-	if channelInfo.CreatedAt != nil {
-		channelInfo.CreatedAt = nil
+	newChannelInfo := channelInfo
+	if newChannelInfo.CreatedAt != nil {
+		newChannelInfo.CreatedAt = nil
 	}
-	if err := wk.writeChannelInfo(primaryKey, channelInfo, w); err != nil {
+	if err := wk.writeChannelInfo(primaryKey, newChannelInfo, w); err != nil {
 		return err
 	}
 
-	return w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 设置频道信息的主键ID
+	channelInfo.Id = primaryKey
+	// 更新缓存中的频道信息
+	wk.channelInfoCache.UpdateChannelInfo(channelInfo)
+
+	return nil
 }
 
 func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo, error) {
 
 	wk.metrics.GetChannelAdd(1)
 
+	// 先从缓存获取
+	if cached, found := wk.channelInfoCache.GetChannelInfo(channelId, channelType); found {
+		return cached, nil
+	}
+
+	// 缓存未命中，从数据库获取
 	id, err := wk.getChannelPrimaryKey(channelId, channelType)
 	if err != nil {
 		return EmptyChannelInfo, err
@@ -124,9 +151,13 @@ func (wk *wukongDB) GetChannel(channelId string, channelType uint8) (ChannelInfo
 	}
 	if len(channelInfos) == 0 {
 		return EmptyChannelInfo, nil
-
 	}
-	return channelInfos[0], nil
+
+	// 将结果写入缓存
+	channelInfo := channelInfos[0]
+	wk.channelInfoCache.SetChannelInfo(channelInfo)
+
+	return channelInfo, nil
 }
 
 func (wk *wukongDB) SearchChannels(req ChannelSearchReq) ([]ChannelInfo, error) {
@@ -443,7 +474,15 @@ func (wk *wukongDB) DeleteChannel(channelId string, channelType uint8) error {
 		return err
 	}
 
-	return batch.Commit(wk.sync)
+	err = batch.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 使频道信息缓存失效
+	wk.channelInfoCache.InvalidateChannelInfo(channelId, channelType)
+
+	return nil
 }
 
 func (wk *wukongDB) UpdateChannelAppliedIndex(channelId string, channelType uint8, index uint64) error {
