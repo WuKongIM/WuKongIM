@@ -38,7 +38,7 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	event.Track.Record(track.PositionUserOnSend)
 
 	conn := event.Conn
-
+	from := conn.Uid
 	sendPacket := event.Frame.(*wkproto.SendPacket)
 	channelId := sendPacket.ChannelID
 	channelType := sendPacket.ChannelType
@@ -52,13 +52,40 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 			"onSend",
 			zap.Int64("messageId", event.MessageId),
 			zap.Uint64("messageSeq", event.MessageSeq),
-			zap.String("from", event.Conn.Uid),
+			zap.String("from", from),
 			zap.String("deviceId", event.Conn.DeviceId),
 			zap.String("deviceFlag", event.Conn.DeviceFlag.String()),
 			zap.Int64("connId", event.Conn.ConnId),
 			zap.String("channelId", fakeChannelId),
 			zap.Uint8("channelType", channelType),
 		)
+	}
+
+	reasonCode, err := h.checkGlobalSendPermission(from)
+	if err != nil {
+		h.Error("checkGlobalSendPermission error", zap.Error(err), zap.String("uid", from))
+		sendack := &wkproto.SendackPacket{
+			Framer:      sendPacket.Framer,
+			MessageID:   event.MessageId,
+			ClientSeq:   sendPacket.ClientSeq,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			ReasonCode:  wkproto.ReasonSystemError,
+		}
+		eventbus.User.ConnWrite(event.ReqId, conn, sendack)
+		return
+	}
+
+	if reasonCode != wkproto.ReasonSuccess {
+		h.Warn("checkGlobalSendPermission failed", zap.String("uid", from), zap.String("reasonCode", reasonCode.String()))
+		sendack := &wkproto.SendackPacket{
+			Framer:      sendPacket.Framer,
+			MessageID:   event.MessageId,
+			ClientSeq:   sendPacket.ClientSeq,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			ReasonCode:  reasonCode,
+		}
+		eventbus.User.ConnWrite(event.ReqId, conn, sendack)
+		return
 	}
 
 	// 根据配置决定是否解密消息
@@ -111,6 +138,18 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	// 推进
 	eventbus.Channel.Advance(fakeChannelId, channelType)
 
+}
+
+// 检查发送者全局权限
+func (h *Handler) checkGlobalSendPermission(from string) (wkproto.ReasonCode, error) {
+	channelInfo, err := service.Store.GetChannel(from, wkproto.ChannelTypePerson)
+	if err != nil {
+		return wkproto.ReasonSystemError, err
+	}
+	if channelInfo.SendBan {
+		return wkproto.ReasonSendBan, nil
+	}
+	return wkproto.ReasonSuccess, nil
 }
 
 func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventbus.Event) (wkproto.ReasonCode, error) {
