@@ -5,6 +5,7 @@ wsAddr: "ws://0.0.0.0:5200"  # websocket ws 监听地址
 rootDir: "./wukongimdata/1" # 数据存储目录
 pprofOn: true
 stress: true # 是否开启压力测试模式
+# whitelistOffOfPerson: false
 intranet:
   tcpAddr: "127.0.0.1:5100" # 内网tcp地址
 logger:

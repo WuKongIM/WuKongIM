@@ -225,7 +225,9 @@ func NewCMDWithVersion(cmdType CMDType, data []byte, version CmdVersion) *CMD {
 }
 
 func (c *CMD) Marshal() ([]byte, error) {
-	c.version = 1
+	if c.version == 0 {
+		c.version = 1
+	}
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint16(c.version.Uint16())
@@ -853,6 +855,10 @@ func EncodeChannelInfo(c wkdb.ChannelInfo, version CmdVersion) ([]byte, error) {
 	if version > 0 {
 		enc.WriteString(c.Webhook)
 	}
+	if version > 2 {
+		enc.WriteUint8(wkutil.BoolToUint8(c.AllowStranger))
+		enc.WriteUint8(wkutil.BoolToUint8(c.SendBan))
+	}
 	return enc.Bytes(), nil
 }
 
@@ -906,6 +912,19 @@ func (c *CMD) DecodeChannelInfo() (wkdb.ChannelInfo, error) {
 		if channelInfo.Webhook, err = dec.String(); err != nil {
 			return channelInfo, err
 		}
+	}
+
+	if c.version > 2 {
+		var allowStranger uint8
+		if allowStranger, err = dec.Uint8(); err != nil {
+			return channelInfo, err
+		}
+		var sendBan uint8
+		if sendBan, err = dec.Uint8(); err != nil {
+			return channelInfo, err
+		}
+		channelInfo.AllowStranger = wkutil.Uint8ToBool(allowStranger)
+		channelInfo.SendBan = wkutil.Uint8ToBool(sendBan)
 	}
 
 	return channelInfo, err

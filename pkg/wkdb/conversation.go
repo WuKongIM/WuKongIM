@@ -672,16 +672,8 @@ func (wk *wukongDB) getConversationsBatch(uid string, ids []uint64) ([]Conversat
 
 	// 先尝试从缓存获取部分数据
 	conversations := make([]Conversation, 0, len(ids))
-	missingIds := make([]uint64, 0)
 
-	// 检查缓存中已有的会话
-	for _, id := range ids {
-		// 这里需要通过ID查找会话，但缓存是按 uid:channelId:channelType 索引的
-		// 所以我们还是需要从数据库查询，但可以批量缓存结果
-		missingIds = append(missingIds, id)
-	}
-
-	if len(missingIds) == 0 {
+	if len(ids) == 0 {
 		return conversations, nil
 	}
 
@@ -690,11 +682,11 @@ func (wk *wukongDB) getConversationsBatch(uid string, ids []uint64) ([]Conversat
 	var err error
 
 	// 如果ID数量较少，使用优化的多范围查询
-	if len(missingIds) <= 10 {
-		dbConversations, err = wk.getConversationsBatchOptimized(uid, missingIds)
+	if len(ids) <= 10 {
+		dbConversations, err = wk.getConversationsBatchOptimized(uid, ids)
 	} else {
 		// ID数量较多时，使用全表扫描+过滤的方式
-		dbConversations, err = wk.getConversationsBatchFiltered(uid, missingIds)
+		dbConversations, err = wk.getConversationsBatchFiltered(uid, ids)
 	}
 
 	if err != nil {
