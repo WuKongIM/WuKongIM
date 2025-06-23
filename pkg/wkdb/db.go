@@ -242,6 +242,9 @@ type ConversationDB interface {
 
 	// UpdateConversationDeletedAtMsgSeq 更新最近会话的已删除的消息序号位置
 	UpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) error
+
+	// GetLastConversationIds 获取最近会话ID列表（用于测试重复ID问题）
+	GetLastConversationIds(uid string, updatedAt uint64, limit int) ([]uint64, error)
 }
 
 type ChannelClusterConfigDB interface {
