@@ -441,7 +441,6 @@ func removeDupliConversationByChannel(conversations []Conversation) []Conversati
 }
 
 func (wk *wukongDB) getLastConversationIds(uid string, updatedAt uint64, limit int) ([]uint64, error) {
-	// 直接从数据库获取（不再单独缓存ID列表）
 	db := wk.shardDB(uid)
 	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationSecondIndexKey(uid, key.TableConversation.SecondIndex.UpdatedAt, updatedAt, 0),
