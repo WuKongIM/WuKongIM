@@ -34,7 +34,19 @@ func (wk *wukongDB) AddDenylist(channelId string, channelType uint8, members []M
 		return err
 
 	}
-	return w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存：将新增的用户设置为在黑名单中
+	uids := make([]string, len(members))
+	for i, member := range members {
+		uids[i] = member.Uid
+	}
+	wk.permissionCache.BatchSetDenylistExists(channelId, channelType, uids, true)
+
+	return nil
 }
 
 func (wk *wukongDB) GetDenylist(channelId string, channelType uint8) ([]Member, error) {
@@ -58,18 +70,33 @@ func (wk *wukongDB) ExistDenylist(channelId string, channelType uint8, uid strin
 
 	wk.metrics.ExistDenylistAdd(1)
 
+	// 先从缓存获取
+	if exists, found := wk.permissionCache.GetDenylistExists(channelId, channelType, uid); found {
+		return exists, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	uidIndexKey := key.NewDenylistIndexKey(channelId, channelType, key.TableDenylist.Index.Uid, key.HashWithString(uid))
 	_, closer, err := wk.channelDb(channelId, channelType).Get(uidIndexKey)
 	if closer != nil {
 		defer closer.Close()
 	}
+
+	var exists bool
 	if err != nil {
 		if err == pebble.ErrNotFound {
-			return false, nil
+			exists = false
+		} else {
+			return false, err
 		}
-		return false, err
+	} else {
+		exists = true
 	}
-	return true, nil
+
+	// 将结果写入缓存
+	wk.permissionCache.SetDenylistExists(channelId, channelType, uid, exists)
+
+	return exists, nil
 }
 
 func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []string) error {
@@ -104,7 +131,15 @@ func (wk *wukongDB) RemoveDenylist(channelId string, channelType uint8, uids []s
 		return err
 	}
 
-	return w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存：将移除的用户设置为不在黑名单中
+	wk.permissionCache.BatchSetDenylistExists(channelId, channelType, uids, false)
+
+	return nil
 }
 
 func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error {
@@ -140,7 +175,15 @@ func (wk *wukongDB) RemoveAllDenylist(channelId string, channelType uint8) error
 
 	}
 
-	return batch.Commit(wk.sync)
+	err = batch.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 清空该频道的所有黑名单缓存
+	wk.permissionCache.InvalidateChannelByType(PermissionTypeDenylist, channelId, channelType)
+
+	return nil
 }
 
 func (wk *wukongDB) removeDenylist(channelId string, channelType uint8, member Member, w pebble.Writer) error {

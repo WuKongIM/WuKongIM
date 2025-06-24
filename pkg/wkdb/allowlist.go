@@ -35,7 +35,19 @@ func (wk *wukongDB) AddAllowlist(channelId string, channelType uint8, members []
 		return err
 	}
 
-	return w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存：将新增的用户设置为在白名单中
+	uids := make([]string, len(members))
+	for i, member := range members {
+		uids[i] = member.Uid
+	}
+	wk.permissionCache.BatchSetAllowlistExists(channelId, channelType, uids, true)
+
+	return nil
 }
 
 func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]Member, error) {
@@ -58,6 +70,12 @@ func (wk *wukongDB) GetAllowlist(channelId string, channelType uint8) ([]Member,
 func (wk *wukongDB) HasAllowlist(channelId string, channelType uint8) (bool, error) {
 	wk.metrics.HasAllowlistAdd(1)
 
+	// 先从缓存获取
+	if hasAllowlist, found := wk.permissionCache.GetHasAllowlist(channelId, channelType); found {
+		return hasAllowlist, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	iter := wk.channelDb(channelId, channelType).NewIter(&pebble.IterOptions{
 		LowerBound: key.NewAllowlistPrimaryKey(channelId, channelType, 0),
 		UpperBound: key.NewAllowlistPrimaryKey(channelId, channelType, math.MaxUint64),
@@ -68,25 +86,48 @@ func (wk *wukongDB) HasAllowlist(channelId string, channelType uint8) (bool, err
 		exist = true
 		return false
 	})
-	return exist, err
+
+	if err != nil {
+		return false, err
+	}
+
+	// 将结果写入缓存
+	wk.permissionCache.SetHasAllowlist(channelId, channelType, exist)
+
+	return exist, nil
 }
 
 func (wk *wukongDB) ExistAllowlist(channeId string, channelType uint8, uid string) (bool, error) {
 
 	wk.metrics.ExistAllowlistAdd(1)
 
+	// 先从缓存获取
+	if exists, found := wk.permissionCache.GetAllowlistExists(channeId, channelType, uid); found {
+		return exists, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	uidIndexKey := key.NewAllowlistIndexKey(channeId, channelType, key.TableAllowlist.Index.Uid, key.HashWithString(uid))
 	_, closer, err := wk.channelDb(channeId, channelType).Get(uidIndexKey)
 	if closer != nil {
 		defer closer.Close()
 	}
+
+	var exists bool
 	if err != nil {
 		if err == pebble.ErrNotFound {
-			return false, nil
+			exists = false
+		} else {
+			return false, err
 		}
-		return false, err
+	} else {
+		exists = true
 	}
-	return true, nil
+
+	// 将结果写入缓存
+	wk.permissionCache.SetAllowlistExists(channeId, channelType, uid, exists)
+
+	return exists, nil
 }
 
 func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []string) error {
@@ -121,7 +162,15 @@ func (wk *wukongDB) RemoveAllowlist(channelId string, channelType uint8, uids []
 		return err
 	}
 
-	return w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存：将移除的用户设置为不在白名单中
+	wk.permissionCache.BatchSetAllowlistExists(channelId, channelType, uids, false)
+
+	return nil
 }
 
 func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) error {
@@ -157,7 +206,16 @@ func (wk *wukongDB) RemoveAllAllowlist(channelId string, channelType uint8) erro
 		return err
 	}
 
-	return batch.Commit(wk.sync)
+	err = batch.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 清空该频道的所有白名单缓存
+	wk.permissionCache.InvalidateChannelByType(PermissionTypeAllowlist, channelId, channelType)
+	wk.permissionCache.InvalidateChannelByType(PermissionTypeHasAllowlist, channelId, channelType)
+
+	return nil
 }
 
 func (wk *wukongDB) removeAllowlist(channelId string, channelType uint8, member Member, w pebble.Writer) error {

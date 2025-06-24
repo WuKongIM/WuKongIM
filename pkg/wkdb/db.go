@@ -31,6 +31,10 @@ type DB interface {
 	TesterDB
 	// 插件
 	PluginDB
+
+	GetPerformanceMonitor() *PerformanceMonitor
+
+	GetCacheManager() *CacheManager
 }
 
 type MessageDB interface {

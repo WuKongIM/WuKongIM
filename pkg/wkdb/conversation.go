@@ -304,7 +304,8 @@ func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, update
 	})
 	defer iter.Close()
 
-	var allConversations []Conversation
+	// 预分配切片容量以减少内存重新分配
+	allConversations := make([]Conversation, 0, limit*2) // 预估容量
 	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
 		// 过滤会话类型
 		if conversation.Type != tp {

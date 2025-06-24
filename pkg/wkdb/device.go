@@ -60,6 +60,12 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 
 	wk.metrics.GetDeviceAdd(1)
 
+	// 先从缓存获取
+	if device, found := wk.deviceCache.GetDevice(uid, deviceFlag); found {
+		return device, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	// 获取设备id
 	id, err := wk.getDeviceId(uid, deviceFlag)
 	if err != nil {
@@ -95,6 +101,10 @@ func (wk *wukongDB) GetDevice(uid string, deviceFlag uint64) (Device, error) {
 	if device == EmptyDevice {
 		return EmptyDevice, ErrNotFound
 	}
+
+	// 将结果写入缓存
+	wk.deviceCache.SetDevice(device)
+
 	return device, nil
 }
 
@@ -162,6 +172,10 @@ func (wk *wukongDB) AddDevice(d Device) error {
 	if err != nil {
 		return err
 	}
+
+	// 更新缓存
+	wk.deviceCache.SetDevice(d)
+
 	return nil
 }
 
@@ -199,6 +213,13 @@ func (wk *wukongDB) UpdateDevice(d Device) error {
 	if err != nil {
 		return err
 	}
+
+	// 更新缓存：先失效旧设备，再设置新设备
+	if !IsEmptyDevice(old) {
+		wk.deviceCache.InvalidateDevice(old.Uid, old.DeviceFlag)
+	}
+	wk.deviceCache.SetDevice(d)
+
 	return nil
 }
 
