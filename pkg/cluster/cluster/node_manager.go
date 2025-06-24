@@ -5,19 +5,19 @@ import (
 )
 
 type nodeManager struct {
-	nodeMap map[uint64]*node
+	nodeMap map[uint64]*ImprovedNode
 	opts    *Options
 	mu      sync.RWMutex
 }
 
 func newNodeManager(opts *Options) *nodeManager {
 	return &nodeManager{
-		nodeMap: make(map[uint64]*node),
+		nodeMap: make(map[uint64]*ImprovedNode),
 		opts:    opts,
 	}
 }
 
-func (n *nodeManager) addNode(nd *node) {
+func (n *nodeManager) addNode(nd *ImprovedNode) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.nodeMap[nd.id] = nd
@@ -29,34 +29,16 @@ func (n *nodeManager) removeNode(id uint64) {
 	delete(n.nodeMap, id)
 }
 
-func (n *nodeManager) node(id uint64) *node {
+func (n *nodeManager) node(id uint64) *ImprovedNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 	return n.nodeMap[id]
 }
 
-func (n *nodeManager) requesting() int64 {
-	nodes := n.nodes()
-	var count int64 = 0
-	for _, node := range nodes {
-		count += node.requesting()
-	}
-	return count
-}
-
-func (n *nodeManager) sending() int64 {
-	nodes := n.nodes()
-	var count int64 = 0
-	for _, node := range nodes {
-		count += node.sending()
-	}
-	return count
-}
-
-func (n *nodeManager) nodes() []*node {
+func (n *nodeManager) nodes() []*ImprovedNode {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	var nodes []*node
+	var nodes []*ImprovedNode
 	for _, node := range n.nodeMap {
 		nodes = append(nodes, node)
 	}
@@ -67,7 +49,7 @@ func (n *nodeManager) stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	for _, node := range n.nodeMap {
-		node.stop()
+		node.Stop()
 	}
 
 }

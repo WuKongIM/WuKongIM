@@ -196,7 +196,7 @@ func (r *rpcClient) request(nodeId uint64, path string, body []byte) ([]byte, er
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	resp, err := node.requestWithContext(timeoutCtx, path, body)
+	resp, err := node.RequestWithContext(timeoutCtx, path, body)
 	if err != nil {
 		return nil, err
 	}
