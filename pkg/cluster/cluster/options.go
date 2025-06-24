@@ -64,7 +64,7 @@ func NewOptions(opt ...Option) *Options {
 	opts := &Options{
 		MaxMessageBatchSize: 64 * 1024 * 1024, // 64M
 		ReceiveQueueLength:  1024,
-		SendQueueLength:     1024 * 10,
+		SendQueueLength:     4056 * 10,
 		Addr:                "tcp://127.0.0.1:11110",
 		ReqTimeout:          5 * time.Second,
 		DB: struct {

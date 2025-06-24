@@ -3,6 +3,7 @@ package wkserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -116,19 +117,14 @@ func (s *Server) handleMsg(conn gnet.Conn, msgType proto.MsgType, data []byte) {
 			if s.messagePool.Running() > s.opts.MessagePoolSize-10 {
 				s.Warn("message pool will full", zap.Int("running", s.messagePool.Running()), zap.Int("size", s.opts.MessagePoolSize))
 			}
-			err = s.messagePool.Submit(func(cn gnet.Conn, m *proto.Message) func() {
-				return func() {
-					s.handleMessage(cn, m)
-				}
-
-			}(conn, msg))
-			if err != nil {
-				s.Error("submit handleMessage error", zap.Error(err))
-			}
+			s.processSingleMessage(conn, msg)
 		} else {
 			s.handleMessage(conn, msg)
 		}
 
+	} else if msgType == proto.MsgTypeBatchMessage {
+		// 处理批量消息
+		s.handleBatchMessage(conn, data)
 	} else {
 		s.Error("unknown msg type", zap.Uint8("msgType", msgType.Uint8()))
 	}
@@ -182,6 +178,60 @@ func (s *Server) handleMessage(conn gnet.Conn, msg *proto.Message) {
 	if s.opts.OnMessage != nil {
 		s.opts.OnMessage(conn, msg)
 	}
+}
+
+// handleBatchMessage 处理批量消息
+func (s *Server) handleBatchMessage(conn gnet.Conn, data []byte) {
+	// 解码批量消息
+	batchMsg := &proto.BatchMessage{}
+	err := batchMsg.Decode(data)
+	if err != nil {
+		s.Error("Failed to decode batch message", zap.Error(err))
+		return
+	}
+
+	if s.opts.LogDetailOn {
+		s.Info("Received batch message",
+			zap.Uint32("count", batchMsg.Count),
+			zap.Int("totalSize", len(data)))
+	}
+
+	// 更新统计信息（批量消息算作多个消息）
+	s.metrics.recvMsgCountAdd(uint64(batchMsg.Count - 1)) // -1 因为外层已经加了1
+
+	// 逐个处理批量消息中的每个消息
+	for i, msg := range batchMsg.Messages {
+		if msg == nil {
+			s.Warn("Null message in batch", zap.Int("index", i))
+			continue
+		}
+
+		// 根据消息类型分发处理
+		err := s.processSingleMessage(conn, msg)
+		if err != nil {
+			s.Error("Failed to process message from batch",
+				zap.Error(err),
+				zap.Int("index", i),
+				zap.Uint32("msgType", msg.MsgType))
+			// 继续处理下一个消息，不因为一个消息失败而中断整个批次
+		}
+	}
+
+	if s.opts.LogDetailOn {
+		s.Debug("Batch message processing completed",
+			zap.Uint32("processedCount", batchMsg.Count))
+	}
+}
+
+// processSingleMessageFromBatch 处理批量消息中的单个消息
+func (s *Server) processSingleMessage(conn gnet.Conn, msg *proto.Message) error {
+	err := s.messagePool.Submit(func() {
+		s.handleMessage(conn, msg)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to submit message: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) handleRequest(conn gnet.Conn, req *proto.Request) {
