@@ -60,7 +60,15 @@ func (wk *wukongDB) SaveChannelClusterConfig(channelClusterConfig ChannelCluster
 		return err
 	}
 
-	return batch.CommitWait()
+	err := batch.CommitWait()
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存
+	wk.clusterConfigCache.SetChannelClusterConfig(channelClusterConfig)
+
+	return nil
 }
 
 func (wk *wukongDB) SaveChannelClusterConfigs(channelClusterConfigs []ChannelClusterConfig) error {
@@ -115,12 +123,25 @@ func (wk *wukongDB) SaveChannelClusterConfigs(channelClusterConfigs []ChannelClu
 			return err
 		}
 	}
-	return batch.CommitWait()
+	err := batch.CommitWait()
+	if err != nil {
+		return err
+	}
+
+	// 批量更新缓存
+	wk.clusterConfigCache.BatchSetChannelClusterConfigs(channelClusterConfigs)
+
+	return nil
 }
 
 func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8) (ChannelClusterConfig, error) {
 
 	wk.metrics.GetChannelClusterConfigAdd(1)
+
+	// 先从缓存获取
+	if config, found := wk.clusterConfigCache.GetChannelClusterConfig(channelId, channelType); found {
+		return config, nil
+	}
 
 	start := time.Now()
 	defer func() {
@@ -132,7 +153,15 @@ func (wk *wukongDB) GetChannelClusterConfig(channelId string, channelType uint8)
 
 	primaryKey := key.ChannelToNum(channelId, channelType)
 
-	return wk.getChannelClusterConfigById(primaryKey)
+	config, err := wk.getChannelClusterConfigById(primaryKey)
+	if err != nil {
+		return EmptyChannelClusterConfig, err
+	}
+
+	// 将结果写入缓存
+	wk.clusterConfigCache.SetChannelClusterConfig(config)
+
+	return config, nil
 }
 
 func (wk *wukongDB) getChannelClusterConfigById(id uint64) (ChannelClusterConfig, error) {

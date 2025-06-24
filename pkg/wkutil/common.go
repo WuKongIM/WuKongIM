@@ -193,38 +193,44 @@ func GetRandomString(num int) string {
 	return string(result)
 }
 
-func RemoveRepeatedElement(arr []string) (newArr []string) {
-	newArr = make([]string, 0)
-	for i := 0; i < len(arr); i++ {
-		repeat := false
-		for j := i + 1; j < len(arr); j++ {
-			if arr[i] == arr[j] {
-				repeat = true
-				break
-			}
-		}
-		if !repeat {
-			newArr = append(newArr, arr[i])
+// RemoveRepeatedElement 高性能去重函数，使用 map 实现 O(n) 时间复杂度
+func RemoveRepeatedElement(arr []string) []string {
+	if len(arr) == 0 {
+		return arr
+	}
+
+	// 使用 map 来跟踪已见过的元素，保持原始顺序
+	seen := make(map[string]bool, len(arr))
+	result := make([]string, 0, len(arr))
+
+	for _, item := range arr {
+		if !seen[item] {
+			seen[item] = true
+			result = append(result, item)
 		}
 	}
-	return
+
+	return result
 }
 
-func RemoveRepeatedElementOfUint64(arr []uint64) (newArr []uint64) {
-	newArr = make([]uint64, 0)
-	for i := 0; i < len(arr); i++ {
-		repeat := false
-		for j := i + 1; j < len(arr); j++ {
-			if arr[i] == arr[j] {
-				repeat = true
-				break
-			}
-		}
-		if !repeat {
-			newArr = append(newArr, arr[i])
+// RemoveRepeatedElementOfUint64 高性能去重函数，使用 map 实现 O(n) 时间复杂度
+func RemoveRepeatedElementOfUint64(arr []uint64) []uint64 {
+	if len(arr) == 0 {
+		return arr
+	}
+
+	// 使用 map 来跟踪已见过的元素，保持原始顺序
+	seen := make(map[uint64]bool, len(arr))
+	result := make([]uint64, 0, len(arr))
+
+	for _, item := range arr {
+		if !seen[item] {
+			seen[item] = true
+			result = append(result, item)
 		}
 	}
-	return
+
+	return result
 }
 
 func Uint32ArrayToStringArray(arr []uint32) (newArr []string) {
