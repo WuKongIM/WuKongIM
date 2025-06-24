@@ -11,6 +11,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"go.uber.org/zap"
 )
 
 // ConversationCache 会话缓存 - 专注于 GetLastConversations 结果缓存
@@ -51,7 +52,7 @@ func NewConversationCache(maxCacheSize int) *ConversationCache {
 	return &ConversationCache{
 		lastConversationsCache: lastConversationsCache,
 		maxCacheSize:           maxCacheSize,
-		cacheTTL:               2 * time.Minute, // 缓存2分钟
+		cacheTTL:               10 * time.Minute, // 缓存2分钟
 		Log:                    wklog.NewWKLog("ConversationCache"),
 	}
 }
@@ -261,4 +262,52 @@ func (c *ConversationCache) getLastConversationsKey(uid string, tp ConversationT
 	}
 
 	return key
+}
+
+// GetCacheSize 获取当前缓存大小
+func (c *ConversationCache) GetCacheSize() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.lastConversationsCache.Len()
+}
+
+// GetMaxCacheSize 获取最大缓存大小
+func (c *ConversationCache) GetMaxCacheSize() int {
+	return c.maxCacheSize
+}
+
+// SetCacheTTL 设置缓存过期时间
+func (c *ConversationCache) SetCacheTTL(ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cacheTTL = ttl
+}
+
+// GetCacheTTL 获取缓存过期时间
+func (c *ConversationCache) GetCacheTTL() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cacheTTL
+}
+
+// RemoveExpiredItems 清理过期的缓存项
+func (c *ConversationCache) RemoveExpiredItems() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	keys := c.lastConversationsCache.Keys()
+	removedCount := 0
+
+	for _, key := range keys {
+		if item, ok := c.lastConversationsCache.Get(key); ok && item.IsExpired() {
+			c.lastConversationsCache.Remove(key)
+			removedCount++
+		}
+	}
+
+	if removedCount > 0 {
+		c.Debug("Removed expired conversation cache items", zap.Int("count", removedCount))
+	}
+
+	return removedCount
 }

@@ -304,14 +304,18 @@ func (wk *wukongDB) GetLastConversations(uid string, tp ConversationType, update
 
 	// 缓存未命中，使用全表扫描+过滤的方式直接从数据库获取
 	db := wk.shardDB(uid)
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewConversationPrimaryKey(uid, 0),
 		UpperBound: key.NewConversationPrimaryKey(uid, math.MaxUint64),
 	})
+	if err != nil {
+		return nil, err
+	}
 	defer iter.Close()
 
-	var allConversations []Conversation
-	err := wk.iterateConversation(iter, func(conversation Conversation) bool {
+	// 预分配切片容量以减少内存重新分配
+	allConversations := make([]Conversation, 0, limit*2) // 预估容量
+	err = wk.iterateConversation(iter, func(conversation Conversation) bool {
 		// 过滤会话类型
 		if conversation.Type != tp {
 			return true
