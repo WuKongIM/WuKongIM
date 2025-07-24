@@ -31,6 +31,8 @@ const (
 	// =================== 频道事件 ===================
 	// EventChannelOnSend 频道收到发送消息
 	EventChannelOnSend
+	// EventChannelOnStream 频道收到流消息
+	EventChannelOnStream
 	// EventChannelWebhook 频道webhook
 	EventChannelWebhook
 	// EventChannelDistribute 频道消息分发
@@ -59,6 +61,8 @@ func (e EventType) String() string {
 		return "EventConnRemove"
 	case EventChannelOnSend:
 		return "EventChannelOnSend"
+	case EventChannelOnStream:
+		return "EventChannelOnStream"
 	case EventChannelWebhook:
 		return "EventChannelWebhook"
 	case EventChannelDistribute:
@@ -81,6 +85,8 @@ type Event struct {
 	Frame        wkproto.Frame
 	MessageId    int64
 	MessageSeq   uint64
+	StreamNo     string             // 流号编号
+	StreamFlag   wkproto.StreamFlag // 流消息标记
 	ReasonCode   wkproto.ReasonCode
 	TagKey       string // tag的key
 	ToUid        string // 发送事件的目标用户
@@ -90,6 +96,9 @@ type Event struct {
 	// 不需要编码
 	Index        uint64
 	OfflineUsers []string // 离线用户集合
+	ChannelId    string   // 频道ID
+	ChannelType  uint8    // 频道类型
+	ReqId        string   // 请求ID(非必填)(jsonrpc)
 }
 
 func (e *Event) Clone() *Event {
@@ -99,6 +108,8 @@ func (e *Event) Clone() *Event {
 		Frame:        e.Frame,
 		MessageId:    e.MessageId,
 		MessageSeq:   e.MessageSeq,
+		StreamNo:     e.StreamNo,
+		StreamFlag:   e.StreamFlag,
 		ReasonCode:   e.ReasonCode,
 		TagKey:       e.TagKey,
 		ToUid:        e.ToUid,
@@ -106,6 +117,9 @@ func (e *Event) Clone() *Event {
 		Track:        e.Track.Clone(),
 		Index:        e.Index,
 		OfflineUsers: e.OfflineUsers,
+		ChannelId:    e.ChannelId,
+		ChannelType:  e.ChannelType,
+		ReqId:        e.ReqId,
 	}
 }
 
@@ -119,21 +133,33 @@ func (e *Event) Size() uint64 {
 	if e.hasFrame() == 1 {
 		size += 4 + uint64(e.Frame.GetFrameSize())
 	}
-	size += 8                         // message id
-	size += 8                         // message seq
-	size += 1                         // reason code
-	size += uint64(2 + len(e.TagKey)) // tag key
-	size += uint64(2 + len(e.ToUid))  // to uid
-	size += 8                         // source node id
+	size += 8                           // message id
+	size += 8                           // message seq
+	size += uint64(2 + len(e.StreamNo)) // stream no
+	size += 1                           // stream flag
+	size += 1                           // reason code
+	size += uint64(2 + len(e.TagKey))   // tag key
+	size += uint64(2 + len(e.ToUid))    // to uid
+	size += 8                           // source node id
 
 	if e.hasTrack() == 1 {
 		size += e.Track.Size()
 	}
+
+	if e.hasChannel() == 1 {
+		size += uint64(2 + len(e.ChannelId)) // channel id
+		size += 1                            // channel type
+	}
+
+	if e.hasReqId() == 1 {
+		size += uint64(2 + len(e.ReqId)) // req id
+	}
+
 	return size
 }
 
 func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
-	var flag uint8 = e.hasConn()<<7 | e.hasFrame()<<6 | e.hasTrack()<<5
+	var flag uint8 = e.hasConn()<<7 | e.hasFrame()<<6 | e.hasTrack()<<5 | e.hasChannel()<<4 | e.hasReqId()<<3
 	enc.WriteUint8(flag)
 
 	enc.WriteUint8(e.Type.Uint8())
@@ -155,6 +181,8 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 
 	enc.WriteInt64(e.MessageId)
 	enc.WriteUint64(e.MessageSeq)
+	enc.WriteString(e.StreamNo)
+	enc.WriteUint8(uint8(e.StreamFlag))
 	enc.WriteUint8(uint8(e.ReasonCode))
 	enc.WriteString(e.TagKey)
 	enc.WriteString(e.ToUid)
@@ -163,6 +191,16 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 	if e.hasTrack() == 1 {
 		enc.WriteBinary(e.Track.Encode())
 	}
+
+	if e.hasChannel() == 1 {
+		enc.WriteString(e.ChannelId)
+		enc.WriteUint8(e.ChannelType)
+	}
+
+	if e.hasReqId() == 1 {
+		enc.WriteString(e.ReqId)
+	}
+
 	return nil
 }
 
@@ -174,7 +212,8 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 	hasConn := (flag >> 7) & 0x01
 	hasFrame := (flag >> 6) & 0x01
 	hasTrack := (flag >> 5) & 0x01
-
+	hasChannel := (flag >> 4) & 0x01
+	hasReqId := (flag >> 3) & 0x01
 	typeUint8, err := dec.Uint8()
 	if err != nil {
 		return err
@@ -220,6 +259,16 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 		return err
 	}
 
+	if e.StreamNo, err = dec.String(); err != nil {
+		return err
+	}
+
+	var streamFlag uint8
+	if streamFlag, err = dec.Uint8(); err != nil {
+		return err
+	}
+	e.StreamFlag = wkproto.StreamFlag(streamFlag)
+
 	var reasonCode uint8
 	if reasonCode, err = dec.Uint8(); err != nil {
 		return err
@@ -246,6 +295,22 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 			return err
 		}
 	}
+	if hasChannel == 1 {
+		if e.ChannelId, err = dec.String(); err != nil {
+			return err
+		}
+		var channelType uint8
+		if channelType, err = dec.Uint8(); err != nil {
+			return err
+		}
+		e.ChannelType = channelType
+	}
+
+	if hasReqId == 1 {
+		if e.ReqId, err = dec.String(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -265,6 +330,20 @@ func (e Event) hasFrame() uint8 {
 }
 func (e *Event) hasTrack() uint8 {
 	if e.Track.HasData() {
+		return 1
+	}
+	return 0
+}
+
+func (e *Event) hasChannel() uint8 {
+	if len(e.ChannelId) > 0 {
+		return 1
+	}
+	return 0
+}
+
+func (e *Event) hasReqId() uint8 {
+	if e.ReqId != "" {
 		return 1
 	}
 	return 0

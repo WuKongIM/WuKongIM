@@ -25,7 +25,9 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/allslot"), s.allSlotsGet)                   // 获取所有槽信息
 	route.GET(s.formatPath("/slots/:id/config"), s.slotClusterConfigGet) // 槽分布式配置
 	// route.GET(s.formatPath("/slots/:id/channels"), s.slotChannelsGet)    // 获取某个槽的所有频道信息
-	route.POST(s.formatPath("/slots/:id/migrate"), s.slotMigrate) // 迁移槽
+	route.POST(s.formatPath("/slots/:id/migrate"), s.slotMigrate)             // 迁移槽
+	route.GET(s.formatPath("/slots/:id/replicas"), s.slotReplicasGet)         // 获取槽副本信息
+	route.GET(s.formatPath("/slots/:id/localReplica"), s.slotLocalReplicaGet) // 获取槽在本节点的副本信息
 
 	// ================== message ==================
 	route.GET(s.formatPath("/messages"), s.messageSearch) // 搜索消息
@@ -56,6 +58,11 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.POST(s.formatPath("/channel/status"), s.channelStatus)                                       // 获取频道状态
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/replicas"), s.channelReplicas)         // 获取频道副本信息
 	route.GET(s.formatPath("/channels/:channel_id/:channel_type/localReplica"), s.channelLocalReplica) // 获取频道在本节点的副本信息
+
+	// ================== devtools ==================
+
+	// 检查日志冲突
+	route.GET(s.formatPath("/devtools/checkLogConflict"), s.checkLogConflict)
 
 }
 func (s *Server) formatPath(path string) string {

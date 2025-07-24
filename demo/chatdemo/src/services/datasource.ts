@@ -22,7 +22,7 @@ export function initDataSource() {
         // 这里仅做演示，实际应该是请求自己业务端的接口，然后返回自己业务端的频道信息，然后填充ChannelInfo,这样在UI的各处就可以很容易的获取到频道的业务信息
         let channelInfo: ChannelInfo = {
             title: channel.channelID.substring(0, 1).toUpperCase(),
-            logo: `https://api.multiavatar.com/${channel.channelID}.png`,
+            logo: `https://api.dicebear.com/9.x/adventurer/svg?seed=${channel.channelID}&radius=50&backgroundType=gradientLinear&backgroundColor=ffd5dc`,
             mute: false, // 是否免打扰
             top: false, // 是否置顶
             orgData: {}, // 自己独有的业务数据可以放到这里

@@ -19,6 +19,7 @@ func (s *Store) AppendMessages(ctx context.Context, channelId string, channelTyp
 		if err != nil {
 			return nil, err
 		}
+
 		reqs = append(reqs, types.ProposeReq{
 			Id:   uint64(msg.MessageID),
 			Data: data,

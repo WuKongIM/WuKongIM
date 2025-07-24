@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
 
@@ -75,16 +76,33 @@ func (r *RetryManager) retry(msg *types.RetryMessage) {
 	r.Debug("retry msg", zap.Int("retryCount", msg.Retry), zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
 	msg.Retry++
 	if msg.Retry > options.G.MessageRetry.MaxCount {
-		r.Debug("exceeded the maximum number of retries", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int("messageMaxRetryCount", options.G.MessageRetry.MaxCount))
+		r.Warn("exceeded the maximum number of retries", zap.String("uid", msg.Uid), zap.String("channelId", msg.ChannelId), zap.Uint8("channelType", msg.ChannelType), zap.Int64("messageId", msg.MessageId), zap.Int("messageMaxRetryCount", options.G.MessageRetry.MaxCount))
+		if options.G.Logger.TraceOn && msg.ChannelType == wkproto.ChannelTypePerson {
+			r.Trace("超过最大重试次数，暂停重试", "retry", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId), zap.Int("retryCount", msg.Retry), zap.Int("maxRetryCount", options.G.MessageRetry.MaxCount))
+		}
 		return
 	}
 	conn := eventbus.User.ConnById(msg.Uid, msg.FromNode, msg.ConnId)
 	if conn == nil {
 		r.Debug("conn offline", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
+
+		if options.G.Logger.TraceOn && msg.ChannelType == wkproto.ChannelTypePerson {
+			r.Trace("连接已经离线，暂停重试", "retry", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
+			conns := eventbus.User.ConnsByUid(msg.Uid)
+			if len(conns) > 0 {
+				for _, conn := range conns {
+					r.Trace("用户名下有其他连接（仅提醒）", "retry", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", conn.ConnId), zap.String("deviceId", conn.DeviceId), zap.String("deviceFlag", conn.DeviceFlag.String()))
+				}
+			}
+		}
 		return
 	}
 	// 添加到重试队列
 	r.AddRetry(msg)
+
+	if options.G.Logger.TraceOn && msg.ChannelType == wkproto.ChannelTypePerson {
+		r.Trace("重试消息", "retry", zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId), zap.String("deviceId", conn.DeviceId), zap.String("deviceFlag", conn.DeviceFlag.String()), zap.Int("retryCount", msg.Retry), zap.Int("maxRetryCount", options.G.MessageRetry.MaxCount))
+	}
 
 	// 发送消息
 	// 在需要打印日志的地方添加概率控制
@@ -92,7 +110,7 @@ func (r *RetryManager) retry(msg *types.RetryMessage) {
 		r.Info("retry send message", zap.Int("retry", msg.Retry), zap.Uint64("fromNode", msg.FromNode), zap.String("uid", msg.Uid), zap.Int64("messageId", msg.MessageId), zap.Int64("connId", msg.ConnId))
 	}
 
-	eventbus.User.ConnWrite(conn, msg.RecvPacket)
+	eventbus.User.ConnWrite("", conn, msg.RecvPacket)
 
 }
 

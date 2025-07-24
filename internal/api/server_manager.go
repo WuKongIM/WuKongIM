@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -28,13 +29,15 @@ type managerServer struct {
 }
 
 func newManagerServer(s *Server) *managerServer {
-	r := wkhttp.New()
+	// r := wkhttp.New()
+	log := wklog.NewWKLog("managerServer")
+	r := wkhttp.NewWithLogger(wkhttp.LoggerWithWklog(log))
 
 	return &managerServer{
 		addr: options.G.Manager.Addr,
 		s:    s,
 		r:    r,
-		Log:  wklog.NewWKLog("managerServer"),
+		Log:  log,
 	}
 
 }
@@ -117,6 +120,10 @@ func (m *managerServer) setRoutes() {
 	}
 	// 监控
 	trace.GlobalTrace.Route(m.r)
+
+	// plugin
+	pluginServer := service.PluginManager.(*plugin.Server)
+	pluginServer.SetRoute(m.r)
 
 }
 

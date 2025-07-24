@@ -39,6 +39,7 @@ var TableMessage = struct {
 		FromUid     [2]byte
 		Payload     [2]byte
 		Term        [2]byte
+		StreamNo    [2]byte
 	}
 	Index struct {
 		MessageId [2]byte
@@ -68,6 +69,7 @@ var TableMessage = struct {
 		FromUid     [2]byte
 		Payload     [2]byte
 		Term        [2]byte
+		StreamNo    [2]byte
 	}{
 		Header:      [2]byte{0x01, 0x01},
 		Setting:     [2]byte{0x01, 0x02},
@@ -82,6 +84,7 @@ var TableMessage = struct {
 		FromUid:     [2]byte{0x01, 0x0B},
 		Payload:     [2]byte{0x01, 0x0C},
 		Term:        [2]byte{0x01, 0x0D},
+		StreamNo:    [2]byte{0x01, 0x0E},
 	},
 	Index: struct {
 		MessageId [2]byte
@@ -119,6 +122,7 @@ var TableUser = struct {
 		RecvMsgBytes      [2]byte // 接受消息字节数量
 		CreatedAt         [2]byte // 创建时间
 		UpdatedAt         [2]byte // 更新时间
+		PluginNo          [2]byte // 插件编号
 	}
 	Index struct {
 		Uid [2]byte
@@ -143,6 +147,7 @@ var TableUser = struct {
 		RecvMsgBytes      [2]byte // 接受消息字节数量
 		CreatedAt         [2]byte
 		UpdatedAt         [2]byte
+		PluginNo          [2]byte
 	}{
 		Uid:               [2]byte{0x02, 0x01},
 		DeviceCount:       [2]byte{0x02, 0x02},
@@ -154,6 +159,7 @@ var TableUser = struct {
 		RecvMsgBytes:      [2]byte{0x02, 0x08},
 		CreatedAt:         [2]byte{0x02, 0x09},
 		UpdatedAt:         [2]byte{0x02, 0x0A},
+		PluginNo:          [2]byte{0x02, 0x0B},
 	},
 	Index: struct {
 		Uid [2]byte
@@ -313,6 +319,8 @@ var TableChannelInfo = struct {
 		DenylistCount   [2]byte // 黑名单数量
 		CreatedAt       [2]byte
 		UpdatedAt       [2]byte
+		SendBan         [2]byte
+		AllowStranger   [2]byte
 	}
 	Index struct {
 		Channel [2]byte
@@ -325,6 +333,8 @@ var TableChannelInfo = struct {
 		DenylistCount   [2]byte
 		CreatedAt       [2]byte
 		UpdatedAt       [2]byte
+		SendBan         [2]byte
+		AllowStranger   [2]byte
 	}
 }{
 	Id:              [2]byte{0x06, 0x01},
@@ -343,6 +353,8 @@ var TableChannelInfo = struct {
 		DenylistCount   [2]byte
 		CreatedAt       [2]byte
 		UpdatedAt       [2]byte
+		SendBan         [2]byte
+		AllowStranger   [2]byte
 	}{
 		Id:              [2]byte{0x06, 0x01},
 		ChannelId:       [2]byte{0x06, 0x02},
@@ -355,6 +367,8 @@ var TableChannelInfo = struct {
 		DenylistCount:   [2]byte{0x06, 0x09},
 		CreatedAt:       [2]byte{0x06, 0x0A},
 		UpdatedAt:       [2]byte{0x06, 0x0B},
+		SendBan:         [2]byte{0x06, 0x0C},
+		AllowStranger:   [2]byte{0x06, 0x0D},
 	},
 	Index: struct {
 		Channel [2]byte
@@ -369,6 +383,8 @@ var TableChannelInfo = struct {
 		DenylistCount   [2]byte
 		CreatedAt       [2]byte
 		UpdatedAt       [2]byte
+		SendBan         [2]byte
+		AllowStranger   [2]byte
 	}{
 		Ban:             [2]byte{0x06, 0x01},
 		Disband:         [2]byte{0x06, 0x02},
@@ -377,6 +393,8 @@ var TableChannelInfo = struct {
 		DenylistCount:   [2]byte{0x06, 0x05},
 		CreatedAt:       [2]byte{0x06, 0x06},
 		UpdatedAt:       [2]byte{0x06, 0x07},
+		SendBan:         [2]byte{0x06, 0x08},
+		AllowStranger:   [2]byte{0x06, 0x09},
 	},
 }
 
@@ -482,14 +500,15 @@ var TableConversation = struct {
 	IndexSize       int
 	SecondIndexSize int
 	Column          struct {
-		Uid            [2]byte
-		ChannelId      [2]byte
-		ChannelType    [2]byte
-		Type           [2]byte
-		UnreadCount    [2]byte
-		ReadedToMsgSeq [2]byte
-		CreatedAt      [2]byte
-		UpdatedAt      [2]byte
+		Uid             [2]byte
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		Type            [2]byte
+		UnreadCount     [2]byte
+		ReadedToMsgSeq  [2]byte
+		CreatedAt       [2]byte
+		UpdatedAt       [2]byte
+		DeletedAtMsgSeq [2]byte
 	}
 	Index struct {
 		Channel [2]byte
@@ -505,23 +524,25 @@ var TableConversation = struct {
 	IndexSize:       2 + 2 + 2 + 8 + 8,     // tableId + dataType   + indexName + primaryKey + columnHash
 	SecondIndexSize: 2 + 2 + 8 + 2 + 8 + 8, // tableId + dataType + uid hash  + secondIndexName + columnValue + primaryKey
 	Column: struct {
-		Uid            [2]byte
-		ChannelId      [2]byte
-		ChannelType    [2]byte
-		Type           [2]byte
-		UnreadCount    [2]byte
-		ReadedToMsgSeq [2]byte
-		CreatedAt      [2]byte
-		UpdatedAt      [2]byte
+		Uid             [2]byte
+		ChannelId       [2]byte
+		ChannelType     [2]byte
+		Type            [2]byte
+		UnreadCount     [2]byte
+		ReadedToMsgSeq  [2]byte
+		CreatedAt       [2]byte
+		UpdatedAt       [2]byte
+		DeletedAtMsgSeq [2]byte
 	}{
-		Uid:            [2]byte{0x09, 0x01},
-		ChannelId:      [2]byte{0x09, 0x02},
-		ChannelType:    [2]byte{0x09, 0x03},
-		Type:           [2]byte{0x09, 0x04},
-		UnreadCount:    [2]byte{0x09, 0x05},
-		ReadedToMsgSeq: [2]byte{0x09, 0x06},
-		CreatedAt:      [2]byte{0x09, 0x07},
-		UpdatedAt:      [2]byte{0x09, 0x08},
+		Uid:             [2]byte{0x09, 0x01},
+		ChannelId:       [2]byte{0x09, 0x02},
+		ChannelType:     [2]byte{0x09, 0x03},
+		Type:            [2]byte{0x09, 0x04},
+		UnreadCount:     [2]byte{0x09, 0x05},
+		ReadedToMsgSeq:  [2]byte{0x09, 0x06},
+		CreatedAt:       [2]byte{0x09, 0x07},
+		UpdatedAt:       [2]byte{0x09, 0x08},
+		DeletedAtMsgSeq: [2]byte{0x09, 0x09},
 	},
 	Index: struct {
 		Channel [2]byte
@@ -793,5 +814,91 @@ var TableTester = struct {
 		Addr:      [2]byte{0x14, 0x02},
 		CreatedAt: [2]byte{0x14, 0x03},
 		UpdatedAt: [2]byte{0x14, 0x04},
+	},
+}
+
+// ======================== TablePlugin ========================
+// 插件表
+var TablePlugin = struct {
+	Id     [2]byte
+	Size   int
+	Column struct {
+		No             [2]byte // 插件编号
+		Name           [2]byte // 插件名称
+		ConfigTemplate [2]byte // 插件配置模版
+		CreatedAt      [2]byte // 创建时间
+		UpdatedAt      [2]byte // 更新时间
+		Status         [2]byte // 插件状态 0.未设置 1.启用 2.禁用
+		Version        [2]byte // 插件版本
+		Methods        [2]byte // 插件方法
+		Priority       [2]byte // 插件优先级
+		Config         [2]byte // 插件配置
+	}
+}{
+	Id:   [2]byte{0x15, 0x01},
+	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
+	Column: struct {
+		No             [2]byte
+		Name           [2]byte
+		ConfigTemplate [2]byte
+		CreatedAt      [2]byte
+		UpdatedAt      [2]byte
+		Status         [2]byte
+		Version        [2]byte
+		Methods        [2]byte
+		Priority       [2]byte
+		Config         [2]byte
+	}{
+		No:             [2]byte{0x15, 0x01},
+		Name:           [2]byte{0x15, 0x02},
+		ConfigTemplate: [2]byte{0x15, 0x03},
+		CreatedAt:      [2]byte{0x15, 0x04},
+		UpdatedAt:      [2]byte{0x15, 0x05},
+		Status:         [2]byte{0x15, 0x06},
+		Version:        [2]byte{0x15, 0x07},
+		Methods:        [2]byte{0x15, 0x08},
+		Priority:       [2]byte{0x15, 0x09},
+		Config:         [2]byte{0x15, 0x0A},
+	},
+}
+
+// ======================== TablePluginUser ========================
+
+// 插件与用户关系表
+var TablePluginUser = struct {
+	Id              [2]byte
+	Size            int
+	SecondIndexSize int
+	Column          struct {
+		PluginNo  [2]byte // 插件编号
+		Uid       [2]byte // 用户uid
+		CreatedAt [2]byte // 创建时间
+		UpdatedAt [2]byte // 更新时间
+	}
+	SecondIndex struct {
+		Uid      [2]byte
+		PluginNo [2]byte
+	}
+}{
+	Id:              [2]byte{0x16, 0x01},
+	Size:            2 + 2 + 8 + 2,     // tableId + dataType  + primaryKey + columnKey
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + columnValue + primaryKey
+	Column: struct {
+		PluginNo  [2]byte
+		Uid       [2]byte
+		CreatedAt [2]byte
+		UpdatedAt [2]byte
+	}{
+		PluginNo:  [2]byte{0x16, 0x01},
+		Uid:       [2]byte{0x16, 0x02},
+		CreatedAt: [2]byte{0x16, 0x03},
+		UpdatedAt: [2]byte{0x16, 0x04},
+	},
+	SecondIndex: struct {
+		Uid      [2]byte
+		PluginNo [2]byte
+	}{
+		Uid:      [2]byte{0x16, 0x01},
+		PluginNo: [2]byte{0x16, 0x02},
 	},
 }

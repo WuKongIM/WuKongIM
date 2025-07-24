@@ -19,6 +19,12 @@ type ICommonService interface {
 
 // 判断单聊是否允许发送消息
 func AllowSendForPerson(from, to string) (wkproto.ReasonCode, error) {
+	// 查询接收者的频道信息
+	toChannelInfo, err := Store.GetChannel(to, wkproto.ChannelTypePerson)
+	if err != nil {
+		wklog.Error("GetChannel error", zap.Error(err), zap.String("to", to))
+		return wkproto.ReasonSystemError, err
+	}
 	// 判断是否是黑名单内
 	isDenylist, err := Store.ExistDenylist(to, wkproto.ChannelTypePerson, from)
 	if err != nil {
@@ -29,7 +35,7 @@ func AllowSendForPerson(from, to string) (wkproto.ReasonCode, error) {
 		return wkproto.ReasonInBlacklist, nil
 	}
 
-	if !options.G.WhitelistOffOfPerson {
+	if !toChannelInfo.AllowStranger && !options.G.WhitelistOffOfPerson {
 		// 判断是否在白名单内
 		isAllowlist, err := Store.ExistAllowlist(to, wkproto.ChannelTypePerson, from)
 		if err != nil {

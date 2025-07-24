@@ -1,5 +1,5 @@
 import { Conversation, MessageContentType, Setting } from "wukongimjssdk";
-import { WKSDK, Message, StreamItem, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
+import { WKSDK, Message, Stream, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
 import BigNumber from "bignumber.js";
 import { Buffer } from 'buffer';
 export class Convert {
@@ -36,44 +36,48 @@ export class Convert {
        
         let contentType = 0
         try {
-            const decodedBuffer = Buffer.from(msgMap["payload"], 'base64')
-            const contentObj = JSON.parse(decodedBuffer.toString('utf8'))
-            if (contentObj) {
-                contentType = contentObj.type
+            let contentObj = null
+            const payload = msgMap["payload"]
+            if(payload && payload!=="") {
+                const decodedBuffer = Buffer.from(payload, 'base64')
+                 contentObj = JSON.parse(decodedBuffer.toString('utf8'))
+                if (contentObj) {
+                    contentType = contentObj.type
+                }
             }
+           
             const messageContent = WKSDK.shared().getMessageContent(contentType)
             if (contentObj) {
                 messageContent.decode(this.stringToUint8Array(JSON.stringify(contentObj)))
             }
             message.content = messageContent
-        }catch (error) {
-            console.log(error)
-             // 如果报错，直接设置为unknown  
-             const messageContent = WKSDK.shared().getMessageContent(MessageContentType.unknown)
-             message.content = messageContent
+        }catch(e) {
+            console.log(e)
+            // 如果报错，直接设置为unknown  
+            const messageContent = WKSDK.shared().getMessageContent(MessageContentType.unknown)
+            message.content = messageContent
         }
+       
        
 
         message.isDeleted = msgMap["is_deleted"] === 1
 
         const streamMaps = msgMap["streams"]
         if(streamMaps && streamMaps.length>0) {
-            const streams = new Array<StreamItem>()
+            const streams = new Array<Stream>()
             for (const streamMap of streamMaps) {
-                const streamItem = new StreamItem()
-                streamItem.clientMsgNo = streamMap["client_msg_no"]
-                streamItem.streamSeq = streamMap["stream_seq"]
-                if(streamMap["blob"] && streamMap["blob"].length>0) {
-                    const blob = Buffer.from(streamMap["blob"], 'base64')
-                    const blobObj = JSON.parse(blob.toString('utf8'))
-                    const blobType = blobObj.type
-                    const blobContent = WKSDK.shared().getMessageContent(contentType)
-                    if (blobObj) {
-                        blobContent.decode(this.stringToUint8Array(JSON.stringify(blobObj)))
+                const streamItem = new Stream()
+                streamItem.streamNo = streamMap["stream_no"]
+                streamItem.streamId = streamMap["stream_idstr"]
+                if(streamMap["payload"] && streamMap["payload"].length>0) {
+                    const payload = Buffer.from(streamMap["payload"], 'base64')
+                    const payloadObj = JSON.parse(payload.toString('utf8'))
+                    const payloadType = payloadObj.type
+                    const payloadContent = WKSDK.shared().getMessageContent(payloadType)
+                    if (payloadObj) {
+                        payloadContent.decode(this.stringToUint8Array(JSON.stringify(payloadObj)))
                     }
-                    streamItem.clientMsgNo = streamMap["client_msg_no"]
-                    streamItem.streamSeq = streamMap["stream_seq"]
-                    streamItem.content = blobContent
+                    streamItem.content = payloadContent
                 }
                 streams.push(streamItem)
             }

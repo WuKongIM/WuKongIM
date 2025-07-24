@@ -15,7 +15,7 @@ func (rg *RaftGroup) handleStoreReq(r IRaft, e types.Event) {
 	err := rg.goPool.Submit(func() {
 		err := rg.opts.Storage.AppendLogs(r.Key(), e.Logs, e.TermStartIndexInfo)
 		if err != nil {
-			rg.Error("append logs failed", zap.Error(err))
+			rg.Panic("append logs failed", zap.Error(err))
 		}
 		reason := types.ReasonOk
 		if err != nil {
@@ -293,7 +293,9 @@ func (rg *RaftGroup) handleRoleChangeReq(r IRaft, e types.Event) {
 
 		err = rg.opts.Storage.SaveConfig(r.Key(), newCfg)
 		if err != nil {
-			rg.Error("change role failed", zap.Error(err))
+			if err != types.ErrNotLeader {
+				rg.Error("change role failed", zap.Error(err), zap.String("key", r.Key()), zap.String("cfg", newCfg.String()))
+			}
 			rg.AddEvent(r.Key(), types.Event{
 				Type:   respEventType,
 				From:   e.From,

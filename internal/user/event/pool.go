@@ -1,11 +1,14 @@
 package event
 
 import (
+	"fmt"
 	"hash/fnv"
 
+	"github.com/WuKongIM/WuKongIM/internal/common"
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
@@ -121,4 +124,40 @@ func (e *EventPool) AllConnCount() int {
 
 func (e *EventPool) RemoveConn(conn *eventbus.Conn) {
 	e.pollerByUid(conn.Uid).removeConn(conn)
+}
+
+func (e *EventPool) WriteLocalData(conn *eventbus.Conn, data []byte) error {
+
+	if !options.G.IsLocalNode(conn.NodeId) {
+		e.Error("writeLocalData: conn not local node", zap.String("uid", conn.Uid), zap.Uint64("nodeId", conn.NodeId), zap.Int64("connId", conn.ConnId))
+		return fmt.Errorf("writeLocalData: conn not local node")
+	}
+
+	realConn, err := common.CheckConnValidAndGetRealConn(conn)
+	if err != nil {
+		e.Warn("WriteLocalData: conn invaild", zap.Error(err), zap.String("uid", conn.Uid), zap.String("deviceId", conn.DeviceId), zap.Int64("connId", conn.ConnId))
+		return err
+	}
+	if realConn == nil {
+		e.Error("writeLocalData: conn not exist", zap.String("uid", conn.Uid), zap.Uint64("nodeId", conn.NodeId), zap.Int64("connId", conn.ConnId))
+		return fmt.Errorf("writeLocalData: conn not exist")
+	}
+	wsConn, wsok := realConn.(wknet.IWSConn) // websocket连接
+	if wsok {
+		if conn.IsJsonRpc {
+			err = wsConn.WriteServerText(data)
+		} else {
+			err = wsConn.WriteServerBinary(data)
+		}
+		if err != nil {
+			e.Warn("writeFrame: Failed to ws write the message", zap.Error(err))
+		}
+	} else {
+		_, err := realConn.WriteToOutboundBuffer(data)
+		if err != nil {
+			e.Warn("writeFrame: Failed to write the message", zap.Error(err))
+			return err
+		}
+	}
+	return realConn.WakeWrite()
 }

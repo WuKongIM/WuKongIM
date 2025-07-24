@@ -134,12 +134,50 @@ func (c *Client) Send(m *proto.Message) error {
 	if c.opts.LogDetailOn {
 		c.Info("send message", zap.Uint32("msgType", m.MsgType))
 	}
-
-	err = c.conn().asyncWrite(data)
+	conn := c.conn()
+	if conn == nil {
+		c.Error("send message failed, conn is nil")
+		return errors.New("conn is nil")
+	}
+	err = conn.asyncWrite(data)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// 批量发送
+func (c *Client) BatchSend(msgs []*proto.Message) error {
+	// 多条消息时，合并成批量消息发送
+	batchMsg := &proto.BatchMessage{
+		Messages: msgs,
+		Count:    uint32(len(msgs)),
+	}
+	// 编码批量消息
+	batchData, err := batchMsg.Encode()
+	if err != nil {
+		c.Error("Failed to encode batch message", zap.Error(err))
+		return err
+	}
+	data, err := c.proto.Encode(batchData, proto.MsgTypeBatchMessage)
+	if err != nil {
+		return err
+	}
+	conn := c.conn()
+	if conn == nil {
+		c.Error("send message failed, conn is nil")
+		return errors.New("conn is nil")
+	}
+	err = conn.asyncWrite(data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// generateMessageId 生成消息ID
+func (c *Client) generateMessageId() uint64 {
+	return uint64(time.Now().UnixNano())
 }
 
 func (c *Client) Request(p string, body []byte) (*proto.Response, error) {

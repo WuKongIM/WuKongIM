@@ -3,8 +3,9 @@ addr: "tcp://0.0.0.0:5150" # tcp监听地址
 httpAddr: "0.0.0.0:5005" 
 wsAddr: "ws://0.0.0.0:5250" 
 rootDir: "./wukongimdata/5"
-manager:
-  on: false
+manager:  # 管理端配置
+  on: true
+  addr: "0.0.0.0:5305"
 demo:
   on: true
   addr: "0.0.0.0:5175"

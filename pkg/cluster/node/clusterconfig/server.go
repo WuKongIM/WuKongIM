@@ -2,14 +2,18 @@ package clusterconfig
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	pb "github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/raft/raft"
 	rafttypes "github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
 	"go.uber.org/zap"
 )
@@ -84,18 +88,33 @@ func (s *Server) initRaft() error {
 		raftConfig = s.configToRaftConfig(s.config)
 	} else {
 		replicas := make([]uint64, 0, len(s.opts.InitNodes))
+		learners := make([]uint64, 0)
 
 		var leader uint64
 		if len(s.opts.InitNodes) > 0 {
 			for nodeId := range s.opts.InitNodes {
 				replicas = append(replicas, nodeId)
 			}
-		} else { // 单节点启动
-			leader = s.opts.NodeId
-			replicas = append(replicas, s.opts.NodeId)
+		} else {
+
+			if strings.TrimSpace(s.opts.Seed) != "" {
+				// 有种子节点，需要加入集群
+				seedNodeId, _, err := seedNode(s.opts.Seed)
+				if err != nil {
+					return err
+				}
+				replicas = append(replicas, seedNodeId)    // 初次启动，如果有种子节点，种子节点作为replica
+				learners = append(learners, s.opts.NodeId) // 初次启动，如果有种子节点，当前节点作为learner
+			} else {
+				// 单节点启动
+				replicas = append(replicas, s.opts.NodeId)
+				leader = s.opts.NodeId
+			}
+
 		}
 		raftConfig = rafttypes.Config{
 			Replicas: replicas,
+			Learners: learners,
 			Term:     1,
 			Leader:   leader,
 		}
@@ -273,6 +292,12 @@ func (s *Server) NodeConfigVersionFromLeader(nodeId uint64) uint64 {
 	return s.raft.GetReplicaLastLogIndex(nodeId)
 }
 
+// GetLogsByLimit 分页获取日志（升序）
+func (s *Server) GetLogsByLimit(startLogIndex uint64, endLogIndex uint64, limit int) ([]rafttypes.Log, error) {
+	return s.storage.GetLogsByLimit(startLogIndex, endLogIndex, limit)
+}
+
+// GetLogsInReverseOrder 分页获取日志（降序）
 func (s *Server) GetLogsInReverseOrder(startLogIndex uint64, endLogIndex uint64, limit int) ([]rafttypes.Log, error) {
 	return s.storage.GetLogsInReverseOrder(startLogIndex, endLogIndex, limit)
 }
@@ -292,9 +317,14 @@ func (s *Server) genConfigId() uint64 {
 
 func (s *Server) configToRaftConfig(cfg *Config) rafttypes.Config {
 
-	replicas := make([]uint64, 0, len(cfg.nodes()))
-	for _, node := range cfg.nodes() {
-		replicas = append(replicas, node.Id)
+	nodes := cfg.nodes()
+
+	replicas := make([]uint64, 0, len(nodes))
+	for _, node := range nodes {
+		if node.AllowVote && node.Role == pb.NodeRole_NodeRoleReplica && !wkutil.ArrayContainsUint64(cfg.cfg.Learners, node.Id) {
+			replicas = append(replicas, node.Id)
+			continue
+		}
 	}
 
 	var leader uint64
@@ -310,4 +340,18 @@ func (s *Server) configToRaftConfig(cfg *Config) rafttypes.Config {
 		Leader:      leader,
 		// Term:        cfg.cfg.Term, // 不需要设置term，不设置表示使用当前term，Config的term只是应用的最新的term，不表示是日志的term
 	}
+}
+
+func seedNode(seed string) (uint64, string, error) {
+	seedArray := strings.Split(seed, "@")
+	if len(seedArray) < 2 {
+		return 0, "", errors.New("seed format error")
+	}
+	seedNodeIDStr := seedArray[0]
+	seedAddr := seedArray[1]
+	seedNodeID, err := strconv.ParseUint(seedNodeIDStr, 10, 64)
+	if err != nil {
+		return 0, "", err
+	}
+	return seedNodeID, seedAddr, nil
 }

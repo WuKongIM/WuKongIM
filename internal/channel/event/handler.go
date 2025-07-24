@@ -1,6 +1,7 @@
 package event
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -92,7 +93,11 @@ func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
 	}()
 
 	// 检查和更新leaderId
-	c.checkAndUpdateLeaderIdChange()
+	err := c.checkAndUpdateLeaderIdChange()
+	if err != nil {
+		c.Error("advanceEvents: checkAndUpdateLeaderIdChange failed", zap.Error(err))
+		return
+	}
 
 	// 按类型分组
 	group := c.groupByType(events)
@@ -119,24 +124,25 @@ func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
 }
 
 // checkAndUpdateLeaderIdChange 检查并更新leaderId变化
-func (c *channelHandler) checkAndUpdateLeaderIdChange() {
+func (c *channelHandler) checkAndUpdateLeaderIdChange() error {
 	c.pending.Lock()
 	defer c.pending.Unlock()
 	nodeVersion := service.Cluster.NodeVersion()
 	if c.nodeVersion >= nodeVersion {
-		return
+		return nil
 	}
 	leaderId, err := service.Cluster.LeaderIdOfChannel(c.channelId, c.channelType)
 	if err != nil {
 		c.Error("checkLeaderIdChange: get leader id failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-		return
+		return err
 	}
 	if leaderId == 0 {
 		c.Warn("checkLeaderIdChange: leader id is 0", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
-		return
+		return errors.New("checkAndUpdateLeaderIdChange： leader id is 0")
 	}
 	c.nodeVersion = nodeVersion
 	c.leaderId = leaderId
+	return nil
 }
 
 // isTimeout 判断用户是否超时

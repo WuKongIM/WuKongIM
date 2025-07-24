@@ -29,6 +29,12 @@ type DB interface {
 	StreamDB
 	// 测试机
 	TesterDB
+	// 插件
+	PluginDB
+
+	GetPerformanceMonitor() *PerformanceMonitor
+
+	GetCacheManager() *CacheManager
 }
 
 type MessageDB interface {
@@ -197,7 +203,11 @@ type ChannelDB interface {
 }
 
 type ConversationDB interface {
+	// AddOrUpdateConversations 添加或更新最近会话
 	AddOrUpdateConversations(conversations []Conversation) error
+
+	// AddOrUpdateConversationsBatchIfNotExist 批量添加或更新最近会话，如果存在则不添加
+	AddOrUpdateConversationsBatchIfNotExist(conversations []Conversation) error
 
 	// AddOrUpdateConversationsWithUser 添加或更新最近会话
 	AddOrUpdateConversationsWithUser(uid string, conversations []Conversation) error
@@ -218,7 +228,7 @@ type ConversationDB interface {
 	GetConversationsByType(uid string, tp ConversationType) ([]Conversation, error)
 
 	// GetLastConversations 获取指定用户的最近会话
-	GetLastConversations(uid string, tp ConversationType, updatedAt uint64, limit int) ([]Conversation, error)
+	GetLastConversations(uid string, tp ConversationType, updatedAt uint64, excludeChannelTypes []uint8, limit int) ([]Conversation, error)
 
 	// GetConversation 获取指定用户的指定会话
 	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)
@@ -233,6 +243,12 @@ type ConversationDB interface {
 
 	// SearchConversation 搜索最近会话
 	SearchConversation(req ConversationSearchReq) ([]Conversation, error)
+
+	// UpdateConversationDeletedAtMsgSeq 更新最近会话的已删除的消息序号位置
+	UpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) error
+
+	// GetLastConversationIds 获取最近会话ID列表（用于测试重复ID问题）
+	GetLastConversationIds(uid string, updatedAt uint64, limit int) ([]uint64, error)
 }
 
 type ChannelClusterConfigDB interface {
@@ -390,6 +406,33 @@ type TesterDB interface {
 
 	// RemoveTester 移除测试机
 	RemoveTester(no string) error
+}
+
+type PluginDB interface {
+	// AddOrUpdatePlugin 添加或更新插件
+	AddOrUpdatePlugin(plugin Plugin) error
+	// DeletePlugin 删除插件
+	DeletePlugin(no string) error
+	// GetPlugins 获取插件列表
+	GetPlugins() ([]Plugin, error)
+	// GetPlugin 获取插件
+	GetPlugin(no string) (Plugin, error)
+	// AddOrUpdatePluginUsers 添加或更新插件用户，如果用户已经存在则更新
+	AddOrUpdatePluginUsers(pluginUsers []PluginUser) error
+	// RemovePluginUser 移除插件用户
+	RemovePluginUser(pluginNo string, uid string) error
+	// GetPluginUsers 获取插件绑定的用户列表
+	GetPluginUsers(pluginNo string) ([]PluginUser, error)
+	// GetHighestPriorityPluginByUid 获取用户最高优先级的插件
+	GetHighestPriorityPluginByUid(uid string) (string, error)
+	// ExistPluginByUid 判断用户是否存在插件
+	ExistPluginByUid(uid string) (bool, error)
+	// UpdatePluginConfig 更新插件配置
+	UpdatePluginConfig(no string, config map[string]interface{}) error
+	// GetPluginConfig 获取插件配置
+	GetPluginConfig(no string) (map[string]interface{}, error)
+	// SearchPluginUsers 搜索插件用户
+	SearchPluginUsers(req SearchPluginUserReq) ([]PluginUser, error)
 }
 
 type MessageSearchReq struct {

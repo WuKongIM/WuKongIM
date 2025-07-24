@@ -121,6 +121,31 @@ func (c *Client) RequestSubscribers(toNodeId uint64, channelId string, channelTy
 	return subResp.Subscribers, nil
 }
 
+// 获取消息流
+func (c *Client) RequestStreams(toNodeId uint64, streamNos []string) (*StreamResp, error) {
+	req := &StreamReq{
+		StreamNos: streamNos,
+	}
+	data, err := req.Encode()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.request(toNodeId, "/wk/ingress/getStreams", data)
+	if err != nil {
+		return nil, err
+	}
+	err = c.handleRespError(resp)
+	if err != nil {
+		return nil, err
+	}
+	streamResp := &StreamResp{}
+	err = streamResp.Decode(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return streamResp, nil
+}
+
 func (c *Client) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()

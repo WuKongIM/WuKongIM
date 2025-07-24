@@ -68,6 +68,7 @@ conversation: # 最近会话配置
 
 #  # 认证配置 
 # auth: 
+#   on: true # 是否开启认证
 #   kind: 'jwt' # 认证方式 jwt: jwt认证 none: 无需认证
 #   # 用户配置
 #   #用户名:密码:资源:权限 *表示通配符   资源格式也可以是[资源ID:权限]  
@@ -106,3 +107,8 @@ conversation: # 最近会话配置
 #   #   - "1001@192.168.1.12:11110"
 #   seed:
 #     - ""  
+# plugin:
+  # socketPath: "./wukongimdata/1/wukongim.sock" # 插件unix socket通讯地址
+  # install: # 默认安装的插件列表  安装最新版本 ${os}: 当前操作系统 ${arch}: 当前操作系统架构。github地址替换https://github.com/WuKongIM/plugins
+    #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-example-${os}-${arch}.wkp"
+    #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-volcengine-${os}-${arch}.wkp"

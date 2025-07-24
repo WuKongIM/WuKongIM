@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
@@ -8,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -21,12 +23,14 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		e.Track.Record(track.PositionChannelPersist)
 	}
 
-	// 存储消息
+	// ========== 存储消息 ==========
 	persists := h.toPersistMessages(ctx.ChannelId, ctx.ChannelType, events)
 	if len(persists) > 0 {
+
 		timeoutCtx, cancel := h.WithTimeout()
 		defer cancel()
 		reasonCode := wkproto.ReasonSuccess
+
 		results, err := service.Store.AppendMessages(timeoutCtx, ctx.ChannelId, ctx.ChannelType, persists)
 		if err != nil {
 			h.Error("store message failed", zap.Error(err), zap.Int("events", len(persists)), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
@@ -43,6 +47,18 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 					}
 				}
 			}
+
+			for i, m := range persists {
+				for _, result := range results {
+					if result.Id == uint64(m.MessageID) {
+						persists[i].MessageSeq = uint32(result.Index)
+						break
+					}
+				}
+			}
+
+			// 通知插件
+			h.pluginInvokePersistAfter(persists)
 		}
 
 		// 修改原因码
@@ -53,10 +69,26 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 					break
 				}
 			}
+			if options.G.Logger.TraceOn {
+
+				msgTip := "消息保存成功..."
+				if reasonCode != wkproto.ReasonSuccess {
+					msgTip = "消息保存失败..."
+				}
+				h.Trace(msgTip,
+					"persist",
+					zap.Int64("messageId", event.MessageId),
+					zap.Uint64("messageSeq", event.MessageSeq),
+					zap.String("from", event.Conn.Uid),
+					zap.String("channelId", ctx.ChannelId),
+					zap.Uint8("channelType", ctx.ChannelType),
+					zap.String("resson", reasonCode.String()),
+				)
+			}
 		}
 	}
 
-	// webhook
+	// ========== webhook ==========
 	if options.G.WebhookOn(types.EventMsgNotify) {
 		for _, e := range events {
 			sendPacket := e.Frame.(*wkproto.SendPacket)
@@ -68,7 +100,7 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 		}
 	}
 
-	// 分发
+	// ========== 分发 ==========
 	for _, e := range events {
 		if e.ReasonCode != wkproto.ReasonSuccess {
 			continue
@@ -82,14 +114,52 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 
 }
 
+func (h *Handler) pluginInvokePersistAfter(msgs []wkdb.Message) {
+	plugins := service.PluginManager.Plugins(types.PluginPersistAfter)
+	if len(plugins) == 0 {
+		return
+	}
+
+	timeoutCtx, cancel := h.WithTimeout()
+	defer cancel()
+
+	pluginMessages := make([]*pluginproto.Message, 0, len(msgs))
+	for _, msg := range msgs {
+		pluginMessages = append(pluginMessages, &pluginproto.Message{
+			MessageId:   msg.MessageID,
+			MessageSeq:  uint64(msg.MessageSeq),
+			ClientMsgNo: msg.ClientMsgNo,
+			StreamNo:    msg.StreamNo,
+			StreamId:    msg.StreamId,
+			Timestamp:   uint32(msg.Timestamp),
+			From:        msg.FromUID,
+			ChannelId:   msg.ChannelID,
+			Topic:       msg.Topic,
+			ChannelType: uint32(msg.ChannelType),
+			Payload:     msg.Payload,
+		})
+	}
+
+	msgBatch := &pluginproto.MessageBatch{
+		Messages: pluginMessages,
+	}
+	for _, pg := range plugins {
+		err := pg.PersistAfter(timeoutCtx, msgBatch)
+		if err != nil {
+			h.Error("plugin persist after error", zap.Error(err))
+		}
+	}
+}
+
 // 转换成存储消息
 func (h *Handler) toPersistMessages(channelId string, channelType uint8, events []*eventbus.Event) []wkdb.Message {
 	persists := make([]wkdb.Message, 0, len(events))
 	for _, e := range events {
 		sendPacket := e.Frame.(*wkproto.SendPacket)
-		if sendPacket.NoPersist || e.ReasonCode != wkproto.ReasonSuccess {
+		if sendPacket.NoPersist || e.ReasonCode != wkproto.ReasonSuccess || strings.TrimSpace(e.StreamNo) != "" {
 			continue
 		}
+
 		msg := wkdb.Message{
 			RecvPacket: wkproto.RecvPacket{
 				Framer: wkproto.Framer{

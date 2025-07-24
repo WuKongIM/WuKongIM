@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
 
@@ -72,6 +71,7 @@ func (m *Message) Unmarshal(data []byte) error {
 		return err
 	}
 	rcv := f.(*wkproto.RecvPacket)
+
 	m.RecvPacket = *rcv
 	if m.Term, err = dec.Uint64(); err != nil {
 		return err
@@ -137,6 +137,7 @@ type User struct {
 	RecvMsgCount      uint64     `json:"recv_msg_count,omitempty"`      // 接收消息数量
 	SendMsgBytes      uint64     `json:"send_msg_bytes,omitempty"`      // 发送消息字节数
 	RecvMsgBytes      uint64     `json:"recv_msg_bytes,omitempty"`      // 接收消息字节数
+	PluginNo          string     `json:"plugin_no,omitempty"`           // 插件编号
 	CreatedAt         *time.Time `json:"created_at,omitempty"`          // 创建时间
 	UpdatedAt         *time.Time `json:"updated_at,omitempty"`          // 更新时间
 }
@@ -144,20 +145,25 @@ type User struct {
 var EmptyChannelInfo = ChannelInfo{}
 
 type ChannelInfo struct {
-	Id              uint64     `json:"id,omitempty"`               // ID
-	ChannelId       string     `json:"channel_id,omitempty"`       // 频道ID
-	ChannelType     uint8      `json:"channel_type,omitempty"`     // 频道类型
-	Ban             bool       `json:"ban,omitempty"`              // 是否被封
-	Large           bool       `json:"large,omitempty"`            // 是否是超大群
-	Disband         bool       `json:"disband,omitempty"`          // 是否解散
-	SubscriberCount int        `json:"subscriber_count,omitempty"` // 订阅者数量
-	DenylistCount   int        `json:"denylist_count,omitempty"`   // 黑名单数量
-	AllowlistCount  int        `json:"allowlist_count,omitempty"`  // 白名单数量
-	LastMsgSeq      uint64     `json:"last_msg_seq,omitempty"`     // 最新消息序号
-	LastMsgTime     uint64     `json:"last_msg_time,omitempty"`    // 最后一次消息时间
-	Webhook         string     `json:"webhook,omitempty"`          // webhook地址
-	CreatedAt       *time.Time `json:"created_at,omitempty"`       // 创建时间
-	UpdatedAt       *time.Time `json:"updated_at,omitempty"`       // 更新时间
+	Id              uint64 `json:"id,omitempty"`               // ID
+	ChannelId       string `json:"channel_id,omitempty"`       // 频道ID
+	ChannelType     uint8  `json:"channel_type,omitempty"`     // 频道类型
+	Ban             bool   `json:"ban,omitempty"`              // 是否被封
+	Large           bool   `json:"large,omitempty"`            // 是否是超大群
+	Disband         bool   `json:"disband,omitempty"`          // 是否解散
+	SubscriberCount int    `json:"subscriber_count,omitempty"` // 订阅者数量
+	DenylistCount   int    `json:"denylist_count,omitempty"`   // 黑名单数量
+	AllowlistCount  int    `json:"allowlist_count,omitempty"`  // 白名单数量
+	LastMsgSeq      uint64 `json:"last_msg_seq,omitempty"`     // 最新消息序号
+	LastMsgTime     uint64 `json:"last_msg_time,omitempty"`    // 最后一次消息时间
+	Webhook         string `json:"webhook,omitempty"`          // webhook地址
+	// 是否禁止发送消息 （0.不禁止 1.禁止），禁止后，频道内所有成员都不能发送消息,个人频道能收消息，但不能发消息
+	SendBan bool `json:"send_ban,omitempty"`
+	// 是否允许陌生人发送消息（0.不允许 1.允许）（此配置目前只支持个人频道）
+	// 个人频道：如果AllowStranger为1，则陌生人可以给当前用户发消息
+	AllowStranger bool       `json:"allow_stranger,omitempty"`
+	CreatedAt     *time.Time `json:"created_at,omitempty"` // 创建时间
+	UpdatedAt     *time.Time `json:"updated_at,omitempty"` // 更新时间
 }
 
 func NewChannelInfo(channelId string, channelType uint8) ChannelInfo {
@@ -172,52 +178,52 @@ func IsEmptyChannelInfo(c ChannelInfo) bool {
 	return strings.TrimSpace(c.ChannelId) == ""
 }
 
-func (c *ChannelInfo) Unmarshal(data []byte) error {
-	dec := wkproto.NewDecoder(data)
+// func (c *ChannelInfo) Unmarshal(data []byte) error {
+// 	dec := wkproto.NewDecoder(data)
 
-	var err error
-	if c.ChannelId, err = dec.String(); err != nil {
-		return err
-	}
-	if c.ChannelType, err = dec.Uint8(); err != nil {
-		return err
-	}
-	var ban uint8
-	if ban, err = dec.Uint8(); err != nil {
-		return err
-	}
-	var large uint8
-	if large, err = dec.Uint8(); err != nil {
-		return err
-	}
-	var disband uint8
-	if disband, err = dec.Uint8(); err != nil {
-		return err
-	}
+// 	var err error
+// 	if c.ChannelId, err = dec.String(); err != nil {
+// 		return err
+// 	}
+// 	if c.ChannelType, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
+// 	var ban uint8
+// 	if ban, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
+// 	var large uint8
+// 	if large, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
+// 	var disband uint8
+// 	if disband, err = dec.Uint8(); err != nil {
+// 		return err
+// 	}
 
-	c.Ban = wkutil.Uint8ToBool(ban)
-	c.Large = wkutil.Uint8ToBool(large)
-	c.Disband = wkutil.Uint8ToBool(disband)
+// 	c.Ban = wkutil.Uint8ToBool(ban)
+// 	c.Large = wkutil.Uint8ToBool(large)
+// 	c.Disband = wkutil.Uint8ToBool(disband)
 
-	var createdAt uint64
-	if createdAt, err = dec.Uint64(); err != nil {
-		return err
-	}
-	if createdAt > 0 {
-		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
-		c.CreatedAt = &ct
-	}
-	var updatedAt uint64
-	if updatedAt, err = dec.Uint64(); err != nil {
-		return err
-	}
-	if updatedAt > 0 {
-		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
-		c.UpdatedAt = &ct
-	}
+// 	var createdAt uint64
+// 	if createdAt, err = dec.Uint64(); err != nil {
+// 		return err
+// 	}
+// 	if createdAt > 0 {
+// 		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+// 		c.CreatedAt = &ct
+// 	}
+// 	var updatedAt uint64
+// 	if updatedAt, err = dec.Uint64(); err != nil {
+// 		return err
+// 	}
+// 	if updatedAt > 0 {
+// 		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+// 		c.UpdatedAt = &ct
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 var EmptyConversation = Conversation{}
 
@@ -313,16 +319,16 @@ const (
 
 // Conversation Conversation
 type Conversation struct {
-	Id           uint64           `json:"id,omitempty"`
-	Uid          string           `json:"uid,omitempty"`               // 用户uid
-	Type         ConversationType `json:"type,omitempty"`              // 会话类型
-	ChannelId    string           `json:"channel_id,omitempty"`        // 频道id
-	ChannelType  uint8            `json:"channel_type,omitempty"`      // 频道类型
-	UnreadCount  uint32           `json:"unread_count,omitempty"`      // 未读消息数量（这个可以用户自己设置）
-	ReadToMsgSeq uint64           `json:"readed_to_msg_seq,omitempty"` // 已经读至的消息序号
-
-	CreatedAt *time.Time `json:"created_at,omitempty"` // 创建时间
-	UpdatedAt *time.Time `json:"updated_at,omitempty"` // 更新时间
+	Id              uint64           `json:"id,omitempty"`
+	Uid             string           `json:"uid,omitempty"`                // 用户uid
+	Type            ConversationType `json:"type,omitempty"`               // 会话类型
+	ChannelId       string           `json:"channel_id,omitempty"`         // 频道id
+	ChannelType     uint8            `json:"channel_type,omitempty"`       // 频道类型
+	UnreadCount     uint32           `json:"unread_count,omitempty"`       // 未读消息数量（这个可以用户自己设置）
+	ReadToMsgSeq    uint64           `json:"readed_to_msg_seq,omitempty"`  // 已经读至的消息序号
+	DeletedAtMsgSeq uint64           `json:"deleted_at_msg_seq,omitempty"` // 最近会话在记录的这个msgSeq位置被删除（删除消息包含这个msgSeq）
+	CreatedAt       *time.Time       `json:"created_at,omitempty"`         // 创建时间
+	UpdatedAt       *time.Time       `json:"updated_at,omitempty"`         // 更新时间
 }
 
 func (c *Conversation) Marshal() ([]byte, error) {
@@ -850,4 +856,45 @@ func (t *Tester) Unmarshal(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+// 插件状态
+type PluginStatus uint32
+
+const (
+	// PluginStatusUnset 未设置
+	PluginStatusUnset PluginStatus = iota
+	// PluginStatusEnable 启用
+	PluginStatusEnable
+	// PluginStatusDisabled 禁用
+	PluginStatusDisabled
+)
+
+type Plugin struct {
+	No             string
+	Name           string
+	ConfigTemplate []byte
+	CreatedAt      *time.Time
+	UpdatedAt      *time.Time
+	Status         PluginStatus
+	Version        string
+	Methods        []string
+	Priority       uint32
+	Config         map[string]interface{}
+}
+
+func IsEmptyPlugin(p Plugin) bool {
+	return p.No == ""
+}
+
+type PluginUser struct {
+	Uid       string
+	PluginNo  string
+	CreatedAt *time.Time
+	UpdatedAt *time.Time
+}
+
+type SearchPluginUserReq struct {
+	PluginNo string
+	Uid      string
 }

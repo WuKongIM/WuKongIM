@@ -65,8 +65,12 @@ func (h *Handler) OnEvent(ctx *eventbus.UserContext) {
 		// 执行本地事件
 		eventbus.ExecuteUserEvent(ctx)
 	} else {
-		// 转发到leader节点
-		h.forwardsToNode(slotLeaderId, ctx.Uid, ctx.Events)
+		if slotLeaderId != 0 {
+			// 转发到leader节点
+			h.forwardsToNode(slotLeaderId, ctx.Uid, ctx.Events)
+		} else {
+			h.Error("user: OnEvent: slotLeaderId is 0", zap.String("uid", ctx.Uid), zap.Uint64("slotLeaderId", slotLeaderId))
+		}
 	}
 }
 
@@ -147,7 +151,7 @@ func (h *Handler) forwardsToNode(nodeId uint64, uid string, events []*eventbus.E
 	}
 	err = h.sendToNode(nodeId, msg)
 	if err != nil {
-		h.Error("forwardToLeader: send failed", zap.Error(err))
+		h.Error("user:forwardToLeader: send failed", zap.Error(err), zap.Uint64("nodeId", nodeId), zap.String("uid", uid))
 		return
 	}
 }

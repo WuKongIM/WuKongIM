@@ -40,3 +40,7 @@ func Toyyyy_MM(tm time.Time) string {
 func PareTimeStrForYYYY_mm_dd(timeStr string) (time.Time, error) {
 	return time.Parse("2006-01-02", timeStr)
 }
+
+func TimePtr(t time.Time) *time.Time {
+	return &t
+}

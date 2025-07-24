@@ -34,9 +34,10 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 	if len(channels) == 0 {
 		return nil, nil
 	}
-	channelRecentMessages := make([]*channelRecentMessage, 0)
 	var (
-		err error
+		channelRecentMessages     []*channelRecentMessage
+		err                       error
+		channelRecentMessagesLock sync.Mutex
 	)
 
 	// 按照频道所在节点进行分组
@@ -66,7 +67,9 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 					s.Error("请求同步消息失败！", zap.Error(err), zap.Uint64("nodeId", pID))
 					reqErr = err
 				} else {
+					channelRecentMessagesLock.Lock()
 					channelRecentMessages = append(channelRecentMessages, results...)
+					channelRecentMessagesLock.Unlock()
 				}
 				wg.Done()
 			}(nodeId, peerChannelRecentMessageReqs, uid, msgCount)
@@ -128,58 +131,169 @@ func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessage
 // getRecentMessages 获取频道最近消息
 // orderByLast: true 按照最新的消息排序 false 按照最旧的消息排序
 func (s *request) getRecentMessages(uid string, msgCount int, channels []*channelRecentMessageReq, orderByLast bool) ([]*channelRecentMessage, error) {
-	channelRecentMessages := make([]*channelRecentMessage, 0)
-	if len(channels) > 0 {
-		var (
-			recentMessages []wkdb.Message
-			err            error
-		)
-		for _, channel := range channels {
-			fakeChannelID := channel.ChannelId
-			msgSeq := channel.LastMsgSeq
-			messageResps := types.MessageRespSlice{}
-			if orderByLast {
+	channelRecentMessages := make([]*channelRecentMessage, 0, len(channels))
+	if len(channels) == 0 {
+		return channelRecentMessages, nil
+	}
 
-				if msgSeq > 0 {
-					msgSeq = msgSeq - 1 // 这里减1的目的是为了获取到最后一条消息
-				}
+	// 批量查询优化：将相同查询条件的频道分组
+	type batchKey struct {
+		msgSeq      uint64
+		orderByLast bool
+	}
+	batchGroups := make(map[batchKey][]*channelRecentMessageReq)
 
-				recentMessages, err = service.Store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, msgSeq, msgCount)
-				if err != nil {
-					s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
-					return nil, err
-				}
-				if len(recentMessages) > 0 {
-					for _, recentMessage := range recentMessages {
-						messageResp := &types.MessageResp{}
-						messageResp.From(recentMessage, options.G.SystemUID)
-						messageResps = append(messageResps, messageResp)
-					}
-				}
-				sort.Sort(sort.Reverse(messageResps))
-			} else {
-				recentMessages, err = service.Store.LoadNextRangeMsgs(fakeChannelID, channel.ChannelType, msgSeq, 0, msgCount)
-				if err != nil {
-					s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
-					return nil, err
-				}
-				if len(recentMessages) > 0 {
-					for _, recentMessage := range recentMessages {
-						messageResp := &types.MessageResp{}
-						messageResp.From(recentMessage, options.G.SystemUID)
-						messageResps = append(messageResps, messageResp)
-					}
-				}
+	for _, channel := range channels {
+		key := batchKey{
+			msgSeq:      channel.LastMsgSeq,
+			orderByLast: orderByLast,
+		}
+		batchGroups[key] = append(batchGroups[key], channel)
+	}
+
+	// 使用并发处理不同的批次组
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(batchGroups))
+
+	for key, batchChannels := range batchGroups {
+		wg.Add(1)
+		go func(k batchKey, chs []*channelRecentMessageReq) {
+			defer wg.Done()
+
+			// 批量处理相同条件的频道
+			results, err := s.processBatchChannels(uid, msgCount, chs, k.orderByLast)
+			if err != nil {
+				errChan <- err
+				return
 			}
 
-			channelRecentMessages = append(channelRecentMessages, &channelRecentMessage{
-				ChannelId:   channel.ChannelId,
-				ChannelType: channel.ChannelType,
-				Messages:    messageResps,
-			})
+			mu.Lock()
+			channelRecentMessages = append(channelRecentMessages, results...)
+			mu.Unlock()
+		}(key, batchChannels)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	// 检查错误
+	for err := range errChan {
+		if err != nil {
+			return nil, err
 		}
 	}
+
 	return channelRecentMessages, nil
+}
+
+// processBatchChannels 批量处理频道消息查询
+func (s *request) processBatchChannels(uid string, msgCount int, channels []*channelRecentMessageReq, orderByLast bool) ([]*channelRecentMessage, error) {
+	results := make([]*channelRecentMessage, 0, len(channels))
+
+	// 如果批次较小，使用原有逻辑
+	if len(channels) <= 5 {
+		for _, channel := range channels {
+			result, err := s.processSingleChannel(uid, msgCount, channel, orderByLast)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, result)
+		}
+		return results, nil
+	}
+
+	// 批次较大时，使用优化的批量查询
+	// TODO: 这里可以进一步优化，实现真正的批量数据库查询
+	// 目前先使用并发来提升性能
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(channels))
+
+	// 限制并发数
+	semaphore := make(chan struct{}, 10)
+
+	for _, channel := range channels {
+		wg.Add(1)
+		go func(ch *channelRecentMessageReq) {
+			defer wg.Done()
+
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			result, err := s.processSingleChannel(uid, msgCount, ch, orderByLast)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+		}(channel)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return results, nil
+}
+
+// processSingleChannel 处理单个频道的消息查询
+func (s *request) processSingleChannel(uid string, msgCount int, channel *channelRecentMessageReq, orderByLast bool) (*channelRecentMessage, error) {
+	var (
+		recentMessages []wkdb.Message
+		err            error
+	)
+
+	fakeChannelID := channel.ChannelId
+	msgSeq := channel.LastMsgSeq
+	messageResps := types.MessageRespSlice{}
+
+	if orderByLast {
+		if msgSeq > 0 {
+			msgSeq = msgSeq - 1 // 这里减1的目的是为了获取到最后一条消息
+		}
+
+		recentMessages, err = service.Store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, msgSeq, msgCount)
+		if err != nil {
+			s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
+			return nil, err
+		}
+		if len(recentMessages) > 0 {
+			for _, recentMessage := range recentMessages {
+				messageResp := &types.MessageResp{}
+				messageResp.From(recentMessage, options.G.SystemUID)
+				messageResps = append(messageResps, messageResp)
+			}
+		}
+		sort.Sort(sort.Reverse(messageResps))
+	} else {
+		recentMessages, err = service.Store.LoadNextRangeMsgs(fakeChannelID, channel.ChannelType, msgSeq, 0, msgCount)
+		if err != nil {
+			s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
+			return nil, err
+		}
+		if len(recentMessages) > 0 {
+			for _, recentMessage := range recentMessages {
+				messageResp := &types.MessageResp{}
+				messageResp.From(recentMessage, options.G.SystemUID)
+				messageResps = append(messageResps, messageResp)
+			}
+		}
+	}
+
+	return &channelRecentMessage{
+		ChannelId:   channel.ChannelId,
+		ChannelType: channel.ChannelType,
+		Messages:    messageResps,
+	}, nil
 }
 
 func handlerIMError(resp *rest.Response) error {

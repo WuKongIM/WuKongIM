@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/WuKongIM/WuKongIM/internal/common"
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -21,7 +22,7 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 			return
 		}
 		// 移除逻辑连接
-		eventbus.User.RemoveConn(conn)
+		eventbus.User.DirectRemoveConn(conn)
 
 		// 如果不是本地节点，则转发关闭请求
 		if !options.G.IsLocalNode(conn.NodeId) {
@@ -30,12 +31,16 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 		}
 
 		// 关闭真实连接
-		realConn := service.ConnManager.GetConn(conn.ConnId)
+		realConn, err := common.CheckConnValidAndGetRealConn(conn)
+		if err != nil {
+			h.Warn("closeConn: conn invalid", zap.Error(err), zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId))
+			continue
+		}
 		if realConn == nil {
 			h.Info("closeConn: conn not exist", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId))
 			continue
 		}
-		err := realConn.Close()
+		err = realConn.Close()
 		if err != nil {
 			h.Info("closeConn: Failed to close the conn", zap.Error(err))
 		}
@@ -45,7 +50,7 @@ func (h *Handler) closeConn(ctx *eventbus.UserContext) {
 func (h *Handler) removeConn(ctx *eventbus.UserContext) {
 
 	for _, event := range ctx.Events {
-		eventbus.User.RemoveConn(event.Conn)
+		eventbus.User.DirectRemoveConn(event.Conn)
 		if event.Conn.Auth {
 			h.notifyUserOfflineIfNeed(event.Conn)
 		}

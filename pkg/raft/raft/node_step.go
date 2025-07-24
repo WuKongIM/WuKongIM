@@ -40,29 +40,42 @@ func (n *Node) Step(e types.Event) error {
 	case types.Campaign:
 		n.campaign()
 	case types.VoteReq: // 投票请求
-		if n.canVote(e) {
-			if e.From == n.opts.NodeId {
-				n.sendVoteResp(types.LocalNode, types.ReasonOk)
-			} else {
-				n.sendVoteResp(e.From, types.ReasonOk)
-			}
+		if n.cfg.Role != types.RoleLearner {
+			if n.canVote(e) {
+				if e.From == n.opts.NodeId {
+					n.sendVoteResp(types.LocalNode, types.ReasonOk)
+				} else {
+					n.sendVoteResp(e.From, types.ReasonOk)
+				}
 
-			n.voteFor = e.From
-			n.electionElapsed = 0
-			if e.From != n.opts.NodeId {
-				n.Info("agree vote", zap.Uint64("voteFor", e.From), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
+				n.voteFor = e.From
+				n.electionElapsed = 0
+				if e.From != n.opts.NodeId {
+					n.Info("agree vote", zap.Uint64("voteFor", e.From), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
+				}
+			} else {
+				if n.voteFor != None {
+					n.Info("already vote for other", zap.Uint64("voteFor", n.voteFor))
+				} else if e.Index < n.queue.lastLogIndex {
+					n.Info("lower config version, reject vote")
+				} else if e.Term < n.cfg.Term {
+					n.Info("lower term, reject vote")
+				}
+				n.Info("reject vote", zap.Uint64("from", e.From), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
+				n.sendVoteResp(e.From, types.ReasonError)
 			}
 		} else {
-			if n.voteFor != None {
-				n.Info("already vote for other", zap.Uint64("voteFor", n.voteFor))
-			} else if e.Index < n.queue.lastLogIndex {
-				n.Info("lower config version, reject vote")
-			} else if e.Term < n.cfg.Term {
-				n.Info("lower term, reject vote")
-			}
-			n.Info("reject vote", zap.Uint64("from", e.From), zap.Uint32("term", e.Term), zap.Uint64("index", e.Index))
-			n.sendVoteResp(e.From, types.ReasonError)
+			/**
+			如果学习者收到投票请求，则角色转换为follower
+			TODO：这里逻辑感觉不太严谨，
+			主要解决如下情况：
+			 当两个节点时，一个是leader，一个是learner，当learner完成学习后。
+			 leader节点会将learner节点的角色转换为follower时，会导致leader自己本身转换成candidate。
+			 这样learner同步不到配置日志，导致leader节点认为learner成为了follower，但是实际learner还是learner
+			**/
+			n.BecomeFollower(e.Term, e.From)
 		}
+
 	case types.ApplyResp: // 应用返回
 		if e.Reason == types.ReasonOk {
 			n.queue.appliedTo(e.Index)
@@ -84,7 +97,7 @@ func (n *Node) stepLeader(e types.Event) error {
 	case types.Propose: // 提案
 		if n.stopPropose { // 停止提案
 			n.Foucs("stop propose", zap.String("key", n.Key()))
-			return ErrProposalDropped
+			return types.ErrProposalDropped
 		}
 		n.idleTick = 0
 		err := n.queue.append(e.Logs...)
@@ -173,7 +186,9 @@ func (n *Node) stepLeader(e types.Event) error {
 		n.stopPropose = false
 		syncInfo := n.replicaSync[e.From]
 		if syncInfo == nil {
-			n.Error("role switch error,syncInfo not exist", zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.String("type", e.Type.String()))
+			if n.queue.lastLogIndex > 0 {
+				n.Warn("role switch error,syncInfo not exist", zap.Uint64("from", e.From), zap.Uint64("to", e.To), zap.String("type", e.Type.String()))
+			}
 			return nil
 		}
 		n.replicaSync[e.From].roleSwitching = false
@@ -298,6 +313,7 @@ func (n *Node) stepLearner(e types.Event) error {
 		if n.cfg.Leader == None {
 			n.BecomeLearner(e.Term, e.From)
 		}
+		n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 		n.idleTick = 0
 		// 如果领导的配置版本大于本地配置版本，那么请求配置
 		if e.ConfigVersion > n.cfg.Version {
@@ -330,6 +346,7 @@ func (n *Node) stepLearner(e types.Event) error {
 					n.suspend = true
 				}
 			}
+			n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 
 		} else if e.Reason == types.ReasonTruncate {
 			// if n.Key() == "clusterconfig" {
@@ -398,7 +415,13 @@ func (n *Node) quorum() int {
 // 是否可以投票
 func (n *Node) canVote(e types.Event) bool {
 
-	if n.cfg.Term > e.Term { // 如果当前任期大于候选人任期，拒绝投票
+	// 检查候选人日志信息是否存在
+	if len(e.Logs) == 0 {
+		n.Info("candidate log info missing, reject vote")
+		return false
+	}
+
+	if n.cfg.Term > e.Term { // 如果当前任期大于候选人任期，拒绝投票 (不能等于，因为前面becomeFollower的时候，会更新任期 TODO:这里逻辑有点问题，因为n.cfg.Term 永远等于e.Term)
 		n.Info("current term is greater than candidate term", zap.Uint32("term", n.cfg.Term), zap.Uint32("candidateTerm", e.Term))
 		return false
 	}
@@ -529,6 +552,10 @@ func (n *Node) roleSwitchIfNeed(e types.Event) {
 		return
 	}
 
+	if n.cfg.MigrateTo != e.From { // 迁移目标节点不是当前同步节点，才进行进行角色切换
+		return
+	}
+
 	syncInfo := n.replicaSync[e.From]
 	if syncInfo.roleSwitching {
 		return
@@ -549,10 +576,15 @@ func (n *Node) roleSwitchIfNeed(e types.Event) {
 
 		} else { // 学习者转追随者
 			// 如果learner的日志已经追上了follower的日志，那么将learner转为follower
-			if e.Index+n.opts.LearnerToFollowerMinLogGap > n.queue.lastLogIndex {
+			if len(n.cfg.Replicas) == 1 && e.Index > n.queue.lastLogIndex { // 如果只有一个副本,则学习者必须完全追上领导者的日志，才能做转换。（因为转换的这个follower会导致重新选举）
 				syncInfo.roleSwitching = true
-				// 发送学习者转为追随者
 				n.sendLearnerToFollowerReq(e.From)
+			} else {
+				if e.Index+n.opts.LearnerToFollowerMinLogGap > n.queue.lastLogIndex {
+					syncInfo.roleSwitching = true
+					// 发送学习者转为追随者
+					n.sendLearnerToFollowerReq(e.From)
+				}
 			}
 		}
 	} else if n.cfg.MigrateFrom == n.cfg.Leader && n.cfg.MigrateTo == e.From { // // 追随者转为领导者

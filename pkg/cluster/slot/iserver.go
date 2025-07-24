@@ -69,5 +69,31 @@ func (s *Server) ProposeUntilAppliedTimeout(ctx context.Context, slotId uint32, 
 }
 
 func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {
+	tk := time.NewTicker(time.Millisecond * 10)
+	defer tk.Stop()
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
+	for {
+		select {
+		case <-tk.C:
+			slots := s.opts.Node.Slots()
+			if len(slots) > 0 {
+				notReady := false
+				for _, st := range slots {
+					if st.Leader == 0 {
+						notReady = true
+						break
+					}
+				}
+				if !notReady {
+					return
+				}
+
+			}
+		case <-timeoutCtx.Done():
+			s.Panic("wait all slots ready timeout")
+			return
+		}
+	}
 }
