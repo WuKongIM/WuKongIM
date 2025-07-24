@@ -28,6 +28,9 @@ type ICluster interface {
 
 	// MustWaitClusterReady 等待集群准备完成
 	MustWaitClusterReady(timeout time.Duration) error
+
+	// CheckClusterStatus 检查集群状态
+	CheckClusterStatus() error
 }
 
 type IClusterSlot interface {
@@ -45,6 +48,9 @@ type IClusterSlot interface {
 
 	// GetSlotId 获取字符串对应的槽ID
 	GetSlotId(v string) uint32
+
+	// Slots 获取所有槽信息
+	Slots() []*types.Slot
 
 	// SlotLeaderId 获取槽的领导节点ID
 	SlotLeaderId(slotId uint32) uint64

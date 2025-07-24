@@ -131,8 +131,6 @@ func CreateVarz(s *Server) *Varz {
 		TreeState:      version.TreeState,
 		ManagerUID:     opts.ManagerUID,
 		ManagerTokenOn: wkutil.BoolToInt(opts.ManagerTokenOn),
-
-		ConversationCacheCount: service.ConversationManager.CacheCount(),
 	}
 }
 

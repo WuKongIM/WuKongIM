@@ -11,6 +11,9 @@ type IConnManager interface {
 	RemoveConn(conn wknet.Conn)
 	// GetConn 获取连接
 	GetConn(connID int64) wknet.Conn
+
+	// GetConnByFd 根据fd获取连接
+	GetConnByFd(fd int) wknet.Conn
 	// ConnCount 获取连接数量
 	ConnCount() int
 

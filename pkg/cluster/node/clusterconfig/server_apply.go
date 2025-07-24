@@ -35,6 +35,7 @@ func (s *Server) applyLog(log types.Log) error {
 	s.config.cfg.Term = log.Term
 	s.config.cfg.Version = log.Index
 
+	// fmt.Println("apply log", log.Index, log.Term, cmd.CmdType.String())
 	err = s.config.saveConfig()
 	if err != nil {
 		s.Error("save config err", zap.Error(err))

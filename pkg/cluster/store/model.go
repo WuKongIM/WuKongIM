@@ -1,14 +1,16 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
+
+var ErrStoreStopped = fmt.Errorf("store stopped")
 
 type CMDType uint16
 
@@ -89,6 +91,18 @@ const (
 	CMDAddOrUpdateTester
 	// 移除测试机
 	CMDRemoveTester
+	// 更新用户插件号
+	CMDUpdateUserPluginNo
+	// 添加或更新插件
+	CMDAddOrUpdatePlugin
+	// 更新插件配置
+	CMDUpdatePluginConfig
+	// 移除插件用户
+	CMDRemovePluginUser
+	// 批量添加最近会话如果存在则不添加
+	CMDAddOrUpdateConversationsBatchIfNotExist
+	// 更新最近会话的已删除的消息序号位置
+	CMDUpdateConversationDeletedAtMsgSeq
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -171,6 +185,18 @@ func (c CMDType) String() string {
 		return "CMDAddOrUpdateTester"
 	case CMDRemoveTester:
 		return "CMDRemoveTester"
+	case CMDUpdateUserPluginNo:
+		return "CMDUpdateUserPluginNo"
+	case CMDAddOrUpdatePlugin:
+		return "CMDAddOrUpdatePlugin"
+	case CMDUpdatePluginConfig:
+		return "CMDUpdatePluginConfig"
+	case CMDRemovePluginUser:
+		return "CMDRemovePluginUser"
+	case CMDAddOrUpdateConversationsBatchIfNotExist:
+		return "CMDAddOrUpdateConversationsBatchIfNotExist"
+	case CMDUpdateConversationDeletedAtMsgSeq:
+		return "CMDUpdateConversationDeletedAtMsgSeq"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -199,7 +225,9 @@ func NewCMDWithVersion(cmdType CMDType, data []byte, version CmdVersion) *CMD {
 }
 
 func (c *CMD) Marshal() ([]byte, error) {
-	c.version = 1
+	if c.version == 0 {
+		c.version = 1
+	}
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint16(c.version.Uint16())
@@ -460,7 +488,38 @@ func (c *CMD) CMDContent() (string, error) {
 			return "", err
 		}
 		return wkutil.ToJSON(conversations), nil
-
+	case CMDAddOrUpdatePlugin:
+		plugin, err := c.DecodeCMDPlugin()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(plugin), nil
+	case CMDUpdatePluginConfig:
+		pluginNo, config, err := c.DecodeCMDPluginConfig()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"pluginNo": pluginNo,
+			"config":   config,
+		}), nil
+	case CMDAddOrUpdateConversationsBatchIfNotExist:
+		conversations, err := c.DecodeCMDAddOrUpdateConversations()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(conversations), nil
+	case CMDUpdateConversationDeletedAtMsgSeq:
+		uid, channelId, channelType, deletedAtMsgSeq, err := c.DecodeCMDUpdateConversationDeletedAtMsgSeq()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"uid":             uid,
+			"channelId":       channelId,
+			"channelType":     channelType,
+			"deletedAtMsgSeq": deletedAtMsgSeq,
+		}), nil
 	}
 
 	return "", nil
@@ -796,6 +855,10 @@ func EncodeChannelInfo(c wkdb.ChannelInfo, version CmdVersion) ([]byte, error) {
 	if version > 0 {
 		enc.WriteString(c.Webhook)
 	}
+	if version > 2 {
+		enc.WriteUint8(wkutil.BoolToUint8(c.AllowStranger))
+		enc.WriteUint8(wkutil.BoolToUint8(c.SendBan))
+	}
 	return enc.Bytes(), nil
 }
 
@@ -849,6 +912,19 @@ func (c *CMD) DecodeChannelInfo() (wkdb.ChannelInfo, error) {
 		if channelInfo.Webhook, err = dec.String(); err != nil {
 			return channelInfo, err
 		}
+	}
+
+	if c.version > 2 {
+		var allowStranger uint8
+		if allowStranger, err = dec.Uint8(); err != nil {
+			return channelInfo, err
+		}
+		var sendBan uint8
+		if sendBan, err = dec.Uint8(); err != nil {
+			return channelInfo, err
+		}
+		channelInfo.AllowStranger = wkutil.Uint8ToBool(allowStranger)
+		channelInfo.SendBan = wkutil.Uint8ToBool(sendBan)
 	}
 
 	return channelInfo, err
@@ -1145,7 +1221,9 @@ func EncodeCMDAddStreams(streams []*wkdb.Stream) []byte {
 	defer encoder.End()
 	encoder.WriteUint32(uint32(len(streams)))
 	for _, stream := range streams {
-		encoder.WriteBinary(stream.Encode())
+		data := stream.Encode()
+		encoder.WriteUint32(uint32(len(data)))
+		encoder.WriteBytes(data)
 	}
 	return encoder.Bytes()
 }
@@ -1159,10 +1237,16 @@ func (c *CMD) DecodeCMDAddStreams() ([]*wkdb.Stream, error) {
 	}
 	streams := make([]*wkdb.Stream, 0, count)
 	for i := uint32(0); i < count; i++ {
-		data, err := decoder.Binary()
+		dataLen, err := decoder.Uint32()
 		if err != nil {
 			return nil, err
 		}
+
+		data, err := decoder.Bytes(int(dataLen))
+		if err != nil {
+			return nil, err
+		}
+
 		stream := &wkdb.Stream{}
 		if err = stream.Decode(data); err != nil {
 			return nil, err
@@ -1289,9 +1373,214 @@ func (c *CMD) DecodeCMDRemoveTester() (no string, err error) {
 	return
 }
 
-var ErrStoreStopped = fmt.Errorf("store stopped")
+func EncodeCMDUserPluginNo(p wkdb.PluginUser) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(p.Uid)
+	encoder.WriteString(p.PluginNo)
 
-type applyReq struct {
-	logs  []types.Log
-	waitC chan error
+	var createdAt uint64 = 0
+	var updatedAt uint64 = 0
+	if p.CreatedAt != nil {
+		createdAt = uint64(p.CreatedAt.UnixNano())
+	}
+	if p.UpdatedAt != nil {
+		updatedAt = uint64(p.UpdatedAt.UnixNano())
+	}
+	encoder.WriteUint64(createdAt)
+	encoder.WriteUint64(updatedAt)
+
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDUserPluginNo() (wkdb.PluginUser, error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	var pluginUser = wkdb.PluginUser{}
+	var err error
+	if pluginUser.Uid, err = decoder.String(); err != nil {
+		return pluginUser, err
+	}
+	if pluginUser.PluginNo, err = decoder.String(); err != nil {
+		return pluginUser, err
+	}
+
+	var createdAt uint64
+	if createdAt, err = decoder.Uint64(); err != nil {
+		return pluginUser, err
+	}
+	if createdAt > 0 {
+		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+		pluginUser.CreatedAt = &ct
+	}
+	var updatedAt uint64
+	if updatedAt, err = decoder.Uint64(); err != nil {
+		return pluginUser, err
+	}
+	if updatedAt > 0 {
+		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+		pluginUser.UpdatedAt = &ct
+	}
+	return pluginUser, nil
+}
+
+func EncodeCMDPluginUser(pluginNo string, uid string) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(pluginNo)
+	encoder.WriteString(uid)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDPluginUser() (pluginNo string, uid string, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if pluginNo, err = decoder.String(); err != nil {
+		return
+	}
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDPlugin(p wkdb.Plugin) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(p.No)
+	encoder.WriteString(p.Name)
+	encoder.WriteUint32(uint32(len(p.ConfigTemplate)))
+	encoder.WriteBytes(p.ConfigTemplate)
+
+	var createdAt uint64 = 0
+	var updatedAt uint64 = 0
+	if p.CreatedAt != nil {
+		createdAt = uint64(p.CreatedAt.UnixNano())
+	}
+	if p.UpdatedAt != nil {
+		updatedAt = uint64(p.UpdatedAt.UnixNano())
+	}
+	encoder.WriteUint64(createdAt)
+	encoder.WriteUint64(updatedAt)
+	encoder.WriteUint32(uint32(p.Status))
+	encoder.WriteString(p.Version)
+	// methods
+	encoder.WriteUint16(uint16(len(p.Methods)))
+	for _, method := range p.Methods {
+		encoder.WriteString(method)
+	}
+	// priority
+	encoder.WriteUint32(p.Priority)
+
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDPlugin() (p wkdb.Plugin, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if p.No, err = decoder.String(); err != nil {
+		return
+	}
+	if p.Name, err = decoder.String(); err != nil {
+		return
+	}
+	var configLen uint32
+	if configLen, err = decoder.Uint32(); err != nil {
+		return
+	}
+	if p.ConfigTemplate, err = decoder.Bytes(int(configLen)); err != nil {
+		return
+	}
+
+	var createdAt uint64
+	if createdAt, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if createdAt > 0 {
+		ct := time.Unix(int64(createdAt/1e9), int64(createdAt%1e9))
+		p.CreatedAt = &ct
+	}
+	var updatedAt uint64
+	if updatedAt, err = decoder.Uint64(); err != nil {
+		return
+	}
+	if updatedAt > 0 {
+		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
+		p.UpdatedAt = &ct
+	}
+	var status uint32
+	if status, err = decoder.Uint32(); err != nil {
+		return
+	}
+	p.Status = wkdb.PluginStatus(status)
+	if p.Version, err = decoder.String(); err != nil {
+		return
+	}
+	var methodLen uint16
+	if methodLen, err = decoder.Uint16(); err != nil {
+		return
+	}
+	p.Methods = make([]string, methodLen)
+	for i := uint16(0); i < methodLen; i++ {
+		if p.Methods[i], err = decoder.String(); err != nil {
+			return
+		}
+	}
+	if p.Priority, err = decoder.Uint32(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDPluginConfig(pluginNo string, config map[string]interface{}) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(pluginNo)
+
+	cfgData, _ := json.Marshal(config)
+	encoder.WriteUint32(uint32(len(cfgData)))
+	encoder.WriteBytes(cfgData)
+
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDPluginConfig() (pluginNo string, config map[string]interface{}, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if pluginNo, err = decoder.String(); err != nil {
+		return
+	}
+	var cfgLen uint32
+	if cfgLen, err = decoder.Uint32(); err != nil {
+		return
+	}
+	cfgData, err := decoder.Bytes(int(cfgLen))
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(cfgData, &config)
+	return
+}
+
+func EncodeCMDUpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	encoder.WriteUint64(deletedAtMsgSeq)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if deletedAtMsgSeq, err = decoder.Uint64(); err != nil {
+		return
+	}
+	return
 }

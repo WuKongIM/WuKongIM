@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/options"
+	"github.com/WuKongIM/WuKongIM/internal/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
@@ -12,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 )
 
@@ -24,7 +26,9 @@ type apiServer struct {
 
 // NewAPIServer new一个api server
 func newApiServer(s *Server) *apiServer {
-	r := wkhttp.New()
+	// r := wkhttp.New()
+	log := wklog.NewWKLog("apiServer")
+	r := wkhttp.NewWithLogger(wkhttp.LoggerWithWklog(log))
 
 	if options.G.PprofOn {
 		pprof.Register(r.GetGinRoute()) // 注册pprof
@@ -34,7 +38,7 @@ func newApiServer(s *Server) *apiServer {
 		r:    r,
 		addr: options.G.HTTPAddr,
 		s:    s,
-		Log:  wklog.NewWKLog("apiServer"),
+		Log:  log,
 	}
 	return hs
 }
@@ -42,7 +46,8 @@ func newApiServer(s *Server) *apiServer {
 // Start 开始
 func (s *apiServer) start() {
 
-	s.r.Use(func(c *wkhttp.Context) { // 管理者权限判断
+	s.r.Use(s.jwtAndTokenAuthSetMiddleware()) // 如果存在jwt则解析jwt将信息放入上下文（并不做验证）
+	s.r.Use(func(c *wkhttp.Context) {         // 管理者权限判断
 		if strings.TrimSpace(options.G.ManagerToken) == "" {
 			c.Next()
 			return
@@ -78,6 +83,17 @@ func (s *apiServer) stop() {
 func (s *apiServer) setRoutes() {
 
 	s.r.GET("/health", func(c *wkhttp.Context) {
+
+		// 检查分布式集群是否正常
+		clusterServer, ok := service.Cluster.(*cluster.Server)
+		if ok {
+			err := clusterServer.CheckClusterStatus()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+				return
+			}
+		}
+
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -131,10 +147,55 @@ func (s *apiServer) setRoutes() {
 		clusterServer.ServerAPI(s.r, "/cluster")
 	}
 
+	// plugin
+	pluginServer := service.PluginManager.(*plugin.Server)
+	pluginServer.SetRoute(s.r)
+
 	// // 系统api
 	// system := NewSystemAPI(s.s)
 	// system.Route(s.r)
 
+}
+
+func (s *apiServer) jwtAndTokenAuthSetMiddleware() wkhttp.HandlerFunc {
+	return func(c *wkhttp.Context) {
+
+		// 认证jwt
+		authorization := c.GetHeader("Authorization")
+		if authorization == "" {
+			authorization = c.Query("Authorization")
+		}
+
+		if authorization == "" {
+			c.Next()
+			return
+		}
+		authorization = strings.TrimPrefix(authorization, "Bearer ")
+		if authorization == "" {
+			c.Next()
+			return
+		}
+
+		jwtToken, err := jwt.ParseWithClaims(authorization, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
+			return []byte(options.G.Jwt.Secret), nil
+		})
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		if !jwtToken.Valid {
+			c.Next()
+			return
+		}
+		mapCaims := jwtToken.Claims.(jwt.MapClaims)
+		if mapCaims["username"] == "" {
+			c.Next()
+			return
+		}
+		c.Set("username", mapCaims["username"])
+		c.Next()
+	}
 }
 
 func bandwidthMiddleware() wkhttp.HandlerFunc {

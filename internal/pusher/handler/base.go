@@ -14,6 +14,7 @@ func NewHandler() *Handler {
 	h := &Handler{
 		Log: wklog.NewWKLog("handler"),
 	}
+
 	h.routes()
 	return h
 }

@@ -58,9 +58,9 @@ func (c *channelTransport) Send(key string, event types.Event) {
 		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindChannel, int64(msg.Size()))
 	}
 
-	err = node.send(msg)
+	err = node.SendWithPriority(msg, isHighPriority(event))
 	if err != nil {
-		c.Error("Send event failed", zap.Error(err), zap.String("key", key), zap.String("event", event.String()))
+		c.Error("Send event failed", zap.Error(err), zap.String("key", key), zap.String("event", event.Type.String()))
 		return
 	}
 }

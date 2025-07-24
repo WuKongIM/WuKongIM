@@ -70,6 +70,12 @@ func (w *WSConn) WriteServerBinary(data []byte) error {
 	return wsutil.WriteServerBinary(w.outboundBuffer, data)
 }
 
+func (w *WSConn) WriteServerText(data []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return wsutil.WriteServerText(w.outboundBuffer, data)
+}
+
 // 解包ws的数据
 func (w *WSConn) unpacketWSData() error {
 
@@ -94,9 +100,14 @@ func (w *WSConn) unpacketWSData() error {
 				}
 				continue
 			}
-			_, err = w.inboundBuffer.Write(msg.Payload)
-			if err != nil {
-				return err
+			if msg.OpCode == ws.OpPing {
+				w.KeepLastActivity()
+			}
+			if len(msg.Payload) > 0 {
+				_, err = w.inboundBuffer.Write(msg.Payload)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -386,9 +397,14 @@ func (w *WSSConn) unpacketWSData() error {
 				}
 				continue
 			}
-			_, err = w.d.inboundBuffer.Write(msg.Payload)
-			if err != nil {
-				return err
+			if msg.OpCode == ws.OpPing {
+				w.d.KeepLastActivity()
+			}
+			if len(msg.Payload) > 0 {
+				_, err = w.d.inboundBuffer.Write(msg.Payload)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -405,6 +421,12 @@ func (w *WSSConn) WriteServerBinary(data []byte) error {
 	w.d.mu.Lock()
 	defer w.d.mu.Unlock()
 	return wsutil.WriteServerBinary(w.TLSConn, data)
+}
+
+func (w *WSSConn) WriteServerText(data []byte) error {
+	w.d.mu.Lock()
+	defer w.d.mu.Unlock()
+	return wsutil.WriteServerText(w.TLSConn, data)
 }
 
 func (w *WSSConn) decode() ([]wsutil.Message, error) {

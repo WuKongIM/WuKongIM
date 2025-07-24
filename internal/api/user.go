@@ -48,6 +48,8 @@ func (u *user) route(r *wkhttp.WKHttp) {
 	r.POST("/user/systemuids_add_to_cache", u.systemUidsAddToCache)           // 仅仅添加系统账号至缓存
 	r.POST("/user/systemuids_remove_from_cache", u.systemUidsRemoveFromCache) // 仅仅从缓存中移除系统账号
 
+	r.POST("/user/update_plugin_no", u.updatePluginNo) // 更新插件编号
+
 }
 
 // 强制设备退出
@@ -91,7 +93,7 @@ func (u *user) deviceQuit(c *wkhttp.Context) {
 func (u *user) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
 
 	device, err := service.Store.GetDevice(uid, deviceFlag)
-	if err != nil {
+	if err != nil && err != wkdb.ErrNotFound {
 		u.Error("获取设备信息失败！", zap.Error(err), zap.String("uid", uid), zap.Uint8("deviceFlag", deviceFlag.ToUint8()))
 		return err
 	}
@@ -117,7 +119,7 @@ func (u *user) quitUserDevice(uid string, deviceFlag wkproto.DeviceFlag) error {
 	oldConns := eventbus.User.ConnsByDeviceFlag(uid, deviceFlag)
 	if len(oldConns) > 0 {
 		for _, oldConn := range oldConns {
-			eventbus.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
+			eventbus.User.ConnWrite("", oldConn, &wkproto.DisconnectPacket{
 				ReasonCode: wkproto.ReasonConnectKick,
 			})
 			u.s.timingWheel.AfterFunc(time.Second*2, func() {
@@ -174,6 +176,8 @@ func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, err
 		uidList = append(uidList, uid)
 		uidInPeerMap[leaderInfo.Id] = uidList
 	}
+
+	var mu sync.Mutex
 	var conns []*OnlinestatusResp
 	if len(localUids) > 0 {
 		conns = u.getOnlineConns(localUids)
@@ -188,7 +192,9 @@ func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, err
 				if err != nil {
 					reqErr = err
 				} else {
+					mu.Lock()
 					conns = append(conns, results...)
+					mu.Unlock()
 				}
 				wg.Done()
 			}(nodeId, uidList)
@@ -364,7 +370,7 @@ func (u *user) updateToken(c *wkhttp.Context) {
 			for _, oldConn := range oldConns {
 				u.Debug("更新Token时，存在旧连接！", zap.String("uid", req.UID), zap.Int64("id", oldConn.ConnId), zap.String("deviceFlag", req.DeviceFlag.String()))
 				// 踢旧连接
-				eventbus.User.ConnWrite(oldConn, &wkproto.DisconnectPacket{
+				eventbus.User.ConnWrite("", oldConn, &wkproto.DisconnectPacket{
 					ReasonCode: wkproto.ReasonConnectKick,
 					Reason:     "账号在其他设备上登录",
 				})
@@ -601,6 +607,41 @@ func (u *user) getSystemUids(c *wkhttp.Context) {
 	}
 
 	c.JSON(http.StatusOK, uids)
+}
+
+func (u *user) updatePluginNo(c *wkhttp.Context) {
+	var req struct {
+		UID      string `json:"uid"`
+		PluginNo string `json:"plugin_no"`
+	}
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		u.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson) // 获取频道的领导节点
+	if err != nil {
+		u.Error("updatePluginNo: 获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+	if !leaderIsSelf {
+		u.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	err = service.Store.UpdateUserPluginNo(req.UID, req.PluginNo)
+	if err != nil {
+		u.Error("更新用户插件编号失败！", zap.Error(err), zap.String("uid", req.UID), zap.String("pluginNo", req.PluginNo))
+		c.ResponseError(err)
+		return
+	}
+
+	c.ResponseOK()
 }
 
 // UpdateTokenReq 更新token请求

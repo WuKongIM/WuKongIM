@@ -116,7 +116,7 @@ func (r *Raft) Step(e types.Event) {
 func (r *Raft) StepWait(ctx context.Context, e types.Event) error {
 	if r.pause.Load() {
 		r.Info("raft is paused, ignore event", zap.String("event", e.String()))
-		return ErrPaused
+		return types.ErrPaused
 	}
 	// 处理其他副本发过来的提案
 	if e.Type == types.SendPropose {
@@ -133,7 +133,7 @@ func (r *Raft) StepWait(ctx context.Context, e types.Event) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-r.stopper.ShouldStop():
-		return ErrStopped
+		return types.ErrStopped
 	}
 
 	select {
@@ -142,7 +142,7 @@ func (r *Raft) StepWait(ctx context.Context, e types.Event) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-r.stopper.ShouldStop():
-		return ErrStopped
+		return types.ErrStopped
 	}
 }
 
@@ -185,6 +185,10 @@ func (r *Raft) BecomeFollower(term uint32, leader uint64) {
 	r.node.BecomeFollower(term, leader)
 }
 
+func (r *Raft) KeepAlive() {
+	r.node.KeepAlive()
+}
+
 func (r *Raft) loop() {
 	tk := time.NewTicker(r.opts.TickInterval)
 	for {
@@ -217,15 +221,19 @@ func (r *Raft) readyEvents() {
 	for _, e := range events {
 		switch e.Type {
 		case types.StoreReq: // 处理存储请求
+			r.node.KeepAlive()
 			r.handleStoreReq(e)
 			continue
 		case types.GetLogsReq: // 处理获取日志请求
+			r.node.KeepAlive()
 			r.handleGetLogsReq(e)
 			continue
 		case types.TruncateReq: // 截断请求
+			r.node.KeepAlive()
 			r.handleTruncateReq(e)
 			continue
 		case types.ApplyReq: // 处理应用请求
+			r.node.KeepAlive()
 			r.handleApplyReq(e)
 			continue
 			// 角色转换
@@ -241,7 +249,7 @@ func (r *Raft) readyEvents() {
 			continue
 		}
 
-		if e.To == types.LocalNode {
+		if e.To == types.LocalNode || e.To == r.opts.NodeId {
 			err := r.node.Step(e)
 			if err != nil {
 				r.node.Error("step error", zap.Error(err))

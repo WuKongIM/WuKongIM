@@ -33,4 +33,6 @@ type IRaft interface {
 	Unlock()
 	// 获取raft配置
 	Config() types.Config
+	// KeepAlive 保持活跃
+	KeepAlive()
 }

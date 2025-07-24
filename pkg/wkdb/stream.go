@@ -62,10 +62,7 @@ func (wk *wukongDB) AddStreams(streams []*Stream) error {
 func (wk *wukongDB) GetStreams(streamNo string) ([]*Stream, error) {
 	db := wk.shardDB(streamNo)
 
-	batch := db.NewBatch()
-	defer batch.Close()
-
-	iter := batch.NewIter(&pebble.IterOptions{
+	iter := db.NewIter(&pebble.IterOptions{
 		LowerBound: key.NewStreamIndexKey(streamNo, 0),
 		UpperBound: key.NewStreamIndexKey(streamNo, math.MaxUint64),
 	})
@@ -148,6 +145,7 @@ func (s *Stream) Encode() []byte {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteInt16(int(s.version))
+	enc.WriteUint64(s.StreamId)
 	enc.WriteString(s.StreamNo)
 	enc.WriteBytes(s.Payload)
 	return enc.Bytes()
@@ -159,6 +157,11 @@ func (s *Stream) Decode(data []byte) error {
 	if s.version, err = dec.Int16(); err != nil {
 		return err
 	}
+
+	if s.StreamId, err = dec.Uint64(); err != nil {
+		return err
+	}
+
 	if s.StreamNo, err = dec.String(); err != nil {
 		return err
 	}

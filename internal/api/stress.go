@@ -256,41 +256,19 @@ func (s *stress) report(c *wkhttp.Context) {
 func (s *stress) templates(c *wkhttp.Context) {
 	templates := []template{
 		{
-			Name: "正常聊天",
+			Name: "性能测试-发送速率",
 			Task: &taskCfg{
-				Online: 10000,
+				Online: 1000,
 				Channels: []*channelCfg{
-					{
-						Count: 200,
-						Type:  2,
-						Subscriber: &subscriberCfg{
-							Count:  200,
-							Online: 50,
-						},
-						MsgRate: 30,
-					},
 					{
 						Count: 100,
 						Type:  2,
 						Subscriber: &subscriberCfg{
-							Count:  500,
-							Online: 125,
+							Count:  100,
+							Online: 1,
 						},
-						MsgRate: 30,
+						MsgRate: 6000,
 					},
-					{
-						Count: 1,
-						Type:  2,
-						Subscriber: &subscriberCfg{
-							Count:  1000,
-							Online: 250,
-						},
-						MsgRate: 30,
-					},
-				},
-				P2p: &p2pCfg{
-					Count:   1000,
-					MsgRate: 30,
 				},
 			},
 		},
@@ -464,13 +442,13 @@ type taskCfg struct {
 	ChannelPrefix string        `json:"channel_prefix"` // 频道前缀
 }
 
-func (t *taskCfg) check() error {
-	if t.Online <= 0 {
-		return errors.New("online must be greater than 0")
-	}
+// func (t *taskCfg) check() error {
+// 	if t.Online <= 0 {
+// 		return errors.New("online must be greater than 0")
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 type channelCfg struct {
 	Count      int            `json:"count"`      //  创建频道数

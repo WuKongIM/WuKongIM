@@ -68,6 +68,16 @@ export class ConversationWrap {
         return this.conversation.simpleReminders
     }
 
+    public get conversationDigest() {
+        if(!this.lastMessage) {
+            return ""
+        }
+        if(this.lastMessage.streamOn) {
+            return "[流消息]"
+        }
+        return this.lastMessage.content.conversationDigest 
+    }
+
     reloadIsMentionMe(): void {
         return this.conversation.reloadIsMentionMe()
     }

@@ -8,9 +8,10 @@ import (
 
 type ConnManager struct {
 	bluckets []*connBlucket
+	engine   *wknet.Engine // 长连接引擎
 }
 
-func NewConnManager(blucketCount int) *ConnManager {
+func NewConnManager(blucketCount int, engine *wknet.Engine) *ConnManager {
 	connBluckets := make([]*connBlucket, blucketCount)
 	for i := 0; i < blucketCount; i++ {
 		connBluckets[i] = &connBlucket{
@@ -19,6 +20,7 @@ func NewConnManager(blucketCount int) *ConnManager {
 	}
 	return &ConnManager{
 		bluckets: connBluckets,
+		engine:   engine,
 	}
 }
 
@@ -32,6 +34,11 @@ func (m *ConnManager) RemoveConn(conn wknet.Conn) {
 
 func (m *ConnManager) GetConn(connID int64) wknet.Conn {
 	return m.blucket(connID).getConn(connID)
+}
+
+func (m *ConnManager) GetConnByFd(fd int) wknet.Conn {
+	conn := m.engine.GetConn(fd)
+	return conn
 }
 
 func (m *ConnManager) blucket(connId int64) *connBlucket {

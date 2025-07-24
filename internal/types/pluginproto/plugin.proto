@@ -1,0 +1,305 @@
+syntax = "proto3";
+
+package pluginproto;
+
+option go_package = "./;pluginproto";
+
+
+// 插件信息
+message PluginInfo {
+    // 插件唯一编号
+    string no = 1;
+    // 插件名称
+    string name = 2;
+    // 插件拥有的方法
+    repeated string methods = 3;
+    // 插件版本
+    string version = 4;
+    // 插件优先级, 数字越大优先级越高
+    int32 priority = 5;
+    // PersistAfter方法是否同步调用
+    bool persistAfterSync = 6;
+    // Reply方法是否同步调用
+    bool replySync = 7;
+    // 插件配置模版
+    ConfigTemplate configTemplate = 8;
+}
+
+
+message Field {
+    string name = 1;
+    string type = 2;
+    string label = 3;
+}
+
+message ConfigTemplate {
+    repeated Field fields = 1;
+}
+
+// 插件启动返回
+message StartupResp {
+    // 节点id
+    uint64 nodeId = 1; 
+    // 是否成功
+    bool success = 2;
+    // 错误信息
+    string errMsg = 3;
+    // 沙盒路径
+    string sandboxDir = 4;
+    // 配置
+    bytes config = 5;
+}
+
+message Conn {
+    // 用户uid
+    string uid  = 1; 
+    int64 connId = 2; // 连接id
+    string deviceId = 3; // 设备id
+    uint32 deviceFlag = 4; // 设备标志
+    uint32 deviceLevel = 5; // 设备等级
+}
+
+// 发送包
+message SendPacket {
+    // 发送者
+    string fromUid = 1;
+    // 接收频道
+    string channelId = 2;
+    // 频道类型
+    uint32 channelType = 3;  
+    // 消息内容
+    bytes payload = 4;
+    // 错误原因（默认为成功）
+    uint32 reason = 5; 
+    // 发送者的连接
+    Conn conn = 6; // 发送者的连接
+}
+
+// 接收包
+message RecvPacket {
+     // 发送者
+    string fromUid = 1;
+    // 接受者
+    string toUid = 2;
+    // 接收频道
+    string channelId = 3;
+    // 频道类型
+    uint32 channelType = 4;  
+    // 消息内容
+    bytes payload = 5;
+}
+
+message Message {
+    // 消息唯一id（全局唯一）
+    int64 messageId = 1;
+    // 消息序号（频道内严格递增）
+    uint64 messageSeq = 2;
+    // 客户端消息编号
+    string clientMsgNo = 3;
+    // 流编号
+    string streamNo = 4;
+    // 流序号
+    uint64 streamId = 5;
+    // 消息时间戳
+    uint32 timestamp = 6;
+    // 发送者
+    string from = 7;
+     // 接收频道
+     string channelId = 8;
+     // 频道类型
+     uint32 channelType = 9;  
+     // topic
+     string topic = 10;
+    // 消息内容
+    bytes payload = 11;
+}
+
+
+message MessageBatch {
+    repeated Message messages = 1;
+}
+
+// http请求
+message HttpRequest {
+    // 请求方法
+    string method = 1;
+    // 请求路径
+    string path = 2;
+    // 请求头
+    map<string, string> headers = 3;
+    // 查询参数
+    map<string, string> query = 4;
+    // 请求体
+    bytes body = 5;
+}
+
+// http响应
+message HttpResponse {
+    // 状态码
+    int32 status = 1;
+    // 响应头
+    map<string, string> headers = 2;
+    // 响应体
+    bytes body = 3;
+}
+
+// 频道消息请求
+message ChannelMessageReq {
+    // 频道id
+    string channelId = 1;
+    // 频道类型
+    uint32 channelType = 2;
+    // 消息开始序号
+    uint64 startMessageSeq = 3;
+    // 查询数量，默认100
+    uint32 limit = 4;
+}
+
+message ChannelMessageBatchReq {
+    repeated ChannelMessageReq channelMessageReqs = 1;
+}
+
+// 频道消息请求
+message ChannelMessageResp {
+    // 频道id
+    string channelId = 1;
+    // 频道类型
+    uint32 channelType = 2;
+    // 消息开始序号
+    uint64 startMessageSeq = 3;
+    // 查询数量，默认100
+    uint32 limit = 4;
+    // 消息列表
+    repeated Message messages = 5;
+}
+
+message ChannelMessageBatchResp {
+    repeated ChannelMessageResp channelMessageResps = 1;
+}
+
+
+// wukongim的分布式配置
+message ClusterConfig {
+    repeated Node nodes = 1; // 分布式中的节点
+    repeated Slot slots = 2; // 分布式中的槽位
+}
+
+// wk节点
+message Node {
+    uint64 id = 1; // 节点id
+    string clusterAddr = 2; // 节点分布式通讯地址
+    string apiServerAddr = 3; // 节点api服务地址
+    bool online = 4; // 是否在线
+}
+
+// wk的slot
+message Slot {
+    uint32 id = 1; // 槽位id
+    uint64 leader = 2; // 槽位的领导节点
+    uint32 term = 3; // 槽位的领导任期
+    repeated uint64 replicas = 4; // 副本节点(包含领导节点)
+}
+
+// 频道对象
+message Channel {
+    string channelId = 1; // 频道id
+    uint32 channelType = 2; // 频道类型
+}
+
+// 频道节点请求
+message ClusterChannelBelongNodeReq {
+    repeated Channel channels = 1; // 频道列表
+}
+
+// 频道节点响应
+message ClusterChannelBelongNodeResp {
+    uint64 nodeId = 1; // 频道节点Id
+    repeated Channel channels = 2; // 频道列表
+}
+
+// 频道节点批量响应
+message ClusterChannelBelongNodeBatchResp {
+    repeated ClusterChannelBelongNodeResp clusterChannelBelongNodeResps = 1;
+}
+
+//  http请求转发
+message ForwardHttpReq {
+    string pluginNo = 1; // 插件编号
+    int64 toNodeId = 2; // 目标节点id,如果为0则表示本节点,-1为所有节点
+    HttpRequest request = 3; // 请求
+}
+
+
+// 最近会话频道请求
+message ConversationChannelReq {
+    string uid = 1; // 用户uid
+}
+
+// 最近会话频道响应
+message ConversationChannelResp {
+    repeated Channel channels = 1; // 频道列表
+}
+
+message Header  {
+    bool noPersist = 1; // 是否持久化
+    bool redDot = 2; // 是否红点
+    bool syncOnce = 3; // 是否同步一次
+}
+
+// 流基本信息
+message Stream {
+    Header header = 1; // 头部
+    string clientMsgNo = 2;// 客户端消息编号（相同编号，客户端只会显示一条，可以为空）
+    string fromUid = 3; // 发送者uid
+    string channelId = 4; // 频道id
+    uint32 channelType = 5; // 频道类型
+    bytes payload = 6; // 消息内容
+}
+
+// 流开启结果
+message StreamOpenResp {
+    string streamNo = 1; // 流编号
+}
+
+// 流关闭请求
+message StreamCloseReq {
+    string streamNo = 1; // 流编号
+    string channelId = 2; // 频道id
+    uint32 channelType = 3; // 频道类型
+}
+
+// 流写入请求
+message StreamWriteReq {
+    Header header = 1; // 头部
+    string streamNo = 2; // 流编号
+    string clientMsgNo = 3;// 客户端消息编号（相同编号，客户端只会显示一条，可以为空）
+    string fromUid = 4; // 发送者uid
+    string channelId = 5; // 频道id
+    uint32 channelType = 6; // 频道类型
+    bytes payload = 7; // 消息内容
+   
+}
+
+// 流写入结果
+message StreamWriteResp {
+     // 消息唯一id（全局唯一）
+    int64 messageId = 1;
+    // 客户端消息编号
+    string clientMsgNo = 2;
+}
+
+// 发送消息请求
+message SendReq {
+    Header header = 1; // 头部
+    string clientMsgNo = 2;// 客户端消息编号（相同编号，客户端只会显示一条，可以为空）
+    string fromUid = 3; // 发送者
+    string channelId = 4; // 频道id
+    uint32 channelType = 5; // 频道类型
+    bytes payload = 6; // 消息内容
+}
+
+// 发送消息响应
+message SendResp {
+    // 消息唯一id（全局唯一）
+    int64 messageId = 1;
+}

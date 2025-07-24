@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/jsonrpc"
+
+	"github.com/WuKongIM/WuKongIM/internal/common"
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
-	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"go.uber.org/zap"
@@ -37,17 +39,41 @@ func (h *Handler) writeFrame(ctx *eventbus.UserContext) {
 func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 	conn := event.Conn
 	frame := event.Frame
-	data, err := eventbus.Proto.EncodeFrame(frame, conn.ProtoVersion)
-	if err != nil {
-		h.Error("writeFrame: encode frame err", zap.Error(err))
+
+	var (
+		data []byte
+		err  error
+	)
+
+	if conn.IsJsonRpc {
+		req, err := jsonrpc.FromFrame(event.ReqId, frame)
+		if err != nil {
+			h.Error("writeFrame jsonrpc: from frame err", zap.Error(err))
+			return
+		}
+		data, err = jsonrpc.Encode(req)
+		if err != nil {
+			h.Error("writeFrame jsonrpc: encode err", zap.Error(err))
+			return
+		}
+	} else {
+		data, err = eventbus.Proto.EncodeFrame(frame, conn.ProtoVersion)
+		if err != nil {
+			h.Error("writeFrame: encode frame err", zap.Error(err))
+		}
 	}
+
 	// 统计
 	h.totalOut(conn, frame)
 	// 记录消息路径
 	event.Track.Record(track.PositionConnWrite)
 
 	// 获取到真实连接
-	realConn := service.ConnManager.GetConn(conn.ConnId)
+	realConn, err := common.CheckConnValidAndGetRealConn(conn)
+	if err != nil {
+		h.Warn("writeFrame: conn invalid", zap.Error(err), zap.String("uid", conn.Uid), zap.String("deviceId", conn.DeviceId), zap.Int64("connId", conn.ConnId))
+		return
+	}
 	if realConn == nil {
 		h.Info("writeFrame: conn not exist", zap.String("uid", conn.Uid), zap.Uint64("nodeId", conn.NodeId), zap.Int64("connId", conn.ConnId), zap.Uint64("sourceNodeId", event.SourceNodeId))
 		// 如果连接不存在了，并且写入事件是其他节点发起的，说明其他节点还不知道连接已经关闭，需要通知其他节点关闭连接
@@ -58,13 +84,19 @@ func (h *Handler) writeLocalFrame(event *eventbus.Event) {
 				SourceNodeId: options.G.Cluster.NodeId,
 			})
 		} else if event.SourceNodeId == 0 || options.G.IsLocalNode(event.SourceNodeId) { // 如果是本节点事件，直接删除连接
-			eventbus.User.RemoveConn(conn)
+			eventbus.User.DirectRemoveConn(conn)
 		}
 		return
 	}
+
+	// 开始写入数据
 	wsConn, wsok := realConn.(wknet.IWSConn) // websocket连接
 	if wsok {
-		err := wsConn.WriteServerBinary(data)
+		if conn.IsJsonRpc {
+			err = wsConn.WriteServerText(data)
+		} else {
+			err = wsConn.WriteServerBinary(data)
+		}
 		if err != nil {
 			h.Warn("writeFrame: Failed to ws write the message", zap.Error(err))
 		}

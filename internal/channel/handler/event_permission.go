@@ -51,6 +51,7 @@ func (h *Handler) permission(ctx *eventbus.ChannelContext) {
 
 }
 
+// 先判断频道的权限
 func (h *Handler) hasPermissionForChannel(channelId string, channelType uint8) (wkproto.ReasonCode, error) {
 
 	// 资讯频道是公开的，直接通过
@@ -72,6 +73,10 @@ func (h *Handler) hasPermissionForChannel(channelId string, channelType uint8) (
 	// 频道被封禁
 	if channelInfo.Ban {
 		return wkproto.ReasonBan, nil
+	}
+	// 频道禁止发送消息
+	if channelInfo.SendBan {
+		return wkproto.ReasonSendBan, nil
 	}
 	// 频道已解散
 	if channelInfo.Disband {
@@ -143,8 +148,7 @@ func (h *Handler) hasPermissionForCommChannel(channelId string, channelType uint
 		return wkproto.ReasonSubscriberNotExist, nil
 	}
 
-	// 判断是否在白名单内
-	if !options.G.WhitelistOffOfPerson {
+	if channelType != wkproto.ChannelTypePerson {
 		hasAllowlist, err := service.Store.HasAllowlist(realFakeChannelId, channelType)
 		if err != nil {
 			h.Error("HasAllowlist error", zap.Error(err))
@@ -202,7 +206,7 @@ func (h *Handler) requestAllowSend(from, to string) (wkproto.ReasonCode, error) 
 		return wkproto.ReasonSystemError, err
 	}
 	if options.G.IsLocalNode(leaderNode.Id) {
-		return h.allowSend(from, to)
+		return service.AllowSendForPerson(from, to)
 	}
 
 	resp, err := h.client.RequestAllowSendForPerson(leaderNode.Id, from, to)
@@ -216,30 +220,4 @@ func (h *Handler) requestAllowSend(from, to string) (wkproto.ReasonCode, error) 
 		return wkproto.ReasonSystemError, errors.New(string(resp.Body))
 	}
 	return wkproto.ReasonCode(resp.Status), nil
-}
-
-func (h *Handler) allowSend(from, to string) (wkproto.ReasonCode, error) {
-	// 判断是否是黑名单内
-	isDenylist, err := service.Store.ExistDenylist(to, wkproto.ChannelTypePerson, from)
-	if err != nil {
-		h.Error("ExistDenylist error", zap.String("from", from), zap.String("to", to), zap.Error(err))
-		return wkproto.ReasonSystemError, err
-	}
-	if isDenylist {
-		return wkproto.ReasonInBlacklist, nil
-	}
-
-	if !options.G.WhitelistOffOfPerson {
-		// 判断是否在白名单内
-		isAllowlist, err := service.Store.ExistAllowlist(to, wkproto.ChannelTypePerson, from)
-		if err != nil {
-			h.Error("ExistAllowlist error", zap.Error(err))
-			return wkproto.ReasonSystemError, err
-		}
-		if !isAllowlist {
-			return wkproto.ReasonNotInWhitelist, nil
-		}
-	}
-
-	return wkproto.ReasonSuccess, nil
 }

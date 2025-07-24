@@ -163,7 +163,7 @@ const fetchChannelInfoIfNeed = (channel: Channel) => {
                     </div>
                     <div class="right-item2">
                         <div class="last-msg">
-                            {{ conversationWrap.lastMessage?.content.conversationDigest }}
+                            {{ conversationWrap.conversationDigest }}
                         </div>
                         <div v-if="conversationWrap.unread > 0" className="reddot">
                             {{ conversationWrap.unread }}

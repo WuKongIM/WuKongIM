@@ -217,6 +217,9 @@ func (n *Node) GetReplicaLastLogIndex(replicaId uint64) uint64 {
 	return 0
 }
 
+func (n *Node) KeepAlive() {
+	n.idleTick = 0
+}
 func (n *Node) advance() {
 	if n.opts.Advance != nil {
 		n.opts.Advance()

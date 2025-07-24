@@ -35,7 +35,7 @@ func (h *Handler) connack(ctx *eventbus.UserContext) {
 			// 更新连接
 			eventbus.User.UpdateConn(conn)
 		}
-		eventbus.User.ConnWrite(conn, connack)
+		eventbus.User.ConnWrite(event.ReqId, conn, connack)
 	}
 
 }

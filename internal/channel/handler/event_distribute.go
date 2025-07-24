@@ -9,9 +9,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 )
+
+// 跳过会话更新的频道类型
+var skipConversationUpdateChannelTypes = []uint8{wkproto.ChannelTypeData, wkproto.ChannelTypeTemp, wkproto.ChannelTypeLive}
 
 // 分发
 func (h *Handler) distribute(ctx *eventbus.ChannelContext) {
@@ -99,12 +103,14 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 		h.Error("distributeByTag: leaderId is 0", zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
 		return
 	}
-	// 转发至对应节点
+
+	// 如果领导节点是本地节点，则负责转发给节点
 	if options.G.IsLocalNode(leaderId) {
 		for _, node := range tag.Nodes {
 			if node.LeaderId == options.G.Cluster.NodeId {
 				continue
 			}
+			// 转发至对应节点
 			h.distributeToNode(node.LeaderId, channelId, channelType, events)
 		}
 	}
@@ -124,13 +130,14 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 			if options.G.IsSystemUid(uid) {
 				continue
 			}
-			if !h.masterDeviceIsOnline(uid) {
+			isOnline, masterIsOnline := h.deviceOnlineStatus(uid)
+			if !masterIsOnline {
 				if offlineUids == nil {
 					offlineUids = make([]string, 0, len(node.Uids))
 				}
 				offlineUids = append(offlineUids, uid)
 			}
-			if !h.isOnline(uid) {
+			if !isOnline {
 				continue
 			}
 
@@ -141,15 +148,20 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 				}
 				cloneMsg := event.Clone()
 				cloneMsg.ToUid = uid
+				cloneMsg.ChannelId = channelId
+				cloneMsg.ChannelType = channelType
 				cloneMsg.Type = eventbus.EventPushOnline
 				pubshEvents = append(pubshEvents, cloneMsg)
+
 			}
 		}
 	}
 
 	if localHasEvent {
 		// 更新最近会话
-		h.conversation(channelId, channelType, tag.Key, events)
+		if !h.isSkipConversationUpdate(channelType) {
+			h.conversation(channelId, channelType, tag.Key, events)
+		}
 	}
 
 	if len(pubshEvents) > 0 {
@@ -159,8 +171,18 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 	if len(offlineUids) > 0 {
 		offlineEvents := make([]*eventbus.Event, 0, len(events))
 		for _, event := range events {
+			// 过滤发送者
+			filteredOfflineUids := make([]string, 0, len(offlineUids))
+			for _, offlineUid := range offlineUids {
+				if offlineUid != event.Conn.Uid {
+					filteredOfflineUids = append(filteredOfflineUids, offlineUid)
+				}
+			}
+			// 移除重复的离线用户
+			filteredOfflineUids = wkutil.RemoveRepeatedElement(filteredOfflineUids)
+
 			cloneEvent := event.Clone()
-			cloneEvent.OfflineUsers = offlineUids
+			cloneEvent.OfflineUsers = filteredOfflineUids
 			cloneEvent.Type = eventbus.EventPushOffline
 			offlineEvents = append(offlineEvents, cloneEvent)
 		}
@@ -168,6 +190,16 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 		// eventbus.Pusher.Advance(id) // 不需要推进，因为是离线消息
 	}
 
+}
+
+// 是否跳过会话更新
+func (h *Handler) isSkipConversationUpdate(channelType uint8) bool {
+	for _, t := range skipConversationUpdateChannelTypes {
+		if t == channelType {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) distributeToNode(leaderId uint64, channelId string, channelType uint8, events []*eventbus.Event) {
@@ -272,13 +304,11 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 				return nil, err
 			}
 		} else {
-			members, err := service.Store.GetSubscribers(fakeChannelId, channelType)
+			var err error
+			subscribers, err = h.getSubscribers(fakeChannelId, channelType)
 			if err != nil {
 				h.Error("processMakeTag: getSubscribers failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 				return nil, err
-			}
-			for _, member := range members {
-				subscribers = append(subscribers, member.Uid)
 			}
 		}
 
@@ -290,6 +320,28 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 	}
 	service.TagManager.SetChannelTag(fakeChannelId, channelType, tag.Key)
 	return tag, nil
+}
+
+func (h *Handler) getSubscribers(fakeChannelId string, channelType uint8) ([]string, error) {
+	members, err := service.Store.GetSubscribers(fakeChannelId, channelType)
+	if err != nil {
+		h.Error("processMakeTag: getSubscribers failed", zap.Error(err), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		return nil, err
+	}
+	var subscribers = make([]string, 0, len(members))
+	for _, member := range members {
+		subscribers = append(subscribers, member.Uid)
+	}
+
+	// 如果是客服频道，则从频道id中获取访客id
+	if channelType == wkproto.ChannelTypeCustomerService {
+		// 访客id
+		visitorId, _ := options.G.GetCustomerServiceVisitorUID(fakeChannelId)
+		if visitorId != "" {
+			subscribers = append(subscribers, visitorId)
+		}
+	}
+	return subscribers, nil
 }
 
 // 获取cmd频道的订阅者
@@ -329,20 +381,15 @@ func (h *Handler) getCmdSubscribers(channelId string, channelType uint8) ([]stri
 	return subscribers, nil
 }
 
-func (h *Handler) isOnline(uid string) bool {
+// 用户的设备在线状态
+func (h *Handler) deviceOnlineStatus(uid string) (bool, bool) {
 	toConns := eventbus.User.AuthedConnsByUid(uid)
-	return len(toConns) > 0
-}
-
-// 用户的主设备是否在线
-func (h *Handler) masterDeviceIsOnline(uid string) bool {
-	toConns := eventbus.User.AuthedConnsByUid(uid)
-	online := false
+	masterIsOnline := false
 	for _, conn := range toConns {
 		if conn.DeviceLevel == wkproto.DeviceLevelMaster {
-			online = true
+			masterIsOnline = true
 			break
 		}
 	}
-	return online
+	return len(toConns) > 0, masterIsOnline
 }

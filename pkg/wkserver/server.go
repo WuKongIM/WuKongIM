@@ -107,7 +107,7 @@ func (s *Server) Start() error {
 	go func() {
 		err := gnet.Run(s, s.opts.Addr, gnet.WithTicker(true), gnet.WithReuseAddr(true))
 		if err != nil {
-			s.Panic("gnet run error", zap.Error(err))
+			s.Panic("gnet run error", zap.Error(err), zap.String("addr", s.opts.Addr))
 		}
 	}()
 

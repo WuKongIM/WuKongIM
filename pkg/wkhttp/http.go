@@ -27,6 +27,20 @@ func New() *WKHttp {
 	return l
 }
 
+func NewWithLogger(loggerHandler HandlerFunc) *WKHttp {
+	l := &WKHttp{
+		r:    gin.New(),
+		pool: sync.Pool{},
+	}
+	l.r.Use(l.LMHttpHandler(loggerHandler))
+	l.r.Use(gin.Recovery())
+	l.r.SetTrustedProxies(nil)
+	l.pool.New = func() interface{} {
+		return allocateContext()
+	}
+	return l
+}
+
 // GetGinRoute GetGinRoute
 func (l *WKHttp) GetGinRoute() *gin.Engine {
 	return l.r
@@ -47,10 +61,8 @@ func (l *WKHttp) Use(handlers ...HandlerFunc) {
 
 func (l *WKHttp) handlersToGinHandleFuncs(handlers []HandlerFunc) []gin.HandlerFunc {
 	newHandlers := make([]gin.HandlerFunc, 0, len(handlers))
-	if handlers != nil {
-		for _, handler := range handlers {
-			newHandlers = append(newHandlers, l.LMHttpHandler(handler))
-		}
+	for _, handler := range handlers {
+		newHandlers = append(newHandlers, l.LMHttpHandler(handler))
 	}
 	return newHandlers
 }
@@ -68,6 +80,13 @@ func (c *Context) ResponseError(err error) {
 	c.JSON(http.StatusBadRequest, gin.H{
 		"msg":    err.Error(),
 		"status": http.StatusBadRequest,
+	})
+}
+
+func (c *Context) ResponseErrorWithStatus(status int, err error) {
+	c.JSON(http.StatusBadRequest, gin.H{
+		"msg":    err.Error(),
+		"status": status,
 	})
 }
 
@@ -105,10 +124,8 @@ func (c *Context) ResponseStatus(status int) {
 func (c *Context) ForwardWithBody(url string, body []byte) {
 	queryMap := map[string]string{}
 	values := c.Request.URL.Query()
-	if values != nil {
-		for key, value := range values {
-			queryMap[key] = value[0]
-		}
+	for key, value := range values {
+		queryMap[key] = value[0]
 	}
 	req := rest.Request{
 		Method:      rest.Method(strings.ToUpper(c.Request.Method)),
@@ -184,6 +201,11 @@ func (l *WKHttp) DELETE(relativePath string, handlers ...HandlerFunc) {
 	l.r.DELETE(relativePath, l.handlersToGinHandleFunc(handlers)...)
 }
 
+// Any Any
+func (l *WKHttp) Any(relativePath string, handlers ...HandlerFunc) {
+	l.r.Any(relativePath, l.handlersToGinHandleFunc(handlers)...)
+}
+
 func (l *WKHttp) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	l.r.ServeHTTP(w, req)
 }
@@ -195,10 +217,8 @@ func (l *WKHttp) Group(relativePath string, handlers ...HandlerFunc) {
 
 func (l *WKHttp) handlersToGinHandleFunc(handlers []HandlerFunc) []gin.HandlerFunc {
 	newHandlers := make([]gin.HandlerFunc, 0, len(handlers))
-	if handlers != nil {
-		for _, handler := range handlers {
-			newHandlers = append(newHandlers, l.LMHttpHandler(handler))
-		}
+	for _, handler := range handlers {
+		newHandlers = append(newHandlers, l.LMHttpHandler(handler))
 	}
 	return newHandlers
 }

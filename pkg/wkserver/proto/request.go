@@ -312,6 +312,76 @@ type Message struct {
 	Timestamp uint64
 }
 
+// BatchMessage 批量消息结构
+type BatchMessage struct {
+	Messages []*Message
+	Count    uint32 // 消息数量
+}
+
+// Size 计算批量消息的总大小
+func (bm *BatchMessage) Size() int {
+	size := 4 // Count 字段大小
+	for _, msg := range bm.Messages {
+		size += msg.Size()
+	}
+	return size
+}
+
+// Encode 编码批量消息
+func (bm *BatchMessage) Encode() ([]byte, error) {
+	totalSize := bm.Size()
+	data := make([]byte, totalSize)
+	offset := 0
+
+	// 写入消息数量
+	binary.LittleEndian.PutUint32(data[offset:], bm.Count)
+	offset += 4
+
+	// 写入每个消息
+	for _, msg := range bm.Messages {
+		msgData, err := msg.Encode()
+		if err != nil {
+			return nil, err
+		}
+		copy(data[offset:], msgData)
+		offset += len(msgData)
+	}
+
+	return data, nil
+}
+
+// Decode 解码批量消息
+func (bm *BatchMessage) Decode(data []byte) error {
+	if len(data) < 4 {
+		return fmt.Errorf("batch message data too short")
+	}
+
+	offset := 0
+
+	// 读取消息数量
+	bm.Count = binary.LittleEndian.Uint32(data[offset:])
+	offset += 4
+
+	// 读取每个消息
+	bm.Messages = make([]*Message, 0, bm.Count)
+	for i := uint32(0); i < bm.Count; i++ {
+		if offset >= len(data) {
+			return fmt.Errorf("batch message data truncated")
+		}
+
+		msg := &Message{}
+		msgLen, err := msg.DecodeWithLength(data[offset:])
+		if err != nil {
+			return err
+		}
+
+		bm.Messages = append(bm.Messages, msg)
+		offset += msgLen
+	}
+
+	return nil
+}
+
 func (m *Message) Size() int {
 
 	contentLen := len(m.Content)
@@ -379,4 +449,37 @@ func (m *Message) Unmarshal(data []byte) error {
 	m.Content = data[offset : offset+int(contentLen)]
 
 	return nil
+}
+
+// Encode 编码消息（Marshal 的别名）
+func (m *Message) Encode() ([]byte, error) {
+	return m.Marshal()
+}
+
+// DecodeWithLength 解码消息并返回消息长度
+func (m *Message) DecodeWithLength(data []byte) (int, error) {
+	if len(data) < MessageMinSize {
+		return 0, errors.New("data too short to decode")
+	}
+
+	// 先读取 Content 长度来确定消息总长度
+	offset := IdSize + MsgTypeSize + TimestampSize
+	if len(data) < offset+ContentLenSize {
+		return 0, errors.New("data too short to read content length")
+	}
+
+	contentLen := binary.LittleEndian.Uint32(data[offset:])
+	totalLen := MessageMinSize + int(contentLen)
+
+	if len(data) < totalLen {
+		return 0, errors.New("data too short for complete message")
+	}
+
+	// 解码消息
+	err := m.Unmarshal(data[:totalLen])
+	if err != nil {
+		return 0, err
+	}
+
+	return totalLen, nil
 }

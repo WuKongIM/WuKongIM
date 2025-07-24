@@ -78,8 +78,8 @@ func (ch *channel) channelCreateOrUpdate(c *wkhttp.Context) {
 		return
 	}
 
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		c.ResponseError(errors.New("暂不支持个人频道！"))
+	if req.ChannelType == wkproto.ChannelTypePerson && len(req.Subscribers) > 0 {
+		c.ResponseError(errors.New("不支持个人频道添加订阅者！"))
 		return
 	}
 
@@ -220,7 +220,6 @@ func (ch *channel) addSubscriber(c *wkhttp.Context) {
 
 func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 	var err error
-	existSubscribers := make([]string, 0)
 	if req.Reset == 1 {
 		err = service.Store.RemoveAllSubscriber(req.ChannelId, req.ChannelType)
 		if err != nil {
@@ -231,25 +230,10 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 		if tagKey != "" {
 			service.TagManager.RemoveTag(tagKey)
 		}
-	} else {
-		members, err := service.Store.GetSubscribers(req.ChannelId, req.ChannelType)
-		if err != nil {
-			ch.Error("获取所有订阅者失败！", zap.Error(err), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			return err
-		}
-		for _, member := range members {
-			existSubscribers = append(existSubscribers, member.Uid)
-		}
 	}
-	newSubscribers := make([]string, 0, len(req.Subscribers))
-	for _, subscriber := range req.Subscribers {
-		if strings.TrimSpace(subscriber) == "" {
-			continue
-		}
-		if !wkutil.ArrayContains(existSubscribers, subscriber) {
-			newSubscribers = append(newSubscribers, subscriber)
-		}
-	}
+
+	newSubscribers := req.Subscribers
+
 	if len(newSubscribers) > 0 {
 
 		// TODO: 消息应该去频道的领导节点获取
@@ -270,32 +254,34 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 				UpdatedAt: &updatedAt,
 			})
 		}
-		err = service.Store.AddSubscribers(req.ChannelId, req.ChannelType, members)
+		err = ch.addSubscribers(req.ChannelId, req.ChannelType, members)
 		if err != nil {
 			ch.Error("添加订阅者失败！", zap.Error(err), zap.Int("members", len(members)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
 			return err
 		}
 
-		conversations := make([]wkdb.Conversation, 0, len(newSubscribers))
-		for _, subscriber := range newSubscribers {
-			createdAt := time.Now()
-			updatedAt := time.Now()
-			conversations = append(conversations, wkdb.Conversation{
-				Id:           service.Store.NextPrimaryKey(),
-				Uid:          subscriber,
-				ChannelId:    req.ChannelId,
-				ChannelType:  req.ChannelType,
-				Type:         wkdb.ConversationTypeChat,
-				UnreadCount:  0,
-				ReadToMsgSeq: lastMsgSeq,
-				CreatedAt:    &createdAt,
-				UpdatedAt:    &updatedAt,
-			})
-		}
-		err = service.Store.AddOrUpdateConversations(conversations)
-		if err != nil {
-			ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
-			return err
+		if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不添加会话
+			conversations := make([]wkdb.Conversation, 0, len(newSubscribers))
+			for _, subscriber := range newSubscribers {
+				createdAt := time.Now()
+				updatedAt := time.Now()
+				conversations = append(conversations, wkdb.Conversation{
+					Id:           service.Store.NextPrimaryKey(),
+					Uid:          subscriber,
+					ChannelId:    req.ChannelId,
+					ChannelType:  req.ChannelType,
+					Type:         wkdb.ConversationTypeChat,
+					UnreadCount:  0,
+					ReadToMsgSeq: lastMsgSeq,
+					CreatedAt:    &createdAt,
+					UpdatedAt:    &updatedAt,
+				})
+			}
+			err = service.Store.AddOrUpdateConversations(conversations)
+			if err != nil {
+				ch.Error("添加或更新会话失败！", zap.Error(err), zap.Int("conversations", len(conversations)), zap.String("channelId", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+				return err
+			}
 		}
 
 		err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, newSubscribers, false)
@@ -305,6 +291,15 @@ func (ch *channel) addSubscriberWithReq(req subscriberAddReq) error {
 		}
 	}
 
+	return nil
+}
+
+func (ch *channel) addSubscribers(channelId string, channelType uint8, members []wkdb.Member) error {
+	err := service.Store.AddSubscribers(channelId, channelType, members)
+	if err != nil {
+		ch.Error("添加订阅者失败！", zap.Error(err), zap.Int("members", len(members)), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return err
+	}
 	return nil
 }
 
@@ -479,6 +474,27 @@ func (ch *channel) removeSubscriber(c *wkhttp.Context) {
 		c.ResponseError(err)
 		return
 	}
+
+	// 删除订阅者的会话缓存
+	if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不处理最近会话
+		for _, subscriber := range req.Subscribers {
+			err = service.ConversationManager.DeleteFromCache(subscriber, req.ChannelId, req.ChannelType)
+			if err != nil {
+				ch.Error("删除订阅者的会话失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+
+			// 删除订阅者的会话
+			err = service.Store.DeleteConversation(subscriber, req.ChannelId, req.ChannelType)
+			if err != nil {
+				ch.Error("删除订阅者的会话失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+		}
+	}
+
 	err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, req.Subscribers, true)
 	if err != nil {
 		ch.Error("removeSubscriber: update tag failed", zap.Error(err))
@@ -578,6 +594,25 @@ func (ch *channel) blacklistAdd(c *wkhttp.Context) {
 		return
 	}
 
+	// 删除黑名单的会话缓存
+	if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不处理最近会话
+		for _, uid := range req.UIDs {
+			err = service.ConversationManager.DeleteFromCache(uid, req.ChannelId, req.ChannelType)
+			if err != nil {
+				ch.Error("删除订阅者的会话失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+			// 删除订阅者的会话
+			err = service.Store.DeleteConversation(uid, req.ChannelId, req.ChannelType)
+			if err != nil {
+				ch.Error("删除订阅者的会话失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+		}
+	}
+
 	c.ResponseOK()
 }
 
@@ -631,6 +666,25 @@ func (ch *channel) blacklistSet(c *wkhttp.Context) {
 			c.ResponseError(err)
 			return
 		}
+
+		// 删除黑名单的会话缓存
+		if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不处理最近会话
+			for _, uid := range req.UIDs {
+				err = service.ConversationManager.DeleteFromCache(uid, req.ChannelId, req.ChannelType)
+				if err != nil {
+					ch.Error("删除订阅者的会话失败！", zap.Error(err))
+					c.ResponseError(err)
+					return
+				}
+				// 删除订阅者的会话
+				err = service.Store.DeleteConversation(uid, req.ChannelId, req.ChannelType)
+				if err != nil {
+					ch.Error("删除订阅者的会话失败！", zap.Error(err))
+					c.ResponseError(err)
+					return
+				}
+			}
+		}
 	}
 
 	c.ResponseOK()
@@ -666,6 +720,29 @@ func (ch *channel) blacklistRemove(c *wkhttp.Context) {
 		ch.Error("移除黑名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
+	}
+
+	// 增加黑频道的会话
+	if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不处理最近会话
+		createdAt := time.Now()
+		updatedAt := time.Now()
+		for _, uid := range req.UIDs {
+			err = service.Store.AddConversationsIfNotExist([]wkdb.Conversation{
+				{
+					Uid:         uid,
+					Type:        wkdb.ConversationTypeChat,
+					ChannelId:   req.ChannelId,
+					ChannelType: req.ChannelType,
+					CreatedAt:   &createdAt,
+					UpdatedAt:   &updatedAt,
+				},
+			})
+			if err != nil {
+				ch.Error("添加会话失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+		}
 	}
 
 	c.ResponseOK()
@@ -777,6 +854,30 @@ func (ch *channel) whitelistAdd(c *wkhttp.Context) {
 		ch.Error("添加白名单失败！", zap.Error(err))
 		c.ResponseError(err)
 		return
+	}
+
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		for _, uid := range req.UIDs {
+			if uid == req.ChannelId {
+				continue
+			}
+			fakeChannelId := options.GetFakeChannelIDWith(uid, req.ChannelId)
+			err = service.Store.AddConversationsIfNotExist([]wkdb.Conversation{
+				{
+					Uid:         uid,
+					Type:        wkdb.ConversationTypeChat,
+					ChannelId:   fakeChannelId,
+					ChannelType: req.ChannelType,
+					CreatedAt:   &createdAt,
+					UpdatedAt:   &updatedAt,
+				},
+			})
+			if err != nil {
+				ch.Error("添加会话失败！", zap.Error(err))
+				c.ResponseError(err)
+				return
+			}
+		}
 	}
 
 	c.ResponseOK()
@@ -982,7 +1083,9 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 	} else if req.PullMode == PullModeUp { // 向上拉取
 		messages, err = service.Store.LoadNextRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
 	} else {
-		messages, err = service.Store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
+		if req.EndMessageSeq <= req.StartMessageSeq {
+			messages, err = service.Store.LoadPrevRangeMsgs(fakeChannelID, req.ChannelType, req.StartMessageSeq, req.EndMessageSeq, limit)
+		}
 	}
 	if err != nil {
 		ch.Error("获取消息失败！", zap.Error(err), zap.Any("req", req))
@@ -1019,12 +1122,110 @@ func (ch *channel) syncMessages(c *wkhttp.Context) {
 			}
 		}
 	}
+
+	// 获取消息的流
+	streamNos := make([]string, 0)
+	for _, message := range messageResps {
+		if strings.TrimSpace(message.StreamNo) == "" {
+			continue
+		}
+		streamNos = append(streamNos, message.StreamNo)
+	}
+
+	if len(streamNos) > 0 {
+		streamItemsMap, err := ch.loadStreamMessages(fakeChannelID, req.ChannelType, streamNos)
+		if err != nil {
+			ch.Error("syncMessages: loadStreamMessages failed", zap.Error(err), zap.Any("req", req))
+			c.ResponseError(err)
+			return
+		}
+
+		for _, message := range messageResps {
+			if strings.TrimSpace(message.StreamNo) == "" {
+				continue
+			}
+			streamItems, ok := streamItemsMap[message.StreamNo]
+			if !ok {
+				continue
+			}
+			message.Streams = streamItems
+		}
+	}
+
+	// 返回消息
 	c.JSON(http.StatusOK, syncMessageResp{
 		StartMessageSeq: req.StartMessageSeq,
 		EndMessageSeq:   req.EndMessageSeq,
 		More:            wkutil.BoolToInt(more),
 		Messages:        messageResps,
 	})
+}
+
+func (ch *channel) loadStreamMessages(channelId string, channelType uint8, streamNos []string) (map[string][]*types.StreamItemResp, error) {
+	leaderId, err := service.Cluster.SlotLeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		ch.Error("loadStreamMessages: get leader id failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return nil, err
+	}
+
+	// 如果是本节点，则直接加载
+	if options.G.IsLocalNode(leaderId) {
+		return ch.loadLocalStreamMessages(streamNos)
+	}
+
+	// 请求远程节点
+	return ch.requestStreams(leaderId, streamNos)
+}
+
+func (ch *channel) requestStreams(leaderId uint64, streamNos []string) (map[string][]*types.StreamItemResp, error) {
+	resp, err := ch.s.client.RequestStreams(leaderId, streamNos)
+	if err != nil {
+		ch.Error("requestStreamMessages: requestStreams failed", zap.Error(err))
+		return nil, err
+	}
+
+	streamItemsMap := make(map[string][]*types.StreamItemResp)
+	for _, stream := range resp.Streams {
+
+		streamItemsMap[stream.StreamNo] = append(streamItemsMap[stream.StreamNo], &types.StreamItemResp{
+			StreamNo: stream.StreamNo,
+			StreamId: stream.StreamId,
+			Payload:  stream.Payload,
+		})
+	}
+	return streamItemsMap, nil
+}
+
+func (ch *channel) loadLocalStreamMessages(streamNos []string) (map[string][]*types.StreamItemResp, error) {
+
+	streamItemsMap := make(map[string][]*types.StreamItemResp)
+	for _, streamNo := range streamNos {
+		streamItems, err := ch.loadLocalStreamMessage(streamNo)
+		if err != nil {
+			return nil, err
+		}
+		streamItemsMap[streamNo] = streamItems
+	}
+	return streamItemsMap, nil
+}
+
+func (ch *channel) loadLocalStreamMessage(streamNo string) ([]*types.StreamItemResp, error) {
+	// 获取流
+	streams, err := service.Store.GetStreams(streamNo)
+	if err != nil {
+		return nil, err
+	}
+	if len(streams) == 0 {
+		return nil, nil
+	}
+
+	resps := make([]*types.StreamItemResp, 0, len(streams))
+	for _, stream := range streams {
+		resp := types.NewStreamItemResp(stream)
+		resps = append(resps, resp)
+	}
+	return resps, nil
+
 }
 
 func (ch *channel) getChannelMaxMessageSeq(c *wkhttp.Context) {
@@ -1069,7 +1270,6 @@ func (ch *channel) addOrUpdateChannel(channelInfo wkdb.ChannelInfo) error {
 	if err != nil && err != wkdb.ErrNotFound {
 		return err
 	}
-
 	if wkdb.IsEmptyChannelInfo(existChannel) {
 		err = service.Store.AddChannelInfo(channelInfo)
 		if err != nil {

@@ -37,6 +37,15 @@ type wukongDB struct {
 
 	metrics trace.IDBMetrics
 
+	channelSeqCache    *channelSeqCache
+	conversationCache  *ConversationCache
+	channelInfoCache   *ChannelInfoCache
+	permissionCache    *PermissionCache           // 统一的权限缓存（替代 denylistCache, subscriberCache, allowlistCache）
+	clusterConfigCache *ChannelClusterConfigCache // 频道集群配置缓存
+	deviceCache        *DeviceCache               // 设备缓存
+	cacheManager       *CacheManager              // 缓存管理器
+	performanceMonitor *PerformanceMonitor        // 性能监控器
+
 	h hash.Hash32
 }
 
@@ -53,16 +62,25 @@ func NewWukongDB(opts *Options) DB {
 		metrics = trace.NewDBMetrics()
 	}
 
+	endian := binary.BigEndian
+
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
-	return &wukongDB{
-		opts:         opts,
-		shardNum:     uint32(opts.ShardNum),
-		prmaryKeyGen: prmaryKeyGen,
-		endian:       binary.BigEndian,
-		cancelCtx:    cancelCtx,
-		cancelFunc:   cancelFunc,
-		metrics:      metrics,
-		h:            fnv.New32(),
+	wk := &wukongDB{
+		opts:               opts,
+		shardNum:           uint32(opts.ShardNum),
+		prmaryKeyGen:       prmaryKeyGen,
+		endian:             endian,
+		cancelCtx:          cancelCtx,
+		cancelFunc:         cancelFunc,
+		metrics:            metrics,
+		channelSeqCache:    newChannelSeqCache(1000, endian),
+		conversationCache:  NewConversationCache(1000),         // 缓存1000个 GetLastConversations 查询结果
+		channelInfoCache:   NewChannelInfoCache(1000),          // 缓存频道信息
+		permissionCache:    NewPermissionCache(1000),           // 缓存权限查询结果（统一缓存）
+		clusterConfigCache: NewChannelClusterConfigCache(1000), // 缓存集群配置
+		deviceCache:        NewDeviceCache(1000),               // 缓存1000个设备
+		performanceMonitor: NewPerformanceMonitor(),            // 性能监控器
+		h:                  fnv.New32(),
 		sync: &pebble.WriteOptions{
 			Sync: true,
 		},
@@ -72,6 +90,17 @@ func NewWukongDB(opts *Options) DB {
 		Log:    wklog.NewWKLog("wukongDB"),
 		dblock: newDBLock(),
 	}
+
+	// 创建缓存管理器
+	wk.cacheManager = NewCacheManager(
+		wk.permissionCache,
+		wk.conversationCache,
+		wk.channelInfoCache,
+		wk.clusterConfigCache,
+		wk.deviceCache,
+	)
+
+	return wk
 }
 
 func (wk *wukongDB) defaultPebbleOptions() *pebble.Options {
@@ -124,13 +153,22 @@ func (wk *wukongDB) Open() error {
 		wk.wkdbs = append(wk.wkdbs, wkdb)
 	}
 
-	// go wk.collectMetricsLoop()
+	go wk.collectMetricsLoop()
+
+	// 启动缓存管理器
+	wk.cacheManager.Start()
 
 	return nil
 }
 
 func (wk *wukongDB) Close() error {
 	wk.cancelFunc()
+
+	// 停止缓存管理器
+	if wk.cacheManager != nil {
+		wk.cacheManager.Stop()
+	}
+
 	for _, db := range wk.dbs {
 		if err := db.Close(); err != nil {
 			wk.Error("close db error", zap.Error(err))
@@ -188,7 +226,7 @@ func (wk *wukongDB) channelSlotId(channelId string) uint32 {
 }
 
 func (wk *wukongDB) collectMetricsLoop() {
-	tk := time.NewTicker(time.Second * 5)
+	tk := time.NewTicker(time.Second * 1)
 	defer tk.Stop()
 
 	for {
@@ -445,6 +483,8 @@ func (wk *BatchDB) executeBatch(bs []*Batch) {
 		if b.waitC != nil {
 			b.waitC <- b.err
 		}
+		// 释放资源
+		b.release()
 	}
 
 }
@@ -494,6 +534,14 @@ func (b *Batch) CommitWait() error {
 	return <-b.waitC
 }
 
+func (b *Batch) release() {
+	b.setKvs = nil
+	b.delKvs = nil
+	b.delRangeKvs = nil
+	b.waitC = nil
+	b.err = nil
+}
+
 func (b *Batch) String() string {
 	return fmt.Sprintf("setKvs:%d, delKvs:%d, delRangeKvs:%d", len(b.setKvs), len(b.delKvs), len(b.delRangeKvs))
 }
@@ -505,4 +553,14 @@ func (b *Batch) DbIndex() int {
 type kv struct {
 	key []byte
 	val []byte
+}
+
+// GetPerformanceMonitor 获取性能监控器
+func (wk *wukongDB) GetPerformanceMonitor() *PerformanceMonitor {
+	return wk.performanceMonitor
+}
+
+// GetCacheManager 获取缓存管理器
+func (wk *wukongDB) GetCacheManager() *CacheManager {
+	return wk.cacheManager
 }

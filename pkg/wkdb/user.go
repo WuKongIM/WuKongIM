@@ -3,6 +3,7 @@ package wkdb
 import (
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
@@ -326,6 +327,11 @@ func (wk *wukongDB) writeUser(u User, w *Batch) error {
 
 	}
 
+	if strings.TrimSpace(u.PluginNo) != "" {
+		// pluginNo
+		w.Set(key.NewUserColumnKey(u.Id, key.TableUser.Column.PluginNo), []byte(u.PluginNo))
+	}
+
 	// write index
 	if err = wk.writeUserIndex(u, w); err != nil {
 		return err
@@ -418,6 +424,8 @@ func (wk *wukongDB) iteratorUser(iter *pebble.Iterator, iterFnc func(u User) boo
 				t := time.Unix(tm/1e9, tm%1e9)
 				preUser.UpdatedAt = &t
 			}
+		case key.TableUser.Column.PluginNo:
+			preUser.PluginNo = string(iter.Value())
 
 		}
 		lastNeedAppend = true

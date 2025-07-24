@@ -227,6 +227,35 @@ const onLogout = () => {
                 </RouterLink>
               </li>
 
+              <li>
+                <RouterLink to="/data/plugin">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-toy-brick h-5 w-5">
+                    <rect width="18" height="12" x="3" y="8" rx="1" />
+                    <path d="M10 8V5c0-.6-.4-1-1-1H6a1 1 0 0 0-1 1v3" />
+                    <path d="M19 8V5c0-.6-.4-1-1-1h-3a1 1 0 0 0-1 1v3" />
+                  </svg>
+                  <label class="ml-2">插件</label>
+                </RouterLink>
+              </li>
+
+              <li>
+                <RouterLink to="/data/ai">
+                  <svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-bot h-5 w-5">
+                    <path d="M12 8V4H8" />
+                    <rect width="16" height="12" x="4" y="8" rx="2" />
+                    <path d="M2 14h2" />
+                    <path d="M20 14h2" />
+                    <path d="M15 13v2" />
+                    <path d="M9 13v2" />
+                  </svg>
+                  <label class="ml-2">AI</label>
+                </RouterLink>
+              </li>
+
 
             </ul>
 
@@ -274,8 +303,8 @@ const onLogout = () => {
               </li>
               <li>
                 <RouterLink to="/monitor/cluster">
-                  <svg xmlns="http://www.w3.org/2000/svg"  viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
                     class="lucide lucide-chart-network h-5 w-5">
                     <path d="m13.11 7.664 1.78 2.672" />
                     <path d="m14.162 12.788-3.324 1.424" />

@@ -52,8 +52,34 @@ func (n *nodeTransport) Send(event types.Event) {
 		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindConfig, int64(msg.Size()))
 	}
 
-	err = node.send(msg)
+	err = node.SendWithPriority(msg, isHighPriority(event))
 	if err != nil {
-		n.Error("Send event failed", zap.Error(err), zap.String("event", event.String()))
+		n.Error("Send event failed", zap.Error(err), zap.String("event", event.Type.String()))
 	}
+}
+
+func isHighPriority(event types.Event) bool {
+	switch event.Type {
+	case types.SyncReq:
+		return true
+	case types.Ping:
+		return true
+	case types.NotifySync:
+		return true
+	case types.SyncResp:
+		return true
+	case types.VoteReq:
+		return true
+	case types.VoteResp:
+		return true
+	case types.LearnerToLeaderReq:
+		return true
+	case types.LearnerToFollowerReq:
+		return true
+	case types.FollowerToLeaderReq:
+		return true
+	case types.ConfigReq:
+		return true
+	}
+	return false
 }

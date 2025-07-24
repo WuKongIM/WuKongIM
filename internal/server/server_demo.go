@@ -23,14 +23,16 @@ type DemoServer struct {
 
 // NewDemoServer new一个demo server
 func NewDemoServer(s *Server) *DemoServer {
-	r := wkhttp.New()
+	// r := wkhttp.New()
+	log := wklog.NewWKLog("DemoServer")
+	r := wkhttp.NewWithLogger(wkhttp.LoggerWithWklog(log))
 	r.Use(wkhttp.CORSMiddleware())
 
 	ds := &DemoServer{
 		r:    r,
 		addr: s.opts.Demo.Addr,
 		s:    s,
-		Log:  wklog.NewWKLog("DemoServer"),
+		Log:  log,
 	}
 	return ds
 }
