@@ -148,6 +148,14 @@ type Options struct {
 		WorkerScanInterval time.Duration // 处理最近会话扫描间隔
 
 	}
+	StreamCache struct {
+		MaxMemorySize          int64         // 最大内存使用量 (字节)
+		MaxStreams             int           // 最大并发流数量
+		MaxChunksPerStream     int           // 每个流的最大块数量
+		StreamTimeout          time.Duration // 非活跃流超时时间
+		ChunkInactivityTimeout time.Duration // 块非活跃超时时间 (自动完成流)
+		CleanupInterval        time.Duration // 清理操作间隔
+	}
 	ManagerToken   string // 管理者的token
 	ManagerUID     string // 管理者的uid
 	SystemUID      string // 系统账号的uid，主要用来发消息
@@ -305,6 +313,7 @@ type Options struct {
 	MigrateStartStep MigrateStep // 从那步开始迁移，默认顺序是 message,user,channel
 
 	messageIdGen *snowflake.Node // 消息ID生成器
+	chunkIdGen   *snowflake.Node // 消息chunk ID生成器
 
 	// tag相关配置
 	Tag struct {
@@ -447,6 +456,21 @@ func New(op ...Option) *Options {
 			SavePoolSize:       100,
 			WorkerCount:        10,
 			WorkerScanInterval: time.Minute * 5,
+		},
+		StreamCache: struct {
+			MaxMemorySize          int64
+			MaxStreams             int
+			MaxChunksPerStream     int
+			StreamTimeout          time.Duration
+			ChunkInactivityTimeout time.Duration
+			CleanupInterval        time.Duration
+		}{
+			MaxMemorySize:          100 * 1024 * 1024, // 100MB
+			MaxStreams:             10000,             // 10k concurrent streams
+			MaxChunksPerStream:     1000,              // 1k chunks per stream
+			StreamTimeout:          30 * time.Minute,  // 30 minutes timeout
+			ChunkInactivityTimeout: 30 * time.Second,  // 30 seconds inactivity timeout
+			CleanupInterval:        5 * time.Minute,   // 5 minutes cleanup interval
 		},
 		DeliveryMsgPoolSize: 10240,
 		Poller: struct {
@@ -857,6 +881,14 @@ func (o *Options) ConfigureWithViper(vp *viper.Viper) {
 	o.Conversation.WorkerCount = o.getInt("conversation.workerNum", o.Conversation.WorkerCount)
 	o.Conversation.WorkerScanInterval = o.getDuration("conversation.workerScanInterval", o.Conversation.WorkerScanInterval)
 
+	// StreamCache configuration
+	o.StreamCache.MaxMemorySize = o.getInt64("streamCache.maxMemorySize", o.StreamCache.MaxMemorySize)
+	o.StreamCache.MaxStreams = o.getInt("streamCache.maxStreams", o.StreamCache.MaxStreams)
+	o.StreamCache.MaxChunksPerStream = o.getInt("streamCache.maxChunksPerStream", o.StreamCache.MaxChunksPerStream)
+	o.StreamCache.StreamTimeout = o.getDuration("streamCache.streamTimeout", o.StreamCache.StreamTimeout)
+	o.StreamCache.ChunkInactivityTimeout = o.getDuration("streamCache.chunkInactivityTimeout", o.StreamCache.ChunkInactivityTimeout)
+	o.StreamCache.CleanupInterval = o.getDuration("streamCache.cleanupInterval", o.StreamCache.CleanupInterval)
+
 	if o.WSSConfig.CertFile != "" && o.WSSConfig.KeyFile != "" {
 		certificate, err := tls.LoadX509KeyPair(o.WSSConfig.CertFile, o.WSSConfig.KeyFile)
 		if err != nil {
@@ -1198,6 +1230,12 @@ func (o *Options) configureAuth() {
 	}
 	o.messageIdGen = node
 
+	node, err = snowflake.NewNode(int64(o.Cluster.NodeId + 1000))
+	if err != nil {
+		wklog.Panic("create snowflake node failed", zap.Error(err))
+	}
+	o.chunkIdGen = node
+
 }
 
 func (o *Options) ConfigureDataDir() {
@@ -1487,6 +1525,11 @@ func (o *Options) IsLocalNode(nodeId uint64) bool {
 func (o *Options) GenMessageId() int64 {
 
 	return o.messageIdGen.Generate().Int64()
+}
+
+// GenChunkId 生成chunkId
+func (o *Options) GenChunkId() int64 {
+	return o.chunkIdGen.Generate().Int64()
 }
 
 type Node struct {

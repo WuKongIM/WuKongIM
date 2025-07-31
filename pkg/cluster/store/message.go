@@ -33,6 +33,11 @@ func (s *Store) AppendMessages(ctx context.Context, channelId string, channelTyp
 	return results, nil
 }
 
+// AppendMessageChunks 追加消息chunks
+func (s *Store) AppendMessageChunks(ctx context.Context, channelId string, channelType uint8, msgs []wkdb.Message) error {
+	return nil
+}
+
 func (s *Store) LoadNextRangeMsgs(channelID string, channelType uint8, startMessageSeq, endMessageSeq uint64, limit int) ([]wkdb.Message, error) {
 	return s.wdb.LoadNextRangeMsgs(channelID, channelType, startMessageSeq, endMessageSeq, limit)
 }

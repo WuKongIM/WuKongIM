@@ -96,7 +96,7 @@ func (i *Ingress) handleAllowSend(ctx *wkserver.Context) {
 		return
 	}
 
-	reasonCode, err := service.AllowSendForPerson(req.From, req.To)
+	reasonCode, err := service.Permission.AllowSendForPersonLocal(req.From, req.To)
 	if err != nil {
 		i.Error("handleAllowSend: allowSend failed", zap.Error(err))
 		ctx.WriteErr(err)

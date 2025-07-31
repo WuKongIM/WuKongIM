@@ -37,7 +37,7 @@ func (h *Handler) routes() {
 	eventbus.RegisterChannelHandlers(eventbus.EventChannelWebhook, h.webhook)
 	// 分发消息
 	eventbus.RegisterChannelHandlers(eventbus.EventChannelDistribute, h.distribute)
-
+	// 流消息(v1版 本未来将去掉)
 	eventbus.RegisterChannelHandlers(eventbus.EventChannelOnStream, h.onStream)
 
 }
