@@ -38,6 +38,9 @@ const (
 	// EventChannelDistribute 频道消息分发
 	EventChannelDistribute
 
+	// EventChannelDistributeChunk 消息块分发
+	EventChannelDistributeChunk
+
 	// =================== Pusher ===================
 	// EventPushOnline push在线消息
 	EventPushOnline

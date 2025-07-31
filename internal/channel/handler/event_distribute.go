@@ -17,7 +17,10 @@ import (
 // 跳过会话更新的频道类型
 var skipConversationUpdateChannelTypes = []uint8{wkproto.ChannelTypeData, wkproto.ChannelTypeTemp, wkproto.ChannelTypeLive}
 
-// 分发
+// 消息分发
+// 流程：（分发行为是在当前频道的领导节点上进行的）
+// 1. 获取或创建频道tag（tag包含用户和用户对应的节点）
+// 2. 如果是本节点的用户则进入推送，非本节点的用户则转发到对应节点
 func (h *Handler) distribute(ctx *eventbus.ChannelContext) {
 
 	// 记录消息轨迹

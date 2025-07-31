@@ -127,6 +127,10 @@ func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
 func (c *channelHandler) checkAndUpdateLeaderIdChange() error {
 	c.pending.Lock()
 	defer c.pending.Unlock()
+
+	// 此行为是在频道的槽领导节点进行的，所以如果节点版本没变好
+	// 意味着频道的槽领导节点也没变，在频道槽领导获取到的频道分布式配置永远是最新的
+	// （TODO： 这里不严谨，存在频道槽领导没变，但是频道的领导变了，那么这里缓存的leaderId是旧的）
 	nodeVersion := service.Cluster.NodeVersion()
 	if c.nodeVersion >= nodeVersion {
 		return nil

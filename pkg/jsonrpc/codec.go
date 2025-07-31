@@ -22,7 +22,8 @@ const (
 	MethodPing        = "ping"
 	MethodPong        = "pong"
 	MethodDisconnect  = "disconnect"
-	MethodRecv        = "recv" // Notification method
+	MethodRecv        = "recv"  // Notification method
+	MethodChunk       = "chunk" // Chunk notification method
 )
 
 // Predefined decoding errors
@@ -156,7 +157,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 		// Valid notification: method, no id or null id
 		// Check if method is a known notification type (optional, depending on strictness)
 		switch probe.Method {
-		case MethodRecv, MethodDisconnect, MethodRecvAck:
+		case MethodRecv, MethodDisconnect, MethodRecvAck, MethodChunk:
 			msgType = msgTypeNotification
 		default:
 			// If method is present but ID is missing/null, AND method is not known,
@@ -359,6 +360,16 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodDisconnect, err)
 			}
 			return notif, probe, nil
+		case MethodChunk:
+			var notif ChunkNotification
+			notif.BaseNotification = baseNotif
+			if probe.Params == nil {
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodChunk)
+			}
+			if err := json.Unmarshal(probe.Params, &notif.Params); err != nil {
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodChunk, err)
+			}
+			return notif, probe, nil
 		default:
 			return nil, probe, fmt.Errorf("%w: %s", ErrUnknownMethod, probe.Method)
 		}
@@ -416,6 +427,10 @@ func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
 	case wkproto.RECV:
 		recv := frame.(*wkproto.RecvPacket)
 		result := FromProtoRecvNotification(recv)
+		return result, nil
+	case wkproto.Chunk:
+		chunk := frame.(*wkproto.ChunkPacket)
+		result := FromProtoChunkNotification(chunk)
 		return result, nil
 	case wkproto.DISCONNECT:
 		disconnect := frame.(*wkproto.DisconnectPacket)
