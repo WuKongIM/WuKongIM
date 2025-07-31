@@ -19,7 +19,8 @@
         "disconnect",
         "subscribe",
         "unsubscribe",
-        "recv"
+        "recv",
+        "chunk"
       ]
     },
     "params": {
@@ -49,7 +50,8 @@
     { "$ref": "#/components/schemas/PingRequest" },
     { "$ref": "#/components/schemas/PongResponse" },
     { "$ref": "#/components/schemas/DisconnectRequest" },
-    { "$ref": "#/components/schemas/DisconnectNotification" }
+    { "$ref": "#/components/schemas/DisconnectNotification" },
+    { "$ref": "#/components/schemas/ChunkNotification" }
   ],
   "components": {
     "schemas": {
@@ -68,7 +70,8 @@
            "noPersist": { "type": "boolean", "description": "消息是否不存储" },
            "redDot": { "type": "boolean", "description": "是否显示红点" },
            "syncOnce": { "type": "boolean", "description": "是否只被同步一次" },
-           "dup": { "type": "boolean", "description": "是否是重发的消息" }
+           "dup": { "type": "boolean", "description": "是否是重发的消息" },
+           "end": { "type": "boolean", "description": "是否为结束标记" }
          }
       },
       "DeviceFlagEnum": {
@@ -355,6 +358,25 @@
                "reason": { "type": "string", "description": "断开原因描述 (可选)" }
             },
             "required": ["reasonCode"]
+          }
+        },
+        "required": ["method"]
+      },
+      "ChunkNotification": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": { "const": "2.0" },
+          "method": { "const": "chunk" },
+          "params": {
+            "type": "object",
+            "properties": {
+               "header": { "$ref": "#/components/schemas/Header" },
+               "messageId": { "type": "string", "description": "消息ID" },
+               "chunkId": { "type": "integer", "description": "分块ID" },
+               "endReason": { "type": "integer", "description": "结束原因码" },
+               "payload": { "type": "string", "description": "分块内容" }
+            },
+            "required": ["messageId", "chunkId", "payload"]
           }
         },
         "required": ["method"]
