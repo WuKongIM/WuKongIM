@@ -131,6 +131,7 @@ func New(opts *Options) *Server {
 		slot.WithNode(s.cfgServer),
 		slot.WithOnApply(s.slotApplyLogs),
 		slot.WithOnSaveConfig(s.onSaveSlotConfig),
+		slot.WithRPC(s.rpcClient),
 	))
 
 	// 频道分布式服务

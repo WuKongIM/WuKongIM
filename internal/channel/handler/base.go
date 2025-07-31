@@ -52,13 +52,13 @@ func (h *Handler) OnMessage(m *proto.Message) {
 
 // 收到事件
 func (h *Handler) OnEvent(ctx *eventbus.ChannelContext) {
-	if options.G.IsLocalNode(ctx.LeaderId) || h.notForwardToLeader(ctx.EventType) {
+	if options.G.IsLocalNode(ctx.SlotLeaderId) || h.notForwardToLeader(ctx.EventType) {
 		// 执行本地事件
 		eventbus.ExecuteChannelEvent(ctx)
 	} else {
-		if ctx.LeaderId != 0 {
+		if ctx.SlotLeaderId != 0 {
 			// 转发到leader节点
-			h.forwardsToNode(ctx.LeaderId, ctx.ChannelId, ctx.ChannelType, ctx.Events)
+			h.forwardsToNode(ctx.SlotLeaderId, ctx.ChannelId, ctx.ChannelType, ctx.Events)
 		} else {
 			h.Error("channel: OnEvent: leaderId is 0", zap.String("channelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
 		}

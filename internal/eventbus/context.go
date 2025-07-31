@@ -15,11 +15,11 @@ func (c *UserContext) Reset() {
 type UserHandlerFunc func(ctx *UserContext)
 
 type ChannelContext struct {
-	LeaderId    uint64 // 频道领导节点Id
-	ChannelId   string
-	ChannelType uint8
-	EventType   EventType
-	Events      []*Event
+	SlotLeaderId uint64 // 频道的槽领导节点Id
+	ChannelId    string
+	ChannelType  uint8
+	EventType    EventType
+	Events       []*Event
 }
 
 func (c *ChannelContext) Reset() {

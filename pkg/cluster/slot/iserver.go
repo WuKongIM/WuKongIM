@@ -2,6 +2,7 @@ package slot
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
@@ -14,9 +15,9 @@ func (s *Server) GetSlotId(v string) uint32 {
 }
 
 func (s *Server) SlotLeaderId(slotId uint32) uint64 {
-	raft := s.raftGroup.GetRaft(SlotIdToKey(slotId))
-	if raft != nil {
-		return raft.LeaderId()
+	slotConfig := s.opts.Node.Slot(slotId)
+	if slotConfig != nil {
+		return slotConfig.Leader
 	}
 	return 0
 
@@ -51,9 +52,33 @@ func (s *Server) ProposeUntilAppliedTimeout(ctx context.Context, slotId uint32, 
 		}
 	}()
 
-	shardNo := SlotIdToKey(slotId)
+	slotConfig := s.opts.Node.Slot(slotId)
+	if slotConfig == nil {
+		return nil, fmt.Errorf("slot[%d] config not found", slotId)
+	}
+
 	logId := s.GenLogId()
-	resps, err := s.raftGroup.ProposeBatchUntilAppliedTimeout(ctx, shardNo, types.ProposeReqSet{
+
+	// 如果当前节点不是槽的领导节点，则向槽的领导节点请求提案
+	if slotConfig.Leader != s.opts.NodeId {
+
+		resps, err := s.opts.RPC.RequestSlotProposeBatchUntilApplied(slotConfig.Leader, slotId, types.ProposeReqSet{
+			{
+				Id:   logId,
+				Data: data,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(resps) == 0 {
+			return nil, nil
+		}
+		return resps[0], nil
+	}
+
+	// 如果当前节点是槽的领导节点，则本地提案
+	resps, err := s.ProposeUntilAppliedTimeoutForLocal(ctx, slotId, types.ProposeReqSet{
 		{
 			Id:   logId,
 			Data: data,
@@ -66,6 +91,19 @@ func (s *Server) ProposeUntilAppliedTimeout(ctx context.Context, slotId uint32, 
 		return nil, nil
 	}
 	return resps[0], nil
+}
+
+func (s *Server) ProposeUntilAppliedTimeoutForLocal(ctx context.Context, slotId uint32, reqs types.ProposeReqSet) (types.ProposeRespSet, error) {
+	shardNo := SlotIdToKey(slotId)
+
+	resps, err := s.raftGroup.ProposeBatchUntilAppliedTimeout(ctx, shardNo, reqs)
+	if err != nil {
+		return nil, err
+	}
+	if len(resps) == 0 {
+		return nil, nil
+	}
+	return resps, nil
 }
 
 func (s *Server) MustWaitAllSlotsReady(timeout time.Duration) {

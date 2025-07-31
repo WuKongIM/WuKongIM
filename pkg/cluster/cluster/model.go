@@ -421,59 +421,37 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 // 	return nil
 // }
 
-type SlotProposeReq struct {
+type slotProposeReq struct {
 	SlotId uint32
-	Logs   []rafttype.Log // 数据
+	reqs   rafttypes.ProposeReqSet
 }
 
-func (s *SlotProposeReq) Marshal() ([]byte, error) {
+func (s *slotProposeReq) encode() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
+
 	enc.WriteUint32(s.SlotId)
-	enc.WriteUint32(uint32(len(s.Logs)))
-	for _, lg := range s.Logs {
-		logData, err := lg.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		enc.WriteUint32(uint32(len(logData)))
-		enc.WriteBytes(logData)
+
+	data, err := s.reqs.Marshal()
+	if err != nil {
+		return nil, err
 	}
+	enc.WriteBytes(data)
 
 	return enc.Bytes(), nil
 }
 
-func (s *SlotProposeReq) Unmarshal(data []byte) error {
+func (ch *slotProposeReq) decode(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if s.SlotId, err = dec.Uint32(); err != nil {
+	if ch.SlotId, err = dec.Uint32(); err != nil {
 		return err
 	}
-	var dataLen uint32
-	if dataLen, err = dec.Uint32(); err != nil {
+	data, err = dec.BinaryAll()
+	if err != nil {
 		return err
 	}
-	if dataLen > 0 {
-		s.Logs = make([]rafttype.Log, dataLen)
-		for i := uint32(0); i < dataLen; i++ {
-			logDataLen, err := dec.Uint32()
-			if err != nil {
-				return err
-			}
-			data, err := dec.Bytes(int(logDataLen))
-			if err != nil {
-				return err
-			}
-
-			log := &rafttype.Log{}
-			if err = log.Unmarshal(data); err != nil {
-				return err
-			}
-			s.Logs[i] = *log
-		}
-	}
-
-	return nil
+	return ch.reqs.Unmarshal(data)
 }
 
 // type SlotProposeResp struct {

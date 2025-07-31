@@ -44,6 +44,8 @@ func (n *Node) tickSync() {
 		}
 	} else {
 		n.syncElapsed++
+
+		// 副本定时向领导者发送同步请求
 		if n.syncElapsed >= n.opts.SyncIntervalTick && n.cfg.Leader != 0 {
 			if !n.hasSyncReq() {
 				n.sendSyncReq()
@@ -91,17 +93,28 @@ func (n *Node) tickHeartbeat() {
 		if replicaId == n.opts.NodeId {
 			continue
 		}
-		syncInfo := n.syncState.replicaSync[replicaId]
-		if syncInfo == nil {
-			syncInfo = &SyncInfo{}
-			n.syncState.replicaSync[replicaId] = syncInfo
-		}
+		n.sendPingIfNeed(replicaId)
+	}
 
-		syncInfo.SyncTick++
-
-		if syncInfo.SyncTick > n.opts.SyncIntervalTick && !syncInfo.suspend {
-			n.sendPing(replicaId)
+	for _, learner := range n.cfg.Learners {
+		if learner == n.opts.NodeId {
+			continue
 		}
+		n.sendPingIfNeed(learner)
+	}
+}
+
+func (n *Node) sendPingIfNeed(replicaId uint64) {
+	syncInfo := n.syncState.replicaSync[replicaId]
+	if syncInfo == nil {
+		syncInfo = &SyncInfo{}
+		n.syncState.replicaSync[replicaId] = syncInfo
+	}
+
+	syncInfo.SyncTick++
+
+	if syncInfo.SyncTick > n.opts.SyncIntervalTick && !syncInfo.suspend {
+		n.sendPing(replicaId)
 	}
 }
 

@@ -46,6 +46,28 @@ func (r *rpcClient) RequestChannelProposeBatchUntilApplied(nodeId uint64, channe
 	return resps, nil
 }
 
+// RequestSlotProposeBatchUntilApplied 向指定节点请求槽提案
+func (r *rpcClient) RequestSlotProposeBatchUntilApplied(nodeId uint64, slotId uint32, reqs types.ProposeReqSet) (types.ProposeRespSet, error) {
+	req := &slotProposeReq{
+		SlotId: slotId,
+		reqs:   reqs,
+	}
+	data, err := req.encode()
+	if err != nil {
+		return nil, err
+	}
+	body, err := r.request(nodeId, "/rpc/slot/propose", data)
+	if err != nil {
+		return nil, err
+	}
+
+	resps := types.ProposeRespSet{}
+	if err := resps.Unmarshal(body); err != nil {
+		return nil, err
+	}
+	return resps, nil
+}
+
 func (r *rpcClient) RequestGetOrCreateChannelClusterConfig(nodeId uint64, channelId string, channelType uint8) (wkdb.ChannelClusterConfig, error) {
 
 	req := &channelReq{
