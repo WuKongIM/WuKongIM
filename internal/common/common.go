@@ -86,32 +86,32 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 		return s.getOrMakePersonTag(fakeChannelId)
 	}
 
-	leader, err := service.Cluster.LeaderOfChannel(fakeChannelId, channelType)
+	slotLeaderId, err := service.Cluster.SlotLeaderIdOfChannel(fakeChannelId, channelType)
 	if err != nil {
 		wklog.Error("GetOrRequestTag: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
-	if leader == nil {
-		wklog.Warn("GetOrRequestTag: leader is nil", zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
+	if slotLeaderId == 0 {
+		wklog.Warn("GetOrRequestTag: slotLeader is 0", zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, errors.ChannelNotExist(fakeChannelId)
 	}
 
 	// tagKey在频道的领导节点是一定存在的，
 	// 如果不存在可能就是失效了，这里直接忽略,只能等下条消息触发重构tag
-	if options.G.IsLocalNode(leader.Id) {
+	if options.G.IsLocalNode(slotLeaderId) {
 		wklog.Warn("tag not exist in leader node", zap.String("tagKey", tagKey), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, errors.TagNotExist(tagKey)
 	}
 
 	// 去领导节点请求
-	tagResp, err := s.client.RequestTag(leader.Id, &ingress.TagReq{
+	tagResp, err := s.client.RequestTag(slotLeaderId, &ingress.TagReq{
 		TagKey:      tagKey,
 		ChannelId:   fakeChannelId,
 		ChannelType: channelType,
 		NodeId:      targetNodeId,
 	})
 	if err != nil {
-		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.Uint64("leaderId", leader.Id), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.Uint64("slotLeaderId", slotLeaderId), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
 

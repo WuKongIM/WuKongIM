@@ -19,7 +19,8 @@ type Options struct {
 	Transport raftgroup.ITransport
 	// 槽数量
 	SlotCount uint32
-
+	// api接口
+	RPC icluster.RPC
 	// OnApply 应用日志回调
 	OnApply func(slotId uint32, logs []types.Log) error
 
@@ -86,5 +87,10 @@ func WithOnApply(onApply func(slotId uint32, logs []types.Log) error) Option {
 func WithOnSaveConfig(onSaveConfig func(slotId uint32, cfg types.Config) error) Option {
 	return func(o *Options) {
 		o.OnSaveConfig = onSaveConfig
+	}
+}
+func WithRPC(rpc icluster.RPC) Option {
+	return func(o *Options) {
+		o.RPC = rpc
 	}
 }
