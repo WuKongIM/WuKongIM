@@ -174,6 +174,9 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 	if len(offlineUids) > 0 {
 		offlineEvents := make([]*eventbus.Event, 0, len(events))
 		for _, event := range events {
+			if event.Frame == nil || event.Frame.GetFrameType() == wkproto.Chunk {
+				continue // 不处理chunk类型的事件
+			}
 			// 过滤发送者
 			filteredOfflineUids := make([]string, 0, len(offlineUids))
 			for _, offlineUid := range offlineUids {
