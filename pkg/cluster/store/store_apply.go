@@ -101,6 +101,8 @@ func (s *Store) applyLog(_ uint32, log types.Log) error {
 		return s.handleAddOrUpdateConversationsBatchIfNotExist(cmd)
 	case CMDUpdateConversationDeletedAtMsgSeq: // 更新最近会话的已删除的消息序号位置
 		return s.handleUpdateConversationDeletedAtMsgSeq(cmd)
+	case CMDSaveStreamV2: // 保存流(v2)
+		return s.handleSaveStreamV2(cmd)
 	}
 	return nil
 }
@@ -463,6 +465,14 @@ func (s *Store) handleUpdateConversationDeletedAtMsgSeq(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.UpdateConversationDeletedAtMsgSeq(uid, channelId, channelType, deletedAtMsgSeq)
+}
+
+func (s *Store) handleSaveStreamV2(cmd *CMD) error {
+	stream, err := cmd.DecodeCMDStreamV2()
+	if err != nil {
+		return err
+	}
+	return s.wdb.SaveStreamV2(stream)
 }
 
 // func (s *Store) handleAddOrUpdatePlugin(cmd *CMD) error {

@@ -74,10 +74,10 @@ type StreamMeta struct {
 	CreatedAt time.Time // Creation timestamp
 	UpdatedAt time.Time // Last update timestamp
 	Closed    bool      // Whether the stream is closed
-	EndReason int       // Reason why the stream was completed (EndReasonSuccess, EndReasonTimeout, etc.)
+	EndReason uint8     // Reason why the stream was completed (EndReasonSuccess, EndReasonTimeout, etc.)
 
 	// Common streaming message fields
-	ChannelId   string // Channel/conversation this stream belongs to
+	ChannelId   string // fakeChannelID Channel/conversation this stream belongs to, fakeChannelID
 	ChannelType uint8  // Type of channel (person, group, etc.)
 	FromUid     string // Sender user ID
 	ClientMsgNo string // Client-side message number
@@ -264,18 +264,18 @@ type StreamCache struct {
 	wklog.Log
 
 	// Callbacks
-	onStreamComplete func(messageId int64, chunks []*MessageChunk) error // Called when stream is complete
+	onStreamComplete func(meta *StreamMeta, chunks []*MessageChunk) error // Called when stream is complete
 }
 
 // StreamCacheOptions contains configuration options for StreamCache
 type StreamCacheOptions struct {
-	MaxMemorySize          int64                                               // Maximum memory usage in bytes
-	MaxStreams             int                                                 // Maximum number of concurrent streams
-	MaxChunksPerStream     int                                                 // Maximum chunks per stream
-	StreamTimeout          time.Duration                                       // Timeout for inactive streams
-	ChunkInactivityTimeout time.Duration                                       // Timeout for auto-completing inactive streams
-	CleanupInterval        time.Duration                                       // Interval for cleanup operations
-	OnStreamComplete       func(messageId int64, chunks []*MessageChunk) error // Callback when stream is complete
+	MaxMemorySize          int64                                                // Maximum memory usage in bytes
+	MaxStreams             int                                                  // Maximum number of concurrent streams
+	MaxChunksPerStream     int                                                  // Maximum chunks per stream
+	StreamTimeout          time.Duration                                        // Timeout for inactive streams
+	ChunkInactivityTimeout time.Duration                                        // Timeout for auto-completing inactive streams
+	CleanupInterval        time.Duration                                        // Interval for cleanup operations
+	OnStreamComplete       func(meta *StreamMeta, chunks []*MessageChunk) error // Callback when stream is complete
 }
 
 // NewStreamCache creates a new StreamCache with the given options
@@ -466,7 +466,7 @@ func (sc *StreamCache) AppendChunk(chunk *MessageChunk) error {
 }
 
 // EndStream marks a stream as complete and flushes it
-func (sc *StreamCache) EndStream(messageId int64, reason int) error {
+func (sc *StreamCache) EndStream(messageId int64, reason uint8) error {
 	if messageId <= 0 {
 		return ErrInvalidMessageId
 	}
@@ -504,7 +504,7 @@ func (sc *StreamCache) EndStream(messageId int64, reason int) error {
 
 		// Prepare data for callback execution outside the lock
 		streamData = stream
-		chunks = sc.prepareChunksForCallback(stream)
+		chunks = sc.PrepareChunksForCallback(stream)
 
 		// Remove stream from cache immediately while holding the lock
 		delete(sc.streams, messageId)
@@ -530,11 +530,11 @@ func (sc *StreamCache) EndStream(messageId int64, reason int) error {
 	}
 
 	// Execute callback outside the critical section
-	return sc.executeStreamCompletionCallback(messageId, chunks, streamData.Size)
+	return sc.executeStreamCompletionCallback(streamData.Meta, chunks, streamData.Size)
 }
 
-// prepareChunksForCallback converts chunks map to sorted slice for callback execution
-func (sc *StreamCache) prepareChunksForCallback(stream *StreamData) []*MessageChunk {
+// PrepareChunksForCallback converts chunks map to sorted slice for callback execution
+func (sc *StreamCache) PrepareChunksForCallback(stream *StreamData) []*MessageChunk {
 	// Convert chunks map to sorted slice
 	chunks := make([]*MessageChunk, 0, len(stream.Chunks))
 	for _, chunk := range stream.Chunks {
@@ -553,20 +553,39 @@ func (sc *StreamCache) prepareChunksForCallback(stream *StreamData) []*MessageCh
 	return chunks
 }
 
+func (sc *StreamCache) GetStreamData(stream *StreamData) []byte {
+	chunks := sc.PrepareChunksForCallback(stream)
+	return sc.mergeChunks(chunks)
+}
+
+func (sc *StreamCache) mergeChunks(chunks []*MessageChunk) []byte {
+	totalSize := 0
+	for _, chunk := range chunks {
+		totalSize += len(chunk.Payload)
+	}
+
+	mergedData := make([]byte, 0, totalSize)
+	for _, chunk := range chunks {
+		mergedData = append(mergedData, chunk.Payload...)
+	}
+
+	return mergedData
+}
+
 // executeStreamCompletionCallback executes the completion callback outside the critical section
-func (sc *StreamCache) executeStreamCompletionCallback(messageId int64, chunks []*MessageChunk, streamSize int64) error {
+func (sc *StreamCache) executeStreamCompletionCallback(meta *StreamMeta, chunks []*MessageChunk, streamSize int64) error {
 	sc.Info("Completing stream",
-		zap.Int64("messageId", messageId),
+		zap.Int64("messageId", meta.MessageId),
 		zap.Int("chunkCount", len(chunks)),
 		zap.Int64("streamSize", streamSize))
 
 	// Call completion callback if provided
 	var callbackErr error
 	if sc.onStreamComplete != nil {
-		callbackErr = sc.onStreamComplete(messageId, chunks)
+		callbackErr = sc.onStreamComplete(meta, chunks)
 		if callbackErr != nil {
 			sc.Error("Stream completion callback failed",
-				zap.Int64("messageId", messageId),
+				zap.Int64("messageId", meta.MessageId),
 				zap.Error(callbackErr))
 		}
 	}
@@ -575,7 +594,7 @@ func (sc *StreamCache) executeStreamCompletionCallback(messageId int64, chunks [
 }
 
 // EndStreamInChannel ends all active streams within a specific channel
-func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, reason int) error {
+func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, reason uint8) error {
 	if channelId == "" {
 		return ErrInvalidChannelId
 	}
@@ -614,7 +633,7 @@ func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, r
 		zap.String("channelId", channelId),
 		zap.Uint8("channelType", channelType),
 		zap.Int("streamCount", len(streamsToEnd)),
-		zap.Int("reason", reason))
+		zap.Uint8("reason", reason))
 
 	// Second pass: end each stream (without holding locks during EndStream)
 	var errors []error
@@ -668,6 +687,21 @@ func (sc *StreamCache) GetStreamInfo(messageId int64) (*StreamMeta, error) {
 
 	// Return a deep copy of the metadata
 	return stream.Meta, nil
+}
+
+func (sc *StreamCache) GetStream(messageId int64) (*StreamData, error) {
+	if messageId <= 0 {
+		return nil, ErrInvalidMessageId
+	}
+
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	stream, exists := sc.streams[messageId]
+	if !exists {
+		return nil, ErrStreamNotFound
+	}
+	return stream, nil
 }
 
 // GetStats returns cache statistics

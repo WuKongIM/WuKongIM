@@ -232,6 +232,15 @@ func (w *Webhook) NotifyOfflineMsg(msgs []*eventbus.Event) {
 }
 
 func (w *Webhook) notifyOfflineMsg(e *eventbus.Event, subscribers []string) {
+	switch frame := e.Frame.(type) {
+	case *wkproto.SendPacket:
+		w.pushOfflineMessages(e, frame, subscribers)
+	case *wkproto.ChunkPacket:
+		// ChunkPacket不需要处理离线消息
+	}
+}
+
+func (w *Webhook) pushOfflineMessages(e *eventbus.Event, sendPacket *wkproto.SendPacket, subscribers []string) {
 	compress := ""
 	toUIDs := subscribers
 	var compresssToUIDs []byte
@@ -248,7 +257,6 @@ func (w *Webhook) notifyOfflineMsg(e *eventbus.Event, subscribers []string) {
 			compresssToUIDs = buff.Bytes()
 		}
 	}
-	sendPacket := e.Frame.(*wkproto.SendPacket)
 	// 推送离线到上层应用
 	w.TriggerEvent(&types.Event{
 		Event: types.EventMsgOffline,

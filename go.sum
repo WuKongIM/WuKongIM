@@ -270,8 +270,8 @@ github.com/Shopify/toxiproxy/v2 v2.5.0/go.mod h1:yhM2epWtAmel9CB8r2+L+PCmhH6yH2p
 github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
 github.com/Workiva/go-datastructures v1.1.5 h1:5YfhQ4ry7bZc2Mc7R0YZyYwpf5c6t1cEFvdAhd6Mkf4=
 github.com/Workiva/go-datastructures v1.1.5/go.mod h1:1yZL+zfsztete+ePzZz/Zb1/t5BnDuE2Ya2MMGhzP6A=
-github.com/WuKongIM/WuKongIMGoProto v1.2.1 h1:ZcpcFA+keWJWGHz1rPwzxRNglwMCpTdWfij8VqDhFo8=
-github.com/WuKongIM/WuKongIMGoProto v1.2.1/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
+github.com/WuKongIM/WuKongIMGoProto v1.2.2 h1:Xq3MQfRuiyKGaEwZiicWzbBklra5O8NS+CDcLwadf90=
+github.com/WuKongIM/WuKongIMGoProto v1.2.2/go.mod h1:dUQCRuqwMoyYeLiHTsLBfbiWlVtB+8Gdsyq1M1oeEzg=
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f h1:erzPrCjuS7yvfpMyUxQjaMDHhBicUKt/qxwC/8s25VQ=
 github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f/go.mod h1:gS8ErzMrBY+zJfxwFFzUzR9S2jFo/FTyEVr4pedbfbA=
 github.com/WuKongIM/wklog v0.0.0-20250123094253-32484fb54d05 h1:z6Zu0VFnXA/+IcNAI/G0QgvIZZlU4aF6pf/fPP780hY=

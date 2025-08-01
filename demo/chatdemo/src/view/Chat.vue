@@ -2,7 +2,7 @@
 import { nextTick, onMounted, onUnmounted, ref, toRaw, toRefs, unref } from 'vue';
 import APIClient from '../services/APIClient'
 import { useRouter } from "vue-router";
-import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, PullMode, MessageContent, MessageContentType, ConnectionInfo, Stream, StreamListener } from "wukongimjssdk";
+import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, PullMode, MessageContent, MessageContentType, ConnectionInfo, Stream, StreamChangeListener } from "wukongimjssdk";
 import { ConnectStatus, ConnectStatusListener } from 'wukongimjssdk';
 import { SendackPacket, Setting } from 'wukongimjssdk';
 import { Buffer } from 'buffer';
@@ -60,7 +60,7 @@ title.value = `${uid || ""}(未连接)`
 let connectStatusListener!: ConnectStatusListener
 let messageListener!: MessageListener
 let messageStatusListener!: MessageStatusListener
-let streamListener!: StreamListener // 流监听
+let streamListener!: StreamChangeListener // 流监听
 
 onMounted(() => {
 
@@ -114,6 +114,7 @@ const connectIM = (addr: string) => {
 
     // 监听消息
     messageListener = (msg) => {
+        console.log("messageListener-->", msg)
         if (!to.value.isEqual(msg.channel)) {
             return
         }
@@ -125,30 +126,16 @@ const connectIM = (addr: string) => {
 
     // 流监听
     streamListener = (stream: Stream) => {
-        if (!to.value.isEqual(stream.channel)) {
+        if (stream.channel && !to.value.isEqual(stream.channel)) {
             return
         }
         for (const message of messages.value) {
-            if (message.streamNo === stream.streamNo) {
-                let streams = message.streams;
-                if (streams && streams.length > 0) {
-                    streams.push(stream)
+            if (message.messageID === stream.messageID) {
+                if (stream.chunks && stream.chunks.length > 0) {
+                    message.content = new MessageText(stream.text)
                 } else {
-                    streams = [stream]
+                    message.content = stream.initMessage?.content
                 }
-                streams.sort((a, b) => {
-
-                    if (!a.streamId || !b.streamId) {
-                        return 0
-                    }
-                    if (a.streamId > b.streamId) {
-                        return 1
-                    } else {
-                        return -1
-                    }
-                })
-                message.streams = streams
-                message.content = streamsToMessageText(streams)
                 break
             }
             // 刷新ui
@@ -156,7 +143,7 @@ const connectIM = (addr: string) => {
             scrollBottom()
         }
     }
-    WKSDK.shared().streamManager.addStreamListener(streamListener)
+    WKSDK.shared().streamManager.addStreamChangeListener(streamListener)
 
     messageStatusListener = (ack: SendackPacket) => {
         console.log(ack)
@@ -176,7 +163,7 @@ onUnmounted(() => {
     WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
     WKSDK.shared().chatManager.removeMessageListener(messageListener)
     WKSDK.shared().chatManager.removeMessageStatusListener(messageStatusListener)
-    WKSDK.shared().streamManager.removeStreamListener(streamListener)
+    WKSDK.shared().streamManager.removeStreamChangeListener(streamListener)
     WKSDK.shared().disconnect()
 })
 
@@ -216,8 +203,10 @@ const pullLast = async () => {
 
     // 渲染流消息
     for (const m of msgs) {
-        if (m.streamOn && m.streams) {
-            m.content = streamsToMessageText(m.streams)
+        if (m.setting.streamOn) {
+            if (m.streamText && m.streamText.length > 0) {
+                m.content = new MessageText(m.streamText)
+            }
         }
     }
 
@@ -247,8 +236,10 @@ const pullDown = async () => {
 
     // 渲染流消息
     for (const m of msgs) {
-        if (m.streamOn && m.streams) {
-            m.content = streamsToMessageText(m.streams)
+        if (m.setting.streamOn) {
+            if (m.streamText && m.streamText.length > 0) {
+                m.content = new MessageText(m.streamText)
+            }
         }
     }
 
@@ -312,9 +303,6 @@ const onSend = () => {
     const setting = Setting.fromUint8(0)
     if (to.value && to.value.channelID != "") {
         var content: MessageContent
-        if (streamNo.value && streamNo.value !== '') {
-            setting.streamNo = streamNo.value
-        }
         content = new MessageText(text.value)
         WKSDK.shared().chatManager.send(content, to.value, setting)
         text.value = ""
@@ -354,20 +342,6 @@ const logout = () => {
 }
 
 
-// 流转文本消息
-const streamsToMessageText = (streams: Stream[]) => {
-    let text = ""
-    for (const stream of streams) {
-        if (stream.content instanceof MessageText) {
-            const messageText = stream.content as MessageText
-            text = text + (messageText.text || "")
-        }
-    }
-    const htmlText = marked.parse(text)
-    if (htmlText) {
-        return new MessageText(htmlText as string)
-    }
-}
 
 
 const handleScroll = (e: any) => {
@@ -398,9 +372,9 @@ const onKeydown = (e: any) => {
     if (!isComposing.value) {
         hasHandled.value = false
         return
-      }
-      // 中文输入法状态下回车确认输入
-      hasHandled.value = true
+    }
+    // 中文输入法状态下回车确认输入
+    hasHandled.value = true
 }
 
 </script>

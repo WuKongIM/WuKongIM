@@ -47,9 +47,9 @@ func TestStreamCache_Basic(t *testing.T) {
 	}
 
 	var completedChunks []*MessageChunk
-	cache.onStreamComplete = func(msgId int64, receivedChunks []*MessageChunk) error {
-		if msgId != messageId {
-			t.Errorf("Expected messageId %d, got %d", messageId, msgId)
+	cache.onStreamComplete = func(meta *StreamMeta, receivedChunks []*MessageChunk) error {
+		if meta.MessageId != messageId {
+			t.Errorf("Expected messageId %d, got %d", messageId, meta.MessageId)
 		}
 		completedChunks = receivedChunks
 		return nil
@@ -564,9 +564,9 @@ func TestStreamCache_InactivityTimeout(t *testing.T) {
 	cache := NewStreamCache(&StreamCacheOptions{
 		ChunkInactivityTimeout: inactivityTimeout,
 		CleanupInterval:        cleanupInterval,
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[messageId] = true
+			completedStreams[meta.MessageId] = true
 			mu.Unlock()
 			return nil
 		},
@@ -622,9 +622,9 @@ func TestStreamCache_InactivityTimeout_ActiveStream(t *testing.T) {
 	cache := NewStreamCache(&StreamCacheOptions{
 		ChunkInactivityTimeout: inactivityTimeout,
 		CleanupInterval:        cleanupInterval,
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[messageId] = true
+			completedStreams[meta.MessageId] = true
 			mu.Unlock()
 			return nil
 		},
@@ -703,7 +703,7 @@ func TestStreamCache_InactivityTimeout_ManualEndStream(t *testing.T) {
 	cache := NewStreamCache(&StreamCacheOptions{
 		ChunkInactivityTimeout: inactivityTimeout,
 		CleanupInterval:        cleanupInterval,
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			atomic.AddInt32(&completedCount, 1)
 			return nil
 		},
@@ -754,9 +754,9 @@ func TestStreamCache_InactivityTimeout_ConcurrentChunks(t *testing.T) {
 	cache := NewStreamCache(&StreamCacheOptions{
 		ChunkInactivityTimeout: inactivityTimeout,
 		CleanupInterval:        cleanupInterval,
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[messageId] = true
+			completedStreams[meta.MessageId] = true
 			mu.Unlock()
 			return nil
 		},
@@ -821,7 +821,7 @@ func TestStreamCache_InactivityTimeout_ConcurrentChunks(t *testing.T) {
 func TestStreamCache_EndReason(t *testing.T) {
 	// Test that EndReason is properly set and tracked
 	cache := NewStreamCache(&StreamCacheOptions{
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			return nil
 		},
 	})
@@ -870,7 +870,7 @@ func TestStreamCache_EndReason(t *testing.T) {
 	})
 
 	// End with invalid reason (should default to success)
-	err = cache.EndStream(messageId3, 999)
+	err = cache.EndStream(messageId3, 111)
 	if err != nil {
 		t.Fatalf("Failed to end stream with invalid reason: %v", err)
 	}
@@ -886,7 +886,7 @@ func TestStreamCache_InactivityTimeout_EndReason(t *testing.T) {
 	cache := NewStreamCache(&StreamCacheOptions{
 		ChunkInactivityTimeout: inactivityTimeout,
 		CleanupInterval:        cleanupInterval,
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			return nil
 		},
 	})
@@ -921,9 +921,9 @@ func TestStreamCache_EndStreamInChannel(t *testing.T) {
 	var mu sync.Mutex
 
 	cache := NewStreamCache(&StreamCacheOptions{
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[messageId] = true
+			completedStreams[meta.MessageId] = true
 			mu.Unlock()
 			return nil
 		},
@@ -1029,7 +1029,7 @@ func TestStreamCache_EndStreamInChannel_Errors(t *testing.T) {
 		Payload:   []byte("test chunk"),
 	})
 
-	err = cache.EndStreamInChannel("test", 1, 999) // Invalid reason
+	err = cache.EndStreamInChannel("test", 1, 111) // Invalid reason
 	if err != nil {
 		t.Errorf("EndStreamInChannel should handle invalid reason gracefully, got: %v", err)
 	}
@@ -1041,9 +1041,9 @@ func TestStreamCache_EndStreamInChannel_Concurrent(t *testing.T) {
 	var mu sync.Mutex
 
 	cache := NewStreamCache(&StreamCacheOptions{
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[messageId] = true
+			completedStreams[meta.MessageId] = true
 			mu.Unlock()
 			return nil
 		},
@@ -1118,7 +1118,7 @@ func TestStreamCache_EndStream_ConcurrentAccess(t *testing.T) {
 	callbackDuration := 100 * time.Millisecond
 
 	cache := NewStreamCache(&StreamCacheOptions{
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			// Simulate slow callback (e.g., database operation)
 			time.Sleep(callbackDuration)
 			return nil

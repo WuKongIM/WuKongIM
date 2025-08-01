@@ -35,6 +35,7 @@ func newStream(s *Server) *stream {
 
 // Route route
 func (s *stream) route(r *wkhttp.WKHttp) {
+	// 此文件里的接口后续将移除 新的查看 streamv2.go里的接口
 	r.POST("/stream/open", s.open)   // 流消息开始
 	r.POST("/stream/close", s.close) // 流消息结束
 }

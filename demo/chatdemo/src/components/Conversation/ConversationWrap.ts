@@ -72,7 +72,7 @@ export class ConversationWrap {
         if(!this.lastMessage) {
             return ""
         }
-        if(this.lastMessage.streamOn) {
+        if(this.lastMessage.setting.streamOn) {
             return "[流消息]"
         }
         return this.lastMessage.content.conversationDigest 
