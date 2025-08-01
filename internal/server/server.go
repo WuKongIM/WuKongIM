@@ -32,6 +32,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/store"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
 	"github.com/WuKongIM/WuKongIM/pkg/wkcache"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -162,13 +163,30 @@ func New(opts *options.Options) *Server {
 		StreamTimeout:          s.opts.StreamCache.StreamTimeout,
 		ChunkInactivityTimeout: s.opts.StreamCache.ChunkInactivityTimeout,
 		CleanupInterval:        s.opts.StreamCache.CleanupInterval,
-		OnStreamComplete: func(messageId int64, chunks []*wkcache.MessageChunk) error {
+		OnStreamComplete: func(meta *wkcache.StreamMeta, chunks []*wkcache.MessageChunk) error {
 			// Log stream completion for monitoring
-			s.Info("Stream completed",
-				zap.Int64("messageId", messageId),
-				zap.Int("chunkCount", len(chunks)))
-			fmt.Println("chunks[0]--->", string(chunks[0].Payload))
-			return nil
+
+			payloadLen := 0
+			for _, chunk := range chunks {
+				payloadLen += len(chunk.Payload)
+			}
+
+			payload := make([]byte, payloadLen)
+			offset := 0
+			for _, chunk := range chunks {
+				copy(payload[offset:], chunk.Payload)
+				offset += len(chunk.Payload)
+			}
+
+			return service.Store.SaveStreamV2(&wkdb.StreamV2{
+				MessageId:   meta.MessageId,
+				ChannelId:   meta.ChannelId,
+				ChannelType: meta.ChannelType,
+				FromUid:     meta.FromUid,
+				End:         meta.EndReason,
+				EndReason:   meta.EndReason,
+				Payload:     payload,
+			})
 		},
 	})
 	service.StreamCache = s.streamCache

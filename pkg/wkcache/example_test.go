@@ -14,9 +14,9 @@ func ExampleStreamCache() {
 		MaxStreams:         1000,             // Max 1000 concurrent streams
 		MaxChunksPerStream: 500,              // Max 500 chunks per stream
 		StreamTimeout:      5 * time.Minute,  // 5 minute timeout
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			// This callback is called when a stream is complete
-			fmt.Printf("Stream %d completed with %d chunks\n", messageId, len(chunks))
+			fmt.Printf("Stream %d completed with %d chunks\n", meta.MessageId, len(chunks))
 
 			// Here you would typically save the complete message to database
 			// For example:
@@ -64,8 +64,8 @@ func ExampleStreamCache() {
 // Example demonstrates manual stream completion
 func ExampleStreamCache_EndStream() {
 	cache := NewStreamCache(&StreamCacheOptions{
-		OnStreamComplete: func(messageId int64, chunks []*MessageChunk) error {
-			fmt.Printf("Manually completed stream %d with %d chunks\n", messageId, len(chunks))
+		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
+			fmt.Printf("Manually completed stream %d with %d chunks\n", meta.MessageId, len(chunks))
 			return nil
 		},
 	})

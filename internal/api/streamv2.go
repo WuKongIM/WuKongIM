@@ -37,7 +37,6 @@ func newStreamv2(s *Server) *streamV2 {
 func (s *streamV2) route(r *wkhttp.WKHttp) {
 	r.POST("/streamv2/open", s.open)   // 流消息开始
 	r.POST("/streamv2/write", s.write) // 流消息写入
-	r.POST("/streamv2/close", s.close) // 流消息结束
 }
 
 func (s *streamV2) open(c *wkhttp.Context) {
@@ -103,7 +102,7 @@ func (s *streamV2) open(c *wkhttp.Context) {
 
 	// 开启流
 	meta := wkcache.NewStreamMetaBuilder(message.MessageID).
-		Channel(req.ChannelId, req.ChannelType).
+		Channel(fakeChannelId, req.ChannelType).
 		From(req.FromUid).
 		Build()
 	err = s.openStream(meta)
@@ -150,9 +149,7 @@ func (s *streamV2) storeMessage(req streamv2OpenReq) (wkdb.Message, error) {
 	streamNo := strconv.FormatInt(messageId, 10)
 
 	var setting wkproto.Setting
-	if strings.TrimSpace(streamNo) != "" {
-		setting = setting.Set(wkproto.SettingStream)
-	}
+	setting = setting.Set(wkproto.SettingStream)
 
 	msg := wkdb.Message{
 		RecvPacket: wkproto.RecvPacket{
@@ -280,7 +277,7 @@ func (s *streamV2) write(c *wkhttp.Context) {
 		s.Error("流已关闭！", zap.Int64("messageId", req.MessageId))
 		return
 	}
-	if meta.ChannelId != req.ChannelId || meta.ChannelType != req.ChannelType {
+	if meta.ChannelId != fakeChannelId || meta.ChannelType != req.ChannelType {
 		c.ResponseError(errors.New("流的频道不匹配！"))
 		s.Error("流的频道不匹配！", zap.Int64("messageId", req.MessageId))
 		return
@@ -299,11 +296,20 @@ func (s *streamV2) write(c *wkhttp.Context) {
 	}
 
 	// send chunk
-	err = s.sendChunk(req.MessageId, chunkId, req.Payload, meta)
+	err = s.sendChunk(chunkId, req)
 	if err != nil {
 		c.ResponseError(err)
 		s.Error("发送流消息失败！", zap.Error(err), zap.Uint64("chunkId", chunkId), zap.Int64("messageId", req.MessageId))
 		return
+	}
+
+	if req.End == 1 {
+		err = service.StreamCache.EndStream(req.MessageId, req.EndReason.Value())
+		if err != nil {
+			c.ResponseError(err)
+			s.Error("关闭流失败！", zap.Error(err), zap.Int64("messageId", req.MessageId))
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -312,68 +318,32 @@ func (s *streamV2) write(c *wkhttp.Context) {
 	})
 }
 
-func (s *streamV2) sendChunk(messageId int64, chunkId uint64, payload []byte, meta *wkcache.StreamMeta) error {
-
-	return nil
-}
-
-func (s *streamV2) close(c *wkhttp.Context) {
-	var req streamv2CloseReq
-	bodyBytes, err := BindJSON(&req, c)
-	if err != nil {
-		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
-		s.Error("数据格式有误！", zap.Error(err))
-		return
-	}
-	if err := req.check(); err != nil {
-		c.ResponseError(err)
-		return
+func (s *streamV2) sendChunk(chunkId uint64, req streamv2WriteReq) error {
+	chunk := &wkproto.ChunkPacket{
+		Framer: wkproto.Framer{
+			End: req.End == 1,
+		},
+		MessageID: req.MessageId,
+		ChunkID:   chunkId,
+		Payload:   req.Payload,
+		EndReason: req.EndReason,
 	}
 
 	fakeChannelId := req.ChannelId
-	channelType := req.ChannelType
 	if req.ChannelType == wkproto.ChannelTypePerson {
 		fakeChannelId = options.GetFakeChannelIDWith(req.ChannelId, req.FromUid)
 	}
-	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(fakeChannelId, channelType) // 获取消息的槽领导节点
-	if err != nil {
-		s.Error("获取消息所在节点失败！", zap.Error(err), zap.Int64("messageId", req.MessageId))
-		c.ResponseError(errors.New("获取消息所在节点失败！"))
-		return
-	}
-	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
-	if !leaderIsSelf {
-		s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
-		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
-		return
-	}
 
-	meta, err := service.StreamCache.GetStreamInfo(req.MessageId)
-	if err != nil {
-		c.ResponseError(err)
-		s.Error("获取流信息失败！", zap.Error(err), zap.Int64("messageId", req.MessageId))
-		return
-	}
-	if meta == nil {
-		c.ResponseError(errors.New("流不存在！"))
-		s.Error("流不存在！", zap.Int64("messageId", req.MessageId))
-		return
-	}
-	if meta.Closed {
-		c.ResponseError(errors.New("流已关闭！"))
-		s.Error("流已关闭！", zap.Int64("messageId", req.MessageId))
-		return
-	}
-	if meta.ChannelId != req.ChannelId || meta.ChannelType != req.ChannelType {
-		c.ResponseError(errors.New("流的频道不匹配！"))
-		s.Error("流的频道不匹配！", zap.Int64("messageId", req.MessageId))
-		return
-	}
-	err = service.StreamCache.EndStream(req.MessageId, wkcache.EndReasonSuccess)
-	if err != nil {
-		c.ResponseError(err)
-		s.Error("关闭流失败！", zap.Error(err), zap.Int64("messageId", req.MessageId))
-		return
-	}
-	c.ResponseOK()
+	eventbus.Channel.SendChunk(fakeChannelId, req.ChannelType, &eventbus.Event{
+		Conn: &eventbus.Conn{
+			Uid:      req.FromUid,
+			DeviceId: options.G.SystemDeviceId,
+		},
+		Type:      eventbus.EventChannelDistribute, // 直接进行分发
+		Frame:     chunk,
+		MessageId: req.MessageId,
+	})
+
+	// eventbus.Channel.Advance(fakeChannelId, req.ChannelType)
+	return nil
 }

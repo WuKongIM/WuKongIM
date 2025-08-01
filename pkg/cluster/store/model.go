@@ -103,6 +103,8 @@ const (
 	CMDAddOrUpdateConversationsBatchIfNotExist
 	// 更新最近会话的已删除的消息序号位置
 	CMDUpdateConversationDeletedAtMsgSeq
+	// 保存流(v2)
+	CMDSaveStreamV2
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -197,6 +199,8 @@ func (c CMDType) String() string {
 		return "CMDAddOrUpdateConversationsBatchIfNotExist"
 	case CMDUpdateConversationDeletedAtMsgSeq:
 		return "CMDUpdateConversationDeletedAtMsgSeq"
+	case CMDSaveStreamV2:
+		return "CMDSaveStreamV2"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -1580,6 +1584,46 @@ func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelI
 		return
 	}
 	if deletedAtMsgSeq, err = decoder.Uint64(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDStreamV2(stream *wkdb.StreamV2) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteInt64(stream.MessageId)
+	encoder.WriteString(stream.ChannelId)
+	encoder.WriteUint8(stream.ChannelType)
+	encoder.WriteString(stream.FromUid)
+	encoder.WriteUint8(stream.End)
+	encoder.WriteUint8(stream.EndReason)
+	encoder.WriteBytes(stream.Payload)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDStreamV2() (stream *wkdb.StreamV2, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	stream = &wkdb.StreamV2{}
+	if stream.MessageId, err = decoder.Int64(); err != nil {
+		return
+	}
+	if stream.ChannelId, err = decoder.String(); err != nil {
+		return
+	}
+	if stream.ChannelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if stream.FromUid, err = decoder.String(); err != nil {
+		return
+	}
+	if stream.End, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if stream.EndReason, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if stream.Payload, err = decoder.BinaryAll(); err != nil {
 		return
 	}
 	return

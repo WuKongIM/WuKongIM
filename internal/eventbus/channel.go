@@ -44,3 +44,8 @@ func (c *channelPlus) Advance(channelId string, channelType uint8) {
 func (c *channelPlus) SendMessage(channelId string, channelType uint8, event *Event) {
 	c.channel.AddEvent(channelId, channelType, event)
 }
+
+// SendChunk 发送消息块
+func (c *channelPlus) SendChunk(channelId string, channelType uint8, event *Event) {
+	c.channel.AddEvent(channelId, channelType, event)
+}
