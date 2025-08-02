@@ -141,6 +141,10 @@ func (s *apiServer) setRoutes() {
 	tag := newTag(s.s)
 	tag.route(s.r)
 
+	// docs - API documentation with Swagger UI
+	docs := newDocs(s.s)
+	docs.route(s.r)
+
 	// 分布式api
 	clusterServer, ok := service.Cluster.(*cluster.Server)
 	if ok {
