@@ -69,6 +69,143 @@
         }
       }
     },
+    "/migrate/result": {
+      "get": {
+        "summary": "Get Migration Result",
+        "description": "Get the result of database migration operations",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "Migration result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Migration status"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Migration message"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "summary": "API Documentation",
+        "description": "Swagger UI interface for API documentation (available in development mode only)",
+        "tags": ["Documentation"],
+        "responses": {
+          "200": {
+            "description": "Swagger UI HTML page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Documentation disabled in release mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs/openapi.json": {
+      "get": {
+        "summary": "OpenAPI Specification",
+        "description": "Get the OpenAPI 3.0 specification file",
+        "tags": ["Documentation"],
+        "responses": {
+          "200": {
+            "description": "OpenAPI specification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Documentation disabled in release mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs/health": {
+      "get": {
+        "summary": "Documentation Service Health",
+        "description": "Health check for the documentation service",
+        "tags": ["Documentation"],
+        "responses": {
+          "200": {
+            "description": "Documentation service status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "service": {
+                      "type": "string",
+                      "example": "docs"
+                    },
+                    "description": {
+                      "type": "string",
+                      "example": "WuKongIM API Documentation Service"
+                    },
+                    "endpoints": {
+                      "type": "object",
+                      "properties": {
+                        "swagger_ui": {
+                          "type": "string",
+                          "example": "/docs"
+                        },
+                        "openapi_spec": {
+                          "type": "string",
+                          "example": "/docs/openapi.json"
+                        },
+                        "health_check": {
+                          "type": "string",
+                          "example": "/docs/health"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/route": {
       "get": {
         "summary": "Get User IM Address",
@@ -323,6 +460,93 @@
         }
       }
     },
+    "/user/systemuids_add_to_cache": {
+      "post": {
+        "summary": "Add System UIDs to Cache",
+        "description": "Add system UIDs to cache only (internal use)",
+        "tags": ["User"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemUidsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "System UIDs added to cache successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/systemuids_remove_from_cache": {
+      "post": {
+        "summary": "Remove System UIDs from Cache",
+        "description": "Remove system UIDs from cache only (internal use)",
+        "tags": ["User"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemUidsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "System UIDs removed from cache successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/update_plugin_no": {
+      "post": {
+        "summary": "Update Plugin Number",
+        "description": "Update plugin number for a user",
+        "tags": ["User"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePluginNoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin number updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/conn/remove": {
       "post": {
         "summary": "Remove Connection",
@@ -526,6 +750,35 @@
         }
       }
     },
+    "/tmpchannel/subscriber_set": {
+      "post": {
+        "summary": "Set Temporary Channel Subscribers",
+        "description": "Set subscribers for a temporary channel (internal node call)",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TmpChannelSubscriberSetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Temporary channel subscribers set successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/message/send": {
       "post": {
         "summary": "Send Message",
@@ -583,6 +836,69 @@
                   "items": {
                     "$ref": "#/components/schemas/MessageSendResponse"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/message/sync": {
+      "post": {
+        "summary": "Message Sync (Deprecated)",
+        "description": "Message synchronization in write mode (will be deprecated)",
+        "deprecated": true,
+        "tags": ["Message"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Messages synchronized successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/message/syncack": {
+      "post": {
+        "summary": "Message Sync Acknowledgment (Deprecated)",
+        "description": "Message synchronization acknowledgment in write mode (will be deprecated)",
+        "deprecated": true,
+        "tags": ["Message"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageSyncAckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sync acknowledgment processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
                 }
               }
             }
@@ -651,6 +967,147 @@
         }
       }
     },
+    "/channel/messagesync": {
+      "post": {
+        "summary": "Sync Channel Messages",
+        "description": "Synchronize messages from a channel with pagination support",
+        "tags": ["Message"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelMessageSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Channel messages synchronized successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageSyncResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channel/max_message_seq": {
+      "get": {
+        "summary": "Get Channel Max Message Sequence",
+        "description": "Get the maximum message sequence number for a channel",
+        "tags": ["Message"],
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": true,
+            "description": "Channel ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel_type",
+            "in": "query",
+            "required": true,
+            "description": "Channel type (1=person, 2=group)",
+            "schema": {
+              "type": "integer",
+              "enum": [1, 2]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Maximum message sequence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message_seq": {
+                      "type": "integer",
+                      "description": "Maximum message sequence number",
+                      "example": 12345
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stream/open": {
+      "post": {
+        "summary": "Open Stream Message",
+        "description": "Start a stream message session",
+        "tags": ["Stream"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamOpenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stream opened successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stream_no": {
+                      "type": "string",
+                      "description": "Unique stream identifier",
+                      "example": "stream_abc123"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stream/close": {
+      "post": {
+        "summary": "Close Stream Message",
+        "description": "End a stream message session",
+        "tags": ["Stream"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamCloseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stream closed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/conversations/clearUnread": {
       "post": {
         "summary": "Clear Conversation Unread",
@@ -669,6 +1126,64 @@
         "responses": {
           "200": {
             "description": "Unread count cleared successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/setUnread": {
+      "post": {
+        "summary": "Set Conversation Unread",
+        "description": "Set unread count for a conversation",
+        "tags": ["Conversation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUnreadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unread count set successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversations/delete": {
+      "post": {
+        "summary": "Delete Conversation",
+        "description": "Delete a conversation",
+        "tags": ["Conversation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteConversationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation deleted successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -704,6 +1219,70 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ConversationResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversation/syncMessages": {
+      "post": {
+        "summary": "Sync Recent Messages",
+        "description": "Synchronize recent messages for conversations",
+        "tags": ["Conversation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRecentMessagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recent messages synchronized successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelRecentMessagesResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversation/channels": {
+      "post": {
+        "summary": "Get Conversation Channels",
+        "description": "Get channel collection for recent conversations",
+        "tags": ["Conversation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationChannelsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation channels retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelResponse"
                   }
                 }
               }
@@ -885,35 +1464,7 @@
         }
       }
     },
-    "/manager/login": {
-      "post": {
-        "summary": "Manager Login",
-        "description": "Login for administrative access",
-        "tags": ["Manager"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Login successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
+
     "/channel/blacklist_add": {
       "post": {
         "summary": "Add Channel Blacklist",
@@ -1015,18 +1566,128 @@
         }
       }
     },
-    "/migrate/result": {
+    "/tag": {
       "get": {
-        "summary": "Get Migration Result",
-        "description": "Get the result of data migration process",
-        "tags": ["System"],
+        "summary": "Get Tag",
+        "description": "Get tag information",
+        "tags": ["Tag"],
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "query",
+            "required": true,
+            "description": "Tag name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Migration result",
+            "description": "Tag information",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MigrateResultResponse"
+                  "$ref": "#/components/schemas/TagResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tag/remove": {
+      "post": {
+        "summary": "Remove Tag",
+        "description": "Remove a tag",
+        "tags": ["Tag"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagRemoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tag removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "summary": "List Tags",
+        "description": "Get list of all tags",
+        "tags": ["Tag"],
+        "responses": {
+          "200": {
+            "description": "List of tags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TagResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/manager/login": {
+      "post": {
+        "summary": "Manager Login",
+        "description": "Login for manager access",
+        "tags": ["Manager"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerLoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/varz/setting": {
+      "get": {
+        "summary": "Get System Settings",
+        "description": "Get system configuration settings",
+        "tags": ["Monitoring"],
+        "responses": {
+          "200": {
+            "description": "System settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemSettingsResponse"
                 }
               }
             }
@@ -1153,15 +1814,7 @@
           }
         }
       },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "example": "Error message"
-          }
-        }
-      },
+
       "ConnectionRequest": {
         "type": "object",
         "required": ["uid", "conn_id"],
@@ -1922,6 +2575,449 @@
             "example": 1
           }
         }
+      },
+      "ChannelMessageSyncRequest": {
+        "type": "object",
+        "required": ["login_uid", "channel_id", "channel_type"],
+        "properties": {
+          "login_uid": {
+            "type": "string",
+            "description": "Current logged in user ID",
+            "example": "user123"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "example": "channel456"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type (1=person, 2=group)",
+            "enum": [1, 2]
+          },
+          "start_message_seq": {
+            "type": "integer",
+            "description": "Start message sequence (inclusive)",
+            "example": 100
+          },
+          "end_message_seq": {
+            "type": "integer",
+            "description": "End message sequence (exclusive)",
+            "example": 200
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of messages to return",
+            "example": 50,
+            "maximum": 10000
+          },
+          "pull_mode": {
+            "type": "integer",
+            "description": "Pull mode (0=down, 1=up)",
+            "enum": [0, 1]
+          }
+        }
+      },
+      "ChannelMessageSyncResponse": {
+        "type": "object",
+        "properties": {
+          "start_message_seq": {
+            "type": "integer",
+            "description": "Start message sequence",
+            "example": 100
+          },
+          "end_message_seq": {
+            "type": "integer",
+            "description": "End message sequence",
+            "example": 200
+          },
+          "more": {
+            "type": "integer",
+            "description": "Whether there are more messages (1=yes, 0=no)",
+            "enum": [0, 1]
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            }
+          }
+        }
+      },
+      "StreamOpenRequest": {
+        "type": "object",
+        "required": ["channel_id", "channel_type", "payload"],
+        "properties": {
+          "header": {
+            "$ref": "#/components/schemas/MessageHeader"
+          },
+          "client_msg_no": {
+            "type": "string",
+            "description": "Client message number",
+            "example": "stream_msg_123"
+          },
+          "from_uid": {
+            "type": "string",
+            "description": "Sender user ID",
+            "example": "user123"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "example": "channel456"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type (1=person, 2=group)",
+            "enum": [1, 2]
+          },
+          "payload": {
+            "type": "string",
+            "format": "byte",
+            "description": "Message payload (base64 encoded)"
+          }
+        }
+      },
+      "StreamCloseRequest": {
+        "type": "object",
+        "required": ["stream_no"],
+        "properties": {
+          "stream_no": {
+            "type": "string",
+            "description": "Stream number to close",
+            "example": "stream_abc123"
+          }
+        }
+      },
+      "TagResponse": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "description": "Tag name",
+            "example": "important"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of items with this tag",
+            "example": 42
+          }
+        }
+      },
+      "TagRemoveRequest": {
+        "type": "object",
+        "required": ["tag"],
+        "properties": {
+          "tag": {
+            "type": "string",
+            "description": "Tag name to remove",
+            "example": "obsolete"
+          }
+        }
+      },
+      "ManagerLoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Manager username",
+            "example": "admin"
+          },
+          "password": {
+            "type": "string",
+            "description": "Manager password",
+            "example": "password123"
+          }
+        }
+      },
+      "ManagerLoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Token expiration time in seconds",
+            "example": 3600
+          }
+        }
+      },
+      "SystemSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "logger": {
+            "type": "object",
+            "properties": {
+              "trace_on": {
+                "type": "integer",
+                "description": "Whether tracing is enabled (1=yes, 0=no)",
+                "enum": [0, 1]
+              },
+              "loki_on": {
+                "type": "integer",
+                "description": "Whether Loki logging is enabled (1=yes, 0=no)",
+                "enum": [0, 1]
+              }
+            }
+          },
+          "prometheus_on": {
+            "type": "integer",
+            "description": "Whether Prometheus metrics are enabled (1=yes, 0=no)",
+            "enum": [0, 1]
+          },
+          "stress_on": {
+            "type": "integer",
+            "description": "Whether stress testing is enabled (1=yes, 0=no)",
+            "enum": [0, 1]
+          }
+        }
+      },
+      "MessageSyncRequest": {
+        "type": "object",
+        "required": ["uid"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of messages to sync",
+            "example": 200,
+            "default": 200
+          }
+        }
+      },
+      "MessageSyncAckRequest": {
+        "type": "object",
+        "required": ["uid", "last_message_seq"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "last_message_seq": {
+            "type": "integer",
+            "description": "Last message sequence number acknowledged",
+            "example": 12345
+          }
+        }
+      },
+      "SetUnreadRequest": {
+        "type": "object",
+        "required": ["uid", "channel_id", "channel_type", "unread"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "example": "channel456"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type (1=person, 2=group)",
+            "enum": [1, 2]
+          },
+          "unread": {
+            "type": "integer",
+            "description": "Unread count to set",
+            "example": 5
+          }
+        }
+      },
+      "DeleteConversationRequest": {
+        "type": "object",
+        "required": ["uid", "channel_id", "channel_type"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "example": "channel456"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type (1=person, 2=group)",
+            "enum": [1, 2]
+          }
+        }
+      },
+      "SyncRecentMessagesRequest": {
+        "type": "object",
+        "required": ["uid", "channels"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelRecentMessageRequest"
+            },
+            "description": "List of channels to sync messages for"
+          },
+          "msg_count": {
+            "type": "integer",
+            "description": "Number of messages to retrieve per channel",
+            "example": 15,
+            "default": 15
+          },
+          "order_by_last": {
+            "type": "integer",
+            "description": "Whether to order by last message (1=yes, 0=no)",
+            "enum": [0, 1],
+            "default": 0
+          }
+        }
+      },
+      "ChannelRecentMessageRequest": {
+        "type": "object",
+        "required": ["channel_id", "channel_type"],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "example": "channel456"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type (1=person, 2=group)",
+            "enum": [1, 2]
+          }
+        }
+      },
+      "ChannelRecentMessagesResponse": {
+        "type": "object",
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "example": "channel456"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type",
+            "example": 2
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            }
+          }
+        }
+      },
+      "ConversationChannelsRequest": {
+        "type": "object",
+        "required": ["uid"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          }
+        }
+      },
+      "ChannelResponse": {
+        "type": "object",
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID",
+            "example": "channel456"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type",
+            "example": 2
+          },
+          "large": {
+            "type": "integer",
+            "description": "Whether channel is large (1=yes, 0=no)",
+            "enum": [0, 1]
+          },
+          "ban": {
+            "type": "integer",
+            "description": "Whether channel is banned (1=yes, 0=no)",
+            "enum": [0, 1]
+          },
+          "disband": {
+            "type": "integer",
+            "description": "Whether channel is disbanded (1=yes, 0=no)",
+            "enum": [0, 1]
+          }
+        }
+      },
+      "TmpChannelSubscriberSetRequest": {
+        "type": "object",
+        "required": ["channel_id", "channel_type", "subscribers"],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Temporary channel ID",
+            "example": "tmp_channel_123"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type (1=person, 2=group)",
+            "enum": [1, 2]
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of subscriber user IDs",
+            "example": ["user1", "user2", "user3"]
+          }
+        }
+      },
+      "UpdatePluginNoRequest": {
+        "type": "object",
+        "required": ["uid", "plugin_no"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "plugin_no": {
+            "type": "string",
+            "description": "Plugin number",
+            "example": "plugin_001"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error message",
+            "example": "Invalid request"
+          },
+          "message": {
+            "type": "string",
+            "description": "Detailed error description",
+            "example": "The provided parameters are invalid"
+          }
+        }
       }
     }
   },
@@ -1965,6 +3061,14 @@
     {
       "name": "Monitoring",
       "description": "System monitoring and metrics endpoints"
+    },
+    {
+      "name": "Documentation",
+      "description": "API documentation and specification endpoints"
+    },
+    {
+      "name": "Tag",
+      "description": "Tag management endpoints"
     }
   ]
 }

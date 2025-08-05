@@ -391,7 +391,6 @@ func ToFrame(packet interface{}) (wkproto.Frame, string, error) {
 }
 
 func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
-
 	switch frame.GetFrameType() {
 	case wkproto.CONNACK:
 		connack := frame.(*wkproto.ConnackPacket)
