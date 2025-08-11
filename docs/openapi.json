@@ -2187,6 +2187,7 @@
         "properties": {
           "uid": {
             "type": "string",
+            "description": "User ID",
             "example": "user123"
           },
           "version": {
@@ -2195,10 +2196,32 @@
             "example": 1640995200000000000,
             "description": "Version timestamp for incremental sync"
           },
+          "last_msg_seqs": {
+            "type": "string",
+            "description": "Client's last message sequences for all conversations. Format: channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq",
+            "example": "user1:1:100|group1:2:200"
+          },
           "msg_count": {
             "type": "integer",
+            "format": "int64",
             "example": 10,
-            "description": "Number of recent messages to include"
+            "description": "Number of recent messages to include per conversation"
+          },
+          "only_unread": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Only return unread conversations (1=only unread, 0=all)",
+            "enum": [0, 1],
+            "default": 0
+          },
+          "exclude_channel_types": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8"
+            },
+            "description": "Array of channel types to exclude from results",
+            "example": [3, 4]
           }
         }
       },
@@ -2784,6 +2807,12 @@
             "type": "string",
             "description": "User ID",
             "example": "user123"
+          },
+          "message_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Client's maximum message sequence number for incremental sync",
+            "example": 12345
           },
           "limit": {
             "type": "integer",
