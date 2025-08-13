@@ -20,7 +20,7 @@
         "subscribe",
         "unsubscribe",
         "recv",
-        "chunk"
+        "event"
       ]
     },
     "params": {
@@ -51,7 +51,7 @@
     { "$ref": "#/components/schemas/PongResponse" },
     { "$ref": "#/components/schemas/DisconnectRequest" },
     { "$ref": "#/components/schemas/DisconnectNotification" },
-    { "$ref": "#/components/schemas/ChunkNotification" }
+    { "$ref": "#/components/schemas/EventNotification" }
   ],
   "components": {
     "schemas": {
@@ -362,21 +362,21 @@
         },
         "required": ["method"]
       },
-      "ChunkNotification": {
+      "EventNotification": {
         "type": "object",
         "properties": {
           "jsonrpc": { "const": "2.0" },
-          "method": { "const": "chunk" },
+          "method": { "const": "event" },
           "params": {
             "type": "object",
             "properties": {
                "header": { "$ref": "#/components/schemas/Header" },
-               "messageId": { "type": "string", "description": "消息ID" },
-               "chunkId": { "type": "integer", "description": "分块ID" },
-               "endReason": { "type": "integer", "description": "结束原因码" },
-               "payload": { "type": "string", "description": "分块内容" }
+               "id": { "type": "string", "description": "事件ID" },
+               "type": { "type": "string", "description": "事件类型" },
+               "timestamp": { "type": "integer", "format": "int64", "description": "事件时间戳" },
+               "data": { "type": "string", "description": "事件数据" }
             },
-            "required": ["messageId", "chunkId", "payload"]
+            "required": ["id", "type", "timestamp", "data"]
           }
         },
         "required": ["method"]

@@ -16,21 +16,21 @@ func ExampleStreamCache() {
 		StreamTimeout:      5 * time.Minute,  // 5 minute timeout
 		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			// This callback is called when a stream is complete
-			fmt.Printf("Stream %d completed with %d chunks\n", meta.MessageId, len(chunks))
+			fmt.Printf("Stream %s completed with %d chunks\n", meta.ClientMsgNo, len(chunks))
 
 			// Here you would typically save the complete message to database
 			// For example:
-			// return database.SaveMessage(messageId, chunks)
+			// return database.SaveMessage(clientMsgNo, chunks)
 
 			return nil
 		},
 	})
 	defer cache.Close()
 
-	messageId := int64(12345)
+	clientMsgNo := "msg_12345"
 
 	// Step 1: Open stream with metadata (required)
-	meta := NewStreamMeta(messageId)
+	meta := NewStreamMeta(clientMsgNo)
 	err := cache.OpenStream(meta)
 	if err != nil {
 		log.Fatalf("Failed to open stream: %v", err)
@@ -38,9 +38,9 @@ func ExampleStreamCache() {
 
 	// Step 2: Append chunks as they arrive
 	chunks := []*MessageChunk{
-		{MessageId: messageId, ChunkId: 0, Payload: []byte("Hello ")},
-		{MessageId: messageId, ChunkId: 1, Payload: []byte("streaming ")},
-		{MessageId: messageId, ChunkId: 2, Payload: []byte("world!")},
+		{ClientMsgNo: clientMsgNo, ChunkId: 0, Payload: []byte("Hello ")},
+		{ClientMsgNo: clientMsgNo, ChunkId: 1, Payload: []byte("streaming ")},
+		{ClientMsgNo: clientMsgNo, ChunkId: 2, Payload: []byte("world!")},
 	}
 
 	for _, chunk := range chunks {
@@ -51,52 +51,52 @@ func ExampleStreamCache() {
 	}
 
 	// Manually end the stream to trigger completion
-	err = cache.EndStream(messageId, EndReasonSuccess)
+	err = cache.EndStream(clientMsgNo, EndReasonSuccess)
 	if err != nil {
 		log.Fatalf("Failed to end stream: %v", err)
 	}
 
 	// The OnStreamComplete callback will be called
 
-	// Output: Stream 12345 completed with 3 chunks
+	// Output: Stream msg_12345 completed with 3 chunks
 }
 
 // Example demonstrates manual stream completion
 func ExampleStreamCache_EndStream() {
 	cache := NewStreamCache(&StreamCacheOptions{
 		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
-			fmt.Printf("Manually completed stream %d with %d chunks\n", meta.MessageId, len(chunks))
+			fmt.Printf("Manually completed stream %s with %d chunks\n", meta.ClientMsgNo, len(chunks))
 			return nil
 		},
 	})
 	defer cache.Close()
 
-	messageId := int64(67890)
+	clientMsgNo := "msg_67890"
 
 	// Open stream first
-	meta := NewStreamMeta(messageId)
+	meta := NewStreamMeta(clientMsgNo)
 	cache.OpenStream(meta)
 
 	// Add some chunks
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("Chunk 1"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("Chunk 1"),
 	})
 
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   1,
-		Payload:   []byte("Chunk 2"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     1,
+		Payload:     []byte("Chunk 2"),
 	})
 
 	// Manually end the stream when no more chunks are expected
-	err := cache.EndStream(messageId, EndReasonSuccess)
+	err := cache.EndStream(clientMsgNo, EndReasonSuccess)
 	if err != nil {
 		log.Fatalf("Failed to end stream: %v", err)
 	}
 
-	// Output: Manually completed stream 67890 with 2 chunks
+	// Output: Manually completed stream msg_67890 with 2 chunks
 }
 
 // Example demonstrates error handling and monitoring
@@ -112,14 +112,14 @@ func ExampleStreamCache_monitoring() {
 	fmt.Printf("Initial stats: %+v\n", stats)
 
 	// Open stream first
-	meta := NewStreamMeta(1)
+	meta := NewStreamMeta("msg_1")
 	cache.OpenStream(meta)
 
 	// Try to add a large chunk that exceeds memory limit
 	largeChunk := &MessageChunk{
-		MessageId: 1,
-		ChunkId:   0,
-		Payload:   make([]byte, 2000), // Larger than memory limit
+		ClientMsgNo: "msg_1",
+		ChunkId:     0,
+		Payload:     make([]byte, 2000), // Larger than memory limit
 	}
 
 	err := cache.AppendChunk(largeChunk)
@@ -129,9 +129,9 @@ func ExampleStreamCache_monitoring() {
 
 	// Add a normal chunk
 	normalChunk := &MessageChunk{
-		MessageId: 1,
-		ChunkId:   0,
-		Payload:   []byte("Normal chunk"),
+		ClientMsgNo: "msg_1",
+		ChunkId:     0,
+		Payload:     []byte("Normal chunk"),
 	}
 
 	err = cache.AppendChunk(normalChunk)

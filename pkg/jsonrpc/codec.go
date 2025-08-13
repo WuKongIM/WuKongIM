@@ -23,7 +23,7 @@ const (
 	MethodPong        = "pong"
 	MethodDisconnect  = "disconnect"
 	MethodRecv        = "recv"  // Notification method
-	MethodChunk       = "chunk" // Chunk notification method
+	MethodEvent       = "event" // Event notification method
 )
 
 // Predefined decoding errors
@@ -157,7 +157,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 		// Valid notification: method, no id or null id
 		// Check if method is a known notification type (optional, depending on strictness)
 		switch probe.Method {
-		case MethodRecv, MethodDisconnect, MethodRecvAck, MethodChunk:
+		case MethodRecv, MethodDisconnect, MethodRecvAck, MethodEvent:
 			msgType = msgTypeNotification
 		default:
 			// If method is present but ID is missing/null, AND method is not known,
@@ -360,14 +360,14 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodDisconnect, err)
 			}
 			return notif, probe, nil
-		case MethodChunk:
-			var notif ChunkNotification
+		case MethodEvent:
+			var notif EventNotification
 			notif.BaseNotification = baseNotif
 			if probe.Params == nil {
-				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodChunk)
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodEvent)
 			}
 			if err := json.Unmarshal(probe.Params, &notif.Params); err != nil {
-				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodChunk, err)
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodEvent, err)
 			}
 			return notif, probe, nil
 		default:
@@ -427,9 +427,9 @@ func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
 		recv := frame.(*wkproto.RecvPacket)
 		result := FromProtoRecvNotification(recv)
 		return result, nil
-	case wkproto.Chunk:
-		chunk := frame.(*wkproto.ChunkPacket)
-		result := FromProtoChunkNotification(chunk)
+	case wkproto.EVENT:
+		event := frame.(*wkproto.EventPacket)
+		result := FromProtoEventNotification(event)
 		return result, nil
 	case wkproto.DISCONNECT:
 		disconnect := frame.(*wkproto.DisconnectPacket)

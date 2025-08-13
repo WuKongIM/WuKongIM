@@ -137,9 +137,9 @@ func (s *apiServer) setRoutes() {
 	stream := newStream(s.s)
 	stream.route(s.r)
 
-	// stream v2
-	streamv2 := newStreamv2(s.s)
-	streamv2.route(s.r)
+	// event v2
+	event := newEvent(s.s)
+	event.route(s.r)
 
 	// tag
 	tag := newTag(s.s)

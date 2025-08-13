@@ -1,13 +1,12 @@
 package wkdb
 
 import (
-	"strconv"
-
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/cockroachdb/pebble"
 )
 
 type StreamV2 struct {
+	ClientMsgNo string
 	MessageId   int64
 	ChannelId   string
 	ChannelType uint8
@@ -19,29 +18,36 @@ type StreamV2 struct {
 
 func (wk *wukongDB) SaveStreamV2(stream *StreamV2) error {
 
-	db := wk.shardDB(strconv.FormatInt(stream.MessageId, 10))
+	db := wk.shardDB(stream.ClientMsgNo)
 	batch := db.NewBatch()
 	defer batch.Close()
 
-	if err := batch.Set(key.NewStreamV2ColumnKey(stream.MessageId, key.TableStreamV2.Column.ChannelId), []byte(stream.ChannelId), wk.noSync); err != nil {
+	// messageId
+	messageIdBytes := make([]byte, 8)
+	wk.endian.PutUint64(messageIdBytes, uint64(stream.MessageId))
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.MessageId), messageIdBytes, wk.noSync); err != nil {
 		return err
 	}
 
-	if err := batch.Set(key.NewStreamV2ColumnKey(stream.MessageId, key.TableStreamV2.Column.ChannelType), []byte{stream.ChannelType}, wk.noSync); err != nil {
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.ChannelId), []byte(stream.ChannelId), wk.noSync); err != nil {
 		return err
 	}
 
-	if err := batch.Set(key.NewStreamV2ColumnKey(stream.MessageId, key.TableStreamV2.Column.FromUid), []byte(stream.FromUid), wk.noSync); err != nil {
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.ChannelType), []byte{stream.ChannelType}, wk.noSync); err != nil {
 		return err
 	}
 
-	if err := batch.Set(key.NewStreamV2ColumnKey(stream.MessageId, key.TableStreamV2.Column.End), []byte{stream.End}, wk.noSync); err != nil {
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.FromUid), []byte(stream.FromUid), wk.noSync); err != nil {
 		return err
 	}
-	if err := batch.Set(key.NewStreamV2ColumnKey(stream.MessageId, key.TableStreamV2.Column.EndReason), []byte{stream.EndReason}, wk.noSync); err != nil {
+
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.End), []byte{stream.End}, wk.noSync); err != nil {
 		return err
 	}
-	if err := batch.Set(key.NewStreamV2ColumnKey(stream.MessageId, key.TableStreamV2.Column.Payload), stream.Payload, wk.noSync); err != nil {
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.EndReason), []byte{stream.EndReason}, wk.noSync); err != nil {
+		return err
+	}
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.Payload), stream.Payload, wk.noSync); err != nil {
 		return err
 	}
 
@@ -52,15 +58,15 @@ func (wk *wukongDB) SaveStreamV2(stream *StreamV2) error {
 	return nil
 }
 
-func (wk *wukongDB) GetStreamV2(messageId int64) (*StreamV2, error) {
-	db := wk.shardDB(strconv.FormatInt(messageId, 10))
+func (wk *wukongDB) GetStreamV2(clientMsgNo string) (*StreamV2, error) {
+	db := wk.shardDB(clientMsgNo)
 	iter := db.NewIter(&pebble.IterOptions{
-		LowerBound: key.NewStreamV2ColumnKey(messageId, key.MinColumnKey),
-		UpperBound: key.NewStreamV2ColumnKey(messageId, key.MaxColumnKey),
+		LowerBound: key.NewStreamV2ColumnKey(clientMsgNo, key.MinColumnKey),
+		UpperBound: key.NewStreamV2ColumnKey(clientMsgNo, key.MaxColumnKey),
 	})
 	defer iter.Close()
 
-	streamV2 := &StreamV2{MessageId: messageId}
+	streamV2 := &StreamV2{ClientMsgNo: clientMsgNo}
 	hasData := false
 	for iter.First(); iter.Valid(); iter.Next() {
 		_, columnName, err := key.ParseStreamV2ColumnKey(iter.Key())
@@ -68,6 +74,8 @@ func (wk *wukongDB) GetStreamV2(messageId int64) (*StreamV2, error) {
 			return nil, err
 		}
 		switch columnName {
+		case key.TableStreamV2.Column.MessageId:
+			streamV2.MessageId = int64(wk.endian.Uint64(iter.Value()))
 		case key.TableStreamV2.Column.ChannelId:
 			streamV2.ChannelId = string(iter.Value())
 		case key.TableStreamV2.Column.ChannelType:
@@ -93,10 +101,10 @@ func (wk *wukongDB) GetStreamV2(messageId int64) (*StreamV2, error) {
 	return streamV2, nil
 }
 
-func (wk *wukongDB) GetStreamV2s(messageIds []int64) ([]*StreamV2, error) {
-	streamV2s := make([]*StreamV2, 0, len(messageIds))
-	for _, messageId := range messageIds {
-		streamV2, err := wk.GetStreamV2(messageId)
+func (wk *wukongDB) GetStreamV2s(clientMsgNos []string) ([]*StreamV2, error) {
+	streamV2s := make([]*StreamV2, 0, len(clientMsgNos))
+	for _, clientMsgNo := range clientMsgNos {
+		streamV2, err := wk.GetStreamV2(clientMsgNo)
 		if err != nil {
 			return nil, err
 		}

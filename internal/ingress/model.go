@@ -337,15 +337,15 @@ func (s *StreamResp) Decode(data []byte) error {
 }
 
 type StreamReqV2 struct {
-	MessageIds []int64
+	ClientMsgNos []string
 }
 
 func (s *StreamReqV2) Encode() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
-	enc.WriteUint32(uint32(len(s.MessageIds)))
-	for _, messageId := range s.MessageIds {
-		enc.WriteInt64(messageId)
+	enc.WriteUint32(uint32(len(s.ClientMsgNos)))
+	for _, clientMsgNo := range s.ClientMsgNos {
+		enc.WriteString(clientMsgNo)
 	}
 	return enc.Bytes(), nil
 }
@@ -356,13 +356,13 @@ func (s *StreamReqV2) Decode(data []byte) error {
 	if err != nil {
 		return err
 	}
-	s.MessageIds = make([]int64, 0, count)
+	s.ClientMsgNos = make([]string, 0, count)
 	for i := 0; i < int(count); i++ {
-		messageId, err := dec.Int64()
+		clientMsgNo, err := dec.String()
 		if err != nil {
 			return err
 		}
-		s.MessageIds = append(s.MessageIds, messageId)
+		s.ClientMsgNos = append(s.ClientMsgNos, clientMsgNo)
 	}
 	return nil
 }

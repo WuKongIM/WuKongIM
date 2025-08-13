@@ -786,6 +786,7 @@ func (m *message) syncMessages(c *wkhttp.Context) {
 		EndMessageSeq   uint64   `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
 		Limit           int      `json:"limit"`             // 每次同步数量限制
 		PullMode        PullMode `json:"pull_mode"`         // 拉取模式 0:向下拉取 1:向上拉取
+		StreamV2        uint8    `json:"stream_v2"`         // 是否使用stream_v2
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -883,32 +884,67 @@ func (m *message) syncMessages(c *wkhttp.Context) {
 		}
 	}
 
-	// 获取消息的流
-	streamNos := make([]string, 0)
-	for _, message := range messageResps {
-		if strings.TrimSpace(message.StreamNo) == "" {
-			continue
-		}
-		streamNos = append(streamNos, message.StreamNo)
-	}
+	if req.StreamV2 == 1 {
+		streamClientMsgNos := make([]string, 0, len(messageResps)) // 已存储的流消息ID
 
-	if len(streamNos) > 0 {
-		streamItemsMap, err := m.loadStreamMessages(fakeChannelID, req.ChannelType, streamNos)
-		if err != nil {
-			m.Error("syncMessages: loadStreamMessages failed", zap.Error(err), zap.Any("req", req))
-			c.ResponseError(err)
-			return
+		for _, message := range messageResps {
+			setting := wkproto.Setting(message.Setting)
+			if !setting.IsSet(wkproto.SettingStream) {
+				continue
+			}
+			streamClientMsgNos = append(streamClientMsgNos, message.ClientMsgNo)
 		}
 
+		if len(streamClientMsgNos) > 0 {
+			streamV2s, err := m.loadStreamV2Messages(fakeChannelID, req.ChannelType, streamClientMsgNos)
+			if err != nil {
+				m.Error("syncMessages: loadStreamV2Messages failed", zap.Error(err), zap.Any("req", req))
+				c.ResponseError(err)
+				return
+			}
+			for _, message := range messageResps {
+				setting := wkproto.Setting(message.Setting)
+				if !setting.IsSet(wkproto.SettingStream) {
+					continue
+				}
+				for _, streamV2 := range streamV2s {
+					if message.MessageId == streamV2.MessageId {
+						message.End = streamV2.End
+						message.EndReason = streamV2.EndReason
+						message.StreamData = streamV2.Payload
+						break
+					}
+				}
+			}
+		}
+	} else {
+		// 获取消息的流
+		streamNos := make([]string, 0)
 		for _, message := range messageResps {
 			if strings.TrimSpace(message.StreamNo) == "" {
 				continue
 			}
-			streamItems, ok := streamItemsMap[message.StreamNo]
-			if !ok {
-				continue
+			streamNos = append(streamNos, message.StreamNo)
+		}
+
+		if len(streamNos) > 0 {
+			streamItemsMap, err := m.loadStreamMessages(fakeChannelID, req.ChannelType, streamNos)
+			if err != nil {
+				m.Error("syncMessages: loadStreamMessages failed", zap.Error(err), zap.Any("req", req))
+				c.ResponseError(err)
+				return
 			}
-			message.Streams = streamItems
+
+			for _, message := range messageResps {
+				if strings.TrimSpace(message.StreamNo) == "" {
+					continue
+				}
+				streamItems, ok := streamItemsMap[message.StreamNo]
+				if !ok {
+					continue
+				}
+				message.Streams = streamItems
+			}
 		}
 	}
 
@@ -1020,4 +1056,18 @@ func (m *message) getChannelMaxMessageSeq(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message_seq": msgSeq,
 	})
+}
+
+func (m *message) loadStreamV2Messages(channelId string, channelType uint8, clientMsgNos []string) ([]*wkdb.StreamV2, error) {
+	slotLeaderId, err := service.Cluster.SlotLeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		m.Error("loadStreamMessages: get leader id failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return nil, err
+	}
+	// 如果是本节点，则直接加载
+	if options.G.IsLocalNode(slotLeaderId) {
+		return service.CommonService.GetStreamsForLocal(clientMsgNos)
+	}
+	// 请求远程节点
+	return m.s.client.RequestStreamsV2(slotLeaderId, clientMsgNos)
 }

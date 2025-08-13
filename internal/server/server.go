@@ -179,11 +179,12 @@ func New(opts *options.Options) *Server {
 			}
 
 			return service.Store.SaveStreamV2(&wkdb.StreamV2{
+				ClientMsgNo: meta.ClientMsgNo,
 				MessageId:   meta.MessageId,
 				ChannelId:   meta.ChannelId,
 				ChannelType: meta.ChannelType,
 				FromUid:     meta.FromUid,
-				End:         meta.EndReason,
+				End:         1,
 				EndReason:   meta.EndReason,
 				Payload:     payload,
 			})

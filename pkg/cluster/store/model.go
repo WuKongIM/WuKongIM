@@ -524,6 +524,12 @@ func (c *CMD) CMDContent() (string, error) {
 			"channelType":     channelType,
 			"deletedAtMsgSeq": deletedAtMsgSeq,
 		}), nil
+	case CMDSaveStreamV2:
+		stream, err := c.DecodeCMDStreamV2()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(stream), nil
 	}
 
 	return "", nil
@@ -1592,6 +1598,7 @@ func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelI
 func EncodeCMDStreamV2(stream *wkdb.StreamV2) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
+	encoder.WriteString(stream.ClientMsgNo)
 	encoder.WriteInt64(stream.MessageId)
 	encoder.WriteString(stream.ChannelId)
 	encoder.WriteUint8(stream.ChannelType)
@@ -1599,12 +1606,19 @@ func EncodeCMDStreamV2(stream *wkdb.StreamV2) []byte {
 	encoder.WriteUint8(stream.End)
 	encoder.WriteUint8(stream.EndReason)
 	encoder.WriteBytes(stream.Payload)
-	return encoder.Bytes()
+	data := encoder.Bytes()
+
+	return data
 }
 
 func (c *CMD) DecodeCMDStreamV2() (stream *wkdb.StreamV2, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
 	stream = &wkdb.StreamV2{}
+
+	if stream.ClientMsgNo, err = decoder.String(); err != nil {
+		return
+	}
+
 	if stream.MessageId, err = decoder.Int64(); err != nil {
 		return
 	}
@@ -1623,6 +1637,7 @@ func (c *CMD) DecodeCMDStreamV2() (stream *wkdb.StreamV2, err error) {
 	if stream.EndReason, err = decoder.Uint8(); err != nil {
 		return
 	}
+
 	if stream.Payload, err = decoder.BinaryAll(); err != nil {
 		return
 	}

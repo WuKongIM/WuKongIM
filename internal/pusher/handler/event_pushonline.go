@@ -42,9 +42,9 @@ func (h *Handler) processChannelPush(events []*eventbus.Event) {
 			// 推送消息
 			h.pushMessageToConnections(e, frame, fromUid, toConns)
 			eventbus.User.Advance(e.ToUid)
-		case *wkproto.ChunkPacket:
-			// 推送消息块包
-			h.pushChunkToConnections(e, frame, toConns)
+		case *wkproto.EventPacket:
+			// 推送事件
+			h.pushEventToConnections(e, frame, toConns)
 		}
 
 	}
@@ -85,14 +85,13 @@ func (h *Handler) pushMessageToConnections(e *eventbus.Event, sendPacket *wkprot
 	}
 }
 
-// pushChunkToConnections 向所有目标连接推送消息块包
-// 这里的消息块包是指大消息被分割成多个块进行推送的情况
-func (h *Handler) pushChunkToConnections(e *eventbus.Event, chunkPacket *wkproto.ChunkPacket, toConns []*eventbus.Conn) {
+// pushEventToConnections 向所有目标连接推送事件包
+func (h *Handler) pushEventToConnections(e *eventbus.Event, eventPacket *wkproto.EventPacket, toConns []*eventbus.Conn) {
 	for _, toConn := range toConns {
 		if h.shouldSkipConnection(e.Conn, toConn) {
 			continue
 		}
-		eventbus.User.ConnWrite(e.ReqId, toConn, chunkPacket)
+		eventbus.User.ConnWrite(e.ReqId, toConn, eventPacket)
 	}
 }
 
