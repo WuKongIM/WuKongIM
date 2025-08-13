@@ -1,5 +1,5 @@
 import { Conversation, MessageContentType, Setting } from "wukongimjssdk";
-import { WKSDK, Message, Stream, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
+import { WKSDK, Message, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
 import BigNumber from "bignumber.js";
 import { Buffer } from 'buffer';
 export class Convert {

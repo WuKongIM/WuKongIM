@@ -147,9 +147,9 @@ func (c *Client) RequestStreams(toNodeId uint64, streamNos []string) (*StreamRes
 	return streamResp, nil
 }
 
-func (c *Client) RequestStreamsV2(toNodeId uint64, messageIds []int64) (StreamRespV2, error) {
+func (c *Client) RequestStreamsV2(toNodeId uint64, clientMsgNos []string) (StreamRespV2, error) {
 	req := &StreamReqV2{
-		MessageIds: messageIds,
+		ClientMsgNos: clientMsgNos,
 	}
 	data, err := req.Encode()
 	if err != nil {
@@ -163,7 +163,7 @@ func (c *Client) RequestStreamsV2(toNodeId uint64, messageIds []int64) (StreamRe
 	if err != nil {
 		return nil, err
 	}
-	streamResp := StreamRespV2(make([]*wkdb.StreamV2, 0, len(messageIds)))
+	streamResp := StreamRespV2(make([]*wkdb.StreamV2, 0, len(clientMsgNos)))
 	err = streamResp.Decode(resp.Body)
 	if err != nil {
 		return nil, err

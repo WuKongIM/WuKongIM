@@ -148,23 +148,24 @@ func (s *Service) getOrMakePersonTag(fakeChannelId string) (*types.Tag, error) {
 	return tag, nil
 }
 
-func (s *Service) GetStreamsForLocal(messageIds []int64) ([]*wkdb.StreamV2, error) {
-	streamResps := make([]*wkdb.StreamV2, 0, len(messageIds)) // 流消息集合
-	noCacheMessageIds := make([]int64, 0, len(messageIds))    // 没有缓存的流消息id
-	for _, messageId := range messageIds {
-		stream, err := service.StreamCache.GetStream(messageId)
+func (s *Service) GetStreamsForLocal(clientMsgNos []string) ([]*wkdb.StreamV2, error) {
+	streamResps := make([]*wkdb.StreamV2, 0, len(clientMsgNos)) // 流消息集合
+	noCacheClientMsgNos := make([]string, 0, len(clientMsgNos)) // 没有缓存的流消息id
+	for _, clientMsgNo := range clientMsgNos {
+		stream, err := service.StreamCache.GetStream(clientMsgNo)
 		if err != nil && err != wkcache.ErrStreamNotFound {
-			s.Warn("GetStreams: get stream failed", zap.Error(err), zap.Int64("messageId", messageId))
+			s.Warn("GetStreams: get stream failed", zap.Error(err), zap.String("clientMsgNo", clientMsgNo))
 			continue
 		}
 		if stream == nil {
-			noCacheMessageIds = append(noCacheMessageIds, messageId)
+			noCacheClientMsgNos = append(noCacheClientMsgNos, clientMsgNo)
 			continue
 		}
 		meta := stream.Meta
 		payload := service.StreamCache.GetStreamData(stream)
 		streamResps = append(streamResps, &wkdb.StreamV2{
-			MessageId:   messageId,
+			ClientMsgNo: clientMsgNo,
+			MessageId:   meta.MessageId,
 			ChannelId:   meta.ChannelId,
 			ChannelType: meta.ChannelType,
 			FromUid:     meta.FromUid,
@@ -174,8 +175,8 @@ func (s *Service) GetStreamsForLocal(messageIds []int64) ([]*wkdb.StreamV2, erro
 		})
 	}
 
-	if len(noCacheMessageIds) > 0 {
-		streamV2s, err := service.Store.GetStreamV2s(noCacheMessageIds)
+	if len(noCacheClientMsgNos) > 0 {
+		streamV2s, err := service.Store.GetStreamV2s(noCacheClientMsgNos)
 		if err != nil {
 			s.Warn("GetStreams: get stream failed", zap.Error(err))
 			return nil, err

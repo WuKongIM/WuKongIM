@@ -49,7 +49,7 @@ var (
 	ErrMemoryLimitReached = errors.New("memory limit reached")
 	ErrTooManyStreams     = errors.New("too many concurrent streams")
 	ErrTooManyChunks      = errors.New("too many chunks in stream")
-	ErrInvalidMessageId   = errors.New("invalid message id")
+	ErrInvalidClientMsgNo = errors.New("invalid client message number")
 	ErrInvalidChunkId     = errors.New("invalid chunk id")
 	ErrDuplicateChunk     = errors.New("duplicate chunk id")
 	ErrInvalidChannelId   = errors.New("invalid channel id")
@@ -57,41 +57,41 @@ var (
 
 // MessageChunk represents a single chunk of a streaming message
 type MessageChunk struct {
-	MessageId int64  // Message ID
-	ChunkId   uint64 // Chunk ID within the message
-	Payload   []byte // Chunk payload data
+	ClientMsgNo string // Client message number
+	ChunkId     uint64 // Chunk ID within the message
+	Payload     []byte // Chunk payload data
 }
 
 // Size returns the memory size of the chunk
 func (c *MessageChunk) Size() int {
-	return 16 + len(c.Payload) // 8 bytes for MessageId + 8 bytes for ChunkId + payload size
+	return len(c.ClientMsgNo) + 8 + len(c.Payload) // ClientMsgNo string + 8 bytes for ChunkId + payload size
 }
 
 // StreamMeta contains metadata for a streaming message
 type StreamMeta struct {
 	// Core fields
-	MessageId int64     // Message ID
-	CreatedAt time.Time // Creation timestamp
-	UpdatedAt time.Time // Last update timestamp
-	Closed    bool      // Whether the stream is closed
-	EndReason uint8     // Reason why the stream was completed (EndReasonSuccess, EndReasonTimeout, etc.)
+	ClientMsgNo string    // Client-side message number (primary key)
+	CreatedAt   time.Time // Creation timestamp
+	UpdatedAt   time.Time // Last update timestamp
+	Closed      bool      // Whether the stream is closed
+	EndReason   uint8     // Reason why the stream was completed (EndReasonSuccess, EndReasonTimeout, etc.)
 
 	// Common streaming message fields
 	ChannelId   string // fakeChannelID Channel/conversation this stream belongs to, fakeChannelID
 	ChannelType uint8  // Type of channel (person, group, etc.)
 	FromUid     string // Sender user ID
-	ClientMsgNo string // Client-side message number
 	Seq         uatomic.Uint64
+	MessageId   int64 // Message identifier
 
 	// Custom metadata fields for extensibility
 	CustomFields map[string]interface{} // Flexible storage for additional metadata
 }
 
 // NewStreamMeta creates a new StreamMeta with initialized custom fields
-func NewStreamMeta(messageId int64) *StreamMeta {
+func NewStreamMeta(clientMsgNo string) *StreamMeta {
 	now := time.Now()
 	return &StreamMeta{
-		MessageId:    messageId,
+		ClientMsgNo:  clientMsgNo,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		Closed:       false,
@@ -167,7 +167,7 @@ func (sm *StreamMeta) NextSeq() uint64 {
 // Clone creates a deep copy of the StreamMeta
 func (sm *StreamMeta) Clone() *StreamMeta {
 	clone := &StreamMeta{
-		MessageId:    sm.MessageId,
+		ClientMsgNo:  sm.ClientMsgNo,
 		CreatedAt:    sm.CreatedAt,
 		UpdatedAt:    sm.UpdatedAt,
 		Closed:       sm.Closed,
@@ -175,7 +175,7 @@ func (sm *StreamMeta) Clone() *StreamMeta {
 		ChannelId:    sm.ChannelId,
 		ChannelType:  sm.ChannelType,
 		FromUid:      sm.FromUid,
-		ClientMsgNo:  sm.ClientMsgNo,
+		MessageId:    sm.MessageId,
 		CustomFields: make(map[string]interface{}),
 	}
 
@@ -195,9 +195,9 @@ type StreamMetaBuilder struct {
 }
 
 // NewStreamMetaBuilder creates a new builder for StreamMeta
-func NewStreamMetaBuilder(messageId int64) *StreamMetaBuilder {
+func NewStreamMetaBuilder(clientMsgNo string) *StreamMetaBuilder {
 	return &StreamMetaBuilder{
-		meta: NewStreamMeta(messageId),
+		meta: NewStreamMeta(clientMsgNo),
 	}
 }
 
@@ -217,6 +217,11 @@ func (b *StreamMetaBuilder) From(fromUid string) *StreamMetaBuilder {
 // ClientMessage sets the client message information
 func (b *StreamMetaBuilder) ClientMessage(clientMsgNo string) *StreamMetaBuilder {
 	b.meta.ClientMsgNo = clientMsgNo
+	return b
+}
+
+func (b *StreamMetaBuilder) MessageId(messageId int64) *StreamMetaBuilder {
+	b.meta.MessageId = messageId
 	return b
 }
 
@@ -249,9 +254,9 @@ type StreamCache struct {
 	cleanupInterval        time.Duration // Interval for cleanup operations
 
 	// State
-	streams     map[int64]*StreamData // Active streams indexed by MessageId
-	memoryUsage int64                 // Current memory usage in bytes
-	streamCount int32                 // Current number of streams
+	streams     map[string]*StreamData // Active streams indexed by ClientMsgNo
+	memoryUsage int64                  // Current memory usage in bytes
+	streamCount int32                  // Current number of streams
 
 	// Synchronization
 	mu sync.RWMutex // Main mutex for thread safety
@@ -311,7 +316,7 @@ func NewStreamCache(opts *StreamCacheOptions) *StreamCache {
 		streamTimeout:          opts.StreamTimeout,
 		chunkInactivityTimeout: opts.ChunkInactivityTimeout,
 		cleanupInterval:        opts.CleanupInterval,
-		streams:                make(map[int64]*StreamData),
+		streams:                make(map[string]*StreamData),
 		memoryUsage:            0,
 		streamCount:            0,
 		stopCleanup:            make(chan struct{}),
@@ -338,7 +343,7 @@ func (sc *StreamCache) Close() error {
 	<-sc.cleanupDone
 
 	// Clear all streams
-	sc.streams = make(map[int64]*StreamData)
+	sc.streams = make(map[string]*StreamData)
 	sc.memoryUsage = 0
 	sc.streamCount = 0
 
@@ -351,8 +356,8 @@ func (sc *StreamCache) OpenStream(meta *StreamMeta) error {
 	if meta == nil {
 		return errors.New("stream meta cannot be nil")
 	}
-	if meta.MessageId <= 0 {
-		return ErrInvalidMessageId
+	if meta.ClientMsgNo == "" {
+		return ErrInvalidClientMsgNo
 	}
 
 	sc.mu.Lock()
@@ -366,7 +371,7 @@ func (sc *StreamCache) OpenStream(meta *StreamMeta) error {
 	now := time.Now()
 
 	// Check if stream already exists
-	if stream, exists := sc.streams[meta.MessageId]; exists {
+	if stream, exists := sc.streams[meta.ClientMsgNo]; exists {
 		// Update existing stream metadata
 		oldMeta := stream.Meta
 		stream.Meta = meta.Clone()
@@ -374,7 +379,7 @@ func (sc *StreamCache) OpenStream(meta *StreamMeta) error {
 		stream.Meta.UpdatedAt = now
 
 		sc.Debug("Updated advanced stream metadata",
-			zap.Int64("messageId", meta.MessageId),
+			zap.String("clientMsgNo", meta.ClientMsgNo),
 			zap.String("channelId", meta.ChannelId),
 			zap.String("fromUid", meta.FromUid))
 		return nil
@@ -391,11 +396,11 @@ func (sc *StreamCache) OpenStream(meta *StreamMeta) error {
 		Size:   0,
 	}
 
-	sc.streams[meta.MessageId] = stream
+	sc.streams[meta.ClientMsgNo] = stream
 	sc.streamCount++
 
 	sc.Debug("Created new advanced stream",
-		zap.Int64("messageId", meta.MessageId),
+		zap.String("clientMsgNo", meta.ClientMsgNo),
 		zap.String("channelId", meta.ChannelId),
 		zap.String("fromUid", meta.FromUid),
 		zap.Int32("streamCount", sc.streamCount))
@@ -408,15 +413,15 @@ func (sc *StreamCache) AppendChunk(chunk *MessageChunk) error {
 	if chunk == nil {
 		return errors.New("chunk cannot be nil")
 	}
-	if chunk.MessageId <= 0 {
-		return ErrInvalidMessageId
+	if chunk.ClientMsgNo == "" {
+		return ErrInvalidClientMsgNo
 	}
 
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
 	// Get existing stream
-	stream, exists := sc.streams[chunk.MessageId]
+	stream, exists := sc.streams[chunk.ClientMsgNo]
 	if !exists {
 		return ErrStreamNotFound
 	}
@@ -454,7 +459,7 @@ func (sc *StreamCache) AppendChunk(chunk *MessageChunk) error {
 	atomic.AddInt64(&sc.memoryUsage, chunkSize)
 
 	sc.Debug("Appended chunk",
-		zap.Int64("messageId", chunk.MessageId),
+		zap.String("clientMsgNo", chunk.ClientMsgNo),
 		zap.Uint64("chunkId", chunk.ChunkId),
 		zap.Int("chunkSize", len(chunk.Payload)),
 		zap.Int("totalChunks", len(stream.Chunks)),
@@ -466,9 +471,9 @@ func (sc *StreamCache) AppendChunk(chunk *MessageChunk) error {
 }
 
 // EndStream marks a stream as complete and flushes it
-func (sc *StreamCache) EndStream(messageId int64, reason uint8) error {
-	if messageId <= 0 {
-		return ErrInvalidMessageId
+func (sc *StreamCache) EndStream(clientMsgNo string, reason uint8) error {
+	if clientMsgNo == "" {
+		return ErrInvalidClientMsgNo
 	}
 
 	// Default to success if reason is 0 or invalid
@@ -484,7 +489,7 @@ func (sc *StreamCache) EndStream(messageId int64, reason uint8) error {
 		sc.mu.Lock()
 		defer sc.mu.Unlock()
 
-		stream, exists := sc.streams[messageId]
+		stream, exists := sc.streams[clientMsgNo]
 		if !exists {
 			return // Will be handled after the critical section
 		}
@@ -499,7 +504,7 @@ func (sc *StreamCache) EndStream(messageId int64, reason uint8) error {
 		stream.Meta.UpdatedAt = time.Now()
 
 		sc.Debug("Ending stream",
-			zap.Int64("messageId", messageId),
+			zap.String("clientMsgNo", clientMsgNo),
 			zap.Int("totalChunks", len(stream.Chunks)))
 
 		// Prepare data for callback execution outside the lock
@@ -507,18 +512,18 @@ func (sc *StreamCache) EndStream(messageId int64, reason uint8) error {
 		chunks = sc.PrepareChunksForCallback(stream)
 
 		// Remove stream from cache immediately while holding the lock
-		delete(sc.streams, messageId)
+		delete(sc.streams, clientMsgNo)
 		atomic.AddInt64(&sc.memoryUsage, -stream.Size)
 		atomic.AddInt32(&sc.streamCount, -1)
 
 		sc.Debug("Removed completed stream from cache",
-			zap.Int64("messageId", messageId),
+			zap.String("clientMsgNo", clientMsgNo),
 			zap.Int64("freedMemory", stream.Size))
 	}()
 
 	// Handle validation errors after releasing the lock
 	if streamData == nil {
-		stream, exists := sc.streams[messageId]
+		stream, exists := sc.streams[clientMsgNo]
 		if !exists {
 			return ErrStreamNotFound
 		}
@@ -575,7 +580,7 @@ func (sc *StreamCache) mergeChunks(chunks []*MessageChunk) []byte {
 // executeStreamCompletionCallback executes the completion callback outside the critical section
 func (sc *StreamCache) executeStreamCompletionCallback(meta *StreamMeta, chunks []*MessageChunk, streamSize int64) error {
 	sc.Info("Completing stream",
-		zap.Int64("messageId", meta.MessageId),
+		zap.String("clientMsgNo", meta.ClientMsgNo),
 		zap.Int("chunkCount", len(chunks)),
 		zap.Int64("streamSize", streamSize))
 
@@ -585,7 +590,7 @@ func (sc *StreamCache) executeStreamCompletionCallback(meta *StreamMeta, chunks 
 		callbackErr = sc.onStreamComplete(meta, chunks)
 		if callbackErr != nil {
 			sc.Error("Stream completion callback failed",
-				zap.Int64("messageId", meta.MessageId),
+				zap.String("clientMsgNo", meta.ClientMsgNo),
 				zap.Error(callbackErr))
 		}
 	}
@@ -605,10 +610,10 @@ func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, r
 	}
 
 	// First pass: identify streams in the channel (read lock only)
-	streamsToEnd := make([]int64, 0)
+	streamsToEnd := make([]string, 0)
 
 	sc.mu.RLock()
-	for messageId, stream := range sc.streams {
+	for clientMsgNo, stream := range sc.streams {
 		// Skip already closed streams
 		if stream.Meta.Closed {
 			continue
@@ -616,7 +621,7 @@ func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, r
 
 		// Check if stream matches the channel
 		if stream.Meta.ChannelId == channelId && stream.Meta.ChannelType == channelType {
-			streamsToEnd = append(streamsToEnd, messageId)
+			streamsToEnd = append(streamsToEnd, clientMsgNo)
 		}
 	}
 	sc.mu.RUnlock()
@@ -639,14 +644,14 @@ func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, r
 	var errors []error
 	successCount := 0
 
-	for _, messageId := range streamsToEnd {
-		err := sc.EndStream(messageId, reason)
+	for _, clientMsgNo := range streamsToEnd {
+		err := sc.EndStream(clientMsgNo, reason)
 		if err != nil {
 			// Stream might have been manually ended or removed in the meantime
 			if err != ErrStreamNotFound && err != ErrStreamClosed {
-				errors = append(errors, fmt.Errorf("failed to end stream %d: %w", messageId, err))
+				errors = append(errors, fmt.Errorf("failed to end stream %s: %w", clientMsgNo, err))
 				sc.Error("Failed to end stream in channel",
-					zap.Int64("messageId", messageId),
+					zap.String("clientMsgNo", clientMsgNo),
 					zap.String("channelId", channelId),
 					zap.Uint8("channelType", channelType),
 					zap.Error(err))
@@ -672,15 +677,15 @@ func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, r
 }
 
 // GetStreamInfo returns information about a stream
-func (sc *StreamCache) GetStreamInfo(messageId int64) (*StreamMeta, error) {
-	if messageId <= 0 {
-		return nil, ErrInvalidMessageId
+func (sc *StreamCache) GetStreamInfo(clientMsgNo string) (*StreamMeta, error) {
+	if clientMsgNo == "" {
+		return nil, ErrInvalidClientMsgNo
 	}
 
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	stream, exists := sc.streams[messageId]
+	stream, exists := sc.streams[clientMsgNo]
 	if !exists {
 		return nil, ErrStreamNotFound
 	}
@@ -689,15 +694,15 @@ func (sc *StreamCache) GetStreamInfo(messageId int64) (*StreamMeta, error) {
 	return stream.Meta, nil
 }
 
-func (sc *StreamCache) GetStream(messageId int64) (*StreamData, error) {
-	if messageId <= 0 {
-		return nil, ErrInvalidMessageId
+func (sc *StreamCache) GetStream(clientMsgNo string) (*StreamData, error) {
+	if clientMsgNo == "" {
+		return nil, ErrInvalidClientMsgNo
 	}
 
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	stream, exists := sc.streams[messageId]
+	stream, exists := sc.streams[clientMsgNo]
 	if !exists {
 		return nil, ErrStreamNotFound
 	}
@@ -742,11 +747,11 @@ func (sc *StreamCache) cleanupExpiredStreams() {
 	defer sc.mu.Unlock()
 
 	now := time.Now()
-	expiredStreams := make([]int64, 0)
+	expiredStreams := make([]string, 0)
 
-	for messageId, stream := range sc.streams {
+	for clientMsgNo, stream := range sc.streams {
 		if now.Sub(stream.Meta.UpdatedAt) > sc.streamTimeout {
-			expiredStreams = append(expiredStreams, messageId)
+			expiredStreams = append(expiredStreams, clientMsgNo)
 		}
 	}
 
@@ -756,14 +761,14 @@ func (sc *StreamCache) cleanupExpiredStreams() {
 
 	sc.Info("Cleaning up expired streams", zap.Int("count", len(expiredStreams)))
 
-	for _, messageId := range expiredStreams {
-		stream := sc.streams[messageId]
-		delete(sc.streams, messageId)
+	for _, clientMsgNo := range expiredStreams {
+		stream := sc.streams[clientMsgNo]
+		delete(sc.streams, clientMsgNo)
 		atomic.AddInt64(&sc.memoryUsage, -stream.Size)
 		atomic.AddInt32(&sc.streamCount, -1)
 
 		sc.Debug("Removed expired stream",
-			zap.Int64("messageId", messageId),
+			zap.String("clientMsgNo", clientMsgNo),
 			zap.Duration("age", now.Sub(stream.Meta.UpdatedAt)),
 			zap.Int64("freedMemory", stream.Size))
 	}
@@ -772,11 +777,11 @@ func (sc *StreamCache) cleanupExpiredStreams() {
 // autoCompleteInactiveStreams automatically completes streams that have been inactive
 func (sc *StreamCache) autoCompleteInactiveStreams() {
 	now := time.Now()
-	inactiveStreams := make([]int64, 0)
+	inactiveStreams := make([]string, 0)
 
 	// First pass: identify inactive streams (read lock only)
 	sc.mu.RLock()
-	for messageId, stream := range sc.streams {
+	for clientMsgNo, stream := range sc.streams {
 		// Skip already closed streams
 		if stream.Meta.Closed {
 			continue
@@ -784,7 +789,7 @@ func (sc *StreamCache) autoCompleteInactiveStreams() {
 
 		// Check if stream has been inactive for too long
 		if now.Sub(stream.Meta.UpdatedAt) > sc.chunkInactivityTimeout {
-			inactiveStreams = append(inactiveStreams, messageId)
+			inactiveStreams = append(inactiveStreams, clientMsgNo)
 		}
 	}
 	sc.mu.RUnlock()
@@ -799,73 +804,73 @@ func (sc *StreamCache) autoCompleteInactiveStreams() {
 		zap.Duration("inactivityTimeout", sc.chunkInactivityTimeout))
 
 	// Second pass: complete inactive streams (without holding locks during EndStream)
-	for _, messageId := range inactiveStreams {
+	for _, clientMsgNo := range inactiveStreams {
 		// Use EndStream to trigger normal completion flow with timeout reason
 		// This handles all the locking and callback execution properly
-		err := sc.EndStream(messageId, EndReasonTimeout)
+		err := sc.EndStream(clientMsgNo, EndReasonTimeout)
 		if err != nil {
 			// Stream might have been manually ended or removed in the meantime
 			if err != ErrStreamNotFound && err != ErrStreamClosed {
 				sc.Error("Failed to auto-complete inactive stream",
-					zap.Int64("messageId", messageId),
+					zap.String("clientMsgNo", clientMsgNo),
 					zap.Error(err))
 			}
 		} else {
 			sc.Debug("Auto-completed inactive stream",
-				zap.Int64("messageId", messageId))
+				zap.String("clientMsgNo", clientMsgNo))
 		}
 	}
 }
 
 // RemoveStream forcefully removes a stream from the cache
-func (sc *StreamCache) RemoveStream(messageId int64) error {
-	if messageId <= 0 {
-		return ErrInvalidMessageId
+func (sc *StreamCache) RemoveStream(clientMsgNo string) error {
+	if clientMsgNo == "" {
+		return ErrInvalidClientMsgNo
 	}
 
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
-	stream, exists := sc.streams[messageId]
+	stream, exists := sc.streams[clientMsgNo]
 	if !exists {
 		return ErrStreamNotFound
 	}
 
 	// Remove stream from cache
-	delete(sc.streams, messageId)
+	delete(sc.streams, clientMsgNo)
 	atomic.AddInt64(&sc.memoryUsage, -stream.Size)
 	atomic.AddInt32(&sc.streamCount, -1)
 
 	sc.Debug("Forcefully removed stream",
-		zap.Int64("messageId", messageId),
+		zap.String("clientMsgNo", clientMsgNo),
 		zap.Int64("freedMemory", stream.Size))
 
 	return nil
 }
 
-// ListStreams returns a list of all active stream IDs
-func (sc *StreamCache) ListStreams() []int64 {
+// ListStreams returns a list of all active stream client message numbers
+func (sc *StreamCache) ListStreams() []string {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	streams := make([]int64, 0, len(sc.streams))
-	for messageId := range sc.streams {
-		streams = append(streams, messageId)
+	streams := make([]string, 0, len(sc.streams))
+	for clientMsgNo := range sc.streams {
+		streams = append(streams, clientMsgNo)
 	}
 
 	return streams
 }
 
 // GetChunkCount returns the number of chunks for a specific stream
-func (sc *StreamCache) GetChunkCount(messageId int64) (int, error) {
-	if messageId <= 0 {
-		return 0, ErrInvalidMessageId
+func (sc *StreamCache) GetChunkCount(clientMsgNo string) (int, error) {
+	if clientMsgNo == "" {
+		return 0, ErrInvalidClientMsgNo
 	}
 
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	stream, exists := sc.streams[messageId]
+	stream, exists := sc.streams[clientMsgNo]
 	if !exists {
 		return 0, ErrStreamNotFound
 	}
@@ -874,15 +879,15 @@ func (sc *StreamCache) GetChunkCount(messageId int64) (int, error) {
 }
 
 // HasStream checks if a stream exists in the cache
-func (sc *StreamCache) HasStream(messageId int64) bool {
-	if messageId <= 0 {
+func (sc *StreamCache) HasStream(clientMsgNo string) bool {
+	if clientMsgNo == "" {
 		return false
 	}
 
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
-	_, exists := sc.streams[messageId]
+	_, exists := sc.streams[clientMsgNo]
 	return exists
 }
 
@@ -907,15 +912,15 @@ func (sc *StreamCache) IsMemoryLimitReached(threshold float64) bool {
 }
 
 // UpdateStreamMeta updates specific fields of an existing stream's metadata
-func (sc *StreamCache) UpdateStreamMeta(messageId int64, updateFunc func(*StreamMeta)) error {
-	if messageId <= 0 {
-		return ErrInvalidMessageId
+func (sc *StreamCache) UpdateStreamMeta(clientMsgNo string, updateFunc func(*StreamMeta)) error {
+	if clientMsgNo == "" {
+		return ErrInvalidClientMsgNo
 	}
 
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
-	stream, exists := sc.streams[messageId]
+	stream, exists := sc.streams[clientMsgNo]
 	if !exists {
 		return ErrStreamNotFound
 	}
@@ -929,7 +934,7 @@ func (sc *StreamCache) UpdateStreamMeta(messageId int64, updateFunc func(*Stream
 	stream.Meta.UpdatedAt = time.Now()
 
 	sc.Debug("Updated stream metadata",
-		zap.Int64("messageId", messageId))
+		zap.String("clientMsgNo", clientMsgNo))
 
 	return nil
 }

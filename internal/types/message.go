@@ -24,9 +24,9 @@ type MessageResp struct {
 	Streams     []*StreamItemResp `json:"streams,omitempty"` // 消息流内容
 
 	// v2 版本的stream的字段
-	End        uint8             `json:"end,omitempty"` // 是否是最后一段
-	EndReason  wkproto.EndReason `json:"end_reason,omitempty"`
-	StreamData []byte            `json:"stream_data,omitempty"` // 消息块合并后的字节
+	End        uint8  `json:"end,omitempty"` // 是否是最后一段
+	EndReason  uint8  `json:"end_reason,omitempty"`
+	StreamData []byte `json:"stream_data,omitempty"` // 消息块合并后的字节
 
 	MessageSeq  uint64 `json:"message_seq"`     // 消息序列号 （用户唯一，有序递增）
 	FromUID     string `json:"from_uid"`        // 发送者UID

@@ -14,5 +14,5 @@ type ICommonService interface {
 	AfterFunc(d time.Duration, f func())
 
 	// 根据消息id获取流数据
-	GetStreamsForLocal(messageIds []int64) ([]*wkdb.StreamV2, error)
+	GetStreamsForLocal(clientMsgNos []string) ([]*wkdb.StreamV2, error)
 }

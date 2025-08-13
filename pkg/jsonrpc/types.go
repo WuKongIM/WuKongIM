@@ -196,13 +196,13 @@ type RecvNotificationParams struct {
 // DisconnectNotificationParams are same as DisconnectParams
 type DisconnectNotificationParams DisconnectParams
 
-// ChunkNotificationParams represents the parameters for chunk notifications
-type ChunkNotificationParams struct {
+// EventNotificationParams represents the parameters for event notifications
+type EventNotificationParams struct {
 	Header    *Header `json:"header,omitempty"`
-	MessageID string  `json:"messageId"`
-	ChunkID   int     `json:"chunkId"`
-	EndReason int     `json:"endReason"`
-	Payload   string  `json:"payload"`
+	ID        string  `json:"id"`
+	Type      string  `json:"type"`
+	Timestamp int64   `json:"timestamp"`
+	Data      string  `json:"data"`
 }
 
 // --- Full Request/Response/Notification Structures ---
@@ -289,9 +289,9 @@ type DisconnectNotification struct {
 	Params DisconnectNotificationParams `json:"params"`
 }
 
-type ChunkNotification struct {
+type EventNotification struct {
 	BaseNotification
-	Params ChunkNotificationParams `json:"params"`
+	Params EventNotificationParams `json:"params"`
 }
 
 // --- Conversion Methods ---
@@ -664,35 +664,35 @@ func FromProtoRecvNotification(pkt *wkproto.RecvPacket) RecvNotification {
 	}
 }
 
-// NewChunkNotification creates a new ChunkNotification
-func NewChunkNotification(messageID string, chunkID int, endReason int, payload string, header *Header) ChunkNotification {
-	return ChunkNotification{
+// NewEventNotification creates a new EventNotification
+func NewEventNotification(id string, eventType string, timestamp int64, data string, header *Header) EventNotification {
+	return EventNotification{
 		BaseNotification: BaseNotification{
 			Jsonrpc: jsonRPCVersion,
-			Method:  MethodChunk,
+			Method:  MethodEvent,
 		},
-		Params: ChunkNotificationParams{
+		Params: EventNotificationParams{
 			Header:    header,
-			MessageID: messageID,
-			ChunkID:   chunkID,
-			EndReason: endReason,
-			Payload:   payload,
+			ID:        id,
+			Type:      eventType,
+			Timestamp: timestamp,
+			Data:      data,
 		},
 	}
 }
 
-func FromProtoChunkNotification(pkt *wkproto.ChunkPacket) ChunkNotification {
-	return ChunkNotification{
+func FromProtoEventNotification(eventPacket *wkproto.EventPacket) EventNotification {
+	return EventNotification{
 		BaseNotification: BaseNotification{
 			Jsonrpc: "2.0",
-			Method:  MethodChunk,
+			Method:  MethodEvent,
 		},
-		Params: ChunkNotificationParams{
-			Header:    fromProtoHeader(pkt.Framer),
-			MessageID: strconv.FormatInt(pkt.MessageID, 10),
-			ChunkID:   int(pkt.ChunkID),
-			EndReason: int(pkt.EndReason),
-			Payload:   string(pkt.Payload),
+		Params: EventNotificationParams{
+			Header:    fromProtoHeader(eventPacket.Framer),
+			ID:        eventPacket.Id,
+			Type:      eventPacket.Type,
+			Timestamp: eventPacket.Timestamp,
+			Data:      string(eventPacket.Data),
 		},
 	}
 }

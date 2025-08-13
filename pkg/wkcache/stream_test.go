@@ -18,38 +18,38 @@ func TestStreamCache_Basic(t *testing.T) {
 	})
 	defer cache.Close()
 
-	messageId := int64(12345)
+	clientMsgNo := "msg_12345"
 
 	// Test opening stream
-	meta := NewStreamMeta(messageId)
+	meta := NewStreamMeta(clientMsgNo)
 	err := cache.OpenStream(meta)
 	if err != nil {
 		t.Fatalf("Failed to open stream: %v", err)
 	}
 
 	// Test getting stream info
-	streamInfo, err := cache.GetStreamInfo(messageId)
+	streamInfo, err := cache.GetStreamInfo(clientMsgNo)
 	if err != nil {
 		t.Fatalf("Failed to get stream info: %v", err)
 	}
-	if streamInfo.MessageId != messageId {
-		t.Errorf("Expected messageId %d, got %d", messageId, streamInfo.MessageId)
+	if streamInfo.ClientMsgNo != clientMsgNo {
+		t.Errorf("Expected clientMsgNo %s, got %s", clientMsgNo, streamInfo.ClientMsgNo)
 	}
-	if meta.MessageId != messageId {
-		t.Errorf("Expected messageId %d, got %d", messageId, meta.MessageId)
+	if meta.ClientMsgNo != clientMsgNo {
+		t.Errorf("Expected clientMsgNo %s, got %s", clientMsgNo, meta.ClientMsgNo)
 	}
 
 	// Test appending chunks
 	chunks := []*MessageChunk{
-		{MessageId: messageId, ChunkId: 0, Payload: []byte("chunk0")},
-		{MessageId: messageId, ChunkId: 1, Payload: []byte("chunk1")},
-		{MessageId: messageId, ChunkId: 2, Payload: []byte("chunk2")},
+		{ClientMsgNo: clientMsgNo, ChunkId: 0, Payload: []byte("chunk0")},
+		{ClientMsgNo: clientMsgNo, ChunkId: 1, Payload: []byte("chunk1")},
+		{ClientMsgNo: clientMsgNo, ChunkId: 2, Payload: []byte("chunk2")},
 	}
 
 	var completedChunks []*MessageChunk
 	cache.onStreamComplete = func(meta *StreamMeta, receivedChunks []*MessageChunk) error {
-		if meta.MessageId != messageId {
-			t.Errorf("Expected messageId %d, got %d", messageId, meta.MessageId)
+		if meta.ClientMsgNo != clientMsgNo {
+			t.Errorf("Expected clientMsgNo %s, got %s", clientMsgNo, meta.ClientMsgNo)
 		}
 		completedChunks = receivedChunks
 		return nil
@@ -64,7 +64,7 @@ func TestStreamCache_Basic(t *testing.T) {
 	}
 
 	// Manually end the stream since auto-completion is disabled
-	err = cache.EndStream(messageId, EndReasonSuccess)
+	err = cache.EndStream(clientMsgNo, EndReasonSuccess)
 	if err != nil {
 		t.Fatalf("Failed to end stream: %v", err)
 	}
@@ -86,39 +86,54 @@ func TestStreamCache_Basic(t *testing.T) {
 	}
 
 	// Stream should be removed after completion
-	if cache.HasStream(messageId) {
+	if cache.HasStream(clientMsgNo) {
 		t.Error("Stream should be removed after completion")
 	}
 }
 
-func TestStreamCache_AutoCreate(t *testing.T) {
+func TestStreamCache_WithMetadata(t *testing.T) {
 	cache := NewStreamCache(nil) // Use defaults
 	defer cache.Close()
 
-	messageId := int64(67890)
+	clientMsgNo := "msg_67890"
+
+	// First open the stream with metadata
+	meta := NewStreamMeta(clientMsgNo)
+	meta.ChannelId = "test_channel"
+	meta.ChannelType = 1
+	meta.FromUid = "user123"
+
+	err := cache.OpenStream(meta)
+	if err != nil {
+		t.Fatalf("Failed to open stream: %v", err)
+	}
+
 	chunk := &MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("test chunk"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("test chunk"),
 	}
 
-	// Append chunk without setting metadata first (should auto-create)
-	err := cache.AppendChunk(chunk)
+	// Append chunk to opened stream
+	err = cache.AppendChunk(chunk)
 	if err != nil {
-		t.Fatalf("Failed to append chunk to auto-created stream: %v", err)
+		t.Fatalf("Failed to append chunk to stream: %v", err)
 	}
 
-	// Verify stream was created
-	if !cache.HasStream(messageId) {
-		t.Error("Stream should be auto-created")
+	// Verify stream exists
+	if !cache.HasStream(clientMsgNo) {
+		t.Error("Stream should exist")
 	}
 
-	// Get stream info to verify stream was auto-created
-	_, err = cache.GetStreamInfo(messageId)
+	// Get stream info to verify metadata
+	streamInfo, err := cache.GetStreamInfo(clientMsgNo)
 	if err != nil {
-		t.Fatalf("Failed to get auto-created stream info: %v", err)
+		t.Fatalf("Failed to get stream info: %v", err)
 	}
-	// TotalChunks field has been removed, so we just verify the stream exists
+
+	if streamInfo.ChannelId != "test_channel" {
+		t.Errorf("Expected ChannelId 'test_channel', got %s", streamInfo.ChannelId)
+	}
 }
 
 func TestStreamCache_Errors(t *testing.T) {
@@ -129,20 +144,20 @@ func TestStreamCache_Errors(t *testing.T) {
 	})
 	defer cache.Close()
 
-	// Test invalid message ID
-	invalidMeta := NewStreamMeta(0)
+	// Test invalid client message number
+	invalidMeta := NewStreamMeta("")
 	err := cache.OpenStream(invalidMeta)
-	if err != ErrInvalidMessageId {
-		t.Errorf("Expected ErrInvalidMessageId, got %v", err)
+	if err != ErrInvalidClientMsgNo {
+		t.Errorf("Expected ErrInvalidClientMsgNo, got %v", err)
 	}
 
 	// Test memory limit
-	memoryTestMeta := NewStreamMeta(1)
+	memoryTestMeta := NewStreamMeta("msg_1")
 	cache.OpenStream(memoryTestMeta)
 	largeChunk := &MessageChunk{
-		MessageId: 1,
-		ChunkId:   0,
-		Payload:   make([]byte, 200), // Larger than memory limit
+		ClientMsgNo: "msg_1",
+		ChunkId:     0,
+		Payload:     make([]byte, 200), // Larger than memory limit
 	}
 	err = cache.AppendChunk(largeChunk)
 	if err != ErrMemoryLimitReached {
@@ -151,18 +166,18 @@ func TestStreamCache_Errors(t *testing.T) {
 
 	// Test appending to non-existent stream
 	err = cache.AppendChunk(&MessageChunk{
-		MessageId: 999,
-		ChunkId:   0,
-		Payload:   []byte("chunk for non-existent stream"),
+		ClientMsgNo: "msg_999",
+		ChunkId:     0,
+		Payload:     []byte("chunk for non-existent stream"),
 	})
 	if err != ErrStreamNotFound {
 		t.Errorf("Expected ErrStreamNotFound, got %v", err)
 	}
 
 	// Test stream limit
-	meta1 := NewStreamMeta(1)
+	meta1 := NewStreamMeta("msg_stream1")
 	cache.OpenStream(meta1)
-	meta2 := NewStreamMeta(2)
+	meta2 := NewStreamMeta("msg_stream2")
 	err = cache.OpenStream(meta2) // Second stream should fail
 	if err != ErrTooManyStreams {
 		t.Errorf("Expected ErrTooManyStreams, got %v", err)
@@ -180,13 +195,13 @@ func TestStreamCache_Stats(t *testing.T) {
 	}
 
 	// Add a stream without completion callback to keep it in cache
-	messageId := int64(123)
-	meta := NewStreamMeta(messageId)
+	clientMsgNo := "msg_123"
+	meta := NewStreamMeta(clientMsgNo)
 	cache.OpenStream(meta)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("test"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("test"),
 	})
 
 	// Check memory usage
@@ -203,10 +218,10 @@ func TestStreamMeta_EnhancedFields(t *testing.T) {
 	cache := NewStreamCache(nil)
 	defer cache.Close()
 
-	messageId := int64(12345)
+	clientMsgNo := "msg_12345"
 
 	// Test builder pattern
-	meta := NewStreamMetaBuilder(messageId).
+	meta := NewStreamMetaBuilder(clientMsgNo).
 		Channel("test-channel", 1).
 		From("user123").
 		ClientMessage("client-msg-001").
@@ -221,14 +236,14 @@ func TestStreamMeta_EnhancedFields(t *testing.T) {
 	}
 
 	// Retrieve and verify metadata
-	retrievedMeta, err := cache.GetStreamInfo(messageId)
+	retrievedMeta, err := cache.GetStreamInfo(clientMsgNo)
 	if err != nil {
 		t.Fatalf("Failed to get stream info: %v", err)
 	}
 
 	// Verify core fields
-	if retrievedMeta.MessageId != messageId {
-		t.Errorf("Expected messageId %d, got %d", messageId, retrievedMeta.MessageId)
+	if retrievedMeta.ClientMsgNo != clientMsgNo {
+		t.Errorf("Expected clientMsgNo %s, got %s", clientMsgNo, retrievedMeta.ClientMsgNo)
 	}
 
 	// Verify enhanced fields
@@ -255,7 +270,7 @@ func TestStreamMeta_EnhancedFields(t *testing.T) {
 }
 
 func TestStreamMeta_CustomFields(t *testing.T) {
-	meta := NewStreamMeta(123)
+	meta := NewStreamMeta("msg_123")
 
 	// Test setting and getting custom fields
 	meta.SetCustomField("stringField", "test")
@@ -290,7 +305,7 @@ func TestStreamMeta_CustomFields(t *testing.T) {
 }
 
 func TestStreamMeta_Clone(t *testing.T) {
-	original := NewStreamMeta(123)
+	original := NewStreamMeta("msg_123")
 	original.ChannelId = "test-channel"
 	original.FromUid = "user123"
 	original.SetCustomField("test", "value")
@@ -298,8 +313,8 @@ func TestStreamMeta_Clone(t *testing.T) {
 	clone := original.Clone()
 
 	// Verify clone has same values
-	if clone.MessageId != original.MessageId {
-		t.Error("Clone should have same MessageId")
+	if clone.ClientMsgNo != original.ClientMsgNo {
+		t.Error("Clone should have same ClientMsgNo")
 	}
 	if clone.ChannelId != original.ChannelId {
 		t.Error("Clone should have same ChannelId")
@@ -330,19 +345,19 @@ func TestStreamCache_QueryMethods(t *testing.T) {
 	defer cache.Close()
 
 	// Create streams with different metadata
-	meta1 := NewStreamMetaBuilder(1).
+	meta1 := NewStreamMetaBuilder("msg_1").
 		Channel("channel1", 1).
 		From("user1").
 		CustomField("priority", "high").
 		Build()
 
-	meta2 := NewStreamMetaBuilder(2).
+	meta2 := NewStreamMetaBuilder("msg_2").
 		Channel("channel1", 1).
 		From("user2").
 		CustomField("priority", "low").
 		Build()
 
-	meta3 := NewStreamMetaBuilder(3).
+	meta3 := NewStreamMetaBuilder("msg_3").
 		Channel("channel2", 2).
 		From("user1").
 		CustomField("priority", "high").
@@ -391,17 +406,17 @@ func TestStreamCache_UpdateStreamMeta(t *testing.T) {
 	cache := NewStreamCache(nil)
 	defer cache.Close()
 
-	messageId := int64(123)
+	clientMsgNo := "msg_123"
 
 	// Create initial stream
-	meta := NewStreamMeta(messageId)
+	meta := NewStreamMeta(clientMsgNo)
 	err := cache.OpenStream(meta)
 	if err != nil {
 		t.Fatalf("Failed to open stream: %v", err)
 	}
 
 	// Update stream metadata
-	err = cache.UpdateStreamMeta(messageId, func(meta *StreamMeta) {
+	err = cache.UpdateStreamMeta(clientMsgNo, func(meta *StreamMeta) {
 		meta.ChannelId = "updated-channel"
 		meta.FromUid = "updated-user"
 		meta.SetCustomField("updated", true)
@@ -411,7 +426,7 @@ func TestStreamCache_UpdateStreamMeta(t *testing.T) {
 	}
 
 	// Verify updates
-	updatedMeta, err := cache.GetStreamInfo(messageId)
+	updatedMeta, err := cache.GetStreamInfo(clientMsgNo)
 	if err != nil {
 		t.Fatalf("Failed to get stream info: %v", err)
 	}
@@ -430,7 +445,7 @@ func TestStreamCache_UpdateStreamMeta(t *testing.T) {
 	}
 
 	// Test updating non-existent stream
-	err = cache.UpdateStreamMeta(999, func(meta *StreamMeta) {
+	err = cache.UpdateStreamMeta("msg_999", func(meta *StreamMeta) {
 		meta.ChannelId = "should-fail"
 	})
 	if err != ErrStreamNotFound {
@@ -448,17 +463,17 @@ func TestStreamCache_HasStreamInChannel(t *testing.T) {
 	}
 
 	// Create streams in different channels
-	meta1 := NewStreamMetaBuilder(1).
+	meta1 := NewStreamMetaBuilder("msg_1").
 		Channel("channel1", 1).
 		From("user1").
 		Build()
 
-	meta2 := NewStreamMetaBuilder(2).
+	meta2 := NewStreamMetaBuilder("msg_2").
 		Channel("channel1", 2). // Same channel ID, different type
 		From("user2").
 		Build()
 
-	meta3 := NewStreamMetaBuilder(3).
+	meta3 := NewStreamMetaBuilder("msg_3").
 		Channel("channel2", 1). // Different channel ID, same type
 		From("user3").
 		Build()
@@ -491,21 +506,21 @@ func TestStreamCache_HasStreamInChannel(t *testing.T) {
 	}
 
 	// Test with closed stream
-	err := cache.EndStream(1, EndReasonSuccess) // Close stream in channel1 type 1
+	err := cache.EndStream("msg_1", EndReasonSuccess) // Close stream in channel1 type 1
 	if err != nil {
 		t.Fatalf("Failed to end stream: %v", err)
 	}
 
 	// Should still return false for channel1 type 1 since stream is closed
 	// But first we need to add the stream back since EndStream removes it
-	meta4 := NewStreamMetaBuilder(4).
+	meta4 := NewStreamMetaBuilder("msg_4").
 		Channel("channel1", 1).
 		From("user4").
 		Build()
 	cache.OpenStream(meta4)
 
 	// Close the stream manually
-	cache.UpdateStreamMeta(4, func(meta *StreamMeta) {
+	cache.UpdateStreamMeta("msg_4", func(meta *StreamMeta) {
 		meta.Closed = true
 	})
 
@@ -523,7 +538,7 @@ func TestStreamCache_HasStreamInChannel_Performance(t *testing.T) {
 
 	// Create many streams in different channels
 	for i := 0; i < 1000; i++ {
-		meta := NewStreamMetaBuilder(int64(i)).
+		meta := NewStreamMetaBuilder(fmt.Sprintf("msg_%d", i)).
 			Channel(fmt.Sprintf("channel%d", i%10), uint8(i%3)).
 			From(fmt.Sprintf("user%d", i)).
 			Build()
@@ -558,7 +573,7 @@ func TestStreamCache_InactivityTimeout(t *testing.T) {
 	// Test that streams auto-complete after inactivity timeout
 	inactivityTimeout := 100 * time.Millisecond
 	cleanupInterval := 50 * time.Millisecond
-	completedStreams := make(map[int64]bool)
+	completedStreams := make(map[string]bool)
 	var mu sync.Mutex
 
 	cache := NewStreamCache(&StreamCacheOptions{
@@ -566,7 +581,7 @@ func TestStreamCache_InactivityTimeout(t *testing.T) {
 		CleanupInterval:        cleanupInterval,
 		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[meta.MessageId] = true
+			completedStreams[meta.ClientMsgNo] = true
 			mu.Unlock()
 			return nil
 		},
@@ -574,22 +589,22 @@ func TestStreamCache_InactivityTimeout(t *testing.T) {
 	defer cache.Close()
 
 	// Create a stream and add a chunk
-	messageId := int64(1)
-	meta := NewStreamMeta(messageId)
+	clientMsgNo := "msg_1"
+	meta := NewStreamMeta(clientMsgNo)
 	cache.OpenStream(meta)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("test chunk"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("test chunk"),
 	})
 
 	// Verify stream exists and is not completed yet
-	if !cache.HasStream(messageId) {
+	if !cache.HasStream(clientMsgNo) {
 		t.Error("Stream should exist before timeout")
 	}
 
 	mu.Lock()
-	completed := completedStreams[messageId]
+	completed := completedStreams[clientMsgNo]
 	mu.Unlock()
 	if completed {
 		t.Error("Stream should not be completed yet")
@@ -600,14 +615,14 @@ func TestStreamCache_InactivityTimeout(t *testing.T) {
 
 	// Verify stream was auto-completed
 	mu.Lock()
-	completed = completedStreams[messageId]
+	completed = completedStreams[clientMsgNo]
 	mu.Unlock()
 	if !completed {
 		t.Error("Stream should have been auto-completed due to inactivity")
 	}
 
 	// Verify stream was removed from cache
-	if cache.HasStream(messageId) {
+	if cache.HasStream(clientMsgNo) {
 		t.Error("Stream should have been removed after auto-completion")
 	}
 }
@@ -616,7 +631,7 @@ func TestStreamCache_InactivityTimeout_ActiveStream(t *testing.T) {
 	// Test that active streams (receiving chunks) are not auto-completed
 	inactivityTimeout := 200 * time.Millisecond
 	cleanupInterval := 50 * time.Millisecond
-	completedStreams := make(map[int64]bool)
+	completedStreams := make(map[string]bool)
 	var mu sync.Mutex
 
 	cache := NewStreamCache(&StreamCacheOptions{
@@ -624,7 +639,7 @@ func TestStreamCache_InactivityTimeout_ActiveStream(t *testing.T) {
 		CleanupInterval:        cleanupInterval,
 		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[meta.MessageId] = true
+			completedStreams[meta.ClientMsgNo] = true
 			mu.Unlock()
 			return nil
 		},
@@ -632,13 +647,13 @@ func TestStreamCache_InactivityTimeout_ActiveStream(t *testing.T) {
 	defer cache.Close()
 
 	// Create a stream and add initial chunk
-	messageId := int64(1)
-	meta := NewStreamMeta(messageId)
+	clientMsgNo := "msg_1"
+	meta := NewStreamMeta(clientMsgNo)
 	cache.OpenStream(meta)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("chunk 0"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("chunk 0"),
 	})
 
 	// Keep adding chunks periodically to keep stream active
@@ -652,9 +667,9 @@ func TestStreamCache_InactivityTimeout_ActiveStream(t *testing.T) {
 			select {
 			case <-ticker.C:
 				cache.AppendChunk(&MessageChunk{
-					MessageId: messageId,
-					ChunkId:   chunkId,
-					Payload:   []byte(fmt.Sprintf("chunk %d", chunkId)),
+					ClientMsgNo: clientMsgNo,
+					ChunkId:     chunkId,
+					Payload:     []byte(fmt.Sprintf("chunk %d", chunkId)),
 				})
 				chunkId++
 			case <-stopFeeding:
@@ -671,14 +686,14 @@ func TestStreamCache_InactivityTimeout_ActiveStream(t *testing.T) {
 
 	// Verify stream was NOT auto-completed (it was active)
 	mu.Lock()
-	completed := completedStreams[messageId]
+	completed := completedStreams[clientMsgNo]
 	mu.Unlock()
 	if completed {
 		t.Error("Active stream should not have been auto-completed")
 	}
 
 	// Verify stream still exists
-	if !cache.HasStream(messageId) {
+	if !cache.HasStream(clientMsgNo) {
 		t.Error("Active stream should still exist")
 	}
 
@@ -687,7 +702,7 @@ func TestStreamCache_InactivityTimeout_ActiveStream(t *testing.T) {
 
 	// Now it should be completed
 	mu.Lock()
-	completed = completedStreams[messageId]
+	completed = completedStreams[clientMsgNo]
 	mu.Unlock()
 	if !completed {
 		t.Error("Stream should have been auto-completed after becoming inactive")

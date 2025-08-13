@@ -8,7 +8,7 @@ import (
 
 // ExampleNewFields demonstrates the new EndReason and End fields
 func ExampleNewFields() {
-	fmt.Println("=== Demonstrating New Fields in ChunkNotification ===\n")
+	fmt.Println("=== Demonstrating New Fields in EventNotification ===")
 
 	// Example 1: Regular chunk with no end reason
 	fmt.Println("1. Regular chunk (not final):")
@@ -19,9 +19,9 @@ func ExampleNewFields() {
 		Dup:       false,
 		End:       false, // Not the end
 	}
-	
-	regularChunk := NewChunkNotification("msg_001", 0, 0, "First chunk of data", regularHeader)
-	regularJSON, _ := Encode(regularChunk)
+
+	regularEvent := NewEventNotification("event_001", "chunk", 1640995200000000000, "First chunk of data", regularHeader)
+	regularJSON, _ := Encode(regularEvent)
 	fmt.Printf("   JSON: %s\n\n", string(regularJSON))
 
 	// Example 2: Final chunk with end reason
@@ -33,9 +33,9 @@ func ExampleNewFields() {
 		Dup:       false,
 		End:       true, // This is the end
 	}
-	
-	finalChunk := NewChunkNotification("msg_001", 5, 1, "Final chunk of data", finalHeader)
-	finalJSON, _ := Encode(finalChunk)
+
+	finalEvent := NewEventNotification("event_001_final", "chunk_final", 1640995200000000001, "Final chunk of data", finalHeader)
+	finalJSON, _ := Encode(finalEvent)
 	fmt.Printf("   JSON: %s\n\n", string(finalJSON))
 
 	// Example 3: Error chunk with specific end reason
@@ -47,9 +47,9 @@ func ExampleNewFields() {
 		Dup:       true, // Duplicate due to error
 		End:       true, // Ending due to error
 	}
-	
-	errorChunk := NewChunkNotification("msg_002", 2, 500, "Error occurred", errorHeader)
-	errorJSON, _ := Encode(errorChunk)
+
+	errorEvent := NewEventNotification("event_002_error", "chunk_error", 1640995200000000002, "Error occurred", errorHeader)
+	errorJSON, _ := Encode(errorEvent)
 	fmt.Printf("   JSON: %s\n\n", string(errorJSON))
 
 	// Example 4: Decoding and inspecting the new fields
@@ -61,16 +61,16 @@ func ExampleNewFields() {
 		return
 	}
 
-	if chunk, ok := decoded.(ChunkNotification); ok {
-		fmt.Printf("   MessageID: %s\n", chunk.Params.MessageID)
-		fmt.Printf("   ChunkID: %d\n", chunk.Params.ChunkID)
-		fmt.Printf("   EndReason: %d\n", chunk.Params.EndReason)
-		fmt.Printf("   Payload: %s\n", chunk.Params.Payload)
-		
-		if chunk.Params.Header != nil {
-			fmt.Printf("   Header.End: %t\n", chunk.Params.Header.End)
-			fmt.Printf("   Header.NoPersist: %t\n", chunk.Params.Header.NoPersist)
-			fmt.Printf("   Header.SyncOnce: %t\n", chunk.Params.Header.SyncOnce)
+	if event, ok := decoded.(EventNotification); ok {
+		fmt.Printf("   ID: %s\n", event.Params.ID)
+		fmt.Printf("   Type: %s\n", event.Params.Type)
+		fmt.Printf("   Timestamp: %d\n", event.Params.Timestamp)
+		fmt.Printf("   Data: %s\n", event.Params.Data)
+
+		if event.Params.Header != nil {
+			fmt.Printf("   Header.End: %t\n", event.Params.Header.End)
+			fmt.Printf("   Header.NoPersist: %t\n", event.Params.Header.NoPersist)
+			fmt.Printf("   Header.SyncOnce: %t\n", event.Params.Header.SyncOnce)
 		}
 	}
 
@@ -85,7 +85,7 @@ func ExampleNewFields() {
 
 // ExampleEndReasonUsage shows different end reason scenarios
 func ExampleEndReasonUsage() {
-	fmt.Println("=== End Reason Usage Scenarios ===\n")
+	fmt.Println("=== Event Type Usage Scenarios ===")
 
 	scenarios := []struct {
 		name      string
@@ -103,9 +103,9 @@ func ExampleEndReasonUsage() {
 
 	for i, scenario := range scenarios {
 		header := &Header{End: scenario.isEnd}
-		chunk := NewChunkNotification("demo_msg", i, scenario.endReason, scenario.payload, header)
-		
-		jsonData, _ := Encode(chunk)
+		event := NewEventNotification(fmt.Sprintf("demo_msg_%d", i), scenario.name, 1640995200000000000+int64(i), scenario.payload, header)
+
+		jsonData, _ := Encode(event)
 		fmt.Printf("%s (EndReason: %d, End: %t):\n", scenario.name, scenario.endReason, scenario.isEnd)
 		fmt.Printf("  %s\n\n", string(jsonData))
 	}
@@ -113,7 +113,7 @@ func ExampleEndReasonUsage() {
 
 // ExampleBackwardCompatibility demonstrates that existing code still works
 func ExampleBackwardCompatibility() {
-	fmt.Println("=== Backward Compatibility Test ===\n")
+	fmt.Println("=== Backward Compatibility Test ===")
 
 	// Old-style JSON without the new fields should still decode properly
 	oldStyleJSON := `{
@@ -133,13 +133,13 @@ func ExampleBackwardCompatibility() {
 		return
 	}
 
-	if chunk, ok := decoded.(ChunkNotification); ok {
+	if event, ok := decoded.(EventNotification); ok {
 		fmt.Printf("Successfully decoded legacy JSON:\n")
-		fmt.Printf("  MessageID: %s\n", chunk.Params.MessageID)
-		fmt.Printf("  ChunkID: %d\n", chunk.Params.ChunkID)
-		fmt.Printf("  EndReason: %d (default)\n", chunk.Params.EndReason)
-		fmt.Printf("  Payload: %s\n", chunk.Params.Payload)
-		fmt.Printf("  Header: %v (nil is expected for legacy)\n", chunk.Params.Header)
+		fmt.Printf("  ID: %s\n", event.Params.ID)
+		fmt.Printf("  Type: %s\n", event.Params.Type)
+		fmt.Printf("  Timestamp: %d (default)\n", event.Params.Timestamp)
+		fmt.Printf("  Data: %s\n", event.Params.Data)
+		fmt.Printf("  Header: %v (nil is expected for legacy)\n", event.Params.Header)
 	}
 
 	fmt.Println("\nBackward compatibility maintained! ✓")

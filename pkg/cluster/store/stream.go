@@ -50,10 +50,10 @@ func (s *Store) SaveStreamV2(stream *wkdb.StreamV2) error {
 	return err
 }
 
-func (s *Store) GetStreamV2(messageId int64) (*wkdb.StreamV2, error) {
-	return s.wdb.GetStreamV2(messageId)
+func (s *Store) GetStreamV2(clientMsgNo string) (*wkdb.StreamV2, error) {
+	return s.wdb.GetStreamV2(clientMsgNo)
 }
 
-func (s *Store) GetStreamV2s(messageIds []int64) ([]*wkdb.StreamV2, error) {
-	return s.wdb.GetStreamV2s(messageIds)
+func (s *Store) GetStreamV2s(clientMsgNos []string) ([]*wkdb.StreamV2, error) {
+	return s.wdb.GetStreamV2s(clientMsgNos)
 }

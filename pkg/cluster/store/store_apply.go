@@ -13,7 +13,9 @@ func (s *Store) ApplySlotLogs(slotId uint32, logs []types.Log) error {
 	for _, log := range logs {
 		err := s.applyLog(slotId, log)
 		if err != nil {
-			s.Panic("apply log err", zap.Error(err), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
+			cmd := &CMD{}
+			cmd.Unmarshal(log.Data)
+			s.Panic("apply log err", zap.Error(err), zap.String("cmd", cmd.CmdType.String()), zap.Uint64("index", log.Index), zap.ByteString("data", log.Data))
 			return err
 		}
 	}

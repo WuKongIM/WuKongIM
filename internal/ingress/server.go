@@ -285,7 +285,7 @@ func (i *Ingress) handleGetStreamsV2(c *wkserver.Context) {
 		return
 	}
 
-	streams, err := service.CommonService.GetStreamsForLocal(req.MessageIds)
+	streams, err := service.CommonService.GetStreamsForLocal(req.ClientMsgNos)
 	if err != nil {
 		i.Error("handleGetStreams: get streams failed", zap.Error(err))
 		c.WriteErr(err)
