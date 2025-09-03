@@ -17,8 +17,8 @@ demo:
   on: true  
 conversation:
   on: true   
-# webhook: # webhook配置 用于接收消息通知事件，详情请查看文档
-  # httpAddr: "http://127.0.0.1:8080/webhooks/wukongim"  
+webhook: # webhook配置 用于接收消息通知事件，详情请查看文档
+  httpAddr: "http://127.0.0.1:8080/webhooks/wukongim"  
 cluster:
   nodeId: 1 # 节点ID
   addr: "tcp://127.0.0.1:10001"

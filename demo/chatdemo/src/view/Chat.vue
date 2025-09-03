@@ -2,10 +2,9 @@
 import { nextTick, onMounted, onUnmounted, ref, toRaw, toRefs, unref } from 'vue';
 import APIClient from '../services/APIClient'
 import { useRouter } from "vue-router";
-import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, PullMode, MessageContent, MessageContentType, ConnectionInfo, AgentChangeListener } from "wukongimjssdk";
+import { WKSDK, Message, MessageText, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, PullMode, MessageContent, ConnectionInfo, WKEventManager, WKEvent, MessageContentType, WKEventListener } from "wukongimjssdk";
 import { ConnectStatus, ConnectStatusListener } from 'wukongimjssdk';
 import { SendackPacket, Setting } from 'wukongimjssdk';
-import { Buffer } from 'buffer';
 import { MessageListener, MessageStatusListener } from 'wukongimjssdk';
 import Conversation from '../components/Conversation/index.vue'
 import { CustomMessage, orderMessage } from '../customessage';
@@ -13,7 +12,6 @@ import MessageUI from '../messages/Message.vue';
 import { Marked } from 'marked';
 import { markedHighlight } from "marked-highlight";
 import hljs from 'highlight.js';
-import { Agent } from 'wukongimjssdk/lib/agent';
 
 const marked = new Marked(markedHighlight({
     emptyLangClass: 'hljs',
@@ -61,11 +59,10 @@ title.value = `${uid || ""}(未连接)`
 let connectStatusListener!: ConnectStatusListener
 let messageListener!: MessageListener
 let messageStatusListener!: MessageStatusListener
-let agentListener!: AgentChangeListener // 流监听
+let eventListener!: WKEventListener // 事件监听
 
 onMounted(() => {
 
-    console.log("WKSDK.shared().config.apiURL--->", APIClient.shared.config.apiURL)
 
     if (!APIClient.shared.config.apiURL || APIClient.shared.config.apiURL === '') {
         WKSDK.shared().connectManager.disconnect()
@@ -129,16 +126,13 @@ const connectIM = (addr: string) => {
     WKSDK.shared().chatManager.addMessageListener(messageListener)
 
     // 流监听
-    agentListener = (agent: Agent) => {
-        if (agent.channel && !to.value.isEqual(agent.channel)) {
-            return
-        }
+    eventListener = (event: WKEvent) => {
         for (const message of messages.value) {
-            if (message.messageID === agent.messageID) {
-                if (agent.events && agent.events.length > 0) {
-                    message.content = new MessageText(agent.text)
-                } else {
-                    message.content = agent.initMessage?.content
+            if (message.clientMsgNo === event.id) {
+                if (message.contentType === MessageContentType.text) {
+                    message.streamText = (message.streamText || "") + (event.dataText||"")
+                    const textContent = new MessageText(message.streamText || "")
+                    message.content = textContent
                 }
                 break
             }
@@ -147,7 +141,7 @@ const connectIM = (addr: string) => {
             scrollBottom()
         }
     }
-    WKSDK.shared().agentManager.addAgentChangeListener(agentListener)
+    WKSDK.shared().eventManager.addEventListener(eventListener)
 
     messageStatusListener = (ack: SendackPacket) => {
         console.log(ack)
@@ -167,7 +161,7 @@ onUnmounted(() => {
     WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
     WKSDK.shared().chatManager.removeMessageListener(messageListener)
     WKSDK.shared().chatManager.removeMessageStatusListener(messageStatusListener)
-    WKSDK.shared().agentManager.removeAgentChangeListener(agentListener)
+    WKSDK.shared().eventManager.removeEventListener(eventListener)
     WKSDK.shared().disconnect()
 })
 

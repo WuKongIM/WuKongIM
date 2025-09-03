@@ -909,6 +909,7 @@ func (m *message) syncMessages(c *wkhttp.Context) {
 				}
 				for _, streamV2 := range streamV2s {
 					if message.MessageId == streamV2.MessageId {
+
 						message.End = streamV2.End
 						message.EndReason = streamV2.EndReason
 						message.StreamData = streamV2.Payload

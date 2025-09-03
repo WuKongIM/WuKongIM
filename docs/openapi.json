@@ -607,8 +607,8 @@
     },
     "/channel": {
       "post": {
-        "summary": "Create or Update Channel",
-        "description": "Create a new channel or update an existing channel",
+        "summary": "Create or Update Channel | 创建或更新频道",
+        "description": "Create a new channel or update an existing channel with basic information and initial subscribers. This is the primary endpoint for channel management.\n\n**功能说明：**\n- 创建新频道或更新现有频道\n- 设置频道基本信息（大群、禁言、解散等状态）\n- 添加初始订阅者（不支持个人频道）\n- 支持重置订阅者列表\n- 个人频道支持陌生人消息设置\n\n**Channel Types:**\n- 1: Person channel (个人频道) - Direct messaging\n- 2: Group channel (群组频道) - Group messaging\n- Other values: Custom channel types\n\n**Important Notes:**\n- Person channels (channel_type=1) do not support subscribers\n- Use reset=1 to replace all existing subscribers\n- Special characters in channel_id are not allowed\n- System will automatically route to appropriate cluster node",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -630,14 +630,74 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  },
+                  "special_characters": {
+                    "summary": "Special characters in channel ID",
+                    "value": {
+                      "error": "频道ID不能包含特殊字符！"
+                    }
+                  },
+                  "person_channel_subscribers": {
+                    "summary": "Person channel with subscribers",
+                    "value": {
+                      "error": "个人频道不支持订阅者！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "create_channel_error": {
+                    "summary": "Create channel error",
+                    "value": {
+                      "error": "创建频道失败！"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     "/channel/info": {
       "post": {
-        "summary": "Update Channel Info",
-        "description": "Update or add channel basic information",
+        "summary": "Update Channel Info | 更新频道信息",
+        "description": "Update or add channel basic information without affecting subscribers. This endpoint only modifies channel metadata and settings.\n\n**功能说明：**\n- 更新或添加频道基本信息\n- 不影响现有订阅者\n- 支持设置大群、禁言、解散等状态\n- 个人频道支持陌生人消息设置\n- 自动路由到相应集群节点\n\n**Use Cases:**\n- Change channel ban status\n- Enable/disable large group mode\n- Update send ban settings\n- Configure stranger message permissions for person channels",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -659,14 +719,62 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "update_info_error": {
+                    "summary": "Update info error",
+                    "value": {
+                      "error": "更新频道信息失败！"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     "/channel/delete": {
       "post": {
-        "summary": "Delete Channel",
-        "description": "Delete a channel",
+        "summary": "Delete Channel | 删除频道",
+        "description": "Delete a channel permanently. This will disband the channel and clear all messages. Not supported for person channels.\n\n**功能说明：**\n- 永久删除频道\n- 解散频道并清除所有消息\n- 不支持个人频道（channel_type=1）\n- 会自动清理相关订阅者和会话\n- 操作不可逆，请谨慎使用\n\n**Warning:** This operation is irreversible. All channel data including messages, subscribers, and settings will be permanently lost.",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -688,14 +796,68 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "person_channel_not_supported": {
+                    "summary": "Person channel not supported",
+                    "value": {
+                      "error": "不支持删除个人频道！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为1！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "delete_channel_error": {
+                    "summary": "Delete channel error",
+                    "value": {
+                      "error": "删除频道失败！"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     "/channel/subscriber_add": {
       "post": {
-        "summary": "Add Channel Subscribers",
-        "description": "Add subscribers to a channel",
+        "summary": "Add Channel Subscribers | 添加频道订阅者",
+        "description": "Add subscribers to a channel. Not supported for person channels. Will create the channel if it doesn't exist.\n\n**功能说明：**\n- 向频道添加订阅者\n- 不支持个人频道（channel_type=1）\n- 如果频道不存在会自动创建\n- 支持重置现有订阅者\n- 会自动创建相关会话\n\n**Use Cases:**\n- Add new members to a group\n- Bulk add subscribers\n- Reset entire subscriber list\n- Create channel with initial subscribers",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -717,14 +879,74 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "person_channel_not_supported": {
+                    "summary": "Person channel not supported",
+                    "value": {
+                      "error": "个人频道不支持订阅者！"
+                    }
+                  },
+                  "empty_subscribers": {
+                    "summary": "Empty subscribers",
+                    "value": {
+                      "error": "subscribers不能为空！"
+                    }
+                  },
+                  "special_characters": {
+                    "summary": "Special characters in channel ID",
+                    "value": {
+                      "error": "频道ID不能包含特殊字符！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "add_subscribers_error": {
+                    "summary": "Add subscribers error",
+                    "value": {
+                      "error": "添加订阅者失败！"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     "/channel/subscriber_remove": {
       "post": {
-        "summary": "Remove Channel Subscribers",
-        "description": "Remove subscribers from a channel",
+        "summary": "Remove Channel Subscribers | 移除频道订阅者",
+        "description": "Remove subscribers from a channel. Not supported for person channels. Will also delete their conversations with the channel.\n\n**功能说明：**\n- 从频道移除订阅者\n- 不支持个人频道（channel_type=1）\n- 会自动删除被移除用户的相关会话\n- 被移除用户将无法接收频道消息\n\n**Use Cases:**\n- Remove members from a group\n- Bulk remove subscribers\n- Clean up inactive users\n- Manage group membership",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -746,14 +968,74 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "person_channel_not_supported": {
+                    "summary": "Person channel not supported",
+                    "value": {
+                      "error": "个人频道不支持订阅者操作！"
+                    }
+                  },
+                  "empty_subscribers": {
+                    "summary": "Empty subscribers",
+                    "value": {
+                      "error": "subscribers不能为空！"
+                    }
+                  },
+                  "special_characters": {
+                    "summary": "Special characters in channel ID",
+                    "value": {
+                      "error": "频道ID不能包含特殊字符！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "remove_subscribers_error": {
+                    "summary": "Remove subscribers error",
+                    "value": {
+                      "error": "移除订阅者失败！"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     "/tmpchannel/subscriber_set": {
       "post": {
-        "summary": "Set Temporary Channel Subscribers",
-        "description": "Set subscribers for a temporary channel (internal node call)",
+        "summary": "Set Temporary Channel Subscribers | 设置临时频道订阅者",
+        "description": "Set subscribers for a temporary channel. This is an internal API used for cluster node communication to manage temporary channel subscriptions.\n\n**功能说明：**\n- 设置临时频道的订阅者\n- 这是内部API，用于集群节点间通信\n- 临时频道用于特殊场景，如临时群组或会话\n- 会自动创建和管理频道标签（tag）\n\n**注意：** 此接口主要用于系统内部调用，不建议外部直接使用。",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -772,6 +1054,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "empty_uids": {
+                    "summary": "Empty UIDs",
+                    "value": {
+                      "error": "uids不能为空！"
+                    }
+                  },
+                  "special_characters": {
+                    "summary": "Special characters in channel ID",
+                    "value": {
+                      "error": "频道ID不能包含特殊字符！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "tag_creation_error": {
+                    "summary": "Tag creation error",
+                    "value": {
+                      "error": "创建标签失败！"
+                    }
+                  }
                 }
               }
             }
@@ -1043,71 +1379,8 @@
         }
       }
     },
-    "/stream/open": {
-      "post": {
-        "summary": "Open Stream Message",
-        "description": "Start a stream message session",
-        "tags": ["Stream"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StreamOpenRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Stream opened successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "stream_no": {
-                      "type": "string",
-                      "description": "Unique stream identifier",
-                      "example": "stream_abc123"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/stream/close": {
-      "post": {
-        "summary": "Close Stream Message",
-        "description": "End a stream message session",
-        "tags": ["Stream"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StreamCloseRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Stream closed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
+
+
     "/conversations/clearUnread": {
       "post": {
         "summary": "Clear Conversation Unread",
@@ -1291,64 +1564,8 @@
         }
       }
     },
-    "/streamv2/open": {
-      "post": {
-        "summary": "Open Stream V2",
-        "description": "Open a new stream message session",
-        "tags": ["Stream"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StreamV2OpenRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Stream opened successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StreamV2OpenResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/streamv2/write": {
-      "post": {
-        "summary": "Write to Stream V2",
-        "description": "Write data to an open stream",
-        "tags": ["Stream"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StreamV2WriteRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Data written to stream successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
+
+
     "/connz": {
       "get": {
         "summary": "Get Connection Information",
@@ -1467,8 +1684,8 @@
 
     "/channel/blacklist_add": {
       "post": {
-        "summary": "Add Channel Blacklist",
-        "description": "Add users to channel blacklist",
+        "summary": "Add Channel Blacklist | 添加频道黑名单",
+        "description": "Add users to channel blacklist. Blacklisted users cannot send or receive messages in the channel and their conversations will be deleted.\n\n**功能说明：**\n- 将用户添加到频道黑名单\n- 黑名单用户无法在频道中发送或接收消息\n- 会自动删除黑名单用户的相关会话\n- 不支持个人频道（channel_type=1）\n- 直播频道（live channel）不处理会话删除",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -1490,14 +1707,222 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  },
+                  "empty_uids": {
+                    "summary": "Empty UIDs",
+                    "value": {
+                      "error": "uids不能为空！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "add_blacklist_error": {
+                    "summary": "Add blacklist error",
+                    "value": {
+                      "error": "添加黑名单失败！"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channel/blacklist_set": {
+      "post": {
+        "summary": "Set Channel Blacklist | 设置频道黑名单",
+        "description": "Set (replace) the entire blacklist for a channel. This will remove all existing blacklist entries and replace them with the provided list.\n\n**功能说明：**\n- 设置（替换）频道的完整黑名单\n- 会先清除所有现有黑名单条目，然后添加新的条目\n- 如果UIDs为空，则清空整个黑名单\n- 会自动删除黑名单用户的相关会话\n- 直播频道（live channel）不处理会话删除",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlacklistRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Blacklist set successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "频道ID不能为空！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "remove_all_error": {
+                    "summary": "Remove all blacklist error",
+                    "value": {
+                      "error": "移除所有黑名单失败！"
+                    }
+                  },
+                  "add_blacklist_error": {
+                    "summary": "Add blacklist error",
+                    "value": {
+                      "error": "添加黑名单失败！"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channel/blacklist_remove": {
+      "post": {
+        "summary": "Remove Channel Blacklist | 移除频道黑名单",
+        "description": "Remove specific users from channel blacklist. Removed users will have their conversations restored if applicable.\n\n**功能说明：**\n- 从频道黑名单中移除指定用户\n- 会恢复被移除用户的会话（如果适用）\n- 直播频道（live channel）不处理会话恢复",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlacklistRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Users removed from blacklist successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  },
+                  "empty_uids": {
+                    "summary": "Empty UIDs",
+                    "value": {
+                      "error": "uids不能为空！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "remove_blacklist_error": {
+                    "summary": "Remove blacklist error",
+                    "value": {
+                      "error": "移除黑名单失败！"
+                    }
+                  },
+                  "add_conversation_error": {
+                    "summary": "Add conversation error",
+                    "value": {
+                      "error": "添加会话失败！"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     "/channel/whitelist_add": {
       "post": {
-        "summary": "Add Channel Whitelist",
-        "description": "Add users to channel whitelist",
+        "summary": "Add Channel Whitelist | 添加频道白名单",
+        "description": "Add users to channel whitelist. Only whitelisted users can send messages to the channel when whitelist mode is enabled.\n\n**功能说明：**\n- 将用户添加到频道白名单\n- 启用白名单模式时，只有白名单用户可以向频道发送消息\n- 对于个人频道，会自动创建相关会话\n- 支持所有频道类型",
         "tags": ["Channel"],
         "requestBody": {
           "required": true,
@@ -1516,6 +1941,220 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  },
+                  "empty_uids": {
+                    "summary": "Empty UIDs",
+                    "value": {
+                      "error": "uids不能为空！"
+                    }
+                  },
+                  "special_characters": {
+                    "summary": "Special characters in channel ID",
+                    "value": {
+                      "error": "频道ID不能包含特殊字符！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "add_whitelist_error": {
+                    "summary": "Add whitelist error",
+                    "value": {
+                      "error": "添加白名单失败！"
+                    }
+                  },
+                  "add_conversation_error": {
+                    "summary": "Add conversation error",
+                    "value": {
+                      "error": "添加会话失败！"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channel/whitelist_set": {
+      "post": {
+        "summary": "Set Channel Whitelist | 设置频道白名单",
+        "description": "Set (replace) the entire whitelist for a channel. This will remove all existing whitelist entries and replace them with the provided list.\n\n**功能说明：**\n- 设置（替换）频道的完整白名单\n- 会先清除所有现有白名单条目，然后添加新的条目\n- 如果UIDs为空，则清空整个白名单\n- 支持所有频道类型",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhitelistRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Whitelist set successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "频道ID不能为空！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "remove_all_error": {
+                    "summary": "Remove all whitelist error",
+                    "value": {
+                      "error": "移除所有白明单失败！"
+                    }
+                  },
+                  "add_whitelist_error": {
+                    "summary": "Add whitelist error",
+                    "value": {
+                      "error": "添加白名单失败！"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channel/whitelist_remove": {
+      "post": {
+        "summary": "Remove Channel Whitelist | 移除频道白名单",
+        "description": "Remove specific users from channel whitelist.\n\n**功能说明：**\n- 从频道白名单中移除指定用户\n- 移除后用户将无法向频道发送消息（如果启用白名单模式）\n- 支持所有频道类型",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhitelistRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Users removed from whitelist successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  },
+                  "empty_uids": {
+                    "summary": "Empty UIDs",
+                    "value": {
+                      "error": "uids不能为空！"
+                    }
+                  },
+                  "special_characters": {
+                    "summary": "Special characters in channel ID",
+                    "value": {
+                      "error": "频道ID不能包含特殊字符！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "remove_whitelist_error": {
+                    "summary": "Remove whitelist error",
+                    "value": {
+                      "error": "移除白名单失败！"
+                    }
+                  }
                 }
               }
             }
@@ -1694,6 +2333,161 @@
           }
         }
       }
+    },
+    "/event": {
+      "post": {
+        "summary": "Send Event | 发送事件",
+        "description": "Send various types of events to channels, including streaming text messages and custom events. Supports AG-UI protocol events for real-time streaming communication.\n\n**Event Types Supported:**\n- `___TextMessageStart`: Start a streaming text message session\n- `___TextMessageContent`: Send content chunks for streaming text\n- `___TextMessageEnd`: End a streaming text message session\n- `___ToolCallStart`: Start a tool call event\n- `___ToolCallArgs`: Send tool call arguments\n- `___ToolCallEnd`: End a tool call event\n- `___ToolCallResult`: Send tool call results\n- Custom event types for application-specific events\n\n**Streaming Message Flow:**\n1. Send `___TextMessageStart` to initiate a stream\n2. Send multiple `___TextMessageContent` events with message chunks\n3. Send `___TextMessageEnd` to close the stream\n\n**Important Notes:**\n- The same `client_msg_no` must be used for all events in a streaming session\n- Only one stream can be active per channel unless `force=1` is used\n- For person channels, the system automatically handles fake channel ID generation\n- Events are automatically routed to the appropriate cluster node\n\n**Usage Examples:**\n\n*Streaming Text Message:*\n```bash\n# 1. Start stream\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"stream_001\",\n    \"channel_id\": \"user_123\",\n    \"channel_type\": 1,\n    \"from_uid\": \"ai_bot\",\n    \"event\": {\n      \"type\": \"___TextMessageStart\",\n      \"data\": \"Starting response...\"\n    }\n  }'\n\n# 2. Send content chunks\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"stream_001\",\n    \"channel_id\": \"user_123\",\n    \"channel_type\": 1,\n    \"from_uid\": \"ai_bot\",\n    \"event\": {\n      \"type\": \"___TextMessageContent\",\n      \"data\": \"Hello! How can I help you?\"\n    }\n  }'\n\n# 3. End stream\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"stream_001\",\n    \"channel_id\": \"user_123\",\n    \"channel_type\": 1,\n    \"from_uid\": \"ai_bot\",\n    \"event\": {\n      \"type\": \"___TextMessageEnd\",\n      \"data\": \"\"\n    }\n  }'\n```\n\n*Custom Event:*\n```bash\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"custom_001\",\n    \"channel_id\": \"group_456\",\n    \"channel_type\": 2,\n    \"from_uid\": \"system\",\n    \"event\": {\n      \"type\": \"user_joined\",\n      \"timestamp\": 1640995200000,\n      \"data\": \"{\\\"user_id\\\": \\\"new_user\\\", \\\"username\\\": \\\"Alice\\\"}\"\n    }\n  }'\n```\n\n**Chinese Description:**\n发送各种类型的事件到频道，包括流式文本消息和自定义事件。支持AG-UI协议事件，用于实时流式通信。支持文本消息流、工具调用等多种事件类型。流式消息需要按顺序发送开始、内容、结束事件，使用相同的client_msg_no标识。",
+        "tags": ["Event"],
+        "parameters": [
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Force end existing streams in the channel before starting a new one (1 for true, 0 for false)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["0", "1"],
+              "default": "0"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters or event data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_event_type": {
+                    "summary": "Missing event type | 缺少事件类型",
+                    "description": "Event type is required and cannot be empty",
+                    "value": {
+                      "error": "事件类型不能为空！",
+                      "error_en": "Event type cannot be empty!"
+                    }
+                  },
+                  "missing_client_msg_no": {
+                    "summary": "Missing client message number | 缺少客户端消息编号",
+                    "description": "Client message number is required for tracking",
+                    "value": {
+                      "error": "client_msg_no不能为空！",
+                      "error_en": "client_msg_no cannot be empty!"
+                    }
+                  },
+                  "invalid_data_format": {
+                    "summary": "Invalid data format | 数据格式错误",
+                    "description": "Request body format is invalid",
+                    "value": {
+                      "error": "数据格式有误！",
+                      "error_en": "Invalid data format!"
+                    }
+                  },
+                  "stream_already_running": {
+                    "summary": "Stream already running in channel | 频道中已有流在运行",
+                    "description": "Cannot start a new stream when another is active. Use force=1 to override.",
+                    "value": {
+                      "error": "频道中已有流正在运行！",
+                      "error_en": "A stream is already running in the channel!",
+                      "suggestion": "Use ?force=1 to force end existing streams"
+                    }
+                  },
+                  "stream_not_found": {
+                    "summary": "Stream not found | 流不存在",
+                    "description": "The specified stream does not exist or has expired",
+                    "value": {
+                      "error": "流不存在！",
+                      "error_en": "Stream does not exist!"
+                    }
+                  },
+                  "stream_closed": {
+                    "summary": "Stream already closed | 流已关闭",
+                    "description": "Cannot send content to a closed stream",
+                    "value": {
+                      "error": "流已关闭！",
+                      "error_en": "Stream is already closed!"
+                    }
+                  },
+                  "channel_mismatch": {
+                    "summary": "Channel mismatch | 频道不匹配",
+                    "description": "Stream channel does not match the request channel",
+                    "value": {
+                      "error": "流的频道不匹配！",
+                      "error_en": "Stream channel does not match!"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error | 集群节点错误",
+                    "description": "Failed to determine which cluster node handles the channel",
+                    "value": {
+                      "error": "获取频道所在节点失败！",
+                      "error_en": "Failed to get channel's cluster node!"
+                    }
+                  },
+                  "stream_processing_error": {
+                    "summary": "Stream processing error | 流处理错误",
+                    "description": "Error occurred while processing stream message events",
+                    "value": {
+                      "error": "处理消息开始事件失败！",
+                      "error_en": "Failed to process message start event!"
+                    }
+                  },
+                  "message_send_error": {
+                    "summary": "Message send error | 消息发送错误",
+                    "description": "Failed to send the event message",
+                    "value": {
+                      "error": "发送事件失败！",
+                      "error_en": "Failed to send event!"
+                    }
+                  },
+                  "stream_force_end_error": {
+                    "summary": "Force end stream error | 强制结束流错误",
+                    "description": "Failed to force end existing streams",
+                    "value": {
+                      "error": "强制结束其他流失败！",
+                      "error_en": "Failed to force end other streams!"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1843,16 +2637,119 @@
       "ChannelCreateRequest": {
         "type": "object",
         "required": ["channel_id", "channel_type"],
+        "description": "Request to create or update a channel with its basic information and initial subscribers.",
         "properties": {
           "channel_id": {
             "type": "string",
-            "example": "group123"
+            "description": "Channel ID. Cannot be empty or contain special characters.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
           },
           "channel_type": {
             "type": "integer",
-            "format": "int8",
+            "format": "uint8",
+            "description": "Channel type. Cannot be 0. (1=person, 2=group, etc.)",
             "example": 2,
-            "description": "Channel type: 1=person, 2=group"
+            "minimum": 1,
+            "maximum": 255
+          },
+          "large": {
+            "type": "integer",
+            "enum": [0, 1],
+            "example": 0,
+            "description": "Whether it's a large group (0=no, 1=yes). Large groups have different performance characteristics."
+          },
+          "ban": {
+            "type": "integer",
+            "enum": [0, 1],
+            "example": 0,
+            "description": "Whether the channel is banned (0=no, 1=yes). Banned channels prevent all users from sending/receiving messages except system accounts."
+          },
+          "disband": {
+            "type": "integer",
+            "enum": [0, 1],
+            "example": 0,
+            "description": "Whether the channel is disbanded (0=no, 1=yes). Disbanded channels are marked as deleted."
+          },
+          "send_ban": {
+            "type": "integer",
+            "enum": [0, 1],
+            "example": 0,
+            "description": "Whether sending messages is banned (0=no, 1=yes). When enabled, all members cannot send messages but can receive them. For person channels, the user can receive but not send messages."
+          },
+          "allow_stranger": {
+            "type": "integer",
+            "enum": [0, 1],
+            "example": 0,
+            "description": "Whether to allow strangers to send messages (0=no, 1=yes). Currently only supported for person channels. When enabled, strangers can send messages to the user."
+          },
+          "reset": {
+            "type": "integer",
+            "enum": [0, 1],
+            "example": 0,
+            "description": "Whether to reset subscribers (0=no, 1=yes). When enabled, all existing subscribers will be removed before adding new ones."
+          },
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of initial subscriber user IDs. Not supported for person channels (channel_type=1).",
+            "example": ["user1", "user2", "user3"]
+          }
+        },
+        "examples": {
+          "create_group": {
+            "summary": "Create a group channel",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "large": 0,
+              "ban": 0,
+              "send_ban": 0,
+              "subscribers": ["user1", "user2", "user3"]
+            }
+          },
+          "create_person_channel": {
+            "summary": "Create a person channel",
+            "value": {
+              "channel_id": "user123",
+              "channel_type": 1,
+              "allow_stranger": 1,
+              "send_ban": 0
+            }
+          },
+          "reset_subscribers": {
+            "summary": "Reset channel subscribers",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "reset": 1,
+              "subscribers": ["new_user1", "new_user2"]
+            }
+          }
+        }
+      },
+      "ChannelInfoRequest": {
+        "type": "object",
+        "required": ["channel_id", "channel_type"],
+        "description": "Request to update or add channel basic information without affecting subscribers.",
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID. Cannot be empty.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "channel_type": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Channel type. Cannot be 0. (1=person, 2=group, etc.)",
+            "example": 2,
+            "minimum": 1,
+            "maximum": 255
           },
           "large": {
             "type": "integer",
@@ -1872,125 +2769,160 @@
             "example": 0,
             "description": "Whether the channel is disbanded (0=no, 1=yes)"
           },
-          "reset": {
+          "send_ban": {
             "type": "integer",
             "enum": [0, 1],
             "example": 0,
-            "description": "Whether to reset subscribers (0=no, 1=yes)"
+            "description": "Whether sending messages is banned (0=no, 1=yes)"
           },
-          "subscribers": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "example": ["user1", "user2", "user3"]
+          "allow_stranger": {
+            "type": "integer",
+            "enum": [0, 1],
+            "example": 0,
+            "description": "Whether to allow strangers to send messages (0=no, 1=yes). Only supported for person channels."
           }
-        }
-      },
-      "ChannelInfoRequest": {
-        "type": "object",
-        "required": ["channel_id", "channel_type"],
-        "properties": {
-          "channel_id": {
-            "type": "string",
-            "example": "group123"
+        },
+        "examples": {
+          "update_group_info": {
+            "summary": "Update group channel info",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "large": 1,
+              "ban": 0,
+              "send_ban": 0
+            }
           },
-          "channel_type": {
-            "type": "integer",
-            "format": "int8",
-            "example": 2
-          },
-          "large": {
-            "type": "integer",
-            "enum": [0, 1],
-            "example": 0
-          },
-          "ban": {
-            "type": "integer",
-            "enum": [0, 1],
-            "example": 0
-          },
-          "disband": {
-            "type": "integer",
-            "enum": [0, 1],
-            "example": 0
+          "update_person_info": {
+            "summary": "Update person channel info",
+            "value": {
+              "channel_id": "user123",
+              "channel_type": 1,
+              "allow_stranger": 1,
+              "send_ban": 0
+            }
           }
         }
       },
       "ChannelDeleteRequest": {
         "type": "object",
         "required": ["channel_id", "channel_type"],
+        "description": "Request to delete a channel. This will disband the channel and clear all messages. Not supported for person channels.",
         "properties": {
           "channel_id": {
             "type": "string",
-            "example": "group123"
+            "description": "Channel ID to delete. Cannot be empty.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
           },
           "channel_type": {
             "type": "integer",
-            "format": "int8",
-            "example": 2
+            "format": "uint8",
+            "description": "Channel type. Cannot be 1 (person channel). (2=group, etc.)",
+            "example": 2,
+            "minimum": 2,
+            "maximum": 255
           }
         }
       },
       "SubscriberAddRequest": {
         "type": "object",
         "required": ["channel_id", "channel_type", "subscribers"],
+        "description": "Request to add subscribers to a channel. Not supported for person channels. Will create the channel if it doesn't exist.",
         "properties": {
           "channel_id": {
             "type": "string",
-            "example": "group123"
+            "description": "Channel ID. Cannot be empty or contain special characters.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
           },
           "channel_type": {
             "type": "integer",
-            "format": "int8",
-            "example": 2
+            "format": "uint8",
+            "description": "Channel type. Defaults to 2 (group) if 0. Cannot be 1 (person channel).",
+            "example": 2,
+            "minimum": 0,
+            "maximum": 255
           },
           "reset": {
             "type": "integer",
             "enum": [0, 1],
             "example": 0,
-            "description": "Whether to reset existing subscribers (0=no, 1=yes)"
+            "description": "Whether to reset existing subscribers (0=no, 1=yes). When enabled, all existing subscribers will be removed before adding new ones."
           },
           "temp_subscriber": {
             "type": "integer",
             "enum": [0, 1],
             "example": 0,
-            "description": "Whether these are temporary subscribers (0=no, 1=yes)"
+            "description": "Whether these are temporary subscribers (0=no, 1=yes). Temporary subscribers are no longer supported in new versions."
           },
           "subscribers": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "example": ["user1", "user2", "user3"]
+            "description": "List of user IDs to add as subscribers. Cannot be empty.",
+            "example": ["user1", "user2", "user3"],
+            "minItems": 1
+          }
+        },
+        "examples": {
+          "add_subscribers": {
+            "summary": "Add subscribers to existing channel",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "reset": 0,
+              "subscribers": ["user4", "user5"]
+            }
+          },
+          "reset_subscribers": {
+            "summary": "Reset all subscribers",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "reset": 1,
+              "subscribers": ["user1", "user2", "user3"]
+            }
           }
         }
       },
       "SubscriberRemoveRequest": {
         "type": "object",
         "required": ["channel_id", "channel_type", "subscribers"],
+        "description": "Request to remove subscribers from a channel. Not supported for person channels. Will also delete their conversations.",
         "properties": {
           "channel_id": {
             "type": "string",
-            "example": "group123"
+            "description": "Channel ID. Cannot be empty or contain special characters.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
           },
           "channel_type": {
             "type": "integer",
-            "format": "int8",
-            "example": 2
+            "format": "uint8",
+            "description": "Channel type. Cannot be 1 (person channel). (2=group, etc.)",
+            "example": 2,
+            "minimum": 2,
+            "maximum": 255
           },
           "temp_subscriber": {
             "type": "integer",
             "enum": [0, 1],
             "example": 0,
-            "description": "Whether these are temporary subscribers (0=no, 1=yes)"
+            "description": "Whether these are temporary subscribers (0=no, 1=yes). Temporary subscribers are no longer supported in new versions."
           },
           "subscribers": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "example": ["user1", "user2", "user3"]
+            "description": "List of user IDs to remove from subscribers. Cannot be empty.",
+            "example": ["user1", "user2", "user3"],
+            "minItems": 1
           }
         }
       },
@@ -2273,100 +3205,7 @@
           }
         }
       },
-      "StreamV2OpenRequest": {
-        "type": "object",
-        "required": ["channel_id", "channel_type", "payload"],
-        "properties": {
-          "header": {
-            "$ref": "#/components/schemas/MessageHeader"
-          },
-          "client_msg_no": {
-            "type": "string",
-            "example": "stream_msg_123"
-          },
-          "from_uid": {
-            "type": "string",
-            "example": "user123"
-          },
-          "channel_id": {
-            "type": "string",
-            "example": "group123"
-          },
-          "channel_type": {
-            "type": "integer",
-            "format": "int8",
-            "example": 2
-          },
-          "payload": {
-            "type": "string",
-            "format": "byte",
-            "example": "SGVsbG8gV29ybGQ=",
-            "description": "Base64 encoded initial message content"
-          },
-          "force": {
-            "type": "boolean",
-            "example": false,
-            "description": "Whether to force create stream (closes other active streams)"
-          }
-        }
-      },
-      "StreamV2OpenResponse": {
-        "type": "object",
-        "properties": {
-          "message_id": {
-            "type": "integer",
-            "format": "int64",
-            "example": 123456789
-          },
-          "stream_id": {
-            "type": "string",
-            "example": "stream_123456789"
-          }
-        }
-      },
-      "StreamV2WriteRequest": {
-        "type": "object",
-        "required": ["channel_id", "channel_type", "message_id", "payload"],
-        "properties": {
-          "channel_id": {
-            "type": "string",
-            "example": "group123"
-          },
-          "channel_type": {
-            "type": "integer",
-            "format": "int8",
-            "example": 2
-          },
-          "from_uid": {
-            "type": "string",
-            "example": "user123"
-          },
-          "message_id": {
-            "type": "integer",
-            "format": "int64",
-            "example": 123456789
-          },
-          "end": {
-            "type": "integer",
-            "format": "int8",
-            "enum": [0, 1],
-            "example": 0,
-            "description": "Whether this is the last chunk (0=no, 1=yes)"
-          },
-          "end_reason": {
-            "type": "integer",
-            "format": "int8",
-            "example": 0,
-            "description": "Reason for ending the stream"
-          },
-          "payload": {
-            "type": "string",
-            "format": "byte",
-            "example": "SGVsbG8gV29ybGQ=",
-            "description": "Base64 encoded message content"
-          }
-        }
-      },
+
       "ConnzResponse": {
         "type": "object",
         "properties": {
@@ -2534,45 +3373,113 @@
       },
       "BlacklistRequest": {
         "type": "object",
-        "required": ["channel_id", "channel_type", "uids"],
+        "required": ["channel_id", "channel_type"],
+        "description": "Request to manage channel blacklist. For blacklist_set operation, uids can be empty to clear the entire blacklist.",
         "properties": {
           "channel_id": {
             "type": "string",
-            "example": "group123"
+            "description": "Channel ID. Cannot be empty or contain special characters.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
           },
           "channel_type": {
             "type": "integer",
-            "format": "int8",
-            "example": 2
+            "format": "uint8",
+            "description": "Channel type. Cannot be 0. (1=person, 2=group, etc.)",
+            "example": 2,
+            "minimum": 1,
+            "maximum": 255
           },
           "uids": {
             "type": "array",
             "items": {
               "type": "string"
             },
+            "description": "List of user IDs to add/remove from blacklist. Required for add/remove operations, optional for set operation.",
             "example": ["user1", "user2", "user3"]
+          }
+        },
+        "examples": {
+          "add_blacklist": {
+            "summary": "Add users to blacklist",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "uids": ["user1", "user2"]
+            }
+          },
+          "set_blacklist": {
+            "summary": "Set complete blacklist",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "uids": ["user1", "user2", "user3"]
+            }
+          },
+          "clear_blacklist": {
+            "summary": "Clear entire blacklist",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "uids": []
+            }
           }
         }
       },
       "WhitelistRequest": {
         "type": "object",
-        "required": ["channel_id", "channel_type", "uids"],
+        "required": ["channel_id", "channel_type"],
+        "description": "Request to manage channel whitelist. For whitelist_set operation, uids can be empty to clear the entire whitelist.",
         "properties": {
           "channel_id": {
             "type": "string",
-            "example": "group123"
+            "description": "Channel ID. Cannot be empty or contain special characters.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
           },
           "channel_type": {
             "type": "integer",
-            "format": "int8",
-            "example": 2
+            "format": "uint8",
+            "description": "Channel type. Cannot be 0. (1=person, 2=group, etc.)",
+            "example": 2,
+            "minimum": 1,
+            "maximum": 255
           },
           "uids": {
             "type": "array",
             "items": {
               "type": "string"
             },
+            "description": "List of user IDs to add/remove from whitelist. Required for add/remove operations, optional for set operation.",
             "example": ["user1", "user2", "user3"]
+          }
+        },
+        "examples": {
+          "add_whitelist": {
+            "summary": "Add users to whitelist",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "uids": ["user1", "user2"]
+            }
+          },
+          "set_whitelist": {
+            "summary": "Set complete whitelist",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "uids": ["user1", "user2", "user3"]
+            }
+          },
+          "clear_whitelist": {
+            "summary": "Clear entire whitelist",
+            "value": {
+              "channel_id": "group123",
+              "channel_type": 2,
+              "uids": []
+            }
           }
         }
       },
@@ -2667,51 +3574,7 @@
           }
         }
       },
-      "StreamOpenRequest": {
-        "type": "object",
-        "required": ["channel_id", "channel_type", "payload"],
-        "properties": {
-          "header": {
-            "$ref": "#/components/schemas/MessageHeader"
-          },
-          "client_msg_no": {
-            "type": "string",
-            "description": "Client message number",
-            "example": "stream_msg_123"
-          },
-          "from_uid": {
-            "type": "string",
-            "description": "Sender user ID",
-            "example": "user123"
-          },
-          "channel_id": {
-            "type": "string",
-            "description": "Channel ID",
-            "example": "channel456"
-          },
-          "channel_type": {
-            "type": "integer",
-            "description": "Channel type (1=person, 2=group)",
-            "enum": [1, 2]
-          },
-          "payload": {
-            "type": "string",
-            "format": "byte",
-            "description": "Message payload (base64 encoded)"
-          }
-        }
-      },
-      "StreamCloseRequest": {
-        "type": "object",
-        "required": ["stream_no"],
-        "properties": {
-          "stream_no": {
-            "type": "string",
-            "description": "Stream number to close",
-            "example": "stream_abc123"
-          }
-        }
-      },
+
       "TagResponse": {
         "type": "object",
         "properties": {
@@ -2995,25 +3858,24 @@
       },
       "TmpChannelSubscriberSetRequest": {
         "type": "object",
-        "required": ["channel_id", "channel_type", "subscribers"],
+        "required": ["channel_id", "uids"],
+        "description": "Request to set subscribers for a temporary channel. Used for internal cluster communication.",
         "properties": {
           "channel_id": {
             "type": "string",
-            "description": "Temporary channel ID",
-            "example": "tmp_channel_123"
+            "description": "Temporary channel ID. Cannot contain special characters.",
+            "example": "tmp_channel_123",
+            "minLength": 1,
+            "maxLength": 64
           },
-          "channel_type": {
-            "type": "integer",
-            "description": "Channel type (1=person, 2=group)",
-            "enum": [1, 2]
-          },
-          "subscribers": {
+          "uids": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "List of subscriber user IDs",
-            "example": ["user1", "user2", "user3"]
+            "description": "List of user IDs to set as subscribers for the temporary channel",
+            "example": ["user1", "user2", "user3"],
+            "minItems": 1
           }
         }
       },
@@ -3045,6 +3907,160 @@
             "type": "string",
             "description": "Detailed error description",
             "example": "The provided parameters are invalid"
+          }
+        }
+      },
+      "EventRequest": {
+        "type": "object",
+        "required": ["client_msg_no", "channel_id", "channel_type", "event"],
+        "description": "Request payload for sending events to channels. Used for both streaming messages and custom events.",
+        "properties": {
+          "client_msg_no": {
+            "type": "string",
+            "description": "Client message number - must be unique and not repeated. Used to identify and track the message/stream. For streaming messages, all events in the same stream should use the same client_msg_no. UUID format is recommended.",
+            "example": "550e8400-e29b-41d4-a716-446655440000",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Target channel ID where the event will be sent. For person channels, this should be the target user ID. For group channels, this should be the group ID.",
+            "example": "channel_123",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "channel_type": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Channel type that determines how the message is routed:\n- 1: Person/Direct message channel\n- 2: Group channel\n- Other values: Custom channel types",
+            "example": 2,
+            "minimum": 1,
+            "maximum": 255
+          },
+          "from_uid": {
+            "type": "string",
+            "description": "Sender user ID. If not provided or empty, defaults to the system UID. This identifies who is sending the event.",
+            "example": "user_456",
+            "maxLength": 64
+          },
+          "event": {
+            "$ref": "#/components/schemas/EventModel"
+          }
+        },
+        "examples": {
+          "text_message_start": {
+            "summary": "Start streaming text message",
+            "value": {
+              "client_msg_no": "msg_001_stream_start",
+              "channel_id": "group_ai_chat",
+              "channel_type": 2,
+              "from_uid": "ai_assistant",
+              "event": {
+                "type": "___TextMessageStart",
+                "data": "Starting AI response..."
+              }
+            }
+          },
+          "text_message_content": {
+            "summary": "Send text message content chunk",
+            "value": {
+              "client_msg_no": "msg_001_stream_start",
+              "channel_id": "group_ai_chat",
+              "channel_type": 2,
+              "from_uid": "ai_assistant",
+              "event": {
+                "type": "___TextMessageContent",
+                "data": "Hello! How can I help you today?"
+              }
+            }
+          },
+          "text_message_end": {
+            "summary": "End streaming text message",
+            "value": {
+              "client_msg_no": "msg_001_stream_start",
+              "channel_id": "group_ai_chat",
+              "channel_type": 2,
+              "from_uid": "ai_assistant",
+              "event": {
+                "type": "___TextMessageEnd",
+                "data": ""
+              }
+            }
+          },
+          "custom_event": {
+            "summary": "Send custom event",
+            "value": {
+              "client_msg_no": "custom_event_001",
+              "channel_id": "user_123",
+              "channel_type": 1,
+              "from_uid": "system",
+              "event": {
+                "type": "user_status_update",
+                "data": "{\"status\": \"online\", \"last_seen\": 1640995200000}"
+              }
+            }
+          }
+        }
+      },
+      "EventModel": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Event ID (optional, auto-generated for some event types)",
+            "example": "event_789",
+            "maxLength": 64
+          },
+          "type": {
+            "type": "string",
+            "description": "Event type - supports AG-UI protocol events and custom events. AG-UI events enable real-time streaming communication for AI applications.\n\n**AG-UI Protocol Events:**\n- `___TextMessageStart`: Initiates a streaming text message session\n- `___TextMessageContent`: Sends content chunks during streaming\n- `___TextMessageEnd`: Terminates a streaming text message session\n- `___ToolCallStart`: Begins a tool/function call event\n- `___ToolCallArgs`: Sends arguments for tool calls\n- `___ToolCallEnd`: Ends a tool call event\n- `___ToolCallResult`: Returns results from tool execution\n\n**Custom Events:** Any string not starting with `___` is treated as a custom event type.",
+            "example": "___TextMessageStart",
+            "enum": [
+              "___TextMessageStart",
+              "___TextMessageContent",
+              "___TextMessageEnd",
+              "___ToolCallStart",
+              "___ToolCallArgs",
+              "___ToolCallEnd",
+              "___ToolCallResult"
+            ]
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Event timestamp (optional, Unix timestamp in milliseconds)",
+            "example": 1640995200000
+          },
+          "data": {
+            "type": "string",
+            "description": "Event data content. The format depends on the event type:\n\n**For Text Message Events:**\n- `___TextMessageStart`: Initial message content or metadata\n- `___TextMessageContent`: Text chunk for streaming\n- `___TextMessageEnd`: Final content or completion marker\n\n**For Tool Call Events:**\n- `___ToolCallStart`: Tool name or metadata\n- `___ToolCallArgs`: JSON string with function arguments\n- `___ToolCallEnd`: Completion status\n- `___ToolCallResult`: JSON string with execution results\n\n**For Custom Events:** Any string data relevant to your application",
+            "examples": {
+              "text_start": {
+                "summary": "Text message start",
+                "value": "Starting AI response..."
+              },
+              "text_content": {
+                "summary": "Text message content chunk",
+                "value": "Hello, this is a streaming message chunk"
+              },
+              "text_end": {
+                "summary": "Text message end",
+                "value": ""
+              },
+              "tool_args": {
+                "summary": "Tool call arguments",
+                "value": "{\"query\": \"weather in Beijing\", \"units\": \"metric\"}"
+              },
+              "tool_result": {
+                "summary": "Tool call result",
+                "value": "{\"temperature\": 25, \"condition\": \"sunny\", \"humidity\": 60}"
+              },
+              "custom_event": {
+                "summary": "Custom event data",
+                "value": "{\"action\": \"user_joined\", \"user_id\": \"user123\"}"
+              }
+            }
           }
         }
       }
@@ -3079,10 +4095,7 @@
       "name": "Conversation",
       "description": "Conversation and chat management endpoints"
     },
-    {
-      "name": "Stream",
-      "description": "Stream message endpoints"
-    },
+
     {
       "name": "Manager",
       "description": "Administrative management endpoints"
@@ -3098,6 +4111,10 @@
     {
       "name": "Tag",
       "description": "Tag management endpoints"
+    },
+    {
+      "name": "Event",
+      "description": "Event sending and streaming message endpoints for real-time communication"
     }
   ]
 }
