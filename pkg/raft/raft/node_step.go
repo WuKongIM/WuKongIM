@@ -115,7 +115,7 @@ func (n *Node) stepLeader(e types.Event) error {
 		if !isLearner {
 			n.updateLeaderCommittedIndex() // 更新领导的提交索引
 		}
-		// if n.Key() == "clusterconfig" {
+		// if n.Key() == "40" {
 		// 	n.Info("sync...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.String("reason", e.Reason.String()), zap.Uint64("storedIndex", e.StoredIndex), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
 		// }
 		syncInfo := n.replicaSync[e.From]
@@ -231,7 +231,9 @@ func (n *Node) stepFollower(e types.Event) error {
 		if !n.onlySync {
 			n.onlySync = true
 		}
-		if e.Reason == types.ReasonOk {
+
+		switch e.Reason {
+		case types.ReasonOk:
 			// if n.Key() == "clusterconfig" {
 			// 	n.Info("SyncResp...", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.Int("len", len(e.Logs)))
 			// }
@@ -249,7 +251,7 @@ func (n *Node) stepFollower(e types.Event) error {
 			}
 			n.updateFollowCommittedIndex(e.CommittedIndex) // 更新提交索引
 
-		} else if e.Reason == types.ReasonTruncate {
+		case types.ReasonTruncate:
 			// if n.Key() == "clusterconfig" {
 			// 	n.Info("truncating...", zap.Bool("truncating", n.truncating), zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.Int("len", len(e.Logs)))
 			// }
@@ -259,8 +261,9 @@ func (n *Node) stepFollower(e types.Event) error {
 			n.truncating = true
 			n.sendTruncateReq(e.Index)
 			n.advance()
-		} else {
+		default:
 			n.Error("sync error", zap.Uint64("from", e.From), zap.Uint64("index", e.Index), zap.String("reason", e.Reason.String()))
+
 		}
 	case types.TruncateResp: // 裁剪返回
 		n.truncating = false

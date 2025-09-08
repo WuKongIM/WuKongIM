@@ -1736,13 +1736,15 @@ type channelReplicaDetailResp struct {
 }
 
 type slotReplicaResp struct {
-	ReplicaId   uint64 `json:"replica_id"`    // 副本节点id
-	LeaderId    uint64 `json:"leader_id"`     // 当前副本认为的领导点id
-	Running     int    `json:"running"`       // 是否运行中
-	LastLogSeq  uint64 `json:"last_log_seq"`  // 最新消息序号
-	LastLogTime uint64 `json:"last_log_time"` // 最新消息时间
-	Term        uint32 `json:"term"`          // 任期
-	ConfVersion uint64 `json:"conf_version"`  // 配置版本
+	ReplicaId      uint64 `json:"replica_id"`      // 副本节点id
+	LeaderId       uint64 `json:"leader_id"`       // 当前副本认为的领导点id
+	Running        int    `json:"running"`         // 是否运行中
+	LastLogSeq     uint64 `json:"last_log_seq"`    // 最新消息序号
+	LastLogTime    uint64 `json:"last_log_time"`   // 最新消息时间
+	Term           uint32 `json:"term"`            // 任期
+	AppliedIndex   uint64 `json:"applied_index"`   // 已应用的日志下标
+	CommittedIndex uint64 `json:"committed_index"` // 已提交的日志下标
+	ConfVersion    uint64 `json:"conf_version"`    // 配置版本
 }
 
 type slotReplicaDetailResp struct {

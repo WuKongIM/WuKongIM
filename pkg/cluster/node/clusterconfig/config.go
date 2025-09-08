@@ -255,6 +255,18 @@ func (c *Config) updateSlotMigrate(slotId uint32, fromNodeId, toNodeId uint64) {
 	}
 }
 
+func (c *Config) updateSlotStatus(slotId uint32, status types.SlotStatus) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, slot := range c.cfg.Slots {
+		if slot.Id == slotId {
+			slot.Status = status
+			break
+		}
+	}
+}
+
 func (c *Config) updateSlots(slots []*types.Slot) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
