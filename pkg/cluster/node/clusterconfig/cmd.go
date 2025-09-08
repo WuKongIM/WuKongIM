@@ -21,6 +21,7 @@ const (
 	CMDTypeSlotMigrate                       // 槽迁移
 	CMDTypeSlotUpdate                        // 槽更新
 	CMDTypeNodeStatusChange                  // 节点状态改变
+	CMDTypeSlotStatusChange                  // 槽状态改变
 
 )
 
@@ -48,6 +49,8 @@ func (c CMDType) String() string {
 		return "CMDTypeSlotUpdate"
 	case CMDTypeNodeStatusChange:
 		return "CMDTypeNodeStatusChange"
+	case CMDTypeSlotStatusChange:
+		return "CMDTypeSlotStatusChange"
 	}
 	return "CMDTypeUnknown"
 }
@@ -167,6 +170,15 @@ func (c *CMD) CMDContent() (string, error) {
 		}
 		return wkutil.ToJSON(map[string]interface{}{
 			"nodeId": nodeId,
+			"status": status,
+		}), nil
+	case CMDTypeSlotStatusChange:
+		slotId, status, err := DecodeSlotStatusChange(c.Data)
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"slotId": slotId,
 			"status": status,
 		}), nil
 	}
@@ -310,4 +322,23 @@ func DecodeLeaderChange(data []byte) (uint64, error) {
 		return 0, err
 	}
 	return leaderId, nil
+}
+
+func EncodeSlotStatusChange(slotId uint32, status types.SlotStatus) ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(slotId)
+	enc.WriteUint32(uint32(status))
+	return enc.Bytes(), nil
+}
+
+func DecodeSlotStatusChange(data []byte) (uint32, types.SlotStatus, error) {
+	dec := wkproto.NewDecoder(data)
+	var err error
+	var slotId uint32
+	if slotId, err = dec.Uint32(); err != nil {
+		return 0, 0, err
+	}
+	status, err := dec.Uint32()
+	return slotId, types.SlotStatus(status), err
 }

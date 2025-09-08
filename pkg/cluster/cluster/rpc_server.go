@@ -184,11 +184,15 @@ func (r *rpcServer) slotInfos(slotIds []uint32) ([]SlotInfo, error) {
 		if st == nil {
 			continue
 		}
-		lastLogIndex, term := st.LastLogIndexAndTerm()
+		lastLog, err := r.s.slotServer.LastLog(slotId)
+		if err != nil {
+			r.Error("get slot last log error", zap.Error(err))
+			continue
+		}
 		slotInfos = append(slotInfos, SlotInfo{
 			SlotId:   slotId,
-			LogIndex: lastLogIndex,
-			LogTerm:  term,
+			LogIndex: lastLog.Index,
+			LogTerm:  lastLog.Term,
 			Term:     st.LastTerm(),
 		})
 	}

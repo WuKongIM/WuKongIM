@@ -13,6 +13,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/auth"
 	"github.com/WuKongIM/WuKongIM/pkg/auth/resource"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/network"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
@@ -197,12 +198,12 @@ func (s *Server) slotMigrate(c *wkhttp.Context) {
 		return
 	}
 
-	// err = s.clusterEventServer.ProposeMigrateSlot(id, req.MigrateFrom, req.MigrateTo)
-	// if err != nil {
-	// 	s.Error("slotMigrate: ProposeMigrateSlot error", zap.Error(err))
-	// 	c.ResponseError(err)
-	// 	return
-	// }
+	err = s.cfgServer.ProposeMigrateSlot(id, req.MigrateFrom, req.MigrateTo)
+	if err != nil {
+		s.Error("slotMigrate: ProposeMigrateSlot error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
 
 	c.ResponseOK()
 
@@ -371,7 +372,6 @@ func (s *Server) slotReplicasGet(c *wkhttp.Context) {
 	requestGroup, _ := errgroup.WithContext(timeoutCtx)
 
 	for _, replicaId := range replicaIds {
-		replicaId := replicaId
 
 		if !s.NodeIsOnline(replicaId) {
 			continue
@@ -388,20 +388,26 @@ func (s *Server) slotReplicasGet(c *wkhttp.Context) {
 			var leaderId uint64
 			var term uint32
 			var confVersion uint64
+			var appliedIndex uint64
+			var committedIndex uint64
 			if slotRaft != nil {
 				running = 1
 				leaderId = slotRaft.LeaderId()
 				term = slotRaft.Config().Term
 				confVersion = slotRaft.Config().Version
+				appliedIndex = slotRaft.AppliedIndex()
+				committedIndex = slotRaft.CommittedIndex()
 			}
 
 			replicaResp := slotReplicaResp{
-				ReplicaId:   s.opts.ConfigOptions.NodeId,
-				LeaderId:    leaderId,
-				Term:        term,
-				ConfVersion: confVersion,
-				Running:     running,
-				LastLogSeq:  lastLog.Index,
+				ReplicaId:      s.opts.ConfigOptions.NodeId,
+				LeaderId:       leaderId,
+				Term:           term,
+				ConfVersion:    confVersion,
+				Running:        running,
+				LastLogSeq:     lastLog.Index,
+				AppliedIndex:   appliedIndex,
+				CommittedIndex: committedIndex,
 			}
 			if lastLog.Time.IsZero() {
 				replicaResp.LastLogTime = 0
@@ -452,6 +458,16 @@ func (s *Server) slotReplicasGet(c *wkhttp.Context) {
 		return
 	}
 
+	sort.Slice(replicas, func(i, j int) bool {
+		if replicas[i].LeaderId == replicas[i].ReplicaId {
+			return false
+		}
+		if replicas[j].LeaderId == replicas[j].ReplicaId {
+			return false
+		}
+		return replicas[i].ReplicaId < replicas[j].ReplicaId
+	})
+
 	c.JSON(http.StatusOK, replicas)
 }
 
@@ -482,20 +498,26 @@ func (s *Server) slotLocalReplicaGet(c *wkhttp.Context) {
 	var leaderId uint64
 	var term uint32
 	var confVersion uint64
+	var appliedIndex uint64
+	var committedIndex uint64
 	if slotRaft != nil {
 		running = 1
 		leaderId = slotRaft.LeaderId()
 		term = slotRaft.Config().Term
 		confVersion = slotRaft.Config().Version
+		appliedIndex = slotRaft.AppliedIndex()
+		committedIndex = slotRaft.CommittedIndex()
 	}
 
 	replicaResp := slotReplicaResp{
-		ReplicaId:   s.opts.ConfigOptions.NodeId,
-		LeaderId:    leaderId,
-		Term:        term,
-		ConfVersion: confVersion,
-		Running:     running,
-		LastLogSeq:  lastLog.Index,
+		ReplicaId:      s.opts.ConfigOptions.NodeId,
+		LeaderId:       leaderId,
+		Term:           term,
+		ConfVersion:    confVersion,
+		Running:        running,
+		LastLogSeq:     lastLog.Index,
+		AppliedIndex:   appliedIndex,
+		CommittedIndex: committedIndex,
 	}
 	if lastLog.Time.IsZero() {
 		replicaResp.LastLogTime = 0
@@ -528,4 +550,36 @@ func (s *Server) requestSlotLocalReplica(nodeId uint64, slotId uint32, headers m
 		return nil, err
 	}
 	return replicaResp, nil
+}
+
+func (s *Server) slotElection(c *wkhttp.Context) {
+	if !s.opts.Auth.HasPermissionWithContext(c, resource.Slot.Election, auth.ActionWrite) {
+		c.ResponseErrorWithStatus(http.StatusForbidden, errors.New("没有权限"))
+		return
+	}
+
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		s.Error("id parse error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	slotId := uint32(id)
+
+	slot := s.cfgServer.Slot(slotId)
+	if slot == nil {
+		s.Error("slot not found", zap.Uint32("slotId", slotId))
+		c.ResponseError(errors.New("slot not found"))
+		return
+	}
+
+	err = s.cfgServer.ProposeSlotStatusChange(slotId, types.SlotStatus_SlotStatusCandidate)
+	if err != nil {
+		s.Error("slotElection: ProposeSlotStatusChange error", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	c.ResponseOK()
 }

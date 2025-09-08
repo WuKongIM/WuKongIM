@@ -28,7 +28,7 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.POST(s.formatPath("/slots/:id/migrate"), s.slotMigrate)             // 迁移槽
 	route.GET(s.formatPath("/slots/:id/replicas"), s.slotReplicasGet)         // 获取槽副本信息
 	route.GET(s.formatPath("/slots/:id/localReplica"), s.slotLocalReplicaGet) // 获取槽在本节点的副本信息
-
+	route.POST(s.formatPath("/slots/:id/election"), s.slotElection)           // 指定槽重新选举
 	// ================== message ==================
 	route.GET(s.formatPath("/messages"), s.messageSearch) // 搜索消息
 

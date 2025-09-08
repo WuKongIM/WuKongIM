@@ -726,20 +726,20 @@ func TestStreamCache_InactivityTimeout_ManualEndStream(t *testing.T) {
 	defer cache.Close()
 
 	// Create a stream
-	messageId := int64(1)
-	meta := NewStreamMeta(messageId)
+	clientMsgNo := "1"
+	meta := NewStreamMeta(clientMsgNo)
 	cache.OpenStream(meta)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("test chunk"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("test chunk"),
 	})
 
 	// Wait almost until timeout, then manually end stream
 	time.Sleep(inactivityTimeout - 20*time.Millisecond)
 
 	// Manually end the stream
-	err := cache.EndStream(messageId, EndReasonSuccess)
+	err := cache.EndStream(clientMsgNo, EndReasonSuccess)
 	if err != nil {
 		t.Fatalf("Manual EndStream failed: %v", err)
 	}
@@ -754,7 +754,7 @@ func TestStreamCache_InactivityTimeout_ManualEndStream(t *testing.T) {
 	}
 
 	// Verify stream was removed
-	if cache.HasStream(messageId) {
+	if cache.HasStream(clientMsgNo) {
 		t.Error("Stream should have been removed")
 	}
 }
@@ -763,7 +763,7 @@ func TestStreamCache_InactivityTimeout_ConcurrentChunks(t *testing.T) {
 	// Test thread safety with concurrent chunk appending and timeout checking
 	inactivityTimeout := 100 * time.Millisecond
 	cleanupInterval := 50 * time.Millisecond
-	completedStreams := make(map[int64]bool)
+	completedStreams := make(map[string]bool)
 	var mu sync.Mutex
 
 	cache := NewStreamCache(&StreamCacheOptions{
@@ -771,7 +771,7 @@ func TestStreamCache_InactivityTimeout_ConcurrentChunks(t *testing.T) {
 		CleanupInterval:        cleanupInterval,
 		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[meta.MessageId] = true
+			completedStreams[meta.ClientMsgNo] = true
 			mu.Unlock()
 			return nil
 		},
@@ -780,13 +780,13 @@ func TestStreamCache_InactivityTimeout_ConcurrentChunks(t *testing.T) {
 
 	// Create multiple streams - some will be kept active, others will become inactive
 	for i := 1; i <= 3; i++ {
-		messageId := int64(i)
-		meta := NewStreamMeta(messageId)
+		clientMsgNo := fmt.Sprintf("msg_%d", i)
+		meta := NewStreamMeta(clientMsgNo)
 		cache.OpenStream(meta)
 		cache.AppendChunk(&MessageChunk{
-			MessageId: messageId,
-			ChunkId:   0,
-			Payload:   []byte(fmt.Sprintf("initial chunk for stream %d", messageId)),
+			ClientMsgNo: clientMsgNo,
+			ChunkId:     0,
+			Payload:     []byte(fmt.Sprintf("initial chunk for stream %s", clientMsgNo)),
 		})
 	}
 
@@ -794,9 +794,9 @@ func TestStreamCache_InactivityTimeout_ConcurrentChunks(t *testing.T) {
 	go func() {
 		time.Sleep(inactivityTimeout / 2)
 		cache.AppendChunk(&MessageChunk{
-			MessageId: 1,
-			ChunkId:   1,
-			Payload:   []byte("keeping stream 1 active"),
+			ClientMsgNo: "msg_1",
+			ChunkId:     1,
+			Payload:     []byte("keeping stream 1 active"),
 		})
 	}()
 
@@ -806,9 +806,9 @@ func TestStreamCache_InactivityTimeout_ConcurrentChunks(t *testing.T) {
 
 	// Check results
 	mu.Lock()
-	stream1Completed := completedStreams[1]
-	stream2Completed := completedStreams[2]
-	stream3Completed := completedStreams[3]
+	stream1Completed := completedStreams["msg_1"]
+	stream2Completed := completedStreams["msg_2"]
+	stream3Completed := completedStreams["msg_3"]
 	mu.Unlock()
 
 	// Stream 1 should still be active (not completed)
@@ -843,49 +843,49 @@ func TestStreamCache_EndReason(t *testing.T) {
 	defer cache.Close()
 
 	// Test 1: Manual completion with success reason
-	messageId1 := int64(1)
-	meta1 := NewStreamMeta(messageId1)
+	clientMsgNo1 := "msg_1"
+	meta1 := NewStreamMeta(clientMsgNo1)
 	cache.OpenStream(meta1)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId1,
-		ChunkId:   0,
-		Payload:   []byte("test chunk 1"),
+		ClientMsgNo: clientMsgNo1,
+		ChunkId:     0,
+		Payload:     []byte("test chunk 1"),
 	})
 
 	// End with success reason
-	err := cache.EndStream(messageId1, EndReasonSuccess)
+	err := cache.EndStream(clientMsgNo1, EndReasonSuccess)
 	if err != nil {
 		t.Fatalf("Failed to end stream with success reason: %v", err)
 	}
 
 	// Test 2: Manual completion with cancelled reason
-	messageId2 := int64(2)
-	meta2 := NewStreamMeta(messageId2)
+	clientMsgNo2 := "msg_2"
+	meta2 := NewStreamMeta(clientMsgNo2)
 	cache.OpenStream(meta2)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId2,
-		ChunkId:   0,
-		Payload:   []byte("test chunk 2"),
+		ClientMsgNo: clientMsgNo2,
+		ChunkId:     0,
+		Payload:     []byte("test chunk 2"),
 	})
 
 	// End with cancelled reason
-	err = cache.EndStream(messageId2, EndReasonCancelled)
+	err = cache.EndStream(clientMsgNo2, EndReasonCancelled)
 	if err != nil {
 		t.Fatalf("Failed to end stream with cancelled reason: %v", err)
 	}
 
 	// Test 3: Invalid reason should default to success
-	messageId3 := int64(3)
-	meta3 := NewStreamMeta(messageId3)
+	clientMsgNo3 := "msg_3"
+	meta3 := NewStreamMeta(clientMsgNo3)
 	cache.OpenStream(meta3)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId3,
-		ChunkId:   0,
-		Payload:   []byte("test chunk 3"),
+		ClientMsgNo: clientMsgNo3,
+		ChunkId:     0,
+		Payload:     []byte("test chunk 3"),
 	})
 
 	// End with invalid reason (should default to success)
-	err = cache.EndStream(messageId3, 111)
+	err = cache.EndStream(clientMsgNo3, 111)
 	if err != nil {
 		t.Fatalf("Failed to end stream with invalid reason: %v", err)
 	}
@@ -908,13 +908,13 @@ func TestStreamCache_InactivityTimeout_EndReason(t *testing.T) {
 	defer cache.Close()
 
 	// Create a stream that will timeout
-	messageId := int64(1)
-	meta := NewStreamMeta(messageId)
+	clientMsgNo := "msg_1"
+	meta := NewStreamMeta(clientMsgNo)
 	cache.OpenStream(meta)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("test chunk"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("test chunk"),
 	})
 
 	// Wait for inactivity timeout to trigger
@@ -923,7 +923,7 @@ func TestStreamCache_InactivityTimeout_EndReason(t *testing.T) {
 	// Stream should have been auto-completed with timeout reason
 	// Since the stream is removed after completion, we can't verify the EndReason directly
 	// But we can verify that the stream was completed (no longer exists)
-	if cache.HasStream(messageId) {
+	if cache.HasStream(clientMsgNo) {
 		t.Error("Stream should have been auto-completed due to inactivity")
 	}
 
@@ -932,13 +932,13 @@ func TestStreamCache_InactivityTimeout_EndReason(t *testing.T) {
 
 func TestStreamCache_EndStreamInChannel(t *testing.T) {
 	// Test ending all streams in a specific channel
-	completedStreams := make(map[int64]bool)
+	completedStreams := make(map[string]bool)
 	var mu sync.Mutex
 
 	cache := NewStreamCache(&StreamCacheOptions{
 		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[meta.MessageId] = true
+			completedStreams[meta.ClientMsgNo] = true
 			mu.Unlock()
 			return nil
 		},
@@ -947,16 +947,16 @@ func TestStreamCache_EndStreamInChannel(t *testing.T) {
 
 	// Create streams in different channels
 	// Channel "general" type 1
-	meta1 := NewStreamMetaBuilder(1).Channel("general", 1).Build()
-	meta2 := NewStreamMetaBuilder(2).Channel("general", 1).Build()
-	meta3 := NewStreamMetaBuilder(3).Channel("general", 1).Build()
+	meta1 := NewStreamMetaBuilder("msg_1").Channel("general", 1).Build()
+	meta2 := NewStreamMetaBuilder("msg_2").Channel("general", 1).Build()
+	meta3 := NewStreamMetaBuilder("msg_3").Channel("general", 1).Build()
 
 	// Channel "private" type 2
-	meta4 := NewStreamMetaBuilder(4).Channel("private", 2).Build()
-	meta5 := NewStreamMetaBuilder(5).Channel("private", 2).Build()
+	meta4 := NewStreamMetaBuilder("msg_4").Channel("private", 2).Build()
+	meta5 := NewStreamMetaBuilder("msg_5").Channel("private", 2).Build()
 
 	// Channel "general" type 2 (different type, same channel ID)
-	meta6 := NewStreamMetaBuilder(6).Channel("general", 2).Build()
+	meta6 := NewStreamMetaBuilder("msg_6").Channel("general", 2).Build()
 
 	// Open all streams
 	cache.OpenStream(meta1)
@@ -967,11 +967,11 @@ func TestStreamCache_EndStreamInChannel(t *testing.T) {
 	cache.OpenStream(meta6)
 
 	// Add chunks to all streams
-	for i := int64(1); i <= 6; i++ {
+	for i := 1; i <= 6; i++ {
 		cache.AppendChunk(&MessageChunk{
-			MessageId: i,
-			ChunkId:   0,
-			Payload:   []byte(fmt.Sprintf("chunk for stream %d", i)),
+			ClientMsgNo: fmt.Sprintf("msg_%d", i),
+			ChunkId:     0,
+			Payload:     []byte(fmt.Sprintf("chunk for stream %d", i)),
 		})
 	}
 
@@ -983,30 +983,30 @@ func TestStreamCache_EndStreamInChannel(t *testing.T) {
 
 	// Verify that streams 1, 2, 3 were completed
 	mu.Lock()
-	for i := int64(1); i <= 3; i++ {
-		if !completedStreams[i] {
+	for i := 1; i <= 3; i++ {
+		if !completedStreams[fmt.Sprintf("msg_%d", i)] {
 			t.Errorf("Stream %d in channel 'general' type 1 should have been completed", i)
 		}
 	}
 
 	// Verify that streams 4, 5, 6 were NOT completed
-	for i := int64(4); i <= 6; i++ {
-		if completedStreams[i] {
+	for i := 4; i <= 6; i++ {
+		if completedStreams[fmt.Sprintf("msg_%d", i)] {
 			t.Errorf("Stream %d should NOT have been completed", i)
 		}
 	}
 	mu.Unlock()
 
 	// Verify streams are no longer in cache
-	for i := int64(1); i <= 3; i++ {
-		if cache.HasStream(i) {
+	for i := 1; i <= 3; i++ {
+		if cache.HasStream(fmt.Sprintf("msg_%d", i)) {
 			t.Errorf("Stream %d should have been removed from cache", i)
 		}
 	}
 
 	// Verify other streams are still in cache
-	for i := int64(4); i <= 6; i++ {
-		if !cache.HasStream(i) {
+	for i := 4; i <= 6; i++ {
+		if !cache.HasStream(fmt.Sprintf("msg_%d", i)) {
 			t.Errorf("Stream %d should still be in cache", i)
 		}
 	}
@@ -1036,12 +1036,12 @@ func TestStreamCache_EndStreamInChannel_Errors(t *testing.T) {
 	}
 
 	// Test invalid reason (should default to success)
-	meta := NewStreamMetaBuilder(1).Channel("test", 1).Build()
+	meta := NewStreamMetaBuilder("msg_1").Channel("test", 1).Build()
 	cache.OpenStream(meta)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: 1,
-		ChunkId:   0,
-		Payload:   []byte("test chunk"),
+		ClientMsgNo: "msg_1",
+		ChunkId:     0,
+		Payload:     []byte("test chunk"),
 	})
 
 	err = cache.EndStreamInChannel("test", 1, 111) // Invalid reason
@@ -1052,13 +1052,13 @@ func TestStreamCache_EndStreamInChannel_Errors(t *testing.T) {
 
 func TestStreamCache_EndStreamInChannel_Concurrent(t *testing.T) {
 	// Test concurrent access to EndStreamInChannel
-	completedStreams := make(map[int64]bool)
+	completedStreams := make(map[string]bool)
 	var mu sync.Mutex
 
 	cache := NewStreamCache(&StreamCacheOptions{
 		OnStreamComplete: func(meta *StreamMeta, chunks []*MessageChunk) error {
 			mu.Lock()
-			completedStreams[meta.MessageId] = true
+			completedStreams[meta.ClientMsgNo] = true
 			mu.Unlock()
 			return nil
 		},
@@ -1068,12 +1068,12 @@ func TestStreamCache_EndStreamInChannel_Concurrent(t *testing.T) {
 	// Create multiple streams in the same channel
 	numStreams := 10
 	for i := 1; i <= numStreams; i++ {
-		meta := NewStreamMetaBuilder(int64(i)).Channel("concurrent", 1).Build()
+		meta := NewStreamMetaBuilder(fmt.Sprintf("msg_%d", i)).Channel("concurrent", 1).Build()
 		cache.OpenStream(meta)
 		cache.AppendChunk(&MessageChunk{
-			MessageId: int64(i),
-			ChunkId:   0,
-			Payload:   []byte(fmt.Sprintf("chunk %d", i)),
+			ClientMsgNo: fmt.Sprintf("msg_%d", i),
+			ChunkId:     0,
+			Payload:     []byte(fmt.Sprintf("chunk %d", i)),
 		})
 	}
 
@@ -1096,9 +1096,9 @@ func TestStreamCache_EndStreamInChannel_Concurrent(t *testing.T) {
 		defer wg.Done()
 		for i := 1; i <= numStreams; i++ {
 			cache.AppendChunk(&MessageChunk{
-				MessageId: int64(i),
-				ChunkId:   1,
-				Payload:   []byte(fmt.Sprintf("concurrent chunk %d", i)),
+				ClientMsgNo: fmt.Sprintf("msg_%d", i),
+				ChunkId:     1,
+				Payload:     []byte(fmt.Sprintf("concurrent chunk %d", i)),
 			})
 		}
 	}()
@@ -1108,7 +1108,7 @@ func TestStreamCache_EndStreamInChannel_Concurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 1; i <= numStreams; i++ {
-			cache.HasStream(int64(i))
+			cache.HasStream(fmt.Sprintf("msg_%d", i))
 		}
 	}()
 
@@ -1142,18 +1142,18 @@ func TestStreamCache_EndStream_ConcurrentAccess(t *testing.T) {
 	defer cache.Close()
 
 	// Create a stream to end
-	messageId := int64(1)
-	meta1 := NewStreamMeta(messageId)
+	clientMsgNo := "msg_1"
+	meta1 := NewStreamMeta(clientMsgNo)
 	cache.OpenStream(meta1)
 	cache.AppendChunk(&MessageChunk{
-		MessageId: messageId,
-		ChunkId:   0,
-		Payload:   []byte("test chunk"),
+		ClientMsgNo: clientMsgNo,
+		ChunkId:     0,
+		Payload:     []byte("test chunk"),
 	})
 
 	// Create another stream for concurrent operations
-	messageId2 := int64(2)
-	meta2 := NewStreamMeta(messageId2)
+	clientMsgNo2 := "msg_2"
+	meta2 := NewStreamMeta(clientMsgNo2)
 	cache.OpenStream(meta2)
 
 	// Channel to coordinate test execution
@@ -1164,7 +1164,7 @@ func TestStreamCache_EndStream_ConcurrentAccess(t *testing.T) {
 	// Start EndStream in a goroutine (this will trigger the slow callback)
 	go func() {
 		close(endStreamStarted) // Signal that EndStream has started
-		err := cache.EndStream(messageId, EndReasonSuccess)
+		err := cache.EndStream(clientMsgNo, EndReasonSuccess)
 		endStreamDone <- err
 	}()
 
@@ -1183,18 +1183,18 @@ func TestStreamCache_EndStream_ConcurrentAccess(t *testing.T) {
 		// These operations should complete quickly even while callback is running
 		operations := []func() error{
 			func() error {
-				_, err := cache.GetStreamInfo(messageId2)
+				_, err := cache.GetStreamInfo(clientMsgNo2)
 				return err
 			},
 			func() error {
 				return cache.AppendChunk(&MessageChunk{
-					MessageId: messageId2,
-					ChunkId:   1,
-					Payload:   []byte("concurrent chunk"),
+					ClientMsgNo: clientMsgNo2,
+					ChunkId:     1,
+					Payload:     []byte("concurrent chunk"),
 				})
 			},
 			func() error {
-				return cache.UpdateStreamMeta(messageId2, func(meta *StreamMeta) {
+				return cache.UpdateStreamMeta(clientMsgNo2, func(meta *StreamMeta) {
 					meta.SetCustomField("concurrent", true)
 				})
 			},

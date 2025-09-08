@@ -4,7 +4,8 @@ type Id string
 
 // 槽位资源
 var Slot = slot{
-	Migrate: "slotMigrate", // 迁移槽位
+	Migrate:  "slotMigrate",  // 迁移槽位
+	Election: "slotElection", // 槽位选举
 }
 
 // 频道资源
@@ -27,7 +28,8 @@ var PluginUser = pluginUser{
 }
 
 type slot struct {
-	Migrate Id
+	Migrate  Id
+	Election Id
 }
 
 type channel struct {

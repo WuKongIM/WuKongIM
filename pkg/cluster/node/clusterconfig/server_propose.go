@@ -156,3 +156,51 @@ func (s *Server) ProposeJoin(node *pb.Node) error {
 	}
 	return nil
 }
+
+// ProposeMigrateSlot 提案槽迁移
+func (s *Server) ProposeMigrateSlot(slotId uint32, fromNodeId, toNodeId uint64) error {
+	if fromNodeId == toNodeId {
+		return nil
+	}
+	data, err := EncodeMigrateSlot(slotId, fromNodeId, toNodeId)
+	if err != nil {
+		return err
+	}
+
+	cmd := NewCMD(CMDTypeSlotMigrate, data)
+	cmdBytes, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+
+	logId := s.genConfigId()
+	_, err = s.ProposeUntilApplied(logId, cmdBytes)
+	if err != nil {
+		s.Error("ProposeMigrateSlot failed", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+// ProposeSlotStatusChange 提案槽状态变更
+func (s *Server) ProposeSlotStatusChange(slotId uint32, status pb.SlotStatus) error {
+	data, err := EncodeSlotStatusChange(slotId, status)
+	if err != nil {
+		return err
+	}
+
+	cmd := NewCMD(CMDTypeSlotStatusChange, data)
+	cmdBytes, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+
+	logId := s.genConfigId()
+	_, err = s.ProposeUntilApplied(logId, cmdBytes)
+	if err != nil {
+		s.Error("ProposeSlotStatusChange failed", zap.Error(err))
+		return err
+	}
+	return nil
+}
