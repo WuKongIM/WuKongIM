@@ -313,7 +313,6 @@ type Options struct {
 	MigrateStartStep MigrateStep // 从那步开始迁移，默认顺序是 message,user,channel
 
 	messageIdGen *snowflake.Node // 消息ID生成器
-	chunkIdGen   *snowflake.Node // 消息chunk ID生成器
 
 	// tag相关配置
 	Tag struct {
@@ -1230,12 +1229,6 @@ func (o *Options) configureAuth() {
 	}
 	o.messageIdGen = node
 
-	node, err = snowflake.NewNode(int64(o.Cluster.NodeId + 1000))
-	if err != nil {
-		wklog.Panic("create snowflake node failed", zap.Error(err))
-	}
-	o.chunkIdGen = node
-
 }
 
 func (o *Options) ConfigureDataDir() {
@@ -1525,11 +1518,6 @@ func (o *Options) IsLocalNode(nodeId uint64) bool {
 func (o *Options) GenMessageId() int64 {
 
 	return o.messageIdGen.Generate().Int64()
-}
-
-// GenChunkId 生成chunkId
-func (o *Options) GenChunkId() int64 {
-	return o.chunkIdGen.Generate().Int64()
 }
 
 type Node struct {
