@@ -1,6 +1,6 @@
 ## WuKongIM (Make information transfer easier)
 
-9 years of accumulation, precipitated a high-performance universal communication service, supporting instant messaging, in-site/system messages, message center, IoT communication, audio and video signaling, live broadcast barrage, customer service system, AI communication, instant community and other scenarios.
+10 years of accumulation, precipitated a high-performance universal communication service, supporting instant messaging, in-site/system messages, message center, IoT communication, audio and video signaling, live broadcast barrage, customer service system, AI communication, instant community and other scenarios.
 
 `This project needs to be compiled in a go1.20.0 or higher environment.`
 
