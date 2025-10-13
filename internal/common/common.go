@@ -11,6 +11,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/pkg/wkcache"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -86,32 +88,32 @@ func (s *Service) GetOrRequestAndMakeTag(fakeChannelId string, channelType uint8
 		return s.getOrMakePersonTag(fakeChannelId)
 	}
 
-	leader, err := service.Cluster.LeaderOfChannel(fakeChannelId, channelType)
+	slotLeaderId, err := service.Cluster.SlotLeaderIdOfChannel(fakeChannelId, channelType)
 	if err != nil {
 		wklog.Error("GetOrRequestTag: getLeaderOfChannel failed", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
-	if leader == nil {
-		wklog.Warn("GetOrRequestTag: leader is nil", zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
+	if slotLeaderId == 0 {
+		wklog.Warn("GetOrRequestTag: slotLeader is 0", zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, errors.ChannelNotExist(fakeChannelId)
 	}
 
 	// tagKey在频道的领导节点是一定存在的，
 	// 如果不存在可能就是失效了，这里直接忽略,只能等下条消息触发重构tag
-	if options.G.IsLocalNode(leader.Id) {
+	if options.G.IsLocalNode(slotLeaderId) {
 		wklog.Warn("tag not exist in leader node", zap.String("tagKey", tagKey), zap.String("fakeChannelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, errors.TagNotExist(tagKey)
 	}
 
 	// 去领导节点请求
-	tagResp, err := s.client.RequestTag(leader.Id, &ingress.TagReq{
+	tagResp, err := s.client.RequestTag(slotLeaderId, &ingress.TagReq{
 		TagKey:      tagKey,
 		ChannelId:   fakeChannelId,
 		ChannelType: channelType,
 		NodeId:      targetNodeId,
 	})
 	if err != nil {
-		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.Uint64("leaderId", leader.Id), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
+		s.Error("GetOrRequestTag: get tag failed", zap.Error(err), zap.Uint64("slotLeaderId", slotLeaderId), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
 
@@ -144,6 +146,44 @@ func (s *Service) getOrMakePersonTag(fakeChannelId string) (*types.Tag, error) {
 	}
 	service.TagManager.SetChannelTag(fakeChannelId, wkproto.ChannelTypePerson, tag.Key)
 	return tag, nil
+}
+
+func (s *Service) GetStreamsForLocal(clientMsgNos []string) ([]*wkdb.StreamV2, error) {
+	streamResps := make([]*wkdb.StreamV2, 0, len(clientMsgNos)) // 流消息集合
+	noCacheClientMsgNos := make([]string, 0, len(clientMsgNos)) // 没有缓存的流消息id
+	for _, clientMsgNo := range clientMsgNos {
+		stream, err := service.StreamCache.GetStream(clientMsgNo)
+		if err != nil && err != wkcache.ErrStreamNotFound {
+			s.Warn("GetStreams: get stream failed", zap.Error(err), zap.String("clientMsgNo", clientMsgNo))
+			continue
+		}
+		if stream == nil {
+			noCacheClientMsgNos = append(noCacheClientMsgNos, clientMsgNo)
+			continue
+		}
+		meta := stream.Meta
+		payload := service.StreamCache.GetStreamData(stream)
+		streamResps = append(streamResps, &wkdb.StreamV2{
+			ClientMsgNo: clientMsgNo,
+			MessageId:   meta.MessageId,
+			ChannelId:   meta.ChannelId,
+			ChannelType: meta.ChannelType,
+			FromUid:     meta.FromUid,
+			End:         meta.EndReason,
+			EndReason:   meta.EndReason,
+			Payload:     payload,
+		})
+	}
+
+	if len(noCacheClientMsgNos) > 0 {
+		streamV2s, err := service.Store.GetStreamV2s(noCacheClientMsgNos)
+		if err != nil {
+			s.Warn("GetStreams: get stream failed", zap.Error(err))
+			return nil, err
+		}
+		streamResps = append(streamResps, streamV2s...)
+	}
+	return streamResps, nil
 }
 
 // 检查连接的真实性 并获取真实连接

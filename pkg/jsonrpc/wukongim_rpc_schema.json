@@ -19,7 +19,8 @@
         "disconnect",
         "subscribe",
         "unsubscribe",
-        "recv"
+        "recv",
+        "event"
       ]
     },
     "params": {
@@ -49,7 +50,8 @@
     { "$ref": "#/components/schemas/PingRequest" },
     { "$ref": "#/components/schemas/PongResponse" },
     { "$ref": "#/components/schemas/DisconnectRequest" },
-    { "$ref": "#/components/schemas/DisconnectNotification" }
+    { "$ref": "#/components/schemas/DisconnectNotification" },
+    { "$ref": "#/components/schemas/EventNotification" }
   ],
   "components": {
     "schemas": {
@@ -68,7 +70,8 @@
            "noPersist": { "type": "boolean", "description": "消息是否不存储" },
            "redDot": { "type": "boolean", "description": "是否显示红点" },
            "syncOnce": { "type": "boolean", "description": "是否只被同步一次" },
-           "dup": { "type": "boolean", "description": "是否是重发的消息" }
+           "dup": { "type": "boolean", "description": "是否是重发的消息" },
+           "end": { "type": "boolean", "description": "是否为结束标记" }
          }
       },
       "DeviceFlagEnum": {
@@ -355,6 +358,25 @@
                "reason": { "type": "string", "description": "断开原因描述 (可选)" }
             },
             "required": ["reasonCode"]
+          }
+        },
+        "required": ["method"]
+      },
+      "EventNotification": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": { "const": "2.0" },
+          "method": { "const": "event" },
+          "params": {
+            "type": "object",
+            "properties": {
+               "header": { "$ref": "#/components/schemas/Header" },
+               "id": { "type": "string", "description": "事件ID" },
+               "type": { "type": "string", "description": "事件类型" },
+               "timestamp": { "type": "integer", "format": "int64", "description": "事件时间戳" },
+               "data": { "type": "string", "description": "事件数据" }
+            },
+            "required": ["id", "type", "timestamp", "data"]
           }
         },
         "required": ["method"]

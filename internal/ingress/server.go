@@ -37,6 +37,9 @@ func (i *Ingress) SetRoutes() {
 	// 获取流
 	service.Cluster.Route("/wk/ingress/getStreams", i.handleGetStreams)
 
+	// 获取流(v2)
+	service.Cluster.Route("/wk/ingress/getStreamsV2", i.handleGetStreamsV2)
+
 }
 
 func (i *Ingress) handleGetTag(c *wkserver.Context) {
@@ -96,7 +99,7 @@ func (i *Ingress) handleAllowSend(ctx *wkserver.Context) {
 		return
 	}
 
-	reasonCode, err := service.AllowSendForPerson(req.From, req.To)
+	reasonCode, err := service.Permission.AllowSendForPersonLocal(req.From, req.To)
 	if err != nil {
 		i.Error("handleAllowSend: allowSend failed", zap.Error(err))
 		ctx.WriteErr(err)
@@ -271,4 +274,30 @@ func (i *Ingress) handleGetStreams(c *wkserver.Context) {
 		return
 	}
 	c.Write(data)
+}
+
+func (i *Ingress) handleGetStreamsV2(c *wkserver.Context) {
+	req := &StreamReqV2{}
+	err := req.Decode(c.Body())
+	if err != nil {
+		i.Error("handleGetStreams: decode failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	streams, err := service.CommonService.GetStreamsForLocal(req.ClientMsgNos)
+	if err != nil {
+		i.Error("handleGetStreams: get streams failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	resp := StreamRespV2(streams)
+	data, err := resp.Encode()
+	if err != nil {
+		i.Error("handleGetStreams: encode failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+	c.Write(data)
+
 }

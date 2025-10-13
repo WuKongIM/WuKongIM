@@ -138,7 +138,7 @@ func (s *Server) Send(nodeId uint64, msg *proto.Message) error {
 	if node == nil {
 		return ErrNodeNotFound
 	}
-	return node.send(msg)
+	return node.Send(msg)
 }
 
 func (s *Server) RequestWithContext(ctx context.Context, toNodeId uint64, path string, body []byte) (*proto.Response, error) {
@@ -146,7 +146,7 @@ func (s *Server) RequestWithContext(ctx context.Context, toNodeId uint64, path s
 	if node == nil {
 		return nil, ErrNodeNotFound
 	}
-	return node.requestWithContext(ctx, path, body)
+	return node.RequestWithContext(ctx, path, body)
 }
 
 func (s *Server) Route(path string, handler wkserver.Handler) {

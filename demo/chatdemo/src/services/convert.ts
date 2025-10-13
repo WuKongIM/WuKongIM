@@ -1,5 +1,5 @@
 import { Conversation, MessageContentType, Setting } from "wukongimjssdk";
-import { WKSDK, Message, Stream, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
+import { WKSDK, Message, Channel, ChannelTypePerson, ChannelTypeGroup, MessageStatus, SyncOptions, MessageExtra, MessageContent } from "wukongimjssdk";
 import BigNumber from "bignumber.js";
 import { Buffer } from 'buffer';
 export class Convert {
@@ -28,11 +28,15 @@ export class Convert {
         message.channel = new Channel(msgMap['channel_id'], msgMap['channel_type']);
         message.messageSeq = msgMap["message_seq"]
         message.clientMsgNo = msgMap["client_msg_no"]
-        message.streamNo = msgMap["stream_no"]
-        message.streamFlag = msgMap["stream_flag"]
         message.fromUID = msgMap["from_uid"]
         message.timestamp = msgMap["timestamp"]
         message.status = MessageStatus.Normal
+
+        const streamBase64Data = msgMap["stream_data"]
+        if(streamBase64Data) {
+            const streamText = Buffer.from(streamBase64Data, 'base64')
+            message.streamText = streamText.toString('utf8')
+        }
        
         let contentType = 0
         try {
@@ -61,28 +65,6 @@ export class Convert {
        
 
         message.isDeleted = msgMap["is_deleted"] === 1
-
-        const streamMaps = msgMap["streams"]
-        if(streamMaps && streamMaps.length>0) {
-            const streams = new Array<Stream>()
-            for (const streamMap of streamMaps) {
-                const streamItem = new Stream()
-                streamItem.streamNo = streamMap["stream_no"]
-                streamItem.streamId = streamMap["stream_idstr"]
-                if(streamMap["payload"] && streamMap["payload"].length>0) {
-                    const payload = Buffer.from(streamMap["payload"], 'base64')
-                    const payloadObj = JSON.parse(payload.toString('utf8'))
-                    const payloadType = payloadObj.type
-                    const payloadContent = WKSDK.shared().getMessageContent(payloadType)
-                    if (payloadObj) {
-                        payloadContent.decode(this.stringToUint8Array(JSON.stringify(payloadObj)))
-                    }
-                    streamItem.content = payloadContent
-                }
-                streams.push(streamItem)
-            }
-            message.streams = streams
-        }
 
         return message
     }

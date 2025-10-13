@@ -53,6 +53,7 @@ type Header struct {
 	RedDot    bool `json:"redDot,omitempty"`
 	SyncOnce  bool `json:"syncOnce,omitempty"`
 	Dup       bool `json:"dup,omitempty"`
+	End       bool `json:"end,omitempty"`
 }
 
 type SettingFlags struct {
@@ -195,6 +196,15 @@ type RecvNotificationParams struct {
 // DisconnectNotificationParams are same as DisconnectParams
 type DisconnectNotificationParams DisconnectParams
 
+// EventNotificationParams represents the parameters for event notifications
+type EventNotificationParams struct {
+	Header    *Header `json:"header,omitempty"`
+	ID        string  `json:"id"`
+	Type      string  `json:"type"`
+	Timestamp int64   `json:"timestamp"`
+	Data      string  `json:"data"`
+}
+
 // --- Full Request/Response/Notification Structures ---
 // These combine the base and the specific params/result for easier encoding.
 
@@ -279,6 +289,11 @@ type DisconnectNotification struct {
 	Params DisconnectNotificationParams `json:"params"`
 }
 
+type EventNotification struct {
+	BaseNotification
+	Params EventNotificationParams `json:"params"`
+}
+
 // --- Conversion Methods ---
 
 // toProtoInternal converts JSON-RPC Header to wkproto.Header (internal helper)
@@ -289,6 +304,7 @@ func (h Header) toProtoInternal() *wkproto.Framer {
 	protoHeader.RedDot = h.RedDot
 	protoHeader.SyncOnce = h.SyncOnce
 	protoHeader.DUP = h.Dup
+	protoHeader.End = h.End
 	return protoHeader
 }
 
@@ -479,7 +495,7 @@ func FromProtoPongPacket(pkt *wkproto.PongPacket) {
 
 // fromProtoHeader converts wkproto.Header to JSON-RPC Header
 func fromProtoHeader(protoHeader wkproto.Framer) *Header {
-	if !protoHeader.NoPersist && !protoHeader.RedDot && !protoHeader.SyncOnce && !protoHeader.DUP {
+	if !protoHeader.NoPersist && !protoHeader.RedDot && !protoHeader.SyncOnce && !protoHeader.DUP && !protoHeader.End {
 		return nil
 	}
 	return &Header{
@@ -487,6 +503,7 @@ func fromProtoHeader(protoHeader wkproto.Framer) *Header {
 		RedDot:    protoHeader.RedDot,
 		SyncOnce:  protoHeader.SyncOnce,
 		Dup:       protoHeader.DUP,
+		End:       protoHeader.End,
 	}
 }
 
@@ -496,6 +513,7 @@ func headerToFramer(header Header) wkproto.Framer {
 		RedDot:    header.RedDot,
 		SyncOnce:  header.SyncOnce,
 		DUP:       header.Dup,
+		End:       header.End,
 	}
 }
 
@@ -643,6 +661,39 @@ func FromProtoRecvNotification(pkt *wkproto.RecvPacket) RecvNotification {
 			Method:  MethodRecv,
 		},
 		Params: FromProtoRecvPacket(pkt),
+	}
+}
+
+// NewEventNotification creates a new EventNotification
+func NewEventNotification(id string, eventType string, timestamp int64, data string, header *Header) EventNotification {
+	return EventNotification{
+		BaseNotification: BaseNotification{
+			Jsonrpc: jsonRPCVersion,
+			Method:  MethodEvent,
+		},
+		Params: EventNotificationParams{
+			Header:    header,
+			ID:        id,
+			Type:      eventType,
+			Timestamp: timestamp,
+			Data:      data,
+		},
+	}
+}
+
+func FromProtoEventNotification(eventPacket *wkproto.EventPacket) EventNotification {
+	return EventNotification{
+		BaseNotification: BaseNotification{
+			Jsonrpc: "2.0",
+			Method:  MethodEvent,
+		},
+		Params: EventNotificationParams{
+			Header:    fromProtoHeader(eventPacket.Framer),
+			ID:        eventPacket.Id,
+			Type:      eventPacket.Type,
+			Timestamp: eventPacket.Timestamp,
+			Data:      string(eventPacket.Data),
+		},
 	}
 }
 

@@ -391,6 +391,14 @@ type StreamDB interface {
 
 	// GetStreams 获取流
 	GetStreams(streamNo string) ([]*Stream, error)
+
+	// SaveStreamV2 保存流V2
+	SaveStreamV2(stream *StreamV2) error
+	// GetStreamV2 获取流V2
+	GetStreamV2(clientMsgNo string) (*StreamV2, error)
+
+	// GetStreamV2s 获取流V2
+	GetStreamV2s(clientMsgNos []string) ([]*StreamV2, error)
 }
 
 type TesterDB interface {

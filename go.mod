@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/RussellLuo/timingwheel v0.0.0-20220218152713-54845bda3108
-	github.com/WuKongIM/WuKongIMGoProto v1.1.2-0.20250618030603-b0f04ad80a21
+	github.com/WuKongIM/WuKongIMGoProto v1.2.3
 	github.com/WuKongIM/crypto v0.0.0-20240416072338-b872b70b395f
 	github.com/WuKongIM/wkrpc v0.0.0-20250312122115-5e44de72d2c8
 	github.com/bwmarrin/snowflake v0.3.0
@@ -112,7 +112,7 @@ require (
 	github.com/efficientgo/core v1.0.0-rc.3 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb // indirect
-	github.com/fatih/color v1.16.0 // indirect
+	github.com/fatih/color v1.16.0
 	github.com/felixge/fgprof v0.9.4 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect

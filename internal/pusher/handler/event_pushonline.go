@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
@@ -22,179 +23,234 @@ func (h *Handler) pushOnline(ctx *eventbus.PushContext) {
 
 // 以频道为单位推送消息
 func (h *Handler) processChannelPush(events []*eventbus.Event) {
-	// fakeChannelId, channelType := wkutil.ChannelFromlKey(channelKey)
 	for _, e := range events {
-		if options.G.IsSystemUid(e.ToUid) {
+		if !h.shouldProcessEvent(e) {
 			continue
 		}
 
-		fromUid := e.Conn.Uid
-		// 如果发送者是系统账号，则不显示发送者
-		if options.G.IsSystemUid(fromUid) {
-			fromUid = ""
-		}
-		// 是否是AI
-		// if fromUid != e.ToUid && h.isAI(e.ToUid) {
-		// 	// 处理AI推送
-		// 	h.processAIPush(e.ToUid, e)
-		// }
-
+		fromUid := h.getDisplayFromUid(e.Conn.Uid)
 		toConns := eventbus.User.AuthedConnsByUid(e.ToUid)
 		if len(toConns) == 0 {
 			continue
 		}
+
 		// 记录消息轨迹
 		e.Track.Record(track.PositionPushOnline)
 
-		sendPacket := e.Frame.(*wkproto.SendPacket)
-
-		fakeChannelId := e.ChannelId
-		channelType := e.ChannelType
-
-		for _, toConn := range toConns {
-			if toConn.Uid == e.Conn.Uid && toConn.NodeId == e.Conn.NodeId && toConn.ConnId == e.Conn.ConnId { // 自己发的不处理
-				continue
-			}
-
-			if options.G.Logger.TraceOn && e.ChannelType == wkproto.ChannelTypePerson { // 暂时只打印个人频道的推送，因为群的话日志会太多
-				h.Trace("推送在线消息...",
-					"pushOnline",
-					zap.Int64("messageId", e.MessageId),
-					zap.Uint64("messageSeq", e.MessageSeq),
-					zap.String("fromUid", e.Conn.Uid),
-					zap.String("fromDeviceId", e.Conn.DeviceId),
-					zap.String("fromDeviceFlag", e.Conn.DeviceFlag.String()),
-					zap.Int64("fromConnId", e.Conn.ConnId),
-					zap.String("toUid", toConn.Uid),
-					zap.String("toDeviceId", toConn.DeviceId),
-					zap.String("toDeviceFlag", toConn.DeviceFlag.String()),
-					zap.Int64("toConnId", toConn.ConnId),
-					zap.String("channelId", e.ChannelId),
-					zap.Uint8("channelType", e.ChannelType),
-				)
-			}
-
-			recvPacket := &wkproto.RecvPacket{}
-
-			recvPacket.Framer = wkproto.Framer{
-				RedDot:    sendPacket.GetRedDot(),
-				SyncOnce:  sendPacket.GetsyncOnce(),
-				NoPersist: sendPacket.GetNoPersist(),
-			}
-			recvPacket.Setting = sendPacket.Setting
-			recvPacket.MessageID = e.MessageId
-			recvPacket.MessageSeq = uint32(e.MessageSeq)
-			recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
-			recvPacket.StreamNo = sendPacket.StreamNo
-			recvPacket.StreamId = uint64(e.MessageId)
-			recvPacket.StreamFlag = e.StreamFlag
-			recvPacket.FromUID = fromUid
-			recvPacket.Expire = sendPacket.Expire
-			recvPacket.ChannelID = sendPacket.ChannelID
-			recvPacket.ChannelType = sendPacket.ChannelType
-			recvPacket.Topic = sendPacket.Topic
-			recvPacket.Timestamp = int32(time.Now().Unix())
-			recvPacket.ClientSeq = sendPacket.ClientSeq
-
-			// 这里需要把channelID改成fromUID 比如A给B发消息，B收到的消息channelID应该是A A收到的消息channelID应该是B
-			recvPacket.ChannelID = sendPacket.ChannelID
-			if recvPacket.ChannelType == wkproto.ChannelTypePerson &&
-				recvPacket.ChannelID == toConn.Uid {
-				recvPacket.ChannelID = recvPacket.FromUID
-			}
-			// 红点设置
-			recvPacket.RedDot = sendPacket.RedDot
-			if toConn.Uid == recvPacket.FromUID { // 如果是自己则不显示红点
-				recvPacket.RedDot = false
-			}
-
-			var finalPayload []byte
-			var err error
-
-			// 根据配置决定是否加密消息负载
-			if !options.G.DisableEncryption && !toConn.IsJsonRpc {
-				if len(toConn.AesIV) == 0 || len(toConn.AesKey) == 0 {
-					h.Error("aesIV or aesKey is empty, cannot encrypt payload",
-						zap.String("uid", toConn.Uid),
-						zap.String("deviceId", toConn.DeviceId),
-						zap.String("channelId", recvPacket.ChannelID),
-						zap.Uint8("channelType", recvPacket.ChannelType),
-					)
-					continue // 跳过此连接的推送
-				}
-				finalPayload, err = encryptMessagePayload(sendPacket.Payload, toConn)
-				if err != nil {
-					h.Error("加密payload失败！",
-						zap.Error(err),
-						zap.String("uid", toConn.Uid),
-						zap.String("channelId", recvPacket.ChannelID),
-						zap.Uint8("channelType", recvPacket.ChannelType),
-					)
-					continue // 跳过此连接的推送
-				}
-			} else {
-				// 如果禁用了加密，则直接使用原始 Payload
-				finalPayload = sendPacket.Payload
-			}
-
-			recvPacket.Payload = finalPayload // 设置最终的 Payload (可能加密也可能未加密)
-
-			// ---- MsgKey 的生成逻辑也需要考虑加密是否禁用 ----
-			if !options.G.DisableEncryption && !toConn.IsJsonRpc {
-				// 只有启用了加密才生成 MsgKey
-				signStr := recvPacket.VerityString()       // VerityString 可能依赖 Payload
-				msgKey, err := makeMsgKey(signStr, toConn) // makeMsgKey 内部会使用 AES 加密
-				if err != nil {
-					h.Error("生成MsgKey失败！", zap.Error(err))
-					continue
-				}
-				recvPacket.MsgKey = msgKey
-			} else {
-				// 如果禁用了加密，则 MsgKey 为空
-				recvPacket.MsgKey = ""
-			}
-
-			if !recvPacket.NoPersist { // 只有存储的消息才重试
-				service.RetryManager.AddRetry(&types.RetryMessage{
-					ChannelId:   fakeChannelId,
-					ChannelType: channelType,
-					Uid:         toConn.Uid,
-					ConnId:      toConn.ConnId,
-					FromNode:    toConn.NodeId,
-					MessageId:   e.MessageId,
-					RecvPacket:  recvPacket,
-				})
-			}
-
-			eventbus.User.ConnWrite(e.ReqId, toConn, recvPacket)
+		switch frame := e.Frame.(type) {
+		case *wkproto.SendPacket:
+			// 推送消息
+			h.pushMessageToConnections(e, frame, fromUid, toConns)
+			eventbus.User.Advance(e.ToUid)
+		case *wkproto.EventPacket:
+			// 推送事件
+			h.pushEventToConnections(e, frame, toConns)
 		}
-		eventbus.User.Advance(e.ToUid)
+
+	}
+}
+
+// shouldProcessEvent 检查事件是否应该被处理
+func (h *Handler) shouldProcessEvent(e *eventbus.Event) bool {
+	return !options.G.IsSystemUid(e.ToUid)
+}
+
+// getDisplayFromUid 获取用于显示的发送者UID，系统账号返回空字符串
+func (h *Handler) getDisplayFromUid(uid string) string {
+	if options.G.IsSystemUid(uid) {
+		return ""
+	}
+	return uid
+}
+
+// pushMessageToConnections 向所有目标连接推送消息
+func (h *Handler) pushMessageToConnections(e *eventbus.Event, sendPacket *wkproto.SendPacket, fromUid string, toConns []*eventbus.Conn) {
+	fakeChannelId := e.ChannelId
+	channelType := e.ChannelType
+
+	for _, toConn := range toConns {
+		if h.shouldSkipConnection(e.Conn, toConn) {
+			continue
+		}
+
+		h.logPushTrace(e, toConn)
+
+		recvPacket := h.buildRecvPacket(e, sendPacket, fromUid, toConn)
+		if recvPacket == nil {
+			continue // 构建失败，跳过此连接
+		}
+
+		h.setupRetryIfNeeded(recvPacket, fakeChannelId, channelType, toConn, e.MessageId)
+		eventbus.User.ConnWrite(e.ReqId, toConn, recvPacket)
+	}
+}
+
+// pushEventToConnections 向所有目标连接推送事件包
+func (h *Handler) pushEventToConnections(e *eventbus.Event, eventPacket *wkproto.EventPacket, toConns []*eventbus.Conn) {
+	for _, toConn := range toConns {
+		if h.shouldSkipConnection(e.Conn, toConn) {
+			continue
+		}
+		eventbus.User.ConnWrite(e.ReqId, toConn, eventPacket)
+	}
+}
+
+// shouldSkipConnection 检查是否应该跳过此连接（自己发的消息不推送给自己）
+func (h *Handler) shouldSkipConnection(fromConn, toConn *eventbus.Conn) bool {
+	return toConn.Uid == fromConn.Uid && toConn.NodeId == fromConn.NodeId && toConn.ConnId == fromConn.ConnId
+}
+
+// logPushTrace 记录推送跟踪日志（仅个人频道）
+func (h *Handler) logPushTrace(e *eventbus.Event, toConn *eventbus.Conn) {
+	if options.G.Logger.TraceOn && e.ChannelType == wkproto.ChannelTypePerson {
+		h.Trace("推送在线消息...",
+			"pushOnline",
+			zap.Int64("messageId", e.MessageId),
+			zap.Uint64("messageSeq", e.MessageSeq),
+			zap.String("fromUid", e.Conn.Uid),
+			zap.String("fromDeviceId", e.Conn.DeviceId),
+			zap.String("fromDeviceFlag", e.Conn.DeviceFlag.String()),
+			zap.Int64("fromConnId", e.Conn.ConnId),
+			zap.String("toUid", toConn.Uid),
+			zap.String("toDeviceId", toConn.DeviceId),
+			zap.String("toDeviceFlag", toConn.DeviceFlag.String()),
+			zap.Int64("toConnId", toConn.ConnId),
+			zap.String("channelId", e.ChannelId),
+			zap.Uint8("channelType", e.ChannelType),
+		)
+	}
+}
+
+// setupRetryIfNeeded 为需要持久化的消息设置重试机制
+func (h *Handler) setupRetryIfNeeded(recvPacket *wkproto.RecvPacket, fakeChannelId string, channelType uint8, toConn *eventbus.Conn, messageId int64) {
+	if !recvPacket.NoPersist { // 只有存储的消息才重试
+		service.RetryManager.AddRetry(&types.RetryMessage{
+			ChannelId:   fakeChannelId,
+			ChannelType: channelType,
+			Uid:         toConn.Uid,
+			ConnId:      toConn.ConnId,
+			FromNode:    toConn.NodeId,
+			MessageId:   messageId,
+			RecvPacket:  recvPacket,
+		})
+	}
+}
+
+// buildRecvPacket 构建接收数据包
+func (h *Handler) buildRecvPacket(e *eventbus.Event, sendPacket *wkproto.SendPacket, fromUid string, toConn *eventbus.Conn) *wkproto.RecvPacket {
+	recvPacket := &wkproto.RecvPacket{}
+
+	// 设置基本字段
+	h.setRecvPacketBasicFields(recvPacket, e, sendPacket, fromUid)
+
+	// 调整个人频道的ChannelID
+	h.adjustPersonChannelID(recvPacket, toConn)
+
+	// 设置红点显示
+	h.setRedDotDisplay(recvPacket, sendPacket, toConn)
+
+	// 处理消息负载加密
+	finalPayload, err := h.processPayloadEncryption(sendPacket.Payload, toConn, recvPacket)
+	if err != nil {
+		return nil // 加密失败，返回nil
+	}
+	recvPacket.Payload = finalPayload
+
+	// 生成MsgKey
+	if err := h.generateMsgKey(recvPacket, toConn); err != nil {
+		return nil // MsgKey生成失败，返回nil
 	}
 
-	// if options.G.Logger.TraceOn {
-	// 	if len(events) < options.G.Logger.TraceMaxMsgCount { // 消息数小于指定数量才打印，要不然日志太多了
-	// 		for _, e := range events {
-	// 			sendPacket := e.Frame.(*wkproto.SendPacket)
-	// 			// 记录消息轨迹
-	// 			e.Track.Record(track.PositionPushOnlineEnd)
-	// 			connCount := eventbus.User.ConnCountByUid(e.ToUid)
-	// 			h.Trace(e.Track.String(),
-	// 				"pushOnline",
-	// 				zap.Int64("messageId", e.MessageId),
-	// 				zap.Uint64("messageSeq", e.MessageSeq),
-	// 				zap.Uint64("clientSeq", sendPacket.ClientSeq),
-	// 				zap.String("clientMsgNo", sendPacket.ClientMsgNo),
-	// 				zap.String("toUid", e.ToUid),
-	// 				zap.Int("toConnCount", connCount),
-	// 				zap.String("conn.uid", e.Conn.Uid),
-	// 				zap.String("conn.deviceId", e.Conn.DeviceId),
-	// 				zap.Uint64("conn.nodeId", e.Conn.NodeId),
-	// 				zap.Int64("conn.connId", e.Conn.ConnId),
-	// 			)
-	// 		}
-	// 	}
-	// }
+	return recvPacket
+}
 
+// setRecvPacketBasicFields 设置接收数据包的基本字段
+func (h *Handler) setRecvPacketBasicFields(recvPacket *wkproto.RecvPacket, e *eventbus.Event, sendPacket *wkproto.SendPacket, fromUid string) {
+	recvPacket.Framer = wkproto.Framer{
+		RedDot:    sendPacket.GetRedDot(),
+		SyncOnce:  sendPacket.GetsyncOnce(),
+		NoPersist: sendPacket.GetNoPersist(),
+	}
+	recvPacket.Setting = sendPacket.Setting
+	recvPacket.MessageID = e.MessageId
+	recvPacket.MessageSeq = uint32(e.MessageSeq)
+	recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
+	recvPacket.StreamNo = sendPacket.StreamNo
+	recvPacket.StreamId = uint64(e.MessageId)
+	recvPacket.StreamFlag = e.StreamFlag
+	recvPacket.FromUID = fromUid
+	recvPacket.Expire = sendPacket.Expire
+	recvPacket.ChannelID = sendPacket.ChannelID
+	recvPacket.ChannelType = sendPacket.ChannelType
+	recvPacket.Topic = sendPacket.Topic
+	recvPacket.Timestamp = int32(time.Now().Unix())
+	recvPacket.ClientSeq = sendPacket.ClientSeq
+}
+
+// adjustPersonChannelID 调整个人频道的ChannelID
+// A给B发消息，B收到的消息channelID应该是A，A收到的消息channelID应该是B
+func (h *Handler) adjustPersonChannelID(recvPacket *wkproto.RecvPacket, toConn *eventbus.Conn) {
+	if recvPacket.ChannelType == wkproto.ChannelTypePerson &&
+		recvPacket.ChannelID == toConn.Uid {
+		recvPacket.ChannelID = recvPacket.FromUID
+	}
+}
+
+// setRedDotDisplay 设置红点显示逻辑
+func (h *Handler) setRedDotDisplay(recvPacket *wkproto.RecvPacket, sendPacket *wkproto.SendPacket, toConn *eventbus.Conn) {
+	recvPacket.RedDot = sendPacket.RedDot
+	if toConn.Uid == recvPacket.FromUID { // 如果是自己则不显示红点
+		recvPacket.RedDot = false
+	}
+}
+
+// processPayloadEncryption 处理消息负载加密
+func (h *Handler) processPayloadEncryption(payload []byte, toConn *eventbus.Conn, recvPacket *wkproto.RecvPacket) ([]byte, error) {
+	// 根据配置决定是否加密消息负载
+	if !options.G.DisableEncryption && !toConn.IsJsonRpc {
+		if len(toConn.AesIV) == 0 || len(toConn.AesKey) == 0 {
+			h.Error("aesIV or aesKey is empty, cannot encrypt payload",
+				zap.String("uid", toConn.Uid),
+				zap.String("deviceId", toConn.DeviceId),
+				zap.String("channelId", recvPacket.ChannelID),
+				zap.Uint8("channelType", recvPacket.ChannelType),
+			)
+			return nil, errors.New("encryption keys missing")
+		}
+
+		finalPayload, err := encryptMessagePayload(payload, toConn)
+		if err != nil {
+			h.Error("加密payload失败！",
+				zap.Error(err),
+				zap.String("uid", toConn.Uid),
+				zap.String("channelId", recvPacket.ChannelID),
+				zap.Uint8("channelType", recvPacket.ChannelType),
+			)
+			return nil, err
+		}
+		return finalPayload, nil
+	}
+
+	// 如果禁用了加密，则直接使用原始 Payload
+	return payload, nil
+}
+
+// generateMsgKey 生成消息密钥
+func (h *Handler) generateMsgKey(recvPacket *wkproto.RecvPacket, toConn *eventbus.Conn) error {
+	if !options.G.DisableEncryption && !toConn.IsJsonRpc {
+		// 只有启用了加密才生成 MsgKey
+		signStr := recvPacket.VerityString()       // VerityString 可能依赖 Payload
+		msgKey, err := makeMsgKey(signStr, toConn) // makeMsgKey 内部会使用 AES 加密
+		if err != nil {
+			h.Error("生成MsgKey失败！", zap.Error(err))
+			return err
+		}
+		recvPacket.MsgKey = msgKey
+	} else {
+		// 如果禁用了加密，则 MsgKey 为空
+		recvPacket.MsgKey = ""
+	}
+	return nil
 }
 
 // 处理AI推送

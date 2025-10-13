@@ -902,3 +902,43 @@ var TablePluginUser = struct {
 		PluginNo: [2]byte{0x16, 0x02},
 	},
 }
+
+// ======================== TableStreamV2 ========================
+var TableStreamV2 = struct {
+	Id        [2]byte
+	Size      int
+	IndexSize int
+	Column    struct {
+		ClientMsgNo [2]byte // 客户端消息唯一编号
+		MessageId   [2]byte // 消息唯一id
+		ChannelId   [2]byte // 频道id
+		ChannelType [2]byte // 频道类型
+		FromUid     [2]byte // 发送者uid
+		End         [2]byte // 流是否正常结束
+		EndReason   [2]byte // 流结束原因
+		Payload     [2]byte // 流数据
+	}
+}{
+	Id:        [2]byte{0x17, 0x01},
+	Size:      2 + 2 + 8 + 2,     // tableId + dataType  + primaryKey + columnKey
+	IndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + indexName + columnHash + seq
+	Column: struct {
+		ClientMsgNo [2]byte
+		MessageId   [2]byte
+		ChannelId   [2]byte
+		ChannelType [2]byte
+		FromUid     [2]byte
+		End         [2]byte
+		EndReason   [2]byte
+		Payload     [2]byte
+	}{
+		ClientMsgNo: [2]byte{0x17, 0x01},
+		MessageId:   [2]byte{0x17, 0x02},
+		ChannelId:   [2]byte{0x17, 0x03},
+		ChannelType: [2]byte{0x17, 0x04},
+		FromUid:     [2]byte{0x17, 0x05},
+		End:         [2]byte{0x17, 0x06},
+		EndReason:   [2]byte{0x17, 0x07},
+		Payload:     [2]byte{0x17, 0x08},
+	},
+}

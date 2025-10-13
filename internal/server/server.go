@@ -31,10 +31,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/node/types"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/store"
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkcache"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"github.com/WuKongIM/WuKongIM/version"
+	"github.com/fatih/color"
 	"github.com/gin-gonic/gin"
 	"github.com/judwhite/go-svc"
 	"go.uber.org/zap"
@@ -54,11 +57,12 @@ type Server struct {
 	store         *store.Store  // 存储相关接口
 	engine        *wknet.Engine // 长连接引擎
 	// userReactor    *userReactor    // 用户的reactor，用于处理用户的行为逻辑
-	trace      *trace.Trace // 监控
-	demoServer *DemoServer  // demo server
-	datasource IDatasource  // 数据源
-	apiServer  *api.Server  // api服务
-	ingress    *ingress.Ingress
+	trace       *trace.Trace // 监控
+	demoServer  *DemoServer  // demo server
+	datasource  IDatasource  // 数据源
+	apiServer   *api.Server  // api服务
+	ingress     *ingress.Ingress
+	streamCache *wkcache.StreamCache // stream缓存
 
 	commonService *common.Service // 通用服务
 	// 管理者
@@ -150,6 +154,43 @@ func New(opts *options.Options) *Server {
 
 	s.webhook = webhook.New()
 	service.Webhook = s.webhook
+
+	// Initialize StreamCache with configuration values
+	s.streamCache = wkcache.NewStreamCache(&wkcache.StreamCacheOptions{
+		MaxMemorySize:          s.opts.StreamCache.MaxMemorySize,
+		MaxStreams:             s.opts.StreamCache.MaxStreams,
+		MaxChunksPerStream:     s.opts.StreamCache.MaxChunksPerStream,
+		StreamTimeout:          s.opts.StreamCache.StreamTimeout,
+		ChunkInactivityTimeout: s.opts.StreamCache.ChunkInactivityTimeout,
+		CleanupInterval:        s.opts.StreamCache.CleanupInterval,
+		OnStreamComplete: func(meta *wkcache.StreamMeta, chunks []*wkcache.MessageChunk) error {
+			// Log stream completion for monitoring
+
+			payloadLen := 0
+			for _, chunk := range chunks {
+				payloadLen += len(chunk.Payload)
+			}
+
+			payload := make([]byte, payloadLen)
+			offset := 0
+			for _, chunk := range chunks {
+				copy(payload[offset:], chunk.Payload)
+				offset += len(chunk.Payload)
+			}
+
+			return service.Store.SaveStreamV2(&wkdb.StreamV2{
+				ClientMsgNo: meta.ClientMsgNo,
+				MessageId:   meta.MessageId,
+				ChannelId:   meta.ChannelId,
+				ChannelType: meta.ChannelType,
+				FromUid:     meta.FromUid,
+				End:         1,
+				EndReason:   meta.EndReason,
+				Payload:     payload,
+			})
+		},
+	})
+	service.StreamCache = s.streamCache
 	// manager
 	s.retryManager = manager.NewRetryManager()                 // 消息重试管理
 	s.conversationManager = manager.NewConversationManager(10) // 会话管理
@@ -161,7 +202,8 @@ func New(opts *options.Options) *Server {
 	service.ConversationManager = s.conversationManager
 	service.RetryManager = s.retryManager
 	service.TagManager = s.tagManager
-	service.SystemAccountManager = manager.NewSystemAccountManager() // 系统账号管理
+	service.SystemAccountManager = manager.NewSystemAccountManager()       // 系统账号管理
+	service.Permission = service.NewPermissionService(ingress.NewClient()) // 权限服务
 
 	s.commonService = common.NewService()
 	service.CommonService = s.commonService
@@ -243,37 +285,15 @@ func (s *Server) Init(env svc.Environment) error {
 }
 
 func (s *Server) Start() error {
+	// 显示增强的启动横幅
+	s.printEnhancedBanner()
 
-	fmt.Println(`
-	
-	__      __       ____  __.                    .___   _____   
-	/  \    /  \__ __|    |/ _|____   ____    ____ |   | /     \  
-	\   \/\/   /  |  \      < /  _ \ /    \  / ___\|   |/  \ /  \ 
-	 \        /|  |  /    |  (  <_> )   |  \/ /_/  >   /    Y    \
-	  \__/\  / |____/|____|__ \____/|___|  /\___  /|___\____|__  /
-		   \/                \/          \//_____/             \/ 						  
-							  
-	`)
-	s.Info("WuKongIM is Starting...")
-	s.Info(fmt.Sprintf("  Using config file:  %s", s.opts.ConfigFileUsed()))
-	s.Info(fmt.Sprintf("  Mode:  %s", s.opts.Mode))
-	s.Info(fmt.Sprintf("  Version:  %s", version.Version))
-	s.Info(fmt.Sprintf("  Git:  %s", fmt.Sprintf("%s-%s", version.CommitDate, version.Commit)))
-	s.Info(fmt.Sprintf("  Go build:  %s", runtime.Version()))
-	s.Info(fmt.Sprintf("  DataDir:  %s", s.opts.DataDir))
+	startTime := time.Now()
 
-	s.Info(fmt.Sprintf("Listening  for TCP client on %s", s.opts.Addr))
-	s.Info(fmt.Sprintf("Listening  for WS client on %s", s.opts.WSAddr))
-	if s.opts.WSSAddr != "" {
-		s.Info(fmt.Sprintf("Listening  for WSS client on %s", s.opts.WSSAddr))
-	}
-	s.Info(fmt.Sprintf("Listening  for Manager http api on %s", fmt.Sprintf("http://%s", s.opts.HTTPAddr)))
-
-	if s.opts.Manager.On {
-		s.Info(fmt.Sprintf("Listening  for Manager on %s", s.opts.Manager.Addr))
-	}
-
-	defer s.Info("Server is ready")
+	defer func() {
+		duration := time.Since(startTime)
+		s.Info(fmt.Sprintf("🚀 Server is ready! (startup time: %v)", duration))
+	}()
 
 	var err error
 
@@ -281,6 +301,9 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
+
+	// StreamCache doesn't need explicit start as it starts automatically
+	s.Debug("StreamCache initialized and ready")
 
 	s.ingress.SetRoutes()
 
@@ -382,6 +405,12 @@ func (s *Server) Stop() error {
 
 	s.commonService.Stop()
 
+	// Close StreamCache
+	if s.streamCache != nil {
+		s.streamCache.Close()
+		s.Debug("StreamCache closed")
+	}
+
 	if s.opts.Conversation.On {
 		s.conversationManager.Stop()
 	}
@@ -430,6 +459,160 @@ func (s *Server) MigrateSlot(slotId uint32, fromNodeId, toNodeId uint64) error {
 
 func (s *Server) getSlotId(v string) uint32 {
 	return service.Cluster.GetSlotId(v)
+}
+
+// printEnhancedBanner 打印增强的启动横幅
+func (s *Server) printEnhancedBanner() {
+	// 定义颜色
+	cyan := color.New(color.FgCyan, color.Bold)
+	yellow := color.New(color.FgYellow, color.Bold)
+	green := color.New(color.FgGreen, color.Bold)
+	blue := color.New(color.FgBlue, color.Bold)
+	magenta := color.New(color.FgMagenta, color.Bold)
+	white := color.New(color.FgWhite, color.Bold)
+
+	// 打印空行
+	fmt.Println()
+
+	// 打印 ASCII 艺术字
+	cyan.Println("    ╔══════════════════════════════════════════════════════════════════╗")
+	cyan.Println("    ║                                                                  ║")
+	cyan.Print("    ║  ")
+	yellow.Print("🐒 ")
+	magenta.Print("██╗    ██╗██╗   ██╗██╗  ██╗ ██████╗ ███╗   ██╗ ██████╗ ██╗███╗   ███╗")
+	cyan.Println("  ║")
+	cyan.Print("    ║     ")
+	magenta.Print("██║    ██║██║   ██║██║ ██╔╝██╔═══██╗████╗  ██║██╔════╝ ██║████╗ ████║")
+	cyan.Println("  ║")
+	cyan.Print("    ║     ")
+	magenta.Print("██║ █╗ ██║██║   ██║█████╔╝ ██║   ██║██╔██╗ ██║██║  ███╗██║██╔████╔██║")
+	cyan.Println("  ║")
+	cyan.Print("    ║     ")
+	magenta.Print("██║███╗██║██║   ██║██╔═██╗ ██║   ██║██║╚██╗██║██║   ██║██║██║╚██╔╝██║")
+	cyan.Println("  ║")
+	cyan.Print("    ║     ")
+	magenta.Print("╚███╔███╔╝╚██████╔╝██║  ██╗╚██████╔╝██║ ╚████║╚██████╔╝██║██║ ╚═╝ ██║")
+	cyan.Println("  ║")
+	cyan.Print("    ║      ")
+	magenta.Print("╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚═╝╚═╝     ╚═╝")
+	cyan.Println("  ║")
+	cyan.Println("    ║                                                                  ║")
+	cyan.Print("    ║           ")
+	white.Print("High-Performance Instant Messaging System")
+	cyan.Println("                ║")
+	cyan.Println("    ║                                                                  ║")
+	cyan.Println("    ╚══════════════════════════════════════════════════════════════════╝")
+
+	fmt.Println()
+
+	// 系统信息
+	green.Print("🚀 Starting WuKongIM Server...")
+	fmt.Println()
+	fmt.Println()
+
+	// 配置信息
+	blue.Print("📋 Configuration:")
+	fmt.Println()
+	fmt.Printf("   ├─ Config File: %s\n", s.opts.ConfigFileUsed())
+	fmt.Printf("   ├─ Mode: %s\n", s.getModeWithIcon())
+	fmt.Printf("   ├─ Version: %s\n", version.Version)
+	fmt.Printf("   ├─ Git: %s-%s\n", version.CommitDate, version.Commit)
+	fmt.Printf("   ├─ Go Build: %s\n", runtime.Version())
+	fmt.Printf("   └─ Data Directory: %s\n", s.opts.DataDir)
+
+	fmt.Println()
+
+	// 网络监听信息
+	yellow.Print("🌐 Network Endpoints:")
+	fmt.Println()
+	fmt.Printf("   ├─ TCP Client: %s\n", s.opts.Addr)
+	fmt.Printf("   ├─ WebSocket: %s\n", s.opts.WSAddr)
+	if s.opts.WSSAddr != "" {
+		fmt.Printf("   ├─ WebSocket Secure: %s\n", s.opts.WSSAddr)
+	}
+	fmt.Printf("   ├─ HTTP API: http://%s\n", s.opts.HTTPAddr)
+
+	// 文档端点信息（根据模式显示）
+	if s.opts.Mode != options.ReleaseMode {
+		green.Printf("   ├─ 📚 API Documentation: http://%s/docs\n", s.opts.HTTPAddr)
+	}
+
+	if s.opts.Manager.On {
+		fmt.Printf("   ├─ Manager: %s\n", s.opts.Manager.Addr)
+	}
+
+	if s.opts.Demo.On {
+		fmt.Printf("   └─ 🎮 Demo: http://%s\n", s.opts.Demo.Addr)
+	} else {
+		fmt.Printf("   └─ Demo: disabled\n")
+	}
+
+	fmt.Println()
+
+	// 功能状态
+	magenta.Print("⚙️  Features:")
+	fmt.Println()
+	fmt.Printf("   ├─ Cluster Mode: %s\n", s.getClusterStatus())
+	fmt.Printf("   ├─ Conversation: %s\n", s.getBoolStatus(s.opts.Conversation.On))
+	fmt.Printf("   ├─ Token Auth: %s\n", s.getBoolStatus(s.opts.TokenAuthOn))
+	fmt.Printf("   ├─ Encryption: %s\n", s.getBoolStatus(!s.opts.DisableEncryption))
+	fmt.Printf("   └─ Documentation: %s\n", s.getDocsStatus())
+
+	fmt.Println()
+
+	// 启动提示
+	white.Print("💡 Quick Links:")
+	fmt.Println()
+	fmt.Printf("   ├─ Health Check: http://%s/health\n", s.opts.HTTPAddr)
+	if s.opts.Mode != options.ReleaseMode {
+		fmt.Printf("   ├─ API Docs: http://%s/docs\n", s.opts.HTTPAddr)
+	}
+	if s.opts.Demo.On {
+		fmt.Printf("   ├─ Chat Demo: http://%s\n", s.opts.Demo.Addr)
+	}
+	fmt.Printf("   └─ System Info: http://%s/varz\n", s.opts.HTTPAddr)
+
+	fmt.Println()
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
+}
+
+// getModeWithIcon 获取带图标的模式显示
+func (s *Server) getModeWithIcon() string {
+	switch s.opts.Mode {
+	case options.ReleaseMode:
+		return "🚀 release (production)"
+	case options.DebugMode:
+		return "🐛 debug (development)"
+	case options.BenchMode:
+		return "⚡ bench (performance testing)"
+	default:
+		return fmt.Sprintf("❓ %s", s.opts.Mode)
+	}
+}
+
+// getBoolStatus 获取布尔状态的显示
+func (s *Server) getBoolStatus(enabled bool) string {
+	if enabled {
+		return "✅ enabled"
+	}
+	return "❌ disabled"
+}
+
+// getClusterStatus 获取集群状态
+func (s *Server) getClusterStatus() string {
+	if len(s.opts.Cluster.InitNodes) > 0 {
+		return fmt.Sprintf("✅ enabled (%d nodes)", len(s.opts.Cluster.InitNodes))
+	}
+	return "❌ standalone mode"
+}
+
+// getDocsStatus 获取文档服务状态
+func (s *Server) getDocsStatus() string {
+	if s.opts.Mode == options.ReleaseMode {
+		return "🔒 disabled (release mode)"
+	}
+	return "📚 enabled (development mode)"
 }
 
 func (s *Server) onConnect(conn wknet.Conn) error {

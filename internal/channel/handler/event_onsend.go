@@ -6,6 +6,7 @@ import (
 )
 
 func (h *Handler) onSend(ctx *eventbus.ChannelContext) {
+
 	// 记录消息轨迹
 	for _, event := range ctx.Events {
 		event.Track.Record(track.PositionChannelOnSend)

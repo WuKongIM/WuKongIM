@@ -1,4 +1,4 @@
-mode: "release" 
+mode: "debug" 
 addr: "tcp://0.0.0.0:5100" # tcp监听地址
 httpAddr: "0.0.0.0:5001" # http api监听地址
 wsAddr: "ws://0.0.0.0:5200"  # websocket ws 监听地址
@@ -17,8 +17,8 @@ demo:   # chatdemo是否开启
   on: true  
 conversation: # 是否维护最近会话数据
   on: true   
-# trace: # 是否开启监控
-  # prometheusApiUrl: "http://127.0.0.1:9090"  
+webhook: # webhook配置 用于接收消息通知事件，详情请查看文档
+  httpAddr: "http://127.0.0.1:8000/v1/integrations/wukongim/webhook"  
 cluster:
   nodeId: 1 # 节点ID
   addr: "tcp://127.0.0.1:10001"
@@ -38,7 +38,6 @@ jwt: ## jwt认证方式
   secret: "xxxxx" # jwt密钥
   expire: 30d # jwt过期时间
 
-plugin:
-  install: # 默认安装的插件列表  安装最新版本 ${os}: 当前操作系统 ${arch}: 当前操作系统架构。github地址替换https://github.com/WuKongIM/plugins
-    #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-example-${os}-${arch}.wkp"
-    #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-volcengine-${os}-${arch}.wkp"
+customerService: # 客服配置
+  visitorsOn: true # 是否开启访客用户访问
+  visitorsSuffix: "____vstr" # 访客用户后缀 (带有此后缀的用户将被认为是访客用户，访客用户登录免去token验证，但是只能给访客频道发送消息)

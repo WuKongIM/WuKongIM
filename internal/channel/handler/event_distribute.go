@@ -17,7 +17,14 @@ import (
 // 跳过会话更新的频道类型
 var skipConversationUpdateChannelTypes = []uint8{wkproto.ChannelTypeData, wkproto.ChannelTypeTemp, wkproto.ChannelTypeLive}
 
-// 分发
+// 消息分发
+// 流程1：（分发在频道的槽领导的节点上进行的）
+// 1. 获取或创建tag（tag记录了用户所属节点）
+// 2. 打上tagKey
+// 3. 根据tag push消息（如果用户在本节点上则处理，不在本节点上则转发到对应节点）
+// 流程2: (分发在用户所属的节点上进行的)
+// 1. 通过tagKey获取tag或者向频道的槽领导请求tag（不能创建tag，只有频道槽领导有权限创建）
+// 2. 根据tag push消息（只处理本节点上的用户，不需要转发）
 func (h *Handler) distribute(ctx *eventbus.ChannelContext) {
 
 	// 记录消息轨迹
@@ -55,7 +62,7 @@ func (h *Handler) distributeCommon(ctx *eventbus.ChannelContext) {
 		event.TagKey = tag.Key
 	}
 	// 分发
-	h.distributeByTag(ctx.LeaderId, tag, ctx.ChannelId, ctx.ChannelType, ctx.Events)
+	h.distributeByTag(ctx.SlotLeaderId, tag, ctx.ChannelId, ctx.ChannelType, ctx.Events)
 }
 
 // cmd消息分发
@@ -71,10 +78,10 @@ func (h *Handler) distributeOnlineCmd(ctx *eventbus.ChannelContext) {
 		}
 		// 获取tag
 		var tag *types.Tag
-		if options.G.IsLocalNode(ctx.LeaderId) {
+		if options.G.IsLocalNode(ctx.SlotLeaderId) {
 			tag = service.TagManager.Get(tagKey)
 		} else {
-			tag, err = h.requestTag(ctx.LeaderId, tagKey)
+			tag, err = h.requestTag(ctx.SlotLeaderId, tagKey)
 			if err != nil {
 				h.Error("distributeOnlineCmd: request tag failed", zap.Error(err), zap.String("tagKey", tagKey), zap.String("fakeChannelId", ctx.ChannelId), zap.Uint8("channelType", ctx.ChannelType))
 				continue
@@ -85,7 +92,7 @@ func (h *Handler) distributeOnlineCmd(ctx *eventbus.ChannelContext) {
 			continue
 		}
 		// 分发
-		h.distributeByTag(ctx.LeaderId, tag, ctx.ChannelId, ctx.ChannelType, events)
+		h.distributeByTag(ctx.SlotLeaderId, tag, ctx.ChannelId, ctx.ChannelType, events)
 	}
 }
 
@@ -98,14 +105,14 @@ func (h *Handler) groupEventsByTagKey(events []*eventbus.Event) map[string][]*ev
 	return tagKeyEvents
 }
 
-func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId string, channelType uint8, events []*eventbus.Event) {
-	if leaderId == 0 {
+func (h *Handler) distributeByTag(slotLeaderId uint64, tag *types.Tag, channelId string, channelType uint8, events []*eventbus.Event) {
+	if slotLeaderId == 0 {
 		h.Error("distributeByTag: leaderId is 0", zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
 		return
 	}
 
 	// 如果领导节点是本地节点，则负责转发给节点
-	if options.G.IsLocalNode(leaderId) {
+	if options.G.IsLocalNode(slotLeaderId) {
 		for _, node := range tag.Nodes {
 			if node.LeaderId == options.G.Cluster.NodeId {
 				continue
@@ -131,7 +138,7 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 				continue
 			}
 			isOnline, masterIsOnline := h.deviceOnlineStatus(uid)
-			if !masterIsOnline {
+			if !masterIsOnline && channelType != wkproto.ChannelTypeAgent { // agent不需要触发离线的webhook
 				if offlineUids == nil {
 					offlineUids = make([]string, 0, len(node.Uids))
 				}
@@ -171,6 +178,9 @@ func (h *Handler) distributeByTag(leaderId uint64, tag *types.Tag, channelId str
 	if len(offlineUids) > 0 {
 		offlineEvents := make([]*eventbus.Event, 0, len(events))
 		for _, event := range events {
+			if event.Frame == nil || event.Frame.GetFrameType() == wkproto.EVENT {
+				continue // 不处理event类型的事件
+			}
 			// 过滤发送者
 			filteredOfflineUids := make([]string, 0, len(offlineUids))
 			for _, offlineUid := range offlineUids {
@@ -215,7 +225,7 @@ func (h *Handler) distributeToNode(leaderId uint64, channelId string, channelTyp
 func (h *Handler) getCommonTag(ctx *eventbus.ChannelContext) (*types.Tag, error) {
 
 	// 如果当前节点是频道的领导者节点，则可以make tag
-	if options.G.IsLocalNode(ctx.LeaderId) {
+	if options.G.IsLocalNode(ctx.SlotLeaderId) {
 		return h.getOrMakeTagForLeader(ctx.ChannelId, ctx.ChannelType)
 	}
 	tagKey := ctx.Events[0].TagKey
@@ -293,8 +303,10 @@ func (h *Handler) makeChannelTag(fakeChannelId string, channelType uint8) (*type
 		}
 		u1, u2 := options.GetFromUIDAndToUIDWith(orgFakeChannelId)
 		subscribers = append(subscribers, u1, u2)
+	} else if channelType == wkproto.ChannelTypeAgent { // agent频道
+		u1, agent := options.GetUidAndAgentUIDWith(fakeChannelId)
+		subscribers = append(subscribers, u1, agent)
 	} else {
-
 		// 如果是cmd频道需要去对应的源频道获取订阅者来制作tag
 		if options.G.IsCmdChannel(fakeChannelId) {
 			var err error
@@ -340,6 +352,8 @@ func (h *Handler) getSubscribers(fakeChannelId string, channelType uint8) ([]str
 		if visitorId != "" {
 			subscribers = append(subscribers, visitorId)
 		}
+	} else if channelType == wkproto.ChannelTypeVisitors { // 如果是访客频道，那么频道id就是访客的uid，所以这里需要加访客加入到订阅者里
+		subscribers = append(subscribers, fakeChannelId)
 	}
 	return subscribers, nil
 }

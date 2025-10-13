@@ -232,6 +232,15 @@ func (w *Webhook) NotifyOfflineMsg(msgs []*eventbus.Event) {
 }
 
 func (w *Webhook) notifyOfflineMsg(e *eventbus.Event, subscribers []string) {
+	switch frame := e.Frame.(type) {
+	case *wkproto.SendPacket:
+		w.pushOfflineMessages(e, frame, subscribers)
+	case *wkproto.EventPacket:
+		// EventPacket不需要处理离线消息
+	}
+}
+
+func (w *Webhook) pushOfflineMessages(e *eventbus.Event, sendPacket *wkproto.SendPacket, subscribers []string) {
 	compress := ""
 	toUIDs := subscribers
 	var compresssToUIDs []byte
@@ -248,7 +257,6 @@ func (w *Webhook) notifyOfflineMsg(e *eventbus.Event, subscribers []string) {
 			compresssToUIDs = buff.Bytes()
 		}
 	}
-	sendPacket := e.Frame.(*wkproto.SendPacket)
 	// 推送离线到上层应用
 	w.TriggerEvent(&types.Event{
 		Event: types.EventMsgOffline,
@@ -350,7 +358,6 @@ func (w *Webhook) notifyQueueLoop() {
 			}
 
 		case <-ticker.C:
-			w.Debug("Ticker triggered.", zap.Int("cacheSize", len(localMessageCache)))
 			if len(localMessageCache) > 0 {
 				shouldPush = true
 			}
@@ -402,54 +409,150 @@ func (w *Webhook) pushMessages(messages []wkdb.Message, errMessageIDMap map[int6
 		return true, nil
 	}
 
+	// 分组消息
+	normalMessages, agentMessages := w.groupMessagesByType(messages)
+
+	// 处理普通消息
+	normalRetryable := w.processBatchMessages(normalMessages, errMessageIDMap, "normal", w.sendNormalMessages)
+
+	// 处理Agent消息
+	agentRetryable := w.processBatchMessages(agentMessages, errMessageIDMap, "agent", w.sendAgentMessages)
+
+	// 合并需要重试的消息
+	retryableMessages = append(normalRetryable, agentRetryable...)
+
+	return len(retryableMessages) == 0, retryableMessages
+}
+
+// groupMessagesByType 将消息按类型分组
+func (w *Webhook) groupMessagesByType(messages []wkdb.Message) (normalMessages, agentMessages []wkdb.Message) {
+	if len(messages) == 0 {
+		return nil, nil
+	}
+
+	// 第一次遍历：统计准确数量
+	var agentCount int
+	agentWebhookOn := options.G.AgentWebhookOn() // 缓存条件判断结果
+
+	for i := range messages {
+		if agentWebhookOn && messages[i].ChannelType == wkproto.ChannelTypeAgent {
+			agentCount++
+		}
+	}
+
+	normalCount := len(messages) - agentCount
+
+	// 根据准确数量预分配数组
+	if normalCount > 0 {
+		normalMessages = make([]wkdb.Message, 0, normalCount)
+	}
+	if agentCount > 0 {
+		agentMessages = make([]wkdb.Message, 0, agentCount)
+	}
+
+	// 第二次遍历：填充数组
+	for i := range messages {
+		if agentWebhookOn && messages[i].ChannelType == wkproto.ChannelTypeAgent {
+			agentMessages = append(agentMessages, messages[i])
+		} else {
+			normalMessages = append(normalMessages, messages[i])
+		}
+	}
+
+	return normalMessages, agentMessages
+}
+
+// processBatchMessages 处理一批同类型的消息
+func (w *Webhook) processBatchMessages(messages []wkdb.Message, errMessageIDMap map[int64]int, messageType string, sendFunc func([]wkdb.Message) error) []wkdb.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	err := sendFunc(messages)
+
+	if err != nil {
+		w.Error("Failed to send webhook for a batch of messages",
+			zap.Error(err),
+			zap.String("type", messageType),
+			zap.Int("message_count", len(messages)))
+
+		return w.handleSendFailure(messages, errMessageIDMap)
+	}
+
+	// 发送成功，清理错误计数
+	w.handleSendSuccess(messages, errMessageIDMap, messageType)
+	return nil
+}
+
+// sendNormalMessages 发送普通消息
+func (w *Webhook) sendNormalMessages(messages []wkdb.Message) error {
+	messageResps := w.convertToMessageResps(messages)
+	messageData, err := w.marshalMessages(messageResps)
+	if err != nil {
+		w.Error("Failed to marshal normal messages for webhook", zap.Error(err), zap.Int("message_count", len(messages)))
+		return err
+	}
+
+	if options.G.WebhookGRPCOn() {
+		return w.sendWebhookForGRPC(types.EventMsgNotify, messageData)
+	}
+	return w.sendWebhookForHttp(types.EventMsgNotify, messageData)
+}
+
+// sendAgentMessages 发送Agent消息
+func (w *Webhook) sendAgentMessages(messages []wkdb.Message) error {
+	messageResps := w.convertToMessageResps(messages)
+	messageData, err := w.marshalMessages(messageResps)
+	if err != nil {
+		w.Error("Failed to marshal agent messages for webhook", zap.Error(err), zap.Int("message_count", len(messages)))
+		return err
+	}
+
+	// TODO: Replace with the correct Agent Webhook URL from options.
+	// The correct configuration option could not be determined automatically.
+	return w.sendAgentWebhookForHttp(types.EventMsgNotify, messageData)
+}
+
+// convertToMessageResps 将wkdb.Message转换为MessageResp
+func (w *Webhook) convertToMessageResps(messages []wkdb.Message) []*types.MessageResp {
 	messageResps := make([]*types.MessageResp, 0, len(messages))
 	for _, msg := range messages {
 		resp := &types.MessageResp{}
 		resp.From(msg, options.G.SystemUID)
 		messageResps = append(messageResps, resp)
 	}
+	return messageResps
+}
 
-	messageData, err := w.marshalMessages(messageResps)
-	if err != nil {
-		w.Error("Failed to marshal messages for webhook", zap.Error(err), zap.Int("message_count", len(messages)))
-		return true, nil // 序列化错误，不重试此批次
-	}
+// handleSendFailure 处理发送失败的情况
+func (w *Webhook) handleSendFailure(messages []wkdb.Message, errMessageIDMap map[int64]int) []wkdb.Message {
+	retryableMessages := make([]wkdb.Message, 0)
 
-	var sendErr error
-	if options.G.WebhookGRPCOn() {
-		sendErr = w.sendWebhookForGRPC(types.EventMsgNotify, messageData)
-	} else {
-		sendErr = w.sendWebhookForHttp(types.EventMsgNotify, messageData)
-	}
+	for _, msg := range messages {
+		errCount := errMessageIDMap[msg.MessageID]
+		errCount++
+		errMessageIDMap[msg.MessageID] = errCount
 
-	if sendErr != nil {
-		w.Error("Failed to send webhook for a batch of messages", zap.Error(sendErr), zap.Int("message_count", len(messages)))
-
-		retryableMessages = make([]wkdb.Message, 0)
-		processedAllInBatch := true // 假设一开始批次中的消息都处理完了（可能成功，可能达到最大重试）
-
-		for _, originalMsg := range messages {
-			errCount := errMessageIDMap[originalMsg.MessageID]
-			errCount++
-			errMessageIDMap[originalMsg.MessageID] = errCount
-
-			if errCount >= options.G.Webhook.MsgNotifyEventRetryMaxCount {
-				w.Warn("Message reached max retry count and will be dropped from error tracking map for this webhook cycle.", zap.Int64("messageID", originalMsg.MessageID))
-				delete(errMessageIDMap, originalMsg.MessageID) // 从重试map中删除
-			} else {
-				retryableMessages = append(retryableMessages, originalMsg) // 加入到可重试列表
-				processedAllInBatch = false                                // 只要有一个消息需要重试，就标记整个批次未完全处理
-			}
+		if errCount >= options.G.Webhook.MsgNotifyEventRetryMaxCount {
+			w.Warn("Message reached max retry count and will be dropped",
+				zap.Int64("messageID", msg.MessageID))
+			delete(errMessageIDMap, msg.MessageID)
+		} else {
+			retryableMessages = append(retryableMessages, msg)
 		}
-		return processedAllInBatch, retryableMessages
 	}
 
-	// 推送成功，清理 errMessageIDMap 中这些消息的错误计数
-	for _, originalMsg := range messages {
-		delete(errMessageIDMap, originalMsg.MessageID)
+	return retryableMessages
+}
+
+// handleSendSuccess 处理发送成功的情况
+func (w *Webhook) handleSendSuccess(messages []wkdb.Message, errMessageIDMap map[int64]int, messageType string) {
+	for _, msg := range messages {
+		delete(errMessageIDMap, msg.MessageID)
 	}
-	w.Info("Successfully pushed messages to webhook", zap.Int("count", len(messages)))
-	return true, nil
+	w.Info("Successfully pushed messages to webhook",
+		zap.String("type", messageType),
+		zap.Int("count", len(messages)))
 }
 
 // marshalMessages 序列化消息（可以后续优化为使用对象池）
@@ -529,6 +632,28 @@ func (w *Webhook) sendWebhookForHttp(event string, data []byte) error {
 	if resp.StatusCode != 200 {
 		w.Warn("第三方消息通知接口返回状态错误！", zap.Int("status", resp.StatusCode), zap.String("Webhook", options.G.Webhook.HTTPAddr))
 		return errors.New("第三方消息通知接口返回状态错误！")
+	}
+	return nil
+}
+
+func (w *Webhook) sendAgentWebhookForHttp(event string, data []byte) error {
+	// TODO: Replace options.G.Webhook.HTTPAddr with the correct Agent Webhook URL from options.
+	// The correct configuration option could not be determined automatically.
+	agentWebhookAddr := options.G.Agent.Webhook.HTTPAddr
+	eventURL := fmt.Sprintf("%s?event=%s", agentWebhookAddr, event)
+	startTime := time.Now().UnixNano() / 1000 / 1000
+	w.Debug("agent webhook开始请求", zap.String("eventURL", eventURL))
+	resp, err := w.httpClient.Post(eventURL, "application/json", bytes.NewBuffer(data))
+	w.Debug("agent webhook请求结束 耗时", zap.Int64("mill", time.Now().UnixNano()/1000/1000-startTime))
+	if err != nil {
+		w.Warn("调用第三方agent消息通知失败！", zap.String("Webhook", agentWebhookAddr), zap.Error(err))
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		w.Warn("第三方agent消息通知接口返回状态错误！", zap.Int("status", resp.StatusCode), zap.String("Webhook", agentWebhookAddr))
+		return errors.New("第三方agent消息通知接口返回状态错误！")
 	}
 	return nil
 }

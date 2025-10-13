@@ -74,14 +74,14 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			return wkproto.ReasonAuthFail, nil, nil
 		}
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
-	} else if options.G.TokenAuthOn {
+	} else if options.G.TokenAuthOn && !options.G.IsVisitors(uid) { // 如果开启了token验证，并且不是访客用户
 		if connectPacket.Token == "" {
-			h.Error("token is empty")
+			h.Error("token is empty", zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId))
 			return wkproto.ReasonAuthFail, nil, errors.New("token is empty")
 		}
 		device, err := service.Store.GetDevice(uid, connectPacket.DeviceFlag)
 		if err != nil {
-			h.Error("get device token err", zap.Error(err))
+			h.Error("get device token err", zap.Error(err), zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId))
 			return wkproto.ReasonAuthFail, nil, err
 		}
 		if device.Token != connectPacket.Token {
@@ -163,12 +163,12 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			for _, oldConn := range oldConns {
 				if oldConn.ConnId != conn.ConnId && oldConn.DeviceId == connectPacket.DeviceID {
 					service.CommonService.AfterFunc(time.Second*2, func(od *eventbus.Conn) func() {
+						h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn), zap.Int64("oldConnId", oldConn.ConnId), zap.Int64("newConnId", conn.ConnId))
 						return func() {
 							eventbus.User.CloseConn(od)
 						}
 					}(oldConn))
 
-					h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn), zap.Int64("oldConnId", oldConn.ConnId), zap.Int64("newConnId", conn.ConnId))
 				}
 			}
 		}

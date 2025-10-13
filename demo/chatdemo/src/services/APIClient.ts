@@ -145,6 +145,7 @@ export default class APIClient {
             start_message_seq: opts.startMessageSeq,
             end_message_seq: opts.endMessageSeq,
             pull_mode: opts.pullMode,
+            stream_v2:1,
             limit: limit
         })
         const messageList = resp && resp["messages"]
