@@ -20,9 +20,99 @@ on:
 permissions: read-all
 
 jobs:
+  # Extract changelog content for the release version
+  changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release-notes: ${{ steps.extract.outputs.notes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract changelog for version
+        id: extract
+        run: |
+          # Get the version from the tag (e.g., v2.2.1-20250624)
+          VERSION="${GITHUB_REF_NAME}"
+          echo "Extracting changelog for version: $VERSION"
+
+          # Create a script to extract the changelog section
+          cat > extract_changelog.sh << 'SCRIPT'
+          #!/bin/bash
+          VERSION="$1"
+          CHANGELOG_FILE="CHANGELOG.md"
+
+          # Find the line number where this version starts
+          START_LINE=$(grep -n "^## \[$VERSION\]" "$CHANGELOG_FILE" | cut -d: -f1)
+
+          if [ -z "$START_LINE" ]; then
+            echo "Warning: Version $VERSION not found in CHANGELOG.md"
+            echo "## Release $VERSION" > release_notes.md
+            echo "" >> release_notes.md
+            echo "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$VERSION/CHANGELOG.md) for details." >> release_notes.md
+            exit 0
+          fi
+
+          # Find the line number where the next version starts (or end of file)
+          NEXT_VERSION_LINE=$(tail -n +$((START_LINE + 1)) "$CHANGELOG_FILE" | grep -n "^## \[" | head -1 | cut -d: -f1)
+
+          if [ -z "$NEXT_VERSION_LINE" ]; then
+            # No next version found, extract to end of file
+            sed -n "${START_LINE},\$p" "$CHANGELOG_FILE" > release_notes.md
+          else
+            # Calculate the actual line number
+            END_LINE=$((START_LINE + NEXT_VERSION_LINE - 1))
+            # Extract the section, excluding the next version header
+            sed -n "${START_LINE},$((END_LINE - 1))p" "$CHANGELOG_FILE" > release_notes.md
+          fi
+
+          # Remove the version header line
+          sed -i '1d' release_notes.md
+
+          # Remove trailing --- separators
+          sed -i '/^---$/d' release_notes.md
+
+          # Remove trailing empty lines using awk (more portable)
+          awk 'NF {p=1} p' release_notes.md > release_notes.tmp && mv release_notes.tmp release_notes.md
+          SCRIPT
+
+          chmod +x extract_changelog.sh
+          ./extract_changelog.sh "$VERSION"
+
+          # Check if extraction was successful
+          if [ -f release_notes.md ]; then
+            echo "Successfully extracted changelog"
+            cat release_notes.md
+
+            # Save to output using heredoc to handle multiline content
+            {
+              echo 'notes<<EOF'
+              cat release_notes.md
+              echo EOF
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "Failed to extract changelog"
+            echo "notes=## Release $VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update release with changelog
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Update the release body with the extracted changelog
+          gh release edit "$GITHUB_REF_NAME" \
+            --notes-file release_notes.md \
+            --repo "$GITHUB_REPOSITORY"
+
   # Generate ldflags dynamically.
   # Optional: only needed for ldflags.
   args:
+    needs: changelog
     runs-on: ubuntu-latest
     outputs:
       commit-date: ${{ steps.ldflags.outputs.commit-date }}
