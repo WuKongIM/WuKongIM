@@ -22,8 +22,8 @@ const (
 	DefaultMaxChunksPerStream = 1000
 	// DefaultStreamTimeout is the default timeout for inactive streams (30 minutes)
 	DefaultStreamTimeout = 30 * time.Minute
-	// DefaultChunkInactivityTimeout is the default timeout for auto-completing inactive streams (30 seconds)
-	DefaultChunkInactivityTimeout = 30 * time.Second
+	// DefaultChunkInactivityTimeout is the default timeout for auto-completing inactive streams
+	DefaultChunkInactivityTimeout = 10 * time.Minute
 	// CleanupInterval is the interval for cleanup operations
 	CleanupInterval = 5 * time.Minute
 )
