@@ -27,4 +27,6 @@ const (
 	EventMsgNotify = "msg.notify"
 	// EventOnlineStatus 用户在线状态
 	EventOnlineStatus = "user.onlinestatus"
+	// EventMsgStream 流消息
+	EventMsgStream = "msg.stream"
 )

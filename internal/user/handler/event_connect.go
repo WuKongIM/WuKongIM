@@ -163,12 +163,12 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			for _, oldConn := range oldConns {
 				if oldConn.ConnId != conn.ConnId && oldConn.DeviceId == connectPacket.DeviceID {
 					service.CommonService.AfterFunc(time.Second*2, func(od *eventbus.Conn) func() {
+						h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn), zap.Int64("oldConnId", oldConn.ConnId), zap.Int64("newConnId", conn.ConnId))
 						return func() {
 							eventbus.User.CloseConn(od)
 						}
 					}(oldConn))
 
-					h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn), zap.Int64("oldConnId", oldConn.ConnId), zap.Int64("newConnId", conn.ConnId))
 				}
 			}
 		}

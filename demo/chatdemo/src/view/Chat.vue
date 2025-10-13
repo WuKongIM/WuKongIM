@@ -115,7 +115,6 @@ const connectIM = (addr: string) => {
 
     // 监听消息
     messageListener = (msg) => {
-        console.log("messageListener-->", msg)
         if (!to.value.isEqual(msg.channel)) {
             return
         }
@@ -126,19 +125,23 @@ const connectIM = (addr: string) => {
     WKSDK.shared().chatManager.addMessageListener(messageListener)
 
     // 流监听
-    eventListener = (event: WKEvent) => {
+    eventListener = async (event: WKEvent) => {
         for (const message of messages.value) {
+            console.log("eventListener--->", event.id, event.type,event.dataText)
             if (message.clientMsgNo === event.id) {
                 if (message.contentType === MessageContentType.text) {
-                    message.streamText = (message.streamText || "") + (event.dataText||"")
-                    const textContent = new MessageText(message.streamText || "")
+                    message.streamText = (message.streamText || "") + (event.dataText || "")
+                    const htmlText = await marked.parse(message.streamText)
+                    const textContent = new MessageText(htmlText || "")
                     message.content = textContent
                 }
+                // 刷新ui
+                messages.value = [...messages.value]
+                nextTick(() => {
+                    scrollBottom()
+                })
                 break
             }
-            // 刷新ui
-            messages.value = [...messages.value]
-            scrollBottom()
         }
     }
     WKSDK.shared().eventManager.addEventListener(eventListener)
@@ -203,7 +206,8 @@ const pullLast = async () => {
     for (const m of msgs) {
         if (m.setting.streamOn) {
             if (m.streamText && m.streamText.length > 0) {
-                m.content = new MessageText(m.streamText)
+                const htmlText = await marked.parse(m.streamText)
+                m.content = new MessageText(htmlText)
             }
         }
     }
@@ -236,7 +240,8 @@ const pullDown = async () => {
     for (const m of msgs) {
         if (m.setting.streamOn) {
             if (m.streamText && m.streamText.length > 0) {
-                m.content = new MessageText(m.streamText)
+                const htmlText = await marked.parse(m.streamText)
+                m.content = new MessageText(htmlText)
             }
         }
     }
