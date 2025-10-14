@@ -247,6 +247,7 @@ func New(opts *options.Options) *Server {
 			cluster.WithDBWKDbMemTableSize(s.opts.Db.MemTableSize),
 			cluster.WithAuth(s.opts.Auth),
 			cluster.WithIsCmdChannel(s.opts.IsCmdChannel),
+			cluster.WithAppVersion(version.Version),
 		),
 
 		// cluster.WithOnChannelMetaApply(func(channelID string, channelType uint8, logs []replica.Log) error {
