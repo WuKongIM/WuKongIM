@@ -127,9 +127,7 @@ func (m *message) deleteRangeMessages(c *wkhttp.Context) {
 
 	// 在集群环境中，需要确保请求发送到正确的频道领导节点
 	if options.G.ClusterOn() {
-		// 使用 LeaderOfChannel 而不是 SlotLeaderOfChannel
-		// 因为消息是存储在频道级别，需要路由到频道的领导节点
-		leaderInfo, err := service.Cluster.LeaderOfChannel(fakeChannelID, req.ChannelType)
+		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType)
 		if err != nil {
 			// 如果频道配置不存在，可能是空频道，直接返回成功
 			if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
