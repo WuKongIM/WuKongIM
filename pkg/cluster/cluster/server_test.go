@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -148,12 +147,7 @@ func TestAppendMessages(t *testing.T) {
 		Term: 1,
 	})
 
-	start := time.Now()
-	fmt.Println("append message start")
 	_, err = s1.GetStore().AppendMessages(timeoutCtx, "ch1", 2, messages)
 	assert.NoError(t, err)
-
-	cost := time.Since(start)
-	fmt.Println("cost--->", cost)
 
 }

@@ -185,6 +185,10 @@ func (r *Raft) BecomeFollower(term uint32, leader uint64) {
 	r.node.BecomeFollower(term, leader)
 }
 
+func (r *Raft) KeepAlive() {
+	r.node.KeepAlive()
+}
+
 func (r *Raft) loop() {
 	tk := time.NewTicker(r.opts.TickInterval)
 	for {
@@ -217,15 +221,19 @@ func (r *Raft) readyEvents() {
 	for _, e := range events {
 		switch e.Type {
 		case types.StoreReq: // 处理存储请求
+			r.node.KeepAlive()
 			r.handleStoreReq(e)
 			continue
 		case types.GetLogsReq: // 处理获取日志请求
+			r.node.KeepAlive()
 			r.handleGetLogsReq(e)
 			continue
 		case types.TruncateReq: // 截断请求
+			r.node.KeepAlive()
 			r.handleTruncateReq(e)
 			continue
 		case types.ApplyReq: // 处理应用请求
+			r.node.KeepAlive()
 			r.handleApplyReq(e)
 			continue
 			// 角色转换
@@ -241,7 +249,7 @@ func (r *Raft) readyEvents() {
 			continue
 		}
 
-		if e.To == types.LocalNode {
+		if e.To == types.LocalNode || e.To == r.opts.NodeId {
 			err := r.node.Step(e)
 			if err != nil {
 				r.node.Error("step error", zap.Error(err))
@@ -349,6 +357,7 @@ func (r *Raft) handleGetLogsReq(e types.Event) {
 
 func (r *Raft) handleTruncateReq(e types.Event) {
 	err := r.pool.Submit(func() {
+		r.Info("truncate log to index", zap.Uint64("index", e.Index))
 		err := r.opts.Storage.TruncateLogTo(e.Index)
 		if err != nil {
 			r.Error("truncate logs failed", zap.Error(err))
@@ -440,8 +449,15 @@ func (r *Raft) getTrunctLogIndex(e types.Event, leaderLastLogTerm uint32) (uint6
 	if e.LastLogTerm == 0 {
 		return 0, types.ReasonOk
 	}
-	// 如果副本的最新日志任期等于当前领导的最新日志任期，则不需要裁剪
+	// 如果副本的最新日志任期等于当前领导的最新日志任期
+	//  如果副本的最新日志下标大于领导者最新日志下标，则需要裁剪至领导者最新日志下标
 	if e.LastLogTerm == leaderLastLogTerm {
+		if e.Index > 0 {
+			replicaLastLogIndex := e.Index - 1 // 副本日志下标等于同步下标-1
+			if replicaLastLogIndex > r.node.LastLogIndex() {
+				return r.node.LastLogIndex(), types.ReasonOk
+			}
+		}
 		return 0, types.ReasonOk
 	}
 

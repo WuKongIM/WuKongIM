@@ -1,6 +1,7 @@
 package ingress
 
 import (
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -331,6 +332,95 @@ func (s *StreamResp) Decode(data []byte) error {
 			return err
 		}
 		s.Streams = append(s.Streams, stream)
+	}
+	return nil
+}
+
+type StreamReqV2 struct {
+	ClientMsgNos []string
+}
+
+func (s *StreamReqV2) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(uint32(len(s.ClientMsgNos)))
+	for _, clientMsgNo := range s.ClientMsgNos {
+		enc.WriteString(clientMsgNo)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *StreamReqV2) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	s.ClientMsgNos = make([]string, 0, count)
+	for i := 0; i < int(count); i++ {
+		clientMsgNo, err := dec.String()
+		if err != nil {
+			return err
+		}
+		s.ClientMsgNos = append(s.ClientMsgNos, clientMsgNo)
+	}
+	return nil
+}
+
+type StreamRespV2 []*wkdb.StreamV2
+
+func (s *StreamRespV2) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteUint32(uint32(len(*s)))
+	for _, stream := range *s {
+		enc.WriteInt64(stream.MessageId)
+		enc.WriteString(stream.ChannelId)
+		enc.WriteUint8(stream.ChannelType)
+		enc.WriteString(stream.FromUid)
+		enc.WriteUint8(stream.End)
+		enc.WriteUint8(stream.EndReason)
+		enc.WriteUint32(uint32(len(stream.Payload)))
+		enc.WriteBytes(stream.Payload)
+	}
+	return enc.Bytes(), nil
+}
+
+func (s *StreamRespV2) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	count, err := dec.Uint32()
+	if err != nil {
+		return err
+	}
+	*s = make([]*wkdb.StreamV2, 0, count)
+	for i := 0; i < int(count); i++ {
+		stream := &wkdb.StreamV2{}
+		if stream.MessageId, err = dec.Int64(); err != nil {
+			return err
+		}
+		if stream.ChannelId, err = dec.String(); err != nil {
+			return err
+		}
+		if stream.ChannelType, err = dec.Uint8(); err != nil {
+			return err
+		}
+		if stream.FromUid, err = dec.String(); err != nil {
+			return err
+		}
+		if stream.End, err = dec.Uint8(); err != nil {
+			return err
+		}
+		if stream.EndReason, err = dec.Uint8(); err != nil {
+			return err
+		}
+		payloadLen, err := dec.Uint32()
+		if err != nil {
+			return err
+		}
+		if stream.Payload, err = dec.Bytes(int(payloadLen)); err != nil {
+			return err
+		}
+		*s = append(*s, stream)
 	}
 	return nil
 }

@@ -57,9 +57,9 @@ func (s *slotTransport) Send(key string, event types.Event) {
 		trace.GlobalTrace.Metrics.Cluster().MessageOutgoingBytesAdd(trace.ClusterKindSlot, int64(msg.Size()))
 	}
 
-	err = node.send(msg)
+	err = node.SendWithPriority(msg, isHighPriority(event))
 	if err != nil {
-		s.Error("Send event failed", zap.Error(err), zap.String("key", key), zap.String("event", event.String()))
+		s.Error("Send event failed", zap.Error(err), zap.String("key", key), zap.String("event", event.Type.String()))
 		return
 	}
 

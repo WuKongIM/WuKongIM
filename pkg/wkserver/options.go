@@ -31,7 +31,7 @@ func NewOptions() *Options {
 	return &Options{
 		Addr:            "tcp://0.0.0.0:12000",
 		RequestPoolSize: 20000,
-		MessagePoolSize: 10000,
+		MessagePoolSize: 40000,
 		MessagePoolOn:   true,
 		ConnPath:        "/conn",
 		ClosePath:       "/close",

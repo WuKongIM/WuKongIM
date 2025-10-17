@@ -103,6 +103,8 @@ const (
 	CMDAddOrUpdateConversationsBatchIfNotExist
 	// 更新最近会话的已删除的消息序号位置
 	CMDUpdateConversationDeletedAtMsgSeq
+	// 保存流(v2)
+	CMDSaveStreamV2
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -197,6 +199,8 @@ func (c CMDType) String() string {
 		return "CMDAddOrUpdateConversationsBatchIfNotExist"
 	case CMDUpdateConversationDeletedAtMsgSeq:
 		return "CMDUpdateConversationDeletedAtMsgSeq"
+	case CMDSaveStreamV2:
+		return "CMDSaveStreamV2"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -225,7 +229,9 @@ func NewCMDWithVersion(cmdType CMDType, data []byte, version CmdVersion) *CMD {
 }
 
 func (c *CMD) Marshal() ([]byte, error) {
-	c.version = 1
+	if c.version == 0 {
+		c.version = 1
+	}
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint16(c.version.Uint16())
@@ -518,6 +524,12 @@ func (c *CMD) CMDContent() (string, error) {
 			"channelType":     channelType,
 			"deletedAtMsgSeq": deletedAtMsgSeq,
 		}), nil
+	case CMDSaveStreamV2:
+		stream, err := c.DecodeCMDStreamV2()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(stream), nil
 	}
 
 	return "", nil
@@ -853,6 +865,10 @@ func EncodeChannelInfo(c wkdb.ChannelInfo, version CmdVersion) ([]byte, error) {
 	if version > 0 {
 		enc.WriteString(c.Webhook)
 	}
+	if version > 2 {
+		enc.WriteUint8(wkutil.BoolToUint8(c.AllowStranger))
+		enc.WriteUint8(wkutil.BoolToUint8(c.SendBan))
+	}
 	return enc.Bytes(), nil
 }
 
@@ -906,6 +922,19 @@ func (c *CMD) DecodeChannelInfo() (wkdb.ChannelInfo, error) {
 		if channelInfo.Webhook, err = dec.String(); err != nil {
 			return channelInfo, err
 		}
+	}
+
+	if c.version > 2 {
+		var allowStranger uint8
+		if allowStranger, err = dec.Uint8(); err != nil {
+			return channelInfo, err
+		}
+		var sendBan uint8
+		if sendBan, err = dec.Uint8(); err != nil {
+			return channelInfo, err
+		}
+		channelInfo.AllowStranger = wkutil.Uint8ToBool(allowStranger)
+		channelInfo.SendBan = wkutil.Uint8ToBool(sendBan)
 	}
 
 	return channelInfo, err
@@ -1561,6 +1590,55 @@ func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelI
 		return
 	}
 	if deletedAtMsgSeq, err = decoder.Uint64(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDStreamV2(stream *wkdb.StreamV2) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(stream.ClientMsgNo)
+	encoder.WriteInt64(stream.MessageId)
+	encoder.WriteString(stream.ChannelId)
+	encoder.WriteUint8(stream.ChannelType)
+	encoder.WriteString(stream.FromUid)
+	encoder.WriteUint8(stream.End)
+	encoder.WriteUint8(stream.EndReason)
+	encoder.WriteBytes(stream.Payload)
+	data := encoder.Bytes()
+
+	return data
+}
+
+func (c *CMD) DecodeCMDStreamV2() (stream *wkdb.StreamV2, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	stream = &wkdb.StreamV2{}
+
+	if stream.ClientMsgNo, err = decoder.String(); err != nil {
+		return
+	}
+
+	if stream.MessageId, err = decoder.Int64(); err != nil {
+		return
+	}
+	if stream.ChannelId, err = decoder.String(); err != nil {
+		return
+	}
+	if stream.ChannelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if stream.FromUid, err = decoder.String(); err != nil {
+		return
+	}
+	if stream.End, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if stream.EndReason, err = decoder.Uint8(); err != nil {
+		return
+	}
+
+	if stream.Payload, err = decoder.BinaryAll(); err != nil {
 		return
 	}
 	return

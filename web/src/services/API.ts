@@ -45,6 +45,13 @@ export default class API {
         })
     }
 
+    // 槽重新选举
+    public slotElection(req: {
+        slot: number,
+    }) {
+        return APIClient.shared.post(`/cluster/slots/${req.slot}/election`)
+    }
+
     // 获取节点的频道配置列表
     public nodeChannelConfigs(req: {
         nodeId: number
@@ -231,6 +238,13 @@ export default class API {
         channelType: number
     }) {
         return APIClient.shared.get(`/cluster/channels/${req.channelId}/${req.channelType}/replicas`)
+    }
+
+    // 槽副本列表
+    public slotReplicas(req: {
+        slot: number
+    }) {
+        return APIClient.shared.get(`/cluster/slots/${req.slot}/replicas`)
     }
 
     // 分布式日志

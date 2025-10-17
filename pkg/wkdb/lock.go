@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/keylock"
 )
@@ -63,13 +64,21 @@ func newChannelClusterConfigLock() *channelClusterConfigLock {
 }
 
 func (c *channelClusterConfigLock) lockByChannel(channelId string, channelType uint8) {
-	key := channelId + strconv.FormatInt(int64(channelType), 10)
-	c.Lock(key)
+	// 使用 strings.Builder 减少内存分配
+	var builder strings.Builder
+	builder.WriteString(channelId)
+	builder.WriteByte(':')
+	builder.WriteString(strconv.FormatUint(uint64(channelType), 10))
+	c.Lock(builder.String())
 }
 
 func (c *channelClusterConfigLock) unlockByChannel(channelId string, channelType uint8) {
-	key := channelId + strconv.FormatInt(int64(channelType), 10)
-	c.Unlock(key)
+	// 使用 strings.Builder 减少内存分配
+	var builder strings.Builder
+	builder.WriteString(channelId)
+	builder.WriteByte(':')
+	builder.WriteString(strconv.FormatUint(uint64(channelType), 10))
+	c.Unlock(builder.String())
 }
 
 type subscriberCountLock struct {

@@ -15,21 +15,28 @@ type channelInfoReq struct {
 	ChannelID   string `json:"channel_id"`   // 频道ID
 	ChannelType uint8  `json:"channel_type"` // 频道类型
 	Large       int    `json:"large"`        // 是否是超大群
-	Ban         int    `json:"ban"`          // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号）
+	Ban         int    `json:"ban"`          // 是否封禁频道（封禁后此频道所有人都将不能发消息，除了系统账号，如果是个人频道则不能发消息也不能收消息，SendBan是不能发消息但是能收消息）
 	Disband     int    `json:"disband"`      // 是否解散频道
+	// 是否禁止发送消息 （0.不禁止 1.禁止），禁止后，频道内所有成员都不能发送消息,个人频道能收消息，但不能发消息
+	SendBan int `json:"send_ban"`
+	// 是否允许陌生人发送消息（0.不允许 1.允许）（此配置目前只支持个人频道）
+	// 个人频道：如果AllowStranger为1，则陌生人可以给当前用户发消息
+	AllowStranger int `json:"allow_stranger"`
 }
 
 func (c channelInfoReq) ToChannelInfo() wkdb.ChannelInfo {
 	createdAt := time.Now()
 	updatedAt := time.Now()
 	return wkdb.ChannelInfo{
-		ChannelId:   c.ChannelID,
-		ChannelType: c.ChannelType,
-		Large:       c.Large == 1,
-		Ban:         c.Ban == 1,
-		Disband:     c.Disband == 1,
-		CreatedAt:   &createdAt,
-		UpdatedAt:   &updatedAt,
+		ChannelId:     c.ChannelID,
+		ChannelType:   c.ChannelType,
+		Large:         c.Large == 1,
+		Ban:           c.Ban == 1,
+		Disband:       c.Disband == 1,
+		SendBan:       c.SendBan == 1,
+		AllowStranger: c.AllowStranger == 1,
+		CreatedAt:     &createdAt,
+		UpdatedAt:     &updatedAt,
 	}
 }
 

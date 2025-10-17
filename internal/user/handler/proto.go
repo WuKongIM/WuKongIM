@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"fmt"
-
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 )
@@ -48,7 +46,6 @@ func (f *forwardUserEventReq) decode(data []byte) error {
 	}
 	eventData, err := dec.BinaryAll()
 	if err != nil {
-		fmt.Println("BinaryAll failed", err)
 		return err
 	}
 	if len(eventData) > 0 {

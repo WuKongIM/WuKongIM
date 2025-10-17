@@ -22,7 +22,8 @@ const (
 	MethodPing        = "ping"
 	MethodPong        = "pong"
 	MethodDisconnect  = "disconnect"
-	MethodRecv        = "recv" // Notification method
+	MethodRecv        = "recv"  // Notification method
+	MethodEvent       = "event" // Event notification method
 )
 
 // Predefined decoding errors
@@ -126,7 +127,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 	// Determine type PRELIMINARILY
 	// Note: We refine this based on validation checks later
 	prelimIsNotification := methodIsPresent && (!idIsPresent || idIsNull)
-	prelimIsResponse := idIsPresent && !idIsNull && !methodIsPresent && (resultIsPresent || errorIsPresent)
+	prelimIsResponse := (idIsPresent && !idIsNull && !methodIsPresent && (resultIsPresent || errorIsPresent))
 	prelimIsRequest := methodIsPresent && idIsPresent && !idIsNull
 
 	// Validate field combinations
@@ -156,7 +157,7 @@ func determineMessageType(probe *Probe) (msgType int, version string, err error)
 		// Valid notification: method, no id or null id
 		// Check if method is a known notification type (optional, depending on strictness)
 		switch probe.Method {
-		case MethodRecv, MethodDisconnect, MethodPong:
+		case MethodRecv, MethodDisconnect, MethodRecvAck, MethodEvent:
 			msgType = msgTypeNotification
 		default:
 			// If method is present but ID is missing/null, AND method is not known,
@@ -245,16 +246,6 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 			}
 			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodSend, err)
-			}
-			return req, probe, nil
-		case MethodRecvAck:
-			var req RecvAckRequest
-			req.BaseRequest = baseReq
-			if probe.Params == nil {
-				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodRecvAck)
-			}
-			if err := json.Unmarshal(probe.Params, &req.Params); err != nil {
-				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecvAck, err)
 			}
 			return req, probe, nil
 		case MethodSubscribe:
@@ -349,6 +340,16 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecv, err)
 			}
 			return notif, probe, nil
+		case MethodRecvAck:
+			var notif RecvAckNotification
+			notif.BaseNotification = baseNotif
+			if probe.Params == nil {
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodRecvAck)
+			}
+			if err := json.Unmarshal(probe.Params, &notif.Params); err != nil {
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodRecvAck, err)
+			}
+			return notif, probe, nil
 		case MethodDisconnect:
 			var notif DisconnectNotification
 			notif.BaseNotification = baseNotif
@@ -359,9 +360,15 @@ func Decode(decoder *json.Decoder) (interface{}, Probe, error) {
 				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodDisconnect, err)
 			}
 			return notif, probe, nil
-		case MethodPong:
-			var notif PongNotification
+		case MethodEvent:
+			var notif EventNotification
 			notif.BaseNotification = baseNotif
+			if probe.Params == nil {
+				return nil, probe, fmt.Errorf("%w: method %s", ErrMissingParams, MethodEvent)
+			}
+			if err := json.Unmarshal(probe.Params, &notif.Params); err != nil {
+				return nil, probe, fmt.Errorf("%w: %s params: %w", ErrUnmarshalFieldFailed, MethodEvent, err)
+			}
 			return notif, probe, nil
 		default:
 			return nil, probe, fmt.Errorf("%w: %s", ErrUnknownMethod, probe.Method)
@@ -384,22 +391,17 @@ func ToFrame(packet interface{}) (wkproto.Frame, string, error) {
 		return p.Params.ToProto(), p.ID, nil
 	case SendRequest:
 		return p.Params.ToProto(), p.ID, nil
-	case RecvAckRequest:
-		frame, err := p.Params.ToProto()
-		if err != nil {
-			return nil, "", err
-		}
-		return frame, p.ID, nil
 	case PingRequest:
 		return &wkproto.PingPacket{}, p.ID, nil
 	case DisconnectRequest:
 		return p.Params.ToProto(), p.ID, nil
+	case RecvAckNotification:
+		return p.Params.ToProto(), "", nil
 	}
 	return nil, "", fmt.Errorf("unknown packet type: %T", packet)
 }
 
 func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
-
 	switch frame.GetFrameType() {
 	case wkproto.CONNACK:
 		connack := frame.(*wkproto.ConnackPacket)
@@ -425,6 +427,10 @@ func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
 		recv := frame.(*wkproto.RecvPacket)
 		result := FromProtoRecvNotification(recv)
 		return result, nil
+	case wkproto.EVENT:
+		event := frame.(*wkproto.EventPacket)
+		result := FromProtoEventNotification(event)
+		return result, nil
 	case wkproto.DISCONNECT:
 		disconnect := frame.(*wkproto.DisconnectPacket)
 		params := FromProtoDisconnectPacket(disconnect)
@@ -436,10 +442,10 @@ func FromFrame(reqId string, frame wkproto.Frame) (interface{}, error) {
 			Params: params,
 		}, nil
 	case wkproto.PONG:
-		return PongNotification{
-			BaseNotification: BaseNotification{
+		return PongResponse{
+			BaseResponse: BaseResponse{
 				Jsonrpc: jsonRPCVersion,
-				Method:  MethodPong,
+				ID:      reqId,
 			},
 		}, nil
 	}

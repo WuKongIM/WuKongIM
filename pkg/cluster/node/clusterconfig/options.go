@@ -13,11 +13,12 @@ type Options struct {
 	ApiServerAddr string        // 分布式api服务地址（内网地址）
 	TickInterval  time.Duration // 分布式tick间隔
 	// InitNodes 初始化节点列表 key为节点id，value为分布式通讯的地址
-	InitNodes              map[uint64]string
-	SlotCount              uint32 // 槽位数量
-	SlotMaxReplicaCount    uint32 // 每个槽位最大副本数量
-	ChannelMaxReplicaCount uint32 // 每个频道最大副本数量
-	ConfigPath             string // 集群配置文件路径
+	InitNodes                   map[uint64]string
+	SlotCount                   uint32 // 槽位数量
+	SlotMaxReplicaCount         uint32 // 每个槽位最大副本数量
+	ChannelMaxReplicaCount      uint32 // 每个频道最大副本数量
+	ChannelDestoryAfterIdleTick int    // 频道空闲多久后销毁（如果TickInterval是100ms, 那么10 * 60 * 30这个值是30分钟，具体时间根据TickInterval来定）
+	ConfigPath                  string // 集群配置文件路径
 	// Transport 传输层
 	Transport raft.Transport
 
@@ -29,12 +30,13 @@ type Options struct {
 
 func NewOptions(opts ...Option) *Options {
 	o := &Options{
-		SlotCount:              64,
-		TickInterval:           time.Millisecond * 100,
-		SlotMaxReplicaCount:    3,
-		ChannelMaxReplicaCount: 3,
-		ConfigPath:             "clusterconfig.json",
-		PongMaxTick:            30,
+		SlotCount:                   64,
+		TickInterval:                time.Millisecond * 150,
+		SlotMaxReplicaCount:         3,
+		ChannelMaxReplicaCount:      3,
+		ConfigPath:                  "clusterconfig.json",
+		PongMaxTick:                 30,
+		ChannelDestoryAfterIdleTick: 10 * 60 * 30, // 大约30分钟，如果raft的TickInterval是100ms
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -113,5 +115,11 @@ func WithSeed(seed string) Option {
 func WithServerAddr(serverAddr string) Option {
 	return func(o *Options) {
 		o.ServerAddr = serverAddr
+	}
+}
+
+func WithChannelDestoryAfterIdleTick(channelDestoryAfterIdleTick int) Option {
+	return func(o *Options) {
+		o.ChannelDestoryAfterIdleTick = channelDestoryAfterIdleTick
 	}
 }

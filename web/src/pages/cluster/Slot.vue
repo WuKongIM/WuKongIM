@@ -19,6 +19,7 @@ const desc = ref<boolean>(false) // 是否降序
 const selectedMigrateFrom = ref<number>() // 选中的源节点ID
 const selectedMigrateTo = ref<number>() // 选中的目标节点ID
 const selectedSlot = ref<any>({}); // 选中的槽
+const replicas = ref<any>({}); // 副本
 
 onMounted(() => {
    
@@ -102,6 +103,24 @@ const onShowMigrateModal = (slot: any) => {
     migrateModal.showModal()
 }
 
+
+// 查看副本
+const onReplicas = (slot: any) => {
+    const modal = document.getElementById('replicas') as HTMLDialogElement;
+    modal.showModal();
+
+    API.shared.slotReplicas({
+        slot: slot.id,
+    }).then((res) => {
+        replicas.value = res
+        const modal = document.getElementById('replicas') as HTMLDialogElement;
+        modal.showModal();
+    }).catch((err) => {
+        alert(err)
+    })
+
+}
+
 const onMigrate = () => {
 
     
@@ -119,6 +138,28 @@ const onMigrate = () => {
          alert(err.msg)
     
    })
+}
+
+// 重新选举
+const onElection = (slot: any) => {
+    // 显示确认对话框
+    const confirmDialog = document.getElementById('electionConfirmModal') as HTMLDialogElement;
+    selectedSlot.value = slot; // 保存选中的槽信息
+    confirmDialog.showModal();
+}
+
+// 确认重新选举
+const confirmElection = () => {
+    const confirmDialog = document.getElementById('electionConfirmModal') as HTMLDialogElement;
+    confirmDialog.close();
+
+    API.shared.slotElection({
+        slot: selectedSlot.value.id,
+    }).then(() => {
+        loadData()
+    }).catch((err) => {
+        alert(err.msg)
+    })
 }
 
 
@@ -157,6 +198,12 @@ const onMigrate = () => {
                         <td class="flex flex-wrap gap-2">
                             <button class="btn btn-sm btn-primary" v-on:click="()=>onShowMigrateModal(slot)">迁移</button>
                             <button class="btn btn-sm btn-primary" v-on:click="()=>onLog(slot)">日志</button>
+                            <button class="btn btn-sm btn-primary" v-on:click="()=>onReplicas(slot)">副本</button>
+                            <button class="btn btn-sm btn-primary" v-on:click="()=>onElection(slot)" :disabled="slot.status!==0">
+                                {{
+                                    slot.status===0?'重新选举':'选举中'
+                                }}
+                            </button>
                         </td>
                     </tr>
 
@@ -190,6 +237,69 @@ const onMigrate = () => {
                 &nbsp;&nbsp;
                 <button className="btn-primary btn" v-on:click="onMigrate">确认</button>
                 <!-- <a class="link" v-for="uid in currentUids">{{ uid }}</a> -->
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <dialog id="replicas" class="modal">
+            <div class="modal-box flex flex-wrap gap-2 justify-center">
+                <div class="overflow-x-auto">
+                    <table class="table table-xs">
+                        <thead>
+                            <tr>
+                                <th>节点ID</th>
+                                <th>领导ID</th>
+                                <th>任期</th>
+                                <th>节点角色</th>
+                                <th>日志高度</th>
+                                <th>已提交高度</th>
+                                <th>已应用高度</th>
+                                <th>配置版本</th>
+                                <th>最后日志时间</th>
+                                <th>是否运行</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="replica in replicas">
+                                <td>{{ replica.replica_id }}</td>
+                                <td>{{ replica.leader_id }}</td>
+                                <td>{{ replica.term }}</td>
+                                <td>{{ replica.role_format }}</td>
+                                <td>{{ replica.last_log_seq }}</td>
+                                <td>{{ replica.committed_index }}</td>
+                                <td>{{ replica.applied_index }}</td>
+                                <td>{{ replica.conf_version }}</td>
+                                <td>{{ replica.last_log_time_format }}</td>
+                                <td :class="replica.running == 1 ? 'text-green-500' : 'text-red-500'">
+                                    {{ replica.running == 1 ? '运行中' : '未运行' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <!-- 重新选举确认对话框 -->
+        <dialog id="electionConfirmModal" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg">确认重新选举</h3>
+                <p class="py-4">
+                    您确定要对分区（槽）<span class="font-semibold text-primary">{{ selectedSlot.id }}</span> 进行重新选举吗？
+                </p>
+                <p class="text-sm text-gray-600 mb-4">
+                    重新选举将会触发集群重新选择该分区的领导节点，这可能会暂时影响该分区的服务。
+                </p>
+                <div class="modal-action">
+                    <button class="btn btn-primary" v-on:click="confirmElection">确认</button>
+                    <form method="dialog">
+                        <button class="btn">取消</button>
+                    </form>
+                </div>
             </div>
             <form method="dialog" class="modal-backdrop">
                 <button>close</button>

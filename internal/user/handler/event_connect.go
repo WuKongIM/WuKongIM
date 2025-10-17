@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/pkg/fasttime"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
@@ -29,6 +30,12 @@ func (h *Handler) connect(ctx *eventbus.UserContext) {
 				conn.LastActive = fasttime.UnixTimestamp()
 			}
 			ctx.AddConn(conn)
+
+			// -------------------- user online --------------------
+			// 在线webhook
+			deviceOnlineCount := eventbus.User.ConnCountByDeviceFlag(uid, conn.DeviceFlag)
+			totalOnlineCount := eventbus.User.ConnCountByUid(uid)
+			service.Webhook.Online(uid, conn.DeviceFlag, conn.ConnId, deviceOnlineCount, totalOnlineCount)
 		}
 		connackEvent := &eventbus.Event{
 			Type:         eventbus.EventConnack,
@@ -67,14 +74,14 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			return wkproto.ReasonAuthFail, nil, nil
 		}
 		devceLevel = wkproto.DeviceLevelSlave // 默认都是slave设备
-	} else if options.G.TokenAuthOn {
+	} else if options.G.TokenAuthOn && !options.G.IsVisitors(uid) { // 如果开启了token验证，并且不是访客用户
 		if connectPacket.Token == "" {
-			h.Error("token is empty")
+			h.Error("token is empty", zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId))
 			return wkproto.ReasonAuthFail, nil, errors.New("token is empty")
 		}
 		device, err := service.Store.GetDevice(uid, connectPacket.DeviceFlag)
 		if err != nil {
-			h.Error("get device token err", zap.Error(err))
+			h.Error("get device token err", zap.Error(err), zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId))
 			return wkproto.ReasonAuthFail, nil, err
 		}
 		if device.Token != connectPacket.Token {
@@ -156,12 +163,12 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 			for _, oldConn := range oldConns {
 				if oldConn.ConnId != conn.ConnId && oldConn.DeviceId == connectPacket.DeviceID {
 					service.CommonService.AfterFunc(time.Second*2, func(od *eventbus.Conn) func() {
+						h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn), zap.Int64("oldConnId", oldConn.ConnId), zap.Int64("newConnId", conn.ConnId))
 						return func() {
 							eventbus.User.CloseConn(od)
 						}
 					}(oldConn))
 
-					h.Info("auth: close old conn for slave", zap.Any("oldConn", oldConn))
 				}
 			}
 		}
@@ -185,8 +192,9 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 	conn.DeviceLevel = devceLevel
 
 	// 本地连接
+	var realConn wknet.Conn
 	if options.G.IsLocalNode(conn.NodeId) {
-		realConn := service.ConnManager.GetConn(conn.ConnId)
+		realConn = service.ConnManager.GetConn(conn.ConnId)
 		if realConn != nil {
 			realConn.SetMaxIdle(options.G.ConnIdleTime)
 		}
@@ -198,7 +206,11 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		hasServerVersion = true
 	}
 
-	h.Debug("auth: auth Success", zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
+	if realConn != nil {
+		h.Debug("auth: auth Success", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId), zap.Int("fd", realConn.Fd().Fd()), zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
+	} else {
+		h.Debug("auth: auth Success", zap.String("uid", conn.Uid), zap.Int64("connId", conn.ConnId), zap.Uint8("protoVersion", connectPacket.Version), zap.Bool("hasServerVersion", hasServerVersion))
+	}
 	connack := &wkproto.ConnackPacket{
 		Salt:          string(aesIV),
 		ServerKey:     dhServerPublicKeyEnc,
@@ -208,11 +220,6 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		NodeId:        options.G.Cluster.NodeId,
 	}
 	connack.HasServerVersion = hasServerVersion
-	// -------------------- user online --------------------
-	// 在线webhook
-	deviceOnlineCount := eventbus.User.ConnCountByDeviceFlag(uid, connectPacket.DeviceFlag)
-	totalOnlineCount := eventbus.User.ConnCountByUid(uid)
-	service.Webhook.Online(uid, connectPacket.DeviceFlag, conn.ConnId, deviceOnlineCount, totalOnlineCount)
 
 	return wkproto.ReasonSuccess, connack, nil
 }

@@ -87,7 +87,7 @@ func New(opts *Options) *Server {
 		opts.ConfigOptions.Transport = newNodeTransport(s)
 	}
 
-	s.onMessagePool, _ = ants.NewPool(10000, ants.WithNonblocking(true), ants.WithPanicHandler(func(err interface{}) {
+	s.onMessagePool, _ = ants.NewPool(40000, ants.WithNonblocking(true), ants.WithPanicHandler(func(err interface{}) {
 		s.Foucs("message pool panic", zap.Stack("stack"), zap.Any("err", err))
 	}))
 
@@ -131,6 +131,7 @@ func New(opts *Options) *Server {
 		slot.WithNode(s.cfgServer),
 		slot.WithOnApply(s.slotApplyLogs),
 		slot.WithOnSaveConfig(s.onSaveSlotConfig),
+		slot.WithRPC(s.rpcClient),
 	))
 
 	// 频道分布式服务
@@ -143,6 +144,7 @@ func New(opts *Options) *Server {
 		channel.WithDB(s.db),
 		channel.WithRPC(s.rpcClient),
 		channel.WithOnSaveConfig(s.onSaveChannelConfig),
+		channel.WithDestoryAfterIdleTick(opts.ConfigOptions.ChannelDestoryAfterIdleTick),
 	))
 
 	// 分布式存储
@@ -316,13 +318,13 @@ func (s *Server) addOrUpdateNodes(nodeMap map[uint64]string) {
 			if existNode.addr == addr {
 				continue
 			} else {
-				existNode.stop()
+				existNode.Stop()
 				s.nodeManager.removeNode(existNode.id)
 			}
 		}
 
-		n := newNode(nodeId, s.serverUid(s.opts.ConfigOptions.NodeId), addr, s.opts)
-		n.start()
+		n := NewImprovedNode(nodeId, s.serverUid(s.opts.ConfigOptions.NodeId), addr, s.opts)
+		n.Start()
 		s.nodeManager.addNode(n)
 	}
 }

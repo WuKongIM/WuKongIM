@@ -31,12 +31,16 @@ type Options struct {
 
 	// OnSaveConfig 保存频道配置
 	OnSaveConfig func(channelId string, channelType uint8, cfg types.Config) error
+
+	//DestoryAfterIdleTick 频道空闲多久后销毁（如果TickInterval是100ms, 那么10 * 60 * 30这个值是30分钟，具体时间根据TickInterval来定）
+	DestoryAfterIdleTick int
 }
 
 func NewOptions(opt ...Option) *Options {
 	opts := &Options{
 		GroupCount:             100,
 		ChannelMaxReplicaCount: 3,
+		DestoryAfterIdleTick:   10 * 60 * 30, // 大约30分钟，如果raft的TickInterval是100ms
 	}
 	for _, o := range opt {
 		o(opts)
@@ -103,5 +107,11 @@ func WithRPC(rpc icluster.RPC) Option {
 func WithOnSaveConfig(fn func(channelId string, channelType uint8, cfg types.Config) error) Option {
 	return func(o *Options) {
 		o.OnSaveConfig = fn
+	}
+}
+
+func WithDestoryAfterIdleTick(tick int) Option {
+	return func(o *Options) {
+		o.DestoryAfterIdleTick = tick
 	}
 }

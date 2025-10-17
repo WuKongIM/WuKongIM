@@ -283,19 +283,15 @@ func (u *user) updateToken(c *wkhttp.Context) {
 
 	u.Debug("req", zap.Any("req", req))
 
-	ban := false // 是否被封禁
-
-	channelInfo, err := service.Store.GetChannel(req.UID, wkproto.ChannelTypePerson)
+	// 使用共享权限服务检查频道权限
+	reasonCode, err := service.Permission.HasPermissionForChannel(req.UID, wkproto.ChannelTypePerson)
 	if err != nil {
-		u.Error("获取频道信息失败！", zap.Error(err), zap.String("uid", req.UID))
+		u.Error("检查频道权限失败！", zap.Error(err), zap.String("uid", req.UID))
 		c.ResponseError(err)
 		return
 	}
-	if !wkdb.IsEmptyChannelInfo(channelInfo) {
-		ban = channelInfo.Ban
-	}
-	if ban {
-		c.ResponseStatus(int(wkproto.ReasonBan))
+	if reasonCode != wkproto.ReasonSuccess {
+		c.ResponseStatus(int(reasonCode))
 		return
 	}
 

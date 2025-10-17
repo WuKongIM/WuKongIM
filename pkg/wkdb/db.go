@@ -31,6 +31,10 @@ type DB interface {
 	TesterDB
 	// 插件
 	PluginDB
+
+	GetPerformanceMonitor() *PerformanceMonitor
+
+	GetCacheManager() *CacheManager
 }
 
 type MessageDB interface {
@@ -224,7 +228,7 @@ type ConversationDB interface {
 	GetConversationsByType(uid string, tp ConversationType) ([]Conversation, error)
 
 	// GetLastConversations 获取指定用户的最近会话
-	GetLastConversations(uid string, tp ConversationType, updatedAt uint64, limit int) ([]Conversation, error)
+	GetLastConversations(uid string, tp ConversationType, updatedAt uint64, excludeChannelTypes []uint8, limit int) ([]Conversation, error)
 
 	// GetConversation 获取指定用户的指定会话
 	GetConversation(uid string, channelId string, channelType uint8) (Conversation, error)
@@ -242,6 +246,9 @@ type ConversationDB interface {
 
 	// UpdateConversationDeletedAtMsgSeq 更新最近会话的已删除的消息序号位置
 	UpdateConversationDeletedAtMsgSeq(uid string, channelId string, channelType uint8, deletedAtMsgSeq uint64) error
+
+	// GetLastConversationIds 获取最近会话ID列表（用于测试重复ID问题）
+	GetLastConversationIds(uid string, updatedAt uint64, limit int) ([]uint64, error)
 }
 
 type ChannelClusterConfigDB interface {
@@ -384,6 +391,14 @@ type StreamDB interface {
 
 	// GetStreams 获取流
 	GetStreams(streamNo string) ([]*Stream, error)
+
+	// SaveStreamV2 保存流V2
+	SaveStreamV2(stream *StreamV2) error
+	// GetStreamV2 获取流V2
+	GetStreamV2(clientMsgNo string) (*StreamV2, error)
+
+	// GetStreamV2s 获取流V2
+	GetStreamV2s(clientMsgNos []string) ([]*StreamV2, error)
 }
 
 type TesterDB interface {

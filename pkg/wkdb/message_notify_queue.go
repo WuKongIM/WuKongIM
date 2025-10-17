@@ -113,6 +113,9 @@ func (wk *wukongDB) parseMessageOfNotifyQueue(iter *pebble.Iterator, limit int) 
 			continue
 		}
 		msgs = append(msgs, msg)
+		if limit > 0 && len(msgs) >= limit {
+			return msgs, errorKeys, nil
+		}
 	}
 
 	return msgs, errorKeys, nil
