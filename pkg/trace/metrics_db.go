@@ -82,10 +82,11 @@ type dbMetrics struct {
 	messageAppendBatchCount atomic.Int64
 
 	// ========== 基础 相关 ==========
-	setCount         atomic.Int64
-	deleteCount      atomic.Int64
-	deleteRangeCount atomic.Int64
-	commitCount      atomic.Int64
+	setCount            atomic.Int64
+	deleteCount         atomic.Int64
+	deleteRangeCount    atomic.Int64
+	deleteRangeMessages atomic.Int64
+	commitCount         atomic.Int64
 
 	// ========== 数据操作 ==========
 	// 白名单
@@ -364,14 +365,16 @@ func NewDBMetrics() *dbMetrics {
 	setCount := NewInt64ObservableCounter("db_set_count")
 	deleteCount := NewInt64ObservableCounter("db_delete_count")
 	deleteRangeCount := NewInt64ObservableCounter("db_deleterange_count")
+	deleteRangeMessages := NewInt64ObservableCounter("db_deleterange_messages_count")
 	commitCount := NewInt64ObservableCounter("db_commit_count")
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(setCount, m.setCount.Load())
 		obs.ObserveInt64(deleteCount, m.deleteCount.Load())
 		obs.ObserveInt64(deleteRangeCount, m.deleteRangeCount.Load())
+		obs.ObserveInt64(deleteRangeMessages, m.deleteRangeMessages.Load())
 		obs.ObserveInt64(commitCount, m.commitCount.Load())
 		return nil
-	}, setCount, deleteCount, deleteRangeCount, commitCount)
+	}, setCount, deleteCount, deleteRangeCount, deleteRangeMessages, commitCount)
 
 	// ========== 数据操作 ==========
 	// 白名单
@@ -796,6 +799,10 @@ func (m *dbMetrics) DeleteAdd(v int64) {
 }
 func (m *dbMetrics) DeleteRangeAdd(v int64) {
 	m.deleteRangeCount.Add(v)
+}
+
+func (m *dbMetrics) DeleteRangeMessagesAdd(v int64) {
+	m.deleteRangeMessages.Add(v)
 }
 
 func (m *dbMetrics) CommitAdd(v int64) {

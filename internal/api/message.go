@@ -64,15 +64,23 @@ func (m *message) route(r *wkhttp.WKHttp) {
 
 // 范围删除消息请求
 type deleteRangeMessagesReq struct {
+	LoginUID    string `json:"login_uid"`     // 登录用户UID（个人频道必填）
 	ChannelID   string `json:"channel_id"`    // 频道ID
 	ChannelType uint8  `json:"channel_type"`  // 频道类型
-	StartMsgSeq uint64 `json:"start_msg_seq"` // 开始消息序号
-	EndMsgSeq   uint64 `json:"end_msg_seq"`   // 结束消息序号
+	StartMsgSeq uint64 `json:"start_msg_seq"` // 开始消息序号（包含）
+	EndMsgSeq   uint64 `json:"end_msg_seq"`   // 结束消息序号（包含）
 }
 
 func (req *deleteRangeMessagesReq) Check() error {
-	if req.ChannelID == "" {
+	if strings.TrimSpace(req.ChannelID) == "" {
 		return errors.New("频道ID不能为空！")
+	}
+	if req.ChannelType == 0 {
+		return errors.New("频道类型不能为0！")
+	}
+	// 个人频道必须提供 login_uid
+	if req.ChannelType == wkproto.ChannelTypePerson && strings.TrimSpace(req.LoginUID) == "" {
+		return errors.New("个人频道必须提供login_uid！")
 	}
 	if req.StartMsgSeq == 0 {
 		return errors.New("开始消息序号不能为0！")
@@ -87,6 +95,8 @@ func (req *deleteRangeMessagesReq) Check() error {
 }
 
 // deleteRangeMessages 范围删除消息
+// 该接口会删除指定频道中指定序号范围的消息（包含起始和结束序号）
+// 在集群模式下，删除操作会通过 Raft 日志同步到所有副本节点
 func (m *message) deleteRangeMessages(c *wkhttp.Context) {
 	var req deleteRangeMessagesReq
 	bodyBytes, err := BindJSON(&req, c)
@@ -100,30 +110,79 @@ func (m *message) deleteRangeMessages(c *wkhttp.Context) {
 		return
 	}
 
-	// 在集群环境中，需要确保请求发送到正确的节点
+	// 处理个人频道的 fake channel ID
+	fakeChannelID := req.ChannelID
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelID = options.GetFakeChannelIDWith(req.LoginUID, req.ChannelID)
+	}
+
+	// 记录请求信息
+	m.Info("收到范围删除消息请求",
+		zap.String("channelID", req.ChannelID),
+		zap.String("fakeChannelID", fakeChannelID),
+		zap.Uint8("channelType", req.ChannelType),
+		zap.Uint64("startMsgSeq", req.StartMsgSeq),
+		zap.Uint64("endMsgSeq", req.EndMsgSeq),
+		zap.String("loginUID", req.LoginUID))
+
+	// 在集群环境中，需要确保请求发送到正确的频道领导节点
 	if options.G.ClusterOn() {
-		leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelID, req.ChannelType)
+		// 使用 LeaderOfChannel 而不是 SlotLeaderOfChannel
+		// 因为消息是存储在频道级别，需要路由到频道的领导节点
+		leaderInfo, err := service.Cluster.LeaderOfChannel(fakeChannelID, req.ChannelType)
 		if err != nil {
-			m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+			// 如果频道配置不存在，可能是空频道，直接返回成功
+			if errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
+				m.Warn("频道配置不存在，可能是空频道",
+					zap.String("channelID", req.ChannelID),
+					zap.String("fakeChannelID", fakeChannelID),
+					zap.Uint8("channelType", req.ChannelType))
+				c.ResponseOK()
+				return
+			}
+			m.Error("获取频道领导节点失败！",
+				zap.Error(err),
+				zap.String("channelID", req.ChannelID),
+				zap.String("fakeChannelID", fakeChannelID),
+				zap.Uint8("channelType", req.ChannelType))
 			c.ResponseError(errors.New("获取频道所在节点失败！"))
 			return
 		}
 		leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
 
 		if !leaderIsSelf {
-			m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+			m.Debug("转发删除请求到频道领导节点",
+				zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)),
+				zap.Uint64("leaderNodeId", leaderInfo.Id),
+				zap.String("fakeChannelID", fakeChannelID))
 			c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
 			return
 		}
 	}
 
 	// 调用存储层删除消息
-	err = service.Store.DeleteRangeMessages(req.ChannelID, req.ChannelType, req.StartMsgSeq, req.EndMsgSeq)
+	// 底层会通过 Raft 日志（ProposeUntilApplied）同步到所有副本节点
+	err = service.Store.DeleteRangeMessages(fakeChannelID, req.ChannelType, req.StartMsgSeq, req.EndMsgSeq)
 	if err != nil {
-		m.Error("范围删除消息失败！", zap.Error(err))
+		m.Error("范围删除消息失败！",
+			zap.Error(err),
+			zap.String("channelID", req.ChannelID),
+			zap.String("fakeChannelID", fakeChannelID),
+			zap.Uint8("channelType", req.ChannelType),
+			zap.Uint64("startMsgSeq", req.StartMsgSeq),
+			zap.Uint64("endMsgSeq", req.EndMsgSeq))
 		c.ResponseError(err)
 		return
 	}
+
+	// 删除成功，记录详细信息
+	m.Info("范围删除消息成功",
+		zap.String("channelID", req.ChannelID),
+		zap.String("fakeChannelID", fakeChannelID),
+		zap.Uint8("channelType", req.ChannelType),
+		zap.Uint64("startMsgSeq", req.StartMsgSeq),
+		zap.Uint64("endMsgSeq", req.EndMsgSeq),
+		zap.Uint64("deletedCount", req.EndMsgSeq-req.StartMsgSeq+1))
 
 	c.ResponseOK()
 }
