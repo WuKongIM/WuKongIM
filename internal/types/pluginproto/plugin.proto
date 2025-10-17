@@ -50,6 +50,15 @@ message StartupResp {
     bytes config = 5;
 }
 
+message Conn {
+    // 用户uid
+    string uid  = 1; 
+    int64 connId = 2; // 连接id
+    string deviceId = 3; // 设备id
+    uint32 deviceFlag = 4; // 设备标志
+    uint32 deviceLevel = 5; // 设备等级
+}
+
 // 发送包
 message SendPacket {
     // 发送者
@@ -60,6 +69,10 @@ message SendPacket {
     uint32 channelType = 3;  
     // 消息内容
     bytes payload = 4;
+    // 错误原因（默认为成功）
+    uint32 reason = 5; 
+    // 发送者的连接
+    Conn conn = 6; // 发送者的连接
 }
 
 // 接收包

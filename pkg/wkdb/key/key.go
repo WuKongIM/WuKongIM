@@ -1077,3 +1077,28 @@ func ParsePluginUserSecondIndexKey(key []byte) (columnValue uint64, id uint64, e
 	return
 
 }
+
+// ---------------------- TableStreamV2 ----------------------
+
+func NewStreamV2ColumnKey(clientMsgNo string, columnName [2]byte) []byte {
+	key := make([]byte, TableStreamV2.Size)
+	key[0] = TableStreamV2.Id[0]
+	key[1] = TableStreamV2.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], HashWithString(clientMsgNo))
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
+func ParseStreamV2ColumnKey(key []byte) (messageId int64, columnName [2]byte, err error) {
+	if len(key) != TableStreamV2.Size {
+		err = fmt.Errorf("streamV2: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	messageId = int64(binary.BigEndian.Uint64(key[4:]))
+	columnName[0] = key[12]
+	columnName[1] = key[13]
+	return
+}

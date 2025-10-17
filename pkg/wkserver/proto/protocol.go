@@ -28,13 +28,14 @@ import (
 
 type MsgType uint8 // 消息类型
 const (
-	Unknown          MsgType = iota
-	MsgTypeConnect           // connect
-	MsgTypeConnack           // connack
-	MsgTypeRequest           // request
-	MsgTypeResp              // response
-	MsgTypeHeartbeat         // heartbeat
-	MsgTypeMessage           // message
+	Unknown             MsgType = iota
+	MsgTypeConnect              // connect
+	MsgTypeConnack              // connack
+	MsgTypeRequest              // request
+	MsgTypeResp                 // response
+	MsgTypeHeartbeat            // heartbeat
+	MsgTypeMessage              // message
+	MsgTypeBatchMessage         // batch message (批量消息)
 )
 
 const (
@@ -66,6 +67,8 @@ func (m MsgType) String() string {
 		return "MsgTypeHeartbeat"
 	case MsgTypeMessage:
 		return "MsgTypeMessage"
+	case MsgTypeBatchMessage:
+		return "MsgTypeBatchMessage"
 	default:
 		return fmt.Sprintf("Unknown MsgType %d", m)
 	}

@@ -11,8 +11,7 @@ const props = defineProps<{
 }>()
 
 const contentType = props.message.content.contentType
-const streamOn = props.message.streamOn
-
+const streamOn = props.message.setting.streamOn
 
 
 </script>

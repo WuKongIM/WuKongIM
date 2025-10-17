@@ -105,7 +105,11 @@ func (s *Server) handleAuthenticatedConn(conn wknet.Conn, connCtx *eventbus.Conn
 
 	} else {
 		for len(buff) > offset {
-			frame, size, err := s.opts.Proto.DecodeFrame(buff[offset:], connCtx.ProtoVersion)
+			frameData, _ := unpacket(buff[offset:])
+			if len(frameData) == 0 {
+				break
+			}
+			frame, size, err := s.opts.Proto.DecodeFrame(frameData, connCtx.ProtoVersion)
 			if err != nil { // Decoding error on subsequent frames
 				s.Warn("Failed to decode subsequent frame", zap.Error(err), zap.String("uid", connCtx.Uid))
 				conn.Close() // Close connection on bad data
@@ -213,14 +217,20 @@ func (s *Server) handleUnauthenticatedConn(conn wknet.Conn, buff []byte, isJson 
 		reqId = connectReq.ID
 		consumedBytes = dataOffset + (len(buff) - reader.Len())
 	} else {
-		frameData, _ := unpacket(buff)
+		frameData, frameType := unpacket(buff)
 		if len(frameData) == 0 {
 			return nil, 0, nil
 		}
 
-		packet, _, decodeErr := s.opts.Proto.DecodeFrame(frameData, wkproto.LatestVersion)
+		if frameType != wkproto.CONNECT {
+			s.Warn("frameType is not CONNECT, closing connection", zap.String("frameType", frameType.String()), zap.ByteString("data", frameData))
+			conn.Close()
+			return
+		}
+
+		packet, firstFrameSize, decodeErr := s.opts.Proto.DecodeFrame(frameData, wkproto.LatestVersion)
 		if decodeErr != nil {
-			s.Warn("Failed to decode first frame, closing connection", zap.Error(decodeErr))
+			s.Warn("Failed to decode first frame, closing connection", zap.Error(decodeErr), zap.ByteString("data", frameData))
 			conn.Close()
 			return nil, 0, decodeErr
 		}
@@ -230,7 +240,7 @@ func (s *Server) handleUnauthenticatedConn(conn wknet.Conn, buff []byte, isJson 
 			return nil, 0, errors.New("decoded nil frame")
 		}
 
-		consumedBytes = dataOffset + len(frameData)
+		consumedBytes = dataOffset + firstFrameSize
 
 		if packet.GetFrameType() != wkproto.CONNECT {
 			s.Warn("First frame is not CONNECT, closing connection", zap.String("frameType", packet.GetFrameType().String()))
@@ -277,19 +287,20 @@ func (s *Server) handleUnauthenticatedConn(conn wknet.Conn, buff []byte, isJson 
 	return connCtx, consumedBytes, nil
 }
 
-func unpacket(buff []byte) ([]byte, error) {
+func unpacket(buff []byte) ([]byte, wkproto.FrameType) {
 	if len(buff) <= 0 {
-		return nil, nil
+		return nil, 0
 	}
-	offset := 0
-
+	offset := 0 // 偏移位置
+	var packetType wkproto.FrameType
 	for len(buff) > offset {
 		typeAndFlags := buff[offset]
-		packetType := wkproto.FrameType(typeAndFlags >> 4)
+		packetType = wkproto.FrameType(typeAndFlags >> 4)
 		if packetType == wkproto.PING || packetType == wkproto.PONG {
 			offset++
 			continue
 		}
+		// 解码剩余长度 reminLen 和 读取长度 readSize
 		reminLen, readSize, has := decodeLength(buff[offset+1:])
 		if !has {
 			break
@@ -304,10 +315,10 @@ func unpacket(buff []byte) ([]byte, error) {
 	}
 
 	if offset > 0 {
-		return buff[:offset], nil
+		return buff[:offset], packetType
 	}
 
-	return nil, nil
+	return nil, packetType
 }
 
 func decodeLength(data []byte) (int, int, bool) {

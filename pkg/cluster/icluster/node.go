@@ -12,4 +12,6 @@ type Node interface {
 
 	// Slots 获取所有槽位
 	Slots() []*types.Slot
+	// Slot 获取指定槽位
+	Slot(id uint32) *types.Slot
 }

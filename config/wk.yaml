@@ -16,7 +16,7 @@ external: # 公网配置
 #  tcpAddr: "" #  默认自动获取， 节点的TCP地址 对外公开，APP端长连接通讯  格式： ip:port  
 #  wsAddr: "" # 默认自动获取， 节点的wsAdd地址 对外公开 WEB端长连接通讯 格式： ws://ip:port  （支持域名配置）
 #  wssAddr: "" # 对外的wssAddr地址，也就是客户端真正连接的地址 格式：wss://ip:port （支持域名配置）
-#  monitorAddr: "" # 默认自动获取， 节点的monitor地址 对外公开 监控服务 格式： ip:port
+#  managerAddr: "" # 默认自动获取， 节点的manager地址 对外公开 监控服务 格式： ip:port
 #  apiUrl: "" # 默认自动获取， 节点的http地址 对外公开 http api 格式： http://ip:port
 #wssConfig:
 #  certFile: "" # wss证书文件路径
@@ -26,9 +26,9 @@ external: # 公网配置
 #  level: 0 # 日志级别 0:未配置,将根据mode属性判断 1:debug 2:info 3:warn 4:error
 #  dir: "./logs" # 日志目录
 #  lineNum: false # 是否打印行号
-#monitor: 
-#  on: true # 是否开启监控
-#  addr: "0.0.0.0:5300" # 监控监听地址 默认为 0.0.0.0:5300
+#manager: 
+#  on: true # 是否开启管理后台
+#  addr: "0.0.0.0:5300" # 管理后台监听地址 默认为 0.0.0.0:5300
 demo: 
  on: true # 是否开启demo
  addr: "0.0.0.0:5172" # demo监听地址 默认为 0.0.0.0:5172
@@ -112,3 +112,7 @@ conversation: # 最近会话配置
   # install: # 默认安装的插件列表  安装最新版本 ${os}: 当前操作系统 ${arch}: 当前操作系统架构。github地址替换https://github.com/WuKongIM/plugins
     #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-example-${os}-${arch}.wkp"
     #  - "https://gitee.com/WuKongDev/plugins/releases/download/latest/wk.plugin.ai-volcengine-${os}-${arch}.wkp"
+
+# customerService:
+#   visitorsOn: false # 是否开启访客用户访问
+#   visitorsSuffix: "____vstr" # 访客用户后缀 (带有此后缀的用户将被认为是访客用户，访客用户登录免去token验证，但是只能给访客频道发送消息)

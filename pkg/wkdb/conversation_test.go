@@ -1,6 +1,7 @@
 package wkdb_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -184,8 +185,53 @@ func TestDeleteConversation(t *testing.T) {
 // 	assert.Equal(t, conversations[1], conversations2[1])
 // }
 
-// 测试 AddOrUpdateConversations 的性能
+// 测试 GetLastConversations 批量查询优化
+func TestGetLastConversationsBatch(t *testing.T) {
+	d := newTestDB(t)
+	err := d.Open()
+	assert.NoError(t, err)
 
+	defer func() {
+		err := d.Close()
+		assert.NoError(t, err)
+	}()
+
+	uid := "test_batch_user"
+	now := time.Now()
+
+	// 创建多个会话用于测试
+	conversations := make([]wkdb.Conversation, 0, 20)
+	for i := 0; i < 20; i++ {
+		updatedAt := now.Add(time.Duration(i) * time.Minute)
+		conversations = append(conversations, wkdb.Conversation{
+			Id:           uint64(i + 1),
+			Uid:          uid,
+			ChannelId:    fmt.Sprintf("channel_%d", i),
+			ChannelType:  1,
+			Type:         wkdb.ConversationTypeChat,
+			UnreadCount:  uint32(i + 1),
+			ReadToMsgSeq: uint64(i + 1),
+			CreatedAt:    &now,
+			UpdatedAt:    &updatedAt,
+		})
+	}
+
+	// 添加会话
+	err = d.AddOrUpdateConversationsWithUser(uid, conversations)
+	assert.NoError(t, err)
+
+	// 测试批量查询
+	result, err := d.GetLastConversations(uid, wkdb.ConversationTypeChat, 0, nil, 10)
+	assert.NoError(t, err)
+	assert.LessOrEqual(t, len(result), 10)
+
+	// 验证结果按更新时间排序（最新的在前）
+	for i := 1; i < len(result); i++ {
+		assert.True(t, result[i-1].UpdatedAt.After(*result[i].UpdatedAt) || result[i-1].UpdatedAt.Equal(*result[i].UpdatedAt))
+	}
+}
+
+// 测试 AddOrUpdateConversations 的性能
 func BenchmarkAddOrUpdateConversations(b *testing.B) {
 	d := newTestDB(b)
 	err := d.Open()
@@ -225,6 +271,47 @@ func BenchmarkAddOrUpdateConversations(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		err = d.AddOrUpdateConversationsWithUser(uid, conversations)
+		assert.NoError(b, err)
+	}
+}
+
+// 测试 GetLastConversations 的性能对比
+func BenchmarkGetLastConversations(b *testing.B) {
+	d := newTestDB(b)
+	err := d.Open()
+	assert.NoError(b, err)
+
+	defer func() {
+		err := d.Close()
+		assert.NoError(b, err)
+	}()
+
+	uid := "bench_user"
+	now := time.Now()
+
+	// 创建大量会话数据
+	conversations := make([]wkdb.Conversation, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		updatedAt := now.Add(time.Duration(i) * time.Minute)
+		conversations = append(conversations, wkdb.Conversation{
+			Id:           uint64(i + 1),
+			Uid:          uid,
+			ChannelId:    fmt.Sprintf("channel_%d", i),
+			ChannelType:  1,
+			Type:         wkdb.ConversationTypeChat,
+			UnreadCount:  uint32(i + 1),
+			ReadToMsgSeq: uint64(i + 1),
+			CreatedAt:    &now,
+			UpdatedAt:    &updatedAt,
+		})
+	}
+
+	err = d.AddOrUpdateConversationsWithUser(uid, conversations)
+	assert.NoError(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := d.GetLastConversations(uid, wkdb.ConversationTypeChat, 0, nil, 20)
 		assert.NoError(b, err)
 	}
 }

@@ -37,7 +37,19 @@ func (wk *wukongDB) AddSubscribers(channelId string, channelType uint8, subscrib
 		}
 	}
 
-	return w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存：将新增的用户设置为订阅者
+	uids := make([]string, len(subscribers))
+	for i, subscriber := range subscribers {
+		uids[i] = subscriber.Uid
+	}
+	wk.permissionCache.BatchSetSubscriberExists(channelId, channelType, uids, true)
+
+	return nil
 }
 
 func (wk *wukongDB) GetSubscribers(channelId string, channelType uint8) ([]Member, error) {
@@ -112,25 +124,48 @@ func (wk *wukongDB) RemoveSubscribers(channelId string, channelType uint8, subsc
 	// 	wk.Error("RemoveSubscribers: incChannelInfoSubscriberCount failed", zap.Error(err))
 	// 	return err
 	// }
-	return w.Commit(wk.sync)
+	err = w.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存：将移除的用户设置为非订阅者
+	wk.permissionCache.BatchSetSubscriberExists(channelId, channelType, subscribers, false)
+
+	return nil
 }
 
 func (wk *wukongDB) ExistSubscriber(channelId string, channelType uint8, uid string) (bool, error) {
 
 	wk.metrics.ExistSubscriberAdd(1)
 
+	// 先从缓存获取
+	if exists, found := wk.permissionCache.GetSubscriberExists(channelId, channelType, uid); found {
+		return exists, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	uidIndexKey := key.NewSubscriberIndexKey(channelId, channelType, key.TableSubscriber.Index.Uid, key.HashWithString(uid))
 	_, closer, err := wk.channelDb(channelId, channelType).Get(uidIndexKey)
 	if closer != nil {
 		defer closer.Close()
 	}
+
+	var exists bool
 	if err != nil {
 		if err == pebble.ErrNotFound {
-			return false, nil
+			exists = false
+		} else {
+			return false, err
 		}
-		return false, err
+	} else {
+		exists = true
 	}
-	return true, nil
+
+	// 将结果写入缓存
+	wk.permissionCache.SetSubscriberExists(channelId, channelType, uid, exists)
+
+	return exists, nil
 }
 
 func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) error {
@@ -178,7 +213,15 @@ func (wk *wukongDB) RemoveAllSubscriber(channelId string, channelType uint8) err
 	// 	return err
 	// }
 
-	return batch.Commit(wk.sync)
+	err = batch.Commit(wk.sync)
+	if err != nil {
+		return err
+	}
+
+	// 清空该频道的所有订阅者缓存
+	wk.permissionCache.InvalidateChannelByType(PermissionTypeSubscriber, channelId, channelType)
+
+	return nil
 }
 
 func (wk *wukongDB) removeSubscriber(channelId string, channelType uint8, member Member, w pebble.Writer) error {

@@ -1,7 +1,6 @@
 package options
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -15,16 +14,30 @@ func GetFakeChannelIDWith(fromUID, toUID string) string {
 	fromUIDHash := wkutil.HashCrc32(fromUID)
 	toUIDHash := wkutil.HashCrc32(toUID)
 	if fromUIDHash > toUIDHash {
-		return fmt.Sprintf("%s@%s", fromUID, toUID)
+		return fromUID + "@" + toUID
 	}
 	if fromUID != toUID && fromUIDHash == toUIDHash {
 		wklog.Warn("生成的fromUID的Hash和toUID的Hash是相同的！！", zap.Uint32("fromUIDHash", fromUIDHash), zap.Uint32("toUIDHash", toUIDHash), zap.String("fromUID", fromUID), zap.String("toUID", toUID))
 
 	}
-	return fmt.Sprintf("%s@%s", toUID, fromUID)
+	return toUID + "@" + fromUID
 }
 
 func GetFromUIDAndToUIDWith(channelId string) (string, string) {
+	channelIDs := strings.Split(channelId, "@")
+	if len(channelIDs) == 2 {
+		return channelIDs[0], channelIDs[1]
+	}
+	return "", ""
+}
+
+// GetAgentChannelIDWith 获取Agent频道ID
+func GetAgentChannelIDWith(uid, agentUID string) string {
+	return uid + "@" + agentUID
+}
+
+// GetUidAndAgentUIDWith 获取用户ID和AgentID
+func GetUidAndAgentUIDWith(channelId string) (uid string, agentUID string) {
 	channelIDs := strings.Split(channelId, "@")
 	if len(channelIDs) == 2 {
 		return channelIDs[0], channelIDs[1]

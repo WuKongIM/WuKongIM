@@ -62,6 +62,10 @@ func (s *Server) handleCmd(cmd *CMD) error {
 		return s.handleNodeJoining(cmd)
 	case CMDTypeNodeJoined: // 节点加入完成
 		return s.handleNodeJoined(cmd)
+	case CMDTypeSlotMigrate: // 槽迁移
+		return s.handleSlotMigrate(cmd)
+	case CMDTypeSlotStatusChange: // 槽状态改变
+		return s.handleSlotStatusChange(cmd)
 	}
 	return nil
 }
@@ -147,5 +151,25 @@ func (s *Server) handleNodeJoined(cmd *CMD) error {
 	}
 	s.config.updateNodeJoined(nodeId, slots)
 	s.switchConfig(s.config)
+	return nil
+}
+
+func (s *Server) handleSlotMigrate(cmd *CMD) error {
+	slotId, fromNodeId, toNodeId, err := DecodeMigrateSlot(cmd.Data)
+	if err != nil {
+		s.Error("decode migrate slot err", zap.Error(err))
+		return err
+	}
+	s.config.updateSlotMigrate(slotId, fromNodeId, toNodeId)
+	return nil
+}
+
+func (s *Server) handleSlotStatusChange(cmd *CMD) error {
+	slotId, status, err := DecodeSlotStatusChange(cmd.Data)
+	if err != nil {
+		s.Error("decode slot status change err", zap.Error(err))
+		return err
+	}
+	s.config.updateSlotStatus(slotId, status)
 	return nil
 }

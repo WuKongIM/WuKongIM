@@ -1,6 +1,7 @@
 ##  悟空IM（让信息传递更简单）
 
-10(2015)年积累，沉淀出来的高性能通用通讯服务，支持即时通讯，站内/系统消息，消息中台，物联网通讯，音视频信令，直播弹幕，客服系统，AI通讯，即时社区等场景。
+10(2015-2025)年积累，沉淀出来的高性能通用通讯服务，支持即时通讯，站内/系统消息，消息中台，物联网通讯，音视频信令，直播弹幕，客服系统，AI通讯，即时社区等场景。
+
 
 `本项目需要在go1.20.0或以上环境编译`
 
@@ -222,6 +223,42 @@ go run main.go --config  ./exampleconfig/cluster3.yaml
 后台管理系统： http://127.0.0.1:5300/web
 
 聊天演示地址：http://127.0.0.1:5172/chatdemo
+
+### 客户端使用
+
+```typescript
+import { WKIM, WKIMChannelType, WKIMEvent } from 'easyjssdk';
+
+// 1. 初始化
+const im = WKIM.init("ws://your-wukongim-server.com:5200", {
+    uid: "your_user_id", // 当前连接的用户uid
+    token: "your_auth_token" // 当前连接用户的认证token（默认不需要认证，如果开启了需要填写）
+});
+
+// 2. 监听
+im.on(WKIMEvent.Connect, () => {
+    console.log("IM Connected!");
+    //  发送消息
+    const result = await im.send("target user",WKIMChannelType.Person,{ type: "text", content: "Hello from EasyJSSDK!" })
+});
+
+// 监听接收消息事件
+im.on(WKIMEvent.Message, (message) => {
+    console.log("Received:", message);
+});
+
+// 监听错误事件
+im.on(WKIMEvent.Error, (error) => {
+    console.error("IM Error:", error);
+});
+
+// 3. 连接
+await im.connect()
+
+
+
+
+```
 
 
 正式部署

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 
+	"github.com/WuKongIM/WuKongIM/internal/common"
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -124,6 +125,10 @@ func (e *EventPool) AllConnCount() int {
 
 func (e *EventPool) RemoveConn(conn *eventbus.Conn) {
 	e.pollerByUid(conn.Uid).removeConn(conn)
+	realConn := service.ConnManager.GetConn(conn.ConnId)
+	if realConn != nil {
+		service.ConnManager.RemoveConn(realConn)
+	}
 }
 
 func (e *EventPool) WriteLocalData(conn *eventbus.Conn, data []byte) error {
@@ -133,13 +138,16 @@ func (e *EventPool) WriteLocalData(conn *eventbus.Conn, data []byte) error {
 		return fmt.Errorf("writeLocalData: conn not local node")
 	}
 
-	realConn := service.ConnManager.GetConn(conn.ConnId)
+	realConn, err := common.CheckConnValidAndGetRealConn(conn)
+	if err != nil {
+		e.Warn("WriteLocalData: conn invaild", zap.Error(err), zap.String("uid", conn.Uid), zap.String("deviceId", conn.DeviceId), zap.Int64("connId", conn.ConnId))
+		return err
+	}
 	if realConn == nil {
 		e.Error("writeLocalData: conn not exist", zap.String("uid", conn.Uid), zap.Uint64("nodeId", conn.NodeId), zap.Int64("connId", conn.ConnId))
 		return fmt.Errorf("writeLocalData: conn not exist")
 	}
 	wsConn, wsok := realConn.(wknet.IWSConn) // websocket连接
-	var err error
 	if wsok {
 		if conn.IsJsonRpc {
 			err = wsConn.WriteServerText(data)

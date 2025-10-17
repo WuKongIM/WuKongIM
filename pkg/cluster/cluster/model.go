@@ -421,59 +421,37 @@ func (c *ChannelProposeReq) Unmarshal(data []byte) error {
 // 	return nil
 // }
 
-type SlotProposeReq struct {
+type slotProposeReq struct {
 	SlotId uint32
-	Logs   []rafttype.Log // 数据
+	reqs   rafttypes.ProposeReqSet
 }
 
-func (s *SlotProposeReq) Marshal() ([]byte, error) {
+func (s *slotProposeReq) encode() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
+
 	enc.WriteUint32(s.SlotId)
-	enc.WriteUint32(uint32(len(s.Logs)))
-	for _, lg := range s.Logs {
-		logData, err := lg.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		enc.WriteUint32(uint32(len(logData)))
-		enc.WriteBytes(logData)
+
+	data, err := s.reqs.Marshal()
+	if err != nil {
+		return nil, err
 	}
+	enc.WriteBytes(data)
 
 	return enc.Bytes(), nil
 }
 
-func (s *SlotProposeReq) Unmarshal(data []byte) error {
+func (ch *slotProposeReq) decode(data []byte) error {
 	dec := wkproto.NewDecoder(data)
 	var err error
-	if s.SlotId, err = dec.Uint32(); err != nil {
+	if ch.SlotId, err = dec.Uint32(); err != nil {
 		return err
 	}
-	var dataLen uint32
-	if dataLen, err = dec.Uint32(); err != nil {
+	data, err = dec.BinaryAll()
+	if err != nil {
 		return err
 	}
-	if dataLen > 0 {
-		s.Logs = make([]rafttype.Log, dataLen)
-		for i := uint32(0); i < dataLen; i++ {
-			logDataLen, err := dec.Uint32()
-			if err != nil {
-				return err
-			}
-			data, err := dec.Bytes(int(logDataLen))
-			if err != nil {
-				return err
-			}
-
-			log := &rafttype.Log{}
-			if err = log.Unmarshal(data); err != nil {
-				return err
-			}
-			s.Logs[i] = *log
-		}
-	}
-
-	return nil
+	return ch.reqs.Unmarshal(data)
 }
 
 // type SlotProposeResp struct {
@@ -1741,10 +1719,12 @@ type channelStatusResp struct {
 
 type channelReplicaResp struct {
 	ReplicaId   uint64 `json:"replica_id"`    // 副本节点id
+	LeaderId    uint64 `json:"leader_id"`     // 当前副本认为的领导点id
 	Running     int    `json:"running"`       // 是否运行中
 	LastMsgSeq  uint64 `json:"last_msg_seq"`  // 最新消息序号
 	LastMsgTime uint64 `json:"last_msg_time"` // 最新消息时间
 	Term        uint32 `json:"term"`          // 任期
+	ConfVersion uint64 `json:"conf_version"`  // 配置版本
 }
 
 type channelReplicaDetailResp struct {
@@ -1753,6 +1733,25 @@ type channelReplicaDetailResp struct {
 	RoleFormat        string `json:"role_format"`          // 角色格式化
 	LastMsgTimeFormat string `json:"last_msg_time_format"` // 最新消息时间格式化
 
+}
+
+type slotReplicaResp struct {
+	ReplicaId      uint64 `json:"replica_id"`      // 副本节点id
+	LeaderId       uint64 `json:"leader_id"`       // 当前副本认为的领导点id
+	Running        int    `json:"running"`         // 是否运行中
+	LastLogSeq     uint64 `json:"last_log_seq"`    // 最新消息序号
+	LastLogTime    uint64 `json:"last_log_time"`   // 最新消息时间
+	Term           uint32 `json:"term"`            // 任期
+	AppliedIndex   uint64 `json:"applied_index"`   // 已应用的日志下标
+	CommittedIndex uint64 `json:"committed_index"` // 已提交的日志下标
+	ConfVersion    uint64 `json:"conf_version"`    // 配置版本
+}
+
+type slotReplicaDetailResp struct {
+	slotReplicaResp
+	Role              int    `json:"role"`                 // 角色
+	RoleFormat        string `json:"role_format"`          // 角色格式化
+	LastLogTimeFormat string `json:"last_log_time_format"` // 最新日志时间格式化
 }
 
 type ping struct {

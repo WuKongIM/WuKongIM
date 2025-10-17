@@ -38,13 +38,56 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	event.Track.Record(track.PositionUserOnSend)
 
 	conn := event.Conn
-
+	from := conn.Uid
 	sendPacket := event.Frame.(*wkproto.SendPacket)
 	channelId := sendPacket.ChannelID
 	channelType := sendPacket.ChannelType
 	fakeChannelId := channelId
-	if channelType == wkproto.ChannelTypePerson {
+	if channelType == wkproto.ChannelTypePerson { // 个人频道
 		fakeChannelId = options.GetFakeChannelIDWith(channelId, conn.Uid)
+	} else if channelType == wkproto.ChannelTypeAgent { // agent 频道
+		fakeChannelId = options.GetAgentChannelIDWith(conn.Uid, channelId)
+	}
+
+	if options.G.Logger.TraceOn {
+		h.Trace("用户发送消息...",
+			"onSend",
+			zap.Int64("messageId", event.MessageId),
+			zap.Uint64("messageSeq", event.MessageSeq),
+			zap.String("from", from),
+			zap.String("deviceId", event.Conn.DeviceId),
+			zap.String("deviceFlag", event.Conn.DeviceFlag.String()),
+			zap.Int64("connId", event.Conn.ConnId),
+			zap.String("channelId", fakeChannelId),
+			zap.Uint8("channelType", channelType),
+		)
+	}
+
+	reasonCode, err := h.checkGlobalSendPermission(from)
+	if err != nil {
+		h.Error("checkGlobalSendPermission error", zap.Error(err), zap.String("uid", from))
+		sendack := &wkproto.SendackPacket{
+			Framer:      sendPacket.Framer,
+			MessageID:   event.MessageId,
+			ClientSeq:   sendPacket.ClientSeq,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			ReasonCode:  wkproto.ReasonSystemError,
+		}
+		eventbus.User.ConnWrite(event.ReqId, conn, sendack)
+		return
+	}
+
+	if reasonCode != wkproto.ReasonSuccess {
+		h.Warn("checkGlobalSendPermission failed", zap.String("uid", from), zap.String("reasonCode", reasonCode.String()))
+		sendack := &wkproto.SendackPacket{
+			Framer:      sendPacket.Framer,
+			MessageID:   event.MessageId,
+			ClientSeq:   sendPacket.ClientSeq,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			ReasonCode:  reasonCode,
+		}
+		eventbus.User.ConnWrite(event.ReqId, conn, sendack)
+		return
 	}
 
 	// 根据配置决定是否解密消息
@@ -69,7 +112,19 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 	}
 
 	// 调用插件
-	h.pluginInvokeSend(sendPacket, event)
+	reason, err := h.pluginInvokeSend(sendPacket, event)
+	if err != nil || reason != wkproto.ReasonSuccess {
+		h.Info("handleOnSend: plugin return error reason", zap.Error(err), zap.Uint8("reason", uint8(reason)), zap.String("uid", conn.Uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		sendack := &wkproto.SendackPacket{
+			Framer:      sendPacket.Framer,
+			MessageID:   event.MessageId,
+			ClientSeq:   sendPacket.ClientSeq,
+			ClientMsgNo: sendPacket.ClientMsgNo,
+			ReasonCode:  reason,
+		}
+		eventbus.User.ConnWrite(event.ReqId, conn, sendack)
+		return
+	}
 
 	trace.GlobalTrace.Metrics.App().SendPacketCountAdd(1)
 	trace.GlobalTrace.Metrics.App().SendPacketBytesAdd(sendPacket.GetFrameSize())
@@ -87,29 +142,62 @@ func (h *Handler) handleOnSend(event *eventbus.Event) {
 
 }
 
-func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventbus.Event) {
+// 检查发送者全局权限
+func (h *Handler) checkGlobalSendPermission(from string) (wkproto.ReasonCode, error) {
+	channelInfo, err := service.Store.GetChannel(from, wkproto.ChannelTypePerson)
+	if err != nil {
+		return wkproto.ReasonSystemError, err
+	}
+	if channelInfo.SendBan {
+		return wkproto.ReasonSendBan, nil
+	}
+	return wkproto.ReasonSuccess, nil
+}
+
+func (h *Handler) pluginInvokeSend(sendPacket *wkproto.SendPacket, event *eventbus.Event) (wkproto.ReasonCode, error) {
 	plugins := service.PluginManager.Plugins(types.PluginSend)
+
+	if len(plugins) == 0 {
+		return wkproto.ReasonSuccess, nil
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Plugin.Timeout)
 	defer cancel()
+
+	conn := &pluginproto.Conn{
+		Uid:         event.Conn.Uid,
+		ConnId:      event.Conn.ConnId,
+		DeviceId:    event.Conn.DeviceId,
+		DeviceFlag:  uint32(event.Conn.DeviceFlag),
+		DeviceLevel: uint32(event.Conn.DeviceLevel),
+	}
 
 	pluginPacket := &pluginproto.SendPacket{
 		FromUid:     event.Conn.Uid,
 		ChannelId:   sendPacket.ChannelID,
 		ChannelType: uint32(sendPacket.ChannelType),
 		Payload:     sendPacket.Payload,
+		Conn:        conn,
+		Reason:      uint32(wkproto.ReasonSuccess),
 	}
 	for _, pg := range plugins {
 		result, err := pg.Send(timeoutCtx, pluginPacket)
 		if err != nil {
 			h.Error("pluginInvokeSend: Failed to invoke plugin！", zap.Error(err), zap.String("plugin", pg.GetNo()))
+			return wkproto.ReasonSystemError, err
+		}
+		if result == nil {
 			continue
+		}
+		if result.Reason == 0 {
+			result.Reason = uint32(wkproto.ReasonSuccess)
 		}
 		pluginPacket = result
 	}
 
 	// 使用插件处理后的消息
 	sendPacket.Payload = pluginPacket.Payload
+	return wkproto.ReasonCode(pluginPacket.Reason), nil
 }
 
 // decode payload

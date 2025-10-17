@@ -171,11 +171,15 @@ func (s *Server) slotInfos(slotIds []uint32) ([]SlotInfo, error) {
 		if st == nil {
 			continue
 		}
-		lastLogIndex, lastTerm := st.LastLogIndexAndTerm()
+		lastLog, err := s.slotServer.LastLog(slotId)
+		if err != nil {
+			s.Error("get slot last log error", zap.Error(err))
+			continue
+		}
 		slotInfos = append(slotInfos, SlotInfo{
 			SlotId:   slotId,
-			LogIndex: lastLogIndex,
-			LogTerm:  lastTerm,
+			LogIndex: lastLog.Index,
+			LogTerm:  lastLog.Term,
 			Term:     st.LastTerm(),
 		})
 	}

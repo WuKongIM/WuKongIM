@@ -17,13 +17,12 @@ import (
 
 type channelHandler struct {
 	wklog.Log
-	channelId   string
-	channelType uint8
-	channelKey  string
-	leaderId    uint64 // 频道领导节点Id
-	nodeVersion uint64 // 节点版本,当前节点分布式配置的版本
-	lastActive  uint64 // 最后活跃时间
-	pending     struct {
+	channelId    string
+	channelType  uint8
+	channelKey   string
+	slotLeaderId uint64 // 频道的槽领导节点Id
+	lastActive   uint64 // 最后活跃时间
+	pending      struct {
 		sync.RWMutex
 		eventQueue *eventbus.EventQueue
 	}
@@ -109,7 +108,7 @@ func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
 		ctx.ChannelType = c.channelType
 		ctx.EventType = eventType
 		ctx.Events = events
-		ctx.LeaderId = c.leaderId
+		ctx.SlotLeaderId = c.slotLeaderId
 		// 处理事件
 		c.handler.OnEvent(ctx)
 
@@ -127,21 +126,16 @@ func (c *channelHandler) advanceEvents(events []*eventbus.Event) {
 func (c *channelHandler) checkAndUpdateLeaderIdChange() error {
 	c.pending.Lock()
 	defer c.pending.Unlock()
-	nodeVersion := service.Cluster.NodeVersion()
-	if c.nodeVersion >= nodeVersion {
-		return nil
-	}
-	leaderId, err := service.Cluster.LeaderIdOfChannel(c.channelId, c.channelType)
+	slotLeaderId, err := service.Cluster.SlotLeaderIdOfChannel(c.channelId, c.channelType)
 	if err != nil {
 		c.Error("checkLeaderIdChange: get leader id failed", zap.Error(err), zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return err
 	}
-	if leaderId == 0 {
+	if slotLeaderId == 0 {
 		c.Warn("checkLeaderIdChange: leader id is 0", zap.String("channelId", c.channelId), zap.Uint8("channelType", c.channelType))
 		return errors.New("checkAndUpdateLeaderIdChange： leader id is 0")
 	}
-	c.nodeVersion = nodeVersion
-	c.leaderId = leaderId
+	c.slotLeaderId = slotLeaderId
 	return nil
 }
 

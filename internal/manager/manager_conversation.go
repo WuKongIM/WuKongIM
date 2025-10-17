@@ -213,6 +213,9 @@ func (c *ConversationManager) storeConversations() {
 				conversationType = wkdb.ConversationTypeCMD
 			}
 			for _, uid := range update.Uids {
+				if uid == "" || update.ChannelId == "" {
+					continue
+				}
 				createdAt := time.Now()
 				updatedAt := time.Now()
 				conversations = append(conversations, wkdb.Conversation{
