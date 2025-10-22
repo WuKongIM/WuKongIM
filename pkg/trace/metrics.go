@@ -264,6 +264,12 @@ type IDBMetrics interface {
 	LeaderTermStartIndexAdd(v int64)                      // 领导者任期开始索引
 	LeaderLastTermGreaterThanAdd(v int64)                 // 领导者最后任期大于
 	DeleteLeaderTermStartIndexGreaterThanTermAdd(v int64) // 删除领导者任期开始索引大于
+
+	// message_delete_log
+	SaveDeleteLogAdd(v int64)              // 保存删除日志
+	GetDeleteLogsSinceLogIndexAdd(v int64) // 获取删除日志（按日志索引）
+	GetDeleteLogsByChannelAdd(v int64)     // 获取删除日志（按频道）
+	CleanupOldDeleteLogsAdd(v int64)       // 清理旧删除日志
 }
 
 // AppMetrics 应用监控

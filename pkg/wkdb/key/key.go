@@ -1102,3 +1102,94 @@ func ParseStreamV2ColumnKey(key []byte) (messageId int64, columnName [2]byte, er
 	columnName[1] = key[13]
 	return
 }
+
+// ---------------------- MessageDeleteLog ----------------------
+
+// NewMessageDeleteLogColumnKey 创建消息删除日志列键
+func NewMessageDeleteLogColumnKey(primaryKey uint64, columnName [2]byte) []byte {
+	key := make([]byte, TableMessageDeleteLog.Size)
+	key[0] = TableMessageDeleteLog.Id[0]
+	key[1] = TableMessageDeleteLog.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], primaryKey)
+	key[12] = columnName[0]
+	key[13] = columnName[1]
+	return key
+}
+
+// NewMessageDeleteLogPrimaryKey 创建消息删除日志主键
+func NewMessageDeleteLogPrimaryKey(primaryKey uint64) []byte {
+	key := make([]byte, 12)
+	key[0] = TableMessageDeleteLog.Id[0]
+	key[1] = TableMessageDeleteLog.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], primaryKey)
+	return key
+}
+
+// NewMessageDeleteLogSecondIndex 创建消息删除日志二级索引（按频道）
+func NewMessageDeleteLogSecondIndex(channelId string, channelType uint8, primaryKey uint64) []byte {
+	key := make([]byte, TableMessageDeleteLog.SecondIndexSize)
+	channelHash := channelToNum(channelId, channelType)
+	key[0] = TableMessageDeleteLog.Id[0]
+	key[1] = TableMessageDeleteLog.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = TableMessageDeleteLog.SecondIndex.ChannelIdAndType[0]
+	key[5] = TableMessageDeleteLog.SecondIndex.ChannelIdAndType[1]
+	binary.BigEndian.PutUint64(key[6:], channelHash)
+	binary.BigEndian.PutUint64(key[14:], primaryKey)
+	return key
+}
+
+// NewMessageDeleteLogSecondIndexByTime 创建消息删除日志二级索引（按时间）
+func NewMessageDeleteLogSecondIndexByTime(deletedAt uint64, primaryKey uint64) []byte {
+	key := make([]byte, TableMessageDeleteLog.SecondIndexSize)
+	key[0] = TableMessageDeleteLog.Id[0]
+	key[1] = TableMessageDeleteLog.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = TableMessageDeleteLog.SecondIndex.DeletedAt[0]
+	key[5] = TableMessageDeleteLog.SecondIndex.DeletedAt[1]
+	binary.BigEndian.PutUint64(key[6:], deletedAt)
+	binary.BigEndian.PutUint64(key[14:], primaryKey)
+	return key
+}
+
+// NewMessageDeleteLogChannelSecondIndexPrefix 创建按频道查询的二级索引前缀
+func NewMessageDeleteLogChannelSecondIndexPrefix(channelId string, channelType uint8) []byte {
+	key := make([]byte, 14)
+	channelHash := channelToNum(channelId, channelType)
+	key[0] = TableMessageDeleteLog.Id[0]
+	key[1] = TableMessageDeleteLog.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = TableMessageDeleteLog.SecondIndex.ChannelIdAndType[0]
+	key[5] = TableMessageDeleteLog.SecondIndex.ChannelIdAndType[1]
+	binary.BigEndian.PutUint64(key[6:], channelHash)
+	return key
+}
+
+// NewMessageDeleteLogTimeSecondIndexPrefix 创建按时间查询的二级索引前缀
+func NewMessageDeleteLogTimeSecondIndexPrefix() []byte {
+	key := make([]byte, 6)
+	key[0] = TableMessageDeleteLog.Id[0]
+	key[1] = TableMessageDeleteLog.Id[1]
+	key[2] = dataTypeSecondIndex
+	key[3] = 0
+	key[4] = TableMessageDeleteLog.SecondIndex.DeletedAt[0]
+	key[5] = TableMessageDeleteLog.SecondIndex.DeletedAt[1]
+	return key
+}
+
+// ParseMessageDeleteLogPrimaryKey 解析消息删除日志主键
+func ParseMessageDeleteLogPrimaryKey(key []byte) (primaryKey uint64, err error) {
+	if len(key) < 12 {
+		err = fmt.Errorf("messageDeleteLog: invalid key length, keyLen: %d", len(key))
+		return
+	}
+	primaryKey = binary.BigEndian.Uint64(key[4:])
+	return
+}

@@ -31,6 +31,8 @@ type DB interface {
 	TesterDB
 	// 插件
 	PluginDB
+	// 消息删除日志
+	MessageDeleteLogDB
 
 	GetPerformanceMonitor() *PerformanceMonitor
 

@@ -196,6 +196,7 @@ func (p *PebbleShardLogStorage) AppendLogs(shardNo string, logs []types.Log, ter
 }
 
 // TruncateLogTo 截断日志
+// 应用 Raft 日志保留策略，确保不会过早删除日志导致故障节点无法恢复
 func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) error {
 	if index == 0 {
 		return errors.New("index must be greater than 0")
@@ -221,13 +222,84 @@ func (p *PebbleShardLogStorage) TruncateLogTo(shardNo string, index uint64) erro
 		return nil
 	}
 
-	keyData := key.NewLogKey(shardNo, index+1)
+	// 应用日志保留策略
+	minKeepIndex := p.calculateMinKeepIndex(shardNo, appliedIdx)
+
+	// 调整截断索引，不能小于最小保留索引
+	truncateIndex := index
+	if truncateIndex < minKeepIndex {
+		truncateIndex = minKeepIndex
+		p.Debug("调整截断索引以满足保留策略",
+			zap.String("shardNo", shardNo),
+			zap.Uint64("originalIndex", index),
+			zap.Uint64("adjustedIndex", truncateIndex),
+			zap.Uint64("minKeepIndex", minKeepIndex),
+			zap.Uint64("appliedIdx", appliedIdx))
+	}
+
+	if truncateIndex >= lastIndex {
+		p.Debug("截断索引超过最后日志索引，跳过截断",
+			zap.String("shardNo", shardNo),
+			zap.Uint64("truncateIndex", truncateIndex),
+			zap.Uint64("lastIndex", lastIndex))
+		return nil
+	}
+
+	keyData := key.NewLogKey(shardNo, truncateIndex+1)
 	maxKeyData := key.NewLogKey(shardNo, math.MaxUint64)
 	err = p.shardDB(shardNo).DeleteRange(keyData, maxKeyData, p.sync)
 	if err != nil {
 		return err
 	}
+
+	p.Info("完成日志截断",
+		zap.String("shardNo", shardNo),
+		zap.Uint64("originalIndex", index),
+		zap.Uint64("actualTruncateIndex", truncateIndex),
+		zap.Uint64("appliedIdx", appliedIdx),
+		zap.Uint64("minKeepIndex", minKeepIndex),
+		zap.Uint64("keptLogsCount", truncateIndex-minKeepIndex))
+
 	return nil
+}
+
+// calculateMinKeepIndex 计算最小保留日志索引
+func (p *PebbleShardLogStorage) calculateMinKeepIndex(shardNo string, appliedIdx uint64) uint64 {
+	config := p.s.opts.RaftLogRetention
+
+	// 计算基于日志数量的最小索引
+	var minIndexByCount uint64
+	if config.KeepAppliedLogs > 0 && appliedIdx > config.KeepAppliedLogs {
+		minIndexByCount = appliedIdx - config.KeepAppliedLogs
+	}
+
+	// 计算基于时间的最小索引（这里简化处理，实际可能需要读取日志的时间戳）
+	// TODO: 如果需要基于时间的保留策略，需要在日志中记录时间戳并实现时间过滤逻辑
+	var minIndexByTime uint64 = 0
+	// if config.KeepHours > 0 {
+	// 	cutoffTime := time.Now().Add(-time.Duration(config.KeepHours) * time.Hour)
+	// 	minIndexByTime = p.findFirstLogIndexAfterTime(shardNo, cutoffTime)
+	// }
+
+	// 取两者中较小的（保留更多日志）
+	minIndex := minIndexByCount
+	if minIndexByTime > 0 && minIndexByTime < minIndex {
+		minIndex = minIndexByTime
+	}
+
+	// 确保不低于最小保留数量
+	if config.MinKeepLogs > 0 {
+		minIndexByMinKeep := uint64(0)
+		if appliedIdx > config.MinKeepLogs {
+			minIndexByMinKeep = appliedIdx - config.MinKeepLogs
+		}
+		// 最小保留数量优先级最高，如果 minIndex 更小（保留更少），则使用 minIndexByMinKeep
+		if minIndex > minIndexByMinKeep {
+			minIndex = minIndexByMinKeep
+		}
+	}
+
+	return minIndex
 }
 
 // func (p *PebbleShardLogStorage) realLastIndex(shardNo string) (uint64, error) {

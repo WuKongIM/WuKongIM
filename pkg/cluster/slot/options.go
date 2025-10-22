@@ -26,12 +26,31 @@ type Options struct {
 
 	// OnSaveConfig 保存槽配置
 	OnSaveConfig func(slotId uint32, cfg types.Config) error
+
+	// Raft 日志保留策略
+	RaftLogRetention RaftLogRetentionConfig
+}
+
+// RaftLogRetentionConfig Raft 日志保留配置
+type RaftLogRetentionConfig struct {
+	// KeepAppliedLogs 保留最近 N 条已应用的日志（0 表示不限制）
+	KeepAppliedLogs uint64
+	// KeepHours 保留最近 N 小时的日志（0 表示不限制）
+	KeepHours int
+	// MinKeepLogs 最小保留日志数，即使超过时间也保留
+	MinKeepLogs uint64
 }
 
 func NewOptions(opt ...Option) *Options {
 	defaultOpts := &Options{
 		DataDir:        "clusterdata",
 		SlotDbShardNum: 8,
+		// 默认保留 10万 条已应用的日志，或保留 48 小时，最少保留 1 万条
+		RaftLogRetention: RaftLogRetentionConfig{
+			KeepAppliedLogs: 100000,
+			KeepHours:       48,
+			MinKeepLogs:     10000,
+		},
 	}
 	for _, o := range opt {
 		o(defaultOpts)
@@ -92,5 +111,11 @@ func WithOnSaveConfig(onSaveConfig func(slotId uint32, cfg types.Config) error) 
 func WithRPC(rpc icluster.RPC) Option {
 	return func(o *Options) {
 		o.RPC = rpc
+	}
+}
+
+func WithRaftLogRetention(config RaftLogRetentionConfig) Option {
+	return func(o *Options) {
+		o.RaftLogRetention = config
 	}
 }

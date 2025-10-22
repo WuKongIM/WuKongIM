@@ -189,6 +189,12 @@ type dbMetrics struct {
 	leaderTermStartIndex                      atomic.Int64
 	leaderLastTermGreaterThan                 atomic.Int64
 	deleteLeaderTermStartIndexGreaterThanTerm atomic.Int64
+
+	// message_delete_log
+	saveDeleteLog              atomic.Int64
+	getDeleteLogsSinceLogIndex atomic.Int64
+	getDeleteLogsByChannel     atomic.Int64
+	cleanupOldDeleteLogs       atomic.Int64
 }
 
 func NewDBMetrics() *dbMetrics {
@@ -603,6 +609,20 @@ func NewDBMetrics() *dbMetrics {
 		obs.ObserveInt64(deleteLeaderTermStartIndexGreaterThanTerm, m.deleteLeaderTermStartIndexGreaterThanTerm.Load())
 		return nil
 	}, setLeaderTermStartIndex, leaderLastTerm, leaderTermStartIndex, leaderLastTermGreaterThan, deleteLeaderTermStartIndexGreaterThanTerm)
+
+	// message_delete_log
+	saveDeleteLog := NewInt64ObservableCounter("db_save_delete_log_count")
+	getDeleteLogsSinceLogIndex := NewInt64ObservableCounter("db_get_delete_logs_since_log_index_count")
+	getDeleteLogsByChannel := NewInt64ObservableCounter("db_get_delete_logs_by_channel_count")
+	cleanupOldDeleteLogs := NewInt64ObservableCounter("db_cleanup_old_delete_logs_count")
+
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(saveDeleteLog, m.saveDeleteLog.Load())
+		obs.ObserveInt64(getDeleteLogsSinceLogIndex, m.getDeleteLogsSinceLogIndex.Load())
+		obs.ObserveInt64(getDeleteLogsByChannel, m.getDeleteLogsByChannel.Load())
+		obs.ObserveInt64(cleanupOldDeleteLogs, m.cleanupOldDeleteLogs.Load())
+		return nil
+	}, saveDeleteLog, getDeleteLogsSinceLogIndex, getDeleteLogsByChannel, cleanupOldDeleteLogs)
 
 	return m
 }
@@ -1067,4 +1087,18 @@ func (m *dbMetrics) LeaderLastTermGreaterThanAdd(v int64) {
 }
 func (m *dbMetrics) DeleteLeaderTermStartIndexGreaterThanTermAdd(v int64) {
 	m.deleteLeaderTermStartIndexGreaterThanTerm.Add(v)
+}
+
+// message_delete_log
+func (m *dbMetrics) SaveDeleteLogAdd(v int64) {
+	m.saveDeleteLog.Add(v)
+}
+func (m *dbMetrics) GetDeleteLogsSinceLogIndexAdd(v int64) {
+	m.getDeleteLogsSinceLogIndex.Add(v)
+}
+func (m *dbMetrics) GetDeleteLogsByChannelAdd(v int64) {
+	m.getDeleteLogsByChannel.Add(v)
+}
+func (m *dbMetrics) CleanupOldDeleteLogsAdd(v int64) {
+	m.cleanupOldDeleteLogs.Add(v)
 }

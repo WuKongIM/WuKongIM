@@ -942,3 +942,50 @@ var TableStreamV2 = struct {
 		Payload:     [2]byte{0x17, 0x08},
 	},
 }
+
+// ======================== TableMessageDeleteLog ========================
+// 消息删除日志表，用于记录消息范围删除操作
+// 当节点故障恢复后，可以通过此表补偿执行缺失的删除操作
+var TableMessageDeleteLog = struct {
+	Id              [2]byte
+	Size            int
+	SecondIndexSize int
+	Column          struct {
+		ChannelId   [2]byte // 频道ID
+		ChannelType [2]byte // 频道类型
+		StartSeq    [2]byte // 删除起始序号
+		EndSeq      [2]byte // 删除结束序号
+		LogIndex    [2]byte // Raft 日志索引
+		DeletedAt   [2]byte // 删除时间戳
+	}
+	SecondIndex struct {
+		ChannelIdAndType [2]byte // 频道复合索引 (channelId + channelType)
+		DeletedAt        [2]byte // 时间索引，用于清理
+	}
+}{
+	Id:              [2]byte{0x18, 0x01},
+	Size:            2 + 2 + 8 + 2,     // tableId + dataType + primaryKey + columnKey
+	SecondIndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + secondIndexName + columnValue + primaryKey
+	Column: struct {
+		ChannelId   [2]byte
+		ChannelType [2]byte
+		StartSeq    [2]byte
+		EndSeq      [2]byte
+		LogIndex    [2]byte
+		DeletedAt   [2]byte
+	}{
+		ChannelId:   [2]byte{0x18, 0x01},
+		ChannelType: [2]byte{0x18, 0x02},
+		StartSeq:    [2]byte{0x18, 0x03},
+		EndSeq:      [2]byte{0x18, 0x04},
+		LogIndex:    [2]byte{0x18, 0x05},
+		DeletedAt:   [2]byte{0x18, 0x06},
+	},
+	SecondIndex: struct {
+		ChannelIdAndType [2]byte
+		DeletedAt        [2]byte
+	}{
+		ChannelIdAndType: [2]byte{0x18, 0x01},
+		DeletedAt:        [2]byte{0x18, 0x02},
+	},
+}
