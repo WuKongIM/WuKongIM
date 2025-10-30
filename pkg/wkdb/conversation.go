@@ -115,7 +115,16 @@ func (wk *wukongDB) AddOrUpdateConversationsBatchIfNotExist(conversations []Conv
 		batchs = append(batchs, batch)
 	}
 
-	return Commits(batchs)
+	err := Commits(batchs)
+	if err != nil {
+		wk.Error("commits failed", zap.Error(err))
+		return err
+	}
+
+	// 智能更新缓存中的会话数据
+	wk.conversationCache.UpdateConversationsInCache(conversations)
+
+	return nil
 }
 
 func (wk *wukongDB) AddOrUpdateConversationsWithUser(uid string, conversations []Conversation) error {
