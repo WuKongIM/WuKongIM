@@ -121,7 +121,7 @@ func (wk *wukongDB) AddOrUpdateConversationsBatchIfNotExist(conversations []Conv
 		return err
 	}
 
-	// 智能更新缓存中的会话数据
+	// 更新缓存中的会话数据
 	wk.conversationCache.UpdateConversationsInCache(conversations)
 
 	return nil
