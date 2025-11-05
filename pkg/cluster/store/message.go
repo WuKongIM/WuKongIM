@@ -3,9 +3,44 @@ package store
 import (
 	"context"
 
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
+	"go.uber.org/zap"
+
 	"github.com/WuKongIM/WuKongIM/pkg/raft/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
+
+// DeleteRangeMessages 范围删除消息
+func (s *Store) DeleteRangeMessages(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) error {
+	data := EncodeCMDDeleteRangeMessages(channelId, channelType, startMessageSeq, endMessageSeq)
+	cmd := NewCMD(CMDDeleteRangeMessages, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+	slotId := s.opts.Slot.GetSlotId(channelId)
+	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
+	if err != nil {
+		s.Error("DeleteRangeMessages failed", zap.Error(err),
+			zap.String("channelId", channelId),
+			zap.Uint8("channelType", channelType),
+			zap.Uint64("startMessageSeq", startMessageSeq),
+			zap.Uint64("endMessageSeq", endMessageSeq))
+		return err
+	}
+	return nil
+}
+
+// EncodeCMDDeleteRangeMessages 编码删除范围消息命令
+func EncodeCMDDeleteRangeMessages(channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64) []byte {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(channelId)
+	enc.WriteUint8(channelType)
+	enc.WriteUint64(startMessageSeq)
+	enc.WriteUint64(endMessageSeq)
+	return enc.Bytes()
+}
 
 // AppendMessages 追加消息
 func (s *Store) AppendMessages(ctx context.Context, channelId string, channelType uint8, msgs []wkdb.Message) (types.ProposeRespSet, error) {

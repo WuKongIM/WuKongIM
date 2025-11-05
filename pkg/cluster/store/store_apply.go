@@ -166,6 +166,8 @@ func (s *Store) applyCMD(cmd *CMD, logIndex uint64) error {
 		return s.handleUpdateConversationDeletedAtMsgSeq(cmd)
 	case CMDSaveStreamV2: // 保存流(v2)
 		return s.handleSaveStreamV2(cmd)
+	case CMDDeleteRangeMessages:
+		return s.handleDeleteRangeMessages(cmd, logIndex)
 	default:
 		s.Error("unknown cmd type", zap.String("cmdType", cmd.CmdType.String()))
 		return nil
@@ -630,6 +632,51 @@ func (s *Store) handleSaveStreamV2(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.SaveStreamV2(stream)
+}
+
+// HandleDeleteRangeMessages 处理范围删除消息
+func (s *Store) handleDeleteRangeMessages(cmd *CMD, logIndex uint64) error {
+	channelId, channelType, startMessageSeq, endMessageSeq, err := cmd.DecodeCMDDeleteRangeMessages()
+	if err != nil {
+		return err
+	}
+
+	// 执行删除
+	err = s.wdb.DeleteRangeMessages(channelId, channelType, startMessageSeq, endMessageSeq)
+	if err != nil {
+		return err
+	}
+
+	// 记录删除操作到元数据表
+	// 这样即使 Raft 日志被截断，故障节点恢复后仍能通过删除日志补偿执行
+	deleteLog := &wkdb.MessageDeleteLog{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		StartSeq:    startMessageSeq,
+		EndSeq:      endMessageSeq,
+		LogIndex:    logIndex,
+	}
+
+	err = s.wdb.SaveDeleteLog(deleteLog)
+	if err != nil {
+		// 删除日志保存失败只记录警告，不影响主流程
+		// 因为删除操作本身已经成功
+		s.Warn("保存删除日志失败", zap.Error(err),
+			zap.String("channelId", channelId),
+			zap.Uint8("channelType", channelType),
+			zap.Uint64("startSeq", startMessageSeq),
+			zap.Uint64("endSeq", endMessageSeq),
+			zap.Uint64("logIndex", logIndex))
+	} else {
+		s.Debug("已保存删除日志",
+			zap.String("channelId", channelId),
+			zap.Uint8("channelType", channelType),
+			zap.Uint64("startSeq", startMessageSeq),
+			zap.Uint64("endSeq", endMessageSeq),
+			zap.Uint64("logIndex", logIndex))
+	}
+
+	return nil
 }
 
 // func (s *Store) handleAddOrUpdatePlugin(cmd *CMD) error {
