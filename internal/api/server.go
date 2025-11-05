@@ -24,11 +24,11 @@ type Server struct {
 func New() *Server {
 	s := &Server{
 		Log:         wklog.NewWKLog("ApiServer"),
-		requset:     newRequset(),
 		timingWheel: timingwheel.NewTimingWheel(options.G.TimingWheelTick, options.G.TimingWheelSize),
 		uptime:      time.Now(),
 		client:      ingress.NewClient(),
 	}
+	s.requset = newRequset(s)
 	s.apiServer = newApiServer(s)
 	s.migrateTask = NewMigrateTask(s) // 迁移任务
 	s.managerServer = newManagerServer(s)

@@ -128,7 +128,9 @@ func parseProxyProto(buff []byte) (remoteAddr net.Addr, size int, err error) {
 		if bytes.Equal(signature[:5], SIGV1) {
 			return parseProxyProtoV1(buff)
 		}
-
+		if dataLen <= 12 {
+			return nil, 0, ErrNoProxyProtocol
+		}
 		signature = buff[:12]
 		if bytes.Equal(signature[:12], SIGV2) {
 			fmt.Println("proxyproto: proxy protocol v2")
