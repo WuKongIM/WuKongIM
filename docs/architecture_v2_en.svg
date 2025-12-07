@@ -52,19 +52,19 @@
 
   <!-- Layers -->
   <rect x="10" y="10" width="880" height="100" class="layer-box"/>
-  <text x="450" y="35" class="text-layer-title">客户端层 (Clients)</text>
+  <text x="450" y="35" class="text-layer-title">Client Layer</text>
 
   <rect x="10" y="120" width="880" height="100" class="layer-box"/>
-  <text x="450" y="145" class="text-layer-title">网关层 (Gateway)</text>
+  <text x="450" y="145" class="text-layer-title">Gateway Layer</text>
 
   <rect x="10" y="230" width="880" height="180" class="layer-box"/>
-  <text x="450" y="255" class="text-layer-title">核心服务层 (Core Server)</text>
+  <text x="450" y="255" class="text-layer-title">Core Service Layer</text>
 
   <rect x="10" y="420" width="880" height="150" class="layer-box"/>
-  <text x="450" y="445" class="text-layer-title">集群管理层 (Cluster Management)</text>
+  <text x="450" y="445" class="text-layer-title">Cluster Management Layer</text>
 
   <rect x="10" y="580" width="880" height="100" class="layer-box"/>
-  <text x="450" y="605" class="text-layer-title">存储层 (Storage)</text>
+  <text x="450" y="605" class="text-layer-title">Storage Layer</text>
 
   <!-- Components -->
   <!-- Clients -->
@@ -81,67 +81,67 @@
   <text x="435" y="85" class="text-label">(Flutter/etc)</text>
 
   <rect x="540" y="50" width="110" height="50" class="component-box client-box"/>
-  <text x="595" y="70" class="text-title">后台管理</text>
+  <text x="595" y="70" class="text-title">Admin Console</text>
   <text x="595" y="85" class="text-label">(Web UI)</text>
 
   <rect x="700" y="50" width="140" height="50" class="component-box client-box"/>
-  <text x="770" y="70" class="text-title">第三方系统集成</text>
+  <text x="770" y="70" class="text-title">3rd Party Systems</text>
   <text x="770" y="85" class="text-label">(Webhook, Plugin)</text>
 
 
   <!-- Gateway -->
   <rect x="300" y="160" width="300" height="50" class="component-box gateway-box"/>
-  <text x="450" y="180" class="text-title">连接处理 (wknet)</text>
+  <text x="450" y="180" class="text-title">Connection Handler (wknet)</text>
   <text x="450" y="195" class="text-label">(TCP / WebSocket / WSS)</text>
 
   <!-- Core Server -->
   <rect x="300" y="280" width="300" height="110" class="component-box core-box"/>
-  <text x="450" y="295" class="text-title">核心逻辑 (internal/server)</text>
-  <text x="450" y="315" class="text-label">认证/授权</text>
-  <text x="450" y="330" class="text-label">消息路由</text>
-  <text x="450" y="345" class="text-label">用户/频道管理</text>
-  <text x="450" y="360" class="text-label">连接管理</text>
-  <text x="450" y="375" class="text-label">指令处理</text>
+  <text x="450" y="295" class="text-title">Core Logic (internal/server)</text>
+  <text x="450" y="315" class="text-label">Auth/Permission</text>
+  <text x="450" y="330" class="text-label">Message Routing</text>
+  <text x="450" y="345" class="text-label">User/Channel Mgmt</text>
+  <text x="450" y="360" class="text-label">Connection Mgmt</text>
+  <text x="450" y="375" class="text-label">Command Handling</text>
 
   <rect x="680" y="280" width="140" height="60" class="component-box core-box"/>
-  <text x="750" y="300" class="text-title">API 服务</text>
+  <text x="750" y="300" class="text-title">API Service</text>
   <text x="750" y="315" class="text-label">(internal/api)</text>
   <text x="750" y="330" class="text-label">(HTTP)</text>
 
   <rect x="680" y="350" width="140" height="60" class="component-box core-box"/>
-  <text x="750" y="370" class="text-title">外部集成</text>
+  <text x="750" y="370" class="text-title">External Integration</text>
   <text x="750" y="385" class="text-label">(Webhook)</text>
-  <text x="750" y="400" class="text-label">插件系统 (Plugin)</text>
+  <text x="750" y="400" class="text-label">Plugin System (Plugin)</text>
 
   <rect x="80" y="315" width="140" height="40" class="component-box core-box"/>
-  <text x="150" y="335" class="text-title">事件总线</text>
+  <text x="150" y="335" class="text-title">Event Bus</text>
   <text x="150" y="350" class="text-label">(EventBus)</text>
 
 
   <!-- Cluster -->
   <rect x="50" y="470" width="220" height="80" class="component-box cluster-box"/>
-  <text x="160" y="485" class="text-title">节点管理 (Node)</text>
-  <text x="160" y="505" class="text-label">集群配置 (Raft)</text>
-  <text x="160" y="520" class="text-label">节点发现/状态</text>
-  <text x="160" y="535" class="text-label">事件同步</text>
+  <text x="160" y="485" class="text-title">Node Mgmt (Node)</text>
+  <text x="160" y="505" class="text-label">Cluster Config (Raft)</text>
+  <text x="160" y="520" class="text-label">Discovery/Status</text>
+  <text x="160" y="535" class="text-label">Event Sync</text>
 
   <rect x="340" y="470" width="220" height="80" class="component-box cluster-box"/>
-  <text x="450" y="485" class="text-title">槽管理 (Slot)</text>
-  <text x="450" y="505" class="text-label">元数据 (Raft)</text>
-  <text x="450" y="520" class="text-label">(频道配置, 用户数据)</text>
-  <text x="450" y="535" class="text-label">Slot 分配/迁移</text>
+  <text x="450" y="485" class="text-title">Slot Mgmt (Slot)</text>
+  <text x="450" y="505" class="text-label">Metadata (Raft)</text>
+  <text x="450" y="520" class="text-label">(Channel Config, User Data)</text>
+  <text x="450" y="535" class="text-label">Slot Alloc/Migrate</text>
 
   <rect x="630" y="470" width="220" height="80" class="component-box cluster-box"/>
-  <text x="740" y="485" class="text-title">频道管理 (Channel)</text>
-  <text x="740" y="505" class="text-label">消息数据 (Raft)</text>
-  <text x="740" y="520" class="text-label">消息存储/同步</text>
-  <text x="740" y="535" class="text-label">频道元数据</text>
+  <text x="740" y="485" class="text-title">Channel Mgmt (Channel)</text>
+  <text x="740" y="505" class="text-label">Msg Data (Raft)</text>
+  <text x="740" y="520" class="text-label">Msg Store/Sync</text>
+  <text x="740" y="535" class="text-label">Channel Metadata</text>
 
   <!-- Storage -->
   <rect x="300" y="620" width="300" height="60" class="component-box storage-box"/>
-  <text x="450" y="640" class="text-title">分布式存储 (wkdb)</text>
-  <text x="450" y="655" class="text-label">基于 PebbleDB</text>
-  <text x="450" y="670" class="text-label">(消息, 用户, Raft日志)</text>
+  <text x="450" y="640" class="text-title">Distributed Storage (wkdb)</text>
+  <text x="450" y="655" class="text-label">Based on PebbleDB</text>
+  <text x="450" y="670" class="text-label">(Msg, User, Raft Log)</text>
 
   <!-- Arrows -->
   <!-- Client -> Gateway -->
@@ -153,6 +153,7 @@
   <path d="M 595 100 L 750 280" class="arrow"/>
   
   <!-- Third Party -> External Integrations -->
+  <!-- Route around API server to the right -->
   <path d="M 770 100 L 840 220 L 840 380 L 820 380" class="arrow" fill="none"/>
 
   <!-- API Server -> Core Server -->
@@ -183,3 +184,4 @@
   <line x1="740" y1="550" x2="600" y2="620" class="arrow"/> <!-- Channel -> Storage -->
 
 </svg>
+
