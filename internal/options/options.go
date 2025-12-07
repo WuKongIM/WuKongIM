@@ -466,7 +466,7 @@ func New(op ...Option) *Options {
 		}{
 			MaxMemorySize:          100 * 1024 * 1024, // 100MB
 			MaxStreams:             10000,             // 10k concurrent streams
-			MaxChunksPerStream:     1000,              // 1k chunks per stream
+			MaxChunksPerStream:     10000,             // 10k chunks per stream
 			StreamTimeout:          30 * time.Minute,  // 30 minutes timeout
 			ChunkInactivityTimeout: 30 * time.Second,  // 30 seconds inactivity timeout
 			CleanupInterval:        5 * time.Minute,   // 5 minutes cleanup interval
