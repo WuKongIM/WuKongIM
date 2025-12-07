@@ -105,6 +105,8 @@ const (
 	CMDUpdateConversationDeletedAtMsgSeq
 	// 保存流(v2)
 	CMDSaveStreamV2
+	// 删除范围消息
+	CMDDeleteRangeMessages
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -201,6 +203,8 @@ func (c CMDType) String() string {
 		return "CMDUpdateConversationDeletedAtMsgSeq"
 	case CMDSaveStreamV2:
 		return "CMDSaveStreamV2"
+	case CMDDeleteRangeMessages:
+		return "CMDDeleteRangeMessages"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -1595,6 +1599,27 @@ func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelI
 	return
 }
 
+// DecodeCMDDeleteRangeMessages 解码删除范围消息命令
+func (c *CMD) DecodeCMDDeleteRangeMessages() (channelId string, channelType uint8, startMessageSeq, endMessageSeq uint64, err error) {
+	dec := wkproto.NewDecoder(c.Data)
+	channelId, err = dec.String()
+	if err != nil {
+		return
+	}
+	channelType, err = dec.Uint8()
+	if err != nil {
+		return
+	}
+	startMessageSeq, err = dec.Uint64()
+	if err != nil {
+		return
+	}
+	endMessageSeq, err = dec.Uint64()
+	if err != nil {
+		return
+	}
+	return
+}
 func EncodeCMDStreamV2(stream *wkdb.StreamV2) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
