@@ -1,187 +1,163 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="900" height="700" viewBox="0 0 900 700" style="background-color: #f8f9fa;">
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="720" viewBox="0 0 920 720" style="background-color: #ffffff;">
   <defs>
-    <marker id="arrowhead-beautified" markerWidth="5" markerHeight="3.5" refX="0" refY="1.75" orient="auto">
-      <polygon points="0 0, 5 1.75, 0 3.5" fill="#adb5bd" />
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 L2,3 Z" fill="#94a3b8" />
     </marker>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
-      <feOffset dx="2" dy="2" result="offsetblur"/>
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.5"/>
-      </feComponentTransfer>
-      <feMerge>
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <marker id="arrow-dash" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto">
+      <path d="M0,0 L6,2.5 L0,5 L1.5,2.5 Z" fill="#cbd5e1" />
+    </marker>
+    
+    <filter id="soft-shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#64748b" flood-opacity="0.08"/>
     </filter>
-    <linearGradient id="client-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#e7f5ff;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#d0ebff;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="gateway-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#fff9db;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#fff3bf;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="core-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#f1f3f5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#e9ecef;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="cluster-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#e6fcf5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#d3f9e8;stop-opacity:1" />
-    </linearGradient>
-     <linearGradient id="storage-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#e3fafc;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#c5f6fa;stop-opacity:1" />
-    </linearGradient>
+
     <style>
-      .layer-box { fill: #ffffff; stroke: #dee2e6; stroke-width: 1; rx: 8; ry: 8; filter: url(#shadow); }
-      .component-box { stroke: #adb5bd; stroke-width: 1; rx: 6; ry: 6; }
-      .client-box { fill: url(#client-gradient); stroke: #a5d8ff; }
-      .gateway-box { fill: url(#gateway-gradient); stroke: #ffe066; }
-      .core-box { fill: url(#core-gradient); stroke: #ced4da; }
-      .cluster-box { fill: url(#cluster-gradient); stroke: #8ce9bf; }
-      .storage-box { fill: url(#storage-gradient); stroke: #66d9e8; }
-      .text-label { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; text-anchor: middle; fill: #495057; }
-      .text-title { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; fill: #212529; }
-      .text-layer-title { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #343a40; }
-      .arrow { stroke: #adb5bd; stroke-width: 1.2; marker-end: url(#arrowhead-beautified); fill: none; }
-      .dashed-arrow { stroke: #adb5bd; stroke-width: 1.0; stroke-dasharray: 4 2; marker-end: url(#arrowhead-beautified); fill: none; }
+      .layer { fill: #fafbfc; stroke: #e2e8f0; stroke-width: 1; rx: 12; filter: url(#soft-shadow); }
+      .layer-title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; font-weight: 600; fill: #64748b; text-anchor: start; letter-spacing: 0.5px; }
+      
+      .box { stroke-width: 1.5; rx: 8; }
+      .box-client { fill: #eff6ff; stroke: #93c5fd; }
+      .box-gateway { fill: #fef9c3; stroke: #fcd34d; }
+      .box-core { fill: #f1f5f9; stroke: #cbd5e1; }
+      .box-cluster { fill: #ecfdf5; stroke: #6ee7b7; }
+      .box-storage { fill: #f0fdfa; stroke: #5eead4; }
+      
+      .title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12px; font-weight: 600; fill: #1e293b; text-anchor: middle; }
+      .label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; fill: #64748b; text-anchor: middle; }
+      .sublabel { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; fill: #94a3b8; text-anchor: middle; }
+      
+      .arrow { stroke: #94a3b8; stroke-width: 1.2; marker-end: url(#arrow); fill: none; }
+      .arrow-dash { stroke: #cbd5e1; stroke-width: 1; stroke-dasharray: 4 3; marker-end: url(#arrow-dash); fill: none; }
     </style>
   </defs>
 
-  <!-- Layers -->
-  <rect x="10" y="10" width="880" height="100" class="layer-box"/>
-  <text x="450" y="35" class="text-layer-title">Client Layer</text>
-
-  <rect x="10" y="120" width="880" height="100" class="layer-box"/>
-  <text x="450" y="145" class="text-layer-title">Gateway Layer</text>
-
-  <rect x="10" y="230" width="880" height="180" class="layer-box"/>
-  <text x="450" y="255" class="text-layer-title">Core Service Layer</text>
-
-  <rect x="10" y="420" width="880" height="150" class="layer-box"/>
-  <text x="450" y="445" class="text-layer-title">Cluster Management Layer</text>
-
-  <rect x="10" y="580" width="880" height="100" class="layer-box"/>
-  <text x="450" y="605" class="text-layer-title">Storage Layer</text>
-
-  <!-- Components -->
-  <!-- Clients -->
-  <rect x="60" y="50" width="110" height="50" class="component-box client-box"/>
-  <text x="115" y="70" class="text-title">Mobile SDK</text>
-  <text x="115" y="85" class="text-label">(Android/iOS)</text>
-
-  <rect x="220" y="50" width="110" height="50" class="component-box client-box"/>
-  <text x="275" y="70" class="text-title">Web SDK</text>
-  <text x="275" y="85" class="text-label">(JS/Uniapp)</text>
-
-  <rect x="380" y="50" width="110" height="50" class="component-box client-box"/>
-  <text x="435" y="70" class="text-title">Other SDKs</text>
-  <text x="435" y="85" class="text-label">(Flutter/etc)</text>
-
-  <rect x="540" y="50" width="110" height="50" class="component-box client-box"/>
-  <text x="595" y="70" class="text-title">Admin Console</text>
-  <text x="595" y="85" class="text-label">(Web UI)</text>
-
-  <rect x="700" y="50" width="140" height="50" class="component-box client-box"/>
-  <text x="770" y="70" class="text-title">3rd Party Systems</text>
-  <text x="770" y="85" class="text-label">(Webhook, Plugin)</text>
-
-
-  <!-- Gateway -->
-  <rect x="300" y="160" width="300" height="50" class="component-box gateway-box"/>
-  <text x="450" y="180" class="text-title">Connection Handler (wknet)</text>
-  <text x="450" y="195" class="text-label">(TCP / WebSocket / WSS)</text>
-
-  <!-- Core Server -->
-  <rect x="300" y="280" width="300" height="110" class="component-box core-box"/>
-  <text x="450" y="295" class="text-title">Core Logic (internal/server)</text>
-  <text x="450" y="315" class="text-label">Auth/Permission</text>
-  <text x="450" y="330" class="text-label">Message Routing</text>
-  <text x="450" y="345" class="text-label">User/Channel Mgmt</text>
-  <text x="450" y="360" class="text-label">Connection Mgmt</text>
-  <text x="450" y="375" class="text-label">Command Handling</text>
-
-  <rect x="680" y="280" width="140" height="60" class="component-box core-box"/>
-  <text x="750" y="300" class="text-title">API Service</text>
-  <text x="750" y="315" class="text-label">(internal/api)</text>
-  <text x="750" y="330" class="text-label">(HTTP)</text>
-
-  <rect x="680" y="350" width="140" height="60" class="component-box core-box"/>
-  <text x="750" y="370" class="text-title">External Integration</text>
-  <text x="750" y="385" class="text-label">(Webhook)</text>
-  <text x="750" y="400" class="text-label">Plugin System (Plugin)</text>
-
-  <rect x="80" y="315" width="140" height="40" class="component-box core-box"/>
-  <text x="150" y="335" class="text-title">Event Bus</text>
-  <text x="150" y="350" class="text-label">(EventBus)</text>
-
-
-  <!-- Cluster -->
-  <rect x="50" y="470" width="220" height="80" class="component-box cluster-box"/>
-  <text x="160" y="485" class="text-title">Node Mgmt (Node)</text>
-  <text x="160" y="505" class="text-label">Cluster Config (Raft)</text>
-  <text x="160" y="520" class="text-label">Discovery/Status</text>
-  <text x="160" y="535" class="text-label">Event Sync</text>
-
-  <rect x="340" y="470" width="220" height="80" class="component-box cluster-box"/>
-  <text x="450" y="485" class="text-title">Slot Mgmt (Slot)</text>
-  <text x="450" y="505" class="text-label">Metadata (Raft)</text>
-  <text x="450" y="520" class="text-label">(Channel Config, User Data)</text>
-  <text x="450" y="535" class="text-label">Slot Alloc/Migrate</text>
-
-  <rect x="630" y="470" width="220" height="80" class="component-box cluster-box"/>
-  <text x="740" y="485" class="text-title">Channel Mgmt (Channel)</text>
-  <text x="740" y="505" class="text-label">Msg Data (Raft)</text>
-  <text x="740" y="520" class="text-label">Msg Store/Sync</text>
-  <text x="740" y="535" class="text-label">Channel Metadata</text>
-
-  <!-- Storage -->
-  <rect x="300" y="620" width="300" height="60" class="component-box storage-box"/>
-  <text x="450" y="640" class="text-title">Distributed Storage (wkdb)</text>
-  <text x="450" y="655" class="text-label">Based on PebbleDB</text>
-  <text x="450" y="670" class="text-label">(Msg, User, Raft Log)</text>
-
-  <!-- Arrows -->
-  <!-- Client -> Gateway -->
-  <line x1="115" y1="100" x2="380" y2="160" class="arrow"/>
-  <line x1="275" y1="100" x2="415" y2="160" class="arrow"/>
-  <line x1="435" y1="100" x2="450" y2="160" class="arrow"/>
-
-  <!-- Mgmt UI -> API Server -->
-  <path d="M 595 100 L 750 280" class="arrow"/>
+  <!-- Layer 1: Clients -->
+  <rect x="20" y="20" width="880" height="95" class="layer"/>
+  <text x="40" y="42" class="layer-title">CLIENT LAYER</text>
   
-  <!-- Third Party -> External Integrations -->
-  <!-- Route around API server to the right -->
-  <path d="M 770 100 L 840 220 L 840 380 L 820 380" class="arrow" fill="none"/>
+  <rect x="45" y="52" width="100" height="50" class="box box-client"/>
+  <text x="95" y="72" class="title">Mobile SDK</text>
+  <text x="95" y="86" class="sublabel">Android / iOS</text>
 
-  <!-- API Server -> Core Server -->
-  <line x1="680" y1="310" x2="600" y2="310" class="arrow"/>
+  <rect x="165" y="52" width="100" height="50" class="box box-client"/>
+  <text x="215" y="72" class="title">Web SDK</text>
+  <text x="215" y="86" class="sublabel">JS / Uniapp</text>
 
-  <!-- Gateway -> Core Server -->
-  <line x1="450" y1="210" x2="450" y2="280" class="arrow"/>
+  <rect x="285" y="52" width="100" height="50" class="box box-client"/>
+  <text x="335" y="72" class="title">Other SDKs</text>
+  <text x="335" y="86" class="sublabel">Flutter / etc</text>
 
-  <!-- Core Server -> EventBus -->
-  <line x1="300" y1="335" x2="220" y2="335" class="arrow"/>
+  <rect x="560" y="52" width="100" height="50" class="box box-client"/>
+  <text x="610" y="72" class="title">Admin Panel</text>
+  <text x="610" y="86" class="sublabel">Web UI</text>
 
-  <!-- Core Server -> External Integrations -->
-  <line x1="600" y1="380" x2="680" y2="380" class="arrow"/>
+  <rect x="680" y="52" width="130" height="50" class="box box-client"/>
+  <text x="745" y="72" class="title">3rd Party</text>
+  <text x="745" y="86" class="sublabel">Webhook / Plugin</text>
 
+  <!-- Layer 2: Gateway -->
+  <rect x="20" y="125" width="880" height="85" class="layer"/>
+  <text x="40" y="147" class="layer-title">GATEWAY LAYER</text>
+  
+  <rect x="280" y="155" width="360" height="45" class="box box-gateway"/>
+  <text x="460" y="175" class="title">Connection Handler (wknet)</text>
+  <text x="460" y="189" class="sublabel">TCP  /  WebSocket  /  WSS</text>
 
-  <!-- Core Server -> Cluster Layer -->
-  <line x1="300" y1="390" x2="160" y2="470" class="arrow"/> <!-- Core -> Node Mgmt -->
-  <line x1="450" y1="390" x2="450" y2="470" class="arrow"/> <!-- Core -> Slot Mgmt -->
-  <line x1="600" y1="390" x2="740" y2="470" class="arrow"/> <!-- Core -> Channel Mgmt -->
+  <!-- Layer 3: Core Server -->
+  <rect x="20" y="220" width="880" height="180" class="layer"/>
+  <text x="40" y="242" class="layer-title">CORE SERVICE LAYER</text>
 
-  <!-- Cluster Layer interactions -->
-  <line x1="270" y1="510" x2="340" y2="510" class="dashed-arrow"/> <!-- Node -> Slot -->
-  <line x1="560" y1="510" x2="630" y2="510" class="dashed-arrow"/> <!-- Slot -> Channel -->
+  <rect x="70" y="285" width="120" height="50" class="box box-core"/>
+  <text x="130" y="307" class="title">Event Bus</text>
+  <text x="130" y="321" class="sublabel">EventBus</text>
 
-  <!-- Cluster Layer -> Storage -->
-  <line x1="160" y1="550" x2="300" y2="620" class="arrow"/> <!-- Node -> Storage -->
-  <line x1="450" y1="550" x2="450" y2="620" class="arrow"/> <!-- Slot -> Storage -->
-  <line x1="740" y1="550" x2="600" y2="620" class="arrow"/> <!-- Channel -> Storage -->
+  <rect x="280" y="255" width="360" height="130" class="box box-core"/>
+  <text x="460" y="278" class="title">Core Logic (internal/server)</text>
+  <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
+    <text x="380" y="305">Auth/Permission</text>
+    <text x="540" y="305">Msg Routing</text>
+    <text x="380" y="330">User Mgmt</text>
+    <text x="540" y="330">Channel Mgmt</text>
+    <text x="380" y="355">Conn Mgmt</text>
+    <text x="540" y="355">Cmd Handling</text>
+  </g>
+
+  <rect x="720" y="255" width="120" height="55" class="box box-core"/>
+  <text x="780" y="278" class="title">API Service</text>
+  <text x="780" y="293" class="sublabel">internal/api</text>
+
+  <rect x="720" y="320" width="120" height="55" class="box box-core"/>
+  <text x="780" y="343" class="title">External</text>
+  <text x="780" y="358" class="sublabel">Webhook / Plugin</text>
+
+  <!-- Layer 4: Cluster -->
+  <rect x="20" y="410" width="880" height="140" class="layer"/>
+  <text x="40" y="432" class="layer-title">CLUSTER MANAGEMENT LAYER</text>
+
+  <rect x="50" y="450" width="250" height="85" class="box box-cluster"/>
+  <text x="175" y="472" class="title">Node Management</text>
+  <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
+    <text x="175" y="495">Cluster Config (Raft)</text>
+    <text x="175" y="512">Discovery / Status / Event Sync</text>
+  </g>
+
+  <rect x="335" y="450" width="250" height="85" class="box box-cluster"/>
+  <text x="460" y="472" class="title">Slot Management</text>
+  <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
+    <text x="460" y="495">Metadata (Raft)</text>
+    <text x="460" y="512">Channel Config / User Data / Allocation</text>
+  </g>
+
+  <rect x="620" y="450" width="250" height="85" class="box box-cluster"/>
+  <text x="745" y="472" class="title">Channel Management</text>
+  <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
+    <text x="745" y="495">Message Data (Raft)</text>
+    <text x="745" y="512">Msg Store / Sync / Channel Metadata</text>
+  </g>
+
+  <!-- Layer 5: Storage -->
+  <rect x="20" y="560" width="880" height="90" class="layer"/>
+  <text x="40" y="582" class="layer-title">STORAGE LAYER</text>
+
+  <rect x="280" y="590" width="360" height="50" class="box box-storage"/>
+  <text x="460" y="612" class="title">Distributed Storage (wkdb)</text>
+  <text x="460" y="627" class="sublabel">Based on PebbleDB  ·  Messages / Users / Raft Logs</text>
+
+  <!-- Arrows: Clients -> Gateway -->
+  <path d="M 95 102 Q 95 130 350 155" class="arrow"/>
+  <path d="M 215 102 Q 215 130 400 155" class="arrow"/>
+  <path d="M 335 102 Q 335 130 450 155" class="arrow"/>
+
+  <!-- Admin -> API -->
+  <path d="M 610 102 L 610 130 Q 610 140 700 140 L 780 140 L 780 255" class="arrow"/>
+
+  <!-- Third Party -> External -->
+  <path d="M 745 102 L 745 130 Q 745 140 850 140 L 850 347 L 840 347" class="arrow"/>
+
+  <!-- Gateway -> Core -->
+  <line x1="460" y1="200" x2="460" y2="255" class="arrow"/>
+
+  <!-- Core -> EventBus -->
+  <line x1="280" y1="310" x2="190" y2="310" class="arrow"/>
+
+  <!-- API -> Core -->
+  <line x1="720" y1="282" x2="640" y2="282" class="arrow"/>
+
+  <!-- Core -> External -->
+  <line x1="640" y1="347" x2="720" y2="347" class="arrow"/>
+
+  <!-- Core -> Cluster -->
+  <line x1="340" y1="385" x2="175" y2="450" class="arrow"/>
+  <line x1="460" y1="385" x2="460" y2="450" class="arrow"/>
+  <line x1="580" y1="385" x2="745" y2="450" class="arrow"/>
+
+  <!-- Cluster interactions -->
+  <line x1="300" y1="492" x2="335" y2="492" class="arrow-dash"/>
+  <line x1="585" y1="492" x2="620" y2="492" class="arrow-dash"/>
+
+  <!-- Cluster -> Storage -->
+  <line x1="175" y1="535" x2="350" y2="590" class="arrow"/>
+  <line x1="460" y1="535" x2="460" y2="590" class="arrow"/>
+  <line x1="745" y1="535" x2="570" y2="590" class="arrow"/>
 
 </svg>
-
