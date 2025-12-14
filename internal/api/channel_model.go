@@ -157,6 +157,22 @@ type channelDeleteReq struct {
 	ChannelType uint8  `json:"channel_type"` // 频道类型
 }
 
+// channelReq 通用频道请求
+type channelReq struct {
+	ChannelId   string `json:"channel_id"`   // 频道ID
+	ChannelType uint8  `json:"channel_type"` // 频道类型
+}
+
+func (r channelReq) Check() error {
+	if r.ChannelId == "" {
+		return errors.New("channel_id不能为空！")
+	}
+	if r.ChannelType == 0 {
+		return errors.New("频道类型不能为0！")
+	}
+	return nil
+}
+
 type whitelistReq struct {
 	ChannelId   string   `json:"channel_id"`   // 频道ID
 	ChannelType uint8    `json:"channel_type"` // 频道类型

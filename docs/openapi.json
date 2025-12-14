@@ -1032,6 +1032,89 @@
         }
       }
     },
+    "/channel/subscriber_remove_all": {
+      "post": {
+        "summary": "Remove All Channel Subscribers | 移除频道所有订阅者",
+        "description": "Remove all subscribers from a channel. Not supported for person channels. Will also delete all related conversations and tags.\n\n**功能说明：**\n- 移除频道的所有订阅者\n- 不支持个人频道（channel_type=1）\n- 会自动删除所有相关会话\n- 会清除频道标签（tag）\n\n**Use Cases:**\n- Clear all members from a group\n- Reset channel membership\n- Prepare channel for deletion",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "All subscribers removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  },
+                  "person_channel_not_supported": {
+                    "summary": "Person channel not supported",
+                    "value": {
+                      "error": "个人频道不支持此操作！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "remove_all_subscribers_error": {
+                    "summary": "Remove all subscribers error",
+                    "value": {
+                      "error": "移除所有订阅者失败！"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tmpchannel/subscriber_set": {
       "post": {
         "summary": "Set Temporary Channel Subscribers | 设置临时频道订阅者",
@@ -1379,7 +1462,58 @@
         }
       }
     },
-
+    "/channel/last_message": {
+      "get": {
+        "summary": "Get Channel Last Message",
+        "description": "Get the last message of a channel. For personal channels, login_uid is required to construct the correct channel identifier.",
+        "tags": ["Message"],
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": true,
+            "description": "Channel ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel_type",
+            "in": "query",
+            "required": true,
+            "description": "Channel type (1=person, 2=group)",
+            "schema": {
+              "type": "integer",
+              "enum": [1, 2]
+            }
+          },
+          {
+            "name": "login_uid",
+            "in": "query",
+            "required": false,
+            "description": "Login user ID (required for personal channels, channel_type=1)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Last message of the channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Channel not found or no messages in channel"
+          }
+        }
+      }
+    },
 
     "/conversations/clearUnread": {
       "post": {
@@ -1556,6 +1690,38 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ChannelResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/conversation/syncByChannels": {
+      "post": {
+        "summary": "Sync Conversations By Channels",
+        "description": "Synchronize conversation data by specified channel collection",
+        "tags": ["Conversation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncConversationByChannelsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversations synchronized successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationResponse"
                   }
                 }
               }
@@ -1919,6 +2085,83 @@
         }
       }
     },
+    "/channel/blacklist_remove_all": {
+      "post": {
+        "summary": "Remove All Channel Blacklist | 移除频道所有黑名单",
+        "description": "Remove all users from channel blacklist.\n\n**功能说明：**\n- 移除频道的所有黑名单用户\n- 清空后所有之前被拉黑的用户可以重新访问频道\n- 支持所有频道类型",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "All blacklist entries removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "remove_all_blacklist_error": {
+                    "summary": "Remove all blacklist error",
+                    "value": {
+                      "error": "移除所有黑名单失败！"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/channel/whitelist_add": {
       "post": {
         "summary": "Add Channel Whitelist | 添加频道白名单",
@@ -2153,6 +2396,83 @@
                     "summary": "Remove whitelist error",
                     "value": {
                       "error": "移除白名单失败！"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channel/whitelist_remove_all": {
+      "post": {
+        "summary": "Remove All Channel Whitelist | 移除频道所有白名单",
+        "description": "Remove all users from channel whitelist.\n\n**功能说明：**\n- 移除频道的所有白名单用户\n- 清空后如果频道启用白名单模式，将没有用户可以发送消息\n- 支持所有频道类型",
+        "tags": ["Channel"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "All whitelist entries removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "missing_channel_id": {
+                    "summary": "Missing channel ID",
+                    "value": {
+                      "error": "channel_id不能为空！"
+                    }
+                  },
+                  "invalid_channel_type": {
+                    "summary": "Invalid channel type",
+                    "value": {
+                      "error": "频道类型不能为0！"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "cluster_error": {
+                    "summary": "Cluster node error",
+                    "value": {
+                      "error": "获取频道所在节点失败！"
+                    }
+                  },
+                  "remove_all_whitelist_error": {
+                    "summary": "Remove all whitelist error",
+                    "value": {
+                      "error": "移除所有白名单失败！"
                     }
                   }
                 }
@@ -2801,6 +3121,28 @@
               "allow_stranger": 1,
               "send_ban": 0
             }
+          }
+        }
+      },
+      "ChannelRequest": {
+        "type": "object",
+        "required": ["channel_id", "channel_type"],
+        "description": "Generic channel request containing only channel_id and channel_type.",
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID. Cannot be empty.",
+            "example": "group123",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "channel_type": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Channel type (1=person, 2=group, etc.)",
+            "example": 2,
+            "minimum": 1,
+            "maximum": 255
           }
         }
       },
@@ -3823,6 +4165,42 @@
             "type": "string",
             "description": "User ID",
             "example": "user123"
+          }
+        }
+      },
+      "SyncConversationByChannelsRequest": {
+        "type": "object",
+        "required": ["uid", "channels"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user123"
+          },
+          "channels": {
+            "type": "array",
+            "description": "Channel collection to sync",
+            "items": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "Channel ID",
+                  "example": "user456"
+                },
+                "channel_type": {
+                  "type": "integer",
+                  "format": "int8",
+                  "description": "Channel type (1: person, 2: group)",
+                  "example": 1
+                }
+              }
+            }
+          },
+          "msg_count": {
+            "type": "integer",
+            "description": "Number of recent messages to return per conversation",
+            "example": 15
           }
         }
       },
