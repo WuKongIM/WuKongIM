@@ -40,21 +40,24 @@ func (ch *channel) route(r *wkhttp.WKHttp) {
 	r.POST("/channel/delete", ch.channelDelete)        // 删除频道
 
 	//################### 订阅者 ###################// 删除频道
-	r.POST("/channel/subscriber_add", ch.addSubscriber)       // 添加订阅者
-	r.POST("/channel/subscriber_remove", ch.removeSubscriber) // 移除订阅者
+	r.POST("/channel/subscriber_add", ch.addSubscriber)              // 添加订阅者
+	r.POST("/channel/subscriber_remove", ch.removeSubscriber)        // 移除订阅者
+	r.POST("/channel/subscriber_remove_all", ch.removeAllSubscriber) // 移除所有订阅者
 
 	r.POST("/tmpchannel/subscriber_set", ch.setTmpSubscriber) // 临时频道设置订阅者(节点内部调用)
 
 	//################### 黑名单 ###################// 删除频道
-	r.POST("/channel/blacklist_add", ch.blacklistAdd)       // 添加黑名单
-	r.POST("/channel/blacklist_set", ch.blacklistSet)       // 设置黑名单（覆盖原来的黑名单数据）
-	r.POST("/channel/blacklist_remove", ch.blacklistRemove) // 移除黑名单
+	r.POST("/channel/blacklist_add", ch.blacklistAdd)              // 添加黑名单
+	r.POST("/channel/blacklist_set", ch.blacklistSet)              // 设置黑名单（覆盖原来的黑名单数据）
+	r.POST("/channel/blacklist_remove", ch.blacklistRemove)        // 移除黑名单
+	r.POST("/channel/blacklist_remove_all", ch.blacklistRemoveAll) // 移除所有黑名单
 
 	//################### 白名单 ###################
-	r.POST("/channel/whitelist_add", ch.whitelistAdd) // 添加白名单
-	r.POST("/channel/whitelist_set", ch.whitelistSet) // 设置白明单（覆盖
-	r.POST("/channel/whitelist_remove", ch.whitelistRemove)
-	r.GET("/channel/whitelist", ch.whitelistGet) // 获取白名单
+	r.POST("/channel/whitelist_add", ch.whitelistAdd)              // 添加白名单
+	r.POST("/channel/whitelist_set", ch.whitelistSet)              // 设置白明单（覆盖
+	r.POST("/channel/whitelist_remove", ch.whitelistRemove)        // 移除白名单
+	r.POST("/channel/whitelist_remove_all", ch.whitelistRemoveAll) // 移除所有白名单
+	r.GET("/channel/whitelist", ch.whitelistGet)                   // 获取白名单
 
 }
 
@@ -496,6 +499,53 @@ func (ch *channel) removeSubscriber(c *wkhttp.Context) {
 	c.ResponseOK()
 }
 
+// 移除频道所有订阅者
+func (ch *channel) removeAllSubscriber(c *wkhttp.Context) {
+	var req channelReq
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		c.ResponseError(errors.Wrap(err, "数据格式有误！"))
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		c.ResponseError(errors.New("个人频道不支持此操作！"))
+		return
+	}
+
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+	if !leaderIsSelf {
+		ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	// 移除所有订阅者
+	err = service.Store.RemoveAllSubscriber(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("移除所有订阅者失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除所有订阅者失败！"))
+		return
+	}
+
+	// 删除tag
+	tagKey := service.TagManager.GetChannelTag(req.ChannelId, req.ChannelType)
+	if tagKey != "" {
+		service.TagManager.RemoveTag(tagKey)
+	}
+
+	c.ResponseOK()
+}
+
 func (ch *channel) setTmpSubscriber(c *wkhttp.Context) {
 	var req tmpSubscriberSetReq
 	bodyBytes, err := BindJSON(&req, c)
@@ -740,6 +790,43 @@ func (ch *channel) blacklistRemove(c *wkhttp.Context) {
 	c.ResponseOK()
 }
 
+// 移除频道所有黑名单
+func (ch *channel) blacklistRemoveAll(c *wkhttp.Context) {
+	var req channelReq
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		ch.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+	if !leaderIsSelf {
+		ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	err = service.Store.RemoveAllDenylist(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("移除所有黑名单失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除所有黑名单失败！"))
+		return
+	}
+
+	c.ResponseOK()
+}
+
 // 删除频道
 func (ch *channel) channelDelete(c *wkhttp.Context) {
 	var req channelDeleteReq
@@ -958,6 +1045,43 @@ func (ch *channel) whitelistRemove(c *wkhttp.Context) {
 	if err != nil {
 		ch.Error("移除白名单失败！", zap.Error(err))
 		c.ResponseError(err)
+		return
+	}
+
+	c.ResponseOK()
+}
+
+// 移除频道所有白名单
+func (ch *channel) whitelistRemoveAll(c *wkhttp.Context) {
+	var req channelReq
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		ch.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelId), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+	if !leaderIsSelf {
+		ch.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	err = service.Store.RemoveAllAllowlist(req.ChannelId, req.ChannelType)
+	if err != nil {
+		ch.Error("移除所有白名单失败！", zap.Error(err))
+		c.ResponseError(errors.New("移除所有白名单失败！"))
 		return
 	}
 

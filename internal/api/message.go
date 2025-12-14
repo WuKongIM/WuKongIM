@@ -57,6 +57,7 @@ func (m *message) route(r *wkhttp.WKHttp) {
 	// 频道消息相关端点（从 channel.go 移动过来）
 	r.POST("/channel/messagesync", m.syncMessages)               // 同步频道消息
 	r.GET("/channel/max_message_seq", m.getChannelMaxMessageSeq) // 获取某个频道最大的消息序号
+	r.GET("/channel/last_message", m.getChannelLastMessage)      // 获取频道最后一条消息
 
 }
 
@@ -1057,6 +1058,59 @@ func (m *message) getChannelMaxMessageSeq(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message_seq": msgSeq,
 	})
+}
+
+// 获取频道最后一条消息
+func (m *message) getChannelLastMessage(c *wkhttp.Context) {
+	loginUid := c.Query("login_uid")
+	channelId := c.Query("channel_id")
+	channelType := wkutil.StringToUint8(c.Query("channel_type"))
+
+	if channelId == "" {
+		c.ResponseError(errors.New("channel_id不能为空"))
+		return
+	}
+
+	fakeChannelId := channelId
+	if channelType == wkproto.ChannelTypePerson {
+		if strings.TrimSpace(loginUid) == "" {
+			c.ResponseError(errors.New("login_uid不能为空"))
+			return
+		}
+		fakeChannelId = options.GetFakeChannelIDWith(loginUid, channelId)
+	}
+
+	leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelId, channelType)
+	if err != nil && errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
+		c.ResponseStatus(http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+
+	if leaderInfo.Id != options.G.Cluster.NodeId {
+		c.Forward(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
+	messages, err := service.Store.LoadLastMsgs(fakeChannelId, channelType, 1)
+	if err != nil {
+		m.Error("获取最后一条消息失败！", zap.Error(err), zap.String("channelID", channelId), zap.Uint8("channelType", channelType))
+		c.ResponseError(err)
+		return
+	}
+
+	if len(messages) == 0 {
+		c.ResponseStatus(http.StatusNotFound)
+		return
+	}
+
+	resp := &types.MessageResp{}
+	resp.From(messages[0], options.G.SystemUID)
+	c.JSON(http.StatusOK, resp)
 }
 
 func (m *message) loadStreamV2Messages(channelId string, channelType uint8, clientMsgNos []string) ([]*wkdb.StreamV2, error) {

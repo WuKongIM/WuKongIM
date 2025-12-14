@@ -278,6 +278,8 @@ func (wk *wukongDB) LoadPrevRangeMsgs(channelId string, channelType uint8, start
 
 	wk.metrics.LoadPrevRangeMsgsAdd(1)
 
+	fmt.Println("startMessageSeq--->", startMessageSeq, "endMessageSeq--->", endMessageSeq, "limit--->", limit)
+
 	if startMessageSeq == 0 {
 		return nil, fmt.Errorf("start messageSeq[%d] must be greater than 0", startMessageSeq)
 
