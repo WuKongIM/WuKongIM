@@ -51,7 +51,7 @@ func ExampleStreamCache() {
 	}
 
 	// Manually end the stream to trigger completion
-	err = cache.EndStream(clientMsgNo, EndReasonSuccess)
+	err = cache.EndStream(clientMsgNo, EndReasonSuccess, "")
 	if err != nil {
 		log.Fatalf("Failed to end stream: %v", err)
 	}
@@ -91,7 +91,7 @@ func ExampleStreamCache_EndStream() {
 	})
 
 	// Manually end the stream when no more chunks are expected
-	err := cache.EndStream(clientMsgNo, EndReasonSuccess)
+	err := cache.EndStream(clientMsgNo, EndReasonSuccess, "")
 	if err != nil {
 		log.Fatalf("Failed to end stream: %v", err)
 	}

@@ -220,7 +220,15 @@ func (e *event) handleTextMessageEnd(req eventReq) error {
 		e.Error("流已关闭！", zap.String("clientMsgNo", req.ClientMsgNo))
 		return errors.New("流已关闭！")
 	}
-	err = service.StreamCache.EndStream(req.ClientMsgNo, wkcache.EndReasonSuccess)
+	var errMsg string
+	if req.Event.Data != "" {
+		errMsg = req.Event.Data
+	}
+	endReason := uint8(wkcache.EndReasonSuccess)
+	if errMsg != "" {
+		endReason = uint8(wkcache.EndReasonError)
+	}
+	err = service.StreamCache.EndStream(req.ClientMsgNo, endReason, errMsg)
 	if err != nil {
 		e.Error("关闭流失败！", zap.Error(err), zap.String("clientMsgNo", req.ClientMsgNo))
 		return err

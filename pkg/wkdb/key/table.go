@@ -917,6 +917,7 @@ var TableStreamV2 = struct {
 		End         [2]byte // 流是否正常结束
 		EndReason   [2]byte // 流结束原因
 		Payload     [2]byte // 流数据
+		Error       [2]byte // 错误信息
 	}
 }{
 	Id:        [2]byte{0x17, 0x01},
@@ -931,6 +932,7 @@ var TableStreamV2 = struct {
 		End         [2]byte
 		EndReason   [2]byte
 		Payload     [2]byte
+		Error       [2]byte
 	}{
 		ClientMsgNo: [2]byte{0x17, 0x01},
 		MessageId:   [2]byte{0x17, 0x02},
@@ -940,5 +942,6 @@ var TableStreamV2 = struct {
 		End:         [2]byte{0x17, 0x06},
 		EndReason:   [2]byte{0x17, 0x07},
 		Payload:     [2]byte{0x17, 0x08},
+		Error:       [2]byte{0x17, 0x09},
 	},
 }

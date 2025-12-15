@@ -75,7 +75,7 @@ type StreamMeta struct {
 	UpdatedAt   time.Time // Last update timestamp
 	Closed      bool      // Whether the stream is closed
 	EndReason   uint8     // Reason why the stream was completed (EndReasonSuccess, EndReasonTimeout, etc.)
-
+	Error       string    // Error message
 	// Common streaming message fields
 	ChannelId   string // fakeChannelID Channel/conversation this stream belongs to, fakeChannelID
 	ChannelType uint8  // Type of channel (person, group, etc.)
@@ -96,6 +96,7 @@ func NewStreamMeta(clientMsgNo string) *StreamMeta {
 		UpdatedAt:    now,
 		Closed:       false,
 		EndReason:    EndReasonSuccess, // Default to success
+		Error:        "",
 		CustomFields: make(map[string]interface{}),
 	}
 }
@@ -176,6 +177,7 @@ func (sm *StreamMeta) Clone() *StreamMeta {
 		ChannelType:  sm.ChannelType,
 		FromUid:      sm.FromUid,
 		MessageId:    sm.MessageId,
+		Error:        sm.Error,
 		CustomFields: make(map[string]interface{}),
 	}
 
@@ -222,6 +224,11 @@ func (b *StreamMetaBuilder) ClientMessage(clientMsgNo string) *StreamMetaBuilder
 
 func (b *StreamMetaBuilder) MessageId(messageId int64) *StreamMetaBuilder {
 	b.meta.MessageId = messageId
+	return b
+}
+
+func (b *StreamMetaBuilder) Error(error string) *StreamMetaBuilder {
+	b.meta.Error = error
 	return b
 }
 
@@ -471,7 +478,7 @@ func (sc *StreamCache) AppendChunk(chunk *MessageChunk) error {
 }
 
 // EndStream marks a stream as complete and flushes it
-func (sc *StreamCache) EndStream(clientMsgNo string, reason uint8) error {
+func (sc *StreamCache) EndStream(clientMsgNo string, reason uint8, errMsg string) error {
 	if clientMsgNo == "" {
 		return ErrInvalidClientMsgNo
 	}
@@ -501,6 +508,7 @@ func (sc *StreamCache) EndStream(clientMsgNo string, reason uint8) error {
 		// Mark stream as closed with the specified reason
 		stream.Meta.Closed = true
 		stream.Meta.EndReason = reason
+		stream.Meta.Error = errMsg
 		stream.Meta.UpdatedAt = time.Now()
 
 		sc.Debug("Ending stream",
@@ -645,7 +653,7 @@ func (sc *StreamCache) EndStreamInChannel(channelId string, channelType uint8, r
 	successCount := 0
 
 	for _, clientMsgNo := range streamsToEnd {
-		err := sc.EndStream(clientMsgNo, reason)
+		err := sc.EndStream(clientMsgNo, reason, "")
 		if err != nil {
 			// Stream might have been manually ended or removed in the meantime
 			if err != ErrStreamNotFound && err != ErrStreamClosed {
@@ -807,7 +815,7 @@ func (sc *StreamCache) autoCompleteInactiveStreams() {
 	for _, clientMsgNo := range inactiveStreams {
 		// Use EndStream to trigger normal completion flow with timeout reason
 		// This handles all the locking and callback execution properly
-		err := sc.EndStream(clientMsgNo, EndReasonTimeout)
+		err := sc.EndStream(clientMsgNo, EndReasonTimeout, "")
 		if err != nil {
 			// Stream might have been manually ended or removed in the meantime
 			if err != ErrStreamNotFound && err != ErrStreamClosed {

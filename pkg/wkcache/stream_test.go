@@ -64,7 +64,7 @@ func TestStreamCache_Basic(t *testing.T) {
 	}
 
 	// Manually end the stream since auto-completion is disabled
-	err = cache.EndStream(clientMsgNo, EndReasonSuccess)
+	err = cache.EndStream(clientMsgNo, EndReasonSuccess, "")
 	if err != nil {
 		t.Fatalf("Failed to end stream: %v", err)
 	}
@@ -506,7 +506,7 @@ func TestStreamCache_HasStreamInChannel(t *testing.T) {
 	}
 
 	// Test with closed stream
-	err := cache.EndStream("msg_1", EndReasonSuccess) // Close stream in channel1 type 1
+	err := cache.EndStream("msg_1", EndReasonSuccess, "") // Close stream in channel1 type 1
 	if err != nil {
 		t.Fatalf("Failed to end stream: %v", err)
 	}
@@ -739,7 +739,7 @@ func TestStreamCache_InactivityTimeout_ManualEndStream(t *testing.T) {
 	time.Sleep(inactivityTimeout - 20*time.Millisecond)
 
 	// Manually end the stream
-	err := cache.EndStream(clientMsgNo, EndReasonSuccess)
+	err := cache.EndStream(clientMsgNo, EndReasonSuccess, "")
 	if err != nil {
 		t.Fatalf("Manual EndStream failed: %v", err)
 	}
@@ -853,7 +853,7 @@ func TestStreamCache_EndReason(t *testing.T) {
 	})
 
 	// End with success reason
-	err := cache.EndStream(clientMsgNo1, EndReasonSuccess)
+	err := cache.EndStream(clientMsgNo1, EndReasonSuccess, "")
 	if err != nil {
 		t.Fatalf("Failed to end stream with success reason: %v", err)
 	}
@@ -869,7 +869,7 @@ func TestStreamCache_EndReason(t *testing.T) {
 	})
 
 	// End with cancelled reason
-	err = cache.EndStream(clientMsgNo2, EndReasonCancelled)
+	err = cache.EndStream(clientMsgNo2, EndReasonCancelled, "")
 	if err != nil {
 		t.Fatalf("Failed to end stream with cancelled reason: %v", err)
 	}
@@ -885,7 +885,7 @@ func TestStreamCache_EndReason(t *testing.T) {
 	})
 
 	// End with invalid reason (should default to success)
-	err = cache.EndStream(clientMsgNo3, 111)
+	err = cache.EndStream(clientMsgNo3, 111, "")
 	if err != nil {
 		t.Fatalf("Failed to end stream with invalid reason: %v", err)
 	}
@@ -1164,7 +1164,7 @@ func TestStreamCache_EndStream_ConcurrentAccess(t *testing.T) {
 	// Start EndStream in a goroutine (this will trigger the slow callback)
 	go func() {
 		close(endStreamStarted) // Signal that EndStream has started
-		err := cache.EndStream(clientMsgNo, EndReasonSuccess)
+		err := cache.EndStream(clientMsgNo, EndReasonSuccess, "")
 		endStreamDone <- err
 	}()
 
