@@ -187,6 +187,7 @@ func New(opts *options.Options) *Server {
 				End:         1,
 				EndReason:   meta.EndReason,
 				Payload:     payload,
+				Error:       meta.Error,
 			})
 		},
 	})
