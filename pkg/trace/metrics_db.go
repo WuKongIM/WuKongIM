@@ -82,10 +82,11 @@ type dbMetrics struct {
 	messageAppendBatchCount atomic.Int64
 
 	// ========== 基础 相关 ==========
-	setCount         atomic.Int64
-	deleteCount      atomic.Int64
-	deleteRangeCount atomic.Int64
-	commitCount      atomic.Int64
+	setCount            atomic.Int64
+	deleteCount         atomic.Int64
+	deleteRangeCount    atomic.Int64
+	deleteRangeMessages atomic.Int64
+	commitCount         atomic.Int64
 
 	// ========== 数据操作 ==========
 	// 白名单
@@ -188,6 +189,12 @@ type dbMetrics struct {
 	leaderTermStartIndex                      atomic.Int64
 	leaderLastTermGreaterThan                 atomic.Int64
 	deleteLeaderTermStartIndexGreaterThanTerm atomic.Int64
+
+	// message_delete_log
+	saveDeleteLog              atomic.Int64
+	getDeleteLogsSinceLogIndex atomic.Int64
+	getDeleteLogsByChannel     atomic.Int64
+	cleanupOldDeleteLogs       atomic.Int64
 }
 
 func NewDBMetrics() *dbMetrics {
@@ -364,14 +371,16 @@ func NewDBMetrics() *dbMetrics {
 	setCount := NewInt64ObservableCounter("db_set_count")
 	deleteCount := NewInt64ObservableCounter("db_delete_count")
 	deleteRangeCount := NewInt64ObservableCounter("db_deleterange_count")
+	deleteRangeMessages := NewInt64ObservableCounter("db_deleterange_messages_count")
 	commitCount := NewInt64ObservableCounter("db_commit_count")
 	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
 		obs.ObserveInt64(setCount, m.setCount.Load())
 		obs.ObserveInt64(deleteCount, m.deleteCount.Load())
 		obs.ObserveInt64(deleteRangeCount, m.deleteRangeCount.Load())
+		obs.ObserveInt64(deleteRangeMessages, m.deleteRangeMessages.Load())
 		obs.ObserveInt64(commitCount, m.commitCount.Load())
 		return nil
-	}, setCount, deleteCount, deleteRangeCount, commitCount)
+	}, setCount, deleteCount, deleteRangeCount, deleteRangeMessages, commitCount)
 
 	// ========== 数据操作 ==========
 	// 白名单
@@ -601,6 +610,20 @@ func NewDBMetrics() *dbMetrics {
 		return nil
 	}, setLeaderTermStartIndex, leaderLastTerm, leaderTermStartIndex, leaderLastTermGreaterThan, deleteLeaderTermStartIndexGreaterThanTerm)
 
+	// message_delete_log
+	saveDeleteLog := NewInt64ObservableCounter("db_save_delete_log_count")
+	getDeleteLogsSinceLogIndex := NewInt64ObservableCounter("db_get_delete_logs_since_log_index_count")
+	getDeleteLogsByChannel := NewInt64ObservableCounter("db_get_delete_logs_by_channel_count")
+	cleanupOldDeleteLogs := NewInt64ObservableCounter("db_cleanup_old_delete_logs_count")
+
+	RegisterCallback(func(ctx context.Context, obs metric.Observer) error {
+		obs.ObserveInt64(saveDeleteLog, m.saveDeleteLog.Load())
+		obs.ObserveInt64(getDeleteLogsSinceLogIndex, m.getDeleteLogsSinceLogIndex.Load())
+		obs.ObserveInt64(getDeleteLogsByChannel, m.getDeleteLogsByChannel.Load())
+		obs.ObserveInt64(cleanupOldDeleteLogs, m.cleanupOldDeleteLogs.Load())
+		return nil
+	}, saveDeleteLog, getDeleteLogsSinceLogIndex, getDeleteLogsByChannel, cleanupOldDeleteLogs)
+
 	return m
 }
 
@@ -796,6 +819,10 @@ func (m *dbMetrics) DeleteAdd(v int64) {
 }
 func (m *dbMetrics) DeleteRangeAdd(v int64) {
 	m.deleteRangeCount.Add(v)
+}
+
+func (m *dbMetrics) DeleteRangeMessagesAdd(v int64) {
+	m.deleteRangeMessages.Add(v)
 }
 
 func (m *dbMetrics) CommitAdd(v int64) {
@@ -1060,4 +1087,18 @@ func (m *dbMetrics) LeaderLastTermGreaterThanAdd(v int64) {
 }
 func (m *dbMetrics) DeleteLeaderTermStartIndexGreaterThanTermAdd(v int64) {
 	m.deleteLeaderTermStartIndexGreaterThanTerm.Add(v)
+}
+
+// message_delete_log
+func (m *dbMetrics) SaveDeleteLogAdd(v int64) {
+	m.saveDeleteLog.Add(v)
+}
+func (m *dbMetrics) GetDeleteLogsSinceLogIndexAdd(v int64) {
+	m.getDeleteLogsSinceLogIndex.Add(v)
+}
+func (m *dbMetrics) GetDeleteLogsByChannelAdd(v int64) {
+	m.getDeleteLogsByChannel.Add(v)
+}
+func (m *dbMetrics) CleanupOldDeleteLogsAdd(v int64) {
+	m.cleanupOldDeleteLogs.Add(v)
 }
