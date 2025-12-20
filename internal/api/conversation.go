@@ -505,7 +505,7 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 
 					resp.Recents = channelRecentMessage.Messages
 					if len(resp.Recents) > 0 {
-						lastMsg := resp.Recents[len(resp.Recents)-1]
+						lastMsg := resp.Recents[0]
 						// 如果最后一条消息是自己发送的，则已读序号为最后一条消息的序号
 						if lastMsg.FromUID == req.UID {
 							resp.ReadedToMsgSeq = uint32(lastMsg.MessageSeq)
