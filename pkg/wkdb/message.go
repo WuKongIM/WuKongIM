@@ -911,10 +911,13 @@ func (wk *wukongDB) LoadMsgByClientMsgNo(channelId string, channelType uint8, cl
 	lowKey := key.NewMessageSecondIndexClientMsgNoKey(clientMsgNo, minMessagePrimaryKey)
 	highKey := key.NewMessageSecondIndexClientMsgNoKey(clientMsgNo, maxMessagePrimaryKey)
 
-	iter := db.NewIter(&pebble.IterOptions{
+	iter, err := db.NewIter(&pebble.IterOptions{
 		LowerBound: lowKey,
 		UpperBound: highKey,
 	})
+	if err != nil {
+		return EmptyMessage, err
+	}
 	defer iter.Close()
 
 	// 遍历索引查找匹配的消息
@@ -926,10 +929,13 @@ func (wk *wukongDB) LoadMsgByClientMsgNo(channelId string, channelType uint8, cl
 		}
 
 		// 通过主键查找消息
-		msgIter := db.NewIter(&pebble.IterOptions{
+		msgIter, err := db.NewIter(&pebble.IterOptions{
 			LowerBound: key.NewMessageColumnKeyWithPrimary(primaryBytes, key.MinColumnKey),
 			UpperBound: key.NewMessageColumnKeyWithPrimary(primaryBytes, key.MaxColumnKey),
 		})
+		if err != nil {
+			return EmptyMessage, err
+		}
 		defer msgIter.Close()
 
 		var msg Message
