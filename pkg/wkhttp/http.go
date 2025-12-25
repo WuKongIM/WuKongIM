@@ -141,8 +141,9 @@ func (c *Context) ForwardWithBody(url string, body []byte) {
 		return
 	}
 
-	c.Writer.WriteHeader(resp.StatusCode)
+	// 必须先设置 Header，再调用 WriteHeader
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	c.Writer.WriteHeader(resp.StatusCode)
 	_, _ = c.Writer.Write([]byte(resp.Body))
 }
 
