@@ -53,7 +53,7 @@ func (h *Handler) OnMessage(m *proto.Message) {
 // 收到事件
 func (h *Handler) OnEvent(ctx *eventbus.ChannelContext) {
 	if options.G.IsLocalNode(ctx.SlotLeaderId) || h.notForwardToLeader(ctx.EventType) {
-		// 执行本地事件
+		// 执行本地事件 ,频道永远在自己的槽领导节点上执行逻辑。
 		eventbus.ExecuteChannelEvent(ctx)
 	} else {
 		if ctx.SlotLeaderId != 0 {

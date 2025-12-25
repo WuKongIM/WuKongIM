@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -525,7 +526,7 @@ func (c *CMD) CMDContent() (string, error) {
 			"deletedAtMsgSeq": deletedAtMsgSeq,
 		}), nil
 	case CMDSaveStreamV2:
-		stream, err := c.DecodeCMDStreamV2()
+		stream, err := c.DecodeCMDStreamV2(c.version)
 		if err != nil {
 			return "", err
 		}
@@ -1595,7 +1596,7 @@ func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelI
 	return
 }
 
-func EncodeCMDStreamV2(stream *wkdb.StreamV2) []byte {
+func EncodeCMDStreamV2(stream *wkdb.StreamV2, version CmdVersion) []byte {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
 	encoder.WriteString(stream.ClientMsgNo)
@@ -1605,13 +1606,18 @@ func EncodeCMDStreamV2(stream *wkdb.StreamV2) []byte {
 	encoder.WriteString(stream.FromUid)
 	encoder.WriteUint8(stream.End)
 	encoder.WriteUint8(stream.EndReason)
+	if version > 0 {
+		if len(stream.Error) > math.MaxInt16 {
+			encoder.WriteString(stream.Error[:math.MaxInt16])
+		} else {
+			encoder.WriteString(stream.Error)
+		}
+	}
 	encoder.WriteBytes(stream.Payload)
-	data := encoder.Bytes()
-
-	return data
+	return encoder.Bytes()
 }
 
-func (c *CMD) DecodeCMDStreamV2() (stream *wkdb.StreamV2, err error) {
+func (c *CMD) DecodeCMDStreamV2(version CmdVersion) (stream *wkdb.StreamV2, err error) {
 	decoder := wkproto.NewDecoder(c.Data)
 	stream = &wkdb.StreamV2{}
 
@@ -1636,6 +1642,11 @@ func (c *CMD) DecodeCMDStreamV2() (stream *wkdb.StreamV2, err error) {
 	}
 	if stream.EndReason, err = decoder.Uint8(); err != nil {
 		return
+	}
+	if version > 0 {
+		if stream.Error, err = decoder.String(); err != nil {
+			return
+		}
 	}
 
 	if stream.Payload, err = decoder.BinaryAll(); err != nil {

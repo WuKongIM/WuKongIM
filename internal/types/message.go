@@ -26,6 +26,7 @@ type MessageResp struct {
 	// v2 版本的stream的字段
 	End        uint8  `json:"end,omitempty"` // 是否是最后一段
 	EndReason  uint8  `json:"end_reason,omitempty"`
+	Error      string `json:"error,omitempty"`       // 错误信息
 	StreamData []byte `json:"stream_data,omitempty"` // 消息块合并后的字节
 
 	MessageSeq  uint64 `json:"message_seq"`     // 消息序列号 （用户唯一，有序递增）
