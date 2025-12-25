@@ -897,6 +897,59 @@ func (wk *wukongDB) SearchMessages(req MessageSearchReq) ([]Message, error) {
 	return allMsgs, nil
 }
 
+// LoadMsgByClientMsgNo 通过 clientMsgNo 加载指定频道的消息
+func (wk *wukongDB) LoadMsgByClientMsgNo(channelId string, channelType uint8, clientMsgNo string) (Message, error) {
+	wk.metrics.SearchMessagesAdd(1)
+
+	if strings.TrimSpace(clientMsgNo) == "" {
+		return EmptyMessage, fmt.Errorf("clientMsgNo is empty")
+	}
+
+	db := wk.channelDb(channelId, channelType)
+
+	// 通过 clientMsgNo 索引查找主键
+	lowKey := key.NewMessageSecondIndexClientMsgNoKey(clientMsgNo, minMessagePrimaryKey)
+	highKey := key.NewMessageSecondIndexClientMsgNoKey(clientMsgNo, maxMessagePrimaryKey)
+
+	iter := db.NewIter(&pebble.IterOptions{
+		LowerBound: lowKey,
+		UpperBound: highKey,
+	})
+	defer iter.Close()
+
+	// 遍历索引查找匹配的消息
+	for iter.First(); iter.Valid(); iter.Next() {
+		primaryBytes, err := key.ParseMessageSecondIndexKey(iter.Key())
+		if err != nil {
+			wk.Error("LoadMsgByClientMsgNo: parseMessageSecondIndexKey failed", zap.Error(err))
+			continue
+		}
+
+		// 通过主键查找消息
+		msgIter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewMessageColumnKeyWithPrimary(primaryBytes, key.MinColumnKey),
+			UpperBound: key.NewMessageColumnKeyWithPrimary(primaryBytes, key.MaxColumnKey),
+		})
+		defer msgIter.Close()
+
+		var msg Message
+		err = wk.iteratorChannelMessages(msgIter, 0, func(m Message) bool {
+			msg = m
+			return false
+		})
+		if err != nil {
+			return EmptyMessage, err
+		}
+
+		// 验证消息确实属于指定的频道且 clientMsgNo 匹配
+		if msg.ChannelID == channelId && msg.ChannelType == channelType && msg.ClientMsgNo == clientMsgNo {
+			return msg, nil
+		}
+	}
+
+	return EmptyMessage, ErrNotFound
+}
+
 func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w *Batch) error {
 	data := make([]byte, 16)
 	wk.endian.PutUint64(data[0:8], seq)

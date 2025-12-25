@@ -188,3 +188,29 @@ func (c *Client) handleRespError(resp *proto.Response) error {
 	}
 	return nil
 }
+
+// RequestPersistAfter 转发PersistAfter请求到指定节点
+func (c *Client) RequestPersistAfter(toNodeId uint64, channelId string, channelType uint8, messagesData []byte) error {
+	req := &PersistAfterReq{
+		ChannelId:   channelId,
+		ChannelType: channelType,
+		Messages:    messagesData,
+	}
+
+	data, err := req.Encode()
+	if err != nil {
+		c.Error("RequestPersistAfter: encode failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return err
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	resp, err := service.Cluster.RequestWithContext(timeoutCtx, toNodeId, "/wk/ingress/persistAfter", data)
+	if err != nil {
+		c.Error("RequestPersistAfter: request failed", zap.Error(err), zap.Uint64("toNodeId", toNodeId), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return err
+	}
+
+	return c.handleRespError(resp)
+}

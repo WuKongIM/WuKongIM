@@ -48,11 +48,11 @@
   <text x="335" y="86" class="sublabel">Flutter / etc</text>
 
   <rect x="560" y="52" width="100" height="50" class="box box-client"/>
-  <text x="610" y="72" class="title">后台管理</text>
-  <text x="610" y="86" class="sublabel">Admin UI</text>
+  <text x="610" y="72" class="title">Admin Panel</text>
+  <text x="610" y="86" class="sublabel">Web UI</text>
 
   <rect x="680" y="52" width="130" height="50" class="box box-client"/>
-  <text x="745" y="72" class="title">第三方集成</text>
+  <text x="745" y="72" class="title">3rd Party</text>
   <text x="745" y="86" class="sublabel">Webhook / Plugin</text>
 
   <!-- Layer 2: Gateway -->
@@ -60,7 +60,7 @@
   <text x="40" y="147" class="layer-title">GATEWAY LAYER</text>
   
   <rect x="280" y="155" width="360" height="45" class="box box-gateway"/>
-  <text x="460" y="175" class="title">连接处理 wknet</text>
+  <text x="460" y="175" class="title">Connection Handler (wknet)</text>
   <text x="460" y="189" class="sublabel">TCP  /  WebSocket  /  WSS</text>
 
   <!-- Layer 3: Core Server -->
@@ -68,26 +68,26 @@
   <text x="40" y="242" class="layer-title">CORE SERVICE LAYER</text>
 
   <rect x="70" y="285" width="120" height="50" class="box box-core"/>
-  <text x="130" y="307" class="title">事件总线</text>
+  <text x="130" y="307" class="title">Event Bus</text>
   <text x="130" y="321" class="sublabel">EventBus</text>
 
   <rect x="280" y="255" width="360" height="130" class="box box-core"/>
-  <text x="460" y="278" class="title">核心逻辑 internal/server</text>
+  <text x="460" y="278" class="title">Core Logic (internal/server)</text>
   <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
-    <text x="380" y="305">认证/授权</text>
-    <text x="540" y="305">消息路由</text>
-    <text x="380" y="330">用户管理</text>
-    <text x="540" y="330">频道管理</text>
-    <text x="380" y="355">连接管理</text>
-    <text x="540" y="355">指令处理</text>
+    <text x="380" y="305">Auth/Permission</text>
+    <text x="540" y="305">Msg Routing</text>
+    <text x="380" y="330">User Mgmt</text>
+    <text x="540" y="330">Channel Mgmt</text>
+    <text x="380" y="355">Conn Mgmt</text>
+    <text x="540" y="355">Cmd Handling</text>
   </g>
 
   <rect x="720" y="255" width="120" height="55" class="box box-core"/>
-  <text x="780" y="278" class="title">API 服务</text>
+  <text x="780" y="278" class="title">API Service</text>
   <text x="780" y="293" class="sublabel">internal/api</text>
 
   <rect x="720" y="320" width="120" height="55" class="box box-core"/>
-  <text x="780" y="343" class="title">外部集成</text>
+  <text x="780" y="343" class="title">External</text>
   <text x="780" y="358" class="sublabel">Webhook / Plugin</text>
 
   <!-- Layer 4: Cluster -->
@@ -95,24 +95,24 @@
   <text x="40" y="432" class="layer-title">CLUSTER MANAGEMENT LAYER</text>
 
   <rect x="50" y="450" width="250" height="85" class="box box-cluster"/>
-  <text x="175" y="472" class="title">节点管理 Node</text>
+  <text x="175" y="472" class="title">Node Management</text>
   <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
-    <text x="175" y="495">集群配置 (Raft)</text>
-    <text x="175" y="512">节点发现 / 状态 / 事件同步</text>
+    <text x="175" y="495">Cluster Config (Raft)</text>
+    <text x="175" y="512">Discovery / Status / Event Sync</text>
   </g>
 
   <rect x="335" y="450" width="250" height="85" class="box box-cluster"/>
-  <text x="460" y="472" class="title">槽管理 Slot</text>
+  <text x="460" y="472" class="title">Slot Management</text>
   <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
-    <text x="460" y="495">元数据 (Raft)</text>
-    <text x="460" y="512">频道配置 / 用户数据 / 分配迁移</text>
+    <text x="460" y="495">Metadata (Raft)</text>
+    <text x="460" y="512">Channel Config / User Data / Allocation</text>
   </g>
 
   <rect x="620" y="450" width="250" height="85" class="box box-cluster"/>
-  <text x="745" y="472" class="title">频道管理 Channel</text>
+  <text x="745" y="472" class="title">Channel Management</text>
   <g fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10" text-anchor="middle">
-    <text x="745" y="495">消息数据 (Raft)</text>
-    <text x="745" y="512">消息存储 / 同步 / 频道元数据</text>
+    <text x="745" y="495">Message Data (Raft)</text>
+    <text x="745" y="512">Msg Store / Sync / Channel Metadata</text>
   </g>
 
   <!-- Layer 5: Storage -->
@@ -120,8 +120,8 @@
   <text x="40" y="582" class="layer-title">STORAGE LAYER</text>
 
   <rect x="280" y="590" width="360" height="50" class="box box-storage"/>
-  <text x="460" y="612" class="title">分布式存储 wkdb</text>
-  <text x="460" y="627" class="sublabel">基于 PebbleDB  ·  消息 / 用户 / Raft日志</text>
+  <text x="460" y="612" class="title">Distributed Storage (wkdb)</text>
+  <text x="460" y="627" class="sublabel">Based on PebbleDB  ·  Messages / Users / Raft Logs</text>
 
   <!-- Arrows: Clients -> Gateway -->
   <path d="M 95 102 Q 95 130 350 155" class="arrow"/>

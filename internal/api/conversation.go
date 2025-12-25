@@ -40,7 +40,8 @@ func (s *conversation) route(r *wkhttp.WKHttp) {
 	r.POST("/conversation/sync", s.syncUserConversation)            // 同步会话
 	r.POST("/conversation/syncMessages", s.syncRecentMessages)      // 同步会话最近消息
 
-	r.POST("/conversation/channels", s.conversationChannels) // 获取最近会话的频道集合
+	r.POST("/conversation/channels", s.conversationChannels)             // 获取最近会话的频道集合
+	r.POST("/conversation/syncByChannels", s.syncConversationByChannels) // 通过频道集合同步会话数据
 }
 
 // // Get a list of recent conversations
@@ -504,7 +505,7 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 
 					resp.Recents = channelRecentMessage.Messages
 					if len(resp.Recents) > 0 {
-						lastMsg := resp.Recents[len(resp.Recents)-1]
+						lastMsg := resp.Recents[0]
 						// 如果最后一条消息是自己发送的，则已读序号为最后一条消息的序号
 						if lastMsg.FromUID == req.UID {
 							resp.ReadedToMsgSeq = uint32(lastMsg.MessageSeq)
@@ -665,4 +666,158 @@ func (s *conversation) conversationChannels(c *wkhttp.Context) {
 func (s *conversation) getChannelLastMsgSeq(channelId string, channelType uint8) (uint64, error) {
 
 	return service.Store.GetLastMsgSeq(channelId, channelType)
+}
+
+// syncConversationByChannels 通过频道集合同步会话数据
+func (s *conversation) syncConversationByChannels(c *wkhttp.Context) {
+	var req struct {
+		UID      string `json:"uid"`
+		Channels []struct {
+			ChannelId   string `json:"channel_id"`
+			ChannelType uint8  `json:"channel_type"`
+		} `json:"channels"`
+		MsgCount int `json:"msg_count"`
+	}
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		s.Error("数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+
+	if req.UID == "" {
+		c.ResponseError(errors.New("uid cannot be empty"))
+		return
+	}
+	if len(req.Channels) == 0 {
+		c.ResponseError(errors.New("channels cannot be empty"))
+		return
+	}
+
+	// 集群路由
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(req.UID, wkproto.ChannelTypePerson)
+	if err != nil {
+		s.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.UID), zap.Uint8("channelType", wkproto.ChannelTypePerson))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+
+	if !leaderIsSelf {
+		s.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	msgCount := req.MsgCount
+	if msgCount <= 0 {
+		msgCount = 15
+	}
+
+	// 获取真实的频道ID（用于响应）
+	getRealChannelId := func(fakeChannelId string, channelType uint8) string {
+		realChannelId := fakeChannelId
+		if channelType == wkproto.ChannelTypePerson {
+			from, to := options.GetFromUIDAndToUIDWith(fakeChannelId)
+			if req.UID == from {
+				realChannelId = to
+			} else {
+				realChannelId = from
+			}
+		}
+		return realChannelId
+	}
+
+	// 构建频道请求列表和会话映射
+	channelRecentMessageReqs := make([]*channelRecentMessageReq, 0, len(req.Channels))
+	conversationMap := make(map[string]wkdb.Conversation)
+
+	for _, ch := range req.Channels {
+		// 转换为 fakeChannelId
+		fakeChannelId := ch.ChannelId
+		if ch.ChannelType == wkproto.ChannelTypePerson {
+			fakeChannelId = options.GetFakeChannelIDWith(req.UID, ch.ChannelId)
+		}
+
+		// 获取会话数据
+		conversation, err := service.Store.GetConversation(req.UID, fakeChannelId, ch.ChannelType)
+		if err != nil && err != wkdb.ErrNotFound {
+			s.Error("获取会话失败！", zap.Error(err), zap.String("uid", req.UID), zap.String("channelId", fakeChannelId))
+			c.ResponseError(errors.New("获取会话失败！"))
+			return
+		}
+
+		if wkdb.IsEmptyConversation(conversation) {
+			conversation = wkdb.Conversation{
+				Uid:         req.UID,
+				ChannelId:   fakeChannelId,
+				ChannelType: ch.ChannelType,
+				Type:        wkdb.ConversationTypeChat,
+			}
+		}
+
+		channelKey := wkutil.ChannelToKey(fakeChannelId, ch.ChannelType)
+		conversationMap[channelKey] = conversation
+
+		channelRecentMessageReqs = append(channelRecentMessageReqs, &channelRecentMessageReq{
+			ChannelId:   fakeChannelId,
+			ChannelType: ch.ChannelType,
+			LastMsgSeq:  0,
+		})
+	}
+
+	// 批量获取最近消息
+	channelRecentMessages, err := s.s.requset.getRecentMessagesForCluster(req.UID, msgCount, channelRecentMessageReqs, true)
+	if err != nil {
+		s.Error("获取最近消息失败！", zap.Error(err), zap.String("uid", req.UID))
+		c.ResponseError(errors.New("获取最近消息失败！"))
+		return
+	}
+
+	// 组装响应
+	resps := make([]*syncUserConversationResp, 0, len(req.Channels))
+
+	for _, ch := range req.Channels {
+		fakeChannelId := ch.ChannelId
+		if ch.ChannelType == wkproto.ChannelTypePerson {
+			fakeChannelId = options.GetFakeChannelIDWith(req.UID, ch.ChannelId)
+		}
+
+		channelKey := wkutil.ChannelToKey(fakeChannelId, ch.ChannelType)
+		conversation := conversationMap[channelKey]
+
+		resp := newSyncUserConversationResp(conversation)
+		resp.ChannelId = getRealChannelId(fakeChannelId, ch.ChannelType)
+
+		// 填充最近消息
+		for _, channelRecentMessage := range channelRecentMessages {
+			if fakeChannelId == channelRecentMessage.ChannelId && ch.ChannelType == channelRecentMessage.ChannelType {
+				if len(channelRecentMessage.Messages) > 0 {
+					lastMsg := channelRecentMessage.Messages[0]
+					resp.LastMsgSeq = uint32(lastMsg.MessageSeq)
+					resp.LastClientMsgNo = lastMsg.ClientMsgNo
+					resp.Timestamp = int64(lastMsg.Timestamp)
+					if lastMsg.MessageSeq > uint64(resp.ReadedToMsgSeq) {
+						resp.Unread = int(lastMsg.MessageSeq - uint64(resp.ReadedToMsgSeq))
+					}
+					resp.Version = time.Unix(int64(lastMsg.Timestamp), 0).UnixNano()
+				}
+				resp.Recents = channelRecentMessage.Messages
+
+				// 如果最后一条消息是自己发送的，则已读序号为最后一条消息的序号
+				if len(resp.Recents) > 0 {
+					lastMsg := resp.Recents[len(resp.Recents)-1]
+					if lastMsg.FromUID == req.UID {
+						resp.ReadedToMsgSeq = uint32(lastMsg.MessageSeq)
+						resp.Unread = 0
+					}
+				}
+				break
+			}
+		}
+
+		resps = append(resps, resp)
+	}
+
+	c.JSON(http.StatusOK, resps)
 }

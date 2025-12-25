@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wkcache"
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -150,6 +148,12 @@ func (e *event) handleTextMessageStart(req eventReq) error {
 		return err
 	}
 
+	err = e.sendEvent(messageId, req)
+	if err != nil {
+		e.Error("发送流开始事件失败！", zap.Error(err))
+		return err
+	}
+
 	// 发送消息
 	err = e.sendStreamMessage(messageId, req)
 	if err != nil {
@@ -216,60 +220,20 @@ func (e *event) handleTextMessageEnd(req eventReq) error {
 		e.Error("流已关闭！", zap.String("clientMsgNo", req.ClientMsgNo))
 		return errors.New("流已关闭！")
 	}
-	err = service.StreamCache.EndStream(req.ClientMsgNo, wkcache.EndReasonSuccess)
+	var errMsg string
+	if req.Event.Data != "" {
+		errMsg = req.Event.Data
+	}
+	endReason := uint8(wkcache.EndReasonSuccess)
+	if errMsg != "" {
+		endReason = uint8(wkcache.EndReasonError)
+	}
+	err = service.StreamCache.EndStream(req.ClientMsgNo, endReason, errMsg)
 	if err != nil {
 		e.Error("关闭流失败！", zap.Error(err), zap.String("clientMsgNo", req.ClientMsgNo))
 		return err
 	}
-	return nil
-}
-
-func (e *event) storeMessage(req eventReq) (wkdb.Message, error) {
-	fakeChannelId := req.ChannelId
-	if req.ChannelType == wkproto.ChannelTypePerson {
-		fakeChannelId = options.GetFakeChannelIDWith(req.ChannelId, req.FromUid)
-	}
-
-	clientMsgNo := req.ClientMsgNo
-
-	messageId := options.G.GenMessageId()
-
-	var setting wkproto.Setting
-	setting = setting.Set(wkproto.SettingStream)
-
-	msg := wkdb.Message{
-		RecvPacket: wkproto.RecvPacket{
-			Setting:     setting,
-			MessageID:   messageId,
-			ClientMsgNo: clientMsgNo,
-			FromUID:     req.FromUid,
-			ChannelID:   fakeChannelId,
-			ChannelType: req.ChannelType,
-			Timestamp:   int32(time.Now().Unix()),
-			Payload:     []byte(req.Event.Data),
-		},
-	}
-
-	// 保存消息
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	results, err := service.Store.AppendMessages(timeoutCtx, fakeChannelId, req.ChannelType, []wkdb.Message{
-		msg,
-	})
-	cancel()
-	if err != nil {
-		e.Error("保存消息失败！", zap.Error(err))
-		return msg, err
-	}
-	if len(results) == 0 {
-		e.Error("保存消息失败！没返回结果", zap.Error(errors.New("保存消息失败")))
-		return msg, errors.New("保存消息失败")
-	}
-	result := results[0]
-
-	msg.MessageSeq = uint32(result.Index)
-
-	return msg, nil
-
+	return e.sendEvent(meta.MessageId, req)
 }
 
 func (e *event) sendStreamMessage(messageId int64, req eventReq) error {

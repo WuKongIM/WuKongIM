@@ -14,6 +14,7 @@ type StreamV2 struct {
 	End         uint8
 	EndReason   uint8
 	Payload     []byte
+	Error       string
 }
 
 func (wk *wukongDB) SaveStreamV2(stream *StreamV2) error {
@@ -48,6 +49,9 @@ func (wk *wukongDB) SaveStreamV2(stream *StreamV2) error {
 		return err
 	}
 	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.Payload), stream.Payload, wk.noSync); err != nil {
+		return err
+	}
+	if err := batch.Set(key.NewStreamV2ColumnKey(stream.ClientMsgNo, key.TableStreamV2.Column.Error), []byte(stream.Error), wk.noSync); err != nil {
 		return err
 	}
 
@@ -94,6 +98,8 @@ func (wk *wukongDB) GetStreamV2(clientMsgNo string) (*StreamV2, error) {
 			var payload = make([]byte, len(iter.Value()))
 			copy(payload, iter.Value())
 			streamV2.Payload = payload
+		case key.TableStreamV2.Column.Error:
+			streamV2.Error = string(iter.Value())
 		}
 		hasData = true
 	}

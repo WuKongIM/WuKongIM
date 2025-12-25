@@ -283,6 +283,7 @@ func (s *request) processSingleChannel(uid string, msgCount int, channel *channe
 			s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
 			return nil, err
 		}
+
 		if len(recentMessages) > 0 {
 			for _, recentMessage := range recentMessages {
 				messageResp := &types.MessageResp{}
@@ -293,7 +294,6 @@ func (s *request) processSingleChannel(uid string, msgCount int, channel *channe
 	}
 
 	streamClientMsgNos := make([]string, 0, len(messageResps)) // 已存储的流消息ID
-
 	for _, message := range messageResps {
 		setting := wkproto.Setting(message.Setting)
 		if !setting.IsSet(wkproto.SettingStream) {
@@ -318,6 +318,7 @@ func (s *request) processSingleChannel(uid string, msgCount int, channel *channe
 
 					message.End = streamV2.End
 					message.EndReason = streamV2.EndReason
+					message.Error = streamV2.Error
 					message.StreamData = streamV2.Payload
 					break
 				}

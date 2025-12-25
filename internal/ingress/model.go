@@ -369,6 +369,38 @@ func (s *StreamReqV2) Decode(data []byte) error {
 
 type StreamRespV2 []*wkdb.StreamV2
 
+type PersistAfterReq struct {
+	ChannelId   string
+	ChannelType uint8
+	Messages    []byte // pluginproto.MessageBatch 序列化后的数据
+}
+
+func (r *PersistAfterReq) Encode() ([]byte, error) {
+	enc := wkproto.NewEncoder()
+	defer enc.End()
+	enc.WriteString(r.ChannelId)
+	enc.WriteUint8(r.ChannelType)
+	enc.WriteBytes(r.Messages)
+	return enc.Bytes(), nil
+}
+
+func (r *PersistAfterReq) Decode(data []byte) error {
+	dec := wkproto.NewDecoder(data)
+	var err error
+
+	if r.ChannelId, err = dec.String(); err != nil {
+		return err
+	}
+	if r.ChannelType, err = dec.Uint8(); err != nil {
+		return err
+	}
+	r.Messages, err = dec.BinaryAll()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *StreamRespV2) Encode() ([]byte, error) {
 	enc := wkproto.NewEncoder()
 	defer enc.End()
